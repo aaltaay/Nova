@@ -22,10 +22,12 @@ Session Record's books and prints this measures both:
    a drop shown just after a print held that print in its own window.
 4. **Depth late, directly.** A lit print through the displayed best price (above the best ask, below the
    best bid; that best level at least ``DEPTH_LATE_MIN_LEVEL``, so an unprotected odd lot proves nothing)
-   proves the best level was emptied; how long until a book showed that level smaller or gone.
+   proves the best level was emptied; how long until a book showed that level smaller or gone, and
+   whether the book showed new size posted there first (a refill, not the book trailing its tape).
 
 A print with no book within ``BOOK_WATCH_IDLE_SEC`` either side (the tape kept without a depth line) and a
-cross print are left out. Pure apart from the recordings it reads; owner of no file.
+cross print are left out. The detector runs as live does, with its sweep rule (#636) on; ``sweep_study.py``
+measures that rule. Pure apart from the recordings it reads; owner of no file.
 ``tools/book_watch_window_study.py`` prints it.
 """
 from __future__ import annotations
@@ -39,8 +41,12 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any, Iterable
 
-from book_watch.book import aggregate, lit_print, price_key, tick_for
-from book_watch.constants_book_watch import BOOK_WATCH_AUCTION_CONDITIONS, BOOK_WATCH_IDLE_SEC
+from book_watch.book import SideView, aggregate, lit_print, price_key, side_view, tick_for
+from book_watch.constants_book_watch import (
+    BOOK_WATCH_AUCTION_CONDITIONS,
+    BOOK_WATCH_IDLE_SEC,
+    BOOK_WATCH_SWEEP_MIN_LEVEL,
+)
 from book_watch.detector import SymbolWatch
 from book_watch.hidden import HiddenParams
 from book_watch.matching import PRICE_EPS, MatchParams, claim
@@ -58,9 +64,9 @@ SEEDS = (1, 2)
 # t1 (the book that showed the drop) less the print's arrival.
 EVIDENCE_SEC = {"print_late_0.5_3": (-3.0, -0.5), "print_early_0.5_1": (0.5, 1.0), "print_early_1_3": (1.0, 3.0)}
 DEPTH_LATE_BINS = ((0.5, "<=0.5"), (1.0, "0.5-1"), (3.0, "1-3"), (10.0, "3-10"))
-DEPTH_LATE_MIN_LEVEL = 100.0
+DEPTH_LATE_MIN_LEVEL = BOOK_WATCH_SWEEP_MIN_LEVEL
 # No hidden seller fires while the study runs; the tracker only follows its stretches.
-_NO_HIDDEN = HiddenParams(min_shares=math.inf)
+NO_HIDDEN = HiddenParams(min_shares=math.inf)
 
 
 @dataclass
@@ -70,7 +76,7 @@ class Recording:
     date: str
     symbol: str
     books: list[tuple[float, list[Any], list[Any]]]
-    prints: list[tuple[float, float, float, bool]]   # ts, price key, shares, lit
+    prints: list[tuple[float, float, float, bool, str]]   # ts, price key, shares, lit, sale conditions
     book_ts: list[float] = field(default_factory=list)
     bids: list[dict[float, float]] = field(default_factory=list)
     asks: list[dict[float, float]] = field(default_factory=list)
@@ -78,6 +84,7 @@ class Recording:
     best_ask: list[float | None] = field(default_factory=list)
     cross: int = 0
     tape_only: int = 0
+    _views: tuple[int, dict[str, SideView]] | None = None
 
     def __post_init__(self) -> None:
         self.book_ts = [b[0] for b in self.books]
@@ -109,6 +116,13 @@ class Recording:
             return "bid"
         return None
 
+    def views(self, i: int) -> dict[str, SideView]:
+        """Book ``i``'s two sides as the detector sees them (the last one asked is kept)."""
+        if self._views is None or self._views[0] != i:
+            _ts, bids, asks = self.books[i]
+            self._views = (i, {"bid": side_view(bids, "bid", NUM_ROWS), "ask": side_view(asks, "ask", NUM_ROWS)})
+        return self._views[1]
+
     @property
     def covered_sec(self) -> float:
         return sum(min(b - a, BOOK_WATCH_IDLE_SEC) for a, b in pairwise(self.book_ts))
@@ -134,7 +148,7 @@ def read(directory: Path) -> Recording:
         if set(str(row.get("conditions") or "")) & BOOK_WATCH_AUCTION_CONDITIONS:
             cross += 1
             continue
-        raw.append((ts, key, shares, lit_print(row)))
+        raw.append((ts, key, shares, lit_print(row), str(row.get("conditions") or "")))
     books.sort(key=lambda b: b[0])
     raw.sort(key=lambda p: p[0])
     rec = Recording(directory.parent.name, directory.name.upper(), books, [], cross=cross)
@@ -143,7 +157,7 @@ def read(directory: Path) -> Recording:
     return rec
 
 
-def _fed(rec: Recording) -> Iterable[tuple[str, tuple]]:
+def fed(rec: Recording) -> Iterable[tuple[str, tuple]]:
     """Books and prints in arrival order, a book first on a tie (as the replay merges them)."""
     bi = pi = 0
     while bi < len(rec.books) or pi < len(rec.prints):
@@ -155,12 +169,12 @@ def _fed(rec: Recording) -> Iterable[tuple[str, tuple]]:
             pi += 1
 
 
-def _new_sweep() -> dict[str, Any]:
+def new_totals() -> dict[str, Any]:
     return {"dropped": 0.0, "filled": 0.0, "pulled": 0.0, "large_pulls": 0,
             "flags": {"pulled_on_approach": 0, "repeated_pulls": 0}, "large_drops": 0, "large_traded": 0}
 
 
-def _count(tot: dict[str, Any], events: list[dict[str, Any]]) -> None:
+def count_events(tot: dict[str, Any], events: list[dict[str, Any]]) -> None:
     for e in events:
         kind = e["event"]
         if kind == "minute":
@@ -178,25 +192,25 @@ def _count(tot: dict[str, Any], events: list[dict[str, Any]]) -> None:
 def sweep(rec: Recording) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
     """The detector at every window, and every drop the 0.5 s run judged with the prints it claimed."""
     judged: list[dict[str, Any]] = []
-    watches = {w: SymbolWatch(rec.symbol, num_rows=NUM_ROWS, hidden=_NO_HIDDEN,
+    watches = {w: SymbolWatch(rec.symbol, num_rows=NUM_ROWS, hidden=NO_HIDDEN,
                               match=MatchParams(w, w, w + SETTLE_AFTER_SEC), judged=judged if w == BASE_SEC else None)
                for w in WINDOWS_SEC}
-    totals = {w: _new_sweep() for w in WINDOWS_SEC}
-    for kind, item in _fed(rec):
+    totals = {w: new_totals() for w in WINDOWS_SEC}
+    for kind, item in fed(rec):
         for w, watch in watches.items():
             if kind == "book":
-                _count(totals[w], watch.on_book(item[0], item[1], item[2]))
+                count_events(totals[w], watch.on_book(item[0], item[1], item[2]))
             else:
-                _count(totals[w], watch.on_print(item[0], item[1], item[2], lit=item[3]))
+                count_events(totals[w], watch.on_print(item[0], item[1], item[2], lit=item[3], conditions=item[4]))
     for w, watch in watches.items():
-        _count(totals[w], watch.flush())
+        count_events(totals[w], watch.flush())
     return {f"{w:g}": totals[w] for w in WINDOWS_SEC}, judged
 
 
 def unclaimed(rec: Recording, judged: list[dict[str, Any]]) -> list[list[float]]:
     """Lit size per (arrival, price) that no drop claimed: ``[ts, price, shares left]``, in arrival order."""
     size: dict[tuple[float, float], float] = defaultdict(float)
-    for ts, key, shares, lit in rec.prints:
+    for ts, key, shares, lit, _conditions in rec.prints:
         if lit:
             size[(ts, key)] += shares
     for d in judged:
@@ -276,9 +290,11 @@ def _evidence(rows: list[list[float]], pulled_t1: dict[float, list[float]]) -> d
 
 
 def depth_late(rec: Recording) -> dict[str, int]:
-    """Lit prints through the displayed best price, by how long a book took to show that level emptied."""
-    out = {"through": 0, **{name: 0 for _, name in DEPTH_LATE_BINS}, "never": 0}
-    for ts, key, _shares, lit in rec.prints:
+    """Lit prints through the displayed best price, by how long a book took to show that level smaller; and
+    ``grew_first``, those not shown smaller within the first bin whose level the book showed larger first
+    (new size posted there: a refill, not the book trailing its tape)."""
+    out = {"through": 0, **{name: 0 for _, name in DEPTH_LATE_BINS}, "never": 0, "grew_first": 0}
+    for ts, key, _shares, lit, _conditions in rec.prints:
         i = rec.book_at(ts) if lit else None
         if i is None:
             continue
@@ -297,14 +313,18 @@ def depth_late(rec: Recording) -> dict[str, int]:
         out["through"] += 1
         limit = DEPTH_LATE_BINS[-1][0]
         lag = None
+        grew = False
         for j in range(i + 1, len(rec.books)):
             if rec.book_ts[j] > ts + limit:
                 break
-            if levels[j].get(best, 0.0) < shown:
+            size = levels[j].get(best, 0.0)
+            if size < shown:
                 lag = rec.book_ts[j] - ts
                 break
+            grew = grew or size > shown
         name = "never" if lag is None else next(n for edge, n in DEPTH_LATE_BINS if lag <= edge)
         out[name] += 1
+        out["grew_first"] += grew and name != DEPTH_LATE_BINS[0][1]
     return out
 
 

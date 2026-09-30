@@ -6,5 +6,6 @@ consistent with spoofing, never a detection -- and the mirror: hidden sellers
 and buyers, more traded at a price that held than the book ever showed there.
 Read-only: nothing here places, gates or cancels an order. See detector.py,
 matching.py (which prints fill a drop) and hidden.py (pure), live.py (the
-worker), journal.py, replay.py, hidden_study.py, window_study.py and view.py.
+worker), journal.py, replay.py, hidden_study.py, window_study.py, sweep_study.py
+and view.py.
 """

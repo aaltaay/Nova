@@ -1640,8 +1640,9 @@ unknown, never pulled; a side that collapses at once, an L1-only book and IBKR's
 book reset are not judged). A drop in size is judged `BOOK_WATCH_SETTLE_SEC`
 later: lit prints at exactly that price inside `BOOK_WATCH_MATCH_SLACK_SEC` of
 the two books are **filled** (each print claimed once; FINRA and midpoint
-prints never fill; the window is `book_watch/matching.py`'s, measured below),
-the rest **pulled**. A pull is **large** at `BOOK_WATCH_LARGE_MIN_SHARES` and
+prints never fill; the window is `book_watch/matching.py`'s, measured below; a
+level a print traded through first takes that print's own, #636 below), the
+rest **pulled**. A pull is **large** at `BOOK_WATCH_LARGE_MIN_SHARES` and
 `BOOK_WATCH_LARGE_MEDIAN_MULT` x the side's median level. A large pull event is
 `{event: "pull", symbol, ts, side: "bid" | "ask", price, pulled, filled,
 level_before, level_after, median_level, distance_ticks,
@@ -1766,19 +1767,22 @@ of the time against 46% after a busy offer (104 against 66); a hidden buyer made
 **The matching window, measured** (ADR 033 amendment 2026-09-30; asked after the hidden-seller study:
 the lit size at the quote that no drop claimed often had a pulled drop at its price nearby, so does the
 window call fills "pulled"? "Change it only if the evidence is clear"). The detector takes the window
-as a parameter, `MatchParams(before_sec, after_sec, settle_sec)` (owner `book_watch/matching.py`;
-`settle_sec` must exceed `after_sec`), and an optional `judged` list that collects every judged drop
-with the prints it claimed; the live watcher runs the defaults and collects nothing. A lit print fills
-only a level at exactly its price (price keys, `matching.PRICE_EPS`): the old half-tick test let
+as a parameter, `MatchParams(before_sec, after_sec, settle_sec, sweep_hold_sec)` (owner
+`book_watch/matching.py`; `settle_sec` must exceed `after_sec`, and a swept level's prints must still be
+kept when its drop is judged), and an optional `judged` list that collects every judged drop with the
+prints it claimed; the live watcher runs the defaults and collects nothing. A lit print fills only a
+level at exactly its price (price keys, `matching.PRICE_EPS`): the old half-tick test let
 floating-point error match a midpoint print to the level below it. `tools/book_watch_window_study.py`
-(read-only; owner `book_watch/window_study.py`) runs the detector over every Session Record, cross
-prints and prints with no book within `BOOK_WATCH_IDLE_SEC` left out, and answers `{schema_version: 1,
+(read-only; owners `book_watch/window_study.py` and `book_watch/sweep_study.py`) runs the detector over
+every Session Record up to yesterday (`--until`; today's may still be recording), cross prints and
+prints with no book within `BOOK_WATCH_IDLE_SEC` left out, and answers `{schema_version: 1,
 windows_sec: [0.5, 1, 2, 3], extensions_sec: [1, 2, 3], shift_sec: [30, 60], seeds: [1, 2],
-recordings: [{date, symbol, books, books_per_sec, prints, left_out: {cross, tape_only}, sweep,
-extension, evidence, depth_late}], by_day: {DATE: {sweep, extension, evidence, depth_late}}, total}`:
+sweep_hold_sec, recordings: [{date, symbol, books, books_per_sec, prints, left_out: {cross, tape_only},
+sweep, extension, evidence, depth_late, sweep_rule}], by_day: {DATE: {sweep, extension, evidence,
+depth_late, sweep_rule}}, total}`:
 - `sweep: {"0.5" | "1" | "2" | "3": {dropped, filled, pulled, large_pulls, flags: {pulled_on_approach,
   repeated_pulls}, large_drops, large_traded}}` -- the detector with that window either side of a
-  drop's two books, judged 0.25 s after it closes (shares and counts).
+  drop's two books, judged 0.25 s after it closes (shares and counts), with the sweep rule on.
 - `extension: {pulled, before | after: {"1" | "2" | "3": {real, moved_real, moved, tick_out}}}` --
   shares a window reaching that far before the earlier book (the print early: the book trailing the
   tape) or after the later one (the print late) would fill beyond the 0.5 s window, of the `pulled`
@@ -1789,15 +1793,50 @@ extension, evidence, depth_late}], by_day: {DATE: {sweep, extension, evidence, d
 - `evidence: {real | moved: {volume, print_late_0.5_3, print_early_0.5_1, print_early_1_3}}` -- the
   unclaimed lit size at the best bid or ask, and how much of it had a pulled drop at its price shown
   0.5-3 s before it or 0.5-1 s / 1-3 s after it; real and moved are the same prints.
-- `depth_late: {through, "<=0.5", "0.5-1", "1-3", "3-10", never}` -- lit prints through the displayed
-  best price (that level at least 100 shares), by when a book showed that level smaller or gone.
+- `depth_late: {through, "<=0.5", "0.5-1", "1-3", "3-10", never, grew_first}` -- lit prints through the
+  displayed best price (that level at least 100 shares), by when a book showed that level smaller or
+  gone; `grew_first` counts those not shown smaller within 0.5 s whose level the book showed larger
+  first (new size posted there: a refill, not the book trailing its tape).
+- `sweep_rule: {sweeps, levels, pulled_off, off, on, covered: {drops, dropped, filled_off, filled_on},
+  reach: {real, matched_real, moved, beyond}}` -- the sweep rule below: the sweeps and the levels they
+  took; the detector at 0.5 s without the rule (`off`; its drops left `pulled_off` shares pulled) and
+  with it (`on`), each shaped like a `sweep` entry; the drops the rule let take a sweep's prints
+  (`covered`: their size, and what read filled without and with the rule); and the size the rule adds
+  to what the detector fills (`reach`), always the detector itself: `real` with the sweeps it finds;
+  `matched_real` / `moved` with its own sweeps off and given the sweeps that a move of 30-60 s could
+  place at a moment their best price stood as the best again, at their own moments / moved (mean of
+  the seeds); `beyond` given the level one tick past where each sweep stopped, at its own moments. Real
+  less moved (or beyond) is what the rule recovers; moved and beyond are chance.
 
 On the 27 recordings of 2026-09-21..29 the window stays 0.5 s: moved prints had a pulled drop 0.5-3 s
 before them as often as the real ones (45.3% against 44.9%); 87.9% of 339,550 through-prints saw the
 book show their level gone within 0.5 s and 10.2% took 0.5-3 s; and reaching 1 s before the earlier
 book would fill 2.3% of the 82.0M shares called pulled, only 0.5-0.6 points beyond chance (3 s: 7.8%,
-1.3-2.2 beyond; 1 s after the later book: 2.0%, 0.2-0.3 beyond). A targeted fix for the late book --
-a print through a displayed level proves it traded -- is parked as #636.
+1.3-2.2 beyond; 1 s after the later book: 2.0%, 0.2-0.3 beyond).
+
+**A level a print traded through reads traded** (ADR 033 amendment 2026-09-30, #636; the operator: "1
+go"). A lit, price-setting print above the book's best ask (below its best bid) proves the size the book
+showed at the round-lot levels from the best to its own price traded: a protected quote cannot be
+traded through. `matching.Sweeps` keeps that size owed per level. For `BOOK_WATCH_SWEEP_HOLD_SEC` (3 s)
+after the sweep, a drop at one of those levels first takes the sweep's own prints -- lit prints at its
+exact price within 0.5 s of the sweep -- at most the size still owed, and then its own window; each
+drop the book shows there pays the owed size down. New size posted at the level, or the level leaving
+the view, ends it: a later drop there may be the new order, pulled, and the sweep's leftover prints (a
+hidden order, a refill that traded) are not its own. A level pulled before the sweep reached it has no
+print there and still reads pulled. An odd lot, a cross, a volume-only or an off-exchange print proves
+nothing (`BOOK_WATCH_SWEEP_SKIP_CONDITIONS`), nor does a print through an odd-lot best
+(`BOOK_WATCH_SWEEP_MIN_LEVEL`) or a book older than `BOOK_WATCH_IDLE_SEC`; a book reset forgets every
+sweep. On the same 27 recordings: 9,695 sweeps; the drops the rule covers read 86.2% traded without
+it and 88.7% with it; it adds 0.37% of the size called pulled (299,598 shares), 98% of it beyond chance
+against the level a tick past each sweep and 76% against the same sweeps moved 30-60 s -- on the
+recordings that kept every book IBKR sent (2026-09-25 and -29), 0.14%, 91% and 49%; large pulls 11,121 ->
+11,071, flags 3,190 -> 3,176. A first build without the owed size or the end on new size added 1.6%, and
+84% of what it relabeled on six busy recordings sat at levels refilled after the sweep: its chance tests
+passed, because the prints were real and next to a real sweep and only the drop they filled was wrong.
+Of the 12.1% of through-prints not shown smaller within 0.5 s, 4.2 points had new size posted at the
+level first (`grew_first`); 7.8% sat in the book untouched until it showed them smaller. The window
+stays 0.5 s: with the rule on, reaching 1 s before the earlier book still adds 2.0%, 0.3-0.4 points
+beyond chance.
 
 ### The trading screen is always recorded (ADR 035, operator decision 2026-09-24)
 
@@ -3222,6 +3261,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-30 | The Cryptos page (ADR 040; operator: "give us a new tab called Cryptos and create a dashboard showing what a person need to see in the crypto world", then mockup v1: "go ahead and build exact replica ... when the user hover over things, make sure you show in friendly visual way what does it mean"). A nav-rail page laid out as the approved mockup: market tiles, 13 coins, a Coinbase chart with the day's levels and the 16:00 ET stock close, a 24/7 clock, the stocks that move with crypto (IBKR quotes and regular-hours closes, a 60-session beta and the move it implies), funding and open interest, stablecoin flows, what comes next and classified news. Crypto numbers come from named public reference sources (CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit, Alpaca news), each labelled, a carve-out written into `single-market-data-feed.mdc` rule 13; nothing on the page places or feeds anything. Liquidations, daily ETF flows, a macro calendar and token unlocks have no free source and are stated absences. Nothing polls while the page is closed. Every number opens a hover card: what it means, a small drawing, what it reads now, why it matters. §3 and §4 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-30 | A level a print traded through reads traded (ADR 033 amendment, #636; the operator: "1 go"). IBKR's book trails its tape: a lit print above the best ask (below the best bid) proves the size the book showed at the levels up to its price traded, yet the book can show it for seconds more, and its drop then read pulled. For 3 s after such a print, a drop at one of those levels now first takes that print's own prints at its price, at most the size the book showed there when it went through; new size posted at the level ends it (`matching.Sweeps`). A first build without that limit passed both chance tests, yet 84% of what it relabeled sat at levels refilled after the sweep (on BKYI a 5,600-share bid posted after a sweep and then pulled read traded): a placebo cannot see real prints credited to the wrong drop. Measured on the 27 Session Records of 2026-09-21..29 through the detector itself: the rule adds 0.37% of the size called pulled, 98% of it beyond chance against a tick past and 76% against moved sweeps (on the recordings that kept every book: 0.14%, 91% and 49%); large pulls 11,121 -> 11,071. #637's late book, split: of the through-levels shown late, a third had new size posted first (`depth_late.grew_first`). The window stays 0.5 s. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The book watcher's matching window, measured (ADR 033 amendment; asked after the hidden-seller study, "change it only if the evidence is clear"). The lit size at the quote that no drop claimed often had a pulled drop at its price nearby, which looked like fills the 0.5 s window missed. `tools/book_watch_window_study.py` (owner `book_watch/window_study.py`) runs the detector over the 27 Session Records of 2026-09-21..29 at 0.5, 1, 2 and 3 s and weighs what a wider window adds against the same prints moved 30-60 s and one tick out: the nearby pulled drops are chance on busy prices (45.3% moved against 44.9% real), the book trails the tape for about 1 in 10 levels a print traded through, and for each late fill a wider window would recover it claims three to five chance prints before the earlier book, six or more past the later one. The window stays 0.5 s; the detector takes it as a parameter (`book_watch/matching.py`), and a lit print now fills only a level at exactly its price (the half-tick test matched midpoint prints to the level below by floating-point error). A targeted fix for the late book is parked as #636. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Hidden sellers and buyers on Level 2 (ADR 033 amendment; operator: "do we have a way to detect hidden sellers? like we have spoofing!?", then the mockup and "1 go"). The book watcher's mirror of a pull: at a price that held, what traded beyond the most the book ever showed there (`book_watch/hidden.py`). Measured first on every Session Record (`tools/hidden_study.py`, 26 hours with a book): a per-print "unclaimed" count called 60-75% of the volume at the quote hidden (the book and the tape arrive seconds apart), and without a hold the rule fired on sweeps and said nothing. The defaults -- held 10 s, 2,000 printed, 3x the most shown -- are what the study supported: a minute after a hidden seller the price was past the offer 37% of the time against 46% after an offer that showed its size; a hidden buyer made no difference. The ladder outlines the row and marks it in violet, each side's minute line adds "◆", the Tape tile reads "Hidden seller", and `/sensors/flow`'s `iceberg_hint` -- true whenever any level grew -- is now the watcher's word. The setup tape gate is unchanged (the operator's call). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Share clips (ADR 039; operator: "I want to be able to record videos. Can I have maybe a small red button ... to share with the world?", seven decisions, then mockup v1 approved: "1 go"). A red ● on every Trader tab opens one Record menu: Market data (the Session Record, unchanged) and Video clip. A clip is marks on ADR 035's always-on screen recording -- no cap, no load, it survives a restart with the gap marked, and Save the last 5 min reads the tab's past. High quality adds a 30 fps capture of the tab's window in its own hidden page (at most 2, 30 min each). The header shows CLIP chips beside REC, a pointed-at chip frames its tab, and Records gains Video clips. Exports are MP4 (H.264) made on a hidden, sandboxed page with WebCodecs + mediabunny: the Trader tab with the header left out by default, the size and P&L panels blurred, hidden stretches cut, high quality where it ran and the screen recording around it. Verified end to end against the desk's real recording on F:, and through the desk itself (the red button, the chip, the toast, the dialog): that run caught an order-ticket blur that named an element no component renders (a test now checks every blur target) and a trim that took the tab to be shown before the clip, so the export now leaves out, and says so, any stretch Nova did not follow. `GET` / `POST /api/clips` and a `clips` checklist row; two unbound Nova Actions. §3 amended. | User Directive + Claude Opus 5.5 |
