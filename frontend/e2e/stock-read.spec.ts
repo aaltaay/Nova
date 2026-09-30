@@ -69,6 +69,13 @@ function tenSecondBars(): Bar[] {
   return out;
 }
 
+/** The stock-mode view of a stock nobody has set: Signal only, on Paper. */
+const SIGNAL_ONLY_VIEW = {
+  schema_version: 1, symbol: 'APUS', generated_at: Date.UTC(2026, 8, 24, 19, 3) / 1000, venue: 'paper',
+  mode: 'signal', buy: 'you', sell: 'you', risk_usd: null, set_at: null, locks: { buy: null, sell: null },
+  notes: [], approval: null, trade: null, nova_entries_today: 0, last_event: null, bot: null,
+};
+
 /** `readFor(url)` answers each read (the forming flag by default). */
 async function openApus(page: Page, readFor: (url: string) => unknown = () => apusReadWire) {
   await mockLiveTraderApi(page, { bars: false, positions: [] });
@@ -92,6 +99,10 @@ async function openApus(page: Page, readFor: (url: string) => unknown = () => ap
     contentType: 'application/json', body: JSON.stringify(apusHistoryWire) }));
   await page.route(/\/api\/stock-read\/APUS(\?.*)?$/, route => route.fulfill({ status: 200,
     contentType: 'application/json', body: JSON.stringify(readFor(route.request().url())) }));
+  // The Who trades row above Level 2 (ADR 037) reads this; unanswered, it adds an error line and
+  // takes Level 2's room (#639). Signal only on Paper: what a desk that has set nothing shows.
+  await page.route('**/api/stock-mode/APUS', route => route.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify(SIGNAL_ONLY_VIEW) }));
   await page.goto('/?view=stock&symbol=APUS');
   await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible({ timeout: 20_000 });
 }

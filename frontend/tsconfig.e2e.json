@@ -1,0 +1,11 @@
+{
+  /* The E2E fixture pages mount real desk components with hand-written props and hook calls. Nothing
+     type-checked them, so a renamed hook option broke the replay chart fixture for a week before a
+     Playwright run said so (#639). `tsc -b` checks them with the app's rules. */
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo"
+  },
+  "include": ["e2e/fixtures", "src/vite-env.d.ts", "src/types"],
+  "exclude": []
+}
