@@ -13,13 +13,18 @@ BOOK_WATCH_DEFAULT_ROOT_WIN = r"F:\Nova\book_watch"
 
 # IBKR's depth and AllLast lines arrive separately, so a print that took a
 # level can land a little before or after the book that shows the level
-# smaller. Prints this far either side of the two books count toward the drop.
-# Measured on GCTK 2026-09-24 (6,171 drops at the inside): the nearest print at
-# the level's price sat within 0.2 s of the books for most drops, with a long
-# tail; widening this turns inside pulls into fills but barely moves the flags.
+# smaller. Prints this far either side of the two books count toward the drop
+# (matching.py). Measured over the 27 Session Records of 2026-09-21..29
+# (tools/book_watch_window_study.py): the book does trail the tape -- of the
+# lit prints through the displayed best price, 88% saw a book show that level
+# gone within 0.5 s and 10% took 0.5-3 s -- but a wider window claims more
+# prints that only traded at the same price nearby. Reaching 1 s before the
+# earlier book would fill 2.3% of the size now called pulled, only 0.5-0.6
+# points of it beyond chance (the same prints moved 30-60 s, or one tick out);
+# 3 s, 7.8% with 1.3-2.2 beyond; past the later book, less. Keep 0.5.
 BOOK_WATCH_MATCH_SLACK_SEC = 0.5
 # A drop is judged this long after the book that showed it, so a late print
-# can still claim it; must exceed the slack.
+# can still claim it; must exceed the slack. Every ladder mark waits this long.
 BOOK_WATCH_SETTLE_SEC = 0.75
 # Prints kept for matching.
 BOOK_WATCH_PRINT_KEEP_SEC = 10.0
@@ -112,7 +117,10 @@ BOOK_WATCH_CAVEATS = (
     "Ten rows a side (one row per venue and price): size below them is not seen, and a price at the edge of the rows may be cut off, so it is never judged.",
     "Size only, per price and venue: no order ids and no owners, so nothing here proves who pulled what or why.",
     "Times are when data reached Nova, not the exchange's.",
-    "Filled means lit prints at that price inside the matching window; off-exchange (FINRA) prints never fill a level.",
+    f"Filled means lit prints at exactly that price within {BOOK_WATCH_MATCH_SLACK_SEC:g} s of the two books; "
+    "off-exchange (FINRA) and midpoint prints never fill a level.",
+    "IBKR's book can trail its tape: about 1 in 10 best levels a print traded through left the book 0.5-3 s "
+    "later, and what traded there reads as pulled.",
     "Hidden means lit prints at a price that held, beyond the most the book ever showed there; "
     "cross (auction) prints and off-exchange reports never count.",
 )

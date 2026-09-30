@@ -2,7 +2,7 @@
 
 Every drop in resting size at a price wholly in view in two consecutive books
 is judged ``BOOK_WATCH_SETTLE_SEC`` later against the lit prints at that price
-inside the matching window: what printed is **filled**, the rest **pulled**. A
+inside the matching window (``matching.py``): what printed is **filled**, the rest **pulled**. A
 pull is **large** at ``BOOK_WATCH_LARGE_MIN_SHARES`` and
 ``BOOK_WATCH_LARGE_MEDIAN_MULT`` x the side's median level. Two flags, each with
 its evidence: ``pulled_on_approach`` (a large pull after the price came toward
@@ -28,7 +28,6 @@ from book_watch.book import (
     in_view,
     median_level,
     price_key,
-    same_price,
     side_view,
 )
 from book_watch.constants_book_watch import (
@@ -36,16 +35,15 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_FLAGS_KEEP,
     BOOK_WATCH_LARGE_MEDIAN_MULT,
     BOOK_WATCH_LARGE_MIN_SHARES,
-    BOOK_WATCH_MATCH_SLACK_SEC,
     BOOK_WATCH_PRINT_KEEP_SEC,
     BOOK_WATCH_PULLS_KEEP,
     BOOK_WATCH_RATE_WINDOW_SEC,
     BOOK_WATCH_REPEAT_COUNT,
     BOOK_WATCH_REPEAT_WINDOW_SEC,
-    BOOK_WATCH_SETTLE_SEC,
     BOOK_WATCH_STATS_WINDOW_SEC,
 )
 from book_watch.hidden import DEFAULT_HIDDEN, HiddenParams, HiddenTracker, Stretch
+from book_watch.matching import DEFAULT_MATCH, MatchParams, claim
 
 SIDES = ("bid", "ask")
 _OPPOSITE = {"bid": "ask", "ask": "bid"}
@@ -68,9 +66,13 @@ def _large(shares: float, median_size: float | None) -> bool:
 
 class SymbolWatch:
     def __init__(self, symbol: str, *, num_rows: int, hidden: HiddenParams = DEFAULT_HIDDEN,
-                 hidden_history: list[Stretch] | None = None) -> None:
+                 hidden_history: list[Stretch] | None = None, match: MatchParams = DEFAULT_MATCH,
+                 judged: list[dict[str, Any]] | None = None) -> None:
         self.symbol = symbol
         self.num_rows = num_rows
+        self.match = match
+        # Every judged drop with the prints it claimed, for the study (window_study.py); live passes none.
+        self.judged = judged
         self.prev: dict[str, SideView] | None = None
         self.prev_ts: float | None = None
         # (side, price) -> {posted_ts, dist_post, opp_at_post}; posted_ts None = seen, not seen arriving.
@@ -183,7 +185,7 @@ class SymbolWatch:
             if after < before:
                 info = self.tracked.get((side, price)) or {}
                 self.pending.append({
-                    "deadline": ts + BOOK_WATCH_SETTLE_SEC, "t0": self.prev_ts, "t1": ts, "side": side,
+                    "deadline": ts + self.match.settle_sec, "t0": self.prev_ts, "t1": ts, "side": side,
                     "price": price, "drop": before - after, "before": before, "after": after,
                     "distance": distance_ticks(side, price, prev.best), "dist_post": info.get("dist_post"),
                     "posted_ts": info.get("posted_ts"), "opp_at_post": info.get("opp_at_post"),
@@ -208,30 +210,19 @@ class SymbolWatch:
 
     # -- judging a drop ------------------------------------------------------
 
-    def _claim(self, drop: dict[str, Any]) -> float:
-        """Shares printed at the level's price in the window, claimed oldest first."""
-        start = (drop["t0"] if drop["t0"] is not None else drop["t1"]) - BOOK_WATCH_MATCH_SLACK_SEC
-        end = drop["t1"] + BOOK_WATCH_MATCH_SLACK_SEC
-        need = drop["drop"]
-        filled = 0.0
-        for row in self.prints:
-            if filled >= need:
-                break
-            ts, price, left = row
-            if ts <= start or ts > end or left <= 0 or not same_price(price, drop["price"]):
-                continue
-            take = min(left, need - filled)
-            row[2] = left - take
-            filled += take
-        return filled
-
     def _judge(self, drop: dict[str, Any]) -> list[dict[str, Any]]:
-        filled = self._claim(drop)
+        t0 = drop["t0"] if drop["t0"] is not None else drop["t1"]
+        taken: list[tuple[float, float, float]] | None = [] if self.judged is not None else None
+        filled = claim(self.prints, t0 - self.match.before_sec, drop["t1"] + self.match.after_sec,
+                       drop["price"], drop["drop"], taken)
         pulled = max(0.0, drop["drop"] - filled)
         med = drop["median"]
         large = _large(pulled, med)
         t1 = drop["t1"]
         side = drop["side"]
+        if self.judged is not None:
+            self.judged.append({"t0": t0, "t1": t1, "side": side, "price": drop["price"], "drop": drop["drop"],
+                                "filled": filled, "pulled": pulled, "large": large, "median": med, "claims": taken})
         self.window.append((t1, pulled, filled, large, side))
         while self.window and self.window[0][0] < t1 - BOOK_WATCH_STATS_WINDOW_SEC:
             self.window.popleft()
