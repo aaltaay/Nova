@@ -843,9 +843,15 @@ before it, by `created_ts`, else `timestamp`; the reply stays a bare list). `GET
 board; `type=movers` reads the `gainers-` / `losers-` files. `/api/ibkr/status`
 adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
 
-**Auto-record.** 07:00-10:00 ET the backend records the top
+**Auto-record.** 07:00-10:00 ET the backend records, first, the setups of the
+templates in play that are in a scored trade (`trade`), near their trigger
+(`near`) or armed (`armed`), then the top
 `LEADERBOARD_AUTO_RECORD_TOP_N` `LEADERS_RULES` names of the live Gainers
-board through the Session Record path, using only **free** Level 2 lines
+board (ADR 041: the tape at a setup's trigger and through its trade is what the
+signal trials read). A setup takes a leader's line once that line has run
+`LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC`, never another setup's; a trade
+keeps its line past 10:00 until its scoring window ends. It records
+through the Session Record path, using only **free** Level 2 lines
 (`IBKR_MAX_DEPTH_SYMBOLS` total), and yields its lowest-ranked line the
 moment the operator opens Level 2 on another symbol -- the operator never
 loses Level 2 (operator decision 2026-09-22). It never starts, stops or
@@ -854,7 +860,11 @@ adopts a symbol the operator recorded by hand; its stops are planned
 unrequested stop; the operator pressing Record also takes a line back, and a
 symbol the operator stopped is not retaken that day. `NOVA_AUTO_RECORD=0`
 turns it off. `/api/ibkr/status` adds `auto_record: {active, window,
-symbols[], leaders[], yielded[], last_error}`; `/api/diagnostics` adds the
+symbols[], why: {SYMBOL: "trade" | "near" | "armed" | "leader" | "left"},
+setups: [{symbol, why}], setups_error: string | null, leaders[], yielded[],
+last_error}` (`setups_error`: the setup scanner could not be read -- stated,
+never read as "no setups"); the operator taking a line back gives up the
+lowest-ranked first (`left`, then `leader`, `armed`, `near`, `trade`); `/api/diagnostics` adds the
 `leaderboard_recorder` and `auto_record` rows (group `recorder`).
 
 **Retention: keep everything, guard the drive** (operator decision on #485,
@@ -1065,6 +1075,31 @@ true`, `base`, `overrides`, and every template's summary adds `exits`, `flush`
 and `vs_base: {base, paired, avg_r_delta, better, worse, same} | null` -- the
 same setups (day, symbol, leg) against the run's first template.
 `tools/eyes_backtest.py sweep` builds the variants from a grid.
+
+### Signal trials (ADR 041, operator decision 2026-09-30)
+
+"how can we use all this data to determine if we should buy or sell or hold?" -- a study of every
+Level 2, Time & Sales and setup signal on 6 recorded days found no buy edge, and a 30 s flush exit
+and two don't-buy states that held in sample only (`F:\Nova\eyes\studies\buy-sell-hold-2026-09-29\`).
+A tape or book reading becomes a call (or an automated action on a practice venue) only by passing a
+trial registered before its data exists. The registry is `knowledge/signal-trials.json`:
+`{schema_version: 1, registry: "signal-trials", adr, registered_at, data_from, frozen: true, note,
+reading: {when, multiplicity, peeking, failed}, common: {recordings, prints, random_long: {every_sec,
+entry, filters: {ask_min, ask_max, max_spread, quote_max_age_sec}, bracket: {target_cents,
+stop_cents, time_stop_min}, fills}, lag_honest_exit, control, costs}, trials: [{id, name, role:
+"sell" | "sell_bot_only" | "buy_veto" | "buy_warning", signal, rule, population, primary_metric,
+test, sample: object, pass: string[], reported_not_deciding: string[], on_pass, on_fail, in_sample:
+{study, evidence}}]}` -- T1 the 30 s flush exit on random longs, T2 sellers own the last 10 s, T3 a
+red burst at bot speed, T4 a down-sweep, T5 a planned risk under 5c, T6 the 30 s flush on setup
+trades. Only data dated `data_from` (2026-09-30) or later counts; each trial is read once, when its
+sample is complete, Holm-adjusted across the trials read that night, and shows n of N until then.
+The file is frozen: `backend/tests/test_signal_trials_registry.py` holds its canonical JSON (sorted
+keys, no whitespace) to the SHA-256 it was registered with, so a change is a new trial on new days,
+never an edit. No trial lets Nova buy or sell on Live by itself. Recorded with it (built later):
+a planned risk under 5c warns and never blocks until T5 passes; a "Flush exit 30 s" template plays
+on Nova's Paper bot (put in play outside the bot's window, out again if T1 fails); Approve may hold
+Nova's flush and 15-minute exits on Paper and on Sim at the live edge; the Trader's WAIT and SELL
+NOW · FLUSH lines show as calls marked "in trial" (description only on Live) until read.
 
 ### The bot's read on one stock (ADR 036, operator ask 2026-09-24, #598)
 
@@ -3221,6 +3256,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | Signal trials, and setups first for the Level 2 lines (ADR 041; operator: "how can we use all this data to determine if we should buy or sell or hold?", then "combining time and sale with all 4 colors ... think about all of that!", then "i like it. go"). A study of every Level 2, Time & Sales and setup signal on 25 Session Records over 6 days, each result checked by two reviewers, found no buy edge (a random long loses 6.85c; every green Time & Sales event, a 12-feature model and every setup type lose too) and, in sample only, a 30 s flush exit and two don't-buy states. None of it becomes a call until it passes a trial registered before its data exists: `knowledge/signal-trials.json` (T1-T6), frozen by hash. Nova held no depth line at 50 of 62 setup triggers, so auto-record now gives its free lines to setups in a trade, near or armed before the leaders, and keeps a trade's line to the end of its scoring window. The operator's calls (risk under 5c warns; a flush-30 template on the Paper bot; Approve may hold Nova's exits on Paper) are recorded for later changes. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The Cryptos page (ADR 040; operator: "give us a new tab called Cryptos and create a dashboard showing what a person need to see in the crypto world", then mockup v1: "go ahead and build exact replica ... when the user hover over things, make sure you show in friendly visual way what does it mean"). A nav-rail page laid out as the approved mockup: market tiles, 13 coins, a Coinbase chart with the day's levels and the 16:00 ET stock close, a 24/7 clock, the stocks that move with crypto (IBKR quotes and regular-hours closes, a 60-session beta and the move it implies), funding and open interest, stablecoin flows, what comes next and classified news. Crypto numbers come from named public reference sources (CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit, Alpaca news), each labelled, a carve-out written into `single-market-data-feed.mdc` rule 13; nothing on the page places or feeds anything. Liquidations, daily ETF flows, a macro calendar and token unlocks have no free source and are stated absences. Nothing polls while the page is closed. Every number opens a hover card: what it means, a small drawing, what it reads now, why it matters. §3 and §4 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The book watcher's matching window, measured (ADR 033 amendment; asked after the hidden-seller study, "change it only if the evidence is clear"). The lit size at the quote that no drop claimed often had a pulled drop at its price nearby, which looked like fills the 0.5 s window missed. `tools/book_watch_window_study.py` (owner `book_watch/window_study.py`) runs the detector over the 27 Session Records of 2026-09-21..29 at 0.5, 1, 2 and 3 s and weighs what a wider window adds against the same prints moved 30-60 s and one tick out: the nearby pulled drops are chance on busy prices (45.3% moved against 44.9% real), the book trails the tape for about 1 in 10 levels a print traded through, and for each late fill a wider window would recover it claims three to five chance prints before the earlier book, six or more past the later one. The window stays 0.5 s; the detector takes it as a parameter (`book_watch/matching.py`), and a lit print now fills only a level at exactly its price (the half-tick test matched midpoint prints to the level below by floating-point error). A targeted fix for the late book is parked as #636. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Hidden sellers and buyers on Level 2 (ADR 033 amendment; operator: "do we have a way to detect hidden sellers? like we have spoofing!?", then the mockup and "1 go"). The book watcher's mirror of a pull: at a price that held, what traded beyond the most the book ever showed there (`book_watch/hidden.py`). Measured first on every Session Record (`tools/hidden_study.py`, 26 hours with a book): a per-print "unclaimed" count called 60-75% of the volume at the quote hidden (the book and the tape arrive seconds apart), and without a hold the rule fired on sweeps and said nothing. The defaults -- held 10 s, 2,000 printed, 3x the most shown -- are what the study supported: a minute after a hidden seller the price was past the offer 37% of the time against 46% after an offer that showed its size; a hidden buyer made no difference. The ladder outlines the row and marks it in violet, each side's minute line adds "◆", the Tape tile reads "Hidden seller", and `/sensors/flow`'s `iceberg_hint` -- true whenever any level grew -- is now the watcher's word. The setup tape gate is unchanged (the operator's call). §3 amended. | User Directive + Claude Opus 5.5 |

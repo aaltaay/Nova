@@ -119,6 +119,10 @@ LEADERBOARD_AUTO_RECORD_BOARD = LEADERBOARD_BOARD_GAINERS
 # name flickering in and out of the top 3 does not churn the Level 2 lines.
 LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC = 120.0
 LEADERBOARD_AUTO_RECORD_TICK_SEC = 15.0
+# A setup (in a scored trade, near, or armed; ADR 040) outranks a leader for a
+# line, but only once that leader has been recorded this long -- IB refuses a
+# depth line asked again within 15 s, and a line that barely opened recorded nothing.
+LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC = 60.0
 
 # ── Playback API ────────────────────────────────────────────────────────────
 # Every day on file: five years of rebuilt sessions plus recorded ones (~330 ms at 1,255 days).

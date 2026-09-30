@@ -1,8 +1,22 @@
-"""Auto-record the leaders 07:00-10:00 ET (ADR 023) -- on free Level 2 lines only.
+"""Auto-record the setups and the leaders 07:00-10:00 ET (ADR 023, ADR 040) -- on free Level 2 lines only.
 
-The leaders are ``ranking.leader_symbols(rows, LEADERS_RULES)`` over the live
-Gainers board, the same call playback makes on the recorded minute. Rules the
-operator set (2026-09-22):
+Who gets a line, in order (ADR 040, operator decision 2026-09-30):
+
+1. ``trade`` -- a setup of a template in play whose trigger is inside its
+   scoring window (``lane.trade_symbols``): the trade's tape is what the exit
+   trials read, so its line is kept past 10:00 until that window ends;
+2. ``near`` then ``armed`` -- a setup of a template in play waiting on its
+   trigger (``lane.watching``): the tape at the trigger is what the entry
+   trials read, and with a line the tape gate is no longer blind there;
+3. ``leader`` -- ``ranking.leader_symbols(rows, LEADERS_RULES)`` over the live
+   Gainers board, the same call playback makes on the recorded minute.
+
+A setup takes a line from a leader (one recorded at least
+``LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC``) or from a name that left both
+lists; never from another setup. A leader takes only a line whose name left
+both lists, and only once it held its place ``LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC``.
+
+Rules the operator set (2026-09-22), unchanged:
 
 * only a FREE line is taken (``IBKR_MAX_DEPTH_SYMBOLS`` counts every line in
   use); the operator never loses Level 2 -- ``make_room_for`` gives back the
@@ -29,11 +43,13 @@ from constants_ibkr import IBKR_MAX_DEPTH_SYMBOLS
 from constants_leaderboard import (
     LEADERBOARD_AUTO_RECORD_END_MIN_ET,
     LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC,
+    LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC,
     LEADERBOARD_AUTO_RECORD_START_MIN_ET,
     LEADERBOARD_AUTO_RECORD_TICK_SEC,
     LEADERBOARD_AUTO_RECORD_TOP_N,
     LEADERBOARD_BOARD_GAINERS,
 )
+from constants_setups import SETUP_STATE_NEAR
 from leaderboard.ranking import LEADERS_RULES, leader_symbols
 from leaderboard.recorder import exchange_day
 from leaderboard.rows import ET, from_desk_row
@@ -44,6 +60,11 @@ AUTO_RECORD_ENV = "NOVA_AUTO_RECORD"
 WINDOW_LABEL = "07:00-10:00 ET"
 _RETRY_AFTER_FAILURE_SEC = 300.0
 
+# Why a symbol holds (or wants) an auto line, best first. ``left``: it is on neither list now.
+WHY_TRADE, WHY_NEAR, WHY_ARMED, WHY_LEADER, WHY_LEFT = "trade", "near", "armed", "leader", "left"
+_TIERS = (WHY_TRADE, WHY_NEAR, WHY_ARMED, WHY_LEADER, WHY_LEFT)
+_SETUP_TIERS = (WHY_TRADE, WHY_NEAR, WHY_ARMED)
+
 _lock = asyncio.Lock()
 _auto: dict[str, float] = {}             # symbol -> when auto-record started it
 _candidate_since: dict[str, float] = {}  # symbol -> when it entered the leaders
@@ -51,6 +72,8 @@ _declined: dict[str, str] = {}           # symbol -> session date the operator s
 _failed: dict[str, float] = {}           # symbol -> when a start failed
 _yielded: list[dict[str, Any]] = []
 _leaders: list[str] = []
+_setups: list[tuple[str, str]] = []      # (symbol, why) for setups, best first
+_setups_error: str | None = None         # the setup scanner could not be read (never "no setups")
 _last_error: str | None = None
 
 
@@ -76,6 +99,20 @@ def pick_leaders(surfaced_gainers: list[dict], now: float) -> list[str]:
     return leader_symbols(rows, LEADERS_RULES)[:LEADERBOARD_AUTO_RECORD_TOP_N]
 
 
+def pick_setups(lanes: list[Any], now: float) -> list[tuple[str, str]]:
+    """``(symbol, why)`` for every setup of the templates in play: in a trade, near, then armed."""
+    best: dict[str, str] = {}
+    for lane in lanes:
+        found = [(s, WHY_TRADE) for s in lane.trade_symbols(now)]
+        for sym in lane.watching():
+            state = getattr(lane.det.get(sym), "state", None)
+            found.append((sym, WHY_NEAR if state == SETUP_STATE_NEAR else WHY_ARMED))
+        for sym, why in found:
+            if sym not in best or _TIERS.index(why) < _TIERS.index(best[sym]):
+                best[sym] = why
+    return sorted(best.items(), key=lambda item: (_TIERS.index(item[1]), item[0]))
+
+
 def _live_gainers() -> list[dict]:
     from runtime_state import get_runtime_state
     from scanner_surface import surface_rows
@@ -84,6 +121,24 @@ def _live_gainers() -> list[dict]:
     if getattr(state.gainer_table, "state", None) != "live":
         return []
     return surface_rows(list(state.gainer_cache or []), LEADERBOARD_BOARD_GAINERS)
+
+
+def _live_setup_lanes() -> list[Any]:
+    from setup_scanner.engine import get_engine
+
+    return get_engine().playing_lanes()
+
+
+def _read_setups(now: float) -> list[tuple[str, str]]:
+    global _setups_error
+    try:
+        found = pick_setups(_live_setup_lanes(), now)
+        _setups_error = None
+        return found
+    except Exception as exc:  # the leaders still get their lines; the failure is stated
+        _setups_error = f"{type(exc).__name__}: {exc}"
+        logger.warning("AUTO-RECORD: could not read the setup scanner", exc_info=True)
+        return []
 
 
 def _busy_lines() -> list[str]:
@@ -105,7 +160,21 @@ def free_lines() -> int:
     ))
 
 
-async def _start(symbol: str) -> bool:
+def why(symbol: str) -> str:
+    """Why ``symbol`` holds (or wants) an auto line now."""
+    for sym, reason in _setups:
+        if sym == symbol:
+            return reason
+    return WHY_LEADER if symbol in _leaders else WHY_LEFT
+
+
+def _rank(symbol: str) -> tuple[int, int]:
+    reason = why(symbol)
+    within = _leaders.index(symbol) if reason == WHY_LEADER else 0
+    return _TIERS.index(reason), within
+
+
+async def _start(symbol: str, reason: str) -> bool:
     from capture import feed_hold, keepalive
     from capture.mode import set_capture_mode
 
@@ -121,11 +190,11 @@ async def _start(symbol: str) -> bool:
         return False
     keepalive.operator_started(symbol)
     _auto[symbol] = time.time()
-    logger.info("AUTO-RECORD: recording leader %s", symbol)
+    logger.info("AUTO-RECORD: recording %s (%s)", symbol, reason)
     return True
 
 
-async def _stop(symbol: str, why: str) -> None:
+async def _stop(symbol: str, reason: str) -> None:
     from capture import feed_hold, keepalive
     from capture.mode import set_capture_mode
 
@@ -134,15 +203,27 @@ async def _stop(symbol: str, why: str) -> None:
     await asyncio.to_thread(set_capture_mode, False, symbol=symbol, protect_active=True, reason=CAPTURE_STOP_AUTO)
     await feed_hold.release(symbol)
     _auto.pop(symbol, None)
-    logger.info("AUTO-RECORD: stopped %s (%s)", symbol, why)
+    logger.info("AUTO-RECORD: stopped %s (%s)", symbol, reason)
 
 
 def _lowest_ranked(exclude: str | None = None) -> str | None:
     owned = [s for s in _auto if s != exclude]
     if not owned:
         return None
-    # Out of the leaders first, then the lowest leader, then the newest start.
-    return max(owned, key=lambda s: (_leaders.index(s) if s in _leaders else len(_leaders) + 1, _auto[s]))
+    # Off both lists first, then the lowest leader, then armed, near, a trade; the newest start on a tie.
+    return max(owned, key=lambda s: (_rank(s), _auto[s]))
+
+
+def _victim_for(candidate_why: str, ts: float) -> str | None:
+    """The auto line a candidate may take when none is free, or ``None``."""
+    if candidate_why in _SETUP_TIERS:
+        allowed = [s for s in _auto if why(s) == WHY_LEFT
+                   or (why(s) == WHY_LEADER and ts - _auto[s] >= LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC)]
+    else:
+        allowed = [s for s in _auto if why(s) == WHY_LEFT]
+    if not allowed:
+        return None
+    return max(allowed, key=lambda s: (_rank(s), _auto[s]))
 
 
 async def make_room_for(symbol: str, *, for_record: bool = False) -> str | None:
@@ -179,43 +260,54 @@ def operator_stopped(symbol: str | None, now: float | None = None) -> None:
             _declined[sym] = day
 
 
+async def _after_window(ts: float) -> None:
+    """Outside the window: a trade being scored keeps its tape to the end of its window; the rest stop."""
+    global _leaders, _setups
+    _candidate_since.clear()
+    _leaders = []
+    _setups = [(s, w) for s, w in (_read_setups(ts) if enabled() and _auto else []) if w == WHY_TRADE]
+    for sym in list(_auto):
+        if why(sym) != WHY_TRADE:
+            await _stop(sym, "auto-record window closed")
+
+
 async def tick(now: float | None = None) -> None:
-    global _leaders, _last_error
+    global _leaders, _setups, _last_error
     ts = time.time() if now is None else float(now)
     async with _lock:
         if not enabled() or not in_window(ts):
-            for sym in list(_auto):
-                await _stop(sym, "auto-record window closed")
-            _candidate_since.clear()
-            _leaders = []
+            await _after_window(ts)
             return
         from ibkr import client as _client
 
         if not _client.is_ready():
             return
         today = datetime.fromtimestamp(ts, ET).date().isoformat()
+        _setups = _read_setups(ts)
         _leaders = pick_leaders(_live_gainers(), ts)
         for sym in list(_candidate_since):
             if sym not in _leaders:
                 _candidate_since.pop(sym)
         for sym in _leaders:
             _candidate_since.setdefault(sym, ts)
+        wanted = list(_setups) + [(s, WHY_LEADER) for s in _leaders if s not in dict(_setups)]
         recording = set(_recording())
-        for sym in _leaders:
+        for sym, reason in wanted:
             if sym in _auto or sym in recording or _declined.get(sym) == today:
                 continue
             if ts - _failed.get(sym, 0.0) < _RETRY_AFTER_FAILURE_SEC:
                 continue
             if free_lines() <= 0:
-                # Rotate only for a leader that has held its place, and only out
-                # of an auto line whose symbol has left the leaders.
-                stale = [s for s in _auto if s not in _leaders]
-                if not stale or ts - _candidate_since.get(sym, ts) < LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC:
+                # A leader rotates in only once it held its place; a setup does not wait.
+                if reason == WHY_LEADER and ts - _candidate_since.get(sym, ts) < LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC:
                     continue
-                await _stop(_lowest_ranked() or stale[0], f"rotated to leader {sym}")
+                victim = _victim_for(reason, ts)
+                if victim is None:
+                    continue
+                await _stop(victim, f"gave its line to {sym} ({reason})")
                 if free_lines() <= 0:
                     continue
-            if await _start(sym):
+            if await _start(sym, reason):
                 _last_error = None
 
 
@@ -238,6 +330,9 @@ def status(now: float | None = None) -> dict[str, Any]:
         "active": bool(enabled() and in_window(ts)),
         "window": WINDOW_LABEL,
         "symbols": sorted(_auto),
+        "why": {sym: why(sym) for sym in sorted(_auto)},
+        "setups": [{"symbol": sym, "why": reason} for sym, reason in _setups],
+        "setups_error": _setups_error,
         "leaders": list(_leaders),
         "yielded": [entry["symbol"] for entry in _yielded],
         "last_error": _last_error,
@@ -245,11 +340,13 @@ def status(now: float | None = None) -> dict[str, Any]:
 
 
 def reset_for_tests() -> None:
-    global _leaders, _last_error
+    global _leaders, _setups, _setups_error, _last_error
     _auto.clear()
     _candidate_since.clear()
     _declined.clear()
     _failed.clear()
     _yielded.clear()
     _leaders = []
+    _setups = []
+    _setups_error = None
     _last_error = None

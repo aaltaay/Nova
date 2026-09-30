@@ -112,20 +112,26 @@ def leaderboard_rows(
                   "free_bytes": disk.get("free_bytes"), "disk_error": _disk_error(disk)},
     )]
     symbols = list(auto.get("symbols") or [])
+    why = auto.get("why") or {}
+    held = [f"{s} ({why[s]})" if s in why else s for s in symbols]
     if auto.get("last_error"):
         a_state, a_detail = DIAG_STATE_WARN, f"last problem: {auto['last_error']}"
+    elif auto.get("setups_error"):
+        a_state, a_detail = DIAG_STATE_WARN, f"setup scanner unreadable: {auto['setups_error']}"
+    elif symbols:
+        a_state, a_detail = DIAG_STATE_OK, f"recording {', '.join(held)}"
     elif auto.get("active"):
-        a_state = DIAG_STATE_OK
-        a_detail = f"recording {', '.join(symbols)}" if symbols else "watching the leaders; no free Level 2 line or no leader yet"
+        a_state, a_detail = DIAG_STATE_OK, "watching the setups and leaders; no free Level 2 line or none yet"
     else:
         a_state, a_detail = DIAG_STATE_OFF, f"outside {auto.get('window') or 'its window'}"
     rows.append(row(
         id="auto_record",
         group=DIAG_GROUP_RECORDER,
-        title="Auto-record (leaders)",
+        title="Auto-record (setups, leaders)",
         state=a_state,
         detail=a_detail,
-        cause="Records the top leaders on free Level 2 lines only; yields a line when you open Level 2.",
+        cause=("Records setups in a trade, near or armed, then the top leaders, on free Level 2 lines only;"
+               " yields a line when you open Level 2 (ADR 040)."),
         fix="Nothing to do." if a_state != DIAG_STATE_WARN else "It retries on its own; Record by hand if a leader matters now.",
         evidence=dict(auto),
     ))
