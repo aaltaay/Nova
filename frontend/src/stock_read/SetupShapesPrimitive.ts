@@ -4,8 +4,9 @@
  * for a decision the operator asked to see, edge tags for levels above or below the visible
  * prices, and the moment's pin (ENTER NOW, SELL NOW, what Nova did: ADR 037) on its candle. It draws a scene it is given; `chartShapes.ts` decides what the scene holds and
  * `StockReadChartLayer` maps its times onto this pane's bars. A box with a `hoverId` is reported to the
- * chart as hovered (`hitTest`), so the pane can tell that setup's story under the pointer. Where each
- * label goes, and how much a past setup's says, is `sceneLabels.ts`.
+ * chart as hovered (`hitTest`) -- over the box, or over the label it drew for the box -- so the pane can
+ * tell that setup's story under the pointer. Where each label goes, and how much a past setup's says, is
+ * `sceneLabels.ts`.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type {
@@ -115,7 +116,15 @@ interface Px {
   labels: LabelDetail;
 }
 
-const EMPTY_PX: Px = { boxes: [], segments: [], vlines: [], tags: [], pins: [], labels: 'compact' };
+/** A label the last draw put on the pane, with its box's story: a mark alone is hovered too. */
+export interface LabelHit {
+  rect: LabelRect;
+  hoverId: string;
+}
+
+function emptyPx(): Px {
+  return { boxes: [], segments: [], vlines: [], tags: [], pins: [], labels: 'compact' };
+}
 
 /** A label that stays where it is: a level's, the focus line's, an edge tag. */
 interface FixedLabel {
@@ -148,9 +157,11 @@ class FillRenderer implements IPrimitivePaneRenderer {
 
 class LineRenderer implements IPrimitivePaneRenderer {
   private readonly px: Px;
+  private readonly onLabels: (hits: LabelHit[]) => void;
 
-  constructor(px: Px) {
+  constructor(px: Px, onLabels: (hits: LabelHit[]) => void) {
     this.px = px;
+    this.onLabels = onLabels;
   }
 
   draw(target: CanvasRenderingTarget2D): void {
@@ -217,7 +228,7 @@ class LineRenderer implements IPrimitivePaneRenderer {
         return { x, y, p, r };
       });
       const asks: LabelAsk[] = [];
-      const colors: string[] = [];
+      const owners: SceneBox[] = [];
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
         const right = x2 ?? width;
         if (!b.label || right < 0 || x1 > width) continue; // a box out of view says nothing
@@ -225,9 +236,15 @@ class LineRenderer implements IPrimitivePaneRenderer {
         if (forms.length === 0) continue;
         asks.push({ forms, x: x1, y: b.labelBelow ? Math.max(y1, y2) + 9 : Math.min(y1, y2) - 9, fixed: !b.shrink,
           rank: b.shrink?.rank ?? 0 });
-        colors.push(b.labelColor);
+        owners.push(b);
       }
-      for (const l of placeLabels(asks, measure, width, obstacles)) drawLabel(ctx, l.text, l.left, l.y, l.width, colors[l.ask]);
+      const hits: LabelHit[] = [];
+      for (const l of placeLabels(asks, measure, width, obstacles)) {
+        const b = owners[l.ask];
+        drawLabel(ctx, l.text, l.left, l.y, l.width, b.labelColor);
+        if (b.hoverId) hits.push({ rect: labelRect(l.left, l.y, l.width, 'left', 0), hoverId: b.hoverId });
+      }
+      this.onLabels(hits);
       for (const { f, r, w } of fixedDrawn) drawLabel(ctx, f.text, r.left, f.y, w, f.color);
       for (const { x, y, p, r } of pins) drawPin(ctx, x, y, p, r);
     });
@@ -244,7 +261,10 @@ class View implements IPrimitivePaneView {
   }
 
   renderer(): IPrimitivePaneRenderer {
-    return this.layer === 'fill' ? new FillRenderer(this.source.px) : new LineRenderer(this.source.px);
+    if (this.layer === 'fill') return new FillRenderer(this.source.px);
+    return new LineRenderer(this.source.px, hits => {
+      this.source.labelHits = hits;
+    });
   }
 
   zOrder(): PrimitivePaneViewZOrder {
@@ -258,7 +278,10 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
   private requestUpdate: (() => void) | null = null;
   private scene: Scene = EMPTY_SCENE;
   private readonly views = [new View(this, 'fill'), new View(this, 'lines')];
-  px: Px = EMPTY_PX;
+  px: Px = emptyPx();
+  /** Where the last draw put the boxes' labels, kept apart from `px`: `updateAllViews` rebuilds that
+   * without drawing, and the labels on screen are the last draw's. */
+  labelHits: LabelHit[] = [];
 
   attached(param: SeriesAttachedParameter<Time, SeriesType>): void {
     this.chart = param.chart;
@@ -271,6 +294,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
     this.chart = null;
     this.series = null;
     this.requestUpdate = null;
+    this.labelHits = [];
   }
 
   setScene(scene: Scene): void {
@@ -282,7 +306,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
     const chart = this.chart;
     const series = this.series;
     if (!chart || !series) {
-      this.px = EMPTY_PX;
+      this.px = emptyPx();
       return;
     }
     const ts = chart.timeScale();
@@ -329,8 +353,15 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
     return this.views;
   }
 
-  /** The top-most box with a story under the pointer (the last drawn wins: live lanes over past setups). */
+  /** The story under the pointer: a label drawn for a box (labels sit on top), else the top-most box (the
+   * last drawn wins: live lanes over past setups). */
   hitTest(x: number, y: number): PrimitiveHoveredItem | null {
+    for (let i = this.labelHits.length - 1; i >= 0; i -= 1) {
+      const { rect, hoverId } = this.labelHits[i];
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        return { externalId: hoverId, zOrder: 'top' };
+      }
+    }
     for (let i = this.px.boxes.length - 1; i >= 0; i -= 1) {
       const { x1, x2, y1, y2, b } = this.px.boxes[i];
       if (!b.hoverId || x2 === null) continue;

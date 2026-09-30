@@ -264,7 +264,7 @@ export function pastLabel(ep: Episode): string {
 /** What came next as its arrow alone. */
 const FIRST_ARROWS: Record<AfterFirst, string> = { high: '↗', low: '↘', neither: '→', pending: '', unknown: '' };
 
-/** The same in a few words, for a crowded pane: "✕ topping tail ↘", "✓ +1.4R". */
+/** The same in a few words, where the whole label does not fit: "✕ topping tail ↘", "✓ +1.4R". */
 export function pastShortLabel(ep: Episode): string {
   const end = endOf(ep);
   if (end === 'triggered') {
@@ -276,11 +276,12 @@ export function pastShortLabel(ep: Episode): string {
   return [mark, shortReason(ep.reason, 24) || (end === 'failed' ? 'failed' : 'faded'), arrow].filter(Boolean).join(' ');
 }
 
-/** Only its marks, where even a few words do not fit: "✕↘", "✓". */
+/** Its mark alone -- ✕ failed, ○ faded, ✓ triggered -- on the compact chart, and where even a few words
+ * do not fit; the hover tells the rest (operator ask 2026-09-30: "just show (x) and when we hover, it
+ * shows the full failed setup"). */
 export function pastIconLabel(ep: Episode): string {
   const end = endOf(ep);
-  if (end === 'triggered') return '✓';
-  return `${end === 'failed' ? '✕' : '○'}${ep.after ? FIRST_ARROWS[ep.after.first] : ''}`;
+  return end === 'triggered' ? '✓' : end === 'failed' ? '✕' : '○';
 }
 
 const END_WORDS: Record<EpisodeEnd, string> = {

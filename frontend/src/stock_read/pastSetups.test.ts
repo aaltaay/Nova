@@ -113,9 +113,9 @@ describe('what the chart draws, and says', () => {
     expect(pastLabel(byId(ftFailingNow.id))).toBe('✕ broke down from the base');   // its 15 minutes are not over
   });
 
-  it('says it in a few words, then in marks, for a crowded pane', () => {
+  it('says it in a few words, then its mark alone', () => {
     expect(pastShortLabel(byId(ncplFlag.id))).toBe('✕ higher high in the flag ↗');
-    expect(pastIconLabel(byId(ncplFlag.id))).toBe('✕↗');
+    expect(pastIconLabel(byId(ncplFlag.id))).toBe('✕');
     expect(pastShortLabel(byId(fpTriggered.id))).toBe('✓ +1.6R');
     expect(pastIconLabel(byId(fpTriggered.id))).toBe('✓');
     expect(pastShortLabel({ ...byId(fpTriggered.id), score: null })).toBe('✓ triggered');
@@ -124,7 +124,7 @@ describe('what the chart draws, and says', () => {
     const faded = { ...byId(ncplFlag.id), end: 'faded' as const, reason: 'something new the scanner says -- and why',
       after: { ...byId(ncplFlag.id).after!, first: 'neither' as const } };
     expect(pastShortLabel(faded)).toBe('○ something new the scann… →');
-    expect(pastIconLabel(faded)).toBe('○→');
+    expect(pastIconLabel(faded)).toBe('○');
   });
 
   it('tells the whole story under the pointer', () => {
@@ -144,10 +144,10 @@ describe('what the chart draws, and says', () => {
       [at(9, 18), at(9, 19), 1.31, 1.35, '✕ higher high in the flag · ↗ then broke out'],
     ]);
     expect(boxes.every(b => b.dashed && b.hoverId === pastHoverId(byId(ncplFlag.id)))).toBe(true);
-    // The flag's label makes room in a few words, then marks; the pole's says nothing when crowded.
+    // The flag's label makes room in a few words, then its mark; the pole's says nothing when crowded.
     expect(boxes.map(b => [b.shrink?.short, b.shrink?.icon])).toEqual([
       [null, null],
-      ['✕ higher high in the flag ↗', '✕↗'],
+      ['✕ higher high in the flag ↗', '✕'],
     ]);
     expect(boxes[1].shrink!.rank).toBeGreaterThan(boxes[0].shrink!.rank);
     const fp = pastShapes([byId(fpTriggered.id)], { toTime: identity });
@@ -208,12 +208,14 @@ describe('the 1-minute pane with the past setups', () => {
 });
 
 describe('the pointer over a box', () => {
-  function primitive(boxes: { x1: number; x2: number | null; y1: number; y2: number; hoverId?: string }[]) {
+  function primitive(boxes: { x1: number; x2: number | null; y1: number; y2: number; hoverId?: string }[],
+    labelHits: { rect: { left: number; top: number; right: number; bottom: number }; hoverId: string }[] = []) {
     const p = new SetupShapesPrimitive();
     p.px = {
       boxes: boxes.map(b => ({ ...b, b: { hoverId: b.hoverId } as SceneBox })),
       segments: [], vlines: [], tags: [], pins: [], labels: 'compact',
     };
+    p.labelHits = labelHits;
     return p;
   }
 
@@ -227,6 +229,18 @@ describe('the pointer over a box', () => {
     expect(p.hitTest(20, 60)).toEqual({ externalId: 'past:a', zOrder: 'top' });
     expect(p.hitTest(101, 151)).toEqual({ externalId: 'past:a', zOrder: 'top' });   // two pixels of slack
     expect(p.hitTest(300, 300)).toBeNull();
+  });
+
+  it('names the setup a mark was drawn for, also outside its box, and over any box under it', () => {
+    const mark = { rect: { left: 10, top: 152, right: 28, bottom: 166 }, hoverId: 'past:a' };   // under its box
+    const p = primitive([
+      { x1: 10, x2: 100, y1: 50, y2: 150, hoverId: 'past:a' },
+      { x1: 0, x2: 40, y1: 140, y2: 200, hoverId: 'past:b' },
+    ], [mark]);
+    expect(p.hitTest(20, 160)).toEqual({ externalId: 'past:a', zOrder: 'top' });
+    expect(p.hitTest(35, 160)).toEqual({ externalId: 'past:b', zOrder: 'top' });
+    p.updateAllViews();   // rebuilt without a draw: the marks on screen still count
+    expect(p.labelHits).toEqual([mark]);
   });
 });
 

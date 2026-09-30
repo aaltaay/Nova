@@ -265,7 +265,7 @@ describe('the legend on the 1-minute chart', () => {
     );
     const chip = await screen.findByTestId('stock-read-legend-labels');
     expect(chip.textContent).toBe('¶ Compact');
-    expect(chip.getAttribute('data-tip')).toContain('Compact: how each ended in a few words');
+    expect(chip.getAttribute('data-tip')).toContain('Compact: a mark for each -- ✕ failed, ○ faded, ✓ triggered');
     fireEvent.click(chip);
     expect(chip.textContent).toBe('¶ Full');
     expect(chip.getAttribute('aria-pressed')).toBe('true');

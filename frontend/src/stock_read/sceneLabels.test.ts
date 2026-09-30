@@ -12,10 +12,10 @@ function ask(forms: string[], x: number, y: number, rank = 0, fixed = false): La
 describe('the forms a label may take', () => {
   const shrink = { short: '✕ topping tail ↘', icon: '✕↘', rank: 1 };
 
-  it('starts from the whole label in full, from a few words in compact', () => {
+  it('starts from the whole label in full, and is the mark alone in compact', () => {
     const whole = '✕ topping tail · ↘ then broke down';
-    expect(labelForms(whole, shrink, 'full')).toEqual([whole, '✕ topping tail ↘', '✕↘']);
-    expect(labelForms(whole, shrink, 'compact')).toEqual(['✕ topping tail ↘', '✕↘']);
+    expect(labelForms(whole, { ...shrink, icon: '✕' }, 'full')).toEqual([whole, '✕ topping tail ↘', '✕']);
+    expect(labelForms(whole, { ...shrink, icon: '✕' }, 'compact')).toEqual(['✕']);
   });
 
   it('keeps a live label whole in either, and a leg says nothing in compact', () => {

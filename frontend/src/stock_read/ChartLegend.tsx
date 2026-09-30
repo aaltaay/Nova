@@ -56,18 +56,20 @@ function PastChip({ ctx }: { ctx: StockReadContextValue }) {
 }
 
 const LABEL_WORDS = {
-  compact: 'Compact: how each ended in a few words (✕ topping tail ↘).',
+  compact: 'Compact: a mark for each -- ✕ failed, ○ faded, ✓ triggered. Point at a mark or its box for the whole story.',
   full: 'Full: the whole label (✕ topping tail · ↘ then broke down).',
 } as const;
 
-/** How much the past setups' labels say (operator report 2026-09-30: "extremely too crowded"). Either
- * way a label that would run into another shrinks, down to its marks, or steps aside. */
+/** How much the past setups' labels say (operator report 2026-09-30: "extremely too crowded"): a mark
+ * each, or the whole label. Either way a label that would run into another shrinks or steps aside. */
 function LabelsChip({ ctx }: { ctx: StockReadContextValue }) {
   const { layers } = ctx;
   if (!layers.past || ctx.past.unavailable) return null;
   const next = layers.labels === 'full' ? 'compact' : 'full';
-  const words = `${LABEL_WORDS[layers.labels]} Where two would touch, the older one shrinks to its marks (✕↘) or steps `
-    + `aside; hover any box for its whole story. (click for ${next})`;
+  const words = layers.labels === 'full'
+    ? `${LABEL_WORDS.full} Where two would touch, the older one shrinks to a few words, then its mark, or steps aside;`
+      + ` point at any box for its whole story. (click for ${next})`
+    : `${LABEL_WORDS.compact} Where two marks would touch, the older one steps aside. (click for ${next})`;
   return (
     <button
       type="button"
