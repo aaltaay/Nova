@@ -1,5 +1,11 @@
 /** The plan box's arithmetic and words (ADR 036). Pure: every number here comes from the read or the
  * venue sleeve's risk per trade; nothing is estimated. */
+import {
+  RULER_DEFAULT_WIDTH_PX,
+  RULER_LABEL_CHAR_PX,
+  RULER_LABEL_GAP_PX,
+  RULER_LABEL_RANK,
+} from './constants';
 import { resultBadge, resultBadgeShort } from './planVerdict';
 import type { ReadState, SetupLane, StockPlan } from './types';
 
@@ -145,6 +151,8 @@ export interface RulerMark {
   pct: number;
   label: string;
   kind: string;
+  /** False when the label would touch one with a stronger claim: the tick is drawn without it. */
+  showLabel: boolean;
 }
 
 export interface RulerLayout {
@@ -156,8 +164,28 @@ export interface RulerLayout {
   now: { pct: number; edge: 'low' | 'high' | null } | null;
 }
 
-/** Stop at the left end, the target at the right, everything between placed by price. */
-export function rulerLayout(plan: StockPlan, price: number | null): RulerLayout | null {
+/** Which marks keep their labels on a ruler `widthPx` wide: by rank (`RULER_LABEL_RANK`), then nearest the
+ * entry, each label placed only where it touches none placed before it. */
+export function placeRulerLabels(marks: Omit<RulerMark, 'showLabel'>[], widthPx: number, entryPct: number): RulerMark[] {
+  const rank = (kind: string) => RULER_LABEL_RANK[kind] ?? RULER_LABEL_RANK.level;
+  const order = marks.map((_, i) => i).sort((a, b) => rank(marks[a].kind) - rank(marks[b].kind)
+    || Math.abs(marks[a].pct - entryPct) - Math.abs(marks[b].pct - entryPct));
+  const taken: [number, number][] = [];
+  const shown = new Set<number>();
+  for (const i of order) {
+    const x = (marks[i].pct / 100) * widthPx;
+    const half = (marks[i].label.length * RULER_LABEL_CHAR_PX + RULER_LABEL_GAP_PX) / 2;
+    if (taken.some(([a, b]) => x - half < b && x + half > a)) continue;
+    taken.push([x - half, x + half]);
+    shown.add(i);
+  }
+  return marks.map((m, i) => ({ ...m, showLabel: shown.has(i) }));
+}
+
+/** Stop at the left end, the target at the right, everything between placed by price; `widthPx` is the
+ * ruler's measured width (labels that would touch are left off). */
+export function rulerLayout(plan: StockPlan, price: number | null,
+  widthPx: number | null = null): RulerLayout | null {
   const { stop, entry, target } = plan;
   if (stop === null || entry === null || target === null || !(target > stop)) return null;
   const pad = (target - stop) * 0.06;
@@ -168,17 +196,19 @@ export function rulerLayout(plan: StockPlan, price: number | null): RulerLayout 
   if (price !== null && Number.isFinite(price)) {
     now = { pct: at(price), edge: price < lo ? 'low' : price > hi ? 'high' : null };
   }
+  const marks = [
+    ...plan.marks.map(m => ({ pct: at(m.price), label: fmtPx(m.price), kind: m.kind })),
+    // Today's levels between the stop and the target the marks above do not already name.
+    ...(plan.levels?.between ?? [])
+      .filter(x => !plan.marks.some(m => Math.abs(m.price - x.price) < SAME_PRICE))
+      .map(x => ({ pct: at(x.price), label: x.tag, kind: x.round ? 'round' : 'level' })),
+  ];
+  const entryPct = at(entry);
   return {
     stopPct: at(stop),
-    entryPct: at(entry),
+    entryPct,
     targetPct: at(target),
-    marks: [
-      ...plan.marks.map(m => ({ pct: at(m.price), label: fmtPx(m.price), kind: m.kind })),
-      // Today's levels between the stop and the target the marks above do not already name.
-      ...(plan.levels?.between ?? [])
-        .filter(x => !plan.marks.some(m => Math.abs(m.price - x.price) < SAME_PRICE))
-        .map(x => ({ pct: at(x.price), label: x.tag, kind: x.round ? 'round' : 'level' })),
-    ],
+    marks: placeRulerLabels(marks, widthPx && widthPx > 0 ? widthPx : RULER_DEFAULT_WIDTH_PX, entryPct),
     now,
   };
 }

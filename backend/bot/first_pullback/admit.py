@@ -144,9 +144,12 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     if setup.get("kind") != first_kind(setup_type):
         kind = str(setup.get("kind") or "a later setup").replace("_", " ")
         out.append((BOT_SKIP_NOT_FIRST, f"a {kind} -- Nova buys the first {name(setup_type)} of the day only"))
-    verdict = (event.get("tape") or {}).get("verdict")
+    tape = event.get("tape") or {}
+    verdict = tape.get("verdict")
     if verdict != TAPE_VERDICT_GO:
-        out.append((BOT_SKIP_TAPE, f"the tape read {verdict or 'nothing'} at the trigger -- Nova enters on go"))
+        why = next(iter(tape.get("reasons") or ()), None)
+        said = f" ({why})" if why else ""
+        out.append((BOT_SKIP_TAPE, f"the tape read {verdict or 'nothing'} at the trigger{said} -- Nova enters on go"))
     judged = of_event(event)
     if not judged["ok"]:
         out.append((BOT_SKIP_NOT_A_TRADE, "not a trade: " + "; ".join(judged["reasons"])))

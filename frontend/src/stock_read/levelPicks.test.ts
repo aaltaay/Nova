@@ -67,8 +67,9 @@ const STUDY = {
   source: '5 years of minute bars', round_turn: [24, 16], round_through: [77, 70], round_lost: [68, 63],
   hod_past: [72, 77], top_past: [71, 76], daily_past: [78, 78],
 };
+const HALF_AND_WHOLE = { minor: 0.5, major: 1, measured: true, words: 'half and whole dollars' };
 const MAP: LevelMap = {
-  schema_version: 1, price: 6.99, intraday: INTRADAY, five_minute: FIVE, daily: DAILY, daily_sessions: 60, daily_error: null,
+  schema_version: 1, price: 6.99, rounds: HALF_AND_WHOLE, intraday: INTRADAY, five_minute: FIVE, daily: DAILY, daily_sessions: 60, daily_error: null,
   study: STUDY as unknown as LevelMap['study'],
 };
 const LAYERS: StockReadLayers = { setups: true, levels: true, past: false, labels: 'compact', hidden: [], plan: 'auto' };
@@ -89,6 +90,11 @@ describe('the level map off the wire', () => {
     const five = normalizeLevelMap({ ...wire, five_minute: [F_CEIL] })?.five_minute;
     expect(five?.map(z => [z.id, z.home])).toEqual([['five_minute:7.48', 'five_minute']]);
     expect(lm?.study?.round_turn).toEqual([24, 16]);
+    // The round scale: a backend older than it sends none (it counted half dollars on every price).
+    expect(lm?.rounds).toBeNull();
+    expect(normalizeLevelMap({ ...wire, rounds: { minor: 5, major: 10, measured: false, words: '$5 and $10 round numbers' } })?.rounds)
+      .toEqual({ minor: 5, major: 10, measured: false, words: '$5 and $10 round numbers' });
+    expect(normalizeLevelMap({ ...wire, rounds: { minor: 0, major: 10, measured: false } })?.rounds).toBeNull();
     expect(normalizeLevelMap({ ...wire, schema_version: 2 })).toBeNull();
     expect(normalizeLevelMap(null)).toBeNull();
   });
@@ -215,6 +221,18 @@ describe("a level's card", () => {
     expect(daily?.sections?.[0].items).toEqual(['A daily high on 5 days']);
     expect(daily?.sections?.[1].items).toEqual(["Old daily highs did not slow gappers in Nova's study."]);
     expect(levelStory('lane:bull_flag', lghl())).toBeNull();
+  });
+
+  it("names a round on the stock's own scale and borrows no figures where the study did not look", () => {
+    // ACN at $225 on 2026-10-01: $5 and $10 round numbers, which the $1-$20 level study never measured.
+    const acn = zone('225.00', 224.4, 225, 'at', 7, '$225.00 · double top', [['half', 225], ['top', 224.4, 2]]);
+    acn.members[0].note = '$5 round number';
+    const read = { ...lghl(), symbol: 'ACN', price: 225.27, level_map: { ...MAP, price: 225.27, intraday: [acn],
+      rounds: { minor: 5, major: 10, measured: false, words: '$5 and $10 round numbers' } } };
+    const story = levelStory(levelHoverId(acn), read);
+    expect(story?.sections?.[0].items[0]).toBe('$5 round number: a round price traders watch');
+    expect(story?.sections?.[1].items[0]).toMatch(/^Nova's study measured half and whole dollars on \$1-\$20 stocks only/);
+    expect(story?.sections?.[1].items.join(' ')).not.toMatch(/often stall/);
   });
 });
 

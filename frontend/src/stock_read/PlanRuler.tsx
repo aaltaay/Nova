@@ -1,18 +1,38 @@
 /** The plan's ruler (stop -> entry -> target, what stands between, where the price is now) and its
  * checks, one glyph each: ✓ for it, ✗ against it, ! caution, ? unknown. */
+import { useLayoutEffect, useState } from 'react';
 import { tipProps } from '../ux';
 import { STATE_WORDS } from './constants';
 import { checkGlyph, fmtPx, rulerLayout } from './planMath';
 import type { StockPlan } from './types';
 
+/** The element's width, followed as it resizes (a callback ref: the ruler is absent while a plan has no
+ * levels). */
+function useWidth(): [(el: HTMLDivElement | null) => void, number | null] {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!el) return undefined;
+    setWidth(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) setWidth(e.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, width];
+}
+
 export function PlanRuler({ plan, price }: { plan: StockPlan; price: number | null }) {
-  const lay = rulerLayout(plan, price);
+  const [ref, width] = useWidth();
+  const lay = rulerLayout(plan, price, width);
   if (!lay) return null;
   const nowTip = price === null ? null : lay.now?.edge === 'low'
     ? `Last ${fmtPx(price)}: under the stop`
     : lay.now?.edge === 'high' ? `Last ${fmtPx(price)}: over the target` : `Last ${fmtPx(price)}`;
   return (
-    <div className="sr-ruler" data-testid="stock-read-ruler" aria-hidden="true">
+    <div ref={ref} className="sr-ruler" data-testid="stock-read-ruler" aria-hidden="true">
       <span className="sr-ruler__risk" style={{ left: `${lay.stopPct}%`, width: `${lay.entryPct - lay.stopPct}%` }} />
       <span className="sr-ruler__reward" style={{ left: `${lay.entryPct}%`, width: `${lay.targetPct - lay.entryPct}%` }} />
       {lay.marks.map(m => (
@@ -21,7 +41,7 @@ export function PlanRuler({ plan, price }: { plan: StockPlan; price: number | nu
           className={`sr-ruler__mark sr-ruler__mark--${m.kind}`}
           style={{ left: `${m.pct}%` }}
         >
-          <span className="sr-ruler__mark-label">{m.label}</span>
+          {m.showLabel && <span className="sr-ruler__mark-label">{m.label}</span>}
         </span>
       ))}
       <span className="sr-ruler__end sr-ruler__end--stop" style={{ left: `${lay.stopPct}%` }} />

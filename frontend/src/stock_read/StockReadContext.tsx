@@ -28,7 +28,7 @@ export type SheetTab = 'signals' | 'decisions' | 'history';
 export interface StockReadLayers {
   /** The setups' shapes and the plan's levels on the charts. */
   setups: boolean;
-  /** High of day, premarket high, the open and the half dollars. */
+  /** High of day, premarket high, the open and the round numbers. */
   levels: boolean;
   /** The day's setups that ended, drawn faint where they happened on the 1-minute pane. */
   past: boolean;

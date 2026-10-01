@@ -52,6 +52,8 @@ export interface TimeSalesViewProps {
   connectedText?: string;
   /** Badge tooltip, e.g. the replay data source. */
   statusTitle?: string;
+  /** Badge colour while connected: the IBKR feed is silent (bad) or was a moment ago (warn), #672. */
+  statusTone?: 'bad' | 'warn' | null;
   /** Empty-tape message while connected (default "Waiting for prints…"). */
   emptyLabel?: string;
 }
@@ -149,6 +151,7 @@ export function TimeSalesView({
   uiActive = true,
   connectedText = TAPE_STATUS_LIVE,
   statusTitle,
+  statusTone = null,
   emptyLabel = TAPE_EMPTY_LABEL,
 }: TimeSalesViewProps) {
   const { prints, connected, error } = feed;
@@ -254,7 +257,8 @@ export function TimeSalesView({
     return null;
   }, [error, connected, prints.length, filtered.length, minSize, emptyLabel]);
 
-  const statusClass = `ts-panel__status ${connected ? 'ts-panel__status--live' : 'ts-panel__status--off'}`;
+  const statusClass = `ts-panel__status ${connected ? 'ts-panel__status--live' : 'ts-panel__status--off'}`
+    + (connected && statusTone ? ` ts-panel__status--${statusTone}` : '');
   // The sample desk's stated absence is not a fault (V4).
   const statusText = connected
     ? connectedText

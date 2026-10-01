@@ -1,8 +1,9 @@
 /**
  * The plan's level rows (ADR 036 amendment 2026-09-30, operator ask: "say our target is 1:2 ratio for
  * trades is too generic, sometimes we have to look at the very obvious resistance/support levels"):
- * Room -- the first level of today's map over the entry, in R, amber under 2R while trial T7 runs -- the
- * half or whole dollar at the target and at the stop, the next round over the entry and a round the
+ * Room -- the first level of today's map over the entry, in R, amber under 2R (in trial T7 on a stock
+ * whose rounds are half and whole dollars) -- the round number at the target and at the stop (the stock's
+ * own scale: $5 and $10 on a $225 stock), the next round over the entry and a round the
  * price just broke or lost. The target stays 2R (the operator's call); nothing here blocks or places.
  * Each row says it in a line; its hover gives what the level study measured.
  */

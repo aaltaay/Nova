@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional
 
 from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 from constants_tape import IBKR_LAST_TICK_TYPES
+from ibkr import feed_pulse
 from ibkr.open_tick import todays_open
 from metrics.op_metrics import timed_fn
 
@@ -240,6 +241,7 @@ def on_ticker_update(
     """Apply one IBKR ticker event: liveness, day-high, quote listeners, broadcast."""
     global _last_event_ts
     _last_event_ts = time.time()
+    feed_pulse.note(_last_event_ts)
     sub = subs.get(symbol)
     if sub is not None:
         # Liveness for is_fresh() -- even when price is unchanged.

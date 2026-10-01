@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any
+from ibkr import feed_pulse
 from ibkr.tape_exchange_time import exchange_second
 from ibkr.tape_side import best_bid_ask, classify_print_side
 from metrics.op_metrics import timed_fn
@@ -36,6 +37,7 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
     tbt_list = getattr(ticker, "tickByTicks", None)
     if not tbt_list:
         return
+    feed_pulse.note()
     for tbt in tbt_list:
         ts = getattr(tbt, "time", None)
         # ib_async stamps every tick with its arrival at Nova (Wrapper.lastTime),

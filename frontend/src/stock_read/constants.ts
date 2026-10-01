@@ -107,6 +107,18 @@ export const STOCK_MODE_SOUND_KEY = 'nova.stockRead.sound';
  * Nova entry's time limit is the sleeve's `working_ttl_sec`, read with the risk per trade.) */
 export const ENTER_NOW_SEC = 30;
 export const ENTER_NOW_RISK_SHARE = 0.5;
+/** The plan ruler's labels (operator report 2026-10-01: ACN's 27 marks printed their prices on top of each
+ * other): a label is about this wide per character at its 8px font, keeps this much room from the next, and
+ * the ruler is taken to be this wide until it is measured. A label that would touch one already placed is
+ * left off; its tick stays. */
+export const RULER_LABEL_CHAR_PX = 4.6;
+export const RULER_LABEL_GAP_PX = 6;
+export const RULER_DEFAULT_WIDTH_PX = 600;
+/** Which label keeps its room first: a seller on the book, then the high of day and the levels the day
+ * made, then a round number. */
+export const RULER_LABEL_RANK: Readonly<Record<string, number>> = {
+  wall: 0, hod: 1, level: 2, vwap: 2, pmh: 2, open: 2, round: 3,
+};
 /** What Nova just did (bought, sold, missed) stays in the chart's corner this long. */
 export const NOVA_CALL_SEC = 30;
 /** NOT A TRADE is one rule (spec H): it stops Nova's buys as well as the plan's own Stage. */

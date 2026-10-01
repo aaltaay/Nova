@@ -1259,7 +1259,7 @@ trade), `warn`, `bad`, `unknown` (Nova does not know -- the detail says why, nev
 null, prev_close, vwap: number | null, round_above: number | null, round_below: number | null}`:
 the high of day, the premarket high (today's bars 04:00-09:30 ET only), the 09:30 open (null before
 it), the chart's session VWAP (from 04:00 ET, restarted at 16:00 for after hours), and the nearest
-half / whole dollar above and below. `price` (and the read's change) is `/api/why`'s `facts.price`.
+round number of the price's scale above and below (the stock's own round numbers, below). `price` (and the read's change) is `/api/why`'s `facts.price`.
 A **Plan** is `{source: "setup" | "manual", setup_type, kind, state: "forming" | "armed" | "near" |
 "triggered" | "manual", provisional: boolean, trigger, entry, stop, target, risk, reward, rr,
 target_rule, entry_rule, stop_rule, grade, reason, tape: {verdict, reasons} | null, flow: {score,
@@ -1488,29 +1488,31 @@ are a trigger once through (+1.5% before -1.5% in 77% of breaks, against 70%; a 
 a level costs. So the target stays 2R, and the levels describe. Nothing here places, stages or blocks.
 
 **The level map** (owner `stock_read/level_map.py`, pure). `GET /api/stock-read/{symbol}` adds
-`level_map: {schema_version: 1, price, intraday: Zone[], five_minute: Zone[], daily: Zone[], daily_sessions,
-daily_error: string | null, study: {source, round_turn, round_through, round_lost, hod_past, top_past,
-daily_past}}` -- each
-study pair `[at the level, at a random price]` in percent (`STOCK_READ_LEVEL_STUDY`). A **Zone** is
+`level_map: {schema_version: 1, price, rounds: {minor, major, measured, words} | null, intraday: Zone[],
+five_minute: Zone[], daily: Zone[], daily_sessions, daily_error: string | null, study: {source, round_turn,
+round_through, round_lost, hod_past, top_past, daily_past}}` -- each
+study pair `[at the level, at a random price]` in percent (`STOCK_READ_LEVEL_STUDY`); `rounds` is the
+price's scale of round numbers (below), `null` without a price. A **Zone** is
 `{id: "<home>:<lo>", lo, hi, price (its edge nearest the price), side: "above" | "below" | "at" |
 "unknown", strength, label ("$7.50 · top ×8 · VWAP"), tag ("$7.50"), home: "intraday" | "five_minute" |
 "daily",
 members: Member[]}`, highest first; a **Member** `{kind, price, label, touches: integer | null, times:
 number[] (an intraday level's tests, epoch seconds), dates: string[] (a daily level's sessions), note:
 string | null}`. `kind` is one of `hod | lod | pmh | open | vwap | top | bottom | whole | half |
-yday_high | yday_low | prior_close` (today's map) and `daily_highs | daily_lows | daily_high | gap |
+yday_high | yday_low | prior_close` (today's map; `whole` is the scale's major round, `half` its minor one,
+and `note` names it: "whole dollar", "$5 round number") and `daily_highs | daily_lows | daily_high | gap |
 sma200 | yday_high | yday_low` (the daily map).
 - Today's map reads the session's closed one-minute bars from 04:00 ET: the high and low of day; the
   premarket high once the regular session has a bar; the 09:30 open; the session VWAP; tops and bottoms
   -- swing highs (lows) over (under) the two candles before them and even with the two after, within 0.3%
-  (at least a cent), tested twice or more; half and whole dollars within 25% of the price; yesterday's
+  (at least a cent), tested twice or more; the round numbers within 25% of the price; yesterday's
   high and low (the stored daily bar, extended hours included) and the regular session's prior close.
   The plan reads it (Room, `between`; trial T7 is registered on it).
 - The 5-minute map (`five_minute`, operator report 2026-09-30: "why does it say it's a double top when,
   on the graph, we only see one top?") reads the same day from 5-minute candles made of those minutes on
   the clock (`level_map.five_minute_bars`; a candle counts once its five minutes are over): the high and
   low of day, the premarket high, the open, and tops and bottoms by the same swing rule on the 5-minute
-  candles -- so two 1-minute tops inside one 5-minute candle are one top here. A half or whole dollar is
+  candles -- so two 1-minute tops inside one 5-minute candle are one top here. A round number is
   kept only in a zone with another reason. No VWAP (the chart draws its own line) and nothing from
   yesterday (the Full Day pane's). A backend older than it sends no `five_minute`; the desk then draws no
   5-minute levels and says so.
@@ -1524,19 +1526,42 @@ sma200 | yday_high | yday_low` (the daily map).
   wide; a zone lists every member, and its label counts one kind once ("top ×8", not "top ×5 · triple
   top"). `side` is `at` within 0.2% (at least a cent) of the price.
 
+**The stock's own round numbers** (owner `stock_read/rounds.py`, pure; operator report 2026-10-01 on ACN at
+$223: "I'm pretty sure you could see the problem here. How do we address this without losing important
+visibility on important resistance and support levels?"). Every half dollar had been a level at any price:
+ACN's plan listed 26 of them between a 217.53 stop and a 236.61 target, one check each, its ruler printed
+27 prices on top of each other, and today's map was zones of six half dollars that buried its real levels
+("$216.00 · top ×14 · $217.00 · $218.00 · $215.50 · open ..."). Round numbers now scale with the price
+(`STOCK_READ_ROUND_LADDER`, a minor round always 2% of the price or more): half and whole dollars up to $25,
+$1 and $5 to $50, $2.50 and $10 to $125, $5 and $10 to $250, $10 and $50 to $500, $25 and $100 to $1,250,
+$50 and $100 to $2,500, then $100 and $500. One scale per read, from the map's price, for the map, the
+plan's notes, marks and checks and the read's next-round row. `rounds` on the wire is `{minor, major,
+measured, words}`: `measured` only for half and whole dollars on a $1-$20 stock, where the level study
+looked; anywhere else a note's `detail` and the level's card say the rounds are not measured instead of
+quoting the study, and Room is not trial T7's (`trial: null`, its detail says why: T7 counts half and whole
+dollars). A target or stop is on a round within a tenth of its step (`STOCK_READ_ROUND_NEAR_SHARE`: 5c at a
+half dollar, 50c at $5). The plan's checks list the rounds between the entry and the target on one line
+("$225.00, $230.00 and $235.00 before the target"; past three, "4 round numbers ($15.50 to $17.00)"), and
+the desk's ruler leaves off a label that would touch a stronger one (a seller on the book, then the high of
+day and the day's levels, then a round; `planMath.placeRulerLabels`) and keeps its tick. On ACN's bars that
+morning: checks 32 to 7, ruler marks 27 to 4, and the map names "217.99 · triple top", "$215.00 · top ×15 ·
+bottom ×5 · VWAP · open" and "$220.00 · double top · PMH".
+
 **What the plan says** (owner `stock_read/level_notes.py`, pure). The Plan adds `levels: {room, target,
 stop, next, recent, between} | null` (null without a map). Each note is `{state, text, detail}` (`detail`
 quotes the study):
-- `room` adds `{r, price, label, trial: "T7"}`: the first zone of today's map over the entry, in R;
+- `room` adds `{r, price, label, trial: "T7" | null}`: the first zone of today's map over the entry, in R
+  (`trial` null on a stock whose rounds are not half and whole dollars: T7's map counts those);
   `warn` under `STOCK_READ_ROOM_MIN_R` (2R), `ok` at or over it or with none, `unknown` without a stop. The
   daily zones between the entry and the target are named in its detail and never counted. It blocks
   nothing: trial T7 (`knowledge/signal-trials-2.json`) decides whether it ever becomes a NOT A TRADE reason.
-- `target` / `stop`: a half or whole dollar within `STOCK_READ_ROUND_NEAR` (5c) of the target or the stop
+- `target` / `stop`: a round number within a tenth of its step (5c at a half dollar) of the target or the stop
   -- a target under the round sells before it (`ok`), one on or over it needs the break (`warn`); a stop
   under a round the entry is over survives its test (`ok`), one on or just over it does not (`warn`).
   `null` when no round is near.
-- `next`: the next half or whole dollar over the entry (else the price) -- `warn` within 5c ("turns back
-  about 1 in 4 before it breaks"), else `info`, "resistance until it prints through, a trigger after".
+- `next`: the next round number over the entry (else the price) -- `warn` within a tenth of a step ("turns
+  back about 1 in 4 before it breaks" where the study looked), else `info`, "resistance until it prints
+  through, a trigger after".
 - `recent`: a round the price broke (`ok`) or lost (`bad`) within `STOCK_READ_ROUND_CROSS_SEC` (10 min)
   while it still stands on that side; a cross is fresh when the 15 candles before it stayed on the other
   side. `null` otherwise.
@@ -3213,6 +3238,44 @@ nothing archived. Before this fix, the first full backlog shed every print
 until a restart. On 2026-09-24 that left every Paper resting order unfilled
 from 07:29 ET: an APUS SELL limit at 4.96 sat while APUS printed 5.00.
 
+### When IBKR data stops arriving (#672, #673, operator report 2026-10-01)
+
+"There was a moment of lag, and that entire graph stopped working. Time and sales stopped ... This should
+never happen." At the open the desk PC's Wi-Fi re-authenticated five times. Each time no IBKR data reached
+Nova for 4, 4, 8, 16 and 4 s, while both loops stayed under 15 ms. The silences matched Windows' WLAN log
+(11004 -> 11005) to the second. Nothing on the desk said why: the header read "STALE 0S" before and after.
+Then everything IBKR held arrived in one burst, stamped on arrival (#563).
+
+- **The heartbeat** (owner `ibkr/feed_pulse.py`, constants `constants_feed.py`). The L1, tick-by-tick and
+  depth handlers call `note()`. A **gap** is a stretch with no market-data message on any line for at least
+  `FEED_GAP_SEC` (3 s), after a busy stretch: data in at least 80% of the 10 whole seconds before it, not
+  counting seconds inside an earlier gap. It must fall inside 04:00-20:00 ET of one exchange day, and an open
+  gap also needs the Gateway session ready. A thin feed, the 20:00 close or a disconnect is never a gap.
+  Gaps live in memory only.
+- **`GET /api/ibkr/feed`** answers `{schema_version: 1, now, connected, in_session, last_data_ts, silent_sec,
+  gap: Gap | null (open), recent: Gap[] (closed, newest first, at most FEED_GAP_KEEP), rule: {gap_sec,
+  settle_sec, busy_window_sec, busy_fraction}}`. A **Gap** is `{start, end: number | null, silent_sec,
+  ongoing, cause: "wifi" | null, wifi: {state: "read" | "pending" | "unknown" | "off", drops: [{stopped,
+  back}]}, text}`. Times are epoch seconds, and `text` is the gap in plain words.
+- **Wi-Fi** (owner `ibkr/wifi_drops.py`, read-only). Windows' WLAN AutoConfig log is read on a worker
+  thread with `wevtutil`, never on a loop. Each 11004 "security stopped" pairs with the next 11005
+  "succeeded". A drop that was down from 15 s before the silence to its end makes `cause: "wifi"`. A log that
+  cannot be read is `unknown`, never "no drop"; off Windows it is `off`.
+- **The desk** (`ibkr/feedPulse.ts`, `ibkr/feedPulseStore.ts`) reads the route once a second while it
+  shows. The header chip reads **NO DATA 9s** (red) while a gap is open and **DATA GAP 16s** (amber) for 60 s
+  after one closed, with `text` first on hover. Time & Sales' LIVE badge says the same. A replay desk leaves
+  them out. The chip says **STALE** only when the newest scanner price is older than
+  `SCANNER_PRICE_STALE_SEC`: an L1 subscription error with fresh prices (Error 101) is no longer
+  "STALE 0s", and its words stay in the hover's scanner line.
+- **The tape hold** (owner `setup_scanner/tape_gap.py`, pure). A live tape read reads `blind` with the gap as
+  its reason when its window touches a gap. The gap runs from its last message to `FEED_GAP_SETTLE_SEC` (5 s)
+  after the first one back. This covers the gate (`metrics.feed_gap`) and the flow reading (score `null`,
+  `gap`, so no flush exit acts on a burst). A flow baseline starts again after a settled gap. The bot and
+  Auto-entry skip such a trigger, and the skip line quotes the tape's first reason. Replays hand in no gaps.
+- **`/api/diagnostics`** adds the `ibkr_feed_gaps` row (group `market_data`). It is `fail` while a gap is
+  open, `warn` with the count and the longest in the last `FEED_DIAG_WINDOW_SEC` (30 min), naming Wi-Fi when
+  Windows logged it, `off` while disconnected or outside the session, and otherwise `ok`.
+
 ### Chart bars say when IBKR history stopped answering (ADR 012, #555)
 
 `GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
@@ -3720,6 +3783,8 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-10-01 | Who sent an order, and the loss breakers say so (operator report: "Could you see who sold here? I don't remember selling it."). At 09:43 ET the Paper bot trip (day P&L -$66.07 against a -$50 limit) sold 100 ACN, and the Orders table showed one more market sell: the row's only stamp, source `flatten`, is shared by the ticket's Flatten, the header's KILL, both breakers and the bot's last-resort exit, and the trip was said only on the Bots and Account pages. Every sender now stamps `origin`; the execution record, practice rows and Live closed rows carry it; the order tables add a Sent by column; a breaker's audit line lists what it sold and every desk window raises a notice that stays until dismissed. Rows placed earlier stay `origin: null` and read "Flatten", never guessed. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-10-01 | When IBKR data stops arriving (#672, #673; operator: "that entire graph stopped working. Time and sales stopped ... This should never happen"). At the open the desk's Wi-Fi re-authenticated five times, and no IBKR data reached Nova for 4-16 s each time while both loops stayed healthy. Nothing said so: the header read "STALE 0S" all morning, from an Error 101 subscription error with fresh prices. `ibkr/feed_pulse.py` notices a busy feed going silent on every line and `GET /api/ibkr/feed` says so, naming a Wi-Fi drop from Windows' WLAN log (`ibkr/wifi_drops.py`). The header and Time & Sales read NO DATA / DATA GAP, and STALE now means late prices only. The catch-up burst no longer reads as tape: a gate or flow read across a gap is `blind` with the reason (`setup_scanner/tape_gap.py`), so a bot cannot enter, and a flush exit cannot act, on 16 s of prints that landed in one second. Checklist row `ibkr_feed_gaps`. A 5-s backend freeze found alongside it is #674. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-10-01 | The stock's own round numbers (operator report on ACN at $223: "How do we address this without losing important visibility on important resistance and support levels?"). Every half dollar was a level at any price: the plan listed 26 between ACN's stop and target, one check each, the ruler printed 27 prices on top of each other, and today's map was zones of six half dollars that buried the real tops, VWAP and the open. Round numbers now scale with the price (`stock_read/rounds.py`: half and whole dollars up to $25, $5 and $10 on a $223 stock, a minor round always 2% of the price or more), one scale for the map, the notes, the marks, the checks and the next-round row; the rounds between entry and target are one check line, and the ruler leaves off a label that would touch a stronger one. Where the level study did not look (anything but half and whole dollars on $1-$20 stocks) the plan says so instead of quoting it, and Room is not trial T7's. On ACN's bars: checks 32 to 7, the map names "217.99 · triple top" and "$215.00 · top ×15 · bottom ×5 · VWAP · open". §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | EDGAR acceptance times on their own clock (ADR 024 amendment). SEC's bulk submissions JSON writes every `acceptanceDateTime` with a `Z`, but some filers' JSON holds Eastern wall time behind it (about 30% of 2021's filings, 0.5% of 2026's), and the research fetcher read every one as UTC: 753 of the 5,454 EDGAR filings in the catalyst store were 4-5 hours early, 292 in the wrong session and 418 at 01:00-06:00 ET, when EDGAR is closed. `research/catalysts/edgar_clock.py` places each row by its own time (EDGAR's 06:00-22:00 ET hours, its 17:30 filing-date rule), else its JSON neighbours; `fetch_edgar.py --reclock` repaired the store and 34 of 7,976 verdicts changed. The live feed reads EDGAR's Atom, whose times carry their offset (equal to each filing's "Accepted" time): unaffected. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The tape at a trigger is the tape Nova saw (ADR 022 amendment; operator: "Why didn't we trade it? ... do we have an audit trail to check why we didn't trigger a bot for this one?"). LGHL's first pullback triggered at 07:16:10 and ran to its target in under a minute, while its tape read said WAIT, "burst of red". The read's window ended at the trigger's stamp, IBKR's whole-second trade time; the prints that crossed the trigger are stamped on arrival (#563), 0.6 s later, so the gate judged the pullback's own selling. A lane now reads the tape for a trigger, and for a setup coming near, when it handles the price; a read drains the print queue first, and every read stamps `metrics.read_at`. The gate replayed on the Session Records reproduced the live verdict on all 5 recorded triggers since 09-23, and 2 change: LGHL from WAIT to GO (124 prints, 7,882 shares at the ask), PFSA 09-24 from GO to VETO (its spread had widened). The replay already read after the price's second, so live and backtests now read the same moment. A trigger's age still reads the stamp, which lagged arrival by more than 2 s on 13 of 84 triggers (#667). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | One column at a chart pane's right edge (operator report: "everything is getting on top of each other in the charts!", LGHL after hours). The levels' labels, the EMAs' and VWAP's tags (drawn by lightweight-charts on its own), the plan lines' names and the off-view tags each stacked alone, so "5.20 · double top" sat under "200 EMA" and "↑ HOD 9.79" under the 1-minute pane's Bot chip. The stock read claims each pane's edge (`chart/edgeWords.ts`), the overlays and price lines hand it their names, the position tag reserves its spot, and `stock_read/edgeColumn.ts` places every word in one column, nearest its line, dropping the least important first. The EMAs no longer stretch the price scale (the Full Day candles were a flat line under a 200 EMA at 7,500), and the +40% run labels make room for each other. Verified on LGHL's real bars rendered headlessly through the real components. §3 amended ("One column at a pane's right edge"). | User Directive + Claude Opus 5.5 |
