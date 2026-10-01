@@ -29,14 +29,19 @@ def get_desk_venue() -> dict:
 
 
 @router.post("/venue")
-def post_desk_venue(body: DeskVenueRequest) -> dict:
-    """Settle the desk venue. 400 on anything but live / paper / sim."""
+async def post_desk_venue(body: DeskVenueRequest) -> dict:
+    """Settle the desk venue. 400 on anything but live / paper / sim.
+
+    Nova's entries still working on the venue the desk leaves are cancelled there first (ADR 042 F);
+    the answer lists them as ``left: [{venue, symbol, order_id, by, text, ok}]`` for the desk to toast."""
     key = (body.venue or "").strip().lower()
     if key not in DESK_VENUES:
         raise HTTPException(
             status_code=400,
             detail=f"venue must be one of {', '.join(DESK_VENUES)}, not {body.venue!r}",
         )
-    from sim.mode import set_venue
+    from sim.mode import set_venue, venue
+    from stock_mode.leave import leave_safely
 
-    return {"ok": True, "schema_version": DESK_VENUE_SCHEMA_VERSION, **set_venue(key)}
+    left = await leave_safely(venue(), key)
+    return {"ok": True, "schema_version": DESK_VENUE_SCHEMA_VERSION, **set_venue(key, left=left)}

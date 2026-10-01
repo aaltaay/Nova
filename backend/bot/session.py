@@ -1,28 +1,24 @@
-"""Bot session snapshot + exclusive L2 brain claim."""
+"""Bot session snapshot + exclusive L2 brain claim.
+
+``public_view`` is ``GET /api/bot/session`` (ADR 042's wire contract): the desk venue's
+dial -- the master ``level``, each setup's own and effective level, the sleeve, the bot's
+stocks, the trips and the lock -- with ``active`` / ``ready`` and every gate and its reason.
+"""
 from __future__ import annotations
 
 from typing import Any
 
 from bot import persist
 from bot.arming import has_desk_arm, heartbeat_is_fresh, is_desk_active
-from bot.clock import lock_is_active, soft_latched
+from bot.clock import soft_latched
 from bot.eligibility import normalize_symbols
 from bot.errors import BotError
-from bot.kinds import default_allowlist
 from constants_bot import (
-    BOT_ADVISE_DEFAULT_CALL_CAP,
-    BOT_ADVISE_DEFAULT_USD_CAP,
-    BOT_BP_BUDGET_HARD_MAX_USD,
-    BOT_LEVEL_OFF,
     BOT_LEVEL_STRATEGY,
-    BOT_MAX_SHARES_CAP,
     BOT_REASON_ARM_REQUIRED,
     BOT_REASON_BRAIN_EXCLUSIVE,
-    BOT_SETUP_DEFAULT,
     BOT_SETUPS,
     BOT_SETUPS_WITH_SCANNER,
-    BOT_WORKING_TTL_MAX_SEC,
-    BOT_WORKING_TTL_MIN_SEC,
 )
 
 
@@ -32,81 +28,71 @@ def get_session() -> dict[str, Any]:
 
 
 def public_view(row: dict[str, Any]) -> dict[str, Any]:
-    level = int(row.get("level") or BOT_LEVEL_OFF)
-    advise = dict(row.get("advise") or {})
-    caps = dict(row.get("caps") or {})
-    lock_until = row.get("hard_lock_until_date")
-    token_on = has_desk_arm(row)
-    armed = is_desk_active(row)
-    brain_id = row.get("brain_session_id") if level >= BOT_LEVEL_STRATEGY else None
-    alive = heartbeat_is_fresh(row) and bool(brain_id)
+    from bot import activation, sleeve
+    from bot.gates import day_lock, first_closed, gates
+    from bot.setup_levels import effective, master, own_levels
     from ibkr.trading_allowed import places_allowed
 
+    level = master(row)
+    venue_now = activation.venue_state()
+    venue = venue_now[0]
+    active = is_desk_active(row)
+    brain_id = row.get("brain_session_id") if level >= BOT_LEVEL_STRATEGY else None
+    alive = heartbeat_is_fresh(row) and bool(brain_id)
     places_ok, places_reason = places_allowed()
-    from bot.gates import gates, readout, readout_required
-    from bot.setup_levels import levels_of
-
-    both = levels_of(row)
-    chosen, levels = both["chosen"], both["levels"]
-    out = readout()
-    required = readout_required()
+    own, eff = own_levels(row), effective(row)
+    gate_list = gates(row, venue_now)
+    closed = first_closed(gate_list)
+    ready = active and closed is None
+    ready_reason = None if ready else ("the bot is not active: press Activate" if not active
+                                       else str(closed["detail"].get("text") or closed["id"]))
+    caps = sleeve.view(row.get("caps"), venue)
+    lock = day_lock(row, venue)
+    daily = next((g["detail"] for g in gate_list if g["id"] == "daily_cap"), {})
+    tripped = soft_latched(row)
     return {
         "level": level,
-        "armed": armed,
-        "has_desk_arm": token_on,
-        "strategy": row.get("strategy") if level >= BOT_LEVEL_STRATEGY else None,
-        # ADR 027: the operator's playbook; one setup plays at a time. ADR 031: a level
-        # per setup with a scanner (the chosen one's is ``level``).
-        "setup": row.get("setup") or BOT_SETUP_DEFAULT,
+        "active": active,
+        "armed": active,                         # LEGACY alias of ``active`` (one release)
+        "has_desk_arm": has_desk_arm(row),
+        "deactivated": _deactivated(row.get("deactivated")),
+        # ADR 042: every setup with a scanner has its own level; effective = min(master, own).
         "setups": [{"id": sid, "scanner": sid in BOT_SETUPS_WITH_SCANNER,
-                    "level": levels.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None} for sid in BOT_SETUPS],
-        "setup_levels": {sid: lvl for sid, lvl in levels.items() if sid != chosen},
-        "readout": out,
-        # ADR 030: Live waits on the read-out; Paper and Sim do not.
-        "readout_required": required,
-        "gates": gates(row),
+                    "level": own.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None,
+                    "effective": eff.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None} for sid in BOT_SETUPS],
+        "setup_levels": dict(own),
+        "ready": ready,
+        "ready_reason": ready_reason,
+        "live_fire_ready": ready,                # LEGACY alias of ``ready`` (one release)
+        "gates": gate_list,
+        "caps": caps,
+        "caps_bounds": sleeve.bounds(),
+        "caps_by_venue": sleeve.by_venue(row),
         "symbol_allowlist": normalize_symbols(row.get("symbol_allowlist")),
+        "entries_today": _entries_today(venue, daily),
         "brain_session_id": brain_id,
         "brain_heartbeat_ts": row.get("brain_heartbeat_ts") if brain_id else None,
         "brain_alive": alive,
         "trading_allowed": places_ok,
         "trading_allowed_reason": None if places_ok else places_reason or None,
-        "live_fire_ready": (
-            level >= BOT_LEVEL_STRATEGY
-            and armed
-            and alive
-            and bool(brain_id)
-            and places_ok
-            and (bool(out.get("passed")) or not required)
-        ),
-        "caps": {
-            "max_shares": int(caps.get("max_shares") or 1),
-            "bp_budget_usd": float(caps.get("bp_budget_usd") or 0),
-            "working_ttl_sec": int(caps.get("working_ttl_sec") or 3),
-            "extended_hours": bool(caps.get("extended_hours")),
-            "allowlist": list(caps.get("allowlist") or default_allowlist()),
-        },
-        "advise": {
-            "enabled": bool(advise.get("enabled")) and level > BOT_LEVEL_OFF,
-            "usd_cap": float(advise.get("usd_cap") or BOT_ADVISE_DEFAULT_USD_CAP),
-            "call_cap": int(advise.get("call_cap") or BOT_ADVISE_DEFAULT_CALL_CAP),
-            "usd_spent": float(advise.get("usd_spent") or 0),
-            "calls_used": int(advise.get("calls_used") or 0),
-        },
-        "soft_breaker_fired": soft_latched(row),
+        "soft_breaker_fired": tripped,
+        "soft_breaker": {"fired": tripped, "at": row.get("soft_breaker_at"), "pnl": row.get("soft_breaker_pnl"),
+                         "until": row.get("soft_breaker_until")},
         # The loss breakers' thresholds, per venue (operator ask 2026-09-24).
-        "breakers": _breakers_view(row),
-        # The level is per venue too (operator report 2026-09-30): ``level`` is the desk's own.
+        "breakers": _breakers_view(row, venue),
+        # The dial is per venue too (operator report 2026-09-30): ``level`` is the desk's own.
         "level_venue": row.get("level_venue"),
         "levels_by_venue": _levels_by_venue(row),
-        "hard_lock_until_date": lock_until,
-        "day_lock_active": lock_is_active(lock_until),
+        "day_lock": lock,
+        "day_locks": _day_locks(row),
+        "hard_lock_until_date": lock.get("until"),       # LEGACY (this venue's)
+        "day_lock_active": bool(lock.get("active")),     # LEGACY (this venue's)
         "focus": list(row.get("focus") or []),
         "trader_live": list(row.get("trader_live") or []),
         "working": list(row.get("working") or []),
-        # ADR 030: Nova's own first-pullback bot -- whether it plays, and its current or last trade.
+        # Nova's own bot (ADR 030, 042): whether it plays, and its current or last trade.
         "runner": _runner_view(row),
-        "trade": _trade_view(row.get("trade")),
+        "trade": _trade_view(row.get("trade"), venue),
         # Sim time travel (ADR 020): the last scratch-account unwind this
         # process published, so a polling bot re-reads the ledger after it.
         "last_rewind": _last_rewind(),
@@ -114,11 +100,30 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _breakers_view(row: dict[str, Any]) -> dict[str, Any]:
-    from bot.breaker_limits import view
-    from bot.gates import current_venue
+def _deactivated(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    return {"at": value.get("at"), "reason": value.get("reason"), "text": value.get("text")}
 
-    return view(row, current_venue())
+
+def _entries_today(venue: str | None, daily: dict[str, Any]) -> dict[str, Any]:
+    """``{count, cap, venue_day, entries, approved}`` -- the shared Nova count (ADR 042 E)."""
+    from bot import entry_rules
+
+    try:
+        out = entry_rules.today(venue, cap=int(daily.get("cap") or 0) or None)
+    except Exception as exc:
+        return {"count": None, "cap": daily.get("cap"), "venue_day": None, "entries": [], "approved": None,
+                "error": f"the day's entries could not be counted ({exc})"}
+    return out
+
+
+def _breakers_view(row: dict[str, Any], venue: str | None) -> dict[str, Any]:
+    from bot.breaker_limits import view
+
+    out = dict(view(row, venue))
+    out.setdefault("note", None)
+    return out
 
 
 def _levels_by_venue(row: dict[str, Any]) -> dict[str, int]:
@@ -127,8 +132,21 @@ def _levels_by_venue(row: dict[str, Any]) -> dict[str, int]:
     return by_venue(row)
 
 
-def _trade_view(trade: Any) -> dict[str, Any] | None:
-    return dict(trade) if isinstance(trade, dict) else None
+def _day_locks(row: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    from bot.gates import day_lock
+    from constants_bot import BOT_BREAKER_VENUES
+
+    return {v: day_lock(row, v) for v in BOT_BREAKER_VENUES}
+
+
+def _trade_view(trade: Any, venue: str | None) -> dict[str, Any] | None:
+    if not isinstance(trade, dict):
+        return None
+    from bot.first_pullback.runner import waiting_text
+
+    out = dict(trade)
+    out["waiting"] = waiting_text(out, venue)
+    return out
 
 
 def _runner_view(row: dict[str, Any]) -> dict[str, Any]:
@@ -151,20 +169,6 @@ def save(row: dict[str, Any]) -> dict[str, Any]:
     return persist.save_session(row)
 
 
-def clamp_caps(caps: dict[str, Any]) -> dict[str, Any]:
-    out = dict(caps)
-    shares = int(out.get("max_shares") or 1)
-    out["max_shares"] = max(1, min(BOT_MAX_SHARES_CAP, shares))
-    budget = float(out.get("bp_budget_usd") or 0)
-    out["bp_budget_usd"] = max(0.01, min(BOT_BP_BUDGET_HARD_MAX_USD, budget))
-    ttl = int(out.get("working_ttl_sec") or 3)
-    out["working_ttl_sec"] = max(BOT_WORKING_TTL_MIN_SEC, min(BOT_WORKING_TTL_MAX_SEC, ttl))
-    out["extended_hours"] = bool(out.get("extended_hours"))
-    allow = [k for k in (out.get("allowlist") or default_allowlist()) if k in default_allowlist()]
-    out["allowlist"] = allow or default_allowlist()
-    return out
-
-
 def require_l2_brain(brain_session_id: str | None, *, claim: bool = True) -> str:
     row = persist.load_session()
     if int(row.get("level") or 0) != BOT_LEVEL_STRATEGY:
@@ -172,7 +176,7 @@ def require_l2_brain(brain_session_id: str | None, *, claim: bool = True) -> str
     desk_token = (row.get("desk_arm_token") or "").strip()
     if not is_desk_active(row):
         raise BotError(
-            "Activate from the desk header before a brain can claim",
+            "Activate on the Bots page before a brain can claim",
             409,
             BOT_REASON_ARM_REQUIRED,
         )

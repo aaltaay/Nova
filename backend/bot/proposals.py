@@ -58,7 +58,7 @@ def list_proposals() -> list[dict[str, Any]]:
 
 
 def submit(body: dict[str, Any], *, brain_session_id: str | None) -> dict[str, Any]:
-    # Eyes or Strategy: until Strategy's read-out passes the bot proposes like Eyes (ADR 027).
+    # Eyes or Strategy: a brain may propose at either (ADR 027, 042); a human places.
     assert_not_dark()
     item = _validate_proposal(body)
     item["brain_session_id"] = (brain_session_id or "").strip() or None

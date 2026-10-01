@@ -21,10 +21,8 @@ from constants_setups import (
     SETUP_STATE_ARMED,
     SETUP_STATE_NEAR,
     SETUP_STATE_TRIGGERED,
-    SETUPS_GRADE_C,
     TAPE_GATE_BIG_SELLER_SHARES,
     TAPE_GATE_WALL_SHARES,
-    TAPE_VERDICT_GO,
 )
 from constants_stock_read import (
     STOCK_READ_MANUAL_STOP_BARS,
@@ -74,15 +72,15 @@ def _rank(lane: dict[str, Any], now: float) -> int | None:
 
 
 def choose(setups: list[dict[str, Any]], now: float) -> dict[str, Any] | None:
-    """The lane the plan follows: near, armed, triggered in the last 30 minutes, then forming; the
-    bot's chosen setup first on a tie, then the playbook's order."""
+    """The lane the plan follows: near, armed, triggered in the last 30 minutes, then forming; a setup
+    at Strategy (the one Nova's bot would trade, ADR 042) first on a tie, then the playbook's order."""
     best: tuple[int, int, int] | None = None
     pick = None
     for i, lane in enumerate(setups):
         r = _rank(lane, now)
         if r is None:
             continue
-        key = (r, 0 if lane.get("chosen") else 1, i)
+        key = (r, 0 if lane.get("level") == 2 else 1, i)
         if best is None or key < best:
             best, pick = key, lane
     return pick
@@ -288,28 +286,21 @@ def result_of(plan: dict[str, Any], lane: dict[str, Any] | None) -> dict[str, An
 
 
 def trade_verdict(plan: dict[str, Any], lane: dict[str, Any] | None,
-                  plan_checks: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Whether a setup plan is a trade, with every reason it is not; None for the operator's own plan."""
+                  spread: float | None = None) -> dict[str, Any] | None:
+    """Whether a setup plan is a trade, with every reason it is not; None for the operator's own plan.
+
+    The rule is ``setup_scanner.trade_verdict`` -- the one Nova's bot, Auto-entry, Approve and the
+    proposals ask too (ADR 042 H)."""
+    from setup_scanner.trade_verdict import verdict
+
     if plan.get("source") != "setup":
         return None
-    reasons: list[str] = []
-    if plan.get("grade") == SETUPS_GRADE_C:
-        count = plan.get("pillars")
-        reasons.append(f"grade C: {count['passed']} of {count['total']} pillars" if count
-                       else "grade C: three pillars or fewer")
+    filtered: str | bool | None = None
     if (lane or {}).get("state") == FILTERED:
-        why = str((lane or {}).get("reason") or "").removeprefix("filtered: ")
-        reasons.append(f"the template's stock filter keeps it out: {why}")
-    tape = plan.get("tape") or {}
-    if plan.get("state") == "triggered" and tape.get("verdict") and tape["verdict"] != TAPE_VERDICT_GO:
-        first = (tape.get("reasons") or [""])[0]
-        reasons.append(f"it triggered with the tape at {str(tape['verdict']).upper()}" + (f": {first}" if first else ""))
-    if plan.get("result"):
-        reasons.append(f"it already played out: {plan['result']['text']}")
-    if any(c["id"] == "spread" and c["state"] == "bad" for c in plan_checks):
-        spread = next(c for c in plan_checks if c["id"] == "spread")
-        reasons.append(f"{spread['text']}: a buy at the ask sits at or under its stop on the bid")
-    return {"ok": not reasons, "reasons": reasons}
+        filtered = str((lane or {}).get("reason") or "") or True
+    return verdict(grade=plan.get("grade"), pillars=plan.get("pillars"), filtered=filtered,
+                   triggered=plan.get("state") == "triggered", tape=plan.get("tape"),
+                   played_out=(plan.get("result") or {}).get("text"), spread=spread, risk=plan.get("risk"))
 
 
 def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entry: float | None = None,
@@ -330,6 +321,6 @@ def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entr
     plan["marks"] = _obstacles(plan, ctx)
     plan["flow"] = ctx.get("flow") if (ctx.get("flow") or {}).get("label") else None
     plan["result"] = result_of(plan, lane)
-    plan["trade"] = trade_verdict(plan, lane, plan["checks"])
+    plan["trade"] = trade_verdict(plan, lane, ctx.get("spread"))
     plan["levels"] = level_notes(plan, ctx.get("level_map"), ctx.get("bars") or [], price=ctx.get("price"), now=now)
     return plan

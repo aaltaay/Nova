@@ -1,7 +1,9 @@
-"""The stock-mode rules (ADR 037), pure: the four modes, the locks, the size, the approval's binding."""
+"""The stock-mode rules (ADR 037, ADR 042), pure: the four modes, the locks, the approval's binding.
+
+A Nova automatic buy is sized by the venue's sleeve (``bot.sizing``), not here.
+"""
 from __future__ import annotations
 
-import math
 from typing import Any
 
 from constants_sim import DESK_PRACTICE_VENUES
@@ -11,9 +13,6 @@ from constants_stock_mode import (
     STOCK_MODE_BOT,
     STOCK_MODE_INVALID,
     STOCK_MODE_PRICE_TOLERANCE,
-    STOCK_MODE_RISK,
-    STOCK_MODE_RISK_MAX_USD,
-    STOCK_MODE_RISK_MIN_USD,
     STOCK_MODE_SIDE_NOVA,
     STOCK_MODE_SIDES,
     STOCK_MODE_SIGNAL,
@@ -28,7 +27,7 @@ from stock_mode.errors import StockModeError
 EPS = 1e-9
 
 
-def mode_of(buy: str, sell: str) -> str:
+def mode_of(buy: str | None, sell: str | None) -> str:
     """You / you is Signal only; you / Nova Approve; Nova / you Auto-entry; Nova / Nova the bot."""
     if buy == STOCK_MODE_SIDE_NOVA:
         return STOCK_MODE_BOT if sell == STOCK_MODE_SIDE_NOVA else STOCK_MODE_AUTO_ENTRY
@@ -50,25 +49,6 @@ def side(raw: Any, field: str) -> str:
     return value
 
 
-def risk_usd(raw: Any, *, required: bool) -> float | None:
-    """The desk's risk per trade: required where Nova sizes a buy by itself (Auto-entry)."""
-    if raw is None:
-        if required:
-            raise StockModeError(STOCK_MODE_RISK, "Auto-entry needs your risk per trade to size the buy",
-                                 status=400, field="risk_usd")
-        return None
-    try:
-        value = float(raw)
-    except (TypeError, ValueError):
-        raise StockModeError(STOCK_MODE_RISK, "risk_usd is a dollar amount", status=400, field="risk_usd") from None
-    if not math.isfinite(value) or not STOCK_MODE_RISK_MIN_USD <= value <= STOCK_MODE_RISK_MAX_USD:
-        raise StockModeError(
-            STOCK_MODE_RISK,
-            f"risk per trade is ${STOCK_MODE_RISK_MIN_USD:g} to ${STOCK_MODE_RISK_MAX_USD:,.0f}",
-            status=400, field="risk_usd")
-    return value
-
-
 def locks(venue: str | None, replay: bool) -> dict[str, str | None]:
     """Why Nova cannot take each side now (None: it can). A venue Nova cannot read counts as Live."""
     if venue is None:
@@ -78,17 +58,6 @@ def locks(venue: str | None, replay: bool) -> dict[str, str | None]:
     if replay:
         return {"buy": STOCK_MODE_WHY_REPLAY, "sell": STOCK_MODE_WHY_REPLAY}
     return {"buy": None, "sell": None}
-
-
-def size(risk: float | None, entry: Any, stop: Any) -> int:
-    """Whole shares of the risk per trade over the risk per share; 0 when either is unknown."""
-    try:
-        per_share = float(entry) - float(stop)
-    except (TypeError, ValueError):
-        return 0
-    if risk is None or per_share <= EPS or not math.isfinite(per_share):
-        return 0
-    return max(0, int(math.floor(float(risk) / per_share + EPS)))
 
 
 def same_price(a: Any, b: Any, tolerance: float = STOCK_MODE_PRICE_TOLERANCE) -> bool:
@@ -115,3 +84,26 @@ def levels_text(levels: dict[str, Any]) -> str:
             return "?"
 
     return f"{fmt(levels.get('entry'))} / {fmt(levels.get('stop'))} / {fmt(levels.get('target1', levels.get('target')))}"
+
+
+def lane_verdict(lane: dict[str, Any], spread: Any = None) -> dict[str, Any]:
+    """NOT A TRADE on a scanner lane (``setup_scanner.trade_verdict``): grade, filter, the tape at its
+    trigger, a played-out setup and the spread against its risk."""
+    from setup_scanner.grade import pillar_count
+    from setup_scanner.trade_verdict import verdict
+
+    state = lane.get("state")
+    phase = lane.get("phase") or state
+    setup = lane.get("setup") or {}
+    outcome = lane.get("outcome")
+    played = None
+    if outcome in ("target_first", "stop_first"):
+        played = "target 1 printed first" if outcome == "target_first" else "the stop printed first"
+    return verdict(grade=lane.get("grade"), pillars=pillar_count((lane.get("pillars") or {}).get("checks")),
+                   filtered=(str(lane.get("reason") or "") or True) if state == "filtered" else None,
+                   triggered=phase == "triggered", tape=lane.get("trigger_tape"), played_out=played,
+                   spread=spread, risk=setup.get("risk"))
+
+
+__all__ = ["STOCK_MODE_APPROVE", "STOCK_MODE_AUTO_ENTRY", "STOCK_MODE_BOT", "STOCK_MODE_SIGNAL", "lane_verdict",
+           "levels_text", "locks", "mode_of", "plan_matches", "same_price", "side", "symbol"]

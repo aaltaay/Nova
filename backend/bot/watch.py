@@ -1,10 +1,13 @@
 """Halt / LULD + shared-quote snapshots for allowlist ∩ live focus (a brain's Eyes)."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from bot.eligibility import eligible_symbols
 from bot.session import public_view
+
+logger = logging.getLogger(__name__)
 
 
 def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
@@ -19,7 +22,7 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
         ask = None
         last_update_ts = None
         volume = None
-        position_qty = 0.0
+        position_qty: float | None = 0.0
         try:
             from bot.quotes import eyes_row
 
@@ -30,17 +33,15 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
             last_update_ts = quote.get("last_update_ts")
             volume = quote.get("volume")
         except Exception:
-            last = None
-            bid = None
-            ask = None
-            last_update_ts = None
-            volume = None
+            logger.warning("bot watch: the %s quote could not be read -- left unknown", symbol, exc_info=True)
         try:
             from ibkr import account as _account
 
             position_qty = float(_account.long_qty(symbol) or 0)
         except Exception:
-            position_qty = 0.0
+            # Unknown, never "flat": a brain reading 0 would think it holds nothing.
+            logger.warning("bot watch: the %s position could not be read", symbol, exc_info=True)
+            position_qty = None
         items.append(
             {
                 "symbol": symbol,
@@ -57,7 +58,8 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
     view = public_view(row)
     return {
         "symbols": items,
-        "setup": view.get("setup"),
-        "live_fire_ready": bool(view.get("live_fire_ready")),
+        "at_strategy": [s["id"] for s in view.get("setups") or [] if s.get("effective") == 2],
+        "ready": bool(view.get("ready")),
+        "live_fire_ready": bool(view.get("ready")),     # LEGACY alias of ``ready``
         "eligible": symbols,
     }

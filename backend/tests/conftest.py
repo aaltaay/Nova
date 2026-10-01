@@ -76,22 +76,19 @@ from hod_momo_state import HodMomoState
 @pytest.fixture(autouse=True)
 def _reset_bot_persist():
     from bot import day_pnl, entry_rules
-    from bot.gates import set_readout_for_tests
     from bot.persist import reset_for_tests
     from setup_scanner import readout
-    from tests.bot_helpers import open_entry_window, pass_readout, release_depth_lines
+    from tests.bot_helpers import open_entry_window, release_depth_lines
 
     reset_for_tests()
     readout.reset_for_tests()
     day_pnl.reset_for_tests()   # #564: no commission hold carries between tests
-    # ADR 027 baseline: the first-pullback read-out passed and the venue clock
-    # inside the entry window, so bot tests exercise their own gate. The tests
-    # about the read-out and the entry rules close them explicitly.
-    pass_readout()
+    # The venue clock inside the entry window, so bot tests exercise their own
+    # gate. The tests about the entry rules close it explicitly. (ADR 042: the
+    # read-out no longer gates the bot.)
     open_entry_window()
     yield
     reset_for_tests()
-    set_readout_for_tests(None)
     entry_rules.set_clock_for_tests(None)
     readout.reset_for_tests()
     day_pnl.reset_for_tests()

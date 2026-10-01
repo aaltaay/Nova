@@ -175,6 +175,12 @@ def set_armed(value: bool, *, reason: str = "", venue: str | None = None,
             "IBKR: desk %s%s", "ARMED" if _armed else "DISARMED",
             f" ({reason})" if reason else "",
         )
+        if was:
+            # ADR 042 B: locking the padlock -- by anyone -- also clears the bot's Activate,
+            # here in the backend, never left to a page effect.
+            from bot.activation import on_disarm
+
+            on_disarm(reason)
     return armed()
 
 

@@ -1,14 +1,16 @@
-"""Localhost bot HTTP API (ADR 016). Thin handlers -- logic lives in bot/."""
+"""Localhost bot HTTP API (ADR 016). Thin handlers -- logic lives in bot/.
+
+ADR 042: the bot's stock list is written only through stock mode's rules
+(``bot.allowlist``); Activate refuses with a plain reason (``bot.activation``); the
+localhost API refuses every kind on Live and on a replay desk (``bot.actions``).
+"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from auth import require_bot_auth
-from bot.advise_guard import latest as advise_latest
-from bot.advise_guard import start as advise_start
 from bot.api_models import (
     ActionBody,
-    AdviseBody,
     AllowlistBody,
     ArmBody,
     FocusBody,
@@ -27,13 +29,11 @@ from bot.audit import list_entries
 from bot.audit import record as audit_record
 from bot.autonomy import apply_patch
 from bot.day_pnl import read_account_day_pnl
-from bot.eligibility import add_symbol, remove_symbol
 from bot.errors import BotError
 from bot.focus import add_focus, set_focus, snapshot as focus_snapshot
 from bot.focus import sync_trader_live
-from bot.gates import assert_can_activate
 from bot.http import brain_id, desk_arm_token, http_error, require_loopback
-from bot.persist import load_session, save_session
+from bot.persist import load_session
 from bot.proposals import accept, list_proposals, reject, submit
 from bot.session import get_session, require_l2_brain
 from bot.watch import halt_watch
@@ -50,24 +50,46 @@ def bot_session() -> dict:
 
 @router.patch("/api/bot/session", dependencies=_write)
 @router.patch("/bot/session", dependencies=_write)
-def bot_session_patch(request: Request, body: SessionPatch) -> dict:
+async def bot_session_patch(request: Request, body: SessionPatch) -> dict:
+    """The desk's controls. ``symbol_allowlist`` goes through stock mode (one owner, ADR 042):
+    each stock it cannot set is listed in ``refused`` with its reason, and the rest apply."""
+    from bot.allowlist import set_list
+    from constants_bot import BOT_REASON_ARM_DESK_ONLY
+
     payload = body.model_dump(exclude_none=True)
+    if brain_id(request, payload):
+        # Adapters never raise autonomy (ADR 016): the levels, the sleeve and the stocks are the desk's.
+        raise http_error(BotError("a brain cannot change the bot's levels, sleeve, breakers or stocks -- the desk "
+                                  "does", 403, BOT_REASON_ARM_DESK_ONLY))
+    symbols = payload.pop("symbol_allowlist", None)
     try:
-        apply_patch(payload, desk=True, arm_token=desk_arm_token(request, payload))
-        return get_session()
+        if payload:
+            apply_patch(payload, desk=True, arm_token=desk_arm_token(request, payload))
+        refused = await set_list(symbols) if symbols is not None else []
     except BotError as exc:
         raise http_error(exc) from exc
+    view = get_session()
+    if symbols is not None:
+        view["refused"] = refused
+    return view
 
 
 @router.post("/api/bot/session/arm", dependencies=_write)
 @router.post("/bot/session/arm", dependencies=_write)
 def bot_arm(request: Request, body: ArmBody | None = None) -> dict:
+    """Activate (ADR 042 B): refused with a plain reason on Live, a replay desk, an unreadable venue,
+    the master below Strategy, no setup at Strategy, a locked padlock, or a bot trip without re-enable."""
+    from bot.activation import assert_can_activate
+
     payload = body.model_dump(exclude_none=True) if body else {}
+    reenable = bool(payload.get("reenable"))
     try:
         assert_desk_activate(brain_id(request, payload))
-        assert_can_activate(load_session())
-        token = issue_arm_token(reenable=bool(payload.get("reenable")))
-        audit_record(action="activate", outcome="ok", reason="desk")
+        assert_can_activate(load_session(), reenable=reenable)
+        token = issue_arm_token(reenable=reenable)
+        audit_record(action="activate", outcome="ok",
+                     reason="the bot trip was re-enabled by you" if reenable else "Activated from the desk",
+                     inputs={"reenable": reenable})
         view = get_session()
         view["desk_arm_token"] = token
         return view
@@ -78,11 +100,13 @@ def bot_arm(request: Request, body: ArmBody | None = None) -> dict:
 @router.post("/api/bot/session/disarm", dependencies=_write)
 @router.post("/bot/session/disarm", dependencies=_write)
 def bot_disarm(request: Request, body: ArmBody | None = None) -> dict:
+    from bot.activation import record
+
     payload = body.model_dump(exclude_none=True) if body else {}
     try:
         assert_desk_activate(brain_id(request, payload))
-        disarm_session()
-        audit_record(action="deactivate", outcome="ok", reason="desk")
+        disarm_session("operator")
+        record("operator")
         return get_session()
     except BotError as exc:
         raise http_error(exc) from exc
@@ -112,17 +136,18 @@ def bot_claim(request: Request, body: SessionPatch | None = None) -> dict:
 
 @router.post("/api/bot/allowlist", dependencies=_write)
 @router.post("/bot/allowlist", dependencies=_write)
-def bot_allowlist(body: AllowlistBody) -> dict:
-    row = load_session()
+async def bot_allowlist(body: AllowlistBody) -> dict:
+    """One stock on or off this venue's bot list, through stock mode's rules (ADR 042 F): ``add`` sets it
+    to Bot (Nova / Nova), ``remove`` to Signal only. A refusal is stock mode's ``{detail: {reason, error,
+    field}}``."""
+    from bot.allowlist import set_one
+    from stock_mode.errors import StockModeError
+
     try:
-        if body.op == "remove":
-            remove_symbol(row, body.symbol)
-        else:
-            add_symbol(row, body.symbol)
-        save_session(row)
-        return get_session()
-    except BotError as exc:
-        raise http_error(exc) from exc
+        await set_one(body.symbol, on=body.op != "remove")
+    except StockModeError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail()) from exc
+    return get_session()
 
 
 @router.get("/api/bot/watch")
@@ -200,24 +225,6 @@ def bot_focus_set(body: FocusBody) -> dict:
 @router.post("/bot/focus/sync", dependencies=_write)
 def bot_focus_sync(body: LiveSyncBody) -> dict:
     return sync_trader_live(body.live)
-
-
-@router.get("/api/bot/advise/latest")
-@router.get("/bot/advise/latest")
-def bot_advise_latest(symbol: str, depth: int | None = None) -> dict:
-    try:
-        return {"run": advise_latest(symbol, depth)}
-    except BotError as exc:
-        raise http_error(exc) from exc
-
-
-@router.post("/api/bot/advise", dependencies=_write)
-@router.post("/bot/advise", dependencies=_write)
-async def bot_advise(body: AdviseBody) -> dict:
-    try:
-        return await advise_start(body.symbol, body.depth, force_refresh=body.force_refresh)
-    except BotError as exc:
-        raise http_error(exc) from exc
 
 
 @router.get("/api/bot/audit")

@@ -62,12 +62,12 @@ def _soft_breaker_fired() -> bool:
     return soft_latched(load_session())
 
 
-def desk_block() -> tuple[str, str] | None:
-    """The first desk gate that keeps Nova from sending a buy now: ``(code, why)``, else None.
+def desk_blocks() -> list[tuple[str, str]]:
+    """Every desk gate that keeps Nova from sending a buy now: ``[(code, why)]`` (empty: none).
 
-    The padlock (``places_allowed``), the kill switch, the day lock and the bot trip. The execution
-    door checks the padlock and the kill switch again; asking first lets the runner skip with the
-    reason instead of sending into a refusal.
+    The padlock (``places_allowed``), the kill switch, this venue's day lock and bot trip. The
+    execution door checks the padlock and the kill switch again; asking first lets the runner skip
+    with the reason instead of sending into a refusal. A gate that cannot be read counts as closed.
     """
     checks = (
         (STOCK_MODE_BLOCK_DISARMED, STOCK_MODE_WHY_DISARMED, _disarmed),
@@ -75,14 +75,21 @@ def desk_block() -> tuple[str, str] | None:
         (STOCK_MODE_BLOCK_DAY_LOCK, STOCK_MODE_WHY_DAY_LOCK, _day_locked),
         (STOCK_MODE_BLOCK_BOT_TRIP, STOCK_MODE_WHY_BOT_TRIP, _soft_breaker_fired),
     )
+    out: list[tuple[str, str]] = []
     for code, why, blocked in checks:
         try:
             if blocked():
-                return code, why
+                out.append((code, why))
         except Exception:
             logger.warning("stock mode: the %s gate could not be read -- Nova sends nothing", code, exc_info=True)
-            return code, f"{why} (Nova could not read it, so it counts as closed)"
-    return None
+            out.append((code, f"{why} (Nova could not read it, so it counts as closed)"))
+    return out
+
+
+def desk_block() -> tuple[str, str] | None:
+    """The first desk gate that keeps Nova from sending a buy now: ``(code, why)``, else None."""
+    found = desk_blocks()
+    return found[0] if found else None
 
 
 def _disarmed() -> bool:
