@@ -38,7 +38,7 @@ from constants_stock_mode import (
     STOCK_MODE_TRADE_HOLDING,
     STOCK_MODE_WHY_HELD,
 )
-from stock_mode import gates, model, orders, runner, store, view
+from stock_mode import exit_trade, gates, model, orders, runner, store, view
 from stock_mode.errors import StockModeError
 
 logger = logging.getLogger(__name__)
@@ -104,6 +104,9 @@ async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any = Non
     _venue_gate(buy, sell)
     before = view.build(sym, now=now)
     was_mode, was_sell = before["mode"], before["sell"]
+    if sell == STOCK_MODE_SIDE_YOU and _exit_held(sym):
+        await _take_exits(sym, now)          # Sell: You takes back the exit you handed Nova
+        return view.build(sym, now=now)
     if mode == was_mode:
         return before
     if sell == STOCK_MODE_SIDE_NOVA and was_sell == STOCK_MODE_SIDE_YOU and _held(sym) > _EPS:
@@ -142,6 +145,19 @@ def _mode_words(mode: str, sym: str) -> str:
                                 "Active); every sell is yours"),
         STOCK_MODE_BOT: "the bot trades it in and out by its own rules",
     }[mode]
+
+
+def _exit_held(sym: str) -> bool:
+    """Nova holds the exit of a stock you bought (``exit_trade``) on the desk's venue."""
+    venue, _replay = gates.venue_state()
+    trade = store.trade(venue, sym)
+    return bool(trade and trade.get("kind") == exit_trade.KIND_EXIT and trade.get("state") == STOCK_MODE_TRADE_HOLDING
+                and trade.get("exits") == STOCK_MODE_SIDE_NOVA)
+
+
+async def take_exit(symbol: str, body: dict[str, Any], *, now: float | None = None) -> dict[str, Any]:
+    """Nova takes the exit of the shares you hold (``exit_trade.take``): Paper, and Sim at the live edge."""
+    return await exit_trade.take(symbol, stop=body.get("stop"), trail=bool(body.get("trail", True)), now=now)
 
 
 def _nova_holds_exits(sym: str, before: dict[str, Any]) -> bool:
@@ -281,7 +297,10 @@ async def _take_exits(sym: str, now: float) -> None:
     venue, _replay = gates.venue_state()
     trade = store.trade(venue, sym)
     before = view.build(sym, now=now)
-    if trade and trade.get("kind") == STOCK_MODE_APPROVE and trade.get("exits") == STOCK_MODE_SIDE_NOVA \
+    if trade and trade.get("kind") == exit_trade.KIND_EXIT and trade.get("exits") == STOCK_MODE_SIDE_NOVA \
+            and trade.get("state") == STOCK_MODE_TRADE_HOLDING:
+        await exit_trade.take_back(trade, now)
+    elif trade and trade.get("kind") == STOCK_MODE_APPROVE and trade.get("exits") == STOCK_MODE_SIDE_NOVA \
             and trade.get("state") in (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING):
         await _take_bracket(trade, now)
     elif (before.get("trade") or {}).get("kind") == STOCK_MODE_BOT:

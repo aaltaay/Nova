@@ -144,7 +144,10 @@ describe('the switch', () => {
     const o = { symbol: 'PFSA', held: 0, pending: null };
     expect(switchLock(live, { buy: 'nova', sell: 'you' }, o)).toMatch(/never buys by itself/);
     expect(switchLock(live, { buy: 'you', sell: 'you' }, o)).toBeNull();
-    expect(switchLock(pfsaView('signal'), { buy: 'you', sell: 'nova' }, { ...o, held: 153 })).toMatch(/You hold PFSA/);
+    // Sell to Nova on a stock you hold opens "Nova takes the exit" (ADR 037 amendment 2026-10-01): no lock on Paper;
+    // on Live it stays locked, with why Nova does not take a held stock's exit there.
+    expect(switchLock(pfsaView('signal'), { buy: 'you', sell: 'nova' }, { ...o, held: 153 })).toBeNull();
+    expect(switchLock(live, { buy: 'you', sell: 'nova' }, { ...o, held: 153 })).toMatch(/never moves a Live order/);
     expect(switchLock(null, { buy: 'you', sell: 'you' }, o)).toMatch(/Reading who trades PFSA/);
     expect(switchLock(pfsaView('signal'), { buy: 'nova', sell: 'you' }, { ...o, pending: 'Saving…' })).toBe('Saving…');
   });
@@ -183,7 +186,8 @@ describe('the moment on the chart', () => {
     held = remember([{ ...HOLDING, last: 4.52, now: PFSA_TRIGGER + 26 }], held);
     const due = momentOf(inputs({ ...HOLDING, last: 4.47, now: PFSA_TRIGGER + 27 }, held));
     expect(due).toMatchObject({ step: 3, tone: 'target', badge: 'TARGET 4.52 HIT · SELL' });
-    expect(due?.call).toMatchObject({ id: `sell-target:${held.since}`, title: 'SELL NOW · TARGET 4.52', ping: true });
+    // The id names the level, so a moved stop or target is a new call (and a new ping).
+    expect(due?.call).toMatchObject({ id: `sell-target:${held.since}:4.52`, title: 'SELL NOW · TARGET 4.52', ping: true });
     expect(due?.call?.detail).toMatch(/No order is working: the exit is yours/);
   });
 

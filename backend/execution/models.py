@@ -25,6 +25,7 @@ Origin = Literal[
     "auto_entry",
     "approve",
     "bot_api",
+    "nova_exit",
 ]
 
 

@@ -14,6 +14,8 @@ STOCK_MODE_SIGNAL = "signal"
 STOCK_MODE_APPROVE = "approve"
 STOCK_MODE_AUTO_ENTRY = "auto_entry"
 STOCK_MODE_BOT = "bot"
+# A trade kind, not a mode: Nova holds the exit of a stock you bought (ADR 037 amendment 2026-10-01).
+STOCK_MODE_EXIT = "exit"
 STOCK_MODE_MODES = (STOCK_MODE_SIGNAL, STOCK_MODE_APPROVE, STOCK_MODE_AUTO_ENTRY, STOCK_MODE_BOT)
 STOCK_MODE_NAMES = {
     STOCK_MODE_SIGNAL: "Signal only",
@@ -80,7 +82,12 @@ STOCK_MODE_WHY_LIVE_SELL = (
 STOCK_MODE_WHY_VENUE_UNKNOWN = "Nova cannot read the desk's venue, so it counts as Live: Nova places nothing."
 STOCK_MODE_WHY_REPLAY = "Off the live edge the desk is a replay: Nova trades live triggers only."
 STOCK_MODE_WHY_HELD = (
-    "You hold {sym}: Nova exits only a trade it entered or you approved. Sell it yourself, or flatten first."
+    "You hold {sym}: hand Nova the exit with \"Nova takes the exit\" on the plan box (Paper and Sim), or sell it "
+    "yourself."
+)
+STOCK_MODE_WHY_LIVE_EXIT = (
+    "On Live, Nova never moves a Live order by itself, and a plain IBKR stop does not trigger before 9:30 "
+    "(#604). Set your stop and sell it yourself; Nova takes the exit on Paper and Sim."
 )
 
 # What keeps Nova from sending although the switch is set (skip codes on the audit stream, and the

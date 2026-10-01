@@ -4,11 +4,11 @@ import { useLayoutEffect, useState } from 'react';
 import { tipProps } from '../ux';
 import { STATE_WORDS } from './constants';
 import { checkGlyph, fmtPx, rulerLayout } from './planMath';
-import type { StockPlan } from './types';
+import type { PlanCheck, StockPlan } from './types';
 
 /** The element's width, followed as it resizes (a callback ref: the ruler is absent while a plan has no
  * levels). */
-function useWidth(): [(el: HTMLDivElement | null) => void, number | null] {
+export function useWidth(): [(el: HTMLDivElement | null) => void, number | null] {
   const [el, setEl] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState<number | null>(null);
   useLayoutEffect(() => {
@@ -59,8 +59,13 @@ export function PlanRuler({ plan, price }: { plan: StockPlan; price: number | nu
 }
 
 export function PlanChecks({ plan }: { plan: StockPlan }) {
+  return <CheckList checks={plan.checks} />;
+}
+
+/** The checks, one glyph each (the plan's, or the trade you hold's). */
+export function CheckList({ checks: all }: { checks: PlanCheck[] }) {
   // The risk against the cap is already under Risk / sh.
-  const checks = plan.checks.filter(c => c.id !== 'risk');
+  const checks = all.filter(c => c.id !== 'risk');
   if (checks.length === 0) return null;
   return (
     <ul className="sr-checks" data-testid="stock-read-checks">

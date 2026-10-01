@@ -22,6 +22,14 @@ const ROWS = [
 export function PlanLevels({ plan }: { plan: StockPlan }) {
   const lv = plan.levels;
   if (!lv) return null;
+  return <LevelRowList levels={lv} trial={lv.room.state === 'warn' ? lv.room.trial : null} />;
+}
+
+/** The rows themselves, for the plan's notes and for the trade you hold (whose Room is never a trial's). */
+export function LevelRowList({ levels: lv, trial = null }: {
+  levels: Partial<Record<(typeof ROWS)[number][0], PlanLevelNote | null>>;
+  trial?: string | null;
+}) {
   const rows: { key: (typeof ROWS)[number][0]; label: string; note: PlanLevelNote }[] = [];
   for (const [key, label] of ROWS) {
     const note = lv[key];
@@ -39,8 +47,8 @@ export function PlanLevels({ plan }: { plan: StockPlan }) {
         >
           <span className="sr-levels__k">{label}</span>
           <span className="sr-levels__t">{note.text}</span>
-          {key === 'room' && lv.room.state === 'warn' && lv.room.trial && (
-            <span className="sr-levels__pill" data-testid="stock-read-room-trial">in trial {lv.room.trial}</span>
+          {key === 'room' && trial && (
+            <span className="sr-levels__pill" data-testid="stock-read-room-trial">in trial {trial}</span>
           )}
         </li>
       ))}

@@ -16,7 +16,7 @@ from constants_stock_read import (
 from scanner_wire import wire_safe
 from setup_scanner import five_minute
 from setup_scanner.bars import bar_from
-from stock_read import history, indicators, level_map, plan as plan_mod, plan_liquidity, rows, rows_trade
+from stock_read import held as held_mod, history, indicators, level_map, plan as plan_mod, plan_liquidity, rows, rows_trade
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -177,8 +177,30 @@ def _verdict(gid: str, group_rows: list[dict[str, Any]], f: dict[str, Any],
     return ("unknown" if all(s == "unknown" for s in states) else "info"), ""
 
 
-def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None = None) -> dict[str, Any]:
-    """The whole read from gathered facts (pure but for the daily-bar history cache)."""
+# The plan's checks that hold for a position you hold (the rest are about an entry).
+HELD_CHECK_IDS = ("spread", "macd", "ema9", "vwap", "flow", "pulls", "halted")
+
+
+def held_read(f: dict[str, Any], ctx: dict[str, Any], held: dict[str, Any], now: float) -> dict[str, Any]:
+    """``held`` (AGENTS.md "Managing a trade you hold"): the trade you hold, measured from the price."""
+    price = ctx.get("price")
+    avg, qty = float(held["avg"]), float(held["qty"])
+    built = held_mod.build(bars=ctx.get("bars") or [], price=price, level_map=ctx.get("level_map"), avg=avg, qty=qty,
+                           now=now, since=held.get("since"), stop=held.get("stop"),
+                           nova_stop=(f.get("nova_exit") or {}).get("stop"), risk=held.get("risk"))
+    stop_px = (built.get("stop") or {}).get("price")
+    nxt = next((row["price"] for row in built["ladder"] if row["role"] == "next"), None)
+    like = {"source": "manual", "entry": price,
+            "risk": round(price - stop_px, 4) if price is not None and stop_px is not None and stop_px < price else None,
+            "target": nxt}
+    built["checks"] = [c for c in plan_mod.checks(like, ctx) if c["id"] in HELD_CHECK_IDS]
+    return built
+
+
+def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None = None,
+          held: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The whole read from gathered facts (pure but for the daily-bar history cache). ``held``: the position
+    you hold (``{qty, avg, stop, risk, since}``), which adds ``held`` to the read."""
     now = float(f["now"])
     d = derive(f)
     view = f.get("setups") or {}
@@ -200,6 +222,7 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
            "risk_usd": (f.get("bot") or {}).get("risk_usd"), "l1_only": bool((f.get("l2") or {}).get("l1_fallback"))}
     plan = plan_mod.build(setups, ctx, now=now, entry=entry, stop=stop)
     liquid = (plan or {}).get("liquidity") or plan_liquidity.read(ctx, now)
+    held_out = held_read(f, ctx, held, now) if held else None
     groups = tiles(f, d, plan, hist, liquid)
     counts = {k: 0 for k in ("ok", "warn", "bad", "unknown", "info")}
     for g in groups:
@@ -213,5 +236,6 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
         "price": d["price"], "prev_close": d["prev_close"], "change_pct": d["change_pct"],
         "followed": bool(view.get("followed")), "followed_note": view.get("followed_note"),
         "setups": setups, "setups_5m": view.get("setups_5m") or [], "no_scanner": rows_trade.NO_SCANNER,
-        "plan": plan, "levels": d["levels"], "level_map": levels, "groups": groups, "counts": counts,
+        "plan": plan, "held": held_out, "levels": d["levels"], "level_map": levels, "groups": groups,
+        "counts": counts,
     })

@@ -83,6 +83,12 @@ STOCK_READ_LEVEL_STUDY = {
     "daily_past": (78, 78),      # ... an old daily high: no effect
 }
 
+# -- the trade you hold (ADR 036 amendment 2026-10-01) -------------------------------------------------
+STOCK_READ_HELD_SCHEMA_VERSION = 1
+STOCK_READ_HELD_BROKE_ROWS = 2              # the ladder lists at most this many broke rounds under the price
+STOCK_READ_FLUSH_WINDOW_SEC = 30.0          # trial T1's flow window: a flush call reads 30 s of tape
+STOCK_READ_FLUSH_SCHEMA_VERSION = 1
+
 # -- the history ---------------------------------------------------------------------------------------
 STOCK_READ_RUN_MIN_PCT = 0.40               # a run: a session whose high was 40% or more over the prior close
 STOCK_READ_HISTORY_READ_DAYS = 260          # daily bars read for the runs (about a year)

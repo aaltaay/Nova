@@ -13,7 +13,13 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from bot.first_pullback.orders import ReadError, held_qty, order_row, order_state  # noqa: F401 (re-exported)
+from bot.first_pullback.orders import (  # noqa: F401 (re-exported)
+    ReadError,
+    held_qty,
+    last_price,
+    order_row,
+    order_state,
+)
 from execution.models import ExecutionCommand
 from execution.service import execute
 

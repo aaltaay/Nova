@@ -13,6 +13,7 @@ from constants_stock_mode import (
     STOCK_MODE_APPROVE,
     STOCK_MODE_AUTO_ENTRY,
     STOCK_MODE_BOT,
+    STOCK_MODE_EXIT,
     STOCK_MODE_NOTE_NOT_FOLLOWED,
     STOCK_MODE_SCHEMA_VERSION,
     STOCK_MODE_SIDE_NOVA,
@@ -85,7 +86,7 @@ def _public_trade(t: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     keys = ("kind", "state", "venue", "venue_day", "setup_id", "setup_type", "qty", "entry", "stop", "target",
             "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "filled_at", "exit_price",
-            "exit_reason", "exits", "sent_at", "closed_at", "note", "ttl_sec")
+            "exit_reason", "exits", "sent_at", "closed_at", "note", "ttl_sec", "trail", "raised")
     out = {k: t.get(k) for k in keys}
     out["exiting"] = bool(t.get("exiting"))
     return out
@@ -274,6 +275,9 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         buy, sell = STOCK_MODE_SIDE_YOU, STOCK_MODE_SIDE_YOU
     mode = model.mode_of(buy, sell)
     day = venue_day(now)
+    exit_held = store.trade(venue, sym)
+    if exit_held and exit_held.get("kind") == STOCK_MODE_EXIT and exit_held.get("state") == STOCK_MODE_TRADE_HOLDING             and exit_held.get("exits") == STOCK_MODE_SIDE_NOVA:
+        sell = STOCK_MODE_SIDE_NOVA          # Nova holds the exit of a stock you bought (the mode stays yours)
     caps = of(row) if loaded is not None else None
     try:
         daily = entry_rules.today(venue, cap=int(caps["entries_per_day"])) if caps else None

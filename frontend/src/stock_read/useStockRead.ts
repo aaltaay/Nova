@@ -111,13 +111,19 @@ export function planQuery(entry: number | null, stop: number | null): string {
   return `?${q.toString()}`;
 }
 
+/** The read's whole query: the operator's own plan and the position held (`held_*`). */
+export function readQuery(entry: number | null, stop: number | null, held = ''): string {
+  const qs = [planQuery(entry, stop).replace(/^\?/, ''), held].filter(Boolean).join('&');
+  return qs ? `?${qs}` : '';
+}
+
 export function useStockRead(
   symbol: string,
-  opts: { active: boolean; entry: number | null; stop: number | null },
+  opts: { active: boolean; entry: number | null; stop: number | null; held?: string },
 ): PolledState<StockRead> {
   const sym = symbol.trim().toUpperCase();
   return usePolledRead({
-    url: sym ? `${symbolPath(sym)}${planQuery(opts.entry, opts.stop)}` : null,
+    url: sym ? `${symbolPath(sym)}${readQuery(opts.entry, opts.stop, opts.held)}` : null,
     resetKey: sym,
     normalize: normalizeStockRead,
     pollMs: STOCK_READ_POLL_MS,

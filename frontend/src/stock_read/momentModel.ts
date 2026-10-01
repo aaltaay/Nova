@@ -8,6 +8,7 @@
  * track, the call and its ping can never disagree about where the trade stands.
  */
 import { ENTER_NOW_RISK_SHARE, ENTER_NOW_SEC, NOT_A_TRADE_NOVA, NOVA_CALL_SEC } from './constants';
+import { heldCall } from './heldCalls';
 import { approveQty, capUsedText, novaBlockers, novaQty } from './novaPromise';
 import { fmtPx, fmtStep, planBadge, planLane, setupName, sizeFor } from './planMath';
 import { notATrade, resultBadge, thinPlan } from './planVerdict';
@@ -33,6 +34,9 @@ export interface HeldMemory {
   stopAt: number | null;
   flatAt: number | null;
   flatKey: string | null;
+  /** The stop and target `stopAt` / `targetAt` are about: a moved stop (raised, or set) starts its watch again. */
+  stopFor?: number | null;
+  targetFor?: number | null;
 }
 
 export const NO_HELD: HeldMemory = { since: null, levels: null, targetAt: null, stopAt: null, flatAt: null, flatKey: null };
@@ -50,6 +54,8 @@ export interface MomentInputs {
   /** The sleeve's time limit on every Nova entry, seconds; null while unread. */
   ttlSec: number | null;
   held: HeldMemory;
+  /** Trial T1's 30 s tape reading while you hold (`/flush`); absent or null when unread. */
+  flush?: { at: number; score: number | null; label: string } | null;
 }
 
 export type StepIndex = 0 | 1 | 2 | 3 | 4;
@@ -139,6 +145,10 @@ export interface JudgedLevels {
 export function judgedLevels(i: MomentInputs, held: HeldMemory = i.held): JudgedLevels | null {
   const live = liveTrade(i.who);
   if (live) return { entry: live.fill_price ?? live.entry, stop: live.stop, target: live.target };
+  // The read's own view of the position (ADR 036 amendment 2026-10-01): your stop (or the one Nova proposes)
+  // and your 2:1 from the average.
+  const h = i.read?.held ?? null;
+  if (h) return { entry: h.avg, stop: h.stop?.price ?? null, target: h.target?.price ?? null };
   const plan = i.read?.plan ?? null;
   if (plan?.source === 'manual') return { entry: plan.entry, stop: plan.stop, target: plan.target };
   return held.levels ? { entry: held.levels.entry, stop: held.levels.stop, target: held.levels.target } : null;
@@ -157,6 +167,8 @@ export function nextHeld(prev: HeldMemory, i: MomentInputs): HeldMemory {
     }
     const lv = judgedLevels(i, next);
     const last = lastOf(i);
+    if (lv && (lv.stop ?? null) !== (next.stopFor ?? null)) next = { ...next, stopAt: null, stopFor: lv.stop };
+    if (lv && (lv.target ?? null) !== (next.targetFor ?? null)) next = { ...next, targetAt: null, targetFor: lv.target };
     if (last !== null && lv) {
       if (lv.target !== null && next.targetAt === null && last >= lv.target - EPS) next = { ...next, targetAt: i.now };
       if (lv.stop !== null && next.stopAt === null && last <= lv.stop + EPS) next = { ...next, stopAt: i.now };
@@ -207,6 +219,7 @@ function entering(t: StockModeTrade, ttl: number | null): Moment {
       detail: `The bot sent its buy. It sells at ${fmtPx(t.target)}, at ${fmtPx(t.stop)} or after 15 minutes. `
         + `Unfilled after ${ttlWords(ttl)} it is cancelled.`,
     },
+    exit: { badge: 'NOVA HOLDS THE EXIT', detail: `Nova's stop ${fmtPx(t.stop)} rests at the broker.` },
   };
   const w = words[t.kind];
   return {
@@ -234,6 +247,8 @@ function boughtCall(i: MomentInputs, t: StockModeTrade | null): MomentCall | nul
       ? `The stop ${fmtPx(t.stop)} and the target ${fmtPx(t.target)} rest at the broker; the first one hit cancels the `
         + 'other. The bot sells after 15 minutes if neither fills.'
       : `Target ${fmtPx(t.target)} resting. Nova watches the ${fmtPx(t.stop)} stop and sells after 15 minutes.`],
+    exit: ['NOVA TOOK THE EXIT', 'NOVA EXIT', `Nova's stop ${fmtPx(t.stop)} rests at the broker`
+      + `${t.trail ? ', raised as 1-minute candles close over round numbers' : ''}. Take it back any time.`],
   };
   const [title, pill, detail] = words[t.kind];
   return {
@@ -268,6 +283,14 @@ function holding(i: MomentInputs, live: StockModeTrade | null, qty: number): Mom
         },
       };
     }
+    if (live.kind === 'exit') {
+      // Nova holds the exit of the shares you bought: its raises are its own words; a flush is still called.
+      const flushed = heldCall(i);
+      return { step: 2, exitLabel: 'Target / stop', tone: 'holding', track,
+        badge: flushed?.badge ?? `NOVA HOLDS THE EXIT${pnl !== null ? ` · ${fmtPnl(pnl)}` : ''}`,
+        call: (flushed && flushed.call.id.startsWith('flush') ? flushed.call : null) ?? eventCall(i, live.sent_at)
+          ?? boughtCall(i, live) };
+    }
     return { step: 2, exitLabel: 'Target / stop', tone: 'holding', badge: inTrade, track, call: boughtCall(i, live) };
   }
   const due = dueExit(i.held);
@@ -287,12 +310,14 @@ function holding(i: MomentInputs, live: StockModeTrade | null, qty: number): Mom
     return {
       step: 3, exitLabel: 'Your exit', tone: due, badge: `${word} ${fmtPx(level)} HIT · SELL`, track,
       call: {
-        id: `sell-${due}:${i.held.since ?? live?.filled_at ?? 0}`, tone: due, title: `SELL NOW · ${word} ${fmtPx(level)}`,
+        id: `sell-${due}:${i.held.since ?? live?.filled_at ?? 0}:${level}`, tone: due, title: `SELL NOW · ${word} ${fmtPx(level)}`,
         detail: `${printed} ${nobody}${atStop}`, pin: pinAt('SELL NOW', last, at), ping: true,
       },
     };
   }
-  return { step: 2, exitLabel: 'Your exit', tone: 'holding', badge: inTrade, track, call: boughtCall(i, live) };
+  const said = heldCall(i);
+  return { step: 2, exitLabel: 'Your exit', tone: 'holding', badge: said?.badge ?? inTrade, track,
+    call: said?.call ?? boughtCall(i, live) };
 }
 
 // -- after Nova's trade -----------------------------------------------------------------------

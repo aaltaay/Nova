@@ -145,7 +145,9 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
           value={sell}
           lockYou={lock({ buy, sell: 'you' })}
           lockNova={lock({ buy, sell: 'nova' })}
-          onPick={side => void who.setSides(buy, side)}
+          onPick={side => (side === 'nova' && sell === 'you' && held > 0
+            ? ctx.exitSheet.setOpen(true)                 // a stock you bought: "Nova takes the exit"
+            : void who.setSides(buy, side))}
           testId="who-trades-sell"
         />
         <span className="sr-who__mode" {...tipProps(tip, `${MODE_NAMES[mode]} · ${MODE_SIDES[mode]}`)} data-testid="who-trades-mode">

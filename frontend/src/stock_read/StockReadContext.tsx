@@ -21,6 +21,7 @@ import {
   useStockReadPast,
   type PolledState,
 } from './useStockRead';
+import { useHeldTrade, type FlushReading, type HeldTrack } from './useHeldTrade';
 import { useWhoTrades, type WhoTradesState } from './useWhoTrades';
 
 export type SheetTab = 'signals' | 'decisions' | 'history';
@@ -79,6 +80,12 @@ export interface StockReadContextValue {
   topOfBook: { bid: number | null; ask: number | null } | null;
   /** Who trades the stock (ADR 037). */
   who: WhoTradesState;
+  /** The trade you hold (ADR 036 amendment 2026-10-01): the stop you set for it (never an order). */
+  held: { track: HeldTrack; setStop: (stop: number | null) => void };
+  /** Trial T1's tape reading while you hold, read every second. */
+  flush: PolledState<FlushReading>;
+  /** "Nova takes the exit": its sheet over the plan box. */
+  exitSheet: { open: boolean; setOpen: (open: boolean) => void };
 }
 
 /** The account's position in the tab's stock, as the rail knows it. */
@@ -144,7 +151,16 @@ export function StockReadProvider({
   const sleeveVenue = venueOrNull(venue);
   const risk = useSleeveRisk(sleeveVenue, live && !sample);
   const riskUsd = risk.riskUsd;
-  const read = useStockRead(sym, { active: live, entry: manual.entry, stop: manual.stop });
+  const posQty = position?.qty ?? null;
+  const posCost = position?.avgCost ?? null;
+  const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
+  // The held query needs the last read (its plan and stop); the read needs the query: the last answer drives it.
+  const [lastRead, setLastRead] = useState<StockRead | null>(null);
+  const heldTrade = useHeldTrade({ symbol: sym, live: live && !sample, position: pos, read: lastRead });
+  const read = useStockRead(sym, { active: live, entry: manual.entry, stop: manual.stop, held: heldTrade.query });
+  useEffect(() => setLastRead(read.data), [read.data]);
+  const [exitOpen, setExitOpen] = useState(false);
+  useEffect(() => setExitOpen(false), [sym]);
   const history = useStockReadHistory(sym, live);
   const decisions = useStockReadDecisions(sym, live && sheet.open && sheet.tab === 'decisions');
   // The lanes' drawn states: a setup that fails or ends is read as past at once, not at the next poll.
@@ -154,12 +170,10 @@ export function StockReadProvider({
   const lanes5 = read.data?.setups_5m;
   const laneKey5 = useMemo(() => (lanes5 ?? []).map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes5]);
   const past5 = useStockReadPast(sym, live && layers.setups && layers.past, laneKey5, '5m');
-  const posQty = position?.qty ?? null;
-  const posCost = position?.avgCost ?? null;
-  const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
   const who = useWhoTrades({
     symbol: sym, live: live && !sample, read: read.data, riskUsd, ttlSec: risk.ttlSec, position: pos, last: lastPrice,
     venue,
+    flush: heldTrade.flush.data,
   });
 
   const setManualPlan = useCallback((entry: number | null, stop: number | null) => {
@@ -227,8 +241,12 @@ export function StockReadProvider({
     clearFocus,
     topOfBook: book,
     who,
+    held: { track: heldTrade.track, setStop: heldTrade.setStop },
+    flush: heldTrade.flush,
+    exitSheet: { open: exitOpen, setOpen: setExitOpen },
   }), [sym, active, replay, read, history, decisions, past, past5, manual, setManualPlan, riskUsd, setRiskUsd, risk,
-    layers, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who]);
+    layers, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who,
+    heldTrade.track, heldTrade.setStop, heldTrade.flush, exitOpen]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.
   if (sample) return <>{children}</>;

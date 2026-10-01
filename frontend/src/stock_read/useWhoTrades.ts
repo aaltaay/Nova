@@ -11,7 +11,9 @@ import { momentOf, NO_HELD, nextHeld, type HeldMemory, type Moment, type MomentI
 import { approveQty } from './novaPromise';
 import type { StockModeView, StockRead, StockSide } from './types';
 import { usePolledRead } from './useStockRead';
-import { approvePlan, putStockMode, takeOverExit, withdrawApproval } from './whoTradesApi';
+import { heldMarkers } from './heldView';
+import type { FlushReading } from './useHeldTrade';
+import { approvePlan, putStockMode, takeExit as postTakeExit, takeOverExit, withdrawApproval } from './whoTradesApi';
 import { level2Markers, orderLevels, type OrderLevels } from './whoTradesModel';
 import { normalizeStockMode } from './whoTradesNormalize';
 import { pingCall } from './whoTradesSound';
@@ -38,6 +40,8 @@ export interface WhoTradesState {
   approve: (now: boolean) => Promise<void>;
   withdraw: () => Promise<void>;
   takeOver: () => Promise<void>;
+  /** Nova takes the exit of the shares you hold; throws the backend's refusal so the sheet can say it. */
+  takeExit: (stop: number, trail: boolean) => Promise<void>;
 }
 
 interface Options {
@@ -52,6 +56,8 @@ interface Options {
   last: number | null;
   /** The desk venue (live | paper | sim), or null when the status names none. */
   venue?: string | null;
+  /** Trial T1's tape reading while you hold. */
+  flush?: FlushReading | null;
 }
 
 function useNow(on: boolean): number {
@@ -78,7 +84,7 @@ function useStable<T>(value: T): T {
 }
 
 export function useWhoTrades({
-  symbol, live, read, riskUsd, ttlSec = null, position, last, venue: deskVenue = null,
+  symbol, live, read, riskUsd, ttlSec = null, position, last, venue: deskVenue = null, flush = null,
 }: Options): WhoTradesState {
   const sym = symbol.trim().toUpperCase();
   // The view is the venue's own (ADR 037: a venue change clears every switch), so the old
@@ -121,7 +127,8 @@ export function useWhoTrades({
     riskUsd,
     ttlSec,
     held,
-  }), [live, read, view, position, last, riskUsd, ttlSec, held]);
+    flush: flush ? { at: flush.at, score: flush.score, label: flush.label } : null,
+  }), [live, read, view, position, last, riskUsd, ttlSec, held, flush]);
   const clocked = useMemo<MomentInputs>(() => ({ ...inputs, now }), [inputs, now]);
 
   useEffect(() => {
@@ -132,7 +139,8 @@ export function useWhoTrades({
 
   const moment = useStable(live ? momentOf(clocked) : null);
   const levels = useStable(live ? orderLevels(inputs) : null);
-  const markers = useStable(level2Markers(levels));
+  // While you hold: NEXT with the asks and your STOP with the bids (the read's own view of the position).
+  const markers = useStable(live && read?.held ? heldMarkers(read.held) : level2Markers(levels));
 
   const call = moment?.call ?? null;
   useEffect(() => {
@@ -170,6 +178,15 @@ export function useWhoTrades({
   }, [run, sym, plan, view, riskUsd]);
   const withdraw = useCallback(() => run('Cancelling…', () => withdrawApproval(sym)), [run, sym]);
   const takeOver = useCallback(() => run('Taking over the exit…', () => takeOverExit(sym)), [run, sym]);
+  const takeExit = useCallback(async (stop: number, trail: boolean) => {
+    setBusy('Handing Nova the exit…');
+    setWriteError(null);
+    try {
+      setWritten(await postTakeExit(sym, { stop, trail }));
+    } finally {
+      setBusy(null);
+    }
+  }, [sym]);
 
   return useMemo(() => ({
     view,
@@ -185,6 +202,7 @@ export function useWhoTrades({
     approve,
     withdraw,
     takeOver,
+    takeExit,
   }), [view, polled.loading, polled.unavailable, polled.error, writeError, busy, moment, levels, markers, inputs,
-    setSides, approve, withdraw, takeOver]);
+    setSides, approve, withdraw, takeOver, takeExit]);
 }

@@ -59,6 +59,10 @@ export function modeOf(buy: StockSide, sell: StockSide): StockModeName {
 }
 
 /** Why the switch cannot move to `to` now; null: it can. `pending` is the desk's own reason to wait. */
+/** Why Nova does not take the exit of a held stock on Live (the backend's `STOCK_MODE_WHY_LIVE_EXIT`). */
+export const HELD_LIVE_EXIT_WHY = 'On Live, Nova never moves a Live order by itself, and a plain IBKR stop does not '
+  + 'trigger before 9:30 (#604). Set your stop and sell it yourself; Nova takes the exit on Paper and Sim.';
+
 export function switchLock(
   view: StockModeView | null,
   to: { buy: StockSide; sell: StockSide },
@@ -67,10 +71,8 @@ export function switchLock(
   if (o.pending) return o.pending;
   if (!view) return `Reading who trades ${o.symbol}…`;
   if (to.buy === 'nova' && view.locks.buy) return view.locks.buy;
-  if (to.sell === 'nova' && view.locks.sell) return view.locks.sell;
-  if (to.sell === 'nova' && view.sell === 'you' && o.held > 0) {
-    return `You hold ${o.symbol}: Nova exits only a trade it entered or you approved. Keep Sell on You.`;
-  }
+  if (to.sell === 'nova' && view.locks.sell) return o.held > 0 ? HELD_LIVE_EXIT_WHY : view.locks.sell;
+  // Sell to Nova on a stock you hold opens "Nova takes the exit" (the row's own handler): no lock here.
   return null;
 }
 

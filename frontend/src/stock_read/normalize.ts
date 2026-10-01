@@ -25,6 +25,7 @@ import type {
 } from './types';
 import { normalizeLiquidity } from '../setups';
 import { normalizeLevelMap, normalizePlanLevels } from './levelMapNormalize';
+import { normalizeHeld } from './heldRead';
 import { normalizePlanVerdict } from './planVerdict';
 
 const STATES: ReadonlySet<string> = new Set<ReadState>(['ok', 'warn', 'bad', 'unknown', 'info']);
@@ -83,7 +84,7 @@ function group(raw: unknown): ReadGroup | null {
   };
 }
 
-function check(raw: unknown): PlanCheck | null {
+export function normalizeCheck(raw: unknown): PlanCheck | null {
   const c = obj(raw);
   return c && typeof c.id === 'string' && typeof c.text === 'string'
     ? { id: c.id, state: state(c.state), text: c.text }
@@ -138,7 +139,7 @@ export function normalizePlan(raw: unknown): StockPlan | null {
     tape: tape(p.tape),
     flow: flow && typeof flow.label === 'string' ? { score: num(flow.score), label: flow.label } : null,
     window: windowOf(p.window),
-    checks: list(p.checks, check),
+    checks: list(p.checks, normalizeCheck),
     marks: list(p.marks, mark),
     levels: normalizePlanLevels(p.levels),
     liquidity: normalizeLiquidity(p.liquidity),
@@ -265,6 +266,7 @@ export function normalizeStockRead(raw: unknown): StockRead | null {
         : null;
     }),
     plan: normalizePlan(r.plan),
+    held: normalizeHeld(r.held),
     levels: {
       hod: hodPrice !== null ? { price: hodPrice, ts: num(hod?.ts) ?? 0 } : null,
       pmh: num(lv.pmh),

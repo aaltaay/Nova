@@ -112,6 +112,18 @@ def _bot(sym: str) -> dict[str, Any]:
             "trade": trade if trade and str(trade.get("symbol") or "").upper() == sym else None}
 
 
+def _nova_exit(sym: str) -> dict[str, Any] | None:
+    """Nova's exit of a stock you bought (``stock_mode.exit_trade``) on the desk's venue, while it holds."""
+    from sim.mode import venue
+    from stock_mode import store
+    from stock_mode.exit_trade import KIND_EXIT
+
+    t = store.trade(venue(), sym)
+    if not t or t.get("kind") != KIND_EXIT or t.get("state") != "holding":
+        return None
+    return {"stop": t.get("stop"), "target": t.get("target"), "trail": bool(t.get("trail"))}
+
+
 def _board(sym: str) -> str | None:
     from strategy.symbol_pillars import find_board_row, raw_boards
 
@@ -147,4 +159,5 @@ def gather(symbol: str, now: float) -> dict[str, Any]:
         "halted": _try(errors, "halted", lambda: halted_now([sym], now=now).get(sym)),
         "bot": _try(errors, "bot", lambda: _bot(sym)),
         "board": _try(errors, "board", lambda: _board(sym)),
+        "nova_exit": _try(errors, "nova_exit", lambda: _nova_exit(sym)),
     }

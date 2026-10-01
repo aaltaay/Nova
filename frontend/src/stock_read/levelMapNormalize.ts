@@ -124,7 +124,8 @@ export function normalizeLevelMap(raw: unknown): LevelMap | null {
   };
 }
 
-function note(raw: unknown): PlanLevelNote | null {
+/** One of the plan's level rows off the wire (the read's `held` rows have the same shape). */
+export function normalizeLevelNote(raw: unknown): PlanLevelNote | null {
   const n = obj(raw);
   if (!n || typeof n.text !== 'string') return null;
   return {
@@ -153,14 +154,14 @@ function between(raw: unknown): PlanBetween | null {
 export function normalizePlanLevels(raw: unknown): PlanLevels | null {
   const l = obj(raw);
   const room = obj(l?.room);
-  const roomNote = note(room);
+  const roomNote = normalizeLevelNote(room);
   if (!l || !room || !roomNote) return null;
   return {
     room: { ...roomNote, r: num(room.r), price: num(room.price), trial: str(room.trial) ?? '' },
-    target: note(l.target),
-    stop: note(l.stop),
-    next: note(l.next),
-    recent: note(l.recent),
+    target: normalizeLevelNote(l.target),
+    stop: normalizeLevelNote(l.stop),
+    next: normalizeLevelNote(l.next),
+    recent: normalizeLevelNote(l.recent),
     between: list(l.between, between),
   };
 }
