@@ -1,7 +1,12 @@
-"""The writes behind the stock-mode routes (ADR 037): set the switch, approve, withdraw, take over.
+"""The writes behind the stock-mode routes (ADR 037, ADR 042 F): set the switch, approve, withdraw, take over.
 
 Each raises ``StockModeError`` with the reason the desk shows, and each act is a ``stock_mode`` line
 on the bot's audit stream. Cancels and sends go through the execution door (``stock_mode.orders``).
+
+ADR 042: this is the bot list's one owner -- ``bot.allowlist`` and every desk button set a stock here,
+so each meets the same rules (the Live lock, "you hold it", the 50-stock cap). A stock has one mode:
+Bot (this venue's bot list) and an Auto-entry / Approve switch never stand together. A take-over always
+leaves Buy on You, and never claims a cancel it did not get.
 """
 from __future__ import annotations
 
@@ -17,9 +22,11 @@ from constants_stock_mode import (
     STOCK_MODE_AUDIT_ACTION,
     STOCK_MODE_AUTO_ENTRY,
     STOCK_MODE_BOT,
+    STOCK_MODE_FILTERED,
     STOCK_MODE_HELD,
     STOCK_MODE_INVALID,
     STOCK_MODE_NAMES,
+    STOCK_MODE_NOT_A_TRADE,
     STOCK_MODE_NOT_APPROVE,
     STOCK_MODE_NOTHING_HELD,
     STOCK_MODE_PLAN_CHANGED,
@@ -59,7 +66,20 @@ def _held(sym: str) -> float:
                              "take the exit", field="sell") from exc
 
 
+def _room_on_list(sym: str) -> None:
+    """Refuse a stock the full bot list has no room for (``BOT_ALLOWLIST_FULL``), before anything changes."""
+    from bot.eligibility import normalize_symbols
+    from bot.persist import load_session
+    from constants_bot import BOT_REASON_ALLOWLIST_FULL, BOT_SYMBOL_ALLOWLIST_CAP
+
+    current = normalize_symbols(load_session().get("symbol_allowlist"))
+    if sym not in current and len(current) >= BOT_SYMBOL_ALLOWLIST_CAP:
+        raise StockModeError(BOT_REASON_ALLOWLIST_FULL, f"the bot's list is full ({BOT_SYMBOL_ALLOWLIST_CAP} stocks on "
+                             f"this venue): set one back to Signal only before adding {sym}", field="symbol")
+
+
 def _bot_list(sym: str, on: bool) -> None:
+    """Put the stock on (or take it off) this venue's bot list; a full list is refused with its reason."""
     from bot.eligibility import add_symbol, remove_symbol
     from bot.persist import load_session, save_session
 
@@ -67,24 +87,30 @@ def _bot_list(sym: str, on: bool) -> None:
     try:
         (add_symbol if on else remove_symbol)(row, sym)
     except BotError as exc:
-        raise StockModeError(STOCK_MODE_INVALID, exc.message, status=400, field="symbol") from exc
+        raise StockModeError(exc.reason or STOCK_MODE_INVALID, exc.message, status=exc.status_code,
+                             field="symbol") from exc
     save_session(row)
 
 
-async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any, *, now: float | None = None,
-                   ) -> dict[str, Any]:
+async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any = None, *,
+                   now: float | None = None) -> dict[str, Any]:
+    """Set the stock's switch. ``risk_raw`` is ignored (ADR 042: risk per trade is the venue sleeve's)."""
+    del risk_raw
     now = time.time() if now is None else now
     sym = model.symbol(symbol)
     buy, sell = model.side(buy_raw, "buy"), model.side(sell_raw, "sell")
     mode = model.mode_of(buy, sell)
-    risk = model.risk_usd(risk_raw, required=mode == STOCK_MODE_AUTO_ENTRY)
     _venue_gate(buy, sell)
     before = view.build(sym, now=now)
     was_mode, was_sell = before["mode"], before["sell"]
+    if mode == was_mode:
+        return before
     if sell == STOCK_MODE_SIDE_NOVA and was_sell == STOCK_MODE_SIDE_YOU and _held(sym) > _EPS:
         raise StockModeError(STOCK_MODE_HELD, STOCK_MODE_WHY_HELD.format(sym=sym), field="sell")
+    if mode == STOCK_MODE_BOT:
+        _room_on_list(sym)              # first: a full list refuses before anything else changes
     if was_sell == STOCK_MODE_SIDE_NOVA and sell == STOCK_MODE_SIDE_YOU and _nova_holds_exits(sym, before):
-        await take_over(sym, now=now, keep_buy=buy, risk=risk)
+        await _take_exits(sym, now)
     if was_mode == STOCK_MODE_AUTO_ENTRY and mode != STOCK_MODE_AUTO_ENTRY:
         await _cancel_working_entry(sym, now)
     if was_mode == STOCK_MODE_APPROVE and mode != STOCK_MODE_APPROVE:
@@ -92,18 +118,18 @@ async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any, *, n
     if mode == STOCK_MODE_BOT:
         _bot_list(sym, True)
         store.clear_switch(sym)
+        store.clear_approval(sym)
     else:
         if was_mode == STOCK_MODE_BOT or (before.get("bot") or {}).get("on_list"):
             _bot_list(sym, False)
         if mode == STOCK_MODE_SIGNAL:
             store.clear_switch(sym)
         else:
-            store.set_switch(sym, {"buy": buy, "sell": sell, "risk_usd": risk, "set_at": now})
-    if mode != was_mode:
-        store.note_event(sym, now, "info", f"{STOCK_MODE_NAMES[mode]}: {_mode_words(mode, sym)}")
-        audit(action=STOCK_MODE_AUDIT_ACTION, outcome="set",
-              reason=f"{sym}: {STOCK_MODE_NAMES[was_mode]} -> {STOCK_MODE_NAMES[mode]}",
-              inputs={"symbol": sym, "from": was_mode, "to": mode, "risk_usd": risk})
+            store.set_switch(sym, {"buy": buy, "sell": sell, "set_at": now})
+    store.note_event(sym, now, "info", f"{STOCK_MODE_NAMES[mode]}: {_mode_words(mode, sym)}")
+    audit(action=STOCK_MODE_AUDIT_ACTION, outcome="set",
+          reason=f"{sym}: {STOCK_MODE_NAMES[was_mode]} -> {STOCK_MODE_NAMES[mode]}",
+          inputs={"symbol": sym, "from": was_mode, "to": mode})
     return view.build(sym, now=now)
 
 
@@ -111,7 +137,8 @@ def _mode_words(mode: str, sym: str) -> str:
     return {
         STOCK_MODE_SIGNAL: "Nova draws the plan and tells you when; it places nothing",
         STOCK_MODE_APPROVE: "approve the plan, and Nova sends the buy with its stop and target",
-        STOCK_MODE_AUTO_ENTRY: f"Nova buys {sym} once, at the trigger; every sell is yours",
+        STOCK_MODE_AUTO_ENTRY: (f"Nova buys {sym} by the bot's rules (a setup at Strategy, while the bot is "
+                                "Active); every sell is yours"),
         STOCK_MODE_BOT: "the bot trades it in and out by its own rules",
     }[mode]
 
@@ -123,17 +150,18 @@ def _nova_holds_exits(sym: str, before: dict[str, Any]) -> bool:
 
 
 async def _cancel_working_entry(sym: str, now: float) -> None:
-    """Auto-entry turned off: an entry Nova sent that has not filled is cancelled."""
+    """Auto-entry turned off: an entry Nova sent that has not filled is cancelled -- or the refusal is said."""
     venue, _replay = gates.venue_state()
     trade = store.trade(venue, sym)
     if not trade or trade.get("kind") != STOCK_MODE_AUTO_ENTRY or trade.get("state") != STOCK_MODE_TRADE_ENTERING \
             or not trade.get("entry_order_id"):
         return
     receipt = await orders.cancel(trade, int(trade["entry_order_id"]), source="manual")
+    if not receipt.ok:
+        raise StockModeError(STOCK_MODE_SEND, f"Nova's working buy of {sym} could not be cancelled "
+                             f"({orders.receipt_error(receipt)}) -- it still rests; the switch is unchanged")
     trade["cancel_sent_at"] = now
     store.set_trade(trade)
-    if not receipt.ok:
-        logger.warning("stock mode: cancelling %s's working entry refused -- %s", sym, orders.receipt_error(receipt))
 
 
 # -- approve ----------------------------------------------------------------------------
@@ -155,9 +183,20 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
     if not approved["stop"] < approved["entry"] < approved["target"]:
         raise StockModeError(STOCK_MODE_INVALID, "a long plan has its stop under the entry and its target over it",
                              status=400)
-    lane = runner.lane_of(sym, approved["setup_id"])
+    try:
+        lane = runner.lane_of(sym, approved["setup_id"])
+    except runner.LanesUnreadable as exc:
+        raise StockModeError(STOCK_MODE_PLAN_CHANGED, f"{exc}: Nova cannot check the plan, so it approves "
+                             "nothing") from exc
     if lane is None:
         raise StockModeError(STOCK_MODE_PLAN_CHANGED, "that setup is gone from the scanner: nothing to approve")
+    if lane.get("state") == "filtered":
+        why = str(lane.get("reason") or "").removeprefix("filtered: ")
+        raise StockModeError(STOCK_MODE_FILTERED, f"the template's stock filter keeps {sym} out ({why}): Nova sends "
+                             "no approval for it")
+    judged = model.lane_verdict(lane, view.spread_of(sym))
+    if not judged["ok"]:
+        raise StockModeError(STOCK_MODE_NOT_A_TRADE, "not a trade: " + "; ".join(judged["reasons"]))
     if not model.plan_matches(approved, lane.get("setup")):
         raise StockModeError(STOCK_MODE_PLAN_CHANGED,
                              f"the setup is armed at {model.levels_text(lane.get('setup') or {})} now: approve "
@@ -202,10 +241,11 @@ async def withdraw(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     trade = store.trade(venue, sym)
     if trade and trade.get("kind") == STOCK_MODE_APPROVE and trade.get("state") == STOCK_MODE_TRADE_ENTERING:
         receipt = await orders.cancel(trade, int(trade["entry_order_id"]), source="manual")
+        if not receipt.ok:
+            raise StockModeError(STOCK_MODE_SEND, f"the entry could not be cancelled: {orders.receipt_error(receipt)} "
+                                 "-- it still rests")
         trade["cancel_sent_at"] = now
         store.set_trade(trade)
-        if not receipt.ok:
-            raise StockModeError(STOCK_MODE_SEND, f"the entry could not be cancelled: {orders.receipt_error(receipt)}")
     elif not approval or approval.get("state") != "waiting":
         raise StockModeError(STOCK_MODE_NOTHING_HELD, f"no approval of {sym} is waiting")
     store.clear_approval(sym)
@@ -216,12 +256,26 @@ async def withdraw(symbol: str, *, now: float | None = None) -> dict[str, Any]:
 
 
 # -- take over the exit -------------------------------------------------------------------
-async def take_over(symbol: str, *, now: float | None = None, keep_buy: str | None = None,
-                    risk: float | None = None) -> dict[str, Any]:
+async def take_over(symbol: str, *, now: float | None = None, **_ignored: Any) -> dict[str, Any]:
     """Cancel the exits Nova holds on the stock: Approve's bracket legs, or the bot's trade (``handed``).
-    The stock's Sell becomes You; a handed bot entry counts as the stock's Nova entry today."""
+    Buy goes to You as well -- a take-over never turns into Auto-entry -- so the stock is Signal only.
+    A cancel the broker refuses keeps the trade and says the order still rests."""
     now = time.time() if now is None else now
     sym = model.symbol(symbol)
+    before = view.build(sym, now=now)
+    await _take_exits(sym, now)
+    store.clear_switch(sym)
+    if (before.get("bot") or {}).get("on_list"):
+        _bot_list(sym, False)
+    store.clear_approval(sym)
+    store.note_event(sym, now, "info", "You took over the exit: Nova no longer sells it, and buys nothing more here")
+    audit(action=STOCK_MODE_AUDIT_ACTION, outcome="set", reason=f"{sym}: {STOCK_MODE_NAMES[before['mode']]} -> "
+          f"{STOCK_MODE_NAMES[STOCK_MODE_SIGNAL]} (you took over the exit)",
+          inputs={"symbol": sym, "from": before["mode"], "to": STOCK_MODE_SIGNAL})
+    return view.build(sym, now=now)
+
+
+async def _take_exits(sym: str, now: float) -> None:
     venue, _replay = gates.venue_state()
     trade = store.trade(venue, sym)
     before = view.build(sym, now=now)
@@ -229,36 +283,35 @@ async def take_over(symbol: str, *, now: float | None = None, keep_buy: str | No
             and trade.get("state") in (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING):
         await _take_bracket(trade, now)
     elif (before.get("trade") or {}).get("kind") == STOCK_MODE_BOT:
-        await _take_bot(sym, venue, now)
+        await _take_bot(sym, now)
     else:
         raise StockModeError(STOCK_MODE_NOTHING_HELD, f"Nova holds no exit of {sym} to take over")
-    buy = keep_buy or (before.get("buy") or STOCK_MODE_SIDE_YOU)
-    if buy == STOCK_MODE_SIDE_NOVA and (risk or (store.switch(sym) or {}).get("risk_usd")):
-        store.set_switch(sym, {"buy": buy, "sell": STOCK_MODE_SIDE_YOU,
-                               "risk_usd": risk or (store.switch(sym) or {}).get("risk_usd"), "set_at": now})
-    else:
-        store.clear_switch(sym)
-    if (before.get("bot") or {}).get("on_list"):
-        _bot_list(sym, False)
-    store.clear_approval(sym)
-    store.note_event(sym, now, "info", "You took over the exit: Nova no longer sells it")
-    return view.build(sym, now=now)
 
 
 async def _take_bracket(trade: dict[str, Any], now: float) -> None:
     sym = trade["symbol"]
     if trade.get("state") == STOCK_MODE_TRADE_ENTERING:
         receipt = await orders.cancel(trade, int(trade["entry_order_id"]), source="manual")
+        if not receipt.ok:
+            raise StockModeError(STOCK_MODE_SEND, f"the entry could not be cancelled ({orders.receipt_error(receipt)}) "
+                                 "-- it still rests, with its stop and target: Nova keeps the trade")
         trade["cancel_sent_at"] = now
     else:
         refused = []
         for leg in ("target_order_id", "stop_order_id"):
             if trade.get(leg):
                 receipt = await orders.cancel(trade, int(trade[leg]), source="manual")
-                if not receipt.ok:
-                    refused.append(orders.receipt_error(receipt))
+                if receipt.ok:
+                    trade[leg] = None
+                else:
+                    refused.append(f"the {leg.split('_')[0]} ({orders.receipt_error(receipt)})")
         if refused:
-            raise StockModeError(STOCK_MODE_SEND, f"the exits could not all be cancelled: {'; '.join(refused)}")
+            store.set_trade(trade)
+            audit(action=STOCK_MODE_AUDIT_ACTION, outcome="refused",
+                  reason=f"{sym}: {', '.join(refused)} could not be cancelled -- it still rests; Nova keeps the trade",
+                  inputs={"symbol": sym, "setup_id": trade.get("setup_id")})
+            raise StockModeError(STOCK_MODE_SEND, f"{', '.join(refused)} could not be cancelled and still rests: "
+                                 "Nova keeps the exit -- try again, or flatten")
         trade["exits"] = STOCK_MODE_SIDE_YOU
         trade["note"] = "you took over the exit"
     store.set_trade(trade)
@@ -266,12 +319,10 @@ async def _take_bracket(trade: dict[str, Any], now: float) -> None:
           "stop and target were cancelled", inputs={"symbol": sym, "setup_id": trade.get("setup_id")})
 
 
-async def _take_bot(sym: str, venue: str | None, now: float) -> None:
-    from bot.first_pullback import runner as bot_runner
+async def _take_bot(sym: str, now: float) -> None:
+    from bot.first_pullback.handover import hand_over
 
     try:
-        handed = await bot_runner.hand_over(sym, now=now)
+        await hand_over(sym, now=now)
     except BotError as exc:
-        raise StockModeError(exc.reason, exc.message) from exc
-    if handed.get("state") == "handed":
-        store.add_entry(venue, runner.venue_day(now), sym)
+        raise StockModeError(exc.reason or STOCK_MODE_SEND, exc.message) from exc

@@ -2,7 +2,9 @@
 
 Auto-entry sends a BUY limit (source ``bot``); Approve sends the plan as one bracket (source
 ``manual``: the operator decided the trade, Nova only picked the moment). Every send carries an
-idempotency key made of the kind, the venue, the setup and the attempt, so a repeat replays its receipt.
+idempotency key made of the kind, the venue, the setup and the attempt, so a repeat replays its
+receipt, and the setup it trades (``setup=<setup_type>``, ADR 042 G); every send and cancel names
+the trade's venue (``expected_venue``), so an order id is never sent to another venue.
 Reads reuse the first-pullback bot's (``bot.first_pullback.orders``): the venue's own order rows and
 long position, and a failed read raises ``ReadError`` -- unknown is never "filled" or "flat".
 """
@@ -41,7 +43,9 @@ async def place_entry(trade: dict[str, Any]) -> Any:
             limit_price=round(float(trade["entry"]), 4),
             reference_price=round(float(trade["entry"]), 4),
             outside_rth=_outside_rth(),
+            setup=trade.get("setup_type"),
             skip_risk=True,
+            expected_venue=trade.get("venue"),
         ),
         wait_ack=False,
     )
@@ -66,7 +70,9 @@ async def send_bracket(trade: dict[str, Any]) -> Any:
             stop_price=round(float(trade["stop"]), 4),
             reference_price=entry,
             outside_rth=_outside_rth(),
+            setup=trade.get("setup_type"),
             skip_risk=True,
+            expected_venue=trade.get("venue"),
         ),
         wait_ack=False,
     )

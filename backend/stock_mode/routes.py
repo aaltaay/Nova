@@ -1,11 +1,12 @@
-"""Who trades the stock (ADR 037).
+"""Who trades the stock (ADR 037, ADR 042 F).
 
   GET    /api/stock-mode                       every stock not at Signal only
   GET    /api/stock-mode/{symbol}              one stock's view (polled by the Trader tab)
-  PUT    /api/stock-mode/{symbol}              {buy, sell, risk_usd?}: set the switch
+  PUT    /api/stock-mode/{symbol}              {buy, sell}: set the switch (a ``risk_usd`` sent is ignored:
+                                               risk per trade is the venue sleeve's, PATCH /api/bot/session)
   POST   /api/stock-mode/{symbol}/approve      {setup_id, entry, stop, target, qty, now?}
   DELETE /api/stock-mode/{symbol}/approve      withdraw the approval (or cancel its unfilled entry)
-  POST   /api/stock-mode/{symbol}/take-over    cancel the exits Nova holds on the stock
+  POST   /api/stock-mode/{symbol}/take-over    cancel the exits Nova holds on the stock; Buy goes to You
 
 Writes place and cancel orders, so they need the desk's API key even on loopback, like the bot's routes
 (``auth.is_stock_mode_mutate``).
