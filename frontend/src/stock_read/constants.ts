@@ -118,3 +118,6 @@ export const STOCK_MODE_COLORS = {
   auto_entry: '#ff9f0a',
   bot: '#ff9f0a',
 } as const;
+
+/** Who trades: notes shown on their own lines before the rest fold into "+N more" (Level 2 keeps its room). */
+export const WHO_TRADES_NOTES_SHOWN = 3;

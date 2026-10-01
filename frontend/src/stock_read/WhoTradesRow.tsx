@@ -5,9 +5,10 @@
  * the day's cap, and the stock's last event -- the bot's skips on it included. A locked side carries its
  * reason; the same switch is the chip on the 1-minute chart.
  */
+import { useState } from 'react';
 import type { DepthMarker } from '../ibkr';
 import { tipProps, whyProps } from '../ux';
-import { STOCK_MODE_COLORS } from './constants';
+import { STOCK_MODE_COLORS, WHO_TRADES_NOTES_SHOWN } from './constants';
 import { heldQty } from './momentModel';
 import { capUsedText } from './novaPromise';
 import { useStockReadContext, type StockReadContextValue } from './StockReadContext';
@@ -72,6 +73,42 @@ function entriesLine(view: StockModeView | null): { text: string; tip: string; u
   };
 }
 
+/** Every note, the first `WHO_TRADES_NOTES_SHOWN` (warnings before information) on their own lines and
+ * the rest folded into one line that names them on hover and opens them on a click: Level 2 keeps its room
+ * and no reason is hidden. */
+export function NotesList({ notes, sym }: { notes: StockModeView['notes']; sym: string }) {
+  const [open, setOpen] = useState(false);
+  const ordered = [...notes.filter(n => n.tone !== 'info'), ...notes.filter(n => n.tone === 'info')];
+  const shown = open ? ordered : ordered.slice(0, WHO_TRADES_NOTES_SHOWN);
+  const rest = ordered.slice(shown.length);
+  return (
+    <ul className="sr-who__notes" aria-label={`What keeps Nova from acting on ${sym}`} data-testid="who-trades-notes">
+      {shown.map((n, i) => (
+        <li key={`${n.id}:${i}`} className={`sr-who__note sr-who__note--${n.tone}`} {...tipProps(n.text)}
+          data-testid={`who-trades-note-${n.id}`}>
+          {n.text}
+        </li>
+      ))}
+      {rest.length > 0 && (
+        <li className="sr-who__note sr-who__note--more">
+          <button type="button" className="sr-who__more" onClick={() => setOpen(true)}
+            {...tipProps(rest.map(n => n.text).join('\n'), `${rest.length} more reason${rest.length === 1 ? '' : 's'}`)}
+            data-testid="who-trades-notes-more">
+            +{rest.length} more reason{rest.length === 1 ? '' : 's'} (hover, or click to open)
+          </button>
+        </li>
+      )}
+      {open && ordered.length > WHO_TRADES_NOTES_SHOWN && (
+        <li className="sr-who__note sr-who__note--more">
+          <button type="button" className="sr-who__more" onClick={() => setOpen(false)} data-testid="who-trades-notes-less">
+            Show fewer
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
 function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const who = ctx.who;
   const view = who.view;
@@ -125,16 +162,7 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
           {line}
         </p>
       )}
-      {notes.length > 0 && (
-        <ul className="sr-who__notes" aria-label={`What keeps Nova from acting on ${sym}`} data-testid="who-trades-notes">
-          {notes.map((n, i) => (
-            <li key={`${n.id}:${i}`} className={`sr-who__note sr-who__note--${n.tone}`} {...tipProps(n.text)}
-              data-testid={`who-trades-note-${n.id}`}>
-              {n.text}
-            </li>
-          ))}
-        </ul>
-      )}
+      {notes.length > 0 && <NotesList notes={notes} sym={sym} />}
       {entries && (
         <p className={`sr-who__note sr-who__note--${entries.used ? 'warn' : 'info'}`}
           {...tipProps(entries.tip, 'Nova\'s automatic buys today')} data-testid="who-trades-entries">

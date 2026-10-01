@@ -104,6 +104,16 @@
   padding: 0;
   list-style: none;
 }
+.sr-who__more {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--sr-secondary);
+  font: inherit;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+.sr-who__more:hover { color: var(--sr-text, inherit); }
 /* The stock's last event: the bot's skips and Nova's acts, in the tone the backend gave them. */
 .sr-who__note--event-info { color: var(--sr-secondary); }
 .sr-who__note--event-ok { color: var(--sr-ok); }
