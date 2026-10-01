@@ -40,9 +40,11 @@ export interface LabelShrink {
 /** One label to place: where its box puts it, and the forms it may take, longest first. */
 export interface LabelAsk {
   forms: string[];
-  /** The left edge it starts from (its box's), and its middle. */
+  /** The left edge it starts from (its box's), and its middle; with `center`, the point it is centred on. */
   x: number;
   y: number;
+  /** Centred on `x` (a mark's label over its candle) rather than starting there. */
+  center?: boolean;
   /** Placed whole where it is, whatever it runs into (a live lane's). */
   fixed: boolean;
   rank: number;
@@ -66,9 +68,11 @@ export function labelForms(label: string | null, shrink: LabelShrink | undefined
   return out;
 }
 
-/** A label's rectangle: `align` left starts it at `x`, right ends it there; kept inside the pane. */
-export function labelRect(x: number, y: number, width: number, align: 'left' | 'right', paneWidth: number): LabelRect {
-  let left = align === 'left' ? x : x - width;
+/** A label's rectangle: `align` left starts it at `x`, right ends it there, center centres it on `x`; kept
+ * inside the pane. */
+export function labelRect(x: number, y: number, width: number, align: 'left' | 'right' | 'center',
+  paneWidth: number): LabelRect {
+  let left = align === 'left' ? x : align === 'right' ? x - width : x - width / 2;
   if (paneWidth > 0) left = Math.max(EDGE_PX, Math.min(left, paneWidth - width - EDGE_PX));
   return { left, top: y - LABEL_H / 2, right: left + width, bottom: y + LABEL_H / 2 };
 }
@@ -100,7 +104,7 @@ export function placeLabels(
     const ask = asks[i];
     for (const text of ask.forms) {
       const width = measure(text);
-      const r = labelRect(ask.x, ask.y, width, 'left', paneWidth);
+      const r = labelRect(ask.x, ask.y, width, ask.center ? 'center' : 'left', paneWidth);
       if (!ask.fixed && taken.some(t => touches(r, t))) continue;
       taken.push(r);
       out.push({ ask: i, text, left: r.left, width, y: ask.y });
@@ -145,7 +149,7 @@ export function pinRect(ctx: CanvasRenderingContext2D, x: number, y: number, lab
 }
 
 /** Dark ink on a light fill, white on a dark one. */
-function inkFor(color: string): string {
+export function inkFor(color: string): string {
   const m = /^#([0-9a-f]{6})$/i.exec(color);
   if (!m) return '#ffffff';
   const n = parseInt(m[1], 16);

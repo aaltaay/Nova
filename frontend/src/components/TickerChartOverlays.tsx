@@ -4,8 +4,14 @@
  * session-anchored series in `chart/vwapSession.ts`. Sub-minute panes splice
  * their own bars into that series so the line walks with painted candles
  * instead of stepping once per source minute. This file only hosts LineSeries.
+ *
+ * The EMAs never stretch the price scale: the candles own it (a 200 EMA that
+ * lags a year of reverse splits squeezed the daily candles into a flat line).
+ * Each line's name is its series title; a pane whose stock read lays out its
+ * right edge claims it (`chart/edgeWords.ts`), and then the titles go blank and
+ * the names are published for that one column instead.
  */
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import {
   LineSeries,
   LineStyle,
@@ -15,6 +21,14 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { useChartPositionOverlay } from '../chart/useChartPositionOverlay';
+import {
+  EDGE_PRIORITY,
+  edgeClaimed,
+  emaPriority,
+  publishEdgeWords,
+  subscribeEdge,
+  type EdgeWord,
+} from '../chart/edgeWords';
 import {
   CHART_EMA_COLORS,
   CHART_EMA_LENGTHS,
@@ -55,6 +69,14 @@ interface Props {
 
 type EmaSeriesMap = Partial<Record<ChartEmaLength, ISeriesApi<'Line'>>>;
 
+const EDGE_SOURCE = 'overlays';
+/** An EMA is drawn wherever it is, but only the candles decide what prices the pane shows. */
+const NO_AUTOSCALE = () => null;
+
+function emaTitle(length: ChartEmaLength): string {
+  return `${length} EMA`;
+}
+
 export function TickerChartOverlays({
   chart,
   candleSeriesRef,
@@ -71,6 +93,11 @@ export function TickerChartOverlays({
   const emaSeriesRef = useRef<EmaSeriesMap>({});
   const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const lastPaintKeyRef = useRef<string>('');
+  const [vwapTitle, setVwapTitle] = useState('VWAP');
+  const claimed = useSyncExternalStore(
+    useCallback((onChange: () => void) => subscribeEdge(chart, onChange), [chart]),
+    () => edgeClaimed(chart),
+  );
 
   useChartPositionOverlay({
     chart,
@@ -100,7 +127,8 @@ export function TickerChartOverlays({
           priceLineVisible: false,
           lastValueVisible: false,
           crosshairMarkerVisible: false,
-          title: `${length} EMA`,
+          autoscaleInfoProvider: NO_AUTOSCALE,
+          title: '',
         });
       }
     } else {
@@ -142,7 +170,7 @@ export function TickerChartOverlays({
           priceLineVisible: false,
           lastValueVisible: false,
           crosshairMarkerVisible: false,
-          title: 'VWAP',
+          title: '',
         });
       }
     } else if (vwapSeriesRef.current) {
@@ -205,12 +233,41 @@ export function TickerChartOverlays({
       );
       // A pane still on an earlier session names it (QA R28).
       const behind = paneSessionBehindLabel(vwapSourceBars, bars);
-      vwapSeriesRef.current.applyOptions({ title: behind ? `${title} · ${behind}` : title });
+      setVwapTitle(behind ? `${title} · ${behind}` : title);
     }
   }, [
     chart, bars, barsRevision, showEmas, showVwap, timeframe,
     vwapSourceBars, vwapSourceRevision, vwapCoversOpen, liveTipTime,
   ]);
+
+  // Each line's name: its own series title, or -- while the pane lays out its edge -- a word for that column.
+  useEffect(() => {
+    if (!chart) return;
+    for (const length of CHART_EMA_LENGTHS) {
+      emaSeriesRef.current[length]?.applyOptions({ title: claimed ? '' : emaTitle(length) });
+    }
+    vwapSeriesRef.current?.applyOptions({ title: claimed ? '' : vwapTitle });
+  }, [chart, claimed, showEmas, showVwap, vwapTitle]);
+
+  useEffect(() => {
+    if (!chart) return;
+    const words: EdgeWord[] = [];
+    if (showVwap && vwapSeriesRef.current) {
+      words.push({ id: 'vwap', text: vwapTitle, color: CHART_VWAP_COLOR, priority: EDGE_PRIORITY.vwap,
+        series: vwapSeriesRef.current, valueWhenOff: false });
+    }
+    for (const length of CHART_EMA_LENGTHS) {
+      const series = showEmas ? emaSeriesRef.current[length] : undefined;
+      if (series) {
+        words.push({ id: `ema${length}`, text: emaTitle(length), color: CHART_EMA_COLORS[length],
+          priority: emaPriority(length), series, valueWhenOff: true });
+      }
+    }
+    publishEdgeWords(chart, EDGE_SOURCE, words);
+  }, [chart, showEmas, showVwap, vwapTitle]);
+  useEffect(() => () => {
+    if (chart) publishEdgeWords(chart, EDGE_SOURCE, []);
+  }, [chart]);
 
   return null;
 }
