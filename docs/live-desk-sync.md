@@ -137,6 +137,18 @@ machine should be on ET), a 06:00 backstop, logon/unlock, plus
 
 - Enable **wake timers** in Windows power settings, or the task cannot start a
   sleeping machine.
+- Check what the trading path runs at (read-only):
+  `powershell -ExecutionPolicy Bypass -File scripts\Repair-NovaPriority.ps1`.
+  Every Nova task states its priority: 4 (Normal) for `NovaDailyStart`,
+  `NovaMorningCheck` and `NovaLocalhostWatchdog`, 7 (below normal, on purpose)
+  for `NovaRepoHygiene`. A task registered before 2026-10-01 has Task
+  Scheduler's default, 7: BelowNormal CPU, Low I/O and memory priority 2, which
+  IBC, the Gateway, the API and Vite inherit. Re-register it (above, and
+  `scripts\Register-NovaLocalhostWatchdog.ps1`); that stops and restarts
+  nothing. A process already running keeps its priority, and the IBC loop
+  relaunches every Gateway at its own, so raise them in place with the same
+  script and `-Apply`: nothing restarts and the Gateway keeps its login. Outside
+  04:00-20:00 ET.
 - Configure one alert channel so a failed leg is audible:
   `alerts_channels.json` in the operator cache feeds
   `POST /api/alerts/system-event`, with a direct Discord/webhook POST as the
@@ -169,6 +181,7 @@ an unrecorded restart and an unexpected shutdown (09-21), a Start-menu restart
 ## Related
 
 - `scripts/Install-NovaDailyTask.ps1` · `scripts/Invoke-NovaMorningCheck.ps1`
+- `scripts/Repair-NovaPriority.ps1` (what the trading path runs at; `-Apply` raises it in place) · `scripts/NovaProcessPriority.ps1` · `backend/process_priority/`
 - `tools/premarket_verify.py` (#14 evidence, `relogin`) · `backend/ibkr/relogin_reason.py` · `backend/ibkr/windows_restarts.py`
 - `architecture/decisions/018-desk-venue-vs-spend-arming.md` (venue persists, arming never does)
 - `docs/paper-shadow-protocol.md` · `AGENTS.md` §8

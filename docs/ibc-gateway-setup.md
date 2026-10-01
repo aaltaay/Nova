@@ -208,6 +208,13 @@ registers:
 
 `Start-NovaDaily.ps1` is idempotent (skips healthy API/UI/Gateway). Logs:
 `backend/logs/daily-start.log` and `backend/logs/morning-check.log`.
+Both tasks register at Normal priority (task priority 4), and `Start-NovaDaily.ps1`
+raises its own CPU, I/O and memory priority to Normal before it launches IBC. IBC
+relaunches every Gateway from the loop it starts, so a below-normal start would
+stay with the Gateway until IBC itself restarts. That happened from 2026-09-28 to
+10-01, under Task Scheduler's default priority 7.
+`scripts\Repair-NovaPriority.ps1` shows what each process runs at; `-Apply`
+raises them in place.
 With the week-long `AutoRestartTime` token on both doors, a routine 03:40
 start should NOT need IBKR Mobile 2FA most mornings -- only IBKR's own
 mandatory weekly re-auth does, **provided the Gateway ran all night**. A PC

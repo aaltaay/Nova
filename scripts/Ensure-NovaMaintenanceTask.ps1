@@ -27,6 +27,10 @@ try {
         $runner + '" -RepoRoot "' + $RepoRoot + '"'
     $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    # Below normal on purpose (BelowNormal CPU, Low I/O and memory priority): cleanup yields
+    # to the trading path. Explicit, because 7 is also Task Scheduler's silent default,
+    # which put the trading tasks there by accident (2026-10-01).
+    $priority = 7
 
     function Test-MaintenanceTask($task) {
         if ($null -eq $task -or $task.State -eq 'Disabled') { return $false }
@@ -50,6 +54,7 @@ try {
             $task.Settings.RestartCount -eq 3 -and
             $task.Settings.RestartInterval -eq 'PT5M' -and
             $task.Settings.ExecutionTimeLimit -eq 'PT15M' -and
+            $task.Settings.Priority -eq $priority -and
             $savedUser -eq $sid -and
             $task.Principal.LogonType -eq 'Interactive' -and
             $task.Principal.RunLevel -eq 'Limited')
@@ -61,7 +66,7 @@ try {
     }
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments -WorkingDirectory $RepoRoot
     $trigger = New-ScheduledTaskTrigger -Daily -At $at
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew `
+    $settings = New-ScheduledTaskSettingsSet -Priority $priority -StartWhenAvailable -MultipleInstances IgnoreNew `
         -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
         -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
         -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5)

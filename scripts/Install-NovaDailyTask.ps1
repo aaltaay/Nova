@@ -139,7 +139,12 @@ if ($Trigger -eq "Both") {
     }
 }
 
+# Priority 4 is Normal CPU, I/O and memory priority. Without it Task Scheduler uses 7:
+# BelowNormal CPU, Low I/O and memory priority 2, which IBC, the IB Gateway, the API and
+# Vite inherit (2026-10-01: the Gateway this task started at logon on 09-28 still ran that
+# way). NovaMorningCheck shares these settings.
 $settings = New-ScheduledTaskSettingsSet `
+    -Priority 4 `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `

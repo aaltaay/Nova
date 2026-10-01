@@ -4,11 +4,13 @@
   Defenses for every breakage we hit on the trading bench:
   - intentional Stop-Process after code updates
   - Vite/npm PATH missing under Task Scheduler
-  - NetTCPIP Get-NetTCPConnection failures → netstat fallback
+  - NetTCPIP Get-NetTCPConnection failures -> netstat fallback
   - missing .env / NOVA_SIM_CAPTURE_DIR
   - API listen but unhealthy (HTTP probe)
   - duplicate starts (port check first)
   - py launcher vs python
+  - a watchdog started below Normal priority, which the API and Vite inherit
+  ASCII-only: powershell.exe 5.1 runs it under Task Scheduler.
 #>
 $ErrorActionPreference = 'Continue'
 
@@ -19,6 +21,9 @@ $script:NovaCaptureRoot = if ($env:NOVA_SIM_CAPTURE_DIR) { $env:NOVA_SIM_CAPTURE
 $script:NovaLogDir = Join-Path $script:NovaRepo 'logs'
 $script:NovaWatchLog = Join-Path $script:NovaLogDir 'nova-localhost-watch.log'
 $script:NovaMutexName = 'Local\NovaLocalhostWatchdog'
+$script:NovaPriorityHelper = Join-Path $PSScriptRoot 'NovaProcessPriority.ps1'
+# Guarded: a pull can land this file before the helper, and the watchdog restarts on the change.
+if (Test-Path -LiteralPath $script:NovaPriorityHelper) { . $script:NovaPriorityHelper }
 
 function Write-NovaLog([string]$Message) {
   try {
@@ -26,6 +31,19 @@ function Write-NovaLog([string]$Message) {
     $line = '{0:yyyy-MM-dd HH:mm:ss} {1}' -f (Get-Date), $Message
     Add-Content -Path $script:NovaWatchLog -Value $line -Encoding utf8
   } catch {}
+}
+
+function Set-NovaLauncherPriority([switch]$Always) {
+  # The API and Vite inherit this process's CPU, I/O and memory priority. Task Scheduler's
+  # default task priority (7) started the watchdog BelowNormal with Low I/O and memory
+  # priority 2, so the API and Vite ran that way (2026-10-01). Raise it before starting
+  # either; log a change, a failure, or (-Always) the reading.
+  if (-not (Get-Command Set-NovaNormalPriority -ErrorAction SilentlyContinue)) {
+    Write-NovaLog "Priority unchanged: $($script:NovaPriorityHelper) is missing"
+    return
+  }
+  $result = Set-NovaNormalPriority
+  if ($Always -or $result.Changed -or -not $result.Ok) { Write-NovaLog $result.Text }
 }
 
 function Test-NovaPort([int]$Port) {
@@ -113,6 +131,7 @@ function Start-NovaApi {
   $out = Join-Path $script:NovaLogDir 'api-watch.out.log'
   $err = Join-Path $script:NovaLogDir 'api-watch.err.log'
   $args = @($launcher.ArgsPrefix) + @('run_api.py')
+  Set-NovaLauncherPriority
   Write-NovaLog "Starting API $($launcher.Exe) $args cwd=$backend"
   Start-Process -FilePath $launcher.Exe -ArgumentList $args `
     -WorkingDirectory $backend -WindowStyle Hidden `
@@ -142,6 +161,7 @@ function Start-NovaVite {
   $frontend = Join-Path $script:NovaRepo 'frontend'
   $out = Join-Path $script:NovaLogDir 'vite-watch.out.log'
   $err = Join-Path $script:NovaLogDir 'vite-watch.err.log'
+  Set-NovaLauncherPriority
   Write-NovaLog "Starting Vite $npm cwd=$frontend"
   $proc = Start-Process -FilePath $npm -ArgumentList @('run','dev','--','--host','127.0.0.1','--port',"$($script:NovaVitePort)") `
     -WorkingDirectory $frontend -WindowStyle Hidden -PassThru `

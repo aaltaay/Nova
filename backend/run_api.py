@@ -58,6 +58,20 @@ def _prepare_sys_path() -> None:
         os.chdir(here)
 
 
+def _normal_priority() -> None:
+    """Normal CPU, I/O and memory priority, whatever started the API (2026-10-01).
+
+    Task Scheduler's default task priority started it BelowNormal with Low I/O and memory priority 2,
+    and a below-normal shell passes its CPU class on. The IB Gateway the API launches inherits this.
+    """
+    try:
+        from process_priority.normal import raise_to_normal
+
+        raise_to_normal()
+    except Exception:
+        logger.warning("run_api: could not check the process priority", exc_info=True)
+
+
 def main() -> None:
     _force_utf8_io()
     _prepare_sys_path()
@@ -76,6 +90,8 @@ def main() -> None:
     ws_options = {"ws_per_message_deflate": False}
 
     if reload:
+        # The worker uvicorn spawns inherits this process's priority.
+        _normal_priority()
         # uvicorn's file-watcher needs an import string (not an app object) to
         # be able to restart the process on code changes.
         uvicorn.run(
@@ -90,6 +106,8 @@ def main() -> None:
     else:
         # Force-import so PyInstaller bundles the FastAPI app modules.
         import main as app_main  # noqa: F401
+        # After the import, so the line lands in the configured log.
+        _normal_priority()
         uvicorn.run(
             app_main.app,
             host=host,

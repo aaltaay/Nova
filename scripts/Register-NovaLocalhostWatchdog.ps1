@@ -6,15 +6,20 @@ $taskName = 'NovaLocalhostWatchdog'
 $ps = (Get-Command powershell.exe).Source
 $arg = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$watch`" -IntervalSec 20"
 
+# Unregistering leaves a running watchdog, and the API and Vite it started, running.
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
 $action = New-ScheduledTaskAction -Execute $ps -Argument $arg
 $tLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-# Kick every 5 minutes for a year — mutex makes extras no-ops if watch already looping
+# Kick every 5 minutes for a year - mutex makes extras no-ops if watch already looping
 $tRepeat = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) `
   -RepetitionInterval (New-TimeSpan -Minutes 5) `
   -RepetitionDuration (New-TimeSpan -Days 365)
+# Priority 4 is Normal CPU, I/O and memory priority. Without it Task Scheduler uses 7:
+# BelowNormal CPU, Low I/O and memory priority 2, which the API and Vite inherit
+# (2026-10-01: the live API ran that way).
 $settings = New-ScheduledTaskSettingsSet `
+  -Priority 4 `
   -AllowStartIfOnBatteries `
   -DontStopIfGoingOnBatteries `
   -StartWhenAvailable `
@@ -27,12 +32,21 @@ $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interac
 Register-ScheduledTask -TaskName $taskName -Action $action `
   -Trigger @($tLogon, $tRepeat) -Settings $settings -Principal $principal -Force | Out-Null
 
-# Detached long-running watch now
+# Detached long-running watch now (it exits at once while one is already running)
 Start-Process -FilePath $ps -ArgumentList $arg -WindowStyle Hidden
 Start-Sleep 4
 Write-Host 'Task:'
-Get-ScheduledTask -TaskName $taskName | Format-Table TaskName, State -AutoSize
+Get-ScheduledTask -TaskName $taskName |
+  Select-Object TaskName, State, @{ Name = 'Priority'; Expression = { $_.Settings.Priority } } |
+  Format-Table -AutoSize
 Write-Host 'Watch processes:'
+. (Join-Path $PSScriptRoot 'NovaProcessPriority.ps1')
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
   Where-Object { $_.CommandLine -match 'Watch-NovaLocalhost' } |
-  Select-Object ProcessId | Format-Table -AutoSize
+  ForEach-Object {
+    $values = Get-NovaProcessPriority -ProcessId $_.ProcessId
+    [pscustomobject]@{
+      ProcessId = $_.ProcessId
+      Priority = if ($values) { Format-NovaPriority $values } else { 'unknown' }
+    }
+  } | Format-Table -AutoSize

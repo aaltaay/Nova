@@ -17,6 +17,7 @@ hiddenimports = [
     "uvicorn.lifespan.on",
     "uvicorn.lifespan.off",
     "main",
+    "process_priority.normal",
     "constants",
     "cache",
     "bars",
