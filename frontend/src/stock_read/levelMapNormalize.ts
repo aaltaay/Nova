@@ -74,7 +74,7 @@ function zone(raw: unknown): LevelZone | null {
     strength: num(z.strength) ?? 0,
     label: str(z.label) ?? '',
     tag: str(z.tag) ?? str(z.label) ?? '',
-    home: z.home === 'daily' ? 'daily' : 'intraday',
+    home: z.home === 'daily' ? 'daily' : z.home === 'five_minute' ? 'five_minute' : 'intraday',
     members,
   };
 }
@@ -106,6 +106,7 @@ export function normalizeLevelMap(raw: unknown): LevelMap | null {
     schema_version: LEVEL_MAP_SCHEMA_VERSION,
     price: num(m.price),
     intraday: list(m.intraday, zone),
+    five_minute: Array.isArray(m.five_minute) ? list(m.five_minute, zone) : null,
     daily: list(m.daily, zone),
     daily_sessions: num(m.daily_sessions) ?? 0,
     daily_error: str(m.daily_error),

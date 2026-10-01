@@ -81,14 +81,37 @@ def _row(sym: str) -> tuple[dict[str, Any], str]:
     from strategy.symbol_pillars import SOURCE_QUOTE, find_board_row, live_quote, quote_row, raw_boards, with_catalyst
 
     raw, source = find_board_row(sym, raw_boards())
+    quote = live_quote(sym)
     if raw is None:
-        raw, source = quote_row(sym, live_quote(sym)), SOURCE_QUOTE
+        raw, source = quote_row(sym, quote), SOURCE_QUOTE
+    else:
+        raw = with_live_trade(raw, quote)
     try:
         surfaced = surface_rows([raw]) or [dict(raw)]
     except Exception:
         logger.warning("move_reason: surfacing %s failed; reading its raw row", sym, exc_info=True)
         surfaced = [dict(raw)]
     return with_catalyst(surfaced[0]), source or SOURCE_QUOTE
+
+
+def with_live_trade(row: dict[str, Any], quote: dict[str, Any] | None) -> dict[str, Any]:
+    """The board row with its price and change taken from the live L1 line's last trade.
+
+    A board stops repricing a row when its session ends (the Gainers row of a stock running after hours
+    kept its 16:00 price), so a trade the L1 line has seen is the price. IBKR's prior close before the
+    first trade (``close_fallback``, #541) is not a trade and changes nothing. Pure."""
+    q = quote or {}
+    price = _num(q.get("price"))
+    if price is None or price <= 0 or q.get("quote_quality") == "close_fallback" or q.get("last_trade_ts") is None:
+        return row
+    out = dict(row)
+    out["price"] = price
+    prev = _num(row.get("prev_close")) or _num(q.get("prev_close"))
+    out["change_pct"] = price / prev - 1.0 if prev else row.get("change_pct")
+    vol = _num(q.get("volume"))
+    if vol is not None and vol > (_num(row.get("volume")) or 0):
+        out["volume"] = int(vol)
+    return out
 
 
 def _fundamentals(sym: str) -> dict[str, Any] | None:

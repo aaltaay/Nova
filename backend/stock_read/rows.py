@@ -241,12 +241,13 @@ def front_rows(f: dict[str, Any], d: dict[str, Any]) -> list[dict[str, Any]]:
     lv = d.get("levels") or {}
     vw = lv.get("vwap")
     if price is None or vw is None:
-        out.append(row("vwap", "VWAP", "Not known", "unknown", "Session VWAP from 04:00 ET",
+        out.append(row("vwap", "VWAP", "Not known", "unknown", "The chart's session VWAP",
                        "No price or no volume today"))
     else:
         pct = price / vw - 1
         out.append(row("vwap", "VWAP", f"{'above' if price >= vw else 'under'} {vw:.2f} ({pct:+.1%})",
-                       "ok" if price >= vw else "bad", "Session VWAP from 04:00 ET (the chart's)"))
+                       "ok" if price >= vw else "bad",
+                       "The chart's session VWAP (from 04:00 ET; from 16:00 ET after hours)"))
     e9, e20 = d.get("ema9"), d.get("ema20")
     if price is None or e9 is None:
         out.append(row("ema", "9 / 20 EMA (1m)", "Not known", "unknown", "1-minute bars", "Too few candles"))

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Time } from 'lightweight-charts';
 import { paneDraw } from './chartShapes';
 import { normalizeLevelMap, normalizePlanLevels } from './levelMapNormalize';
-import { dailyPick, levelHoverId, levelNote, levelScene, levelStory, mapPick } from './levelPicks';
+import {
+  dailyPick, levelHoverId, levelNote, levelScene, levelStory, mapPick, minuteScene,
+} from './levelPicks';
 import { fitText } from './levelRender';
 import type { StockReadLayers } from './StockReadContext';
 import type { LevelMap, LevelZone } from './levelTypes';
@@ -46,12 +48,27 @@ const D554 = zone('5.54', 5.54, 5.54, 'below', 2, '5.54 · daily lows ×2', [['d
 const D450 = zone('4.50', 4.5, 4.5, 'below', 2, '4.50 · yday low', [['yday_low', 4.5]], 'daily');
 const DAILY = [D898, D884, D760, D743, D700, D595, D554, D450];
 
+/** The same morning read from 5-minute candles: fewer, wider tops (two 1-minute tops inside one 5-minute
+ * candle are one top here). */
+const F_HOD = zone('9.79', 9.79, 9.79, 'above', 3, 'HOD 9.79', [['hod', 9.79]], 'five_minute');
+const F_800 = zone('8.00', 8, 8, 'above', 7, '$8.00 · double top', [['whole', 8], ['top', 8, 2]], 'five_minute');
+const F_770 = zone('7.70', 7.7, 7.7, 'above', 4, '7.70 · double top', [['top', 7.7, 2]], 'five_minute');
+const F_CEIL = zone('7.48', 7.48, 7.5, 'above', 8, '$7.50 · double top', [['half', 7.5], ['top', 7.48, 2]], 'five_minute');
+const F_730 = zone('7.30', 7.3, 7.3, 'above', 4, '7.30 · double top', [['top', 7.3, 2]], 'five_minute');
+const F_FLOOR = zone('7.00', 7, 7.01, 'at', 9, '$7.00 · triple bottom', [['whole', 7], ['bottom', 7.01, 3]], 'five_minute');
+const F_686 = zone('6.86', 6.86, 6.86, 'below', 4, '6.86 · double bottom', [['bottom', 6.86, 2]], 'five_minute');
+const F_PMH = zone('6.70', 6.7, 6.7, 'below', 2, '6.70 · PMH', [['pmh', 6.7]], 'five_minute');
+const F_650 = zone('6.50', 6.5, 6.5, 'below', 6, '$6.50 · double bottom', [['half', 6.5], ['bottom', 6.5, 2]], 'five_minute');
+const F_640 = zone('6.40', 6.4, 6.4, 'below', 4, '6.40 · double bottom', [['bottom', 6.4, 2]], 'five_minute');
+const F_LOD = zone('4.70', 4.7, 4.7, 'below', 2, 'LOD 4.70', [['lod', 4.7]], 'five_minute');
+const FIVE = [F_HOD, F_800, F_770, F_CEIL, F_730, F_FLOOR, F_686, F_PMH, F_650, F_640, F_LOD];
+
 const STUDY = {
   source: '5 years of minute bars', round_turn: [24, 16], round_through: [77, 70], round_lost: [68, 63],
   hod_past: [72, 77], top_past: [71, 76], daily_past: [78, 78],
 };
 const MAP: LevelMap = {
-  schema_version: 1, price: 6.99, intraday: INTRADAY, daily: DAILY, daily_sessions: 60, daily_error: null,
+  schema_version: 1, price: 6.99, intraday: INTRADAY, five_minute: FIVE, daily: DAILY, daily_sessions: 60, daily_error: null,
   study: STUDY as unknown as LevelMap['study'],
 };
 const LAYERS: StockReadLayers = { setups: true, levels: true, past: false, labels: 'compact', hidden: [], plan: 'auto' };
@@ -67,6 +84,10 @@ describe('the level map off the wire', () => {
       daily: [D700], daily_sessions: 60, daily_error: null, study: STUDY };
     const lm = normalizeLevelMap(wire);
     expect(lm?.intraday.map(z => z.id)).toEqual(['intraday:7.44']);  // a zone with no reason is dropped
+    // A backend older than the 5-minute map sends none: unknown, never the 1-minute map in its place.
+    expect(lm?.five_minute).toBeNull();
+    const five = normalizeLevelMap({ ...wire, five_minute: [F_CEIL] })?.five_minute;
+    expect(five?.map(z => [z.id, z.home])).toEqual([['five_minute:7.48', 'five_minute']]);
     expect(lm?.study?.round_turn).toEqual([24, 16]);
     expect(normalizeLevelMap({ ...wire, schema_version: 2 })).toBeNull();
     expect(normalizeLevelMap(null)).toBeNull();
@@ -85,13 +106,13 @@ describe('the level map off the wire', () => {
 });
 
 describe('which levels each chart draws', () => {
-  it("draws on the 5-minute the nearest and strongest each side, HOD, LOD, the rounds and yesterday's", () => {
-    const pick = mapPick(INTRADAY, 6.99);
-    for (const z of [T724, CEILING, T730, FLOOR, B692, B686, T663, HOD, LOD, EIGHT, HALF, SIX, YDAY]) {
+  it('draws on the 5-minute its own map: the nearest and strongest each side, the zone the price is on, HOD, LOD', () => {
+    const pick = mapPick(FIVE, 6.99);
+    for (const z of [F_730, F_CEIL, F_770, F_FLOOR, F_686, F_650, F_640, F_HOD, F_LOD]) {
       expect(pick.has(z), z.id).toBe(true);
     }
-    expect(pick.has(B656)).toBe(false);   // a fourth level under the price: a tick on the axis
-    expect(pick.has(T621)).toBe(false);
+    expect(pick.has(F_800)).toBe(false);  // past 12% of the price: a tick on the axis
+    expect(pick.has(F_PMH)).toBe(false);  // a fourth level under the price: a tick
   });
 
   it("draws on the Full Day chart the daily levels near the price and yesterday's", () => {
@@ -103,20 +124,27 @@ describe('which levels each chart draws', () => {
 
   it('turns the picks into lines with labels and the rest into ticks, each naming its card', () => {
     const map = levelScene(lghl(), 'map');
-    expect(map.levels).toHaveLength(13);
-    expect(map.ticks.map(t => t.hoverId)).toEqual([levelHoverId(B656), levelHoverId(T621)]);
-    const ceiling = map.levels.find(l => l.hoverId === levelHoverId(CEILING));
-    expect(ceiling).toMatchObject({ lo: 7.44, hi: 7.5, label: '$7.50 · top ×8 · VWAP', width: 2, dash: [7, 4] });
+    expect(map.levels).toHaveLength(9);
+    expect(map.ticks.map(t => t.hoverId)).toEqual([levelHoverId(F_800), levelHoverId(F_PMH)]);
+    const ceiling = map.levels.find(l => l.hoverId === levelHoverId(F_CEIL));
+    expect(ceiling).toMatchObject({ lo: 7.48, hi: 7.5, label: '$7.50 · double top', width: 2, dash: [7, 4] });
+    expect(map.levels.find(l => l.hoverId === levelHoverId(F_730))?.label).toBe('7.30 · double top');
+    expect(map.levels.find(l => l.hoverId === levelHoverId(F_PMH))).toBeUndefined();
+    // Nothing of the 1-minute map reaches the 5-minute pane.
+    expect(map.levels.some(l => l.hoverId?.startsWith('level:intraday:'))).toBe(false);
     const daily = levelScene(lghl(), 'daily');
     expect(daily.levels).toHaveLength(7);
     expect(daily.levels.every(l => l.dash.length > 0)).toBe(true);
-    expect(levelNote(lghl(), 'map')).toBe("Today's levels (15)");
+    expect(levelNote(lghl(), 'map')).toBe('5-minute levels (11)');
+    const older = { ...lghl(), level_map: { ...MAP, five_minute: null } };
+    expect(levelScene(older, 'map').levels).toEqual([]);
+    expect(levelNote(older, 'map')).toMatch(/older than this desk/);
     expect(levelNote(lghl(), 'daily')).toBe('Daily levels (8)');
   });
 
   it('draws the maps on the 5-minute and Full Day panes, and none on the 10-second', () => {
     const read = lghl();
-    expect(paneDraw(read, { pane: 'map', layers: LAYERS, toTime: identity }).scene.levels).toHaveLength(13);
+    expect(paneDraw(read, { pane: 'map', layers: LAYERS, toTime: identity }).scene.levels).toHaveLength(9);
     const day = paneDraw(read, { pane: 'daily', layers: LAYERS, toTime: identity });
     expect(day.scene.levels).toHaveLength(7);
     expect(day.lines).toEqual([]);
@@ -125,39 +153,67 @@ describe('which levels each chart draws', () => {
     expect(paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity }).scene.levels ?? []).toHaveLength(0);
   });
 
-  it("puts on the 1-minute only the plan's levels between its stop and target that no other line names", () => {
-    const read = pfsaRead('near', {
+  it('puts on the 1-minute the levels its own candles made near the price, each with a label and a card', () => {
+    const read = { ...lghl(), level_map: { ...MAP, intraday: [{ ...HOD, members: [...HOD.members,
+      { kind: 'top' as const, price: 9.79, label: 'double top', touches: 2, times: [], dates: [], note: null }] },
+    ...INTRADAY.slice(1)] } };
+    const m = minuteScene(read);
+    // The HOD and what its 1-minute candles made of it; the zone the price is on (FLOOR); the nearest top
+    // over it (T724) and bottom under it (B692); the nearest round each side ($7.50 in CEILING, $6.50).
+    expect(m.levels.map(l => l.label)).toEqual([
+      '9.79 · HOD · double top', '$7.50 · VWAP · top ×8', '7.24 · double top', '$7.00 · bottom ×6',
+      '6.92 · double bottom', '$6.50',
+    ]);
+    expect(m.levels.every(l => l.hoverId?.startsWith('level:intraday:'))).toBe(true);
+    expect(m.ticks).toEqual([]);
+    const { scene, lines } = paneDraw(read, { pane: 'full', layers: LAYERS, toTime: identity });
+    expect(scene.levels?.map(l => l.label)).toEqual(m.levels.map(l => l.label));
+    // No bare price lines: lightweight-charts shows a line's title only beside an axis label.
+    expect(lines.filter(l => !['entry', 'stop', 'target'].includes(l.id))).toEqual([]);
+    // The premarket high is the 5-minute pane's; yesterday's high the Full Day's.
+    expect(scene.levels?.some(l => /PMH|Yest/.test(l.label ?? ''))).toBe(false);
+  });
+
+  it("puts on the 1-minute the plan's levels between its stop and target", () => {
+    const Z420 = zone('4.20', 4.2, 4.2, 'below', 4, '4.20 · double bottom', [['bottom', 4.2, 2]]);
+    const Z433 = zone('4.33', 4.33, 4.33, 'above', 4, '4.33 · double top', [['top', 4.33, 2]]);
+    const Z480 = zone('4.80', 4.8, 4.8, 'above', 4, '4.80 · double top', [['top', 4.8, 2]]);
+    const read = { ...pfsaRead('near', {
       levels: {
         room: { state: 'warn', text: '0.5R to 4.33', detail: null, r: 0.5, price: 4.33, trial: 'T7' },
         target: null, stop: null, next: null, recent: null,
         between: [
           { price: 4.2, lo: 4.2, hi: 4.2, tag: 'double bottom 4.20', label: '4.20 · double bottom', round: false, hod: false },
           { price: 4.33, lo: 4.33, hi: 4.33, tag: 'double top 4.33', label: '4.33 · double top', round: false, hod: false },
-          { price: 4.5, lo: 4.5, hi: 4.5, tag: '$4.50', label: '$4.50', round: true, hod: false },
         ],
       },
-    });
-    const { lines } = paneDraw(read, { pane: 'full', layers: LAYERS, toTime: identity });
-    const between = lines.filter(l => l.id.startsWith('between:'));
-    expect(between.map(l => [l.price, l.title])).toEqual([[4.2, 'double bottom 4.20'], [4.33, 'double top 4.33']]);
-    expect(between[0].color).toBe('#45c7b8');   // under the entry: support
-    expect(between[1].color).toBe('#ff8a70');   // over it: resistance
+    }), level_map: { ...MAP, price: 4.26, intraday: [Z480, Z433, Z420] } };
+    const labels = minuteScene(read).levels.map(l => [l.label, l.color]);
+    expect(labels).toEqual([['4.33 · double top', '#ff8a70'], ['4.20 · double bottom', '#45c7b8']]);
   });
 });
 
 describe("a level's card", () => {
-  it('says where it is, what holds it and what the study measured', () => {
+  it('says in plain words what it is, how far, why it is there and what usually happens', () => {
     const story = levelStory(levelHoverId(CEILING), lghl());
-    expect(story?.title).toBe("Today's map · $7.50 · top ×8 · VWAP (7.44-7.50)");
-    expect(story?.lines[0]).toBe('45c above the price (6.4%).');
-    expect(story?.lines).toContain('What the data says:');
-    expect(story?.lines.some(l => l.startsWith('Before it breaks, a half or whole dollar turned price back 24%'))).toBe(true);
-    expect(story?.lines.some(l => l.startsWith('Past a top tested twice or more: 71%'))).toBe(true);
+    expect(story?.title).toBe('$7.50  7.44–7.50');
+    expect(story?.subtitle).toBe('Resistance · $0.45 above the price (6.4%)');
+    expect(story?.color).toBe('#f59e0b');
+    expect(story?.sections?.[0]).toEqual({ head: 'Why it is here', items: [
+      'Half dollar: a round price traders watch', 'Price turned down here 8 times on 1-minute candles',
+      "VWAP: the day's average price",
+    ] });
+    expect(story?.sections?.[1].head).toBe('What usually happens');
+    expect(story?.sections?.[1].items[0]).toMatch(/^Round prices often stall a move the first time/);
+    expect(story?.lines).toEqual([]);
+    // A 5-minute level names the candles its tops were counted on.
+    expect(levelStory(levelHoverId(F_730), lghl())?.sections?.[0].items)
+      .toEqual(['Price turned down here 2 times on 5-minute candles']);
     const floor = levelStory(levelHoverId(FLOOR), lghl());
-    expect(floor?.lines[0]).toBe('The price is on it.');
+    expect(floor?.subtitle).toBe('The price is on it now');
     const daily = levelStory(levelHoverId(D884), lghl());
-    expect(daily?.title.startsWith('Full Day chart · ')).toBe(true);
-    expect(daily?.lines.some(l => l.includes('Room never counts them'))).toBe(true);
+    expect(daily?.sections?.[0].items).toEqual(['A daily high on 5 days']);
+    expect(daily?.sections?.[1].items).toEqual(["Old daily highs did not slow gappers in Nova's study."]);
     expect(levelStory('lane:bull_flag', lghl())).toBeNull();
   });
 });

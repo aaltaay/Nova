@@ -1,0 +1,135 @@
+/**
+ * What each colour on a Trader chart pane means (operator ask 2026-09-30: "where ever we need legend i need
+ * you to add those cuz i get lost"). Pure: the rows the pane's Key chip lists, for what that pane draws --
+ * the session tint behind the candles on every intraday pane; the levels each chart reads from its own
+ * candles (5-minute, Full Day, and the 1-minute's nearest ones); the setup boxes and the plan's lines on
+ * the 1-minute pane (the 10-second pane mirrors the plan's lines). Every colour is the one the drawing
+ * uses, read from the same constants.
+ */
+import { CHART_SESSION_COLORS } from '../constants';
+import type { PaneKind } from './chartShapes';
+import { LEVEL_COLORS, SETUP_COLORS } from './constants';
+
+/** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, or a box. */
+export type KeySwatch = 'line' | 'dash' | 'dots' | 'band' | 'box';
+
+export interface KeyRow {
+  swatch: KeySwatch;
+  color: string;
+  /** The box's or band's fill, when it differs from `color`. */
+  fill?: string;
+  label: string;
+  /** What it means, in a few plain words. */
+  text: string;
+}
+
+export interface KeySection {
+  title: string;
+  rows: KeyRow[];
+}
+
+export interface KeyLayers {
+  setups: boolean;
+  levels: boolean;
+}
+
+const GREY = '#8e8e93';
+
+function sessionRows(): KeySection {
+  return {
+    title: 'Background (time of day, ET)',
+    rows: [
+      { swatch: 'band', color: CHART_SESSION_COLORS.premarket, label: 'Premarket', text: '4:00–9:30 AM' },
+      { swatch: 'band', color: CHART_SESSION_COLORS.rth, label: 'Regular hours', text: '9:30 AM–4:00 PM' },
+      { swatch: 'band', color: CHART_SESSION_COLORS.afterhours, label: 'After hours', text: '4:00–8:00 PM' },
+      { swatch: 'band', color: CHART_SESSION_COLORS.closed, label: 'Closed', text: '8:00 PM–4:00 AM' },
+    ],
+  };
+}
+
+const ZONE_ROWS: KeyRow[] = [
+  { swatch: 'band', color: LEVEL_COLORS.support, label: 'Shaded band', text: 'how deep the zone goes; its line is the edge nearest the price' },
+  { swatch: 'line', color: GREY, label: 'Thick line', text: 'a strong level (tested many times)' },
+];
+
+function fiveMinuteRows(): KeySection {
+  return {
+    title: 'Levels from 5-minute candles (hover a label for why)',
+    rows: [
+      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: tops 5-minute candles made, the high of day' },
+      { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: bottoms, the premarket high, the open, the low' },
+      { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round dollar', text: '$X.00 / $X.50 the day tested: often stalls price, a trigger once through' },
+      ...ZONE_ROWS,
+    ],
+  };
+}
+
+function dailyRows(): KeySection {
+  return {
+    title: 'Levels from past days (hover a label for why)',
+    rows: [
+      { swatch: 'dash', color: LEVEL_COLORS.daily, label: 'Old daily level', text: 'daily highs and lows, unfilled gaps, the 200-day' },
+      { swatch: 'dots', color: LEVEL_COLORS.yesterday, label: "Yesterday's", text: "yesterday's high and low" },
+      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'several reasons above the price' },
+      { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'several reasons below the price' },
+      ...ZONE_ROWS,
+    ],
+  };
+}
+
+function minuteRows(): KeySection {
+  return {
+    title: 'Levels from 1-minute candles (hover a label for why)',
+    rows: [
+      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: the nearest top 1-minute candles made, the high of day' },
+      { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: the nearest bottom (or old top)' },
+      { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round dollar', text: 'the nearest $X.00 / $X.50 each side' },
+      ...ZONE_ROWS,
+    ],
+  };
+}
+
+function setupRows(): KeySection {
+  return {
+    title: 'Setups',
+    rows: [
+      { swatch: 'box', color: SETUP_COLORS.formingStroke, fill: SETUP_COLORS.forming, label: 'Forming', text: 'the pattern is building' },
+      { swatch: 'box', color: SETUP_COLORS.trigger, fill: SETUP_COLORS.leg, label: 'Armed / near', text: 'ready: waiting for the trigger price' },
+      { swatch: 'box', color: SETUP_COLORS.target, fill: 'rgba(48, 209, 88, 0.12)', label: 'Triggered', text: 'price went through the trigger' },
+      { swatch: 'box', color: SETUP_COLORS.fadedStroke, fill: SETUP_COLORS.faded, label: 'Ended (faint, dashed)', text: '✕ failed · ○ faded · ✓ triggered earlier' },
+    ],
+  };
+}
+
+function planRows(full: boolean): KeySection {
+  const rows: KeyRow[] = [
+    { swatch: 'line', color: SETUP_COLORS.trigger, label: 'Entry', text: 'where the plan buys' },
+    { swatch: 'line', color: SETUP_COLORS.stop, label: 'Stop', text: 'where the plan gets out at a loss' },
+    { swatch: 'line', color: SETUP_COLORS.target, label: 'Target', text: 'where the plan takes profit' },
+  ];
+  if (full) {
+    rows.push(
+      { swatch: 'band', color: SETUP_COLORS.risk, label: 'Red zone', text: 'the risk: entry down to the stop' },
+      { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: entry up to the target' },
+    );
+  }
+  rows.push({ swatch: 'dash', color: GREY, label: 'Dashed vs solid', text: 'dashed: only a plan · solid: an order is working' });
+  return { title: 'The plan', rows };
+}
+
+/** The Key's sections for one pane; empty for a pane Nova draws nothing on. */
+export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
+  if (kind === 'none') return [];
+  const out: KeySection[] = [];
+  if (kind === 'full') {
+    if (layers.setups) out.push(setupRows());
+    out.push(planRows(true));
+    if (layers.levels) out.push(minuteRows());
+  } else if (kind === 'thin') {
+    out.push(planRows(false));
+  } else if (layers.levels) {
+    out.push(kind === 'daily' ? dailyRows() : fiveMinuteRows());
+  }
+  if (kind !== 'daily') out.push(sessionRows());
+  return out;
+}

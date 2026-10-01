@@ -1,7 +1,34 @@
 """Pure indicator math from OHLCV bars. No I/O. No trip levels."""
 from __future__ import annotations
 
+from datetime import datetime, time as dtime
 from typing import Any
+from zoneinfo import ZoneInfo
+
+from constants_sensors import SENSOR_SESSION_START_ET, SENSOR_VWAP_AFTER_HOURS_ET
+
+_ET = ZoneInfo("America/New_York")
+
+
+def _et_time(hhmm: str) -> dtime:
+    hh, mm = (int(x) for x in hhmm.split(":"))
+    return dtime(hh, mm)
+
+
+def vwap_session_bars(bars: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str]:
+    """The bars the chart's session VWAP averages, and its anchor ("04:00 ET" / "16:00 ET").
+
+    From 04:00 ET of the newest bar's Eastern date; once the newest bar is at or after the 16:00 close,
+    from 16:00 -- the chart restarts its VWAP there so after-hours volume does not overwrite the
+    daytime line (frontend ``chart/vwapSession.ts``). One rule for every reader, so a "VWAP" Nova
+    names is the line the chart draws."""
+    if not bars:
+        return [], f"{SENSOR_SESSION_START_ET} ET"
+    newest = datetime.fromtimestamp(float(bars[-1]["t"]), _ET)
+    after = _et_time(SENSOR_VWAP_AFTER_HOURS_ET)
+    anchor = SENSOR_VWAP_AFTER_HOURS_ET if newest.time() >= after else SENSOR_SESSION_START_ET
+    start = datetime.combine(newest.date(), _et_time(anchor), _ET).timestamp()
+    return [b for b in bars if float(b["t"]) >= start], f"{anchor} ET"
 
 
 def _closes(bars: list[dict[str, Any]]) -> list[float]:

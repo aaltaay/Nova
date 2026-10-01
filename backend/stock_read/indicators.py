@@ -17,6 +17,7 @@ from constants_stock_read import (
     STOCK_READ_BACKSIDE_TAIL_SHARE,
     STOCK_READ_ROUND_STEP,
 )
+from sensors.math_indicators import vwap_session_bars
 from setup_scanner.series import ema
 
 ET = ZoneInfo("America/New_York")
@@ -74,7 +75,8 @@ def round_levels(price: float | None, step: float = STOCK_READ_ROUND_STEP) -> tu
 
 def levels(bars: list[dict[str, Any]], *, price: float | None, prev_close: float | None) -> dict[str, Any]:
     """The high of day (and when), the premarket high (04:00-09:30 of the bars' own day), the 09:30
-    open (None before it printed), the session VWAP and the round numbers around the price."""
+    open (None before it printed), the chart's session VWAP (restarted at 16:00 for after hours) and
+    the round numbers around the price."""
     day = session_of(bars)
     hod = None
     for b in day:
@@ -88,7 +90,7 @@ def levels(bars: list[dict[str, Any]], *, price: float | None, prev_close: float
         "pmh": round(max(float(b["h"]) for b in pre), 4) if pre else None,
         "open": round(float(reg[0]["o"]), 4) if reg and et(reg[0]["t"]).time() < dtime(9, 31) else None,
         "prev_close": prev_close,
-        "vwap": vwap(day),
+        "vwap": vwap(vwap_session_bars(day)[0]),
         "round_above": above,
         "round_below": below,
     }

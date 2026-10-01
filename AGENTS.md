@@ -1160,7 +1160,8 @@ trade), `warn`, `bad`, `unknown` (Nova does not know -- the detail says why, nev
 (a fact that is neither). **Levels** `{hod: {price, ts} | null, pmh: number | null, open: number |
 null, prev_close, vwap: number | null, round_above: number | null, round_below: number | null}`:
 the high of day, the premarket high (today's bars 04:00-09:30 ET only), the 09:30 open (null before
-it), the session VWAP from 04:00 ET, and the nearest half / whole dollar above and below.
+it), the chart's session VWAP (from 04:00 ET, restarted at 16:00 for after hours), and the nearest
+half / whole dollar above and below. `price` (and the read's change) is `/api/why`'s `facts.price`.
 A **Plan** is `{source: "setup" | "manual", setup_type, kind, state: "forming" | "armed" | "near" |
 "triggered" | "manual", provisional: boolean, trigger, entry, stop, target, risk, reward, rr,
 target_rule, entry_rule, stop_rule, grade, reason, tape: {verdict, reasons} | null, flow: {score,
@@ -1215,7 +1216,9 @@ ts, reverse: boolean | null, days_ago} | null (Yahoo's last split), holdings: Ro
 Nova recorded, setups armed on the symbol on any day, the latest short interest, and what Nova does
 not keep per symbol yet, said so.
 
-**Fixed with it.** `/sensors/vwap` is the session VWAP from 04:00 ET (the chart's) instead of the
+**Fixed with it.** `/sensors/vwap` is the session VWAP from 04:00 ET (the chart's; since 2026-09-30
+restarted at the 16:00 close for after hours as the chart does, `anchor: "16:00 ET"` then --
+`sensors.math_indicators.vwap_session_bars`, the stock read's VWAP too) instead of the
 newest 240 stored bars, and adds `anchor: "04:00 ET"`; `/sensors/halt` answers `halted: null` when
 the state is unknown instead of `false`; `ibkr/shortability.cached(symbol)` returns the last
 snapshot with its age (a read, never a wait), and `/ws/ticker/{symbol}` re-reads shortability every
@@ -1380,11 +1383,13 @@ are a trigger once through (+1.5% before -1.5% in 77% of breaks, against 70%; a 
 a level costs. So the target stays 2R, and the levels describe. Nothing here places, stages or blocks.
 
 **The level map** (owner `stock_read/level_map.py`, pure). `GET /api/stock-read/{symbol}` adds
-`level_map: {schema_version: 1, price, intraday: Zone[], daily: Zone[], daily_sessions, daily_error: string
-| null, study: {source, round_turn, round_through, round_lost, hod_past, top_past, daily_past}}` -- each
+`level_map: {schema_version: 1, price, intraday: Zone[], five_minute: Zone[], daily: Zone[], daily_sessions,
+daily_error: string | null, study: {source, round_turn, round_through, round_lost, hod_past, top_past,
+daily_past}}` -- each
 study pair `[at the level, at a random price]` in percent (`STOCK_READ_LEVEL_STUDY`). A **Zone** is
 `{id: "<home>:<lo>", lo, hi, price (its edge nearest the price), side: "above" | "below" | "at" |
-"unknown", strength, label ("$7.50 · top ×8 · VWAP"), tag ("$7.50"), home: "intraday" | "daily",
+"unknown", strength, label ("$7.50 · top ×8 · VWAP"), tag ("$7.50"), home: "intraday" | "five_minute" |
+"daily",
 members: Member[]}`, highest first; a **Member** `{kind, price, label, touches: integer | null, times:
 number[] (an intraday level's tests, epoch seconds), dates: string[] (a daily level's sessions), note:
 string | null}`. `kind` is one of `hod | lod | pmh | open | vwap | top | bottom | whole | half |
@@ -1395,6 +1400,15 @@ sma200 | yday_high | yday_low` (the daily map).
   -- swing highs (lows) over (under) the two candles before them and even with the two after, within 0.3%
   (at least a cent), tested twice or more; half and whole dollars within 25% of the price; yesterday's
   high and low (the stored daily bar, extended hours included) and the regular session's prior close.
+  The plan reads it (Room, `between`; trial T7 is registered on it).
+- The 5-minute map (`five_minute`, operator report 2026-09-30: "why does it say it's a double top when,
+  on the graph, we only see one top?") reads the same day from 5-minute candles made of those minutes on
+  the clock (`level_map.five_minute_bars`; a candle counts once its five minutes are over): the high and
+  low of day, the premarket high, the open, and tops and bottoms by the same swing rule on the 5-minute
+  candles -- so two 1-minute tops inside one 5-minute candle are one top here. A half or whole dollar is
+  kept only in a zone with another reason. No VWAP (the chart draws its own line) and nothing from
+  yesterday (the Full Day pane's). A backend older than it sends no `five_minute`; the desk then draws no
+  5-minute levels and says so.
 - The daily map reads the stored daily bars before today: highs and lows within 2% touched twice or more
   in the last 60 sessions; up to three older daily highs above the price, reading right to left, each
   higher than every high after it ("look left and up"); unfilled gaps (the part no later session traded);
@@ -1425,16 +1439,26 @@ quotes the study):
   hod}`.
 
 **On the desk** (owner `frontend/src/stock_read/`: `levelPicks.ts` which zones a chart draws and each
-card, `levelRender.ts` the drawing, `levelTypes.ts` and `levelMapNormalize.ts` the wire, `PlanLevels.tsx` the rows). Each chart
-carries the levels that come from it. The **5-minute** pane draws today's map: per side the nearest zone
-and the strongest others within 12% of the price (three in all), the zone the price is on, the high and
-low of day, the nearest whole and half dollar each side and yesterday's levels within 25%, each with a
-line (a band when the zone is wide) and a label at the right edge that stacks under the one above it;
-every other zone is a short tick on the price axis. The **Full Day** pane draws the daily map the same way
-within 40%, with yesterday's levels. A label or a tick opens the level's card: what holds it, its tests or
-dates, how far it is from the price and what the study measured. The **1-minute** pane keeps its high of
-day, premarket high, open and nearest half dollar each side, and adds only the plan's `between` levels as
-thin price lines titled with their tag (no label column). The **10-second** pane is unchanged. The plan
+card, `levelRender.ts` the drawing, `levelTypes.ts` and `levelMapNormalize.ts` the wire, `PlanLevels.tsx` the
+rows, `paneKeyRows.ts` / `ChartKey.tsx` each pane's Key). Each chart draws only the levels its own candles
+show, and no level twice (operator, 2026-09-30: "Every chart has special needs and special powers ...
+There's no reason to have duplicate information"). Every level is a line (a band when the zone is wide)
+with a short label at the right edge that stacks under the one above it -- its price, what it is and what
+the candles made of it ("$17.50 · double top", "23.52 · HOD · double top", "16.38 · PMH") -- and a card
+under the pointer: what it is and how far from the price, why it is there in plain words (each top or
+bottom with the candles it was counted on and when), and what usually happens there, from the study. The
+**5-minute** pane draws the 5-minute map: per side the nearest zone and the strongest others within 12% of
+the price (three in all), the zone the price is on, the high and low of day; every other zone is a short
+tick on the price axis. The **Full Day** pane draws the daily map the same way within 40%, with
+yesterday's levels. The **1-minute** pane draws from today's 1-minute map the high of day, the zone the
+price is on, the nearest zone over and under it that its candles made (a top or a bottom tested twice or
+more), the nearest round dollar each side and the plan's `between` levels, with no ticks; the premarket
+high and the open are the 5-minute pane's. (Until 2026-09-30 these were price lines without an axis
+label, and lightweight-charts 5.1 shows a price line's title only beside its axis label: the 1-minute
+pane's level lines never showed their names.) The **10-second** pane draws the plan's lines only. Every
+pane's corner carries a **Key** chip: pointed at, focused or pressed, it lists what each colour on that
+pane means -- the time-of-day background on the intraday panes, the levels, and on the 1-minute the
+setup boxes and the plan's lines. The plan
 card lists Room (with "in trial T7" while amber), Target, Stop, "$ next" and "$ now", each one line with
 its detail on hover, and the ruler marks the `between` levels. The toolbar's Levels switch
 (`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. Nothing is drawn on a replay
@@ -2971,7 +2995,11 @@ short_interest_ts, short_above_float, short_pct_float, days_to_cover, split: {fa
 days_ago} | null,
 halts: {news, luld, volatility, other, source} | null, borrow: {listed, fee_rate, rebate_rate,
 available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
-catalyst: verdict | null}}`. `float_contradicted` / `short_interest_ts` are the scanner row's (#532,
+catalyst: verdict | null}}`. `price` / `change_pct` / `volume` are the scanner row's, repriced by the
+symbol's L1 line when it holds a trade (`move_reason.facts.with_live_trade`; never IBKR's prior close
+before the first trade): a board stops repricing a row when its session ends (XRPN 2026-09-30 read
+16.40, its 16:00 price, while it traded 17.11 after hours, so the stock read judged every level against
+the close). `float_contradicted` / `short_interest_ts` are the scanner row's (#532,
 "Float credibility and short-interest dates"); a contradicted float's check reads "54K? shares"
 with the reason as its `detail` and keeps its state, and the short-interest check's `as_of` is the
 FINRA settlement date. `short_above_float` is judged on the float and short interest shown here; when
@@ -3429,6 +3457,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-30 | The desk's account view follows the venue (#657, the second half of #655). After a venue switch the orders, positions and summary of the old venue stayed on screen until the next read (up to 5 s for orders), a failed read kept them, and a disconnected Live showed Paper's as "last known". The snapshot now names its venue, a switch clears it and reads the new one at once, late reads and other windows' snapshots of another venue are dropped, and Cancel sends the row's venue so the door refuses it if the desk moved. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-30 | Each chart draws the levels its own candles show, with a Key and a plain card (operator report on XRPN after hours: "why does it say it's a double top when, on the graph, we only see one top? ... Every chart has special needs and special powers ... There's no reason to have duplicate information"; "these hovers are very ugly"; "i get lost"). The 5-minute pane drew today's map, whose tops were counted on 1-minute candles: the HOD's "double top" was two 1-minute tops (17:41, 17:44) inside one 5-minute candle. The level map adds `five_minute`, read from 5-minute candles made of the session's minutes (no VWAP, nothing from yesterday, a round dollar only in a zone with another reason); the 5-minute pane draws it, the 1-minute pane draws its own nearest tops and bottoms, the high of day, the nearest round each side and the plan's levels, and the premarket high and the open moved to the 5-minute. The 1-minute levels were price lines without an axis label, and lightweight-charts 5.1 shows a line's title only beside one: they never showed their names; they are scene levels with labels and cards now. Labels say what the candles made ("$17.50 · double top"); the card is the level, how far, why it is there and what usually happens; every pane has a Key chip. Found with it: the read's price came from a board row the Gainers board stopped repricing at 16:00 (XRPN 16.40 against 17.11), so it now takes the L1 line's last trade; the read's VWAP ran from 04:00 while the chart's restarts at 16:00 (16.29 against 18.62 after hours), so both restart now. Trial T7 still reads the 1-minute map, unchanged. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The execution door keeps Paper, Sim and Live apart (#655, from the audit that followed the per-venue bot level). In-flight commitments, order watches and releases were keyed by symbol or a bare order id while the Paper matcher runs on every venue: a Paper sell still working refused a Live exit of the same stock, and Paper's fill of order N wrote "Filled" into Live's order N. Commitments and watches are now per venue, `execute` reads the venue once and sends to the one it validated on (`VENUE_CHANGED` when the desk moves mid-check), and a cancel or replace may name the venue it means. §3 amended. | User Directive + Claude Sonnet 5.5 |
 | 2026-09-30 | The bot's level belongs to a venue (operator report: "When I switch between L0 and L2 in the paper, it stays persistent when I switch to live, and I feel like that shouldn't happen"). The session kept one `level`, so Paper's Strategy was Live's the moment the desk moved. Each venue now keeps its own level, setup levels, bot trip latch and bot orders (`bot/venue_levels.py`), and a venue change deactivates the bot. Found with it: the all-stop never tripped again after its first trip (a stale lock date read as locked), the bot trip's latch never lapsed and was shared across venues, the daily entry cap counted every venue, a TTL cancel or a take-over could send a Paper order id to Live, and a ticket's open confirm survived a venue switch. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Support and resistance on the charts and in the plan (ADR 036 amendment; operator: "say our target is 1:2 ratio for trades is too generic, sometimes we have to look at the very obvious resistance/support levels", then "the material teach us that there are stops at half dollar or full dollar which are great psychological triggers", and on mockup v3 "we are overloading the 1min chart"). Measured first on five years of minute bars: half and whole dollars turn price back before they break (76% of fresh approaches printed through within 10 minutes, against 84% at a random price) and trigger once through (77% ran +1.5% first, against 70%); the high of day and tested tops slow price a little; old daily highs do not; capping a target at a level costs. So the target stays 2R, and the levels describe: `stock_read/level_map.py` builds today's map and the daily map, the 5-minute pane draws today's, the Full Day pane the daily one, the 1-minute only the plan's levels between its stop and target, each label or axis tick opens a card with what the study measured, and the plan says Room, the round at the target and at the stop and the next round. Room under 2R is amber and trial T7 (`knowledge/signal-trials-2.json`, the second registry version) decides whether it ever blocks. §3 amended. | User Directive + Claude Opus 5.5 |
