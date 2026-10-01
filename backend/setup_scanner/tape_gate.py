@@ -20,7 +20,10 @@ the score. The flow reading rides on every answer as ``flow``.
 Pure: the engine hands in the book samples and prints it saw in the window.
 Prints carry the side the live tape stamped against the book at receipt
 (``ibkr/tape_side.py``); off-exchange (FINRA / TRF) reports are left out, as
-the material filters them.
+the material filters them. Prints and book samples are stamped when they
+arrive, so ``now`` must be on that clock: a lane reads a trigger when it sees
+it (``Lane.read_at``), never at the price's own whole-second stamp, which would
+leave out the prints that crossed the trigger (ADR 022 amendment 2026-09-30).
 """
 from __future__ import annotations
 
@@ -123,12 +126,15 @@ def _score_check(flow: dict | None, p: GateParams) -> tuple[bool, str]:
 
 def evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
              prints: Iterable[dict], p: GateParams = DEFAULT_GATE, flow: dict | None = None) -> dict[str, Any]:
-    """Judge the tape at ``trigger`` from the samples inside the window ending at ``now``."""
+    """Judge the tape at ``trigger`` from the samples inside the window ending at ``now``.
+
+    ``metrics.read_at`` is ``now``: the moment the read stands for (ADR 022 amendment 2026-09-30)."""
     res = _evaluate(trigger=trigger, now=now, books=books, prints=prints, p=p, flow=flow)
     if flow is not None:
         res["flow"] = flow
         res["metrics"]["flow_score"] = flow.get("score")
     res["metrics"]["entry_mode"] = p.entry_mode
+    res["metrics"]["read_at"] = now
     return res
 
 

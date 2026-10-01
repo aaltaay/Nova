@@ -12,6 +12,11 @@ ADR 034: it keeps as much history as the longest tape flow baseline any
 template reads, and ``since(sym)`` says how far back its prints can vouch for a
 symbol (when its queue was attached, or the oldest print kept once the buffer
 is full) -- the flow never reads time before that as a quiet tape.
+
+ADR 022 amendment 2026-09-30: ``prints(sym)`` drains the symbol's queue before
+it answers, so a read sees every print received before it. The engine handles
+a tick's prices before its ``sync``, and a trigger read from the buffer alone
+missed the prints that arrived with its own price.
 """
 from __future__ import annotations
 
@@ -83,23 +88,32 @@ class TapeFeed:
             if sym not in wanted:
                 self._books.pop(sym, None)
                 self._last_sample.pop(sym, None)
-        for sym, q in self._queues.items():
-            buf = self._prints.setdefault(sym, deque(maxlen=PRINT_KEEP))
-            while True:
-                try:
-                    pr = q.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-                if isinstance(pr, dict):
-                    buf.append(pr)
+        for sym in self._queues:
+            buf = self._take(sym)
             while buf and float(buf[0].get("ts") or 0) < now - self._keep_sec:
                 buf.popleft()
+
+    def _take(self, sym: str) -> deque:
+        """Move every print waiting in ``sym``'s queue into its buffer; the buffer."""
+        buf = self._prints.setdefault(sym, deque(maxlen=PRINT_KEEP))
+        q = self._queues.get(sym)
+        while q is not None:
+            try:
+                pr = q.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            if isinstance(pr, dict):
+                buf.append(pr)
+        return buf
 
     def books(self, sym: str) -> list[tuple[float, dict]]:
         return list(self._books.get(sym, ()))
 
     def prints(self, sym: str) -> list[dict]:
-        return list(self._prints.get(sym, ()))
+        """Every print kept for ``sym``, the ones still in its queue included."""
+        if sym not in self._queues:
+            return list(self._prints.get(sym, ()))
+        return list(self._take(sym))
 
     def since(self, sym: str) -> float | None:
         """The earliest moment the kept prints vouch for; ``None`` without a print queue."""

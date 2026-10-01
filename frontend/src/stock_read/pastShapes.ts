@@ -8,7 +8,7 @@
  * one ended before any leg.
  */
 import { PAST_COLORS } from './constants';
-import type { SceneBox } from './SetupShapesPrimitive';
+import type { SceneBox } from './sceneTypes';
 import { endOf, pastIconLabel, pastLabel, pastShortLabel, type Episode } from './pastSetups';
 import type { LabelShrink } from './sceneLabels';
 import type { SetupLeg } from './types';
