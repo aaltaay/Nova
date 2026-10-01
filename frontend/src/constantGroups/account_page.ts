@@ -100,7 +100,7 @@ export const ACCOUNT_RISK_LOCKED = 'Locked';
 export const ACCOUNT_RISK_UNKNOWN = 'No day P&L';
 export const ACCOUNT_RISK_DAY_LOCK = 'Day P&L vs day lock';
 export const accountRiskSoftLine = (usd: string): string => `${usd} soft · flatten, drop to L0`;
-export const accountRiskHardLine = (usd: string): string => `${usd} hard · buys locked to midnight`;
+export const accountRiskHardLine = (usd: string): string => `${usd} hard · this venue's buys locked to 04:00 ET`;
 export const ACCOUNT_RISK_BREAKERS = 'Breakers';
 export const accountRiskBreakers = (tripped: number, armed: number): string =>
   `${tripped} tripped · ${armed} armed`;

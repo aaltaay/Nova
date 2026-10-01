@@ -1,284 +1,134 @@
-/** Pure helpers for the Bots page (ADR 027): gate chips, the headline, read-out numbers. */
-import {
-  BOT_GATE_COMMISSIONS_HELD,
-  BOT_GATE_LABELS,
-  BOT_LEVEL_LABELS,
-  BOT_SETUP_LABELS,
-  BOT_SOFT_BREAKER_USD,
-} from '../constantGroups/bot';
-import {
-  BOTS_GATE_ADD_SYMBOL,
-  BOTS_GATE_OPEN_L2,
-  BOTS_GATE_READOUT_LINK,
-  BOTS_GATE_READOUT_WAIVED,
-  BOTS_GATE_RESET_KILL,
-  BOTS_GATE_UNLOCK,
-  BOTS_HERO_NO_GATES,
-  BOTS_VENUE_NAMES,
-} from '../constantGroups/bots_page';
-import type { TradingBlocker } from '../ibkr/tradingAllowed';
-import type { BotGate, BotReadout, BotSession, BotTrade } from './types';
+/**
+ * Pure helpers for the Bots page (ADR 027, ADR 042): the hero's sentence, the stocks
+ * line, the bot's trade in one line, and the page's number formats. Gate chips are
+ * bot/botGateWords.ts; whether Activate may be pressed is bot/botActivateLock.ts.
+ */
+import { BOTS_HERO_NO_GATES, BOTS_VENUE_NAMES } from '../constantGroups/bots_page';
+import { gateLine } from './botGateWords';
+import { isActive, isReady, masterLevel, setupLabelOf, setupNames, strategySetups } from './botLevels';
+import { etTime } from './botWhen';
+import type { BotDeactivated, BotSession, BotTrade } from './types';
 
-/** How many missing depth lines a chip names before "+N more". */
-const OPEN_L2_NAMED = 2;
-
-export type GateActionKind = 'unlock' | 'open_l2' | 'readout' | 'add_symbol' | 'reset_kill';
-
-export interface GateAction {
-  kind: GateActionKind;
-  label: string;
-  symbol?: string;
-}
-
-export interface GateLine {
-  id: string;
-  ok: boolean;
-  stage: string;
-  text: string;
-  actions: GateAction[];
-  /** Missing depth lines past the ones the chip names. */
-  more: number;
-}
-
-export interface GateContext {
-  /** The account's day P&L the breakers compare; null when unknown. */
-  dayPnl?: number | null;
-  /** Why the desk's own gate refuses places (padlock PIN, Gateway, spend). */
-  blockers?: readonly TradingBlocker[];
-  /** The desk venue's bot trip (ADR 032); the default when the API keeps none. */
-  softUsd?: number;
-  /** The chosen setup (ADR 031): the read-out the gate reads is its own. */
-  setup?: string;
-}
-
-function list(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-}
-
-/** The chosen setup's name, as the hero says it ("First pullback", "Bull flag"). */
-export function setupName(setup: string | null | undefined): string {
-  return BOT_SETUP_LABELS[setup ?? ''] ?? setup ?? BOT_SETUP_LABELS.first_pullback;
-}
-
-/** The gate context the hero draws with: the day P&L, the desk's blockers, the venue's bot trip, the chosen setup. */
-export function gateContext(session: BotSession, dayPnl: number | null, blockers?: readonly TradingBlocker[]): GateContext {
-  return { dayPnl, blockers, softUsd: session.breakers?.soft_usd, setup: session.setup };
-}
-
-function levelName(level: number): string {
-  return BOT_LEVEL_LABELS[(level > 2 ? 2 : level < 0 ? 0 : level) as 0 | 1 | 2] ?? String(level);
-}
-
-/** "Depth line 1 / 2 held" with "open IMCC Level 2" and friends, from the backend's facts. */
-export function gateLine(g: BotGate, ctx: GateContext = {}): GateLine {
-  const d = g.detail ?? {};
-  const label = BOT_GATE_LABELS[g.id] ?? g.id;
-  const out: GateLine = { id: g.id, ok: Boolean(g.ok), stage: g.stage, text: label, actions: [], more: 0 };
-  switch (g.id) {
-    case 'level':
-      out.text = `${label} ${levelName(Number(d.level ?? 0))}`;
-      break;
-    case 'allowlist': {
-      const n = Number(d.count ?? 0);
-      out.text = n > 0 ? `${label} · ${n}` : `${label} empty`;
-      if (!out.ok) out.actions.push({ kind: 'add_symbol', label: BOTS_GATE_ADD_SYMBOL });
-      break;
-    }
-    case 'desk_armed': {
-      if (out.ok) break;
-      const reason = String(d.reason ?? '');
-      const blockers = ctx.blockers ?? [];
-      if (blockers.includes('disconnected')) {
-        out.text = 'IBKR disconnected';
-      } else if (blockers.includes('pin') || /disarm/i.test(reason) || !reason) {
-        out.text = 'Desk disarmed';
-        out.actions.push({ kind: 'unlock', label: BOTS_GATE_UNLOCK });
-      } else {
-        out.text = prose(reason);
-      }
-      break;
-    }
-    case 'depth_lines': {
-      const held = list(d.held);
-      const missing = list(d.missing);
-      const total = held.length + missing.length;
-      out.text = total === 0 ? 'Depth lines · no symbols' : `Depth line${total === 1 ? '' : 's'} ${held.length} / ${total} held`;
-      for (const sym of missing.slice(0, OPEN_L2_NAMED)) {
-        out.actions.push({ kind: 'open_l2', label: BOTS_GATE_OPEN_L2(sym), symbol: sym });
-      }
-      out.more = Math.max(0, missing.length - OPEN_L2_NAMED);
-      break;
-    }
-    case 'readout': {
-      const state = String(d.state ?? '');
-      if (out.ok && d.waived) {
-        // ADR 030: Paper and Sim do not wait on it; the count still says how far Live is.
-        const venue = BOTS_VENUE_NAMES[String(d.venue ?? '')] ?? String(d.venue ?? 'this venue');
-        out.text = `${label} ${BOTS_GATE_READOUT_WAIVED(venue)} · ${Number(d.go_triggered ?? 0)} / ${Number(d.min_go ?? 50)}`;
-      } else if (out.ok) {
-        out.text = `${label} passed`;
-      } else if (state === 'failed') {
-        out.text = `${label} failed`;
-      } else if (state === 'unavailable') {
-        out.text = `${label} unavailable — the scoreboard is not open`;
-      } else {
-        out.text = `${label} ${Number(d.go_triggered ?? 0)} / ${Number(d.min_go ?? 50)}`;
-        out.actions.push({ kind: 'readout', label: BOTS_GATE_READOUT_LINK(setupName(ctx.setup)) });
-      }
-      break;
-    }
-    case 'bot_trip':
-      out.text = out.ok
-        ? `${label} (${ctx.dayPnl == null ? '—' : fmtUsdCents(ctx.dayPnl)} / ${fmtUsd(ctx.softUsd ?? BOT_SOFT_BREAKER_USD)})`
-        : 'Bot trip fired — Activate re-enables it';
-      break;
-    case 'day_lock':
-      out.text = out.ok ? label : `Day lock until ${String(d.until ?? 'ET midnight')}`;
-      break;
-    case 'kill_switch':
-      out.text = out.ok ? label : 'Kill switch tripped';
-      if (!out.ok) out.actions.push({ kind: 'reset_kill', label: BOTS_GATE_RESET_KILL });
-      break;
-    case 'window': {
-      const used = Number(d.entries_today ?? 0);
-      const max = Number(d.max_entries ?? 1);
-      const shut = d.open === false ? ' · closed now' : '';
-      out.text = `${label} ${String(d.start ?? '07:00')}–${String(d.end ?? '10:00')}${shut} · ${used} / ${max} trade today`;
-      break;
-    }
-    case 'commissions':
-      out.text = out.ok ? label : BOT_GATE_COMMISSIONS_HELD;
-      break;
-    default:
-      break;
-  }
-  return out;
-}
-
-export function gateLines(gates: BotGate[] | undefined, ctx: GateContext = {}): GateLine[] {
-  return (gates ?? []).map(g => gateLine(g, ctx));
-}
-
-/** Gates Activate at Strategy needs that are closed. */
-export function closedActivateGates(gates: BotGate[] | undefined): BotGate[] {
-  return (gates ?? []).filter(g => !g.ok && g.stage === 'activate');
-}
-
-export interface HeroSentence {
-  lead: string;
-  /** "3 of 9 gates", drawn bold; empty when the sentence has no count. */
-  count: string;
-  tail: string;
-}
-
-/** The venue the read-out gate names ("Paper", "Sim", "Live"); null when the gates do not say. */
-function gateVenue(session: BotSession): string | null {
-  const g = (session.gates ?? []).find(x => x.id === 'readout');
-  const v = String(g?.detail?.venue ?? '');
-  return BOTS_VENUE_NAMES[v] ?? null;
+/**
+ * "Paper" / "Sim" / "Live" for the desk venue the session is the dial of; "this venue" when
+ * unknown. The venue gate is the backend's word on the desk venue now; then the venue whose
+ * dial the session's fields are (`level_venue`), the sleeve's and the breakers'.
+ */
+export function sessionVenueName(session: BotSession): string {
+  const gate = (session.gates ?? []).find(g => g.id === 'venue');
+  const fromGate = typeof gate?.detail?.venue === 'string' ? gate.detail.venue : null;
+  const v = fromGate ?? session.level_venue ?? session.caps?.venue ?? session.breakers?.venue ?? '';
+  return BOTS_VENUE_NAMES[String(v)] ?? 'this venue';
 }
 
 /**
- * The hero's one-line state under the headline -- the chosen setup's level (ADR
- * 031). Off: the bot API is dark and the chosen setup scores in silence. Eyes: it
- * proposes, and a connected bot may watch and propose. At Strategy, Nova's own bot
- * trades the chosen setup on Paper and Sim (ADR 030); Live waits on its read-out.
+ * The hero's one-line state under the headline (ADR 042). Off: nothing proposes or
+ * trades, every scanner scores in silence. Eyes: setups propose, nothing trades.
+ * Strategy: setups at Strategy may be traded once Activate is pressed (Paper and
+ * Sim); until then they propose like Eyes. Never "live" on a practice venue.
  */
-export function heroSentence(session: BotSession): HeroSentence {
-  const level = session.level;
-  const name = setupName(session.setup).toLowerCase();
+export function heroSentence(session: BotSession): string {
+  const venue = sessionVenueName(session);
+  const level = masterLevel(session);
   if (level <= 0) {
-    return {
-      lead: `Off: no bot may use the bot API, and the ${name} scanner watches and scores in silence — no proposals. Each setup card has its own Off / Eyes.`,
-      count: '',
-      tail: '',
-    };
+    return `Off on ${venue}: no setup proposes and the bot trades nothing. Every scanner still watches and scores in silence, and the localhost bot API is dark.`;
   }
   if (level === 1) {
-    return {
-      lead: `Eyes: the ${name} scanner proposes when a setup is near its trigger and the tape says go, and a connected bot may watch and propose. Nothing places; you do.`,
-      count: '',
-      tail: '',
-    };
+    return `Eyes on ${venue}: setups at Eyes or Strategy propose when one is near its trigger and the tape says go. Nova's bot trades nothing; you place.`;
   }
-  if (!Array.isArray(session.gates)) return { lead: BOTS_HERO_NO_GATES, count: '', tail: '' };
-  const venue = gateVenue(session);
-  if (session.live_fire_ready) {
-    if (session.runner?.playing) {
-      return {
-        lead: `Strategy is live on ${venue ?? 'this venue'}: the bot buys the ${name} itself when a name on its list triggers with the tape at go, under every gate below.`,
-        count: '',
-        tail: '',
-      };
+  if (!Array.isArray(session.gates)) return BOTS_HERO_NO_GATES;
+  const venueGate = session.gates.find(g => g.id === 'venue' && !g.ok);
+  if (venueGate && !isActive(session)) {
+    const why = gateLine(venueGate).why ?? "Nova's bot does not trade here.";
+    return `Strategy on ${venue}, but the bot cannot trade here: ${why} Setups at Eyes or Strategy propose; you place.`;
+  }
+  const at = strategySetups(session);
+  const n = session.symbol_allowlist?.length ?? 0;
+  const stocks = `${n} stock${n === 1 ? '' : 's'} set to Bot`;
+  if (isActive(session)) {
+    if (isReady(session)) {
+      return `Trading on ${venue}: the bot buys GO triggers of ${setupNames(at)} on its ${stocks}, the first trigger first, under every gate below.`;
     }
-    return {
-      lead: `Strategy is live: a connected bot may place under every gate below. Nova's own bot does not play here${session.runner?.reason ? ` — ${session.runner.reason}` : ''}.`,
-      count: '',
-      tail: '',
-    };
+    // The reason it is not trading now is the hero's line under the headline; this says what it will do.
+    return `Active on ${venue}: the bot buys GO triggers of ${setupNames(at)} on its ${stocks} once nothing below stops it.`;
   }
-  const closed = session.gates.filter(g => !g.ok).length;
-  if (closed > 0) {
-    return {
-      lead: 'Strategy is chosen, but the bot can\'t fire yet: ',
-      count: `${closed} of ${session.gates.length} gates`,
-      tail: ` ${closed === 1 ? 'is' : 'are'} closed. Until then it proposes like Eyes.`,
-    };
+  if (at.length === 0) {
+    return `Strategy on ${venue}, but no setup card is at Strategy: setups at Eyes propose, and nothing trades.`;
   }
-  if (session.readout_required === false) {
-    return { lead: `Strategy is chosen and every gate is open. Activate and the bot trades the ${name} on ${venue ?? 'this venue'}.`, count: '', tail: '' };
+  return `Strategy on ${venue}: the bot may trade GO triggers of ${setupNames(at)} on its ${stocks} once you press Activate. Until then they propose like Eyes.`;
+}
+
+/** "2 stocks set to Bot · risk $20 a trade · max 1 share · $50 budget · 1 Nova entry a day". */
+export function stocksLine(session: BotSession): string {
+  const n = session.symbol_allowlist?.length ?? 0;
+  const caps = session.caps;
+  const parts = [`${n} stock${n === 1 ? '' : 's'} set to Bot`];
+  if (caps.risk_usd != null) parts.push(`risk ${fmtUsd(caps.risk_usd)} a trade`);
+  parts.push(`max ${caps.max_shares} share${caps.max_shares === 1 ? '' : 's'}`);
+  parts.push(`$${caps.bp_budget_usd.toFixed(0)} budget`);
+  if (caps.entries_per_day != null) {
+    parts.push(`${caps.entries_per_day} Nova entr${caps.entries_per_day === 1 ? 'y' : 'ies'} a day`);
   }
-  return { lead: 'Strategy is chosen and every gate is open. Activate to let a connected bot fire; Nova\'s own bot trades Paper and Sim only.', count: '', tail: '' };
+  return parts.join(' · ');
+}
+
+/** Why the backend turned the bot off (ADR 042 B), when the backend sends no words of its own. */
+const DEACTIVATED_WORDS: Record<string, string> = {
+  restart: 'the backend restarted',
+  padlock: 'the padlock was locked',
+  venue: 'the desk changed venue',
+  level: 'the master level went below Strategy',
+  no_setup: 'no setup was left at Strategy',
+  bot_trip: 'the bot trip fired',
+  all_stop: 'the all-stop fired',
+  operator: 'you pressed Deactivate',
+};
+
+/** "Turned off at 09:41 ET — the backend restarted"; empty when the backend says nothing. */
+export function deactivatedLine(d: BotDeactivated | null | undefined): string {
+  if (!d) return '';
+  const raw = d.text ?? DEACTIVATED_WORDS[d.reason] ?? d.reason.replace(/_/g, ' ');
+  const words = prose(raw).replace(/^Not active\s*[—-]+\s*/i, '');
+  const at = etTime(d.at);
+  return `Turned off${at ? ` at ${at}` : ''} — ${words}`;
 }
 
 const EXIT_WORDS: Record<string, string> = {
   target: 'target',
   stop: 'stopped out',
   time: 'time stop',
+  flush: 'flush exit',
   outside: 'closed outside the bot',
+  handed: 'handed to you',
 };
 
-/** The bot's trade in one line (ADR 030, ADR 031); empty when it has none. */
+/** The bot's trade in one line, naming its setup (ADR 030, ADR 042 I); empty when it has none. */
 export function tradeLine(trade: BotTrade | null | undefined): string {
   if (!trade) return '';
   const sym = trade.symbol;
+  const what = trade.setup_type ? ` (${setupLabelOf(trade.setup_type).toLowerCase()})` : '';
   const qty = trade.qty;
   switch (trade.state) {
     case 'entering':
-      return `Buying ${sym} · ${qty} at ${px(trade.entry_planned)} limit`;
+      return `Buying ${sym}${what} · ${qty} at ${px(trade.entry_planned)} limit`;
     case 'open':
-      return `In ${sym} · ${qty} @ ${px(trade.entry_fill_price)} · stop ${px(trade.stop)} · target ${px(trade.target1)}`;
+      return `In ${sym}${what} · ${qty} @ ${px(trade.entry_fill_price)} · stop ${px(trade.stop)} · target ${px(trade.target1)}`;
     case 'exiting':
-      return `Closing ${sym} · ${trade.exit_why === 'stop' ? 'the stop printed' : 'time stop'}`;
+      return `Closing ${sym}${what} · ${trade.exit_why === 'stop' ? 'the stop printed' : trade.exit_why === 'flush' ? 'a flush' : 'time stop'}`;
     case 'missed':
-      return `Missed ${sym} · ${prose(trade.note ?? 'the entry did not fill')}`;
+      return `Missed ${sym}${what} · ${prose(trade.note ?? 'the entry did not fill')}`;
     case 'closed': {
       const why = EXIT_WORDS[trade.exit_reason ?? ''] ?? trade.exit_reason ?? 'closed';
-      return `Last trade ${sym} · ${why}${trade.r != null ? ` · ${fmtR(trade.r)}` : ''}`;
+      return `Last trade ${sym}${what} · ${why}${trade.r != null ? ` · ${fmtR(trade.r)}` : ''}`;
     }
     default:
-      return `${sym} · ${trade.state}`;
+      return `${sym}${what} · ${trade.state}`;
   }
 }
 
 function px(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
   return v < 1 ? v.toFixed(4) : v.toFixed(2);
-}
-
-export interface PlayingLine {
-  setup: string;
-  rest: string;
-}
-
-export function playingLine(session: BotSession): PlayingLine {
-  const setup = setupName(session.setup);
-  const n = session.symbol_allowlist?.length ?? 0;
-  const shares = session.caps.max_shares;
-  return {
-    setup,
-    rest: ` · ${n} symbol${n === 1 ? '' : 's'} · max ${shares} share${shares === 1 ? '' : 's'} · $${session.caps.bp_budget_usd.toFixed(0)} budget`,
-  };
 }
 
 /** Whole dollars with a real minus sign: -50 -> "−$50". */
@@ -299,13 +149,6 @@ export function fmtR(v: number | null | undefined): string {
   return `${v > 0 ? '+' : v < 0 ? '−' : ''}${text}R`;
 }
 
-/** 0-100 progress toward the read-out's go count. */
-export function readoutProgress(r: BotReadout | undefined): number {
-  if (!r) return 0;
-  const min = r.rules?.min_go || 50;
-  return Math.max(0, Math.min(100, (100 * (r.go?.triggered ?? 0)) / min));
-}
-
 /** Backend prose writes ASCII " -- "; the page sets it as a dash. */
 export function prose(text: string | null | undefined): string {
   return (text ?? '').replace(/ -- /g, ' — ');
@@ -315,4 +158,9 @@ export function prose(text: string | null | undefined): string {
 export function etClock(ts: number | null | undefined): string {
   if (!ts || !Number.isFinite(ts)) return '';
   return new Date(ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false });
+}
+
+/** The setup that names a scoreboard when nothing else says: the first at Strategy, else the first pullback. */
+export function setupName(setup: string | null | undefined): string {
+  return setupLabelOf(setup || 'first_pullback');
 }

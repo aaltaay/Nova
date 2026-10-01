@@ -1,12 +1,11 @@
 /**
- * The bot in the global bar (approved mockup v4): "● Bot  L2 First pullback ·
- * Not active" beside the account figures, on every view. A click opens the
- * Bots page. It shows state only -- the level and Activate live on the page's
- * hero and in the Trader rail card. The sample desk has no bot: no pill.
+ * The bot in the global bar (approved mockup v4, ADR 042): "● Bot  L2 Strategy · 2 at
+ * Strategy · Not active" beside the account figures, on every view -- the master level,
+ * how many setups are at Strategy, and whether the bot is active, with the reason on
+ * hover. A click opens the Bots page. It shows state only -- the level and Activate live
+ * on the page's hero and in the Trader rail card. The sample desk has no bot: no pill.
  */
 import { BOTS_PILL_LABEL, BOTS_PILL_TITLE, DESK_BOT_POLL_MS } from '../constants';
-import { botArmDisplayState } from '../ibkr/tradingAllowed';
-import { useDeskTradingAllowed } from '../ibkr/useDeskTradingAllowed';
 import { setNavPage } from '../workspace/navRailStore';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { botHeaderState } from './botHeaderState';
@@ -15,10 +14,9 @@ import './globalBarBotPill.css';
 
 export function GlobalBarBotPill() {
   const { session } = useBotSession(DESK_BOT_POLL_MS);
-  const gate = useDeskTradingAllowed();
   const { traderViewActive, showScannerView } = useWorkspace();
   if (!session) return null;
-  const view = botHeaderState(session, botArmDisplayState(Boolean(session.armed), gate).looksActive);
+  const view = botHeaderState(session);
 
   function open() {
     if (traderViewActive) showScannerView();
@@ -39,6 +37,7 @@ export function GlobalBarBotPill() {
         <span className="global-bar-bot-pill__label">{BOTS_PILL_LABEL}</span>
         {view.level ? <b className="global-bar-bot-pill__level">{view.level}</b> : null}
         <b className="global-bar-bot-pill__name">{view.name}</b>
+        {view.detail ? <span className="global-bar-bot-pill__state">· {view.detail}</span> : null}
         {view.state ? <span className="global-bar-bot-pill__state">· {view.state}</span> : null}
       </button>
     </span>

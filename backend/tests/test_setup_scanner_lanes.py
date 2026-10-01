@@ -211,21 +211,24 @@ def test_a_fixed_target_is_entry_plus_the_amount():
     assert det.armed["target1"] == round(det.armed["entry"] + 0.20, 4)
 
 
-def test_the_bot_window_and_daily_cap_come_from_the_template_in_play(tmp_path):
+def test_the_bot_window_comes_from_each_setups_template_in_play(tmp_path):
+    """ADR 042: each setup at Strategy has its template's bot window; the daily cap is the venue sleeve's."""
     from bot import entry_rules
+    from bot.autonomy import apply_patch
     from bot.errors import BotError
     from setup_templates.store import set_store_for_tests
 
     templates = TemplateStore(tmp_path / "t.json")
     set_store_for_tests(templates)
-    t = templates.create(FP, name="Late", values={"bot_window_start": "09:30", "bot_window_end": "11:00",
-                                                  "bot_entries_per_day": 2})
+    t = templates.create(FP, name="Late", values={"bot_window_start": "09:30", "bot_window_end": "11:00"})
     templates.play(FP, t.id)
+    apply_patch({"level": 2, "setup_levels": {FP: 2}}, desk=True)
     at = datetime(2026, 9, 23, 10, 30, tzinfo=ET)
     entry_rules.set_clock_for_tests(lambda: at)
-    status = entry_rules.status(at)
-    assert (status["start"], status["end"], status["max_entries"], status["open"]) == ("09:30", "11:00", 2, True)
-    assert status["template"]["id"] == t.id
+    win = entry_rules.window(FP, at)
+    assert (win["start"], win["end"], win["open"]) == ("09:30", "11:00", True)
+    assert win["template"]["id"] == t.id
+    assert entry_rules.today(cap=None, now=at)["cap"] == 1                  # the sleeve's entries_per_day
     entry_rules.set_clock_for_tests(lambda: datetime(2026, 9, 23, 11, 5, tzinfo=ET))
     with pytest.raises(BotError) as err:
         entry_rules.assert_entry_allowed("buy_market")

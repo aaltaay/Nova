@@ -1,7 +1,9 @@
 """Allowlisted NovaActionKind -> execution.service.execute(source=bot).
 
-Every kind passes one symbol gate before anything else is resolved:
-``eligibility.assert_symbol_can_fire`` -- allowlist AND a depth line the
+ADR 042 J: every kind -- buys, exits and cancels alike -- is refused on Live and on a
+replay desk (``409 BOT_LIVE_NOT_BUILT``): a bot never touches Live. On Paper and Sim at
+the live edge every kind passes one symbol gate before anything else is resolved:
+``eligibility.assert_symbol_can_fire`` -- this venue's bot list AND a depth line the
 backend holds (``409 BOT_NO_DEPTH_LINE`` otherwise, ADR 020 second pass).
 """
 from __future__ import annotations
@@ -39,8 +41,9 @@ def _position_qty(symbol: str) -> float:
 
     try:
         return float(_account.long_qty(symbol) or 0)
-    except Exception:
-        return 0.0
+    except Exception as exc:
+        # Unknown is never "flat": an exit on an unreadable position is refused with the reason.
+        raise BotError(f"the {symbol} position could not be read ({exc})", 503, "BOT_POSITION_UNREADABLE") from exc
 
 
 def _exit_qty(symbol: str, percent: int | None = None) -> tuple[str, float]:
@@ -91,17 +94,21 @@ async def fire(
     *,
     brain_session_id: str | None,
 ) -> dict[str, Any]:
-    row = assert_can_fire()
+    row = assert_can_fire()      # Live / a replay desk refuse first (BOT_LIVE_NOT_BUILT)
     require_l2_brain(brain_session_id, claim=True)
     kind = assert_kind(str(body.get("kind") or body.get("action") or ""), row)
     symbol = assert_symbol_can_fire(str(body.get("symbol") or ""), row)
     if day_lock_active() and kind.startswith("buy_"):
-        raise BotError("-$200 day lock -- buys locked until next ET midnight", 409, BOT_REASON_DAY_LOCK)
-    assert_entry_allowed(kind)  # ADR 027: the material's window and one trade a day
+        from bot.gates import current_venue, day_lock, lock_text
+
+        raise BotError(lock_text(day_lock(row, current_venue())), 409, BOT_REASON_DAY_LOCK)
+    assert_entry_allowed(kind)  # the Strategy setups' windows, extended hours, the shared daily cap
 
     assert_no_working_buy(kind, row)
     eh = outside_rth(row)
-    ttl = int((row.get("caps") or {}).get("working_ttl_sec") or 3)
+    from bot.sleeve import of as sleeve_of
+
+    ttl = int(sleeve_of(row)["working_ttl_sec"])
 
     if kind == "cancel_symbol":
         result = await _cancel_symbol(symbol)

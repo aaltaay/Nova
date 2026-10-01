@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 import { getNavPage, resetNavRailStoreForTests } from '../workspace/navRailStore';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
-import { botsFetchRouter, session, type BotsFetchOpts } from './botsPageFixtures';
+import { botsFetchRouter, session, strategySession, type BotsFetchOpts } from './botsPageFixtures';
 import { GlobalBarBotPill } from './GlobalBarBotPill';
 import { NavRailBotDot } from './NavRailBotDot';
 
@@ -51,20 +51,21 @@ async function mount(opts: BotsFetchOpts, node = <GlobalBarBotPill />) {
 }
 
 describe('GlobalBarBotPill', () => {
-  it('reads "Bot L2 First pullback · Not active" and opens the Bots page', async () => {
-    await mount({ session: session({ level: 2 }) });
+  it('reads "Bot L2 Strategy · 1 at Strategy · Not active", says why on hover, and opens the Bots page', async () => {
+    await mount({ session: strategySession({ deactivated: { at: null, reason: 'restart', text: null } }) });
     const pill = screen.getByTestId('global-bar-bot-pill');
-    expect(pill.textContent).toBe('BotL2First pullback· Not active');
+    expect(pill.textContent).toBe('BotL2Strategy· 1 at Strategy· Not active');
+    expect(pill.textContent).not.toMatch(/First pullback/);
     expect(pill.className).toContain('global-bar-bot-pill--idle');
-    expect(pill.title).toMatch(/3 of 9 gates closed/);
+    expect(pill.title).toMatch(/Not active — Turned off — the backend restarted/);
     fireEvent.click(pill);
     expect(getNavPage()).toBe('bots');
     expect(workspace.showScannerView).not.toHaveBeenCalled();
   });
 
-  it('turns green when the bot is in control, and leaves the Trader to open the page', async () => {
+  it('turns green when the bot is active and would trade, and leaves the Trader to open the page', async () => {
     workspace.traderViewActive = true;
-    await mount({ session: session({ level: 2, armed: true, has_desk_arm: true }) });
+    await mount({ session: strategySession({ active: true, armed: true, ready: true, has_desk_arm: true }) });
     const pill = screen.getByTestId('global-bar-bot-pill');
     expect(pill.className).toContain('global-bar-bot-pill--on');
     expect(pill.textContent).toMatch(/Active$/);

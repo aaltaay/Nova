@@ -88,7 +88,8 @@ class LaneHost:
         return self._clock()
 
     def levels(self) -> dict:
-        """``{"chosen": SETUP, "levels": {SETUP: level}}`` (ADR 031); an unreadable answer is every setup Off."""
+        """``{"chosen": None, "levels": {SETUP: effective level}, ...}`` (ADR 031, 042: ``bot.setup_levels``);
+        an unreadable answer is every setup Off."""
         try:
             out = self._levels_fn()
         except Exception:
@@ -97,12 +98,21 @@ class LaneHost:
         return out if isinstance(out, dict) else {"chosen": None, "levels": {}}
 
     def can_propose(self, setup_type: str | None = None) -> bool:
-        """Not on a replay desk; and for a setup, only at Eyes or above (ADR 031: Off is silent)."""
+        """Not on a replay desk; and for a setup, only at effective Eyes or above (ADR 031: Off is
+        silent). A setup at Strategy proposes too (ADR 042): the proposal says whether the bot or
+        Auto-entry takes it (``taker``)."""
         if self._replay_fn():
             return False
         if setup_type is None:
             return True
         return int((self.levels().get("levels") or {}).get(setup_type) or 0) >= BOT_LEVEL_EYES
+
+    def taker(self, sym: str, setup_type: str) -> str | None:
+        """``"bot"`` / ``"auto_entry"`` when Nova would take this setup's go trigger on ``sym`` by itself
+        (the bot is Active, the setup at Strategy, the stock set to Bot or Auto-entry), else None."""
+        from bot.first_pullback.admit import taker
+
+        return taker(sym, setup_type)
 
     # -- triggers to whoever trades them (ADR 030) --------------------------------
     def add_trigger_listener(self, fn: Callable[[dict], None]) -> None:

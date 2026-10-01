@@ -174,7 +174,7 @@
   background: var(--nova-danger, var(--danger));
 }
 
-/* The Bots item's state dot (bot/NavRailBotDot): amber chosen-not-active, green in control. */
+/* The Bots item's state dot (bot/NavRailBotDot): amber at Strategy but not active, green active. */
 .nav-rail__badge--bot { background: #f5a524; }
 .nav-rail__badge--bot.nav-rail__badge--on { background: var(--nova-success, var(--success)); }
 

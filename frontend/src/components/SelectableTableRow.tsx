@@ -26,7 +26,7 @@ interface Props {
    * body then only calls `onSelect`. Defaults to true for rows with no
    * ticker button (Positions, Orders, Journal, ...). */
   openOnRowClick?: boolean;
-  /** Ticker lists: right-click opens the symbol menu (watch list, Record, bot allowlist). */
+  /** Ticker lists: right-click opens the symbol menu (watch list, Record, let the bot trade it). */
   symbolMenu?: boolean;
   /** False where the cells explain themselves (ux/hoverTip.ts): the row's own native
    * tooltip would stack on top of theirs. Defaults to true. */

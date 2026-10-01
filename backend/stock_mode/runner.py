@@ -1,21 +1,27 @@
-"""What Nova does for a stock on its switch (ADR 037): hear the setup scanner's triggers, send, and
-manage what it sent.
+"""What Nova does for a stock on its switch (ADR 037, ADR 042 F): hear the setup scanner's triggers,
+send, and manage what it sent.
 
 Every ``STOCK_MODE_POLL_SEC``:
 
 1. **The venue.** A venue change clears every switch and approval (``store.sync_venue``).
 2. **Triggers** the scanner announced (``submit``, live feed only) on a stock whose switch is
-   Auto-entry or Approve: Auto-entry buys the first go trigger at the setup's entry; Approve sends
-   the approved plan as one bracket at its setup's go trigger. Anything that keeps Nova from sending
-   is a skip with the reason, on the bot's audit stream and in the stock's view.
+   Auto-entry or Approve:
+   - Auto-entry buys by **the bot's rules** with the exit handed to you (``bot.first_pullback.admit``):
+     a go trigger of a setup at effective Strategy, the first of the day, inside that setup's bot
+     window, within the venue's shared daily cap, extended hours as the sleeve says, sized by the
+     sleeve, only while the bot is Active, never a NOT A TRADE -- and never a stock on the bot list.
+   - Approve sends the approved plan as one bracket at its setup's go trigger, unless the trigger is
+     not a trade.
+   Anything that keeps Nova from sending is a skip with every reason, on the bot's audit stream and
+   as the stock's last event.
 3. **Approvals** waiting on a trigger are held against their lane: a re-arm at other levels, a failed
    or disarmed setup withdraws them.
-4. **Trades** Nova sent are managed: the entry fills, or is cancelled after
-   ``STOCK_MODE_ENTRY_TTL_SEC`` (a miss); Approve's exits rest at the broker until one fills; an
-   Auto-entry position is the operator's, and Nova only notices when it is closed.
+4. **Trades** Nova sent are managed: the entry fills, or is cancelled after the venue sleeve's
+   ``working_ttl_sec`` (a miss, which gives the day's count back); Approve's exits rest at the broker
+   until one fills; an Auto-entry position is the operator's, and Nova only notices when it is closed.
 
-Owner: the trades and approvals in ``stock_mode.store`` (in memory). The bot's own trade on a Nova /
-Nova stock is the first-pullback bot's (``bot.first_pullback.runner``).
+Owner: the trades (persisted) and the approvals in ``stock_mode.store``. The bot's own trade on a Bot
+stock is the bot's (``bot.first_pullback.runner``).
 
 maintainer: one-concern the stock-mode trade state machine and the loop that drives it
 """
@@ -30,20 +36,16 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from bot.audit import record as audit
-from constants_bot import BOT_FP_TRIGGER_MAX_AGE_SEC
+from constants_bot import BOT_DEFAULT_WORKING_TTL_SEC, BOT_FP_TRIGGER_MAX_AGE_SEC, BOT_SKIP_VENUE_CHANGING
 from constants_setups import SETUP_STATE_ARMED, SETUP_STATE_NEAR, TAPE_VERDICT_GO
 from constants_stock_mode import (
     STOCK_MODE_APPROVAL_CHECK_SEC,
     STOCK_MODE_APPROVE,
     STOCK_MODE_AUDIT_ACTION,
     STOCK_MODE_AUTO_ENTRY,
-    STOCK_MODE_BLOCK_ENTRY_USED,
-    STOCK_MODE_BLOCK_SIZE,
     STOCK_MODE_BLOCK_STALE,
     STOCK_MODE_BLOCK_TAPE,
-    STOCK_MODE_BLOCK_WORKING,
     STOCK_MODE_CANCEL_RETRY_SEC,
-    STOCK_MODE_ENTRY_TTL_SEC,
     STOCK_MODE_POLL_SEC,
     STOCK_MODE_SIDE_NOVA,
     STOCK_MODE_SIDE_YOU,
@@ -80,6 +82,19 @@ def venue_day(now: float | None = None) -> str:
     except Exception:
         logger.warning("stock mode: the venue's clock could not be read -- the wall clock's day is used", exc_info=True)
         return datetime.fromtimestamp(now or _clock(), ET).date().isoformat()
+
+
+def ttl_sec() -> int:
+    """The venue sleeve's ``working_ttl_sec``: every Nova entry rests at most this long unfilled."""
+    try:
+        from bot.persist import load_session
+        from bot.sleeve import of
+
+        return int(of(load_session())["working_ttl_sec"])
+    except Exception:
+        logger.warning("stock mode: the sleeve could not be read -- entries rest %ss", BOT_DEFAULT_WORKING_TTL_SEC,
+                       exc_info=True)
+        return int(BOT_DEFAULT_WORKING_TTL_SEC)
 
 
 async def run() -> None:
@@ -126,7 +141,7 @@ async def _on_trigger(event: dict[str, Any], now: float) -> None:
         return
     mode = model.mode_of(sw["buy"], sw["sell"])
     if mode == STOCK_MODE_AUTO_ENTRY:
-        await _auto_entry(sym, sw, event, now)
+        await _auto_entry(sym, event, now)
     elif mode == STOCK_MODE_APPROVE:
         approval = store.approval(sym)
         if approval and approval.get("state") == "waiting" and approval.get("setup_id") == event.get("setup_id"):
@@ -134,11 +149,19 @@ async def _on_trigger(event: dict[str, Any], now: float) -> None:
 
 
 def _refusal(event: dict[str, Any], now: float) -> tuple[str, str] | None:
-    """What keeps Nova from sending on this trigger: the venue, the desk, a stale trigger, the tape."""
+    """What keeps an approved plan from going out on this trigger: the venue, the desk, a stale trigger,
+    the tape, and NOT A TRADE."""
+    from setup_scanner.trade_verdict import of_event
+
     venue, replay = gates.venue_state()
     blocked = gates.venue_block(venue, replay) or gates.desk_block()
     if blocked:
         return blocked
+    from stock_mode.leave import leaving, leaving_text
+
+    move = leaving()
+    if move is not None:
+        return BOT_SKIP_VENUE_CHANGING, leaving_text(move)
     age = now - float(event.get("ts") or 0)
     if age > BOT_FP_TRIGGER_MAX_AGE_SEC:
         return STOCK_MODE_BLOCK_STALE, f"the trigger is {age:.0f}s old (at most {BOT_FP_TRIGGER_MAX_AGE_SEC:g}s)"
@@ -148,29 +171,28 @@ def _refusal(event: dict[str, Any], now: float) -> tuple[str, str] | None:
         first = (tape.get("reasons") or [""])[0]
         said = "blind: Nova holds no Level 2 line for it" if verdict == "blind" else verdict.upper()
         return STOCK_MODE_BLOCK_TAPE, f"the tape said {said} at the trigger" + (f" ({first})" if first else "")
+    judged = of_event(event)
+    if not judged["ok"]:
+        return "BOT_NOT_A_TRADE", "not a trade: " + "; ".join(judged["reasons"])
     return None
 
 
-async def _auto_entry(sym: str, sw: dict[str, Any], event: dict[str, Any], now: float) -> None:
+async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
+    from bot.first_pullback import admit
+    from bot.persist import load_session
+
     venue, _replay = gates.venue_state()
-    day = venue_day(now)
-    refused = _refusal(event, now)
     current = store.trade(venue, sym)
-    if refused is None and store.entries_today(venue, day, sym) >= 1:
-        refused = STOCK_MODE_BLOCK_ENTRY_USED, f"Nova's one buy of {sym} today is used"
-    if refused is None and current and current.get("state") == STOCK_MODE_TRADE_ENTERING:
-        refused = STOCK_MODE_BLOCK_WORKING, "an entry Nova sent is still working"
-    setup = event.get("setup") or {}
-    qty = model.size(sw.get("risk_usd"), setup.get("entry"), setup.get("stop"))
-    if refused is None and qty < 1:
-        refused = STOCK_MODE_BLOCK_SIZE, (f"${float(sw.get('risk_usd') or 0):g} risk buys no whole share at a "
-                                          f"{_risk_text(setup)} risk")
-    if refused is not None:
-        _skip(sym, event, now, refused)
+    working = bool(current and current.get("state") == STOCK_MODE_TRADE_ENTERING)
+    found, sized = admit.for_auto_entry(event, load_session(), now=now, working=working)
+    if found:
+        _skip(sym, event, now, (found[0][0], admit.text(found)), codes=[c for c, _w in found])
         return
-    trade = _new_trade(STOCK_MODE_AUTO_ENTRY, sym, event, now, venue=venue, day=day, qty=qty,
-                       entry=setup.get("entry"), stop=setup.get("stop"), target=setup.get("target1"),
-                       attempt=str(event.get("setup_id")), exits=STOCK_MODE_SIDE_YOU)
+    setup = event.get("setup") or {}
+    trade = _new_trade(STOCK_MODE_AUTO_ENTRY, sym, event, now, venue=venue, day=venue_day(now),
+                       qty=int((sized or {})["qty"]), entry=setup.get("entry"), stop=setup.get("stop"),
+                       target=setup.get("target1"), attempt=str(event.get("setup_id")), exits=STOCK_MODE_SIDE_YOU)
+    trade["size_text"] = (sized or {}).get("text")
     receipt = await orders.place_entry(trade)
     if not receipt.ok or receipt.order_id is None:
         _skip(sym, event, now, (getattr(receipt, "reason_code", None) or "REFUSED", orders.receipt_error(receipt)),
@@ -178,10 +200,11 @@ async def _auto_entry(sym: str, sw: dict[str, Any], event: dict[str, Any], now: 
         return
     trade["entry_order_id"] = int(receipt.order_id)
     store.set_trade(trade)
-    _say(sym, now, "info", f"Nova is buying {qty:g} {sym} at {float(trade['entry']):.2f} (limit) -- the exit is yours")
+    _say(sym, now, "info", f"Nova is buying {trade['qty']:g} {sym} at {float(trade['entry']):.2f} (limit) -- "
+                           f"{trade['size_text']}; the exit is yours")
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="sent", order_id=trade["entry_order_id"],
-          reason=f"auto-entry: BUY {qty:g} {sym} LMT {float(trade['entry']):.2f} on the {_setup_name(event)} trigger",
-          inputs=_summary(trade))
+          reason=f"auto-entry: BUY {trade['qty']:g} {sym} LMT {float(trade['entry']):.2f} on the "
+                 f"{_setup_name(event)} trigger ({trade['size_text']})", inputs=_summary(trade))
 
 
 async def _send_approved(sym: str, approval: dict[str, Any], event: dict[str, Any], now: float) -> None:
@@ -229,7 +252,11 @@ def _check_approvals(now: float) -> None:
     for sym, approval in store.approvals().items():
         if approval.get("state") != "waiting":
             continue
-        lane = lane_of(sym, approval.get("setup_id"))
+        try:
+            lane = lane_of(sym, approval.get("setup_id"))
+        except LanesUnreadable as exc:
+            _warn_once(f"lanes:{sym}", "stock mode: %s -- %s's approval waits, unchecked this tick", exc, sym)
+            continue
         why = None
         if lane is None:
             why = "the setup is gone from the scanner"
@@ -241,6 +268,8 @@ def _check_approvals(now: float) -> None:
                 why = "the setup triggered and nothing was sent: approve now to buy"
             else:
                 why = f"the setup is {lane.get('state')}" + (f": {lane.get('reason')}" if lane.get("reason") else "")
+        elif lane.get("state") == FILTERED:
+            why = f"the template's stock filter keeps it out: {str(lane.get('reason') or '').removeprefix('filtered: ')}"
         elif not model.plan_matches(approval, lane.get("setup")):
             why = f"the setup re-armed at {model.levels_text(lane.get('setup') or {})}: approve again"
         if why:
@@ -250,19 +279,31 @@ def _check_approvals(now: float) -> None:
                   inputs={"symbol": sym, "setup_id": approval.get("setup_id")})
 
 
+class LanesUnreadable(Exception):
+    """The setup scanner's lanes could not be read: unknown, never "no setup"."""
+
+
 def lane_of(sym: str, setup_id: str | None) -> dict[str, Any] | None:
-    """The scanner's lane for this stock and setup id (its state and levels), or None."""
+    """The scanner's lane for this stock and setup id (its state and levels), or None when it is gone.
+    Raises ``LanesUnreadable`` when the scanner cannot be read."""
     if not setup_id:
         return None
+    lanes = lanes_of(sym)
+    if lanes is None:
+        raise LanesUnreadable(f"the setup scanner's lanes for {sym} could not be read")
+    return next((lane for lane in lanes if lane.get("setup_id") == setup_id), None)
+
+
+def lanes_of(sym: str) -> list[dict[str, Any]] | None:
+    """Every setup's lane on this stock (the scanner's symbol view, memory reads); None when unreadable."""
     try:
         from setup_scanner.engine import get_engine
         from setup_scanner.symbol_view import symbol_view
 
-        lanes = symbol_view(get_engine(), sym).get("setups") or []
+        return list(symbol_view(get_engine(), sym).get("setups") or [])
     except Exception:
         logger.warning("stock mode: the scanner's lanes for %s could not be read", sym, exc_info=True)
         return None
-    return next((lane for lane in lanes if lane.get("setup_id") == setup_id), None)
 
 
 # -- a trade Nova sent -------------------------------------------------------------------
@@ -294,8 +335,6 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
         qty = filled or float(trade["qty"])
         trade.update(state=STOCK_MODE_TRADE_HOLDING, qty=qty, fill_price=fill, filled_at=now)
         store.set_trade(trade)
-        if trade["kind"] == STOCK_MODE_AUTO_ENTRY:
-            store.add_entry(trade["venue"], trade["venue_day"], sym)
         exits = ("the stop and the target rest at the broker" if trade["exits"] == STOCK_MODE_SIDE_NOVA
                  else "the exit is yours")
         _say(sym, now, "ok", f"Nova bought {qty:g} {sym} at {fill:.2f} -- {exits}")
@@ -303,23 +342,16 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
               reason=f"bought {qty:g} {sym} at {fill:.2f} (limit {float(trade['entry']):.2f}); {exits}",
               inputs=_summary(trade))
         return
+    ttl = float(trade.get("ttl_sec") or ttl_sec())
     if state in ("dead", "gone"):
-        why = (f"not filled in {STOCK_MODE_ENTRY_TTL_SEC:g}s -- the price ran past {float(trade['entry']):.2f}"
+        why = (f"not filled in {ttl:g}s -- the price ran past {float(trade['entry']):.2f}"
                if trade.get("cancel_sent_at") else
                "the entry was cancelled outside Nova" if state == "dead" else
                "the entry is gone from the ledger (a Sim rewind or an account reset)")
-        trade.update(state=STOCK_MODE_TRADE_MISSED, closed_at=now, note=why)
-        store.set_trade(trade)
-        if trade["kind"] == STOCK_MODE_APPROVE:
-            approval = store.approval(sym)
-            if approval and approval.get("state") == "sent":
-                store.set_approval(sym, {**approval, "state": "withdrawn", "reason": f"missed: {why}"})
-        _say(sym, now, "warn", f"Missed: {why}")
-        audit(action=STOCK_MODE_AUDIT_ACTION, outcome="missed", order_id=trade.get("entry_order_id"), reason=why,
-              inputs=_summary(trade))
+        miss(trade, now, why)
         return
     sent_cancel = trade.get("cancel_sent_at")
-    due = now >= float(trade["sent_at"]) + STOCK_MODE_ENTRY_TTL_SEC
+    due = now >= float(trade["sent_at"]) + ttl
     retry = sent_cancel is not None and now - float(sent_cancel) >= STOCK_MODE_CANCEL_RETRY_SEC
     if (sent_cancel is None and due) or retry:
         receipt = await orders.cancel(trade, int(trade["entry_order_id"]))
@@ -328,6 +360,20 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
         if not receipt.ok:
             logger.warning("stock mode: cancelling %s's entry %s refused -- %s", sym, trade["entry_order_id"],
                            orders.receipt_error(receipt))
+
+
+def miss(trade: dict[str, Any], now: float, why: str) -> None:
+    """The entry closed unfilled: the trade is missed (and gives the day's count back), said so."""
+    sym = trade["symbol"]
+    trade.update(state=STOCK_MODE_TRADE_MISSED, closed_at=now, note=why)
+    store.set_trade(trade)
+    if trade["kind"] == STOCK_MODE_APPROVE:
+        approval = store.approval(sym)
+        if approval and approval.get("state") == "sent":
+            store.set_approval(sym, {**approval, "state": "withdrawn", "reason": f"missed: {why}"})
+    _say(sym, now, "warn", f"Missed: {why}")
+    audit(action=STOCK_MODE_AUDIT_ACTION, outcome="missed", order_id=trade.get("entry_order_id"), reason=why,
+          inputs=_summary(trade))
 
 
 def _manage_exits(trade: dict[str, Any], now: float) -> None:
@@ -374,16 +420,17 @@ def _new_trade(kind: str, sym: str, event: dict[str, Any], now: float, *, venue:
             "qty": int(qty), "entry": float(entry), "stop": float(stop),
             "target": float(target) if target is not None else None,
             "entry_order_id": None, "target_order_id": None, "stop_order_id": None, "sent_at": now,
-            "cancel_sent_at": None, "fill_price": None, "filled_at": None, "exit_price": None,
+            "ttl_sec": ttl_sec(), "cancel_sent_at": None, "fill_price": None, "filled_at": None, "exit_price": None,
             "exit_reason": None, "closed_at": None, "exits": exits, "note": None}
 
 
-def _skip(sym: str, event: dict[str, Any], now: float, refused: tuple[str, str], *, outcome: str = "skipped") -> None:
+def _skip(sym: str, event: dict[str, Any], now: float, refused: tuple[str, str], *, outcome: str = "skipped",
+          codes: list[str] | None = None) -> None:
     code, why = refused
     _say(sym, now, "warn", f"Nova did not buy: {why}")
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome=outcome, reason=why,
           inputs={"symbol": sym, "setup_id": event.get("setup_id"), "setup_type": event.get("setup_type"),
-                  "code": code})
+                  "code": code, "codes": codes or [code]})
 
 
 def _say(sym: str, now: float, tone: str, text: str) -> None:
@@ -392,19 +439,13 @@ def _say(sym: str, now: float, tone: str, text: str) -> None:
 
 def _summary(trade: dict[str, Any]) -> dict[str, Any]:
     keys = ("symbol", "kind", "setup_id", "setup_type", "venue", "venue_day", "qty", "entry", "stop", "target",
-            "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "exit_price", "exit_reason", "exits")
+            "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "exit_price", "exit_reason", "exits",
+            "ttl_sec", "size_text")
     return {k: trade.get(k) for k in keys}
 
 
 def _setup_name(event: dict[str, Any]) -> str:
     return str(event.get("setup_type") or "setup").replace("_", " ")
-
-
-def _risk_text(setup: dict[str, Any]) -> str:
-    try:
-        return f"{float(setup.get('entry')) - float(setup.get('stop')):.2f}"
-    except (TypeError, ValueError):
-        return "unknown"
 
 
 def _num(value: Any) -> float | None:

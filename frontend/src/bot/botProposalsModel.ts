@@ -2,11 +2,10 @@
  * Pure helpers for the Bots page proposals inbox: the closed setup proposals
  * the bot audit stream recorded (backend setup_scanner engine: `setup_proposal`
  * rows with outcome rearmed / disarmed / failed / triggered), the distance and
- * reward / risk line of an open one, and the dismissed ids kept for the
- * browser session.
+ * reward / risk line of an open one. The dismissed ids are the one list the
+ * alert card shares (`setups/proposalDismissals.ts`, ADR 042).
  */
 import {
-  BOTS_DISMISSED_STORAGE_KEY,
   BOTS_PROPOSAL_AT,
   BOTS_PROPOSAL_CLOSED_KEEP_SEC,
   BOTS_PROPOSAL_CLOSED_LABELS,
@@ -77,30 +76,4 @@ export function proposalWhy(p: SetupProposal, row: SetupRow | undefined): string
     parts.push(`${cents(p.target1 - p.trigger)} / ${cents(p.trigger - p.stop)}`);
   }
   return parts.join(' · ');
-}
-
-export function readDismissed(storage: Pick<Storage, 'getItem'> | null = safeSession()): Set<string> {
-  try {
-    const raw = storage?.getItem(BOTS_DISMISSED_STORAGE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export function writeDismissed(ids: ReadonlySet<string>, storage: Pick<Storage, 'setItem'> | null = safeSession()): void {
-  try {
-    storage?.setItem(BOTS_DISMISSED_STORAGE_KEY, JSON.stringify([...ids].slice(-200)));
-  } catch {
-    /* private mode: the dismissal lasts until the page reloads */
-  }
-}
-
-function safeSession(): Storage | null {
-  try {
-    return typeof sessionStorage === 'undefined' ? null : sessionStorage;
-  } catch {
-    return null;
-  }
 }

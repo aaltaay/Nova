@@ -2,6 +2,9 @@
  * The writes behind the Who trades switch (ADR 037): set the switch, approve the plan, withdraw it, take
  * over the exit. They place and cancel orders, so they carry the desk's API key (`novaFetch`), and the
  * sample desk refuses them before any request. A refusal throws the backend's own words.
+ *
+ * The switch carries no risk per trade (ADR 042 draft): Nova sizes by the venue's sleeve, and the backend
+ * ignores a `risk_usd` it is sent. A take-over sends nothing but the symbol: it always leaves Buy on You.
  */
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
@@ -11,16 +14,19 @@ import { STOCK_MODE_PATH } from './constants';
 import type { StockModeView, StockSide } from './types';
 import { normalizeStockMode } from './whoTradesNormalize';
 
-const KEY_MISSING = 'The desk has no API key for this: Nova needs NOVA_API_KEY to let the desk change who trades.';
-
-/** The backend's refusal, in its own words: `{detail: {reason, error, field}}` or a plain detail. */
-export function refusalText(status: number, body: unknown): string {
+/** The backend's refusal, in its own words: `{detail: {reason, error, field}}` or a plain detail.
+ * `what` finishes "Nova needs NOVA_API_KEY to let the desk ..." when the desk has no key. */
+export function refusalText(status: number, body: unknown, what = 'change who trades'): string {
   const detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : null;
-  if (status === 401 || status === 503) return KEY_MISSING;
+  if (status === 401 || status === 503) {
+    return `The desk has no API key for this: Nova needs NOVA_API_KEY to let the desk ${what}.`;
+  }
   if (typeof detail === 'string' && detail.trim()) return detail.trim();
   if (detail && typeof detail === 'object') {
     const error = (detail as { error?: unknown }).error;
     if (typeof error === 'string' && error.trim()) return error.trim();
+    const said = (detail as { detail?: unknown }).detail;
+    if (typeof said === 'string' && said.trim()) return said.trim();
   }
   return `The desk answered ${status}.`;
 }
@@ -40,8 +46,8 @@ async function send(symbol: string, method: 'PUT' | 'POST' | 'DELETE', suffix: s
   return view;
 }
 
-export function putStockMode(symbol: string, buy: StockSide, sell: StockSide, riskUsd: number | null): Promise<StockModeView> {
-  return send(symbol, 'PUT', '', { buy, sell, risk_usd: riskUsd });
+export function putStockMode(symbol: string, buy: StockSide, sell: StockSide): Promise<StockModeView> {
+  return send(symbol, 'PUT', '', { buy, sell });
 }
 
 export interface ApproveBody {
@@ -61,6 +67,6 @@ export function withdrawApproval(symbol: string): Promise<StockModeView> {
   return send(symbol, 'DELETE', '/approve');
 }
 
-export function takeOverExit(symbol: string, riskUsd: number | null): Promise<StockModeView> {
-  return send(symbol, 'POST', '/take-over', { risk_usd: riskUsd });
+export function takeOverExit(symbol: string): Promise<StockModeView> {
+  return send(symbol, 'POST', '/take-over');
 }

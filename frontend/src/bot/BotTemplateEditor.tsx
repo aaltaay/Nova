@@ -1,15 +1,20 @@
 /**
- * A setup's parameters and templates (ADR 029): every number the setup runs
- * on, grouped as the scanner reads them, and the operator's named variations.
- * The built-in default is the pre-registered rules and stays locked -- New
- * copies it. Saving new rules on a template starts its evidence over (its own
- * read-out restarts), and the editor says so before it saves. Nothing here
- * places an order.
+ * A setup's parameters and templates (ADR 029, ADR 042 G): every number the setup runs
+ * on, grouped as the scanner reads them, and the operator's named variations. The
+ * built-in default is the pre-registered rules and stays locked -- New copies it.
+ * Saving new scanner rules on a template starts its evidence over (its own read-out
+ * restarts), and the editor says so before it saves -- only then: the bot's own
+ * parameters (its window) are left out of the template's revision, so changing them
+ * keeps the read-out counting. The bot window shows clipped when a stored one sat
+ * outside the arming window. How many entries a day is the sleeve's, not a
+ * template's. Nothing here places an order.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BOT_SETUP_LABELS } from '../constantGroups/bot';
 import {
+  BOTS_TEMPLATE_BOT_ONLY_NOTE,
+  BOTS_TEMPLATE_BOT_WINDOW,
   BOTS_TEMPLATE_BUILTIN_WHY,
   BOTS_TEMPLATE_DELETE_CONFIRM,
   BOTS_TEMPLATE_EVIDENCE_RESET,
@@ -70,6 +75,9 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
   const label = BOT_SETUP_LABELS[setup.id] ?? setup.id;
   const groups = setup.catalogue.groups;
   const dirty = selected ? changedKeys(selected.values, draft) : [];
+  const specs = new Map(groups.flatMap(g => g.params).map(p => [p.key, p]));
+  // A parameter the API does not mark is read as one that restarts the read-out: never hide a restart.
+  const resets = dirty.filter(k => specs.get(k)?.affects_readout !== false);
   const invalid = Object.values(fieldErrors).some(Boolean);
   const atLimit = setup.templates.length >= maxPerSetup;
   const lockedWhy = !selected ? null : selected.builtin ? BOTS_TEMPLATE_BUILTIN_WHY : busy ? BOTS_TEMPLATE_SAVING_WHY : null;
@@ -121,8 +129,10 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
   async function onSave() {
     if (!selected || !setup || dirty.length === 0) return;
     const scored = selected.readout?.go_triggered ?? 0;
-    if (setup.scanner) {
-      const ok = await confirmApp({ title: 'Save new rules', message: BOTS_TEMPLATE_EVIDENCE_RESET(selected.name, selected.rev, scored),
+    if (setup.scanner && resets.length > 0) {
+      const keys = resets.map(k => specs.get(k)?.label ?? k).join(', ');
+      const ok = await confirmApp({ title: 'Save new scanner rules',
+        message: BOTS_TEMPLATE_EVIDENCE_RESET(selected.name, selected.rev, scored, keys),
         confirmLabel: 'Save', tone: 'warning' });
       if (!ok) return;
     }
@@ -183,6 +193,11 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
                   <b>{selected.name}</b> · {selected.builtin ? 'the pre-registered rules, locked' : `rev ${selected.rev}`}
                   {selected.updated_at ? ` · saved ${stamp(selected.updated_at)}` : ''}
                   {selected.readout?.reason ? ` · ${selected.readout.reason}` : ''}
+                  {selected.bot_window ? (
+                    <span className={`bots-tpl__botwin${selected.bot_window.clipped ? ' is-clipped' : ''}`} data-testid="bots-template-bot-window">
+                      {' · '}{BOTS_TEMPLATE_BOT_WINDOW(selected.bot_window.start, selected.bot_window.end, selected.bot_window.clipped)}
+                    </span>
+                  ) : null}
                 </p>
               ) : null}
               {groups.map(g => (
@@ -206,7 +221,10 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
         {error ? <p className="bots-hero__error" role="alert" data-testid="bots-template-error">{error}</p> : null}
         {groups.length > 0 ? (
           <div className="bots-tpl__foot">
-            <span className="bots-muted">{dirty.length ? `${dirty.length} change${dirty.length === 1 ? '' : 's'} not saved` : ''}</span>
+            <span className="bots-muted" data-testid="bots-template-dirty">
+              {dirty.length ? `${dirty.length} change${dirty.length === 1 ? '' : 's'} not saved` : ''}
+              {dirty.length && resets.length === 0 && setup.scanner ? ` · ${BOTS_TEMPLATE_BOT_ONLY_NOTE}` : ''}
+            </span>
             <button type="button" className="bots-btn" data-testid="bots-template-discard" disabled={dirty.length === 0 || busy}
               data-why={dirty.length === 0 || busy ? (busy ? BOTS_TEMPLATE_SAVING_WHY : BOTS_TEMPLATE_NOTHING_CHANGED_WHY) : undefined}
               onClick={() => { if (selected) setDraft({ ...selected.values }); setFieldErrors({}); }}>Discard</button>

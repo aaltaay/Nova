@@ -121,7 +121,7 @@ def leaderboard_rows(
     elif symbols:
         a_state, a_detail = DIAG_STATE_OK, f"recording {', '.join(held)}"
     elif auto.get("active"):
-        a_state, a_detail = DIAG_STATE_OK, "watching the setups and leaders; no free Level 2 line or none yet"
+        a_state, a_detail = DIAG_STATE_OK, f"watching {_watching(auto)}; no free Level 2 line or none yet"
     else:
         a_state, a_detail = DIAG_STATE_OFF, f"outside {auto.get('window') or 'its window'}"
     rows.append(row(
@@ -131,8 +131,15 @@ def leaderboard_rows(
         state=a_state,
         detail=a_detail,
         cause=("Records setups in a trade, near or armed, then the top leaders, on free Level 2 lines only;"
-               " yields a line when you open Level 2 (ADR 040)."),
+               " yields a line when you open Level 2 (ADR 041)."),
         fix="Nothing to do." if a_state != DIAG_STATE_WARN else "It retries on its own; Record by hand if a leader matters now.",
         evidence=dict(auto),
     ))
     return rows
+
+
+def _watching(auto: dict[str, Any]) -> str:
+    """Which of auto-record's two windows is open (ADR 041): setups run to the last arming window, leaders to 10:00."""
+    open_now = ((auto.get("windows") or {}).get("open"))
+    return {"setups_and_leaders": "the setups and leaders", "setups": "the setups (the leaders' window is closed)",
+            "leaders": "the leaders (no setup is in its arming window)"}.get(open_now, "the setups and leaders")

@@ -1,6 +1,6 @@
 # ADR 032 -- The loss breakers are the operator's, per venue
 
-**Status:** Accepted · **Date:** 2026-09-24
+**Status:** Accepted · **Date:** 2026-09-24 · **Amended by:** [[042-one-owner-for-novas-buys]] (the locks lift at 04:00 ET and belong to their venue; commissions counted once)
 **Amends:** [[016-bot-localhost-api]] decision 6 (the -$50 / -$200 breakers were fixed product thresholds)
 **Decided by:** the operator, 2026-09-24 -- on the Risk Sleeve's loss-breaker bar: "I want us to be
 able to change this stuff ... move that slider ... and make sure these changes are persistent in a

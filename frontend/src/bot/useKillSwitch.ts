@@ -1,7 +1,10 @@
 /**
- * The kill switch latch (D-037, ADR 025) for the Bots page: its status, polled,
- * and trip / reset behind the app's confirm dialog. The latch refuses every new
- * order from every source until it is reset; flatten and cancel still work.
+ * The kill switch latch (D-037, ADR 025, ADR 042 D) for the Bots page: its status,
+ * polled, and trip / reset behind the app's confirm dialog. Tripping cancels every
+ * working order on every venue and refuses every new order on every venue until reset (Flatten and cancels pass); it
+ * does not sell positions. The trip's answer -- what it cancelled on each venue,
+ * what it could not, and which venue it could not read -- is kept until the next
+ * press, so the page can say it.
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -14,7 +17,13 @@ import {
 } from '../constantGroups/bot';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { confirmApp } from '../ux/appDialogApi';
-import { fetchKillSwitch, resetKillSwitch, tripKillSwitch, type KillSwitchStatus } from './killSwitchApi';
+import {
+  fetchKillSwitch,
+  resetKillSwitch,
+  tripKillSwitch,
+  type KillSweep,
+  type KillSwitchStatus,
+} from './killSwitchApi';
 
 function errorText(err: unknown): string {
   return err instanceof Error && err.message ? err.message : String(err);
@@ -24,6 +33,8 @@ export interface KillSwitchControl {
   status: KillSwitchStatus | null;
   error: string | null;
   busy: boolean;
+  /** The last trip's sweep per venue; null before a trip in this window, or after a reset. */
+  sweep: KillSweep[] | null;
   /** Trip (true) or reset (false) after the operator confirms. Resolves false when declined. */
   act: (trip: boolean) => Promise<boolean>;
 }
@@ -32,6 +43,7 @@ export function useKillSwitch(): KillSwitchControl {
   const [status, setStatus] = useState<KillSwitchStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sweep, setSweep] = useState<KillSweep[] | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -59,7 +71,9 @@ export function useKillSwitch(): KillSwitchControl {
     if (!ok) return false;
     setBusy(true);
     try {
-      setStatus(await (trip ? tripKillSwitch() : resetKillSwitch()));
+      const next = await (trip ? tripKillSwitch() : resetKillSwitch());
+      setStatus(next);
+      setSweep(trip ? next.sweep ?? [] : null);
       setError(null);
       return true;
     } catch (err) {
@@ -70,5 +84,5 @@ export function useKillSwitch(): KillSwitchControl {
     }
   }, []);
 
-  return { status, error, busy, act };
+  return { status, error, busy, sweep, act };
 }

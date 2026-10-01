@@ -29,7 +29,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the last price is at least this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_price",
@@ -44,7 +45,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the last price is at most this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_float_m",
@@ -59,7 +61,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the float is at most this many million shares.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_change_pct",
@@ -74,7 +77,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the stock is up at least this much from the prior close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_rvol",
@@ -89,7 +93,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when relative volume is at least this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "require_catalyst",
@@ -104,7 +109,8 @@
         "choices": [],
         "nullable": false,
         "help": "Arm only when the News pillar passes: a real company catalyst since the prior close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_grade",
@@ -132,7 +138,8 @@
         ],
         "nullable": false,
         "help": "Arm only setups graded this well or better.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "unknown_passes",
@@ -147,7 +154,8 @@
         "choices": [],
         "nullable": false,
         "help": "On: an unknown price, float, change or volume does not block the filter. Off: it does.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -169,7 +177,8 @@
         "choices": [],
         "nullable": false,
         "help": "The leg high is at least this far over the lowest low of the leg window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "leg_window",
@@ -184,7 +193,8 @@
         "choices": [],
         "nullable": false,
         "help": "The bars ending at the leg high that the leg is measured over.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "leg_lookback",
@@ -199,7 +209,8 @@
         "choices": [],
         "nullable": false,
         "help": "The leg high is the highest high of this many bars before it.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "require_hod",
@@ -214,7 +225,8 @@
         "choices": [],
         "nullable": false,
         "help": "The leg high is also the day's high so far, pre-market included.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_pullback_bars",
@@ -229,7 +241,8 @@
         "choices": [],
         "nullable": false,
         "help": "Fewest candles after the leg high.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_pullback_bars",
@@ -244,7 +257,8 @@
         "choices": [],
         "nullable": false,
         "help": "Most candles after the leg high before the pullback ran too long.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_retrace",
@@ -259,7 +273,8 @@
         "choices": [],
         "nullable": false,
         "help": "The pullback's low gives back less than this share of the leg.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_period",
@@ -274,7 +289,8 @@
         "choices": [],
         "nullable": false,
         "help": "Every pullback candle closes at or above this EMA.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_tol",
@@ -289,7 +305,8 @@
         "choices": [],
         "nullable": false,
         "help": "A pullback close may sit this far under the EMA.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_positive",
@@ -304,7 +321,8 @@
         "choices": [],
         "nullable": false,
         "help": "The last pullback candle's MACD histogram is above zero (the front side of the move).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_fast",
@@ -319,7 +337,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_slow",
@@ -334,7 +353,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_signal",
@@ -349,7 +369,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_per_symbol_day",
@@ -364,7 +385,8 @@
         "choices": [],
         "nullable": false,
         "help": "The first pullback, then the second -- no more on one symbol that day.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -386,7 +408,8 @@
         "choices": [],
         "nullable": false,
         "help": "The entry is the last pullback candle's high plus this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "session_start",
@@ -401,7 +424,8 @@
         "choices": [],
         "nullable": false,
         "help": "No setup arms before this time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "entry_cutoff",
@@ -416,7 +440,8 @@
         "choices": [],
         "nullable": false,
         "help": "No setup arms, and none triggers, at or after this time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "near_dollars",
@@ -431,7 +456,8 @@
         "choices": [],
         "nullable": false,
         "help": "Price this close to the trigger is when the tape is read (or the percent below, whichever is wider).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "near_pct",
@@ -446,7 +472,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -468,7 +495,8 @@
         "choices": [],
         "nullable": false,
         "help": "Entry minus the pullback low. A bigger risk skips the setup.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_stop",
@@ -483,7 +511,8 @@
         "choices": [],
         "nullable": false,
         "help": "A smaller risk skips the setup: the stop would sit in the spread.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "risk_slippage",
@@ -498,7 +527,8 @@
         "choices": [],
         "nullable": false,
         "help": "Added to the risk before the two checks above, as the research did.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_mode",
@@ -522,7 +552,8 @@
         ],
         "nullable": false,
         "help": "Half comes off at target 1 and the stop moves to the entry (the scoring exit).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_r",
@@ -537,7 +568,8 @@
         "choices": [],
         "nullable": false,
         "help": "Used when target 1 is the leg high or R x risk.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_fixed",
@@ -552,7 +584,8 @@
         "choices": [],
         "nullable": false,
         "help": "Used when target 1 is a fixed amount over the entry.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "bailout_bars",
@@ -567,7 +600,8 @@
         "choices": [],
         "nullable": false,
         "help": "Scoring exit: this many candles without a close over the entry -> out at the close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -589,7 +623,8 @@
         "choices": [],
         "nullable": false,
         "help": "The book samples and prints the gate reads.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "tape_stale_book_sec",
@@ -604,7 +639,8 @@
         "choices": [],
         "nullable": false,
         "help": "No book newer than this reads blind.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "spread_max",
@@ -619,7 +655,8 @@
         "choices": [],
         "nullable": false,
         "help": "A wider spread vetoes (or the percent below, whichever is wider).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "spread_max_pct",
@@ -634,7 +671,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "band",
@@ -649,7 +687,8 @@
         "choices": [],
         "nullable": false,
         "help": "Ask levels from 1 cent under the trigger to this far over it are at the level.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "big_seller",
@@ -664,7 +703,8 @@
         "choices": [],
         "nullable": false,
         "help": "A displayed seller this big at the level vetoes.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "wall",
@@ -679,7 +719,8 @@
         "choices": [],
         "nullable": false,
         "help": "A seller this big at the level waits until it thins.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "thin_fraction",
@@ -694,7 +735,8 @@
         "choices": [],
         "nullable": false,
         "help": "The seller shrank by this much inside the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_ask_prints",
@@ -709,7 +751,8 @@
         "choices": [],
         "nullable": false,
         "help": "And more volume at the ask than at the bid.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "hidden_mult",
@@ -724,7 +767,8 @@
         "choices": [],
         "nullable": false,
         "help": "This much bought at the ask while the ask does not move vetoes.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "red_mult",
@@ -739,7 +783,8 @@
         "choices": [],
         "nullable": false,
         "help": "Bid-side volume over this multiple of ask-side volume waits.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -774,7 +819,8 @@
         ],
         "nullable": false,
         "help": "The vetoes and a seller that is not thinning hold in every mode. The gate is the pre-registered rule.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_entry_min",
@@ -789,7 +835,8 @@
         "choices": [],
         "nullable": false,
         "help": "Read when the entry reads the flow score.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_exit",
@@ -817,7 +864,8 @@
         ],
         "nullable": false,
         "help": "The scoring exit and Nova's bot both follow it while this template is in play.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_hold_sec",
@@ -832,7 +880,8 @@
         "choices": [],
         "nullable": false,
         "help": "Red right after the entry is often the entry's own noise.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_trail_r",
@@ -847,7 +896,8 @@
         "choices": [],
         "nullable": false,
         "help": "The stop moves up to this far under the price at the flush -- never down.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_min_r",
@@ -862,7 +912,8 @@
         "choices": [],
         "nullable": true,
         "help": "On: a flush counts only while the trade is up this much. Off: any time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_window_sec",
@@ -877,7 +928,8 @@
         "choices": [],
         "nullable": false,
         "help": "The prints, the price move and the book the four readings look at.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_baseline_sec",
@@ -892,7 +944,8 @@
         "choices": [],
         "nullable": false,
         "help": "The tape's usual pace, measured before the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_min_prints",
@@ -907,7 +960,8 @@
         "choices": [],
         "nullable": false,
         "help": "Fewer reads quiet: too little tape to say.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_min_shares",
@@ -922,7 +976,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_imbalance",
@@ -937,7 +992,8 @@
         "choices": [],
         "nullable": false,
         "help": "Shares at the ask minus shares at the bid, over both.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_pace",
@@ -952,7 +1008,8 @@
         "choices": [],
         "nullable": false,
         "help": "How fast the tape runs against its usual pace, in the direction of the imbalance.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_drift",
@@ -967,7 +1024,8 @@
         "choices": [],
         "nullable": false,
         "help": "Where the price went inside the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_book",
@@ -982,7 +1040,8 @@
         "choices": [],
         "nullable": false,
         "help": "Displayed bid shares minus ask shares near the inside.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_pace_full",
@@ -997,7 +1056,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_drift_full_pct",
@@ -1012,7 +1072,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_book_levels",
@@ -1027,7 +1088,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_burst_at",
@@ -1042,7 +1104,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_flush_at",
@@ -1057,7 +1120,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -1079,7 +1143,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_max_price",
@@ -1094,7 +1159,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_min_change_pct",
@@ -1109,7 +1175,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_min_rvol",
@@ -1124,7 +1191,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_max_float_m",
@@ -1139,14 +1207,15 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "The bot's own rules while this template is in play.",
+      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -1160,8 +1229,9 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock).",
-        "live": true
+        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside the arming window; changing it never starts the read-out over.",
+        "live": true,
+        "affects_readout": false
        },
        {
         "key": "bot_window_end",
@@ -1175,23 +1245,9 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "",
-        "live": true
-       },
-       {
-        "key": "bot_entries_per_day",
-        "group": "bot",
-        "label": "Bot entries a day",
-        "kind": "int",
-        "default": 1,
-        "unit": "entries",
-        "min": 1,
-        "max": 3,
-        "step": 1,
-        "choices": [],
-        "nullable": false,
-        "help": "Entries the bot may send in one venue day.",
-        "live": true
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "live": true,
+        "affects_readout": false
        }
       ]
      }
@@ -1275,15 +1331,14 @@
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
       "bot_window_start": "07:00",
-      "bot_window_end": "10:00",
-      "bot_entries_per_day": 1
+      "bot_window_end": "10:00"
      },
      "created_at": null,
      "updated_at": null,
      "setup": "first_pullback",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "34c3c41d06f6",
+     "fingerprint": "77299ffad70d",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -1294,7 +1349,25 @@
       "go_avg_net_r": 0.31,
       "control_avg_net_r": -0.41,
       "control_triggered": 9,
-      "min_net_r": 0.2
+      "min_net_r": 0.2,
+      "bot_window": {
+       "start": "07:00",
+       "end": "10:00",
+       "triggered_inside": 19,
+       "go_triggered_inside": 10
+      }
+     },
+     "bot_window": {
+      "start": "07:00",
+      "end": "10:00",
+      "clipped": false,
+      "empty": false,
+      "arming": {
+       "start": "07:00",
+       "end": "11:30"
+      },
+      "stored": null,
+      "note": null
      }
     }
    ]
@@ -1325,7 +1398,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the last price is at least this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_price",
@@ -1340,7 +1414,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the last price is at most this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_float_m",
@@ -1355,7 +1430,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the float is at most this many million shares.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_change_pct",
@@ -1370,7 +1446,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the stock is up at least this much from the prior close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_rvol",
@@ -1385,7 +1462,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when relative volume is at least this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "require_catalyst",
@@ -1400,7 +1478,8 @@
         "choices": [],
         "nullable": false,
         "help": "Arm only when the News pillar passes: a real company catalyst since the prior close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_grade",
@@ -1428,7 +1507,8 @@
         ],
         "nullable": false,
         "help": "Arm only setups graded this well or better.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "unknown_passes",
@@ -1443,7 +1523,8 @@
         "choices": [],
         "nullable": false,
         "help": "On: an unknown price, float, change or volume does not block the filter. Off: it does.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -1465,7 +1546,8 @@
         "choices": [],
         "nullable": false,
         "help": "Consecutive green candles (close over open) ending at the pole top.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pole_min_pct",
@@ -1480,7 +1562,8 @@
         "choices": [],
         "nullable": false,
         "help": "From the pole's lowest low to its highest high (or the dollars below, whichever the pole makes).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pole_min_dollars",
@@ -1495,7 +1578,8 @@
         "choices": [],
         "nullable": true,
         "help": "A pole that rose this many dollars qualifies even under the percent. Off: the percent only.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pole_volume_rising",
@@ -1510,7 +1594,8 @@
         "choices": [],
         "nullable": false,
         "help": "The last pole candle trades at least the first's volume (a tiring pole is skipped).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_flag_bars",
@@ -1525,7 +1610,8 @@
         "choices": [],
         "nullable": false,
         "help": "Red (or doji) candles after the pole top. One is a micro pullback, not a flag.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_flag_bars",
@@ -1540,7 +1626,8 @@
         "choices": [],
         "nullable": false,
         "help": "More red candles than this is too much selling: the setup fails.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_retrace",
@@ -1555,7 +1642,8 @@
         "choices": [],
         "nullable": false,
         "help": "The flag's low gives back no more than this share of the pole.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flag_volume_lighter",
@@ -1570,7 +1658,8 @@
         "choices": [],
         "nullable": false,
         "help": "The flag's average volume is under the pole's. Heavy selling in the flag is distribution.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_period",
@@ -1585,7 +1674,8 @@
         "choices": [],
         "nullable": false,
         "help": "Every flag candle closes at or above this EMA (when the switch below is on).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_tol",
@@ -1600,7 +1690,8 @@
         "choices": [],
         "nullable": false,
         "help": "A flag close may sit this far under the EMA.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_hold",
@@ -1615,7 +1706,8 @@
         "choices": [],
         "nullable": false,
         "help": "Off: a flag close under the EMA does not fail the setup.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_touch_pct",
@@ -1630,7 +1722,8 @@
         "choices": [],
         "nullable": true,
         "help": "The material's perfect flag pulls back to the 9 EMA. On: the flag low must come this close to it.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "reject_red_volume_high",
@@ -1645,7 +1738,8 @@
         "choices": [],
         "nullable": false,
         "help": "The day's highest-volume candle so far being red means sellers own the day.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_pole_wick",
@@ -1660,7 +1754,8 @@
         "choices": [],
         "nullable": true,
         "help": "A big topping tail on the pole's last candle is a caution in the material. Off: no wick check.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "require_hod",
@@ -1675,7 +1770,8 @@
         "choices": [],
         "nullable": false,
         "help": "On: the pole must set the day's high so far. The material does not ask it.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_positive",
@@ -1690,7 +1786,8 @@
         "choices": [],
         "nullable": false,
         "help": "The last flag candle's MACD histogram is above zero (the front side of the move).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_fast",
@@ -1705,7 +1802,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_slow",
@@ -1720,7 +1818,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_signal",
@@ -1735,7 +1834,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_per_symbol_day",
@@ -1750,7 +1850,8 @@
         "choices": [],
         "nullable": false,
         "help": "The first and second flag -- the material skips the third.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -1772,7 +1873,8 @@
         "choices": [],
         "nullable": false,
         "help": "The first candle to make a new high trades through it: the entry is that high plus this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "session_start",
@@ -1787,7 +1889,8 @@
         "choices": [],
         "nullable": false,
         "help": "No flag arms before this time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "entry_cutoff",
@@ -1802,7 +1905,8 @@
         "choices": [],
         "nullable": false,
         "help": "No flag arms, and none triggers, at or after this time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "near_dollars",
@@ -1817,7 +1921,8 @@
         "choices": [],
         "nullable": false,
         "help": "Price this close to the trigger is when the tape is read (or the percent below, whichever is wider).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "near_pct",
@@ -1832,7 +1937,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -1854,7 +1960,8 @@
         "choices": [],
         "nullable": false,
         "help": "Entry minus the flag low. A bigger risk skips the setup.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_stop",
@@ -1869,7 +1976,8 @@
         "choices": [],
         "nullable": false,
         "help": "A smaller risk skips the setup: the stop would sit in the spread.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "risk_slippage",
@@ -1884,7 +1992,8 @@
         "choices": [],
         "nullable": false,
         "help": "Added to the risk before the two checks above, as the research did.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_mode",
@@ -1912,7 +2021,8 @@
         ],
         "nullable": false,
         "help": "Half comes off at target 1 and the stop moves to the entry (the scoring exit).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_r",
@@ -1927,7 +2037,8 @@
         "choices": [],
         "nullable": false,
         "help": "Used when target 1 is the pole high or R x risk (and when the pole high is not above the entry).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_fixed",
@@ -1942,7 +2053,8 @@
         "choices": [],
         "nullable": false,
         "help": "Used when target 1 is a fixed amount over the entry.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "bailout_bars",
@@ -1957,7 +2069,8 @@
         "choices": [],
         "nullable": false,
         "help": "Scoring exit: this many candles without a close over the entry -> out at the close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -1979,7 +2092,8 @@
         "choices": [],
         "nullable": false,
         "help": "The book samples and prints the gate reads.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "tape_stale_book_sec",
@@ -1994,7 +2108,8 @@
         "choices": [],
         "nullable": false,
         "help": "No book newer than this reads blind.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "spread_max",
@@ -2009,7 +2124,8 @@
         "choices": [],
         "nullable": false,
         "help": "A wider spread vetoes (or the percent below, whichever is wider).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "spread_max_pct",
@@ -2024,7 +2140,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "band",
@@ -2039,7 +2156,8 @@
         "choices": [],
         "nullable": false,
         "help": "Ask levels from 1 cent under the trigger to this far over it are at the level.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "big_seller",
@@ -2054,7 +2172,8 @@
         "choices": [],
         "nullable": false,
         "help": "A displayed seller this big at the level vetoes.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "wall",
@@ -2069,7 +2188,8 @@
         "choices": [],
         "nullable": false,
         "help": "A seller this big at the level waits until it thins.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "thin_fraction",
@@ -2084,7 +2204,8 @@
         "choices": [],
         "nullable": false,
         "help": "The seller shrank by this much inside the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_ask_prints",
@@ -2099,7 +2220,8 @@
         "choices": [],
         "nullable": false,
         "help": "And more volume at the ask than at the bid.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "hidden_mult",
@@ -2114,7 +2236,8 @@
         "choices": [],
         "nullable": false,
         "help": "This much bought at the ask while the ask does not move vetoes.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "red_mult",
@@ -2129,7 +2252,8 @@
         "choices": [],
         "nullable": false,
         "help": "Bid-side volume over this multiple of ask-side volume waits.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -2164,7 +2288,8 @@
         ],
         "nullable": false,
         "help": "The vetoes and a seller that is not thinning hold in every mode. The gate is the pre-registered rule.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_entry_min",
@@ -2179,7 +2304,8 @@
         "choices": [],
         "nullable": false,
         "help": "Read when the entry reads the flow score.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_exit",
@@ -2207,7 +2333,8 @@
         ],
         "nullable": false,
         "help": "The scoring exit and Nova's bot both follow it while this template is in play.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_hold_sec",
@@ -2222,7 +2349,8 @@
         "choices": [],
         "nullable": false,
         "help": "Red right after the entry is often the entry's own noise.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_trail_r",
@@ -2237,7 +2365,8 @@
         "choices": [],
         "nullable": false,
         "help": "The stop moves up to this far under the price at the flush -- never down.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_min_r",
@@ -2252,7 +2381,8 @@
         "choices": [],
         "nullable": true,
         "help": "On: a flush counts only while the trade is up this much. Off: any time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_window_sec",
@@ -2267,7 +2397,8 @@
         "choices": [],
         "nullable": false,
         "help": "The prints, the price move and the book the four readings look at.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_baseline_sec",
@@ -2282,7 +2413,8 @@
         "choices": [],
         "nullable": false,
         "help": "The tape's usual pace, measured before the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_min_prints",
@@ -2297,7 +2429,8 @@
         "choices": [],
         "nullable": false,
         "help": "Fewer reads quiet: too little tape to say.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_min_shares",
@@ -2312,7 +2445,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_imbalance",
@@ -2327,7 +2461,8 @@
         "choices": [],
         "nullable": false,
         "help": "Shares at the ask minus shares at the bid, over both.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_pace",
@@ -2342,7 +2477,8 @@
         "choices": [],
         "nullable": false,
         "help": "How fast the tape runs against its usual pace, in the direction of the imbalance.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_drift",
@@ -2357,7 +2493,8 @@
         "choices": [],
         "nullable": false,
         "help": "Where the price went inside the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_book",
@@ -2372,7 +2509,8 @@
         "choices": [],
         "nullable": false,
         "help": "Displayed bid shares minus ask shares near the inside.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_pace_full",
@@ -2387,7 +2525,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_drift_full_pct",
@@ -2402,7 +2541,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_book_levels",
@@ -2417,7 +2557,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_burst_at",
@@ -2432,7 +2573,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_flush_at",
@@ -2447,7 +2589,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -2469,7 +2612,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_max_price",
@@ -2484,7 +2628,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_min_change_pct",
@@ -2499,7 +2644,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_min_rvol",
@@ -2514,7 +2660,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_max_float_m",
@@ -2529,14 +2676,15 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "The bot's own rules while this template is in play.",
+      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -2550,8 +2698,9 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock).",
-        "live": true
+        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside the arming window; changing it never starts the read-out over.",
+        "live": true,
+        "affects_readout": false
        },
        {
         "key": "bot_window_end",
@@ -2565,23 +2714,9 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "",
-        "live": true
-       },
-       {
-        "key": "bot_entries_per_day",
-        "group": "bot",
-        "label": "Bot entries a day",
-        "kind": "int",
-        "default": 1,
-        "unit": "entries",
-        "min": 1,
-        "max": 3,
-        "step": 1,
-        "choices": [],
-        "nullable": false,
-        "help": "Entries the bot may send in one venue day.",
-        "live": true
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "live": true,
+        "affects_readout": false
        }
       ]
      }
@@ -2671,15 +2806,14 @@
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
       "bot_window_start": "07:00",
-      "bot_window_end": "10:00",
-      "bot_entries_per_day": 1
+      "bot_window_end": "10:00"
      },
      "created_at": null,
      "updated_at": null,
      "setup": "bull_flag",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "86c4202aec34",
+     "fingerprint": "f9144d9296a4",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -2690,7 +2824,25 @@
       "go_avg_net_r": null,
       "control_avg_net_r": null,
       "control_triggered": 0,
-      "min_net_r": 0.2
+      "min_net_r": 0.2,
+      "bot_window": {
+       "start": "07:00",
+       "end": "10:00",
+       "triggered_inside": 0,
+       "go_triggered_inside": 0
+      }
+     },
+     "bot_window": {
+      "start": "07:00",
+      "end": "10:00",
+      "clipped": false,
+      "empty": false,
+      "arming": {
+       "start": "07:00",
+       "end": "11:30"
+      },
+      "stored": null,
+      "note": null
      }
     }
    ]
@@ -2721,7 +2873,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the last price is at least this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_price",
@@ -2736,7 +2889,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the last price is at most this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_float_m",
@@ -2751,7 +2905,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the float is at most this many million shares.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_change_pct",
@@ -2766,7 +2921,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the stock is up at least this much from the prior close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_rvol",
@@ -2781,7 +2937,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when relative volume is at least this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "require_catalyst",
@@ -2796,7 +2953,8 @@
         "choices": [],
         "nullable": false,
         "help": "Arm only when the News pillar passes: a real company catalyst since the prior close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_grade",
@@ -2824,7 +2982,8 @@
         ],
         "nullable": false,
         "help": "Arm only setups graded this well or better.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "unknown_passes",
@@ -2839,7 +2998,8 @@
         "choices": [],
         "nullable": false,
         "help": "On: an unknown price, float, change or volume does not block the filter. Off: it does.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -2861,7 +3021,8 @@
         "choices": [],
         "nullable": false,
         "help": "The move into the high of day, over the lowest low of the impulse window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "leg_window",
@@ -2876,7 +3037,8 @@
         "choices": [],
         "nullable": false,
         "help": "The candles ending at the high-of-day candle the impulse is measured over.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ft_min_consol",
@@ -2891,7 +3053,8 @@
         "choices": [],
         "nullable": false,
         "help": "Candles right after the high-of-day candle, none making a new high.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ft_max_consol",
@@ -2906,7 +3069,8 @@
         "choices": [],
         "nullable": false,
         "help": "A longer base is stale: the setup fails.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ft_band",
@@ -2921,7 +3085,8 @@
         "choices": [],
         "nullable": false,
         "help": "Every base close sits within this of the high of day: a flat top.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_period",
@@ -2936,7 +3101,8 @@
         "choices": [],
         "nullable": false,
         "help": "Every base candle's low is at or above this EMA.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_tol",
@@ -2951,7 +3117,8 @@
         "choices": [],
         "nullable": false,
         "help": "A base low may sit this far under the EMA.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_positive",
@@ -2966,7 +3133,8 @@
         "choices": [],
         "nullable": false,
         "help": "The last base candle's MACD histogram is above zero (the front side of the move).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_fast",
@@ -2981,7 +3149,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_slow",
@@ -2996,7 +3165,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_signal",
@@ -3011,7 +3181,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_per_symbol_day",
@@ -3026,7 +3197,8 @@
         "choices": [],
         "nullable": false,
         "help": "Breakouts that may trigger on one symbol in a day.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -3057,7 +3229,8 @@
         ],
         "nullable": false,
         "help": "Hold: after the break, buy the close of the first candle whose low holds the high and closes green. Break: buy the break itself.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ft_hold_bars",
@@ -3072,7 +3245,8 @@
         "choices": [],
         "nullable": false,
         "help": "Hold entry: candles after the break's own candle before the setup disarms.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "entry_offset",
@@ -3087,7 +3261,8 @@
         "choices": [],
         "nullable": false,
         "help": "Break: over the high of day by this. Hold: over the hold candle's close by this (the research's cent of slippage).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "session_start",
@@ -3102,7 +3277,8 @@
         "choices": [],
         "nullable": false,
         "help": "No base arms before this time (the research began at 09:30).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "entry_cutoff",
@@ -3117,7 +3293,8 @@
         "choices": [],
         "nullable": false,
         "help": "No base arms, and no break triggers, at or after this time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "near_dollars",
@@ -3132,7 +3309,8 @@
         "choices": [],
         "nullable": false,
         "help": "Price this close to the trigger is when the tape is read (or the percent below, whichever is wider).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "near_pct",
@@ -3147,7 +3325,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -3169,7 +3348,8 @@
         "choices": [],
         "nullable": false,
         "help": "Break: entry minus the base low. Hold: entry minus the hold candle's low. A bigger risk skips the setup.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_stop",
@@ -3184,7 +3364,8 @@
         "choices": [],
         "nullable": false,
         "help": "A smaller risk skips the setup: the stop would sit in the spread.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "risk_slippage",
@@ -3199,7 +3380,8 @@
         "choices": [],
         "nullable": false,
         "help": "Added to the risk before the two checks above, as the research did.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_mode",
@@ -3223,7 +3405,8 @@
         ],
         "nullable": false,
         "help": "Half comes off at target 1 and the stop moves to the entry (the scoring exit).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_r",
@@ -3238,7 +3421,8 @@
         "choices": [],
         "nullable": false,
         "help": "Target 1 at R x the risk over the entry.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_fixed",
@@ -3253,7 +3437,8 @@
         "choices": [],
         "nullable": false,
         "help": "Used when target 1 is a fixed amount over the entry.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "bailout_bars",
@@ -3268,7 +3453,8 @@
         "choices": [],
         "nullable": false,
         "help": "Scoring exit: this many candles without a close over the entry -> out at the close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -3290,7 +3476,8 @@
         "choices": [],
         "nullable": false,
         "help": "The book samples and prints the gate reads.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "tape_stale_book_sec",
@@ -3305,7 +3492,8 @@
         "choices": [],
         "nullable": false,
         "help": "No book newer than this reads blind.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "spread_max",
@@ -3320,7 +3508,8 @@
         "choices": [],
         "nullable": false,
         "help": "A wider spread vetoes (or the percent below, whichever is wider).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "spread_max_pct",
@@ -3335,7 +3524,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "band",
@@ -3350,7 +3540,8 @@
         "choices": [],
         "nullable": false,
         "help": "Ask levels from 1 cent under the trigger to this far over it are at the level.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "big_seller",
@@ -3365,7 +3556,8 @@
         "choices": [],
         "nullable": false,
         "help": "A displayed seller this big at the level vetoes.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "wall",
@@ -3380,7 +3572,8 @@
         "choices": [],
         "nullable": false,
         "help": "A seller this big at the level waits until it thins.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "thin_fraction",
@@ -3395,7 +3588,8 @@
         "choices": [],
         "nullable": false,
         "help": "The seller shrank by this much inside the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_ask_prints",
@@ -3410,7 +3604,8 @@
         "choices": [],
         "nullable": false,
         "help": "And more volume at the ask than at the bid.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "hidden_mult",
@@ -3425,7 +3620,8 @@
         "choices": [],
         "nullable": false,
         "help": "This much bought at the ask while the ask does not move vetoes.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "red_mult",
@@ -3440,7 +3636,8 @@
         "choices": [],
         "nullable": false,
         "help": "Bid-side volume over this multiple of ask-side volume waits.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -3475,7 +3672,8 @@
         ],
         "nullable": false,
         "help": "The vetoes and a seller that is not thinning hold in every mode. The gate is the pre-registered rule.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_entry_min",
@@ -3490,7 +3688,8 @@
         "choices": [],
         "nullable": false,
         "help": "Read when the entry reads the flow score.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_exit",
@@ -3518,7 +3717,8 @@
         ],
         "nullable": false,
         "help": "The scoring exit and Nova's bot both follow it while this template is in play.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_hold_sec",
@@ -3533,7 +3733,8 @@
         "choices": [],
         "nullable": false,
         "help": "Red right after the entry is often the entry's own noise.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_trail_r",
@@ -3548,7 +3749,8 @@
         "choices": [],
         "nullable": false,
         "help": "The stop moves up to this far under the price at the flush -- never down.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_min_r",
@@ -3563,7 +3765,8 @@
         "choices": [],
         "nullable": true,
         "help": "On: a flush counts only while the trade is up this much. Off: any time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_window_sec",
@@ -3578,7 +3781,8 @@
         "choices": [],
         "nullable": false,
         "help": "The prints, the price move and the book the four readings look at.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_baseline_sec",
@@ -3593,7 +3797,8 @@
         "choices": [],
         "nullable": false,
         "help": "The tape's usual pace, measured before the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_min_prints",
@@ -3608,7 +3813,8 @@
         "choices": [],
         "nullable": false,
         "help": "Fewer reads quiet: too little tape to say.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_min_shares",
@@ -3623,7 +3829,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_imbalance",
@@ -3638,7 +3845,8 @@
         "choices": [],
         "nullable": false,
         "help": "Shares at the ask minus shares at the bid, over both.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_pace",
@@ -3653,7 +3861,8 @@
         "choices": [],
         "nullable": false,
         "help": "How fast the tape runs against its usual pace, in the direction of the imbalance.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_drift",
@@ -3668,7 +3877,8 @@
         "choices": [],
         "nullable": false,
         "help": "Where the price went inside the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_book",
@@ -3683,7 +3893,8 @@
         "choices": [],
         "nullable": false,
         "help": "Displayed bid shares minus ask shares near the inside.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_pace_full",
@@ -3698,7 +3909,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_drift_full_pct",
@@ -3713,7 +3925,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_book_levels",
@@ -3728,7 +3941,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_burst_at",
@@ -3743,7 +3957,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_flush_at",
@@ -3758,7 +3973,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -3780,7 +3996,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_max_price",
@@ -3795,7 +4012,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_min_change_pct",
@@ -3810,7 +4028,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_min_rvol",
@@ -3825,7 +4044,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_max_float_m",
@@ -3840,14 +4060,15 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "The bot's own rules while this template is in play.",
+      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -3861,8 +4082,9 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock).",
-        "live": true
+        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside the arming window; changing it never starts the read-out over.",
+        "live": true,
+        "affects_readout": false
        },
        {
         "key": "bot_window_end",
@@ -3876,23 +4098,9 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "",
-        "live": true
-       },
-       {
-        "key": "bot_entries_per_day",
-        "group": "bot",
-        "label": "Bot entries a day",
-        "kind": "int",
-        "default": 1,
-        "unit": "entries",
-        "min": 1,
-        "max": 3,
-        "step": 1,
-        "choices": [],
-        "nullable": false,
-        "help": "Entries the bot may send in one venue day.",
-        "live": true
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "live": true,
+        "affects_readout": false
        }
       ]
      }
@@ -3976,15 +4184,14 @@
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
       "bot_window_start": "07:00",
-      "bot_window_end": "10:00",
-      "bot_entries_per_day": 1
+      "bot_window_end": "10:00"
      },
      "created_at": null,
      "updated_at": null,
      "setup": "flat_top_breakout",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "8a65e2d5d24e",
+     "fingerprint": "1eb5af7e5e9c",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -3995,7 +4202,25 @@
       "go_avg_net_r": null,
       "control_avg_net_r": null,
       "control_triggered": 0,
-      "min_net_r": 0.2
+      "min_net_r": 0.2,
+      "bot_window": {
+       "start": "07:00",
+       "end": "10:00",
+       "triggered_inside": 0,
+       "go_triggered_inside": 0
+      }
+     },
+     "bot_window": {
+      "start": "07:00",
+      "end": "10:00",
+      "clipped": false,
+      "empty": false,
+      "arming": {
+       "start": "07:00",
+       "end": "11:30"
+      },
+      "stored": null,
+      "note": null
      }
     }
    ]
@@ -4026,7 +4251,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the last price is at least this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_price",
@@ -4041,7 +4267,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the last price is at most this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "max_float_m",
@@ -4056,7 +4283,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the float is at most this many million shares.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_change_pct",
@@ -4071,7 +4299,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when the stock is up at least this much from the prior close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_rvol",
@@ -4086,7 +4315,8 @@
         "choices": [],
         "nullable": true,
         "help": "Arm only when relative volume is at least this.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "require_catalyst",
@@ -4101,7 +4331,8 @@
         "choices": [],
         "nullable": false,
         "help": "Arm only when the News pillar passes: a real company catalyst since the prior close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_grade",
@@ -4129,7 +4360,8 @@
         ],
         "nullable": false,
         "help": "Arm only setups graded this well or better.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "unknown_passes",
@@ -4144,7 +4376,8 @@
         "choices": [],
         "nullable": false,
         "help": "On: an unknown price, float, change or volume does not block the filter. Off: it does.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -4166,7 +4399,8 @@
         "choices": [],
         "nullable": false,
         "help": "Counted from the opening candle; the last close must be under the open too.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "ema_period",
@@ -4181,7 +4415,8 @@
         "choices": [],
         "nullable": false,
         "help": "The scoring exit's EMA (red to green reads no EMA to arm).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_positive",
@@ -4196,7 +4431,8 @@
         "choices": [],
         "nullable": false,
         "help": "The last red candle's MACD histogram is above zero. A reclaim with it under zero is not a try.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_fast",
@@ -4211,7 +4447,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_slow",
@@ -4226,7 +4463,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "macd_signal",
@@ -4241,7 +4479,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -4263,7 +4502,8 @@
         "choices": [],
         "nullable": false,
         "help": "The level is the open of the first candle at or after this time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "r2g_cutoff",
@@ -4278,7 +4518,8 @@
         "choices": [],
         "nullable": false,
         "help": "Nothing arms, and nothing triggers, at or after this time. One try a day before it.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "entry_offset",
@@ -4293,7 +4534,8 @@
         "choices": [],
         "nullable": false,
         "help": "The entry is the open plus this (the bar's open when it gapped over).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "near_dollars",
@@ -4308,7 +4550,8 @@
         "choices": [],
         "nullable": false,
         "help": "Price this close to the trigger is when the tape is read (or the percent below, whichever is wider).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "near_pct",
@@ -4323,7 +4566,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -4345,7 +4589,8 @@
         "choices": [],
         "nullable": false,
         "help": "Entry minus the lowest low since the open. A reclaim with a bigger risk spends the day's try.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_stop",
@@ -4360,7 +4605,8 @@
         "choices": [],
         "nullable": false,
         "help": "A smaller risk skips the setup: the stop would sit in the spread.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "risk_slippage",
@@ -4375,7 +4621,8 @@
         "choices": [],
         "nullable": false,
         "help": "Added to the risk before the two checks above, as the research did.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "target_r",
@@ -4390,7 +4637,8 @@
         "choices": [],
         "nullable": false,
         "help": "Target 1 at R x the risk over the entry.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "r2g_target_hod",
@@ -4405,7 +4653,8 @@
         "choices": [],
         "nullable": false,
         "help": "On: target 1 is the high of day when that is higher than R x risk.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "bailout_bars",
@@ -4420,7 +4669,8 @@
         "choices": [],
         "nullable": false,
         "help": "Scoring exit: this many candles without a close over the entry -> out at the close.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -4442,7 +4692,8 @@
         "choices": [],
         "nullable": false,
         "help": "The book samples and prints the gate reads.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "tape_stale_book_sec",
@@ -4457,7 +4708,8 @@
         "choices": [],
         "nullable": false,
         "help": "No book newer than this reads blind.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "spread_max",
@@ -4472,7 +4724,8 @@
         "choices": [],
         "nullable": false,
         "help": "A wider spread vetoes (or the percent below, whichever is wider).",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "spread_max_pct",
@@ -4487,7 +4740,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "band",
@@ -4502,7 +4756,8 @@
         "choices": [],
         "nullable": false,
         "help": "Ask levels from 1 cent under the trigger to this far over it are at the level.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "big_seller",
@@ -4517,7 +4772,8 @@
         "choices": [],
         "nullable": false,
         "help": "A displayed seller this big at the level vetoes.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "wall",
@@ -4532,7 +4788,8 @@
         "choices": [],
         "nullable": false,
         "help": "A seller this big at the level waits until it thins.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "thin_fraction",
@@ -4547,7 +4804,8 @@
         "choices": [],
         "nullable": false,
         "help": "The seller shrank by this much inside the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "min_ask_prints",
@@ -4562,7 +4820,8 @@
         "choices": [],
         "nullable": false,
         "help": "And more volume at the ask than at the bid.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "hidden_mult",
@@ -4577,7 +4836,8 @@
         "choices": [],
         "nullable": false,
         "help": "This much bought at the ask while the ask does not move vetoes.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "red_mult",
@@ -4592,7 +4852,8 @@
         "choices": [],
         "nullable": false,
         "help": "Bid-side volume over this multiple of ask-side volume waits.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -4627,7 +4888,8 @@
         ],
         "nullable": false,
         "help": "The vetoes and a seller that is not thinning hold in every mode. The gate is the pre-registered rule.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_entry_min",
@@ -4642,7 +4904,8 @@
         "choices": [],
         "nullable": false,
         "help": "Read when the entry reads the flow score.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_exit",
@@ -4670,7 +4933,8 @@
         ],
         "nullable": false,
         "help": "The scoring exit and Nova's bot both follow it while this template is in play.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_hold_sec",
@@ -4685,7 +4949,8 @@
         "choices": [],
         "nullable": false,
         "help": "Red right after the entry is often the entry's own noise.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_trail_r",
@@ -4700,7 +4965,8 @@
         "choices": [],
         "nullable": false,
         "help": "The stop moves up to this far under the price at the flush -- never down.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flush_min_r",
@@ -4715,7 +4981,8 @@
         "choices": [],
         "nullable": true,
         "help": "On: a flush counts only while the trade is up this much. Off: any time.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_window_sec",
@@ -4730,7 +4997,8 @@
         "choices": [],
         "nullable": false,
         "help": "The prints, the price move and the book the four readings look at.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_baseline_sec",
@@ -4745,7 +5013,8 @@
         "choices": [],
         "nullable": false,
         "help": "The tape's usual pace, measured before the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_min_prints",
@@ -4760,7 +5029,8 @@
         "choices": [],
         "nullable": false,
         "help": "Fewer reads quiet: too little tape to say.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_min_shares",
@@ -4775,7 +5045,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_imbalance",
@@ -4790,7 +5061,8 @@
         "choices": [],
         "nullable": false,
         "help": "Shares at the ask minus shares at the bid, over both.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_pace",
@@ -4805,7 +5077,8 @@
         "choices": [],
         "nullable": false,
         "help": "How fast the tape runs against its usual pace, in the direction of the imbalance.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_drift",
@@ -4820,7 +5093,8 @@
         "choices": [],
         "nullable": false,
         "help": "Where the price went inside the window.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_w_book",
@@ -4835,7 +5109,8 @@
         "choices": [],
         "nullable": false,
         "help": "Displayed bid shares minus ask shares near the inside.",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_pace_full",
@@ -4850,7 +5125,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_drift_full_pct",
@@ -4865,7 +5141,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_book_levels",
@@ -4880,7 +5157,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_burst_at",
@@ -4895,7 +5173,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "flow_flush_at",
@@ -4910,7 +5189,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
@@ -4932,7 +5212,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_max_price",
@@ -4947,7 +5228,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_min_change_pct",
@@ -4962,7 +5244,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_min_rvol",
@@ -4977,7 +5260,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        },
        {
         "key": "pillar_max_float_m",
@@ -4992,29 +5276,31 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": true
+        "live": true,
+        "affects_readout": true
        }
       ]
      },
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "The bot's own rules while this template is in play.",
+      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
         "group": "bot",
         "label": "Bot entries from",
         "kind": "time",
-        "default": "07:00",
+        "default": "09:30",
         "unit": "ET",
         "min": "04:00",
         "max": "20:00",
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock).",
-        "live": true
+        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside the arming window; changing it never starts the read-out over.",
+        "live": true,
+        "affects_readout": false
        },
        {
         "key": "bot_window_end",
@@ -5028,23 +5314,9 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "",
-        "live": true
-       },
-       {
-        "key": "bot_entries_per_day",
-        "group": "bot",
-        "label": "Bot entries a day",
-        "kind": "int",
-        "default": 1,
-        "unit": "entries",
-        "min": 1,
-        "max": 3,
-        "step": 1,
-        "choices": [],
-        "nullable": false,
-        "help": "Entries the bot may send in one venue day.",
-        "live": true
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "live": true,
+        "affects_readout": false
        }
       ]
      }
@@ -5118,16 +5390,15 @@
       "pillar_min_change_pct": 10.0,
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
-      "bot_window_start": "07:00",
-      "bot_window_end": "10:00",
-      "bot_entries_per_day": 1
+      "bot_window_start": "09:30",
+      "bot_window_end": "10:00"
      },
      "created_at": null,
      "updated_at": null,
      "setup": "red_to_green",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "2dc4fd3df166",
+     "fingerprint": "066f55628281",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -5138,7 +5409,25 @@
       "go_avg_net_r": null,
       "control_avg_net_r": null,
       "control_triggered": 0,
-      "min_net_r": 0.2
+      "min_net_r": 0.2,
+      "bot_window": {
+       "start": "09:30",
+       "end": "10:00",
+       "triggered_inside": 0,
+       "go_triggered_inside": 0
+      }
+     },
+     "bot_window": {
+      "start": "09:30",
+      "end": "10:00",
+      "clipped": false,
+      "empty": false,
+      "arming": {
+       "start": "09:30",
+       "end": "10:30"
+      },
+      "stored": null,
+      "note": null
      }
     }
    ]
@@ -5169,7 +5458,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "max_price",
@@ -5184,7 +5474,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "min_gap_pct",
@@ -5199,7 +5490,8 @@
         "choices": [],
         "nullable": false,
         "help": "09:30 open over the prior close.",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "min_pm_rvol",
@@ -5214,7 +5506,8 @@
         "choices": [],
         "nullable": false,
         "help": "Against the average of the prior 14 pre-markets.",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "require_news",
@@ -5229,7 +5522,8 @@
         "choices": [],
         "nullable": false,
         "help": "At least one article since the prior close, before 09:30.",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "top",
@@ -5244,7 +5538,8 @@
         "choices": [],
         "nullable": false,
         "help": "Ranked by pre-market relative volume.",
-        "live": false
+        "live": false,
+        "affects_readout": false
        }
       ]
      },
@@ -5266,7 +5561,8 @@
         "choices": [],
         "nullable": false,
         "help": "Live from 09:30; a gap over the pre-market high at the open is skipped.",
-        "live": false
+        "live": false,
+        "affects_readout": false
        }
       ]
      },
@@ -5288,7 +5584,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "stop_pct",
@@ -5303,7 +5600,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "t1_r",
@@ -5318,7 +5616,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "t2_r",
@@ -5333,7 +5632,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": false
+        "live": false,
+        "affects_readout": false
        },
        {
         "key": "time_stop",
@@ -5348,7 +5648,8 @@
         "choices": [],
         "nullable": false,
         "help": "",
-        "live": false
+        "live": false,
+        "affects_readout": false
        }
       ]
      }
@@ -5381,7 +5682,8 @@
      "builtin": true,
      "in_play": true,
      "fingerprint": "015e7980b2b9",
-     "error": null
+     "error": null,
+     "bot_window": null
     }
    ]
   },
@@ -5408,7 +5710,8 @@
      "builtin": true,
      "in_play": true,
      "fingerprint": "44136fa355b3",
-     "error": null
+     "error": null,
+     "bot_window": null
     }
    ]
   }

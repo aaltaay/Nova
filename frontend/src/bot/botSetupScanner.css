@@ -168,7 +168,7 @@
 .bots-funnel__step i { font-style: normal; opacity: 0.7; }
 .bots-funnel b { color: var(--nova-text); font-family: var(--bots-mono); }
 
-/* -- The chosen setup's tape gate and read-out ------------------------------ */
+/* -- Each setup's tape gate and read-out ---------------------------------- */
 .bots-tape__head {
   font-size: 10px;
   font-weight: 600;

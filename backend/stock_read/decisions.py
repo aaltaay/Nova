@@ -1,6 +1,7 @@
-"""One symbol's day, as the bot saw it (ADR 036): the eyes' journal lines of that symbol folded into
-events, with the day's HOD Momo alerts, borrow changes, news, the open and the high of day, and the
-bot's own audit lines. Read-only; the journal is never rewritten.
+"""One symbol's day, as the bot saw it (ADR 036): the eyes' journal lines of that symbol -- each
+setup's template in play's -- folded into events, with the day's HOD Momo alerts, borrow changes,
+news, the open and the high of day, and the bot's own audit lines. Read-only; the journal is never
+rewritten.
 
 ``fold_journal`` and ``summarize`` are pure; ``timeline`` reads the owners, each on its own -- one
 that cannot be read is ``{ok: false, error}`` in ``sources`` and the others still answer.
@@ -82,10 +83,16 @@ def _journal_event(line: dict[str, Any]) -> dict[str, Any] | None:
 
 def fold_journal(lines: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     """Events oldest first; a lane repeating the same line (a state and reason, or a tape verdict
-    flipping inside a minute) is one event with a ``count`` and its ``last_ts``."""
+    flipping inside a minute) is one event with a ``count`` and its ``last_ts``.
+
+    Only each setup's template in play speaks (``playing: true``, as ``eyes/episodes.py`` reads it):
+    every template is watched at once, one lane each, so the others' lines would count each setup
+    once per template."""
     out: list[dict[str, Any]] = []
     last_by_lane: dict[str, dict[str, Any]] = {}
     for line in lines:
+        if line.get("playing") is not True:
+            continue
         e = _journal_event(line)
         if e is None:
             continue
@@ -149,7 +156,8 @@ def _read(sources: dict[str, dict], name: str, fn) -> list[dict[str, Any]]:
 def _journal(sym: str, date: str) -> list[dict[str, Any]]:
     from eyes import journal, reader
 
-    return fold_journal(reader.lines(journal.journal_dir() / f"{date}.jsonl", source="live", symbol=sym))
+    path = journal.day_path(date)    # found by listing the folder: a request's date never becomes a path
+    return fold_journal(reader.lines(path, source="live", symbol=sym)) if path is not None else []
 
 
 def _hod(sym: str, date: str) -> list[dict[str, Any]]:

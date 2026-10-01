@@ -34,9 +34,9 @@ SHORT_NAMES = {"first_pullback": "Pullback", "bull_flag": "Flag", "flat_top_brea
 
 
 def _lead_series(setups: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """The scanner's own indicators: the bot's chosen setup's lane first (every lane reads the same
-    minutes; a template may change the periods)."""
-    ordered = sorted(setups, key=lambda s: 0 if s.get("chosen") else 1)
+    """The scanner's own indicators: a lane at Strategy first (every lane reads the same minutes; a
+    template may change the periods)."""
+    ordered = sorted(setups, key=lambda s: 0 if s.get("level") == 2 else 1)
     return next((s["series"] for s in ordered if s.get("series")), None)
 
 

@@ -1,101 +1,73 @@
 /**
- * What each bot order may risk (the small-cap sleeve) and the two loss breakers
- * (approved mockup v4, ADR 032). The sleeve is the session's `caps`, PATCHed when
- * a slider is let go; the breakers are the desk venue's own pair, dragged on their
- * bar and saved the same way. Advise's budget stays here, folded away -- it
- * reads, it never places.
+ * What every Nova buy may risk -- the sleeve, one per venue (ADR 042 E) -- and the
+ * two loss breakers (approved mockup v4, ADR 032). The tabs pick the venue whose
+ * sleeve you edit (the desk venue first); each slider PATCHes `{caps: {venue,
+ * field}}` once let go. The breakers are the desk venue's own pair, dragged on their
+ * bar, with what fired today and when it lifts (04:00 ET).
  */
+import { useState } from 'react';
 import {
-  BOT_BP_BUDGET_HARD_MAX_USD,
-  BOT_BP_BUDGET_MIN_USD,
-  BOT_BP_BUDGET_STEP_USD,
-  BOT_DEFAULT_MAX_SHARES,
-  BOT_MAX_SHARES_CAP,
-  BOT_WORKING_TTL_MAX_SEC,
-  BOT_WORKING_TTL_MIN_SEC,
-} from '../constants';
-import {
-  BOTS_ADVISE_TITLE,
-  BOTS_BUSY_WHY,
-  BOTS_EH_HINT,
-  BOTS_EH_LABEL,
-  BOTS_EH_OFF,
-  BOTS_EH_ON,
+  BOTS_RISK_LIVE_NOTE,
   BOTS_RISK_SUB,
+  BOTS_RISK_TIP,
   BOTS_RISK_TITLE,
+  BOTS_VENUE_NAMES,
 } from '../constantGroups/bots_page';
+import { tipProps } from '../ux/hoverTip';
 import { BotBreakerBar } from './BotBreakerBar';
-import { BotSleeveSlider } from './BotSleeveSlider';
-import type { BotSession } from './types';
+import { BotBreakerStatus } from './BotBreakerStatus';
+import { BotSleeve } from './BotSleeve';
+import type { BotCaps, BotSession } from './types';
 
 type Patch = (body: Record<string, unknown>) => Promise<unknown>;
 
-const usd = (v: number) => `$${v.toFixed(2)}`;
+const VENUES = ['paper', 'sim', 'live'] as const;
 
-export function BotRiskCard({ session, patch, busy, dayPnl }: {
+/** The desk venue the session is the dial of, else Paper. */
+function deskVenue(session: BotSession): string {
+  return String(session.caps.venue ?? session.breakers?.venue ?? session.level_venue ?? 'paper');
+}
+
+/** That venue's sleeve; the desk venue's `caps` when the API keeps one sleeve for all. */
+function capsFor(session: BotSession, venue: string): BotCaps {
+  return session.caps_by_venue?.[venue] ?? session.caps;
+}
+
+export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null }: {
   session: BotSession;
   patch: Patch;
   busy: boolean;
   dayPnl: number | null;
+  /** How the day P&L the breakers compare was reached. */
+  pnlParts?: string | null;
 }) {
-  const caps = session.caps;
+  const desk = deskVenue(session);
+  const [picked, setPicked] = useState<string | null>(null);
+  const venue = picked ?? desk;
+  const perVenue = session.caps_by_venue != null;
   return (
     <section className="bots-card" data-testid="bots-risk">
       <header className="bots-card__head">
-        <h3>{BOTS_RISK_TITLE}</h3>
+        <h3 {...tipProps(BOTS_RISK_TIP, BOTS_RISK_TITLE)}>{BOTS_RISK_TITLE}</h3>
         <span className="bots-card__sub">{BOTS_RISK_SUB}</span>
       </header>
-      <div className="bots-sleeve">
-        <BotSleeveSlider label="Max shares" testId="bot-strategy-max-shares" value={caps.max_shares}
-          min={BOT_DEFAULT_MAX_SHARES} max={BOT_MAX_SHARES_CAP} step={1} format={v => String(v)}
-          minLabel={String(BOT_DEFAULT_MAX_SHARES)} maxLabel={String(BOT_MAX_SHARES_CAP)}
-          onCommit={v => void patch({ caps: { max_shares: v } })} />
-        <BotSleeveSlider label="Buying-power budget" testId="bot-strategy-bp-budget" value={caps.bp_budget_usd}
-          min={BOT_BP_BUDGET_MIN_USD} max={BOT_BP_BUDGET_HARD_MAX_USD} step={BOT_BP_BUDGET_STEP_USD} format={usd}
-          minLabel={usd(BOT_BP_BUDGET_MIN_USD)} maxLabel={`hard max $${BOT_BP_BUDGET_HARD_MAX_USD}`}
-          onCommit={v => void patch({ caps: { bp_budget_usd: v } })} />
-        <BotSleeveSlider label="Working order TTL" testId="bot-strategy-ttl" value={caps.working_ttl_sec}
-          min={BOT_WORKING_TTL_MIN_SEC} max={BOT_WORKING_TTL_MAX_SEC} step={1} format={v => `${v} s`}
-          minLabel={`${BOT_WORKING_TTL_MIN_SEC} s`} maxLabel={`${BOT_WORKING_TTL_MAX_SEC} s`}
-          onCommit={v => void patch({ caps: { working_ttl_sec: v } })} />
-        <div className="bots-slider bots-slider--toggle">
-          <span className="bots-slider__head"><span>{BOTS_EH_LABEL}</span><b>{caps.extended_hours ? BOTS_EH_ON : BOTS_EH_OFF}</b></span>
-          <label className="bots-switch">
-            <input type="checkbox" role="switch" data-testid="bot-strategy-eh" checked={caps.extended_hours}
-              aria-checked={caps.extended_hours} disabled={busy} data-why={busy ? BOTS_BUSY_WHY : undefined}
-              onChange={e => void patch({ caps: { extended_hours: e.target.checked } })} />
-            <span className="bots-switch__track" aria-hidden="true" />
-            <span className="bots-muted">{BOTS_EH_HINT}</span>
-          </label>
+      {perVenue ? (
+        <div className="bots-chips bots-sleeve__venues" role="tablist" aria-label="Sleeve venue">
+          {VENUES.map(v => (
+            <button key={v} type="button" role="tab" aria-selected={venue === v}
+              className={`bots-fchip${venue === v ? ' is-on' : ''}`} data-testid={`bots-sleeve-tab-${v}`}
+              onClick={() => setPicked(v)}>
+              {BOTS_VENUE_NAMES[v]}{v === desk ? ' · desk' : ''}
+            </button>
+          ))}
         </div>
-      </div>
+      ) : null}
+      {venue === 'live' ? <p className="bots-muted bots-sleeve__note">{BOTS_RISK_LIVE_NOTE}</p> : null}
+      <BotSleeve key={venue} venue={venue} caps={capsFor(session, venue)} capsBounds={session.caps_bounds}
+        busy={busy} patch={patch} />
 
-      <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} busy={busy} patch={patch} />
-
-      <details className="bots-advise">
-        <summary>{BOTS_ADVISE_TITLE}</summary>
-        <label className="bots-switch">
-          <input type="checkbox" role="switch" data-testid="bot-strategy-advise-enabled" checked={session.advise.enabled}
-            aria-checked={session.advise.enabled} onChange={e => void patch({ advise: { enabled: e.target.checked } })} />
-          <span className="bots-switch__track" aria-hidden="true" />
-          <span>Enable Advise for the bot</span>
-        </label>
-        <div className="bots-advise__caps">
-          <label>
-            <span>USD cap</span>
-            <input type="number" data-testid="bot-strategy-advise-usd" min={0} step={0.25} defaultValue={session.advise.usd_cap}
-              key={`usd-${session.advise.usd_cap}`}
-              onBlur={e => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0 && v !== session.advise.usd_cap) void patch({ advise: { usd_cap: v } }); }} />
-          </label>
-          <label>
-            <span>Call cap</span>
-            <input type="number" data-testid="bot-strategy-advise-calls" min={0} step={1} defaultValue={session.advise.call_cap}
-              key={`calls-${session.advise.call_cap}`}
-              onBlur={e => { const v = Number(e.target.value); if (Number.isInteger(v) && v >= 0 && v !== session.advise.call_cap) void patch({ advise: { call_cap: v } }); }} />
-          </label>
-          <span className="bots-muted">Spent ${session.advise.usd_spent.toFixed(2)} · {session.advise.calls_used} calls</span>
-        </div>
-      </details>
+      <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} pnlParts={pnlParts} busy={busy} patch={patch} />
+      <BotBreakerStatus session={session} />
     </section>
   );
 }

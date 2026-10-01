@@ -1,4 +1,5 @@
-"""Auto-record 07:00-10:00 ET: setups then leaders, free lines only, yields to the operator (ADR 023, ADR 040)."""
+"""Auto-record: setups while an arming window is open, leaders 07:00-10:00 ET, free lines only, yields to
+the operator (ADR 023, ADR 041)."""
 from __future__ import annotations
 
 import asyncio
@@ -230,17 +231,90 @@ def test_the_operator_still_outranks_every_auto_line_and_a_leader_goes_first(des
     assert run(auto_record.make_room_for("MIN2")) == "NER"
 
 
-def test_a_trade_keeps_its_tape_past_the_window_until_its_score_ends(desk):
+def test_a_trade_keeps_its_tape_past_the_windows_until_its_score_ends(desk):
     desk.gainers = [gainer("AAA", 2.0)]
     desk.lanes = [Lane(trades=["TRD"], armed=["ARM"])]
     run(auto_record.tick(et(9, 58)))
     assert set(desk.recording) == {"TRD", "ARM", "AAA"}
     run(auto_record.tick(et(10, 0)))
-    assert desk.recording == ["TRD"]  # the armed setup and the leader stop as planned
-    assert {("ARM", "auto"), ("AAA", "auto")} <= set(desk.stops)
+    assert desk.recording == ["TRD", "ARM"]  # the leaders' window closed; the setups' is open to 11:30
+    assert desk.stops == [("AAA", "auto")]
+    run(auto_record.tick(et(11, 30)))
+    assert desk.recording == ["TRD"] and ("ARM", "auto") in desk.stops  # every arming window closed
     desk.lanes = [Lane()]  # its scoring window ended
-    run(auto_record.tick(et(10, 12)))
+    run(auto_record.tick(et(11, 42)))
     assert desk.recording == [] and ("TRD", "auto") in desk.stops
+
+
+# -- the setups' window follows the arming windows (operator ask 2026-09-30) -----------------------
+
+
+def test_after_ten_setups_still_get_lines_and_leaders_do_not(desk):
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5)]
+    desk.lanes = [Lane(near=["R2G"])]
+    run(auto_record.tick(et(10, 15)))
+    assert desk.recording == ["R2G"]  # a trigger after 10:00 has its tape; no leader is taken
+    got = auto_record.status(et(10, 15))
+    assert got["active"] is True and got["leaders"] == [] and got["why"] == {"R2G": "near"}
+    assert got["windows"]["open"] == "setups" and got["window"].startswith("setups only (setups 07:00-11:30 ET")
+    assert got["windows"]["leaders"] == {"open": False, "start": "07:00", "end": "10:00"}
+    by_setup = {w["setup"]: w for w in got["windows"]["setups"]["by_setup"]}
+    assert by_setup["red_to_green"] == {"setup": "red_to_green", "start": "09:30", "end": "10:30", "open": True}
+    assert by_setup["first_pullback"]["open"] is True
+
+
+def test_the_leaders_window_closing_stops_only_lines_taken_for_leaders(desk):
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5)]
+    desk.lanes = [Lane(armed=["SET"])]
+    run(auto_record.tick(et(9, 50)))
+    assert set(desk.recording) == {"SET", "AAA", "BBB"}
+    desk.lanes = [Lane()]  # the setup failed: its name left both lists, like a leader that dropped off
+    run(auto_record.tick(et(9, 55)))
+    assert set(desk.recording) == {"SET", "AAA", "BBB"}  # a line that left is kept until it is needed
+    run(auto_record.tick(et(10, 0)))
+    assert desk.recording == ["SET"]  # the leaders' lines stop as planned; the setup's stays to 11:30
+    assert set(desk.stops) == {("AAA", "auto"), ("BBB", "auto")}
+    run(auto_record.tick(et(11, 30)))
+    assert desk.recording == [] and ("SET", "auto") in desk.stops
+
+
+def test_the_setups_window_is_the_template_in_plays_arming_window(desk):
+    from setup_templates.store import get_store
+
+    late = get_store().create("first_pullback", name="Late", values={"entry_cutoff": "13:00"})
+    get_store().play("first_pullback", late.id)
+    desk.lanes = [Lane(armed=["SET"])]
+    run(auto_record.tick(et(12, 30)))
+    assert desk.recording == ["SET"]
+    got = auto_record.status(et(12, 30))
+    assert got["windows"]["setups"]["end"] == "13:00" and got["windows"]["open"] == "setups"
+    run(auto_record.tick(et(13, 0)))
+    assert desk.recording == []
+
+
+def test_outside_both_windows_and_on_a_weekend_the_status_names_them(desk):
+    got = auto_record.status(et(12, 0))
+    assert got["active"] is False and got["windows"]["open"] == "none"
+    assert got["window"] == "its windows (setups 07:00-11:30 ET, leaders 07:00-10:00 ET)"
+    saturday = datetime(2026, 9, 19, 9, 0, tzinfo=ET).timestamp()
+    assert auto_record.status(saturday)["windows"]["open"] == "none"
+    both = auto_record.status(et(8, 0))
+    assert both["windows"]["open"] == "setups_and_leaders" and both["window"].startswith("setups and leaders")
+
+
+def test_unreadable_templates_fall_back_to_the_pre_registered_windows_and_say_so(desk, monkeypatch):
+    from leaderboard import auto_record_windows
+
+    def broken():
+        raise RuntimeError("store locked")
+
+    monkeypatch.setattr(auto_record_windows, "arming_windows", broken)
+    desk.lanes = [Lane(near=["SET"])]
+    run(auto_record.tick(et(10, 30)))
+    got = auto_record.status(et(10, 30))
+    assert desk.recording == ["SET"] and got["windows"]["setups"]["open"] is True
+    assert "RuntimeError: store locked" in got["windows"]["setups"]["error"]
+    assert "pre-registered" in got["windows"]["setups"]["error"]
 
 
 def test_an_unreadable_setup_scanner_is_stated_and_the_leaders_still_record(desk, monkeypatch):

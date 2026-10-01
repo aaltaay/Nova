@@ -1,19 +1,19 @@
-"""L0 / L1 / L2 transitions. L3 is parked."""
+"""L0 / L1 / L2 transitions (L3 is parked) and the desk's configuration patch (ADR 042).
+
+``level`` is the master ceiling and ``setup_levels`` each setup's own (``bot.setup_levels``);
+raising either is configuration, not "go": it needs no Activate token. Lowering the master
+below Strategy, or leaving no setup at Strategy, deactivates an active bot and says why
+(``bot.activation``). The bot's stock list is not written here: it goes through
+``stock_mode`` (``bot.allowlist``), whose rules every desk button meets.
+"""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from bot.arming import (
-    assert_fresh_heartbeat,
-    clear_arm_fields,
-    is_desk_active,
-    issue_arm_token,
-    require_matching_arm_token,
-)
+from bot.arming import assert_fresh_heartbeat, is_desk_active, issue_arm_token
 from bot.errors import BotError
 from bot.persist import load_session, save_session
-from bot.eligibility import normalize_symbols
-from bot.session import clamp_caps
 from constants_bot import (
     BOT_LEVEL_EYES,
     BOT_LEVEL_OFF,
@@ -21,12 +21,11 @@ from constants_bot import (
     BOT_LEVEL_UNRESTRICTED,
     BOT_REASON_ARM_REQUIRED,
     BOT_REASON_L3_PARKED,
-    BOT_REASON_SETUP_NO_SCANNER,
-    BOT_SETUPS,
-    BOT_SETUPS_WITH_SCANNER,
-    BOT_STRATEGIES,
-    BOT_STRATEGY_SMALL_CAP,
+    BOT_REASON_SETUP_RETIRED,
+    BOT_SETUP_RETIRED_TEXT,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _validate_level(level: int) -> int:
@@ -41,129 +40,114 @@ def _validate_level(level: int) -> int:
     return level
 
 
-def _validate_setup(name: str) -> str:
-    """One setup plays at a time, and only one with a live scanner can (ADR 027, ADR 031)."""
-    if name not in BOT_SETUPS:
-        raise BotError(f"unknown setup {name!r}", 400)
-    if name not in BOT_SETUPS_WITH_SCANNER:
-        raise BotError(
-            f"{name} has no scanner yet -- it cannot be played until it has one and its read-out passes",
-            400,
-            BOT_REASON_SETUP_NO_SCANNER,
-        )
-    return name
-
-
 def apply_patch(
     body: dict[str, Any],
     *,
     desk: bool = True,
     arm_token: str | None = None,
 ) -> dict[str, Any]:
-    """Desk/strategy controls. Raising above L1 needs a desk arm token."""
-    row = load_session()
-    level_before = int(row.get("level") or BOT_LEVEL_OFF)
+    """Desk controls: the master level, each setup's level, the sleeve, the breakers, re-enable.
+
+    ``arm_token`` is accepted and ignored (configuration needs no Activate token, ADR 042)."""
+    del arm_token
+    from bot import activation
+    from bot.setup_levels import at_strategy
+
     if "armed" in body:
         raise BotError(
-            "armed is desk Activate/Stop only -- POST /api/bot/session/arm or /disarm",
+            "armed is Activate / Deactivate only -- POST /api/bot/session/arm or /disarm",
             400,
             BOT_REASON_ARM_REQUIRED,
         )
+    if "setup" in body:
+        raise BotError(BOT_SETUP_RETIRED_TEXT, 400, BOT_REASON_SETUP_RETIRED)
+    if "symbol_allowlist" in body:
+        raise BotError("the bot's stocks are set through Who trades (stock mode) -- "
+                       "PATCH /api/bot/session routes them there", 400, BOT_REASON_ARM_REQUIRED)
+    row = load_session()
+    level_before = int(row.get("level") or BOT_LEVEL_OFF)
+    was_active = is_desk_active(row)
+    changes: list[tuple[str, Any]] = []
     if "level" in body:
         level = _validate_level(int(body["level"]))
-        current = int(row.get("level") or BOT_LEVEL_OFF)
-        if level > BOT_LEVEL_EYES and level > current:
-            require_matching_arm_token(row, arm_token)
         row["level"] = level
         if level < BOT_LEVEL_STRATEGY:
-            leaving_strategy = current >= BOT_LEVEL_STRATEGY
-            if level == BOT_LEVEL_OFF or leaving_strategy:
-                clear_arm_fields(row)
-            else:
-                row["brain_session_id"] = None
-                row["claim_arm_token"] = None
-                row["brain_heartbeat_ts"] = None
-            if level == BOT_LEVEL_OFF:
-                row["strategy"] = None
-        if level == BOT_LEVEL_STRATEGY:
-            row["strategy"] = row.get("strategy") or BOT_STRATEGY_SMALL_CAP
-            from bot.gates import readout_open
-
-            if not readout_open():
-                # ADR 027: Strategy can be chosen before its read-out passes, but
-                # on Live it lands not active -- the bot proposes like Eyes until
-                # then. Paper and Sim skip the read-out (ADR 030).
-                clear_arm_fields(row)
-    if "setup" in body:
-        from bot.setup_levels import on_choose
-
-        new = _validate_setup(str(body.get("setup") or ""))
-        old = row.get("setup")
-        if on_choose(row, new):
-            # ADR 031: a different setup is a new decision -- the bot stops; Activate again.
-            clear_arm_fields(row)
-            _audit_setup(old, new, deactivated=True)
-        elif new != old:
-            _audit_setup(old, new, deactivated=False)
-        row["setup"] = new
+            # The claim of an external brain cannot outlive Strategy.
+            row["brain_session_id"] = None
+            row["claim_arm_token"] = None
+            row["brain_heartbeat_ts"] = None
     if "setup_levels" in body:
-        from bot.setup_levels import apply as apply_setup_levels, levels_of
+        from bot.setup_levels import apply as apply_setup_levels
 
-        before = levels_of(row)["levels"]
-        apply_setup_levels(row, body.get("setup_levels"))
-        after = levels_of(row)["levels"]
-        for sid in sorted(k for k in after if after[k] != before.get(k)):
-            _audit_setup_level(sid, before.get(sid, BOT_LEVEL_OFF), after[sid])
+        for sid, (before, after) in sorted(apply_setup_levels(row, body.get("setup_levels")).items()):
+            changes.append(("setup_level", (sid, before, after)))
     if "breakers" in body:
         from bot.breaker_limits import apply as apply_breakers
         from bot.gates import current_venue
 
         changed = apply_breakers(row, body.get("breakers"), current_venue())
         if changed is not None:
-            _audit_breakers(*changed)
-    if "symbol_allowlist" in body:
-        row["symbol_allowlist"] = normalize_symbols(body.get("symbol_allowlist"))
-    if "strategy" in body and int(row.get("level") or 0) >= BOT_LEVEL_STRATEGY:
-        name = str(body.get("strategy") or "").strip()
-        if name and name not in BOT_STRATEGIES:
-            raise BotError(f"unknown strategy {name!r} -- first L2 strategy is small-cap", 400)
-        row["strategy"] = name or BOT_STRATEGY_SMALL_CAP
+            changes.append(("breakers", changed))
     if "caps" in body and isinstance(body["caps"], dict):
-        caps = dict(row.get("caps") or {})
-        caps.update(body["caps"])
-        row["caps"] = clamp_caps(caps)
-    if "advise" in body and isinstance(body["advise"], dict):
-        advise = dict(row.get("advise") or {})
-        patch = body["advise"]
-        if "enabled" in patch:
-            advise["enabled"] = bool(patch["enabled"])
-        if "usd_cap" in patch:
-            advise["usd_cap"] = max(0.0, float(patch["usd_cap"]))
-        if "call_cap" in patch:
-            advise["call_cap"] = max(0, int(patch["call_cap"]))
-        row["advise"] = advise
+        changes.extend(("caps", c) for c in _apply_caps(row, body["caps"]))
     if body.get("reenable") and desk:
         row["soft_breaker_fired"] = False
         row["soft_breaker_until"] = None
+    deactivated = None
+    if was_active:
+        if "level" in body and int(row.get("level") or BOT_LEVEL_OFF) < BOT_LEVEL_STRATEGY:
+            deactivated = "level"
+        elif ("level" in body or "setup_levels" in body) and not at_strategy(row):
+            deactivated = "no_setup"
+        if deactivated:
+            activation.deactivate(row, deactivated)
     saved = save_session(row)
     if level_before != int(saved.get("level") or BOT_LEVEL_OFF):
         _audit_level(level_before, saved)
+    for kind, change in changes:
+        if kind == "setup_level":
+            _audit_setup_level(*change)
+        elif kind == "breakers":
+            _audit_breakers(*change)
+        else:
+            _audit_caps(*change)
+    if deactivated:
+        activation.record(deactivated)
     return saved
 
 
+def _apply_caps(row: dict[str, Any], patch: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """``PATCH {caps: {venue?, ...}}``: the named venue's sleeve (default: the desk's)."""
+    from bot.gates import current_venue
+    from bot.sleeve import apply as apply_sleeve
+    from bot.venue_levels import dial_of, put
+    from constants_bot import BOT_BREAKER_VENUES, BOT_REASON_CAPS_INVALID
+
+    venue = patch.get("venue") or current_venue()
+    if venue not in BOT_BREAKER_VENUES:
+        raise BotError(f"caps.venue is one of {', '.join(BOT_BREAKER_VENUES)}", 400, BOT_REASON_CAPS_INVALID)
+    current = row.get("caps") if venue == row.get("level_venue") or row.get("level_venue") is None \
+        else dial_of(row, venue).get("caps")
+    after, changed = apply_sleeve(current, patch)
+    if row.get("level_venue") is None or venue == row.get("level_venue"):
+        row["caps"] = after
+    else:
+        put(row, venue, "caps", after)
+    return [(venue, changed)] if changed else []
+
+
 def _audit_level(before: int, row: dict[str, Any]) -> None:
-    """The Bots page timeline shows who moved the level (ADR 027)."""
+    """The Bots page timeline shows who moved the master level (ADR 027, 042)."""
     from bot.audit import record
 
+    after = int(row.get("level") or 0)
     try:
-        record(action="level", outcome=f"{before}->{int(row.get('level') or 0)}",
-               reason=None if row.get("armed") or int(row.get("level") or 0) < BOT_LEVEL_STRATEGY
-               else "Strategy lands not active on Live until the read-out passes",
-               inputs={"from": before, "to": int(row.get("level") or 0)})
+        record(action="level", outcome=f"{before}->{after}",
+               reason=("the master ceiling: setups do at most this" if after >= BOT_LEVEL_STRATEGY
+                       else "the master ceiling is below Strategy: no setup trades"),
+               inputs={"from": before, "to": after})
     except Exception:
-        import logging
-
-        logging.getLogger(__name__).warning("bot audit: level change not recorded", exc_info=True)
+        logger.warning("bot audit: level change not recorded", exc_info=True)
 
 
 def _audit_breakers(venue: str, before: dict, after: dict) -> None:
@@ -176,51 +160,54 @@ def _audit_breakers(venue: str, before: dict, after: dict) -> None:
                        f"all-stop {before['hard_usd']:g} -> {after['hard_usd']:g}"),
                inputs={"venue": venue, "before": before, "after": after})
     except Exception:
-        import logging
+        logger.warning("bot audit: breaker change not recorded", exc_info=True)
 
-        logging.getLogger(__name__).warning("bot audit: breaker change not recorded", exc_info=True)
+
+def _audit_caps(venue: str, changed: dict[str, tuple[Any, Any]]) -> None:
+    """The timeline shows every change to a venue's sleeve (ADR 042 E)."""
+    from bot.audit import record
+
+    try:
+        record(action="caps", outcome=venue,
+               reason=f"{venue} sleeve: " + ", ".join(f"{k} {a!r} -> {b!r}" for k, (a, b) in sorted(changed.items())),
+               inputs={"venue": venue, "changed": {k: {"from": a, "to": b} for k, (a, b) in changed.items()}})
+    except Exception:
+        logger.warning("bot audit: sleeve change not recorded", exc_info=True)
 
 
 def _audit_setup_level(setup: str, before: int, after: int) -> None:
-    """The timeline shows a setup moved between Off and Eyes on its own card (ADR 031)."""
+    """The timeline shows a setup's own level change on its card (ADR 031, 042)."""
     from bot.audit import record
 
+    said = {BOT_LEVEL_STRATEGY: "Strategy: the bot may trade its go triggers while Active",
+            BOT_LEVEL_EYES: "Eyes: it proposes on near + go",
+            BOT_LEVEL_OFF: "Off: it watches and scores in silence"}
     try:
-        record(action="setup_level", outcome=f"{setup}:{before}->{after}",
-               reason="Eyes: it proposes on near + go" if after >= BOT_LEVEL_EYES
-               else "Off: it watches and scores in silence",
+        record(action="setup_level", outcome=f"{setup}:{before}->{after}", reason=said.get(after),
                inputs={"setup": setup, "from": before, "to": after})
     except Exception:
-        import logging
-
-        logging.getLogger(__name__).warning("bot audit: setup level change not recorded", exc_info=True)
-
-
-def _audit_setup(before: Any, after: str, *, deactivated: bool) -> None:
-    """The Bots page timeline shows who changed the setup that plays (ADR 031)."""
-    from bot.audit import record
-
-    try:
-        record(action="setup", outcome=f"{before or '?'}->{after}",
-               reason="the bot stopped: a different setup is a new decision -- Activate again" if deactivated
-               else None, inputs={"from": before, "to": after, "deactivated": deactivated})
-    except Exception:
-        import logging
-
-        logging.getLogger(__name__).warning("bot audit: setup change not recorded", exc_info=True)
+        logger.warning("bot audit: setup level change not recorded", exc_info=True)
 
 
 def apply_desk_level(level: int, **extra: Any) -> dict[str, Any]:
-    """Internal/tests: Activate then set level. HTTP never uses this shortcut."""
-    token = issue_arm_token() if int(level) > BOT_LEVEL_EYES else None
-    return apply_patch({"level": level, **extra}, desk=True, arm_token=token)
+    """Internal/tests: set the master level (at Strategy with the first pullback at Strategy unless
+    ``setup_levels`` says otherwise), then turn Activate on without its rules (``bot.activation``)."""
+    if int(level) >= BOT_LEVEL_STRATEGY:
+        extra.setdefault("setup_levels", {"first_pullback": BOT_LEVEL_STRATEGY})
+    saved = apply_patch({"level": level, **extra}, desk=True)
+    if int(level) >= BOT_LEVEL_STRATEGY:
+        issue_arm_token()
+    return load_session() if int(level) >= BOT_LEVEL_STRATEGY else saved
 
 
-def drop_to_l0(*, keep_soft_latch: bool = True) -> dict[str, Any]:
+def drop_to_l0(*, keep_soft_latch: bool = True, reason: str = "bot_trip") -> dict[str, Any]:
+    """A loss breaker tripped: the master to Off, Activate cleared (``reason``: ``bot_trip`` or
+    ``all_stop``), the bot's orders forgotten, the bot trip latched for the day."""
+    from bot import activation
+
     row = load_session()
     row["level"] = BOT_LEVEL_OFF
-    clear_arm_fields(row)
-    row["strategy"] = None
+    was = activation.deactivate(row, reason)
     row["bot_qty"] = {}
     row["working"] = []
     if keep_soft_latch:
@@ -228,7 +215,10 @@ def drop_to_l0(*, keep_soft_latch: bool = True) -> dict[str, Any]:
 
         row["soft_breaker_fired"] = True
         row["soft_breaker_until"] = lock_until_date()
-    return save_session(row)
+    saved = save_session(row)
+    if was:
+        activation.record(reason)
+    return saved
 
 
 def assert_not_dark(row: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -240,9 +230,23 @@ def assert_not_dark(row: dict[str, Any] | None = None) -> dict[str, Any]:
     return current
 
 
+def assert_not_live() -> None:
+    """J (ADR 042): Nova's bot -- and the localhost bot API -- never touch Live or a replay desk."""
+    from bot.activation import venue_block, venue_state
+    from constants_bot import BOT_LIVE_NOT_BUILT_TEXT, BOT_REASON_LIVE_NOT_BUILT
+
+    venue, edge, readable = venue_state()
+    blocked = venue_block(venue, edge, readable)
+    if blocked is not None:
+        raise BotError(BOT_LIVE_NOT_BUILT_TEXT if blocked[0] == BOT_REASON_LIVE_NOT_BUILT
+                       else f"{BOT_LIVE_NOT_BUILT_TEXT} ({blocked[1]})", 409, BOT_REASON_LIVE_NOT_BUILT)
+
+
 def assert_can_fire(row: dict[str, Any] | None = None) -> dict[str, Any]:
     from constants_bot import BOT_REASON_L1_NO_FIRE, BOT_REASON_NOT_ACTIVE
+    from ibkr.trading_allowed import require_places_allowed
 
+    assert_not_live()
     current = assert_not_dark(row)
     if int(current.get("level") or 0) < BOT_LEVEL_STRATEGY:
         raise BotError(
@@ -250,17 +254,12 @@ def assert_can_fire(row: dict[str, Any] | None = None) -> dict[str, Any]:
             409,
             BOT_REASON_L1_NO_FIRE,
         )
-    from bot.gates import assert_readout_open
-
-    assert_readout_open()
     if not is_desk_active(current):
         raise BotError(
-            "desk is Not active -- Activate before live fire",
+            "the bot is not active -- press Activate on the Bots page",
             409,
             BOT_REASON_NOT_ACTIVE,
         )
-    from ibkr.trading_allowed import require_places_allowed
-
-    require_places_allowed()
+    require_places_allowed()          # the desk padlock (BOT_TRADING_LOCKED)
     assert_fresh_heartbeat(current)
     return current

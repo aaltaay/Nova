@@ -2,6 +2,7 @@
 and the routes -- on facts shaped like APUS and PFSA on 2026-09-24."""
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -134,7 +135,35 @@ def test_volume_on_green_and_red_candles():
 
 # -- the day's decisions --------------------------------------------------------------------------
 def jl(hh, mm, event, **kw):
-    return {"schema_version": 1, "ts": ts(hh, mm), "event": event, "symbol": "APUS", **kw}
+    return {"schema_version": 1, "ts": ts(hh, mm), "event": event, "symbol": "APUS", "playing": True, **kw}
+
+
+def test_only_the_template_in_play_speaks_never_once_per_template():
+    """Every template is watched at once, one lane each: the decisions count each setup once."""
+    leg = {"t": ts(9, 20), "high": 7.23, "low": 6.0, "pct": 0.2}
+    lines = []
+    for template, playing in (("default", True), ("t-wide", False)):
+        lines += [jl(9, 24, "leg", reason="new high 7.23", leg=leg, template=template, playing=playing),
+                  jl(9, 27, "armed", reason="pullback held", setup={"trigger": 7.0}, grade="B", template=template,
+                     playing=playing),
+                  jl(9, 31, "triggered", price=7.01, tape={"verdict": "go"}, template=template, playing=playing),
+                  jl(9, 46, "scored", outcome="target_first", bar_r=1.2, template=template, playing=playing)]
+    lines.append({**jl(9, 50, "state", state="watching", reason="no fresh leg"), "playing": None})   # no stamp: not counted
+    events = decisions.fold_journal(sorted(lines, key=lambda line: line["ts"]))
+    assert [e["event"] for e in events] == ["leg", "armed", "triggered", "scored"]
+    s = decisions.summarize(events)
+    assert (s["legs"], s["armed"], s["triggered"]) == (1, 1, 1)
+    assert s["text"].startswith("The scanners armed 1 setup and 1 triggered.")
+
+
+def test_the_days_journal_is_found_by_listing_the_folder(monkeypatch, tmp_path):
+    from eyes import journal
+
+    monkeypatch.setattr(journal, "journal_dir", lambda: tmp_path)
+    (tmp_path / "2026-09-24.jsonl").write_text(json.dumps(jl(9, 24, "leg", reason="new high", leg={"t": 1}, source="live")) + "\n",
+                                               encoding="utf-8")
+    assert [e["event"] for e in decisions._journal("APUS", "2026-09-24")] == ["leg"]
+    assert decisions._journal("APUS", "2026-09-25") == []        # no file that day: nothing, never an error
 
 
 def test_the_journal_folds_repeats_and_keeps_the_reasons():

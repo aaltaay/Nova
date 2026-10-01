@@ -1,9 +1,11 @@
 /** The plan's five numbers -- entry, stop, target, risk a share, size -- each with the rule it came
- * from. On the operator's own plan the entry and the stop are theirs to type; the risk per trade
- * that sizes every plan is theirs everywhere. */
+ * from. On the operator's own plan the entry and the stop are theirs to type; the risk per trade that
+ * sizes every plan is the venue sleeve's (ADR 042 draft): typed here, it is saved there, and Nova's
+ * automatic buys size by it too. */
 import { useEffect, useState, type KeyboardEvent } from 'react';
+import { parseRiskUsd, VENUE_NAMES, type SleeveRisk } from '../setups';
 import { tipProps } from '../ux';
-import { fmtPx, fmtStep, fmtUsd, parseRiskUsd, planSubLines, sizeFor } from './planMath';
+import { fmtPx, fmtStep, fmtUsd, planSubLines, sizeFor } from './planMath';
 import type { StockPlan } from './types';
 
 function parsePrice(raw: string): number | null {
@@ -57,13 +59,31 @@ export function PriceInput({
   );
 }
 
-function RiskUsd({ riskUsd, onChange }: { riskUsd: number; onChange: (usd: number) => void }) {
+/** Where the risk per trade comes from and what it sizes, for its hover. */
+export function riskTip(risk: SleeveRisk): string {
+  const where = risk.source === 'sleeve'
+    ? `The ${risk.venue ? VENUE_NAMES[risk.venue] : 'desk venue\'s'} sleeve's risk per trade: the dollars one trade `
+      + 'risks. Your size is that over the risk a share, in whole shares. Nova\'s automatic buys (the bot, '
+      + 'Auto-entry) and Approve size by it too, capped by the sleeve. Click to change it there.'
+    : 'The dollars one trade risks. Your size is that over the risk a share, in whole shares.';
+  return [where, risk.why, risk.saveError, risk.moveError].filter(Boolean).join('\n');
+}
+
+function RiskUsd({ risk, onChange }: { risk: SleeveRisk; onChange: (usd: number) => void }) {
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(String(riskUsd));
+  const [text, setText] = useState(String(risk.riskUsd));
+  const [bad, setBad] = useState<string | null>(null);
+  const [lo, hi] = risk.bounds;
   if (editing) {
     const done = () => {
       const next = parseRiskUsd(text);
-      if (next !== null) onChange(next);
+      if (next === null || next < lo || next > hi) {
+        // A number the sleeve would refuse says so instead of going back silently.
+        setBad(`Risk per trade is ${fmtUsd(lo)} to ${fmtUsd(hi)}: "${text}" was not saved.`);
+      } else if (next !== risk.riskUsd) {
+        setBad(null);
+        onChange(next);
+      }
       setEditing(false);
     };
     return (
@@ -85,36 +105,42 @@ function RiskUsd({ riskUsd, onChange }: { riskUsd: number; onChange: (usd: numbe
     );
   }
   return (
-    <button
-      type="button"
-      className="sr-num__risk-usd"
-      onClick={() => {
-        setText(String(riskUsd));
-        setEditing(true);
-      }}
-      {...tipProps('The dollars you risk on one trade. The size is that over the risk a share, in whole shares. Saved on this desk.', 'Risk per trade')}
-      data-testid="stock-read-risk-usd"
-    >
-      {fmtUsd(riskUsd)}
-    </button>
+    <>
+      <button
+        type="button"
+        className={`sr-num__risk-usd${risk.source === 'sleeve' ? '' : ' sr-num__risk-usd--fallback'}`}
+        aria-busy={risk.saving}
+        onClick={() => {
+          setText(String(risk.riskUsd));
+          setEditing(true);
+        }}
+        {...tipProps(riskTip(risk), 'Risk per trade')}
+        data-testid="stock-read-risk-usd"
+      >
+        {fmtUsd(risk.riskUsd)}{risk.saving ? '…' : ''}{risk.source === 'sleeve' ? '' : '?'}
+      </button>
+      {bad && <span className="sr-num__bad" data-testid="stock-read-risk-usd-bad">{bad}</span>}
+    </>
   );
 }
 
 export function PlanNumbers({
   plan,
-  riskUsd,
+  risk,
   onRiskUsd,
   onManual,
   manualStop = null,
 }: {
   plan: StockPlan;
-  riskUsd: number;
+  /** The venue sleeve's risk per trade, with where it comes from. */
+  risk: SleeveRisk;
   onRiskUsd: (usd: number) => void;
   /** The operator's own plan: set by typing its entry or stop. */
   onManual: ((entry: number | null, stop: number | null) => void) | null;
   /** The stop the operator typed, kept when they move the entry (else the candles' low is used). */
   manualStop?: number | null;
 }) {
+  const riskUsd = risk.riskUsd;
   const size = sizeFor(riskUsd, plan.risk);
   const sub = planSubLines(plan, riskUsd, size);
   const targetR = plan.rr === null ? '' : ` ${plan.rr.toFixed(plan.rr % 1 ? 1 : 0)}R`;
@@ -154,7 +180,7 @@ export function PlanNumbers({
         <span className="sr-num__k">Size</span>
         <span className="sr-num__v" data-testid="stock-read-size">{size === null ? '—' : `${size.toLocaleString('en-US')} sh`}</span>
         <span className="sr-num__s">
-          at <RiskUsd riskUsd={riskUsd} onChange={onRiskUsd} /> risk
+          at <RiskUsd risk={risk} onChange={onRiskUsd} /> risk
           {size !== null && plan.entry !== null ? ` · ${fmtUsd(size * plan.entry)}` : ''}
         </span>
       </div>

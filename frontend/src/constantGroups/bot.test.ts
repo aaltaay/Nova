@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   BOT_GATE_LABELS,
+  BOT_GATE_TIPS,
   BOT_SETUP_BLURBS,
   BOT_SETUP_IDS,
   BOT_SETUP_LABELS,
   BOT_SETUP_RESEARCH,
   BOT_SYMBOL_ALLOWLIST_CAP,
   botAllowlistStripLabel,
+  botTradeAddLabel,
+  botTradeRemoveLabel,
 } from './bot';
 
 describe('bot playbook copy (ADR 027)', () => {
@@ -21,15 +24,21 @@ describe('bot playbook copy (ADR 027)', () => {
     }
   });
 
-  it('labels every gate backend/bot/gates.py returns', () => {
-    expect(Object.keys(BOT_GATE_LABELS).sort()).toEqual(
-      ['allowlist', 'bot_trip', 'commissions', 'day_lock', 'depth_lines', 'desk_armed', 'kill_switch', 'level', 'readout', 'window'],
-    );
+  it('labels and explains every gate backend/bot/gates.py returns (ADR 042 C)', () => {
+    const ids = ['allowlist', 'bot_trip', 'commissions', 'daily_cap', 'day_lock', 'depth_lines', 'extended_hours',
+      'kill_switch', 'level', 'padlock', 'setups', 'venue', 'window'];
+    expect(Object.keys(BOT_GATE_LABELS).sort()).toEqual(ids);
+    expect(Object.keys(BOT_GATE_TIPS).sort()).toEqual(ids);
   });
 
-  it('mirrors the backend symbol-allowlist cap and strip count label', () => {
+  it('mirrors the backend cap on the bot’s stocks and the strip count label', () => {
     expect(BOT_SYMBOL_ALLOWLIST_CAP).toBe(50);
-    expect(botAllowlistStripLabel(0)).toBe('Allowlist · 0');
-    expect(botAllowlistStripLabel(3)).toBe('Allowlist · 3');
+    expect(botAllowlistStripLabel(0)).toBe('Bot stocks · 0');
+    expect(botAllowlistStripLabel(3)).toBe('Bot stocks · 3');
+  });
+
+  it('never says "allowlist" where the operator reads it: the bot trades a stock, or it does not', () => {
+    expect(botTradeAddLabel('GRML')).toBe('Let the bot trade GRML (Nova buys and sells)');
+    expect(botTradeRemoveLabel('GRML')).toBe('Stop the bot trading GRML');
   });
 });

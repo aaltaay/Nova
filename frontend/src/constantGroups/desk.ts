@@ -48,32 +48,32 @@ export const deskHeadlineTextAbsent = (clock: string): string =>
 /* ── Symbol dots + legend ───────────────────────────────────────────────── */
 
 export const DESK_DOT_REC_TITLE = 'Recording';
-export const DESK_DOT_BOT_HELD_TITLE = 'Allowlisted · depth line held';
-export const DESK_DOT_BOT_QUIET_TITLE = 'Allowlisted · quiet (no depth line)';
+export const DESK_DOT_BOT_HELD_TITLE = 'Bot trades it · depth line held';
+export const DESK_DOT_BOT_QUIET_TITLE = 'Bot trades it · quiet (no depth line: the bot skips its triggers)';
 export const DESK_LEGEND_REC = 'recording';
-export const DESK_LEGEND_BOT_HELD = 'allowlisted, depth line held';
-export const DESK_LEGEND_BOT_QUIET = 'allowlisted, quiet';
+export const DESK_LEGEND_BOT_HELD = 'bot trades it, depth line held';
+export const DESK_LEGEND_BOT_QUIET = 'bot trades it, quiet';
 /** The narrow board's legend (#459, QA D13): each item's title keeps the full label. */
 export const DESK_LEGEND_REC_SHORT = 'rec';
 export const DESK_LEGEND_BOT_HELD_SHORT = 'line held';
 export const DESK_LEGEND_BOT_QUIET_SHORT = 'quiet';
 
-/* ── Row hover actions (existing capture + bot allowlist calls) ─────────── */
+/* ── Row hover actions (existing capture + the bot's stocks, ADR 042 F) ─── */
 
 export const DESK_ACTION_RECORD = 'Record';
 export const DESK_ACTION_STOP_RECORD = 'Stop rec';
-export const DESK_ACTION_ALLOWLIST = 'Allowlist';
-export const DESK_ACTION_UNLIST = 'Unlist';
+export const DESK_ACTION_ALLOWLIST = 'Let bot trade';
+export const DESK_ACTION_UNLIST = 'Stop bot';
 /** Short labels the narrow board (<= 1600 px) shows, so the hover actions stay
  *  inside Catalyst + State; the full label stays the accessible name (QA V37). */
 export const DESK_ACTION_RECORD_SHORT = 'Rec';
 export const DESK_ACTION_STOP_RECORD_SHORT = 'Stop';
-export const DESK_ACTION_ALLOWLIST_SHORT = 'Allow';
-export const DESK_ACTION_UNLIST_SHORT = 'Unlist';
+export const DESK_ACTION_ALLOWLIST_SHORT = 'Bot';
+export const DESK_ACTION_UNLIST_SHORT = 'No bot';
 export const DESK_ACTION_RECORD_TITLE = 'Start a Session Record for this symbol';
 export const DESK_ACTION_STOP_RECORD_TITLE = 'Stop recording this symbol';
-export const DESK_ACTION_ALLOWLIST_TITLE = 'Let the bot act on this symbol';
-export const DESK_ACTION_UNLIST_TITLE = 'Remove this symbol from the bot allowlist';
+export const DESK_ACTION_ALLOWLIST_TITLE = 'Let the bot trade this stock (Nova buys and sells)';
+export const DESK_ACTION_UNLIST_TITLE = 'Stop the bot trading this stock';
 
 /* ── Cells ──────────────────────────────────────────────────────────────── */
 

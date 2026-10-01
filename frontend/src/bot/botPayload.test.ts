@@ -20,7 +20,6 @@ import { _resetBotSessionPollerForTests, getBotSessionSnapshot, pollBotSessionOn
 const SESSION = {
   level: 0, armed: false, strategy: null, brain_session_id: null,
   caps: { max_shares: 1, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: false, allowlist: [] },
-  advise: { enabled: false, usd_cap: 2, call_cap: 10, usd_spent: 0, calls_used: 0 },
   soft_breaker_fired: false, hard_lock_until_date: null, day_lock_active: false,
   focus: [], trader_live: ['GRML'], working: [],
 };
@@ -43,13 +42,32 @@ afterEach(() => {
 });
 
 describe('bot answers the page cannot render are refused, not rendered (C12 / C70)', () => {
-  it('a sound session passes; one without caps or advise, a list or null does not', () => {
+  it('a sound session passes; one without caps, a list or null does not', () => {
     expect(parseBotSession(SESSION)).toMatchObject({ caps: { max_shares: 1 }, trader_live: ['GRML'] });
     expect(parseBotSession({ ...SESSION, caps: undefined })).toBeNull();
-    expect(parseBotSession({ ...SESSION, advise: null })).toBeNull();
     expect(parseBotSession([])).toBeNull();
     expect(parseBotSession(null)).toBeNull();
     expect(parseBotSession({ ...SESSION, trader_live: 'GRML' })?.trader_live).toEqual([]);
+    // ADR 042 K: the advise budget is retired; an older backend that still sends one parses the same.
+    expect(parseBotSession({ ...SESSION, advise: { enabled: false } })).not.toBeNull();
+  });
+
+  it('folds each ADR 042 name and its legacy alias both ways, so no reader sees one without the other', () => {
+    expect(parseBotSession({ ...SESSION, armed: true })).toMatchObject({ active: true, armed: true });
+    expect(parseBotSession({ ...SESSION, active: true, armed: false })).toMatchObject({ active: true, armed: true });
+    expect(parseBotSession({ ...SESSION, live_fire_ready: true })).toMatchObject({ ready: true, live_fire_ready: true });
+    expect(parseBotSession({ ...SESSION, ready: false, live_fire_ready: true })).toMatchObject({ ready: false, live_fire_ready: false });
+    const kinds = parseBotSession({ ...SESSION, caps: { ...SESSION.caps, allowlist: ['buy_market'] } });
+    expect(kinds?.caps).toMatchObject({ api_kinds: ['buy_market'], allowlist: ['buy_market'] });
+    const legacy = parseBotSession({ ...SESSION, day_lock_active: true, hard_lock_until_date: '2026-09-30' });
+    expect(legacy?.day_lock).toEqual({ active: true, until: '2026-09-30', tripped_at: null, pnl: null, venue: null });
+    const lock = { active: true, until: '2026-10-01T04:00:00-04:00', tripped_at: 1_790_000_000, pnl: -212.4, venue: 'paper' };
+    expect(parseBotSession({ ...SESSION, day_lock: lock })).toMatchObject({ day_lock: lock, day_lock_active: true });
+    expect(parseBotSession({ ...SESSION, deactivated: { at: 5, reason: 'restart', text: 'Not active -- the backend restarted' } })?.deactivated)
+      .toEqual({ at: 5, reason: 'restart', text: 'Not active -- the backend restarted' });
+    expect(parseBotSession({ ...SESSION, deactivated: { at: 5 } })?.deactivated).toBeNull();
+    expect(parseBotSession({ ...SESSION, entries_today: { count: 1, cap: 1, venue_day: 'd', entries: 'x' } })?.entries_today)
+      .toEqual({ count: 1, cap: 1, venue_day: 'd', entries: [], approved: 0 });
   });
 
   it.each([

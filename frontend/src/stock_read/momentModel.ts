@@ -7,7 +7,8 @@
  * maintainer: one-concern the moment ladder and its calls must be judged in one place, so the badge, the
  * track, the call and its ping can never disagree about where the trade stands.
  */
-import { ENTER_NOW_RISK_SHARE, ENTER_NOW_SEC, NOVA_CALL_SEC, STOCK_MODE_ENTRY_TTL_SEC } from './constants';
+import { ENTER_NOW_RISK_SHARE, ENTER_NOW_SEC, NOT_A_TRADE_NOVA, NOVA_CALL_SEC } from './constants';
+import { approveQty, capUsedText, novaBlockers, novaQty } from './novaPromise';
 import { fmtPx, fmtStep, planBadge, planLane, setupName, sizeFor } from './planMath';
 import { notATrade, resultBadge } from './planVerdict';
 import { hhmmssEt } from './timeWords';
@@ -44,7 +45,10 @@ export interface MomentInputs {
   /** The live last trade (the read's price when the tab has none). */
   last: number | null;
   now: number;
+  /** The venue sleeve's risk per trade: what sizes the operator's own buys. */
   riskUsd: number;
+  /** The sleeve's time limit on every Nova entry, seconds; null while unread. */
+  ttlSec: number | null;
   held: HeldMemory;
 }
 
@@ -69,6 +73,8 @@ export interface MomentCall {
   detail: string;
   pin: CallPin | null;
   ping: boolean;
+  /** Every further reason, one a line, shown on hover; absent when the detail says all. */
+  more?: string[];
 }
 
 export interface Moment {
@@ -177,23 +183,29 @@ function novaHoldsExits(mode: StockModeName): ExitLabel {
   return mode === 'approve' || mode === 'bot' ? 'Target / stop' : 'Your exit';
 }
 
+/** The sleeve's time limit on a Nova entry, in words. */
+function ttlWords(ttl: number | null): string {
+  return ttl !== null ? `${ttl} s` : 'the sleeve\'s time limit';
+}
+
 // -- Nova's orders ------------------------------------------------------------------------
-function entering(t: StockModeTrade): Moment {
+function entering(t: StockModeTrade, ttl: number | null): Moment {
   const size = `${t.qty ?? '?'} @ ${fmtPx(t.entry)}`;
   const words: Record<StockModeTrade['kind'], { badge: string; detail: string }> = {
     auto_entry: {
       badge: `NOVA BUYING · ${size}`,
-      detail: `Nova sent the buy at ${hhmmssEt(t.sent_at)}. Unfilled after ${STOCK_MODE_ENTRY_TTL_SEC} s it is `
+      detail: `Nova sent the buy at ${hhmmssEt(t.sent_at)}. Unfilled after ${ttlWords(ttl)} it is `
         + 'cancelled. Every sell is yours.',
     },
     approve: {
       badge: `SENT · BUY ${size}`,
       detail: `The buy went with its stop ${fmtPx(t.stop)} and target ${fmtPx(t.target)}. Unfilled after `
-        + `${STOCK_MODE_ENTRY_TTL_SEC} s, all three are cancelled.`,
+        + `${ttlWords(ttl)}, all three are cancelled.`,
     },
     bot: {
       badge: `BOT BUYING · ${size}`,
-      detail: `The bot sent its buy. It sells at ${fmtPx(t.target)}, at ${fmtPx(t.stop)} or after 15 minutes.`,
+      detail: `The bot sent its buy. It sells at ${fmtPx(t.target)}, at ${fmtPx(t.stop)} or after 15 minutes. `
+        + `Unfilled after ${ttlWords(ttl)} it is cancelled.`,
     },
   };
   const w = words[t.kind];
@@ -217,8 +229,11 @@ function boughtCall(i: MomentInputs, t: StockModeTrade | null): MomentCall | nul
     auto_entry: [`NOVA BOUGHT ${fill}`, 'NOVA BOUGHT', 'No stop or target is working. The exit is yours.'],
     approve: [`BOUGHT ${fill}`, 'BOUGHT', `The stop ${fmtPx(t.stop)} and the target ${fmtPx(t.target)} are working at `
       + 'the broker. The first one hit cancels the other.'],
-    bot: [`NOVA BOUGHT ${fill}`, 'NOVA BOUGHT', `Target ${fmtPx(t.target)} resting. Nova watches the `
-      + `${fmtPx(t.stop)} stop and sells after 15 minutes.`],
+    // The bot's entry is a bracket (spec I): both exits rest at the broker; an older bot watched its stop.
+    bot: [`NOVA BOUGHT ${fill}`, 'NOVA BOUGHT', t.stop_order_id !== null
+      ? `The stop ${fmtPx(t.stop)} and the target ${fmtPx(t.target)} rest at the broker; the first one hit cancels the `
+        + 'other. The bot sells after 15 minutes if neither fills.'
+      : `Target ${fmtPx(t.target)} resting. Nova watches the ${fmtPx(t.stop)} stop and sells after 15 minutes.`],
   };
   const [title, pill, detail] = words[t.kind];
   return {
@@ -296,13 +311,14 @@ function finished(i: MomentInputs, t: StockModeTrade): Moment {
     ? (t.exit_price - t.fill_price) * t.qty
     : null;
   if (t.state === 'missed') {
-    const again = t.kind === 'auto_entry' ? ' A miss gives the day\'s entry back: Nova buys at the next trigger.' : '';
+    const again = t.kind === 'approve' ? ''
+      : ' A miss gives the day\'s buy back: Nova may buy at the next go trigger.';
     return {
       step: 1, exitLabel: t.exits === 'nova' ? 'Target / stop' : 'Your exit', tone: 'wait', badge: 'NOVA\'S BUY MISSED',
       track: true,
       call: {
         id: `missed:${t.entry_order_id ?? t.sent_at}`, tone: 'wait', title: 'NOVA\'S BUY MISSED',
-        detail: `${t.qty ?? '?'} @ ${fmtPx(t.entry)} did not fill in ${STOCK_MODE_ENTRY_TTL_SEC} s and was cancelled.${again}`,
+        detail: `${t.qty ?? '?'} @ ${fmtPx(t.entry)} did not fill in ${ttlWords(i.ttlSec)} and was cancelled.${again}`,
         pin: null, ping: false,
       },
     };
@@ -341,17 +357,30 @@ function eventCall(i: MomentInputs, since: number | null): MomentCall | null {
   return { id: `event:${e.ts}`, tone, title: 'NOVA', detail: e.text, pin: null, ping: false };
 }
 
+/** Nova will not buy it by itself: the first reason, every other one on hover; null when nothing blocks. */
+function blockedCall(i: MomentInputs, plan: StockPlan, mode: StockModeName, key: string, triggered: boolean,
+): MomentCall | null {
+  const why = novaBlockers(i.who, plan);
+  if (!why.length) return null;
+  const bot = mode === 'bot';
+  const used = capUsedText(i.who) !== null;
+  const title = used
+    ? (bot ? 'THE BOT\'S BUY TODAY IS USED' : 'NOVA\'S BUY TODAY IS USED')
+    : triggered
+      ? (bot ? 'THE BOT IS NOT TRADING IT' : 'NOVA IS NOT BUYING IT')
+      : (bot ? 'THE BOT WILL NOT TRADE THIS' : 'NOVA WILL NOT BUY THIS');
+  return { id: `blocked:${mode}:${key}`, tone: 'wait', title, detail: why[0], pin: null, ping: false,
+    ...(why.length > 1 ? { more: why.slice(1) } : {}) };
+}
+
 function triggerCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, mode: StockModeName): MomentCall | null {
   const at = lane?.setup?.triggered_at ?? null;
   if (at === null || !recent(at, i.now, ENTER_NOW_SEC)) return eventCall(i, at);
   const key = plan.setup_id ?? `${plan.setup_type}:${at}`;
   const approval = i.who?.approval ?? null;
   if (mode === 'auto_entry' || mode === 'bot' || (mode === 'approve' && approval?.state === 'waiting')) {
-    // Nova decides at this trigger: its own words say what it did.
-    return eventCall(i, at) ?? (mode === 'bot' && i.who?.bot && !i.who.bot.playing
-      ? { id: `bot-idle:${key}`, tone: 'wait', title: 'THE BOT IS NOT TRADING IT', detail: i.who.bot.reason ?? '',
-        pin: null, ping: false }
-      : null);
+    // Nova decides at this trigger: its own words say what it did, else why it will not.
+    return eventCall(i, at) ?? (mode === 'approve' ? null : blockedCall(i, plan, mode, key, true));
   }
   if (mode === 'approve' && approval?.state === 'withdrawn') {
     return { id: `withdrawn:${approval.approved_at}`, tone: 'wait', title: 'NOT SENT', detail: approval.reason ?? '',
@@ -380,7 +409,9 @@ function triggerCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
   const size = sizeFor(i.riskUsd, plan.risk);
   const printed = fmtPx(lane?.setup?.trigger_price ?? plan.trigger);
   const shares = size !== null ? ` ${size.toLocaleString('en-US')} shares risk $${i.riskUsd}.` : '';
-  const act = mode === 'approve' ? ` Approve: buy ${size ?? '?'} now sends it with its stop and target.` : ' Your click.';
+  const act = mode === 'approve'
+    ? ` Approve: buy ${approveQty(i.who, i.riskUsd, plan) ?? '?'} now sends it with its stop and target.`
+    : ' Your click.';
   return {
     id: `enter:${key}`, tone: 'go', title: `ENTER NOW · ${fmtPx(plan.entry)}`,
     detail: `${printed} printed with the tape at go.${shares}${act}`, pin: pinAt('ENTER NOW', plan.entry, at),
@@ -404,29 +435,33 @@ function waitingCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
       detail: approval.reason ?? '', pin: null, ping: false };
   }
   if (plan.state === 'forming') return eventCall(i, null);
-  const size = sizeFor(i.riskUsd, plan.risk);
+  if (mode === 'auto_entry' || mode === 'bot') {
+    // A promise of a Nova buy only when nothing stands in the way; otherwise why not (spec F).
+    const blocked = blockedCall(i, plan, mode, key, false);
+    if (blocked) return blocked;
+  }
   const trigger = fmtPx(plan.trigger);
   const near = plan.state === 'near' && lane?.distance != null ? `${fmtStep(lane.distance, plan.entry)} under the trigger. ` : '';
   const words: Record<StockModeName, [string, string]> = {
     signal: ['GET READY', `${near}Enter above ${trigger}: the chart says ENTER NOW when it prints.`],
-    approve: ['APPROVE TO SEND', `Approve the plan and Nova sends buy ${size ?? '?'} @ ${fmtPx(plan.entry)} with its `
-      + 'stop and target at the trigger.'],
+    approve: ['APPROVE TO SEND', `Approve the plan and Nova sends buy ${approveQty(i.who, i.riskUsd, plan) ?? '?'} @ `
+      + `${fmtPx(plan.entry)} with its stop and target at the trigger.`],
     auto_entry: [`NOVA BUYS AT ${trigger}`, `${near}If ${trigger} prints with the tape at go, Nova buys `
-      + `${size ?? '?'}. Every sell is yours.`],
-    bot: ['THE BOT TRADES THIS', i.who?.bot && !i.who.bot.playing
-      ? `The bot will not trade it yet: ${i.who.bot.reason ?? 'it is not playing'}.`
-      : `It buys at the trigger and sells at ${fmtPx(plan.target)}, at ${fmtPx(plan.stop)} or after 15 minutes.`],
+      + `${novaQty(i.who) ?? '?'}. Every sell is yours.`],
+    bot: ['THE BOT TRADES THIS', `${near}It buys at the trigger and sells at ${fmtPx(plan.target)}, at `
+      + `${fmtPx(plan.stop)} or after 15 minutes.`],
   };
   if (mode === 'signal' && plan.state !== 'near') return eventCall(i, null);
   const [title, detail] = words[mode];
   return { id: `waiting:${mode}:${key}`, tone: 'info', title, detail, pin: null, ping: false };
 }
 
-/** A plan that is not a trade calls no entry: it says so, unless Nova's own words are newer. */
+/** A plan that is not a trade calls no entry, and Nova buys none of it: it says so, unless Nova's own words
+ * are newer. */
 function notTradeCall(i: MomentInputs, plan: StockPlan, why: string): MomentCall {
   return eventCall(i, null) ?? {
     id: `not-a-trade:${planKey(plan) ?? ''}`, tone: 'wait', title: 'NOT A TRADE',
-    detail: why.replace(/^Not a trade: /, ''), pin: null, ping: false,
+    detail: `${why.replace(/^Not a trade: /, '')} ${NOT_A_TRADE_NOVA}`, pin: null, ping: false,
   };
 }
 
@@ -468,7 +503,7 @@ function setup(i: MomentInputs, plan: StockPlan): Moment {
 export function momentOf(i: MomentInputs): Moment | null {
   const plan = i.read?.plan ?? null;
   const live = liveTrade(i.who);
-  if (live?.state === 'entering') return entering(live);
+  if (live?.state === 'entering') return entering(live, i.ttlSec);
   const qty = heldQty(i);
   if (qty > 0) return holding(i, live, qty);
   const done = finishedTrade(i);

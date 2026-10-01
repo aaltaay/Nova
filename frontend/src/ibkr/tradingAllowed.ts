@@ -1,10 +1,17 @@
 /**
  * Desk SSOT for whether places are allowed (looks vs is).
  *
- * Backend `/api/ibkr/status.trading_allowed` is spend + Gateway (same as
- * place_order). This helper AND-s the padlock (the backend arm latch,
- * `/api/ibkr/status.armed`, read through ticketUnlock) so Activate, padlock,
- * ticket, and Nova Actions read one gate. Flatten / KILL stay protective.
+ * Backend `/api/ibkr/status.trading_allowed` is the spend permission + Gateway
+ * + the padlock (the backend arm latch, ADR 018) -- the same gate place_order
+ * meets. `sessionUnlocked` is that same padlock, read through ticketUnlock
+ * (`/api/ibkr/status.armed`), so Activate, padlock, ticket, and Nova Actions
+ * read one gate. Flatten / KILL stay protective.
+ *
+ * One latch, counted once (spec D, 2026-09-30): when the backend refuses only
+ * because the desk is disarmed (`spend_status: locked_disarmed` -- the env
+ * permits spending), that is the padlock, never also a "spend" lock. The
+ * blocker is named `pin` for history: there is no client-side PIN any more --
+ * it is the padlock, and the Live PIN is checked by the backend when arming.
  *
  * It is the gate for the orders the backend holds to the arm latch: every
  * order but a cancel or a protective source. Nova Actions use it for those
@@ -18,8 +25,9 @@ import {
   NOVA_ACTION_PIN_LOCKED_MESSAGE,
   NOVA_ACTION_SPEND_LOCKED_MESSAGE,
 } from '../constants';
-import { isSpendLocked, spendLockReason } from './spendLock';
+import { isDisarmed, isSpendLocked, spendLockReason } from './spendLock';
 
+/** `pin` is the padlock (the backend arm latch); `spend` an env / account gate; `disconnected` the Gateway. */
 export type TradingBlocker = 'disconnected' | 'spend' | 'pin';
 
 export type TradingAllowed = {
@@ -52,14 +60,18 @@ export function evaluateTradingAllowed(input: TradingAllowedInput): TradingAllow
     ? input.backendAllowed === false
     : isSpendLocked(input.spendStatus);
   if (spendBlocked && !blockers.includes('disconnected')) {
-    blockers.push('spend');
+    const backendWhy = (input.backendReason ?? '').trim();
+    // The env permits spending and the backend refuses for the latch alone: that is the
+    // padlock (`pin`), not a second "spend" lock. Any other refusal stays its own blocker.
+    const padlockOnly = isDisarmed(input.spendStatus) && (!backendWhy || /disarm/i.test(backendWhy));
+    blockers.push(padlockOnly ? 'pin' : 'spend');
     reason =
-      (input.backendReason ?? '').trim()
+      backendWhy
       || spendLockReason(input.spendStatus, input.spendReason)
       || NOVA_ACTION_SPEND_LOCKED_MESSAGE;
   }
 
-  if (!input.sessionUnlocked) {
+  if (!input.sessionUnlocked && !blockers.includes('pin')) {
     blockers.push('pin');
     if (reason == null) reason = NOVA_ACTION_PIN_LOCKED_MESSAGE;
   }

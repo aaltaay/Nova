@@ -94,6 +94,7 @@ export function BotParamField({ spec, value, lockedWhy, serverError = null, onCh
       <span className="bots-param__meta">
         {changed ? `default ${formatValue(spec, spec.default)}` : 'default'}
         {spec.live ? '' : ' · no scanner yet'}
+        {spec.affects_readout === false ? ' · the read-out keeps counting' : ''}
       </span>
       {shownError ? <span className="bots-param__error" role="alert">{shownError}</span> : null}
     </div>

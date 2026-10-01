@@ -12,12 +12,12 @@ from constants_bot import (
     BOT_REASON_FREE_FORM_QTY,
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
+    BOT_REASON_LIVE_NOT_BUILT,
     BOT_REASON_NO_DEPTH_LINE,
     BOT_REASON_NOT_ACTIVE,
     BOT_REASON_OUTSIDE_WINDOW,
-    BOT_REASON_READOUT_NOT_PASSED,
 )
-from tests.bot_helpers import hold_depth_line, open_entry_window, ready_l2
+from tests.bot_helpers import hold_depth_line, on_practice, open_entry_window, ready_l2
 from execution.models import ExecutionReceipt
 
 
@@ -40,6 +40,7 @@ def l2_brain():
 
 @pytest.mark.asyncio
 async def test_l0_cannot_fire():
+    on_practice()
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="x")
     assert exc.value.reason == BOT_REASON_L0_DARK
@@ -47,6 +48,7 @@ async def test_l0_cannot_fire():
 
 @pytest.mark.asyncio
 async def test_l1_cannot_fire():
+    on_practice()
     apply_patch({"level": 1}, desk=True)
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="x")
@@ -92,7 +94,7 @@ async def test_buy_market_uses_preset_shares_and_source_bot(monkeypatch, l2_brai
     assert cmd.side == "BUY"
     assert cmd.qty == 1.0
     assert cmd.order_type == "MKT"
-    assert cmd.outside_rth is False
+    assert cmd.outside_rth is True        # the sleeve allows extended hours unless turned off (ADR 042 E)
     assert cmd.skip_risk is True
     assert load_session()["bot_qty"]["ABCD"] == 1.0
 
@@ -224,17 +226,31 @@ def _count_places(monkeypatch, order_id: int = 62) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_strategy_waits_on_the_readout_whatever_brain_fires(monkeypatch, l2_brain):
-    """ADR 027: no L2 order of any kind until the first-pullback read-out passes."""
-    from bot.gates import set_readout_for_tests
-    from setup_scanner.readout import evaluate
+@pytest.mark.parametrize("kind", ["buy_market", "exit_pos", "cancel_symbol", "sell_limit_bid_offset"])
+async def test_the_bot_api_refuses_every_kind_on_live(monkeypatch, l2_brain, kind):
+    """ADR 042 J: a bot never touches Live -- buys, exits and cancels alike."""
+    from sim.mode import set_venue
 
     seen = _count_places(monkeypatch)
-    set_readout_for_tests(evaluate([]))
+    set_venue("live", persist=False)
+    with pytest.raises(BotError) as exc:
+        await fire({"kind": kind, "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert exc.value.reason == BOT_REASON_LIVE_NOT_BUILT
+    assert "Live trading by a bot is not built" in exc.value.message
+    assert seen["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_the_bot_api_refuses_a_replay_desk(monkeypatch):
+    """Sim off its live edge (the suite pins the edge off) is a replay: refused like Live."""
+    from sim.mode import set_venue
+
+    set_venue("sim", persist=False)
+    ready_l2(brain="brain-1", heartbeat=True)
+    seen = _count_places(monkeypatch)
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
-    assert exc.value.reason == BOT_REASON_READOUT_NOT_PASSED
-    assert "0 of 50" in str(exc.value)
+    assert exc.value.reason == BOT_REASON_LIVE_NOT_BUILT
     assert seen["n"] == 0
 
 
@@ -257,7 +273,40 @@ async def test_one_trade_a_day(monkeypatch, l2_brain):
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
     assert exc.value.reason == BOT_REASON_DAY_TRADE_CAP
+    assert "1 Nova automatic entry a day" in exc.value.message
     assert seen["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_the_sleeve_caps_entries_per_day(monkeypatch, l2_brain):
+    """ADR 042 E: the venue sleeve's ``entries_per_day`` is the cap."""
+    apply_patch({"caps": {"entries_per_day": 2}}, desk=True)
+    seen = _count_places(monkeypatch)
+    for _ in range(2):
+        assert (await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1"))["ok"] is True
+    with pytest.raises(BotError) as exc:
+        await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert exc.value.reason == BOT_REASON_DAY_TRADE_CAP
+    assert seen["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_extended_hours_off_holds_entries_outside_regular_hours(monkeypatch, l2_brain):
+    """ADR 042 E: with the sleeve's extended hours off, entries wait for 09:30-16:00 ET -- said so."""
+    import execution.session_gate as session_gate
+
+    from constants_bot import BOT_SKIP_EXTENDED_HOURS
+
+    seen = _count_places(monkeypatch)
+    monkeypatch.setattr(session_gate, "regular_hours_now", lambda: False)
+    apply_patch({"caps": {"extended_hours": False}}, desk=True)    # on by default: the operator turns it off
+    with pytest.raises(BotError) as exc:
+        await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert exc.value.reason == BOT_SKIP_EXTENDED_HOURS
+    assert "extended hours" in exc.value.message
+    assert seen["n"] == 0
+    apply_patch({"caps": {"extended_hours": True}}, desk=True)
+    assert (await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1"))["ok"] is True
 
 
 def test_exits_are_never_held_by_the_entry_rules():

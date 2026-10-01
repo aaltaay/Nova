@@ -103,7 +103,8 @@ export const GLOBAL_BAR_CANCEL_ALL_OPTIONS_TITLE =
 export const GLOBAL_BAR_VIEW_ALL_ORDERS = 'View All Orders';
 export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_TITLE = 'Cancel all working stock orders?';
 export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_BODY =
-  'This cancels every open stock order across all symbols. This cannot be undone.';
+  'This cancels every working stock order on the venue the desk shows, across all symbols. '
+  + 'It sells nothing, and other venues keep theirs. This cannot be undone.';
 export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_LABEL = 'Cancel all';
 export const GLOBAL_BAR_CANCEL_ALL_EMPTY_TITLE = 'No working stock orders to cancel';
 /** Why a Working-menu row is locked (ux/whyTip.ts): the counts are information, not actions. */
@@ -169,20 +170,24 @@ export const globalBarAccountIdTooltip = (id: string, kind: string, others: stri
 export const GLOBAL_BAR_SETTINGS_LABEL = 'Settings';
 export const GLOBAL_BAR_SETTINGS_TITLE = 'Open Settings';
 
-/** Header Emergency KILL -- compose existing cancel / flatten / L0 / desk lock. */
+/**
+ * Header Emergency KILL -- compose existing cancel / flatten / bot Off / desk lock, on the
+ * venue the desk shows. Every line says what it really sends (spec D, 2026-09-30): the flatten
+ * is a market order only in regular hours (backend execution/flatten_exit.py).
+ */
 export const GLOBAL_BAR_EMERGENCY_KILL_LABEL = 'Emergency KILL';
 export const GLOBAL_BAR_EMERGENCY_KILL_OPS = [
-  'Cancel all working orders',
-  'Flatten all open positions (market)',
-  'Set Bot Autonomy to L0',
-  'Lock trading until you unlock',
+  'Set the bot to Off',
+  'Lock the padlock (you unlock it yourself)',
+  'Cancel every working order on this venue',
+  'Flatten every position on this venue: a market order in regular hours, an extended-hours limit outside them (Paper and Sim close at market any time)',
 ] as const;
 export const GLOBAL_BAR_EMERGENCY_KILL_TITLE =
   GLOBAL_BAR_EMERGENCY_KILL_OPS.join('\n');
 export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE = 'Emergency KILL?';
 export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
-  'This uses the existing cancel-all, account flatten, Bot Autonomy PATCH, and header trade-lock doors.',
-  'L0 and the header lock apply first so the bot cannot re-enter while cancel/flatten run, then again after.',
+  'The bot goes to Off and the padlock locks first, so nothing re-enters while the cancel and the flatten run -- then both again after.',
+  'It acts on the venue the desk shows. The kill switch on the Bots page cancels every venue\'s working orders.',
   '',
   ...GLOBAL_BAR_EMERGENCY_KILL_OPS.map((op) => `- ${op}`),
   '',

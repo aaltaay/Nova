@@ -1,6 +1,6 @@
 /** The selected ticker's watchlist read in the side panel: the Five Pillars with their
  * reasons, where the setup scanners have it (its most advanced setup, ADR 031), and
- * the bot allowlist toggle.
+ * the toggle that lets the bot trade it (ADR 042 F: a refusal is a notice).
  * Any symbol gets its pillars (operator ask, 2026-09-23): a ranked one from the
  * watchlist poll, any other graded by the backend from its board row or live quote. */
 import {
@@ -121,7 +121,7 @@ export function TickerWatchlistStrip({ entry: ranked, symbol, rank = null }: Pro
             title={allowed ? WATCHLIST_BOT_ON_TITLE : WATCHLIST_BOT_OFF_TITLE}
             onClick={() => void (allowed ? remove(entry.symbol) : add(entry.symbol))}
           >
-            {allowed ? '● On bot allowlist' : '○ Add to bot allowlist'}
+            {allowed ? '● Bot trades it' : '○ Let the bot trade it'}
           </button>
         </>
       )}

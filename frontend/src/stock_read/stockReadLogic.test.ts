@@ -7,7 +7,6 @@ import {
   fmtStep,
   formingProgress,
   planBadgeShort,
-  parseRiskUsd,
   planBadge,
   planFootnote,
   planLane,
@@ -16,6 +15,7 @@ import {
   sizeFor,
   stopCap,
 } from './planMath';
+import { parseRiskUsd } from '../setups';
 import { historySummary } from './HistoryTab';
 import { tileValue } from './ReadStrip';
 import { readSummary } from './SignalsTab';
