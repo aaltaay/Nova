@@ -59,8 +59,9 @@ def load() -> dict:
     }
 
 
-def save(*, tripped: bool, reason: str | None) -> None:
-    """Persist the latch. A failed write is loud — never silently in-memory."""
+def save(*, tripped: bool, reason: str | None) -> bool:
+    """Persist the latch; False when it could not be written. A failed write is
+    loud -- logged, and the trip / reset answer says ``persisted: false``."""
     payload = {
         "schema_version": KILL_SWITCH_STATE_SCHEMA_VERSION,
         "tripped": bool(tripped),
@@ -75,3 +76,5 @@ def save(*, tripped: bool, reason: str | None) -> None:
             "remember this latch",
             tripped,
         )
+        return False
+    return True

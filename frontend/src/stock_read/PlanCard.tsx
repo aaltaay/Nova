@@ -1,14 +1,18 @@
 /**
  * The plan on top of Level 2 (ADR 036): the leading setup's entry, stop and 2:1 target -- or the
- * operator's own when nothing is forming -- with the risk, the size their risk per trade buys, a
- * ruler of what stands between and the checks. Its buttons follow who trades the stock (ADR 037):
+ * operator's own when nothing is forming -- with the risk, the size the venue sleeve's risk per trade
+ * buys, a ruler of what stands between and the checks. Its buttons follow who trades the stock (ADR 037):
  * Signal only stages the ticket (a BUY limit at the entry, or a sell once shares are held) and never
- * places; Approve approves the plan, or buys now after the trigger; Auto-entry and Bot at Strategy
- * turn off; and whenever Nova holds the exits, the operator can take them over.
+ * places; Approve approves the plan, or buys now after the trigger; Auto-entry and Bot turn off; and
+ * whenever Nova holds the exits, the operator can take them over. In a Nova mode it says the size Nova
+ * sends, and NOT A TRADE says it blocks Nova's buys too.
  */
 import { useEffect, useState } from 'react';
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
+import { riskSourceWords } from '../setups';
 import { tipProps, whyProps } from '../ux';
+import { NOT_A_TRADE_NOVA } from './constants';
+import { novaSizeWords } from './novaPromise';
 import { PlanNumbers } from './PlanNumbers';
 import { PlanLevels } from './PlanLevels';
 import { PlanChecks, PlanRuler } from './PlanRuler';
@@ -49,6 +53,27 @@ function stageLock(plan: StockPlan, size: number | null, riskUsd: number, listen
   if (size === null) return `$${riskUsd} of risk buys no whole share at ${fmtStep(plan.risk, plan.entry)} a share.`;
   if (!listening) return 'This tab has no order ticket open to fill. Show the Order Entry module on the rail.';
   return null;
+}
+
+/** In a Nova mode, the size Nova sends for the plan and why (spec E); nothing in Signal only. */
+function NovaSizeLine({ ctx }: { ctx: StockReadContextValue }) {
+  const view = ctx.who.view;
+  if (!view || view.mode === 'signal') return null;
+  const words = novaSizeWords(view.size);
+  if (!words) return null;
+  return (
+    <p className={`sr-plan__nova-size${words.skip ? ' sr-plan__nova-size--skip' : ''}`}
+      {...tipProps(words.tip, 'The size Nova sends')} data-testid="stock-read-nova-size">
+      {words.text}
+    </p>
+  );
+}
+
+/** The risk per trade's trouble: not saved, not moved, not the sleeve's, or the sleeve's last read failed
+ * (its last good value still sizes). Nothing when all is well. */
+function riskTrouble(ctx: StockReadContextValue): string | null {
+  const r = ctx.risk;
+  return r.saveError ?? r.moveError ?? r.why;
 }
 
 function EmptyPlan({ ctx, read }: { ctx: StockReadContextValue; read: StockRead }) {
@@ -127,11 +152,17 @@ export function PlanCard({ ctx, roomy = true }: {
       quantityValue: String(size),
       limitPrice: fmtPx(plan.entry),
     });
-    setStaged(`Staged BUY ${size} LMT ${fmtPx(plan.entry)}. Set the stop ${fmtPx(plan.stop)} and the target `
-      + `${fmtPx(plan.target)} yourself: the ticket takes no bracket from the plan.`);
+    // Where the size came from, said with it: the sleeve's risk per trade (or the stated fallback).
+    setStaged(`Staged BUY ${size} LMT ${fmtPx(plan.entry)}: $${ctx.riskUsd} of risk (${riskSourceWords(ctx.risk)} `
+      + `risk per trade) over ${fmtStep(plan.risk, plan.entry)} a share. Set the stop ${fmtPx(plan.stop)} and the `
+      + `target ${fmtPx(plan.target)} yourself: the ticket takes no bracket from the plan.`);
   };
   const who = ctx.who;
   const whoMode = who.view?.mode ?? 'signal';
+  // The folded line keeps Nova's size beside yours in a Nova mode, so folding hides neither.
+  const novaSize = whoMode !== 'signal' ? who.view?.size ?? null : null;
+  const novaFolded = novaSize ? (novaSize.qty >= 1 ? Math.floor(novaSize.qty).toLocaleString('en-US') : 'none') : null;
+  const trouble = riskTrouble(ctx);
   const { actions, status } = planActions({
     moment: who.moment,
     inputs: who.inputs,
@@ -227,15 +258,17 @@ export function PlanCard({ ctx, roomy = true }: {
           {!plan ? 'NO SETUP' : folded ? planBadgeShort(plan, lane) : planBadge(plan, lane)}
         </span>
         {noTrade && !plan?.result && (
-          <span className="sr-plan__verdict" {...tipProps(noTrade, 'Not a trade')} data-testid="stock-read-plan-verdict">
+          <span className="sr-plan__verdict" {...tipProps(`${noTrade}\n${NOT_A_TRADE_NOVA}`, 'Not a trade')}
+            data-testid="stock-read-plan-verdict">
             NOT A TRADE
           </span>
         )}
         {folded && plan && (
           <span className="sr-plan__folded" data-testid="stock-read-plan-line"
-            {...tipProps('Entry / stop / target', 'The plan')}>
+            {...tipProps(`Entry / stop / target · your size${novaFolded ? ' · the size Nova sends' : ''}`, 'The plan')}>
             {fmtPx(plan.entry)}/{fmtPx(plan.stop)}/{fmtPx(plan.target)}
             {size !== null ? ` · ${size.toLocaleString('en-US')} sh` : ''}
+            {novaFolded ? ` · Nova ${novaFolded}` : ''}
           </span>
         )}
         {folded && !plan && (
@@ -254,17 +287,25 @@ export function PlanCard({ ctx, roomy = true }: {
       {folded && staged && <p className="sr-plan__note sr-plan__note--line">{staged}</p>}
       {!folded && (
         <>
-          {noTrade && <p className="sr-plan__notrade" data-testid="stock-read-plan-notrade">{noTrade}</p>}
+          {noTrade && (
+            <p className="sr-plan__notrade" data-testid="stock-read-plan-notrade">{noTrade} {NOT_A_TRADE_NOVA}</p>
+          )}
           {plan ? (
             <PlanNumbers
               plan={plan}
-              riskUsd={ctx.riskUsd}
+              risk={ctx.risk}
               onRiskUsd={ctx.setRiskUsd}
               onManual={manual ? ctx.setManualPlan : null}
               manualStop={ctx.manual.stop}
             />
           ) : (
             <EmptyPlan ctx={ctx} read={read} />
+          )}
+          {plan && <NovaSizeLine ctx={ctx} />}
+          {plan && trouble && (
+            <p className="sr-plan__risk-note" {...tipProps(trouble, 'Risk per trade')} data-testid="stock-read-risk-note">
+              {trouble}
+            </p>
           )}
           {plan && <PlanRuler plan={plan} price={read.price} />}
           {plan && <PlanLevels plan={plan} />}

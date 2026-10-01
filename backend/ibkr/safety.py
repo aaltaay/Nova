@@ -8,9 +8,12 @@ from TWS can still be flattened.
 Env gates (all must pass for a LIVE buy/sell):
   1. IBKR_ENABLED=true
   2. Connected to Gateway
-  3. IBKR_ORDERS_ENABLED=true          ← master kill switch (default OFF)
+  3. IBKR_ORDERS_ENABLED=true          ← the spend permission (default OFF): this desk may
+                                        place to IBKR at all. Not the kill switch -- that is
+                                        the persisted latch in ``kill_switch/`` (ADR 025).
   4. If gateway mode / connection / broker accounts are live:
        IBKR_LIVE_TRADING_CONFIRMED=true
+(and, at run time, the desk armed at the padlock -- the latch below, ADR 018).
 
 Paper pin (when IBKR_GATEWAY_MODE=paper):
   - Connection mode must be paper (port 4002 path)
@@ -23,7 +26,8 @@ Account pin (ADR 013 — the account class is the truth, not the env door):
     header can never say `live_armed` over a DU… account.
 
 IBKR_GATEWAY_MODE=paper|live chooses which Gateway port to connect.
-Default is live (4001). Paper (4002) is the fallback when live is dark.
+Default is live (4001). The paper Gateway (4002) is legacy: by hand only
+(POST /api/ibkr/gateway-mode), never an automatic fallback (ADR 020).
 It does NOT authorize spending by itself.
 """
 from __future__ import annotations
@@ -80,7 +84,7 @@ def gateway_mode() -> GatewayMode:
 
 
 def orders_enabled() -> bool:
-    """Master kill switch — default OFF so a live Gateway cannot spend."""
+    """The spend permission (IBKR_ORDERS_ENABLED) — default OFF so a live Gateway cannot spend."""
     return _env_bool("IBKR_ORDERS_ENABLED", IBKR_ORDERS_ENABLED_DEFAULT)
 
 
@@ -171,6 +175,12 @@ def set_armed(value: bool, *, reason: str = "", venue: str | None = None,
             "IBKR: desk %s%s", "ARMED" if _armed else "DISARMED",
             f" ({reason})" if reason else "",
         )
+        if was:
+            # ADR 042 B: locking the padlock -- by anyone -- also clears the bot's Activate,
+            # here in the backend, never left to a page effect.
+            from bot.activation import on_disarm
+
+            on_disarm(reason)
     return armed()
 
 

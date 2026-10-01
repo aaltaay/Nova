@@ -53,7 +53,8 @@ def record(
         # The venue the desk was on: the daily entry cap counts one venue's entries.
         "venue": current_venue(),
         "level": int(level if level is not None else row.get("level") or 0),
-        "strategy": strategy if strategy is not None else row.get("strategy"),
+        # LEGACY: the session's strategy is gone (ADR 042); null unless a caller names one.
+        "strategy": strategy,
         "brain_session_id": (
             brain_session_id if brain_session_id is not None else row.get("brain_session_id")
         ),

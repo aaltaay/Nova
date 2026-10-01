@@ -19,6 +19,12 @@ export interface ParamSpec {
   help: string;
   /** A running scanner reads it (false: kept for when the setup gets a scanner). */
   live: boolean;
+  /**
+   * ADR 042 G: a change to it restarts the read-out (it changes what the scanner finds).
+   * False for the bot group's parameters (its window): they are left out of the rev.
+   * Absent on an older API -- read as true, so the editor never hides a restart.
+   */
+  affects_readout?: boolean;
 }
 
 export interface ParamGroup {
@@ -46,6 +52,22 @@ export interface TemplateReadout {
   control_avg_net_r?: number | null;
   control_triggered?: number | null;
   min_net_r?: number | null;
+  /** ADR 042 G: how many of its triggers fell inside the bot's window (the bot never buys outside it). */
+  bot_window?: TemplateReadoutWindow | null;
+}
+
+export interface TemplateReadoutWindow {
+  start: string;
+  end: string;
+  triggered_inside: number | null;
+  go_triggered_inside: number | null;
+}
+
+/** ADR 042 G: the template's bot window inside its arming window; `clipped` when a stored one was cut to fit. */
+export interface TemplateBotWindow {
+  start: string;
+  end: string;
+  clipped: boolean;
 }
 
 export interface SetupTemplate {
@@ -63,6 +85,7 @@ export interface SetupTemplate {
   created_at: number | null;
   updated_at: number | null;
   readout?: TemplateReadout | null;
+  bot_window?: TemplateBotWindow | null;
 }
 
 export interface SetupTemplates {

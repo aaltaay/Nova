@@ -1,5 +1,5 @@
 /** Contenders tab (id `watchlist`) — what's worth trading (Five Pillars, market facts, catalyst, setup
- * state, bot allowlist), the live Setups scanner, the Journal and the Backtest. Signal-only; no orders
+ * state, whether the bot trades it), the live Setups scanner, the Journal and the Backtest. Signal-only; no orders
  * placed. Named Contenders 2026-09-23 so "Watch list" means the operator's hand-picked list (watch_list/). */
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { TabLazyFallback } from '../components/TabLazyFallback';

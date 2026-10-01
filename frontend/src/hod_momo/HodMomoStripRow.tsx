@@ -4,7 +4,7 @@
  * Strategies that fired for the ticker together share the row: a count bubble
  * and their chips, named on hover (HodMomoStripStrategies).
  * Row click selects (side panel follows); the ticker opens Trader (ADR 011 §7a).
- * Right-click opens the symbol menu (watch list, Record, bot allowlist); a
+ * Right-click opens the symbol menu (watch list, Record, let the bot trade it); a
  * watched ticker's row carries the watch colour on its left edge.
  */
 import { memo } from 'react';

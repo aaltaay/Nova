@@ -23,11 +23,15 @@ from constants_bot import (
 
 
 def issue_arm_token(*, reenable: bool = False) -> str:
-    """Desk Activate. Rotates the token and drops any prior brain claim."""
+    """Desk Activate. Rotates the token and drops any prior brain claim.
+
+    The rules Activate meets first are ``bot.activation.assert_can_activate``'s; this only
+    turns it on. ``reenable`` clears this venue's bot trip latch (the operator confirmed it)."""
     row = load_session()
     token = secrets.token_urlsafe(24)
     row["desk_arm_token"] = token
     row["armed"] = True
+    row["deactivated"] = None
     row["brain_session_id"] = None
     row["claim_arm_token"] = None
     row["brain_heartbeat_ts"] = None
@@ -38,10 +42,12 @@ def issue_arm_token(*, reenable: bool = False) -> str:
     return token
 
 
-def disarm_session() -> dict[str, Any]:
-    """Desk Stop. Claim cannot outlive Activate."""
+def disarm_session(reason: str = "operator") -> dict[str, Any]:
+    """Desk Stop. Claim cannot outlive Activate; ``deactivated`` says who stopped it."""
+    from bot.activation import deactivate
+
     row = load_session()
-    _clear_arm_state(row)
+    deactivate(row, reason)
     return save_session(row)
 
 
@@ -55,7 +61,7 @@ def require_matching_arm_token(row: dict[str, Any], arm_token: str | None) -> st
     incoming = (arm_token or "").strip()
     if not held or not incoming or not hmac.compare_digest(incoming, held):
         raise BotError(
-            "raising autonomy above L1 needs a desk arm token from header Activate",
+            "this needs an Activate token from the Bots page",
             403,
             BOT_REASON_ARM_REQUIRED,
         )

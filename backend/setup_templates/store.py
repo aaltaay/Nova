@@ -12,6 +12,21 @@ only, ``error()`` says why, and writes are refused until the operator moves the
 file aside.
 Invalidation: none -- the operator edits through the API; ``version()`` bumps
 on every change so the scanner rebuilds its lanes.
+
+Operator ask 2026-09-30 ("make everything visible"):
+
+- A template's ``rev`` (the read-out's evidence) moves only when the scanner's rules
+  change (``catalogue.scanner_values``); an edit to the bot's entry window alone keeps
+  the revision and answers ``rules_changed: false``.
+- The bot window sits inside the setup's arming window (``setup_templates.windows``):
+  a write outside it is refused; a saved template outside it is clipped when read and
+  ``Template.bot_window`` says so. What was saved stays on disk (``Template.kept``)
+  until the operator saves that template's parameters -- never rewritten by a read or
+  by a write to another template.
+- A parameter that left the catalogue (``catalogue.RETIRED``) loads as nothing, is
+  named in ``Template.retired``, and stays on disk the same way.
+- A setup without a scanner gets no template (``TEMPLATE_NO_SCANNER``): nothing would
+  watch it. Its default is still read.
 """
 from __future__ import annotations
 
@@ -35,7 +50,7 @@ from constants_setups import (
     SETUP_TEMPLATES_MAX_PER_SETUP,
     SETUP_TEMPLATES_SCHEMA_VERSION,
 )
-from setup_templates import catalogue
+from setup_templates import catalogue, windows
 from setup_templates.catalogue import TemplateError
 
 logger = logging.getLogger(__name__)
@@ -53,18 +68,32 @@ class Template:
     created_at: float | None = None
     updated_at: float | None = None
     error: str | None = None
+    # Saved values a read does not use, written back as they were: the bot window as saved
+    # (before ``windows.clip``) and retired parameters. Empty once the operator saves the values.
+    kept: dict[str, Any] = field(default_factory=dict)
     fingerprint: str = field(init=False)
+    bot_window: dict[str, Any] | None = field(init=False)
+    retired: dict[str, Any] = field(init=False)
 
     def __post_init__(self) -> None:
+        self.values, self.bot_window = windows.clip(self.setup, self.values)
         self.fingerprint = catalogue.fingerprint(self.values)
+        self.retired = {k: v for k, v in self.kept.items() if k in catalogue.RETIRED}
+
+    def saved_values(self) -> dict[str, Any]:
+        """The values as they go to disk: what runs, with what the operator saved and a read set aside."""
+        return {**self.values, **self.kept}
 
     def stored(self) -> dict[str, Any]:
-        return {"id": self.id, "name": self.name, "note": self.note, "rev": self.rev, "values": self.values,
+        return {"id": self.id, "name": self.name, "note": self.note, "rev": self.rev, "values": self.saved_values(),
                 "created_at": self.created_at, "updated_at": self.updated_at}
 
     def wire(self, *, in_play: bool) -> dict[str, Any]:
-        return {**self.stored(), "setup": self.setup, "builtin": self.builtin, "in_play": in_play,
-                "fingerprint": self.fingerprint, "error": self.error}
+        return {"id": self.id, "name": self.name, "note": self.note, "rev": self.rev, "values": self.values,
+                "created_at": self.created_at, "updated_at": self.updated_at, "setup": self.setup,
+                "builtin": self.builtin, "in_play": in_play, "fingerprint": self.fingerprint, "error": self.error,
+                "bot_window": self.bot_window,
+                "retired": [{"key": k, "value": v, "text": catalogue.RETIRED[k]} for k, v in self.retired.items()]}
 
 
 def default_template(setup_id: str) -> Template:
@@ -124,11 +153,14 @@ class TemplateStore:
         stored = row.get("values") if isinstance(row.get("values"), dict) else {}
         checked, problem = catalogue.check(setup_id, None, base=stored)
         error = None if problem is None else problem.message
+        table = set(catalogue.defaults(setup_id))
         # A template that no longer validates stays visible and editable, but never runs.
-        values = checked if checked is not None else {**catalogue.defaults(setup_id), **stored}
+        values = checked if checked is not None else {
+            **catalogue.defaults(setup_id), **{k: v for k, v in stored.items() if k in table}}
+        kept = {k: v for k, v in stored.items() if k in catalogue.BOT_KEYS or k in catalogue.RETIRED}
         return Template(setup=setup_id, id=tid, name=str(row.get("name") or tid), rev=int(row.get("rev") or 1),
                         values=values, note=str(row.get("note") or ""), created_at=row.get("created_at"),
-                        updated_at=row.get("updated_at"), error=error)
+                        updated_at=row.get("updated_at"), error=error, kept=kept)
 
     def _save(self) -> None:
         payload = {"schema_version": SETUP_TEMPLATES_SCHEMA_VERSION,
@@ -143,6 +175,23 @@ class TemplateStore:
     def _writable(self) -> None:
         if self._error:
             raise TemplateError(self._error, code="TEMPLATES_UNREADABLE")
+
+    @staticmethod
+    def _watched(setup_id: str) -> None:
+        """Refuse a write for a setup nothing watches (no scanner): its template would never run."""
+        catalogue.specs(setup_id)
+        if not catalogue.has_scanner(setup_id):
+            label = setup_id.replace("_", " ").capitalize()
+            raise TemplateError(f"{label} has no scanner yet, so nothing would watch a template of it -- none can be "
+                                "made, edited or put in play until its scanner is built", "setup",
+                                code="TEMPLATE_NO_SCANNER")
+
+    @staticmethod
+    def _inside(setup_id: str, values: dict[str, Any]) -> None:
+        """Refuse a bot window that reaches outside the setup's arming window."""
+        problem = windows.problem(setup_id, values)
+        if problem is not None:
+            raise TemplateError(problem.message, problem.field)
 
     # -- reads -----------------------------------------------------------------
     def error(self) -> str | None:
@@ -207,6 +256,7 @@ class TemplateStore:
         with self._lock:
             self._load()
             self._writable()
+            self._watched(setup_id)
             if not catalogue.specs(setup_id):
                 raise TemplateError(f"{setup_id.replace('_', ' ')} has no parameters yet -- nothing to vary",
                                     code="TEMPLATE_NO_PARAMS")
@@ -215,6 +265,7 @@ class TemplateStore:
                                     "included -- delete one first", code="TEMPLATE_LIMIT")
             base = self.get(setup_id, from_id) if from_id else self.in_play(setup_id)
             checked = catalogue.validate(setup_id, values, base=base.values)
+            self._inside(setup_id, checked)
             stamp = time.time() if now is None else now
             t = Template(setup=setup_id, id=f"t-{uuid.uuid4().hex[:8]}", name=self._check_name(setup_id, name),
                          rev=1, values=checked, note=self._check_note(note), created_at=stamp, updated_at=stamp)
@@ -224,30 +275,41 @@ class TemplateStore:
 
     def update(self, setup_id: str, template_id: str, *, name: Any = None, values: dict[str, Any] | None = None,
                note: Any = None, now: float | None = None) -> tuple[Template, bool]:
-        """Rename, re-note or change a template's rules. Returns (template, rules_changed)."""
+        """Rename, re-note or change a template's values. Returns (template, rules_changed).
+
+        ``rules_changed`` -- and a new ``rev`` -- only when the scanner's rules changed: an
+        edit to the bot's entry window alone is saved under the same revision, so the
+        read-out keeps its evidence. The values merge onto what the template runs (its bot
+        window as clipped): saving them is how the operator keeps a clip."""
         with self._lock:
             self._load()
             self._writable()
+            self._watched(setup_id)
             current = self.get(setup_id, template_id)
             if current.builtin:
                 raise TemplateError("the default is the pre-registered rules and stays as it is -- duplicate it "
                                     "to make a variation", template_id, code="TEMPLATE_BUILTIN")
-            changed = False
-            new_values = current.values
+            saved = rules = False
+            new_values, kept = current.values, current.kept
             if values is not None:
-                new_values = catalogue.validate(setup_id, values, base=current.values)
-                changed = new_values != current.values or current.error is not None
+                merged = catalogue.validate(setup_id, values, base=current.values)
+                self._inside(setup_id, merged)
+                saved = merged != current.saved_values() or current.error is not None
+                rules = (catalogue.scanner_values(merged) != catalogue.scanner_values(current.values)
+                         or current.error is not None)
+                if saved:
+                    new_values, kept = merged, {}
             new_name = current.name if name is None else self._check_name(setup_id, name, skip=template_id)
             new_note = current.note if note is None else self._check_note(note)
-            if not changed and new_name == current.name and new_note == current.note:
+            if not saved and new_name == current.name and new_note == current.note:
                 return current, False
-            t = Template(setup=setup_id, id=current.id, name=new_name, rev=current.rev + (1 if changed else 0),
+            t = Template(setup=setup_id, id=current.id, name=new_name, rev=current.rev + (1 if rules else 0),
                          values=new_values, note=new_note, created_at=current.created_at,
-                         updated_at=time.time() if now is None else now)
+                         updated_at=time.time() if now is None else now, kept=kept)
             items = self._entry(setup_id)["templates"]
             items[[x.id for x in items].index(template_id)] = t
             self._save()
-            return t, changed
+            return t, rules
 
     def delete(self, setup_id: str, template_id: str) -> None:
         with self._lock:
@@ -266,6 +328,7 @@ class TemplateStore:
         with self._lock:
             self._load()
             self._writable()
+            self._watched(setup_id)
             t = self.get(setup_id, template_id)
             if t.error:
                 raise TemplateError(f"{t.name} no longer validates ({t.error}) -- fix it first", template_id)

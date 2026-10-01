@@ -862,14 +862,18 @@ before it, by `created_ts`, else `timestamp`; the reply stays a bare list). `GET
 board; `type=movers` reads the `gainers-` / `losers-` files. `/api/ibkr/status`
 adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
 
-**Auto-record.** 07:00-10:00 ET the backend records, first, the setups of the
-templates in play that are in a scored trade (`trade`), near their trigger
-(`near`) or armed (`armed`), then the top
+**Auto-record.** The backend records, first, the setups of the templates in
+play that are in a scored trade (`trade`), near their trigger (`near`) or armed
+(`armed`) -- whenever any setup's template in play is inside its arming window
+(07:00-11:30 ET by default; red to green 09:30-10:30; ADR 042: until then a
+setup arming after 10:00 had no line, and red to green's triggers were never
+"go") -- then, 07:00-10:00 ET only, the top
 `LEADERBOARD_AUTO_RECORD_TOP_N` `LEADERS_RULES` names of the live Gainers
 board (ADR 041: the tape at a setup's trigger and through its trade is what the
-signal trials read). A setup takes a leader's line once that line has run
+signal trials read). At 10:00 only the leaders' lines stop. A setup takes a
+leader's line once that line has run
 `LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC`, never another setup's; a trade
-keeps its line past 10:00 until its scoring window ends. It records
+keeps its line past its window until its scoring window ends. It records
 through the Session Record path, using only **free** Level 2 lines
 (`IBKR_MAX_DEPTH_SYMBOLS` total), and yields its lowest-ranked line the
 moment the operator opens Level 2 on another symbol -- the operator never
@@ -879,7 +883,9 @@ adopts a symbol the operator recorded by hand; its stops are planned
 unrequested stop; the operator pressing Record also takes a line back, and a
 symbol the operator stopped is not retaken that day. `NOVA_AUTO_RECORD=0`
 turns it off. `/api/ibkr/status` adds `auto_record: {active, window,
-symbols[], why: {SYMBOL: "trade" | "near" | "armed" | "leader" | "left"},
+windows: {open: "setups_and_leaders" | "setups" | "leaders" | "none", setups: {open,
+start, end, by_setup: [{setup, start, end, open}], error}, leaders: {open, start,
+end}}, symbols[], why: {SYMBOL: "trade" | "near" | "armed" | "leader" | "left"},
 setups: [{symbol, why}], setups_error: string | null, leaders[], yielded[],
 last_error}` (`setups_error`: the setup scanner could not be read -- stated,
 never read as "no setups"); the operator taking a line back gives up the
@@ -990,9 +996,13 @@ name, params_hash} | null, templates_watched, window: {start, end, state:
 triggered, failed, filtered, proposed}}` -- `forming` counts the symbols now in
 `leg` or `pullback`, the rest count today's rows (`proposed`: rows that raised a
 proposal). The top-level `proposing` is true when any setup proposes. A setup
-proposes only at Eyes or above (`level`: the session's `level` for the chosen
-setup, `setup_levels[setup]` for the others); at Off it watches and scores,
-silently. `setups.db` is schema 3: rows add `setup_type` and `detail`
+proposes only at effective Eyes or above (ADR 042: the lower of the master
+`level` and its own `setup_levels[setup]`; the board's `setups[].level` is the
+effective level and `chosen` is always false, kept one release); at Off it
+watches and scores, silently. A proposal the bot or Auto-entry will take carries
+`taken_by: "bot" | "auto_entry"`, one that is not a trade `not_a_trade:
+{reasons}` (and `grade`, `pillars`, `spread`); both are still raised, and the
+desk locks their Stage with the reason. `setups.db` is schema 3: rows add `setup_type` and `detail`
 (JSON); a schema-2 file migrates in place, its rows the first pullback's (schema
 1 migrates through 2); row ids keep their form for the first pullback and add
 `@<setup_type>` for the others, before any `~TEMPLATE_ID`. `GET
@@ -1257,8 +1267,10 @@ already played out (the scoring's first touch printed: `result`, with `r` the sc
 spread on Nova's book is at least the risk (`checks` adds `spread`: warn over half the risk, bad
 at the risk or more). A triggered plan's `tape` is the tape at the trigger (`trigger_tape`), else
 the lane's last read; a `filtered` lane whose pattern triggered follows the 30-minute rule of a
-triggered one. It describes and gates nothing that places: the ADR 037 runners and the bot keep
-their own rules. On the desk the plan's header carries the grade with its count in a chip that
+triggered one. **It is one rule** (ADR 042, `setup_scanner/trade_verdict.py`, pure): the plan,
+Nova's bot, Auto-entry, Approve and proposals all read it, so a plan that reads
+NOT A TRADE is never bought by Nova either -- the bot and Auto-entry skip the
+trigger with the reasons, and Approve refuses it (`STOCK_MODE_NOT_A_TRADE`). On the desk the plan's header carries the grade with its count in a chip that
 never shrinks ("C 1/5"); a plan that is not a trade reads NOT A TRADE with its reasons, on the plan
 and on the 1-minute chart's badge, drops its reward : risk from the header, locks Stage in ticket
 and Approve with the reasons (`data-why`), and ENTER NOW is never called on it; a setup that played
@@ -1270,7 +1282,9 @@ too, and a filtered row greyed with its phase ("Filtered · near").
 `{schema_version: 1, symbol, date, generated_at, summary: {text, legs, armed, near, triggered,
 trades, refusals: [{reason, count}]}, events: Event[], sources: {journal, hod_momo, borrow,
 catalysts, bot: {ok, error}}}` -- one symbol's day, oldest first: the eyes' journal lines of that
-symbol (live source; a run of the same state and reason on one lane is one event with `count` and
+symbol (live source, the template in play's lanes only -- `playing: true`; ADR 042: every template
+was folded, so each event counted once per template; a run of the same state and reason on one
+lane is one event with `count` and
 `last_ts`; tape verdict flips fold the same way), the first HOD Momo alert of each strategy and the
 day's count, the borrow changes, the day's catalyst and negative news items, the 09:30 open and the
 high of day, and the bot's own `bot_trade` / `setup_proposal` lines for the symbol. An **Event** is
@@ -1303,9 +1317,12 @@ by the desk only through the decisions route and, since 2026-09-29, the past-set
 History). The plan opens whole while the quote card is at least `STOCK_READ_PLAN_OPEN_MIN_PX` tall
 and is otherwise one line (the setup, entry / stop / target, the size, reward : risk, Stage), so
 Level 2 keeps its room; the operator's own open or fold is kept. The size is whole shares of the
-operator's risk per trade over the risk a share:
-`localStorage` `nova.stockRead.riskUsd` = `{schema_version: 1, value: number}` (dollars, default
-`STOCK_READ_RISK_DEFAULT_USD`, a desk setting). "Stage in ticket" fills this tab's ticket with a BUY
+operator's risk per trade over the risk a share. The risk per trade is the desk venue's bot sleeve
+`caps.risk_usd` (ADR 042: one number sizes every Nova buy and the operator's Stage, per venue),
+read from `GET /api/bot/session` and edited with `PATCH /api/bot/session {caps: {venue, risk_usd}}`;
+the old `localStorage` `nova.stockRead.riskUsd` is moved there once and deleted only after the
+sleeve confirms it (a refusal keeps it and says so on the card). In a Nova mode the plan also
+shows the size Nova would send (the stock-mode view's `size`). "Stage in ticket" fills this tab's ticket with a BUY
 limit at the entry for that size through the ticket prefill channel. It never places, and the
 plan's stop and target stay the operator's to set: the ticket takes no bracket from it. With no
 setup forming, the operator's own plan starts from a typed entry or the ask. Its stop is typed, or
@@ -1547,13 +1564,18 @@ and Approve on Live waits on #604.
 venue: "live" | "paper" | "sim" | null, mode: "signal" | "approve" | "auto_entry" | "bot", buy:
 "you" | "nova", sell: "you" | "nova", risk_usd: number | null, set_at: number | null, locks:
 {buy: string | null, sell: string | null}, notes: [{id, tone: "info" | "warn", text}], approval:
-Approval | null, trade: Trade | null, nova_entries_today: integer, last_event: {ts, tone: "info" |
-"ok" | "warn" | "bad", text} | null, bot: {on_list, playing, reason, setup} | null}`.
+Approval | null, trade: Trade | null, entries_today: {count, cap}, nova_entries_today: integer (one
+release), size: {qty, by_risk, capped_by, text} | null, last_event: {ts, tone: "info" | "ok" | "warn" |
+"bad", text} | null, bot: {on_list, playing, reason, setup_at_strategy, active} | null}` (ADR 042:
+`risk_usd` is the venue sleeve's, read-only here; `size` is what Nova would send for the stock's plan;
+`setup_at_strategy` is the plan's setup; the bot's skips on the stock become its `last_event`).
 - `locks.buy` / `locks.sell` say why Nova cannot take that side now (`null` means it can): Live, a
   replay desk, or a venue Nova cannot read.
-- `notes` name what will keep Nova from acting although the switch is set: the padlock, the kill
-  switch, the day lock, the bot trip, a stock the scanner does not follow, a bot that is not
-  playing, and the day's Nova entry already used.
+- `notes` name **every** thing that will keep Nova from acting although the switch is set (ADR
+  042, not only the first): the venue, the padlock, the kill switch, the day lock, the bot trip, the
+  bot not active, the plan's setup not at Strategy, its window, extended hours, no depth line, NOT A
+  TRADE, a stock the scanner does not follow, the day's Nova entries used, and what could not be
+  read (`bot_unreadable`, `trades_unreadable`, `scanner_unreadable`).
 - An **Approval** is `{setup_id, setup_type, entry, stop, target, qty, approved_at, state:
   "waiting" | "sent" | "withdrawn", reason}`.
 - A **Trade** is `{kind: "auto_entry" | "approve" | "bot", state: "entering" | "holding" | "closed"
@@ -1569,11 +1591,15 @@ stock that is not at Signal only.
 
 **Changing it.** Writes need the desk's API key even on loopback (they place orders), like the bot
 routes.
-- `PUT /api/stock-mode/{symbol}` takes `{buy, sell, risk_usd?}` and answers the view.
-  - `risk_usd` is the desk's risk per trade, from 1 to `STOCK_MODE_RISK_MAX_USD`. It is required
-    for Auto-entry, which sizes with it.
-  - Nova / Nova puts the stock on the bot's list (`symbol_allowlist`); any other setting takes it
-    off.
+- `PUT /api/stock-mode/{symbol}` takes `{buy, sell}` and answers the view (a `risk_usd` it is
+  sent is ignored: Nova sizes by the venue sleeve, ADR 042).
+  - **One owner** (ADR 042): Nova / Nova puts the stock on this venue's bot list
+    (`symbol_allowlist`), and the list is written only through these rules -- `POST
+    /api/bot/allowlist {symbol, op}` and `PATCH /api/bot/session {symbol_allowlist}` (which answers
+    `refused: [{symbol, reason, error}]` and applies the rest) go through them too, with the Live lock,
+    "you hold it" and the 50-stock cap (`BOT_ALLOWLIST_FULL`) refused before anything changes. A
+    stock has one mode: Bot clears an Auto-entry or Approve switch, and the reverse; `op: remove`
+    sets Signal only.
   - Moving Sell from Nova to You takes over the exit (below). Moving Buy from Nova to You cancels a
     Nova entry that is still working.
 - `POST /api/stock-mode/{symbol}/approve` takes `{setup_id, entry, stop, target, qty, now?}` and
@@ -1583,8 +1609,11 @@ routes.
   that has not filled; its exits go with it.
 - `POST /api/stock-mode/{symbol}/take-over` cancels the exits Nova holds on the stock:
   - Approve's two bracket legs;
-  - or the bot's trade. The bot cancels its target, stops watching, and ends the trade `handed`,
-    releasing its shares from the sleeve.
+  - or the bot's trade. The bot cancels its target and stop legs, stops watching, and ends the
+    trade `handed`, releasing its shares from the sleeve.
+  - Buy always stays on You after a take-over (ADR 042: it could turn into Auto-entry and buy the
+    next trigger at the old risk), and a cancel that is refused keeps the trade and says the order
+    still rests.
 
 A refusal is `{detail: {reason, error, field}}`:
 - 400: `STOCK_MODE_INVALID`, `STOCK_MODE_RISK`.
@@ -1592,6 +1621,8 @@ A refusal is `{detail: {reason, error, field}}`:
 - 409 `STOCK_MODE_REPLAY`: Sim off the live edge.
 - 409 `STOCK_MODE_HELD`: Sell to Nova while the stock is held.
 - 409 `STOCK_MODE_NOT_APPROVE`.
+- 409 `STOCK_MODE_FILTERED` / `STOCK_MODE_NOT_A_TRADE`: Approve on a setup the template's filter keeps
+  out, or a plan that is not a trade.
 - 409 `STOCK_MODE_PLAN_CHANGED`: the setup is no longer armed at those levels.
 - 409 `STOCK_MODE_NOTHING_HELD`: Nova holds nothing of this stock to take over.
 - 409 `STOCK_MODE_BOT_EXITING`: the bot is already selling.
@@ -1599,25 +1630,36 @@ A refusal is `{detail: {reason, error, field}}`:
 
 **What Nova does.** The runner (`stock_mode/runner.py`) hears the setup scanner's triggers
 (`SetupEngine.add_trigger_listener`, live feed only).
-- **Auto-entry.** The first go trigger on the stock, from any setup with a scanner and at most
-  `BOT_FP_TRIGGER_MAX_AGE_SEC` old, sends one BUY limit at that setup's entry.
-  - Size: floor(`risk_usd` / the setup's risk per share) shares.
-  - Source: `bot`.
-  - Once per stock per venue day: a fill counts, a miss does not.
-  - The gates: a practice venue at the live edge, the padlock, the kill switch, the day lock, the
-    bot trip, and no Nova order already working on the stock.
-  - Unfilled after `STOCK_MODE_ENTRY_TTL_SEC`, it is cancelled and the trade ends `missed`.
+- **Auto-entry is the bot's rules with the exit handed to you** (ADR 042, `admit.for_auto_entry`):
+  the first go trigger of a setup at effective Strategy (never one at Off or Eyes), the first of the
+  day, inside that setup's bot window, with extended hours as the sleeve says, within the shared
+  daily cap, never NOT A TRADE, at most `BOT_FP_TRIGGER_MAX_AGE_SEC` old, and only while the bot is
+  Active, sends one BUY limit at that setup's entry.
+  - Size: the sleeve's (one size for every Nova buy).
+  - Source: `bot`. A stock on the bot list never auto-enters (the bot trades it).
+  - The gates as the bot's, plus no Nova order already working on the stock.
+  - Unfilled after the sleeve's `working_ttl_sec`, it is cancelled and the trade ends `missed`.
   - After the fill the trade is `holding` with `exits: "you"`: Nova places no exit.
 - **Approve.** The approved setup's go trigger (fresh) sends one bracket: `operation: "bracket"`,
   `source: "manual"`, an entry limit, a target limit and a stop.
-  - It is cancelled unfilled after the TTL.
+  - It is cancelled unfilled after the sleeve's `working_ttl_sec`. Its size is the operator's
+    approved quantity (no sleeve caps); it is counted, never capped, by the daily count.
   - A re-arm at other levels, or a failed or disarmed setup, withdraws the approval with the reason.
 - **Every act and every skip** is a `stock_mode` line on the bot audit stream. `outcome` is one of
   `set`, `approved`, `withdrawn`, `sent`, `skipped`, `filled`, `missed`, `closed`, `handed` and
   `refused`, and `inputs` carry the symbol and the setup id.
 
-The store is in memory only (`stock_mode/store.py`) and stamped with the venue: a restart or a venue
-change returns every stock to Signal only. The bot's list belongs to the bot session and lasts.
+The switches and approvals are in memory only (`stock_mode/store.py`) and stamped with the venue: a
+restart or a venue change returns every stock to Signal only. **Nova's trades are persisted**
+(ADR 042): `stock-mode-trades.json` in the operator cache, `{schema_version: 1, ...}` (an unknown
+version refuses loudly and is never overwritten; kept `STOCK_MODE_TRADES_KEEP_DAYS`), so a restart
+resumes managing them (TTL cancels, fill notices). The bot's list belongs to the venue's dial and
+lasts; with Activate cleared on every start, nothing buys after a restart until the operator presses
+Activate. **Leaving a venue cancels Nova's working entries there first** (`stock_mode/leave.py`):
+before the desk moves, every Nova entry still working on the venue it leaves -- the bot's,
+Auto-entry's, an approved bracket's -- is cancelled there (a `missed`); no new entry starts while it
+runs (`BOT_VENUE_CHANGING`); `POST /api/desk/venue` answers `left: [{venue, symbol, order_id, by,
+text, ok}]` and the desk toasts each. Open positions keep their resting exits.
 Sell: You means Nova never sells the trade; the loss breakers and KILL still flatten every position.
 
 **On the desk** (owner `frontend/src/stock_read/`, with the stock read):
@@ -1642,7 +1684,11 @@ Sell: You means Nova never sells the trade; the loss breakers and KILL still fla
   - Approve: Approve (an armed plan), Approve: buy N now (after its trigger), Approved · cancel,
     Cancel stop and target (take over the exit).
   - Auto-entry: Auto-entry on · turn off; Stage sell once Nova bought.
-  - Bot at Strategy: Bot on SYMBOL · stop it; Take over the exit while the bot holds it.
+  - Bot: Bot on SYMBOL · stop it; Take over the exit while the bot holds it.
+- The badge promises a Nova buy ("THE BOT TRADES THIS", "NOVA BUYS AT ...") only when nothing
+  blocks it (ADR 042); otherwise it says why, every reason on hover. The plan card shows the size
+  Nova would send in a Nova mode. The Bots page lists every stock not at Signal only (`GET
+  /api/stock-mode`), so an Auto-entry stock is never invisible once its tab closes.
   - A trade Nova closed on the plan's setup reads "Closed · +$X" (gross, from the fill to the exit).
 - The Trader reads the view every `STOCK_MODE_POLL_MS` while the tab shows. Nothing is read on a
   replay desk or on the sample desk.
@@ -2284,23 +2330,27 @@ when there is one and this route for every other symbol.
 
 The bot packs (halt-luld, quote-spike, volume, llm-decide), `POST
 /api/bot/llm/spend` and the `nova-brain` sidecar are retired. The bot session
-file is `schema_version: 4`; a v1-3 file loads with `active_pack`,
-`pack_settings` and `llm` stripped. `GET /api/bot/session` drops those keys
-and adds `setup` (the setup that plays: `first_pullback`), `setups: [{id,
-scanner: boolean}]` (`first_pullback`, `bull_flag`, `flat_top_breakout`,
-`red_to_green`, `gap_and_go`, `micro_pullback`; only a setup with a scanner can
-be chosen -- `PATCH {setup}` otherwise `400 BOT_SETUP_NO_SCANNER`), `readout`
-and `gates`. **A level per setup (ADR 031):** each `setups[]` entry adds
-`level: 0 | 1 | 2 | null` (`null` without a scanner) -- the session's `level`
-for the chosen setup, else `setup_levels[id]`; the session adds `setup_levels:
-{SETUP: 0 | 1}` (an optional key of schema 4; a missing setup is Off), set by
-`PATCH /api/bot/session {setup_levels: {SETUP: 0 | 1}}` for a setup with a
-scanner other than the chosen one (`400 BOT_SETUP_LEVEL` otherwise: the chosen
-setup's level is `level`, and only it may reach Strategy); each change is a
-`setup_level` audit line (`inputs: {setup, from, to}`). Choosing another
-setup keeps the session's `level` for the new one, gives the old one `min(level,
-1)`, and deactivates an active bot. `readout` and the `readout` gate are the
-chosen setup's.
+file is `schema_version: 5` (ADR 042); a v1-4 file migrates on load (v1-3:
+`active_pack`, `pack_settings` and `llm` stripped; v4: below) and an unknown
+version refuses loudly. **One owner for Nova's buys (ADR 042, operator decision
+2026-09-30: "why is it a radio button? We are already choosing if it's off,
+eyes only, or strategy independently in each strategy").** There is no chosen
+setup: the session's `level` (per venue, "The level belongs to a venue" below)
+is the **master ceiling** -- the most any setup may do on this venue, and the
+level the localhost bot API reads -- and `setup_levels: {SETUP: 0 | 1 | 2}`
+holds every setup with a scanner's own level; a setup's **effective** level is
+the lower of the two. Off (0) watches and scores in silence, Eyes (1) proposes,
+Strategy (2) lets Nova's bot and Auto-entry trade its go triggers while the bot
+is Active (until then it proposes like Eyes). `GET /api/bot/session` adds
+`setups: [{id, scanner, level, effective}]` (`level` / `effective` null without
+a scanner) and `setup_levels`; `PATCH /api/bot/session {setup_levels: {SETUP:
+0 | 1 | 2}}` sets any of them (each change a `setup_level` audit line `inputs:
+{setup, from, to}`), and raising the master `level` needs no Activate token
+(configuration is not "go"). `PATCH {setup}` is refused `400
+BOT_SETUP_RETIRED`. The v4 -> v5 migration gives the old chosen setup the old
+`level`, keeps the others' 0 / 1, drops `setup`, `strategy` and the `advise`
+budget (and `/api/bot/advise*`, which nothing called), and moves the sleeve, the
+bot list and the day lock into each venue's dial (below).
 
 `readout` (owner `setup_scanner/readout.py`, cached 30 s) is `{state:
 "collecting" | "passed" | "not_passed" | "failed" | "unavailable", passed,
@@ -2311,46 +2361,95 @@ first-of-the-day kind (`rules.kind`: `first_pullback`, `bull_flag`,
 trigger, `control` those blind or wait (pooled). It passes when at least 50 go
 setups triggered and their average net R is above +0.2 and above the
 control's; it is judged on the first 100 go setups, and 100 without a pass is
-`failed`. A closed store is `unavailable`. **The read-out gates Live only**
-(ADR 030, operator decision 2026-09-24): on Paper and Sim Strategy skips it,
-and a venue that cannot be read counts as Live. While it has not passed, on
-Live, raising to Strategy lands not active, `POST /api/bot/session/arm` at
-Strategy and every `POST /api/bot/action` are refused `409
-BOT_READOUT_NOT_PASSED`, and `live_fire_ready` is false; a Strategy bot left
-active when the desk moves to Live is deactivated (audit `deactivate`). The
-session adds `readout_required: boolean` and the `readout` gate reads `ok` on
-Paper / Sim with `detail.waived: true` and `detail.venue`. At Strategy a `buy_*`
-kind is also refused outside
-07:00-10:00 ET on the venue's clock (`409 BOT_OUTSIDE_WINDOW`) and after one
-bot entry that venue day (`409 BOT_DAY_TRADE_CAP`; entry audit rows carry
-`inputs.venue_day`; an entry the first-pullback bot cancelled unfilled --
-`bot_trade` `missed` -- gives the day back); exits and cancels are never held
-by either. **Commissions unknown hold new entries** (operator decision on
-#564, 2026-09-24): on Live the breakers' day P&L subtracts the session's
-commissions from the execution ledger (`bot/day_pnl.py`); while that read
-fails, every bot entry -- a `buy_*` kind on `POST /api/bot/action` and the
-first-pullback bot's `buy_setup_limit` (both pass
+`failed`. A closed store is `unavailable`. **Read-outs are evidence, and
+gate nothing** (ADR 042, amending ADR 027 / 030): Nova's bot trades Paper and
+Sim only, and Live trading by a bot is not built -- it waits on its own operator
+decision -- so passing a read-out unlocks nothing yet. Each setup's card shows
+its own read-out (`GET /api/setups/templates`), which says it scores the
+backtest's exit (half at target 1, break-even, a 9 EMA trail) while the bot
+sells everything at target 1 with a 15-minute time stop. The session's
+`readout`, `readout_required` and the `readout` gate are gone. **The localhost
+bot API refuses Live**: every `POST /api/bot/action` on Live or on a replay desk
+is refused `409 BOT_LIVE_NOT_BUILT`, exits and cancels included (a bot never
+touches Live). At Strategy a `buy_*` kind is also refused outside its setup's
+bot window on the venue's clock (each setup's template in play: `409
+BOT_OUTSIDE_WINDOW`), outside 09:30-16:00 ET while the venue's sleeve turns
+extended hours off, and past the venue's daily cap (`409 BOT_DAY_TRADE_CAP`):
+the sleeve's `entries_per_day` (1-3, default 1) counts Nova's automatic entries
+-- the bot's and Auto-entry's together -- per venue day, from the persisted audit
+stream (entry audit rows carry `inputs.venue_day`; an entry cancelled unfilled
+-- a `missed` -- gives the day back; Approve is counted, `entries_today.approved`,
+never capped); exits and cancels are never held by either. **Commissions unknown
+hold new entries** (operator decision on #564, 2026-09-24): while the session's
+commission read fails, every bot entry on Live -- a `buy_*` kind on `POST
+/api/bot/action` and the bot's own entry (both pass
 `entry_rules.assert_entry_allowed`) -- is refused `409
-BOT_COMMISSIONS_UNKNOWN` until a read succeeds again. Exits, cancels,
-flatten and kill are never held, and Paper and Sim never are (their day P&L
-is the practice ledger's `DayPnL`; no commission read); a venue that cannot
-be read counts as Live. The failure is logged (at once, then at most every
-`BOT_COMMISSIONS_WARN_EVERY_SEC`), never read as $0: `GET /api/bot/pnl`
-answers `day_pnl: null` with `meter.commissions: null`,
-`meter.commissions_unknown: true`, `meter.commissions_error` and
-`meter.day_pnl_before_commissions` (realized + unrealized), and a breaker
-that figure already crosses still trips -- commissions only make the day
-worse. Every meter carries `commissions_unknown` and `commissions_error`.
-Proposals
-are accepted at Eyes and Strategy. `gates: [{id, ok, stage: "activate" |
-"fire", detail}]` (owner `bot/gates.py`) are `level`, `allowlist`,
-`desk_armed`, `depth_lines`, `readout`, `bot_trip`, `day_lock`,
-`kill_switch`, `window`, `commissions` (stage `fire`; `detail: {error,
-since}` while entries are held).
+BOT_COMMISSIONS_UNKNOWN` until a read succeeds again (the unreadable file is the
+execution ledger every order is written to). Exits, cancels, flatten and kill
+are never held, and Paper and Sim never are; a venue that cannot be read counts
+as Live. The failure is logged (at once, then at most every
+`BOT_COMMISSIONS_WARN_EVERY_SEC`), never read as $0. **The breakers compare
+IBKR's own figure** (ADR 042): on Live, `RealizedPnL + UnrealizedPnL`, which
+already include every commission (TWS Users' Guide, Profit and Loss) -- until
+2026-09-30 the breakers subtracted the session's commissions again and tripped
+that many dollars early; on Paper and Sim at the live edge, the practice
+ledger's `DayPnL`; on a replay desk nothing (a replay's P&L is not today's).
+`GET /api/bot/pnl`'s meter says which: `{compares, source, venue, compared,
+note, error, day_pnl, commissions, commissions_in_figure, commissions_unknown,
+commissions_error, ...}`. IBKR's `UnrealizedPnL` covers an overnight position's
+whole life, not only today (#664).
+Proposals are accepted at Eyes and Strategy. **Every gate is drawn with its
+reason** (owner `bot/gates.py`): `gates: [{id, ok, stage: "activate" | "fire",
+detail: {..., text}}]` are `venue` (Paper, or Sim at its live edge), `level`
+(the master at Strategy), `setups` (`at_strategy`), `padlock`, `allowlist`
+(stocks set to Bot or to Auto-entry on this venue; stage `fire`, so it never
+locks Activate -- Auto-entry needs the bot Active), `depth_lines` (ok while at
+least one Bot stock holds a depth line, `held`, `missing`, `max_lines`; each
+trigger still needs its own), `bot_trip`, `day_lock`, `kill_switch`, `window`
+(per Strategy setup: `setups: [{setup, start, end, open, clipped, error}]`),
+`daily_cap` (`count`, `cap`, `venue_day`), `extended_hours` and `commissions`;
+the session adds `ready` / `ready_reason` (the bot would trade a go trigger now)
+with `live_fire_ready` as a one-release alias.
+
+**Activate: one control, one meaning, never carried** (ADR 042, owner
+`bot/activation.py`). `POST /api/bot/session/arm {reenable?}` refuses, `409`
+with a plain reason: `BOT_LIVE_NOT_BUILT` (Live), `BOT_REPLAY_DESK` (Sim off the
+live edge), `BOT_VENUE_UNKNOWN`, `BOT_LEVEL_NOT_STRATEGY`,
+`BOT_NO_SETUP_AT_STRATEGY`, `BOT_PADLOCK_LOCKED` and `BOT_TRIP_LATCHED` (the
+bot trip fired on this venue today; the desk confirms in words, then sends
+`reenable: true`). Choosing Strategy never activates. The backend clears
+Activate -- a `deactivate` audit line and `deactivated: {at, reason, text}`,
+`reason` one of `restart | padlock | venue | level | no_setup | bot_trip |
+all_stop | operator` -- on every process start (like spend arming, ADR 018),
+when anyone locks the padlock (`ibkr.safety.set_armed` calls
+`activation.on_disarm`; it used to be only a page effect), on a venue change,
+with the master below Strategy or no setup left at Strategy, and on a trip. The
+session's `active` is the truth (`armed` a one-release alias; `has_desk_arm`,
+the token's presence, stays).
+
+**One sleeve per venue** (ADR 042, owner `bot/sleeve.py`, #658 item 2). Each
+venue's dial carries its own `caps: {venue, risk_usd, max_shares,
+bp_budget_usd, working_ttl_sec, extended_hours, entries_per_day, api_kinds}`
+(`allowlist`, the localhost API's order kinds, a one-release alias of
+`api_kinds`); bounds `caps_bounds` (risk 1-10,000, shares 1-10, budget up to
+$50, TTL 1-10 s, entries 1-3); a value out of bounds is refused `400
+BOT_CAPS_INVALID`, never clamped in silence. `PATCH {caps: {venue?, ...}}`
+edits the named venue's (else the desk's); `caps_by_venue` lists all three. The
+migration copied the one sleeve to every venue. **One size**
+(`bot/sizing.py`, pure) for every Nova automatic buy: floor(`risk_usd` / the
+setup's risk a share), capped by `max_shares` and by what the budget still buys
+(`{qty, by_risk, capped_by: "max_shares" | "budget" | null, text}`; under one
+share is a stated skip). `risk_usd` is also the Trader's risk per trade. **One
+entry timeout**: `working_ttl_sec` for the bot, Auto-entry and Approve.
+`extended_hours` (default on: the default bot windows open at 07:00 ET) binds
+the bot and Auto-entry. `entries_today: {count, cap, venue_day, entries:
+[{symbol, setup_type, by, ts, outcome}], approved, error?}`.
 
 **Loss breakers per venue** (ADR 032, operator ask 2026-09-24). The bot trip
 (soft: flatten, the bot to L0) and the all-stop (hard: flatten, bot and manual
-buys locked to the next ET midnight) compare the whole account's day P&L with
+buys on that venue locked until the next 04:00 ET -- ADR 042: the practice
+day's own boundary; at midnight they had lifted while the practice day's P&L
+still read yesterday's loss, and tripped again) compare the whole account's day P&L with
 the desk venue's own thresholds (owner `bot/breaker_limits.py`): the session
 keeps `breakers: {VENUE: {soft_usd, hard_usd}}` for `live` / `paper` / `sim`
 (an optional key of schema 4; a venue with none reads -50 / -200; a venue Nova
@@ -2363,15 +2462,27 @@ soft_usd?, hard_usd?}}` changes the named venue (else the desk's) within -5 to
 all-stop, snapped to $5 -- `400 BOT_BREAKER_INVALID` otherwise -- and records a
 `breakers` audit line; a venue moved back onto -50 / -200 keeps no pair of its
 own (`custom: false`). Moving a threshold never clears a fired bot trip or a
-day lock. The Bots page drags the two markers on the desk venue's bar (it asks
+day lock. A trip writes its record on the dial of the venue whose P&L tripped:
+`hard_lock_until_date` (an ISO datetime of the next 04:00 ET; a legacy
+`YYYY-MM-DD` still lifts at that date's 00:00 ET), `hard_lock_at`,
+`hard_lock_pnl`, `hard_lock_usd`, and the bot trip's `soft_breaker_at`,
+`soft_breaker_pnl`, `soft_breaker_usd`; `bot.buy_lock.lock_for(row, venue)` reads
+any venue's, `execution.service` asks with the door's own venue, and the session
+adds `day_lock: {active, until, tripped_at, pnl, venue, threshold, text}`,
+`day_locks` and `soft_breaker: {fired, at, pnl, until}` (`hard_lock_until_date`
+/ `day_lock_active` stay one release, the desk venue's). On a replay desk the
+breakers compare nothing and `breakers.note` says so. The Bots page drags the two markers on the desk venue's bar (it asks
 before loosening Live), and the Account page's Risk block reads the same pair. `bot-session.json` and `bot-proposals.json` are written through a
 temp file and a rename.
 
 **The level belongs to a venue** (operator report 2026-09-30: "When I switch
 between L0 and L2 in the paper, it stays persistent when I switch to live, and
 I feel like that shouldn't happen"; owner `bot/venue_levels.py`). Each venue
-keeps its own dial -- `level`, `setup_levels`, the bot trip's latch and the
-bot's `working` orders and `bot_qty` -- the session's fields being the dial of
+keeps its own dial -- `level`, `setup_levels`, the bot trip's latch and record,
+the all-stop's day lock (ADR 042, #658 option b: Live's lock follows Live and
+switching away and back does not escape it), the sleeve (`caps`), the bot list
+(`symbol_allowlist`; Live's starts empty: Nova never buys on Live) and the bot's
+`working` orders and `bot_qty` -- the session's fields being the dial of
 the venue in `level_venue` and the others waiting in `venue_levels: {VENUE:
 dial}` (optional keys of schema 4; a venue with none starts Off, its bot trip
 clear). `sim.mode.set_venue` puts the old venue's dial away, takes the new
@@ -2380,40 +2491,51 @@ into another venue, like spend arming. A session loaded on another venue than
 its `level_venue` takes that venue's dial; one without the stamp belongs to the
 venue the desk showed. `GET /api/bot/session` adds `level_venue` and
 `levels_by_venue: {live, paper, sim}`. The bot trip's latch adds
-`soft_breaker_until` and lapses at the next ET midnight like the day lock
+`soft_breaker_until` and lapses at the next 04:00 ET like the day lock
 (`bot.clock.soft_latched`; a latch without it has lapsed), and the all-stop
 trips again once an earlier day's lock has lifted -- it read the stale date as
-"locked" and never tripped a second time. The day lock itself stays one for
-the desk: an all-stop on any venue locks buys on every venue until midnight.
-Every bot audit line carries `venue`, and the daily entry cap counts this
+"locked" and never tripped a second time. Leaving a venue first cancels Nova's
+working entries there ("Who trades the stock" below). Every bot audit line
+carries `venue`, and the daily entry cap counts this
 venue's entries (a line without it counts on every venue). A TTL cancel and a
 take-over of the exit never send another venue's order id.
 
-**Nova's own first-pullback bot** (ADR 030, owner `bot/first_pullback/`; #514).
-Active at Strategy, on Paper or on Sim at the live
-edge -- never on Live -- it hears the setup scanner's triggers (each setup's
-template in play's lane, live feed only: `SetupEngine.add_trigger_listener`;
-the event carries `setup_type`) and plays the chosen setup's (ADR 031: any setup
-with a scanner, not only `first_pullback`): for the first of that setup on a
-symbol that day (its kind without `second_`) with the tape at go, it sends one BUY limit at the scanner's entry
-through `execution.service.execute` (source `bot`) after every bot gate:
-allowlist and a held depth line, the template's window and daily cap, day
-lock, kill switch, working block, budget (size: `caps.max_shares` cut to
-`caps.bp_budget_usd`). The entry kind `buy_setup_limit` is a buy kind no brain
-may send; unfilled after `caps.working_ttl_sec` it is cancelled (a miss). After
-the fill a SELL limit rests at target 1 and the bot watches the stop on IBKR's
-Last; a print at or under the stop, or `BOT_FP_TIME_STOP_MIN` (15) minutes,
-cancels the target and sells with a limit under the bid, then the protective
-flatten. It claims the L2 session as brain `nova-first-pullback` and
-heartbeats while it plays. `GET /api/bot/session` adds `runner: {brain_id,
-playing, reason}` and `trade` -- the current or last trade, `{setup_id,
-symbol, venue, venue_day, template_id, template_rev, state: "entering" |
-"open" | "exiting" | "closed" | "missed", qty, trigger, entry_planned, stop,
-target1, risk, entry_order_id, entry_fill_price, entry_filled_ts,
-target_order_id, exit_order_id, exit_price, exit_reason: "target" | "stop" |
-"time" | "outside" | null, closed_ts, slippage, r, note}` (`r` gross in the
-setup's risk), kept in `bot-session.json` (an optional key) so a restart
-resumes it. Every step is on the bot audit stream as `bot_trade` (`skipped` |
+**Nova's own bot** (ADR 030, owner `bot/first_pullback/`; #514; ADR 042).
+Active at Strategy, on Paper or on Sim at the live edge -- never on Live -- it
+hears the setup scanner's triggers (each setup's template in play's lane, live
+feed only: `SetupEngine.add_trigger_listener`; the event carries `setup_type`,
+`grade`, `pillars`, `filtered` and `spread`) and plays **every setup at
+effective Strategy** on this venue's Bot stocks: the first go trigger wins, one
+trade at a time, then the shared daily cap. It takes the first of a setup on a
+symbol that day (its kind without `second_`) with the tape at go and the plan a
+trade (NOT A TRADE is one rule, below), after every gate (`admit.for_bot`): the
+venue, Activate, the setup's level and window, extended hours, a held depth
+line, the padlock, the kill switch, this venue's day lock and bot trip, the
+working block, the sleeve's size and the daily cap; a trigger it does not take
+is a `bot_trade` `skipped` line with every reason (`inputs.codes` /
+`reasons`) and the stock's last event on its Trader tab. Its entry is a
+**practice bracket** (`operation: "bracket"`, source `bot`: a BUY limit at the
+scanner's entry, a SELL limit at target 1 and a SELL stop, the exits held until
+the entry fills, then one-cancels-other), so its stop and target rest at the
+broker and Paper's fill while the desk shows another venue (Sim's matcher runs
+only at its live edge: a Sim trade waits while the desk is elsewhere, and says
+so). Unfilled after the sleeve's `working_ttl_sec` the entry is cancelled with
+its exits (a miss). The time stop (`BOT_FP_TIME_STOP_MIN`, 15 minutes), the
+flush exit (a tightened stop is a replace of the stop leg) and a stop leg that is
+gone (the bot then watches the stop on IBKR's Last) cancel both legs and sell at
+the bid, then the protective flatten. Every order carries its real setup
+(`setup=<setup_type>`). It claims the L2 session as brain `nova-first-pullback`
+(the id kept from ADR 030) and heartbeats while it plays. `GET
+/api/bot/session` adds `runner: {brain_id, playing, reason}` and `trade` -- the
+current or last trade, `{setup_id, setup_type, symbol, venue, venue_day,
+template_id, template_rev, state: "entering" | "open" | "exiting" | "closed" |
+"missed" | "handed", qty, trigger, entry_planned, stop, target1, risk,
+entry_order_id, entry_fill_price, entry_filled_ts, target_order_id,
+stop_order_id, stop_leg_at, exit_order_id, exit_price, exit_reason: "target" |
+"stop" | "time" | "flush" | "outside" | "handed" | null, closed_ts, slippage, r,
+size_text, waiting, note}` (`r` gross in the setup's risk), kept in
+`bot-session.json` so a restart resumes it; a take-over whose cancel is refused
+keeps the trade and says the order still rests. Every step is on the bot audit stream as `bot_trade` (`skipped` |
 `missed` | `filled` | `closing` | `closed` | `note` | `error`, `inputs` with
 the `setup_id`). A bot working order the bot cancels itself carries
 `expire_ts: null` in `working`.
@@ -2568,9 +2690,25 @@ below; its `setups[]` add `recorded: boolean`); a row's `state` may be `filtered
 filter kept the name out, and the reason says which rule); a proposal adds
 `template_id`, `template_name` and `source`. The read-out's `rules` adds
 `template: {id, rev, name}` and counts only that template revision's rows.
-`bot/entry_rules` reads the entry window and the daily cap from the template
-in play (`bot_window_start` / `bot_window_end` / `bot_entries_per_day`); the
-`window` gate detail adds `template`. `GET /api/setups/scoreboard` and
+`bot/entry_rules` reads each setup's bot window from its template in play
+(`bot_window_start` / `bot_window_end`); the daily cap is the venue sleeve's
+`entries_per_day` (ADR 042), and `bot_entries_per_day` left the catalogue: a
+stored template that carries it loads without it (listed on the wire as
+`retired: [{key, value, text}]`), and a write that sends it is refused
+`TEMPLATE_INVALID`. **The bot's rules never restart a read-out** (ADR 042):
+the parameters in the `bot` group are left out of a template's `rev`, its
+fingerprint and `params_hash` (every catalogue param carries `affects_readout:
+boolean`; a save touching only bot parameters answers `rules_changed: false`
+and keeps the revision). **The bot window sits inside the arming window**: a
+write whose bot window reaches outside the setup's arming window is refused
+`TEMPLATE_INVALID` naming the field and both windows; a stored window outside it
+is clipped when read, and a window wholly outside is empty (the bot never
+enters on that template). A template adds `bot_window: {start, end, clipped,
+empty, arming: {start, end}, stored: {start, end} | null, note} | null`; red to
+green's built-in is 09:30-10:00. The read-out adds `bot_window: {start, end,
+clipped, triggered, triggered_inside, go_triggered, go_triggered_inside} |
+null` (its pre-registered rules unchanged). A setup without a scanner takes no
+template writes: create, update and play are refused 409 `TEMPLATE_NO_SCANNER`. `GET /api/setups/scoreboard` and
 `GET /api/setups/rows` answer for the template in play (its id and current
 revision) unless `template=` names another template id (every revision) or
 `all` (every template: a variation re-scores the same legs, so counts
@@ -2961,7 +3099,8 @@ arm with no PIN. A refusal is `403 {detail, code}` with `code` one of
 `ARM_PIN_LOCKOUT_SEC`). `/api/ibkr/status` and the reply add `arm_requires_pin:
 boolean` (the desk's venue needs the PIN), `live_arm_pin_set: boolean` and
 `armed_by: "operator" | "bot" | null`; `armed` is true only on the venue the latch
-was armed on. The PIN is never in the repository or the frontend.
+was armed on. The PIN is never in the repository or the frontend. Locking the
+padlock -- by anyone -- also clears the bot's Activate, in the backend (ADR 042).
 
 ### Account identity on `/api/ibkr/status` (operator ask, 2026-09-21)
 
@@ -3286,7 +3425,7 @@ Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms
 **One venue per send** (#655, audit 2026-09-30; owner `execution/venue_door.py`). `execute` reads the desk's venue once, under its lock, and the order is validated against, committed on and sent to that venue -- a venue pill clicked mid-check refuses the order `VENUE_CHANGED` ("the desk moved ... it was not sent; place it again") and never sends it elsewhere. An order id is only meaningful on the venue that issued it (practice ids restart at 1 per venue; IBKR's are IBKR's), so in-flight commitments (`execution.inflight`), order watches (`execution.telemetry`: IBKR's by id, a practice venue's by `(venue, id)`) and releases are all per venue: a Paper sell still working never refuses a Live exit, and Paper's fill of order N never marks Live's order N filled. `expected_venue` on the command (cancel / replace by id) makes the door refuse `VENUE_CHANGED` when the desk is elsewhere; `DELETE /api/ibkr/order/{id}?venue=` and `PATCH` `venue` accept it, and the bot's and Who-trades cancels send their trade's venue. The desk's Cancel sends the venue its row came from: the account snapshot (`ibkr/ibkrAccountPoller.ts`) carries `venue`, a venue change clears the old venue's rows and reads the new one at once, and a read that finishes after the switch -- or another window's snapshot of another venue -- is dropped, so the desk never shows the old venue's orders or positions, not even as "last known" (#657). The Who-trades view resets on a venue change too.
 Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected -- a spend command whose `source` is not one of the listed values (e.g. `auto_live`) is refused `SOURCE_INVALID`; so are `approve` and `auto_paper`, the retired Phase D executor's sources (ADR 025), while ledger rows that already carry them still read. Short opening requires `short_entry: true` plus `IBKR_SHORT_ENABLED` and fresh IBKR shortability (ADR 009).
 
-**Kill switch** (D-037, ADR 025; owner `backend/kill_switch/`): a persisted latch (`kill_switch_state.json` under the operator cache, `schema_version: 1`; unreadable or unknown version reads tripped) that `execution.service.execute` checks before every `place` / `bracket` from a non-protective source, manual and bot included -- refused `KILL_SWITCH`; `kill`, `flatten`, `cancel_working` and every cancel still reach the broker. `GET /api/kill-switch` -> `{tripped, reason, ts}`; `POST /api/kill-switch` trips it (latch first, then every working order on the account is cancelled through the `kill` source) and answers the status plus `cancelled_order_ids` / `failed_cancel_order_ids`; `POST /api/kill-switch/reset` clears it and is the only thing that does. A trip writes a `kill_switch` receipt to the event log. The control is a card on the Bots page. The header's Emergency KILL (bot to L0, desk lock, cancel, flatten) is a separate composite. The Nova OS verdict, the `signal | confirm | auto_paper` ladder, the staged approval queue and `/api/strategy/executor/*` were removed (ADR 025).
+**Kill switch** (D-037, ADR 025; owner `backend/kill_switch/`): a persisted latch (`kill_switch_state.json` under the operator cache, `schema_version: 1`; unreadable or unknown version reads tripped) that `execution.service.execute` checks before every `place` / `bracket` from a non-protective source, manual and bot included -- refused `KILL_SWITCH`; `kill`, `flatten`, `cancel_working` and every cancel still reach the broker. `GET /api/kill-switch` -> `{tripped, reason, ts}`; `POST /api/kill-switch` trips it (latch first, then the working orders of every venue that has any are cancelled through the `kill` source -- Live while IBKR is connected, else a stated error "Gateway disconnected: Live orders were not swept"; Paper always, even with the Gateway down (#656); Sim while its scratch account is open -- each cancel through the execution door with `ExecutionCommand.target_venue`, which only a `kill` cancel may carry (anything else is refused `TARGET_VENUE_REFUSED`), and a failed read is a stated failure, never "nothing to cancel") and answers the status plus `sweep: [{venue, cancelled, failed, error, note}]`, `persisted`, `receipt_error` and the legacy summed `cancelled_order_ids` / `failed_cancel_order_ids` (the route is async, on the app's loop: #656's lock from a second loop is gone); `POST /api/kill-switch/reset` clears it and is the only thing that does. A trip writes a `kill_switch` receipt to the event log. The control is a card on the Bots page. The header's Emergency KILL (bot to L0, desk lock, cancel, flatten) is a separate composite. The Nova OS verdict, the `signal | confirm | auto_paper` ladder, the staged approval queue and `/api/strategy/executor/*` were removed (ADR 025).
 
 ---
 
@@ -3527,6 +3666,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | One owner for Nova's buys (ADR 042; operator: "why is it a radio button? We are already choosing if it's off, eyes only, or strategy independently in each strategy", then "do you see other stupid mistakes like this one? run deep dive", then "fix these problems, all of them ... I don't want just silent blockers ... We don't want anything invisible to the user"). A read-only audit found about 30 leftovers of the kind: two automatic buyers (the bot and Auto-entry) with different rules and no shared owner. Now the chosen setup and its radio are gone -- the hero's level is a master ceiling and each setup's own Off / Eyes / Strategy is the decision; one Activate, refused with a stated reason and cleared by the backend on restart and when the padlock is locked; every gate drawn with its reason; one sleeve per venue sizes every Nova buy (risk per trade, also the Trader's), one entry timeout, one persisted daily count; the bot list written only through Who trades, per venue; Auto-entry follows the bot's rules and hands over the exit; NOT A TRADE is one rule for the plan, the bot, Auto-entry, Approve and proposals; Nova's bot plays every Strategy setup with its stop resting at the broker; the localhost bot API refuses Live; the day lock and the bot trip lift at 04:00 ET (they lifted at midnight and tripped again on yesterday's practice P&L) and lock their own venue; the kill switch sweeps every venue and says what it could not reach (#656); the breakers stop counting Live commissions twice; bot parameters never restart a read-out; auto-record keeps setups' lines through their arming windows; the Decisions tab counts each setup once. §3 amended (Bot playbook, Activate, sleeve, breakers, the level belongs to a venue, Nova's bot, Every setup's scanner, Who trades, NOT A TRADE, Setup templates, Auto-record, the kill switch, Who may arm the desk); ADRs 027, 029, 030, 031, 032 and 037 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The desk's account view follows the venue (#657, the second half of #655). After a venue switch the orders, positions and summary of the old venue stayed on screen until the next read (up to 5 s for orders), a failed read kept them, and a disconnected Live showed Paper's as "last known". The snapshot now names its venue, a switch clears it and reads the new one at once, late reads and other windows' snapshots of another venue are dropped, and Cancel sends the row's venue so the door refuses it if the desk moved. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | 5-minute setups (operator: "we need 5-minute strategies ... clear patterns in the 5-minute chart, but they're not clear in the 1-minute chart"; on the mockup of IOVA 2026-09-29: build it this way, chart only, a chip and the trigger on the 1-minute, 07:00-15:30). One built-in lane per setup (first pullback, bull flag, flat top) runs the setup's own detector on 5-minute candles made of the scanner's minutes, with the default template's rules but a 5-minute candle, arming until 15:30, a risk up to 6% of the entry and a 60-minute scoring read (`setup_scanner/five_minute_lane.py`; the detectors and the scoring take the candle's length). It scores on its own `~5m` rows and never proposes, tells the bot or reaches the Setups board or a Bots card. The 5-minute chart draws its lanes and the day's 5-minute setups that ended (`past-setups?tf=5m`); the 1-minute chart shows one in reach as a chip and its trigger line. On IOVA the 1-minute scanners triggered once in 33 setups and the 5-minute lanes four times; the bar-level 5-minute versions still lost over five years, so nothing trades on them. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The 5-minute chart on every 1-minute setup, shown and tested (trial T8; operator: "sometimes the 1-minute setup aligns well with the 5-minute setup ... I want to make sure we are utilizing all of that", then "Show it and test it"). Nothing combined the two before: every scanner read 1-minute candles only. Each lane now reads the 5-minute chart from its own minutes (`setup_scanner/five_minute.py`: the last complete 5-minute candle over its 9 EMA and the 5-minute MACD up), records it when a setup arms and when it triggers (`setups.db` schema 4), and the setup rows and the plan show "5m agrees" / "5m against" without blocking anything. Measured first on five years of history: it leaned the right way and did not hold (+0.10R, CI -0.08 to +0.28, the agreeing trades still losing), so trial T8 (`knowledge/signal-trials-3.json`, registered before its data) decides whether "against" ever warns. §3 amended. | User Directive + Claude Opus 5.5 |

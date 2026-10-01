@@ -113,8 +113,8 @@ calls existing doors in this order:
    failed)
 
 Cancel and flatten still run if the bot PATCH fails. Unlock is the existing
-header lock, not `hard_lock_until_date` (that midnight lock is the -$200
-breaker only). `auto_live` stays NO-GO. The confirm guard is taken before the
+header lock, not `hard_lock_until_date` (that lock is the venue's all-stop
+only; it lifts at the next 04:00 ET, ADR 042). `auto_live` stays NO-GO. The confirm guard is taken before the
 dialog so a double-click cannot enqueue two kill sequences.
 
 ## Stage latency (synthetic, 2026-07-23)

@@ -1,6 +1,6 @@
 # ADR 037 -- Who trades the stock: a Buy / Sell switch above Level 2, and the trade's moments live on the chart
 
-**Status:** Accepted · **Date:** 2026-09-24
+**Status:** Accepted · **Date:** 2026-09-24 · **Amended by:** [[042-one-owner-for-novas-buys]] (one owner for the bot list; Auto-entry by the bot's rules; trades persisted; the sleeve sizes every Nova buy)
 **Builds on:** [[018-desk-venue-vs-spend-arming]] (arming and the venue) · [[022-setup-scanner-tape-gate]] (triggers and the tape gate) · [[030-first-pullback-bot-on-paper]] (the bot's trade) · [[032-loss-breakers-per-venue]] · [[036-the-bots-read-on-one-stock]] (the plan on Level 2) · #604 (Approve & execute) · #606 (brackets on Paper, the road to Live)
 **Amends:** [[007-centralized-trading-execution]] (the #91 note "Sim has no brackets"), [[019-practice-fills-on-replayed-sessions]] decision 3 ("brackets stay off the practice desk"), [[030-first-pullback-bot-on-paper]] (a bot trade can be handed over)
 **Decided by:** the operator, 2026-09-24:

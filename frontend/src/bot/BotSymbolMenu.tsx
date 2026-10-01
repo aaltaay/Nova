@@ -4,7 +4,13 @@
  * The symbol is named once in the head; each action is a row that looks like a
  * button -- an icon tile in the action's colour, a label that says what the
  * click does, a line saying what that means, and a state chip when it is
- * already on (Watching, REC, On). Stopping a recording stays a hold.
+ * already on (Watching, REC, Bot). Stopping a recording stays a hold. "Let the
+ * bot trade" goes through the stock-mode rules (ADR 042 F): the menu waits for
+ * the answer and shows a refusal in the backend's words instead of closing.
+ *
+ * The host also mounts the bot's notices (bot/BotNotices.tsx): it is the one bot
+ * chrome every window has -- the main desk with its app bar, each pop-out, the
+ * sample shell -- so a notice raised in a window shows in that window.
  */
 import {
   useEffect,
@@ -17,10 +23,9 @@ import {
 } from 'react';
 import { Bot, BotOff, Circle, Pin, PinOff, Square, TriangleAlert } from 'lucide-react';
 import {
-  BOT_ALLOWLIST_ADD,
-  BOT_ALLOWLIST_REMOVE,
   SYMBOL_MENU_ALLOW_HINT,
   SYMBOL_MENU_ALLOW_STATE,
+  SYMBOL_MENU_BOT_BUSY_WHY,
   SYMBOL_MENU_CAPTION,
   SYMBOL_MENU_PIN_HINT,
   SYMBOL_MENU_REC_STATE,
@@ -32,6 +37,8 @@ import {
   SYMBOL_MENU_UNWATCH_HINT,
   SYMBOL_MENU_WATCH_HINT,
   SYMBOL_MENU_WATCH_STATE,
+  botTradeAddLabel,
+  botTradeRemoveLabel,
 } from '../constantGroups/bot';
 import { SCANNER_ACTION_STARTING_REC_WHY, SCANNER_ACTION_STOPPING_REC_WHY } from '../constantGroups/scanner_board';
 import { TRADER_TAB_PIN_LABEL, TRADER_TAB_UNPIN_LABEL } from '../constantGroups/trader_view';
@@ -52,6 +59,7 @@ import {
 import { HoldToStopButton } from '../capture/HoldToStopButton';
 import { CAPTURE_STOP_HOLD_HINT, captureStopHoldLabel } from '../capture/constants';
 import { botSymbolMenuPosition } from './botSymbolMenuPlacement';
+import { BotNotices } from './BotNotices';
 import { ClipMenuRows } from '../clips';
 import {
   toggleWatchList,
@@ -118,13 +126,25 @@ function moveFocus(event: ReactKeyboardEvent<HTMLDivElement>): void {
   rows[next].focus();
 }
 
+/** The bot's chrome in every window: its notices, and the right-click symbol menu. */
 export function BotSymbolMenuHost() {
+  return (
+    <>
+      <BotNotices />
+      <SymbolMenu />
+    </>
+  );
+}
+
+function SymbolMenu() {
   const [open, setOpen] = useState<BotSymbolMenuOpen>(null);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [recordBusy, setRecordBusy] = useState(false);
+  const [botBusy, setBotBusy] = useState(false);
+  const [botError, setBotError] = useState<string | null>(null);
   const [menuHeight, setMenuHeight] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const { isAllowed, add, remove } = useBotAllowlist();
+  const { isAllowed, toggle } = useBotAllowlist();
   const watchList = useWatchList();
   const recordEpoch = useSyncExternalStore(
     subscribeSessionRecord,
@@ -134,6 +154,7 @@ export function BotSymbolMenuHost() {
 
   useEffect(() => subscribeBotSymbolMenu(value => {
     setRecordError(null);
+    setBotError(null);
     setMenuHeight(0);
     setOpen(value);
   }), []);
@@ -143,7 +164,7 @@ export function BotSymbolMenuHost() {
   useLayoutEffect(() => {
     const height = menuRef.current?.getBoundingClientRect().height ?? 0;
     if (height > 0 && Math.abs(height - menuHeight) > 1) setMenuHeight(height);
-  }, [open, menuHeight, recordError, recordEpoch, watchList]);
+  }, [open, menuHeight, recordError, botError, recordEpoch, watchList]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -181,6 +202,18 @@ export function BotSymbolMenuHost() {
     closeBotSymbolMenu();
   };
   const error = recordError || getSessionRecordError(symbol);
+  // The bot's answer decides whether the menu closes: a refusal stays on screen, in its own words.
+  const toggleBot = async () => {
+    setBotBusy(true);
+    setBotError(null);
+    const answer = await toggle(symbol, allowed ? 'remove' : 'add', true);
+    setBotBusy(false);
+    if (answer.error) {
+      setBotError(answer.error);
+      return;
+    }
+    closeBotSymbolMenu();
+  };
 
   // Below the app bar, never over the Sim session bar under the tabs; wholly on screen.
   const appBar = document.querySelector('[data-testid="global-app-bar"]');
@@ -275,14 +308,19 @@ export function BotSymbolMenuHost() {
         tone="bot"
         testId="bot-symbol-menu-toggle"
         icon={allowed ? <BotOff size={ICON_PX} /> : <Bot size={ICON_PX} />}
-        label={allowed ? BOT_ALLOWLIST_REMOVE : BOT_ALLOWLIST_ADD}
+        label={allowed ? botTradeRemoveLabel(symbol) : botTradeAddLabel(symbol)}
         hint={allowed ? SYMBOL_MENU_UNALLOW_HINT : SYMBOL_MENU_ALLOW_HINT}
         state={allowed ? SYMBOL_MENU_ALLOW_STATE : null}
-        onClick={() => {
-          void (allowed ? remove(symbol) : add(symbol));
-          closeBotSymbolMenu();
-        }}
+        disabled={botBusy}
+        why={SYMBOL_MENU_BOT_BUSY_WHY}
+        onClick={() => void toggleBot()}
       />
+      {botError && (
+        <div className="symbol-menu__error" role="alert" data-testid="bot-symbol-menu-bot-error">
+          <TriangleAlert size={13} aria-hidden="true" />
+          <span>{botError}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -30,10 +30,11 @@ export function distanceLabel(row: SetupRow): string {
   return `${cents}¢ under`;
 }
 
-/** The staged limit price for a proposal: the planned entry (trigger + 1c). */
+/** The staged limit price for a proposal: the planned entry (trigger + 1c), in the desk's decimals -- four
+ * under $1, so a sub-dollar entry is never rounded to the cent. */
 export function stagedLimit(row: SetupRow): string {
   const entry = row.proposal?.entry ?? row.setup?.entry;
-  return entry != null && Number.isFinite(entry) ? entry.toFixed(2) : '';
+  return entry != null && Number.isFinite(entry) && entry > 0 ? fmtPx(entry) : '';
 }
 
 export function isActionable(row: SetupRow): boolean {

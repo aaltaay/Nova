@@ -1,11 +1,12 @@
-"""Shared bot test setup -- Activate + L2 + optional claim/heartbeat.
+"""Shared bot test setup -- the master at Strategy, setups at Strategy, Activate, optional claim/heartbeat.
 
-``ready_l2`` pins the first-pullback read-out to passed and the venue clock
-inside the entry window (ADR 027) -- tests about those gates set their own.
-It also holds a depth line for each symbol (a reserved slot in
-``ibkr.depth.state``), because a bot fires only on an allowlisted symbol whose
-line the backend holds (``BOT_NO_DEPTH_LINE``, ADR 020 second pass). Lines are
-released by the autouse bot fixture in ``conftest.py``.
+``ready_l2`` pins the venue clock inside the entry window (ADR 027) -- tests about
+that gate set their own. It puts the named setups at Strategy (ADR 042: the master
+is a ceiling, each setup has its own level), writes this venue's bot list directly
+(tests bypass stock mode's one-owner path; the routes go through it), and holds a
+depth line for each symbol (a reserved slot in ``ibkr.depth.state``), because a bot
+fires only on a listed symbol whose line the backend holds (``BOT_NO_DEPTH_LINE``,
+ADR 020 second pass). Lines are released by the autouse bot fixture in ``conftest.py``.
 """
 from __future__ import annotations
 
@@ -54,23 +55,42 @@ def release_depth_lines() -> None:
     _HELD_DEPTH_LINES.clear()
 
 
+def on_practice(venue: str = "paper") -> None:
+    """Move the desk to a practice venue when it is on Live (the suite's default venue), keeping the
+    padlock unlocked there (a venue change locks it)."""
+    from ibkr import safety
+    from sim.mode import set_venue, venue as desk_venue
+
+    if desk_venue() in ("paper", "sim"):
+        return
+    set_venue(venue, persist=False)
+    safety.set_armed(True, reason="test")
+
+
+def set_symbols(*symbols: str) -> None:
+    """Write this venue's bot list directly (and the Trader focus the Eyes gate reads)."""
+    row = load_session()
+    row["symbol_allowlist"] = [s.upper() for s in symbols]
+    row["trader_live"] = [s.upper() for s in symbols]
+    save_session(row)
+
+
 def ready_l2(
     *,
     brain: str | None = "brain-1",
     heartbeat: bool = True,
     symbols: tuple[str, ...] = ("ABCD",),
     depth_line: bool = True,
-    readout_passed: bool = True,
-) -> str:
-    if readout_passed:
-        pass_readout()
+    setups: tuple[str, ...] = ("first_pullback",),
+    activate: bool = True,
+) -> str | None:
+    """On a practice venue (Paper unless the test chose Sim; ADR 042: Nova's bot never trades Live), the
+    master and ``setups`` at Strategy, ``symbols`` on the bot list, Activate on (its token)."""
+    on_practice()
     open_entry_window()
-    token = issue_arm_token()
-    apply_patch({"level": 2}, desk=True, arm_token=token)
-    row = load_session()
-    row["symbol_allowlist"] = list(symbols)
-    row["trader_live"] = list(symbols)
-    save_session(row)
+    apply_patch({"level": 2, "setup_levels": {s: 2 for s in setups}}, desk=True)
+    set_symbols(*symbols)
+    token = issue_arm_token() if activate else None
     if depth_line:
         hold_depth_line(*symbols)
     if brain:
@@ -78,12 +98,6 @@ def ready_l2(
         if heartbeat:
             record_heartbeat(brain)
     return token
-
-
-def pass_readout() -> None:
-    from bot.gates import passed_readout_for_tests, set_readout_for_tests
-
-    set_readout_for_tests(passed_readout_for_tests())
 
 
 def open_entry_window(hour: int = 9, minute: int = 0) -> None:
@@ -114,7 +128,7 @@ __all__ = [
     "headers",
     "hold_depth_line",
     "open_entry_window",
-    "pass_readout",
     "ready_l2",
     "release_depth_lines",
+    "set_symbols",
 ]

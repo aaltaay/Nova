@@ -11,8 +11,9 @@ NOVA_DESKTOP_API_PORT = 8000
 # Default is live (4001). The paper Gateway (4002) is legacy: by hand only
 # (POST /api/ibkr/gateway-mode {mode: "paper"}), never an automatic fallback
 # unless IBKR_PAPER_GATEWAY_FALLBACK opts in (ADR 020).
-# IBKR_ORDERS_ENABLED=false     → master kill switch; default OFF so live Gateway
-#                                 cannot place buys/sells until you opt in.
+# IBKR_ORDERS_ENABLED=false     → the spend permission; default OFF so live Gateway
+#                                 cannot place buys/sells until you opt in. (The kill
+#                                 switch is the persisted latch in kill_switch/, ADR 025.)
 # IBKR_LIVE_TRADING_CONFIRMED   → second key required when gateway/account is live.
 # IBKR_SHORT_ENABLED=false      → third key for opening shorts (Phase K / ADR 009).
 # IBKR_FORCE_ONE_SHARE=True     → MASTER TEST QTY GATE (see below). Not a bug.
@@ -285,7 +286,7 @@ IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
 # Ops-once Sentry fingerprint cooldown for session unusable / max tickers.
 SENTRY_SESSION_UNUSABLE_COOLDOWN_SEC = 300.0
 IBKR_GATEWAY_MODE_DEFAULT = "live"
-IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
+IBKR_ORDERS_ENABLED_DEFAULT = False  # the spend permission: never spend until explicitly enabled
 # ── Who may arm the desk latch (ADR 018 amendment, operator decision 2026-09-23)
 # One rule, by venue: Live arms only with the operator's PIN, checked by the
 # backend against a PBKDF2 hash in .env (set with tools/set_live_arm_pin.py);

@@ -1,9 +1,10 @@
 /**
  * The Bots page timeline as lines (pure): the bot audit stream (proposals,
- * fires and refusals, the bot's trades -- ADR 030 -- level changes, the setup
- * chosen and each setup's own Off / Eyes -- ADR 031 -- and the breakers, fired
- * or moved -- ADR 032) and the setup scanners' own record of the day (armed,
- * near, triggered, failed, scored -- setups.db).
+ * fires and refusals, the bot's trades and every skip with its reason -- ADR 030,
+ * ADR 042 -- the master level and each setup's own Off / Eyes / Strategy, Activate
+ * and why the backend turned it off, who trades each stock -- ADR 037 -- and the
+ * breakers, fired or moved -- ADR 032) and the setup scanners' own record of the day
+ * (armed, near, triggered, failed, scored -- setups.db).
  * Categories drive the Activity filter chips; scanner events show under All.
  */
 import { BOT_ACTION_KINDS, BOT_LEVEL_LABELS, BOT_SETUP_LABELS, BOT_SETUP_SHORT } from '../constantGroups/bot';
@@ -34,7 +35,7 @@ export interface ActivityLine {
 }
 
 const KINDS = new Set<string>(BOT_ACTION_KINDS);
-/** Nova's own bot (ADR 030, ADR 031): its entry on the chosen setup, and every step of its trade. */
+/** Nova's own bot (ADR 030, ADR 042): its entry on a setup at Strategy, and every step of its trade. */
 const SETUP_ENTRY = 'buy_setup_limit';
 const TRADE = 'bot_trade';
 const TRADE_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']]> = {
@@ -46,6 +47,31 @@ const TRADE_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']
   error: ['Error', 'bad', 'fired'],
 };
 const WITHDRAWN = new Set(['rearmed', 'disarmed', 'failed']);
+/** Who trades a stock (ADR 037): each act and each skip of the stock-mode runner. */
+const STOCK_MODE = 'stock_mode';
+const STOCK_MODE_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']]> = {
+  set: ['Who trades', 'accent', 'system'],
+  approved: ['Approved', 'accent', 'system'],
+  withdrawn: ['Withdrawn', 'muted', 'system'],
+  sent: ['Sent', 'good', 'fired'],
+  skipped: ['Skipped', 'muted', 'refused'],
+  filled: ['Filled', 'good', 'fired'],
+  missed: ['Missed', 'muted', 'fired'],
+  closed: ['Closed', 'plain', 'fired'],
+  handed: ['Handed to you', 'warn', 'fired'],
+  refused: ['Refused', 'bad', 'refused'],
+};
+/** Why the backend turned the bot off (ADR 042 B), when the line carries no words of its own. */
+const DEACTIVATE_WORDS: Record<string, string> = {
+  restart: 'the backend restarted',
+  padlock: 'the padlock was locked',
+  venue: 'the desk changed venue',
+  level: 'the master level went below Strategy',
+  no_setup: 'no setup was left at Strategy',
+  bot_trip: 'the bot trip fired',
+  all_stop: 'the all-stop fired',
+  operator: 'you pressed Deactivate',
+};
 const VERDICT_TAGS: Record<string, [string, ActivityTone]> = {
   go: ['Go', 'good'],
   wait: ['Wait', 'warn'],
@@ -70,6 +96,12 @@ function kindName(kind: unknown): string {
 
 function setupName(v: unknown): string {
   return typeof v === 'string' ? BOT_SETUP_LABELS[v] ?? v : '?';
+}
+
+/** "first pullback" for a line that names its setup, else ''. */
+function setupOf(row: BotAuditEntry): string {
+  const v = row.inputs?.setup_type ?? row.inputs?.setup;
+  return typeof v === 'string' && v ? (BOT_SETUP_LABELS[v] ?? v).toLowerCase() : '';
 }
 
 /** Whole dollars with a real minus: -50 -> "−$50". */
@@ -112,13 +144,20 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
       text: `${sym(row)} buy ${String(row.inputs?.qty ?? '')} at ${px(Number(row.inputs?.limit))}`.trim() };
   }
   if (action === TRADE) {
+    const what = `${sym(row)}${setupOf(row) ? ` · ${setupOf(row)}` : ''}`;
     if (row.outcome === 'closed') {
       const r = Number(row.inputs?.r);
       const tone: ActivityTone = !Number.isFinite(r) ? 'plain' : r > 0 ? 'good' : 'bad';
-      return { ...base, tag: 'Closed', tone, category: 'fired', text: sym(row) };
+      return { ...base, tag: 'Closed', tone, category: 'fired', text: what };
     }
     const [tag, tone, category] = TRADE_TAGS[row.outcome] ?? [row.outcome, 'muted', 'system'];
-    return { ...base, tag, tone, category, text: sym(row) };
+    return { ...base, tag, tone, category, text: what };
+  }
+  if (action === STOCK_MODE) {
+    const [tag, tone, category] = STOCK_MODE_TAGS[row.outcome] ?? [row.outcome, 'muted', 'system'];
+    const mode = typeof row.inputs?.mode === 'string' ? ` → ${String(row.inputs.mode).replace(/_/g, '-')}` : '';
+    const what = `${sym(row)}${row.outcome === 'set' ? mode : ''}${setupOf(row) ? ` · ${setupOf(row)}` : ''}`;
+    return { ...base, tag, tone, category, text: what };
   }
   if (KINDS.has(action)) {
     const ok = row.outcome === 'ok';
@@ -126,11 +165,25 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
       text: `${sym(row)} ${action}${row.order_id != null ? ` · order ${row.order_id}` : ''}` };
   }
   if (action === 'level') {
-    return { ...base, tag: 'Level', tone: 'plain', category: 'system',
+    return { ...base, tag: 'Master level', tone: 'plain', category: 'system',
       text: `${levelName(row.inputs?.from)} → ${levelName(row.inputs?.to)}`, note: base.note || 'from the desk' };
   }
-  if (action === 'activate' || action === 'deactivate') {
-    return { ...base, tag: action === 'activate' ? 'Activated' : 'Stopped', tone: 'accent', category: 'system', text: 'the bot', note: base.note || 'from the desk' };
+  if (action === 'activate') {
+    const again = row.inputs?.reenable === true ? ' · re-enabled after the bot trip' : '';
+    return { ...base, tag: 'Activated', tone: 'accent', category: 'system', text: `the bot${again}`,
+      note: base.note && base.note !== 'desk' ? base.note : 'from the desk' };
+  }
+  if (action === 'deactivate') {
+    // The reason is a code in `inputs.reason` or in the line's own `reason`; plain words pass through.
+    const code = typeof row.inputs?.reason === 'string' ? row.inputs.reason : row.reason ?? '';
+    const why = DEACTIVATE_WORDS[code];
+    const words = why ?? (base.note && base.note !== 'desk' ? base.note : DEACTIVATE_WORDS.operator);
+    return { ...base, tag: 'Stopped', tone: 'warn', category: 'system', text: 'the bot', note: words };
+  }
+  if (action === 'venue') {
+    return { ...base, tag: 'Venue', tone: 'plain', category: 'system',
+      text: `${String(row.inputs?.from ?? '?')} → ${String(row.inputs?.to ?? row.venue ?? '?')}`,
+      note: base.note || 'the bot turned off: Activate never carries into another venue' };
   }
   if (action === 'breaker_soft' || action === 'breaker_hard') {
     const at = row.inputs?.threshold ?? (action === 'breaker_hard' ? -200 : -50);
@@ -148,9 +201,10 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
     return { ...base, tag: 'Breakers', tone: 'warn', category: 'system', text: `${venue} ${moved}`.trim(), note: '' };
   }
   if (action === 'setup') {
+    // Before ADR 042 the bot traded one chosen setup; old lines still read.
     return { ...base, tag: 'Setup', tone: 'accent', category: 'system',
       text: `${setupName(row.inputs?.from)} → ${setupName(row.inputs?.to)}`,
-      note: base.note || 'the chosen setup' };
+      note: base.note || 'the chosen setup (retired)' };
   }
   if (action === 'setup_level') {
     return { ...base, tag: 'Level', tone: 'plain', category: 'system',

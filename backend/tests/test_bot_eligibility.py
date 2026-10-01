@@ -117,7 +117,7 @@ def test_schema_1_file_gains_v2_defaults():
     persist._session = None
     loaded = persist.load_session()
     assert loaded["symbol_allowlist"] == []
-    assert loaded["setup"] == "first_pullback"
+    assert "setup" not in loaded and loaded["setup_levels"]["first_pullback"] == 0     # ADR 042: v5
     assert loaded.get("desk_arm_token") is None
     persist.save_session(loaded)
     from constants_bot import BOT_SCHEMA_VERSION
@@ -145,5 +145,9 @@ def test_a_v3_session_loads_with_the_retired_pack_fields_stripped():
     loaded = persist.load_session()
     for key in ("active_pack", "pack_settings", "llm"):
         assert key not in loaded
-    assert loaded["symbol_allowlist"] == ["GRML"]
-    assert loaded["setup"] == "first_pullback"
+    # ADR 042 (v5): the desk is on Live in the suite -- Live's list starts empty, Paper and Sim keep GRML;
+    # the old chosen setup (the first pullback) takes the old level.
+    assert loaded["level_venue"] == "live" and loaded["symbol_allowlist"] == []
+    assert loaded["venue_levels"]["paper"]["symbol_allowlist"] == ["GRML"]
+    assert loaded["venue_levels"]["sim"]["symbol_allowlist"] == ["GRML"]
+    assert "setup" not in loaded and loaded["setup_levels"]["first_pullback"] == 1

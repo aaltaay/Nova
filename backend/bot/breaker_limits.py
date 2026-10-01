@@ -2,9 +2,10 @@
 
 "I want us to be able to change this stuff ... move that slider ... and make sure
 these changes are persistent." The bot trip (soft: flatten, drop the bot to L0)
-and the all-stop (hard: flatten, lock bot and manual buys until the next ET
-midnight) compare the whole account's day P&L on the desk's venue
-(``bot.day_pnl``). They were the product constants -$50 / -$200; now each venue
+and the all-stop (hard: flatten, lock buys on that venue until the next 04:00
+ET, ``bot.clock``) compare the whole account's day P&L on the desk's venue
+(``bot.day_pnl``). On a Sim replay they compare nothing (``note``): a replay's
+P&L is not today's. They were the product constants -$50 / -$200; now each venue
 keeps its own in the bot session -- ``breakers: {VENUE: {soft_usd, hard_usd}}``,
 saved with every other session field (``bot.persist``, ``bot-session.json``) and
 read back at every start. Each venue has its own so loosening Paper never
@@ -21,6 +22,7 @@ Owner: this module (the rules; the session file is ``bot.persist``'s).
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from bot.errors import BotError
@@ -35,6 +37,8 @@ from constants_bot import (
     BOT_SOFT_BREAKER_TIGHTEST_USD,
     BOT_SOFT_BREAKER_USD,
 )
+
+logger = logging.getLogger(__name__)
 
 _LIVE = "live"
 
@@ -117,8 +121,38 @@ def apply(row: dict[str, Any], patch: Any, current_venue: str | None) -> tuple[s
     return venue, before, after
 
 
-def view(row: dict[str, Any], venue: str | None) -> dict[str, Any]:
-    """What the Bots page draws: the desk's venue's thresholds, every venue's, and the bounds."""
+REPLAY_NOTE = ("Sim replay: the breakers compare nothing here -- a replay's P&L is not today's. "
+               "At the Sim live edge they run as on Paper.")
+
+
+def replay_desk() -> bool:
+    """Sim off the live edge: a replay's P&L is not today's, so the breakers compare nothing.
+
+    A live edge Nova cannot read counts as a replay (logged): comparing a replay's P&L
+    would flatten and lock on a day that is not today's.
+    """
+    try:
+        from sim.mode import is_replay_desk
+
+        return bool(is_replay_desk())
+    except Exception:
+        logger.warning("bot breakers: the Sim live edge is unreadable -- the breakers compare nothing",
+                       exc_info=True)
+        return True
+
+
+def note(venue: str | None, *, replay: bool | None = None) -> str | None:
+    """Why the breakers are not comparing the desk venue's own day P&L as usual, or None."""
+    if venue not in BOT_BREAKER_VENUES:
+        return "The desk's venue cannot be read: Live's thresholds apply."
+    if venue == "sim" and (replay if replay is not None else replay_desk()):
+        return REPLAY_NOTE
+    return None
+
+
+def view(row: dict[str, Any], venue: str | None, *, replay: bool | None = None) -> dict[str, Any]:
+    """What the Bots page draws: the desk's venue's thresholds, every venue's, the bounds, and a
+    ``note`` when the breakers are not comparing as usual (a Sim replay, an unreadable venue)."""
     here = venue_key(venue)
     stored = _stored(row)
     return {
@@ -127,4 +161,5 @@ def view(row: dict[str, Any], venue: str | None) -> dict[str, Any]:
         "bounds": {"soft_usd": [BOT_SOFT_BREAKER_LOOSEST_USD, BOT_SOFT_BREAKER_TIGHTEST_USD],
                    "hard_usd": [BOT_HARD_BREAKER_LOOSEST_USD, BOT_HARD_BREAKER_TIGHTEST_USD],
                    "step_usd": BOT_BREAKER_STEP_USD},
+        "note": note(venue, replay=replay),
     }

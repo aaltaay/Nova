@@ -310,10 +310,40 @@ export interface StockModeTrade {
   exiting: boolean;
 }
 
+/** Something that keeps Nova from acting on the stock (`warn` / `bad`), or a fact beside it (`info`). The
+ * view lists every one, not the first (ADR 042 draft). */
 export interface StockModeNote {
   id: string;
-  tone: 'info' | 'warn';
+  tone: 'info' | 'warn' | 'bad';
   text: string;
+}
+
+/** What Nova would send for the stock's plan in a Nova mode: the sleeve's risk over the risk a share,
+ * capped by the sleeve's max shares or the budget left. `qty` under 1 is a stated skip. */
+export interface StockModeSize {
+  qty: number;
+  by_risk: number | null;
+  capped_by: 'max_shares' | 'budget' | null;
+  text: string | null;
+}
+
+/** Nova's automatic buys today on the venue (the bot and Auto-entry share one count); `cap` null when the
+ * backend does not say it. */
+export interface StockModeEntries {
+  count: number;
+  cap: number | null;
+}
+
+export interface StockModeBot {
+  on_list: boolean;
+  playing: boolean;
+  reason: string | null;
+  /** The setup the stock's plan follows is at effective Strategy; null when unknown or no plan. */
+  setup_at_strategy: boolean | null;
+  /** The bot is Activated; null from a backend that does not say. */
+  active: boolean | null;
+  /** Legacy: the retired chosen setup (null on a newer backend). */
+  setup: string | null;
 }
 
 export interface StockModeView {
@@ -323,6 +353,7 @@ export interface StockModeView {
   mode: StockModeName;
   buy: StockSide;
   sell: StockSide;
+  /** The venue sleeve's risk per trade (read-only here). */
   risk_usd: number | null;
   set_at: number | null;
   /** Why Nova cannot take each side now; null: it can. */
@@ -330,7 +361,12 @@ export interface StockModeView {
   notes: StockModeNote[];
   approval: StockModeApproval | null;
   trade: StockModeTrade | null;
+  /** Null in Signal only, with no plan, or from a backend that does not size. */
+  size: StockModeSize | null;
+  /** Null from a backend older than the shared count. */
+  entries_today: StockModeEntries | null;
+  /** Legacy: this stock's Nova entries today (one release). */
   nova_entries_today: number;
   last_event: { ts: number; tone: 'info' | 'ok' | 'warn' | 'bad'; text: string } | null;
-  bot: { on_list: boolean; playing: boolean; reason: string | null; setup: string | null } | null;
+  bot: StockModeBot | null;
 }

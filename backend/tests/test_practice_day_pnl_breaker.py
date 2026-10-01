@@ -52,15 +52,16 @@ def test_a_ledger_down_60_since_reset_does_not_trip_the_breaker_on_a_flat_new_da
         "UnrealizedPnL": round(ledger.unrealized_pnl(), 2),
         "DayPnL": round(ledger.day_pnl(), 2),
     }
-    # Session commissions must not be subtracted again: the ledger's cash already paid them.
-    assert day_pnl_usd(summary, commission_total=12.34) == pytest.approx(0.0)
+    # No commission is subtracted: the ledger's cash already paid them.
+    assert day_pnl_usd(summary) == pytest.approx(0.0)
 
 
-def test_off_the_practice_venues_the_meter_is_unchanged():
+def test_off_the_practice_venues_the_meter_is_ibkrs_own():
     from bot.day_pnl import day_pnl_usd
 
+    # IBKR's realized and unrealized already count every commission (spec D): none is subtracted.
     live = {"RealizedPnL": -10.0, "UnrealizedPnL": 4.0}
-    assert day_pnl_usd(live, commission_total=1.5) == pytest.approx(-7.5)
+    assert day_pnl_usd(live) == pytest.approx(-6.0)
 
 
 def test_the_practice_summary_carries_todays_realized_and_the_day_pnl(monkeypatch, tmp_path):

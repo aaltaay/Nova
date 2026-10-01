@@ -37,7 +37,6 @@ describe('botSessionPoller', () => {
               extended_hours: false,
               allowlist: [],
             },
-            advise: { enabled: false, usd_cap: 2, call_cap: 10, usd_spent: 0, calls_used: 0 },
             soft_breaker_fired: false,
             hard_lock_until_date: null,
             day_lock_active: false,

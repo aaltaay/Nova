@@ -11,8 +11,9 @@ import { _resetIbkrStatusPollerForTests, _setIbkrStatusPollerFetchForTests } fro
 
 const command = vi.hoisted(() => vi.fn());
 vi.mock('../api/novaFetch', () => ({ novaFetch: command }));
+const toggle = vi.hoisted(() => vi.fn());
 vi.mock('./useBotAllowlist', () => ({ useBotAllowlist: () => ({
-  isAllowed: () => false, add: vi.fn(), remove: vi.fn(),
+  isAllowed: () => false, add: vi.fn(), remove: vi.fn(), toggle,
 }) }));
 const response = (body: unknown, ok = true) => ({ ok, json: async () => body }) as Response;
 let root: Root;
@@ -22,6 +23,7 @@ beforeEach(() => {
   sessionStorage.clear();
   _resetIbkrStatusPollerForTests();
   command.mockReset();
+  toggle.mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -126,4 +128,21 @@ it('adds the symbol to the watch list, and the next menu offers to remove it', a
   expect(getWatchList()).toEqual([]);
   localStorage.clear();
   resetWatchListForTests();
+});
+
+describe('Let the bot trade it (ADR 042 F)', () => {
+  it('names the stock, waits for the answer, and keeps a refusal on screen in the backend’s words', async () => {
+    toggle.mockResolvedValueOnce({ session: null, error: 'Nova places for a stock only on Paper and Sim' });
+    await open();
+    const row = container.querySelector('[data-testid="bot-symbol-menu-toggle"]') as HTMLButtonElement;
+    expect(row.textContent).toContain('Let the bot trade AAPL (Nova buys and sells)');
+    await act(async () => { row.click(); });
+    expect(toggle).toHaveBeenCalledWith('AAPL', 'add', true);
+    expect(container.querySelector('[data-testid="bot-symbol-menu-bot-error"]')?.textContent)
+      .toBe('Nova places for a stock only on Paper and Sim');
+    expect(container.querySelector('[role="menu"]')).not.toBeNull();
+    toggle.mockResolvedValueOnce({ session: {}, error: null });
+    await act(async () => { (container.querySelector('[data-testid="bot-symbol-menu-toggle"]') as HTMLButtonElement).click(); });
+    expect(container.querySelector('[role="menu"]')).toBeNull();
+  });
 });

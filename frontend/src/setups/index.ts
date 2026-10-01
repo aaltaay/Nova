@@ -35,6 +35,36 @@ export {
   type Words,
 } from './setupWords';
 export { gradeLabel, gradeWords, pillarCount, type PillarCount } from './pillarWords';
+/** The one dismissed list the alert card and the Bots inbox share (ADR 042 draft). */
+export {
+  dismiss as dismissProposals,
+  dismissedProposals,
+  isDismissed as isProposalDismissed,
+  subscribe as subscribeDismissedProposals,
+} from './proposalDismissals';
+/** What a proposal means for the operator's Stage: Nova takes it, not a trade, the size and the lock. */
+export {
+  notATradeText,
+  proposalNotATrade,
+  proposalStageLock,
+  proposalStageSize,
+  proposalTakenBy,
+  proposalVerdictLine,
+  stageLimit,
+  type StageSize,
+  type TakenBy,
+} from './proposalVerdict';
+/** The venue sleeve's risk per trade: the Trader plan and every proposal's Stage size by it. */
+export {
+  parseRiskUsd,
+  riskSourceWords,
+  saveSleeveRisk,
+  useSleeveRisk,
+  venueOrNull,
+  VENUE_NAMES,
+  type SleeveRisk,
+  type SleeveVenue,
+} from './sleeveRisk';
 export { TF5_TRIAL_NOTE, tf5Words, type Tf5Tone } from './tf5Words';
 export type {
   Scoreboard,

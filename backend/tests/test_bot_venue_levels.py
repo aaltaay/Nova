@@ -27,8 +27,8 @@ def paper():
 
 
 def _strategy_on_paper() -> None:
-    token = issue_arm_token()
-    apply_patch({"level": 2, "setup_levels": {"bull_flag": 1}}, desk=True, arm_token=token)
+    apply_patch({"level": 2, "setup_levels": {"first_pullback": 2, "bull_flag": 1}}, desk=True)
+    issue_arm_token()
     assert is_desk_active(load_session())
 
 
@@ -36,8 +36,9 @@ def test_papers_strategy_does_not_follow_the_desk_to_live(paper):
     _strategy_on_paper()
     set_venue("live", persist=False)
     view = get_session()
-    assert view["level"] == 0 and view["armed"] is False and view["strategy"] is None
-    assert view["setup_levels"]["bull_flag"] == 0
+    assert view["level"] == 0 and view["armed"] is False and "strategy" not in view
+    assert view["setup_levels"]["bull_flag"] == 0 and view["setup_levels"]["first_pullback"] == 0
+    assert view["deactivated"]["reason"] == "venue"
     assert view["level_venue"] == "live"
     assert view["levels_by_venue"] == {"live": 0, "paper": 2, "sim": 0}
 

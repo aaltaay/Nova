@@ -1,6 +1,5 @@
 /** The plan box's arithmetic and words (ADR 036). Pure: every number here comes from the read or the
- * operator's own risk per trade; nothing is estimated. */
-import { STOCK_READ_RISK_MAX_USD } from './constants';
+ * venue sleeve's risk per trade; nothing is estimated. */
 import { resultBadge, resultBadgeShort } from './planVerdict';
 import type { ReadState, SetupLane, StockPlan } from './types';
 
@@ -48,16 +47,11 @@ export function rrText(rr: number | null): string {
   return rr === null ? '— : 1' : `${rr.toFixed(1)} : 1`;
 }
 
-/** Whole shares the operator's risk per trade buys at this risk per share; null when it buys none. */
+/** Whole shares the risk per trade buys at this risk per share; null when it buys none. */
 export function sizeFor(riskUsd: number, risk: number | null): number | null {
   if (risk === null || !(risk > 0) || !(riskUsd > 0)) return null;
   const n = Math.floor(riskUsd / risk + 1e-9);
   return n >= 1 ? n : null;
-}
-
-export function parseRiskUsd(raw: unknown): number | null {
-  const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw.replace(/[$,\s]/g, '')) : NaN;
-  return Number.isFinite(n) && n > 0 && n <= STOCK_READ_RISK_MAX_USD ? Math.round(n * 100) / 100 : null;
 }
 
 /** "1/2" for a forming setup waiting on "1 more red or doji candle"; null when it says nothing countable. */

@@ -192,6 +192,42 @@ export const SETUPS_NO_SCANNER_CHIP = (label: string, why: string): string => `$
 
 /** Why Stage ticket is locked (ux/whyTip.ts): the proposal carries no entry price. */
 export const SETUPS_STAGE_NO_ENTRY_WHY = 'This proposal has no entry price -- there is nothing to stage';
+/** Why Stage ticket is locked: no stop, so no risk a share to size from. */
+export const SETUPS_STAGE_NO_STOP_WHY = 'This proposal has no stop, so no risk a share to size from -- there is nothing to stage';
+
+/** Risk per trade is the venue sleeve's `caps.risk_usd` (ADR 042 draft): read from the bot session, saved
+ * with `PATCH {caps: {venue, risk_usd}}`, re-read this often while a live Trader tab or an alert shows it.
+ * It sizes the Trader plan's Stage and Approve and every proposal's Stage. */
+export const SLEEVE_SESSION_PATH = '/api/bot/session';
+export const SLEEVE_POLL_MS = 15_000;
+/** The desk's old local risk per trade (`{schema_version: 1, value}`): moved into the desk venue's sleeve
+ * once, then deleted. Read and written only on a backend that keeps no risk in the sleeve. */
+export const SLEEVE_RISK_LEGACY_KEY = 'nova.stockRead.riskUsd';
+export const SLEEVE_RISK_DEFAULT_USD = 20;
+export const SLEEVE_RISK_MAX_USD = 10_000;
+
+/** One dismissed list for the alert card and the Bots inbox (ADR 042 draft): `sessionStorage`
+ * `{schema_version: 1, ids: string[]}`, newest last. */
+export const PROPOSAL_DISMISSED_KEY = 'nova.setups.dismissed';
+export const PROPOSAL_DISMISSED_MAX = 200;
+
+/** A proposal Nova itself will take (spec H): what its card says, and why its Stage is locked. */
+export const PROPOSAL_TAKEN_LINE: Record<'bot' | 'auto_entry', string> = {
+  bot: 'The bot is taking this — nothing to do.',
+  auto_entry: 'Auto-entry is taking this — nothing to do.',
+};
+export const PROPOSAL_TAKEN_LOCK: Record<'bot' | 'auto_entry', string> = {
+  bot: 'The bot is taking this trade: a buy of your own would double it.',
+  auto_entry: 'Auto-entry is buying this for you: a buy of your own would double it.',
+};
+/** A proposal that is not a trade is still shown, and blocks every buy: Nova's and your Stage. */
+export const PROPOSAL_NOT_A_TRADE_NOVA = 'Nova does not buy it either: not the bot, not Auto-entry, not Approve.';
+
+/** What each level of a setup does under the Bots page's master level (ADR 042 draft). */
+export const SETUPS_LEVEL_WORDS = 'Each setup has its own level, under the Bots page\'s master level. Off watches and '
+  + 'scores in silence. Eyes proposes when a setup is near its trigger and the tape says go. Strategy also lets Nova '
+  + 'buy its go triggers on Paper and Sim while the bot is Active: the bot on the stocks set to Bot, Auto-entry on the '
+  + 'stocks set to Auto-entry. Everywhere else it proposes, as at Eyes. Nova never buys by itself on Live.';
 
 export const TAPE_VERDICT_LABELS: Record<string, string> = {
   go: 'Tape: go',

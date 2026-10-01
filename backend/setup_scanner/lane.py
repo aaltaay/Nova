@@ -20,10 +20,13 @@ its prints vouch for). Nothing here places an order.
 
 ADR 034: every tape read carries the tape flow score, and a triggered setup's
 flow is read through its scoring window (``setup_scanner/lane_flow.py``).
+
+ADR 042 H: proposals and triggers carry the grade, the pillars' count, the stock
+filter's verdict and the spread, and a proposal says whether it is a trade and who
+takes it (``setup_scanner/lane_announce.py``).
 """
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from constants_bot import BOT_SETUP_FIRST_PULLBACK
@@ -41,7 +44,7 @@ from setup_scanner.bars import Bar
 from setup_scanner.detector import TriggerDetector, candle_start
 from setup_scanner.detectors import make_detector
 from setup_scanner.lane_params import LaneParams
-from setup_scanner import five_minute, lane_flow, lane_journal, tape_flow
+from setup_scanner import five_minute, lane_announce, lane_flow, lane_journal, tape_flow
 from setup_scanner.five_minute_lane import Candles
 from setup_scanner.scoring import ScoreTracker
 from setup_scanner.tape_gate import evaluate as evaluate_tape
@@ -269,6 +272,9 @@ class Lane:
             det = self.det.get(sym)
             if det is not None and det.nth > 0:
                 det.nth -= 1   # a setup the template kept out is not one of its setups that day
+            setup = view.get("setup") or {}
+            lane_announce.trigger(self, sym, sid, setup, None, float(setup.get("triggered_at") or self.host.clock()),
+                                  filtered=self.filtered.get(sid) or "filtered")
 
     def _new_row(self, sym: str, sid: str, view: dict, now: float) -> dict:
         setup = view.get("setup") or {}
@@ -347,31 +353,10 @@ class Lane:
         self.read_trades(now)
 
     def _propose(self, sym: str, sid: str, res: dict, now: float) -> None:
-        row = self.rows.get(sid) or {}
-        prop = {"id": str(uuid.uuid4()), "setup_id": sid, "symbol": sym, "kind": row.get("kind"),
-                "trigger": row.get("trigger"), "entry": row.get("entry_planned"), "stop": row.get("stop"),
-                "target1": row.get("target1"), "risk": row.get("risk"), "grade": row.get("grade"),
-                "reasons": res.get("reasons"), "created_at": now, "status": "open", "tape_now": res["verdict"],
-                "template_id": self.p.template_id, "template_name": self.p.name, "source": self.host.source,
-                "setup_type": self.p.setup}
-        self.proposals[sid] = prop
-        self.alerts.append(prop)
-        row["proposal_id"] = prop["id"]
-        self.host.save(row)
-        self.journal("proposal", sym, setup_id=sid, status="proposed", proposal=prop)
-        self.host.audit(action="setup_proposal", outcome="proposed",
-                        reason=(f"{str(prop['kind'] or 'setup').replace('_', ' ')} on {sym}: trigger "
-                                f"{prop['trigger']}, stop {prop['stop']} -- tape go"),
-                        inputs=prop)
+        lane_announce.propose(self, sym, sid, res, now)
 
     def _announce_trigger(self, sym: str, sid: str, setup: dict, tape: dict, ts: float) -> None:
-        """The playing lane tells its host a setup triggered (ADR 030); a replay host has no ear for it."""
-        notify = getattr(self.host, "on_trigger", None)
-        if not self.playing or notify is None:
-            return
-        notify({"symbol": sym, "setup_id": sid, "setup": dict(setup), "tape": slim(tape), "ts": ts,
-                "template_id": self.p.template_id, "template_rev": self.p.template_rev,
-                "template_name": self.p.name, "setup_type": self.p.setup})
+        lane_announce.trigger(self, sym, sid, setup, tape, ts)
 
     def _close_proposal(self, sid: str, status: str) -> None:
         prop = self.proposals.get(sid)

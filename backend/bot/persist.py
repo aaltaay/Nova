@@ -1,8 +1,10 @@
 """Bot persisted files.
 
 Owner: this module (session + proposals + audit JSONL).
-Invalidation: process start loads; L0 does not delete history; schema bump.
-schema_version: BOT_SCHEMA_VERSION.
+Invalidation: process start loads (and clears Activate: it never survives a start,
+``bot.activation``); L0 does not delete history; schema bump.
+schema_version: BOT_SCHEMA_VERSION. A v1-4 session migrates on load (ADR 042:
+``bot.venue_levels.migrate_v5``); an unknown version refuses loudly.
 """
 from __future__ import annotations
 
@@ -15,17 +17,13 @@ from pathlib import Path
 from typing import Any
 
 from constants_bot import (
-    BOT_ACTION_KINDS,
-    BOT_ADVISE_DEFAULT_CALL_CAP,
-    BOT_ADVISE_DEFAULT_USD_CAP,
     BOT_AUDIT_FILENAME,
-    BOT_DEFAULT_BP_BUDGET_USD,
-    BOT_DEFAULT_MAX_SHARES,
-    BOT_DEFAULT_WORKING_TTL_SEC,
+    BOT_BREAKER_VENUES,
     BOT_LEVEL_OFF,
     BOT_LEVEL_UNRESTRICTED,
     BOT_PROPOSALS_FILENAME,
     BOT_RETIRED_SESSION_KEYS,
+    BOT_RETIRED_V5_KEYS,
     BOT_SCHEMA_VERSION,
     BOT_SCHEMA_VERSIONS,
     BOT_SESSION_FILENAME,
@@ -53,31 +51,20 @@ def _audit_path() -> Path:
 
 
 def default_session() -> dict[str, Any]:
+    from bot.sleeve import defaults as sleeve_defaults
+
     return {
         "schema_version": BOT_SCHEMA_VERSION,
         "level": BOT_LEVEL_OFF,
         "armed": False,
-        "strategy": None,
         "brain_session_id": None,
         "desk_arm_token": None,
         "claim_arm_token": None,
         "brain_heartbeat_ts": None,
-        "setup": BOT_SETUP_DEFAULT,
+        "setup_levels": {},
         "symbol_allowlist": [],
-        "caps": {
-            "max_shares": BOT_DEFAULT_MAX_SHARES,
-            "bp_budget_usd": BOT_DEFAULT_BP_BUDGET_USD,
-            "working_ttl_sec": BOT_DEFAULT_WORKING_TTL_SEC,
-            "extended_hours": False,
-            "allowlist": list(BOT_ACTION_KINDS),
-        },
-        "advise": {
-            "enabled": False,
-            "usd_cap": BOT_ADVISE_DEFAULT_USD_CAP,
-            "call_cap": BOT_ADVISE_DEFAULT_CALL_CAP,
-            "usd_spent": 0.0,
-            "calls_used": 0,
-        },
+        "caps": sleeve_defaults(),
+        "deactivated": None,
         "soft_breaker_fired": False,
         "hard_lock_until_date": None,
         "bot_qty": {},
@@ -123,7 +110,6 @@ def _refuse_parked_level(row: dict[str, Any]) -> None:
     )
     row["level"] = BOT_LEVEL_OFF
     row["armed"] = False
-    row["strategy"] = None
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -147,16 +133,44 @@ def load_session() -> dict[str, Any]:
             return _session
         raw = json.loads(path.read_text(encoding="utf-8"))
         _refuse_unknown(raw, BOT_SESSION_FILENAME)
+        version = int(raw.get("schema_version") or BOT_SCHEMA_VERSION)
         merged = default_session()
         merged.update(raw)
-        merged["caps"] = {**default_session()["caps"], **(raw.get("caps") or {})}
-        merged["advise"] = {**default_session()["advise"], **(raw.get("advise") or {})}
         for key in BOT_RETIRED_SESSION_KEYS:  # ADR 027: the packs are gone (schema 4)
             merged.pop(key, None)
+        if version < 5:
+            _migrate_v5(merged)
+        for key in BOT_RETIRED_V5_KEYS:       # ADR 042: no chosen setup, strategy or advise budget
+            merged.pop(key, None)
+        merged["schema_version"] = BOT_SCHEMA_VERSION
         _refuse_parked_level(merged)
         _session = merged
+        # Activate never survives a process start (ADR 018 / 042), in memory at once.
+        from bot.activation import clear_on_load
+
+        clear_on_load(merged)
         _follow_desk_venue(merged)
         return _session
+
+
+def _migrate_v5(row: dict[str, Any]) -> None:
+    """Schema 4 -> 5 (ADR 042): the chosen setup's level, the sleeve, the bot list and the day
+    lock move into each venue's dial (``bot.venue_levels.migrate_v5``)."""
+    from bot.venue_levels import migrate_v5
+
+    here = row.get("level_venue")
+    if here not in BOT_BREAKER_VENUES:
+        try:
+            from sim.mode import venue
+
+            here = venue()
+        except Exception:
+            logger.warning("bot persist: the desk venue is unreadable -- the v5 migration files the "
+                           "session's own dial under Live (its bot list starts empty)", exc_info=True)
+            here = "live"
+    chosen = str(row.get("setup") or BOT_SETUP_DEFAULT)
+    migrate_v5(row, str(here), chosen)
+    logger.info("bot persist: session migrated to schema 5 (chosen setup %s, dial %s)", chosen, here)
 
 
 def _follow_desk_venue(row: dict[str, Any]) -> None:
@@ -237,8 +251,49 @@ def read_audit_lines(*, limit: int = 200) -> list[dict[str, Any]]:
     return rows[-max(1, int(limit)):]
 
 
+def read_audit_tail(max_bytes: int) -> tuple[list[dict[str, Any]], bool]:
+    """The audit lines in the file's last ``max_bytes`` (oldest first), and whether that is the whole file.
+
+    A line cut by the window's start is dropped, never half-parsed; a corrupt line is skipped
+    with a warning, like ``read_audit_lines``."""
+    path = _audit_path()
+    if not path.exists():
+        return [], True
+    with _lock, path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        size = handle.tell()
+        start = max(0, size - max(1, int(max_bytes)))
+        handle.seek(start)
+        data = handle.read()
+    lines = data.decode("utf-8", errors="replace").splitlines()
+    if start > 0 and lines:
+        lines = lines[1:]
+    rows: list[dict[str, Any]] = []
+    for line in lines:
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            rows.append(json.loads(text))
+        except ValueError:
+            logger.warning("bot audit: skipped corrupt line")
+    return rows, start == 0
+
+
+def audit_signature() -> tuple[int, int] | None:
+    """``(mtime_ns, size)`` of the audit file, for a reader that caches what it folded; None when absent."""
+    try:
+        st = _audit_path().stat()
+    except FileNotFoundError:
+        return None
+    return int(st.st_mtime_ns), int(st.st_size)
+
+
 def reset_for_tests() -> None:
     global _session, _proposals
+    from bot.activation import reset_for_tests as reset_activation
+
+    reset_activation()
     with _lock:
         _session = None
         _proposals = None

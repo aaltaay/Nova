@@ -60,7 +60,7 @@ def setup_rows(f: dict[str, Any], plan: dict[str, Any] | None) -> list[dict[str,
     for lane in view.get("setups") or []:
         value, state = _lane_value(lane)
         name = setup_name(lane.get("setup_type"))
-        label = name[:1].upper() + name[1:] + (" (bot's pick)" if lane.get("chosen") else "")
+        label = name[:1].upper() + name[1:] + (" (at Strategy)" if lane.get("level") == 2 else "")
         forming = lane.get("forming") or {}
         bits = []
         if forming.get("waiting"):
@@ -98,10 +98,11 @@ def _bot_row(bot: dict[str, Any] | None) -> dict[str, Any]:
         return row("bot", "The bot on it", "Not known", "unknown", src, "The bot session could not be read")
     level = LEVEL_NAMES.get(int(bot.get("level") or 0), str(bot.get("level")))
     value = f"{level} · {'active' if bot.get('active') else 'not active'}"
-    missing = [w for w, ok in (("not on its allowlist", bot.get("allowlisted")),
+    missing = [w for w, ok in (("not set to Bot on this venue", bot.get("allowlisted")),
                                ("no Level 2 line held", bot.get("depth_line"))) if not ok]
     trade = bot.get("trade")
-    detail = (f"Its pick: {setup_name(bot.get('chosen'))}. " +
+    strategy = [setup_name(s) for s, lvl in (bot.get("levels") or {}).items() if lvl == 2]
+    detail = ((f"At Strategy: {', '.join(strategy)}. " if strategy else "No setup is at Strategy. ") +
               (f"It cannot fire here: {', '.join(missing)}. " if missing else "Allowlisted with a depth line. ") +
               (f"Its trade: {trade.get('state')} {trade.get('qty')} @ {trade.get('entry_fill_price') or trade.get('entry_planned')}."
                if trade else "No bot trade on it."))

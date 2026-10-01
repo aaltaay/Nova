@@ -8,12 +8,14 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOVA_API_KEY_HEADER, NOVA_API_KEY_STORAGE } from '../constantGroups/api_auth';
+import { _resetSleeveForTests } from '../setups/sleeveRisk';
 import { ChartLegend } from './ChartLegend';
 import { STOCK_MODE_SOUND_KEY } from './constants';
 import { StockReadProvider, useStockReadContext } from './StockReadContext';
 import { StockReadRail } from './StockReadRail';
 import { apusReadWire } from './stockReadFixtures';
 import type { StockModeName } from './types';
+import { sleeveSessionWire } from './whoTradesFixtures';
 import { useLevel2Markers, WhoTradesRow } from './WhoTradesRow';
 import { resetStockReadSoundForTests } from './whoTradesSound';
 
@@ -61,6 +63,7 @@ beforeEach(() => {
   localStorage.clear();
   localStorage.setItem(NOVA_API_KEY_STORAGE, 'desk-key');
   resetStockReadSoundForTests();
+  _resetSleeveForTests();
   calls = [];
   refuse = null;
   modeFound = true;
@@ -71,12 +74,15 @@ beforeEach(() => {
     const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Json) : null;
     calls.push({ url, method, body, key: new Headers(init?.headers).get(NOVA_API_KEY_HEADER) });
     if (/\/api\/stock-read\/APUS(\?|$)/.test(url)) return answer(apusReadWire);
-    if (/\/api\/stock-mode\/APUS$/.test(url)) {
+    if (/\/api\/bot\/session$/.test(url)) return answer(sleeveSessionWire(20));
+    if (/\/api\/stock-mode\/APUS(\/take-over)?$/.test(url)) {
       if (!modeFound) return answer({ detail: 'Not Found' }, 404);
       if (method === 'PUT') {
         if (refuse) return answer(refuse.body, refuse.status);
         view = modeWire(modeFor(String(body?.buy), String(body?.sell)));
       }
+      if (method === 'POST') view = modeWire('signal', { last_event: { ts: clock, tone: 'info',
+        text: 'You took over the exit: Nova no longer sells it' } });
       return answer(view);
     }
     return answer({}, 404);
@@ -117,7 +123,7 @@ function renderTab(opts: { replay?: boolean } = {}) {
 const writes = () => calls.filter(c => c.method !== 'GET');
 
 describe('who trades APUS, above Level 2', () => {
-  it('starts at Signal only and hands the buy to Nova with the risk per trade and the desk key', async () => {
+  it('starts at Signal only and hands the buy to Nova with the desk key, sending no risk per trade', async () => {
     renderTab();
     const row = await screen.findByTestId('who-trades');
     expect(row.querySelector('.sr-who__kicker')?.textContent).toBe('Who trades APUS');
@@ -125,11 +131,60 @@ describe('who trades APUS, above Level 2', () => {
     expect(screen.getByTestId('who-trades-buy-you').getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(screen.getByTestId('who-trades-buy-nova'));
     await waitFor(() => expect(screen.getByTestId('who-trades-mode').textContent).toContain('Auto-entry'));
+    // Nova sizes by the venue's sleeve: the switch carries no risk per trade (the backend ignores one).
     expect(writes()).toEqual([expect.objectContaining({
-      method: 'PUT', body: { buy: 'nova', sell: 'you', risk_usd: 20 }, key: 'desk-key',
+      method: 'PUT', body: { buy: 'nova', sell: 'you' }, key: 'desk-key',
     })]);
     expect(screen.getByTestId('stock-read-action-auto-off').textContent).toBe('Auto-entry on · turn off');
-    expect(screen.getByTestId('stock-read-plan-note').textContent).toBe('Nova buys APUS once, at the trigger. Every sell is yours.');
+    expect(screen.getByTestId('stock-read-plan-note').textContent).toBe('Nova buys APUS at a go trigger of a setup at '
+      + "Strategy, by the bot's rules, while the bot is active. Every sell is yours.");
+  });
+
+  it('shows every note, toned, the day\'s shared count and the last event -- none hidden behind the first', async () => {
+    view = modeWire('bot', {
+      notes: [
+        { id: 'not_active', tone: 'warn', text: 'The bot is not active: press Activate on the Bots page.' },
+        { id: 'window', tone: 'warn', text: "The bull flag's bot window is closed (07:00-10:00 ET)." },
+        { id: 'sim_waits', tone: 'info', text: 'A Sim trade waits while the desk shows another venue.' },
+      ],
+      entries_today: { count: 1, cap: 1 },
+      last_event: { ts: 1_790_000_100, tone: 'warn', text: 'The bot skipped APUS: the bot is not active' },
+      bot: { on_list: true, playing: false, reason: 'the bot is not active', setup_at_strategy: true, active: false },
+    });
+    renderTab();
+    const notes = await screen.findByTestId('who-trades-notes');
+    expect(within(notes).getAllByRole('listitem').map(li => li.className)).toEqual([
+      'sr-who__note sr-who__note--warn', 'sr-who__note sr-who__note--warn', 'sr-who__note sr-who__note--info',
+    ]);
+    expect(screen.getByTestId('who-trades-note-window').getAttribute('data-tip')).toMatch(/bot window is closed/);
+    expect(screen.getByTestId('who-trades-mode').textContent).toContain('Bot');
+    const entries = screen.getByTestId('who-trades-entries');
+    expect(entries.textContent).toBe("Nova's automatic buys today: 1 of 1");
+    expect(entries.className).toContain('--warn');
+    expect(screen.getByTestId('who-trades-event').textContent).toMatch(/The bot skipped APUS: the bot is not active$/);
+  });
+
+  it('says on the plan the size Nova sends in a Nova mode, beside your own', async () => {
+    view = modeWire('auto_entry', { size: { qty: 10, by_risk: 181, capped_by: 'max_shares',
+      text: '$20 risk over 0.11 a share is 181 shares; the Paper sleeve caps a buy at 10' } });
+    renderTab();
+    const line = await screen.findByTestId('stock-read-nova-size');
+    expect(line.textContent).toBe("Nova sends 10 (181 by risk, capped by the sleeve's max shares)");
+    expect(line.getAttribute('data-tip')).toMatch(/caps a buy at 10/);
+    expect(screen.getByTestId('stock-read-size').textContent).toBe('181 sh');      // your own Stage: no sleeve caps
+  });
+
+  it('takes over with the symbol alone: Buy stays on You, never Auto-entry', async () => {
+    view = modeWire('bot', { trade: { kind: 'bot', state: 'holding', qty: 10, entry: 5.44, stop: 5.33, target: 5.66,
+      fill_price: 5.44, filled_at: clock, exits: 'nova', entry_order_id: 7, target_order_id: 8, stop_order_id: 9 },
+      bot: { on_list: true, playing: true, reason: null, setup_at_strategy: true, active: true } });
+    renderTab();
+    const take = await screen.findByTestId('stock-read-action-take-over');
+    expect(take.getAttribute('data-tip')).toMatch(/Buy stays on You: Nova buys no more APUS/);
+    fireEvent.click(take);
+    await waitFor(() => expect(screen.getByTestId('who-trades-mode').textContent).toContain('Signal only'));
+    const post = writes().find(c => c.url.endsWith('/take-over'));
+    expect(post).toMatchObject({ method: 'POST', body: null, key: 'desk-key' });
   });
 
   it('locks Nova on Live, and each lock says why', async () => {
@@ -179,11 +234,11 @@ describe('on the 1-minute chart', () => {
       'Signal only ✓you buy · you sell',
       'Approveyou approve · Nova sells',
       'Auto-entryNova buys · you sell',
-      'Bot at StrategyNova buys · Nova sells',
+      'BotNova buys · Nova sells',
     ]);
     fireEvent.click(screen.getByTestId('who-trades-menu-approve'));
     await waitFor(() => expect(screen.getByTestId('who-trades-mode').textContent).toContain('Approve'));
-    expect(writes()[0].body).toEqual({ buy: 'you', sell: 'nova', risk_usd: 20 });
+    expect(writes()[0].body).toEqual({ buy: 'you', sell: 'nova' });
     expect(screen.queryByTestId('who-trades-menu')).toBeNull();
     // APUS's flag is still forming: nothing is armed to approve, and the button says so.
     const approve = screen.getByTestId('stock-read-action-approve');

@@ -1,15 +1,20 @@
-"""Auto-record the setups and the leaders 07:00-10:00 ET (ADR 023, ADR 040) -- on free Level 2 lines only.
+"""Auto-record the setups and the leaders (ADR 023, ADR 041) -- on free Level 2 lines only.
 
-Who gets a line, in order (ADR 040, operator decision 2026-09-30):
+Who gets a line, in order (ADR 041, operator decision 2026-09-30):
 
 1. ``trade`` -- a setup of a template in play whose trigger is inside its
    scoring window (``lane.trade_symbols``): the trade's tape is what the exit
-   trials read, so its line is kept past 10:00 until that window ends;
+   trials read, so its line is kept past every window until that window ends;
 2. ``near`` then ``armed`` -- a setup of a template in play waiting on its
    trigger (``lane.watching``): the tape at the trigger is what the entry
    trials read, and with a line the tape gate is no longer blind there;
 3. ``leader`` -- ``ranking.leader_symbols(rows, LEADERS_RULES)`` over the live
    Gainers board, the same call playback makes on the recorded minute.
+
+Two windows (``leaderboard.auto_record_windows``): setups whenever any setup's
+arming window is open (07:00-11:30 ET by default), leaders 07:00-10:00 ET. When
+the leaders' window closes, a line taken for a leader stops as planned; a setup's
+line stays (operator ask 2026-09-30).
 
 A setup takes a line from a leader (one recorded at least
 ``LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC``) or from a name that left both
@@ -41,23 +46,20 @@ from typing import Any
 from capture.constants_capture import CAPTURE_MAX_CONCURRENT, CAPTURE_STOP_AUTO
 from constants_ibkr import IBKR_MAX_DEPTH_SYMBOLS
 from constants_leaderboard import (
-    LEADERBOARD_AUTO_RECORD_END_MIN_ET,
     LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC,
     LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC,
-    LEADERBOARD_AUTO_RECORD_START_MIN_ET,
     LEADERBOARD_AUTO_RECORD_TICK_SEC,
     LEADERBOARD_AUTO_RECORD_TOP_N,
     LEADERBOARD_BOARD_GAINERS,
 )
 from constants_setups import SETUP_STATE_NEAR
+from leaderboard.auto_record_windows import OPEN_NONE, window_label, window_state
 from leaderboard.ranking import LEADERS_RULES, leader_symbols
-from leaderboard.recorder import exchange_day
 from leaderboard.rows import ET, from_desk_row
 
 logger = logging.getLogger(__name__)
 
 AUTO_RECORD_ENV = "NOVA_AUTO_RECORD"
-WINDOW_LABEL = "07:00-10:00 ET"
 _RETRY_AFTER_FAILURE_SEC = 300.0
 
 # Why a symbol holds (or wants) an auto line, best first. ``left``: it is on neither list now.
@@ -67,6 +69,7 @@ _SETUP_TIERS = (WHY_TRADE, WHY_NEAR, WHY_ARMED)
 
 _lock = asyncio.Lock()
 _auto: dict[str, float] = {}             # symbol -> when auto-record started it
+_wanted_as: dict[str, str] = {}          # symbol -> the last reason it was wanted (never ``left``)
 _candidate_since: dict[str, float] = {}  # symbol -> when it entered the leaders
 _declined: dict[str, str] = {}           # symbol -> session date the operator stopped it
 _failed: dict[str, float] = {}           # symbol -> when a start failed
@@ -79,12 +82,6 @@ _last_error: str | None = None
 
 def enabled() -> bool:
     return (os.environ.get(AUTO_RECORD_ENV) or "1").strip().lower() not in ("0", "false", "off", "no")
-
-
-def in_window(now: float) -> bool:
-    when = datetime.fromtimestamp(now, ET)
-    minutes = when.hour * 60 + when.minute
-    return exchange_day(when) and LEADERBOARD_AUTO_RECORD_START_MIN_ET <= minutes < LEADERBOARD_AUTO_RECORD_END_MIN_ET
 
 
 def pick_leaders(surfaced_gainers: list[dict], now: float) -> list[str]:
@@ -174,6 +171,14 @@ def _rank(symbol: str) -> tuple[int, int]:
     return _TIERS.index(reason), within
 
 
+def _note_wanted() -> None:
+    """Remember why each held line was last wanted: a leader's line ends with the leaders' window."""
+    for sym in _auto:
+        reason = why(sym)
+        if reason != WHY_LEFT:
+            _wanted_as[sym] = reason
+
+
 async def _start(symbol: str, reason: str) -> bool:
     from capture import feed_hold, keepalive
     from capture.mode import set_capture_mode
@@ -190,6 +195,7 @@ async def _start(symbol: str, reason: str) -> bool:
         return False
     keepalive.operator_started(symbol)
     _auto[symbol] = time.time()
+    _wanted_as[symbol] = reason
     logger.info("AUTO-RECORD: recording %s (%s)", symbol, reason)
     return True
 
@@ -203,6 +209,7 @@ async def _stop(symbol: str, reason: str) -> None:
     await asyncio.to_thread(set_capture_mode, False, symbol=symbol, protect_active=True, reason=CAPTURE_STOP_AUTO)
     await feed_hold.release(symbol)
     _auto.pop(symbol, None)
+    _wanted_as.pop(symbol, None)
     logger.info("AUTO-RECORD: stopped %s (%s)", symbol, reason)
 
 
@@ -247,7 +254,9 @@ async def make_room_for(symbol: str, *, for_record: bool = False) -> str | None:
 
 def operator_took(symbol: str) -> None:
     """The operator pressed Record on a symbol auto-record holds: it is theirs now."""
-    _auto.pop((symbol or "").strip().upper(), None)
+    sym = (symbol or "").strip().upper()
+    _auto.pop(sym, None)
+    _wanted_as.pop(sym, None)
 
 
 def operator_stopped(symbol: str | None, now: float | None = None) -> None:
@@ -257,11 +266,12 @@ def operator_stopped(symbol: str | None, now: float | None = None) -> None:
     for sym in targets:
         if sym:
             _auto.pop(sym, None)
+            _wanted_as.pop(sym, None)
             _declined[sym] = day
 
 
 async def _after_window(ts: float) -> None:
-    """Outside the window: a trade being scored keeps its tape to the end of its window; the rest stop."""
+    """Outside both windows: a trade being scored keeps its tape to the end of its window; the rest stop."""
     global _leaders, _setups
     _candidate_since.clear()
     _leaders = []
@@ -271,11 +281,20 @@ async def _after_window(ts: float) -> None:
             await _stop(sym, "auto-record window closed")
 
 
+async def _leaders_closed() -> None:
+    """The leaders' window closed while a setup's is open: a line taken for a leader stops as
+    planned, as it did at 10:00 before setups had their own window; a setup's line stays."""
+    for sym in list(_auto):
+        if why(sym) == WHY_LEFT and _wanted_as.get(sym) == WHY_LEADER:
+            await _stop(sym, "the leaders' window closed")
+
+
 async def tick(now: float | None = None) -> None:
     global _leaders, _setups, _last_error
     ts = time.time() if now is None else float(now)
     async with _lock:
-        if not enabled() or not in_window(ts):
+        state = window_state(ts)
+        if not enabled() or state["open"] == OPEN_NONE:
             await _after_window(ts)
             return
         from ibkr import client as _client
@@ -284,12 +303,19 @@ async def tick(now: float | None = None) -> None:
             return
         today = datetime.fromtimestamp(ts, ET).date().isoformat()
         _setups = _read_setups(ts)
-        _leaders = pick_leaders(_live_gainers(), ts)
-        for sym in list(_candidate_since):
-            if sym not in _leaders:
-                _candidate_since.pop(sym)
-        for sym in _leaders:
-            _candidate_since.setdefault(sym, ts)
+        if state["leaders"]["open"]:
+            _leaders = pick_leaders(_live_gainers(), ts)
+            for sym in list(_candidate_since):
+                if sym not in _leaders:
+                    _candidate_since.pop(sym)
+            for sym in _leaders:
+                _candidate_since.setdefault(sym, ts)
+        else:
+            _leaders = []
+            _candidate_since.clear()
+        _note_wanted()
+        if not state["leaders"]["open"]:
+            await _leaders_closed()
         wanted = list(_setups) + [(s, WHY_LEADER) for s in _leaders if s not in dict(_setups)]
         recording = set(_recording())
         for sym, reason in wanted:
@@ -326,9 +352,11 @@ async def run() -> None:
 
 def status(now: float | None = None) -> dict[str, Any]:
     ts = time.time() if now is None else float(now)
+    state = window_state(ts)
     return {
-        "active": bool(enabled() and in_window(ts)),
-        "window": WINDOW_LABEL,
+        "active": bool(enabled() and state["open"] != OPEN_NONE),
+        "window": window_label(state),
+        "windows": state,
         "symbols": sorted(_auto),
         "why": {sym: why(sym) for sym in sorted(_auto)},
         "setups": [{"symbol": sym, "why": reason} for sym, reason in _setups],
@@ -342,6 +370,7 @@ def status(now: float | None = None) -> dict[str, Any]:
 def reset_for_tests() -> None:
     global _leaders, _setups, _setups_error, _last_error
     _auto.clear()
+    _wanted_as.clear()
     _candidate_since.clear()
     _declined.clear()
     _failed.clear()

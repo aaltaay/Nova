@@ -212,7 +212,7 @@ def desk_mode_label() -> str:
     return _client.account_mode()
 
 
-def set_venue(target: str, *, persist: bool = True) -> dict:
+def set_venue(target: str, *, persist: bool = True, left: list[dict] | None = None) -> dict:
     """Settle the desk venue. Never arms anything.
 
     ``persist`` writes the click to the operator cache (``desk-venue.json``),
@@ -224,12 +224,18 @@ def set_venue(target: str, *, persist: bool = True) -> dict:
     same class of bug as carrying it across a restart: the operator armed one
     desk and would be handed a different one already armed. The Sim feed runs
     only on the Sim venue; Paper reads the live market exactly like Live.
+
+    Before the venue flips, Nova's entries still working on the venue it leaves
+    are cancelled there (ADR 042 F, ``stock_mode.leave``); the answer lists them
+    as ``left``. An async caller that already did it passes its list as ``left``.
     """
     global _override, _venue_loaded
     key = (target or "").strip().lower()
     if key not in DESK_VENUES:
         raise ValueError(f"unknown desk venue {target!r} (expected one of {', '.join(DESK_VENUES)})")
     previous = venue()
+    if left is None:
+        left = _leave_first(previous, key)
     _override = key
     _venue_loaded = True
     os.environ[NOVA_BROKER_ENV] = key
@@ -258,7 +264,16 @@ def set_venue(target: str, *, persist: bool = True) -> dict:
 
         stop_sim_feed_threadsafe()
     logger.info("SIM: venue %s persisted=%s", key, persisted)
-    return status_payload() | {"persisted": persisted}
+    return status_payload() | {"persisted": persisted, "left": list(left or [])}
+
+
+def _leave_first(previous: str, key: str) -> list[dict]:
+    """Nova's working entries on ``previous`` are cancelled before the desk moves (``stock_mode.leave``)."""
+    if previous == key:
+        return []
+    from stock_mode.leave import leave_sync
+
+    return leave_sync(previous, key)
 
 
 def set_sim_mode(enabled: bool, *, persist: bool = False) -> dict:

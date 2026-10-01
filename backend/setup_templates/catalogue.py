@@ -14,6 +14,12 @@ rules; its pattern, entry and risk groups are its own.
 Values are kept in the unit the operator types -- percent as 5, not 0.05; a
 float in millions of shares -- and ``setup_scanner/lane_params.py`` converts
 them for the scanner in one place. A nullable parameter is off when ``None``.
+
+The ``bot`` group (the bot's entry window) is the bot's, not the scanner's: it is
+left out of ``fingerprint`` -- and so of a template's ``params_hash`` and its rules
+revision -- so changing it never starts a read-out over (operator ask 2026-09-30).
+``RETIRED`` names parameters that left the catalogue: a stored template that carries
+one loads without it; a write that sends one is refused with where it went.
 """
 from __future__ import annotations
 
@@ -25,7 +31,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from constants_bot import (
-    BOT_ENTRIES_PER_DAY,
     BOT_ENTRY_WINDOW_END_ET,
     BOT_ENTRY_WINDOW_START_ET,
     BOT_SETUP_BULL_FLAG,
@@ -165,15 +170,16 @@ class ParamSpec:
     help: str = ""
     live: bool = True
 
-    def wire(self) -> dict[str, Any]:
+    def wire(self, *, affects_readout: bool = True) -> dict[str, Any]:
         return {
             "key": self.key, "group": self.group, "label": self.label, "kind": self.kind,
             "default": self.default, "unit": self.unit, "min": self.min, "max": self.max,
             "step": self.step, "choices": [{"value": v, "label": lbl} for v, lbl in self.choices],
-            "nullable": self.nullable, "help": self.help, "live": self.live,
+            "nullable": self.nullable, "help": self.help, "live": self.live, "affects_readout": affects_readout,
         }
 
 
+BOT_GROUP = "bot"
 GROUP_LABELS: dict[str, tuple[str, str]] = {
     "stock": ("Stock filter", "Checked when a setup arms, from the Five Pillars read then. Off lets every name the scanner follows through."),
     "universe": ("Universe", "The symbol-days the research tested."),
@@ -185,8 +191,15 @@ GROUP_LABELS: dict[str, tuple[str, str]] = {
                           "they come, where price went, and the book. Read at the trigger and while a trade is on; "
                           "it can decide the entry and get out on a flush."),
     "grade": ("Five Pillars grade", "Grades every armed setup A / B / C. A pillar Nova does not know never passes."),
-    "bot": ("Bot entries at Strategy", "The bot's own rules while this template is in play."),
+    BOT_GROUP: ("Bot entries at Strategy", "When the bot may send an entry while this template is in play -- inside "
+                           "the setup's arming window. Changing it never starts the read-out over: the read-out scores "
+                           "the setup, not the bot."),
 }
+
+
+def _minutes(text: str) -> int:
+    hour, minute = text.split(":")
+    return int(hour) * 60 + int(minute)
 
 
 def _pct(fraction: float | None) -> float | None:
@@ -304,13 +317,21 @@ _GRADE: tuple[ParamSpec, ...] = (
        unit="M shares", min=0.1, max=10000, step=1),
 )
 
-_BOT: tuple[ParamSpec, ...] = (
-    _p("bot_window_start", "bot", "Bot entries from", TIME, BOT_ENTRY_WINDOW_START_ET, unit="ET", min="04:00",
-       max="20:00", help="At Strategy the bot sends an entry only inside this window (the venue's clock)."),
-    _p("bot_window_end", "bot", "Bot entries until", TIME, BOT_ENTRY_WINDOW_END_ET, unit="ET", min="04:00", max="20:00"),
-    _p("bot_entries_per_day", "bot", "Bot entries a day", INT, BOT_ENTRIES_PER_DAY, unit="entries", min=1, max=3, step=1,
-       help="Entries the bot may send in one venue day."),
-)
+def _bot(arm_start: str, arm_end: str) -> tuple[ParamSpec, ...]:
+    """The bot's entry window: the material's 07:00-10:00, inside the setup's arming window
+    (``arm_start``-``arm_end``) -- red to green arms 09:30-10:30, so its default is 09:30-10:00."""
+    start = max(BOT_ENTRY_WINDOW_START_ET, arm_start, key=_minutes)
+    end = min(BOT_ENTRY_WINDOW_END_ET, arm_end, key=_minutes)
+    return (
+        _p("bot_window_start", BOT_GROUP, "Bot entries from", TIME, start, unit="ET", min="04:00", max="20:00",
+           help="At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside "
+                "the arming window; changing it never starts the read-out over."),
+        _p("bot_window_end", BOT_GROUP, "Bot entries until", TIME, end, unit="ET", min="04:00", max="20:00",
+           help="No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page)."),
+    )
+
+
+_BOT = _bot(SETUPS_SESSION_START_ET, SETUPS_ENTRY_CUTOFF_ET)
 
 
 def _ema(hold_help: str, tol_help: str | None = None) -> tuple[ParamSpec, ...]:
@@ -502,7 +523,7 @@ _RED_TO_GREEN: tuple[ParamSpec, ...] = _STOCK + (
     _p("r2g_target_hod", "risk", "Target is at least the high of day", BOOL, SETUPS_R2G_TARGET_HOD,
        help="On: target 1 is the high of day when that is higher than R x risk."),
     _BAILOUT,
-) + _TAPE + _FLOW + _GRADE + _BOT
+) + _TAPE + _FLOW + _GRADE + _bot(SETUPS_R2G_OPEN_ET, SETUPS_R2G_CUTOFF_ET)
 
 # -- Setups without a scanner: the research harness's pre-registered numbers. -------
 # Mirrors research/orb/backtest_gng.py ``GParams`` (A2 Gap and Go); a test checks the
@@ -553,6 +574,16 @@ SOURCES: dict[str, str] = {
     BOT_SETUP_MICRO_PULLBACK: "No parameters yet: it has never been tested. They are set when its one-second test (S5) is built.",
 }
 
+# Parameters that left the catalogue, and where each went. A stored template that carries
+# one loads without it (``Template.retired`` keeps what it said, for the Bots page); a
+# write that sends one is refused with these words.
+RETIRED: dict[str, str] = {
+    "bot_entries_per_day": ("Bot entries a day left the template: one daily cap now covers every Nova automatic "
+                            "entry on a venue -- the sleeve's entries a day (entries_per_day) on the Bots page."),
+}
+# The bot's parameters (its entry window): not the scanner's rules, so not in the fingerprint.
+BOT_KEYS: frozenset[str] = frozenset(s.key for table in CATALOGUE.values() for s in table if s.group == BOT_GROUP)
+
 # Pairs that must stay in order: (low key, high key, equal allowed, message).
 _ORDERED: tuple[tuple[str, str, bool, str], ...] = (
     ("min_price", "max_price", True, "the price floor is over the ceiling"),
@@ -560,7 +591,7 @@ _ORDERED: tuple[tuple[str, str, bool, str], ...] = (
     ("min_flag_bars", "max_flag_bars", True, "the shortest flag is longer than the longest"),
     ("session_start", "entry_cutoff", False, "the arming window ends before it starts"),
     ("session_start", "r2g_cutoff", False, "the reclaim window ends before the open"),
-    ("bot_window_start", "bot_window_end", False, "the bot's window ends before it starts"),
+    ("bot_window_start", "bot_window_end", False, "the bot's window ends at or before it starts"),
     ("pillar_min_price", "pillar_max_price", True, "the price pillar's floor is over its ceiling"),
     ("wall", "big_seller", True, "the seller that waits is bigger than the one that vetoes"),
     ("macd_fast", "macd_slow", False, "the MACD fast period is not shorter than the slow"),
@@ -591,11 +622,6 @@ def specs(setup_id: str) -> tuple[ParamSpec, ...]:
 
 def defaults(setup_id: str) -> dict[str, Any]:
     return {s.key: s.default for s in specs(setup_id)}
-
-
-def _minutes(text: str) -> int:
-    hour, minute = text.split(":")
-    return int(hour) * 60 + int(minute)
 
 
 @dataclass(frozen=True)
@@ -654,6 +680,8 @@ def check(setup_id: str, values: dict[str, Any] | None, *,
     table = {s.key: s for s in specs(setup_id)}
     merged = {**defaults(setup_id), **{k: v for k, v in (base or {}).items() if k in table}}
     for key in (values or {}):
+        if key in RETIRED:
+            return None, Problem(RETIRED[key], key)
         if key not in table:
             return None, Problem(f"{key!r} is not a {setup_id.replace('_', ' ')} parameter", key)
     merged.update(values or {})
@@ -696,6 +724,8 @@ def parse_text(setup_id: str, key: str, text: str) -> Any:
     ``validate`` still checks it; this only reads the words: a nullable parameter reads
     ``none`` / ``null`` / ``off`` as off unless ``off`` is one of its choices."""
     table = {s.key: s for s in specs(setup_id)}
+    if key in RETIRED:
+        raise TemplateError(RETIRED[key], key)
     if key not in table:
         raise TemplateError(f"{key!r} is not a {setup_id.replace('_', ' ')} parameter", key)
     spec, raw = table[key], text.strip()
@@ -718,9 +748,21 @@ def parse_text(setup_id: str, key: str, text: str) -> Any:
         raise TemplateError(f"{spec.label} ({key}) is a number", key) from None
 
 
+def scanner_values(values: dict[str, Any]) -> dict[str, Any]:
+    """The rules the scanner arms, scores and reads the tape with: ``values`` without the bot's
+    parameters and without retired ones. A change here is a new rules revision."""
+    return {k: v for k, v in values.items() if k not in BOT_KEYS and k not in RETIRED}
+
+
+def affects_readout(setup_id: str, spec: ParamSpec) -> bool:
+    """Whether saving a change to ``spec`` starts the template's read-out over (a new revision)."""
+    return has_scanner(setup_id) and spec.group != BOT_GROUP
+
+
 def fingerprint(values: dict[str, Any]) -> str:
-    """A short, stable hash of a value map (the audit stamp on a scoreboard row)."""
-    blob = json.dumps(values, sort_keys=True, separators=(",", ":"), default=str)
+    """A short, stable hash of the scanner's rules in a value map (the audit stamp on a scoreboard
+    row, ``params_hash``): the bot's entry window is left out, so it never reads as new rules."""
+    blob = json.dumps(scanner_values(values), sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
 
 
@@ -733,5 +775,5 @@ def wire(setup_id: str) -> dict[str, Any]:
             label, blurb = GROUP_LABELS[spec.group]
             index[spec.group] = {"id": spec.group, "label": label, "blurb": blurb, "params": []}
             groups.append(index[spec.group])
-        index[spec.group]["params"].append(spec.wire())
+        index[spec.group]["params"].append(spec.wire(affects_readout=affects_readout(setup_id, spec)))
     return {"setup": setup_id, "scanner": has_scanner(setup_id), "source": SOURCES.get(setup_id, ""), "groups": groups}

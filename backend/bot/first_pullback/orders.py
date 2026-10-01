@@ -1,10 +1,14 @@
-"""What the first-pullback bot sends and reads (ADR 030).
+"""What Nova's bot sends and reads (ADR 030, ADR 042 I).
 
 Every order enters ``execution.service.execute`` with source ``bot`` -- the one
 door (ADR 007) -- under an idempotency key made of the venue, the setup id and
-the step, so a repeated send replays its receipt instead of placing twice. The
-one exception is the last-resort close, which is the protective flatten
-(``bot.flatten``): a practice position can always get flat, padlock or not.
+the step, so a repeated send replays its receipt instead of placing twice, and
+stamped with the setup it trades (``setup=<setup_type>``). The entry is a
+practice bracket -- a BUY limit at the entry, a SELL limit at target 1 and a
+SELL stop at the stop -- so the exits rest at the broker and Paper's fill while
+the desk shows another venue. A tightened stop is a replace of the stop leg. The
+one exception to source ``bot`` is the last-resort close, which is the protective
+flatten (``bot.flatten``): a practice position can always get flat, padlock or not.
 
 Reads come from ``ibkr.orders`` / ``ibkr.account`` / ``bot.quotes``, which
 answer from the practice ledger and the live feed on Paper and Sim. A failed
@@ -101,6 +105,10 @@ def best_bid(symbol: str) -> float | None:
 
 
 # -- sends ---------------------------------------------------------------------
+def _setup(trade: dict[str, Any]) -> str:
+    return str(trade.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
+
+
 async def _place(trade: dict[str, Any], step: str, *, side: str, qty: float, order_type: str,
                  limit_price: float | None = None, stop_price: float | None = None) -> Any:
     return await execute(
@@ -116,23 +124,70 @@ async def _place(trade: dict[str, Any], step: str, *, side: str, qty: float, ord
             stop_price=None if stop_price is None else round(float(stop_price), 4),
             reference_price=limit_price if limit_price is not None else stop_price,
             outside_rth=_outside_rth(),
-            setup=BOT_SETUP_FIRST_PULLBACK,
+            setup=_setup(trade),
             skip_risk=True,
+            expected_venue=trade.get("venue"),
         ),
         wait_ack=False,
     )
 
 
 async def place_entry(trade: dict[str, Any]) -> Any:
-    """BUY limit at the entry the scanner scored at the trigger; it never chases."""
-    return await _place(trade, "entry", side="BUY", qty=trade["qty"], order_type="LMT",
-                        limit_price=trade["entry_planned"])
+    """The entry as one practice bracket: a BUY limit at the entry the scanner scored at the trigger
+    (it never chases), a SELL limit at target 1 and a SELL stop at the stop -- the exits rest at the
+    broker, held until the entry fills, then one cancels the other."""
+    entry = round(float(trade["entry_planned"]), 4)
+    return await execute(
+        ExecutionCommand(
+            operation="bracket",
+            idempotency_key=_key(trade, "entry"),
+            source="bot",
+            symbol=trade["symbol"],
+            side="BUY",
+            qty=float(trade["qty"]),
+            order_type="LMT",
+            limit_price=entry,
+            entry_price=entry,
+            target_price=round(float(trade["target1"]), 4),
+            stop_price=round(float(trade["stop"]), 4),
+            reference_price=entry,
+            outside_rth=_outside_rth(),
+            setup=_setup(trade),
+            skip_risk=True,
+            expected_venue=trade.get("venue"),
+        ),
+        wait_ack=False,
+    )
 
 
-async def place_target(trade: dict[str, Any]) -> Any:
-    """SELL limit resting at target 1."""
-    return await _place(trade, "target", side="SELL", qty=trade["qty"], order_type="LMT",
-                        limit_price=trade["target1"])
+def leg_ids(receipt: Any) -> tuple[int | None, int | None, int | None]:
+    """``(entry, target, stop)`` order ids from a bracket receipt (None where the broker gave none)."""
+    def num(value: Any) -> int | None:
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    parent = num(getattr(receipt, "parent_order_id", None)) or num(getattr(receipt, "order_id", None))
+    return parent, num(getattr(receipt, "target_order_id", None)), num(getattr(receipt, "stop_order_id", None))
+
+
+async def replace_stop(trade: dict[str, Any], order_id: int, stop: float) -> Any:
+    """Move the resting stop leg to ``stop`` (a tightened stop never moves down)."""
+    return await execute(
+        ExecutionCommand(
+            operation="replace",
+            idempotency_key=f"{_key(trade, 'stop')}:{order_id}:{uuid.uuid4()}",
+            source="bot",
+            order_id=int(order_id),
+            symbol=trade["symbol"],
+            stop_price=round(float(stop), 4),
+            setup=_setup(trade),
+            skip_risk=True,
+            expected_venue=trade.get("venue"),
+        ),
+        wait_ack=False,
+    )
 
 
 async def close_at_bid(trade: dict[str, Any], attempt: int) -> tuple[Any | None, float | None]:

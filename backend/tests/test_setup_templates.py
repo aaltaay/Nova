@@ -18,7 +18,7 @@ from setup_scanner.lane_params import gate_params, grade_rules, pullback_params,
 from setup_scanner.tape_gate import GateParams
 from setup_templates import catalogue
 from setup_templates.catalogue import TemplateError
-from setup_templates.store import TemplateStore, set_store_for_tests
+from setup_templates.store import TemplateStore, set_store_for_tests, default_template
 
 FP = "first_pullback"
 REPO = Path(__file__).resolve().parents[2]
@@ -42,7 +42,8 @@ def test_first_pullback_defaults_are_exactly_what_the_scanner_ran():
         cs.SETUPS_PILLAR_MIN_PRICE, cs.SETUPS_PILLAR_MAX_PRICE, cs.SETUPS_PILLAR_MIN_CHANGE_PCT,
         cs.SETUPS_PILLAR_MIN_RVOL, cs.SETUPS_PILLAR_MAX_FLOAT)
     assert stock_filter(v).active is False                    # no filter: every name the scanner follows
-    assert (v["bot_window_start"], v["bot_window_end"], v["bot_entries_per_day"]) == ("07:00", "10:00", 1)
+    assert (v["bot_window_start"], v["bot_window_end"]) == ("07:00", "10:00")
+    assert "bot_entries_per_day" not in v                     # the sleeve's entries a day now (2026-09-30)
 
 
 def _research_defaults(path: Path, cls: str) -> dict:
@@ -155,9 +156,10 @@ def test_duplicate_from_a_template_and_limits(store):
     with pytest.raises(TemplateError) as err:
         store.create(FP, name="one too many")
     assert err.value.code == "TEMPLATE_LIMIT"
-    with pytest.raises(TemplateError) as err:
-        store.create("micro_pullback", name="x")
-    assert err.value.code == "TEMPLATE_NO_PARAMS"
+    for no_scanner in ("micro_pullback", "gap_and_go"):
+        with pytest.raises(TemplateError) as err:
+            store.create(no_scanner, name="x")
+        assert err.value.code == "TEMPLATE_NO_SCANNER" and "no scanner yet" in err.value.message
 
 
 def test_unknown_schema_is_refused_loudly_and_never_overwritten(tmp_path):
@@ -277,11 +279,16 @@ def test_the_frontend_fixture_is_the_backends_own_catalogue():
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     if os.environ.get("NOVA_WRITE_FIXTURES") == "1":
         for s in fixture["setups"]:
+            builtin = default_template(s["id"])
             s["catalogue"] = catalogue.wire(s["id"])
-            s["templates"][0]["values"] = catalogue.defaults(s["id"])
-            s["templates"][0]["fingerprint"] = catalogue.fingerprint(catalogue.defaults(s["id"]))
+            s["templates"][0]["values"] = builtin.values
+            s["templates"][0]["fingerprint"] = builtin.fingerprint
+            s["templates"][0]["bot_window"] = builtin.bot_window
         FIXTURE.write_text(json.dumps(fixture, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     assert [s["id"] for s in fixture["setups"]] == list(catalogue.setup_ids())
     for s in fixture["setups"]:
+        builtin = default_template(s["id"])
         assert s["catalogue"] == json.loads(json.dumps(catalogue.wire(s["id"]))), s["id"]
-        assert s["templates"][0]["values"] == catalogue.defaults(s["id"]), s["id"]
+        assert s["templates"][0]["values"] == catalogue.defaults(s["id"]) == builtin.values, s["id"]
+        # The built-in's bot window as the backend serves it (ADR 042 G), never a hand-made one.
+        assert s["templates"][0].get("bot_window") == json.loads(json.dumps(builtin.bot_window)), s["id"]

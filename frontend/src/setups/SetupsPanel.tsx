@@ -1,9 +1,12 @@
 /** Watchlist > Setups (ADR 022, ADR 031): every setup's live scanner on one board,
- * a chip per setup to filter it, and each setup's own scoreboard. The bot reads
- * the tape and proposes; it never places. */
+ * a chip per setup to filter it, and each setup's own scoreboard. What each level
+ * does is said here (ADR 042 draft): Eyes proposes, Strategy also lets Nova buy
+ * (the bot, Auto-entry) on Paper and Sim while the bot is Active. "Stage ticket"
+ * only fills a ticket, sized by the venue sleeve's risk per trade. */
 import { useEffect, useState } from 'react';
 import { BOT_SETUP_IDS, BOT_SETUP_NEXT } from '../constantGroups/bot';
-import { SETUPS_FILTER_ALL, SETUPS_FILTER_TIP } from '../constantGroups/setups';
+import { SETUPS_FILTER_ALL, SETUPS_FILTER_TIP, SETUPS_LEVEL_WORDS } from '../constantGroups/setups';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { tipProps } from '../ux/hoverTip';
 import { SetupsBoard } from './SetupsBoard';
 import { SetupsScoreboard } from './SetupsScoreboard';
@@ -12,6 +15,7 @@ import { ALL_SETUPS, useSetupsFilter } from './setupsBoardFilter';
 import { isSetupsSoundEnabled, setSetupsSoundEnabled, subscribeSetupsSound } from './setupsSound';
 import { FIRST_PULLBACK, setupLabel, setupShort, setupTypeOf } from './setupWords';
 import { recordedEmptyText, simBoardLine, simBoardTip } from './simBoardWords';
+import { useSleeveRisk } from './sleeveRisk';
 import { useSetupsScoreboard } from './useSetupsScoreboard';
 import type { SetupsBoard as Board, SetupSummary } from './types';
 import './setups.css';
@@ -30,8 +34,14 @@ function proposingWords(board: Board): string {
     const eyes = setups.filter(s => s.proposing).map(s => setupShort(s.id).toLowerCase());
     return eyes.length ? `proposing: ${eyes.join(', ')}` : 'proposing';
   }
-  if (setups.some(s => s.level >= 1)) return 'no proposals on a replay desk';
-  return 'every setup at Off: scoring in silence';
+  if (!setups.some(s => s.level >= 1)) return 'every setup at Off: scoring in silence';
+  // A setup's own level is capped by the Bots page's master level (ADR 042 draft).
+  const known = setups.filter(s => typeof s.effective === 'number');
+  if (known.length && known.every(s => (s.effective ?? 0) < 1)) {
+    return 'the Bots page\'s master level is Off: no setup proposes, every one scores in silence';
+  }
+  if (known.some(s => (s.effective ?? 0) >= 1)) return 'no proposals on a replay desk';
+  return 'no setup proposes now: the Bots page\'s master level is Off, or this desk replays another moment';
 }
 
 function statusLine(board: Board | null, connected: boolean, summary: SetupSummary | null): string {
@@ -62,6 +72,13 @@ function scannedSetups(board: Board | null): string[] {
   return [FIRST_PULLBACK];
 }
 
+/** The scoreboard's setup with "All" picked: the highest level (Strategy first; the chosen setup is retired,
+ * ADR 042 draft), else the first pullback. */
+function leadingSetup(board: Board | null): string {
+  const setups = [...(board?.setups ?? [])].sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
+  return setups[0] && (setups[0].level ?? 0) > 0 ? setups[0].id : FIRST_PULLBACK;
+}
+
 export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: Props) {
   const stream = useSetupsBoard();
   const board = stream?.board ?? null;
@@ -75,9 +92,11 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
   const allRows = board?.rows ?? [];
   const rows = active === ALL_SETUPS ? allRows : allRows.filter(r => setupTypeOf(r) === active);
   const summary = (board?.setups ?? []).find(s => s.id === active) ?? null;
-  const chosen = (board?.setups ?? []).find(s => s.chosen)?.id ?? FIRST_PULLBACK;
-  const scoreSetup = active === ALL_SETUPS ? chosen : active;
+  const scoreSetup = active === ALL_SETUPS ? leadingSetup(board) : active;
   const score = useSetupsScoreboard(view === 'scoreboard', days, scoreSetup);
+  const sample = useSampleDataOptional();
+  // A proposal's Stage sizes by the desk venue's risk per trade: read it while the board shows.
+  const risk = useSleeveRisk(null, Boolean(stream) && view === 'board' && !sample);
   const countOf = (id: string) => allRows.filter(r => setupTypeOf(r) === id).length;
   const emptyText = recordedEmptyText(board) ?? (active === ALL_SETUPS
     ? undefined
@@ -85,10 +104,10 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
 
   return (
     <div className="setups-panel">
-      <div className="watchlist-description">
+      <div className="watchlist-description" data-testid="setups-description">
         One scanner per setup — first pullback, bull flag, flat-top breakout and red to green — on the HOD Momo
-        names. Near the trigger the bot reads Level 2 and the tape; a setup at Eyes proposes only when it says go.
-        It never places: &ldquo;Stage ticket&rdquo; fills the ticket, and you press Place. Hover any chip for what it means.
+        names. Near the trigger the bot reads Level 2 and the tape. {SETUPS_LEVEL_WORDS} &ldquo;Stage ticket&rdquo;
+        only fills your ticket, sized by your risk per trade; you press Place. Hover any chip for what it means.
       </div>
       <div className="setups-toolbar">
         <button type="button" className={`sub-tab ${view === 'board' ? 'active' : ''}`} onClick={() => setView('board')}>
@@ -147,6 +166,7 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
           onSelectSymbol={onSelectSymbol}
           onOpenTrading={onOpenTrading}
           emptyText={emptyText}
+          risk={risk}
         />
       )}
       {stream && view === 'scoreboard' && (

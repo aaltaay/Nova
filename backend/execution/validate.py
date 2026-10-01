@@ -10,6 +10,7 @@ from execution import flatten_intent as _flatten_intent
 from execution import inflight as _inflight
 from execution import session_gate as _session_gate
 from execution.models import ExecutionCommand, Source
+from execution.venue_door import is_practice as _practice
 from ibkr import account as _account
 from ibkr import client as _client
 from ibkr import safety as _safety
@@ -35,17 +36,19 @@ def is_whole_share_qty(qty: float) -> bool:
     return abs(q - round(q)) < _WHOLE_SHARE_EPS
 
 
-def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
-    """Return (ok, detail, reason_code). Pure structural + safety gates."""
+def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[bool, str, str | None]:
+    """Return (ok, detail, reason_code). Pure structural + safety gates.
+
+    ``venue`` is the one the door sends on (``execution.venue_door``); None reads the desk's.
+    A kill switch cancel sent to Paper or Sim needs no IBKR connection, whatever the desk shows.
+    """
     if not cmd.idempotency_key or not str(cmd.idempotency_key).strip():
         return False, "idempotency_key is required", "IDEMPOTENCY_MISSING"
 
     if cmd.operation == "cancel":
         if cmd.order_id is None:
             return False, "order_id required for cancel", "ORDER_ID_MISSING"
-        from sim.mode import is_practice_venue
-
-        if is_practice_venue():
+        if _practice(venue):
             return True, "OK", None
         ok, reason = _safety.assert_cancel_allowed(
             client_enabled=_client.is_enabled(),
@@ -79,9 +82,7 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
         if cmd.side is not None or cmd.qty is not None or cmd.symbol is not None:
             # Callers must not attempt to mutate immutable fields via replace.
             pass
-        from sim.mode import is_practice_venue
-
-        if is_practice_venue():
+        if _practice(venue):
             return True, "OK", None
         ok, reason = _safety.assert_orders_allowed(
             client_enabled=_client.is_enabled(),
@@ -139,13 +140,11 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     if bad_tif:
         return False, bad_tif, "TIF_INVALID"
 
-    from sim.mode import is_practice_venue
-
     # The arm latch was checked above the operation branches, before the venue
     # is consulted: being on Paper or Sim decides *where* an allowed order is
     # routed, never *whether* one is allowed (ADR 018). The IBKR env gates
     # below apply to Live only (ADR 020 decision 4).
-    if is_practice_venue():
+    if _practice(venue):
         # Admission by the venue's own market (protective sources skip it so a
         # practice position can always be closed) and the no-shorts rule: a
         # SELL is only ever risk-reducing (execution/practice_checks.py).

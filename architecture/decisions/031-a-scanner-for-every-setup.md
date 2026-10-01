@@ -1,6 +1,6 @@
 # ADR 031 -- A scanner for every setup: bull flag, flat-top breakout, red to green; a level per setup
 
-**Status:** Accepted · **Date:** 2026-09-24
+**Status:** Accepted · **Date:** 2026-09-24 · **Amended by:** [[042-one-owner-for-novas-buys]] (the chosen setup and its radio retired: every setup's own level under a master ceiling)
 **Amends:** [[027-bot-playbook-readout-gate]] (one scanner, one level) · [[022-setup-scanner-tape-gate]] (one detector) · [[029-setup-templates-eyes-journal]] (lanes for first-pullback templates only; `setups.db` schema 2) · [[030-first-pullback-bot-on-paper]] (the bot trades the first pullback only)
 **Decided by:** the operator, 2026-09-24 -- "Weren't we supposed to have a small scanner
 for each one of these strategies?"; after the UX mockup, "I like it, but we are going to

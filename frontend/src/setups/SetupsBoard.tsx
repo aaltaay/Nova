@@ -1,14 +1,19 @@
 /** The Setups board (ADR 022, ADR 031): one row per symbol and setup worth looking
  * at, nearest its trigger first, every cell said in the setup's own words and
- * explained on hover (ux/hoverTip.ts). Signal only -- "Stage ticket" fills the
- * manual ticket and never places; a human presses Place. */
+ * explained on hover (ux/hoverTip.ts). "Stage ticket" fills the manual ticket
+ * with the venue sleeve's risk per trade over the setup's risk a share, and
+ * never places; a human presses Place. A proposal Nova itself takes, or one that
+ * is not a trade, locks it with the reason (ADR 042 draft). */
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
-import { SETUP_COL_TIPS, SETUP_KIND_LABELS, SETUPS_STAGE_NO_ENTRY_WHY } from '../constants';
+import { SETUP_COL_TIPS, SETUP_KIND_LABELS } from '../constants';
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
+import { whyProps } from '../ux/whyTip';
+import { proposalStageLock, proposalStageSize } from './proposalVerdict';
 import { fmtCents, fmtPx, fmtR, isActionable, outcomeLabel, rowClass, stagedLimit, tapeRank } from './setupsFormat';
 import { gradeWords } from './pillarWords';
+import { riskSourceWords, type SleeveRisk } from './sleeveRisk';
 import {
   rowRank,
   setupLabel,
@@ -30,6 +35,8 @@ interface BoardProps {
   onOpenTrading: (symbol: string) => void;
   /** What an empty board says (the filter's setup, or every setup). */
   emptyText?: string;
+  /** The venue sleeve's risk per trade: what a proposal's Stage sizes by. */
+  risk: SleeveRisk;
 }
 
 const EMPTY = 'No setups right now. Every scanner watches the HOD Momo names on one-minute bars and lists a symbol once it starts its pattern.';
@@ -86,11 +93,40 @@ const COLUMNS: SortColumns<SetupRow> = {
   why: r => r.reason,
 };
 
-function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
+/** A proposal's Stage on the board: sized by the sleeve's risk per trade, locked with its reason. */
+function StageCell({ row, risk, onOpenTrading }: { row: SetupRow; risk: SleeveRisk; onOpenTrading: (s: string) => void }) {
+  const p = row.proposal;
+  if (!p) return null;
+  const limit = stagedLimit(row);
+  const size = proposalStageSize({ risk: p.risk ?? row.setup?.risk ?? null, entry: p.entry ?? row.setup?.entry ?? null,
+    stop: p.stop ?? row.setup?.stop ?? null }, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
+  const lock = proposalStageLock({ ...p, entry: p.entry ?? row.setup?.entry ?? null }, size);
+  const tip = `Stage a BUY limit at ${limit} for ${size.text} on this symbol's ticket. Stop ${fmtPx(row.setup?.stop)}. `
+    + `Nothing is sent until you press Place.${risk.why ? `\n${risk.why}` : ''}`;
+  return (
+    <button
+      type="button"
+      className="setups-stage"
+      disabled={lock !== null}
+      {...whyProps(lock !== null, lock)}
+      onClick={e => {
+        e.stopPropagation();
+        if (lock === null) stageSetupTicket(row.symbol, limit, onOpenTrading, size.qty);
+      }}
+      {...(lock === null ? tipProps(tip, 'Stage ticket') : {})}
+      data-testid={`setups-stage-${row.symbol}`}
+    >
+      Stage ticket
+    </button>
+  );
+}
+
+function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading, risk }: {
   row: SetupRow;
   selected: boolean;
   onSelectSymbol: (s: string) => void;
   onOpenTrading: (s: string) => void;
+  risk: SleeveRisk;
 }) {
   const s = row.setup;
   const state = stateWords(row);
@@ -100,7 +136,6 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
   const tf5 = tf5Words(row);
   const kind = kindWords(row);
   const broke = row.state === 'near' && Boolean(s?.detail?.broke_at);
-  const limit = stagedLimit(row);
   return (
     <SelectableTableRow
       symbol={row.symbol}
@@ -138,24 +173,13 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
       <td className="num">{row.state === 'triggered' ? fmtR(row.bar_r) : '—'}</td>
       <td className="setups-reason" {...tipProps(row.reason, 'The scanner now')}>{row.reason}</td>
       <td>
-        {row.proposal ? (
-          <button
-            type="button"
-            className="setups-stage"
-            disabled={!limit}
-            data-why={limit ? undefined : SETUPS_STAGE_NO_ENTRY_WHY}
-            onClick={e => { e.stopPropagation(); stageSetupTicket(row.symbol, limit, onOpenTrading); }}
-            {...(limit ? tipProps(`Stage a BUY limit at ${limit} on this symbol's ticket. Stop ${fmtPx(s?.stop)}. Nothing is sent until you press Place.`, 'Stage ticket') : {})}
-          >
-            Stage ticket
-          </button>
-        ) : null}
+        <StageCell row={row} risk={risk} onOpenTrading={onOpenTrading} />
       </td>
     </SelectableTableRow>
   );
 }
 
-export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTrading, emptyText = EMPTY }: BoardProps) {
+export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTrading, emptyText = EMPTY, risk }: BoardProps) {
   const { rows: sorted, sort, onSort } = useTableSort('setups.board', rows, COLUMNS);
   if (rows.length === 0) {
     return <div className="empty-state">{emptyText}</div>;
@@ -195,6 +219,7 @@ export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTradin
               selected={selectedSymbol === row.symbol}
               onSelectSymbol={onSelectSymbol}
               onOpenTrading={onOpenTrading}
+              risk={risk}
             />
           ))}
         </tbody>
