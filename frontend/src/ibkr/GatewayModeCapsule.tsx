@@ -8,10 +8,13 @@
  * live Gateway through POST /api/ibkr/gateway-mode. Sim falls back to the
  * legacy POST /api/sim when the venue route is missing (stale API process).
  * Never sets IBKR_LIVE_TRADING_CONFIRMED -- live spend stays a separate gate.
- * Session Record is per-tab (right-click), not a capsule mode.
+ * Session Record is per-tab (right-click), not a capsule mode. Leaving a venue
+ * cancels Nova's working entries there first (ADR 042 F): the answer's `left`
+ * lists them, and each is a bot notice in this window.
  */
 import { useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
+import { noticeVenueLeft } from '../bot';
 import {
   API_BASE_URL,
   DESK_VENUE_API_PATH,
@@ -47,6 +50,8 @@ interface VenueResponse {
   launch_action?: string | null;
   message?: string | null;
   sim?: boolean;
+  /** ADR 042 F: Nova's working entries cancelled on the venue the desk left. */
+  left?: unknown;
 }
 
 export type CapsuleSelection = DeskVenue;
@@ -166,6 +171,8 @@ export function GatewayModeCapsule({
 
   async function switchVenue(next: DeskVenue): Promise<string | null> {
     const [res, body] = await postJson(DESK_VENUE_API_PATH, { venue: next });
+    // What Nova cancelled on the venue it left is said even when the switch itself failed after it.
+    noticeVenueLeft(body.left);
     if (isRouteMissing(res, body)) {
       if (next === 'sim') return legacySimFallback();
       return DESK_VENUE_API_RESTART_HINT;

@@ -131,3 +131,6 @@
   .bots-param { grid-template-columns: minmax(0, 1fr); }
   .bots-param__meta { text-align: left; }
 }
+
+/* ADR 042 G: the template's bot window, amber when it was clipped to the arming window. */
+.bots-tpl__botwin.is-clipped { color: #f59e0b; }

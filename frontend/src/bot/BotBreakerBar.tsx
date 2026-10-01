@@ -54,6 +54,8 @@ type Patch = (body: Record<string, unknown>) => Promise<unknown>;
 interface Props {
   breakers: BotBreakers | undefined;
   dayPnl: number | null;
+  /** How the day P&L was reached (useBotDayPnl.dayPnlParts): the exact figure the breakers compare. */
+  pnlParts?: string | null;
   busy: boolean;
   patch: Patch;
 }
@@ -61,7 +63,7 @@ interface Props {
 const NAMES: Record<BreakerKey, string> = { soft: BOT_BREAKER_SOFT_LABEL, hard: BOT_BREAKER_HARD_LABEL };
 const TIPS: Record<BreakerKey, string> = { soft: BOT_BREAKER_SOFT_TIP, hard: BOT_BREAKER_HARD_TIP };
 
-export function BotBreakerBar({ breakers, dayPnl, busy, patch }: Props) {
+export function BotBreakerBar({ breakers, dayPnl, pnlParts = null, busy, patch }: Props) {
   const lim = breakerLimits(breakers);
   const movable = breakers != null;
   const [draft, setDraft] = useState({ soft: lim.soft, hard: lim.hard });
@@ -89,6 +91,8 @@ export function BotBreakerBar({ breakers, dayPnl, busy, patch }: Props) {
   const locked = !movable ? BOTS_BREAKERS_OLD_API : null;
   const resetWhy = busy || saving ? BOTS_BUSY_WHY : null;
   const tone = dayPnl == null ? '' : dayPnl <= draft.soft ? ' is-bad' : dayPnl < 0 ? ' is-warn' : ' is-ok';
+  // The exact figure both breakers compare, and how it was reached (ADR 042 D).
+  const nowTip = pnlParts ? `${BOT_BREAKER_NOW_TIP}\n${pnlParts}` : BOT_BREAKER_NOW_TIP;
 
   async function commit(key: BreakerKey, value: number) {
     const before = key === 'soft' ? lim.soft : lim.hard;
@@ -245,7 +249,7 @@ export function BotBreakerBar({ breakers, dayPnl, busy, patch }: Props) {
         {knob('soft')}
         {dayPnl != null ? (
           <i className={`bots-breakers__now${tone}`} data-testid="bots-breaker-now" style={{ left: `${breakerPct(dayPnl, floor)}%` }}
-            {...tipProps(BOT_BREAKER_NOW_TIP, `Today ${fmtUsdCents(dayPnl)}`)} />
+            {...tipProps(nowTip, `Today ${fmtUsdCents(dayPnl)}`)} />
         ) : null}
       </div>
       <div className="bots-breakers__labels">
@@ -257,7 +261,8 @@ export function BotBreakerBar({ breakers, dayPnl, busy, patch }: Props) {
         </span>
       </div>
       <div className="bots-breakers__foot">
-        <span className={`bots-breakers__today${tone}`} data-testid="bots-breaker-today">
+        <span className={`bots-breakers__today${tone}`} data-testid="bots-breaker-today"
+          {...tipProps(nowTip, BOTS_BREAKERS_TITLE)}>
           {dayPnl == null ? BOTS_BREAKER_TODAY_UNKNOWN : <><b>{fmtUsdCents(dayPnl)}</b> {BOTS_BREAKER_TODAY}</>}
         </span>
         {movable && custom ? (

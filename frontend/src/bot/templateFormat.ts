@@ -4,7 +4,7 @@
  * written by hand, so the card cannot say a rule the scanner does not keep.
  * Pure.
  */
-import type { ParamSpec, ParamValue, SetupTemplate } from './templateTypes';
+import type { ParamSpec, ParamValue, SetupTemplate, TemplateBotWindow } from './templateTypes';
 
 type Values = Record<string, ParamValue>;
 
@@ -98,17 +98,23 @@ function entryLine(what: string, v: Values, window = true): string {
   return `${what} +${money(num(v.entry_offset) ?? 0)}${arms} · only when the tape says GO`;
 }
 
-/** Risk band, target 1 and the bot's own window: the same on every setup with a scanner. */
-function tradeLine(v: Values, target: string): string {
+/**
+ * Risk band, target 1 and the bot's own window: the same on every setup with a scanner.
+ * The window is the template's `bot_window` when the API sends it (inside the arming
+ * window, ADR 042 G), else its raw values. How many a day is the sleeve's, not the template's.
+ */
+function tradeLine(v: Values, target: string, w?: TemplateBotWindow | null): string {
+  const start = w?.start ?? v.bot_window_start;
+  const end = w?.end ?? v.bot_window_end;
   return `Risk ${money(num(v.min_stop) ?? 0)}–${money(num(v.stop_cap) ?? 0).replace('$', '')} · ${target} · `
-    + `bot ${v.bot_window_start}–${v.bot_window_end}, ${num(v.bot_entries_per_day)} a day`;
+    + `bot ${start}–${end}${w?.clipped ? ' (clipped to the arming window)' : ''}`;
 }
 
 function fixedTarget(v: Values): string {
   return `target 1 entry + ${money(num(v.target_fixed) ?? 0)}`;
 }
 
-function firstPullbackLines(v: Values): [string, string][] {
+function firstPullbackLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
   const setup = `Leg ≥ ${trim(num(v.leg_pct) ?? 0)}% to a new high${v.require_hod ? ' of day' : ''} · `
     + `${bars(num(v.min_pullback_bars), num(v.max_pullback_bars))} candles hold the ${ema(v)} and give back `
     + `< ${trim(num(v.max_retrace) ?? 0)}% of the leg` + (v.macd_positive ? ' · MACD above zero' : '');
@@ -117,11 +123,11 @@ function firstPullbackLines(v: Values): [string, string][] {
     ['Stock', stockLine(v)],
     ['Setup', setup],
     ['Entry', entryLine('Over the last pullback candle\'s high', v)],
-    ['Trade', tradeLine(v, target)],
+    ['Trade', tradeLine(v, target, w)],
   ];
 }
 
-function bullFlagLines(v: Values): [string, string][] {
+function bullFlagLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
   const dollars = num(v.pole_min_dollars);
   const pole = `Pole of ${num(v.pole_min_bars)}+ green candles up ≥ ${trim(num(v.pole_min_pct) ?? 0)}%`
     + (dollars != null ? ` (or ${money(dollars)})` : '')
@@ -142,11 +148,11 @@ function bullFlagLines(v: Values): [string, string][] {
     ['Stock', stockLine(v)],
     ['Setup', [pole, flag, ...checks].join(' · ')],
     ['Entry', entryLine('Over the last flag candle\'s high', v)],
-    ['Trade', tradeLine(v, target)],
+    ['Trade', tradeLine(v, target, w)],
   ];
 }
 
-function flatTopLines(v: Values): [string, string][] {
+function flatTopLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
   const setup = `Impulse ≥ ${trim(num(v.ft_impulse_pct) ?? 0)}% into the high of day · `
     + `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} candles close within ${trim(num(v.ft_band) ?? 0)}% under it, `
     + `lows over the ${ema(v)}` + (v.macd_positive ? ' · MACD above zero' : '');
@@ -155,10 +161,10 @@ function flatTopLines(v: Values): [string, string][] {
     : `A green candle holding over the high within ${num(v.ft_hold_bars)} candles, at its close `
       + `+${money(num(v.entry_offset) ?? 0)} · arms ${v.session_start}–${v.entry_cutoff} · only when the tape says GO`;
   const target = v.target_mode === 'fixed' ? fixedTarget(v) : `target 1 ${trim(num(v.target_r) ?? 0)}R`;
-  return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', tradeLine(v, target)]];
+  return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', tradeLine(v, target, w)]];
 }
 
-function redToGreenLines(v: Values): [string, string][] {
+function redToGreenLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
   const red = num(v.r2g_min_red_bars) ?? 1;
   const setup = `${red}+ close${red === 1 ? '' : 's'} under the ${v.session_start} open, then back through it by `
     + `${v.r2g_cutoff} · one try a day` + (v.macd_positive ? ' · MACD above zero' : '');
@@ -167,7 +173,7 @@ function redToGreenLines(v: Values): [string, string][] {
     ['Stock', stockLine(v)],
     ['Setup', setup],
     ['Entry', entryLine('Over the open', v, false)],
-    ['Trade', tradeLine(v, target)],
+    ['Trade', tradeLine(v, target, w)],
   ];
 }
 
@@ -178,17 +184,17 @@ function universeLine(v: Values): string {
   return parts.join(' · ');
 }
 
-/** The setup card's rule lines, from the template in play. */
-export function ruleLines(setup: string, v: Values): [string, string][] {
+/** The setup card's rule lines, from the template in play (and its bot window, when the API sends it). */
+export function ruleLines(setup: string, v: Values, botWindow?: TemplateBotWindow | null): [string, string][] {
   switch (setup) {
     case 'first_pullback':
-      return firstPullbackLines(v);
+      return firstPullbackLines(v, botWindow);
     case 'bull_flag':
-      return bullFlagLines(v);
+      return bullFlagLines(v, botWindow);
     case 'flat_top_breakout':
-      return flatTopLines(v);
+      return flatTopLines(v, botWindow);
     case 'red_to_green':
-      return redToGreenLines(v);
+      return redToGreenLines(v, botWindow);
     case 'gap_and_go':
       return [
         ['Stock', `Top ${num(v.top)} by pre-market RVOL · ${universeLine(v)}`],

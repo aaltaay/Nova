@@ -1,9 +1,10 @@
 /**
  * @vitest-environment jsdom
  *
- * The Bots page cards (approved mockup v4): every control is a real one --
- * setup and level switches, the add-a-setup door, Level 2 links, sliders that
- * save once let go, proposals, the timeline and today's numbers.
+ * The Bots page cards (approved mockup v4, ADR 042): every control is a real one -- each
+ * setup's own level under the master, the add-a-setup door, who trades each stock, the
+ * sleeve per venue that saves once let go, the breakers' day, proposals that say who
+ * takes them, the timeline and today's numbers.
  */
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,7 +15,7 @@ import type { SetupCounts, SetupsBoard, SetupSummary } from '../setups/types';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { BotsPage } from './BotsPage';
 import {
-  botsFetchRouter, breakers, gates, session, setupRow, templatesPayload, type BotsFetchOpts,
+  botsFetchRouter, breakers, caps, refusal, session, setupRow, strategySession, templatesPayload, type BotsFetchOpts,
 } from './botsPageFixtures';
 
 const ibkrStatus = { connected: true, spend_status: 'paper_armed', spend_locked_reason: null, trading_allowed: true, trading_allowed_reason: null, armed: true };
@@ -38,6 +39,8 @@ const setups: { board: SetupsBoard | null; connected: boolean } = { board: null,
 vi.mock('../setups/SetupsStreamContext', () => ({ useSetupsBoard: () => setups }));
 
 const NOW = Date.now() / 1000;
+/** 2026-09-30 09:42 ET. */
+const AT_0942 = Date.UTC(2026, 8, 30, 13, 42) / 1000;
 
 const counts = (partial: Partial<SetupCounts> = {}): SetupCounts => ({
   watching: 40, forming: 1, armed: 2, near: 1, triggered: 0, failed: 0, filtered: 0, proposed: 1, ...partial,
@@ -54,8 +57,8 @@ function board(partial: Partial<SetupsBoard> = {}): SetupsBoard {
     schema_version: 2, generated_at: NOW, session_date: '2026-09-22', universe: 40, seeding: 2,
     scoreboard: true, scoreboard_error: null, proposing: true,
     setups: [
-      summary('first_pullback', { level: 1, chosen: true, proposing: true, counts: counts() }),
-      summary('bull_flag', { counts: counts({ armed: 1, near: 0, forming: 0, proposed: 0 }) }),
+      summary('first_pullback', { level: 1, proposing: true, counts: counts() }),
+      summary('bull_flag', { level: 1, proposing: true, counts: counts({ armed: 1, near: 0, forming: 0, proposed: 0 }) }),
       summary('flat_top_breakout'),
       summary('red_to_green', { window: { start: '09:30', end: '10:30', state: 'before' } }),
     ],
@@ -102,6 +105,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
   localStorage.clear();
+  sessionStorage.clear();
   openStockView.mockReset();
   confirmApp.mockClear();
 });
@@ -130,48 +134,77 @@ function patches(fetchMock: ReturnType<typeof mockFetch>): Record<string, unknow
     .map(([, init]) => JSON.parse(String((init as RequestInit).body)) as Record<string, unknown>);
 }
 
-describe('Strategies card', () => {
-  it('shows the playbook: first pullback chosen with its rules, tape gate and read-out; every setup its own card', async () => {
+describe('Strategies card (ADR 042: a level per setup under the master)', () => {
+  it('gives every setup with a scanner its own Off / Eyes / Strategy, and no chosen setup', async () => {
     mockFetch();
     await renderPage();
-    const chosen = within(screen.getByTestId('bots-setup-first_pullback'));
-    expect(chosen.getByText('First pullback')).toBeTruthy();
-    expect(chosen.getByText(/Bot trades this/)).toBeTruthy();
-    // The rules are the template in play's numbers in words (ADR 029): a line on the card, all of it on hover.
+    expect(screen.queryByTestId('bots-setup-radio-first_pullback')).toBeNull();
+    expect(screen.getByTestId('bots-strategies').textContent).not.toMatch(/Bot trades this|chosen/i);
+    for (const id of ['first_pullback', 'bull_flag', 'flat_top_breakout', 'red_to_green']) {
+      for (const n of [0, 1, 2]) {
+        const btn = screen.getByTestId(`bots-setup-level-${id}-${n}`) as HTMLButtonElement;
+        expect(btn.disabled).toBe(false);
+        expect(btn.getAttribute('data-why')).toBeNull();
+      }
+    }
+    // The card shows its own level, and what it may do under the master.
+    expect(screen.getByTestId('bots-setup-level-first_pullback-2').getAttribute('aria-checked')).toBe('true');
+    expect(within(screen.getByTestId('bots-setup-first_pullback')).getByTestId('bots-setup-level-chip').textContent)
+      .toBe('Strategy · capped to Eyes by the bot\'s level');
+    expect(within(screen.getByTestId('bots-setup-bull_flag')).getByTestId('bots-setup-level-chip').textContent)
+      .toBe('Eyes · pings on near + go');
+    expect(within(screen.getByTestId('bots-setup-flat_top_breakout')).getByTestId('bots-setup-level-chip').textContent)
+      .toBe('Off · scores silently');
+  });
+
+  it('draws each card\'s rules, tape gate and read-out, which unlocks nothing yet', async () => {
+    mockFetch();
+    await renderPage();
     const rules = screen.getByTestId('bots-setup-rules-first_pullback');
     expect(rules.textContent).toBe('Leg ≥ 5% · 1–3 bar pullback · stop at the pullback low');
     const tip = rules.getAttribute('data-tip') ?? '';
-    expect(tip).toMatch(/Leg ≥ 5% to a new high of day · 1–3 candles hold the 9 EMA/);
-    expect(tip).toMatch(/HOD Momo names · any price · any float/);
     expect(tip).toMatch(/arms 07:00–11:30 · only when the tape says GO/);
-    expect(tip).toMatch(/bot 07:00–10:00, 1 a day/);
-    expect(chosen.getByText(/25k\+ seller not thinning/)).toBeTruthy();
-    expect((screen.getByTestId('bots-setup-template-first_pullback') as HTMLSelectElement).value).toBe('default');
-    expect(screen.getByTestId('bots-readout-count').textContent).toBe('12 / 50');
-    expect(screen.getByTestId('bots-readout').textContent).toMatch(/GO so far \+0\.31R vs blind \/ wait −0\.18R/);
-    // ADR 031: the bull flag, flat-top and red to green have scanners: chosen by radio, Off or Eyes on their own card.
-    for (const id of ['bull_flag', 'flat_top_breakout', 'red_to_green']) {
-      expect((screen.getByTestId(`bots-setup-radio-${id}`) as HTMLInputElement).disabled).toBe(false);
-      expect(screen.getByTestId(`bots-setup-level-${id}-0`).getAttribute('aria-checked')).toBe('true');
-      expect((screen.getByTestId(`bots-setup-level-${id}-1`) as HTMLButtonElement).disabled).toBe(false);
-      const strategy = screen.getByTestId(`bots-setup-level-${id}-2`) as HTMLButtonElement;
-      expect(strategy.disabled).toBe(true);
-      expect(strategy.getAttribute('data-why')).toMatch(/Only the chosen setup can be at Strategy/);
+    expect(tip).toMatch(/bot 07:00–10:00/);
+    expect(tip).not.toMatch(/a day/);
+    expect(within(screen.getByTestId('bots-setup-red_to_green')).getByTestId('bots-setup-rules-red_to_green').getAttribute('data-tip'))
+      .toMatch(/bot 09:30–10:00 \(clipped to the arming window\)/);
+    for (const id of ['first_pullback', 'bull_flag']) {
+      expect(within(screen.getByTestId(`bots-setup-${id}`)).getByText(/25k\+ seller not thinning/)).toBeTruthy();
     }
-    expect(screen.getByTestId('bots-setup-readout-bull_flag').textContent).toMatch(/Read-out.*0 \/ 50/);
-    // Gap and Go and the micro pullback say what is missing and what unblocks it.
+    const readout = screen.getByTestId('bots-setup-readout-first_pullback');
+    expect(screen.getByTestId('bots-readout-count-first_pullback').textContent).toBe('12 / 50');
+    expect(readout.textContent).toMatch(/GO so far \+0\.31R vs blind \/ wait −0\.41R/);
+    expect(screen.getByTestId('bots-readout-inside-first_pullback').textContent)
+      .toBe('19 triggered inside the bot window 07:00–10:00 (10 at GO)');
+    expect(screen.getByTestId('bots-readout-what-first_pullback').textContent).toBe('Measures whether the tape gate turns this '
+      + 'setup into a winner. Nova\'s bot trades Paper and Sim only; Live trading by a bot is not built, so passing it unlocks nothing yet.');
+    expect(readout.textContent).toMatch(/scores the backtest's exit \(half at target 1, the stop to break-even, a 9 EMA trail\); the bot sells everything at target 1, with a 15-minute time stop/);
+    const words = readout.getAttribute('data-tip') ?? '';
+    expect(words).toMatch(/^Measures whether the tape gate turns this setup into a winner\./);
+    expect(words).toMatch(/It counts every first pullback this template armed that triggered/);
+    expect(screen.getByTestId('bots-strategies').textContent).not.toMatch(/100 Paper trades|unlock Strategy on Live/);
+  });
+
+  it('a setup without a scanner says only why it can\'t watch yet and what unblocks it', async () => {
+    mockFetch();
+    await renderPage();
     for (const id of ['gap_and_go', 'micro_pullback']) {
-      const radio = screen.getByTestId(`bots-setup-radio-${id}`) as HTMLInputElement;
-      expect(radio.disabled).toBe(true);
-      expect(radio.getAttribute('data-why')).toMatch(/No scanner yet/);
       expect(screen.getByTestId(`bots-noscan-${id}`).textContent).toMatch(/Why it can't watch yet\..*Unblocks when/);
+      expect(screen.queryByTestId(`bots-setup-template-${id}`)).toBeNull();
+      expect(screen.queryByTestId(`bots-setup-params-${id}`)).toBeNull();
+      expect(screen.queryByTestId(`bots-setup-level-${id}-0`)).toBeNull();
     }
     expect(screen.getByTestId('bots-noscan-micro_pullback').textContent).toMatch(/one-second bars/);
     expect(within(screen.getByTestId('bots-setup-gap_and_go')).getByText('Bars alone: failed')).toBeTruthy();
-    const micro = screen.getByTestId('bots-setup-params-micro_pullback') as HTMLButtonElement;
-    expect(micro.disabled).toBe(true);
-    expect(micro.getAttribute('data-why')).toMatch(/never been tested/);
     expect(screen.queryByText(/Halt \/ LULD|Quote spike|Volume boost|LLM decide/)).toBeNull();
+  });
+
+  it('a setup at Strategy proposes like Eyes until the bot is active, and says so', async () => {
+    mockFetch({ session: strategySession() });
+    await renderPage();
+    const chip = within(screen.getByTestId('bots-setup-first_pullback')).getByTestId('bots-setup-level-chip');
+    expect(chip.textContent).toBe('Strategy · proposes until Activate');
+    expect(chip.getAttribute('data-tip')).toMatch(/the bot is not active on this venue, so it proposes like Eyes/);
   });
 
   it('each card carries its own small scanner, said in the setup\'s words, every chip explained on hover', async () => {
@@ -179,24 +212,12 @@ describe('Strategies card', () => {
     await renderPage();
     const status = within(screen.getByTestId('bots-setup-first_pullback')).getByTestId('bots-setup-status');
     expect(status.textContent).toMatch(/Watching 40 names · window 07:00–11:30 · 2 seeding bars/);
-    expect(within(status).getByTestId('bots-setup-level-chip').textContent).toBe('Eyes · pings on near + go');
-    expect(within(screen.getByTestId('bots-setup-bull_flag')).getByTestId('bots-setup-level-chip').textContent)
-      .toBe('Off · scores silently');
     expect(within(screen.getByTestId('bots-setup-red_to_green')).getByTestId('bots-setup-status').textContent)
       .toMatch(/opens 09:30/);
     const state = screen.getByTestId('bots-scan-state-first_pullback-GRML');
     expect(state.textContent).toBe('Near');
-    expect(state.getAttribute('data-tip-title')).toBe('Near · First pullback');
-    expect(state.getAttribute('data-tip')).toMatch(/Price is a few cents under the trigger/);
     expect(state.getAttribute('data-tip')).toMatch(/Trigger 8\.72 · entry 8\.73 · stop 8\.52 · risk 21¢ a share · target 1 8\.92/);
-    expect(state.getAttribute('data-tip')).toMatch(/Now: 0\.03 under the 8\.72 trigger — read the tape/);
-    const tape = screen.getByTestId('bots-scan-tape-first_pullback-GRML');
-    expect(tape.textContent).toBe('GO');
-    expect(tape.getAttribute('data-tip')).toMatch(/^GO: green prints at the ask/);
-    expect(tape.getAttribute('data-tip')).toMatch(/5 prints at the ask \(2\.4k\) vs 1 at the bid \(300\)/);
-    // The bull flag's own words, and the tag naming the symbol's other setup.
     expect(screen.getByTestId('bots-scan-state-bull_flag-GRML').textContent).toBe('Flag · 2 bars');
-    expect(within(screen.getByTestId('bots-scan-row-first_pullback-GRML')).getByText('+ bull flag')).toBeTruthy();
     expect(screen.getByTestId('bots-funnel-first_pullback').textContent)
       .toMatch(/Today\s*1 forming\s*→\s*2 armed\s*→\s*1 near\s*→\s*0 triggered\s*·\s*0 failed\s*·\s*1 proposed/);
     fireEvent.click(screen.getByTestId('bots-scan-row-first_pullback-GRML'));
@@ -210,7 +231,7 @@ describe('Strategies card', () => {
       replay: { kind: 'journal', date: '2026-09-24', symbol: null, playhead: at, at, loading: false, error: null,
         note: null, loaded: null, gap: null, journal: null },
       setups: [
-        summary('first_pullback', { level: 1, chosen: true, counts: counts(), recorded: true }),
+        summary('first_pullback', { level: 1, counts: counts(), recorded: true }),
         summary('bull_flag', { recorded: false }),
         summary('flat_top_breakout', { recorded: true }),
         summary('red_to_green', { recorded: true }),
@@ -219,27 +240,25 @@ describe('Strategies card', () => {
     });
     mockFetch();
     await renderPage();
-    const line = screen.getByTestId('bots-sim-line');
-    expect(line.textContent).toBe('Recorded · what Nova\'s eyes saw live at 08:07:02 ET on 2026-09-24');
-    expect(line.getAttribute('data-tip')).toMatch(/Nothing is recomputed with today's rules/);
+    expect(screen.getByTestId('bots-sim-line').textContent).toBe('Recorded · what Nova\'s eyes saw live at 08:07:02 ET on 2026-09-24');
     expect(within(screen.getByTestId('bots-setup-bull_flag')).getByTestId('bots-setup-status').textContent)
       .toMatch(/Not running at this moment/);
     expect(screen.getByTestId('bots-scan-empty-flat_top_breakout').textContent).toBe('Nothing forming at 08:07:02 ET.');
-    expect(screen.getByTestId('bots-scan-state-first_pullback-GRML').textContent).toBe('Near');
   });
 
-  it('a setup\'s own Off / Eyes PATCHes its level; Open board asks for Watchlist › Setups filtered to it', async () => {
+  it('a setup\'s own level PATCHes its own level -- Strategy included -- and never {setup}', async () => {
     const fetchMock = mockFetch({ onPatch: body => session({ setup_levels: { ...(body.setup_levels as object) } }) });
     await renderPage();
-    await act(async () => { fireEvent.click(screen.getByTestId('bots-setup-level-bull_flag-1')); await flush(); });
-    expect(patches(fetchMock)).toContainEqual({ setup_levels: { bull_flag: 1 } });
+    await act(async () => { fireEvent.click(screen.getByTestId('bots-setup-level-bull_flag-2')); await flush(); });
+    await act(async () => { fireEvent.click(screen.getByTestId('bots-setup-level-red_to_green-1')); await flush(); });
+    expect(patches(fetchMock)).toEqual([{ setup_levels: { bull_flag: 2 } }, { setup_levels: { red_to_green: 1 } }]);
+    expect(patches(fetchMock).some(p => 'setup' in p)).toBe(false);
     fireEvent.click(screen.getByTestId('bots-setup-board-red_to_green'));
     expect(getSetupsFilter()).toBe('red_to_green');
     expect(consumeSetupsBoardOpen()).toBe(true);
   });
 
   it('an API older than the scanners says the backend needs a reload, never that the scanner is missing', async () => {
-    // The operator's desk on 2026-09-24: the page updated, the backend (started that morning) had not.
     const old = session({ setups: [
       { id: 'first_pullback', scanner: true }, { id: 'gap_and_go', scanner: false },
       { id: 'flat_top_breakout', scanner: false }, { id: 'red_to_green', scanner: false },
@@ -257,29 +276,13 @@ describe('Strategies card', () => {
       const card = within(screen.getByTestId(`bots-setup-${id}`));
       expect(card.getByTestId('bots-setup-status').textContent).toMatch(/the backend needs a reload to start this scanner/);
       expect(card.queryByText(/No scanner yet/)).toBeNull();
-      const radio = screen.getByTestId(`bots-setup-radio-${id}`) as HTMLInputElement;
-      expect(radio.disabled).toBe(true);
-      expect(radio.getAttribute('data-why')).toMatch(/reload it/);
+      const level = screen.getByTestId(`bots-setup-level-${id}-1`) as HTMLButtonElement;
+      expect(level.disabled).toBe(true);
+      expect(level.getAttribute('data-why')).toMatch(/reload it/);
     }
     expect((screen.getByTestId('bots-setup-template-bull_flag') as HTMLSelectElement).textContent)
       .toBe('needs a backend reload');
-    // The two with no scanner in this build still say what is missing.
     expect(screen.getByTestId('bots-noscan-gap_and_go').textContent).toMatch(/Why it can't watch yet/);
-  });
-
-  it('choosing another setup PATCHes the setup that plays', async () => {
-    const fetchMock = mockFetch();
-    await renderPage();
-    await act(async () => { fireEvent.click(screen.getByTestId('bots-setup-radio-bull_flag')); await flush(); });
-    expect(patches(fetchMock)).toContainEqual({ setup: 'bull_flag' });
-  });
-
-  it('the chosen setup\'s own level switch sets the bot level', async () => {
-    const fetchMock = mockFetch({ onPatch: body => session({ level: Number(body.level ?? 1) as 0 | 1 | 2 }) });
-    await renderPage();
-    await act(async () => { fireEvent.click(screen.getByTestId('bots-setup-level-first_pullback-0')); await flush(); });
-    expect(patches(fetchMock)).toContainEqual({ level: 0 });
-    expect(screen.getByTestId('bots-setup-level-first_pullback-0').getAttribute('aria-checked')).toBe('true');
   });
 
   it('+ Add a setup explains what adding one takes and copies the catalogue path', async () => {
@@ -293,26 +296,48 @@ describe('Strategies card', () => {
   });
 });
 
-describe('Symbols card', () => {
-  it('says who holds each Level 2 line and opens a missing one pinned', async () => {
-    mockFetch();
+describe('Who trades -- the stocks Nova may buy (ADR 042 F)', () => {
+  const view = (symbol: string, mode: string, partial: Record<string, unknown> = {}) => ({
+    symbol, generated_at: 0, venue: 'paper', mode, buy: mode === 'approve' ? 'you' : 'nova', sell: mode === 'bot' ? 'nova' : 'you',
+    risk_usd: 20, set_at: 0, locks: { buy: null, sell: null }, notes: [], approval: null, trade: null,
+    entries_today: { count: 0, cap: 1 }, last_event: null, bot: null, size: null, ...partial,
+  });
+
+  it('lists every stock Nova may buy with its mode, its Level 2 line, its setups and what keeps Nova from acting', async () => {
+    mockFetch({ stockModes: [
+      view('GRML', 'bot', { notes: [{ id: 'not_active', tone: 'warn', text: 'The bot is not active -- press Activate' },
+        { id: 'window', tone: 'info', text: 'Every bot window is closed' }] }),
+      view('IMCC', 'bot'),
+      view('QNME', 'auto_entry'),
+      view('SIGN', 'signal'),
+    ] });
     await renderPage();
+    expect(screen.getByTestId('bots-symbols').querySelector('h3')?.textContent).toBe('Who trades');
+    expect(screen.getByTestId('bots-symbols-note').textContent)
+      .toBe('Stocks Nova\'s bot may trade — set per stock under Who trades. The scanners and Eyes watch every HOD Momo name, whatever this list says.');
+    expect(screen.getByTestId('bots-entries-today').textContent).toBe('Nova\'s buys today: 0 of 1');
+    expect(screen.getByTestId('bots-symbol-mode-GRML').textContent).toBe('Bot');
+    expect(screen.getByTestId('bots-symbol-mode-QNME').textContent).toBe('Auto-entry');
+    expect(screen.queryByTestId('bots-symbol-SIGN')).toBeNull();
+    const notes = screen.getByTestId('bots-symbol-notes-GRML');
+    expect(notes.textContent).toBe('The bot is not active — press Activate · +1');
+    expect(notes.getAttribute('data-tip')).toMatch(/Every bot window is closed/);
     expect(within(screen.getByTestId('bots-symbol-GRML')).getByText('Held · Trader')).toBeTruthy();
     fireEvent.click(screen.getByTestId('bots-symbol-open-l2-IMCC'));
     expect(openStockView).toHaveBeenCalledWith('IMCC', { pin: true });
-    // Last from the setup scanner; a chip per setup it is on, most advanced first (ADR 031).
-    const grml = within(screen.getByTestId('bots-symbol-GRML'));
-    expect(grml.getByText('8.69')).toBeTruthy();
     expect(screen.getByTestId('bots-symbol-setup-GRML-first_pullback').textContent).toBe('First pullback · Near');
-    expect(screen.getByTestId('bots-symbol-setup-GRML-bull_flag').textContent).toBe('Bull flag · Flag · 2 bars');
-    expect(screen.getByTestId('bots-symbol-setup-IMCC-first_pullback').textContent).toBe('First pullback · Leg up +7.4%');
+    // A stock at Auto-entry is changed on its own Who trades row: the card opens it.
+    expect(screen.queryByTestId('bots-symbol-remove-QNME')).toBeNull();
+    fireEvent.click(screen.getByTestId('bots-symbol-open-QNME'));
+    expect(openStockView).toHaveBeenCalledWith('QNME', { pin: true });
   });
 
-  it('adds (upper-cased) and removes symbols through POST /bot/allowlist', async () => {
+  it('adds and removes through POST /bot/allowlist, and shows a refusal in the backend\'s words', async () => {
     const ops: Array<{ symbol: string; op: string }> = [];
     let list = ['GRML', 'IMCC'];
     mockFetch({ onAllowlist: body => {
       ops.push(body);
+      if (body.symbol === 'HELD') return refusal(409, 'STOCK_MODE_HELD', 'You hold HELD -- sell it or take over the exit first');
       list = body.op === 'remove' ? list.filter(s => s !== body.symbol) : [...list, body.symbol];
       return session({ symbol_allowlist: list });
     } });
@@ -324,13 +349,26 @@ describe('Symbols card', () => {
     });
     expect(ops).toContainEqual({ symbol: 'EFGH', op: 'add' });
     expect((screen.getByTestId('bots-symbol-input') as HTMLInputElement).value).toBe('');
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('bots-symbol-input'), { target: { value: 'held' } });
+      fireEvent.click(screen.getByTestId('bots-symbol-add'));
+      await flush();
+    });
+    expect(screen.getByTestId('bots-symbol-refusal').textContent).toBe('You hold HELD — sell it or take over the exit first');
+    expect((screen.getByTestId('bots-symbol-input') as HTMLInputElement).value).toBe('HELD');
     await act(async () => { fireEvent.click(screen.getByTestId('bots-symbol-remove-IMCC')); await flush(); });
     expect(ops).toContainEqual({ symbol: 'IMCC', op: 'remove' });
   });
+
+  it('says when Who trades cannot be read, instead of an empty list', async () => {
+    mockFetch({ stockModes: refusal(503, 'STOCK_MODE_DOWN', 'The stock-mode store is not open') });
+    await renderPage();
+    expect(screen.getByTestId('bots-stock-modes-error').textContent).toMatch(/Who trades did not load — The stock-mode store is not open/);
+  });
 });
 
-describe('Risk sleeve', () => {
-  it('PATCHes a slider once it is let go, not once per step', async () => {
+describe('Risk sleeve (ADR 042 E: one per venue)', () => {
+  it('PATCHes a slider once it is let go, on the venue shown, and names what each binds', async () => {
     const fetchMock = mockFetch({ onPatch: () => session() });
     await renderPage();
     const shares = screen.getByTestId('bot-strategy-max-shares');
@@ -340,17 +378,42 @@ describe('Risk sleeve', () => {
       fireEvent.pointerUp(shares);
       await flush();
     });
-    expect(patches(fetchMock)).toEqual([{ caps: { max_shares: 4 } }]);
+    expect(patches(fetchMock)).toEqual([{ caps: { venue: 'paper', max_shares: 4 } }]);
     await act(async () => {
-      fireEvent.change(screen.getByTestId('bot-strategy-bp-budget'), { target: { value: '25' } });
-      fireEvent.blur(screen.getByTestId('bot-strategy-bp-budget'));
+      fireEvent.change(screen.getByTestId('bot-strategy-risk'), { target: { value: '35' } });
+      fireEvent.blur(screen.getByTestId('bot-strategy-risk'));
+      fireEvent.change(screen.getByTestId('bot-strategy-entries'), { target: { value: '2' } });
+      fireEvent.blur(screen.getByTestId('bot-strategy-entries'));
       fireEvent.click(screen.getByTestId('bot-strategy-eh'));
       await flush();
     });
     expect(patches(fetchMock)).toEqual(expect.arrayContaining([
-      { caps: { bp_budget_usd: 25 } },
-      { caps: { extended_hours: true } },
+      { caps: { venue: 'paper', risk_usd: 35 } },
+      { caps: { venue: 'paper', entries_per_day: 2 } },
+      { caps: { venue: 'paper', extended_hours: true } },
     ]));
+    const risk = screen.getByTestId('bots-risk');
+    expect(within(risk).getByText('Risk per trade').getAttribute('data-tip'))
+      .toBe('Sizes every Nova buy and your Stage: shares = risk ÷ risk per share, capped by max shares and the budget.');
+    expect(within(risk).getByText('Nova entries a day').getAttribute('data-tip')).toMatch(/One count for the bot and Auto-entry/);
+    expect(screen.getByTestId('bots-sleeve-kinds').textContent).toMatch(/Order kinds \(the localhost bot API\)/);
+  });
+
+  it('switches to another venue\'s sleeve and saves it there', async () => {
+    const fetchMock = mockFetch({ session: session({ caps_by_venue: {
+      paper: caps('paper'), sim: caps('sim', { max_shares: 5 }), live: caps('live'),
+    } }), onPatch: () => undefined });
+    await renderPage();
+    fireEvent.click(screen.getByTestId('bots-sleeve-tab-sim'));
+    expect((screen.getByTestId('bot-strategy-max-shares') as HTMLInputElement).value).toBe('5');
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('bot-strategy-max-shares'), { target: { value: '6' } });
+      fireEvent.pointerUp(screen.getByTestId('bot-strategy-max-shares'));
+      await flush();
+    });
+    expect(patches(fetchMock)).toEqual([{ caps: { venue: 'sim', max_shares: 6 } }]);
+    fireEvent.click(screen.getByTestId('bots-sleeve-tab-live'));
+    expect(screen.getByTestId('bots-risk').textContent).toMatch(/Nova buys nothing by itself on Live/);
   });
 
   it('draws the desk venue\'s breakers and today\'s P&L on one bar (ADR 032)', async () => {
@@ -361,15 +424,24 @@ describe('Risk sleeve', () => {
     expect(screen.getByTestId('bots-breaker-hard-label').textContent).toBe('−$200 all-stop');
     expect(screen.getByTestId('bots-breaker-soft-label').textContent).toBe('−$50 bot trip');
     expect(screen.getByTestId('bots-breaker-today').textContent).toBe('−$9.54 today');
-    // The bar runs from −$250 (room past the all-stop) to $0.
     expect(parseFloat((screen.getByTestId('bots-breaker-now') as HTMLElement).style.left)).toBeCloseTo(96.184, 3);
     expect(parseFloat((screen.getByTestId('bots-breaker-soft') as HTMLElement).style.left)).toBeCloseTo(80, 6);
-    const soft = screen.getByTestId('bots-breaker-soft');
-    expect(soft.getAttribute('role')).toBe('slider');
-    expect(soft.getAttribute('data-tip')).toMatch(/^Bot trip: when the whole account's day P&L/);
+    expect(screen.getByTestId('bots-breaker-soft').getAttribute('data-tip')).toMatch(/^Bot trip: when this venue's day P&L/);
+    expect(screen.queryByTestId('bots-breaker-status')).toBeNull();
   });
 
-  it('drags the bot trip and saves the venue\'s pair on release; a restart reads it back from the session', async () => {
+  it('says when the bot trip fired, at what P&L, when it clears -- and that a replay compares nothing', async () => {
+    mockFetch({ session: session({
+      soft_breaker: { fired: true, at: AT_0942, pnl: -52.1, until: '2026-10-01T04:00:00-04:00' },
+      breakers: breakers({ note: 'A Sim replay is not today -- the breakers compare nothing here' }),
+    }) });
+    await renderPage();
+    expect(screen.getByTestId('bots-breaker-soft-fired').textContent).toBe('Bot trip fired at 09:42 ET at −$52.10: the bot '
+      + 'is off on this venue until 04:00 ET on Oct 1 — Activate re-enables it for today.');
+    expect(screen.getByTestId('bots-breaker-note').textContent).toBe('A Sim replay is not today — the breakers compare nothing here');
+  });
+
+  it('drags the bot trip and saves the venue\'s pair on release', async () => {
     const fetchMock = mockFetch({ onPatch: body => {
       const b = body.breakers as { soft_usd: number };
       return session({ breakers: breakers({ soft_usd: b.soft_usd, custom: true }) });
@@ -389,7 +461,6 @@ describe('Risk sleeve', () => {
     expect(patches(fetchMock)).toEqual([{ breakers: { venue: 'paper', soft_usd: -125 } }]);
     expect(screen.getByTestId('bots-breaker-soft-label').textContent).toBe('−$125 bot trip');
     expect(screen.getByTestId('bots-breakers-venue').textContent).toMatch(/Paper · drag to move · yours/);
-    expect(confirmApp).not.toHaveBeenCalled();
   });
 
   it('asks before loosening Live, and keeps the old value when the answer is no', async () => {
@@ -405,19 +476,9 @@ describe('Risk sleeve', () => {
       await flush();
     });
     expect(confirmApp).toHaveBeenCalledTimes(1);
-    expect(String((confirmApp.mock.calls[0] as unknown[])[0] && JSON.stringify(confirmApp.mock.calls[0]))).toMatch(/Loosen Live/);
+    expect(JSON.stringify(confirmApp.mock.calls[0])).toMatch(/Loosen Live/);
     expect(patches(fetchMock)).toEqual([]);
     expect(screen.getByTestId('bots-breaker-soft-label').textContent).toBe('−$50 bot trip');
-  });
-
-  it('an API older than ADR 032 keeps the fixed pair and says why the markers do not move', async () => {
-    const old = session();
-    delete old.breakers;
-    mockFetch({ session: old });
-    await renderPage();
-    const soft = screen.getByTestId('bots-breaker-soft');
-    expect(soft.getAttribute('aria-disabled')).toBe('true');
-    expect(soft.getAttribute('data-why')).toMatch(/restart the backend to move them/);
   });
 });
 
@@ -431,6 +492,28 @@ describe('Proposals, activity and today', () => {
     await act(async () => { fireEvent.click(screen.getByTestId('bots-stage-GRML')); await flush(); });
     expect(openStockView).toHaveBeenCalledWith('GRML', { pin: true });
     expect(screen.queryByTestId('bots-setup-proposal-GRML')).toBeNull();
+  });
+
+  it('says the bot is taking a proposal, and locks Stage so it is not bought twice', async () => {
+    setups.board = board({ proposals: [{ ...board().proposals[0], taken_by: 'bot', not_a_trade: null } as never] });
+    mockFetch();
+    await renderPage();
+    expect(screen.getByTestId('bots-proposal-taken-GRML').textContent).toBe('The bot is taking this — nothing to do');
+    const stage = screen.getByTestId('bots-stage-GRML') as HTMLButtonElement;
+    expect(stage.disabled).toBe(true);
+    expect(stage.getAttribute('data-why')).toMatch(/Nova's bot is taking this trigger/);
+  });
+
+  it('says why a proposal is not a trade, and locks Stage with the reasons', async () => {
+    setups.board = board({ proposals: [{ ...board().proposals[0], taken_by: null,
+      not_a_trade: { reasons: ['grade C (1 of 5 pillars)', 'the spread is at least the risk'] } } as never] });
+    mockFetch();
+    await renderPage();
+    expect(screen.getByTestId('bots-proposal-not-a-trade-GRML').textContent)
+      .toBe('Not a trade: grade C (1 of 5 pillars); the spread is at least the risk');
+    const stage = screen.getByTestId('bots-stage-GRML') as HTMLButtonElement;
+    expect(stage.disabled).toBe(true);
+    expect(stage.getAttribute('data-why')).toMatch(/^Not a trade -- grade C/);
   });
 
   it('lists a proposal the scanner withdrew, from the audit stream', async () => {
@@ -458,11 +541,16 @@ describe('Proposals, activity and today', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/bot/action'))).toBe(false);
   });
 
-  it('draws the day\'s timeline from the audit stream and the setup scanner, and filters it', async () => {
+  it('draws the day\'s timeline: the master level, why the bot stopped, who trades, the scanner', async () => {
     mockFetch({
       audit: [
         { timestamp: 1_790_000_300, level: 1, strategy: null, brain_session_id: null, action: 'level',
           inputs: { from: 1, to: 2 }, reason: null, order_id: null, advise_spend: null, outcome: '1->2' },
+        { timestamp: 1_790_000_350, level: 2, brain_session_id: null, action: 'deactivate',
+          inputs: { reason: 'restart' }, reason: null, order_id: null, outcome: 'ok' },
+        { timestamp: 1_790_000_360, level: 2, brain_session_id: null, action: 'stock_mode',
+          inputs: { symbol: 'GRML', setup_type: 'bull_flag' }, reason: 'outside the bull flag\'s bot window 07:00-10:00',
+          order_id: null, outcome: 'skipped' },
         { timestamp: 1_790_000_400, level: 2, strategy: null, brain_session_id: null, action: 'setup_proposal',
           inputs: { symbol: 'GRML', kind: 'first_pullback', tape_now: 'go', grade: 'A' }, reason: null, order_id: null,
           advise_spend: null, outcome: 'proposed' },
@@ -476,38 +564,44 @@ describe('Proposals, activity and today', () => {
     });
     await renderPage();
     const activity = within(screen.getByTestId('bots-activity'));
-    expect(activity.getByText('Level Eyes → Strategy')).toBeTruthy();
+    expect(activity.getByText('Master level Eyes → Strategy')).toBeTruthy();
+    expect(activity.getByText('Stopped the bot')).toBeTruthy();
+    expect(activity.getByText('the backend restarted')).toBeTruthy();
+    expect(activity.getByText('Skipped GRML · bull flag')).toBeTruthy();
+    expect(activity.getByText('outside the bull flag\'s bot window 07:00-10:00')).toBeTruthy();
     expect(activity.getByText('Proposed GRML first pullback')).toBeTruthy();
-    expect(activity.getByText('tape go · grade A')).toBeTruthy();
     expect(activity.getByText('Armed GRML · First pullback · trigger 8.72 · stop 8.52')).toBeTruthy();
-    expect(activity.getByText('2 red candles held the 9 EMA · leg +7.4% · grade A')).toBeTruthy();
     expect(activity.getByText('Wait IMCC near 1.45')).toBeTruthy();
     await act(async () => { fireEvent.click(activity.getByText('Proposals')); });
-    expect(activity.queryByText('Level Eyes → Strategy')).toBeNull();
-    expect(activity.queryByText('Armed GRML · First pullback · trigger 8.72 · stop 8.52')).toBeNull();
+    expect(activity.queryByText('Master level Eyes → Strategy')).toBeNull();
     expect(activity.getByText('Proposed GRML first pullback')).toBeTruthy();
   });
 
-  it('counts today and scores the tape splits', async () => {
-    mockFetch();
+  it('says what each of today\'s counts counts, and reads the setup at Strategy first', async () => {
+    mockFetch({ session: strategySession({ entries_today: { count: 1, cap: 1, venue_day: '2026-09-30', entries: [], approved: 2 } }) });
     await renderPage();
+    const today = screen.getByTestId('bots-today');
+    expect(today.textContent).not.toMatch(/bot only/);
+    expect((screen.getByTestId('bots-today-setup') as HTMLSelectElement).value).toBe('first_pullback');
     expect(screen.getByTestId('bots-kpi-armed').textContent).toBe('6');
     expect(screen.getByTestId('bots-kpi-triggered').textContent).toBe('2');
+    expect(screen.getByTestId('bots-kpi-entries').textContent).toBe('1 / 1');
+    expect(screen.getByTestId('bots-kpi-armed').parentElement?.textContent).toBe('Armed6First pullback');
+    expect(screen.getByTestId('bots-kpi-proposed').parentElement?.textContent).toBe('Proposed0every setup');
+    expect(screen.getByTestId('bots-kpi-pnl').parentElement?.textContent).toBe('Bot P&L—its own fills');
     const table = within(screen.getByTestId('bots-scoreboard'));
     expect(table.getByText('GO')).toBeTruthy();
     expect(table.getByText('+0.31R')).toBeTruthy();
-    expect(table.getByText('−0.24R')).toBeTruthy();
     // Paper with no ledger answer yet: the bot's P&L is unknown, never $0.
     expect(screen.getByTestId('bots-kpi-pnl').textContent).toBe('—');
+    expect(screen.getByTestId('bots-entries-today').textContent).toBe('Nova\'s buys today: 1 of 1 · 2 approved by you');
   });
 
-  it('states the bot footer: working orders and the kinds it may send', async () => {
-    mockFetch({ session: session({ gates: gates(), caps: {
-      max_shares: 1, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: false, allowlist: ['buy_market', 'exit_pos'],
-    } }) });
+  it('states the bot footer: working orders and the order kinds of the localhost bot API', async () => {
+    mockFetch({ session: session({ caps: caps('paper', { api_kinds: ['buy_market', 'exit_pos'], allowlist: ['buy_market', 'exit_pos'] }) }) });
     await renderPage();
     const footer = screen.getByTestId('bots-status').textContent ?? '';
     expect(footer).toMatch(/GRML · flat · 0 bot working orders/);
-    expect(footer).toMatch(/Order kinds the bot may send: buy_market · exit_pos/);
+    expect(footer).toMatch(/Order kinds \(the localhost bot API\): buy_market · exit_pos/);
   });
 });

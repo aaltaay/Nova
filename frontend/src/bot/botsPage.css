@@ -167,7 +167,7 @@
 .bots-hero > div { padding: 14px 16px; min-width: 0; }
 .bots-hero__main { border-left: 1px solid var(--bots-hair); border-right: 1px solid var(--bots-hair); }
 .bots-hero--armed { border-color: color-mix(in srgb, var(--bots-green) 60%, transparent); }
-.bots-hero--live { box-shadow: 0 0 0 1px var(--bots-green) inset; }
+.bots-hero--trading { box-shadow: 0 0 0 1px var(--bots-green) inset; }
 .bots-hero__head { display: flex; align-items: center; gap: 8px; }
 .bots-hero__head h2 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
 .bots-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--bots-amber); flex: none; }
@@ -177,6 +177,16 @@
 .bots-hero__playing { margin: 0; color: var(--nova-text-muted); font-size: 12.5px; line-height: 1.45; }
 .bots-hero__playing b { color: var(--nova-text); }
 .bots-hero__trade { margin: 4px 0 0; color: var(--nova-text); font-size: 12.5px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+/* ADR 042: why the bot is not trading while active, and why the backend turned it off. */
+.bots-hero__notready { margin: 4px 0 0; color: var(--bots-amber); font-size: 12.5px; line-height: 1.45; }
+.bots-hero__off { margin: 4px 0 0; color: var(--bots-amber); font-size: 12.5px; line-height: 1.45; }
+.bots-hero__dialhead { display: block; margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--nova-text-muted); }
+.bots-hero__atstrategy { margin: 8px 0 0; font-size: 12.5px; color: var(--nova-text-muted); }
+.bots-hero__atstrategy b { color: var(--nova-text); }
+.bots-hero__sweep { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--nova-text-muted); line-height: 1.4; }
+.bots-hero__sweep b { color: var(--nova-text); }
+.bots-hero__sweep .is-bad { color: var(--bots-red); }
+.bots-kill small { display: block; margin-top: 3px; white-space: normal; line-height: 1.35; }
 .bots-hero__stale {
   margin: 10px 0 0;
   font-size: 12.5px;
@@ -186,7 +196,8 @@
   padding: 8px 10px;
 }
 .bots-hero__actions { display: flex; flex-direction: column; gap: 9px; justify-content: center; }
-.bots-hero__hint { margin: -2px 0 0; font-size: 11.5px; color: var(--nova-text-muted); text-align: center; }
+.bots-hero__hint { margin: -2px 0 0; font-size: 11.5px; color: var(--nova-text-muted); text-align: center; line-height: 1.4; }
+.bots-hero__hint--fire { color: var(--bots-amber); }
 .bots-hero__killed { margin: 0; font-size: 12px; color: var(--bots-red); font-weight: 600; }
 .bots-hero__error { margin: 0; color: var(--bots-red); font-size: 12px; line-height: 1.4; }
 .bots-hero__key { display: flex; gap: 6px; }
@@ -236,8 +247,11 @@
 }
 .bots-seg__opt.is-on .bots-seg__lvl { background: var(--bots-blue); color: #fff; }
 
-/* Gate chips. */
-.bots-gates { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+/* Gate chips, in two groups: what Activate needs, and what each order meets (ADR 042 C). */
+.bots-gategroups { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.bots-gategroup { display: flex; flex-direction: column; gap: 4px; }
+.bots-gategroup__head { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--nova-text-muted); }
+.bots-gates { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .bots-gate {
   display: inline-flex;
   align-items: baseline;

@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { BOTS_SLIDER_COMMIT_MS } from '../constantGroups/bots_page';
+import { tipProps } from '../ux/hoverTip';
 
 interface Props {
   label: string;
@@ -18,13 +19,15 @@ interface Props {
   format: (v: number) => string;
   minLabel: string;
   maxLabel: string;
+  /** What the cap binds, on the label's hover. */
+  tip?: string;
   disabled?: boolean;
   /** Why it is locked while ``disabled`` (ux/whyTip.ts). */
   why?: string | null;
   onCommit: (v: number) => void;
 }
 
-export function BotSleeveSlider({ label, testId, value, min, max, step, format, minLabel, maxLabel, disabled, why = null, onCommit }: Props) {
+export function BotSleeveSlider({ label, testId, value, min, max, step, format, minLabel, maxLabel, tip, disabled, why = null, onCommit }: Props) {
   const [draft, setDraft] = useState(value);
   const pending = useRef<number | null>(null);
   const timer = useRef<number | null>(null);
@@ -58,7 +61,7 @@ export function BotSleeveSlider({ label, testId, value, min, max, step, format, 
   const pct = max > min ? ((draft - min) / (max - min)) * 100 : 0;
   return (
     <label className="bots-slider">
-      <span className="bots-slider__head"><span>{label}</span><b>{format(draft)}</b></span>
+      <span className="bots-slider__head"><span {...tipProps(tip, label)}>{label}</span><b>{format(draft)}</b></span>
       <input
         type="range"
         data-testid={testId}

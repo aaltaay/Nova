@@ -1,16 +1,17 @@
 /**
- * The bot's level and Activate, one logic for every surface that drives them
- * (the Bots page hero, the Trader rail card). Level 2 arms first; Activate is
- * refused while the desk gate blocks places or -- at Strategy on Live -- while
- * the chosen setup's read-out has not passed (ADR 027, 030, 031); locking the padlock
- * (disarming the desk) stops the bot.
+ * The bot's master level and Activate (ADR 042), one logic for every surface that
+ * drives them (the Bots page hero, the Trader rail card). Choosing a level never
+ * activates the bot: configuration is not "go". Activate is enabled only when the
+ * backend would accept it (bot/botActivateLock.ts), and after a bot trip it asks in
+ * words before it sends `reenable: true`. Locking the padlock turns the bot off in
+ * the backend (ibkr/safety's disarm path calls the bot), never from here.
  */
-import { useEffect } from 'react';
-import { BOT_ERROR_READOUT } from '../constantGroups/bot';
-import { BOTS_ERROR_UNLOCK_FIRST } from '../constantGroups/bots_page';
+import { BOTS_REENABLE_CANCEL, BOTS_REENABLE_OK, BOTS_REENABLE_TITLE } from '../constantGroups/bots_page';
 import { DESK_BOT_POLL_MS } from '../constants';
-import { botArmDisplayState } from '../ibkr/tradingAllowed';
-import { useDeskTradingAllowed } from '../ibkr/useDeskTradingAllowed';
+import { confirmApp } from '../ux/appDialogApi';
+import { activateLock } from './botActivateLock';
+import { gateContext } from './botGateWords';
+import { isActive, isReady, masterLevel } from './botLevels';
 import { setBotSessionError } from './botSessionPoller';
 import { useBotSession } from './useBotSession';
 
@@ -18,67 +19,45 @@ export type BotArm = ReturnType<typeof useBotArm>;
 
 export function useBotArm() {
   const bot = useBotSession(DESK_BOT_POLL_MS);
-  const { session, activate, stop, patch } = bot;
-  const gate = useDeskTradingAllowed();
-  const level = session?.level ?? 0;
-  const armed = Boolean(session?.armed);
-  const display = botArmDisplayState(armed, gate);
-  const live = Boolean(session?.live_fire_ready) && display.looksActive;
-  const readoutPassed = Boolean(session?.readout?.passed);
-  // ADR 030: only Live waits on the read-out. An absent read-out or flag (older
-  // API) is not a pass; the backend refuses anyway.
-  const readoutBlocks = level >= 2 && !readoutPassed && session?.readout_required !== false;
-  const activateBlocked = !gate.allowed || readoutBlocks;
-  const activateReason = !gate.allowed
-    ? gate.reason
-    : readoutBlocks
-      ? `${BOT_ERROR_READOUT}: ${session?.readout?.reason ?? 'not read yet'}`
-      : null;
+  const { session, activate, patch } = bot;
+  const level = masterLevel(session);
+  const active = isActive(session);
+  const ready = isReady(session);
+  const lock = activateLock(session, session ? gateContext(session, null) : {});
 
-  // Only a fresh read that says "disarmed" stops the bot: a cached or failed
-  // status cannot tell, and a bot may have armed the desk since (Paper / Sim).
-  const deskDisarmed = gate.armKnown && gate.blockers.includes('pin');
-  useEffect(() => {
-    if (deskDisarmed && armed) void stop();
-  }, [deskDisarmed, armed, stop]);
-
+  /** The master level: a PATCH, never an Activate. */
   async function onLevel(next: number) {
-    // Raising to Strategy needs the desk token from Activate; with the
-    // read-out closed the backend then lands it not active (ADR 027).
-    if (next >= 2 && !armed) {
-      // Say why instead of doing nothing: a click that changes nothing reads as a broken button.
-      if (!gate.allowed) {
-        setBotSessionError(`${BOTS_ERROR_UNLOCK_FIRST}${gate.reason ? ` (${gate.reason})` : ''}`);
-        return;
-      }
-      if (!(await activate())) return;
-    }
     await patch({ level: next });
   }
 
-  async function onControl(next: boolean) {
-    if (level < 2) return;
-    if (next) {
-      if (activateBlocked) {
-        if (activateReason) setBotSessionError(activateReason);
-        return;
-      }
-      await activate();
-    } else await stop();
+  /** Activate, as the backend would accept it: refused with its reason, or after the bot trip, asked first. */
+  async function onActivate() {
+    if (lock.why) {
+      setBotSessionError(lock.why);
+      return null;
+    }
+    if (lock.reenable) {
+      const ok = await confirmApp({
+        title: BOTS_REENABLE_TITLE,
+        message: lock.reenable,
+        confirmLabel: BOTS_REENABLE_OK,
+        cancelLabel: BOTS_REENABLE_CANCEL,
+        tone: 'warning',
+      });
+      if (!ok) return null;
+      return activate({ reenable: true });
+    }
+    return activate();
   }
 
   return {
     ...bot,
-    gate,
     level,
-    armed,
-    display,
-    live,
-    readoutPassed,
-    activateBlocked,
-    activateReason,
+    active,
+    ready,
+    lock,
     showKeyField: Boolean(bot.error && /api key/i.test(bot.error)),
     onLevel,
-    onControl,
+    onActivate,
   };
 }

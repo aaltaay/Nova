@@ -52,7 +52,7 @@ describe('ScannerRowActions', () => {
     expect(onOpenTrading).toHaveBeenCalledWith('GRML');
     fireEvent.click(screen.getByTestId('scanner-row-record'));
     expect(record.start).toHaveBeenCalledWith('GRML');
-    expect(screen.getByTestId('scanner-row-allowlist').textContent).toBe('Allowlist');
+    expect(screen.getByTestId('scanner-row-allowlist').textContent).toBe('Let bot trade');
     fireEvent.click(screen.getByTestId('scanner-row-allowlist'));
     expect(allowlist.add).toHaveBeenCalledWith('GRML');
     expect(screen.getByTestId('scanner-row-pin').textContent).toBe('Pin');
@@ -77,7 +77,7 @@ describe('ScannerRowActions', () => {
     });
     vi.useRealTimers();
     expect(record.stop).toHaveBeenCalledWith('QNME');
-    expect(screen.getByTestId('scanner-row-allowlist').textContent).toBe('Allowlisted ✓');
+    expect(screen.getByTestId('scanner-row-allowlist').textContent).toBe('Bot trades ✓');
     fireEvent.click(screen.getByTestId('scanner-row-allowlist'));
     expect(allowlist.remove).toHaveBeenCalledWith('QNME');
   });

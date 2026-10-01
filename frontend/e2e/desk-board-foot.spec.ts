@@ -43,6 +43,6 @@ for (const c of CASES) {
       expect(part.right, part.cls).toBeLessThanOrEqual(box.right);
     }
     // A short label never loses the meaning: each item's title names it in full.
-    expect(box.titles).toEqual(['recording', 'allowlisted, depth line held', 'allowlisted, quiet']);
+    expect(box.titles).toEqual(['recording', 'bot trades it, depth line held', 'bot trades it, quiet']);
   });
 }

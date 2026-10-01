@@ -102,17 +102,13 @@
   flex-direction: column;
   gap: 6px;
 }
-.bots-strat--chosen {
-  grid-column: 1;
-  grid-row: 1 / 3;
+/* A setup the bot may trade now (effective Strategy, ADR 042). */
+.bots-strat--strategy {
   border-color: var(--bots-blue);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--bots-blue) 55%, transparent) inset;
 }
 .bots-strat__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.bots-strat__pick { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; }
-.bots-strat__pick input { accent-color: var(--bots-blue); margin: 0; cursor: pointer; }
-.bots-strat__pick input:disabled { cursor: not-allowed; }
-.bots-strat--noscan .bots-strat__pick { cursor: default; }
+.bots-strat__name { font-size: 14px; }
 .bots-strat__blurb { margin: 0; font-size: 12.5px; color: var(--nova-text-muted); line-height: 1.45; }
 .bots-strat__research { margin: 0; font-size: 12px; color: var(--nova-text-muted); line-height: 1.5; }
 .bots-strat__research--failed .bots-rbadge { color: var(--bots-red); background: color-mix(in srgb, var(--bots-red) 15%, transparent); }
@@ -173,7 +169,8 @@
 .bots-readout__nums { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--nova-text-muted); font-size: 12px; }
 .bots-readout__nums b { font-family: var(--bots-mono); }
 .bots-readout__research { color: var(--nova-text-muted); }
-.bots-readout__waived { margin: 6px 0 0; font-size: 12px; color: var(--nova-text-muted); }
+.bots-readout__inside { margin: 4px 0 0; font-size: 12px; color: var(--nova-text-muted); }
+.bots-readout__note { margin: 4px 0 0; font-size: 11.5px; color: var(--nova-text-muted); }
 
 .bots-addsetup {
   margin-top: 8px;
@@ -399,9 +396,49 @@
 
 @container main-col (max-width: 1100px) {
   .bots-strat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .bots-strat--chosen { grid-column: 1 / -1; grid-row: auto; }
 }
 
 @container main-col (max-width: 700px) {
   .bots-strat-grid, .bots-sleeve, .bots-kpis { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* -- Who trades, the sleeve per venue, the breakers' day, the inbox's verdicts (ADR 042) -- */
+.bots-symbols__note { margin: -4px 0 6px; line-height: 1.45; }
+.bots-symbols__entries { margin: 0 0 8px; font-size: 12.5px; font-family: var(--bots-mono); }
+.bots-mode--bot { color: var(--bots-blue); border-color: color-mix(in srgb, var(--bots-blue) 45%, transparent); }
+.bots-mode--auto_entry { color: var(--bots-violet); border-color: color-mix(in srgb, var(--bots-violet) 45%, transparent); }
+.bots-mode--approve { color: var(--bots-amber); border-color: color-mix(in srgb, var(--bots-amber) 45%, transparent); }
+.bots-sleeve__venues { margin: 0 0 10px; }
+.bots-sleeve__note { margin: -4px 0 10px; }
+.bots-sleeve__kinds { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; min-width: 0; grid-column: 1 / -1; }
+.bots-breakers__status { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 12px; line-height: 1.45; }
+.bots-breakers__status p { margin: 0; }
+.bots-breakers__status .is-bad { color: var(--bots-red); }
+.bots-breakers__status .is-warn { color: var(--bots-amber); }
+.bots-prop__verdict { margin: 2px 0 0; font-size: 12px; color: var(--bots-blue); font-weight: 600; }
+.bots-prop__verdict--bad { color: var(--bots-amber); }
+.bots-today__pick { display: flex; align-items: center; gap: 8px; margin: -4px 0 8px; font-size: 12px; }
+.bots-today__pick select {
+  background: var(--input-bg, var(--nova-canvas));
+  color: inherit;
+  border: 1px solid var(--nova-border);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font: inherit;
+}
+/* A stock's notes: two lines at most, every note on hover, so the row's own action stays in the card. */
+.bots-notes-chip {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  max-width: 200px;
+  line-height: 16px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  cursor: help;
+}
+.bots-notes-last { display: inline-block; max-width: 200px; line-height: 1.35; }
+.bots-kpis--today { grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); }
+.bots-kpis small { font-size: 10.5px; color: var(--nova-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

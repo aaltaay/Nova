@@ -16,7 +16,7 @@
   border-color: #c9a227;
 }
 
-.bot-card--live {
+.bot-card--trading {
   border-color: #2ecc71;
   animation: bot-arm-pulse 1.2s ease-in-out infinite;
 }
@@ -55,7 +55,7 @@
   font-weight: 700;
 }
 
-.bot-card--live .bot-card__state--active {
+.bot-card--trading .bot-card__state--active {
   color: #86efac;
 }
 
@@ -150,4 +150,12 @@
   color: inherit;
   font: inherit;
   padding: 2px 6px;
+}
+
+/* ADR 042: why the bot is not trading, under the state. */
+.bot-card__reason {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #fbbf24;
 }
