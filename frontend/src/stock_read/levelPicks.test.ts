@@ -226,12 +226,3 @@ describe('a label that does not fit', () => {
     expect(fitText('daily highs ×8', 50, measure)).toBe('daily h…');
   });
 });
-
-describe('level labels on a crowded pane', () => {
-  it('stack under one another and push back up from the bottom instead of dropping off it', async () => {
-    const { stackLabels } = await import('./levelRender');
-    expect(stackLabels([10, 12, 50], 200)).toEqual([10, 25, 50]);
-    expect(stackLabels([180, 185, 190, 199], 200)).toEqual([148, 163, 178, 193]);
-    expect(stackLabels(Array.from({ length: 20 }, () => 100), 60)[0]).toBeNull();
-  });
-});

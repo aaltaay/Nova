@@ -1531,7 +1531,7 @@ card, `levelRender.ts` the drawing, `levelTypes.ts` and `levelMapNormalize.ts` t
 rows, `paneKeyRows.ts` / `ChartKey.tsx` each pane's Key). Each chart draws only the levels its own candles
 show, and no level twice (operator, 2026-09-30: "Every chart has special needs and special powers ...
 There's no reason to have duplicate information"). Every level is a line (a band when the zone is wide)
-with a short label at the right edge that stacks under the one above it -- its price, what it is and what
+with a short label at the right edge (the pane's one column, below) -- its price, what it is and what
 the candles made of it ("$17.50 · double top", "23.52 · HOD · double top", "16.38 · PMH") -- and a card
 under the pointer: what it is and how far from the price, why it is there in plain words (each top or
 bottom with the candles it was counted on and when), and what usually happens there, from the study. The
@@ -1551,6 +1551,28 @@ card lists Room (with "in trial T7" while amber), Target, Stop, "$ next" and "$ 
 its detail on hover, and the ruler marks the `between` levels. The toolbar's Levels switch
 (`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. Nothing is drawn on a replay
 desk or the sample desk.
+
+**One column at a pane's right edge** (operator report 2026-09-30: "everything is getting on top of each
+other in the charts!"). The right edge had three owners -- the levels' labels stacked among themselves,
+lightweight-charts drew the EMAs', VWAP's and the plan lines' titles on its own, and the tags for prices out
+of view sat at a fixed spot the 1-minute pane's corner chips covered -- so they landed on each other. The
+stock read now claims each pane's edge (`chart/edgeWords.ts`, in memory per chart):
+- the overlays (`components/TickerChartOverlays.tsx`) blank their series titles and publish their names;
+  the plan's price lines keep their prices on the axis and give their names to the column; the position tag
+  reserves its spot;
+- one column (`stock_read/edgeColumn.ts`) places every word: on its line where there is room, else the
+  crowd centred on its lines in their order, with a hairline back to each line. A crowd that cannot sit
+  within three rows of its lines drops its least important word first -- the plan's lines, VWAP, the high
+  of day, the levels, the 9 / 20 / 200 EMA, then the tags -- and a level that loses its label keeps an axis
+  tick that opens its card;
+- the tags for prices out of view (an EMA's with its value: "↑ 200 EMA 1048.99") stack under the corner
+  chips and at the bottom, at most three at each end; the 1-minute legend ends where the price axis begins.
+
+A pane without the stock read (a replay desk, the sample desk) keeps the series' own titles. The EMAs no
+longer stretch the price scale on any chart: the candles decide what prices a pane shows (LGHL's 200 EMA,
+a year of reverse splits behind it, squeezed the Full Day candles into a flat line). The Full Day pane's
++40% runs are drawn by the scene: every run keeps its arrow, and where labels crowd today's and then the
+biggest runs keep theirs.
 
 ### Who trades the stock (ADR 037, operator ask 2026-09-24, #604, #606)
 
@@ -3666,6 +3688,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | One column at a chart pane's right edge (operator report: "everything is getting on top of each other in the charts!", LGHL after hours). The levels' labels, the EMAs' and VWAP's tags (drawn by lightweight-charts on its own), the plan lines' names and the off-view tags each stacked alone, so "5.20 · double top" sat under "200 EMA" and "↑ HOD 9.79" under the 1-minute pane's Bot chip. The stock read claims each pane's edge (`chart/edgeWords.ts`), the overlays and price lines hand it their names, the position tag reserves its spot, and `stock_read/edgeColumn.ts` places every word in one column, nearest its line, dropping the least important first. The EMAs no longer stretch the price scale (the Full Day candles were a flat line under a 200 EMA at 7,500), and the +40% run labels make room for each other. Verified on LGHL's real bars rendered headlessly through the real components. §3 amended ("One column at a pane's right edge"). | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | One owner for Nova's buys (ADR 042; operator: "why is it a radio button? We are already choosing if it's off, eyes only, or strategy independently in each strategy", then "do you see other stupid mistakes like this one? run deep dive", then "fix these problems, all of them ... I don't want just silent blockers ... We don't want anything invisible to the user"). A read-only audit found about 30 leftovers of the kind: two automatic buyers (the bot and Auto-entry) with different rules and no shared owner. Now the chosen setup and its radio are gone -- the hero's level is a master ceiling and each setup's own Off / Eyes / Strategy is the decision; one Activate, refused with a stated reason and cleared by the backend on restart and when the padlock is locked; every gate drawn with its reason; one sleeve per venue sizes every Nova buy (risk per trade, also the Trader's), one entry timeout, one persisted daily count; the bot list written only through Who trades, per venue; Auto-entry follows the bot's rules and hands over the exit; NOT A TRADE is one rule for the plan, the bot, Auto-entry, Approve and proposals; Nova's bot plays every Strategy setup with its stop resting at the broker; the localhost bot API refuses Live; the day lock and the bot trip lift at 04:00 ET (they lifted at midnight and tripped again on yesterday's practice P&L) and lock their own venue; the kill switch sweeps every venue and says what it could not reach (#656); the breakers stop counting Live commissions twice; bot parameters never restart a read-out; auto-record keeps setups' lines through their arming windows; the Decisions tab counts each setup once. §3 amended (Bot playbook, Activate, sleeve, breakers, the level belongs to a venue, Nova's bot, Every setup's scanner, Who trades, NOT A TRADE, Setup templates, Auto-record, the kill switch, Who may arm the desk); ADRs 027, 029, 030, 031, 032 and 037 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The desk's account view follows the venue (#657, the second half of #655). After a venue switch the orders, positions and summary of the old venue stayed on screen until the next read (up to 5 s for orders), a failed read kept them, and a disconnected Live showed Paper's as "last known". The snapshot now names its venue, a switch clears it and reads the new one at once, late reads and other windows' snapshots of another venue are dropped, and Cancel sends the row's venue so the door refuses it if the desk moved. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | 5-minute setups (operator: "we need 5-minute strategies ... clear patterns in the 5-minute chart, but they're not clear in the 1-minute chart"; on the mockup of IOVA 2026-09-29: build it this way, chart only, a chip and the trigger on the 1-minute, 07:00-15:30). One built-in lane per setup (first pullback, bull flag, flat top) runs the setup's own detector on 5-minute candles made of the scanner's minutes, with the default template's rules but a 5-minute candle, arming until 15:30, a risk up to 6% of the entry and a 60-minute scoring read (`setup_scanner/five_minute_lane.py`; the detectors and the scoring take the candle's length). It scores on its own `~5m` rows and never proposes, tells the bot or reaches the Setups board or a Bots card. The 5-minute chart draws its lanes and the day's 5-minute setups that ended (`past-setups?tf=5m`); the 1-minute chart shows one in reach as a chip and its trigger line. On IOVA the 1-minute scanners triggered once in 33 setups and the 5-minute lanes four times; the bar-level 5-minute versions still lost over five years, so nothing trades on them. §3 amended. | User Directive + Claude Opus 5.5 |

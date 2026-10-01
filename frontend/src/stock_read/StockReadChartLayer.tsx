@@ -6,21 +6,26 @@
  * the Full Day pane the daily one, each level's card under the pointer (ADR 036 amendment 2026-09-30);
  * the 5-minute and 10-second panes mirror the plan's levels as thin lines; the daily pane marks every
  * +40% run.
+ * The pane's right edge is the scene's (operator report 2026-09-30: "everything is getting on top of each
+ * other in the charts!"): it claims the edge (`claimEdge`), so the EMAs' and VWAP's tags, the plan's
+ * ENTRY / STOP / TARGET and the position tag's room come to its one column with the levels' names instead of
+ * being drawn over them, and the column starts under the corner chips.
  * Nothing is drawn while the desk replays another moment: the read is today's live stock.
  */
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  createSeriesMarkers,
   type IPriceLine,
   type ISeriesApi,
   type LineStyle,
-  type SeriesMarker,
   type Time,
 } from 'lightweight-charts';
 import {
   buildSeriesTimeIndex,
+  claimEdge,
+  edgeContents,
   isFollowingRightEdge,
   nearestSeriesTime,
+  subscribeEdge,
   toCanonicalTime,
   type ChartPaneOverlayProps,
   type SeriesTimeIndex,
@@ -31,11 +36,13 @@ import { chartKey } from './paneKeyRows';
 import { ChartLegend } from './ChartLegend';
 import { laneStartSec, leadLane, paneDraw, paneKind, type PriceLineSpec } from './chartShapes';
 import { levelNote } from './levelPicks';
-import { EMPTY_SCENE, SetupShapesPrimitive } from './SetupShapesPrimitive';
+import { SetupShapesPrimitive } from './SetupShapesPrimitive';
+import { EMPTY_SCENE, type Scene, type SceneWord } from './sceneTypes';
+import { lineWords, runMarks, usePriceScaleWidth } from './paneScene';
 import { ShapeTip, shapeStory, useShapeHover } from './ShapeTip';
 import { useStockReadContext } from './StockReadContext';
 import { STOCK_READ_FOCUS_AFTER_SEC, STOCK_READ_FOCUS_BEFORE_SEC } from './constants';
-import type { RunDay, SetupLeg } from './types';
+import type { SetupLeg } from './types';
 import { draggedPlan, usePlanDrag } from './usePlanDrag';
 
 const MIN = 60;
@@ -47,6 +54,8 @@ const PLAN_RIGHT_OFFSET_BARS = 12;
 /** Candles shown before a setup begins when the pane frames it, and the fewest it shows. */
 const FRAME_PAD_BARS = 12;
 const FRAME_MIN_BARS = 40;
+/** Room kept between the corner chips and the first word under them, and between the legend and the axis. */
+const CORNER_GAP_PX = 3;
 const STYLE: Record<PriceLineSpec['style'], LineStyle> = { solid: 0, dotted: 1, dashed: 2 };
 
 function seriesIndex(series: ISeriesApi<'Candlestick'> | null): SeriesTimeIndex {
@@ -159,23 +168,6 @@ function usePriceLines(series: ISeriesApi<'Candlestick'> | null, specs: PriceLin
   }, [series]);
 }
 
-function runMarkers(runs: RunDay[], index: SeriesTimeIndex): SeriesMarker<Time>[] {
-  const out: SeriesMarker<Time>[] = [];
-  for (const r of runs) {
-    const target = toCanonicalTime(r.date as Time);
-    const t = nearestSeriesTime(index, target);
-    if (t === null || Math.abs(toCanonicalTime(t) - target) > 86_400) continue;
-    out.push({
-      time: t,
-      position: 'aboveBar',
-      shape: 'arrowDown',
-      color: r.today ? '#30d158' : '#f59e0b',
-      text: `${r.today ? 'today ' : ''}+${Math.round(r.run_pct * 100)}%`,
-    });
-  }
-  return out;
-}
-
 export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, containerRef, barsRevision }: ChartPaneOverlayProps) {
   const ctx = useStockReadContext();
   const series = chart ? candleSeriesRef.current : null;
@@ -221,6 +213,32 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const hover = useShapeHover(chart, (kind === 'full' || kind === 'map' || kind === 'daily') && enabled, containerRef);
   const story = hover && read ? shapeStory(hover.id, read, past, past5) : null;
 
+  // The right edge is this scene's: the series' tags and the position tag's room come to its column.
+  const claims = !!series && enabled;
+  useEffect(() => (chart && claims ? claimEdge(chart) : undefined), [chart, claims]);
+  const edge = useSyncExternalStore(
+    useCallback((onChange: () => void) => subscribeEdge(chart, onChange), [chart]),
+    () => edgeContents(chart),
+  );
+  const scaleWidth = usePriceScaleWidth(chart, containerRef, barsRevision, kind === 'full' && enabled);
+  const [cornerBottom, setCornerBottom] = useState(0);
+  const runs = daily && enabled ? ctx?.history.data?.runs ?? null : null;
+  const scene = useMemo<Scene>(() => {
+    if (!enabled) return EMPTY_SCENE;
+    const words: SceneWord[] = [
+      ...lineWords(draw.lines),
+      ...edge.words.map(w => ({ id: w.id, text: w.text, color: w.color, priority: w.priority, price: null,
+        series: w.series, valueWhenOff: w.valueWhenOff })),
+    ];
+    return {
+      ...draw.scene,
+      words,
+      reserves: edge.reserves.map(r => ({ price: r.price, height: r.height })),
+      topInset: kind === 'full' && cornerBottom > 0 ? cornerBottom + CORNER_GAP_PX : 0,
+      marks: runs ? runMarks(runs, index) : [],
+    };
+  }, [enabled, draw, edge, kind, cornerBottom, runs, index]);
+
   // The shapes: one primitive per pane, fed a new scene whenever the read or the bars change.
   const primitive = useRef<SetupShapesPrimitive | null>(null);
   useEffect(() => {
@@ -238,10 +256,12 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     };
   }, [series, kind, enabled]);
   useEffect(() => {
-    primitive.current?.setScene(enabled ? draw.scene : EMPTY_SCENE);
-  }, [draw, enabled]);
+    primitive.current?.setScene(scene);
+  }, [scene]);
 
-  usePriceLines(series, enabled ? draw.lines : []);
+  // The lines keep their prices on the axis; their names are the column's.
+  const lines = useMemo(() => (enabled ? draw.lines.map(l => ({ ...l, title: '' })) : []), [enabled, draw.lines]);
+  usePriceLines(series, lines);
 
   // Room for the plan's zones right of the last candle when they appear, and only for a view that
   // follows the live edge. The time scale's rightOffset used to do this: it is the scroll position, so
@@ -297,26 +317,12 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     if (startSec !== null && frameFrom(chart, series, startSec)) framed.current = frameKey;
   }, [chart, series, index, kind, enabled, frameKey, startSec, focusTs]);
 
-  // The daily pane: every +40% run over the prior close, marked on its bar.
-  const runs = daily && enabled ? ctx?.history.data?.runs ?? null : null;
-  useEffect(() => {
-    if (!series || !runs || runs.length === 0) return;
-    const plugin = createSeriesMarkers(series, runMarkers(runs, index));
-    return () => {
-      try {
-        plugin.setMarkers([]);
-        plugin.detach();
-      } catch {
-        /* the series is gone with its chart */
-      }
-    };
-  }, [series, runs, index]);
-
   if (!ctx || !enabled || !read) return null;
   if (kind === 'full') {
     return (
       <>
-        <ChartLegend ctx={ctx} read={read} onFrame={frame} />
+        <ChartLegend ctx={ctx} read={read} onFrame={frame} right={scaleWidth > 0 ? scaleWidth + CORNER_GAP_PX : null}
+          containerRef={containerRef} onCornerBottom={setCornerBottom} />
         {story && hover && <ShapeTip story={story} hover={hover} />}
       </>
     );

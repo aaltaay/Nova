@@ -3,7 +3,10 @@
  * (compact or full), the setups without a scanner (locked,
  * saying why), and -- after "show on chart" from the
  * decisions -- the moment in view with a way back to now. In the corner, the badge with the trade's
- * track and the Who trades chip under it, and the call (ENTER NOW, SELL NOW, what Nova did: ADR 037). */
+ * track and the Who trades chip under it, and the call (ENTER NOW, SELL NOW, what Nova did: ADR 037). The
+ * legend ends where the price axis begins, and it says how far down the corner reaches: the words at the
+ * pane's right edge start under it. */
+import { useEffect, useRef, type RefObject } from 'react';
 import { tipProps, whyProps } from '../ux';
 import { laneChip, planBadgeText } from './chartShapes';
 import { ChartKey } from './ChartKey';
@@ -87,19 +90,48 @@ function LabelsChip({ ctx }: { ctx: StockReadContextValue }) {
   );
 }
 
-export function ChartLegend({ ctx, read, onFrame }: {
+/** Calls `report` with how far below `containerRef`'s top `corner` reaches, whenever that changes. */
+function useCornerBottom(corner: RefObject<HTMLDivElement | null>, containerRef: RefObject<HTMLElement | null> | undefined,
+  report: ((px: number) => void) | undefined): void {
+  useEffect(() => {
+    const el = corner.current;
+    if (!el || !report) return;
+    const measure = () => {
+      const box = containerRef?.current;
+      const r = el.getBoundingClientRect();
+      report(r.height > 0 && box ? Math.max(0, Math.round(r.bottom - box.getBoundingClientRect().top)) : 0);
+    };
+    measure();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(el);
+    return () => {
+      ro?.disconnect();
+      report(0);
+    };
+  }, [corner, containerRef, report]);
+}
+
+export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, onCornerBottom }: {
   ctx: StockReadContextValue;
   read: StockRead;
   /** Frame the forming setup on the pane. */
   onFrame: () => void;
+  /** The legend's right edge from the pane's (the price axis's width); null keeps the stylesheet's. */
+  right?: number | null;
+  containerRef?: RefObject<HTMLElement | null>;
+  /** How far below the pane's top the corner chips reach, in pixels. */
+  onCornerBottom?: (px: number) => void;
 }) {
+  const corner = useRef<HTMLDivElement>(null);
+  useCornerBottom(corner, containerRef, onCornerBottom);
   const { layers } = ctx;
   const moment = ctx.who.moment;
   const badge = moment?.badge ?? (layers.setups ? planBadgeText(read) : null);
   const tone = moment?.tone ?? read.plan?.state ?? 'manual';
   const focus = ctx.focus;
   return (
-    <div className="sr-legend" data-testid="stock-read-legend" onPointerDown={stop} onDoubleClick={stop}>
+    <div className="sr-legend" data-testid="stock-read-legend" onPointerDown={stop} onDoubleClick={stop}
+      style={right === null ? undefined : { right }}>
       <div className="sr-legend__chips">
         <ChartKey sections={chartKey('full', layers)} testId="stock-read-key-full" />
         {!layers.setups ? (
@@ -169,7 +201,7 @@ export function ChartLegend({ ctx, read, onFrame }: {
         </div>
       )}
       {moment?.call && <CallBox call={moment.call} />}
-      <div className="sr-legend__corner">
+      <div className="sr-legend__corner" ref={corner}>
         {badge && (
           <button
             type="button"

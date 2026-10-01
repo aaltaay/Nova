@@ -8,7 +8,7 @@ import type { Time } from 'lightweight-charts';
 import { SETUP_COLORS } from './constants';
 import { shortReason } from './pastSetups';
 import { formingProgress, fmtPx } from './planMath';
-import type { SceneBox, SceneSegment } from './SetupShapesPrimitive';
+import type { SceneBox, SceneSegment } from './sceneTypes';
 import type { SetupLane, SetupLeg, StockPlan } from './types';
 
 /** What drawing a lane needs from a pane. */
