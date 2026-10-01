@@ -94,8 +94,9 @@ STOCK_MODE_BLOCK_STALE = "TRIGGER_STALE"
 STOCK_MODE_BLOCK_WORKING = "ENTRY_WORKING"
 STOCK_MODE_WHY_DISARMED = "The padlock is locked: unlock it so Nova can place orders."
 STOCK_MODE_WHY_KILL = "The kill switch is tripped: nothing is sent until you reset it."
-STOCK_MODE_WHY_DAY_LOCK = "The all-stop tripped on this venue today: buys here are locked until it lifts."
-STOCK_MODE_WHY_BOT_TRIP = "The bot trip fired on this venue today: Nova buys nothing more here today."
+STOCK_MODE_WHY_DAY_LOCK = "The all-stop tripped on this venue today: buys here are locked until 04:00 ET."
+STOCK_MODE_WHY_BOT_TRIP = ("The bot trip fired on this venue today: Nova buys nothing more here until you "
+                           "re-enable the bot (Activate on the Bots page) or 04:00 ET.")
 STOCK_MODE_NOTE_NOT_FOLLOWED = (
     "The setup scanner does not follow {sym} (it follows the HOD Momo names): no setup can trigger here, "
     "so Nova will not act."
