@@ -91,6 +91,7 @@ export function pfsaRead(state: StockPlan['state'], planOver: Partial<StockPlan>
     followed: true,
     followed_note: null,
     setups: [lane(state === 'manual' ? 'watching' : state, distance)],
+    setups_5m: [],
     no_scanner: [],
     plan: pfsaPlan(state, planOver),
     levels: { hod: { price: 4.6, ts: pfsaAt(8, 4) }, pmh: 4.6, open: null, prev_close: 2.05, vwap: 3.9,

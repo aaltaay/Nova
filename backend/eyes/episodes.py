@@ -58,11 +58,12 @@ def reason_key(text: str | None) -> str | None:
     return NUMBER.sub("#", text.strip())
 
 
-def closed_bar_t(ts: float) -> float:
+def closed_bar_t(ts: float, bar_sec: int = 60) -> float:
     """The start of the candle a line at ``ts`` is about: the one that just closed when the line
-    was written at a minute's start (a bar close), else the one forming."""
-    minute = minute_start(ts)
-    return minute - 60.0 if ts - minute < EYES_EPISODE_BAR_CLOSE_SEC else minute
+    was written at a candle's start (a bar close), else the one forming. ``bar_sec`` is the lane's
+    candle: a minute, or a 5-minute lane's five."""
+    start = minute_start(ts) if bar_sec == 60 else float(int(ts // bar_sec) * bar_sec)
+    return start - float(bar_sec) if ts - start < EYES_EPISODE_BAR_CLOSE_SEC else start
 
 
 def _same_move(leg: dict[str, Any], new: dict[str, Any]) -> bool:
@@ -74,9 +75,11 @@ def _same_move(leg: dict[str, Any], new: dict[str, Any]) -> bool:
 
 
 class EpisodeFold:
-    """Every (symbol, setup) a day's lines name, folded line by line into episodes."""
+    """Every (symbol, setup) a day's lines name, folded line by line into episodes: the lines of each setup's
+    template in play, or -- with ``template`` -- that template's (the 5-minute lanes': ``bar_sec`` 300)."""
 
-    def __init__(self) -> None:
+    def __init__(self, template: str | None = None, bar_sec: int = 60) -> None:
+        self.template, self.bar_sec = template, int(bar_sec)
         self.open: dict[tuple[str, str], dict[str, Any]] = {}
         self.ended: list[dict[str, Any]] = []
         self._by_setup_id: dict[str, dict[str, Any]] = {}
@@ -90,7 +93,8 @@ class EpisodeFold:
                 self._end(key, ts, "Nova restarted: the eyes began again", cut=True)
             return
         sym = line.get("symbol")
-        if not sym or line.get("playing") is not True:
+        mine = line.get("template") == self.template if self.template else line.get("playing") is True
+        if not sym or not mine:
             return
         if ev == "scored":
             self._score(line)
@@ -144,7 +148,7 @@ class EpisodeFold:
         if LADDER.get(state, 0) > LADDER.get(ep["reached"], 0):
             ep["reached"] = state
         if state == SETUP_STATE_FAILED and ep["died_at"] is None:
-            ep["died_at"], ep["died_bar_t"], ep["reason"] = ts, closed_bar_t(ts), reason
+            ep["died_at"], ep["died_bar_t"], ep["reason"] = ts, closed_bar_t(ts, self.bar_sec), reason
         setup = line.get("setup")
         if ev in ("armed", "rearmed", "filtered", "triggered") and isinstance(setup, dict) and setup:
             ep["setup"] = dict(setup)
@@ -171,7 +175,7 @@ class EpisodeFold:
             ep["end"], ep["reason"] = END_CUT, ep["_reason"] or None   # how it would have ended is unknown
         else:
             ep["end"] = END_FADED
-            ep["died_at"], ep["died_bar_t"] = ts, closed_bar_t(ts)
+            ep["died_at"], ep["died_bar_t"] = ts, closed_bar_t(ts, self.bar_sec)
             ep["reason"] = ep["_reason"] or ended_by or None
         ep["reason_key"] = reason_key(ep["reason"])
         self.ended.append(ep)

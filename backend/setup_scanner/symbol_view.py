@@ -13,6 +13,7 @@ from scanner_wire import wire_safe
 from setup_scanner import lane_view
 from setup_scanner.board import template_view
 from setup_scanner.detectors import window, window_state
+from setup_scanner.five_minute_lane import is_five_minute
 
 NOT_FOLLOWED = ("the setup scanner follows the HOD Momo active names; {sym} is not one of them right now, "
                 "so no lane reads it")
@@ -21,8 +22,10 @@ REPLAY_DESK = ("a Sim replay desk: the live scanner's lanes are not the replay's
 
 
 def rules_of(params: Any) -> dict[str, Any]:
-    """The numbers a plan names: the stop cap and floor, the target rule, the entry cent."""
-    return {"stop_cap": getattr(params, "stop_cap", None), "min_stop": getattr(params, "min_stop", None),
+    """The numbers a plan names: the stop cap (dollars, or a share of the entry) and floor, the target rule,
+    the entry cent, and the candle's length."""
+    return {"stop_cap": getattr(params, "stop_cap", None), "stop_cap_pct": getattr(params, "stop_cap_pct", None),
+            "bar_sec": getattr(params, "bar_sec", 60), "min_stop": getattr(params, "min_stop", None),
             "target_r": getattr(params, "target_r", None), "target_mode": getattr(params, "target_mode", "r"),
             "entry_offset": getattr(params, "entry_offset", None),
             "risk_slippage": getattr(params, "risk_slippage", None)}
@@ -38,7 +41,9 @@ def lane_entry(lane: Any, sym: str, levels: dict, now: float) -> dict[str, Any]:
                "distance": None, "grade": None, "pillars": None, "graded": None, "phase": None, "tape": None,
                "trigger_tape": None, "proposal": None, "outcome": None, "outcome_at": None, "bar_r": None,
                "mfe": None, "mae": None, "failed_at": None, "forming": None, "series": None}
-    return {**row, "template": template_view(lane), "level": level, "chosen": levels.get("chosen") == lane.setup,
+    five = is_five_minute(lane)
+    return {**row, "template": template_view(lane), "level": 0 if five else level,
+            "chosen": not five and levels.get("chosen") == lane.setup, "timeframe": "5m" if five else "1m",
             "window": {"start": start, "end": end, "state": window_state(now, start, end)},
             "rules": rules_of(lane.p.pattern)}
 
@@ -50,9 +55,11 @@ def symbol_view(engine: Any, symbol: str, now: float | None = None) -> dict[str,
     followed = sym in engine.universe and not replay
     note = REPLAY_DESK if replay else (None if followed else NOT_FOLLOWED.format(sym=sym))
     setups: list[dict[str, Any]] = []
+    five: list[dict[str, Any]] = []
     if followed:
         levels = engine.levels()
         setups = [lane_entry(lane, sym, levels, now) for lane in engine.playing_lanes()]
+        five = [lane_entry(lane, sym, levels, now) for lane in engine.lanes if is_five_minute(lane)]
     return wire_safe({
         "schema_version": SETUPS_SCHEMA_VERSION_SYMBOL,
         "generated_at": now,
@@ -62,4 +69,5 @@ def symbol_view(engine: Any, symbol: str, now: float | None = None) -> dict[str,
         "followed_note": note,
         "seeding": sym in engine.seeding,
         "setups": setups,
+        "setups_5m": five,          # the 5-minute lanes (five_minute_lane.py): the 5-minute chart's only
     })

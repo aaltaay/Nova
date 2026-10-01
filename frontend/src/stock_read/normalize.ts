@@ -231,6 +231,7 @@ function lane(raw: unknown): SetupLane | null {
     tape: tape(l.tape),
     window: windowOf(l.window),
     series: series(l.series),
+    timeframe: l.timeframe === '5m' ? '5m' : '1m',
   };
 }
 
@@ -253,6 +254,7 @@ export function normalizeStockRead(raw: unknown): StockRead | null {
     followed: r.followed === true,
     followed_note: str(r.followed_note),
     setups: list(r.setups, lane),
+    setups_5m: list(r.setups_5m, lane),
     no_scanner: list(r.no_scanner, x => {
       const o = obj(x);
       return o && typeof o.setup_type === 'string'

@@ -2,7 +2,8 @@
 
   GET /api/stock-read/{symbol}?entry=&stop=          the plan, the seven groups and every lane (polled)
   GET /api/stock-read/{symbol}/decisions?date=       one symbol's day as the bot saw it
-  GET /api/stock-read/{symbol}/past-setups?date=     the day's setups that ended, and what price did next
+  GET /api/stock-read/{symbol}/past-setups?date=&tf= the day's setups that ended, and what price did next
+                                                     (tf=5m: the 5-minute lanes')
   GET /api/stock-read/{symbol}/history               past runs and what Nova holds on it
 
 Sync routes: FastAPI runs them on its worker threads, off the event loop (the bar store and the
@@ -67,15 +68,18 @@ def stock_read_decisions(symbol: str, date: str | None = Query(None, description
 
 
 @router.get("/api/stock-read/{symbol}/past-setups")
-def stock_read_past_setups(symbol: str, date: str | None = Query(None, description="YYYY-MM-DD (ET); today by default")):
+def stock_read_past_setups(symbol: str, date: str | None = Query(None, description="YYYY-MM-DD (ET); today by default"),
+                           tf: str = Query("1m", description="1m: the setups in play's; 5m: the 5-minute lanes'")):
     sym = _symbol(symbol)
+    if tf not in ("1m", "5m"):
+        raise HTTPException(400, "tf is 1m or 5m")
     now = time.time()
     today = datetime.fromtimestamp(now, ET).date().isoformat()
     day = date or today
     if not _DATE.match(day):
         raise HTTPException(400, "date is YYYY-MM-DD")
     return wire_safe({"schema_version": STOCK_READ_SCHEMA_VERSION,
-                      **past_setups.read(sym, day, now, today=day == today)})
+                      **past_setups.read(sym, day, now, today=day == today, five=tf == "5m")})
 
 
 @router.get("/api/stock-read/{symbol}/history")

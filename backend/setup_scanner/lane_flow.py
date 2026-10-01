@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants_setups import SETUPS_SCORE_WINDOW_MIN, TAPE_FLOW_BURST, TAPE_FLOW_EVAL_SEC, TAPE_FLOW_FLUSH
+from constants_setups import TAPE_FLOW_BURST, TAPE_FLOW_EVAL_SEC, TAPE_FLOW_FLUSH
 from setup_scanner import tape_flow
 
 LOUD = (TAPE_FLOW_BURST, TAPE_FLOW_FLUSH)
@@ -32,7 +32,7 @@ def flow(lane: Any, sym: str, now: float) -> dict:
 def trades(lane: Any, now: float) -> list[str]:
     """Setup ids whose trade is inside its scoring window."""
     return [sid for sid, tr in lane.trackers.items()
-            if sid in lane.rows and tr.triggered_at <= now <= tr.triggered_at + SETUPS_SCORE_WINDOW_MIN * 60]
+            if sid in lane.rows and tr.triggered_at <= now <= tr.triggered_at + tr.window_min * 60]
 
 
 def read_trades(lane: Any, now: float) -> None:

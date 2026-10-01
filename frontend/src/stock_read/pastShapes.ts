@@ -26,6 +26,8 @@ export interface PastDrawOptions {
   toTime: (epochSec: number) => Time | null;
   /** Where a leg began, from the pane's candles. */
   legStart?: (leg: SetupLeg) => number;
+  /** The pane's candle in seconds: a minute, or a 5-minute setup's five (`fiveMinuteShapes.ts`). */
+  barSec?: number;
 }
 
 /** The hover id a past setup's boxes carry. */
@@ -38,16 +40,17 @@ function pct(x: number): string {
 }
 
 /** The candle it ended on: the trigger's for a triggered setup, else the one it died on. */
-function endBar(ep: Episode): number | null {
+function endBar(ep: Episode, bar: number): number | null {
   if (endOf(ep) === 'triggered') {
     const t = ep.triggered_at ?? ep.ended_at;
-    return t === null ? null : Math.floor(t / MIN) * MIN;
+    return t === null ? null : Math.floor(t / bar) * bar;
   }
-  return ep.died_bar_t ?? (ep.ended_at === null ? null : Math.floor(ep.ended_at / MIN) * MIN);
+  return ep.died_bar_t ?? (ep.ended_at === null ? null : Math.floor(ep.ended_at / bar) * bar);
 }
 
 export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] {
   const boxes: SceneBox[] = [];
+  const bar = o.barSec ?? MIN;
   for (const ep of episodes) {
     const how = endOf(ep);
     if (!how || how === 'cut') continue;
@@ -67,17 +70,17 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
       boxes.push({ t1, t2, p1, p2, fill, stroke, dashed: true, label, labelColor, labelBelow, shrink, hoverId });
     };
     const leg = ep.leg;
-    const end = endBar(ep) ?? leg.t;
+    const end = endBar(ep, bar) ?? leg.t;
     const high = ep.setup?.trigger ?? ep.after?.level ?? leg.high;
     const low = ep.setup?.stop ?? ep.after?.floor ?? null;
     const label = pastLabel(ep);
     const type = ep.setup_type;
     if (type === 'first_pullback' || type === 'bull_flag') {
-      const start = type === 'bull_flag' && leg.bars ? leg.t - (leg.bars - 1) * MIN : (o.legStart?.(leg) ?? leg.t - 5 * MIN);
+      const start = type === 'bull_flag' && leg.bars ? leg.t - (leg.bars - 1) * bar : (o.legStart?.(leg) ?? leg.t - 5 * bar);
       const legLabel = `${type === 'bull_flag' ? 'POLE' : 'LEG'} ${pct(leg.pct)}`;
       if (low !== null && end > leg.t) {
         box(start, leg.t, leg.low, leg.high, legTone.fill, legTone.stroke, legLabel, legTone.ink, legOnly);
-        box(leg.t + MIN, end, low, high, tone.fill, tone.stroke, label, tone.ink, outcome, true);
+        box(leg.t + bar, end, low, high, tone.fill, tone.stroke, label, tone.ink, outcome, true);
       } else {
         box(start, leg.t, leg.low, leg.high, tone.fill, tone.stroke, `${legLabel} · ${label}`, tone.ink, outcome);
       }

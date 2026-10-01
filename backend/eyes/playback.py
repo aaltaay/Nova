@@ -28,7 +28,7 @@ from zoneinfo import ZoneInfo
 
 from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_eyes import EYES_PLAYBACK_GAP_SEC, EYES_SCHEMA_VERSION
-from constants_setups import SETUP_TEMPLATE_DEFAULT_ID
+from constants_setups import SETUP_TEMPLATE_DEFAULT_ID, SETUPS_5M_TEMPLATE_ID
 from eyes.journal_day import JournalDay
 from eyes.lane_fold import COUNT_KEYS, LaneFold
 
@@ -120,6 +120,8 @@ class Playback:
             self.meta[(setup, template)] = {"id": template, "rev": item.get("rev"),
                                             "name": item.get("name") or template,
                                             "params_hash": item.get("params_hash")}
+            if template == SETUPS_5M_TEMPLATE_ID:
+                continue                 # a 5-minute lane is no template of the setup's card (five_minute_lane.py)
             self.running[setup] = self.running.get(setup, 0) + 1
             if item.get("playing"):
                 self.playing[setup] = template
@@ -140,7 +142,7 @@ class Playback:
     def _running(self, setup: str) -> int:
         if self.running is not None:
             return self.running.get(setup, 0)
-        return sum(1 for (s, _t) in self.lanes if s == setup)
+        return sum(1 for (s, t) in self.lanes if s == setup and t != SETUPS_5M_TEMPLATE_ID)
 
     def body(self, levels: dict[str, Any], window_of: WindowOf | None = None) -> dict[str, Any]:
         """``setups``, ``rows``, ``proposals`` and ``universe`` at the folded moment -- the live

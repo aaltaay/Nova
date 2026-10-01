@@ -141,12 +141,13 @@ export function useStockReadDecisions(symbol: string, active: boolean): PolledSt
 }
 
 /** The day's setups that ended (ADR 036 amendment); `nudge` is the lanes' drawn states, so a setup that
- * fails or ends is read again at once. */
-export function useStockReadPast(symbol: string, active: boolean, nudge: string): PolledState<PastSetups> {
+ * fails or ends is read again at once. `tf` 5m: the 5-minute lanes' (the 5-minute chart's). */
+export function useStockReadPast(symbol: string, active: boolean, nudge: string,
+  tf: '1m' | '5m' = '1m'): PolledState<PastSetups> {
   const sym = symbol.trim().toUpperCase();
   return usePolledRead({
-    url: sym ? `${symbolPath(sym)}/past-setups` : null,
-    resetKey: sym,
+    url: sym ? `${symbolPath(sym)}/past-setups${tf === '5m' ? '?tf=5m' : ''}` : null,
+    resetKey: `${sym}:${tf}`,
     normalize: normalizePastSetups,
     pollMs: STOCK_READ_PAST_POLL_MS,
     active,

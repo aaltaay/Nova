@@ -221,6 +221,8 @@
 .sr-legend__chip--none .sr-legend__dot { border: 1px solid var(--sr-unknown); background: none; }
 /* The day's setups that ended (ADR 036 amendment): a dashed chip, like the faint dashed boxes it draws. */
 .sr-legend__chip--past { border-style: dashed; color: var(--sr-secondary); }
+/* A 5-minute setup in reach, on the 1-minute chart: information, not a switch. */
+.sr-legend__chip--five { border-color: var(--sr-blue); cursor: default; }
 /* A setup's story under the pointer: beside it, never in the way of a chart gesture. */
 .sr-shape-tip {
   position: absolute;

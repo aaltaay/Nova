@@ -60,6 +60,8 @@ export interface StockReadContextValue {
   decisions: PolledState<StockDecisions>;
   /** The day's setups that ended and what price did next (read while the chart draws them). */
   past: PolledState<PastSetups>;
+  /** The 5-minute lanes' setups that ended (the 5-minute chart's); absent outside a live Trader tab. */
+  past5?: PolledState<PastSetups>;
   manual: { entry: number | null; stop: number | null };
   setManualPlan: (entry: number | null, stop: number | null) => void;
   riskUsd: number;
@@ -147,6 +149,9 @@ export function StockReadProvider({
   const lanes = read.data?.setups;
   const laneKey = useMemo(() => (lanes ?? []).map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes]);
   const past = useStockReadPast(sym, live && layers.setups && layers.past, laneKey);
+  const lanes5 = read.data?.setups_5m;
+  const laneKey5 = useMemo(() => (lanes5 ?? []).map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes5]);
+  const past5 = useStockReadPast(sym, live && layers.setups && layers.past, laneKey5, '5m');
   const posQty = position?.qty ?? null;
   const posCost = position?.avgCost ?? null;
   const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
@@ -201,6 +206,7 @@ export function StockReadProvider({
     history,
     decisions,
     past,
+    past5,
     manual,
     setManualPlan,
     riskUsd,
@@ -216,7 +222,7 @@ export function StockReadProvider({
     clearFocus,
     topOfBook: book,
     who,
-  }), [sym, active, replay, read, history, decisions, past, manual, setManualPlan, riskUsd, setRiskUsd, layers,
+  }), [sym, active, replay, read, history, decisions, past, past5, manual, setManualPlan, riskUsd, setRiskUsd, layers,
     setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.

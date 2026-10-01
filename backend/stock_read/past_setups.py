@@ -16,6 +16,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
+from constants_setups import SETUPS_5M_BAR_SEC, SETUPS_5M_SCORE_WINDOW_MIN, SETUPS_5M_TEMPLATE_ID
 from eyes import aftermath
 from eyes.episodes import END_CUT, END_FADED, END_FAILED, END_TRIGGERED, EpisodeFold
 from eyes.journal_day import JournalTail
@@ -25,26 +26,32 @@ logger = logging.getLogger(__name__)
 BarsFn = Callable[[str, str], "list[Bar]"]
 
 
-class DayFold:
-    """One day's journal, folded as the file grows."""
+def _fold(five: bool) -> EpisodeFold:
+    return EpisodeFold(SETUPS_5M_TEMPLATE_ID, SETUPS_5M_BAR_SEC) if five else EpisodeFold()
 
-    def __init__(self, path: Path, date: str):
+
+class DayFold:
+    """One day's journal, folded as the file grows: the setups in play's, or the 5-minute lanes' (``five``)."""
+
+    def __init__(self, path: Path, date: str, five: bool = False):
         self.tail = JournalTail(path, date)
-        self.fold = EpisodeFold()
+        self.five = five
+        self.fold = _fold(five)
         self.lines = 0
 
     def refresh(self) -> None:
         generation = self.tail.generation
         rows = self.tail.read()
         if self.tail.generation != generation:
-            self.fold, self.lines = EpisodeFold(), 0
+            self.fold, self.lines = _fold(self.five), 0
         for row in rows:
             self.fold.apply(row)
         self.lines += len(rows)
 
 
 _lock = threading.Lock()
-_today: DayFold | None = None
+_today: dict[bool, DayFold] = {}         # today's folds: the setups in play (False), the 5-minute lanes (True)
+
 
 
 def _journal_path(date: str) -> Path | None:
@@ -60,30 +67,33 @@ def _archive_bars(symbol: str, date: str) -> list[Bar]:
     return archive_bars(symbol, date)
 
 
-def episodes_of(symbol: str, date: str, *, today: bool, path: Path | None = None) -> tuple[list[dict], int]:
-    """``symbol``'s episodes on ``date`` and the day's journal lines read. Today's fold is kept. A day
-    with no journal file raises ``FileNotFoundError`` (the route says so)."""
-    global _today
+def episodes_of(symbol: str, date: str, *, today: bool, path: Path | None = None,
+                five: bool = False) -> tuple[list[dict], int]:
+    """``symbol``'s episodes on ``date`` and the day's journal lines read -- the 5-minute lanes' with
+    ``five``. Today's fold is kept. A day with no journal file raises ``FileNotFoundError`` (the route
+    says so)."""
     where = path or _journal_path(date)
     if where is None:
         raise FileNotFoundError(f"no eyes' journal on file for {date}")
     if not today:
-        day = DayFold(where, date)
+        day = DayFold(where, date, five)
         day.refresh()
         return day.fold.episodes(symbol), day.lines
     with _lock:
-        if _today is None or _today.tail.date != date or _today.tail.path != where:
-            _today = DayFold(where, date)
-        _today.refresh()
-        return _today.fold.episodes(symbol), _today.lines
+        held = _today.get(five)
+        if held is None or held.tail.date != date or held.tail.path != where:
+            held = _today[five] = DayFold(where, date, five)
+        held.refresh()
+        return held.fold.episodes(symbol), held.lines
 
 
 def read(symbol: str, date: str, now: float, *, today: bool, path: Path | None = None,
-         bars_fn: BarsFn | None = None) -> dict[str, Any]:
-    """The route's body (without ``schema_version``)."""
+         bars_fn: BarsFn | None = None, five: bool = False) -> dict[str, Any]:
+    """The route's body (without ``schema_version``); ``five``: the 5-minute lanes' setups, each failed or
+    faded one measured over ``SETUPS_5M_SCORE_WINDOW_MIN``."""
     sym = symbol.upper()
     try:
-        eps, lines = episodes_of(sym, date, today=today, path=path)
+        eps, lines = episodes_of(sym, date, today=today, path=path, five=five)
         journal = {"ok": True, "error": None, "lines": lines}
     except FileNotFoundError as exc:          # no journal that day: a stated absence, not a fault
         eps, journal = [], {"ok": False, "error": str(exc)[:200], "lines": 0}
@@ -99,9 +109,10 @@ def read(symbol: str, date: str, now: float, *, today: bool, path: Path | None =
         except Exception as exc:
             logger.warning("past setups: the bars of %s on %s could not be read", sym, date, exc_info=True)
             state = {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200], "count": 0}
+    window = SETUPS_5M_SCORE_WINDOW_MIN if five else aftermath.EYES_EPISODE_AFTER_MIN
     for e in eps:
-        e["after"] = aftermath.after(e, bars, now=now) if state["ok"] else None
+        e["after"] = aftermath.after(e, bars, now=now, window_min=window) if state["ok"] else None
     counts = {k: sum(1 for e in eps if e["end"] == k) for k in (END_FAILED, END_FADED, END_TRIGGERED, END_CUT)}
     counts["open"] = sum(1 for e in eps if e["end"] is None)
-    return {"symbol": sym, "date": date, "generated_at": now, "episodes": eps, "counts": counts,
-            "journal": journal, "bars": state}
+    return {"symbol": sym, "date": date, "generated_at": now, "timeframe": "5m" if five else "1m",
+            "episodes": eps, "counts": counts, "journal": journal, "bars": state}

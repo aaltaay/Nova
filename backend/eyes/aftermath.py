@@ -78,8 +78,10 @@ def died(ep: dict[str, Any]) -> bool:
     return ep.get("died_at") is not None and ep.get("end") in ("failed", "faded", None)
 
 
-def after(ep: dict[str, Any], bars: list[Bar], *, now: float) -> dict[str, Any] | None:
-    """What price did after a setup failed or faded; ``None`` for any other episode."""
+def after(ep: dict[str, Any], bars: list[Bar], *, now: float,
+          window_min: int = EYES_EPISODE_AFTER_MIN) -> dict[str, Any] | None:
+    """What price did after a setup failed or faded, over ``window_min`` (a 5-minute setup's is longer);
+    ``None`` for any other episode."""
     died_at = _num(ep.get("died_at"))
     if not died(ep) or died_at is None:
         return None
@@ -88,7 +90,7 @@ def after(ep: dict[str, Any], bars: list[Bar], *, now: float) -> dict[str, Any] 
         return None
     died_bar = _num(ep.get("died_bar_t"))
     start = minute_start(died_at)
-    end = start + EYES_EPISODE_AFTER_MIN * 60
+    end = start + window_min * 60
     first_i = next((i for i, b in enumerate(bars) if b.t >= start), len(bars))
     window = [b for b in bars[first_i:] if b.t < end]
     complete = now >= end
@@ -108,7 +110,7 @@ def after(ep: dict[str, Any], bars: list[Bar], *, now: float) -> dict[str, Any] 
         trade = refused_trade(bars, first_i + k, level=level, entry=entry, floor=floor, target=target)
     return {
         "from_ts": died_at, "price": death.c if death else None, "level": level, "entry": entry, "floor": floor,
-        "window_min": EYES_EPISODE_AFTER_MIN, "complete": complete, "bars": len(window),
+        "window_min": window_min, "complete": complete, "bars": len(window),
         "high": max((b.h for b in window), default=None), "low": min((b.lo for b in window), default=None),
         "first": first, "crossed_at": crossed, "trade": trade,
     }

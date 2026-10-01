@@ -36,9 +36,10 @@ from zoneinfo import ZoneInfo
 
 from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_eyes import EYES_JOURNAL_BEAT_SEC
-from constants_setups import SETUPS_BOARD_PUSH_SEC
+from constants_setups import SETUPS_5M_TEMPLATE_ID, SETUPS_BOARD_PUSH_SEC
 from setup_scanner.bars import Bar, MinuteBars, bar_from
 from setup_scanner.board import build_board
+from setup_scanner.five_minute_lane import FIVE_MIN_REV, SETUPS_5M_SETUPS, five_minute_params, is_five_minute
 from setup_scanner.hooks import (
     default_audit as _default_audit,
     default_bot_state as _default_bot_state,
@@ -112,7 +113,7 @@ class SetupEngine(LaneHost):
         return self.playing_lane(BOT_SETUP_FIRST_PULLBACK)
 
     def playing_lane(self, setup: str) -> Lane | None:
-        mine = [lane for lane in self.lanes if lane.setup == setup]
+        mine = [lane for lane in self.lanes if lane.setup == setup and not is_five_minute(lane)]
         return next((lane for lane in mine if lane.playing), mine[0] if mine else None)
 
     def playing_lanes(self) -> list[Lane]:
@@ -206,10 +207,7 @@ class SetupEngine(LaneHost):
                 kept.add((setup, t.id))
                 lane = have.pop((setup, t.id, t.rev), None)
                 if lane is None:
-                    lane = Lane(lane_params(t), self)
-                    for sym, mb in self.bars.items():   # warm up on today's bars; it sees from now on
-                        if sym not in self.seeding and mb.completed:
-                            lane.on_bars(sym, mb.completed, now)
+                    lane = self._new_lane(lane_params(t), now)
                 else:
                     lane.p = lane_params(t)            # same rules; the name may have changed
                 if lane.playing and t.id != playing_id:
@@ -218,12 +216,22 @@ class SetupEngine(LaneHost):
                 mine.append(lane)
             mine.sort(key=lambda lane: not lane.playing)
             lanes += mine
+        for setup in (s for s in self.setups if s in SETUPS_5M_SETUPS):   # the 5-minute lanes: they never play
+            lanes.append(have.pop((setup, SETUPS_5M_TEMPLATE_ID, FIVE_MIN_REV), None)
+                         or self._new_lane(five_minute_params(setup), now))
         for (setup, tid, _rev), gone in have.items():
             gone.withdraw_all("edited" if (setup, tid) in kept else "deleted")
         self.lanes = lanes
         self.journal({"event": "lanes", "symbol": None, "lanes": [
             {"setup_type": lane.setup, "template": lane.p.template_id, "rev": lane.p.template_rev,
              "name": lane.p.name, "params_hash": lane.p.params_hash, "playing": lane.playing} for lane in lanes]})
+
+    def _new_lane(self, params: Any, now: float) -> Lane:
+        lane = Lane(params, self)
+        for sym, mb in self.bars.items():   # warm up on today's bars; it sees from now on
+            if sym not in self.seeding and mb.completed:
+                lane.on_bars(sym, mb.completed, now)
+        return lane
 
     async def _sync_universe(self, now: float) -> None:
         wanted = {s.strip().upper() for s in self._universe_fn() if s and s.strip()}

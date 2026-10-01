@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from constants_setups import (
+    SETUPS_BAR_SEC,
     SETUP_KIND_BULL_FLAG,
     SETUP_KIND_SECOND_BULL_FLAG,
     SETUP_STATE_ARMED,
@@ -74,6 +75,7 @@ from constants_setups import (
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_SESSION_START_ET,
     SETUPS_STOP_CAP_DOLLARS,
+    SETUPS_STOP_CAP_PCT,
     SETUPS_TARGET_FIXED_DOLLARS,
     SETUPS_TARGET_MODE,
     SETUPS_TARGET_R,
@@ -104,6 +106,8 @@ class BullFlagParams:
     macd_slow: int = SETUPS_MACD_SLOW
     macd_signal: int = SETUPS_MACD_SIGNAL
     stop_cap: float = SETUPS_STOP_CAP_DOLLARS
+    stop_cap_pct: float | None = SETUPS_STOP_CAP_PCT     # a 5-minute lane's cap, as a share of the entry
+    bar_sec: int = SETUPS_BAR_SEC                         # the candle's length (a 5-minute lane: 300)
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
@@ -216,7 +220,7 @@ class BullFlagDetector(TriggerDetector):
         trig = s.h[last]
         entry = round(trig + p.entry_offset, 4)
         risk = round(entry - flag_low, 4)
-        blocked = self._blocked(bars, last, risk)
+        blocked = self._blocked(bars, last, risk, entry)
         if blocked:
             self.armed = None
             self.forming = forming_levels(trig, entry, flag_low, p.target1(pole["high"], entry, risk), bars=run,
@@ -232,7 +236,7 @@ class BullFlagDetector(TriggerDetector):
             "leg_t": pole["t"], "trigger": round(trig, 4), "entry": entry, "stop": round(flag_low, 4),
             "risk": risk, "target1": p.target1(pole["high"], entry, risk),
             "pullback_bars": run, "leg_high": pole["high"], "leg_low": pole["low"], "leg_pct": pole["pct"],
-            "armed_bar_t": bars[last].t, "armed_at": (prev or {}).get("armed_at") or bars[last].t + 60,
+            "armed_bar_t": bars[last].t, "armed_at": (prev or {}).get("armed_at") or bars[last].t + p.bar_sec,
             "kind": self.kind_now(),
             "detail": {"pole_bars": pole["bars"], "flag_bars": run, "pole_volume": pole["volume"],
                        "flag_volume": round(_avg(s.v[first:last + 1]), 1), "volume_known": pole["volume"] > 0},
@@ -241,13 +245,13 @@ class BullFlagDetector(TriggerDetector):
                                      f"stop {flag_low:.2f}, risk {risk:.2f}")
         return events + self.arm_events(prev)
 
-    def _blocked(self, bars: list[Bar], last: int, risk: float) -> str | None:
+    def _blocked(self, bars: list[Bar], last: int, risk: float, entry: float) -> str | None:
         """Why a flag ending at ``last`` would not arm: the window, the MACD, then the risk."""
         p = self.p
-        why = window_blocked(p, bars[last].t + 60)
+        why = window_blocked(p, bars[last].t + p.bar_sec)
         if why is None and p.macd_positive and self.series.hist[last] <= 0:
             why = "MACD negative -- not on the front side"
-        return why if why is not None else risk_blocked(p, risk)
+        return why if why is not None else risk_blocked(p, risk, entry=entry)
 
     def _partial_flag(self, bars: list[Bar], last: int, pole: dict, run: int) -> dict[str, Any]:
         """A flag shorter than the rule asks: the levels it would arm with if it were complete now
@@ -259,7 +263,7 @@ class BullFlagDetector(TriggerDetector):
         entry = round(trig + p.entry_offset, 4)
         risk = round(entry - flag_low, 4)
         need = p.min_flag_bars - run
-        blocked = self._flag_fault(bars, pole, first, last) or self._blocked(bars, last, risk)
+        blocked = self._flag_fault(bars, pole, first, last) or self._blocked(bars, last, risk, entry)
         return forming_levels(trig, entry, flag_low, p.target1(pole["high"], entry, risk), bars=run, blocked=blocked,
                               waiting=f"{need} more red or doji candle{'' if need == 1 else 's'}")
 

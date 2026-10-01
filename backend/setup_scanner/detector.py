@@ -21,7 +21,9 @@ the first pullback's (ADR 022): entry at the bar's open when it gapped over,
 and the setup skipped when that gap pushes the risk over the cap.
 
 A setup's params carry ``entry_cutoff``, ``stop_cap``, ``risk_slippage``,
-``near_dollars``, ``near_pct``, ``ema_period`` and the MACD periods. Pure: no
+``near_dollars``, ``near_pct``, ``ema_period`` and the MACD periods, and may carry
+``bar_sec`` (the candle's length: 60, or 300 on a 5-minute lane) and
+``stop_cap_pct`` (a cap as a share of the entry instead of dollars). Pure: no
 I/O, no clock.
 
 ADR 036: while a setup forms, a detector keeps ``forming`` -- the levels it would
@@ -110,8 +112,9 @@ class TriggerDetector:
         if et_time(ts) >= hhmm(self.cutoff()):
             return self._disarm(prev, "the entry window closed before the trigger")
         entry = round(max(prev["entry"], bar_open if bar_open is not None else price), 4)
-        if entry + self.p.risk_slippage - prev["stop"] > self.p.stop_cap + EPS:
-            return self._disarm(prev, f"gapped over the trigger to {entry:.2f}: risk over {self.p.stop_cap:.2f}")
+        cap = stop_cap(self.p, entry)
+        if entry + self.p.risk_slippage - prev["stop"] > cap + EPS:
+            return self._disarm(prev, f"gapped over the trigger to {entry:.2f}: risk over {cap:.2f}")
         self.nth += 1
         self.triggered = {**prev, "entry": entry, "triggered_at": ts, "nth": self.nth, "trigger_price": price}
         self._set(SETUP_STATE_TRIGGERED, f"traded {price:.2f} over the {trig:.2f} trigger")
@@ -201,13 +204,31 @@ def window_blocked(p: Any, next_bar_t: float, *, start: str | None = None, cutof
     return f"outside the entry window {lo}-{hi} ET"
 
 
-def risk_blocked(p: Any, risk: float, *, slippage: bool = True) -> str | None:
+def bar_sec(p: Any) -> int:
+    """The candle's length in seconds: a minute, or a 5-minute lane's five."""
+    return int(getattr(p, "bar_sec", 60) or 60)
+
+
+def candle_start(p: Any, ts: float) -> float:
+    """The start of the candle ``ts`` falls in, on the clock."""
+    n = bar_sec(p)
+    return float(int(ts // n) * n)
+
+
+def stop_cap(p: Any, entry: float | None) -> float:
+    """The largest risk a share: ``stop_cap`` dollars, or ``stop_cap_pct`` of the entry when set."""
+    pct = getattr(p, "stop_cap_pct", None)
+    return float(p.stop_cap) if pct is None or entry is None else round(float(pct) * entry, 4)
+
+
+def risk_blocked(p: Any, risk: float, *, entry: float | None = None, slippage: bool = True) -> str | None:
     """Why ``risk`` (entry minus stop) is outside the band, or None. ``slippage`` adds the
     cent the research counted; a flat-top hold's entry already carries it."""
     extra = p.risk_slippage if slippage else 0.0
     shown = f" (+{extra:.2f} slippage)" if extra else ""
-    if risk + extra > p.stop_cap + EPS:
-        return f"risk {risk:.2f}{shown} is over {p.stop_cap:.2f}"
+    cap = stop_cap(p, entry)
+    if risk + extra > cap + EPS:
+        return f"risk {risk:.2f}{shown} is over {cap:.2f}"
     if risk + extra < p.min_stop - EPS:
         return f"risk {risk:.2f}{shown} is under {p.min_stop:.2f}"
     return None

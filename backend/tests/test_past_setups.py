@@ -20,7 +20,7 @@ def write(path, lines: list[dict]) -> None:
 
 
 def test_today_is_folded_as_it_grows_and_each_failure_says_what_came_next(tmp_path, monkeypatch):
-    monkeypatch.setattr(past_setups, "_today", None)
+    monkeypatch.setattr(past_setups, "_today", {})
     path = tmp_path / f"{DAY}.jsonl"
     write(path, ncpl_lines()[:3])
     asked: list[tuple[str, str]] = []
@@ -43,7 +43,7 @@ def test_today_is_folded_as_it_grows_and_each_failure_says_what_came_next(tmp_pa
 
 
 def test_a_source_that_cannot_be_read_is_said_and_the_rest_answers(tmp_path, monkeypatch):
-    monkeypatch.setattr(past_setups, "_today", None)
+    monkeypatch.setattr(past_setups, "_today", {})
     path = tmp_path / f"{DAY}.jsonl"
     write(path, ncpl_lines())
 
@@ -64,7 +64,7 @@ def test_a_source_that_cannot_be_read_is_said_and_the_rest_answers(tmp_path, mon
 
 def test_a_day_is_found_by_listing_its_folder_and_a_day_with_no_file_says_so(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_EYES_DIR", str(tmp_path))
-    monkeypatch.setattr(past_setups, "_today", None)
+    monkeypatch.setattr(past_setups, "_today", {})
     folder = tmp_path / "journal"
     folder.mkdir()
     write(folder / f"{DAY}.jsonl", ncpl_lines())
@@ -82,7 +82,7 @@ def test_a_day_is_found_by_listing_its_folder_and_a_day_with_no_file_says_so(tmp
 def test_the_route_answers_the_day_and_refuses_a_bad_date(monkeypatch):
     seen = {}
 
-    def fake(sym, day, now, *, today):
+    def fake(sym, day, now, *, today, five=False):
         seen.update(sym=sym, day=day, today=today)
         return {"symbol": sym, "date": day, "generated_at": now, "episodes": [], "counts": {},
                 "journal": {"ok": True, "error": None, "lines": 0}, "bars": {"ok": True, "error": None, "count": 0}}

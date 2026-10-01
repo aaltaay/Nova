@@ -9,6 +9,7 @@
 import { useEffect, useState, type RefObject } from 'react';
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts';
 import { laneHoverId } from './chartShapes';
+import { lane5HoverId, past5HoverId } from './fiveMinuteShapes';
 import { levelStory } from './levelPicks';
 import { laneStory, pastStory, type Episode } from './pastSetups';
 import { pastHoverId } from './pastShapes';
@@ -70,9 +71,20 @@ export function useShapeHover(
   return enabled ? hover : null;
 }
 
-/** The story of the box `id` names: a live lane's, a past setup's, or a level's (its label or axis tick). */
-export function shapeStory(id: string, read: StockRead, past: Episode[] | null): ShapeStory | null {
+/** The story of the box `id` names: a live lane's, a past setup's, or a level's (its label or axis tick) --
+ * a 5-minute lane's or setup's (`lane5:` / `past5:`) named as one. */
+export function shapeStory(id: string, read: StockRead, past: Episode[] | null,
+  past5: Episode[] | null = null): ShapeStory | null {
   if (id.startsWith('level:')) return levelStory(id, read);
+  const five = (s: ShapeStory | null) => (s ? { ...s, title: `5-minute · ${s.title}` } : null);
+  if (id.startsWith('lane5:')) {
+    const lane = (read.setups_5m ?? []).find(l => lane5HoverId(l.setup_type) === id);
+    return lane ? five(laneStory(lane)) : null;
+  }
+  if (id.startsWith('past5:')) {
+    const ep = past5?.find(e => past5HoverId(e) === id);
+    return ep ? five(pastStory(ep)) : null;
+  }
   if (id.startsWith('lane:')) {
     const lane = read.setups.find(l => laneHoverId(l.setup_type) === id);
     return lane ? laneStory(lane) : null;
