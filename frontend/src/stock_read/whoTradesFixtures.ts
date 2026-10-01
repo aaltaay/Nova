@@ -108,8 +108,14 @@ const SIDES: Record<StockModeName, [StockModeView['buy'], StockModeView['sell']]
   bot: ['nova', 'nova'],
 };
 
+/** The bot as the view says it when nothing stands in its way: the plan's setup at Strategy, active, playing. */
+export const BOT_READY: NonNullable<StockModeView['bot']> = {
+  on_list: true, playing: true, reason: 'playing', setup_at_strategy: true, active: true, setup: null,
+};
+
 export function pfsaView(mode: StockModeName, over: Partial<StockModeView> = {}): StockModeView {
   const [buy, sell] = SIDES[mode];
+  const nova = mode !== 'signal';
   return {
     symbol: 'PFSA',
     generated_at: PFSA_TRIGGER,
@@ -117,15 +123,18 @@ export function pfsaView(mode: StockModeName, over: Partial<StockModeView> = {})
     mode,
     buy,
     sell,
-    risk_usd: mode === 'auto_entry' ? 20 : null,
+    risk_usd: 20,
     set_at: null,
     locks: { buy: null, sell: null },
     notes: [],
     approval: null,
     trade: null,
+    // The Paper sleeve: $20 over the 0.13 risk is 153 shares, under its max shares of 200.
+    size: nova ? { qty: 153, by_risk: 153, capped_by: null, text: '$20 risk over 0.13 a share' } : null,
+    entries_today: { count: 0, cap: 1 },
     nova_entries_today: 0,
     last_event: null,
-    bot: mode === 'bot' ? { on_list: true, playing: true, reason: 'playing', setup: 'first_pullback' } : null,
+    bot: mode === 'bot' ? BOT_READY : null,
     ...over,
   };
 }
@@ -160,6 +169,24 @@ export function pfsaTrade(kind: StockModeTrade['kind'], state: StockModeTrade['s
   };
 }
 
+/** `GET /api/bot/session` as far as the sleeve's risk per trade reads it (ADR 042 draft): the desk venue's
+ * `caps`, every venue's, and the bounds. */
+export function sleeveSessionWire(riskUsd: number | null = 20, venue: 'live' | 'paper' | 'sim' = 'paper'): Record<string, unknown> {
+  const caps = (v: string, risk: number | null) => ({
+    venue: v, ...(risk === null ? {} : { risk_usd: risk }), max_shares: 10, bp_budget_usd: 50, working_ttl_sec: 3,
+    extended_hours: false, entries_per_day: 1, api_kinds: [], allowlist: [],
+  });
+  return {
+    level: 2,
+    active: false,
+    caps: caps(venue, riskUsd),
+    caps_bounds: { risk_usd: [1, 10_000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10],
+      entries_per_day: [1, 3] },
+    caps_by_venue: { live: caps('live', riskUsd === null ? null : 20), paper: caps('paper', riskUsd),
+      sim: caps('sim', riskUsd === null ? null : 20), [venue]: caps(venue, riskUsd) },
+  };
+}
+
 export function inputs(over: Partial<MomentInputs> = {}, held: HeldMemory = NO_HELD): MomentInputs {
   return {
     read: pfsaRead('triggered'),
@@ -168,7 +195,8 @@ export function inputs(over: Partial<MomentInputs> = {}, held: HeldMemory = NO_H
     last: 4.26,
     now: PFSA_TRIGGER + 2,
     riskUsd: 20,
+    ttlSec: 10,
     held,
     ...over,
-  };
+  } as MomentInputs;
 }

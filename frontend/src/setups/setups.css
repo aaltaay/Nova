@@ -61,6 +61,12 @@
 .setups-alert-body { flex: 1; min-width: 0; line-height: 1.4; }
 .setups-alert-reasons { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
 .setups-alert-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+/* ADR 042 draft: Nova itself takes it (blue), or it is not a trade (grey): said on the card, Stage locked. */
+.setups-alert--nova { border-color: #0a84ff; }
+.setups-alert--notrade { border-color: var(--text-secondary); }
+.setups-alert-verdict { margin-top: 3px; font-size: 12px; font-weight: 600; }
+.setups-alert-verdict--nova { color: #5ac8fa; }
+.setups-alert-verdict--notrade { color: var(--text-secondary); }
 
 /* ADR 031: a chip per setup filters the board. */
 .setups-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }

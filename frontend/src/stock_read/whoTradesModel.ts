@@ -5,16 +5,17 @@
  * STOP / TARGET rows in the Level 2 book.
  */
 import type { DepthMarker } from '../ibkr';
-import { SETUP_COLORS } from './constants';
+import { NOT_A_TRADE_NOVA, SETUP_COLORS } from './constants';
 import { fmtPnl, heldQty, judgedLevels, type Moment, type MomentInputs } from './momentModel';
-import { fmtPx, fmtStep, sizeFor } from './planMath';
+import { approveQty } from './novaPromise';
+import { fmtPx, fmtStep } from './planMath';
 import type { StockModeName, StockModeTrade, StockModeView, StockPlan, StockSide } from './types';
 
 export const MODE_NAMES: Record<StockModeName, string> = {
   signal: 'Signal only',
   approve: 'Approve',
   auto_entry: 'Auto-entry',
-  bot: 'Bot at Strategy',
+  bot: 'Bot',
 };
 
 export const MODE_SIDES: Record<StockModeName, string> = {
@@ -26,15 +27,19 @@ export const MODE_SIDES: Record<StockModeName, string> = {
 
 export const MODE_ORDER: readonly StockModeName[] = ['signal', 'approve', 'auto_entry', 'bot'];
 
-/** What the mode means, in the plan card's words. */
+/** What the mode means, in the plan card's words. Auto-entry follows the bot's rules with the exit handed
+ * to you (ADR 042 draft): a go trigger of a setup at Strategy, while the bot is active, within the day's
+ * shared cap. */
 export function modeSentence(mode: StockModeName, symbol: string): string {
   switch (mode) {
     case 'approve':
       return 'You approve once. Nova sends the buy with its stop and target.';
     case 'auto_entry':
-      return `Nova buys ${symbol} once, at the trigger. Every sell is yours.`;
+      return `Nova buys ${symbol} at a go trigger of a setup at Strategy, by the bot's rules, while the bot is `
+        + 'active. Every sell is yours.';
     case 'bot':
-      return 'Nova buys at the trigger and sells at the target, the stop or 15 minutes.';
+      return `The bot buys ${symbol} at a go trigger of a setup at Strategy while it is active, and sells at the `
+        + 'target, the stop or after 15 minutes.';
     default:
       return 'Nova draws the plan and tells you when. It places nothing.';
   }
@@ -97,13 +102,15 @@ export function orderLevels(i: MomentInputs): OrderLevels | null {
   const live = liveTrade(i.who);
   if (live) {
     const holding = live.state === 'holding';
-    // Nova's exits: the bracket's two legs are orders from the send; the bot rests its target after the
-    // fill and watches its stop. Once the operator takes the exit over, both are only the plan again.
+    // Nova's exits: the bracket's two legs are orders from the send (the bot's entry is a bracket too,
+    // spec I); a bot trade without a stop order watches its stop. Once the operator takes the exit over,
+    // both are only the plan again.
     const nova = live.exits === 'nova';
     const bot = live.kind === 'bot';
+    const botStop: Behind = live.stop_order_id !== null ? 'order' : holding ? 'watched' : 'plan';
     return {
       entry: level(live.fill_price ?? live.entry, holding ? 'held' : 'order'),
-      stop: level(live.stop, !nova ? 'plan' : bot ? (holding ? 'watched' : 'plan') : 'order'),
+      stop: level(live.stop, !nova ? 'plan' : bot ? botStop : 'order'),
       target: level(live.target, !nova ? 'plan' : bot ? (live.target_order_id !== null ? 'order' : 'plan') : 'order'),
     };
   }
@@ -202,6 +209,11 @@ export interface PlanActionsInput {
   symbol: string;
 }
 
+/** Approve's lock for a plan that is not a trade: the reasons, and that Nova's buys are blocked too. */
+function notTradeLock(notTrade: string | null | undefined): string | null {
+  return notTrade ? `${notTrade} ${NOT_A_TRADE_NOVA}` : null;
+}
+
 const NO_TICKET = 'This tab has no order ticket open to fill. Show the Order Entry module on the rail.';
 
 function stageSell(a: PlanActionsInput, qty: number): PlanAction {
@@ -227,16 +239,20 @@ function approveAction(a: PlanActionsInput, plan: StockPlan | null, view: StockM
     return { id: 'cancel-approval', label: 'Approved · cancel', tone: 'plain', locked: null,
       tip: 'Withdraws the approval. Nova sends nothing at the trigger.' };
   }
-  const size = plan ? sizeFor(a.inputs.riskUsd, plan.risk) : null;
-  const noSize = plan ? `$${a.inputs.riskUsd} of risk buys no whole share at ${fmtStep(plan.risk, plan.entry)} a share.` : '';
+  // Nova's size for the plan when the view gives one (the sleeve's), else the risk per trade over the risk.
+  const size = approveQty(view, a.inputs.riskUsd, plan);
+  const noSize = view.size?.text
+    ? `Nova sends nothing: ${view.size.text}`
+    : plan ? `$${a.inputs.riskUsd} of risk buys no whole share at ${fmtStep(plan.risk, plan.entry)} a share.` : '';
+  const sized = view.size ? ' (the size Nova sends for this plan)' : ` ($${a.inputs.riskUsd} risk per trade)`;
   if (plan?.source === 'setup' && plan.state === 'triggered') {
     return {
       id: 'approve-now',
       label: `Approve: buy ${size ?? '?'} now`,
       tone: 'primary',
-      locked: a.notTrade ?? (plan.setup_id === null ? 'The setup has no live id to approve.'
+      locked: notTradeLock(a.notTrade) ?? (plan.setup_id === null ? 'The setup has no live id to approve.'
         : size === null ? noSize : null),
-      tip: `Sends buy ${size ?? '?'} @ ${fmtPx(plan.entry)} now, with its stop ${fmtPx(plan.stop)} and target `
+      tip: `Sends buy ${size ?? '?'}${sized} @ ${fmtPx(plan.entry)} now, with its stop ${fmtPx(plan.stop)} and target `
         + `${fmtPx(plan.target)} at the broker.`,
     };
   }
@@ -249,9 +265,10 @@ function approveAction(a: PlanActionsInput, plan: StockPlan | null, view: StockM
     id: 'approve',
     label: size !== null && plan ? `Approve ${size} @ ${fmtPx(plan.entry)}` : 'Approve',
     tone: 'primary',
-    locked: why ?? a.notTrade ?? null,
-    tip: plan ? `At the trigger, with the tape at go, Nova sends buy ${size ?? '?'} @ ${fmtPx(plan.entry)} with stop `
-      + `${fmtPx(plan.stop)} and target ${fmtPx(plan.target)}. Withdrawn if the setup re-arms, fails or disarms.`
+    locked: why ?? notTradeLock(a.notTrade),
+    tip: plan ? `At the trigger, with the tape at go, Nova sends buy ${size ?? '?'}${sized} @ ${fmtPx(plan.entry)} `
+      + `with stop ${fmtPx(plan.stop)} and target ${fmtPx(plan.target)}. Withdrawn if the setup re-arms, fails or `
+      + 'disarms.'
       : 'Approve the plan once; Nova sends it at the trigger.',
   };
 }
@@ -267,6 +284,8 @@ export function planActions(a: PlanActionsInput): { actions: PlanAction[]; statu
     id: 'stage', label: 'Stage in ticket', tone: 'primary', locked: a.stageLocked,
     tip: 'Fills this tab\'s ticket with a buy limit at the entry for your size. It never sends.',
   };
+  // A take-over always leaves Buy on You (ADR 042 draft): it never turns the stock into Auto-entry.
+  const buyStays = `Buy stays on You: Nova buys no more ${a.symbol}.`;
   if (qty > 0) {
     if (live?.exits === 'nova') {
       const approve = live.kind === 'approve';
@@ -276,8 +295,10 @@ export function planActions(a: PlanActionsInput): { actions: PlanAction[]; statu
           label: approve ? 'Cancel stop and target' : 'Take over the exit',
           tone: 'plain',
           locked: live.exiting ? 'The bot is already selling.' : null,
-          tip: approve ? "Cancels the bracket's stop and target at the broker. The exit becomes yours."
-            : 'The bot cancels its target and stops watching its stop. The exit becomes yours.',
+          tip: approve
+            ? `Nova cancels the bracket's stop and target at the broker, and the exit is yours. ${buyStays}`
+            : `Nova cancels the bot's target and stop on ${a.symbol} and stops its 15-minute clock, and the exit is `
+              + `yours. The stock leaves the bot's list (Signal only): ${buyStays}`,
         }],
         status: null,
       };
@@ -294,7 +315,8 @@ export function planActions(a: PlanActionsInput): { actions: PlanAction[]; statu
         tip: 'Buy goes back to You and cancels the buy that has not filled.' }], status: null };
     }
     return { actions: [{ id: 'take-over', label: 'Take over', tone: 'plain', locked: null,
-      tip: 'The bot cancels its buy that has not filled.' }], status: null };
+      tip: `Nova cancels the bot's buy that has not filled, with its stop and target. The stock leaves the bot's `
+        + `list (Signal only): ${buyStays}` }], status: null };
   }
   const done = view?.trade && view.trade.state === 'closed' && view.trade.setup_id !== null
     && view.trade.setup_id === plan?.setup_id ? view.trade : null;

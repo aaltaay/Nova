@@ -1,16 +1,19 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PROPOSAL_DISMISSED_KEY } from '../constantGroups/setups';
 import { ORDER_TICKET_PREFILL_EVENT, type OrderTicketPrefill } from '../ibkr/orderTicketPrefill';
 import { SAMPLE_SETUPS_BOARD, SAMPLE_SETUPS_SCOREBOARD } from '../sample_data/sampleSetups';
+import { _resetDismissedForTests, dismiss, isDismissed, parseDismissed } from './proposalDismissals';
 import { SetupsAlertCard } from './SetupsAlertCard';
 import { SetupsBoard } from './SetupsBoard';
 import { SetupsPanel } from './SetupsPanel';
 import { SetupsScoreboard } from './SetupsScoreboard';
 import { resetSetupsBoardFilterForTests } from './setupsBoardFilter';
-import type { SetupsBoard as Board } from './types';
+import { _resetSleeveForTests, type SleeveRisk } from './sleeveRisk';
+import type { SetupProposal, SetupsBoard as Board } from './types';
 
 const openStockView = vi.fn();
 vi.mock('../workspace/WorkspaceContext', () => ({ useWorkspace: () => ({ openStockView }) }));
@@ -22,6 +25,12 @@ const WITH_PROPOSAL: Board = {
   proposals: SAMPLE_SETUPS_BOARD.rows.flatMap(r => (r.proposal ? [r.proposal] : [])),
 };
 
+/** The Paper sleeve's $20 risk per trade, as the board reads it. */
+const RISK: SleeveRisk = {
+  riskUsd: 20, source: 'sleeve', venue: 'paper', why: null, ttlSec: 3, bounds: [1, 10_000], saving: false,
+  saveError: null, moveError: null,
+};
+
 function captureStaged(): { staged: OrderTicketPrefill[]; stop: () => void } {
   const staged: OrderTicketPrefill[] = [];
   const onEvent = (e: Event) => staged.push((e as CustomEvent<OrderTicketPrefill>).detail);
@@ -29,11 +38,30 @@ function captureStaged(): { staged: OrderTicketPrefill[]; stop: () => void } {
   return { staged, stop: () => window.removeEventListener(ORDER_TICKET_PREFILL_EVENT, onEvent) };
 }
 
+function withProposal(over: Partial<SetupProposal>): Board {
+  return { ...WITH_PROPOSAL, proposals: WITH_PROPOSAL.proposals.map(p => ({ ...p, ...over })) };
+}
+
+beforeEach(() => {
+  _resetSleeveForTests();
+  _resetDismissedForTests();
+  sessionStorage.clear();
+  // Every read here is the fake desk's: the Paper sleeve risks $20 a trade.
+  vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
+    if (/\/api\/bot\/session$/.test(String(input))) {
+      return new Response(JSON.stringify({ caps: { venue: 'paper', risk_usd: 20, working_ttl_sec: 3 },
+        caps_bounds: { risk_usd: [1, 10_000] } }), { status: 200 });
+    }
+    return new Response('{}', { status: 404 });
+  }));
+});
+
 afterEach(() => {
   cleanup();
   openStockView.mockReset();
   resetSetupsBoardFilterForTests();
   localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 /** The first cell of every body row: the symbol on the board, the group on the scoreboard. */
@@ -43,7 +71,7 @@ describe('SetupsBoard', () => {
   it('shows state, levels, the tape read and a stage button only on a proposal', () => {
     const onOpen = vi.fn();
     render(
-      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={onOpen} />,
+      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={onOpen} risk={RISK} />,
     );
     expect(screen.getByText('Near')).toBeTruthy();
     expect(screen.getByText('Leg up +7.2%')).toBeTruthy();
@@ -60,33 +88,44 @@ describe('SetupsBoard', () => {
     expect(onOpen).toHaveBeenCalledWith('QMBL');
   });
 
-  it('stages a BUY limit at the entry and places nothing', () => {
+  it('stages a BUY limit at the entry, sized by the risk per trade, and places nothing', () => {
     const { staged, stop } = captureStaged();
     const onOpen = vi.fn();
     render(
-      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={onOpen} />,
+      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={onOpen} risk={RISK} />,
     );
-    fireEvent.click(screen.getByText('Stage ticket'));
+    const stage = screen.getByText('Stage ticket');
+    expect(stage.getAttribute('data-tip')).toMatch(/for 250 shares: \$20 of risk \(the Paper sleeve's risk per trade\) over 8¢ a share/);
+    fireEvent.click(stage);
     stop();
     expect(onOpen).toHaveBeenCalledWith('NVXA');
-    expect(staged[0]).toMatchObject({ symbol: 'NVXA', side: 'BUY', orderType: 'LMT', limitPrice: '4.38' });
+    // $20 over the 0.08 risk a share: 250 shares, never Settings > Trade's default quantity.
+    expect(staged[0]).toMatchObject({ symbol: 'NVXA', side: 'BUY', orderType: 'LMT', limitPrice: '4.38', quantityValue: '250' });
+  });
+
+  it('locks Stage with the reason when the bot takes the proposal or it is not a trade', () => {
+    const rows = SAMPLE_SETUPS_BOARD.rows.map(r => (r.proposal ? { ...r, proposal: { ...r.proposal, taken_by: 'bot' as const } } : r));
+    render(<SetupsBoard rows={rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} risk={RISK} />);
+    const stage = screen.getByText('Stage ticket') as HTMLButtonElement;
+    expect(stage.disabled).toBe(true);
+    expect(stage.getAttribute('data-why')).toBe('The bot is taking this trade: a buy of your own would double it.');
   });
 
   it('shows a setup the template filtered out, with the rule', () => {
     const row = { ...SAMPLE_SETUPS_BOARD.rows[0], state: 'filtered' as const, proposal: null,
       reason: 'filtered: float 30.0M over 10.0M' };
-    render(<SetupsBoard rows={[row]} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
+    render(<SetupsBoard rows={[row]} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} risk={RISK} />);
     expect(screen.getByText('Filtered')).toBeTruthy();
   });
 
   it('says what it watches when there is nothing to show', () => {
-    render(<SetupsBoard rows={[]} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
+    render(<SetupsBoard rows={[]} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} risk={RISK} />);
     expect(screen.getByText(/No setups right now/)).toBeTruthy();
   });
 
   it('explains every chip on hover, never with the row\'s own title on top', () => {
     render(
-      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />,
+      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} risk={RISK} />,
     );
     const near = screen.getByText('Near');
     expect(near.getAttribute('data-tip-title')).toBe('Near · First pullback');
@@ -100,7 +139,7 @@ describe('SetupsBoard', () => {
 
   it('sorts by a header: prices highest first, To go nearest first, then back to the board order', () => {
     render(
-      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />,
+      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} risk={RISK} />,
     );
     const board = ['NVXA', 'QMBL', 'HLTR', 'ORBT', 'KSTR', 'PLNX'];
     expect(firstCells()).toEqual(board);
@@ -153,16 +192,59 @@ describe('SetupsScoreboard', () => {
 });
 
 describe('SetupsAlertCard', () => {
-  it('names the setup, stages on request and then steps aside', () => {
+  it("names the setup, stages on request sized by the sleeve's risk, and then steps aside", async () => {
     const { staged, stop } = captureStaged();
     render(<SetupsAlertCard board={WITH_PROPOSAL} />);
     const card = screen.getByRole('status');
     expect(card.textContent).toContain('NVXA');
     expect(card.textContent).toContain('4.37');
-    fireEvent.click(screen.getByText('Stage ticket'));
+    const stage = screen.getByTestId('setups-alert-stage');
+    await waitFor(() => expect(stage.getAttribute('data-tip')).toMatch(/the Paper sleeve's risk per trade/));
+    expect(stage.textContent).toBe('Stage ticket · 250');
+    fireEvent.click(stage);
     stop();
     expect(openStockView).toHaveBeenCalledWith('NVXA');
-    expect(staged[0]).toMatchObject({ symbol: 'NVXA', limitPrice: '4.38' });
+    expect(staged[0]).toMatchObject({ symbol: 'NVXA', limitPrice: '4.38', quantityValue: '250' });
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(isDismissed('sample-1')).toBe(true);
+  });
+
+  it('says the bot is taking it, with nothing to do, and locks Stage', () => {
+    render(<SetupsAlertCard board={withProposal({ taken_by: 'bot' })} />);
+    expect(screen.getByTestId('setups-alert-verdict').textContent).toBe('The bot is taking this — nothing to do.');
+    const stage = screen.getByTestId('setups-alert-stage') as HTMLButtonElement;
+    expect(stage.disabled).toBe(true);
+    expect(stage.getAttribute('data-why')).toBe('The bot is taking this trade: a buy of your own would double it.');
+    expect(stage.textContent).toBe('Stage ticket');
+  });
+
+  it('says Auto-entry is taking it', () => {
+    render(<SetupsAlertCard board={withProposal({ taken_by: 'auto_entry' })} />);
+    expect(screen.getByTestId('setups-alert-verdict').textContent).toBe('Auto-entry is taking this — nothing to do.');
+    expect(screen.getByTestId('setups-alert-stage').getAttribute('data-why')).toMatch(/Auto-entry is buying this/);
+  });
+
+  it('says a proposal is not a trade, with its reasons, and locks Stage with them', () => {
+    render(<SetupsAlertCard board={withProposal({ not_a_trade: { reasons: ['grade C: 2 of 5 pillars'] },
+      pillars: { passed: 2, known: 5, total: 5 }, grade: 'C' })} />);
+    expect(screen.getByTestId('setups-alert-verdict').textContent).toBe('Not a trade: grade C: 2 of 5 pillars. '
+      + 'Nova does not buy it either: not the bot, not Auto-entry, not Approve.');
+    expect(screen.getByRole('status').textContent).toContain('grade C 2/5');
+    expect(screen.getByTestId('setups-alert-stage').getAttribute('data-why')).toBe('Not a trade: grade C: 2 of 5 pillars.');
+  });
+
+  it('shares one dismissed list with the Bots inbox, kept for the session', () => {
+    render(<SetupsAlertCard board={WITH_PROPOSAL} />);
+    fireEvent.click(screen.getByTestId('setups-alert-dismiss'));
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem(PROPOSAL_DISMISSED_KEY) ?? '{}')).toEqual({ schema_version: 1, ids: ['sample-1'] });
+    cleanup();
+    // The inbox (or any reader) dismissing it elsewhere keeps the card away too.
+    _resetDismissedForTests();
+    sessionStorage.clear();
+    render(<SetupsAlertCard board={WITH_PROPOSAL} />);
+    expect(screen.getByRole('status')).toBeTruthy();
+    act(() => dismiss(['sample-1']));
     expect(screen.queryByRole('status')).toBeNull();
   });
 
@@ -180,6 +262,19 @@ describe('SetupsAlertCard', () => {
   });
 });
 
+describe('the dismissed list', () => {
+  it('reads only its own version, and ignores anything else', () => {
+    expect(parseDismissed(JSON.stringify({ schema_version: 1, ids: ['a', 7, 'b'] }))).toEqual(['a', 'b']);
+    expect(parseDismissed(JSON.stringify({ schema_version: 2, ids: ['a'] }))).toEqual([]);
+    expect(parseDismissed(JSON.stringify(['a']))).toEqual([]);
+    expect(parseDismissed(null)).toEqual([]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(parseDismissed('{not json')).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
 describe('SetupsPanel', () => {
   afterEach(() => { stream.value = null; });
 
@@ -187,6 +282,11 @@ describe('SetupsPanel', () => {
     const setups = SAMPLE_SETUPS_BOARD.setups!.map(s => (s.id === 'first_pullback' ? { ...s, templates_watched: 3 } : s));
     stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'live', setups } };
     render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
+    // What each level does, said plainly: at Strategy the bot does place (ADR 042 draft).
+    const about = screen.getByTestId('setups-description').textContent ?? '';
+    expect(about).toMatch(/Eyes proposes when a setup is near its trigger/);
+    expect(about).toMatch(/Strategy also lets Nova buy its go triggers on Paper and Sim while the bot is Active/);
+    expect(about).not.toMatch(/never places/);
     expect(screen.getByTestId('setups-filter-all').textContent).toBe('All 6');
     expect(screen.getByTestId('setups-filter-first_pullback').textContent).toBe('First pullback 4');
     expect(screen.getByTestId('setups-filter-bull_flag').textContent).toBe('Bull flag 1');

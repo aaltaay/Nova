@@ -3,18 +3,25 @@
  */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NOVA_API_KEY_STORAGE } from '../constantGroups/api_auth';
+import { SLEEVE_RISK_LEGACY_KEY } from '../constantGroups/setups';
 import { subscribeOrderTicketPrefill, type OrderTicketPrefill } from '../ibkr/orderTicketPrefill';
+import { _resetSleeveForTests } from '../setups/sleeveRisk';
 import { ChartLegend } from './ChartLegend';
-import { STOCK_READ_RISK_KEY } from './constants';
 import { StockReadSheet } from './ReadSheet';
 import { StockReadProvider, useStockReadContext } from './StockReadContext';
 import { StockReadRail } from './StockReadRail';
 import { StockReadToolbar } from './StockReadToolbar';
 import { apusAt, apusDecisionsWire, apusHistoryWire, apusReadWire } from './stockReadFixtures';
+import { sleeveSessionWire } from './whoTradesFixtures';
 
 type Json = Record<string, unknown>;
 let responses: { match: RegExp; status?: number; body: Json }[] = [];
 let calls: string[] = [];
+/** The venue sleeve's risk per trade as the fake backend keeps it; null: an older backend that keeps none. */
+let sessionRisk: number | null = 20;
+let patches: Json[] = [];
+let refusePatch: { status: number; body: Json } | null = null;
 
 function respond(match: RegExp, body: Json, status = 200) {
   responses.unshift({ match, status, body });
@@ -22,14 +29,29 @@ function respond(match: RegExp, body: Json, status = 200) {
 
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem(NOVA_API_KEY_STORAGE, 'desk-key');
+  _resetSleeveForTests();
   calls = [];
   responses = [];
+  sessionRisk = 20;
+  patches = [];
+  refusePatch = null;
   respond(/\/api\/stock-read\/APUS\/history$/, apusHistoryWire);
   respond(/\/api\/stock-read\/APUS\/decisions$/, apusDecisionsWire);
   respond(/\/api\/stock-read\/APUS(\?|$)/, apusReadWire);
-  vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
+  vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     calls.push(url);
+    if (/\/api\/bot\/session$/.test(url)) {
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body)) as Json;
+        patches.push(body);
+        if (refusePatch) return new Response(JSON.stringify(refusePatch.body), { status: refusePatch.status });
+        const risk = (body.caps as Json | undefined)?.risk_usd;
+        if (sessionRisk !== null && typeof risk === 'number') sessionRisk = risk;
+      }
+      return new Response(JSON.stringify(sleeveSessionWire(sessionRisk)), { status: 200 });
+    }
     const hit = responses.find(r => r.match.test(url));
     if (!hit) return new Response('{}', { status: 404 });
     return new Response(JSON.stringify(hit.body), { status: hit.status ?? 200 });
@@ -75,7 +97,7 @@ describe('the plan on the rail', () => {
     expect(within(plan).getByText('Target 2R')).toBeTruthy();
     expect(screen.getByTestId('stock-read-checks').textContent).toContain('under VWAP 6.09');
     expect(screen.getByTestId('stock-read-plan-note').textContent).toBe('provisional: arms after 1 more red or doji candle');
-    expect(calls[0]).toMatch(/\/api\/stock-read\/APUS$/);
+    expect(calls.filter(u => u.includes('/api/stock-read/'))[0]).toMatch(/\/api\/stock-read\/APUS$/);
   });
 
   it("names the levels in the plan's way: Room in trial, the next round, and nothing where no round is near", async () => {
@@ -118,6 +140,9 @@ describe('the plan on the rail', () => {
     fireEvent.click(stage);
     expect(got).toEqual([{ symbol: 'APUS', side: 'BUY', orderType: 'LMT', quantityValue: '181', limitPrice: '5.44' }]);
     expect(screen.getByTestId('stock-read-plan-note').textContent).toMatch(/Staged BUY 181 LMT 5.44.*no bracket/);
+    // The size says where it came from: the Paper sleeve's risk per trade over the risk a share.
+    expect(screen.getByTestId('stock-read-plan-note').textContent)
+      .toMatch(/^Staged BUY 181 LMT 5\.44: \$20 of risk \(the Paper sleeve's risk per trade\) over 0\.11 a share\./);
     off();
   });
 
@@ -133,7 +158,10 @@ describe('the plan on the rail', () => {
     expect(screen.getByTestId('stock-read-plan-grade').textContent).toBe('C 1/5');
     expect(screen.getByTestId('stock-read-plan-verdict').textContent).toBe('NOT A TRADE');
     expect(within(plan).queryByText(/reward : risk/)).toBeNull();          // moot on a plan that is not a trade
-    expect(screen.getByTestId('stock-read-plan-notrade').textContent).toBe('Not a trade: grade C: 1 of 5 pillars.');
+    // One rule (ADR 042 draft): the plan says it blocks Nova's buys as well as its own Stage.
+    expect(screen.getByTestId('stock-read-plan-notrade').textContent).toBe('Not a trade: grade C: 1 of 5 pillars. '
+      + "It blocks Nova's buys too: the bot, Auto-entry and Approve do not take it.");
+    expect(screen.getByTestId('stock-read-plan-verdict').getAttribute('data-tip')).toMatch(/blocks Nova's buys too/);
     let off = () => {};
     act(() => {
       off = subscribeOrderTicketPrefill('APUS', () => {});
@@ -144,14 +172,72 @@ describe('the plan on the rail', () => {
     off();
   });
 
-  it('sizes from the risk per trade the operator sets, and keeps it', async () => {
+  it("sizes from the venue sleeve's risk per trade, and saves a change there", async () => {
     renderRail();
-    fireEvent.click(await screen.findByTestId('stock-read-risk-usd'));
+    const risk = await screen.findByTestId('stock-read-risk-usd');
+    await waitFor(() => expect(risk.getAttribute('data-tip')).toMatch(/^The Paper sleeve's risk per trade/));
+    expect(risk.textContent).toBe('$20');
+    fireEvent.click(risk);
     const input = screen.getByTestId('stock-read-risk-usd-input');
     fireEvent.change(input, { target: { value: '40' } });
     fireEvent.keyDown(input, { key: 'Enter' });
-    expect(screen.getByTestId('stock-read-size').textContent).toBe('363 sh');
-    expect(localStorage.getItem(STOCK_READ_RISK_KEY)).toContain('40');
+    await waitFor(() => expect(screen.getByTestId('stock-read-size').textContent).toBe('363 sh'));
+    expect(patches).toEqual([{ caps: { risk_usd: 40 } }]);
+    expect(localStorage.getItem(SLEEVE_RISK_LEGACY_KEY)).toBeNull();       // the sleeve keeps it, not the desk
+    expect(screen.queryByTestId('stock-read-risk-note')).toBeNull();
+  });
+
+  it('says a refused save on the card and keeps sizing by what the sleeve holds', async () => {
+    refusePatch = { status: 400, body: { detail: { reason: 'BOT_CAPS_INVALID', error: 'risk_usd is 1 to 10000' } } };
+    renderRail();
+    const risk = await screen.findByTestId('stock-read-risk-usd');
+    await waitFor(() => expect(risk.getAttribute('data-tip')).toMatch(/Paper sleeve/));
+    fireEvent.click(risk);
+    const input = screen.getByTestId('stock-read-risk-usd-input');
+    fireEvent.change(input, { target: { value: '40' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(screen.getByTestId('stock-read-risk-note').textContent)
+      .toBe('The risk per trade was not saved: risk_usd is 1 to 10000'));
+    expect(screen.getByTestId('stock-read-size').textContent).toBe('181 sh');
+    // A number the sleeve would refuse says so instead of going back silently.
+    fireEvent.click(screen.getByTestId('stock-read-risk-usd'));
+    fireEvent.change(screen.getByTestId('stock-read-risk-usd-input'), { target: { value: '0' } });
+    fireEvent.keyDown(screen.getByTestId('stock-read-risk-usd-input'), { key: 'Enter' });
+    expect(screen.getByTestId('stock-read-risk-usd-bad').textContent).toMatch(/Risk per trade is \$1 to \$10,000/);
+  });
+
+  it("moves the desk's old risk per trade into the sleeve once, then deletes it", async () => {
+    localStorage.setItem(SLEEVE_RISK_LEGACY_KEY, JSON.stringify({ schema_version: 1, value: 35 }));
+    renderRail();
+    await waitFor(() => expect(patches).toEqual([{ caps: { venue: 'paper', risk_usd: 35 } }]));
+    await waitFor(() => expect(localStorage.getItem(SLEEVE_RISK_LEGACY_KEY)).toBeNull());
+    await waitFor(() => expect(screen.getByTestId('stock-read-size').textContent).toBe('318 sh'));
+  });
+
+  it("keeps the old value and says so when the backend refuses to take it", async () => {
+    localStorage.setItem(SLEEVE_RISK_LEGACY_KEY, JSON.stringify({ schema_version: 1, value: 35 }));
+    refusePatch = { status: 409, body: { detail: { reason: 'BOT_CAPS_INVALID', error: 'the sleeve is locked' } } };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    renderRail();
+    await waitFor(() => expect(screen.getByTestId('stock-read-risk-note').textContent).toBe(
+      "Your $35 risk per trade, saved on this desk, could not move into the Paper sleeve: the sleeve is locked"));
+    expect(localStorage.getItem(SLEEVE_RISK_LEGACY_KEY)).toContain('35');
+    expect(screen.getByTestId('stock-read-size').textContent).toBe('181 sh');    // the sleeve's $20 sizes it
+    warn.mockRestore();
+  });
+
+  it('on a backend that keeps no risk in the sleeve, sizes from this desk and says so', async () => {
+    sessionRisk = null;
+    renderRail();
+    await waitFor(() => expect(screen.getByTestId('stock-read-risk-note').textContent).toMatch(
+      /This backend keeps no risk per trade in the bot's sleeve yet: sizing at the \$20 default/));
+    expect(screen.getByTestId('stock-read-risk-usd').textContent).toBe('$20?');
+    fireEvent.click(screen.getByTestId('stock-read-risk-usd'));
+    fireEvent.change(screen.getByTestId('stock-read-risk-usd-input'), { target: { value: '40' } });
+    fireEvent.keyDown(screen.getByTestId('stock-read-risk-usd-input'), { key: 'Enter' });
+    await waitFor(() => expect(screen.getByTestId('stock-read-size').textContent).toBe('363 sh'));
+    expect(localStorage.getItem(SLEEVE_RISK_LEGACY_KEY)).toContain('40');
+    expect(patches).toEqual([]);
   });
 
   it('folds to one line, keeps Stage there, and remembers the operator opening it', async () => {

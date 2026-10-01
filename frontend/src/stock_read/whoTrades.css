@@ -97,6 +97,22 @@
 }
 .sr-who__note--warn { color: var(--sr-warn); }
 .sr-who__note--bad { color: var(--sr-bad); }
+.sr-who__note--info { color: var(--sr-secondary); }
+/* Every note the view gives, one line each (the whole sentence on hover): none hides behind the first. */
+.sr-who__notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The stock's last event: the bot's skips and Nova's acts, in the tone the backend gave them. */
+.sr-who__note--event-info { color: var(--sr-secondary); }
+.sr-who__note--event-ok { color: var(--sr-ok); }
+.sr-who__note--event-warn { color: var(--sr-warn); }
+.sr-who__note--event-bad { color: var(--sr-bad); }
+.sr-who__event-at {
+  color: var(--sr-muted);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── The chip on the chart, and its four choices ──────────────────────── */
 .sr-whochip {
@@ -230,6 +246,7 @@
 }
 .sr-call__title { font-size: 11px; letter-spacing: 0.03em; }
 .sr-call__detail { color: var(--sr-text); }
+.sr-call__more { color: var(--sr-secondary); }
 .sr-call--go { border-color: var(--sr-ok); background: rgba(12, 40, 20, 0.9); }
 .sr-call--go .sr-call__title { color: var(--sr-ok); }
 .sr-call--target { border-color: #ff9f0a; }
@@ -243,6 +260,29 @@
 .sr-call--info .sr-call__title { color: var(--sr-secondary); }
 
 /* ── The plan card's line that says who trades ────────────────────────── */
+/* The size Nova sends in a Nova mode; amber when it is a stated skip. */
+.sr-plan__nova-size {
+  margin: 2px 0 0;
+  color: #ff9f0a;
+  font-size: 0.6rem;
+  line-height: 14px;
+}
+.sr-plan__nova-size--skip { color: var(--sr-warn); }
+/* The risk per trade is not the sleeve's, or did not save: said on the card, not only on hover. */
+.sr-plan__risk-note {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--sr-warn);
+  font-size: 0.58rem;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sr-num__risk-usd--fallback { color: var(--sr-warn); }
+.sr-num__bad {
+  margin-left: 4px;
+  color: var(--sr-bad);
+}
 .sr-plan__status { font-weight: 700; }
 .sr-plan__status--done { color: var(--sr-ok); }
 .sr-plan__status--stop { color: var(--sr-bad); }

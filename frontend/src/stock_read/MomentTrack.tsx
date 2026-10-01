@@ -56,11 +56,19 @@ export function MomentTrack({ moment }: { moment: Moment }) {
   );
 }
 
+/** The call; when it has more reasons than its detail says, it counts them and lists every one on hover. */
 export function CallBox({ call }: { call: MomentCall }) {
+  const more = call.more ?? [];
+  const tip = more.length ? tipProps([call.detail, ...more].join('\n'), call.title) : {};
   return (
-    <div className={`sr-call sr-call--${call.tone}`} role="status" aria-live="polite" data-testid="moment-call">
+    <div className={`sr-call sr-call--${call.tone}`} role="status" aria-live="polite" {...tip} data-testid="moment-call">
       <b className="sr-call__title">{call.title}</b>
       {call.detail && <span className="sr-call__detail">{call.detail}</span>}
+      {more.length > 0 && (
+        <span className="sr-call__more" data-testid="moment-call-more">
+          +{more.length} more reason{more.length === 1 ? '' : 's'} (hover)
+        </span>
+      )}
     </div>
   );
 }
