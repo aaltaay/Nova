@@ -16,7 +16,7 @@ section 3, "Catalysts"). SEC's bulk `submissions.zip` lives beside it under `edg
 | `py -3 research/catalysts/import_massive.py` | the Massive news archive already on F: (no network) |
 | `py -3 research/catalysts/fetch_alpaca.py` | Alpaca / Benzinga newsroom, one session day per request batch |
 | `py -3 research/catalysts/fetch_finnhub.py` | Finnhub free tier (one year back; older days recorded `out_of_range`) |
-| `py -3 research/catalysts/fetch_edgar.py` | SEC filings in each window, with the filed press release (EX-99) of every 8-K / 6-K; needs `edgar/submissions.zip` from `https://www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip` |
+| `py -3 research/catalysts/fetch_edgar.py` | SEC filings in each window, with the filed press release (EX-99) of every 8-K / 6-K; needs `edgar/submissions.zip` from `https://www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip`. Each acceptance time is read on its own clock (`edgar_clock.py`: SEC writes a `Z` on every one, but some filers' JSON holds Eastern time); `--reclock` repairs a store fetched before 2026-09-30 |
 | `py -3 research/catalysts/backfill_halts.py` | Nasdaq's halt page per date into `halts/raw/`, then the leaderboard's `halt_events` (Sim playback shows them) |
 | `py -3 research/catalysts/build_shares.py` | `sec_shares` (shares outstanding as filed, from SEC's `companyfacts.zip` on F:) and `short_interest` (FINRA) into `orb.duckdb` |
 | `py -3 research/catalysts/import_feed.py` | the desk's live catalyst feed (SEC + wires, `catalyst_feed.sqlite3`) folded into this store |
@@ -34,8 +34,29 @@ Rules: a window opens at the prior session's 16:00 ET close; an item counts only
 at or before the cutoff (never later -- no hindsight). `none_found` means the sources that
 answered found nothing; a source that could not reach the date did not answer.
 
-Results as produced: `results_*_2026-09-23.json` beside this file (numbers only -- the labelled
-headlines stay on F:, they are publishers' text).
+Results as produced: `results_*_2026-09-23.json` beside this file, and the coverage and the
+first-pullback split again as `results_*_2026-09-30.json` after the EDGAR clock fix (numbers only
+-- the labelled headlines stay on F:, they are publishers' text).
+
+## Correction, 2026-09-30 (EDGAR's clock, ADR 024 amendment)
+
+SEC's bulk `submissions.zip` writes every `acceptanceDateTime` with a `Z`, and `fetch_edgar.py`
+read every one as UTC. Some filers' JSON holds Eastern wall time behind that `Z` (about 30% of
+2021's filings, 0.5% of 2026's), so their filings were stored 4-5 hours early. `edgar_clock.py`
+now places each row by its own time (EDGAR's 06:00-22:00 ET hours and its 17:30 filing-date rule)
+or its JSON neighbours, and `fetch_edgar.py --reclock` repaired the store (the pre-fix copy is
+`catalysts.sqlite3.bak-2026-09-30-before-reclock` beside it; the previous results are
+`results/*_pre_edgar_clock.*` on F:).
+
+- **The store:** 753 of 5,454 EDGAR filings (13.8%) moved 4-5 hours later, 292 of them into the
+  next session (read as intraday, filed after the close); 418 had read 01:00-06:00 ET, when EDGAR
+  is closed. 133 filings that only now fall inside an answered window were fetched.
+- **Verdicts (rules v7):** 34 of 7,976 changed, all in the pillar universe. 30 gained a filing
+  accepted after the prior close that the old time put before the window opened (14 weak
+  catalysts became strong); 4 lost a filing counted as known by 09:30 that was filed after the
+  open. No leaderboard mover changed.
+- **First pullback:** strong catalyst at 09:30 -0.20R over 190 trades (was -0.21R over 187), weak
+  -0.36R, noise only -0.49R (was -0.47R). The findings below stand.
 
 ## Correction, 2026-09-23 evening (rules v6, #516)
 

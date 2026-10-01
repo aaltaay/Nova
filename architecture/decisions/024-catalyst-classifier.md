@@ -199,3 +199,51 @@ summing a symbol's filings before judging the threshold (the classifier labels o
 verdict already prefers any catalyst); and counting 10% holders (a fund's buy is not management's).
 The research backfill does not read Form 4s yet: `import_feed.py` folds the live feed's purchase
 items in unchanged, and `research/catalysts/fetch_edgar.py` can read them with the same parser.
+
+## Amendment 2026-09-30 -- EDGAR's bulk acceptance times: UTC, except when Eastern
+
+SEC's bulk `submissions.zip` writes every `acceptanceDateTime` with a `Z`, and
+`research/catalysts/fetch_edgar.py` read every one as UTC. Some filers' JSON holds Eastern wall
+time behind that `Z`: about 30% of 2021's filings, falling to 0.5% of 2026's (11,032 of 94,575
+earnings 8-Ks since 2021-06). Read as UTC they land 4-5 hours early, often in the wrong session:
+an after-close release reads as intraday, and a filing made after the open counts as known at
+09:30. EDGAR's own rules show it. It accepts filings 06:00-22:00 ET, yet 27,113 of 664,148 recent
+filings read as UTC fall at 01:00-06:00 ET. It dates a filing received after 17:30 ET on the next
+business day, yet read as UTC, 8-Ks "accepted" 13:30-16:00 ET carry the next day's date 11.1% of
+the time (0.7% for 09:30-13:30). The clock belongs to a filer's JSON, not to the filing (Southern
+Company's 2019 10-K reads UTC in four co-registrants' JSON and Eastern in the fifth), and within
+one JSON it comes in long runs. SEC's live API does the same today: Take-Two's 8-K accepted at
+16:31:36 ET on 2026-09-30 reads `2026-09-30T16:31:36.000Z`.
+
+1. **Each row on its own clock** (`research/catalysts/edgar_clock.py`, pure). A row is placed by
+   its own time first: a raw 06:00-10:00 (EDT dates) / 11:00 (EST) is before EDGAR opens if read
+   as UTC, so it is Eastern; a raw 22:00-02:00 / 03:00 is after EDGAR closes if read as Eastern,
+   so it is UTC; a raw 17:31-21:30 / 22:30 dated that day is UTC and dated the next weekday is
+   Eastern (only forms dated by the 17:30 rule vote: Forms 3/4/5 and Schedules 13D/G are dated the
+   same day until 22:00). Otherwise it takes the majority of the rows its own time placed in the
+   same JSON part within 180 days, then 730 days, then the whole part; then the filer's other
+   parts; then UTC. Its own time places 57% of the 664,148 filings. Over the 3.48M rows of those
+   filers' JSON that their own time places, the neighbours alone give the same answer 99.5% of the
+   time, and the placed times matched the issuers' GlobeNewswire release times 98-99% of the time.
+2. **The live feed is unaffected.** It reads EDGAR's "latest filings" Atom, whose `<updated>`
+   carries its offset. On 8 filings from Eastern-clock filers and 4 from UTC filers (2026-09-23 to
+   -30) it equals the filing index page's "Accepted" time to the second.
+3. **The store is repaired, not refetched.** `fetch_edgar.py --reclock` moves every stored
+   filing -- its item row and each ticker row -- to its time on its own clock, then looks at every
+   target again, so a filing that only now falls inside an answered window is fetched. On
+   2026-09-30: 753 of 5,454 stored filings (13.8%) moved 4-5 hours later, 292 of them into the
+   next session (read as intraday, filed after the close); 418 had read 01:00-06:00 ET and none do
+   now; 133 filings now inside an answered window were fetched; 2 ticker rows of filings two
+   filers list held their own filer's wrong time under a right item row. 34 of 7,976 verdicts
+   changed, all in the 09:30 pillar universe: 30 gained a filing accepted after the prior close
+   (16:01-18:34 ET) that the old time put before the window opened -- 14 weak catalysts became
+   strong, the filed release itself beside a news recap of it -- and 4 lost a filing the old time
+   counted as known by 09:30 when it was filed after the open. No leaderboard mover changed (0.5%
+   of 2026's filings are Eastern). The first pullback's
+   split by catalyst barely moved: strong catalyst at 09:30 -0.20R over 190 trades (was -0.21R
+   over 187).
+
+Rejected: each filing's index page "Accepted" time (one request per filing, against a bulk file
+that already holds the time); one clock per filer (a JSON switches clocks over the years, and a
+co-registrant's JSON can differ); the hours rule alone (it places 12% of filings); and leaving the
+fetcher's "first fetch wins" to heal the store on a later run (it never rewrites a stored time).

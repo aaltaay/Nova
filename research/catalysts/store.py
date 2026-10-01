@@ -78,6 +78,14 @@ def put_items(con: sqlite3.Connection, rows: list[dict]) -> int:
     return len(rows)
 
 
+def retime_items(con: sqlite3.Connection, moves: dict[str, float]) -> int:
+    """New ``published_ts`` for stored items and their ticker rows -- a clock fix, never a new fetch."""
+    rows = [(ts, item_id) for item_id, ts in moves.items()]
+    con.executemany("UPDATE items SET published_ts = ? WHERE item_id = ?", rows)
+    con.executemany("UPDATE item_tickers SET published_ts = ? WHERE item_id = ?", rows)
+    return len(rows)
+
+
 def put_check(con: sqlite3.Connection, ticker: str, day: str, source: str, status: str,
               n_items: int | None = None, detail: str | None = None) -> None:
     con.execute("INSERT OR REPLACE INTO checks VALUES (?,?,?,?,?,?,?)",
