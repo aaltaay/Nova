@@ -19,6 +19,7 @@ import {
   stateWords,
   tapeRank,
   tapeWords,
+  tf5Words,
   toGoWords,
   triggerWords,
   type SetupRow,
@@ -52,6 +53,7 @@ const COLUMNS: SortColumns<SetupRow> = {
   to_go: { value: r => (isActionable(r) && r.setup ? r.distance : null), first: 'asc' },
   tape: tapeRank,
   grade: r => r.grade,
+  tf5: r => (r.tf5 ? (r.tf5.agrees ? 1 : 0) : null),
 };
 
 function Head({ k, label, num = false, sort, onSort }: {
@@ -96,6 +98,7 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
           <Head k="to_go" label="To go" num sort={sort} onSort={onSort} />
           <Head k="tape" label="Tape" sort={sort} onSort={onSort} />
           <Head k="grade" label="Gr" sort={sort} onSort={onSort} />
+          <Head k="tf5" label="5m" sort={sort} onSort={onSort} />
         </tr>
       </thead>
       <tbody>
@@ -106,6 +109,7 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
           const toGo = toGoWords(row);
           const tape = tapeWords(row);
           const grade = gradeWords(row);
+          const tf5 = tf5Words(row);
           const others = otherSetups(row, allRows);
           const broke = row.state === 'near' && Boolean(row.setup?.detail?.broke_at);
           return (
@@ -153,6 +157,12 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
               </td>
               <td className={`bots-scan__grade${row.graded === 'forming' ? ' bots-scan__grade--forming' : ''}`}
                 data-testid={`bots-scan-grade-${setup}-${row.symbol}`} {...tipProps(grade.tip, grade.title)}>{grade.text}</td>
+              <td>
+                {tf5 ? (
+                  <span className={`bots-tf5 bots-tf5--${tf5.tone}`} data-testid={`bots-scan-tf5-${setup}-${row.symbol}`}
+                    {...tipProps(tf5.tip, tf5.title)}>{tf5.text}</span>
+                ) : <span className="bots-scan__dot">·</span>}
+              </td>
             </tr>
           );
         })}

@@ -40,6 +40,10 @@
 .setups-row--failed { opacity: 0.6; }
 .setups-row--filtered { opacity: 0.55; }
 .setups-grade { white-space: nowrap; }
+/* The 5-minute chart's read (trial T8): a description, so neither tone is a warning colour. */
+.setups-tf5 { white-space: nowrap; }
+.setups-tf5--agrees { color: var(--success); }
+.setups-tf5--against { color: var(--text-muted); }
 
 .setups-split-head th {
   text-align: left; padding-top: 10px; color: var(--text-secondary);

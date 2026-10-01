@@ -172,7 +172,7 @@ def test_a_v1_scoreboard_is_migrated_and_its_rows_become_the_default_templates(t
     store = SetupStore(path)
     row = store.rows()[0]
     assert (row["template_id"], row["template_rev"]) == ("default", 1) and row["params_hash"]
-    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 3
+    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 4
     assert store.rows(template_id="default", template_rev=1)[0]["id"] == "OLD"
     assert row["setup_type"] == "first_pullback"            # schema 3 (ADR 031): through 2 to 3
 

@@ -168,5 +168,5 @@ def test_a_schema_2_scoreboard_is_migrated_and_its_rows_are_the_first_pullbacks(
     store = SetupStore(path)
     [row] = store.rows()
     assert row["setup_type"] == "first_pullback" and row["detail"] is None
-    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 3
+    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 4
     assert store.rows(setup_type="first_pullback")[0]["id"] == "OLD" and store.rows(setup_type="bull_flag") == []

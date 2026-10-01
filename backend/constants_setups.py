@@ -23,7 +23,7 @@ SETUPS_SCHEMA_VERSION_SYMBOL = 1           # GET /api/setups/symbol/{symbol} (AD
 # setups.db: 2 adds template_id / template_rev / params_hash (ADR 029); a v1
 # file is migrated in place, its rows becoming the default template's. 3 (ADR
 # 031) adds setup_type and detail; a v2 file's rows are the first pullback's.
-SETUPS_DB_SCHEMA_VERSION = 3
+SETUPS_DB_SCHEMA_VERSION = 4
 
 # -- Session window (America/New_York). The material's window is 07:00-10:00;
 # the research screen ran 09:30-11:30. Covering 07:00-11:30 lets the

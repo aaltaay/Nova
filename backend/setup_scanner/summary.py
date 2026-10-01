@@ -5,6 +5,7 @@ shape into a winning trade? (ADR 022)
 Pure: rows in, numbers out. Every split carries its own count so a small
 sample is visible as small. ``flow_at_trigger`` splits by the tape flow's label
 at the trigger (ADR 034): does a burst into the trigger beat a flush into it?
+``tf5_at_trigger`` splits by whether the 5-minute chart agreed at the trigger (trial T8).
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from constants_setups import (
     SETUP_OUTCOME_STOP_FIRST,
     SETUP_OUTCOME_TARGET_FIRST,
 )
+from setup_scanner.five_minute import verdict as tf5_verdict
 
 ET = ZoneInfo("America/New_York")
 SLIPPAGE_PER_FILL = 0.01   # the research ladder's base cost, per fill
@@ -90,6 +92,7 @@ def summarize(rows: Iterable[dict]) -> dict[str, Any]:
     rows = list(rows)
     out: dict[str, Any] = {"all": _stats(rows), "by": {}}
     for name, key in (("tape_at_trigger", _tape), ("flow_at_trigger", _flow),
+                      ("tf5_at_trigger", lambda r: tf5_verdict(r.get("tf5_trigger"))),
                       ("grade", lambda r: r.get("grade") or "?"),
                       ("session", _session), ("kind", lambda r: r.get("kind") or "?")):
         groups: dict[str, list[dict]] = {}

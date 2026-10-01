@@ -14,6 +14,8 @@ from constants_stock_read import (
     STOCK_READ_VOLUME_PROFILE_BARS,
 )
 from scanner_wire import wire_safe
+from setup_scanner import five_minute
+from setup_scanner.bars import bar_from
 from stock_read import history, indicators, level_map, plan as plan_mod, rows, rows_trade
 
 logger = logging.getLogger(__name__)
@@ -73,6 +75,8 @@ def derive(f: dict[str, Any]) -> dict[str, Any]:
         "backside": indicators.backside(bars),
         "bid_pulls": len(bid_flags),
         "breakers": bot.get("breakers"),
+        # The 5-minute chart now, made from these minutes as the setup scanner makes it (trial T8).
+        "tf5": five_minute.context([b for b in map(bar_from, bars) if b is not None], now),
     }
 
 
@@ -190,7 +194,7 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
            "ema9": d["ema9"], "median_range": d["median_range"], "asks": (f.get("l2") or {}).get("asks") or [],
            "spread": (f.get("l2") or {}).get("spread_dollars"),
            "flow": f.get("flow"), "bid_pulls": d["bid_pulls"], "halted": f.get("halted"), "bars": d["bars"],
-           "level_map": levels}
+           "level_map": levels, "tf5": d["tf5"]}
     plan = plan_mod.build(setups, ctx, now=now, entry=entry, stop=stop)
     groups = tiles(f, d, plan, hist)
     counts = {k: 0 for k in ("ok", "warn", "bad", "unknown", "info")}
