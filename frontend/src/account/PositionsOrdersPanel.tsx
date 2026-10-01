@@ -39,6 +39,7 @@ import {
   ACCOUNT_PRICE_NONE_TITLE,
   type AccountOrderFilter,
 } from '../constantGroups/account_page';
+import { orderSentBy } from '../ibkr';
 import { formatOrderStatus, plausiblePrice } from '../ibkr/orderDisplay';
 import { orderRowKeys, uniqueOrders } from '../ibkr/orderIdentity';
 import type { IbkrOrder } from '../ibkr/types';
@@ -67,13 +68,18 @@ interface Props {
 /**
  * The Source cell: the row's own ADR 007 stamp (practice rows carry
  * `order_source` / `bot_id`), else a fill's, else who placed it on Live --
- * never a blanket "Nova" for a working or out-of-range order (QA W9).
+ * never a blanket "Nova" for a working or out-of-range order (QA W9). A row
+ * that names the part of Nova that sent it (`order_origin`: Bot trip, KILL,
+ * Auto-entry ...) reads as the Orders table's Sent by does (2026-10-01).
  */
 export function orderSourceCell(order: IbkrOrder, fill: { source: string | null; botId: string | null } | undefined): { label: string; bot: boolean } {
   const stamped = typeof order.order_source === 'string' && order.order_source ? order.order_source : null;
   const source = stamped ?? fill?.source ?? null;
   const botId = (typeof order.bot_id === 'string' && order.bot_id) || fill?.botId || null;
-  if (source) return { label: sourceLabel(source, botId), bot: sourceKind(source) === 'bot' || botId != null };
+  if (source) {
+    const label = order.order_origin ? orderSentBy(order).label : sourceLabel(source, botId);
+    return { label, bot: sourceKind(source) === 'bot' || botId != null };
+  }
   if (order.source === 'ib_recovered') return { label: sourceLabel('ibkr', null), bot: false };
   if (order.source === 'nova') return { label: sourceLabel('nova', null), bot: false };
   return { label: '—', bot: false };

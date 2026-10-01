@@ -19,6 +19,7 @@ export type WorkingOrderColumnId =
   | 'commission'
   | 'latency'
   | 'status'
+  | 'sent_by'
   | 'time'
   | 'session';
 
@@ -33,6 +34,7 @@ export type ClosedOrderColumnId =
   | 'commission'
   | 'latency'
   | 'status'
+  | 'sent_by'
   | 'time'
   | 'filled_at';
 
@@ -50,6 +52,7 @@ export const DEFAULT_WORKING_ORDER_COLUMNS: WorkingOrderColumnId[] = [
   'symbol',
   'qty',
   'status',
+  'sent_by',
   'type',
   'filled',
   'remaining',
@@ -71,6 +74,7 @@ export const DEFAULT_CLOSED_ORDER_COLUMNS: ClosedOrderColumnId[] = [
   'symbol',
   'qty',
   'status',
+  'sent_by',
   'type',
   'filled',
   'avg_fill',
@@ -103,6 +107,15 @@ export type ColumnMeta = {
   label: string;
   className: string;
   title?: string;
+};
+
+/** "Sent by" (operator report 2026-10-01): who placed the order -- you, KILL, a breaker or a bot. */
+const SENT_BY_META: ColumnMeta = {
+  id: 'sent_by',
+  label: 'Sent by',
+  className: 'ibkr-col--text ibkr-col--sent-by',
+  title:
+    "Who sent the order: You, KILL, the bot trip, the all-stop, Nova's bot, Auto-entry, Approve or a bot through the API. Hover a cell for more · Drag headers to reorder",
 };
 
 export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
@@ -161,6 +174,7 @@ export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
       'Click-to-fill when filled, else click-to-terminal. Hover for Nova→submit and submit→fill. MKT RTH warn/danger from fill-audit detective. Em dash when audit is missing -- never invented',
   },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
+  sent_by: SENT_BY_META,
   time: {
     id: 'time',
     label: 'Time Placed',
@@ -219,6 +233,7 @@ export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
       'Click-to-fill when filled, else click-to-terminal. Hover for Nova→submit and submit→fill. MKT RTH warn/danger from fill-audit detective. Em dash when audit is missing -- never invented',
   },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
+  sent_by: SENT_BY_META,
   time: {
     id: 'time',
     label: 'Time Placed',
@@ -261,7 +276,11 @@ export const POSITION_COLUMN_META: Record<PositionColumnId, ColumnMeta> = {
   unrealized: { id: 'unrealized', label: 'Unrealized P&L', className: 'ibkr-col--num' },
 };
 
-/** Keep saved order, drop unknowns, append any new defaults at the end. */
+/**
+ * Keep saved order, drop unknowns, and put a column added since the layout was saved where
+ * the defaults put it: after the nearest column before it in the defaults (first when none).
+ * Appending it went off the far edge of a narrow table (Sent by, 2026-10-01).
+ */
 export function normalizeColumnOrder(
   saved: string[] | null | undefined,
   defaults: readonly string[],
@@ -274,10 +293,19 @@ export function normalizeColumnOrder(
     seen.add(id);
     out.push(id);
   }
-  for (const id of defaults) {
-    if (seen.has(id)) continue;
-    out.push(id);
-  }
+  defaults.forEach((id, index) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    let at = 0;
+    for (let k = index - 1; k >= 0; k -= 1) {
+      const pos = out.indexOf(defaults[k]);
+      if (pos >= 0) {
+        at = pos + 1;
+        break;
+      }
+    }
+    out.splice(at, 0, id);
+  });
   return out;
 }
 

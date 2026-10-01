@@ -634,6 +634,31 @@
   min-width: 4.6rem;
 }
 
+/* Sent by (2026-10-01): who placed the order. A breaker's or KILL's sell stands out. */
+.ibkr-table--orders th.ibkr-col--sent-by,
+.ibkr-table--orders td.ibkr-col--sent-by {
+  width: 5.75rem;
+  min-width: 5rem;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.ibkr-table--orders td.ibkr-sent-by--you,
+.ibkr-table--orders td.ibkr-sent-by--outside,
+.ibkr-table--orders td.ibkr-sent-by--unknown {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.ibkr-table--orders td.ibkr-sent-by--nova {
+  color: var(--accent, #3b82f6);
+  font-weight: 600;
+}
+
+.ibkr-table--orders td.ibkr-sent-by--breaker {
+  color: var(--amber, #f59e0b);
+  font-weight: 700;
+}
+
 .ibkr-table--orders th.ibkr-col--order-id,
 .ibkr-table--orders td.ibkr-col--order-id,
 .ibkr-table--orders td.ibkr-order-id {

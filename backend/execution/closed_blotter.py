@@ -1,5 +1,7 @@
 """Merge IB closed-order replay with the ADR 007 ledger (Orders Today).
 
+maintainer: one-concern one desk's closed orders -- IBKR's replay joined to this desk's own execution rows, never another venue's
+
 The execution ledger is one table for every venue, so the overlay is scoped
 to the desk's own rows (QA V5 / C18 / C53, 2026-09-22). On Paper and Sim the
 practice broker's ledger is the whole truth and nothing is joined or appended
@@ -23,6 +25,7 @@ from constants import (
     SESSION_PREMARKET_START_MIN_ET,
 )
 from constants_ibkr import IBKR_CLOSED_ORDER_STATUSES
+from execution import sent_by as _sent_by
 from market import ET, session_key_et
 
 logger = logging.getLogger(__name__)
@@ -156,12 +159,18 @@ def overlay_closed_orders(
     source = ledger_rows if ledger_rows is not None else load_session_ledger()
     ledger = [row for row in ledger_rows_for_desk(source, scope) if _matchable_ledger(row)]
     unused = list(ledger)
+    # A bracket's exit legs have ids of their own: they are Nova's, though no row is theirs (#677).
+    senders = _sent_by.sent_by_index(ledger)
     out: list[dict] = []
     for ib in ib_rows:
         match = _take_match(ib, unused)
         if match is None:
             row = dict(ib)
-            row["source"] = "ib_recovered"
+            sender = _sent_by.lookup(senders, row)
+            if sender is None:
+                row["source"] = "ib_recovered"
+            else:
+                row.update(source="nova", **_sent_by.ledger_sent_by(sender))
             out.append(row)
         else:
             out.append(_merge_ib_ledger(ib, match))
@@ -312,6 +321,7 @@ def _merge_ib_ledger(ib: dict, led: dict) -> dict:
             out["submitted_at"] = fallback
     out["source"] = "nova"
     out["execution_id"] = led.get("id")
+    out.update(_sent_by.ledger_sent_by(led))
     return out
 
 
@@ -389,6 +399,7 @@ def _row_from_ledger(led: dict) -> dict:
         "source": "nova",
         "execution_id": led.get("id"),
         "commission": _commission_from_ledger(led),
+        **_sent_by.ledger_sent_by(led),
     }
 
 

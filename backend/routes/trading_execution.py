@@ -108,6 +108,7 @@ def _manual_order_command(
     common = dict(
         idempotency_key=key,
         source="flatten" if req.intent == "flatten" else "manual",
+        origin="ticket_flatten" if req.intent == "flatten" else None,
         # Checked in the door against the position less the closes already
         # working, inside the execution lock (execution.flatten_intent, QA R42).
         intent=req.intent,
@@ -273,11 +274,12 @@ async def flatten_account_route() -> dict:
     """Whole-account MKT flatten -- same door bot breakers already use.
 
     Calls ``bot.flatten.flatten_account_with_retry`` (execution source=flatten).
-    Not a second place / cancel stack.
+    Not a second place / cancel stack. Its only desk caller is the header's
+    Emergency KILL, so its closes read "KILL" in the Orders table.
     """
     from bot.flatten import flatten_account_with_retry
 
-    return await flatten_account_with_retry()
+    return await flatten_account_with_retry(origin="emergency_kill")
 
 
 @router.patch("/order/{order_id}")
