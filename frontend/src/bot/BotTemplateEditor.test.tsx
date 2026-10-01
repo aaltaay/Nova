@@ -106,7 +106,15 @@ describe('BotTemplateEditor', () => {
   });
 
   it('shows the bot window, clipped to the arming window when it had to be', () => {
-    open(templatesPayload().setups.find(s => s.id === 'red_to_green')!);
+    const r2g = templatesPayload().setups.find(s => s.id === 'red_to_green')!;
+    open(r2g);
+    // The built-in sits inside its arming window: nothing clipped.
+    expect(screen.getByTestId('bots-template-bot-window').textContent).toMatch(/Bot window 09:30–10:00$/);
+    cleanup();
+    // A saved window that reached outside is read clipped, and the editor says so.
+    const t0 = r2g.templates[0];
+    open({ ...r2g, templates: [{ ...t0, bot_window: { ...t0.bot_window!, clipped: true,
+      stored: { start: '07:00', end: '10:00' } } }] });
     const win = screen.getByTestId('bots-template-bot-window');
     expect(win.textContent).toMatch(/Bot window 09:30–10:00 \(clipped to the arming window/);
     expect(screen.queryByTestId('bots-param-bot_entries_per_day')).toBeNull();

@@ -39,10 +39,15 @@ describe('templateFormat', () => {
     });
   });
 
-  it('names the bot window the template answers, clipped to the arming window (ADR 042 G)', () => {
+  it('names the bot window the template answers, and says when it was clipped to the arming window (ADR 042 G)', () => {
     const r2g = payload.setups.find(s => s.id === 'red_to_green')!.templates[0];
-    expect(r2g.bot_window).toEqual({ start: '09:30', end: '10:00', clipped: true });
+    // Red to green's built-in sits inside its arming window (09:30-10:30) from the start: nothing clipped.
+    expect(r2g.bot_window).toMatchObject({ start: '09:30', end: '10:00', clipped: false });
     expect(Object.fromEntries(ruleLines('red_to_green', r2g.values, r2g.bot_window)).Trade)
+      .toBe('Risk $0.03–0.20 · target 1 2R or the high of day, whichever is higher · bot 09:30–10:00');
+    // A saved window that reached outside is read clipped, and the line says so.
+    const clipped = { ...r2g.bot_window!, clipped: true, stored: { start: '07:00', end: '10:00' } };
+    expect(Object.fromEntries(ruleLines('red_to_green', { ...r2g.values, bot_window_start: '07:00' }, clipped)).Trade)
       .toBe('Risk $0.03–0.20 · target 1 2R or the high of day, whichever is higher · bot 09:30–10:00 (clipped to the arming window)');
     // How many a day is the sleeve's now, never a template's.
     expect(Object.keys(defaults)).not.toContain('bot_entries_per_day');
@@ -73,7 +78,7 @@ describe('templateFormat', () => {
     expect(Object.fromEntries(ruleLines('red_to_green', values('red_to_green')))).toMatchObject({
       Setup: '1+ close under the 09:30 open, then back through it by 10:30 · one try a day · MACD above zero',
       Entry: 'Over the open +$0.01 · only when the tape says GO',
-      Trade: 'Risk $0.03–0.20 · target 1 2R or the high of day, whichever is higher · bot 07:00–10:00',
+      Trade: 'Risk $0.03–0.20 · target 1 2R or the high of day, whichever is higher · bot 09:30–10:00',
     });
     expect(ruleSummary('first_pullback', defaults)).toBe('Leg ≥ 5% · 1–3 bar pullback · stop at the pullback low');
     expect(ruleSummary('bull_flag', values('bull_flag'))).toBe('Pole 3+ green, ≥ 5% · 2–3 bar flag · stop at the flag low');

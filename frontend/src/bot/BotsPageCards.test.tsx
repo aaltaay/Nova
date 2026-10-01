@@ -171,7 +171,7 @@ describe('Strategies card (ADR 042: a level per setup under the master)', () => 
     expect(tip).toMatch(/bot 07:00–10:00/);
     expect(tip).not.toMatch(/a day/);
     expect(within(screen.getByTestId('bots-setup-red_to_green')).getByTestId('bots-setup-rules-red_to_green').getAttribute('data-tip'))
-      .toMatch(/bot 09:30–10:00 \(clipped to the arming window\)/);
+      .toMatch(/bot 09:30–10:00(?! \()/);   // red to green's built-in sits inside its 09:30-10:30 arming window
     for (const id of ['first_pullback', 'bull_flag']) {
       expect(within(screen.getByTestId(`bots-setup-${id}`)).getByText(/25k\+ seller not thinning/)).toBeTruthy();
     }

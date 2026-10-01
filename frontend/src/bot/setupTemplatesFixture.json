@@ -1360,7 +1360,14 @@
      "bot_window": {
       "start": "07:00",
       "end": "10:00",
-      "clipped": false
+      "clipped": false,
+      "empty": false,
+      "arming": {
+       "start": "07:00",
+       "end": "11:30"
+      },
+      "stored": null,
+      "note": null
      }
     }
    ]
@@ -2828,7 +2835,14 @@
      "bot_window": {
       "start": "07:00",
       "end": "10:00",
-      "clipped": false
+      "clipped": false,
+      "empty": false,
+      "arming": {
+       "start": "07:00",
+       "end": "11:30"
+      },
+      "stored": null,
+      "note": null
      }
     }
    ]
@@ -4199,7 +4213,14 @@
      "bot_window": {
       "start": "07:00",
       "end": "10:00",
-      "clipped": false
+      "clipped": false,
+      "empty": false,
+      "arming": {
+       "start": "07:00",
+       "end": "11:30"
+      },
+      "stored": null,
+      "note": null
      }
     }
    ]
@@ -5399,7 +5420,14 @@
      "bot_window": {
       "start": "09:30",
       "end": "10:00",
-      "clipped": true
+      "clipped": false,
+      "empty": false,
+      "arming": {
+       "start": "09:30",
+       "end": "10:30"
+      },
+      "stored": null,
+      "note": null
      }
     }
    ]
@@ -5654,7 +5682,8 @@
      "builtin": true,
      "in_play": true,
      "fingerprint": "015e7980b2b9",
-     "error": null
+     "error": null,
+     "bot_window": null
     }
    ]
   },
@@ -5681,7 +5710,8 @@
      "builtin": true,
      "in_play": true,
      "fingerprint": "44136fa355b3",
-     "error": null
+     "error": null,
+     "bot_window": null
     }
    ]
   }
