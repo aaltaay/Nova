@@ -67,6 +67,8 @@ def test_real_task_install_idempotence_and_disabled_repair(tmp_path):
         assert installed.returncode == 0, installed.stdout + installed.stderr
         assert 'installed and verified' in installed.stdout
         before = ps('-Command', f'Export-ScheduledTask -TaskName {quote(name)}').stdout
+        # A headless console: -WindowStyle Hidden alone flashes a window (2026-10-01).
+        assert 'conhost.exe</Command>' in before and '--headless' in before, before
         repeated = ps(*command)
         assert repeated.returncode == 0, repeated.stdout + repeated.stderr
         assert 'installed' not in repeated.stdout

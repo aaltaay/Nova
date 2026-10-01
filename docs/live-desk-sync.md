@@ -149,6 +149,12 @@ machine should be on ET), a 06:00 backstop, logon/unlock, plus
   relaunches every Gateway at its own, so raise them in place with the same
   script and `-Apply`: nothing restarts and the Gateway keeps its login. Outside
   04:00-20:00 ET.
+- The hidden tasks (`NovaLocalhostWatchdog`, `NovaRepoHygiene`) run PowerShell
+  under `conhost.exe --headless`, which has no window. Registered before the
+  2026-10-01 fix, they ran `powershell.exe -WindowStyle Hidden`, which hides its
+  console only after it has drawn: the watchdog's 5-minute kick flashed a black
+  Windows Terminal window every time. Re-register them (the two scripts above);
+  that stops and restarts nothing.
 - Configure one alert channel so a failed leg is audible:
   `alerts_channels.json` in the operator cache feeds
   `POST /api/alerts/system-event`, with a direct Discord/webhook POST as the
