@@ -115,7 +115,7 @@ BOT_DEFAULT_BID_EXIT_OFFSET_USD = 0.03
 # Loss breakers on the whole account's day P&L (operator ask 2026-09-24): the
 # operator's settings per venue (``bot.breaker_limits``), these the defaults.
 BOT_SOFT_BREAKER_USD = -50.0            # the bot trip: flatten, the bot to L0
-BOT_HARD_BREAKER_USD = -200.0           # the all-stop: flatten, bot and manual buys locked to ET midnight
+BOT_HARD_BREAKER_USD = -200.0           # the all-stop: flatten, bot and manual buys on its venue locked to 04:00 ET
 BOT_SOFT_BREAKER_LOOSEST_USD = -1000.0
 BOT_SOFT_BREAKER_TIGHTEST_USD = -5.0
 BOT_HARD_BREAKER_LOOSEST_USD = -5000.0
