@@ -1,6 +1,6 @@
 # ADR 022 -- The setup scanner: one first-pullback scanner, a tape gate, and Eyes that propose
 
-**Status:** Accepted · **Date:** 2026-09-22 · **Amended by:** [[031-a-scanner-for-every-setup]] (the bull flag, flat-top breakout and red to green on the same lanes)
+**Status:** Accepted · **Date:** 2026-09-22 · **Amended by:** [[031-a-scanner-for-every-setup]] (the bull flag, flat-top breakout and red to green on the same lanes); the 2026-09-30 amendment below (the tape at a trigger is the tape Nova saw)
 **Builds on:** [[016-bot-localhost-api]] · [[020-three-venues-one-feed]] · Bot-Trading-Plan §2f / §2g
 
 ## Context
@@ -182,3 +182,46 @@ Signals sub-tab (and its hook, panel and sample rows). The Watchlist's
 - `frontend/src/setups/*.test.ts(x)`.
 - Parity: the live detector against the research harness on the store's
   qualifying symbol-days (94.9%, residuals above).
+
+## Amendment 2026-09-30 -- the tape at a trigger is the tape Nova saw
+
+**Operator report.** "Why didn't we trade it? ... do we have an audit trail?" LGHL's
+first pullback triggered at 07:16:10 ET on an 8.61 trigger and ran to its target in
+under a minute. Its tape read at the trigger said WAIT, "burst of red on the tape (1.5k
+at the bid vs 0.0k at the ask)".
+
+**Cause.** The window the gate reads (decision 2, "the last 10 seconds") ended at the
+trigger's own stamp. That stamp is the L1 last's: IBKR's trade time, in whole seconds
+(07:16:10.000). Prints are stamped when they arrive (#563). The sweep that lifted the
+offer from 8.52 to 8.63 arrived at 07:16:10.60, so it fell after the window. The gate
+judged the pullback's own selling. The engine also read the tape before draining the
+print queue that tick, so prints from the last quarter second could be missing too.
+
+**Decision.**
+
+- A lane reads the tape for a trigger, and for a setup coming near, at the moment it
+  handles that price: its host's clock, never before the price's own stamp
+  (`Lane.read_at`).
+- A read takes every print received before it: `TapeFeed.prints` drains the symbol's
+  print queue first.
+- Every tape read's metrics carry `read_at`, the epoch second its window ends at.
+- `triggered_at`, the scoring and a trigger's age keep the price's own stamp. The stamp
+  lagged arrival by more than 2 s on 13 of 84 triggers; that is #667.
+
+A replay (`eyes/replay.py`) already stepped to the end of the price's second, so the
+live eyes and the backtests now read the same moment.
+
+**Evidence.** The gate replayed on the Session Records (books sampled every 0.5 s, the
+prints with the sides recorded live) reproduced the live verdict on all 5 recorded
+triggers since 2026-09-23. At the arrival moment, 2 of the 5 change:
+
+- LGHL 2026-09-30, from WAIT to GO: 124 prints and 7,882 shares at the ask, against
+  1,454 shares at the bid and none at the ask.
+- PFSA 2026-09-24, from GO to VETO: the spread had widened to 6¢ by then.
+
+67 of the 84 triggers had no Level 2 line and read blind either way.
+
+**Consequences.** `setups.db` rows and journal lines written before this read the
+earlier window, and are not rewritten. A row's `trigger_tape.metrics.read_at` says
+which window it read. The read-out still counts every row; whether to restart it on
+the new reads is the operator's call.
