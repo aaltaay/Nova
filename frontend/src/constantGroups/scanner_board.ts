@@ -82,22 +82,22 @@ export function scannerFooterHiddenByExchange(hidden: number): string {
 }
 export const SCANNER_FOOTER_SHOW_ALL = 'Show all';
 export const SCANNER_FOOTER_LEGEND_REC = 'recording';
-export const SCANNER_FOOTER_LEGEND_BOT_HELD = 'allowlisted, depth line held (bots may fire)';
-export const SCANNER_FOOTER_LEGEND_BOT_QUIET = 'allowlisted, no depth line seen here';
+export const SCANNER_FOOTER_LEGEND_BOT_HELD = 'bot trades it, depth line held (it may buy)';
+export const SCANNER_FOOTER_LEGEND_BOT_QUIET = 'bot trades it, no depth line seen here';
 
 // ── Row marks + hover actions ──────────────────────────────────────────────
 export const SCANNER_MARK_REC_TITLE = (symbol: string): string => `${symbol} is recording (Session Record holds its depth line)`;
 export const SCANNER_MARK_BOT_HELD_TITLE = (symbol: string): string =>
-  `${symbol} is allowlisted and this desk reports a held depth line -- a bot may fire`;
+  `${symbol}: the bot trades it, and this desk reports a held depth line -- the bot may buy it`;
 export const SCANNER_MARK_BOT_QUIET_TITLE = (symbol: string): string =>
-  `${symbol} is allowlisted; no held depth line is known to this window, so bots stay quiet (BOT_NO_DEPTH_LINE)`;
+  `${symbol}: the bot trades it, but no held depth line is known to this window, so the bot skips its triggers (BOT_NO_DEPTH_LINE)`;
 export const SCANNER_ACTION_TRADER = 'Trader ↗';
 export const SCANNER_ACTION_TRADER_TITLE = 'Open in Trader';
 export const SCANNER_ACTION_RECORD = 'Record';
 export const SCANNER_ACTION_STOP_REC = 'Stop rec';
-export const SCANNER_ACTION_ALLOWLIST = 'Allowlist';
-export const SCANNER_ACTION_ALLOWLISTED = 'Allowlisted ✓';
-export const SCANNER_ACTION_ALLOWLISTED_TITLE = 'On the bot allowlist -- click to remove';
+export const SCANNER_ACTION_ALLOWLIST = 'Let bot trade';
+export const SCANNER_ACTION_ALLOWLISTED = 'Bot trades ✓';
+export const SCANNER_ACTION_ALLOWLISTED_TITLE = 'The bot trades it (Nova buys and sells) -- click to stop the bot trading it';
 export const SCANNER_ACTION_PIN = 'Pin';
 export const SCANNER_ACTION_UNPIN = 'Unpin';
 export const SCANNER_ACTION_PIN_TITLE = 'Pin this row to the top of the list for this session';

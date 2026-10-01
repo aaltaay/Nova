@@ -87,13 +87,13 @@ describe('chartContextMenuItems', () => {
     expect(items.find((i) => i.id === 'watch_list_remove')?.label).toBe('Remove from watch list');
   });
 
-  it('adds or removes the bot allowlist from the live menu', () => {
+  it('lets the bot trade the stock, or stops it, from the live menu', () => {
     const add = chartContextMenuItems(BASE).find((i) => i.id === 'bot_allowlist_add');
     expect(add?.kind).toBe('action');
     const remove = chartContextMenuItems({ ...BASE, allowlisted: true }).find(
       (i) => i.id === 'bot_allowlist_remove',
     );
-    expect(remove?.label).toBe('Remove from bot allowlist');
+    expect(remove?.label).toBe('Stop the bot trading this stock');
   });
 
   it('exposes Show Layers and omits surfaces Nova cannot perform', () => {

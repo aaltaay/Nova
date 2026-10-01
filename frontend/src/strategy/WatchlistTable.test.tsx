@@ -110,11 +110,11 @@ describe('WatchlistTable', () => {
     expect(summary).toContain('3 gappers & gainers');
     expect(summary).toContain('1 pass all five pillars');
     expect(summary).toContain('2 setups live · 1 near trigger');
-    expect(summary).toContain('1 on the bot allowlist');
+    expect(summary).toContain('1 set to Bot');
 
     fireEvent.click(screen.getByText('5/5 pillars'));
     expect(screen.queryByText('QMBL', { selector: 'button' })).toBeNull();
-    fireEvent.click(screen.getByText('On bot allowlist'));
+    fireEvent.click(screen.getByText('Bot trades it'));
     expect(screen.getByText('QMBL', { selector: 'button' })).toBeTruthy();
     expect(screen.queryByText('NVXA', { selector: 'button' })).toBeNull();
   });

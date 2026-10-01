@@ -13,6 +13,8 @@ export const BOT_ACTION_KINDS = [
 
 export type BotActionKind = (typeof BOT_ACTION_KINDS)[number];
 
+/* ---------- The sleeve (ADR 042): one per venue, every Nova automatic buy ----------
+   Fallback bounds for an API that sends no `caps_bounds` -- mirrors backend constants_bot.py. */
 export const BOT_DEFAULT_MAX_SHARES = 1;
 export const BOT_MAX_SHARES_CAP = 10;
 export const BOT_BP_BUDGET_HARD_MAX_USD = 50;
@@ -21,8 +23,15 @@ export const BOT_BP_BUDGET_STEP_USD = 0.01;
 export const BOT_DEFAULT_WORKING_TTL_SEC = 3;
 export const BOT_WORKING_TTL_MIN_SEC = 1;
 export const BOT_WORKING_TTL_MAX_SEC = 10;
-export const BOT_ADVISE_DEFAULT_USD_CAP = 2;
-export const BOT_ADVISE_DEFAULT_CALL_CAP = 10;
+/** Risk per trade (the sleeve's `risk_usd`): default and bounds when the API sends none. */
+export const BOT_RISK_DEFAULT_USD = 20;
+export const BOT_RISK_MIN_USD = 1;
+export const BOT_RISK_MAX_USD = 10_000;
+/** The slider stops here; the backend's bound may be higher (typed values still go through it). */
+export const BOT_RISK_SLIDER_MAX_USD = 500;
+/** Nova's automatic entries a day per venue (bot + Auto-entry): bounds when the API sends none. */
+export const BOT_ENTRIES_PER_DAY_MIN = 1;
+export const BOT_ENTRIES_PER_DAY_MAX = 3;
 /** The loss breakers' defaults: a venue the operator never moved reads these (ADR 032). */
 export const BOT_SOFT_BREAKER_USD = -50;
 export const BOT_HARD_BREAKER_USD = -200;
@@ -31,31 +40,31 @@ export const BOT_BREAKER_SOFT_BOUNDS: readonly [number, number] = [-1000, -5];
 export const BOT_BREAKER_HARD_BOUNDS: readonly [number, number] = [-5000, -10];
 export const BOT_BREAKER_STEP_USD = 5;
 
-export const BOT_AUTONOMY_LABEL = 'Bot Autonomy';
-export const BOT_LEVEL_FIELD_LABEL = 'Level';
+export const BOT_LEVEL_FIELD_LABEL = 'Master level';
 export const BOT_LEVEL_LABELS = {
   0: 'Off',
   1: 'Eyes',
   2: 'Strategy',
 } as const;
+/** The master ceiling (ADR 042): the most any setup may do on this venue. */
 export const BOT_LEVEL_HINTS = {
-  0: 'L0 Off -- bot API dark; the chosen setup is watched and scored in silence, no proposals',
-  1: 'L1 Eyes -- the chosen setup proposes on near + go, and a connected bot may watch and propose; you place',
-  2: 'L2 Strategy -- after Activate the bot trades the chosen setup itself on Paper and Sim; Live waits on its read-out',
+  0: 'Off -- the most any setup may do on this venue is nothing: no proposal, no trade; every scanner still watches and scores in silence. The localhost bot API is dark.',
+  1: 'Eyes -- the most any setup may do on this venue is propose (near + go): you place. Nova\'s bot trades nothing.',
+  2: 'Strategy -- the most any setup may do on this venue: setups at Strategy may be traded by Nova\'s bot after Activate (Paper and Sim only); setups at Eyes propose.',
 } as const;
 export const BOT_STATE_ACTIVE = 'Active';
 export const BOT_STATE_NOT_ACTIVE = 'Not active';
 export const BOT_ACTIVATE_LABEL = 'Activate';
 export const BOT_DEACTIVATE_LABEL = 'Deactivate';
-export const BOT_API_KEY_HINT = 'Need Nova API key to change Bot Autonomy';
+export const BOT_API_KEY_HINT = 'Need Nova API key to change the bot';
 export const BOT_API_KEY_SAVE = 'Save';
 export const BOT_ERROR_NEED_API_KEY =
   'Need Nova API key -- Desktop and Vite read the same repo NOVA_API_KEY, or save it here';
-export const BOT_ERROR_ARM_REQUIRED = 'Activate first, then choose Strategy';
-export const BOT_ERROR_NOT_ACTIVE = 'Not active -- Activate before live fire';
+export const BOT_ERROR_ARM_REQUIRED = 'The bot is not active -- press Activate on the Bots page first';
+export const BOT_ERROR_NOT_ACTIVE = 'Not active -- press Activate on the Bots page first';
 
 /* ---------- The playbook (ADR 027): the operator's setups ---------- */
-/** Mirrors backend/constants_bot.py BOT_SETUPS; only a setup with a scanner can play. */
+/** Mirrors backend/constants_bot.py BOT_SETUPS. */
 export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
 /** In the backend's order (constants_bot.BOT_SETUPS): the four with a scanner first. */
 export const BOT_SETUP_IDS = [
@@ -67,7 +76,6 @@ export const BOT_SETUP_IDS = [
   'micro_pullback',
 ] as const;
 export type BotSetupId = (typeof BOT_SETUP_IDS)[number];
-export const BOT_SETUP_FIELD_LABEL = 'Setup';
 
 export const BOT_SETUP_LABELS: Record<string, string> = {
   first_pullback: 'First pullback',
@@ -105,7 +113,7 @@ export const BOT_SETUP_BLURBS: Record<string, string> = {
 export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_tested' | 'testing'; text: string; detail: string }> = {
   first_pullback: {
     verdict: 'failed',
-    text: 'Bars alone (P1): -0.30R. Live with the tape gate: the read-out decides.',
+    text: 'Bars alone (P1): -0.30R. Live with the tape gate: the read-out measures it.',
     detail: '−0.30R (P1): the tape gate is what is being tested',
   },
   bull_flag: {
@@ -146,9 +154,7 @@ export const BOT_SETUP_NEXT: Record<string, { head: string; why: string; unblock
 /* The setup cards' rule lines and tape gate lines are built from the template in play
    (bot/templateFormat.ts, ADR 029), never written by hand. */
 
-/** The one setup Nova's bot trades by itself at Strategy; every other setup keeps scanning. */
-export const BOT_CHOSEN_BADGE = 'Bot trades this';
-export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot play until it has one and its read-out passes';
+export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot watch, propose or trade until it has one';
 
 /** The setups this build has a scanner for -- mirrors backend constants_bot.BOT_SCANNER_SETUPS (ADR 031). */
 export const BOT_SCANNER_SETUP_IDS: readonly string[] = ['first_pullback', 'bull_flag', 'flat_top_breakout', 'red_to_green'];
@@ -163,53 +169,76 @@ export const BOT_STALE_BACKEND_WHY =
   'The backend is running code from before this scanner -- reload it (gear, Reload backend) to start it';
 export const BOT_STALE_BACKEND_TEMPLATE = 'needs a backend reload';
 
-/* ---------- The Bots page hero (ADR 027, ADR 030, ADR 031) ----------
-   The hero's level is the chosen setup's. Off: the bot API is dark and the chosen
-   setup is watched and scored in silence (decision A). Eyes: it proposes on near +
-   go, and a bot on the localhost bot API (ADR 016) may watch and propose. Strategy,
-   after Activate: Nova's own bot trades the chosen setup on Paper and Sim (ADR
-   030); Live waits on that setup's read-out. Every other setup has its own Off /
-   Eyes on its card. */
-export const BOT_STRATEGY_PLAYS = 'The bot trades the chosen setup itself on Paper and Sim; Live waits on its read-out';
+/* ---------- The levels (ADR 042) ----------
+   The hero's dial is the master ceiling: the most any setup may do on this venue. Each
+   setup card has its own Off / Eyes / Strategy; what a setup may do now is the lower of
+   the two. Off watches and scores in silence; Eyes proposes on near + go; Strategy lets
+   Nova's bot trade its go triggers on Paper and Sim once Activate is pressed -- until
+   then it proposes like Eyes. There is no chosen setup any more. */
 export const BOT_LEVEL_BLURBS = {
-  0: 'Bot API dark · the chosen setup scores in silence',
-  1: 'Proposes on near + go · you place',
-  2: 'The bot trades the chosen setup on Paper and Sim · Live waits on its read-out',
+  0: 'Nothing proposes or trades · every scanner scores in silence',
+  1: 'Setups may propose · you place',
+  2: 'Setups at Strategy may trade after Activate (Paper, Sim)',
 } as const;
 
-/** What each level means on a setup card's own switch (ADR 031 decisions A and B). */
+/** What each level means on a setup card's own switch (ADR 042). */
 export const BOT_SETUP_LEVEL_TIPS = {
-  0: 'Off: this setup\'s scanner still watches every HOD Momo name and scores each armed setup on the scoreboard, so its read-out keeps collecting — but it never proposes: no ping, no inbox card, no staged ticket.',
-  1: 'Eyes: when a setup comes near its trigger and the tape reads GO, it proposes — a ping, a card in the inbox and on every tab, a staged ticket at most. You press Place. Several setups can be at Eyes at once.',
-  2: 'Strategy: after Activate, Nova\'s own bot trades this setup by itself on Paper and Sim — one trade a day inside its window, under every gate. Live waits on this setup\'s read-out. Only the chosen setup can be here.',
+  0: 'Off: this setup\'s scanner still watches every HOD Momo name and scores each armed setup on the scoreboard, so its read-out keeps collecting — but it never proposes or trades: no ping, no inbox card, no staged ticket.',
+  1: 'Eyes: when a setup comes near its trigger and the tape reads GO, it proposes — a ping, a card in the inbox and on every tab, a staged ticket at most. You press Place. Any number of setups can be at Eyes.',
+  2: 'Strategy: once you press Activate, Nova\'s bot may trade this setup\'s GO triggers on the stocks set to Bot, on Paper and Sim — the first trigger wins, one trade at a time, inside its bot window and the daily cap. While the bot is not active it proposes like Eyes. Any number of setups can be at Strategy; the master level caps them all. Live trading by a bot is not built.',
 } as const;
 export const BOT_SETUP_LEVEL_CHIPS = {
   0: 'Off · scores silently',
   1: 'Eyes · pings on near + go',
-  2: 'Strategy · the bot trades it',
+  2: 'Strategy · the bot may trade it',
 } as const;
-/** Why a setup's Strategy segment is locked. */
-export const BOT_SETUP_STRATEGY_WHY = 'Only the chosen setup can be at Strategy -- choose this one first (its radio), then pick Strategy';
+/** At Strategy while the bot is not active: it proposes like Eyes until Activate. */
+export const BOT_SETUP_LEVEL_CHIP_WAITING = 'Strategy · proposes until Activate';
+export const BOT_SETUP_LEVEL_WAITING_TIP =
+  'This setup is at Strategy, but the bot is not active on this venue, so it proposes like Eyes. Press Activate on the hero and the bot may trade its GO triggers.';
+/** A setup's own level is above the master's: what it may do now is the master's. */
+export const botSetupCapped = (own: string, effective: string): string => `${own} · capped to ${effective} by the bot's level`;
+export const BOT_SETUP_CAPPED_TIP =
+  'The master level on the hero is the most any setup may do on this venue. This setup\'s own switch is higher, so it acts at the master level until you raise it.';
 
-/** Gate ids from backend/bot/gates.py, in the order the page lists them. */
+/* ---------- Gates (backend bot/gates.py, ADR 042) ---------- */
+/** Gate ids, in the order the page lists them. */
 export const BOT_GATE_LABELS: Record<string, string> = {
-  level: 'Level',
-  allowlist: 'Allowlist',
-  desk_armed: 'Desk armed',
-  depth_lines: 'Depth lines',
-  readout: 'Read-out',
-  bot_trip: 'Bot trip clear',
-  day_lock: 'No day lock',
-  kill_switch: 'Kill switch off',
-  window: 'Window',
-  commissions: 'Commissions read',
+  venue: 'Venue',
+  level: 'Master level',
+  setups: 'Setups at Strategy',
+  padlock: 'Padlock',
+  allowlist: 'Bot stocks',
+  depth_lines: 'Depth line',
+  bot_trip: 'Bot trip',
+  day_lock: 'Day lock',
+  kill_switch: 'Kill switch',
+  window: 'Bot window',
+  daily_cap: 'Daily cap',
+  extended_hours: 'Hours',
+  commissions: 'Commissions',
+};
+/** What each gate checks, on its chip's hover. */
+export const BOT_GATE_TIPS: Record<string, string> = {
+  venue: 'Nova\'s bot trades Paper, and Sim at the live edge (the playhead on the wall clock). Live trading by a bot is not built, and a Sim replay is the past, so the bot never trades there. Activate needs this.',
+  level: 'The master level (the dial beside these chips) is the most any setup may do on this venue. The bot trades only at Strategy. Activate needs this.',
+  setups: 'At least one setup card set to Strategy (its own switch, under the master level). The bot plays only those setups\' GO triggers. Activate needs this.',
+  padlock: 'The desk padlock (spend arming). It is locked at every start and when anyone locks it, and locking it turns the bot off. While locked nothing places an order. Activate needs this.',
+  allowlist: 'The stocks set to Bot (Nova buys and sells) on this venue, under Who trades. The bot trades nothing else; the scanners and Eyes still watch every HOD Momo name. Activate needs at least one.',
+  depth_lines: 'Nova must hold a stock\'s Level 2 line to read its tape at the trigger (IBKR allows 3 at once). This is open while one bot stock has a line; a trigger on a stock without one is skipped, and the activity says so. Checked on every order.',
+  bot_trip: 'The soft loss breaker: when this venue\'s day P&L falls to its bot trip, Nova flattens and turns the bot off. Activate re-enables it for today after you confirm; it clears by itself at 04:00 ET.',
+  day_lock: 'The hard loss breaker on this venue: the all-stop flattened the account and locks bot and manual buys on this venue until 04:00 ET. Flatten and cancel still work. Checked on every order.',
+  kill_switch: 'The kill switch cancels every working order on every venue and refuses new buys on every venue until you reset it. Checked on every order.',
+  window: 'Each setup\'s bot window, from its template and inside its arming window: the bot buys only a trigger inside it. Open while any setup at Strategy is inside its window now. Checked on every order.',
+  daily_cap: 'One count for Nova\'s automatic entries (the bot and Auto-entry) on this venue today, from the sleeve\'s "Nova entries a day". A missed entry gives the day back; Approve is yours and is counted, never capped. Checked on every order.',
+  extended_hours: 'Outside 09:30–16:00 ET the bot and Auto-entry buy only when the sleeve allows extended hours. Checked on every order.',
+  commissions: 'Live\'s day P&L needs its commissions; while they cannot be read, new entries wait (#564). Checked on every order.',
 };
 /** #564: the Live day P&L cannot read its commissions, so new bot entries wait. */
 export const BOT_GATE_COMMISSIONS_HELD = 'Commissions unreadable — Live entries held until they read';
 
-export const BOT_READOUT_TITLE = 'Read-out to unlock Strategy on Live';
-/** ADR 030: the read-out gates Live only. */
-export const BOT_READOUT_WAIVED_NOTE = 'Paper and Sim do not wait on it — the bot trades there now. Live does.';
+/* ---------- Read-outs (Bot-Trading-Plan §2g, ADR 042 G) ---------- */
+export const BOT_READOUT_TITLE = 'Read-out';
 export const BOT_READOUT_STATE_LABELS: Record<string, string> = {
   collecting: 'Collecting',
   passed: 'Passed',
@@ -217,21 +246,39 @@ export const BOT_READOUT_STATE_LABELS: Record<string, string> = {
   failed: 'Failed',
   unavailable: 'Scoreboard not open',
 };
-export const BOT_READOUT_RULE =
-  'Needs 50 go setups triggered, average net R above +0.2 and above blind / wait. Judged on the first 100.';
-/** The read-out's hover: what it counts and why it matters, per setup. */
+/** What a read-out is, on every setup card (ADR 042 G): what it measures and what it does not unlock. */
+export const BOT_READOUT_WHAT =
+  'Measures whether the tape gate turns this setup into a winner. Nova\'s bot trades Paper and Sim only; '
+  + 'Live trading by a bot is not built, so passing it unlocks nothing yet.';
+/** How it scores, against how the bot trades (ADR 042 G). */
+export const BOT_READOUT_EXITS =
+  'It scores the backtest\'s exit (half at target 1, the stop to break-even, a 9 EMA trail); '
+  + 'the bot sells everything at target 1, with a 15-minute time stop.';
+/** The read-out's hover: what it measures, what it does not unlock, and how it scores. */
 export const BOT_READOUT_TIP = (setup: string): string =>
-  `The read-out counts every ${setup} this scanner armed that triggered, split by what the tape said at the trigger.\n`
+  `${BOT_READOUT_WHAT}\n`
+  + `It counts every ${setup} this template armed that triggered, split by what the tape said at the trigger. `
   + 'GO: the tape said go. Blind / wait: Nova held no Level 2 line, or the tape said wait — the control group.\n'
-  + 'It passes at 50 go setups whose average net R (after a cent of slippage each way) is above +0.2 and above the control\'s. '
-  + 'It is judged on the first 100 go setups; 100 without a pass is failed.\n'
-  + 'Passing is what lets this setup trade at Strategy on Live. Paper and Sim do not wait on it.';
-export const BOT_ERROR_READOUT = 'Strategy waits on the chosen setup\'s read-out';
+  + 'It passes at 50 go setups whose average net R (after a cent of slippage each way) is above +0.2 and above the control\'s, '
+  + 'judged on the first 100 go setups; 100 without a pass is failed.\n'
+  + 'It scores the backtest\'s exit — half at target 1, the stop to break-even, the rest on a 9 EMA trail — '
+  + 'while Nova\'s bot sells everything at target 1, with a 15-minute time stop. Its triggers outside the bot\'s window count here, '
+  + 'though the bot would never have bought them.';
+export const botReadoutInside = (triggered: number, go: number, start: string, end: string): string =>
+  `${triggered} triggered inside the bot window ${start}–${end} (${go} at GO)`;
 
 export const BOT_DESK_ARM_HEADER = 'X-Nova-Desk-Arm';
 export const BOT_DESK_ARM_STORAGE = 'nova_bot_desk_arm';
-export const BOT_ALLOWLIST_ADD = 'Add to bot allowlist';
-export const BOT_ALLOWLIST_REMOVE = 'Remove from bot allowlist';
+
+/* ---------- The bot's stocks (ADR 042 F): set per stock, one owner ----------
+   Adding a stock to the bot sets it to Bot (Nova buys and sells) through the
+   stock-mode rules; a refusal is shown in the backend's own words. */
+export const botTradeAddLabel = (symbol: string): string => `Let the bot trade ${symbol} (Nova buys and sells)`;
+export const botTradeRemoveLabel = (symbol: string): string => `Stop the bot trading ${symbol}`;
+export const BOT_ALLOWLIST_ADD = 'Let the bot trade this stock (Nova buys and sells)';
+export const BOT_ALLOWLIST_REMOVE = 'Stop the bot trading this stock';
+export const botTradeRefusedTitle = (symbol: string, add: boolean): string =>
+  (add ? `The bot cannot trade ${symbol}` : `${symbol} stays with the bot`);
 
 /** The right-click symbol menu (bot/BotSymbolMenu): the symbol once in the head, then one row per action. */
 export const SYMBOL_MENU_CAPTION = 'Symbol actions';
@@ -244,33 +291,36 @@ export const SYMBOL_MENU_RECORD = 'Start recording';
 export const SYMBOL_MENU_RECORD_HINT = 'Save its tape and Level 2 for Sim replay';
 export const SYMBOL_MENU_STOP_RECORD = 'Hold to stop recording';
 export const SYMBOL_MENU_REC_STATE = 'REC';
-export const SYMBOL_MENU_ALLOW_HINT = 'Let the bot act on this symbol';
-export const SYMBOL_MENU_UNALLOW_HINT = 'The bot stops acting on it';
-export const SYMBOL_MENU_ALLOW_STATE = 'On';
+export const SYMBOL_MENU_ALLOW_HINT = 'Sets it to Bot under Who trades: Nova\'s bot may buy it and sell it on this venue';
+export const SYMBOL_MENU_UNALLOW_HINT = 'Back to Signal only: Nova stops buying it (an open trade keeps its exits)';
+export const SYMBOL_MENU_ALLOW_STATE = 'Bot';
+export const SYMBOL_MENU_BOT_BUSY_WHY = 'Asking Nova -- wait for the answer';
 export const BOT_ALLOWLIST_HINT =
-  'Right-click a scanner row, trader tab, or chart to add or remove. Empty list is fail-closed.';
-export const BOT_ALLOWLIST_EMPTY = 'empty -- fail closed';
-export const BOT_ALLOWLIST_ADD_LABEL = 'Add ticker';
+  'The stocks Nova\'s bot may trade on this venue (Nova buys and sells). Right-click a scanner row, Trader tab or chart, or set Bot under Who trades. An empty list: the bot trades nothing.';
+export const BOT_ALLOWLIST_EMPTY = 'none -- the bot trades nothing';
+export const BOT_ALLOWLIST_ADD_LABEL = 'Add a stock';
 export const BOT_ALLOWLIST_ADD_BUTTON = 'Add';
 export const BOT_ALLOWLIST_CHIP_REMOVE = 'Remove';
-/** Mirrors backend/constants_bot.py -- session.symbol_allowlist only, not caps.allowlist. */
+/** Mirrors backend/constants_bot.py -- the bot's stocks, not the sleeve's order kinds. */
 export const BOT_SYMBOL_ALLOWLIST_CAP = 50;
-export const BOT_ALLOWLIST_STRIP_LABEL = 'Allowlist';
-export const BOT_ALLOWLIST_STRIP_TITLE = 'Symbol allowlist';
+export const BOT_ALLOWLIST_STRIP_LABEL = 'Bot stocks';
+export const BOT_ALLOWLIST_STRIP_TITLE = 'The stocks the bot may trade';
 
 export function botAllowlistStripLabel(count: number): string {
   return `${BOT_ALLOWLIST_STRIP_LABEL} · ${count}`;
 }
+
+/* ---------- Loss breakers (ADR 032, ADR 042 D): per venue, one day boundary at 04:00 ET ---------- */
 export const BOT_BREAKER_SOFT_LABEL = 'Bot trip';
 export const BOT_BREAKER_HARD_LABEL = 'All-stop';
 export const BOT_BREAKER_HINT =
-  'Drag either marker to move it. Each venue keeps its own pair, saved in the bot session, so a restart keeps them. The bot trip flattens and drops the bot to L0; the all-stop flattens and locks bot and manual buys until the next ET midnight.';
+  'Drag either marker to move it. Each venue keeps its own pair, saved in the bot session, so a restart keeps them. The bot trip flattens this venue and turns the bot off; the all-stop flattens and locks bot and manual buys on this venue until 04:00 ET. A Sim replay compares nothing: its P&L is not today\'s.';
 export const BOT_BREAKER_SOFT_TIP =
-  'Bot trip: when the whole account\'s day P&L on this venue falls to this, Nova flattens and drops the bot to L0. The desk can still trade; Activate re-enables the bot the same day.\nDrag to move it (in $5 steps). It always sits above the all-stop.';
+  'Bot trip: when this venue\'s day P&L falls to this, Nova flattens and turns the bot off. The desk can still trade; Activate re-enables the bot for today after you confirm, and it clears at 04:00 ET.\nDrag to move it (in $5 steps). It always sits above the all-stop.';
 export const BOT_BREAKER_HARD_TIP =
-  'All-stop: when the day P&L falls to this, Nova flattens and locks bot and manual buys until the next ET midnight. Flatten and kill still work.\nDrag to move it (in $5 steps). It always sits below the bot trip.';
+  'All-stop: when this venue\'s day P&L falls to this, Nova flattens and locks bot and manual buys on this venue until 04:00 ET. Flatten and cancel still work.\nDrag to move it (in $5 steps). It always sits below the bot trip.';
 export const BOT_BREAKER_NOW_TIP =
-  'Today\'s day P&L for the whole account on this venue — the figure both breakers compare. On Live it is after commissions.';
+  'This venue\'s day P&L for the whole account — the figure both breakers compare. On Live it is after commissions.';
 /** Moving a breaker never undoes one that fired (ADR 032). */
 export const BOT_BREAKER_FIRED_NOTE = 'Moving a breaker never clears one that already fired.';
 export const BOT_BREAKER_LOOSEN_LIVE = (which: string, from: string, to: string): string =>
@@ -283,17 +333,14 @@ export const BOT_LABEL_SESSION = 'Bot session';
 export const BOT_LABEL_PROPOSALS = 'Bot proposals';
 export const BOT_LABEL_AUDIT = 'Bot audit';
 
-/* ---------- Kill switch (D-037, ADR 025) ---------- */
-/** The one kill latch: every new order from every source is refused until reset. */
+/* ---------- Kill switch (D-037, ADR 025, ADR 042 D) ---------- */
+/** The one kill latch, in the words of what it does. */
 export const KILL_SWITCH_TITLE = 'Kill switch';
 export const KILL_SWITCH_HINT =
-  'Stops every new order from every source -- you, hotkeys and the bot -- and cancels everything working. Flatten and cancel still work. It stays on across a restart until you reset it here. The red KILL button at the top of the desk is separate: it drops the bot to L0, locks the desk, cancels and flattens.';
-export const KILL_SWITCH_CLEAR = 'Off -- orders can be placed';
-export const KILL_SWITCH_TRIPPED = 'TRIPPED -- every new order is refused';
-export const KILL_SWITCH_UNKNOWN = 'Unknown -- the kill switch did not answer';
-export const KILL_SWITCH_TRIP_LABEL = 'Stop all orders';
+  'Cancels every working order on every venue and blocks new buys on every venue until you reset it. It does not sell positions — Flatten and cancel still work, and every other new order waits too. It stays on across a restart until you reset it here. The red KILL at the top of the desk is separate: it turns the bot off, locks the padlock, cancels and flattens this venue.';
+export const KILL_SWITCH_TRIP_LABEL = 'Kill switch';
 export const KILL_SWITCH_RESET_LABEL = 'Reset kill switch';
 export const KILL_SWITCH_TRIP_CONFIRM =
-  'Trip the kill switch? Every new order is refused until you reset it, and every working order is cancelled.';
+  'Trip the kill switch? It cancels every working order on every venue and blocks new buys on every venue until you reset it. It does not sell positions.';
 export const KILL_SWITCH_RESET_CONFIRM = 'Reset the kill switch? New orders will be allowed again.';
 export const KILL_SWITCH_POLL_MS = 5000;

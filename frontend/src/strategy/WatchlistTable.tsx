@@ -1,5 +1,5 @@
 /** The Watchlist table: Five Pillars as letter chips, the row's market facts, today's catalyst,
- * where the setup scanner has it, and the bot allowlist dot. Nothing here places an order. */
+ * where the setup scanner has it, and the dot that lets the bot trade it. Nothing here places an order. */
 import { useMemo, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTable';
@@ -161,7 +161,7 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
           <span><b>{sum.total}</b> gappers &amp; gainers</span>
           <span><b>{sum.allPass}</b> pass all five pillars</span>
           <span><b>{sum.setupsLive}</b> setups live · <b>{sum.near}</b> near trigger</span>
-          <span><b>{sum.allowlisted}</b> on the bot allowlist</span>
+          <span><b>{sum.allowlisted}</b> set to Bot</span>
         </div>
         <div className="wl-filters" role="group" aria-label="Contenders filter">
           {FILTERS.map(f => (
@@ -201,7 +201,7 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
                 <SortTh col="news" sort={sort} onSort={onSort} title="Today's catalyst since the prior close, by the same rules as the setup grade">News</SortTh>
                 <SortTh col="score" sort={sort} onSort={onSort} title="0-100 composite: breaks ties among symbols with the same pillar count">Score</SortTh>
                 <SortTh col="setup" sort={sort} onSort={onSort} title="Its most advanced setup on the setup scanners (first pullback, bull flag, flat-top, red to green); hover a cell for what it means">Setup</SortTh>
-                <SortTh col="bot" sort={sort} onSort={onSort} className="wl-bot-cell" title="On the bot allowlist">Bot</SortTh>
+                <SortTh col="bot" sort={sort} onSort={onSort} className="wl-bot-cell" title="The bot trades it (Nova buys and sells)">Bot</SortTh>
               </tr>
             </thead>
             <tbody>

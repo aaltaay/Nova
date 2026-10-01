@@ -24,7 +24,7 @@ import {
   SCANNER_ACTION_UNPIN,
   SCANNER_ACTION_UNPIN_TITLE,
 } from '../constantGroups/scanner_board';
-import { BOT_ALLOWLIST_ADD } from '../constantGroups/bot';
+import { botTradeAddLabel } from '../constantGroups/bot';
 import { togglePinnedRow, usePinnedRow } from '../scanner/pinnedRowsStore';
 import { useScannerRowFacts } from './useScannerRowFacts';
 import {
@@ -119,7 +119,7 @@ export function ScannerRowActions({ symbol, onOpenTrading }: Props) {
       <button
         type="button"
         className={`scanner-row-actions__btn${allowlisted ? ' is-state' : ''}`}
-        title={allowlisted ? SCANNER_ACTION_ALLOWLISTED_TITLE : BOT_ALLOWLIST_ADD}
+        title={allowlisted ? SCANNER_ACTION_ALLOWLISTED_TITLE : botTradeAddLabel(symbol)}
         aria-pressed={allowlisted}
         data-testid="scanner-row-allowlist"
         onClick={() => void (allowlisted ? remove(symbol) : add(symbol))}

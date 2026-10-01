@@ -28,6 +28,7 @@ vi.mock('../ux', () => ({
   confirmApp: (...args: unknown[]) => confirmAppMock(...args),
 }));
 
+import { _resetBotNoticesForTests, getBotNotices } from '../bot/botNoticeStore';
 import { GatewayModeCapsule } from './GatewayModeCapsule';
 
 type Route = (url: string, init?: RequestInit) => Response | Promise<Response>;
@@ -117,6 +118,24 @@ describe('GatewayModeCapsule — venue switch', () => {
     );
     expect(errorText()).toBeNull();
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
+  });
+
+  it('says what Nova cancelled on the venue it left: one notice per entry (ADR 042 F)', async () => {
+    _resetBotNoticesForTests();
+    mockFetch(() => json({ venue: 'sim', left: [
+      { venue: 'paper', symbol: 'GRML', order_id: 41, by: 'bot', text: null },
+      { venue: 'paper', symbol: 'IMCC', order_id: 42, by: 'auto_entry', text: "Auto-entry's buy of IMCC was cancelled -- the desk left Paper" },
+    ] }));
+    render('paper');
+
+    await click(2);
+
+    const notices = getBotNotices();
+    expect(notices.map(n => n.title)).toEqual(['Cancelled GRML on Paper', 'Cancelled IMCC on Paper']);
+    expect(notices[0].text).toBe("The bot's working entry #41 on GRML was cancelled when the desk left Paper.");
+    expect(notices[1].text).toBe("Auto-entry's buy of IMCC was cancelled — the desk left Paper");
+    expect(errorText()).toBeNull();
+    _resetBotNoticesForTests();
   });
 
   it('Live POSTs the venue, then ensures the live Gateway through gateway-mode', async () => {

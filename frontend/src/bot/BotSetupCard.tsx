@@ -1,25 +1,29 @@
 /**
- * One setup of the operator's playbook, with its own small scanner (ADR 027, ADR
- * 029, ADR 031): a radio to choose it, its own Off / Eyes / Strategy, a status line
- * saying what it is doing right now, the template in play, the names nearest their
- * trigger, today's funnel and its read-out. A setup without a scanner says what is
- * missing and what unblocks it. Every chip explains itself on hover
+ * One setup of the operator's playbook, with its own small scanner (ADR 027, ADR 029,
+ * ADR 031, ADR 042): its own Off / Eyes / Strategy under the bot's master level (what
+ * it may do now is the lower of the two, and the card says when it is capped), a
+ * status line saying what it is doing right now, the template in play, the names
+ * nearest their trigger, today's funnel, its tape gate and its read-out. A setup
+ * without a scanner says only why it can't watch yet and what unblocks it -- no
+ * template, no parameters, no level. Every chip explains itself on hover
  * (ux/hoverTip.ts); every locked control says why (ux/whyTip.ts).
  */
 import type { ReactNode } from 'react';
 import {
-  BOT_CHOSEN_BADGE,
   BOT_LEVEL_LABELS,
   BOT_NO_SCANNER_TITLE,
   BOT_SETUP_BLURBS,
+  BOT_SETUP_CAPPED_TIP,
   BOT_SETUP_LABELS,
+  BOT_SETUP_LEVEL_CHIP_WAITING,
   BOT_SETUP_LEVEL_CHIPS,
   BOT_SETUP_LEVEL_TIPS,
+  BOT_SETUP_LEVEL_WAITING_TIP,
   BOT_SETUP_NEXT,
-  BOT_SETUP_STRATEGY_WHY,
   BOT_STALE_BACKEND_STATUS,
   BOT_STALE_BACKEND_TEMPLATE,
   BOT_STALE_BACKEND_WHY,
+  botSetupCapped,
 } from '../constantGroups/bot';
 import {
   BOTS_BUSY_WHY,
@@ -31,8 +35,6 @@ import {
   BOTS_SCAN_FOOT_TIP,
   BOTS_SCANNER_MAX_ROWS,
   BOTS_SETUP_NO_LEVELS_WHY,
-  BOTS_SETUP_PICK_TIP,
-  BOTS_SETUP_PICK_TITLE,
   BOTS_STATUS_NOT_CONNECTED,
   BOTS_STATUS_NOT_RECORDED,
   BOTS_STATUS_NOT_RECORDED_TIP,
@@ -55,7 +57,8 @@ import {
 } from '../constantGroups/setups';
 import { funnelSteps, windowWords, type SetupRow, type SetupSummary } from '../setups';
 import { tipProps } from '../ux/hoverTip';
-import { BotResearchLine, BotReadoutLine } from './BotReadout';
+import { clampLevel } from './botLevels';
+import { BotReadoutLine, BotResearchLine } from './BotReadout';
 import { BotSetupScanner } from './BotSetupScanner';
 import { ruleLines, ruleSummary } from './templateFormat';
 import type { SetupTemplates } from './templateTypes';
@@ -64,18 +67,22 @@ const LEVELS = [0, 1, 2] as const;
 
 interface Props {
   id: string;
-  chosen: boolean;
-  /** The setup has a live scanner, so it may be chosen and levelled. */
+  /** The setup has a live scanner, so it can be levelled. */
   playable: boolean;
   /** This build has the setup's scanner but the backend answering is older and does not run it:
    *  the card says the backend needs a reload instead of "No scanner yet". */
   stale?: boolean;
-  /** This setup's level: the session's for the chosen setup, its own Off / Eyes for the others. */
-  level: number;
-  /** The API keeps a level per setup (ADR 031); false on an older one. */
+  /** Its own switch: 0 Off, 1 Eyes, 2 Strategy. */
+  own: number;
+  /** What it may do now: min(master, own). */
+  effective: number;
+  /** The master level's name, for the capped note ("Eyes"). */
+  masterName: string;
+  /** The bot is active on this venue: a setup at Strategy proposes like Eyes until it is. */
+  botActive: boolean;
+  /** The API keeps a level per setup; false on an older one. */
   levelsKnown: boolean;
   busy: boolean;
-  onChoose: (id: string) => void;
   onLevel: (id: string, level: number) => void;
   /** This setup's templates (ADR 029); null while they load or when they did not. */
   templates: SetupTemplates | null;
@@ -84,7 +91,7 @@ interface Props {
   templateBusy?: boolean;
   onPlayTemplate?: (setupId: string, templateId: string) => void;
   onOpenParams?: (setupId: string) => void;
-  /** The live board's summary for this setup (ADR 031); null without a scanner or a board. */
+  /** The live board's summary for this setup (ADR 031); null without a board. */
   summary: SetupSummary | null;
   rows: readonly SetupRow[];
   allRows: readonly SetupRow[];
@@ -96,7 +103,7 @@ interface Props {
   onOpenSymbol: (symbol: string) => void;
   /** An empty scanner's words at a recorded moment in Sim ("Nothing forming at 08:07:02 ET."). */
   emptyText?: string | null;
-  /** The chosen setup's tape gate and full read-out. */
+  /** The setup's tape gate. */
   children?: ReactNode;
 }
 
@@ -106,48 +113,45 @@ function templateWhy(t: SetupTemplates | null, error: string | null | undefined,
   return busy ? BOTS_TEMPLATE_SAVING_WHY : null;
 }
 
-function levelWhy(n: number, p: Pick<Props, 'playable' | 'busy' | 'chosen' | 'levelsKnown' | 'stale'>): string | null {
-  if (!p.playable) return p.stale ? BOT_STALE_BACKEND_WHY : BOT_NO_SCANNER_TITLE;
+function levelWhy(p: Pick<Props, 'busy' | 'levelsKnown' | 'stale'>): string | null {
+  if (p.stale) return BOT_STALE_BACKEND_WHY;
   if (p.busy) return BOTS_BUSY_WHY;
-  if (p.chosen) return null;
-  if (!p.levelsKnown) return BOTS_SETUP_NO_LEVELS_WHY;
-  return n >= 2 ? BOT_SETUP_STRATEGY_WHY : null;
+  return p.levelsKnown ? null : BOTS_SETUP_NO_LEVELS_WHY;
 }
 
-function nameTip(id: string, chosen: boolean, playable: boolean, stale: boolean): string {
-  const blurb = BOT_SETUP_BLURBS[id] ?? '';
-  if (stale) return `${blurb}\n\n${BOT_STALE_BACKEND_STATUS}.`;
-  if (!playable) return `${blurb}\n\n${BOT_SETUP_NEXT[id]?.head ?? BOT_NO_SCANNER_TITLE.replace(/ -- /g, ' — ')}`;
-  if (chosen) {
-    return `${blurb}\n\nThe chosen setup: it carries the bot's level, Nova's bot trades it at Strategy on Paper and Sim, and its read-out gates Strategy on Live.`;
-  }
-  return `${blurb}\n\n${BOTS_SETUP_PICK_TIP}`;
-}
-
-function StatusLine({ level, summary, connected, seeding }: {
-  level: number;
+function StatusLine({ effective, own, masterName, botActive, summary, connected, seeding }: {
+  effective: 0 | 1 | 2;
+  own: 0 | 1 | 2;
+  masterName: string;
+  botActive: boolean;
   summary: SetupSummary | null;
   connected: boolean;
   seeding: number;
 }) {
-  const lvl = (level > 2 ? 2 : level < 0 ? 0 : level) as 0 | 1 | 2;
-  const silent = lvl >= 1 && summary != null && !summary.proposing;
+  const silent = effective >= 1 && summary != null && !summary.proposing;
   const unrecorded = connected && summary?.recorded === false;
   const win = unrecorded ? '' : windowWords(summary);
+  const waiting = effective === 2 && !botActive;
+  const capped = own > effective;
   const [words, tip] = !connected
     ? [BOTS_STATUS_NOT_CONNECTED, SETUP_STATUS_TIPS.disconnected]
     : unrecorded
       ? [BOTS_STATUS_NOT_RECORDED, BOTS_STATUS_NOT_RECORDED_TIP]
       : [BOTS_STATUS_WATCHING(summary?.counts.watching ?? 0), SETUP_STATUS_TIPS.watching];
+  const chipTip = [
+    waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[effective],
+    capped ? BOT_SETUP_CAPPED_TIP : '',
+    silent ? 'This desk is a replay: nothing proposes live from it.' : '',
+  ].filter(Boolean).join('\n');
   return (
     <div className="bots-strat__status" data-testid="bots-setup-status">
       <span className={`bots-live-dot${connected && !unrecorded ? ' is-on' : ''}`} aria-hidden="true" />
       <span {...tipProps(tip)}>{words}</span>
       {win ? <span className={`bots-strat__win bots-strat__win--${summary?.window.state}`} {...tipProps(SETUP_WINDOW_TIP)}>{` · ${win}`}</span> : null}
       {connected && seeding > 0 ? <span {...tipProps(SETUP_STATUS_TIPS.seeding)}>{` · ${BOTS_STATUS_SEEDING(seeding)}`}</span> : null}
-      <span className={`bots-lvlchip bots-lvlchip--${lvl}`} data-testid="bots-setup-level-chip"
-        {...tipProps(`${BOT_SETUP_LEVEL_TIPS[lvl]}${silent ? '\nThis desk is a replay: nothing proposes live from it.' : ''}`, BOT_LEVEL_LABELS[lvl])}>
-        {BOT_SETUP_LEVEL_CHIPS[lvl]}
+      <span className={`bots-lvlchip bots-lvlchip--${effective}`} data-testid="bots-setup-level-chip"
+        {...tipProps(chipTip, BOT_LEVEL_LABELS[effective])}>
+        {capped ? botSetupCapped(BOT_LEVEL_LABELS[own], masterName) : waiting ? BOT_SETUP_LEVEL_CHIP_WAITING : BOT_SETUP_LEVEL_CHIPS[effective]}
       </span>
     </div>
   );
@@ -196,66 +200,73 @@ function Funnel({ id, summary }: { id: string; summary: SetupSummary | null }) {
   );
 }
 
+/** Its own Off / Eyes / Strategy: every setup with a scanner may be at any of them (ADR 042). */
+function LevelSwitch({ id, label, own, why, onLevel }: {
+  id: string; label: string; own: 0 | 1 | 2; why: string | null; onLevel: (id: string, level: number) => void;
+}) {
+  return (
+    <span className="bots-levels" role="radiogroup" aria-label={`${label} level`}>
+      {LEVELS.map(n => (
+        <button
+          key={n}
+          type="button"
+          role="radio"
+          aria-checked={own === n}
+          className={`bots-levels__opt${own === n ? ' is-on' : ''}`}
+          data-testid={`bots-setup-level-${id}-${n}`}
+          disabled={why != null}
+          data-why={why ?? undefined}
+          {...(why ? {} : tipProps(BOT_SETUP_LEVEL_TIPS[n], `${BOT_LEVEL_LABELS[n]} · ${label}`))}
+          onClick={() => { if (own !== n) onLevel(id, n); }}
+        >
+          {BOT_LEVEL_LABELS[n]}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 export function BotSetupCard(props: Props) {
   const {
-    id, chosen, playable, stale = false, level, busy, onChoose, onLevel, templates, templatesError = null,
+    id, playable, stale = false, own, effective, masterName, botActive, onLevel, templates, templatesError = null,
     templateBusy = false, onPlayTemplate, onOpenParams, summary, rows, allRows, connected, seeding, hovered, onHover,
     onOpenBoard, onOpenSymbol, emptyText, children,
   } = props;
-  const shown = (level > 2 ? 2 : level < 0 ? 0 : level) as 0 | 1 | 2;
-  const pickWhy = !playable ? (stale ? BOT_STALE_BACKEND_WHY : BOT_NO_SCANNER_TITLE) : busy ? BOTS_BUSY_WHY : null;
   const label = BOT_SETUP_LABELS[id] ?? id;
+  const blurb = BOT_SETUP_BLURBS[id] ?? '';
+  if (!playable && !stale) {
+    // No scanner in this build: only why it can't watch yet and what unblocks it.
+    return (
+      <article className="bots-strat bots-strat--noscan" data-testid={`bots-setup-${id}`}>
+        <div className="bots-strat__head">
+          <b className="bots-strat__name" {...tipProps(`${blurb}\n\n${BOT_SETUP_NEXT[id]?.head ?? BOT_NO_SCANNER_TITLE}`, label)}>{label}</b>
+        </div>
+        <NotWatching id={id} />
+        <BotResearchLine setup={id} />
+      </article>
+    );
+  }
+  const ownLevel = clampLevel(own);
+  const shown = clampLevel(effective);
   const inPlay = templates?.templates.find(t => t.id === templates.in_play) ?? null;
-  const lines = inPlay ? ruleLines(id, inPlay.values) : [];
+  const lines = inPlay ? ruleLines(id, inPlay.values, inPlay.bot_window) : [];
   const summaryText = inPlay ? ruleSummary(id, inPlay.values) : '';
   const nParams = templates?.catalogue.groups.reduce((n, g) => n + g.params.length, 0) ?? 0;
   const tplWhy = templateWhy(templates, templatesError, templateBusy, stale);
   const paramsWhy = templates ? (nParams === 0 ? BOTS_TEMPLATE_NO_PARAMS_WHY : null) : tplWhy;
   const rulesTip = lines.length ? BOTS_TEMPLATE_RULES_TIP(lines.map(([k, v]) => `${k}: ${v}`).join('\n')) : '';
   return (
-    <article className={`bots-strat${chosen ? ' bots-strat--chosen' : ''}${playable ? '' : ' bots-strat--noscan'}${stale ? ' bots-strat--stale' : ''}`}
+    <article className={`bots-strat${shown === 2 ? ' bots-strat--strategy' : ''}${stale ? ' bots-strat--stale' : ''}`}
       data-testid={`bots-setup-${id}`}>
       <div className="bots-strat__head">
-        <label className="bots-strat__pick">
-          <input
-            type="radio"
-            name="bots-setup"
-            data-testid={`bots-setup-radio-${id}`}
-            aria-label={`${BOTS_SETUP_PICK_TITLE}: ${label}`}
-            checked={chosen}
-            disabled={pickWhy != null}
-            data-why={pickWhy ?? undefined}
-            onChange={() => { if (!chosen && playable) onChoose(id); }}
-          />
-          <b {...tipProps(nameTip(id, chosen, playable, stale), label)}>{label}</b>
-        </label>
-        {chosen ? <span className="bots-badge">★ {BOT_CHOSEN_BADGE}</span> : null}
-        <span className="bots-levels" role="radiogroup" aria-label={`${label} level`}>
-          {LEVELS.map(n => {
-            const why = levelWhy(n, props);
-            return (
-              <button
-                key={n}
-                type="button"
-                role="radio"
-                aria-checked={shown === n}
-                className={`bots-levels__opt${shown === n ? ' is-on' : ''}`}
-                data-testid={`bots-setup-level-${id}-${n}`}
-                disabled={why != null}
-                data-why={why ?? undefined}
-                {...(why ? {} : tipProps(BOT_SETUP_LEVEL_TIPS[n], `${BOT_LEVEL_LABELS[n]} · ${label}`))}
-                onClick={() => { if (shown !== n) onLevel(id, n); }}
-              >
-                {BOT_LEVEL_LABELS[n]}
-              </button>
-            );
-          })}
-        </span>
+        <b className="bots-strat__name" {...tipProps(stale ? `${blurb}\n\n${BOT_STALE_BACKEND_STATUS}.` : blurb, label)}>{label}</b>
+        <LevelSwitch id={id} label={label} own={ownLevel} why={levelWhy(props)} onLevel={onLevel} />
       </div>
 
-      {playable
-        ? <StatusLine level={shown} summary={summary} connected={connected} seeding={seeding} />
-        : stale ? <StaleStatus /> : <NotWatching id={id} />}
+      {stale ? <StaleStatus /> : (
+        <StatusLine effective={shown} own={ownLevel} masterName={masterName} botActive={botActive}
+          summary={summary} connected={connected} seeding={seeding} />
+      )}
 
       <div className="bots-strat__tpl">
         <label className="bots-strat__tplpick" title={tplWhy ? undefined : BOTS_TEMPLATE_PICK_TITLE}>
@@ -284,7 +295,7 @@ export function BotSetupCard(props: Props) {
         </button>
       </div>
 
-      {playable ? (
+      {stale ? null : (
         <>
           <BotSetupScanner setup={id} rows={rows} allRows={allRows} connected={connected}
             onOpenSymbol={onOpenSymbol} hovered={hovered} onHover={onHover} emptyText={emptyText} />
@@ -298,10 +309,10 @@ export function BotSetupCard(props: Props) {
             </button>
           </div>
           <Funnel id={id} summary={summary} />
+          {children}
+          <BotReadoutLine setup={id} readout={inPlay?.readout} />
         </>
-      ) : null}
-
-      {children ?? (playable ? <BotReadoutLine setup={id} readout={inPlay?.readout} /> : null)}
+      )}
       <BotResearchLine setup={id} />
     </article>
   );

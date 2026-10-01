@@ -92,6 +92,26 @@ describe('BotTemplateEditor', () => {
     expect(api.updateTemplate).toHaveBeenCalledWith('first_pullback', 't-mine', { values: { leg_pct: 7 } });
   });
 
+  it('a change to the bot parameters alone keeps the read-out counting: no restart warning (ADR 042 G)', async () => {
+    const setup = withMine(fp());
+    api.updateTemplate.mockResolvedValue(setup);
+    open(setup);
+    fireEvent.click(screen.getByTestId('bots-template-t-mine'));
+    fireEvent.change(screen.getByTestId('bots-param-bot_window_end'), { target: { value: '09:45' } });
+    expect(screen.getByTestId('bots-template-dirty').textContent).toMatch(/the read-out keeps counting/);
+    await act(async () => { fireEvent.click(screen.getByTestId('bots-template-save')); });
+    await flush();
+    expect(dialogs.confirmApp).not.toHaveBeenCalled();
+    expect(api.updateTemplate).toHaveBeenCalledWith('first_pullback', 't-mine', { values: { bot_window_end: '09:45' } });
+  });
+
+  it('shows the bot window, clipped to the arming window when it had to be', () => {
+    open(templatesPayload().setups.find(s => s.id === 'red_to_green')!);
+    const win = screen.getByTestId('bots-template-bot-window');
+    expect(win.textContent).toMatch(/Bot window 09:30–10:00 \(clipped to the arming window/);
+    expect(screen.queryByTestId('bots-param-bot_entries_per_day')).toBeNull();
+  });
+
   it('shows the backend refusal at the field it names', async () => {
     const setup = withMine(fp());
     dialogs.confirmApp.mockResolvedValue(true);

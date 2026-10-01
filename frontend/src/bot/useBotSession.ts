@@ -48,19 +48,22 @@ export function useBotSession(pollMs = 0) {
     }
   }, []);
 
-  const activate = useCallback(async () => {
+  /**
+   * Activate (ADR 042 B). `reenable` is sent only when the caller asked the operator
+   * first -- after a bot trip the backend refuses Activate without it, and the page
+   * says so in words; it is never inferred from the session here.
+   */
+  const activate = useCallback(async (opts: { reenable?: boolean } = {}) => {
     setBusy(true);
     try {
-      return await runBotSessionWrite(() => armBotSession({
-        reenable: Boolean(snap.session?.soft_breaker_fired),
-      }));
+      return await runBotSessionWrite(() => armBotSession(opts.reenable ? { reenable: true } : {}));
     } catch (err) {
       setBotSessionError(err instanceof Error ? err.message : 'bot activate failed');
       return null;
     } finally {
       setBusy(false);
     }
-  }, [snap.session?.soft_breaker_fired]);
+  }, []);
 
   const stop = useCallback(async () => {
     setBusy(true);

@@ -83,7 +83,7 @@ export const TRADER_VENUE_TAG_SIM_TITLE =
 
 export const BOT_CARD_TITLE = 'Bot autonomy';
 export const BOT_CARD_SETUP_INFO_ARIA = 'What this setup trades';
-export const BOT_CARD_ALLOWLIST_TITLE = 'Symbols the bot may act on';
+export const BOT_CARD_ALLOWLIST_TITLE = 'Stocks the bot may trade';
 
 /* ── Compact ticket ─────────────────────────────────────────────────────── */
 
@@ -162,8 +162,8 @@ export const focusRailEmpty = (title: string): string => `${title}: no rows righ
 /** The operator's watch list with nothing on it (watch_list/). */
 export const FOCUS_RAIL_WATCH_EMPTY = 'Nothing on your watch list yet. Right-click a ticker to add one.';
 export const focusRailMore = (count: number): string => `${count} more ↓`;
-export const FOCUS_RAIL_BOT_HELD_TITLE = 'Allowlisted · depth line held';
-export const FOCUS_RAIL_BOT_QUIET_TITLE = 'Allowlisted · quiet (no depth line)';
+export const FOCUS_RAIL_BOT_HELD_TITLE = 'Bot trades it · depth line held';
+export const FOCUS_RAIL_BOT_QUIET_TITLE = 'Bot trades it · quiet (no depth line)';
 export const FOCUS_RAIL_REC_TITLE = 'Recording';
 /** localStorage: collapsed flag + mirrored list (versioned; older shapes are ignored). */
 /** Focus rail column headers: click sorts, again flips, a third click returns
@@ -193,13 +193,13 @@ export const FOCUS_RAIL_CARD_STATUS_HEAD = 'Status';
 export const FOCUS_RAIL_CARD_REC_HEAD = 'Recording';
 export const FOCUS_RAIL_CARD_REC_BODY =
   'Nova is recording this symbol\'s tape and Level 2 to disk (Session Record), so the session can be replayed in Sim.';
-export const FOCUS_RAIL_CARD_BOT_HELD_HEAD = 'Bot allowlist · watching';
+export const FOCUS_RAIL_CARD_BOT_HELD_HEAD = 'Bot trades it · watching';
 export const FOCUS_RAIL_CARD_BOT_HELD_BODY =
-  'On the bot allowlist, and Nova holds its Level 2 line (an open Trader tab or a recording), so the bot can see it. '
+  'Set to Bot (Nova buys and sells), and Nova holds its Level 2 line (an open Trader tab or a recording), so the bot can see it. '
   + 'Any bot entry still passes the gates on the Bots page.';
-export const FOCUS_RAIL_CARD_BOT_QUIET_HEAD = 'Bot allowlist · quiet';
+export const FOCUS_RAIL_CARD_BOT_QUIET_HEAD = 'Bot trades it · quiet';
 export const FOCUS_RAIL_CARD_BOT_QUIET_BODY =
-  'On the bot allowlist, but Nova holds no Level 2 line for it, so the bot cannot act on it. '
+  'Set to Bot, but Nova holds no Level 2 line for it, so the bot cannot act on it: it skips its triggers. '
   + 'Open it in a Trader tab or record it to give the bot eyes.';
 export const FOCUS_RAIL_STORAGE_KEY = 'nova.trader.focusRail.v1';
 export const FOCUS_RAIL_DEFAULT_LIST = 'gappers';

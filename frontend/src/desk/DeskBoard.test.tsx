@@ -192,10 +192,10 @@ describe('DeskBoard', () => {
     expect(screen.getByTestId('desk-board-record-VXTL').getAttribute('aria-label')).toBe('Record');
     fireEvent.click(screen.getByTestId('desk-board-allowlist-BRNQ'));
     expect(props.onAllowlist).toHaveBeenCalledWith('BRNQ', false);
-    expect(screen.getByTestId('desk-board-allowlist-BRNQ').getAttribute('aria-label')).toBe('Unlist');
+    expect(screen.getByTestId('desk-board-allowlist-BRNQ').getAttribute('aria-label')).toBe('Stop bot');
     fireEvent.click(screen.getByTestId('desk-board-allowlist-VXTL'));
     expect(props.onAllowlist).toHaveBeenCalledWith('VXTL', true);
-    expect(screen.getByTestId('desk-board-allowlist-VXTL').getAttribute('aria-label')).toBe('Allowlist');
+    expect(screen.getByTestId('desk-board-allowlist-VXTL').getAttribute('aria-label')).toBe('Let bot trade');
     expect(props.onOpen).not.toHaveBeenCalled();
   });
 
@@ -207,8 +207,8 @@ describe('DeskBoard', () => {
     expect(short?.textContent).toBe('Stop');
     expect(short?.getAttribute('aria-hidden')).toBe('true');
     const allow = screen.getByTestId('desk-board-allowlist-VXTL');
-    expect(allow.querySelector('.desk-board__act-text:not(.desk-board__act-text--short)')?.textContent).toBe('Allowlist');
-    expect(allow.querySelector('.desk-board__act-text--short')?.textContent).toBe('Allow');
+    expect(allow.querySelector('.desk-board__act-text:not(.desk-board__act-text--short)')?.textContent).toBe('Let bot trade');
+    expect(allow.querySelector('.desk-board__act-text--short')?.textContent).toBe('Bot');
     expect(screen.getAllByRole('button', { name: 'Record' }).length).toBe(2);
   });
 
@@ -220,8 +220,8 @@ describe('DeskBoard', () => {
     expect(foot.textContent).toContain('1 hidden by the exchange filter');
     expect(foot.textContent).toContain('board freezes at the open');
     expect(foot.textContent).toContain('recording');
-    expect(foot.textContent).toContain('allowlisted, depth line held');
-    expect(foot.textContent).toContain('allowlisted, quiet');
+    expect(foot.textContent).toContain('bot trades it, depth line held');
+    expect(foot.textContent).toContain('bot trades it, quiet');
     expect(screen.queryByTestId('desk-board-row-BRNQ')).toBeNull();
     view.rerender(<DeskBoard {...props} list="losers" />);
     foot = screen.getByTestId('desk-board-foot');
@@ -234,7 +234,7 @@ describe('DeskBoard', () => {
     render(<DeskBoard {...baseProps()} />);
     const items = Array.from(screen.getByTestId('desk-board-foot').querySelectorAll('.desk-board__legend-item'));
     expect(items.map(item => item.getAttribute('title'))).toEqual([
-      'recording', 'allowlisted, depth line held', 'allowlisted, quiet',
+      'recording', 'bot trades it, depth line held', 'bot trades it, quiet',
     ]);
     expect(items.map(item => item.querySelector('.desk-board__legend-short')?.textContent)).toEqual([
       'rec', 'line held', 'quiet',
