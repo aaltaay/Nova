@@ -5,6 +5,7 @@
  * its badge and the chart use. Pure. Nothing here places or blocks an order: the words lock the plan's
  * own Stage and Approve buttons and say why (`data-why`).
  */
+import { isThin } from '../setups';
 import { hhmmEt } from './timeWords';
 import type { PlanPillars, PlanResult, PlanTrade, StockPlan } from './types';
 
@@ -35,6 +36,11 @@ export function normalizePlanVerdict(p: Obj): { pillars: PlanPillars | null; tra
     ? { outcome, at: num(r.at), r: num(r.r), text: r.text }
     : null;
   return { pillars, trade, result };
+}
+
+/** A setup plan on a stock too thin to trade (2026-10-01): no plan is drawn, the badge says so. */
+export function thinPlan(plan: StockPlan | null | undefined): boolean {
+  return !!plan && plan.source === 'setup' && isThin(plan.liquidity);
 }
 
 /** The plan's grade chip, "C 1/5" -- it never shrinks, so the rail always shows it; null without a grade. */

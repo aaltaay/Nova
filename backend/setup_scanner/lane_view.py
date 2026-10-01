@@ -148,6 +148,7 @@ def _payload(lane: Any, sym: str, view: dict, sid: str | None, row: dict | None,
         "outcome": (row or {}).get("outcome"), "outcome_at": (row or {}).get("outcome_at"),
         "bar_r": (row or {}).get("bar_r"), "mfe": (row or {}).get("mfe"), "mae": (row or {}).get("mae"),
         "failed_at": (row or {}).get("failed_at"),
+        "liquidity": (row or {}).get("liquidity"),
     }
 
 

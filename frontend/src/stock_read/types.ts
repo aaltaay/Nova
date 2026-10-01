@@ -1,6 +1,7 @@
 /** The bot's read on one stock (ADR 036): the wire shapes of `/api/stock-read/{symbol}` and its
  * decisions / history reads (AGENTS.md §3, "The bot's read on one stock"). */
 
+import type { LiquidityRead } from '../setups';
 import type { StockHeld } from './heldRead';
 import type { LevelMap, PlanLevels } from './levelTypes';
 
@@ -103,6 +104,9 @@ export interface StockPlan {
   marks: PlanMark[];
   /** Null from a backend older than the level map, or with no map to read. */
   levels: PlanLevels | null;
+  /** Too thin to trade? (2026-10-01) The stock now, the book walked for the plan's size; absent from an older
+   *  backend. A thin setup plan is not a trade, and the chart draws no plan for it. */
+  liquidity?: LiquidityRead | null;
 }
 
 export interface SetupLevels {
@@ -171,6 +175,8 @@ export interface SetupLane {
   /** The lane's candles (2026-09-30): the setups in play read 1-minute ones; the built-in 5-minute lanes
    *  (`setups_5m`) read 5-minute ones and draw only on the 5-minute chart. */
   timeframe?: '1m' | '5m';
+  /** Too thin to trade? (2026-10-01) The armed setup's reading, at its trigger once it triggered. */
+  liquidity?: LiquidityRead | null;
 }
 
 export interface ReadLevels {

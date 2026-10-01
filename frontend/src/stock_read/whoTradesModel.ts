@@ -9,6 +9,7 @@ import { NOT_A_TRADE_NOVA, SETUP_COLORS } from './constants';
 import { fmtPnl, heldQty, judgedLevels, type Moment, type MomentInputs } from './momentModel';
 import { approveQty } from './novaPromise';
 import { fmtPx, fmtStep } from './planMath';
+import { thinPlan } from './planVerdict';
 import type { StockModeName, StockModeTrade, StockModeView, StockPlan, StockSide } from './types';
 
 export const MODE_NAMES: Record<StockModeName, string> = {
@@ -126,7 +127,8 @@ export function orderLevels(i: MomentInputs): OrderLevels | null {
       target: level(lv?.target ?? null, 'plan'),
     };
   }
-  if (!plan) return null;
+  // A setup plan too thin to trade is no plan (2026-10-01): nothing drawn, nothing marked in Level 2.
+  if (!plan || thinPlan(plan)) return null;
   return { entry: level(plan.entry, 'plan'), stop: level(plan.stop, 'plan'), target: level(plan.target, 'plan') };
 }
 

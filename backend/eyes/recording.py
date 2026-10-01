@@ -211,7 +211,7 @@ def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, p
 
         with lb_store.connect() as db:
             hit = db.execute(
-                "SELECT price, change_pct, rvol, float_shares, float_contradicted, shares_outstanding, source"
+                "SELECT price, change_pct, rvol, volume, float_shares, float_contradicted, shares_outstanding, source"
                 " FROM rows WHERE session_date = ? AND symbol = ?"
                 " AND minute_ts <= ? ORDER BY minute_ts DESC, CASE source WHEN 'recorded' THEN 0 ELSE 1 END LIMIT 1",
                 (date, symbol.upper(), int(ts))).fetchone()
@@ -239,7 +239,7 @@ def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, p
 
         compact = catalyst_live.compact(catalyst)
     contradicted = (row or {}).get("float_contradicted")
-    return {"price": price, "change_pct": change, "rvol": (row or {}).get("rvol"),
+    return {"price": price, "change_pct": change, "rvol": (row or {}).get("rvol"), "volume": (row or {}).get("volume"),
             "float": (row or {}).get("float_shares"),
             "float_contradicted": None if contradicted is None else bool(contradicted),
             "shares_outstanding": (row or {}).get("shares_outstanding"), "news": news_pillar(catalyst),

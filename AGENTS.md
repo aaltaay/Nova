@@ -1057,6 +1057,58 @@ the snapshot has none (`null` when neither knows). Board rows and `GET
 - `outcome_at: number | null` -- when the scoring's first touch (target 1 or
   the stop) printed; `scored` journal lines carry it.
 
+### Too thin to trade (ADR 022 amendment, operator decision 2026-10-01)
+
+"There's no way I will ever trade something like that with a 20-cent spread ... the volume is almost
+dead": LPA, Gainers #41 at +10%, armed five setups and drew them like trades. It had traded $1.0M all
+day by its first trigger and $42K in the five minutes before it, with 100 shares at the inside and the
+next offer 18 cents up. Owner `setup_scanner/liquidity.py` (pure; constants `SETUPS_THIN_*`). A stock is
+**too thin** at a moment when any check fails:
+
+- **day**: under $2M traded today (from 04:00 ET), measured as the day volume times the volume-weighted
+  average price of its minutes;
+- **pace**: under $100K traded in the last five closed minutes;
+- **book**: with a Level 2 book and a size (the desk venue's risk per trade over the setup's risk a
+  share), buying that size walks the asks more than 0.25R past the best ask.
+
+A check Nova cannot make is unknown -- never thin, never a pass. A **reading** is `{state: "ok" | "thin"
+| "unknown", reasons: string[], failed: ("day" | "pace" | "book")[], unknown: {day?, pace?, book?: string},
+day_dollars, pace_dollars, pace_sec, walk: {qty, best_ask, last, avg, over_ask, shown, short, r} | null,
+as_of, limits: {day_dollars, pace_dollars, walk_r}}`; `ok` needs the day and the pace both known.
+
+- **The lanes** (`setup_scanner/lane_liquidity.py`) read the active setup:
+  - when it arms, when it first comes near, at each closed minute while it is armed or near, and at its
+    trigger, from the lane's one-minute bars, the day volume in its pillars, the host's newest fresh
+    book and the desk's risk per trade (`LaneHost.risk_usd`, the venue sleeve's, re-read every
+    `SETUPS_THIN_SIZE_TTL_SEC`; a replay has none and never judges the book);
+  - the pillars add `volume` (shares today: HOD Momo's snapshot live, the leaderboard row on a replay).
+- **On the wire.** Board rows and `GET /api/setups/symbol/{symbol}` lanes add `liquidity: reading |
+  null` -- the armed setup's, frozen at its trigger; null before it arms, on a filtered setup, and from
+  rows stored before.
+- **What it changes.**
+  - A thin setup never proposes.
+  - Its trigger event adds `liquidity`, and NOT A TRADE (`trade_verdict`) adds "too thin to trade: ..."
+    for the bot, Auto-entry, Approve and the plan.
+- **The journal.** The `armed`, first `near` and `triggered` lines carry `liquidity`, and a `liquidity`
+  line records a changed verdict between them, so the Sim playback folds the same rows.
+- **The store.** `setups.db` is schema 5: rows add `liquidity` (JSON, the reading at the trigger once
+  it triggered). A schema-4 file migrates in place, and its rows read unknown.
+- **The read-out** leaves a setup thin at its trigger out of both pools and adds `thin_left_out:
+  integer | null`. The scoreboard summary's `by` adds `liquidity` (`ok` | `thin` | `unknown`).
+- **The stock read** (`stock_read/plan_liquidity.py`) reads the stock now, from the read's volume, the
+  chart's stored minutes and the Trader's Level 2 walked for the plan's risk. Minutes that end more
+  than `SETUPS_THIN_BARS_STALE_SEC` ago leave the pace unknown.
+  - The Plan adds `liquidity: reading | null`, and its `checks` start with `liquidity`.
+  - The In play group adds the row `liquidity` ("Liquidity": "Too thin" / dollars / "Not known"), and
+    its tile reads "Too thin" when thin.
+- **On the desk**, a thin setup is greyed, never hidden:
+  - the setup cards and the Setups board add a "Too thin" chip with the reasons and the rule on hover;
+  - the plan reads TOO THIN;
+  - the 1-minute badge reads "SETUP · TOO THIN TO TRADE", with no track and no call to enter, even after
+    it played out;
+  - the charts draw no plan for it (no zones, no plan-only lines, its lane faded) and Level 2 marks no
+    plan level. A level an order stands behind is still drawn.
+
 ### The 5-minute chart on a 1-minute setup (trial T8, operator decision 2026-09-30)
 
 "Sometimes the 1-minute setup aligns well with the 5-minute setup ... I want to make sure we are utilizing
@@ -1280,9 +1332,9 @@ boolean, reasons: string[]} | null` and `result: {outcome: "target_first" | "sto
 text} | null`. `trade` is `null` for the operator's own plan; a setup plan is **not a trade**
 (`ok: false`, each reason a sentence) when its grade is C (three pillars or fewer), the template's
 stock filter keeps the name out, a triggered setup's tape at the trigger was not go, the setup
-already played out (the scoring's first touch printed: `result`, with `r` the scoring's R), or the
+already played out (the scoring's first touch printed: `result`, with `r` the scoring's R), the
 spread on Nova's book is at least the risk (`checks` adds `spread`: warn over half the risk, bad
-at the risk or more). A triggered plan's `tape` is the tape at the trigger (`trigger_tape`), else
+at the risk or more), or the stock is too thin to trade ("Too thin to trade" above). A triggered plan's `tape` is the tape at the trigger (`trigger_tape`), else
 the lane's last read; a `filtered` lane whose pattern triggered follows the 30-minute rule of a
 triggered one. **It is one rule** (ADR 042, `setup_scanner/trade_verdict.py`, pure): the plan,
 Nova's bot, Auto-entry, Approve and proposals all read it, so a plan that reads
@@ -3606,7 +3658,7 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
 }
 ```
 
-**Who sent it** (operator report 2026-10-01: "Could you see who sold here? I don't remember selling it." -- the Paper bot trip sold 100 ACN, and the row read like any other market sell, because the ticket's Flatten, the header's KILL, both loss breakers and the bot's own last-resort exit all send source `flatten`). `origin` names which part of Nova sent an order, one of `constants_nova_os.EXECUTION_ORIGINS`: `ticket_flatten` (the ticket's, quick bar's or a hotkey's Flatten), `emergency_kill` (`POST /api/ibkr/flatten-account`, the header's KILL), `bot_trip` / `all_stop` (the loss breakers' flatten), `bot` (Nova's bot: entry, exits, last-resort close), `auto_entry`, `approve` (Who trades the stock) and `bot_api` (the localhost bot API); `null` for the operator's own ticket. A label, never a permission: no gate reads it. The execution record's payload keeps it, a practice order row (Paper / Sim, working and closed, every bracket leg) carries it as `order_origin` beside `order_source`, and a Live closed row joined to its execution row carries both (`execution/closed_blotter.py`). A row placed before 2026-10-01 has `order_origin: null`: a `flatten` there could be any of the five, and the desk says so rather than guessing. The Working and Closed order tables add a **Sent by** column (`frontend/src/ibkr/orderSentBy.ts`: You, You · Flatten, KILL, Bot trip, All-stop, Bot, Auto-entry, Approve, Bot API, Outside Nova; a breaker's or KILL's in amber), its reason on hover; a layout saved before it gets the column where the defaults put it (after Status), not off the far edge.
+**Who sent it** (operator report 2026-10-01: "Could you see who sold here? I don't remember selling it." -- the Paper bot trip sold 100 ACN, and the row read like any other market sell, because the ticket's Flatten, the header's KILL, both loss breakers and the bot's own last-resort exit all send source `flatten`). `origin` names which part of Nova sent an order, one of `constants_nova_os.EXECUTION_ORIGINS`: `ticket_flatten` (the ticket's, quick bar's or a hotkey's Flatten), `emergency_kill` (`POST /api/ibkr/flatten-account`, the header's KILL), `bot_trip` / `all_stop` (the loss breakers' flatten), `bot` (Nova's bot: entry, exits, last-resort close), `auto_entry`, `approve` (Who trades the stock) and `bot_api` (the localhost bot API); `null` for the operator's own ticket. A label, never a permission: no gate reads it. The execution record's payload keeps it, a practice order row (Paper / Sim, working and closed, every bracket leg) carries it as `order_origin` beside `order_source`, and a Live row -- working (`GET /api/ibkr/orders`) or closed (`execution/closed_blotter.py`) -- takes both from today's execution row for this desk that sent it (`execution/sent_by.py`, #677: by permId, else order id, the symbols agreeing; a bracket's exit legs share their entry's sender, so a closed leg reads Nova's, not "Outside Nova"); a Live row no execution row claims carries neither. A row placed before 2026-10-01 has `order_origin: null`: a `flatten` there could be any of the five, and the desk says so rather than guessing. The Working and Closed order tables add a **Sent by** column (`frontend/src/ibkr/orderSentBy.ts`: You, You · Flatten, KILL, Bot trip, All-stop, Bot, Auto-entry, Approve, Bot API, Outside Nova; a breaker's or KILL's in amber), its reason on hover; a layout saved before it gets the column where the defaults put it (after Status), not off the far edge.
 
 `STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. `tif` defaults to `DAY` (`IBKR_ORDER_TIF_DEFAULT`), so a caller that omits it is unchanged; anything outside `DAY | GTC` is refused `TIF_INVALID`. `place` and every `bracket` leg carry `tif` and `outside_rth`; `replace` keeps the working order's own TIF. **Market orders need regular hours** (operator decision, 2026-09-21): a `MKT` place from a non-protective source is refused `MKT_OUTSIDE_RTH` ("use a limit at the ask") whenever the venue's clock is outside weekday 09:30-16:00 ET, NYSE holidays excluded -- no US exchange takes an unpriced order then and IBKR would hold it until the next open (Warning 399) while ignoring `outsideRth` on it (Warning 2109). The clock is the venue's (the replay playhead on Sim). Owner `execution/session_gate.py`; the practice broker repeats the check (`practice/order_rules.py`). Protective sources are exempt (flatten plans an extended-hours limit); `STP` orders are unchanged.
 
@@ -3861,6 +3913,8 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-10-01 | Managing a trade you hold (ADR 036 / 037 amendment; operator: "If I enter a trade, can it tell me on the chart when I should sell ... if we pass that level, okay, this is the next level ... I can instruct Nova to sell it for me", then on mockup v4b "1 go" and "lets move these targets ... to the 10 seconds chart"). Fed a position, the plan box measured from the entry: holding APUS at 6.64 it said "$5.50 is 42c above" and the price sat off its ruler. The read now takes the held position (`held_*`) and answers `held` from `stock_read/held.py`: the stop (yours, Nova's or proposed), the rounds a 1-minute candle closed over (broke) or only traded through, the raise they offer, the 2R target and a ladder of the levels over and under the price; the plan box keeps its look and becomes the trade's while you hold; the 10-second chart draws the ladder; the 1-minute calls SELL NOW (stop, or a flush in trial T1 from a 1-second `/flush` read), BROKE and TARGET. "Nova takes the exit" (Paper, and Sim at the live edge) hands Nova the sell of a stock you bought: a resting stop, raised at each round a candle closes over (`stock_mode/exit_trade.py`, origin `nova_exit`); a target beside it waits on an exit-only one-cancels-other pair in the execution door (#681), which today lets one order sell the same shares; Live stays locked. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-10-01 | Too thin to trade (ADR 022 amendment; operator report on LPA, Gainers #41 at +10%: "there's no way I will ever trade something like that with a 20-cent spread ... the volume is almost dead", then "1 go"). LPA passed HOD Momo's floor (549K shares, RVOL 15x against its own 74K-share day), so the scanners armed five setups and drew them like trades, with a "STOP FIRST -1.00R" badge. They were already NOT A TRADE (grade C, tape blind), but nothing measured whether the stock could be traded: every spread check read only the inside quote, and only with a Level 2 line. One pure rule, `setup_scanner/liquidity.py`: too thin under $2M traded today, under $100K in the last five minutes, or when buying the desk's size walks the asks more than 0.25R past the ask. A thin setup never proposes, is NOT A TRADE for every reader, and is scored outside the read-out (`setups.db` schema 5). The desk greys it with its numbers, never hides it, and draws no plan for it. Measured first: 82 of 102 triggers since 9/23 were blind; triggers under $2M averaged -0.72R gross against -0.17R (37 vs 49, a cut chosen in sample); the real premarket runners traded far above $2M. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-10-01 | Who sent a Live order (#677). The Sent by column read "—" on every working Live order (IBKR's open orders carry no sender), and a Live bracket's exit leg, whose id is its own, read "Outside Nova" once it closed. `execution/sent_by.py` joins Live working and closed rows to today's execution rows for this desk (permId, else order id, the symbols agreeing; bracket legs share their entry's sender), and the Account page's Source column names the sender the same way. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | Who sent an order, and the loss breakers say so (operator report: "Could you see who sold here? I don't remember selling it."). At 09:43 ET the Paper bot trip (day P&L -$66.07 against a -$50 limit) sold 100 ACN, and the Orders table showed one more market sell: the row's only stamp, source `flatten`, is shared by the ticket's Flatten, the header's KILL, both breakers and the bot's last-resort exit, and the trip was said only on the Bots and Account pages. Every sender now stamps `origin`; the execution record, practice rows and Live closed rows carry it; the order tables add a Sent by column; a breaker's audit line lists what it sold and every desk window raises a notice that stays until dismissed. Rows placed earlier stay `origin: null` and read "Flatten", never guessed. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | When IBKR data stops arriving (#672, #673; operator: "that entire graph stopped working. Time and sales stopped ... This should never happen"). At the open the desk's Wi-Fi re-authenticated five times, and no IBKR data reached Nova for 4-16 s each time while both loops stayed healthy. Nothing said so: the header read "STALE 0S" all morning, from an Error 101 subscription error with fresh prices. `ibkr/feed_pulse.py` notices a busy feed going silent on every line and `GET /api/ibkr/feed` says so, naming a Wi-Fi drop from Windows' WLAN log (`ibkr/wifi_drops.py`). The header and Time & Sales read NO DATA / DATA GAP, and STALE now means late prices only. The catch-up burst no longer reads as tape: a gate or flow read across a gap is `blind` with the reason (`setup_scanner/tape_gap.py`), so a bot cannot enter, and a flush exit cannot act, on 16 s of prints that landed in one second. Checklist row `ibkr_feed_gaps`. A 5-s backend freeze found alongside it is #674. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | The stock's own round numbers (operator report on ACN at $223: "How do we address this without losing important visibility on important resistance and support levels?"). Every half dollar was a level at any price: the plan listed 26 between ACN's stop and target, one check each, the ruler printed 27 prices on top of each other, and today's map was zones of six half dollars that buried the real tops, VWAP and the open. Round numbers now scale with the price (`stock_read/rounds.py`: half and whole dollars up to $25, $5 and $10 on a $223 stock, a minor round always 2% of the price or more), one scale for the map, the notes, the marks, the checks and the next-round row; the rounds between entry and target are one check line, and the ruler leaves off a label that would touch a stronger one. Where the level study did not look (anything but half and whole dollars on $1-$20 stocks) the plan says so instead of quoting it, and Room is not trial T7's. On ACN's bars: checks 32 to 7, the map names "217.99 · triple top" and "$215.00 · top ×15 · bottom ×5 · VWAP · open". §3 amended. | User Directive + Claude Opus 5.5 |

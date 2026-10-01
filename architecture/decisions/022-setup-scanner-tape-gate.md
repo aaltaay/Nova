@@ -225,3 +225,68 @@ triggers since 2026-09-23. At the arrival moment, 2 of the 5 change:
 earlier window, and are not rewritten. A row's `trigger_tape.metrics.read_at` says
 which window it read. The read-out still counts every row; whether to restart it on
 the new reads is the operator's call.
+
+## Amendment 2026-10-01 -- too thin to trade
+
+**Operator report.** LPA (Logistic Properties of the Americas), Gainers #41 at +10%: "the problem with
+it is that it really sucks. There's no way we can trade it, and there's no volume ... there's no way
+I will ever trade something like that with a 20-cent spread". Then, on the proposal: "1 go".
+
+**What happened.** LPA passed HOD Momo's tradeable floor (100K shares, $1, 1.5x relative volume) at
+06:01. It had 549K shares by mid-morning, and its relative volume read 15x against its own 74K-share
+average day. So the scanners followed it and armed five setups between 09:32 and 09:45, three of which
+triggered. Every one was grade C, and the tape read blind each time: Nova held no Level 2 line. The rule
+already made each of them NOT A TRADE, and nothing was proposed or sent. But the chart drew LPA's plan
+like a trade, and its badge said "STOP FIRST 09:49 · -1.00R". The scoreboard scored all three triggers
+as if fills at the trigger plus a cent were possible. Nothing measured whether the stock could be traded:
+
+- every spread check read only the inside quote, and only with a Level 2 line;
+- LPA's 08:44 Session Record showed 100 shares at 3.09 x 100 at 3.12, with the next offer at 3.30;
+- by the first trigger it had traded $1.0M all day, and $42K in the five minutes before it.
+
+**Measured first.** Read-only, on `setups.db` and the leaderboard's per-minute volume, the default
+template's 102 triggers since 2026-09-23:
+
+- 82 of them read blind, with no spread known.
+- Triggers on names under $2M traded by the trigger averaged -0.72R gross; the rest averaged -0.17R.
+  That was 37 against 49 triggers, a 95% CI on the difference of -1.01 to -0.11. The cut point was
+  chosen on the same data, so this is a lean, not proof.
+- Of 24 premarket triggers, 8 were on names under $2M (AVAT three times, XRPN, NAUT, NCPL three times).
+  None of them reached its target first. The real premarket runners (LGHL $64M, INLF, PFSA, AIFF) traded
+  far above $2M.
+- On 2026-10-01, 16 of the 31 names that armed a setup (with known volume) had traded under $2M at the
+  time.
+
+The case does not rest on the score, though. The score assumes a fill one cent over the trigger, and a
+6-cent risk cannot survive a 10-20 cent cost of filling.
+
+**Decision.**
+
+1. **One desk rule, pure** (`setup_scanner/liquidity.py`, constants `SETUPS_THIN_*`). A stock is too
+   thin to trade at a moment when any of these fails:
+   - it has traded at least $2M today (day volume x its minutes' average price);
+   - its last five closed minutes traded at least $100K;
+   - with a book and a size, buying the desk's risk per trade over the setup's risk walks the asks no
+     more than 0.25R past the best ask.
+
+   A check Nova cannot make is unknown, never thin and never a pass. It is not a template parameter, so
+   it never restarts a read-out.
+2. **The lanes read it** (`lane_liquidity.py`):
+   - when a setup arms, when it first comes near, at each closed minute while it is armed or near, and at
+     its trigger, where the reading freezes and is stored (`setups.db` schema 5, `liquidity`);
+   - every change of verdict is journalled, so the Sim playback draws the same card.
+3. **A thin setup never proposes.** Its trigger carries the reading, and NOT A TRADE
+   (`trade_verdict.py`) adds "too thin to trade: ..." for the bot, Auto-entry, Approve and the plan.
+4. **It is still scored, outside the read-out.** A setup thin at its trigger counts in neither pool
+   (`thin_left_out`), and the scoreboard splits `by.liquidity`, so the rule itself can be checked later.
+5. **Greyed, never hidden.**
+   - The setup cards grey a thin row and give it a "Too thin" chip with its numbers.
+   - The Trader's plan reads TOO THIN and leads its checks with the liquidity.
+   - The 1-minute chart's badge reads "TOO THIN TO TRADE", with no track and no call to enter, and the
+     chart draws no plan for it: no zones, no plan-only lines, its lane faded. The day's levels stay.
+   - Level 2 marks no plan level.
+   - The In play tile reads "Too thin".
+
+**Not changed.** HOD Momo's floor and the scanner's universe stay as they are. The eyes still watch
+thin names, and their records show what the rule kept out. The watch list's toasts are the operator's
+own list and are untouched.

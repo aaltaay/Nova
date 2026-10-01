@@ -203,7 +203,7 @@ export interface IbkrOrder {
   perm_id?: number | null;
   /** nova = placed through ADR 007; ib_recovered = IB-only / TWS. */
   source?: 'nova' | 'ib_recovered';
-  /** The ADR 007 command source (manual / bot / flatten ...): practice rows, and Live closed rows joined from the execution ledger. */
+  /** The ADR 007 command source (manual / bot / flatten ...): practice rows stamp it; Live rows (working and closed) are joined to today's execution ledger. */
   order_source?: string | null;
   /** Which part of Nova sent it (ticket_flatten / emergency_kill / bot_trip / all_stop / bot / auto_entry / approve / bot_api / nova_exit); null: your own ticket, or placed before senders were recorded. Same rows as order_source. */
   order_origin?: string | null;

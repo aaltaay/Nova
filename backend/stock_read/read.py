@@ -16,7 +16,7 @@ from constants_stock_read import (
 from scanner_wire import wire_safe
 from setup_scanner import five_minute
 from setup_scanner.bars import bar_from
-from stock_read import held as held_mod, history, indicators, level_map, plan as plan_mod, rows, rows_trade
+from stock_read import held as held_mod, history, indicators, level_map, plan as plan_mod, plan_liquidity, rows, rows_trade
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -90,9 +90,9 @@ def _by_id(group_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 
 def tiles(f: dict[str, Any], d: dict[str, Any], plan: dict[str, Any] | None,
-          hist: dict[str, Any] | None) -> list[dict[str, Any]]:
+          hist: dict[str, Any] | None, liquid: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     built = {
-        "in_play": rows.in_play_rows(f, hist),
+        "in_play": rows.in_play_rows(f, hist) + ([plan_liquidity.row(liquid)] if liquid else []),
         "setups": rows_trade.setup_rows(f, plan),
         "front": rows.front_rows(f, d),
         "tape": rows_trade.tape_rows(f, d, plan),
@@ -112,6 +112,8 @@ def _verdict(gid: str, group_rows: list[dict[str, Any]], f: dict[str, Any],
     r = _by_id(group_rows)
     states = [x["state"] for x in group_rows]
     if gid == "in_play":
+        if (r.get("liquidity") or {}).get("state") == "bad":
+            return "bad", "Too thin"             # people are not trading it enough to fill a trade (2026-10-01)
         keys = ("hod_today", "catalyst", "why", "pillars", "rvol", "board")
         ok = sum(1 for k in keys if (r.get(k) or {}).get("state") == "ok")
         known = sum(1 for k in keys if (r.get(k) or {}).get("state") not in (None, "unknown"))
@@ -216,10 +218,12 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
            "ema9": d["ema9"], "median_range": d["median_range"], "asks": (f.get("l2") or {}).get("asks") or [],
            "spread": (f.get("l2") or {}).get("spread_dollars"),
            "flow": f.get("flow"), "bid_pulls": d["bid_pulls"], "halted": f.get("halted"), "bars": d["bars"],
-           "level_map": levels, "tf5": d["tf5"]}
+           "level_map": levels, "tf5": d["tf5"], "volume": (((f.get("why") or {}).get("facts")) or {}).get("volume"),
+           "risk_usd": (f.get("bot") or {}).get("risk_usd"), "l1_only": bool((f.get("l2") or {}).get("l1_fallback"))}
     plan = plan_mod.build(setups, ctx, now=now, entry=entry, stop=stop)
+    liquid = (plan or {}).get("liquidity") or plan_liquidity.read(ctx, now)
     held_out = held_read(f, ctx, held, now) if held else None
-    groups = tiles(f, d, plan, hist)
+    groups = tiles(f, d, plan, hist, liquid)
     counts = {k: 0 for k in ("ok", "warn", "bad", "unknown", "info")}
     for g in groups:
         for r in g["rows"]:

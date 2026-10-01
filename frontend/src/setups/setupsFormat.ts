@@ -1,5 +1,6 @@
 /** Pure helpers for the Setups board. */
 import { CATALYST_CATEGORY_LABELS, CATALYST_VERDICT_TITLES } from '../constants';
+import { isThin, normalizeLiquidity } from './liquidity';
 import type { SetupPillars, SetupRow } from './types';
 
 export function fmtPx(v: number | null | undefined): string {
@@ -52,6 +53,7 @@ export function tapeRank(row: SetupRow): number | null {
 export function rowClass(row: SetupRow): string {
   const parts = ['setups-row', `setups-row--${row.state}`];
   if (row.proposal) parts.push('setups-row--proposal');
+  if (isThin(normalizeLiquidity(row.liquidity))) parts.push('setups-row--thin');
   return parts.join(' ');
 }
 

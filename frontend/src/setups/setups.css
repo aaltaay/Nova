@@ -39,6 +39,9 @@
 .setups-row--proposal { box-shadow: inset 3px 0 0 var(--success); }
 .setups-row--failed { opacity: 0.6; }
 .setups-row--filtered { opacity: 0.55; }
+/* Too thin to trade (2026-10-01): greyed, its chip saying why on hover. */
+.setups-row--thin { opacity: 0.55; }
+.setups-thin { margin-left: 4px; color: var(--text-secondary); border-style: dashed; }
 .setups-grade { white-space: nowrap; }
 /* The 5-minute chart's read (trial T8): a description, so neither tone is a warning colour. */
 .setups-tf5 { white-space: nowrap; }

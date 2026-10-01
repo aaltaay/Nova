@@ -12,6 +12,7 @@ import {
   gradeWords,
   isActionable,
   lastWords,
+  normalizeLiquidity,
   otherSetups,
   rowRank,
   setupLabel,
@@ -20,6 +21,7 @@ import {
   tapeRank,
   tapeWords,
   tf5Words,
+  thinChip,
   toGoWords,
   triggerWords,
   type SetupRow,
@@ -112,10 +114,12 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
           const tf5 = tf5Words(row);
           const others = otherSetups(row, allRows);
           const broke = row.state === 'near' && Boolean(row.setup?.detail?.broke_at);
+          const thin = thinChip(normalizeLiquidity(row.liquidity));
           return (
             <tr
               key={`${row.symbol}-${row.state}`}
-              className={`bots-scan__row bots-scan__row--${row.state}${hovered === row.symbol ? ' is-hot' : ''}`}
+              className={`bots-scan__row bots-scan__row--${row.state}${thin ? ' bots-scan__row--thin' : ''}${
+                hovered === row.symbol ? ' is-hot' : ''}`}
               data-testid={`bots-scan-row-${setup}-${row.symbol}`}
               onClick={() => onOpenSymbol(row.symbol)}
               onContextMenu={e => menu(e, row.symbol)}
@@ -142,6 +146,12 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
                   data-testid={`bots-scan-state-${setup}-${row.symbol}`} {...tipProps(state.tip, state.title)}>
                   {state.text}
                 </span>
+                {thin && (
+                  <span className="bots-thin" data-testid={`bots-scan-thin-${setup}-${row.symbol}`}
+                    {...tipProps(thin.tip, thin.title)}>
+                    {thin.text}
+                  </span>
+                )}
               </td>
               <td className="num" {...tipProps(trig.tip, trig.title)}>{trig.text}</td>
               <td className="num" {...tipProps(last.tip, last.title)}>{last.text}</td>

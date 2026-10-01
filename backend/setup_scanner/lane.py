@@ -27,6 +27,10 @@ takes it (``setup_scanner/lane_announce.py``).
 
 ADR 022 amendment 2026-09-30: the tape for a trigger, and for a setup coming near,
 is read when the lane sees that price (``read_at``), not at the price's own stamp.
+
+Operator decision 2026-10-01: a setup on a stock too thin to trade is stamped so when it arms, comes
+near, at each closed minute and at its trigger (``lane_liquidity.py``); it never proposes, and its
+trigger tells the bot it is NOT A TRADE.
 """
 from __future__ import annotations
 
@@ -41,8 +45,7 @@ from constants_setups import (
     TAPE_VERDICT_BLIND,
     TAPE_VERDICT_GO,
 )
-from setup_scanner import grade as _grade
-from setup_scanner import lane_view
+from setup_scanner import lane_liquidity, lane_rows, lane_view
 from setup_scanner.bars import Bar
 from setup_scanner.detector import TriggerDetector, candle_start
 from setup_scanner.detectors import make_detector
@@ -83,6 +86,7 @@ class Lane:
         self._said: dict[str, tuple[str, str]] = {}          # the (state, reason) the journal implies
         self._priced: dict[str, tuple[float, float]] = {}    # (ts, price) of the last price line
         self.flow_last: dict[str, dict] = {}      # setup id -> the newest flow reading after its trigger
+        self.bars: dict[str, list[Bar]] = {}      # symbol -> its one-minute bars (the liquidity reads them)
         self._flow_said: dict[str, str] = {}
         self._flow_next: dict[str, float] = {}
 
@@ -114,7 +118,7 @@ class Lane:
     def clear(self) -> None:
         for store in (self.det, self.rows, self.active_id, self.trackers, self.tape_view,
                       self.proposals, self.filtered, self.forming, self.tf5, self.candles, self._tape_said,
-                      self._said, self._priced, self.flow_last, self._flow_said, self._flow_next):
+                      self._said, self._priced, self.flow_last, self._flow_said, self._flow_next, self.bars):
             store.clear()
         self.alerts = []
 
@@ -151,6 +155,7 @@ class Lane:
 
     # -- feed -------------------------------------------------------------------
     def on_bars(self, sym: str, bars: list[Bar], now: float, new_bar: Bar | None = None) -> None:
+        self.bars[sym] = bars
         five = self.p.bar_sec != SETUPS_BAR_SEC
         if five and (bars := self.candles.feed(sym, bars, now)[0]) is None:
             return                                 # no 5-minute candle completed: nothing for the detector
@@ -159,6 +164,7 @@ class Lane:
         self.tf5[sym] = None if five else five_minute.context(bars, now)
         self.handle(sym, det.on_bars(bars), now)
         lane_journal.say_state(self, sym, det)
+        lane_liquidity.refresh(self, sym, now)
         if new_bar is not None:
             for sid in self._tracker_ids(sym):
                 if self.trackers[sid].on_bar(new_bar, det.ema_now):
@@ -191,42 +197,44 @@ class Lane:
             sid = self.sid(sym, view["setup_key"])
             row = self.rows.get(sid)
             if kind == "leg":
-                self.forming[sym] = {**self._graded(sym, now), "tf5": self.tf5.get(sym)}
+                self.forming[sym] = {**lane_rows.graded(self, sym, now), "tf5": self.tf5.get(sym)}
                 self.journal("leg", sym, reason=view.get("reason"), leg=view.get("leg"), **self.forming[sym])
                 continue
             if kind == "armed":
                 if row is None:
-                    row = self._new_row(sym, sid, view, now)
+                    row = lane_rows.new_row(self, sym, sid, view, now)
                 else:
                     if row.get("disarmed_at"):
                         row["disarmed_at"] = None      # the same leg armed again
                     if row.get("failed_at"):
                         row["failed_at"] = row["fail_reason"] = None   # a flat top's base armed again
-                self._copy_setup(row, view)
+                lane_rows.copy_setup(row, view)
                 self.active_id[sym] = sid
                 if sid in self.filtered:
                     row.update({"state": STATE_FILTERED, "reason": f"filtered: {self.filtered[sid]}"})
                     continue
                 self.journal("armed", sym, setup_id=sid, setup=view.get("setup"), grade=row.get("grade"),
-                             pillars=row.get("pillars"), reason=view.get("reason"), tf5=row.get("tf5_armed"))
+                             pillars=row.get("pillars"), reason=view.get("reason"), tf5=row.get("tf5_armed"),
+                             liquidity=lane_liquidity.stamp(self, sym, row, now))
             elif row is None:
                 continue
             elif sid in self.filtered:
                 self._on_filtered(sym, sid, kind, view, row)
                 continue
             elif kind == "rearmed":
-                self._copy_setup(row, view)
+                lane_rows.copy_setup(row, view)
                 self.journal("rearmed", sym, setup_id=sid, setup=view.get("setup"), reason=view.get("reason"))
                 self._close_proposal(sid, "rearmed")    # its levels are stale; a new read proposes again
             elif kind == "near":
                 row["state"] = view["state"]
-                tape = None
+                tape = liq = None
                 if not row.get("near_at"):
                     row["near_at"] = now
                     tape = self.evaluate(sym, self.read_at(now))
                     row["near_tape"] = slim(tape)
+                    liq = lane_liquidity.stamp(self, sym, row, self.read_at(now))
                 self.journal("near", sym, setup_id=sid, last=view.get("last_price"), reason=view.get("reason"),
-                             tape=tape)
+                             tape=tape, **({"liquidity": liq} if liq else {}))
             elif kind == "triggered":
                 setup = view.get("setup") or {}
                 ts = float(setup.get("triggered_at") or now)
@@ -236,6 +244,7 @@ class Lane:
                             "outcome": "open", "stop": setup.get("stop"), "risk": setup.get("risk"),
                             "target1": setup.get("target1"), "detail": setup.get("detail"),
                             "tf5_trigger": self.tf5.get(sym)})
+                lane_liquidity.stamp(self, sym, row, self.read_at(ts))
                 # A flat-top hold enters at a candle's close: it is scored from that candle,
                 # which takes no half at target 1 (the research's half_on_entry_bar=False).
                 self.trackers[sid] = ScoreTracker(
@@ -245,7 +254,7 @@ class Lane:
                     bailout_bars=self.p.bailout_bars, window_min=self.p.score_window_min, bar_sec=self.p.bar_sec,
                     half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)), flush=self.p.flush)
                 self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
-                             tape=tape, reason=view["reason"], tf5=row["tf5_trigger"])
+                             tape=tape, reason=view["reason"], tf5=row["tf5_trigger"], liquidity=row["liquidity"])
                 self._close_proposal(sid, "triggered")
                 self._announce_trigger(sym, sid, setup, tape, ts)
             elif kind in ("failed", "disarmed") and not row.get("triggered_at"):
@@ -257,18 +266,11 @@ class Lane:
                 self._close_proposal(sid, kind)
             self.host.save(row)
 
-    def _graded(self, sym: str, now: float) -> dict:
-        """The symbol's pillars now, graded by this template: ``{grade, pillars}`` (pillars with their checks)."""
-        pillars = self.host.pillars(sym, now)
-        g, checks = _grade.grade(pillars, self.p.grade)
-        return {"grade": g,
-                "pillars": {**pillars, "checks": checks, "float_note": _grade.float_note(pillars, self.p.grade)}}
-
     def _on_filtered(self, sym: str, sid: str, kind: str, view: dict, row: dict) -> None:
         """A setup the template kept out keeps its card (the pattern's levels; a re-arm is journalled so a
         playback draws it too) and nothing else: no tape read, no score, no proposal, no trigger to the bot."""
         if kind == "rearmed":
-            self._copy_setup(row, view)
+            lane_rows.copy_setup(row, view)
             self.journal("rearmed", sym, setup_id=sid, setup=view.get("setup"), reason=view.get("reason"),
                          filtered=True)
         elif kind == "triggered":
@@ -278,28 +280,6 @@ class Lane:
             setup = view.get("setup") or {}
             lane_announce.trigger(self, sym, sid, setup, None, float(setup.get("triggered_at") or self.host.clock()),
                                   filtered=self.filtered.get(sid) or "filtered")
-
-    def _new_row(self, sym: str, sid: str, view: dict, now: float) -> dict:
-        setup = view.get("setup") or {}
-        graded = self._graded(sym, now)
-        g, pillars = graded["grade"], graded["pillars"]
-        row = {"id": sid, "session_date": self.host.session, "symbol": sym, "leg_t": view["setup_key"],
-               "armed_at": setup.get("armed_at") or now, **graded, **self.stamp(), "tf5_armed": self.tf5.get(sym)}
-        self.rows[sid] = row
-        why = self.p.stock.check(pillars, g) if self.p.stock.active else None
-        if why:
-            self.filtered[sid] = why
-            self.journal(STATE_FILTERED, sym, setup_id=sid, reason=why, setup=setup, grade=g,
-                         pillars=row["pillars"])
-        return row
-
-    def _copy_setup(self, row: dict, view: dict) -> None:
-        s = view.get("setup") or {}
-        row.update({"state": view["state"], "reason": view["reason"], "kind": s.get("kind"),
-                    "trigger": s.get("trigger"), "entry_planned": s.get("entry"), "stop": s.get("stop"),
-                    "risk": s.get("risk"), "target1": s.get("target1"), "leg_high": s.get("leg_high"),
-                    "leg_low": s.get("leg_low"), "leg_pct": s.get("leg_pct"),
-                    "pullback_bars": s.get("pullback_bars"), "detail": s.get("detail")})
 
     def _score(self, sid: str) -> None:
         tr, row = self.trackers.get(sid), self.rows.get(sid)
@@ -360,7 +340,8 @@ class Lane:
             if prop is not None and prop["status"] == "open":
                 prop["tape_now"] = res["verdict"]
             elif (sid and self.playing and self.det[sym].state == SETUP_STATE_NEAR
-                  and res["verdict"] == TAPE_VERDICT_GO and self.host.can_propose(self.p.setup)):
+                  and res["verdict"] == TAPE_VERDICT_GO and self.host.can_propose(self.p.setup)
+                  and not lane_liquidity.thin(self.rows.get(sid))):
                 # No open proposal: none yet, or the last one was withdrawn when the
                 # setup re-armed at new levels or was disarmed and armed again.
                 self._propose(sym, sid, res, now)

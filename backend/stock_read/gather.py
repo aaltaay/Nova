@@ -98,6 +98,7 @@ def _bot(sym: str) -> dict[str, Any]:
     from bot.eligibility import eligible_symbols, holds_depth_line
     from bot.persist import load_session
     from bot.setup_levels import levels_of
+    from bot.sleeve import of as sleeve_of
     from sim.mode import venue
 
     row = load_session()
@@ -107,6 +108,7 @@ def _bot(sym: str) -> dict[str, Any]:
     return {"level": int(row.get("level") or 0), "active": bool(is_desk_active(row)), "chosen": both["chosen"],
             "levels": both["levels"], "allowlisted": sym in eligible_symbols(row),
             "depth_line": holds_depth_line(sym), "venue": where, "breakers": limits(row, where),
+            "risk_usd": sleeve_of(row).get("risk_usd"),
             "trade": trade if trade and str(trade.get("symbol") or "").upper() == sym else None}
 
 

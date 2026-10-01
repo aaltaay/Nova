@@ -11,7 +11,7 @@ import { ENTER_NOW_RISK_SHARE, ENTER_NOW_SEC, NOT_A_TRADE_NOVA, NOVA_CALL_SEC } 
 import { heldCall } from './heldCalls';
 import { approveQty, capUsedText, novaBlockers, novaQty } from './novaPromise';
 import { fmtPx, fmtStep, planBadge, planLane, setupName, sizeFor } from './planMath';
-import { notATrade, resultBadge } from './planVerdict';
+import { notATrade, resultBadge, thinPlan } from './planVerdict';
 import { hhmmssEt } from './timeWords';
 import type { SetupLane, StockModeName, StockModeTrade, StockModeView, StockPlan, StockRead } from './types';
 
@@ -59,7 +59,7 @@ export interface MomentInputs {
 }
 
 export type StepIndex = 0 | 1 | 2 | 3 | 4;
-export type MomentTone = 'forming' | 'near' | 'go' | 'holding' | 'target' | 'stop' | 'done' | 'wait';
+export type MomentTone = 'forming' | 'near' | 'go' | 'holding' | 'target' | 'stop' | 'done' | 'wait' | 'thin';
 export type CallTone = 'go' | 'target' | 'stop' | 'nova' | 'done' | 'wait' | 'info';
 export type ExitLabel = 'Your exit' | 'Target / stop';
 
@@ -496,6 +496,12 @@ function setup(i: MomentInputs, plan: StockPlan): Moment {
   const mode = modeOf(i);
   const name = setupName(plan.setup_type).toUpperCase();
   const exitLabel = novaHoldsExits(mode);
+  if (thinPlan(plan)) {
+    // Too thin to trade (operator decision 2026-10-01): no track, no call to enter, not even its result --
+    // nobody could have traded the scored price. Only Nova's own words, when newer, still show.
+    return { step: 0, exitLabel, tone: 'thin', badge: `${name} · TOO THIN TO TRADE`, track: false,
+      call: eventCall(i, null) };
+  }
   if (plan.result) {
     // It played out: its result, never TRIGGERED again, and no call to enter (operator report, 2026-09-29).
     return { step: 1, exitLabel, tone: plan.result.outcome === 'stop_first' ? 'stop' : 'done',
