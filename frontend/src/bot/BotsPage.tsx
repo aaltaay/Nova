@@ -93,7 +93,7 @@ function LiveBotsPage() {
   const { session, proposals, audit, error, busy, patch, resolve } = arm;
   const { openStockView } = useWorkspace();
   const killSwitch = useKillSwitch();
-  const { pnl: dayPnl } = useBotDayPnl(session != null);
+  const { pnl: dayPnl, parts: pnlParts } = useBotDayPnl(session != null);
   const venue = useBotsVenue();
   const botPnl = useBotPnlToday(venue.practiceVenue, venue.today);
   const modes = useStockModes(session != null);
@@ -134,7 +134,7 @@ function LiveBotsPage() {
                   onOpenBoard={openBoard} onOpenSymbol={openPinned} />
                 <div className="bots-grid bots-grid--top">
                   <BotSymbolsCard session={session} modes={modes} onOpenL2={openPinned} inputRef={symbolInput} />
-                  <BotRiskCard session={session} patch={patch} busy={busy} dayPnl={dayPnl} />
+                  <BotRiskCard session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} />
                 </div>
                 <div className="bots-grid bots-grid--bottom">
                   <BotProposalsInbox proposals={proposals} audit={audit} resolve={resolve} openTrader={openPinned} />

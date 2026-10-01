@@ -5,6 +5,7 @@ import { botHeaderState } from './botHeaderState';
 import { effectiveLevel, ownLevel, strategySetups } from './botLevels';
 import { closedProposals, proposalWhy } from './botProposalsModel';
 import { botPnlOn } from './useBotPnlToday';
+import { dayPnlParts } from './useBotDayPnl';
 import { breakerFloor, breakerLimits, breakerPct, markerRange, valueAt } from './breakerScale';
 import { deactivatedLine, fmtUsdCents, heroSentence, stocksLine, tradeLine } from './botsPageFormat';
 import { etTime, etUntil } from './botWhen';
@@ -222,6 +223,20 @@ describe('proposals model', () => {
     expect(proposalWhy(p, { distance: 0.03 } as never)).toBe('0.03 under the trigger · bid stacking · 20¢ / 20¢');
     expect(proposalWhy(p, { distance: 0 } as never)).toMatch(/^at the trigger/);
     expect(proposalWhy({ ...p, reasons: null }, undefined)).toBe('20¢ / 20¢');
+  });
+});
+
+describe('the figure the breakers compare (ADR 042 D)', () => {
+  it('says how the day P&L was reached, and what is unknown', () => {
+    expect(dayPnlParts({ day_pnl: -9.54, meter: { source: 'practice_ledger_day_pnl', commissions: 0 } }))
+      .toMatch(/^The practice ledger's day P&L: net liquidation less the 04:00 ET equity/);
+    expect(dayPnlParts({ day_pnl: -12.5, meter: { source: 'account_summary', RealizedPnL: -10, UnrealizedPnL: '-1.5', commissions: 1 } }))
+      .toBe('realized −$10.00 + unrealized −$1.50 − commissions $1.00');
+    expect(dayPnlParts({ day_pnl: null, meter: { commissions_unknown: true, commissions_error: 'OperationalError: locked',
+      day_pnl_before_commissions: -60 } }))
+      .toBe('Commissions unreadable (OperationalError: locked): before commissions the day is −$60.00 — the breakers still trip on that.');
+    expect(dayPnlParts({ day_pnl: null, meter: {} })).toBeNull();
+    expect(dayPnlParts(null)).toBeNull();
   });
 });
 

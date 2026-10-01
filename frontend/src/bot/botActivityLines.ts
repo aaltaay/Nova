@@ -174,7 +174,9 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
       note: base.note && base.note !== 'desk' ? base.note : 'from the desk' };
   }
   if (action === 'deactivate') {
-    const why = typeof row.inputs?.reason === 'string' ? DEACTIVATE_WORDS[row.inputs.reason] : undefined;
+    // The reason is a code in `inputs.reason` or in the line's own `reason`; plain words pass through.
+    const code = typeof row.inputs?.reason === 'string' ? row.inputs.reason : row.reason ?? '';
+    const why = DEACTIVATE_WORDS[code];
     const words = why ?? (base.note && base.note !== 'desk' ? base.note : DEACTIVATE_WORDS.operator);
     return { ...base, tag: 'Stopped', tone: 'warn', category: 'system', text: 'the bot', note: words };
   }

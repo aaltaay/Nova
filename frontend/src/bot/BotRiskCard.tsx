@@ -66,11 +66,13 @@ function AdviseBudget({ session, patch }: { session: BotSession; patch: Patch })
   );
 }
 
-export function BotRiskCard({ session, patch, busy, dayPnl }: {
+export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null }: {
   session: BotSession;
   patch: Patch;
   busy: boolean;
   dayPnl: number | null;
+  /** How the day P&L the breakers compare was reached. */
+  pnlParts?: string | null;
 }) {
   const desk = deskVenue(session);
   const [picked, setPicked] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export function BotRiskCard({ session, patch, busy, dayPnl }: {
       <BotSleeve key={venue} venue={venue} caps={capsFor(session, venue)} capsBounds={session.caps_bounds}
         busy={busy} patch={patch} />
 
-      <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} busy={busy} patch={patch} />
+      <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} pnlParts={pnlParts} busy={busy} patch={patch} />
       <BotBreakerStatus session={session} />
 
       <AdviseBudget session={session} patch={patch} />
