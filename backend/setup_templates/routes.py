@@ -2,9 +2,14 @@
 
   GET    /api/setups/templates                          every setup: its catalogue, templates, the one in play
   POST   /api/setups/templates/{setup}                  {name, from?, values?, note?} -> a new template
-  PATCH  /api/setups/templates/{setup}/{template_id}    {name?, values?, note?} -> rename or change its rules
+  PATCH  /api/setups/templates/{setup}/{template_id}    {name?, values?, note?} -> rename or change its values
   DELETE /api/setups/templates/{setup}/{template_id}
   POST   /api/setups/templates/{setup}/{template_id}/play   put it in play
+
+A PATCH answers ``rules_changed: true`` (and a new ``rev``: the read-out starts over)
+only when a scanner parameter changed; the bot's entry window is not one
+(``affects_readout: false`` on the catalogue). A setup without a scanner gets no
+template: create, edit and play answer 409 ``TEMPLATE_NO_SCANNER``; reading works.
 
 A refusal is ``{"detail": {"reason": CODE, "error": "...", "field": KEY | null}}``
 (the bot routes' shape), made by the one ``TemplateError`` handler that
@@ -30,7 +35,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["setups"])
 
 _STATUS = {"SETUP_UNKNOWN": 404, "TEMPLATE_UNKNOWN": 404, "TEMPLATE_BUILTIN": 409, "TEMPLATE_LIMIT": 409,
-           "TEMPLATE_NAME_TAKEN": 409, "TEMPLATES_UNREADABLE": 409, "TEMPLATE_NO_PARAMS": 409}
+           "TEMPLATE_NAME_TAKEN": 409, "TEMPLATES_UNREADABLE": 409, "TEMPLATE_NO_PARAMS": 409,
+           "TEMPLATE_NO_SCANNER": 409}
 
 
 async def _refusal(request: Request, refusal: TemplateError) -> JSONResponse:
@@ -46,7 +52,8 @@ def install(app: FastAPI) -> None:
 
 def _readout(t: Template) -> dict[str, Any] | None:
     """The template's own read-out, briefly: any setup with a scanner (ADR 031) -- the go
-    setups against blind / wait, as the setup card draws it."""
+    setups against blind / wait, as the setup card draws it, and how many of its triggers
+    fell inside the bot's window (``bot_window``)."""
     try:
         from setup_scanner.readout import current
 
@@ -56,12 +63,12 @@ def _readout(t: Template) -> dict[str, Any] | None:
         return {"state": "unavailable", "passed": False,
                 "reason": "the read-out could not be computed -- the backend log says why", "go_triggered": None,
                 "min_go": None, "go_avg_net_r": None, "control_avg_net_r": None, "control_triggered": None,
-                "min_net_r": None}
+                "min_net_r": None, "bot_window": None}
     go, control, rules = out.get("go") or {}, out.get("control") or {}, out.get("rules") or {}
     return {"state": out.get("state"), "passed": bool(out.get("passed")), "reason": out.get("reason"),
             "go_triggered": go.get("triggered"), "min_go": rules.get("min_go"), "go_avg_net_r": go.get("avg_net_r"),
             "control_avg_net_r": control.get("avg_net_r"), "control_triggered": control.get("triggered"),
-            "min_net_r": rules.get("min_net_r")}
+            "min_net_r": rules.get("min_net_r"), "bot_window": out.get("bot_window")}
 
 
 def _setup_view(setup_id: str) -> dict[str, Any]:

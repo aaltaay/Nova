@@ -1,4 +1,4 @@
-"""The pre-registered read-out that unlocks Strategy on Live, per setup (ADR 027, ADR 031).
+"""The pre-registered read-out of each setup (ADR 027, ADR 031): does the tape gate turn it into a winner?
 
 Bot-Trading-Plan §2g: read the scoreboard once ``SETUPS_READOUT_MIN_GO``
 triggered first-pullback setups had the tape at go at the trigger. It passes
@@ -20,6 +20,13 @@ in play on its own rows -- the ones its exact rules (``template_id`` and
 ADR 031: every setup with a scanner has its own read-out, the same rule over its
 own first-of-the-day kind (``SETUPS_READOUT_KINDS``: the first pullback, the
 first bull flag, the first flat-top breakout, red to green).
+
+Operator ask 2026-09-30: the rules above are unchanged; the answer adds
+``bot_window: {start, end, clipped, triggered, triggered_inside, go_triggered,
+go_triggered_inside} | null`` -- of the triggers the read-out judges, how many came
+inside the template's bot window (the trigger's ET time, ``[start, end)``), so the
+card can say how much of its evidence is a trade the bot could have taken. The
+template's bot window is not part of its revision: editing it keeps the evidence.
 """
 from __future__ import annotations
 
@@ -44,12 +51,13 @@ from constants_setups import (
     TAPE_VERDICT_GO,
     TAPE_VERDICT_WAIT,
 )
+from setup_scanner.detector import et_time, hhmm
 from setup_scanner.summary import stats, tape_at_trigger
 
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-_cached: dict[tuple[str, str, int], tuple[float, dict[str, Any]]] = {}
+_cached: dict[tuple[Any, ...], tuple[float, dict[str, Any]]] = {}
 
 
 def _rules(template: dict[str, Any] | None = None, kind: str = SETUPS_READOUT_KIND) -> dict[str, Any]:
@@ -63,19 +71,36 @@ def _block(rows: list[dict]) -> dict[str, Any]:
     return {key: s[key] for key in ("triggered", "scored", "win_pct", "avg_net_r")}
 
 
+def _inside(row: dict, start: str, end: str) -> bool:
+    return hhmm(start) <= et_time(float(row["triggered_at"])) < hhmm(end)
+
+
+def window_counts(judged: list[dict], go: list[dict], bot_window: dict[str, Any] | None) -> dict[str, Any] | None:
+    """How many of the judged triggers (and of the go ones) came inside the bot's window."""
+    if not bot_window or not bot_window.get("start") or not bot_window.get("end"):
+        return None
+    start, end = str(bot_window["start"]), str(bot_window["end"])
+    return {"start": start, "end": end, "clipped": bool(bot_window.get("clipped")),
+            "triggered": len(judged), "triggered_inside": sum(1 for r in judged if _inside(r, start, end)),
+            "go_triggered": len(go), "go_triggered_inside": sum(1 for r in go if _inside(r, start, end))}
+
+
 def evaluate(rows: Iterable[dict], template: dict[str, Any] | None = None,
-             kind: str = SETUPS_READOUT_KIND) -> dict[str, Any]:
-    """The read-out over ``rows`` (one template's): ``{state, passed, go, control, rules, reason}``."""
+             kind: str = SETUPS_READOUT_KIND, bot_window: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The read-out over ``rows`` (one template's): ``{state, passed, go, control, rules, reason,
+    bot_window}`` -- ``bot_window`` (``{start, end, clipped?}``) only counts, it never decides."""
     pool = sorted((r for r in rows if r.get("kind") == kind and r.get("triggered_at")),
                   key=lambda r: float(r["triggered_at"]))
     go = [r for r in pool if tape_at_trigger(r) == TAPE_VERDICT_GO]
     control = [r for r in pool if tape_at_trigger(r) in (TAPE_VERDICT_BLIND, TAPE_VERDICT_WAIT)]
+    judged = pool
     if len(go) > SETUPS_READOUT_FAIL_GO:
         # Pre-registered: judged on the first FAIL_GO go setups and the control
         # over the same stretch -- waiting longer never turns a fail into a pass.
         go = go[:SETUPS_READOUT_FAIL_GO]
         last = float(go[-1]["triggered_at"])
         control = [r for r in control if float(r["triggered_at"]) <= last]
+        judged = [r for r in pool if float(r["triggered_at"]) <= last]
     go_block, control_block = _block(go), _block(control)
     go_r, control_r = go_block["avg_net_r"], control_block["avg_net_r"]
     n = go_block["triggered"]
@@ -94,13 +119,33 @@ def evaluate(rows: Iterable[dict], template: dict[str, Any] | None = None,
         reason = (f"go {go_r:+.2f}R over {n} setups; needs above +{SETUPS_READOUT_MIN_NET_R:.2f}R "
                   f"and above blind / wait {control_r:+.2f}R")
     return {"state": state, "passed": state == SETUPS_READOUT_PASSED, "reason": reason,
-            "go": go_block, "control": control_block, "rules": _rules(template, kind)}
+            "go": go_block, "control": control_block, "rules": _rules(template, kind),
+            "bot_window": window_counts(judged, go, bot_window)}
 
 
-def unavailable(reason: str, template: dict[str, Any] | None = None, kind: str = SETUPS_READOUT_KIND) -> dict[str, Any]:
+def unavailable(reason: str, template: dict[str, Any] | None = None, kind: str = SETUPS_READOUT_KIND,
+                bot_window: dict[str, Any] | None = None) -> dict[str, Any]:
     empty = {"triggered": 0, "scored": 0, "win_pct": None, "avg_net_r": None}
+    window = None
+    if bot_window and bot_window.get("start") and bot_window.get("end"):
+        # The store could not say: the counts are unknown, never zero.
+        window = {"start": str(bot_window["start"]), "end": str(bot_window["end"]),
+                  "clipped": bool(bot_window.get("clipped")), "triggered": None, "triggered_inside": None,
+                  "go_triggered": None, "go_triggered_inside": None}
     return {"state": SETUPS_READOUT_UNAVAILABLE, "passed": False, "reason": reason,
-            "go": dict(empty), "control": dict(empty), "rules": _rules(template, kind)}
+            "go": dict(empty), "control": dict(empty), "rules": _rules(template, kind), "bot_window": window}
+
+
+def template_bot_window(t: Any) -> dict[str, Any] | None:
+    """The template's bot window as it runs (``Template.bot_window``: inside the arming window),
+    else its values' own; ``None`` when it has none."""
+    window = getattr(t, "bot_window", None)
+    if isinstance(window, dict) and window.get("start") and window.get("end"):
+        return window
+    values = getattr(t, "values", None) or {}
+    if values.get("bot_window_start") and values.get("bot_window_end"):
+        return {"start": values["bot_window_start"], "end": values["bot_window_end"], "clipped": False}
+    return None
 
 
 def _in_play(setup: str) -> Any:
@@ -123,7 +168,9 @@ def current(*, now: float | None = None, template: Any = None, setup: str | None
         logger.warning("setup read-out: the template in play could not be read", exc_info=True)
         return unavailable(f"the template in play could not be read: {exc}", kind=kind)
     stamp = {"id": t.id, "rev": int(t.rev), "name": t.name}
-    key = (setup, t.id, int(t.rev))
+    window = template_bot_window(t)
+    # The bot window is not in the revision: an edit to it must still re-count, never wait out the cache.
+    key = (setup, t.id, int(t.rev), (window or {}).get("start"), (window or {}).get("end"))
     with _lock:
         hit = _cached.get(key)
         if hit is not None and now - hit[0] < SETUPS_READOUT_CACHE_SEC:
@@ -134,12 +181,13 @@ def current(*, now: float | None = None, template: Any = None, setup: str | None
         eng = get_engine()
         store = eng.store
         if store is None:
-            out = unavailable(eng.store_error or "the scoreboard is not open yet", stamp, kind)
+            out = unavailable(eng.store_error or "the scoreboard is not open yet", stamp, kind, window)
         else:
-            out = evaluate(store.rows(setup_type=setup, template_id=t.id, template_rev=int(t.rev)), stamp, kind)
+            out = evaluate(store.rows(setup_type=setup, template_id=t.id, template_rev=int(t.rev)), stamp, kind,
+                           window)
     except Exception as exc:
         logger.warning("setup read-out: scoreboard read failed", exc_info=True)
-        out = unavailable(f"scoreboard read failed: {exc}", stamp, kind)
+        out = unavailable(f"scoreboard read failed: {exc}", stamp, kind, window)
     with _lock:
         _cached[key] = (now, out)
     return out

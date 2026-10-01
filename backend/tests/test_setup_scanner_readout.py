@@ -72,6 +72,71 @@ def test_only_triggered_first_pullbacks_count():
     assert out["go"]["avg_net_r"] == pytest.approx(0.35)
 
 
+def _at(hh: int, mm: int, i: int, tape: str) -> dict:
+    """A triggered first pullback at ``hh:mm`` ET (2026-09-24) -- the venue's clock is the row's ET time."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    t = datetime(2026, 9, 24, hh, mm, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    return {**_row(i, tape, 0.5), "triggered_at": t}
+
+
+def test_the_bot_window_counts_how_many_triggers_came_inside_it_and_decides_nothing():
+    rows = [_at(7, 30, 1, "go"), _at(9, 59, 2, "go"), _at(10, 0, 3, "go"), _at(9, 45, 4, "blind"),
+            _at(11, 15, 5, "wait"), _at(8, 0, 6, "veto")]
+    window = {"start": "07:00", "end": "10:00", "clipped": True}
+    out = evaluate(rows, bot_window=window)
+    assert out["bot_window"] == {"start": "07:00", "end": "10:00", "clipped": True, "triggered": 6,
+                                 "triggered_inside": 4, "go_triggered": 3, "go_triggered_inside": 2}
+    without = evaluate(rows)
+    assert without["bot_window"] is None
+    assert {k: v for k, v in out.items() if k != "bot_window"} == {k: v for k, v in without.items() if k != "bot_window"}
+
+
+def test_the_bot_window_counts_the_stretch_the_read_out_judges():
+    rows = _go(100, 0.2) + _go(5, 2.0, start=100) + [_row(200, "blind", -0.5)]   # judged on the first 100 go
+    out = evaluate(rows, bot_window={"start": "00:00", "end": "23:59"})
+    assert out["bot_window"]["go_triggered"] == 100 and out["bot_window"]["triggered"] == 100
+
+
+def test_an_unreadable_store_leaves_the_window_counts_unknown_never_zero(monkeypatch):
+    from setup_templates.store import default_template
+
+    class Eng:
+        store = None
+        store_error = "setups.db refused: unknown schema"
+
+    monkeypatch.setattr("setup_scanner.engine.get_engine", lambda: Eng())
+    readout.reset_for_tests()
+    out = readout.current(now=_T0, template=default_template("red_to_green"))
+    assert out["bot_window"] == {"start": "09:30", "end": "10:00", "clipped": False, "triggered": None,
+                                 "triggered_inside": None, "go_triggered": None, "go_triggered_inside": None}
+
+
+def test_a_bot_window_edit_recounts_at_once_and_keeps_the_rows(monkeypatch, tmp_path):
+    from setup_templates.store import TemplateStore
+
+    calls = []
+
+    class Store:
+        def rows(self, **kw):
+            calls.append(kw)
+            return [_at(7, 30, 1, "go"), _at(9, 0, 2, "go")]
+
+    class Eng:
+        store = Store()
+        store_error = None
+
+    monkeypatch.setattr("setup_scanner.engine.get_engine", lambda: Eng())
+    readout.reset_for_tests()
+    templates = TemplateStore(tmp_path / "t.json")
+    t = templates.create("first_pullback", name="Mine")
+    assert readout.current(now=_T0, template=t)["bot_window"]["go_triggered_inside"] == 2
+    t2, _ = templates.update("first_pullback", t.id, values={"bot_window_start": "08:00"})
+    assert readout.current(now=_T0 + 1, template=t2)["bot_window"]["go_triggered_inside"] == 1
+    assert [c["template_rev"] for c in calls] == [1, 1]     # the same evidence, counted again
+
+
 def test_current_is_unavailable_while_the_store_is_closed(monkeypatch):
     class Eng:
         store = None

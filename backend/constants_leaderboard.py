@@ -110,7 +110,10 @@ LEADERBOARD_LEADERS_TOP_N = 3
 LEADERBOARD_S5_MIN_RVOL = 5.0
 LEADERBOARD_S5_TOP_N = 3
 
-# ── Auto-record (07:00-10:00 ET) ────────────────────────────────────────────
+# ── Auto-record (ADR 023, ADR 041) ──────────────────────────────────────────
+# The leaders' window is 07:00-10:00 ET. Setups have their own: whenever a setup's
+# template in play is inside its arming window (07:00-11:30 ET by default; operator
+# ask 2026-09-30), so a trigger after 10:00 still has its tape.
 LEADERBOARD_AUTO_RECORD_START_MIN_ET = 7 * 60
 LEADERBOARD_AUTO_RECORD_END_MIN_ET = 10 * 60
 LEADERBOARD_AUTO_RECORD_TOP_N = LEADERBOARD_LEADERS_TOP_N
@@ -119,7 +122,7 @@ LEADERBOARD_AUTO_RECORD_BOARD = LEADERBOARD_BOARD_GAINERS
 # name flickering in and out of the top 3 does not churn the Level 2 lines.
 LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC = 120.0
 LEADERBOARD_AUTO_RECORD_TICK_SEC = 15.0
-# A setup (in a scored trade, near, or armed; ADR 040) outranks a leader for a
+# A setup (in a scored trade, near, or armed; ADR 041) outranks a leader for a
 # line, but only once that leader has been recorded this long -- IB refuses a
 # depth line asked again within 15 s, and a line that barely opened recorded nothing.
 LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC = 60.0
