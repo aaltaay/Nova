@@ -140,6 +140,9 @@ describe('the plan on the rail', () => {
     fireEvent.click(stage);
     expect(got).toEqual([{ symbol: 'APUS', side: 'BUY', orderType: 'LMT', quantityValue: '181', limitPrice: '5.44' }]);
     expect(screen.getByTestId('stock-read-plan-note').textContent).toMatch(/Staged BUY 181 LMT 5.44.*no bracket/);
+    // The size says where it came from: the Paper sleeve's risk per trade over the risk a share.
+    expect(screen.getByTestId('stock-read-plan-note').textContent)
+      .toMatch(/^Staged BUY 181 LMT 5\.44: \$20 of risk \(the Paper sleeve's risk per trade\) over 0\.11 a share\./);
     off();
   });
 

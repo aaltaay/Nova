@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from 'react';
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
+import { riskSourceWords } from '../setups';
 import { tipProps, whyProps } from '../ux';
 import { NOT_A_TRADE_NOVA } from './constants';
 import { novaSizeWords } from './novaPromise';
@@ -151,8 +152,10 @@ export function PlanCard({ ctx, roomy = true }: {
       quantityValue: String(size),
       limitPrice: fmtPx(plan.entry),
     });
-    setStaged(`Staged BUY ${size} LMT ${fmtPx(plan.entry)}. Set the stop ${fmtPx(plan.stop)} and the target `
-      + `${fmtPx(plan.target)} yourself: the ticket takes no bracket from the plan.`);
+    // Where the size came from, said with it: the sleeve's risk per trade (or the stated fallback).
+    setStaged(`Staged BUY ${size} LMT ${fmtPx(plan.entry)}: $${ctx.riskUsd} of risk (${riskSourceWords(ctx.risk)} `
+      + `risk per trade) over ${fmtStep(plan.risk, plan.entry)} a share. Set the stop ${fmtPx(plan.stop)} and the `
+      + `target ${fmtPx(plan.target)} yourself: the ticket takes no bracket from the plan.`);
   };
   const who = ctx.who;
   const whoMode = who.view?.mode ?? 'signal';
