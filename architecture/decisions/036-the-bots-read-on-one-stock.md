@@ -158,3 +158,41 @@ ahead and implement that!".
   the scanners read one-minute candles only, and the 5-minute versions of the setups lost less than the
   1-minute ones but still lost, 2026-09-29); ascending and descending trend lines (no rule yet for which
   two points to join).
+
+## Amendment 2026-09-30 (evening) -- each chart reads its own candles
+
+**Decided by:** the operator, on XRPN after hours: "why does it say it's a double top when, on the graph,
+we only see one top? ... These types of information need to be on the 1-minute chart ... I don't want to
+see misleading information ... Every chart has special needs and special powers, and you need to move these
+lines to where they make sense. There's no reason to have duplicate information"; and on the cards: "these
+hovers are very ugly and i can't understand them"; "where ever we need legend ... cuz i get lost".
+
+- **What was wrong.** Today's map counted its tops and bottoms on 1-minute candles, and the 5-minute pane
+  drew it: the high of day read "double top" for two 1-minute tops (17:41, 17:44) inside one 5-minute
+  candle. The 1-minute pane's level lines were price lines without an axis label, and lightweight-charts
+  5.1 shows a price line's title only beside its axis label, so they never showed their names. Two more
+  were found with it: the read judged every level against a board row's price that stopped at the 16:00
+  close (XRPN 16.40 while it traded 17.11), and its VWAP ran from 04:00 while the chart's restarts at 16:00
+  (16.29 against the chart's 18.62).
+- **Each chart's own map.** The level map adds `five_minute`: the same day read from 5-minute candles made
+  of the session's minutes (high and low of day, premarket high, open, tops and bottoms by the same swing
+  rule), with a round dollar only where it falls in a zone with another reason, no VWAP (the chart draws
+  its own line) and nothing from yesterday (the Full Day pane's). The 5-minute pane draws it. The
+  1-minute pane draws, from today's 1-minute map, the high of day (with what its candles made of it), the
+  zone the price is on, the nearest top and bottom its candles made each side, the nearest round dollar
+  each side and the plan's levels, drawn like the 5-minute pane's (labels, cards; no ticks). The premarket
+  high and the open are the 5-minute pane's; the 10-second pane draws the plan's lines only.
+- **Today's 1-minute map is unchanged** -- the plan reads it, and trial T7 is registered on it.
+- **The same VWAP everywhere.** One rule (`sensors.math_indicators.vwap_session_bars`): from 04:00 ET,
+  restarted at the 16:00 close once the newest bar is after it, as the chart does. The setup scanners'
+  default windows end by 11:30, so no T7 data is touched.
+- **The read's price** is the board row's, repriced by the L1 line's last trade (`/api/why` facts).
+- **Words a trader reads.** A label is the price, what the level is and what the candles made of it
+  ("$17.50 · double top", "23.52 · HOD · double top"); the card says what it is and how far, why it is
+  there (each top or bottom with the candles it was counted on and when) and what usually happens, from
+  the study, without its percentages. Every pane's corner has a Key chip listing what its colours mean.
+- **Not in it:** 5-minute setup shapes (#649) and reading a 1-minute setup against the 5-minute chart.
+  An in-sample split of the harness's 1,050 bar-level trades by 5-minute agreement (5-minute close over
+  its 9 EMA and MACD histogram over 0, `F:\Nova\eyes\studies\mtf-alignment-2026-09-30`) leaned the right
+  way and did not hold: pooled +0.10R (95% CI -0.08 to +0.28), and the agreeing trades still lost
+  (-0.27R).

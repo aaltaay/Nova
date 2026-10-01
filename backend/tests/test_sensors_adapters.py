@@ -72,6 +72,24 @@ def test_vwap_is_the_sessions_from_four_am(monkeypatch):
     assert body["data"]["vwap"] == 5.0 and body["data"]["anchor"] == "04:00 ET"
 
 
+
+def test_vwap_restarts_at_the_close_for_after_hours_as_the_chart_does(monkeypatch):
+    # XRPN 2026-09-30 20:15 ET: the chart's VWAP read 18.62 (from 16:00) while the read said 16.29 (from
+    # 04:00), so a level labelled "VWAP" sat two dollars from the chart's VWAP line.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
+    day = datetime(2026, 9, 30, 4, 0, tzinfo=et).timestamp()
+    close = datetime(2026, 9, 30, 16, 0, tzinfo=et).timestamp()
+    daytime = [{"t": day + i * 60, "o": 15.0, "h": 15.0, "l": 15.0, "c": 15.0, "v": 10_000} for i in range(60)]
+    after = [{"t": close + i * 60, "o": 18.0, "h": 18.0, "l": 18.0, "c": 18.0, "v": 1_000} for i in range(30)]
+    monkeypatch.setattr("sensors.adapters.bars.get_bars", lambda symbol, timeframe="1Min", limit=240: (daytime + after, "bars_store"))
+    body = bars.read_vwap("XRPN")
+    assert body["data"]["vwap"] == 18.0 and body["data"]["anchor"] == "16:00 ET"
+    monkeypatch.setattr("sensors.adapters.bars.get_bars", lambda symbol, timeframe="1Min", limit=240: (daytime, "bars_store"))
+    assert bars.read_vwap("XRPN")["data"]["anchor"] == "04:00 ET"
+
 def test_rvol_marks_missing_20d(monkeypatch):
     monkeypatch.setattr("sensors.adapters.volume.get_quote", lambda symbol: ({"volume": 1_000_000, "price": 4.2}, "ibkr_l1"))
     monkeypatch.setattr("sensors.adapters.volume.peek_avg_volume", lambda symbol: 2_000_000.0)

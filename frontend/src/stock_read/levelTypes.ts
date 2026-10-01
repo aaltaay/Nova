@@ -30,7 +30,8 @@ export interface LevelZone {
   strength: number;
   label: string;
   tag: string;
-  home: 'intraday' | 'daily';
+  /** The candles it was read from: the session's 1-minute, its 5-minute, or past days. */
+  home: 'intraday' | 'five_minute' | 'daily';
   members: LevelMember[];
 }
 
@@ -45,11 +46,14 @@ export interface LevelStudy {
   daily_past: [number, number];
 }
 
-/** Today's map (the 5-minute pane; the 1-minute takes the plan's share) and the daily map (Full Day). */
+/** Today's map from 1-minute candles (the plan's, and the 1-minute pane's nearest tops and bottoms),
+ * the day from 5-minute candles (the 5-minute pane; null from a backend older than it) and the daily
+ * map (Full Day). */
 export interface LevelMap {
   schema_version: number;
   price: number | null;
   intraday: LevelZone[];
+  five_minute: LevelZone[] | null;
   daily: LevelZone[];
   daily_sessions: number;
   daily_error: string | null;

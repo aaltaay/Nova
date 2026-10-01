@@ -6,6 +6,8 @@
  * track and the Who trades chip under it, and the call (ENTER NOW, SELL NOW, what Nova did: ADR 037). */
 import { tipProps, whyProps } from '../ux';
 import { laneChip, planBadgeText } from './chartShapes';
+import { ChartKey } from './ChartKey';
+import { chartKey } from './paneKeyRows';
 import { CallBox, MomentTrack } from './MomentTrack';
 import { drawnPast, pastCounts } from './pastSetups';
 import { hhmmssEt } from './timeWords';
@@ -98,6 +100,7 @@ export function ChartLegend({ ctx, read, onFrame }: {
   return (
     <div className="sr-legend" data-testid="stock-read-legend" onPointerDown={stop} onDoubleClick={stop}>
       <div className="sr-legend__chips">
+        <ChartKey sections={chartKey('full', layers)} testId="stock-read-key-full" />
         {!layers.setups ? (
           <button
             type="button"

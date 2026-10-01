@@ -26,6 +26,12 @@ export interface ShapeHover {
 export interface ShapeStory {
   title: string;
   lines: string[];
+  /** A short line under the title ("Resistance · $1.06 above the price"). */
+  subtitle?: string;
+  /** The drawing's colour, shown beside the title. */
+  color?: string;
+  /** Headed lists, after the lines. */
+  sections?: { head: string; items: string[] }[];
 }
 
 /** The card's width, and the gap between it and the pointer. */
@@ -82,9 +88,21 @@ export function ShapeTip({ story, hover }: { story: ShapeStory; hover: ShapeHove
   const style = below ? { left, top: y + TIP_GAP } : { left, bottom: height - y + TIP_GAP };
   return (
     <div className="sr-shape-tip" style={style} role="tooltip" data-testid="stock-read-shape-tip">
-      <div className="sr-shape-tip__title">{story.title}</div>
+      <div className="sr-shape-tip__title">
+        {story.color && <i className="sr-shape-tip__swatch" style={{ background: story.color }} aria-hidden="true" />}
+        {story.title}
+      </div>
+      {story.subtitle && <div className="sr-shape-tip__subtitle">{story.subtitle}</div>}
       {story.lines.map((line, i) => (
         <div key={i} className="sr-shape-tip__line">{line}</div>
+      ))}
+      {story.sections?.map(sec => (
+        <div key={sec.head} className="sr-shape-tip__section">
+          <div className="sr-shape-tip__head">{sec.head}</div>
+          <ul className="sr-shape-tip__list">
+            {sec.items.map((item, i) => <li key={i}>{item}</li>)}
+          </ul>
+        </div>
       ))}
     </div>
   );

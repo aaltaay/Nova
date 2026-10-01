@@ -15,6 +15,7 @@ SENSOR_TAPE_RING = 4_000  # enough prints for the flow score's two-minute pace b
 SENSOR_BAR_LIMIT = 240
 SENSOR_SESSION_BAR_LIMIT = 1000   # one 04:00-20:00 ET session of 1Min bars (960), for the session VWAP (ADR 036)
 SENSOR_SESSION_START_ET = "04:00"  # the VWAP anchor: the chart's (frontend chart/vwapSession.ts)
+SENSOR_VWAP_AFTER_HOURS_ET = "16:00"  # ... restarted at the cash close for after hours, as the chart does
 SENSOR_LAST_MOVE_LOOKBACK = 20
 SENSOR_REGIME_BARS = 20
 SENSOR_VWAP_SLOPE_SHORT = 5

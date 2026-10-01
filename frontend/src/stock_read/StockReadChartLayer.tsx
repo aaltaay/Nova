@@ -26,6 +26,8 @@ import {
   type SeriesTimeIndex,
 } from '../chart';
 import { etChartSeconds } from '../tickerChartData';
+import { ChartKey } from './ChartKey';
+import { chartKey } from './paneKeyRows';
 import { ChartLegend } from './ChartLegend';
 import { laneStartSec, leadLane, paneDraw, paneKind, type PriceLineSpec } from './chartShapes';
 import { levelNote } from './levelPicks';
@@ -322,11 +324,14 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     .filter(Boolean).join(' · ');
   return (
     <>
-      {note && (
-        <div className="sr-pane-note" data-testid={daily ? 'stock-read-daily-note' : 'stock-read-levels-note'}>
-          {note}
-        </div>
-      )}
+      <div className="sr-pane-top">
+        {note && (
+          <div className="sr-pane-note" data-testid={daily ? 'stock-read-daily-note' : 'stock-read-levels-note'}>
+            {note}
+          </div>
+        )}
+        <ChartKey sections={chartKey(kind, ctx.layers)} testId={`stock-read-key-${kind}`} />
+      </div>
       {story && hover && <ShapeTip story={story} hover={hover} />}
     </>
   );
