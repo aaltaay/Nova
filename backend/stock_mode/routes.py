@@ -7,6 +7,8 @@
   POST   /api/stock-mode/{symbol}/approve      {setup_id, entry, stop, target, qty, now?}
   DELETE /api/stock-mode/{symbol}/approve      withdraw the approval (or cancel its unfilled entry)
   POST   /api/stock-mode/{symbol}/take-over    cancel the exits Nova holds on the stock; Buy goes to You
+  POST   /api/stock-mode/{symbol}/take-exit    {stop, trail}: Nova takes the exit of the shares you hold
+                                               (Paper, and Sim at the live edge)
 
 Writes place and cancel orders, so they need the desk's API key even on loopback, like the bot's routes
 (``auth.is_stock_mode_mutate``).
@@ -42,6 +44,11 @@ class ApproveBody(BaseModel):
     target: float
     qty: int
     now: bool = False
+
+
+class TakeExitBody(BaseModel):
+    stop: float
+    trail: bool = True
 
 
 class TakeOverBody(BaseModel):
@@ -92,6 +99,14 @@ async def approve_plan(symbol: str, body: ApproveBody) -> dict[str, Any]:
 async def withdraw_approval(symbol: str) -> dict[str, Any]:
     try:
         return wire_safe(await actions.withdraw(symbol))
+    except StockModeError as exc:
+        raise _refused(exc) from exc
+
+
+@router.post("/api/stock-mode/{symbol}/take-exit", dependencies=_write)
+async def take_exit(symbol: str, body: TakeExitBody) -> dict[str, Any]:
+    try:
+        return wire_safe(await actions.take_exit(symbol, body.model_dump()))
     except StockModeError as exc:
         raise _refused(exc) from exc
 

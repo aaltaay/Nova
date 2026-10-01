@@ -1757,6 +1757,84 @@ Sell: You means Nova never sells the trade; the loss breakers and KILL still fla
 - The Trader reads the view every `STOCK_MODE_POLL_MS` while the tab shows. Nothing is read on a
   replay desk or on the sample desk.
 
+### Managing a trade you hold (ADR 036 / 037 amendment, operator ask 2026-10-01)
+
+"If I enter a trade, can it tell me on the chart when I should sell ... if we pass that level, okay, this is
+the next level ... I can instruct Nova to sell it for me"; on mockup v4b: keep the plan box as it is and add
+the THEN / NEXT / NOW / BROKE ladder, then "lets move these targets ... to the 10 seconds chart". Owners
+`stock_read/held.py` (pure), `stock_mode/exit_trade.py`; on the desk `frontend/src/stock_read/`.
+
+**The read while you hold.** `GET /api/stock-read/{symbol}` takes `held_qty`, `held_avg` (both > 0: the read
+adds `held`), `held_stop` (your stop; absent, the read proposes one), `held_risk` (the risk a share your R is
+measured in; absent, the average less the stop while the stop is under it, else R is unknown) and
+`held_since` (epoch seconds you have held since). `held` is `null` without them.
+`held: {schema_version: 1, qty, avg, price, open_usd, r: number | null, risk: number | null,
+stop: {price, source: "yours" | "proposed" | "nova", rule, printed: boolean} | null,
+raise: {to, round, at, text} | null, target: {price, rule, traded_at: number | null} | null,
+ladder: [{role: "then" | "next" | "now" | "through" | "broke" | "support" | "stop" | "cost", price, text,
+r: number | null, usd: number | null}], broke: [{round, at, close}], through: [{round, at, high}],
+levels: {room, target, stop, next, recent}, checks: Check[]}`:
+- **The stop**: Nova's when Nova holds the exit (`nova`, "Nova takes the exit" below), else `held_stop`
+  (`yours`), else proposed: the lowest low of the last `STOCK_READ_MANUAL_STOP_BARS` closed 1-minute
+  candles when it is under the price, else 1c under the nearest zone of today's map under the price
+  (`proposed`; `null` when neither exists). `printed`: a price at or under it since `held_since`.
+- **Broke and through** (the stock's own round scale, `rounds.of`): a round is **broke** when a closed
+  1-minute candle since `held_since` closed 1c or more over it after the
+  `STOCK_READ_ROUND_FRESH_BARS` closes before it stayed under it (`at`: when that candle closed), and
+  **through** when the price stands over it, a candle's high since `held_since` crossed it and no close has.
+  A one-second sweep is at most through: only a close moves a stop.
+- **Raise**: the highest broke round whose `round - near` (the stock's own `rounds.near`: 5c under a half
+  dollar) is over the stop and under the price -- `to` is that price ("raise the stop to 5.95, 5c under
+  $6.00"); `null` otherwise. Up only.
+- **The target**: the average plus `STOCK_READ_TARGET_R` x the risk (your 2:1); `traded_at` when a candle
+  since `held_since` reached it.
+- **The ladder**, highest price first: the first two zones of today's map over the price (`next`, `then`),
+  the price (`now`), the through and broke rounds under it, the nearest zone under the price over the stop
+  (`support`, when no broke round is there), the stop and the average (`cost`). `r` is in the held risk.
+- **The rows** (`levels`, the plan's note shape) are measured from the price, never the entry: Room to the
+  first zone over the price in R (`info`; trial T7 reads entries, not positions), the target behind or
+  ahead, the stop's round (`level_notes.stop_note`), the next round over the price and a round just
+  broken or lost. `checks` are the plan's checks that hold for a position: the spread against what the stop
+  gives back, the 1-minute MACD, the 9 EMA, VWAP, the tape's flow, bids pulled and a halt.
+
+`GET /api/stock-read/{symbol}/flush` (cheap: the sensor rings only) answers `{schema_version: 1, symbol,
+at, score: number | null, label: "burst" | "flush" | "neutral" | "quiet" | "blind", window_sec}` -- trial
+T1's reading (`tape_flow` with a 30 s window, every other number the default); the Trader reads it every
+`STOCK_READ_FLUSH_POLL_MS` while you hold. It is a call in trial, never an order.
+
+**On the desk.** While the tab's account holds shares (the venue's position):
+- The plan box stays the box it is (#675): its header names the trade (THIS TRADE, shares @ average, the
+  badge, open P&L and R); its five numbers become Average, Stop, Next, At the stop and Holding; its ruler runs
+  from the average (●) past the stop to the level after next (dim green: locked in by a stop over the
+  average; red: what the stop gives back from here; green to the next level; dotted to the one after); the
+  ladder sits under the ruler; the rows and checks are `held`'s. The stop is yours to set: "Use stop",
+  "Raise stop to X" and typing it set it for the tab (never an order); Stage sell fills the ticket.
+- The 10-second chart draws the trade's levels -- THEN, NEXT, SUPPORT, STOP, the average (COST) and the
+  broke rounds -- each a line with its name in the edge column. The 1-minute chart keeps its setups, levels,
+  the badge and one call: SELL NOW · STOP (the stop printed), SELL NOW · FLUSH "in trial T1" (a flush 10 s or
+  more after you held; description only on Live), BROKE $X · NEXT Y with the raise offered, TARGET HIT.
+- Level 2 marks NEXT on the ask side and STOP on the bid side.
+
+**Nova takes the exit** (Paper, and Sim at the live edge). `POST /api/stock-mode/{symbol}/take-exit` takes
+`{stop, trail: boolean}`: Nova places a SELL stop for every share the venue holds at `stop` through the
+execution door (source `manual`, origin `nova_exit`) and keeps a trade `{kind: "exit", state: "holding",
+exits: "nova", qty, entry (the average), fill_price, stop, target: null, trail, stop_order_id,
+raised: [{at, from, to, round}], ...}` (`stock-mode-trades.json`; the trade shape adds `trail` and
+`raised`, and `kind` adds `exit`). No target rests beside it: the door lets one order sell the same shares,
+and a one-cancels-other exit pair is built only as a bracket's legs, with an entry -- a target for a held
+position waits on an exit-only pair in the door. The runner (`exit_trade.manage`, every
+`STOCK_MODE_POLL_SEC`): the stop that fills closes the trade; a position gone closes it `outside`; a stop
+cancelled outside Nova hands the exit back (`handed`); with `trail`, at each closed minute a broke round
+since the trade began raises the stop by a replace of the stop order (the rule above, up only), an audit
+line `raised` and the stock's last event. Refusals: `STOCK_MODE_LIVE` / `STOCK_MODE_REPLAY` (Live, a venue
+Nova cannot read, Sim off the edge), `STOCK_MODE_NOTHING_HELD` (no shares, or the position cannot be
+read), `STOCK_MODE_INVALID` (a stop at or over the last price), `STOCK_MODE_HELD` (Nova already holds an
+exit or an entry on it), `STOCK_MODE_SEND` (the door refused). "Take it back" is `POST .../take-over`
+(the stop cancelled, the trade `handed`); Sell: You on the switch does the same. While it holds, the view's `sell` is `nova`. The Sell switch to Nova on a
+held stock opens the sheet instead of `PUT` (which still answers `STOCK_MODE_HELD`). On Live the sheet is
+locked and says why: Nova never moves a Live order by itself, and a Live stop does not trigger before
+09:30 (#604).
+
 ### Catalysts (ADR 024)
 
 One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_VERSION` in
@@ -3782,6 +3860,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-01 | Managing a trade you hold (ADR 036 / 037 amendment; operator: "If I enter a trade, can it tell me on the chart when I should sell ... if we pass that level, okay, this is the next level ... I can instruct Nova to sell it for me", then on mockup v4b "1 go" and "lets move these targets ... to the 10 seconds chart"). Fed a position, the plan box measured from the entry: holding APUS at 6.64 it said "$5.50 is 42c above" and the price sat off its ruler. The read now takes the held position (`held_*`) and answers `held` from `stock_read/held.py`: the stop (yours, Nova's or proposed), the rounds a 1-minute candle closed over (broke) or only traded through, the raise they offer, the 2R target and a ladder of the levels over and under the price; the plan box keeps its look and becomes the trade's while you hold; the 10-second chart draws the ladder; the 1-minute calls SELL NOW (stop, or a flush in trial T1 from a 1-second `/flush` read), BROKE and TARGET. "Nova takes the exit" (Paper, and Sim at the live edge) hands Nova the sell of a stock you bought: a resting stop, raised at each round a candle closes over (`stock_mode/exit_trade.py`, origin `nova_exit`); a target beside it waits on an exit-only one-cancels-other pair in the execution door, which today lets one order sell the same shares; Live stays locked. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | Who sent an order, and the loss breakers say so (operator report: "Could you see who sold here? I don't remember selling it."). At 09:43 ET the Paper bot trip (day P&L -$66.07 against a -$50 limit) sold 100 ACN, and the Orders table showed one more market sell: the row's only stamp, source `flatten`, is shared by the ticket's Flatten, the header's KILL, both breakers and the bot's last-resort exit, and the trip was said only on the Bots and Account pages. Every sender now stamps `origin`; the execution record, practice rows and Live closed rows carry it; the order tables add a Sent by column; a breaker's audit line lists what it sold and every desk window raises a notice that stays until dismissed. Rows placed earlier stay `origin: null` and read "Flatten", never guessed. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | When IBKR data stops arriving (#672, #673; operator: "that entire graph stopped working. Time and sales stopped ... This should never happen"). At the open the desk's Wi-Fi re-authenticated five times, and no IBKR data reached Nova for 4-16 s each time while both loops stayed healthy. Nothing said so: the header read "STALE 0S" all morning, from an Error 101 subscription error with fresh prices. `ibkr/feed_pulse.py` notices a busy feed going silent on every line and `GET /api/ibkr/feed` says so, naming a Wi-Fi drop from Windows' WLAN log (`ibkr/wifi_drops.py`). The header and Time & Sales read NO DATA / DATA GAP, and STALE now means late prices only. The catch-up burst no longer reads as tape: a gate or flow read across a gap is `blind` with the reason (`setup_scanner/tape_gap.py`), so a bot cannot enter, and a flush exit cannot act, on 16 s of prints that landed in one second. Checklist row `ibkr_feed_gaps`. A 5-s backend freeze found alongside it is #674. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | The stock's own round numbers (operator report on ACN at $223: "How do we address this without losing important visibility on important resistance and support levels?"). Every half dollar was a level at any price: the plan listed 26 between ACN's stop and target, one check each, the ruler printed 27 prices on top of each other, and today's map was zones of six half dollars that buried the real tops, VWAP and the open. Round numbers now scale with the price (`stock_read/rounds.py`: half and whole dollars up to $25, $5 and $10 on a $223 stock, a minor round always 2% of the price or more), one scale for the map, the notes, the marks, the checks and the next-round row; the rounds between entry and target are one check line, and the ruler leaves off a label that would touch a stronger one. Where the level study did not look (anything but half and whole dollars on $1-$20 stocks) the plan says so instead of quoting it, and Room is not trial T7's. On ACN's bars: checks 32 to 7, the map names "217.99 · triple top" and "$215.00 · top ×15 · bottom ×5 · VWAP · open". §3 amended. | User Directive + Claude Opus 5.5 |

@@ -87,6 +87,7 @@ EXECUTION_ORIGINS = (
     "auto_entry",
     "approve",
     "bot_api",
+    "nova_exit",
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
 # ── NYSE exchange calendar ───────────────────────────────────────────────────

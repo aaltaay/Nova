@@ -18,7 +18,8 @@ Every ``STOCK_MODE_POLL_SEC``:
    or disarmed setup withdraws them.
 4. **Trades** Nova sent are managed: the entry fills, or is cancelled after the venue sleeve's
    ``working_ttl_sec`` (a miss, which gives the day's count back); Approve's exits rest at the broker
-   until one fills; an Auto-entry position is the operator's, and Nova only notices when it is closed.
+   until one fills; an Auto-entry position is the operator's, and Nova only notices when it is closed;
+   the exit of a stock you bought that you handed Nova is ``exit_trade``'s.
 
 Owner: the trades (persisted) and the approvals in ``stock_mode.store``. The bot's own trade on a Bot
 stock is the bot's (``bot.first_pullback.runner``).
@@ -46,6 +47,7 @@ from constants_stock_mode import (
     STOCK_MODE_BLOCK_STALE,
     STOCK_MODE_BLOCK_TAPE,
     STOCK_MODE_CANCEL_RETRY_SEC,
+    STOCK_MODE_EXIT,
     STOCK_MODE_POLL_SEC,
     STOCK_MODE_SIDE_NOVA,
     STOCK_MODE_SIDE_YOU,
@@ -54,7 +56,7 @@ from constants_stock_mode import (
     STOCK_MODE_TRADE_HOLDING,
     STOCK_MODE_TRADE_MISSED,
 )
-from stock_mode import gates, model, orders, store
+from stock_mode import exit_trade, gates, model, orders, store
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -314,7 +316,9 @@ async def _manage(trade: dict[str, Any], now: float) -> None:
                    trade.get("venue"), trade["symbol"])
         return
     try:
-        if trade["state"] == STOCK_MODE_TRADE_ENTERING:
+        if trade["kind"] == STOCK_MODE_EXIT:
+            await exit_trade.manage(trade, now)
+        elif trade["state"] == STOCK_MODE_TRADE_ENTERING:
             await _manage_entry(trade, now)
         elif trade["kind"] == STOCK_MODE_APPROVE and trade.get("exits") == STOCK_MODE_SIDE_NOVA:
             _manage_exits(trade, now)

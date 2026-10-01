@@ -1,6 +1,8 @@
 """The bot's read on one stock (ADR 036). Read-only: nothing here places, stages or cancels an order.
 
-  GET /api/stock-read/{symbol}?entry=&stop=          the plan, the seven groups and every lane (polled)
+  GET /api/stock-read/{symbol}?entry=&stop=          the plan, the seven groups and every lane (polled);
+      &held_qty=&held_avg=&held_stop=&held_risk=&held_since=   with ``held``: the trade you hold
+  GET /api/stock-read/{symbol}/flush                 trial T1's 30 s tape reading (sensor rings only)
   GET /api/stock-read/{symbol}/decisions?date=       one symbol's day as the bot saw it
   GET /api/stock-read/{symbol}/past-setups?date=&tf= the day's setups that ended, and what price did next
                                                      (tf=5m: the 5-minute lanes')
@@ -24,7 +26,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from constants_stock_read import STOCK_READ_CACHE_SEC, STOCK_READ_SCHEMA_VERSION
 from scanner_wire import wire_safe
-from stock_read import decisions, gather, history, past_setups, read
+from stock_read import decisions, flush, gather, history, past_setups, read
 
 router = APIRouter(tags=["stock_read"])
 logger = logging.getLogger(__name__)
@@ -42,14 +44,14 @@ def _symbol(raw: str) -> str:
 
 
 def stock_read(symbol: str, *, entry: float | None = None, stop: float | None = None,
-               now: float | None = None) -> dict[str, Any]:
+               held: dict[str, Any] | None = None, now: float | None = None) -> dict[str, Any]:
     now = time.time() if now is None else now
-    key = (symbol, entry, stop)
+    key = (symbol, entry, stop, tuple(sorted((held or {}).items())))
     with _lock:
         hit = _cache.get(key)
         if hit is not None and now - hit[0] < STOCK_READ_CACHE_SEC:
             return hit[1]
-    body = read.build(gather.gather(symbol, now), entry=entry, stop=stop)
+    body = read.build(gather.gather(symbol, now), entry=entry, stop=stop, held=held)
     with _lock:
         if len(_cache) > 64:
             _cache.clear()
@@ -101,6 +103,17 @@ def stock_read_history(symbol: str):
     })
 
 
+@router.get("/api/stock-read/{symbol}/flush")
+def stock_read_flush(symbol: str):
+    sym = _symbol(symbol)
+    return wire_safe(flush.reading(sym, time.time()))
+
+
 @router.get("/api/stock-read/{symbol}")
-def stock_read_route(symbol: str, entry: float | None = Query(None, gt=0), stop: float | None = Query(None, gt=0)):
-    return stock_read(_symbol(symbol), entry=entry, stop=stop)
+def stock_read_route(symbol: str, entry: float | None = Query(None, gt=0), stop: float | None = Query(None, gt=0),
+                     held_qty: float | None = Query(None, gt=0), held_avg: float | None = Query(None, gt=0),
+                     held_stop: float | None = Query(None, gt=0), held_risk: float | None = Query(None, gt=0),
+                     held_since: float | None = Query(None, gt=0)):
+    held = ({"qty": held_qty, "avg": held_avg, "stop": held_stop, "risk": held_risk, "since": held_since}
+            if held_qty and held_avg else None)
+    return stock_read(_symbol(symbol), entry=entry, stop=stop, held=held)

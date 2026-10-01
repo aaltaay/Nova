@@ -196,3 +196,26 @@ hovers are very ugly and i can't understand them"; "where ever we need legend ..
   its 9 EMA and MACD histogram over 0, `F:\Nova\eyes\studies\mtf-alignment-2026-09-30`) leaned the right
   way and did not hold: pooled +0.10R (95% CI -0.08 to +0.28), and the agreeing trades still lost
   (-0.27R).
+
+## Amendment 2026-10-01 -- the read while you hold the stock
+
+Operator: "If I enter a trade, can it tell me on the chart when I should sell ... if we pass that level,
+okay, this is the next level". Mockup v4 / v4b (the Trader Bot Read canvas) on the operator's own Paper trade
+in APUS on 2026-09-24; then "1 go", and "lets move these targets ... to the 10 seconds chart".
+
+- **Context.** Fed a position, the plan box measured from the entry. Holding APUS at 6.64 it read "$5.50 is
+  42c above" and "Room 1.0R to $5.50", and the price sat off the end of its ruler. Its "$ now" counted a
+  candle's high through $6.50 that no candle had closed over.
+- **Decision.** The read takes the held position and answers `held` (`stock_read/held.py`, pure): the stop
+  (yours, Nova's, else proposed by the hand plan's rule), the rounds a 1-minute candle closed over since you
+  held (broke) and the ones only traded through, the raise that offers (up only, under the price), the 2R
+  target, and a ladder of the levels over and under the price. The rows are measured from the price. The plan
+  box keeps its look and becomes the trade's; the 10-second chart draws the ladder (the 1-minute chart keeps
+  its setups, levels and the one call).
+- **Why a close and not a print.** The 08:56:14 sweep to 6.02 on APUS reversed to 5.30 in six seconds. Read
+  off a print, it would have raised the stop over the price.
+- **What the calls are.** SELL NOW at the stop and the target are your plan's; BROKE offers a raise; the
+  flush call is trial T1's reading (30 s window), marked in trial and description only on Live. On the
+  operator's APUS trade the early calls (the flush and the proposed stop at 08:47) would have sold near the
+  low of a trade that, averaged down, made +$156; on the last 100 shares the calls sold within cents of the
+  operator. One trade proves nothing; the calls describe, and trial T1 measures.

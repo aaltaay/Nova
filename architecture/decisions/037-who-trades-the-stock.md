@@ -171,3 +171,23 @@ The details are the agent's under the operator's standing grant for routine call
 - ENTER NOW stays up for 30 s after the trigger, and only while the price is within half a risk of
   the entry.
 - The desk reads the view every 1.5 s while the Trader tab shows.
+
+## Amendment 2026-10-01 -- Nova takes the exit of a stock you bought
+
+"Not built here" listed handing a hand-entered position's exit to Nova. The operator approved it on mockup
+v4b ("1 go"), on Paper and on Sim at the live edge only.
+
+- `POST /api/stock-mode/{symbol}/take-exit {stop, trail}` places a SELL stop for every share the venue
+  holds, origin `nova_exit`, and keeps a trade of kind `exit` (`stock_mode/exit_trade.py`). With `trail`,
+  the stop is raised by a replace each time a 1-minute candle closes over a round number since the trade
+  began (the read's broke rule), up only.
+- **No target beside it, yet.** The execution door lets one order sell the same shares (found building
+  it: a second SELL was refused "100 already sent"), and a one-cancels-other exit pair exists only as a
+  bracket's legs, with an entry. That rule protects against selling twice; a target for a held position
+  waits on an exit-only pair in the door.
+- The Sell switch to Nova on a held stock opens the sheet; `PUT` keeps refusing `STOCK_MODE_HELD`, so a
+  switch never sends orders by itself. Take it back is the existing take-over.
+- **Live stays locked.** Nova never moves a Live order by itself (that would be an automated sell on real
+  money, not decided), and a plain IBKR stop does not trigger before 09:30 (#604) -- most of the operator's
+  trades are premarket. The sheet says so.
+- The flush sell is not one of Nova's exits: trial T1 has not read.
