@@ -22,7 +22,7 @@ export function gates(overrides: Partial<Record<string, Partial<BotGate>>> = {})
     { id: 'level', ok: false, stage: 'activate', detail: { level: 1 } },
     { id: 'setups', ok: false, stage: 'activate', detail: { at_strategy: [] } },
     { id: 'padlock', ok: true, stage: 'activate', detail: { reason: null } },
-    { id: 'allowlist', ok: true, stage: 'activate', detail: { count: 2 } },
+    { id: 'allowlist', ok: true, stage: 'fire', detail: { count: 2, auto_entry: 0 } },
     { id: 'bot_trip', ok: true, stage: 'activate', detail: { fired_at: null, pnl: null, until: null } },
     { id: 'depth_lines', ok: true, stage: 'fire', detail: { held: ['GRML'], missing: ['IMCC'], max_lines: 3 } },
     { id: 'day_lock', ok: true, stage: 'fire', detail: { until: null, tripped_at: null, pnl: null, venue: 'paper' } },

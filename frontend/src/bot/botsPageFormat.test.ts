@@ -57,9 +57,12 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
     const none = gateLine(gate('setups', false, { at_strategy: [] }));
     expect(none.text).toBe('No setup at Strategy');
     expect(none.actions[0].kind).toBe('setups');
-    expect(gateLine(gate('allowlist', false, { count: 0 }), { venue: 'paper' })).toMatchObject({
-      text: 'No stock set to Bot', why: 'No stock is set to Bot on Paper: add one under Who trades.',
+    expect(gateLine(gate('allowlist', false, { count: 0, auto_entry: 0 }, 'fire'), { venue: 'paper' })).toMatchObject({
+      text: 'No stock set to Bot or Auto-entry',
+      why: 'No stock is set to Bot or Auto-entry on Paper: set one under Who trades.',
     });
+    // Auto-entry stocks count too: Auto-entry buys only while the bot is Active (ADR 042 F).
+    expect(gateLine(gate('allowlist', true, { count: 1, auto_entry: 2 }, 'fire')).text).toMatch(/· 1 · Auto-entry 2$/);
     expect(gateLine(gate('daily_cap', true, { count: 0, cap: 1 }, 'fire')).text).toBe('Nova entries 0 / 1 today');
     expect(gateLine(gate('daily_cap', false, { count: 1, cap: 1 }, 'fire')).text).toBe('Daily cap used · 1 / 1 today');
   });

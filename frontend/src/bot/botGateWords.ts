@@ -175,9 +175,12 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
     case 'desk_armed':
       return padlockWords(ok, d, ctx);
     case 'allowlist': {
+      // Stocks Nova may buy on this venue: Bot and Auto-entry (Auto-entry buys only while the bot is Active).
       const n = num(d.count) ?? 0;
-      return ok ? { text: `${label} · ${n}`, why: null }
-        : { text: 'No stock set to Bot', why: `No stock is set to Bot on ${venueName(ctx.venue)}: add one under Who trades.`,
+      const auto = num(d.auto_entry) ?? 0;
+      return ok ? { text: auto ? `${label} · ${n} · Auto-entry ${auto}` : `${label} · ${n}`, why: null }
+        : { text: 'No stock set to Bot or Auto-entry',
+          why: `No stock is set to Bot or Auto-entry on ${venueName(ctx.venue)}: set one under Who trades.`,
           actions: [{ kind: 'add_symbol', label: BOTS_GATE_ADD_SYMBOL }] };
     }
     case 'depth_lines':
