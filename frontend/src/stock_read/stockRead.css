@@ -148,6 +148,8 @@
   letter-spacing: 0.04em;
   line-height: 12px;
 }
+/* Too thin to trade (2026-10-01): grey and dashed, not the red of a broken rule. */
+.sr-plan__verdict--thin { border-color: var(--sr-secondary); border-style: dashed; color: var(--sr-secondary); }
 .sr-plan__notrade {
   margin: 2px 0 4px;
   color: var(--sr-bad);

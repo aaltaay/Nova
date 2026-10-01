@@ -100,6 +100,7 @@ def read_pillars(symbol: str, now: float | None = None) -> dict[str, Any]:
         "price": price,
         "change_pct": change_pct(symbol, getattr(snap, "change_pct", None), price),
         "rvol": _finite(getattr(snap, "rvol", None)),
+        "volume": _finite(getattr(snap, "volume", None)),   # shares today: the liquidity reads it (2026-10-01)
         "float": _finite(getattr(snap, "float_shares", None)),
         "float_contradicted": getattr(snap, "float_contradicted", None),
         "shares_outstanding": _finite(getattr(snap, "shares_outstanding", None)),

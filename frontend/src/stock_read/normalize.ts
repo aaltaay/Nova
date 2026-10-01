@@ -23,6 +23,7 @@ import type {
   StockRead,
   TapeVerdict,
 } from './types';
+import { normalizeLiquidity } from '../setups';
 import { normalizeLevelMap, normalizePlanLevels } from './levelMapNormalize';
 import { normalizePlanVerdict } from './planVerdict';
 
@@ -140,6 +141,7 @@ export function normalizePlan(raw: unknown): StockPlan | null {
     checks: list(p.checks, check),
     marks: list(p.marks, mark),
     levels: normalizePlanLevels(p.levels),
+    liquidity: normalizeLiquidity(p.liquidity),
   };
 }
 
@@ -232,6 +234,7 @@ function lane(raw: unknown): SetupLane | null {
     window: windowOf(l.window),
     series: series(l.series),
     timeframe: l.timeframe === '5m' ? '5m' : '1m',
+    liquidity: normalizeLiquidity(l.liquidity),
   };
 }
 

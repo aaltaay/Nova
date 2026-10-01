@@ -66,13 +66,19 @@ class LaneFold:
                 row["disarmed_at"] = row["failed_at"] = None      # the same setup armed again
             if setup:
                 row["setup"] = setup
+            if ev == "armed":
+                row["liquidity"] = line.get("liquidity")      # too thin to trade? (2026-10-01; absent before)
             self.active[sym] = sid
             if ev == STATE_FILTERED:
                 self.filtered[sid] = line.get("reason") or "the template's stock filter"
+        elif ev == "liquidity" and row is not None:
+            row["liquidity"] = line.get("liquidity")
         elif ev == "rearmed" and row is not None:
             row["setup"] = line.get("setup") or row.get("setup")
         elif ev == "near" and row is not None:
             row.setdefault("near_at", ts)
+            if "liquidity" in line:
+                row["liquidity"] = line["liquidity"]
         elif ev == "leg" and "grade" in line:
             s["forming"] = {"grade": line.get("grade"), "pillars": line.get("pillars"), "tf5": line.get("tf5")}
         elif ev == "state" and line.get("triggered_at") is not None:
@@ -82,7 +88,8 @@ class LaneFold:
             s["nth"] = setup.get("nth") or s["nth"]
             if row is not None:
                 row.update(setup=setup or row.get("setup"), triggered_at=float(setup.get("triggered_at") or ts),
-                           outcome="open", trigger_tape=tape_brief(line.get("tape")), tf5_trigger=line.get("tf5"))
+                           outcome="open", trigger_tape=tape_brief(line.get("tape")), tf5_trigger=line.get("tf5"),
+                           liquidity=line.get("liquidity", row.get("liquidity")))
         elif ev in ("failed", "disarmed") and row is not None and not row.get("triggered_at"):
             row["failed_at" if ev == "failed" else "disarmed_at"] = ts
         elif ev == "scored" and row is not None:
@@ -175,6 +182,7 @@ class LaneFold:
                 "outcome": (row or {}).get("outcome"), "outcome_at": (row or {}).get("outcome_at"),
                 "bar_r": (row or {}).get("bar_r"), "mfe": (row or {}).get("mfe"), "mae": (row or {}).get("mae"),
                 "failed_at": (row or {}).get("failed_at"),
+                "liquidity": (row or {}).get("liquidity"),
             })
         out.sort(key=lambda r: (ORDER.get(r["state"], 9),
                                 r["distance"] if r["distance"] is not None else 9e9, r["symbol"]))

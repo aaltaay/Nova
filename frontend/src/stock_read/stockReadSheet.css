@@ -289,6 +289,8 @@
 .sr-legend__badge--target { border-color: #ff9f0a; background: #ff9f0a; color: #111; }
 .sr-legend__badge--stop { border-color: var(--sr-bad); background: var(--sr-bad); color: #fff; }
 .sr-legend__badge--wait { border-color: var(--sr-info); color: var(--sr-info); }
+/* Too thin to trade (2026-10-01): grey and dashed, like a setup greyed on its card. */
+.sr-legend__badge--thin { border-color: var(--sr-secondary); border-style: dashed; color: var(--sr-secondary); }
 .sr-legend__badge--manual { border-color: var(--sr-secondary); color: var(--sr-secondary); }
 .sr-legend__focus {
   display: flex;

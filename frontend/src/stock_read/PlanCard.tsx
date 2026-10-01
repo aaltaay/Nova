@@ -27,7 +27,8 @@ import {
   setupName,
   sizeFor,
 } from './planMath';
-import { gradeChip, gradeTip, notATrade } from './planVerdict';
+import { liquidityTip } from '../setups';
+import { gradeChip, gradeTip, notATrade, thinPlan } from './planVerdict';
 import type { StockReadContextValue } from './StockReadContext';
 import type { StockPlan, StockRead } from './types';
 import { modeSentence, planActions, type PlanAction } from './whoTradesModel';
@@ -257,7 +258,14 @@ export function PlanCard({ ctx, roomy = true }: {
         >
           {!plan ? 'NO SETUP' : folded ? planBadgeShort(plan, lane) : planBadge(plan, lane)}
         </span>
-        {noTrade && !plan?.result && (
+        {plan && thinPlan(plan) && plan.liquidity ? (
+          // Too thin to trade (2026-10-01): said even after it played out -- nobody could have traded it.
+          <span className="sr-plan__verdict sr-plan__verdict--thin"
+            {...tipProps(`${liquidityTip(plan.liquidity)}\n${NOT_A_TRADE_NOVA}`, 'Too thin to trade')}
+            data-testid="stock-read-plan-verdict">
+            TOO THIN
+          </span>
+        ) : noTrade && !plan?.result && (
           <span className="sr-plan__verdict" {...tipProps(`${noTrade}\n${NOT_A_TRADE_NOVA}`, 'Not a trade')}
             data-testid="stock-read-plan-verdict">
             NOT A TRADE

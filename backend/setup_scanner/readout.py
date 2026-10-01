@@ -27,6 +27,11 @@ go_triggered_inside} | null`` -- of the triggers the read-out judges, how many c
 inside the template's bot window (the trigger's ET time, ``[start, end)``), so the
 card can say how much of its evidence is a trade the bot could have taken. The
 template's bot window is not part of its revision: editing it keeps the evidence.
+
+Operator decision 2026-10-01: a setup too thin to trade at its trigger (``setup_scanner.liquidity``)
+counts in neither pool -- nobody could have traded it at the scored price -- and the answer adds
+``thin_left_out``, how many such triggers it left out (``null`` when the store could not say). Rows
+stored before the reading existed carry none and count as before.
 """
 from __future__ import annotations
 
@@ -52,6 +57,7 @@ from constants_setups import (
     TAPE_VERDICT_WAIT,
 )
 from setup_scanner.detector import et_time, hhmm
+from setup_scanner.liquidity import is_thin
 from setup_scanner.summary import stats, tape_at_trigger
 
 logger = logging.getLogger(__name__)
@@ -89,8 +95,9 @@ def evaluate(rows: Iterable[dict], template: dict[str, Any] | None = None,
              kind: str = SETUPS_READOUT_KIND, bot_window: dict[str, Any] | None = None) -> dict[str, Any]:
     """The read-out over ``rows`` (one template's): ``{state, passed, go, control, rules, reason,
     bot_window}`` -- ``bot_window`` (``{start, end, clipped?}``) only counts, it never decides."""
-    pool = sorted((r for r in rows if r.get("kind") == kind and r.get("triggered_at")),
-                  key=lambda r: float(r["triggered_at"]))
+    triggered = sorted((r for r in rows if r.get("kind") == kind and r.get("triggered_at")),
+                       key=lambda r: float(r["triggered_at"]))
+    pool = [r for r in triggered if not is_thin(r.get("liquidity"))]
     go = [r for r in pool if tape_at_trigger(r) == TAPE_VERDICT_GO]
     control = [r for r in pool if tape_at_trigger(r) in (TAPE_VERDICT_BLIND, TAPE_VERDICT_WAIT)]
     judged = pool
@@ -120,7 +127,7 @@ def evaluate(rows: Iterable[dict], template: dict[str, Any] | None = None,
                   f"and above blind / wait {control_r:+.2f}R")
     return {"state": state, "passed": state == SETUPS_READOUT_PASSED, "reason": reason,
             "go": go_block, "control": control_block, "rules": _rules(template, kind),
-            "bot_window": window_counts(judged, go, bot_window)}
+            "bot_window": window_counts(judged, go, bot_window), "thin_left_out": len(triggered) - len(pool)}
 
 
 def unavailable(reason: str, template: dict[str, Any] | None = None, kind: str = SETUPS_READOUT_KIND,
@@ -133,7 +140,8 @@ def unavailable(reason: str, template: dict[str, Any] | None = None, kind: str =
                   "clipped": bool(bot_window.get("clipped")), "triggered": None, "triggered_inside": None,
                   "go_triggered": None, "go_triggered_inside": None}
     return {"state": SETUPS_READOUT_UNAVAILABLE, "passed": False, "reason": reason,
-            "go": dict(empty), "control": dict(empty), "rules": _rules(template, kind), "bot_window": window}
+            "go": dict(empty), "control": dict(empty), "rules": _rules(template, kind), "bot_window": window,
+            "thin_left_out": None}
 
 
 def template_bot_window(t: Any) -> dict[str, Any] | None:

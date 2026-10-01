@@ -7,7 +7,8 @@ the stop is theirs or the low of the last few closed one-minute candles, the tar
 The checks and marks describe; they never block anything. ``trade`` says when a setup plan is not a
 trade and why (operator report, 2026-09-29: a grade C that triggered with the tape at WAIT read
 TRIGGERED for twenty minutes after its stop printed); it too only describes -- the runners and the
-bot keep their own rules.
+bot keep their own rules. ``liquidity`` (operator decision 2026-10-01, ``plan_liquidity.py``) says
+whether the stock is too thin to trade: it leads the checks and a thin setup plan is not a trade.
 """
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ from constants_stock_read import (
 )
 from setup_scanner.five_minute import words as tf5_words
 from setup_scanner.grade import pillar_count
-from stock_read import rounds
+from stock_read import plan_liquidity, rounds
 from stock_read.indicators import manual_stop
 from stock_read.level_notes import notes as level_notes
 
@@ -301,7 +302,7 @@ def result_of(plan: dict[str, Any], lane: dict[str, Any] | None) -> dict[str, An
 
 
 def trade_verdict(plan: dict[str, Any], lane: dict[str, Any] | None,
-                  spread: float | None = None) -> dict[str, Any] | None:
+                  spread: float | None = None, liquidity: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Whether a setup plan is a trade, with every reason it is not; None for the operator's own plan.
 
     The rule is ``setup_scanner.trade_verdict`` -- the one Nova's bot, Auto-entry, Approve and the
@@ -315,7 +316,8 @@ def trade_verdict(plan: dict[str, Any], lane: dict[str, Any] | None,
         filtered = str((lane or {}).get("reason") or "") or True
     return verdict(grade=plan.get("grade"), pillars=plan.get("pillars"), filtered=filtered,
                    triggered=plan.get("state") == "triggered", tape=plan.get("tape"),
-                   played_out=(plan.get("result") or {}).get("text"), spread=spread, risk=plan.get("risk"))
+                   played_out=(plan.get("result") or {}).get("text"), spread=spread, risk=plan.get("risk"),
+                   liquidity=liquidity)
 
 
 def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entry: float | None = None,
@@ -332,10 +334,11 @@ def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entr
         ctx = {**ctx, "stop_cap": (lane.get("rules") or {}).get("stop_cap") or ctx.get("stop_cap"),
                "min_stop": (lane.get("rules") or {}).get("min_stop"),
                "flow": ctx.get("flow") if lane.get("state") in LIVE_STATES else None}
-    plan["checks"] = checks(plan, ctx)
+    plan["liquidity"] = plan_liquidity.read(ctx, now, plan.get("risk"))
+    plan["checks"] = [plan_liquidity.check(plan["liquidity"]), *checks(plan, ctx)]
     plan["marks"] = _obstacles(plan, ctx)
     plan["flow"] = ctx.get("flow") if (ctx.get("flow") or {}).get("label") else None
     plan["result"] = result_of(plan, lane)
-    plan["trade"] = trade_verdict(plan, lane, ctx.get("spread"))
+    plan["trade"] = trade_verdict(plan, lane, ctx.get("spread"), plan["liquidity"])
     plan["levels"] = level_notes(plan, ctx.get("level_map"), ctx.get("bars") or [], price=ctx.get("price"), now=now)
     return plan

@@ -2,9 +2,10 @@
 
 Moved out of ``lane.py`` so the lane keeps one concern -- turning detector events into rows
 and tape reads. Both carry what a consumer needs to judge the setup without asking again:
-the grade and the pillars' count, whether the template's stock filter kept the name out, and
-the book's spread at the moment. A proposal also says whether it is a trade at all
-(``not_a_trade``, ``setup_scanner.trade_verdict``) and who will take it by itself
+the grade and the pillars' count, whether the template's stock filter kept the name out, the
+book's spread at the moment, and whether the stock is too thin to trade (``liquidity``,
+2026-10-01). A proposal also says whether it is a trade at all (``not_a_trade``,
+``setup_scanner.trade_verdict``) and who will take it by itself
 (``taken_by``: Nova's bot or Auto-entry, the live host's ``taker``); it is still raised, so
 the desk can say "the bot is taking this -- nothing to do" or "not a trade: ...". Nothing
 here places an order.
@@ -49,7 +50,8 @@ def propose(lane: Any, sym: str, sid: str, res: dict, now: float) -> dict:
     """Raise a proposal: the setup is near its trigger and the tape says go."""
     row = lane.rows.get(sid) or {}
     spread = _spread(res)
-    judged = verdict(grade=row.get("grade"), pillars=_count(row), spread=spread, risk=row.get("risk"))
+    judged = verdict(grade=row.get("grade"), pillars=_count(row), spread=spread, risk=row.get("risk"),
+                     liquidity=row.get("liquidity"))
     not_a_trade = None if judged["ok"] else {"reasons": judged["reasons"]}
     prop = {"id": str(uuid.uuid4()), "setup_id": sid, "symbol": sym, "kind": row.get("kind"),
             "trigger": row.get("trigger"), "entry": row.get("entry_planned"), "stop": row.get("stop"),
@@ -87,4 +89,4 @@ def trigger(lane: Any, sym: str, sid: str, setup: dict, tape: dict | None, ts: f
     notify({"symbol": sym, "setup_id": sid, "setup": dict(setup), "tape": slim(tape) if tape else None, "ts": ts,
             "template_id": lane.p.template_id, "template_rev": lane.p.template_rev,
             "template_name": lane.p.name, "setup_type": lane.p.setup, "grade": row.get("grade"),
-            "pillars": _count(row), "filtered": filtered, "spread": _spread(tape)})
+            "pillars": _count(row), "filtered": filtered, "spread": _spread(tape), "liquidity": row.get("liquidity")})

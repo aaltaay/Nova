@@ -35,6 +35,15 @@ export {
   type Words,
 } from './setupWords';
 export { gradeLabel, gradeWords, pillarCount, type PillarCount } from './pillarWords';
+/** Too thin to trade (2026-10-01): the reading off the wire, its words and its chip. */
+export {
+  isThin,
+  liquidityTip,
+  money as liquidityMoney,
+  normalizeLiquidity,
+  thinChip,
+  type LiquidityRead,
+} from './liquidity';
 /** The one dismissed list the alert card and the Bots inbox share (ADR 042 draft). */
 export {
   dismiss as dismissProposals,
