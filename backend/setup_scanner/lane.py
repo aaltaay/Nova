@@ -24,6 +24,9 @@ flow is read through its scoring window (``setup_scanner/lane_flow.py``).
 ADR 042 H: proposals and triggers carry the grade, the pillars' count, the stock
 filter's verdict and the spread, and a proposal says whether it is a trade and who
 takes it (``setup_scanner/lane_announce.py``).
+
+ADR 022 amendment 2026-09-30: the tape for a trigger, and for a setup coming near,
+is read when the lane sees that price (``read_at``), not at the price's own stamp.
 """
 from __future__ import annotations
 
@@ -220,14 +223,14 @@ class Lane:
                 tape = None
                 if not row.get("near_at"):
                     row["near_at"] = now
-                    tape = self.evaluate(sym, now)
+                    tape = self.evaluate(sym, self.read_at(now))
                     row["near_tape"] = slim(tape)
                 self.journal("near", sym, setup_id=sid, last=view.get("last_price"), reason=view.get("reason"),
                              tape=tape)
             elif kind == "triggered":
                 setup = view.get("setup") or {}
                 ts = float(setup.get("triggered_at") or now)
-                tape = self.evaluate(sym, ts)
+                tape = self.evaluate(sym, self.read_at(ts))
                 row.update({"state": SETUP_STATE_TRIGGERED, "reason": view["reason"], "triggered_at": ts,
                             "entry": setup.get("entry"), "nth": setup.get("nth"), "trigger_tape": tape,
                             "outcome": "open", "stop": setup.get("stop"), "risk": setup.get("risk"),
@@ -311,6 +314,15 @@ class Lane:
                          outcome_at=row.get("outcome_at"))
 
     # -- tape gate + proposals -------------------------------------------------
+    def read_at(self, ts: float) -> float:
+        """When the tape is read for a price stamped ``ts``: when the lane sees it, never before the stamp.
+
+        A live L1 last carries IBKR's whole-second trade time, and prints are stamped when they
+        arrive (#563). A read that ended at the stamp left out the very prints that crossed the
+        trigger (LGHL 2026-09-30 07:16:10: WAIT at the stamp, GO when it arrived). A replay's
+        clock is the end of the price's second, so it reads there, as before."""
+        return max(float(ts), float(self.host.clock()))
+
     def evaluate(self, sym: str, now: float) -> dict:
         det = self.det.get(sym)
         setup = (det.armed or det.triggered) if det else None
