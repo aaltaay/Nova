@@ -183,11 +183,12 @@ def read_account_day_pnl() -> tuple[float | None, dict[str, Any]]:
         return None, {**meter, "source": "error", "day_pnl": None, "error": error,
                       "compares": f"Nothing: the account summary cannot be read ({error})."}
     meter.update(RealizedPnL=summary.get("RealizedPnL"), UnrealizedPnL=summary.get("UnrealizedPnL"))
-    practice = practice_day_pnl(summary)
-    if practice is not None:
+    if summary.get("practice"):
         name = str(venue or "the practice account").capitalize()
+        practice = practice_day_pnl(summary)
         return practice, {**meter, "source": "practice_ledger_day_pnl", "day_pnl": practice,
-                          "compares": PRACTICE_COMPARES.format(venue=name)}
+                          "compares": PRACTICE_COMPARES.format(venue=name),
+                          "error": None if practice is not None else "the practice ledger reported no day P&L"}
     pnl = _ibkr_day(summary)
     commissions, error = _read_commissions()    # the #564 hold reads them; they are never subtracted
     out = {**meter, "source": "account_summary", "day_pnl": pnl, "compares": LIVE_COMPARES,
