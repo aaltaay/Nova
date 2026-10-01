@@ -52,7 +52,7 @@ const ZONE_ROWS: KeyRow[] = [
   { swatch: 'line', color: GREY, label: 'Thick line', text: 'a strong level (tested many times)' },
 ];
 
-function fiveMinuteRows(): KeySection {
+function fiveMinuteLevelRows(): KeySection {
   return {
     title: 'Levels from 5-minute candles (hover a label for why)',
     rows: [
@@ -101,6 +101,28 @@ function setupRows(): KeySection {
   };
 }
 
+function fiveMinuteRows(): KeySection {
+  return {
+    title: '5-minute setups (labels start "5m")',
+    rows: [
+      { swatch: 'box', color: SETUP_COLORS.formingStroke, fill: SETUP_COLORS.forming, label: 'Forming', text: 'a pattern building on 5-minute candles' },
+      { swatch: 'box', color: SETUP_COLORS.trigger, fill: SETUP_COLORS.leg, label: 'Armed / near', text: 'waiting for its trigger' },
+      { swatch: 'box', color: SETUP_COLORS.fadedStroke, fill: SETUP_COLORS.faded, label: 'Ended (faint)', text: '✕ failed · ○ faded · ✓ triggered, and what price did next' },
+      { swatch: 'dash', color: SETUP_COLORS.trigger, label: '5m trigger', text: 'with its stop (red) and target (green), dashed' },
+      { swatch: 'line', color: GREY, label: 'Scored only', text: 'Nova scores them in silence: they never propose or trade' },
+    ],
+  };
+}
+
+function fiveOnMinuteRows(): KeySection {
+  return {
+    title: 'From the 5-minute chart',
+    rows: [
+      { swatch: 'dash', color: SETUP_COLORS.trigger, label: '5m trigger', text: 'a 5-minute setup armed or near its trigger (its chip is in the legend)' },
+    ],
+  };
+}
+
 function planRows(full: boolean): KeySection {
   const rows: KeyRow[] = [
     { swatch: 'line', color: SETUP_COLORS.trigger, label: 'Entry', text: 'where the plan buys' },
@@ -125,10 +147,12 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
     if (layers.setups) out.push(setupRows());
     out.push(planRows(true));
     if (layers.levels) out.push(minuteRows());
+    if (layers.setups) out.push(fiveOnMinuteRows());
   } else if (kind === 'thin') {
     out.push(planRows(false));
-  } else if (layers.levels) {
-    out.push(kind === 'daily' ? dailyRows() : fiveMinuteRows());
+  } else {
+    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows());
+    if (layers.levels) out.push(kind === 'daily' ? dailyRows() : fiveMinuteLevelRows());
   }
   if (kind !== 'daily') out.push(sessionRows());
   return out;

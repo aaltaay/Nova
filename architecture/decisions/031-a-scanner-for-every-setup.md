@@ -144,3 +144,31 @@ PR left for the operator, answered here (A).
   losing the default's evidence.
 - Not built here: Gap and Go's scanner, the micro pullback (one-second bars), the eyes'
   backtest across setups beyond one setup per run.
+
+## Amendment 2026-09-30 -- the same setups on 5-minute candles, chart only
+
+**Decided by:** the operator, 2026-09-30: "we need 5-minute strategies ... sometimes I see slow stocks moving
+upwards, and you can see clear patterns in the 5-minute chart, but they're not clear in the 1-minute chart";
+offered a mockup first or a build, they chose the mockup. On it (IOVA 2026-09-29, drawn by the real chart code
+from the detectors run on 5-minute candles) they chose: build it this way; chart only (no cards, no rows); a
+chip and the trigger line on the 1-minute; arming 07:00-15:30.
+
+- **One built-in lane per setup** (the first pullback, the bull flag, the flat top; red to green reads the open
+  and stays 1-minute) runs the setup's own detector on 5-minute candles made of the scanner's minutes
+  (`setup_scanner/five_minute_lane.py`). Its rules are the default template's except for the 2026-09-29 study's
+  5-minute rules and the operator's window: a 5-minute candle, arming until 15:30, a risk up to 6% of the entry
+  (a dollar cap would block nearly every 5-minute setup), the scoring exit on 5-minute candles, and the first
+  touch read over an hour. The detectors and the scoring take the candle's length and a percent cap; at their
+  defaults nothing changes for a 1-minute lane.
+- **Template id `5m`:** its rows are its own (`~5m`), so no read-out, trial or bot reads them, and no Bots page
+  template counts it. It never proposes or tells the bot (it never plays), and the Setups board and the cards
+  show none of it. Its journal lines say `template: "5m"`, so `past-setups?tf=5m` folds them for the 5-minute
+  chart.
+- **Why built-in and not a template the operator makes:** a template's lane plays its setup's card and the read-out
+  counts its revision; these are a different chart's view of the same rules, kept apart so the 1-minute evidence
+  stays clean.
+- **Evidence so far:** the bar-level 5-minute versions lost less than their 1-minute twins and still lost
+  (2026-09-29: first pullback on 5-minute candles 785 trades, PF 0.74). On IOVA 2026-09-29 the 1-minute scanners
+  saw 33 setups and triggered one, and the 5-minute lanes triggered four. They are scored to learn, never
+  traded.
+

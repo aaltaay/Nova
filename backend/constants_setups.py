@@ -33,6 +33,18 @@ SETUPS_ENTRY_CUTOFF_ET = "11:30"
 SETUPS_SCORE_FLAT_BY_ET = "15:55"       # scoring stops here, as in the backtest
 SETUPS_BAR_SEC = 60                     # one-minute bars
 
+# -- 5-minute setups (operator decision 2026-09-30: "Mockup, then build"; on the mockup: build it,
+# chart only, a chip and the trigger on the 1-minute, 07:00-15:30). The first pullback, the bull flag
+# and the flat top read on 5-minute candles made of the scanner's own minutes, by the default
+# template's rules but for these: a built-in lane per setup that watches and scores, never proposes,
+# never tells the bot, and draws only on the 5-minute chart.
+SETUPS_5M_TEMPLATE_ID = "5m"
+SETUPS_5M_TEMPLATE_NAME = "5-minute"
+SETUPS_5M_BAR_SEC = 300
+SETUPS_5M_ENTRY_CUTOFF_ET = "15:30"     # slow movers set up later in the day too (operator's choice)
+SETUPS_5M_STOP_CAP_PCT = 0.06           # risk up to 6% of the entry: the 2026-09-29 study's 5-minute rule
+SETUPS_5M_SCORE_WINDOW_MIN = 60         # first touch read over an hour of a 5-minute setup (12 candles)
+
 # -- Pullback family (P1). Same values as the research harness Params.
 SETUPS_LEG_PCT = 0.05                   # leg high >= 5% over the lowest low of the window
 SETUPS_LEG_WINDOW_BARS = 10
@@ -48,6 +60,7 @@ SETUPS_MACD_SLOW = 26
 SETUPS_MACD_SIGNAL = 9
 SETUPS_MACD_POSITIVE = True             # prior bar's MACD histogram > 0 to arm
 SETUPS_STOP_CAP_DOLLARS = 0.20          # skip a setup whose risk is larger
+SETUPS_STOP_CAP_PCT = None              # ... or, when set, larger than this share of the entry (the 5m lanes')
 SETUPS_MIN_STOP_DOLLARS = 0.03          # ... or smaller than this
 SETUPS_ENTRY_OFFSET_DOLLARS = 0.01      # buy one cent over the last pullback bar's high
 SETUPS_RISK_SLIPPAGE_DOLLARS = 0.01     # the risk caps are checked with one cent of slippage, as the research did

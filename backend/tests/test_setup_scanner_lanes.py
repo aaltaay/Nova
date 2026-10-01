@@ -51,7 +51,7 @@ def test_every_template_scores_but_only_the_one_in_play_proposes(tmp_path):
     wide = templates.create(FP, name="Wide stop", values={"stop_cap": 0.5})
     eng, audits, journal, clock = make(tmp_path, armed_bars(), templates)
     run(eng, clock["t"])
-    assert [lane.p.template_id for lane in eng.lanes] == ["default", wide.id]
+    assert [lane.p.template_id for lane in eng.lanes if lane.p.template_id != "5m"] == ["default", wide.id]
     assert eng.playing.p.template_id == "default"
     eng.on_l1_minute("last", SYM, {"price": 4.35, "ts": clock["t"], "bar_open": 4.32})
     run(eng, clock["t"])
@@ -94,7 +94,8 @@ def test_editing_a_template_starts_a_new_lane_for_its_new_rules(tmp_path):
     run(eng, clock["t"])
     templates.update(FP, t.id, values={"leg_pct": 6})
     run(eng, clock["t"] + 1)
-    assert [(lane.p.template_id, lane.p.template_rev) for lane in eng.lanes] == [("default", 1), (t.id, 2)]
+    assert [(lane.p.template_id, lane.p.template_rev) for lane in eng.lanes if lane.p.template_id != "5m"] == [
+        ("default", 1), (t.id, 2)]
     lanes_events = [e for e in journal if e["event"] == "lanes"]
     assert len(lanes_events) == 2 and lanes_events[-1]["lanes"][1]["rev"] == 2
 
@@ -271,7 +272,7 @@ def test_only_the_playing_lane_announces_its_trigger_on_the_live_feed(tmp_path):
     run(eng, clock["t"])
     eng.on_l1_minute("last", SYM, {"price": 4.39, "ts": clock["t"], "bar_open": 4.32})
     run(eng, clock["t"])
-    assert all(lane.det[SYM].state == "triggered" for lane in eng.lanes)
+    assert all(lane.det[SYM].state == "triggered" for lane in eng.lanes if lane.p.template_id != "5m")
     [event] = heard
     assert event["symbol"] == SYM and event["template_id"] == "default" and event["source"] == "live"
     assert event["setup"]["kind"] == "first_pullback" and event["setup"]["entry"] >= event["setup"]["trigger"]

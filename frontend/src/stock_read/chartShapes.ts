@@ -5,10 +5,12 @@
  *
  * The 1-minute pane draws everything: each followed setup's shapes (the lead lane in colour, the rest
  * faded), the day's setups that ended under them (`pastShapes.ts`), the plan's risk and reward zones and
- * lines, the trade's levels (the high of day, the premarket high, the open, the nearest half dollar each
- * side and the plan's levels between its stop and target), and the moment's pin (ADR 037).
- * The 5-minute pane carries today's level map and the 10-second pane the high of day; both mirror the
- * plan's levels as thin lines. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
+ * lines, the trade's levels (`levelPicks.minuteScene`: the high of day, the nearest top and bottom its
+ * candles made, the nearest round dollar each side and the plan's levels between its stop and target),
+ * and the moment's pin (ADR 037).
+ * The 5-minute pane carries its own level map and the 5-minute setups (`fiveMinuteShapes.ts`; on the
+ * 1-minute pane a 5-minute setup in reach is a dashed trigger line); the 5-minute and 10-second panes
+ * mirror the plan's levels as thin lines. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
  * level is dashed while it is only a plan and solid while an order stands behind it. Nothing here is
  * estimated: every price is the scanner's, the read's or Nova's order's own.
  */
@@ -16,13 +18,17 @@ import type { Time } from 'lightweight-charts';
 import { LEVEL_COLORS, SETUP_COLORS } from './constants';
 import { levelScene, minuteScene } from './levelPicks';
 import type { CallTone, MomentCall } from './momentModel';
-import { drawnPast, failingNow, shortReason, type Episode } from './pastSetups';
+import { drawnPast, failingNow, type Episode } from './pastSetups';
+import { fiveMinuteOnMinute, fiveMinuteScene } from './fiveMinuteShapes';
+import { laneHoverId, laneShapes, levelsOf } from './laneShapes';
 import { pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, setupName } from './planMath';
-import type { Scene, SceneBox, SceneSegment } from './SetupShapesPrimitive';
+import type { Scene, SceneBox } from './SetupShapesPrimitive';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
 import { levelTitle, type OrderLevel, type OrderLevels } from './whoTradesModel';
+
+export { laneHoverId };
 
 /** `full` the 1-minute, `map` the 5-minute, `thin` the 10-second, `daily` the Full Day chart. */
 export type PaneKind = 'full' | 'map' | 'thin' | 'daily' | 'none';
@@ -56,11 +62,8 @@ export interface DrawOptions {
   call?: MomentCall | null;
   /** The day's setups that ended (ADR 036 amendment): drawn faint under the live lanes. */
   past?: Episode[] | null;
-}
-
-/** The hover id a live lane's boxes carry. */
-export function laneHoverId(setupType: string): string {
-  return `lane:${setupType}`;
+  /** The day's 5-minute setups that ended (`?tf=5m`): the 5-minute pane draws them. */
+  past5?: Episode[] | null;
 }
 
 export const CALL_COLORS: Record<CallTone, string> = {
@@ -74,7 +77,6 @@ export const CALL_COLORS: Record<CallTone, string> = {
 };
 
 const MIN = 60;
-const LIVE_DRAWN = new Set(['leg', 'pullback', 'armed', 'near', 'triggered', 'filtered', 'failed']);
 
 export function paneKind(timeframe: string): PaneKind {
   if (timeframe === '1Min') return 'full';
@@ -82,87 +84,6 @@ export function paneKind(timeframe: string): PaneKind {
   if (timeframe === '10Sec') return 'thin';
   if (timeframe === '1Day') return 'daily';
   return 'none';
-}
-
-function tone(state: StockPlan['state'] | string): { stroke: string; fill: string } {
-  if (state === 'triggered') return { stroke: SETUP_COLORS.target, fill: 'rgba(48, 209, 88, 0.12)' };
-  if (state === 'armed' || state === 'near' || state === 'manual') return { stroke: SETUP_COLORS.trigger, fill: SETUP_COLORS.leg };
-  return { stroke: SETUP_COLORS.formingStroke, fill: SETUP_COLORS.forming };
-}
-
-function pct(x: number): string {
-  return `${x >= 0 ? '+' : ''}${(x * 100).toFixed(1)}%`;
-}
-
-/** The lane's drawable levels: an armed setup's, else what a forming one would arm with. */
-function levelsOf(lane: SetupLane): { trigger: number; stop: number; bars: number; end: number | null } | null {
-  if (lane.setup && lane.state !== 'watching') {
-    return { trigger: lane.setup.trigger, stop: lane.setup.stop, bars: lane.setup.pullback_bars ?? 0,
-      end: lane.setup.armed_bar_t ?? null };
-  }
-  if (lane.forming) return { trigger: lane.forming.trigger, stop: lane.forming.stop, bars: lane.forming.bars, end: null };
-  return null;
-}
-
-function laneShapes(lane: SetupLane, lead: boolean, o: DrawOptions): { boxes: SceneBox[]; segments: SceneSegment[] } {
-  const boxes: SceneBox[] = [];
-  const segments: SceneSegment[] = [];
-  const leg = lane.leg;
-  if (!LIVE_DRAWN.has(lane.state) && !lane.forming) return { boxes, segments };
-  // A failed setup stays on the chart faded for as long as the scanner shows it, saying why (once the
-  // past setups are read, it is drawn as past instead: `paneDraw`).
-  const failed = lane.state === 'failed';
-  const bright = lead && !failed;
-  const c = bright ? tone(lane.state === 'leg' || lane.state === 'pullback' ? 'forming' : lane.state)
-    : { stroke: SETUP_COLORS.fadedStroke, fill: SETUP_COLORS.faded };
-  const legFill = bright ? SETUP_COLORS.leg : SETUP_COLORS.faded;
-  const legStroke = bright ? SETUP_COLORS.legStroke : SETUP_COLORS.fadedStroke;
-  const tag = failed ? ` · FAILED: ${shortReason(lane.reason) || 'a rule broke'}` : '';
-  const lv = levelsOf(lane);
-  const lastT = lane.series?.bars_as_of ?? null;
-  const endT = lv?.end ?? lastT;
-  const hoverId = laneHoverId(lane.setup_type);
-  const box = (t1s: number, t2s: number, p1: number, p2: number, fill: string, stroke: string, labelText: string,
-    dashed = false, labelBelow = false) => {
-    const t1 = o.toTime(t1s);
-    const t2 = o.toTime(t2s);
-    if (t1 === null || t2 === null) return;
-    boxes.push({ t1, t2, p1, p2, fill, stroke, dashed, label: labelText, labelColor: stroke, labelBelow, hoverId });
-  };
-  const type = lane.setup_type;
-  const provisional = !lane.setup;
-  if (type === 'first_pullback' || type === 'bull_flag') {
-    if (leg) {
-      const start = type === 'bull_flag' && leg.bars ? leg.t - (leg.bars - 1) * MIN : (o.legStart?.(leg) ?? leg.t - 5 * MIN);
-      box(start, leg.t, leg.low, leg.high, legFill, legStroke, `${type === 'bull_flag' ? 'POLE' : 'LEG'} ${pct(leg.pct)}`);
-    }
-    const legBoxes = boxes.length;
-    if (lv && leg && endT !== null && endT > leg.t) {
-      const prog = type === 'bull_flag' ? formingProgress(lane) : null;
-      const n = lv.bars ? ` ${lv.bars}` : '';
-      box(leg.t + MIN, endT, lv.stop, lv.trigger, c.fill, c.stroke,
-        `${type === 'bull_flag' ? `FLAG${prog ? ` ${prog}` : n}` : `PULLBACK${n}`}${tag}`, provisional, true);
-    }
-    // Failed before its flag or pullback was drawn (NCPL 2026-09-29: a pole): the pole says so.
-    if (failed && legBoxes === 1 && boxes.length === 1) boxes[0] = { ...boxes[0], label: `${boxes[0].label}${tag}` };
-  } else if (type === 'flat_top_breakout') {
-    if (lv && leg && endT !== null) {
-      box(leg.t, endT, lv.stop, lv.trigger, c.fill, c.stroke, `BASE${lv.bars ? ` ${lv.bars}` : ''}${tag}`, provisional, true);
-      const t1 = o.toTime(leg.t);
-      if (t1 !== null) segments.push({ t1, price: lv.trigger, color: c.stroke, dashed: true, label: `FLAT TOP ${fmtPx(lv.trigger)}` });
-    }
-  } else if (type === 'red_to_green' && leg) {
-    const t1 = o.toTime(leg.t);
-    if (t1 !== null) {
-      segments.push({ t1, price: leg.high, color: bright ? SETUP_COLORS.trigger : SETUP_COLORS.fadedStroke, dashed: true,
-        label: `OPEN ${fmtPx(leg.high)}` });
-    }
-    if (lastT !== null && leg.low < leg.high) {
-      box(leg.t, lastT, leg.low, leg.high, bright ? SETUP_COLORS.risk : SETUP_COLORS.faded,
-        bright ? SETUP_COLORS.stop : SETUP_COLORS.fadedStroke, `RED${leg.bars ? ` ${leg.bars}` : ''}${tag}`, true, true);
-    }
-  }
-  return { boxes, segments };
 }
 
 /** The plan's zones, from the consolidation's last bar to the pane's right edge. */
@@ -271,6 +192,15 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
         scene.boxes.push(...planZones(lv, start, o));
         if (lv.stop && lv.target) scene.keepInView = { min: lv.stop.price, max: lv.target.price };
       }
+      // A 5-minute setup armed or near its trigger: one dashed line here (the chip is the legend's).
+      lines.push(...fiveMinuteOnMinute(read).lines);
+    } else if (o.pane === 'map') {
+      // The 5-minute setups: drawn on this pane only (operator decision 2026-09-30).
+      const f = fiveMinuteScene(read, { toTime: o.toTime, legStart: o.legStart, hidden: o.layers.hidden,
+        past: o.layers.past ? o.past5 ?? null : null });
+      scene.boxes.push(...f.boxes);
+      scene.segments.push(...f.segments);
+      lines.push(...f.lines);
     }
   }
   const pin = o.pane === 'full' ? o.call?.pin ?? null : null;

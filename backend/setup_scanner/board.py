@@ -17,6 +17,7 @@ from constants_bot import BOT_LEVEL_EYES
 from constants_setups import SETUPS_SCHEMA_VERSION
 from scanner_wire import wire_safe
 from setup_scanner.detectors import window, window_state
+from setup_scanner.five_minute_lane import is_five_minute
 
 
 def template_view(lane: Any) -> dict[str, Any] | None:
@@ -35,7 +36,7 @@ def setup_summary(lane: Any, lanes: list[Any], levels: dict, now: float, *, can_
         "id": setup, "level": level, "chosen": levels.get("chosen") == setup,
         "proposing": can_propose and level >= BOT_LEVEL_EYES,
         "template": template_view(lane),
-        "templates_watched": sum(1 for other in lanes if other.setup == setup),
+        "templates_watched": sum(1 for other in lanes if other.setup == setup and not is_five_minute(other)),
         "window": {"start": start, "end": end, "state": window_state(now, start, end)},
         "counts": lane.counts(),
     }

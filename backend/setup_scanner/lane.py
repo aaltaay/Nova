@@ -34,17 +34,18 @@ from constants_setups import (
     SETUP_STATE_NEAR,
     SETUP_STATE_TRIGGERED,
     SETUP_TEMPLATE_DEFAULT_ID,
-    SETUPS_SCORE_WINDOW_MIN,
+    SETUPS_BAR_SEC,
     TAPE_VERDICT_BLIND,
     TAPE_VERDICT_GO,
 )
 from setup_scanner import grade as _grade
 from setup_scanner import lane_view
-from setup_scanner.bars import Bar, minute_start
-from setup_scanner.detector import TriggerDetector
+from setup_scanner.bars import Bar
+from setup_scanner.detector import TriggerDetector, candle_start
 from setup_scanner.detectors import make_detector
 from setup_scanner.lane_params import LaneParams
 from setup_scanner import five_minute, lane_announce, lane_flow, lane_journal, tape_flow
+from setup_scanner.five_minute_lane import Candles
 from setup_scanner.scoring import ScoreTracker
 from setup_scanner.tape_gate import evaluate as evaluate_tape
 
@@ -73,6 +74,7 @@ class Lane:
         self.filtered: dict[str, str] = {}
         self.forming: dict[str, dict] = {}        # symbol -> the pillars read when its current leg made its high
         self.tf5: dict[str, dict | None] = {}     # symbol -> the 5-minute chart's read at its last closed bar
+        self.candles = Candles()                  # a 5-minute lane's candles per symbol (five_minute_lane.py)
         self.alerts: list[dict] = []
         self._tape_said: dict[str, str] = {}
         self._said: dict[str, tuple[str, str]] = {}          # the (state, reason) the journal implies
@@ -108,8 +110,8 @@ class Lane:
     # -- symbols ----------------------------------------------------------------
     def clear(self) -> None:
         for store in (self.det, self.rows, self.active_id, self.trackers, self.tape_view,
-                      self.proposals, self.filtered, self.forming, self.tf5, self._tape_said, self._said,
-                      self._priced, self.flow_last, self._flow_said, self._flow_next):
+                      self.proposals, self.filtered, self.forming, self.tf5, self.candles, self._tape_said,
+                      self._said, self._priced, self.flow_last, self._flow_said, self._flow_next):
             store.clear()
         self.alerts = []
 
@@ -146,8 +148,12 @@ class Lane:
 
     # -- feed -------------------------------------------------------------------
     def on_bars(self, sym: str, bars: list[Bar], now: float, new_bar: Bar | None = None) -> None:
+        five = self.p.bar_sec != SETUPS_BAR_SEC
+        if five and (bars := self.candles.feed(sym, bars, now)[0]) is None:
+            return                                 # no 5-minute candle completed: nothing for the detector
+        new_bar = bars[-1] if five and bars else new_bar
         det = self.ensure(sym)
-        self.tf5[sym] = five_minute.context(bars, now)
+        self.tf5[sym] = None if five else five_minute.context(bars, now)
         self.handle(sym, det.on_bars(bars), now)
         lane_journal.say_state(self, sym, det)
         if new_bar is not None:
@@ -159,6 +165,8 @@ class Lane:
         det = self.det.get(sym)
         if det is None:
             return
+        if self.p.bar_sec != SETUPS_BAR_SEC:
+            bar_open = self.candles.bar_open(sym, ts, bar_open)
         self.handle(sym, det.on_price(price, ts, bar_open=bar_open), ts)
         lane_journal.say_state(self, sym, det)
         lane_journal.say_price(self, sym, det, ts)
@@ -170,7 +178,7 @@ class Lane:
         """Close the scoring of trades whose window has passed."""
         for sid in list(self.trackers):
             tr = self.trackers[sid]
-            if tr.exit_px is not None and now > tr.triggered_at + SETUPS_SCORE_WINDOW_MIN * 60 and tr.outcome != "open":
+            if tr.exit_px is not None and now > tr.triggered_at + tr.window_min * 60 and tr.outcome != "open":
                 self._score(sid)
                 self.trackers.pop(sid, None)
 
@@ -230,8 +238,8 @@ class Lane:
                 self.trackers[sid] = ScoreTracker(
                     entry=float(setup["entry"]), stop=float(setup["stop"]), target1=float(setup["target1"]),
                     risk=float(setup["risk"]), triggered_at=ts,
-                    entry_bar_t=float(setup.get("score_bar_t") or minute_start(ts)),
-                    bailout_bars=self.p.bailout_bars,
+                    entry_bar_t=float(setup.get("score_bar_t") or candle_start(self.p, ts)),
+                    bailout_bars=self.p.bailout_bars, window_min=self.p.score_window_min, bar_sec=self.p.bar_sec,
                     half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)), flush=self.p.flush)
                 self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
                              tape=tape, reason=view["reason"], tf5=row["tf5_trigger"])

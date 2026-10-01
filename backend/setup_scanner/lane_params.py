@@ -19,7 +19,13 @@ from constants_bot import (
     BOT_SETUP_FLAT_TOP,
     BOT_SETUP_RED_TO_GREEN,
 )
-from constants_setups import SETUPS_GRADE_A, SETUPS_GRADE_B, SETUPS_GRADE_C
+from constants_setups import (
+    SETUPS_BAR_SEC,
+    SETUPS_GRADE_A,
+    SETUPS_GRADE_B,
+    SETUPS_GRADE_C,
+    SETUPS_SCORE_WINDOW_MIN,
+)
 from setup_scanner.bull_flag import BullFlagParams
 from setup_scanner.flat_top import FlatTopParams
 from setup_scanner.pullback import PullbackParams
@@ -256,6 +262,8 @@ class LaneParams:
     setup: str = BOT_SETUP_FIRST_PULLBACK
     flow: FlowParams = DEFAULT_FLOW
     flush: FlushPolicy = FlushPolicy()
+    bar_sec: int = SETUPS_BAR_SEC                 # a 5-minute lane's candles (five_minute_lane.py): 300
+    score_window_min: int = SETUPS_SCORE_WINDOW_MIN
 
     @property
     def pullback(self) -> Any:

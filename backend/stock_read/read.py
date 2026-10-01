@@ -208,6 +208,6 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
         "session_date": datetime.fromtimestamp(now, ET).date().isoformat(),
         "price": d["price"], "prev_close": d["prev_close"], "change_pct": d["change_pct"],
         "followed": bool(view.get("followed")), "followed_note": view.get("followed_note"),
-        "setups": setups, "no_scanner": rows_trade.NO_SCANNER,
+        "setups": setups, "setups_5m": view.get("setups_5m") or [], "no_scanner": rows_trade.NO_SCANNER,
         "plan": plan, "levels": d["levels"], "level_map": levels, "groups": groups, "counts": counts,
     })

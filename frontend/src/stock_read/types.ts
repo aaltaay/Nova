@@ -167,6 +167,9 @@ export interface SetupLane {
   tape: TapeVerdict | null;
   window: SetupWindow | null;
   series: LaneSeries | null;
+  /** The lane's candles (2026-09-30): the setups in play read 1-minute ones; the built-in 5-minute lanes
+   *  (`setups_5m`) read 5-minute ones and draw only on the 5-minute chart. */
+  timeframe?: '1m' | '5m';
 }
 
 export interface ReadLevels {
@@ -190,6 +193,8 @@ export interface StockRead {
   followed: boolean;
   followed_note: string | null;
   setups: SetupLane[];
+  /** The 5-minute lanes (first pullback, bull flag, flat top on 5-minute candles): chart only, never a plan. */
+  setups_5m: SetupLane[];
   no_scanner: { setup_type: string; label: string; reason: string }[];
   plan: StockPlan | null;
   levels: ReadLevels;

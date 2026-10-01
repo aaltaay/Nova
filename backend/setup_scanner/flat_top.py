@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from constants_setups import (
+    SETUPS_BAR_SEC,
     SETUP_KIND_FLAT_TOP,
     SETUP_KIND_SECOND_FLAT_TOP,
     SETUP_STATE_ARMED,
@@ -66,11 +67,21 @@ from constants_setups import (
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_SESSION_START_ET,
     SETUPS_STOP_CAP_DOLLARS,
+    SETUPS_STOP_CAP_PCT,
     SETUPS_TARGET_FIXED_DOLLARS,
     SETUPS_TARGET_R,
 )
-from setup_scanner.bars import Bar, minute_start
-from setup_scanner.detector import EPS, TriggerDetector, et_time, forming_levels, hhmm, risk_blocked, window_blocked
+from setup_scanner.bars import Bar
+from setup_scanner.detector import (
+    EPS,
+    TriggerDetector,
+    candle_start,
+    et_time,
+    forming_levels,
+    hhmm,
+    risk_blocked,
+    window_blocked,
+)
 
 
 @dataclass(frozen=True)
@@ -89,6 +100,8 @@ class FlatTopParams:
     macd_slow: int = SETUPS_MACD_SLOW
     macd_signal: int = SETUPS_MACD_SIGNAL
     stop_cap: float = SETUPS_STOP_CAP_DOLLARS
+    stop_cap_pct: float | None = SETUPS_STOP_CAP_PCT     # a 5-minute lane's cap, as a share of the entry
+    bar_sec: int = SETUPS_BAR_SEC                         # the candle's length (a 5-minute lane: 300)
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
@@ -185,11 +198,11 @@ class FlatTopDetector(TriggerDetector):
         self.leg = {k: cand[k] for k in ("t", "high", "low", "pct", "bars")}
         entry = round(level + p.entry_offset, 4)
         risk = round(entry - base_low, 4)
-        blocked = window_blocked(p, bars[last].t + 60)
+        blocked = window_blocked(p, bars[last].t + p.bar_sec)
         if blocked is None and p.macd_positive and s.hist[last] <= 0:
             blocked = "MACD negative -- not on the front side"
         if blocked is None and p.breaks:
-            blocked = risk_blocked(p, risk)
+            blocked = risk_blocked(p, risk, entry=entry)
         if blocked:
             self.armed, self.broke = None, None
             self.forming = forming_levels(level, entry, base_low, p.target1(entry, risk), bars=m, blocked=blocked)
@@ -205,7 +218,7 @@ class FlatTopDetector(TriggerDetector):
             "leg_t": cand["t"], "trigger": round(level, 4), "entry": entry, "stop": round(base_low, 4),
             "risk": risk, "target1": p.target1(entry, risk), "pullback_bars": m, "leg_high": level,
             "leg_low": cand["low"], "leg_pct": cand["pct"], "armed_bar_t": bars[last].t,
-            "armed_at": (prev or {}).get("armed_at") or bars[last].t + 60, "kind": self.kind_now(),
+            "armed_at": (prev or {}).get("armed_at") or bars[last].t + p.bar_sec, "kind": self.kind_now(),
             "detail": {"entry_mode": p.entry_mode, "base_low": round(base_low, 4), "broke_at": None,
                        "hold_bars": p.hold_bars},
         }
@@ -226,7 +239,7 @@ class FlatTopDetector(TriggerDetector):
             return self._near_check(price)
         if et_time(ts) >= hhmm(self.cutoff()):
             return self._disarm(self.armed, "the entry window closed before the break")
-        self.broke = {"at": ts, "bar_t": minute_start(ts)}
+        self.broke = {"at": ts, "bar_t": candle_start(self.p, ts)}
         self.armed = {**self.armed, "detail": {**(self.armed.get("detail") or {}), "broke_at": ts}}
         was = self.state
         self._set(SETUP_STATE_NEAR, f"broke the {trig:.2f} high -- the first of the next {self.p.hold_bars} candles "
@@ -251,13 +264,13 @@ class FlatTopDetector(TriggerDetector):
             entry = round(b.c + self.p.entry_offset, 4)
             stop = round(b.lo, 4)
             risk = round(entry - stop, 4)
-            why = risk_blocked(self.p, risk, slippage=False)
+            why = risk_blocked(self.p, risk, entry=entry, slippage=False)
             if why:
                 return self._disarm(prev, f"the hold candle's {why}")
             self.nth += 1
             self.triggered = {
                 **prev, "entry": entry, "stop": stop, "risk": risk, "target1": self.p.target1(entry, risk),
-                "triggered_at": b.t + 60, "nth": self.nth, "trigger_price": b.c, "score_bar_t": b.t,
+                "triggered_at": b.t + self.p.bar_sec, "nth": self.nth, "trigger_price": b.c, "score_bar_t": b.t,
                 "half_on_entry_bar": False, "detail": {**(prev.get("detail") or {}), "hold_bar_t": b.t},
             }
             self.broke = None

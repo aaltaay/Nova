@@ -202,6 +202,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const levels = preview ? null : ctx?.who.levels ?? null;
   const call = ctx?.who.moment?.call ?? null;
   const past = ctx?.past.data?.symbol === ctx?.symbol ? ctx?.past.data?.episodes ?? null : null;
+  const past5 = ctx?.past5?.data?.symbol === ctx?.symbol ? ctx?.past5?.data?.episodes ?? null : null;
   const draw = useMemo(() => paneDraw(read, {
     pane: kind,
     layers: ctx?.layers ?? { setups: false, levels: false, past: false, labels: 'compact', hidden: [], plan: 'auto' },
@@ -215,9 +216,10 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     levels,
     call,
     past,
-  }), [read, kind, ctx?.layers, index, series, ctx?.focus, focusEvent, levels, call, past]);
+    past5,
+  }), [read, kind, ctx?.layers, index, series, ctx?.focus, focusEvent, levels, call, past, past5]);
   const hover = useShapeHover(chart, (kind === 'full' || kind === 'map' || kind === 'daily') && enabled, containerRef);
-  const story = hover && read ? shapeStory(hover.id, read, past) : null;
+  const story = hover && read ? shapeStory(hover.id, read, past, past5) : null;
 
   // The shapes: one primitive per pane, fed a new scene whenever the read or the bars change.
   const primitive = useRef<SetupShapesPrimitive | null>(null);

@@ -40,6 +40,7 @@ from typing import ClassVar
 from zoneinfo import ZoneInfo
 
 from constants_setups import (
+    SETUPS_BAR_SEC,
     SETUP_KIND_FIRST_PULLBACK,
     SETUP_KIND_SECOND_PULLBACK,
     SETUP_STATE_ARMED,
@@ -71,6 +72,7 @@ from constants_setups import (
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_SESSION_START_ET,
     SETUPS_STOP_CAP_DOLLARS,
+    SETUPS_STOP_CAP_PCT,
     SETUPS_TARGET_FIXED_DOLLARS,
     SETUPS_TARGET_MODE,
     SETUPS_TARGET_R,
@@ -100,6 +102,8 @@ class PullbackParams:
     macd_slow: int = SETUPS_MACD_SLOW
     macd_signal: int = SETUPS_MACD_SIGNAL
     stop_cap: float = SETUPS_STOP_CAP_DOLLARS
+    stop_cap_pct: float | None = SETUPS_STOP_CAP_PCT     # a 5-minute lane's cap, as a share of the entry
+    bar_sec: int = SETUPS_BAR_SEC                         # the candle's length (a 5-minute lane: 300)
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
@@ -209,14 +213,14 @@ class PullbackDetector(TriggerDetector):
         trig = h[last]
         entry = round(trig + self.p.entry_offset, 4)
         risk = round(entry - pb_low, 4)
-        next_t = et_time(bars[last].t + 60)
+        next_t = et_time(bars[last].t + self.p.bar_sec)
         blocked = None
         if not (_hhmm(self.p.session_start) <= next_t < _hhmm(self.p.entry_cutoff)):
             blocked = f"outside the entry window {self.p.session_start}-{self.p.entry_cutoff} ET"
         elif self.p.macd_positive and hist[last] <= 0:
             blocked = "MACD negative -- not on the front side"
         else:
-            blocked = risk_blocked(self.p, risk)
+            blocked = risk_blocked(self.p, risk, entry=entry)
         if blocked:
             self.armed = None
             self.forming = forming_levels(trig, entry, pb_low, self.p.target1(leg["high"], entry, risk), bars=m,
@@ -232,7 +236,7 @@ class PullbackDetector(TriggerDetector):
             "leg_t": leg["t"], "trigger": round(trig, 4), "entry": entry, "stop": round(pb_low, 4),
             "risk": risk, "target1": self.p.target1(leg["high"], entry, risk),
             "pullback_bars": m, "leg_high": leg["high"], "leg_low": leg["low"], "leg_pct": leg["pct"],
-            "armed_bar_t": bars[last].t, "armed_at": (prev or {}).get("armed_at") or bars[last].t + 60,
+            "armed_bar_t": bars[last].t, "armed_at": (prev or {}).get("armed_at") or bars[last].t + self.p.bar_sec,
             "kind": self.kind_now(), "detail": None,
         }
         self._set(SETUP_STATE_ARMED, f"trigger {trig:.2f}, stop {pb_low:.2f}, risk {risk:.2f}")

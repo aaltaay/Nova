@@ -19,6 +19,9 @@ bid (``exit``), by ``tape_flow.flush_action`` -- the rule Nova's bot follows too
 Its exits are named: ``flush`` (and ``flush_runner`` after the half), and a
 tightened stop that is hit ``flush_stop`` / ``flush_stop_runner``.
 
+A 5-minute lane (``five_minute_lane.py``) feeds its own 5-minute candles: the bailout and the 9 EMA exit
+count 5-minute candles (``bar_sec``), and its first touch, MFE and MAE are read over ``window_min``.
+
 Pure: the engine feeds prices, completed bars and flow readings.
 """
 from __future__ import annotations
@@ -32,6 +35,7 @@ from constants_setups import (
     SETUP_OUTCOME_STOP_FIRST,
     SETUP_OUTCOME_TARGET_FIRST,
     SETUPS_BAILOUT_BARS,
+    SETUPS_BAR_SEC,
     SETUPS_SCORE_FLAT_BY_ET,
     SETUPS_SCORE_WINDOW_MIN,
 )
@@ -71,6 +75,8 @@ class ScoreTracker:
     flush_tightened: bool = False
     flush_action: str | None = None    # the last thing a flush did: "tighten" | "exit"
     flush_at: float | None = None
+    window_min: int = SETUPS_SCORE_WINDOW_MIN   # MFE / MAE and the flow are read this long after the trigger
+    bar_sec: int = SETUPS_BAR_SEC              # the candles fed: a minute, or a 5-minute lane's five
     _entry_bar_done: bool = field(default=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -85,7 +91,7 @@ class ScoreTracker:
         """Returns True when the first-touch outcome changed."""
         if ts < self.triggered_at:
             return False
-        if ts <= self.triggered_at + SETUPS_SCORE_WINDOW_MIN * 60:
+        if ts <= self.triggered_at + self.window_min * 60:
             self.mfe = max(self.mfe, price - self.entry)
             self.mae = min(self.mae, price - self.entry)
         if self.outcome != SETUP_OUTCOME_OPEN or _flat_by(ts):
@@ -128,7 +134,7 @@ class ScoreTracker:
         return False
 
     def _exit(self, px: float, bar: Bar, reason: str) -> bool:
-        self.exit_px, self.exit_reason, self.closed_at = px, reason, bar.t + 60
+        self.exit_px, self.exit_reason, self.closed_at = px, reason, bar.t + self.bar_sec
         return True
 
     def _stop_reason(self, plain: str) -> str:

@@ -7,6 +7,7 @@
 import { tipProps, whyProps } from '../ux';
 import { laneChip, planBadgeText } from './chartShapes';
 import { ChartKey } from './ChartKey';
+import { fiveMinuteOnMinute } from './fiveMinuteShapes';
 import { chartKey } from './paneKeyRows';
 import { CallBox, MomentTrack } from './MomentTrack';
 import { drawnPast, pastCounts } from './pastSetups';
@@ -132,6 +133,17 @@ export function ChartLegend({ ctx, read, onFrame }: {
             })}
             <PastChip ctx={ctx} />
             <LabelsChip ctx={ctx} />
+            {fiveMinuteOnMinute(read).chips.map(c => (
+              <span
+                key={`5m-${c.setupType}`}
+                className="sr-legend__chip sr-legend__chip--live sr-legend__chip--five"
+                {...tipProps(c.tip, '5-minute setup')}
+                data-testid={`stock-read-legend-5m-${c.setupType}`}
+              >
+                <i className="sr-legend__dot" aria-hidden="true" />
+                {c.text}
+              </span>
+            ))}
             {read.no_scanner.filter(ns => LEGEND_NO_SCANNER.has(ns.setup_type)).map(ns => (
               <button
                 key={ns.setup_type}
