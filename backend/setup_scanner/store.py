@@ -10,7 +10,9 @@ refused loudly rather than read wrong (persisted-state rule). Version 2 (ADR
 its rows become the default template's -- the rules that armed them. Version 3
 (ADR 031) adds the setup that armed the row (``setup_type``) and its own facts
 (``detail``, JSON); a version-2 file is migrated in place, its rows the first
-pullback's, and a version-1 file migrates through 2.
+pullback's, and a version-1 file migrates through 2. Version 4 (trial T8) adds the 5-minute chart's read
+when the setup armed and when it triggered (``tf5_armed`` / ``tf5_trigger``, JSON,
+``setup_scanner.five_minute.context``); a version-3 file is migrated in place and its rows read as unknown.
 """
 from __future__ import annotations
 
@@ -43,9 +45,9 @@ COLUMNS: tuple[str, ...] = (
     "failed_at", "fail_reason", "disarmed_at",
     "outcome", "outcome_at", "mfe", "mae", "bar_r", "bar_exit_reason", "closed_at",
     "proposal_id", "updated_at", "template_id", "template_rev", "params_hash",
-    "setup_type", "detail",
+    "setup_type", "detail", "tf5_armed", "tf5_trigger",
 )
-JSON_COLUMNS = frozenset({"pillars", "near_tape", "trigger_tape", "detail"})
+JSON_COLUMNS = frozenset({"pillars", "near_tape", "trigger_tape", "detail", "tf5_armed", "tf5_trigger"})
 TEXT_COLUMNS = JSON_COLUMNS | {"kind", "state", "reason", "grade", "fail_reason", "outcome", "bar_exit_reason",
                                "proposal_id", "template_id", "params_hash", "setup_type"}
 INT_COLUMNS = frozenset({"template_rev"})
@@ -68,6 +70,7 @@ CREATE INDEX IF NOT EXISTS setups_setup_type ON setups (setup_type, template_id,
 """
 _V2_COLUMNS = ("template_id", "template_rev", "params_hash")
 _V3_COLUMNS = ("setup_type", "detail")
+_V4_COLUMNS = ("tf5_armed", "tf5_trigger")
 
 
 class StoreVersionError(RuntimeError):
@@ -95,7 +98,7 @@ class SetupStore:
             ver = self._conn.execute("PRAGMA user_version").fetchone()[0]
             tables = self._conn.execute(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='setups'").fetchone()[0]
-            if ver not in (0, 1, 2, SETUPS_DB_SCHEMA_VERSION) or (ver == 0 and tables):
+            if ver not in (0, 1, 2, 3, SETUPS_DB_SCHEMA_VERSION) or (ver == 0 and tables):
                 raise StoreVersionError(
                     f"{self.path.name} has schema version {ver}; this build reads {SETUPS_DB_SCHEMA_VERSION}. "
                     "Move the file aside to start a new scoreboard.")
@@ -103,6 +106,8 @@ class SetupStore:
                 self._migrate_v1()
             if ver in (1, 2):
                 self._migrate_v2()
+            if ver in (1, 2, 3):
+                self._migrate_v3()
             self._conn.executescript(_SCHEMA)
             self._conn.execute(f"PRAGMA user_version = {SETUPS_DB_SCHEMA_VERSION}")
             self._conn.commit()
@@ -130,6 +135,14 @@ class SetupStore:
                 self._conn.execute(f"ALTER TABLE setups ADD COLUMN {col} {_type(col)}")
         self._conn.execute("UPDATE setups SET setup_type = ? WHERE setup_type IS NULL", (BOT_SETUP_FIRST_PULLBACK,))
         logger.info("setups.db migrated to schema 3: earlier rows are the first pullback's")
+
+    def _migrate_v3(self) -> None:
+        """v3 -> v4: the 5-minute chart's read at arm and trigger (trial T8); older rows read as unknown."""
+        have = {r[1] for r in self._conn.execute("PRAGMA table_info(setups)").fetchall()}
+        for col in _V4_COLUMNS:
+            if col not in have:
+                self._conn.execute(f"ALTER TABLE setups ADD COLUMN {col} {_type(col)}")
+        logger.info("setups.db migrated to schema 4: earlier rows carry no 5-minute read")
 
     def upsert(self, row: dict[str, Any]) -> None:
         data = {k: row.get(k) for k in COLUMNS if k in row}

@@ -35,6 +35,7 @@ export {
   type Words,
 } from './setupWords';
 export { gradeLabel, gradeWords, pillarCount, type PillarCount } from './pillarWords';
+export { TF5_TRIAL_NOTE, tf5Words, type Tf5Tone } from './tf5Words';
 export type {
   Scoreboard,
   SetupCounts,

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "registry": "signal-trials",
+  "version": 3,
+  "adr": "architecture/decisions/041-signal-trials.md",
+  "follows": "knowledge/signal-trials-2.json",
+  "registered_at": "2026-09-30",
+  "data_from": "2026-10-01",
+  "frozen": true,
+  "note": "The third registry version: trials registered after signal-trials-2.json was frozen. Pre-registered before any setups.db row carried the 5-minute read it tests (the scanner records it from the release that ships with this file; no row dated 2026-10-01 or later existed when it was written). Every rule, population, metric, sample and pass line below is fixed; a change means a new trial on new days in a new registry version, never an edit here (backend/tests/test_signal_trials_registry_3.py holds the file to its hash). The reading, multiplicity and peeking rules are signal-trials.json's: each trial is read once when its sample is complete, Holm-adjusted with every trial read the same night. None of them places an order: Nova never buys or sells on Live by itself (Invariant 7, auto_live NO-GO).",
+  "trials": [
+    {
+      "id": "T8",
+      "name": "The 5-minute chart against a 1-minute setup at its trigger",
+      "role": "buy_warning",
+      "signal": "At the trigger, the 5-minute chart does not agree with the 1-minute setup: the last complete 5-minute candle's close is not over the 9-period EMA of the 5-minute closes, or the 5-minute MACD (12, 26, 9) histogram is not over 0. The 5-minute candles are made on the clock from 04:00 ET of the setup scanner's own one-minute bars that closed before the trigger minute; a candle counts once its five minutes are over and five minutes without a bar make none; the EMAs seed with the first close (setup_scanner/five_minute.py). Recorded on the row as setups.db tf5_trigger.",
+      "rule": "Shown on every 1-minute setup row and on the plan as '5m agrees' or '5m against', a description that blocks nothing (operator decision 2026-09-30: 'Show it and test it').",
+      "population": "Triggered setups of the templates in play in setups.db, armed on or after data_from, scored by the scanner (bar_r, gross), whose row carries tf5_trigger with agrees true or false. Rows without it (written by an older backend, or with no complete 5-minute candle before the trigger) are reported, not counted.",
+      "primary_metric": "Mean gross bar_r of triggers where the 5-minute chart agreed minus that of triggers where it did not, in R.",
+      "test": "Cluster bootstrap over symbol-days, 10,000 draws; one-sided.",
+      "sample": {
+        "min_symbol_days_agree": 40,
+        "min_symbol_days_against": 40,
+        "min_session_days": 8
+      },
+      "pass": [
+        "the difference is +0.2R or more",
+        "Holm-adjusted p < 0.05"
+      ],
+      "reported_not_deciding": [
+        "net of 1c a fill",
+        "by setup type",
+        "by session (before 09:30, 09:30-10:00, after 10:00)",
+        "by session day",
+        "each part alone (the close over the 9 EMA; the histogram over 0)",
+        "the read when the setup armed (tf5_armed) as well as at the trigger",
+        "rows with fewer than 35 complete 5-minute candles"
+      ],
+      "on_pass": "'5m against' becomes an amber warning on the plan and on the setup rows. It stays a description: nothing places, stages or blocks on it.",
+      "on_fail": "It stays a neutral description, with this result on its hover.",
+      "in_sample": {
+        "study": "F:\\Nova\\eyes\\studies\\mtf-alignment-2026-09-30",
+        "evidence": "The research harness's 1,050 base-run trades (first pullback 589, flat top 63, red to green 398; five years of minute bars; the split pre-registered before it ran): agree minus disagree pooled +0.10R, 95% CI -0.08 to +0.28 (693 / 357 trades); first pullback +0.18R [-0.11, +0.47]; red to green +0.40R [+0.02, +0.80], not robust to a Holm correction and carried by its five biggest winners; flat top too few to read. The agreeing trades still lost: -0.27R (PF 0.61). It leaned the right way and did not hold, so it is tested live with the tape gate before it says anything louder."
+      }
+    }
+  ]
+}

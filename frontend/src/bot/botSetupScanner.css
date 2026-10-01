@@ -87,6 +87,10 @@
 .bots-scan__row--filtered td { opacity: 0.55; }
 .bots-scan__grade { white-space: nowrap; font-family: var(--bots-mono); }
 .bots-scan__grade--forming { font-style: italic; color: var(--nova-text-muted); }
+/* The 5-minute chart's read (trial T8): a description, so neither tone is a warning colour. */
+.bots-tf5 { white-space: nowrap; font-family: var(--bots-mono); }
+.bots-tf5--agrees { color: var(--success); }
+.bots-tf5--against { color: var(--nova-text-muted); }
 .bots-scan__sym b { font-family: var(--bots-mono); font-size: 12px; }
 .bots-scan__proposed {
   margin-left: 5px;

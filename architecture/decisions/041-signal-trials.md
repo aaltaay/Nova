@@ -128,3 +128,24 @@ Holm across every trial read the same night). Its first trial:
   while the levels were designed). Pass: the difference in mean gross `bar_r` against the rest is -0.2R or
   worse, Holm-adjusted p < 0.05, with 40 symbol-days each side over 8 session days. On pass it becomes a
   NOT A TRADE reason; on fail it stays a warning with the result on its hover.
+
+## Amendment 2026-09-30 (evening) -- T8 and the third registry version
+
+The operator, on 1-minute setups and the 5-minute chart: "sometimes the 1-minute setup aligns well with the
+5-minute setup. It is a powerful strategy, and I want to make sure we are utilizing all of that"; offered
+"show it and test it", "show it only" or "not now", they chose to show it and test it. The second registry
+is frozen, so the trial goes in `knowledge/signal-trials-3.json` (`version: 3`, `follows` the second; held to
+its own hash by `backend/tests/test_signal_trials_registry_3.py`; the same reading, multiplicity and peeking
+rules):
+
+- **T8** The 5-minute chart against a 1-minute setup at its trigger (`setup_scanner/five_minute.py`: the last
+  complete 5-minute candle's close over its 9 EMA and the 5-minute MACD histogram over 0, from the scanner's
+  own minutes before the trigger minute; recorded as `setups.db` `tf5_trigger`), as a warning. Population:
+  triggered setups of the templates in play armed from 2026-10-01 whose row carries the read. Pass: agree
+  minus against in mean gross `bar_r` is +0.2R or more, Holm-adjusted p < 0.05, with 40 symbol-days each side
+  over 8 session days. On pass "5m against" becomes an amber warning on the plan and the setup rows; on fail it
+  stays a neutral description with the result on its hover. Shown from the start as a description.
+- **In sample** (`F:\Nova\eyes\studies\mtf-alignment-2026-09-30`, the split pre-registered before it ran): on
+  the harness's 1,050 base-run trades the difference was +0.10R pooled (95% CI -0.08 to +0.28); red to green
+  +0.40R [+0.02, +0.80] did not survive Holm and rested on its five biggest winners; the agreeing trades still
+  lost -0.27R. A filter it is not; a lead for the live tape-gated setups it may be.

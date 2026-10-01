@@ -23,6 +23,16 @@ FORMING_STATES = (SETUP_STATE_LEG, SETUP_STATE_PULLBACK)
 STATE_FILTERED = "filtered"          # a board / journal state only: the detector never holds it
 ORDER = {SETUP_STATE_NEAR: 0, SETUP_STATE_ARMED: 1, SETUP_STATE_TRIGGERED: 2, SETUP_STATE_PULLBACK: 3,
          SETUP_STATE_LEG: 4, STATE_FILTERED: 5, SETUP_STATE_FAILED: 6}
+# Why an open proposal closed, as the Bots page timeline says it.
+PROPOSAL_CLOSE_REASONS = {
+    "rearmed": "re-armed at new levels -- the next go raises a fresh one",
+    "disarmed": "the setup disarmed",
+    "failed": "the setup failed before its trigger",
+    "triggered": "the trigger printed",
+    "template": "another template went in play",
+    "edited": "the template's rules changed",
+    "deleted": "the template was deleted",
+}
 TRIGGERED_SHOW_SEC = 30 * 60
 FAILED_SHOW_SEC = 5 * 60
 # The detector state an eyes' journal line says the symbol is in after it (a ``state`` line
@@ -94,6 +104,19 @@ def graded(row: dict | None, forming: dict | None, state: str) -> dict[str, Any]
     return {"grade": None, "pillars": None, "graded": None}
 
 
+def tf5_read(row: dict | None, forming: dict | None, state: str) -> dict[str, Any]:
+    """``tf5`` / ``tf5_at``: the 5-minute chart's read (``five_minute.context``) at the moment that matters for
+    the row -- at the trigger once it triggered, else when it armed, else (while the pattern forms) when its
+    leg made its high. Trial T8 reads the trigger's."""
+    if row is not None:
+        if row.get("triggered_at"):
+            return {"tf5": row.get("tf5_trigger"), "tf5_at": "trigger"}
+        return {"tf5": row.get("tf5_armed"), "tf5_at": "armed"}
+    if forming and state in FORMING_STATES:
+        return {"tf5": forming.get("tf5"), "tf5_at": "forming"}
+    return {"tf5": None, "tf5_at": None}
+
+
 def tape_brief(tape: dict | None) -> dict[str, Any] | None:
     """A tape read as a row names it: the verdict and its reasons."""
     return {"verdict": tape.get("verdict"), "reasons": tape.get("reasons")} if isinstance(tape, dict) else None
@@ -117,7 +140,7 @@ def _payload(lane: Any, sym: str, view: dict, sid: str | None, row: dict | None,
         "symbol": sym, "setup_type": lane.p.setup, "state": state, "reason": reason, "kind": view.get("kind"),
         "nth": view.get("nth"), "setup_id": sid if row else None, "setup": setup,
         "leg": view.get("leg"), "last_price": last, "distance": distance,
-        **graded(row, lane.forming.get(sym), state), "phase": phase,
+        **graded(row, lane.forming.get(sym), state), **tf5_read(row, lane.forming.get(sym), state), "phase": phase,
         "tape": {"verdict": tape.get("verdict"), "reasons": tape.get("reasons"),
                  "line": tape.get("line"), "metrics": tape.get("metrics")} if tape else None,
         "trigger_tape": tape_brief((row or {}).get("trigger_tape")),

@@ -98,6 +98,20 @@ export interface SetupPillars {
   checks?: Record<string, boolean | null>;
 }
 
+/** The 5-minute chart's read on a 1-minute setup (trial T8, backend `setup_scanner/five_minute.py`): the last
+ *  complete 5-minute candle's close against the 9 EMA of 5-minute closes, and the 5-minute MACD histogram. */
+export interface Tf5Read {
+  agrees: boolean;
+  above_ema9: boolean;
+  macd_up: boolean;
+  close: number;
+  ema9: number;
+  macd_hist: number;
+  candles: number;
+  /** The last complete 5-minute candle's start, epoch seconds. */
+  as_of: number;
+}
+
 export interface SetupRow {
   symbol: string;
   /** ADR 031: which setup's scanner holds this row (absent on an older API: the first pullback). */
@@ -129,6 +143,10 @@ export interface SetupRow {
   mfe: number | null;
   mae: number | null;
   failed_at?: number | null;
+  /** The 5-minute chart's read (trial T8), null while it has no complete candle; absent on an older API. */
+  tf5?: Tf5Read | null;
+  /** When it was read: at the trigger, when the setup armed, or when its forming leg made its high. */
+  tf5_at?: 'trigger' | 'armed' | 'forming' | null;
 }
 
 /** Today's funnel for one setup's card (ADR 031). */

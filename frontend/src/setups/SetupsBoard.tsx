@@ -20,6 +20,7 @@ import {
   triggerWords,
 } from './setupWords';
 import { stageSetupTicket } from './stageSetupTicket';
+import { tf5Words } from './tf5Words';
 import type { SetupRow } from './types';
 
 interface BoardProps {
@@ -80,6 +81,7 @@ const COLUMNS: SortColumns<SetupRow> = {
   to_go: { value: r => (isActionable(r) && r.setup ? r.distance : null), first: 'asc' },
   tape: tapeRank,
   grade: r => r.grade,
+  tf5: r => (r.tf5 ? (r.tf5.agrees ? 1 : 0) : null),
   r: r => (r.state === 'triggered' ? r.bar_r : null),
   why: r => r.reason,
 };
@@ -95,6 +97,7 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
   const trig = triggerWords(row);
   const toGo = toGoWords(row);
   const grade = gradeWords(row);
+  const tf5 = tf5Words(row);
   const kind = kindWords(row);
   const broke = row.state === 'near' && Boolean(s?.detail?.broke_at);
   const limit = stagedLimit(row);
@@ -127,6 +130,11 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
       </td>
       <td><TapeCell row={row} onOpenTrading={onOpenTrading} /></td>
       <td className="setups-grade" {...tipProps(grade.tip, grade.title)}>{grade.text === '·' ? '—' : grade.text}</td>
+      <td>
+        {tf5 ? (
+          <span className={`setups-tf5 setups-tf5--${tf5.tone}`} {...tipProps(tf5.tip, tf5.title)}>{tf5.text}</span>
+        ) : <span className="na-muted">—</span>}
+      </td>
       <td className="num">{row.state === 'triggered' ? fmtR(row.bar_r) : '—'}</td>
       <td className="setups-reason" {...tipProps(row.reason, 'The scanner now')}>{row.reason}</td>
       <td>
@@ -173,6 +181,7 @@ export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTradin
             {head('to_go', 'To go', true)}
             {head('tape', 'Tape')}
             {head('grade', 'Grade')}
+            {head('tf5', '5m')}
             {head('r', 'R', true, 'What the research exit rules made of a triggered setup, in R (gross) -- a score, not a fill.')}
             {head('why', 'Why', false, 'The scanner\'s own words for where the setup is now.')}
             <th />
