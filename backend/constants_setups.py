@@ -23,7 +23,7 @@ SETUPS_SCHEMA_VERSION_SYMBOL = 1           # GET /api/setups/symbol/{symbol} (AD
 # setups.db: 2 adds template_id / template_rev / params_hash (ADR 029); a v1
 # file is migrated in place, its rows becoming the default template's. 3 (ADR
 # 031) adds setup_type and detail; a v2 file's rows are the first pullback's.
-SETUPS_DB_SCHEMA_VERSION = 4
+SETUPS_DB_SCHEMA_VERSION = 5
 
 # -- Session window (America/New_York). The material's window is 07:00-10:00;
 # the research screen ran 09:30-11:30. Covering 07:00-11:30 lets the
@@ -123,6 +123,20 @@ SETUPS_PILLAR_MAX_FLOAT = 20_000_000
 SETUPS_GRADE_A = "A"                    # all five known and passing
 SETUPS_GRADE_B = "B"                    # four passing
 SETUPS_GRADE_C = "C"                    # three or fewer, or unknown data
+
+# -- Too thin to trade (operator decision 2026-10-01, on LPA: "there's no way I will ever trade something
+# like that with a 20-cent spread ... the volume is almost dead"). A stock is too thin when any check below
+# fails; a check Nova cannot make is unknown -- never thin, never a pass. One desk rule, not a template's
+# (``setup_scanner/liquidity.py``): it never restarts a read-out.
+SETUPS_THIN_MIN_DAY_DOLLARS = 2_000_000  # traded today from 04:00 ET: day volume x its minutes' average price
+SETUPS_THIN_MIN_PACE_DOLLARS = 100_000   # traded in the last SETUPS_THIN_PACE_SEC of closed minutes
+SETUPS_THIN_PACE_SEC = 300
+SETUPS_THIN_MAX_WALK_R = 0.25            # buying the desk's size walks the asks this much of the risk past the ask
+SETUPS_THIN_BARS_STALE_SEC = 180         # stored minutes that end longer ago than this leave the pace unknown
+SETUPS_THIN_SIZE_TTL_SEC = 30.0          # the desk's risk per trade (the venue sleeve's) is re-read this often
+LIQUIDITY_OK = "ok"
+LIQUIDITY_THIN = "thin"
+LIQUIDITY_UNKNOWN = "unknown"
 
 # -- Tape gate (live Level 2 + time and sales at the trigger).
 TAPE_GATE_WINDOW_SEC = 10.0             # prints and book history looked at. CHOSEN

@@ -13,6 +13,7 @@ import { whyProps } from '../ux/whyTip';
 import { proposalStageLock, proposalStageSize } from './proposalVerdict';
 import { fmtCents, fmtPx, fmtR, isActionable, outcomeLabel, rowClass, stagedLimit, tapeRank } from './setupsFormat';
 import { gradeWords } from './pillarWords';
+import { normalizeLiquidity, thinChip } from './liquidity';
 import { riskSourceWords, type SleeveRisk } from './sleeveRisk';
 import {
   rowRank,
@@ -136,6 +137,7 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading, risk }: {
   const tf5 = tf5Words(row);
   const kind = kindWords(row);
   const broke = row.state === 'near' && Boolean(s?.detail?.broke_at);
+  const thin = thinChip(normalizeLiquidity(row.liquidity));
   return (
     <SelectableTableRow
       symbol={row.symbol}
@@ -155,6 +157,11 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading, risk }: {
         <span className={`pillar-chip setups-state setups-state--${broke ? 'broke' : row.state}`} {...tipProps(state.tip, state.title)}>
           {state.text}
         </span>
+        {thin && (
+          <span className="pillar-chip setups-thin" {...tipProps(thin.tip, thin.title)} data-testid={`setups-thin-${row.symbol}`}>
+            {thin.text}
+          </span>
+        )}
       </td>
       <td className="num" {...tipProps(trig.tip, trig.title)}>{s ? trig.text : '—'}</td>
       <td className="num">{fmtPx(s?.stop)}</td>

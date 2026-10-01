@@ -85,6 +85,17 @@
 .bots-scan__row--failed td { color: var(--nova-text-muted); }
 /* Kept out by the template's filter: on the card for its whole life, greyed (2026-09-29). */
 .bots-scan__row--filtered td { opacity: 0.55; }
+/* Too thin to trade (2026-10-01): greyed like a filtered row, its chip saying why on hover. */
+.bots-scan__row--thin td { opacity: 0.55; }
+.bots-thin {
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px dashed var(--text-secondary);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+}
 .bots-scan__grade { white-space: nowrap; font-family: var(--bots-mono); }
 .bots-scan__grade--forming { font-style: italic; color: var(--nova-text-muted); }
 /* The 5-minute chart's read (trial T8): a description, so neither tone is a warning colour. */

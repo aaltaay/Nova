@@ -13,6 +13,8 @@
  * mirror the plan's levels as thin lines. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
  * level is dashed while it is only a plan and solid while an order stands behind it. Nothing here is
  * estimated: every price is the scanner's, the read's or Nova's order's own.
+ * A setup plan on a stock too thin to trade (2026-10-01) draws no plan: no zones, no plan-only lines, its
+ * lane faded like the others -- an order that stands behind a level is still drawn.
  */
 import type { Time } from 'lightweight-charts';
 import { LEVEL_COLORS, SETUP_COLORS } from './constants';
@@ -23,6 +25,7 @@ import { fiveMinuteOnMinute, fiveMinuteScene } from './fiveMinuteShapes';
 import { laneHoverId, laneShapes, levelsOf } from './laneShapes';
 import { pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, setupName } from './planMath';
+import { thinPlan } from './planVerdict';
 import type { Scene, SceneBox } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
@@ -106,10 +109,12 @@ function planOnly(price: number | null): OrderLevel | null {
   return price === null ? null : { price, behind: 'plan' };
 }
 
-/** The levels a pane draws: the ones Who trades knows what stands behind, else the plan's own. */
+/** The levels a pane draws: the ones Who trades knows what stands behind, else the plan's own -- none for a
+ * setup plan too thin to trade (2026-10-01). */
 export function drawnLevels(plan: StockPlan | null, levels: OrderLevels | null | undefined): OrderLevels | null {
   if (levels) return levels;
-  return plan ? { entry: planOnly(plan.entry), stop: planOnly(plan.stop), target: planOnly(plan.target) } : null;
+  if (!plan || thinPlan(plan)) return null;
+  return { entry: planOnly(plan.entry), stop: planOnly(plan.stop), target: planOnly(plan.target) };
 }
 
 function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): PriceLineSpec[] {
@@ -181,7 +186,7 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
       for (const lane of read.setups) {
         if (o.layers.hidden.includes(lane.setup_type)) continue;
         if (lane.state === 'failed' && failing.has(lane.setup_type)) continue;
-        const s = laneShapes(lane, lane === lead, o);
+        const s = laneShapes(lane, lane === lead && !thinPlan(plan), o);
         scene.boxes.push(...s.boxes);
         scene.segments.push(...s.segments);
       }

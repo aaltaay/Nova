@@ -100,7 +100,7 @@ def test_a_hand_plan_with_no_low_under_the_entry_asks_for_a_stop():
     bars = [bar(15, 45, 5.0, 5.1, 4.9, 5.0)]
     p = plan.build([], {"price": 4.8, "levels": {}, "bars": bars}, now=ts(15, 47), entry=4.85)
     assert p["stop"] is None and "name a stop" in p["reason"]
-    assert p["checks"][0]["state"] == "unknown"
+    assert next(c for c in p["checks"] if c["id"] == "risk")["state"] == "unknown"
 
 
 def test_a_large_seller_between_entry_and_target_is_in_the_way():

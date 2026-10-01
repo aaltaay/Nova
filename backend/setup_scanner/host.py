@@ -9,9 +9,11 @@ the lanes. ``SetupEngine`` mixes this in; it owns the attributes read here.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Callable
 
 from constants_bot import BOT_LEVEL_EYES
+from constants_setups import SETUPS_THIN_SIZE_TTL_SEC
 from setup_scanner import grade as _grade
 from setup_scanner import tape_flow, tape_gap
 
@@ -28,6 +30,24 @@ class LaneHost:
         if sym not in memo["read"]:
             memo["read"][sym] = _grade.read_pillars(sym, now)
         return memo["read"][sym]
+
+    def risk_usd(self) -> float | None:
+        """The desk's risk per trade -- the desk venue's bot sleeve, the size every Nova buy and the operator's
+        Stage use (ADR 042) -- re-read at most every ``SETUPS_THIN_SIZE_TTL_SEC``; None when unread. The
+        liquidity sizes its walk through the asks by it (2026-10-01)."""
+        memo = self.__dict__.setdefault("_risk_usd_memo", {"at": None, "usd": None})
+        mono = time.monotonic()
+        if memo["at"] is None or mono - memo["at"] >= SETUPS_THIN_SIZE_TTL_SEC:
+            memo["at"] = mono
+            try:
+                from bot.persist import load_session
+                from bot.sleeve import of
+
+                memo["usd"] = float(of(load_session())["risk_usd"])
+            except Exception:
+                logger.warning("setup scanner: the desk's risk per trade could not be read", exc_info=True)
+                memo["usd"] = None
+        return memo["usd"]
 
     def tape_books(self, sym: str) -> list:
         return self.tape.books(sym) if self.tape is not None else []

@@ -13,6 +13,7 @@ from setup_templates.store import TemplateStore
 from tests.setup_scanner_fixtures import et_ts
 from tests.test_setup_scanner_engine import SYM
 from tests.test_setup_scanner_lanes import armed_bars, make, run
+from constants_setups import SETUPS_DB_SCHEMA_VERSION
 
 
 def minutes(hh: int, mm: int, closes: list[float], v: float = 1_000) -> list[Bar]:
@@ -89,7 +90,7 @@ def test_a_schema_3_scoreboard_gains_the_five_minute_columns_and_its_rows_read_u
     store = SetupStore(path)
     row = store.rows()[0]
     assert row["id"] == "OLD" and row["tf5_armed"] is None and row["tf5_trigger"] is None
-    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 4
+    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == SETUPS_DB_SCHEMA_VERSION
 
 
 def test_the_plan_says_what_the_five_minute_chart_says_and_never_warns():

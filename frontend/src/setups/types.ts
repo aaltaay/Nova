@@ -1,5 +1,6 @@
 /** Wire shapes of `/ws/setups` and `/api/setups/*` (backend `setup_scanner/`, ADR 022, ADR 031). */
 import type { CatalystVerdict } from '../types/catalystVerdict';
+import type { LiquidityRead } from './liquidity';
 
 /** A setup with a scanner (ADR 031): every row, proposal and card names one. */
 export type SetupType = 'first_pullback' | 'bull_flag' | 'flat_top_breakout' | 'red_to_green' | string;
@@ -153,6 +154,9 @@ export interface SetupRow {
   tf5?: Tf5Read | null;
   /** When it was read: at the trigger, when the setup armed, or when its forming leg made its high. */
   tf5_at?: 'trigger' | 'armed' | 'forming' | null;
+  /** Too thin to trade? (2026-10-01) The armed setup's reading -- at its trigger once it triggered; null
+   *  before it armed, on a filtered setup, and from an older API. */
+  liquidity?: LiquidityRead | null;
 }
 
 /** Today's funnel for one setup's card (ADR 031). */

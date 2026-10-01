@@ -7,6 +7,7 @@
  * legend ends where the price axis begins, and it says how far down the corner reaches: the words at the
  * pane's right edge start under it. */
 import { useEffect, useRef, type RefObject } from 'react';
+import { liquidityTip } from '../setups';
 import { tipProps, whyProps } from '../ux';
 import { laneChip, planBadgeText } from './chartShapes';
 import { ChartKey } from './ChartKey';
@@ -207,7 +208,9 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
             type="button"
             className={`sr-legend__badge sr-legend__badge--${tone}`}
             onClick={onFrame}
-            {...tipProps('Frame the setup on the chart', read.plan?.reason ?? null)}
+            {...(tone === 'thin' && read.plan?.liquidity
+              ? tipProps(`${liquidityTip(read.plan.liquidity)}\nClick to frame the setup on the chart.`, 'Too thin to trade')
+              : tipProps('Frame the setup on the chart', read.plan?.reason ?? null))}
             data-testid="stock-read-badge"
           >
             {badge}

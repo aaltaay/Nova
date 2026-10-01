@@ -14,6 +14,7 @@ from setup_scanner.store import SetupStore
 from setup_templates.store import TemplateStore
 from tests.setup_scanner_fixtures import add, base_morning
 from tests.test_setup_scanner_engine import SYM, FakeTape, bar_msg
+from constants_setups import SETUPS_DB_SCHEMA_VERSION
 
 LEVELS = {"chosen": "first_pullback", "levels": {"first_pullback": 0, "bull_flag": 1, "flat_top_breakout": 0,
                                                   "red_to_green": 0}}
@@ -168,5 +169,5 @@ def test_a_schema_2_scoreboard_is_migrated_and_its_rows_are_the_first_pullbacks(
     store = SetupStore(path)
     [row] = store.rows()
     assert row["setup_type"] == "first_pullback" and row["detail"] is None
-    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 4
+    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == SETUPS_DB_SCHEMA_VERSION
     assert store.rows(setup_type="first_pullback")[0]["id"] == "OLD" and store.rows(setup_type="bull_flag") == []

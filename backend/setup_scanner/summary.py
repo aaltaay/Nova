@@ -6,6 +6,8 @@ Pure: rows in, numbers out. Every split carries its own count so a small
 sample is visible as small. ``flow_at_trigger`` splits by the tape flow's label
 at the trigger (ADR 034): does a burst into the trigger beat a flush into it?
 ``tf5_at_trigger`` splits by whether the 5-minute chart agreed at the trigger (trial T8).
+``liquidity`` splits by whether the stock was too thin to trade (2026-10-01): ``ok`` | ``thin`` |
+``unknown`` -- read at the trigger once it triggered, and ``unknown`` on rows stored before the reading.
 """
 from __future__ import annotations
 
@@ -43,6 +45,11 @@ def _flow(row: dict) -> str:
     tape = row.get("trigger_tape") or {}
     flow = tape.get("flow") if isinstance(tape, dict) else None
     return str(flow.get("label") or "none") if isinstance(flow, dict) else "none"
+
+
+def _liquidity(row: dict) -> str:
+    reading = row.get("liquidity")
+    return str(reading.get("state") or "unknown") if isinstance(reading, dict) else "unknown"
 
 
 def net_r(row: dict) -> float | None:
@@ -93,7 +100,7 @@ def summarize(rows: Iterable[dict]) -> dict[str, Any]:
     out: dict[str, Any] = {"all": _stats(rows), "by": {}}
     for name, key in (("tape_at_trigger", _tape), ("flow_at_trigger", _flow),
                       ("tf5_at_trigger", lambda r: tf5_verdict(r.get("tf5_trigger"))),
-                      ("grade", lambda r: r.get("grade") or "?"),
+                      ("liquidity", _liquidity), ("grade", lambda r: r.get("grade") or "?"),
                       ("session", _session), ("kind", lambda r: r.get("kind") or "?")):
         groups: dict[str, list[dict]] = {}
         for r in rows:
