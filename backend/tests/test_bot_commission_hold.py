@@ -18,10 +18,12 @@ from bot.breakers import poll_once
 from bot.entry_rules import assert_entry_allowed
 from bot.errors import BotError
 from bot.session import get_session
+from bot.autonomy import apply_patch
 from constants_bot import (
     BOT_COMMISSIONS_WARN_EVERY_SEC,
     BOT_KIND_SETUP_ENTRY,
     BOT_REASON_COMMISSIONS_UNKNOWN,
+    BOT_REASON_LIVE_NOT_BUILT,
 )
 from execution.models import ExecutionReceipt
 from sim.mode import reset_for_tests as reset_venue, set_venue
@@ -111,19 +113,19 @@ def test_a_successful_read_reports_commissions_known(ledger):
 # -- the hold -------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_the_next_entry_is_refused_while_commissions_are_unknown(ledger, places):
-    ready_l2(brain="brain-1", heartbeat=True)
+    """On Live the hold stands in the entry rules and on the gate; the bot API itself refuses Live
+    before any of it (ADR 042 J), so nothing is placed either way."""
+    apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)     # Live's own dial
     day_pnl.read_account_day_pnl()
     for kind in ("buy_market", "buy_limit_ask_offset"):
         with pytest.raises(BotError) as exc:
             await fire({"kind": kind, "symbol": "ABCD"}, brain_session_id="brain-1")
-        assert exc.value.status_code == 409
-        assert exc.value.reason == BOT_REASON_COMMISSIONS_UNKNOWN
-        assert "database is locked" in exc.value.message
+        assert exc.value.reason == BOT_REASON_LIVE_NOT_BUILT
     assert places == []
-    # The first-pullback bot's entry passes the same gate.
     with pytest.raises(BotError) as exc:
         assert_entry_allowed(BOT_KIND_SETUP_ENTRY)
     assert exc.value.reason == BOT_REASON_COMMISSIONS_UNKNOWN
+    assert "database is locked" in exc.value.message
     gate = {g["id"]: g for g in get_session()["gates"]}["commissions"]
     assert gate["ok"] is False and gate["stage"] == "fire"
     assert "database is locked" in gate["detail"]["error"]
@@ -131,16 +133,8 @@ async def test_the_next_entry_is_refused_while_commissions_are_unknown(ledger, p
 
 @pytest.mark.asyncio
 async def test_exits_cancels_and_flatten_are_never_held(ledger, places, monkeypatch):
-    ready_l2(brain="brain-1", heartbeat=True)
     day_pnl.read_account_day_pnl()
-    assert day_pnl.commission_hold() is not None
-    monkeypatch.setattr("bot.actions._position_qty", lambda _s: 4.0)
-    monkeypatch.setattr("ibkr.orders.open_orders", lambda: [{"symbol": "ABCD", "order_id": 9}])
-    for kind in ("exit_pos", "exit_pos_pct", "sell_limit_bid_offset", "sell_pos_pct_ask", "cancel_symbol"):
-        await fire({"kind": kind, "symbol": "ABCD"}, brain_session_id="brain-1")
-    assert [c.side for c in places if c.operation == "place"] == ["SELL"] * 4
-    assert [c.order_id for c in places if c.operation == "cancel"] == [9]
-
+    assert day_pnl.commission_hold() is not None                      # a Live read failed
     flattens: list = []
 
     async def fake_door(cmd, wait_ack=False):
@@ -151,14 +145,20 @@ async def test_exits_cancels_and_flatten_are_never_held(ledger, places, monkeypa
     monkeypatch.setattr("execution.flatten_exit.resolve_flatten_marks", lambda _s: (1.9, 2.1, 2.0))
     from bot.flatten import place_close
 
-    out = await place_close("ABCD", 4.0, "SELL")
+    out = await place_close("ABCD", 4.0, "SELL")                      # the protective flatten, on Live
     assert out["ok"] is True and [c.source for c in flattens] == ["flatten"]
+    ready_l2(brain="brain-1", heartbeat=True)                         # Paper: exits and cancels pass
+    monkeypatch.setattr("bot.actions._position_qty", lambda _s: 4.0)
+    monkeypatch.setattr("ibkr.orders.open_orders", lambda: [{"symbol": "ABCD", "order_id": 9}])
+    for kind in ("exit_pos", "exit_pos_pct", "sell_limit_bid_offset", "sell_pos_pct_ask", "cancel_symbol"):
+        await fire({"kind": kind, "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert [c.side for c in places if c.operation == "place"] == ["SELL"] * 4
+    assert [c.order_id for c in places if c.operation == "cancel"] == [9]
 
 
 @pytest.mark.asyncio
 async def test_a_successful_read_releases_the_hold(ledger, places, caplog):
     caplog.set_level(logging.INFO, logger="bot.day_pnl")
-    ready_l2(brain="brain-1", heartbeat=True)
     day_pnl.read_account_day_pnl()
     assert day_pnl.commission_hold() is not None
     ledger["broken"] = False
@@ -166,9 +166,10 @@ async def test_a_successful_read_releases_the_hold(ledger, places, caplog):
     assert pnl == pytest.approx(-46.5)
     assert day_pnl.commission_hold() is None
     assert any("released" in r.getMessage() for r in caplog.records if r.name == "bot.day_pnl")
+    assert {g["id"]: g for g in get_session()["gates"]}["commissions"]["ok"] is True
+    ready_l2(brain="brain-1", heartbeat=True)
     result = await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
     assert result["ok"] is True and len(places) == 1
-    assert {g["id"]: g for g in get_session()["gates"]}["commissions"]["ok"] is True
 
 
 @pytest.mark.parametrize("venue", ["paper", "sim"])
@@ -178,6 +179,7 @@ def test_paper_and_sim_are_never_held(ledger, venue, monkeypatch):
     reset_venue()
     try:
         set_venue(venue)
+        apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
         assert day_pnl.commission_hold() is None
         assert_entry_allowed(BOT_KIND_SETUP_ENTRY)
         assert_entry_allowed("buy_market")

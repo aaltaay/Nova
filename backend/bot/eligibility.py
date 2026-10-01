@@ -9,15 +9,19 @@ line -- an open Trader Level 2 or a Session Record line, per
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from bot.errors import BotError
 from constants_bot import (
     BOT_NO_DEPTH_LINE_HINT,
+    BOT_REASON_ALLOWLIST_FULL,
     BOT_REASON_NO_DEPTH_LINE,
     BOT_REASON_SYMBOL_BLOCKED,
     BOT_SYMBOL_ALLOWLIST_CAP,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_symbols(raw: Any) -> list[str]:
@@ -75,6 +79,7 @@ def holds_depth_line(symbol: str) -> bool:
 
         return bool(_depth.is_subscribed(sym) or _depth.is_live(sym))
     except Exception:
+        logger.warning("bot: %s's depth line could not be read -- it counts as not held", sym, exc_info=True)
         return False
 
 
@@ -108,11 +113,16 @@ def assert_symbol_can_fire(symbol: str, row: dict[str, Any]) -> str:
 
 
 def add_symbol(row: dict[str, Any], symbol: str) -> list[str]:
+    """Put ``symbol`` on this venue's bot list. Only ``stock_mode`` calls this (one owner, ADR 042);
+    a full list is a refusal, never a change that did not happen."""
     current = normalize_symbols(row.get("symbol_allowlist"))
     sym = (symbol or "").strip().upper()
     if not sym:
         raise BotError("symbol is required", 400, "SYMBOL_MISSING")
-    if sym not in current and len(current) < BOT_SYMBOL_ALLOWLIST_CAP:
+    if sym not in current:
+        if len(current) >= BOT_SYMBOL_ALLOWLIST_CAP:
+            raise BotError(f"the bot's list is full ({BOT_SYMBOL_ALLOWLIST_CAP} stocks on this venue): set one "
+                           f"back to Signal only before adding {sym}", 409, BOT_REASON_ALLOWLIST_FULL)
         current.append(sym)
     row["symbol_allowlist"] = current
     return current

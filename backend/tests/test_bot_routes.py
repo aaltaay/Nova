@@ -6,17 +6,17 @@ from fastapi.testclient import TestClient
 
 from bot.autonomy import apply_patch
 from constants_bot import (
+    BOT_REASON_ALLOWLIST_FULL,
     BOT_REASON_ARM_DESK_ONLY,
-    BOT_REASON_ARM_REQUIRED,
-    BOT_REASON_BRAIN_EXCLUSIVE,
     BOT_REASON_HEARTBEAT_STALE,
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
     BOT_REASON_L3_PARKED,
+    BOT_REASON_LIVE_NOT_BUILT,
     BOT_REASON_NOT_ACTIVE,
 )
 from main import app
-from tests.bot_helpers import headers, ready_l2
+from tests.bot_helpers import headers, on_practice, ready_l2, set_symbols
 
 client = TestClient(app)
 
@@ -42,25 +42,28 @@ def test_session_get_l0_open_without_key(bot_iso):
     assert res.status_code == 200
     body = res.json()
     assert body["level"] == 0
-    assert body["armed"] is False
-    assert body["live_fire_ready"] is False
+    assert body["active"] is False and body["armed"] is False and body["deactivated"] is None
+    assert body["ready"] is False and body["live_fire_ready"] is False and body["ready_reason"]
     assert "desk_arm_token" not in body
-    # ADR 027: the playbook replaces the packs.
-    assert "packs" not in body and "active_pack" not in body and "llm" not in body
-    assert body["setup"] == "first_pullback"
+    # ADR 027: the playbook replaces the packs; ADR 042: no chosen setup, strategy, read-out or advise budget.
+    for gone in ("packs", "active_pack", "llm", "setup", "strategy", "readout", "readout_required", "advise"):
+        assert gone not in body
     setups = {row["id"]: row["scanner"] for row in body["setups"]}
     # ADR 031: the bull flag joins; it, the flat-top breakout and red to green have scanners.
     assert setups == {"first_pullback": True, "bull_flag": True, "flat_top_breakout": True,
                       "red_to_green": True, "gap_and_go": False, "micro_pullback": False}
-    levels = {row["id"]: row["level"] for row in body["setups"]}
-    assert levels == {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0, "red_to_green": 0,
-                      "gap_and_go": None, "micro_pullback": None}
-    assert body["setup_levels"] == {"bull_flag": 0, "flat_top_breakout": 0, "red_to_green": 0}
+    levels = {row["id"]: (row["level"], row["effective"]) for row in body["setups"]}
+    assert levels == {"first_pullback": (0, 0), "bull_flag": (0, 0), "flat_top_breakout": (0, 0),
+                      "red_to_green": (0, 0), "gap_and_go": (None, None), "micro_pullback": (None, None)}
+    assert body["setup_levels"] == {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0, "red_to_green": 0}
     assert body["breakers"]["soft_usd"] == -50.0 and body["breakers"]["hard_usd"] == -200.0
-    assert {g["id"] for g in body["gates"]} == {
-        "level", "allowlist", "desk_armed", "depth_lines", "readout", "bot_trip", "day_lock",
-        "kill_switch", "window", "commissions"}
-    assert body["readout"]["passed"] is True  # the test baseline (conftest)
+    assert [g["id"] for g in body["gates"]] == [
+        "venue", "level", "setups", "padlock", "allowlist", "depth_lines", "bot_trip", "day_lock",
+        "kill_switch", "window", "daily_cap", "extended_hours", "commissions"]
+    assert set(body["caps_by_venue"]) == {"live", "paper", "sim"}
+    assert body["entries_today"]["count"] == 0 and body["entries_today"]["cap"] == 1
+    assert body["day_lock"]["active"] is False and set(body["day_locks"]) == {"live", "paper", "sim"}
+    assert body["soft_breaker"] == {"fired": False, "at": None, "pnl": None, "until": None}
     alias = client.get("/bot/session")
     assert alias.status_code == 200
 
@@ -173,6 +176,9 @@ def test_session_payload_carries_last_rewind(bot_iso):
 
 
 def test_l0_action_dark(bot_iso, api_key):
+    live = client.post("/api/bot/action", json={"kind": "buy_market", "symbol": "ABCD"}, headers=headers(api_key))
+    assert live.status_code == 409 and live.json()["detail"]["reason"] == BOT_REASON_LIVE_NOT_BUILT
+    on_practice()
     res = client.post(
         "/api/bot/action",
         json={"kind": "buy_market", "symbol": "ABCD"},
@@ -182,10 +188,10 @@ def test_l0_action_dark(bot_iso, api_key):
     assert res.json()["detail"]["reason"] == BOT_REASON_L0_DARK
 
 
-def test_l2_without_desk_token_refused(bot_iso, api_key):
+def test_strategy_needs_no_desk_token_and_lands_not_active(bot_iso, api_key):
     res = client.patch("/api/bot/session", json={"level": 2}, headers=headers(api_key))
-    assert res.status_code == 403
-    assert res.json()["detail"]["reason"] == BOT_REASON_ARM_REQUIRED
+    assert res.status_code == 200
+    assert res.json()["level"] == 2 and res.json()["active"] is False
 
 
 def test_brain_cannot_arm_or_raise(bot_iso, api_key):
@@ -202,29 +208,28 @@ def test_brain_cannot_arm_or_raise(bot_iso, api_key):
         headers=headers(api_key),
     )
     assert alias.status_code == 403
-    token = client.post("/api/bot/session/arm", headers=headers(api_key)).json()["desk_arm_token"]
     sneak = client.patch(
         "/api/bot/session",
         json={"level": 2},
         headers=headers(api_key, brain="nova-brain"),
     )
     assert sneak.status_code == 403
-    assert sneak.json()["detail"]["reason"] == BOT_REASON_ARM_REQUIRED
-    ok = client.patch(
-        "/bot/session",
-        json={"level": 2},
-        headers=headers(api_key, arm=token),
-    )
-    assert ok.status_code == 200
-    assert ok.json()["level"] == 2
-    assert ok.json()["armed"] is True
-    assert "desk_arm_token" not in ok.json()
+    assert sneak.json()["detail"]["reason"] == BOT_REASON_ARM_DESK_ONLY
+    assert client.get("/api/bot/session").json()["level"] == 0
+    on_practice()
+    ok = client.patch("/bot/session", json={"level": 2, "setup_levels": {"first_pullback": 2}},
+                      headers=headers(api_key))
+    assert ok.status_code == 200 and ok.json()["level"] == 2 and ok.json()["active"] is False
+    armed = client.post("/api/bot/session/arm", headers=headers(api_key))
+    assert armed.status_code == 200 and armed.json()["active"] is True and armed.json()["desk_arm_token"]
+    assert "desk_arm_token" not in client.get("/api/bot/session").json()
 
 
 def test_l1_proposal_schema_and_no_fire(bot_iso, api_key):
     h = headers(api_key)
+    on_practice()
     assert client.patch("/api/bot/session", json={"level": 1}, headers=h).status_code == 200
-    apply_patch({"symbol_allowlist": ["ABCD"]}, desk=True)
+    set_symbols("ABCD")
     client.post("/api/bot/focus/sync", json={"live": ["ABCD"]}, headers=h)
     fire = client.post(
         "/api/bot/action",
@@ -323,6 +328,9 @@ def test_l2_claim_heartbeat_and_alias_parity(bot_iso, api_key):
 
 def test_allowlist_and_watch(bot_iso, api_key):
     h = headers(api_key)
+    live = client.post("/api/bot/allowlist", json={"symbol": "abcd", "op": "add"}, headers=h)
+    assert live.status_code == 409 and live.json()["detail"]["reason"] == "STOCK_MODE_LIVE"   # never Nova's on Live
+    on_practice()
     add = client.post("/api/bot/allowlist", json={"symbol": "abcd", "op": "add"}, headers=h)
     assert add.status_code == 200
     assert "ABCD" in add.json()["symbol_allowlist"]
@@ -331,8 +339,34 @@ def test_allowlist_and_watch(bot_iso, api_key):
     assert "ABCD" not in alias.json()["symbol_allowlist"]
     watch = client.get("/api/bot/watch")
     assert watch.status_code == 200
-    assert "symbols" in watch.json()
-    assert watch.json()["setup"] == "first_pullback"
+    assert "symbols" in watch.json() and watch.json()["ready"] is False and "setup" not in watch.json()
+
+
+def test_the_list_goes_through_stock_mode_and_says_what_it_refused(bot_iso, api_key):
+    from bot.audit import list_entries
+
+    on_practice()
+    res = client.patch("/api/bot/session", json={"symbol_allowlist": ["aaa", "bbb"]}, headers=headers(api_key))
+    assert res.status_code == 200 and res.json()["symbol_allowlist"] == ["AAA", "BBB"] and res.json()["refused"] == []
+    assert [r["outcome"] for r in list_entries(limit=20) if r["action"] == "stock_mode"] == ["set", "set"]
+    res = client.patch("/api/bot/session", json={"symbol_allowlist": ["bbb", "!!!!!!!!!!!!!!!!"]},
+                       headers=headers(api_key))
+    body = res.json()
+    assert body["symbol_allowlist"] == ["BBB"]
+    [refused] = body["refused"]
+    assert refused["symbol"] == "!!!!!!!!!!!!!!!!" and refused["reason"] == "STOCK_MODE_INVALID"
+
+
+def test_a_full_list_is_refused_and_nothing_is_audited_as_done(bot_iso, api_key):
+    from bot.audit import list_entries
+
+    on_practice()
+    set_symbols(*[f"S{i:02d}" for i in range(50)])
+    res = client.post("/api/bot/allowlist", json={"symbol": "FULL", "op": "add"}, headers=headers(api_key))
+    assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_ALLOWLIST_FULL
+    assert "full" in res.json()["detail"]["error"]
+    assert "FULL" not in client.get("/api/bot/session").json()["symbol_allowlist"]
+    assert [r for r in list_entries(limit=20) if r["action"] == "stock_mode"] == []
 
 
 def test_focus_sync_and_pnl(bot_iso, api_key, monkeypatch):
@@ -353,11 +387,10 @@ def test_focus_sync_and_pnl(bot_iso, api_key, monkeypatch):
     assert pnl.json()["day_pnl"] == -12.0
 
 
-def test_audit_and_advise_off(bot_iso, api_key):
+def test_audit_and_no_advise_route(bot_iso, api_key):
     apply_patch({"level": 1}, desk=True)
     off = client.post("/api/bot/advise", json={"symbol": "AAPL"}, headers=headers(api_key))
-    assert off.status_code == 409
-    assert off.json()["detail"]["reason"] == "BOT_ADVISE_OFF"
+    assert off.status_code in (404, 405)                 # ADR 042 K: the bot's advise budget is gone
     audit = client.get("/api/bot/audit")
     assert audit.status_code == 200
     assert "entries" in audit.json()

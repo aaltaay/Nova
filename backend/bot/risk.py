@@ -1,4 +1,5 @@
-"""Small-cap risk filters: shares, $50 BP, working block, EH, TTL."""
+"""The localhost bot API's risk filters from the venue's sleeve (ADR 042 E): order kinds, shares,
+the buying-power budget, the working block, extended hours, the TTL."""
 from __future__ import annotations
 
 import time
@@ -23,15 +24,18 @@ from constants_bot import (
 
 
 def _caps(row: dict[str, Any]) -> dict[str, Any]:
-    return dict(row.get("caps") or {})
+    """This venue's sleeve, normalized (``bot.sleeve``)."""
+    from bot.sleeve import of
+
+    return of(row)
 
 
 def assert_kind(kind: str, row: dict[str, Any] | None = None) -> str:
     current = row or load_session()
-    allow = list(_caps(current).get("allowlist") or [])
+    allow = list(_caps(current).get("api_kinds") or [])
     if not is_allowlisted(kind, allow):
         raise BotError(
-            f"{kind} is not on the small-cap allowlist",
+            f"{kind} is not one of the sleeve's order kinds for the localhost bot API",
             409,
             BOT_REASON_KIND_BLOCKED,
         )

@@ -65,6 +65,9 @@ def test_brains_cannot_activate():
 
 
 def test_heartbeat_fail_closed_without_claim():
+    from tests.bot_helpers import on_practice
+
+    on_practice()
     apply_desk_level(2)
     with pytest.raises(BotError):
         record_heartbeat("brain-a")

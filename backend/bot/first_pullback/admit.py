@@ -1,0 +1,304 @@
+"""What a go trigger meets before Nova buys it by itself (ADR 042 F, I): one set of rules for
+Nova's bot and Auto-entry.
+
+``blockers`` lists every rule that holds a trigger back -- all of them, not the first (the
+visibility rule): the venue (Paper, or Sim at its live edge), Activate, the setup at
+effective Strategy, the first of that setup on the stock that day, the tape at go, NOT A
+TRADE (``setup_scanner.trade_verdict``), a fresh trigger, the padlock, the kill switch, this
+venue's day lock and bot trip, #564's commission hold, the setup's bot window, extended
+hours, the venue's shared daily cap and the sleeve's size. Then each taker's own:
+
+- the bot: the stock on this venue's bot list with a held depth line, one trade at a time,
+  no bot buy still working, the L2 session not held by another brain;
+- Auto-entry: the stock not on the bot list (one mode per stock), no entry of it still working.
+
+``size`` is the sleeve's (``bot.sizing``) against what Nova's automatic buys already hold or
+have working on this venue. ``taker`` says who would take a setup's go trigger on a stock
+(the proposals carry it). Reads only; the runners send.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from constants_bot import (
+    BOT_FP_TRIGGER_MAX_AGE_SEC,
+    BOT_LEVEL_STRATEGY,
+    BOT_NO_DEPTH_LINE_HINT,
+    BOT_REASON_BRAIN_EXCLUSIVE,
+    BOT_REASON_COMMISSIONS_UNKNOWN,
+    BOT_REASON_DAY_LOCK,
+    BOT_REASON_DAY_TRADE_CAP,
+    BOT_REASON_KIND_BLOCKED,
+    BOT_REASON_NO_DEPTH_LINE,
+    BOT_REASON_OUTSIDE_WINDOW,
+    BOT_REASON_PADLOCK_LOCKED,
+    BOT_REASON_SYMBOL_BLOCKED,
+    BOT_REASON_TRIP_LATCHED,
+    BOT_REASON_WORKING_BLOCK,
+    BOT_RUNNER_BRAIN_ID,
+    BOT_SETUP_FIRST_PULLBACK,
+    BOT_SKIP_EXTENDED_HOURS,
+    BOT_SKIP_NOT_A_TRADE,
+    BOT_SKIP_NOT_ACTIVE,
+    BOT_SKIP_NOT_FIRST,
+    BOT_SKIP_ONE_TRADE,
+    BOT_SKIP_SETUP_NOT_STRATEGY,
+    BOT_SKIP_SIZE,
+    BOT_SKIP_STALE,
+    BOT_SKIP_TAPE,
+)
+from constants_setups import SETUP_KIND_FIRST_PULLBACK, SETUPS_READOUT_KINDS, TAPE_VERDICT_GO
+
+logger = logging.getLogger(__name__)
+LIVE_STATES = frozenset({"entering", "open", "exiting"})
+Blocker = tuple[str, str]
+
+
+def name(setup_type: str | None) -> str:
+    return str(setup_type or BOT_SETUP_FIRST_PULLBACK).replace("_", " ")
+
+
+def setup_of(event: dict[str, Any]) -> str:
+    return str(event.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
+
+
+def first_kind(setup_type: str) -> str:
+    return SETUPS_READOUT_KINDS.get(setup_type, SETUP_KIND_FIRST_PULLBACK)
+
+
+def triggered_at(event: dict[str, Any]) -> float:
+    return float((event.get("setup") or {}).get("triggered_at") or event.get("ts") or 0)
+
+
+# -- the rules every taker shares --------------------------------------------------------
+def _level_block(row: dict[str, Any], setup_type: str) -> Blocker | None:
+    from bot.setup_levels import LEVEL_NAMES, effective, master, own_levels
+
+    if effective(row).get(setup_type, 0) >= BOT_LEVEL_STRATEGY:
+        return None
+    top, own = master(row), own_levels(row).get(setup_type, 0)
+    if top < BOT_LEVEL_STRATEGY:
+        return BOT_SKIP_SETUP_NOT_STRATEGY, (f"the master level is {LEVEL_NAMES[top]}: Nova buys only setups at "
+                                             "Strategy")
+    return BOT_SKIP_SETUP_NOT_STRATEGY, (f"the {name(setup_type)} is at {LEVEL_NAMES.get(own, own)}: Nova buys "
+                                         "only setups at Strategy")
+
+
+def _desk_blocks(row: dict[str, Any], venue: str | None) -> list[Blocker]:
+    """The padlock, the kill switch, this venue's day lock and bot trip; an unreadable gate counts as closed."""
+    from bot import activation
+    from bot.clock import soft_latched
+    from bot.gates import day_lock, lock_text
+
+    out: list[Blocker] = []
+    ok, why = activation.padlock()
+    if not ok:
+        out.append((BOT_REASON_PADLOCK_LOCKED, f"the desk padlock is locked ({why}): unlock it so Nova can place"))
+    try:
+        import kill_switch
+
+        killed = bool(kill_switch.is_tripped())
+    except Exception as exc:
+        logger.warning("bot: the kill switch could not be read -- it counts as tripped", exc_info=True)
+        killed, exc_text = True, f" (unreadable: {exc})"
+    else:
+        exc_text = ""
+    if killed:
+        out.append(("KILL_SWITCH", f"the kill switch is tripped{exc_text}: nothing is sent until you reset it"))
+    lock = day_lock(row, venue)
+    if lock.get("active"):
+        out.append((BOT_REASON_DAY_LOCK, lock_text(lock)))
+    if soft_latched(row):
+        out.append((BOT_REASON_TRIP_LATCHED, activation.trip_text(row)))
+    return out
+
+
+def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
+             venue_now: tuple[str | None, bool, bool] | None = None) -> list[Blocker]:
+    """Every rule the bot and Auto-entry share that holds this trigger back (empty: none)."""
+    from bot import activation, entry_rules
+    from bot.arming import is_desk_active
+    from bot.day_pnl import commission_hold
+    from bot.sleeve import of as sleeve_of
+    from setup_scanner.trade_verdict import of_event
+
+    out: list[Blocker] = []
+    venue, edge, readable = venue_now or activation.venue_state()
+    blocked = activation.venue_block(venue, edge, readable)
+    if blocked is not None:
+        out.append(blocked)
+    if not is_desk_active(row):
+        out.append((BOT_SKIP_NOT_ACTIVE, "the bot is not active: press Activate on the Bots page"))
+    setup_type = setup_of(event)
+    level = _level_block(row, setup_type)
+    if level is not None:
+        out.append(level)
+    setup = event.get("setup") or {}
+    if setup.get("kind") != first_kind(setup_type):
+        kind = str(setup.get("kind") or "a later setup").replace("_", " ")
+        out.append((BOT_SKIP_NOT_FIRST, f"a {kind} -- Nova buys the first {name(setup_type)} of the day only"))
+    verdict = (event.get("tape") or {}).get("verdict")
+    if verdict != TAPE_VERDICT_GO:
+        out.append((BOT_SKIP_TAPE, f"the tape read {verdict or 'nothing'} at the trigger -- Nova enters on go"))
+    judged = of_event(event)
+    if not judged["ok"]:
+        out.append((BOT_SKIP_NOT_A_TRADE, "not a trade: " + "; ".join(judged["reasons"])))
+    age = now - triggered_at(event)
+    if age > BOT_FP_TRIGGER_MAX_AGE_SEC:
+        out.append((BOT_SKIP_STALE, f"the trigger is {age:.0f}s old (Nova buys one at most "
+                                    f"{BOT_FP_TRIGGER_MAX_AGE_SEC:g}s old)"))
+    out.extend(_desk_blocks(row, venue))
+    hold = commission_hold(venue)
+    if hold is not None:
+        out.append((BOT_REASON_COMMISSIONS_UNKNOWN, f"the session's commissions are unreadable ({hold.get('error')}): "
+                                                    "no new automatic entry until they read again"))
+    clock = entry_rules.venue_now()
+    win = entry_rules.window(setup_type, clock)
+    if not win.get("open"):
+        out.append((BOT_REASON_OUTSIDE_WINDOW, f"outside the bot's window: {entry_rules.window_text(win)} "
+                                               f"(venue clock {clock.strftime('%H:%M')})"))
+    caps = sleeve_of(row)
+    late = entry_rules.extended_hours_block(caps)
+    if late is not None:
+        out.append((BOT_SKIP_EXTENDED_HOURS, late))
+    try:
+        daily = entry_rules.today(venue, clock, cap=int(caps["entries_per_day"]))
+    except Exception as exc:
+        logger.warning("bot: the day's entries could not be counted -- no automatic entry", exc_info=True)
+        out.append((BOT_REASON_DAY_TRADE_CAP, f"the day's entries could not be counted ({exc}): no automatic entry"))
+    else:
+        if daily["count"] >= daily["cap"]:
+            out.append((BOT_REASON_DAY_TRADE_CAP, entry_rules.cap_text(daily["count"], daily["cap"])))
+    return out
+
+
+# -- size ----------------------------------------------------------------------------------
+def exposure(row: dict[str, Any], venue: str | None) -> float:
+    """Dollars Nova's automatic buys hold or have working on this venue: the bot's and Auto-entry's."""
+    from bot.risk import open_plus_working_usd
+
+    from stock_mode import store
+
+    total = open_plus_working_usd(row)
+    for t in store.trades():
+        if t.get("venue") == venue and t.get("kind") == "auto_entry" and t.get("state") in ("entering", "holding"):
+            total += float(t.get("qty") or 0) * float(t.get("fill_price") or t.get("entry") or 0)
+    return total
+
+
+def size(event: dict[str, Any], row: dict[str, Any], venue: str | None) -> dict[str, Any]:
+    """The sleeve's size for this trigger (``bot.sizing``); an unreadable budget sizes nothing, and says so."""
+    from bot.sizing import size as sized
+    from bot.sleeve import of as sleeve_of
+
+    caps = sleeve_of(row)
+    setup = event.get("setup") or {}
+    try:
+        left = float(caps["bp_budget_usd"]) - exposure(row, venue)
+    except Exception as exc:
+        logger.warning("bot: what Nova's automatic buys hold could not be read for the budget", exc_info=True)
+        return {"qty": 0, "by_risk": None, "capped_by": None,
+                "text": f"what Nova's automatic buys hold could not be read ({exc}): Nova does not buy"}
+    return sized(caps["risk_usd"], setup.get("entry"), setup.get("stop"), caps["max_shares"], left)
+
+
+# -- the bot ---------------------------------------------------------------------------------
+def for_bot(event: dict[str, Any], row: dict[str, Any], *, now: float) -> tuple[list[Blocker], dict[str, Any] | None]:
+    """``(blockers, size)`` for Nova's bot on this trigger."""
+    from bot import activation
+    from bot.eligibility import holds_depth_line, normalize_symbols
+    from bot.risk import working_bot_orders
+
+    venue_now = activation.venue_state()
+    out = blockers(event, row, now=now, venue_now=venue_now)
+    sym = str(event.get("symbol") or "").upper()
+    if sym not in normalize_symbols(row.get("symbol_allowlist")):
+        out.append((BOT_REASON_SYMBOL_BLOCKED, f"{sym} is not set to Bot on this venue"))
+    elif not holds_depth_line(sym):
+        out.append((BOT_REASON_NO_DEPTH_LINE, f"{sym} holds no depth line -- {BOT_NO_DEPTH_LINE_HINT}"))
+    current = row.get("trade")
+    if isinstance(current, dict) and current.get("state") in LIVE_STATES:
+        out.append((BOT_SKIP_ONE_TRADE, f"already in {current.get('symbol')} -- one trade at a time"))
+    if any(str(w.get("side") or "").upper() == "BUY" for w in working_bot_orders(row)):
+        out.append((BOT_REASON_WORKING_BLOCK, "a bot buy is still working"))
+    held = (row.get("brain_session_id") or "").strip()
+    if held and held != BOT_RUNNER_BRAIN_ID:
+        out.append((BOT_REASON_BRAIN_EXCLUSIVE, f"another bot ({held}) holds the Strategy session"))
+    sized = size(event, row, venue_now[0])
+    if sized["qty"] < 1:
+        out.append((BOT_SKIP_SIZE, sized["text"]))
+    return out, sized
+
+
+def trade(event: dict[str, Any], row: dict[str, Any], *, qty: int, size_text: str | None = None) -> dict[str, Any]:
+    """The bot's trade for an admitted trigger (``bot-session.json``'s ``trade``)."""
+    from bot.entry_rules import venue_day
+    from bot.gates import current_venue
+    from bot.sleeve import of as sleeve_of
+
+    setup = event["setup"]
+    return {
+        "setup_id": str(event.get("setup_id") or ""), "setup_type": setup_of(event),
+        "symbol": str(event.get("symbol") or "").upper(), "venue": current_venue(),
+        "venue_day": venue_day(), "template_id": event.get("template_id"),
+        "template_rev": event.get("template_rev"), "template_name": event.get("template_name"),
+        "state": "entering", "qty": float(qty), "size_text": size_text, "trigger": setup.get("trigger"),
+        "trigger_price": setup.get("trigger_price"), "triggered_at": triggered_at(event),
+        "entry_planned": float(setup["entry"]), "stop": float(setup["stop"]), "target1": float(setup["target1"]),
+        "risk": float(setup["risk"]), "entry_order_id": None, "target_order_id": None, "stop_order_id": None,
+        "stop_leg_at": None, "entry_sent_ts": None, "entry_ttl_sec": int(sleeve_of(row)["working_ttl_sec"]),
+        "entry_cancel_ts": None, "entry_fill_price": None, "entry_filled_ts": None,
+        "exit_order_id": None, "exit_attempt": 0, "exit_sent_ts": None,
+        "exit_limit": None, "exit_protective": False, "exit_why": None, "exit_price": None,
+        "exit_reason": None, "closed_ts": None, "slippage": None, "r": None, "note": None,
+    }
+
+
+# -- Auto-entry ------------------------------------------------------------------------------
+def for_auto_entry(event: dict[str, Any], row: dict[str, Any], *, now: float,
+                   working: bool) -> tuple[list[Blocker], dict[str, Any] | None]:
+    """``(blockers, size)`` for Auto-entry on this trigger; ``working`` is an entry of the stock still working."""
+    from bot import activation
+    from bot.eligibility import normalize_symbols
+
+    venue_now = activation.venue_state()
+    out = blockers(event, row, now=now, venue_now=venue_now)
+    sym = str(event.get("symbol") or "").upper()
+    if sym in normalize_symbols(row.get("symbol_allowlist")):
+        out.append((BOT_REASON_KIND_BLOCKED, f"{sym} is set to Bot: the bot trades it, not Auto-entry"))
+    if working:
+        out.append((BOT_REASON_WORKING_BLOCK, "an entry Nova sent is still working"))
+    sized = size(event, row, venue_now[0])
+    if sized["qty"] < 1:
+        out.append((BOT_SKIP_SIZE, sized["text"]))
+    return out, sized
+
+
+# -- who takes a setup's go trigger -------------------------------------------------------------
+def taker(sym: str, setup_type: str) -> str | None:
+    """``"bot"`` / ``"auto_entry"`` when Nova would take this setup's go trigger on ``sym`` by itself, else None."""
+    from bot import activation
+    from bot.arming import is_desk_active
+    from bot.eligibility import normalize_symbols
+    from bot.persist import load_session
+    from bot.setup_levels import effective
+
+    row = load_session()
+    if not is_desk_active(row) or effective(row).get(setup_type, 0) < BOT_LEVEL_STRATEGY:
+        return None
+    if activation.venue_block(*activation.venue_state()) is not None:
+        return None
+    sym = (sym or "").strip().upper()
+    if sym in normalize_symbols(row.get("symbol_allowlist")):
+        return "bot"
+    from stock_mode import model, store
+
+    sw = store.switch(sym)
+    if sw and model.mode_of(sw.get("buy"), sw.get("sell")) == "auto_entry":
+        return "auto_entry"
+    return None
+
+
+def text(found: list[Blocker]) -> str:
+    return "; ".join(why for _code, why in found)

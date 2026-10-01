@@ -34,7 +34,7 @@ def test_audit_fields_and_append():
     }
     assert keys <= set(first)
     assert first["level"] == 2
-    assert first["strategy"] == "small-cap"
+    assert first["strategy"] is None and first["venue"] == "live"     # ADR 042: no session strategy
     assert first["brain_session_id"] == "brain-9"
     assert first["order_id"] == 11
     assert rows[-1]["action"] == second["action"]
