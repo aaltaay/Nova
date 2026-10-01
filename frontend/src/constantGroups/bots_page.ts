@@ -237,7 +237,6 @@ export const BOTS_BREAKERS_SAVING = 'Saving…';
 export const BOTS_BREAKER_TODAY = 'today';
 export const BOTS_BREAKER_TODAY_UNKNOWN = 'today unknown';
 export const BOTS_BOT_PNL_POLL_MS = 5_000;
-export const BOTS_ADVISE_TITLE = 'Advise budget (never places)';
 export const botsSoftFired = (when: string, pnl: string, until: string): string =>
   `Bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` at ${pnl}` : ''}: the bot is off on this venue${until ? ` until ${until}` : ' until 04:00 ET'} — Activate re-enables it for today.`;
 export const botsDayLocked = (venue: string, when: string, pnl: string, until: string): string =>

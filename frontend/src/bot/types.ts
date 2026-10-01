@@ -183,14 +183,6 @@ export type BotSession = {
   brain_alive?: boolean;
   trading_allowed?: boolean;
   trading_allowed_reason?: string | null;
-  /** The bot `advise` budget: absent once the backend retired it (ADR 042 K). */
-  advise?: {
-    enabled: boolean;
-    usd_cap: number;
-    call_cap: number;
-    usd_spent: number;
-    calls_used: number;
-  };
   focus?: string[];
   trader_live?: string[];
   working: BotWorkingOrder[];

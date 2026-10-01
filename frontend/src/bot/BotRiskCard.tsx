@@ -3,12 +3,10 @@
  * two loss breakers (approved mockup v4, ADR 032). The tabs pick the venue whose
  * sleeve you edit (the desk venue first); each slider PATCHes `{caps: {venue,
  * field}}` once let go. The breakers are the desk venue's own pair, dragged on their
- * bar, with what fired today and when it lifts (04:00 ET). Advise's budget stays here,
- * folded away, only while the API still keeps one -- it reads, it never places.
+ * bar, with what fired today and when it lifts (04:00 ET).
  */
 import { useState } from 'react';
 import {
-  BOTS_ADVISE_TITLE,
   BOTS_RISK_LIVE_NOTE,
   BOTS_RISK_SUB,
   BOTS_RISK_TIP,
@@ -33,37 +31,6 @@ function deskVenue(session: BotSession): string {
 /** That venue's sleeve; the desk venue's `caps` when the API keeps one sleeve for all. */
 function capsFor(session: BotSession, venue: string): BotCaps {
   return session.caps_by_venue?.[venue] ?? session.caps;
-}
-
-function AdviseBudget({ session, patch }: { session: BotSession; patch: Patch }) {
-  const advise = session.advise;
-  if (!advise) return null;
-  return (
-    <details className="bots-advise">
-      <summary>{BOTS_ADVISE_TITLE}</summary>
-      <label className="bots-switch">
-        <input type="checkbox" role="switch" data-testid="bot-strategy-advise-enabled" checked={advise.enabled}
-          aria-checked={advise.enabled} onChange={e => void patch({ advise: { enabled: e.target.checked } })} />
-        <span className="bots-switch__track" aria-hidden="true" />
-        <span>Enable Advise for the bot</span>
-      </label>
-      <div className="bots-advise__caps">
-        <label>
-          <span>USD cap</span>
-          <input type="number" data-testid="bot-strategy-advise-usd" min={0} step={0.25} defaultValue={advise.usd_cap}
-            key={`usd-${advise.usd_cap}`}
-            onBlur={e => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0 && v !== advise.usd_cap) void patch({ advise: { usd_cap: v } }); }} />
-        </label>
-        <label>
-          <span>Call cap</span>
-          <input type="number" data-testid="bot-strategy-advise-calls" min={0} step={1} defaultValue={advise.call_cap}
-            key={`calls-${advise.call_cap}`}
-            onBlur={e => { const v = Number(e.target.value); if (Number.isInteger(v) && v >= 0 && v !== advise.call_cap) void patch({ advise: { call_cap: v } }); }} />
-        </label>
-        <span className="bots-muted">Spent ${advise.usd_spent.toFixed(2)} · {advise.calls_used} calls</span>
-      </div>
-    </details>
-  );
 }
 
 export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null }: {
@@ -101,8 +68,6 @@ export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null }: {
 
       <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} pnlParts={pnlParts} busy={busy} patch={patch} />
       <BotBreakerStatus session={session} />
-
-      <AdviseBudget session={session} patch={patch} />
     </section>
   );
 }

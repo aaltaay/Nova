@@ -20,7 +20,6 @@ import { _resetBotSessionPollerForTests, getBotSessionSnapshot, pollBotSessionOn
 const SESSION = {
   level: 0, armed: false, strategy: null, brain_session_id: null,
   caps: { max_shares: 1, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: false, allowlist: [] },
-  advise: { enabled: false, usd_cap: 2, call_cap: 10, usd_spent: 0, calls_used: 0 },
   soft_breaker_fired: false, hard_lock_until_date: null, day_lock_active: false,
   focus: [], trader_live: ['GRML'], working: [],
 };
@@ -49,9 +48,8 @@ describe('bot answers the page cannot render are refused, not rendered (C12 / C7
     expect(parseBotSession([])).toBeNull();
     expect(parseBotSession(null)).toBeNull();
     expect(parseBotSession({ ...SESSION, trader_live: 'GRML' })?.trader_live).toEqual([]);
-    // ADR 042 K: the advise budget may be retired; a malformed one is absent, never half-read.
-    expect(parseBotSession({ ...SESSION, advise: undefined })).not.toBeNull();
-    expect(parseBotSession({ ...SESSION, advise: null })?.advise).toBeUndefined();
+    // ADR 042 K: the advise budget is retired; an older backend that still sends one parses the same.
+    expect(parseBotSession({ ...SESSION, advise: { enabled: false } })).not.toBeNull();
   });
 
   it('folds each ADR 042 name and its legacy alias both ways, so no reader sees one without the other', () => {

@@ -36,8 +36,8 @@ from constants_bot import BOT_BREAKER_VENUES, BOT_LEVEL_OFF
 logger = logging.getLogger(__name__)
 
 # The trip and lock fields a dial carries (written by ``bot.breakers``; read by ``bot.buy_lock``).
-TRIP_FIELDS = ("soft_breaker_until", "soft_breaker_at", "soft_breaker_pnl",
-               "hard_lock_until_date", "hard_lock_at", "hard_lock_pnl")
+TRIP_FIELDS = ("soft_breaker_until", "soft_breaker_at", "soft_breaker_pnl", "soft_breaker_usd",
+               "hard_lock_until_date", "hard_lock_at", "hard_lock_pnl", "hard_lock_usd")
 
 
 def _dial(entry: Any) -> dict[str, Any]:
@@ -171,7 +171,7 @@ def migrate_v5(row: dict[str, Any], here: str, chosen: str | None) -> None:
     if "allowlist" in caps and "api_kinds" not in caps:
         caps["api_kinds"] = caps.pop("allowlist")
     symbols = list(row.get("symbol_allowlist") or [])
-    lock = {k: row.get(k) for k in ("hard_lock_until_date", "hard_lock_at", "hard_lock_pnl")}
+    lock = {k: row.get(k) for k in ("hard_lock_until_date", "hard_lock_at", "hard_lock_pnl", "hard_lock_usd")}
     raw = row.get("venue_levels") if isinstance(row.get("venue_levels"), dict) else {}
     stored: dict[str, dict[str, Any]] = {}
     for venue in BOT_BREAKER_VENUES:

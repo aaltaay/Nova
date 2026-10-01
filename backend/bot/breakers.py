@@ -68,7 +68,7 @@ async def trip_soft(at: float | None = None, *, pnl: float | None = None, venue:
     venue = _venue() if venue is None else venue
     at = limits(load_session(), venue)["soft_usd"] if at is None else at
     flatten = await _flatten_or_alert("soft")
-    row = drop_to_l0(keep_soft_latch=True)
+    row = drop_to_l0(keep_soft_latch=True, reason="bot_trip")
     _stamp(row, venue, {"soft_breaker_at": now_ts(), "soft_breaker_pnl": pnl, "soft_breaker_usd": at})
     row = save_session(row)
     audit(action="breaker_soft", outcome="l0",
@@ -84,7 +84,7 @@ async def trip_hard(at: float | None = None, *, pnl: float | None = None, venue:
     venue = _venue() if venue is None else venue
     at = limits(load_session(), venue)["hard_usd"] if at is None else at
     flatten = await _flatten_or_alert("hard")
-    row = drop_to_l0(keep_soft_latch=True)
+    row = drop_to_l0(keep_soft_latch=True, reason="all_stop")
     until = lock_until()
     _stamp(row, venue, {"hard_lock_until_date": until, "hard_lock_at": now_ts(),
                         "hard_lock_pnl": pnl, "hard_lock_usd": at})

@@ -131,8 +131,6 @@ export function parseBotSession(body: unknown): BotSession | null {
   if (entries) out.entries_today = entries;
   else delete out.entries_today;
   if (!isPlainObject(body.caps_bounds)) delete out.caps_bounds;
-  // The advise budget is optional (ADR 042 K): a malformed one is absent, never half-read.
-  if (!isPlainObject(body.advise)) delete out.advise;
   // Required lists default to empty; optional ones stay absent when absent.
   for (const key of STRING_LISTS) {
     if (key in body || key !== 'symbol_allowlist') out[key] = asStrings(body[key]);

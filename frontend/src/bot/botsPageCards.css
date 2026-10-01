@@ -316,20 +316,6 @@
 .bots-breakers__today b { color: var(--nova-text); }
 .bots-breakers__today.is-ok b { color: var(--bots-green); }
 .bots-breakers__today.is-bad b { color: var(--bots-red); }
-.bots-advise { margin-top: 14px; font-size: 12px; border-top: 1px solid var(--bots-hair); padding-top: 8px; }
-.bots-advise summary { cursor: pointer; color: var(--nova-text-muted); }
-.bots-advise .bots-switch { margin-top: 8px; }
-.bots-advise__caps { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 8px; }
-.bots-advise__caps label { display: flex; flex-direction: column; gap: 3px; color: var(--nova-text-muted); }
-.bots-advise__caps input {
-  width: 6rem;
-  background: var(--input-bg, var(--nova-canvas));
-  color: var(--nova-text);
-  border: 1px solid var(--nova-border);
-  border-radius: 5px;
-  padding: 3px 6px;
-  font: inherit;
-}
 
 /* -- Proposals -------------------------------------------------------------- */
 .bots-prop { border: 1px solid var(--nova-border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 12.5px; }
