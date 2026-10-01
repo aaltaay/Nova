@@ -188,7 +188,7 @@ class TestSweep:
         _venues(monkeypatch)
         monkeypatch.setattr(kill_sweep, "_sim_rows", _real_sim_rows)
         sim = _by_venue(_trip())["sim"]
-        assert sim["error"] is None and sim["cancelled"] == [] and "No Sim replay is loaded" in sim["note"]
+        assert sim["error"] is None and sim["cancelled"] == [] and "not open in this process" in sim["note"]
 
 
 _real_live_rows = kill_sweep._live_rows

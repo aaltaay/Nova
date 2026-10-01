@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 LIVE_DISCONNECTED = "Gateway disconnected: Live orders were not swept"
 LIVE_NOT_READY = "IBKR is still connecting (session not ready): Live orders were not swept"
-SIM_NOT_LOADED = "No Sim replay is loaded in this process, so Sim holds no working order."
+SIM_NOT_LOADED = "Sim's scratch account is not open in this process, so it holds no working order."
 VENUES = (DESK_VENUE_LIVE, DESK_VENUE_PAPER, DESK_VENUE_SIM)   # real money first
 
 Rows = list[dict[str, Any]]
