@@ -81,6 +81,12 @@ export interface SetupProposal {
   created_at: number;
   status: string;
   tape_now?: TapeVerdict;
+  /** ADR 042 draft: how many of the Five Pillars pass (absent on an older API). */
+  pillars?: { passed: number; known: number; total: number } | null;
+  /** Nova itself will take it: the bot, or Auto-entry on that stock (absent on an older API). */
+  taken_by?: 'bot' | 'auto_entry' | null;
+  /** Not a trade, with its reasons: still raised, never bought (absent on an older API). */
+  not_a_trade?: { reasons: string[] } | null;
 }
 
 /** The catalyst classifier's verdict at arm time (ADR 024): the same rules as the backfilled history. */
@@ -147,7 +153,10 @@ export interface SetupCounts {
 export interface SetupSummary {
   id: SetupType;
   level: number;
-  chosen: boolean;
+  /** ADR 042 draft: the setup's level under the master ceiling, min(master, own); absent on an older API. */
+  effective?: number | null;
+  /** Retired with the chosen setup (ADR 042 draft); an older API still sends it. */
+  chosen?: boolean;
   proposing: boolean;
   template: { id: string; rev: number; name: string; params_hash?: string } | null;
   templates_watched: number;
