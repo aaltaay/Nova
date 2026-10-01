@@ -42,7 +42,8 @@ def test_first_pullback_defaults_are_exactly_what_the_scanner_ran():
         cs.SETUPS_PILLAR_MIN_PRICE, cs.SETUPS_PILLAR_MAX_PRICE, cs.SETUPS_PILLAR_MIN_CHANGE_PCT,
         cs.SETUPS_PILLAR_MIN_RVOL, cs.SETUPS_PILLAR_MAX_FLOAT)
     assert stock_filter(v).active is False                    # no filter: every name the scanner follows
-    assert (v["bot_window_start"], v["bot_window_end"], v["bot_entries_per_day"]) == ("07:00", "10:00", 1)
+    assert (v["bot_window_start"], v["bot_window_end"]) == ("07:00", "10:00")
+    assert "bot_entries_per_day" not in v                     # the sleeve's entries a day now (2026-09-30)
 
 
 def _research_defaults(path: Path, cls: str) -> dict:
@@ -155,9 +156,10 @@ def test_duplicate_from_a_template_and_limits(store):
     with pytest.raises(TemplateError) as err:
         store.create(FP, name="one too many")
     assert err.value.code == "TEMPLATE_LIMIT"
-    with pytest.raises(TemplateError) as err:
-        store.create("micro_pullback", name="x")
-    assert err.value.code == "TEMPLATE_NO_PARAMS"
+    for no_scanner in ("micro_pullback", "gap_and_go"):
+        with pytest.raises(TemplateError) as err:
+            store.create(no_scanner, name="x")
+        assert err.value.code == "TEMPLATE_NO_SCANNER" and "no scanner yet" in err.value.message
 
 
 def test_unknown_schema_is_refused_loudly_and_never_overwritten(tmp_path):
