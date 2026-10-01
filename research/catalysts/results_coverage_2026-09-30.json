@@ -1,0 +1,60 @@
+{
+  "rules_version": "catalyst-rules-v7-2026-09-24",
+  "targets": 7976,
+  "verdicts": {
+    "pillars": {
+      "catalyst:weak": 2238,
+      "catalyst:strong": 1370,
+      "noise_only": 1231,
+      "none_found": 579,
+      "routine_only": 205,
+      "negative": 110
+    },
+    "all": {
+      "catalyst:weak": 2842,
+      "catalyst:strong": 1616,
+      "noise_only": 1591,
+      "none_found": 1487,
+      "routine_only": 279,
+      "negative": 161
+    },
+    "both": {
+      "catalyst:weak": 121,
+      "none_found": 73,
+      "catalyst:strong": 69,
+      "noise_only": 37,
+      "negative": 9,
+      "routine_only": 3
+    },
+    "leaderboard": {
+      "none_found": 835,
+      "catalyst:weak": 483,
+      "noise_only": 323,
+      "catalyst:strong": 177,
+      "routine_only": 71,
+      "negative": 42
+    }
+  },
+  "catalyst_categories": {
+    "earnings_guidance": 976,
+    "merger_acquisition": 908,
+    "company_news": 760,
+    "contract_partnership": 720,
+    "clinical_data": 379,
+    "fda_regulatory": 280,
+    "theme_pivot": 220,
+    "product_news": 117,
+    "listing_financing": 98
+  },
+  "representative_source": {
+    "alpaca": 3471,
+    "edgar": 2429,
+    "finnhub": 471,
+    "massive": 118
+  },
+  "sources_answered_per_target": {
+    "2": 7,
+    "3": 4479,
+    "4": 3490
+  }
+}
