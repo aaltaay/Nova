@@ -201,7 +201,7 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
     }
     case 'kill_switch':
       return ok ? { text: 'Kill switch off', why: null }
-        : { text: 'Kill switch tripped', why: 'The kill switch is tripped: new buys are refused on every venue until you reset it.',
+        : { text: 'Kill switch tripped', why: 'The kill switch is tripped: every new order is refused on every venue until you reset it (Flatten and cancels still work).',
           actions: [{ kind: 'reset_kill', label: BOTS_GATE_RESET_KILL }] };
     case 'window':
       return windowWords(ok, d);

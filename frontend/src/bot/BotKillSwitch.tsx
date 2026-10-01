@@ -1,6 +1,7 @@
 /**
  * The kill switch on the Bots page hero (D-037, ADR 025, ADR 042 D): it cancels every
- * working order on every venue and blocks new buys on every venue until you reset it;
+ * working order on every venue and refuses every new order on every venue (a sell included; Flatten
+ * and cancels still work) until you reset it;
  * it does not sell positions. After a trip the page says what the sweep did on each
  * venue -- cancelled, still working, or not read at all (a Gateway that is down is a
  * stated failure, never "nothing to cancel").

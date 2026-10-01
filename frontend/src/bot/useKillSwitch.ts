@@ -1,7 +1,7 @@
 /**
  * The kill switch latch (D-037, ADR 025, ADR 042 D) for the Bots page: its status,
  * polled, and trip / reset behind the app's confirm dialog. Tripping cancels every
- * working order on every venue and blocks new buys on every venue until reset; it
+ * working order on every venue and refuses every new order on every venue until reset (Flatten and cancels pass); it
  * does not sell positions. The trip's answer -- what it cancelled on each venue,
  * what it could not, and which venue it could not read -- is kept until the next
  * press, so the page can say it.

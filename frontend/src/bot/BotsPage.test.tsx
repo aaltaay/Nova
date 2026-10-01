@@ -276,7 +276,7 @@ describe('Bots page hero (ADR 042)', () => {
     ] });
     await renderPage();
     const trip = screen.getByTestId('bots-kill-trip');
-    expect(trip.textContent).toMatch(/Cancels every working order on every venue and blocks new buys on every venue until you reset it\. It does not sell positions\./);
+    expect(trip.textContent).toMatch(/Cancels every working order on every venue and refuses every new order on every venue, a sell included, until you reset it\. It does not sell positions; Flatten and cancels still work\./);
     await act(async () => { fireEvent.click(trip); await flush(); });
     expect(confirmApp).toHaveBeenCalledTimes(1);
     expect(called(fetchMock, '/kill-switch', 'POST')).toBe(true);

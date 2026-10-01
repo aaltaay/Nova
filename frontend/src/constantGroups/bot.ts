@@ -228,7 +228,7 @@ export const BOT_GATE_TIPS: Record<string, string> = {
   depth_lines: 'Nova must hold a stock\'s Level 2 line to read its tape at the trigger (IBKR allows 3 at once). This is open while one bot stock has a line; a trigger on a stock without one is skipped, and the activity says so. Checked on every order.',
   bot_trip: 'The soft loss breaker: when this venue\'s day P&L falls to its bot trip, Nova flattens and turns the bot off. Activate re-enables it for today after you confirm; it clears by itself at 04:00 ET.',
   day_lock: 'The hard loss breaker on this venue: the all-stop flattened the account and locks bot and manual buys on this venue until 04:00 ET. Flatten and cancel still work. Checked on every order.',
-  kill_switch: 'The kill switch cancels every working order on every venue and refuses new buys on every venue until you reset it. Checked on every order.',
+  kill_switch: 'The kill switch cancels every working order on every venue and refuses every new order on every venue -- a sell included -- until you reset it. Flatten and cancels still work. Checked on every order.',
   window: 'Each setup\'s bot window, from its template and inside its arming window: the bot buys only a trigger inside it. Open while any setup at Strategy is inside its window now. Checked on every order.',
   daily_cap: 'One count for Nova\'s automatic entries (the bot and Auto-entry) on this venue today, from the sleeve\'s "Nova entries a day". A missed entry gives the day back; Approve is yours and is counted, never capped. Checked on every order.',
   extended_hours: 'Outside 09:30–16:00 ET the bot and Auto-entry buy only when the sleeve allows extended hours. Checked on every order.',
@@ -337,10 +337,10 @@ export const BOT_LABEL_AUDIT = 'Bot audit';
 /** The one kill latch, in the words of what it does. */
 export const KILL_SWITCH_TITLE = 'Kill switch';
 export const KILL_SWITCH_HINT =
-  'Cancels every working order on every venue and blocks new buys on every venue until you reset it. It does not sell positions — Flatten and cancel still work, and every other new order waits too. It stays on across a restart until you reset it here. The red KILL at the top of the desk is separate: it turns the bot off, locks the padlock, cancels and flattens this venue.';
+  'Cancels every working order on every venue and refuses every new order on every venue -- a sell included -- until you reset it. It does not sell positions; Flatten and cancels still work. It stays on across a restart until you reset it here. The red KILL at the top of the desk is separate: it turns the bot off, locks the padlock, cancels and flattens this venue.';
 export const KILL_SWITCH_TRIP_LABEL = 'Kill switch';
 export const KILL_SWITCH_RESET_LABEL = 'Reset kill switch';
 export const KILL_SWITCH_TRIP_CONFIRM =
-  'Trip the kill switch? It cancels every working order on every venue and blocks new buys on every venue until you reset it. It does not sell positions.';
+  'Trip the kill switch? It cancels every working order on every venue and refuses every new order on every venue, a sell included, until you reset it. It does not sell positions; Flatten and cancels still work.';
 export const KILL_SWITCH_RESET_CONFIRM = 'Reset the kill switch? New orders will be allowed again.';
 export const KILL_SWITCH_POLL_MS = 5000;

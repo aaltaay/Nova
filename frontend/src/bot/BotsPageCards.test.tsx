@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BOTS_CATALOGUE_PATH } from '../constantGroups/bots_page';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 import { consumeSetupsBoardOpen, getSetupsFilter } from '../setups';
+import { _resetDismissedForTests } from '../setups/proposalDismissals';
+import { _resetSleeveForTests } from '../setups/sleeveRisk';
 import type { SetupCounts, SetupsBoard, SetupSummary } from '../setups/types';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { BotsPage } from './BotsPage';
@@ -96,6 +98,8 @@ beforeEach(() => {
   setups.board = board();
   _resetBotSessionPollerForTests();
   _resetDeskPollShareForTests();
+  _resetDismissedForTests();   // one dismissed list with the alert card, held in memory between tests
+  _resetSleeveForTests();
 });
 
 afterEach(() => {

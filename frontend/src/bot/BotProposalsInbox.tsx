@@ -8,7 +8,7 @@
  * says why; both lock Stage with the reason. Nothing here places -- Stage ticket fills
  * the Trader ticket and you press Place.
  */
-import { useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { SETUP_KIND_LABELS } from '../constants';
 import {
   BOTS_PROPOSAL_DISMISS,
@@ -24,16 +24,24 @@ import {
 } from '../constantGroups/bots_page';
 import { SETUPS_STAGE_NO_ENTRY_WHY, TAPE_VERDICT_TIPS } from '../constantGroups/setups';
 import {
+  dismissedProposals,
+  dismissProposals,
   fmtPx,
+  proposalStageLock,
+  proposalStageSize,
+  riskSourceWords,
   setupLabel,
   setupTypeOf,
+  stageLimit,
   stageSetupTicket,
+  subscribeDismissedProposals,
   useSetupsBoard,
+  useSleeveRisk,
   type SetupProposal,
   type SetupRow,
 } from '../setups';
 import { tipProps } from '../ux/hoverTip';
-import { closedProposals, proposalWhy, readDismissed, writeDismissed } from './botProposalsModel';
+import { closedProposals, proposalWhy } from './botProposalsModel';
 import { etClock, prose } from './botsPageFormat';
 import type { BotAuditEntry, BotProposal } from './types';
 
@@ -102,15 +110,14 @@ interface Props {
 
 export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Props) {
   const stream = useSetupsBoard();
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(readDismissed);
-  const dismissAll = (ids: readonly string[]) => setDismissed(prev => {
-    const next = new Set(prev);
-    ids.forEach(id => next.add(id));
-    writeDismissed(next);
-    return next;
-  });
+  // One dismissed list with the floating alert card (ADR 042): a proposal dismissed there is gone here too.
+  const dismissed = useSyncExternalStore(subscribeDismissedProposals, dismissedProposals, dismissedProposals);
+  const dismissAll = (ids: readonly string[]) => dismissProposals(ids);
   const open = (stream?.board?.proposals ?? []).filter(p => p.status === 'open');
   const groups = bySymbol(open.filter(p => !dismissed.has(p.id)));
+  // Stage sizes by the venue sleeve's risk per trade over the setup's risk a share (ADR 042 E), like the
+  // alert card -- never Settings > Trade's default quantity.
+  const risk = useSleeveRisk(null, groups.length > 0);
   const rows = stream?.board?.rows ?? [];
   const closed = closedProposals(audit, Date.now() / 1000, new Set(open.map(p => p.id)));
   const pending = proposals.filter(p => p.status === 'pending');
@@ -125,9 +132,10 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
       {count === 0 ? <p className="bots-empty">{BOTS_PROPOSALS_EMPTY}</p> : null}
       {groups.map(([p, ...also]) => {
         const tape = p.tape_now ?? 'go';
-        const entry = p.entry != null ? p.entry.toFixed(2) : '';
+        const entry = stageLimit(p.entry);
         const ids = [p.id, ...also.map(a => a.id)];
-        const stageWhy = !entry ? SETUPS_STAGE_NO_ENTRY_WHY : stageLock(p);
+        const size = proposalStageSize(p, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
+        const stageWhy = !entry ? SETUPS_STAGE_NO_ENTRY_WHY : stageLock(p) ?? proposalStageLock(p, size);
         return (
           <article key={p.id} className="bots-prop" data-testid={`bots-setup-proposal-${p.symbol}`}>
             <div className="bots-prop__head">
@@ -153,8 +161,8 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
               <button type="button" className="bots-btn bots-btn--primary" disabled={stageWhy != null}
                 data-testid={`bots-stage-${p.symbol}`}
                 data-why={stageWhy ?? undefined}
-                title={stageWhy == null ? `Open ${p.symbol} and stage a BUY limit at ${entry}. Nothing is sent until you press Place.` : undefined}
-                onClick={() => { if (stageWhy == null) { stageSetupTicket(p.symbol, entry, openTrader); dismissAll(ids); } }}>
+                title={stageWhy == null ? `Open ${p.symbol} and stage a BUY limit at ${entry} for ${size.text}. Nothing is sent until you press Place.` : undefined}
+                onClick={() => { if (stageWhy == null && stageSetupTicket(p.symbol, entry, openTrader, size.qty)) dismissAll(ids); }}>
                 {BOTS_PROPOSAL_STAGE}
               </button>
               <button type="button" className="bots-btn" data-testid={`bots-dismiss-${p.symbol}`} onClick={() => dismissAll(ids)}>

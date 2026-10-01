@@ -45,9 +45,9 @@ export const BOTS_REENABLE_CANCEL = 'Keep it off';
 export const botsReenableText = (when: string, pnl: string): string =>
   `The bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` (P&L ${pnl})` : ''}. Activate re-enables the bot for today.`;
 export const BOTS_KILL_TRIP_NOTE =
-  'Cancels every working order on every venue and blocks new buys on every venue until you reset it. It does not sell positions.';
+  'Cancels every working order on every venue and refuses every new order on every venue, a sell included, until you reset it. It does not sell positions; Flatten and cancels still work.';
 export const BOTS_KILL_RESET_LABEL = 'Reset kill switch';
-export const BOTS_KILL_TRIPPED_NOTE = 'Kill switch tripped — new buys are refused on every venue until you reset it';
+export const BOTS_KILL_TRIPPED_NOTE = 'Kill switch tripped — every new order is refused on every venue until you reset it (Flatten and cancels still work)';
 export const BOTS_KILL_SWEEP_HEAD = 'Kill switch swept';
 export const botsKillSweepCancelled = (n: number, ids: string): string =>
   `cancelled ${n} order${n === 1 ? '' : 's'}${ids ? ` (${ids})` : ''}`;
@@ -255,7 +255,6 @@ export const BOTS_PROPOSAL_STAGE = 'Stage ticket';
 export const BOTS_PROPOSAL_DISMISS = 'Dismiss';
 export const BOTS_PROPOSAL_CLOSED_KEEP_SEC = 30 * 60;
 export const BOTS_PROPOSAL_CLOSED_MAX = 4;
-export const BOTS_DISMISSED_STORAGE_KEY = 'nova.bots.dismissedProposals.v1';
 export const BOTS_PROPOSAL_TAKEN: Record<string, string> = {
   bot: 'The bot is taking this — nothing to do',
   auto_entry: 'Auto-entry is taking this — nothing to do',
