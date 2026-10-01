@@ -1,8 +1,9 @@
 /**
- * Bot Autonomy chrome after ADR 027 (2026-09-23): the bar never carries arm
- * controls -- the Bots page hero owns the level and Activate, the Trader
- * carries them in its right-rail Bot Autonomy card (Level / Setup /
- * Allowlist / Activate), and every view keeps the bar to desk chrome and the
+ * Bot Autonomy chrome after ADR 027 (2026-09-23) and ADR 042 (2026-09-30): the bar
+ * never carries arm controls -- the Bots page hero owns the master level and
+ * Activate, the Trader carries them in its right-rail Bot Autonomy card (Master
+ * level / how many setups are at Strategy / the bot's stocks / Activate; there is
+ * no chosen setup), and every view keeps the bar to desk chrome and the
  * symbol-menu host.
  */
 import { test, expect, type Page } from '@playwright/test';
@@ -20,8 +21,7 @@ const BAR_ARM_CONTROL_IDS = [
 
 const CARD_CONTROL_IDS = [
   'bot-card-level',
-  'bot-card-setup',
-  'bot-card-setup-info',
+  'bot-card-at-strategy',
   'bot-arm-allowlist',
   'bot-arm-allowlist-toggle',
   'bot-card-state',
