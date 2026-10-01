@@ -15,7 +15,7 @@ import type {
 
 const MODES: ReadonlySet<string> = new Set<StockModeName>(['signal', 'approve', 'auto_entry', 'bot']);
 const VENUES: ReadonlySet<string> = new Set(['live', 'paper', 'sim']);
-const TRADE_KINDS: ReadonlySet<string> = new Set(['auto_entry', 'approve', 'bot']);
+const TRADE_KINDS: ReadonlySet<string> = new Set(['auto_entry', 'approve', 'bot', 'exit']);
 const TRADE_STATES: ReadonlySet<string> = new Set(['entering', 'holding', 'closed', 'missed', 'handed']);
 const APPROVAL_STATES: ReadonlySet<string> = new Set(['waiting', 'sent', 'withdrawn']);
 const EVENT_TONES: ReadonlySet<string> = new Set(['info', 'ok', 'warn', 'bad']);
@@ -46,6 +46,13 @@ function approval(raw: unknown): StockModeApproval | null {
   };
 }
 
+function raisedRow(raw: unknown): StockModeTrade['raised'][number] | null {
+  const r = obj(raw);
+  const to = num(r?.to);
+  if (!r || to === null) return null;
+  return { at: num(r.at) ?? 0, from: num(r.from) ?? to, to, round: num(r.round) ?? to };
+}
+
 function trade(raw: unknown): StockModeTrade | null {
   const t = obj(raw);
   if (!t || typeof t.kind !== 'string' || !TRADE_KINDS.has(t.kind)) return null;
@@ -74,6 +81,8 @@ function trade(raw: unknown): StockModeTrade | null {
     closed_at: num(t.closed_at),
     note: str(t.note),
     exiting: t.exiting === true,
+    trail: t.trail === true,
+    raised: Array.isArray(t.raised) ? t.raised.map(raisedRow).filter((x): x is StockModeTrade['raised'][number] => x !== null) : [],
   };
 }
 

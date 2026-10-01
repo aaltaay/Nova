@@ -94,6 +94,7 @@ export function pfsaRead(state: StockPlan['state'], planOver: Partial<StockPlan>
     setups_5m: [],
     no_scanner: [],
     plan: pfsaPlan(state, planOver),
+    held: null,
     levels: { hod: { price: 4.6, ts: pfsaAt(8, 4) }, pmh: 4.6, open: null, prev_close: 2.05, vwap: 3.9,
       round_above: 4.5, round_below: 4.0 },
     level_map: null,
@@ -166,6 +167,8 @@ export function pfsaTrade(kind: StockModeTrade['kind'], state: StockModeTrade['s
     closed_at: null,
     note: null,
     exiting: false,
+    trail: false,
+    raised: [],
     ...over,
   };
 }

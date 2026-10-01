@@ -184,7 +184,7 @@ v4b ("1 go"), on Paper and on Sim at the live edge only.
 - **No target beside it, yet.** The execution door lets one order sell the same shares (found building
   it: a second SELL was refused "100 already sent"), and a one-cancels-other exit pair exists only as a
   bracket's legs, with an entry. That rule protects against selling twice; a target for a held position
-  waits on an exit-only pair in the door.
+  waits on an exit-only pair in the door (#681).
 - The Sell switch to Nova on a held stock opens the sheet; `PUT` keeps refusing `STOCK_MODE_HELD`, so a
   switch never sends orders by itself. Take it back is the existing take-over.
 - **Live stays locked.** Nova never moves a Live order by itself (that would be an automated sell on real

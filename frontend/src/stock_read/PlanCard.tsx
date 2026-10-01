@@ -27,6 +27,8 @@ import {
   setupName,
   sizeFor,
 } from './planMath';
+import { HeldCard } from './HeldCard';
+import { heldQty } from './momentModel';
 import { gradeChip, gradeTip, notATrade } from './planVerdict';
 import type { StockReadContextValue } from './StockReadContext';
 import type { StockPlan, StockRead } from './types';
@@ -131,10 +133,15 @@ export function PlanCard({ ctx, roomy = true }: {
   }, [staged]);
 
   if (!read) return null;
-  const lane = planLane(plan, read.setups);
-  const manual = plan?.source === 'manual' || plan === null;
   const mode = ctx.layers.plan;
   const folded = mode === 'folded' || (mode === 'auto' && !roomy);
+  // While you hold the stock the box is the trade's (ADR 036 amendment 2026-10-01), folded the same way.
+  if (read.held && heldQty(ctx.who.inputs) > 0) {
+    return <HeldCard ctx={ctx} held={read.held} folded={folded}
+      onFold={() => ctx.setLayers({ plan: folded ? 'open' : 'folded' })} />;
+  }
+  const lane = planLane(plan, read.setups);
+  const manual = plan?.source === 'manual' || plan === null;
   const foldTip = !folded ? 'Fold the plan to one line'
     : mode === 'auto' ? 'One line while Level 2 needs the room: open the whole plan' : 'Open the whole plan';
   const name = plan && plan.source === 'setup' ? setupName(plan.setup_type) : 'Your plan';

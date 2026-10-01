@@ -10,12 +10,16 @@
  * and the moment's pin (ADR 037).
  * The 5-minute pane carries its own level map and the 5-minute setups (`fiveMinuteShapes.ts`; on the
  * 1-minute pane a 5-minute setup in reach is a dashed trigger line); the 5-minute and 10-second panes
- * mirror the plan's levels as thin lines. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
+ * mirror the plan's levels as thin lines. While you hold the stock (`read.held`), the trade's levels --
+ * THEN, NEXT, SUPPORT, STOP, the average and the rounds broken or traded through -- are the 10-second
+ * pane's, with their names (operator, 2026-10-01: "lets move these targets ... to the 10 seconds chart");
+ * no other pane draws the plan's lines or zones then. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
  * level is dashed while it is only a plan and solid while an order stands behind it. Nothing here is
  * estimated: every price is the scanner's, the read's or Nova's order's own.
  */
 import type { Time } from 'lightweight-charts';
 import { LEVEL_COLORS, SETUP_COLORS } from './constants';
+import { heldLines } from './heldView';
 import { levelScene, minuteScene } from './levelPicks';
 import type { CallTone, MomentCall } from './momentModel';
 import { drawnPast, failingNow, type Episode } from './pastSetups';
@@ -170,8 +174,10 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
     boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null, labels: o.layers.labels,
   };
   const lines: PriceLineSpec[] = [];
-  const lv = drawnLevels(plan, o.levels);
+  const held = read.held;
+  const lv = held ? null : drawnLevels(plan, o.levels);
   if (o.layers.setups) {
+    if (held && o.pane === 'thin') lines.push(...heldLines(held));
     if (lv) lines.push(...planLines(plan, lv, o.pane));
     if (o.pane === 'full') {
       // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.

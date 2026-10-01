@@ -205,7 +205,7 @@ export interface IbkrOrder {
   source?: 'nova' | 'ib_recovered';
   /** The ADR 007 command source (manual / bot / flatten ...): practice rows, and Live closed rows joined from the execution ledger. */
   order_source?: string | null;
-  /** Which part of Nova sent it (ticket_flatten / emergency_kill / bot_trip / all_stop / bot / auto_entry / approve / bot_api); null: your own ticket, or placed before senders were recorded. Same rows as order_source. */
+  /** Which part of Nova sent it (ticket_flatten / emergency_kill / bot_trip / all_stop / bot / auto_entry / approve / bot_api / nova_exit); null: your own ticket, or placed before senders were recorded. Same rows as order_source. */
   order_origin?: string | null;
   /** Practice rows only: the bot that placed it, when a bot did. */
   bot_id?: string | null;

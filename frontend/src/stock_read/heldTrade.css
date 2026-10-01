@@ -1,0 +1,116 @@
+/* The plan box while you hold the stock (ADR 036 amendment 2026-10-01): the box's own look (stockRead.css),
+   plus (two classes where a base rule of stockRead.css would otherwise win by load order) the held ruler's segments, the ladder and the "Nova takes the exit" sheet. */
+
+.sr-plan--held { position: relative; border-color: rgba(48, 209, 88, 0.55); }
+.sr-plan__badge.sr-plan__badge--held { background: rgba(10, 132, 255, 0.2); color: #5ac8fa; }
+.sr-plan__badge.sr-plan__badge--broke { background: rgba(48, 209, 88, 0.18); color: var(--sr-ok); }
+.sr-plan__badge.sr-plan__badge--stophit { background: rgba(255, 69, 58, 0.18); color: var(--sr-bad); }
+.sr-plan__rr b.sr-neg { color: var(--sr-bad); }
+
+/* The held ruler: your average (the white dot) to the level after next. */
+.sr-ruler__locked,
+.sr-ruler__ahead {
+  position: absolute;
+  top: 12px;
+  height: 3px;
+  border-radius: 2px;
+}
+.sr-ruler__locked { background: #1f7a3d; }
+.sr-ruler__ahead { top: 13px; height: 0; border-top: 2px dotted var(--sr-ok); }
+.sr-ruler__mark--broke { background: var(--sr-info); }
+.sr-ruler__mark--broke .sr-ruler__mark-label { color: var(--sr-secondary); }
+.sr-ruler__mark--through { background: var(--sr-warn); }
+.sr-ruler__mark--next { top: 7px; height: 13px; background: var(--sr-ok); }
+.sr-ruler__mark--next .sr-ruler__mark-label { color: var(--sr-ok); font-weight: 700; }
+.sr-ruler__mark--target { background: var(--sr-info); opacity: 0.7; }
+.sr-ruler__mark--support { background: var(--sr-info); }
+
+/* The ladder: THEN, NEXT, NOW, THROUGH, BROKE, SUPPORT, STOP, COST -- highest price first. */
+.sr-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 4px 0 0;
+  padding: 3px 0 0;
+  border-top: 1px solid var(--sr-border);
+  list-style: none;
+  font-size: 0.6rem;
+}
+.sr-ladder__row {
+  display: grid;
+  grid-template-columns: 3.4em 5.2em minmax(0, 1fr) auto;
+  gap: 5px;
+  align-items: baseline;
+  color: var(--sr-secondary);
+  white-space: nowrap;
+}
+.sr-ladder__p { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; color: var(--sr-text); }
+.sr-ladder__c {
+  justify-self: start;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.sr-ladder__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sr-ladder__r { color: var(--sr-muted); font-size: 0.55rem; font-variant-numeric: tabular-nums; }
+.sr-ladder__row--then .sr-ladder__p { color: #9fc9a9; }
+.sr-ladder__row--then .sr-ladder__c { background: rgba(48, 209, 88, 0.1); color: #9fc9a9; }
+.sr-ladder__row--next .sr-ladder__p { color: var(--sr-ok); }
+.sr-ladder__row--next .sr-ladder__c { background: rgba(48, 209, 88, 0.2); color: #7ee79a; }
+.sr-ladder__row--now { border-radius: 3px; background: rgba(255, 255, 255, 0.05); }
+.sr-ladder__row--now .sr-ladder__c { background: #ffd60a; color: #111; }
+.sr-ladder__row--through .sr-ladder__p { color: var(--sr-warn); }
+.sr-ladder__row--through .sr-ladder__c { background: rgba(245, 158, 11, 0.18); color: var(--sr-warn); }
+.sr-ladder__row--broke .sr-ladder__p,
+.sr-ladder__row--support .sr-ladder__p { color: var(--sr-secondary); }
+.sr-ladder__row--broke .sr-ladder__c,
+.sr-ladder__row--support .sr-ladder__c { background: #2c2f38; color: #aab0c0; }
+.sr-ladder__row--stop .sr-ladder__p { color: var(--sr-bad); }
+.sr-ladder__row--stop .sr-ladder__c { background: rgba(255, 69, 58, 0.2); color: #ff8a82; }
+.sr-ladder__row--cost .sr-ladder__p { color: #5ac8fa; }
+.sr-ladder__row--cost .sr-ladder__c { background: rgba(10, 132, 255, 0.2); color: #9ccaff; }
+
+.sr-btn.sr-btn--good { border-color: var(--sr-ok); background: #1f5c33; color: #d7ffe2; }
+.sr-btn.sr-btn--nova { border-color: #f97316; background: rgba(249, 115, 22, 0.18); color: #ffb27a; }
+
+/* "Nova takes the exit": over the plan box. */
+.sr-exit {
+  position: absolute;
+  z-index: 5;
+  inset: 4px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--sr-border);
+  border-radius: 6px;
+  background: var(--sr-bg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  font-size: 0.62rem;
+  color: var(--sr-text);
+}
+.sr-exit__title { margin: 0; font-size: 0.74rem; font-weight: 750; }
+.sr-exit__sub { margin: 1px 0 4px; color: var(--sr-secondary); }
+.sr-exit__lock { margin: 2px 0 4px; color: var(--sr-warn); }
+.sr-exit__opt {
+  display: grid;
+  grid-template-columns: 3.6em 6em minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+.sr-exit__opt--locked { grid-template-columns: 3.6em minmax(0, 1fr); opacity: 0.6; }
+.sr-exit__check { display: flex; gap: 6px; align-items: flex-start; }
+.sr-exit__check small { display: block; color: var(--sr-muted); }
+.sr-exit__k {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sr-muted);
+}
+.sr-exit__s { min-width: 0; color: var(--sr-secondary); }
+.sr-exit__sends { margin: 6px 0 0; color: var(--sr-secondary); }
+.sr-exit__sends b { color: var(--sr-text); }
+.sr-exit__error { margin: 4px 0 0; color: var(--sr-bad); }
+.sr-exit__foot { display: flex; gap: 6px; margin-top: 6px; }

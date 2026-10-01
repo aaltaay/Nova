@@ -63,6 +63,12 @@ const BY_ORIGIN: Record<string, SentBy> = {
     tone: 'nova',
     tip: "A bot through Nova's localhost bot API.",
   },
+  nova_exit: {
+    label: 'Nova exit',
+    tone: 'nova',
+    tip: 'Nova takes the exit: you bought the shares and handed Nova the sell. Its stop rests here, raised as '
+      + '1-minute candles close over round numbers.',
+  },
 };
 
 const BY_SOURCE: Record<string, SentBy> = {

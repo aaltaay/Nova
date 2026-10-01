@@ -16,7 +16,7 @@ Nothing here runs on Live: the take refuses it, and the runner only manages a tr
 
 No target rests beside the stop: the execution door lets one order sell the same shares (its in-flight
 commitments), and a one-cancels-other exit pair is built only as a bracket's legs, with an entry. A target
-for a position you already hold waits on an exit-only pair in the door.
+for a position you already hold waits on an exit-only pair in the door (#681).
 """
 from __future__ import annotations
 

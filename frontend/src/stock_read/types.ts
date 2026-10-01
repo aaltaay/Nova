@@ -1,6 +1,7 @@
 /** The bot's read on one stock (ADR 036): the wire shapes of `/api/stock-read/{symbol}` and its
  * decisions / history reads (AGENTS.md §3, "The bot's read on one stock"). */
 
+import type { StockHeld } from './heldRead';
 import type { LevelMap, PlanLevels } from './levelTypes';
 
 export type ReadState = 'ok' | 'warn' | 'bad' | 'unknown' | 'info';
@@ -197,6 +198,8 @@ export interface StockRead {
   setups_5m: SetupLane[];
   no_scanner: { setup_type: string; label: string; reason: string }[];
   plan: StockPlan | null;
+  /** The trade you hold, measured from the price (ADR 036 amendment 2026-10-01); null when nothing is held. */
+  held: StockHeld | null;
   levels: ReadLevels;
   /** Null from a backend older than the level map. */
   level_map: LevelMap | null;
@@ -284,7 +287,8 @@ export interface StockModeApproval {
 }
 
 export interface StockModeTrade {
-  kind: 'auto_entry' | 'approve' | 'bot';
+  /** `exit`: Nova holds the exit of a stock you bought (ADR 037 amendment 2026-10-01). */
+  kind: 'auto_entry' | 'approve' | 'bot' | 'exit';
   state: 'entering' | 'holding' | 'closed' | 'missed' | 'handed';
   venue: string | null;
   venue_day: string | null;
@@ -308,6 +312,10 @@ export interface StockModeTrade {
   note: string | null;
   /** The bot is selling it now. */
   exiting: boolean;
+  /** Nova's exit: the stop is raised as 1-minute candles close over round numbers. */
+  trail: boolean;
+  /** Nova's exit: each raise of its stop. */
+  raised: { at: number; from: number; to: number; round: number }[];
 }
 
 /** Something that keeps Nova from acting on the stock (`warn` / `bad`), or a fact beside it (`info`). The
