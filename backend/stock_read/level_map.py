@@ -1,13 +1,20 @@
 """The day's support and resistance for one symbol (ADR 036 amendment 2026-09-30). Pure.
 
-Two maps, one per chart they belong on:
+Three maps, each read from the candles of the chart it belongs on (operator report 2026-09-30: a
+"double top" two 1-minute candles made inside one 5-minute candle was drawn on the 5-minute chart,
+which shows one top):
 
-- **intraday** (the 5-minute pane; the 1-minute takes the plan's share of it): the high and low of
-  day, the premarket high, the 09:30 open, VWAP, tops and bottoms tested twice or more, the half and
-  whole dollars, and yesterday's high, low and close.
+- **intraday** (today's map from the session's one-minute candles): the high and low of day, the
+  premarket high, the 09:30 open, VWAP, tops and bottoms tested twice or more, the half and whole
+  dollars, and yesterday's high, low and close. The plan reads it (Room, the levels between stop and
+  target; trial T7 is registered on it), and the 1-minute pane draws its nearest tops and bottoms.
+- **five_minute** (the 5-minute pane): the same day read from 5-minute candles made of those minutes --
+  the high and low of day, the premarket high, the open, and tops and bottoms two separate 5-minute
+  candles tested; a half or whole dollar only where it falls in one of those zones. No VWAP (the chart
+  draws its own line) and nothing from yesterday (the Full Day pane's).
 - **daily** (the Full Day pane): daily highs and lows touched twice or more in the last sessions, the
   older daily highs above the price ("look left and up"), unfilled gaps, the 200-day average, and
-  yesterday's levels again.
+  yesterday's levels.
 
 Levels close together merge into one **zone** that lists every reason it holds. Nothing here decides a
 trade: ``level_notes`` says what stands between the plan's entry, stop and target. A bar is ``{t, o, h, l, c, v}`` (``t`` epoch seconds),
@@ -132,9 +139,9 @@ def is_whole(p: float) -> bool:
     return abs(p - round(p)) < EPS
 
 
-def intraday_members(bars: list[dict[str, Any]], *, price: float | None, vwap: float | None,
-                     yday: dict[str, Any] | None, prior_close: float | None) -> list[dict[str, Any]]:
-    """Today's levels from the session's closed one-minute bars (04:00 ET on)."""
+def candle_members(bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The levels the session's candles show, whatever their length: the high and low of day, the
+    premarket high, the 09:30 open, and the tops and bottoms tested twice or more."""
     out: list[dict[str, Any]] = []
     if bars:
         top = max(bars, key=lambda b: float(b["h"]))
@@ -156,14 +163,52 @@ def intraday_members(bars: list[dict[str, Any]], *, price: float | None, vwap: f
                 times = sorted(x[1] for x in g)
                 out.append(member(kind, edge, touches=len(g), times=times,
                                   note=f"tested {len(g)} times: " + ", ".join(hhmm(t) for t in times)))
+    return out
+
+
+def intraday_members(bars: list[dict[str, Any]], *, price: float | None, vwap: float | None,
+                     yday: dict[str, Any] | None, prior_close: float | None) -> list[dict[str, Any]]:
+    """Today's levels from the session's closed one-minute bars (04:00 ET on)."""
+    out = candle_members(bars)
     if vwap is not None:
-        out.append(member("vwap", vwap, note="session VWAP from 04:00"))
+        out.append(member("vwap", vwap, note="the chart's session VWAP"))
     if yday:
         out.append(member("yday_high", yday["h"], dates=[yday["d"]], note=f"high of {_mmdd(yday['d'])} (with extended hours)"))
         out.append(member("yday_low", yday["l"], dates=[yday["d"]], note=f"low of {_mmdd(yday['d'])} (with extended hours)"))
     if prior_close is not None:
         out.append(member("prior_close", prior_close, note="the regular session's close"))
     if price is not None:
+        for p in rounds_near(price):
+            out.append(member("whole" if is_whole(p) else "half", p, note="whole dollar" if is_whole(p) else "half dollar"))
+    return out
+
+
+FIVE_MIN_SEC = 300
+
+
+def five_minute_bars(bars: list[dict[str, Any]], now: float) -> list[dict[str, Any]]:
+    """The session's 5-minute candles made from its closed one-minute bars: on the clock (:00, :05 ...),
+    each one complete once its five minutes are over; five minutes without a trade make no candle."""
+    out: list[dict[str, Any]] = []
+    for b in bars:
+        t0 = float(int(float(b["t"]) // FIVE_MIN_SEC) * FIVE_MIN_SEC)
+        v = float(b.get("v") or 0)
+        if out and out[-1]["t"] == t0:
+            c = out[-1]
+            c["h"] = max(c["h"], float(b["h"]))
+            c["l"] = min(c["l"], float(b["l"]))
+            c["c"] = float(b["c"])
+            c["v"] += v
+        else:
+            out.append({"t": t0, "o": float(b["o"]), "h": float(b["h"]), "l": float(b["l"]), "c": float(b["c"]), "v": v})
+    return [c for c in out if c["t"] + FIVE_MIN_SEC <= now + EPS]
+
+
+def five_minute_members(bars5: list[dict[str, Any]], *, price: float | None) -> list[dict[str, Any]]:
+    """The 5-minute chart's levels: what its candles show, and the half and whole dollars near the price
+    (kept only where one falls in a zone with something else, ``build``)."""
+    out = candle_members(bars5)
+    if price is not None and out:
         for p in rounds_near(price):
             out.append(member("whole" if is_whole(p) else "half", p, note="whole dollar" if is_whole(p) else "half dollar"))
     return out
@@ -319,17 +364,21 @@ def zones(members: list[dict[str, Any]], *, price: float | None, home: str, merg
 def build(bars: list[dict[str, Any]], daily: list[dict[str, Any]] | None, *, price: float | None,
           prior_close: float | None, vwap: float | None, now: float, sma200: float | None = None,
           daily_error: str | None = None) -> dict[str, Any]:
-    """The level map the read carries: ``{schema_version, price, intraday, daily, daily_sessions,
-    daily_error, study}``."""
+    """The level map the read carries: ``{schema_version, price, intraday, five_minute, daily,
+    daily_sessions, daily_error, study}``. ``bars`` are the session's closed one-minute bars."""
     today = datetime.fromtimestamp(now, ET).date().isoformat()
     past = [b for b in (daily or []) if b["d"] < today]
     yday = past[-1] if past else None
     intra = intraday_members(bars, price=price, vwap=vwap, yday=yday, prior_close=prior_close)
     day = daily_members(past, price=price, today=today, sma200=sma200) if daily is not None else []
+    five = five_minute_members(five_minute_bars(bars, now), price=price)
+    five_zones = [z for z in zones(five, price=price, home="five_minute", merge_pct=STOCK_READ_LEVEL_MERGE_PCT)
+                  if any(m["kind"] not in ROUND_KINDS for m in z["members"])]
     return {
         "schema_version": STOCK_READ_LEVELS_SCHEMA_VERSION,
         "price": price,
         "intraday": zones(intra, price=price, home="intraday", merge_pct=STOCK_READ_LEVEL_MERGE_PCT),
+        "five_minute": five_zones,
         "daily": zones(day, price=price, home="daily", merge_pct=STOCK_READ_DAILY_MERGE_PCT),
         "daily_sessions": len(past[-STOCK_READ_DAILY_LEVEL_SESSIONS:]),
         "daily_error": daily_error if daily is None else None,

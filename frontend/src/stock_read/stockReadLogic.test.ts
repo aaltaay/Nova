@@ -160,25 +160,25 @@ describe('the charts', () => {
     // Only a plan: no order stands behind the stop or the target, so both are dashed and say so (ADR 037).
     expect(byId.target).toMatchObject({ title: 'TARGET 2R · plan', style: 'dashed' });
     expect(byId.stop).toMatchObject({ title: 'STOP · plan', style: 'dashed' });
-    expect(byId.hod.price).toBe(8.74);
-    expect(byId.round_above.title).toBe('$5.50');
-    expect(scene.edgeTags.map(t => t.label)).toEqual(
-      expect.arrayContaining(['HOD 8.74', 'PMH 7.31', 'VWAP 6.09']),
-    );
+    // The day's levels come from the read's level map (none in this read): no bare lines in their place.
+    expect(Object.keys(byId).sort()).toEqual(['entry', 'stop', 'target']);
+    expect(scene.edgeTags.map(t => t.label)).toEqual(expect.arrayContaining(['VWAP 6.09']));
+    // The premarket high is the 5-minute pane's (the day's structure), never a 1-minute line or tag.
+    expect(scene.edgeTags.some(t => t.label.startsWith('PMH'))).toBe(false);
   });
 
   it('mirrors only thin lines on the 5-minute and 10-second panes', () => {
     const { scene, lines } = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity });
     expect(scene.boxes).toEqual([]);
     expect(lines.filter(l => ['entry', 'stop', 'target'].includes(l.id)).every(l => l.width === 1 && l.title === '')).toBe(true);
-    expect(lines.map(l => l.id)).toEqual(['entry', 'stop', 'target', 'hod']);
+    expect(lines.map(l => l.id)).toEqual(['entry', 'stop', 'target']);
   });
 
   it('honours the switches: a hidden lane, setups off, levels off', () => {
     const hidden = paneDraw(read, { pane: 'full', layers: { ...LAYERS, hidden: ['bull_flag'] }, toTime: identity });
     expect(hidden.scene.boxes).toEqual([]);
     const off = paneDraw(read, { pane: 'full', layers: { ...LAYERS, setups: false }, toTime: identity });
-    expect(off.lines.map(l => l.id)).toEqual(['hod', 'pmh', 'open', 'round_above', 'round_below']);
+    expect(off.lines).toEqual([]);
     const bare = paneDraw(read, { pane: 'full', layers: { ...LAYERS, levels: false }, toTime: identity });
     expect(bare.scene.edgeTags).toEqual([]);
   });

@@ -237,7 +237,19 @@
   line-height: 1.35;
   pointer-events: none;
 }
-.sr-shape-tip__title { margin-bottom: 3px; font-weight: 700; }
+.sr-shape-tip__title { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 12px; font-weight: 700; }
+.sr-shape-tip__swatch { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 2px; }
+.sr-shape-tip__subtitle { margin-bottom: 4px; color: var(--sr-text); }
+.sr-shape-tip__section { margin-top: 6px; }
+.sr-shape-tip__head {
+  color: var(--sr-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sr-shape-tip__list { margin: 2px 0 0; padding-left: 14px; color: var(--sr-secondary); }
+.sr-shape-tip__list li + li { margin-top: 1px; }
 .sr-shape-tip__line { color: var(--sr-secondary); }
 .sr-shape-tip__line + .sr-shape-tip__line { margin-top: 2px; }
 /* The badge, the trade's track and the Who trades chip stack in the top-right corner (ADR 037). */
@@ -292,11 +304,18 @@
 }
 .sr-legend__focus .sr-link { margin: 0; }
 
-.sr-pane-note {
+/* A pane's corner: its note and its Key chip, side by side. */
+.sr-pane-top {
   position: absolute;
   top: 4px;
   left: 6px;
-  z-index: 5;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  pointer-events: none;
+}
+.sr-pane-note {
   padding: 0 7px;
   border: 1px solid rgba(245, 158, 11, 0.5);
   border-radius: 9px;
@@ -316,3 +335,69 @@
   border-color: rgba(245, 158, 11, 0.6);
   color: var(--sr-warn);
 }
+
+/* The Key: what each colour on the pane means. The card opens while the chip is pointed at, focused or
+   pressed. */
+.sr-key {
+  position: relative;
+  pointer-events: auto;
+}
+.sr-key__chip {
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 9px;
+  background: rgba(12, 12, 14, 0.72);
+  color: var(--sr-text);
+  font: inherit;
+  font-size: 10px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: help;
+}
+.sr-key__chip[aria-expanded='true'] { border-color: var(--sr-blue); }
+.sr-key__card {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 8;
+  display: none;
+  width: 330px;
+  max-width: calc(100vw - 24px);
+  padding: 8px 10px;
+  border: 1px solid var(--sr-border);
+  border-radius: 6px;
+  background: rgba(12, 12, 14, 0.96);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  color: var(--sr-text);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.sr-key:hover .sr-key__card,
+.sr-key:focus-within .sr-key__card,
+.sr-key--open .sr-key__card { display: block; }
+.sr-key__section + .sr-key__section {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sr-key__title {
+  margin-bottom: 4px;
+  color: var(--sr-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sr-key__row {
+  display: grid;
+  grid-template-columns: 22px 92px 1fr;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+}
+.sr-key__swatch { display: block; width: 22px; }
+.sr-key__swatch--line { height: 0; }
+.sr-key__swatch--band { height: 10px; border-radius: 2px; outline: 1px solid rgba(255, 255, 255, 0.12); }
+.sr-key__swatch--box { height: 10px; border: 1px solid; border-radius: 2px; }
+.sr-key__label { font-weight: 600; }
+.sr-key__text { color: var(--sr-secondary); }

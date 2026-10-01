@@ -15,6 +15,13 @@ const ET_HMS = new Intl.DateTimeFormat('en-US', {
 });
 const DAY = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
 
+const ET_HM12 = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+
+/** "6:30 PM": Eastern wall clock, 12-hour, for words a person reads. */
+export function clockEt(epochSec: number): string {
+  return ET_HM12.format(new Date(epochSec * 1000));
+}
+
 export function hhmmEt(epochSec: number | null | undefined): string {
   if (epochSec === null || epochSec === undefined || !Number.isFinite(epochSec) || epochSec <= 0) return '--:--';
   return ET_HM.format(new Date(epochSec * 1000));

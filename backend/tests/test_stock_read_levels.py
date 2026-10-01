@@ -104,6 +104,58 @@ def test_the_map_leaves_today_out_of_the_daily_levels_and_says_when_the_history_
     assert all(99.0 not in (z["lo"], z["hi"]) for z in lm["daily"]) and lm["daily_error"] is None
 
 
+
+# -- each chart reads its own candles (operator report 2026-09-30) -----------------------------------------
+def _spiky(spikes: dict[tuple[int, int], float], start=(17, 20), n=70, base=20.0):
+    """``n`` quiet one-minute candles from ``start`` with a high of ``spikes[(hh, mm)]`` at those minutes."""
+    out = []
+    for i in range(n):
+        m = start[0] * 60 + start[1] + i
+        hh, mm = m // 60, m % 60
+        hi = spikes.get((hh, mm), base + 0.05)
+        out.append(bar(hh, mm, base, hi, base - 0.05, base))
+    return out
+
+
+def test_five_minute_candles_are_made_on_the_clock_and_only_once_their_five_minutes_are_over():
+    bars = flat(9, 28, 9, 7.0)                       # 09:28 .. 09:36
+    five = level_map.five_minute_bars(bars, now=ts(9, 37))
+    assert [c["t"] for c in five] == [ts(9, 25), ts(9, 30)]          # 09:35 is still forming
+    assert five[1]["v"] == 50_000 and five[1]["o"] == 7.0
+    assert len(level_map.five_minute_bars(bars, now=ts(9, 40))) == 3
+
+
+def test_two_tops_inside_one_five_minute_candle_are_a_double_top_on_the_one_minute_map_only():
+    # XRPN 2026-09-30: tops at 17:41 and 17:44 -- one 5-minute candle (17:40) on the 5-minute chart.
+    bars = _spiky({(17, 41): 23.52, (17, 44): 23.50})
+    lm = level_map.build(bars, None, price=20.0, prior_close=12.9, vwap=19.0, now=ts(18, 31))
+    one = next(z for z in lm["intraday"] if any(m["kind"] == "hod" for m in z["members"]))
+    assert any(m["kind"] == "top" and m["label"] == "double top" for m in one["members"])
+    five = next(z for z in lm["five_minute"] if any(m["kind"] == "hod" for m in z["members"]))
+    assert not any(m["kind"] == "top" for m in five["members"]) and "top" not in five["label"]
+    assert five["id"].startswith("five_minute:")
+
+
+def test_two_five_minute_tops_are_a_double_top_on_the_five_minute_map():
+    bars = _spiky({(17, 41): 21.00, (18, 6): 20.99})
+    lm = level_map.build(bars, None, price=20.0, prior_close=12.9, vwap=19.0, now=ts(18, 31))
+    tops = [m for z in lm["five_minute"] for m in z["members"] if m["kind"] == "top"]
+    assert [(t["label"], t["touches"]) for t in tops] == [("double top", 2)]
+    assert [round(t, 0) for t in tops[0]["times"]] == [ts(17, 40), ts(18, 5)]
+
+
+def test_the_five_minute_map_leaves_vwap_and_yesterday_to_their_own_charts_and_names_a_round_only_where_tested():
+    bars = _spiky({(17, 41): 21.00, (18, 6): 20.99})
+    past = [day("2026-09-29", 20.20, 19.10, c=19.40)]
+    lm = level_map.build(bars, past, price=20.0, prior_close=19.4, vwap=19.95, now=ts(18, 31))
+    kinds = {m["kind"] for z in lm["five_minute"] for m in z["members"]}
+    assert not kinds & {"vwap", "yday_high", "yday_low", "prior_close"}
+    rounds = [z for z in lm["five_minute"] if any(m["kind"] in ("whole", "half") for m in z["members"])]
+    # $21.00 is a double top and $20.00 the low of day; $20.50, $19.50 ... alone are not 5-minute levels.
+    assert sorted(z["lo"] for z in rounds) == [19.95, 21.0]
+    assert all(any(m["kind"] not in ("whole", "half") for m in z["members"]) for z in rounds)
+    assert any(m["kind"] == "vwap" for z in lm["intraday"] for m in z["members"])   # the plan's map keeps it
+
 # -- what the plan says ---------------------------------------------------------------------------------
 PLAN = {"entry": 8.62, "stop": 8.45, "target": 8.96, "risk": 0.17}
 

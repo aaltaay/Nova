@@ -1,7 +1,8 @@
 """VWAP, MACD, and EMA adapters from stored / Sim 1Min bars.
 
-The VWAP is the session's from 04:00 ET -- the chart's anchor -- on the newest stored session
-(ADR 036: it used to average whatever the newest 240 bars were).
+The VWAP is the chart's session VWAP on the newest stored session: from 04:00 ET, restarted at the
+16:00 close for after hours (``math_indicators.vwap_session_bars``; ADR 036: it used to average
+whatever the newest 240 bars were).
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from constants_sensors import (
 )
 from sensors.envelope import build_envelope
 from sensors.feeds import bars_as_of, get_bars
-from sensors.math_indicators import last_ema, macd_from_closes, session_vwap, slope_last
+from sensors.math_indicators import last_ema, macd_from_closes, session_vwap, slope_last, vwap_session_bars
 
 ET = ZoneInfo("America/New_York")
 
@@ -51,7 +52,7 @@ def _need_bars(sensor: str, symbol: str, bars: list, source: str | None, need: i
 
 def read_vwap(symbol: str) -> dict[str, Any]:
     bars, source = get_bars(symbol, "1Min", SENSOR_SESSION_BAR_LIMIT)
-    bars = session_of(bars)
+    bars, anchor = vwap_session_bars(session_of(bars))
     missing = _need_bars("vwap", symbol, bars, source, 2)
     if missing:
         return missing
@@ -73,8 +74,9 @@ def read_vwap(symbol: str) -> dict[str, Any]:
             "tick_dollars": SENSOR_TICK_DOLLARS,
             "slope_5": slope_last(running, SENSOR_VWAP_SLOPE_SHORT),
             "slope_15": slope_last(running, SENSOR_VWAP_SLOPE_LONG),
-            "anchor": f"{SENSOR_SESSION_START_ET} ET",
-            "note": "Session VWAP from 04:00 ET (the chart's): 1Min typical price * volume. Not ticker.vwap.",
+            "anchor": anchor,
+            "note": "The chart's session VWAP (from 04:00 ET; from 16:00 ET after hours): 1Min typical "
+                    "price * volume. Not ticker.vwap.",
         },
     )
 

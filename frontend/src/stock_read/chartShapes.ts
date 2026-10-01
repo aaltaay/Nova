@@ -14,7 +14,7 @@
  */
 import type { Time } from 'lightweight-charts';
 import { LEVEL_COLORS, SETUP_COLORS } from './constants';
-import { levelScene } from './levelPicks';
+import { levelScene, minuteScene } from './levelPicks';
 import type { CallTone, MomentCall } from './momentModel';
 import { drawnPast, failingNow, shortReason, type Episode } from './pastSetups';
 import { pastShapes } from './pastShapes';
@@ -74,8 +74,6 @@ export const CALL_COLORS: Record<CallTone, string> = {
 };
 
 const MIN = 60;
-/** Two prices this close are one line. */
-const SAME_PRICE = 1e-6;
 const LIVE_DRAWN = new Set(['leg', 'pullback', 'armed', 'near', 'triggered', 'filtered', 'failed']);
 
 export function paneKind(timeframe: string): PaneKind {
@@ -216,36 +214,6 @@ function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): Pri
   return out;
 }
 
-function levelLines(read: StockRead, pane: PaneKind): { lines: PriceLineSpec[]; tags: Scene['edgeTags'] } {
-  const lv = read.levels;
-  const lines: PriceLineSpec[] = [];
-  const tags: Scene['edgeTags'] = [];
-  const add = (id: string, price: number | null, title: string, color: string, tag?: string) => {
-    if (price === null) return;
-    lines.push({ id, price, color, width: 1, style: 'dotted', title: pane === 'full' ? title : '', axisLabel: false });
-    tags.push({ price, label: tag ?? `${title} ${fmtPx(price)}`, color });
-  };
-  add('hod', lv.hod?.price ?? null, 'HOD', SETUP_COLORS.level);
-  if (pane === 'full') {
-    add('pmh', lv.pmh, 'PMH', SETUP_COLORS.level);
-    add('open', lv.open, 'Open', SETUP_COLORS.level);
-    for (const [id, price] of [['round_above', lv.round_above], ['round_below', lv.round_below]] as const) {
-      if (price !== null) add(id, price, `$${fmtPx(price)}`, SETUP_COLORS.round, `$${fmtPx(price)}`);
-    }
-    // The chart's own VWAP line draws it in view; out of view it gets a tag.
-    if (lv.vwap !== null) tags.push({ price: lv.vwap, label: `VWAP ${fmtPx(lv.vwap)}`, color: '#bf5af2' });
-    // The plan's levels between its stop and target, but for the lines above.
-    const drawn = [lv.hod?.price ?? null, lv.round_above, lv.round_below].filter((x): x is number => x !== null);
-    const entry = read.plan?.entry ?? null;
-    for (const b of read.plan?.levels?.between ?? []) {
-      if (b.hod || drawn.some(x => Math.abs(x - b.price) < SAME_PRICE)) continue;
-      const color = b.round ? LEVEL_COLORS.round
-        : entry !== null && b.price < entry ? LEVEL_COLORS.support : LEVEL_COLORS.resistance;
-      add(`between:${b.price}`, b.price, b.tag, color, b.tag);
-    }
-  }
-  return { lines, tags };
-}
 
 /** Where a lane's drawing begins: the pole's first candle, the leg's low, the impulse, the open. */
 export function laneStartSec(lane: SetupLane, legStart?: (leg: SetupLeg) => number): number | null {
@@ -315,10 +283,16 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
     scene.levels = m.levels;
     scene.ticks = m.ticks;
     scene.edgeTags.push(...m.tags);
-  } else if (o.layers.levels) {
-    const lv = levelLines(read, o.pane);
-    lines.push(...lv.lines);
-    scene.edgeTags.push(...lv.tags);
+  } else if (o.layers.levels && o.pane === 'full') {
+    // Drawn by the scene like the 5-minute pane's, so each says what it is and opens its card: a price
+    // line shows its title only beside an axis label (lightweight-charts 5.1), and these had none.
+    const m = minuteScene(read);
+    scene.levels = m.levels;
+    scene.edgeTags.push(...m.tags);
+    // The chart's own VWAP line draws it in view (the same VWAP since it restarts at 16:00); out of view
+    // it gets a tag.
+    const vwap = read.levels.vwap;
+    if (vwap !== null) scene.edgeTags.push({ price: vwap, label: `VWAP ${fmtPx(vwap)}`, color: LEVEL_COLORS.vwap });
   }
   if (o.pane === 'full' && o.focus) {
     const t = o.toTime(o.focus.ts);
