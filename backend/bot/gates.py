@@ -93,6 +93,7 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
     symbols = normalize_symbols(row.get("symbol_allowlist"))
     held = [s for s in symbols if _safe(lambda s=s: holds_depth_line(s), False, f"{s}'s depth line")]
     missing = [s for s in symbols if s not in held]
+    auto = _safe(_auto_entry_stocks, [], "the Auto-entry stocks")
     padlock_ok, padlock_why = activation.padlock()
     tripped = soft_latched(row)
     lock = day_lock(row, venue)
@@ -117,9 +118,8 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
         _gate("padlock", padlock_ok, "activate",
               "the desk padlock is unlocked" if padlock_ok else f"the desk padlock is locked: {padlock_why}",
               reason=padlock_why),
-        _gate("allowlist", bool(symbols), "activate",
-              (f"{len(symbols)} stock{'' if len(symbols) == 1 else 's'} set to Bot on this venue" if symbols
-               else "no stock is set to Bot on this venue: set one under Who trades"), count=len(symbols)),
+        _gate("allowlist", bool(symbols) or bool(auto), "fire",
+              _stocks_text(len(symbols), len(auto)), count=len(symbols), auto_entry=len(auto)),
         _gate("depth_lines", bool(held), "fire",
               (f"Level 2 held on {', '.join(held)}" if held
                else "no Bot stock holds a Level 2 line: open its Level 2 or record it"),
@@ -152,6 +152,28 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
               else f"the session's commissions are unreadable ({hold.get('error')}): no new bot entry",
               **(hold or {})),
     ]
+
+
+def _auto_entry_stocks() -> list[str]:
+    """The stocks set to Auto-entry (Nova buys, you sell) on the desk venue: Nova buys them only
+    while the bot is Active, by the bot's rules (ADR 042 F)."""
+    from constants_stock_mode import STOCK_MODE_AUTO_ENTRY
+    from stock_mode import model, store
+
+    return sorted(sym for sym, sw in store.switches().items()
+                  if model.mode_of(sw.get("buy"), sw.get("sell")) == STOCK_MODE_AUTO_ENTRY)
+
+
+def _stocks_text(bot: int, auto: int) -> str:
+    """Which stocks Nova may buy on this venue, in words."""
+    if not bot and not auto:
+        return "no stock is set to Bot or Auto-entry on this venue: set one under Who trades"
+    parts = []
+    if bot:
+        parts.append(f"{bot} stock{'' if bot == 1 else 's'} set to Bot")
+    if auto:
+        parts.append(f"{auto} to Auto-entry")
+    return " and ".join(parts) + " on this venue"
 
 
 def first_closed(gate_list: list[dict[str, Any]]) -> dict[str, Any] | None:

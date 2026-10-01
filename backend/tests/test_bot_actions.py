@@ -94,7 +94,7 @@ async def test_buy_market_uses_preset_shares_and_source_bot(monkeypatch, l2_brai
     assert cmd.side == "BUY"
     assert cmd.qty == 1.0
     assert cmd.order_type == "MKT"
-    assert cmd.outside_rth is False
+    assert cmd.outside_rth is True        # the sleeve allows extended hours unless turned off (ADR 042 E)
     assert cmd.skip_risk is True
     assert load_session()["bot_qty"]["ABCD"] == 1.0
 
@@ -299,6 +299,7 @@ async def test_extended_hours_off_holds_entries_outside_regular_hours(monkeypatc
 
     seen = _count_places(monkeypatch)
     monkeypatch.setattr(session_gate, "regular_hours_now", lambda: False)
+    apply_patch({"caps": {"extended_hours": False}}, desk=True)    # on by default: the operator turns it off
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
     assert exc.value.reason == BOT_SKIP_EXTENDED_HOURS

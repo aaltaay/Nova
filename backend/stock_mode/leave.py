@@ -19,6 +19,17 @@ from constants_stock_mode import STOCK_MODE_APPROVE, STOCK_MODE_AUTO_ENTRY, STOC
 logger = logging.getLogger(__name__)
 _BY = {STOCK_MODE_AUTO_ENTRY: "auto_entry", STOCK_MODE_APPROVE: "approve"}
 _WAIT_SEC = 10.0
+_leaving: tuple[str, str] | None = None     # (old, new) while ``leave`` sweeps ``old``
+
+
+def leaving() -> tuple[str, str] | None:
+    """``(old, new)`` while the desk is leaving ``old``: no new Nova entry may start meanwhile."""
+    return _leaving
+
+
+def leaving_text(move: tuple[str, str]) -> str:
+    return (f"the desk is moving from {move[0]} to {move[1]}: Nova starts no new entry while it cancels "
+            f"its working ones on {move[0]}")
 
 
 def has_work(old: str | None) -> bool:
@@ -41,6 +52,15 @@ async def leave(old: str | None, new: str) -> list[dict[str, Any]]:
     """Cancel Nova's entries still working on ``old`` before the desk moves to ``new``."""
     if old in (None, new) or old not in DESK_PRACTICE_VENUES:
         return []
+    global _leaving
+    _leaving = (old, new)
+    try:
+        return await _sweep(old, new)
+    finally:
+        _leaving = None
+
+
+async def _sweep(old: str, new: str) -> list[dict[str, Any]]:
     from bot.first_pullback.handover import leave_venue
     from stock_mode import orders, runner, store
 

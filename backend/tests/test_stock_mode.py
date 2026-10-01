@@ -280,6 +280,21 @@ def test_auto_entry_buys_the_go_trigger_sized_by_the_sleeve_and_never_sells(pape
     assert "the exit is yours" in view["last_event"]["text"]
 
 
+def test_no_new_entry_starts_while_the_desk_is_leaving_the_venue(paper, monkeypatch):
+    """ADR 042 F: while the sweep cancels Nova's working entries on the venue the desk leaves, a
+    trigger heard meanwhile sends nothing there -- it is skipped, and says why."""
+    import stock_mode.leave as leave
+
+    put(paper, "nova", "you")
+    monkeypatch.setattr(leave, "_leaving", ("paper", "live"))
+    runner.submit(trigger())
+    assert tick(paper) is None
+    [skip] = mode_rows("skipped")
+    assert skip["inputs"]["code"] == "BOT_VENUE_CHANGING"
+    assert "moving from paper to live" in skip["reason"]
+    assert paper.broker.ledger.working_orders() == []
+
+
 def test_auto_entry_and_the_bot_share_one_daily_count(paper):
     put(paper, "nova", "you")
     runner.submit(trigger())

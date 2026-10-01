@@ -56,7 +56,7 @@ _LABELS = {"risk_usd": "risk per trade", "max_shares": "max shares", "bp_budget_
 def defaults() -> dict[str, Any]:
     return {"risk_usd": BOT_DEFAULT_RISK_USD, "max_shares": BOT_DEFAULT_MAX_SHARES,
             "bp_budget_usd": BOT_DEFAULT_BP_BUDGET_USD, "working_ttl_sec": BOT_DEFAULT_WORKING_TTL_SEC,
-            "extended_hours": False, "entries_per_day": BOT_ENTRIES_PER_DAY, "api_kinds": default_allowlist()}
+            "extended_hours": True, "entries_per_day": BOT_ENTRIES_PER_DAY, "api_kinds": default_allowlist()}
 
 
 def bounds() -> dict[str, list[float]]:
@@ -89,7 +89,9 @@ def normalize(raw: Any) -> dict[str, Any]:
             continue
         value = _within(key, value)
         out[key] = int(value) if key in _INTS else value
-    out["extended_hours"] = bool(raw.get("extended_hours"))
+    # On unless the operator turned it off: the default bot windows open at 07:00 ET (ADR 042 E).
+    if "extended_hours" in raw:
+        out["extended_hours"] = bool(raw.get("extended_hours"))
     kinds = raw.get("api_kinds", raw.get("allowlist"))
     if kinds is not None:
         out["api_kinds"] = _kinds(kinds)

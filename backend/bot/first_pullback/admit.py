@@ -47,6 +47,7 @@ from constants_bot import (
     BOT_SKIP_SIZE,
     BOT_SKIP_STALE,
     BOT_SKIP_TAPE,
+    BOT_SKIP_VENUE_CHANGING,
 )
 from constants_setups import SETUP_KIND_FIRST_PULLBACK, SETUPS_READOUT_KINDS, TAPE_VERDICT_GO
 
@@ -123,11 +124,16 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     from bot.sleeve import of as sleeve_of
     from setup_scanner.trade_verdict import of_event
 
+    from stock_mode.leave import leaving, leaving_text
+
     out: list[Blocker] = []
     venue, edge, readable = venue_now or activation.venue_state()
     blocked = activation.venue_block(venue, edge, readable)
     if blocked is not None:
         out.append(blocked)
+    move = leaving()
+    if move is not None:
+        out.append((BOT_SKIP_VENUE_CHANGING, leaving_text(move)))
     if not is_desk_active(row):
         out.append((BOT_SKIP_NOT_ACTIVE, "the bot is not active: press Activate on the Bots page"))
     setup_type = setup_of(event)

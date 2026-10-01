@@ -36,7 +36,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from bot.audit import record as audit
-from constants_bot import BOT_FP_TRIGGER_MAX_AGE_SEC, BOT_DEFAULT_WORKING_TTL_SEC
+from constants_bot import BOT_DEFAULT_WORKING_TTL_SEC, BOT_FP_TRIGGER_MAX_AGE_SEC, BOT_SKIP_VENUE_CHANGING
 from constants_setups import SETUP_STATE_ARMED, SETUP_STATE_NEAR, TAPE_VERDICT_GO
 from constants_stock_mode import (
     STOCK_MODE_APPROVAL_CHECK_SEC,
@@ -157,6 +157,11 @@ def _refusal(event: dict[str, Any], now: float) -> tuple[str, str] | None:
     blocked = gates.venue_block(venue, replay) or gates.desk_block()
     if blocked:
         return blocked
+    from stock_mode.leave import leaving, leaving_text
+
+    move = leaving()
+    if move is not None:
+        return BOT_SKIP_VENUE_CHANGING, leaving_text(move)
     age = now - float(event.get("ts") or 0)
     if age > BOT_FP_TRIGGER_MAX_AGE_SEC:
         return STOCK_MODE_BLOCK_STALE, f"the trigger is {age:.0f}s old (at most {BOT_FP_TRIGGER_MAX_AGE_SEC:g}s)"
