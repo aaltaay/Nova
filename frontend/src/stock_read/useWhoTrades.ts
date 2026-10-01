@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DepthMarker } from '../ibkr';
 import { STOCK_MODE_PATH, STOCK_MODE_POLL_MS } from './constants';
 import { momentOf, NO_HELD, nextHeld, type HeldMemory, type Moment, type MomentInputs } from './momentModel';
-import { sizeFor } from './planMath';
+import { approveQty } from './novaPromise';
 import type { StockModeView, StockRead, StockSide } from './types';
 import { usePolledRead } from './useStockRead';
 import { approvePlan, putStockMode, takeOverExit, withdrawApproval } from './whoTradesApi';
@@ -44,7 +44,10 @@ interface Options {
   symbol: string;
   live: boolean;
   read: StockRead | null;
+  /** The venue sleeve's risk per trade: sizes the operator's own buys (never sent with the switch). */
   riskUsd: number;
+  /** The sleeve's time limit on a Nova entry; null while unread. */
+  ttlSec?: number | null;
   position: { qty: number; avgCost: number | null } | null;
   last: number | null;
   /** The desk venue (live | paper | sim), or null when the status names none. */
@@ -74,7 +77,9 @@ function useStable<T>(value: T): T {
   return ref.current;
 }
 
-export function useWhoTrades({ symbol, live, read, riskUsd, position, last, venue: deskVenue = null }: Options): WhoTradesState {
+export function useWhoTrades({
+  symbol, live, read, riskUsd, ttlSec = null, position, last, venue: deskVenue = null,
+}: Options): WhoTradesState {
   const sym = symbol.trim().toUpperCase();
   // The view is the venue's own (ADR 037: a venue change clears every switch), so the old
   // venue's chip and memories go the moment the desk moves, not at the next poll (#657).
@@ -114,8 +119,9 @@ export function useWhoTrades({ symbol, live, read, riskUsd, position, last, venu
     last,
     now: 0,
     riskUsd,
+    ttlSec,
     held,
-  }), [live, read, view, position, last, riskUsd, held]);
+  }), [live, read, view, position, last, riskUsd, ttlSec, held]);
   const clocked = useMemo<MomentInputs>(() => ({ ...inputs, now }), [inputs, now]);
 
   useEffect(() => {
@@ -146,12 +152,13 @@ export function useWhoTrades({ symbol, live, read, riskUsd, position, last, venu
   }, []);
 
   const setSides = useCallback(
-    (buy: StockSide, sell: StockSide) => run('Saving who trades…', () => putStockMode(sym, buy, sell, riskUsd)),
-    [run, sym, riskUsd],
+    (buy: StockSide, sell: StockSide) => run('Saving who trades…', () => putStockMode(sym, buy, sell)),
+    [run, sym],
   );
   const plan = read?.plan ?? null;
   const approve = useCallback((now: boolean) => {
-    const qty = plan ? sizeFor(riskUsd, plan.risk) : null;
+    // The size the button names: Nova's for the plan when the view gives one, else the risk per trade's.
+    const qty = approveQty(view, riskUsd, plan);
     if (!plan || plan.setup_id === null || plan.entry === null || plan.stop === null || plan.target === null || qty === null) {
       setWriteError('The plan has nothing to approve.');
       return Promise.resolve();
@@ -160,9 +167,9 @@ export function useWhoTrades({ symbol, live, read, riskUsd, position, last, venu
       setup_id: plan.setup_id as string, entry: plan.entry as number, stop: plan.stop as number,
       target: plan.target as number, qty, now,
     }));
-  }, [run, sym, plan, riskUsd]);
+  }, [run, sym, plan, view, riskUsd]);
   const withdraw = useCallback(() => run('Cancelling…', () => withdrawApproval(sym)), [run, sym]);
-  const takeOver = useCallback(() => run('Taking over the exit…', () => takeOverExit(sym, riskUsd)), [run, sym, riskUsd]);
+  const takeOver = useCallback(() => run('Taking over the exit…', () => takeOverExit(sym)), [run, sym]);
 
   return useMemo(() => ({
     view,

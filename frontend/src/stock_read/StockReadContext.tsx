@@ -1,22 +1,18 @@
 /**
  * One Trader tab's stock read (ADR 036): the polled read, the day's setups that ended, the operator's
- * own plan, their risk per trade, what the charts draw, the sheet and a chart focus -- shared by the plan box on the rail,
- * the tiles, the sheet over the charts and every chart pane's drawings. The read places nothing;
- * "Stage in ticket" only fills the tab's ticket. Who trades the stock (ADR 037) rides along: the
- * switch's view and writes, the moment on the chart and the plan's rows in Level 2.
+ * own plan, the venue sleeve's risk per trade, what the charts draw, the sheet and a chart focus -- shared
+ * by the plan box on the rail, the tiles, the sheet over the charts and every chart pane's drawings. The read
+ * places nothing; "Stage in ticket" only fills the tab's ticket. Who trades the stock (ADR 037) rides along:
+ * the switch's view and writes, the moment on the chart and the plan's rows in Level 2.
  */
 import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { parseRiskUsd, saveSleeveRisk, useSleeveRisk, venueOrNull, type SleeveRisk } from '../setups';
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { readPref, writePref } from '../utils/prefStore';
-import {
-  STOCK_READ_LAYERS_KEY,
-  STOCK_READ_RISK_DEFAULT_USD,
-  STOCK_READ_RISK_KEY,
-} from './constants';
+import { STOCK_READ_LAYERS_KEY } from './constants';
 import type { PastSetups } from './pastSetups';
 import type { LabelDetail } from './sceneLabels';
-import { parseRiskUsd } from './planMath';
 import type { DecisionEvent, ReadGroupId, StockDecisions, StockHistory, StockRead } from './types';
 import {
   useStockRead,
@@ -62,8 +58,12 @@ export interface StockReadContextValue {
   past: PolledState<PastSetups>;
   manual: { entry: number | null; stop: number | null };
   setManualPlan: (entry: number | null, stop: number | null) => void;
+  /** The venue sleeve's risk per trade (else the stated fallback): sizes the operator's own buys. */
   riskUsd: number;
+  /** Saves it into the venue's sleeve: Nova's automatic buys size by it too. */
   setRiskUsd: (usd: number) => void;
+  /** Where the risk per trade comes from, and any trouble reading or saving it. */
+  risk: SleeveRisk;
   layers: StockReadLayers;
   setLayers: (patch: Partial<StockReadLayers>) => void;
   toggleLane: (setupType: string) => void;
@@ -129,7 +129,6 @@ export function StockReadProvider({
   const sym = symbol.trim().toUpperCase();
   const sample = useSampleDataOptional();
   const [manual, setManual] = useState<{ entry: number | null; stop: number | null }>({ entry: null, stop: null });
-  const [riskUsd, setRiskState] = useState(() => readPref(STOCK_READ_RISK_KEY, STOCK_READ_RISK_DEFAULT_USD, parseRiskUsd));
   const [layers, setLayerState] = useState(() => readPref(STOCK_READ_LAYERS_KEY, DEFAULT_LAYERS, parseLayers));
   const [sheet, setSheet] = useState<StockReadContextValue['sheet']>({ open: false, tab: 'signals', group: null });
   const [focus, setFocus] = useState<ChartFocus | null>(null);
@@ -140,6 +139,9 @@ export function StockReadProvider({
   }, [sym]);
 
   const live = active && !replay;
+  const sleeveVenue = venueOrNull(venue);
+  const risk = useSleeveRisk(sleeveVenue, live && !sample);
+  const riskUsd = risk.riskUsd;
   const read = useStockRead(sym, { active: live, entry: manual.entry, stop: manual.stop });
   const history = useStockReadHistory(sym, live);
   const decisions = useStockReadDecisions(sym, live && sheet.open && sheet.tab === 'decisions');
@@ -150,7 +152,10 @@ export function StockReadProvider({
   const posQty = position?.qty ?? null;
   const posCost = position?.avgCost ?? null;
   const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
-  const who = useWhoTrades({ symbol: sym, live: live && !sample, read: read.data, riskUsd, position: pos, last: lastPrice, venue });
+  const who = useWhoTrades({
+    symbol: sym, live: live && !sample, read: read.data, riskUsd, ttlSec: risk.ttlSec, position: pos, last: lastPrice,
+    venue,
+  });
 
   const setManualPlan = useCallback((entry: number | null, stop: number | null) => {
     setManual({ entry: entry !== null && entry > 0 ? entry : null, stop: stop !== null && stop > 0 ? stop : null });
@@ -158,9 +163,8 @@ export function StockReadProvider({
   const setRiskUsd = useCallback((usd: number) => {
     const next = parseRiskUsd(usd);
     if (next === null) return;
-    setRiskState(next);
-    writePref(STOCK_READ_RISK_KEY, next);
-  }, []);
+    void saveSleeveRisk(next, sleeveVenue);
+  }, [sleeveVenue]);
   const setLayers = useCallback((patch: Partial<StockReadLayers>) => {
     setLayerState(prev => {
       const next = { ...prev, ...patch };
@@ -205,6 +209,7 @@ export function StockReadProvider({
     setManualPlan,
     riskUsd,
     setRiskUsd,
+    risk,
     layers,
     setLayers,
     toggleLane,
@@ -216,7 +221,7 @@ export function StockReadProvider({
     clearFocus,
     topOfBook: book,
     who,
-  }), [sym, active, replay, read, history, decisions, past, manual, setManualPlan, riskUsd, setRiskUsd, layers,
+  }), [sym, active, replay, read, history, decisions, past, manual, setManualPlan, riskUsd, setRiskUsd, risk, layers,
     setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.

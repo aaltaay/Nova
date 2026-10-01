@@ -9,10 +9,8 @@ export const STOCK_READ_DECISIONS_POLL_MS = 60_000;
  * at once when a lane's drawn state changes. */
 export const STOCK_READ_PAST_POLL_MS = 15_000;
 
-/** The operator's risk per trade, for the plan's size (a desk setting, this window's browser). */
-export const STOCK_READ_RISK_KEY = 'nova.stockRead.riskUsd';
-export const STOCK_READ_RISK_DEFAULT_USD = 20;
-export const STOCK_READ_RISK_MAX_USD = 10_000;
+/* Risk per trade is the venue sleeve's (ADR 042 draft): read and saved by `setups/sleeveRisk.ts`, whose
+ * numbers live in `constantGroups/setups.ts` (SLEEVE_*), since every proposal's Stage sizes by it too. */
 /** `{schema_version: 1, value: {setups, levels, past, hidden: string[], plan: 'auto' | 'open' | 'folded'}}`. */
 export const STOCK_READ_LAYERS_KEY = 'nova.stockRead.layers';
 /** On `auto` the plan opens whole only when the quote card is at least this tall; below it the plan is
@@ -107,13 +105,14 @@ export const STOCK_MODE_PATH = '/api/stock-mode';
 export const STOCK_MODE_POLL_MS = 1_500;
 /** `{schema_version: 1, value: boolean}`: false mutes the chart's ping. */
 export const STOCK_MODE_SOUND_KEY = 'nova.stockRead.sound';
-/** Mirrors of the backend's numbers the desk says out loud (`constants_stock_mode.py`). */
-export const STOCK_MODE_ENTRY_TTL_SEC = 10;
-/** ENTER NOW stays up this long after the trigger, while the price is within this share of a risk. */
+/** ENTER NOW stays up this long after the trigger, while the price is within this share of a risk. (Every
+ * Nova entry's time limit is the sleeve's `working_ttl_sec`, read with the risk per trade.) */
 export const ENTER_NOW_SEC = 30;
 export const ENTER_NOW_RISK_SHARE = 0.5;
 /** What Nova just did (bought, sold, missed) stays in the chart's corner this long. */
 export const NOVA_CALL_SEC = 30;
+/** NOT A TRADE is one rule (spec H): it stops Nova's buys as well as the plan's own Stage. */
+export const NOT_A_TRADE_NOVA = "It blocks Nova's buys too: the bot, Auto-entry and Approve do not take it.";
 /** The words of the four modes, and the dot each wears (grey, blue, orange, orange). */
 export const STOCK_MODE_COLORS = {
   signal: '#8e8e93',

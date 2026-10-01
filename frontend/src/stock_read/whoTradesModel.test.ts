@@ -6,7 +6,9 @@
 import { describe, expect, it } from 'vitest';
 import { paneDraw } from './chartShapes';
 import { momentOf, nextHeld, NO_HELD, type HeldMemory, type MomentInputs } from './momentModel';
+import { approveQty, capUsedText, novaBlockers, novaSizeWords } from './novaPromise';
 import {
+  BOT_READY,
   inputs,
   PFSA_SETUP_ID,
   PFSA_TRIGGER,
@@ -14,7 +16,7 @@ import {
   pfsaTrade,
   pfsaView,
 } from './whoTradesFixtures';
-import { level2Markers, modeOf, orderLevels, planActions, sidesOf, switchLock } from './whoTradesModel';
+import { level2Markers, MODE_NAMES, modeOf, orderLevels, planActions, sidesOf, switchLock } from './whoTradesModel';
 import { normalizeStockMode } from './whoTradesNormalize';
 
 /** Feed the memory a sequence of looks, as the hook does. */
@@ -38,6 +40,93 @@ describe('the view on the wire', () => {
     const noLocks = normalizeStockMode({ symbol: 'PFSA', mode: 'signal', buy: 'you', sell: 'you' });
     expect(noLocks?.locks.buy).toMatch(/could not read/);
     expect(normalizeStockMode({ symbol: 'PFSA', mode: 'yolo', buy: 'you', sell: 'you' })).toBeNull();
+  });
+
+  it("reads Nova's size, the day's shared count and the bot's own word, and never quiets an unknown tone", () => {
+    const view = normalizeStockMode({
+      symbol: 'PFSA', mode: 'bot', buy: 'nova', sell: 'nova', venue: 'paper', locks: { buy: null, sell: null },
+      notes: [{ id: 'window', tone: 'warn', text: 'The window is closed' }, { id: 'odd', tone: 'loud', text: 'x' },
+        { id: 'sim_waits', tone: 'info', text: 'A Sim trade waits' }, { id: 'day_lock', tone: 'bad', text: 'Locked' }],
+      size: { qty: 10, by_risk: 200, capped_by: 'max_shares', text: '$20 over 0.10, capped at 10' },
+      entries_today: { count: 1, cap: 1 },
+      bot: { on_list: true, playing: false, reason: 'not active', setup_at_strategy: true, active: false },
+    });
+    expect(view?.notes.map(n => n.tone)).toEqual(['warn', 'warn', 'info', 'bad']);
+    expect(view?.size).toEqual({ qty: 10, by_risk: 200, capped_by: 'max_shares', text: '$20 over 0.10, capped at 10' });
+    expect(view?.entries_today).toEqual({ count: 1, cap: 1 });
+    expect(view?.bot).toMatchObject({ setup_at_strategy: true, active: false, playing: false });
+    // An older backend: no size, no shared count, and the bot's fields unknown (never read as yes).
+    const old = normalizeStockMode({ symbol: 'PFSA', mode: 'bot', buy: 'nova', sell: 'nova', bot: { on_list: true } });
+    expect(old?.size).toBeNull();
+    expect(old?.entries_today).toBeNull();
+    expect(old?.bot).toMatchObject({ setup_at_strategy: null, active: null });
+  });
+});
+
+describe('what Nova promises on the chart (ADR 042 draft)', () => {
+  const armed = pfsaRead('armed');
+  const bot = (over: Partial<NonNullable<ReturnType<typeof pfsaView>['bot']>> = {}, view = {}) =>
+    pfsaView('bot', { bot: { ...BOT_READY, ...over }, ...view });
+
+  it('names the mode Bot, and promises a bot trade only when its setup is at Strategy and the bot active and playing', () => {
+    expect(MODE_NAMES.bot).toBe('Bot');
+    const ok = momentOf(inputs({ read: armed, who: bot() }));
+    expect(ok?.call).toMatchObject({ title: 'THE BOT TRADES THIS', tone: 'info' });
+    const notStrategy = momentOf(inputs({ read: armed, who: bot({ setup_at_strategy: false }) }));
+    expect(notStrategy?.call).toMatchObject({ title: 'THE BOT WILL NOT TRADE THIS', tone: 'wait',
+      detail: 'The first pullback is not at Strategy: the bot trades only setups at Strategy.' });
+    const notActive = momentOf(inputs({ read: armed, who: bot({ active: false, playing: false, reason: 'not active' }) }));
+    expect(notActive?.call?.detail).toBe('The bot is not active: press Activate on the Bots page.');
+    expect(notActive?.call?.more).toBeUndefined();          // "not playing" is not said twice
+    const unknown = momentOf(inputs({ read: armed, who: bot({ setup_at_strategy: null, active: null }) }));
+    expect(unknown?.call?.title).toBe('THE BOT WILL NOT TRADE THIS');   // unknown is never a promise
+  });
+
+  it('says every blocking note, the first in the call and the rest on hover; a quiet fact blocks nothing', () => {
+    const notes = [
+      { id: 'window', tone: 'warn' as const, text: "The first pullback's bot window is closed (07:00-10:00 ET)." },
+      { id: 'sim_waits', tone: 'info' as const, text: 'A Sim trade waits while the desk shows another venue.' },
+      { id: 'no_depth', tone: 'warn' as const, text: 'Nova holds no Level 2 line on PFSA: open its Level 2.' },
+    ];
+    const m = momentOf(inputs({ read: armed, who: bot({}, { notes }) }));
+    expect(m?.call).toMatchObject({ title: 'THE BOT WILL NOT TRADE THIS', detail: notes[0].text, more: [notes[2].text] });
+    const quiet = momentOf(inputs({ read: armed, who: bot({}, { notes: [notes[1]] }) }));
+    expect(quiet?.call?.title).toBe('THE BOT TRADES THIS');
+    // At the trigger, without Nova's own word yet: why it is not trading it.
+    const trig = momentOf(inputs({ who: bot({}, { notes }) }));
+    expect(trig?.call).toMatchObject({ title: 'THE BOT IS NOT TRADING IT', detail: notes[0].text });
+  });
+
+  it("Auto-entry promises Nova's own size only when nothing blocks, and says so once the day's buy is used", () => {
+    const auto = (over = {}) => pfsaView('auto_entry', over);
+    const ok = momentOf(inputs({ read: armed, who: auto({ size: { qty: 10, by_risk: 153, capped_by: 'max_shares', text: null } }) }));
+    expect(ok?.call).toMatchObject({ title: 'NOVA BUYS AT 4.26' });
+    expect(ok?.call?.detail).toMatch(/Nova buys 10\. Every sell is yours/);
+    const used = auto({ entries_today: { count: 1, cap: 1 } });
+    expect(capUsedText(used)).toBe("Nova's one automatic buy on Paper today is used (1 of 1): the bot and Auto-entry "
+      + 'buy again on the next day.');
+    expect(momentOf(inputs({ read: armed, who: used }))?.call).toMatchObject({ title: "NOVA'S BUY TODAY IS USED",
+      detail: capUsedText(used) });
+    const idle = auto({ bot: { ...BOT_READY, on_list: false, active: false } });
+    expect(novaBlockers(idle, armed.plan)).toEqual([
+      'The bot is not active: Auto-entry buys only while it is. Press Activate on the Bots page.',
+    ]);
+    // Signal only and Approve: the operator decides, Nova promises nothing by itself.
+    expect(novaBlockers(pfsaView('approve', { notes: [{ id: 'x', tone: 'warn', text: 'y' }] }), armed.plan)).toEqual([]);
+  });
+
+  it("Approve sends the size Nova gives for the plan, else the risk per trade's", () => {
+    const capped = pfsaView('approve', { size: { qty: 10, by_risk: 153, capped_by: 'max_shares', text: null } });
+    expect(approveQty(capped, 20, armed.plan)).toBe(10);
+    expect(approveQty(pfsaView('approve', { size: null }), 20, armed.plan)).toBe(153);
+    expect(approveQty(pfsaView('approve', { size: { qty: 0, by_risk: 0, capped_by: null, text: 'budget used' } }), 20,
+      armed.plan)).toBeNull();
+    const act = planActions({ moment: null, inputs: inputs({ read: armed, who: capped }), bid: 4.25, listening: true,
+      stageLocked: null, symbol: 'PFSA' }).actions[0];
+    expect(act).toMatchObject({ id: 'approve', label: 'Approve 10 @ 4.27', locked: null });
+    expect(novaSizeWords(capped.size)?.text).toBe("Nova sends 10 (153 by risk, capped by the sleeve's max shares)");
+    expect(novaSizeWords({ qty: 0, by_risk: 0, capped_by: null, text: "the day's budget is used" }))
+      .toMatchObject({ text: "Nova sends nothing: the day's budget is used", skip: true });
   });
 });
 
@@ -168,6 +257,10 @@ describe('the moment on the chart', () => {
     const m = momentOf(inputs({ who: pfsaView('auto_entry', { trade: missed }), now: PFSA_TRIGGER + 12 }));
     expect(m).toMatchObject({ badge: "NOVA'S BUY MISSED" });
     expect(m?.call?.ping).toBe(false);
+    // The time limit is the sleeve's (one TTL for every Nova entry), or said as such while unread.
+    expect(m?.call?.detail).toMatch(/did not fill in 10 s and was cancelled/);
+    const unread = momentOf(inputs({ who: pfsaView('auto_entry', { trade: missed }), now: PFSA_TRIGGER + 12, ttlSec: null }));
+    expect(unread?.call?.detail).toMatch(/did not fill in the sleeve's time limit/);
   });
 });
 
@@ -189,6 +282,14 @@ describe('what stands behind each level', () => {
     expect([bot?.entry?.behind, bot?.stop?.behind, bot?.target?.behind]).toEqual(['held', 'watched', 'order']);
     const taken = orderLevels(inputs({ who: pfsaView('signal', { trade: pfsaTrade('approve', 'holding', { exits: 'you' }) }) }));
     expect([taken?.stop?.behind, taken?.target?.behind]).toEqual(['plan', 'plan']);
+  });
+
+  it("the bot's bracket (spec I): its stop rests at the broker too, and the call says so", () => {
+    const bracket = pfsaTrade('bot', 'holding', { stop_order_id: 103 });
+    const lv = orderLevels(inputs({ who: pfsaView('bot', { trade: bracket }) }));
+    expect([lv?.stop?.behind, lv?.target?.behind]).toEqual(['order', 'order']);
+    const m = momentOf(inputs({ who: pfsaView('bot', { trade: bracket }), last: 4.30 }));
+    expect(m?.call?.detail).toMatch(/stop 4\.14 and the target 4\.52 rest at the broker/);
   });
 
   it('draws orders solid on the chart and pins the call on its candle', () => {
@@ -234,11 +335,17 @@ describe("the plan card's buttons", () => {
       .toBe('cancel-approval');
   });
 
-  it('whoever holds the exits: cancel the bracket, or take over from the bot', () => {
+  it('whoever holds the exits: cancel the bracket, or take over from the bot -- and Buy stays on You', () => {
     const approve = act(inputs({ who: pfsaView('approve', { trade: pfsaTrade('approve', 'holding') }) })).actions;
     expect(approve).toMatchObject([{ id: 'take-over', label: 'Cancel stop and target' }]);
+    expect(approve[0].tip).toBe("Nova cancels the bracket's stop and target at the broker, and the exit is yours. "
+      + 'Buy stays on You: Nova buys no more PFSA.');
     const bot = act(inputs({ who: pfsaView('bot', { trade: pfsaTrade('bot', 'holding') }) })).actions;
     expect(bot).toMatchObject([{ id: 'take-over', label: 'Take over the exit' }]);
+    expect(bot[0].tip).toMatch(/^Nova cancels the bot's target and stop on PFSA/);
+    expect(bot[0].tip).toMatch(/Buy stays on You: Nova buys no more PFSA\.$/);
+    const entering = act(inputs({ who: pfsaView('bot', { trade: pfsaTrade('bot', 'entering') }) })).actions;
+    expect(entering[0].tip).toMatch(/Buy stays on You/);
   });
 
   it('Auto-entry and the bot turn off, and a closed trade says how it went', () => {

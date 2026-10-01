@@ -1,14 +1,18 @@
 /**
  * "Who trades SYMBOL", directly above Level 2 (ADR 037): Buy (You | Nova) and Sell (You | Nova), the mode
- * they make, and -- when something will keep Nova from acting, or a change was refused -- one line that
- * says why. A locked side carries its reason; the same switch is the chip on the 1-minute chart.
+ * they make, and under them everything the view says (ADR 042 draft): a refused change, every note that
+ * keeps Nova from acting (each toned; none hidden behind the first), Nova's automatic buys today against
+ * the day's cap, and the stock's last event -- the bot's skips on it included. A locked side carries its
+ * reason; the same switch is the chip on the 1-minute chart.
  */
 import type { DepthMarker } from '../ibkr';
 import { tipProps, whyProps } from '../ux';
 import { STOCK_MODE_COLORS } from './constants';
 import { heldQty } from './momentModel';
+import { capUsedText } from './novaPromise';
 import { useStockReadContext, type StockReadContextValue } from './StockReadContext';
-import type { StockSide } from './types';
+import { hhmmssEt } from './timeWords';
+import type { StockModeView, StockSide } from './types';
 import { MODE_NAMES, MODE_SIDES, modeSentence, switchLock } from './whoTradesModel';
 import './whoTrades.css';
 
@@ -56,6 +60,18 @@ function SideSwitch({ label, value, lockYou, lockNova, onPick, testId }: {
   );
 }
 
+/** Nova's automatic buys today against the day's shared cap, in a mode where Nova buys by itself. */
+function entriesLine(view: StockModeView | null): { text: string; tip: string; used: boolean } | null {
+  if (!view || (view.mode !== 'bot' && view.mode !== 'auto_entry') || !view.entries_today) return null;
+  const { count, cap } = view.entries_today;
+  const used = capUsedText(view);
+  return {
+    text: `Nova's automatic buys today: ${count}${cap !== null ? ` of ${cap}` : ''}`,
+    tip: used ?? 'The bot and Auto-entry share one count a day on this venue; a buy that missed gives its place back.',
+    used: used !== null,
+  };
+}
+
 function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const who = ctx.who;
   const view = who.view;
@@ -66,9 +82,11 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const held = heldQty(who.inputs);
   const pending = switchPending(ctx);
   const lock = (to: { buy: StockSide; sell: StockSide }) => switchLock(view, to, { symbol: sym, held, pending });
-  const warn = view?.notes.find(n => n.tone === 'warn') ?? null;
-  const line = who.error ?? (who.unavailable ? pending : null) ?? warn?.text ?? null;
-  const tip = [modeSentence(mode, sym), ...(view?.notes ?? []).map(n => n.text)].join('\n');
+  const line = who.error ?? (who.unavailable ? pending : null);
+  const notes = view?.notes ?? [];
+  const entries = entriesLine(view);
+  const event = view?.last_event ?? null;
+  const tip = [modeSentence(mode, sym), ...notes.map(n => n.text)].join('\n');
   return (
     <section className="sr-who" data-testid="who-trades" aria-label={`Who trades ${sym}`}>
       <div className="sr-who__row">
@@ -105,6 +123,28 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
           data-testid="who-trades-note"
         >
           {line}
+        </p>
+      )}
+      {notes.length > 0 && (
+        <ul className="sr-who__notes" aria-label={`What keeps Nova from acting on ${sym}`} data-testid="who-trades-notes">
+          {notes.map((n, i) => (
+            <li key={`${n.id}:${i}`} className={`sr-who__note sr-who__note--${n.tone}`} {...tipProps(n.text)}
+              data-testid={`who-trades-note-${n.id}`}>
+              {n.text}
+            </li>
+          ))}
+        </ul>
+      )}
+      {entries && (
+        <p className={`sr-who__note sr-who__note--${entries.used ? 'warn' : 'info'}`}
+          {...tipProps(entries.tip, 'Nova\'s automatic buys today')} data-testid="who-trades-entries">
+          {entries.text}
+        </p>
+      )}
+      {event && (
+        <p className={`sr-who__note sr-who__note--event-${event.tone}`} {...tipProps(event.text, `Last on ${sym}`)}
+          data-testid="who-trades-event">
+          <span className="sr-who__event-at">{hhmmssEt(event.ts)}</span> {event.text}
         </p>
       )}
     </section>

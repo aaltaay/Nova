@@ -3,8 +3,11 @@
 import { list, num, obj, str } from './normalize';
 import type {
   StockModeApproval,
+  StockModeBot,
+  StockModeEntries,
   StockModeName,
   StockModeNote,
+  StockModeSize,
   StockModeTrade,
   StockModeView,
   StockSide,
@@ -82,10 +85,54 @@ function lock(locks: Record<string, unknown> | null, key: 'buy' | 'sell'): strin
   return str(locks?.[key]) ?? UNREADABLE_LOCK;
 }
 
+/** A note's tone; one the desk does not know reads as a warning, never as a quiet fact. */
+function noteTone(v: unknown): StockModeNote['tone'] {
+  return v === 'info' || v === 'bad' ? v : 'warn';
+}
+
 function note(raw: unknown): StockModeNote | null {
   const n = obj(raw);
   if (!n || typeof n.id !== 'string' || typeof n.text !== 'string') return null;
-  return { id: n.id, tone: n.tone === 'warn' ? 'warn' : 'info', text: n.text };
+  return { id: n.id, tone: noteTone(n.tone), text: n.text };
+}
+
+const CAPPED_BY: ReadonlySet<string> = new Set(['max_shares', 'budget']);
+
+function size(raw: unknown): StockModeSize | null {
+  const s = obj(raw);
+  const qty = num(s?.qty);
+  if (!s || qty === null) return null;
+  return {
+    qty,
+    by_risk: num(s.by_risk),
+    capped_by: typeof s.capped_by === 'string' && CAPPED_BY.has(s.capped_by)
+      ? (s.capped_by as StockModeSize['capped_by'])
+      : null,
+    text: str(s.text),
+  };
+}
+
+function entries(raw: unknown): StockModeEntries | null {
+  const e = obj(raw);
+  const count = num(e?.count);
+  return e && count !== null ? { count, cap: num(e.cap) } : null;
+}
+
+function bool(v: unknown): boolean | null {
+  return typeof v === 'boolean' ? v : null;
+}
+
+function botPart(raw: unknown): StockModeBot | null {
+  const b = obj(raw);
+  if (!b) return null;
+  return {
+    on_list: b.on_list === true,
+    playing: b.playing === true,
+    reason: str(b.reason),
+    setup_at_strategy: bool(b.setup_at_strategy),
+    active: bool(b.active),
+    setup: str(b.setup),
+  };
 }
 
 export function normalizeStockMode(raw: unknown): StockModeView | null {
@@ -96,7 +143,6 @@ export function normalizeStockMode(raw: unknown): StockModeView | null {
   if (!buy || !sell) return null;
   const locks = obj(v.locks);
   const event = obj(v.last_event);
-  const bot = obj(v.bot);
   return {
     symbol: v.symbol,
     generated_at: num(v.generated_at) ?? 0,
@@ -111,6 +157,8 @@ export function normalizeStockMode(raw: unknown): StockModeView | null {
     notes: list(v.notes, note),
     approval: approval(v.approval),
     trade: trade(v.trade),
+    size: size(v.size),
+    entries_today: entries(v.entries_today),
     nova_entries_today: num(v.nova_entries_today) ?? 0,
     last_event: event && typeof event.text === 'string'
       ? {
@@ -119,8 +167,6 @@ export function normalizeStockMode(raw: unknown): StockModeView | null {
         text: event.text,
       }
       : null,
-    bot: bot
-      ? { on_list: bot.on_list === true, playing: bot.playing === true, reason: str(bot.reason), setup: str(bot.setup) }
-      : null,
+    bot: botPart(v.bot),
   };
 }
