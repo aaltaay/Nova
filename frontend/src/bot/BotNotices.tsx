@@ -1,12 +1,17 @@
 /**
  * The bot's notices as toasts (bot/botNoticeStore.ts, ADR 042's visibility rule): a
- * refused "Let the bot trade", Nova's entries cancelled when the desk left a venue.
+ * refused "Let the bot trade", Nova's entries cancelled when the desk left a venue, and
+ * a loss breaker that sold your positions (bot/breakerNotices.ts, 2026-10-01).
  * Mounted once per window with the symbol menu host, so a refusal raised from a
- * pop-out shows in that pop-out. A refusal stays until dismissed; the rest leave
- * after BOT_NOTICE_TTL_MS unless pointed at.
+ * pop-out shows in that pop-out, and a breaker's sale shows in every window. A refusal
+ * or a breaker's sale stays until dismissed; the rest leave after BOT_NOTICE_TTL_MS
+ * unless pointed at.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { dismissBotNotice, getBotNotices, subscribeBotNotices, type BotNotice } from './botNoticeStore';
+import { DESK_BOT_POLL_MS } from '../constants';
+import { noteBreakerTrips } from './breakerNotices';
+import { dismissBotNotice, getBotNotices, pushBotNotice, subscribeBotNotices, type BotNotice } from './botNoticeStore';
+import { useBotSession } from './useBotSession';
 import './botNotices.css';
 
 const BOT_NOTICE_TTL_MS = 15_000;
@@ -33,7 +38,16 @@ function NoticeCard({ notice }: { notice: BotNotice }) {
   );
 }
 
+/** The bot audit stream the desk already polls, read for loss-breaker trips. */
+function useBreakerTripNotices(): void {
+  const { audit } = useBotSession(DESK_BOT_POLL_MS);
+  useEffect(() => {
+    noteBreakerTrips(audit, pushBotNotice);
+  }, [audit]);
+}
+
 export function BotNotices() {
+  useBreakerTripNotices();
   const notices = useSyncExternalStore(subscribeBotNotices, getBotNotices, getBotNotices);
   if (notices.length === 0) return null;
   return (

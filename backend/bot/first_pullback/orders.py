@@ -116,6 +116,7 @@ async def _place(trade: dict[str, Any], step: str, *, side: str, qty: float, ord
             operation="place",
             idempotency_key=_key(trade, step),
             source="bot",
+            origin="bot",
             symbol=trade["symbol"],
             side=side,
             qty=float(qty),
@@ -142,6 +143,7 @@ async def place_entry(trade: dict[str, Any]) -> Any:
             operation="bracket",
             idempotency_key=_key(trade, "entry"),
             source="bot",
+            origin="bot",
             symbol=trade["symbol"],
             side="BUY",
             qty=float(trade["qty"]),
@@ -179,6 +181,7 @@ async def replace_stop(trade: dict[str, Any], order_id: int, stop: float) -> Any
             operation="replace",
             idempotency_key=f"{_key(trade, 'stop')}:{order_id}:{uuid.uuid4()}",
             source="bot",
+            origin="bot",
             order_id=int(order_id),
             symbol=trade["symbol"],
             stop_price=round(float(stop), 4),
@@ -220,7 +223,7 @@ async def protective_close(trade: dict[str, Any], qty: float) -> dict[str, Any]:
     """The last resort: the protective flatten, which a disarmed desk still sends (ADR 018)."""
     from bot.flatten import place_close
 
-    return await place_close(trade["symbol"], qty, "SELL")
+    return await place_close(trade["symbol"], qty, "SELL", origin="bot")
 
 
 def receipt_error(receipt: Any) -> str:

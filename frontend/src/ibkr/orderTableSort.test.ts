@@ -23,6 +23,15 @@ function row(
 }
 
 describe('orderTableSort', () => {
+  it('sorts Sent by A to Z first, unrecorded rows last (2026-10-01)', () => {
+    const you = row({ order_id: 1, status: 'Filled', order_source: 'manual' });
+    const trip = row({ order_id: 2, status: 'Filled', order_source: 'flatten', order_origin: 'bot_trip' });
+    const unknown = row({ order_id: 3, status: 'Filled' });
+    expect(cycleOrderSort([], 'sent_by', false)).toEqual([{ key: 'sent_by', dir: 'asc' }]);
+    expect(compareOrderField(trip, you, 'sent_by', 'closed')).toBeLessThan(0);
+    expect(compareOrderField(unknown, you, 'sent_by', 'closed')).toBeGreaterThan(0);
+  });
+
   it('cycles primary sort: numbers and times start highest first, text and ranks A to Z', () => {
     expect(cycleOrderSort([], 'qty', false)).toEqual([{ key: 'qty', dir: 'desc' }]);
     expect(cycleOrderSort([{ key: 'qty', dir: 'desc' }], 'qty', false)).toEqual([

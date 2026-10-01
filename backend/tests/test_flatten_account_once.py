@@ -14,7 +14,7 @@ async def test_flatten_cancels_working_before_placing_closes(monkeypatch):
         order.append("cancel")
         return [{"ok": True, "order_id": 1}]
 
-    async def fake_place(symbol: str, qty: float, side: str) -> dict:
+    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
         order.append(f"place:{symbol}:{side}:{qty}")
         return {"ok": True, "order_id": 99}
 
@@ -42,7 +42,7 @@ async def test_flatten_still_places_closes_when_cancel_fails(monkeypatch):
     async def fake_cancel() -> list[dict]:
         return [{"ok": False, "error": "busy"}]
 
-    async def fake_place(symbol: str, qty: float, side: str) -> dict:
+    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
         return {"ok": True, "order_id": 7}
 
     monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
@@ -156,7 +156,7 @@ async def test_flatten_on_a_practice_venue_proceeds_with_the_gateway_dark(monkey
         order.append("cancel")
         return []
 
-    async def fake_place(symbol: str, qty: float, side: str) -> dict:
+    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
         order.append(f"place:{symbol}:{side}:{qty}")
         return {"ok": True, "order_id": 3}
 
@@ -220,7 +220,7 @@ async def test_a_close_that_sent_less_than_the_position_is_a_failure(monkeypatch
     async def fake_cancel() -> list[dict]:
         return []
 
-    async def short_place(symbol: str, qty: float, side: str) -> dict:
+    async def short_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
         return {"ok": True, "order_id": 8, "sent_qty": 1.0}
 
     monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
@@ -244,7 +244,7 @@ async def test_practice_flatten_rereads_positions_and_fails_when_shares_remain(m
     async def fake_cancel() -> list[dict]:
         return []
 
-    async def whole_place(symbol: str, qty: float, side: str) -> dict:
+    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
         return {"ok": True, "order_id": 9, "sent_qty": qty}
 
     reads = iter([[{"symbol": "GRML", "qty": 2}], [{"symbol": "GRML", "qty": 1}]])
@@ -267,7 +267,7 @@ async def test_practice_flatten_that_leaves_nothing_open_succeeds(monkeypatch):
     async def fake_cancel() -> list[dict]:
         return []
 
-    async def whole_place(symbol: str, qty: float, side: str) -> dict:
+    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
         return {"ok": True, "order_id": 10, "sent_qty": qty}
 
     reads = iter([[{"symbol": "GRML", "qty": 2}], []])
@@ -292,7 +292,7 @@ async def test_practice_flatten_that_cannot_reread_positions_is_not_reported_fla
     async def fake_cancel() -> list[dict]:
         return []
 
-    async def whole_place(symbol: str, qty: float, side: str) -> dict:
+    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
         return {"ok": True, "order_id": 11, "sent_qty": qty}
 
     reads = iter([[{"symbol": "GRML", "qty": 2}], IbkrAccountError("ledger unreadable")])

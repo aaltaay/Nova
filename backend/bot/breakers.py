@@ -11,6 +11,11 @@ practice ledger's on Paper and at the Sim live edge). On a Sim replay they compa
   (``bot.buy_lock``): ``hard_lock_until_date`` / ``hard_lock_at`` / ``hard_lock_pnl`` /
   ``hard_lock_usd``.
 
+Each trip's flatten is stamped with its origin (``bot_trip`` / ``all_stop``), so the Orders table
+says the breaker sold, and its audit line (``breaker_soft`` / ``breaker_hard``) lists what it sold
+(``inputs.closes``): the desk's breaker notice reads it (operator report 2026-10-01: "I don't
+remember selling it").
+
 Both write to the dial of the venue whose P&L crossed (``bot.buy_lock.dial_of``), so a lock
 belongs to that venue even if the desk moved while it flattened. One day boundary, 04:00 ET:
 the locks lift as the practice day rolls, so yesterday's practice P&L never trips them again
@@ -27,14 +32,14 @@ from bot.breaker_limits import limits, replay_desk, venue_key
 from bot.buy_lock import desk_venue, dial_of, lock_for
 from bot.clock import lock_until, now_ts, soft_latched, until_text
 from bot.day_pnl import read_account_day_pnl
-from bot.flatten import alert_flatten_failed, flatten_account_with_retry
+from bot.flatten import alert_flatten_failed, closes_sold, flatten_account_with_retry
 from bot.persist import load_session, save_session
 
 logger = logging.getLogger(__name__)
 
 
-async def _flatten_or_alert(tag: str) -> dict[str, Any]:
-    result = await flatten_account_with_retry()
+async def _flatten_or_alert(tag: str, origin: str) -> dict[str, Any]:
+    result = await flatten_account_with_retry(origin=origin)
     if not result.get("ok"):
         alert_flatten_failed(result)
         audit(action=f"breaker_{tag}_flatten", outcome="failed", reason=str(result.get("error")), inputs=result)
@@ -67,7 +72,7 @@ async def trip_soft(at: float | None = None, *, pnl: float | None = None, venue:
     """The bot trip: flatten, the bot to Off, the latch until the next 04:00 ET, and its record."""
     venue = _venue() if venue is None else venue
     at = limits(load_session(), venue)["soft_usd"] if at is None else at
-    flatten = await _flatten_or_alert("soft")
+    flatten = await _flatten_or_alert("soft", "bot_trip")
     row = drop_to_l0(keep_soft_latch=True, reason="bot_trip")
     _stamp(row, venue, {"soft_breaker_at": now_ts(), "soft_breaker_pnl": pnl, "soft_breaker_usd": at})
     row = save_session(row)
@@ -75,7 +80,8 @@ async def trip_soft(at: float | None = None, *, pnl: float | None = None, venue:
           reason=(f"{venue or 'live'}: the day P&L {_money(pnl)} reached the bot trip ({at:g}) -- "
                   f"flattened, the bot is Off until you re-enable it (or 04:00 ET)"),
           inputs={"flatten_ok": flatten.get("ok"), "threshold": at, "pnl": pnl, "venue": venue,
-                  "until": row.get("soft_breaker_until")})
+                  "until": row.get("soft_breaker_until"), "closes": closes_sold(flatten),
+                  "flatten_error": flatten.get("error")})
     return {"tripped": "soft", "flatten": flatten, "session": row}
 
 
@@ -83,7 +89,7 @@ async def trip_hard(at: float | None = None, *, pnl: float | None = None, venue:
     """The all-stop: flatten, the bot to Off, buys on ``venue`` locked until the next 04:00 ET."""
     venue = _venue() if venue is None else venue
     at = limits(load_session(), venue)["hard_usd"] if at is None else at
-    flatten = await _flatten_or_alert("hard")
+    flatten = await _flatten_or_alert("hard", "all_stop")
     row = drop_to_l0(keep_soft_latch=True, reason="all_stop")
     until = lock_until()
     _stamp(row, venue, {"hard_lock_until_date": until, "hard_lock_at": now_ts(),
@@ -95,7 +101,7 @@ async def trip_hard(at: float | None = None, *, pnl: float | None = None, venue:
         reason=(f"{venue or 'live'}: the day P&L {_money(pnl)} reached the all-stop ({at:g}) -- "
                 f"flattened, buys on {venue or 'live'} locked until {until_text(until)}"),
         inputs={"flatten_ok": flatten.get("ok"), "lock_until": until, "threshold": at, "pnl": pnl,
-                "venue": venue},
+                "venue": venue, "closes": closes_sold(flatten), "flatten_error": flatten.get("error")},
     )
     return {"tripped": "hard", "flatten": flatten, "session": row}
 

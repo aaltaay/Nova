@@ -13,3 +13,4 @@ export { flattenSpendLockReason } from './spendLock';
 export type { GatewayStatusFact } from './gatewayStatusWording';
 export { useOrderTicketListening } from './useOrderTicketListening';
 export { requestOrderTicketPrefill } from './orderTicketPrefill';
+export { SentByTd } from './SentByCell';

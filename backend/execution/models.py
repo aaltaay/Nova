@@ -15,6 +15,17 @@ Source = Literal[
     "benchmark",
     "bot",
 ]
+# constants_nova_os.EXECUTION_ORIGINS: which part of Nova sent the order.
+Origin = Literal[
+    "ticket_flatten",
+    "emergency_kill",
+    "bot_trip",
+    "all_stop",
+    "bot",
+    "auto_entry",
+    "approve",
+    "bot_api",
+]
 
 
 @dataclass(frozen=True)
@@ -58,6 +69,10 @@ class ExecutionCommand:
     # Only a ``cancel`` from the ``kill`` source may name one, and Live only while IBKR is
     # connected (``execution.venue_door.resolve``); a place or a buy is never routed by it.
     target_venue: str | None = None
+    # Who in Nova sent it (``Origin``): recorded with the order and shown in the Orders table's
+    # "Sent by" so a breaker's or a bot's order never reads as the operator's own. None for the
+    # operator's own ticket. A label, never a permission: no gate reads it.
+    origin: Origin | None = None
 
     def normalized_symbol(self) -> str | None:
         return self.symbol.upper() if self.symbol else None

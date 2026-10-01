@@ -26,7 +26,7 @@ ET = ZoneInfo("America/New_York")
 def flattens(monkeypatch):
     calls: list[int] = []
 
-    async def fake_flatten():
+    async def fake_flatten(*, origin=None):
         calls.append(1)
         return {"ok": True, "attempt": 1}
 
@@ -211,7 +211,7 @@ async def test_flatten_retry_then_alert(monkeypatch):
 
     calls = {"n": 0}
 
-    async def once():
+    async def once(*, origin=None):
         calls["n"] += 1
         return {"ok": False, "error": "nope", "results": []}
 

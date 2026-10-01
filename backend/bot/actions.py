@@ -75,6 +75,7 @@ async def _cancel_symbol(symbol: str) -> dict[str, Any]:
                 operation="cancel",
                 idempotency_key=f"bot:cancel:{order_id}:{uuid.uuid4()}",
                 source="bot",
+                origin="bot_api",  # the localhost bot API
                 order_id=int(order_id),
                 symbol=symbol,
                 skip_risk=True,
@@ -121,6 +122,7 @@ async def fire(
             operation="place",
             idempotency_key=str(body.get("idempotency_key") or f"bot:{kind}:{symbol}:{uuid.uuid4()}"),
             source="bot",
+            origin="bot_api",  # the localhost bot API
             symbol=symbol,
             side=side,
             qty=qty,
@@ -141,6 +143,7 @@ async def fire(
             operation="place",
             idempotency_key=str(body.get("idempotency_key") or f"bot:{kind}:{symbol}:{uuid.uuid4()}"),
             source="bot",
+            origin="bot_api",  # the localhost bot API
             symbol=symbol,
             side=side,
             qty=qty,
@@ -161,6 +164,7 @@ async def fire(
             operation="place",
             idempotency_key=str(body.get("idempotency_key") or f"bot:{kind}:{symbol}:{uuid.uuid4()}"),
             source="bot",
+            origin="bot_api",  # the localhost bot API
             symbol=symbol,
             side="BUY",
             qty=qty,
@@ -183,6 +187,7 @@ async def fire(
             operation="place",
             idempotency_key=str(body.get("idempotency_key") or f"bot:{kind}:{symbol}:{uuid.uuid4()}"),
             source="bot",
+            origin="bot_api",  # the localhost bot API
             symbol=symbol,
             side=side,
             qty=qty,
@@ -211,6 +216,7 @@ async def fire(
         operation="place",
         idempotency_key=str(body.get("idempotency_key") or f"bot:{kind}:{symbol}:{uuid.uuid4()}"),
         source="bot",
+        origin="bot_api",  # the localhost bot API
         symbol=symbol,
         side=side,
         qty=qty,

@@ -97,7 +97,7 @@ def test_a_restart_on_another_venue_takes_that_venues_level(paper):
 
 
 # -- the rest of the bot's state follows the venue too (audit, 2026-09-30) ------------------
-async def _no_flatten():
+async def _no_flatten(*, origin=None):
     return {"ok": True, "attempt": 1}
 
 

@@ -6,6 +6,7 @@
 import { ORDER_TABLE_DATA_SORT_KEYS } from '../constants';
 import { formatOrderStatus, orderFilledIso, orderSubmittedIso } from './orderDisplay';
 import { fillLatencyFaceMs } from './orderFillLatency';
+import { orderSentBy } from './orderSentBy';
 import type { IbkrOrder } from './types';
 
 export type OrderSortDir = 'asc' | 'desc';
@@ -71,6 +72,12 @@ function filledAtMs(o: IbkrOrder): number {
   if (!iso) return Number.NaN;
   const ms = Date.parse(iso);
   return Number.isFinite(ms) ? ms : Number.NaN;
+}
+
+/** Not recorded sorts last, like any other missing value. */
+function sentByKey(o: IbkrOrder): string {
+  const by = orderSentBy(o);
+  return by.label === '—' ? '' : by.label;
 }
 
 function num(v: number | null | undefined): number {
@@ -147,6 +154,10 @@ export function compareOrderField(
       av = a.symbol.toUpperCase();
       bv = b.symbol.toUpperCase();
       break;
+    case 'sent_by':
+      av = sentByKey(a);
+      bv = sentByKey(b);
+      break;
     default:
       return 0;
   }
@@ -166,7 +177,7 @@ export function compareOrderField(
  * (Working first, Market first, regular hours first). Every other column is
  * a number or a time, and its first click is highest / newest first -- the
  * rule every table on the desk follows (`table_sort/`). */
-const ASC_FIRST_KEYS: ReadonlySet<OrderSortKey> = new Set<OrderSortKey>(['symbol', 'status', 'type', 'session']);
+const ASC_FIRST_KEYS: ReadonlySet<OrderSortKey> = new Set<OrderSortKey>(['symbol', 'status', 'type', 'session', 'sent_by']);
 
 /**
  * Click: set/cycle primary sort (first direction → flipped → off).

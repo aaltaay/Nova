@@ -19,6 +19,7 @@ describe('orderTableColumns', () => {
       'symbol',
       'qty',
       'status',
+      'sent_by',
       'type',
       'filled',
       'remaining',
@@ -41,6 +42,7 @@ describe('orderTableColumns', () => {
       'symbol',
       'qty',
       'status',
+      'sent_by',
       'type',
       'filled',
       'avg_fill',
@@ -59,7 +61,18 @@ describe('orderTableColumns', () => {
     );
   });
 
-  it('normalizes saved order and appends new defaults', () => {
+  it('puts a column added since the layout was saved where the defaults put it (Sent by, 2026-10-01)', () => {
+    const saved = ['symbol', 'qty', 'status', 'type', 'filled', 'avg_fill', 'limit', 'commission', 'latency',
+      'time', 'filled_at', 'order_id'];
+    const next = normalizeColumnOrder(saved, DEFAULT_CLOSED_ORDER_COLUMNS);
+    expect(next.slice(0, 5)).toEqual(['symbol', 'qty', 'status', 'sent_by', 'type']);
+    expect(next.at(-1)).toBe('order_id');
+    const moved = normalizeColumnOrder(['order_id', 'status', 'symbol'], DEFAULT_CLOSED_ORDER_COLUMNS);
+    expect(moved.slice(0, 3)).toEqual(['order_id', 'status', 'sent_by']);
+    expect(normalizeColumnOrder(null, DEFAULT_CLOSED_ORDER_COLUMNS)).toEqual(DEFAULT_CLOSED_ORDER_COLUMNS);
+  });
+
+  it('normalizes saved order and fills in new defaults', () => {
     const saved = ['symbol', 'qty', 'bogus', 'symbol', 'status'];
     const next = normalizeColumnOrder(saved, DEFAULT_WORKING_ORDER_COLUMNS);
     expect(next[0]).toBe('symbol');
