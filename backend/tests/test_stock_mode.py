@@ -236,6 +236,7 @@ def test_notes_say_everything_that_keeps_nova_from_acting(paper, monkeypatch):
 
     release_depth_lines()
     open_entry_window(hour=12)
+    sleeve(extended_hours=False)          # on by default (ADR 042 E): the operator turned it off
     notes = {n["id"]: n["text"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
     assert "padlock" in notes["padlock"]
     assert "does not follow IMCC" in notes["not_followed"]
