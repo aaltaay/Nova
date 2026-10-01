@@ -5,6 +5,7 @@ import type {
   LevelKind,
   LevelMap,
   LevelMember,
+  LevelRounds,
   LevelStudy,
   LevelZone,
   PlanBetween,
@@ -98,6 +99,14 @@ function study(raw: unknown): LevelStudy | null {
   return out as LevelStudy;
 }
 
+function roundScale(raw: unknown): LevelRounds | null {
+  const r = obj(raw);
+  const minor = num(r?.minor);
+  const major = num(r?.major);
+  if (!r || minor === null || major === null || !(minor > 0) || typeof r.measured !== 'boolean') return null;
+  return { minor, major, measured: r.measured, words: str(r.words) ?? 'round numbers' };
+}
+
 /** The read's level map; null when absent or of another schema version. */
 export function normalizeLevelMap(raw: unknown): LevelMap | null {
   const m = obj(raw);
@@ -105,6 +114,7 @@ export function normalizeLevelMap(raw: unknown): LevelMap | null {
   return {
     schema_version: LEVEL_MAP_SCHEMA_VERSION,
     price: num(m.price),
+    rounds: roundScale(m.rounds),
     intraday: list(m.intraday, zone),
     five_minute: Array.isArray(m.five_minute) ? list(m.five_minute, zone) : null,
     daily: list(m.daily, zone),

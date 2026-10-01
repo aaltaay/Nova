@@ -12,7 +12,8 @@
  * - **Full Day** (`daily`): the daily map, the same way within 40%, with yesterday's levels.
  * - **1-minute** (`minuteScene`): from today's 1-minute map, the high of day, the zone the price is on,
  *   the nearest top or bottom its 1-minute candles made above and below the price, the nearest round
- *   dollar each side, and the plan's levels between its stop and target. No axis ticks.
+ *   number each side (the stock's own scale, `level_map.rounds`: half and whole dollars up to $25, $5 and
+ *   $10 on a $225 stock), and the plan's levels between its stop and target. No axis ticks.
  *
  * Every other zone of a map is a short tick on the price axis. A label or a tick names its hover card
  * (`level:<zone id>`), whose story is `levelStory`. Nothing here is estimated: every price is the
@@ -148,7 +149,7 @@ export function levelScene(read: StockRead, pane: LevelPane): LevelScene {
 /** The 1-minute pane's levels, from today's 1-minute map (operator report 2026-09-30: a double top two
  * 1-minute candles made belongs where those candles can be seen): the high of day, the zone the price is
  * on, the nearest zone over and under it that the candles made (a top or a bottom tested twice or more),
- * the nearest round dollar each side, and the plan's levels between its stop and target. No ticks: the
+ * the nearest round number each side, and the plan's levels between its stop and target. No ticks: the
  * 5-minute pane lists the day. */
 export function minuteScene(read: StockRead): LevelScene {
   const lm = read.level_map;
@@ -236,6 +237,12 @@ const CANDLE_NAMES: Record<LevelZone['home'], string> = {
   intraday: '1-minute candles', five_minute: '5-minute candles', daily: 'daily candles',
 };
 
+/** "Whole dollar", "Half dollar", "$10 round number": the backend names each round on the stock's scale. */
+function roundName(m: LevelMember): string {
+  const name = m.note ?? (m.kind === 'whole' ? 'whole dollar' : 'half dollar');
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 /** One reason the level holds, in plain words; `candles` names the chart its tops and bottoms are on. */
 function reasonWords(m: LevelMember, candles: string): string {
   const n = m.touches ?? 0;
@@ -246,8 +253,8 @@ function reasonWords(m: LevelMember, candles: string): string {
     case 'pmh': return 'Premarket high';
     case 'open': return 'The 9:30 open';
     case 'vwap': return "VWAP: the day's average price";
-    case 'whole': return 'Whole dollar: a round price traders watch';
-    case 'half': return 'Half dollar: a round price traders watch';
+    case 'whole':
+    case 'half': return `${roundName(m)}: a round price traders watch`;
     case 'top': return `Price turned down here ${n} times on ${candles}${whenWords(m.times)}`;
     case 'bottom': return `Price bounced up from here ${n} times on ${candles}${whenWords(m.times)}`;
     case 'yday_high': return "Yesterday's high";
@@ -262,14 +269,19 @@ function reasonWords(m: LevelMember, candles: string): string {
   }
 }
 
-/** What price usually does here, from Nova's level study, in a sentence or two. */
-function whatHappens(z: LevelZone): string[] {
+/** What price usually does here, from Nova's level study, in a sentence or two. The study looked at half
+ * and whole dollars on $1-$20 stocks: a round anywhere else says so instead of borrowing its figures. */
+function whatHappens(z: LevelZone, roundsMeasured: boolean): string[] {
   const kinds = new Set(z.members.map(m => m.kind));
   const out: string[] = [];
   if ([...kinds].some(k => ROUND.has(k))) {
-    out.push(z.side === 'below'
-      ? 'Round prices often hold the first time. If this one breaks, the drop tends to keep going.'
-      : 'Round prices often stall a move the first time. Once price trades through, it tends to keep running.');
+    if (!roundsMeasured) {
+      out.push("Nova's study measured half and whole dollars on $1-$20 stocks only: how this stock's round numbers hold is not measured.");
+    } else {
+      out.push(z.side === 'below'
+        ? 'Round prices often hold the first time. If this one breaks, the drop tends to keep going.'
+        : 'Round prices often stall a move the first time. Once price trades through, it tends to keep running.');
+    }
   }
   if (kinds.has('hod') || kinds.has('pmh')) out.push('A break above makes a new high. It slows price only a little.');
   if (kinds.has('top') && out.length === 0) out.push('Price turned back here before. It slows price a little, and usually breaks on a later try.');
@@ -289,7 +301,8 @@ export function levelStory(id: string, read: StockRead): ShapeStory | null {
   if (!z) return null;
   const range = z.hi - z.lo > 0.004 ? `  ${z.lo.toFixed(2)}–${z.hi.toFixed(2)}` : '';
   const sections = [{ head: 'Why it is here', items: z.members.map(m => reasonWords(m, CANDLE_NAMES[z.home])) }];
-  const next = whatHappens(z);
+  // A backend older than the round scale counted half dollars on every price: read as the study's.
+  const next = whatHappens(z, lm.rounds?.measured ?? true);
   if (next.length) sections.push({ head: 'What usually happens', items: next });
   return {
     title: `${priceText(z)}${range}`,

@@ -24,7 +24,6 @@ STOCK_READ_ROTATION_OK = 1.0                # today's volume at least one float
 STOCK_READ_HOD_NEAR_PCT = 0.02              # within 2% under the high of day reads as at the high
 STOCK_READ_HOD_FAR_PCT = 0.10               # 10% or more under it ...
 STOCK_READ_HOD_STALE_MIN = 60.0             # ... with no new high for an hour reads as faded
-STOCK_READ_ROUND_STEP = 0.5                 # half and whole dollars
 STOCK_READ_ROUND_NEAR_PCT = 0.02            # a round number this close over the price is in the way
 STOCK_READ_BORROW_HTB_FEE_PCT = 20.0        # an annual borrow fee at or over this reads hard to borrow
 STOCK_READ_SI_HIGH_SHARE = 0.15             # short interest this share of the float or more reads as fuel
@@ -42,7 +41,7 @@ STOCK_READ_LEVEL_TOUCH_MIN = 0.01           # ... and a cent is always the same 
 STOCK_READ_LEVEL_MIN_TOUCHES = 2            # a level is a double top (bottom) or more
 STOCK_READ_LEVEL_MERGE_PCT = 0.006          # today's levels within 0.6% are one zone ...
 STOCK_READ_LEVEL_MERGE_MIN = 0.02           # ... and within 2 cents always
-STOCK_READ_LEVEL_ROUND_SPAN_PCT = 0.25      # half / whole dollars listed within 25% of the price
+STOCK_READ_LEVEL_ROUND_SPAN_PCT = 0.25      # round numbers listed within 25% of the price
 STOCK_READ_LEVEL_AT_PCT = 0.002             # a zone this close to the price is "at" it ...
 STOCK_READ_LEVEL_AT_MIN = 0.01              # ... and a cent always is
 STOCK_READ_DAILY_LEVEL_SESSIONS = 60        # daily highs and lows looked at, left of today
@@ -51,9 +50,27 @@ STOCK_READ_DAILY_MERGE_PCT = 0.015          # daily levels within 1.5% are one z
 STOCK_READ_DAILY_STAIR_MAX = 3              # the older daily highs above the price kept ("look left and up")
 STOCK_READ_DAILY_SMA_DAYS = 200             # the 200-day average (stored daily bars close after hours)
 STOCK_READ_ROOM_MIN_R = 2.0                 # Room under this many R reads amber: trial T7 decides more
-STOCK_READ_ROUND_NEAR = 0.05                # an entry, target or stop within 5 cents of a half / whole dollar
+STOCK_READ_ROUND_NEAR_SHARE = 0.1           # a target or stop within a tenth of a step of a round (5c at a half dollar)
 STOCK_READ_ROUND_FRESH_BARS = 15            # a cross is fresh when the 15 candles before it stayed on the other side
 STOCK_READ_ROUND_CROSS_SEC = 10 * 60        # "broke $X" / "lost $X" is said this long after the cross
+# The round numbers a price is watched at (operator report 2026-10-01: ACN at $223 listed every half dollar
+# from its stop to its target -- 26 lines, a ruler of labels on top of each other, and the real tops and
+# VWAP buried in zones of six half dollars each). A rung is (up to this price, minor step, major step); a
+# price takes the first rung that holds it, so its minor step is always 2% of the price or more, as a half
+# dollar is on a $25 stock. The level study measured the first rung, on $1-$20 stocks; the rest are not
+# measured, and the plan says so instead of quoting the study.
+STOCK_READ_ROUND_LADDER = (
+    (25.0, 0.5, 1.0),           # half and whole dollars
+    (50.0, 1.0, 5.0),
+    (125.0, 2.5, 10.0),
+    (250.0, 5.0, 10.0),
+    (500.0, 10.0, 50.0),
+    (1250.0, 25.0, 100.0),
+    (2500.0, 50.0, 100.0),
+    (float("inf"), 100.0, 500.0),
+)
+STOCK_READ_ROUND_MEASURED_MIN = 1.0         # the level study's stocks were $1-$20
+STOCK_READ_ROUND_MEASURED_MAX = 20.0
 # What the level study measured (in sample, 2021-09..2026-09 minute bars of the pillar stocks, $1-$20;
 # F:\Nova\eyes\studies\levels-2026-09-30). Each pair is (at the level, at a random price) in percent.
 STOCK_READ_LEVEL_STUDY = {

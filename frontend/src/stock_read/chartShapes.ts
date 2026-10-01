@@ -6,7 +6,7 @@
  * The 1-minute pane draws everything: each followed setup's shapes (the lead lane in colour, the rest
  * faded), the day's setups that ended under them (`pastShapes.ts`), the plan's risk and reward zones and
  * lines, the trade's levels (`levelPicks.minuteScene`: the high of day, the nearest top and bottom its
- * candles made, the nearest round dollar each side and the plan's levels between its stop and target),
+ * candles made, the nearest round number each side and the plan's levels between its stop and target),
  * and the moment's pin (ADR 037).
  * The 5-minute pane carries its own level map and the 5-minute setups (`fiveMinuteShapes.ts`; on the
  * 1-minute pane a 5-minute setup in reach is a dashed trigger line); the 5-minute and 10-second panes

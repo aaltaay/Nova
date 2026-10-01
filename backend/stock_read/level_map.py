@@ -5,12 +5,13 @@ Three maps, each read from the candles of the chart it belongs on (operator repo
 which shows one top):
 
 - **intraday** (today's map from the session's one-minute candles): the high and low of day, the
-  premarket high, the 09:30 open, VWAP, tops and bottoms tested twice or more, the half and whole
-  dollars, and yesterday's high, low and close. The plan reads it (Room, the levels between stop and
+  premarket high, the 09:30 open, VWAP, tops and bottoms tested twice or more, the round numbers
+  (``rounds``: the half and whole dollars up to $25, coarser over it), and yesterday's high, low and
+  close. The plan reads it (Room, the levels between stop and
   target; trial T7 is registered on it), and the 1-minute pane draws its nearest tops and bottoms.
 - **five_minute** (the 5-minute pane): the same day read from 5-minute candles made of those minutes --
   the high and low of day, the premarket high, the open, and tops and bottoms two separate 5-minute
-  candles tested; a half or whole dollar only where it falls in one of those zones. No VWAP (the chart
+  candles tested; a round number only where it falls in one of those zones. No VWAP (the chart
   draws its own line) and nothing from yesterday (the Full Day pane's).
 - **daily** (the Full Day pane): daily highs and lows touched twice or more in the last sessions, the
   older daily highs above the price ("look left and up"), unfilled gaps, the 200-day average, and
@@ -43,8 +44,8 @@ from constants_stock_read import (
     STOCK_READ_LEVEL_TOUCH_MIN,
     STOCK_READ_LEVEL_TOUCH_PCT,
     STOCK_READ_LEVELS_SCHEMA_VERSION,
-    STOCK_READ_ROUND_STEP,
 )
+from stock_read import rounds
 
 ET = ZoneInfo("America/New_York")
 EPS = 1e-9
@@ -121,11 +122,9 @@ def clusters(points: list[tuple[float, Any]], tol_pct: float, tol_min: float) ->
     return groups
 
 
-def rounds_near(price: float, span_pct: float = STOCK_READ_LEVEL_ROUND_SPAN_PCT,
-                step: float = STOCK_READ_ROUND_STEP) -> list[float]:
-    """Every half and whole dollar within ``span_pct`` of the price."""
-    if price <= 0:
-        return []
+def rounds_near(rnd: rounds.Rounds, span_pct: float = STOCK_READ_LEVEL_ROUND_SPAN_PCT) -> list[float]:
+    """Every round number of the price's scale within ``span_pct`` of it."""
+    step, price = rnd.minor, rnd.price
     lo, hi = price * (1 - span_pct), price * (1 + span_pct)
     k = max(1, math.ceil(lo / step - EPS))
     out = []
@@ -135,8 +134,13 @@ def rounds_near(price: float, span_pct: float = STOCK_READ_LEVEL_ROUND_SPAN_PCT,
     return out
 
 
-def is_whole(p: float) -> bool:
-    return abs(p - round(p)) < EPS
+def round_members(price: float | None) -> list[dict[str, Any]]:
+    """The round numbers near the price as members: ``whole`` the heavier kind (a whole dollar, a $10
+    round number), ``half`` the lighter (a half dollar, a $5 round number)."""
+    rnd = rounds.of(price)
+    if rnd is None:
+        return []
+    return [member("whole" if rnd.is_major(p) else "half", p, note=rnd.name(p)) for p in rounds_near(rnd)]
 
 
 def candle_members(bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -177,10 +181,7 @@ def intraday_members(bars: list[dict[str, Any]], *, price: float | None, vwap: f
         out.append(member("yday_low", yday["l"], dates=[yday["d"]], note=f"low of {_mmdd(yday['d'])} (with extended hours)"))
     if prior_close is not None:
         out.append(member("prior_close", prior_close, note="the regular session's close"))
-    if price is not None:
-        for p in rounds_near(price):
-            out.append(member("whole" if is_whole(p) else "half", p, note="whole dollar" if is_whole(p) else "half dollar"))
-    return out
+    return out + round_members(price)
 
 
 FIVE_MIN_SEC = 300
@@ -205,13 +206,10 @@ def five_minute_bars(bars: list[dict[str, Any]], now: float) -> list[dict[str, A
 
 
 def five_minute_members(bars5: list[dict[str, Any]], *, price: float | None) -> list[dict[str, Any]]:
-    """The 5-minute chart's levels: what its candles show, and the half and whole dollars near the price
-    (kept only where one falls in a zone with something else, ``build``)."""
+    """The 5-minute chart's levels: what its candles show, and the round numbers near the price (kept
+    only where one falls in a zone with something else, ``build``)."""
     out = candle_members(bars5)
-    if price is not None and out:
-        for p in rounds_near(price):
-            out.append(member("whole" if is_whole(p) else "half", p, note="whole dollar" if is_whole(p) else "half dollar"))
-    return out
+    return out + round_members(price) if out else out
 
 
 def _minute(ts: float) -> int:
@@ -364,8 +362,9 @@ def zones(members: list[dict[str, Any]], *, price: float | None, home: str, merg
 def build(bars: list[dict[str, Any]], daily: list[dict[str, Any]] | None, *, price: float | None,
           prior_close: float | None, vwap: float | None, now: float, sma200: float | None = None,
           daily_error: str | None = None) -> dict[str, Any]:
-    """The level map the read carries: ``{schema_version, price, intraday, five_minute, daily,
-    daily_sessions, daily_error, study}``. ``bars`` are the session's closed one-minute bars."""
+    """The level map the read carries: ``{schema_version, price, rounds, intraday, five_minute, daily,
+    daily_sessions, daily_error, study}``. ``bars`` are the session's closed one-minute bars; ``rounds``
+    is the price's scale of round numbers (``rounds.Rounds.wire``), None without a price."""
     today = datetime.fromtimestamp(now, ET).date().isoformat()
     past = [b for b in (daily or []) if b["d"] < today]
     yday = past[-1] if past else None
@@ -377,6 +376,7 @@ def build(bars: list[dict[str, Any]], daily: list[dict[str, Any]] | None, *, pri
     return {
         "schema_version": STOCK_READ_LEVELS_SCHEMA_VERSION,
         "price": price,
+        "rounds": rnd.wire() if (rnd := rounds.of(price)) else None,
         "intraday": zones(intra, price=price, home="intraday", merge_pct=STOCK_READ_LEVEL_MERGE_PCT),
         "five_minute": five_zones,
         "daily": zones(day, price=price, home="daily", merge_pct=STOCK_READ_DAILY_MERGE_PCT),

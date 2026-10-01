@@ -25,7 +25,7 @@ export function StockReadToolbar() {
         className="chart-grid__optional-toggle sr-toolbar__btn"
         aria-pressed={layers.levels}
         onClick={() => ctx.setLayers({ levels: !layers.levels })}
-        {...tipProps('Support and resistance, on the chart each comes from: today\'s map on the 5-minute, the daily levels on the Full Day chart, and on the 1-minute the high of day, the premarket high, the open, the half dollars either side and the levels between your stop and target. Hover a label or an axis tick for what holds it and what the data says; a level off the chart gets a tag at its edge.', 'Levels')}
+        {...tipProps('Support and resistance, on the chart each comes from: today\'s map on the 5-minute, the daily levels on the Full Day chart, and on the 1-minute the high of day, the premarket high, the open, the nearest round number either side (half and whole dollars up to $25, coarser above) and the levels between your stop and target. Hover a label or an axis tick for what holds it and what the data says; a level off the chart gets a tag at its edge.', 'Levels')}
         data-testid="stock-read-toggle-levels"
       >
         Levels {layers.levels ? 'on' : 'off'}

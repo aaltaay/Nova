@@ -13,7 +13,7 @@ describe("each chart pane's Key", () => {
     expect(chartKey('map', ON)[0].rows.map(r => r.label)).toEqual(
       ['Forming', 'Armed / near', 'Ended (faint)', '5m trigger', 'Scored only']);
     const rows = chartKey('map', ON)[1].rows.map(r => r.label);
-    expect(rows).toContain('Round dollar');
+    expect(rows).toContain('Round number');
     // Yesterday's and old daily levels belong to the Full Day pane only.
     expect(rows).not.toContain("Yesterday's");
     expect(rows).not.toContain('Old daily level');
@@ -33,7 +33,7 @@ describe("each chart pane's Key", () => {
     ]);
     expect(titles('full', { setups: false, levels: false })).toEqual(['The plan', 'Background (time of day, ET)']);
     const levels = chartKey('full', ON)[2].rows.map(r => r.label);
-    expect(levels).toEqual(['Resistance', 'Support', 'Round dollar', 'Shaded band', 'Thick line']);
+    expect(levels).toEqual(['Resistance', 'Support', 'Round number', 'Shaded band', 'Thick line']);
   });
 
   it('lists only the plan lines on the 10-second', () => {
