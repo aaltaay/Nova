@@ -17,6 +17,8 @@ if ($mutex) {
 }
 
 Write-NovaLog ("Watchdog start interval={0}s repo={1}" -f $IntervalSec, $script:NovaRepo)
+# Before anything starts: the API and Vite inherit this process's priority (2026-10-01).
+Set-NovaLauncherPriority -Always
 [void](Start-NovaLocalhostStack)
 
 # Vite that keeps failing (e.g. node_modules missing vite) is retried less often, so the API --
@@ -30,13 +32,22 @@ $viteBackoffMin = 10
 # PowerShell never reads a running script again, so a watchdog started before a fix keeps the
 # old code (2026-09-30: running since 09-28 20:18, it held a failing Vite start ~75 s at a time,
 # 566 times that day, and a backend restart waited 90 s behind it -- the fix above had merged on
-# 09-29). When either script changes on disk and still parses, it starts itself again and exits.
-$scriptFiles = @($PSCommandPath, (Join-Path $PSScriptRoot 'NovaLocalhost.Common.ps1'))
+# 09-29). When any of its scripts changes on disk and they all parse, it starts itself again and exits.
+$scriptFiles = @(
+  $PSCommandPath,
+  (Join-Path $PSScriptRoot 'NovaLocalhost.Common.ps1'),
+  (Join-Path $PSScriptRoot 'NovaProcessPriority.ps1')
+)
 function Get-NovaScriptStamp {
   ($scriptFiles | ForEach-Object { (Get-Item -LiteralPath $_ -ErrorAction SilentlyContinue).LastWriteTimeUtc.Ticks }) -join ','
 }
 function Test-NovaScriptsParse {
   foreach ($file in $scriptFiles) {
+    # A pull writes the files one at a time: a missing one is not ready yet.
+    if (-not (Test-Path -LiteralPath $file)) {
+      Write-NovaLog ("Watchdog script changed but {0} is missing - keeping the running code" -f $file)
+      return $false
+    }
     $tokens = $null; $errors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors)
     if ($errors -and $errors.Count) {

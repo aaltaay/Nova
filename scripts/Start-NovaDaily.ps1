@@ -415,6 +415,18 @@ function Write-FinalStatus {
 
 Write-DailyLog "===== Nova daily start (repo=$RepoRoot) ====="
 
+# IBC and the IB Gateway, the API and Vite inherit this process's CPU, I/O and memory
+# priority, and Task Scheduler's default task priority (7) is BelowNormal with Low I/O and
+# memory priority 2: the Gateway this script started at logon on 09-28 still ran that way
+# on 2026-10-01, because IBC relaunches every Gateway from the same loop. Raise it first.
+$priorityHelper = Join-Path $PSScriptRoot "NovaProcessPriority.ps1"
+if (Test-Path -LiteralPath $priorityHelper) {
+    . $priorityHelper
+    Write-DailyLog ("Process " + (Set-NovaNormalPriority).Text)
+} else {
+    Write-DailyLog "Process priority unchanged: $priorityHelper is missing" "WARN"
+}
+
 if (-not $SkipGateway) {
     Start-IbGateway
     $null = Wait-GatewayApiPort -TimeoutSec $GatewayPortWaitSec

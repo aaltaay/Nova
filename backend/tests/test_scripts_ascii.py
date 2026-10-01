@@ -12,13 +12,21 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPTS = _REPO_ROOT / "scripts"
-# Scripts launched by NovaDailyStart / Run Nova (must stay ASCII-clean).
+# Scripts launched by NovaDailyStart / Run Nova / the localhost watchdog task, the
+# scripts they dot-source, and the task installers (must stay ASCII-clean).
 _CRITICAL_PS1 = (
     "Start-NovaDaily.ps1",
     "Start-NovaApi.ps1",
     "Stop-NovaPorts.ps1",
     "Start-NovaUi.ps1",
     "Start-NovaDevDesktop.ps1",
+    "Watch-NovaLocalhost.ps1",
+    "NovaLocalhost.Common.ps1",
+    "NovaProcessPriority.ps1",
+    "Repair-NovaPriority.ps1",
+    "Register-NovaLocalhostWatchdog.ps1",
+    "Install-NovaDailyTask.ps1",
+    "Ensure-NovaMaintenanceTask.ps1",
 )
 
 
