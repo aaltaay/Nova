@@ -46,7 +46,8 @@ export function samplePriceAt(price: number | null, base: number, anchor?: numbe
 /** Paper-style working rows for the open symbol — preview only; `anchor` puts them near its price. */
 export function buildMockWorkingOrders(symbol: string, anchor?: number | null): IbkrOrder[] {
   const sym = symbol.trim().toUpperCase() || 'DEMO';
-  const rows = writtenRows(sym);
+  // The sample's orders are the operator's own ticket orders: Sent by "You".
+  const rows = writtenRows(sym).map((row): IbkrOrder => ({ order_source: 'manual', ...row }));
   if (anchor == null) return rows;
   return rows.map((row) => ({
     ...row,

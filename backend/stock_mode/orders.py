@@ -36,6 +36,7 @@ async def place_entry(trade: dict[str, Any]) -> Any:
             operation="place",
             idempotency_key=_key(trade, "entry"),
             source="bot",
+            origin="auto_entry",
             symbol=trade["symbol"],
             side="BUY",
             qty=float(trade["qty"]),
@@ -60,6 +61,7 @@ async def send_bracket(trade: dict[str, Any]) -> Any:
             operation="bracket",
             idempotency_key=_key(trade, "bracket"),
             source="manual",
+            origin="approve",   # the operator approved it; Nova sent it at the trigger
             symbol=trade["symbol"],
             side="BUY",
             qty=float(trade["qty"]),

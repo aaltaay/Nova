@@ -73,6 +73,21 @@ EXECUTION_SOURCES = (
     "benchmark",
     "bot",
 )
+# Which part of Nova sent an order (operator report 2026-10-01: "I don't remember selling it" --
+# the bot trip's flatten read like any other sell). The source says what kind of order it is; the
+# origin says who: your Flatten, the header's KILL, a loss breaker, Nova's bot, Auto-entry,
+# Approve or the localhost bot API. None: the operator's own ticket, or an order placed before
+# origins were recorded. Rows carry it as ``order_origin``.
+EXECUTION_ORIGINS = (
+    "ticket_flatten",
+    "emergency_kill",
+    "bot_trip",
+    "all_stop",
+    "bot",
+    "auto_entry",
+    "approve",
+    "bot_api",
+)
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
 # ── NYSE exchange calendar ───────────────────────────────────────────────────
 # Full-day closures (ISO dates). The market clock, the Sim session clock,

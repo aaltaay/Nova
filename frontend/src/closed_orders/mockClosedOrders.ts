@@ -89,7 +89,8 @@ export const MOCK_CLOSED_TIMES = {
  */
 export function buildMockClosedOrders(symbol?: string | null, anchor?: number | null): ClosedOrder[] {
   const sym = (symbol?.trim() || 'DEMO').toUpperCase();
-  const rows = writtenRows(sym);
+  // The sample's orders are the operator's own ticket orders: Sent by "You".
+  const rows = writtenRows(sym).map((row): ClosedOrder => ({ order_source: 'manual', ...row }));
   if (anchor == null) return rows;
   return rows.map((row) => (row.symbol !== sym ? row : {
     ...row,

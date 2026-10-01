@@ -87,6 +87,7 @@ class PracticeBroker:
         bot_id: str | None = None,
         tif: str | None = None,
         short_entry: bool = False,
+        origin: str | None = None,
     ) -> dict[str, Any]:
         """Place a practice order against the venue's reference.
 
@@ -129,7 +130,8 @@ class PracticeBroker:
                     PRACTICE_BUYING_POWER_CODE,
                 )
         oid = int(order_id) if order_id is not None else self.ledger.alloc_id()
-        row = self._row(oid, sym, side_u, qty_f, typ, limit_price, stop_price, now, source, bot_id, tif_u)
+        row = self._row(oid, sym, side_u, qty_f, typ, limit_price, stop_price, now, source, bot_id, tif_u,
+                        origin=origin)
         self.ledger.place(row, ts=now, source=source, bot_id=bot_id)
         if at_mark:
             mark = self.ledger.mark_of(sym, self.ledger.avg_cost(sym))
@@ -159,6 +161,7 @@ class PracticeBroker:
         source: str = "manual",
         bot_id: str | None = None,
         short_entry: bool = False,
+        origin: str | None = None,
     ) -> dict[str, Any]:
         """Place the bracket Live sends: a LMT entry, then two exits that wait on it (``practice.bracket``).
 
@@ -196,7 +199,8 @@ class PracticeBroker:
                 PRACTICE_BUYING_POWER_CODE,
             )
         parent_id, target_id, stop_id = (self.ledger.alloc_id() for _ in range(3))
-        parent = self._row(parent_id, sym, side_u, qty_f, "LMT", entry_price, None, now, source, bot_id, tif_u)
+        parent = self._row(parent_id, sym, side_u, qty_f, "LMT", entry_price, None, now, source, bot_id, tif_u,
+                           origin=origin)
         parent.update(bracket.leg_fields(parent_id, PRACTICE_LEG_PARENT))
         for leg in (parent, *bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price)):
             self.ledger.place(leg, ts=now, source=source, bot_id=bot_id)
@@ -386,6 +390,7 @@ class PracticeBroker:
     def _row(
         self, oid: int, sym: str, side: str, qty: float, typ: str, limit_price: float | None,
         stop_price: float | None, now: float, source: str, bot_id: str | None, tif: str,
+        *, origin: str | None = None,
     ) -> dict[str, Any]:
         wall = iso_utc(time.time())
         # Placed at the venue's time (the playhead on Sim), like every other row stamp (R27).
@@ -398,6 +403,8 @@ class PracticeBroker:
             "avg_fill_price": None, "outside_rth": True, "status": "Submitted",
             "submitted_at": placed, "updated_at": placed, "filled_at": None, "held_until": None,
             "commission": None, "fees": None, "source": "nova", "order_source": source,  # C30: the fill's own
+            # Who in Nova sent it (``execution.models.Origin``; None: the operator's own ticket).
+            "order_origin": origin,
             "bot_id": bot_id, "mode": self.venue, "venue": self.venue,
             "account_id": self.account_id, "nova_placed_at": wall, "placed_ts": float(now),
             "fill_estimated": True, "fill_basis": None,

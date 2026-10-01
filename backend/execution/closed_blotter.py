@@ -1,5 +1,7 @@
 """Merge IB closed-order replay with the ADR 007 ledger (Orders Today).
 
+maintainer: one-concern one desk's closed orders -- IBKR's replay joined to this desk's own execution rows, never another venue's
+
 The execution ledger is one table for every venue, so the overlay is scoped
 to the desk's own rows (QA V5 / C18 / C53, 2026-09-22). On Paper and Sim the
 practice broker's ledger is the whole truth and nothing is joined or appended
@@ -312,7 +314,13 @@ def _merge_ib_ledger(ib: dict, led: dict) -> dict:
             out["submitted_at"] = fallback
     out["source"] = "nova"
     out["execution_id"] = led.get("id")
+    out.update(_sent_by(led))
     return out
+
+
+def _sent_by(led: dict) -> dict:
+    """Who sent it, as a practice row says it: the ADR 007 source and the part of Nova (origin)."""
+    return {"order_source": led.get("source"), "order_origin": (led.get("payload") or {}).get("origin")}
 
 
 def _iso_from_ts(ts: float) -> str | None:
@@ -389,6 +397,7 @@ def _row_from_ledger(led: dict) -> dict:
         "source": "nova",
         "execution_id": led.get("id"),
         "commission": _commission_from_ledger(led),
+        **_sent_by(led),
     }
 
 

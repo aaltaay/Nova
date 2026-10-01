@@ -219,3 +219,18 @@ describe('closedOrderCells — column contract', () => {
     expect(html).not.toContain('datetime=');
   });
 });
+
+describe('closedOrderCells — Sent by (operator report 2026-10-01)', () => {
+  it('names the bot trip as the seller, loudly, with the why on hover', () => {
+    const cell = renderCell('sent_by', {
+      ...FILLED, side: 'SELL', order_source: 'flatten', order_origin: 'bot_trip',
+    });
+    expect(cell.text).toBe('Bot trip');
+    expect(cell.html).toContain('ibkr-sent-by--breaker');
+    expect(cell.html).toContain('data-tip=');
+  });
+
+  it('says You for your own ticket order', () => {
+    expect(renderCell('sent_by', { ...FILLED, order_source: 'manual' }).text).toBe('You');
+  });
+});

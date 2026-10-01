@@ -5,6 +5,10 @@ Breakers call flatten_account_with_retry directly -- same function.
 Cancel leftover working first, then place closes -- never cancel after place.
 Weekday RTH closes are MKT. After hours / weekend uses an EH LMT so IBKR
 cannot hold the exit until the next regular session.
+
+Every close carries its caller's ``origin`` (``emergency_kill``, ``bot_trip``, ``all_stop``, or
+``bot`` for the bot's own last-resort exit), so the Orders table says who sold and a breaker's
+audit line can list what it sold (``closes_sold``).
 """
 from __future__ import annotations
 
@@ -17,7 +21,7 @@ from constants_bot import BOT_FLATTEN_RETRIES
 logger = logging.getLogger(__name__)
 
 
-async def _place_close(symbol: str, qty: float, side: str) -> dict[str, Any]:
+async def _place_close(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict[str, Any]:
     from execution.flatten_exit import (
         plan_flatten_exit,
         plan_practice_flatten_exit,
@@ -47,6 +51,7 @@ async def _place_close(symbol: str, qty: float, side: str) -> dict[str, Any]:
             side=side,
             qty=abs(float(qty)),
             skip_risk=True,
+            origin=origin,  # type: ignore[arg-type]
             **ticket_to_command_fields(ticket),
         ),
         wait_ack=False,
@@ -139,7 +144,7 @@ def _position_closes(positions: list[dict[str, Any]]) -> list[tuple[str, float, 
     return closes
 
 
-async def flatten_account_once() -> dict[str, Any]:
+async def flatten_account_once(*, origin: str | None = None) -> dict[str, Any]:
     from ibkr import account as _account
     from ibkr.errors import IbkrAccountError
 
@@ -160,7 +165,7 @@ async def flatten_account_once() -> dict[str, Any]:
     cancels = await _cancel_working()
     results: list[dict[str, Any]] = []
     for symbol, qty, side in _position_closes(positions):
-        close = await _place_close(symbol, qty, side)
+        close = await _place_close(symbol, qty, side, origin=origin)
         short = _short_close(close, qty)
         if short:
             close = {**close, "ok": False, "error": short, "reason_code": "FLATTEN_PARTIAL"}
@@ -201,15 +206,30 @@ def _practice_left_open(before: list[dict[str, Any]]) -> list[str] | None:
     return [f"{symbol} {qty:g}" for symbol, qty, _side in _position_closes(after) if symbol in closed]
 
 
-async def flatten_account_with_retry() -> dict[str, Any]:
+async def flatten_account_with_retry(*, origin: str | None = None) -> dict[str, Any]:
     last: dict[str, Any] = {"ok": False, "error": "flatten not attempted", "results": []}
     attempts = 1 + int(BOT_FLATTEN_RETRIES)
     for attempt in range(attempts):
-        last = await flatten_account_once()
+        last = await flatten_account_once(origin=origin)
         last["attempt"] = attempt + 1
         if last.get("ok"):
             return last
     return last
+
+
+def closes_sold(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """What a flatten closed, one line per position: ``{symbol, side, qty, ok, order_id, error}``.
+
+    The breakers put it on their audit line so the desk's notice can name what was sold.
+    """
+    out: list[dict[str, Any]] = []
+    for row in result.get("results") or []:
+        close = row.get("close") or {}
+        out.append({
+            "symbol": row.get("symbol"), "side": row.get("side"), "qty": row.get("qty"),
+            "ok": bool(close.get("ok")), "order_id": close.get("order_id"), "error": close.get("error"),
+        })
+    return out
 
 
 def alert_flatten_failed(detail: dict[str, Any]) -> None:
