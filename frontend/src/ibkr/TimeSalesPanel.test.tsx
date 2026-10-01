@@ -42,6 +42,12 @@ vi.mock('./useIbkrTape', () => ({
   useIbkrTape: () => tapeMock,
 }));
 
+const gapMock: { badge: import('./feedPulse').FeedGapBadge | null } = { badge: null };
+
+vi.mock('./feedPulseStore', () => ({
+  useFeedGapBadge: () => gapMock.badge,
+}));
+
 function renderedSizes(root: ParentNode): number[] {
   return [...root.querySelectorAll('[data-testid="ts-size"]')].map((el) =>
     Number(el.getAttribute('data-size')),
@@ -194,5 +200,58 @@ describe('TimeSalesPanel min-size filter', () => {
     });
     expect(container.querySelector('[data-testid="ts-min-size-badge"]')?.textContent).toBe('Size ≥ 100');
     expect(renderedSizes(container)).toEqual([100, 500]);
+  });
+});
+
+describe('TimeSalesPanel feed gap badge (#672)', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    tapeMock.prints = mixedPrints();
+    tapeMock.connected = true;
+    tapeMock.error = null;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    gapMock.badge = null;
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  function status(): HTMLElement {
+    return container.querySelector('[data-testid="ts-status"]') as HTMLElement;
+  }
+
+  it('says LIVE while data arrives', () => {
+    act(() => {
+      root.render(<TimeSalesPanel symbol="NXL" />);
+    });
+    expect(status().textContent).toBe('LIVE');
+    expect(status().className).not.toContain('ts-panel__status--bad');
+  });
+
+  it('says NO DATA in red with the reason on hover while IBKR data has stopped', () => {
+    gapMock.badge = { tone: 'bad', state: 'no-data', label: 'NO DATA 9s', title: 'No IBKR data on any line for 9 s.' };
+    act(() => {
+      root.render(<TimeSalesPanel symbol="NXL" />);
+    });
+    expect(status().textContent).toBe('NO DATA 9s');
+    expect(status().className).toContain('ts-panel__status--bad');
+    expect(status().getAttribute('title')).toBe('No IBKR data on any line for 9 s.');
+  });
+
+  it('leaves a capture replay badge alone: the recording is not the live feed', () => {
+    gapMock.badge = { tone: 'bad', state: 'no-data', label: 'NO DATA 9s', title: 'x' };
+    act(() => {
+      root.render(<TimeSalesPanel symbol="NXL" connectedText="REPLAY" statusTitle="Session Record" />);
+    });
+    expect(status().textContent).toBe('REPLAY');
+    expect(status().className).not.toContain('ts-panel__status--bad');
   });
 });

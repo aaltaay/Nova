@@ -53,6 +53,17 @@
   background: rgba(16, 185, 129, 0.12);
 }
 
+/* The IBKR feed is silent now (bad) or was a moment ago (warn), #672. */
+.ts-panel__status--live.ts-panel__status--bad {
+  color: var(--nova-danger);
+  background: color-mix(in srgb, var(--nova-danger) 14%, transparent);
+}
+
+.ts-panel__status--live.ts-panel__status--warn {
+  color: var(--warning, #f59e0b);
+  background: color-mix(in srgb, var(--warning, #f59e0b) 14%, transparent);
+}
+
 .ts-panel__status--off {
   color: var(--nova-text-muted, var(--text-secondary));
   background: rgba(139, 146, 165, 0.12);

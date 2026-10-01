@@ -11,6 +11,7 @@ from constants import (
     IBKR_ERROR_DEPTH_RESET,
 )
 from ibkr import client as _client
+from ibkr import feed_pulse
 from ibkr.depth import state
 from ibkr.depth.book import Level, sort_levels
 from metrics.op_metrics import timed_fn
@@ -92,6 +93,7 @@ _warned_out_of_order: set[str] = set()
 @timed_fn("ib.depth")
 def on_update_book(ticker: Any, symbol: str) -> None:
     """Push the book kept from ``ticker.domTicks`` (#540), never ib_async's ``domBids`` / ``domAsks``."""
+    feed_pulse.note()
     kept = state.book_for(symbol)
     kept.apply(getattr(ticker, "domTicks", None) or ())
     bids = _rows(kept.bids, "bid")[:IBKR_DEPTH_NUM_ROWS]

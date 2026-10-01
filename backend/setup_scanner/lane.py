@@ -328,8 +328,10 @@ class Lane:
         setup = (det.armed or det.triggered) if det else None
         if not setup:
             return {"verdict": TAPE_VERDICT_BLIND, "reasons": ["no setup"], "metrics": {}}
+        gaps = getattr(self.host, "feed_gaps", None)
         res = evaluate_tape(trigger=float(setup["trigger"]), now=now, books=self.host.tape_books(sym),
-                            prints=self.host.tape_prints(sym), p=self.p.gate, flow=self.flow(sym, now))
+                            prints=self.host.tape_prints(sym), p=self.p.gate, flow=self.flow(sym, now),
+                            gaps=gaps(now) if gaps is not None else None)
         res["line"] = self.host.tape_line(sym)
         return res
 

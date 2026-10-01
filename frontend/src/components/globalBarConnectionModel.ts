@@ -4,7 +4,13 @@
  * its tooltip. Pure -- the component gathers the inputs.
  *
  * Priority (first match wins): SAMPLE DATA · API down · STALE (status poll) ·
- * IBKR offline · STALE <age> (late scanner prices) · IBKR delayed · IBKR live.
+ * IBKR offline · NO DATA <age> / DATA GAP <length> (the IBKR feed went silent,
+ * #672) · STALE <age> (late scanner prices) · IBKR delayed · IBKR live.
+ *
+ * STALE <age> means the newest scanner price is older than SCANNER_PRICE_STALE_SEC.
+ * An L1 subscription error with fresh prices is not stale: it read "STALE 0S" all
+ * morning on 2026-10-01 (Error 101, max tickers), so a real silence looked the same;
+ * the error stays in the tooltip's scanner line.
  *
  * On Sim `connected` is the Gateway socket (the backend forces the session
  * `connected` there because the replay needs no Gateway), and an offline
@@ -31,6 +37,8 @@ import {
   GLOBAL_BAR_CONNECTION_SIM_OFFLINE_TITLE,
   rosterScannerError,
 } from '../constantGroups/global_bar';
+import { SCANNER_PRICE_STALE_SEC } from '../constantGroups/chart_api';
+import type { FeedGapBadge } from '../ibkr/feedPulse';
 import {
   SCANNER_HONESTY_CHIP_ROLE,
   priceAgeChipText,
@@ -45,6 +53,8 @@ export type ConnectionChipState =
   | 'checking'
   | 'stale'
   | 'offline'
+  | 'no-data'
+  | 'data-gap'
   | 'delayed'
   | 'live';
 
@@ -79,6 +89,8 @@ export interface ConnectionChipInput {
   scannerModeLabel?: string | null;
   /** ADR 020 desk venue; on Sim `connected` must be the Gateway socket (C24). */
   venue?: 'live' | 'paper' | 'sim' | null;
+  /** The IBKR feed is silent now, or was a moment ago (`ibkr/feedPulse.ts`, #672). */
+  feedGap?: FeedGapBadge | null;
 }
 
 const RAW_SCANNER_ERROR = /^\s*(ibkr|alpaca)\s*:\s*([A-Za-z]*(?:Error|Exception))\b/i;
@@ -124,15 +136,16 @@ export function connectionChipView(i: ConnectionChipInput): ConnectionChipView {
     lastPriceTs: i.lastPriceTs,
     secondsAgo: i.secondsAgo,
   });
+  const late = i.pricesStale && i.secondsAgo != null && i.secondsAgo > SCANNER_PRICE_STALE_SEC;
   const priceText = showPrices
     ? priceAgeChipText({
         lastPriceTs: i.lastPriceTs,
         secondsAgo: i.secondsAgo,
-        pricesStale: i.pricesStale,
+        pricesStale: late,
         formatAge: formatScanAge,
       })
     : null;
-  const pricesLate = showPrices && i.pricesStale && i.secondsAgo != null;
+  const pricesLate = showPrices && late;
 
   let tone: ConnectionChipTone;
   let state: ConnectionChipState;
@@ -148,6 +161,8 @@ export function connectionChipView(i: ConnectionChipInput): ConnectionChipView {
     [tone, state, label] = ['warn', 'stale', `${GLOBAL_BAR_CONNECTION_STALE_LABEL}${age}`];
   } else if (!i.connected) {
     [tone, state, label] = [i.venue === 'sim' ? 'warn' : 'bad', 'offline', GLOBAL_BAR_OFFLINE_CHIP];
+  } else if (i.feedGap) {
+    [tone, state, label] = [i.feedGap.tone, i.feedGap.state, i.feedGap.label];
   } else if (pricesLate) {
     const age = compactAge(i.secondsAgo as number);
     [tone, state, label] = ['warn', 'stale', `${GLOBAL_BAR_CONNECTION_STALE_LABEL} ${age}`];
@@ -158,6 +173,7 @@ export function connectionChipView(i: ConnectionChipInput): ConnectionChipView {
   }
 
   const lines: (string | null)[] = [label];
+  if (state === 'no-data' || state === 'data-gap') lines.push(i.feedGap?.title ?? null);
   if (i.sampleDataActive) {
     lines.push(GLOBAL_BAR_CONNECTION_SAMPLE_TITLE);
   } else {

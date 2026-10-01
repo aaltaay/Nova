@@ -31,6 +31,7 @@ from diagnostics import (
     collect_catalysts,
     collect_clips,
     collect_data_root,
+    collect_feed,
     collect_gateway,
     collect_leaderboard,
     collect_perf,
@@ -107,6 +108,11 @@ def _gateway_inputs() -> dict[str, Any]:
         "attach": _attach.status(),
         "heal": _heal.heal_status(),
     }
+
+
+def _feed_view(ts: float) -> dict[str, Any]:
+    from ibkr import feed_pulse
+    return feed_pulse.view(ts)
 
 
 def _market_data_inputs() -> dict[str, Any]:
@@ -303,6 +309,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows += collect.integration_rows(env_file=facts["env_file"])
     rows += _safe(DIAG_GROUP_GATEWAY, "gateway", "Gateway", lambda: collect_gateway.gateway_rows(**_gateway_inputs()))
     rows += _safe(DIAG_GROUP_MARKET_DATA, "market_data", "Market data", lambda: collect_gateway.market_data_rows(**_market_data_inputs()))
+    rows += _safe(DIAG_GROUP_MARKET_DATA, "ibkr_feed_gaps", "IBKR feed gaps",
+                  lambda: collect_feed.feed_rows(view=_feed_view(ts), now=ts))
     rows += _safe(DIAG_GROUP_RECORDER, "recorder", "Recorder", lambda: collect_gateway.recorder_rows(**_recorder_inputs()))
     rows += _safe(DIAG_GROUP_RECORDER, "leaderboard_recorder", "Scanner board recorder",
                   lambda: collect_leaderboard.leaderboard_rows(**_leaderboard_inputs()))

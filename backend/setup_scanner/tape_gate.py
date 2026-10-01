@@ -9,7 +9,8 @@ material makes before pressing buy (ADR 022, Bot-Trading-Plan section 2g):
          on the tape; no green on the tape yet
   go     green on the tape (prints at the ask outweigh prints at the bid) and
          no wall at the level, or the wall is being eaten
-  blind  no fresh book -- Nova holds no Level 2 line for the symbol
+  blind  no fresh book -- Nova holds no Level 2 line for the symbol; or the
+         window touches an IBKR feed gap, whose prints arrived in one burst (#673)
 
 A template may decide the entry by the tape flow score instead (ADR 034,
 ``entry_mode``): ``gate`` is the rule above; ``score`` keeps the vetoes and a
@@ -54,6 +55,7 @@ from constants_setups import (
     TAPE_VERDICT_VETO,
     TAPE_VERDICT_WAIT,
 )
+from setup_scanner import tape_gap
 
 OFF_EXCHANGE = frozenset({"FINRA", "TRF", "ADF"})  # CHOSEN: IBKR's labels for trade reports
 
@@ -125,11 +127,18 @@ def _score_check(flow: dict | None, p: GateParams) -> tuple[bool, str]:
 
 
 def evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
-             prints: Iterable[dict], p: GateParams = DEFAULT_GATE, flow: dict | None = None) -> dict[str, Any]:
+             prints: Iterable[dict], p: GateParams = DEFAULT_GATE, flow: dict | None = None,
+             gaps: Iterable[dict] | None = None) -> dict[str, Any]:
     """Judge the tape at ``trigger`` from the samples inside the window ending at ``now``.
 
-    ``metrics.read_at`` is ``now``: the moment the read stands for (ADR 022 amendment 2026-09-30)."""
-    res = _evaluate(trigger=trigger, now=now, books=books, prints=prints, p=p, flow=flow)
+    ``metrics.read_at`` is ``now``: the moment the read stands for (ADR 022 amendment 2026-09-30).
+    ``gaps`` are the live feed's gaps (``ibkr.feed_pulse``): a window that touches one reads
+    ``blind`` with the gap as its reason (#673)."""
+    gap = tape_gap.touching(gaps, now - p.window_sec, now) if gaps else None
+    if gap is not None:
+        res = tape_gap.blind_gate(gap, now, p.window_sec)
+    else:
+        res = _evaluate(trigger=trigger, now=now, books=books, prints=prints, p=p, flow=flow)
     if flow is not None:
         res["flow"] = flow
         res["metrics"]["flow_score"] = flow.get("score")
