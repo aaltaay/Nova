@@ -6,9 +6,11 @@ Invalidation: IBKR connect generation, env spend flags, broker account kind,
 desk venue.
 schema_version: n/a (derived; nothing persisted).
 
-PIN unlock stays a desk-session affordance on the client. It is AND-ed onto
-this snapshot in frontend/src/ibkr/tradingAllowed.ts. Flatten / KILL / cancel
-remain protective and do not use this helper to refuse an exit.
+The padlock is the backend arm latch (ADR 018, ``ibkr.safety.armed``), and this
+snapshot already includes it: there is no client-side PIN unlock any more (the
+Live PIN is checked by the backend when arming, ADR 018 amendment). The desk
+reads this snapshot once, in frontend/src/ibkr/tradingAllowed.ts. Flatten /
+KILL / cancel remain protective and do not use this helper to refuse an exit.
 
 ADR 020: on Paper / Sim the only gate is the ADR 018 arm latch -- the IBKR
 env gates (``IBKR_ORDERS_ENABLED``, ``IBKR_LIVE_TRADING_CONFIRMED``) and the
