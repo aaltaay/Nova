@@ -1215,7 +1215,7 @@
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "The bot's own rules while this template is in play.",
+      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -1229,7 +1229,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock).",
+        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside the arming window; changing it never starts the read-out over.",
         "live": true,
         "affects_readout": false
        },
@@ -1245,7 +1245,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
         "live": true,
         "affects_readout": false
        }
@@ -1338,7 +1338,7 @@
      "setup": "first_pullback",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "34c3c41d06f6",
+     "fingerprint": "77299ffad70d",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -2677,7 +2677,7 @@
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "The bot's own rules while this template is in play.",
+      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -2691,7 +2691,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock).",
+        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside the arming window; changing it never starts the read-out over.",
         "live": true,
         "affects_readout": false
        },
@@ -2707,7 +2707,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
         "live": true,
         "affects_readout": false
        }
@@ -2806,7 +2806,7 @@
      "setup": "bull_flag",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "86c4202aec34",
+     "fingerprint": "f9144d9296a4",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -4054,7 +4054,7 @@
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "The bot's own rules while this template is in play.",
+      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -4068,7 +4068,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock).",
+        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside the arming window; changing it never starts the read-out over.",
         "live": true,
         "affects_readout": false
        },
@@ -4084,7 +4084,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
         "live": true,
         "affects_readout": false
        }
@@ -4177,7 +4177,7 @@
      "setup": "flat_top_breakout",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "8a65e2d5d24e",
+     "fingerprint": "1eb5af7e5e9c",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -5263,21 +5263,21 @@
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "The bot's own rules while this template is in play.",
+      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
         "group": "bot",
         "label": "Bot entries from",
         "kind": "time",
-        "default": "07:00",
+        "default": "09:30",
         "unit": "ET",
         "min": "04:00",
         "max": "20:00",
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock).",
+        "help": "At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside the arming window; changing it never starts the read-out over.",
         "live": true,
         "affects_readout": false
        },
@@ -5293,7 +5293,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
         "live": true,
         "affects_readout": false
        }
@@ -5369,7 +5369,7 @@
       "pillar_min_change_pct": 10.0,
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
-      "bot_window_start": "07:00",
+      "bot_window_start": "09:30",
       "bot_window_end": "10:00"
      },
      "created_at": null,
@@ -5377,7 +5377,7 @@
      "setup": "red_to_green",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "2dc4fd3df166",
+     "fingerprint": "066f55628281",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -5431,7 +5431,7 @@
         "nullable": false,
         "help": "",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "max_price",
@@ -5447,7 +5447,7 @@
         "nullable": false,
         "help": "",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "min_gap_pct",
@@ -5463,7 +5463,7 @@
         "nullable": false,
         "help": "09:30 open over the prior close.",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "min_pm_rvol",
@@ -5479,7 +5479,7 @@
         "nullable": false,
         "help": "Against the average of the prior 14 pre-markets.",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "require_news",
@@ -5495,7 +5495,7 @@
         "nullable": false,
         "help": "At least one article since the prior close, before 09:30.",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "top",
@@ -5511,7 +5511,7 @@
         "nullable": false,
         "help": "Ranked by pre-market relative volume.",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        }
       ]
      },
@@ -5534,7 +5534,7 @@
         "nullable": false,
         "help": "Live from 09:30; a gap over the pre-market high at the open is skipped.",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        }
       ]
      },
@@ -5557,7 +5557,7 @@
         "nullable": false,
         "help": "",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "stop_pct",
@@ -5573,7 +5573,7 @@
         "nullable": false,
         "help": "",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "t1_r",
@@ -5589,7 +5589,7 @@
         "nullable": false,
         "help": "",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "t2_r",
@@ -5605,7 +5605,7 @@
         "nullable": false,
         "help": "",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        },
        {
         "key": "time_stop",
@@ -5621,7 +5621,7 @@
         "nullable": false,
         "help": "",
         "live": false,
-        "affects_readout": true
+        "affects_readout": false
        }
       ]
      }
