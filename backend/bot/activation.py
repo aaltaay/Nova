@@ -96,9 +96,9 @@ def padlock() -> tuple[bool, str | None]:
         from ibkr.trading_allowed import places_allowed
 
         ok, reason = places_allowed()
-    except Exception as exc:
+    except Exception:
         logger.warning("bot: the padlock is unreadable -- it counts as locked", exc_info=True)
-        return False, f"the padlock could not be read ({exc})"
+        return False, "the padlock could not be read (the backend log has the error): it counts as locked"
     return bool(ok), None if ok else (reason or "the padlock is locked")
 
 

@@ -156,10 +156,10 @@ def _size(mode: str, row: dict[str, Any], lane: dict[str, Any] | None, venue: st
         return {**out, "text": f"{out['text']} -- you approve it; the sleeve's caps do not apply"}
     try:
         left = float(caps["bp_budget_usd"]) - exposure(row, venue)
-    except Exception as exc:
+    except Exception:
         logger.warning("stock mode: Nova's open trades could not be read for the budget", exc_info=True)
         return {"qty": 0, "by_risk": None, "capped_by": None,
-                "text": f"what Nova's automatic buys hold could not be read ({exc}): Nova does not buy"}
+                "text": "what Nova's automatic buys hold could not be read (the backend log has the error): Nova does not buy"}
     return size(caps["risk_usd"], lv.get("entry"), lv.get("stop"), caps["max_shares"], left)
 
 
@@ -277,9 +277,10 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     caps = of(row) if loaded is not None else None
     try:
         daily = entry_rules.today(venue, cap=int(caps["entries_per_day"])) if caps else None
-    except Exception as exc:
+    except Exception:
         logger.warning("stock mode: the day's Nova entries could not be counted", exc_info=True)
-        daily = {"count": None, "cap": (caps or {}).get("entries_per_day"), "error": str(exc), "entries": []}
+        daily = {"count": None, "cap": (caps or {}).get("entries_per_day"),
+                 "error": "the day's entries could not be counted (the backend log has the error)", "entries": []}
     bot_trade = _bot_trade(sym, row)
     if bot_trade and bot_trade.get("venue") not in (None, venue):
         bot_trade = None                    # the bot's trade on another venue is not this desk's

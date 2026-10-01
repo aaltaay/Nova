@@ -87,10 +87,10 @@ def window(setup: str, now: datetime | None = None) -> dict[str, Any]:
             out.update(start=str(start), end=str(end))
         out["clipped"] = bool(bw.get("clipped"))
         out["template"] = {"id": t.id, "rev": t.rev, "name": t.name}
-    except Exception as exc:
+    except Exception:
         logger.warning("bot entry rules: the %s template in play is unreadable -- keeping %s-%s", setup,
                        BOT_ENTRY_WINDOW_START_ET, BOT_ENTRY_WINDOW_END_ET, exc_info=True)
-        out["error"] = f"the template in play could not be read ({exc}): the material's window applies"
+        out["error"] = "the template in play could not be read (the backend log has the error): the material's window applies"
     try:
         out["open"] = _hm(out["start"]) <= now.time() < _hm(out["end"])
     except (TypeError, ValueError):

@@ -62,7 +62,8 @@ def _held(sym: str) -> float:
     try:
         return float(orders.held_qty(sym))
     except orders.ReadError as exc:
-        raise StockModeError(STOCK_MODE_HELD, f"Nova cannot read your {sym} position ({exc}), so it will not "
+        logger.warning("stock mode: the %s position is unreadable -- the exit is not taken", sym, exc_info=True)
+        raise StockModeError(STOCK_MODE_HELD, f"Nova cannot read your {sym} position (the backend log has the error), so it will not "
                              "take the exit", field="sell") from exc
 
 
@@ -186,8 +187,9 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
     try:
         lane = runner.lane_of(sym, approved["setup_id"])
     except runner.LanesUnreadable as exc:
-        raise StockModeError(STOCK_MODE_PLAN_CHANGED, f"{exc}: Nova cannot check the plan, so it approves "
-                             "nothing") from exc
+        logger.warning("stock mode: the scanner's lanes are unreadable -- nothing is approved", exc_info=True)
+        raise StockModeError(STOCK_MODE_PLAN_CHANGED, "the setup scanner could not be read (the backend log has the error): Nova cannot "
+                             "check the plan, so it approves nothing") from exc
     if lane is None:
         raise StockModeError(STOCK_MODE_PLAN_CHANGED, "that setup is gone from the scanner: nothing to approve")
     if lane.get("state") == "filtered":

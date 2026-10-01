@@ -6,6 +6,7 @@ stocks, the trips and the lock -- with ``active`` / ``ready`` and every gate and
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from bot import persist
@@ -20,6 +21,8 @@ from constants_bot import (
     BOT_SETUPS,
     BOT_SETUPS_WITH_SCANNER,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_session() -> dict[str, Any]:
@@ -112,9 +115,12 @@ def _entries_today(venue: str | None, daily: dict[str, Any]) -> dict[str, Any]:
 
     try:
         out = entry_rules.today(venue, cap=int(daily.get("cap") or 0) or None)
-    except Exception as exc:
+    except Exception:
+        # Said on the page, never read as zero; the exception itself stays in the log (CodeQL: no
+        # exception text in an API answer).
+        logger.warning("bot session: the day's Nova entries could not be counted", exc_info=True)
         return {"count": None, "cap": daily.get("cap"), "venue_day": None, "entries": [], "approved": None,
-                "error": f"the day's entries could not be counted ({exc})"}
+                "error": "the day's entries could not be counted (the backend log has the error)"}
     return out
 
 
