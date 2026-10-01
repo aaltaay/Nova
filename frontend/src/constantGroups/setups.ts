@@ -146,6 +146,7 @@ export const SETUP_COL_TIPS: Record<string, string> = {
   to_go: 'How far the last price is under the trigger. After a trigger: how it went so far, in R.',
   tape: 'The Level 2 and time and sales read at the level: GO, WAIT, VETO, or BLIND (no Level 2 line held).',
   grade: 'The Five Pillars when it armed: A, B or C.',
+  tf5: 'The 5-minute chart on this 1-minute setup: ✓ its last 5-minute candle closed over its 9 EMA and its MACD is up; ✗ otherwise. In trial T8: shown only, it never blocks a trade.',
 };
 
 /** The funnel's words per setup: forming, armed, near, triggered, failed, proposed (ADR 031). */

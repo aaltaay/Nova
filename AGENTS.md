@@ -1036,6 +1036,33 @@ the snapshot has none (`null` when neither knows). Board rows and `GET
 - `outcome_at: number | null` -- when the scoring's first touch (target 1 or
   the stop) printed; `scored` journal lines carry it.
 
+### The 5-minute chart on a 1-minute setup (trial T8, operator decision 2026-09-30)
+
+"Sometimes the 1-minute setup aligns well with the 5-minute setup ... I want to make sure we are utilizing
+all of that"; on the choice: "Show it and test it". Owner `setup_scanner/five_minute.py` (pure). A **5-minute
+read** is `{agrees, above_ema9, macd_up, close, ema9, macd_hist, candles, as_of}`: 5-minute candles made on
+the clock from 04:00 ET of the scanner's own closed one-minute bars (a candle counts once its five minutes are
+over; five minutes without a bar make none), `above_ema9` the last complete candle's close over the 9-period
+EMA of the 5-minute closes, `macd_up` the 5-minute MACD (12, 26, 9) histogram over 0, `agrees` both; the EMAs
+seed with the first close (`series.ema`), `as_of` the last complete candle's start. `null` before the first
+5-minute candle is complete. Every lane reads it at each closed minute:
+- Board rows and `GET /api/setups/symbol/{symbol}` lanes add `tf5: read | null` and `tf5_at: "trigger" |
+  "armed" | "forming" | null` -- the read at the trigger once the setup triggered, else when it armed, else
+  (forming, no setup armed) when its leg made its high. The `leg`, `armed` and `triggered` journal lines carry
+  `tf5`, so the Sim playback draws the same row.
+- `setups.db` is schema 4: rows add `tf5_armed` and `tf5_trigger` (JSON); a schema-3 file migrates in place,
+  its rows read as unknown. The scoreboard summary's `by` adds `tf5_at_trigger` (`agrees` | `against` |
+  `unknown`).
+- The stock read's plan adds a check `{id: "tf5", state: "info", text: "5m agrees: over its 9 EMA 16.95, MACD
+  up (trial T8)"}` -- the 5-minute chart now, from the read's own session minutes by the same rule.
+- On the desk the Bots page's setup cards and Watchlist › Setups add a **5m** column: "5m ✓" (green) or
+  "5m ✗" (grey, never a warning colour), the hover saying which part failed, when it was read and that it is
+  in trial. Nothing places, stages, gates or blocks on it.
+- In sample (the harness's 1,050 bar-level trades, `F:\Nova\eyes\studies\mtf-alignment-2026-09-30`) it
+  leaned the right way and did not hold: pooled +0.10R (95% CI -0.08 to +0.28), and the agreeing trades still
+  lost (-0.27R). Trial T8 (`knowledge/signal-trials-3.json`, "Signal trials" below) decides whether "5m
+  against" ever becomes a warning.
+
 ### The tape flow score and the flush exit (ADR 034, operator ask 2026-09-24)
 
 "Can my bots detect if we are seeing flush like this so we can exit a position
@@ -1123,7 +1150,10 @@ keys, no whitespace) to the SHA-256 it was registered with, so a change is a new
 never an edit. Trials registered after it go in a new registry version, `knowledge/signal-trials-2.json`
 (the same shape plus `version: 2` and `follows`; its own hash in `test_signal_trials_registry_2.py`): T7
 Room under 2R to the first level of today's map, as a warning, on setups armed from 2026-10-01 ("The day's
-levels" below). No trial lets Nova buy or sell on Live by itself. Recorded with it (built later):
+levels" below). Then `knowledge/signal-trials-3.json` (`version: 3`, follows the second; its hash in
+`test_signal_trials_registry_3.py`): T8 the 5-minute chart against a 1-minute setup at its trigger, as a
+warning, on triggers recorded from 2026-10-01 ("The 5-minute chart on a 1-minute setup" above). No trial lets
+Nova buy or sell on Live by itself. Recorded with it (built later):
 a planned risk under 5c warns and never blocks until T5 passes; a "Flush exit 30 s" template plays
 on Nova's Paper bot (put in play outside the bot's window, out again if T1 fails); Approve may hold
 Nova's flush and 15-minute exits on Paper and on Sim at the live edge; the Trader's WAIT and SELL
@@ -3484,6 +3514,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-30 | The desk's account view follows the venue (#657, the second half of #655). After a venue switch the orders, positions and summary of the old venue stayed on screen until the next read (up to 5 s for orders), a failed read kept them, and a disconnected Live showed Paper's as "last known". The snapshot now names its venue, a switch clears it and reads the new one at once, late reads and other windows' snapshots of another venue are dropped, and Cancel sends the row's venue so the door refuses it if the desk moved. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-30 | The 5-minute chart on every 1-minute setup, shown and tested (trial T8; operator: "sometimes the 1-minute setup aligns well with the 5-minute setup ... I want to make sure we are utilizing all of that", then "Show it and test it"). Nothing combined the two before: every scanner read 1-minute candles only. Each lane now reads the 5-minute chart from its own minutes (`setup_scanner/five_minute.py`: the last complete 5-minute candle over its 9 EMA and the 5-minute MACD up), records it when a setup arms and when it triggers (`setups.db` schema 4), and the setup rows and the plan show "5m agrees" / "5m against" without blocking anything. Measured first on five years of history: it leaned the right way and did not hold (+0.10R, CI -0.08 to +0.28, the agreeing trades still losing), so trial T8 (`knowledge/signal-trials-3.json`, registered before its data) decides whether "against" ever warns. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Each chart draws the levels its own candles show, with a Key and a plain card (operator report on XRPN after hours: "why does it say it's a double top when, on the graph, we only see one top? ... Every chart has special needs and special powers ... There's no reason to have duplicate information"; "these hovers are very ugly"; "i get lost"). The 5-minute pane drew today's map, whose tops were counted on 1-minute candles: the HOD's "double top" was two 1-minute tops (17:41, 17:44) inside one 5-minute candle. The level map adds `five_minute`, read from 5-minute candles made of the session's minutes (no VWAP, nothing from yesterday, a round dollar only in a zone with another reason); the 5-minute pane draws it, the 1-minute pane draws its own nearest tops and bottoms, the high of day, the nearest round each side and the plan's levels, and the premarket high and the open moved to the 5-minute. The 1-minute levels were price lines without an axis label, and lightweight-charts 5.1 shows a line's title only beside one: they never showed their names; they are scene levels with labels and cards now. Labels say what the candles made ("$17.50 · double top"); the card is the level, how far, why it is there and what usually happens; every pane has a Key chip. Found with it: the read's price came from a board row the Gainers board stopped repricing at 16:00 (XRPN 16.40 against 17.11), so it now takes the L1 line's last trade; the read's VWAP ran from 04:00 while the chart's restarts at 16:00 (16.29 against 18.62 after hours), so both restart now. Trial T7 still reads the 1-minute map, unchanged. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The execution door keeps Paper, Sim and Live apart (#655, from the audit that followed the per-venue bot level). In-flight commitments, order watches and releases were keyed by symbol or a bare order id while the Paper matcher runs on every venue: a Paper sell still working refused a Live exit of the same stock, and Paper's fill of order N wrote "Filled" into Live's order N. Commitments and watches are now per venue, `execute` reads the venue once and sends to the one it validated on (`VENUE_CHANGED` when the desk moves mid-check), and a cancel or replace may name the venue it means. §3 amended. | User Directive + Claude Sonnet 5.5 |
 | 2026-09-30 | The bot's level belongs to a venue (operator report: "When I switch between L0 and L2 in the paper, it stays persistent when I switch to live, and I feel like that shouldn't happen"). The session kept one `level`, so Paper's Strategy was Live's the moment the desk moved. Each venue now keeps its own level, setup levels, bot trip latch and bot orders (`bot/venue_levels.py`), and a venue change deactivates the bot. Found with it: the all-stop never tripped again after its first trip (a stale lock date read as locked), the bot trip's latch never lapsed and was shared across venues, the daily entry cap counted every venue, a TTL cancel or a take-over could send a Paper order id to Live, and a ticket's open confirm survived a venue switch. §3 amended. | User Directive + Claude Opus 5.5 |

@@ -31,6 +31,7 @@ from setup_scanner.lane_view import (
     graded,
     in_reach,
     tape_brief,
+    tf5_read,
 )
 
 COUNT_KEYS = ("watching", "forming", "armed", "near", "triggered", "failed", "filtered", "proposed")
@@ -60,7 +61,7 @@ class LaneFold:
             if row is None:
                 row = self.rows[sid] = {"id": sid, "symbol": sym, "leg_t": setup.get("leg_t"),
                                         "armed_at": setup.get("armed_at") or ts, "grade": line.get("grade"),
-                                        "pillars": line.get("pillars")}
+                                        "pillars": line.get("pillars"), "tf5_armed": line.get("tf5")}
             else:
                 row["disarmed_at"] = row["failed_at"] = None      # the same setup armed again
             if setup:
@@ -73,7 +74,7 @@ class LaneFold:
         elif ev == "near" and row is not None:
             row.setdefault("near_at", ts)
         elif ev == "leg" and "grade" in line:
-            s["forming"] = {"grade": line.get("grade"), "pillars": line.get("pillars")}
+            s["forming"] = {"grade": line.get("grade"), "pillars": line.get("pillars"), "tf5": line.get("tf5")}
         elif ev == "state" and line.get("triggered_at") is not None:
             s["triggered_at"] = float(line["triggered_at"])     # a filtered setup's trigger
         elif ev == "triggered":
@@ -81,7 +82,7 @@ class LaneFold:
             s["nth"] = setup.get("nth") or s["nth"]
             if row is not None:
                 row.update(setup=setup or row.get("setup"), triggered_at=float(setup.get("triggered_at") or ts),
-                           outcome="open", trigger_tape=tape_brief(line.get("tape")))
+                           outcome="open", trigger_tape=tape_brief(line.get("tape")), tf5_trigger=line.get("tf5"))
         elif ev in ("failed", "disarmed") and row is not None and not row.get("triggered_at"):
             row["failed_at" if ev == "failed" else "disarmed_at"] = ts
         elif ev == "scored" and row is not None:
@@ -168,7 +169,7 @@ class LaneFold:
                 "symbol": sym, "setup_type": self.setup, "state": state, "reason": reason,
                 "kind": (setup or {}).get("kind") or s.get("kind"), "nth": s.get("nth") or 0,
                 "setup_id": sid, "setup": setup, "leg": s.get("leg"), "last_price": px, "distance": distance,
-                **graded(row, s.get("forming"), state), "phase": phase,
+                **graded(row, s.get("forming"), state), **tf5_read(row, s.get("forming"), state), "phase": phase,
                 "tape": self.tape.get(sym), "trigger_tape": (row or {}).get("trigger_tape"),
                 "proposal": prop if prop and prop.get("status") == "open" else None,
                 "outcome": (row or {}).get("outcome"), "outcome_at": (row or {}).get("outcome_at"),

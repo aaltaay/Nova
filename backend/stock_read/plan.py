@@ -32,6 +32,7 @@ from constants_stock_read import (
     STOCK_READ_TARGET_R,
     STOCK_READ_TRIGGERED_PLAN_SEC,
 )
+from setup_scanner.five_minute import words as tf5_words
 from setup_scanner.grade import pillar_count
 from stock_read.indicators import manual_stop
 from stock_read.level_notes import notes as level_notes
@@ -227,6 +228,9 @@ def checks(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
     if price is not None and ema9 is not None:
         out.append({"id": "ema9", "state": "ok" if price >= ema9 else "bad",
                     "text": f"{'above' if price >= ema9 else 'under'} the 9 EMA {ema9:.2f}"})
+    tf5 = ctx.get("tf5")
+    if isinstance(tf5, dict) and isinstance(tf5.get("agrees"), bool):
+        out.append({"id": "tf5", "state": "info", "text": f"{tf5_words(tf5)} (trial T8)"})
     entry = plan.get("entry")
     if entry is not None and vw is not None:
         out.append({"id": "vwap", "state": "ok" if entry >= vw else "bad",

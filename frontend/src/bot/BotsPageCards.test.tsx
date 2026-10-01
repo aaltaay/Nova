@@ -73,7 +73,10 @@ function board(partial: Partial<SetupsBoard> = {}): SetupsBoard {
         tape: { verdict: 'go', reasons: ['green on the tape (5 prints, 2.4k at the ask)'],
           metrics: { best_bid: 8.68, best_ask: 8.69, spread: 0.01, ask_prints: 5, bid_prints: 1, ask_volume: 2400,
             bid_volume: 300, window_sec: 10 } },
-        proposal: null, outcome: null, bar_r: null, mfe: null, mae: null },
+        proposal: null, outcome: null, bar_r: null, mfe: null, mae: null,
+        tf5: { agrees: false, above_ema9: true, macd_up: false, close: 8.66, ema9: 8.6, macd_hist: -0.012, candles: 40,
+          as_of: Date.UTC(2026, 8, 21, 13, 35) / 1000 },
+        tf5_at: 'armed' },
       { symbol: 'GRML', setup_type: 'bull_flag', state: 'armed', reason: 'flag of 2 under the 8.90 pole: trigger 8.75',
         kind: 'bull_flag', nth: 0, setup_id: 'g2@bull_flag',
         setup: { trigger: 8.75, entry: 8.76, stop: 8.55, risk: 0.21, target1: 9.18, pullback_bars: 2, leg_high: 8.9,
@@ -221,6 +224,19 @@ describe('Strategies card (ADR 042: a level per setup under the master)', () => 
     const state = screen.getByTestId('bots-scan-state-first_pullback-GRML');
     expect(state.textContent).toBe('Near');
     expect(state.getAttribute('data-tip')).toMatch(/Trigger 8\.72 · entry 8\.73 · stop 8\.52 · risk 21¢ a share · target 1 8\.92/);
+    expect(state.getAttribute('data-tip')).toMatch(/Now: 0\.03 under the 8\.72 trigger — read the tape/);
+    const tape = screen.getByTestId('bots-scan-tape-first_pullback-GRML');
+    expect(tape.textContent).toBe('GO');
+    expect(tape.getAttribute('data-tip')).toMatch(/^GO: green prints at the ask/);
+    expect(tape.getAttribute('data-tip')).toMatch(/5 prints at the ask \(2\.4k\) vs 1 at the bid \(300\)/);
+    // The 5-minute chart's read (trial T8): shown, never a warning colour, explained on hover.
+    const tf5 = screen.getByTestId('bots-scan-tf5-first_pullback-GRML');
+    expect(tf5.textContent).toBe('5m ✗');
+    expect(tf5.className).toContain('bots-tf5--against');
+    expect(tf5.getAttribute('data-tip-title')).toBe('5-minute against');
+    expect(tf5.getAttribute('data-tip')).toMatch(/Read when it armed, on the 09:35 5-minute candle: it closed over its 9 EMA \(8\.60\), and its MACD is down/);
+    expect(tf5.getAttribute('data-tip')).toMatch(/In trial T8: shown only, it never blocks a trade/);
+    // The bull flag's own words, and the tag naming the symbol's other setup.
     expect(screen.getByTestId('bots-scan-state-bull_flag-GRML').textContent).toBe('Flag · 2 bars');
     expect(screen.getByTestId('bots-funnel-first_pullback').textContent)
       .toMatch(/Today\s*1 forming\s*→\s*2 armed\s*→\s*1 near\s*→\s*0 triggered\s*·\s*0 failed\s*·\s*1 proposed/);

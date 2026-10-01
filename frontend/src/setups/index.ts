@@ -65,6 +65,7 @@ export {
   type SleeveRisk,
   type SleeveVenue,
 } from './sleeveRisk';
+export { TF5_TRIAL_NOTE, tf5Words, type Tf5Tone } from './tf5Words';
 export type {
   Scoreboard,
   SetupCounts,
