@@ -566,6 +566,9 @@ class TestNoBypassAst:
             root / "execution" / "service.py",
             root / "execution" / "broker_send.py",
             root / "execution" / "telemetry.py",
+            # The kill switch's Live cancel from any desk (spec D, #656) -- inside the door:
+            # only execution.broker_send calls it, for a kill cancel aimed at Live.
+            root / "execution" / "live_cancel.py",
         }
         for path in root.rglob("*.py"):
             if "tests" in path.parts or path.name.startswith("test_"):

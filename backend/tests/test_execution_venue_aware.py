@@ -88,7 +88,7 @@ def test_the_door_routes_by_the_venue_it_validated_on(monkeypatch):
     _safety.set_armed(True, reason="test")
     import execution.validate as validate
 
-    def validate_then_flip(cmd):
+    def validate_then_flip(cmd, venue=None):
         set_venue("live", persist=False)                         # the operator clicks Live mid-check
         return True, "OK", None
 

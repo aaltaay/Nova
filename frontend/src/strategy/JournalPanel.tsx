@@ -18,6 +18,18 @@ import type {
 } from './types';
 
 /** The setup as the table shows it, so the column sorts A to Z by its label. */
+/** The walk-away rules gate nothing: every sender passes skip_risk (spec D, 2026-09-30). */
+export const WALK_AWAY_LABEL = 'Walk-away rules (advisory \u2014 gates nothing)';
+export const WALK_AWAY_WITHIN = 'Within limits';
+export const WALK_AWAY_TRIPPED = 'Tripped \u2014 walk away';
+export const WALK_AWAY_STATUS_TITLE =
+  'Whether a walk-away rule tripped today: the daily max loss, 3 losses in a row, or giving back half '
+  + 'of today\'s peak profit. Advisory only: no order checks these rules -- the ticket, hotkeys and the '
+  + 'bot all place regardless. The loss breakers on the Bots page are what stop trading. Resets at 4 AM ET.';
+export const WALK_AWAY_CARD_TITLE =
+  'The walk-away rules\' state from backend/strategy/risk.py -- real, not demo data. Every closed round '
+  + 'trip of a position Nova placed (ticket, hotkeys, the bot) updates it; it reads all-zero until one closes.';
+
 function setupLabel(setup: string | null): string | null {
   return setup == null ? null : SETUP_LABELS[setup] ?? setup;
 }
@@ -80,7 +92,7 @@ function GoNoGoBar({ metrics }: { metrics: JournalMetrics }) {
   return (
     <div
       className={`go-no-go-bar ${gng.overall_go ? 'go-no-go-go' : 'go-no-go-nogo'}`}
-      title="Live-money gate: all three criteria must pass before auto_live or real-money execution is considered. Paper brackets can run when the executor is armed and IBKR spend is unlocked; this bar gates live money only."
+      title="Live-money scorecard: all three criteria must pass before real-money automation is considered. It is a scorecard -- no order checks it."
     >
       <div className="go-no-go-headline">
         {gng.overall_go ? 'GO — live-money bar cleared' : 'NO-GO — stay in paper'}
@@ -126,23 +138,23 @@ function RiskCard({ risk }: { risk: RiskStatus }) {
   return (
     <div
       className="journal-risk-card"
-      title="Live state from backend/strategy/risk.py — real, not demo data. Updates when the executor records closed bracket fills via record_trade_result(); reads all-zero until paper trades close."
+      title={WALK_AWAY_CARD_TITLE}
     >
-      <div className="journal-section-heading" title="This is the current real discipline state for today's session — resets automatically at 4 AM ET.">
-        Today&apos;s risk state (real, resets daily at 4 AM ET)
+      <div className="journal-section-heading" title="Today's walk-away rules, from real round trips -- resets automatically at 4 AM ET. Advisory: no order checks them.">
+        Today&apos;s walk-away state (real, resets daily at 4 AM ET)
       </div>
       <div className="journal-metrics-grid">
-        <div className="journal-metric" title="Whether the risk engine will currently allow a new trade. Turns 'Halted' if any walk-away guardrail trips (daily max loss, 3 losses in a row, or giving back half of today's peak profit) and stays that way until the next session reset.">
-          <span className="journal-metric-label">Status</span>
-          <span className={risk.can_trade ? 'positive' : 'negative'}>{risk.can_trade ? 'Can trade' : 'Halted'}</span>
+        <div className="journal-metric" title={WALK_AWAY_STATUS_TITLE} data-testid="journal-walk-away-status">
+          <span className="journal-metric-label">{WALK_AWAY_LABEL}</span>
+          <span className={risk.can_trade ? 'positive' : 'negative'}>{risk.can_trade ? WALK_AWAY_WITHIN : WALK_AWAY_TRIPPED}</span>
         </div>
         <div className="journal-metric" title="Today's realized profit/loss across all closed trades so far.">
           <span className="journal-metric-label">Daily P&amp;L</span><span>{fmtPrice(risk.daily_realized_pnl)}</span>
         </div>
-        <div className="journal-metric" title="The highest daily P&L reached today. Giving back half of this triggers a walk-away halt.">
+        <div className="journal-metric" title="The highest daily P&L reached today. Giving back half of this trips a walk-away rule (advisory).">
           <span className="journal-metric-label">Peak P&amp;L</span><span>{fmtPrice(risk.peak_daily_pnl)}</span>
         </div>
-        <div className="journal-metric" title="Current losing streak. 3 in a row triggers a walk-away halt for the day.">
+        <div className="journal-metric" title="Current losing streak. 3 in a row trips a walk-away rule for the day (advisory).">
           <span className="journal-metric-label">Loss streak</span><span>{risk.consecutive_losses}</span>
         </div>
         <div className="journal-metric" title="Number of trades closed so far in today's session.">
@@ -153,7 +165,7 @@ function RiskCard({ risk }: { risk: RiskStatus }) {
         </div>
       </div>
       {!risk.can_trade && risk.halt_reason && (
-        <div className="journal-halt-reason" title="The specific guardrail that halted trading for the rest of today's session.">
+        <div className="journal-halt-reason" title="The walk-away rule that tripped today. Advisory: nothing was halted -- it is your cue to stop.">
           {risk.halt_reason}
         </div>
       )}
@@ -174,7 +186,7 @@ function TradesTable({
 }) {
   const { rows, sort, onSort } = useTableSort('strategy.journal_trades', trades, TRADE_COLUMNS);
   if (trades.length === 0) {
-    return <div className="empty-state">No closed trades yet — this table populates when the executor closes paper bracket fills and journals them.</div>;
+    return <div className="empty-state">No closed trades yet — a trade is journaled when a position Nova placed (ticket, hotkeys, the bot) goes back to flat.</div>;
   }
   return (
     <div className="table-wrapper">
@@ -246,9 +258,9 @@ export function JournalPanel({
   return (
     <div className="journal-panel">
       <div className="watchlist-description">
-        Every detected setup is logged here automatically. Trade metrics populate when the IBKR
-        executor closes paper bracket fills; signals are always recorded even when automation is
-        disarmed.
+        Every detected setup is logged here automatically. Trade metrics populate when a position
+        Nova placed (ticket, hotkeys, the bot) goes back to flat; signals are always recorded, whatever
+        the bot is doing.
       </div>
 
       <label
@@ -277,7 +289,7 @@ export function JournalPanel({
 
       {risk && <RiskCard risk={risk} />}
 
-      <h3 className="journal-section-heading" title="Closed trades from executor paper fills, plus demo rows only when the toggle above is checked.">
+      <h3 className="journal-section-heading" title="Closed round trips of positions Nova placed, plus demo rows only when the toggle above is checked.">
         Trades
       </h3>
       <TradesTable

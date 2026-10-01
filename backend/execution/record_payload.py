@@ -37,6 +37,7 @@ def build_reserve_payload(
         and cmd.operation in ("place", "bracket"),
         "short_entry": bool(cmd.short_entry),
         "intent": getattr(cmd, "intent", None),
+        "target_venue": getattr(cmd, "target_venue", None),   # a kill switch cancel aimed at a venue
         "tif": cmd.tif if cmd.operation in ("place", "bracket") else None,
         "requested_price": requested_price,
         "reference_price": (

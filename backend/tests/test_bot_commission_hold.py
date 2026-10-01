@@ -1,9 +1,13 @@
 """A Live commission read that fails holds new bot entries, never reads as $0 (#564).
 
-Operator decision 2026-09-24: while the breakers' commission read fails on Live,
-the day P&L is unknown and the bot sends no new entry until a read succeeds
-again. Exits, cancels, flatten and kill are never held; Paper and Sim read no
-commissions and are never held.
+Operator decision 2026-09-24: while the commission read fails on Live, the bot
+sends no new entry until a read succeeds again -- the unreadable file is the
+execution ledger every order is written to. Exits, cancels, flatten and kill
+are never held; Paper and Sim read no commissions and are never held.
+
+Spec D (2026-09-30): the breakers compare IBKR's realized + unrealized P&L,
+which already counts every commission, so a failed commission read no longer
+makes the day P&L unknown -- the breakers keep comparing it.
 """
 from __future__ import annotations
 
@@ -78,15 +82,15 @@ def _warnings(caplog) -> list[logging.LogRecord]:
 
 
 # -- the failure is stated, not $0 ----------------------------------------------
-def test_a_failed_read_is_logged_and_the_day_pnl_is_unknown(ledger, clock, caplog):
+def test_a_failed_read_is_logged_and_held_and_the_day_pnl_stays_ibkrs(ledger, clock, caplog):
     caplog.set_level(logging.INFO, logger="bot.day_pnl")
     pnl, meter = day_pnl.read_account_day_pnl()
-    assert pnl is None
+    assert pnl == -45.0                                         # IBKR's figure: commissions already inside
     assert meter["commissions_unknown"] is True and meter["commissions"] is None
     assert "database is locked" in meter["commissions_error"]
-    assert meter["day_pnl"] is None and meter["day_pnl_before_commissions"] == -45.0
+    assert meter["day_pnl"] == -45.0 and meter["commissions_in_figure"] is True
     assert day_pnl.session_commission_total() is None
-    assert day_pnl.day_pnl_usd(dict(LIVE_SUMMARY)) is None     # never raw P&L with commissions as 0
+    assert day_pnl.day_pnl_usd(dict(LIVE_SUMMARY)) == -45.0
     assert len(_warnings(caplog)) == 1
 
     # The breaker polls every second: the log does not flood.
@@ -102,9 +106,9 @@ def test_a_failed_read_is_logged_and_the_day_pnl_is_unknown(ledger, clock, caplo
 def test_a_successful_read_reports_commissions_known(ledger):
     ledger["broken"] = False
     pnl, meter = day_pnl.read_account_day_pnl()
-    assert pnl == pytest.approx(-46.5)
+    assert pnl == pytest.approx(-45.0)                         # never less $1.50 again (spec D)
     assert meter["commissions"] == 1.5 and meter["commissions_unknown"] is False
-    assert meter["commissions_error"] is None and "day_pnl_before_commissions" not in meter
+    assert meter["commissions_error"] is None
     assert day_pnl.commission_hold() is None
 
 
@@ -163,7 +167,7 @@ async def test_a_successful_read_releases_the_hold(ledger, places, caplog):
     assert day_pnl.commission_hold() is not None
     ledger["broken"] = False
     pnl, _meter = day_pnl.read_account_day_pnl()
-    assert pnl == pytest.approx(-46.5)
+    assert pnl == pytest.approx(-45.0)
     assert day_pnl.commission_hold() is None
     assert any("released" in r.getMessage() for r in caplog.records if r.name == "bot.day_pnl")
     result = await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
@@ -186,6 +190,8 @@ def test_paper_and_sim_are_never_held(ledger, venue, monkeypatch):
         # The practice ledger's DayPnL has paid its fees: no commission read at all.
         monkeypatch.setattr("ibkr.account.get_account_summary",
                             lambda: {"practice": True, "DayPnL": -12.0, "RealizedPnL": -10.0})
+        if venue == "sim":       # at the live edge: a Sim replay compares nothing (spec D)
+            monkeypatch.setattr("sim.session_clock.live_edge", lambda: True)
         calls = ledger["calls"]
         pnl, meter = day_pnl.read_account_day_pnl()
         assert pnl == -12.0 and meter["commissions_unknown"] is False
@@ -196,21 +202,17 @@ def test_paper_and_sim_are_never_held(ledger, venue, monkeypatch):
 
 # -- the breakers ----------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_the_breaker_still_trips_on_the_day_before_commissions(monkeypatch):
-    """Commissions only make the day worse: a bound already past a breaker trips it."""
-    tripped: list[str] = []
+async def test_a_failed_commission_read_never_blinds_the_breakers(ledger, monkeypatch):
+    """The breakers compare IBKR's figure, which a failed commission read does not change."""
+    tripped: list[float] = []
 
-    async def fake_soft():
-        tripped.append("soft")
+    async def fake_soft(**kwargs):
+        tripped.append(kwargs["pnl"])
         return {"tripped": "soft"}
 
     monkeypatch.setattr("bot.breakers.trip_soft", fake_soft)
-    unknown = {"commissions_unknown": True, "day_pnl_before_commissions": -60.0}
-    monkeypatch.setattr("bot.breakers.read_account_day_pnl", lambda: (None, dict(unknown)))
+    monkeypatch.setattr("ibkr.account.get_account_summary",
+                        lambda: {"RealizedPnL": -55.0, "UnrealizedPnL": -5.0})
     assert (await poll_once())["tripped"] == "soft"
-
-    unknown["day_pnl_before_commissions"] = -10.0
-    assert await poll_once() is None
-    unknown["day_pnl_before_commissions"] = None
-    assert await poll_once() is None
-    assert tripped == ["soft"]
+    assert tripped == [-60.0]
+    assert day_pnl.commission_hold() is not None                   # the entries hold stands (#564)

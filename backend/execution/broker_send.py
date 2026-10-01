@@ -84,7 +84,14 @@ async def send_broker(
         watch = telemetry.watch_order(
             cmd.order_id, execution_id, fresh=True, leg_role="cancel",
         )
-        raw = await cancel_order_verified_on_ib(cmd.order_id, watch=watch)
+        if cmd.target_venue:
+            # The kill switch's sweep aims at Live from any desk: IBKR itself, not the
+            # desk-venue cancel of ``ibkr.orders`` (spec D, #656).
+            from execution.live_cancel import cancel_verified
+
+            raw = await cancel_verified(cmd.order_id, watch=watch)
+        else:
+            raw = await cancel_order_verified_on_ib(cmd.order_id, watch=watch)
         if not raw.get("ok"):
             store.update_stages(
                 execution_id, status="failed", error=str(raw.get("error")),

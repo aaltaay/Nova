@@ -26,3 +26,13 @@ def desk_mode() -> str:
     except Exception:
         logger.exception("execution: desk venue unreadable -- stamping the Gateway label")
     return _client.account_mode()
+
+
+def venue_mode(venue: str | None) -> str:
+    """The stamp for an order sent on ``venue``: the venue on Paper / Sim, the Gateway label on
+    Live (a kill switch cancel aimed at another venue than the desk's); None stamps the desk's."""
+    if venue is None:
+        return desk_mode()
+    from constants_sim import DESK_PRACTICE_VENUES
+
+    return venue if venue in DESK_PRACTICE_VENUES else _client.account_mode()
