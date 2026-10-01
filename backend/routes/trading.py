@@ -6,6 +6,7 @@ Endpoints:
   POST /api/ibkr/reconnect        -- reload .env + reconnect to configured port
   POST /api/ibkr/gateway-mode     -- user-initiated Paper<->Live port switch (no spend unlock)
   GET  /api/ibkr/gateway-trail    -- Paper/Live click + attach/refuse trail
+  GET  /api/ibkr/feed             -- is IBKR data arriving; the feed gaps (ibkr/feed_routes.py, #672)
   POST /api/ibkr/launch-gateway  -- start/focus IB Gateway (user-initiated, Windows)
   GET  /api/ibkr/account          -- account summary
   GET  /api/ibkr/positions        -- portfolio / positions
@@ -37,12 +38,14 @@ from ibkr import depth as _depth
 from ibkr import orders as _orders
 from ibkr import account as _account
 from ibkr.errors import IbkrAccountError
+from ibkr.feed_routes import router as feed_router
 from routes.trading_execution import router as execution_router
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ibkr", tags=["ibkr"])
 router.include_router(execution_router)
+router.include_router(feed_router)
 ws_router = APIRouter(tags=["ibkr-ws"])
 
 

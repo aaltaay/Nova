@@ -23,6 +23,17 @@ export const IBKR_STATUS_STALE_AFTER_MISSES = 2;
 export const IBKR_STATUS_SESSION_KEY = 'nova.ibkr.status.last';
 /** The window title's backend revision (/api/health release_tag): once a minute, and on focus. */
 export const BACKEND_TAG_POLL_MS = 60_000;
+/**
+ * IBKR feed gaps (#672): `/api/ibkr/feed` is read once a second, so a 4 s silence
+ * shows while it lasts. A closed gap stays on the chip this long afterwards: the
+ * prints after it arrived in one burst, and the tape reads hold off across it (#673).
+ */
+export const FEED_PULSE_POLL_MS = 1_000;
+export const FEED_GAP_RECENT_SHOW_SEC = 60;
+export const FEED_GAP_NO_DATA_LABEL = 'NO DATA';
+export const FEED_GAP_RECENT_LABEL = 'DATA GAP';
+export const FEED_GAP_RECENT_TITLE_SUFFIX =
+  'Time & Sales and the charts show a hole there, then the held prints at the moment data came back.';
 
 /**
  * Cross-window leader heartbeat stale -- another Electron/Vite window may take

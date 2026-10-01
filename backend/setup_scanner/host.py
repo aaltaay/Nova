@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from constants_bot import BOT_LEVEL_EYES
 from setup_scanner import grade as _grade
-from setup_scanner import tape_flow
+from setup_scanner import tape_flow, tape_gap
 
 logger = logging.getLogger("setup_scanner.engine")
 
@@ -40,16 +40,28 @@ class LaneHost:
         return since(sym) if since is not None else None
 
     def flow(self, sym: str, now: float, p: tape_flow.FlowParams) -> dict:
-        """One tape flow reading per symbol, moment and numbers, shared by every lane that asks (ADR 034)."""
+        """One tape flow reading per symbol, moment and numbers, shared by every lane that asks (ADR 034).
+
+        A window that touches an IBKR feed gap reads ``blind``, and the baseline starts after the gap (#673)."""
         memo = self.__dict__.setdefault("_flow_memo", {})
         if memo.get("now") != now:
             memo.clear()
             memo["now"] = now
         key = (sym, p)
         if key not in memo:
-            memo[key] = tape_flow.evaluate(now=now, books=self.tape_books(sym), prints=self.tape_prints(sym), p=p,
-                                           history_from=self.tape_since(sym))
+            gaps = self.feed_gaps(now)
+            reading = tape_flow.evaluate(now=now, books=self.tape_books(sym), prints=self.tape_prints(sym), p=p,
+                                         history_from=tape_gap.history_from(gaps, self.tape_since(sym), now))
+            memo[key] = tape_gap.hold_flow(reading, gaps, now, p.window_sec)
         return memo[key]
+
+    def feed_gaps(self, now: float) -> list[dict]:
+        """The live IBKR feed's gaps a tape read at ``now`` can reach (#673), read once per moment."""
+        memo = self.__dict__.setdefault("_gaps_memo", {"now": None, "gaps": []})
+        if memo["now"] != now:
+            from ibkr import feed_pulse
+            memo["now"], memo["gaps"] = now, feed_pulse.gaps_for_tape(now)
+        return memo["gaps"]
 
     def flow_reading(self, setup_id: str) -> dict | None:
         """The newest flow reading on a triggered setup and its template's flush rule (ADR 034; Nova's bot)."""

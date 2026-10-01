@@ -16,6 +16,7 @@ import {
   GLOBAL_BAR_CONNECTION_CLICK_HINT,
 } from '../constants';
 import { resolveDeskVenue } from '../ibkr/deskVenue';
+import { useFeedGapBadge } from '../ibkr/feedPulseStore';
 import type { IbkrMode } from '../ibkr/types';
 import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
@@ -51,6 +52,7 @@ export function GlobalBarConnectionChip({
   ibkrAccountKind,
 }: Props) {
   const live = useIbkrStatus();
+  const feedGap = useFeedGapBadge();
   const [launchBusy, setLaunchBusy] = useState(false);
   const [launchOk, setLaunchOk] = useState<boolean | null>(null);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
@@ -115,6 +117,8 @@ export function GlobalBarConnectionChip({
     activeFeed: scanner?.activeFeed ?? '',
     feedFellBack: Boolean(scanner?.feedFellBack),
     scannerModeLabel: scanner && !scanner.sampleDataActive ? SCANNER_MODE_LABELS[scanner.mode] : null,
+    // A replay desk shows the recording, not the live feed (#672).
+    feedGap: venue === 'sim' && live.live_edge === false ? null : feedGap,
   });
 
   return (
