@@ -24,8 +24,9 @@ import {
   LEVEL_MAP_WINDOW_PCT,
   LEVEL_PER_SIDE,
 } from './constants';
+import { EDGE_PRIORITY } from '../chart';
 import type { SceneLevel, SceneTick } from './levelRender';
-import type { SceneEdgeTag } from './SetupShapesPrimitive';
+import type { SceneEdgeTag } from './sceneTypes';
 import type { ShapeStory } from './ShapeTip';
 import type { LevelMember, LevelZone } from './levelTypes';
 import { clockEt } from './timeWords';
@@ -128,6 +129,7 @@ function sceneOf(zones: LevelZone[], pick: Set<LevelZone>, ticks: boolean): Leve
     }
     out.levels.push({
       lo: z.lo, hi: z.hi, price: z.price, color, dash: dashOf(z), width: widthOf(z), label: shortLabel(z), hoverId,
+      priority: has(z, 'hod') ? EDGE_PRIORITY.highOfDay : EDGE_PRIORITY.level,
     });
     out.tags.push({ price: z.price, label: z.tag, color });
   }

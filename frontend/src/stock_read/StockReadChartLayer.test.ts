@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
+import { buildSeriesTimeIndex } from '../chart';
 import { etChartSeconds } from '../tickerChartData';
+import type { PriceLineSpec } from './chartShapes';
+import { lineWords, runMarks } from './paneScene';
 import { frameFrom, roomAtLiveEdge } from './StockReadChartLayer';
+import type { RunDay } from './types';
 
 const OPEN = Date.parse('2026-09-25T08:00:00Z') / 1000; // 04:00 ET
 
@@ -68,5 +72,29 @@ describe('roomAtLiveEdge (the plan zones never move a view the operator moved)',
     const { chart, setVisibleLogicalRange } = viewAt({ from: 240, to: 292 });
     roomAtLiveEdge(chart, 281);
     expect(setVisibleLogicalRange).not.toHaveBeenCalled();
+  });
+});
+
+describe("runMarks (the Full Day pane's +40% runs)", () => {
+  const day = (date: string, over: Partial<RunDay> = {}): RunDay => ({
+    date, prior_close: 1, high: 2, close: 1.5, run_pct: 0.5, close_pct: 0.5, today: false, ...over,
+  });
+  it("puts each run over its candle's high, today's first where labels crowd and then the biggest", () => {
+    const index = buildSeriesTimeIndex(['2026-09-28', '2026-09-29', '2026-09-30'] as Time[]);
+    const marks = runMarks([day('2026-09-28', { run_pct: 1.07, high: 9.5 }), day('2026-09-29', { run_pct: 0.43 }),
+      day('2026-09-30', { today: true, run_pct: 0.56 }), day('2026-01-02')], index);
+    expect(marks.map(m => m.label)).toEqual(['+107%', '+43%', 'today +56%']);
+    expect(marks[0]).toMatchObject({ t: '2026-09-28', price: 9.5 });
+    expect(marks[2].rank).toBeGreaterThan(marks[0].rank);
+    expect(marks[0].rank).toBeGreaterThan(marks[1].rank);
+  });
+});
+
+describe("lineWords (the plan's lines name themselves in the edge column)", () => {
+  it('takes the names of the lines with an axis label; the axis keeps their prices', () => {
+    const line = (id: string, title: string, axisLabel = true): PriceLineSpec =>
+      ({ id, price: 4.75, color: '#0a84ff', width: 2, style: 'dashed', title, axisLabel });
+    const words = lineWords([line('entry', 'ENTRY · plan'), line('thin', ''), line('quiet', 'STOP', false)]);
+    expect(words).toEqual([expect.objectContaining({ id: 'line:entry', text: 'ENTRY · plan', price: 4.75, series: null })]);
   });
 });

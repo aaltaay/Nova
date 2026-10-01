@@ -5,10 +5,13 @@
  * prices, and the moment's pin (ENTER NOW, SELL NOW, what Nova did: ADR 037) on its candle. It draws a scene it is given; `chartShapes.ts` decides what the scene holds and
  * `StockReadChartLayer` maps its times onto this pane's bars. A box with a `hoverId` is reported to the
  * chart as hovered (`hitTest`) -- over the box, or over the label it drew for the box -- so the pane can
- * tell that setup's story under the pointer; a level's label or axis tick names the level's card. Where each label goes, and how much a past setup's says, is
- * `sceneLabels.ts`.
+ * tell that setup's story under the pointer; a level's label or axis tick names the level's card. The scene's
+ * shapes are `sceneTypes.ts`; drawing them is `sceneRender.ts` -- where each label goes, and how much a past
+ * setup's says (`sceneLabels.ts`), and every word at the right edge in one column (`edgeColumn.ts`): the levels'
+ * names, the lines' tags (`words`: the EMAs, VWAP, the plan's ENTRY / STOP / TARGET) and the tags for prices out
+ * of view. The Full Day pane's +40% runs are marks: an arrow over the day's high and a label that makes room.
  */
-import type { CanvasRenderingTarget2D } from 'fancy-canvas';
+import { MismatchDirection } from 'lightweight-charts';
 import type {
   AutoscaleInfo,
   IChartApi,
@@ -22,242 +25,11 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts';
-import { drawLevels, fillLevelBands, type LevelPx, type SceneLevel, type SceneTick, type TickPx } from './levelRender';
-import {
-  drawLabel,
-  drawPin,
-  labelForms,
-  labelMeasure,
-  labelRect,
-  pinRect,
-  placeLabels,
-  type LabelAsk,
-  type LabelDetail,
-  type LabelRect,
-  type LabelShrink,
-} from './sceneLabels';
+import { emptyPx, FillRenderer, LineRenderer, type LabelHit, type Px } from './sceneRender';
+import { EMPTY_SCENE, type Scene } from './sceneTypes';
 
 /** A pointer this close to a box's edge still hovers it. */
 const HIT_SLACK_PX = 2;
-
-export interface SceneBox {
-  t1: Time;
-  /** Null runs to the pane's right edge. */
-  t2: Time | null;
-  p1: number;
-  p2: number;
-  fill: string;
-  stroke: string | null;
-  dashed: boolean;
-  label: string | null;
-  labelColor: string;
-  /** The label under the box (a consolidation's), so it never sits on its leg's. */
-  labelBelow?: boolean;
-  /** A label that makes room (a past setup's): its shorter forms and its claim to the room. Without it
-   * the label is drawn whole where it is (a live lane's). */
-  shrink?: LabelShrink;
-  /** What the pane reports as hovered over this box (`hitTest`): a lane's or a past setup's story. */
-  hoverId?: string;
-}
-
-export interface SceneSegment {
-  /** Null starts at the pane's left edge. */
-  t1: Time | null;
-  price: number;
-  color: string;
-  dashed: boolean;
-  label: string | null;
-}
-
-export interface SceneVLine {
-  t: Time;
-  color: string;
-  label: string | null;
-}
-
-export interface SceneEdgeTag {
-  price: number;
-  label: string;
-  color: string;
-}
-
-/** A filled tag over a price on one candle, on a stem down to the price. */
-export interface ScenePin {
-  t: Time;
-  price: number;
-  label: string;
-  color: string;
-}
-
-export interface Scene {
-  boxes: SceneBox[];
-  segments: SceneSegment[];
-  vlines: SceneVLine[];
-  edgeTags: SceneEdgeTag[];
-  pins: ScenePin[];
-  /** Prices the pane's autoscale must keep in view (the plan's stop and target). */
-  keepInView: { min: number; max: number } | null;
-  /** How much a past setup's label says. */
-  labels: LabelDetail;
-  /** The day's levels with a line, and the rest as ticks on the price axis (`levelRender.ts`). */
-  levels?: SceneLevel[];
-  ticks?: SceneTick[];
-}
-
-export const EMPTY_SCENE: Scene = {
-  boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null, labels: 'compact',
-};
-
-const TAG_TOP = 26;
-const TAG_H = 15;
-
-interface Px {
-  boxes: { x1: number; x2: number | null; y1: number; y2: number; b: SceneBox }[];
-  segments: { x1: number | null; y: number; s: SceneSegment }[];
-  vlines: { x: number; v: SceneVLine }[];
-  tags: { y: number; t: SceneEdgeTag }[];
-  pins: { x: number; y: number; p: ScenePin }[];
-  labels: LabelDetail;
-  levels: LevelPx[];
-  ticks: TickPx[];
-}
-
-/** A label the last draw put on the pane, with its box's story: a mark alone is hovered too. */
-export interface LabelHit {
-  rect: LabelRect;
-  hoverId: string;
-}
-
-function emptyPx(): Px {
-  return { boxes: [], segments: [], vlines: [], tags: [], pins: [], labels: 'compact', levels: [], ticks: [] };
-}
-
-/** A label that stays where it is: a level's, the focus line's, an edge tag. */
-interface FixedLabel {
-  text: string;
-  x: number;
-  y: number;
-  color: string;
-  align: 'left' | 'right';
-}
-
-class FillRenderer implements IPrimitivePaneRenderer {
-  private readonly px: Px;
-
-  constructor(px: Px) {
-    this.px = px;
-  }
-
-  draw(target: CanvasRenderingTarget2D): void {
-    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
-      fillLevelBands(ctx, this.px.levels, mediaSize.width);
-      for (const { x1, x2, y1, y2, b } of this.px.boxes) {
-        const right = x2 ?? mediaSize.width;
-        const top = Math.min(y1, y2);
-        const h = Math.max(1, Math.abs(y2 - y1));
-        ctx.fillStyle = b.fill;
-        ctx.fillRect(x1, top, Math.max(1, right - x1), h);
-      }
-    });
-  }
-}
-
-class LineRenderer implements IPrimitivePaneRenderer {
-  private readonly px: Px;
-  private readonly onLabels: (hits: LabelHit[]) => void;
-
-  constructor(px: Px, onLabels: (hits: LabelHit[]) => void) {
-    this.px = px;
-    this.onLabels = onLabels;
-  }
-
-  draw(target: CanvasRenderingTarget2D): void {
-    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
-      const width = mediaSize.width;
-      const measure = labelMeasure(ctx);
-      const levelHits = drawLevels(ctx, this.px.levels, this.px.ticks, width, mediaSize.height, measure);
-      ctx.lineWidth = 1;
-      for (const { x1, x2, y1, y2, b } of this.px.boxes) {
-        if (!b.stroke) continue;
-        const right = x2 ?? width;
-        ctx.strokeStyle = b.stroke;
-        ctx.setLineDash(b.dashed ? [4, 3] : []);
-        ctx.strokeRect(Math.round(x1) + 0.5, Math.round(Math.min(y1, y2)) + 0.5, Math.max(1, right - x1),
-          Math.max(1, Math.abs(y2 - y1)));
-      }
-      const fixed: FixedLabel[] = [];
-      for (const { x1, y, s } of this.px.segments) {
-        const left = x1 ?? 0;
-        ctx.strokeStyle = s.color;
-        ctx.setLineDash(s.dashed ? [3, 3] : []);
-        ctx.beginPath();
-        ctx.moveTo(left, Math.round(y) + 0.5);
-        ctx.lineTo(width, Math.round(y) + 0.5);
-        ctx.stroke();
-        if (s.label) fixed.push({ text: s.label, x: left + 4, y: y - 8, color: s.color, align: 'left' });
-      }
-      ctx.setLineDash([2, 3]);
-      for (const { x, v } of this.px.vlines) {
-        ctx.strokeStyle = v.color;
-        ctx.beginPath();
-        ctx.moveTo(Math.round(x) + 0.5, 0);
-        ctx.lineTo(Math.round(x) + 0.5, mediaSize.height);
-        ctx.stroke();
-        if (v.label) {
-          const right = x > width * 0.6;
-          fixed.push({ text: v.label, x: right ? x - 4 : x + 4, y: mediaSize.height - 12, color: v.color,
-            align: right ? 'right' : 'left' });
-        }
-      }
-      ctx.setLineDash([]);
-      let up = 0;
-      let down = 0;
-      for (const { y, t } of this.px.tags) {
-        if (y < 0) {
-          fixed.push({ text: `↑ ${t.label}`, x: width - 6, y: TAG_TOP + up * TAG_H, color: t.color, align: 'right' });
-          up += 1;
-        } else if (y > mediaSize.height) {
-          fixed.push({ text: `↓ ${t.label}`, x: width - 6, y: mediaSize.height - 10 - down * TAG_H, color: t.color,
-            align: 'right' });
-          down += 1;
-        }
-      }
-      // The words that stay put are placed first; the boxes' labels take the room around them.
-      const obstacles: LabelRect[] = levelHits.map(h => h.rect);
-      const fixedDrawn = fixed.map(f => {
-        const w = measure(f.text);
-        const r = labelRect(f.x, f.y, w, f.align, width);
-        obstacles.push(r);
-        return { f, r, w };
-      });
-      const pins = this.px.pins.map(({ x, y, p }) => {
-        const r = pinRect(ctx, x, y, p.label, width);
-        obstacles.push(r);
-        return { x, y, p, r };
-      });
-      const asks: LabelAsk[] = [];
-      const owners: SceneBox[] = [];
-      for (const { x1, x2, y1, y2, b } of this.px.boxes) {
-        const right = x2 ?? width;
-        if (!b.label || right < 0 || x1 > width) continue; // a box out of view says nothing
-        const forms = labelForms(b.label, b.shrink, this.px.labels);
-        if (forms.length === 0) continue;
-        asks.push({ forms, x: x1, y: b.labelBelow ? Math.max(y1, y2) + 9 : Math.min(y1, y2) - 9, fixed: !b.shrink,
-          rank: b.shrink?.rank ?? 0 });
-        owners.push(b);
-      }
-      const hits: LabelHit[] = [];
-      for (const l of placeLabels(asks, measure, width, obstacles)) {
-        const b = owners[l.ask];
-        drawLabel(ctx, l.text, l.left, l.y, l.width, b.labelColor);
-        if (b.hoverId) hits.push({ rect: labelRect(l.left, l.y, l.width, 'left', 0), hoverId: b.hoverId });
-      }
-      this.onLabels([...hits, ...levelHits]);
-      for (const { f, r, w } of fixedDrawn) drawLabel(ctx, f.text, r.left, f.y, w, f.color);
-      for (const { x, y, p, r } of pins) drawPin(ctx, x, y, p, r);
-    });
-  }
-}
 
 class View implements IPrimitivePaneView {
   private readonly source: SetupShapesPrimitive;
@@ -278,6 +50,12 @@ class View implements IPrimitivePaneView {
   zOrder(): PrimitivePaneViewZOrder {
     return this.layer === 'fill' ? 'bottom' : 'top';
   }
+}
+
+/** A line series' value on logical bar `index`, else the nearest one before it. */
+function valueAt(series: ISeriesApi<SeriesType>, index: number): number | null {
+  const d = series.dataByIndex(index, MismatchDirection.NearestLeft) as { value?: number } | null;
+  return d && typeof d.value === 'number' && Number.isFinite(d.value) ? d.value : null;
 }
 
 export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
@@ -364,7 +142,29 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const yy = y(t.price);
       if (yy !== null) ticks.push({ y: yy, t });
     }
-    this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks };
+    // A series' tag sits at its value on the last bar in view, where lightweight-charts puts a series title.
+    const range = ts.getVisibleLogicalRange();
+    const lastBar = range ? Math.floor(range.to) : null;
+    const words: Px['words'] = [];
+    for (const w of this.scene.words ?? []) {
+      const value = w.price ?? (w.series && lastBar !== null ? valueAt(w.series, lastBar) : null);
+      if (value === null) continue;
+      const yy = (w.series ?? series).priceToCoordinate(value);
+      if (yy !== null) words.push({ y: yy, value, w });
+    }
+    const reserves: Px['reserves'] = [];
+    for (const r of this.scene.reserves ?? []) {
+      const yy = y(r.price);
+      if (yy !== null) reserves.push({ top: yy - r.height / 2, bottom: yy + r.height / 2 });
+    }
+    const marks: Px['marks'] = [];
+    for (const m of this.scene.marks ?? []) {
+      const xx = x(m.t);
+      const yy = y(m.price);
+      if (xx !== null && yy !== null) marks.push({ x: xx, y: yy, m });
+    }
+    this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks, words, reserves,
+      topInset: this.scene.topInset ?? 0, marks };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {

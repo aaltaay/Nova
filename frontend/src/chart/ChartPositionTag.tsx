@@ -22,10 +22,12 @@ import {
   CHART_POSITION_MENU_LABEL,
   CHART_POSITION_MENU_VIEW_DETAILS,
   CHART_POSITION_SHORT_COLOR,
+  CHART_POSITION_TAG_EDGE_PX,
   CHART_POSITION_TAG_LABEL,
 } from './positionOverlayConstants';
 import { chartPositionMenuItems } from './positionMenu';
 import { useChartPositionTagLayout } from './useChartPositionTagLayout';
+import { publishEdgeReserves } from './edgeWords';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 
 function haltChartGesture(e: PointerEvent | MouseEvent): void {
@@ -193,6 +195,17 @@ export function ChartPositionTagHost(props: {
 }) {
   const ctx = useChartPositionContext(props.symbol);
   const row = ctx.position;
+  // The badge sits at the pane's right edge on its line: the edge's words keep clear of it.
+  const avg = row?.avg_cost;
+  const chart = props.chart;
+  useEffect(() => {
+    if (!chart) return;
+    publishEdgeReserves(chart, 'position', typeof avg === 'number' && Number.isFinite(avg) && avg > 0
+      ? [{ id: 'position', price: avg, height: CHART_POSITION_TAG_EDGE_PX }] : []);
+  }, [chart, avg]);
+  useEffect(() => () => {
+    if (chart) publishEdgeReserves(chart, 'position', []);
+  }, [chart]);
   const placement = useChartPositionTagLayout({
     chart: props.chart,
     candleSeriesRef: props.candleSeriesRef,

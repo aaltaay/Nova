@@ -1,10 +1,11 @@
 /**
  * The day's levels on a chart pane (ADR 036 amendment 2026-09-30), drawn by `SetupShapesPrimitive`: a
- * zone's band behind the candles, its line across the pane, its label at the right edge (labels close
- * together stack down so none covers another), and a short tick on the price axis for every zone the
- * pane lists without a line. A label and a tick are hover targets: they name the zone's card.
+ * zone's band behind the candles, its line across the pane, and a short tick on the price axis for every
+ * zone the pane lists without a line. Its label goes in the pane's edge column with every other word at the
+ * right edge (`edgeColumn.ts`), so none covers another. A label and a tick are hover targets: they name the
+ * zone's card.
  */
-import { drawLabel, LABEL_H, type LabelRect } from './sceneLabels';
+import type { LabelRect } from './sceneLabels';
 
 export interface SceneLevel {
   lo: number;
@@ -18,6 +19,8 @@ export interface SceneLevel {
   /** The label at the right edge; null draws the line alone. */
   label: string | null;
   hoverId: string | null;
+  /** How firmly its label keeps its place in a crowded column (`EDGE_PRIORITY`); a level's by default. */
+  priority?: number;
 }
 
 export interface SceneTick {
@@ -46,12 +49,9 @@ export interface LevelHit {
 /** A band this tall or more is filled; thinner zones are their line alone. */
 const BAND_MIN_PX = 2;
 const BAND_ALPHA = 0.1;
-const EDGE_PX = 4;
 const TICK_PX = 9;
 /** The hover target around a tick, in pixels either side of it. */
 const TICK_HIT_PX = 4;
-/** A label takes at most this share of the pane's width; longer ones drop their last reasons. */
-const LABEL_MAX_SHARE = 0.6;
 
 /** `#rrggbb` at `alpha`; anything else is returned as it is. */
 export function alpha(color: string, a: number): string {
@@ -83,14 +83,13 @@ export function fitText(text: string, maxW: number, measure: (t: string) => numb
   return `${head}…`;
 }
 
-/** Lines, labels and ticks; returns the labels' and ticks' hover targets. */
+/** Lines and ticks; returns the ticks' hover targets. A level's label is the edge column's (`edgeColumn.ts`). */
 export function drawLevels(
   ctx: CanvasRenderingContext2D,
   levels: LevelPx[],
   ticks: TickPx[],
   width: number,
   height: number,
-  measure: (text: string) => number,
 ): LevelHit[] {
   const hits: LevelHit[] = [];
   for (const { y, l } of levels) {
@@ -117,31 +116,5 @@ export function drawLevels(
     }
   }
   ctx.lineWidth = 1;
-  const shown = levels.filter(p => p.l.label && p.y >= 0 && p.y <= height).sort((a, b) => a.y - b.y);
-  const ys = stackLabels(shown.map(p => p.y), height);
-  shown.forEach(({ l }, i) => {
-    const at = ys[i];
-    if (at === null) return;
-    const text = fitText(l.label as string, width * LABEL_MAX_SHARE, measure);
-    const w = measure(text);
-    const left = width - EDGE_PX - TICK_PX - w;
-    drawLabel(ctx, text, left, at, w, l.color);
-    if (l.hoverId) hits.push({ rect: { left, right: left + w, top: at - LABEL_H / 2, bottom: at + LABEL_H / 2 }, hoverId: l.hoverId });
-  });
   return hits;
-}
-
-/** Where each label goes, top to bottom: at its line, moved down under the one above it, then the stack
- * pushed back up where it would run past the pane's bottom. A label with no room even then is null. */
-export function stackLabels(ys: number[], height: number): (number | null)[] {
-  const step = LABEL_H + 1;
-  const top = LABEL_H / 2;
-  const bottom = height - LABEL_H / 2;
-  const out = ys.map(y => Math.min(Math.max(y, top), bottom));
-  for (let i = 1; i < out.length; i += 1) out[i] = Math.max(out[i], out[i - 1] + step);
-  if (out.length && out[out.length - 1] > bottom) {
-    out[out.length - 1] = bottom;
-    for (let i = out.length - 2; i >= 0; i -= 1) out[i] = Math.min(out[i], out[i + 1] - step);
-  }
-  return out.map(y => (y < top ? null : y));
 }

@@ -15,7 +15,7 @@ import { laneShapes, type LaneDrawOptions } from './laneShapes';
 import { drawnPast, failingNow, type Episode } from './pastSetups';
 import { pastHoverId, pastShapes } from './pastShapes';
 import { fmtPx, setupName } from './planMath';
-import type { SceneBox, SceneSegment } from './SetupShapesPrimitive';
+import type { SceneBox, SceneSegment } from './sceneTypes';
 import type { SetupLane, StockRead } from './types';
 
 export const FIVE_MIN_SEC = 300;

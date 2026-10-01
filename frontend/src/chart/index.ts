@@ -6,3 +6,5 @@ export type { ChartPaneOverlayProps, ChartTradeUpdate, RenderPaneOverlay } from 
 export { buildSeriesTimeIndex, nearestSeriesTime, toCanonicalTime } from './chartDrawingTime';
 export { isFollowingRightEdge } from './chartViewportPaint';
 export type { SeriesTimeIndex } from './chartDrawingTime';
+export { EDGE_PRIORITY, claimEdge, edgeClaimed, edgeContents, subscribeEdge } from './edgeWords';
+export type { EdgeReserve, EdgeWord } from './edgeWords';

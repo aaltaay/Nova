@@ -23,7 +23,7 @@ import { fiveMinuteOnMinute, fiveMinuteScene } from './fiveMinuteShapes';
 import { laneHoverId, laneShapes, levelsOf } from './laneShapes';
 import { pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, setupName } from './planMath';
-import type { Scene, SceneBox } from './SetupShapesPrimitive';
+import type { Scene, SceneBox } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
 import { levelTitle, type OrderLevel, type OrderLevels } from './whoTradesModel';
@@ -220,9 +220,11 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
     scene.levels = m.levels;
     scene.edgeTags.push(...m.tags);
     // The chart's own VWAP line draws it in view (the same VWAP since it restarts at 16:00); out of view
-    // it gets a tag.
+    // it gets a tag -- the line's own tag when the chart shows VWAP (one id: the edge column keeps one).
     const vwap = read.levels.vwap;
-    if (vwap !== null) scene.edgeTags.push({ price: vwap, label: `VWAP ${fmtPx(vwap)}`, color: LEVEL_COLORS.vwap });
+    if (vwap !== null) {
+      scene.edgeTags.push({ price: vwap, label: `VWAP ${fmtPx(vwap)}`, color: LEVEL_COLORS.vwap, id: 'vwap' });
+    }
   }
   if (o.pane === 'full' && o.focus) {
     const t = o.toTime(o.focus.ts);

@@ -17,7 +17,8 @@ import {
   type Episode,
 } from './pastSetups';
 import { pastHoverId, pastShapes } from './pastShapes';
-import { SetupShapesPrimitive, type SceneBox } from './SetupShapesPrimitive';
+import { SetupShapesPrimitive } from './SetupShapesPrimitive';
+import type { SceneBox } from './sceneTypes';
 import { parseLayers } from './StockReadContext';
 import { apusReadWire } from './stockReadFixtures';
 import type { StockRead } from './types';
