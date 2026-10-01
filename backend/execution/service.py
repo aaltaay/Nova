@@ -14,7 +14,7 @@ from execution import store
 from execution import telemetry
 from execution import validate as _validate
 from execution import evidence_store
-from execution.desk_mode import desk_mode
+from execution.desk_mode import venue_mode
 from execution import timing as _timing
 from execution.broker_send import send_broker, wait_broker_ack
 from execution.latency import latency_summary
@@ -106,7 +106,7 @@ def _reject(
     detail: str,
     reason_code: str,
 ) -> ExecutionReceipt:
-    mode = desk_mode()  # the venue on Paper / Sim (QA R38)
+    mode = venue_mode(cmd.target_venue)  # the venue on Paper / Sim (QA R38); a kill's target venue
     store.update_stages(
         execution_id,
         status="rejected",
@@ -173,7 +173,8 @@ async def execute(
         backend_ingress_wall_ns=cmd.backend_ingress_wall_ns or time.time_ns(),
     )
     async with _lock:
-        send_venue = venue_door.current()     # one read: checked, committed and sent on the same venue
+        # One read: checked, committed and sent on the same venue -- a kill switch cancel's own target.
+        send_venue, target_why = venue_door.resolve(cmd)
         execution_id, is_new = store.reserve(
             idempotency_key=cmd.idempotency_key,
             operation=cmd.operation,
@@ -209,13 +210,16 @@ async def execute(
             )
             return _receipt_from_row(row, duplicate=True)
 
-        if why := venue_door.wrong_venue(cmd, send_venue):
+        if target_why:
+            return _reject(execution_id, cmd, timings, target_why, venue_door.TARGET_REFUSED)
+        targeted = cmd.target_venue is not None     # the desk may show another venue: never "moved"
+        if not targeted and (why := venue_door.wrong_venue(cmd, send_venue)):
             return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
-        ok, detail, reason = _validate.validate_command(cmd)
+        ok, detail, reason = _validate.validate_command(cmd, venue=send_venue)
         if not ok:
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "VALIDATION")
-        if why := venue_door.moved(send_venue):
+        if not targeted and (why := venue_door.moved(send_venue)):
             return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
 
         # Kill switch is checked BEFORE skip_risk (D-037): a tripped kill means
@@ -231,19 +235,17 @@ async def execute(
                 timings.validation_completed_ns = time.perf_counter_ns()
                 return _reject(
                     execution_id, cmd, timings,
-                    "Kill switch tripped — reset it before placing any order",
+                    "Kill switch tripped — every new order on every venue is refused until you reset it "
+                    "on the Bots page. Flatten and cancels still work.",
                     "KILL_SWITCH",
                 )
-            from bot.buy_lock import buy_blocked
+            from bot.buy_lock import buy_refusal
 
-            locked, lock_reason = buy_blocked(cmd.side, cmd.source)
-            if locked:
+            # This venue's all-stop (spec D): its own line, its own lock, until 04:00 ET.
+            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry))
+            if locked is not None:
                 timings.validation_completed_ns = time.perf_counter_ns()
-                return _reject(
-                    execution_id, cmd, timings,
-                    "Bot -$200 day lock -- buys unlock next calendar midnight America/New_York",
-                    lock_reason or "BOT_DAY_LOCK",
-                )
+                return _reject(execution_id, cmd, timings, locked["text"], locked["code"])
 
         # Walk-away rules (strategy/risk.py). The manual ticket and the bot pass
         # skip_risk=True, so since the Phase D executor was retired (ADR 025) no
@@ -286,10 +288,11 @@ async def execute(
             execution_id,
             status="validated",
             validation_completed_ns=timings.validation_completed_ns,
-            mode=desk_mode(),
+            mode=venue_mode(send_venue),
         )
 
-        if _loop_lag.is_wedged() and cmd.operation in (
+        # A wedged IB loop holds IBKR's sends only: Paper and Sim never touch it.
+        if send_venue == "live" and _loop_lag.is_wedged() and cmd.operation in (
             "place", "bracket", "cancel", "replace",
         ):
             return _reject(
