@@ -100,8 +100,9 @@ const NOT_RECORDED: SentBy = {
   label: '—',
   tone: 'unknown',
   tip:
-    'Not recorded on this row. A Live order shows who sent it once it closes. An order from ' +
-    'before Nova recorded senders has none.',
+    "Not recorded: Nova's order log for today has no record of sending this order. It was " +
+    'placed outside Nova, on an earlier day (a GTC order), or before senders were recorded -- or ' +
+    'the log could not be read.',
 };
 
 export function orderSentBy(order: Pick<IbkrOrder, 'source' | 'order_source' | 'order_origin'>): SentBy {

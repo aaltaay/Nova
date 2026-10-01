@@ -25,6 +25,7 @@ from constants import (
     SESSION_PREMARKET_START_MIN_ET,
 )
 from constants_ibkr import IBKR_CLOSED_ORDER_STATUSES
+from execution import sent_by as _sent_by
 from market import ET, session_key_et
 
 logger = logging.getLogger(__name__)
@@ -158,12 +159,18 @@ def overlay_closed_orders(
     source = ledger_rows if ledger_rows is not None else load_session_ledger()
     ledger = [row for row in ledger_rows_for_desk(source, scope) if _matchable_ledger(row)]
     unused = list(ledger)
+    # A bracket's exit legs have ids of their own: they are Nova's, though no row is theirs (#677).
+    senders = _sent_by.sent_by_index(ledger)
     out: list[dict] = []
     for ib in ib_rows:
         match = _take_match(ib, unused)
         if match is None:
             row = dict(ib)
-            row["source"] = "ib_recovered"
+            sender = _sent_by.lookup(senders, row)
+            if sender is None:
+                row["source"] = "ib_recovered"
+            else:
+                row.update(source="nova", **_sent_by.ledger_sent_by(sender))
             out.append(row)
         else:
             out.append(_merge_ib_ledger(ib, match))
@@ -314,13 +321,8 @@ def _merge_ib_ledger(ib: dict, led: dict) -> dict:
             out["submitted_at"] = fallback
     out["source"] = "nova"
     out["execution_id"] = led.get("id")
-    out.update(_sent_by(led))
+    out.update(_sent_by.ledger_sent_by(led))
     return out
-
-
-def _sent_by(led: dict) -> dict:
-    """Who sent it, as a practice row says it: the ADR 007 source and the part of Nova (origin)."""
-    return {"order_source": led.get("source"), "order_origin": (led.get("payload") or {}).get("origin")}
 
 
 def _iso_from_ts(ts: float) -> str | None:
@@ -397,7 +399,7 @@ def _row_from_ledger(led: dict) -> dict:
         "source": "nova",
         "execution_id": led.get("id"),
         "commission": _commission_from_ledger(led),
-        **_sent_by(led),
+        **_sent_by.ledger_sent_by(led),
     }
 
 

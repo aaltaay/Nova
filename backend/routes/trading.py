@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field, StrictBool
 
 from execution import closed_blotter as _closed_blotter
 from execution.fill_audit_attach import attach_fill_audit
+from execution.sent_by import attach_sent_by
 from ibkr import client as _client
 from ibkr import depth as _depth
 from ibkr import orders as _orders
@@ -259,9 +260,18 @@ async def ibkr_positions() -> list:
 @router.get("/orders")
 async def ibkr_open_orders() -> list:
     try:
-        return attach_fill_audit(_orders.open_orders())
+        rows = _orders.open_orders()
     except IbkrAccountError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    # One read of this desk's execution rows for the latency and for who sent each order (#677).
+    desk = _closed_blotter.current_desk()
+    try:
+        ledgers = _closed_blotter.load_session_ledger()
+    except Exception:
+        logger.exception("open orders: session ledger read failed -- no latency or sender joined")
+        ledgers = []
+    rows = attach_fill_audit(rows, ledger_rows=ledgers, desk=desk)
+    return attach_sent_by(rows, _closed_blotter.ledger_rows_for_desk(ledgers, desk))
 
 
 @router.get("/orders/closed")
