@@ -6,7 +6,6 @@ never a zero standing in for an unknown.
 """
 from __future__ import annotations
 
-import math
 from datetime import datetime, time as dtime
 from statistics import median
 from typing import Any
@@ -15,10 +14,10 @@ from zoneinfo import ZoneInfo
 from constants_stock_read import (
     STOCK_READ_BACKSIDE_LOOK_BARS,
     STOCK_READ_BACKSIDE_TAIL_SHARE,
-    STOCK_READ_ROUND_STEP,
 )
 from sensors.math_indicators import vwap_session_bars
 from setup_scanner.series import ema
+from stock_read import rounds
 
 ET = ZoneInfo("America/New_York")
 SESSION_START = dtime(4, 0)
@@ -64,13 +63,12 @@ def ema_last(closes: list[float], n: int) -> float | None:
     return round(ema(closes, n)[-1], 4) if len(closes) >= n else None
 
 
-def round_levels(price: float | None, step: float = STOCK_READ_ROUND_STEP) -> tuple[float | None, float | None]:
-    """The nearest half / whole dollar strictly above and at-or-under ``price``."""
-    if price is None or price <= 0:
+def round_levels(price: float | None) -> tuple[float | None, float | None]:
+    """The nearest round number of the price's scale (``rounds``) strictly above and at-or-under it."""
+    rnd = rounds.of(price)
+    if rnd is None:
         return None, None
-    below = math.floor(price / step + EPS) * step
-    above = below + step
-    return round(above, 2), round(below, 2)
+    return rnd.above(rnd.price), rnd.at_or_below(rnd.price)
 
 
 def levels(bars: list[dict[str, Any]], *, price: float | None, prev_close: float | None) -> dict[str, Any]:

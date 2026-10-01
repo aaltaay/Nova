@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from stock_read import level_map, level_notes
+from constants_stock_read import STOCK_READ_ROUND_LADDER
+from stock_read import level_map, level_notes, rounds
 
 ET = ZoneInfo("America/New_York")
 DAY = "2026-09-30"
@@ -156,8 +157,60 @@ def test_the_five_minute_map_leaves_vwap_and_yesterday_to_their_own_charts_and_n
     assert all(any(m["kind"] not in ("whole", "half") for m in z["members"]) for z in rounds)
     assert any(m["kind"] == "vwap" for z in lm["intraday"] for m in z["members"])   # the plan's map keeps it
 
+# -- a stock's own round numbers (operator report 2026-10-01) -------------------------------------------
+def test_round_numbers_scale_with_the_price_so_a_minor_round_is_two_percent_or_more():
+    lghl = rounds.of(8.66)
+    assert (lghl.minor, lghl.major, lghl.measured, lghl.words) == (0.5, 1.0, True, "half and whole dollars")
+    assert (rounds.of(22.0).minor, rounds.of(22.0).measured) == (0.5, False)   # past the study's $20
+    assert (rounds.of(0.80).minor, rounds.of(0.80).measured) == (0.5, False)   # under its $1
+    assert (rounds.of(31.0).minor, rounds.of(31.0).major) == (1.0, 5.0)
+    assert (rounds.of(80.0).minor, rounds.of(80.0).major) == (2.5, 10.0)
+    acn = rounds.of(223.05)
+    assert (acn.minor, acn.major, acn.measured, acn.words) == (5.0, 10.0, False, "$5 and $10 round numbers")
+    assert (acn.above(223.89), acn.at_or_below(223.89), acn.between(217.53, 236.61)) == (225.0, 220.0, [220.0, 225.0, 230.0, 235.0])
+    assert (acn.name(230.0), acn.name(225.0), lghl.name(9.0), lghl.name(8.5)) == (
+        "$10 round number", "$5 round number", "whole dollar", "half dollar")
+    assert (rounds.of(None), rounds.of(0)) == (None, None)
+    for top, minor, _major in STOCK_READ_ROUND_LADDER:
+        if top != float("inf"):
+            assert minor / top >= 0.02 - 1e-9              # every rung's step is 2% or more at its top price
+
+
+def test_a_225_dollar_stock_names_its_5_dollar_rounds_and_its_tops_stand_out():
+    # ACN on 2026-10-01: every half dollar was a member, so each zone held six of them and buried the real
+    # levels ("$216.00 · top ×14 · $217.00 · $218.00 · $215.50 · open ..."); 26 rounds sat between a
+    # 217.53 stop and a 236.61 target.
+    bars = (flat(9, 30, 3, 214.0) + [bar(9, 33, 214.0, 217.99, 214.0, 216.0)] + flat(9, 34, 3, 215.0)
+            + [bar(9, 37, 215.0, 217.98, 215.0, 216.5)] + flat(9, 38, 3, 215.5)
+            + [bar(9, 41, 216.0, 226.5, 216.0, 225.0)] + flat(9, 42, 2, 225.2))
+    lm = level_map.build(bars, None, price=225.27, prior_close=183.37, vwap=None, now=ts(9, 45))
+    assert lm["rounds"] == {"minor": 5.0, "major": 10.0, "measured": False, "words": "$5 and $10 round numbers"}
+    rnds = sorted(m["price"] for z in lm["intraday"] for m in z["members"] if m["kind"] in ("whole", "half"))
+    assert rnds and all(p % 5 == 0 for p in rnds)
+    assert {m["note"] for z in lm["intraday"] for m in z["members"] if m["price"] == 220.0} == {"$10 round number"}
+    top = next(z for z in lm["intraday"] if any(m["kind"] == "top" for m in z["members"]))
+    assert top["label"] == "217.99 · double top"
+
+
+def test_on_a_225_dollar_stock_room_is_not_t7s_and_the_notes_say_the_study_did_not_look():
+    acn = rounds.of(225.27)
+    plan = {"entry": 223.89, "stop": 217.53, "target": 236.61, "risk": 6.36}
+    intra = level_map.zones([level_map.member("half", 225.0), level_map.member("hod", 226.5)],
+                            price=225.27, home="intraday", merge_pct=0.006)
+    room = level_notes.room(plan, intra, [], acn)
+    assert (room["state"], room["trial"]) == ("warn", None)
+    assert "Trial T7 counts half and whole dollars" in room["detail"] and "while trial" not in room["detail"]
+    nxt, _ = level_notes.round_notes([], price=225.27, entry=223.89, now=ts(9, 45), rnd=acn)
+    assert nxt["text"] == "$225.00 is $1.11 above: resistance until it prints through, a trigger after"
+    assert "not measured" in nxt["detail"] and "24%" not in nxt["detail"]
+    assert level_notes.stop_note(217.53, 223.89, acn) is None    # $217.50 is not a round at $225
+    near = level_notes.target_note(234.80, acn)
+    assert near["text"] == "234.80 is 20c under $235.00" and "not measured" in near["detail"]
+
+
 # -- what the plan says ---------------------------------------------------------------------------------
 PLAN = {"entry": 8.62, "stop": 8.45, "target": 8.96, "risk": 0.17}
+LGHL = rounds.of(8.66)                  # half and whole dollars, where the level study looked
 
 
 def _zone(price, *members, side="above"):
@@ -182,42 +235,43 @@ def test_room_is_fine_with_nothing_over_the_entry_and_unknown_without_a_stop():
 
 
 def test_a_target_just_under_a_round_sells_before_it_and_one_just_over_needs_the_break():
-    under = level_notes.target_note(8.96)
+    under = level_notes.target_note(8.96, LGHL)
     assert (under["state"], under["text"], under["round"]) == ("ok", "8.96 is 4c under $9.00", 9.0)
-    over = level_notes.target_note(9.02)
+    assert "turns price back 24% of the time" in under["detail"]
+    over = level_notes.target_note(9.02, LGHL)
     assert (over["state"], over["text"]) == ("warn", "9.02 is 2c over $9.00")
-    assert level_notes.target_note(9.00)["text"] == "9.00 is on $9.00"
-    assert level_notes.target_note(9.20) is None
+    assert level_notes.target_note(9.00, LGHL)["text"] == "9.00 is on $9.00"
+    assert level_notes.target_note(9.20, LGHL) is None
 
 
 def test_a_stop_under_a_round_survives_its_test_and_one_just_over_it_does_not():
-    under = level_notes.stop_note(8.45, 8.62)
+    under = level_notes.stop_note(8.45, 8.62, LGHL)
     assert (under["state"], under["text"]) == ("ok", "8.45 is 5c under $8.50")
     assert "the drop usually keeps going" in under["detail"]
-    over = level_notes.stop_note(8.52, 8.70)
+    over = level_notes.stop_note(8.52, 8.70, LGHL)
     assert (over["state"], over["text"]) == ("warn", "8.52 is 2c over $8.50")
-    assert level_notes.stop_note(8.30, 8.62) is None
-    assert level_notes.stop_note(8.45, 8.49) is None           # the round is over the entry: not the stop's
+    assert level_notes.stop_note(8.30, 8.62, LGHL) is None
+    assert level_notes.stop_note(8.45, 8.49, LGHL) is None     # the round is over the entry: not the stop's
 
 
 def test_the_next_round_is_resistance_until_it_breaks_and_an_entry_just_under_one_is_amber():
-    nxt, _ = level_notes.round_notes([], price=8.66, entry=8.62, now=ts(7, 16))
+    nxt, _ = level_notes.round_notes([], price=8.66, entry=8.62, now=ts(7, 16), rnd=LGHL)
     assert (nxt["state"], nxt["text"]) == ("info", "$9.00 is 38c above: resistance until it prints through, a trigger after")
-    near, _ = level_notes.round_notes([], price=4.95, entry=4.97, now=ts(7, 16))
+    near, _ = level_notes.round_notes([], price=4.95, entry=4.97, now=ts(7, 16), rnd=rounds.of(4.95))
     assert near["state"] == "warn" and near["text"].startswith("Entry 3c under $5.00")
 
 
 def test_a_fresh_break_of_a_round_is_said_while_the_price_holds_over_it_and_a_loss_under_it():
     quiet = flat(7, 0, 15, 8.40)
     bars = quiet + [bar(7, 15, 8.45, 8.56, 8.44, 8.55)]
-    _, recent = level_notes.round_notes(bars, price=8.55, entry=None, now=ts(7, 17))
+    _, recent = level_notes.round_notes(bars, price=8.55, entry=None, now=ts(7, 17), rnd=LGHL)
     assert (recent["state"], recent["text"]) == ("ok", "Broke $8.50 at 07:15")
-    _, gone = level_notes.round_notes(bars, price=8.46, entry=None, now=ts(7, 17))
+    _, gone = level_notes.round_notes(bars, price=8.46, entry=None, now=ts(7, 17), rnd=LGHL)
     assert gone is None                                          # back under it: nothing broke
-    _, stale = level_notes.round_notes(bars, price=8.55, entry=None, now=ts(7, 40))
+    _, stale = level_notes.round_notes(bars, price=8.55, entry=None, now=ts(7, 40), rnd=LGHL)
     assert stale is None                                         # ten minutes on, it is not news
     down = flat(7, 0, 15, 8.60) + [bar(7, 15, 8.55, 8.56, 8.44, 8.45)]
-    _, lost = level_notes.round_notes(down, price=8.45, entry=None, now=ts(7, 17))
+    _, lost = level_notes.round_notes(down, price=8.45, entry=None, now=ts(7, 17), rnd=LGHL)
     assert lost["state"] == "bad" and lost["text"].startswith("Lost $8.50 at 07:15")
 
 

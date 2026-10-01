@@ -23,6 +23,7 @@ from constants_stock_read import (
     STOCK_READ_SPLIT_RECENT_DAYS,
     STOCK_READ_VOLUME_PROFILE_BARS,
 )
+from stock_read import rounds
 
 ET = ZoneInfo("America/New_York")
 
@@ -301,9 +302,11 @@ def _round_row(lv: dict[str, Any], price: float | None) -> dict[str, Any]:
     if price is None or above is None:
         return row("round", "Next round numbers", "Not known", "unknown", "Price")
     near = (above - price) / price <= STOCK_READ_ROUND_NEAR_PCT
+    rnd = rounds.of(price)
+    words = rnd.words if rnd else "round numbers"
     return row("round", "Next round numbers", f"{above:.2f} ({above - price:+.2f}) · {below:.2f}",
-               "warn" if near else "info", "Half and whole dollars",
-               "A half or whole dollar just over the price often holds sellers." if near else None)
+               "warn" if near else "info", words[0].upper() + words[1:],
+               "A round number just over the price often holds sellers." if near else None)
 
 
 # -- float ---------------------------------------------------------------------------------------

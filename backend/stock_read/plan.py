@@ -32,6 +32,7 @@ from constants_stock_read import (
 )
 from setup_scanner.five_minute import words as tf5_words
 from setup_scanner.grade import pillar_count
+from stock_read import rounds
 from stock_read.indicators import manual_stop
 from stock_read.level_notes import notes as level_notes
 
@@ -163,10 +164,13 @@ def _levels(plan: dict[str, Any], entry: float, stop: float, target: float) -> d
 
 def _obstacles(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
     """Levels strictly between the entry and the target: the high of day, VWAP, the premarket
-    high, the open, each half / whole dollar, and a large seller on Nova's book."""
+    high, the open, each round number of the stock's scale (``rounds``: the half and whole dollars up
+    to $25, the $5 numbers on ACN at $223), and a large seller on Nova's book."""
     lo, hi = plan.get("entry"), plan.get("target")
     if lo is None or hi is None:
         return []
+    rnd = (rounds.of((ctx.get("level_map") or {}).get("price")) or rounds.of(ctx.get("price"))
+           or rounds.of(lo))
     lv = ctx.get("levels") or {}
     out: list[dict[str, Any]] = []
 
@@ -179,17 +183,21 @@ def _obstacles(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]
     add(lv.get("vwap"), "VWAP", "vwap")
     add(lv.get("pmh"), "premarket high", "pmh")
     add(lv.get("open"), "the open", "open")
-    step = 0.5
-    k = int(lo / step) + 1
-    while k * step < hi - EPS:
-        add(k * step, f"${k * step:.2f}", "round")
-        k += 1
+    for r in rnd.between(lo, hi) if rnd else []:
+        add(r, f"${r:.2f}", "round")
     for ask in ctx.get("asks") or []:
         size = float(ask.get("size") or 0)
         if size >= TAPE_GATE_WALL_SHARES:
             add(ask.get("price"), f"a seller of {int(size):,}", "wall", size)
     out.sort(key=lambda m: m["price"])
     return out
+
+
+def _listing(labels: list[str]) -> str:
+    """"$225.00", "$225.00 and $230.00", "$5.50, $6.00 and $6.50", "4 round numbers ($15.50 to $17.00)"."""
+    if len(labels) > 3:
+        return f"{len(labels)} round numbers ({labels[0]} to {labels[-1]})"
+    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + f" and {labels[-1]}" if labels else ""
 
 
 def checks(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
@@ -233,11 +241,18 @@ def checks(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
     if entry is not None and vw is not None:
         out.append({"id": "vwap", "state": "ok" if entry >= vw else "bad",
                     "text": f"{'above' if entry >= vw else 'under'} VWAP {vw:.2f}"})
-    for m in _obstacles(plan, ctx):
+    in_way = _obstacles(plan, ctx)
+    round_words = _listing([m["label"] for m in in_way if m["kind"] == "round"])
+    for m in in_way:
+        if m["kind"] == "round":
+            # The rounds are one line, where the first of them sits: a wide plan crosses several.
+            if round_words:
+                out.append({"id": "in_way_round", "state": "warn", "text": f"{round_words} before the target"})
+                round_words = ""
+            continue
         big = m["kind"] == "wall" and (m.get("size") or 0) >= TAPE_GATE_BIG_SELLER_SHARES
-        where = m["label"] if m["kind"] == "round" else f"{m['label']} at {m['price']:.2f}"
         out.append({"id": f"in_way_{m['kind']}", "state": "bad" if big else "warn",
-                    "text": f"{where} before the target"})
+                    "text": f"{m['label']} at {m['price']:.2f} before the target"})
     tape = plan.get("tape")
     if tape and tape.get("verdict"):
         verdict = str(tape["verdict"])

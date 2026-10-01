@@ -58,7 +58,7 @@ function fiveMinuteLevelRows(): KeySection {
     rows: [
       { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: tops 5-minute candles made, the high of day' },
       { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: bottoms, the premarket high, the open, the low' },
-      { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round dollar', text: '$X.00 / $X.50 the day tested: often stalls price, a trigger once through' },
+      { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round number', text: 'a round price the day tested ($X.00 / $X.50 up to $25, coarser above: $5 / $10 on a $225 stock)' },
       ...ZONE_ROWS,
     ],
   };
@@ -83,7 +83,7 @@ function minuteRows(): KeySection {
     rows: [
       { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: the nearest top 1-minute candles made, the high of day' },
       { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: the nearest bottom (or old top)' },
-      { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round dollar', text: 'the nearest $X.00 / $X.50 each side' },
+      { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round number', text: 'the nearest round price each side ($X.00 / $X.50 up to $25, coarser above)' },
       ...ZONE_ROWS,
     ],
   };

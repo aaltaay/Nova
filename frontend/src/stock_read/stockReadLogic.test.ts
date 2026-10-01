@@ -11,6 +11,7 @@ import {
   planFootnote,
   planLane,
   planSubLines,
+  placeRulerLabels,
   rulerLayout,
   sizeFor,
   stopCap,
@@ -120,6 +121,23 @@ describe('the plan box', () => {
     expect(lay.now?.edge).toBeNull();
     expect(rulerLayout(plan, 9)!.now?.edge).toBe('high');
     expect(rulerLayout({ ...plan, stop: null }, 5.37)).toBeNull();
+  });
+
+  it('leaves off a ruler label that would touch a stronger one, and keeps its tick', () => {
+    // ACN's 27 marks printed their prices on top of each other (operator report 2026-10-01).
+    const marks = [
+      { pct: 40, label: '225.00', kind: 'round' },
+      { pct: 41, label: 'HOD 226.50', kind: 'level' },
+      { pct: 60, label: '230.00', kind: 'round' },
+      { pct: 61, label: '230.10', kind: 'round' },
+    ];
+    const placed = placeRulerLabels(marks, 600, 30);
+    expect(placed.map(m => [m.label, m.showLabel])).toEqual([
+      ['225.00', false], ['HOD 226.50', true], ['230.00', true], ['230.10', false],
+    ]);
+    // A wide ruler has room for all of them.
+    expect(placeRulerLabels(marks, 6000, 30).every(m => m.showLabel)).toBe(true);
+    expect(rulerLayout(plan, 5.37, 900)!.marks.every(m => m.showLabel)).toBe(true);
   });
 
   it('prints prices the way the desk does, and takes a sane risk per trade', () => {

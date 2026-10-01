@@ -68,6 +68,18 @@ def test_a_forming_setup_is_provisional_and_says_what_it_waits_for():
     assert texts["in_way_round"]["text"] == "$5.50 before the target"   # a round number says its price once
 
 
+def test_a_plan_on_a_225_dollar_stock_lists_its_rounds_on_one_line_on_its_own_scale():
+    # ACN 2026-10-01: a 217.53 stop and a 236.61 target listed 26 half dollars, one check each.
+    p = plan.build([], {"price": 225.27, "levels": {"hod": {"price": 226.5, "ts": ts(9, 41)}}},
+                   now=ts(9, 45), entry=223.89, stop=217.53)
+    assert [m["label"] for m in p["marks"]] == ["$225.00", "high of day", "$230.00", "$235.00"]
+    in_way = [c["text"] for c in p["checks"] if c["id"].startswith("in_way")]
+    assert in_way == ["$225.00, $230.00 and $235.00 before the target", "high of day at 226.50 before the target"]
+    wide = plan.build([], {"price": 15.2, "levels": {}}, now=ts(9, 45), entry=15.2, stop=14.2)
+    assert [c["text"] for c in wide["checks"] if c["id"] == "in_way_round"] == [
+        "4 round numbers ($15.50 to $17.00) before the target"]
+
+
 def test_a_risk_over_the_cap_and_a_stop_inside_one_candle_are_named():
     lane = {**APUS_FLAG, "forming": {**APUS_FLAG["forming"], "stop": 5.14, "risk": 0.30, "target1": 6.04}}
     p = plan.build([lane], {"price": 5.37, "levels": {}, "median_range": 0.13}, now=ts(15, 3))
