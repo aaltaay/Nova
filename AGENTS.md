@@ -862,14 +862,18 @@ before it, by `created_ts`, else `timestamp`; the reply stays a bare list). `GET
 board; `type=movers` reads the `gainers-` / `losers-` files. `/api/ibkr/status`
 adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
 
-**Auto-record.** 07:00-10:00 ET the backend records, first, the setups of the
-templates in play that are in a scored trade (`trade`), near their trigger
-(`near`) or armed (`armed`), then the top
+**Auto-record.** The backend records, first, the setups of the templates in
+play that are in a scored trade (`trade`), near their trigger (`near`) or armed
+(`armed`) -- whenever any setup's template in play is inside its arming window
+(07:00-11:30 ET by default; red to green 09:30-10:30; ADR 042: until then a
+setup arming after 10:00 had no line, and red to green's triggers were never
+"go") -- then, 07:00-10:00 ET only, the top
 `LEADERBOARD_AUTO_RECORD_TOP_N` `LEADERS_RULES` names of the live Gainers
 board (ADR 041: the tape at a setup's trigger and through its trade is what the
-signal trials read). A setup takes a leader's line once that line has run
+signal trials read). At 10:00 only the leaders' lines stop. A setup takes a
+leader's line once that line has run
 `LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC`, never another setup's; a trade
-keeps its line past 10:00 until its scoring window ends. It records
+keeps its line past its window until its scoring window ends. It records
 through the Session Record path, using only **free** Level 2 lines
 (`IBKR_MAX_DEPTH_SYMBOLS` total), and yields its lowest-ranked line the
 moment the operator opens Level 2 on another symbol -- the operator never
@@ -879,7 +883,9 @@ adopts a symbol the operator recorded by hand; its stops are planned
 unrequested stop; the operator pressing Record also takes a line back, and a
 symbol the operator stopped is not retaken that day. `NOVA_AUTO_RECORD=0`
 turns it off. `/api/ibkr/status` adds `auto_record: {active, window,
-symbols[], why: {SYMBOL: "trade" | "near" | "armed" | "leader" | "left"},
+windows: {open: "setups_and_leaders" | "setups" | "leaders" | "none", setups: {open,
+start, end, by_setup: [{setup, start, end, open}], error}, leaders: {open, start,
+end}}, symbols[], why: {SYMBOL: "trade" | "near" | "armed" | "leader" | "left"},
 setups: [{symbol, why}], setups_error: string | null, leaders[], yielded[],
 last_error}` (`setups_error`: the setup scanner could not be read -- stated,
 never read as "no setups"); the operator taking a line back gives up the
@@ -1199,7 +1205,9 @@ too, and a filtered row greyed with its phase ("Filtered · near").
 `{schema_version: 1, symbol, date, generated_at, summary: {text, legs, armed, near, triggered,
 trades, refusals: [{reason, count}]}, events: Event[], sources: {journal, hod_momo, borrow,
 catalysts, bot: {ok, error}}}` -- one symbol's day, oldest first: the eyes' journal lines of that
-symbol (live source; a run of the same state and reason on one lane is one event with `count` and
+symbol (live source, the template in play's lanes only -- `playing: true`; ADR 042: every template
+was folded, so each event counted once per template; a run of the same state and reason on one
+lane is one event with `count` and
 `last_ts`; tape verdict flips fold the same way), the first HOD Momo alert of each strategy and the
 day's count, the borrow changes, the day's catalyst and negative news items, the 09:30 open and the
 high of day, and the bot's own `bot_trade` / `setup_proposal` lines for the symbol. An **Event** is
@@ -1232,9 +1240,12 @@ by the desk only through the decisions route and, since 2026-09-29, the past-set
 History). The plan opens whole while the quote card is at least `STOCK_READ_PLAN_OPEN_MIN_PX` tall
 and is otherwise one line (the setup, entry / stop / target, the size, reward : risk, Stage), so
 Level 2 keeps its room; the operator's own open or fold is kept. The size is whole shares of the
-operator's risk per trade over the risk a share:
-`localStorage` `nova.stockRead.riskUsd` = `{schema_version: 1, value: number}` (dollars, default
-`STOCK_READ_RISK_DEFAULT_USD`, a desk setting). "Stage in ticket" fills this tab's ticket with a BUY
+operator's risk per trade over the risk a share. The risk per trade is the desk venue's bot sleeve
+`caps.risk_usd` (ADR 042: one number sizes every Nova buy and the operator's Stage, per venue),
+read from `GET /api/bot/session` and edited with `PATCH /api/bot/session {caps: {venue, risk_usd}}`;
+the old `localStorage` `nova.stockRead.riskUsd` is moved there once and deleted only after the
+sleeve confirms it (a refusal keeps it and says so on the card). In a Nova mode the plan also
+shows the size Nova would send (the stock-mode view's `size`). "Stage in ticket" fills this tab's ticket with a BUY
 limit at the entry for that size through the ticket prefill channel. It never places, and the
 plan's stop and target stay the operator's to set: the ticket takes no bracket from it. With no
 setup forming, the operator's own plan starts from a typed entry or the ask. Its stop is typed, or
@@ -2497,9 +2508,25 @@ below; its `setups[]` add `recorded: boolean`); a row's `state` may be `filtered
 filter kept the name out, and the reason says which rule); a proposal adds
 `template_id`, `template_name` and `source`. The read-out's `rules` adds
 `template: {id, rev, name}` and counts only that template revision's rows.
-`bot/entry_rules` reads the entry window and the daily cap from the template
-in play (`bot_window_start` / `bot_window_end` / `bot_entries_per_day`); the
-`window` gate detail adds `template`. `GET /api/setups/scoreboard` and
+`bot/entry_rules` reads each setup's bot window from its template in play
+(`bot_window_start` / `bot_window_end`); the daily cap is the venue sleeve's
+`entries_per_day` (ADR 042), and `bot_entries_per_day` left the catalogue: a
+stored template that carries it loads without it (listed on the wire as
+`retired: [{key, value, text}]`), and a write that sends it is refused
+`TEMPLATE_INVALID`. **The bot's rules never restart a read-out** (ADR 042):
+the parameters in the `bot` group are left out of a template's `rev`, its
+fingerprint and `params_hash` (every catalogue param carries `affects_readout:
+boolean`; a save touching only bot parameters answers `rules_changed: false`
+and keeps the revision). **The bot window sits inside the arming window**: a
+write whose bot window reaches outside the setup's arming window is refused
+`TEMPLATE_INVALID` naming the field and both windows; a stored window outside it
+is clipped when read, and a window wholly outside is empty (the bot never
+enters on that template). A template adds `bot_window: {start, end, clipped,
+empty, arming: {start, end}, stored: {start, end} | null, note} | null`; red to
+green's built-in is 09:30-10:00. The read-out adds `bot_window: {start, end,
+clipped, triggered, triggered_inside, go_triggered, go_triggered_inside} |
+null` (its pre-registered rules unchanged). A setup without a scanner takes no
+template writes: create, update and play are refused 409 `TEMPLATE_NO_SCANNER`. `GET /api/setups/scoreboard` and
 `GET /api/setups/rows` answer for the template in play (its id and current
 revision) unless `template=` names another template id (every revision) or
 `all` (every template: a variation re-scores the same legs, so counts
@@ -3215,7 +3242,7 @@ Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms
 **One venue per send** (#655, audit 2026-09-30; owner `execution/venue_door.py`). `execute` reads the desk's venue once, under its lock, and the order is validated against, committed on and sent to that venue -- a venue pill clicked mid-check refuses the order `VENUE_CHANGED` ("the desk moved ... it was not sent; place it again") and never sends it elsewhere. An order id is only meaningful on the venue that issued it (practice ids restart at 1 per venue; IBKR's are IBKR's), so in-flight commitments (`execution.inflight`), order watches (`execution.telemetry`: IBKR's by id, a practice venue's by `(venue, id)`) and releases are all per venue: a Paper sell still working never refuses a Live exit, and Paper's fill of order N never marks Live's order N filled. `expected_venue` on the command (cancel / replace by id) makes the door refuse `VENUE_CHANGED` when the desk is elsewhere; `DELETE /api/ibkr/order/{id}?venue=` and `PATCH` `venue` accept it, and the bot's and Who-trades cancels send their trade's venue. The desk's Cancel sends the venue its row came from: the account snapshot (`ibkr/ibkrAccountPoller.ts`) carries `venue`, a venue change clears the old venue's rows and reads the new one at once, and a read that finishes after the switch -- or another window's snapshot of another venue -- is dropped, so the desk never shows the old venue's orders or positions, not even as "last known" (#657). The Who-trades view resets on a venue change too.
 Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected -- a spend command whose `source` is not one of the listed values (e.g. `auto_live`) is refused `SOURCE_INVALID`; so are `approve` and `auto_paper`, the retired Phase D executor's sources (ADR 025), while ledger rows that already carry them still read. Short opening requires `short_entry: true` plus `IBKR_SHORT_ENABLED` and fresh IBKR shortability (ADR 009).
 
-**Kill switch** (D-037, ADR 025; owner `backend/kill_switch/`): a persisted latch (`kill_switch_state.json` under the operator cache, `schema_version: 1`; unreadable or unknown version reads tripped) that `execution.service.execute` checks before every `place` / `bracket` from a non-protective source, manual and bot included -- refused `KILL_SWITCH`; `kill`, `flatten`, `cancel_working` and every cancel still reach the broker. `GET /api/kill-switch` -> `{tripped, reason, ts}`; `POST /api/kill-switch` trips it (latch first, then every working order on the account is cancelled through the `kill` source) and answers the status plus `cancelled_order_ids` / `failed_cancel_order_ids`; `POST /api/kill-switch/reset` clears it and is the only thing that does. A trip writes a `kill_switch` receipt to the event log. The control is a card on the Bots page. The header's Emergency KILL (bot to L0, desk lock, cancel, flatten) is a separate composite. The Nova OS verdict, the `signal | confirm | auto_paper` ladder, the staged approval queue and `/api/strategy/executor/*` were removed (ADR 025).
+**Kill switch** (D-037, ADR 025; owner `backend/kill_switch/`): a persisted latch (`kill_switch_state.json` under the operator cache, `schema_version: 1`; unreadable or unknown version reads tripped) that `execution.service.execute` checks before every `place` / `bracket` from a non-protective source, manual and bot included -- refused `KILL_SWITCH`; `kill`, `flatten`, `cancel_working` and every cancel still reach the broker. `GET /api/kill-switch` -> `{tripped, reason, ts}`; `POST /api/kill-switch` trips it (latch first, then the working orders of every venue that has any are cancelled through the `kill` source -- Live while IBKR is connected, else a stated error "Gateway disconnected: Live orders were not swept"; Paper always, even with the Gateway down (#656); Sim while its scratch account is open -- each cancel through the execution door with `ExecutionCommand.target_venue`, which only a `kill` cancel may carry (anything else is refused `TARGET_VENUE_REFUSED`), and a failed read is a stated failure, never "nothing to cancel") and answers the status plus `sweep: [{venue, cancelled, failed, error, note}]`, `persisted`, `receipt_error` and the legacy summed `cancelled_order_ids` / `failed_cancel_order_ids` (the route is async, on the app's loop: #656's lock from a second loop is gone); `POST /api/kill-switch/reset` clears it and is the only thing that does. A trip writes a `kill_switch` receipt to the event log. The control is a card on the Bots page. The header's Emergency KILL (bot to L0, desk lock, cancel, flatten) is a separate composite. The Nova OS verdict, the `signal | confirm | auto_paper` ladder, the staged approval queue and `/api/strategy/executor/*` were removed (ADR 025).
 
 ---
 
