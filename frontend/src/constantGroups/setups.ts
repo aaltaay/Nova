@@ -37,7 +37,9 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
 };
 
 /** What a setup's trigger is, where "the trigger" would say less: the alert card and the watch toasts. */
-export const SETUP_TRIGGER_LEVEL_WORDS: Record<string, string> = { red_to_green: 'open', flat_top_breakout: 'high' };
+export const SETUP_TRIGGER_LEVEL_WORDS: Record<string, string> = {
+  red_to_green: 'open', flat_top_breakout: 'high', gap_and_go: 'pre-market high',
+};
 
 export const SETUP_KIND_LABELS: Record<string, string> = {
   first_pullback: 'First pullback',
@@ -47,6 +49,7 @@ export const SETUP_KIND_LABELS: Record<string, string> = {
   flat_top_breakout: 'Flat-top breakout',
   second_flat_top_breakout: 'Second flat-top',
   red_to_green: 'Red to green',
+  gap_and_go: 'Gap and Go',
 };
 
 /* ---------- Every setup's words (ADR 031) ----------
@@ -61,6 +64,7 @@ export const SETUP_TYPE_STATE_LABELS: Record<string, Partial<Record<string, stri
   bull_flag: { leg: 'Pole', pullback: 'Flag · held back', armed: 'Flag', triggered: 'Broke the flag' },
   flat_top_breakout: { leg: 'Pushing HOD', pullback: 'Base · held back', armed: 'Base', triggered: 'Held' },
   red_to_green: { leg: 'Red', pullback: 'Red · held back', armed: 'Red', near: 'Near the open', triggered: 'Reclaimed' },
+  gap_and_go: { pullback: 'Open · held back', armed: 'Under the PMH', near: 'Near the PMH', triggered: 'Broke the PMH' },
 };
 
 /** What each state means for each setup: the first paragraph of its hover. */
@@ -96,6 +100,14 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
     near: 'Price is a few cents under the open. The tape is read now: GO at the level is what makes a proposal.',
     triggered: 'Price traded back over the open: red to green. The scoreboard follows it from here. That was the day\'s one try.',
     failed: 'The reclaim window closed, or the try was spent.',
+  },
+  gap_and_go: {
+    watching: 'Before the open the scanner draws the pre-market high and the levels it would arm with. After the open it says why there is no try: a gap through the high, no break by the cutoff, or the day\'s try spent.',
+    pullback: 'The stock opened under its pre-market high, but a template rule holds it back (MACD under zero). It arms when the rule clears.',
+    armed: 'The stock opened under its pre-market high. The trigger is that high; the stop sits 20c or 4% under the entry, whichever is smaller. One try a day, until 10:00.',
+    near: 'Price is a few cents under the pre-market high. The tape is read now: GO at the level is what makes a proposal.',
+    triggered: 'Price traded over the pre-market high: Gap and Go. The scoreboard follows it from here. That was the day\'s one try.',
+    failed: 'No break by the cutoff, a gap through the high at the open, or the try was spent.',
   },
 };
 
@@ -155,6 +167,7 @@ export const SETUP_FUNNEL_WORDS: Record<string, { forming: string; armed: string
   bull_flag: { forming: 'poles', armed: 'flags', near: 'near', triggered: 'broke out' },
   flat_top_breakout: { forming: 'pushing HOD', armed: 'bases', near: 'near', triggered: 'held' },
   red_to_green: { forming: 'red', armed: 'armed', near: 'near', triggered: 'reclaimed' },
+  gap_and_go: { forming: 'held back', armed: 'under the PMH', near: 'near', triggered: 'broke out' },
 };
 export const SETUP_FUNNEL_TIPS = {
   watching: 'Symbols this scanner follows right now: the HOD Momo names.',

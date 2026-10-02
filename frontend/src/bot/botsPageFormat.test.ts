@@ -167,7 +167,8 @@ describe('levels (ADR 042 A)', () => {
     const s = session();
     expect(ownLevel(s, 'first_pullback')).toBe(2);
     expect(effectiveLevel(s, 'first_pullback')).toBe(1);
-    expect(effectiveLevel(s, 'gap_and_go')).toBeNull();
+    expect(effectiveLevel(s, 'micro_pullback')).toBeNull();
+    expect(effectiveLevel(s, 'gap_and_go')).toBe(0);
     // Without the backend's `effective`, min(master, own).
     const raw = session({ level: 2, setups: [{ id: 'bull_flag', scanner: true, level: 2 }] });
     expect(effectiveLevel(raw, 'bull_flag')).toBe(2);

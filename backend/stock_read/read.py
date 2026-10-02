@@ -30,7 +30,7 @@ GROUPS = (
     ("halts", "Halts", "What could stop me out or freeze me?"),
 )
 SHORT_NAMES = {"first_pullback": "Pullback", "bull_flag": "Flag", "flat_top_breakout": "Flat top",
-               "red_to_green": "Red to green"}
+               "red_to_green": "Red to green", "gap_and_go": "Gap and Go"}
 
 
 def _lead_series(setups: list[dict[str, Any]]) -> dict[str, Any] | None:

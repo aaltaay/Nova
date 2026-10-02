@@ -177,11 +177,20 @@ function redToGreenLines(v: Values, w?: TemplateBotWindow | null): [string, stri
   ];
 }
 
-function universeLine(v: Values): string {
-  const parts = [range(num(v.min_price), num(v.max_price), px, 'price') ?? 'any price', `gap ≥ ${trim(num(v.min_gap_pct) ?? 0)}%`,
-    `pre-market RVOL ≥ ${trim(num(v.min_pm_rvol) ?? 0)}x`];
-  if (v.require_news) parts.push('news');
-  return parts.join(' · ');
+function gapAndGoLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
+  const setup = `The pre-market high (candles before ${v.session_start}) · the open under it, then a price over it by `
+    + `${v.entry_cutoff} · a gap through it skips the day · one try a day` + (v.macd_positive ? ' · MACD above zero' : '');
+  const stop = `stop ${money(num(v.stop_cents) ?? 0)} or ${trim(num(v.stop_pct) ?? 0)}% under the entry, whichever is smaller`;
+  const start = w?.start ?? v.bot_window_start;
+  const end = w?.end ?? v.bot_window_end;
+  const trade = `${stop} · target 1 ${trim(num(v.target_r) ?? 0)}R · bot ${start}–${end}`
+    + `${w?.clipped ? ' (clipped to the arming window)' : ''}`;
+  return [
+    ['Stock', stockLine(v)],
+    ['Setup', setup],
+    ['Entry', entryLine('Over the pre-market high', v, false)],
+    ['Trade', trade],
+  ];
 }
 
 /** The setup card's rule lines, from the template in play (and its bot window, when the API sends it). */
@@ -196,12 +205,7 @@ export function ruleLines(setup: string, v: Values, botWindow?: TemplateBotWindo
     case 'red_to_green':
       return redToGreenLines(v, botWindow);
     case 'gap_and_go':
-      return [
-        ['Stock', `Top ${num(v.top)} by pre-market RVOL · ${universeLine(v)}`],
-        ['Entry', `Buy stop at the pre-market high until ${v.entry_end}`],
-        ['Trade', `Stop ${money(num(v.stop_cents) ?? 0)} or ${trim(num(v.stop_pct) ?? 0)}% · half at ${trim(num(v.t1_r) ?? 0)}R,`
-          + ` the rest at ${trim(num(v.t2_r) ?? 0)}R · out ${v.time_stop}`],
-      ];
+      return gapAndGoLines(v, botWindow);
     default:
       return [];
   }
@@ -220,6 +224,9 @@ export function ruleSummary(setup: string, v: Values): string {
         + (v.ft_entry === 'break' ? 'buy the break' : 'buy a green hold over it');
     case 'red_to_green':
       return `${num(v.r2g_min_red_bars) ?? 1}+ red under the ${v.session_start} open · reclaim by ${v.r2g_cutoff}`;
+    case 'gap_and_go':
+      return `Open under the pre-market high · break it by ${v.entry_cutoff} · stop ${money(num(v.stop_cents) ?? 0)} / `
+        + `${trim(num(v.stop_pct) ?? 0)}%`;
     default:
       return '';
   }

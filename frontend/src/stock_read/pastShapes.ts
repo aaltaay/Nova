@@ -89,6 +89,11 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
     } else if (type === 'red_to_green') {
       box(leg.t, end, low ?? leg.low, leg.high, tone.fill, tone.stroke, `RED${leg.bars ? ` ${leg.bars}` : ''} · ${label}`,
         tone.ink, outcome, true);
+    } else if (type === 'gap_and_go') {
+      // From the open (when it armed) to how it ended, between its stop and the pre-market high.
+      const openT = ep.setup?.detail?.open_t;
+      box(typeof openT === 'number' ? openT : ep.started_at, end, low ?? leg.low, high, tone.fill, tone.stroke,
+        `PMH · ${label}`, tone.ink, outcome, true);
     }
   }
   return boxes;

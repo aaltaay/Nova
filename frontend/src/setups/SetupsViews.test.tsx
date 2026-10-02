@@ -292,9 +292,9 @@ describe('SetupsPanel', () => {
     expect(screen.getByTestId('setups-filter-bull_flag').textContent).toBe('Bull flag 1');
     expect(screen.getByText(/proposing: first pullback, bull flag/)).toBeTruthy();
     // No scanner yet: the chip is locked and says why.
-    const gng = screen.getByTestId('setups-filter-gap_and_go') as HTMLButtonElement;
-    expect(gng.disabled).toBe(true);
-    expect(gng.getAttribute('data-why')).toMatch(/no scanner yet/);
+    const micro = screen.getByTestId('setups-filter-micro_pullback') as HTMLButtonElement;
+    expect(micro.disabled).toBe(true);
+    expect(micro.getAttribute('data-why')).toMatch(/one-second bars/);
     fireEvent.click(screen.getByTestId('setups-filter-bull_flag'));
     expect(screen.queryByText('NVXA')).toBeNull();
     expect(screen.getByText('KSTR')).toBeTruthy();

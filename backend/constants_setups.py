@@ -13,6 +13,7 @@ from constants_bot import (
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_RED_TO_GREEN,
 )
 
@@ -113,6 +114,14 @@ SETUPS_R2G_OPEN_ET = "09:30"            # the level is the open of the first can
 SETUPS_R2G_CUTOFF_ET = "10:30"          # reclaim by
 SETUPS_R2G_MIN_RED_BARS = 1             # closes under the open, counted from the opening candle
 SETUPS_R2G_TARGET_HOD = True            # target 1 is at least the high of day
+
+# -- Gap and Go (A2, research/orb/backtest_gng.py GParams, rules of 2026-09-22): the
+# pre-market high, broken after the open. ADR 031 amendment 2026-10-02.
+SETUPS_GNG_OPEN_ET = "09:30"            # candles before this make the pre-market high; the first price at it is the open
+SETUPS_GNG_CUTOFF_ET = "10:00"          # buy the break until (GParams.entry_end)
+SETUPS_GNG_STOP_CENTS = 0.20            # stop min(this, the percent below) under the entry (GParams.stop_cents)
+SETUPS_GNG_STOP_PCT = 0.04              # GParams.stop_pct
+SETUPS_GNG_MACD_POSITIVE = False        # the research has no MACD rule
 
 # -- "Near": price this close to the trigger is the moment to read the tape. CHOSEN.
 SETUPS_NEAR_DOLLARS = 0.03
@@ -222,12 +231,14 @@ SETUP_KIND_SECOND_BULL_FLAG = "second_bull_flag"
 SETUP_KIND_FLAT_TOP = "flat_top_breakout"
 SETUP_KIND_SECOND_FLAT_TOP = "second_flat_top_breakout"
 SETUP_KIND_RED_TO_GREEN = "red_to_green"
+SETUP_KIND_GAP_AND_GO = "gap_and_go"
 # The read-out counts each setup's first-of-the-day kind (ADR 027, ADR 031).
 SETUPS_READOUT_KINDS = {
     BOT_SETUP_FIRST_PULLBACK: SETUP_KIND_FIRST_PULLBACK,
     BOT_SETUP_BULL_FLAG: SETUP_KIND_BULL_FLAG,
     BOT_SETUP_FLAT_TOP: SETUP_KIND_FLAT_TOP,
     BOT_SETUP_RED_TO_GREEN: SETUP_KIND_RED_TO_GREEN,
+    BOT_SETUP_GAP_AND_GO: SETUP_KIND_GAP_AND_GO,
 }
 
 # -- The pre-registered read-out (Bot-Trading-Plan §2g, ADR 027): read once

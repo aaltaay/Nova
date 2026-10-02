@@ -60,7 +60,7 @@ def test_every_setup_with_a_scanner_has_the_two_bot_rules_at_their_defaults():
         specs = {s.key: s for s in catalogue.specs(sid)}
         assert specs["bot_grades"].group == specs["bot_setups_a_day"].group == catalogue.BOT_GROUP
         assert [v for v, _label in specs["bot_grades"].choices] == ["AB", "A"]
-    assert "bot_grades" not in catalogue.defaults("gap_and_go")       # no scanner, no bot rules
+    assert "bot_grades" not in catalogue.defaults("micro_pullback")   # no scanner, no bot rules
 
 
 @pytest.mark.parametrize("values, field", [

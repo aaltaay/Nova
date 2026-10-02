@@ -107,6 +107,7 @@ export const LANE_LABELS: Record<string, string> = {
   bull_flag: 'FLAG',
   flat_top_breakout: 'FLAT',
   red_to_green: 'R→G',
+  gap_and_go: 'G&G',
   hod_momo: 'HOD',
   market: 'MKT',
   bot: 'BOT',

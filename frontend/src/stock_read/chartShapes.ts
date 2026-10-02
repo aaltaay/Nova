@@ -258,6 +258,7 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
 export function laneChip(lane: SetupLane): { text: string; state: 'forming' | 'live' | 'done' | 'idle' | 'failed' } {
   const short: Record<string, string> = {
     first_pullback: '1st pullback', bull_flag: 'Bull flag', flat_top_breakout: 'Flat top', red_to_green: 'Red→green',
+    gap_and_go: 'Gap & Go',
   };
   const name = short[lane.setup_type] ?? setupName(lane.setup_type);
   const prog = formingProgress(lane);

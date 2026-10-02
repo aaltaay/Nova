@@ -68,16 +68,16 @@ export function caps(venue = 'paper', partial: Partial<BotCaps> = {}): BotCaps {
 export function session(partial: Partial<BotSession> = {}): BotSession {
   return {
     level: 1, active: false, armed: false, has_desk_arm: false, deactivated: null,
-    // ADR 042: four setups with a scanner, each with its own level; the master caps them.
+    // ADR 042: five setups with a scanner, each with its own level; the master caps them.
     setups: [
       { id: 'first_pullback', scanner: true, level: 2, effective: 1 },
       { id: 'bull_flag', scanner: true, level: 1, effective: 1 },
       { id: 'flat_top_breakout', scanner: true, level: 0, effective: 0 },
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
-      { id: 'gap_and_go', scanner: false, level: null, effective: null },
+      { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
-    setup_levels: { first_pullback: 2, bull_flag: 1, flat_top_breakout: 0, red_to_green: 0 },
+    setup_levels: { first_pullback: 2, bull_flag: 1, flat_top_breakout: 0, red_to_green: 0, gap_and_go: 0 },
     ready: false, ready_reason: null, live_fire_ready: false,
     breakers: breakers(),
     gates: gates(),
@@ -105,7 +105,7 @@ export function strategySession(partial: Partial<BotSession> = {}): BotSession {
       { id: 'bull_flag', scanner: true, level: 1, effective: 1 },
       { id: 'flat_top_breakout', scanner: true, level: 0, effective: 0 },
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
-      { id: 'gap_and_go', scanner: false, level: null, effective: null },
+      { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
     gates: openGates(),

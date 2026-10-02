@@ -231,6 +231,8 @@ function armedShape(r: SetupStoreRow): string {
       return [bars ? `base of ${bars} under the high of day` : '', leg ? `impulse ${leg}` : ''].filter(Boolean).join(' · ');
     case 'red_to_green':
       return bars ? `${bars} close${s(bars)} under the open` : '';
+    case 'gap_and_go':
+      return 'opened under the pre-market high';
     default:
       return [bars ? `${bars} red candle${s(bars)} held the 9 EMA` : '', leg ? `leg ${leg}` : ''].filter(Boolean).join(' · ');
   }

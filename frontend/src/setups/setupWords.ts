@@ -73,6 +73,7 @@ const TRIGGER_WORDS: Record<string, string> = {
   bull_flag: 'the last flag candle\'s high',
   flat_top_breakout: 'the high of day',
   red_to_green: 'the open',
+  gap_and_go: 'the pre-market high',
 };
 
 const STOP_WORDS: Record<string, string> = {
@@ -80,6 +81,7 @@ const STOP_WORDS: Record<string, string> = {
   bull_flag: 'the flag low',
   flat_top_breakout: 'the base low',
   red_to_green: 'the lowest low since the open',
+  gap_and_go: '20c or 4% under the entry, whichever is smaller',
 };
 
 const TARGET_WORDS: Record<string, string> = {
@@ -87,6 +89,7 @@ const TARGET_WORDS: Record<string, string> = {
   bull_flag: 'the pole high or 2R, whichever is higher',
   flat_top_breakout: 'R x the risk over the entry',
   red_to_green: 'R x the risk (or the high of day)',
+  gap_and_go: 'R x the risk over the entry',
 };
 
 function holdMode(row: SetupRow): boolean {
@@ -108,6 +111,10 @@ function contextLine(row: SetupRow): string {
   }
   if (type === 'flat_top_breakout') {
     return `High of day ${fmtPx(leg.high)} on a ${signedPct(leg.pct)} impulse (from ${fmtPx(leg.low)}).`;
+  }
+  if (type === 'gap_and_go') {
+    const open = row.setup?.detail?.open;
+    return `Pre-market high ${fmtPx(leg.high)}${typeof open === 'number' ? ` · opened ${fmtPx(open)}` : ''}.`;
   }
   if (type === 'red_to_green') {
     const red = leg.bars != null ? ` · ${leg.bars} close${leg.bars === 1 ? '' : 's'} under it` : '';

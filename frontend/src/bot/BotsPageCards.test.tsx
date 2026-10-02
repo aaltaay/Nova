@@ -208,8 +208,8 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
     mockFetch();
     await renderPage();
     const line = screen.getByTestId('bots-noscan-line');
-    expect(line.textContent).toMatch(/^Not watching yet: Gap and Go · Micro pullback\./);
-    for (const id of ['gap_and_go', 'micro_pullback']) {
+    expect(line.textContent).toMatch(/^Not watching yet: Micro pullback\./);
+    for (const id of ['micro_pullback']) {
       expect(screen.queryByTestId(`bots-setup-${id}`)).toBeNull();
       expect(screen.queryByTestId(`bots-setup-level-${id}-0`)).toBeNull();
     }
@@ -321,7 +321,7 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
     }
     expect((screen.getByTestId('bots-setup-template-bull_flag') as HTMLSelectElement).textContent)
       .toBe('needs a backend reload');
-    expect(screen.getByTestId('bots-noscan-line').textContent).toMatch(/Gap and Go/);
+    expect(screen.getByTestId('bots-noscan-line').textContent).toMatch(/Micro pullback/);
   });
 
   it('+ Add a setup explains what adding one takes and copies the catalogue path', async () => {

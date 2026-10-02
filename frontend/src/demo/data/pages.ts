@@ -103,10 +103,10 @@ export function botSession(nowS: number, venue: string) {
       { id: 'bull_flag', scanner: true, level: 1, effective: 1 },
       { id: 'flat_top_breakout', scanner: true, level: 1, effective: 1 },
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
-      { id: 'gap_and_go', scanner: false, level: null, effective: null },
+      { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
-    setup_levels: { first_pullback: 2, bull_flag: 1, flat_top_breakout: 1, red_to_green: 0 },
+    setup_levels: { first_pullback: 2, bull_flag: 1, flat_top_breakout: 1, red_to_green: 0, gap_and_go: 0 },
     ready: true, ready_reason: null, live_fire_ready: true,
     gates: [
       gate('venue', 'activate', { venue, live_edge: false, text: null }),

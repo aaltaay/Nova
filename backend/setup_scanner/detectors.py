@@ -8,11 +8,13 @@ from constants_bot import (
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_RED_TO_GREEN,
 )
 from setup_scanner.bull_flag import BullFlagDetector
 from setup_scanner.detector import ET, TriggerDetector, hhmm
 from setup_scanner.flat_top import FlatTopDetector
+from setup_scanner.gap_and_go import GapAndGoDetector
 from setup_scanner.pullback import PullbackDetector
 from setup_scanner.red_to_green import RedToGreenDetector
 
@@ -21,6 +23,7 @@ DETECTORS: dict[str, type[TriggerDetector]] = {
     BOT_SETUP_BULL_FLAG: BullFlagDetector,
     BOT_SETUP_FLAT_TOP: FlatTopDetector,
     BOT_SETUP_RED_TO_GREEN: RedToGreenDetector,
+    BOT_SETUP_GAP_AND_GO: GapAndGoDetector,
 }
 
 
@@ -29,7 +32,8 @@ def make_detector(setup: str, symbol: str, params: Any) -> TriggerDetector:
 
 
 def window(setup: str, params: Any) -> tuple[str, str]:
-    """``(start, end)`` ET: when a setup may arm (red to green: the open, then reclaim by)."""
+    """``(start, end)`` ET: when a setup may arm (red to green: the open, then reclaim by; Gap and Go:
+    the open, then the break until its cutoff)."""
     end = params.r2g_cutoff if setup == BOT_SETUP_RED_TO_GREEN else params.entry_cutoff
     return str(params.session_start), str(end)
 

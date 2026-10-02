@@ -57,7 +57,7 @@ export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn it on on the Bots pa
 /* ---------- The playbook (ADR 027): the operator's setups ---------- */
 /** Mirrors backend/constants_bot.py BOT_SETUPS. */
 export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
-/** In the backend's order (constants_bot.BOT_SETUPS): the four with a scanner first. */
+/** In the backend's order (constants_bot.BOT_SETUPS): the five with a scanner first. */
 export const BOT_SETUP_IDS = [
   'first_pullback',
   'bull_flag',
@@ -114,8 +114,8 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
   },
   gap_and_go: {
     verdict: 'failed',
-    text: 'Bars alone: failed -- dies on a few cents of slippage (A2).',
-    detail: 'dies on a few cents of slippage (A2)',
+    text: 'Bars alone (A2): break-even, and dies on a few cents of slippage. Live with the tape gate: the read-out measures it.',
+    detail: 'break-even, dies on a few cents of slippage (A2): the tape gate is what is being tested',
   },
   flat_top_breakout: {
     verdict: 'failed', text: 'Bars alone: failed, -0.83R on 63 trades (P2).', detail: '−0.83R on 63 trades (P2)',
@@ -130,11 +130,6 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
 
 /** A setup without a scanner says what is missing and what unblocks it (ADR 031 decision C). */
 export const BOT_SETUP_NEXT: Record<string, { head: string; why: string; unblock: string }> = {
-  gap_and_go: {
-    head: 'Not watching: no scanner yet · it is next',
-    why: 'Gap and Go buys the break of the pre-market high. Nothing on the desk tracks each gapper\'s pre-market high as a level yet, so no scanner can arm it.',
-    unblock: 'A pre-market-high detector on the same lanes and tape gate as the others (ADR 031: next after these three).',
-  },
   micro_pullback: {
     head: 'Not watching: needs one-second bars',
     why: 'A micro pullback is a 1-2 candle dip inside a fast move. On one-minute bars it is invisible, and the scanners read one-minute bars.',
@@ -148,7 +143,9 @@ export const BOT_SETUP_NEXT: Record<string, { head: string; why: string; unblock
 export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot watch, propose or trade until it has one';
 
 /** The setups this build has a scanner for -- mirrors backend constants_bot.BOT_SCANNER_SETUPS (ADR 031). */
-export const BOT_SCANNER_SETUP_IDS: readonly string[] = ['first_pullback', 'bull_flag', 'flat_top_breakout', 'red_to_green'];
+export const BOT_SCANNER_SETUP_IDS: readonly string[] = [
+  'first_pullback', 'bull_flag', 'flat_top_breakout', 'red_to_green', 'gap_and_go',
+];
 /* A backend older than ADR 031 runs the first pullback only. The page says the backend needs a
    reload -- never "No scanner yet", which would say the feature is missing when it is not loaded. */
 export const BOT_STALE_BACKEND_BANNER =

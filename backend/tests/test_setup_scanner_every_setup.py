@@ -52,10 +52,10 @@ def test_every_setup_gets_a_lane_and_a_card_on_the_board(tmp_path):
     eng, _, clock = make(tmp_path, flag_day())
     run(eng, clock["t"])
     assert [lane.setup for lane in eng.playing_lanes()] == [
-        "first_pullback", "bull_flag", "flat_top_breakout", "red_to_green"]
+        "first_pullback", "bull_flag", "flat_top_breakout", "red_to_green", "gap_and_go"]
     board = eng.board(clock["t"])
     assert board["schema_version"] == 2 and [s["id"] for s in board["setups"]] == [
-        "first_pullback", "bull_flag", "flat_top_breakout", "red_to_green"]
+        "first_pullback", "bull_flag", "flat_top_breakout", "red_to_green", "gap_and_go"]
     cards = {s["id"]: s for s in board["setups"]}
     assert cards["bull_flag"]["level"] == 1 and cards["bull_flag"]["proposing"] is True
     assert cards["first_pullback"]["level"] == 0 and cards["first_pullback"]["proposing"] is False
@@ -150,7 +150,7 @@ def test_the_scoreboard_answers_for_the_setup_named(tmp_path, monkeypatch):
     bf = c.get("/api/setups/scoreboard", params={"setup": "bull_flag", "days": 0}).json()
     assert bf["setup_type"] == "bull_flag" and bf["row_count"] == 1
     assert c.get("/api/setups/scoreboard", params={"days": 0}).json()["setup_type"] == "first_pullback"
-    assert c.get("/api/setups/scoreboard", params={"setup": "gap_and_go"}).status_code == 404
+    assert c.get("/api/setups/scoreboard", params={"setup": "micro_pullback"}).status_code == 404
     day = c.get("/api/setups/rows", params={"date": eng.session, "setup": "all"}).json()
     # The same candles are a bull flag, a first pullback and a flat-top base: each setup keeps its own row.
     assert sorted(r["setup_type"] for r in day["rows"]) == ["bull_flag", "first_pullback", "flat_top_breakout"]
