@@ -43,5 +43,8 @@ HOT_LIST_BY_OPERATOR = "operator"
 HOT_LIST_BY_NOVA_BUY = "nova_buy"          # Buy set to Nova on an unlisted stock stars it
 HOT_LIST_BY_BRING_BACK = "bring_back"
 
-# HOD Momo's active set admits listed names first, under this reason (``hod_momo_active``).
+# HOD Momo's active set admits listed names first, into the reserved block they share with Former Momo
+# (``HOD_MOMO_FORMER_MOMO_MAX_SLOTS``; ``hod_momo_active.build_active_set``), under these reasons.
 HOT_LIST_ACTIVE_REASON = "hot_list"
+HOT_LIST_ACTIVE_OVER_RESERVED = "hot_list_over_reserved"   # listed past the reserved block: not followed
+HOT_LIST_ACTIVE_L1_BLOCKED = "hot_list_l1_blocked"         # IBKR could not open its L1 line (a cooldown)

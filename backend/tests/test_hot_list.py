@@ -271,6 +271,55 @@ def test_the_list_respects_the_active_sets_capacity():
     active.clear_session_state()
     snap = active.build_active_set(hot_symbols=["A", "B", "C", "D"], priority_symbols=["F1"], capacity=3)
     assert snap.active == ["A", "B", "C"] and set(snap.uncovered) >= {"D", "F1"}
+    assert snap.reasons["D"] == "hot_list_over_reserved"
+
+
+MOVERS = [{"symbol": f"M{i:02d}", "change_pct": 90 - i} for i in range(30)]
+
+
+def test_twenty_listed_and_twenty_former_momo_still_leave_live_movers_twenty():
+    active.clear_session_state()
+    hot = [f"H{i:02d}" for i in range(20)]
+    former = [f"F{i:02d}" for i in range(20)]
+    snap = active.build_active_set(gainer_rows=MOVERS, priority_symbols=former, hot_symbols=hot, capacity=40)
+    assert snap.active[:20] == hot and {snap.reasons[s] for s in hot} == {"hot_list"}
+    assert [s for s in snap.active if s.startswith("M")] == [f"M{i:02d}" for i in range(20)]
+    assert len(snap.active) == 40 and not any(s.startswith("F") for s in snap.active)
+    assert {snap.reasons[s] for s in former} == {"former_momo_over_cap"} and set(former) <= set(snap.uncovered)
+
+
+def test_a_21st_listed_name_gets_no_reserved_slot_and_says_why():
+    active.clear_session_state()
+    hot = [f"H{i:02d}" for i in range(21)]
+    snap = active.build_active_set(gainer_rows=MOVERS, hot_symbols=hot, capacity=40)
+    assert snap.active[:20] == hot[:20] and "H20" not in snap.active and "H20" in snap.uncovered
+    assert snap.reasons["H20"] == "hot_list_over_reserved"
+    assert len([s for s in snap.active if s.startswith("M")]) == 20            # the movers keep their 20
+    from hot_list import following
+
+    assert following.reason_not_followed("H20") == "HOD Momo's 20 reserved slots are full"
+
+
+def test_a_listed_name_that_is_also_former_momo_takes_one_reserved_slot():
+    active.clear_session_state()
+    hot = [f"H{i:02d}" for i in range(10)] + ["BOTH"]
+    former = ["BOTH"] + [f"F{i:02d}" for i in range(15)]
+    snap = active.build_active_set(gainer_rows=MOVERS, priority_symbols=former, hot_symbols=hot, capacity=40)
+    assert snap.active.count("BOTH") == 1 and snap.reasons["BOTH"] == "hot_list"
+    taken = [snap.reasons[s] for s in snap.active]
+    assert taken.count("hot_list") == 11 and taken.count("former_momo") == 9   # 20 reserved slots in all
+    assert taken.count("top_gainer") == 20
+    assert [s for s in former[1:] if s not in snap.active] == [f"F{i:02d}" for i in range(9, 15)]
+
+
+def test_a_listed_name_ibkr_cannot_stream_says_so_and_leaves_its_slot():
+    from hot_list import following
+
+    active.clear_session_state()
+    active.note_l1_subscribe_failed(["BAD"], cooldown_sec=600.0)
+    snap = active.build_active_set(hot_symbols=["BAD", "GOOD"], priority_symbols=["F1"], capacity=40)
+    assert snap.active == ["GOOD", "F1"] and snap.reasons["BAD"] == "hot_list_l1_blocked"
+    assert following.reason_not_followed("BAD") == following.L1_BLOCKED
 
 
 def test_the_bridge_reads_todays_list_when_it_rebuilds_the_set():

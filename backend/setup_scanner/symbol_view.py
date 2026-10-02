@@ -2,10 +2,12 @@
 the levels a forming setup would arm with, and the lane's own indicators.
 
 ``GET /api/setups/symbol/{symbol}`` answers this; ``stock_read`` reads it for the Trader's plan,
-tiles and drawings. Pure over the engine's state: reads, never writes, never arms.
+tiles and drawings. Reads the engine's state (and, for a name no lane reads, today's hot list to say why):
+never writes, never arms.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from constants_setups import SETUP_STATE_WATCHING, SETUPS_SCHEMA_VERSION_SYMBOL
@@ -19,6 +21,21 @@ NOT_FOLLOWED = ("{sym} is not on today's hot list and not among the HOD Momo nam
                 "lane reads it -- star it to follow it")
 REPLAY_DESK = ("a Sim replay desk: the live scanner's lanes are not the replay's -- the Sim eyes follow the "
                "loaded recording")
+
+logger = logging.getLogger(__name__)
+
+
+def not_followed_note(sym: str) -> str:
+    """Why no lane reads ``sym``: a listed name says what keeps it out (ADR 043: HOD Momo's reserved slots
+    are full, or IBKR cannot stream it); any other name is outside the names the scanners follow."""
+    try:
+        from hot_list.following import listed_note
+
+        listed = listed_note(sym)
+    except Exception:
+        logger.warning("setup scanner: today's hot list could not be read for %s's note", sym, exc_info=True)
+        listed = None
+    return listed or NOT_FOLLOWED.format(sym=sym)
 
 
 def rules_of(params: Any) -> dict[str, Any]:
@@ -53,7 +70,7 @@ def symbol_view(engine: Any, symbol: str, now: float | None = None) -> dict[str,
     sym = (symbol or "").strip().upper()
     replay = bool(engine._replay_fn())
     followed = sym in engine.universe and not replay
-    note = REPLAY_DESK if replay else (None if followed else NOT_FOLLOWED.format(sym=sym))
+    note = REPLAY_DESK if replay else (None if followed else not_followed_note(sym))
     setups: list[dict[str, Any]] = []
     five: list[dict[str, Any]] = []
     if followed:

@@ -83,10 +83,40 @@ def test_the_view_answers_the_contract(key):
     assert body["default"] == {"buy": "you", "sell": "you"} and body["yesterday"] == [] and body["error"] is None
     [aisp] = body["entries"]
     assert aisp["symbol"] == "AISP" and aisp["how"] == "star" and aisp["followed"] is True
+    assert aisp["why_not_followed"] is None
     assert aisp["board"] is None and aisp["rank"] is None and aisp["change_pct"] is None
     again = client.post("/api/hot-list/star", json={"symbol": "AISP"}, headers=key).json()
     assert [e["symbol"] for e in again["entries"]] == ["AISP"]                    # a second star is a no-op
-    assert client.get("/api/hot-list").json()["entries"][0]["followed"] is False   # the scanner does not read it
+    [unread] = client.get("/api/hot-list").json()["entries"]                    # the scanner does not read it
+    assert unread["followed"] is False and unread["why_not_followed"]
+
+
+def test_a_listed_name_past_the_reserved_slots_is_unfollowed_with_the_reason():
+    import hod_momo_active as active
+    import ibkr_bridge
+    from setup_scanner.engine import get_engine
+    from setup_scanner.symbol_view import not_followed_note
+
+    active.clear_session_state()
+    names = [f"S{i:02d}" for i in range(21)]                                  # a 21st, as a hand-edited file holds
+    doc = store.empty(store.trading_day())
+    doc["entries"] = [{"symbol": s, "how": "star", "at": time.time(), "board": None, "rank": None,
+                       "change_pct": None} for s in names]
+    store.save(doc)
+    admitted = ibkr_bridge.refresh_hod_active_set()
+    assert admitted[:20] == names[:20] and "S20" not in admitted
+    engine = get_engine()
+    saved = engine.universe
+    engine.universe = set(admitted)
+    try:
+        entries = {e["symbol"]: e for e in client.get("/api/hot-list").json()["entries"]}
+    finally:
+        engine.universe = saved
+    assert entries["S00"]["followed"] is True and entries["S00"]["why_not_followed"] is None
+    assert entries["S20"]["followed"] is False
+    assert entries["S20"]["why_not_followed"] == "HOD Momo's 20 reserved slots are full"
+    assert not_followed_note("S20") == ("S20 is on today's hot list, but no lane reads it: HOD Momo's 20 "
+                                        "reserved slots are full")
 
 
 def test_refusals_carry_their_reason(key):

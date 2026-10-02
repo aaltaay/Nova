@@ -3,13 +3,14 @@
 HOD eligibility is exactly the current-session displayed union: Gappers,
 Gainers, Afterhours, and the manually curated Former Momo list — plus
 today's hot list (ADR 043), nothing else. No volume seeds, no open-ticker
-priority, no Losers, no rotating "explore" tail. Admission order: the hot
-list first (the names Nova may trade get an L1 line, a snapshot and bars,
-so the setup scanner follows them), then Former Momo (capped at
-``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` so a bloated list cannot starve live
-movers), then a deterministic round-robin across ranked Gappers / Gainers /
-Afterhours queues so no single category can monopolize the active set.
-Rows are ordered by ``hod_momo_active_rank`` (pure).
+priority, no Losers, no rotating "explore" tail. Admission order: a reserved
+block of ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` -- the hot list first (the names
+Nova may trade get an L1 line, a snapshot and bars, so the setup scanner
+follows them), then Former Momo in what is left of it -- so the two lists
+together can never starve live movers, then a deterministic round-robin
+across ranked Gappers / Gainers / Afterhours queues so no single category
+can monopolize the active set. Rows are ordered by ``hod_momo_active_rank``
+(pure).
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ from constants import (
     HOD_MOMO_L1_SUBSCRIBE_FAIL_COOLDOWN_SEC,
     IBKR_TABLE_REPRICE_CHUNK_SIZE,
 )
-from constants_hot_list import HOT_LIST_ACTIVE_REASON
+from constants_hot_list import HOT_LIST_ACTIVE_L1_BLOCKED, HOT_LIST_ACTIVE_OVER_RESERVED, HOT_LIST_ACTIVE_REASON
 from hod_momo_active_rank import discovery_candidates, ordered_unique, ranked_symbols
 
 # Per-symbol live timestamps (unix seconds)
@@ -159,11 +160,15 @@ def build_active_set(
 ) -> ActiveSetSnapshot:
     """Deterministic bounded admission — the ADR 008 HOD union.
 
-    0. Today's hot list (``hot_symbols``, ADR 043) admitted first, in list
-       order, within ``capacity``: reason ``hot_list``.
-    1. Manual Former Momo (``priority_symbols``) admitted next, in list
-       order, up to ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS``. Excess former symbols
-       are uncovered with reason ``former_momo_over_cap``.
+    1. The reserved block, ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` slots: today's
+       hot list (``hot_symbols``, ADR 043) first, in list order (reason
+       ``hot_list``), then manual Former Momo (``priority_symbols``) in list
+       order in whatever is left (``former_momo``). A name on both lists
+       counts once, as the hot list's. A listed name past the block is
+       uncovered with reason ``hot_list_over_reserved`` (one IBKR cannot
+       stream, ``hot_list_l1_blocked``), an excess former symbol with
+       ``former_momo_over_cap``; live movers keep the rest of the pool, where
+       such a name still competes on its own move.
     2. Up to ``HOD_MOMO_ACTIVE_DISCOVERY_SLOTS`` still-unpriced rows admitted
        next, ranked by IB scan rank, so a fully-priced roster can never
        permanently starve a brand-new name of its first L1 tick (2026-08-31
@@ -177,11 +182,11 @@ def build_active_set(
 
     wall = float(now if now is not None else time.time())
     cap = max(1, int(capacity))
-    former_cap = max(0, min(int(HOD_MOMO_FORMER_MOMO_MAX_SLOTS), cap))
+    reserved = max(0, min(int(HOD_MOMO_FORMER_MOMO_MAX_SLOTS), cap))
     active: list[str] = []
     reasons: dict[str, str] = {}
     seen: set[str] = set()
-    former_taken = 0
+    reserved_taken = 0
 
     def _take(sym: str, reason: str) -> bool:
         s = (sym or "").strip().upper()
@@ -194,18 +199,24 @@ def build_active_set(
         reasons[s] = reason
         return True
 
-    for sym in ordered_unique(hot_symbols or []):
-        _take(sym, HOT_LIST_ACTIVE_REASON)
+    hot = ordered_unique(hot_symbols or [])
+    for s in hot:
+        if reserved_taken >= reserved:
+            reasons[s] = HOT_LIST_ACTIVE_OVER_RESERVED
+        elif is_l1_subscribe_blocked(s):
+            reasons[s] = HOT_LIST_ACTIVE_L1_BLOCKED
+        elif _take(s, HOT_LIST_ACTIVE_REASON):
+            reserved_taken += 1
 
-    for sym in ordered_unique(priority_symbols or []):
-        s = (sym or "").strip().upper()
-        if not s or s in seen:
+    listed = set(hot)
+    for s in ordered_unique(priority_symbols or []):
+        if s in seen or s in listed:     # a name on both lists counts once, as the hot list's
             continue
-        if former_taken >= former_cap:
+        if reserved_taken >= reserved:
             reasons[s] = "former_momo_over_cap"
             continue
         if _take(s, "former_momo"):
-            former_taken += 1
+            reserved_taken += 1
 
     candidates = discovery_candidates((gapper_rows, gainer_rows, afterhours_rows))
     candidate_set = set(candidates)
