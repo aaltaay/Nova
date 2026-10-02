@@ -92,15 +92,16 @@ def audit(day: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         return [], failed("the bot's audit stream could not be read (the backend log has the error)")
 
 
-def hot_list(day: str) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    """``{SYMBOL: entry}`` of the day's hot list in the list's order, and the source's ``{ok, error}``."""
+def hot_list(day: str, now: float | None = None) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """``{SYMBOL: entry}`` of the day's hot list in the list's order, and the source's ``{ok, error}``.
+    ``day`` is today when it is the trading day ``now`` belongs to (the list's day starts at 04:00 ET)."""
     try:
         import hot_list as listing
 
-        if day == listing.trading_day():
+        if day == listing.trading_day(now):
             from hot_list.store import current
 
-            doc, error = current()
+            doc, error = current(now)
             entries = None if error else list(doc.get("entries") or [])
         else:
             entries, error = listing.entries_on(day)
