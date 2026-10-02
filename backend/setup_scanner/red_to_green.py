@@ -113,6 +113,13 @@ class RedToGreenDetector(TriggerDetector):
     FIRST_KIND: ClassVar[str] = SETUP_KIND_RED_TO_GREEN
     SECOND_KIND: ClassVar[str | None] = None
 
+    def restore(self, nth: int) -> None:
+        """A detector made mid-day whose symbol already triggered today: the day's one try is spent."""
+        super().restore(nth)
+        if self.nth >= self.p.max_per_symbol_day and not self.spent:
+            self.spent = True
+            self._set(SETUP_STATE_WATCHING, "the day's one try is spent: it triggered earlier today")
+
     # -- bar close ---------------------------------------------------------
     def on_bars(self, bars: list[Bar]) -> list[tuple[str, dict]]:
         s, p = self.series, self.p

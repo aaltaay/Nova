@@ -16,6 +16,10 @@ when the setup armed and when it triggered (``tf5_armed`` / ``tf5_trigger``, JSO
 Version 5 (operator decision 2026-10-01) adds whether the stock was too thin to trade (``liquidity``, JSON,
 ``setup_scanner.liquidity``) -- at the trigger once it triggered, else as last read; a version-4 file is
 migrated in place and its rows read as unknown (never thin).
+
+One row per trigger (2026-10-02): a setup armed again on a key whose row holds a trigger is its own row,
+``KEY#2`` (``setup_scanner/lane_ids.py``); no column changed. ``triggered_ids`` tells a lane made after a
+restart which of today's ids already hold a trade, so it never writes over one.
 """
 from __future__ import annotations
 
@@ -207,6 +211,14 @@ class SetupStore:
                     except (TypeError, ValueError):
                         logger.warning("setups.db: bad JSON in %s for %s", k, r.get("id"))
         return out
+
+    def triggered_ids(self, session_date: str, symbol: str, *, template_id: str, setup_type: str) -> list[str]:
+        """The ids of ``session_date``'s rows on ``symbol`` (one template, one setup) that hold a trigger."""
+        sql = ("SELECT id FROM setups WHERE session_date = ? AND symbol = ? AND template_id = ? "
+               "AND (setup_type = ? OR (setup_type IS NULL AND ? = ?)) AND triggered_at IS NOT NULL")
+        args = (session_date, symbol.upper(), template_id, setup_type, setup_type, BOT_SETUP_FIRST_PULLBACK)
+        with self._lock:
+            return [r[0] for r in self._conn.execute(sql, args).fetchall()]
 
     def close(self) -> None:
         with self._lock:

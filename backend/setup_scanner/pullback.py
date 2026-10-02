@@ -142,8 +142,8 @@ class PullbackDetector(TriggerDetector):
             if self.state == SETUP_STATE_WATCHING:
                 self.reason = f"warming up ({n}/{self.p.leg_lookback + 2} bars)"
             return []
-        if self.state == SETUP_STATE_TRIGGERED and self.nth >= self.p.max_per_symbol_day:
-            return []                     # the day's setups on this symbol are used
+        if self.nth >= self.p.max_per_symbol_day:
+            return []                     # the day's setups on this symbol are used (or were, before a restart)
         h, lows, c = self.series.h, self.series.lo, self.series.c
         e9, hist = self.series.e, self.series.hist
         last = n - 1

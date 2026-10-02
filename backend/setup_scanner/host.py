@@ -106,6 +106,13 @@ class LaneHost:
         except Exception:
             logger.exception("setup scanner: could not save %s", row.get("id"))
 
+    def stored_triggers(self, sym: str, template_id: str, setup_type: str) -> list[str]:
+        """Today's ids on ``sym`` (one template, one setup) whose stored row holds a trigger: a lane made
+        after a restart never writes a setup over a stored trade (one row per trigger, 2026-10-02)."""
+        if self.store is None or not self.session:
+            return []
+        return self.store.triggered_ids(self.session, sym, template_id=template_id, setup_type=setup_type)
+
     def journal(self, event: dict) -> None:
         try:
             self._journal_fn({"ts": self._clock(), "date": self.session, "source": self.source,
