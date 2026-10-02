@@ -333,6 +333,14 @@ export const IBKR_PAPER_PORT = 4002;
 export const IBKR_LIVE_PORT = 4001;
 /** Max simultaneous Level 2 depth streams (IBKR plan cap). */
 export const IBKR_MAX_DEPTH_SYMBOLS = 3;
+/** Level 2 reconnect backoff ceiling when the socket never opened (backend down). */
+export const IBKR_DEPTH_RETRY_MAX_MS = 30_000;
+/**
+ * Ceiling when the backend answered with a refusal (every line in use): a line frees the moment a
+ * recording stops, so the ladder asks again this often -- it used to ask every second, because
+ * the backoff reset on every socket open (AZTA 2026-10-02: once a second for 75 minutes).
+ */
+export const IBKR_DEPTH_REFUSED_RETRY_MAX_MS = 5_000;
 /** Scanner L1 reconcile / UI age clock (mirrors backend IBKR_L1_RECONCILE_SEC). */
 export const IBKR_TABLE_REPRICE_INTERVAL_SEC = 1.0;
 /** Mark header stale if no successful price_patch within this many seconds. */

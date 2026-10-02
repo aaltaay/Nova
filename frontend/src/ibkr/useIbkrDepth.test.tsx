@@ -134,6 +134,31 @@ describe('useIbkrDepth lifecycle', () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
+  it('backs off a refused line up to 5 s instead of asking every second (AZTA 2026-10-02)', () => {
+    renderSymbol('AZTA');
+    const refuse = () => act(() => {
+      const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1];
+      ws.onopen?.({});
+      ws.onmessage?.({ data: JSON.stringify({ type: 'error', message: 'No Level 2 line free for AZTA' }) });
+      ws.onclose?.({});
+    });
+    const waits: number[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      refuse();
+      const before = FakeWebSocket.instances.length;
+      let waited = 0;
+      while (FakeWebSocket.instances.length === before && waited < 40_000) {
+        act(() => {
+          vi.advanceTimersByTime(500);
+        });
+        waited += 500;
+      }
+      waits.push(waited);
+    }
+    expect(waits).toEqual([1_000, 2_000, 4_000, 5_000, 5_000]);
+    expect(latest?.error).toContain('No Level 2 line free');
+  });
+
   it('folds the book watcher frames and starts over for another symbol', () => {
     renderSymbol('SSTI');
     const send = (ws: FakeWebSocket, symbol: string, data: unknown) => act(() => {

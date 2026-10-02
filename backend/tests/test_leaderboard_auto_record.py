@@ -52,6 +52,7 @@ class Desk:
         self.stops: list[tuple[str, str | None]] = []
         self.released: list[tuple[str, bool]] = []
         self.resuming: list[str] = []
+        self.restarted: list[str] = []
 
     def busy(self):
         return sorted(set(self.operator_lines) | set(self.recording))
@@ -65,6 +66,7 @@ def desk(monkeypatch, tmp_path):
 
     monkeypatch.setattr(auto_record_state, "path", lambda: tmp_path / "auto-record.json")
     monkeypatch.setattr(auto_record, "_resuming", lambda: list(d.resuming))
+    monkeypatch.setattr(auto_record, "_restarted", lambda: list(d.restarted))
     monkeypatch.setattr(auto_record, "_busy_lines", d.busy)
     monkeypatch.setattr(auto_record, "_recording", lambda: list(d.recording))
     monkeypatch.setattr(auto_record, "_live_gainers", lambda: list(d.gainers))
@@ -430,9 +432,57 @@ def test_the_state_file_reads_empty_for_another_day_or_an_unknown_version(tmp_pa
 
     path = tmp_path / "auto-record.json"
     auto_record_state.write("2026-09-18", {"SSM": {"since": 1.0, "why": "near"}}, ["AAA"], at=path)
-    assert auto_record_state.load("2026-09-18", at=path) == ({"SSM": {"since": 1.0, "why": "near"}}, ["AAA"])
-    assert auto_record_state.load("2026-09-19", at=path) == ({}, [])
+    assert auto_record_state.load("2026-09-18", at=path) == ({"SSM": {"since": 1.0, "why": "near"}}, ["AAA"], [])
+    assert auto_record_state.load("2026-09-19", at=path) == ({}, [], [])
     path.write_text('{"schema_version": 99, "date": "2026-09-18", "held": {"X": {}}}', encoding="utf-8")
-    assert auto_record_state.load("2026-09-18", at=path) == ({}, [])
+    assert auto_record_state.load("2026-09-18", at=path) == ({}, [], [])
     path.write_text("not json", encoding="utf-8")
-    assert auto_record_state.load("2026-09-18", at=path) == ({}, [])
+    assert auto_record_state.load("2026-09-18", at=path) == ({}, [], [])
+
+
+def test_a_restart_with_no_owner_on_file_gives_the_recordings_to_auto_record(desk, monkeypatch):
+    """2026-10-02 10:36: the process before never wrote auto-record.json, so SDEV, SSM and CELU read as
+    the operator's and AZTA's Level 2 read "Symbol cap reached" for over an hour."""
+    from leaderboard import auto_record_state
+
+    monkeypatch.setattr(auto_record_state, "today", lambda ts=None: "2026-09-18")
+    desk.recording = ["SDEV", "SSM", "CELU"]       # the keepalive brought them back
+    desk.restarted = ["CELU", "SDEV", "SSM"]
+    run(auto_record.tick(et(10, 36, 40)))
+    assert auto_record.held_symbols() == ["CELU", "SDEV", "SSM"]
+    assert run(auto_record.make_room_for("AZTA")) in ("CELU", "SDEV", "SSM")
+    assert len(desk.recording) == 2
+
+
+def test_a_recording_the_operator_started_stays_theirs_after_a_restart(desk, monkeypatch):
+    from leaderboard import auto_record_state
+
+    monkeypatch.setattr(auto_record_state, "today", lambda ts=None: "2026-09-18")
+
+    async def operator_records():           # the Record route runs on the loop, which saves it
+        desk.recording.append("MINE")
+        auto_record.operator_took("MINE", now=et(9, 0))
+        for _ in range(200):
+            if auto_record_state.load("2026-09-18")[2] == ["MINE"]:
+                return
+            await asyncio.sleep(0.01)
+
+    run(operator_records())
+    auto_record.reset_for_tests()           # the process restarts; the keepalive resumes MINE
+    desk.restarted = ["MINE"]
+    run(auto_record.tick(et(9, 1)))
+    assert auto_record.held_symbols() == []
+    assert run(auto_record.make_room_for("AZTA")) is None
+    assert desk.recording == ["MINE"]
+
+
+def test_unknown_recordings_wait_while_a_resume_brings_them_back(desk, monkeypatch):
+    from leaderboard import auto_record_state
+
+    monkeypatch.setattr(auto_record_state, "today", lambda ts=None: "2026-09-18")
+    desk.restarted, desk.resuming = ["SSM"], ["SSM"]
+    run(auto_record.tick(et(10, 36, 30)))
+    assert auto_record.held_symbols() == []
+    desk.resuming, desk.recording = [], ["SSM"]
+    run(auto_record.tick(et(10, 36, 40)))
+    assert auto_record.held_symbols() == ["SSM"]

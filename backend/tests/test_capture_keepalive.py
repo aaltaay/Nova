@@ -284,3 +284,23 @@ def test_a_resume_that_gave_up_is_no_longer_pending():
         row = resume_of(desk, "SORA")
         now = row["next_at"]
     assert row["gave_up"] and keepalive.pending_symbols() == []
+
+
+def test_restart_symbols_name_what_the_previous_process_was_recording():
+    """auto-record reads them: a recording nobody here started is never the operator's (2026-10-02)."""
+    import time as _time
+
+    keepalive.reset_for_tests()
+    now = _time.time()
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    day = datetime.fromtimestamp(now, ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+    assert keepalive.note_restart({"symbol": "SSM", "last_write_ts": now - 5, "session_date": day}, now=now)
+    assert keepalive.restart_symbols() == ["SSM"]
+    keepalive.operator_started("SSM")
+    assert keepalive.restart_symbols() == []
+    assert keepalive.note_restart({"symbol": "CELU", "last_write_ts": now - 5, "session_date": day}, now=now)
+    keepalive.operator_stopped("CELU")
+    assert keepalive.restart_symbols() == []
+    keepalive.reset_for_tests()

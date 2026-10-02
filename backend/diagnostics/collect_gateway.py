@@ -201,6 +201,21 @@ def gateway_rows(
         since=(attach.get("last_attempt") or {}).get("ts"),
         evidence={k: v for k, v in attach.items() if k != "recent"} | {"recent": list(attach.get("recent") or [])[-5:]},
     ))
+    stuck = heal.get("gateway_api_heal") or {}
+    if not usable and stuck.get("state") not in (None, "ok"):
+        # A Gateway logged in but refusing its API port (2026-10-02): what Nova is doing about it.
+        failed = stuck.get("state") in ("restart_failed", "cooldown", "no_gateway")
+        rows.append(row(
+            id="gateway_api_stuck",
+            group=DIAG_GROUP_GATEWAY,
+            title="Gateway API port",
+            state=DIAG_STATE_FAIL if failed else DIAG_STATE_WARN,
+            detail=str(stuck.get("text") or stuck.get("state")),
+            cause="Nova's connects to the Gateway's API port are refused.",
+            fix="Nova restarts a logged-in Gateway on its saved login after 2 minutes; nothing to do unless this row is red.",
+            since=stuck.get("since"),
+            evidence=dict(stuck),
+        ))
     return rows
 
 
