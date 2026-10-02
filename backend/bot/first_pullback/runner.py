@@ -86,7 +86,7 @@ def playing(row: dict[str, Any], venue: tuple[str | None, bool, bool] | None = N
     if int(row.get("level") or 0) < BOT_LEVEL_STRATEGY:
         return False, "the master level is not Strategy"
     if not is_desk_active(row):
-        return False, "the bot is not active: press Activate"
+        return False, "the bot is not active: turn the Bot switch on"
     if not at_strategy(row):
         return False, "no setup is at Strategy"
     blocked = activation.venue_block(*(venue or activation.venue_state()))

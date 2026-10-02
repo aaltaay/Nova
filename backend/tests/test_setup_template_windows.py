@@ -18,6 +18,8 @@ from setup_templates.catalogue import TemplateError
 from setup_templates.store import TemplateStore, default_template, set_store_for_tests
 
 FP, R2G = "first_pullback", "red_to_green"
+# The bot's rules (ADR 029 window, ADR 043 grades and setups a stock a day): never the scanner's.
+BOT_KEYS = {"bot_window_start", "bot_window_end", "bot_grades", "bot_setups_a_day"}
 
 
 @pytest.fixture()
@@ -40,13 +42,16 @@ def test_the_bot_window_is_not_in_the_fingerprint_or_the_params_hash():
     assert catalogue.fingerprint(moved) == catalogue.fingerprint(v)
     assert catalogue.fingerprint({**v, "leg_pct": 6.0}) != catalogue.fingerprint(v)
     assert catalogue.scanner_values(moved) == catalogue.scanner_values(v)
-    assert catalogue.BOT_KEYS == {"bot_window_start", "bot_window_end"}
+    assert catalogue.BOT_KEYS == BOT_KEYS
+    # ADR 043: the grades the bot buys and its setups a stock a day are the bot's rules too.
+    rules = {**v, "bot_grades": "A", "bot_setups_a_day": 2}
+    assert catalogue.fingerprint(rules) == catalogue.fingerprint(v)
 
 
 def test_the_wire_says_which_parameters_restart_the_read_out():
     for sid in cs.SETUPS_READOUT_KINDS:          # every setup with a scanner
         params = [p for g in catalogue.wire(sid)["groups"] for p in g["params"]]
-        assert {p["key"] for p in params if p["affects_readout"] is False} == {"bot_window_start", "bot_window_end"}
+        assert {p["key"] for p in params if p["affects_readout"] is False} == BOT_KEYS
         assert all(p["affects_readout"] is True for p in params if p["group"] != "bot")
     gng = [p for g in catalogue.wire("gap_and_go")["groups"] for p in g["params"]]
     assert gng and not any(p["affects_readout"] for p in gng)    # no scanner, no read-out to restart

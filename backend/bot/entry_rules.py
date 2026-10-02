@@ -148,8 +148,9 @@ def _audit_rows(day: str) -> list[dict[str, Any]]:
     if sig is None:
         return []
     start = datetime.combine(datetime.fromisoformat(day).date(), dtime.min, _ET).timestamp()
-    if _tail is not None and _tail[0] == sig and (_tail[2] or _tail[1] < start):
-        return _tail[3]
+    cached = _tail                       # one read of the cache: another thread may replace it
+    if cached is not None and cached[0] == sig and (cached[2] or cached[1] < start):
+        return cached[3]
     size = _TAIL_BYTES
     while True:
         rows, whole = read_audit_tail(size)
@@ -159,6 +160,12 @@ def _audit_rows(day: str) -> list[dict[str, Any]]:
         size *= 4
     _tail = (sig, oldest if oldest is not None else float("inf"), whole, rows)
     return rows
+
+
+def audit_rows(day: str) -> list[dict[str, Any]]:
+    """Every audit line from the start of ``day`` (ET, ``YYYY-MM-DD``) to the end of the file, oldest first
+    (the triggers audit, ADR 043). A line before the day's start may come with them."""
+    return _audit_rows(day)
 
 
 def _entry_of(row: dict[str, Any]) -> dict[str, Any] | None:

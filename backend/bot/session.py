@@ -31,7 +31,7 @@ def get_session() -> dict[str, Any]:
 
 
 def public_view(row: dict[str, Any]) -> dict[str, Any]:
-    from bot import activation, sleeve
+    from bot import activation, sleeve, switch
     from bot.gates import day_lock, first_closed, gates
     from bot.setup_levels import effective, master, own_levels
     from ibkr.trading_allowed import places_allowed
@@ -47,7 +47,7 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     gate_list = gates(row, venue_now)
     closed = first_closed(gate_list)
     ready = active and closed is None
-    ready_reason = None if ready else ("the bot is not active: press Activate" if not active
+    ready_reason = None if ready else ("the bot is not active: turn the Bot switch on" if not active
                                        else str(closed["detail"].get("text") or closed["id"]))
     caps = sleeve.view(row.get("caps"), venue)
     lock = day_lock(row, venue)
@@ -56,6 +56,8 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "level": level,
         "active": active,
+        # ADR 043: the Bot switch -- ON is the master at Strategy and Active; why it is off, the trip's latch.
+        **switch.view(row, venue),
         "armed": active,                         # LEGACY alias of ``active`` (one release)
         "has_desk_arm": has_desk_arm(row),
         "deactivated": _deactivated(row.get("deactivated")),

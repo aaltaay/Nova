@@ -1215,7 +1215,7 @@
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
+      "blurb": "When and what the bot may buy while this template is in play: its window, inside the setup's arming window, the grades and the setups a stock a day. Changing them never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -1246,6 +1246,47 @@
         "choices": [],
         "nullable": false,
         "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "live": true,
+        "affects_readout": false
+       },
+       {
+        "key": "bot_grades",
+        "group": "bot",
+        "label": "Grades Nova buys",
+        "kind": "choice",
+        "default": "AB",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "AB",
+          "label": "A and B"
+         },
+         {
+          "value": "A",
+          "label": "A only"
+         }
+        ],
+        "nullable": false,
+        "help": "Nova buys this setup only at these grades. C is never a trade.",
+        "live": true,
+        "affects_readout": false
+       },
+       {
+        "key": "bot_setups_a_day",
+        "group": "bot",
+        "label": "Setups a stock a day",
+        "kind": "int",
+        "default": 1,
+        "unit": "setups",
+        "min": 1,
+        "max": 2,
+        "step": 1,
+        "choices": [],
+        "nullable": false,
+        "help": "1: Nova buys only the 1st of this setup on a stock that day. 2: the 1st and the 2nd.",
         "live": true,
         "affects_readout": false
        }
@@ -1331,7 +1372,9 @@
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
       "bot_window_start": "07:00",
-      "bot_window_end": "10:00"
+      "bot_window_end": "10:00",
+      "bot_grades": "AB",
+      "bot_setups_a_day": 1
      },
      "created_at": null,
      "updated_at": null,
@@ -2684,7 +2727,7 @@
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
+      "blurb": "When and what the bot may buy while this template is in play: its window, inside the setup's arming window, the grades and the setups a stock a day. Changing them never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -2715,6 +2758,47 @@
         "choices": [],
         "nullable": false,
         "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "live": true,
+        "affects_readout": false
+       },
+       {
+        "key": "bot_grades",
+        "group": "bot",
+        "label": "Grades Nova buys",
+        "kind": "choice",
+        "default": "AB",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "AB",
+          "label": "A and B"
+         },
+         {
+          "value": "A",
+          "label": "A only"
+         }
+        ],
+        "nullable": false,
+        "help": "Nova buys this setup only at these grades. C is never a trade.",
+        "live": true,
+        "affects_readout": false
+       },
+       {
+        "key": "bot_setups_a_day",
+        "group": "bot",
+        "label": "Setups a stock a day",
+        "kind": "int",
+        "default": 1,
+        "unit": "setups",
+        "min": 1,
+        "max": 2,
+        "step": 1,
+        "choices": [],
+        "nullable": false,
+        "help": "1: Nova buys only the 1st of this setup on a stock that day. 2: the 1st and the 2nd.",
         "live": true,
         "affects_readout": false
        }
@@ -2806,7 +2890,9 @@
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
       "bot_window_start": "07:00",
-      "bot_window_end": "10:00"
+      "bot_window_end": "10:00",
+      "bot_grades": "AB",
+      "bot_setups_a_day": 1
      },
      "created_at": null,
      "updated_at": null,
@@ -4068,7 +4154,7 @@
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
+      "blurb": "When and what the bot may buy while this template is in play: its window, inside the setup's arming window, the grades and the setups a stock a day. Changing them never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -4099,6 +4185,47 @@
         "choices": [],
         "nullable": false,
         "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "live": true,
+        "affects_readout": false
+       },
+       {
+        "key": "bot_grades",
+        "group": "bot",
+        "label": "Grades Nova buys",
+        "kind": "choice",
+        "default": "AB",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "AB",
+          "label": "A and B"
+         },
+         {
+          "value": "A",
+          "label": "A only"
+         }
+        ],
+        "nullable": false,
+        "help": "Nova buys this setup only at these grades. C is never a trade.",
+        "live": true,
+        "affects_readout": false
+       },
+       {
+        "key": "bot_setups_a_day",
+        "group": "bot",
+        "label": "Setups a stock a day",
+        "kind": "int",
+        "default": 1,
+        "unit": "setups",
+        "min": 1,
+        "max": 2,
+        "step": 1,
+        "choices": [],
+        "nullable": false,
+        "help": "1: Nova buys only the 1st of this setup on a stock that day. 2: the 1st and the 2nd.",
         "live": true,
         "affects_readout": false
        }
@@ -4184,7 +4311,9 @@
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
       "bot_window_start": "07:00",
-      "bot_window_end": "10:00"
+      "bot_window_end": "10:00",
+      "bot_grades": "AB",
+      "bot_setups_a_day": 1
      },
      "created_at": null,
      "updated_at": null,
@@ -5284,7 +5413,7 @@
      {
       "id": "bot",
       "label": "Bot entries at Strategy",
-      "blurb": "When the bot may send an entry while this template is in play -- inside the setup's arming window. Changing it never starts the read-out over: the read-out scores the setup, not the bot.",
+      "blurb": "When and what the bot may buy while this template is in play: its window, inside the setup's arming window, the grades and the setups a stock a day. Changing them never starts the read-out over: the read-out scores the setup, not the bot.",
       "params": [
        {
         "key": "bot_window_start",
@@ -5315,6 +5444,47 @@
         "choices": [],
         "nullable": false,
         "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "live": true,
+        "affects_readout": false
+       },
+       {
+        "key": "bot_grades",
+        "group": "bot",
+        "label": "Grades Nova buys",
+        "kind": "choice",
+        "default": "AB",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "AB",
+          "label": "A and B"
+         },
+         {
+          "value": "A",
+          "label": "A only"
+         }
+        ],
+        "nullable": false,
+        "help": "Nova buys this setup only at these grades. C is never a trade.",
+        "live": true,
+        "affects_readout": false
+       },
+       {
+        "key": "bot_setups_a_day",
+        "group": "bot",
+        "label": "Setups a stock a day",
+        "kind": "int",
+        "default": 1,
+        "unit": "setups",
+        "min": 1,
+        "max": 2,
+        "step": 1,
+        "choices": [],
+        "nullable": false,
+        "help": "1: Nova buys only the 1st of this setup on a stock that day. 2: the 1st and the 2nd.",
         "live": true,
         "affects_readout": false
        }
@@ -5391,7 +5561,9 @@
       "pillar_min_rvol": 5.0,
       "pillar_max_float_m": 20.0,
       "bot_window_start": "09:30",
-      "bot_window_end": "10:00"
+      "bot_window_end": "10:00",
+      "bot_grades": "AB",
+      "bot_setups_a_day": 1
      },
      "created_at": null,
      "updated_at": null,
