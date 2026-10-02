@@ -2745,6 +2745,136 @@ keeps the trade and says the order still rests. Every step is on the bot audit s
 the `setup_id`). A bot working order the bot cancels itself carries
 `expire_ts: null` in `working`.
 
+### One Bots page (ADR 043, operator decisions 2026-10-01)
+
+"I definitely don't like it if we have redundancies ... put everything on one page", after AISP's three
+triggers went unbought for five reasons no screen showed together. ADR 043 amends ADR 042, 037, 041,
+036, 032 and 023 as below.
+
+**The Bot switch.** One per venue, on the desk in place of the master dial and Activate. `POST
+/api/bot/session/switch {on: boolean, reenable?: boolean}` (API key) answers the session view.
+- **ON** puts the venue's master `level` at Strategy (2) and activates. It is refused like Activate:
+  409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN`, `BOT_PADLOCK_LOCKED`,
+  `BOT_NO_SETUP_AT_STRATEGY` (no strategy is On), and `BOT_TRIP_LATCHED` unless `reenable`.
+- **OFF** deactivates (`deactivated.reason: "operator"`) and puts the master at Eyes (1), so setups
+  at Eyes or On still propose.
+- **The bot trip** (`bot/autonomy.drop_to_l0`, now to Eyes) also leaves the master at Eyes (1), not Off.
+- Each change is a `bot_switch` audit line, `inputs: {on, from_level, to_level}`.
+- The session view adds `bot_on: boolean` (active with the master at Strategy) and `switch: {on, venue,
+  why_off: string | null, latched: {at, pnl, until} | null}`.
+- The localhost bot API's `level` stays readable, and `PATCH {level}` stays for it.
+
+**Strategies: Off · Eyes · On** are `setup_levels` 0 / 1 / 2 under new names on the desk.
+- Two template parameters join the bot group, which never restarts a read-out:
+  - `bot_grades`: `"AB"` (default) or `"A"`. C stays NOT A TRADE.
+  - `bot_setups_a_day`: 1 (default) or 2.
+- `bot/first_pullback/admit.blockers` reads both from each setup's template in play:
+  - a grade the template does not buy is `BOT_SKIP_GRADE` ("grade B: this strategy buys grade A only");
+  - a setup whose `nth` is over `bot_setups_a_day` is `BOT_SKIP_NOT_FIRST` ("a 2nd first pullback:
+    this strategy buys the 1st of the day only").
+- A strategy at Off draws nothing on the charts.
+
+**Today's hot list** (owner `backend/hot_list/`): the stocks Nova watches all day and may trade.
+- **The file** is `hot-list.json` in the operator cache: `{schema_version: 1, date: "YYYY-MM-DD", auto_n: 0 | 3
+  | 5 | 10, default: {buy: "you" | "nova", sell: "you" | "nova"}, entries: [{symbol, how: "auto" |
+  "star", at, board: "gainers" | null, rank: integer | null, change_pct: number | null}], yesterday:
+  string[]}`.
+  - `date` is the trading day, which starts at 04:00 ET; `at` is epoch seconds.
+  - Written through a temp file and a rename. An unknown version or an unreadable file reads as an
+    empty list with the error stated, and writes are refused.
+  - `HOT_LIST_CAP` is 20. Each day is also kept read-only as `hot-list/YYYY-MM-DD.json` for the
+    triggers audit.
+- **Auto** (`hot_list/auto.py`), every `HOT_LIST_AUTO_TICK_SEC` from `HOT_LIST_AUTO_START_ET` (07:00) to
+  `HOT_LIST_AUTO_END_ET` (16:00): the live Gainers board through `scanner_surface.surface_rows` and
+  `leaderboard.ranking.rank_rows` with `LEADERS_RULES`, its top `auto_n`. A name is added once, sticky
+  for the day.
+- **At 04:00 ET**:
+  - `entries` move to `yesterday`;
+  - every venue's bot list (`symbol_allowlist`) and every Auto-entry / Approve switch are cleared,
+    with a `hot_list` audit line `{event: "rollover", cleared}`;
+  - trades Nova holds keep their exits.
+- **Followed by the scanners.** Listed names are admitted to HOD Momo's active set first, ahead of
+  Former Momo (`hod_momo_active.build_active_set`), so they get an L1 line, a snapshot and bars.
+  `GET /api/setups/symbol/{symbol}`'s `followed_note` names the hot list.
+- **Who trades the stock.** The stock's Buy / Sell switch (ADR 037) is the only "who":
+  - setting Buy to Nova stars the stock (409 `HOT_LIST_FULL` when there is no room, before anything
+    changes);
+  - a new name takes `default` on the desk's venue when that venue allows a Nova side (otherwise it
+    stays You · You, said in `notes`);
+  - removing a stock sets it to You · You on every venue, and is refused 409 `HOT_LIST_NOVA_TRADE`
+    while Nova has an open trade on it;
+  - Nova buys only listed stocks: an unlisted trigger is `BOT_SKIP_NOT_LISTED`.
+- **Routes** (writes need the API key):
+  - `GET /api/hot-list` -> `{schema_version: 1, date, cap, auto: {n, start, end, rule, error}, default,
+    entries: [{symbol, how, at, board, rank, change_pct, followed}], yesterday, error}`;
+  - `POST /api/hot-list/star {symbol}`;
+  - `DELETE /api/hot-list/{symbol}`;
+  - `PATCH /api/hot-list {auto_n?, default_buy?, default_sell?}`;
+  - `POST /api/hot-list/bring-back` (yesterday's names as stars, up to the cap).
+
+  Every write answers the view.
+
+**The squares, by ticker.** `GET /api/bot/triggers?date=YYYY-MM-DD` (default today; owner
+`bot/trigger_audit.py`, read-only) answers:
+
+```
+{schema_version: 1, date, generated_at,
+ gates: [{id, label}],
+ tickers: [{symbol, listed: {how, at} | null,
+            now: {cells, answer: "yes" | "no", reasons} | null,
+            triggers: [{ts, setup_id, setup_type, kind, nth, grade, tape, outcome, r, cells, reasons}]}],
+ impact: [{gate, blocked, target_first, stop_first, r}],
+ judged_now: string[],
+ sources: {journal, audit, hot_list: {ok, error}}}
+```
+
+- **The gates**, in Nova's order: `bot_on`, `strategy_on`, `grade`, `setups_a_day`, `bot_window`,
+  `hot_list`, `nova_buys`, `level2_line`, `tape_go`, `trades_today`.
+- **`cells`** maps each gate to `{ok: true | false | null, why}`; `null` means the gate did not apply.
+  A trigger reads the bot's state, tape, grade (its `armed` line), `nth`, liquidity and outcome as the
+  journal recorded them. It reads the hot list, the stock's mode and the strategy's level from the day's
+  list file and the audit stream at its moment. `judged_now` names the gates judged with today's
+  settings because nothing recorded them.
+- **BLIND** is the Level 2 line's red, never the tape's.
+- **`now`** (today only) is each listed ticker this minute.
+
+**A hidden Trader tab lends its Level 2 line.**
+- **When.** A setup of a strategy at On, on a stock whose Buy is Nova, is armed, near or in a trade; no
+  line is free; and `line_lending` is on (`bot-session.json`, desk-wide, default true). Then the line of
+  a Trader tab that no visible window shows (the focus sensor) and no Record holds is lent to it.
+- **On the lender's socket.** `/ws/ibkr/depth/{symbol}` sends `{"type": "lent", symbol, to: {symbol,
+  setup_type, setup_id}, since, text}` and closes. While the loan stands, a socket for that symbol from
+  a tab not in front gets the same frame. A tab in front recalls the loan: the borrower loses its line,
+  and a `line_loan` audit line says so.
+- **When it ends.** It returns when the setup fails or disarms, its trade ends, or the loan is
+  recalled. Ends: `setup_ended` | `trade_ended` | `recalled` | `lending_off`.
+- **Routes.**
+  - `GET /api/ibkr/depth/lines` -> `{schema_version: 1, cap, lines: [{symbol, held_by: "tab" | "record" |
+    "auto_record" | "loan" | "replay", front: boolean | null, viewers}], lending: {on, loans: [{lender,
+    borrower, setup_type, setup_id, since, why}], recent: [{lender, borrower, since, ended, end}]}}`.
+  - `PATCH /api/ibkr/depth/lending {on}` (API key).
+- **On the desk** the lender's Level 2 reads "Level 2 lent to AISP's first pullback (near its trigger)
+  -- back when it ends or when you bring this tab to the front". It reconnects when the loan ends or the
+  tab comes to the front, never by its own backoff.
+
+**On the desk.** The Bots page reads, top to bottom:
+1. one answer line ("Can Nova buy right now?" for every ticker at once, each red with its fix, the
+   desk's checks as chips);
+2. the Bot card (the switch, Freeze all orders, the venue's risk);
+3. the strategies, each Off · Eyes · On with its bot rules;
+4. Level 2 lines;
+5. Tickers today (the hot list and the squares);
+6. Today, Proposals and Activity.
+
+Elsewhere:
+- **Freeze all orders** is the kill switch's name on the desk (`/api/kill-switch` unchanged). The
+  header's red KILL is the one that flattens.
+- **The Trader's chart toolbar has one Eyes switch** for every pane of the tab. `nova.stockRead.layers`
+  `value` adds `eyes: boolean` (true when a stored value lacks it); off hides every Nova drawing, while
+  `setups` / `levels` keep their own values for when it is on.
+- **The Who trades row adds the ★** (on today's hot list) and the stock's own answer ("Nova may buy AISP:
+  no -- the bot is off").
+
 ### Release notes and the update notice (operator ask, 2026-09-23)
 
 **The release record.** Each `vNNN` GitHub Release body carries one hidden
