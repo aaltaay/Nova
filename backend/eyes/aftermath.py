@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants_bot import BOT_SETUP_RED_TO_GREEN
+from constants_bot import BOT_SETUP_GAP_AND_GO, BOT_SETUP_RED_TO_GREEN
 from constants_eyes import EYES_EPISODE_AFTER_MIN
 from constants_setups import (
     SETUP_OUTCOME_OPEN,
@@ -66,8 +66,9 @@ def levels(ep: dict[str, Any], bars: list[Bar]) -> tuple[float | None, float | N
     if level is None:
         return None, None, None, None
     entry = round(level + SETUPS_ENTRY_OFFSET_DOLLARS, 4)
-    if ep.get("setup_type") == BOT_SETUP_RED_TO_GREEN:
-        return level, entry, _num(leg.get("low")), None      # the open, and the lowest low since it
+    if ep.get("setup_type") in (BOT_SETUP_RED_TO_GREEN, BOT_SETUP_GAP_AND_GO):
+        # red to green: the open, and the lowest low since it; Gap and Go: the pre-market high and its stop
+        return level, entry, _num(leg.get("low")), None
     leg_t, died_bar = _num(leg.get("t")), _num(ep.get("died_bar_t"))
     span = [b.lo for b in bars if leg_t is not None and died_bar is not None and leg_t < b.t <= died_bar]
     return level, entry, (min(span) if span else None), None

@@ -172,3 +172,35 @@ chip and the trigger line on the 1-minute; arming 07:00-15:30.
   saw 33 setups and triggered one, and the 5-minute lanes triggered four. They are scored to learn, never
   traded.
 
+
+## Amendment 2026-10-02 -- Gap and Go gets its scanner, like the others
+
+**Decided by:** the operator, 2026-10-02, after SDEV's open ("at the first minute of the opening, we don't even have
+the gap-and-go strategy yet"), on being offered a chart-only lane: "why dont u treat it like every other strategy we
+already got?" Decision **C** above had already made Gap and Go next; the other four strategies failed their bar-level
+backtests worse than Gap and Go did (first pullback PF 0.54, flat top 0.20, red to green 0.58; Gap and Go 1.00) and
+are full strategies because the bet is the live tape gate and the Paper read-out. Gap and Go is treated the same.
+
+- **The rule** is the research's pre-registered A2 rule (`research/orb/backtest_gng.py`, 2026-09-22), read by a
+  fifth detector on the same lanes (`setup_scanner/gap_and_go.py`): the pre-market high is the highest high of the
+  day's candles before 09:30; the first price at or after 09:30 is the open; an open at or over the pre-market high
+  skips the day (a gap through it); otherwise it arms at the open with trigger = the pre-market high, entry one
+  cent over it, stop `min(20c, 4% of the entry)` under the entry, target 1 = entry + 2R; a live price over the high
+  until 10:00 triggers (entry at the bar's open when it gapped over, the stop moving with the entry, as the
+  research's did). **One try a day**: a gap through, the window closing, or a break the scanner did not see live (a
+  restart's seed showing a candle over the high) ends the day. Before the open the board and the chart show the
+  levels it would arm with (`forming`). The research has no MACD rule: `macd_positive` is off by default.
+- **What differs from the research, stated:** the research picked its names by the Five Pillars at 09:30 ranked by
+  pre-market relative volume (top 10); the live scanner reads the names it follows (HOD Momo's), like every other
+  setup, and grades them. The research's target 2 (4R) and 11:30 time stop are its own exits; the scanner scores
+  with the shared bar rules (half at target 1, break-even, the 9 EMA, the bailout).
+- **Same as the others:** Off / Eyes / On per venue (a new setup starts Off: it watches and scores in silence),
+  proposals at Eyes, Nova's bot and Auto-entry at On on Paper and Sim only, the tape gate, the grade, NOT A TRADE,
+  `setups.db` rows (`@gap_and_go`), its own read-out (kind `gap_and_go`), templates, the Tickers today squares, the
+  setup cards and the charts (the pre-market high as the lane's line; a past episode from the open to how it ended).
+  Bot window default 09:30-10:00, inside its arming window.
+- **The pre-market high needs the morning's minutes:** a name followed mid-session is held `seeding` until IBKR's
+  1-minute history from 04:00 lands (`setup_scanner/seeder.py`, the same day's fix), so the level is the whole
+  pre-market's. A history that never comes is given up and the name is seeded with what the store holds; its
+  pre-market high is then only as complete as those minutes.
+- Not built here: the micro pullback (one-second bars).

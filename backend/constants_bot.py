@@ -49,6 +49,7 @@ BOT_SCANNER_SETUPS = (
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FLAT_TOP,
     BOT_SETUP_RED_TO_GREEN,
+    BOT_SETUP_GAP_AND_GO,
 )
 BOT_SETUPS_WITH_SCANNER = frozenset(BOT_SCANNER_SETUPS)
 # The setup a schema 4 session called "chosen" when it named none (the v5 migration).

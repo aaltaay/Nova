@@ -85,7 +85,9 @@ describe('templateFormat', () => {
     expect(ruleSummary('flat_top_breakout', values('flat_top_breakout')))
       .toBe('2–6 bar base within 2% of the high · buy a green hold over it');
     expect(ruleSummary('red_to_green', values('red_to_green'))).toBe('1+ red under the 09:30 open · reclaim by 10:30');
-    expect(ruleSummary('gap_and_go', {})).toBe('');
+    expect(ruleSummary('gap_and_go', values('gap_and_go')))
+      .toBe('Open under the pre-market high · break it by 10:00 · stop $0.20 / 4%');
+    expect(ruleSummary('micro_pullback', {})).toBe('');
   });
 
   it('says what a variation changed', () => {
@@ -106,7 +108,9 @@ describe('templateFormat', () => {
       'blind: no Level 2',
     ]);
     const gng = payload.setups.find(s => s.id === 'gap_and_go')!.templates[0].values;
-    expect(Object.fromEntries(ruleLines('gap_and_go', gng)).Trade).toBe('Stop $0.20 or 4% · half at 2R, the rest at 4R · out 11:30');
+    const gngLines = Object.fromEntries(ruleLines('gap_and_go', gng));
+    expect(gngLines.Trade).toBe('stop $0.20 or 4% under the entry, whichever is smaller · target 1 2R · bot 09:30–10:00');
+    expect(gngLines.Setup).toMatch(/^The pre-market high \(candles before 09:30\) · the open under it, then a price over it by 10:00/);
     expect(ruleLines('micro_pullback', {})).toEqual([]);
     expect(readoutText(fp.templates[0])).toBe('collecting 12 / 50');
   });

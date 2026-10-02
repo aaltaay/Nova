@@ -26,10 +26,6 @@ function stop(e: { stopPropagation: () => void }): void {
   e.stopPropagation(); // a click here is not a chart gesture
 }
 
-/** Setups without a scanner the legend names: Gap and Go draws its level (the premarket high); the
- * parked micro pullback draws nothing, so it takes no room here (the sheet lists it). */
-const LEGEND_NO_SCANNER = new Set(['gap_and_go']);
-
 /** The switch for the day's setups that ended, counting what it draws (ADR 036 amendment). */
 function PastChip({ ctx }: { ctx: StockReadContextValue }) {
   const { past, layers } = ctx;
@@ -193,19 +189,6 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
                 <i className="sr-legend__dot" aria-hidden="true" />
                 {c.text}
               </span>
-            ))}
-            {read.no_scanner.filter(ns => LEGEND_NO_SCANNER.has(ns.setup_type)).map(ns => (
-              <button
-                key={ns.setup_type}
-                type="button"
-                className="sr-legend__chip sr-legend__chip--none"
-                disabled
-                {...whyProps(true, ns.reason)}
-                data-testid={`stock-read-legend-${ns.setup_type}`}
-              >
-                <i className="sr-legend__dot" aria-hidden="true" />
-                {ns.label}
-              </button>
             ))}
           </>
         )}

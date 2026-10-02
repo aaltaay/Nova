@@ -160,3 +160,26 @@ describe('the tape flow line (ADR 034)', () => {
     expect(tape?.tip.split('\n').at(-1)).toMatch(/^Flow \+0\.71: a burst of buying/);
   });
 });
+describe('Gap and Go in its own words (ADR 031 amendment 2026-10-02)', () => {
+  const gng = (partial: Partial<SetupRow> = {}) => row({
+    setup_type: 'gap_and_go', kind: 'gap_and_go', reason: 'opened 4.40 under the 4.86 pre-market high',
+    setup: { trigger: 4.86, entry: 4.87, stop: 4.6752, risk: 0.1948, target1: 5.2596, pullback_bars: 0, leg_high: 4.86,
+      leg_low: 4.6752, leg_pct: -0.0947, detail: { open: 4.4, open_t: 0 } },
+    leg: { t: 0, high: 4.86, low: 4.6752, pct: -0.0947 },
+    ...partial,
+  });
+
+  it('names the pre-market high as its level, from armed to the break', () => {
+    expect(stateWords(gng()).text).toBe('Under the PMH');
+    expect(stateWords(gng({ state: 'near' })).text).toBe('Near the PMH');
+    const at = Date.UTC(2026, 9, 2, 13, 33) / 1000;
+    expect(stateWords(gng({ state: 'triggered', setup: { ...gng().setup!, triggered_at: at } })).text)
+      .toBe('Broke the PMH 09:33');
+    const tip = stateWords(gng()).tip;
+    expect(tip).toMatch(/opened under its pre-market high/);
+    expect(tip).toMatch(/Pre-market high 4\.86 · opened 4\.40\./);
+    expect(triggerWords(gng()).tip).toMatch(/^Trigger 4\.86: the pre-market high\./);
+    expect(funnelSteps('gap_and_go', { watching: 3, forming: 0, armed: 1, near: 1, triggered: 1, failed: 0, filtered: 0, proposed: 1 })
+      .map(s => s.word)).toContain('under the PMH');
+  });
+});

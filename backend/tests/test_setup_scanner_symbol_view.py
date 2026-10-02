@@ -97,7 +97,7 @@ def test_symbol_view_answers_every_lane_for_a_followed_symbol(tmp_path):
     view = symbol_view(eng, SYM.lower(), clock["t"])
     assert view["followed"] is True and view["followed_note"] is None and view["symbol"] == SYM
     lanes = {s["setup_type"]: s for s in view["setups"]}
-    assert list(lanes) == ["first_pullback", "bull_flag", "flat_top_breakout", "red_to_green"]
+    assert list(lanes) == ["first_pullback", "bull_flag", "flat_top_breakout", "red_to_green", "gap_and_go"]
     flag = lanes["bull_flag"]
     assert flag["state"] == "leg" and flag["forming"]["waiting"] == "1 more red or doji candle"
     assert flag["series"]["macd_hist"] is not None and flag["template"]["id"] == "default"
@@ -132,5 +132,5 @@ def test_the_symbol_route(tmp_path, monkeypatch):
     body = TestClient(app).get(f"/api/setups/symbol/{SYM}").json()
     assert body["schema_version"] == 1 and body["followed"] is True
     assert {s["setup_type"] for s in body["setups"]} == {"first_pullback", "bull_flag", "flat_top_breakout",
-                                                          "red_to_green"}
+                                                          "red_to_green", "gap_and_go"}
     assert et_ts(9, 0) > 0

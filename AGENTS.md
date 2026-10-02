@@ -1065,16 +1065,22 @@ price's own stamp; that stamp's lag is #667.
 flag, the flat-top breakout and red to green get detectors beside the first
 pullback's (`setup_scanner/bull_flag.py`, `flat_top.py`, `red_to_green.py`;
 rules pre-registered in ADR 031), on the same ladder of states, the same tape
-gate and the same scoring. The board is `schema_version: 2`: every row and
+gate and the same scoring; since 2026-10-02 Gap and Go too (`gap_and_go.py`, the
+research's A2 rule, ADR 031 amendment: the pre-market high, armed at the 09:30
+open when the open is under it, broken by 10:00, stop `min(20c, 4%)` under the
+entry, one try a day; a new setup starts Off on every venue). The board is `schema_version: 2`: every row and
 proposal adds `setup_type: "first_pullback" | "bull_flag" | "flat_top_breakout"
-| "red_to_green"`; a row adds `failed_at: number | null` and its `setup` adds
+| "red_to_green" | "gap_and_go"`; a row adds `failed_at: number | null` and its `setup` adds
 `detail: object | null` (the setup's own facts: `entry_mode` and `broke_at` for
 the flat-top breakout, `open` and `red_bars` for red to green, `pole_bars` for the
-bull flag); `kind` is one of `first_pullback | second_pullback | bull_flag |
-second_bull_flag | flat_top_breakout | second_flat_top_breakout | red_to_green`
+bull flag, `pm_high`, `pm_high_t`, `open`, `open_t` and `stop_rule` for Gap and Go);
+`kind` is one of `first_pullback | second_pullback | bull_flag |
+second_bull_flag | flat_top_breakout | second_flat_top_breakout | red_to_green |
+gap_and_go`
 (the kind without `second_` is the first of that setup on that symbol that day);
 `leg` is the setup's context (`{t, high, low, pct, bars?}`: the leg, the pole, the
-impulse into the high of day, or the open and the red phase); rows are capped
+impulse into the high of day, the open and the red phase, or Gap and Go's
+pre-market high with `low` its stop); rows are capped
 per setup (`SETUPS_BOARD_MAX_ROWS` each). The top-level `template` /
 `templates_watched` move into `setups[]`, one entry per setup with a scanner:
 `{id, level: 0 | 1 | 2, chosen: boolean, proposing: boolean, template: {id, rev,
@@ -1501,8 +1507,8 @@ lane is one event with `count` and
 day's count, the borrow changes, the day's catalyst and negative news items (the News panel's, so only
 while the calendar date is the day's: none for a past day or from midnight to 04:00), the 09:30 open and the
 high of day, and the bot's own `bot_trade` / `setup_proposal` lines for the symbol. An **Event** is
-`{ts, lane: "first_pullback" | "bull_flag" | "flat_top_breakout" | "red_to_green" | "hod_momo" |
-"market" | "bot", event, title, detail: string | null, count, last_ts: number | null, levels:
+`{ts, lane: "first_pullback" | "bull_flag" | "flat_top_breakout" | "red_to_green" | "gap_and_go" |
+"hod_momo" | "market" | "bot", event, title, detail: string | null, count, last_ts: number | null, levels:
 object | null}`. A source that cannot be read is `ok: false` with its error; the others still
 answer.
 
@@ -4295,6 +4301,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-02 | Gap and Go gets its scanner, like every other strategy (ADR 031 amendment; operator, after SDEV's open and being offered a chart-only lane: "why dont u treat it like every other strategy we already got?"). Decision C of ADR 031 had made it next, and the four setups with scanners failed their bar-level backtests worse than Gap and Go did (PF 0.54 / 0.20 / 0.58 against 1.00). A fifth detector (`setup_scanner/gap_and_go.py`) reads the research's pre-registered A2 rule on the same lanes: the pre-market high, armed at the 09:30 open when the open is under it (a gap through it skips the day), a live price over it by 10:00, stop min(20c, 4%) under the entry, target 1 at 2R, one try a day; before the open the levels are drawn as forming. It has Off / Eyes / On per venue (starting Off), templates, scoring, its own read-out, the tape gate, the grade, the cards, the Tickers today squares and the charts, and Nova's bot plays it at On on Paper and Sim only. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | A symbol followed mid-session is seeded from 04:00. The scanner followed AMOD at 07:51:22 with nothing stored before its Level 1 line opened, so every lane warmed up from scratch: the 1-minute first pullback's first line came at 08:23 (32 bars), the 5-minute one read "warming up (17/32 bars)" at 09:19. On five days of the eyes' journal no name first followed after 04:10 warmed within 2 minutes. A short seed now waits on IBKR's 1-minute history of today, asked one symbol at a time against half of IBKR's historical budget (`setup_scanner/seeder.py`). The wire is unchanged. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | One row per trigger (ADR 022 amendment). The lane named `setups.db` rows by the setup's key (the leg), so a setup armed again on that key after its trigger was written over the trade's row. AMOD's first pullback triggered at 08:48:04, and at 08:49 a candle tied the leg's high and re-armed the same leg as the second pullback. The stored row became `second_pullback` with the new levels, and the read-out, which counts the first of the day, lost the trigger. A second trigger on one id replaced the first trade's score (LITS 2026-09-24, GOW 2026-09-30). A later setup on a key now opens `KEY#N` (`setup_scanner/lane_ids.py`), and a restart never writes over a stored trade. A detector made mid-day (a restart, a symbol back in the universe, an edited template) starts from the day's triggers, so a later setup reads as the second and red to green's one try stays spent. The eyes' journal 2026-09-24..10-02 shows 18 rows written over; they keep their ids and are not repaired here. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | AMOD's missed catalyst (ADR 024 amendment, rules v8). AMOD ran +120% while `/api/why` and `/api/catalysts` read "noise_only" and "Low-float momentum -- no company news". Its 8-K closing a PIPE of 51.6M shares for 3,170 bitcoin was filed at 11:30 ET the day before, so the window (from the prior close) never read it; Benzinga's after-hours piece named that cause but was tagged AMOD + BTCUSD and so was not read as a one-ticker rewrite. The verdict adds `prior_session` -- the prior session's own filing or release, shown and never counted; the window is unchanged. A raise paid in or spent on a crypto treasury is `crypto_treasury` (weak, with dilution); `PIPE` is a raise word; `n_tickers` counts names, not symbols. A filed share issuance (an 8-K Item 3.02, or 2.01 labelled a raise, in the last 30 days) marks Yahoo's float "631K?" with the filing on hover on scanner rows and the Trader, and `/api/why` reads it as unknown; no gate reads it (operator decision on #700: warn, don't block). The feed's memory reaches back to the prior session's open: on a Monday it had lost Friday's after-hours filings. 72 of 255,139 backfilled labels change. §3 amended. | User Directive + Claude Opus 5.5 |

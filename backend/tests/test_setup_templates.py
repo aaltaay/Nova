@@ -65,8 +65,9 @@ def test_research_setups_mirror_the_harness_defaults():
         assert ft[key] == r2g[key] == p[key]
     g = _research_defaults(REPO / "research/orb/backtest_gng.py", "GParams")
     gng = catalogue.defaults("gap_and_go")
-    assert (gng["top"], gng["entry_end"], gng["stop_cents"], gng["t1_r"], gng["t2_r"], gng["time_stop"]) == (
-        g["top"], g["entry_end"], g["stop_cents"], g["t1_r"], g["t2_r"], g["time_stop"])
+    # the live scanner (ADR 031 amendment 2026-10-02) arms on the research's entry window, stop and target 1;
+    # target 2 and the 11:30 time stop are the research's own exits (the scanner scores with the shared bar rules)
+    assert (gng["entry_cutoff"], gng["stop_cents"], gng["target_r"]) == (g["entry_end"], g["stop_cents"], g["t1_r"])
     assert gng["stop_pct"] == g["stop_pct"] * 100
 
 
@@ -103,7 +104,8 @@ def test_wire_groups_in_order_with_units_and_the_source():
     assert w["scanner"] is True and "live scanner" in w["source"]
     leg = next(p for g in w["groups"] for p in g["params"] if p["key"] == "leg_pct")
     assert leg["unit"] == "%" and leg["default"] == 5.0 and leg["live"] is True
-    assert catalogue.wire("gap_and_go")["scanner"] is False
+    assert catalogue.wire("gap_and_go")["scanner"] is True
+    assert catalogue.wire("micro_pullback")["scanner"] is False
 
 
 # -- the store ------------------------------------------------------------------------
@@ -156,7 +158,7 @@ def test_duplicate_from_a_template_and_limits(store):
     with pytest.raises(TemplateError) as err:
         store.create(FP, name="one too many")
     assert err.value.code == "TEMPLATE_LIMIT"
-    for no_scanner in ("micro_pullback", "gap_and_go"):
+    for no_scanner in ("micro_pullback",):
         with pytest.raises(TemplateError) as err:
             store.create(no_scanner, name="x")
         assert err.value.code == "TEMPLATE_NO_SCANNER" and "no scanner yet" in err.value.message

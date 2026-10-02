@@ -100,6 +100,11 @@ from constants_setups import (
     SETUPS_PILLAR_MIN_CHANGE_PCT,
     SETUPS_PILLAR_MIN_PRICE,
     SETUPS_PILLAR_MIN_RVOL,
+    SETUPS_GNG_CUTOFF_ET,
+    SETUPS_GNG_MACD_POSITIVE,
+    SETUPS_GNG_OPEN_ET,
+    SETUPS_GNG_STOP_CENTS,
+    SETUPS_GNG_STOP_PCT,
     SETUPS_R2G_CUTOFF_ET,
     SETUPS_R2G_MIN_RED_BARS,
     SETUPS_R2G_OPEN_ET,
@@ -536,32 +541,35 @@ _RED_TO_GREEN: tuple[ParamSpec, ...] = _STOCK + (
     _BAILOUT,
 ) + _TAPE + _FLOW + _GRADE + _bot(SETUPS_R2G_OPEN_ET, SETUPS_R2G_CUTOFF_ET)
 
-# -- Setups without a scanner: the research harness's pre-registered numbers. -------
-# Mirrors research/orb/backtest_gng.py ``GParams`` (A2 Gap and Go); a test checks the
-# defaults against that file. Kept, not watched: no scanner reads them.
-_RESEARCH_UNIVERSE: tuple[ParamSpec, ...] = (
-    _p("min_price", "universe", "Price at 09:30 from", NUMBER, 2.0, unit="$", min=0.1, max=1000, step=0.5, live=False),
-    _p("max_price", "universe", "Price at 09:30 to", NUMBER, 20.0, unit="$", min=0.1, max=1000, step=0.5, live=False),
-    _p("min_gap_pct", "universe", "Gap at least", NUMBER, 10.0, unit="%", min=0, max=10000, step=1, live=False,
-       help="09:30 open over the prior close."),
-    _p("min_pm_rvol", "universe", "Pre-market relative volume at least", NUMBER, 5.0, unit="x", min=0, max=10000,
-       step=0.5, live=False, help="Against the average of the prior 14 pre-markets."),
-    _p("require_news", "universe", "Needs a news article", BOOL, True, live=False,
-       help="At least one article since the prior close, before 09:30."),
-)
-
-_GAP_AND_GO: tuple[ParamSpec, ...] = _RESEARCH_UNIVERSE + (
-    _p("top", "universe", "Candidates a day", INT, 10, unit="names", min=1, max=100, step=1, live=False,
-       help="Ranked by pre-market relative volume."),
-    _p("entry_end", "entry", "Buy stop at the pre-market high until", TIME, "10:00", unit="ET", min="09:30",
-       max="16:00", live=False, help="Live from 09:30; a gap over the pre-market high at the open is skipped."),
-    _p("stop_cents", "risk", "Stop at most", NUMBER, 0.20, unit="$", min=0.01, max=10, step=0.01, live=False),
-    _p("stop_pct", "risk", "... or", NUMBER, 4.0, unit="% of the entry, whichever is smaller", min=0.1, max=50,
-       step=0.1, live=False),
-    _p("t1_r", "risk", "Target 1 (half)", NUMBER, 2.0, unit="R", min=0.25, max=20, step=0.25, live=False),
-    _p("t2_r", "risk", "Target 2 (the rest)", NUMBER, 4.0, unit="R", min=0.25, max=40, step=0.25, live=False),
-    _p("time_stop", "risk", "Time stop", TIME, "11:30", unit="ET", min="09:30", max="16:00", live=False),
-)
+# -- Gap and Go (A2, research/orb/backtest_gng.py ``GParams``, rules of 2026-09-22): the
+# pre-market high, broken after the open (ADR 031 amendment 2026-10-02). A test checks the
+# defaults against that file. The research picked its names by the Five Pillars at 09:30
+# ranked by pre-market relative volume; the live scanner reads the names it follows, like
+# every other setup, and grades them.
+_GAP_AND_GO: tuple[ParamSpec, ...] = _STOCK + _ema("The scoring exit's EMA (Gap and Go reads no EMA to arm).") + (
+    _p("macd_positive", "setup", "MACD histogram above zero", BOOL, SETUPS_GNG_MACD_POSITIVE,
+       help="Off (the research's rule): arm at the open. On: arm only once the last candle's histogram is above zero."),
+    _p("macd_fast", "setup", "MACD fast", INT, SETUPS_MACD_FAST, unit="bars", min=2, max=60, step=1),
+    _p("macd_slow", "setup", "MACD slow", INT, SETUPS_MACD_SLOW, unit="bars", min=3, max=120, step=1),
+    _p("macd_signal", "setup", "MACD signal", INT, SETUPS_MACD_SIGNAL, unit="bars", min=2, max=60, step=1),
+    _p("session_start", "entry", "The open at", TIME, SETUPS_GNG_OPEN_ET, unit="ET", min="04:00", max="16:00",
+       help="Candles before this make the pre-market high; the first price at or after it is the open. An open at "
+            "or over the pre-market high skips the day."),
+    _p("entry_cutoff", "entry", "Buy the break until", TIME, SETUPS_GNG_CUTOFF_ET, unit="ET", min="04:00", max="20:00",
+       help="Nothing arms, and nothing triggers, at or after this time. One try a day."),
+    _p("entry_offset", "entry", "Buy over the pre-market high by", NUMBER, SETUPS_ENTRY_OFFSET_DOLLARS, unit="$", min=0,
+       max=1, step=0.01, help="The entry is the pre-market high plus this (the bar's open when it gapped over)."),
+) + _near() + (
+    _p("stop_cents", "risk", "Stop at most", NUMBER, SETUPS_GNG_STOP_CENTS, unit="$ under the entry", min=0.01, max=10,
+       step=0.01, help="The stop sits this far under the entry, or the percent below, whichever is smaller."),
+    _p("stop_pct", "risk", "... or", NUMBER, _pct(SETUPS_GNG_STOP_PCT), unit="% of the entry, whichever is smaller",
+       min=0.1, max=50, step=0.1),
+    _p("min_stop", "risk", "Smallest risk a share", NUMBER, SETUPS_MIN_STOP_DOLLARS, unit="$", min=0, max=5, step=0.01,
+       help="A smaller risk skips the day: the stop would sit in the spread."),
+    _p("risk_slippage", "risk", "Slippage counted in the risk", NUMBER, SETUPS_RISK_SLIPPAGE_DOLLARS, unit="$", min=0,
+       max=1, step=0.01, help="Added to the risk before the check above, as the research did."),
+    _TARGET_R, _BAILOUT,
+) + _TAPE + _FLOW + _GRADE + _bot(SETUPS_GNG_OPEN_ET, SETUPS_GNG_CUTOFF_ET)
 
 CATALOGUE: dict[str, tuple[ParamSpec, ...]] = {
     BOT_SETUP_FIRST_PULLBACK: _FIRST_PULLBACK,
@@ -581,7 +589,8 @@ SOURCES: dict[str, str] = {
                          "where the research began at 09:30. Every template is watched at once."),
     BOT_SETUP_RED_TO_GREEN: ("The live scanner reads the research's pre-registered rules (P3, ADR 031). Every template "
                              "is watched at once."),
-    BOT_SETUP_GAP_AND_GO: "The research's pre-registered rules (A2). Kept for its scanner -- nothing watches them yet.",
+    BOT_SETUP_GAP_AND_GO: ("The live scanner reads the research's pre-registered rules (A2, ADR 031 amendment): the break "
+                           "of the pre-market high from the open until 10:00. Every template is watched at once."),
     BOT_SETUP_MICRO_PULLBACK: "No parameters yet: it has never been tested. They are set when its one-second test (S5) is built.",
 }
 
@@ -607,7 +616,6 @@ _ORDERED: tuple[tuple[str, str, bool, str], ...] = (
     ("wall", "big_seller", True, "the seller that waits is bigger than the one that vetoes"),
     ("macd_fast", "macd_slow", False, "the MACD fast period is not shorter than the slow"),
     ("ft_min_consol", "ft_max_consol", True, "the fewest base candles is more than the most"),
-    ("t1_r", "t2_r", True, "target 1 is beyond target 2"),
     ("flow_window_sec", "flow_baseline_sec", False, "the flow's pace baseline is not longer than its window"),
 )
 # Groups of which at least one must be above zero: (keys, message).

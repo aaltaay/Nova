@@ -49,13 +49,14 @@ def test_session_get_l0_open_without_key(bot_iso):
     for gone in ("packs", "active_pack", "llm", "setup", "strategy", "readout", "readout_required", "advise"):
         assert gone not in body
     setups = {row["id"]: row["scanner"] for row in body["setups"]}
-    # ADR 031: the bull flag joins; it, the flat-top breakout and red to green have scanners.
+    # ADR 031: the bull flag joins; it, the flat-top breakout, red to green and (2026-10-02) Gap and Go have scanners.
     assert setups == {"first_pullback": True, "bull_flag": True, "flat_top_breakout": True,
-                      "red_to_green": True, "gap_and_go": False, "micro_pullback": False}
+                      "red_to_green": True, "gap_and_go": True, "micro_pullback": False}
     levels = {row["id"]: (row["level"], row["effective"]) for row in body["setups"]}
     assert levels == {"first_pullback": (0, 0), "bull_flag": (0, 0), "flat_top_breakout": (0, 0),
-                      "red_to_green": (0, 0), "gap_and_go": (None, None), "micro_pullback": (None, None)}
-    assert body["setup_levels"] == {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0, "red_to_green": 0}
+                      "red_to_green": (0, 0), "gap_and_go": (0, 0), "micro_pullback": (None, None)}
+    assert body["setup_levels"] == {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0, "red_to_green": 0,
+                                    "gap_and_go": 0}
     assert body["breakers"]["soft_usd"] == -50.0 and body["breakers"]["hard_usd"] == -200.0
     assert [g["id"] for g in body["gates"]] == [
         "venue", "level", "setups", "padlock", "allowlist", "depth_lines", "bot_trip", "day_lock",

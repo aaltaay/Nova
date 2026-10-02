@@ -23,8 +23,6 @@ from stock_read.rows import hhmm, row, shares
 ET = ZoneInfo("America/New_York")
 LEVEL_NAMES = {0: "Off", 1: "Eyes", 2: "Strategy"}
 NO_SCANNER = [
-    {"setup_type": "gap_and_go", "label": "Gap and Go", "reason": "No scanner yet: only its level is drawn (the "
-     "premarket high)."},
     {"setup_type": "micro_pullback", "label": "Micro pullback", "reason": "Parked: it needs one-second bars."},
 ]
 
@@ -74,8 +72,7 @@ def setup_rows(f: dict[str, Any], plan: dict[str, Any] | None) -> list[dict[str,
             bits.append(f"Leg {leg.get('low')} -> {leg.get('high')} ({(leg.get('pct') or 0) * 100:.1f}%).")
         out.append(row(f"lane_{lane.get('setup_type')}", label, value, state, src, " ".join(bits) or None))
     for ns in NO_SCANNER:
-        out.append(row(f"lane_{ns['setup_type']}", ns["label"], "No scanner yet" if ns["setup_type"] == "gap_and_go"
-                       else "Parked", "info", "--", ns["reason"]))
+        out.append(row(f"lane_{ns['setup_type']}", ns["label"], "Parked", "info", "--", ns["reason"]))
     tape = (plan or {}).get("tape")
     if tape and tape.get("verdict"):
         verdict = str(tape["verdict"])

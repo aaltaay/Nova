@@ -24,7 +24,7 @@ export function setupName(setupType: string | null | undefined): string {
 }
 
 const SETUP_SHORT: Record<string, string> = {
-  first_pullback: 'Pullback', bull_flag: 'Flag', flat_top_breakout: 'Flat top', red_to_green: 'R→G',
+  first_pullback: 'Pullback', bull_flag: 'Flag', flat_top_breakout: 'Flat top', red_to_green: 'R→G', gap_and_go: 'Gap & Go',
 };
 
 /** The setup in a word or two, where a tile or a one-line plan has no room for its name. */

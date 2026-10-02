@@ -53,8 +53,8 @@ def test_the_wire_says_which_parameters_restart_the_read_out():
         params = [p for g in catalogue.wire(sid)["groups"] for p in g["params"]]
         assert {p["key"] for p in params if p["affects_readout"] is False} == BOT_KEYS
         assert all(p["affects_readout"] is True for p in params if p["group"] != "bot")
-    gng = [p for g in catalogue.wire("gap_and_go")["groups"] for p in g["params"]]
-    assert gng and not any(p["affects_readout"] for p in gng)    # no scanner, no read-out to restart
+    assert "gap_and_go" in cs.SETUPS_READOUT_KINDS              # a scanner since 2026-10-02
+    assert catalogue.wire("micro_pullback")["groups"] == []      # no scanner, no parameters, no read-out
 
 
 def test_a_bot_only_edit_keeps_the_revision_and_is_saved(store, tmp_path):
@@ -130,7 +130,8 @@ def test_the_arming_window_is_the_scanners_own():
     for sid in cs.SETUPS_READOUT_KINDS:
         v = catalogue.defaults(sid)
         assert windows.arming_window(sid, v) == scanner_window(sid, PATTERNS[sid](v))
-    assert windows.arming_window("gap_and_go", catalogue.defaults("gap_and_go")) is None
+    assert windows.arming_window("gap_and_go", catalogue.defaults("gap_and_go")) == ("09:30", "10:00")
+    assert windows.arming_window("micro_pullback", catalogue.defaults("micro_pullback")) is None
 
 
 @pytest.mark.parametrize("values, field, words", [
@@ -183,14 +184,14 @@ def test_no_scanner_no_template_but_reading_works(store):
     app.include_router(routes.router)
     routes.install(app)
     c = TestClient(app)
-    created = c.post("/api/setups/templates/gap_and_go", json={"name": "Mine"})
+    created = c.post("/api/setups/templates/micro_pullback", json={"name": "Mine"})
     assert created.status_code == 409 and created.json()["detail"]["reason"] == "TEMPLATE_NO_SCANNER"
     assert "no scanner yet" in created.json()["detail"]["error"]
-    assert c.post("/api/setups/templates/micro_pullback", json={"name": "Mine"}).status_code == 409
-    assert c.post("/api/setups/templates/gap_and_go/default/play").json()["detail"]["reason"] == "TEMPLATE_NO_SCANNER"
-    gng = next(s for s in c.get("/api/setups/templates").json()["setups"] if s["id"] == "gap_and_go")
-    assert gng["scanner"] is False and [t["id"] for t in gng["templates"]] == ["default"]
-    assert gng["templates"][0]["bot_window"] is None
+    assert c.post("/api/setups/templates/micro_pullback/default/play").json()["detail"]["reason"] == "TEMPLATE_NO_SCANNER"
+    mp = next(s for s in c.get("/api/setups/templates").json()["setups"] if s["id"] == "micro_pullback")
+    assert mp["scanner"] is False and [t["id"] for t in mp["templates"]] == ["default"]
+    assert mp["templates"][0]["bot_window"] is None
+    assert c.post("/api/setups/templates/gap_and_go", json={"name": "Mine"}).status_code == 201   # a scanner now
 
 
 def test_the_patch_answer_says_a_bot_only_edit_kept_the_read_out(store, monkeypatch):

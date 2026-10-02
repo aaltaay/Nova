@@ -17,6 +17,7 @@ from constants_bot import (
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_RED_TO_GREEN,
 )
 from constants_setups import (
@@ -28,6 +29,7 @@ from constants_setups import (
 )
 from setup_scanner.bull_flag import BullFlagParams
 from setup_scanner.flat_top import FlatTopParams
+from setup_scanner.gap_and_go import GapAndGoParams
 from setup_scanner.pullback import PullbackParams
 from setup_scanner.red_to_green import RedToGreenParams
 from setup_scanner.tape_flow import DEFAULT_FLOW, FlowParams, FlushPolicy
@@ -183,12 +185,22 @@ def red_to_green_params(v: dict[str, Any]) -> RedToGreenParams:
     )
 
 
+def gap_and_go_params(v: dict[str, Any]) -> GapAndGoParams:
+    return GapAndGoParams(
+        session_start=str(v["session_start"]), entry_cutoff=str(v["entry_cutoff"]),
+        stop_cents=float(v["stop_cents"]), stop_pct=_pct(v["stop_pct"]), ema_period=int(v["ema_period"]), **_macd(v),
+        min_stop=float(v["min_stop"]), entry_offset=float(v["entry_offset"]), risk_slippage=float(v["risk_slippage"]),
+        target_r=float(v["target_r"]), near_dollars=float(v["near_dollars"]), near_pct=_pct(v["near_pct"]),
+    )
+
+
 # Which builder reads which setup's values (the setups with a scanner).
 PATTERNS = {
     BOT_SETUP_FIRST_PULLBACK: pullback_params,
     BOT_SETUP_BULL_FLAG: bull_flag_params,
     BOT_SETUP_FLAT_TOP: flat_top_params,
     BOT_SETUP_RED_TO_GREEN: red_to_green_params,
+    BOT_SETUP_GAP_AND_GO: gap_and_go_params,
 }
 
 

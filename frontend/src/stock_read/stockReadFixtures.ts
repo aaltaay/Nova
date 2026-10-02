@@ -57,7 +57,6 @@ export const apusReadWire = {
     },
   ],
   no_scanner: [
-    { setup_type: 'gap_and_go', label: 'Gap and Go', reason: 'No scanner yet: only its level is drawn (the premarket high).' },
     { setup_type: 'micro_pullback', label: 'Micro pullback', reason: 'Parked: it needs one-second bars.' },
   ],
   plan: {
