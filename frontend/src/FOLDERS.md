@@ -40,6 +40,7 @@ the backend packages.
 | `focus_report/` | app | The operator's focus report (ADR 033): each window posts its page, symbol, Windows focus and last input to `POST /sensors/focus`, read back as sensor 19. |
 | `hod_momo/` | feature | The HOD Momo scanner: alert stream, dock and strip, strategy configurator, master gate, blocklist, debug panel, Running Up tab. |
 | `hooks/` | shared | Cross-feature React hooks: scanner data and price stream, ticker stream, news impact, catalysts, alert channels, resizable panels. |
+| `hot_list/` | feature | Today's hot list (ADR 043): the stocks Nova watches all day and may trade -- one shared read per window, the star on each Trader tab, and the list's writes (star, remove, auto top N, new names' Buy / Sell, bring back yesterday's). |
 | `hotkeys/` | feature | Hot keys and Nova Actions: bindings editor, DAS import, shortcuts menu, quick-trade bar, actions sent through the manual order path. |
 | `ibkr/` | feature | The trading surface: order ticket and placement, working orders, positions, depth ladder, time & sales, Gateway status, trading prerequisites. |
 | `issue_report/` | feature | File an issue from the desk: the form (Bug / Feature, optional title and description, the desk details and a scrubbed diagnostics dump), opened from the What's new card and Help > File an Issue…; the backend files it on GitHub. |

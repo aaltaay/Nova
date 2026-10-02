@@ -6,6 +6,7 @@
  * reason; the same switch is the chip on the 1-minute chart.
  */
 import { useState } from 'react';
+import { hotListActions, listedOn, useHotList } from '../hot_list';
 import type { DepthMarker } from '../ibkr';
 import { tipProps, whyProps } from '../ux';
 import { STOCK_MODE_COLORS, WHO_TRADES_NOTES_SHOWN } from './constants';
@@ -14,6 +15,7 @@ import { capUsedText } from './novaPromise';
 import { useStockReadContext, type StockReadContextValue } from './StockReadContext';
 import { hhmmssEt } from './timeWords';
 import type { StockModeView, StockSide } from './types';
+import { whoAnswer } from './whoAnswer';
 import { MODE_NAMES, MODE_SIDES, modeSentence, switchLock } from './whoTradesModel';
 import './whoTrades.css';
 
@@ -109,8 +111,35 @@ export function NotesList({ notes, sym }: { notes: StockModeView['notes']; sym: 
   );
 }
 
+/** The ★: today's hot list (ADR 043). Nova follows and may trade only listed stocks. */
+function HotStar({ sym, onError }: { sym: string; onError: (message: string | null) => void }) {
+  const hot = useHotList();
+  const listed = listedOn(hot.view, sym);
+  const entry = hot.view?.entries.find(e => e.symbol === sym) ?? null;
+  const why = hot.busy ? 'Saving the hot list…' : hot.view ? null : (hot.error ?? 'Reading today\'s hot list…');
+  const tip = listed
+    ? `On today's hot list (${entry?.how === 'auto' ? 'added by the top of the Gainers board' : 'your ★'}). The scanners `
+      + 'follow it all day and Nova may trade it per its Who trades switch. Click to take it off the list.'
+    : 'Not on today\'s hot list: Nova follows and may trade only listed stocks. Click to add it.';
+  return (
+    <button
+      type="button"
+      className={`sr-who__star${listed ? ' sr-who__star--on' : ''}`}
+      aria-pressed={listed === true}
+      disabled={why !== null}
+      {...(why ? whyProps(true, why) : tipProps(tip, listed ? 'On today\'s hot list' : 'Add to today\'s hot list'))}
+      onClick={() => void (listed ? hotListActions.unstar(sym) : hotListActions.star(sym)).then(onError)}
+      data-testid="who-trades-star"
+    >
+      {listed ? '★' : '☆'}
+    </button>
+  );
+}
+
 function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const who = ctx.who;
+  const hot = useHotList();
+  const [starError, setStarError] = useState<string | null>(null);
   const view = who.view;
   const sym = ctx.symbol;
   const mode = view?.mode ?? 'signal';
@@ -124,9 +153,11 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const entries = entriesLine(view);
   const event = view?.last_event ?? null;
   const tip = [modeSentence(mode, sym), ...notes.map(n => n.text)].join('\n');
+  const answer = whoAnswer(sym, listedOn(hot.view, sym), view);
   return (
     <section className="sr-who" data-testid="who-trades" aria-label={`Who trades ${sym}`}>
       <div className="sr-who__row">
+        <HotStar sym={sym} onError={setStarError} />
         <span className="sr-who__kicker" {...tipProps(`Who places each side of the trade on ${sym}: Buy and Sell, each `
           + 'You or Nova.', `Who trades ${sym}`)}>
           <span className="sr-who__kicker-words">Who trades </span>
@@ -155,6 +186,14 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
           {view ? MODE_NAMES[mode] : '…'}
         </span>
       </div>
+      {answer && (
+        <p className={`sr-who__answer sr-who__answer--${answer.tone}`} {...tipProps(answer.text)} data-testid="who-trades-answer">
+          {answer.text}
+        </p>
+      )}
+      {starError && (
+        <p className="sr-who__note sr-who__note--bad" {...tipProps(starError)} data-testid="who-trades-star-error">{starError}</p>
+      )}
       {line && (
         <p
           className={`sr-who__note sr-who__note--${who.error ? 'bad' : 'warn'}`}

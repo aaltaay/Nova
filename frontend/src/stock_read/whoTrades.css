@@ -298,3 +298,23 @@
 .sr-plan__status--stop { color: var(--sr-bad); }
 .sr-btn--target { border-color: #ff9f0a; background: #ff9f0a; color: #111; }
 .sr-btn--stop { border-color: var(--sr-bad); background: var(--sr-bad); color: #fff; }
+
+/* ADR 043: the hot list's star and the stock's own answer. */
+.sr-who__star {
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--sr-muted);
+  cursor: pointer;
+}
+.sr-who__star--on { color: var(--sr-warn); }
+.sr-who__star:disabled { opacity: 0.5; cursor: default; }
+.sr-who__answer {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--sr-secondary);
+}
+.sr-who__answer--yes { color: var(--sr-ok); }
+.sr-who__answer--no { color: var(--sr-warn); }
