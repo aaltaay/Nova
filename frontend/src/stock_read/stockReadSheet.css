@@ -185,7 +185,9 @@
 }
 .sr-legend__chips {
   display: flex;
-  flex: 1 1 auto;
+  /* The row's full share, so the call below always wraps under the chips: on a wide pane it once
+     fit beside them and slid under the badge in the corner. */
+  flex: 0 1 calc(100% - 250px);
   flex-wrap: wrap;
   gap: 3px;
   min-width: 0;
