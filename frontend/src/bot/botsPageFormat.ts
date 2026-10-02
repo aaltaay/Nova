@@ -1,11 +1,10 @@
 /**
- * Pure helpers for the Bots page (ADR 027, ADR 042): the hero's sentence, the stocks
- * line, the bot's trade in one line, and the page's number formats. Gate chips are
- * bot/botGateWords.ts; whether Activate may be pressed is bot/botActivateLock.ts.
+ * Pure helpers for the Bots page (ADR 027, ADR 042, ADR 043): the venue's name, why the Bot was turned
+ * off, the bot's trade in one line, and the page's number formats. Gate words are bot/botGateWords.ts;
+ * the Bot switch is bot/botSwitch.ts.
  */
-import { BOTS_HERO_NO_GATES, BOTS_VENUE_NAMES } from '../constantGroups/bots_page';
-import { gateLine } from './botGateWords';
-import { isActive, isReady, masterLevel, setupLabelOf, setupNames, strategySetups } from './botLevels';
+import { BOTS_VENUE_NAMES } from '../constantGroups/bots_page';
+import { setupLabelOf } from './botLevels';
 import { etTime } from './botWhen';
 import type { BotDeactivated, BotSession, BotTrade } from './types';
 
@@ -21,67 +20,16 @@ export function sessionVenueName(session: BotSession): string {
   return BOTS_VENUE_NAMES[String(v)] ?? 'this venue';
 }
 
-/**
- * The hero's one-line state under the headline (ADR 042). Off: nothing proposes or
- * trades, every scanner scores in silence. Eyes: setups propose, nothing trades.
- * Strategy: setups at Strategy may be traded once Activate is pressed (Paper and
- * Sim); until then they propose like Eyes. Never "live" on a practice venue.
- */
-export function heroSentence(session: BotSession): string {
-  const venue = sessionVenueName(session);
-  const level = masterLevel(session);
-  if (level <= 0) {
-    return `Off on ${venue}: no setup proposes and the bot trades nothing. Every scanner still watches and scores in silence, and the localhost bot API is dark.`;
-  }
-  if (level === 1) {
-    return `Eyes on ${venue}: setups at Eyes or Strategy propose when one is near its trigger and the tape says go. Nova's bot trades nothing; you place.`;
-  }
-  if (!Array.isArray(session.gates)) return BOTS_HERO_NO_GATES;
-  const venueGate = session.gates.find(g => g.id === 'venue' && !g.ok);
-  if (venueGate && !isActive(session)) {
-    const why = gateLine(venueGate).why ?? "Nova's bot does not trade here.";
-    return `Strategy on ${venue}, but the bot cannot trade here: ${why} Setups at Eyes or Strategy propose; you place.`;
-  }
-  const at = strategySetups(session);
-  const n = session.symbol_allowlist?.length ?? 0;
-  const stocks = `${n} stock${n === 1 ? '' : 's'} set to Bot`;
-  if (isActive(session)) {
-    if (isReady(session)) {
-      return `Trading on ${venue}: the bot buys GO triggers of ${setupNames(at)} on its ${stocks}, the first trigger first, under every gate below.`;
-    }
-    // The reason it is not trading now is the hero's line under the headline; this says what it will do.
-    return `Active on ${venue}: the bot buys GO triggers of ${setupNames(at)} on its ${stocks} once nothing below stops it.`;
-  }
-  if (at.length === 0) {
-    return `Strategy on ${venue}, but no setup card is at Strategy: setups at Eyes propose, and nothing trades.`;
-  }
-  return `Strategy on ${venue}: the bot may trade GO triggers of ${setupNames(at)} on its ${stocks} once you press Activate. Until then they propose like Eyes.`;
-}
-
-/** "2 stocks set to Bot · risk $20 a trade · max 1 share · $50 budget · 1 Nova entry a day". */
-export function stocksLine(session: BotSession): string {
-  const n = session.symbol_allowlist?.length ?? 0;
-  const caps = session.caps;
-  const parts = [`${n} stock${n === 1 ? '' : 's'} set to Bot`];
-  if (caps.risk_usd != null) parts.push(`risk ${fmtUsd(caps.risk_usd)} a trade`);
-  parts.push(`max ${caps.max_shares} share${caps.max_shares === 1 ? '' : 's'}`);
-  parts.push(`$${caps.bp_budget_usd.toFixed(0)} budget`);
-  if (caps.entries_per_day != null) {
-    parts.push(`${caps.entries_per_day} Nova entr${caps.entries_per_day === 1 ? 'y' : 'ies'} a day`);
-  }
-  return parts.join(' · ');
-}
-
 /** Why the backend turned the bot off (ADR 042 B), when the backend sends no words of its own. */
 const DEACTIVATED_WORDS: Record<string, string> = {
   restart: 'the backend restarted',
   padlock: 'the padlock was locked',
   venue: 'the desk changed venue',
-  level: 'the master level went below Strategy',
-  no_setup: 'no setup was left at Strategy',
+  level: 'the Bot was switched off',
+  no_setup: 'no strategy was left at On',
   bot_trip: 'the bot trip fired',
   all_stop: 'the all-stop fired',
-  operator: 'you pressed Deactivate',
+  operator: 'you turned it off',
 };
 
 /** "Turned off at 09:41 ET — the backend restarted"; empty when the backend says nothing. */

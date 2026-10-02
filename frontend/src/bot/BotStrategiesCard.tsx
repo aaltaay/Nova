@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { BackendReloadButton } from '../components/BackendReloadButton';
-import { BOT_SCANNER_SETUP_IDS, BOT_SETUP_IDS, BOT_STALE_BACKEND_BANNER } from '../constantGroups/bot';
+import { BOT_SCANNER_SETUP_IDS, BOT_SETUP_IDS, BOT_SETUP_LABELS, BOT_SETUP_NEXT, BOT_STALE_BACKEND_BANNER } from '../constantGroups/bot';
 import {
   BOTS_ADD_SETUP_CLOSE,
   BOTS_ADD_SETUP_COPY,
@@ -35,7 +35,8 @@ import {
 import { confirmApp } from '../ux/appDialogApi';
 import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { tipProps } from '../ux/hoverTip';
-import { effectiveLevel, isActive, levelName, masterLevel, ownLevel } from './botLevels';
+import { effectiveLevel, levelName, masterLevel, ownLevel } from './botLevels';
+import { botOn } from './botSwitch';
 import { BotSetupCard } from './BotSetupCard';
 import { BotTemplateEditor } from './BotTemplateEditor';
 import { tapeLines } from './templateFormat';
@@ -70,6 +71,12 @@ async function explainAddSetup(): Promise<void> {
   } catch (err) {
     console.warn('[Nova] could not copy the catalogue path', err);
   }
+}
+
+/** A setup without a scanner, on hover: why it cannot watch yet and what unblocks it. */
+function noScannerTip(id: string): string {
+  const next = BOT_SETUP_NEXT[id];
+  return next ? [next.head, next.why, `Unblocks when: ${next.unblock}`].join('\n') : 'No scanner yet.';
 }
 
 function bySetup(rows: readonly SetupRow[]): Map<string, SetupRow[]> {
@@ -108,7 +115,7 @@ export function BotStrategiesCard({ session, busy, onSetupLevel, onOpenBoard, on
   const staleApi = !levelsKnown && (session.setups?.length ?? 0) > 0;
   const staleSetup = (id: string) => staleApi && BOT_SCANNER_SETUP_IDS.includes(id) && !infos.get(id)?.scanner;
   const master = levelName(masterLevel(session));
-  const active = isActive(session);
+  const active = botOn(session);
   const tpl = useSetupTemplates();
   const stream = useSetupsBoard();
   const board = stream?.board ?? null;
@@ -154,14 +161,14 @@ export function BotStrategiesCard({ session, busy, onSetupLevel, onOpenBoard, on
       {playError ? <p className="bots-hero__error" role="alert" data-testid="bots-template-play-error">{playError}</p> : null}
 
       <div className="bots-strat-grid">
-        {BOT_SETUP_IDS.map(id => {
+        {BOT_SETUP_IDS.filter(id => Boolean(infos.get(id)?.scanner) || staleSetup(id)).map(id => {
           const templates = tpl.setup(id);
           return (
             <BotSetupCard key={id} id={id} playable={Boolean(infos.get(id)?.scanner)} stale={staleSetup(id)}
               own={ownLevel(session, id) ?? 0} effective={effectiveLevel(session, id) ?? 0} masterName={master}
               botActive={active} levelsKnown={levelsKnown} busy={busy} onLevel={onSetupLevel}
               templates={templates} templatesError={tpl.error} templateBusy={playing}
-              onPlayTemplate={(s, t) => void play(s, t)} onOpenParams={setEditing}
+              onPlayTemplate={(s, t) => void play(s, t)} onOpenParams={setEditing} onApplyTemplates={tpl.apply}
               summary={summaries.get(id) ?? null} rows={rows.get(id) ?? []} allRows={allRows}
               connected={Boolean(stream?.connected)} seeding={board?.seeding ?? 0} emptyText={recordedEmptyText(board)}
               hovered={hovered} onHover={setHovered} onOpenBoard={onOpenBoard} onOpenSymbol={onOpenSymbol}>
@@ -170,6 +177,18 @@ export function BotStrategiesCard({ session, busy, onSetupLevel, onOpenBoard, on
           );
         })}
       </div>
+
+      {BOT_SETUP_IDS.some(id => !infos.get(id)?.scanner && !staleSetup(id)) ? (
+        <p className="bots-noscan-line" data-testid="bots-noscan-line">
+          Not watching yet:{' '}
+          {BOT_SETUP_IDS.filter(id => !infos.get(id)?.scanner && !staleSetup(id)).map((id, i) => (
+            <span key={id} {...tipProps(noScannerTip(id), BOT_SETUP_LABELS[id] ?? id)}>
+              {i ? ' · ' : ''}<b>{BOT_SETUP_LABELS[id] ?? id}</b>
+            </span>
+          ))}
+          . Point at one for why it does not watch yet and what unblocks it.
+        </p>
+      ) : null}
 
       <button type="button" className="bots-addsetup" data-testid="bots-add-setup" onClick={() => void explainAddSetup()}>
         <b>+ {BOTS_ADD_SETUP_LABEL}</b>

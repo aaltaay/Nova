@@ -15,6 +15,17 @@ const toggle = vi.hoisted(() => vi.fn());
 vi.mock('./useBotAllowlist', () => ({ useBotAllowlist: () => ({
   isAllowed: () => false, add: vi.fn(), remove: vi.fn(), toggle,
 }) }));
+// Today's hot list (ADR 043) is its own store: GRML is on it, AAPL is not.
+const hot = vi.hoisted(() => ({
+  state: { view: { entries: [{ symbol: 'GRML' }] }, error: null as string | null, busy: false },
+  star: vi.fn(async () => null as string | null),
+  unstar: vi.fn(async () => null as string | null),
+}));
+vi.mock('../hot_list', () => ({
+  useHotList: () => hot.state,
+  listedOn: (view: { entries: { symbol: string }[] } | null, symbol: string) => (view ? view.entries.some(e => e.symbol === symbol) : null),
+  hotListActions: { star: hot.star, unstar: hot.unstar },
+}));
 const response = (body: unknown, ok = true) => ({ ok, json: async () => body }) as Response;
 let root: Root;
 let container: HTMLDivElement;
@@ -24,6 +35,8 @@ beforeEach(() => {
   _resetIbkrStatusPollerForTests();
   command.mockReset();
   toggle.mockReset();
+  hot.star.mockReset().mockResolvedValue(null);
+  hot.unstar.mockReset().mockResolvedValue(null);
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -144,5 +157,34 @@ describe('Let the bot trade it (ADR 042 F)', () => {
     toggle.mockResolvedValueOnce({ session: {}, error: null });
     await act(async () => { (container.querySelector('[data-testid="bot-symbol-menu-toggle"]') as HTMLButtonElement).click(); });
     expect(container.querySelector('[role="menu"]')).toBeNull();
+  });
+});
+
+describe('★ Today\'s hot list (ADR 043)', () => {
+  it('stars a stock from anywhere, takes one off, and keeps a refusal on screen', async () => {
+    await open();
+    const row = () => container.querySelector('[data-testid="bot-symbol-menu-hot"]') as HTMLButtonElement;
+    expect(row().textContent).toContain('★ AAPL on today\'s hot list');
+    await act(async () => { row().click(); });
+    expect(hot.star).toHaveBeenCalledWith('AAPL');
+    expect(container.querySelector('[data-testid="bot-symbol-menu"]')).toBeNull();
+    act(() => openBotSymbolMenu('GRML', 0, 0));
+    expect(row().textContent).toContain('Take GRML off today\'s hot list');
+    expect(row().textContent).toContain('Hot list');
+    hot.unstar.mockResolvedValueOnce('Nova holds GRML: take over the exit first');
+    await act(async () => { row().click(); });
+    expect(hot.unstar).toHaveBeenCalledWith('GRML');
+    expect(container.querySelector('[data-testid="bot-symbol-menu-hot-error"]')?.textContent)
+      .toBe('Nova holds GRML: take over the exit first');
+  });
+
+  it('says so while today\'s list has not been read', async () => {
+    const before = hot.state;
+    hot.state = { view: null as never, error: null, busy: false };
+    await open();
+    const row = container.querySelector('[data-testid="bot-symbol-menu-hot"]') as HTMLButtonElement;
+    expect(row.disabled).toBe(true);
+    expect(row.getAttribute('data-why')).toBe('Reading today\'s hot list…');
+    hot.state = before;
   });
 });

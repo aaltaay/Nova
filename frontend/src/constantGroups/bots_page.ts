@@ -21,34 +21,11 @@ export const BOTS_VENUE_UNKNOWN = 'Venue unknown — the desk status has not ans
 /** The venue a gate or a line names, as the header pills say it. */
 export const BOTS_VENUE_NAMES: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
 
-/** An API older than ADR 027 reports no gates: say so, never "every gate is open". */
-export const BOTS_STALE_API =
-  'This API is older than the Bots page: it reports no gates. Restart the backend (gear → Reload backend) to see them.';
-export const BOTS_HERO_NO_GATES = 'The gates are not reported by this API, so nothing here can say whether the bot may trade.';
-
-/* ---------- Hero (ADR 042): the master level, Activate, the gates ---------- */
-export const BOTS_MASTER_HEAD = (venue: string): string => `Master level · the most any setup may do on ${venue}`;
-export const BOTS_MASTER_TIP =
-  'The bot\'s level on this venue is a ceiling over every setup card\'s own Off / Eyes / Strategy: what a setup may do now is the lower of the two. Each venue keeps its own. Choosing Strategy never activates the bot: Activate does.';
-export const BOTS_GATES_ACTIVATE_HEAD = 'Activate needs';
-export const BOTS_GATES_FIRE_HEAD = 'Each order meets';
-export const BOTS_GATES_ACTIVATE_TIP =
-  'Activate is refused while any of these is closed (the bot trip asks you first). They are the backend\'s own checks.';
-export const BOTS_GATES_FIRE_TIP =
-  'Checked again on every order the bot would send. A closed one does not stop Activate; it stops the trade, and the activity names it.';
-export const BOTS_ACTIVATE_WAITS_ON = 'Can\'t Activate yet';
-export const BOTS_ACTIVATE_READY = 'Every Activate gate is open.';
-export const BOTS_FIRE_WAITS_ON = 'What each order still meets';
-export const BOTS_REENABLE_TITLE = 'Re-enable the bot for today';
-export const BOTS_REENABLE_OK = 'Activate · re-enable';
-export const BOTS_REENABLE_CANCEL = 'Keep it off';
-export const botsReenableText = (when: string, pnl: string): string =>
-  `The bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` (P&L ${pnl})` : ''}. Activate re-enables the bot for today.`;
 export const BOTS_KILL_TRIP_NOTE =
-  'Cancels every working order on every venue and refuses every new order on every venue, a sell included, until you reset it. It does not sell positions; Flatten and cancels still work.';
-export const BOTS_KILL_RESET_LABEL = 'Reset kill switch';
-export const BOTS_KILL_TRIPPED_NOTE = 'Kill switch tripped — every new order is refused on every venue until you reset it (Flatten and cancels still work)';
-export const BOTS_KILL_SWEEP_HEAD = 'Kill switch swept';
+  'Cancels every working order on every venue and refuses every new order, from you or from Nova, a sell included, until you unfreeze. It sells nothing; the red KILL at the top is the one that sells.';
+export const BOTS_KILL_RESET_LABEL = 'Unfreeze orders';
+export const BOTS_KILL_TRIPPED_NOTE = 'Orders are frozen: every new order is refused on every venue until you unfreeze (Flatten and cancels still work)';
+export const BOTS_KILL_SWEEP_HEAD = 'Freezing cancelled';
 export const botsKillSweepCancelled = (n: number, ids: string): string =>
   `cancelled ${n} order${n === 1 ? '' : 's'}${ids ? ` (${ids})` : ''}`;
 export const botsKillSweepFailed = (n: number, ids: string): string =>
@@ -60,8 +37,7 @@ export const BOTS_GATE_UNLOCK = 'unlock padlock';
 export const BOTS_GATE_OPEN_L2 = (symbol: string): string => `open ${symbol} Level 2`;
 export const BOTS_GATE_ADD_SYMBOL = 'add a stock';
 export const BOTS_GATE_SETUPS = 'set a card to Strategy';
-export const BOTS_GATE_RESET_KILL = 'reset it';
-export const BOTS_GATE_MORE = (n: number): string => `+${n} more`;
+export const BOTS_GATE_RESET_KILL = 'unfreeze';
 
 /* ---------- Strategies ---------- */
 export const BOTS_STRATEGIES_TITLE = 'Strategies';
@@ -153,51 +129,13 @@ export const BOTS_KEY_EMPTY_WHY = 'Paste the API key first';
 export const BOTS_KILL_BUSY_WHY = 'The kill switch is answering the last press -- wait for Nova';
 export const BOTS_KILL_UNREAD_WHY = (err: string | null): string =>
   `The kill switch state has not loaded${err ? ` -- ${err}` : ''}`;
-export const BOTS_SYMBOLS_CAP_WHY = (cap: number): string => `The bot trades at most ${cap} stocks -- remove one first`;
-export const BOTS_SYMBOL_EMPTY_WHY = 'Type a symbol first';
-export const BOTS_SYMBOL_BUSY_WHY = 'Asking Nova -- wait for the answer';
 export const BOTS_SETUP_NO_LEVELS_WHY =
   'This API keeps one level for every setup -- restart the backend to give each setup its own';
 export const BOTS_NOT_TRADING_NOW = 'Not trading now';
 /** Anchor of the Strategies card, for the "set a card to Strategy" gate link. */
 export const BOTS_STRATEGIES_ANCHOR = 'bots-strategies-card';
 
-/* ---------- Who trades (ADR 037, ADR 042 F) ---------- */
-export const BOTS_SYMBOLS_TITLE = 'Who trades';
-export const BOTS_SYMBOLS_SUB = 'stocks Nova may buy';
-export const BOTS_SYMBOLS_NOTE =
-  'Stocks Nova\'s bot may trade — set per stock under Who trades. The scanners and Eyes watch every HOD Momo name, whatever this list says.';
-export const BOTS_SYMBOLS_EMPTY = 'No stock is set for Nova to buy. The bot trades nothing until one is set to Bot.';
-export const BOTS_SYMBOLS_PLACEHOLDER = 'Let the bot trade… (or right-click a scanner row, Trader tab or chart)';
-export const BOTS_SYMBOLS_CAP = (cap: number): string => `The bot trades at most ${cap} stocks.`;
 export const BOTS_STOCK_MODES_POLL_MS = 5_000;
-export const BOTS_MODE_LABELS: Record<string, string> = {
-  bot: 'Bot',
-  auto_entry: 'Auto-entry',
-  approve: 'Approve',
-  signal: 'Signal only',
-};
-export const BOTS_MODE_TIPS: Record<string, string> = {
-  bot: 'Bot: Nova\'s bot buys this stock\'s GO triggers of every setup at Strategy, and sells it (target, stop, time stop).',
-  auto_entry: 'Auto-entry: Nova buys a GO trigger by the bot\'s rules — a setup at Strategy, its window, the daily cap, only while the bot is active — and the exit is yours.',
-  approve: 'Approve: you approve a plan; Nova sends its bracket when the setup triggers. Counted, never capped.',
-  signal: 'Signal only: Nova never buys it.',
-};
-export const BOTS_ENTRIES_TODAY = (count: number, cap: number, approved: number): string =>
-  `Nova's buys today: ${count} of ${cap}${approved ? ` · ${approved} approved by you` : ''}`;
-export const BOTS_ENTRIES_TODAY_TIP =
-  'One count for Nova\'s automatic entries on this venue today — the bot and Auto-entry share it (the sleeve\'s "Nova entries a day"). A missed entry gives the day back. Approve is your own decision per trade: counted, never capped.';
-export const BOTS_STOCK_MODES_UNREAD = (err: string): string =>
-  `Who trades did not load — ${err}. The bot's own stocks below come from the bot session.`;
-export const BOTS_L2_HELD = 'Held';
-export const BOTS_L2_HELD_VIA: Record<'trader' | 'record', string> = { trader: 'Trader', record: 'Record' };
-export const BOTS_L2_HELD_TITLE = 'Nova holds this stock\'s depth line: the bot can read its tape at a trigger';
-export const BOTS_L2_OPEN = 'Not held · Open L2';
-export const BOTS_L2_OPEN_TITLE = 'Open its Level 2 in a pinned Trader tab so the bot can read the tape';
-export const BOTS_LAST_TITLE = 'Last print from the setup scanner, else the scanner row';
-export const BOTS_CHG_TITLE = 'Change against the prior close; blank when no board carries the symbol';
-export const BOTS_OPEN_STOCK = 'Open';
-export const BOTS_OPEN_STOCK_TITLE = 'Open it in the Trader: its Who trades row above Level 2 changes the mode';
 
 /* ---------- Risk sleeve (ADR 042 E): one per venue ---------- */
 export const BOTS_RISK_TITLE = 'Risk sleeve';
@@ -307,4 +245,4 @@ export const BOTS_STATUS_ORDER_KINDS = 'Order kinds (the localhost bot API):';
 /* ---------- Header pill and the Trader rail card ---------- */
 export const BOTS_PILL_LABEL = 'Bot';
 export const BOTS_PILL_TITLE = 'Open the Bots page';
-export const botsAtStrategy = (n: number): string => `${n} at Strategy`;
+export const botsStrategiesOn = (n: number): string => (n === 1 ? '1 strategy On' : `${n} strategies On`);

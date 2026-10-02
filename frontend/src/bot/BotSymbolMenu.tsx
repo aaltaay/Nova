@@ -4,7 +4,8 @@
  * The symbol is named once in the head; each action is a row that looks like a
  * button -- an icon tile in the action's colour, a label that says what the
  * click does, a line saying what that means, and a state chip when it is
- * already on (Watching, REC, Bot). Stopping a recording stays a hold. "Let the
+ * already on (Watching, Hot list, REC, Bot). Stopping a recording stays a hold. The ★ puts
+ * the stock on today's hot list from anywhere (ADR 043). "Let the
  * bot trade" goes through the stock-mode rules (ADR 042 F): the menu waits for
  * the answer and shows a refusal in the backend's words instead of closing.
  *
@@ -21,7 +22,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
-import { Bot, BotOff, Circle, Pin, PinOff, Square, TriangleAlert } from 'lucide-react';
+import { Bot, BotOff, Circle, Pin, PinOff, Square, Star, TriangleAlert } from 'lucide-react';
+import { hotListActions, listedOn, useHotList } from '../hot_list';
 import {
   SYMBOL_MENU_ALLOW_HINT,
   SYMBOL_MENU_ALLOW_STATE,
@@ -70,7 +72,7 @@ import {
 } from '../watch_list';
 import './symbolMenu.css';
 
-type Tone = 'tab' | 'watch' | 'rec' | 'bot';
+type Tone = 'tab' | 'watch' | 'hot' | 'rec' | 'bot';
 const ICON_PX = 15;
 
 /** Icon tile, label, the line under it, and the chip that says it is already on. */
@@ -108,6 +110,51 @@ function MenuRow({ tone, icon, label, hint, state, testId, disabled, why, onClic
     >
       <RowBody tone={tone} icon={icon} label={label} hint={hint} state={state} />
     </button>
+  );
+}
+
+/**
+ * ★ Today's hot list (ADR 043): mounted only while the menu is open, so the list is read only then. A
+ * refusal stays on screen in the backend's words; until the list is read the row says so.
+ */
+function HotListRow({ symbol, onDone }: { symbol: string; onDone: () => void }) {
+  const hot = useHotList();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const listed = listedOn(hot.view, symbol);
+  const why = busy || hot.busy ? 'Saving the hot list…' : listed === null ? (hot.error ?? 'Reading today\'s hot list…') : undefined;
+  const press = async () => {
+    setBusy(true);
+    const err = listed ? await hotListActions.unstar(symbol) : await hotListActions.star(symbol);
+    setBusy(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    onDone();
+  };
+  return (
+    <>
+      <MenuRow
+        tone="hot"
+        testId="bot-symbol-menu-hot"
+        icon={<Star size={ICON_PX} fill={listed ? 'currentColor' : 'none'} />}
+        label={listed ? `Take ${symbol} off today's hot list` : `★ ${symbol} on today's hot list`}
+        hint={listed
+          ? 'Nova stops buying it, and its Buy and Sell go back to You. Its alerts and the chart stay.'
+          : 'The scanners follow it all day; Nova may buy it where its Buy is Nova. The list starts empty at 04:00.'}
+        state={listed ? 'Hot list' : null}
+        disabled={why !== undefined}
+        why={why}
+        onClick={() => void press()}
+      />
+      {error ? (
+        <div className="symbol-menu__error" role="alert" data-testid="bot-symbol-menu-hot-error">
+          <TriangleAlert size={13} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -266,6 +313,7 @@ function SymbolMenu() {
           closeBotSymbolMenu();
         }}
       />
+      <HotListRow symbol={symbol} onDone={closeBotSymbolMenu} />
       {recording ? (
         // A recording is locked: Stop takes a deliberate hold, never a slip.
         <HoldToStopButton
