@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * A Trader tab's Level 2 whose line is lent to a setup (ADR 043 decision 6): it says so, never
+ * A Trader tab's Level 2 whose line is lent to a setup (ADR 044 decision 6): it says so, never
  * reconnects by its backoff, comes back when the loan ends (the lines poll) or at once when the
  * tab comes to the front -- and keeps the lent words up until the line answers.
  */

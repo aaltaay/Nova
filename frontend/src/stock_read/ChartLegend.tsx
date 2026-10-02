@@ -127,7 +127,7 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
   useCornerBottom(corner, containerRef, onCornerBottom);
   const { layers } = ctx;
   const eyes = ctx.prefs.eyes;
-  // Eyes off (ADR 043): no badge, except a call about shares you hold (the trade's moment is Holding or past it).
+  // Eyes off (ADR 044): no badge, except a call about shares you hold (the trade's moment is Holding or past it).
   const moment = eyes || (ctx.who.moment?.step ?? 0) >= 2 ? ctx.who.moment : null;
   const badge = moment?.badge ?? (layers.setups ? planBadgeText(read) : null);
   const tone = moment?.tone ?? read.plan?.state ?? 'manual';

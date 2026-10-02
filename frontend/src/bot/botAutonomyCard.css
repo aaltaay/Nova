@@ -55,7 +55,7 @@
   color: #86efac;
 }
 
-/* The Bot switch (ADR 043): the same one switch as the Bots page. */
+/* The Bot switch (ADR 044): the same one switch as the Bots page. */
 .bot-card__switch {
   flex-shrink: 0;
   margin-left: 6px;

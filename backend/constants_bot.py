@@ -218,7 +218,7 @@ BOT_SKIP_EXTENDED_HOURS = "BOT_EXTENDED_HOURS"
 BOT_SKIP_SIZE = "BOT_SIZE_ZERO"
 BOT_SKIP_VENUE_CHANGING = "BOT_VENUE_CHANGING"   # the desk is leaving the venue (ADR 042 F)
 
-# -- ADR 043: one Bots page. --------------------------------------------------------------
+# -- ADR 044: one Bots page. --------------------------------------------------------------
 # Each strategy's bot rules, on its template in play (the template's bot group: changing them never
 # starts a read-out over). Grades Nova buys -- C stays NOT A TRADE -- and setups a stock a day.
 BOT_GRADES_AB = "AB"

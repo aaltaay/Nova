@@ -1,4 +1,4 @@
-/* The one Bots page (ADR 043, approved mockup v8): the answer line, the Bot card, each strategy's bot
+/* The one Bots page (ADR 044, approved mockup v8): the answer line, the Bot card, each strategy's bot
    rules, the Level 2 lines, Tickers today and the last row. Owner: bot/BotsPage.tsx. The shell and the
    shared atoms are in botsPage.css, the older cards in botsPageCards.css. Tokens from tokens-shell.css. */
 

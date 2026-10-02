@@ -14,7 +14,7 @@ import { resetWatchToastsForTests } from './watchToasts';
 
 // The desk's one /ws/setups board, as the provider would hand it over.
 const setups = vi.hoisted(() => ({ value: null as { board: SetupsBoard | null; connected: boolean } | null }));
-// The watch list is today's hot list (ADR 043): an in-memory one here.
+// The watch list is today's hot list (ADR 044): an in-memory one here.
 vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
 vi.mock('../setups', async importOriginal => ({
   ...(await importOriginal<typeof import('../setups')>()),

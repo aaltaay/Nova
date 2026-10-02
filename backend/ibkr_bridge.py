@@ -182,7 +182,7 @@ def refresh_hod_active_set() -> list[str]:
     try:
         import hot_list as _hot_list
 
-        # ADR 043: today's hot list is admitted first -- an L1 line, a snapshot and bars for every name
+        # ADR 044: today's hot list is admitted first -- an L1 line, a snapshot and bars for every name
         # Nova may trade. A cached read of one small file; an unreadable list lists nothing.
         hot = _hot_list.listed_symbols()
     except Exception:

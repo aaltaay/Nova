@@ -168,7 +168,7 @@ export const L2_HIDDEN_READ_SELLER =
   "In Nova's recordings, a minute after one the price was past the offer 37% of the time, against 46% after an offer that showed its size.";
 export const L2_HIDDEN_READ_BUYER = "In Nova's recordings a hidden buyer made no such difference to where the price went.";
 
-// ── Level 2: a hidden Trader tab lends its line (ADR 043 decision 6, backend line_lending/) ──
+// ── Level 2: a hidden Trader tab lends its line (ADR 044 decision 6, backend line_lending/) ──
 /** Who holds each Level 2 line, and the loans. */
 export const L2_DEPTH_LINES_PATH = '/api/ibkr/depth/lines';
 /** Line lending on / off (needs the desk's API key). */

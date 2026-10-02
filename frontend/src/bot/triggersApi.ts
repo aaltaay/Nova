@@ -1,5 +1,5 @@
 /**
- * The squares, by ticker (ADR 043): `GET /api/bot/triggers`. Every listed ticker's answer now, and every
+ * The squares, by ticker (ADR 044): `GET /api/bot/triggers`. Every listed ticker's answer now, and every
  * trigger of the day on it, judged by the same ten checks in Nova's order. Checked on arrival: an unknown
  * shape is an error, never an empty table.
  */

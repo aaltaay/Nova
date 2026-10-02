@@ -1,4 +1,4 @@
-"""The squares' ``now`` row (ADR 043): would Nova buy this listed stock if its setup triggered this minute?
+"""The squares' ``now`` row (ADR 044): would Nova buy this listed stock if its setup triggered this minute?
 
 The same ten gates as a trigger (``bot.trigger_cells``), read from the desk as it stands -- the desk
 venue's dial, the strategies' rules today, the live setup board, the Who trades switch, the depth
@@ -145,8 +145,23 @@ def _line(sym: str) -> dict[str, Any]:
 
     if holds_depth_line(sym):
         return cell(True, f"Nova holds {sym}'s Level 2 line")
-    return cell(None, f"Nova holds no Level 2 line on {sym} now: a trigger without one reads BLIND, unless a line "
-                      "opens or is lent before it")
+    try:
+        from line_lending import lines, setting
+
+        free = lines.free_lines()
+        lending, unread = setting.is_on()
+    except Exception:
+        logger.warning("triggers audit: who could give %s a Level 2 line is unknown", sym, exc_info=True)
+        return cell(None, f"Nova holds no Level 2 line on {sym} now, and whether one would open could not be read "
+                          "(the backend log has the error)")
+    if free:
+        return cell(None, f"Nova holds no Level 2 line on {sym} now; {free} of IBKR's lines are free for a setup "
+                          "that comes near")
+    if lending:
+        return cell(None, f"Nova holds no Level 2 line on {sym} now and every line is taken; a Trader tab you are not "
+                          "looking at lends its lines when a setup comes near")
+    return cell(False, f"Nova holds no Level 2 line on {sym}, every line is taken and "
+                       f"{unread or 'lending is off'}: a trigger now would read BLIND")
 
 
 def _trades(desk: Desk) -> dict[str, Any]:

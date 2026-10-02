@@ -96,7 +96,7 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
   });
 });
 
-describe('the Bot switch\'s words (ADR 043)', () => {
+describe('the Bot switch\'s words (ADR 044)', () => {
   it('is on only with the master at Strategy and Activate, or when the backend says bot_on', () => {
     expect(botHeaderState(strategySession()).on).toBe(false);
     expect(botHeaderState(strategySession({ active: true })).on).toBe(true);
@@ -176,7 +176,7 @@ describe('levels (ADR 042 A)', () => {
   });
 });
 
-describe('header pill, nav dot and rail card (ADR 043)', () => {
+describe('header pill, nav dot and rail card (ADR 044)', () => {
   it('says ON or OFF, how many strategies are On, and why it is off or not trading now', () => {
     const off = botHeaderState(strategySession());
     expect(off).toMatchObject({ on: false, name: 'OFF', detail: '1 strategy On', tone: 'off' });

@@ -1,4 +1,4 @@
-"""A standing loan's AllLast line: said when it is down, asked for again (ADR 043 decision 6).
+"""A standing loan's AllLast line: said when it is down, asked for again (ADR 044 decision 6).
 
 Seeing the tape at the trigger is the point of a loan, so the borrower's AllLast line
 is never down in silence. Each tick, for every standing loan while IBKR is ready:

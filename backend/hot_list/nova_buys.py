@@ -1,4 +1,4 @@
-"""The Nova Buy sides the hot list takes back (ADR 043): every venue's bot list and the in-memory switches.
+"""The Nova Buy sides the hot list takes back (ADR 044): every venue's bot list and the in-memory switches.
 
 The 04:00 ET rollover clears every Nova Buy left from the day before (``clear_all``); removing a stock
 from the list takes it off every venue's bot list (``drop``). Neither cancels an order: a trade Nova

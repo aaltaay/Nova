@@ -1,4 +1,4 @@
-"""Lending a hidden Trader tab's Level 2 line (ADR 043 decision 6). Owner: backend/line_lending/.
+"""Lending a hidden Trader tab's Level 2 line (ADR 044 decision 6). Owner: backend/line_lending/.
 
 Nothing here places, stages or cancels an order: a loan moves one IBKR depth line
 (and the tape line the tape gate reads beside it) from a Trader tab the operator
@@ -9,7 +9,7 @@ from __future__ import annotations
 LINE_LENDING_SCHEMA_VERSION = 1
 
 # bot-session.json, desk-wide (not a venue's dial): lending on or off. A session
-# without the key lends (the operator's default, ADR 043 decision 6).
+# without the key lends (the operator's default, ADR 044 decision 6).
 LINE_LENDING_SETTING_KEY = "line_lending"
 LINE_LENDING_DEFAULT_ON = True
 

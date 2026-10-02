@@ -97,7 +97,7 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M14 7h5v5" />
     </Icon>
   ),
-  // Today's hot list (the watch list since ADR 043): a star.
+  // Today's hot list (the watch list since ADR 044): a star.
   watch_list: (
     <Icon>
       <path d="M12 3.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 17l-5.4 3 1.2-6-4.5-4.2 6.1-.7z" />

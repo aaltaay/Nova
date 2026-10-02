@@ -1,5 +1,5 @@
 /**
- * An in-memory hot list for tests (ADR 043): the barrel's shape, with star and unstar answering at once and
+ * An in-memory hot list for tests (ADR 044): the barrel's shape, with star and unstar answering at once and
  * no backend. A test mocks the barrel with it --
  * `vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule())` --
  * and drives it through `fakeHotList` (set the list, refuse the next write, reset between tests).

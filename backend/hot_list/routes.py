@@ -1,4 +1,4 @@
-"""Today's hot list (ADR 043).
+"""Today's hot list (ADR 044).
 
   GET    /api/hot-list                 the list (``hot_list.view``)
   POST   /api/hot-list/star            {symbol}: star a stock onto today's list (it takes the default Buy / Sell)

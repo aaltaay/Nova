@@ -1,4 +1,4 @@
-"""Today's hot list (ADR 043): the stocks Nova watches all day and may trade."""
+"""Today's hot list (ADR 044): the stocks Nova watches all day and may trade."""
 from __future__ import annotations
 
 HOT_LIST_SCHEMA_VERSION = 1

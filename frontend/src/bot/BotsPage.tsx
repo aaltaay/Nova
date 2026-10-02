@@ -1,5 +1,5 @@
 /**
- * The Bots page (ADR 043, approved mockup v8): everything that decides whether Nova buys, on one page.
+ * The Bots page (ADR 044, approved mockup v8): everything that decides whether Nova buys, on one page.
  * Top to bottom: "Can Nova buy right now?" in one line for every ticker; the Bot card (the one switch,
  * Freeze all orders, what the bot may risk); the strategies, each Off / Eyes / On with its bot rules;
  * IBKR's Level 2 lines and lending; Tickers today (the hot list and the squares by ticker); then today's

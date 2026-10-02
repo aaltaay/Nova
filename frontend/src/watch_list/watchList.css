@@ -298,7 +298,7 @@ body:has(.recording-stopped) .watch-toasts {
   color: var(--danger, #ef4444);
 }
 
-/* The list this desk kept before the hot list (ADR 043): offered once. */
+/* The list this desk kept before the hot list (ADR 044): offered once. */
 .watch-list__saved {
   display: flex;
   flex-wrap: wrap;

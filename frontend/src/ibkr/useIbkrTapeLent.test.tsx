@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * A Trader tab's Time & Sales whose line went with its Level 2 to a setup (ADR 043 decision 6):
+ * A Trader tab's Time & Sales whose line went with its Level 2 to a setup (ADR 044 decision 6):
  * it says so, drops the tape it can no longer keep live, never reconnects by its backoff, and
  * comes back with the tab's Level 2 -- on the same poll when the loan ends, or at once when the
  * tab comes to the front.

@@ -201,7 +201,7 @@ def apply_desk_level(level: int, **extra: Any) -> dict[str, Any]:
 
 
 def drop_to_eyes(*, keep_soft_latch: bool = True, reason: str = "bot_trip") -> dict[str, Any]:
-    """A loss breaker tripped: the bot is off, the way the Bot switch's OFF leaves it (ADR 043) -- the
+    """A loss breaker tripped: the bot is off, the way the Bot switch's OFF leaves it (ADR 044) -- the
     master at Eyes, so the setups at Eyes or On keep proposing; Activate cleared (``reason``:
     ``bot_trip`` or ``all_stop``), the bot's orders forgotten, the bot trip latched until 04:00 ET."""
     from bot import activation
@@ -222,7 +222,7 @@ def drop_to_eyes(*, keep_soft_latch: bool = True, reason: str = "bot_trip") -> d
     return saved
 
 
-# The name the breakers and tests knew (ADR 032); since ADR 043 it drops to Eyes, not Off.
+# The name the breakers and tests knew (ADR 032); since ADR 044 it drops to Eyes, not Off.
 drop_to_l0 = drop_to_eyes
 
 

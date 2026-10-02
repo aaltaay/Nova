@@ -1,4 +1,4 @@
-"""A hidden Trader tab lends its Level 2 line (and its Time & Sales line) to a setup Nova may buy (ADR 043 d. 6).
+"""A hidden Trader tab lends its Level 2 line (and its Time & Sales line) to a setup Nova may buy (ADR 044 d. 6).
 
 Who lends (a Trader tab no visible window shows; never the tab in front, a Record hold or an
 unknown focus), who borrows (a strategy at On, Buy is Nova, the bot active; armed, near or in a

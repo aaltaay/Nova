@@ -18,7 +18,7 @@ the padlock (``on_disarm``, called from ``ibkr.safety``), on a venue change
 (``bot.venue_levels``), with the master below Strategy or no setup left at Strategy
 (``bot.autonomy``), on a trip (``bot.autonomy.drop_to_eyes``) and by the operator.
 
-ADR 043: the desk shows one Bot switch per venue instead of the master dial and Activate
+ADR 044: the desk shows one Bot switch per venue instead of the master dial and Activate
 (``bot.switch``): ON is the master at Strategy and Activate in one step, refused with
 Activate's own codes (``refusal``); OFF and a trip leave the master at Eyes.
 
@@ -52,7 +52,7 @@ _TEXT = {
     "venue": "the desk moved to another venue: the bot never carries into another venue",
     "level": "the master level left Strategy",
     "no_setup": "no setup is at Strategy any more",
-    "bot_trip": "the bot trip fired: the bot is off, Eyes keep watching (ADR 043)",
+    "bot_trip": "the bot trip fired: the bot is off, Eyes keep watching (ADR 044)",
     "all_stop": "the all-stop fired: the bot is off, Eyes keep watching, and buys are locked for the day",
     "operator": "you turned the bot off",
 }

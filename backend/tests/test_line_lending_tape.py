@@ -1,4 +1,4 @@
-"""A loan lends the Time & Sales line with the Level 2 line (ADR 043 decision 6).
+"""A loan lends the Time & Sales line with the Level 2 line (ADR 044 decision 6).
 
 IBKR counts tick-by-tick lines like depth lines (three here): three Trader tabs hold three
 AllLast lines, so a borrower that only got a book would be refused its tape and read WAIT for

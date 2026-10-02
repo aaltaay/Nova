@@ -164,7 +164,7 @@ def _audit_rows(day: str) -> list[dict[str, Any]]:
 
 def audit_rows(day: str) -> list[dict[str, Any]]:
     """Every audit line from the start of ``day`` (ET, ``YYYY-MM-DD``) to the end of the file, oldest first
-    (the triggers audit, ADR 043). A line before the day's start may come with them."""
+    (the triggers audit, ADR 044). A line before the day's start may come with them."""
     return _audit_rows(day)
 
 

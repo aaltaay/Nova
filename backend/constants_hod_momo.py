@@ -105,7 +105,7 @@ SCANNER_ROW_PRICE_FAIL_PCT = 80.0              # priced rows below this → fail
 # Gappers/Gainers/Afterhours (see hod_momo_active.build_active_set). Live SLO:
 # quote/eval age p95 ≤2s, max ≤3s for every *active* symbol.
 HOD_MOMO_ACTIVE_SET_CAPACITY = 40
-# The reserved block, at most half the pool: today's hot list first (ADR 043), then Former Momo in what is
+# The reserved block, at most half the pool: today's hot list first (ADR 044), then Former Momo in what is
 # left of it; live movers always get the rest.
 HOD_MOMO_FORMER_MOMO_MAX_SLOTS = 20
 # Reserved *inside* HOD_MOMO_ACTIVE_SET_CAPACITY (not on top of it) for

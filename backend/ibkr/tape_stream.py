@@ -95,7 +95,7 @@ def _push_queue(symbol: str, payload: dict) -> None:
 
 
 def push_lent(symbol: str, frame: dict) -> None:
-    """Tell every viewer the AllLast line is lent (ADR 043 decision 6, ``line_lending``): each
+    """Tell every viewer the AllLast line is lent (ADR 044 decision 6, ``line_lending``): each
     socket sends ``frame`` and closes, and its tab waits instead of reconnecting by its backoff."""
     _push_queue(symbol.upper(), dict(frame, type="lent"))
 

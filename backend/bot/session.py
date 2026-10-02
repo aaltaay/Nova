@@ -56,7 +56,7 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "level": level,
         "active": active,
-        # ADR 043: the Bot switch -- ON is the master at Strategy and Active; why it is off, the trip's latch.
+        # ADR 044: the Bot switch -- ON is the master at Strategy and Active; why it is off, the trip's latch.
         **switch.view(row, venue),
         "armed": active,                         # LEGACY alias of ``active`` (one release)
         "has_desk_arm": has_desk_arm(row),

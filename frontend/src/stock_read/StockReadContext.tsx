@@ -27,7 +27,7 @@ import { useWhoTrades, type WhoTradesState } from './useWhoTrades';
 export type SheetTab = 'signals' | 'decisions' | 'history';
 
 export interface StockReadLayers {
-  /** Eyes (ADR 043): everything Nova draws on the tab's charts, on or off; `setups` and `levels` are its parts. */
+  /** Eyes (ADR 044): everything Nova draws on the tab's charts, on or off; `setups` and `levels` are its parts. */
   eyes: boolean;
   /** The setups' shapes and the plan's levels on the charts. */
   setups: boolean;
@@ -70,7 +70,7 @@ export interface StockReadContextValue {
   /** Where the risk per trade comes from, and any trouble reading or saving it. */
   risk: SleeveRisk;
   /** What the charts draw: off with Eyes off, without the parts the operator switched off, and without
-   *  a strategy at Off on the Bots page (ADR 043). */
+   *  a strategy at Off on the Bots page (ADR 044). */
   layers: StockReadLayers;
   /** What the operator set (the toolbar's own state): Eyes, Setups and Levels as remembered. */
   prefs: StockReadLayers;
@@ -108,7 +108,7 @@ export function parseLayers(raw: unknown): StockReadLayers | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   return {
-    eyes: r.eyes !== false,          // added 2026-10-01 (ADR 043): on unless switched off
+    eyes: r.eyes !== false,          // added 2026-10-01 (ADR 044): on unless switched off
     setups: r.setups !== false,
     levels: r.levels !== false,
     past: r.past !== false,          // added 2026-09-29: a value stored before it shows them
@@ -185,7 +185,7 @@ export function StockReadProvider({
   const decisions = useStockReadDecisions(sym, live && sheet.open && sheet.tab === 'decisions');
   // The lanes' drawn states: a setup that fails or ends is read as past at once, not at the next poll.
   const lanes = read.data?.setups;
-  // A strategy at Off on the Bots page draws nothing (ADR 043): its lane's own level is 0.
+  // A strategy at Off on the Bots page draws nothing (ADR 044): its lane's own level is 0.
   const offKey = (lanes ?? []).filter(l => l.timeframe !== '5m' && l.level === 0).map(l => l.setup_type).join('|');
   const drawn = useMemo(() => drawnLayers(layers, offKey ? offKey.split('|') : []), [layers, offKey]);
   const laneKey = useMemo(() => (lanes ?? []).map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes]);

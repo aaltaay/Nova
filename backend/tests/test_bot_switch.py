@@ -1,4 +1,4 @@
-"""The Bot switch (ADR 043): one control per venue in place of the master dial and Activate.
+"""The Bot switch (ADR 044): one control per venue in place of the master dial and Activate.
 
 ON is the master at Strategy and Activate in one step, refused with Activate's codes; OFF deactivates
 with the master at Eyes, so Eyes keep proposing; a trip leaves it the same way and latches until

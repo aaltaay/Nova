@@ -18,7 +18,7 @@ from setup_templates.catalogue import TemplateError
 from setup_templates.store import TemplateStore, default_template, set_store_for_tests
 
 FP, R2G = "first_pullback", "red_to_green"
-# The bot's rules (ADR 029 window, ADR 043 grades and setups a stock a day): never the scanner's.
+# The bot's rules (ADR 029 window, ADR 044 grades and setups a stock a day): never the scanner's.
 BOT_KEYS = {"bot_window_start", "bot_window_end", "bot_grades", "bot_setups_a_day"}
 
 
@@ -43,7 +43,7 @@ def test_the_bot_window_is_not_in_the_fingerprint_or_the_params_hash():
     assert catalogue.fingerprint({**v, "leg_pct": 6.0}) != catalogue.fingerprint(v)
     assert catalogue.scanner_values(moved) == catalogue.scanner_values(v)
     assert catalogue.BOT_KEYS == BOT_KEYS
-    # ADR 043: the grades the bot buys and its setups a stock a day are the bot's rules too.
+    # ADR 044: the grades the bot buys and its setups a stock a day are the bot's rules too.
     rules = {**v, "bot_grades": "A", "bot_setups_a_day": 2}
     assert catalogue.fingerprint(rules) == catalogue.fingerprint(v)
 

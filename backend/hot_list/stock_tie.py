@@ -1,4 +1,4 @@
-"""Who trades the stock, tied to today's hot list (ADR 043 decision 4: ADR 037's switch is the only "who").
+"""Who trades the stock, tied to today's hot list (ADR 044 decision 4: ADR 037's switch is the only "who").
 
 - **Buy to Nova stars the stock** (``star_needed`` then ``star``, called by ``stock_mode.actions.set_mode``):
   a full or unreadable list refuses (``HOT_LIST_FULL`` / ``HOT_LIST_UNREADABLE``) before anything changes.

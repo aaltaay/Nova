@@ -2866,24 +2866,39 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
 - **BLIND** is the Level 2 line's red, never the tape's.
 - **`now`** (today only) is each listed ticker this minute.
 
-**A hidden Trader tab lends its Level 2 line.**
-- **When.** A setup of a strategy at On, on a stock whose Buy is Nova, is armed, near or in a trade; no
-  line is free; and `line_lending` is on (`bot-session.json`, desk-wide, default true). Then the line of
-  a Trader tab that no visible window shows (the focus sensor) and no Record holds is lent to it.
-- **On the lender's socket.** `/ws/ibkr/depth/{symbol}` sends `{"type": "lent", symbol, to: {symbol,
-  setup_type, setup_id}, since, text}` and closes. While the loan stands, a socket for that symbol from
-  a tab not in front gets the same frame. A tab in front recalls the loan: the borrower loses its line,
-  and a `line_loan` audit line says so.
-- **When it ends.** It returns when the setup fails or disarms, its trade ends, or the loan is
-  recalled. Ends: `setup_ended` | `trade_ended` | `recalled` | `lending_off`.
+**A hidden Trader tab lends its Level 2 and Time & Sales lines** (owner `backend/line_lending/`). IBKR
+counts tick-by-tick lines with the depth lines' formula (3 on this account), so a loan moves both: a borrower
+with a book and no prints would read WAIT, never GO.
+- **When.** A setup of a strategy at On, on a stock whose Buy is Nova (Bot or Auto-entry), with the Bot on,
+  is armed, near or in a trade; no line is free; and `line_lending` is on (`bot-session.json`, desk-wide,
+  default true). Then the lines of a Trader tab that no visible window shows (the focus sensor) are lent to
+  it. Checked every few seconds, so a setup has its lines before its trigger.
+- **Never lent:** the tab in front, or one in front in the last 30 s; a line a Session Record, auto-record
+  or the L2 recorder holds; a line a Level 2 outside a Trader tab watches; a stock Nova needs a line on
+  itself; anything while the focus sensor cannot say which tab is in front.
+- **On the lender's sockets.** A Trader tab opens `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` with
+  `?tab=1&front=0|1`. Both send `{"type": "lent", symbol, to: {symbol, setup_type, setup_id}, why, tier,
+  since, text}` (`why` in words, `tier` its code) and close. A socket opened with `front=1` -- the tab came
+  to the front -- recalls the loan: both lines come back together, and the borrower's loss is said in the
+  audit stream.
+- **When it ends.** `setup_ended` (the setup failed or disarmed), `trade_ended` (the scoring window and
+  Nova's trade are both over), `recalled`, `lending_off`.
 - **Routes.**
-  - `GET /api/ibkr/depth/lines` -> `{schema_version: 1, cap, lines: [{symbol, held_by: "tab" | "record" |
-    "auto_record" | "loan" | "replay", front: boolean | null, viewers}], lending: {on, loans: [{lender,
-    borrower, setup_type, setup_id, since, why}], recent: [{lender, borrower, since, ended, end}]}}`.
-  - `PATCH /api/ibkr/depth/lending {on}` (API key).
-- **On the desk** the lender's Level 2 reads "Level 2 lent to AISP's first pullback (near its trigger)
-  -- back when it ends or when you bring this tab to the front". It reconnects when the loan ends or the
-  tab comes to the front, never by its own backoff.
+  - `GET /api/ibkr/depth/lines` -> `{schema_version: 1, generated_at, cap, lines: [{symbol, held_by: "tab" |
+    "record" | "auto_record" | "loan" | "replay", front: boolean | null, viewers}], lending: {on, error,
+    loans: [{lender, borrower, setup_type, setup_id, since, why, tier, state, text, tape_lent, tape: boolean
+    (a print arrived on the borrower's line), tape_state: "receiving" | "waiting" | "refused",
+    tape_last_print, tape_error}], recent: [{lender, borrower, setup_type, setup_id, since, ended, end,
+    tape_lent, text}]}}`. A borrower's tape line IBKR refuses or ends (10190) is `tape_state: "refused"`
+    with `tape_error`, and is asked for again.
+  - `PATCH /api/ibkr/depth/lending {on}` (API key) answers the same view; a `line_lending` audit line.
+  - Every loan is a `line_loan` audit line: `lent` (with `tape_lent`, and the tape's error when the
+    borrower got none), `ended`, `tape_refused` (once per refusal) and `tape_opened`.
+- **On the desk** the lender's Level 2 and Time & Sales read "Level 2 lent to AISP's first pullback (near
+  its trigger) -- back when it ends or when you bring this tab to the front". They reconnect when the loan
+  ends or the tab comes to the front, never by their own backoff. A tab brought to the front within IBKR's
+  15 s same-instrument rule shows its Time & Sales resubscribing for those seconds; the 10-second chart,
+  built from those prints, has a gap for the length of the loan.
 
 **On the desk.** The Bots page reads, top to bottom:
 1. one answer line ("Can Nova buy right now?" for every ticker at once, each red with its fix, the

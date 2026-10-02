@@ -1,5 +1,5 @@
 /**
- * The Bot switch in the global bar (ADR 043): "● Bot ON · 2 strategies On" or "● Bot OFF" beside the account
+ * The Bot switch in the global bar (ADR 044): "● Bot ON · 2 strategies On" or "● Bot OFF" beside the account
  * figures, on every view, with why it is off (or not trading now) on hover. A click opens the Bots page,
  * where the switch is. It shows state only. The sample desk has no bot: no pill.
  */

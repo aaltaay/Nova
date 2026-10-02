@@ -1,5 +1,5 @@
 /**
- * One poll of today's hot list per window (ADR 043), shared by every part that shows it: the ★ on each
+ * One poll of today's hot list per window (ADR 044), shared by every part that shows it: the ★ on each
  * Trader tab and the Bots page. It polls only while something is subscribed, and a write answers the
  * new view at once. A failed read keeps the last view and states the error; it never reads as "empty".
  */
@@ -72,7 +72,7 @@ export function useHotList(): HotListState {
   return useSyncExternalStore(subscribe, () => state, () => state);
 }
 
-/** The same state for a reader outside React (the watch list, ADR 043), and its subscription. */
+/** The same state for a reader outside React (the watch list, ADR 044), and its subscription. */
 export function getHotListState(): HotListState {
   return state;
 }

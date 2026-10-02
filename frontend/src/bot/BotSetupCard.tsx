@@ -92,7 +92,7 @@ interface Props {
   templateBusy?: boolean;
   onPlayTemplate?: (setupId: string, templateId: string) => void;
   onOpenParams?: (setupId: string) => void;
-  /** A strategy row's bot rules were saved (ADR 043): the setup's templates as the backend answered them. */
+  /** A strategy row's bot rules were saved (ADR 044): the setup's templates as the backend answered them. */
   onApplyTemplates?: (next: SetupTemplates) => void;
   /** The live board's summary for this setup (ADR 031); null without a board. */
   summary: SetupSummary | null;
@@ -134,7 +134,7 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
   const silent = effective >= 1 && summary != null && !summary.proposing;
   const unrecorded = connected && summary?.recorded === false;
   const win = unrecorded ? '' : windowWords(summary);
-  // ADR 043: On while the Bot is off alerts like Eyes until the Bot is on; only a legacy master below Eyes caps.
+  // ADR 044: On while the Bot is off alerts like Eyes until the Bot is on; only a legacy master below Eyes caps.
   const waiting = own === 2 && !botActive;
   const capped = !waiting && own > effective;
   const [words, tip] = !connected

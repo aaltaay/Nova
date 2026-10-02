@@ -1,4 +1,4 @@
-"""The open Level 2 and Time & Sales sockets per symbol, and which are Trader tabs' (ADR 043 decision 6).
+"""The open Level 2 and Time & Sales sockets per symbol, and which are Trader tabs' (ADR 044 decision 6).
 
 ``/ws/ibkr/depth/{symbol}`` and ``/ws/ibkr/tape/{symbol}`` register each socket
 right after it counts as a viewer of its line (``ibkr.depth.ws_viewer_opened`` /

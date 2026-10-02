@@ -1,5 +1,5 @@
 /**
- * A strategy's bot rules on its card (ADR 043): the grades Nova buys (A and B, or A only; C never), setups a
+ * A strategy's bot rules on its card (ADR 044): the grades Nova buys (A and B, or A only; C never), setups a
  * stock a day (the 1st, or the 1st and 2nd), and the bot window. They are the template in play's bot-group
  * parameters: changing one never starts the read-out over, and the built-in template takes them too.
  */

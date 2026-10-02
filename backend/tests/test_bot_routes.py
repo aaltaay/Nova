@@ -371,7 +371,7 @@ def test_a_full_list_is_refused_and_nothing_is_audited_as_done(bot_iso, api_key)
 
 
 def test_a_full_hot_list_refuses_a_stock_nova_would_buy(bot_iso, api_key):
-    """ADR 043: Buy = Nova stars the stock; with today's list full (20) the switch is refused, and says so."""
+    """ADR 044: Buy = Nova stars the stock; with today's list full (20) the switch is refused, and says so."""
     from bot.audit import list_entries
 
     on_practice()

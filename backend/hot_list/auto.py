@@ -1,4 +1,4 @@
-"""The hot list's auto feed (ADR 043 decision 4): the leaders rule's top N of the live Gainers board.
+"""The hot list's auto feed (ADR 044 decision 4): the leaders rule's top N of the live Gainers board.
 
 Every ``HOT_LIST_AUTO_TICK_SEC``, all day, the loop first makes today's list today's (``service.today``: the
 04:00 ET rollover happens here when nothing else wrote first). Then, from ``HOT_LIST_AUTO_START_ET`` to

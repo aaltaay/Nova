@@ -4,7 +4,7 @@ ADR 042: the bot's stock list is written only through stock mode's rules
 (``bot.allowlist``); Activate refuses with a plain reason (``bot.activation``); the
 localhost API refuses every kind on Live and on a replay desk (``bot.actions``).
 
-ADR 043: the Bot switch (``POST /api/bot/session/switch``, ``bot.switch``) is the desk's one
+ADR 044: the Bot switch (``POST /api/bot/session/switch``, ``bot.switch``) is the desk's one
 control -- ``PATCH {level}`` and ``POST /arm`` stay for the localhost API -- and the squares
 (``GET /api/bot/triggers``, ``bot.trigger_audit``) say, by ticker, why Nova bought or did not.
 """
@@ -112,7 +112,7 @@ def bot_arm(request: Request, body: ArmBody | None = None) -> dict:
 @router.post("/api/bot/session/switch", dependencies=_write)
 @router.post("/bot/session/switch", dependencies=_write)
 def bot_switch(request: Request, body: SwitchBody) -> dict:
-    """The Bot switch (ADR 043): ON is the master at Strategy and Activate in one step, refused with
+    """The Bot switch (ADR 044): ON is the master at Strategy and Activate in one step, refused with
     Activate's codes (``BOT_TRIP_LATCHED`` unless ``reenable``); OFF deactivates with the master at Eyes."""
     from bot.switch import turn
 
@@ -274,7 +274,7 @@ def bot_pnl() -> dict:
 @router.get("/api/bot/triggers")
 @router.get("/bot/triggers")
 def bot_triggers(date: str | None = Query(None, description="YYYY-MM-DD (ET); today by default")) -> dict:
-    """The squares, by ticker (ADR 043): every listed ticker now and every trigger of the day, gate by gate.
+    """The squares, by ticker (ADR 044): every listed ticker now and every trigger of the day, gate by gate.
     Read-only; a sync route, so the journal and the audit stream are read off the loop."""
     from bot.trigger_audit import answer
     from scanner_wire import wire_safe

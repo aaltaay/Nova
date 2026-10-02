@@ -1,4 +1,4 @@
-/** Today's hot list on the wire (ADR 043): `GET /api/hot-list`. */
+/** Today's hot list on the wire (ADR 044): `GET /api/hot-list`. */
 
 export type HotSide = 'you' | 'nova';
 

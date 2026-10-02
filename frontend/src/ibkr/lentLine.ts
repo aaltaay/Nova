@@ -1,5 +1,5 @@
 /**
- * A pane whose line is lent to one of Nova's setups (ADR 043 decision 6): what it shows, and when
+ * A pane whose line is lent to one of Nova's setups (ADR 044 decision 6): what it shows, and when
  * it asks for the line again.
  *
  * The backend sends `{type: "lent", ...}` and closes the socket. The pane then never reconnects by

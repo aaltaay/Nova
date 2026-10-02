@@ -1,4 +1,4 @@
-"""``GET /api/ibkr/depth/lines``: who holds each Level 2 line, and the loans (ADR 043 decision 6).
+"""``GET /api/ibkr/depth/lines``: who holds each Level 2 line, and the loans (ADR 044 decision 6).
 
 ``{schema_version: 1, cap, lines: [{symbol, held_by, front, viewers}], lending: {on, loans, recent, error}}``
 -- ``held_by`` is ``replay`` (a Sim replay slot), ``loan``, ``auto_record``, ``record`` (a Session

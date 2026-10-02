@@ -5,7 +5,7 @@
  * button -- an icon tile in the action's colour, a label that says what the
  * click does, a line saying what that means, and a state chip when it is
  * already on (Hot list, REC, Bot). Stopping a recording stays a hold. The ★ puts
- * the stock on today's hot list from anywhere (ADR 043). "Let the
+ * the stock on today's hot list from anywhere (ADR 044). "Let the
  * bot trade" goes through the stock-mode rules (ADR 042 F): the menu waits for
  * the answer and shows a refusal in the backend's words instead of closing.
  *
@@ -104,7 +104,7 @@ function MenuRow({ tone, icon, label, hint, state, testId, disabled, why, onClic
 }
 
 /**
- * ★ Today's hot list (ADR 043): mounted only while the menu is open, so the list is read only then. A
+ * ★ Today's hot list (ADR 044): mounted only while the menu is open, so the list is read only then. A
  * refusal stays on screen in the backend's words; until the list is read the row says so.
  */
 function HotListRow({ symbol, onDone }: { symbol: string; onDone: () => void }) {

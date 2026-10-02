@@ -299,7 +299,7 @@
 .sr-btn--target { border-color: #ff9f0a; background: #ff9f0a; color: #111; }
 .sr-btn--stop { border-color: var(--sr-bad); background: var(--sr-bad); color: #fff; }
 
-/* ADR 043: the hot list's star and the stock's own answer. */
+/* ADR 044: the hot list's star and the stock's own answer. */
 .sr-who__star {
   border: 0;
   background: none;

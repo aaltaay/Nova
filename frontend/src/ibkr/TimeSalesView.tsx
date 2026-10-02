@@ -6,7 +6,7 @@
  * A print that does not set a price -- IBKR flags it unreported, or its sale
  * conditions report it for volume only (odd lot, average price, ...) -- is a
  * dimmed row (AGENTS.md §3, #543).
- * A line lent to one of Nova's setups with the tab's Level 2 (ADR 043 decision 6) reads LENT, and
+ * A line lent to one of Nova's setups with the tab's Level 2 (ADR 044 decision 6) reads LENT, and
  * the pane says whose setup took it and when it comes back, as the ladder does.
  * DOM mounts a viewport window; the feed ring still holds TAPE_UI_MAX_ROWS.
  * Right-click opens a min-size display filter (does not change the tape stream).
@@ -159,7 +159,7 @@ export function TimeSalesView({
   emptyLabel = TAPE_EMPTY_LABEL,
 }: TimeSalesViewProps) {
   const { prints, connected, error } = feed;
-  // Lent to one of Nova's setups (ADR 043 decision 6): the pane says whose, in place of the rows.
+  // Lent to one of Nova's setups (ADR 044 decision 6): the pane says whose, in place of the rows.
   const lentWords = feed.lent ? tapeLentText(feed.lent) : null;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);

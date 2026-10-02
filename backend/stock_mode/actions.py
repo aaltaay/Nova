@@ -6,7 +6,7 @@ on the bot's audit stream. Cancels and sends go through the execution door (``st
 ADR 042: this is the bot list's one owner -- ``bot.allowlist`` and every desk button set a stock here,
 so each meets the same rules (the Live lock, "you hold it", the 50-stock cap). A stock has one mode:
 Bot (this venue's bot list) and an Auto-entry / Approve switch never stand together. A take-over always
-leaves Buy on You, and never claims a cancel it did not get. ADR 043: Buy to Nova stars the stock onto
+leaves Buy on You, and never claims a cancel it did not get. ADR 044: Buy to Nova stars the stock onto
 today's hot list (``hot_list.stock_tie``); a full list refuses before anything changes.
 """
 from __future__ import annotations
@@ -105,7 +105,7 @@ async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any = Non
     _venue_gate(buy, sell)
     from hot_list import stock_tie
 
-    star = stock_tie.star_needed(sym, buy)   # ADR 043: Nova buys only listed stocks; a full list refuses first
+    star = stock_tie.star_needed(sym, buy)   # ADR 044: Nova buys only listed stocks; a full list refuses first
     before = view.build(sym, now=now)
     was_mode, was_sell = before["mode"], before["sell"]
     if sell == STOCK_MODE_SIDE_YOU and _exit_held(sym):

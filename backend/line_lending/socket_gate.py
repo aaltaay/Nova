@@ -1,4 +1,4 @@
-"""What a Level 2 or Time & Sales socket meets while its line may be lent (ADR 043 decision 6).
+"""What a Level 2 or Time & Sales socket meets while its line may be lent (ADR 044 decision 6).
 
 The two socket routes (``routes.trading_depth_ws``, ``routes.trading_tape_ws``) call
 these, and nothing else of the lending package. A lending fault never costs the

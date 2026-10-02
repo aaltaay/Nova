@@ -1,4 +1,4 @@
-"""Which Trader tabs the operator can see, from the focus sensor (ADR 033), for line lending (ADR 043).
+"""Which Trader tabs the operator can see, from the focus sensor (ADR 033), for line lending (ADR 044).
 
 A tab is **in front** when a fresh, visible, not-minimized window shows it: the
 Trader page's active tab, a pop-out's, or the Trader slot beside the Desk board

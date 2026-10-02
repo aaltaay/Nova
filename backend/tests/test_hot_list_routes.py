@@ -1,4 +1,4 @@
-"""``/api/hot-list`` and the Who trades tie-in (ADR 043 decision 4).
+"""``/api/hot-list`` and the Who trades tie-in (ADR 044 decision 4).
 
 The list's writes need the desk's API key; a star takes the list's default Buy / Sell where the venue
 allows a Nova side; Buy to Nova stars an unlisted stock (a full list refuses first); a removal is You · You

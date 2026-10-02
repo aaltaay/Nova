@@ -1,5 +1,5 @@
 /**
- * What a lent line says (ADR 043 decision 6): whose setup took it, why, and when it comes back.
+ * What a lent line says (ADR 044 decision 6): whose setup took it, why, and when it comes back.
  *
  * A Trader tab's Level 2 and Time & Sales lines go to one of Nova's setups together, and each
  * pane says so in its own sentence, built from the desk's own words: the lent frame and the lines

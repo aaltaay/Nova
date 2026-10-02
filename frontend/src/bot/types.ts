@@ -141,7 +141,7 @@ export type BotWorkingOrder = {
  * `active` and `ready`; `armed` and `live_fire_ready` are their legacy aliases, which
  * botPayload.parseBotSession folds in so a reader never sees one without the other.
  */
-/** ADR 043: the Bot switch on this venue. */
+/** ADR 044: the Bot switch on this venue. */
 export interface BotSwitchState {
   on: boolean;
   venue: string | null;
@@ -186,9 +186,9 @@ export type BotSession = {
   day_lock_active: boolean;
   level_venue?: string | null;
   levels_by_venue?: Record<string, number>;
-  /** ADR 043: the Bot switch is on (active with the master at Strategy); absent from an older backend. */
+  /** ADR 044: the Bot switch is on (active with the master at Strategy); absent from an older backend. */
   bot_on?: boolean;
-  /** ADR 043: the switch's own words: why it is off, and the bot trip's latch when one holds it. */
+  /** ADR 044: the switch's own words: why it is off, and the bot trip's latch when one holds it. */
   switch?: BotSwitchState;
   brain_session_id: string | null;
   brain_heartbeat_ts?: number | null;

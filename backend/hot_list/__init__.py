@@ -1,4 +1,4 @@
-"""Today's hot list (ADR 043): the stocks Nova watches all day and may trade.
+"""Today's hot list (ADR 044): the stocks Nova watches all day and may trade.
 
 Fed by the leaders rule's top N on the live Gainers board and by the operator's star, up to
 ``HOT_LIST_CAP``, fresh at 04:00 ET. Listed names are followed by the setup scanners; Nova buys

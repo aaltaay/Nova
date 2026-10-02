@@ -1,4 +1,4 @@
-/** Tickers today's words and order (ADR 043), pure. */
+/** Tickers today's words and order (ADR 044), pure. */
 import { describe, expect, it } from 'vitest';
 import type { StockModeRow } from './stockModesApi';
 import { allStops, daySummary, orderTickers, resultWords, sidesOf, splitReasons, stopWord } from './tickerTable';

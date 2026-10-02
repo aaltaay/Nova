@@ -206,7 +206,7 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
     from bot.first_pullback.admit import listed
 
     on_list, unread = listed(sym)
-    if not on_list:                       # ADR 043: Nova buys only the stocks on today's hot list
+    if not on_list:                       # ADR 044: Nova buys only the stocks on today's hot list
         out.append(_note("not_listed", _sentence(f"{unread}: Nova buys only listed stocks" if unread else
                                                  f"{sym} is not on today's hot list: Nova buys only listed stocks")))
     setup = (lane or {}).get("setup_type")
@@ -305,7 +305,7 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     notes += _notes(sym, mode, venue, replay, loaded, lane, daily) + _sim_waits(sym, venue, replay, loaded)
     from hot_list.stock_tie import notes as hot_list_notes
 
-    notes += hot_list_notes(sym, mode, venue, replay)   # ADR 043: not listed, unreadable, a default locked here
+    notes += hot_list_notes(sym, mode, venue, replay)   # ADR 044: not listed, unreadable, a default locked here
     mine = [e for e in (daily or {}).get("entries") or [] if e.get("symbol") == sym and e.get("outcome") != "missed"]
     return {
         "schema_version": STOCK_MODE_SCHEMA_VERSION,

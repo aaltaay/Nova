@@ -1,4 +1,4 @@
-"""The hot list's file (ADR 043): ``hot-list.json`` in the operator cache, plus a read-only copy per day.
+"""The hot list's file (ADR 044): ``hot-list.json`` in the operator cache, plus a read-only copy per day.
 
 Shape (schema 1): ``{schema_version, date, auto_n, default: {buy, sell}, entries: [{symbol, how, at,
 board, rank, change_pct}], yesterday: [symbol]}``. ``date`` is the trading day, which starts at 04:00 ET

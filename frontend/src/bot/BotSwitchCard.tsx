@@ -1,5 +1,5 @@
 /**
- * The Bot card (ADR 043): the one Bot switch for this venue, Freeze all orders, and what the bot may risk.
+ * The Bot card (ADR 044): the one Bot switch for this venue, Freeze all orders, and what the bot may risk.
  * The switch replaces the master dial and Activate: on is the master at Strategy with Activate, off leaves
  * the master at Eyes so alerts keep coming. After the bot trip it asks first, in words, before it turns
  * on again. On Live it is locked and says why. Nothing here places an order.

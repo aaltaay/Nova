@@ -32,7 +32,7 @@ class ArmBody(BaseModel):
 
 
 class SwitchBody(BaseModel):
-    """The Bot switch (ADR 043): ``on`` is the master at Strategy and Activate; off, the master at Eyes."""
+    """The Bot switch (ADR 044): ``on`` is the master at Strategy and Activate; off, the master at Eyes."""
     on: bool
     reenable: bool = False
     brain_session_id: str | None = None

@@ -7,7 +7,7 @@ Schema: ``{schema_version: 1, setups: {SETUP: {in_play: ID | null, templates:
 [{id, name, note, rev, values, created_at, updated_at}], default_bot?: {KEY: value}}}}``.
 The built-in ``default`` is not stored: it is the catalogue's defaults at
 ``SETUP_TEMPLATE_DEFAULT_REV``, with the operator's own bot rules over them
-(``default_bot``, ADR 043: ``setup_templates.default_bot``; a file without it reads as
+(``default_bot``, ADR 044: ``setup_templates.default_bot``; a file without it reads as
 no overrides). An unknown schema version or an unreadable file
 is refused loudly: the file is left as it is, every setup reads its default
 only, ``error()`` says why, and writes are refused until the operator moves the
@@ -210,7 +210,7 @@ class TemplateStore:
             return self._version
 
     def _default(self, setup_id: str) -> Template:
-        """The built-in with the operator's bot rules (ADR 043; the caller holds the lock and has loaded)."""
+        """The built-in with the operator's bot rules (ADR 044; the caller holds the lock and has loaded)."""
         return default_template(setup_id, self._setups.get(setup_id, {}).get("default_bot"))
 
     def templates(self, setup_id: str) -> list[Template]:
@@ -322,7 +322,7 @@ class TemplateStore:
 
     def _update_default(self, setup_id: str, current: Template, *, name: Any, values: dict[str, Any] | None,
                         note: Any) -> Template:
-        """The default's bot rules (ADR 043, ``default_bot``): its name, note and scanner parameters stay the
+        """The default's bot rules (ADR 044, ``default_bot``): its name, note and scanner parameters stay the
         pre-registered ones (``TEMPLATE_BUILTIN``); its revision never moves."""
         renamed = name is not None and " ".join(str(name).split()) != current.name
         if renamed or (note is not None and str(note).strip() != current.note):

@@ -16,7 +16,7 @@ export { useOrderTicketListening } from './useOrderTicketListening';
 export { requestOrderTicketPrefill } from './orderTicketPrefill';
 export { SentByTd } from './SentByCell';
 export { orderSentBy } from './orderSentBy';
-// ADR 043 decision 6: who holds each Level 2 line, the loans, and the lending switch.
+// ADR 044 decision 6: who holds each Level 2 line, the loans, and the lending switch.
 export { fetchDepthLines, loanFor, normalizeDepthLines, setDepthLending } from './depthLines';
 export type {
   DepthLine, DepthLineHolder, DepthLinesView, DepthLoan, DepthLoanEnded, LoanTapeState,

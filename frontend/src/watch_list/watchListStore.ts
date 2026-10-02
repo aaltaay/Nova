@@ -1,5 +1,5 @@
 /**
- * The watch list is today's hot list (ADR 043: "the watch list folds into the ★"). Every Watch action on
+ * The watch list is today's hot list (ADR 044: "the watch list folds into the ★"). Every Watch action on
  * the desk -- a scanner row, the chart menu, the Desk board, the Hot list tab -- stars or unstars the
  * stock on the hot list (`hot_list`), and the watch toasts follow the listed names. The list is the
  * backend's: one for every window, fresh at 04:00 ET, up to its cap. A write shows at once and is undone

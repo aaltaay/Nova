@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { depthLentText, lentFromFrame, lentFromLoan, tapeLentText } from './lentWords';
 
-describe('depthLentText (ADR 043 decision 6)', () => {
+describe('depthLentText (ADR 044 decision 6)', () => {
   it("names the setup that took the line and why, and when it comes back", () => {
     expect(depthLentText({ symbol: 'AISP', setupType: 'first_pullback', tier: 'near', why: 'near its trigger' })).toBe(
       "Level 2 lent to AISP's first pullback (near its trigger) — back when it ends or when you bring this tab to the front",

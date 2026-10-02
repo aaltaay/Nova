@@ -1,4 +1,4 @@
-"""Today's hot list, changed (ADR 043): every write goes through here, under one lock.
+"""Today's hot list, changed (ADR 044): every write goes through here, under one lock.
 
 ``today`` is the list a write starts from. When the file belongs to an earlier day it rolls over first:
 the old day is kept as its day copy, its names become ``yesterday`` (``store.roll``), every Nova Buy left

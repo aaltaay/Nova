@@ -1,5 +1,5 @@
 /**
- * "Can Nova buy right now?" in one line, for every ticker at once (ADR 043). The checks that hold for
+ * "Can Nova buy right now?" in one line, for every ticker at once (ADR 044). The checks that hold for
  * every stock -- the Bot switch, the desk, a strategy at On, the windows, the day's cap -- are named with
  * their fix when one stops it; otherwise it names the tickers that are ready. Each ticker's own answer is
  * in Tickers today below and in its Trader tab's Who trades row. The desk's checks sit under it as chips.

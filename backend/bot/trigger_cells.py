@@ -1,4 +1,4 @@
-"""How each trigger of a day met Nova's ten gates (ADR 043, the squares). Pure.
+"""How each trigger of a day met Nova's ten gates (ADR 044, the squares). Pure.
 
 ``triggers(lines)`` folds a day's eyes' journal -- the lines of each setup's template in play
 (``playing: true``) -- into its triggers: the first ``triggered`` line of each setup id (a restart's

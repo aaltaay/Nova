@@ -1,4 +1,4 @@
-"""Whether the setup scanner follows a listed name, and why not (ADR 043). Reads memory only.
+"""Whether the setup scanner follows a listed name, and why not (ADR 044). Reads memory only.
 
 Listed names share HOD Momo's reserved block with Former Momo (``hod_momo_active.build_active_set``): the
 hot list first, in list order, ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` slots in all. The setup scanner follows

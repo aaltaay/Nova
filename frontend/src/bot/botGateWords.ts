@@ -160,7 +160,7 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
     case 'venue':
       return venueWords(ok, d);
     case 'level':
-      // The master at Strategy is the Bot switch's on (ADR 043).
+      // The master at Strategy is the Bot switch's on (ADR 044).
       return ok ? { text: `${label} on`, why: null }
         : { text: `${label} off`, why: 'The Bot is off: turn it on in the Bot card.' };
     case 'setups': {

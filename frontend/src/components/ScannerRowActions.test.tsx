@@ -7,7 +7,7 @@ import { _resetPinnedRowsForTests, getPinnedRows } from '../scanner/pinnedRowsSt
 import { fakeHotList } from '../hot_list/hotListFake';
 import { addToWatchList, getWatchList, resetWatchListForTests } from '../watch_list/watchListStore';
 
-// The watch list is today's hot list (ADR 043): an in-memory one here.
+// The watch list is today's hot list (ADR 044): an in-memory one here.
 vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
 import { ScannerRowActions } from './ScannerRowActions';
 import { ScannerRowMarks } from './ScannerRowMarks';

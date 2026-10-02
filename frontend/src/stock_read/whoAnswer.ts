@@ -1,5 +1,5 @@
 /**
- * The stock's own answer in its Who trades row (ADR 043): "Nova may buy AISP: no · the bot is off".
+ * The stock's own answer in its Who trades row (ADR 044): "Nova may buy AISP: no · the bot is off".
  * The same question the Bots page answers for every ticker, for this one: listed today, Buy on Nova,
  * and nothing the backend names in the switch's notes (ADR 042's every-blocker list).
  */

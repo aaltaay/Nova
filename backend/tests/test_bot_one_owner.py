@@ -225,7 +225,7 @@ def test_the_live_taker_follows_activate_the_level_and_the_stocks_mode():
     assert taker("AAA", "bull_flag") == "bot"
     assert taker("AAA", "first_pullback") is None                    # at Eyes: the bot does not take it
     store.set_switch("BBB", {"buy": "nova", "sell": "you"})
-    assert taker("BBB", "bull_flag") is None                         # ADR 043: not on today's hot list
+    assert taker("BBB", "bull_flag") is None                         # ADR 044: not on today's hot list
     list_hot("BBB")
     assert taker("BBB", "bull_flag") == "auto_entry"
     assert taker("CCC", "bull_flag") is None

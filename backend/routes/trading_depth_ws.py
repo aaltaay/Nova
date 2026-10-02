@@ -5,7 +5,7 @@ this module holds its body and the auto-record yield (ADR 023): the operator
 never loses Level 2 to auto-record, which gives back a line before the
 subscribe runs.
 
-A hidden Trader tab lends its line (ADR 043 decision 6, ``line_lending``): the
+A hidden Trader tab lends its line (ADR 044 decision 6, ``line_lending``): the
 Trader tab's Level 2 opens with ``?tab=1`` and ``front=1`` while it is the tab in
 front. While a loan stands, a socket for the lender gets ``{"type": "lent", ...}``
 and closes; one from the tab in front recalls the loan first. A standing socket
@@ -71,7 +71,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
     await websocket.accept()
     tab, front = socket_gate.flags(websocket.query_params)
 
-    # The line is lent (ADR 043): say so and close -- unless this is the tab in front, which recalled it.
+    # The line is lent (ADR 044): say so and close -- unless this is the tab in front, which recalled it.
     lent = await socket_gate.gate(symbol, front=front)
     if lent is not None:
         await websocket.send_text(json.dumps(lent))
@@ -156,7 +156,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
                     last_sent = mono
                 continue
             if item.get("type") == "lent":
-                # Lent to a setup (ADR 043): the tab waits for it to come back, never by its backoff.
+                # Lent to a setup (ADR 044): the tab waits for it to come back, never by its backoff.
                 await websocket.send_text(json.dumps(item))
                 await websocket.close()
                 break

@@ -117,7 +117,7 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("bot.first_pullback", _bot_first_pullback.run),
         # Who trades the stock (ADR 037): Auto-entry and Approve on Paper and Sim; never on Live.
         ("stock_mode.runner", _stock_mode_runner.run),
-        # Today's hot list (ADR 043): the 04:00 ET rollover, and the leaders' top N from 07:00 to 16:00 ET.
+        # Today's hot list (ADR 044): the 04:00 ET rollover, and the leaders' top N from 07:00 to 16:00 ET.
         ("hot_list.auto", _hot_list_auto.run),
         # Session Record: resume after a restart / failure / Gateway drop, then say so.
         ("capture.keepalive", _capture_keepalive.run),
@@ -128,7 +128,7 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("leaderboard.recorder", _leaderboard_recorder.run),
         # 07:00-10:00 ET: record the leaders on free Level 2 lines only.
         ("leaderboard.auto_record", _leaderboard_auto_record.run),
-        # ADR 043: a hidden Trader tab lends its Level 2 line to a setup Nova may buy. Never places.
+        # ADR 044: a hidden Trader tab lends its Level 2 line to a setup Nova may buy. Never places.
         ("line_lending", _line_lending.run),
         # Catalysts (ADR 024): SEC filings and the press-release wires, recorded as they publish.
         ("catalysts.feed", _catalyst_feed.run),

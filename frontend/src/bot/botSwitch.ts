@@ -1,5 +1,5 @@
 /**
- * The Bot switch in words (ADR 043), pure: whether it is on, the bot trip's latch, why it is off, and why
+ * The Bot switch in words (ADR 044), pure: whether it is on, the bot trip's latch, why it is off, and why
  * it cannot be turned on here. The Bots page's Bot card, the Trader rail card and the header pill all read
  * it, so the three never disagree. On is the master at Strategy with Activate; off leaves the master at
  * Eyes, so the strategies keep alerting.

@@ -15,7 +15,7 @@ const wire = {
   error: null,
 };
 
-describe('the hot list on the wire (ADR 043)', () => {
+describe('the hot list on the wire (ADR 044)', () => {
   it('reads the view, upper-casing symbols and dropping rows without one', () => {
     const v = normalizeHotList(wire);
     expect(v?.entries.map(e => e.symbol)).toEqual(['MEDS', 'AISP']);

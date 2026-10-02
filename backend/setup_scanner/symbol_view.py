@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def not_followed_note(sym: str) -> str:
-    """Why no lane reads ``sym``: a listed name says what keeps it out (ADR 043: HOD Momo's reserved slots
+    """Why no lane reads ``sym``: a listed name says what keeps it out (ADR 044: HOD Momo's reserved slots
     are full, or IBKR cannot stream it); any other name is outside the names the scanners follow."""
     try:
         from hot_list.following import listed_note

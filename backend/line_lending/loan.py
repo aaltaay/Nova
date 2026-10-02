@@ -1,4 +1,4 @@
-"""One loan: what it holds, the words it says and its audit lines (ADR 043 decision 6).
+"""One loan: what it holds, the words it says and its audit lines (ADR 044 decision 6).
 
 A loan takes a hidden Trader tab's Level 2 line -- and its AllLast line, when every
 viewer of that line is the tab's Time & Sales -- for a setup Nova may buy, and holds the

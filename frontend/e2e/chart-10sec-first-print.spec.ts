@@ -23,7 +23,7 @@ async function emptyIbkrBars(route: Route) {
 }
 
 async function mockFirstTapePrint(page: Page) {
-  // The tape socket carries ?tab=1&front=N (ADR 043 decision 6); a glob would not match the query.
+  // The tape socket carries ?tab=1&front=N (ADR 044 decision 6); a glob would not match the query.
   await page.routeWebSocket(/\/ws\/ibkr\/tape\/SMPL(\?.*)?$/, (socket) => {
     setTimeout(() => {
       socket.send(JSON.stringify({

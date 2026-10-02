@@ -3,7 +3,7 @@ Nova's bot and Auto-entry.
 
 ``blockers`` lists every rule that holds a trigger back -- all of them, not the first (the
 visibility rule): the venue (Paper, or Sim at its live edge), Activate, the setup at
-effective Strategy, the strategy's bot rules (ADR 043, ``bot.strategy_rules``: the grades it
+effective Strategy, the strategy's bot rules (ADR 044, ``bot.strategy_rules``: the grades it
 buys and its setups a stock a day), the tape at go, NOT A TRADE
 (``setup_scanner.trade_verdict``), a fresh trigger, the padlock, the kill switch, this venue's
 day lock and bot trip, #564's commission hold, the setup's bot window, today's hot list (ADR
@@ -116,7 +116,7 @@ def _desk_blocks(row: dict[str, Any], venue: str | None) -> list[Blocker]:
 
 
 def _strategy_blocks(event: dict[str, Any], setup_type: str) -> list[Blocker]:
-    """The strategy's bot rules (ADR 043): the grades its template in play buys, and its setups a stock a day."""
+    """The strategy's bot rules (ADR 044): the grades its template in play buys, and its setups a stock a day."""
     from bot import strategy_rules
 
     rules = strategy_rules.rules(setup_type)
@@ -133,7 +133,7 @@ def _strategy_blocks(event: dict[str, Any], setup_type: str) -> list[Blocker]:
 
 
 def listed(sym: str) -> tuple[bool, str | None]:
-    """Whether ``sym`` is on today's hot list (ADR 043), and why not when the list cannot be read."""
+    """Whether ``sym`` is on today's hot list (ADR 044), and why not when the list cannot be read."""
     try:
         import hot_list
 
@@ -144,7 +144,7 @@ def listed(sym: str) -> tuple[bool, str | None]:
 
 
 def _not_listed(sym: str) -> Blocker | None:
-    """Nova buys only the stocks on today's hot list (ADR 043)."""
+    """Nova buys only the stocks on today's hot list (ADR 044)."""
     ok, unread = listed(sym)
     if ok:
         return None
@@ -338,7 +338,7 @@ def taker(sym: str, setup_type: str) -> str | None:
         return None
     sym = (sym or "").strip().upper()
     if not listed(sym)[0]:
-        return None                  # ADR 043: Nova buys only the stocks on today's hot list
+        return None                  # ADR 044: Nova buys only the stocks on today's hot list
     if sym in normalize_symbols(row.get("symbol_allowlist")):
         return "bot"
     from stock_mode import model, store

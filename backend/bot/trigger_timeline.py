@@ -1,4 +1,4 @@
-"""What the bot's audit stream says a setting was at any moment of a day (ADR 043, the squares). Pure.
+"""What the bot's audit stream says a setting was at any moment of a day (ADR 044, the squares). Pure.
 
 The triggers audit (``bot.trigger_audit``) judges each trigger by the settings it met: each strategy's
 own level, each stock's mode (Who trades) and the venue's daily cap. The stream records every change

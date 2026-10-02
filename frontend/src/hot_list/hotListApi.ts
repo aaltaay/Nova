@@ -1,5 +1,5 @@
 /**
- * Today's hot list over HTTP (ADR 043). The reads are plain; the writes change what Nova may trade, so
+ * Today's hot list over HTTP (ADR 044). The reads are plain; the writes change what Nova may trade, so
  * they carry the desk's API key (`novaFetch`) and the sample desk refuses them before any request. A
  * refusal throws the backend's own words.
  */

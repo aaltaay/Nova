@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * A Time & Sales whose line went with the tab's Level 2 to one of Nova's setups (ADR 043
+ * A Time & Sales whose line went with the tab's Level 2 to one of Nova's setups (ADR 044
  * decision 6) reads LENT and says whose setup took it and when it comes back -- in place of the
  * rows, as the ladder does. A lent line is not a fault.
  */

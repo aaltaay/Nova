@@ -1,4 +1,4 @@
-"""The lent lines on the wire (ADR 043 decision 6): GET /api/ibkr/depth/lines, PATCH
+"""The lent lines on the wire (ADR 044 decision 6): GET /api/ibkr/depth/lines, PATCH
 /api/ibkr/depth/lending, and the lender's /ws/ibkr/depth/{symbol} and /ws/ibkr/tape/{symbol} sockets."""
 from __future__ import annotations
 

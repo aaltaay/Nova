@@ -385,7 +385,7 @@ def test_a_name_off_the_list_is_left_to_auto_entry_or_the_scanner(paper):
 
 
 def test_a_bot_stock_off_todays_hot_list_is_skipped_with_the_reason(paper):
-    """ADR 043: Nova buys only the stocks on today's hot list."""
+    """ADR 044: Nova buys only the stocks on today's hot list."""
     from constants_hot_list import HOT_LIST_FILE
     from paths import cache_dir
 
@@ -397,7 +397,7 @@ def test_a_bot_stock_off_todays_hot_list_is_skipped_with_the_reason(paper):
 
 
 def test_a_grade_the_strategy_does_not_buy_is_skipped(paper):
-    """ADR 043: the template in play's ``bot_grades`` -- here A only -- holds a grade B trigger back."""
+    """ADR 044: the template in play's ``bot_grades`` -- here A only -- holds a grade B trigger back."""
     from setup_templates.store import get_store
 
     get_store().update("first_pullback", "default", values={"bot_grades": "A"})

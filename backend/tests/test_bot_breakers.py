@@ -63,7 +63,7 @@ async def test_soft_breaker_flattens_latches_and_keeps_its_record(flattens, at):
     assert result["tripped"] == "soft"
     assert flattens == [1]
     row = load_session()
-    assert row["level"] == 1                     # ADR 043: the bot is off, Eyes keep proposing
+    assert row["level"] == 1                     # ADR 044: the bot is off, Eyes keep proposing
     assert row["armed"] is False and row["deactivated"]["reason"] == "bot_trip"
     assert row["soft_breaker_fired"] is True
     assert row["soft_breaker_until"] == "2026-10-01T04:00:00-04:00"
@@ -82,7 +82,7 @@ async def test_hard_breaker_locks_buys_until_4am_with_its_own_words(flattens, at
     result = await trip_hard(pnl=-212.4)
     assert result["tripped"] == "hard"
     row = load_session()
-    assert row["level"] == 1                     # ADR 043: off at Eyes, not Off
+    assert row["level"] == 1                     # ADR 044: off at Eyes, not Off
     assert row["armed"] is False and row["deactivated"]["reason"] == "all_stop"
     assert row["hard_lock_until_date"] == "2026-10-01T04:00:00-04:00"
     assert row["hard_lock_pnl"] == -212.4 and row["hard_lock_usd"] == -200.0

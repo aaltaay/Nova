@@ -1,4 +1,4 @@
-/** The hot list's mark (the watch list since ADR 043): a small star in the watch colour (currentColor). */
+/** The hot list's mark (the watch list since ADR 044): a small star in the watch colour (currentColor). */
 import './watchList.css';
 
 export function WatchEyeIcon({ className = '', title }: { className?: string; title?: string }) {

@@ -20,7 +20,7 @@ export type { TapePrint, TapeState, TapeSide } from './tapeFeed';
 export interface TapeOptions {
   /**
    * A Trader tab's Time & Sales: its socket says so (`tab=1`), so the backend may lend its AllLast
-   * line with the tab's Level 2 line while no visible window shows the tab (ADR 043 decision 6:
+   * line with the tab's Level 2 line while no visible window shows the tab (ADR 044 decision 6:
    * IBKR counts tick-by-tick lines like depth lines). Any Time & Sales says whether it is in front
    * (`front=1`), which recalls a loan of its line.
    */
@@ -38,7 +38,7 @@ export interface TapeOptions {
  * animation frame while ``uiActive``. Hidden live tabs keep the socket and
  * ring (and 10Sec upsert); they do not commit tape UI until shown again.
  *
- * A lent line (ADR 043 decision 6): the backend sends `{type: "lent", ...}` and closes. The ring
+ * A lent line (ADR 044 decision 6): the backend sends `{type: "lent", ...}` and closes. The ring
  * is cleared (the tape is no longer live, and a gap would not show), the pane says whose setup took
  * it, and the hook never reconnects by its backoff (LentLine): it reconnects when the shared lines
  * poll finds the loan ended, or at once when this Time & Sales comes to the front -- the same
@@ -173,7 +173,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
             });
             if (uiActiveRef.current) raf.schedule();
           } else if (msg.type === 'lent') {
-            // Lent to a setup with the tab's Level 2 (ADR 043): this tape is no longer live; the socket closes next.
+            // Lent to a setup with the tab's Level 2 (ADR 044): this tape is no longer live; the socket closes next.
             line.lend(msg);
             printsRef.current = [];
             connectedRef.current = false;

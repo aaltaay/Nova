@@ -42,7 +42,7 @@ interface Props {
   uiActive?: boolean;
   /** The plan's ENTRY / STOP / TARGET, drawn where they sit in the book (ADR 037). */
   markers?: readonly DepthMarker[];
-  /** A Trader tab's Level 2: its line may be lent while the tab is hidden (ADR 043 decision 6). */
+  /** A Trader tab's Level 2: its line may be lent while the tab is hidden (ADR 044 decision 6). */
   traderTab?: boolean;
 }
 
@@ -224,7 +224,7 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
     return <div className="ibkr-depth-empty">Enter a symbol to view the order book.</div>;
   }
 
-  // The line went to one of Nova's setups (ADR 043): say whose, and when it comes back.
+  // The line went to one of Nova's setups (ADR 044): say whose, and when it comes back.
   if (lent) {
     return (
       <div className="ibkr-depth-empty ibkr-depth-lent" data-testid="ibkr-depth-lent" role="status">

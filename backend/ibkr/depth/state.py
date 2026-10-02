@@ -209,7 +209,7 @@ def push_error(symbol: str, message: str, *, evicted: bool = False) -> None:
 
 
 def push_lent(symbol: str, frame: dict) -> None:
-    """Tell every viewer the line is lent (ADR 043 decision 6, ``line_lending``): each socket
+    """Tell every viewer the line is lent (ADR 044 decision 6, ``line_lending``): each socket
     sends ``frame`` and closes, and its tab waits instead of reconnecting by its backoff."""
     _broadcast(symbol, dict(frame, type="lent"))
 

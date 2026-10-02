@@ -1,5 +1,5 @@
 /**
- * Tickers today (ADR 043): today's hot list and the squares, by ticker. Each listed ticker has a "now" row
+ * Tickers today (ADR 044): today's hot list and the squares, by ticker. Each listed ticker has a "now" row
  * -- would Nova buy it if its setup triggered this minute -- with its Buy / Sell switch, and under it every
  * trigger of the day on it, judged by the same checks; red is what stopped it. Tickers that triggered but
  * are not listed fold at the end. Under the table, what each gate did to the day's triggers.

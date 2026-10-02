@@ -1,4 +1,4 @@
-"""A stand-in desk for the line-lending tests (ADR 043 decision 6): three depth lines and three
+"""A stand-in desk for the line-lending tests (ADR 044 decision 6): three depth lines and three
 AllLast lines (IBKR counts tick-by-tick lines like depth lines), the Trader tabs' sockets on them,
 the focus sensor and the setup scanner's lanes.
 

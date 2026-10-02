@@ -1,6 +1,6 @@
 """How a scanner row ranks for HOD Momo's active set (ADR 008): pure, no state.
 
-Moved out of ``hod_momo_active`` unchanged (ADR 043 added the hot list's admission there): the bounded
+Moved out of ``hod_momo_active`` unchanged (ADR 044 added the hot list's admission there): the bounded
 admission keeps the state, these only order rows -- by the size of the move, ties by IB's own scanner
 rank, still-unpriced rows by that rank alone.
 """

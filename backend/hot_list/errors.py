@@ -1,4 +1,4 @@
-"""A refused hot-list write (ADR 043): ``{detail: {reason, error, field}}``, like stock mode's."""
+"""A refused hot-list write (ADR 044): ``{detail: {reason, error, field}}``, like stock mode's."""
 from __future__ import annotations
 
 from typing import Any

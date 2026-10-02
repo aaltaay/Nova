@@ -1,4 +1,4 @@
-"""``GET /api/hot-list`` (ADR 043): today's list as the Bots page reads it. Memory and one small file; no wait.
+"""``GET /api/hot-list`` (ADR 044): today's list as the Bots page reads it. Memory and one small file; no wait.
 
 ``{schema_version: 1, date, cap, auto: {n, start, end, rule, error}, default, entries: [{symbol, how, at,
 board, rank, change_pct, followed, why_not_followed}], yesterday, error}`` -- ``followed`` is whether the

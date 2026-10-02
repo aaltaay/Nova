@@ -1,4 +1,4 @@
-"""``GET /api/ibkr/depth/lines`` and ``PATCH /api/ibkr/depth/lending`` (ADR 043 decision 6).
+"""``GET /api/ibkr/depth/lines`` and ``PATCH /api/ibkr/depth/lending`` (ADR 044 decision 6).
 
 Included in ``routes.trading``'s ``/api/ibkr`` router, beside the other depth routes.
 The switch needs the desk's API key even on loopback, like a bot write: it decides

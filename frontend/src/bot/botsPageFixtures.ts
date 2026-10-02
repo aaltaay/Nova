@@ -144,7 +144,7 @@ export interface BotsFetchOpts {
   onAllowlist?: (body: { symbol: string; op: string }) => BotSession | Json;
   templates?: TemplatesPayload;
   onTemplate?: (method: string, href: string, body: Record<string, unknown>) => Json | undefined;
-  /** `POST /api/bot/session/switch` (ADR 043): the session after it, or a refusal. */
+  /** `POST /api/bot/session/switch` (ADR 044): the session after it, or a refusal. */
   onSwitch?: (body: Record<string, unknown>) => BotSession | Json;
   /** `GET /api/bot/triggers`: Tickers today and the answer line read it. */
   triggers?: unknown;

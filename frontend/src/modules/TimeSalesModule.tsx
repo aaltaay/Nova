@@ -14,7 +14,7 @@ interface Props {
   connectedText?: string;
   statusTitle?: string;
   emptyLabel?: string;
-  /** A Trader tab's Time & Sales: its line may be lent with the tab's Level 2 (ADR 043 decision 6). */
+  /** A Trader tab's Time & Sales: its line may be lent with the tab's Level 2 (ADR 044 decision 6). */
   traderTab?: boolean;
 }
 

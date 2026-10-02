@@ -192,7 +192,7 @@ def test_a_trip_deactivates_with_its_reason():
     issue_arm_token()
     drop_to_l0(keep_soft_latch=True, reason="all_stop")
     row = load_session()
-    assert row["level"] == 1 and row["deactivated"]["reason"] == "all_stop"     # ADR 043: off at Eyes
+    assert row["level"] == 1 and row["deactivated"]["reason"] == "all_stop"     # ADR 044: off at Eyes
 
 
 # -- ready and the gates -------------------------------------------------------------------

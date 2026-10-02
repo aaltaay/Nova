@@ -1,4 +1,4 @@
-"""The Bot switch (ADR 043): one per venue, on the desk in place of the master dial and Activate.
+"""The Bot switch (ADR 044): one per venue, on the desk in place of the master dial and Activate.
 
 - **ON** (``turn(True)``) puts the desk venue's master ``level`` at Strategy and activates, in one
   step. It is refused like Activate (``bot.activation.refusal``, with Activate's codes):

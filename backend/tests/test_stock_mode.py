@@ -84,7 +84,7 @@ def paper(monkeypatch, api_key):
     apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
     issue_arm_token()
     hold_depth_line(SYM)
-    list_hot(SYM)                         # ADR 043: Nova buys only the stocks on today's hot list
+    list_hot(SYM)                         # ADR 044: Nova buys only the stocks on today's hot list
     yield SimpleNamespace(broker=for_venue("paper"), ref=fake, clock=clock, key=api_key)
     runner.reset_for_tests()
     store.reset_for_tests()
@@ -250,7 +250,7 @@ def test_notes_say_everything_that_keeps_nova_from_acting(paper, monkeypatch):
 
 
 def test_the_notes_say_a_stock_off_todays_hot_list(paper):
-    """ADR 043: Nova buys only listed stocks -- the Who trades view says so instead of promising a buy."""
+    """ADR 044: Nova buys only listed stocks -- the Who trades view says so instead of promising a buy."""
     from constants_hot_list import HOT_LIST_FILE
     from paths import cache_dir
 
@@ -345,7 +345,7 @@ def test_what_keeps_auto_entry_from_buying_is_said(paper, event, code, words):
 
 
 def test_auto_entry_buys_only_a_stock_on_todays_hot_list(paper):
-    """ADR 043: Nova buys only listed stocks -- Auto-entry too."""
+    """ADR 044: Nova buys only listed stocks -- Auto-entry too."""
     from constants_hot_list import HOT_LIST_FILE
     from paths import cache_dir
 

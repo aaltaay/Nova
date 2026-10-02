@@ -111,7 +111,7 @@ export function NotesList({ notes, sym }: { notes: StockModeView['notes']; sym: 
   );
 }
 
-/** The ★: today's hot list (ADR 043). Nova follows and may trade only listed stocks. */
+/** The ★: today's hot list (ADR 044). Nova follows and may trade only listed stocks. */
 function HotStar({ sym, onError }: { sym: string; onError: (message: string | null) => void }) {
   const hot = useHotList();
   const listed = listedOn(hot.view, sym);

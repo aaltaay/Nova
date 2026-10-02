@@ -56,7 +56,7 @@ export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null, bre
   dayPnl: number | null;
   /** How the day P&L the breakers compare was reached. */
   pnlParts?: string | null;
-  /** The loss breakers under the sleeve; the Bots page draws them beside the Bot switch instead (ADR 043). */
+  /** The loss breakers under the sleeve; the Bots page draws them beside the Bot switch instead (ADR 044). */
   breakers?: boolean;
 }) {
   const desk = deskVenue(session);

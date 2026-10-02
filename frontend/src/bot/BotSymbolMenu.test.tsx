@@ -14,7 +14,7 @@ const toggle = vi.hoisted(() => vi.fn());
 vi.mock('./useBotAllowlist', () => ({ useBotAllowlist: () => ({
   isAllowed: () => false, add: vi.fn(), remove: vi.fn(), toggle,
 }) }));
-// Today's hot list (ADR 043) is its own store: GRML is on it, AAPL is not.
+// Today's hot list (ADR 044) is its own store: GRML is on it, AAPL is not.
 const hot = vi.hoisted(() => ({
   state: { view: { entries: [{ symbol: 'GRML' }] }, error: null as string | null, busy: false },
   star: vi.fn(async () => null as string | null),
@@ -139,7 +139,7 @@ describe('Let the bot trade it (ADR 042 F)', () => {
   });
 });
 
-describe('★ Today\'s hot list (ADR 043)', () => {
+describe('★ Today\'s hot list (ADR 044)', () => {
   it('stars a stock from anywhere, takes one off, and keeps a refusal on screen', async () => {
     await open();
     const row = () => container.querySelector('[data-testid="bot-symbol-menu-hot"]') as HTMLButtonElement;

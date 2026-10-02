@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The one Bots page (ADR 043, approved mockup v8): the answer line ("Can Nova buy right now?"), the Bot
+ * The one Bots page (ADR 044, approved mockup v8): the answer line ("Can Nova buy right now?"), the Bot
  * card -- the one switch, Freeze all orders, the sleeve -- and the page shell. The strategies, the Level 2
  * lines, Tickers today and the last row have their own file (BotsPageCards.test.tsx).
  */
@@ -108,7 +108,7 @@ async function press(testId: string) {
   await act(async () => { await flush(); });
 }
 
-describe('Can Nova buy right now? (ADR 043)', () => {
+describe('Can Nova buy right now? (ADR 044)', () => {
   it('says No for every ticker while the Bot is off, with each stock-wide reason and its fix', async () => {
     mockFetch({ session: session() });
     await renderPage();
@@ -156,7 +156,7 @@ describe('Can Nova buy right now? (ADR 043)', () => {
   });
 });
 
-describe('the Bot switch (ADR 043)', () => {
+describe('the Bot switch (ADR 044)', () => {
   it('turns on with one press -- no dial, no Activate -- and off again', async () => {
     const fetchMock = mockFetch({ session: strategySession() });
     await renderPage();
@@ -242,7 +242,7 @@ describe('the Bot switch (ADR 043)', () => {
   });
 });
 
-describe('Freeze all orders (ADR 043)', () => {
+describe('Freeze all orders (ADR 044)', () => {
   it('freezes every order, says what it cancelled on each venue, then offers Unfreeze', async () => {
     const fetchMock = mockFetch({ killSweep: [
       { venue: 'paper', cancelled: [101, 102], failed: [], error: null },

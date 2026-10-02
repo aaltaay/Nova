@@ -1,4 +1,4 @@
-"""The squares, by ticker (ADR 043): ``GET /api/bot/triggers``.
+"""The squares, by ticker (ADR 044): ``GET /api/bot/triggers``.
 
 A day's eyes' journal, the bot's audit stream and the day's hot list are written as Nova writes them;
 every trigger is judged by the ten gates in Nova's order from what was recorded at it, the gates nothing
@@ -325,3 +325,23 @@ def test_the_hot_list_square_reads_when_a_stock_was_listed_and_taken_off():
     # The next rollover ends every span still open.
     later = hot_spans(rows + [line(at(4, 0, day="2026-10-01"), "rollover")])
     assert later["LGHL"][-1]["end"] == at(4, 0, day="2026-10-01")
+
+
+def test_now_says_whether_a_level_2_line_would_come(monkeypatch):
+    """No line held now: a free line or a hidden tab's loan may still come (unknown), or none can: BLIND."""
+    from bot import trigger_now
+
+    monkeypatch.setattr("bot.eligibility.holds_depth_line", lambda sym: sym == "HELD")
+    assert trigger_now._line("HELD")["ok"] is True
+    monkeypatch.setattr("line_lending.lines.free_lines", lambda: 1)
+    monkeypatch.setattr("line_lending.setting.is_on", lambda: (False, None))
+    free = trigger_now._line("AISP")
+    assert free["ok"] is None and "1 of IBKR's lines are free" in free["why"]
+    monkeypatch.setattr("line_lending.lines.free_lines", lambda: 0)
+    monkeypatch.setattr("line_lending.setting.is_on", lambda: (True, None))
+    lent = trigger_now._line("AISP")
+    assert lent["ok"] is None and "lends its lines when a setup comes near" in lent["why"]
+    monkeypatch.setattr("line_lending.setting.is_on", lambda: (False, None))
+    blind = trigger_now._line("AISP")
+    assert blind == {"ok": False, "why": "Nova holds no Level 2 line on AISP, every line is taken and lending is off: "
+                                         "a trigger now would read BLIND"}

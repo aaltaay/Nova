@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The lent pane's state (ADR 043 decision 6): it never reconnects by its backoff while lent, asks
+ * The lent pane's state (ADR 044 decision 6): it never reconnects by its backoff while lent, asks
  * again when the loan ends or at once from the front, and keeps its words until its line answers.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

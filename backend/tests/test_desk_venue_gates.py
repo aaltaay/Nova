@@ -152,7 +152,7 @@ class FakeWebSocket:
     def __init__(self) -> None:
         self.sent: list[str] = []
         self.closed = False
-        # No ``tab`` / ``front``: not a Trader tab's Time & Sales, so its line is never lent (ADR 043).
+        # No ``tab`` / ``front``: not a Trader tab's Time & Sales, so its line is never lent (ADR 044).
         self.query_params: dict[str, str] = {}
 
     async def accept(self) -> None:

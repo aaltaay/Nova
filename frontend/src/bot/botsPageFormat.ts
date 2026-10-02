@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the Bots page (ADR 027, ADR 042, ADR 043): the venue's name, why the Bot was turned
+ * Pure helpers for the Bots page (ADR 027, ADR 042, ADR 044): the venue's name, why the Bot was turned
  * off, the bot's trade in one line, and the page's number formats. Gate words are bot/botGateWords.ts;
  * the Bot switch is bot/botSwitch.ts.
  */

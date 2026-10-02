@@ -1,5 +1,5 @@
 /**
- * The watch list, which is today's hot list since ADR 043 ("the watch list folds
+ * The watch list, which is today's hot list since ADR 044 ("the watch list folds
  * into the ★"): symbols starred by hand from any ticker row or put on by the
  * leaders rule, and a toast whenever one of them alerts on the HOD
  * Momo feed (a HOD Momo strategy or Running Up) or one of its setups climbs its
@@ -69,7 +69,7 @@ export const WATCH_SETUP_UNLISTED_DETAIL =
   'The setup scanner no longer lists it: back to watching, or no longer one of the names it follows.';
 export const watchSetupLast = (price: string): string => `Last ${price}`;
 
-/** The Hot list tab (the watch list, ADR 043). */
+/** The Hot list tab (the watch list, ADR 044). */
 export const WATCH_LIST_TAB_NOTE =
   'Today\'s hot list: the stocks you starred and the ones the leaders rule put on. Whenever one hits HOD Momo or '
   + 'Running Up, or a setup forms, arms, comes near its trigger or triggers on it, a toast says so on every page. '

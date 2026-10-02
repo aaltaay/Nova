@@ -1,4 +1,4 @@
-"""Lending on or off: ``line_lending`` in bot-session.json (ADR 043 decision 6).
+"""Lending on or off: ``line_lending`` in bot-session.json (ADR 044 decision 6).
 
 Desk-wide, not a venue's dial (``bot.venue_levels`` moves only the dial's own keys),
 so the switch on the Bots page means the same on every venue. A session without

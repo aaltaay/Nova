@@ -8,7 +8,7 @@ const view = (over: Partial<StockModeView>): StockModeView => ({
   entries_today: { count: 0, cap: 1 }, nova_entries_today: 0, size: null, last_event: null, bot: null, ...over,
 } as unknown as StockModeView);
 
-describe('the stock\'s own answer (ADR 043)', () => {
+describe('the stock\'s own answer (ADR 044)', () => {
   it('says no while the stock is off the hot list, whatever its switch', () => {
     expect(whoAnswer('AISP', false, view({}))).toEqual({ tone: 'no', text: 'Nova may buy AISP: no · not on today\'s hot list' });
   });

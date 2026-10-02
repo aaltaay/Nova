@@ -1,5 +1,5 @@
 /**
- * The Level 2 lines and their loans (ADR 043 decision 6): `GET /api/ibkr/depth/lines` and
+ * The Level 2 lines and their loans (ADR 044 decision 6): `GET /api/ibkr/depth/lines` and
  * `PATCH /api/ibkr/depth/lending`. A Trader tab whose lines are lent polls the view to know when
  * the loan ended (loanWatch); the Bots page draws it. A loan lends the tab's Time & Sales line with
  * its Level 2 line, and says whether the setup's own Time & Sales line is up (`tape_state`) or

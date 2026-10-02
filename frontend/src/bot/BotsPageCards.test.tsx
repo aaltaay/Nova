@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The Bots page cards (ADR 043, approved mockup v8): every control is a real one -- each
+ * The Bots page cards (ADR 044, approved mockup v8): every control is a real one -- each
  * strategy's own Off / Eyes / On and its bot rules, the add-a-setup door, IBKR's Level 2
  * lines and lending, Tickers today (the hot list, Buy / Sell per stock, the squares), the
  * sleeve per venue that saves once let go, the breakers' day, proposals that say who
@@ -152,7 +152,7 @@ function calls(fetchMock: ReturnType<typeof mockFetch>, part: string, method: st
     .map(([url, init]) => ({ url: String(url), body: String((init as RequestInit | undefined)?.body ?? '') }));
 }
 
-describe('Strategies card (ADR 043: Off / Eyes / On per strategy)', () => {
+describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
   it('gives every setup with a scanner its own Off / Eyes / On, and no chosen setup', async () => {
     mockFetch();
     await renderPage();
@@ -335,7 +335,7 @@ describe('Strategies card (ADR 043: Off / Eyes / On per strategy)', () => {
   });
 });
 
-describe('Tickers today -- the hot list and the squares by ticker (ADR 043)', () => {
+describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', () => {
   it('lists the hot list first with its Buy / Sell, each gate a square, and what stops each ticker', async () => {
     mockFetch();
     await renderPage();
@@ -439,16 +439,24 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 043)', ()
   });
 });
 
-describe('Level 2 lines (ADR 043)', () => {
+describe('Level 2 lines (ADR 044)', () => {
   it('shows who holds each of IBKR\'s three lines, and switches lending', async () => {
     const fetchMock = mockFetch({ lines: linesView({ lending: { on: true, loans: [
-      { lender: 'NXL', borrower: 'AISP', setup_type: 'first_pullback', setup_id: 'a1', since: null, why: 'near its trigger' },
+      { lender: 'NXL', borrower: 'AISP', setup_type: 'first_pullback', setup_id: 'a1', since: null, why: 'near its trigger',
+        tier: 'near', text: null, tape: true, tape_state: 'receiving', tape_error: null, tape_lent: true },
+      { lender: 'ACN', borrower: 'MEDS', setup_type: 'bull_flag', setup_id: 'm1', since: null, why: 'armed',
+        tier: 'armed', text: null, tape: false, tape_state: 'refused', tape_error: 'IBKR 10190: tick-by-tick limit', tape_lent: false },
     ], recent: [] } }) });
     await renderPage();
     expect(screen.getByTestId('bots-line-GRML').textContent).toBe('GRMLyour Trader tab · in front');
     expect(screen.getByTestId('bots-line-NXL').textContent).toBe('NXLyour Trader tab · hidden');
     expect(screen.getByTestId('bots-line-free-2').textContent).toBe('freeno line held');
-    expect(screen.getByTestId('bots-lines-loans').textContent).toMatch(/Now: NXL's line is lent to AISP \(first pullback\)\./);
+    expect(screen.getByTestId('bots-lines-loan-NXL').textContent)
+      .toBe('Now: NXL\'s lines are lent to AISP (first pullback) · its prints arrive');
+    // A borrower without its prints is said, with IBKR's words: no silent BLIND.
+    const refused = screen.getByTestId('bots-lines-loan-ACN');
+    expect(refused.textContent).toMatch(/no Time & Sales line \(IBKR 10190: tick-by-tick limit\)$/);
+    expect(refused.className).toBe('is-bad');
     const lending = screen.getByTestId('bots-lines-lending');
     expect(lending.getAttribute('aria-checked')).toBe('true');
     await act(async () => { fireEvent.click(lending); await flush(); });

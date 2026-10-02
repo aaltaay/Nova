@@ -2,7 +2,7 @@
 
 HOD eligibility is exactly the current-session displayed union: Gappers,
 Gainers, Afterhours, and the manually curated Former Momo list — plus
-today's hot list (ADR 043), nothing else. No volume seeds, no open-ticker
+today's hot list (ADR 044), nothing else. No volume seeds, no open-ticker
 priority, no Losers, no rotating "explore" tail. Admission order: a reserved
 block of ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` -- the hot list first (the names
 Nova may trade get an L1 line, a snapshot and bars, so the setup scanner
@@ -161,7 +161,7 @@ def build_active_set(
     """Deterministic bounded admission — the ADR 008 HOD union.
 
     1. The reserved block, ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` slots: today's
-       hot list (``hot_symbols``, ADR 043) first, in list order (reason
+       hot list (``hot_symbols``, ADR 044) first, in list order (reason
        ``hot_list``), then manual Former Momo (``priority_symbols``) in list
        order in whatever is left (``former_momo``). A name on both lists
        counts once, as the hot list's. A listed name past the block is

@@ -21,7 +21,7 @@ import { boardRowsBySymbol, hodAlertsBySymbol, WatchListTab } from './WatchListT
 import { addToWatchList, getWatchList, resetWatchListForTests } from './watchListStore';
 import type { WatchListBoards } from './types';
 
-// The watch list is today's hot list (ADR 043): an in-memory one here.
+// The watch list is today's hot list (ADR 044): an in-memory one here.
 vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
 vi.mock('../bot', () => ({ openBotSymbolMenu: vi.fn(), closeBotSymbolMenu: vi.fn() }));
 // The setup scanner's live board, as the provider would hand it over (null: none here).

@@ -163,7 +163,7 @@ def held_symbols() -> list[str]:
 
 
 def lines_lock() -> asyncio.Lock:
-    """Held while a line changes hands outside auto-record -- a loan (ADR 043, ``line_lending``) --
+    """Held while a line changes hands outside auto-record -- a loan (ADR 044, ``line_lending``) --
     so a tick never takes the line between its release and its new holder's subscribe."""
     return _lock
 

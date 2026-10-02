@@ -1,5 +1,5 @@
 /**
- * The words and order of Tickers today (ADR 043), pure: which ticker comes first, which of a row's reasons
+ * The words and order of Tickers today (ADR 044), pure: which ticker comes first, which of a row's reasons
  * every ticker shares (said once, in grey) and which are its own, the stock's Buy / Sell from its mode, and
  * a trigger's result in words.
  */

@@ -1,4 +1,4 @@
-"""What the triggers audit reads (ADR 043, ``bot.trigger_audit``): the day's eyes' journal, the bot's audit
+"""What the triggers audit reads (ADR 044, ``bot.trigger_audit``): the day's eyes' journal, the bot's audit
 stream, the day's hot list, each strategy's bot rules today and the settings now.
 
 Each source answers ``{ok, error}``. One that cannot be read is said there, and every square that needs

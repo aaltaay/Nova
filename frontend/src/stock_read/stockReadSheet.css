@@ -340,7 +340,7 @@
   color: var(--sr-warn);
 }
 
-/* Eyes (ADR 043): one switch with its two parts joined to it. */
+/* Eyes (ADR 044): one switch with its two parts joined to it. */
 .sr-eyes {
   gap: 0;
 }

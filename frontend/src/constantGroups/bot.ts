@@ -160,13 +160,13 @@ export const BOT_STALE_BACKEND_WHY =
   'The backend is running code from before this scanner -- reload it (gear, Reload backend) to start it';
 export const BOT_STALE_BACKEND_TEMPLATE = 'needs a backend reload';
 
-/** A strategy's own switch on its card (ADR 043): Off, Eyes, On (the setup levels 0 / 1 / 2). */
+/** A strategy's own switch on its card (ADR 044): Off, Eyes, On (the setup levels 0 / 1 / 2). */
 export const BOT_STRATEGY_LEVEL_LABELS = {
   0: 'Off',
   1: 'Eyes',
   2: 'On',
 } as const;
-/** What each level means on a strategy card (ADR 043). */
+/** What each level means on a strategy card (ADR 044). */
 export const BOT_SETUP_LEVEL_TIPS = {
   0: 'Off: silent. Its scanner still watches and scores every armed setup, so its read-out keeps collecting, but it never alerts you and draws nothing on your charts.',
   1: 'Eyes: it draws its setups on your charts and alerts you when one comes near its trigger and the tape reads GO: a ping and a card in the inbox. You press Place. The default.',
@@ -302,7 +302,7 @@ export const BOT_LABEL_PROPOSALS = 'Bot proposals';
 export const BOT_LABEL_AUDIT = 'Bot audit';
 
 /* ---------- Kill switch (D-037, ADR 025, ADR 042 D) ---------- */
-/** The one kill latch, in the words of what it does: on the desk it is "Freeze all orders" (ADR 043). */
+/** The one kill latch, in the words of what it does: on the desk it is "Freeze all orders" (ADR 044). */
 export const KILL_SWITCH_TITLE = 'Freeze all orders';
 export const KILL_SWITCH_HINT =
   'Freezes every order: cancels every working order on every venue and refuses every new order on every venue -- from you or from Nova, a sell included -- until you unfreeze. It sells nothing: Flatten and cancels still work. It stays on across a restart. The red KILL at the top of the desk is the one that sells: it turns the bot off, locks the padlock, cancels and flattens this venue.';

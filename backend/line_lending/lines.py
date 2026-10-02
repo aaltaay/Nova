@@ -1,4 +1,4 @@
-"""Which lines a loan may take: their holders, the free depth lines and the lender (ADR 043 decision 6).
+"""Which lines a loan may take: their holders, the free depth lines and the lender (ADR 044 decision 6).
 
 Read-only, over ``ibkr.depth`` and ``ibkr.tape_stream`` (moving a line is ``line_moves``):
 

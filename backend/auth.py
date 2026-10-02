@@ -84,7 +84,7 @@ def is_stock_mode_mutate(method: str, path: str) -> bool:
 
 
 def is_hot_list_mutate(method: str, path: str) -> bool:
-    """Today's hot list decides what Nova may buy (ADR 043): keyed like a bot route."""
+    """Today's hot list decides what Nova may buy (ADR 044): keyed like a bot route."""
     normalized = path.rstrip("/") or "/"
     return method in _MUTATING and (normalized == "/api/hot-list" or normalized.startswith("/api/hot-list/"))
 

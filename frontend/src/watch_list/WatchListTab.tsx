@@ -1,5 +1,5 @@
 /**
- * The Hot list tab (the Watch list tab until ADR 043): today's hot list, each with its
+ * The Hot list tab (the Watch list tab until ADR 044): today's hot list, each with its
  * board row's market facts (when a board holds it), its most advanced setup on
  * the setup scanner and today's newest HOD Momo or Running Up alert -- what the
  * toasts announce. Remove from here, add by ticker here or from any ticker row.
@@ -195,7 +195,7 @@ function AddSymbolForm() {
 }
 
 /**
- * The list this desk kept before the hot list (ADR 043): offered once -- star what fits today's list, or
+ * The list this desk kept before the hot list (ADR 044): offered once -- star what fits today's list, or
  * forget it. Every refusal is said in the backend's words; the saved list is forgotten only after the stars.
  */
 function SavedListOffer({ listed }: { listed: readonly string[] }) {

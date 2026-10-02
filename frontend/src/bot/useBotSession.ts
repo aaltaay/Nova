@@ -78,7 +78,7 @@ export function useBotSession(pollMs = 0) {
     }
   }, []);
 
-  /** ADR 043: the Bot switch. A refusal (a trip's latch, the padlock, Live) comes back in the backend's words. */
+  /** ADR 044: the Bot switch. A refusal (a trip's latch, the padlock, Live) comes back in the backend's words. */
   const setSwitch = useCallback(async (on: boolean, reenable = false) => {
     setBusy(true);
     try {

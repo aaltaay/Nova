@@ -1,4 +1,4 @@
-"""The loans: a hidden Trader tab's Level 2 and Time & Sales lines lent to a setup Nova may buy (ADR 043 d. 6).
+"""The loans: a hidden Trader tab's Level 2 and Time & Sales lines lent to a setup Nova may buy (ADR 044 d. 6).
 
 Owner: this module's in-memory loans (keyed by the lender's symbol), the ended ones
 kept for the view, and when each lender last came to the front. A restart forgets

@@ -18,7 +18,7 @@ Endpoints:
   POST /api/ibkr/depth/subscribe  -- subscribe to L2 depth for a symbol
   POST /api/ibkr/depth/unsubscribe -- unsubscribe symbol
   GET  /api/ibkr/depth            -- list currently subscribed depth symbols
-  GET  /api/ibkr/depth/lines      -- who holds each Level 2 line, and the loans (line_lending/routes.py, ADR 043)
+  GET  /api/ibkr/depth/lines      -- who holds each Level 2 line, and the loans (line_lending/routes.py, ADR 044)
   PATCH /api/ibkr/depth/lending   -- line lending on / off (API key)
   WS   /ws/ibkr/depth/{symbol}    -- streaming Level 2 book updates
   WS   /ws/ibkr/tape/{symbol}     -- streaming Time & Sales (AllLast tick-by-tick)

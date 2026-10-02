@@ -1,4 +1,4 @@
-"""The squares, by ticker (ADR 043): ``GET /api/bot/triggers?date=YYYY-MM-DD``. Read-only.
+"""The squares, by ticker (ADR 044): ``GET /api/bot/triggers?date=YYYY-MM-DD``. Read-only.
 
 One row per ticker -- every name on the day's hot list, then every name that triggered without being
 on it (``listed: null``) -- saying now whether Nova would buy it if its setup triggered this minute

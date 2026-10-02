@@ -1,5 +1,5 @@
 /**
- * One poll of `GET /api/ibkr/depth/lines` for every lent line in this window (ADR 043 decision 6).
+ * One poll of `GET /api/ibkr/depth/lines` for every lent line in this window (ADR 044 decision 6).
  *
  * A pane whose line is lent to one of Nova's setups waits for the loan to end instead of
  * reconnecting by its backoff (lentLine.ts). A Trader tab's Level 2 and Time & Sales go to the

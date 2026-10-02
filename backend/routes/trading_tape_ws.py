@@ -4,7 +4,7 @@ A Sim desk off the live edge skips IBKR subscribe and reads the same viewer
 queues the feed injects; at the live edge (ADR 020 live-edge amendment) it
 opens the real tape line exactly as a Paper or Live desk does.
 
-A hidden Trader tab lends its AllLast line with its Level 2 line (ADR 043
+A hidden Trader tab lends its AllLast line with its Level 2 line (ADR 044
 decision 6, ``line_lending``): the Trader tab's Time & Sales opens with
 ``?tab=1`` and ``front=1`` while it is the tab in front. While a loan stands, a
 socket for the lender gets ``{"type": "lent", ...}`` and closes; one from the tab
@@ -36,7 +36,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         await websocket.close()
         return
 
-    # The line is lent (ADR 043): say so and close -- unless this is the tab in front, which recalled it.
+    # The line is lent (ADR 044): say so and close -- unless this is the tab in front, which recalled it.
     lent = await socket_gate.gate(symbol, front=front)
     if lent is not None:
         await websocket.send_text(json.dumps(lent))
@@ -93,7 +93,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 continue
             msg_type = print_data.get("type") or "print"
             if msg_type == "lent":
-                # Lent to a setup (ADR 043): the tab waits for it to come back, never by its backoff.
+                # Lent to a setup (ADR 044): the tab waits for it to come back, never by its backoff.
                 await websocket.send_text(json.dumps(print_data))
                 await websocket.close()
                 break

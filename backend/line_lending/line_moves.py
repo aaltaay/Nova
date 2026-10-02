@@ -1,4 +1,4 @@
-"""Moving a lender's lines to a borrower, and back (ADR 043 decision 6).
+"""Moving a lender's lines to a borrower, and back (ADR 044 decision 6).
 
 The writes the loans make, over ``ibkr.depth``, ``ibkr.tape_stream`` and ``ibkr.tape_line``:
 

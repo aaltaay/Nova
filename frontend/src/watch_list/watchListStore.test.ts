@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The watch list is today's hot list (ADR 043): a Watch action stars or unstars on the hot list, shows at
+ * The watch list is today's hot list (ADR 044): a Watch action stars or unstars on the hot list, shows at
  * once, and is undone -- in the backend's words -- when the hot list refuses it. The list this desk kept
  * before is only read, then forgotten. The sample desk keeps its own list.
  */

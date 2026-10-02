@@ -1,5 +1,5 @@
 /**
- * The Bot switch (ADR 043), one logic for every surface that drives it (the Bots page's Bot card, the
+ * The Bot switch (ADR 044), one logic for every surface that drives it (the Bots page's Bot card, the
  * Trader rail card). Off always goes; on is locked with the reason where the bot cannot trade (Live, a
  * replay desk), and after the bot trip it asks in words before it sends `reenable: true`. Locking the
  * padlock turns the Bot off in the backend (ibkr/safety's disarm path calls the bot), never from here.

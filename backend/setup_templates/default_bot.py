@@ -1,4 +1,4 @@
-"""The built-in template's bot rules (ADR 043): the operator's own values for the default's bot group.
+"""The built-in template's bot rules (ADR 044): the operator's own values for the default's bot group.
 
 The default is the pre-registered rules and its scanner parameters never change. Its bot group --
 when the bot may buy (``bot_window_start`` / ``bot_window_end``), the grades it buys

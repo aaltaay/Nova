@@ -1,4 +1,4 @@
-"""Each strategy's bot rules (ADR 043): the grades Nova buys and its setups a stock a day.
+"""Each strategy's bot rules (ADR 044): the grades Nova buys and its setups a stock a day.
 
 They are template parameters of the bot group (``setup_templates.catalogue``: changing them never
 starts a read-out over), read from each setup's template in play -- the built-in's with the

@@ -1,4 +1,4 @@
-"""Today's hot list (ADR 043): the file, the 04:00 ET rollover, the auto feed, and HOD Momo's admission.
+"""Today's hot list (ADR 044): the file, the 04:00 ET rollover, the auto feed, and HOD Momo's admission.
 
 The routes and the Who trades tie-in are ``test_hot_list_routes.py``.
 """

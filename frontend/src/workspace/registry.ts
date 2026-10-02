@@ -232,7 +232,7 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     showInTabNav: false,
   },
   {
-    // Today's hot list (ADR 043: the watch list folds into the ★): a toast
+    // Today's hot list (ADR 044: the watch list folds into the ★): a toast
     // whenever one hits HOD Momo (watch_list/). Not the ranked list below. The
     // id stays for persisted layouts.
     id: 'watch_list',

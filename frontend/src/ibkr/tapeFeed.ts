@@ -34,7 +34,7 @@ export interface TapeState {
   connected: boolean;
   error: string | null;
   /**
-   * The live line is lent to one of Nova's setups with the tab's Level 2 (ADR 043 decision 6):
+   * The live line is lent to one of Nova's setups with the tab's Level 2 (ADR 044 decision 6):
    * the pane says whose and when it comes back. Absent or null for every other feed.
    */
   lent?: LineLent | null;

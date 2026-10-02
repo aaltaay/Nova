@@ -1,4 +1,4 @@
-"""Level 2 and Time & Sales lines lent by hidden Trader tabs to the setups Nova may buy (ADR 043 decision 6).
+"""Level 2 and Time & Sales lines lent by hidden Trader tabs to the setups Nova may buy (ADR 044 decision 6).
 
 When a setup of a strategy at On, on a stock whose Buy is Nova, is armed, near its
 trigger or in a trade, and no depth line is free, the lines of a Trader tab no visible

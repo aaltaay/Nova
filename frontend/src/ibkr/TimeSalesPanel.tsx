@@ -9,7 +9,7 @@
  * on 2026-10-01 this tape froze for 16 s under a LIVE badge while the Wi-Fi reconnected.
  *
  * A Trader tab's Time & Sales (`traderTab`) may lend its line with the tab's Level 2 while the
- * tab is hidden (ADR 043 decision 6); it then reads LENT and says whose setup took it.
+ * tab is hidden (ADR 044 decision 6); it then reads LENT and says whose setup took it.
  */
 import { useFeedGapBadge } from './feedPulseStore';
 import { TimeSalesView } from './TimeSalesView';
@@ -27,7 +27,7 @@ interface Props {
   statusTitle?: string;
   /** Empty-tape message while connected. */
   emptyLabel?: string;
-  /** A Trader tab's Time & Sales: its line may be lent while the tab is hidden (ADR 043 decision 6). */
+  /** A Trader tab's Time & Sales: its line may be lent while the tab is hidden (ADR 044 decision 6). */
   traderTab?: boolean;
 }
 

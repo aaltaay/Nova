@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The Trader rail's bot card (ADR 043): the one Bot switch for this venue, the same rules as the Bots
+ * The Trader rail's bot card (ADR 044): the one Bot switch for this venue, the same rules as the Bots
  * page -- off always goes, on is locked with the reason on Live, after the bot trip it asks first -- with
  * why it is off and a way to the Bots page. No master dial, no Activate, no bot list here.
  */

@@ -1,5 +1,5 @@
 /**
- * The nav rail's Bots item carries the Bot switch as a dot (ADR 043): green while the Bot is on and would
+ * The nav rail's Bots item carries the Bot switch as a dot (ADR 044): green while the Bot is on and would
  * trade a GO trigger, amber while it is on but not trading now, nothing while it is off or when there is
  * no bot session (the sample desk). The hover says why.
  */

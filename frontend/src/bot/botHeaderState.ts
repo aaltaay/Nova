@@ -1,5 +1,5 @@
 /**
- * The Bot switch in a few words for the global bar pill and the Trader rail card (ADR 043): ON or OFF on
+ * The Bot switch in a few words for the global bar pill and the Trader rail card (ADR 044): ON or OFF on
  * this venue, how many strategies are On, and -- on hover -- why it is off or why it is not trading now,
  * with every closed gate. Pure.
  */

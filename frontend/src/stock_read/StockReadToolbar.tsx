@@ -1,5 +1,5 @@
 /**
- * The chart toolbar's Eyes switch (ADR 043): everything Nova draws on every pane of the tab -- the
+ * The chart toolbar's Eyes switch (ADR 044): everything Nova draws on every pane of the tab -- the
  * setups forming and ended, the plan's lines, zones and badge, support and resistance -- on or off in
  * one click, with Setups and Levels as its two parts. Remembered with the other layers; your
  * indicators, your drawings, your orders and the Who trades switch never turn off with it.

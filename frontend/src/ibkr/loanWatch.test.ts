@@ -1,5 +1,5 @@
 /**
- * The one lines poll every lent pane in a window waits on (ADR 043 decision 6): one request per
+ * The one lines poll every lent pane in a window waits on (ADR 044 decision 6): one request per
  * L2_LENT_POLL_MS answers every pane, an unreadable answer ends nothing, and the poll stops when no
  * pane waits.
  */

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The Bot switch in the global bar (ADR 043): ON or OFF at a glance on every
+ * The Bot switch in the global bar (ADR 044): ON or OFF at a glance on every
  * view, one click to the Bots page.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';

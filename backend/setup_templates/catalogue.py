@@ -15,7 +15,7 @@ Values are kept in the unit the operator types -- percent as 5, not 0.05; a
 float in millions of shares -- and ``setup_scanner/lane_params.py`` converts
 them for the scanner in one place. A nullable parameter is off when ``None``.
 
-The ``bot`` group (the bot's entry window, and since ADR 043 the grades it buys and
+The ``bot`` group (the bot's entry window, and since ADR 044 the grades it buys and
 its setups a stock a day) is the bot's, not the scanner's: it is
 left out of ``fingerprint`` -- and so of a template's ``params_hash`` and its rules
 revision -- so changing it never starts a read-out over (operator ask 2026-09-30).
@@ -323,7 +323,7 @@ _GRADE: tuple[ParamSpec, ...] = (
 )
 
 def _bot(arm_start: str, arm_end: str) -> tuple[ParamSpec, ...]:
-    """The bot's rules (ADR 043): its entry window -- the material's 07:00-10:00, inside the setup's
+    """The bot's rules (ADR 044): its entry window -- the material's 07:00-10:00, inside the setup's
     arming window (``arm_start``-``arm_end``; red to green arms 09:30-10:30, so 09:30-10:00) -- the
     grades it buys and how many setups of a stock a day."""
     start = max(BOT_ENTRY_WINDOW_START_ET, arm_start, key=_minutes)

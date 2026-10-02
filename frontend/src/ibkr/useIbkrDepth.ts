@@ -16,7 +16,7 @@ interface DepthState {
   error: string | null;
   /** The book watcher's verdicts on this live line (ADR 033 amendment); null until its first frame. */
   watch: BookWatchState | null;
-  /** The line is lent to one of Nova's setups (ADR 043 decision 6); null while this tab has it. */
+  /** The line is lent to one of Nova's setups (ADR 044 decision 6); null while this tab has it. */
   lent: LineLent | null;
 }
 
@@ -50,7 +50,7 @@ const EMPTY: DepthState = {
  * Hidden live tabs keep the socket and latest book in refs. React / ladder
  * paint waits until ``uiActive`` so a background tab cannot burn the main thread.
  *
- * A lent line (ADR 043 decision 6): the backend sends `{type: "lent", ...}` and closes. The hook
+ * A lent line (ADR 044 decision 6): the backend sends `{type: "lent", ...}` and closes. The hook
  * then never reconnects by its backoff (LentLine): it waits on the shared lines poll and reconnects
  * once no loan names this symbol -- or at once when this Level 2 comes to the front (`uiActive` and
  * the document visible), which opens with `front=1` and recalls the loan. The tab's Time & Sales
@@ -183,7 +183,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             watchRef.current = applyBookWatchFrame(watchRef.current, msg.data, Date.now());
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'lent') {
-            // Lent to a setup (ADR 043): this book is no longer live; the socket closes next.
+            // Lent to a setup (ADR 044): this book is no longer live; the socket closes next.
             line.lend(msg);
             bookRef.current = null;
             watchRef.current = null;

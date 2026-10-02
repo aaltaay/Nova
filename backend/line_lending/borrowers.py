@@ -1,4 +1,4 @@
-"""Which setups may borrow a Level 2 line (ADR 043 decision 6).
+"""Which setups may borrow a Level 2 line (ADR 044 decision 6).
 
 A **borrower** is a setup of the template in play (``SetupEngine.playing_lanes``)
 that is armed, near its trigger or in a trade (auto-record's tiers: the trade's
