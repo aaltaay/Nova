@@ -96,7 +96,7 @@ DIAG_ENV_MISSING_CAUSE = (
     "(or NOVA_ENV_PATH). That file does not exist, so every key reads as unset."
 )
 DIAG_ENV_MISSING_FIX = (
-    "Start the API from the repository that holds .env (Run Nova.bat / Start API "
+    "Start the API from the repository that holds .env (scripts/windows/Run Nova.bat / Start API "
     "in the desk), or set NOVA_ENV_PATH to that file and restart the API."
 )
 DIAG_ENV_MISSING_PREFIX = "no .env at"

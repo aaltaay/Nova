@@ -11,7 +11,7 @@
  * second mount), so its tabs, sockets and charts are the Trader's own.
  */
 import { Suspense, useEffect, useState } from 'react';
-import { LazySampleShell, LazyStockViewTabs } from './appLazy';
+import { LazyDemoStrip, LazySampleShell, LazyStockViewTabs } from './appLazy';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { BotSymbolMenuHost } from './bot/BotSymbolMenu';
 import { GlobalAppBar } from './components/GlobalAppBar';
@@ -98,6 +98,7 @@ function AppShell() {
             <div className="nova-app-main">
             {!detached && <GlobalBarStatusBridge />}
             {!detached && <GlobalAppBar />}
+            {!detached && LazyDemoStrip && <Suspense fallback={null}><LazyDemoStrip /></Suspense>}
             {detached && <FloatDeskChrome />}
             {/* The parent's symbol menu mounts with its app bar (GlobalBarBotRow); a pop-out
                 has none, so its Trader tabs and Focus rail rows need their own host. */}

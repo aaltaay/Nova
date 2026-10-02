@@ -33,7 +33,6 @@ DOC_ROOTS = (
 
 DOC_ROOT_FILES = (
     "AGENTS.md",
-    "gemini.md",
     "README.md",
 )
 

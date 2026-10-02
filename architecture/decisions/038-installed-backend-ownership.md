@@ -6,7 +6,7 @@
 
 The Windows installer ships the Electron desk and a PyInstaller engine
 (`nova-api.exe`). The operator does not run that engine: the backend is the
-**checkout engine** the localhost watchdog, `Run Nova.bat` and the morning
+**checkout engine** the localhost watchdog, `scripts/windows/Run Nova.bat` and the morning
 script start from `C:\Users\aalta\github\Nova`. Its data sits behind the
 checkout's `backend\.cache` (moved to `F:\Nova\cache`), and its `.env` holds the
 IBKR settings and the Live PIN hash. The bundled engine reads the app's own
@@ -50,7 +50,7 @@ a second engine on top of it. That was fixed before the push.
    unreadable file, or a checkout that lost its start script reads as no owner.
    Deleting the file goes back to the bundled engine.
 3. **On an empty port, the desk starts the owner's engine first.** It uses the
-   checkout's own `Start-NovaApi.ps1`, the way `Run Nova.bat` does, so the data,
+   checkout's own `Start-NovaApi.ps1`, the way `scripts/windows/Run Nova.bat` does, so the data,
    the `.env` and the code channel are the operator's usual ones. The engine
    outlives the desk, like a watchdog engine. If it does not answer, the desk
    offers:

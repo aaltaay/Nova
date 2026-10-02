@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -74,7 +75,8 @@ def test_build_brief_real_repo_smoke(hook):
     if brief:
         assert "Graphify meter:" in brief
         assert "Deferred" in brief
-        assert "D-" in brief
+        # An issue is named by its GitHub number; D-NNN is only a legacy alias (AGENTS.md 7.2c).
+        assert re.search(r"#\d+|D-\d+", brief)
 
 
 def test_main_emits_additional_context(hook, monkeypatch, capsys):

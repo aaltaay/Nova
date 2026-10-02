@@ -9,8 +9,8 @@ alwaysApply: false
 
 From the **repository root** (`Nova/`):
 
-1. **Double-click** `Run Nova.bat`, **or** in a terminal: run `Run Nova.bat` from that folder.
-2. For the Electron desktop build (with local API sidecar), use `Run Nova Desktop.bat` instead. That bat **Stop-NovaPorts 8000+5173 first** -- do not use it when a morning API is already healthy.
+1. **Double-click** `scripts/windows/Run Nova.bat`, **or** in a terminal: run `scripts/windows/Run Nova.bat` from that folder.
+2. For the Electron desktop build (with local API sidecar), use `scripts/windows/Run Nova Desktop.bat` instead. That bat **Stop-NovaPorts 8000+5173 first** -- do not use it when a morning API is already healthy.
 3. Daily UI attach (Lock A): `.\scripts\Start-NovaDevDesktop.ps1` (optional `-PullMaster`). If GET `/api/health` is 200 it never recycles the API. It starts Vite on 5173 if needed and launches unpackaged Electron with `NOVA_VITE_URL=http://127.0.0.1:5173` and `NOVA_SKIP_API_SIDECAR=1`. If the API is unhealthy it prints a reload-API message and exits 1.
 
 That script:
@@ -33,7 +33,7 @@ Close each titled CMD window to stop that server.
 
 When the user asks to **run** or **open** the app (or similar), **do it without debating**:
 
-1. Prefer **starting from repo root** using `Run Nova.bat` on Windows when an interactive dev experience (separate windows + browser) matches what they use day to day.
+1. Prefer **starting from repo root** using `scripts/windows/Run Nova.bat` on Windows when an interactive dev experience (separate windows + browser) matches what they use day to day.
 2. If the environment cannot launch `.bat` or needs headless terminals, start **both** servers the same way the batch file does: uvicorn in `backend/` and `npm run dev` in `frontend/` (background as appropriate), then note URLs `http://127.0.0.1:8000` and `http://localhost:5173`.
 
 Do not spend turns listing options unless something fails; execute first, then report URLs and how to stop.

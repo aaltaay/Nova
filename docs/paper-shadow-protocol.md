@@ -38,7 +38,7 @@ If empty scanners look like “no gaps,” check IBKR first — see **IB Gateway
 
 ## Prerequisites
 
-1. App running (`Run Nova.bat` or uvicorn + Vite) — UI `http://localhost:5173`, API `http://127.0.0.1:8000`
+1. App running (`scripts/windows/Run Nova.bat` or uvicorn + Vite) — UI `http://localhost:5173`, API `http://127.0.0.1:8000`
 2. **IB Gateway logged in** on the **paper** port when discovery is `ibkr` (usual paper API port `4002`)
 3. `IBKR_ENABLED` / order flags appropriate for **paper** only — never set live-confirm flags for this protocol
 4. Archive maintenance on if you want cold days for review: `ARCHIVE_MAINTENANCE_ENABLED=true` (local `.env`)

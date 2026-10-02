@@ -23,7 +23,10 @@ try {
         $AtTime = ([DateTime]$existing.Triggers[0].StartBoundary).ToString('HH:mm')
     }
     $at = [DateTime]::ParseExact($AtTime, 'HH:mm', [Globalization.CultureInfo]::InvariantCulture)
-    $arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' +
+    # A headless conhost: -WindowStyle Hidden alone still flashes a black console (2026-10-01).
+    $execute = Join-Path $env:SystemRoot 'System32\conhost.exe'
+    $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $arguments = '--headless "' + $powershell + '" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' +
         $runner + '" -RepoRoot "' + $RepoRoot + '"'
     $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -44,7 +47,7 @@ try {
             } catch { return $false }
         }
         return ($actions.Count -eq 1 -and $triggers.Count -eq 1 -and
-            $actions[0].Execute -eq 'powershell.exe' -and
+            $actions[0].Execute -eq $execute -and
             $actions[0].Arguments -eq $arguments -and
             $actions[0].WorkingDirectory -eq $RepoRoot -and
             $triggers[0].Enabled -and $triggers[0].DaysInterval -eq 1 -and
@@ -64,7 +67,7 @@ try {
         Write-Output "Repo maintenance: $TaskName verified."
         exit 0
     }
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments -WorkingDirectory $RepoRoot
+    $action = New-ScheduledTaskAction -Execute $execute -Argument $arguments -WorkingDirectory $RepoRoot
     $trigger = New-ScheduledTaskTrigger -Daily -At $at
     $settings = New-ScheduledTaskSettingsSet -Priority $priority -StartWhenAvailable -MultipleInstances IgnoreNew `
         -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `

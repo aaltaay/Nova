@@ -120,14 +120,14 @@ The parent writes one aggregate narrative for multi-domain jobs done in-session,
 
 ## Deferred tracker (known bugs + parked features)
 
-Parked work that is **not** a closed fix lives as GitHub Issues labeled `deferred` -- recorded in the issue and linked PR. Open P0/P1 items also appear in the session-start fleet brief. `DEFERRED_LOG.md` is the how-to, not the list.
+Parked work that is **not** a closed fix lives as GitHub Issues labeled `deferred` -- recorded in the issue and linked PR. Open P0/P1 items also appear in the session-start fleet brief. `docs/deferred-log.md` is the how-to, not the list.
 
 **Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search open issues. If an existing issue already covers the ask, work from that issue (`parked` means do not start it). When the human asks "what's on the to-do / what's missing / priorities," that command is the answer -- do not invent a second tracker.
 
 | Piece | Path |
 |-------|------|
 | SSOT | GitHub Issues labeled `deferred` |
-| How-to | `DEFERRED_LOG.md` |
+| How-to | `docs/deferred-log.md` |
 | Rule (always apply) | `.cursor/rules/deferred-log.mdc` |
 | Ranked list | `py -3 tools/deferred_log.py status` (alias `priorities`) |
 

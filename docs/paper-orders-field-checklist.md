@@ -6,7 +6,7 @@ Use after Open/Closed Orders UI or qty/time math changes. Automated pyramid laye
 
 ## Preconditions
 
-1. UI + API running (`Run Nova.bat` or uvicorn + Vite).
+1. UI + API running (`scripts/windows/Run Nova.bat` or uvicorn + Vite).
 2. `GET /api/ibkr/status` → `connected: true`, `mode: paper` / `gateway_mode: paper`, `broker_account_kind: paper`, `spend_status: paper_armed`.
 3. `live_trading_confirmed: false` (keep it that way).
 4. Stock View open on a liquid paper symbol you can leave small.

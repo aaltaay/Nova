@@ -328,7 +328,7 @@ export function stopApiSidecar() {
 /**
  * Before an update install (#347): stop the engine we spawned and wait until it
  * has exited and :8000 is free -- the installer rewrites resources/nova-api/, which
- * a running nova-api.exe would hold open. An API we only attached to (Run Nova.bat,
+ * a running nova-api.exe would hold open. An API we only attached to (scripts/windows/Run Nova.bat,
  * NOVA_SKIP_API_SIDECAR) is not ours to stop. True when nothing of ours still runs.
  */
 export function stopApiSidecarForUpdate(timeoutMs = SIDECAR_PORT_FREE_TIMEOUT_MS) {

@@ -10,6 +10,7 @@
     "backend/logs/**",
     ".vale/**",
     "**/.tmp/**",
+    "docs/archive/**",
     "downloads/**",
     "**/test-results/**"
   ],

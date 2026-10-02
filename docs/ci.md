@@ -7,7 +7,7 @@ their holds. Master still blocks force-push and deletion, including for admins.
 
 | Changed files | Backend suite | Frontend lint/unit/build | Chromium E2E | Windows pack |
 |---|---|---|---|---|
-| Root/docs/knowledge Markdown, change fragments, marketing site | No | No | No | No |
+| Root/docs/knowledge Markdown, images under `docs/`, change fragments, marketing site | No | No | No | No |
 | Frontend source/assets/tests | Trading-facing modules only | Yes | Yes | Yes |
 | Backend source/tests | Yes, complete suite | No | Yes | Yes |
 | Electron, build scripts, manifests, CI/tools, unknown paths | Yes | Yes | Yes | Yes |

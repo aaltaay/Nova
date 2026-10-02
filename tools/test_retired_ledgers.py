@@ -11,7 +11,7 @@ def test_retired_ledgers_are_absent_from_the_repo_root():
 
 
 def test_retired_ledgers_are_readable_in_the_archive():
-    archive = REPO_ROOT / "_archived" / "agent-ledgers-2026-09-20"
+    archive = REPO_ROOT / "docs" / "archive" / "agent-ledgers-2026-09-20"
     for name in RETIRED:
         snapshot = archive / name
         assert snapshot.is_file(), f"{name} history was lost, not archived"

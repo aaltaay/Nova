@@ -91,6 +91,6 @@ export async function startLocalApi(): Promise<StartLocalApiResult> {
   return {
     ok: false,
     mode: 'health-only',
-    error: 'Backend still unreachable. Double-click Run Nova.bat in the Nova folder.',
+    error: 'Backend still unreachable. Double-click scripts/windows/Run Nova.bat in the Nova folder.',
   };
 }

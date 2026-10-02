@@ -12,7 +12,7 @@
   Backend changes need an explicit API reload -- this script will not do it.
 
   This is not Start-NovaDaily.ps1 (morning bootstrap). It is not
-  Run Nova Desktop.bat (that file Stop-NovaPorts 8000+5173 first).
+  scripts\windows\Run Nova Desktop.bat (that file Stop-NovaPorts 8000+5173 first).
 
   IMPORTANT: ASCII-only, no BOM. powershell 5.1 + Task Scheduler.
 
@@ -187,7 +187,7 @@ if (-not (Test-ApiHealth200)) {
     Write-Host "If you changed backend code, reload the API yourself, then re-run this script." -ForegroundColor Yellow
     Write-Host "  scripts\Start-NovaApi.ps1" -ForegroundColor Yellow
     Write-Host "  or the header Reload backend control (not this attach helper)." -ForegroundColor Yellow
-    Write-Host "Do not use Run Nova Desktop.bat for this -- it Stop-NovaPorts 8000 first." -ForegroundColor Yellow
+    Write-Host "Do not use scripts\windows\Run Nova Desktop.bat for this -- it Stop-NovaPorts 8000 first." -ForegroundColor Yellow
     exit 1
 }
 
