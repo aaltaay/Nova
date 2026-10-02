@@ -6,6 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
+from catalysts import issuance
 from constants import TICKER_AVG_VOLUME_CACHE_ONLY, TICKER_SLOW_CACHE_TTL
 from runtime_state import get_runtime_state
 from ibkr import halt_status
@@ -175,7 +176,7 @@ def build_ticker_detail(symbol: str) -> dict:
         "rel_volume": rel_vol,
         **rvol5,
         "news": news,
-        "fundamentals": slow.get("fundamentals") or {},
+        "fundamentals": issuance.stamp(dict(slow.get("fundamentals") or {}), symbol),
         "news_impact": build_ticker_news_impact(symbol, news, snapshot, rel_vol),
         "mode": fast.get("mode"),
         "halt": halt_status.snapshot(symbol),

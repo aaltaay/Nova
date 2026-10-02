@@ -17,6 +17,9 @@ export const FLOAT_CONTRADICTED_MARK = '?';
 /** The tooltip when the backend flagged a float but sent no reason. */
 export const FLOAT_CONTRADICTED_FALLBACK =
   "Yahoo's own shares outstanding contradicts this float -- likely stale since a dilution";
+/** The tooltip when the backend named a filed share issuance (#700) but sent no words. */
+export const SHARES_ISSUED_FALLBACK =
+  "An SEC filing says shares were issued: Yahoo's float and share count predate it. A warning only: no gate reads it";
 /** Appended to short interest above the float: "9.0M!" -- a warning, never a gate. */
 export const SHORT_ABOVE_FLOAT_MARK = '!';
 /** The class that colours that warning amber. */

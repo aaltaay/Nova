@@ -405,5 +405,9 @@ CATALYST_PRIOR_SESSION_OPEN_HOUR_ET = 4
 # filing a raise (a PIPE or an acquisition paid in shares closing).
 CATALYST_ISSUANCE_ITEM = "3.02"
 CATALYST_ISSUANCE_IF_RAISE_ITEM = "2.01"
+# Operator decision on #700 (2026-10-02): warn, don't block. How far back a filed share issuance still marks Yahoo's
+# float (Yahoo lags such a filing by weeks), and how often ``catalysts/issuance.py`` re-reads the feed's store.
+CATALYST_ISSUANCE_LOOKBACK_DAYS = 30
+CATALYST_ISSUANCE_REFRESH_SEC = 60.0
 # Nasdaq halt codes that mean the company's news is still to come (ADR 024 "news pending").
 CATALYST_NEWS_PENDING_CODES = ("T1", "T12")

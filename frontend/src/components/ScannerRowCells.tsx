@@ -14,22 +14,26 @@ import {
   floatTitle,
   shortAboveFloatClass,
   shortAboveFloatWarning,
+  sharesIssuedWarning,
   shortInterestTitle,
 } from '../utils/shareFacts';
 import type { ScannerRow } from '../types/scanner';
 
 /**
- * Yahoo's float; "54.0K?" with the reason on hover when Yahoo's own counts contradict it (#532). The
- * hover also carries the short-above-float warning, which never changes the figure or a gate.
+ * Yahoo's float; "54.0K?" with the reason on hover when Yahoo's own counts contradict it (#532) or an SEC
+ * filing says shares were issued since (#700). The hover also carries the short-above-float warning. None of
+ * these changes the figure or a gate.
  */
 export function FloatCell({ row }: { row: ScannerRow }) {
   if (row.float == null) return <span className="na-muted">{SCANNER_CELL_ABSENT}</span>;
   const flagged = row.float_contradicted === true;
   const warning = shortAboveFloatWarning(row.short_above_float, row.short_above_float_reason);
+  const issued = sharesIssuedWarning(row.shares_issued, row.shares_issued_reason);
   return (
-    <span title={floatTitle(row.float_contradicted, row.float_contradicted_reason, warning)}
-      data-float-contradicted={flagged ? 'true' : undefined}>
-      {fmtFloat(row.float, row.float_contradicted)}
+    <span title={floatTitle(row.float_contradicted, row.float_contradicted_reason, warning, issued)}
+      data-float-contradicted={flagged ? 'true' : undefined}
+      data-float-shares-issued={issued ? 'true' : undefined}>
+      {fmtFloat(row.float, row.float_contradicted, row.shares_issued)}
     </span>
   );
 }

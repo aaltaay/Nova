@@ -124,6 +124,19 @@ export interface NewsArticle {
   images: { url: string; size: string }[];
 }
 
+/** A filed share issuance (backend `catalysts/issuance.py`, #700). */
+export interface SharesIssuedFiling {
+  /** Epoch seconds the filing was accepted. */
+  published_ts: number;
+  source: string | null;
+  /** "8-K" (or an amendment). */
+  form: string | null;
+  /** The 8-K's items, comma-joined: "2.01,8.01". */
+  items: string | null;
+  title: string | null;
+  url: string | null;
+}
+
 export interface FundamentalsData {
   market_cap: number | null;
   shares_outstanding: number | null;
@@ -133,6 +146,12 @@ export interface FundamentalsData {
   /** True when Yahoo's own shares outstanding contradicts the float; null = not checkable. The gates read it. */
   float_contradicted?: boolean | null;
   float_contradicted_reason?: string | null;
+  /**
+   * The newest SEC 8-K of the last 30 days that says shares were issued (backend `catalysts/issuance.py`, #700):
+   * Yahoo's float predates it, so the float reads "631K?" with `shares_issued_reason`. A warning, never a gate.
+   */
+  shares_issued?: SharesIssuedFiling | null;
+  shares_issued_reason?: string | null;
   short_interest: number | null;
   /** Epoch seconds of the FINRA settlement the short interest is from (Yahoo's date). */
   short_interest_ts?: number | null;
