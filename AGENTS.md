@@ -981,7 +981,7 @@ cancels an order) answer `schema_version: 1`, `generated_at`, `session_date`
 (Eastern `YYYY-MM-DD` or null), `universe` (symbols followed: the HOD Momo
 active set), `universe_symbols: string[]` (those symbols, sorted -- added
 2026-09-24 for the watch list; a Sim eyes board lists its replay's symbol),
-`seeding` (symbols still loading today's bars), `scoreboard:
+`seeding` (symbols still loading today's bars, IBKR's history included -- below), `scoreboard:
 boolean`, `scoreboard_error: string | null`, `proposing: boolean` (false on a
 replay desk), `rows[]` (at most `SETUPS_BOARD_MAX_ROWS`; near, armed, triggered
 within 30 min, pullback, leg, failed within 5 min, then nearest the trigger)
@@ -1027,6 +1027,22 @@ to open and the board reports `scoreboard_error`), one per armed setup: levels,
 grade and pillars at arm time, `near_tape` / `trigger_tape`, the first touch,
 MFE / MAE over 15 minutes and `bar_r` under the research exit rules --
 scores, never fills.
+
+**A symbol followed mid-session is seeded from 04:00** (2026-10-02: AMOD, followed at 07:51:22
+after trading since 04:00, wrote its first first-pullback line at 08:23, 32 bars later). Owner
+`setup_scanner/seeder.py`. The bar store holds a symbol's minutes only once a chart fetched them or its
+Level 1 line built them, so a name admitted mid-morning had nothing before its line opened. When the
+stored minutes start more than `SETUPS_SEED_LATE_START_SEC` (10 min) after 04:00, or there are none, the
+symbol stays `seeding` while IBKR's 1-minute history of today is asked for (`hooks.live_history`: the
+charts' paced `historical_service.request_bars`, background priority, on the IB loop; nothing is asked
+when IBKR filled today's minutes and the stored ones start by then). Requests are asked one symbol at a time, oldest
+first; at most one every `SETUPS_SEED_HISTORY_SPACING_SEC`; never while a chart's history loads; only
+while fewer than `SETUPS_SEED_HISTORY_BUDGET` (30) of IBKR's 60 per 10 minutes went out. Then the
+symbol is seeded from the store again. The Level 1 line's minutes since the follow keep their place,
+so no minute counts twice. The minute now forming is never seeded. A name that leaves the followed set
+keeps its place in the queue. History that does not come (two unanswered asks, or 10 minutes) is given
+up, and the symbol is seeded with what the store has, as before. A hole later in the day is seeded as it
+is: waiting would hold a name whose lanes are warm out of the open. The wire is unchanged.
 
 **The tape at a trigger is the tape Nova saw** (operator report 2026-09-30:
 "why didn't we trade it?" -- LGHL's first pullback triggered at 07:16:10 and
@@ -4279,6 +4295,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-02 | A symbol followed mid-session is seeded from 04:00. The scanner followed AMOD at 07:51:22 with nothing stored before its Level 1 line opened, so every lane warmed up from scratch: the 1-minute first pullback's first line came at 08:23 (32 bars), the 5-minute one read "warming up (17/32 bars)" at 09:19. On five days of the eyes' journal no name first followed after 04:10 warmed within 2 minutes. A short seed now waits on IBKR's 1-minute history of today, asked one symbol at a time against half of IBKR's historical budget (`setup_scanner/seeder.py`). The wire is unchanged. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | One row per trigger (ADR 022 amendment). The lane named `setups.db` rows by the setup's key (the leg), so a setup armed again on that key after its trigger was written over the trade's row. AMOD's first pullback triggered at 08:48:04, and at 08:49 a candle tied the leg's high and re-armed the same leg as the second pullback. The stored row became `second_pullback` with the new levels, and the read-out, which counts the first of the day, lost the trigger. A second trigger on one id replaced the first trade's score (LITS 2026-09-24, GOW 2026-09-30). A later setup on a key now opens `KEY#N` (`setup_scanner/lane_ids.py`), and a restart never writes over a stored trade. A detector made mid-day (a restart, a symbol back in the universe, an edited template) starts from the day's triggers, so a later setup reads as the second and red to green's one try stays spent. The eyes' journal 2026-09-24..10-02 shows 18 rows written over; they keep their ids and are not repaired here. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | AMOD's missed catalyst (ADR 024 amendment, rules v8). AMOD ran +120% while `/api/why` and `/api/catalysts` read "noise_only" and "Low-float momentum -- no company news". Its 8-K closing a PIPE of 51.6M shares for 3,170 bitcoin was filed at 11:30 ET the day before, so the window (from the prior close) never read it; Benzinga's after-hours piece named that cause but was tagged AMOD + BTCUSD and so was not read as a one-ticker rewrite. The verdict adds `prior_session` -- the prior session's own filing or release, shown and never counted; the window is unchanged. A raise paid in or spent on a crypto treasury is `crypto_treasury` (weak, with dilution); `PIPE` is a raise word; `n_tickers` counts names, not symbols. A filed share issuance (an 8-K Item 3.02, or 2.01 labelled a raise, in the last 30 days) marks Yahoo's float "631K?" with the filing on hover on scanner rows and the Trader, and `/api/why` reads it as unknown; no gate reads it (operator decision on #700: warn, don't block). The feed's memory reaches back to the prior session's open: on a Monday it had lost Friday's after-hours filings. 72 of 255,139 backfilled labels change. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Time & Sales comes back by itself (#698; operator report on AMOD at 07:54 ET: "should that be fully self-healing?"). IBKR refused AMOD's tick-by-tick line with 10190 while three recordings and two leaked resumes held the lines, and the socket sat on a dead line until the operator switched tabs. Four causes, all fixed: a refused line was never asked for again (`line_lending/tape_heal.py` now frees room and asks again, saying so, while a socket watches; the desk reads RETRYING); a resume refused a slot kept the lines it opened (`capture/keepalive.py` opens none with every slot taken and releases on a refused start); a line auto-record gave back lingered 16 s and was taken back by its next tick (cancelled at once, kept for the operator 30 s); and a restart forgot which recordings were auto-record's, so the setups' recordings lost their slots to fresh leaders and one came back as a recording auto-record could never give back (`auto-record.json`, `leaderboard/auto_record_state.py`; resumes' slots are left to them). The tick-by-tick cap is not the depth cap of 3: 4 lines were live at once. §3 amended. | User Directive + Claude Opus 5.5 |
