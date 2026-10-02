@@ -3,7 +3,8 @@
 ``ready_l2`` pins the venue clock inside the entry window (ADR 027) -- tests about
 that gate set their own. It puts the named setups at Strategy (ADR 042: the master
 is a ceiling, each setup has its own level), writes this venue's bot list directly
-(tests bypass stock mode's one-owner path; the routes go through it), and holds a
+(tests bypass stock mode's one-owner path; the routes go through it) and lists the
+stocks on today's hot list (ADR 043: Nova buys only listed stocks), and holds a
 depth line for each symbol (a reserved slot in ``ibkr.depth.state``), because a bot
 fires only on a listed symbol whose line the backend holds (``BOT_NO_DEPTH_LINE``,
 ADR 020 second pass). Lines are released by the autouse bot fixture in ``conftest.py``.
@@ -67,12 +68,48 @@ def on_practice(venue: str = "paper") -> None:
     safety.set_armed(True, reason="test")
 
 
+def list_hot(*symbols: str, how: str = "star", at: float | None = None) -> None:
+    """Put these stocks on today's hot list (ADR 043: Nova buys only listed stocks), written as the
+    contract's ``hot-list.json`` (schema 1) in the test's operator cache."""
+    import json
+    import time
+
+    from constants_hot_list import (
+        HOT_LIST_AUTO_N_DEFAULT,
+        HOT_LIST_DEFAULT_SIDE,
+        HOT_LIST_FILE,
+        HOT_LIST_SCHEMA_VERSION,
+    )
+    from hot_list import trading_day
+    from paths import cache_dir
+
+    path = cache_dir() / HOT_LIST_FILE
+    day = trading_day()
+    doc = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    if not isinstance(doc, dict) or doc.get("date") != day:
+        doc = {"schema_version": HOT_LIST_SCHEMA_VERSION, "date": day, "auto_n": HOT_LIST_AUTO_N_DEFAULT,
+               "default": {"buy": HOT_LIST_DEFAULT_SIDE, "sell": HOT_LIST_DEFAULT_SIDE}, "entries": [],
+               "yesterday": []}
+    have = {e["symbol"] for e in doc["entries"]}
+    stamp = time.time() if at is None else at
+    for raw in symbols:
+        sym = (raw or "").strip().upper()
+        if sym and sym not in have:
+            doc["entries"].append({"symbol": sym, "how": how, "at": stamp, "board": None, "rank": None,
+                                   "change_pct": None})
+            have.add(sym)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc), encoding="utf-8")
+
+
 def set_symbols(*symbols: str) -> None:
-    """Write this venue's bot list directly (and the Trader focus the Eyes gate reads)."""
+    """Write this venue's bot list directly (and the Trader focus the Eyes gate reads), and list the
+    stocks on today's hot list: Nova buys only listed stocks (ADR 043)."""
     row = load_session()
     row["symbol_allowlist"] = [s.upper() for s in symbols]
     row["trader_live"] = [s.upper() for s in symbols]
     save_session(row)
+    list_hot(*symbols)
 
 
 def ready_l2(
@@ -127,6 +164,7 @@ __all__ = [
     "apply_desk_level",
     "headers",
     "hold_depth_line",
+    "list_hot",
     "open_entry_window",
     "ready_l2",
     "release_depth_lines",

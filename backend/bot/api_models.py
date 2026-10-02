@@ -31,6 +31,13 @@ class ArmBody(BaseModel):
     brain_session_id: str | None = None
 
 
+class SwitchBody(BaseModel):
+    """The Bot switch (ADR 043): ``on`` is the master at Strategy and Activate; off, the master at Eyes."""
+    on: bool
+    reenable: bool = False
+    brain_session_id: str | None = None
+
+
 class HeartbeatBody(BaseModel):
     brain_session_id: str | None = None
 

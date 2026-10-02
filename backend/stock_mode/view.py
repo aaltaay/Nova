@@ -201,8 +201,14 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
     from bot.arming import is_desk_active
 
     if not is_desk_active(row):
-        out.append(_note("not_active", "The bot is not active: Nova buys nothing by itself until you press Activate "
-                                       "on the Bots page."))
+        out.append(_note("not_active", "The bot is not active: Nova buys nothing by itself until you turn the Bot "
+                                       "switch on (Bots page)."))
+    from bot.first_pullback.admit import listed
+
+    on_list, unread = listed(sym)
+    if not on_list:                       # ADR 043: Nova buys only the stocks on today's hot list
+        out.append(_note("not_listed", _sentence(f"{unread}: Nova buys only listed stocks" if unread else
+                                                 f"{sym} is not on today's hot list: Nova buys only listed stocks")))
     setup = (lane or {}).get("setup_type")
     if setup and effective(row).get(setup, 0) < 2:
         own = own_levels(row).get(setup, 0)

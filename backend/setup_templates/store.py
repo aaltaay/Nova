@@ -4,9 +4,11 @@ Owner: this module -- the only reader and writer of ``setup-templates.json``.
 File: ``paths.cache_dir() / SETUP_TEMPLATES_FILENAME`` -- the operator cache,
 never git: the operator's variations are their edge.
 Schema: ``{schema_version: 1, setups: {SETUP: {in_play: ID | null, templates:
-[{id, name, note, rev, values, created_at, updated_at}]}}}``. The built-in
-``default`` is not stored: it is the catalogue's defaults at
-``SETUP_TEMPLATE_DEFAULT_REV``. An unknown schema version or an unreadable file
+[{id, name, note, rev, values, created_at, updated_at}], default_bot?: {KEY: value}}}}``.
+The built-in ``default`` is not stored: it is the catalogue's defaults at
+``SETUP_TEMPLATE_DEFAULT_REV``, with the operator's own bot rules over them
+(``default_bot``, ADR 043: ``setup_templates.default_bot``; a file without it reads as
+no overrides). An unknown schema version or an unreadable file
 is refused loudly: the file is left as it is, every setup reads its default
 only, ``error()`` says why, and writes are refused until the operator moves the
 file aside.
@@ -50,7 +52,7 @@ from constants_setups import (
     SETUP_TEMPLATES_MAX_PER_SETUP,
     SETUP_TEMPLATES_SCHEMA_VERSION,
 )
-from setup_templates import catalogue, windows
+from setup_templates import catalogue, default_bot, windows
 from setup_templates.catalogue import TemplateError
 
 logger = logging.getLogger(__name__)
@@ -96,9 +98,10 @@ class Template:
                 "retired": [{"key": k, "value": v, "text": catalogue.RETIRED[k]} for k, v in self.retired.items()]}
 
 
-def default_template(setup_id: str) -> Template:
+def default_template(setup_id: str, bot: dict[str, Any] | None = None) -> Template:
+    """The built-in: the catalogue's defaults, with the operator's bot rules (``bot``) over them."""
     return Template(setup=setup_id, id=SETUP_TEMPLATE_DEFAULT_ID, name=SETUP_TEMPLATE_DEFAULT_NAME,
-                    rev=SETUP_TEMPLATE_DEFAULT_REV, values=catalogue.defaults(setup_id), builtin=True)
+                    rev=SETUP_TEMPLATE_DEFAULT_REV, values=default_bot.values(setup_id, bot), builtin=True)
 
 
 class TemplateStore:
@@ -143,7 +146,8 @@ class TemplateStore:
                 logger.warning("setup templates: ignoring unknown setup %r in %s", setup_id, path.name)
                 continue
             templates = [self._from_stored(setup_id, t) for t in entry.get("templates") or [] if isinstance(t, dict)]
-            self._setups[setup_id] = {"in_play": entry.get("in_play"), "templates": [t for t in templates if t]}
+            self._setups[setup_id] = {"in_play": entry.get("in_play"), "templates": [t for t in templates if t],
+                                      "default_bot": default_bot.clean(setup_id, entry.get("default_bot"))}
 
     @staticmethod
     def _from_stored(setup_id: str, row: dict[str, Any]) -> Template | None:
@@ -164,7 +168,8 @@ class TemplateStore:
 
     def _save(self) -> None:
         payload = {"schema_version": SETUP_TEMPLATES_SCHEMA_VERSION,
-                   "setups": {sid: {"in_play": e.get("in_play"), "templates": [t.stored() for t in e["templates"]]}
+                   "setups": {sid: {"in_play": e.get("in_play"), "templates": [t.stored() for t in e["templates"]],
+                                    **({"default_bot": dict(e["default_bot"])} if e.get("default_bot") else {})}
                               for sid, e in self._setups.items()}}
         path = self.path()
         tmp = path.with_suffix(path.suffix + ".tmp")
@@ -204,12 +209,16 @@ class TemplateStore:
             self._load()
             return self._version
 
+    def _default(self, setup_id: str) -> Template:
+        """The built-in with the operator's bot rules (ADR 043; the caller holds the lock and has loaded)."""
+        return default_template(setup_id, self._setups.get(setup_id, {}).get("default_bot"))
+
     def templates(self, setup_id: str) -> list[Template]:
         """The default first, then the operator's in the order they were made."""
         catalogue.specs(setup_id)
         with self._lock:
             self._load()
-            return [default_template(setup_id)] + list(self._setups.get(setup_id, {}).get("templates", []))
+            return [self._default(setup_id)] + list(self._setups.get(setup_id, {}).get("templates", []))
 
     def get(self, setup_id: str, template_id: str) -> Template:
         for t in self.templates(setup_id):
@@ -225,7 +234,7 @@ class TemplateStore:
             for t in self.templates(setup_id):
                 if t.id == wanted and not t.error:
                     return t
-            return default_template(setup_id)
+            return self._default(setup_id)
 
     # -- writes ----------------------------------------------------------------
     def _entry(self, setup_id: str) -> dict[str, Any]:
@@ -280,15 +289,15 @@ class TemplateStore:
         ``rules_changed`` -- and a new ``rev`` -- only when the scanner's rules changed: an
         edit to the bot's entry window alone is saved under the same revision, so the
         read-out keeps its evidence. The values merge onto what the template runs (its bot
-        window as clipped): saving them is how the operator keeps a clip."""
+        window as clipped): saving them is how the operator keeps a clip. The default takes
+        its bot rules only (``_update_default``)."""
         with self._lock:
             self._load()
             self._writable()
             self._watched(setup_id)
             current = self.get(setup_id, template_id)
             if current.builtin:
-                raise TemplateError("the default is the pre-registered rules and stays as it is -- duplicate it "
-                                    "to make a variation", template_id, code="TEMPLATE_BUILTIN")
+                return self._update_default(setup_id, current, name=name, values=values, note=note), False
             saved = rules = False
             new_values, kept = current.values, current.kept
             if values is not None:
@@ -310,6 +319,24 @@ class TemplateStore:
             items[[x.id for x in items].index(template_id)] = t
             self._save()
             return t, rules
+
+    def _update_default(self, setup_id: str, current: Template, *, name: Any, values: dict[str, Any] | None,
+                        note: Any) -> Template:
+        """The default's bot rules (ADR 043, ``default_bot``): its name, note and scanner parameters stay the
+        pre-registered ones (``TEMPLATE_BUILTIN``); its revision never moves."""
+        renamed = name is not None and " ".join(str(name).split()) != current.name
+        if renamed or (note is not None and str(note).strip() != current.note):
+            raise TemplateError(default_bot.LOCKED, current.id, code="TEMPLATE_BUILTIN")
+        if values is None:
+            return current
+        merged, overrides = default_bot.changes(setup_id, current.values, values)
+        self._inside(setup_id, merged)
+        entry = self._entry(setup_id)
+        if overrides == (entry.get("default_bot") or {}):
+            return current
+        entry["default_bot"] = overrides
+        self._save()
+        return self._default(setup_id)
 
     def delete(self, setup_id: str, template_id: str) -> None:
         with self._lock:

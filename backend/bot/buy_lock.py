@@ -17,7 +17,7 @@ what is held, cancels, Flatten and KILL are never locked. The bot and stock mode
 unknown, never assumed clear.
 
 The bot trip's record (``bot_trip_for``) is read here too, for the same readers: the latch
-``soft_breaker_fired`` / ``soft_breaker_until`` (set by ``bot.autonomy.drop_to_l0``) and
+``soft_breaker_fired`` / ``soft_breaker_until`` (set by ``bot.autonomy.drop_to_eyes``) and
 ``soft_breaker_at`` / ``soft_breaker_pnl`` / ``soft_breaker_usd`` (set by ``bot.breakers``).
 
 Owner: this module (the reads and the words; the breakers write the fields).

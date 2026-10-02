@@ -4,8 +4,9 @@ Their thresholds are the operator's, per venue (``bot.breaker_limits``; -$50 and
 changed), and they compare the desk venue's own day P&L (``bot.day_pnl``: IBKR's on Live, the
 practice ledger's on Paper and at the Sim live edge). On a Sim replay they compare nothing.
 
-- **The bot trip** flattens, drops the bot to Off and latches until the next 04:00 ET
-  (``bot.autonomy.drop_to_l0``); the trip's record -- ``soft_breaker_at`` / ``soft_breaker_pnl``
+- **The bot trip** flattens, turns the bot off -- the master at Eyes, so Eyes keep proposing (ADR
+  043) -- and latches until the next 04:00 ET (``bot.autonomy.drop_to_eyes``); the trip's record --
+  ``soft_breaker_at`` / ``soft_breaker_pnl``
   / ``soft_breaker_usd`` -- is written here.
 - **The all-stop** does the same and locks new buys on its venue until the next 04:00 ET
   (``bot.buy_lock``): ``hard_lock_until_date`` / ``hard_lock_at`` / ``hard_lock_pnl`` /
@@ -27,7 +28,7 @@ import logging
 from typing import Any
 
 from bot.audit import record as audit
-from bot.autonomy import drop_to_l0
+from bot.autonomy import drop_to_eyes
 from bot.breaker_limits import limits, replay_desk, venue_key
 from bot.buy_lock import desk_venue, dial_of, lock_for
 from bot.clock import lock_until, now_ts, soft_latched, until_text
@@ -69,16 +70,16 @@ def _money(value: float | None) -> str:
 
 
 async def trip_soft(at: float | None = None, *, pnl: float | None = None, venue: str | None = None) -> dict[str, Any]:
-    """The bot trip: flatten, the bot to Off, the latch until the next 04:00 ET, and its record."""
+    """The bot trip: flatten, the bot off at Eyes, the latch until the next 04:00 ET, and its record."""
     venue = _venue() if venue is None else venue
     at = limits(load_session(), venue)["soft_usd"] if at is None else at
     flatten = await _flatten_or_alert("soft", "bot_trip")
-    row = drop_to_l0(keep_soft_latch=True, reason="bot_trip")
+    row = drop_to_eyes(keep_soft_latch=True, reason="bot_trip")
     _stamp(row, venue, {"soft_breaker_at": now_ts(), "soft_breaker_pnl": pnl, "soft_breaker_usd": at})
     row = save_session(row)
-    audit(action="breaker_soft", outcome="l0",
+    audit(action="breaker_soft", outcome="eyes",
           reason=(f"{venue or 'live'}: the day P&L {_money(pnl)} reached the bot trip ({at:g}) -- "
-                  f"flattened, the bot is Off until you re-enable it (or 04:00 ET)"),
+                  f"flattened, the bot is off (Eyes keep watching) until you re-enable it (or 04:00 ET)"),
           inputs={"flatten_ok": flatten.get("ok"), "threshold": at, "pnl": pnl, "venue": venue,
                   "until": row.get("soft_breaker_until"), "closes": closes_sold(flatten),
                   "flatten_error": flatten.get("error")})
@@ -86,11 +87,11 @@ async def trip_soft(at: float | None = None, *, pnl: float | None = None, venue:
 
 
 async def trip_hard(at: float | None = None, *, pnl: float | None = None, venue: str | None = None) -> dict[str, Any]:
-    """The all-stop: flatten, the bot to Off, buys on ``venue`` locked until the next 04:00 ET."""
+    """The all-stop: flatten, the bot off at Eyes, buys on ``venue`` locked until the next 04:00 ET."""
     venue = _venue() if venue is None else venue
     at = limits(load_session(), venue)["hard_usd"] if at is None else at
     flatten = await _flatten_or_alert("hard", "all_stop")
-    row = drop_to_l0(keep_soft_latch=True, reason="all_stop")
+    row = drop_to_eyes(keep_soft_latch=True, reason="all_stop")
     until = lock_until()
     _stamp(row, venue, {"hard_lock_until_date": until, "hard_lock_at": now_ts(),
                         "hard_lock_pnl": pnl, "hard_lock_usd": at})
