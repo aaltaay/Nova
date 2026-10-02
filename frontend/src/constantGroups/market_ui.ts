@@ -168,6 +168,24 @@ export const L2_HIDDEN_READ_SELLER =
   "In Nova's recordings, a minute after one the price was past the offer 37% of the time, against 46% after an offer that showed its size.";
 export const L2_HIDDEN_READ_BUYER = "In Nova's recordings a hidden buyer made no such difference to where the price went.";
 
+// ── Level 2: a hidden Trader tab lends its line (ADR 043 decision 6, backend line_lending/) ──
+/** Who holds each Level 2 line, and the loans. */
+export const L2_DEPTH_LINES_PATH = '/api/ibkr/depth/lines';
+/** Line lending on / off (needs the desk's API key). */
+export const L2_DEPTH_LENDING_PATH = '/api/ibkr/depth/lending';
+/** While its line is lent, a tab asks this often whether the loan still stands; it never reconnects by its backoff. */
+export const L2_LENT_POLL_MS = 5_000;
+/** Why the line went, in the sentence (mirrors WHY_WORDS in backend line_lending/constants_line_lending.py). */
+export const L2_LENT_WHY_WORDS: Record<string, string> = {
+  trade: 'in a trade',
+  near: 'near its trigger',
+  armed: 'armed',
+};
+export const L2_LENT_PREFIX = 'Level 2 lent to';
+export const L2_LENT_BACK = 'back when it ends or when you bring this tab to the front';
+/** The borrower when a frame names none (an older or a broken frame). */
+export const L2_LENT_SOMEONE = "one of Nova's setups";
+
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 /** Trading days used for avg daily volume / RVOL denominator (mirror backend RVOL_LOOKBACK_DAYS). */

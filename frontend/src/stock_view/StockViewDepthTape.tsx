@@ -231,7 +231,7 @@ export function StockViewDepthTape({
         )}
         level2={showL2 ? (gap ? <HistoricalDepth depth={null} />
           : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive}
-            markers={captureReplay ? undefined : markers} />) : null}
+            markers={captureReplay ? undefined : markers} traderTab />) : null}
         tape={showTape ? (
           <TimeSalesModule
             key={feedKey}

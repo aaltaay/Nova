@@ -18,6 +18,8 @@ Endpoints:
   POST /api/ibkr/depth/subscribe  -- subscribe to L2 depth for a symbol
   POST /api/ibkr/depth/unsubscribe -- unsubscribe symbol
   GET  /api/ibkr/depth            -- list currently subscribed depth symbols
+  GET  /api/ibkr/depth/lines      -- who holds each Level 2 line, and the loans (line_lending/routes.py, ADR 043)
+  PATCH /api/ibkr/depth/lending   -- line lending on / off (API key)
   WS   /ws/ibkr/depth/{symbol}    -- streaming Level 2 book updates
   WS   /ws/ibkr/tape/{symbol}     -- streaming Time & Sales (AllLast tick-by-tick)
 """
@@ -40,6 +42,7 @@ from ibkr import orders as _orders
 from ibkr import account as _account
 from ibkr.errors import IbkrAccountError
 from ibkr.feed_routes import router as feed_router
+from line_lending.routes import router as line_lending_router
 from routes.trading_execution import router as execution_router
 
 logger = logging.getLogger(__name__)
@@ -47,6 +50,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ibkr", tags=["ibkr"])
 router.include_router(execution_router)
 router.include_router(feed_router)
+router.include_router(line_lending_router)
 ws_router = APIRouter(tags=["ibkr-ws"])
 
 
