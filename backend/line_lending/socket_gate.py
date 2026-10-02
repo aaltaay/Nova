@@ -8,7 +8,8 @@ operator a line: each logs and lets the socket go ahead.
   tab in front, else None (a socket from the tab in front recalls the loan first);
 - ``lent_now`` after the socket's queue opened: a loan that began while it subscribed
   pushed its frame before the queue existed;
-- ``opened`` / ``closed`` keep ``line_lending.sockets`` beside the line's viewer count.
+- ``opened`` / ``closed`` keep ``line_lending.sockets`` beside the line's viewer count;
+- ``line_down``: a Time & Sales socket found its line down -- ``tape_heal`` asks again (#698).
 """
 from __future__ import annotations
 
@@ -56,6 +57,16 @@ def opened(symbol: str, *, tab: bool, front: bool, kind: str = DEPTH) -> int | N
     except Exception:
         logger.exception("line lending: could not register %s's %s socket", symbol, kind)
         return None
+
+
+def line_down(symbol: str) -> None:
+    """A Time & Sales socket found its line down: ``tape_heal`` brings it back (#698)."""
+    try:
+        from line_lending import tape_heal
+
+        tape_heal.line_down(symbol)
+    except Exception:
+        logger.exception("IBKR tape: could not start bringing %s's Time & Sales line back", symbol)
 
 
 def closed(symbol: str, token: int | None, kind: str = DEPTH) -> None:

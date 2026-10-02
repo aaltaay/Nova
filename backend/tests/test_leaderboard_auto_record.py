@@ -50,15 +50,21 @@ class Desk:
         self.gainers: list[dict] = []
         self.lanes: list[Lane] = []
         self.stops: list[tuple[str, str | None]] = []
+        self.released: list[tuple[str, bool]] = []
+        self.resuming: list[str] = []
 
     def busy(self):
         return sorted(set(self.operator_lines) | set(self.recording))
 
 
 @pytest.fixture
-def desk(monkeypatch):
+def desk(monkeypatch, tmp_path):
     d = Desk()
     auto_record.reset_for_tests()
+    from leaderboard import auto_record_state
+
+    monkeypatch.setattr(auto_record_state, "path", lambda: tmp_path / "auto-record.json")
+    monkeypatch.setattr(auto_record, "_resuming", lambda: list(d.resuming))
     monkeypatch.setattr(auto_record, "_busy_lines", d.busy)
     monkeypatch.setattr(auto_record, "_recording", lambda: list(d.recording))
     monkeypatch.setattr(auto_record, "_live_gainers", lambda: list(d.gainers))
@@ -69,8 +75,8 @@ def desk(monkeypatch):
     async def acquire(symbol):
         return None
 
-    async def release(symbol):
-        return None
+    async def release(symbol, at_once=False):
+        d.released.append((symbol, at_once))
 
     def set_capture_mode(enabled, *, symbol=None, protect_active=False, reason=None):
         if enabled:
@@ -327,3 +333,106 @@ def test_an_unreadable_setup_scanner_is_stated_and_the_leaders_still_record(desk
     got = auto_record.status(et(7, 5))
     assert desk.recording == ["AAA"]
     assert got["setups"] == [] and got["setups_error"] == "RuntimeError: engine not started"
+
+
+# -- #698: the operator's Time & Sales, lines given back, and a restart ------------------------
+
+
+def test_a_refused_time_and_sales_takes_back_the_lowest_ranked_auto_line_at_once(desk):
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5)]
+    desk.operator_lines = ["MINE"]          # the tab already has its Level 2: Nova counts no line full
+    run(auto_record.tick(et(7, 5)))
+    assert desk.recording == ["AAA", "BBB"]
+    assert run(auto_record.make_room_for("MINE")) is None   # Level 2 alone: nothing to give back
+    # IBKR refused its Time & Sales for the tick-by-tick cap: the lines are full whatever Nova counts.
+    assert run(auto_record.make_room_for("MINE", tape_refused=True)) == "BBB"
+    assert ("BBB", "auto") in desk.stops
+    assert ("BBB", True) in desk.released   # cancelled at once, never after the 16 s linger
+
+
+def test_no_auto_start_takes_the_tick_by_tick_line_back_while_the_operators_tape_waits(desk, monkeypatch):
+    up: set[str] = set()
+    monkeypatch.setattr(auto_record, "_tape_up", lambda s: s in up)
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5)]
+    run(auto_record.tick(et(7, 5)))
+    assert run(auto_record.make_room_for("MINE", tape_refused=True)) == "BBB"
+    desk.gainers.append(gainer("CCC", 1.2))  # a free depth line and a free slot: still not for auto-record
+    run(auto_record.tick(et(7, 5, 15)))
+    assert desk.recording == ["AAA"]
+    up.add("MINE")                           # the operator's Time & Sales is back: free lines are free again
+    run(auto_record.tick(et(7, 5, 30)))
+    assert desk.recording == ["AAA", "BBB"]  # its best leader first
+
+
+def test_a_line_given_back_is_not_taken_again_before_the_operators_subscribe_lands(desk):
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5), gainer("CCC", 1.0)]
+    run(auto_record.tick(et(7, 5)))
+    assert desk.recording == ["AAA", "BBB", "CCC"]
+    assert run(auto_record.make_room_for("AIXI")) == "CCC"
+    # AIXI's depth subscribe has not landed yet (2026-10-02: 6 s): the line stays the operator's.
+    run(auto_record.tick(et(7, 5, 5)))
+    assert desk.recording == ["AAA", "BBB"]
+    desk.operator_lines = ["AIXI"]          # it landed
+    run(auto_record.tick(et(7, 5, 10)))
+    assert desk.recording == ["AAA", "BBB"]
+
+
+def test_slots_a_restart_is_resuming_are_left_to_the_resumes(desk):
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5), gainer("CCC", 1.0)]
+    desk.resuming = ["SSM", "SORA"]         # the keepalive is bringing these back
+    run(auto_record.tick(et(7, 53)))
+    assert desk.recording == ["AAA"]        # one slot of three; never the resumes'
+    desk.recording.append("SSM")
+    desk.resuming = ["SORA"]
+    run(auto_record.tick(et(7, 54)))
+    assert desk.recording == ["AAA", "SSM"]
+
+
+def test_a_restart_gives_auto_record_back_its_own_recordings(desk, monkeypatch):
+    from leaderboard import auto_record_state
+
+    monkeypatch.setattr(auto_record_state, "today", lambda ts=None: "2026-09-18")
+    desk.lanes = [Lane(near=["SSM"])]
+    desk.gainers = [gainer("TNMG", 2.0)]
+    run(auto_record.tick(et(7, 50)))
+    assert desk.recording == ["SSM", "TNMG"]
+    # The process restarts: memory is gone, the keepalive resumes both; the scanner is still seeding.
+    auto_record.reset_for_tests()
+    desk.lanes, desk.gainers = [], []
+    run(auto_record.tick(et(7, 53, 41)))
+    assert auto_record.held_symbols() == ["SSM", "TNMG"]    # its own again, so it can give them back
+    assert run(auto_record.make_room_for("AMOD", tape_refused=True)) in ("SSM", "TNMG")
+
+
+def test_a_symbol_the_operator_stopped_stays_declined_after_a_restart(desk, monkeypatch):
+    from leaderboard import auto_record_state
+
+    monkeypatch.setattr(auto_record_state, "today", lambda ts=None: "2026-09-18")
+    desk.gainers = [gainer("AAA", 2.0)]
+    run(auto_record.tick(et(7, 5)))
+
+    async def record_route_stops_it():      # the Record route runs on the loop, which saves it
+        auto_record.operator_stopped("AAA", now=et(7, 6))
+        for _ in range(200):
+            if auto_record_state.load("2026-09-18")[1] == ["AAA"]:
+                return
+            await asyncio.sleep(0.01)
+
+    run(record_route_stops_it())
+    desk.recording.remove("AAA")
+    auto_record.reset_for_tests()
+    run(auto_record.tick(et(7, 10)))
+    assert desk.recording == []             # not taken again that day
+
+
+def test_the_state_file_reads_empty_for_another_day_or_an_unknown_version(tmp_path):
+    from leaderboard import auto_record_state
+
+    path = tmp_path / "auto-record.json"
+    auto_record_state.write("2026-09-18", {"SSM": {"since": 1.0, "why": "near"}}, ["AAA"], at=path)
+    assert auto_record_state.load("2026-09-18", at=path) == ({"SSM": {"since": 1.0, "why": "near"}}, ["AAA"])
+    assert auto_record_state.load("2026-09-19", at=path) == ({}, [])
+    path.write_text('{"schema_version": 99, "date": "2026-09-18", "held": {"X": {}}}', encoding="utf-8")
+    assert auto_record_state.load("2026-09-18", at=path) == ({}, [])
+    path.write_text("not json", encoding="utf-8")
+    assert auto_record_state.load("2026-09-18", at=path) == ({}, [])

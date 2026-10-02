@@ -192,6 +192,8 @@ export const L2_LENT_SOMEONE = "one of Nova's setups";
 export const TAPE_LENT_PREFIX = 'Time & Sales lent to';
 /** Time & Sales' badge while its line is lent (not a fault: the words say whose and when it comes back). */
 export const TAPE_STATUS_LENT = 'LENT';
+/** IBKR refused or ended the line and the backend is asking again by itself (#698). */
+export const TAPE_STATUS_RETRYING = 'RETRYING';
 
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)

@@ -148,6 +148,28 @@ def drop_line(symbol: str, why: str) -> bool:
     return True
 
 
+def release_now(symbol: str, why: str) -> bool:
+    """Cancel an idle line now instead of after its remount linger: another symbol needs IBKR's room.
+
+    Only a line no viewer watches (a closed socket, a released Record hold); False otherwise.
+    """
+    from ibkr import tape_stream
+
+    sym = symbol.upper()
+    if tape_stream.viewer_count(sym) > 0 or sym not in tape_stream._tickers:
+        return False
+    return drop_line(sym, why)
+
+
+def release_idle(*, keep: str, why: str) -> list[str]:
+    """Every idle line but ``keep``'s cancelled now (#698): a lingering line still counts against
+    IBKR's tick-by-tick cap, so the line the operator is waiting for would not find the room."""
+    from ibkr import tape_stream
+
+    keep = keep.upper()
+    return [sym for sym in list(tape_stream._tickers) if sym != keep and release_now(sym, why)]
+
+
 def end_line(symbol: str, why: str, *, notify: bool = True) -> bool:
     """The line is dead (#525): IBKR ended it, or a recording found it silent.
 

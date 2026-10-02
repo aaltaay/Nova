@@ -244,3 +244,43 @@ def test_the_operator_starting_a_symbol_supersedes_its_pending_resume():
     desk.tick(NOON + 5)
     keepalive.operator_started("GRML")
     assert fields(desk)["capture_resume"] == [] and fields(desk)["capture_stopped"] == []
+
+
+def _restart(desk: Desk, *symbols: str) -> None:
+    for sym in symbols:
+        assert keepalive.note_restart({"symbol": sym, "session_date": "2026-09-21", "dir": f"F:/x/{sym}",
+                                       "counts": {}, "last_write_ts": NOON - 30}, now=NOON)
+
+
+def test_a_resume_with_every_slot_taken_never_opens_ibkrs_lines():
+    """#698: SSM and SORA's resumes held two AllLast lines for starts the recorder refused."""
+    desk = Desk()
+    _restart(desk, "SSM")
+    desk.recording = ["SDEV", "TNMG", "TNON"]          # auto-record took the three slots first
+    desk.tick(NOON)
+    assert desk.acquired == [] and desk.started == []
+    assert resume_of(desk, "SSM")["attempt"] == 1      # an attempt, said in the log, with no line opened
+    assert keepalive.pending_symbols() == ["SSM"]
+    desk.recording = ["SDEV", "TNMG"]                  # a slot frees
+    desk.tick(resume_of(desk, "SSM")["next_at"])
+    assert desk.acquired == ["SSM"] and desk.recording == ["SDEV", "TNMG", "SSM"]
+
+
+def test_a_resume_whose_start_is_refused_gives_its_lines_back():
+    desk = Desk(start_ok=False)
+    _restart(desk, "SSM")
+    desk.tick(NOON)
+    assert desk.acquired == ["SSM"] and desk.started == ["SSM"]
+    assert desk.released == ["SSM"]                    # never kept for a recording that did not start
+    assert keepalive.pending_symbols() == ["SSM"]      # still coming back, so auto-record leaves its slot
+
+
+def test_a_resume_that_gave_up_is_no_longer_pending():
+    desk = Desk(acquire_error="IBKR tape transport down")
+    _restart(desk, "SORA")
+    now = NOON
+    for _ in range(CAPTURE_RESUME_MAX_ATTEMPTS):
+        desk.tick(now)
+        row = resume_of(desk, "SORA")
+        now = row["next_at"]
+    assert row["gave_up"] and keepalive.pending_symbols() == []

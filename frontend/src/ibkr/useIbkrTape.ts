@@ -55,6 +55,8 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
   const uiActiveRef = useRef(uiActive);
   const connectedRef = useRef(false);
   const errorRef = useRef<string | null>(null);
+  // When the backend asks IBKR again for a refused line (#698); null when it is not retrying.
+  const retryAtRef = useRef<number | null>(null);
   // This symbol's line while it may be lent; set by the socket effect.
   const lineRef = useRef<LentLine | null>(null);
 
@@ -71,6 +73,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
       connected: connectedRef.current,
       error: errorRef.current,
       lent: lineRef.current?.lent ?? null,
+      retryAt: retryAtRef.current,
     });
   };
 
@@ -89,6 +92,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
     printsRef.current = [];
     connectedRef.current = false;
     errorRef.current = null;
+    retryAtRef.current = null;
     lineRef.current = null;
     raf.cancel();
     setState(emptyTapeState());
@@ -148,8 +152,15 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
           if (msg.type === 'subscribed') {
             connectedRef.current = true;
             errorRef.current = null;
+            retryAtRef.current = null;
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'print') {
+            // A print means the line works: an error from before it is stale (#698).
+            if (errorRef.current != null || !connectedRef.current) {
+              connectedRef.current = true;
+              errorRef.current = null;
+              retryAtRef.current = null;
+            }
             const print: TapePrint = {
               symbol: msg.symbol,
               time: msg.time,
@@ -178,11 +189,13 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
             printsRef.current = [];
             connectedRef.current = false;
             errorRef.current = null;
+            retryAtRef.current = null;
             raf.cancel();
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'error') {
             connectedRef.current = false;
             errorRef.current = typeof msg.message === 'string' ? msg.message : 'Tape error';
+            retryAtRef.current = typeof msg.retry_at === 'number' && Number.isFinite(msg.retry_at) ? msg.retry_at : null;
             if (uiActiveRef.current) commitUi();
           }
         } catch {

@@ -67,6 +67,11 @@ def count(symbol: str, kind: str = DEPTH) -> int:
     return len(_open.get((kind, symbol.upper())) or {})
 
 
+def opened_in_front(symbol: str, kind: str = DEPTH) -> bool:
+    """A ``kind`` socket for ``symbol`` opened as the tab in front, or from a panel outside a Trader tab."""
+    return any(s.front or not s.tab for s in (_open.get((kind, symbol.upper())) or {}).values())
+
+
 def tab_count(symbol: str, kind: str = DEPTH) -> int:
     return sum(1 for s in (_open.get((kind, symbol.upper())) or {}).values() if s.tab)
 

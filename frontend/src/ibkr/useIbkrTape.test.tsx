@@ -254,4 +254,37 @@ describe('useIbkrTape lifecycle', () => {
     renderSymbol('AAPL', true);
     expect(latest?.prints.map(p => p.price)).toEqual([3, 2, 1]);
   });
+
+  it('says RETRYING while the backend asks IBKR again, and a line that comes back clears it (#698)', () => {
+    renderSymbol('AMOD');
+    const ws = FakeWebSocket.instances[0];
+    const send = (frame: object) => act(() => ws.onmessage?.({ data: JSON.stringify(frame) }));
+    send({ type: 'subscribed', symbol: 'AMOD' });
+    send({ type: 'error', symbol: 'AMOD', message: 'IB error 10190: Max number of tick-by-tick requests has been reached.' });
+    expect(latest?.error).toContain('10190');
+    expect(latest?.retryAt).toBeNull();          // IBKR's own word: no retry promised yet
+    send({ type: 'error', symbol: 'AMOD', message: 'IBKR refused ... Asking again at 07:54:20 ET.', retry_at: 1790942060 });
+    expect(latest?.retryAt).toBe(1790942060);
+    expect(latest?.connected).toBe(false);
+    send({ type: 'subscribed', symbol: 'AMOD' });
+    expect(latest?.error).toBeNull();
+    expect(latest?.retryAt).toBeNull();
+    expect(latest?.connected).toBe(true);
+  });
+
+  it('a print clears a stale error: the line works (#698)', () => {
+    renderSymbol('AMOD');
+    const ws = FakeWebSocket.instances[0];
+    act(() => {
+      ws.onmessage?.({ data: JSON.stringify({ type: 'error', symbol: 'AMOD', message: 'Tape error', retry_at: 5 }) });
+      ws.onmessage?.({
+        data: JSON.stringify({ type: 'print', symbol: 'AMOD', time: '2026-10-02T11:55:50.000Z', price: 2.59, size: 100 }),
+      });
+    });
+    flushTapeFrame();
+    expect(latest?.error).toBeNull();
+    expect(latest?.retryAt).toBeNull();
+    expect(latest?.connected).toBe(true);
+    expect(latest?.prints.map(p => p.price)).toEqual([2.59]);
+  });
 });

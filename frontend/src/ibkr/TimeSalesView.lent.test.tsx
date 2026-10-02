@@ -65,6 +65,16 @@ describe('Time & Sales with a lent line', () => {
     expect(container.querySelector('[data-testid="ts-lent"]')?.textContent).toBe(WORDS);
   });
 
+  it('a line IBKR refused that the backend is asking for again reads RETRYING, with its words (#698)', () => {
+    const words = 'IBKR refused this Time & Sales: every tick-by-tick line is in use (IB error 10190); '
+      + "auto-record gave back SSM's recording line. Asking again at 07:54:20 ET.";
+    render({ prints: [], connected: false, error: words, lent: null, retryAt: 1790942060 });
+    expect(container.querySelector('[data-testid="ts-status"]')?.textContent).toBe('RETRYING');
+    expect(container.textContent).toContain('Asking again at 07:54:20 ET.');
+    render({ prints: [], connected: false, error: 'Tape error', lent: null, retryAt: null });
+    expect(container.querySelector('[data-testid="ts-status"]')?.textContent).toBe('ERROR');
+  });
+
   it('a line that is not lent reads as before', () => {
     render({ prints: [], connected: true, error: null, lent: null });
     expect(container.querySelector('[data-testid="ts-lent"]')).toBeNull();

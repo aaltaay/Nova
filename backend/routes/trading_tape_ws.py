@@ -10,6 +10,11 @@ decision 6, ``line_lending``): the Trader tab's Time & Sales opens with
 socket for the lender gets ``{"type": "lent", ...}`` and closes; one from the tab
 in front recalls the loan first. A standing socket whose line is lent reads the
 same frame from its queue and closes.
+
+A line IBKR refuses or ends while the socket stands (10190, its tick-by-tick cap,
+arrives after the request) is brought back by ``line_lending.tape_heal`` (#698):
+the socket forwards its words and ``retry_at``, then ``subscribed`` when the line
+is back. It used to stay open on a dead line until the tab was reopened.
 """
 from __future__ import annotations
 
@@ -88,6 +93,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         async for print_data in _tape.stream(queue):
             if print_data is None:
                 await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol}))
+                if not is_replay_desk() and not _tape.is_subscribed(symbol):
+                    socket_gate.line_down(symbol)  # down with no word from IBKR: ask again all the same
                 continue
             if print_data.get("symbol") != symbol:
                 continue
@@ -97,6 +104,10 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 await websocket.send_text(json.dumps(print_data))
                 await websocket.close()
                 break
+            if msg_type == "subscribed":
+                # The line is back (``tape_heal``): the pane drops its error.
+                await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
+                continue
             if msg_type == "error":
                 await websocket.send_text(
                     json.dumps(
@@ -104,12 +115,15 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                             "type": "error",
                             "symbol": symbol,
                             "message": print_data.get("message") or "Tape error",
+                            "retry_at": print_data.get("retry_at"),
                         }
                     )
                 )
                 if print_data.get("released"):
                     await websocket.close()
                     break
+                if not print_data.get("healing"):
+                    socket_gate.line_down(symbol)  # IBKR refused or ended it: ask again, never wait on a dead line
             elif msg_type == "scrub_reset":
                 await websocket.send_text(json.dumps({"type": "scrub_reset", "symbol": symbol}))
             else:
