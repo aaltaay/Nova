@@ -20,7 +20,7 @@ On 2026-10-01 the Bots page held the same decision in three places (the master O
 4. **Today's hot list** (`backend/hot_list/`): the stocks Nova watches all day and may trade.
    - Fed two ways: automatically, the leaders rule's top N of the live Gainers board from 07:00 to 16:00 ET (N = 3, 5 or 10, default 5, or off), sticky for the day; and by a ★ from anywhere.
    - Up to 20. Starts empty at 04:00 ET; "Bring back yesterday's list" stars yesterday's names again.
-   - Every listed name is followed by the setup scanners: listed names are admitted to HOD Momo's active set first (before Former Momo), so they get an L1 line, a snapshot and bars.
+   - Every listed name is followed by the setup scanners: listed names take HOD Momo's 20 reserved slots first, ahead of Former Momo, so they get an L1 line, a snapshot and bars, and live movers keep at least 20 of the 40. A name the scanners cannot follow says why (the reserved slots are full, IBKR has no line for it).
    - New names start as Buy You · Sell You (a setting). Setting Buy to Nova stars the stock. Removing a stock returns it to You · You on every venue, refused while Nova has an open trade on it.
    - The 04:00 rollover clears every Nova Buy (the bot list and Auto-entry) on every venue; trades Nova holds keep their exits.
    - Nova buys only listed stocks (a blocker, `BOT_SKIP_NOT_LISTED`). The watch list folds into the ★.
