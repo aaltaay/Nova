@@ -76,6 +76,7 @@ _auto: dict[str, float] = {}             # symbol -> when auto-record started it
 _wanted_as: dict[str, str] = {}          # symbol -> the last reason it was wanted (never ``left``)
 _candidate_since: dict[str, float] = {}  # symbol -> when it entered the leaders
 _declined: dict[str, str] = {}           # symbol -> session date the operator stopped it
+_operator: dict[str, str] = {}           # symbol -> session date the operator recorded it (never auto's)
 _failed: dict[str, float] = {}           # symbol -> when a start failed
 _yielded: list[dict[str, Any]] = []
 _leaders: list[str] = []
@@ -133,6 +134,12 @@ def _resuming() -> list[str]:
     from capture import keepalive
 
     return keepalive.pending_symbols()
+
+
+def _restarted() -> list[str]:
+    from capture import keepalive
+
+    return keepalive.restart_symbols()
 
 
 def _tape_up(symbol: str) -> bool:
@@ -212,7 +219,7 @@ async def _start(symbol: str, reason: str) -> bool:
 
 
 async def _save() -> None:
-    await auto_record_state.save(_auto, _wanted_as, _declined)
+    await auto_record_state.save(_auto, _wanted_as, _declined, _operator)
 
 
 async def _stop(symbol: str, reason: str, *, at_once: bool = False) -> None:
@@ -276,26 +283,32 @@ async def make_room_for(symbol: str, *, for_record: bool = False, tape_refused: 
         return victim
 
 
-def operator_took(symbol: str) -> None:
-    """The operator pressed Record on a symbol auto-record holds: it is theirs now."""
+def operator_took(symbol: str, now: float | None = None) -> None:
+    """The operator pressed Record on ``symbol`` (one auto-record held, or a new one): it is theirs,
+    and the file says so, so a restart never takes it for auto-record's."""
     sym = (symbol or "").strip().upper()
     _auto.pop(sym, None)
     _wanted_as.pop(sym, None)
     auto_record_state.forget(sym)
-    auto_record_state.save_soon(_auto, _wanted_as, _declined)
+    if sym:
+        _operator[sym] = datetime.fromtimestamp(time.time() if now is None else now, ET).date().isoformat()
+    auto_record_state.save_soon(_auto, _wanted_as, _declined, _operator)
 
 
 def operator_stopped(symbol: str | None, now: float | None = None) -> None:
     """The operator stopped a recording by hand: never take that symbol again today."""
     day = datetime.fromtimestamp(time.time() if now is None else now, ET).date().isoformat()
     targets = [(symbol or "").strip().upper()] if symbol else list(_auto)
+    if not symbol:
+        _operator.clear()
     for sym in targets:
         if sym:
             _auto.pop(sym, None)
             _wanted_as.pop(sym, None)
+            _operator.pop(sym, None)
             auto_record_state.forget(sym)
             _declined[sym] = day
-    auto_record_state.save_soon(_auto, _wanted_as, _declined)
+    auto_record_state.save_soon(_auto, _wanted_as, _declined, _operator)
 
 
 async def _after_window(ts: float) -> None:
@@ -324,7 +337,8 @@ async def tick(now: float | None = None) -> None:
         for sym in [s for s, (until, _) in _reserved.items() if until <= ts]:
             _reserved.pop(sym, None)
         await auto_record_state.restore(ts, auto=_auto, wanted_as=_wanted_as, declined=_declined,
-                                        recording=_recording(), resuming=_resuming())
+                                        recording=_recording(), resuming=_resuming(),
+                                        operator=_operator, restarted=_restarted())
         state = window_state(ts)
         if not enabled() or state["open"] == OPEN_NONE:
             await _after_window(ts)
@@ -405,6 +419,7 @@ def reset_for_tests() -> None:
     _wanted_as.clear()
     _candidate_since.clear()
     _declined.clear()
+    _operator.clear()
     _failed.clear()
     _yielded.clear()
     _reserved.clear()

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { WS_BASE_URL } from '../constants';
+import { IBKR_DEPTH_REFUSED_RETRY_MAX_MS, IBKR_DEPTH_RETRY_MAX_MS, WS_BASE_URL } from '../constants';
 import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { shouldKeepPriorBook } from './depthBookGuards';
@@ -148,10 +148,9 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/depth/${symKey}${params}`);
       wsRef.current = ws;
 
-      ws.onopen = () => {
-        if (!mountedRef.current || ws !== wsRef.current) return;
-        backoffRef.current = 1000;
-      };
+      // The backoff resets on a line ('subscribed'), never on the socket opening: a refused
+      // subscribe opens first and closes after, so resetting there retried every second.
+      let refused = false;
 
       ws.onmessage = (e) => {
         countSocketMessage('depth', frameBytes(e.data));
@@ -163,6 +162,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
           if (msg.type === 'subscribed' || msg.type === 'book' || msg.type === 'error') line.answered();
 
           if (msg.type === 'subscribed') {
+            backoffRef.current = 1000;
             connectedRef.current = true;
             errorRef.current = null;
             if (uiActiveRef.current) commitUi();
@@ -191,6 +191,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             errorRef.current = null;
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'error') {
+            refused = true;
             connectedRef.current = false;
             errorRef.current = typeof msg.message === 'string' ? msg.message : 'Depth error';
             if (uiActiveRef.current) commitUi();
@@ -210,8 +211,9 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
         const lent = line.closed();
         if (uiActiveRef.current) commitUi();
         if (lent) return;
-        const delay = backoffRef.current;
-        backoffRef.current = Math.min(delay * 2, 30_000);
+        const ceiling = refused ? IBKR_DEPTH_REFUSED_RETRY_MAX_MS : IBKR_DEPTH_RETRY_MAX_MS;
+        const delay = Math.min(backoffRef.current, ceiling);
+        backoffRef.current = Math.min(delay * 2, ceiling);
         reconnectTimerRef.current = setTimeout(connect, delay);
       };
     }

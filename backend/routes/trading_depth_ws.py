@@ -31,6 +31,19 @@ from line_lending import socket_gate
 logger = logging.getLogger(__name__)
 
 
+def refusal_text(symbol: str, result: dict) -> str:
+    """The refusal the ladder shows: for a full cap, who holds the lines and how to free one."""
+    if not result.get("cap"):
+        return result.get("error") or "Depth error"
+    try:
+        from line_lending.view import cap_refusal
+
+        return cap_refusal(symbol)
+    except Exception:
+        logger.exception("depth: could not name the line holders for %s", symbol)
+        return result.get("error") or "Depth error"
+
+
 async def make_room(symbol: str) -> None:
     """Auto-record yields its lowest-ranked line when every line is in use."""
     try:
@@ -85,7 +98,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         await make_room(symbol)
         result = await _depth.subscribe_async(symbol)
         if not result["ok"]:
-            await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
+            await websocket.send_text(json.dumps({"type": "error", "message": refusal_text(symbol, result)}))
             await websocket.close()
             return
 
@@ -115,7 +128,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         if _depth.needs_subscribe(symbol):
             result = await _depth.subscribe_async(symbol)
             if not result["ok"]:
-                await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
+                await websocket.send_text(json.dumps({"type": "error", "message": refusal_text(symbol, result)}))
                 return
             try:
                 _l2_continuous.start(symbol)

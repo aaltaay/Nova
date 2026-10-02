@@ -301,9 +301,11 @@ def record_connect_outcome(
 def heal_status() -> dict[str, Any]:
     """Fields merged into GET /api/ibkr/status (``attach`` is the ADR 021 retry ledger)."""
     from ibkr import attach_retry as _attach
+    from ibkr import gateway_api_heal as _api_heal
 
     return {
         "attach": _attach.status(),
+        "gateway_api_heal": _api_heal.view(),
         "gateway_self_heal_enabled": self_heal_enabled(),
         "paper_gateway_fallback_enabled": paper_fallback_enabled(),
         "gateway_self_heal": _last_heal,

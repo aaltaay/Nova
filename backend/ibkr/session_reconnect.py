@@ -7,6 +7,8 @@ deliberately NOT this module, because a watchdog inside the task it watches
 cannot fire once that task itself is what froze (PROBLEM_LOG 2026-08-31).
 
 Mutates ``ibkr.client`` session globals (single owner of the IB singleton).
+
+maintainer: one-concern the dialer's one ladder from a failed connect to a usable session
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from constants import (
     IBKR_RECONNECT_DELAY_SEC,
 )
 from ibkr import attach_retry as _attach
+from ibkr import gateway_api_heal as _api_heal
 from ibkr import gateway_heal as _heal
 from ibkr import session_errors as _session_errors
 from ibkr import session_state as _session
@@ -261,6 +264,7 @@ async def _reconnect_once(client_mod: object) -> None:
                 _heal.record_connect_outcome(
                     "connected", reason="ok", mode=mode_now,
                 )
+                _api_heal.note_connected()
                 logger.info(
                     "IBKR: connected in %s mode (orders still gated by safety.py)",
                     mode_now,
@@ -370,6 +374,7 @@ async def _reconnect_once(client_mod: object) -> None:
         )
         _session.set_disconnected()
         _heal.record_connect_outcome("failed", reason=reason)
+        await _api_heal.after_failed(reason, port)  # a logged-in Gateway refusing its port restarts itself
         client_mod._safe_disconnect(client_mod._ib)  # type: ignore[attr-defined]
         client_mod._ib = client_mod.IB()  # type: ignore[attr-defined]
         await client_mod._sleep_reconnect(IBKR_RECONNECT_DELAY_SEC)  # type: ignore[attr-defined]

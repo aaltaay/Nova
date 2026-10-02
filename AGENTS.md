@@ -433,7 +433,26 @@ gains `attach: {attempts_in_window, window_sec, max_attempts_per_window,
 backoff_sec, last_attempt, next_delay_sec, human_step: string | null,
 human_step_poll_sec, cleared_at, cleared_reason, recent[]}` from
 `ibkr/attach_retry.py` (bounded attach retry: 1, 2, 5, 10, 30 s, at most 5 per
-10 min, then a stated human step). `ibkr/session_errors.last_error()` is
+10 min, then a stated human step).
+
+**A Gateway that refuses its API port while logged in restarts itself** (operator,
+2026-10-02: "Shouldn't this be fully auto-healed?"). After a 30-minute Wi-Fi drop that
+day the Gateway was logged in, both farms ON, port 4001 LISTENING, and refused every
+connection; Nova said "finish the login" and waited. Owner `ibkr/gateway_api_heal.py`:
+when the dialer's connects are refused without a break for `IBKR_GATEWAY_API_STUCK_SEC`
+(120 s) while that port is LISTENING, a Gateway process runs and the internet answers,
+Nova sends IBC's `RESTART` -- the Gateway restarts on its saved login, no 2FA (IBC
+user guide) -- at most once per `IBKR_GATEWAY_API_HEAL_COOLDOWN_SEC`. IBC takes commands
+only with its command server on: Nova sets `CommandServerPort=7462`, `ControlFrom` and
+`BindAddress` `127.0.0.1` in `~/.nova/ibc/config.ini` (on every launch and before a
+restart), which IBC reads at the Gateway's next start. `/api/ibkr/status` adds
+`gateway_api_heal: {state: "ok" | "wait" | "not_listening" | "no_gateway" |
+"no_internet" | "cooldown" | "restart" | "restart_failed", text, since, last_restart:
+{at, ok, error} | null, refused_since}`, and the checklist adds the `gateway_api_stuck`
+row while it is not `ok`. **One Gateway at a time**: the launcher's process check
+(`ibkr/gateway_process.py`) matches `ibgateway1.exe` -- Gateway 10.45's name, which the
+old `Get-Process -Name ibgateway` never matched, so at 12:46 that day Nova started a
+second Gateway beside the running one and it took over the IBKR login. `ibkr/session_errors.last_error()` is
 `{code, message, ts} | null` for the last IB errorEvent of any code.
 
 ### Which backend answers (operator report, 2026-09-24)
@@ -931,11 +950,23 @@ bringing back (`keepalive.pending_symbols()`). **What it holds survives a
 restart** (#698; owner `leaderboard/auto_record_state.py`): `auto-record.json`
 in the operator cache, `{schema_version: 1, date: "YYYY-MM-DD" (Eastern), held:
 {SYMBOL: {since: number | null, why: "trade" | "near" | "armed" | "leader" |
-null}}, declined: string[]}`, rewritten on every start, stop, operator take and
-operator stop; another day, an unknown version or an unreadable file reads as
-empty (logged). After a restart a recording it names that the keepalive resumed is
-auto-record's again (so it can rotate it or give it back), and a symbol the
-operator stopped stays declined that day. `NOVA_AUTO_RECORD=0`
+null}}, declined: string[], operator: string[]}` (`operator`: the recordings the
+operator started or took over today; a file without it names none), rewritten on
+every start, stop, operator take and operator stop; another day, an unknown version
+or an unreadable file reads as empty (logged). After a restart a recording it names
+that the keepalive resumed is auto-record's again (so it can rotate it or give it
+back), and a symbol the operator stopped stays declined that day. **The stock you
+look at always outranks a recording you did not start** (operator, 2026-10-02:
+"when I view a stock or a ticker, the recorder will empty a space for me"): a
+recording a restart brought back (`keepalive.restart_symbols()`) that the file does
+not name as the operator's is auto-record's too, so it gives way to the operator's
+Level 2 and stops at its window's close. At 10:36 that day the backend came up on
+the first build with the file, the process before it never wrote one, and SDEV,
+SSM and CELU -- all auto-record's -- read as the operator's: AZTA's Level 2 read
+"Symbol cap reached" for over an hour. When every line is still in use, the
+ladder's refusal names who holds each (`line_lending.view.cap_words`: recording,
+another Level 2, lent, replay) and how to free one, and it asks again every 1, 2,
+4, then 5 s -- it had asked every second. `NOVA_AUTO_RECORD=0`
 turns it off. `/api/ibkr/status` adds `auto_record: {active, window,
 windows: {open: "setups_and_leaders" | "setups" | "leaders" | "none", setups: {open,
 start, end, by_setup: [{setup, start, end, open}], error}, leaders: {open, start,
@@ -4301,6 +4332,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-02 | Auto-heal (operator: "when I view a stock or a ticker, the recorder will empty a space for me"; "Shouldn't this be fully auto-healed?"). The stock you look at outranks every recording you did not start: a recording a restart brought back with no owner on file is auto-record's and gives way (SDEV, SSM and CELU held all three lines from 10:36 and AZTA read "Symbol cap reached" for over an hour); the operator's own starts are kept in `auto-record.json` `operator`; the ladder names who holds the lines and backs off to 5 s (it asked every second). A Gateway logged in but refusing its API port (after the 12:12-12:45 Wi-Fi drop) restarts itself through IBC's `RESTART` on its saved login, no 2FA; IBC's command server turns on, on this PC only. The launcher no longer starts a second Gateway beside a running one (`ibgateway1.exe`), which is what took over the IBKR login at 12:46, and its process check is cached (a PowerShell run held the HTTP loop 250-935 ms per status poll). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Gap and Go gets its scanner, like every other strategy (ADR 031 amendment; operator, after SDEV's open and being offered a chart-only lane: "why dont u treat it like every other strategy we already got?"). Decision C of ADR 031 had made it next, and the four setups with scanners failed their bar-level backtests worse than Gap and Go did (PF 0.54 / 0.20 / 0.58 against 1.00). A fifth detector (`setup_scanner/gap_and_go.py`) reads the research's pre-registered A2 rule on the same lanes: the pre-market high, armed at the 09:30 open when the open is under it (a gap through it skips the day), a live price over it by 10:00, stop min(20c, 4%) under the entry, target 1 at 2R, one try a day; before the open the levels are drawn as forming. It has Off / Eyes / On per venue (starting Off), templates, scoring, its own read-out, the tape gate, the grade, the cards, the Tickers today squares and the charts, and Nova's bot plays it at On on Paper and Sim only. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | A symbol followed mid-session is seeded from 04:00. The scanner followed AMOD at 07:51:22 with nothing stored before its Level 1 line opened, so every lane warmed up from scratch: the 1-minute first pullback's first line came at 08:23 (32 bars), the 5-minute one read "warming up (17/32 bars)" at 09:19. On five days of the eyes' journal no name first followed after 04:10 warmed within 2 minutes. A short seed now waits on IBKR's 1-minute history of today, asked one symbol at a time against half of IBKR's historical budget (`setup_scanner/seeder.py`). The wire is unchanged. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | One row per trigger (ADR 022 amendment). The lane named `setups.db` rows by the setup's key (the leg), so a setup armed again on that key after its trigger was written over the trade's row. AMOD's first pullback triggered at 08:48:04, and at 08:49 a candle tied the leg's high and re-armed the same leg as the second pullback. The stored row became `second_pullback` with the new levels, and the read-out, which counts the first of the day, lost the trigger. A second trigger on one id replaced the first trade's score (LITS 2026-09-24, GOW 2026-09-30). A later setup on a key now opens `KEY#N` (`setup_scanner/lane_ids.py`), and a restart never writes over a stored trade. A detector made mid-day (a restart, a symbol back in the universe, an edited template) starts from the day's triggers, so a later setup reads as the second and red to green's one try stays spent. The eyes' journal 2026-09-24..10-02 shows 18 rows written over; they keep their ids and are not repaired here. §3 amended. | User Directive + Claude Opus 5.5 |

@@ -387,6 +387,25 @@ IBKR_GATEWAY_TRAIL_MAX_EVENTS = 200
 # if the operator approves it a moment later (see PROBLEM_LOG 2026-08-25).
 # Keep in sync with config.ini; do not tune independently of that file.
 IBKR_SECOND_FACTOR_STALE_AFTER_SEC = 180.0
+# Owner: ibkr/gateway_process.py. Image names that are a Gateway or TWS: Gateway 10.45 runs as
+# ibgateway1.exe, which ``Get-Process -Name ibgateway`` never matched, so on 2026-10-02 at 12:46
+# Nova started a second Gateway beside the running one and it took over the IBKR login.
+IBKR_GATEWAY_PROCESS_PREFIXES = ("ibgateway", "tws")
+# A status poll asks this often at most; each answer is a tasklist run (~100 ms).
+IBKR_GATEWAY_PROCESS_CACHE_SEC = 5.0
+# Owner: ibkr/gateway_api_heal.py. A Gateway whose API port is open but refuses every connection
+# (2026-10-02, after a 30-minute Wi-Fi drop: logged in, both farms ON, port 4001 LISTEN, every
+# connect refused) is restarted through IBC's RESTART command -- on its saved login, no 2FA --
+# once it has refused that long while the internet answers.
+IBKR_GATEWAY_API_STUCK_SEC = 120.0
+# At most one IBC RESTART this often: a restart takes about a minute and must get its chance.
+IBKR_GATEWAY_API_HEAL_COOLDOWN_SEC = 600.0
+# IBC's command server, on this PC only (config.ini CommandServerPort / ControlFrom / BindAddress).
+IBKR_IBC_COMMAND_PORT = 7462
+IBKR_IBC_COMMAND_HOST = "127.0.0.1"
+IBKR_IBC_COMMAND_TIMEOUT_SEC = 5.0
+# Asked before a RESTART: with no internet a restarted Gateway cannot log back in.
+IBKR_GATEWAY_INTERNET_PROBE_HOST = "www.interactivebrokers.com"
 
 # ── Market-data discovery provider (gappers / gainers / losers source) ────────
 # Product lock: IBKR is the only scanner discovery source. Alpaca scanner

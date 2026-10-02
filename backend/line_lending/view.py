@@ -31,3 +31,33 @@ def build(now: float | None = None) -> dict[str, Any]:
             for sym in sorted(depth.subscribed_symbols())]
     return {"schema_version": LINE_LENDING_SCHEMA_VERSION, "generated_at": ts, "cap": IBKR_MAX_DEPTH_SYMBOLS,
             "lines": rows, "lending": loans.view()}
+
+
+_HOLDER_WORDS = {
+    "record": "recording",
+    "auto_record": "auto-recording (being given back)",
+    "tab": "in another Level 2",
+    "loan": "lent to a setup",
+    "replay": "a Sim replay",
+}
+
+
+def _join(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def cap_words(symbol: str, lines: list[dict[str, Any]]) -> str:
+    """What the Level 2 of ``symbol`` says when every line is in use: who holds them and how to free one (pure)."""
+    groups: dict[str, list[str]] = {}
+    for line in lines:
+        groups.setdefault(str(line.get("held_by") or "tab"), []).append(str(line.get("symbol")))
+    parts = [f"{_join(sorted(syms))} {_HOLDER_WORDS.get(kind, kind)}" for kind, syms in groups.items()]
+    held = "; ".join(parts) if parts else "lines Nova cannot name"
+    return (f"No Level 2 line free for {symbol}: IBKR allows {IBKR_MAX_DEPTH_SYMBOLS}, all in use ({held}). "
+            f"Stop a recording from its REC chip or close a Level 2 you are not using, "
+            f"and {symbol}'s book comes up by itself.")
+
+
+def cap_refusal(symbol: str) -> str:
+    """``cap_words`` over the lines as they stand now (memory only)."""
+    return cap_words(symbol, build()["lines"])

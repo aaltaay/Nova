@@ -87,6 +87,7 @@ async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
                     f"Symbol cap reached ({IBKR_MAX_DEPTH_SYMBOLS} max simultaneous "
                     "depth streams)"
                 ),
+                "cap": True,
                 "symbols": state.subscribed_symbols(),
             }
 

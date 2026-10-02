@@ -73,24 +73,9 @@ def _mode_api_port(mode: str) -> int:
 
 
 def _gateway_process_running() -> bool:
-    if os.name != "nt":
-        return False
-    try:
-        completed = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                "if (Get-Process -Name ibgateway,tws -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-        return completed.returncode == 0
-    except Exception:
-        return False
+    from ibkr import gateway_process
+
+    return gateway_process.running()
 
 
 def _ibc_dir() -> Path:
@@ -133,6 +118,9 @@ def _align_ibc_trading_mode(mode: str) -> None:
     else:
         _rewrite_ini_key(ini, "AutoRestartTime", IBKR_IBC_PAPER_AUTO_RESTART_TIME)
     _rewrite_ini_key(ini, "AutoLogoffTime", "")
+    from ibkr.gateway_api_heal import ensure_command_server
+
+    ensure_command_server(ini)  # so a Gateway stuck on its API port can be restarted without 2FA
 
 
 def _apply_nova_gateway_mode(mode: str) -> None:

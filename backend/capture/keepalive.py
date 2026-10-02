@@ -14,6 +14,8 @@ Every symbol is followed on its own: up to CAPTURE_MAX_CONCURRENT record at
 once, and one dying must not touch the others. State here is process memory;
 the manifest on disk is the durable record. This module only decides when to
 call ``start`` again and what ``/api/ibkr/status`` says about it.
+
+maintainer: one-concern resume-then-say-so for every recording that stopped without the operator asking
 """
 from __future__ import annotations
 
@@ -49,6 +51,9 @@ _resume: dict[str, dict[str, Any]] = {}
 _stopped: dict[str, dict[str, Any]] = {}
 # symbol -> IBKR lines re-acquired after a Gateway drop or a lost tape, this session.
 _reacquired: dict[str, int] = {}
+# Recordings this process resumed from the one before it, until started or stopped here: nobody
+# in this process started them, so auto-record decides whose they are (``restart_symbols``).
+_after_restart: set[str] = set()
 
 
 @dataclass
@@ -65,6 +70,7 @@ def reset_for_tests() -> None:
     _resume.clear()
     _stopped.clear()
     _reacquired.clear()
+    _after_restart.clear()
     tape_watch.reset_for_tests()
 
 
@@ -92,14 +98,22 @@ def operator_stopped(symbol: str | None) -> None:
             store.pop(sym, None)
     if sym is None:
         _watched.clear()
+        _after_restart.clear()
     else:
         _watched.discard(sym)
+        _after_restart.discard(sym)
     tape_watch.forget(sym)
 
 
 def pending_symbols() -> list[str]:
     """Symbols a resume is still bringing back (not given up): auto-record leaves their slots alone (#698)."""
     return [sym for sym, row in _resume.items() if not row.get("gave_up")]
+
+
+def restart_symbols() -> list[str]:
+    """Recordings brought back (or being brought back) from the process before this one that no start
+    here has claimed since -- the previous process knew who started them; this one does not."""
+    return sorted(sym for sym in _after_restart if not (_resume.get(sym) or {}).get("gave_up"))
 
 
 def operator_started(symbol: str) -> None:
@@ -109,6 +123,7 @@ def operator_started(symbol: str) -> None:
         return
     _resume.pop(sym, None)
     _stopped.pop(sym, None)
+    _after_restart.discard(sym)
     tape_watch.forget(sym)
 
 
@@ -139,6 +154,7 @@ def note_restart(summary: dict[str, Any] | None, *, now: float | None = None) ->
     }
     _resume[symbol] = _new_resume(symbol, CAPTURE_STOP_RESTART, None, summary.get("session_date"), now,
                                   first_delay=0.0)
+    _after_restart.add(symbol)
     logger.warning("CAPTURE: %s was recording when the previous process died -- resuming", symbol)
     return True
 
