@@ -1,6 +1,7 @@
 /**
  * Pure status strings for DepthLadder — kept out of the React component so
  * reconnect / cap / empty-state regressions are unit-testable without a DOM.
+ * A lent line's sentence is lentWords.ts's (the ladder's and Time & Sales' alike).
  */
 
 export function depthEmptyMessage(

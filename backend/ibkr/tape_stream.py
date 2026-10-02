@@ -94,6 +94,12 @@ def _push_queue(symbol: str, payload: dict) -> None:
                 logger.warning("IBKR tape: queue still full for %s after drop", symbol)
 
 
+def push_lent(symbol: str, frame: dict) -> None:
+    """Tell every viewer the AllLast line is lent (ADR 043 decision 6, ``line_lending``): each
+    socket sends ``frame`` and closes, and its tab waits instead of reconnecting by its backoff."""
+    _push_queue(symbol.upper(), dict(frame, type="lent"))
+
+
 def _on_tape_update(ticker: Any, symbol: str) -> None:
     from ibkr.tape_events import on_tape_update
     on_tape_update(ticker, symbol, _push_queue, _depth)

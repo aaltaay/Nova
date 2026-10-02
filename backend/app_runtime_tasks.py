@@ -47,6 +47,7 @@ import loop_lag as _loop_lag
 from leaderboard import auto_record as _leaderboard_auto_record
 from leaderboard import queue as _leaderboard_queue
 from leaderboard import recorder as _leaderboard_recorder
+from line_lending import loans as _line_lending
 from practice import matcher as _practice_matcher
 from scan_loop import scan_loop
 from scanner_push import broadcast as _scanner_broadcast
@@ -127,6 +128,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("leaderboard.recorder", _leaderboard_recorder.run),
         # 07:00-10:00 ET: record the leaders on free Level 2 lines only.
         ("leaderboard.auto_record", _leaderboard_auto_record.run),
+        # ADR 043: a hidden Trader tab lends its Level 2 line to a setup Nova may buy. Never places.
+        ("line_lending", _line_lending.run),
         # Catalysts (ADR 024): SEC filings and the press-release wires, recorded as they publish.
         ("catalysts.feed", _catalyst_feed.run),
         # Why it's moving (ADR 028): IBKR's short-stock file, recorded as it changes.

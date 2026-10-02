@@ -4,6 +4,8 @@ import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { shouldKeepPriorBook } from './depthBookGuards';
 import { applyBookWatchFrame, type BookWatchState } from './bookWatch';
+import { documentVisible, LentLine } from './lentLine';
+import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
@@ -14,6 +16,17 @@ interface DepthState {
   error: string | null;
   /** The book watcher's verdicts on this live line (ADR 033 amendment); null until its first frame. */
   watch: BookWatchState | null;
+  /** The line is lent to one of Nova's setups (ADR 043 decision 6); null while this tab has it. */
+  lent: LineLent | null;
+}
+
+export interface DepthOptions {
+  /**
+   * A Trader tab's Level 2: its socket says so (`tab=1`), so the backend may lend the line while no
+   * visible window shows the tab. Any Level 2 says whether it is in front (`front=1`), which recalls
+   * a loan of its line.
+   */
+  traderTab?: boolean;
 }
 
 const EMPTY: DepthState = {
@@ -22,6 +35,7 @@ const EMPTY: DepthState = {
   l1Fallback: false,
   error: null,
   watch: null,
+  lent: null,
 };
 
 /**
@@ -35,8 +49,15 @@ const EMPTY: DepthState = {
  *
  * Hidden live tabs keep the socket and latest book in refs. React / ladder
  * paint waits until ``uiActive`` so a background tab cannot burn the main thread.
+ *
+ * A lent line (ADR 043 decision 6): the backend sends `{type: "lent", ...}` and closes. The hook
+ * then never reconnects by its backoff (LentLine): it waits on the shared lines poll and reconnects
+ * once no loan names this symbol -- or at once when this Level 2 comes to the front (`uiActive` and
+ * the document visible), which opens with `front=1` and recalls the loan. The tab's Time & Sales
+ * (useIbkrTape) went with it and comes back the same way.
  */
-export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState {
+export function useIbkrDepth(symbol: string | null, uiActive = true, options: DepthOptions = {}): DepthState {
+  const traderTab = options.traderTab === true;
   const [state, setState] = useState<DepthState>(EMPTY);
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(1000);
@@ -59,9 +80,12 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
   const l1FallbackRef = useRef(false);
   const errorRef = useRef<string | null>(null);
   const watchRef = useRef<BookWatchState | null>(null);
+  // This symbol's line while it may be lent; set by the socket effect.
+  const lineRef = useRef<LentLine | null>(null);
 
   useEffect(() => {
     uiActiveRef.current = uiActive;
+    if (uiActive) lineRef.current?.wake();     // shown: a lent line is taken back now
   }, [uiActive]);
 
   const commitUi = () => {
@@ -72,6 +96,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
       l1Fallback: l1FallbackRef.current,
       error: errorRef.current,
       watch: watchRef.current,
+      lent: lineRef.current?.lent ?? null,
     });
   };
 
@@ -89,6 +114,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
     l1FallbackRef.current = false;
     errorRef.current = null;
     watchRef.current = null;
+    lineRef.current = null;
     setState(EMPTY);
 
     if (!symKey) {
@@ -102,9 +128,24 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
       return;
     }
 
+    const inFront = () => uiActiveRef.current && documentVisible();
+    const line = new LentLine(symKey, {
+      inFront,
+      // The loan ended, or this Level 2 came to the front (its socket recalls the loan): ask now.
+      reconnect: () => {
+        backoffRef.current = 1000;
+        connect();
+      },
+      changed: () => {
+        if (uiActiveRef.current) commitUi();
+      },
+    });
+    lineRef.current = line;
+
     function connect() {
       if (!mountedRef.current) return;
-      const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/depth/${symKey}`);
+      const params = `?${traderTab ? 'tab=1&' : ''}front=${inFront() ? 1 : 0}`;
+      const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/depth/${symKey}${params}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -119,6 +160,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
           const msg = JSON.parse(e.data as string);
           const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
           if (msgSym != null && msgSym !== symKey) return;
+          if (msg.type === 'subscribed' || msg.type === 'book' || msg.type === 'error') line.answered();
 
           if (msg.type === 'subscribed') {
             connectedRef.current = true;
@@ -140,6 +182,14 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
             // What left the book: a reset frame on every (re)connect, then each verdict once.
             watchRef.current = applyBookWatchFrame(watchRef.current, msg.data, Date.now());
             if (uiActiveRef.current) commitUi();
+          } else if (msg.type === 'lent') {
+            // Lent to a setup (ADR 043): this book is no longer live; the socket closes next.
+            line.lend(msg);
+            bookRef.current = null;
+            watchRef.current = null;
+            connectedRef.current = false;
+            errorRef.current = null;
+            if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'error') {
             connectedRef.current = false;
             errorRef.current = typeof msg.message === 'string' ? msg.message : 'Depth error';
@@ -156,7 +206,10 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
       ws.onclose = () => {
         if (!mountedRef.current || ws !== wsRef.current) return;
         connectedRef.current = false;
+        // Lent: never by the backoff -- when the loan ends (the poll), or now if this Level 2 is in front.
+        const lent = line.closed();
         if (uiActiveRef.current) commitUi();
+        if (lent) return;
         const delay = backoffRef.current;
         backoffRef.current = Math.min(delay * 2, 30_000);
         reconnectTimerRef.current = setTimeout(connect, delay);
@@ -167,6 +220,8 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
 
     return () => {
       mountedRef.current = false;
+      line.dispose();
+      if (lineRef.current === line) lineRef.current = null;
       if (reconnectTimerRef.current != null) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
@@ -175,7 +230,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
       wsRef.current = null;
       ws?.close();
     };
-  }, [symbol]);
+  }, [symbol, traderTab]);
 
   return state;
 }
