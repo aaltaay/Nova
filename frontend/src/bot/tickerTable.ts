@@ -46,14 +46,40 @@ export function orderTickers(rows: readonly TickerRow[], modes: readonly StockMo
   return { listed, unlisted };
 }
 
-/** A row's reds, split into its own and the ones every ticker shares, in the gates' order. */
-export function splitReasons(cells: Cells, order: readonly string[]): { own: string[]; shared: string[] } {
-  const own: string[] = [];
-  const shared: string[] = [];
+/** A red square in a few words: what "What stops it" says; the backend's whole sentence is its hover. */
+export interface Stop { id: string; word: string; why: string }
+
+/** The words for a red square; `t` adds the trigger's own grade or tape where the gate is about them. */
+export function stopWord(id: string, t?: { grade?: string | null; tape?: string | null } | null): string {
+  switch (id) {
+    case 'bot_on': return 'Bot off';
+    case 'strategy_on': return 'strategy not On';
+    case 'grade': return t?.grade ? `grade ${t.grade}` : 'grade';
+    case 'setups_a_day': return 'setups a day';
+    case 'bot_window': return 'outside its bot window';
+    case 'hot_list': return 'not on the hot list';
+    case 'nova_buys': return 'Buy is You';
+    case 'level2_line': return 'BLIND: no Level 2 line';
+    case 'tape_go': return t?.tape ? `tape ${t.tape.toUpperCase()}` : 'tape not GO';
+    case 'trades_today': return "the day's entries used";
+    default: return id.replace(/_/g, ' ');
+  }
+}
+
+/** Every red of a row, in the gates' order: a past trigger's, where nothing is shared. */
+export function allStops(cells: Cells, order: readonly string[], t?: { grade?: string | null; tape?: string | null } | null): Stop[] {
+  return order.filter(id => cells[id]?.ok === false).map(id => ({ id, word: stopWord(id, t), why: cells[id].why }));
+}
+
+/** A row's reds in the gates' order, split into its own and the ones every ticker shares now. */
+export function splitReasons(cells: Cells, order: readonly string[], t?: { grade?: string | null; tape?: string | null } | null):
+{ own: Stop[]; shared: Stop[] } {
+  const own: Stop[] = [];
+  const shared: Stop[] = [];
   for (const id of order) {
     const c = cells[id];
     if (!c || c.ok !== false) continue;
-    (SHARED_GATES.has(id) ? shared : own).push(c.why || id.replace(/_/g, ' '));
+    (SHARED_GATES.has(id) ? shared : own).push({ id, word: stopWord(id, t), why: c.why });
   }
   return { own, shared };
 }

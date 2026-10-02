@@ -43,11 +43,11 @@ export const BOTS_GATE_RESET_KILL = 'unfreeze';
 export const BOTS_STRATEGIES_TITLE = 'Strategies';
 export const BOTS_STRATEGIES_SOURCE = 'from your course material';
 export const BOTS_STRATEGIES_SUB =
-  'every scanner runs at once · each card has its own Off / Eyes / Strategy · the master level caps them all';
+  'every scanner runs at once · each strategy is Off, Eyes or On · Nova acts on those at On while the Bot is on';
 export const BOTS_STRATEGIES_SUB_TIP =
-  'Every setup with a scanner runs at the same time: each follows the HOD Momo names on one-minute bars, reads the tape at its trigger and scores every setup it arms on its own read-out.\n'
-  + 'Each card has its own Off / Eyes / Strategy: Off watches and scores silently; Eyes pings you on near + GO; Strategy lets Nova\'s bot trade its GO triggers once you press Activate (Paper and Sim). Any number can be at each.\n'
-  + 'The master level on the hero caps them all: a card at Strategy under a master at Eyes acts at Eyes, and says so.';
+  'Every setup with a scanner runs at the same time: each follows the HOD Momo names and today\'s hot list on one-minute bars, reads the tape at its trigger and scores every setup it arms on its own read-out.\n'
+  + 'Each strategy is Off (silent, draws nothing on your charts), Eyes (draws its setups and alerts you near + GO) or On (everything Eyes does, and Nova may act on its GO triggers while the Bot is on, Paper and Sim only). Any number can be at each.\n'
+  + 'While the Bot is off, a strategy at On alerts you like Eyes, and says so.';
 
 /* ---------- A scanner for every setup (ADR 031) ---------- */
 /** Rows a setup card's own scanner shows; "Open board" has the rest. */
@@ -176,7 +176,7 @@ export const BOTS_BREAKER_TODAY = 'today';
 export const BOTS_BREAKER_TODAY_UNKNOWN = 'today unknown';
 export const BOTS_BOT_PNL_POLL_MS = 5_000;
 export const botsSoftFired = (when: string, pnl: string, until: string): string =>
-  `Bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` at ${pnl}` : ''}: the bot is off on this venue${until ? ` until ${until}` : ' until 04:00 ET'} — Activate re-enables it for today.`;
+  `Bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` at ${pnl}` : ''}: the bot is off on this venue${until ? ` until ${until}` : ' until 04:00 ET'}; turning it back on asks you first.`;
 export const botsDayLocked = (venue: string, when: string, pnl: string, until: string): string =>
   `All-stop fired${when ? ` at ${when}` : ''}${pnl ? ` at ${pnl}` : ''}: bot and manual buys on ${venue} are locked${until ? ` until ${until}` : ' until 04:00 ET'}. Flatten and cancel still work.`;
 

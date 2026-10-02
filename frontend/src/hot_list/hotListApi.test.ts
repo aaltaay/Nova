@@ -4,7 +4,7 @@ import { listedOn } from './hotListStore';
 
 const wire = {
   schema_version: 1, date: '2026-10-01', cap: 20,
-  auto: { n: 5, start: '07:00', end: '16:00', rule: { min_price: 3 }, error: null },
+  auto: { n: 5, start: '07:00', end: '16:00', rule: 'the top 5 of the live Gainers board by the leaders rule', error: null },
   default: { buy: 'you', sell: 'you' },
   entries: [
     { symbol: 'meds', how: 'auto', at: 1790852400, board: 'gainers', rank: 1, change_pct: 0.3, followed: true },

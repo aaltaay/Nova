@@ -350,18 +350,25 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 043)', ()
     const red = grml.querySelectorAll('.bots-tk__cell.is-bad');
     expect(red).toHaveLength(1);
     expect(red[0].getAttribute('data-tip')).toBe('the bot window 07:00–10:00 closed');
-    expect(grml.querySelector('.bots-tk__stop')?.textContent).toBe('No · the bot window 07:00–10:00 closed');
+    // What stops it, in a few words; the whole sentence is the hover. A gate every ticker shares is grey.
+    const stop = grml.querySelector('.bots-tk__stop') as HTMLElement;
+    expect(stop.textContent).toBe('No · outside its bot window');
+    expect(stop.querySelector('.bots-muted [data-tip]')?.getAttribute('data-tip')).toBe('the bot window 07:00–10:00 closed');
     // Its trigger today sits under it, judged by the same squares: BLIND is the Level 2 line.
     const past = grml.nextElementSibling as HTMLElement;
     expect(past.className).toBe('bots-tk__past');
     expect(past.textContent).toMatch(/First pullback.*A.*BLIND.*target \+1\.60R/);
-    expect(past.querySelector('.bots-tk__stop')?.textContent).toBe('no Level 2 line: the tape was BLIND');
+    expect(past.querySelector('.bots-tk__stop')?.textContent).toBe('BLIND: no Level 2 line');
+    expect(past.querySelector('.bots-tk__stopword')?.getAttribute('data-tip')).toBe('no Level 2 line: the tape was BLIND');
     // Every column head says what its square asks.
     const head = Array.from(table.querySelectorAll('th.bots-tk__gh')).map(th => th.textContent);
     expect(head).toEqual(['Bot on', 'Strategy on', 'Grade', 'Setups a day', 'Bot window', 'Hot list', 'Nova buys',
       'Level 2 line', 'Tape GO', 'Trades today']);
     expect(table.querySelector('th.bots-tk__gh')?.getAttribute('data-tip')).toBe('Was the Bot switch on for this venue?');
-    // A ticker that triggered off the list folds until opened.
+    // The tickers that triggered off the list fold into one row until opened, and each one's triggers again.
+    expect(screen.queryByTestId('bots-tk-IMCC')).toBeNull();
+    expect(screen.getByTestId('bots-tk-unlisted-toggle').textContent).toMatch(/Triggered today, not on your hot list · 1 tickers · 1 triggers/);
+    await act(async () => { fireEvent.click(screen.getByTestId('bots-tk-unlisted-toggle')); await flush(); });
     const imcc = screen.getByTestId('bots-tk-IMCC');
     expect(imcc.className).toBe('bots-tk__unlisted');
     expect(imcc.nextElementSibling).toBeNull();
@@ -389,6 +396,7 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 043)', ()
   it('stars and unstars from the table, adds a typed ticker, and sets the auto top N', async () => {
     const fetchMock = mockFetch();
     await renderPage();
+    await act(async () => { fireEvent.click(screen.getByTestId('bots-tk-unlisted-toggle')); await flush(); });
     await act(async () => { fireEvent.click(within(screen.getByTestId('bots-tk-IMCC')).getByText('☆')); await flush(); });
     expect(calls(fetchMock, '/hot-list/star', 'POST').map(c => c.body)).toEqual(['{"symbol":"IMCC"}']);
     await act(async () => { fireEvent.click(within(screen.getByTestId('bots-tk-GRML')).getByText('★')); await flush(); });
@@ -525,7 +533,7 @@ describe('Risk sleeve (ADR 042 E: one per venue)', () => {
     }) });
     await renderPage();
     expect(screen.getByTestId('bots-breaker-soft-fired').textContent).toBe('Bot trip fired at 09:42 ET at −$52.10: the bot '
-      + 'is off on this venue until 04:00 ET on Oct 1 — Activate re-enables it for today.');
+      + 'is off on this venue until 04:00 ET on Oct 1; turning it back on asks you first.');
     expect(screen.getByTestId('bots-breaker-note').textContent).toBe('A Sim replay is not today — the breakers compare nothing here');
   });
 

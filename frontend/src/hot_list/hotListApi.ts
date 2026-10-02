@@ -44,7 +44,7 @@ export function normalizeHotList(raw: unknown): HotListView | null {
     cap: num(r.cap) ?? 20,
     auto: {
       n: num(auto.n) ?? 0, start: str(auto.start) ?? '07:00', end: str(auto.end) ?? '16:00',
-      rule: auto.rule && typeof auto.rule === 'object' ? auto.rule as Record<string, unknown> : null,
+      rule: str(auto.rule),
       error: str(auto.error),
     },
     default: { buy: side(dflt.buy), sell: side(dflt.sell) },

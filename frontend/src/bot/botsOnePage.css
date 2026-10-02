@@ -64,6 +64,7 @@
 .bots-botcard__right > .bots-card { border: 0; border-radius: 0; padding: 0; background: transparent; }
 .bots-botcard__title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .bots-botcard__note { margin: 0; font-size: 11.5px; color: var(--nova-text-muted); line-height: 1.45; }
+.bots-botcard__breakers { padding-top: 8px; border-top: 1px solid var(--bots-hair); }
 .bots-botcard__trade { margin: 0; font-size: 12.5px; line-height: 1.45; font-variant-numeric: tabular-nums; }
 
 /* The Bot switch and the lending switch are buttons with role="switch" (the older .bots-switch wraps a
@@ -328,6 +329,8 @@ button.bots-switch--small .bots-switch__txt small { font-size: 11px; }
 .bots-tk__res--loss { color: var(--bots-red); }
 .bots-tk__res--open { color: var(--nova-text-muted); }
 .bots-tk__stop { min-width: 240px; line-height: 1.4; }
+.bots-tk__stopword { color: var(--bots-red); cursor: help; }
+.bots-tk__fold { font-size: inherit; font-weight: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
 .bots-tk__impact { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 12px; line-height: 1.45; }
 .bots-tk__impact > b:first-child {
   flex-basis: 100%;

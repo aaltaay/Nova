@@ -11,7 +11,7 @@ import { tipProps, whyProps } from '../ux';
 import { setupName } from './botsPageFormat';
 import { etTime } from './botWhen';
 import type { StockModeRow } from './stockModesApi';
-import { daySummary, GATE_TIPS, orderTickers, resultWords, sidesOf, splitReasons, WHO_WORDS, type Side } from './tickerTable';
+import { allStops, daySummary, GATE_TIPS, orderTickers, resultWords, sidesOf, splitReasons, WHO_WORDS, type Side, type Stop } from './tickerTable';
 import { fetchTriggers, type Cells, type TickerRow, type TriggersView } from './triggersApi';
 import type { SetupRow } from '../setups';
 
@@ -51,6 +51,15 @@ function Squares({ cells, order }: { cells: Cells; order: readonly string[] }) {
   })}</>;
 }
 
+/** The reds in a few words, each with the backend's whole sentence on hover; `muted` for the shared ones. */
+function Stops({ stops, muted = false }: { stops: readonly Stop[]; muted?: boolean }) {
+  return <>{stops.map((s, i) => (
+    <span key={s.id} className={muted ? 'bots-muted' : 'bots-tk__stopword'} {...tipProps(s.why || s.word, s.word)}>
+      {i ? ' · ' : ''}{s.word}
+    </span>
+  ))}</>;
+}
+
 function SideSeg({ label, value, onPick, lock }: { label: string; value: Side; onPick: (s: Side) => void; lock: string | null }) {
   return (
     <span className="bots-tk__side"><span className="bots-tk__side-label">{label}</span>
@@ -85,6 +94,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
   const { view, error } = date !== null ? past : today;
   const hot = useHotList();
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [showUnlisted, setShowUnlisted] = useState(false);
   const [rowError, setRowError] = useState<{ symbol: string; text: string } | null>(null);
   const [draft, setDraft] = useState('');
   const [listError, setListError] = useState<string | null>(null);
@@ -150,14 +160,15 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
             {open.has(t.symbol) ? '▾' : '▸'} {t.triggers.length}
           </button>
         )}</td>
-        <td className="bots-muted">{boardWords(t.symbol, boardRows)}</td>
+        <td className="bots-muted bots-nowrap">{isListed ? boardWords(t.symbol, boardRows) : '–'}</td>
         <td className="bots-muted">–</td><td className="bots-muted">–</td>
         <td className="bots-muted bots-nowrap">{daySummary(t)}</td>
         {t.now ? <Squares cells={t.now.cells} order={order} /> : order.map(id => <td key={id} className="bots-tk__g" />)}
         <td className="bots-tk__stop">
           {t.now ? (t.now.answer === 'yes' ? <b className="is-yes">Yes</b> : <>
-            <b className="is-no">No</b>{reasons.own.length ? <span> · {reasons.own.join(' · ')}</span> : null}
-            {reasons.shared.length ? <span className="bots-muted"> · {reasons.shared.join(', ')}</span> : null}
+            <b className="is-no">No</b>
+            {reasons.own.length ? <> · <Stops stops={reasons.own} /></> : null}
+            {reasons.shared.length ? <span className="bots-muted"> · <Stops stops={reasons.shared} muted /></span> : null}
           </>) : <span className="bots-muted">{date ? 'a past day: no now' : '–'}</span>}
           {rowError?.symbol === t.symbol ? <span className="is-bad"> · {rowError.text}</span> : null}
         </td>
@@ -166,16 +177,17 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
   };
   const triggerRows = (t: TickerRow) => t.triggers.map(x => {
     const res = resultWords(x);
+    const reds = allStops(x.cells, order, x);
     return (
       <tr key={`${t.symbol}-${x.ts}-${x.setup_type}`} className="bots-tk__past">
         <td /><td />
-        <td className="bots-num">{etTime(x.ts)}</td>
-        <td>{setupName(x.setup_type)}{x.nth && x.nth > 1 ? <span className="bots-tag bots-tag--tiny">{x.nth === 2 ? '2nd' : `${x.nth}th`}</span> : null}</td>
+        <td className="bots-num bots-nowrap">{etTime(x.ts)}</td>
+        <td className="bots-nowrap">{setupName(x.setup_type)}{x.nth && x.nth > 1 ? <span className="bots-tag bots-tag--tiny">{x.nth === 2 ? '2nd' : `${x.nth}th`}</span> : null}</td>
         <td className="bots-num">{x.grade ?? '–'}</td>
         <td>{x.tape ? <span className={`bots-vbadge bots-vbadge--${x.tape}`}>{x.tape.toUpperCase()}</span> : '–'}</td>
         <td className={`bots-num bots-nowrap bots-tk__res--${res.tone}`}>{res.text}</td>
         <Squares cells={x.cells} order={order} />
-        <td className="bots-tk__stop bots-muted">{x.reasons.join(' · ') || 'reached an order'}</td>
+        <td className="bots-tk__stop">{reds.length ? <Stops stops={reds} /> : <span className="is-yes">every check passed</span>}</td>
       </tr>
     );
   });
@@ -194,7 +206,11 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
               {...(listLock ? whyProps(true, listLock) : {})} onClick={() => void hotListActions.setAuto(n).then(setListError)}>{n === 0 ? 'Off' : n}</button>
           ))}
         </span>
-        <span className="bots-muted">gainers {hot.view?.auto.start ?? '07:00'}–{hot.view?.auto.end ?? '16:00'} by the leaders rule · once in, in for the day · starts empty at 04:00</span>
+        <span className="bots-muted" {...tipProps(hot.view?.auto.rule ?? 'The top of the live Gainers board by the leaders rule.', 'Auto')}>
+          gainers {hot.view?.auto.start ?? '07:00'}–{hot.view?.auto.end ?? '16:00'} by the leaders rule · once in, in for the day · starts empty at 04:00
+        </span>
+        {hot.view?.auto.error ? <span className="bots-tag bots-tag--warn" data-testid="bots-tk-auto-error"
+          {...tipProps(hot.view.auto.error, 'The auto feed')}>auto feed: not reading the board</span> : null}
         <span className="bots-tk__gap" />
         <span className="bots-muted">New names start as</span>
         <SideSeg label="Buy" value={hot.view?.default.buy ?? 'you'} lock={listLock}
@@ -226,8 +242,18 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
             <tr className="bots-tk__group"><td colSpan={8 + order.length}>On your hot list · {listed.length} tickers</td></tr>
             {listed.length ? listed.flatMap(t => [nowRow(t, listedOn(hot.view, t.symbol) !== false), ...triggerRows(t)])
               : <tr><td colSpan={8 + order.length} className="bots-muted">Empty. Star a stock, or let the top of the Gainers board fill it from {hot.view?.auto.start ?? '07:00'}.</td></tr>}
-            {unlisted.length ? <tr className="bots-tk__group"><td colSpan={8 + order.length}>Triggered today, not on your hot list · {unlisted.length} tickers</td></tr> : null}
-            {unlisted.flatMap(t => [nowRow(t, false), ...(open.has(t.symbol) ? triggerRows(t) : [])])}
+            {unlisted.length ? (
+              <tr className="bots-tk__group">
+                <td colSpan={8 + order.length}>
+                  <button type="button" className="bots-linkbtn bots-tk__fold" aria-expanded={showUnlisted}
+                    onClick={() => setShowUnlisted(v => !v)} data-testid="bots-tk-unlisted-toggle">
+                    {showUnlisted ? '▾' : '▸'} Triggered today, not on your hot list · {unlisted.length} tickers ·{' '}
+                    {unlisted.reduce((n, t) => n + t.triggers.length, 0)} triggers
+                  </button>
+                </td>
+              </tr>
+            ) : null}
+            {showUnlisted ? unlisted.flatMap(t => [nowRow(t, false), ...(open.has(t.symbol) ? triggerRows(t) : [])]) : null}
           </tbody>
         </table>
       </div>

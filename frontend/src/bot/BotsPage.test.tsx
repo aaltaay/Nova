@@ -114,10 +114,19 @@ describe('Can Nova buy right now? (ADR 043)', () => {
     await renderPage();
     expect(screen.getByTestId('bots-answer-headline').textContent).toBe('No, on any ticker:');
     expect(screen.getByTestId('bots-answer-bot').textContent).toMatch(/^the Bot is off: Off\. The strategies at Eyes or On still alert you\.Turn on…$/);
-    expect(screen.getByTestId('bots-answer-setups').textContent).toMatch(/Set one to On$/);
+    // A strategy is at On: with the Bot off the switch is the reason, said once -- not "no strategy at On".
+    expect(screen.queryByTestId('bots-answer-setups')).toBeNull();
+    expect(screen.queryByTestId('bots-answer-window')).toBeNull();
     // The level gate is the switch itself: said once, as "the Bot is off".
     expect(screen.queryByTestId('bots-answer-level')).toBeNull();
     expect(screen.getByTestId('bots-answer-chip-venue').className).toContain('is-ok');
+  });
+
+  it('says no strategy is at On when none is, with its fix', async () => {
+    mockFetch({ session: session({ setup_levels: { first_pullback: 1, bull_flag: 1, flat_top_breakout: 0, red_to_green: 0 },
+      setups: [{ id: 'first_pullback', scanner: true, level: 1, effective: 1 }, { id: 'bull_flag', scanner: true, level: 1, effective: 1 }] }) });
+    await renderPage();
+    expect(screen.getByTestId('bots-answer-setups').textContent).toBe('No strategy is at On: set one to On on its card.Set one to On');
   });
 
   it('names the tickers Nova would buy at their next go trigger', async () => {

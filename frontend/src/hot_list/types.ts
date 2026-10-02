@@ -20,7 +20,8 @@ export interface HotListView {
   schema_version: number;
   date: string;
   cap: number;
-  auto: { n: number; start: string; end: string; rule: Record<string, unknown> | null; error: string | null };
+  /** `rule` is the leaders rule in words; `error` why the auto feed could not read the board. */
+  auto: { n: number; start: string; end: string; rule: string | null; error: string | null };
   default: { buy: HotSide; sell: HotSide };
   entries: HotEntry[];
   yesterday: string[];

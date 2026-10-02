@@ -7,6 +7,7 @@
 import { BOTS_VENUE_NAMES, botsDayLocked } from '../constantGroups/bots_page';
 import { tipProps } from '../ux';
 import { BOT_CARD_ANCHOR } from './BotSwitchCard';
+import { ownStrategySetups } from './botLevels';
 import { botOn, offWords } from './botSwitch';
 import { gateLine, type GateContext } from './botGateWords';
 import { prose } from './botsPageFormat';
@@ -30,12 +31,20 @@ function dayLockWords(session: BotSession): string | null {
     etUntil(lock?.until ?? session.hard_lock_until_date));
 }
 
+/** The gates read from the strategies' effective levels: while the Bot is off the master is at Eyes, so they
+ * read closed whatever the strategies are -- the switch is the reason then, said once. */
+const FROM_EFFECTIVE = new Set(['setups', 'window']);
+
 /** Every stock-wide reason Nova cannot buy now, the Bot switch first. */
 export function answerReasons(session: BotSession, ctx: GateContext): AnswerReason[] {
   const out: AnswerReason[] = [];
-  if (!botOn(session)) out.push({ id: 'bot', text: `the Bot is off: ${offWords(session)}`, fix: { kind: 'bot', label: 'Turn on…' } });
+  const on = botOn(session);
+  if (!on) out.push({ id: 'bot', text: `the Bot is off: ${offWords(session)}`, fix: { kind: 'bot', label: 'Turn on…' } });
+  if (!on && !ownStrategySetups(session).length) {
+    out.push({ id: 'setups', text: 'No strategy is at On: set one to On on its card.', fix: { kind: 'strategies', label: 'Set one to On' } });
+  }
   for (const g of session.gates ?? []) {
-    if (g.ok || !DESK_WIDE.includes(g.id)) continue;
+    if (g.ok || !DESK_WIDE.includes(g.id) || (!on && FROM_EFFECTIVE.has(g.id))) continue;
     const line = gateLine(g, ctx);
     const text = (g.id === 'day_lock' ? dayLockWords(session) : null) ?? prose(line.why ?? line.text);
     const fix = g.id === 'window' || g.id === 'setups' ? { kind: 'strategies' as const, label: g.id === 'window' ? 'Widen a window' : 'Set one to On' }

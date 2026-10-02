@@ -23,6 +23,22 @@ type Patch = (body: Record<string, unknown>) => Promise<unknown>;
 
 const VENUES = ['paper', 'sim', 'live'] as const;
 
+/** The loss breakers on the desk venue's bar, and what they did today. */
+export function BotBreakerBlock({ session, patch, busy, dayPnl, pnlParts = null }: {
+  session: BotSession;
+  patch: Patch;
+  busy: boolean;
+  dayPnl: number | null;
+  pnlParts?: string | null;
+}) {
+  return (
+    <>
+      <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} pnlParts={pnlParts} busy={busy} patch={patch} />
+      <BotBreakerStatus session={session} />
+    </>
+  );
+}
+
 /** The desk venue the session is the dial of, else Paper. */
 function deskVenue(session: BotSession): string {
   return String(session.caps.venue ?? session.breakers?.venue ?? session.level_venue ?? 'paper');
@@ -33,13 +49,15 @@ function capsFor(session: BotSession, venue: string): BotCaps {
   return session.caps_by_venue?.[venue] ?? session.caps;
 }
 
-export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null }: {
+export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null, breakers = true }: {
   session: BotSession;
   patch: Patch;
   busy: boolean;
   dayPnl: number | null;
   /** How the day P&L the breakers compare was reached. */
   pnlParts?: string | null;
+  /** The loss breakers under the sleeve; the Bots page draws them beside the Bot switch instead (ADR 043). */
+  breakers?: boolean;
 }) {
   const desk = deskVenue(session);
   const [picked, setPicked] = useState<string | null>(null);
@@ -66,8 +84,7 @@ export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null }: {
       <BotSleeve key={venue} venue={venue} caps={capsFor(session, venue)} capsBounds={session.caps_bounds}
         busy={busy} patch={patch} />
 
-      <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} pnlParts={pnlParts} busy={busy} patch={patch} />
-      <BotBreakerStatus session={session} />
+      {breakers ? <BotBreakerBlock session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} /> : null}
     </section>
   );
 }

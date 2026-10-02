@@ -27,7 +27,7 @@ import { gateContext } from './botGateWords';
 import { strategySetups } from './botLevels';
 import { BotLinesCard } from './BotLinesCard';
 import { BotProposalsInbox } from './BotProposalsInbox';
-import { BotRiskCard } from './BotRiskCard';
+import { BotBreakerBlock, BotRiskCard } from './BotRiskCard';
 import { BotsPageHeader } from './BotsPageHeader';
 import { BotsStatusBar } from './BotsStatusBar';
 import { BotStrategiesCard } from './BotStrategiesCard';
@@ -99,8 +99,9 @@ function LiveBotsPage() {
               <>
                 <BotAnswerLine session={session} ctx={gateContext(session, dayPnl)} triggers={today.view}
                   strategiesAnchor={BOTS_STRATEGIES_ANCHOR} onUnlock={() => void ensureUnlocked()} />
-                <BotSwitchCard arm={arm} killSwitch={killSwitch}>
-                  <BotRiskCard session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} />
+                <BotSwitchCard arm={arm} killSwitch={killSwitch}
+                  breakers={<BotBreakerBlock session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} />}>
+                  <BotRiskCard session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} breakers={false} />
                 </BotSwitchCard>
                 <BotStrategiesCard session={session} busy={busy}
                   onSetupLevel={(id, n) => void patch({ setup_levels: { [id]: n } })}

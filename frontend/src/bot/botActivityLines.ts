@@ -183,7 +183,7 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
   if (action === 'venue') {
     return { ...base, tag: 'Venue', tone: 'plain', category: 'system',
       text: `${String(row.inputs?.from ?? '?')} → ${String(row.inputs?.to ?? row.venue ?? '?')}`,
-      note: base.note || 'the bot turned off: Activate never carries into another venue' };
+      note: base.note || 'the Bot turned off: the switch never carries into another venue' };
   }
   if (action === 'breaker_soft' || action === 'breaker_hard') {
     const at = row.inputs?.threshold ?? (action === 'breaker_hard' ? -200 : -50);
