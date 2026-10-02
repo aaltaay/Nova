@@ -1,7 +1,7 @@
 """What Nova does for a stock on its switch (ADR 037, ADR 042 F): hear the setup scanner's triggers,
 send, and manage what it sent.
 
-Every ``STOCK_MODE_POLL_SEC``:
+Every ``STOCK_MODE_POLL_SEC``, and at once when the scanner announces a trigger (``bot.wake``):
 
 1. **The venue.** A venue change clears every switch and approval (``store.sync_venue``).
 2. **Triggers** the scanner announced (``submit``, live feed only) on a stock whose switch is
@@ -37,6 +37,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from bot.audit import record as audit
+from bot.wake import Wake
 from constants_bot import BOT_DEFAULT_WORKING_TTL_SEC, BOT_FP_TRIGGER_MAX_AGE_SEC, BOT_SKIP_VENUE_CHANGING
 from constants_setups import SETUP_STATE_ARMED, SETUP_STATE_NEAR, TAPE_VERDICT_GO
 from constants_stock_mode import (
@@ -65,14 +66,17 @@ WAITING_STATES = (SETUP_STATE_ARMED, SETUP_STATE_NEAR, FILTERED)
 LIVE_TRADE_STATES = (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING)
 _EPS = 1e-9
 _inbox: deque[dict[str, Any]] = deque(maxlen=100)
+_wake = Wake()
 _clock: Callable[[], float] = time.time
 _last_approval_check = 0.0
 _warned: set[str] = set()
 
 
 def submit(event: dict[str, Any]) -> None:
-    """The setup scanner's trigger listener: enqueue only (it runs on the scanner's tick)."""
+    """The setup scanner's trigger listener: enqueue (it runs on the scanner's tick) and wake the loop, so
+    an Auto-entry or an approved bracket goes out now instead of at the next poll."""
     _inbox.append(event)
+    _wake.set()
 
 
 def venue_day(now: float | None = None) -> str:
@@ -103,6 +107,7 @@ async def run() -> None:
     """Background task (``app_runtime_tasks``): listen to the setup scanner, tick forever."""
     from setup_scanner.engine import get_engine
 
+    _wake.bind()
     engine = get_engine()
     engine.add_trigger_listener(submit)
     try:
@@ -113,7 +118,7 @@ async def run() -> None:
                 raise
             except Exception:
                 logger.exception("stock mode: tick failed")
-            await asyncio.sleep(STOCK_MODE_POLL_SEC)
+            await _wake.sleep(STOCK_MODE_POLL_SEC)
     finally:
         engine.remove_trigger_listener(submit)
 

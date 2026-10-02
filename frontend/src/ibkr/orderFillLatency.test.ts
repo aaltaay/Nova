@@ -69,9 +69,29 @@ describe('orderFillLatency', () => {
     expect(fillLatencyTooltip(null)).toBeUndefined();
   });
 
-  it('face is click-to-fill when filled, else click-to-terminal', () => {
+  it('face is click-to-fill only -- an unfilled order has no latency', () => {
     expect(fillLatencyFaceMs(FILLED_OK)).toBe(180);
-    expect(fillLatencyFaceMs(TERMINAL_ONLY)).toBe(3000);
+    expect(fillLatencyFaceMs(TERMINAL_ONLY)).toBeNull();
+    expect(formatFillLatencyMs(fillLatencyFaceMs(TERMINAL_ONLY))).toBe(
+      FILL_LATENCY_EM_DASH,
+    );
+    expect(fillLatencyTone(TERMINAL_ONLY)).toBeNull();
+  });
+
+  it('TNMG bot entry cancelled after its 3s TTL never reads as 3289ms latency', () => {
+    // A backend from before the fix still sends the rest time as face_ms.
+    const tnmg: OrderFillAudit = {
+      place_to_submit_ms: 71,
+      place_to_fill_ms: null,
+      place_to_terminal_ms: 3289,
+      face_ms: 3289,
+      level: 'ok',
+      reason: 'terminal',
+    };
+    expect(formatFillLatencyMs(fillLatencyFaceMs(tnmg))).toBe(FILL_LATENCY_EM_DASH);
+    expect(fillLatencyTooltip(tnmg)).toBe(
+      'Nova → submit: 71ms\nNot filled: it rested 3289ms, then closed -- not latency',
+    );
   });
 
   it('tooltip lists Nova→submit, submit→fill, click→fill as ms lines', () => {
@@ -81,9 +101,9 @@ describe('orderFillLatency', () => {
     expect(submitToFillMs(FILLED_OK)).toBe(168);
   });
 
-  it('tooltip uses click→terminal when there is no fill', () => {
+  it('tooltip says how long an unfilled order rested, never as latency', () => {
     expect(fillLatencyTooltip(TERMINAL_ONLY)).toBe(
-      'Nova → submit: 15ms\nSubmit → fill: unavailable\nClick → terminal: 3000ms',
+      'Nova → submit: 15ms\nNot filled: it rested 3000ms, then closed -- not latency',
     );
   });
 

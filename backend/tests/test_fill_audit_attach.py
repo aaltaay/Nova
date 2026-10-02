@@ -149,7 +149,11 @@ def test_working_without_fill_does_not_show_ack_as_terminal():
     assert out[0]["fill_audit"] is None
 
 
-def test_cancelled_uses_click_to_terminal():
+def test_cancelled_keeps_click_to_terminal_for_the_hover_but_has_no_face():
+    """TNMG 2026-10-02: a bot entry cancelled after its 3 s TTL read "3289ms" under Latency.
+
+    How long an unfilled order rested is not latency: no face, the rest time for the hover.
+    """
     placed_ts = datetime(2026, 9, 16, 14, 5, 0, tzinfo=timezone.utc).timestamp()
     led = {
         "order_id": 8,
@@ -173,6 +177,7 @@ def test_cancelled_uses_click_to_terminal():
     audit = out[0]["fill_audit"]
     assert audit["place_to_fill_ms"] is None
     assert audit["place_to_terminal_ms"] == 3000
+    assert audit["face_ms"] is None
     assert audit["level"] == "ok"
 
 

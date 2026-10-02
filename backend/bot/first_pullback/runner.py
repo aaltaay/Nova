@@ -1,6 +1,6 @@
 """Nova's own bot's loop and its trade (ADR 030; every setup at Strategy since ADR 042).
 
-Every ``BOT_FP_POLL_SEC``:
+Every ``BOT_FP_POLL_SEC``, and at once when the scanner announces a trigger (``bot.wake``):
 
 1. **Never Live.** An active bot on Live (a session from another build, a venue that
    could not be read) is deactivated, on the timeline.
@@ -45,6 +45,7 @@ from bot.first_pullback import admit, flush, orders
 # The operator takes over the exit, and the desk leaves a venue (ADR 037, 042): re-exported.
 from bot.first_pullback.handover import hand_over, leave_venue
 from bot.persist import load_session, save_session
+from bot.wake import Wake
 from constants_bot import (
     BOT_AUDIT_ACTION_TRADE,
     BOT_FP_CANCEL_WAIT_SEC,
@@ -63,14 +64,17 @@ logger = logging.getLogger(__name__)
 LIVE_STATES = admit.LIVE_STATES
 _EPS = 1e-9
 _inbox: deque[dict[str, Any]] = deque(maxlen=50)
+_wake = Wake()
 _clock: Callable[[], float] = time.time
 _last_beat = 0.0
 _warned: set[str] = set()
 
 
 def submit(event: dict[str, Any]) -> None:
-    """The setup scanner's trigger listener: enqueue only (it runs on the scanner's tick)."""
+    """The setup scanner's trigger listener: enqueue (it runs on the scanner's tick) and wake the loop, so
+    the entry goes out now instead of at the next poll."""
     _inbox.append(event)
+    _wake.set()
 
 
 def label(setup: str | None) -> str:
@@ -122,6 +126,7 @@ async def run() -> None:
     from setup_scanner.engine import get_engine
 
     note_start()                  # a restart cleared Activate: on the timeline (ADR 042 B)
+    _wake.bind()
     engine = get_engine()
     engine.add_trigger_listener(submit)
     try:
@@ -132,7 +137,7 @@ async def run() -> None:
                 raise
             except Exception:
                 logger.exception("Nova's bot: tick failed")
-            await asyncio.sleep(BOT_FP_POLL_SEC)
+            await _wake.sleep(BOT_FP_POLL_SEC)
     finally:
         engine.remove_trigger_listener(submit)
 

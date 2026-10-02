@@ -76,6 +76,9 @@ def _int_or_none(value: object) -> int | None:
 def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
     """UI payload, or None when there is no click-to-fill / click-to-terminal.
 
+    Only a fill has a face (``coherent_face_ms``); click-to-terminal is kept for
+    the hover, which says how long an unfilled order rested -- never latency.
+
     Timezone-shaped leftovers (same-second submit + ~4h/5h fill) stay
     publishable so the cell can show an invalid clock, not a confident 4h ok.
     Negative whole-second skew stays publishable as clock_skew / ok so the
@@ -122,7 +125,7 @@ def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "place_to_submit_ms": submit,
         "place_to_fill_ms": fill,
         "place_to_terminal_ms": terminal,
-        "face_ms": coherent_face_ms(fill, terminal, str(reason) if reason else None),
+        "face_ms": coherent_face_ms(fill, str(reason) if reason else None),
         "level": level,
         "reason": reason,
     }
