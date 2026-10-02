@@ -1393,7 +1393,8 @@ value, detail, state: "warn" | "ok" | "unknown", source: "sec_edgar", as_of}`:
 - **On the desk** the row shows with the Float tile's rows and in the Signals sheet like any other; its
   source reads "SEC EDGAR" (`stock_read/constants.ts` `sourceLabel`).
 
-`GET /api/stock-read/{symbol}/decisions?date=YYYY-MM-DD` (default today, ET) answers
+`GET /api/stock-read/{symbol}/decisions?date=YYYY-MM-DD` (default today: the trading day, which starts at
+04:00 ET, never the calendar date) answers
 `{schema_version: 1, symbol, date, generated_at, summary: {text, legs, armed, near, triggered,
 trades, refusals: [{reason, count}]}, events: Event[], sources: {journal, hod_momo, borrow,
 catalysts, bot: {ok, error}}}` -- one symbol's day, oldest first: the eyes' journal lines of that
@@ -1401,7 +1402,8 @@ symbol (live source, the template in play's lanes only -- `playing: true`; ADR 0
 was folded, so each event counted once per template; a run of the same state and reason on one
 lane is one event with `count` and
 `last_ts`; tape verdict flips fold the same way), the first HOD Momo alert of each strategy and the
-day's count, the borrow changes, the day's catalyst and negative news items, the 09:30 open and the
+day's count, the borrow changes, the day's catalyst and negative news items (the News panel's, so only
+while the calendar date is the day's: none for a past day or from midnight to 04:00), the 09:30 open and the
 high of day, and the bot's own `bot_trade` / `setup_proposal` lines for the symbol. An **Event** is
 `{ts, lane: "first_pullback" | "bull_flag" | "flat_top_breakout" | "red_to_green" | "hod_momo" |
 "market" | "bot", event, title, detail: string | null, count, last_ts: number | null, levels:
@@ -1513,7 +1515,7 @@ minutes). `{from_ts, price, level, entry, floor, window_min, complete, bars, hig
   Scores, never fills: no tape, no slippage.
 
 **The route.** `GET /api/stock-read/{symbol}/past-setups?date=YYYY-MM-DD` (owner
-`stock_read/past_setups.py`; default today ET; a sync route, off the loop) answers `{schema_version: 1,
+`stock_read/past_setups.py`; default today: the trading day, from 04:00 ET; a sync route, off the loop) answers `{schema_version: 1,
 symbol, date, generated_at, episodes: Episode[] (oldest first, open ones included), counts: {failed,
 faded, triggered, cut, open}, journal: {ok, error, lines}, bars: {ok, error, count}}` -- `after` for
 every failed or faded one, the failed ones the lane still shows included; `lines` the day's journal
@@ -4176,6 +4178,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-02 | The Trader's Decisions and past setups follow the trading day (#695). Like the triggers table before PR #696, `GET /api/stock-read/{symbol}/decisions` and `/past-setups` with no date answered the calendar date, so from midnight to 04:00 ET the Decisions sheet and the 1-minute chart's past setups read a day with no session (SCKT on the desk at 00:45 ET: 0 events and 0 episodes, against 400 and 17 for the day). Both now default to the hot list's trading day. The day's news stays tied to the calendar date: the News panel's window moves to the next session at midnight. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Tickers today follows the hot list's trading day (ADR 044). `GET /api/bot/triggers` with no date answered the calendar date, while the hot list's day starts at 04:00 ET: from midnight to the rollover the desk's table asked for a day with no list ("no hot list kept for 2026-10-02"), so its listed tickers and their "now" rows vanished and the day's triggered tickers gave way to the new date's file (one overnight trigger, against the day's 21, on the desk at 00:36 ET). Today is now the hot list's trading day in the route and in its hot-list read, from one clock read. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | The trading session ends at 20:00 ET (operator report 2026-10-01 23:33: "How come these things are getting triggered right now? ... the entire market is closed, no?"). After the close IBKR keeps the SMART Level 1 lines moving with its overnight session (20:00-03:50 ET), and Nova read those prints as more of the day: one-minute candles, HOD Momo trades (78 alerts after 20:00) and setup-scanner bars -- OM's "12% leg" was one 200-share print at 20:48 -- while the scanner never ended its day, so legs from 15:52 still read as forming at 23:33 and, after midnight, red to green armed SDEV at 00:12 on a 23:59 print taken for the 09:30 open. One rule (`market.in_trading_session`: 04:00-20:00 ET on an exchange day) now bounds the bar builder, HOD Momo's L1 feed and the scanner, which ends every lane's day at the close with a stated reason. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | Dilution on file (ADR 036 amendment; operator ask: show the dilution filings on file on the stock read). The float group adds the row `dilution_on_file` from SEC EDGAR's submissions file for the symbol's CIK: an S-3 / F-3 shelf within 3 years, a 424B within 180 days, an S-1 / F-1 within 180 days, an 8-K Item 3.02 within 180 days. It reads `warn` when any is on file, `ok` when the registrant is known and none is, and `unknown` with the reason otherwise (never clean). The stock read never waits on it: a background reader (`stock_read/dilution_reader.py`) reads EDGAR on first ask, one request a second, and keeps each symbol's read for its session day in `stock_read/dilution.sqlite3`. Nothing places, stages or gates on it. §3 amended. | User Directive + Claude Fable 5.1 |

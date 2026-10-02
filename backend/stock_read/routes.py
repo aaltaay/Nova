@@ -18,21 +18,22 @@ import logging
 import re
 import threading
 import time
-from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query
 
 from constants_stock_read import STOCK_READ_CACHE_SEC, STOCK_READ_SCHEMA_VERSION
+from hot_list import trading_day
 from scanner_wire import wire_safe
 from stock_read import decisions, flush, gather, history, past_setups, read
 
 router = APIRouter(tags=["stock_read"])
 logger = logging.getLogger(__name__)
-ET = ZoneInfo("America/New_York")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _cache: dict[tuple, tuple[float, dict[str, Any]]] = {}
+# A day route's default is the trading day (the hot list's, from 04:00 ET), never the calendar date: from
+# midnight to 04:00 the chart still shows the day before (#695).
+_DAY = "YYYY-MM-DD; the trading day (from 04:00 ET) by default"
 _lock = threading.Lock()
 
 
@@ -60,23 +61,23 @@ def stock_read(symbol: str, *, entry: float | None = None, stop: float | None = 
 
 
 @router.get("/api/stock-read/{symbol}/decisions")
-def stock_read_decisions(symbol: str, date: str | None = Query(None, description="YYYY-MM-DD (ET); today by default")):
+def stock_read_decisions(symbol: str, date: str | None = Query(None, description=_DAY)):
     sym = _symbol(symbol)
     now = time.time()
-    day = date or datetime.fromtimestamp(now, ET).date().isoformat()
+    day = date or trading_day(now)
     if not _DATE.match(day):
         raise HTTPException(400, "date is YYYY-MM-DD")
     return wire_safe({"schema_version": STOCK_READ_SCHEMA_VERSION, **decisions.timeline(sym, day, now)})
 
 
 @router.get("/api/stock-read/{symbol}/past-setups")
-def stock_read_past_setups(symbol: str, date: str | None = Query(None, description="YYYY-MM-DD (ET); today by default"),
+def stock_read_past_setups(symbol: str, date: str | None = Query(None, description=_DAY),
                            tf: str = Query("1m", description="1m: the setups in play's; 5m: the 5-minute lanes'")):
     sym = _symbol(symbol)
     if tf not in ("1m", "5m"):
         raise HTTPException(400, "tf is 1m or 5m")
     now = time.time()
-    today = datetime.fromtimestamp(now, ET).date().isoformat()
+    today = trading_day(now)
     day = date or today
     if not _DATE.match(day):
         raise HTTPException(400, "date is YYYY-MM-DD")
