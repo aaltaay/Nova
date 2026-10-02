@@ -3808,6 +3808,18 @@ The ranked Five Pillars list (tab id `watchlist`, `GET /api/strategy/watchlist`)
 is labelled **Contenders** in the UI, and the scanner's pillars column
 **Pillars**; ids, API paths and wire fields are unchanged.
 
+### The close-of-day reminder (operator ask, 2026-10-01)
+
+Owner `frontend/src/close_reminder/`, mounted once with the app bar (never on the sample desk). At
+15:50 ET a card per Paper or Live position still open ("Still holding 500 GRML at 15:50 -- be flat by
+15:55"), escalated at 15:55 ("close it now", pulsing), gone at 16:00; a position that goes flat
+takes its card with it. Once per position per day per stage: a dismissed card does not return at
+its stage. Sim is left out (its clock is the replay playhead); weekends too; there is no holiday
+calendar on the client. `localStorage` `nova.closeReminder.fired` (a `prefStore` envelope) holds `{schema_version: 1, date:
+"YYYY-MM-DD" (ET), keys: ["<date>|<venue>|<SYMBOL>|<warn | final>", ...]}`; another date or an unknown
+version is ignored. On Live the rows may be last-known (the Gateway dropped) and the card says so.
+Nothing here places, stages or cancels an order.
+
 ### Execution command (ADR 007 — sole broker mutation entry)
 
 All buy/sell/cancel/replace requests enter `execution.service.execute` with:
@@ -4089,6 +4101,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-01 | The close-of-day reminder (operator ask: be flat before the close, nothing held overnight). A loud card at 15:50 ET per open Paper / Live position, escalated at 15:55, gone at 16:00, once per position per day per stage, remembered for the day in `nova.closeReminder.fired`. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-10-01 | One Bots page (ADR 044; operator: "I definitely don't like it if we have redundancies ... put everything on one page", after AISP's three triggers went unbought for five reasons no screen showed together: the Bot off since the 09:43 bot trip, AISP not on any list, the bot windows closed at 10:00, its tape BLIND while three Trader tabs held IBKR's three lines, a 1-share sleeve). One Bot switch per venue replaces the master dial and Activate (`POST /api/bot/session/switch`; the bot trip now leaves Eyes running); each strategy is Off / Eyes / On with its own grades, setups a stock a day and bot window; today's hot list (`backend/hot_list/`, auto top N of the Gainers plus your stars, fresh at 04:00) is what Nova may buy, and the watch list folds into its ★; Tickers today (`GET /api/bot/triggers`) shows every ticker's ten checks now and at each of the day's triggers, red with why; a Trader tab you are not looking at lends its Level 2 and Time & Sales lines to a setup near its trigger; the kill switch is Freeze all orders; and the Trader's charts get one Eyes switch for everything Nova draws. Measured on today's journal: 32 triggers on 21 tickers, 29 of them BLIND. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | The repository root tidied (operator: "It just does not feel professional ... I need you to clean it up"). Removed: `findings.md`, `progress.md` and `task_plan.md` (April planning logs), `gemini.md` (a legacy alias of this file), `.tmp/` (a scratch file that should never have been tracked) and `brand_guideline/` (an unused reference image). Moved: `_archived/` to `docs/archive/`, `DEFERRED_LOG.md` to `docs/deferred-log.md`, the four `.bat` launchers to `scripts/windows/` (they find the repo two levels up; no scheduled task calls them) and the launcher icon into `tools/nova-launcher/`. Every reference moved with them; the README gains a layout map. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | A public demo of the desk (ADR 043; operator: "I want the demo to be live ... I just care about the interface, really, with fake data"). The sample desk (`?view=sample`) runs without a backend but is a thin shell (its charts read "no candles here"); the README screenshots came from the real desk driven by a fake backend. `npm run build:demo` builds the real desk with that backend inside the page (`frontend/src/demo/`): every API call and socket is answered with Nova Marketing Sample Data, the clock starts at the sample morning and runs, the open symbol's tape and book tick, and orders, arming and settings are refused with the reason. §8's "do not host the trading SPA" keeps its reason, and the demo meets it by construction: `fetch`, `WebSocket` and `sendBeacon` are replaced before the app loads, the API base is a name that never resolves, and loopback and API requests never leave the page. Hosted at nova.altaystudio.com/demo/. §8 amended. | User Directive + Claude Opus 5.5 |
