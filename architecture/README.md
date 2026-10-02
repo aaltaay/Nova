@@ -44,6 +44,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [040](./decisions/040-cryptos-page.md) | The Cryptos page: a read-only reference board for the 24/7 crypto market (named public sources, each labelled), the stocks it moves (IBKR), unknowns stated, and a hover card that explains every number | Accepted |
 | [041](./decisions/041-signal-trials.md) | Signal trials: a tape reading becomes a call only by passing a test registered before its data exists (`knowledge/signal-trials.json`, frozen), and auto-record gives Level 2 lines to setups in a trade, near or armed before the leaders | Accepted |
 | [042](./decisions/042-one-owner-for-novas-buys.md) | One owner for Nova's buys: a level per setup under a master ceiling (no chosen setup), one Activate cleared on restart and padlock lock, one sleeve per venue sizing every Nova buy, the bot list written only through Who trades, NOT A TRADE as one rule, stops that lift at 04:00 ET and say what they do, and no silent blocks | Accepted |
+| [043](./decisions/043-public-demo.md) | A public demo of the desk at nova.altaystudio.com/demo/: the real desk on Nova Marketing Sample Data with its backend inside the page, no path to any backend, nothing placed | Accepted |
 
 ## Rules and maps
 

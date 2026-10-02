@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { isNovaApiDebug } from './debug';
+import { DEMO_API_BASE, IS_DEMO } from './demo/demoFlag';
 import { initThemeFromStorage } from './theme/themePrefs';
 import { installFindBar } from './ux/findBar';
 import { installHoverTip } from './ux/hoverTip';
@@ -15,7 +16,14 @@ void bootstrap().catch((err) => {
 });
 
 async function bootstrap(): Promise<void> {
-  const base = await resolveApiBase();
+  // ADR 043: the public demo answers every API call and socket inside the page, so it is
+  // installed before anything can reach for a server. The flag is read inline, not through
+  // IS_DEMO, so a normal build drops the branch before chunking and emits no demo files.
+  if (import.meta.env.VITE_NOVA_DEMO === '1') {
+    const { installDemo } = await import('./demo/installDemo');
+    installDemo(window);
+  }
+  const base = IS_DEMO ? DEMO_API_BASE : await resolveApiBase();
   window.__NOVA_API_BASE__ = base;
   if (isNovaApiDebug()) {
     console.info('[Nova] API base:', base, '| Try:', `${base}/api/health`);

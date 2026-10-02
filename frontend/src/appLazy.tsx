@@ -8,3 +8,6 @@ export const LazySampleShell = lazy(() =>
 export const LazyStockViewTabs = lazy(() =>
   import('./stock_view/StockViewTabs').then(m => ({ default: m.StockViewTabs })),
 );
+
+/** The public demo's strip (ADR 043); null in every other build. */
+export const LazyDemoStrip = import.meta.env.VITE_NOVA_DEMO === '1' ? lazy(() => import('./demo/DemoStrip')) : null;

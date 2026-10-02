@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:demo": "tsc -b && vite build --mode demo --base /demo/ --outDir dist-demo",
     "postbuild": "node scripts/write-dist-api-config.mjs",
     "build:electron-renderer": "cross-env NOVA_ELECTRON_BUILD=1 tsc -b && cross-env NOVA_ELECTRON_BUILD=1 vite build",
     "lint": "eslint . --max-warnings 0",
@@ -18,6 +19,7 @@
     "test:e2e:orders": "playwright test e2e/open-closed-orders.spec.ts",
     "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview",
+    "preview:demo": "vite preview --mode demo --outDir dist-demo --base /demo/",
     "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env NOVA_VITE_URL=http://127.0.0.1:5173 electron .\"",
     "build:api": "node scripts/build-api-sidecar.mjs",
     "electron:pack": "npm run build:api && npm run build:electron-renderer && node scripts/run-electron-pack.mjs",

@@ -1,0 +1,54 @@
+/*
+ * The public demo's strip (ADR 043). A flex child of .nova-app-main beside the header, so it
+ * keeps its own height (`flex: 0 0 auto`) and the branch below absorbs the difference.
+ */
+.demo-strip {
+  flex: 0 0 auto;
+}
+
+.demo-strip__text {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.45rem;
+  min-width: 0;
+}
+
+.demo-strip__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent-color, #3b82f6) 55%, transparent);
+  color: var(--accent-color, #3b82f6);
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.demo-strip__chip::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent-color, #3b82f6);
+}
+
+.demo-strip__links {
+  display: inline-flex;
+  flex: none;
+  gap: 0.4rem;
+}
+
+.demo-strip__links a {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.demo-strip__cta {
+  border-color: color-mix(in srgb, var(--accent-color, #3b82f6) 60%, transparent);
+  color: var(--text-primary);
+  font-weight: 600;
+}
