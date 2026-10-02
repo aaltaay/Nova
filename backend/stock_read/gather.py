@@ -1,5 +1,7 @@
 """Gather one symbol's facts from the owners that hold them (ADR 036). Reads caches, stores and the
-sensor rings; never waits on the network, never opens an IBKR line, never writes.
+sensor rings; never waits on the network, never opens an IBKR line, never writes. The one thing asking
+can start is the dilution reader's background read of SEC EDGAR (``stock_read/dilution_reader.py``),
+which this never waits for.
 
 Each owner is read on its own: one that fails leaves its fact ``None`` and its reason in
 ``errors`` -- the rules then say "unknown" with that reason, and every other fact still answers.
@@ -131,6 +133,14 @@ def _board(sym: str) -> str | None:
     return source
 
 
+def _dilution(sym: str, now: float) -> dict[str, Any]:
+    """The last read of SEC EDGAR kept for it, from memory. Asking is what queues a read in the
+    background when none is fresh; the answer never waits for it."""
+    from stock_read import dilution_reader
+
+    return dilution_reader.view(sym, now)
+
+
 def gather(symbol: str, now: float) -> dict[str, Any]:
     from ibkr.halt_status import halted_now
     from ibkr.shortability import cached as shortability
@@ -160,4 +170,5 @@ def gather(symbol: str, now: float) -> dict[str, Any]:
         "bot": _try(errors, "bot", lambda: _bot(sym)),
         "board": _try(errors, "board", lambda: _board(sym)),
         "nova_exit": _try(errors, "nova_exit", lambda: _nova_exit(sym)),
+        "dilution": _try(errors, "dilution", lambda: _dilution(sym, now)),
     }

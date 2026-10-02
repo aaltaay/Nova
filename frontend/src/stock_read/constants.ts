@@ -43,6 +43,16 @@ export const TILE_NAMES: Record<string, string> = {
   halts: 'Halts',
 };
 
+/** A row's `source` is written in words by the backend, except the ids listed here: each reads as its
+ * name on screen (`sec_edgar`: the float group's "Dilution on file"). */
+const SOURCE_LABELS: ReadonlyMap<string, string> = new Map([
+  ['sec_edgar', 'SEC EDGAR'],
+]);
+
+export function sourceLabel(source: string): string {
+  return SOURCE_LABELS.get(source) ?? source;
+}
+
 /** Colours read for a long momentum trade (the account is long-only). */
 export const STATE_COLORS: Record<ReadState, string> = {
   ok: '#30d158',

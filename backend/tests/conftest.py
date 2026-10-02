@@ -63,6 +63,8 @@ os.environ["NOVA_EYES_JOURNAL"] = "0"
 os.environ["NOVA_BOOK_WATCH"] = "0"
 # ADR 040: an app a test boots must not start the Cryptos page's refreshers; its tests drive them directly.
 os.environ["NOVA_CRYPTO"] = "0"
+# ADR 036: a stock read a test asks for must not read SEC EDGAR; the dilution tests drive the reader directly.
+os.environ["NOVA_DILUTION_READER"] = "0"
 
 import pytest
 

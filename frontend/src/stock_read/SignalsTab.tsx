@@ -2,7 +2,7 @@
  * the plan, filters by what a row says (for it, against it, caution, unknown) and a search. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { hhmmEt } from './timeWords';
-import { STATE_WORDS, TILE_NAMES } from './constants';
+import { STATE_WORDS, TILE_NAMES, sourceLabel } from './constants';
 import { fmtPx, rrText, setupName } from './planMath';
 import { GroupHead, ReadRowList } from './ReadRows';
 import type { ReadGroupId, ReadRow, ReadState, StockRead } from './types';
@@ -32,7 +32,7 @@ export function readSummary(read: StockRead): string {
 
 function matches(row: ReadRow, q: string): boolean {
   if (!q) return true;
-  const hay = `${row.label} ${row.value} ${row.detail ?? ''} ${row.source}`.toLowerCase();
+  const hay = `${row.label} ${row.value} ${row.detail ?? ''} ${sourceLabel(row.source)}`.toLowerCase();
   return q.split(/\s+/).every(w => hay.includes(w));
 }
 

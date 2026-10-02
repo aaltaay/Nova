@@ -3,5 +3,7 @@ the history for one symbol, composed from the owners that already hold each fact
 
 Read-only: nothing here places, stages or cancels an order, opens an IBKR line or waits on the
 network. ``gather`` reads the owners (caches, stores, sensors); ``indicators``, ``plan`` and the
-``rows_*`` modules are pure rules over what it gathered; ``routes`` serves them.
+``rows_*`` modules are pure rules over what it gathered; ``routes`` serves them. One fact is the
+package's own: the dilution filings SEC EDGAR holds for the symbol (``dilution``, pure), read in the
+background by ``dilution_reader`` and kept by ``dilution_store`` -- the read asks, and never waits.
 """

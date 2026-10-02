@@ -1347,6 +1347,52 @@ out reads its result ("STOP FIRST 08:08 · -1.00R") instead of TRIGGERED.
 The setup cards and Watchlist › Setups show every grade with its count ("C 1/5"), forming rows
 too, and a filtered row greyed with its phase ("Filtered · near").
 
+**Dilution on file** (the `float` group's last row; operator ask 2026-10-01: show the dilution filings on
+file -- an S-3 / F-3 shelf, a 424B, an S-1 / F-1, an 8-K Item 3.02 -- on the stock read). Owners
+`stock_read/dilution.py` (pure), `stock_read/dilution_reader.py` and `stock_read/dilution_store.py`;
+constants `STOCK_READ_DILUTION_*`. Read-only: nothing places, stages or gates on it, and the Float tile's
+verdict stays the float's. The row before it, `dilution` ("Dilution today"), reads today's catalyst items;
+this one reads what the registrant has on file. It is `{id: "dilution_on_file", label: "Dilution on file",
+value, detail, state: "warn" | "ok" | "unknown", source: "sec_edgar", as_of}`:
+- **The facts** are SEC EDGAR's, from the registrant's submissions file
+  (`data.sec.gov/submissions/CIK##########.json`: the columns `form`, `filingDate`, `items`). The CIK is
+  looked up in SEC's `company_tickers.json`, a share class as SEC writes it (`BRK/B` is `BRK-B`). Four
+  kinds, each by its filing date against today's Eastern date, the window's last day included:
+  - **shelf**: an S-3, S-3/A, S-3ASR, F-3, F-3/A or F-3ASR within `STOCK_READ_DILUTION_SHELF_DAYS` (3 years);
+  - **prospectus**: any 424B* within `STOCK_READ_DILUTION_PROSPECTUS_DAYS` (180);
+  - **s1**: an S-1, S-1/A, F-1 or F-1/A within `STOCK_READ_DILUTION_S1_DAYS` (180);
+  - **placement**: an 8-K whose Items include 3.02 within `STOCK_READ_DILUTION_PLACEMENT_DAYS` (180).
+- **States.**
+  - `warn` when any kind is on file. `value` names the newest filing of each kind with its month ("S-3
+    shelf 2025-03, 424B5 2026-08, S-1/A 2026-07, 8-K 3.02 2026-09"); `detail` gives the dates and counts.
+  - `ok` ("None on file") when the registrant is known, the list was read back to the start of every
+    window, and none is on file.
+  - `unknown` otherwise, the detail saying why -- never read as clean: the first read is under way
+    ("Reading EDGAR…"); SEC's ticker list has no registrant for the symbol; EDGAR could not be read (the
+    reason, and when Nova asks again); the reader is off; a kept read found none but is past its day; or
+    EDGAR pages the list and a page that reaches into a window was not read.
+  - `as_of` is when the submissions file was fetched, `null` without a kept read. A read past its day
+    keeps a `warn` (what is on file stays on file) and says a new read is under way.
+- **The read never waits on the network.** `gather` asks `dilution_reader.view(symbol, now)`, which
+  answers from memory and queues the symbol when no fresh read is kept. One daemon thread reads EDGAR:
+  - with the desk's SEC user agent (`SEC_USER_AGENT`, else the catalyst feed's default), at most one
+    request every `STOCK_READ_DILUTION_SEC_MIN_GAP_SEC` (1 s; the catalyst feed paces its own);
+  - a read is fresh until the next 04:00 ET, and never longer than `STOCK_READ_DILUTION_TTL_SEC` (a day);
+  - a failed read is tried again after `STOCK_READ_DILUTION_RETRY_SEC` (30 s, 2 min, then every 10 min),
+    the next time the symbol is asked about;
+  - EDGAR's `recent` block holds a year or 1,000 filings, whichever is more. Older pages are read only
+    when at most `STOCK_READ_DILUTION_MAX_PAGES` (2) reach into a window; else that kind is `unknown`.
+- **Kept on disk:** `<cache_dir>/stock_read/dilution.sqlite3` (owner `stock_read/dilution_store.py`;
+  `PRAGMA user_version = 1`; an unknown version refuses, and the reader then keeps its reads in memory).
+  `reads (symbol, fetched_at, body)`, `body` the read as JSON: `{status: "read" | "no_cik", cik, name,
+  filings: [{kind: "shelf" | "prospectus" | "s1" | "placement", form, date}], more: string[], unread_to:
+  string | null}` (`no_cik` adds `listed_at`). `filings` holds at most `STOCK_READ_DILUTION_KEEP_PER_KIND`
+  a kind, `more` names a kind cut there, and `unread_to` is the last filing date of the newest page not
+  read. Rows older than `STOCK_READ_DILUTION_KEEP_DAYS` are deleted. `NOVA_DILUTION_READER=0` turns the
+  reader off.
+- **On the desk** the row shows with the Float tile's rows and in the Signals sheet like any other; its
+  source reads "SEC EDGAR" (`stock_read/constants.ts` `sourceLabel`).
+
 `GET /api/stock-read/{symbol}/decisions?date=YYYY-MM-DD` (default today, ET) answers
 `{schema_version: 1, symbol, date, generated_at, summary: {text, legs, armed, near, triggered,
 trades, refusals: [{reason, count}]}, events: Event[], sources: {journal, hod_momo, borrow,
@@ -4101,6 +4147,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-01 | Dilution on file (ADR 036 amendment; operator ask: show the dilution filings on file on the stock read). The float group adds the row `dilution_on_file` from SEC EDGAR's submissions file for the symbol's CIK: an S-3 / F-3 shelf within 3 years, a 424B within 180 days, an S-1 / F-1 within 180 days, an 8-K Item 3.02 within 180 days. It reads `warn` when any is on file, `ok` when the registrant is known and none is, and `unknown` with the reason otherwise (never clean). The stock read never waits on it: a background reader (`stock_read/dilution_reader.py`) reads EDGAR on first ask, one request a second, and keeps each symbol's read for its session day in `stock_read/dilution.sqlite3`. Nothing places, stages or gates on it. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-10-01 | The close-of-day reminder (operator ask: be flat before the close, nothing held overnight). A loud card at 15:50 ET per open Paper / Live position, escalated at 15:55, gone at 16:00, once per position per day per stage, remembered for the day in `nova.closeReminder.fired`. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-10-01 | One Bots page (ADR 044; operator: "I definitely don't like it if we have redundancies ... put everything on one page", after AISP's three triggers went unbought for five reasons no screen showed together: the Bot off since the 09:43 bot trip, AISP not on any list, the bot windows closed at 10:00, its tape BLIND while three Trader tabs held IBKR's three lines, a 1-share sleeve). One Bot switch per venue replaces the master dial and Activate (`POST /api/bot/session/switch`; the bot trip now leaves Eyes running); each strategy is Off / Eyes / On with its own grades, setups a stock a day and bot window; today's hot list (`backend/hot_list/`, auto top N of the Gainers plus your stars, fresh at 04:00) is what Nova may buy, and the watch list folds into its ★; Tickers today (`GET /api/bot/triggers`) shows every ticker's ten checks now and at each of the day's triggers, red with why; a Trader tab you are not looking at lends its Level 2 and Time & Sales lines to a setup near its trigger; the kill switch is Freeze all orders; and the Trader's charts get one Eyes switch for everything Nova draws. Measured on today's journal: 32 triggers on 21 tickers, 29 of them BLIND. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | The repository root tidied (operator: "It just does not feel professional ... I need you to clean it up"). Removed: `findings.md`, `progress.md` and `task_plan.md` (April planning logs), `gemini.md` (a legacy alias of this file), `.tmp/` (a scratch file that should never have been tracked) and `brand_guideline/` (an unused reference image). Moved: `_archived/` to `docs/archive/`, `DEFERRED_LOG.md` to `docs/deferred-log.md`, the four `.bat` launchers to `scripts/windows/` (they find the repo two levels up; no scheduled task calls them) and the launcher icon into `tools/nova-launcher/`. Every reference moved with them; the README gains a layout map. | User Directive + Claude Opus 5.5 |

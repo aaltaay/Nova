@@ -23,7 +23,7 @@ from constants_stock_read import (
     STOCK_READ_SPLIT_RECENT_DAYS,
     STOCK_READ_VOLUME_PROFILE_BARS,
 )
-from stock_read import rounds
+from stock_read import dilution, rounds
 
 ET = ZoneInfo("America/New_York")
 
@@ -349,6 +349,7 @@ def float_rows(f: dict[str, Any]) -> list[dict[str, Any]]:
                        cat.get("title")))
     else:
         out.append(row("dilution", "Dilution today", "No offering in today's items", "ok", "Catalyst items"))
+    out.append(dilution.row(f.get("dilution"), float(f.get("now") or 0.0)))    # what SEC EDGAR holds on file
     return out
 
 
