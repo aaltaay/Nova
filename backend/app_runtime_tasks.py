@@ -27,6 +27,7 @@ import archive.write_queue as _archive_write_queue
 from bot.first_pullback import runner as _bot_first_pullback
 from bot.loops import breaker_loop, ttl_loop
 from stock_mode import runner as _stock_mode_runner
+from hot_list import auto as _hot_list_auto
 from capture import keepalive as _capture_keepalive
 from gc_policy import freeze as _gc_freeze
 from constants import IBKR_DETAIL_STREAM_FRESH_SEC, L2_RETENTION_SWEEP_INTERVAL_SEC
@@ -115,6 +116,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("bot.first_pullback", _bot_first_pullback.run),
         # Who trades the stock (ADR 037): Auto-entry and Approve on Paper and Sim; never on Live.
         ("stock_mode.runner", _stock_mode_runner.run),
+        # Today's hot list (ADR 043): the 04:00 ET rollover, and the leaders' top N from 07:00 to 16:00 ET.
+        ("hot_list.auto", _hot_list_auto.run),
         # Session Record: resume after a restart / failure / Gateway drop, then say so.
         ("capture.keepalive", _capture_keepalive.run),
         # Paper venue (ADR 020): resting practice orders fill on live tape prints.

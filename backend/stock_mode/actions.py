@@ -6,7 +6,8 @@ on the bot's audit stream. Cancels and sends go through the execution door (``st
 ADR 042: this is the bot list's one owner -- ``bot.allowlist`` and every desk button set a stock here,
 so each meets the same rules (the Live lock, "you hold it", the 50-stock cap). A stock has one mode:
 Bot (this venue's bot list) and an Auto-entry / Approve switch never stand together. A take-over always
-leaves Buy on You, and never claims a cancel it did not get.
+leaves Buy on You, and never claims a cancel it did not get. ADR 043: Buy to Nova stars the stock onto
+today's hot list (``hot_list.stock_tie``); a full list refuses before anything changes.
 """
 from __future__ import annotations
 
@@ -102,17 +103,24 @@ async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any = Non
     buy, sell = model.side(buy_raw, "buy"), model.side(sell_raw, "sell")
     mode = model.mode_of(buy, sell)
     _venue_gate(buy, sell)
+    from hot_list import stock_tie
+
+    star = stock_tie.star_needed(sym, buy)   # ADR 043: Nova buys only listed stocks; a full list refuses first
     before = view.build(sym, now=now)
     was_mode, was_sell = before["mode"], before["sell"]
     if sell == STOCK_MODE_SIDE_YOU and _exit_held(sym):
         await _take_exits(sym, now)          # Sell: You takes back the exit you handed Nova
         return view.build(sym, now=now)
     if mode == was_mode:
+        if star:
+            stock_tie.star(sym)
         return before
     if sell == STOCK_MODE_SIDE_NOVA and was_sell == STOCK_MODE_SIDE_YOU and _held(sym) > _EPS:
         raise StockModeError(STOCK_MODE_HELD, STOCK_MODE_WHY_HELD.format(sym=sym), field="sell")
     if mode == STOCK_MODE_BOT:
         _room_on_list(sym)              # first: a full list refuses before anything else changes
+    if star:
+        stock_tie.star(sym)             # the first change: Buy to Nova puts the stock on today's hot list
     if was_sell == STOCK_MODE_SIDE_NOVA and sell == STOCK_MODE_SIDE_YOU and _nova_holds_exits(sym, before):
         await _take_exits(sym, now)
     if was_mode == STOCK_MODE_AUTO_ENTRY and mode != STOCK_MODE_AUTO_ENTRY:

@@ -51,6 +51,7 @@ from stock_read.routes import router as stock_read_router
 from screen_record.routes import router as screen_record_router
 from clips.routes import router as clips_router
 from stock_mode.routes import router as stock_mode_router
+from hot_list.routes import router as hot_list_router
 from crypto.routes import router as crypto_router
 
 
@@ -103,4 +104,5 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(screen_record_router)
     app.include_router(clips_router)
     app.include_router(stock_mode_router)
+    app.include_router(hot_list_router)
     app.include_router(crypto_router)

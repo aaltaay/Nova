@@ -83,6 +83,12 @@ def is_stock_mode_mutate(method: str, path: str) -> bool:
     return method in _MUTATING and (normalized == "/api/stock-mode" or normalized.startswith("/api/stock-mode/"))
 
 
+def is_hot_list_mutate(method: str, path: str) -> bool:
+    """Today's hot list decides what Nova may buy (ADR 043): keyed like a bot route."""
+    normalized = path.rstrip("/") or "/"
+    return method in _MUTATING and (normalized == "/api/hot-list" or normalized.startswith("/api/hot-list/"))
+
+
 def is_sensor_http_path(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
     return normalized == "/sensors" or normalized.startswith("/sensors/")
@@ -158,7 +164,7 @@ class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         mutating = request.method in _MUTATING
         bot = (is_bot_mutate(request.method, path) or is_setup_template_mutate(request.method, path)
-               or is_stock_mode_mutate(request.method, path))
+               or is_stock_mode_mutate(request.method, path) or is_hot_list_mutate(request.method, path))
         issue = is_issue_report_mutate(request.method, path)
         api = path.startswith("/api/")
         sensors = is_sensor_mutate(request.method, path)

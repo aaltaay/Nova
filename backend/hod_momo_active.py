@@ -1,12 +1,15 @@
 """Capacity-bounded HOD active evaluation set (ADR 008).
 
 HOD eligibility is exactly the current-session displayed union: Gappers,
-Gainers, Afterhours, and the manually curated Former Momo list — nothing
-else. No volume seeds, no open-ticker priority, no Losers, no rotating
-"explore" tail. Admission order: Former Momo first (capped at
+Gainers, Afterhours, and the manually curated Former Momo list — plus
+today's hot list (ADR 043), nothing else. No volume seeds, no open-ticker
+priority, no Losers, no rotating "explore" tail. Admission order: the hot
+list first (the names Nova may trade get an L1 line, a snapshot and bars,
+so the setup scanner follows them), then Former Momo (capped at
 ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` so a bloated list cannot starve live
 movers), then a deterministic round-robin across ranked Gappers / Gainers /
 Afterhours queues so no single category can monopolize the active set.
+Rows are ordered by ``hod_momo_active_rank`` (pure).
 """
 from __future__ import annotations
 
@@ -25,6 +28,8 @@ from constants import (
     HOD_MOMO_L1_SUBSCRIBE_FAIL_COOLDOWN_SEC,
     IBKR_TABLE_REPRICE_CHUNK_SIZE,
 )
+from constants_hot_list import HOT_LIST_ACTIVE_REASON
+from hod_momo_active_rank import discovery_candidates, ordered_unique, ranked_symbols
 
 # Per-symbol live timestamps (unix seconds)
 _last_quote_ts: dict[str, float] = {}
@@ -142,99 +147,21 @@ def clear_session_state() -> None:
     _tail_rotate = 0
 
 
-def _row_score(row: dict) -> float:
-    for key in ("change_pct", "gap_percent", "change_abs"):
-        val = row.get(key)
-        if val is None:
-            continue
-        try:
-            return abs(float(val))
-        except (TypeError, ValueError):
-            continue
-    return 0.0
-
-
-def _ordered_unique(symbols: Iterable[str]) -> list[str]:
-    """Preserve first-seen rank order (do not alphabetically sort)."""
-    out: list[str] = []
-    seen: set[str] = set()
-    for raw in symbols:
-        sym = (raw or "").strip().upper()
-        if not sym or sym in seen:
-            continue
-        seen.add(sym)
-        out.append(sym)
-    return out
-
-
-def _row_rank(row: dict) -> float:
-    """IB's own scanner rank, or +inf when the row carries none."""
-    raw = row.get("rank")
-    if raw is None:
-        return float("inf")
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return float("inf")
-
-
-def _ranked_symbols(rows: Iterable[dict] | None) -> list[str]:
-    """Rows ranked by magnitude of move, hottest first.
-
-    Ties (most commonly every still-unpriced row, score 0.0) break on IB's
-    own scanner rank, not the symbol string -- sorting unpriced rows
-    alphabetically is what buried XAIR (IB gainer rank 3) behind BY/CNTB/ECF
-    on 2026-08-31 (PROBLEM_LOG). Rank is also the ordering the discovery
-    quota below uses for rows no score has reached yet.
-    """
-    ranked: list[tuple[float, float, str]] = []
-    seen: set[str] = set()
-    for row in rows or []:
-        sym = (row.get("symbol") or "").strip().upper()
-        if not sym or sym in seen:
-            continue
-        seen.add(sym)
-        ranked.append((_row_score(row), _row_rank(row), sym))
-    ranked.sort(key=lambda t: (-t[0], t[1], t[2]))
-    return [sym for _score, _rank, sym in ranked]
-
-
-def _discovery_candidates(rows_lists: Iterable[Iterable[dict] | None]) -> list[str]:
-    """Still-unpriced (score 0.0) symbols across every table, IB rank first.
-
-    A row with a real score already competes for a normal round-robin slot
-    on merit -- this pool exists only for rows no L1 tick has reached yet,
-    which ``_row_score`` cannot otherwise distinguish from "legitimately
-    quiet" (both score 0.0). IB rank is the only signal that still exists for
-    those rows, so it decides discovery order.
-    """
-    ranked: list[tuple[float, str]] = []
-    seen: set[str] = set()
-    for rows in rows_lists:
-        for row in rows or []:
-            sym = (row.get("symbol") or "").strip().upper()
-            if not sym or sym in seen:
-                continue
-            seen.add(sym)
-            if _row_score(row) != 0.0:
-                continue
-            ranked.append((_row_rank(row), sym))
-    ranked.sort(key=lambda t: (t[0], t[1]))
-    return [sym for _rank, sym in ranked]
-
-
 def build_active_set(
     *,
     gapper_rows: Iterable[dict] | None = None,
     gainer_rows: Iterable[dict] | None = None,
     afterhours_rows: Iterable[dict] | None = None,
     priority_symbols: Iterable[str] | None = None,
+    hot_symbols: Iterable[str] | None = None,
     capacity: int = HOD_MOMO_ACTIVE_SET_CAPACITY,
     now: float | None = None,
 ) -> ActiveSetSnapshot:
     """Deterministic bounded admission — the ADR 008 HOD union.
 
-    1. Manual Former Momo (``priority_symbols``) admitted first, in list
+    0. Today's hot list (``hot_symbols``, ADR 043) admitted first, in list
+       order, within ``capacity``: reason ``hot_list``.
+    1. Manual Former Momo (``priority_symbols``) admitted next, in list
        order, up to ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS``. Excess former symbols
        are uncovered with reason ``former_momo_over_cap``.
     2. Up to ``HOD_MOMO_ACTIVE_DISCOVERY_SLOTS`` still-unpriced rows admitted
@@ -267,7 +194,10 @@ def build_active_set(
         reasons[s] = reason
         return True
 
-    for sym in _ordered_unique(priority_symbols or []):
+    for sym in ordered_unique(hot_symbols or []):
+        _take(sym, HOT_LIST_ACTIVE_REASON)
+
+    for sym in ordered_unique(priority_symbols or []):
         s = (sym or "").strip().upper()
         if not s or s in seen:
             continue
@@ -277,7 +207,7 @@ def build_active_set(
         if _take(s, "former_momo"):
             former_taken += 1
 
-    candidates = _discovery_candidates((gapper_rows, gainer_rows, afterhours_rows))
+    candidates = discovery_candidates((gapper_rows, gainer_rows, afterhours_rows))
     candidate_set = set(candidates)
     for sym in list(_discovery_since):
         if sym not in candidate_set:
@@ -307,9 +237,9 @@ def build_active_set(
             discovery_taken += 1
 
     queues: dict[str, list[str]] = {
-        "gapper": _ranked_symbols(gapper_rows),
-        "top_gainer": _ranked_symbols(gainer_rows),
-        "afterhours": _ranked_symbols(afterhours_rows),
+        "gapper": ranked_symbols(gapper_rows),
+        "top_gainer": ranked_symbols(gainer_rows),
+        "afterhours": ranked_symbols(afterhours_rows),
     }
     order = list(queues.keys())
     idx = 0
@@ -327,12 +257,13 @@ def build_active_set(
         if not any(queues.values()):
             break
 
-    all_candidates = _ordered_unique(
+    all_candidates = ordered_unique(
         list(active)
+        + list(hot_symbols or [])
         + list(priority_symbols or [])
-        + _ranked_symbols(gapper_rows)
-        + _ranked_symbols(gainer_rows)
-        + _ranked_symbols(afterhours_rows)
+        + ranked_symbols(gapper_rows)
+        + ranked_symbols(gainer_rows)
+        + ranked_symbols(afterhours_rows)
     )
     uncovered = [s for s in all_candidates if s not in seen]
 

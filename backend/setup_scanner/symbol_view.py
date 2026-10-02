@@ -15,8 +15,8 @@ from setup_scanner.board import template_view
 from setup_scanner.detectors import window, window_state
 from setup_scanner.five_minute_lane import is_five_minute
 
-NOT_FOLLOWED = ("the setup scanner follows the HOD Momo active names; {sym} is not one of them right now, "
-                "so no lane reads it")
+NOT_FOLLOWED = ("{sym} is not on today's hot list and not among the HOD Momo names the scanners follow, so no "
+                "lane reads it -- star it to follow it")
 REPLAY_DESK = ("a Sim replay desk: the live scanner's lanes are not the replay's -- the Sim eyes follow the "
                "loaded recording")
 
