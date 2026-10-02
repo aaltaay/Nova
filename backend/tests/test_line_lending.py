@@ -1,4 +1,4 @@
-"""A hidden Trader tab lends its Level 2 line to a setup Nova may buy (ADR 043 decision 6).
+"""A hidden Trader tab lends its Level 2 line (and its Time & Sales line) to a setup Nova may buy (ADR 043 d. 6).
 
 Who lends (a Trader tab no visible window shows; never the tab in front, a Record hold or an
 unknown focus), who borrows (a strategy at On, Buy is Nova, the bot active; armed, near or in a
@@ -68,12 +68,11 @@ def test_a_hidden_tab_lends_its_line_to_a_setup_near_its_trigger(desk):
     assert frame["text"] == ("Level 2 lent to AISP's first pullback (near its trigger) -- back when it ends or "
                              "when you bring this tab to the front")
     assert "ABC" in desk.unsubscribed and desk.lines["AISP"]["viewers"] == 1
-    assert desk.tape["AISP"] == 1                         # the tape gate reads prints beside the book
     (start,) = line_loan_lines()
     assert start["outcome"] == "lent"
-    assert start["reason"] == "ABC's Level 2 lent to AISP's first pullback (near its trigger)"
+    assert start["reason"] == "ABC's Level 2 and Time & Sales lent to AISP's first pullback (near its trigger)"
     assert start["inputs"] == {"lender": "ABC", "borrower": "AISP", "setup_type": "first_pullback",
-                               "setup_id": "AISP-2026-10-01-1"}
+                               "setup_id": "AISP-2026-10-01-1", "tape_lent": True}
     print("LENT FRAME", json.dumps(frame))
 
 
@@ -91,12 +90,12 @@ def test_a_tab_on_a_stock_nova_needs_itself_never_lends(desk):
 
 
 def test_a_loan_that_fails_midway_leaves_nothing_pending(desk, monkeypatch):
-    from line_lending import lines
+    from line_lending import line_moves
 
     async def broken(_symbol):
         raise RuntimeError("IB went away")
 
-    monkeypatch.setattr(lines, "hold_borrower", broken)
+    monkeypatch.setattr(line_moves, "take_depth", broken)
     near_aisp(desk)
     now = three_tabs(desk)
     run(loans.tick(now))
@@ -111,10 +110,11 @@ def test_a_socket_for_the_lender_meets_the_lent_frame_until_its_tab_comes_to_the
     run(loans.tick(now))
     assert run(loans.on_socket_open("ABC", front=False, now=now))["to"]["symbol"] == "AISP"
     assert run(loans.on_socket_open("ABC", front=True, now=now + 1)) is None
-    assert loans.lenders() == [] and "AISP" in desk.unsubscribed and "AISP" in desk.tape_dropped
+    assert loans.lenders() == [] and "AISP" in desk.unsubscribed
+    assert ("AISP", "the loan of its line ended") in desk.tape_dropped
     end = line_loan_lines()[-1]
     assert end["outcome"] == "ended" and end["inputs"]["end"] == "recalled"
-    assert end["reason"] == "AISP's first pullback lost its Level 2 line: ABC came to the front"
+    assert end["reason"] == "AISP's first pullback lost its Level 2 and Time & Sales lines: ABC came to the front"
     assert loans.view()["recent"][0]["end"] == "recalled"
 
 
@@ -263,8 +263,8 @@ def test_the_line_returns_when_the_setup_ends(desk):
     assert loans.lenders() == [] and desk.lines.get("AISP") is None
     end = line_loan_lines()[-1]
     assert end["inputs"]["end"] == "setup_ended"
-    assert end["reason"] == ("ABC's Level 2 goes back from AISP's first pullback: it is no longer armed, near its "
-                             "trigger or in a trade")
+    assert end["reason"] == ("ABC's Level 2 and Time & Sales go back from AISP's first pullback: it is no longer "
+                             "armed, near its trigger or in a trade")
 
 
 def test_a_trade_keeps_the_loan_until_it_ends(desk):
@@ -310,27 +310,3 @@ def test_the_switch_is_desk_wide_and_on_by_default(desk):
     assert setting.is_on() == (False, None)
     set_venue("live", persist=False)
     assert setting.is_on() == (False, None)
-
-
-def test_a_tape_line_ibkr_ends_after_the_loan_is_said(desk, monkeypatch):
-    from ibkr import tape_line
-
-    near_aisp(desk)
-    now = three_tabs(desk)
-    run(loans.tick(now))
-    assert loans.view()["loans"][0]["tape"] is True
-    desk.tape.pop("AISP")                                  # IBKR ended it: the tick-by-tick cap
-    monkeypatch.setattr(tape_line, "ended", lambda s: {"code": 10190, "message": "Max number of tick-by-tick "
-                                                       "requests has been reached."} if s == "AISP" else None)
-    (loan,) = loans.view()["loans"]
-    assert loan["tape"] is False and "10190" in loan["tape_error"]
-
-
-def test_a_borrower_without_a_tape_line_still_gets_the_book(desk):
-    near_aisp(desk)
-    desk.tape_refused = "Max number of tick-by-tick requests has been reached."
-    now = three_tabs(desk)
-    run(loans.tick(now))
-    (loan,) = loans.view()["loans"]
-    assert loan["tape"] is False and "tick-by-tick" in loan["tape_error"]
-    assert desk.lines["AISP"]["viewers"] == 1

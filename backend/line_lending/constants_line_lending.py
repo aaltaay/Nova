@@ -28,12 +28,28 @@ LINE_LENDING_RELEASE_POLL_SEC = 0.05
 LINE_LENDING_FRONT_COOLDOWN_SEC = 30.0
 # Ended loans kept for GET /api/ibkr/depth/lines (newest first).
 LINE_LENDING_RECENT_KEEP = 20
+# A borrower whose AllLast line IBKR refused (or ended) asks again this often, at most this many
+# times per loan, once IBKR's 15 s same-instrument rule allows -- the refusal may have been that
+# rule, or a tick-by-tick line another holder gave up since.
+LINE_LENDING_TAPE_RETRY_SEC = 20.0
+LINE_LENDING_TAPE_RETRIES = 3
+# A held AllLast line down this long without IBKR's word is said as refused: a reconnect asks
+# for every held line again within a few seconds, and that is not a refusal.
+LINE_LENDING_TAPE_SAY_AFTER_SEC = 10.0
 
 # The bot audit stream (bot/audit.py): every loan's start and end, and the switch.
 LINE_LENDING_AUDIT_ACTION = "line_loan"
 LINE_LENDING_SWITCH_AUDIT_ACTION = "line_lending"
 LINE_LENDING_OUTCOME_LENT = "lent"
 LINE_LENDING_OUTCOME_ENDED = "ended"
+# The borrower's AllLast line was refused or ended (said once per refusal), and later came up.
+LINE_LENDING_OUTCOME_TAPE_REFUSED = "tape_refused"
+LINE_LENDING_OUTCOME_TAPE_OPENED = "tape_opened"
+
+# The borrower's AllLast line, on the lines view (``loans[].tape_state``).
+TAPE_RECEIVING = "receiving"   # a print arrived on it: the tape gate reads prints
+TAPE_WAITING = "waiting"       # it is up, no print yet (a quiet name looks the same)
+TAPE_REFUSED = "refused"       # Nova holds none, or IBKR refused or ended it (``tape_error`` says why)
 
 # A loan's states: lent frames sent, the lender's line not yet released; then the borrower holds a line.
 LOAN_PENDING = "pending"

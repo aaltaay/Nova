@@ -9,7 +9,8 @@ A hidden Trader tab lends its line (ADR 043 decision 6, ``line_lending``): the
 Trader tab's Level 2 opens with ``?tab=1`` and ``front=1`` while it is the tab in
 front. While a loan stands, a socket for the lender gets ``{"type": "lent", ...}``
 and closes; one from the tab in front recalls the loan first. A standing socket
-whose line is lent reads the same frame from its queue and closes.
+whose line is lent reads the same frame from its queue and closes
+(``line_lending.socket_gate``; the Time & Sales socket does the same).
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ from book_watch.constants_book_watch import BOOK_WATCH_PUSH_SEC
 from book_watch.ladder import LadderPush
 from ibkr import depth as _depth
 from ibkr.depth.stream import DEPTH_STREAM_HEARTBEAT_SEC
+from line_lending import socket_gate
 
 logger = logging.getLogger(__name__)
 
@@ -37,52 +39,6 @@ async def make_room(symbol: str) -> None:
         await auto_record.make_room_for(symbol)
     except Exception:
         logger.exception("AUTO-RECORD: could not yield a line for %s", symbol)
-
-
-async def lent_gate(symbol: str, *, front: bool) -> dict[str, Any] | None:
-    """The lent frame when ``symbol``'s line is lent and this socket is not the tab in front;
-    None to go ahead (a front socket has recalled the loan). A lending fault never costs Level 2."""
-    try:
-        from line_lending import loans
-
-        return await loans.on_socket_open(symbol, front=front)
-    except Exception:
-        logger.exception("line lending: the gate failed for %s's Level 2 -- the socket goes ahead", symbol)
-        return None
-
-
-def lent_now(symbol: str, *, front: bool) -> dict[str, Any] | None:
-    """The lent frame when a loan of ``symbol`` began while this (not front) socket was subscribing."""
-    if front:
-        return None
-    try:
-        from line_lending import loans
-
-        return loans.lent_frame(symbol)
-    except Exception:
-        logger.exception("line lending: could not read the loans for %s's Level 2", symbol)
-        return None
-
-
-def _socket_opened(symbol: str, *, tab: bool, front: bool) -> int | None:
-    try:
-        from line_lending import sockets
-
-        return sockets.opened(symbol, tab=tab, front=front, now=time.time())
-    except Exception:
-        logger.exception("line lending: could not register %s's Level 2 socket", symbol)
-        return None
-
-
-def _socket_closed(symbol: str, token: int | None) -> None:
-    if token is None:
-        return
-    try:
-        from line_lending import sockets
-
-        sockets.closed(symbol, token)
-    except Exception:
-        logger.exception("line lending: could not drop %s's Level 2 socket", symbol)
 
 
 class _WatchFrames:
@@ -113,11 +69,10 @@ class _WatchFrames:
 async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
     symbol = symbol.upper()
     await websocket.accept()
-    tab = websocket.query_params.get("tab") == "1"
-    front = websocket.query_params.get("front") == "1"
+    tab, front = socket_gate.flags(websocket.query_params)
 
     # The line is lent (ADR 043): say so and close -- unless this is the tab in front, which recalled it.
-    lent = await lent_gate(symbol, front=front)
+    lent = await socket_gate.gate(symbol, front=front)
     if lent is not None:
         await websocket.send_text(json.dumps(lent))
         await websocket.close()
@@ -152,7 +107,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         _depth.ws_viewer_opened(symbol)
         viewer_opened = True
         # No await between: the lending registry and the viewer count move together.
-        socket_token = _socket_opened(symbol, tab=tab, front=front)
+        socket_token = socket_gate.opened(symbol, tab=tab, front=front)
 
         # Remount race: a previous viewer's cleanup may have dropped the line
         # between our initial subscribe check and viewer_opened. Re-subscribe
@@ -173,7 +128,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         # update (same defect class as tape_stream.py -- PROBLEM_LOG 2026-08-25).
         queue = _depth.open_viewer_queue(symbol)
         # A loan of this line that began while this socket subscribed pushed its frame before the queue existed.
-        lent = lent_now(symbol, front=front)
+        lent = socket_gate.lent_now(symbol, front=front)
         if lent is not None:
             await websocket.send_text(json.dumps(lent))
             await websocket.close()
@@ -237,7 +192,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
     finally:
         if queue is not None:
             _depth.close_viewer_queue(symbol, queue)
-        _socket_closed(symbol, socket_token)
+        socket_gate.closed(symbol, socket_token)
         # Release only once the LAST viewer is gone — and only after a short
         # grace window so React StrictMode / DepthLadder reconnects can
         # reattach without tearing down reqMktDepth (Connecting-depth flicker).
