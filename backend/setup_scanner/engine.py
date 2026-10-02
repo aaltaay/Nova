@@ -36,9 +36,7 @@ import asyncio
 import logging
 import time
 from collections import deque
-from datetime import datetime, time as dtime
 from typing import Any, Callable, Iterable
-from zoneinfo import ZoneInfo
 
 from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_eyes import EYES_JOURNAL_BEAT_SEC
@@ -58,21 +56,17 @@ from setup_scanner.hooks import (
     default_templates as _default_templates,
     default_universe as _default_universe,
     live_catalysts as _live_catalysts,
+    live_history as _live_history,
     no_catalysts as _no_catalysts,
 )
 from setup_scanner.host import LaneHost
 from setup_scanner.lane import Lane
 from setup_scanner.lane_params import lane_params
+from setup_scanner.seeder import History, Seeder
 from setup_scanner.store import SetupStore, StoreVersionError, session_date
 
 logger = logging.getLogger(__name__)
-ET = ZoneInfo("America/New_York")
 TICK_SEC = 0.25
-
-
-def session_start_ts(now: float) -> float:
-    d = datetime.fromtimestamp(now, ET).date()
-    return datetime.combine(d, dtime(4, 0), ET).timestamp()
 
 
 class SetupEngine(LaneHost):
@@ -81,6 +75,7 @@ class SetupEngine(LaneHost):
     def __init__(self, *, store: SetupStore | None = None, tape: Any = None,
                  universe: Callable[[], Iterable[str]] = _default_universe,
                  seed: Callable[[str, float], list[Bar]] = _default_seed,
+                 history: History | None = None,    # IBKR's history for a short seed (seeder.py); get_engine
                  replay_desk: Callable[[], bool] = _default_replay_desk,
                  audit: Callable[..., None] = _default_audit,
                  clock: Callable[[], float] = time.time,
@@ -94,7 +89,8 @@ class SetupEngine(LaneHost):
         self.store = store
         self.store_error: str | None = None
         self.tape = tape
-        self._universe_fn, self._seed_fn = universe, seed
+        self._universe_fn = universe
+        self.seeder = Seeder(self, seed, history)
         self._replay_fn, self._audit_fn, self._clock = replay_desk, audit, clock
         self._catalysts_fn = catalysts
         self._templates_fn, self._journal_fn, self._bot_state_fn = templates, journal, bot_state
@@ -175,6 +171,7 @@ class SetupEngine(LaneHost):
         self._rollover(now)
         self._sync_lanes(now)
         await self._sync_universe(now)
+        await self.seeder.step(now)
         self._drain(now)
         self._close(now)
         self._gate(now)
@@ -195,6 +192,7 @@ class SetupEngine(LaneHost):
         self.window = trading_session_bounds(now)
         self.bars.clear()
         self.seeding.clear()
+        self.seeder.clear()
         for lane in self.lanes:
             lane.clear()
         self.journal({"event": "session", "symbol": None})
@@ -267,6 +265,7 @@ class SetupEngine(LaneHost):
         gone = [sym for sym in self.bars if sym not in self.universe]
         for sym in gone:
             self.bars.pop(sym, None)
+            self.seeding.discard(sym)      # a history ask keeps its place in the seeder's queue
             for lane in self.lanes:
                 lane.drop(sym)
         new = [s for s in sorted(wanted) if s not in self.bars]
@@ -279,21 +278,7 @@ class SetupEngine(LaneHost):
             self.journal({"event": "watch", "symbol": None, "added": new, "removed": sorted(gone),
                           "count": len(self.bars)})
         if new:
-            await asyncio.gather(*(self._seed(sym, now) for sym in new))
-
-    async def _seed(self, sym: str, now: float) -> None:
-        try:
-            bars = await asyncio.to_thread(self._seed_fn, sym, session_start_ts(now))
-        except Exception:
-            logger.warning("setup scanner: could not seed %s from the bar store", sym, exc_info=True)
-            bars = []
-        mb = self.bars.get(sym)
-        self.seeding.discard(sym)
-        if mb is None:
-            return
-        mb.seed([b for b in bars if self.in_session(b.t)])
-        for lane in self.lanes:
-            lane.on_bars(sym, mb.completed, now)
+            await asyncio.gather(*(self.seeder.seed(sym, now) for sym in new))
 
     def _drain(self, now: float) -> None:
         while self.inbox:
@@ -376,7 +361,7 @@ _engine: SetupEngine | None = None
 def get_engine() -> SetupEngine:
     global _engine
     if _engine is None:
-        _engine = SetupEngine(catalysts=_live_catalysts, sim_eyes=_default_sim_eyes)
+        _engine = SetupEngine(catalysts=_live_catalysts, sim_eyes=_default_sim_eyes, history=_live_history)
     return _engine
 
 
