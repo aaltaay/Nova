@@ -37,6 +37,20 @@ SETUPS_BAR_SEC = 60                     # one-minute bars
 # ``market.trading_session_bounds``): no minute or price outside it is read, and at its
 # close every setup still forming ends -- an armed one disarms -- with this reason.
 SETUPS_SESSION_CLOSED_REASON = "the session closed at 20:00 -- the scanners start again at 04:00"
+# -- Seeding a symbol the scanner starts following (setup_scanner/seeder.py; 2026-10-02: AMOD, followed
+# at 07:51:22 with nothing stored before its Level 1 line opened, wrote its first first-pullback line at
+# 08:23, 32 bars later). Stored minutes that start more than this after 04:00 -- or none at all -- keep
+# the symbol seeding while IBKR's 1-minute history of today is asked for.
+SETUPS_SEED_LATE_START_SEC = 600.0
+SETUPS_SEED_HISTORY_MAX_WAIT_SEC = 600.0     # then it is seeded with what the store has, as before
+SETUPS_SEED_HISTORY_RETRY_SEC = 5.0          # after IBKR's budget, a loading chart or IBKR not ready said later
+SETUPS_SEED_HISTORY_FAILED_RETRY_SEC = 30.0  # after IBKR did not answer (its own backoff is 30 s, #555)
+SETUPS_SEED_HISTORY_MAX_TRIES = 2            # unanswered asks before seeding with what the store has
+SETUPS_SEED_HISTORY_SPACING_SEC = 5.0        # between the scanner's own history requests
+# The scanner asks only while fewer of IBKR's historical requests than this went out in its 10-minute
+# window (60 allowed, IBKR_HISTORICAL_PACE_MAX): the rest are the charts'.
+SETUPS_SEED_HISTORY_BUDGET = 30
+SETUPS_SEED_HISTORY_TIMEOUT_SEC = 30.0       # one ask on the IB loop (qualify + a 12 s background fetch)
 
 # -- 5-minute setups (operator decision 2026-09-30: "Mockup, then build"; on the mockup: build it,
 # chart only, a chip and the trigger on the 1-minute, 07:00-15:30). The first pullback, the bull flag

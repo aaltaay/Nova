@@ -199,6 +199,8 @@ are full strategies because the bet is the live tape gate and the Paper read-out
   `setups.db` rows (`@gap_and_go`), its own read-out (kind `gap_and_go`), templates, the Tickers today squares, the
   setup cards and the charts (the pre-market high as the lane's line; a past episode from the open to how it ended).
   Bot window default 09:30-10:00, inside its arming window.
-- **Known gap:** the pre-market high is only as complete as the scanner's seed. A name the scanner starts following
-  without its earlier minutes on record reads a lower high (#tracked separately: seed newly followed names).
+- **The pre-market high needs the morning's minutes:** a name followed mid-session is held `seeding` until IBKR's
+  1-minute history from 04:00 lands (`setup_scanner/seeder.py`, the same day's fix), so the level is the whole
+  pre-market's. A history that never comes is given up and the name is seeded with what the store holds; its
+  pre-market high is then only as complete as those minutes.
 - Not built here: the micro pullback (one-second bars).
