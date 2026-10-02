@@ -38,6 +38,11 @@ export interface TapeState {
    * the pane says whose and when it comes back. Absent or null for every other feed.
    */
   lent?: LineLent | null;
+  /**
+   * IBKR refused or ended the line and the backend asks again at this moment (epoch seconds, #698):
+   * the pane says RETRYING, not ERROR. Absent or null otherwise.
+   */
+  retryAt?: number | null;
 }
 
 /** A print that may set a price: not flagged unreported, and not volume-only by its conditions. */
@@ -52,7 +57,7 @@ export function tapeSymbolKey(symbol: string | null): string | null {
 
 /** Fresh empty tape — used on mount and immediately on symbol change. */
 export function emptyTapeState(): TapeState {
-  return { prints: [], connected: false, error: null, lent: null };
+  return { prints: [], connected: false, error: null, lent: null, retryAt: null };
 }
 
 /**

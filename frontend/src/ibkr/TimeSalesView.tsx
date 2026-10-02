@@ -25,7 +25,7 @@ import {
   TAPE_VIEWPORT_FALLBACK_ROWS,
 } from '../constants';
 import { STOCK_VIEW_CLOCK_TIMEZONE } from '../constantGroups/chart_api';
-import { TAPE_STATUS_LENT } from '../constantGroups/market_ui';
+import { TAPE_STATUS_LENT, TAPE_STATUS_RETRYING } from '../constantGroups/market_ui';
 import { SAMPLE_FEED_STATUS, SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { createRafCoalesce } from '../utils/rafCoalesce';
 import { tapeLentText } from './lentWords';
@@ -271,7 +271,9 @@ export function TimeSalesView({
     ? TAPE_STATUS_LENT
     : connected
       ? connectedText
-      : error ? (error === SAMPLE_LIVE_FEED_ABSENT ? SAMPLE_FEED_STATUS : 'ERROR') : '…';
+      : error
+        ? (error === SAMPLE_LIVE_FEED_ABSENT ? SAMPLE_FEED_STATUS : feed.retryAt != null ? TAPE_STATUS_RETRYING : 'ERROR')
+        : '…';
   const headMeta = (
     <TapeHeadMeta
       badge={badge}

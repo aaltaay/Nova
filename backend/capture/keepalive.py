@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 from capture import tape_watch
 from capture.constants_capture import (
     CAPTURE_KEEPALIVE_INTERVAL_SEC,
+    CAPTURE_MAX_CONCURRENT,
     CAPTURE_RESUME_BACKOFF_SEC,
     CAPTURE_RESUME_MAX_ATTEMPTS,
     CAPTURE_RESUME_RESTART_WINDOW_SEC,
@@ -94,6 +95,11 @@ def operator_stopped(symbol: str | None) -> None:
     else:
         _watched.discard(sym)
     tape_watch.forget(sym)
+
+
+def pending_symbols() -> list[str]:
+    """Symbols a resume is still bringing back (not given up): auto-record leaves their slots alone (#698)."""
+    return [sym for sym, row in _resume.items() if not row.get("gave_up")]
 
 
 def operator_started(symbol: str) -> None:
@@ -223,10 +229,11 @@ async def tick(
         logger.error("CAPTURE: recording of %s stopped on its own (%s) -- will resume", died, error)
 
     for symbol in list(_resume):
-        await _attempt(symbol, now=now, ready=ready, acquire=acquire, start=start)
+        await _attempt(symbol, now=now, ready=ready, acquire=acquire, start=start, release=release,
+                       recording=recording)
 
 
-async def _attempt(symbol: str, *, now: float, ready, acquire, start) -> None:
+async def _attempt(symbol: str, *, now: float, ready, acquire, start, release, recording: list[str]) -> None:
     resume = _resume.get(symbol)
     if not resume or resume["gave_up"] or now < resume["next_at"]:
         return
@@ -239,13 +246,22 @@ async def _attempt(symbol: str, *, now: float, ready, acquire, start) -> None:
         resume["next_at"] = now + CAPTURE_KEEPALIVE_INTERVAL_SEC
         return
     resume["attempt"] += 1
-    error = await acquire(symbol)
-    if not error:
-        out = await start(symbol)
-        started = [str(s).upper() for s in (out.get("capture_symbols") or [])]
-        if not started and out.get("capture") and out.get("capture_symbol"):
-            started = [str(out["capture_symbol"]).upper()]
-        error = None if symbol in started else (out.get("error") or out.get("detail") or "Recorder did not start")
+    others = [s for s in recording if s != symbol]
+    if len(others) >= CAPTURE_MAX_CONCURRENT:
+        # Every slot is taken: asking IBKR for the lines would only hold them for a start
+        # the recorder refuses (#698: SSM and SORA held two AllLast lines that way).
+        error = (f"Already recording {', '.join(others)} -- IBKR allows {CAPTURE_MAX_CONCURRENT} "
+                 "depth lines; stop one first")
+    else:
+        error = await acquire(symbol)
+        if not error:
+            out = await start(symbol)
+            started = [str(s).upper() for s in (out.get("capture_symbols") or [])]
+            if not started and out.get("capture") and out.get("capture_symbol"):
+                started = [str(out["capture_symbol"]).upper()]
+            error = None if symbol in started else (out.get("error") or out.get("detail") or "Recorder did not start")
+            if error is not None:
+                await release(symbol)  # a refused start never keeps the lines it opened (#698)
     if error is None:
         logger.warning("CAPTURE: resumed recording %s (attempt %d, after %s)",
                        symbol, resume["attempt"], resume["reason"])

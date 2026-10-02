@@ -37,6 +37,16 @@ LINE_LENDING_TAPE_RETRIES = 3
 # for every held line again within a few seconds, and that is not a refusal.
 LINE_LENDING_TAPE_SAY_AFTER_SEC = 10.0
 
+# A Time & Sales socket's line IBKR refused or ended comes back by itself (#698, ``tape_heal``):
+# asked again once IBKR's 15 s same-instrument rule allows, plus this much after refusals in a row
+# (the last repeats; it never stops while a socket watches). A new line stands this long without
+# IBKR ending it before the socket hears it is back -- IBKR answers a refusal after the request.
+LINE_LENDING_TAPE_HEAL_BACKOFF_SEC = (0.0, 15.0, 45.0, 60.0)
+LINE_LENDING_TAPE_HEAL_CONFIRM_SEC = 2.0
+LINE_LENDING_TAPE_HEAL_POLL_SEC = 1.0
+# IBKR's tick-by-tick cap: a refusal with this code makes room before the line is asked again.
+LINE_LENDING_TAPE_CAP_CODES = frozenset({10190})
+
 # The bot audit stream (bot/audit.py): every loan's start and end, and the switch.
 LINE_LENDING_AUDIT_ACTION = "line_loan"
 LINE_LENDING_SWITCH_AUDIT_ACTION = "line_lending"

@@ -11,6 +11,6 @@ loans.py (the loans and the tick), loan.py (one loan: its words and audit lines)
 loan_tape.py (a loan's AllLast line, said when down and asked again), borrowers.py (who
 may borrow), lines.py (which lines may be lent), line_moves.py (moving them), focus.py
 (which tabs are in front), sockets.py (which sockets are Trader tabs'), socket_gate.py
-(what a socket meets), setting.py (the switch in bot-session.json), view.py and
+(what a socket meets), tape_heal.py (a socket's refused Time & Sales line asked for again, #698), setting.py (the switch in bot-session.json), view.py and
 routes.py (``GET /api/ibkr/depth/lines``, ``PATCH /api/ibkr/depth/lending``).
 """

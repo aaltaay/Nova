@@ -33,12 +33,13 @@ describe('tapeSymbolKey', () => {
 });
 
 describe('emptyTapeState', () => {
-  it('clears prints, connection flags and a lent line (symbol-change reset)', () => {
+  it('clears prints, connection flags, a lent line and a retry (symbol-change reset)', () => {
     expect(emptyTapeState()).toEqual({
       prints: [],
       connected: false,
       error: null,
       lent: null,
+      retryAt: null,
     });
   });
 });

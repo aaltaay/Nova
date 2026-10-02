@@ -114,9 +114,13 @@ async def renew_tape(symbol: str) -> str | None:
     return result.get("error") or f"Could not open the IBKR tape for {sym}"
 
 
-async def release(symbol: str) -> None:
-    """Drop this module's references; lines close only if no panel still watches."""
-    from ibkr import depth, tape_stream
+async def release(symbol: str, *, at_once: bool = False) -> None:
+    """Drop this module's references; lines close only if no panel still watches.
+
+    ``at_once``: the AllLast line is cancelled now, not after its remount linger -- the line is
+    being given to another symbol, and a lingering line still counts against IBKR's cap (#698).
+    """
+    from ibkr import depth, tape_line, tape_stream
 
     sym = symbol.strip().upper()
     hold = _held.pop(sym, None)
@@ -124,7 +128,8 @@ async def release(symbol: str) -> None:
     if hold is None:
         return
     if hold["tape"] and tape_stream.ws_viewer_closed(sym):
-        tape_stream.unsubscribe(sym)  # linger, then cancel if still idle
+        if not (at_once and tape_line.release_now(sym, "Record gave its line to another symbol")):
+            tape_stream.unsubscribe(sym)  # linger, then cancel if still idle
     if hold["depth"] and depth.ws_viewer_closed(sym):
         try:
             if await depth.release_when_idle(sym):

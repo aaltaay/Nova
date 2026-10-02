@@ -126,6 +126,9 @@ LEADERBOARD_AUTO_RECORD_TICK_SEC = 15.0
 # line, but only once that leader has been recorded this long -- IB refuses a
 # depth line asked again within 15 s, and a line that barely opened recorded nothing.
 LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC = 60.0
+# A line given back to the operator stays theirs this long while their subscribe lands (#698:
+# AIXI's Level 2 took 6 s, and auto-record's next tick took the line back in between).
+LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC = 30.0
 
 # ── Playback API ────────────────────────────────────────────────────────────
 # Every day on file: five years of rebuilt sessions plus recorded ones (~330 ms at 1,255 days).

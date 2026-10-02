@@ -300,7 +300,31 @@ recorder did not stop; one row per streak) whose `resumed` turns true when a
 print arrives on a new line, `reacquired`
 on the session, and the manifest's `fidelity.tape_losses` /
 `tape_resubscribes`. A Record hold younger than `CAPTURE_HOLD_ORPHAN_GRACE_SEC`
-is a start in flight and is never released as an orphan by a status poll.
+is a start in flight and is never released as an orphan by a status poll. A
+resume never holds IBKR's lines for a start the recorder would refuse (#698): with
+`CAPTURE_MAX_CONCURRENT` other symbols recording it opens no line (the attempt is
+logged and counted), and a start refused after its lines opened releases them.
+
+**Time & Sales comes back by itself (#698, operator report 2026-10-02: "should that
+be fully self-healing?").** At 07:54 ET three recordings and two resumes that never
+let go held IBKR's tick-by-tick lines; IBKR refused AMOD's with 10190 after the
+request, and the socket sat on a dead line reading ERROR until the operator switched
+tabs. Owner `line_lending/tape_heal.py`. While a `/ws/ibkr/tape/{symbol}` socket
+watches a symbol whose AllLast line IBKR refused or ended (or a heartbeat finds it
+down), one task per symbol brings it back: after a cap refusal (10190) it first
+cancels every line no viewer watches (`tape_line.release_idle`: a closed socket's
+line lingers 16 s for a remount, still counting against the cap), then, for the tab
+in front by the focus sensor (else a socket opened with `front=1`, or a panel
+outside a Trader tab), has auto-record give back its lowest-ranked line
+(`auto_record.make_room_for(symbol, tape_refused=True)`); a recording the operator
+started is never touched. It asks again once IBKR's 15 s same-instrument rule allows,
+plus `LINE_LENDING_TAPE_HEAL_BACKOFF_SEC` after refusals in a row (at once when a
+hidden tab comes to the front), never while IBKR is not ready, and never stops while
+a socket watches. The socket's frames: IBKR's own `{"type": "error", message}`, then
+the healer's `{"type": "error", message, retry_at}` (what it freed, or who holds the
+lines, and when it asks again; epoch seconds), and `{"type": "subscribed"}` once the
+new line stood `LINE_LENDING_TAPE_HEAL_CONFIRM_SEC` without IBKR ending it. The desk
+reads RETRYING while `retry_at` is set, and any print clears a stale error.
 
 Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
 "restart" | "auto"` naming why it ended (`auto`: auto-record's planned stop, ADR 023) (`restart` is stamped by the startup finalizer,
@@ -881,7 +905,21 @@ loses Level 2 (operator decision 2026-09-22). It never starts, stops or
 adopts a symbol the operator recorded by hand; its stops are planned
 (`reason: "auto"`, excluded from `missing_sec` like `operator`), never a loud
 unrequested stop; the operator pressing Record also takes a line back, and a
-symbol the operator stopped is not retaken that day. `NOVA_AUTO_RECORD=0`
+symbol the operator stopped is not retaken that day. A line it gives back to the
+operator -- for Level 2, a Record, or a Time & Sales IBKR refused for its
+tick-by-tick cap (#698) -- is cancelled at once, never after the tape's 16 s
+remount linger, and stays theirs `LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC` (30 s)
+while their subscribe lands (on 2026-10-02 the next tick took TNON's line back
+before AIXI's Level 2 had it). It never takes a slot a restart's resume is
+bringing back (`keepalive.pending_symbols()`). **What it holds survives a
+restart** (#698; owner `leaderboard/auto_record_state.py`): `auto-record.json`
+in the operator cache, `{schema_version: 1, date: "YYYY-MM-DD" (Eastern), held:
+{SYMBOL: {since: number | null, why: "trade" | "near" | "armed" | "leader" |
+null}}, declined: string[]}`, rewritten on every start, stop, operator take and
+operator stop; another day, an unknown version or an unreadable file reads as
+empty (logged). After a restart a recording it names that the keepalive resumed is
+auto-record's again (so it can rotate it or give it back), and a symbol the
+operator stopped stays declined that day. `NOVA_AUTO_RECORD=0`
 turns it off. `/api/ibkr/status` adds `auto_record: {active, window,
 windows: {open: "setups_and_leaders" | "setups" | "leaders" | "none", setups: {open,
 start, end, by_setup: [{setup, start, end, open}], error}, leaders: {open, start,
@@ -2917,7 +2955,8 @@ answers:
   listed ticker this minute.
 
 **A hidden Trader tab lends its Level 2 and Time & Sales lines** (owner `backend/line_lending/`). IBKR
-counts tick-by-tick lines with the depth lines' formula (3 on this account), so a loan moves both: a borrower
+caps tick-by-tick lines too (ADR 044 took it for the depth lines' 3; on 2026-10-02 it carried 4 at once and
+refused a 6th while Nova held 5, #698), so a loan moves both: a borrower
 with a book and no prints would read WAIT, never GO.
 - **When.** A setup of a strategy at On, on a stock whose Buy is Nova (Bot or Auto-entry), with the Bot on,
   is armed, near or in a trade; no line is free; and `line_lending` is on (`bot-session.json`, desk-wide,
@@ -4178,6 +4217,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-02 | Time & Sales comes back by itself (#698; operator report on AMOD at 07:54 ET: "should that be fully self-healing?"). IBKR refused AMOD's tick-by-tick line with 10190 while three recordings and two leaked resumes held the lines, and the socket sat on a dead line until the operator switched tabs. Four causes, all fixed: a refused line was never asked for again (`line_lending/tape_heal.py` now frees room and asks again, saying so, while a socket watches; the desk reads RETRYING); a resume refused a slot kept the lines it opened (`capture/keepalive.py` opens none with every slot taken and releases on a refused start); a line auto-record gave back lingered 16 s and was taken back by its next tick (cancelled at once, kept for the operator 30 s); and a restart forgot which recordings were auto-record's, so the setups' recordings lost their slots to fresh leaders and one came back as a recording auto-record could never give back (`auto-record.json`, `leaderboard/auto_record_state.py`; resumes' slots are left to them). The tick-by-tick cap is not the depth cap of 3: 4 lines were live at once. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | The Trader's Decisions and past setups follow the trading day (#695). Like the triggers table before PR #696, `GET /api/stock-read/{symbol}/decisions` and `/past-setups` with no date answered the calendar date, so from midnight to 04:00 ET the Decisions sheet and the 1-minute chart's past setups read a day with no session (SCKT on the desk at 00:45 ET: 0 events and 0 episodes, against 400 and 17 for the day). Both now default to the hot list's trading day. The day's news stays tied to the calendar date: the News panel's window moves to the next session at midnight. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Tickers today follows the hot list's trading day (ADR 044). `GET /api/bot/triggers` with no date answered the calendar date, while the hot list's day starts at 04:00 ET: from midnight to the rollover the desk's table asked for a day with no list ("no hot list kept for 2026-10-02"), so its listed tickers and their "now" rows vanished and the day's triggered tickers gave way to the new date's file (one overnight trigger, against the day's 21, on the desk at 00:36 ET). Today is now the hot list's trading day in the route and in its hot-list read, from one clock read. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | The trading session ends at 20:00 ET (operator report 2026-10-01 23:33: "How come these things are getting triggered right now? ... the entire market is closed, no?"). After the close IBKR keeps the SMART Level 1 lines moving with its overnight session (20:00-03:50 ET), and Nova read those prints as more of the day: one-minute candles, HOD Momo trades (78 alerts after 20:00) and setup-scanner bars -- OM's "12% leg" was one 200-share print at 20:48 -- while the scanner never ended its day, so legs from 15:52 still read as forming at 23:33 and, after midnight, red to green armed SDEV at 00:12 on a 23:59 print taken for the 09:30 open. One rule (`market.in_trading_session`: 04:00-20:00 ET on an exchange day) now bounds the bar builder, HOD Momo's L1 feed and the scanner, which ends every lane's day at the close with a stated reason. §3 amended. | User Directive + Claude Opus 5.5 |

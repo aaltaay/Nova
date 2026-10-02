@@ -1,5 +1,7 @@
 """Auto-record the setups and the leaders (ADR 023, ADR 041) -- on free Level 2 lines only.
 
+maintainer: one-concern who holds each auto line (``_auto``) changes only here -- start, stop, rotate, yield
+
 Who gets a line, in order (ADR 041, operator decision 2026-09-30):
 
 1. ``trade`` -- a setup of a template in play whose trigger is inside its
@@ -31,6 +33,11 @@ Rules the operator set (2026-09-22), unchanged:
 * every auto stop is planned (segment ``reason: "auto"``) -- never the loud
   unrequested stop.
 
+A line given back to the operator (#698) -- for Level 2, a Record, or a Time &
+Sales IBKR refused for its tick-by-tick cap -- is cancelled at once (no 16 s
+linger) and kept for them ``LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC``. Slots a
+restart's resumes are bringing back are left to them (``auto_record_state``).
+
 Start / stop go through the Session Record path (``capture.feed_hold`` +
 ``capture.mode.set_capture_mode``), so recordings land where the operator's do.
 """
@@ -49,23 +56,20 @@ from constants_leaderboard import (
     LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC,
     LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC,
     LEADERBOARD_AUTO_RECORD_TICK_SEC,
-    LEADERBOARD_AUTO_RECORD_TOP_N,
+    LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC,
     LEADERBOARD_BOARD_GAINERS,
 )
-from constants_setups import SETUP_STATE_NEAR
+from leaderboard import auto_record_state
+from leaderboard.auto_record_picks import SETUP_TIERS as _SETUP_TIERS
+from leaderboard.auto_record_picks import TIERS as _TIERS
+from leaderboard.auto_record_picks import WHY_LEADER, WHY_LEFT, WHY_TRADE, pick_leaders, pick_setups
 from leaderboard.auto_record_windows import OPEN_NONE, window_label, window_state
-from leaderboard.ranking import LEADERS_RULES, leader_symbols
-from leaderboard.rows import ET, from_desk_row
+from leaderboard.rows import ET
 
 logger = logging.getLogger(__name__)
 
 AUTO_RECORD_ENV = "NOVA_AUTO_RECORD"
 _RETRY_AFTER_FAILURE_SEC = 300.0
-
-# Why a symbol holds (or wants) an auto line, best first. ``left``: it is on neither list now.
-WHY_TRADE, WHY_NEAR, WHY_ARMED, WHY_LEADER, WHY_LEFT = "trade", "near", "armed", "leader", "left"
-_TIERS = (WHY_TRADE, WHY_NEAR, WHY_ARMED, WHY_LEADER, WHY_LEFT)
-_SETUP_TIERS = (WHY_TRADE, WHY_NEAR, WHY_ARMED)
 
 _lock = asyncio.Lock()
 _auto: dict[str, float] = {}             # symbol -> when auto-record started it
@@ -78,36 +82,11 @@ _leaders: list[str] = []
 _setups: list[tuple[str, str]] = []      # (symbol, why) for setups, best first
 _setups_error: str | None = None         # the setup scanner could not be read (never "no setups")
 _last_error: str | None = None
+_reserved: dict[str, tuple[float, str]] = {}  # symbol -> (until, "depth" | "record" | "tape"): given back to the operator
 
 
 def enabled() -> bool:
     return (os.environ.get(AUTO_RECORD_ENV) or "1").strip().lower() not in ("0", "false", "off", "no")
-
-
-def pick_leaders(surfaced_gainers: list[dict], now: float) -> list[str]:
-    """The same ranking playback applies to the recorded Gainers minute."""
-    minute_ts = int(now) // 60 * 60
-    rows = []
-    for position, raw in enumerate(surfaced_gainers, start=1):
-        try:
-            rows.append(from_desk_row(raw, minute_ts=minute_ts, board=LEADERBOARD_BOARD_GAINERS, rank=position))
-        except (TypeError, ValueError):
-            continue
-    return leader_symbols(rows, LEADERS_RULES)[:LEADERBOARD_AUTO_RECORD_TOP_N]
-
-
-def pick_setups(lanes: list[Any], now: float) -> list[tuple[str, str]]:
-    """``(symbol, why)`` for every setup of the templates in play: in a trade, near, then armed."""
-    best: dict[str, str] = {}
-    for lane in lanes:
-        found = [(s, WHY_TRADE) for s in lane.trade_symbols(now)]
-        for sym in lane.watching():
-            state = getattr(lane.det.get(sym), "state", None)
-            found.append((sym, WHY_NEAR if state == SETUP_STATE_NEAR else WHY_ARMED))
-        for sym, why in found:
-            if sym not in best or _TIERS.index(why) < _TIERS.index(best[sym]):
-                best[sym] = why
-    return sorted(best.items(), key=lambda item: (_TIERS.index(item[1]), item[0]))
 
 
 def _live_gainers() -> list[dict]:
@@ -150,10 +129,30 @@ def _recording() -> list[str]:
     return capture_symbols()
 
 
-def free_lines() -> int:
+def _resuming() -> list[str]:
+    from capture import keepalive
+
+    return keepalive.pending_symbols()
+
+
+def _tape_up(symbol: str) -> bool:
+    from ibkr import tape_stream
+
+    return tape_stream.is_subscribed(symbol)
+
+
+def free_lines(now: float | None = None) -> int:
+    """Lines auto-record may take: never one given back to the operator whose subscribe has not
+    landed, nor a slot a restart's resume is bringing back (#698)."""
+    ts = time.time() if now is None else now
+    busy, recording = _busy_lines(), _recording()
+    held = [(s, kind) for s, (until, kind) in _reserved.items() if until > ts]
+    if any(kind == "tape" and not _tape_up(s) for s, kind in held):
+        return 0  # every start takes a tick-by-tick line: the operator's Time & Sales is waiting for one
     return max(0, min(
-        IBKR_MAX_DEPTH_SYMBOLS - len(_busy_lines()),
-        CAPTURE_MAX_CONCURRENT - len(_recording()),
+        IBKR_MAX_DEPTH_SYMBOLS - len(busy) - sum(1 for s, _ in held if s not in busy),
+        CAPTURE_MAX_CONCURRENT - len(recording) - sum(1 for s, kind in held if kind == "record" and s not in recording)
+        - sum(1 for s in _resuming() if s not in recording),
     ))
 
 
@@ -208,20 +207,26 @@ async def _start(symbol: str, reason: str) -> bool:
     _auto[symbol] = time.time()
     _wanted_as[symbol] = reason
     logger.info("AUTO-RECORD: recording %s (%s)", symbol, reason)
+    await _save()
     return True
 
 
-async def _stop(symbol: str, reason: str) -> None:
+async def _save() -> None:
+    await auto_record_state.save(_auto, _wanted_as, _declined)
+
+
+async def _stop(symbol: str, reason: str, *, at_once: bool = False) -> None:
     from capture import feed_hold, keepalive
     from capture.mode import set_capture_mode
 
     # Planned: keepalive must never read this as a death, and never resume it.
     keepalive.operator_stopped(symbol)
     await asyncio.to_thread(set_capture_mode, False, symbol=symbol, protect_active=True, reason=CAPTURE_STOP_AUTO)
-    await feed_hold.release(symbol)
+    await feed_hold.release(symbol, at_once=at_once)
     _auto.pop(symbol, None)
     _wanted_as.pop(symbol, None)
     logger.info("AUTO-RECORD: stopped %s (%s)", symbol, reason)
+    await _save()
 
 
 def _lowest_ranked(exclude: str | None = None) -> str | None:
@@ -244,20 +249,28 @@ def _victim_for(candidate_why: str, ts: float) -> str | None:
     return max(allowed, key=lambda s: (_rank(s), _auto[s]))
 
 
-async def make_room_for(symbol: str, *, for_record: bool = False) -> str | None:
-    """The operator wants Level 2 (or a Record) on ``symbol``: give back an auto line if none is free."""
+async def make_room_for(symbol: str, *, for_record: bool = False, tape_refused: bool = False) -> str | None:
+    """The operator wants Level 2 (or a Record) on ``symbol``: give back an auto line if none is free.
+
+    ``tape_refused``: IBKR refused their Time & Sales on ``symbol`` for its tick-by-tick cap -- the
+    lines are full whatever Nova counts, so one is given back (#698).
+    """
     sym = (symbol or "").strip().upper()
     async with _lock:
         busy = _busy_lines()
         lines_full = sym not in busy and len(busy) >= IBKR_MAX_DEPTH_SYMBOLS
         recording = _recording()
         slots_full = for_record and sym not in recording and len(recording) >= CAPTURE_MAX_CONCURRENT
-        if not sym or not (lines_full or slots_full):
+        if not sym or not (lines_full or slots_full or tape_refused):
             return None
         victim = _lowest_ranked(exclude=sym)
         if victim is None:
             return None
-        await _stop(victim, f"yielded its line to {sym}")
+        await _stop(victim, f"yielded its line to {sym}", at_once=True)
+        # Kept for the operator while their subscribe lands: on 2026-10-02 the next tick took
+        # TNON back before AIXI's Level 2 had its line.
+        kind = "tape" if tape_refused else "record" if for_record else "depth"
+        _reserved[sym] = (time.time() + LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC, kind)
         _yielded.append({"symbol": victim, "for": sym, "at": time.time()})
         del _yielded[:-10]
         return victim
@@ -268,6 +281,8 @@ def operator_took(symbol: str) -> None:
     sym = (symbol or "").strip().upper()
     _auto.pop(sym, None)
     _wanted_as.pop(sym, None)
+    auto_record_state.forget(sym)
+    auto_record_state.save_soon(_auto, _wanted_as, _declined)
 
 
 def operator_stopped(symbol: str | None, now: float | None = None) -> None:
@@ -278,7 +293,9 @@ def operator_stopped(symbol: str | None, now: float | None = None) -> None:
         if sym:
             _auto.pop(sym, None)
             _wanted_as.pop(sym, None)
+            auto_record_state.forget(sym)
             _declined[sym] = day
+    auto_record_state.save_soon(_auto, _wanted_as, _declined)
 
 
 async def _after_window(ts: float) -> None:
@@ -304,6 +321,10 @@ async def tick(now: float | None = None) -> None:
     global _leaders, _setups, _last_error
     ts = time.time() if now is None else float(now)
     async with _lock:
+        for sym in [s for s, (until, _) in _reserved.items() if until <= ts]:
+            _reserved.pop(sym, None)
+        await auto_record_state.restore(ts, auto=_auto, wanted_as=_wanted_as, declined=_declined,
+                                        recording=_recording(), resuming=_resuming())
         state = window_state(ts)
         if not enabled() or state["open"] == OPEN_NONE:
             await _after_window(ts)
@@ -386,6 +407,8 @@ def reset_for_tests() -> None:
     _declined.clear()
     _failed.clear()
     _yielded.clear()
+    _reserved.clear()
+    auto_record_state.reset_for_tests()
     _leaders = []
     _setups = []
     _setups_error = None
