@@ -406,6 +406,15 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 043)', ()
     expect(calls(fetchMock, '/hot-list', 'PATCH').map(c => c.body)).toEqual(['{"auto_n":10}']);
   });
 
+  it('says when the scanners do not follow a listed stock, and why', async () => {
+    mockFetch({ hotList: hotListView({ entries: [{ symbol: 'GRML', how: 'star', at: 1_790_000_000, board: null, rank: null,
+      change_pct: null, followed: false, why_not_followed: 'HOD Momo\'s 20 reserved slots are full' }] }) });
+    await renderPage();
+    const tag = screen.getByTestId('bots-tk-unfollowed-GRML');
+    expect(tag.textContent).toBe('not followed');
+    expect(tag.getAttribute('data-tip')).toBe('HOD Momo\'s 20 reserved slots are full');
+  });
+
   it('brings back yesterday\'s list only when there is one', async () => {
     const fetchMock = mockFetch({ hotList: hotListView({ yesterday: ['NXL', 'ACN'] }) });
     await renderPage();

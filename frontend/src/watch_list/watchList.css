@@ -297,3 +297,27 @@ body:has(.recording-stopped) .watch-toasts {
 .watch-list__remove:hover {
   color: var(--danger, #ef4444);
 }
+
+/* The list this desk kept before the hot list (ADR 043): offered once. */
+.watch-list__saved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 1px dashed color-mix(in srgb, var(--watch-color, #f5a524) 50%, transparent);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.watch-list__saved button {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 10px;
+  border: 1px solid var(--nova-border, #2a2f3a);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.watch-list__saved button:disabled { opacity: 0.55; cursor: not-allowed; }

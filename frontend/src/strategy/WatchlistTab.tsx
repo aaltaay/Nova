@@ -45,7 +45,7 @@ export function WatchlistTab({
         <button
           className={`sub-tab ${subTab === 'watchlist' ? 'active' : ''}`}
           onClick={() => setSubTab('watchlist')}
-          title="Contenders: every gapper/gainer scored against the Five Pillars and ranked by composite score. Refreshes continuously. No orders are placed. (Your own hand-picked symbols are the Watch list.)"
+          title="Contenders: every gapper/gainer scored against the Five Pillars and ranked by composite score. Refreshes continuously. No orders are placed. (Your own starred symbols are today's Hot list.)"
         >
           Contenders
           {entries.length > 0 && <span className="tab-count">{entries.length}</span>}

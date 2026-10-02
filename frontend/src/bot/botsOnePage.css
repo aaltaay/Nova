@@ -352,6 +352,7 @@ button.bots-switch--small .bots-switch__txt small { font-size: 11px; }
 .bots-tag--auto { color: var(--bots-blue); background: color-mix(in srgb, var(--bots-blue) 15%, transparent); }
 .bots-tag--pin { color: var(--bots-amber); background: color-mix(in srgb, var(--bots-amber) 15%, transparent); }
 .bots-tag--tiny { font-size: 9.5px; line-height: 15px; }
+.bots-tag--warn { color: var(--bots-amber); background: color-mix(in srgb, var(--bots-amber) 15%, transparent); cursor: help; }
 
 /* -- The last row: today and the proposals beside the activity ----------------- */
 .bots-grid--last { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: stretch; }

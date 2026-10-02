@@ -232,10 +232,11 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     showInTabNav: false,
   },
   {
-    // The operator's own hand-picked symbols: a toast whenever one hits HOD
-    // Momo (watch_list/). Not the ranked list below.
+    // Today's hot list (ADR 043: the watch list folds into the ★): a toast
+    // whenever one hits HOD Momo (watch_list/). Not the ranked list below. The
+    // id stays for persisted layouts.
     id: 'watch_list',
-    title: 'Watch list',
+    title: 'Hot list',
     component: host,
     // Its prices are the boards' rows as they stand; this tab declares no
     // scanner table for L1, so the header's Prices chip must not claim them.

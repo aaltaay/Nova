@@ -35,6 +35,7 @@ export function normalizeHotList(raw: unknown): HotListView | null {
       rank: num(x.rank),
       change_pct: num(x.change_pct),
       followed: typeof x.followed === 'boolean' ? x.followed : null,
+      why_not_followed: str(x.why_not_followed),
     });
   }
   return {

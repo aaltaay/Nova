@@ -4,7 +4,7 @@
  * The symbol is named once in the head; each action is a row that looks like a
  * button -- an icon tile in the action's colour, a label that says what the
  * click does, a line saying what that means, and a state chip when it is
- * already on (Watching, Hot list, REC, Bot). Stopping a recording stays a hold. The ★ puts
+ * already on (Hot list, REC, Bot). Stopping a recording stays a hold. The ★ puts
  * the stock on today's hot list from anywhere (ADR 043). "Let the
  * bot trade" goes through the stock-mode rules (ADR 042 F): the menu waits for
  * the answer and shows a refusal in the backend's words instead of closing.
@@ -36,9 +36,6 @@ import {
   SYMBOL_MENU_STOP_RECORD,
   SYMBOL_MENU_UNALLOW_HINT,
   SYMBOL_MENU_UNPIN_HINT,
-  SYMBOL_MENU_UNWATCH_HINT,
-  SYMBOL_MENU_WATCH_HINT,
-  SYMBOL_MENU_WATCH_STATE,
   botTradeAddLabel,
   botTradeRemoveLabel,
 } from '../constantGroups/bot';
@@ -63,16 +60,9 @@ import { CAPTURE_STOP_HOLD_HINT, captureStopHoldLabel } from '../capture/constan
 import { botSymbolMenuPosition } from './botSymbolMenuPlacement';
 import { BotNotices } from './BotNotices';
 import { ClipMenuRows } from '../clips';
-import {
-  toggleWatchList,
-  useWatchList,
-  WATCH_LIST_ADD,
-  WATCH_LIST_REMOVE,
-  WatchEyeIcon,
-} from '../watch_list';
 import './symbolMenu.css';
 
-type Tone = 'tab' | 'watch' | 'hot' | 'rec' | 'bot';
+type Tone = 'tab' | 'hot' | 'rec' | 'bot';
 const ICON_PX = 15;
 
 /** Icon tile, label, the line under it, and the chip that says it is already on. */
@@ -192,7 +182,6 @@ function SymbolMenu() {
   const [menuHeight, setMenuHeight] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const { isAllowed, toggle } = useBotAllowlist();
-  const watchList = useWatchList();
   const recordEpoch = useSyncExternalStore(
     subscribeSessionRecord,
     () => `${getRecordingSymbols().join(',')}|${getSessionRecordError() || ''}`,
@@ -211,7 +200,7 @@ function SymbolMenu() {
   useLayoutEffect(() => {
     const height = menuRef.current?.getBoundingClientRect().height ?? 0;
     if (height > 0 && Math.abs(height - menuHeight) > 1) setMenuHeight(height);
-  }, [open, menuHeight, recordError, botError, recordEpoch, watchList]);
+  }, [open, menuHeight, recordError, botError, recordEpoch]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -234,7 +223,6 @@ function SymbolMenu() {
   if (!open) return null;
   const { symbol } = open;
   const allowed = isAllowed(symbol);
-  const watched = watchList.includes(symbol);
   const recording = isTabRecording(symbol);
   void recordEpoch;
   const toggleRecord = async (stop: boolean) => {
@@ -301,18 +289,6 @@ function SymbolMenu() {
           }}
         />
       )}
-      <MenuRow
-        tone="watch"
-        testId="bot-symbol-menu-watch"
-        icon={<WatchEyeIcon />}
-        label={watched ? WATCH_LIST_REMOVE : WATCH_LIST_ADD}
-        hint={watched ? SYMBOL_MENU_UNWATCH_HINT : SYMBOL_MENU_WATCH_HINT}
-        state={watched ? SYMBOL_MENU_WATCH_STATE : null}
-        onClick={() => {
-          toggleWatchList(symbol);
-          closeBotSymbolMenu();
-        }}
-      />
       <HotListRow symbol={symbol} onDone={closeBotSymbolMenu} />
       {recording ? (
         // A recording is locked: Stop takes a deliberate hold, never a slip.

@@ -10,8 +10,10 @@ export interface HotEntry {
   board: string | null;
   rank: number | null;
   change_pct: number | null;
-  /** The setup scanners follow it now. */
+  /** The setup scanners follow it now; null when the scanner could not be read. */
   followed: boolean | null;
+  /** Why it is not followed (null while it is): the reserved slots are full, IBKR has no line, ... */
+  why_not_followed: string | null;
 }
 
 export interface HotListView {

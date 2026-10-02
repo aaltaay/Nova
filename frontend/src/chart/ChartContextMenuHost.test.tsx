@@ -26,6 +26,8 @@ const SMPL: IbkrPosition = {
 
 let positions: IbkrPosition[] = [];
 
+// The watch list is today's hot list (ADR 043): an in-memory one here.
+vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
 vi.mock('../bot/useBotAllowlist', () => ({
   useBotAllowlist: () => ({
     symbols: [],

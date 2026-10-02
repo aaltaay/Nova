@@ -129,6 +129,12 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
           </button>
           <button type="button" className="bots-linkbtn bots-tk__sym" onClick={() => onOpenSymbol(t.symbol)}>{t.symbol}</button>
           {entry ? <span className={`bots-tag bots-tag--${entry.how === 'auto' ? 'auto' : 'pin'}`}>{entry.how === 'auto' ? `auto ${etTime(entry.at)}` : `★ ${etTime(entry.at)}`}</span> : null}
+          {entry && entry.followed !== true ? (
+            <span className="bots-tag bots-tag--warn" data-testid={`bots-tk-unfollowed-${t.symbol}`}
+              {...tipProps(entry.why_not_followed ?? 'Whether the scanners follow it could not be read.', 'Not followed by the scanners')}>
+              {entry.followed === false ? 'not followed' : 'followed?'}
+            </span>
+          ) : null}
         </td>
         <td className="bots-nowrap">
           {isListed ? (

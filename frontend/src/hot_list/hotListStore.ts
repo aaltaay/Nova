@@ -72,6 +72,12 @@ export function useHotList(): HotListState {
   return useSyncExternalStore(subscribe, () => state, () => state);
 }
 
+/** The same state for a reader outside React (the watch list, ADR 043), and its subscription. */
+export function getHotListState(): HotListState {
+  return state;
+}
+export const subscribeHotList = subscribe;
+
 /** Whether ``symbol`` is on today's list; null while the list has not been read. */
 export function listedOn(view: HotListView | null, symbol: string): boolean | null {
   if (!view) return null;

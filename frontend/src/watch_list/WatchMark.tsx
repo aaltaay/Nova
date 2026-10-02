@@ -1,4 +1,4 @@
-/** The eye beside a watched ticker; nothing for a symbol that is not watched. */
+/** The star beside a ticker on today's hot list; nothing for one that is not on it. */
 import { WatchEyeIcon } from './WatchEyeIcon';
 import { watchMarkTitle } from './watchListConstants';
 import { useIsWatched } from './watchListStore';
