@@ -97,7 +97,7 @@ The dev server spawns the API **only from the main repository's `backend/`**
 `NOVA_ENV_PATH` explicitly. `GET /__nova/api-status` reports `{owned, pid,
 started, restarts, last_exit, cwd, env_path, main_root, gave_up}` plus a live
 probe of `:8000`, and the checklist shows it as the **process owner** row. An
-API started by `Run Nova.bat` is *reported* (pid, instance id from
+API started by `scripts/windows/Run Nova.bat` is *reported* (pid, instance id from
 `/api/health`) but not owned; the supervisor never kills a process it did not
 start unless the operator asks for a restart.
 

@@ -60,7 +60,7 @@ Rules:
 ## ledger
 
 There is **no changelog** (AGENTS.md §7.1). `CHANGELOG.md` is retired and
-archived under `_archived/`. Do not recreate it or add a changelog step
+archived under `docs/archive/`. Do not recreate it or add a changelog step
 anywhere.
 
 - A PR carries its entry in its own body: **What** / **Why this approach** /

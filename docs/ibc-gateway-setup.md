@@ -200,7 +200,7 @@ registers:
 # Run once now (no scheduler):
 .\scripts\Start-NovaDaily.ps1
 .\scripts\Invoke-NovaMorningCheck.ps1
-# or double-click: Start Nova Daily.bat
+# or double-click: scripts/windows/Start Nova Daily.bat
 
 # Remove both NovaDailyStart and NovaMorningCheck:
 .\scripts\Install-NovaDailyTask.ps1 -Unregister

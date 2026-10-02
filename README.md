@@ -165,7 +165,7 @@ Then open <http://localhost:4173/demo/>.
 
 **Requirements**
 
-- Windows for the supported desktop app and the `Run Nova.bat` path
+- Windows for the supported desktop app and the `scripts/windows/Run Nova.bat` path
 - Python 3.13 and Node.js 20
 - [IB Gateway](https://www.interactivebrokers.com/en/trading/ibgateway-stable.php), logged in (live port 4001)
 - Optional: Alpaca keys for news and listing metadata, Finnhub for the earnings calendar, Discord or Telegram for alerts
@@ -175,7 +175,7 @@ Then open <http://localhost:4173/demo/>.
 1. Clone this repository.
 2. Copy `.env.example` to `.env` and fill in what you use. Secrets never go in git.
 3. In `frontend/`, run `npm install` once.
-4. Double-click `Run Nova.bat`. The API comes up on <http://127.0.0.1:8000> and the desk on <http://localhost:5173>.
+4. Double-click `scripts/windows/Run Nova.bat`. The API comes up on <http://127.0.0.1:8000> and the desk on <http://localhost:5173>.
 
 **Desktop app** (Electron with the local API as a sidecar):
 
@@ -217,6 +217,21 @@ The API binds to `127.0.0.1:8000`. Do not expose it to the internet.
 | Orders | `execution.service.execute`, the single broker mutation entry | [ADR 007](architecture/decisions/007-centralized-trading-execution.md) |
 
 A modular monolith with ports and adapters, feature slices on the frontend, and an isolated event loop for the broker connection. Each structural decision is written down as an [architecture decision record](architecture/decisions/), including [three venues on one feed](architecture/decisions/020-three-venues-one-feed.md), [IB loop isolation](architecture/decisions/010-ib-loop-isolation.md) and [desk venue vs spend arming](architecture/decisions/018-desk-venue-vs-spend-arming.md).
+
+### Repository layout
+
+| Folder | What it holds |
+|--------|---------------|
+| [`backend/`](backend/) | The engine: FastAPI app, IBKR adapter, execution door, scanners, practice venues, recorders |
+| [`frontend/`](frontend/) | The desk: React app (`src/`), Electron shell (`electron/`), Playwright tests (`e2e/`) |
+| [`architecture/`](architecture/) | Architecture decision records and the dependency rules |
+| [`docs/`](docs/) | Guides and runbooks; README images in `docs/readme/` |
+| [`scripts/`](scripts/) | PowerShell for the Windows desk (start, stop, watchdog); double-click launchers in `scripts/windows/` |
+| [`tools/`](tools/) | Repo tooling: the CI maintainer gate, release notes, backlog triage, diagnostics |
+| [`research/`](research/) | Offline studies and backfills (catalysts, the scanner leaderboard, momentum) |
+| [`security/`](security/) | The security findings registry and how the security scans run (see [SECURITY.md](SECURITY.md)) |
+| [`knowledge/`](knowledge/) | The project's decision notes, task log, backlog plan and signal-trial registries |
+| `.github/` · `.cursor/` · `.claude/` · `.agents/` | CI workflows, and the rules and skills the coding agents work under ([AGENTS.md](AGENTS.md)) |
 
 ## Built to be trusted
 

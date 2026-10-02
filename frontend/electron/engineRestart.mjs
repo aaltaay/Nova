@@ -8,7 +8,7 @@
  * script checks the listener is Nova's before it kills -- and a reload counts only when a
  * different process answers /api/health (a new `instance_id`). The localhost watchdog
  * (scripts/Watch-NovaLocalhost.ps1) starts the next engine; with no watchdog running, the
- * checkout's own scripts/Start-NovaApi.ps1 does, as Run Nova.bat would -- never this app's
+ * checkout's own scripts/Start-NovaApi.ps1 does, as scripts/windows/Run Nova.bat would -- never this app's
  * packaged engine, which keeps its data in another folder. The engine's instance lock makes a
  * start beside the watchdog's harmless: the second one exits.
  */
@@ -149,15 +149,15 @@ function cmdExe(env) {
 }
 
 /**
- * Start a checkout's engine the way Run Nova.bat does: its own hidden console in the backend
+ * Start a checkout's engine the way scripts/windows/Run Nova.bat does: its own hidden console in the backend
  * folder, so it outlives this app (ADR 038: the desk starts the owner's engine, never a stranger).
  * Throws saying why when it cannot be started from here.
  * @param {{root: string, start: string | null, backendDir: string}} scripts from engineScripts()
  */
 export function startCheckoutEngine(scripts, { env = process.env, spawnFn = spawn } = {}) {
-  if (!scripts?.start) throw new Error('Start-NovaApi.ps1 is missing -- run Run Nova.bat');
+  if (!scripts?.start) throw new Error('Start-NovaApi.ps1 is missing -- run scripts/windows/Run Nova.bat');
   const commandLine = engineStartCommandLine(windowsPowerShell(env), scripts.backendDir, scripts.start);
-  if (!commandLine) throw new Error('its folder path cannot be started from here -- run Run Nova.bat');
+  if (!commandLine) throw new Error('its folder path cannot be started from here -- run scripts/windows/Run Nova.bat');
   const child = spawnFn(cmdExe(env), [commandLine], {
     cwd: scripts.backendDir,
     detached: true,
@@ -261,7 +261,7 @@ export async function restartCheckoutEngine(before, deps) {
   }
   const after = await waitForNewEngine(apiBase, before, { fetchJson, sleep, now, timeoutMs });
   if (!after) {
-    throw new Error(`Stopped ${label(from)}; no backend answered within ${Math.round(timeoutMs / 1000)} s -- run Run Nova.bat`);
+    throw new Error(`Stopped ${label(from)}; no backend answered within ${Math.round(timeoutMs / 1000)} s -- run scripts/windows/Run Nova.bat`);
   }
   console.log(`[nova-api] reload: ${label(after.release_tag)} answers (was ${from ?? 'unknown'})`);
   return { from, to: after.release_tag };
@@ -273,7 +273,7 @@ const OWNER_RETRY_PROBE_MS = 2_500;
 /**
  * ADR 038 (amended 2026-09-29): nothing answers :8000 and this desk remembers the operator's
  * checkout as the backend's owner (engineOwnership.mjs) -- start that checkout's engine, with its
- * data and its .env, the way Run Nova.bat does. True once it answers. When it does not, the
+ * data and its .env, the way scripts/windows/Run Nova.bat does. True once it answers. When it does not, the
  * operator chooses: Retry, the bundled engine for this session (its own data folder, said so),
  * or Exit (this throws). False when no owner is remembered or the operator picked the bundled one.
  * @param {{ userData: string, waitForHealth: (timeoutMs: number) => Promise<void>,
@@ -298,7 +298,7 @@ export async function startOwnerEngine({
     let error;
     try {
       console.log('[nova-api] starting the backend from its checkout', owner.repo_root);
-      if (!scripts) throw new Error('Stop-NovaPorts.ps1 is missing from the checkout -- run Run Nova.bat');
+      if (!scripts) throw new Error('Stop-NovaPorts.ps1 is missing from the checkout -- run scripts/windows/Run Nova.bat');
       startCheckoutEngine(scripts, { env, spawnFn });
       onStarting();
       await waitForHealth(timeoutMs);

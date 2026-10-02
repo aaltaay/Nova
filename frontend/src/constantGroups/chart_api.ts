@@ -201,7 +201,7 @@ export const BACKEND_DIAG_FLAG_UNREACHABLE = 'API_UNREACHABLE';
 
 export const BACKEND_DIAG_HINTS: Record<string, string> = {
   [BACKEND_DIAG_FLAG_DOWN]:
-    'Nothing answered on the API port — Nova auto-restarts once in dev, or click Start API / Run Nova.bat.',
+    'Nothing answered on the API port — Nova auto-restarts once in dev, or click Start API / scripts/windows/Run Nova.bat.',
   [BACKEND_DIAG_FLAG_WEDGED]:
     'Health probe timed out -- the API PID is still listening. Opening Trader (charts / L2 / tape) can stall a probe. Do not kill the API.',
   [BACKEND_DIAG_FLAG_HTTP]:

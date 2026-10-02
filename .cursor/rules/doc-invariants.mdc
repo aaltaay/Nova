@@ -30,5 +30,5 @@ Wired in GitHub Actions (`agent-contract` job). Do not weaken patterns to silenc
 ## Do not
 
 - Restate deploy/hosting truth in many Obsidian notes (link the live home; banner archives).
-- Treat `findings.md` or old decision bodies as current law when they conflict with the table above.
+- Treat old decision bodies as current law when they conflict with the table above.
 - Reintroduce Railway as the backend host, Alpaca as scanner SoT, or an absolute no-trading claim that ignores gated IBKR execution.

@@ -8,7 +8,6 @@ globs:
   - ".cursor/agent-memory/**"
   - ".cursor/agent-system/**"
   - "AGENTS.md"
-  - "gemini.md"
   - "knowledge/task-log/**"
 alwaysApply: false
 ---
