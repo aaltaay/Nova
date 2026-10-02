@@ -23,6 +23,7 @@ import { ScreenRecordChip } from '../screen_record';
 import { ClipChips, ClipExportHost, ClipToasts } from '../clips';
 import { GlobalBarBotPill } from '../bot/GlobalBarBotPill';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
+import { CloseReminders } from '../close_reminder';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
@@ -68,7 +69,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     ibkrIntentionalMode,
     ibkrDisconnectHint,
   } = useWorkspace();
-  const { summary, orders, positions, refresh, loading: accountLoading, error: accountError } =
+  const { summary, orders, positions, refresh, stale: accountStale, loading: accountLoading, error: accountError } =
     useIbkrAccountContext();
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
 
@@ -103,6 +104,9 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     <header className="global-app-bar" data-testid="global-app-bar" data-venue={deskVenue ?? undefined}>
       <RecordingSignals onOpenSymbol={openStockView} />
       <WatchListToasts onOpenSymbol={openStockView} />
+      {!isSampleView() && (
+        <CloseReminders positions={positions} venue={deskVenue} stale={accountStale} onOpenSymbol={openStockView} />
+      )}
       <ClipToasts />
       <ClipExportHost />
       <div className="global-app-bar__primary" data-testid="global-bar-primary">

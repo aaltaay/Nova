@@ -1,0 +1,95 @@
+/* The close-of-day reminder cards: centered under the header, above every other overlay, red. */
+.close-reminders {
+  --close-remind-color: #e5484d;
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(440px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.close-reminder {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 10px 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--close-remind-color) 70%, var(--border-color));
+  border-left-width: 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--close-remind-color) 14%, var(--panel-bg));
+  color: var(--text-primary);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  pointer-events: auto;
+  animation: close-reminder-in 160ms ease-out;
+}
+
+/* 15:55: the card pulses until it is dealt with. */
+.close-reminder.is-final {
+  animation: close-reminder-in 160ms ease-out, close-reminder-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes close-reminder-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes close-reminder-pulse {
+  0%, 100% { box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--close-remind-color) 55%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .close-reminder,
+  .close-reminder.is-final {
+    animation: none;
+  }
+}
+
+.close-reminder__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.close-reminder__title {
+  color: var(--close-remind-color);
+  font-size: 14px;
+}
+
+.close-reminder__body {
+  color: var(--text-secondary);
+}
+
+.close-reminder__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.close-reminder__action {
+  padding: 3px 10px;
+  border: 1px solid var(--close-remind-color);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--close-remind-color) 18%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.close-reminder__dismiss {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
