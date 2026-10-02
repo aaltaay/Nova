@@ -9,6 +9,9 @@ alwaysApply: false
 - Classify the complete PR merge-base diff, including deleted paths and both sides
   of renames. Pushes compare before/after; manual runs verify everything.
 - Documentation and site-only changes run docs/agent validation and secret scanning.
+  Documentation is Markdown at the root or under `docs/` / `knowledge/`, plus images
+  under `docs/` (`.png .webp .jpg .jpeg .gif .svg`: README screenshots and diagrams).
+  Nothing packages `docs/`, so a README image never builds or publishes a release.
 - Frontend changes run lint, unit tests, build, Chromium E2E and desktop packaging.
   Trading-facing frontend modules also run the full backend suite.
 - Backend changes run the full backend suite (including execution, risk, short,

@@ -10,6 +10,8 @@ from tools.ci_scope import FIELDS, changed_paths, classify, full_scope, select_s
 @pytest.mark.parametrize("paths", [
     ["README.md"], ["docs/ci.md"],
     ["knowledge/task-log/2026-09-20-ci.md"],
+    ["README.md", "docs/readme/hero.webp", "docs/readme/social-preview.png"],
+    ["docs/images/diagram.SVG"], ["docs/replay-desk-audit-2026-09-20/after-04-rewind.png"],
 ])
 def test_non_application_changes_skip_heavy_checks(paths):
     scope = classify(paths)
@@ -43,6 +45,7 @@ def test_trading_frontend_also_runs_backend_safeguards(path):
     "frontend/package-lock.json", "backend/requirements.txt", "pyproject.toml",
     ".github/workflows/deploy.yml", "tools/ci_scope.py", "new-runtime/foo.py",
     "docs/generate.py", "frontend/vite.config.ts", ".env.example",
+    "docs/hod_brainstorming.html", "docs/hero.webp.js", "site-assets/hero.webp",
 ])
 def test_shared_or_unknown_paths_select_full_verification(path):
     assert classify([path]) == full_scope()
