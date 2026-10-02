@@ -260,7 +260,26 @@ describe('the plan on the rail', () => {
     expect(show.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(screen.getByTestId('stock-read-toggle-setups'));
     expect(show.getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByTestId('stock-read-toggle-setups').textContent).toContain('Setups off');
+    expect(screen.getByTestId('stock-read-toggle-setups').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('stock-read-toggle-setups').textContent).not.toContain('✓');
+  });
+
+  it('turns every Nova drawing off with Eyes, keeps its parts, and turns it back on from the plan', async () => {
+    renderRail();
+    const show = await screen.findByTestId('stock-read-show-on-chart');
+    const eyes = screen.getByTestId('stock-read-toggle-eyes');
+    expect(eyes.textContent).toContain('Eyes on');
+    fireEvent.click(eyes);
+    expect(eyes.textContent).toContain('Eyes off');
+    expect(show.getAttribute('aria-pressed')).toBe('false');
+    const setups = screen.getByTestId('stock-read-toggle-setups');
+    expect((setups as HTMLButtonElement).disabled).toBe(true);
+    expect(setups.getAttribute('data-why')).toMatch(/Eyes is off/);
+    expect(setups.textContent).toContain('✓');           // its own choice is kept for when Eyes is back on
+    expect(localStorage.getItem('nova.stockRead.layers')).toContain('"eyes":false');
+    fireEvent.click(show);
+    expect(screen.getByTestId('stock-read-toggle-eyes').textContent).toContain('Eyes on');
+    expect(show.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('plans a hand trade at the ask when nothing is forming, then asks the backend for it', async () => {

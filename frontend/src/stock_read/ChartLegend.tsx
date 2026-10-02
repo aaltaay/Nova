@@ -126,7 +126,9 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
   const corner = useRef<HTMLDivElement>(null);
   useCornerBottom(corner, containerRef, onCornerBottom);
   const { layers } = ctx;
-  const moment = ctx.who.moment;
+  const eyes = ctx.prefs.eyes;
+  // Eyes off (ADR 043): no badge, except a call about shares you hold (the trade's moment is Holding or past it).
+  const moment = eyes || (ctx.who.moment?.step ?? 0) >= 2 ? ctx.who.moment : null;
   const badge = moment?.badge ?? (layers.setups ? planBadgeText(read) : null);
   const tone = moment?.tone ?? read.plan?.state ?? 'manual';
   const focus = ctx.focus;
@@ -135,7 +137,17 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
       style={right === null ? undefined : { right }}>
       <div className="sr-legend__chips">
         <ChartKey sections={chartKey('full', layers)} testId="stock-read-key-full" />
-        {!layers.setups ? (
+        {!eyes ? (
+          <button
+            type="button"
+            className="sr-legend__chip"
+            onClick={() => ctx.setLayers({ eyes: true })}
+            {...tipProps('Eyes is off: Nova draws nothing on this tab. Click to turn it back on.')}
+            data-testid="stock-read-legend-show"
+          >
+            👁 Eyes off · show
+          </button>
+        ) : !layers.setups ? (
           <button
             type="button"
             className="sr-legend__chip"
@@ -149,14 +161,19 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
             {read.setups.map(lane => {
               const chip = laneChip(lane);
               const off = layers.hidden.includes(lane.setup_type);
+              // A strategy at Off on the Bots page draws nothing: the chip says so and cannot turn it back on here.
+              const strategyOff = lane.timeframe !== '5m' && lane.level === 0;
               return (
                 <button
                   key={lane.setup_type}
                   type="button"
                   className={`sr-legend__chip sr-legend__chip--${chip.state}${off ? ' sr-legend__chip--off' : ''}`}
                   aria-pressed={!off}
+                  disabled={strategyOff}
                   onClick={() => ctx.toggleLane(lane.setup_type)}
-                  {...tipProps(`${lane.reason || lane.state}${off ? ' (drawing hidden: click to show)' : ' (click to hide its drawing)'}`)}
+                  {...(strategyOff
+                    ? whyProps(true, 'This strategy is Off on the Bots page: Nova draws nothing for it. Set it to Eyes or On there.')
+                    : tipProps(`${lane.reason || lane.state}${off ? ' (drawing hidden: click to show)' : ' (click to hide its drawing)'}`))}
                   data-testid={`stock-read-legend-${lane.setup_type}`}
                 >
                   <i className="sr-legend__dot" aria-hidden="true" />
