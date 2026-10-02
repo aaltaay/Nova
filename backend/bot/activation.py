@@ -16,7 +16,11 @@ The backend clears Activate -- with a ``deactivate`` audit line and the session'
 ``note_start``: spend arming never survives a start either, ADR 018), when anyone locks
 the padlock (``on_disarm``, called from ``ibkr.safety``), on a venue change
 (``bot.venue_levels``), with the master below Strategy or no setup left at Strategy
-(``bot.autonomy``), on a trip (``bot.autonomy.drop_to_l0``) and by the operator.
+(``bot.autonomy``), on a trip (``bot.autonomy.drop_to_eyes``) and by the operator.
+
+ADR 044: the desk shows one Bot switch per venue instead of the master dial and Activate
+(``bot.switch``): ON is the master at Strategy and Activate in one step, refused with
+Activate's own codes (``refusal``); OFF and a trip leave the master at Eyes.
 
 Owner: this module (the rules; the session file is ``bot.persist``'s).
 """
@@ -43,14 +47,14 @@ from constants_bot import (
 logger = logging.getLogger(__name__)
 
 _TEXT = {
-    "restart": "Nova restarted: Activate never survives a restart -- press Activate again",
-    "padlock": "the padlock was locked: Activate needs it unlocked -- unlock it, then Activate again",
-    "venue": "the desk moved to another venue: Activate never carries into another venue",
+    "restart": "Nova restarted: the bot never stays on across a restart -- turn the Bot switch on again",
+    "padlock": "the padlock was locked: the bot needs it unlocked -- unlock it, then turn the Bot switch on again",
+    "venue": "the desk moved to another venue: the bot never carries into another venue",
     "level": "the master level left Strategy",
     "no_setup": "no setup is at Strategy any more",
-    "bot_trip": "the bot trip fired: the bot went to Off",
-    "all_stop": "the all-stop fired: the bot went to Off and buys are locked for the day",
-    "operator": "you deactivated the bot",
+    "bot_trip": "the bot trip fired: the bot is off, Eyes keep watching (ADR 044)",
+    "all_stop": "the all-stop fired: the bot is off, Eyes keep watching, and buys are locked for the day",
+    "operator": "you turned the bot off",
 }
 # Set when the first load of this process found Activate on and cleared it (in memory);
 # ``note_start`` writes the file and the audit line from the API process only.
@@ -118,11 +122,12 @@ def money(value: Any) -> str:
     return f"{'-' if v < 0 else ''}${abs(v):,.2f}"
 
 
-def trip_text(row: dict[str, Any]) -> str:
+def trip_text(row: dict[str, Any], act: str = "Activate") -> str:
+    """The bot trip in words; ``act`` names the control that re-enables it (the Bot switch: ``Turn the bot on``)."""
     at, pnl = row.get("soft_breaker_at"), row.get("soft_breaker_pnl")
     when = f" at {hhmm(at)} ET" if at else " today"
     said = f" (P&L {money(pnl)})" if isinstance(pnl, (int, float)) else ""
-    return f"The bot trip fired{when}{said}. Activate with re-enable to trade again today."
+    return f"The bot trip fired{when}{said}. {act} with re-enable to trade again today."
 
 
 # -- Activate ------------------------------------------------------------------------

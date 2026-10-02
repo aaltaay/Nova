@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The bot in the global bar (approved mockup v4): state at a glance on every
+ * The Bot switch in the global bar (ADR 044): ON or OFF at a glance on every
  * view, one click to the Bots page.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -51,27 +51,34 @@ async function mount(opts: BotsFetchOpts, node = <GlobalBarBotPill />) {
 }
 
 describe('GlobalBarBotPill', () => {
-  it('reads "Bot L2 Strategy · 1 at Strategy · Not active", says why on hover, and opens the Bots page', async () => {
-    await mount({ session: strategySession({ deactivated: { at: null, reason: 'restart', text: null } }) });
+  it('reads "Bot OFF", says why on hover, and opens the Bots page', async () => {
+    await mount({ session: strategySession({ deactivated: { at: null, reason: 'restart', text: 'Not active -- the backend restarted' } }) });
     const pill = screen.getByTestId('global-bar-bot-pill');
-    expect(pill.textContent).toBe('BotL2Strategy· 1 at Strategy· Not active');
-    expect(pill.textContent).not.toMatch(/First pullback/);
-    expect(pill.className).toContain('global-bar-bot-pill--idle');
-    expect(pill.title).toMatch(/Not active — Turned off — the backend restarted/);
+    expect(pill.textContent).toBe('BotOFF');
+    expect(pill.className).toContain('global-bar-bot-pill--off');
+    expect(pill.title).toMatch(/^Bot off on Paper: Turned off — the backend restarted\. Strategies at On: First pullback\./);
     fireEvent.click(pill);
     expect(getNavPage()).toBe('bots');
     expect(workspace.showScannerView).not.toHaveBeenCalled();
   });
 
-  it('turns green when the bot is active and would trade, and leaves the Trader to open the page', async () => {
+  it('turns green when the Bot is on and would trade, and leaves the Trader to open the page', async () => {
     workspace.traderViewActive = true;
-    await mount({ session: strategySession({ active: true, armed: true, ready: true, has_desk_arm: true }) });
+    await mount({ session: strategySession({ bot_on: true, active: true, armed: true, ready: true, has_desk_arm: true }) });
     const pill = screen.getByTestId('global-bar-bot-pill');
     expect(pill.className).toContain('global-bar-bot-pill--on');
-    expect(pill.textContent).toMatch(/Active$/);
+    expect(pill.textContent).toBe('BotON· 1 strategy On');
     fireEvent.click(pill);
     expect(workspace.showScannerView).toHaveBeenCalledTimes(1);
     expect(getNavPage()).toBe('bots');
+  });
+
+  it('says when the Bot is on but would not trade now', async () => {
+    await mount({ session: strategySession({ bot_on: true, active: true, armed: true, ready: false, ready_reason: 'every bot window is closed' }) });
+    const pill = screen.getByTestId('global-bar-bot-pill');
+    expect(pill.className).toContain('global-bar-bot-pill--idle');
+    expect(pill.textContent).toBe('BotON· not trading now');
+    expect(pill.title).toMatch(/Not trading now — every bot window is closed/);
   });
 
   it('shows nothing without a bot session', async () => {
@@ -85,12 +92,12 @@ describe('GlobalBarBotPill', () => {
 });
 
 describe('NavRailBotDot', () => {
-  it('is amber while a level is chosen but not active, and absent at Off', async () => {
-    await mount({ session: session({ level: 1 }) }, <NavRailBotDot />);
+  it('is amber while the Bot is on but not trading now, and absent while it is off', async () => {
+    await mount({ session: strategySession({ bot_on: true, active: true, ready: false }) }, <NavRailBotDot />);
     expect(screen.getByTestId('nav-rail-bots-dot').className).toContain('nav-rail__badge--idle');
     cleanup();
     _resetBotSessionPollerForTests();
-    await mount({ session: session({ level: 0 }) }, <NavRailBotDot />);
+    await mount({ session: session({ level: 1 }) }, <NavRailBotDot />);
     expect(screen.queryByTestId('nav-rail-bots-dot')).toBeNull();
   });
 });

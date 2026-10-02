@@ -1,63 +1,54 @@
 /**
- * The bot's master level and Activate (ADR 042), one logic for every surface that
- * drives them (the Bots page hero, the Trader rail card). Choosing a level never
- * activates the bot: configuration is not "go". Activate is enabled only when the
- * backend would accept it (bot/botActivateLock.ts), and after a bot trip it asks in
- * words before it sends `reenable: true`. Locking the padlock turns the bot off in
- * the backend (ibkr/safety's disarm path calls the bot), never from here.
+ * The Bot switch (ADR 044), one logic for every surface that drives it (the Bots page's Bot card, the
+ * Trader rail card). Off always goes; on is locked with the reason where the bot cannot trade (Live, a
+ * replay desk), and after the bot trip it asks in words before it sends `reenable: true`. Locking the
+ * padlock turns the Bot off in the backend (ibkr/safety's disarm path calls the bot), never from here.
  */
-import { BOTS_REENABLE_CANCEL, BOTS_REENABLE_OK, BOTS_REENABLE_TITLE } from '../constantGroups/bots_page';
 import { DESK_BOT_POLL_MS } from '../constants';
 import { confirmApp } from '../ux/appDialogApi';
-import { activateLock } from './botActivateLock';
-import { gateContext } from './botGateWords';
-import { isActive, isReady, masterLevel } from './botLevels';
 import { setBotSessionError } from './botSessionPoller';
+import { botOn, reenableWords, switchLock, tripLatch } from './botSwitch';
 import { useBotSession } from './useBotSession';
 
 export type BotArm = ReturnType<typeof useBotArm>;
 
+export const BOT_REENABLE_TITLE = 'Turn the bot back on?';
+export const BOT_REENABLE_YES = 'Turn on for today';
+export const BOT_REENABLE_NO = 'Keep it off';
+
 export function useBotArm() {
   const bot = useBotSession(DESK_BOT_POLL_MS);
-  const { session, activate, patch } = bot;
-  const level = masterLevel(session);
-  const active = isActive(session);
-  const ready = isReady(session);
-  const lock = activateLock(session, session ? gateContext(session, null) : {});
+  const { session, busy, setSwitch } = bot;
+  const on = session ? botOn(session) : false;
+  const lock = switchLock(session, busy);
 
-  /** The master level: a PATCH, never an Activate. */
-  async function onLevel(next: number) {
-    await patch({ level: next });
-  }
-
-  /** Activate, as the backend would accept it: refused with its reason, or after the bot trip, asked first. */
-  async function onActivate() {
-    if (lock.why) {
-      setBotSessionError(lock.why);
+  /** Turn the Bot on or off, as the backend would accept it: refused with its reason, or after the bot trip, asked first. */
+  async function onSwitch(next: boolean) {
+    if (!next) return setSwitch(false);
+    if (lock) {
+      setBotSessionError(lock);
       return null;
     }
-    if (lock.reenable) {
-      const ok = await confirmApp({
-        title: BOTS_REENABLE_TITLE,
-        message: lock.reenable,
-        confirmLabel: BOTS_REENABLE_OK,
-        cancelLabel: BOTS_REENABLE_CANCEL,
+    const latch = session ? tripLatch(session) : null;
+    if (latch) {
+      const yes = await confirmApp({
+        title: BOT_REENABLE_TITLE,
+        message: reenableWords(latch),
+        confirmLabel: BOT_REENABLE_YES,
+        cancelLabel: BOT_REENABLE_NO,
         tone: 'warning',
       });
-      if (!ok) return null;
-      return activate({ reenable: true });
+      if (!yes) return null;
+      return setSwitch(true, true);
     }
-    return activate();
+    return setSwitch(true);
   }
 
   return {
     ...bot,
-    level,
-    active,
-    ready,
+    on,
     lock,
     showKeyField: Boolean(bot.error && /api key/i.test(bot.error)),
-    onLevel,
-    onActivate,
+    onSwitch,
   };
 }

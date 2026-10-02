@@ -200,13 +200,14 @@ def apply_desk_level(level: int, **extra: Any) -> dict[str, Any]:
     return load_session() if int(level) >= BOT_LEVEL_STRATEGY else saved
 
 
-def drop_to_l0(*, keep_soft_latch: bool = True, reason: str = "bot_trip") -> dict[str, Any]:
-    """A loss breaker tripped: the master to Off, Activate cleared (``reason``: ``bot_trip`` or
-    ``all_stop``), the bot's orders forgotten, the bot trip latched for the day."""
+def drop_to_eyes(*, keep_soft_latch: bool = True, reason: str = "bot_trip") -> dict[str, Any]:
+    """A loss breaker tripped: the bot is off, the way the Bot switch's OFF leaves it (ADR 044) -- the
+    master at Eyes, so the setups at Eyes or On keep proposing; Activate cleared (``reason``:
+    ``bot_trip`` or ``all_stop``), the bot's orders forgotten, the bot trip latched until 04:00 ET."""
     from bot import activation
 
     row = load_session()
-    row["level"] = BOT_LEVEL_OFF
+    row["level"] = BOT_LEVEL_EYES
     was = activation.deactivate(row, reason)
     row["bot_qty"] = {}
     row["working"] = []
@@ -219,6 +220,10 @@ def drop_to_l0(*, keep_soft_latch: bool = True, reason: str = "bot_trip") -> dic
     if was:
         activation.record(reason)
     return saved
+
+
+# The name the breakers and tests knew (ADR 032); since ADR 044 it drops to Eyes, not Off.
+drop_to_l0 = drop_to_eyes
 
 
 def assert_not_dark(row: dict[str, Any] | None = None) -> dict[str, Any]:

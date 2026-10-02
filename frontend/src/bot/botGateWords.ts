@@ -1,10 +1,9 @@
 /**
  * Every gate between the bot and a trade (backend bot/gates.py, ADR 042 C) in words,
  * pure: the chip's text, its hover, the one action that opens it, and -- for a closed
- * gate -- the sentence that says why, which Activate's `data-why` and the hero's
- * headline reuse. Nothing here decides whether a gate is open: the backend does.
- * `activate`-stage gates are what Activate needs; `fire`-stage gates are what each
- * order still meets.
+ * gate -- the sentence that says why, which the answer line ("Can Nova buy right now?")
+ * reuses. Nothing here decides whether a gate is open: the backend does. `activate`-stage
+ * gates are what the Bot switch needs; `fire`-stage gates are what each order still meets.
  */
 import { BOT_GATE_COMMISSIONS_HELD, BOT_GATE_LABELS, BOT_GATE_TIPS, BOT_SOFT_BREAKER_USD } from '../constantGroups/bot';
 import {
@@ -15,7 +14,7 @@ import {
   BOTS_GATE_UNLOCK,
   BOTS_VENUE_NAMES,
 } from '../constantGroups/bots_page';
-import { levelName, setupLabelOf, setupNames } from './botLevels';
+import { setupLabelOf, setupNames } from './botLevels';
 import { etTime, etUntil, usdCents } from './botWhen';
 import type { BotGate, BotSession } from './types';
 
@@ -135,13 +134,13 @@ function windowWords(ok: boolean, d: Record<string, unknown>): Words {
     const shut = d.open === false ? ' · closed now' : '';
     return { text: `Bot window ${String(d.start ?? '—')}–${String(d.end ?? '—')}${shut}`, why: ok ? null : 'The bot window is closed now.' };
   }
-  if (rows.length === 0) return { text: 'Bot window — no setup at Strategy', why: 'No setup at Strategy has a bot window.' };
+  if (rows.length === 0) return { text: 'Bot window — no strategy at On', why: 'No strategy at On has a bot window.' };
   const one = (r: Record<string, unknown>) =>
     `${setupLabelOf(String(r.setup ?? ''))} ${String(r.start ?? '—')}–${String(r.end ?? '—')}${r.clipped ? ' (clipped)' : ''}`;
   const open = rows.filter(r => r.open === true);
   if (ok || open.length) return { text: `Bot window open · ${open.map(one).join(' · ')}`, why: null };
   return { text: `Bot windows closed now · ${rows.map(one).join(' · ')}`,
-    why: `Every setup at Strategy is outside its bot window now: ${rows.map(one).join(', ')}.` };
+    why: `Every strategy at On is outside its bot window now: ${rows.map(one).join(', ')}.` };
 }
 
 function capWords(ok: boolean, d: Record<string, unknown>): Words {
@@ -160,15 +159,14 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
   switch (g.id) {
     case 'venue':
       return venueWords(ok, d);
-    case 'level': {
-      const name = levelName(d.level ?? 0);
-      return ok ? { text: `${label} Strategy`, why: null }
-        : { text: `${label} ${name} — needs Strategy`, why: `The master level is ${name}: choose Strategy on the dial first.` };
-    }
+    case 'level':
+      // The master at Strategy is the Bot switch's on (ADR 044).
+      return ok ? { text: `${label} on`, why: null }
+        : { text: `${label} off`, why: 'The Bot is off: turn it on in the Bot card.' };
     case 'setups': {
       const ids = list(d.at_strategy);
-      return ok ? { text: `At Strategy · ${setupNames(ids)}`, why: null }
-        : { text: 'No setup at Strategy', why: 'No setup is at Strategy: set a setup card\'s own switch to Strategy.',
+      return ok ? { text: `At On · ${setupNames(ids)}`, why: null }
+        : { text: 'No strategy at On', why: 'No strategy is at On: set one to On on its card.',
           actions: [{ kind: 'setups', label: BOTS_GATE_SETUPS }] };
     }
     case 'padlock':
@@ -179,8 +177,8 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
       const n = num(d.count) ?? 0;
       const auto = num(d.auto_entry) ?? 0;
       return ok ? { text: auto ? `${label} · ${n} · Auto-entry ${auto}` : `${label} · ${n}`, why: null }
-        : { text: 'No stock set to Bot or Auto-entry',
-          why: `No stock is set to Bot or Auto-entry on ${venueName(ctx.venue)}: set one under Who trades.`,
+        : { text: 'No stock whose Buy is Nova',
+          why: `No stock's Buy is Nova on ${venueName(ctx.venue)}: set one in Tickers today or on its Trader tab.`,
           actions: [{ kind: 'add_symbol', label: BOTS_GATE_ADD_SYMBOL }] };
     }
     case 'depth_lines':
@@ -192,7 +190,7 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
       }
       const when = etTime(d.fired_at as string | number | null);
       const pnl = usdCents(num(d.pnl));
-      return { text: `Bot trip fired${when ? ` ${when}` : ''}${pnl ? ` (${pnl})` : ''} — Activate re-enables it`,
+      return { text: `Bot trip fired${when ? ` ${when}` : ''}${pnl ? ` (${pnl})` : ''} — turning the Bot on asks you first`,
         why: `The bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` (P&L ${pnl})` : ''}.` };
     }
     case 'day_lock': {
@@ -203,8 +201,8 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
         why: `The all-stop locked buys on ${venue}${until ? ` until ${until}` : ' until 04:00 ET'}.` };
     }
     case 'kill_switch':
-      return ok ? { text: 'Kill switch off', why: null }
-        : { text: 'Kill switch tripped', why: 'The kill switch is tripped: every new order is refused on every venue until you reset it (Flatten and cancels still work).',
+      return ok ? { text: 'Orders not frozen', why: null }
+        : { text: 'Orders frozen', why: 'Every order is frozen: new orders, yours and Nova\'s, are refused on every venue until you unfreeze them (Flatten and cancels still work).',
           actions: [{ kind: 'reset_kill', label: BOTS_GATE_RESET_KILL }] };
     case 'window':
       return windowWords(ok, d);

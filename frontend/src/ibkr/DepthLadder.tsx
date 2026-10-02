@@ -29,6 +29,7 @@ import {
   depthLiveBadge,
   depthLiveBadgeText,
 } from './depthUiStatus';
+import { depthLentText } from './lentWords';
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
 import type { DepthLevel } from './types';
@@ -41,6 +42,8 @@ interface Props {
   uiActive?: boolean;
   /** The plan's ENTRY / STOP / TARGET, drawn where they sit in the book (ADR 037). */
   markers?: readonly DepthMarker[];
+  /** A Trader tab's Level 2: its line may be lent while the tab is hidden (ADR 044 decision 6). */
+  traderTab?: boolean;
 }
 
 function fmtPrice(p: number | null | undefined) {
@@ -192,9 +195,9 @@ export function MontageSide({
   );
 }
 
-export function DepthLadder({ symbol, uiActive = true, markers }: Props) {
+export function DepthLadder({ symbol, uiActive = true, markers, traderTab = false }: Props) {
   useRenderCount('DepthLadder');
-  const { book, connected, l1Fallback, error, watch } = useIbkrDepth(symbol, uiActive);
+  const { book, connected, l1Fallback, error, watch, lent } = useIbkrDepth(symbol, uiActive, { traderTab });
   const { setTopOfBook } = useTopOfBook();
   // What left the book (ADR 033 amendment): the watcher reads depth, so an L1-only book carries none.
   const ladderWatch = l1Fallback ? null : watch;
@@ -219,6 +222,15 @@ export function DepthLadder({ symbol, uiActive = true, markers }: Props) {
 
   if (!symbol) {
     return <div className="ibkr-depth-empty">Enter a symbol to view the order book.</div>;
+  }
+
+  // The line went to one of Nova's setups (ADR 044): say whose, and when it comes back.
+  if (lent) {
+    return (
+      <div className="ibkr-depth-empty ibkr-depth-lent" data-testid="ibkr-depth-lent" role="status">
+        {depthLentText(lent)}
+      </div>
+    );
   }
 
   // Keep the last book on screen across brief WS reconnects. Only show the

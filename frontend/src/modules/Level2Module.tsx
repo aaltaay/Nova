@@ -10,16 +10,19 @@ interface Props {
   uiActive?: boolean;
   /** The plan's ENTRY / STOP / TARGET in the book (ADR 037). */
   markers?: readonly DepthMarker[];
+  /** A Trader tab's Level 2: its line may be lent while the tab is hidden (ADR 044 decision 6). */
+  traderTab?: boolean;
 }
 
-export function Level2Module({ symbol, uiActive = true, markers }: Props) {
+export function Level2Module({ symbol, uiActive = true, markers, traderTab = false }: Props) {
   return (
     <div
       className="nova-module nova-module--level2"
       data-module="level2"
       data-symbol={symbol ?? ''}
     >
-      <DepthLadder key={symbol ?? 'none'} symbol={symbol} uiActive={uiActive} markers={markers} />
+      <DepthLadder key={symbol ?? 'none'} symbol={symbol} uiActive={uiActive} markers={markers}
+        traderTab={traderTab} />
     </div>
   );
 }

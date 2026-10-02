@@ -10,7 +10,7 @@
  */
 import type { ReactNode } from 'react';
 import {
-  BOT_LEVEL_LABELS,
+  BOT_STRATEGY_LEVEL_LABELS as BOT_LEVEL_LABELS,
   BOT_NO_SCANNER_TITLE,
   BOT_SETUP_BLURBS,
   BOT_SETUP_CAPPED_TIP,
@@ -60,6 +60,7 @@ import { tipProps } from '../ux/hoverTip';
 import { clampLevel } from './botLevels';
 import { BotReadoutLine, BotResearchLine } from './BotReadout';
 import { BotSetupScanner } from './BotSetupScanner';
+import { BotStrategyRules } from './BotStrategyRules';
 import { ruleLines, ruleSummary } from './templateFormat';
 import type { SetupTemplates } from './templateTypes';
 
@@ -91,6 +92,8 @@ interface Props {
   templateBusy?: boolean;
   onPlayTemplate?: (setupId: string, templateId: string) => void;
   onOpenParams?: (setupId: string) => void;
+  /** A strategy row's bot rules were saved (ADR 044): the setup's templates as the backend answered them. */
+  onApplyTemplates?: (next: SetupTemplates) => void;
   /** The live board's summary for this setup (ADR 031); null without a board. */
   summary: SetupSummary | null;
   rows: readonly SetupRow[];
@@ -131,15 +134,16 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
   const silent = effective >= 1 && summary != null && !summary.proposing;
   const unrecorded = connected && summary?.recorded === false;
   const win = unrecorded ? '' : windowWords(summary);
-  const waiting = effective === 2 && !botActive;
-  const capped = own > effective;
+  // ADR 044: On while the Bot is off alerts like Eyes until the Bot is on; only a legacy master below Eyes caps.
+  const waiting = own === 2 && !botActive;
+  const capped = !waiting && own > effective;
   const [words, tip] = !connected
     ? [BOTS_STATUS_NOT_CONNECTED, SETUP_STATUS_TIPS.disconnected]
     : unrecorded
       ? [BOTS_STATUS_NOT_RECORDED, BOTS_STATUS_NOT_RECORDED_TIP]
       : [BOTS_STATUS_WATCHING(summary?.counts.watching ?? 0), SETUP_STATUS_TIPS.watching];
   const chipTip = [
-    waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[effective],
+    waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
     capped ? BOT_SETUP_CAPPED_TIP : '',
     silent ? 'This desk is a replay: nothing proposes live from it.' : '',
   ].filter(Boolean).join('\n');
@@ -150,8 +154,8 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
       {win ? <span className={`bots-strat__win bots-strat__win--${summary?.window.state}`} {...tipProps(SETUP_WINDOW_TIP)}>{` · ${win}`}</span> : null}
       {connected && seeding > 0 ? <span {...tipProps(SETUP_STATUS_TIPS.seeding)}>{` · ${BOTS_STATUS_SEEDING(seeding)}`}</span> : null}
       <span className={`bots-lvlchip bots-lvlchip--${effective}`} data-testid="bots-setup-level-chip"
-        {...tipProps(chipTip, BOT_LEVEL_LABELS[effective])}>
-        {capped ? botSetupCapped(BOT_LEVEL_LABELS[own], masterName) : waiting ? BOT_SETUP_LEVEL_CHIP_WAITING : BOT_SETUP_LEVEL_CHIPS[effective]}
+        {...tipProps(chipTip, BOT_LEVEL_LABELS[own])}>
+        {capped ? botSetupCapped(BOT_LEVEL_LABELS[own], masterName) : waiting ? BOT_SETUP_LEVEL_CHIP_WAITING : BOT_SETUP_LEVEL_CHIPS[own]}
       </span>
     </div>
   );
@@ -229,7 +233,7 @@ function LevelSwitch({ id, label, own, why, onLevel }: {
 export function BotSetupCard(props: Props) {
   const {
     id, playable, stale = false, own, effective, masterName, botActive, onLevel, templates, templatesError = null,
-    templateBusy = false, onPlayTemplate, onOpenParams, summary, rows, allRows, connected, seeding, hovered, onHover,
+    templateBusy = false, onPlayTemplate, onOpenParams, onApplyTemplates, summary, rows, allRows, connected, seeding, hovered, onHover,
     onOpenBoard, onOpenSymbol, emptyText, children,
   } = props;
   const label = BOT_SETUP_LABELS[id] ?? id;
@@ -294,6 +298,8 @@ export function BotSetupCard(props: Props) {
           {BOTS_TEMPLATE_PARAMS(nParams)}
         </button>
       </div>
+
+      {stale ? null : <BotStrategyRules setup={id} templates={templates} onApply={t => onApplyTemplates?.(t)} />}
 
       {stale ? null : (
         <>

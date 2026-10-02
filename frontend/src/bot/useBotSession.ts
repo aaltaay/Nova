@@ -10,6 +10,7 @@ import {
 import {
   armBotSession,
   disarmBotSession,
+  switchBotSession,
   patchBotSession,
   resolveProposal,
 } from './api';
@@ -77,6 +78,19 @@ export function useBotSession(pollMs = 0) {
     }
   }, []);
 
+  /** ADR 044: the Bot switch. A refusal (a trip's latch, the padlock, Live) comes back in the backend's words. */
+  const setSwitch = useCallback(async (on: boolean, reenable = false) => {
+    setBusy(true);
+    try {
+      return await runBotSessionWrite(() => switchBotSession(on, reenable));
+    } catch (err) {
+      setBotSessionError(err instanceof Error ? err.message : 'bot switch failed');
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const resolve = useCallback(async (id: string, action: 'accept' | 'reject') => {
     setBusy(true);
     try {
@@ -99,6 +113,7 @@ export function useBotSession(pollMs = 0) {
     patch,
     activate,
     stop,
+    setSwitch,
     resolve,
   };
 }

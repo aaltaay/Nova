@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   panel: null as unknown,
 }));
 
+// The watch list is today's hot list (ADR 044): an in-memory one here.
+vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
 vi.mock('../hooks/useCatalystPanel', () => ({
   useCatalystPanel: () => ({ panel: mocks.panel, loading: mocks.panel == null, unavailable: false, error: null }),
 }));

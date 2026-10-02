@@ -339,7 +339,7 @@ export function PlanCard({ ctx, roomy = true }: {
               type="button"
               className="sr-btn"
               aria-pressed={ctx.layers.setups}
-              onClick={() => ctx.setLayers({ setups: !ctx.layers.setups })}
+              onClick={() => ctx.setLayers(ctx.layers.setups ? { setups: false } : { eyes: true, setups: true })}
               {...tipProps('Draw the setups and the plan\'s entry, stop and target on the charts.')}
               data-testid="stock-read-show-on-chart"
             >

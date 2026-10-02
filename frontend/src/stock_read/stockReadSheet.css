@@ -340,6 +340,29 @@
   color: var(--sr-warn);
 }
 
+/* Eyes (ADR 044): one switch with its two parts joined to it. */
+.sr-eyes {
+  gap: 0;
+}
+.sr-eyes .sr-eyes__main {
+  border-radius: 4px 0 0 4px;
+}
+.sr-eyes .sr-eyes__part {
+  border-radius: 0;
+  border-left-width: 0;
+}
+.sr-eyes .sr-eyes__part:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.sr-eyes--on .sr-eyes__main {
+  background: rgba(245, 158, 11, 0.12);
+}
+.sr-eyes__part:disabled {
+  opacity: 0.45;
+  text-decoration: line-through;
+  cursor: default;
+}
+
 /* The Key: what each colour on the pane means. The card opens while the chip is pointed at, focused or
    pressed. */
 .sr-key {

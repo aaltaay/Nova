@@ -1,4 +1,4 @@
-/** The watch list's mark: a small eye in the watch colour (currentColor). */
+/** The hot list's mark (the watch list since ADR 044): a small star in the watch colour (currentColor). */
 import './watchList.css';
 
 export function WatchEyeIcon({ className = '', title }: { className?: string; title?: string }) {
@@ -14,13 +14,12 @@ export function WatchEyeIcon({ className = '', title }: { className?: string; ti
     >
       {title ? <title>{title}</title> : null}
       <path
-        d="M1 8s2.6-4.8 7-4.8S15 8 15 8s-2.6 4.8-7 4.8S1 8 1 8z"
-        fill="none"
+        d="M8 1.4l1.9 4.2 4.6.5-3.4 3.1 1 4.5L8 11.4l-4.1 2.3 1-4.5L1.5 6.1l4.6-.5z"
+        fill="currentColor"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="0.8"
         strokeLinejoin="round"
       />
-      <circle cx="8" cy="8" r="2.2" fill="currentColor" />
     </svg>
   );
 }

@@ -1,0 +1,378 @@
+/* The one Bots page (ADR 044, approved mockup v8): the answer line, the Bot card, each strategy's bot
+   rules, the Level 2 lines, Tickers today and the last row. Owner: bot/BotsPage.tsx. The shell and the
+   shared atoms are in botsPage.css, the older cards in botsPageCards.css. Tokens from tokens-shell.css. */
+
+.bots-page .is-yes { color: var(--bots-green); }
+.bots-page .is-no,
+.bots-page .is-bad { color: var(--bots-red); }
+.bots-num { font-variant-numeric: tabular-nums; }
+.bots-nowrap { white-space: nowrap; }
+
+/* -- Can Nova buy right now? --------------------------------------------------- */
+.bots-answer { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; }
+.bots-answer__q {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+}
+.bots-answer__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
+.bots-answer__a { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+.bots-answer__a.is-no { color: var(--nova-text); }
+.bots-answer__dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.bots-answer__a.is-no .bots-answer__dot,
+.bots-answer__why .bots-answer__dot { background: var(--bots-red); }
+.bots-answer__why { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 1.4; }
+.bots-answer__why .bots-linkbtn { font-size: 12.5px; }
+.bots-answer__chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bots-answer__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 20px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--nova-border);
+  color: var(--nova-text-muted);
+  white-space: nowrap;
+}
+.bots-answer__chip .bots-answer__dot { width: 7px; height: 7px; background: color-mix(in srgb, var(--nova-text-muted) 60%, transparent); }
+.bots-answer__chip.is-ok { color: var(--bots-green); border-color: color-mix(in srgb, var(--bots-green) 40%, transparent); }
+.bots-answer__chip.is-ok .bots-answer__dot { background: var(--bots-green); }
+.bots-answer__chip.is-no {
+  color: var(--bots-red);
+  border-color: color-mix(in srgb, var(--bots-red) 50%, transparent);
+  background: color-mix(in srgb, var(--bots-red) 10%, transparent);
+}
+.bots-answer__chip.is-no .bots-answer__dot { background: var(--bots-red); }
+.bots-answer__note { margin-left: auto; color: var(--nova-text-muted); font-size: 11.5px; }
+
+/* -- The Bot card ------------------------------------------------------------- */
+.bots-botcard { display: grid; grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.6fr); padding: 0; }
+.bots-botcard__left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-right: 1px solid var(--bots-hair);
+  min-width: 0;
+}
+.bots-botcard__right { padding: 12px 16px; min-width: 0; }
+/* The risk sleeve is its own card elsewhere; here it is the Bot card's right half. */
+.bots-botcard__right > .bots-card { border: 0; border-radius: 0; padding: 0; background: transparent; }
+.bots-botcard__title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.bots-botcard__note { margin: 0; font-size: 11.5px; color: var(--nova-text-muted); line-height: 1.45; }
+.bots-botcard__breakers { padding-top: 8px; border-top: 1px solid var(--bots-hair); }
+.bots-botcard__trade { margin: 0; font-size: 12.5px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+
+/* The Bot switch and the lending switch are buttons with role="switch" (the older .bots-switch wraps a
+   checkbox: botsPage.css). */
+button.bots-switch {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  gap: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid var(--nova-border);
+  border-radius: 8px;
+  background: transparent;
+}
+button.bots-switch:hover:not(:disabled) { border-color: var(--nova-border-strong, var(--nova-border)); }
+button.bots-switch:disabled { cursor: not-allowed; opacity: 0.65; }
+button.bots-switch:focus-visible { outline: 2px solid var(--bots-blue); outline-offset: 2px; }
+button.bots-switch.is-on {
+  border-color: color-mix(in srgb, var(--bots-green) 60%, transparent);
+  background: color-mix(in srgb, var(--bots-green) 8%, transparent);
+}
+button.bots-switch .bots-switch__track { width: 40px; height: 22px; border-radius: 11px; }
+button.bots-switch .bots-switch__track::after { width: 18px; height: 18px; }
+button.bots-switch.is-on .bots-switch__track { background: var(--bots-green); }
+button.bots-switch.is-on .bots-switch__track::after { transform: translateX(18px); }
+.bots-switch__txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.bots-switch__txt b { font-size: 14px; }
+.bots-switch__txt small { color: var(--nova-text-muted); font-size: 11.5px; line-height: 1.35; }
+.bots-switch__state {
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 20px;
+  padding: 0 7px;
+  border-radius: 4px;
+  color: var(--nova-text-muted);
+  background: color-mix(in srgb, var(--nova-text-muted) 18%, transparent);
+}
+.bots-switch__state.is-on { color: #04140a; background: var(--bots-green); }
+
+button.bots-switch--small { width: auto; flex: 0 1 340px; padding: 6px 9px; }
+button.bots-switch--small .bots-switch__track { width: 30px; height: 18px; border-radius: 9px; }
+button.bots-switch--small .bots-switch__track::after { width: 14px; height: 14px; }
+button.bots-switch--small.is-on {
+  border-color: color-mix(in srgb, var(--bots-blue) 55%, transparent);
+  background: color-mix(in srgb, var(--bots-blue) 8%, transparent);
+}
+button.bots-switch--small.is-on .bots-switch__track { background: var(--bots-blue); }
+button.bots-switch--small.is-on .bots-switch__track::after { transform: translateX(12px); }
+button.bots-switch--small .bots-switch__txt b { font-size: 12.5px; }
+button.bots-switch--small .bots-switch__txt small { font-size: 11px; }
+
+.bots-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--bots-amber) 50%, transparent);
+  background: color-mix(in srgb, var(--bots-amber) 10%, transparent);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.bots-confirm__btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.bots-freeze {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--bots-hair);
+}
+
+/* -- Strategies, two to a row ------------------------------------------------- */
+.bots-strats .bots-strat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bots-noscan-line { margin: 8px 0 0; font-size: 12px; color: var(--nova-text-muted); line-height: 1.45; }
+.bots-noscan-line b { color: var(--nova-text); font-weight: 600; cursor: help; }
+
+/* A strategy's bot rules: grades, setups a stock a day, the bot window. */
+.bots-rules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--nova-text-muted) 7%, transparent);
+  font-size: 12px;
+}
+.bots-rules__item { display: inline-flex; align-items: center; gap: 6px; }
+.bots-rules__label { color: var(--nova-text-muted); font-size: 11.5px; }
+.bots-rules__never { margin-left: -8px; font-size: 11px; }
+.bots-rules select {
+  font: inherit;
+  font-size: 12px;
+  padding: 1px 4px;
+  color: inherit;
+  background: var(--input-bg, var(--nova-canvas));
+  border: 1px solid var(--nova-border);
+  border-radius: 5px;
+}
+.bots-rules select:disabled { cursor: not-allowed; opacity: 0.55; }
+.bots-rules__error { flex-basis: 100%; color: var(--bots-red); font-size: 11.5px; }
+
+/* A small two- or four-way choice (the rules, Buy / Sell, Auto top N). */
+.bots-mini-seg { display: inline-flex; flex: none; border: 1px solid var(--nova-border); border-radius: 6px; overflow: hidden; }
+.bots-mini-seg button {
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 20px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bots-mini-seg button + button { border-left: 1px solid var(--nova-border); }
+.bots-mini-seg button:hover:not(:disabled) { color: var(--nova-text); }
+.bots-mini-seg button[aria-checked='true'] { background: var(--bots-blue); color: #fff; }
+.bots-mini-seg button:disabled { cursor: not-allowed; opacity: 0.55; }
+.bots-mini-seg button[aria-checked='true']:disabled { opacity: 0.8; }
+
+/* -- Level 2 lines ------------------------------------------------------------ */
+.bots-lines { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; }
+.bots-lines__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.bots-lines__head h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bots-lines__row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+.bots-lines__slot {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 130px;
+  padding: 6px 10px;
+  border: 1px solid var(--nova-border);
+  border-radius: 7px;
+}
+.bots-lines__slot b { font-size: 13.5px; letter-spacing: 0.02em; }
+.bots-lines__slot small { color: var(--nova-text-muted); font-size: 11px; }
+.bots-lines__slot.is-front {
+  border-color: color-mix(in srgb, var(--bots-blue) 55%, transparent);
+  background: color-mix(in srgb, var(--bots-blue) 8%, transparent);
+}
+.bots-lines__slot.is-free { border-style: dashed; color: var(--nova-text-muted); }
+.bots-lines__loans {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* -- Tickers today ------------------------------------------------------------- */
+.bots-tk__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: -2px 0 8px; font-size: 12px; }
+.bots-tk__controls .bots-tag { margin-left: 0; }
+.bots-tk__gap { flex: 1 1 0; }
+.bots-tk__side { display: inline-flex; align-items: center; gap: 4px; }
+.bots-tk__side + .bots-tk__side { margin-left: 4px; }
+.bots-tk__side-label { color: var(--nova-text-muted); font-size: 11px; }
+.bots-tk__input,
+.bots-tk__date {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  color: inherit;
+  background: var(--input-bg, var(--nova-canvas));
+  border: 1px solid var(--nova-border);
+  border-radius: 5px;
+}
+.bots-tk__input { width: 130px; }
+.bots-tk__date { color-scheme: dark; }
+.bots-tk__wrap { overflow-x: auto; border: 1px solid var(--bots-hair); border-radius: 7px; }
+.bots-tk__table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.bots-tk__table th {
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: bottom;
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+  border-bottom: 1px solid var(--nova-border);
+}
+.bots-tk__table td { padding: 4px 8px; vertical-align: middle; border-bottom: 1px solid var(--bots-hair); }
+.bots-tk__table th.bots-tk__g,
+.bots-tk__table td.bots-tk__g { width: 22px; padding-left: 3px; padding-right: 3px; text-align: center; }
+/* The gate names read bottom to top, so ten squares fit beside the words. */
+.bots-tk__gh > span {
+  display: inline-block;
+  max-height: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.bots-tk__cell { display: inline-block; width: 13px; height: 13px; border-radius: 3px; vertical-align: middle; }
+.bots-tk__cell.is-ok { background: color-mix(in srgb, var(--bots-green) 78%, transparent); }
+.bots-tk__cell.is-bad { background: var(--bots-red); }
+.bots-tk__cell.is-na { border: 1px dashed color-mix(in srgb, var(--nova-text-muted) 45%, transparent); }
+.bots-tk__group td {
+  padding: 4px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+  background: color-mix(in srgb, var(--nova-text-muted) 8%, transparent);
+}
+.bots-tk__now td { border-top: 1px solid var(--nova-border); background: color-mix(in srgb, var(--bots-blue) 4%, transparent); }
+.bots-tk__past td { font-size: 11.5px; }
+.bots-tk__unlisted td { color: var(--nova-text-muted); }
+.bots-tk__star {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px 0 0;
+  border: 0;
+  background: none;
+  color: var(--nova-text-muted);
+  cursor: pointer;
+}
+.bots-tk__star.is-on { color: var(--bots-amber); }
+.bots-tk__star:disabled { cursor: not-allowed; opacity: 0.55; }
+.bots-tk__sym { font-size: 13px; font-weight: 700; color: var(--nova-text); }
+.bots-tk__who {
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  border-radius: 4px;
+  white-space: nowrap;
+  color: var(--nova-text-muted);
+  background: color-mix(in srgb, var(--nova-text-muted) 12%, transparent);
+}
+.bots-tk__who--nova-you { color: var(--bots-violet); background: color-mix(in srgb, var(--bots-violet) 14%, transparent); }
+.bots-tk__who--you-nova { color: var(--bots-amber); background: color-mix(in srgb, var(--bots-amber) 14%, transparent); }
+.bots-tk__who--nova-nova { color: var(--bots-blue); background: color-mix(in srgb, var(--bots-blue) 15%, transparent); }
+.bots-tk__nowtag { font-size: 10.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--bots-blue); }
+.bots-tk__res--win { color: var(--bots-green); }
+.bots-tk__res--loss { color: var(--bots-red); }
+.bots-tk__res--open { color: var(--nova-text-muted); }
+.bots-tk__stop { min-width: 240px; line-height: 1.4; }
+.bots-tk__stopword { color: var(--bots-red); cursor: help; }
+.bots-tk__fold { font-size: inherit; font-weight: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
+.bots-tk__impact { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 12px; line-height: 1.45; }
+.bots-tk__impact > b:first-child {
+  flex-basis: 100%;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+}
+
+.bots-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  border-radius: 4px;
+  white-space: nowrap;
+  color: var(--nova-text-muted);
+  background: color-mix(in srgb, var(--nova-text-muted) 16%, transparent);
+}
+.bots-tag--auto { color: var(--bots-blue); background: color-mix(in srgb, var(--bots-blue) 15%, transparent); }
+.bots-tag--pin { color: var(--bots-amber); background: color-mix(in srgb, var(--bots-amber) 15%, transparent); }
+.bots-tag--tiny { font-size: 9.5px; line-height: 15px; }
+.bots-tag--warn { color: var(--bots-amber); background: color-mix(in srgb, var(--bots-amber) 15%, transparent); cursor: help; }
+
+/* -- The last row: today and the proposals beside the activity ----------------- */
+.bots-grid--last { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: stretch; }
+.bots-stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+/* The activity is as tall as the column beside it and scrolls, so the row leaves no hole. */
+.bots-activity-col { position: relative; min-width: 0; min-height: 360px; }
+.bots-activity-col > .bots-card { position: absolute; inset: 0; overflow-y: auto; }
+
+@container main-col (max-width: 1280px) {
+  .bots-botcard { grid-template-columns: minmax(0, 1fr); }
+  .bots-botcard__left { border-right: 0; border-bottom: 1px solid var(--bots-hair); }
+}
+
+@container main-col (max-width: 1100px) {
+  .bots-strats .bots-strat-grid { grid-template-columns: minmax(0, 1fr); }
+  .bots-grid--last { grid-template-columns: minmax(0, 1fr); }
+  .bots-activity-col { position: static; min-height: 0; }
+  .bots-activity-col > .bots-card { position: static; max-height: 480px; }
+  .bots-answer__note { margin-left: 0; }
+}

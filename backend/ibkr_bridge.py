@@ -159,7 +159,7 @@ def symbols_for_tab(tab: str) -> list[str]:
 
 
 def refresh_hod_active_set() -> list[str]:
-    """Rebuild the deterministic HOD active set (Gappers/Gainers/Afterhours/Former).
+    """Rebuild the deterministic HOD active set (hot list/Gappers/Gainers/Afterhours/Former).
 
     Always recomputes from the live table caches — no memoization. A prior
     version cached this on an ``id()`` + ``len()`` signature of the three
@@ -179,6 +179,16 @@ def refresh_hod_active_set() -> list[str]:
         priority = _former.former_momo_priority_symbols()
     except Exception:
         priority = []
+    try:
+        import hot_list as _hot_list
+
+        # ADR 044: today's hot list is admitted first -- an L1 line, a snapshot and bars for every name
+        # Nova may trade. A cached read of one small file; an unreadable list lists nothing.
+        hot = _hot_list.listed_symbols()
+    except Exception:
+        logger.warning("HOD active set: today's hot list could not be read -- none of its names admitted",
+                       exc_info=True)
+        hot = []
     snap = _hod_active.build_active_set(
         gapper_rows=state.gapper_cache,
         gainer_rows=state.gainer_cache,
@@ -186,6 +196,7 @@ def refresh_hod_active_set() -> list[str]:
         # AH runners stay HOD-eligible after the session flips to "closed".
         afterhours_rows=state.afterhours_cache,
         priority_symbols=priority,
+        hot_symbols=hot,
         capacity=HOD_MOMO_ACTIVE_SET_CAPACITY,
     )
     return list(snap.active)

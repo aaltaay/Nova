@@ -1,6 +1,7 @@
 /**
- * The operator's own watch list (operator ask, 2026-09-23): symbols picked by
- * hand from any ticker row, and a toast whenever one of them alerts on the HOD
+ * The watch list, which is today's hot list since ADR 044 ("the watch list folds
+ * into the ★"): symbols starred by hand from any ticker row or put on by the
+ * leaders rule, and a toast whenever one of them alerts on the HOD
  * Momo feed (a HOD Momo strategy or Running Up) or one of its setups climbs its
  * ladder on the setup scanner -- forming, armed, near, triggered (operator ask,
  * 2026-09-24: "shouldn't these toast notifications be watching if a strategy is
@@ -9,7 +10,7 @@
  */
 import type { WatchSetupStage } from './types';
 
-/** localStorage key: `{schema_version: 1, symbols: string[]}`, newest first. */
+/** The list this desk kept before the hot list (read only now): `{schema_version: 1, symbols: string[]}`. */
 export const WATCH_LIST_STORAGE_KEY = 'nova.watch.list';
 export const WATCH_LIST_SCHEMA_VERSION = 1;
 /** A hand-kept list; the cap only stops a runaway writer. */
@@ -17,20 +18,21 @@ export const WATCH_LIST_MAX = 200;
 /** What a ticker may look like: letters, digits and the class separators IBKR uses (BRK/B, BRK.B). */
 export const WATCH_LIST_SYMBOL_RE = /^[A-Z][A-Z0-9./-]{0,11}$/;
 
-export const WATCH_LIST_TITLE = 'Watch list';
-export const WATCH_LIST_ADD = 'Add to watch list';
-export const WATCH_LIST_REMOVE = 'Remove from watch list';
+export const WATCH_LIST_TITLE = 'Hot list';
+export const WATCH_LIST_ADD = '★ Add to today\'s hot list';
+export const WATCH_LIST_REMOVE = 'Take off today\'s hot list';
 export const watchListAddLabel = (symbol: string): string => `${WATCH_LIST_ADD} -- ${symbol}`;
 export const watchListRemoveLabel = (symbol: string): string => `${WATCH_LIST_REMOVE} -- ${symbol}`;
 
 /** Scanner / Desk row actions. */
-export const WATCH_ACTION_WATCH = 'Watch';
-export const WATCH_ACTION_WATCHING = 'Watching';
+export const WATCH_ACTION_WATCH = '★';
+export const WATCH_ACTION_WATCHING = '★ Listed';
 export const WATCH_ACTION_WATCH_TITLE =
-  'Add to your watch list: a toast whenever it hits HOD Momo or Running Up, or a setup forms on it';
-export const WATCH_ACTION_WATCHING_TITLE = 'On your watch list -- click to remove it';
+  'Star it onto today\'s hot list: the scanners follow it all day, a toast whenever it hits HOD Momo or Running Up '
+  + 'or a setup forms on it, and Nova may buy it where its Buy is Nova';
+export const WATCH_ACTION_WATCHING_TITLE = 'On today\'s hot list -- click to take it off';
 export const watchMarkTitle = (symbol: string): string =>
-  `${symbol} is on your watch list: a toast whenever it hits HOD Momo or Running Up, or a setup forms on it`;
+  `${symbol} is on today's hot list: a toast whenever it hits HOD Momo or Running Up, or a setup forms on it`;
 
 /** Toasts: how long one stays after its newest alert (hover holds it), and how many stack. */
 export const WATCH_TOAST_TTL_MS = 20_000;
@@ -40,9 +42,9 @@ export const watchToastTitle = (symbol: string, hod: boolean): string =>
   (hod ? `${symbol} hit HOD Momo` : `${symbol} is running up`);
 export const watchToastCount = (count: number): string => `${count} alerts`;
 export const watchToastOpen = (symbol: string): string => `Open ${symbol}`;
-export const WATCH_TOAST_UNWATCH = 'Stop watching';
+export const WATCH_TOAST_UNWATCH = 'Take off the hot list';
 export const WATCH_TOAST_DISMISS = 'Dismiss';
-export const WATCH_TOAST_REGION = 'Watch list alerts';
+export const WATCH_TOAST_REGION = 'Hot list alerts';
 
 /* ---------- Setups on watched symbols (operator ask, 2026-09-24) ---------- */
 
@@ -67,20 +69,27 @@ export const WATCH_SETUP_UNLISTED_DETAIL =
   'The setup scanner no longer lists it: back to watching, or no longer one of the names it follows.';
 export const watchSetupLast = (price: string): string => `Last ${price}`;
 
-/** The Watch list tab. */
+/** The Hot list tab (the watch list, ADR 044). */
 export const WATCH_LIST_TAB_NOTE =
-  'Symbols you picked by hand. Whenever one hits HOD Momo or Running Up, or a setup forms, arms, comes near '
-  + 'its trigger or triggers on it, a toast says so on every page. '
-  + 'Add one from any ticker row (hover or right-click), the chart menu, or here.';
-export const WATCH_LIST_ADD_PLACEHOLDER = 'Add a symbol';
-export const WATCH_LIST_ADD_BUTTON = 'Add';
+  'Today\'s hot list: the stocks you starred and the ones the leaders rule put on. Whenever one hits HOD Momo or '
+  + 'Running Up, or a setup forms, arms, comes near its trigger or triggers on it, a toast says so on every page. '
+  + 'It starts empty at 04:00 ET. Star one from any ticker row (hover or right-click), the chart menu, or here.';
+export const WATCH_LIST_ADD_PLACEHOLDER = 'Star a symbol';
+export const WATCH_LIST_ADD_BUTTON = '★ Add';
 export const WATCH_LIST_ADD_INVALID = 'Not a ticker';
 export const WATCH_LIST_EMPTY =
-  'Nothing on your watch list yet. Hover a scanner row and press Watch, right-click any ticker, or add one above.';
+  'Nothing on today\'s hot list yet. Hover a scanner row and press ★, right-click any ticker, or add one above.';
+/** The list this desk kept before the hot list: offered once, then forgotten. */
+export const watchListSavedNote = (n: number, room: number): string =>
+  `Your watch list from before the hot list has ${n} name${n === 1 ? '' : 's'}. `
+  + (room > 0 ? `Star ${Math.min(n, room)} of them onto today's list (room for ${room}), or forget it.`
+    : 'Today\'s list is full: take some off first, or forget it.');
+export const WATCH_LIST_SAVED_STAR = '★ Star them';
+export const WATCH_LIST_SAVED_FORGET = 'Forget it';
 export const WATCH_LIST_NOT_ON_BOARD = 'Not on a board';
 export const WATCH_LIST_NO_HOD_TODAY = 'Not yet today';
 export const WATCH_LIST_CELL_ABSENT = '—';
-export const watchListRemoveTitle = (symbol: string): string => `Remove ${symbol} from your watch list`;
+export const watchListRemoveTitle = (symbol: string): string => `Take ${symbol} off today's hot list`;
 export const WATCH_LIST_HOD_COLUMN_TITLE =
   'The newest HOD Momo or Running Up alert for the symbol today -- what the toast announces';
 export const WATCH_LIST_SETUP_COLUMN_TITLE =

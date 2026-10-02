@@ -164,7 +164,7 @@ describe('DeskBoard', () => {
     expect(titles).toContain('Gappers');
     expect(titles).toContain('HOD Momo');
     expect(titles).toContain('Contenders');
-    expect(titles).toContain('Watch list');
+    expect(titles).toContain('Hot list');
     expect(screen.getByTestId('desk-board-list-label').textContent).toBe('Gappers');
     expect(screen.getByTestId('desk-board-count').textContent).toBe('3');
     fireEvent.change(pick, { target: { value: 'losers' } });

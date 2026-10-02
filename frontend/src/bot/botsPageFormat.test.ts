@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { activateLock } from './botActivateLock';
 import { gateLine } from './botGateWords';
 import { botHeaderState } from './botHeaderState';
 import { effectiveLevel, ownLevel, strategySetups } from './botLevels';
@@ -7,7 +6,8 @@ import { closedProposals, proposalWhy } from './botProposalsModel';
 import { botPnlOn } from './useBotPnlToday';
 import { dayPnlParts } from './useBotDayPnl';
 import { breakerFloor, breakerLimits, breakerPct, markerRange, valueAt } from './breakerScale';
-import { deactivatedLine, fmtUsdCents, heroSentence, stocksLine, tradeLine } from './botsPageFormat';
+import { deactivatedLine, fmtUsdCents, tradeLine } from './botsPageFormat';
+import { offWords, reenableWords, switchLock, tripLatch, BOT_SWITCH_LIVE_WHY } from './botSwitch';
 import { etTime, etUntil } from './botWhen';
 import { breakers, gates, openGates, session, strategySession } from './botsPageFixtures';
 import type { BotAuditEntry } from './types';
@@ -49,17 +49,17 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
     expect(gateLine(gate('depth_lines', false, { held: [], missing: [] }, 'fire')).text).toBe('Depth line · no bot stocks');
   });
 
-  it('reads the level, the setups at Strategy, the stocks and the daily cap', () => {
-    expect(gateLine(gate('level', false, { level: 1 })).text).toBe('Master level Eyes — needs Strategy');
-    expect(gateLine(gate('level', true, { level: 2 })).text).toBe('Master level Strategy');
+  it('reads the Bot switch, the strategies at On, the stocks and the daily cap', () => {
+    expect(gateLine(gate('level', false, { level: 1 })).text).toBe('Bot switch off');
+    expect(gateLine(gate('level', true, { level: 2 })).text).toBe('Bot switch on');
     expect(gateLine(gate('setups', true, { at_strategy: ['first_pullback', 'bull_flag'] })).text)
-      .toBe('At Strategy · First pullback, Bull flag');
+      .toBe('At On · First pullback, Bull flag');
     const none = gateLine(gate('setups', false, { at_strategy: [] }));
-    expect(none.text).toBe('No setup at Strategy');
+    expect(none.text).toBe('No strategy at On');
     expect(none.actions[0].kind).toBe('setups');
     expect(gateLine(gate('allowlist', false, { count: 0, auto_entry: 0 }, 'fire'), { venue: 'paper' })).toMatchObject({
-      text: 'No stock set to Bot or Auto-entry',
-      why: 'No stock is set to Bot or Auto-entry on Paper: set one under Who trades.',
+      text: 'No stock whose Buy is Nova',
+      why: 'No stock\'s Buy is Nova on Paper: set one in Tickers today or on its Trader tab.',
     });
     // Auto-entry stocks count too: Auto-entry buys only while the bot is Active (ADR 042 F).
     expect(gateLine(gate('allowlist', true, { count: 1, auto_entry: 2 }, 'fire')).text).toMatch(/· 1 · Auto-entry 2$/);
@@ -72,7 +72,7 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
     expect(gateLine(gate('bot_trip', true)).text).toBe('Bot trip clear (— / −$50)');
     expect(gateLine(gate('bot_trip', true), { dayPnl: -12, softUsd: -120 }).text).toBe('Bot trip clear (−$12.00 / −$120)');
     expect(gateLine(gate('bot_trip', false, { fired_at: AT_0942, pnl: -52.1 })).text)
-      .toBe('Bot trip fired 09:42 ET (−$52.10) — Activate re-enables it');
+      .toBe('Bot trip fired 09:42 ET (−$52.10) — turning the Bot on asks you first');
     const lock = gateLine(gate('day_lock', false, { until: '2026-10-01T04:00:00-04:00', venue: 'paper' }, 'fire'));
     expect(lock.text).toBe('Day lock on Paper until 04:00 ET on Oct 1');
     const windows = { setups: [{ setup: 'first_pullback', start: '07:00', end: '10:00', open: false, clipped: false },
@@ -80,7 +80,7 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
     expect(gateLine(gate('window', false, windows, 'fire')).text)
       .toBe('Bot windows closed now · First pullback 07:00–10:00 · Red to green 09:30–10:00 (clipped)');
     const kill = gateLine(gate('kill_switch', false, {}, 'fire'));
-    expect(kill.text).toBe('Kill switch tripped');
+    expect(kill.text).toBe('Orders frozen');
     expect(kill.actions[0].kind).toBe('reset_kill');
     expect(gateLine(gate('commissions', false, { error: 'database is locked' }, 'fire')).text)
       .toBe('Commissions unreadable — Live entries held until they read');
@@ -88,59 +88,48 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
 
   it('explains every gate on hover, and a closed one says why now', () => {
     const open = gateLine(gate('level', true, { level: 2 }));
-    expect(open.tip).toMatch(/^The master level/);
+    expect(open.text).toBe('Bot switch on');
+    expect(open.tip).toMatch(/^The Bot switch: on, Nova may act/);
     expect(open.tip).not.toMatch(/Now:/);
-    const closed = gateLine(gate('level', false, { level: 0 }));
-    expect(closed.tip).toMatch(/Now: The master level is Off: choose Strategy on the dial first\.$/);
+    const closed = gateLine(gate('level', false, { level: 1 }));
+    expect(closed.tip).toMatch(/Now: The Bot is off: turn it on in the Bot card\.$/);
   });
 });
 
-describe('Activate (ADR 042 B)', () => {
-  it('is locked with every closed Activate gate\'s reason, and never by a fire-stage gate', () => {
-    const lock = activateLock(session());
-    expect(lock.why).toBe('The master level is Eyes: choose Strategy on the dial first. '
-      + 'No setup is at Strategy: set a setup card\'s own switch to Strategy.');
-    expect(lock.reenable).toBeNull();
-    const fireOnly = activateLock(strategySession({ gates: openGates({ day_lock: { ok: false } }) }));
-    expect(fireOnly.why).toBeNull();
+describe('the Bot switch\'s words (ADR 044)', () => {
+  it('is on only with the master at Strategy and Activate, or when the backend says bot_on', () => {
+    expect(botHeaderState(strategySession()).on).toBe(false);
+    expect(botHeaderState(strategySession({ active: true })).on).toBe(true);
+    expect(botHeaderState(strategySession({ bot_on: false, active: true })).on).toBe(false);
+    expect(botHeaderState(session({ bot_on: true })).on).toBe(true);
   });
 
-  it('says Live is not built and a locked padlock, in the backend\'s words', () => {
-    const live = activateLock(strategySession({ gates: openGates({ venue: { ok: false, detail: { venue: 'live' } } }) }));
-    expect(live.why).toMatch(/^Nova's bot trades Paper and Sim only\. Live trading by a bot is not built\./);
-    const pad = activateLock(strategySession({ gates: openGates({ padlock: { ok: false, detail: { reason: null } } }) }));
-    expect(pad.why).toBe('The padlock is locked: unlock it first.');
+  it('says why it is off: the bot trip and when it lifts, the backend\'s reason, or plain off', () => {
+    expect(offWords(session())).toBe('Off. The strategies at Eyes or On still alert you.');
+    expect(offWords(session({ deactivated: { at: AT_0942, reason: 'restart', text: null } })))
+      .toBe('Turned off at 09:42 ET — the backend restarted.');
+    expect(offWords(session({ switch: { on: false, venue: 'paper', why_off: 'You turned it off -- at 09:42', latched: null } })))
+      .toBe('You turned it off — at 09:42');
+    const tripped = session({ soft_breaker: { fired: true, at: AT_0942, pnl: -52.1, until: '2026-10-01T04:00:00-04:00' } });
+    expect(offWords(tripped)).toBe('Off since the bot trip at 09:42 ET. It lifts at 04:00 ET on Oct 1.');
+    expect(reenableWords(tripLatch(tripped)!))
+      .toBe('The bot trip fired at 09:42 ET when the day\'s P&L hit −$52.10. Turn the bot back on for the rest of today?');
+    // An older backend says the trip only on its gate.
+    const fromGate = strategySession({ gates: openGates({ bot_trip: { ok: false, detail: { fired_at: AT_0942, pnl: -51, until: null } } }) });
+    expect(tripLatch(fromGate)).toEqual({ at: AT_0942, pnl: -51, until: null });
   });
 
-  it('after a bot trip it may be pressed, and asks in words first', () => {
-    const lock = activateLock(strategySession({
-      gates: openGates({ bot_trip: { ok: false, detail: { fired_at: AT_0942, pnl: -52.1, until: null } } }),
-    }));
-    expect(lock.why).toBeNull();
-    expect(lock.reenable).toBe('The bot trip fired at 09:42 ET (P&L −$52.10). Activate re-enables the bot for today.');
+  it('locks turning it on on Live and on a replay, never turning it off', () => {
+    expect(switchLock(strategySession(), false)).toBeNull();
+    expect(switchLock(strategySession({ level_venue: 'live' }), false)).toBe(BOT_SWITCH_LIVE_WHY);
+    expect(switchLock(strategySession({ level_venue: 'live', active: true }), false)).toBeNull();
+    const replay = strategySession({ gates: openGates({ venue: { ok: false, detail: { venue: 'sim', live_edge: false } } }) });
+    expect(switchLock(replay, false)).toMatch(/replay/i);
+    expect(switchLock(strategySession(), true)).toMatch(/^Saving the last change to the bot/);
   });
 });
 
-describe('the hero\'s words (ADR 042)', () => {
-  it('says what each master level does, on the desk venue, never "live" on Paper', () => {
-    expect(heroSentence(session({ level: 0 }))).toMatch(/^Off on Paper: no setup proposes and the bot trades nothing/);
-    expect(heroSentence(session({ level: 1 }))).toMatch(/^Eyes on Paper: setups at Eyes or Strategy propose/);
-    expect(heroSentence(strategySession())).toBe('Strategy on Paper: the bot may trade GO triggers of First pullback '
-      + 'on its 2 stocks set to Bot once you press Activate. Until then they propose like Eyes.');
-    const none = strategySession({ setups: [{ id: 'first_pullback', scanner: true, level: 1, effective: 1 }] });
-    expect(heroSentence(none)).toMatch(/no setup card is at Strategy/);
-    expect(heroSentence(strategySession({ active: true, ready: true }))).toMatch(/^Trading on Paper: the bot buys GO triggers of First pullback/);
-    expect(heroSentence(strategySession({ active: true, ready: false, ready_reason: 'every bot window is closed -- 07:00-10:00' })))
-      .toBe('Active on Paper: the bot buys GO triggers of First pullback on its 2 stocks set to Bot once nothing below stops it.');
-    for (const s of [session({ level: 0 }), session({ level: 1 }), strategySession(), strategySession({ active: true, ready: true })]) {
-      expect(heroSentence(s)).not.toMatch(/\blive\b/i);
-    }
-  });
-
-  it('says the stocks and the sleeve in one line', () => {
-    expect(stocksLine(session())).toBe('2 stocks set to Bot · risk $20 a trade · max 1 share · $50 budget · 1 Nova entry a day');
-  });
-
+describe('the page\'s words', () => {
   it('says why the backend turned the bot off', () => {
     expect(deactivatedLine({ at: AT_0942, reason: 'restart', text: null })).toBe('Turned off at 09:42 ET — the backend restarted');
     expect(deactivatedLine({ at: null, reason: 'padlock', text: 'Not active -- you locked the padlock' }))
@@ -187,19 +176,18 @@ describe('levels (ADR 042 A)', () => {
   });
 });
 
-describe('header pill, nav dot and rail card (ADR 042)', () => {
-  it('says the master level, how many setups are at Strategy, and whether the bot is active -- never a chosen setup', () => {
-    const idle = botHeaderState(strategySession());
-    expect(idle).toMatchObject({ level: 'L2', name: 'Strategy', detail: '1 at Strategy', state: 'Not active', tone: 'idle' });
-    expect(idle.title).toMatch(/at Strategy: First pullback · Not active — press Activate on the Bots page/);
-    expect(botHeaderState(strategySession({ active: true, ready: true }))).toMatchObject({ state: 'Active', tone: 'on', reason: null });
+describe('header pill, nav dot and rail card (ADR 044)', () => {
+  it('says ON or OFF, how many strategies are On, and why it is off or not trading now', () => {
+    const off = botHeaderState(strategySession());
+    expect(off).toMatchObject({ on: false, name: 'OFF', detail: '1 strategy On', tone: 'off' });
+    expect(off.reason).toBe('Off. The strategies at Eyes or On still alert you.');
+    expect(off.title).toMatch(/^Bot off on Paper: Off\. The strategies at Eyes or On still alert you\. Strategies at On: First pullback\.$/);
+    expect(botHeaderState(strategySession({ active: true, ready: true }))).toMatchObject({ on: true, name: 'ON', tone: 'on', reason: null });
     const notReady = botHeaderState(strategySession({ active: true, ready: false, ready_reason: 'no depth line held' }));
-    expect(notReady).toMatchObject({ state: 'Active', tone: 'idle', reason: 'Not trading now — no depth line held' });
-    expect(botHeaderState(session({ level: 1 }))).toMatchObject({ level: 'L1', name: 'Eyes', state: '' });
-    expect(botHeaderState(session({ level: 0 }))).toMatchObject({ level: '', name: 'Off', tone: 'off' });
-    const off = botHeaderState(strategySession({ deactivated: { at: null, reason: 'restart', text: null } }));
-    expect(off.reason).toBe('Turned off — the backend restarted · press Activate on the Bots page');
-    const closed = botHeaderState(session({ level: 2, gates: gates() }));
+    expect(notReady).toMatchObject({ on: true, tone: 'idle', reason: 'Not trading now — no depth line held' });
+    const restarted = botHeaderState(strategySession({ deactivated: { at: null, reason: 'restart', text: null } }));
+    expect(restarted.reason).toBe('Turned off — the backend restarted.');
+    const closed = botHeaderState(session({ level: 2, active: true, gates: gates() }));
     expect(closed.title).toMatch(/2 of 13 gates closed: level, setups/);
   });
 });

@@ -3,10 +3,19 @@
 ADR 042: the bot's stock list is written only through stock mode's rules
 (``bot.allowlist``); Activate refuses with a plain reason (``bot.activation``); the
 localhost API refuses every kind on Live and on a replay desk (``bot.actions``).
+
+ADR 044: the Bot switch (``POST /api/bot/session/switch``, ``bot.switch``) is the desk's one
+control -- ``PATCH {level}`` and ``POST /arm`` stay for the localhost API -- and the squares
+(``GET /api/bot/triggers``, ``bot.trigger_audit``) say, by ticker, why Nova bought or did not.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+import re
+import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from auth import require_bot_auth
 from bot.api_models import (
@@ -18,6 +27,7 @@ from bot.api_models import (
     LiveSyncBody,
     ProposalBody,
     SessionPatch,
+    SwitchBody,
 )
 from bot.arming import (
     assert_desk_activate,
@@ -37,9 +47,11 @@ from bot.persist import load_session
 from bot.proposals import accept, list_proposals, reject, submit
 from bot.session import get_session, require_l2_brain
 from bot.watch import halt_watch
+from constants_bot import BOT_TZ
 
 router = APIRouter(tags=["bot"], dependencies=[Depends(require_loopback)])
 _write = [Depends(require_bot_auth)]
+_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 @router.get("/api/bot/session")
@@ -95,6 +107,25 @@ def bot_arm(request: Request, body: ArmBody | None = None) -> dict:
         return view
     except BotError as exc:
         raise http_error(exc) from exc
+
+
+@router.post("/api/bot/session/switch", dependencies=_write)
+@router.post("/bot/session/switch", dependencies=_write)
+def bot_switch(request: Request, body: SwitchBody) -> dict:
+    """The Bot switch (ADR 044): ON is the master at Strategy and Activate in one step, refused with
+    Activate's codes (``BOT_TRIP_LATCHED`` unless ``reenable``); OFF deactivates with the master at Eyes."""
+    from bot.switch import turn
+
+    payload = body.model_dump(exclude_none=True)
+    try:
+        assert_desk_activate(brain_id(request, payload))
+        token = turn(body.on, reenable=body.reenable)
+    except BotError as exc:
+        raise http_error(exc) from exc
+    view = get_session()
+    if token:
+        view["desk_arm_token"] = token
+    return view
 
 
 @router.post("/api/bot/session/disarm", dependencies=_write)
@@ -238,3 +269,23 @@ def bot_audit(limit: int = 200) -> dict:
 def bot_pnl() -> dict:
     pnl, meter = read_account_day_pnl()
     return {"day_pnl": pnl, "meter": meter}
+
+
+@router.get("/api/bot/triggers")
+@router.get("/bot/triggers")
+def bot_triggers(date: str | None = Query(None, description="YYYY-MM-DD (ET); today by default")) -> dict:
+    """The squares, by ticker (ADR 044): every listed ticker now and every trigger of the day, gate by gate.
+    Read-only; a sync route, so the journal and the audit stream are read off the loop."""
+    from bot.trigger_audit import answer
+    from scanner_wire import wire_safe
+
+    now = time.time()
+    today = datetime.fromtimestamp(now, ZoneInfo(BOT_TZ)).date().isoformat()
+    day = date or today
+    try:
+        if not _DATE.match(day):
+            raise ValueError(day)
+        datetime.fromisoformat(day)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date is YYYY-MM-DD") from None
+    return wire_safe(answer(day, now, today=day == today))

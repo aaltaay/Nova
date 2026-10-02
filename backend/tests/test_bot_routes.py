@@ -16,7 +16,7 @@ from constants_bot import (
     BOT_REASON_NOT_ACTIVE,
 )
 from main import app
-from tests.bot_helpers import headers, on_practice, ready_l2, set_symbols
+from tests.bot_helpers import headers, list_hot, on_practice, ready_l2, set_symbols
 
 client = TestClient(app)
 
@@ -362,10 +362,23 @@ def test_a_full_list_is_refused_and_nothing_is_audited_as_done(bot_iso, api_key)
 
     on_practice()
     set_symbols(*[f"S{i:02d}" for i in range(50)])
+    list_hot("FULL")                    # already listed: the bot list's own cap is what refuses it
     res = client.post("/api/bot/allowlist", json={"symbol": "FULL", "op": "add"}, headers=headers(api_key))
     assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_ALLOWLIST_FULL
     assert "full" in res.json()["detail"]["error"]
     assert "FULL" not in client.get("/api/bot/session").json()["symbol_allowlist"]
+    assert [r for r in list_entries(limit=20) if r["action"] == "stock_mode"] == []
+
+
+def test_a_full_hot_list_refuses_a_stock_nova_would_buy(bot_iso, api_key):
+    """ADR 044: Buy = Nova stars the stock; with today's list full (20) the switch is refused, and says so."""
+    from bot.audit import list_entries
+
+    on_practice()
+    list_hot(*[f"H{i:02d}" for i in range(20)])
+    res = client.post("/api/bot/allowlist", json={"symbol": "MORE", "op": "add"}, headers=headers(api_key))
+    assert res.status_code == 409 and res.json()["detail"]["reason"] == "HOT_LIST_FULL"
+    assert "MORE" not in client.get("/api/bot/session").json()["symbol_allowlist"]
     assert [r for r in list_entries(limit=20) if r["action"] == "stock_mode"] == []
 
 

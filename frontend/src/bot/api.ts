@@ -92,6 +92,20 @@ export async function armBotSession(body: Record<string, unknown> = {}): Promise
   return next;
 }
 
+/** ADR 044: the Bot switch. On is Strategy and Activate in one call, refused like Activate; off leaves Eyes running. */
+export async function switchBotSession(on: boolean, reenable = false): Promise<BotSession> {
+  refuseOnSampleDesk();
+  const res = await novaFetch(`${BOT}/session/switch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reenable ? { on, reenable: true } : { on }),
+  });
+  const next = (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
+  if (next.desk_arm_token) writeDeskArmToken(next.desk_arm_token);
+  if (!on) writeDeskArmToken(null);
+  return next;
+}
+
 export async function disarmBotSession(): Promise<BotSession> {
   refuseOnSampleDesk();
   const res = await novaFetch(`${BOT}/session/disarm`, { method: 'POST' });

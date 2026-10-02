@@ -15,7 +15,8 @@ Values are kept in the unit the operator types -- percent as 5, not 0.05; a
 float in millions of shares -- and ``setup_scanner/lane_params.py`` converts
 them for the scanner in one place. A nullable parameter is off when ``None``.
 
-The ``bot`` group (the bot's entry window) is the bot's, not the scanner's: it is
+The ``bot`` group (the bot's entry window, and since ADR 044 the grades it buys and
+its setups a stock a day) is the bot's, not the scanner's: it is
 left out of ``fingerprint`` -- and so of a template's ``params_hash`` and its rules
 revision -- so changing it never starts a read-out over (operator ask 2026-09-30).
 ``RETIRED`` names parameters that left the catalogue: a stored template that carries
@@ -33,6 +34,8 @@ from typing import Any
 from constants_bot import (
     BOT_ENTRY_WINDOW_END_ET,
     BOT_ENTRY_WINDOW_START_ET,
+    BOT_GRADES_CHOICES,
+    BOT_GRADES_DEFAULT,
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
@@ -40,6 +43,8 @@ from constants_bot import (
     BOT_SETUP_MICRO_PULLBACK,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUPS,
+    BOT_SETUPS_A_DAY_DEFAULT,
+    BOT_SETUPS_A_DAY_MAX,
     BOT_SETUPS_WITH_SCANNER,
 )
 from constants_setups import (
@@ -191,9 +196,9 @@ GROUP_LABELS: dict[str, tuple[str, str]] = {
                           "they come, where price went, and the book. Read at the trigger and while a trade is on; "
                           "it can decide the entry and get out on a flush."),
     "grade": ("Five Pillars grade", "Grades every armed setup A / B / C. A pillar Nova does not know never passes."),
-    BOT_GROUP: ("Bot entries at Strategy", "When the bot may send an entry while this template is in play -- inside "
-                           "the setup's arming window. Changing it never starts the read-out over: the read-out scores "
-                           "the setup, not the bot."),
+    BOT_GROUP: ("Bot entries at Strategy", "When and what the bot may buy while this template is in play: its window, "
+                           "inside the setup's arming window, the grades and the setups a stock a day. Changing them "
+                           "never starts the read-out over: the read-out scores the setup, not the bot."),
 }
 
 
@@ -318,8 +323,9 @@ _GRADE: tuple[ParamSpec, ...] = (
 )
 
 def _bot(arm_start: str, arm_end: str) -> tuple[ParamSpec, ...]:
-    """The bot's entry window: the material's 07:00-10:00, inside the setup's arming window
-    (``arm_start``-``arm_end``) -- red to green arms 09:30-10:30, so its default is 09:30-10:00."""
+    """The bot's rules (ADR 044): its entry window -- the material's 07:00-10:00, inside the setup's
+    arming window (``arm_start``-``arm_end``; red to green arms 09:30-10:30, so 09:30-10:00) -- the
+    grades it buys and how many setups of a stock a day."""
     start = max(BOT_ENTRY_WINDOW_START_ET, arm_start, key=_minutes)
     end = min(BOT_ENTRY_WINDOW_END_ET, arm_end, key=_minutes)
     return (
@@ -328,6 +334,11 @@ def _bot(arm_start: str, arm_end: str) -> tuple[ParamSpec, ...]:
                 "the arming window; changing it never starts the read-out over."),
         _p("bot_window_end", BOT_GROUP, "Bot entries until", TIME, end, unit="ET", min="04:00", max="20:00",
            help="No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page)."),
+        _p("bot_grades", BOT_GROUP, "Grades Nova buys", CHOICE, BOT_GRADES_DEFAULT, choices=BOT_GRADES_CHOICES,
+           help="Nova buys this setup only at these grades. C is never a trade."),
+        _p("bot_setups_a_day", BOT_GROUP, "Setups a stock a day", INT, BOT_SETUPS_A_DAY_DEFAULT, unit="setups",
+           min=1, max=BOT_SETUPS_A_DAY_MAX, step=1,
+           help="1: Nova buys only the 1st of this setup on a stock that day. 2: the 1st and the 2nd."),
     )
 
 

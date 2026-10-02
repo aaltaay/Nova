@@ -14,10 +14,12 @@ interface Props {
   connectedText?: string;
   statusTitle?: string;
   emptyLabel?: string;
+  /** A Trader tab's Time & Sales: its line may be lent with the tab's Level 2 (ADR 044 decision 6). */
+  traderTab?: boolean;
 }
 
 export function TimeSalesModule({
-  symbol, embedded = false, uiActive = true, connectedText, statusTitle, emptyLabel,
+  symbol, embedded = false, uiActive = true, connectedText, statusTitle, emptyLabel, traderTab = false,
 }: Props) {
   return (
     <div
@@ -33,6 +35,7 @@ export function TimeSalesModule({
         connectedText={connectedText}
         statusTitle={statusTitle}
         emptyLabel={emptyLabel}
+        traderTab={traderTab}
       />
     </div>
   );

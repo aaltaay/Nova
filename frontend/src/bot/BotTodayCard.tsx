@@ -103,7 +103,7 @@ export function BotTodayCard({ venue, audit, botPnl, entries, firstAtStrategy }:
         </div>
         <div {...tipProps(BOTS_TODAY_ENTRIES_TIP, 'Nova buys')}>
           <span>Nova buys</span>
-          <b data-testid="bots-kpi-entries">{entries ? `${entries.count} / ${entries.cap}` : '—'}</b><small>bot + Auto-entry</small>
+          <b data-testid="bots-kpi-entries">{entries ? `${entries.count} / ${entries.cap}` : '—'}</b><small data-testid="bots-kpi-entries-note">bot + Auto-entry{entries?.approved ? ` · ${entries.approved} approved by you` : ''}</small>
         </div>
         <div {...tipProps(venue.practiceVenue ? BOTS_TODAY_PNL_TIP : BOTS_TODAY_PNL_LIVE_TITLE, 'Bot P&L')}>
           <span>Bot P&amp;L</span><b className={pnlTone} data-testid="bots-kpi-pnl">{fmtUsdCents(botPnl)}</b><small>its own fills</small>

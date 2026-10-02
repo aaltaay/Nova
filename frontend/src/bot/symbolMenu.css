@@ -53,10 +53,11 @@
   text-transform: uppercase;
 }
 
-/* Each action's colour: the tab's slate, the watch list's amber, the
-   recorder's red, the bot's blue. Icon tile, hover and chip all read it. */
+/* Each action's colour: the tab's slate, the watch list's amber, the hot
+   list's gold, the recorder's red, the bot's blue. Icon tile, hover and chip
+   all read it. */
 .symbol-menu__row--tab { --row-tone: #94a3b8; }
-.symbol-menu__row--watch { --row-tone: var(--watch-color, #f5a524); }
+.symbol-menu__row--hot { --row-tone: #fbbf24; }
 .symbol-menu__row--rec { --row-tone: var(--danger, #ef4444); }
 .symbol-menu__row--bot { --row-tone: var(--accent-color, #3b82f6); }
 

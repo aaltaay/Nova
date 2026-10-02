@@ -217,3 +217,33 @@ BOT_SKIP_ONE_TRADE = "BOT_ONE_TRADE"
 BOT_SKIP_EXTENDED_HOURS = "BOT_EXTENDED_HOURS"
 BOT_SKIP_SIZE = "BOT_SIZE_ZERO"
 BOT_SKIP_VENUE_CHANGING = "BOT_VENUE_CHANGING"   # the desk is leaving the venue (ADR 042 F)
+
+# -- ADR 044: one Bots page. --------------------------------------------------------------
+# Each strategy's bot rules, on its template in play (the template's bot group: changing them never
+# starts a read-out over). Grades Nova buys -- C stays NOT A TRADE -- and setups a stock a day.
+BOT_GRADES_AB = "AB"
+BOT_GRADES_A = "A"
+BOT_GRADES_CHOICES = ((BOT_GRADES_AB, "A and B"), (BOT_GRADES_A, "A only"))
+BOT_GRADES_DEFAULT = BOT_GRADES_AB
+BOT_SETUPS_A_DAY_DEFAULT = 1
+BOT_SETUPS_A_DAY_MAX = 2
+BOT_SKIP_GRADE = "BOT_SKIP_GRADE"            # a grade the strategy does not buy
+BOT_SKIP_NOT_LISTED = "BOT_SKIP_NOT_LISTED"  # the stock is not on today's hot list (``hot_list``)
+# The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
+BOT_AUDIT_ACTION_SWITCH = "bot_switch"
+# The squares, by ticker (``GET /api/bot/triggers``): the gates in the order Nova runs them.
+BOT_TRIGGERS_SCHEMA_VERSION = 1
+BOT_TRIGGER_GATES = (
+    ("bot_on", "Bot on"),
+    ("strategy_on", "Strategy on"),
+    ("grade", "Grade"),
+    ("setups_a_day", "Setups a day"),
+    ("bot_window", "Bot window"),
+    ("hot_list", "Hot list"),
+    ("nova_buys", "Nova buys"),
+    ("level2_line", "Level 2 line"),
+    ("tape_go", "Tape GO"),
+    ("trades_today", "Trades today"),
+)
+# Nothing records the template's bot rules at a trigger: these gates read today's.
+BOT_TRIGGER_JUDGED_NOW = ("grade", "setups_a_day", "bot_window")

@@ -7,7 +7,6 @@ import {
   BOT_SETUP_LABELS,
   BOT_SETUP_RESEARCH,
   BOT_SYMBOL_ALLOWLIST_CAP,
-  botAllowlistStripLabel,
   botTradeAddLabel,
   botTradeRemoveLabel,
 } from './bot';
@@ -31,10 +30,8 @@ describe('bot playbook copy (ADR 027)', () => {
     expect(Object.keys(BOT_GATE_TIPS).sort()).toEqual(ids);
   });
 
-  it('mirrors the backend cap on the bot’s stocks and the strip count label', () => {
+  it('mirrors the backend cap on the bot’s stocks', () => {
     expect(BOT_SYMBOL_ALLOWLIST_CAP).toBe(50);
-    expect(botAllowlistStripLabel(0)).toBe('Bot stocks · 0');
-    expect(botAllowlistStripLabel(3)).toBe('Bot stocks · 3');
   });
 
   it('never says "allowlist" where the operator reads it: the bot trades a stock, or it does not', () => {

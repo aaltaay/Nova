@@ -4,7 +4,8 @@
  * The symbol is named once in the head; each action is a row that looks like a
  * button -- an icon tile in the action's colour, a label that says what the
  * click does, a line saying what that means, and a state chip when it is
- * already on (Watching, REC, Bot). Stopping a recording stays a hold. "Let the
+ * already on (Hot list, REC, Bot). Stopping a recording stays a hold. The ★ puts
+ * the stock on today's hot list from anywhere (ADR 044). "Let the
  * bot trade" goes through the stock-mode rules (ADR 042 F): the menu waits for
  * the answer and shows a refusal in the backend's words instead of closing.
  *
@@ -21,7 +22,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
-import { Bot, BotOff, Circle, Pin, PinOff, Square, TriangleAlert } from 'lucide-react';
+import { Bot, BotOff, Circle, Pin, PinOff, Square, Star, TriangleAlert } from 'lucide-react';
+import { hotListActions, listedOn, useHotList } from '../hot_list';
 import {
   SYMBOL_MENU_ALLOW_HINT,
   SYMBOL_MENU_ALLOW_STATE,
@@ -34,9 +36,6 @@ import {
   SYMBOL_MENU_STOP_RECORD,
   SYMBOL_MENU_UNALLOW_HINT,
   SYMBOL_MENU_UNPIN_HINT,
-  SYMBOL_MENU_UNWATCH_HINT,
-  SYMBOL_MENU_WATCH_HINT,
-  SYMBOL_MENU_WATCH_STATE,
   botTradeAddLabel,
   botTradeRemoveLabel,
 } from '../constantGroups/bot';
@@ -61,16 +60,9 @@ import { CAPTURE_STOP_HOLD_HINT, captureStopHoldLabel } from '../capture/constan
 import { botSymbolMenuPosition } from './botSymbolMenuPlacement';
 import { BotNotices } from './BotNotices';
 import { ClipMenuRows } from '../clips';
-import {
-  toggleWatchList,
-  useWatchList,
-  WATCH_LIST_ADD,
-  WATCH_LIST_REMOVE,
-  WatchEyeIcon,
-} from '../watch_list';
 import './symbolMenu.css';
 
-type Tone = 'tab' | 'watch' | 'rec' | 'bot';
+type Tone = 'tab' | 'hot' | 'rec' | 'bot';
 const ICON_PX = 15;
 
 /** Icon tile, label, the line under it, and the chip that says it is already on. */
@@ -111,6 +103,51 @@ function MenuRow({ tone, icon, label, hint, state, testId, disabled, why, onClic
   );
 }
 
+/**
+ * ★ Today's hot list (ADR 044): mounted only while the menu is open, so the list is read only then. A
+ * refusal stays on screen in the backend's words; until the list is read the row says so.
+ */
+function HotListRow({ symbol, onDone }: { symbol: string; onDone: () => void }) {
+  const hot = useHotList();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const listed = listedOn(hot.view, symbol);
+  const why = busy || hot.busy ? 'Saving the hot list…' : listed === null ? (hot.error ?? 'Reading today\'s hot list…') : undefined;
+  const press = async () => {
+    setBusy(true);
+    const err = listed ? await hotListActions.unstar(symbol) : await hotListActions.star(symbol);
+    setBusy(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    onDone();
+  };
+  return (
+    <>
+      <MenuRow
+        tone="hot"
+        testId="bot-symbol-menu-hot"
+        icon={<Star size={ICON_PX} fill={listed ? 'currentColor' : 'none'} />}
+        label={listed ? `Take ${symbol} off today's hot list` : `★ ${symbol} on today's hot list`}
+        hint={listed
+          ? 'Nova stops buying it, and its Buy and Sell go back to You. Its alerts and the chart stay.'
+          : 'The scanners follow it all day; Nova may buy it where its Buy is Nova. The list starts empty at 04:00.'}
+        state={listed ? 'Hot list' : null}
+        disabled={why !== undefined}
+        why={why}
+        onClick={() => void press()}
+      />
+      {error ? (
+        <div className="symbol-menu__error" role="alert" data-testid="bot-symbol-menu-hot-error">
+          <TriangleAlert size={13} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /** ↑ / ↓ / Home / End move between rows once focus is inside the menu. */
 function moveFocus(event: ReactKeyboardEvent<HTMLDivElement>): void {
   const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
@@ -145,7 +182,6 @@ function SymbolMenu() {
   const [menuHeight, setMenuHeight] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const { isAllowed, toggle } = useBotAllowlist();
-  const watchList = useWatchList();
   const recordEpoch = useSyncExternalStore(
     subscribeSessionRecord,
     () => `${getRecordingSymbols().join(',')}|${getSessionRecordError() || ''}`,
@@ -164,7 +200,7 @@ function SymbolMenu() {
   useLayoutEffect(() => {
     const height = menuRef.current?.getBoundingClientRect().height ?? 0;
     if (height > 0 && Math.abs(height - menuHeight) > 1) setMenuHeight(height);
-  }, [open, menuHeight, recordError, botError, recordEpoch, watchList]);
+  }, [open, menuHeight, recordError, botError, recordEpoch]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -187,7 +223,6 @@ function SymbolMenu() {
   if (!open) return null;
   const { symbol } = open;
   const allowed = isAllowed(symbol);
-  const watched = watchList.includes(symbol);
   const recording = isTabRecording(symbol);
   void recordEpoch;
   const toggleRecord = async (stop: boolean) => {
@@ -254,18 +289,7 @@ function SymbolMenu() {
           }}
         />
       )}
-      <MenuRow
-        tone="watch"
-        testId="bot-symbol-menu-watch"
-        icon={<WatchEyeIcon />}
-        label={watched ? WATCH_LIST_REMOVE : WATCH_LIST_ADD}
-        hint={watched ? SYMBOL_MENU_UNWATCH_HINT : SYMBOL_MENU_WATCH_HINT}
-        state={watched ? SYMBOL_MENU_WATCH_STATE : null}
-        onClick={() => {
-          toggleWatchList(symbol);
-          closeBotSymbolMenu();
-        }}
-      />
+      <HotListRow symbol={symbol} onDone={closeBotSymbolMenu} />
       {recording ? (
         // A recording is locked: Stop takes a deliberate hold, never a slip.
         <HoldToStopButton

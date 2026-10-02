@@ -1,5 +1,5 @@
 /**
- * The Watch list tab: the symbols the operator picked by hand, each with its
+ * The Hot list tab (the Watch list tab until ADR 044): today's hot list, each with its
  * board row's market facts (when a board holds it), its most advanced setup on
  * the setup scanner and today's newest HOD Momo or Running Up alert -- what the
  * toasts announce. Remove from here, add by ticker here or from any ticker row.
@@ -23,6 +23,7 @@ import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import type { ScannerRow } from '../types/scanner';
 import { fmtPct, fmtPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import { tipProps } from '../ux/hoverTip';
+import { whyProps } from '../ux/whyTip';
 import { WatchEyeIcon } from './WatchEyeIcon';
 import {
   WATCH_LIST_ADD_BUTTON,
@@ -38,13 +39,24 @@ import {
   WATCH_LIST_SETUP_NOTHING,
   WATCH_LIST_SETUP_OFFLINE_TIP,
   WATCH_LIST_SETUP_UNKNOWN_TIP,
+  WATCH_LIST_SAVED_FORGET,
+  WATCH_LIST_SAVED_STAR,
   WATCH_LIST_TAB_NOTE,
   watchListRemoveTitle,
+  watchListSavedNote,
   watchListSetupAlso,
   watchListSetupNothingTip,
   watchListSetupNotFollowedTip,
 } from './watchListConstants';
-import { addToWatchList, removeFromWatchList, useWatchList } from './watchListStore';
+import { hotListActions, useHotList } from '../hot_list';
+import { isSampleView } from '../sample_data/sampleNav';
+import {
+  addToWatchList,
+  forgetSavedWatchList,
+  readSavedWatchList,
+  removeFromWatchList,
+  useWatchList,
+} from './watchListStore';
 import type { WatchListBoards } from './types';
 import './watchList.css';
 
@@ -182,6 +194,44 @@ function AddSymbolForm() {
   );
 }
 
+/**
+ * The list this desk kept before the hot list (ADR 044): offered once -- star what fits today's list, or
+ * forget it. Every refusal is said in the backend's words; the saved list is forgotten only after the stars.
+ */
+function SavedListOffer({ listed }: { listed: readonly string[] }) {
+  const [saved, setSaved] = useState<readonly string[]>(() => (isSampleView() ? [] : readSavedWatchList()));
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  const hot = useHotList();
+  const todo = saved.filter(s => !listed.includes(s));
+  if (!todo.length) return said ? <p className="watch-list__saved" role="status">{said}</p> : null;
+  const room = Math.max(0, (hot.view?.cap ?? 20) - listed.length);
+  const lock = busy ? 'Starring them…' : hot.view ? (room ? null : 'Today\'s hot list is full.') : 'Reading today\'s hot list…';
+  const star = async () => {
+    setBusy(true);
+    const refused: string[] = [];
+    for (const symbol of todo.slice(0, room)) {
+      const err = await hotListActions.star(symbol);
+      if (err) refused.push(`${symbol}: ${err}`);
+    }
+    setBusy(false);
+    forgetSavedWatchList();
+    setSaved([]);
+    setSaid(refused.length ? `Not starred -- ${refused.join(' · ')}` : null);
+  };
+  return (
+    <div className="watch-list__saved" data-testid="watch-list-saved">
+      <span>{watchListSavedNote(todo.length, room)}</span>
+      <button type="button" disabled={lock !== null} {...whyProps(lock !== null, lock)} onClick={() => void star()}
+        data-testid="watch-list-saved-star">{WATCH_LIST_SAVED_STAR}</button>
+      <button type="button" disabled={busy} {...whyProps(busy, 'Starring them…')}
+        onClick={() => { forgetSavedWatchList(); setSaved([]); }} data-testid="watch-list-saved-forget">
+        {WATCH_LIST_SAVED_FORGET}
+      </button>
+    </div>
+  );
+}
+
 interface Props {
   boards: WatchListBoards;
   selectedSymbol: string | null;
@@ -236,6 +286,7 @@ export function WatchListTab({ boards, selectedSymbol, onSelectSymbol, onOpenTra
         </p>
         <AddSymbolForm />
       </div>
+      <SavedListOffer listed={symbols} />
       {symbols.length === 0 ? (
         <div className="empty-state" data-testid="watch-list-empty">{WATCH_LIST_EMPTY}</div>
       ) : (

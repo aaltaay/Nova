@@ -157,6 +157,17 @@ def free_lines() -> int:
     ))
 
 
+def held_symbols() -> list[str]:
+    """The symbols auto-record holds a line for now."""
+    return sorted(_auto)
+
+
+def lines_lock() -> asyncio.Lock:
+    """Held while a line changes hands outside auto-record -- a loan (ADR 044, ``line_lending``) --
+    so a tick never takes the line between its release and its new holder's subscribe."""
+    return _lock
+
+
 def why(symbol: str) -> str:
     """Why ``symbol`` holds (or wants) an auto line now."""
     for sym, reason in _setups:

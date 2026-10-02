@@ -1,17 +1,18 @@
 /**
- * The operator's watch list, newest first, shared by every window of the desk.
+ * The watch list is today's hot list (ADR 044: "the watch list folds into the ★"). Every Watch action on
+ * the desk -- a scanner row, the chart menu, the Desk board, the Hot list tab -- stars or unstars the
+ * stock on the hot list (`hot_list`), and the watch toasts follow the listed names. The list is the
+ * backend's: one for every window, fresh at 04:00 ET, up to its cap. A write shows at once and is undone
+ * when the backend refuses it, which is said in the backend's own words, never silent.
  *
- * Owner: this module (read + write) under WATCH_LIST_STORAGE_KEY as
- * `{schema_version: 1, symbols: string[]}`. Invalidation: schema bump -- a
- * payload with an unknown `schema_version` is ignored, never guessed at
- * (persisted-state.mdc). Another window's write arrives through the `storage`
- * event, so a pop-out and the main desk never disagree. Storage that throws
- * (private window, quota) keeps the list in memory for this session only.
- * The sample desk (#449) keeps a list of its own, in memory, starting empty:
- * it never shows the operator's list, and its picks never join it.
+ * The list this desk kept before the fold (`nova.watch.list`, `{schema_version: 1, symbols}`; an unknown
+ * version is ignored, never guessed) is only read now: the Hot list tab offers to star it, then it is
+ * forgotten. The sample desk (#449) keeps a list of its own, in memory, starting empty, and sends nothing.
  */
 import { useSyncExternalStore } from 'react';
+import { getHotListState, hotListActions, resetHotListForTests, subscribeHotList } from '../hot_list';
 import { isSampleView } from '../sample_data/sampleNav';
+import { alertApp } from '../ux/appDialogApi';
 import {
   WATCH_LIST_MAX,
   WATCH_LIST_SCHEMA_VERSION,
@@ -35,7 +36,8 @@ export function normalizeWatchSymbol(raw: string): string | null {
   return WATCH_LIST_SYMBOL_RE.test(symbol) ? symbol : null;
 }
 
-export function readWatchList(): readonly string[] {
+/** The list this desk saved before the hot list, newest first (read only; empty when none). */
+export function readSavedWatchList(): readonly string[] {
   const store = storage();
   if (!store) return EMPTY;
   try {
@@ -43,7 +45,7 @@ export function readWatchList(): readonly string[] {
     if (!raw) return EMPTY;
     const parsed = JSON.parse(raw) as { schema_version?: unknown; symbols?: unknown };
     if (parsed.schema_version !== WATCH_LIST_SCHEMA_VERSION) {
-      console.warn('[nova] ignoring a watch list with unknown schema_version', parsed.schema_version);
+      console.warn('[nova] ignoring a saved watch list with unknown schema_version', parsed.schema_version);
       return EMPTY;
     }
     if (!Array.isArray(parsed.symbols)) return EMPTY;
@@ -52,50 +54,57 @@ export function readWatchList(): readonly string[] {
       .filter((s): s is string => s !== null);
     return [...new Set(symbols)].slice(0, WATCH_LIST_MAX);
   } catch (err) {
-    console.warn('[nova] unreadable watch list', err);
+    console.warn('[nova] unreadable saved watch list', err);
     return EMPTY;
   }
 }
 
-let list: readonly string[] | null = null;
-let sampleList: readonly string[] = EMPTY;
-let listening = false;
-const listeners = new Set<() => void>();
-
-function notify(): void {
-  listeners.forEach(fn => fn());
+/** Forget the list saved before the hot list (after it was starred, or when the operator says so). */
+export function forgetSavedWatchList(): void {
+  try {
+    storage()?.removeItem(WATCH_LIST_STORAGE_KEY);
+  } catch (err) {
+    console.warn('[nova] could not forget the saved watch list', err);
+  }
+  notify();
 }
 
-function onStorage(event: StorageEvent): void {
-  if (event.key !== WATCH_LIST_STORAGE_KEY && event.key !== null) return;
-  list = readWatchList();
-  notify();
+let sampleList: readonly string[] = EMPTY;
+/** Writes in flight: shown at once, dropped when the backend answers (its view is then the truth). */
+const pending = new Map<string, 'add' | 'remove'>();
+const listeners = new Set<() => void>();
+let cache: { view: unknown; version: number; list: readonly string[] } | null = null;
+let version = 0;
+
+function notify(): void {
+  version += 1;
+  listeners.forEach(fn => fn());
 }
 
 function current(): readonly string[] {
   if (isSampleView()) return sampleList;
-  if (list === null) list = readWatchList();
+  const view = getHotListState().view;
+  if (cache && cache.view === view && cache.version === version) return cache.list;
+  const base = view ? view.entries.map(e => e.symbol) : [];
+  let list = base.filter(s => pending.get(s) !== 'remove');
+  for (const [s, op] of pending) if (op === 'add' && !list.includes(s)) list = [s, ...list];
+  cache = { view, version, list };
   return list;
 }
 
-function write(next: readonly string[]): void {
-  if (isSampleView()) {
-    if (next === sampleList) return;
-    sampleList = next;
-    notify();
-    return;
-  }
-  if (next === list) return;
-  list = next;
-  try {
-    storage()?.setItem(
-      WATCH_LIST_STORAGE_KEY,
-      JSON.stringify({ schema_version: WATCH_LIST_SCHEMA_VERSION, symbols: next }),
-    );
-  } catch (err) {
-    console.warn('[nova] could not save the watch list', err);
-  }
+async function send(symbol: string, op: 'add' | 'remove'): Promise<void> {
+  pending.set(symbol, op);
   notify();
+  const refused = op === 'add' ? await hotListActions.star(symbol) : await hotListActions.unstar(symbol);
+  pending.delete(symbol);
+  notify();
+  if (!refused) return;
+  console.warn('[nova] the hot list refused', op, symbol, refused);
+  alertApp({
+    title: op === 'add' ? `${symbol} is not on today's hot list` : `${symbol} is still on today's hot list`,
+    message: refused,
+    tone: 'warning',
+  }).catch(err => console.warn('[nova] could not show the hot list refusal', err));
 }
 
 export function getWatchList(): readonly string[] {
@@ -107,23 +116,35 @@ export function isWatched(symbol: string): boolean {
   return s !== null && current().includes(s);
 }
 
-/** Adds `symbol` at the front; false when it is not a ticker. */
+/** Stars `symbol` on today's hot list; false when it is not a ticker. */
 export function addToWatchList(symbol: string): boolean {
   const s = normalizeWatchSymbol(symbol);
   if (!s) return false;
-  const now = current();
-  if (!now.includes(s)) write([s, ...now].slice(0, WATCH_LIST_MAX));
+  if (isSampleView()) {
+    if (!sampleList.includes(s)) {
+      sampleList = [s, ...sampleList];
+      notify();
+    }
+    return true;
+  }
+  if (!current().includes(s)) void send(s, 'add');
   return true;
 }
 
 export function removeFromWatchList(symbol: string): void {
   const s = normalizeWatchSymbol(symbol);
   if (!s) return;
-  const now = current();
-  if (now.includes(s)) write(now.filter(x => x !== s));
+  if (isSampleView()) {
+    if (sampleList.includes(s)) {
+      sampleList = sampleList.filter(x => x !== s);
+      notify();
+    }
+    return;
+  }
+  if (current().includes(s)) void send(s, 'remove');
 }
 
-/** Flips `symbol` on or off the list; returns whether it is watched afterwards. */
+/** Flips `symbol` on or off the list; returns whether it is listed afterwards. */
 export function toggleWatchList(symbol: string): boolean {
   if (isWatched(symbol)) {
     removeFromWatchList(symbol);
@@ -132,14 +153,13 @@ export function toggleWatchList(symbol: string): boolean {
   return addToWatchList(symbol);
 }
 
+/** Changes to the list: the hot list's (polled while anything listens) and this window's writes. */
 export function subscribeWatchList(fn: () => void): () => void {
   listeners.add(fn);
-  if (!listening && typeof window !== 'undefined') {
-    window.addEventListener('storage', onStorage);
-    listening = true;
-  }
+  const stop = isSampleView() ? () => {} : subscribeHotList(fn);
   return () => {
     listeners.delete(fn);
+    stop();
   };
 }
 
@@ -155,9 +175,11 @@ export function useIsWatched(symbol: string): boolean {
   );
 }
 
-/** Test-only: forget the in-memory copy so the next read comes from storage. */
+/** Test-only: forget the sample list, the writes in flight and the hot list's copy. */
 export function resetWatchListForTests(): void {
-  list = null;
   sampleList = EMPTY;
+  pending.clear();
+  cache = null;
+  resetHotListForTests();
   notify();
 }

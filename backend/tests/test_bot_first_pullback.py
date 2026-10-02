@@ -340,7 +340,8 @@ def test_leaving_the_venue_cancels_the_bots_working_entry_first(paper):
 @pytest.mark.parametrize("event, said", [
     (trigger(tape={"verdict": "wait"}), "the tape read wait at the trigger"),
     (trigger(tape={"verdict": "blind"}), "the tape read blind at the trigger"),
-    (trigger(setup={"kind": "second_pullback"}), "a second pullback"),
+    (trigger(setup={"kind": "second_pullback", "nth": 2}), "a 2nd first pullback: this strategy buys the 1st of "
+                                                           "the day only"),
     (trigger(grade="C", pillars={"passed": 2, "known": 5, "total": 5}), "not a trade: grade C: 2 of 5 pillars"),
     (trigger(filtered="float over 10M"), "the template's stock filter keeps it out: float over 10M"),
     (trigger(spread=0.15), "not a trade: the spread 0.15 is at least the 0.14 risk"),
@@ -381,6 +382,30 @@ def test_every_setup_at_strategy_plays_and_the_first_trigger_wins(paper):
 def test_a_name_off_the_list_is_left_to_auto_entry_or_the_scanner(paper):
     runner.submit(trigger(symbol="NOPE"))
     assert tick(paper) is None and trade_rows() == []
+
+
+def test_a_bot_stock_off_todays_hot_list_is_skipped_with_the_reason(paper):
+    """ADR 044: Nova buys only the stocks on today's hot list."""
+    from constants_hot_list import HOT_LIST_FILE
+    from paths import cache_dir
+
+    (cache_dir() / HOT_LIST_FILE).unlink()
+    runner.submit(trigger())
+    assert tick(paper) is None
+    [row] = trade_rows("skipped")
+    assert row["inputs"]["code"] == "BOT_SKIP_NOT_LISTED" and "IMCC is not on today's hot list" in row["reason"]
+
+
+def test_a_grade_the_strategy_does_not_buy_is_skipped(paper):
+    """ADR 044: the template in play's ``bot_grades`` -- here A only -- holds a grade B trigger back."""
+    from setup_templates.store import get_store
+
+    get_store().update("first_pullback", "default", values={"bot_grades": "A"})
+    runner.submit(trigger(grade="B", pillars={"passed": 4, "known": 5, "total": 5}))
+    assert tick(paper) is None
+    [row] = trade_rows("skipped")
+    assert row["inputs"]["code"] == "BOT_SKIP_GRADE"
+    assert "grade B: this strategy buys grade A only" in row["reason"]
 
 
 def test_a_listed_name_without_its_level_2_is_skipped_with_the_reason(paper):

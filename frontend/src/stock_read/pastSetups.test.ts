@@ -19,12 +19,12 @@ import {
 import { pastHoverId, pastShapes } from './pastShapes';
 import { SetupShapesPrimitive } from './SetupShapesPrimitive';
 import type { SceneBox } from './sceneTypes';
-import { parseLayers } from './StockReadContext';
+import { drawnLayers, parseLayers } from './StockReadContext';
 import { apusReadWire } from './stockReadFixtures';
 import type { StockRead } from './types';
 
 const LAYERS = {
-  setups: true, levels: true, past: true, labels: 'compact' as const, hidden: [] as string[], plan: 'auto' as const,
+  eyes: true, setups: true, levels: true, past: true, labels: 'compact' as const, hidden: [] as string[], plan: 'auto' as const,
 };
 const identity = (sec: number) => sec as Time;
 /** A moment of 2026-09-29, Eastern (EDT), as epoch seconds. */
@@ -255,6 +255,19 @@ describe('the layer switch', () => {
     expect(parseLayers({ setups: true, past: true, hidden: [], plan: 'auto' })?.labels).toBe('compact');
     expect(parseLayers({ labels: 'full' })?.labels).toBe('full');
     expect(parseLayers({ labels: 'huge' })?.labels).toBe('compact');
+  });
+
+  it('keeps Eyes on unless the operator switched it off, also for a value stored before it', () => {
+    expect(parseLayers({ setups: true, levels: true, hidden: [], plan: 'auto' })?.eyes).toBe(true);
+    expect(parseLayers({ eyes: false })?.eyes).toBe(false);
+  });
+
+  it('draws none of Nova drawings with Eyes off, and hides a strategy at Off like a lane switched off', () => {
+    const off = drawnLayers({ ...LAYERS, eyes: false }, []);
+    expect([off.setups, off.levels, off.past]).toEqual([false, false, false]);
+    const on = drawnLayers({ ...LAYERS, hidden: ['bull_flag'] }, ['bull_flag', 'red_to_green']);
+    expect([on.setups, on.levels, on.past]).toEqual([true, true, true]);
+    expect(on.hidden).toEqual(['bull_flag', 'red_to_green']);
   });
 
   it('carries the setting into the scene', () => {

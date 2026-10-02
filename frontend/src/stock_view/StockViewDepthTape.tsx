@@ -231,7 +231,7 @@ export function StockViewDepthTape({
         )}
         level2={showL2 ? (gap ? <HistoricalDepth depth={null} />
           : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive}
-            markers={captureReplay ? undefined : markers} />) : null}
+            markers={captureReplay ? undefined : markers} traderTab />) : null}
         tape={showTape ? (
           <TimeSalesModule
             key={feedKey}
@@ -241,6 +241,7 @@ export function StockViewDepthTape({
             connectedText={captureReplay ? SIM_REPLAY_TAPE_STATUS : undefined}
             statusTitle={captureReplay ? SIM_CAPTURE_TAPE_TITLE : undefined}
             emptyLabel={gap ? SIM_CAPTURE_TAPE_NOT_RECORDED : undefined}
+            traderTab
           />
         ) : null}
       />

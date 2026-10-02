@@ -3,10 +3,12 @@ Nova's bot and Auto-entry.
 
 ``blockers`` lists every rule that holds a trigger back -- all of them, not the first (the
 visibility rule): the venue (Paper, or Sim at its live edge), Activate, the setup at
-effective Strategy, the first of that setup on the stock that day, the tape at go, NOT A
-TRADE (``setup_scanner.trade_verdict``), a fresh trigger, the padlock, the kill switch, this
-venue's day lock and bot trip, #564's commission hold, the setup's bot window, extended
-hours, the venue's shared daily cap and the sleeve's size. Then each taker's own:
+effective Strategy, the strategy's bot rules (ADR 044, ``bot.strategy_rules``: the grades it
+buys and its setups a stock a day), the tape at go, NOT A TRADE
+(``setup_scanner.trade_verdict``), a fresh trigger, the padlock, the kill switch, this venue's
+day lock and bot trip, #564's commission hold, the setup's bot window, today's hot list (ADR
+043: Nova buys only listed stocks), extended hours, the venue's shared daily cap and the
+sleeve's size. Then each taker's own:
 
 - the bot: the stock on this venue's bot list with a held depth line, one trade at a time,
   no bot buy still working, the L2 session not held by another brain;
@@ -39,9 +41,11 @@ from constants_bot import (
     BOT_RUNNER_BRAIN_ID,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SKIP_EXTENDED_HOURS,
+    BOT_SKIP_GRADE,
     BOT_SKIP_NOT_A_TRADE,
     BOT_SKIP_NOT_ACTIVE,
     BOT_SKIP_NOT_FIRST,
+    BOT_SKIP_NOT_LISTED,
     BOT_SKIP_ONE_TRADE,
     BOT_SKIP_SETUP_NOT_STRATEGY,
     BOT_SKIP_SIZE,
@@ -49,7 +53,7 @@ from constants_bot import (
     BOT_SKIP_TAPE,
     BOT_SKIP_VENUE_CHANGING,
 )
-from constants_setups import SETUP_KIND_FIRST_PULLBACK, SETUPS_READOUT_KINDS, TAPE_VERDICT_GO
+from constants_setups import TAPE_VERDICT_GO
 
 logger = logging.getLogger(__name__)
 LIVE_STATES = frozenset({"entering", "open", "exiting"})
@@ -62,10 +66,6 @@ def name(setup_type: str | None) -> str:
 
 def setup_of(event: dict[str, Any]) -> str:
     return str(event.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
-
-
-def first_kind(setup_type: str) -> str:
-    return SETUPS_READOUT_KINDS.get(setup_type, SETUP_KIND_FIRST_PULLBACK)
 
 
 def triggered_at(event: dict[str, Any]) -> float:
@@ -115,6 +115,44 @@ def _desk_blocks(row: dict[str, Any], venue: str | None) -> list[Blocker]:
     return out
 
 
+def _strategy_blocks(event: dict[str, Any], setup_type: str) -> list[Blocker]:
+    """The strategy's bot rules (ADR 044): the grades its template in play buys, and its setups a stock a day."""
+    from bot import strategy_rules
+
+    rules = strategy_rules.rules(setup_type)
+    unread = f" ({rules['error']})" if rules["error"] else ""
+    out: list[Blocker] = []
+    graded = strategy_rules.grade_block(event.get("grade"), rules["grades"])
+    if graded:
+        out.append((BOT_SKIP_GRADE, graded + unread))
+    number = strategy_rules.number_of(event.get("setup"), setup_type)
+    late = strategy_rules.nth_block(number, rules["setups_a_day"], setup_type)
+    if late:
+        out.append((BOT_SKIP_NOT_FIRST, late + unread))
+    return out
+
+
+def listed(sym: str) -> tuple[bool, str | None]:
+    """Whether ``sym`` is on today's hot list (ADR 044), and why not when the list cannot be read."""
+    try:
+        import hot_list
+
+        return hot_list.listed_or_unread(sym)
+    except Exception:
+        logger.warning("bot: today's hot list could not be read -- %s counts as not listed", sym, exc_info=True)
+        return False, "today's hot list could not be read (the backend log has the error)"
+
+
+def _not_listed(sym: str) -> Blocker | None:
+    """Nova buys only the stocks on today's hot list (ADR 044)."""
+    ok, unread = listed(sym)
+    if ok:
+        return None
+    if unread:
+        return BOT_SKIP_NOT_LISTED, f"{unread}: Nova buys only listed stocks"
+    return BOT_SKIP_NOT_LISTED, f"{sym} is not on today's hot list"
+
+
 def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
              venue_now: tuple[str | None, bool, bool] | None = None) -> list[Blocker]:
     """Every rule the bot and Auto-entry share that holds this trigger back (empty: none)."""
@@ -135,15 +173,12 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     if move is not None:
         out.append((BOT_SKIP_VENUE_CHANGING, leaving_text(move)))
     if not is_desk_active(row):
-        out.append((BOT_SKIP_NOT_ACTIVE, "the bot is not active: press Activate on the Bots page"))
+        out.append((BOT_SKIP_NOT_ACTIVE, "the bot is not active: turn the Bot switch on (Bots page)"))
     setup_type = setup_of(event)
     level = _level_block(row, setup_type)
     if level is not None:
         out.append(level)
-    setup = event.get("setup") or {}
-    if setup.get("kind") != first_kind(setup_type):
-        kind = str(setup.get("kind") or "a later setup").replace("_", " ")
-        out.append((BOT_SKIP_NOT_FIRST, f"a {kind} -- Nova buys the first {name(setup_type)} of the day only"))
+    out.extend(_strategy_blocks(event, setup_type))
     tape = event.get("tape") or {}
     verdict = tape.get("verdict")
     if verdict != TAPE_VERDICT_GO:
@@ -167,6 +202,9 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     if not win.get("open"):
         out.append((BOT_REASON_OUTSIDE_WINDOW, f"outside the bot's window: {entry_rules.window_text(win)} "
                                                f"(venue clock {clock.strftime('%H:%M')})"))
+    unlisted = _not_listed(str(event.get("symbol") or "").upper())
+    if unlisted is not None:
+        out.append(unlisted)
     caps = sleeve_of(row)
     late = entry_rules.extended_hours_block(caps)
     if late is not None:
@@ -299,6 +337,8 @@ def taker(sym: str, setup_type: str) -> str | None:
     if activation.venue_block(*activation.venue_state()) is not None:
         return None
     sym = (sym or "").strip().upper()
+    if not listed(sym)[0]:
+        return None                  # ADR 044: Nova buys only the stocks on today's hot list
     if sym in normalize_symbols(row.get("symbol_allowlist")):
         return "bot"
     from stock_mode import model, store

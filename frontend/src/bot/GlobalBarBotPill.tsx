@@ -1,9 +1,7 @@
 /**
- * The bot in the global bar (approved mockup v4, ADR 042): "● Bot  L2 Strategy · 2 at
- * Strategy · Not active" beside the account figures, on every view -- the master level,
- * how many setups are at Strategy, and whether the bot is active, with the reason on
- * hover. A click opens the Bots page. It shows state only -- the level and Activate live
- * on the page's hero and in the Trader rail card. The sample desk has no bot: no pill.
+ * The Bot switch in the global bar (ADR 044): "● Bot ON · 2 strategies On" or "● Bot OFF" beside the account
+ * figures, on every view, with why it is off (or not trading now) on hover. A click opens the Bots page,
+ * where the switch is. It shows state only. The sample desk has no bot: no pill.
  */
 import { BOTS_PILL_LABEL, BOTS_PILL_TITLE, DESK_BOT_POLL_MS } from '../constants';
 import { setNavPage } from '../workspace/navRailStore';
@@ -35,10 +33,8 @@ export function GlobalBarBotPill() {
       >
         <span className="global-bar-bot-pill__dot" aria-hidden="true" />
         <span className="global-bar-bot-pill__label">{BOTS_PILL_LABEL}</span>
-        {view.level ? <b className="global-bar-bot-pill__level">{view.level}</b> : null}
-        <b className="global-bar-bot-pill__name">{view.name}</b>
-        {view.detail ? <span className="global-bar-bot-pill__state">· {view.detail}</span> : null}
-        {view.state ? <span className="global-bar-bot-pill__state">· {view.state}</span> : null}
+        <b className="global-bar-bot-pill__name" data-testid="global-bar-bot-pill-name">{view.name}</b>
+        {view.on ? <span className="global-bar-bot-pill__state">· {view.reason ? 'not trading now' : view.detail}</span> : null}
       </button>
     </span>
   );

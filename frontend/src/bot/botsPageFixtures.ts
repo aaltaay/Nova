@@ -144,6 +144,89 @@ export interface BotsFetchOpts {
   onAllowlist?: (body: { symbol: string; op: string }) => BotSession | Json;
   templates?: TemplatesPayload;
   onTemplate?: (method: string, href: string, body: Record<string, unknown>) => Json | undefined;
+  /** `POST /api/bot/session/switch` (ADR 044): the session after it, or a refusal. */
+  onSwitch?: (body: Record<string, unknown>) => BotSession | Json;
+  /** `GET /api/bot/triggers`: Tickers today and the answer line read it. */
+  triggers?: unknown;
+  /** `GET /api/hot-list`; a write answers `onHotList` (else the same view). */
+  hotList?: unknown;
+  onHotList?: (method: string, href: string, body: Record<string, unknown>) => Json | undefined;
+  /** `GET /api/ibkr/depth/lines`; `PATCH /api/ibkr/depth/lending` flips `lending.on`. */
+  lines?: unknown;
+  /** `PUT /api/stock-mode/{symbol}`: the stock's view after it (default: the switch as sent), or a refusal. */
+  onStockModePut?: (symbol: string, body: Record<string, unknown>) => Json | undefined;
+}
+
+const MODE_OF: Record<string, string> = { 'you/you': 'signal', 'nova/you': 'auto_entry', 'you/nova': 'approve', 'nova/nova': 'bot' };
+
+/** One stock's Who trades view (`GET /api/stock-mode/{symbol}`), in the wire's shape. */
+export function stockModeView(symbol: string, buy: string, sell: string, partial: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schema_version: 1, symbol, generated_at: 0, venue: 'paper', mode: MODE_OF[`${buy}/${sell}`] ?? 'signal', buy, sell,
+    risk_usd: 20, set_at: 0, locks: { buy: null, sell: null }, notes: [], approval: null, trade: null,
+    entries_today: { count: 0, cap: 1 }, last_event: null, bot: null, size: null, ...partial,
+  };
+}
+
+/** Today's squares by ticker: GRML on the hot list (Buy Nova), one trigger stopped by its tape; IMCC not listed. */
+export function triggersView(partial: Record<string, unknown> = {}): Record<string, unknown> {
+  const gate = (id: string, label: string) => ({ id, label });
+  const cell = (ok: boolean | null, why = '') => ({ ok, why });
+  const allOk = {
+    bot_on: cell(true), strategy_on: cell(true), grade: cell(true), setups_a_day: cell(true), bot_window: cell(true),
+    hot_list: cell(true), nova_buys: cell(true), level2_line: cell(true), tape_go: cell(true), trades_today: cell(true),
+  };
+  return {
+    schema_version: 1, date: '2026-10-01', generated_at: 0,
+    gates: [
+      gate('bot_on', 'Bot on'), gate('strategy_on', 'Strategy on'), gate('grade', 'Grade'),
+      gate('setups_a_day', 'Setups a day'), gate('bot_window', 'Bot window'), gate('hot_list', 'Hot list'),
+      gate('nova_buys', 'Nova buys'), gate('level2_line', 'Level 2 line'), gate('tape_go', 'Tape GO'),
+      gate('trades_today', 'Trades today'),
+    ],
+    tickers: [
+      { symbol: 'GRML', listed: { how: 'auto', at: 1_790_000_000 },
+        now: { cells: { ...allOk, bot_window: cell(false, 'the bot window 07:00–10:00 closed') }, answer: 'no',
+          reasons: ['the bot window 07:00–10:00 closed'] },
+        triggers: [{ ts: 1_790_000_600, setup_id: 'g1', setup_type: 'first_pullback', kind: 'first_pullback', nth: 1,
+          grade: 'A', tape: 'blind', outcome: 'target_first', r: 1.6,
+          cells: { ...allOk, level2_line: cell(false, 'no Level 2 line: the tape was BLIND'), tape_go: cell(null, 'no tape to read') },
+          reasons: ['no Level 2 line: the tape was BLIND'] }] },
+      { symbol: 'IMCC', listed: null, now: null,
+        triggers: [{ ts: 1_790_001_200, setup_id: 'i1', setup_type: 'bull_flag', kind: 'bull_flag', nth: 1, grade: 'B',
+          tape: 'wait', outcome: 'stop_first', r: -1, cells: { ...allOk, hot_list: cell(false, 'not on the hot list') },
+          reasons: ['not on the hot list'] }] },
+    ],
+    impact: [{ gate: 'level2_line', blocked: 1, target_first: 1, stop_first: 0, r: 1.6 }],
+    judged_now: [],
+    sources: { journal: { ok: true, error: null } },
+    ...partial,
+  };
+}
+
+/** Today's hot list: GRML put on by the auto top 5 at 07:12. */
+export function hotListView(partial: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schema_version: 1, date: '2026-10-01', cap: 20,
+    auto: { n: 5, start: '07:00', end: '16:00', rule: 'leaders', error: null },
+    default: { buy: 'you', sell: 'you' },
+    entries: [{ symbol: 'GRML', how: 'auto', at: 1_790_000_000, board: 'gainers', rank: 1, change_pct: 0.42, followed: true }],
+    yesterday: [], error: null,
+    ...partial,
+  };
+}
+
+/** IBKR's three Level 2 lines: GRML in front, a free line, a Record; lending on. */
+export function linesView(partial: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schema_version: 1, cap: 3,
+    lines: [
+      { symbol: 'GRML', held_by: 'tab', front: true, viewers: 1 },
+      { symbol: 'NXL', held_by: 'tab', front: false, viewers: 1 },
+    ],
+    lending: { on: true, loans: [], recent: [] },
+    ...partial,
+  };
 }
 
 const ok = (body: unknown): Json => ({ ok: true, status: 200, json: async () => body });
@@ -158,14 +241,37 @@ export function refusal(status: number, reason: string, error: string): Json {
 export function botsFetchRouter(opts: BotsFetchOpts = {}) {
   let current = opts.session ?? session();
   let tripped = opts.killTripped ?? false;
+  let lines = (opts.lines ?? linesView()) as Record<string, unknown>;
   return async (url: string, init?: RequestInit): Promise<Json> => {
     const href = String(url);
     const method = init?.method ?? 'GET';
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+    if (href.includes('/bot/triggers')) return ok(opts.triggers ?? triggersView());
+    if (href.includes('/hot-list')) {
+      const answer = method === 'GET' ? undefined : opts.onHotList?.(method, href, body);
+      return answer ?? ok(opts.hotList ?? hotListView());
+    }
+    if (href.includes('/ibkr/depth/lending')) {
+      lines = { ...lines, lending: { ...(lines.lending as object), on: body.on === true } };
+      return ok(lines);
+    }
+    if (href.includes('/ibkr/depth/lines')) return ok(lines);
+    if (href.includes('/session/switch')) {
+      const on = body.on === true;
+      const next = opts.onSwitch?.(body) ?? { ...current, bot_on: on, active: on, armed: on, level: on ? 2 : 1,
+        has_desk_arm: on, deactivated: null, ...(on ? { desk_arm_token: 'desk-token-1' } : {}) };
+      if (isJson(next)) return next;
+      current = next;
+      return ok(current);
+    }
     if (href.includes('/bot/proposals/')) return ok({});
     if (href.includes('/bot/proposals')) return ok({ proposals: opts.proposals ?? [] });
     if (href.includes('/bot/audit')) return ok({ entries: opts.audit ?? [] });
     if (href.includes('/bot/pnl')) return ok({ day_pnl: opts.dayPnl ?? null, meter: {} });
+    if (href.includes('/stock-mode/') && method === 'PUT') {
+      const symbol = decodeURIComponent(href.split('/stock-mode/')[1] ?? '').split('?')[0];
+      return opts.onStockModePut?.(symbol, body) ?? ok(stockModeView(symbol, String(body.buy), String(body.sell)));
+    }
     if (href.includes('/stock-mode')) {
       if (isJson(opts.stockModes)) return opts.stockModes;
       return ok({ schema_version: 1, generated_at: 0, venue: 'paper', stocks: opts.stockModes ?? [] });

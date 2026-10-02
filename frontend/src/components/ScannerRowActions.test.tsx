@@ -4,7 +4,11 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _resetPinnedRowsForTests, getPinnedRows } from '../scanner/pinnedRowsStore';
+import { fakeHotList } from '../hot_list/hotListFake';
 import { addToWatchList, getWatchList, resetWatchListForTests } from '../watch_list/watchListStore';
+
+// The watch list is today's hot list (ADR 044): an in-memory one here.
+vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
 import { ScannerRowActions } from './ScannerRowActions';
 import { ScannerRowMarks } from './ScannerRowMarks';
 
@@ -82,8 +86,8 @@ describe('ScannerRowActions', () => {
     expect(allowlist.remove).toHaveBeenCalledWith('QNME');
   });
 
-  it('Watch puts the symbol on the watch list and reads Watching until pressed again', () => {
-    localStorage.clear();
+  it('★ stars the symbol onto today\'s hot list and reads Listed until pressed again', async () => {
+    fakeHotList.reset();
     resetWatchListForTests();
     const rowClick = vi.fn();
     render(
@@ -92,15 +96,16 @@ describe('ScannerRowActions', () => {
       </div>,
     );
     const watch = () => screen.getByTestId('scanner-row-watch');
-    expect(watch().textContent).toBe('Watch');
-    fireEvent.click(watch());
+    expect(watch().textContent).toBe('★');
+    await act(async () => { fireEvent.click(watch()); });
     expect(getWatchList()).toEqual(['GRML']);
-    expect(watch().textContent).toBe('Watching');
+    expect(fakeHotList.symbols()).toEqual(['GRML']);
+    expect(watch().textContent).toBe('★ Listed');
     expect(watch().getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(watch());
+    await act(async () => { fireEvent.click(watch()); });
     expect(getWatchList()).toEqual([]);
     expect(rowClick).not.toHaveBeenCalled();
-    localStorage.clear();
+    fakeHotList.reset();
     resetWatchListForTests();
   });
 
@@ -127,14 +132,14 @@ describe('ScannerRowMarks', () => {
     expect(screen.queryByTestId('scanner-row-marks')).toBeNull();
   });
 
-  it('draws the watch eye for a watched symbol, with nothing else true', () => {
-    localStorage.clear();
+  it('draws the star for a symbol on today\'s hot list, with nothing else true', async () => {
+    fakeHotList.reset();
     resetWatchListForTests();
-    act(() => { addToWatchList('AAA'); });
+    await act(async () => { addToWatchList('AAA'); });
     render(<ScannerRowMarks symbol="AAA" />);
-    expect(screen.getByTestId('watch-mark').getAttribute('title')).toMatch(/AAA is on your watch list/);
+    expect(screen.getByTestId('watch-mark').getAttribute('title')).toMatch(/AAA is on today's hot list/);
     expect(screen.queryByTestId('scanner-mark-rec')).toBeNull();
-    localStorage.clear();
+    fakeHotList.reset();
     resetWatchListForTests();
   });
 

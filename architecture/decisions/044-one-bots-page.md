@@ -1,0 +1,38 @@
+# ADR 044 -- One Bots page: the Bot switch, today's hot list, the squares by ticker, Eyes, and lent Level 2 lines
+
+**Status:** Accepted · **Date:** 2026-10-01
+**Amends:** [[042-one-owner-for-novas-buys]] (the master ceiling and Activate become one Bot switch; a trip leaves Eyes running) · [[037-who-trades-the-stock]] (who trades is the stock's switch only; the bot list becomes today's hot list) · [[041-signal-trials]] (auto-record never took a line from the operator) · [[036-the-bots-read-on-one-stock]] (one Eyes switch for Nova's drawings) · [[032-loss-breakers-per-venue]] (the bot trip drops to Eyes, not Off) · [[023-scanner-leaderboard]] (the leaders rule also fills the hot list)
+**Decided by:** the operator, 2026-10-01, after AISP ran to its high of day at 10:22 and Nova bought none of its three triggers:
+- "I definitely don't like it if we have redundancies ... I still believe we should put everything on one page and categorize them better."
+- Answers to multiple-choice questions: one switch per venue ("One switch: Nova may buy"); a hidden Trader tab lends its Level 2 line; a day list, fresh at 04:00, up to 20, shared by every strategy ("a ticker can have many strategies", "HOD ... is not doing a good job"); "Typically, I'm going to want to trade the top 5 or 10 ... Some of them are just going to be hot."
+- "if we have BOT OFF/ON, what is with 'kill it'"; "the 'eyes' were supposed to be helpers ... by default we should always be on 'eyes'"; "we are missing options here, we have 4" (who buys and who sells, per stock); "at the end of the day everything is going to be related to a ticker".
+- Approved as drawn (PNG mockups v7/v8 and "Eyes on, Eyes off"): "yes 1 go. + dont forget about the charts!!"
+
+## Context
+
+On 2026-10-01 the Bots page held the same decision in three places (the master Off / Eyes / Strategy dial, each setup's own switch, and Activate) and who trades a stock in two more (the bot list and the Who trades switch). After the 09:43 bot trip the first-pullback card read "Strategy · capped to Off by the bot's level" while the gate chip said "no setup is at Strategy". Finding why AISP was not bought took twenty minutes of logs: the bot was off, the bot windows had closed at 10:00, AISP was on no list, the bot buys only the first setup of each kind, and Nova held no Level 2 line on it (the operator's three Trader tabs held all three; 28 of the day's 31 triggers read BLIND). Six of the bot list's eight names were not even followed that day.
+
+## Decision
+
+1. **One Bot switch per venue.** It replaces the master dial and Activate on the desk. ON = the venue's master level at Strategy and Activate (one call, `POST /api/bot/session/switch {on: true, reenable?}`, refused with Activate's codes). OFF = deactivated with the master at Eyes, so proposals keep coming. The bot trip turns it OFF the same way (master at Eyes, not Off) and latches until 04:00 ET; ON during the latch asks first. Same switch on every venue; on Live it is refused `BOT_LIVE_NOT_BUILT` and says so.
+2. **Strategies are Off · Eyes · On** (`setup_levels` 0 / 1 / 2, renamed on the desk). Off: silent and its drawings hidden on the charts. Eyes: draws and alerts. On: Nova may act on its go triggers on stocks whose Buy is Nova. Each strategy's row also sets its bot rules, as template bot-group parameters that never restart a read-out: grades Nova buys (`bot_grades`: A and B, or A only; C stays never), setups a stock a day (`bot_setups_a_day`: the 1st, or the 1st and 2nd), and its bot window.
+3. **Who trades is the stock's switch only**: Buy You|Nova × Sell You|Nova (ADR 037's four modes; You · Nova is Approve before you hold and "Nova takes the exit" once you do).
+4. **Today's hot list** (`backend/hot_list/`): the stocks Nova watches all day and may trade.
+   - Fed two ways: automatically, the leaders rule's top N of the live Gainers board from 07:00 to 16:00 ET (N = 3, 5 or 10, default 5, or off), sticky for the day; and by a ★ from anywhere.
+   - Up to 20. Starts empty at 04:00 ET; "Bring back yesterday's list" stars yesterday's names again.
+   - Every listed name is followed by the setup scanners: listed names take HOD Momo's 20 reserved slots first, ahead of Former Momo, so they get an L1 line, a snapshot and bars, and live movers keep at least 20 of the 40. A name the scanners cannot follow says why (the reserved slots are full, IBKR has no line for it).
+   - New names start as Buy You · Sell You (a setting). Setting Buy to Nova stars the stock. Removing a stock returns it to You · You on every venue, refused while Nova has an open trade on it.
+   - The 04:00 rollover clears every Nova Buy (the bot list and Auto-entry) on every venue; trades Nova holds keep their exits.
+   - Nova buys only listed stocks (a blocker, `BOT_SKIP_NOT_LISTED`). The watch list folds into the ★.
+5. **The squares, by ticker** (`GET /api/bot/triggers`): one row per listed ticker saying now whether Nova would buy it if its setup triggered this minute, and under it every trigger of the day on it, judged by the same ten checks in the order Nova runs them: Bot on, Strategy on, Grade, Setups a day, Bot window, Hot list, Nova buys, Level 2 line, Tape GO, Trades today. A trigger is judged from what was recorded at it (the bot's state, the tape, the grade, the setup's number, the hot list and stock modes as the audit stream and the list file had them) and, where nothing was recorded, by the settings now, and says which. Under the table, what each gate did: blocked, would have hit target, stopped, R avoided or missed. On top, one answer line for every ticker at once.
+6. **A hidden Trader tab lends its Level 2 and Time & Sales lines.** When a setup of a strategy at On, on a stock whose Buy is Nova, is armed, near its trigger or in a trade, and no line is free, the lines of a Trader tab the operator is not looking at (per the focus sensor) are lent to it. Both lines go together: IBKR counts tick-by-tick lines like depth lines, and a book without its prints would read WAIT. The tab says so and does not reconnect; the line returns when the setup fails, the trade ends, or the operator brings that tab to the front (the loan is recalled, and the setup says it lost its line). The tab in front never lends. A switch on the Bots page turns lending off.
+7. **Freeze all orders** is the kill switch's name on the desk (its API is unchanged). It blocks every new order on every venue and cancels working orders; it sells nothing. The header's red KILL is the one that flattens.
+8. **Eyes on the charts.** One switch on the Trader's chart toolbar shows or hides everything Nova draws on every pane of the tab (forming and past setups, the plan's lines, zones and badge, support and resistance), with today's Setups and Levels switches as its two parts. On by default and remembered; indicators, the operator's drawings, orders and the Who trades switch never hide.
+
+## Consequences
+
+- One place answers "will Nova buy, and if not, why": the answer line (now), the squares (each trigger), and the Who trades row on each stock's Trader tab.
+- The bot list no longer outlives the day. A name set to Nova yesterday is not bought today until it is listed and set again.
+- A trip no longer silences Eyes.
+- Lending takes a line from a tab the operator is not looking at. It never takes the front tab's line, and every loan is drawn on the tab, on the Bots page and in the audit stream.
+- Rejected: per-strategy lists ("a ticker can have many strategies"); HOD Momo as the trading universe; keeping the master dial as a ceiling; a separate checkpoints card beside the squares (the same checks looking ahead and back: merged into one table by ticker).

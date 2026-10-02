@@ -102,7 +102,8 @@ class TapeFeed:
                 pr = q.get_nowait()
             except asyncio.QueueEmpty:
                 break
-            if isinstance(pr, dict):
+            # A print only: the queue also carries a line's notices (an error, a loan of the line).
+            if isinstance(pr, dict) and pr.get("type") in (None, "print", "trade"):
                 buf.append(pr)
         return buf
 

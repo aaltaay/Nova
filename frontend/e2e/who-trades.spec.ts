@@ -144,7 +144,8 @@ async function openApus(page: Page, opts: Opts = {}): Promise<{ puts: unknown[] 
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(current) });
   });
-  await page.routeWebSocket('**/ws/ibkr/depth/APUS', socket => {
+  // The depth socket carries ?tab=1&front=N (ADR 044 decision 6); a glob would not match the query.
+  await page.routeWebSocket(/\/ws\/ibkr\/depth\/APUS(\?.*)?$/, socket => {
     socket.send(JSON.stringify({ type: 'subscribed', symbol: 'APUS' }));
     socket.send(JSON.stringify({ type: 'book', symbol: 'APUS', data: BOOK }));
   });
