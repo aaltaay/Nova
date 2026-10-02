@@ -7,8 +7,7 @@
  */
 import { BOT_CARD_TITLE } from '../constantGroups/trader_chrome';
 import { tipProps, whyProps } from '../ux';
-import { setNavPage } from '../workspace/navRailStore';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { setNavPage, useWorkspace } from '../workspace';
 import { botHeaderState } from './botHeaderState';
 import { prose } from './botsPageFormat';
 import { ApiKeyField } from './BotSwitchCard';

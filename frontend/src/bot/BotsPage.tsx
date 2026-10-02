@@ -17,7 +17,7 @@ import {
 } from '../constantGroups/bots_page';
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
-import { useTradingPinGate } from '../ibkr/useTradingPinGate';
+import { useTradingPinGate } from '../ibkr';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { requestScannerTab } from '../workspace';
 import { requestSetupsBoard, useSetupRows, useSetupsBoard } from '../setups';
