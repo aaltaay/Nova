@@ -1,7 +1,7 @@
 """One stock's switch as the desk reads it (ADR 037, ADR 042 F): the mode, the locks, every note that
 keeps Nova from acting, the size Nova would send, the approval, the trade and the last event.
 
-Reads memory, the bot session and the scanner's lanes only: no network, no order read.
+Reads memory, the bot session, the scanner's lanes and today's hot list only: no network, no order read.
 """
 from __future__ import annotations
 
@@ -297,6 +297,9 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         notes.append(_note("scanner_unreadable", f"The setup scanner's lanes for {sym} could not be read: Nova cannot "
                                                  "say which setup it would act on, or what size."))
     notes += _notes(sym, mode, venue, replay, loaded, lane, daily) + _sim_waits(sym, venue, replay, loaded)
+    from hot_list.stock_tie import notes as hot_list_notes
+
+    notes += hot_list_notes(sym, mode, venue, replay)   # ADR 043: not listed, unreadable, a default locked here
     mine = [e for e in (daily or {}).get("entries") or [] if e.get("symbol") == sym and e.get("outcome") != "missed"]
     return {
         "schema_version": STOCK_MODE_SCHEMA_VERSION,
