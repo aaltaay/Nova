@@ -8,7 +8,11 @@ import {
   practiceCommission,
   practiceFees,
   practiceMultiplier,
+  practiceTafHoliday,
 } from './practiceBuyingPower';
+
+const SEPT_30 = Date.parse('2026-09-30T19:59:00Z'); // 15:59 ET
+const OCT_2 = Date.parse('2026-10-02T12:52:00Z'); // 08:52 ET, inside the TAF holiday
 
 describe('practice fees (backend practice/fees.py)', () => {
   it('IBKR Fixed: per share, a $1 minimum, capped at 1% of value -- the cap wins', () => {
@@ -17,9 +21,21 @@ describe('practice fees (backend practice/fees.py)', () => {
     expect(practiceCommission(10, 1)).toBeCloseTo(0.1, 9); // 1% of $10 beats the minimum
   });
 
-  it('SEC and FINRA TAF on sells only', () => {
-    expect(practiceFees('BUY', 100, 1.49)).toBe(1);
-    expect(practiceFees('SELL', 100, 1.47)).toBeCloseTo(1 + 147 * 0.0000206 + 100 * 0.000195, 9);
+  it('FINRA CAT on every fill; SEC and FINRA TAF on sells only', () => {
+    expect(practiceFees('BUY', 100, 1.49, SEPT_30)).toBeCloseTo(1 + 100 * 0.000003, 9);
+    expect(practiceFees('SELL', 100, 1.47, SEPT_30)).toBeCloseTo(1 + 100 * 0.000003 + 147 * 0.0000206 + 100 * 0.000195, 9);
+  });
+
+  it("no TAF on FINRA's holiday, Oct 1 - Dec 31, 2026, by Eastern trade date (SR-FINRA-2026-021)", () => {
+    expect(practiceTafHoliday(Date.parse('2026-10-01T04:00:00Z'))).toBe(true); // 00:00 ET
+    expect(practiceTafHoliday(Date.parse('2027-01-01T00:59:00Z'))).toBe(true); // Dec 31, 19:59 ET
+    expect(practiceTafHoliday(Date.parse('2026-10-01T03:59:00Z'))).toBe(false); // Sep 30, 23:59 ET
+    expect(practiceTafHoliday(Date.parse('2027-01-01T09:00:00Z'))).toBe(false);
+    expect(practiceFees('SELL', 100, 2.62, OCT_2)).toBeCloseTo(1 + 100 * 0.000003 + 262 * 0.0000206, 9);
+  });
+
+  it('nothing for an empty fill', () => {
+    expect(practiceFees('BUY', 0, 1.49, SEPT_30)).toBe(0);
   });
 });
 
@@ -27,14 +43,16 @@ describe('practiceBuyingPowerAfter (backend practice/margin.py)', () => {
   it('a buy costs its commission out of equity and adds its value to gross', () => {
     const bp = practiceBuyingPowerAfter({
       netLiquidation: 100_020, grossPositionValue: 507, side: 'BUY', qty: 100, price: 1.49, heldQty: 0, heldMark: null,
+      atMs: SEPT_30,
     });
-    expect(bp).toBeCloseTo((100_020 - 1) * 4 - (507 + 149), 6);
+    expect(bp).toBeCloseTo((100_020 - practiceFees('BUY', 100, 1.49, SEPT_30)) * 4 - (507 + 149), 6);
   });
 
   it('a closing sell frees the position at its mark and pays the sell-side fees', () => {
-    const fees = practiceFees('SELL', 100, 1.47);
+    const fees = practiceFees('SELL', 100, 1.47, SEPT_30);
     const bp = practiceBuyingPowerAfter({
       netLiquidation: 100_020, grossPositionValue: 507, side: 'SELL', qty: 100, price: 1.47, heldQty: 100, heldMark: 1.52,
+      atMs: SEPT_30,
     });
     // equity' = 100,020 + 100 x (1.47 - 1.52) - fees; gross' = 507 - 152 + 0
     expect(bp).toBeCloseTo((100_020 - 5 - fees) * 4 - (507 - 152), 6);

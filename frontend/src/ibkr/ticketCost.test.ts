@@ -127,8 +127,8 @@ describe('estimateTicketCost', () => {
       { forceQty: null },
       { practice: true, ledger: { netLiquidation: 100_020, grossPositionValue: 507, heldMark: null } },
     );
-    // (100,020 - $1.00 commission) x 4 - (507 + 149) = 399,420
-    expect(buy.buyingPowerAfter).toBeCloseTo(399_420, 6);
+    // (100,020 - $1.00 commission - $0.0003 FINRA CAT) x 4 - (507 + 149) = 399,419.9988
+    expect(buy.buyingPowerAfter).toBeCloseTo(399_419.9988, 6);
     // Live keeps IBKR's own rule out of reach: BP - cost.
     const live = estimateTicketCost(
       { ...BASE, symbol: 'TOPS', limitPrice: '1.49' },

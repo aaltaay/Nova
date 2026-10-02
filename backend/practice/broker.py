@@ -428,7 +428,7 @@ class PracticeBroker:
             logger.warning("PRACTICE %s: order %s cancelled -- %s", self.venue, oid, reason)
             closed = self.ledger.cancel(oid, ts=ts, reason=reason, code=code, source="venue")
         else:
-            fees = for_fill(row["side"], float(row["qty"]), fill.price)
+            fees = for_fill(row["side"], float(row["qty"]), fill.price, ts)
             closed = self.ledger.fill(oid, ts=ts, price=fill.price, basis=fill.basis, fees=fees)
         self._notify_closed(mark)
         return closed
