@@ -65,7 +65,7 @@ def test_matrix_c_edt_shaped_mkt_corrects_lmt_blanks():
     )
     assert mkt_reason is None
     assert mkt == 3037
-    assert coherent_face_ms(mkt, None, None) == 3037
+    assert coherent_face_ms(mkt, None) == 3037
 
     lmt, lmt_reason = apply_fill_clock_guard(
         place_to_fill_ms=14_403_037,
@@ -75,7 +75,7 @@ def test_matrix_c_edt_shaped_mkt_corrects_lmt_blanks():
     )
     assert lmt is None
     assert lmt_reason == "timezone_shaped_clock"
-    assert coherent_face_ms(lmt, None, lmt_reason) is None
+    assert coherent_face_ms(lmt, lmt_reason) is None
 
 
 def test_matrix_d_missing_filled_at_has_no_face():
@@ -118,7 +118,7 @@ def test_matrix_f_hour_skew_zero_residual_is_not_zero_ms():
     )
     assert fill is None
     assert reason == "timezone_shaped_clock"
-    assert coherent_face_ms(0, None, "filled") is None
+    assert coherent_face_ms(0, "filled") is None
     pub = public_fill_audit(
         {
             "place_to_submit_ms": 551,
@@ -145,4 +145,4 @@ def test_matrix_e_never_clamps_negative_residual_to_zero():
     assert fill == -296
     assert fill != 0
     assert reason == "clock_skew"
-    assert coherent_face_ms(fill, None, reason) is None
+    assert coherent_face_ms(fill, reason) is None

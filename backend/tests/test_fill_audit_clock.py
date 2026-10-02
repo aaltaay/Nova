@@ -131,8 +131,8 @@ def test_exact_four_hour_residual_is_not_zero_ms_face():
     assert fill != 0
     assert fill is None
     assert reason == "timezone_shaped_clock"
-    assert coherent_face_ms(0, None, None) is None
-    assert coherent_face_ms(fill, None, reason) is None
+    assert coherent_face_ms(0, None) is None
+    assert coherent_face_ms(fill, reason) is None
 
     honest = honest_filled_at_iso(
         "2026-09-18T15:02:48.551Z",

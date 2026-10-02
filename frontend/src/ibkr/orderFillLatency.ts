@@ -1,6 +1,7 @@
 /**
  * Orders Today fill-latency cell -- format, tooltip, detective tone.
  * Face total and colors come from the API fill_audit object. Never invent ms.
+ * The face is click-to-fill only; an unfilled order's rest time is hover-only.
  */
 import type { FillAuditLevel, OrderFillAudit } from './types';
 
@@ -82,19 +83,26 @@ function hoverSubmitToFill(audit: OrderFillAudit): string {
   return formatHoverStep(fill - submit);
 }
 
-/** Click-to-fill when filled, else click-to-terminal. Invalid / skew stay blank. */
+/**
+ * Click-to-fill, and only for a fill. Invalid / skew stay blank.
+ *
+ * An order that never filled has no face: click-to-terminal is how long it
+ * rested before it was cancelled or expired, not latency (TNMG 2026-10-02: a
+ * bot entry cancelled after its 3 s TTL read "3289ms"). The hover says it.
+ * A backend from before this still sends that rest time as ``face_ms``, so a
+ * row without a fill is blank whatever ``face_ms`` says.
+ */
 export function fillLatencyFaceMs(
   audit: OrderFillAudit | null | undefined,
 ): number | null {
   if (!audit || isInvalidFillClock(audit) || isClockSkewFill(audit)) return null;
+  const fill = asInt(audit.place_to_fill_ms);
+  if (fill == null) return null;
   if (audit.face_ms !== undefined) {
     const face = asInt(audit.face_ms);
     return face != null && face > 0 ? face : null;
   }
-  const fill = asInt(audit.place_to_fill_ms);
-  if (fill != null) return fill > 0 ? fill : null;
-  const terminal = asInt(audit.place_to_terminal_ms);
-  return terminal != null && terminal > 0 ? terminal : null;
+  return fill > 0 ? fill : null;
 }
 
 export function formatFillLatencyMs(ms: number | null | undefined): string {
@@ -150,13 +158,17 @@ export function fillLatencyTooltip(
       ? `${formatHoverStep(submit, true)} (raw)`
       : formatHoverStep(submit, true);
   lines.push(`Nova → submit: ${submitLabel}`);
-  lines.push(`Submit → fill: ${hoverSubmitToFill(audit)}`);
   const fill = asInt(audit.place_to_fill_ms);
   const terminal = asInt(audit.place_to_terminal_ms);
+  if (!skew && !invalid && fill == null && terminal != null && terminal >= 0) {
+    lines.push(
+      `Not filled: it rested ${formatHoverStep(terminal)}, then closed -- not latency`,
+    );
+    return lines.join('\n');
+  }
+  lines.push(`Submit → fill: ${hoverSubmitToFill(audit)}`);
   if (!skew && !invalid && fill != null && fill >= 0) {
     lines.push(`Click → fill: ${formatHoverStep(fill)}`);
-  } else if (!skew && !invalid && terminal != null && terminal >= 0) {
-    lines.push(`Click → terminal: ${formatHoverStep(terminal)}`);
   } else {
     lines.push(`Click → fill: ${FILL_LATENCY_UNAVAILABLE}`);
   }

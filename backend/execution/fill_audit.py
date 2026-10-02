@@ -217,11 +217,7 @@ def classify_fill_audit(
         row["place_to_fill_ms"] = place_to_fill
     else:
         row["place_to_terminal_ms"] = place_to_terminal
-    row["face_ms"] = coherent_face_ms(
-        place_to_fill if has_fill else None,
-        None if has_fill else place_to_terminal,
-        reason,
-    )
+    row["face_ms"] = coherent_face_ms(place_to_fill if has_fill else None, reason)
     return row
 
 

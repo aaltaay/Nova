@@ -76,13 +76,16 @@ def is_clock_skew_ms(ms: int | None) -> bool:
 
 def coherent_face_ms(
     place_to_fill_ms: int | None,
-    place_to_terminal_ms: int | None,
     reason: str | None,
 ) -> int | None:
-    """Face total only when both endpoints tell one coherent clock story.
+    """The Latency column's face: place -> fill, when both endpoints tell one clock story.
 
     Missing stamps, negatives, zero, clock_skew, timezone-shaped, and
     impossible clocks return None -- never a guessed 0ms or a negative face.
+    An order that never filled has no face: place -> terminal is how long it
+    rested before it was cancelled or expired, not latency (TNMG 2026-10-02: a
+    bot entry cancelled after its 3 s TTL read "3289ms"). ``place_to_terminal_ms``
+    stays in the payload for the hover.
     """
     if reason in {
         FILL_AUDIT_REASON_CLOCK_SKEW,
@@ -92,8 +95,6 @@ def coherent_face_ms(
         return None
     if place_to_fill_ms is not None:
         return place_to_fill_ms if place_to_fill_ms > 0 else None
-    if place_to_terminal_ms is not None:
-        return place_to_terminal_ms if place_to_terminal_ms > 0 else None
     return None
 
 
