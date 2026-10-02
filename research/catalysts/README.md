@@ -14,7 +14,7 @@ section 3, "Catalysts"). SEC's bulk `submissions.zip` lives beside it under `edg
 | `py -3 research/orb/extract_minutes.py --selection pillars_all --table minutes_pillars_all --start 04:00` | its minute bars |
 | `py -3 research/catalysts/build_targets.py` | symbol-days to explain: that universe (cutoff 09:30) + the rebuilt leaderboard's top-10 movers (cutoff = first top-10 minute) |
 | `py -3 research/catalysts/import_massive.py` | the Massive news archive already on F: (no network) |
-| `py -3 research/catalysts/fetch_alpaca.py` | Alpaca / Benzinga newsroom, one session day per request batch |
+| `py -3 research/catalysts/fetch_alpaca.py` | Alpaca / Benzinga newsroom, one session day per request batch. `n_tickers` counts names, not symbols (rules v8: `IONQ.WS` is IONQ, one crypto pair on a company's story is its subject); `--recount` rewrites the Alpaca rows stored before 2026-10-02, then re-run `build_verdicts.py` |
 | `py -3 research/catalysts/fetch_finnhub.py` | Finnhub free tier (one year back; older days recorded `out_of_range`) |
 | `py -3 research/catalysts/fetch_edgar.py` | SEC filings in each window, with the filed press release (EX-99) of every 8-K / 6-K; needs `edgar/submissions.zip` from `https://www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip`. Each acceptance time is read on its own clock (`edgar_clock.py`: SEC writes a `Z` on every one, but some filers' JSON holds Eastern time); `--reclock` repairs a store fetched before 2026-09-30 |
 | `py -3 research/catalysts/backfill_halts.py` | Nasdaq's halt page per date into `halts/raw/`, then the leaderboard's `halt_events` (Sim playback shows them) |

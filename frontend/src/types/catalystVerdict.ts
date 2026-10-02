@@ -32,6 +32,25 @@ export interface CatalystVerdict {
   /** A Nasdaq T1 / T12 halt inside the window with no resumption yet: the news is coming. */
   news_pending?: boolean;
   halt_code?: string | null;
+  /**
+   * The prior session's own release (rules v8): the best catalyst or dilution item the live catalyst feed
+   * recorded from that session's 04:00 ET open to its close. Shown, never counted in the verdict; null when
+   * none is on file (and always in Sim playback).
+   */
+  prior_session?: CatalystPriorSession | null;
+}
+
+export interface CatalystPriorSession {
+  kind: 'catalyst' | 'negative';
+  category: string | null;
+  strength: 'strong' | 'weak' | null;
+  /** A raise announced with it (a crypto treasury PIPE). */
+  dilution: boolean;
+  title: string | null;
+  source: string | null;
+  /** Epoch seconds. */
+  published_ts: number | null;
+  url: string | null;
 }
 
 /** One item the verdict read, as the News panel lists it (`GET /api/catalysts/{symbol}`). */

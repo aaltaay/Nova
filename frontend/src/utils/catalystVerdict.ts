@@ -8,13 +8,14 @@ import {
   CATALYST_NEWS_CHECKED_PREFIX,
   CATALYST_NEWS_PENDING_TITLE,
   CATALYST_NEWS_UNPLACED_NOTE,
+  CATALYST_PRIOR_SESSION_TITLE,
   CATALYST_NEWS_UNREAD_TITLE,
   CATALYST_PRIMARY_SOURCES,
   CATALYST_SOURCE_LABELS,
   CATALYST_VERDICT_TITLES,
 } from '../constantGroups/catalysts';
 import { NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS } from '../constantGroups/market_ui';
-import type { CatalystVerdict, CatalystVerdictKind } from '../types/catalystVerdict';
+import type { CatalystPriorSession, CatalystVerdict, CatalystVerdictKind } from '../types/catalystVerdict';
 
 const VERDICTS: ReadonlySet<string> = new Set<CatalystVerdictKind>([
   'catalyst', 'negative', 'routine_only', 'noise_only', 'none_found', 'not_checked',
@@ -50,7 +51,33 @@ export function normalizeCatalystVerdict(raw: unknown): CatalystVerdict | null {
     n_items: finite(r.n_items) ?? undefined,
     news_pending: r.news_pending === true,
     halt_code: text(r.halt_code),
+    prior_session: normalizePriorSession(r.prior_session),
   };
+}
+
+/** The verdict's prior-session release off the wire, or null when absent or not one. */
+export function normalizePriorSession(raw: unknown): CatalystPriorSession | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (r.kind !== 'catalyst' && r.kind !== 'negative') return null;
+  return {
+    kind: r.kind,
+    category: text(r.category),
+    strength: r.strength === 'strong' || r.strength === 'weak' ? r.strength : null,
+    dilution: r.dilution === true,
+    title: text(r.title),
+    source: text(r.source),
+    published_ts: finite(r.published_ts),
+    url: text(r.url),
+  };
+}
+
+/** "Crypto treasury raise (weak): <headline> · SEC · 21h ago": the prior session's release in one line. */
+export function priorSessionLine(p: CatalystPriorSession, nowMs: number): string {
+  const head = `${categoryLabel(p.category)}${p.strength ? ` (${p.strength})` : ''}`;
+  const headline = catalystHeadline(p.title, p.source);
+  const meta = [sourceLabel(p.source), agoLabel(p.published_ts, nowMs)].filter(Boolean).join(' · ');
+  return [headline ? `${head}: ${headline}` : head, meta].filter(Boolean).join(' · ');
 }
 
 /** True when a source actually read this symbol (a verdict other than "not checked"). */
@@ -126,6 +153,7 @@ export function verdictTooltip(v: CatalystVerdict | null | undefined, nowMs: num
   } else {
     lines.push(head);
   }
+  if (v.prior_session) lines.push(`${CATALYST_PRIOR_SESSION_TITLE}: ${priorSessionLine(v.prior_session, nowMs)}`);
   if (v.sources_answered?.length) {
     lines.push(`${CATALYST_NEWS_CHECKED_PREFIX}: ${v.sources_answered.map(sourceLabel).join(', ')}`);
   }

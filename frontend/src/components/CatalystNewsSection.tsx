@@ -14,12 +14,13 @@ import {
   CATALYST_PANEL_HIDDEN_NOISE,
   CATALYST_PANEL_NO_COMPANY_ITEMS,
   CATALYST_PANEL_UNREAD,
+  CATALYST_PRIOR_SESSION_TITLE,
   CATALYST_VERDICT_TITLES,
   NEWS_SECTION_DEFAULT_EXPANDED,
   NEWS_SECTION_TITLE,
 } from '../constants';
 import type { CatalystItem, CatalystPanel, CatalystVerdict } from '../types/catalystVerdict';
-import { agoLabel, catalystHeadline, categoryLabel, sourceLabel } from '../utils/catalystVerdict';
+import { agoLabel, catalystHeadline, categoryLabel, priorSessionLine, sourceLabel } from '../utils/catalystVerdict';
 import './catalystNews.css';
 
 interface Props {
@@ -91,6 +92,16 @@ export function VerdictBlock({ v, nowMs }: { v: CatalystVerdict | null; nowMs: n
         <div className="cn-verdict-note">{CATALYST_NEWS_UNPLACED_NOTE}</div>
       )}
       {v.verdict === 'catalyst' && v.negative_too && <div className="cn-verdict-note cn-verdict-note--negative">{CATALYST_NEWS_ALSO_NEGATIVE}</div>}
+      {v.prior_session && (
+        <div className="cn-verdict-note cn-verdict-prior" data-testid="cn-verdict-prior">
+          {CATALYST_PRIOR_SESSION_TITLE}:{' '}
+          {v.prior_session.url ? (
+            <a href={v.prior_session.url} target="_blank" rel="noopener noreferrer">{priorSessionLine(v.prior_session, nowMs)}</a>
+          ) : (
+            priorSessionLine(v.prior_session, nowMs)
+          )}
+        </div>
+      )}
       {checked && <div className="cn-verdict-checked">{checked}</div>}
     </div>
   );

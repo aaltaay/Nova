@@ -16,6 +16,9 @@ that decided it and where it came from; an unknown fact stays unknown. The likel
 
 and says ``possible`` rather than ``likely`` when the news was not read or a deciding fact is unknown.
 A squeeze is never called from price alone: without short interest and borrow data it is not a candidate.
+An 8-K since the prior session's open that says shares were issued (``shares_issued``) makes Yahoo's float
+unknown here, so low-float momentum is never called on a float the filings say is out of date. The prior
+session's own release (the verdict's ``prior_session``) is named, never counted as today's news.
 """
 from __future__ import annotations
 
@@ -62,7 +65,7 @@ _CATEGORY_WORDS = {
     "contract_partnership": "contract / partnership", "earnings_guidance": "earnings / guidance",
     "listing_financing": "listing / financing", "theme_pivot": "theme pivot", "product_news": "product news",
     "company_news": "company headline", "offering_dilution": "offering / dilution",
-    "delisting_split": "delisting / reverse split",
+    "delisting_split": "delisting / reverse split", "crypto_treasury": "crypto treasury raise",
 }
 _SOURCE_WORDS = {"edgar": "SEC", "globenewswire": "GlobeNewswire", "prnewswire": "PR Newswire", "newsfile": "Newsfile",
                  "fda": "FDA", "alpaca": "Alpaca", "finnhub": "Finnhub"}
@@ -79,6 +82,32 @@ def shares(n: float | None) -> str:
     if n >= 1e3:
         return f"{n / 1e3:.0f}K"
     return f"{n:.0f}"
+
+
+def _when(ts: Any) -> str:
+    """Oct 1 11:30 ET."""
+    t = _num(ts)
+    if t is None:
+        return "time unknown"
+    d = datetime.fromtimestamp(t, ET)
+    return f"{d:%b} {d.day} {d:%H:%M} ET"
+
+
+def _prior_words(v: Any) -> str | None:
+    """The verdict's prior-session release in a few words: "crypto treasury raise, SEC Oct 1 11:30 ET"."""
+    prior = v.get("prior_session") if isinstance(v, dict) else None
+    if not isinstance(prior, dict):
+        return None
+    word = _CATEGORY_WORDS.get(prior.get("category") or "", prior.get("category") or "company news")
+    return f"{word}, {_SOURCE_WORDS.get(prior.get('source'), prior.get('source') or '?')} {_when(prior.get('published_ts'))}"
+
+
+def _issued_words(issued: Any) -> str | None:
+    """"SEC 8-K of Oct 1 11:30 ET, Items 2.01, 8.01": the filing that says shares were issued."""
+    if not isinstance(issued, dict):
+        return None
+    items = ", ".join(i for i in str(issued.get("items") or "").split(",") if i)
+    return f"SEC {issued.get('form') or '8-K'} of {_when(issued.get('published_ts'))}" + (f", Items {items}" if items else "")
 
 
 def _times(x: float) -> str:
@@ -104,6 +133,8 @@ def _news(v: dict | None, now: float | None) -> dict[str, Any]:
         src += ": " + ", ".join(_SOURCE_WORDS.get(s, s) for s in v["sources_answered"])
     if not isinstance(v, dict) or v.get("verdict") in (None, "not_checked"):
         return _check("news", "Company news", MOVE_STATE_UNKNOWN, "Not read yet", None, src)
+    prior, prior_head = _prior_words(v), _headline(v.get("prior_session") or {})
+    before = f"Before the prior close, not counted today: {prior}" + (f". {prior_head}" if prior_head else "") if prior else None
     if v.get("news_pending"):
         code = f" ({v['halt_code']})" if v.get("halt_code") else ""
         return _check("news", "Company news", MOVE_STATE_YES, f"Halted for news{code}", "The release is still to come", src, now)
@@ -112,10 +143,10 @@ def _news(v: dict | None, now: float | None) -> dict[str, Any]:
         word = _CATEGORY_WORDS.get(v.get("category") or "", v.get("category") or "news")
         strength = f" ({v['strength']})" if v.get("strength") else ""
         return _check("news", "Company news", MOVE_STATE_YES, f"{word[:1].upper()}{word[1:]}{strength}",
-                      None, src, v.get("published_ts"))
+                      before, src, v.get("published_ts"))
     words = {"routine_only": "Routine company item only", "noise_only": "Only movers lists and market wraps",
              "none_found": "None since the prior close"}
-    return _check("news", "Company news", MOVE_STATE_NO, words.get(kind, str(kind)), None, src, now)
+    return _check("news", "Company news", MOVE_STATE_NO, words.get(kind, str(kind)), before, src, now)
 
 
 def _headline(v: dict) -> str | None:
@@ -145,22 +176,32 @@ def _halts(h: dict | None, now: float | None) -> dict[str, Any]:
     return _check("halts", "Halts today", MOVE_STATE_YES, text[:1].upper() + text[1:], None, src, now)
 
 
-def _float(f: float | None, contradicted: str | None = None) -> dict[str, Any]:
+def _float(f: float | None, contradicted: str | None = None, issued: str | None = None) -> dict[str, Any]:
     """``contradicted`` is the reason Yahoo's own counts contradict the float (#532): the value reads
-    "54K?" and the detail says why. The state is still the float's -- the check describes, it does not gate."""
+    "54K?" and the detail says why. The state is still the float's -- the check describes, it does not gate.
+    ``issued`` names a filing since the prior session's open that says shares were issued: Yahoo's float
+    predates it, so the state is unknown (the float is larger, or will be once the new shares trade)."""
     src = "Yahoo float (can lag a reverse split or a dilution)"
     if f is None:
         return _check("float", "Float", MOVE_STATE_UNKNOWN, "Unknown", None, src)
+    if issued:
+        detail = f"Shares were issued per the {issued}; Yahoo's float and share count predate it"
+        return _check("float", "Float", MOVE_STATE_UNKNOWN, f"{shares(f)}? shares",
+                      f"{detail}. {contradicted}" if contradicted else detail, src)
     low = f < MOVE_LOW_FLOAT_SHARES
     return _check("float", "Float", MOVE_STATE_YES if low else MOVE_STATE_NO,
                   f"{shares(f)}{'?' if contradicted else ''} shares{' -- low float' if low else ''}", contradicted, src)
 
 
-def _rotation(rot: float | None, volume: float | None, f: float | None) -> dict[str, Any]:
+def _rotation(rot: float | None, volume: float | None, f: float | None, issued: str | None = None) -> dict[str, Any]:
     src = "Today's volume (IBKR) over the float"
     if rot is None:
         return _check("float_rotation", "Volume vs float", MOVE_STATE_UNKNOWN, "Unknown",
                       "Needs today's volume and the float", src)
+    if issued:
+        return _check("float_rotation", "Volume vs float", MOVE_STATE_UNKNOWN, f"Float traded {_times(rot)}?",
+                      f"{shares(volume)} shares on Yahoo's {shares(f)} float, which predates the shares issued "
+                      f"per the {issued}", src)
     return _check("float_rotation", "Volume vs float", MOVE_STATE_YES if rot >= MOVE_ROTATION_HIGH else MOVE_STATE_NO,
                   f"Float traded {_times(rot)}", f"{shares(volume)} shares on a {shares(f)} float", src)
 
@@ -284,8 +325,9 @@ def read(facts: dict[str, Any], now: float | None = None) -> dict[str, Any]:
     dtc = _num(facts.get("days_to_cover"))
     contradicted = ((facts.get("float_contradicted_reason") or "Yahoo's own share counts contradict this float")
                     if facts.get("float_contradicted") is True else None)
-    checks = [_news(facts.get("catalyst"), now), _halts(facts.get("halts"), now), _float(f, contradicted),
-              _rotation(rot, volume, f), _volume(rvol), _split(facts.get("split"), now),
+    issued = _issued_words(facts.get("shares_issued"))
+    checks = [_news(facts.get("catalyst"), now), _halts(facts.get("halts"), now), _float(f, contradicted, issued),
+              _rotation(rot, volume, f, issued), _volume(rvol), _split(facts.get("split"), now),
               _short(pct, dtc, si, _num(facts.get("short_interest_ts")),
                      facts.get("short_above_float_reason") if facts.get("short_above_float") is True else None),
               _borrow(facts.get("borrow"))]
@@ -302,6 +344,8 @@ def _likely(change: float | None, by: dict, rot: float | None, rvol: float | Non
     news_known = not _is(by, "news", MOVE_STATE_UNKNOWN)
     conf = MOVE_CONFIDENCE_LIKELY if news_known else MOVE_CONFIDENCE_POSSIBLE
     tail = "" if news_known else " -- news not read yet"
+    prior = _prior_words(verdict)
+    quiet = f" -- no company news since the prior close (before it: {prior})" if prior else " -- no company news"
     if change is None:
         return _cause(MOVE_KIND_UNEXPLAINED, "No price change on record", None, MOVE_CONFIDENCE_POSSIBLE)
     if abs(change) < MOVE_MIN_CHANGE:
@@ -320,7 +364,7 @@ def _likely(change: float | None, by: dict, rot: float | None, rvol: float | Non
         after_split = (f" after a {by['reverse_split']['value'].split(',')[0]} reverse split"
                        if _is(by, "reverse_split") else "")
         return _cause(MOVE_KIND_SHORT_SQUEEZE,
-                      "Likely short squeeze" + after_split + (" -- no company news" if news_known else tail), evidence, conf)
+                      "Likely short squeeze" + after_split + (quiet if news_known else tail), evidence, conf)
     low_float, turned = _is(by, "float"), rot is not None and rot >= MOVE_ROTATION_HIGH
     if v.get("verdict") == "routine_only":
         label = "Routine company item" + (" on a low float" if up and low_float and turned else "")
@@ -330,7 +374,7 @@ def _likely(change: float | None, by: dict, rot: float | None, rvol: float | Non
         label += " -- nothing to lend" if by["borrow"]["value"] == "Nothing to lend" else ""
         return _cause(MOVE_KIND_SPLIT_SQUEEZE, label + tail, evidence, conf)
     if up and low_float and turned:
-        label = "Low-float momentum" + (" -- no company news" if news_known else tail)
+        label = "Low-float momentum" + (quiet if news_known else tail)
         label += "; borrow is tight" if _is(by, "borrow") else ""
         return _cause(MOVE_KIND_LOW_FLOAT_MOMENTUM, label, evidence, conf)
     # Thin is below the usual volume; the float's turnover decides only when RVOL is unknown (a 62M float
@@ -339,7 +383,8 @@ def _likely(change: float | None, by: dict, rot: float | None, rvol: float | Non
         return _cause(MOVE_KIND_THIN_TRADING, "Thin trading: the move rests on little volume" + tail, evidence, conf)
     unknowns = [c["label"].lower() for c in by.values() if c["state"] == MOVE_STATE_UNKNOWN]
     detail = f"Unknown: {', '.join(unknowns)}" if unknowns else evidence
-    return _cause(MOVE_KIND_UNEXPLAINED, "No cause found in the data" + tail, detail,
+    found = f"No cause found since the prior close (before it: {prior})" if prior and news_known else "No cause found in the data"
+    return _cause(MOVE_KIND_UNEXPLAINED, found + tail, detail,
                   MOVE_CONFIDENCE_POSSIBLE if unknowns else conf)
 
 

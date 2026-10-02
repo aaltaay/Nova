@@ -187,3 +187,54 @@ def test_a_contradicted_float_is_marked_and_says_why_without_changing_the_read()
     assert check["state"] == by_id(plain)["float"]["state"] == "yes"
     assert flagged["likely"] == plain["likely"]
     assert by_id(read(facts(**base, float_contradicted=False), NOW))["float"]["value"] == "54K shares -- low float"
+
+
+# -- AMOD 2026-10-02 (ADR 024 amendment, rules v8) ---------------------------------------------------------
+AMOD_PRIOR = {"kind": "catalyst", "category": "crypto_treasury", "strength": "weak", "dilution": True,
+              "title": "8-K: Acquisition completed; Other events", "source": "edgar",
+              "published_ts": datetime(2026, 10, 1, 11, 30, 52, tzinfo=ET).timestamp(), "url": None}
+AMOD_ISSUED = {"published_ts": AMOD_PRIOR["published_ts"], "source": "edgar", "form": "8-K", "items": "2.01,8.01",
+               "title": AMOD_PRIOR["title"], "url": None}
+AMOD_NOW = datetime(2026, 10, 2, 8, 40, tzinfo=ET).timestamp()
+
+
+def amod(**kw):
+    # +120%, Yahoo's pre-PIPE 631K float traded 82x on 51.7M shares.
+    return facts(change_pct=1.20, volume=51_700_000, float_shares=630_935, rel_volume=40.0, **kw)
+
+
+def test_amod_read_before_v8_called_it_low_float_momentum():
+    out = read(amod(catalyst=NOISE), AMOD_NOW)
+    assert out["likely"]["label"] == "Low-float momentum -- no company news"
+
+
+def test_the_prior_sessions_release_is_named_never_counted():
+    out = read(amod(catalyst={**NOISE, "prior_session": AMOD_PRIOR}), AMOD_NOW)
+    news = by_id(out)["news"]
+    assert news["state"] == "no" and news["value"] == "Only movers lists and market wraps"
+    assert news["detail"] == ("Before the prior close, not counted today: crypto treasury raise, SEC Oct 1 11:30 ET. "
+                              "8-K: Acquisition completed; Other events")
+    assert out["likely"]["label"] == ("Low-float momentum -- no company news since the prior close "
+                                      "(before it: crypto treasury raise, SEC Oct 1 11:30 ET)")
+
+
+def test_a_filed_share_issuance_makes_yahoos_float_unknown():
+    out = read(amod(catalyst={**NOISE, "prior_session": AMOD_PRIOR}, shares_issued=AMOD_ISSUED), AMOD_NOW)
+    checks = by_id(out)
+    assert checks["float"]["state"] == "unknown" and checks["float"]["value"] == "631K? shares"
+    assert checks["float"]["detail"] == ("Shares were issued per the SEC 8-K of Oct 1 11:30 ET, Items 2.01, 8.01; "
+                                         "Yahoo's float and share count predate it")
+    assert checks["float_rotation"]["state"] == "unknown" and checks["float_rotation"]["value"] == "Float traded 82x?"
+    assert out["likely"]["kind"] != "low_float_momentum"
+    assert out["likely"]["label"].startswith("No cause found since the prior close (before it: crypto treasury raise")
+
+
+def test_amod_with_v8_reads_the_treasury_raise_as_its_news():
+    v = {"verdict": "catalyst", "category": "crypto_treasury", "strength": "weak", "source": "alpaca",
+         "title": "Bitcoin Boost Gives Alpha Modus (AMOD) Stock 61% Spike After Hours: What You Should Know",
+         "published_ts": AMOD_NOW - 4 * 3600, "negative_too": True, "sources_answered": ["alpaca", "edgar"],
+         "prior_session": AMOD_PRIOR}
+    out = read(amod(catalyst=v, shares_issued=AMOD_ISSUED), AMOD_NOW)
+    assert out["likely"]["kind"] == "news"
+    assert out["likely"]["label"] == "Company news: crypto treasury raise (weak)"
+    assert by_id(out)["news"]["detail"].startswith("Before the prior close, not counted today")

@@ -8,6 +8,7 @@ export const CATALYST_CATEGORY_LABELS: Record<string, string> = {
   contract_partnership: 'Contract / partnership',
   earnings_guidance: 'Earnings / guidance',
   listing_financing: 'Listing / financing',
+  crypto_treasury: 'Crypto treasury raise',
   theme_pivot: 'Theme pivot (AI, crypto ...)',
   product_news: 'Product news',
   company_news: 'Company news',
@@ -36,6 +37,7 @@ export const CATALYST_CATEGORY_SHORT: Record<string, string> = {
   contract_partnership: 'Contract',
   earnings_guidance: 'Earnings',
   listing_financing: 'Financing',
+  crypto_treasury: 'Treasury',
   theme_pivot: 'Theme',
   product_news: 'Product',
   company_news: 'News',
@@ -75,6 +77,8 @@ export const CATALYST_NEWS_UNPLACED_NOTE = 'A company headline no rule placed --
 export const CATALYST_NEWS_PENDING_TITLE = 'Halted for news -- the release is still to come';
 export const CATALYST_NEWS_CHECKED_PREFIX = 'Checked';
 export const CATALYST_NEWS_ALSO_NEGATIVE = 'Also: an offering / dilution item';
+/** The prior session's own release (rules v8): named beside the verdict, never counted in it. */
+export const CATALYST_PRIOR_SESSION_TITLE = 'Before the prior close (not counted today)';
 
 /** The Trader's News panel. */
 export const CATALYST_PANEL_PATH = '/api/catalysts';

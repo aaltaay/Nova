@@ -6,7 +6,7 @@ to cover, and a borrow fee of 50% a year is expensive.
 """
 from __future__ import annotations
 
-MOVE_RULES_VERSION = "move-rules-v1-2026-09-23"
+MOVE_RULES_VERSION = "move-rules-v2-2026-10-02"  # v2: a filed share issuance makes the float unknown
 MOVE_SCHEMA_VERSION = 1
 
 # Likely causes, in the order the rules try them.

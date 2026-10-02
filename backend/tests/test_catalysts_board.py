@@ -29,7 +29,7 @@ def art(i, headline, ts, symbols=("BENF",)):
 def _clean(monkeypatch):
     live.reset_for_testing()
     board.reset_for_testing()
-    monkeypatch.setattr(live, "_feed_view", lambda *a: ([], []))
+    monkeypatch.setattr(live, "_feed_view", lambda *a, **k: ([], []))
     monkeypatch.setattr(live, "_drain", lambda: None)  # request queues; nothing reads Alpaca
     yield
     live.reset_for_testing()

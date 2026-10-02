@@ -1986,13 +1986,27 @@ a denial, a list of stocks, an analyst piece). Rules v7 (#517): an EDGAR item of
 Form 4 open-market purchase (transaction code `P`) by an officer or a director, its dollar total
 stamped in `sec_items` as `P:<whole dollars>` (`catalysts/form4.py`); at or above
 `CATALYST_INSIDER_BUY_MIN_USD` (25,000) it is `catalyst` / `listing_financing` / `weak`, below it
-(or unstamped) `routine` / `corporate_routine`. A **verdict** for a symbol-day reads only items published after the prior
+(or unstamped) `routine` / `corporate_routine`. Rules v8 (2026-10-02, AMOD): a raise (an offering, a
+private placement, a `PIPE`) whose money or consideration is a digital-asset treasury ("bitcoin-funded",
+"consisting of 3,170 bitcoin", never bitcoin mining) is `catalyst` / `crypto_treasury` / `weak` with
+`dilution: true`, judged after the strong classes and before plain dilution (an EDGAR filing is searched
+across its whole stored item text); `PIPE` (case-sensitive) is a raise word, except a headline about a PIPE's
+investors or shares; an item's `n_tickers` counts names, not symbols (`classify.ticker_count`: `IONQ.WS`
+names IONQ again, and one crypto pair on a company's story names the coin it is about -- AMOD + BTCUSD is
+one -- while several pairs each count). A **verdict** for a symbol-day reads only
+items published after the prior
 session's 16:00 ET close and at or before its cutoff: `{verdict: "catalyst" | "negative" |
 "routine_only" | "noise_only" | "none_found" | "not_checked", category, strength, title,
 source, published_ts, url, negative_too, rules_version}` (plus `sources_answered`, `n_items`).
 `none_found` only when a source looked; `not_checked` when none did. The live verdict adds
-`news_pending: boolean` (a Nasdaq T1 / T12 halt inside the window with no resumption yet) and
-`halt_code: string | null`.
+`news_pending: boolean` (a Nasdaq T1 / T12 halt inside the window with no resumption yet),
+`halt_code: string | null` and `prior_session: {kind: "catalyst" | "negative", category, strength,
+dilution, title, source, published_ts, url} | null` -- the best-ranked catalyst or negative item the
+live catalyst feed recorded from the prior session's 04:00 ET open to its 16:00 close (ADR 024
+amendment 2026-10-02). It is shown, never counted: `verdict`, `category`, `negative_too`,
+`sources_answered` and the News pillar read only the window. `null` is none on file, never a claim the
+company said nothing, and always `null` in Sim playback. The feed keeps its items in memory back to that
+04:00 open (`CATALYST_FEED_MEMORY_HOURS` at least).
 
 The setup board's `pillars.catalyst` is that verdict at arm time (`catalysts/live.py`:
 Alpaca since the prior close, fetched in the background, Finnhub company news since the prior
@@ -3737,7 +3751,15 @@ short_interest_ts, short_above_float, short_pct_float, days_to_cover, split: {fa
 days_ago} | null,
 halts: {news, luld, volatility, other, source} | null, borrow: {listed, fee_rate, rebate_rate,
 available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
-catalyst: verdict | null}}`. `price` / `change_pct` / `volume` are the scanner row's, repriced by the
+catalyst: verdict | null, shares_issued: {published_ts, source, form, items, title, url} | null}}`.
+`shares_issued` (ADR 024 amendment 2026-10-02) is the newest SEC 8-K the live catalyst feed recorded
+since the prior session's 04:00 ET open with Item 3.02, or with Item 2.01 that the catalyst rules label
+a raise; while one is on file the float and float-rotation checks read `unknown` ("631K? shares", "Float
+traded 82x?") with the filing named in their `detail`, because Yahoo's float and share count predate
+it -- so the likely cause is never low-float momentum on a float the filings say is out of date. A
+description, never a gate: `float_contradicted`, scanner rows and max-float gates are unchanged (#700 asks). The
+news check's `detail` names the verdict's `prior_session` item while today's window holds no catalyst,
+and the likely cause then says "no company news since the prior close" and names it. `price` / `change_pct` / `volume` are the scanner row's, repriced by the
 symbol's L1 line when it holds a trade (`move_reason.facts.with_live_trade`; never IBKR's prior close
 before the first trade): a board stops repricing a row when its session ends (XRPN 2026-09-30 read
 16.40, its 16:00 price, while it traded 17.11 after hours, so the stock read judged every level against
@@ -4217,6 +4239,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-02 | AMOD's missed catalyst (ADR 024 amendment, rules v8). AMOD ran +120% while `/api/why` and `/api/catalysts` read "noise_only" and "Low-float momentum -- no company news". Its 8-K closing a PIPE of 51.6M shares for 3,170 bitcoin was filed at 11:30 ET the day before, so the window (from the prior close) never read it; Benzinga's after-hours piece named that cause but was tagged AMOD + BTCUSD and so was not read as a one-ticker rewrite. The verdict adds `prior_session` -- the prior session's own filing or release, shown and never counted; the window is unchanged. A raise paid in or spent on a crypto treasury is `crypto_treasury` (weak, with dilution); `PIPE` is a raise word; `n_tickers` counts names, not symbols. `/api/why` reads Yahoo's float as unknown while an 8-K since the prior session's open says shares were issued (a description, not a gate). The feed's memory reaches back to the prior session's open: on a Monday it had lost Friday's after-hours filings. 72 of 255,139 backfilled labels change. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Time & Sales comes back by itself (#698; operator report on AMOD at 07:54 ET: "should that be fully self-healing?"). IBKR refused AMOD's tick-by-tick line with 10190 while three recordings and two leaked resumes held the lines, and the socket sat on a dead line until the operator switched tabs. Four causes, all fixed: a refused line was never asked for again (`line_lending/tape_heal.py` now frees room and asks again, saying so, while a socket watches; the desk reads RETRYING); a resume refused a slot kept the lines it opened (`capture/keepalive.py` opens none with every slot taken and releases on a refused start); a line auto-record gave back lingered 16 s and was taken back by its next tick (cancelled at once, kept for the operator 30 s); and a restart forgot which recordings were auto-record's, so the setups' recordings lost their slots to fresh leaders and one came back as a recording auto-record could never give back (`auto-record.json`, `leaderboard/auto_record_state.py`; resumes' slots are left to them). The tick-by-tick cap is not the depth cap of 3: 4 lines were live at once. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | The Trader's Decisions and past setups follow the trading day (#695). Like the triggers table before PR #696, `GET /api/stock-read/{symbol}/decisions` and `/past-setups` with no date answered the calendar date, so from midnight to 04:00 ET the Decisions sheet and the 1-minute chart's past setups read a day with no session (SCKT on the desk at 00:45 ET: 0 events and 0 episodes, against 400 and 17 for the day). Both now default to the hot list's trading day. The day's news stays tied to the calendar date: the News panel's window moves to the next session at midnight. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Tickers today follows the hot list's trading day (ADR 044). `GET /api/bot/triggers` with no date answered the calendar date, while the hot list's day starts at 04:00 ET: from midnight to the rollover the desk's table asked for a day with no list ("no hot list kept for 2026-10-02"), so its listed tickers and their "now" rows vanished and the day's triggered tickers gave way to the new date's file (one overnight trigger, against the day's 21, on the desk at 00:36 ET). Today is now the hot list's trading day in the route and in its hot-list read, from one clock read. §3 amended. | User Directive + Claude Opus 5.5 |

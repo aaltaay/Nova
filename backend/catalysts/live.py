@@ -9,6 +9,9 @@ PR Newswire, Newsfile, FDA). A source counts as having looked only when its fetc
 feed span covers the window; with no source looking and nothing found the answer is ``None``
 (unknown), never "no news" (a replay playhead on another day included).
 A Nasdaq T1 / T12 halt inside the window with no resumption yet adds ``news_pending``.
+``prior_session`` names the best catalyst or dilution item the feed recorded from the prior session's
+04:00 ET open to its close -- shown beside the verdict, never counted in it (v8); ``shares_issued_for``
+names the newest 8-K since then that says shares were issued (``/api/why``'s float note).
 
 ``panel`` answers the Trader's News panel: the verdict plus every item read, each with its label
 (``GET /api/catalysts/{symbol}``); ``catalysts/board.py`` puts the verdict on every scanner row.
@@ -22,12 +25,12 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime, time as dtime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Iterable
-from zoneinfo import ZoneInfo
 
 from catalysts import live_finnhub
-from catalysts.classify import classify_item, verdict
+from catalysts.classify import best_placed, label_of, shares_issued, ticker_count, verdict
+from catalysts.windows import prior_session_open, window_start
 from constants_catalysts import (
     CATALYST_LIVE_BATCH,
     CATALYST_LIVE_TTL_SEC,
@@ -38,28 +41,18 @@ from constants_catalysts import (
 )
 
 logger = logging.getLogger(__name__)
-ET = ZoneInfo("America/New_York")
 _PAGE_LIMIT = 50
 _MAX_PAGES = 6
 # The verdict as a scanner row and the News panel carry it (the classifier's full answer minus nothing a
 # reader needs: n_items stays so "none found" can say how much was read).
 WIRE_KEYS = ("verdict", "category", "strength", "title", "source", "published_ts", "url", "negative_too",
-             "rules_version", "sources_answered", "n_items", "news_pending", "halt_code")
+             "rules_version", "sources_answered", "n_items", "news_pending", "halt_code", "prior_session")
 
 _lock = threading.Lock()
 _items: dict[str, dict[str, dict]] = {}          # symbol -> item id -> item
 _fetched: dict[str, tuple[float, float]] = {}    # symbol -> (window start, fetched through)
 _pending: set[str] = set()
 _worker: threading.Thread | None = None
-
-
-def window_start(now: float) -> float:
-    """The prior session's 16:00 ET close, the same opening the history's windows use."""
-    from sim.trading_day import last_open_day
-
-    day = datetime.fromtimestamp(now, ET).date()
-    prior = last_open_day(day - timedelta(days=1))
-    return datetime.combine(prior, dtime(16, 0), ET).timestamp()
 
 
 def verdict_for(symbol: str, now: float | None = None) -> dict | None:
@@ -95,9 +88,7 @@ def panel(symbol: str, now: float | None = None) -> dict:
         ts = float(it.get("published_ts") or 0.0)
         if not start < ts <= now:
             continue
-        lb = classify_item(it.get("title"), it.get("summary"), source=str(it.get("source") or ""),
-                           publisher=str(it.get("publisher") or ""), n_tickers=it.get("n_tickers"),
-                           form=it.get("form"), sec_items=it.get("sec_items"), url=str(it.get("url") or ""))
+        lb = label_of(it)
         rows.append({"item_id": it.get("item_id"), "source": it.get("source"), "publisher": it.get("publisher"),
                      "published_ts": ts, "title": it.get("title"), "url": it.get("url"), "kind": lb.kind,
                      "category": lb.category, "strength": lb.strength, "dilution": lb.dilution})
@@ -159,7 +150,20 @@ def _verdict(sym: str, items: list[dict], answered: list[str], start: float, now
         return None
     out = verdict(items, window_start=start, cutoff=now, sources_answered=answered)
     out.update(_halt_view(sym, start, now))
+    # The prior session's own release (v8): shown beside the verdict, never counted in it.
+    opened = prior_session_open(now)
+    out["prior_session"] = best_placed(_feed_view(sym, opened, start, coverage=False)[0], start=opened, end=start)
     return out
+
+
+def shares_issued_for(symbol: str, now: float | None = None) -> dict | None:
+    """The newest 8-K the feed holds since the prior session's open that says shares were issued, or None.
+
+    In memory, never a network read (``/api/why``'s float note, v8)."""
+    now = time.time() if now is None else now
+    sym = (symbol or "").strip().upper()
+    start = prior_session_open(now)
+    return shares_issued(_feed_view(sym, start, now, coverage=False)[0], start=start, end=now)
 
 
 def _norm(symbols: Iterable[str]) -> set[str]:
@@ -172,14 +176,15 @@ def _stale(sym: str, start: float, now: float) -> bool:
     return span is None or span[0] > start or span[1] < now - CATALYST_LIVE_TTL_SEC / 2
 
 
-def _feed_view(symbol: str, start: float, now: float) -> tuple[list[dict], list[str]]:
+def _feed_view(symbol: str, start: float, now: float, *, coverage: bool = True) -> tuple[list[dict], list[str]]:
+    """The feed's items for ``symbol`` in (start, now] and, with ``coverage``, the sources that read it unbroken."""
     try:
         from catalysts import feed
 
         if not feed.enabled():
             return [], []
         f = feed.get_feed()
-        return f.items_for(symbol, start, now), f.covered_sources(start, now)
+        return f.items_for(symbol, start, now), (f.covered_sources(start, now) if coverage else [])
     except Exception:
         logger.warning("catalysts.live: feed read failed for %s", symbol, exc_info=True)
         return [], []
@@ -291,7 +296,7 @@ def record(symbols: list[str], news: list[dict], *, start: float, through: float
         tickers = [str(t).upper() for t in n.get("symbols") or []]
         item = {"item_id": f"alpaca:{n.get('id')}", "source": "alpaca", "published_ts": ts,
                 "title": n.get("headline"), "summary": n.get("summary"), "url": n.get("url"),
-                "publisher": n.get("source") or n.get("author"), "n_tickers": len(tickers)}
+                "publisher": n.get("source") or n.get("author"), "n_tickers": ticker_count(tickers)}
         for t in wanted.intersection(tickers):
             fresh[t][item["item_id"]] = item
     with _lock:

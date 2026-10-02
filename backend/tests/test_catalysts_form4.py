@@ -101,7 +101,7 @@ def form4_label(usd):
 
 
 def test_a_purchase_at_or_over_the_threshold_is_a_weak_catalyst():
-    assert CATALYST_RULES_VERSION.startswith("catalyst-rules-v7")
+    assert int(CATALYST_RULES_VERSION.split("-v", 1)[1].split("-", 1)[0]) >= 7  # v7 introduced it
     assert form4_label(57_225) == ("catalyst", "listing_financing", "weak")
     assert form4_label(CATALYST_INSIDER_BUY_MIN_USD) == ("catalyst", "listing_financing", "weak")
 

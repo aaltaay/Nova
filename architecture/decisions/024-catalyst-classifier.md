@@ -247,3 +247,89 @@ Rejected: each filing's index page "Accepted" time (one request per filing, agai
 that already holds the time); one clock per filer (a JSON switches clocks over the years, and a
 co-registrant's JSON can differ); the hours rule alone (it places 12% of filings); and leaving the
 fetcher's "first fetch wins" to heal the store on a later run (it never rewrites a stored time).
+
+## Amendment 2026-10-02 -- the prior session's release, crypto treasury raises, rules v8
+
+AMOD traded +120% on 2026-10-02 while `GET /api/why/AMOD` and `GET /api/catalysts/AMOD` read
+`noise_only` and "Low-float momentum -- no company news". Alpha Modus had filed an 8-K (Items 2.01
+and 8.01) at 11:30:52 ET on 2026-10-01: it closed a PIPE of 51,621,560 shares plus as many warrants
+($4.36), paid in 3,170 bitcoin worth over $250M, on about 5.0M shares outstanding. The stock sold off
+on it through the regular session (1.88 to 1.21), then ran from 16:10 ET after hours (1.18 to 2.10)
+and to 2.74 premarket. The desk missed the news twice:
+
+- **The window.** The filing was before the prior session's 16:00 close, so the verdict never read
+  it. That is the window doing its job: the regular session had four and a half hours to price it.
+- **The label.** Benzinga's after-hours piece (`alpaca:62126197`, 00:34 ET, "Bitcoin Boost Gives
+  Alpha Modus (AMOD) Stock 61% Spike After Hours: What You Should Know") named the cause in its
+  summary, "after closing a bitcoin-funded private placement and regaining Nasdaq compliance". v6
+  reads a one-ticker rewrite's cause, but Alpaca tags the piece `AMOD, BTCUSD`. Two symbols made it
+  "not one ticker", so it stayed `noise` / `movers_list`. Read as one ticker, its cause would have
+  been plain `offering_dilution`: no class knew a raise paid in a treasury asset.
+
+1. **The prior session's release is shown, never counted.** The verdict adds `prior_session`: the
+   best-ranked `catalyst` or `negative` item the live catalyst feed recorded (SEC EDGAR, GlobeNewswire,
+   PR Newswire, Newsfile, FDA) from the prior session's 04:00 ET open to its 16:00 close, the window's
+   opening. It changes nothing else: `verdict`, `category`, `negative_too`, `sources_answered` and the
+   News pillar still count only what came after the close, so a day-old release never reads as today's
+   catalyst. `null` means none is on file. It is no claim that the company said nothing, because the
+   feed's coverage is not proven for that stretch. Sim playback carries `null` (the export holds the
+   window only). The feed now keeps its items in memory back to that 04:00 open
+   (`catalysts/windows.memory_cutoff`). It kept 40 hours, which on a Monday morning did not reach back
+   to Friday's close: the window itself lost Friday's after-hours filings.
+2. **A crypto treasury raise** (rules v8, `catalyst-rules-v8-2026-10-02`) is `catalyst` /
+   `crypto_treasury` / `weak` with `dilution: true`. It is a raise (an offering, a private placement,
+   now also a `PIPE`) whose money or consideration is a digital-asset treasury: "bitcoin-funded",
+   "ETH treasury strategy", "consisting of 3,170 bitcoin", "to purchase bitcoin". A miner raising for
+   its machines is not one. It is judged after the strong classes (a merger with a treasury PIPE stays
+   a merger) and before plain dilution. An EDGAR filing is searched for it across its whole stored item
+   text, because the purchase price can come after the 600 characters the classes read. It is a placed
+   event, financing and dilution at once, and `dilution` sets the verdict's `negative_too`. Weak, not
+   strong: the class also holds equity lines and registered directs that fund a treasury, and it was
+   measured on no outcome.
+3. **`PIPE` is a raise word**, case-sensitive so "pipe" and "pipeline" are not. A headline about a
+   PIPE's investors or shares (a lock-up extension, a resale) is not a new raise.
+4. **`n_tickers` counts names, not symbols** (`catalysts.classify.ticker_count`). A company's warrant,
+   unit or share class (`IONQ.WS`) names the company again. One crypto pair (`BTCUSD`: six or more
+   characters ending in USD, USDT or USDC, or with a `/`) on a company's story names the coin the story
+   is about, not another name, so AMOD + BTCUSD is one. Several pairs are a crypto market piece and each
+   still counts toward a roundup: dropping every pair turned crypto-market commentary ("Cardano Up 23%
+   In 7 Days ...", "Trump Picks Senator J.D. Vance As Running Mate") into a stock's catalyst. The live
+   reader and `research/catalysts/fetch_alpaca.py` count this way, and `fetch_alpaca.py --recount`
+   rewrites the stored Alpaca rows.
+5. **A filed share issuance makes Yahoo's float a question** (`/api/why`, ADR 028). Its facts add
+   `shares_issued`: the newest SEC 8-K since the prior session's 04:00 open with Item 3.02, or with
+   Item 2.01 that the rules label a raise. While one is on file, the float and float-rotation checks
+   read `unknown` ("631K? shares", "Float traded 82x?") and say why: Yahoo still read AMOD at 4,966,818
+   shares outstanding and a 630,935 float. So the likely cause is never low-float momentum on a float
+   the filings say is out of date. It is a description, not a gate: `float_contradicted`, scanner rows
+   and every max-float gate are unchanged. Whether a filed issuance should also mark the float for the
+   gates is the operator's call (#700).
+
+**Measured** on the 255,139 backfilled items (labels only, no outcome): 72 change. 32 become
+`crypto_treasury` (29 were `offering_dilution`, among them BitMine's, Verb's, K Wave's and Eightco's
+treasury placements). 22 headlines that name a PIPE become `offering_dilution`, 15 of them unplaced
+`company_news` ("Velo3D Announces $30M PIPE Financing"); Cipher Mining's "PIPE Investment from
+SoftBank" moves there from `listing_financing`, as any private placement already did. 13 one-ticker
+rewrites tagged with one coin gain the cause their summary names (Rumble's Tether investment, MARA's
+Starwood venture, Robinhood's and Bit Digital's results). Two crypto-market pieces tagged with three
+companies and one coin now read as `theme_pivot` instead of a roundup ("Trump Administration Has Been
+'Amazing' For Crypto Industry ..., Galaxy CEO Says"). The leaderboard's exported labels need
+`export_leaderboard.py` re-run after the merge, as for every rules version.
+
+Rejected:
+- Widening the window to the prior session. Every stock with day-old news would read "catalyst",
+  and the pillar would pass on a release the regular session had already priced.
+- Counting the prior-session item only when the move came after the close. The verdict holds no
+  prices. And today's change is measured from the prior close, so every move it explains came after
+  it.
+- `negative` / `offering_dilution` for a treasury raise. On AMOD it was the event the stock ran on;
+  `dilution` keeps the other half.
+- Skipping "after hours" as a rewrite's cause. AMOD's clause still held its cause ("hours after
+  closing a bitcoin-funded private placement ..."), and on the backfill 20 rewrites lost theirs: "jumped
+  23% after-hours on earnings beat" names its cause after "after hours", with "on".
+- Labelling an 8-K's "Nasdaq determined that the Company complies" a catalyst. AMOD's of 08:35 ET would
+  then outrank the treasury rewrite as the verdict's item, a filing ranking above a rewrite, and the desk
+  would show "8-K: Other events".
+- Parsing the share count out of the 8-K, to correct the float. A filing names many counts (shares,
+  warrants, the shares behind the warrants), and PIPE shares may not trade until a resale
+  registration, so the tradable float is not known either way.
