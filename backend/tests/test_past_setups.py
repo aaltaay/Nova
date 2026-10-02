@@ -4,7 +4,11 @@ next, a source that cannot be read said so -- and the same episodes totalled by 
 from __future__ import annotations
 
 import json
+import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -96,6 +100,29 @@ def test_the_route_answers_the_day_and_refuses_a_bad_date(monkeypatch):
     assert seen == {"sym": "NCPL", "day": "2026-09-28", "today": False}
     assert client.get("/api/stock-read/NCPL/past-setups?date=yesterday").status_code == 400
     assert client.get("/api/stock-read/NCPL/past-setups").status_code == 200 and seen["today"] is True
+
+
+@pytest.mark.parametrize(("hour", "trading_day"), [(0, "2026-10-01"), (10, "2026-10-02")])
+def test_today_is_the_trading_day_from_0400(monkeypatch, hour, trading_day):
+    """With no date the route reads the trading day, which starts at 04:00 ET: from midnight to 04:00 the
+    calendar already reads Friday while the chart still shows Thursday's session (#695)."""
+    seen = {}
+
+    def fake(sym, day, now, *, today, five=False):
+        seen.update(day=day, today=today)
+        return {"symbol": sym, "date": day, "generated_at": now, "episodes": [], "counts": {},
+                "journal": {"ok": True, "error": None, "lines": 0}, "bars": {"ok": True, "error": None, "count": 0}}
+
+    clock = datetime(2026, 10, 2, hour, 30, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    monkeypatch.setattr(time, "time", lambda: clock)
+    monkeypatch.setattr(past_setups, "read", fake)
+    app = FastAPI()
+    app.include_router(routes.router)
+    client = TestClient(app)
+    assert client.get("/api/stock-read/NCPL/past-setups").json()["date"] == trading_day
+    assert seen == {"day": trading_day, "today": True}
+    client.get(f"/api/stock-read/NCPL/past-setups?date={trading_day}")
+    assert seen == {"day": trading_day, "today": True}                  # asked by name, it is today too
 
 
 def test_the_study_totals_the_failures_by_rule_and_leaves_out_a_faded_leg(tmp_path):

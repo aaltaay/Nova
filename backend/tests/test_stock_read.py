@@ -338,6 +338,22 @@ def test_the_route_serves_the_read_and_caches_it(monkeypatch):
     assert client.get("/api/stock-read/APUS/decisions?date=24-09-2026").status_code == 400
 
 
+@pytest.mark.parametrize(("hour", "trading_day"), [(0, "2026-10-01"), (10, "2026-10-02")])
+def test_decisions_read_the_trading_day_from_0400(monkeypatch, hour, trading_day):
+    """With no date the Decisions sheet reads the trading day, which starts at 04:00 ET: from midnight to
+    04:00 the calendar already reads Friday while the day on the sheet is still Thursday's (#695)."""
+    import time
+
+    seen = []
+    clock = datetime(2026, 10, 2, hour, 30, tzinfo=ET).timestamp()
+    monkeypatch.setattr(time, "time", lambda: clock)
+    monkeypatch.setattr(decisions, "timeline", lambda sym, day, now: seen.append(day) or {"symbol": sym, "date": day})
+    app = FastAPI()
+    app.include_router(routes.router)
+    assert TestClient(app).get("/api/stock-read/APUS/decisions").json()["date"] == trading_day
+    assert seen == [trading_day]
+
+
 @pytest.mark.parametrize("gate,expected", [("master_liquidity:volume(13000<100000)", "under the tradeable floor's volume"),
                                            ("blocklist", "on the HOD Momo blocklist")])
 def test_a_refused_hod_momo_gate_is_said_in_words(gate, expected):

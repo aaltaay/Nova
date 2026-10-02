@@ -202,7 +202,9 @@ def _news(sym: str, date: str, now: float) -> list[dict[str, Any]]:
     from catalysts import live as catalyst_live
 
     if datetime.fromtimestamp(now, ET).date().isoformat() != date:
-        return []                          # the panel holds today's window only
+        # The News panel reads since the prior 16:00 close: after midnight that is the next session's window,
+        # so another day, and the trading day from midnight to 04:00, show no news rather than the wrong day's.
+        return []
     panel = catalyst_live.panel(sym, now)
     out = []
     for it in panel.get("items") or []:
