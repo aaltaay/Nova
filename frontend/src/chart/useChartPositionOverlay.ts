@@ -1,16 +1,17 @@
 /**
  * Paint the open IBKR position onto a candle series: avg-cost price line
  * plus session fill arrows. Display only -- never stages or sends an order.
+ *
+ * Keyed on what is drawn, never on the account's arrays: every account poll
+ * hands over new arrays, and re-drawing on each one replaced the price line
+ * and the arrows every few seconds on every pane (`FillMarkersPrimitive`
+ * says what that cost).
  */
 import { useEffect, useRef, type RefObject } from 'react';
-import {
-  createSeriesMarkers,
-  type IChartApi,
-  type ISeriesApi,
-  type Time,
-} from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { buildSeriesTimeIndex } from './chartDrawingTime';
+import { FillMarkersPrimitive } from './FillMarkersPrimitive';
 import {
   findOpenPosition,
   mergeFills,
@@ -37,23 +38,19 @@ export function useChartPositionOverlay({
   barsRevision,
 }: Args): ChartPositionSnapshot | null {
   const account = useOptionalIbkrAccountContext();
-  const positions = account?.positions;
-  const working = account?.orders;
-  const closed = account?.closedOrders;
-  const position = findOpenPosition(positions ?? [], symbol);
+  const position = findOpenPosition(account?.positions ?? [], symbol);
   const fills = position
-    ? mergeFills(working ?? [], closed ?? [], symbol)
+    ? mergeFills(account?.orders ?? [], account?.closedOrders ?? [], symbol)
     : [];
-  const positionKey = position
-    ? `${position.symbol}:${position.qty}:${position.avgCost}:${position.unrealizedPnl ?? ''}`
-    : '';
+  // The line draws the average cost in the side's colour, nothing that moves with the price.
+  const lineKey = position ? `${position.symbol}:${position.avgCost}:${position.qty < 0 ? 'short' : 'long'}` : '';
   const fillsKey = fills.map((f) => `${f.orderId}:${f.timeIso}:${f.price}`).join('|');
-  const barsRef = useRef(bars);
-  barsRef.current = bars;
+  const latest = useRef({ position, fills, bars });
+  latest.current = { position, fills, bars };
 
   useEffect(() => {
     const series = candleSeriesRef.current;
-    const next = findOpenPosition(positions ?? [], symbol);
+    const next = latest.current.position;
     if (!chart || !series || !next) return;
     const line = series.createPriceLine(positionPriceLineOptions(next));
     return () => {
@@ -63,43 +60,35 @@ export function useChartPositionOverlay({
         /* chart already disposed */
       }
     };
-  }, [chart, candleSeriesRef, symbol, positions, positionKey]);
+  }, [chart, candleSeriesRef, symbol, lineKey]);
 
+  const markersRef = useRef<FillMarkersPrimitive | null>(null);
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!chart || !series) return;
-    const plugin = createSeriesMarkers(series, []);
-    const next = findOpenPosition(positions ?? [], symbol);
-    const nextFills = next ? mergeFills(working ?? [], closed ?? [], symbol) : [];
-    const times = barsRef.current;
-    if (nextFills.length > 0 && times.length > 0) {
-      plugin.setMarkers(
-        seriesMarkersForFills(
-          nextFills,
-          buildSeriesTimeIndex(times.map((bar) => bar.time as Time)),
-          timeframe,
-        ),
-      );
-    }
+    const markers = new FillMarkersPrimitive();
+    series.attachPrimitive(markers);
+    markersRef.current = markers;
     return () => {
       try {
-        plugin.setMarkers([]);
-        plugin.detach();
+        series.detachPrimitive(markers);
       } catch {
         /* chart already disposed */
       }
+      if (markersRef.current === markers) markersRef.current = null;
     };
-  }, [
-    chart,
-    candleSeriesRef,
-    symbol,
-    positions,
-    working,
-    closed,
-    fillsKey,
-    barsRevision,
-    timeframe,
-  ]);
+  }, [chart, candleSeriesRef]);
+
+  useEffect(() => {
+    const markers = markersRef.current;
+    if (!markers) return;
+    const { fills: nextFills, bars: times } = latest.current;
+    markers.setMarkers(
+      nextFills.length > 0 && times.length > 0
+        ? seriesMarkersForFills(nextFills, buildSeriesTimeIndex(times.map((bar) => bar.time as Time)), timeframe)
+        : [],
+    );
+  }, [chart, symbol, fillsKey, barsRevision, timeframe]);
 
   return position;
 }

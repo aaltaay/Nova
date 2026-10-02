@@ -96,6 +96,26 @@ function sideClass(side: TapeSide | undefined): string {
   }
 }
 
+/**
+ * A live print has no id, and a key built from its place in the list changed for every row on every
+ * print: React rebuilt all the visible rows each time (4,000 rows a few seconds at a busy open) and the
+ * page laid out again under the charts. A print keeps its object from arrival to the ring's end, so
+ * the object is its identity.
+ */
+const liveKeys = new WeakMap<TapePrint, string>();
+let liveKeySeq = 0;
+
+export function tapeRowKey(print: TapePrint): string {
+  if (print.replayId != null) return print.replayId;
+  let key = liveKeys.get(print);
+  if (key === undefined) {
+    liveKeySeq += 1;
+    key = `live-${liveKeySeq}`;
+    liveKeys.set(print, key);
+  }
+  return key;
+}
+
 const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
   // A print that does not set a price is dimmed, and its tooltip says why.
   const setsPrice = tapePrintSetsPrice(print);
@@ -311,8 +331,8 @@ export function TimeSalesView({
       ) : (
         <>
           {range.topSpacerPx > 0 && <div style={{ height: range.topSpacerPx }} aria-hidden />}
-          {visible.map((p, i) => (
-            <TapeRow key={p.replayId ?? `${p.time}-${range.startIndex + i}`} print={p} />
+          {visible.map(p => (
+            <TapeRow key={tapeRowKey(p)} print={p} />
           ))}
           {range.bottomSpacerPx > 0 && <div style={{ height: range.bottomSpacerPx }} aria-hidden />}
         </>

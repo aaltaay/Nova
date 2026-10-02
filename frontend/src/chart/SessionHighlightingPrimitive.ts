@@ -2,19 +2,27 @@
  * Lightweight-charts series primitive — shades each bar's vertical strip by
  * market session (premarket / RTH / after-hours). Pattern follows TradingView's
  * session-highlighting plugin example, inlined so we own the highlighter.
+ *
+ * A tick colours only what it changed and asks for no redraw: the series' own
+ * update already redraws the pane, and lightweight-charts refreshes this view on
+ * every redraw. `requestUpdate` is a *full* redraw, which lays out the whole page
+ * (the price axis sets a canvas font); calling it on every tick, as the plugin
+ * example does, cost the Trader tab most of its frame rate.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
-import type {
-  Coordinate,
-  IChartApi,
-  IPrimitivePaneRenderer,
-  IPrimitivePaneView,
-  ISeriesApi,
-  ISeriesPrimitive,
-  PrimitivePaneViewZOrder,
-  SeriesAttachedParameter,
-  SeriesType,
-  Time,
+import {
+  MismatchDirection,
+  type Coordinate,
+  type DataChangedScope,
+  type IChartApi,
+  type IPrimitivePaneRenderer,
+  type IPrimitivePaneView,
+  type ISeriesApi,
+  type ISeriesPrimitive,
+  type PrimitivePaneViewZOrder,
+  type SeriesAttachedParameter,
+  type SeriesType,
+  type Time,
 } from 'lightweight-charts';
 import { sessionColorForChartTime } from './sessionHighlight';
 
@@ -98,15 +106,21 @@ interface BackgroundColor {
   color: string;
 }
 
+/** The same bars, so the same colours: a colour follows from its bar's time alone. */
+function sameBars(a: readonly BackgroundColor[], b: readonly BackgroundColor[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i].time !== b[i].time) return false;
+  return true;
+}
+
 export class SessionHighlightingPrimitive implements ISeriesPrimitive<Time> {
   private _chart: IChartApi | null = null;
   private _series: ISeriesApi<SeriesType> | null = null;
   private _requestUpdate: (() => void) | null = null;
   private _paneViews: SessionHighlightPaneView[];
   private _backgroundColors: BackgroundColor[] = [];
-  private readonly _onDataChanged = () => {
-    this._rebuildColors();
-    this._requestUpdate?.();
+  private readonly _onDataChanged = (scope: DataChangedScope) => {
+    if (scope !== 'update' || !this._appendLastBar()) this._rebuildColors();
   };
 
   constructor() {
@@ -146,10 +160,30 @@ export class SessionHighlightingPrimitive implements ISeriesPrimitive<Time> {
     return this._paneViews;
   }
 
-  /** Call after setData so colors rebuild even if the library coalesces events. */
+  /** Call after setData so colors rebuild even if the library coalesces events; redraws only when they changed. */
   refresh(): void {
+    const before = this._backgroundColors;
     this._rebuildColors();
-    this._requestUpdate?.();
+    if (!sameBars(before, this._backgroundColors)) this._requestUpdate?.();
+  }
+
+  /**
+   * A tick moves the last bar or adds one after it: colour the new bar only. False when the
+   * last bar is not where the colours end -- the data changed some other way; rebuild them all.
+   */
+  private _appendLastBar(): boolean {
+    const series = this._series;
+    if (!series) return false;
+    const last = series.dataByIndex(Number.MAX_SAFE_INTEGER, MismatchDirection.NearestLeft);
+    const known = this._backgroundColors[this._backgroundColors.length - 1];
+    if (!last || !known || typeof last.time !== 'number' || typeof known.time !== 'number') return false;
+    if (last.time === known.time) return true;
+    if (last.time < known.time) return false;
+    this._backgroundColors = [
+      ...this._backgroundColors,
+      { time: last.time, color: sessionColorForChartTime(last.time) },
+    ];
+    return true;
   }
 
   private _rebuildColors(): void {

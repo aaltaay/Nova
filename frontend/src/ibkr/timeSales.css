@@ -146,6 +146,9 @@
   overflow-y: auto;
   flex: 1 1 0;
   min-height: 0;
+  /* Sized by the panel, never by its rows: a print coming in lays out this list, not the whole
+     page under the charts (one full layout cost 12-16 ms on the Trader tab). */
+  contain: strict;
 }
 
 .ts-panel__empty {
