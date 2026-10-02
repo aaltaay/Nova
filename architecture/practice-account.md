@@ -13,7 +13,7 @@ account around them.
 |---|---|---|---|---|
 | IBKR paper account | Market orders become marketable limits filled from the **top of book only** (no deep book); an order with no opposite quote is held until one appears; stops are always simulated; a partially executed exchange-directed market order has its remainder rejected. | Real IBKR commission schedule applied. | Real margin model (IBKR's own; intraday margin since 2026-06-04). Seeds USD 1M. | [Paper trading](https://www.ibkrguides.com/clientportal/aboutpapertradingaccounts.htm), [Simulated market orders](https://www.interactivebrokers.com/en/trading/simulated-market-orders.php), [Paper vs live](https://www.interactivebrokers.com/campus/trading-lessons/paper-trading-vs-live-trading-whats-the-difference/) |
 | IBKR Pro, US stocks, **Fixed** | -- | USD 0.005/share, min USD 1.00/order, max 1.0 % of trade value; regulatory fees passed through on sells. | -- | [Commissions: stocks](https://www.interactivebrokers.com/en/pricing/commissions-stocks.php) |
-| SEC / FINRA (sells only) | -- | SEC §31: USD 20.60 per USD 1M of sale value (FY2026, from 2026-04-04). FINRA TAF: USD 0.000195/share sold, max USD 9.79/trade (2026). | -- | [SEC fee advisory](https://www.sec.gov/rules-regulations/fee-rate-advisories/2026-2), [FINRA TAF](https://www.finra.org/rules-guidance/guidance/trading-activity-fee) |
+| SEC / FINRA | -- | Sells: SEC §31, USD 20.60 per USD 1M of sale value (FY2026, from 2026-04-04); FINRA TAF, USD 0.000195/share sold, max USD 9.79/trade (2026), paused to USD 0.00 for trade dates 2026-10-01 to 2026-12-31 (SR-FINRA-2026-021, Release 34-106409). Every fill, bought or sold: FINRA CAT, USD 0.000003/share as IBKR passes it through. | -- | [SEC fee advisory](https://www.sec.gov/rules-regulations/fee-rate-advisories/2026-2), [FINRA TAF](https://www.finra.org/rules-guidance/guidance/trading-activity-fee), [TAF pause](https://www.sec.gov/files/rules/sro/finra/2026/34-106409.pdf), [IBKR third-party fees](https://www.interactivebrokers.com/en/pricing/commissions-stocks.php) |
 | Alpaca paper | Fills only when marketable against the current NBBO (buy limit ≥ ask, sell limit ≤ bid); order size is **not** checked against quoted size; random partial fill 10 % of the time; no slippage, queue or impact. | None. | Seeds USD 100k; Reg T 2x / PDT 4x like its live accounts. | [Alpaca paper trading](https://docs.alpaca.markets/us/docs/paper-trading) |
 | TradingView paper | Broker emulator fills at the exact requested price; market / stop orders can add a **slippage in ticks**; historical bars fill on bar close. | Off by default; optional fixed per order or % of value. | Cash only, operator-set balance. | [Strategy properties](https://www.tradingview.com/support/solutions/43000628599-strategy-properties/), [Pine strategies](https://www.tradingview.com/pine-script-docs/concepts/strategies/) |
 | backtrader broker | Next-bar open by default; `cheat-on-open` / `cheat-on-close` opt-ins; `set_slippage_perc` / `set_slippage_fixed`. | `setcommission(commission=, margin=, mult=)`: % of value when `margin` is falsy, fixed per contract otherwise; `CommInfoBase` for per-share schemes. | Cash checked at submit **and** at execution; margin via `margin=` per contract. | [Brokers and orders](https://backtrader.readthedocs.io/en/latest/user-guide/brokers/brokers.html), [Commission schemes](https://www.backtrader.com/docu/commission-schemes/commission-schemes/), [Slippage](https://www.backtrader.com/docu/slippage/slippage/) |
@@ -37,6 +37,8 @@ is an operator knob, not a model.
 | `PRACTICE_COMMISSION_PER_SHARE` / `_MIN` / `_MAX_PCT` | 0.005 / 1.00 / 1 % | IBKR Pro **Fixed** as published today. Live Nova trades on IBKR, so Paper charges what Live would; Fixed rather than Tiered because it has no volume tiers or exchange rebates to fake. QuantConnect's 0.5 % cap is stale and is not used. |
 | `PRACTICE_SEC_FEE_RATE` | 20.60 per 1M | FY2026 §31 rate, on **sell** value only, as IBKR passes it through. |
 | `PRACTICE_FINRA_TAF_PER_SHARE` / `_MAX` | 0.000195 / 9.79 | 2026 TAF on shares **sold**, per-trade cap. Both regulatory fees are refreshed by editing the constant when the SEC/FINRA notice changes; no auto-lookup. |
+| `PRACTICE_FINRA_TAF_HOLIDAYS` | 2026-10-01 to 2026-12-31 | FINRA's three-month TAF pause (SR-FINRA-2026-021): no TAF on a sell whose Eastern trade date falls inside, both days included -- the fill's own time, so a Sim replay of an earlier day still pays it. TAF resumes 2027-01-01. |
+| `PRACTICE_FINRA_CAT_PER_SHARE` | 0.000003 | FINRA Consolidated Audit Trail fee on **every** share executed, as IBKR lists it (prospective plus historical CAT, re-evaluated twice a year). Seen on Nova's own Live fills: a 1-share buy at 7.38 cost 0.073803, the 1 % cap plus 0.000003. |
 | `PRACTICE_MARGIN_INTRADAY_MULT` | 4.0 | FINRA 4210 intraday margin (2026-06-04): equity covers 25 % maintenance on what is held, so 4x. Nova's bots are day traders, so this is the number they hit. Applied as `equity * 4` minus gross position value while `net_liquidation >= PRACTICE_MARGIN_MIN_EQUITY`. The retired USD 25,000 pattern-day-trader line (`PRACTICE_PDT_MIN_EQUITY`, 2x below it) is gone with the rule. |
 | `PRACTICE_MARGIN_MIN_EQUITY` | 2 000 | FINRA 4210(b)(2): no credit below USD 2,000 of equity; IBKR keeps it for margin and short sales under the new rule. |
 | `PRACTICE_CASH_MULT` | 1.0 | Under the minimum the account is a cash account: `equity * 1` minus gross position value is the cash on hand. |
@@ -46,8 +48,10 @@ is an operator knob, not a model.
 | `PRACTICE_BUYING_POWER_CODE` | `PRACTICE_BUYING_POWER` | Buying power is **enforced** on both venues (backtrader checks at submit and at fill; Nova checks at admission and again when a resting order fills, refusing the fill if power ran out). A practice desk that lets a bot buy without limit teaches it nothing. |
 
 Fee math, applied per fill: `commission = clamp(qty * 0.005, 1.00,
-0.01 * qty * price)`; on a sell add `sell_value * SEC rate` and `min(qty *
-TAF, 9.79)`. Commissions and fees reduce cash at the fill, appear on the row,
+0.01 * qty * price)`; on every fill add `qty * CAT`; on a sell add `sell_value
+* SEC rate` and `min(qty * TAF, 9.79)` (zero on a TAF holiday). The fees a fill
+was charged are stored on its event, so a schedule change never rewrites a fill
+already made. Commissions and fees reduce cash at the fill, appear on the row,
 and sum into `commissions_today`. Realized P&L is net of them. Buying power
 `= max(0, net_liquidation * mult - gross_position_value)`; an order is admitted
 while `qty * reference_price <= buying_power` for opening trades; closing
@@ -115,9 +119,9 @@ Named so nobody reads a practice P&L as a live one:
   held past the close is not charged -- and there is no end-of-day
   liquidation. The rule's 90-day freeze for unmet intraday deficits is not
   modelled either: buying power is enforced up front, so no deficit arises.
-- **No exchange or clearing pass-throughs beyond SEC §31 and FINRA TAF.** IBKR
-  Fixed folds the rest into the per-share rate; the two regulatory fees are
-  the ones IBKR itemises on a Fixed statement.
+- **No exchange or clearing pass-throughs beyond SEC §31, FINRA TAF and FINRA
+  CAT.** IBKR Fixed folds the rest into the per-share rate; the three
+  regulatory fees are the ones IBKR passes through on a Fixed account.
 - **Rates go stale by hand.** SEC and FINRA rates change yearly; the constant
   carries the effective date in its comment and is edited, never fetched.
 

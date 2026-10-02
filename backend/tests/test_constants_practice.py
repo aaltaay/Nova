@@ -26,6 +26,8 @@ def test_regulatory_fees_2026():
     assert abs(cp.PRACTICE_SEC_FEE_RATE - 0.0000206) < 1e-12
     assert cp.PRACTICE_FINRA_TAF_PER_SHARE == 0.000195
     assert cp.PRACTICE_FINRA_TAF_MAX == 9.79
+    assert cp.PRACTICE_FINRA_TAF_HOLIDAYS == (("2026-10-01", "2026-12-31"),)  # SR-FINRA-2026-021
+    assert cp.PRACTICE_FINRA_CAT_PER_SHARE == 0.000003
 
 
 def test_reg_t_margin_tiers():
@@ -59,6 +61,8 @@ def test_every_constant_is_documented_in_the_survey():
         "PRACTICE_COMMISSION_PER_SHARE",
         "PRACTICE_SEC_FEE_RATE",
         "PRACTICE_FINRA_TAF_PER_SHARE",
+        "PRACTICE_FINRA_TAF_HOLIDAYS",
+        "PRACTICE_FINRA_CAT_PER_SHARE",
         "PRACTICE_MARGIN_INTRADAY_MULT",
         "PRACTICE_MARGIN_MIN_EQUITY",
         "PRACTICE_CASH_MULT",
