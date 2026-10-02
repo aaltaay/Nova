@@ -2,6 +2,11 @@
  * Right middle -- Calendar of daily P&L from the history's `daily` rows.
  * Archived days are dimmed with a hollow dot, today is outlined, weekends
  * are "no session", and the footer sums archived against this ledger.
+ *
+ * It shows today's month, and moves with it: `today` is the venue's day, which
+ * changes under a mounted panel -- Sim's clock answers after the first render
+ * (until then the page reads the browser's), a replay of another day loads, the
+ * venue switches. A month browsed to with ‹ › stays until today's month moves.
  */
 import { useState } from 'react';
 import {
@@ -23,22 +28,32 @@ import type { PracticeHistory } from './accountHistoryTypes';
 interface Props {
   history: PracticeHistory | null;
   absence: string | null;
-  /** Today's practice date, YYYY-MM-DD. */
+  /** Today's practice date, YYYY-MM-DD: the venue's day (Sim: the replay playhead's, C20 / V32). */
   today: string;
+}
+
+/** A month browsed to, and the month today was in when it was. */
+interface Browsed {
+  year: number;
+  month: number;
+  todayMonth: string;
 }
 
 export function CalendarPanel({ history, absence, today }: Props) {
   const start = parseIsoDate(today) ?? { year: 1970, month: 0, day: 1 };
-  const [month, setMonth] = useState({ year: start.year, month: start.month });
+  const todayMonth = today.slice(0, 7);
+  const [browsed, setBrowsed] = useState<Browsed | null>(null);
+  const month = browsed?.todayMonth === todayMonth ? browsed : start;
+  const browse = (delta: number) => setBrowsed({ ...shiftMonth(month.year, month.month, delta), todayMonth });
   const grid = history ? monthGrid(month.year, month.month, history.daily, today) : null;
   const archives = history?.archives.length ?? 0;
 
   return (
     <section className="acct-panel acct-panel--cal" data-testid="account-calendar" aria-label={ACCOUNT_CALENDAR_TITLE}>
       <PanelHead title={ACCOUNT_CALENDAR_TITLE}>
-        <button type="button" className="acct-cal__nav" aria-label={ACCOUNT_CALENDAR_PREV} data-testid="account-calendar-prev" onClick={() => setMonth((m) => shiftMonth(m.year, m.month, -1))}>‹</button>
+        <button type="button" className="acct-cal__nav" aria-label={ACCOUNT_CALENDAR_PREV} data-testid="account-calendar-prev" onClick={() => browse(-1)}>‹</button>
         <span className="acct-cal__title" data-testid="account-calendar-title">{monthLabel(month.year, month.month)}</span>
-        <button type="button" className="acct-cal__nav" aria-label={ACCOUNT_CALENDAR_NEXT} data-testid="account-calendar-next" onClick={() => setMonth((m) => shiftMonth(m.year, m.month, 1))}>›</button>
+        <button type="button" className="acct-cal__nav" aria-label={ACCOUNT_CALENDAR_NEXT} data-testid="account-calendar-next" onClick={() => browse(1)}>›</button>
       </PanelHead>
       {!grid ? (
         <div className="acct-absent" data-testid="account-calendar-absent">{absence}</div>
