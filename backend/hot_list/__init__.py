@@ -9,6 +9,6 @@ only listed stocks whose Buy is Nova (the stock's own Who trades switch, ADR 037
 tie-in; ``following`` whether the scanners follow a listed name and why not (the list shares HOD Momo's
 reserved slots with Former Momo); ``view`` and ``routes`` serve ``/api/hot-list``.
 """
-from hot_list.store import entries_on, is_listed, listed_symbols, trading_day
+from hot_list.store import entries_on, is_listed, listed_or_unread, listed_symbols, trading_day
 
-__all__ = ["entries_on", "is_listed", "listed_symbols", "trading_day"]
+__all__ = ["entries_on", "is_listed", "listed_or_unread", "listed_symbols", "trading_day"]

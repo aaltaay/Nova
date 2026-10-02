@@ -74,6 +74,7 @@ def answer(day: str, now: float, *, today: bool) -> dict[str, Any]:
         state = None
     ctx = trigger_cells.Context(
         timeline=Timeline(rows, restarts=trigger_cells.restarts(lines, start)), rules=rules, listed=listed,
+        spans=inputs.hot_spans(rows),
         hot_error=None if hot_src["ok"] else hot_src["error"],
         audit_error=None if audit_src["ok"] else audit_src["error"])
     if state is not None:

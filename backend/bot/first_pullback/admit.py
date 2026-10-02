@@ -137,7 +137,7 @@ def listed(sym: str) -> tuple[bool, str | None]:
     try:
         import hot_list
 
-        return bool(hot_list.is_listed(sym)), None
+        return hot_list.listed_or_unread(sym)
     except Exception:
         logger.warning("bot: today's hot list could not be read -- %s counts as not listed", sym, exc_info=True)
         return False, "today's hot list could not be read (the backend log has the error)"

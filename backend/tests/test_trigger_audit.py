@@ -297,3 +297,31 @@ def test_the_nearest_record_tells_a_setting_at_any_moment():
     assert tl.mode_at("paper", "B", 350.0, lambda: "signal") == "signal"   # "from" of the 400 line
     assert tl.mode_at("paper", "C", 250.0, lambda: "bot") == "bot"         # a restart keeps the bot list
     assert tl.mode_at("paper", "C", 250.0, lambda: "signal") == UNKNOWN    # ... but not what a switch was
+
+
+def test_the_hot_list_square_reads_when_a_stock_was_listed_and_taken_off():
+    """A star or the auto feed opens a span, a removal ends it, the 04:00 rollover ends them all; a trigger
+    is judged by the span it fell in, so a stock taken off before its trigger reads red."""
+    from bot import trigger_cells
+    from bot.trigger_inputs import hot_spans
+
+    def line(ts, event, symbol=None):
+        inputs = {"event": event, **({"symbol": symbol} if symbol else {})}
+        return {"action": "hot_list", "outcome": event, "timestamp": ts, "inputs": inputs}
+
+    rows = [line(at(4, 0), "rollover"), line(at(7, 5), "star", "AISP"), line(at(9, 50), "remove", "AISP"),
+            line(at(7, 12), "auto", "LGHL"), line(at(10, 30), "star", "AISP")]
+    spans = hot_spans(rows)
+    assert spans["AISP"] == [{"start": at(7, 5), "end": at(9, 50), "how": "star"},
+                             {"start": at(10, 30), "end": None, "how": "star"}]
+    ctx = trigger_cells.Context(timeline=Timeline([]), rules={}, spans=spans)
+    judge = lambda sym, ts: trigger_cells._hot({"symbol": sym, "ts": ts}, ctx)  # noqa: E731
+    assert judge("AISP", at(9, 41)) == {"ok": True, "why": "starred at 07:05 ET (taken off at 09:50 ET)"}
+    assert judge("AISP", at(10, 20)) == {"ok": False, "why": "AISP was taken off the hot list at 09:50 ET, before "
+                                                               "this trigger"}
+    assert judge("AISP", at(10, 31))["ok"] is True
+    assert judge("LGHL", at(7, 1)) == {"ok": False, "why": "listed at 07:12 ET, after this trigger"}
+    assert judge("LGHL", at(8, 0)) == {"ok": True, "why": "listed by the leaders rule at 07:12 ET"}
+    # The next rollover ends every span still open.
+    later = hot_spans(rows + [line(at(4, 0, day="2026-10-01"), "rollover")])
+    assert later["LGHL"][-1]["end"] == at(4, 0, day="2026-10-01")

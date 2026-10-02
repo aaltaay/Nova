@@ -25,8 +25,6 @@ from constants_hot_list import (
     HOT_LIST_NOVA_TRADE,
 )
 from constants_stock_mode import (
-    STOCK_MODE_AUTO_ENTRY,
-    STOCK_MODE_BOT,
     STOCK_MODE_SIDE_NOVA,
     STOCK_MODE_SIDE_YOU,
     STOCK_MODE_SIGNAL,
@@ -40,9 +38,6 @@ from stock_mode.errors import StockModeError
 logger = logging.getLogger(__name__)
 
 _NOTE_ID = "hot_list_default"
-_UNREADABLE_ID = "hot_list_unreadable"
-_NOT_LISTED_ID = "hot_list_not_listed"
-_NOVA_BUY_MODES = (STOCK_MODE_AUTO_ENTRY, STOCK_MODE_BOT)
 
 
 def _side_words(buy: str, sell: str) -> str:
@@ -143,8 +138,8 @@ async def apply_default(sym: str, *, now: float | None = None) -> bool:
 
 def notes(sym: str, mode: str, venue: str | None, replay: bool) -> list[dict[str, Any]]:
     """The stock's own view (``stock_mode.view``): a listed name the default would give a Nova side that this
-    venue does not allow (so it stays You · You); and, for a stock whose Buy is Nova, a list that does not hold
-    it or cannot be read -- Nova buys only listed stocks."""
+    venue does not allow (so it stays You · You). A stock whose Buy is Nova and that the list does not hold (or
+    cannot be read) is said by the view itself, beside the other reasons Nova would not buy it."""
     from stock_mode import model
 
     try:
@@ -153,16 +148,8 @@ def notes(sym: str, mode: str, venue: str | None, replay: bool) -> list[dict[str
         logger.warning("hot list: today's list could not be read for %s's view", sym, exc_info=True)
         doc, error = None, f"{type(exc).__name__}: {exc}"
     if doc is None or error is not None:
-        if mode not in _NOVA_BUY_MODES:
-            return []
-        return [{"id": _UNREADABLE_ID, "tone": "warn",
-                 "text": f"Today's hot list cannot be read ({error}): Nova buys only listed stocks, so it buys "
-                         f"nothing here, {sym} included."}]
+        return []
     listed = sym in service.listed(doc)
-    if mode in _NOVA_BUY_MODES and not listed:
-        return [{"id": _NOT_LISTED_ID, "tone": "warn",
-                 "text": f"{sym} is not on today's hot list, and Nova buys only listed stocks: star it (setting Buy "
-                         "to Nova again does too)."}]
     if mode != STOCK_MODE_SIGNAL or not listed:
         return []
     buy, sell = doc["default"]["buy"], doc["default"]["sell"]

@@ -128,6 +128,7 @@ class Context:
     timeline: Timeline
     rules: dict[str, dict[str, Any]]                     # setup -> {grades, setups_a_day, window, error}
     listed: dict[str, dict[str, Any]] = field(default_factory=dict)   # symbol -> its hot list entry
+    spans: dict[str, list[dict[str, Any]]] = field(default_factory=dict)  # symbol -> when it was listed (audit)
     hot_error: str | None = None
     audit_error: str | None = None
     level_now: Callable[[str | None, str], Any] = lambda venue, setup: None
@@ -198,9 +199,27 @@ def _window(t: dict[str, Any], rules: dict[str, Any]) -> dict[str, Any]:
     return cell(inside, f"{at:%H:%M} ET, {said} the {w['start']}-{w['end']} bot window")
 
 
+def _hot_span(t: dict[str, Any], runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """The square from the spans the audit stream recorded: listed at the trigger, taken off before it, or
+    listed only after it."""
+    for run in runs:
+        if run["start"] <= t["ts"] and (run["end"] is None or t["ts"] < run["end"]):
+            how = "starred" if run["how"] == "star" else "listed by the leaders rule"
+            off = f" (taken off at {hhmm(run['end'])} ET)" if run["end"] is not None else ""
+            return cell(True, f"{how} at {hhmm(run['start'])} ET{off}")
+    ended = [r for r in runs if r["end"] is not None and r["end"] <= t["ts"]]
+    if ended:
+        return cell(False, f"{t['symbol']} was taken off the hot list at {hhmm(ended[-1]['end'])} ET, before this "
+                           "trigger")
+    return cell(False, f"listed at {hhmm(runs[0]['start'])} ET, after this trigger")
+
+
 def _hot(t: dict[str, Any], ctx: Context) -> dict[str, Any]:
     if ctx.hot_error:
         return cell(None, ctx.hot_error)
+    runs = ctx.spans.get(t["symbol"])
+    if runs:
+        return _hot_span(t, runs)
     entry = ctx.listed.get(t["symbol"])
     if entry is None:
         return cell(False, f"{t['symbol']} was not on the day's hot list")

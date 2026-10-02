@@ -2755,11 +2755,13 @@ triggers went unbought for five reasons no screen showed together. ADR 043 amend
 /api/bot/session/switch {on: boolean, reenable?: boolean}` (API key) answers the session view.
 - **ON** puts the venue's master `level` at Strategy (2) and activates. It is refused like Activate:
   409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN`, `BOT_PADLOCK_LOCKED`,
-  `BOT_NO_SETUP_AT_STRATEGY` (no strategy is On), and `BOT_TRIP_LATCHED` unless `reenable`.
+  `BOT_NO_SETUP_AT_STRATEGY` (no strategy is On), and `BOT_TRIP_LATCHED` unless `reenable`. A
+  successful ON returns `desk_arm_token`, as `/arm` does.
 - **OFF** deactivates (`deactivated.reason: "operator"`) and puts the master at Eyes (1), so setups
   at Eyes or On still propose.
-- **The bot trip** (`bot/autonomy.drop_to_l0`, now to Eyes) also leaves the master at Eyes (1), not Off.
-- Each change is a `bot_switch` audit line, `inputs: {on, from_level, to_level}`.
+- **The bot trip** (`bot/autonomy.drop_to_eyes`, `drop_to_l0` kept as its alias) also leaves the master at
+  Eyes (1), not Off; its `breaker_soft` line's outcome reads `eyes`.
+- Each change is a `bot_switch` audit line, outcome `on` | `off`, `inputs: {on, from_level, to_level}`.
 - The session view adds `bot_on: boolean` (active with the master at Strategy) and `switch: {on, venue,
   why_off: string | null, latched: {at, pnl, until} | null}`.
 - The localhost bot API's `level` stays readable, and `PATCH {level}` stays for it.
@@ -2770,8 +2772,12 @@ triggers went unbought for five reasons no screen showed together. ADR 043 amend
   - `bot_setups_a_day`: 1 (default) or 2.
 - `bot/first_pullback/admit.blockers` reads both from each setup's template in play:
   - a grade the template does not buy is `BOT_SKIP_GRADE` ("grade B: this strategy buys grade A only");
-  - a setup whose `nth` is over `bot_setups_a_day` is `BOT_SKIP_NOT_FIRST` ("a 2nd first pullback:
-    this strategy buys the 1st of the day only").
+  - a setup whose `nth` is over `bot_setups_a_day` keeps its code `BOT_NOT_FIRST_OF_DAY` ("a 2nd first
+    pullback: this strategy buys the 1st of the day only").
+- The built-in template takes them too: `PATCH /api/setups/templates/{setup}/default` accepts bot-group
+  values only (a name, a note or any scanner value is still `TEMPLATE_BUILTIN`). They are stored as
+  `setups.{SETUP}.default_bot` in `setup-templates.json`, only the values that differ from the defaults,
+  and the answer is `rules_changed: false` with the revision unchanged.
 - A strategy at Off draws nothing on the charts.
 
 **Today's hot list** (owner `backend/hot_list/`): the stocks Nova watches all day and may trade.
@@ -2779,34 +2785,51 @@ triggers went unbought for five reasons no screen showed together. ADR 043 amend
   | 5 | 10, default: {buy: "you" | "nova", sell: "you" | "nova"}, entries: [{symbol, how: "auto" |
   "star", at, board: "gainers" | null, rank: integer | null, change_pct: number | null}], yesterday:
   string[]}`.
-  - `date` is the trading day, which starts at 04:00 ET; `at` is epoch seconds.
+  - `date` is the trading day, which starts at 04:00 ET; `at` is epoch seconds; `change_pct` is a fraction
+    (0.6 = +60%), as on leaderboard rows. `yesterday` is the last day that had names, so Monday's
+    bring-back finds Friday's.
   - Written through a temp file and a rename. An unknown version or an unreadable file reads as an
-    empty list with the error stated, and writes are refused.
+    empty list with the error stated, and writes are refused 409 `HOT_LIST_UNREADABLE` (also when the
+    file cannot be written).
   - `HOT_LIST_CAP` is 20. Each day is also kept read-only as `hot-list/YYYY-MM-DD.json` for the
     triggers audit.
 - **Auto** (`hot_list/auto.py`), every `HOT_LIST_AUTO_TICK_SEC` from `HOT_LIST_AUTO_START_ET` (07:00) to
   `HOT_LIST_AUTO_END_ET` (16:00): the live Gainers board through `scanner_surface.surface_rows` and
-  `leaderboard.ranking.rank_rows` with `LEADERS_RULES`, its top `auto_n`. A name is added once, sticky
-  for the day.
+  `leaderboard.ranking.rank_rows` with `LEADERS_RULES`, its top `auto_n`. A name is added once a day and
+  stays: one the operator takes off is not added again that day (remembered in memory, and re-read from
+  the audit stream after a restart).
 - **At 04:00 ET**:
   - `entries` move to `yesterday`;
   - every venue's bot list (`symbol_allowlist`) and every Auto-entry / Approve switch are cleared,
     with a `hot_list` audit line `{event: "rollover", cleared}`;
   - trades Nova holds keep their exits.
-- **Followed by the scanners.** Listed names are admitted to HOD Momo's active set first, ahead of
-  Former Momo (`hod_momo_active.build_active_set`), so they get an L1 line, a snapshot and bars.
-  `GET /api/setups/symbol/{symbol}`'s `followed_note` names the hot list.
+- **Followed by the scanners.** Listed names share HOD Momo's 20 reserved slots
+  (`HOD_MOMO_FORMER_MOMO_MAX_SLOTS`) with Former Momo (`hod_momo_active.build_active_set`): the hot list
+  first, in list order, then Former Momo fills what is left, so live movers keep at least 20 of the 40. A
+  name on both counts once. A listed name past the 20 is admission reason `hot_list_over_reserved` (it can
+  still win a mover's slot on its own move); one IBKR cannot stream is `hot_list_l1_blocked` and frees its
+  slot. `GET /api/setups/symbol/{symbol}`'s `followed_note` says why a listed name is not followed.
 - **Who trades the stock.** The stock's Buy / Sell switch (ADR 037) is the only "who":
   - setting Buy to Nova stars the stock (409 `HOT_LIST_FULL` when there is no room, before anything
     changes);
-  - a new name takes `default` on the desk's venue when that venue allows a Nova side (otherwise it
-    stays You · You, said in `notes`);
+  - a new name takes `default` on the desk's venue when that venue allows a Nova side and the stock is
+    at Signal only with no Nova trade (otherwise it stays You · You, said in the view's
+    `hot_list_default` note);
   - removing a stock sets it to You · You on every venue, and is refused 409 `HOT_LIST_NOVA_TRADE`
     while Nova has an open trade on it;
-  - Nova buys only listed stocks: an unlisted trigger is `BOT_SKIP_NOT_LISTED`.
+  - Nova buys only listed stocks: an unlisted trigger is `BOT_SKIP_NOT_LISTED`, and the stock's Who
+    trades view says so once, in its `not_listed` note. A list that cannot be read lists nothing, and
+    both say it could not be read.
+- **Audited.** Every change is a `hot_list` line on the bot's audit stream, outcome and `inputs.event` one
+  of `rollover` | `auto` | `star` | `remove` | `settings` | `default`, with the symbol where there is one.
+  The triggers table reads them for when a stock was listed and taken off.
 - **Routes** (writes need the API key):
   - `GET /api/hot-list` -> `{schema_version: 1, date, cap, auto: {n, start, end, rule, error}, default,
-    entries: [{symbol, how, at, board, rank, change_pct, followed}], yesterday, error}`;
+    entries: [{symbol, how, at, board, rank, change_pct, followed: boolean | null, why_not_followed:
+    string | null}], yesterday, error}` -- `why_not_followed` is null while `followed` is true: "HOD Momo's
+    20 reserved slots are full", IBKR could not open the name's line, the scanner has not picked it up
+    yet, or the active set has not been rebuilt since it was listed; `followed` is null when the scanner
+    could not be read;
   - `POST /api/hot-list/star {symbol}`;
   - `DELETE /api/hot-list/{symbol}`;
   - `PATCH /api/hot-list {auto_n?, default_buy?, default_sell?}`;
@@ -2835,6 +2858,11 @@ triggers went unbought for five reasons no screen showed together. ADR 043 amend
   journal recorded them. It reads the hot list, the stock's mode and the strategy's level from the day's
   list file and the audit stream at its moment. `judged_now` names the gates judged with today's
   settings because nothing recorded them.
+- **`grade`** also carries NOT A TRADE's own checks (grade C, the spread, too thin), so every block has
+  its red square.
+- **A setting at a trigger** is the nearest audit record before it; one that a restart, a venue change or
+  the rollover hides reads `null`. **`hot_list`** reads the spans of the day's `hot_list` audit lines:
+  listed at the trigger, taken off before it, or listed only after it.
 - **BLIND** is the Level 2 line's red, never the tape's.
 - **`now`** (today only) is each listed ticker this minute.
 
@@ -3706,15 +3734,19 @@ at most 12; owner `components/tickerSearchRecents.ts`).
 
 ### The operator's watch list and its toasts (operator asks, 2026-09-23 and 2026-09-24)
 
-A hand-picked list, kept in the desk: `localStorage` `nova.watch.list` =
-`{schema_version: 1, symbols: string[]}` -- newest first, upper-case tickers
-matching `^[A-Z][A-Z0-9./-]{0,11}$`, at most 200 (owner
-`watch_list/watchListStore.ts`; an unknown `schema_version` is ignored, never
-guessed). Every window of the desk shares it through the `storage` event; no
-backend route reads or writes it. A symbol is added or removed from a scanner
-row's hover actions (Watch / Watching), the symbol menu (right-click a scanner
-row, a HOD Momo strip or alert row, a Contenders or Setups row, a Desk board or
-Focus rail row, a Trader tab), the chart menu, or the Watch list tab.
+**The watch list is today's hot list** (ADR 043, "One Bots page" above; owner
+`watch_list/watchListStore.ts`, over `hot_list`). A symbol is starred on or taken
+off from a scanner row's hover actions (★ / ★ Listed), the symbol menu's ★ row
+(right-click a scanner row, a HOD Momo strip or alert row, a Contenders or Setups
+row, a Desk board or Focus rail row, a Trader tab), the chart menu, the Trader's
+Who trades row, Tickers today on the Bots page, or the Hot list tab (the old Watch
+list tab). A write shows at once and is undone when the backend refuses it, in the
+backend's words. The list is the backend's, fresh at 04:00 ET, so the leaders
+rule's names are on it too. The list this desk kept before (`localStorage`
+`nova.watch.list` = `{schema_version: 1, symbols: string[]}`, an unknown version
+ignored) is only read now: the Hot list tab offers once to star what fits, or to
+forget it, and then removes the key. The sample desk keeps its own list in memory
+and sends nothing.
 
 A live `/ws/hod-momo` `alert` frame for a watched symbol -- any strategy,
 Running Up (12) included (operator ask, same day); never the `initial`
@@ -3724,8 +3756,8 @@ in the main desk window: "XYZ hit HOD Momo" once a HOD Momo strategy fired,
 strategy, price, change, volume and RVOL, each left out when unknown. One toast
 per symbol: a burst folds into it (count and strategies); it leaves
 `WATCH_TOAST_TTL_MS` (20 s) after its newest alert unless hovered. Open goes to
-the symbol, Stop watching removes it, × dismisses. It places nothing. HOD
-Momo's tradeable floor still applies: a watched symbol the master gate refuses
+the symbol, Take off the hot list removes it, × dismisses. It places nothing. HOD
+Momo's tradeable floor still applies: a listed symbol the master gate refuses
 raises no alert, so no toast.
 
 **A setup forming on a watched symbol** (operator ask, 2026-09-24: "shouldn't

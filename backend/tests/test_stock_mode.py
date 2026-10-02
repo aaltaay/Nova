@@ -257,8 +257,11 @@ def test_the_notes_say_a_stock_off_todays_hot_list(paper):
     put(paper, "nova", "you")
     assert "not_listed" not in {n["id"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
     (cache_dir() / HOT_LIST_FILE).unlink()
-    notes = {n["id"]: n["text"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
+    said = client.get(f"/api/stock-mode/{SYM}").json()["notes"]
+    notes = {n["id"]: n["text"] for n in said}
     assert notes["not_listed"] == "IMCC is not on today's hot list: Nova buys only listed stocks."
+    # Said once: the hot list's tie-in adds no second "not listed" note.
+    assert [n for n in said if "hot list" in n["text"]] == [{"id": "not_listed", "tone": "warn", "text": notes["not_listed"]}]
 
 
 def test_the_view_says_the_size_nova_would_send(paper, monkeypatch):

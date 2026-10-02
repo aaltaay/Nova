@@ -117,6 +117,46 @@ def hot_list(day: str) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     return listed, ok()
 
 
+def hot_spans(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """When each stock was on the hot list, from the day's ``hot_list`` audit lines: ``{SYMBOL: [{start, end,
+    how}]}`` oldest first, ``end`` None while it is still listed. A star or the auto feed opens a span, a
+    removal ends it, and the 04:00 rollover ends them all. A stock with no such line has no spans: its
+    entry's own ``at`` is all that is known."""
+    from bot.trigger_cells import num
+    from constants_hot_list import (
+        HOT_LIST_AUDIT_ACTION,
+        HOT_LIST_EVENT_AUTO,
+        HOT_LIST_EVENT_REMOVE,
+        HOT_LIST_EVENT_ROLLOVER,
+        HOT_LIST_EVENT_STAR,
+    )
+
+    spans: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if row.get("action") != HOT_LIST_AUDIT_ACTION:
+            continue
+        ts = num(row.get("timestamp"))
+        if ts is None:
+            continue
+        inputs = row.get("inputs") or {}
+        event = inputs.get("event") or row.get("outcome")
+        sym = str(inputs.get("symbol") or "").strip().upper()
+        if event == HOT_LIST_EVENT_ROLLOVER:
+            for runs in spans.values():
+                if runs[-1]["end"] is None:
+                    runs[-1]["end"] = ts
+            continue
+        if not sym:
+            continue
+        runs = spans.setdefault(sym, [])
+        if event in (HOT_LIST_EVENT_STAR, HOT_LIST_EVENT_AUTO):
+            if not runs or runs[-1]["end"] is not None:
+                runs.append({"start": ts, "end": None, "how": "auto" if event == HOT_LIST_EVENT_AUTO else "star"})
+        elif event == HOT_LIST_EVENT_REMOVE and runs and runs[-1]["end"] is None:
+            runs[-1]["end"] = ts
+    return {sym: runs for sym, runs in spans.items() if runs}
+
+
 def rules() -> dict[str, dict[str, Any]]:
     """Each strategy's bot rules today: ``{grades, setups_a_day, template, error, window: {start, end, open,
     error}}`` -- its template in play's (``bot.strategy_rules``, ``bot.entry_rules.window``)."""

@@ -259,6 +259,17 @@ def is_listed(symbol: str, now: float | None = None) -> bool:
     return (symbol or "").strip().upper() in set(listed_symbols(now))
 
 
+def listed_or_unread(symbol: str, now: float | None = None) -> tuple[bool, str | None]:
+    """Whether ``symbol`` is on today's list, and -- when the list cannot be read -- why, in words a page can
+    show (the file's own error goes to the log, never to the desk). Unreadable lists nothing: not listed."""
+    doc, error = current(now)
+    if error is not None:
+        logger.warning("hot list: today's list cannot be read -- %s counts as not listed: %s", symbol, error)
+        return False, "today's hot list could not be read (the backend log has the error)"
+    sym = (symbol or "").strip().upper()
+    return sym in {str(e.get("symbol") or "").upper() for e in doc.get("entries") or []}, None
+
+
 def entries_on(day: str) -> tuple[list[dict[str, Any]] | None, str | None]:
     """The list's entries for a past or present day (the day copy, else today's file), with any error."""
     if not is_date(day):

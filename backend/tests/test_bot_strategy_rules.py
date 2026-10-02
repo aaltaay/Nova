@@ -213,9 +213,16 @@ def test_an_unreadable_hot_list_lists_nothing_and_says_why(monkeypatch):
 
     ready_l2(brain=None, symbols=("IMCC",))
 
-    def broken(symbol, now=None):
+    def broken(path=None):
+        return None, "hot-list.json is unreadable: disk gone"
+
+    monkeypatch.setattr("hot_list.store.read_raw", broken)
+    said = _codes(_event())["BOT_SKIP_NOT_LISTED"]
+    assert said.startswith("today's hot list could not be read") and "disk gone" not in said
+
+    def raising(symbol, now=None):
         raise OSError("disk gone")
 
-    monkeypatch.setattr("hot_list.is_listed", broken)
+    monkeypatch.setattr("hot_list.listed_or_unread", raising)
     said = _codes(_event())["BOT_SKIP_NOT_LISTED"]
     assert said.startswith("today's hot list could not be read") and "disk gone" not in said
