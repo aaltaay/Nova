@@ -161,8 +161,8 @@ class BullFlagDetector(TriggerDetector):
             if self.state == SETUP_STATE_WATCHING:
                 self.reason = f"warming up ({n}/{need} bars)"
             return []
-        if self.state == SETUP_STATE_TRIGGERED and self.nth >= self.p.max_per_symbol_day:
-            return []                     # the first and second flag are used
+        if self.nth >= self.p.max_per_symbol_day:
+            return []                     # the first and second flag are used (or were, before a restart)
         last = n - 1
         prev = self.armed if self.state in (SETUP_STATE_ARMED, SETUP_STATE_NEAR) else None
         run = self._red_run(last)
