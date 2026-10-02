@@ -219,3 +219,27 @@ in APUS on 2026-09-24; then "1 go", and "lets move these targets ... to the 10 s
   operator's APUS trade the early calls (the flush and the proposed stop at 08:47) would have sold near the
   low of a trade that, averaged down, made +$156; on the last 100 shares the calls sold within cents of the
   operator. One trade proves nothing; the calls describe, and trial T1 measures.
+
+## Amendment 2026-10-01 (night) -- dilution filings on file
+
+Operator ask: show the dilution filings on file -- an S-3 / F-3 shelf, a 424B prospectus, an S-1 / F-1, an
+8-K Item 3.02 -- on the stock read.
+
+- **Context.** The float group's "Dilution today" row reads today's catalyst items. What the registrant
+  already has on file with the SEC was not on the read, and no owner held it: the catalyst feed records
+  filings as they are published and keeps them for the live verdict's window, not a registrant's list.
+- **Decision.** One more row in the float group, `dilution_on_file`, from SEC EDGAR's submissions file for
+  the symbol's CIK: a shelf (S-3 / F-3 family) filed within three years, any 424B within 180 days, an S-1 /
+  F-1 within 180 days, an 8-K whose Items include 3.02 within 180 days. `warn` when any is on file, `ok`
+  when the registrant is known and none is, `unknown` otherwise. The schema is in AGENTS.md §3.
+- **The read still never waits.** Decision 3 stands: cache reads only. The read asks a reader that answers
+  from memory; the reader fetches in the background on the first ask, paced under SEC's fair-access limit
+  beside the catalyst feed, and keeps each symbol's read for its session day (until 04:00 ET) in a small
+  SQLite file with a schema version. This is the package's first fact that no other owner holds, so
+  `stock_read/` owns its reader and its store.
+- **Why `unknown` is wide.** A row that reads clean on a guess is worse than no row. EDGAR pages a long
+  list, so a kind is "none" only when the list was read back to the start of its window; a clean answer
+  past its day reads `unknown` until EDGAR is read again, while a filing found stays `warn` (it is still
+  on file); a symbol SEC's ticker list does not hold, and an EDGAR that did not answer, say so.
+- **Not decided here.** Nothing gates, scores or sizes on the row, the plan's checks do not read it, and
+  the Float tile's verdict stays the float's.

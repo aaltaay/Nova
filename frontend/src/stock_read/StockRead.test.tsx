@@ -346,6 +346,31 @@ describe('the tiles and the sheet', () => {
     expect(screen.getAllByTestId(/stock-read-row-/).map(r => r.getAttribute('data-testid'))).toEqual(['stock-read-row-borrow']);
   });
 
+  it('shows "Dilution on file" in the Float tile, its source named SEC EDGAR', async () => {
+    const onFile = {
+      id: 'dilution_on_file', label: 'Dilution on file', value: 'S-3 shelf 2025-03, 424B5 2026-08', state: 'warn',
+      detail: 'Shelf registration: S-3 filed 2025-03-14. Prospectus: 424B5 filed 2026-08-11.',
+      source: 'sec_edgar', as_of: apusAt(7, 2),
+    };
+    respond(/\/api\/stock-read\/APUS(\?|$)/, {
+      ...apusReadWire,
+      groups: apusReadWire.groups.map(g => (g.id === 'float' ? { ...g, rows: [...g.rows, onFile] } : g)),
+    });
+    renderRail();
+    const tile = await screen.findByTestId('stock-read-tile-float');
+    expect(tile.querySelectorAll('.sr-dot--warn')).toHaveLength(1);
+    expect(tile.textContent).toContain('Unknown'); // the tile's word is still the float's
+    fireEvent.focus(tile);
+    const row = within(await screen.findByTestId('stock-read-popover')).getByTestId('stock-read-row-dilution_on_file');
+    expect(row.textContent).toContain('Dilution on file');
+    expect(row.textContent).toContain('S-3 shelf 2025-03, 424B5 2026-08');
+    expect(row.querySelector('.sr-row__source')?.textContent).toBe('SEC EDGAR');
+    fireEvent.click(tile);
+    fireEvent.change(await screen.findByTestId('stock-read-search'), { target: { value: 'sec edgar' } });
+    expect(screen.getAllByTestId(/stock-read-row-/).map(r => r.getAttribute('data-testid')))
+      .toEqual(['stock-read-row-dilution_on_file']);
+  });
+
   it("lists the bot's day and frames a decision on the chart", async () => {
     renderRail();
     fireEvent.click(await screen.findByTestId('stock-read-all'));

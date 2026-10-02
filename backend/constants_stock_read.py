@@ -95,6 +95,43 @@ STOCK_READ_HISTORY_READ_DAYS = 260          # daily bars read for the runs (abou
 STOCK_READ_HISTORY_CHART_DAYS = 120         # daily bars sent for the history chart
 STOCK_READ_SETUPS_HISTORY_DAYS = 365        # armed setups on the symbol counted this far back
 
+# -- dilution on file (the float group's row; operator ask 2026-10-01) ---------------------------------
+# What SEC EDGAR lists for the symbol's registrant (stock_read/dilution.py). A window is counted in days
+# from a filing's date to today's Eastern date, the day itself included.
+STOCK_READ_DILUTION_SOURCE = "sec_edgar"    # the row's ``source``
+STOCK_READ_DILUTION_SHELF_FORMS = ("S-3", "S-3/A", "S-3ASR", "F-3", "F-3/A", "F-3ASR")
+STOCK_READ_DILUTION_SHELF_DAYS = 3 * 365    # a shelf registration filed within the last three years
+STOCK_READ_DILUTION_PROSPECTUS_PREFIX = "424B"   # any 424B*: 424B1 .. 424B8
+STOCK_READ_DILUTION_PROSPECTUS_DAYS = 180
+STOCK_READ_DILUTION_S1_FORMS = ("S-1", "S-1/A", "F-1", "F-1/A")
+STOCK_READ_DILUTION_S1_DAYS = 180
+STOCK_READ_DILUTION_PLACEMENT_FORMS = ("8-K",)
+STOCK_READ_DILUTION_PLACEMENT_ITEM = "3.02"      # an 8-K's Item 3.02: unregistered sales of equity securities
+STOCK_READ_DILUTION_PLACEMENT_DAYS = 180
+STOCK_READ_DILUTION_KEEP_PER_KIND = 20      # filings kept per kind, the newest; a count past it reads "20+"
+# The read of EDGAR (stock_read/dilution_reader.py): in the background, asked by the stock read, never
+# waited for.
+STOCK_READ_DILUTION_ENV = "NOVA_DILUTION_READER"     # "0" turns the reader off (the row then says so)
+STOCK_READ_DILUTION_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
+STOCK_READ_DILUTION_PAGE_URL = "https://data.sec.gov/submissions/{name}"   # an older page of the same list
+STOCK_READ_DILUTION_PAGE_NAME_RE = r"^CIK\d{10}-submissions-\d{3}\.json$"
+STOCK_READ_DILUTION_TTL_SEC = 24 * 3600.0   # a read is reused for a day at most ...
+STOCK_READ_DILUTION_DAY_START_HOUR_ET = 4   # ... and never across 04:00 ET: a session's first ask reads last night's filings
+STOCK_READ_DILUTION_TICKERS_TTL_SEC = 24 * 3600.0    # SEC's ticker -> CIK list, kept in memory this long
+# SEC fair access allows 10 requests a second for the whole desk. The catalyst feed paces its own at up
+# to 6.7 a second (CATALYST_FEED_SEC_MIN_GAP_SEC); this reader adds one, so the two stay under 8.
+STOCK_READ_DILUTION_SEC_MIN_GAP_SEC = 1.0
+STOCK_READ_DILUTION_RETRY_SEC = (30.0, 120.0, 600.0)  # after a failed read: the 1st, 2nd, then every later wait
+# EDGAR's ``recent`` block holds a year or 1,000 filings, whichever is more; older ones are in pages of
+# about 2,000. Pages are read only when at most this many reach back to the shelf window's start (a bank
+# that files thousands of notes a year would need dozens: its shelf is then stated as not known).
+STOCK_READ_DILUTION_MAX_PAGES = 2
+STOCK_READ_DILUTION_DB_DIRNAME = "stock_read"
+STOCK_READ_DILUTION_DB_FILENAME = "dilution.sqlite3"
+STOCK_READ_DILUTION_DB_SCHEMA_VERSION = 1
+STOCK_READ_DILUTION_SQLITE_TIMEOUT_SEC = 30.0
+STOCK_READ_DILUTION_KEEP_DAYS = 30          # a symbol nobody asked about for this long leaves the cache
+
 # -- serving -------------------------------------------------------------------------------------------
 STOCK_READ_CACHE_SEC = 2.0                  # one read per (symbol, entry, stop) serves every poll inside this
 STOCK_READ_BARS_LIMIT = 1000                # one 04:00-20:00 session of 1-min bars (960)

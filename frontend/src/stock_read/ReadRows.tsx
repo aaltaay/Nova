@@ -1,6 +1,6 @@
 /** One group's rows as the tiles' popover and the sheet show them: a dot for what the row says about
  * a long trade, the label, the value, and below them the detail and where the number comes from. */
-import { STATE_WORDS } from './constants';
+import { STATE_WORDS, sourceLabel } from './constants';
 import type { ReadGroup, ReadRow } from './types';
 
 export function ReadRowItem({ row }: { row: ReadRow }) {
@@ -13,7 +13,7 @@ export function ReadRowItem({ row }: { row: ReadRow }) {
         <span className="sr-row__detail">
           {row.detail}
           {row.detail && row.source ? ' · ' : ''}
-          {row.source && <span className="sr-row__source">{row.source}</span>}
+          {row.source && <span className="sr-row__source">{sourceLabel(row.source)}</span>}
         </span>
       )}
     </li>
