@@ -31,6 +31,10 @@ is read when the lane sees that price (``read_at``), not at the price's own stam
 Operator decision 2026-10-01: a setup on a stock too thin to trade is stamped so when it arms, comes
 near, at each closed minute and at its trigger (``lane_liquidity.py``); it never proposes, and its
 trigger tells the bot it is NOT A TRADE.
+
+ADR 022 amendment 2026-10-02: one row per trigger. A setup armed again on a key whose row holds a
+trigger opens the next attempt's row (``KEY#2``), and a detector made mid-day starts from the day's
+triggers on its symbol (``lane_ids.py``).
 """
 from __future__ import annotations
 
@@ -45,7 +49,7 @@ from constants_setups import (
     TAPE_VERDICT_BLIND,
     TAPE_VERDICT_GO,
 )
-from setup_scanner import lane_liquidity, lane_rows, lane_view
+from setup_scanner import lane_ids, lane_liquidity, lane_rows, lane_view
 from setup_scanner.bars import Bar
 from setup_scanner.detector import TriggerDetector, candle_start
 from setup_scanner.detectors import make_detector
@@ -89,6 +93,8 @@ class Lane:
         self.bars: dict[str, list[Bar]] = {}      # symbol -> its one-minute bars (the liquidity reads them)
         self._flow_said: dict[str, str] = {}
         self._flow_next: dict[str, float] = {}
+        self.attempts: dict[str, str] = {}               # a key's first id -> the row its latest setup arms (lane_ids)
+        self.stored_triggered: dict[str, set[str]] = {}  # symbol -> today's ids stored with a trigger before this lane
 
     # -- identity -------------------------------------------------------------
     @property
@@ -118,7 +124,8 @@ class Lane:
     def clear(self) -> None:
         for store in (self.det, self.rows, self.active_id, self.trackers, self.tape_view,
                       self.proposals, self.filtered, self.forming, self.tf5, self.candles, self._tape_said,
-                      self._said, self._priced, self.flow_last, self._flow_said, self._flow_next, self.bars):
+                      self._said, self._priced, self.flow_last, self._flow_said, self._flow_next, self.bars,
+                      self.attempts, self.stored_triggered):
             store.clear()
         self.alerts = []
 
@@ -126,6 +133,7 @@ class Lane:
         det = self.det.get(sym)
         if det is None:
             det = self.det[sym] = make_detector(self.p.setup, sym, self.p.pattern)
+            det.restore(lane_ids.triggers_today(self, sym))   # made mid-day: the day's triggers still count
         return det
 
     def drop(self, sym: str) -> None:
@@ -202,12 +210,12 @@ class Lane:
     # -- events -> rows -----------------------------------------------------------
     def handle(self, sym: str, events: list[tuple[str, dict]], now: float) -> None:
         for kind, view in events:
-            sid = self.sid(sym, view["setup_key"])
-            row = self.rows.get(sid)
             if kind == "leg":
                 self.forming[sym] = {**lane_rows.graded(self, sym, now), "tf5": self.tf5.get(sym)}
                 self.journal("leg", sym, reason=view.get("reason"), leg=view.get("leg"), **self.forming[sym])
                 continue
+            sid = lane_ids.row_id(self, sym, view["setup_key"], kind)   # never a row that holds a trigger
+            row = self.rows.get(sid)
             if kind == "armed":
                 if row is None:
                     row = lane_rows.new_row(self, sym, sid, view, now)
@@ -229,7 +237,7 @@ class Lane:
             elif sid in self.filtered:
                 self._on_filtered(sym, sid, kind, view, row)
                 continue
-            elif kind == "rearmed":
+            elif kind == "rearmed" and not row.get("triggered_at"):
                 lane_rows.copy_setup(row, view)
                 self.journal("rearmed", sym, setup_id=sid, setup=view.get("setup"), reason=view.get("reason"))
                 self._close_proposal(sid, "rearmed")    # its levels are stale; a new read proposes again

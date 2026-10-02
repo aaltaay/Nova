@@ -146,8 +146,8 @@ class FlatTopDetector(TriggerDetector):
             if self.state == SETUP_STATE_WATCHING:
                 self.reason = f"warming up ({n}/{need} bars)"
             return []
-        if self.state == SETUP_STATE_TRIGGERED and self.nth >= self.p.max_per_symbol_day:
-            return []                     # the day's setups on this symbol are used
+        if self.nth >= self.p.max_per_symbol_day:
+            return []                     # the day's setups on this symbol are used (or were, before a restart)
         last = n - 1
         if self.broke is not None and self.armed is not None:
             return self._hold_check(bars, last)

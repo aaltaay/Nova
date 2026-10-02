@@ -100,6 +100,17 @@ class TriggerDetector:
         """The kind a setup armed now would have: the first of the day, then the second."""
         return self.FIRST_KIND if self.nth == 0 or not self.SECOND_KIND else self.SECOND_KIND
 
+    def restore(self, nth: int) -> None:
+        """Start from the day's ``nth`` triggers on this symbol (ADR 022 amendment 2026-10-02): a detector
+        made mid-day -- a restart, the symbol back in the universe, an edited template -- arms a later
+        setup as the second, and a symbol whose day's setups are used arms nothing more."""
+        if nth <= self.nth:
+            return
+        self.nth = int(nth)
+        cap = getattr(self.p, "max_per_symbol_day", None)
+        if cap is not None and self.nth >= cap:
+            self._set(SETUP_STATE_WATCHING, f"the day's setups on this symbol are used ({self.nth} triggered)")
+
     def cutoff(self) -> str:
         """No setup arms, and none triggers, at or after this time (ET)."""
         return str(self.p.entry_cutoff)
