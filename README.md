@@ -11,15 +11,15 @@
 ![Windows desktop](https://img.shields.io/badge/desktop-Windows-0078D6?logo=windows&logoColor=white)
 ![Interactive Brokers](https://img.shields.io/badge/broker-Interactive%20Brokers-D81222)
 
-**[Website](https://nova.altaystudio.com)** &nbsp;·&nbsp; **[Try it in two minutes](#try-it-without-a-broker)** &nbsp;·&nbsp; **[Quick start](#quick-start)** &nbsp;·&nbsp; **[Tour](#tour)** &nbsp;·&nbsp; **[Safety](#safety-model)** &nbsp;·&nbsp; **[Architecture](#architecture)** &nbsp;·&nbsp; **[Releases](https://github.com/aaltaay/Nova/releases)**
+**[Live demo](https://nova.altaystudio.com/demo/)** &nbsp;·&nbsp; **[Website](https://nova.altaystudio.com)** &nbsp;·&nbsp; **[Quick start](#quick-start)** &nbsp;·&nbsp; **[Tour](#tour)** &nbsp;·&nbsp; **[Safety](#safety-model)** &nbsp;·&nbsp; **[Architecture](#architecture)** &nbsp;·&nbsp; **[Releases](https://github.com/aaltaay/Nova/releases)**
 
 </div>
 
 <br />
 
-<img src="docs/readme/hero.webp" alt="Nova's Trader View on sample data: 5-minute, 10-second, daily and 1-minute charts, the trade plan, Level 2, Time &amp; Sales and the order ticket" width="100%" />
+<a href="https://nova.altaystudio.com/demo/"><img src="docs/readme/hero.webp" alt="Nova's Trader View on sample data: 5-minute, 10-second, daily and 1-minute charts, the trade plan, Level 2, Time &amp; Sales and the order ticket" width="100%" /></a>
 
-<p align="center"><sub>Every screenshot on this page shows <b>Nova Marketing Sample Data</b>: no live market, no real account.</sub></p>
+<p align="center"><sub>Every screenshot on this page shows <b>Nova Marketing Sample Data</b>: no live market, no real account. <a href="https://nova.altaystudio.com/demo/">Click around the live demo →</a></sub></p>
 
 ## What is Nova?
 
@@ -147,17 +147,19 @@ Also on board: a **Session Record** of every print and Level 2 book, **screen re
 
 ## Try it without a broker
 
-The sample desk runs the real interface on built-in sample data. It needs only **Node.js 20**: no IB Gateway, no API keys, no backend, and it sends nothing anywhere.
+**[Open the live demo](https://nova.altaystudio.com/demo/)**: the whole desk on Nova Marketing Sample Data, running in your browser. Nothing is installed, and nothing you click is sent anywhere.
+
+To run the same demo on your own machine, you need only **Node.js 20**: no IB Gateway, no API keys, no backend.
 
 ```bash
 git clone https://github.com/aaltaay/Nova.git
 cd Nova/frontend
 npm install
-npm run build
-npm run preview
+npm run build:demo
+npm run preview:demo
 ```
 
-Then open <http://localhost:4173/?view=sample>. **Exit sample** in the header leaves it.
+Then open <http://localhost:4173/demo/>.
 
 ## Quick start
 

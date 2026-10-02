@@ -64,6 +64,9 @@ export default defineConfig(({ command, mode }) => {
   cacheDir: path.resolve(__dirname, '.vite-cache'),
   define: {
     __NOVA_RELEASE_TAG__: JSON.stringify(novaReleaseTag),
+    // ADR 043: only `vite build --mode demo` (npm run build:demo) is the public demo. Every other
+    // build gets the literal '0', so the demo's modules are compiled away.
+    'import.meta.env.VITE_NOVA_DEMO': JSON.stringify(mode === 'demo' ? '1' : '0'),
   },
   plugins: [
     react(),

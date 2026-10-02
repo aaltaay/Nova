@@ -22,7 +22,7 @@ Most of Nova can be worked on without an Interactive Brokers account, IB Gateway
    npm test -- --run
    ```
 
-4. See the UI on the sample desk, which uses built-in sample data and needs no broker: follow [Try it without a broker](README.md#try-it-without-a-broker).
+4. See the UI with no broker: open the live demo or build it yourself, as [Try it without a broker](README.md#try-it-without-a-broker) shows. It runs on built-in sample data.
 5. Pick an issue labelled [`good first issue`](https://github.com/aaltaay/Nova/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Leave a comment that you are on it, so nobody else starts it.
 
 [AGENTS.md](AGENTS.md) is long because it also steers the AI coding agents that work on this repo. For a first pull request, the four rules below are the ones that matter. The rest applies once you touch trading, market data or delivery.
