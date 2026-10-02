@@ -33,6 +33,7 @@ from typing import Any, Callable
 
 from catalysts import feed_sources, feed_store, sec_text
 from catalysts.feed_form4 import Form4Reader
+from catalysts.windows import memory_cutoff
 from constants_catalysts import (
     CATALYST_FEED_COVERAGE_SOURCES,
     CATALYST_FEED_EDGAR_ARCHIVE,
@@ -43,7 +44,6 @@ from constants_catalysts import (
     CATALYST_FEED_FORM4_POLL_SEC,
     CATALYST_FEED_FORM4_SOURCE,
     CATALYST_FEED_HTTP_TIMEOUT_SEC,
-    CATALYST_FEED_MEMORY_HOURS,
     CATALYST_FEED_NEWSFILE_INDUSTRIES,
     CATALYST_FEED_NEWSFILE_POLL_SEC,
     CATALYST_FEED_NEWSFILE_URL,
@@ -160,7 +160,7 @@ class CatalystFeed:
         try:
             if self._db is None:
                 self._db = feed_store.connect()
-            since = now - CATALYST_FEED_MEMORY_HOURS * 3600
+            since = memory_cutoff(now)
             items = feed_store.items_since(self._db, since)
             spans = feed_store.spans_since(self._db, since)
         except Exception as exc:  # noqa: BLE001 -- the feed still runs in memory; the error is shown
@@ -365,7 +365,7 @@ class CatalystFeed:
             self._by_ticker.setdefault(sym, {})[item["item_id"]] = item
 
     def _prune(self, now: float) -> None:
-        cutoff = now - CATALYST_FEED_MEMORY_HOURS * 3600
+        cutoff = memory_cutoff(now)
         with self._lock:
             for sym in list(self._by_ticker):
                 kept = {k: v for k, v in self._by_ticker[sym].items() if v["published_ts"] > cutoff}

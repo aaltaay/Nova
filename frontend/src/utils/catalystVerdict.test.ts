@@ -5,6 +5,7 @@ import {
   isCompanyNews,
   newsMark,
   normalizeCatalystVerdict,
+  normalizePriorSession,
   verdictTooltip,
 } from './catalystVerdict';
 
@@ -64,5 +65,23 @@ describe('catalystHeadline / isCompanyNews', () => {
     expect(isCompanyNews({ ...base, verdict: 'negative' })).toBe(true);
     expect(isCompanyNews({ ...base, verdict: 'noise_only' })).toBe(false);
     expect(isCompanyNews(null)).toBe(false);
+  });
+});
+
+describe('the prior session (rules v8)', () => {
+  const prior = {
+    kind: 'catalyst', category: 'crypto_treasury', strength: 'weak', dilution: true, source: 'edgar',
+    title: '8-K: Acquisition completed; Other events', published_ts: NOW_MS / 1000 - 21 * 3600, url: null,
+  };
+  it('reads the prior session off the wire, and nothing that is not one', () => {
+    expect(normalizeCatalystVerdict({ ...base, prior_session: prior })?.prior_session).toEqual(prior);
+    expect(normalizeCatalystVerdict({ ...base, prior_session: { kind: 'noise' } })?.prior_session).toBeNull();
+    expect(normalizeCatalystVerdict(base)?.prior_session).toBeNull();
+  });
+  it('says it in the tooltip, after the verdict', () => {
+    const tip = verdictTooltip({ ...base, verdict: 'noise_only', prior_session: normalizePriorSession(prior) }, NOW_MS);
+    expect(tip).toContain('Only movers lists');
+    expect(tip).toContain(
+      'Before the prior close (not counted today): Crypto treasury raise (weak): 8-K: Acquisition completed; Other events · SEC · 21h ago');
   });
 });

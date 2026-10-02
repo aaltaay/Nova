@@ -107,7 +107,7 @@ def test_the_news_panel_lists_one_release_once(monkeypatch):
     monkeypatch.setattr(live, "ensure", lambda symbols, now=None: None)
     monkeypatch.setattr(live_finnhub, "ensure", lambda symbol, start, now=None: None)
     title = "Artelo Biosciences Files New Provisional Patent Application Covering ART27.13 for Obesity"
-    monkeypatch.setattr(live, "_feed_view", lambda sym, start, now: (
+    monkeypatch.setattr(live, "_feed_view", lambda sym, start, now, coverage=True: (
         [{"item_id": "globenewswire:x", "source": "globenewswire", "published_ts": NOW - 7000, "title": title,
           "url": "https://www.globenewswire.com/x", "publisher": "GlobeNewswire"}], ["globenewswire"]))
     live_finnhub.record("ARTL", [fh(3, title, NOW - 7000)], start=PRIOR_CLOSE, through=NOW)

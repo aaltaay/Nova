@@ -11,11 +11,14 @@
             reverse-split news
   catalyst  company-specific positive news, ``strong`` or ``weak`` by class -- an officer's or a
             director's open-market purchase on Form 4 included (weak), when its stamped value
-            reaches ``CATALYST_INSIDER_BUY_MIN_USD`` (``catalysts/form4.py``)
+            reaches ``CATALYST_INSIDER_BUY_MIN_USD`` (``catalysts/form4.py``), and a raise paid in or
+            spent on a crypto treasury (weak, with ``dilution``: v8)
 
 ``verdict`` answers for one symbol-day from the items published after the window opened and at
 or before the cutoff -- never later, so a backtest never learns a catalyst from hindsight. A
 verdict says ``none_found`` only when a source actually answered; ``not_checked`` otherwise.
+``best_placed`` names the prior session's own release beside it (v8), and ``shares_issued`` the
+newest filing that says shares were issued -- neither ever changes a verdict.
 
 Pure: no I/O, no clock.
 """
@@ -34,6 +37,7 @@ from constants_catalysts import (
     CATALYST_CLINICAL_STRONG_RE,
     CATALYST_CLINICAL_WEAK_RE,
     CATALYST_CONTRACT_STRONG_RE,
+    CATALYST_CRYPTO_PAIR_RE,
     CATALYST_CONTRACT_WEAK_RE,
     CATALYST_DELISTING_RE,
     CATALYST_EARNINGS_STRONG_RE,
@@ -45,6 +49,8 @@ from constants_catalysts import (
     CATALYST_HALT_RE,
     CATALYST_INSIDER_BUY_FORM,
     CATALYST_INSIDER_BUY_MIN_USD,
+    CATALYST_ISSUANCE_IF_RAISE_ITEM,
+    CATALYST_ISSUANCE_ITEM,
     CATALYST_KIND_CATALYST,
     CATALYST_KIND_NEGATIVE,
     CATALYST_KIND_NOISE,
@@ -74,6 +80,8 @@ from constants_catalysts import (
     CATALYST_SUMMARY_CHARS,
     CATALYST_THEME_RE,
     CATALYST_TICKER_RE,
+    CATALYST_TREASURY_CATEGORY,
+    CATALYST_TREASURY_RE,
     CATALYST_UNCLASSIFIED,
     CATALYST_VERDICT_CATALYST,
     CATALYST_VERDICT_NEGATIVE,
@@ -96,6 +104,7 @@ _REBRAND, _REGAINED, _THEME = _rx(CATALYST_REBRAND_RE), _rx(CATALYST_REGAINED_RE
 _FLUFF, _SEC_COVER, _EARN_WEAK = _rx(CATALYST_FLUFF_RE), _rx(CATALYST_SEC_COVER_RE), _rx(CATALYST_EARNINGS_WEAK_RE)
 _OFFER, _OFFER_ENDED, _DELIST = _rx(CATALYST_OFFERING_RE), _rx(CATALYST_OFFERING_ENDED_RE), _rx(CATALYST_DELISTING_RE)
 _CAUSE, _NO_CAUSE, _MULTI_STOCK = _rx(CATALYST_CAUSE_RE), _rx(CATALYST_NO_CAUSE_RE), _rx(CATALYST_MULTI_STOCK_RE)
+_TREASURY, _CRYPTO_PAIR = _rx(CATALYST_TREASURY_RE), re.compile(CATALYST_CRYPTO_PAIR_RE)
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s")
 _TICKER_TAG = re.compile(CATALYST_TICKER_RE)  # "(NASDAQ:PGY)": a screen publisher writing about one company
 # Categories that name no event: a movers-section article that lands on one of these stays a movers list.
@@ -165,6 +174,23 @@ def _classify_item(title: str | None, summary: str | None, source: str, publishe
 _classify_item_cached = lru_cache(maxsize=CATALYST_CLASSIFY_CACHE_MAX)(_classify_item)
 
 
+def ticker_count(symbols: Iterable[str]) -> int:
+    """How many names an article's symbols cover, for ``n_tickers`` (v8).
+
+    A warrant, unit or share class ("IONQ.WS") names its company again. One crypto pair on a company's
+    story names the coin it is about, not another name (AMOD + BTCUSD is one); several pairs are a crypto
+    market piece, and each counts.
+    """
+    companies, pairs = set(), set()
+    for raw in symbols:
+        sym = str(raw or "").strip().upper()
+        if sym and _CRYPTO_PAIR.search(sym):
+            pairs.add(sym)
+        elif sym:
+            companies.add(sym.split(".", 1)[0])
+    return len(companies) + (0 if len(pairs) == 1 and companies else len(pairs))
+
+
 def _is_screen(title: str | None, publisher: str) -> bool:
     return (publisher or "").strip().lower() in CATALYST_SCREEN_PUBLISHERS and not _TICKER_TAG.search(title or "")
 
@@ -227,6 +253,11 @@ def _classify(title: str | None, summary: str | None, *, source: str, publisher:
     for category, strength, rx in _STRONG:
         if rx.search(text):  # a merger or an offtake announced with its financing is still the catalyst
             return Label(CATALYST_KIND_CATALYST, category, strength, dilution=raising)
+    # v8: a raise paid in, or spent on, a crypto treasury is the event and the dilution at once (AMOD 2026-10-01:
+    # 51.6M new shares for 3,170 bitcoin on ~5M outstanding). A filing's purchase price can come after the opening
+    # the classes read, so its whole stored text is searched.
+    if raising and _TREASURY.search(f"{head} {summary or ''}" if is_sec else head):
+        return Label(CATALYST_KIND_CATALYST, CATALYST_TREASURY_CATEGORY, CATALYST_WEAK, dilution=True)
     if raising:
         return Label(CATALYST_KIND_NEGATIVE, "offering_dilution")
     if _ROUTINE.search(head) or (_REBRAND.search(head) and not _THEME.search(head)):
@@ -270,16 +301,58 @@ def verdict(items: Iterable[Mapping], *, window_start: float, cutoff: float,
     published_ts`` (missing keys are fine). ``sources_answered`` names the sources that looked
     for this ticker and day, found or not.
     """
-    seen = []
-    for it in items:
-        ts = float(it.get("published_ts") or 0.0)
-        if not window_start < ts <= cutoff:
-            continue
-        label = classify_item(it.get("title"), it.get("summary"), source=str(it.get("source") or ""),
-                              publisher=str(it.get("publisher") or ""), n_tickers=it.get("n_tickers"),
-                              form=it.get("form"), sec_items=it.get("sec_items"), url=str(it.get("url") or ""))
-        seen.append((it, label))
+    seen = [(it, label_of(it)) for it in items if window_start < _ts(it) <= cutoff]
     return _decide(seen, sources_answered, CATALYST_RULES_VERSION)
+
+
+def label_of(item: Mapping) -> Label:
+    """``classify_item`` on an item mapping (the keys ``verdict`` documents)."""
+    return classify_item(item.get("title"), item.get("summary"), source=str(item.get("source") or ""),
+                         publisher=str(item.get("publisher") or ""), n_tickers=item.get("n_tickers"),
+                         form=item.get("form"), sec_items=item.get("sec_items"), url=str(item.get("url") or ""))
+
+
+def _ts(item: Mapping) -> float:
+    return float(item.get("published_ts") or 0.0)
+
+
+def best_placed(items: Iterable[Mapping], *, start: float, end: float) -> dict | None:
+    """The best-ranked catalyst or negative item published in (start, end], or None.
+
+    The prior session's own release beside a verdict (v8: ``prior_session``), never counted in it:
+    ``{kind, category, strength, dilution, title, source, published_ts, url}``.
+    """
+    seen = [(it, lb) for it in items if start < _ts(it) <= end
+            for lb in (label_of(it),) if lb.kind in (CATALYST_KIND_CATALYST, CATALYST_KIND_NEGATIVE)]
+    if not seen:
+        return None
+    item, label = min(seen, key=lambda pair: _rank(*pair))
+    return {"kind": label.kind, "category": label.category, "strength": label.strength, "dilution": label.dilution,
+            "title": item.get("title"), "source": item.get("source"), "published_ts": item.get("published_ts"),
+            "url": item.get("url")}
+
+
+def shares_issued(items: Iterable[Mapping], *, start: float, end: float) -> dict | None:
+    """The newest SEC 8-K in (start, end] that says shares were issued, or None (v8).
+
+    Item 3.02 (an unregistered sale of equity) always; Item 2.01 (an acquisition or a disposition
+    closed) when the rules label the filing a raise -- a PIPE closing, an acquisition paid in shares.
+    ``{published_ts, source, form, items, title, url}``. Yahoo's float and share count predate it.
+    """
+    best: dict | None = None
+    for it in items:
+        ts = _ts(it)
+        if not start < ts <= end or it.get("source") != "edgar" or not str(it.get("form") or "").startswith("8-K"):
+            continue
+        codes = {c.strip() for c in str(it.get("sec_items") or "").split(",") if c.strip()}
+        if CATALYST_ISSUANCE_ITEM not in codes:
+            label = label_of(it) if CATALYST_ISSUANCE_IF_RAISE_ITEM in codes else None
+            if label is None or not (label.dilution or label.category == "offering_dilution"):
+                continue
+        if best is None or ts > best["published_ts"]:
+            best = {"published_ts": ts, "source": it.get("source"), "form": it.get("form"),
+                    "items": ",".join(sorted(codes)), "title": it.get("title"), "url": it.get("url")}
+    return best
 
 
 def verdict_from_labels(items: Iterable[Mapping], *, window_start: float, cutoff: float,

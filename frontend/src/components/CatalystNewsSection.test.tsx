@@ -71,3 +71,25 @@ describe('NewsCell with a verdict', () => {
     expect(container.querySelector('.news-flame.flame-hot')).toBeTruthy();
   });
 });
+
+describe('CatalystNewsSection: the prior session (rules v8)', () => {
+  it("names the prior session's release beside a no-catalyst verdict, never as the verdict", () => {
+    const amod: CatalystPanel = {
+      ...panel, symbol: 'AMOD', items: [], items_total: 0,
+      verdict: {
+        verdict: 'noise_only', category: null, strength: null, rules_version: 'catalyst-rules-v8-2026-10-02',
+        title: null, source: null, published_ts: null, url: null, negative_too: false, sources_answered: ['alpaca'],
+        prior_session: {
+          kind: 'catalyst', category: 'crypto_treasury', strength: 'weak', dilution: true, source: 'edgar',
+          title: '8-K: Acquisition completed; Other events', published_ts: now - 21 * 3600, url: 'https://www.sec.gov/amod',
+        },
+      },
+    };
+    render(<CatalystNewsSection panel={amod} />);
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    const prior = screen.getByTestId('cn-verdict-prior');
+    expect(prior.textContent).toContain('Before the prior close (not counted today)');
+    expect(prior.textContent).toContain('Crypto treasury raise (weak): 8-K: Acquisition completed; Other events · SEC · 21h ago');
+    expect(screen.getByText(/Only movers lists/)).toBeTruthy();
+  });
+});

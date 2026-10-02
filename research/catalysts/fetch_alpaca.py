@@ -2,9 +2,12 @@
 
 Targets of one session day share a request of up to 50 symbols over the day's widest window,
 paged to the end; each target then keeps only its own ticker's items inside its own window.
-Resumable: answered targets are skipped.
+Resumable: answered targets are skipped. An item's ``n_tickers`` counts the companies it names, the
+live desk's way (rules v8, ``catalysts.classify.ticker_count``): Alpaca tags a bitcoin story with
+``BTCUSD`` and a company's warrant as ``IONQ.WS``. ``--recount`` rewrites the stored Alpaca rows
+fetched before v8 (their symbols are in ``item_tickers``); nothing is fetched.
 
-Usage:  py -3 research/catalysts/fetch_alpaca.py [--limit-days N]
+Usage:  py -3 research/catalysts/fetch_alpaca.py [--limit-days N] [--recount]
 """
 from __future__ import annotations
 
@@ -17,6 +20,8 @@ from datetime import datetime, timezone
 from cat_config import ALPACA_CALLS_PER_MIN, load_env
 from http_util import HttpRefused, Pacer, get
 from store import connect, pending, put_check, put_items
+
+from catalysts.classify import ticker_count  # the live desk's module (cat_config puts backend/ on the path)
 
 SOURCE = "alpaca"
 URL = "https://data.alpaca.markets/v1beta1/news"
@@ -41,10 +46,29 @@ def fetch(symbols: list[str], start: float, end: float, headers: dict, pacer: Pa
             return out
 
 
+def recount(con) -> int:
+    """Set every stored Alpaca item's ``n_tickers`` to the companies its symbols name. Returns rows changed."""
+    symbols: dict[str, list[str]] = defaultdict(list)
+    for item_id, ticker in con.execute(
+            "SELECT t.item_id, t.ticker FROM item_tickers t JOIN items i ON i.item_id = t.item_id WHERE i.source = ?",
+            [SOURCE]):
+        symbols[item_id].append(ticker)
+    stored = dict(con.execute("SELECT item_id, n_tickers FROM items WHERE source = ?", [SOURCE]))
+    changes = [(ticker_count(syms), item_id) for item_id, syms in symbols.items()
+               if stored.get(item_id) != ticker_count(syms)]
+    with con:
+        con.executemany("UPDATE items SET n_tickers = ? WHERE item_id = ?", changes)
+    return len(changes)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--limit-days", type=int, default=0)
+    ap.add_argument("--recount", action="store_true", help="rewrite stored rows' n_tickers (companies, rules v8)")
     a = ap.parse_args()
+    if a.recount:
+        print(f"alpaca: {recount(connect())} stored items recounted", flush=True)
+        return 0
     load_env()
     kid = os.environ.get("APCA_API_KEY_ID") or os.environ.get("ALPACA_API_KEY_ID")
     sec = os.environ.get("APCA_API_SECRET_KEY") or os.environ.get("ALPACA_API_SECRET_KEY")
@@ -77,10 +101,11 @@ def main() -> int:
             items = []
             for n in news:
                 ts = datetime.fromisoformat(str(n["created_at"]).replace("Z", "+00:00")).timestamp()
+                tickers = [s.upper() for s in n.get("symbols") or []]
                 items.append({"item_id": f"alpaca:{n['id']}", "source": SOURCE, "published_ts": ts,
                               "title": n.get("headline"), "summary": (n.get("summary") or "")[:2000],
                               "url": n.get("url"), "publisher": n.get("source") or n.get("author"),
-                              "tickers": [s.upper() for s in n.get("symbols") or []]})
+                              "tickers": tickers, "n_tickers": ticker_count(tickers)})
             with con:
                 put_items(con, items)
                 for t in chunk:

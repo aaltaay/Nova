@@ -6,7 +6,7 @@ routine announcements, then dilution, then the positive classes strongest first.
 """
 from __future__ import annotations
 
-CATALYST_RULES_VERSION = "catalyst-rules-v7-2026-09-24"
+CATALYST_RULES_VERSION = "catalyst-rules-v8-2026-10-02"
 
 # Verdicts for one symbol-day.
 CATALYST_VERDICT_CATALYST = "catalyst"      # a real, company-specific positive catalyst
@@ -37,6 +37,11 @@ CATALYST_OPINION_PUBLISHERS = ("the motley fool", "zacks investment research", "
 # tags no ticker is a screen; one that does ("Pagaya Technologies (NASDAQ:PGY) Soars After Q1 Earnings Beat")
 # is judged like any rewrite.
 CATALYST_SCREEN_PUBLISHERS = ("chartmill",)
+# v8: what an article's symbols name (``classify.ticker_count``). A company's warrant, unit or share class
+# ("IONQ.WS") names the company again, and one crypto pair ("BTCUSD") on a company's story names the coin it is
+# about: AMOD's after-hours rewrite, tagged AMOD + BTCUSD, was never read as a one-ticker piece. Several pairs are
+# a crypto market piece, and each counts.
+CATALYST_CRYPTO_PAIR_RE = r"^(?=[A-Z0-9]{6,}$)[A-Z0-9]+(USD|USDT|USDC)$|/"
 # Sources ranked for the representative item of a verdict (a filing beats a rewrite of it).
 CATALYST_SOURCE_RANK = ("edgar", "globenewswire", "prnewswire", "newsfile", "fda", "alpaca", "finnhub", "massive")
 # How much of a press release's opening the classifier reads besides its headline.
@@ -118,6 +123,7 @@ CATALYST_CAUSE_RE = (
     # "just days after the company announced a buyback" dates something else; it is not the cause.
     # (\b: "Wednesday after the company announced" is a cause).
     r"(?<!\bdays )(?<!\bday )(?<!\bweeks )(?<!\bweek )(?<!\bmonths )(?<!\bmonth )"
+    # "jumped 23% after-hours on earnings beat" names its cause after "after hours": the clause keeps it.
     r"\b(after|following|on the heels of|in response to|on news (that|of)|as investors (react|respond) to)\b"
 )
 # ... and only for a one-ticker piece: a headline naming several stocks ("Here Are 20 Stocks Moving Premarket")
@@ -189,7 +195,10 @@ CATALYST_OFFERING_RE = (
     r"\bat[- ]the[- ]market|\batm\b (program|offering|facility|agreement)|equity line|"  # v5: not "wh-at the market"
     r"securities purchase agreement|shelf registration|convertible (notes?|preferred|debentures?)|"
     r"placement agent|underwriting agreement|announces? (an? |its )?offering|offering of [\d.,]+ ?(m|k|million)?\b|"
-    r"shares and warrants|\bwarrants? to purchase"
+    r"shares and warrants|\bwarrants? to purchase|"
+    # v8: a private investment in public equity ("Closes PIPE Deal"), never "pipe" or "pipeline"; a headline about
+    # the PIPE's investors or shares ("Lock-Up Extension Of Its PIPE Investors") is not a new raise.
+    r"(?-i:\bPIPEs?\b)(?!\s+(investors?|shares|holders|shareholders)\b)"
 )
 CATALYST_OFFERING_ENDED_RE = r"terminat\w*.{0,40}(\bat[- ]the[- ]market|\batm\b|equity line|offering)"
 CATALYST_DELISTING_RE = (
@@ -270,6 +279,21 @@ CATALYST_FINANCE_POSITIVE_RE = (
     r"(share|stock) purchases? by (its |the company'?s )?(ceo|cfo|chief|director|insider|chairman|officers|executives)|"
     r"insider (buying|purchases)"
 )
+# v8: a raise whose money or consideration is a digital-asset treasury ("closing a bitcoin-funded private placement",
+# "an aggregate purchase price consisting of 3,170 bitcoin", "to purchase ETH"): catalyst / crypto_treasury / weak,
+# with dilution. Never a bitcoin miner raising for its machines.
+_CATALYST_COIN = (r"(bitcoins?|btc|ether|ethereum|eth|solana|xrp|dogecoin|bnb|litecoin|digital[- ]assets?|"
+                  r"crypto(currenc(y|ies))?|tokens?)")
+_CATALYST_NOT_MINING = r"(?![- ](min(ing|ers?)|rigs?|hash\w*|atms?|etfs?)\b)"
+CATALYST_TREASURY_RE = (
+    r"\b" + _CATALYST_COIN + r"[- ](treasury|reserve|funded|denominated)\b|"
+    r"\btreasury (strategy|reserve|company)\b|"
+    r"\b(consisting of|in exchange for|paid in|payable in|in the form of|receiv(e|es|ed|ing)|deliver(s|ed|ing)?)\s+"
+    r"(an aggregate of\s+)?(approximately\s+)?\d[\d,.]*\s+(million\s+)?" + _CATALYST_COIN + r"\b|"
+    r"\b(to (buy|purchase|acquire)|purchas(e|es|ing) of|acquisition of|accumulat\w+)\s+(additional\s+)?"
+    + _CATALYST_COIN + r"\b" + _CATALYST_NOT_MINING
+)
+CATALYST_TREASURY_CATEGORY = "crypto_treasury"
 CATALYST_THEME_RE = (
     r"bitcoin|\bbtc\b|ethereum|solana|crypto|digital asset|\btoken|treasury (strategy|reserve)|"
     r"\bai\b|artificial intelligence|data cent(er|re)|\bgpu|quantum|drone|rare earth|nuclear|uranium|nvidia|"
@@ -319,7 +343,9 @@ CATALYST_FEED_SCHEMA_VERSION = 1
 CATALYST_FEED_SQLITE_TIMEOUT_SEC = 30.0
 CATALYST_FEED_TICK_SEC = 5.0                         # scheduler tick; each source keeps its own interval
 CATALYST_FEED_SPAN_GAP_SEC = 600.0                   # polls further apart than this break a coverage span
-CATALYST_FEED_MEMORY_HOURS = 40.0                    # items kept in memory for the live verdict (prior close + today)
+# Items kept in memory for the live verdict: at least this long, and always back to the prior session's 04:00 ET
+# open (the prior-session pointer reads from there; a weekend or a holiday is longer than 40 hours).
+CATALYST_FEED_MEMORY_HOURS = 40.0
 CATALYST_FEED_HTTP_TIMEOUT_SEC = 20.0
 CATALYST_FEED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Nova-desk catalyst feed"
 CATALYST_FEED_SEC_USER_AGENT_DEFAULT = "NovaDesk catalyst-feed contact@example.com"  # SEC_USER_AGENT in .env overrides
@@ -371,5 +397,13 @@ CATALYST_TICKER_RE = (
     r"\b(?:NASDAQ|Nasdaq|NasdaqGM|NasdaqCM|NasdaqGS|NYSE(?:\s+American|\s+Arca|\s+MKT)?|OTCQB|OTCQX|OTC\s*Pink|"
     r"OTC(?:\s+Markets)?|Cboe(?:\s+BZX)?|CBOE)\s*[:：]\s*([A-Z]{1,5}(?:\.[A-Z]{1,2})?(?:\s*,\s*[A-Z]{1,5}(?:\.[A-Z]{1,2})?)*)"
 )
+# v8: the prior session's own release (``prior_session`` on a verdict) is read from that session's open, this hour ET,
+# to its 16:00 close: shown beside the verdict, never counted in it. Feed sources only (the company's own filings and
+# wire releases).
+CATALYST_PRIOR_SESSION_OPEN_HOUR_ET = 4
+# v8: the 8-K items that say shares were issued (``/api/why``'s float note): 3.02 always, 2.01 when the rules label the
+# filing a raise (a PIPE or an acquisition paid in shares closing).
+CATALYST_ISSUANCE_ITEM = "3.02"
+CATALYST_ISSUANCE_IF_RAISE_ITEM = "2.01"
 # Nasdaq halt codes that mean the company's news is still to come (ADR 024 "news pending").
 CATALYST_NEWS_PENDING_CODES = ("T1", "T12")
