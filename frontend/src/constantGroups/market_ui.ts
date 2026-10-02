@@ -185,6 +185,13 @@ export const L2_LENT_PREFIX = 'Level 2 lent to';
 export const L2_LENT_BACK = 'back when it ends or when you bring this tab to the front';
 /** The borrower when a frame names none (an older or a broken frame). */
 export const L2_LENT_SOMEONE = "one of Nova's setups";
+/**
+ * The tab's Time & Sales goes with its Level 2: IBKR counts tick-by-tick lines like depth lines,
+ * so a setup that got only the book would read no prints. It says the same, in its own words.
+ */
+export const TAPE_LENT_PREFIX = 'Time & Sales lent to';
+/** Time & Sales' badge while its line is lent (not a fault: the words say whose and when it comes back). */
+export const TAPE_STATUS_LENT = 'LENT';
 
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)

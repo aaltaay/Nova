@@ -1,21 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
-import { L2_LENT_POLL_MS } from '../constantGroups/market_ui';
 import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { shouldKeepPriorBook } from './depthBookGuards';
 import { applyBookWatchFrame, type BookWatchState } from './bookWatch';
-import { pollLoan, type DepthLoan } from './depthLines';
-import type { DepthLentTo } from './depthUiStatus';
+import { documentVisible, LentLine } from './lentLine';
+import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
-
-/** The line went to a setup (ADR 043): the tab shows why and waits for it to come back. */
-export interface DepthLent extends DepthLentTo {
-  since: number | null;
-  /** The backend's sentence (the ladder builds its own from the fields above). */
-  text: string | null;
-}
 
 interface DepthState {
   book: DepthBook | null;
@@ -25,7 +17,7 @@ interface DepthState {
   /** The book watcher's verdicts on this live line (ADR 033 amendment); null until its first frame. */
   watch: BookWatchState | null;
   /** The line is lent to one of Nova's setups (ADR 043 decision 6); null while this tab has it. */
-  lent: DepthLent | null;
+  lent: LineLent | null;
 }
 
 export interface DepthOptions {
@@ -46,34 +38,6 @@ const EMPTY: DepthState = {
   lent: null,
 };
 
-function str(v: unknown): string | null {
-  return typeof v === 'string' && v ? v : null;
-}
-
-function lentFromFrame(msg: Record<string, unknown>): DepthLent {
-  const to = (msg.to ?? {}) as Record<string, unknown>;
-  return {
-    symbol: str(to.symbol)?.toUpperCase() ?? null,
-    setupType: str(to.setup_type),
-    tier: str(msg.tier),
-    why: str(msg.why),
-    since: typeof msg.since === 'number' ? msg.since : null,
-    text: str(msg.text),
-  };
-}
-
-/** The poll's word on a standing loan: its reason moves (armed, then near, then a trade). */
-function lentFromLoan(loan: DepthLoan): DepthLent {
-  return {
-    symbol: loan.borrower, setupType: loan.setup_type, tier: loan.tier, why: loan.why, since: loan.since,
-    text: loan.text,
-  };
-}
-
-function documentVisible(): boolean {
-  return typeof document === 'undefined' || document.visibilityState !== 'hidden';
-}
-
 /**
  * Opens /ws/ibkr/depth/{symbol}, receives book updates.
  * Reconnects on disconnect. Keeps the last book visible across brief
@@ -87,9 +51,10 @@ function documentVisible(): boolean {
  * paint waits until ``uiActive`` so a background tab cannot burn the main thread.
  *
  * A lent line (ADR 043 decision 6): the backend sends `{type: "lent", ...}` and closes. The hook
- * then never reconnects by its backoff: it asks `GET /api/ibkr/depth/lines` every L2_LENT_POLL_MS
- * and reconnects once no loan names this symbol -- or at once when this Level 2 comes to the front
- * (`uiActive` and the document visible), which opens with `front=1` and recalls the loan.
+ * then never reconnects by its backoff (LentLine): it waits on the shared lines poll and reconnects
+ * once no loan names this symbol -- or at once when this Level 2 comes to the front (`uiActive` and
+ * the document visible), which opens with `front=1` and recalls the loan. The tab's Time & Sales
+ * (useIbkrTape) went with it and comes back the same way.
  */
 export function useIbkrDepth(symbol: string | null, uiActive = true, options: DepthOptions = {}): DepthState {
   const traderTab = options.traderTab === true;
@@ -115,13 +80,12 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
   const l1FallbackRef = useRef(false);
   const errorRef = useRef<string | null>(null);
   const watchRef = useRef<BookWatchState | null>(null);
-  const lentRef = useRef<DepthLent | null>(null);
-  // Set by the socket effect: take a lent line back now if this Level 2 is in front.
-  const wakeRef = useRef<() => void>(() => {});
+  // This symbol's line while it may be lent; set by the socket effect.
+  const lineRef = useRef<LentLine | null>(null);
 
   useEffect(() => {
     uiActiveRef.current = uiActive;
-    if (uiActive) wakeRef.current();
+    if (uiActive) lineRef.current?.wake();     // shown: a lent line is taken back now
   }, [uiActive]);
 
   const commitUi = () => {
@@ -132,7 +96,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       l1Fallback: l1FallbackRef.current,
       error: errorRef.current,
       watch: watchRef.current,
-      lent: lentRef.current,
+      lent: lineRef.current?.lent ?? null,
     });
   };
 
@@ -150,7 +114,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     l1FallbackRef.current = false;
     errorRef.current = null;
     watchRef.current = null;
-    lentRef.current = null;
+    lineRef.current = null;
     setState(EMPTY);
 
     if (!symKey) {
@@ -165,60 +129,18 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     }
 
     const inFront = () => uiActiveRef.current && documentVisible();
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let pollAbort: AbortController | null = null;
-    // The socket asking for the line back is open; the lent words stay until it answers.
-    let takingBack = false;
-
-    function stopPoll() {
-      if (pollTimer != null) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
-      pollAbort?.abort();
-      pollAbort = null;
-    }
-
-    /** The loan ended, or this Level 2 came to the front (its socket recalls the loan): ask for the line now. */
-    function takeBack() {
-      if (!lentRef.current || takingBack) return;
-      takingBack = true;
-      stopPoll();
-      backoffRef.current = 1000;
-      connect();
-    }
-
-    /** The socket that asked answered: the line is this tab's again (or it says why not). */
-    function settle() {
-      takingBack = false;
-      lentRef.current = null;
-    }
-
-    async function pollOnce() {
-      if (pollAbort || takingBack || !mountedRef.current || !lentRef.current || !symKey) return;
-      const ctrl = new AbortController();
-      pollAbort = ctrl;
-      const got = await pollLoan(symKey, ctrl.signal);
-      if (pollAbort === ctrl) pollAbort = null;
-      if (ctrl.signal.aborted || !mountedRef.current || !lentRef.current) return;
-      if (got.kind === 'ended') {
-        takeBack();
-      } else if (got.kind === 'standing') {
-        lentRef.current = lentFromLoan(got.loan);
+    const line = new LentLine(symKey, {
+      inFront,
+      // The loan ended, or this Level 2 came to the front (its socket recalls the loan): ask now.
+      reconnect: () => {
+        backoffRef.current = 1000;
+        connect();
+      },
+      changed: () => {
         if (uiActiveRef.current) commitUi();
-      }
-      // 'unknown': the backend did not answer -- still lent; the next poll asks again.
-    }
-
-    function startPoll() {
-      if (pollTimer == null) pollTimer = setInterval(() => void pollOnce(), L2_LENT_POLL_MS);
-    }
-
-    wakeRef.current = () => {
-      if (lentRef.current && inFront()) takeBack();
-    };
-    const onVisibility = () => wakeRef.current();
-    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility);
+      },
+    });
+    lineRef.current = line;
 
     function connect() {
       if (!mountedRef.current) return;
@@ -238,9 +160,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
           const msg = JSON.parse(e.data as string);
           const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
           if (msgSym != null && msgSym !== symKey) return;
-          if (lentRef.current && (msg.type === 'subscribed' || msg.type === 'book' || msg.type === 'error')) {
-            settle();
-          }
+          if (msg.type === 'subscribed' || msg.type === 'book' || msg.type === 'error') line.answered();
 
           if (msg.type === 'subscribed') {
             connectedRef.current = true;
@@ -264,8 +184,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'lent') {
             // Lent to a setup (ADR 043): this book is no longer live; the socket closes next.
-            takingBack = false;
-            lentRef.current = lentFromFrame(msg);
+            line.lend(msg);
             bookRef.current = null;
             watchRef.current = null;
             connectedRef.current = false;
@@ -287,16 +206,10 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       ws.onclose = () => {
         if (!mountedRef.current || ws !== wsRef.current) return;
         connectedRef.current = false;
-        if (lentRef.current && takingBack) {
-          settle();                          // it closed before answering: the backoff takes over from here
-        } else if (lentRef.current) {
-          // Never by the backoff: when the loan ends (the poll), or now if this Level 2 is in front.
-          if (uiActiveRef.current) commitUi();
-          if (inFront()) takeBack();
-          else startPoll();
-          return;
-        }
+        // Lent: never by the backoff -- when the loan ends (the poll), or now if this Level 2 is in front.
+        const lent = line.closed();
         if (uiActiveRef.current) commitUi();
+        if (lent) return;
         const delay = backoffRef.current;
         backoffRef.current = Math.min(delay * 2, 30_000);
         reconnectTimerRef.current = setTimeout(connect, delay);
@@ -307,9 +220,8 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
 
     return () => {
       mountedRef.current = false;
-      wakeRef.current = () => {};
-      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility);
-      stopPoll();
+      line.dispose();
+      if (lineRef.current === line) lineRef.current = null;
       if (reconnectTimerRef.current != null) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;

@@ -241,6 +241,7 @@ export function StockViewDepthTape({
             connectedText={captureReplay ? SIM_REPLAY_TAPE_STATUS : undefined}
             statusTitle={captureReplay ? SIM_CAPTURE_TAPE_TITLE : undefined}
             emptyLabel={gap ? SIM_CAPTURE_TAPE_NOT_RECORDED : undefined}
+            traderTab
           />
         ) : null}
       />

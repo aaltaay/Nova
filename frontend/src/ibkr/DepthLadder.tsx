@@ -26,10 +26,10 @@ import { PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
 import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from './depthMarkers';
 import {
   depthEmptyMessage,
-  depthLentText,
   depthLiveBadge,
   depthLiveBadgeText,
 } from './depthUiStatus';
+import { depthLentText } from './lentWords';
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
 import type { DepthLevel } from './types';

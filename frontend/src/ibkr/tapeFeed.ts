@@ -3,6 +3,7 @@
  * Kept out of the React hook so symbol-gating and clear-on-switch are unit-testable.
  */
 import { TAPE_UI_MAX_ROWS } from '../constants';
+import type { LineLent } from './lentWords';
 
 export type TapeSide = 'ask' | 'bid' | 'between' | 'unknown';
 
@@ -32,6 +33,11 @@ export interface TapeState {
   prints: TapePrint[];
   connected: boolean;
   error: string | null;
+  /**
+   * The live line is lent to one of Nova's setups with the tab's Level 2 (ADR 043 decision 6):
+   * the pane says whose and when it comes back. Absent or null for every other feed.
+   */
+  lent?: LineLent | null;
 }
 
 /** A print that may set a price: not flagged unreported, and not volume-only by its conditions. */
@@ -46,7 +52,7 @@ export function tapeSymbolKey(symbol: string | null): string | null {
 
 /** Fresh empty tape — used on mount and immediately on symbol change. */
 export function emptyTapeState(): TapeState {
-  return { prints: [], connected: false, error: null };
+  return { prints: [], connected: false, error: null, lent: null };
 }
 
 /**
