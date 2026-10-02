@@ -215,10 +215,40 @@ def test_with_only_movers_lists_today_the_prior_session_is_named_not_counted(_de
     assert live.panel("AMOD", early)["verdict"]["prior_session"]["title"] == AMOD_8K["title"]
 
 
-def test_the_8k_says_shares_were_issued(_desk):
-    out = live.shares_issued_for("AMOD", NOW)
-    assert out["published_ts"] == AMOD_8K["published_ts"] and out["items"] == "2.01,8.01"
-    assert live.shares_issued_for("AMOD", NOW + 3 * 86400) is None   # by Monday it is older than Friday's open
+def test_the_issuance_map_reads_the_8k_from_the_store_for_30_days(tmp_path):
+    from catalysts import feed_store, issuance
+
+    db = feed_store.connect(tmp_path / "catalyst_feed.sqlite3")
+    feed_store.put_items(db, [{**AMOD_8K, "tickers": ["AMOD", "AMODW"]},
+                              {**AMOD_8K_COMPLIANCE, "tickers": ["AMOD", "AMODW"]}])
+    issuance.reset_for_testing()
+    try:
+        assert issuance.refresh(NOW, db) == 2                   # AMOD and its warrant
+        hit = issuance.for_symbol("amod")
+        assert hit["published_ts"] == AMOD_8K["published_ts"] and hit["items"] == "2.01,8.01"
+        assert issuance.reason(hit) == ("Shares were issued per the SEC 8-K of Oct 1 11:30 ET (Items 2.01, 8.01): "
+                                        "Yahoo's float and share count predate it. A warning only: no gate reads it")
+        row = issuance.stamp({"symbol": "AMOD", "float": 630_935})
+        assert row["shares_issued"] == hit and row["shares_issued_reason"] == issuance.reason(hit)
+        assert issuance.stamp({"symbol": "ZZZ"})["shares_issued"] is None
+        assert issuance.refresh(NOW + 31 * 86400, db) == 0      # older than the look-back: off the map
+        assert issuance.for_symbol("AMOD") is None
+    finally:
+        issuance.reset_for_testing()
+        db.close()
+
+
+def test_the_trader_float_row_warns_and_never_blocks():
+    from catalysts import issuance
+    from stock_read.rows import float_rows
+
+    hit = {"published_ts": AMOD_8K["published_ts"], "source": "edgar", "form": "8-K", "items": "2.01,8.01",
+           "title": AMOD_8K["title"], "url": None}
+    rows = {r["id"]: r for r in float_rows({"why": {"facts": {
+        "float_shares": 630_935, "volume": 51_700_000, "shares_issued": hit}}})}
+    assert (rows["float"]["value"], rows["float"]["state"]) == ("630.9K?", "warn")
+    assert rows["float"]["detail"] == issuance.reason(hit)
+    assert rows["rotation"]["value"] == "81.9x today?" and rows["rotation"]["state"] == "info"
 
 
 @pytest.mark.parametrize("items, summary, issued", [

@@ -5,12 +5,15 @@ import {
   fmtSettlementDateShort,
   fmtShortInterest,
   floatTitle,
+  normalizeSharesIssued,
+  sharesIssuedWarning,
   shortAboveFloatClass,
   shortAboveFloatWarning,
   shortInterestTitle,
 } from './shareFacts';
 import {
   FLOAT_CONTRADICTED_FALLBACK,
+  SHARES_ISSUED_FALLBACK,
   SHORT_ABOVE_FLOAT_CLASS,
   SHORT_ABOVE_FLOAT_FALLBACK,
 } from '../constantGroups/share_facts';
@@ -93,5 +96,31 @@ describe('short interest above the float: a warning, never a gate (#532)', () =>
     expect(shortAboveFloatWarning(true, null)).toBe(SHORT_ABOVE_FLOAT_FALLBACK);
     expect(shortAboveFloatWarning(false, REASON)).toBeUndefined();
     expect(shortAboveFloatWarning(null, REASON)).toBeUndefined();
+  });
+});
+
+describe('a filed share issuance: a warning, never a gate (#700)', () => {
+  // AMOD 2026-10-02: Yahoo's 630,935 float after the 8-K that issued 51,621,560 shares for 3,170 bitcoin.
+  const filing = { published_ts: 1_790_868_652, source: 'edgar', form: '8-K', items: '2.01,8.01',
+    title: '8-K: Acquisition completed; Other events', url: null };
+  const reason = "Shares were issued per the SEC 8-K of Oct 1 11:30 ET (Items 2.01, 8.01): Yahoo's float and share count "
+    + 'predate it. A warning only: no gate reads it';
+
+  it('reads the float as "631K?" with the filing first on hover', () => {
+    expect(fmtFloat(630_935, null, filing)).toBe('630.9K?');
+    expect(fmtFloat(630_935, true, filing)).toBe('630.9K?');
+    expect(fmtFloat(630_935, false, null)).toBe('630.9K');
+    const issued = sharesIssuedWarning(filing, reason);
+    expect(issued).toBe(reason);
+    expect(floatTitle(true, WHLR_REASON, undefined, issued)).toBe(`${reason}. ${WHLR_REASON}`);
+    expect(sharesIssuedWarning(filing, null)).toBe(SHARES_ISSUED_FALLBACK);
+    expect(sharesIssuedWarning(null, reason)).toBeUndefined();
+  });
+
+  it('reads a filing off the wire and nothing that is not one', () => {
+    expect(normalizeSharesIssued(filing)).toEqual(filing);
+    expect(normalizeSharesIssued({ form: '8-K' })).toBeNull();
+    expect(normalizeSharesIssued('8-K')).toBeNull();
+    expect(normalizeSharesIssued(null)).toBeNull();
   });
 });

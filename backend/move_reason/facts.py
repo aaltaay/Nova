@@ -2,8 +2,8 @@
 
 The symbol's scanner row when a board holds it (surfaced as the Scanner shows it: float, RVOL, the
 catalyst verdict), else its live L1 quote; Yahoo fundamentals from the cache (a symbol not cached yet is
-read in the background, and its split / short facts stay unknown meanwhile); an 8-K since the prior session's
-open that says shares were issued, from the live catalyst feed; today's halts from the
+read in the background, and its split / short facts stay unknown meanwhile); an 8-K of the last 30 days that
+says shares were issued (``catalysts/issuance.py``); today's halts from the
 leaderboard's halt log (ADR 023); borrow from the recorded IBKR file (``borrow_feed``). A fact nobody
 holds is ``None`` -- unknown, never zero.
 
@@ -74,20 +74,16 @@ def gather(symbol: str, now: float | None = None) -> dict[str, Any]:
         "halts": halts_today(sym, now),
         "borrow": _borrow(sym, now),
         "catalyst": row.get("catalyst") if isinstance(row.get("catalyst"), dict) else None,
-        "shares_issued": _shares_issued(sym, now),
+        "shares_issued": _shares_issued(sym),
     }
 
 
-def _shares_issued(sym: str, now: float) -> dict[str, Any] | None:
-    """The newest 8-K since the prior session's open that says shares were issued (the live catalyst feed, in
-    memory): Yahoo's float and share count predate it. None when none is on file or the feed cannot be read."""
-    try:
-        from catalysts import live as catalyst_live
+def _shares_issued(sym: str) -> dict[str, Any] | None:
+    """The newest 8-K of the last 30 days that says shares were issued (``catalysts/issuance.py``, in memory):
+    Yahoo's float and share count predate it. None when none is on file."""
+    from catalysts import issuance
 
-        return catalyst_live.shares_issued_for(sym, now)
-    except Exception:
-        logger.warning("move_reason: share-issuance read failed for %s", sym, exc_info=True)
-        return None
+    return issuance.for_symbol(sym)
 
 
 def _row(sym: str) -> tuple[dict[str, Any], str]:

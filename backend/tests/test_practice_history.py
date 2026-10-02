@@ -105,7 +105,7 @@ def test_equity_is_the_net_liquidation_after_each_fill_marked_at_that_fill() -> 
     assert set(entry) == FILL
     assert entry == {
         "ts": DAY1, "order_id": 1, "symbol": "GRML", "side": "BUY", "qty": 100.0, "price": 8.80,
-        "source": "manual", "bot_id": None, "commission": 1.0, "fees": 0.0, "realized": pytest.approx(-buy_fees),
+        "source": "manual", "bot_id": None, "commission": 1.0, "fees": 0.0003, "realized": pytest.approx(-buy_fees),
         "fill_estimated": True, "fill_basis": "live_quote",
     }
     # Selling half at 9.30 marks the 50 still held at 9.30 -- the last fill, never a quote.
@@ -171,7 +171,7 @@ def test_range_bounds_equity_fills_and_daily_at_the_practice_day_start() -> None
     assert [f["order_id"] for f in one["fills"]] == [3]
     assert [d["date"] for d in one["daily"]] == ["2026-09-22"]
     assert [p["ts"] for p in one["equity"]] == [ROLLOVER, DAY2]
-    assert one["components"]["realized"] == pytest.approx(-for_fill("BUY", 10, 14.0).total)  # day 2 only
+    assert one["components"]["realized"] == pytest.approx(-for_fill("BUY", 10, 14.0).total, abs=1e-4)  # day 2 only
     assert [r["source"] for r in one["by_source"]] == ["bot"]
     five = history.build(ledger, venue="paper", range_key="5D", now_ts=DAY2 + 60)
     assert five["range_start"] == datetime(2026, 9, 18, 4, 0, tzinfo=ET).timestamp()
@@ -206,7 +206,7 @@ def test_archived_ledgers_days_are_included_flagged_and_kept_out_of_this_ledgers
     assert out["warnings"] == []
     # The archive is another account: it never enters this ledger's equity, fills, split or components.
     assert [f["order_id"] for f in out["fills"]] == [1] and [p["ts"] for p in out["equity"]] == [DAY2]
-    assert out["components"]["realized"] == pytest.approx(-for_fill("BUY", 10, 14.0).total)
+    assert out["components"]["realized"] == pytest.approx(-for_fill("BUY", 10, 14.0).total, abs=1e-4)
     assert out["starting_cash"] == 100_000
     # 1D keeps the archived day out of ``daily`` like any other day outside the range.
     assert [d["date"] for d in history.for_broker(broker, "1D")["daily"]] == ["2026-09-22"]

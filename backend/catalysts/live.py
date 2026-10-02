@@ -10,8 +10,7 @@ feed span covers the window; with no source looking and nothing found the answer
 (unknown), never "no news" (a replay playhead on another day included).
 A Nasdaq T1 / T12 halt inside the window with no resumption yet adds ``news_pending``.
 ``prior_session`` names the best catalyst or dilution item the feed recorded from the prior session's
-04:00 ET open to its close -- shown beside the verdict, never counted in it (v8); ``shares_issued_for``
-names the newest 8-K since then that says shares were issued (``/api/why``'s float note).
+04:00 ET open to its close -- shown beside the verdict, never counted in it (v8).
 
 ``panel`` answers the Trader's News panel: the verdict plus every item read, each with its label
 (``GET /api/catalysts/{symbol}``); ``catalysts/board.py`` puts the verdict on every scanner row.
@@ -29,7 +28,7 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 from catalysts import live_finnhub
-from catalysts.classify import best_placed, label_of, shares_issued, ticker_count, verdict
+from catalysts.classify import best_placed, label_of, ticker_count, verdict
 from catalysts.windows import prior_session_open, window_start
 from constants_catalysts import (
     CATALYST_LIVE_BATCH,
@@ -154,16 +153,6 @@ def _verdict(sym: str, items: list[dict], answered: list[str], start: float, now
     opened = prior_session_open(now)
     out["prior_session"] = best_placed(_feed_view(sym, opened, start, coverage=False)[0], start=opened, end=start)
     return out
-
-
-def shares_issued_for(symbol: str, now: float | None = None) -> dict | None:
-    """The newest 8-K the feed holds since the prior session's open that says shares were issued, or None.
-
-    In memory, never a network read (``/api/why``'s float note, v8)."""
-    now = time.time() if now is None else now
-    sym = (symbol or "").strip().upper()
-    start = prior_session_open(now)
-    return shares_issued(_feed_view(sym, start, now, coverage=False)[0], start=start, end=now)
 
 
 def _norm(symbols: Iterable[str]) -> set[str]:

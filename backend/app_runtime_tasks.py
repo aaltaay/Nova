@@ -20,6 +20,7 @@ import strategy.risk as _risk
 import setup_scanner.engine as _setup_scanner
 from catalysts import board as _catalyst_board
 from catalysts import feed as _catalyst_feed
+from catalysts import issuance as _catalyst_issuance
 from move_reason import borrow_feed as _borrow_feed
 from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
@@ -99,6 +100,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("scanner_news_badge", _scanner_news_badge.refresh_loop),
         # The catalyst verdict on every scanner row (ADR 024 amendment): what the news is, not only that it exists.
         ("catalysts.board", _catalyst_board.refresh_loop),
+        # A filed share issuance beside Yahoo's float (#700): a warning on rows and the Trader, never a gate.
+        ("catalysts.issuance", _catalyst_issuance.refresh_loop),
         # Setup scanner (ADR 022): replaces the old setups_stream loop. Never places.
         ("setup_scanner", _setup_scanner.run),
         ("risk.session_reset", _risk.session_reset_loop),

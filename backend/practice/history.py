@@ -116,7 +116,7 @@ def _fill_entry(event: dict[str, Any], row: dict[str, Any], realized_delta: floa
         "source": event.get("source") or row.get("order_source"),
         "bot_id": bot_id,
         "commission": _money(fees.commission),
-        "fees": _money(fees.sec_fee + fees.finra_taf),
+        "fees": _money(fees.regulatory),
         "realized": _money(realized_delta),
         "fill_estimated": True,
         "fill_basis": event.get("basis"),

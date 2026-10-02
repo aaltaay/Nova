@@ -43,7 +43,7 @@ PRACTICE_COMMISSION_MIN = 1.00
 PRACTICE_COMMISSION_MAX_PCT = 0.01
 
 # ---------------------------------------------------------------------------
-# Regulatory fees -- charged on SELLS only, passed through at cost
+# Regulatory fees -- passed through at cost: SEC and TAF on SELLS, CAT on every fill
 # ---------------------------------------------------------------------------
 # SEC Section 31 transaction fee, fiscal 2026: USD 20.60 per USD 1,000,000 of
 # sale proceeds, effective 2026-04-04
@@ -54,6 +54,19 @@ PRACTICE_SEC_FEE_RATE = 20.60 / 1_000_000  # 0.0000206 of sale value
 # (https://www.finra.org/rules-guidance/guidance/trading-activity-fee).
 PRACTICE_FINRA_TAF_PER_SHARE = 0.000195
 PRACTICE_FINRA_TAF_MAX = 9.79
+# FINRA's TAF pause: no TAF on a sale whose trade date falls in a range here,
+# both days included (Eastern dates, ISO strings). SR-FINRA-2026-021 (Release
+# 34-106409, filed 2026-09-15, effective on filing) sets every TAF rate to
+# USD 0.00 "for transactions from October 1, 2026 through December 31, 2026",
+# resuming 2027-01-01 (https://www.sec.gov/files/rules/sro/finra/2026/34-106409.pdf);
+# IBKR lists the TAF at USD 0.00 for those trades.
+PRACTICE_FINRA_TAF_HOLIDAYS = (("2026-10-01", "2026-12-31"),)
+# FINRA Consolidated Audit Trail fees, passed through by IBKR on every share
+# executed, bought or sold: USD 0.000003 per share (prospective plus historical
+# CAT fees; FINRA re-evaluates them twice a year) -- IBKR's commissions page,
+# "United States - Third Party Fees". Seen on Nova's own Live fills: a 1-share
+# buy at 7.38 cost 0.073803, the 1 % cap plus 0.000003.
+PRACTICE_FINRA_CAT_PER_SHARE = 0.000003
 
 # ---------------------------------------------------------------------------
 # Buying power -- Regulation T margin account, enforced
