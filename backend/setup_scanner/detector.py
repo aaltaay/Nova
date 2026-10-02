@@ -20,6 +20,12 @@ The states are one ladder for every setup: ``watching``, ``leg`` (forming),
 the first pullback's (ADR 022): entry at the bar's open when it gapped over,
 and the setup skipped when that gap pushes the risk over the cap.
 
+Every bar and price a detector reads is inside one trading session (04:00-20:00
+ET): the windows below are times of day, so a minute from IBKR's overnight
+session read as the 09:30 open or as "before the 10:30 cutoff" (red to green
+armed SDEV at 00:12 ET on 2026-10-01). The host keeps them out and, at the
+close, calls ``close_session``.
+
 A setup's params carry ``entry_cutoff``, ``stop_cap``, ``risk_slippage``,
 ``near_dollars``, ``near_pct``, ``ema_period`` and the MACD periods, and may carry
 ``bar_sec`` (the candle's length: 60, or 300 on a 5-minute lane) and
@@ -41,6 +47,7 @@ from zoneinfo import ZoneInfo
 
 from constants_setups import (
     SETUP_STATE_ARMED,
+    SETUP_STATE_LEG,
     SETUP_STATE_NEAR,
     SETUP_STATE_PULLBACK,
     SETUP_STATE_TRIGGERED,
@@ -124,6 +131,23 @@ class TriggerDetector:
         self.armed = None
         self._set(SETUP_STATE_PULLBACK, why)
         return [("disarmed", self._key_view(prev, reason=why))]
+
+    def close_session(self, why: str) -> list[tuple[str, dict]]:
+        """The session closed: nothing forms, arms or triggers until the next one starts.
+
+        An armed or near setup is disarmed and a forming one ends -- both back to ``watching``
+        with ``why``. A triggered setup keeps its state (its score runs out on its own), and a
+        failed or watching one is left as it is.
+        """
+        if self.state in (SETUP_STATE_ARMED, SETUP_STATE_NEAR) and self.armed is not None:
+            prev = self.armed
+            self.armed = self.forming = None
+            self._set(SETUP_STATE_WATCHING, why)
+            return [("disarmed", self._key_view(prev, reason=why))]
+        if self.state in (SETUP_STATE_LEG, SETUP_STATE_PULLBACK, SETUP_STATE_ARMED, SETUP_STATE_NEAR):
+            self.armed = self.forming = None
+            self._set(SETUP_STATE_WATCHING, why)
+        return []
 
     def _near_check(self, price: float) -> list[tuple[str, dict]]:
         if self.armed is None:

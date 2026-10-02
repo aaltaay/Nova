@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
-from setup_scanner.bars import Bar, stored_bars
+from constants_setups import SETUPS_BAR_SEC
+from setup_scanner.bars import MAX_BARS_PER_SYMBOL, Bar, stored_bars
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +22,17 @@ def default_universe() -> Iterable[str]:
 
 
 def default_seed(symbol: str, from_ts: float) -> list[Bar]:
-    import bars_store
+    """The session's stored minutes from ``from_ts`` (its 04:00) through its last (19:59 ET).
 
-    return stored_bars(bars_store.read(symbol, "1Min", 960, from_ts=from_ts))
+    The read keeps the newest rows, so minutes the store holds past the close (built from IBKR's
+    overnight session until those were kept out) pushed a busy day's morning out of the seed:
+    QTEX's at the 2026-10-01 23:32 restart began at 07:27, 207 overnight minutes in."""
+    import bars_store
+    from market import trading_session_bounds
+
+    bounds = trading_session_bounds(from_ts)
+    through = bounds[1] - SETUPS_BAR_SEC if bounds else None
+    return stored_bars(bars_store.read(symbol, "1Min", MAX_BARS_PER_SYMBOL, from_ts=from_ts, through_ts=through))
 
 
 def default_replay_desk() -> bool:

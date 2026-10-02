@@ -11,6 +11,7 @@ import afterhours_discovery as _ah_discovery
 from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 from ibkr import quote_rows as _quote_rows
 from ibkr import scanner_session as _ss
+from market import in_trading_session
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
@@ -198,6 +199,11 @@ def apply_l1_quote(
     if quote_quality == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
         # No trade yet: the rows above show the prior close, flagged, but HOD Momo,
         # its L1 tick archive and volume boost take trades only (#541).
+        return patch
+    if not in_trading_session(now):
+        # Nor a trade of IBKR's overnight session (20:00-03:50 ET, dated to the next trading
+        # day): HOD Momo raised 78 alerts on those prints after the 2026-10-01 close. The rows
+        # above keep their own table gates (frozen at 20:00, ADR 008).
         return patch
     from hod_tick_feed import feed_hod_on_tick
 

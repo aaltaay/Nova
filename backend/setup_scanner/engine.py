@@ -19,6 +19,12 @@ never raises bot autonomy. On a Sim desk off the live edge it keeps watching
 the live market but proposes nothing; the Sim eyes (``eyes/sim_eyes.py``) draw
 the board from the loaded Session Record instead.
 
+Its day is the trading session (04:00-20:00 ET on an exchange day, ``market``):
+a minute or price outside it is not read -- IBKR's overnight session keeps the
+lines moving after 20:00 -- and past its close every lane ends its day, so
+nothing shows as forming while the market is shut (2026-10-01 23:33: OM "new high
+of day" on one 20:48 print, RIBBU still "pushing HOD" from 15:52).
+
 ADR 030: when a playing lane's setup triggers on the live feed, it tells its
 trigger listeners -- Nova's bot (``bot/first_pullback``) registers one and
 decides for itself whether to trade (the chosen setup's, ADR 031). A listener
@@ -36,7 +42,8 @@ from zoneinfo import ZoneInfo
 
 from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_eyes import EYES_JOURNAL_BEAT_SEC
-from constants_setups import SETUPS_5M_TEMPLATE_ID, SETUPS_BOARD_PUSH_SEC
+from constants_setups import SETUPS_5M_TEMPLATE_ID, SETUPS_BOARD_PUSH_SEC, SETUPS_SESSION_CLOSED_REASON
+from market import trading_session_bounds
 from setup_scanner.bars import Bar, MinuteBars, bar_from
 from setup_scanner.board import build_board
 from setup_scanner.five_minute_lane import FIVE_MIN_REV, SETUPS_5M_SETUPS, five_minute_params, is_five_minute
@@ -102,6 +109,7 @@ class SetupEngine(LaneHost):
         self.clients: set = set()
         self.universe: set[str] = set()
         self.session: str | None = None
+        self.window: tuple[float, float] | None = None   # the session's 04:00-20:00 ET; None: no session
         self._last_push = 0.0
         self._last_beat = 0.0
         self._trigger_listeners: list[Callable[[dict], None]] = []
@@ -168,6 +176,7 @@ class SetupEngine(LaneHost):
         self._sync_lanes(now)
         await self._sync_universe(now)
         self._drain(now)
+        self._close(now)
         self._gate(now)
         if now - self._last_beat >= EYES_JOURNAL_BEAT_SEC:
             self._last_beat = now
@@ -183,11 +192,23 @@ class SetupEngine(LaneHost):
         if sd == self.session:
             return
         self.session = sd
+        self.window = trading_session_bounds(now)
         self.bars.clear()
         self.seeding.clear()
         for lane in self.lanes:
             lane.clear()
         self.journal({"event": "session", "symbol": None})
+
+    def in_session(self, ts: float) -> bool:
+        """``ts`` falls inside the scanner's day: its date's trading session."""
+        return self.window is not None and self.window[0] <= ts < self.window[1]
+
+    def _close(self, now: float) -> None:
+        """Past the session's close every lane ends its day (``Lane.close_session``), on every tick: a
+        minute that landed after the close, or a symbol seeded after it, ends on the tick it came."""
+        if self.window is not None and now >= self.window[1]:
+            for lane in self.lanes:
+                lane.close_session(now, SETUPS_SESSION_CLOSED_REASON)
 
     def _sync_lanes(self, now: float) -> None:
         """One lane per template of every setup with a scanner; rebuilt when the templates change."""
@@ -270,7 +291,7 @@ class SetupEngine(LaneHost):
         self.seeding.discard(sym)
         if mb is None:
             return
-        mb.seed(bars)
+        mb.seed([b for b in bars if self.in_session(b.t)])
         for lane in self.lanes:
             lane.on_bars(sym, mb.completed, now)
 
@@ -282,7 +303,7 @@ class SetupEngine(LaneHost):
                 continue
             if kind == "bar":
                 bar = bar_from(p)
-                if bar is None or not mb.append(bar) or sym in self.seeding:
+                if bar is None or not self.in_session(bar.t) or not mb.append(bar) or sym in self.seeding:
                     continue
                 for lane in self.lanes:
                     lane.on_bars(sym, mb.completed, now, new_bar=bar)
@@ -290,6 +311,8 @@ class SetupEngine(LaneHost):
                 try:
                     price, ts = float(p["price"]), float(p["ts"])
                 except (KeyError, TypeError, ValueError):
+                    continue
+                if not self.in_session(ts):
                     continue
                 mb.open_bar_open = p.get("bar_open")
                 if sym in self.seeding:

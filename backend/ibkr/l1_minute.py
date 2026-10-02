@@ -8,6 +8,12 @@ in-memory buckets and enqueue; SQLite stays on the write-queue drain (ADR 010).
 
 Volume is a delta of the shared L1 line (lastSize / RTVolume 233 / tick-8),
 not a second ``reqMktData`` and not a dumped day total (D-049 / D-020).
+
+Only a last inside Nova's trading session makes a minute (04:00-20:00 ET on an
+exchange day, ``market.in_trading_session``). After the 20:00 close IBKR keeps
+the same lines moving with its overnight session (20:00-03:50 ET), trades it
+dates to the next trading day; as minutes they drew candles no IBKR bar holds
+and fed the setup scanner a "new high of day" at 20:48 (OM, 2026-10-01).
 """
 from __future__ import annotations
 
@@ -16,6 +22,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from archive.write_queue import enqueue_intraday_bar
+from market import in_trading_session
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +106,17 @@ def on_last(
     size: float | None = None,
     cum_volume: float | None = None,
 ) -> None:
-    """Update the open 1Min bucket. Safe to call from the IB loop."""
+    """Update the open 1Min bucket. Safe to call from the IB loop.
+
+    A last outside the trading session is no minute of Nova's (the module note): it opens no
+    bucket, reaches no listener and drops the volume baseline, so the next session's first
+    print is a baseline again.
+    """
     sym = (symbol or "").strip().upper()
     if not sym or price <= 0 or ts <= 0:
+        return
+    if not in_trading_session(float(ts)):
+        _last_cum_volume.pop(sym, None)
         return
     increment, new_cum = volume_increment(
         _last_cum_volume.get(sym),

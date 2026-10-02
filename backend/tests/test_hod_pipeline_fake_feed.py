@@ -23,7 +23,7 @@ import hod_momo_high as high
 import ibkr_bridge as bridge
 from hod_momo_state import get_state
 from ibkr import client as ib_client
-from ibkr import scanner_l1, ticks
+from ibkr import l1_apply, scanner_l1, ticks
 from runtime_state import get_runtime_state
 from tests.conftest import reset_hod_engine_state
 from tests.fakes.fake_ibkr_feed import FakeIbkrFeed
@@ -61,6 +61,10 @@ def pipeline_env(monkeypatch):
     holder = {"feed": feed}
     monkeypatch.setattr(ib_client, "get_ib", lambda: holder["feed"])
     monkeypatch.setattr(former, "former_momo_priority_symbols", lambda: [])
+    # The fake's ticks carry no IBKR trade time, so they are stamped with the wall clock: the chain
+    # runs as inside the trading session at any hour. HOD Momo takes no print outside it, which
+    # test_trading_session.py checks on its own.
+    monkeypatch.setattr(l1_apply, "in_trading_session", lambda ts: True)
 
     runtime = get_runtime_state()
     saved_gainers, saved_gainers_ts = runtime.gainer_cache, runtime.gainer_cache_ts

@@ -107,6 +107,44 @@ def in_after_hours() -> bool:
     return start <= now < end
 
 
+# (midnight, next midnight, bounds) of the Eastern day asked about last: the L1 handlers ask on
+# every tick, and a day's answer never changes.
+_session_day: tuple[float, float, tuple[float, float] | None] | None = None
+
+
+def trading_session_bounds(ts: float) -> tuple[float, float] | None:
+    """Nova's trading session on ``ts``'s Eastern date: 04:00 and 20:00 ET as epoch seconds.
+
+    ``None`` on a weekend or an NYSE holiday. The session is the extended day IBKR's US-stock
+    bars cover -- premarket, regular hours, after hours -- and the only one Nova trades. After
+    20:00 IBKR keeps the same SMART lines moving with its overnight session (20:00-03:50 ET, its
+    OVERNIGHT venue): trades IBKR dates to the next trading day, which move the last while the
+    day's volume and high stand still. They belong to no session of Nova's (2026-10-01: one
+    200-share OM print at 20:48 read as a 12% leg on the Bots page). Early-close half-days are
+    not modelled (``sim/trading_day.py``).
+    """
+    global _session_day
+    cached = _session_day
+    if cached is not None and cached[0] <= ts < cached[1]:
+        return cached[2]
+    day = datetime.fromtimestamp(ts, ET).date()
+    midnight = datetime(day.year, day.month, day.day, tzinfo=ET)
+    nxt = day + timedelta(days=1)
+    bounds = None
+    if day.weekday() < 5 and day.isoformat() not in NOVA_OS_NYSE_HOLIDAYS:
+        bounds = (_et_at_minutes(midnight, SESSION_PREMARKET_START_MIN_ET).timestamp(),
+                  _et_at_minutes(midnight, SESSION_AFTERHOURS_END_MIN_ET).timestamp())
+    _session_day = (midnight.timestamp(), datetime(nxt.year, nxt.month, nxt.day, tzinfo=ET).timestamp(),
+                    bounds)
+    return bounds
+
+
+def in_trading_session(ts: float) -> bool:
+    """True when ``ts`` falls inside an exchange day's 04:00-20:00 ET session (``trading_session_bounds``)."""
+    bounds = trading_session_bounds(ts)
+    return bounds is not None and bounds[0] <= ts < bounds[1]
+
+
 def volume_day_elapsed_fraction(now: datetime | None = None) -> float:
     """Fraction of the volume day (04:00–16:00 ET) elapsed, for pace RVOL.
 

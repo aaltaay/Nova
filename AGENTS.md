@@ -3625,6 +3625,33 @@ Then everything IBKR held arrived in one burst, stamped on arrival (#563).
   open, `warn` with the count and the longest in the last `FEED_DIAG_WINDOW_SEC` (30 min), naming Wi-Fi when
   Windows logged it, `off` while disconnected or outside the session, and otherwise `ok`.
 
+### The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33)
+
+"How come these things are getting triggered right now? ... the entire market is closed, no?" -- the Bots
+page showed OM's first pullback and flat top forming ("new high 4.20 on a 12% leg"), NAMM's bull-flag pole and
+RIBBU / XRPNU "pushing HOD". After the 20:00 close IBKR keeps the same SMART Level 1 lines moving with its
+overnight session (20:00-03:50 ET, its OVERNIGHT venue; IBKR dates those trades to the next trading day): the
+last moves while IBKR's own day volume and day high stand still (XRPN printed 27.49 over a 23.99 day high).
+Nova made each of those prints a one-minute candle and a HOD Momo trade (78 HOD Momo alerts after 20:00), and
+the setup scanner's day ran to midnight with no close: OM's leg was one 200-share print at 20:48, RIBBU's a
+15:52 move nothing had ended, and after midnight the same prints began the next day (red to green read a 23:59
+print as "the 09:30 open" and armed SDEV at 00:12).
+
+- **One rule** (`market.trading_session_bounds` / `in_trading_session`, pure): Nova's trading session is
+  04:00-20:00 ET on an exchange day (a weekday that is not an NYSE holiday; half-days are not modelled).
+- **Candles.** `ibkr/l1_minute` makes a minute only from a last inside the session; outside it a last opens no
+  bucket, reaches no listener and drops the volume baseline, so the next session's first print is a baseline.
+  The `ibkr_l1` minutes already stored between 20:00 and 04:00 stay in `bars_intraday`.
+- **HOD Momo, its L1 tick archive and volume boost** take only trades inside the session (`ibkr/l1_apply`,
+  beside #541's prior-close rule). The rows' price patch still carries the line's last.
+- **The setup scanner's day is the session** (`setup_scanner/engine.py`). A minute or price outside it is not
+  read; the seed reads 04:00-19:59 (`hooks.default_seed`: the newest 960 rows had let overnight minutes push a
+  busy morning out). From 20:00 every lane ends its day on each tick: a setup still forming goes back to
+  `watching` and an armed or near one is disarmed, its open proposal withdrawn, with the reason
+  `SETUPS_SESSION_CLOSED_REASON` ("the session closed at 20:00 -- the scanners start again at 04:00"),
+  journalled, so the playback and the past setups end it there too. A restart after the close replays the day
+  and ends it the same way.
+
 ### Chart bars say when IBKR history stopped answering (ADR 012, #555)
 
 `GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
@@ -4147,6 +4174,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-02 | The trading session ends at 20:00 ET (operator report 2026-10-01 23:33: "How come these things are getting triggered right now? ... the entire market is closed, no?"). After the close IBKR keeps the SMART Level 1 lines moving with its overnight session (20:00-03:50 ET), and Nova read those prints as more of the day: one-minute candles, HOD Momo trades (78 alerts after 20:00) and setup-scanner bars -- OM's "12% leg" was one 200-share print at 20:48 -- while the scanner never ended its day, so legs from 15:52 still read as forming at 23:33 and, after midnight, red to green armed SDEV at 00:12 on a 23:59 print taken for the 09:30 open. One rule (`market.in_trading_session`: 04:00-20:00 ET on an exchange day) now bounds the bar builder, HOD Momo's L1 feed and the scanner, which ends every lane's day at the close with a stated reason. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | Dilution on file (ADR 036 amendment; operator ask: show the dilution filings on file on the stock read). The float group adds the row `dilution_on_file` from SEC EDGAR's submissions file for the symbol's CIK: an S-3 / F-3 shelf within 3 years, a 424B within 180 days, an S-1 / F-1 within 180 days, an 8-K Item 3.02 within 180 days. It reads `warn` when any is on file, `ok` when the registrant is known and none is, and `unknown` with the reason otherwise (never clean). The stock read never waits on it: a background reader (`stock_read/dilution_reader.py`) reads EDGAR on first ask, one request a second, and keeps each symbol's read for its session day in `stock_read/dilution.sqlite3`. Nothing places, stages or gates on it. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-10-01 | The close-of-day reminder (operator ask: be flat before the close, nothing held overnight). A loud card at 15:50 ET per open Paper / Live position, escalated at 15:55, gone at 16:00, once per position per day per stage, remembered for the day in `nova.closeReminder.fired`. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-10-01 | One Bots page (ADR 044; operator: "I definitely don't like it if we have redundancies ... put everything on one page", after AISP's three triggers went unbought for five reasons no screen showed together: the Bot off since the 09:43 bot trip, AISP not on any list, the bot windows closed at 10:00, its tape BLIND while three Trader tabs held IBKR's three lines, a 1-share sleeve). One Bot switch per venue replaces the master dial and Activate (`POST /api/bot/session/switch`; the bot trip now leaves Eyes running); each strategy is Off / Eyes / On with its own grades, setups a stock a day and bot window; today's hot list (`backend/hot_list/`, auto top N of the Gainers plus your stars, fresh at 04:00) is what Nova may buy, and the watch list folds into its ★; Tickers today (`GET /api/bot/triggers`) shows every ticker's ten checks now and at each of the day's triggers, red with why; a Trader tab you are not looking at lends its Level 2 and Time & Sales lines to a setup near its trigger; the kill switch is Freeze all orders; and the Trader's charts get one Eyes switch for everything Nova draws. Measured on today's journal: 32 triggers on 21 tickers, 29 of them BLIND. §3 amended. | User Directive + Claude Opus 5.5 |
