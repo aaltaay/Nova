@@ -22,6 +22,9 @@ DEPENDENCY_NAMES = {
     "package.json", "package-lock.json", "requirements.txt", "requirements-dev.txt",
     "pyproject.toml", "poetry.lock", "uv.lock", "Pipfile", "Pipfile.lock",
 }
+# Screenshots and diagrams under docs/ (the README's). Nothing packages docs/, so they
+# are documentation like the Markdown beside them; a script there is still unknown.
+DOC_MEDIA = (".png", ".webp", ".jpg", ".jpeg", ".gif", ".svg")
 SHA_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
 
 
@@ -53,6 +56,8 @@ def classify(paths: list[str]) -> dict[str, bool]:
         elif path.endswith(".md") and (
             "/" not in path or path.startswith(("docs/", "knowledge/"))
         ):
+            continue
+        elif path.startswith("docs/") and path.lower().endswith(DOC_MEDIA):
             continue
         else:
             return full_scope()
