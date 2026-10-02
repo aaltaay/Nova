@@ -109,6 +109,22 @@ def items_since(db: sqlite3.Connection, since_ts: float) -> list[dict[str, Any]]
     return out
 
 
+def issuance_candidates(db: sqlite3.Connection, since_ts: float) -> list[dict[str, Any]]:
+    """The SEC 8-Ks published after ``since_ts`` that may say shares were issued (Item 3.02 or 2.01), with their
+    tickers -- ``catalysts/issuance.py`` keeps the ones the rules confirm."""
+    rows = db.execute(
+        f"SELECT {', '.join('i.' + c for c in ITEM_COLUMNS)}, group_concat(t.ticker) FROM items i "
+        "JOIN item_tickers t USING (item_id) WHERE i.source = 'edgar' AND i.form LIKE '8-K%' "
+        "AND (i.sec_items LIKE '%3.02%' OR i.sec_items LIKE '%2.01%') AND i.published_ts > ? GROUP BY i.item_id",
+        [since_ts]).fetchall()
+    out = []
+    for r in rows:
+        item = dict(zip(ITEM_COLUMNS, r[:-1], strict=True))
+        item["tickers"] = [t for t in (r[-1] or "").split(",") if t]
+        out.append(item)
+    return out
+
+
 def spans_since(db: sqlite3.Connection, since_ts: float) -> list[tuple[str, float, float]]:
     return [tuple(r) for r in db.execute(
         "SELECT source, start_ts, end_ts FROM coverage WHERE end_ts > ? ORDER BY source, start_ts", [since_ts])]

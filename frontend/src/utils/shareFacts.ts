@@ -7,6 +7,7 @@
 import {
   FLOAT_CONTRADICTED_FALLBACK,
   FLOAT_CONTRADICTED_MARK,
+  SHARES_ISSUED_FALLBACK,
   SHORT_ABOVE_FLOAT_CLASS,
   SHORT_ABOVE_FLOAT_FALLBACK,
   SHORT_ABOVE_FLOAT_MARK,
@@ -14,6 +15,7 @@ import {
   SHORT_INTEREST_SOURCE,
   shortRatioTitle,
 } from '../constantGroups/share_facts';
+import type { SharesIssuedFiling } from '../types/ticker';
 import { fmtVolume } from './quoteFormat';
 
 function epochDate(ts: number | null | undefined): Date | null {
@@ -40,9 +42,32 @@ function fmtSettlementDateLong(ts: number | null | undefined): string | null {
 }
 
 /** "54.0K?" when Yahoo's own share counts contradict the float, else the float as it always read. */
-export function fmtFloat(float: number | null | undefined, contradicted: boolean | null | undefined): string {
+export function fmtFloat(
+  float: number | null | undefined,
+  contradicted: boolean | null | undefined,
+  issued?: SharesIssuedFiling | null,
+): string {
   const text = fmtVolume(float);
-  return contradicted === true && float != null && Number.isFinite(float) ? `${text}${FLOAT_CONTRADICTED_MARK}` : text;
+  const doubtful = contradicted === true || !!issued;
+  return doubtful && float != null && Number.isFinite(float) ? `${text}${FLOAT_CONTRADICTED_MARK}` : text;
+}
+
+/** A filed share issuance off the wire (#700), or null when absent or not one. */
+export function normalizeSharesIssued(raw: unknown): SharesIssuedFiling | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.published_ts !== 'number' || !Number.isFinite(r.published_ts)) return null;
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
+  return { published_ts: r.published_ts, source: text(r.source), form: text(r.form), items: text(r.items),
+    title: text(r.title), url: text(r.url) };
+}
+
+/** The filed-share-issuance warning's words when the backend named one (#700); undefined otherwise. */
+export function sharesIssuedWarning(
+  issued: SharesIssuedFiling | null | undefined,
+  reason?: string | null,
+): string | undefined {
+  return issued ? reason || SHARES_ISSUED_FALLBACK : undefined;
 }
 
 /** The short-above-float warning's words when the backend raised it; undefined otherwise. */
@@ -66,8 +91,9 @@ export function floatTitle(
   contradicted: boolean | null | undefined,
   reason: string | null | undefined,
   shortWarning?: string,
+  issuedWarning?: string,
 ): string | undefined {
-  const parts = [contradicted === true ? reason || FLOAT_CONTRADICTED_FALLBACK : undefined, shortWarning];
+  const parts = [issuedWarning, contradicted === true ? reason || FLOAT_CONTRADICTED_FALLBACK : undefined, shortWarning];
   const text = parts.filter(Boolean).join('. ');
   return text || undefined;
 }

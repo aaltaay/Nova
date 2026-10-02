@@ -115,5 +115,7 @@ def decorate_rows(rows: list[dict] | None) -> list[dict]:
         stamp_row(entry)
         from catalysts.board import stamp_row as stamp_catalyst
         stamp_catalyst(entry)
+        from catalysts.issuance import stamp as stamp_issuance
+        stamp_issuance(entry)  # a filed share issuance: the float reads "631K?", never a gate (#700)
         out.append(entry)
     return out

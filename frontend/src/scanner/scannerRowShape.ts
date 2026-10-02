@@ -17,6 +17,7 @@ import { applyScannerPricePatch } from '../hooks/useScannerPriceStream';
 import type { Catalyst } from '../types/catalyst';
 import type { ScannerRow } from '../types/scanner';
 import { normalizeCatalystVerdict } from '../utils/catalystVerdict';
+import { normalizeSharesIssued } from '../utils/shareFacts';
 
 /** Numeric fields every row carries (null when unknown). */
 const ROW_NUMBERS = [
@@ -140,6 +141,9 @@ export function normalizeScannerRow(raw: unknown): ScannerRow | null {
     out.float_contradicted = typeof raw.float_contradicted === 'boolean' ? raw.float_contradicted : null;
   }
   if ('float_contradicted_reason' in raw) out.float_contradicted_reason = textOrNull(raw.float_contradicted_reason);
+  // #700: a filed share issuance, a warning beside the float; anything not one is none on file.
+  if ('shares_issued' in raw) out.shares_issued = normalizeSharesIssued(raw.shares_issued);
+  if ('shares_issued_reason' in raw) out.shares_issued_reason = textOrNull(raw.shares_issued_reason);
   if ('short_above_float' in raw) {
     out.short_above_float = typeof raw.short_above_float === 'boolean' ? raw.short_above_float : null;
   }
