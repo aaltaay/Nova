@@ -76,6 +76,17 @@ describe('normalizeScannerRow (QA C8)', () => {
     expect('short_interest_ts' in row('OLD')).toBe(false);
   });
 
+  it('keeps a filed share issuance and reads anything else as none on file (#700)', () => {
+    const out = normalizeScannerRow({
+      symbol: 'AMOD', float: 630_935, shares_issued_reason: ' Shares were issued ',
+      shares_issued: { published_ts: 1_790_868_652, source: 'edgar', form: '8-K', items: '2.01,8.01', title: 'x', url: null },
+    })!;
+    expect(out.shares_issued?.items).toBe('2.01,8.01');
+    expect(out.shares_issued_reason).toBe('Shares were issued');
+    expect(normalizeScannerRow({ symbol: 'AMOD', shares_issued: { form: '8-K' } })!.shares_issued).toBeNull();
+    expect('shares_issued' in row('OLD')).toBe(false);
+  });
+
   it('keeps the short-above-float warning and reads anything else as unknown (#532)', () => {
     const out = normalizeScannerRow({
       symbol: 'SQZ', short_above_float: true, short_above_float_reason: ' Short interest 9.00M is above ',

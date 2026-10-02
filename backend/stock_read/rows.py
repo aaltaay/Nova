@@ -23,6 +23,7 @@ from constants_stock_read import (
     STOCK_READ_SPLIT_RECENT_DAYS,
     STOCK_READ_VOLUME_PROFILE_BARS,
 )
+from catalysts import issuance
 from stock_read import dilution, rounds
 
 ET = ZoneInfo("America/New_York")
@@ -313,6 +314,7 @@ def _round_row(lv: dict[str, Any], price: float | None) -> dict[str, Any]:
 def float_rows(f: dict[str, Any]) -> list[dict[str, Any]]:
     facts = ((f.get("why") or {}).get("facts")) or {}
     fl, vol = facts.get("float_shares"), facts.get("volume")
+    issued = facts.get("shares_issued") if isinstance(facts.get("shares_issued"), dict) else None
     src = "Yahoo fundamentals"
     out = []
     if fl is None:
@@ -322,12 +324,16 @@ def float_rows(f: dict[str, Any]) -> list[dict[str, Any]]:
         detail = None
         if facts.get("float_contradicted"):
             state, detail = "warn", facts.get("float_contradicted_reason") or "Yahoo's own counts contradict it"
-        out.append(row("float", "Float", shares(fl) + ("?" if facts.get("float_contradicted") else ""), state, src,
-                       detail))
+        if issued:  # a filed share issuance (#700): a warning beside the figure, never a gate
+            state, detail = "warn", "; ".join(d for d in (issuance.reason(issued), detail) if d)
+        doubt = "?" if facts.get("float_contradicted") or issued else ""
+        out.append(row("float", "Float", shares(fl) + doubt, state, src, detail))
     if fl and vol:
         rot = vol / fl
-        out.append(row("rotation", "Float rotation", f"{rot:.1f}x today", "ok" if rot >= STOCK_READ_ROTATION_OK
-                       else "info", "Today's volume over the float"))
+        out.append(row("rotation", "Float rotation", f"{rot:.1f}x today{'?' if issued else ''}",
+                       "ok" if rot >= STOCK_READ_ROTATION_OK and not issued else "info",
+                       "Today's volume over the float", "On Yahoo's float, which predates the shares issued"
+                       if issued else None))
     else:
         out.append(row("rotation", "Float rotation", "Unknown", "unknown", "Today's volume over the float",
                        "Needs the float" if not fl else "Needs today's volume"))

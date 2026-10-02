@@ -18,6 +18,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 import bars_store
 from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
+from catalysts import issuance
 from constants import CHART_DEFAULT_BARS, CHART_DEFAULT_TIMEFRAME
 from ibkr import ticks as _ibkr_ticks
 from ticker_detail import ticker_alpaca_required_error
@@ -176,7 +177,7 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
             await websocket.send_text(json.dumps({
                 "type": "detail_update",
                 "news": slow["news"],
-                "fundamentals": slow["fundamentals"],
+                "fundamentals": issuance.stamp(dict(slow["fundamentals"] or {}), symbol),
                 "avg_volume": avg_vol,
                 "rel_volume": rel_vol,
                 "rvol_5min": fast.get("rvol_5min"),

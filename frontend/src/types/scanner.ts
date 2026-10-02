@@ -1,5 +1,6 @@
 import type { WatchlistEntry } from '../strategy/types';
 import type { CatalystVerdict } from './catalystVerdict';
+import type { SharesIssuedFiling } from './ticker';
 
 /** Shared row shape for Gappers / Movers / After Hours / Large Cap tables. */
 export interface ScannerRow {
@@ -47,6 +48,12 @@ export interface ScannerRow {
   float_contradicted?: boolean | null;
   /** Why the float is doubtful, only when `float_contradicted` is true. */
   float_contradicted_reason?: string | null;
+  /**
+   * The newest SEC 8-K of the last 30 days that says shares were issued (backend `catalysts/issuance.py`, #700):
+   * Yahoo's float predates it, so the float reads "631K?" with `shares_issued_reason`. A warning, never a gate.
+   */
+  shares_issued?: SharesIssuedFiling | null;
+  shares_issued_reason?: string | null;
   short_interest: number | null;
   /** Epoch seconds of the FINRA settlement `short_interest` is from (Yahoo's date); null when unknown. */
   short_interest_ts?: number | null;

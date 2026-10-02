@@ -296,14 +296,17 @@ and to 2.74 premarket. The desk missed the news twice:
    In 7 Days ...", "Trump Picks Senator J.D. Vance As Running Mate") into a stock's catalyst. The live
    reader and `research/catalysts/fetch_alpaca.py` count this way, and `fetch_alpaca.py --recount`
    rewrites the stored Alpaca rows.
-5. **A filed share issuance makes Yahoo's float a question** (`/api/why`, ADR 028). Its facts add
-   `shares_issued`: the newest SEC 8-K since the prior session's 04:00 open with Item 3.02, or with
-   Item 2.01 that the rules label a raise. While one is on file, the float and float-rotation checks
-   read `unknown` ("631K? shares", "Float traded 82x?") and say why: Yahoo still read AMOD at 4,966,818
-   shares outstanding and a 630,935 float. So the likely cause is never low-float momentum on a float
-   the filings say is out of date. It is a description, not a gate: `float_contradicted`, scanner rows
-   and every max-float gate are unchanged. Whether a filed issuance should also mark the float for the
-   gates is the operator's call (#700).
+5. **A filed share issuance makes Yahoo's float a question: a warning, never a gate** (operator
+   decision on #700: "warn, don't block"). `catalysts/issuance.py` keeps, per symbol, the newest SEC
+   8-K of the last 30 days with Item 3.02, or with Item 2.01 that the rules label a raise, re-read from
+   the feed's store every minute off the loop. Yahoo still read AMOD at 4,966,818 shares outstanding and
+   a 630,935 float. Scanner rows and the Trader's fundamentals carry `shares_issued` and its reason, and
+   the desk reads the float as "630.9K?" with the filing first on hover. `/api/why` reads the float and
+   its rotation as `unknown`, so the likely cause is never low-float momentum on a float the filings say
+   is out of date. No gate reads it: `float_contradicted`, the HOD Momo floats, the setup grade and every
+   max-float gate are unchanged. A gate was rejected because the tradable float may really still be
+   small (PIPE shares may not trade until a resale registration). Thirty days, not the prior session,
+   because Yahoo lags for weeks.
 
 **Measured** on the 255,139 backfilled items (labels only, no outcome): 72 change. 32 become
 `crypto_treasury` (29 were `offering_dilution`, among them BitMine's, Verb's, K Wave's and Eightco's
