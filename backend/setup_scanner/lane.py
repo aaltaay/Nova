@@ -191,6 +191,14 @@ class Lane:
                 self._score(sid)
                 self.trackers.pop(sid, None)
 
+    def close_session(self, now: float, why: str) -> None:
+        """The trading session closed: every setup still forming ends and every armed or near one is
+        disarmed (its open proposal withdrawn), each with ``why`` -- journalled, so a playback and the
+        past setups end them where the card did. Idempotent: a detector already closed says nothing."""
+        for sym, det in self.det.items():
+            self.handle(sym, det.close_session(why), now)
+            lane_journal.say_state(self, sym, det)
+
     # -- events -> rows -----------------------------------------------------------
     def handle(self, sym: str, events: list[tuple[str, dict]], now: float) -> None:
         for kind, view in events:

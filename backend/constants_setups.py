@@ -32,6 +32,10 @@ SETUPS_SESSION_START_ET = "07:00"
 SETUPS_ENTRY_CUTOFF_ET = "11:30"
 SETUPS_SCORE_FLAT_BY_ET = "15:55"       # scoring stops here, as in the backtest
 SETUPS_BAR_SEC = 60                     # one-minute bars
+# The scanner's day is Nova's trading session (04:00-20:00 ET on an exchange day,
+# ``market.trading_session_bounds``): no minute or price outside it is read, and at its
+# close every setup still forming ends -- an armed one disarms -- with this reason.
+SETUPS_SESSION_CLOSED_REASON = "the session closed at 20:00 -- the scanners start again at 04:00"
 
 # -- 5-minute setups (operator decision 2026-09-30: "Mockup, then build"; on the mockup: build it,
 # chart only, a chip and the trigger on the 1-minute, 07:00-15:30). The first pullback, the bull flag
