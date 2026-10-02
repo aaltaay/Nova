@@ -13,7 +13,6 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -47,7 +46,6 @@ from bot.persist import load_session
 from bot.proposals import accept, list_proposals, reject, submit
 from bot.session import get_session, require_l2_brain
 from bot.watch import halt_watch
-from constants_bot import BOT_TZ
 
 router = APIRouter(tags=["bot"], dependencies=[Depends(require_loopback)])
 _write = [Depends(require_bot_auth)]
@@ -273,14 +271,16 @@ def bot_pnl() -> dict:
 
 @router.get("/api/bot/triggers")
 @router.get("/bot/triggers")
-def bot_triggers(date: str | None = Query(None, description="YYYY-MM-DD (ET); today by default")) -> dict:
+def bot_triggers(date: str | None = Query(None, description="YYYY-MM-DD; trading day (04:00 ET) by default")) -> dict:
     """The squares, by ticker (ADR 044): every listed ticker now and every trigger of the day, gate by gate.
-    Read-only; a sync route, so the journal and the audit stream are read off the loop."""
+    Read-only; a sync route, so the journal and the audit stream are read off the loop. Today is the hot
+    list's trading day, never the calendar's: from midnight to 04:00 ET the list is still the day before."""
     from bot.trigger_audit import answer
+    from hot_list import trading_day
     from scanner_wire import wire_safe
 
     now = time.time()
-    today = datetime.fromtimestamp(now, ZoneInfo(BOT_TZ)).date().isoformat()
+    today = trading_day(now)
     day = date or today
     try:
         if not _DATE.match(day):

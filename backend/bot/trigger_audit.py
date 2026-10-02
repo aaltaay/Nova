@@ -63,7 +63,7 @@ def answer(day: str, now: float, *, today: bool) -> dict[str, Any]:
 
     lines, journal_src = inputs.journal(day, today=today)
     rows, audit_src = inputs.audit(day)
-    listed, hot_src = inputs.hot_list(day)
+    listed, hot_src = inputs.hot_list(day, now)
     start = inputs.day_start(day)
     rules = inputs.rules()
     try:

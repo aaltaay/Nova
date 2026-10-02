@@ -7,6 +7,7 @@ recorded are named in ``judged_now``, and each gate's effect is summed in ``impa
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -132,8 +133,9 @@ def day(monkeypatch):
     trigger_inputs.reset_for_tests()
 
 
-def get(day_: str = DAY) -> dict:
-    res = client.get(f"/api/bot/triggers?date={day_}")
+def get(day_: str | None = DAY) -> dict:
+    """The table of ``day_``; ``None`` asks as the desk does, with no date (today's trading day)."""
+    res = client.get("/api/bot/triggers" + (f"?date={day_}" if day_ is not None else ""))
     assert res.status_code == 200, res.text
     return res.json()
 
@@ -253,7 +255,7 @@ def test_now_says_whether_nova_would_buy_each_listed_ticker(monkeypatch):
     monkeypatch.setattr(trigger_now, "_lanes", lambda sym: [
         {"setup_type": "first_pullback", "state": "near", "grade": "B" if sym == "LGHL" else "A",
          "liquidity": None, "phase": None}])
-    body = get(datetime.now(ET).date().isoformat())
+    body = get(None)
     tickers = by_symbol(body)
     aisp = tickers["AISP"]["now"]
     assert aisp["answer"] == "yes" and aisp["reasons"] == []
@@ -265,7 +267,7 @@ def test_now_says_whether_nova_would_buy_each_listed_ticker(monkeypatch):
     from setup_templates.store import get_store
 
     get_store().update("first_pullback", "default", values={"bot_grades": "A"})
-    lghl = by_symbol(get(datetime.now(ET).date().isoformat()))["LGHL"]["now"]
+    lghl = by_symbol(get(None))["LGHL"]["now"]
     assert lghl["cells"]["grade"]["ok"] is False and "grade B: this strategy buys grade A only" in \
         lghl["cells"]["grade"]["why"]
 
@@ -275,10 +277,30 @@ def test_now_when_the_bot_is_off(monkeypatch):
 
     on_practice()
     list_hot("AISP")
-    now = by_symbol(get(datetime.now(ET).date().isoformat()))["AISP"]["now"]
+    now = by_symbol(get(None))["AISP"]["now"]
     assert now["answer"] == "no" and now["cells"]["bot_on"]["ok"] is False
     assert now["cells"]["strategy_on"] == {"ok": False, "why": "no strategy is On: turn one On"}
     assert now["cells"]["setups_a_day"]["ok"] is None and now["cells"]["bot_window"]["ok"] is None
+
+
+@pytest.mark.parametrize(("hour", "minute", "trading_day"), [(0, 30, "2026-10-01"), (10, 0, "2026-10-02")])
+def test_today_is_the_hot_lists_trading_day(monkeypatch, hour, minute, trading_day):
+    """Today is the hot list's trading day, which starts at 04:00 ET. From midnight to the rollover the
+    calendar already reads Friday while the list is still Thursday's: the table follows the list, so its
+    tickers and their "now" rows do not vanish overnight."""
+    from tests.bot_helpers import list_hot, on_practice
+
+    monkeypatch.setattr(time, "time", lambda: at(hour, minute, day="2026-10-02"))
+    on_practice()
+    list_hot("AISP")
+    body = get(None)                                                    # the desk's ask: no date
+    assert body["date"] == trading_day
+    assert body["sources"]["hot_list"] == {"ok": True, "error": None}
+    assert by_symbol(body)["AISP"]["now"] is not None
+    assert by_symbol(get(trading_day))["AISP"]["now"] is not None       # asked by name, it is today too
+    if trading_day != "2026-10-02":                                     # before 04:00 Friday has no list yet
+        friday = get("2026-10-02")
+        assert friday["tickers"] == [] and friday["sources"]["hot_list"]["ok"] is False
 
 
 # -- the timeline ------------------------------------------------------------------------------------

@@ -2883,8 +2883,9 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
 
   Every write answers the view.
 
-**The squares, by ticker.** `GET /api/bot/triggers?date=YYYY-MM-DD` (default today; owner
-`bot/trigger_audit.py`, read-only) answers:
+**The squares, by ticker.** `GET /api/bot/triggers?date=YYYY-MM-DD` (default today: the hot list's
+trading day, which starts at 04:00 ET, never the calendar date; owner `bot/trigger_audit.py`, read-only)
+answers:
 
 ```
 {schema_version: 1, date, generated_at,
@@ -2910,7 +2911,8 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
   the rollover hides reads `null`. **`hot_list`** reads the spans of the day's `hot_list` audit lines:
   listed at the trigger, taken off before it, or listed only after it.
 - **BLIND** is the Level 2 line's red, never the tape's.
-- **`now`** (today only) is each listed ticker this minute.
+- **`now`** (today only, the trading day: the rows stay from midnight to the 04:00 rollover) is each
+  listed ticker this minute.
 
 **A hidden Trader tab lends its Level 2 and Time & Sales lines** (owner `backend/line_lending/`). IBKR
 counts tick-by-tick lines with the depth lines' formula (3 on this account), so a loan moves both: a borrower
@@ -4174,6 +4176,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-02 | Tickers today follows the hot list's trading day (ADR 044). `GET /api/bot/triggers` with no date answered the calendar date, while the hot list's day starts at 04:00 ET: from midnight to the rollover the desk's table asked for a day with no list ("no hot list kept for 2026-10-02"), so its listed tickers and their "now" rows vanished and the day's triggered tickers gave way to the new date's file (one overnight trigger, against the day's 21, on the desk at 00:36 ET). Today is now the hot list's trading day in the route and in its hot-list read, from one clock read. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | The trading session ends at 20:00 ET (operator report 2026-10-01 23:33: "How come these things are getting triggered right now? ... the entire market is closed, no?"). After the close IBKR keeps the SMART Level 1 lines moving with its overnight session (20:00-03:50 ET), and Nova read those prints as more of the day: one-minute candles, HOD Momo trades (78 alerts after 20:00) and setup-scanner bars -- OM's "12% leg" was one 200-share print at 20:48 -- while the scanner never ended its day, so legs from 15:52 still read as forming at 23:33 and, after midnight, red to green armed SDEV at 00:12 on a 23:59 print taken for the 09:30 open. One rule (`market.in_trading_session`: 04:00-20:00 ET on an exchange day) now bounds the bar builder, HOD Momo's L1 feed and the scanner, which ends every lane's day at the close with a stated reason. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-01 | Dilution on file (ADR 036 amendment; operator ask: show the dilution filings on file on the stock read). The float group adds the row `dilution_on_file` from SEC EDGAR's submissions file for the symbol's CIK: an S-3 / F-3 shelf within 3 years, a 424B within 180 days, an S-1 / F-1 within 180 days, an 8-K Item 3.02 within 180 days. It reads `warn` when any is on file, `ok` when the registrant is known and none is, and `unknown` with the reason otherwise (never clean). The stock read never waits on it: a background reader (`stock_read/dilution_reader.py`) reads EDGAR on first ask, one request a second, and keeps each symbol's read for its session day in `stock_read/dilution.sqlite3`. Nothing places, stages or gates on it. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-10-01 | The close-of-day reminder (operator ask: be flat before the close, nothing held overnight). A loud card at 15:50 ET per open Paper / Live position, escalated at 15:55, gone at 16:00, once per position per day per stage, remembered for the day in `nova.closeReminder.fired`. §3 amended. | User Directive + Claude Fable 5.1 |
