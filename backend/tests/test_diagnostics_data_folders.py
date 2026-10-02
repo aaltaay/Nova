@@ -43,7 +43,7 @@ def test_the_checkout_folders_still_on_c_warn_with_the_move():
     row = _row(folders)
     assert row["state"] == "warn"
     assert row["detail"] == (f"On C: while F: is mounted: Cache ({DESK}\\.cache), Logs ({DESK}\\logs)")
-    assert row["fix"] == "Stop Nova (Stop Nova.bat), run `py -3 tools/data_root.py move`, then start Nova."
+    assert row["fix"] == "Stop Nova (scripts/windows/Stop Nova.bat), run `py -3 tools/data_root.py move`, then start Nova."
     assert "stay off C:" in row["cause"]
 
 

@@ -24,7 +24,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 LIVE_PATHS: tuple[str, ...] = (
     "AGENTS.md",
     "README.md",
-    "findings.md",
     ".env.example",
     "frontend/.env.example",
     ".github/workflows/deploy.yml",

@@ -13,7 +13,7 @@ ADR 016 gave the bot a pack catalog: halt / LULD resume, quote spike, volume
 boost and an OpenRouter "LLM decide". None of them came from the operator's
 trading material and none was ever backtested. They ran in a separate
 `nova-brain` process (`backend/nova_brain/`) that the Desktop app and
-`Run Nova.bat` started beside the API.
+`scripts/windows/Run Nova.bat` started beside the API.
 
 The operator's own playbook is their private course material (it stays off
 the repo on `F:\Nova`): first pullback, Gap and Go,
@@ -35,7 +35,7 @@ evidence behind it was nowhere on it.
    `POST /api/bot/llm/spend`, the whole `nova_brain` package (pack loop,
    halt-luld, quote-spike, volume, llm-decide, OpenRouter client, sensor
    context), the Electron `brainSidecar.mjs`, `scripts/Start-NovaBrain.ps1`
-   and the brain window in `Run Nova.bat`. The session file drops
+   and the brain window in `scripts/windows/Run Nova.bat`. The session file drops
    `active_pack`, `pack_settings` and `llm` (schema 4; a v1-3 file loads
    with those keys stripped). The HTTP client the SDK and the MCP adapter
    use moves to `bot/client.py`. The localhost bot API itself -- levels,
@@ -94,7 +94,7 @@ evidence behind it was nowhere on it.
   has not passed its read-out, and the first-pullback L2 fire path itself
   (what the bot sends when a go setup triggers) is a follow-up once it
   passes -- #514, not guessed here.
-- The Desktop app and `Run Nova.bat` start one process fewer. Anyone who
+- The Desktop app and `scripts/windows/Run Nova.bat` start one process fewer. Anyone who
   ran their own brain against the API keeps the contract, minus the pack
   fields and `/llm/spend`.
 - Advise (`/api/bot/advise`, OpenRouter, read-only) is unchanged.

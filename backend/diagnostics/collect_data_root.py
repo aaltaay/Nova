@@ -57,7 +57,7 @@ def data_folder_rows(
         cause = f"Operator decision 2026-09-24: recordings and data stay off {system_drive}."
         steps = []
         if any(not f.get("env") for f in on_system):
-            steps.append(f"stop Nova (Stop Nova.bat), run `{DATA_MOVE_COMMAND}`, then start Nova")
+            steps.append(f"stop Nova (scripts/windows/Stop Nova.bat), run `{DATA_MOVE_COMMAND}`, then start Nova")
         steps += [f"set {f['env']} to a folder on {data_drive} in .env, then Reload backend"
                   for f in on_system if f.get("env")]
         joined = "; ".join(steps)

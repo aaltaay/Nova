@@ -3,7 +3,7 @@
   Force-stops any Nova-owned process currently listening on the given local ports.
 
 .DESCRIPTION
-  Used by Run Nova.bat / Stop Nova.bat / Run Nova Desktop.bat to guarantee a
+  Used by scripts\windows\Run Nova.bat / scripts\windows\Stop Nova.bat / scripts\windows\Run Nova Desktop.bat to guarantee a
   clean "safe open" (no stale process holding the port from a previous,
   possibly crashed, session) and to provide an explicit "safe close" path.
 

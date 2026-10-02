@@ -8,7 +8,7 @@ Usage:
   py -3 tools/deferred_log.py status
   py -3 tools/deferred_log.py priorities
   py -3 tools/deferred_log.py refresh-index
-  py -3 tools/deferred_log.py publish [--path DEFERRED_LOG.md]
+  py -3 tools/deferred_log.py publish [--path docs/deferred-log.md]
 
 ``priorities`` is an alias of ``status``. When the human asks what is on the
 to-do / what is missing / what the priorities are, run this tool -- do not
@@ -35,7 +35,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PATH = REPO_ROOT / "DEFERRED_LOG.md"
+DEFAULT_PATH = REPO_ROOT / "docs" / "deferred-log.md"
 
 HEADING_RE = re.compile(r"^## (D-\d+)\s+--\s+(.+)$", re.MULTILINE)
 FIELD_RE = re.compile(r"^- \*\*([^*]+):\*\*\s*(.+)$")
@@ -199,7 +199,7 @@ def _issue_body(item_id: str, raw: str, *, migrated: bool) -> str:
         "\n\n---\n"
         f"Durable id: `{item_id}`.\n"
         "Tracker: GitHub Issues with label `deferred`.\n"
-        "Do not add a second copy in `DEFERRED_LOG.md`.\n"
+        "Do not add a second copy in `docs/deferred-log.md`.\n"
     )
     if migrated:
         footer += "Migrated from `DEFERRED_LOG.md` on 2026-09-08.\n"

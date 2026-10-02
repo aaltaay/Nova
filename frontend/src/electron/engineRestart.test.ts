@@ -84,7 +84,7 @@ describe('engineRestart', () => {
     expect(engineScripts([ROOT, own], () => false)).toBeNull();
   });
 
-  it('starts the engine the way Run Nova.bat does, and refuses a path cmd would rewrite', () => {
+  it('starts the engine the way scripts/windows/Run Nova.bat does, and refuses a path cmd would rewrite', () => {
     const line = engineStartCommandLine('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', `${ROOT}\\backend`, START);
     expect(line).toBe(
       `/d /s /c "start "Nova API" /min /D ${ROOT}\\backend C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe `

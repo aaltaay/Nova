@@ -1,7 +1,7 @@
 /**
  * Who runs the backend the installed desk talks to (ADR 038, amended 2026-09-29).
  *
- * The operator's backend is the checkout engine that the localhost watchdog, Run Nova.bat and
+ * The operator's backend is the checkout engine that the localhost watchdog, scripts/windows/Run Nova.bat and
  * the morning script start: its data sits behind the checkout's backend\.cache (F:\Nova\cache),
  * and its .env holds the IBKR settings and the Live PIN hash. So the installed desk:
  *  - uses whatever Nova engine answers :8000 without asking -- it never stops it and never
@@ -124,7 +124,7 @@ export function ownerStartFailedPrompt({ root, error, userData }) {
     title: 'Your Nova backend did not start',
     message: `Nova could not start the backend from ${root}.`,
     detail:
-      `${error}\n\nRetry once it can start (Run Nova.bat shows why it cannot). The bundled backend `
+      `${error}\n\nRetry once it can start (scripts/windows/Run Nova.bat shows why it cannot). The bundled backend `
       + `keeps its data in ${path.join(userData, 'cache')}: a different Paper account, bot session and `
       + 'history than your usual backend.',
     buttons: ['Retry', 'Use the bundled backend this session', 'Exit Nova'],

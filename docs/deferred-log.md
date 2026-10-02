@@ -4,7 +4,7 @@ The parking lot for known bugs and parked features is **GitHub Issues** labeled 
 
 https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred
 
-`DEFERRED_LOG.md` is the how-to. It is **not** the to-do list. Do not prepend new `## D-NNN` sections here.
+This file is the how-to. It is **not** the to-do list. Do not prepend new `## D-NNN` sections here.
 
 **Mandatory for every agent.** Rule: `.cursor/rules/deferred-log.mdc`. Finding a real bug (or parking a real feature) and walking away with no GitHub issue is a constitution violation. Lifecycle footers must declare `deferred_log=<#NNN or D-NNN>|none|skipped|n/a`.
 

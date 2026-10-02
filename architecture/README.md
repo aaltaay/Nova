@@ -3,7 +3,7 @@
 Authoritative **target architecture** for the Pattern-Driven Architecture maintenance track (Phases 0–13).  
 Plan: `maintenance-audit-roadmap_519236d4.plan.md` · Baseline: [`baseline-phase0.md`](./baseline-phase0.md)
 
-Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme for trading gates, single-feed, and modularity. This folder records **how** we structure code toward those laws.
+Constitution (`AGENTS.md`) and `.cursor/rules/*` remain supreme for trading gates, single-feed, and modularity. This folder records **how** we structure code toward those laws.
 
 ## Decisions (ADRs)
 

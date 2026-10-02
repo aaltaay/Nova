@@ -323,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
 
     held = desk_running(repo / "backend" / ".cache")
     if held and not args.dry_run:
-        print("data_root: stop Nova first (Stop Nova.bat): " + "; ".join(held), file=sys.stderr)
+        print("data_root: stop Nova first (scripts/windows/Stop Nova.bat): " + "; ".join(held), file=sys.stderr)
         return 3
     if sys.platform != "win32":
         print("data_root: junctions are a Windows feature; nothing to move here", file=sys.stderr)
