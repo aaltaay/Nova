@@ -3544,6 +3544,43 @@ checks passed, sent to the venue, venue answered, filled, reply ready), in
 time order; `venue_leg_ms` is sent to answered -- IBKR's round trip on Live,
 the practice broker on Paper / Sim. A browser stamp is never subtracted from a
 backend one, and a stage with no stamp is listed in `missing`, never guessed.
+`answer` is the order's broker status now, shown on its first line ("cancelled
+(broker now: Cancelled)"). The ledger records when the venue first answered,
+not what it said, so the status is never printed beside that stage.
+
+**A practice order's rows close when its venue closes it** (TNMG, 2026-10-02:
+Nova's bot cancelled its unfilled Paper bracket entry 77 at 09:47:22, and the
+bracket's row and the cancel's row read `acked` until the 10:36 restart's sweep
+called them `failed`). An execution row's `status` is open while it is
+`reserved | validated | sent | acked`, and closed once it is `filled |
+cancelled | rejected | failed | abandoned | duplicate_replay`. `cancelled` is
+new: the order reached its venue and closed unfilled -- a cancel, a DAY expiry or
+a bracket's own closure -- so it is not an error (`error` stays null). One pure
+rule classifies a venue's close (`execution.order_outcome.ledger_close`):
+
+- `Filled` closes the row `filled`;
+- `Cancelled` / `ApiCancelled` / `Expired` with no code, or with
+  `PRACTICE_TIF_EXPIRED`, `PRACTICE_OCO_CANCELLED` or `PRACTICE_PARENT_CANCELLED`,
+  closes it `cancelled` with that code;
+- any other close is `failed`, in the venue's own words. That covers a refusal at
+  a later fill, such as `PRACTICE_BUYING_POWER`, and `Inactive`.
+
+On Paper and Sim no callback follows the venue's first answer. So every close
+after it -- a resting fill, an expiry, a bracket's exits, Nova's own cancel --
+closes that order's place, bracket and replace rows at that moment, with
+`filled_ns` on a fill (`practice.watch.close_rows`). The rows are matched by the
+order id, the venue (`mode`) and this process (practice ids restart per venue).
+Nova's cancel also closes its own row `cancelled`, and the ticket's
+acknowledgment wait never reopens a closed row.
+
+Before this, a resting Paper order that filled read `acked` until a restart:
+AIFF, NXL and CNTB were marked `filled` hours or days later. A bracket's row now
+keeps its entry's `perm_id`; each exit leg had written its own over it, so TNMG's
+row read 79.
+
+The startup sweep reads a broker's cancel or expiry as `cancelled`, not
+`failed`. Live still closes these rows only at that sweep (#712), and the sweep
+reads the desk venue's book rather than each row's own (#713).
 
 **Orders (Today) belongs to the desk's venue** (QA batch, 2026-09-22):
 `/api/ibkr/orders/closed` on Paper and Sim is the practice ledger's own closed
@@ -4332,6 +4369,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-04 | A practice order's execution rows close when its venue closes it (TNMG, 2026-10-02). Nova's bot cancelled its unfilled Paper bracket entry 77 at 09:47:22 ET, three seconds after the venue answered `Submitted`. The bracket's row and the cancel's row stayed `acked` until the 10:36 restart, when the startup sweep called the venue's Cancelled `failed`. Three causes: the practice broker skipped the notice for an order Nova cancelled; the cancel path set only the place row's `broker_status`; and no callback follows a practice venue's first answer, so resting Paper fills also read `acked` until a restart (AIFF, NXL, CNTB). The ledger gains a terminal `cancelled`, classified by one rule (`execution.order_outcome.ledger_close`). Every practice close now ends its rows at once (`practice.watch.close_rows`), and the sweep reads a cancel as `cancelled`. A bracket's row keeps its entry's `perm_id`: TNMG's read the stop leg's 79. `tools/order_timing.py` no longer prints the order's status now beside the venue's first answer. Live's same gap is #712; the sweep's venue scoping is #713. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Auto-heal (operator: "when I view a stock or a ticker, the recorder will empty a space for me"; "Shouldn't this be fully auto-healed?"). The stock you look at outranks every recording you did not start: a recording a restart brought back with no owner on file is auto-record's and gives way (SDEV, SSM and CELU held all three lines from 10:36 and AZTA read "Symbol cap reached" for over an hour); the operator's own starts are kept in `auto-record.json` `operator`; the ladder names who holds the lines and backs off to 5 s (it asked every second). A Gateway logged in but refusing its API port (after the 12:12-12:45 Wi-Fi drop) restarts itself through IBC's `RESTART` on its saved login, no 2FA; IBC's command server turns on, on this PC only. The launcher no longer starts a second Gateway beside a running one (`ibgateway1.exe`), which is what took over the IBKR login at 12:46, and its process check is cached (a PowerShell run held the HTTP loop 250-935 ms per status poll). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Gap and Go gets its scanner, like every other strategy (ADR 031 amendment; operator, after SDEV's open and being offered a chart-only lane: "why dont u treat it like every other strategy we already got?"). Decision C of ADR 031 had made it next, and the four setups with scanners failed their bar-level backtests worse than Gap and Go did (PF 0.54 / 0.20 / 0.58 against 1.00). A fifth detector (`setup_scanner/gap_and_go.py`) reads the research's pre-registered A2 rule on the same lanes: the pre-market high, armed at the 09:30 open when the open is under it (a gap through it skips the day), a live price over it by 10:00, stop min(20c, 4%) under the entry, target 1 at 2R, one try a day; before the open the levels are drawn as forming. It has Off / Eyes / On per venue (starting Off), templates, scoring, its own read-out, the tape gate, the grade, the cards, the Tickers today squares and the charts, and Nova's bot plays it at On on Paper and Sim only. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | A symbol followed mid-session is seeded from 04:00. The scanner followed AMOD at 07:51:22 with nothing stored before its Level 1 line opened, so every lane warmed up from scratch: the 1-minute first pullback's first line came at 08:23 (32 bars), the 5-minute one read "warming up (17/32 bars)" at 09:19. On five days of the eyes' journal no name first followed after 04:10 warmed within 2 minutes. A short seed now waits on IBKR's 1-minute history of today, asked one symbol at a time against half of IBKR's historical budget (`setup_scanner/seeder.py`). The wire is unchanged. §3 amended. | User Directive + Claude Opus 5.5 |

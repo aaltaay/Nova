@@ -249,6 +249,27 @@ landed in under 150 ms, and the ticket read "Placing..." the whole time. A
 price replace waited the same 5 s. `py -3 tools/order_timing.py` prints each
 order's stages from the running backend.
 
+## Every later close ends the order's rows (TNMG, 2026-10-02)
+
+Nothing follows the venue's first answer the way IBKR's callbacks do. Every
+close after it -- a resting fill, Nova's or the operator's cancel, a DAY expiry,
+a bracket's exits -- therefore tells the order's own watch, and
+`practice/watch.close_rows` ends that order's place, bracket and replace rows at
+once. The rows are matched by order id, venue (`mode`) and this process.
+`execution.order_outcome.ledger_close` sets the outcome:
+
+- a fill: `filled`, with `filled_ns`;
+- a cancel, an expiry or a bracket's own closure: `cancelled`, with the venue's
+  code;
+- a refusal at a later fill: `failed`, in the venue's words.
+
+Nova's cancel used to skip the notice for the order it cancelled. Its send path
+set only the place row's `broker_status`, so TNMG's bracket entry 77 (cancelled
+unfilled at 09:47:22) and the cancel's own row read `acked` until the 10:36
+restart's sweep called them `failed`. Resting Paper fills read `acked` until a
+restart too. A bracket's exit legs never write their `perm_id` onto the
+bracket's row, which is the entry's (ADR 007 decision 12).
+
 ## Market orders need regular hours (operator decision, 2026-09-21)
 
 A `MKT` from a non-protective source is refused `MKT_OUTSIDE_RTH` -- "use a

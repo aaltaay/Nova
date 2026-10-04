@@ -11,7 +11,10 @@ measured from the moment Nova received it:
 
 "Venue answered" is IBKR's first status on Live -- a real round trip through
 IB Gateway -- and the practice broker's answer on Paper and Sim, which runs
-on this PC. The slowest step is marked. Browser stamps are the browser's own
+on this PC. The ledger keeps when the venue first answered, not what it said:
+the broker status on an order's first line is the order's status now (a
+resting order Nova later cancelled reads Cancelled there, though the venue
+first answered Submitted). The slowest step is marked. Browser stamps are the browser's own
 clock and are never subtracted from the backend's; the reply's trip back to
 the window and the ticket's repaint are the window's to measure (the desk's
 Latency panel). Nothing here places, cancels or changes anything.
@@ -119,15 +122,14 @@ def render(tl: dict[str, Any]) -> str:
     )
     if tl["price"] is not None:
         what += f" @ {tl['price']:g}"
-    head = f"{what or tl['operation']}  {tl['venue']}  order {tl['order_id'] or '-'}  {tl['status']}  {tl['created_et'] or ''}"
+    status = f"{tl['status']} (broker now: {tl['answer']})" if tl["answer"] else str(tl["status"])
+    head = f"{what or tl['operation']}  {tl['venue']}  order {tl['order_id'] or '-'}  {status}  {tl['created_et'] or ''}"
     lines = [head.rstrip(), f"  ({tl['operation']}, source {tl['source']}, execution {tl['execution_id']})"]
     if tl["browser_click_to_request_ms"] is not None:
         lines.append(f"  click -> request left the window: {tl['browser_click_to_request_ms']:.1f} ms (browser clock)")
     lines.append("       at      step  stage (from the moment Nova received it)")
     for step in tl["steps"]:
         name = step["stage"]
-        if name == "venue answered" and tl["answer"]:
-            name += f": {tl['answer']}"
         mark = "   <- slowest step" if step["stage"] == tl["slowest"] and len(tl["steps"]) > 1 else ""
         lines.append(f"  {step['at_ms']:>9,.1f} {step['step_ms']:>9,.1f}  {name}{mark}")
     if tl["venue_leg_ms"] is not None:

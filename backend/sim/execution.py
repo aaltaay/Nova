@@ -74,9 +74,9 @@ async def send_practice_broker(
             order_id=cmd.order_id, mode=mode,
         )
         assert cmd.order_id is not None
-        watch = telemetry.watch_order(
-            cmd.order_id, execution_id, venue=mode, fresh=True, leg_role="cancel",
-        )
+        # The venue closes the order first, so its own watch hears the close and
+        # its rows end with it (practice.watch.close_rows); the cancel's watch
+        # takes the id only after.
         raw = broker.cancel(cmd.order_id, source=cmd.source)
         if not raw.get("ok"):
             store.update_stages(
@@ -89,12 +89,17 @@ async def send_practice_broker(
                 error=raw.get("error"), reason_code="BROKER_REJECT",
                 mode=mode, order_id=cmd.order_id, timings=timings,
             )
+        watch = telemetry.watch_order(
+            cmd.order_id, execution_id, venue=mode, fresh=True, leg_role="cancel",
+        )
         timings.broker_ack_ns = time.perf_counter_ns()
         inflight.release_order(cmd.order_id, mode)
+        # The venue's Cancelled is final: the cancel row ends ``cancelled``, and so
+        # does a place row from an earlier run that no watch of this one holds.
         persist_successful_cancel(
             execution_id, order_id=cmd.order_id, perm_id=cmd.order_id,
             broker_ack_ns=timings.broker_ack_ns, broker_status="Cancelled",
-            verified_gone=True,
+            verified_gone=True, mode=mode, final=True,
         )
         watch.note_status(
             "Cancelled", filled=0, remaining=0, perm_id=int(cmd.order_id),

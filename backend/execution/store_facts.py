@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import time
 
+from constants import EXECUTION_NON_TERMINAL_STATUSES
 from execution import ledger_generation, store
 
 logger = logging.getLogger(__name__)
@@ -175,6 +176,7 @@ def _sum_session_commissions(since_ts: float) -> dict[str, float]:
 _PLACE_OPS = ("place", "bracket")
 _CANCEL_STATUSES = frozenset({"Cancelled", "ApiCancelled"})
 _KEEP_CLOSED = frozenset({"Filled", "Cancelled", "ApiCancelled", "Inactive"})
+_OPEN_STATUSES = frozenset(EXECUTION_NON_TERMINAL_STATUSES)
 
 
 def _as_int(value: object) -> int:
@@ -184,11 +186,66 @@ def _as_int(value: object) -> int:
         return 0
 
 
+def close_venue_order(
+    order_id: int,
+    *,
+    mode: str,
+    status: str,
+    broker_status: str,
+    reason_code: str | None = None,
+    error: str | None = None,
+    filled_ns: int | None = None,
+) -> list[str]:
+    """Close the still-open rows this process sent ``order_id`` under on venue ``mode``; returns their ids.
+
+    For a venue whose word is final -- a practice venue settles its own orders
+    with no callback after its answer -- so a resting order it fills, cancels or
+    expires closes its rows at that moment instead of reading ``acked`` until the
+    next restart's sweep calls it ``failed`` (TNMG, 2026-10-02). Practice ids
+    restart per venue and per process: the venue and this boot scope the id. The
+    place, bracket (its entry's id) and replace rows close; a cancel row is its
+    own send path's.
+    """
+    oid = _as_int(order_id)
+    if oid <= 0 or not mode:
+        return []
+    store.init_db()
+    conn = store.get_connection()
+    try:
+        open_marks = ", ".join("?" for _ in EXECUTION_NON_TERMINAL_STATUSES)
+        ids = [str(row["id"]) for row in conn.execute(
+            f"""
+            SELECT id FROM executions
+            WHERE order_id = ? AND mode = ? AND boot_id = ?
+              AND operation IN ('place', 'bracket', 'replace')
+              AND status IN ({open_marks})
+            """,
+            (oid, str(mode), store.current_boot_id(), *EXECUTION_NON_TERMINAL_STATUSES),
+        ).fetchall()]
+        for exec_id in ids:
+            conn.execute(
+                """
+                UPDATE executions
+                SET status = ?, broker_status = ?, reason_code = ?, error = ?,
+                    filled_ns = COALESCE(filled_ns, ?), updated_ts = ?
+                WHERE id = ?
+                """,
+                (status, broker_status, reason_code, error, filled_ns, time.time(), exec_id),
+            )
+        if ids:
+            ledger_generation.commit(conn)
+        return ids
+    finally:
+        conn.close()
+
+
 def mark_place_cancelled(
     *,
     order_id: int | None = None,
     perm_id: int | None = None,
     broker_status: str = "Cancelled",
+    mode: str | None = None,
+    close: bool = False,
 ) -> str | None:
     """Set the matching place/bracket ``broker_status`` to Cancelled.
 
@@ -196,6 +253,10 @@ def mark_place_cancelled(
     ``perm_id``. This durable mark still matters after restart when IB does
     not return the cancel, and it must work across ``boot_id``. It does not
     invent clocks and does not overwrite a fill.
+
+    ``mode`` scopes the match to one venue's rows: practice ids restart at 1 per
+    venue, so Sim's order 5 must never mark Paper's. ``close`` also ends a row
+    still open as ``cancelled`` -- for a venue whose word is final.
     """
     oid = _as_int(order_id)
     pid = _as_int(perm_id)
@@ -212,6 +273,9 @@ def mark_place_cancelled(
             "IFNULL(source, '') != 'benchmark'",
         ]
         values: list = []
+        if mode:
+            clauses.append("mode = ?")
+            values.append(str(mode))
         id_or: list[str] = []
         if oid > 0:
             id_or.append("order_id = ?")
@@ -253,6 +317,9 @@ def mark_place_cancelled(
         if current not in _KEEP_CLOSED:
             fields.append("broker_status = ?")
             update_values.append(status)
+        if close and str(led.get("status") or "") in _OPEN_STATUSES:
+            fields.append("status = ?")
+            update_values.append("cancelled")
         if pid > 0 and _as_int(led.get("perm_id")) <= 0:
             fields.append("perm_id = ?")
             update_values.append(pid)
@@ -277,21 +344,31 @@ def persist_successful_cancel(
     broker_ack_ns: int | None,
     broker_status: str | None,
     verified_gone: bool,
+    mode: str | None = None,
+    final: bool = False,
 ) -> str | None:
-    """Persist the cancel execution, then close the matching place row."""
+    """Persist the cancel execution, then close the matching place row.
+
+    ``final``: the venue's Cancelled is its last word (a practice venue), so the
+    cancel row ends ``cancelled`` and a place row still open ends with it. On
+    Live, IBKR's later callbacks for the order reach the cancel's watch, so both
+    rows stay open for them (and for the startup sweep).
+    """
+    closed = str(broker_status or "") in _CANCEL_STATUSES
     store.update_stages(
         execution_id,
-        status="acked" if broker_ack_ns else "sent",
+        status="cancelled" if final and closed else "acked" if broker_ack_ns else "sent",
         broker_ack_ns=broker_ack_ns,
         broker_status=broker_status,
     )
-    closed = str(broker_status or "") in _CANCEL_STATUSES
     if not (verified_gone or closed):
         return None
     return mark_place_cancelled(
         order_id=order_id,
         perm_id=perm_id,
         broker_status=broker_status or "Cancelled",
+        mode=mode,
+        close=final and closed,
     )
 
 

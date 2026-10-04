@@ -55,10 +55,21 @@ def test_a_live_order_reads_as_stages_in_time_order_with_the_ibkr_round_trip() -
     assert tl["venue_leg_ms"] == 156.0
     assert tl["venue_is_local"] is False
     text = order_timing.render(tl)
-    assert "venue answered: PreSubmitted" in text
+    assert "filled (broker now: PreSubmitted)" in text.splitlines()[0]
     assert "156.0 ms -- IBKR round trip through IB Gateway" in text
     assert "IBKR execution time: 2026-09-24T20:12:14.500Z" in text
     assert "click -> request left the window: 0.3 ms (browser clock)" in text
+
+
+def test_the_venues_first_answer_is_never_labelled_with_the_orders_status_now() -> None:
+    """TNMG 77 (2026-10-02) rested Submitted and was cancelled 3 s later; it read "venue answered: Cancelled"."""
+    tl = order_timing.timeline(_row(
+        mode="paper", operation="bracket", status="cancelled", broker_status="Cancelled", filled_ns=None,
+    ))
+
+    text = order_timing.render(tl)
+    assert "cancelled (broker now: Cancelled)" in text.splitlines()[0]
+    assert "venue answered" in text and "venue answered:" not in text
 
 
 def test_a_paper_order_that_waited_out_the_ack_names_the_wait() -> None:

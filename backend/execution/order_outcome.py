@@ -3,6 +3,8 @@
 Filled qty / avg / filled_at come only from execDetails events. Soft warnings
 (2109 and peers) never open a reject modal. The modal uses the latest hard
 error (Error 201). Limit / aux / ValidationError prices are never fills.
+``ledger_close`` maps a venue's closed status to the execution row's terminal
+fields, so a cancelled order reads ``cancelled``, never ``failed``.
 
 Owner: execution.order_outcome. No IB socket, no ledger IO.
 """
@@ -12,6 +14,12 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Literal, Mapping
 
 from constants import IBKR_SOFT_ORDER_WARNING_CODES
+from constants_practice import (
+    PRACTICE_OCO_CANCELLED_CODE,
+    PRACTICE_ORDER_STATUS_EXPIRED,
+    PRACTICE_PARENT_CANCELLED_CODE,
+    PRACTICE_TIF_EXPIRED_CODE,
+)
 
 Verdict = Literal["working", "filled", "rejected", "cancelled"]
 
@@ -238,6 +246,38 @@ def reduce_order_events(
         commission=_commission_from_events(evs),
         status_history=tuple(statuses),
     )
+
+
+#: Closed unfilled, and not a refusal: a cancel (Nova's, the operator's, KILL's), a DAY
+#: order's expiry, or a bracket's own closures (one-cancels-other, an entry's exits).
+_LEDGER_CANCELLED = _CANCELLED | {PRACTICE_ORDER_STATUS_EXPIRED}
+_NOT_A_REFUSAL = frozenset({
+    PRACTICE_TIF_EXPIRED_CODE, PRACTICE_OCO_CANCELLED_CODE, PRACTICE_PARENT_CANCELLED_CODE,
+})
+
+
+def ledger_close(
+    broker_status: str | None, *, reason_code: str | None = None, error: str | None = None,
+) -> dict[str, str | None] | None:
+    """The execution ledger's terminal fields for an order its venue closed; None while it works.
+
+    ``filled`` for a fill; ``cancelled`` for an order closed unfilled by a cancel,
+    its TIF or its bracket; ``failed`` for any other close -- a venue's refusal
+    (a practice order cancelled at the fill, ``PRACTICE_BUYING_POWER``) or
+    ``Inactive`` -- in the venue's own words when it gave them.
+    """
+    status = str(broker_status or "")
+    code = str(reason_code or "") or None
+    if status in _FILLED:
+        return {"status": "filled", "broker_status": status, "reason_code": None, "error": None}
+    if status in _LEDGER_CANCELLED and (code is None or code in _NOT_A_REFUSAL):
+        return {"status": "cancelled", "broker_status": status, "reason_code": code, "error": None}
+    if status in _LEDGER_CANCELLED or status in _REJECT_STATUS:
+        return {
+            "status": "failed", "broker_status": status, "reason_code": code,
+            "error": error or f"The venue closed the order ({status})",
+        }
+    return None
 
 
 def assert_outcome_honest(outcome: OrderOutcome) -> None:
