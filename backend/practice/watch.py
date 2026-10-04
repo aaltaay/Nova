@@ -20,6 +20,10 @@ execution door's acknowledgment wait found nothing and every Paper and Sim
 order waited the full ``EXECUTION_ACK_WAIT_SEC`` (5 s) before the ticket
 unlocked (operator report, 2026-09-24: 21 of 23 Paper orders answered in
 5.1 s while their fills landed in under 150 ms).
+
+Every close after that answer -- a resting fill, a cancel, an expiry, a
+bracket's exits -- also ends the order's execution rows (``close_rows``): no
+IBKR callback will.
 """
 from __future__ import annotations
 
@@ -113,7 +117,7 @@ def note_answer(watch: Any, answer: dict[str, Any]) -> None:
 
 
 def notify_watch(order_id: int, row: dict[str, Any]) -> None:
-    """Tell the execution telemetry watch what the practice venue decided."""
+    """Tell the execution telemetry watch what the practice venue decided, and close the order's rows."""
     status = str(row.get("status") or "Submitted")
     if status in _RESOLVED:
         release_commitment(int(order_id), row)
@@ -132,3 +136,30 @@ def notify_watch(order_id: int, row: dict[str, Any]) -> None:
         perm_id=int(order_id),
         callback_perf_ns=time.perf_counter_ns(),
     )
+    close_rows(int(order_id), row, filled_ns=watch.filled_ns)
+
+
+def close_rows(order_id: int, row: dict[str, Any], *, filled_ns: int | None = None) -> None:
+    """End the execution rows of an order the practice venue closed, with its outcome.
+
+    No callback follows a practice venue's answer: before this, a resting order
+    it later cancelled, expired or filled kept its row ``acked`` until the next
+    restart's sweep, which read a cancel as ``failed`` (TNMG order 77, 2026-10-02).
+    A row the send path is still writing has no order id yet, and is its own.
+    """
+    from execution.order_outcome import ledger_close
+
+    venue = row.get("venue") or row.get("mode")
+    outcome = ledger_close(row.get("status"), reason_code=row.get("reason_code"), error=row.get("error"))
+    if outcome is None or not venue:
+        return
+    try:
+        from execution.store_facts import close_venue_order
+
+        close_venue_order(
+            order_id, mode=str(venue), filled_ns=filled_ns if outcome["status"] == "filled" else None,
+            **outcome,
+        )
+    except Exception:
+        # Left open, the rows wait for the next restart's sweep -- said in the log, never hidden.
+        logger.exception("PRACTICE: execution rows of order %s left open -- the ledger write failed", order_id)

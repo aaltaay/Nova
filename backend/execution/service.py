@@ -53,7 +53,8 @@ def _receipt_from_row(row: dict, *, duplicate: bool = False) -> ExecutionReceipt
     payload = dict(row.get("payload") or {})
     if not same_boot:
         payload["timing_excluded_reason"] = "cross_boot"
-    ok = row.get("status") in ("acked", "filled", "sent", "duplicate_replay")
+    # ``cancelled``: it reached its venue and closed unfilled -- not an error.
+    ok = row.get("status") in ("acked", "filled", "cancelled", "sent", "duplicate_replay")
     if row.get("status") in ("rejected", "failed"):
         ok = False
     if duplicate and row.get("order_id") is not None:

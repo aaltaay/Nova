@@ -229,7 +229,7 @@ class PracticeBroker:
                     "closed_by": gone.get("reason_code"),
                 }
             return {"ok": False, "error": f"order {order_id} not open", "verified_gone": True}
-        self._notify_closed(mark, skip=int(order_id))
+        self._notify_closed(mark)  # the order itself too: its own watch and rows hear the close
         self._commit()
         return {"ok": True, "error": None, "verified_gone": True, "mode": self.venue}
 
@@ -433,16 +433,17 @@ class PracticeBroker:
         self._notify_closed(mark)
         return closed
 
-    def _notify_closed(self, mark: int, *, skip: int | None = None) -> list[dict[str, Any]]:
+    def _notify_closed(self, mark: int) -> list[dict[str, Any]]:
         """Tell the watch of every order the ledger events since ``mark`` closed; returns their rows.
 
         A bracket's legs close together (``practice.bracket``), so one fill or
-        cancel can close several orders. ``skip`` is an order whose caller
-        answers for it itself (a cancel's send path).
+        cancel can close several orders. An order Nova cancelled is told too: it
+        used to be skipped for the cancel's send path to answer, which left the
+        order's own execution row open (TNMG, 2026-10-02).
         """
         closed: list[dict[str, Any]] = []
         for event in self.ledger.events[mark:]:
-            if event.get("type") not in _CLOSING_EVENTS or int(event["order_id"]) == skip:
+            if event.get("type") not in _CLOSING_EVENTS:
                 continue
             row = self.ledger.order_row(int(event["order_id"]))
             if row is not None:

@@ -29,6 +29,7 @@ import asyncio
 import logging
 
 from execution import store
+from execution.order_outcome import ledger_close
 from ibkr import client as _client
 from ibkr import completed_orders_state
 from ibkr.errors import IbkrAccountError
@@ -123,6 +124,25 @@ def _executed_shares_by_order() -> dict[int, float] | None:
     }
 
 
+def _swept(terminal: dict) -> dict:
+    """The ledger fields for a row whose order the broker lists as closed.
+
+    Filled reads ``filled``, a cancel or an expiry ``cancelled`` (it read
+    ``failed`` until 2026-10-04: TNMG's bot entry and its cancel, 2026-10-02),
+    anything else ``failed`` with the broker's word.
+    """
+    broker_status = str(terminal.get("status") or "")
+    outcome = ledger_close(broker_status, reason_code=terminal.get("reason_code"))
+    if outcome is not None and outcome["status"] in ("filled", "cancelled"):
+        return {"status": outcome["status"], "broker_status": broker_status, "reason_code": outcome["reason_code"]}
+    return {
+        "status": "failed",
+        "broker_status": broker_status,
+        "reason_code": _UNRESOLVED,
+        "error": f"startup sweep: broker reports {broker_status}",
+    }
+
+
 def run_startup_sweep() -> dict:
     """Reconcile abandoned ledger rows. Returns a summary for logs / tests."""
     rows = store.non_terminal_rows()
@@ -171,17 +191,7 @@ def run_startup_sweep() -> dict:
             continue
         terminal = terminal_by_id.get(order_id)
         if terminal is not None:
-            broker_status = str(terminal.get("status") or "")
-            store.update_stages(
-                execution_id,
-                status="filled" if broker_status == "Filled" else "failed",
-                broker_status=broker_status,
-                reason_code=None if broker_status == "Filled" else _UNRESOLVED,
-                error=(
-                    None if broker_status == "Filled"
-                    else f"startup sweep: broker reports {broker_status}"
-                ),
-            )
+            store.update_stages(execution_id, **_swept(terminal))
             summary["resolved"].append(execution_id)
             continue
         executed = (executed_shares or {}).get(order_id, 0.0)

@@ -132,7 +132,8 @@ def test_broker_history_resolves_a_fill(monkeypatch):
     assert row["filled_ns"] is None
 
 
-def test_broker_history_resolves_a_cancel(monkeypatch):
+def test_broker_history_resolves_a_cancel_as_cancelled(monkeypatch):
+    """A cancel read "failed: startup sweep: broker reports Cancelled" (TNMG, 2026-10-02)."""
     execution_id = _stale_row("stale-cancelled", order_id=23)
     _arm_connected(
         monkeypatch,
@@ -141,8 +142,23 @@ def test_broker_history_resolves_a_cancel(monkeypatch):
     )
     sweep.run_startup_sweep()
     row = store.get_by_id(execution_id)
-    assert row["status"] == "failed"
-    assert row["reason_code"] == "SWEEP_UNRESOLVED"
+    assert (row["status"], row["broker_status"]) == ("cancelled", "Cancelled")
+    assert row["reason_code"] is None and row["error"] is None
+
+
+def test_broker_history_keeps_a_refusal_failed(monkeypatch):
+    """A practice order the venue cancelled at its fill is a refusal, not a cancel."""
+    execution_id = _stale_row("stale-refused", order_id=24)
+    _arm_connected(
+        monkeypatch,
+        working=[],
+        closed=[{"order_id": 24, "symbol": "AAPL", "status": "Cancelled",
+                 "reason_code": "PRACTICE_BUYING_POWER", "error": "Not enough buying power at the fill"}],
+    )
+    sweep.run_startup_sweep()
+    row = store.get_by_id(execution_id)
+    assert (row["status"], row["reason_code"]) == ("failed", "SWEEP_UNRESOLVED")
+    assert row["error"] == "startup sweep: broker reports Cancelled"
 
 
 def test_row_that_never_reached_the_broker_is_abandoned(monkeypatch):

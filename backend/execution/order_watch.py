@@ -111,7 +111,10 @@ class OrderWatch:
         _persist.submit_facts(
             self.order_id,
             self.execution_id,
-            perm_id=self.perm_id,
+            # A bracket's exit legs share its row, which is the entry's: an exit's own
+            # permId there broke every join on it (TNMG 2026-10-02: the row read the
+            # stop leg's 79, not the entry's 77).
+            perm_id=self.perm_id if self.aggregate_eligible else None,
             filled_qty=self.last_filled_qty,
             avg_fill_price=self.last_avg_fill,
             commission=self.commission,

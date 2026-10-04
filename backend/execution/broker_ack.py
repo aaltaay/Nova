@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from constants import (
     EXECUTION_ACK_WAIT_SEC,
+    EXECUTION_NON_TERMINAL_STATUSES,
     IBKR_ERROR_FRACTIONAL_API,
     IBKR_FRACTIONAL_ORDER_API_MSG,
 )
@@ -13,6 +14,12 @@ from execution import verification_gate
 from execution.models import ExecutionCommand, ExecutionReceipt
 from execution.fill_audit import audit_place_watch
 from execution.place_reject_guard import confirm_terminal_reject
+
+
+def _closed(execution_id: str) -> bool:
+    """Whether the row already reached a terminal status."""
+    row = store.get_by_id(execution_id)
+    return row is not None and str(row.get("status") or "") not in EXECUTION_NON_TERMINAL_STATUSES
 
 
 async def wait_broker_ack(
@@ -73,6 +80,10 @@ async def wait_broker_ack(
     )
     if status == "filled":
         inflight.release_execution(receipt.execution_id)
+    if status != "filled" and _closed(receipt.execution_id):
+        # The venue closed the row already (a practice cancel ends it in the send,
+        # store_facts.persist_successful_cancel): the ack wait never reopens it.
+        status = None
     store.update_stages(
         receipt.execution_id,
         status=status,
