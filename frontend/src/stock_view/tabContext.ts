@@ -1,5 +1,6 @@
 /**
- * What a symbol tab / Focus row says beside the name: the signed gap and a
+ * What a symbol tab / Focus row says beside the name: the signed % (the
+ * Scanner's, the price against the prior close) and a
  * catalyst chip, read from the scanner rows the workspace already holds.
  * Pure: unknown stays null, never 0.00 or an invented category.
  */
@@ -10,6 +11,7 @@ import {
   TRADER_CATALYST_PR_SOURCES,
   TRADER_CATALYST_SPLIT,
 } from '../constantGroups/trader_chrome';
+import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../constantGroups/market_ui';
 import type { ScannerDockRows } from '../scanner/useScannerDockRows';
 import type { Catalyst } from '../types/catalyst';
 import type { CatalystVerdict } from '../types/catalystVerdict';
@@ -17,8 +19,8 @@ import type { ScannerRow } from '../types/scanner';
 import { catalystHeadline, isCompanyNews, isPrimarySource, isVerdictRead } from '../utils/catalystVerdict';
 
 export interface TabContext {
-  /** Signed gap in percent points, 156.49 for +156.49% (falls back to the day change when the row has no gap). */
-  gapPct: number | null;
+  /** The Scanner's %: the price against the prior close in percent points, 156.49 for +156.49%. */
+  changePct: number | null;
   /** Chip label (NEWS / PR) or null when the symbol has no known catalyst. */
   catalyst: string | null;
   /** Headline behind the chip, for the tooltip. */
@@ -28,7 +30,7 @@ export interface TabContext {
   price: number | null;
 }
 
-const NO_CONTEXT: TabContext = { gapPct: null, catalyst: null, headline: null, known: false, price: null };
+const NO_CONTEXT: TabContext = { changePct: null, catalyst: null, headline: null, known: false, price: null };
 
 /**
  * Scanner rows and catalysts carry `gap_percent` / `change_pct` as fractions
@@ -37,6 +39,20 @@ const NO_CONTEXT: TabContext = { gapPct: null, catalyst: null, headline: null, k
  */
 export function fractionToPercent(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value * 100 : null;
+}
+
+/**
+ * A scanner row's move as the Scanner's % column shows it: `change_pct`, the
+ * price against the prior close, in percent points. Never `gap_percent`: on
+ * Gainers, Losers and After Hours that is the opening gap (the open against
+ * the prior close), so OLOX read +1.0% beside a chart up 42% after hours and
+ * QTEX's tab +17.3% while it traded +42.7% (2026-10-05). On Gappers the two
+ * are one number. IBKR's prior close as the price (no trade yet) has no move,
+ * as on the Scanner (QA C50).
+ */
+export function scannerChangePct(row: ScannerRow | null | undefined): number | null {
+  if (!row || row.quote_quality === SCANNER_QUOTE_CLOSE_FALLBACK) return null;
+  return fractionToPercent(row.change_pct);
 }
 
 /** Search order mirrors the desk's own priority: gappers first. */
@@ -82,10 +98,10 @@ export function tabContextFor(symbol: string, rows: ScannerDockRows | null | und
   const row = scannerRowFor(symbol, rows);
   const catalyst = catalystFor(symbol, rows?.catalysts);
   if (!row && !catalyst) return NO_CONTEXT;
-  const gap = row?.gap_percent ?? row?.change_pct ?? catalyst?.gap_percent ?? null;
   const verdict = isVerdictRead(row?.catalyst) ? row.catalyst : null;
   return {
-    gapPct: fractionToPercent(gap),
+    // A Catalysts row carries only its gap_percent (no change_pct).
+    changePct: row ? scannerChangePct(row) : fractionToPercent(catalyst?.gap_percent),
     catalyst: catalystChipLabel(catalyst, row),
     headline: verdict
       ? (isCompanyNews(verdict) ? catalystHeadline(verdict.title, verdict.source) || null : null)

@@ -42,18 +42,18 @@ describe('deskBoardRowsFor', () => {
     const gappers = deskBoardRowsFor('gappers', feed)!;
     expect(gappers.total).toBe(1);
     expect(gappers.rows[0]).toEqual({
-      symbol: 'GRML', price: 12.85, gapPct: 33.3, volume: 4_820_000, relVolume: 6.4, float: 8_200_000,
+      symbol: 'GRML', price: 12.85, changePct: 33.3, volume: 4_820_000, relVolume: 6.4, float: 8_200_000,
       catalyst: 'PR', headline: 'GRML reports positive topline results', headlineSource: 'GlobeNewswire',
       headlineAt: '2026-09-22T12:31:00Z', state: null,
     });
-    // Gap falls back to the day change; nothing becomes 0.
-    expect(deskBoardRowsFor('gainers', feed)!.rows[0]).toMatchObject({ gapPct: 21.7, relVolume: null, float: null, catalyst: null });
-    expect(deskBoardRowsFor('losers', feed)!.rows[0].gapPct).toBe(-5.4);
+    // The Scanner's %; nothing becomes 0.
+    expect(deskBoardRowsFor('gainers', feed)!.rows[0]).toMatchObject({ changePct: 21.7, relVolume: null, float: null, catalyst: null });
+    expect(deskBoardRowsFor('losers', feed)!.rows[0].changePct).toBe(-5.4);
     expect(deskBoardRowsFor('afterhours', feed)!.rows[0].symbol).toBe('NUVT');
     // Large Cap carries pace RVOL under `rvol`.
     expect(deskBoardRowsFor('large_cap', feed)!.rows[0].relVolume).toBe(2.5);
     const catalysts = deskBoardRowsFor('catalysts', feed)!;
-    expect(catalysts.rows[0]).toMatchObject({ symbol: 'GRML', price: 12.85, gapPct: 33.3, volume: 4_820_000, relVolume: null, float: null, catalyst: 'PR' });
+    expect(catalysts.rows[0]).toMatchObject({ symbol: 'GRML', price: 12.85, changePct: 33.3, volume: 4_820_000, relVolume: null, float: null, catalyst: 'PR' });
     expect(DESK_BOARD_MIRRORED_LISTS).toEqual(['gappers', 'gainers', 'losers', 'afterhours', 'large_cap', 'catalysts', 'watch_list']);
   });
 
@@ -65,10 +65,19 @@ describe('deskBoardRowsFor', () => {
     const board = deskBoardRowsFor('watch_list', feed, rows => rows.filter(r => r.exchange !== 'OTC'), ['NOPE', 'VXTL', 'GRML'])!;
     expect(board.total).toBe(3);
     expect(board.rows.map(r => r.symbol)).toEqual(['NOPE', 'VXTL', 'GRML']);
-    expect(board.rows[0]).toMatchObject({ price: null, gapPct: null, volume: null, catalyst: null });
-    expect(board.rows[1].gapPct).toBe(21.7);
+    expect(board.rows[0]).toMatchObject({ price: null, changePct: null, volume: null, catalyst: null });
+    expect(board.rows[1].changePct).toBe(21.7);
     expect(board.rows[2]).toMatchObject({ price: 12.85, catalyst: 'PR' });
     expect(deskBoardRowsFor('watch_list', feed)).toBeNull();
+  });
+
+  it("reads the Scanner's %, never the opening gap a Gainers or After Hours row carries (2026-10-05)", () => {
+    const feed = makeLiveScannerFeedStub({
+      gainers: [row('QTEX', null, { price: 1.57, change_pct: 0.4273, gap_percent: 0.1727 })],
+      afterhours: [row('OLOX', null, { price: 1.2, change_pct: 0.426, gap_percent: 0.0101 })],
+    });
+    expect(deskBoardRowsFor('gainers', feed)!.rows[0].changePct).toBeCloseTo(42.73, 6);
+    expect(deskBoardRowsFor('afterhours', feed)!.rows[0].changePct).toBeCloseTo(42.6, 6);
   });
 
   it('reports lists the feed does not carry, and a missing feed, as null -- never an empty table', () => {
@@ -115,7 +124,7 @@ describe('gap bar + formatters', () => {
     }))!.rows;
     const widest = maxAbsGap(rows);
     expect(widest).toBe(33.3);
-    expect(rows.map(r => gapBarPct(r.gapPct, widest))).toEqual([100, 65, 57, 0]);
+    expect(rows.map(r => gapBarPct(r.changePct, widest))).toEqual([100, 65, 57, 0]);
     expect(gapBarPct(5, 0)).toBe(0);
     expect(maxAbsGap([])).toBe(0);
   });

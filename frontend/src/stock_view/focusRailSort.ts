@@ -82,7 +82,7 @@ function value(row: FocusRow, key: FocusSortKey, nowMs: number): number | string
   switch (key) {
     case 'symbol': return row.symbol;
     case 'price': return row.price;
-    case 'gap': return row.gapPct;
+    case 'gap': return row.changePct;
     case 'news': return focusNewsRank(row, nowMs);
   }
 }
@@ -110,8 +110,8 @@ export function sortFocusRows(rows: readonly FocusRow[], sort: FocusSort | null,
         if (primary !== 0) return primary;
       }
       if (sort.key === 'news') {
-        const ga = x.row.gapPct;
-        const gb = y.row.gapPct;
+        const ga = x.row.changePct;
+        const gb = y.row.changePct;
         if (ga != null && gb != null && ga !== gb) return gb - ga;
         if (ga != null && gb == null) return -1;
         if (gb != null && ga == null) return 1;

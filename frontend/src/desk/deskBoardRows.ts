@@ -6,8 +6,7 @@
  */
 import { DESK_REL_VOL_SUFFIX, DESK_CELL_ABSENT } from '../constantGroups/desk';
 import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
-import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../scanner/scannerRowShape';
-import { catalystChipLabel, catalystFor, fractionToPercent } from '../stock_view/tabContext';
+import { catalystChipLabel, catalystFor, fractionToPercent, scannerChangePct } from '../stock_view/tabContext';
 import { formatCoverageClockEt } from '../tickerChartData';
 import type { Catalyst } from '../types/catalyst';
 import type { ScannerRow } from '../types/scanner';
@@ -15,8 +14,8 @@ import type { ScannerRow } from '../types/scanner';
 export interface DeskBoardRow {
   symbol: string;
   price: number | null;
-  /** Signed gap in percent points (the row's fraction x100; falls back to the day change). */
-  gapPct: number | null;
+  /** The Scanner's %: the price against the prior close, in percent points. */
+  changePct: number | null;
   volume: number | null;
   relVolume: number | null;
   float: number | null;
@@ -49,12 +48,11 @@ function finite(value: number | null | undefined): number | null {
 
 function fromScannerRow(row: ScannerRow, catalysts: readonly Catalyst[]): DeskBoardRow {
   const catalyst = catalystFor(row.symbol, catalysts);
-  // IB's prior close as the price (no print yet): its 0.0% gap is invented (QA W12).
-  const closeFallback = row.quote_quality === SCANNER_QUOTE_CLOSE_FALLBACK;
   return {
     symbol: row.symbol.toUpperCase(),
     price: finite(row.price),
-    gapPct: closeFallback ? null : fractionToPercent(row.gap_percent ?? row.change_pct),
+    // IB's prior close as the price (no print yet) has no move (QA W12).
+    changePct: scannerChangePct(row),
     volume: finite(row.volume),
     relVolume: finite(row.rel_volume ?? row.rvol),
     float: finite(row.float),
@@ -70,7 +68,8 @@ function fromCatalyst(row: Catalyst): DeskBoardRow {
   return {
     symbol: row.symbol.toUpperCase(),
     price: finite(row.current_price),
-    gapPct: fractionToPercent(row.gap_percent),
+    // A Catalysts row carries only its gap_percent (no change_pct).
+    changePct: fractionToPercent(row.gap_percent),
     volume: finite(row.volume),
     relVolume: null,
     float: null,
@@ -86,7 +85,7 @@ function blankRow(symbol: string): DeskBoardRow {
   return {
     symbol,
     price: null,
-    gapPct: null,
+    changePct: null,
     volume: null,
     relVolume: null,
     float: null,
@@ -175,14 +174,14 @@ export function deskHeadlineFor(symbol: string | null, feed: FeedRows | null | u
   return null;
 }
 
-/** Bar width (0-100) of a row's |gap| against the widest gap on the board. */
-export function gapBarPct(gapPct: number | null, maxAbsGap: number): number {
-  if (gapPct == null || !(maxAbsGap > 0)) return 0;
-  return Math.max(0, Math.min(100, Math.round((Math.abs(gapPct) / maxAbsGap) * 100)));
+/** Bar width (0-100) of a row's |%| against the widest move on the board. */
+export function gapBarPct(changePct: number | null, maxAbsGap: number): number {
+  if (changePct == null || !(maxAbsGap > 0)) return 0;
+  return Math.max(0, Math.min(100, Math.round((Math.abs(changePct) / maxAbsGap) * 100)));
 }
 
 export function maxAbsGap(rows: readonly DeskBoardRow[]): number {
-  return rows.reduce((max, row) => (row.gapPct != null ? Math.max(max, Math.abs(row.gapPct)) : max), 0);
+  return rows.reduce((max, row) => (row.changePct != null ? Math.max(max, Math.abs(row.changePct)) : max), 0);
 }
 
 /** "6.4×"; unknown stays a dash, never 0.0×. */

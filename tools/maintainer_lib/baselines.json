@@ -72,7 +72,7 @@
       "frontend/src/desk/DeskBoard.tsx|desk imports internals of scanner": 2,
       "frontend/src/desk/DeskBoard.tsx|desk imports internals of workspace": 1,
       "frontend/src/desk/DeskBoardRow.tsx|desk imports internals of stock_view": 1,
-      "frontend/src/desk/deskBoardRows.ts|desk imports internals of scanner": 2,
+      "frontend/src/desk/deskBoardRows.ts|desk imports internals of scanner": 1,
       "frontend/src/desk/deskBoardRows.ts|desk imports internals of stock_view": 1,
       "frontend/src/hod_momo/HodMomoDock.tsx|hod_momo imports internals of workspace": 1,
       "frontend/src/hod_momo/HodMomoStripMenu.tsx|hod_momo imports internals of leaderboard": 1,

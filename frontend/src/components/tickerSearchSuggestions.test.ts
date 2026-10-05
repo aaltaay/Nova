@@ -43,7 +43,7 @@ describe('tickerSuggestions', () => {
     const found = tickerSuggestions('ae', {
       tabs: ['AE'],
       positions: [],
-      rows: rows({ gappers: [{ symbol: 'AEHR', gap_percent: 0.32, change_pct: null }] }),
+      rows: rows({ gappers: [{ symbol: 'AEHR', gap_percent: 0.32, change_pct: 0.32 }] }),
     }, 8);
     expect(found.map(({ symbol, source, movePct }) => ({ symbol, source, movePct }))).toEqual([
       { symbol: 'AE', source: 'tab', movePct: null },

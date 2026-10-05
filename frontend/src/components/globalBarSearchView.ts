@@ -62,7 +62,7 @@ export function searchView(
         suggestion: {
           symbol,
           source: 'recent' as const,
-          movePct: tabContextFor(symbol, pools.rows).gapPct,
+          movePct: tabContextFor(symbol, pools.rows).changePct,
           name: listed?.name || null,
           exchange: listed?.exchange || null,
           symbolMatch: null,
