@@ -136,6 +136,7 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
 
     gen = _session.set_ready()
     _clear_sticky_bridge_error_on_ready()
+    _wire_order_events(ib)
     # History after READY, never before it (D-057). Fire-and-forget: a Gateway
     # that never answers reqCompletedOrders must not delay a usable desk.
     _completed_orders_warm.schedule(ib)
@@ -148,6 +149,20 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
     set_session_reason("ok")
     logger.info("IBKR: session READY via earn_usable (generation %d, %s)", gen, reason)
     return True, "ok"
+
+
+def _wire_order_events(ib) -> None:
+    """Order status and fills reach the execution door's watches from the session's first order on.
+
+    Here, on the IB loop. Wired on the order path, the first order after a connect hopped to this
+    loop and held the socket loop while it waited (#725).
+    """
+    try:
+        from execution import telemetry as _telemetry
+
+        _telemetry.ensure_handlers(ib)
+    except Exception:
+        logger.exception("IBKR: order events not wired on READY -- the first order wires them")
 
 
 def reset_for_tests() -> None:

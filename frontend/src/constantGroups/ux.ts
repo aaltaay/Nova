@@ -43,9 +43,14 @@ export const ORDER_REJECT_TITLES: Record<string, string> = {
   POSITION_UNAVAILABLE: 'Position unavailable',
   // ADR 045: an order priced from a view that lags is refused, not sent.
   VIEW_STALE: 'Your screen was behind the market',
-  ORDER_LATE: 'The order reached Nova too late',
+  // Late at the door, or IBKR's thread could not send it within 750 ms of the click (#725).
+  ORDER_LATE: 'Too late to send the order',
   FEED_STALE: 'Nova is behind the market',
   VIEW_MISSING: 'Update the desk to place orders',
+  // #725: IBKR's thread never took the order, so it was not sent.
+  IB_LOOP_WEDGED: 'IBKR is busy -- the order was not sent',
+  // #725: the send started and did not finish: Working orders says whether IBKR has it.
+  SEND_UNKNOWN: 'Check Working orders before sending again',
 };
 /** User dismissed the confirm dialog -- not a reject. */
 export const ORDER_REJECT_SKIP_MESSAGES = [

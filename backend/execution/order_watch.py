@@ -2,11 +2,15 @@
 
 Owner: ``OrderWatch`` -- the ack / fill / reject marks of a single order. Where the watches
 are kept, by venue, and how IBKR's events reach them is ``execution.telemetry``'s.
+
+IBKR's callbacks run on the IB loop while the order's request waits on the socket loop, so the
+ack and the fill wake their waiters through ``_Flag``, which is safe from any thread (#725).
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from typing import Any, Callable
 
@@ -42,6 +46,52 @@ TERMINAL_REJECT_STATUSES = frozenset({
 })
 
 
+def _resolve(future: asyncio.Future) -> None:
+    if not future.done():
+        future.set_result(True)
+
+
+class _Flag:
+    """A one-way flag set from any thread and awaited on any loop (#725).
+
+    ``asyncio.Event`` is not thread-safe. Set from the IB loop while the order's request waited
+    on the socket loop, it woke the waiter only when something else woke that loop, and a set
+    landing between the waiter's check and its wait was lost until the ack timed out (5 s).
+    """
+
+    __slots__ = ("_lock", "_set", "_waiters")
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._set = False
+        self._waiters: list[tuple[asyncio.AbstractEventLoop, asyncio.Future]] = []
+
+    def is_set(self) -> bool:
+        return self._set
+
+    def set(self) -> None:
+        with self._lock:
+            if self._set:
+                return
+            self._set = True
+            waiters, self._waiters = self._waiters, []
+        for loop, future in waiters:
+            try:
+                loop.call_soon_threadsafe(_resolve, future)
+            except RuntimeError:  # maintainer: allow-swallow the waiter's loop is closed: nobody waits there
+                pass
+
+    async def wait(self) -> bool:
+        loop = asyncio.get_running_loop()
+        with self._lock:
+            if self._set:
+                return True
+            future = loop.create_future()
+            self._waiters.append((loop, future))
+        await future
+        return True
+
+
 class OrderWatch:
     """Per-order waiters for first real ack and complete fill."""
 
@@ -73,8 +123,8 @@ class OrderWatch:
         self.error_events: list[tuple[int, str]] = []
         self.commission: float | None = None
         self._fill_audit_emitted: bool = False
-        self._ack_event = asyncio.Event()
-        self._fill_event = asyncio.Event()
+        self._ack_event = _Flag()
+        self._fill_event = _Flag()
         self._status_listeners: list[Callable[[str], None]] = []
         self._last_status_filled = 0.0
         self._reconciled_fill_keys: set[tuple[str, str, str]] = set()

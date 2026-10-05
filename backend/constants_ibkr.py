@@ -137,6 +137,25 @@ IBKR_LOOP_WEDGED_ORDER_MSG = (
     "IB loop wedged -- order was not sent. Wait for charts/historicals to "
     "finish. Do not restart the API."
 )
+# The execution door's sends to the IB loop (ibkr/send_hop.py, #725): awaited, never holding the
+# socket loop. A send the IB loop has not started within this is given up -- never sent, never will be.
+IBKR_SEND_HOP_TIMEOUT_SEC = 15.0
+# A send the IB loop started reached IBKR: it is awaited to its end, at most this long.
+IBKR_SEND_RUNNING_GRACE_SEC = 30.0
+IBKR_SEND_NOT_STARTED_MSG = (
+    "IBKR's thread did not take the order within {sec:.0f} s, so it was not sent and never will be. "
+    "Place it again once the desk is responsive."
+)
+IBKR_SEND_UNKNOWN_MSG = (
+    "IBKR's thread started sending the order and did not finish within {sec:.0f} s: Nova cannot tell "
+    "whether IBKR has it. Check Working orders before you send it again."
+)
+# Wiring the order-status handlers from the order path; READY wires them on the IB loop first.
+IBKR_ORDER_EVENTS_WIRE_TIMEOUT_SEC = 5.0
+IBKR_ORDER_EVENTS_UNWIRED_MSG = (
+    "IBKR's thread did not answer within {sec:.0f} s, so Nova could not listen for this order's "
+    "status. It was not sent."
+)
 # Informational: IB rewrote TIF from account preset to DAY. Does NOT cancel
 # the order (ib_async <next> treats as warning; Nova also refuses to latch it).
 IBKR_ERROR_TIF_PRESET = 10349

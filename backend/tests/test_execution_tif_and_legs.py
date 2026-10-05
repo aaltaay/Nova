@@ -187,7 +187,7 @@ class TestTifDefaultAndGtc:
         assert all(o.outsideRth is True for o in placed)
 
     def test_replace_keeps_the_working_orders_tif(self, monkeypatch):
-        from execution.broker_send import _working_tif
+        from execution.live_send import _working_tif
 
         assert _working_tif({"tif": "GTC"}) == "GTC"
         assert _working_tif({"tif": ""}) == "DAY"
