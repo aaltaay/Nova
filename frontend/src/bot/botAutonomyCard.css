@@ -17,8 +17,38 @@
 }
 
 .bot-card--trading {
+  position: relative;
   border-color: #2ecc71;
-  animation: bot-arm-pulse 1.2s ease-in-out infinite;
+}
+
+/* The bot's live pulse is a ring whose opacity breathes, which the compositor animates by itself. The card
+   used to animate its own box-shadow: that repainted and re-layered the whole page on every frame, all
+   session long -- half the main thread's work during a chart drag (measured 2026-10-05, #707). */
+.bot-card--trading::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.35);
+  pointer-events: none;
+  animation: bot-card-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes bot-card-pulse {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bot-card--trading::after {
+    animation: none;
+    opacity: 0.6;
+  }
 }
 
 .bot-card__row {

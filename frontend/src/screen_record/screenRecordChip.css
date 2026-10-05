@@ -56,9 +56,22 @@
 
 /* Not recording: the loudest thing in the bar, on purpose. */
 .screen-rec-chip--loud {
+  isolation: isolate;
   border-color: var(--gbar-rec);
   background: color-mix(in srgb, var(--gbar-rec) 30%, transparent);
   color: #fff;
+}
+
+/* The pulse is a tint under the words whose opacity the compositor animates by itself: animating the chip's
+   background repainted the whole page on every frame while it showed (#707). */
+.screen-rec-chip--loud::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--gbar-rec) 36%, transparent);
+  pointer-events: none;
   animation: screen-rec-chip-pulse 1.6s ease-in-out infinite;
 }
 
@@ -67,13 +80,18 @@
 }
 
 @keyframes screen-rec-chip-pulse {
+  0%,
+  100% {
+    opacity: 0;
+  }
   50% {
-    background: color-mix(in srgb, var(--gbar-rec) 55%, transparent);
+    opacity: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen-rec-chip--loud {
+  .screen-rec-chip--loud::after {
     animation: none;
+    opacity: 0;
   }
 }

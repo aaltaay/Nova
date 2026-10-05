@@ -29,9 +29,20 @@
   animation: close-reminder-in 160ms ease-out;
 }
 
-/* 15:55: the card pulses until it is dealt with. */
+/* 15:55: the card pulses until it is dealt with -- a ring whose opacity the compositor animates by itself, so
+   the pulse never repaints the page while the operator closes positions (#707). */
 .close-reminder.is-final {
-  animation: close-reminder-in 160ms ease-out, close-reminder-pulse 1.2s ease-in-out infinite;
+  position: relative;
+}
+
+.close-reminder.is-final::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--close-remind-color) 55%, transparent);
+  pointer-events: none;
+  animation: close-reminder-pulse 1.2s ease-in-out infinite;
 }
 
 @keyframes close-reminder-in {
@@ -40,13 +51,13 @@
 }
 
 @keyframes close-reminder-pulse {
-  0%, 100% { box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45); }
-  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--close-remind-color) 55%, transparent); }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .close-reminder,
-  .close-reminder.is-final {
+  .close-reminder.is-final::after {
     animation: none;
   }
 }
