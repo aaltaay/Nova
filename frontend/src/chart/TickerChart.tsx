@@ -45,6 +45,9 @@ export type { ChartTradeUpdate } from './types';
 interface TickerChartProps {
   symbol: string;
   lastTrade?: ChartTradeUpdate | null;
+  /** Follow the ticker stream for the live candle instead of `lastTrade`: a print is drawn with no render
+   * of the chart (the Trader grid, #707). */
+  followTicker?: boolean;
   variant?: 'panel' | 'page' | 'grid';
   fixedTimeframe?: string;
   title?: string;
@@ -97,6 +100,7 @@ export const TickerChart = memo(function TickerChart(props: TickerChartProps) {
 function TickerChartInner({
   symbol,
   lastTrade,
+  followTicker = false,
   variant = 'panel',
   fixedTimeframe,
   title,
@@ -187,6 +191,7 @@ function TickerChartInner({
     lastTrade,
     timeframe,
     symbol,
+    followTicker,
   );
 
   const {

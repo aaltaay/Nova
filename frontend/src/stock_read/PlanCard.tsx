@@ -8,6 +8,8 @@
  * sends, and NOT A TRADE says it blocks Nova's buys too.
  */
 import { useEffect, useState } from 'react';
+import { tickerLastTrade } from '../hooks/tickerStore';
+import { useTickerSelect } from '../hooks/useTickerStream';
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
 import { riskSourceWords } from '../setups';
 import { tipProps, whyProps } from '../ux';
@@ -132,6 +134,11 @@ export function PlanCard({ ctx, roomy = true }: {
     const id = window.setTimeout(() => setStaged(null), STAGED_NOTE_MS);
     return () => window.clearTimeout(id);
   }, [staged]);
+  const bid = ctx.topOfBook?.bid ?? null;
+  // A sell with no bid to price it falls back to the last trade, read only then: the stock read's inputs
+  // carry no price, so a print does not render the plan (#707).
+  const lastNoBid = useTickerSelect(ctx.symbol, (state) =>
+    (bid === null ? tickerLastTrade(state, ctx.symbol)?.price ?? null : null));
 
   if (!read) return null;
   const mode = ctx.layers.plan;
@@ -173,8 +180,8 @@ export function PlanCard({ ctx, roomy = true }: {
   const trouble = riskTrouble(ctx);
   const { actions, status } = planActions({
     moment: who.moment,
-    inputs: who.inputs,
-    bid: ctx.topOfBook?.bid ?? null,
+    inputs: lastNoBid === null ? who.inputs : { ...who.inputs, last: lastNoBid },
+    bid,
     listening,
     stageLocked: locked,
     notTrade: noTrade,

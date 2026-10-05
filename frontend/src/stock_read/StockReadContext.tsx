@@ -8,6 +8,8 @@
 import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { parseRiskUsd, saveSleeveRisk, useSleeveRisk, venueOrNull, type SleeveRisk } from '../setups';
+import { tickerLastTrade } from '../hooks/tickerStore';
+import { useTickerSelect } from '../hooks/useTickerStream';
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { readPref, writePref } from '../utils/prefStore';
 import { STOCK_READ_LAYERS_KEY } from './constants';
@@ -139,7 +141,6 @@ export function StockReadProvider({
   replay,
   topOfBook,
   position = null,
-  lastPrice = null,
   venue = null,
   children,
 }: {
@@ -149,14 +150,15 @@ export function StockReadProvider({
   topOfBook: { symbol: string; bid: number | null; ask: number | null } | null;
   /** The account's position in this stock on the desk's venue; null when none. */
   position?: TabPosition | null;
-  /** The tab's live last trade. */
-  lastPrice?: number | null;
   /** The desk venue (live | paper | sim): Who trades is the venue's own (#657). */
   venue?: string | null;
   children: ReactNode;
 }) {
   const sym = symbol.trim().toUpperCase();
   const sample = useSampleDataOptional();
+  // The tab's live last trade, read here (#707): it renders this provider on a print; the value it gives
+  // its readers changes only when what they show does (useWhoTrades keeps the price to itself).
+  const lastPrice = useTickerSelect(sym, (state) => tickerLastTrade(state, sym)?.price ?? null);
   const [manual, setManual] = useState<{ entry: number | null; stop: number | null }>({ entry: null, stop: null });
   const [layers, setLayerState] = useState(() => readPref(STOCK_READ_LAYERS_KEY, DEFAULT_LAYERS, parseLayers));
   const [sheet, setSheet] = useState<StockReadContextValue['sheet']>({ open: false, tab: 'signals', group: null });

@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties } from 'react';
+import { memo, useEffect, type CSSProperties, type ReactNode } from 'react';
 import {
   L2_DAS_HEADERS,
   L2_DAS_MM_FALLBACK,
@@ -92,6 +92,58 @@ function MarkerLine({ marker, at }: { marker: PlacedMarker; at: 'edge' | 'first'
  * the same length on the bid and the ask. `markers` are this side's plan levels;
  * `watch` is the book watcher's verdicts on the live line (bookWatch.ts), aged by `nowMs`.
  */
+/**
+ * One row of a side, memoized on what it shows (#707): a book renders the ladder about 20 times a second,
+ * and most rows show the same price, size and venue as before. `inner` (the marks between rows) is null
+ * on a row without any, so only those rows and the rows that changed render again.
+ */
+const L2Row = memo(function L2Row({
+  isBid, empty, price, size, mm, bg, gauge, pulledHere: pulled, hiddenHere: hidden, tip, tipTitle, inner,
+}: {
+  isBid: boolean;
+  empty: boolean;
+  price: number | null | undefined;
+  size: number | null | undefined;
+  mm: string;
+  bg: string;
+  gauge: number;
+  pulledHere: boolean;
+  hiddenHere: boolean;
+  tip: string | null;
+  tipTitle: string | null;
+  inner: ReactNode;
+}) {
+  return (
+    <div
+      className={`das-l2-row ${empty ? 'das-l2-row--empty' : 'das-l2-row--tiered'}${pulled ? ' das-l2-row--pulled-here' : ''}${hidden ? ' das-l2-row--hidden-here' : ''}`}
+      style={{ backgroundColor: bg }}
+      {...(tip ? tipProps(tip, tipTitle) : {})}
+    >
+      {inner}
+      {gauge > 0 && (
+        <span
+          className="das-l2-gauge"
+          style={{ width: `${gauge}%`, backgroundColor: L2_DAS_SIZE_BAR }}
+          aria-hidden="true"
+        />
+      )}
+      {isBid ? (
+        <>
+          <span className="das-l2-mm">{mm}</span>
+          <span className="das-l2-size">{fmtSize(size)}</span>
+          <span className="das-l2-price">{fmtPrice(price)}</span>
+        </>
+      ) : (
+        <>
+          <span className="das-l2-price">{fmtPrice(price)}</span>
+          <span className="das-l2-size">{fmtSize(size)}</span>
+          <span className="das-l2-mm">{mm}</span>
+        </>
+      )}
+    </div>
+  );
+});
+
 export function MontageSide({
   side,
   levels,
@@ -117,22 +169,31 @@ export function MontageSide({
   const marks = watch && shown ? [...hiddenMarks(watch, side, rows, nowMs), ...pullMarks(watch, side, rows, nowMs)] : [];
   const here = watch && shown ? pulledHere(watch, side, rows, nowMs) : NO_PULLED_HERE;
   const hiddenAt = watch && shown ? hiddenHere(watch, side, rows, nowMs) : NO_PULLED_HERE;
-  const lines = (before: number, at: 'edge' | 'first' | 'end' | 'flow') =>
-    placed.filter(m => m.before === before).map(m => <MarkerLine key={`mk-${m.id}`} marker={m} at={at} />);
-  const pulls = (before: number, at: 'head' | 'edge' | 'end') => (
-    <PullMarksAt marks={marks.filter(m => m.before === before)} at={at} />
-  );
+  // Nothing at a place makes no element: a book renders about 20 times a second, most places carry no
+  // mark, and an empty one per row was most of the ladder's work (#707).
+  const lines = (before: number, at: 'edge' | 'first' | 'end' | 'flow') => {
+    if (!placed.length) return null;
+    const here = placed.filter(m => m.before === before);
+    return here.length ? here.map(m => <MarkerLine key={`mk-${m.id}`} marker={m} at={at} />) : null;
+  };
+  const pulls = (before: number, at: 'head' | 'edge' | 'end') => {
+    if (!marks.length) return null;
+    const here = marks.filter(m => m.before === before);
+    return here.length ? <PullMarksAt marks={here} at={at} /> : null;
+  };
   // Inside row i: the levels between it and the row above; the last shown row also carries the levels past it.
   // What left above the book (a level better than the inside now) is marked over the column head instead,
   // so it never covers the inside row.
-  const inRow = (i: number) => (i >= shown ? null : (
-    <>
-      {lines(i, i === 0 ? 'first' : 'edge')}
-      {i > 0 && pulls(i, 'edge')}
-      {i === shown - 1 && lines(shown, 'end')}
-      {i === shown - 1 && pulls(shown, 'end')}
-    </>
-  ));
+  const inRow = (i: number): ReactNode => {
+    if (i >= shown) return null;
+    const parts = [
+      lines(i, i === 0 ? 'first' : 'edge'),
+      i > 0 ? pulls(i, 'edge') : null,
+      i === shown - 1 ? lines(shown, 'end') : null,
+      i === shown - 1 ? pulls(shown, 'end') : null,
+    ];
+    return parts.some((p) => p !== null) ? <>{parts}</> : null;
+  };
 
   return (
     <div className={`das-l2-side das-l2-side--${side}`}>
@@ -161,34 +222,21 @@ export function MontageSide({
         const hiddenRow = level ? hiddenAt.get(priceKey(level.price)) : undefined;
         const rowTip = hiddenRow ?? pulledAt;
         return (
-          <div
+          <L2Row
             key={`${side}-${i}`}
-            className={`das-l2-row ${level ? 'das-l2-row--tiered' : 'das-l2-row--empty'}${pulledAt ? ' das-l2-row--pulled-here' : ''}${hiddenRow ? ' das-l2-row--hidden-here' : ''}`}
-            style={{ backgroundColor: bg }}
-            {...(rowTip ? tipProps(rowTip.tip, rowTip.title) : {})}
-          >
-            {inRow(i)}
-            {gauge > 0 && (
-              <span
-                className="das-l2-gauge"
-                style={{ width: `${gauge}%`, backgroundColor: L2_DAS_SIZE_BAR }}
-                aria-hidden="true"
-              />
-            )}
-            {isBid ? (
-              <>
-                <span className="das-l2-mm">{mmLabel(level)}</span>
-                <span className="das-l2-size">{fmtSize(level?.size)}</span>
-                <span className="das-l2-price">{fmtPrice(level?.price)}</span>
-              </>
-            ) : (
-              <>
-                <span className="das-l2-price">{fmtPrice(level?.price)}</span>
-                <span className="das-l2-size">{fmtSize(level?.size)}</span>
-                <span className="das-l2-mm">{mmLabel(level)}</span>
-              </>
-            )}
-          </div>
+            isBid={isBid}
+            empty={!level}
+            price={level?.price}
+            size={level?.size}
+            mm={mmLabel(level)}
+            bg={bg}
+            gauge={gauge}
+            pulledHere={Boolean(pulledAt)}
+            hiddenHere={Boolean(hiddenRow)}
+            tip={rowTip?.tip ?? null}
+            tipTitle={rowTip?.title ?? null}
+            inner={inRow(i)}
+          />
         );
       })}
     </div>

@@ -9,16 +9,25 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDLE_TICKER, type TickerStreamState } from '../hooks/tickerStore';
 import { makeDetail } from '../modules/quoteFixtures';
+import type { TickerDetail } from '../types/ticker';
 import { StockViewDepthTape } from '../stock_view/StockViewDepthTape';
 import { simClockResource } from './simClockResource';
 
 const hooks = vi.hoisted(() => ({
+  detail: null as TickerDetail | null,
   fetch: vi.fn(),
   clock: {} as Record<string, unknown>,
 }));
 
 vi.mock('../api/novaFetch', () => ({ novaFetch: hooks.fetch }));
+
+// The panes read the ticker detail from the stream store (#707), not a prop: hand them the test's.
+vi.mock('../hooks/useTickerStream', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/useTickerStream')>()),
+  useTickerSelect: (_symbol: string, select: (state: TickerStreamState) => unknown) => select({ ...IDLE_TICKER, detail: hooks.detail }),
+}));
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: 'sim', connected: true }) }));
 vi.mock('../ibkr/useIbkrTape', () => ({ useIbkrTape: () => ({ prints: [], connected: true, error: null }) }));
 vi.mock('../ibkr/useIbkrDepth', () => ({
@@ -64,7 +73,8 @@ describe('a Session Record replaying in a Trader tab', () => {
     // Today's live quote says 9.15; the replay at the playhead says 8.84.
     const live = makeDetail({ symbol: 'GRML' });
     await act(async () => {
-      root.render(<StockViewDepthTape selectedSymbol="GRML" detail={live} />);
+      hooks.detail = live;
+      root.render(<StockViewDepthTape selectedSymbol="GRML" />);
     });
     await act(async () => { await Promise.resolve(); });
   }

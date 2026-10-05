@@ -9,7 +9,8 @@ import { ChartGrid } from '../components/ChartGrid';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import { useResizableWidth } from '../hooks/useResizableWidth';
-import { useTickerStream } from '../hooks/useTickerStream';
+import { tickerReady, type TickerStreamState } from '../hooks/tickerStore';
+import { shallowEqual, useTickerSelect } from '../hooks/useTickerStream';
 import { useIbkrAccount } from '../ibkr/useIbkrAccount';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { cancelIbkrOrderWithFeedback } from '../ibkr';
@@ -18,7 +19,6 @@ import { confirmAndFillWorkingOrder } from '../ibkr/fillWorkingOrderImmediately'
 import type { PlaceOrderResult } from '../ibkr/placeOrder';
 import type { IbkrOrder } from '../ibkr/types';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
-import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
 import { StockViewRail } from '../stock_view/StockViewRail';
 import {
@@ -34,7 +34,6 @@ import {
   TICKER_TRADE_SIDE_WIDTH_PX,
 } from '../constants';
 import { alertApp } from '../ux';
-import { useWorkspace } from '../workspace/WorkspaceContext';
 import { ibkrStatusKnown } from '../workspace/ibkrStatusView';
 import { useRenderCount } from '../perf/useRenderCount';
 import type { ChartPaneOverlayProps } from '../chart';
@@ -54,6 +53,16 @@ function renderStockRead(props: ChartPaneOverlayProps) {
 /** One element for every render, so the chart grid is not drawn again for a new toolbar element. */
 const STOCK_READ_TOOLBAR = <StockReadToolbar />;
 
+/** What the page reads of the ticker stream: whether the quote has come, never a price (#707). */
+function streamReadiness(state: TickerStreamState, symbol: string) {
+  return {
+    ready: tickerReady(state, symbol),
+    loading: state.loading,
+    refreshing: state.refreshing,
+    fetchFailed: state.fetchFailed,
+  };
+}
+
 interface Props {
   symbol: string;
   /** True when this page was opened as ?view=stock (standalone tab). */
@@ -72,10 +81,16 @@ export function StockViewPage({
   chartActive = true,
 }: Props) {
   useRenderCount('StockViewPage');
-  const { discoveryProvider } = useWorkspace();
   const { topOfBook } = useTopOfBook();
   const replayDesk = useSimReplayDesk();
-  const { detail, loading, refreshing, fetchFailed } = useTickerStream(symbol);
+  // The page renders when the quote comes or fails, not on a print: the panels that show prices read
+  // them themselves (the quote head, the ticket, the charts, the stock read), so a print renders only
+  // them (#707).
+  const { ready: detailReady, loading, refreshing, fetchFailed } = useTickerSelect(
+    symbol,
+    (state) => streamReadiness(state, symbol),
+    shallowEqual,
+  );
   const ibkrStatus = useIbkrStatus();
   // `connected` is false while the status is pending or failing too: the
   // ticket says which, never "Connect IB Gateway" for an unknown (QA D10, #459).
@@ -120,26 +135,7 @@ export function StockViewPage({
     containerRef: mainColRef,
   });
 
-  const detailSymbol = typeof detail?.symbol === 'string' ? detail.symbol : '';
-  const detailReady =
-    detail != null &&
-    detailSymbol !== '' &&
-    detailSymbol.toUpperCase() === symbol.toUpperCase();
   const showSpinner = (loading || refreshing || (!detailReady && !fetchFailed)) && !detailReady;
-  const metrics = detailReady && detail ? computeQuoteMetrics(detail, discoveryProvider) : null;
-  const latest = detailReady ? detail?.snapshot?.latest_trade : undefined;
-  const tradePrice = latest?.price ?? null;
-  const tradeTs = latest?.timestamp ?? null;
-  const tradeSource = latest?.source;
-  const tradeDayVolume = latest?.day_volume ?? null;
-  // One object per trade, not per render: the charts re-draw their live candle when it changes.
-  const lastTrade = useMemo(
-    () =>
-      tradePrice != null
-        ? { price: tradePrice, timestamp: tradeTs, source: tradeSource, dayVolume: tradeDayVolume }
-        : undefined,
-    [tradePrice, tradeTs, tradeSource, tradeDayVolume],
-  );
 
   const symbolPosition =
     positions.find(p => p.symbol.toUpperCase() === symbol.toUpperCase()) ?? null;
@@ -186,7 +182,6 @@ export function StockViewPage({
       replay={replayDesk}
       topOfBook={topOfBook}
       position={symbolPosition ? { qty: symbolPosition.qty, avgCost: symbolPosition.avg_cost } : null}
-      lastPrice={lastTrade?.price ?? null}
       venue={deskVenueOf(ibkrStatus)}
     >
     <div
@@ -224,7 +219,7 @@ export function StockViewPage({
               {/* Charts mount immediately so IBKR historical overlaps ticker detail. */}
               <ChartGrid
                 symbol={symbol}
-                lastTrade={lastTrade ?? null}
+                followTicker
                 chartActive={chartActive}
                 renderPaneOverlay={renderStockRead}
                 toolbarExtra={STOCK_READ_TOOLBAR}
@@ -271,10 +266,9 @@ export function StockViewPage({
             onDoubleClick={resetSideWidth}
             label="Resize trading rail"
           />
-          {detailReady && detail ? (
+          {detailReady ? (
             <StockViewRail
               symbol={symbol}
-              detail={detail}
               mode={ibkrStatus.mode}
               connected={ibkrStatus.connected}
               gatewayStatus={gatewayStatus}
@@ -282,7 +276,6 @@ export function StockViewPage({
               accountError={accountError}
               position={symbolPosition}
               summary={summary}
-              referencePrice={metrics?.mainPrice ?? null}
               onOrderPlaced={onOrderPlaced}
               uiActive={chartActive}
             />

@@ -3,15 +3,18 @@
  * Horizontal splitter reallocates height between quote/depth and Order Entry.
  * TRADE keeps a min-height floor (depth shrinks first) so Extended Hours stays reachable.
  */
-import { useRef, type CSSProperties } from 'react';
+import { useRef, type ComponentProps, type CSSProperties } from 'react';
 import { BotAutonomyCard } from '../bot/BotAutonomyCard';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
+import { tickerReady } from '../hooks/tickerStore';
+import { useTickerSelect } from '../hooks/useTickerStream';
 import type { GatewayStatusFact } from '../ibkr';
 import { TickerTradeActionBar } from '../ibkr/TickerTradeActionBar';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from '../ibkr/types';
 import type { PlaceOrderResult } from '../ibkr/placeOrder';
-import type { TickerDetail } from '../types/ticker';
+import { computeQuoteMetrics } from '../modules';
+import { useWorkspace } from '../workspace';
 import {
   STOCK_VIEW_DEPTH_ORDER_SPLIT_KEY,
   STOCK_VIEW_DEPTH_ORDER_SPLIT_MAX_PCT,
@@ -26,7 +29,6 @@ import { StockViewModuleCard } from './StockViewModuleCard';
 
 interface Props {
   symbol: string;
-  detail: TickerDetail;
   mode: IbkrMode;
   connected: boolean;
   /** Whether `connected: false` is a status answer or an unknown (QA D10, #459). */
@@ -35,15 +37,25 @@ interface Props {
   accountError?: string | null;
   position: IbkrPosition | null;
   summary: IbkrAccountSummary | null;
-  referencePrice: number | null;
   onOrderPlaced: (result?: PlaceOrderResult) => void;
   /** False on live-but-hidden trader tabs. */
   uiActive?: boolean;
 }
 
+/**
+ * The ticket with the stock's reference price, read here: a new price renders the ticket and nothing
+ * else on the rail (#707).
+ */
+function RailTicket(props: Omit<ComponentProps<typeof TickerTradeActionBar>, 'referencePrice'>) {
+  const { discoveryProvider } = useWorkspace();
+  const { symbol } = props;
+  const referencePrice = useTickerSelect(symbol, (state) =>
+    (state.detail && tickerReady(state, symbol) ? computeQuoteMetrics(state.detail, discoveryProvider).mainPrice : null));
+  return <TickerTradeActionBar {...props} referencePrice={referencePrice} />;
+}
+
 export function StockViewRail({
   symbol,
-  detail,
   mode,
   connected,
   gatewayStatus,
@@ -51,10 +63,11 @@ export function StockViewRail({
   accountError = null,
   position,
   summary,
-  referencePrice,
   onOrderPlaced,
   uiActive = true,
 }: Props) {
+  // The listing's flags (borrow, the venue) come with the quote, not with a print: the same object across prints.
+  const listingIbkr = useTickerSelect(symbol, (state) => state.detail?.listing?.ibkr ?? null);
   const tradeStackRef = useRef<HTMLDivElement>(null);
   const { topPct, onDragStart, reset } = useResizableHeight({
     storageKey: STOCK_VIEW_DEPTH_ORDER_SPLIT_KEY,
@@ -85,8 +98,7 @@ export function StockViewRail({
         <div className="sv-rail__depth" data-testid="stock-view-depth-slot">
           <StockViewDepthTape
             selectedSymbol={symbol}
-            detail={detail}
-            listingIbkr={detail.listing?.ibkr ?? null}
+            listingIbkr={listingIbkr}
             uiActive={uiActive}
           />
         </div>
@@ -104,7 +116,7 @@ export function StockViewRail({
           testId="stock-view-open-card"
           aria-label="Trade order"
         >
-          <TickerTradeActionBar
+          <RailTicket
             symbol={symbol}
             mode={mode}
             connected={connected}
@@ -113,8 +125,7 @@ export function StockViewRail({
             accountError={accountError}
             position={position}
             summary={summary}
-            referencePrice={referencePrice}
-            listingIbkr={detail.listing?.ibkr ?? null}
+            listingIbkr={listingIbkr}
             onOrderPlaced={onOrderPlaced}
             variant="rail"
           />

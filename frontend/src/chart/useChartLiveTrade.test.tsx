@@ -17,13 +17,14 @@ import type {
   ISeriesApi,
   Time,
 } from 'lightweight-charts';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const desk = vi.hoisted(() => ({ mode: 'live' as 'live' | 'paper' | 'sim' }));
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: desk.mode }) }));
 vi.mock('../ibkr/ibkrStatusPoller', () => ({ getIbkrStatusSnapshot: () => ({ mode: desk.mode }) }));
 
 import { clearEtOffsetCacheForTests, tradeBucket, type RawBar } from '../tickerChartData';
+import { resetTickerStreamsForTests } from '../hooks/tickerStore';
 import { clearBarsStoreForTests } from './barsStore';
 import { paintBars } from './chartBarsPaint';
 import type { ChartTradeUpdate } from './types';
@@ -56,15 +57,19 @@ const timeScale = {
   getVisibleRange: () => null,
 };
 
-function setup(timeframe = '1Min') {
+function setup(timeframe = '1Min', followTicker = false) {
   const candles = fakeSeries<CandlestickData<Time>>();
   const volumes = fakeSeries<HistogramData<Time>>();
   const candleSeriesRef = { current: candles.api as unknown as ISeriesApi<'Candlestick'> };
   const volSeriesRef = { current: volumes.api as unknown as ISeriesApi<'Histogram'> };
   const chartRef = { current: { timeScale: () => timeScale } as unknown as IChartApi };
+  let renders = 0;
   const hook = renderHook(
-    ({ trade }: { trade: ChartTradeUpdate | null }) =>
-      useChartLiveTrade(candleSeriesRef, volSeriesRef, trade, timeframe, 'FOFO'),
+    ({ trade }: { trade: ChartTradeUpdate | null }) => {
+      renders += 1;
+      return useChartLiveTrade(candleSeriesRef, volSeriesRef, followTicker ? undefined : trade, timeframe, 'FOFO',
+        followTicker);
+    },
     { initialProps: { trade: null as ChartTradeUpdate | null } },
   );
   let painted: RawBar[] | null = null;
@@ -86,6 +91,7 @@ function setup(timeframe = '1Min') {
   return {
     storePaint,
     trade,
+    renders: () => renders,
     tip: () => candles.data().at(-1),
     volumeAt: (iso: string) => volumes.data().find((v) => v.time === tradeBucket(iso, timeframe))?.value,
   };
@@ -170,5 +176,61 @@ describe('useChartLiveTrade -- the forming candle carries its volume', () => {
     chart.trade('2026-09-24T20:04:12Z', 3.02, 1_004_000);
     expect(chart.tip()).toMatchObject({ close: 3.02 });
     expect(chart.volumeAt('2026-09-24T20:04:12Z')).toBeUndefined();
+  });
+});
+
+class FakeWebSocket {
+  static instances: FakeWebSocket[] = [];
+  url: string;
+  readyState = 0;
+  onopen: ((ev?: unknown) => void) | null = null;
+  onmessage: ((ev: { data: string }) => void) | null = null;
+  onerror: ((ev?: unknown) => void) | null = null;
+  onclose: ((ev?: unknown) => void) | null = null;
+  constructor(url: string) {
+    this.url = url;
+    FakeWebSocket.instances.push(this);
+  }
+  close() {
+    this.readyState = 3;
+    this.onclose?.({});
+  }
+  send() {}
+}
+
+describe('useChartLiveTrade -- following the ticker stream (#707)', () => {
+  beforeEach(() => {
+    desk.mode = 'live';
+    clearEtOffsetCacheForTests();
+    clearBarsStoreForTests();
+    FakeWebSocket.instances = [];
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+  });
+
+  afterEach(() => {
+    resetTickerStreamsForTests();
+    vi.unstubAllGlobals();
+  });
+
+  it('draws each print as it comes, with no render of the chart', () => {
+    const chart = setup('1Min', true);
+    chart.storePaint(STORE_THROUGH_2003);
+    const ws = FakeWebSocket.instances[0];
+    expect(ws.url).toContain('/ticker/FOFO');
+    const send = (msg: object) => act(() => ws.onmessage?.({ data: JSON.stringify(msg) }));
+    send({ type: 'initial', symbol: 'FOFO', snapshot: { latest_trade: { price: 2.96, timestamp: '2026-09-24T20:03:40Z' } } });
+    const renders = chart.renders();
+
+    send({ type: 'trade_update', symbol: 'FOFO', price: 2.97, timestamp: '2026-09-24T20:04:02Z', volume: 1_010_000 });
+    send({ type: 'trade_update', symbol: 'FOFO', price: 3.14, timestamp: '2026-09-24T20:04:20Z', volume: 1_050_000 });
+    send({ type: 'trade_update', symbol: 'FOFO', price: 3.05, timestamp: '2026-09-24T20:04:30Z', volume: 1_090_000 });
+    expect(chart.tip()).toMatchObject({ open: 2.97, high: 3.14, close: 3.05 });
+    // A new forming minute is the only render (its time is state); the prints inside it are none.
+    expect(chart.renders()).toBeLessThanOrEqual(renders + 1);
+
+    // A store refresh puts the live tip back, as with a passed trade.
+    chart.storePaint([...STORE_THROUGH_2003]);
+    expect(chart.tip()).toMatchObject({ open: 2.97, high: 3.14, low: 2.97, close: 3.05 });
   });
 });

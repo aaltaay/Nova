@@ -1,4 +1,5 @@
 /** Inline glyphs for the quick-trade row (strokes from `ux/mockup-trader.html`). */
+import { memo } from 'react';
 import type { NovaActionKind } from '../constants';
 
 const ICON_PATHS: Record<NovaActionKind, string> = {
@@ -38,9 +39,10 @@ function Glyph({ d }: { d: string }) {
   );
 }
 
-export function QuickTradeIcon({ kind }: { kind: NovaActionKind }) {
+/** Memoized: the quick bar renders on every bid / ask change, and its icons never change (#707). */
+export const QuickTradeIcon = memo(function QuickTradeIcon({ kind }: { kind: NovaActionKind }) {
   return <Glyph d={ICON_PATHS[kind]} />;
-}
+});
 
 export function QuickTradeGearIcon() {
   return <Glyph d={GEAR_PATH} />;

@@ -85,8 +85,35 @@ function mergeError(): string | null {
   return failures.length ? `IBKR read failed -- ${failures.join(', ')}` : null;
 }
 
+/** The previous value when the new one says the same: a poll that changed nothing keeps every reader's rows. */
+function keep<T>(prev: T, next: T): T {
+  return prev === next || JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+}
+
+/** `next` with every part the same as now kept as it is. */
+function shared(next: IbkrAccountPollSnap): IbkrAccountPollSnap {
+  return {
+    ...next,
+    summary: keep(snapshot.summary, next.summary),
+    positions: keep(snapshot.positions, next.positions),
+    orders: keep(snapshot.orders, next.orders),
+    closedOrders: keep(snapshot.closedOrders, next.closedOrders),
+  };
+}
+
+function sameSnap(a: IbkrAccountPollSnap, b: IbkrAccountPollSnap): boolean {
+  return (Object.keys(a) as (keyof IbkrAccountPollSnap)[]).every((k) => Object.is(a[k], b[k]));
+}
+
+/**
+ * Publish a snapshot to this window's readers, only when something in it changed: the account polls every
+ * second, and a new snapshot with the same rows rendered every reader -- the header, the orders dock, the
+ * positions -- each time (#707).
+ */
 function applySnap(next: IbkrAccountPollSnap): void {
-  snapshot = next;
+  const merged = shared(next);
+  if (sameSnap(snapshot, merged)) return;
+  snapshot = merged;
   emit();
 }
 
@@ -127,15 +154,18 @@ async function tickAccount(): Promise<void> {
   heartbeatDeskPollLeader(DESK_POLL_ACCOUNT_SHARE);
   accountInflight = true;
   const asked = venue;
-  applySnap({ ...snapshot, loading: true });
+  // Loading only until the first answer: a poll in flight over the rows already shown is no news.
+  if (snapshot.summary === null) applySnap({ ...snapshot, loading: true });
   try {
     const snap = await fetchAccountCluster(API_BASE_URL);
     if (asked !== venue) return; // the desk moved while this read was out: its rows are the old venue's
-    if (snap.summary) snapshot = { ...snapshot, summary: snap.summary };
-    if (snap.positions) snapshot = { ...snapshot, positions: snap.positions };
+    // Built here and published once: applySnap compares it with what readers have.
+    const next = { ...snapshot };
+    if (snap.summary) next.summary = snap.summary;
+    if (snap.positions) next.positions = snap.positions;
     accountFails = snap.failures;
     publishLocal({
-      ...snapshot,
+      ...next,
       loading: false,
       error: mergeError(),
       stale: false,
@@ -165,10 +195,11 @@ async function tickOrders(): Promise<void> {
   try {
     const snap = await fetchOrdersCluster(API_BASE_URL);
     if (asked !== venue) return; // the desk moved while this read was out
-    if (snap.orders) snapshot = { ...snapshot, orders: snap.orders };
-    if (snap.closedOrders) snapshot = { ...snapshot, closedOrders: snap.closedOrders };
+    const next = { ...snapshot };
+    if (snap.orders) next.orders = snap.orders;
+    if (snap.closedOrders) next.closedOrders = snap.closedOrders;
     orderFails = snap.failures;
-    publishLocal({ ...snapshot, error: mergeError() });
+    publishLocal({ ...next, error: mergeError() });
   } catch (err) {
     console.error('[Nova] IBKR orders poll failed', err);
     orderFails = ['orders fetch failed -- retrying'];
