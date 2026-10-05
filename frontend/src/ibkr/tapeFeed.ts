@@ -29,6 +29,29 @@ export interface TapePrint {
   setsPrice?: boolean;
 }
 
+/**
+ * The backend's word on a live line with no print for a while (#722; backend `ibkr/tape_silence.py`),
+ * carried by the socket's idle `ping`: halted (a halt prints nothing), silent (no print while Level 2
+ * kept updating: the line may be down) or quiet (the book is quiet too). Any print clears it.
+ */
+export interface TapeSilence {
+  state: 'halted' | 'silent' | 'quiet';
+  /** Epoch seconds the silence counts from: the last print, the line's opening or the reopening. */
+  since: number;
+  text: string;
+}
+
+const SILENCE_STATES = new Set(['halted', 'silent', 'quiet']);
+
+/** A ping's `silence`, or null for anything else (no reading, an older backend, a broken frame). */
+export function parseTapeSilence(raw: unknown): TapeSilence | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.state !== 'string' || !SILENCE_STATES.has(r.state)) return null;
+  if (typeof r.since !== 'number' || !Number.isFinite(r.since) || typeof r.text !== 'string') return null;
+  return { state: r.state as TapeSilence['state'], since: r.since, text: r.text };
+}
+
 export interface TapeState {
   prints: TapePrint[];
   connected: boolean;
@@ -43,6 +66,8 @@ export interface TapeState {
    * the pane says RETRYING, not ERROR. Absent or null otherwise.
    */
   retryAt?: number | null;
+  /** The line has printed nothing for a while (#722); absent or null while it prints. */
+  silence?: TapeSilence | null;
 }
 
 /** A print that may set a price: not flagged unreported, and not volume-only by its conditions. */
@@ -57,7 +82,7 @@ export function tapeSymbolKey(symbol: string | null): string | null {
 
 /** Fresh empty tape — used on mount and immediately on symbol change. */
 export function emptyTapeState(): TapeState {
-  return { prints: [], connected: false, error: null, lent: null, retryAt: null };
+  return { prints: [], connected: false, error: null, lent: null, retryAt: null, silence: null };
 }
 
 /**

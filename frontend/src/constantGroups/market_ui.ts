@@ -194,6 +194,16 @@ export const TAPE_LENT_PREFIX = 'Time & Sales lent to';
 export const TAPE_STATUS_LENT = 'LENT';
 /** IBKR refused or ended the line and the backend is asking again by itself (#698). */
 export const TAPE_STATUS_RETRYING = 'RETRYING';
+/**
+ * The live line printed nothing for a while (#722), counted in seconds on the badge: SILENT while
+ * Level 2 kept updating (the line may be down), QUIET while the book is quiet too, HALTED in a halt.
+ */
+export const TAPE_STATUS_SILENT = 'SILENT';
+export const TAPE_STATUS_QUIET = 'QUIET';
+export const TAPE_STATUS_HALTED = 'HALTED';
+/** The short line above the rows (the rail's tape column is narrow); the full words are on hover. */
+export const TAPE_SILENCE_SILENT_NOTICE = 'Silent since {since} while Level 2 moves: the line may be down';
+export const TAPE_SILENCE_HALTED_NOTICE = 'Halted: no prints until it reopens';
 
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
@@ -596,6 +606,13 @@ export const CHART_BARS_FETCH_PRIORITY: Record<string, number> = {
 export function chartBarsFetchPriority(timeframe: string): number {
   return CHART_BARS_FETCH_PRIORITY[timeframe] ?? 1;
 }
+/**
+ * The 10-second pane's forming candle is the tape's while the tape delivered a print this recently
+ * (#721); the Level 1 last paints it only when no tape is feeding it (Time & Sales hidden, lent or
+ * silent). Two writers on two clocks drew the newest two candles at once and moved the closed one.
+ */
+export const CHART_10SEC_TAPE_OWNS_MS = 15_000;
+
 export const CHART_REFETCH_SEC: Record<string, number> = {
   // Live forming candle comes from WS ticks; poll is reconciliation only.
   // 10Sec deliberately omitted -- historical once + live append (small-bar pacing).

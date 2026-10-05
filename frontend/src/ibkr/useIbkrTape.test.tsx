@@ -287,4 +287,32 @@ describe('useIbkrTape lifecycle', () => {
     expect(latest?.connected).toBe(true);
     expect(latest?.prints.map(p => p.price)).toEqual([2.59]);
   });
+
+  it("carries the backend's word on a silent line until a print arrives (#722)", () => {
+    renderSymbol('SAIQ');
+    const ws = FakeWebSocket.instances[0];
+    const send = (frame: object) => act(() => ws.onmessage?.({ data: JSON.stringify(frame) }));
+    send({ type: 'subscribed', symbol: 'SAIQ' });
+    send({ type: 'ping', symbol: 'SAIQ', silence: null });
+    expect(latest?.silence ?? null).toBeNull();
+    const silence = { schema_version: 1, state: 'silent', since: 1791207342, text: 'No prints since 09:35:42 ET ...' };
+    send({ type: 'ping', symbol: 'SAIQ', silence });
+    expect(latest?.silence).toEqual({ state: 'silent', since: 1791207342, text: 'No prints since 09:35:42 ET ...' });
+    send({ type: 'print', symbol: 'SAIQ', time: '2026-10-05T13:42:01.000Z', price: 9.1, size: 100 });
+    flushTapeFrame();
+    expect(latest?.silence).toBeNull();
+    expect(latest?.prints.map(p => p.price)).toEqual([9.1]);
+  });
+
+  it("keys the 10-second candle by IBKR's own second, as IBKR's history does (#721)", () => {
+    renderSymbol('VEEA');
+    const ws = FakeWebSocket.instances[0];
+    act(() => {
+      ws.onmessage?.({ data: JSON.stringify({
+        type: 'print', symbol: 'VEEA', time: '2026-10-05T13:30:10.600Z', price: 2.05, size: 300,
+        exchange_ts: Date.parse('2026-10-05T13:30:09Z') / 1000,
+      }) });
+    });
+    expect(getBarsEntry('VEEA', '10Sec')?.bars[0]?.t).toBe('2026-10-05T13:30:00.000Z');
+  });
 });

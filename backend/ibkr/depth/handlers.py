@@ -108,6 +108,7 @@ def on_update_book(ticker: Any, symbol: str) -> None:
         bids, asks = sort_levels(bids, bid=True), sort_levels(asks, bid=False)
     book = {"bids": bids, "asks": asks, "l1_fallback": False}
     state._subscriptions[symbol] = book
+    state.note_book(symbol)
     _broadcast_live(symbol, book)
     _record_book(symbol, book)
     _watch_book(symbol, book)
@@ -128,6 +129,7 @@ def on_update_ticker(ticker: Any, symbol: str) -> None:
         "l1_fallback": True,
     }
     state._subscriptions[symbol] = book
+    state.note_book(symbol)
     _broadcast_live(symbol, book)
     _record_book(symbol, book)
 

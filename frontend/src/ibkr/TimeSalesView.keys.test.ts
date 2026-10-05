@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TapePrint } from './tapeFeed';
-import { tapeRowKey } from './TimeSalesView';
+import { tapeRowKey } from './TapeRow';
 
 const print = (over: Partial<TapePrint> = {}): TapePrint => ({
   symbol: 'AMOD', time: '2026-10-02T13:30:00.000Z', price: 2.5, size: 100, exchange: 'NSDQ', ...over,

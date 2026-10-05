@@ -240,3 +240,32 @@ def test_an_operator_stop_forgets_the_outage():
     desk.tick(LAST_PRINT + CAPTURE_TAPE_STALE_SEC)
     keepalive.operator_stopped("IPDN")
     assert tape_watch.in_outage("IPDN") is False and row_of() is None
+
+
+def test_a_halted_name_is_never_a_dead_line(monkeypatch):
+    """MI 2026-10-05: LULD-halted 09:34:53-09:39:37 while its book updated; its line was dropped and
+    asked for again through the halt (#722). A halt prints nothing, and its silence counts from the reopening."""
+    desk = Desk("MI")
+    halted = {"now": True}
+    monkeypatch.setattr(keepalive, "_halted_now", lambda symbol, now: halted["now"])
+    desk.tick(LAST_PRINT + CAPTURE_TAPE_STALE_SEC + 60)      # silent beside a fresh book, but halted
+    assert desk.ends == [] and desk.renews == [] and row_of("MI") is None
+    halted["now"] = False                                   # it reopens
+    desk.tick(desk.now + 5)
+    assert desk.ends == [] and row_of("MI") is None         # the silence counts from the halt
+    desk.tick(desk.now + CAPTURE_TAPE_STALE_SEC + 5)          # silent long after the reopening: dead
+    assert [s for s, _ in desk.ends] == ["MI"]
+
+
+def test_a_halt_found_mid_outage_still_brings_the_line_back_and_drops_it_no_more(monkeypatch):
+    desk = Desk()
+    halted = {"now": False}
+    monkeypatch.setattr(keepalive, "_halted_now", lambda symbol, now: halted["now"])
+    found = LAST_PRINT + CAPTURE_TAPE_STALE_SEC + 5
+    desk.tick(found)
+    assert len(desk.ends) == 1
+    halted["now"] = True
+    desk.tick(found + CAPTURE_TAPE_RENEW_DELAY_SEC)          # the reopening must find a line
+    assert desk.renews == ["IPDN"]
+    desk.tick(desk.now + CAPTURE_TAPE_STALE_SEC + 60)        # silent on the new line, but halted
+    assert len(desk.ends) == 1

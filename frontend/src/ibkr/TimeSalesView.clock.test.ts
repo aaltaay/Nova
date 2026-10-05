@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtTapeTime } from './TimeSalesView';
+import { fmtTapeTime } from './TapeRow';
 
 describe('the tape clock is Eastern whatever the browser zone (QA W24)', () => {
   it('prints HH:MM:SS in ET', () => {

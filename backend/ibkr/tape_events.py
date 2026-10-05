@@ -143,10 +143,11 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
             )
             # Provisional 10Sec chart bars (D-003 / ADR 012) -- paints the
             # Trader 10Sec pane in seconds instead of waiting on the paced
-            # 4h IB historical fill. Hist fill still lands and replaces.
+            # 4h IB historical fill. Hist fill still lands and replaces; both
+            # key a candle by IBKR's own second (#721).
             from ibkr import tape_10sec as _tape_10sec
 
-            _tape_10sec.on_print(symbol, price, float(size_i), print_ts)
+            _tape_10sec.on_print(symbol, price, float(size_i), print_ts, exchange_ts)
         except Exception:
             logger.exception("IBKR tape: archive enqueue failed for %s", symbol)
 
