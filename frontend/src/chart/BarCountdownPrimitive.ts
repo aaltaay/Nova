@@ -24,6 +24,7 @@ import {
   type BarCountdown,
   type BarCountdownBar,
 } from './barCountdown';
+import { paneWords, subscribePaneWords, type PaneWordRect } from './paneWords';
 import {
   CHART_BAR_COUNTDOWN_BACK_COLOR,
   CHART_BAR_COUNTDOWN_BORDER_COLOR,
@@ -37,15 +38,23 @@ export interface BarCountdownViewData {
   anchorX: number;
   wickTopY: number | null;
   wickBottomY: number | null;
+  barSpacing: number;
   text: string;
   warn: boolean;
 }
 
+/** The pane's words as the chip finds them at paint time, with the version it is about to use. */
+type WordsNow = () => { rects: readonly PaneWordRect[]; version: number };
+
 class BarCountdownRenderer implements IPrimitivePaneRenderer {
   private readonly _data: BarCountdownViewData | null;
+  private readonly _words: WordsNow;
+  private readonly _used: (version: number) => void;
 
-  constructor(data: BarCountdownViewData | null) {
+  constructor(data: BarCountdownViewData | null, words: WordsNow, used: (version: number) => void) {
     this._data = data;
+    this._words = words;
+    this._used = used;
   }
 
   draw(target: CanvasRenderingTarget2D): void {
@@ -56,6 +65,8 @@ class BarCountdownRenderer implements IPrimitivePaneRenderer {
       ctx.font = CHART_BAR_COUNTDOWN_FONT;
       // Sized for "00:00", not the live digits, so the chip never twitches.
       const textWidth = ctx.measureText(data.text.replace(/\d/g, '0')).width;
+      const words = this._words();
+      this._used(words.version);
       const box = barCountdownChipBox({
         anchorX: data.anchorX,
         wickTopY: data.wickTopY,
@@ -63,6 +74,8 @@ class BarCountdownRenderer implements IPrimitivePaneRenderer {
         textWidth,
         paneWidth: mediaSize.width,
         paneHeight: mediaSize.height,
+        barSpacing: data.barSpacing,
+        words: words.rects,
       });
       if (box) {
         const x = Math.round(box.x) + 0.5;
@@ -116,13 +129,15 @@ export class BarCountdownPaneView implements IPrimitivePaneView {
       anchorX: tip ? tipX : tipX + timeScale.options().barSpacing,
       wickTopY: series.priceToCoordinate(tip ? last.high : last.close),
       wickBottomY: series.priceToCoordinate(tip ? last.low : last.close),
+      barSpacing: timeScale.options().barSpacing,
       text: countdown.text,
       warn: countdown.warn,
     };
   }
 
   renderer(): IPrimitivePaneRenderer {
-    return new BarCountdownRenderer(this._data);
+    const source = this._source;
+    return new BarCountdownRenderer(this._data, () => paneWords(source.chart), version => source.noteWordsUsed(version));
   }
 
   zOrder(): PrimitivePaneViewZOrder {
@@ -145,6 +160,9 @@ export class BarCountdownPrimitive implements ISeriesPrimitive<Time> {
   private _nowMs: number | null = null;
   /** What the last clock tick would show, so a tick repaints only when the digits change. */
   private _shown: string | null = null;
+  /** The version of the pane's words the last paint placed the chip against. */
+  private _wordsUsed = -1;
+  private _unsubscribeWords: (() => void) | null = null;
 
   constructor(timeframe: string) {
     this._timeframe = timeframe;
@@ -163,10 +181,17 @@ export class BarCountdownPrimitive implements ISeriesPrimitive<Time> {
     this._chart = param.chart;
     this._series = param.series;
     this._requestUpdate = param.requestUpdate;
+    // The pane's words can change in a paint that ran after the chip's own: place it against them once more.
+    this._unsubscribeWords = subscribePaneWords(param.chart, () => {
+      if (this._paneViews[0].data && paneWords(this._chart).version !== this._wordsUsed) this._requestUpdate?.();
+    });
     this._requestUpdate();
   }
 
   detached(): void {
+    this._unsubscribeWords?.();
+    this._unsubscribeWords = null;
+    this._wordsUsed = -1;
     this._chart = null;
     this._series = null;
     this._requestUpdate = null;
@@ -179,6 +204,10 @@ export class BarCountdownPrimitive implements ISeriesPrimitive<Time> {
 
   paneViews(): readonly IPrimitivePaneView[] {
     return this._paneViews;
+  }
+
+  noteWordsUsed(version: number): void {
+    this._wordsUsed = version;
   }
 
   /** The newest candle (a search, not a copy of every bar). */

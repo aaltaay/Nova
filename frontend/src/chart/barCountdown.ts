@@ -12,14 +12,18 @@
  */
 import type { Time } from 'lightweight-charts';
 import { etChartSeconds } from '../tickerChartData';
+import type { PaneWordRect } from './paneWords';
 import { etMinutesFromChartTime, sessionKindFromEtMinutes } from './sessionHighlight';
 import {
+  CHART_BAR_COUNTDOWN_BAR_SPACING_PX,
   CHART_BAR_COUNTDOWN_EDGE_PX,
   CHART_BAR_COUNTDOWN_GAP_PX,
   CHART_BAR_COUNTDOWN_HEIGHT_PX,
   CHART_BAR_COUNTDOWN_PAD_X_PX,
+  CHART_BAR_COUNTDOWN_STACK_ROWS,
   CHART_BAR_COUNTDOWN_TIMEFRAME_RE,
   CHART_BAR_COUNTDOWN_WARN_SEC,
+  CHART_BAR_COUNTDOWN_WORD_GAP_PX,
 } from './barCountdownConstants';
 
 const DAY_SEC = 86_400;
@@ -104,11 +108,27 @@ export interface BarCountdownChipBox {
   height: number;
 }
 
+/** Whether the chip, grown by the gap kept between words, touches `word`. */
+function touchesWord(box: BarCountdownChipBox, word: PaneWordRect): boolean {
+  const gap = CHART_BAR_COUNTDOWN_WORD_GAP_PX;
+  return box.x < word.right + gap && box.x + box.width + gap > word.left
+    && box.y < word.bottom + gap && box.y + box.height + gap > word.top;
+}
+
 /**
  * Where the chip sits, in media pixels: centred over the forming candle, just
  * above its wick; below it when the top of the pane leaves no room. Null when
  * the candle's slot is scrolled out of the pane -- pinning the chip to an edge
  * would put it over some other candle.
+ *
+ * It never covers a word (`words`: the labels, pins and tags the pane's other
+ * primitives drew). When the usual spot touches one it tries, in this order,
+ * beside the candle on its right (at the wick's middle, then over it), under
+ * the candle, beside it on its left, and then higher or lower in a stack
+ * above and below the wick; the first spot clear of every word wins. A spot
+ * is kept clear of the forming candle itself, and with no clear spot at all
+ * the chip is not drawn -- the countdown is a convenience, a covered label is
+ * information lost.
  */
 export function barCountdownChipBox(args: {
   anchorX: number | null;
@@ -117,8 +137,11 @@ export function barCountdownChipBox(args: {
   textWidth: number;
   paneWidth: number;
   paneHeight: number;
+  /** The pane's candle spacing, for the spots beside the candle. */
+  barSpacing?: number;
+  words?: readonly PaneWordRect[];
 }): BarCountdownChipBox | null {
-  const { anchorX, wickTopY, wickBottomY, textWidth, paneWidth, paneHeight } = args;
+  const { anchorX, wickTopY, wickBottomY, textWidth, paneWidth, paneHeight, words = [] } = args;
   if (anchorX === null || wickTopY === null || wickBottomY === null) return null;
   if (anchorX < 0 || anchorX > paneWidth) return null;
   const width = Math.ceil(textWidth) + CHART_BAR_COUNTDOWN_PAD_X_PX * 2;
@@ -132,5 +155,31 @@ export function barCountdownChipBox(args: {
     const below = wickBottomY + CHART_BAR_COUNTDOWN_GAP_PX;
     y = below <= maxY ? below : edge;
   }
-  return { x, y: Math.min(Math.max(y, edge), maxY), width, height };
+  const usual: BarCountdownChipBox = { x, y: Math.min(Math.max(y, edge), maxY), width, height };
+  if (!words.some(w => touchesWord(usual, w))) return usual;
+
+  const half = (args.barSpacing ?? CHART_BAR_COUNTDOWN_BAR_SPACING_PX) / 2;
+  const gap = CHART_BAR_COUNTDOWN_GAP_PX;
+  const aboveY = wickTopY - gap - height;
+  const belowY = wickBottomY + gap;
+  const midY = (wickTopY + wickBottomY) / 2 - height / 2;
+  const rightX = anchorX + half + gap;
+  const leftX = anchorX - half - gap - width;
+  const step = height + CHART_BAR_COUNTDOWN_WORD_GAP_PX;
+  const candidates: [number, number][] = [
+    [rightX, midY], [rightX, aboveY], [x, belowY], [rightX, belowY], [leftX, midY], [leftX, aboveY], [leftX, belowY],
+  ];
+  for (let k = 1; k <= CHART_BAR_COUNTDOWN_STACK_ROWS; k += 1) {
+    candidates.push([x, aboveY - k * step], [x, belowY + k * step]);
+  }
+  const candle = { left: anchorX - half, right: anchorX + half, top: wickTopY, bottom: wickBottomY };
+  for (const [cx, cy] of candidates) {
+    // Beside the candle means in the room next to it, not pushed back over it by the pane's edge.
+    if (cx < edge || cx > maxX || cy < edge || cy > maxY) continue;
+    const box = { x: cx, y: cy, width, height };
+    const onCandle = box.x < candle.right && box.x + width > candle.left && box.y < candle.bottom
+      && box.y + height > candle.top;
+    if (!onCandle && !words.some(w => touchesWord(box, w))) return box;
+  }
+  return null;
 }

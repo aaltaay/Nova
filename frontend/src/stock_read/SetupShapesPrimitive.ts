@@ -25,11 +25,15 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts';
+import { publishPaneWords } from '../chart';
 import { emptyPx, FillRenderer, LineRenderer, type LabelHit, type Px } from './sceneRender';
+import type { LabelRect } from './sceneLabels';
 import { EMPTY_SCENE, type Scene } from './sceneTypes';
 
 /** A pointer this close to a box's edge still hovers it. */
 const HIT_SLACK_PX = 2;
+/** What this primitive's words are published as on the pane (`chart/paneWords.ts`). */
+const PANE_WORDS_SOURCE = 'stock-read';
 
 class View implements IPrimitivePaneView {
   private readonly source: SetupShapesPrimitive;
@@ -44,7 +48,7 @@ class View implements IPrimitivePaneView {
     if (this.layer === 'fill') return new FillRenderer(this.source.px);
     return new LineRenderer(this.source.px, hits => {
       this.source.labelHits = hits;
-    });
+    }, rects => this.source.publishWords(rects));
   }
 
   zOrder(): PrimitivePaneViewZOrder {
@@ -77,10 +81,16 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
   }
 
   detached(): void {
+    if (this.chart) publishPaneWords(this.chart, PANE_WORDS_SOURCE, []);
     this.chart = null;
     this.series = null;
     this.requestUpdate = null;
     this.labelHits = [];
+  }
+
+  /** The words the last draw put on the pane, for the close countdown to keep clear of. */
+  publishWords(rects: readonly LabelRect[]): void {
+    if (this.chart) publishPaneWords(this.chart, PANE_WORDS_SOURCE, rects);
   }
 
   setScene(scene: Scene): void {

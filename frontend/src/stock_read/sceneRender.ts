@@ -123,10 +123,12 @@ export class FillRenderer implements IPrimitivePaneRenderer {
 export class LineRenderer implements IPrimitivePaneRenderer {
   private readonly px: Px;
   private readonly onLabels: (hits: LabelHit[]) => void;
+  private readonly onWords: (rects: LabelRect[]) => void;
 
-  constructor(px: Px, onLabels: (hits: LabelHit[]) => void) {
+  constructor(px: Px, onLabels: (hits: LabelHit[]) => void, onWords: (rects: LabelRect[]) => void = () => {}) {
     this.px = px;
     this.onLabels = onLabels;
+    this.onWords = onWords;
   }
 
   draw(target: CanvasRenderingTarget2D): void {
@@ -205,12 +207,17 @@ export class LineRenderer implements IPrimitivePaneRenderer {
         owners.push({ color: m.color });
       }
       const hits: LabelHit[] = [];
+      const words: LabelRect[] = [...obstacles];
       for (const l of placeLabels(asks, measure, width, obstacles)) {
         const o = owners[l.ask];
         drawLabel(ctx, l.text, l.left, l.y, l.width, o.color);
-        if (o.hoverId) hits.push({ rect: labelRect(l.left, l.y, l.width, 'left', 0), hoverId: o.hoverId });
+        const rect = labelRect(l.left, l.y, l.width, 'left', 0);
+        words.push(rect);
+        if (o.hoverId) hits.push({ rect, hoverId: o.hoverId });
       }
       this.onLabels([...hits, ...levelHits]);
+      // Every word on the pane, for what floats over a candle (the close countdown) to keep clear of.
+      this.onWords(words);
       for (const { f, r, w } of fixedDrawn) drawLabel(ctx, f.text, r.left, f.y, w, f.color);
       for (const { x, y, p, r } of pins) drawPin(ctx, x, y, p, r);
     });

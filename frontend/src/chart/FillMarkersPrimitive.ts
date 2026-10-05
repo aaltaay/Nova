@@ -22,6 +22,10 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts';
+import { publishPaneWords, type PaneWordRect } from './paneWords';
+
+/** What this primitive's arrows and prices are published as on the pane (`paneWords.ts`). */
+const PANE_WORDS_SOURCE = 'fill-markers';
 
 /** Lightweight-charts' marker geometry (`series-markers-utils`), so the arrows look as they did. */
 const MIN_SHAPE = 12;
@@ -119,14 +123,22 @@ export function layoutFillMarkers(
 class FillMarkersRenderer implements IPrimitivePaneRenderer {
   private readonly items: readonly FillMarkerPx[];
   private readonly font: string;
+  private readonly textHeight: number;
+  private readonly onWords: (rects: PaneWordRect[]) => void;
 
-  constructor(items: readonly FillMarkerPx[], font: string) {
+  constructor(items: readonly FillMarkerPx[], font: string, textHeight: number,
+    onWords: (rects: PaneWordRect[]) => void) {
     this.items = items;
     this.font = font;
+    this.textHeight = textHeight;
+    this.onWords = onWords;
   }
 
   draw(target: CanvasRenderingTarget2D): void {
-    if (this.items.length === 0) return;
+    if (this.items.length === 0) {
+      this.onWords([]);
+      return;
+    }
     target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio: hpr, verticalPixelRatio: vpr }) => {
       for (const m of this.items) {
         ctx.fillStyle = m.color;
@@ -137,11 +149,18 @@ class FillMarkersRenderer implements IPrimitivePaneRenderer {
       ctx.font = this.font;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      // The arrows and their prices are words on the pane too: the close countdown keeps clear of them.
+      const words: PaneWordRect[] = [];
       for (const m of this.items) {
+        words.push({ left: m.x - m.size / 2, top: m.y - m.size / 2, right: m.x + m.size / 2, bottom: m.y + m.size / 2 });
         if (!m.text) continue;
         ctx.fillStyle = m.color;
         ctx.fillText(m.text, m.x, m.textY);
+        const half = ctx.measureText(m.text).width / 2;
+        words.push({ left: m.x - half, top: m.textY - this.textHeight / 2, right: m.x + half,
+          bottom: m.textY + this.textHeight / 2 });
       }
+      this.onWords(words);
     });
   }
 }
@@ -170,7 +189,8 @@ class FillMarkersView implements IPrimitivePaneView {
   }
 
   renderer(): IPrimitivePaneRenderer {
-    return new FillMarkersRenderer(this.source.px, this.source.font);
+    return new FillMarkersRenderer(this.source.px, this.source.font, this.source.fontSize,
+      rects => this.source.publishWords(rects));
   }
 }
 
@@ -183,6 +203,7 @@ export class FillMarkersPrimitive implements ISeriesPrimitive<Time> {
   private readonly views = [new FillMarkersView(this)];
   px: FillMarkerPx[] = [];
   font = '';
+  fontSize = 12;
 
   attached(param: SeriesAttachedParameter<Time, SeriesType>): void {
     this.chart = param.chart;
@@ -192,10 +213,15 @@ export class FillMarkersPrimitive implements ISeriesPrimitive<Time> {
   }
 
   detached(): void {
+    if (this.chart) publishPaneWords(this.chart, PANE_WORDS_SOURCE, []);
     this.chart = null;
     this.series = null;
     this.requestUpdate = null;
     this.px = [];
+  }
+
+  publishWords(rects: readonly PaneWordRect[]): void {
+    if (this.chart) publishPaneWords(this.chart, PANE_WORDS_SOURCE, rects);
   }
 
   /** New fills redraw the pane; the same fills again do nothing. */
@@ -217,6 +243,7 @@ export class FillMarkersPrimitive implements ISeriesPrimitive<Time> {
     const ts = chart.timeScale();
     const layout = chart.options().layout;
     this.font = `${layout.fontSize}px ${layout.fontFamily}`;
+    this.fontSize = layout.fontSize;
     this.px = layoutFillMarkers(this.markers, {
       x: t => ts.timeToCoordinate(t),
       bar: t => {

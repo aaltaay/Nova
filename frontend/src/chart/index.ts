@@ -8,3 +8,5 @@ export { isFollowingRightEdge } from './chartViewportPaint';
 export type { SeriesTimeIndex } from './chartDrawingTime';
 export { EDGE_PRIORITY, claimEdge, edgeClaimed, edgeContents, subscribeEdge } from './edgeWords';
 export type { EdgeReserve, EdgeWord } from './edgeWords';
+export { publishPaneWords } from './paneWords';
+export type { PaneWordRect } from './paneWords';

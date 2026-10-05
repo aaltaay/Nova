@@ -1,6 +1,7 @@
-import type { SeriesAttachedParameter, SeriesMarker, SeriesType, Time } from 'lightweight-charts';
+import type { IChartApi, SeriesAttachedParameter, SeriesMarker, SeriesType, Time } from 'lightweight-charts';
 import { describe, expect, it, vi } from 'vitest';
 import { FillMarkersPrimitive, layoutFillMarkers, markerHeight, markerMargin } from './FillMarkersPrimitive';
+import { paneWords } from './paneWords';
 
 const T1 = 1_000 as Time;
 const T2 = 1_060 as Time;
@@ -35,7 +36,22 @@ function attach() {
   };
   const primitive = new FillMarkersPrimitive();
   primitive.attached({ chart, series, requestUpdate } as unknown as SeriesAttachedParameter<Time, SeriesType>);
-  return { primitive, requestUpdate, subscribeDataChanged };
+  return { primitive, requestUpdate, subscribeDataChanged, chart: chart as unknown as IChartApi };
+}
+
+/** Paint the arrows once on a fake canvas, as lightweight-charts would. */
+function paint(primitive: FillMarkersPrimitive) {
+  const ctx = {
+    beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), fill: vi.fn(), fillText: vi.fn(),
+    measureText: (text: string) => ({ width: text.length * 6 }),
+    font: '', fillStyle: '', textAlign: '', textBaseline: '',
+  };
+  const target = {
+    useBitmapCoordinateSpace: (draw: (scope: unknown) => void) =>
+      draw({ context: ctx, horizontalPixelRatio: 1, verticalPixelRatio: 1 }),
+    useMediaCoordinateSpace: (draw: (scope: unknown) => void) => draw({ context: ctx }),
+  };
+  primitive.paneViews()[0].renderer()?.draw(target as never);
 }
 
 describe('FillMarkersPrimitive', () => {
@@ -107,5 +123,30 @@ describe('FillMarkersPrimitive', () => {
     expect(info?.priceRange).toBeNull();
     expect(info?.margins?.above).toBe(0);
     expect(info?.margins?.below).toBeGreaterThan(markerHeight(8, 1));
+  });
+
+  it('tells the pane where its arrows and prices are, so the close countdown keeps clear of them', () => {
+    const { primitive, chart } = attach();
+    primitive.setMarkers([SELL]);
+    primitive.updateAllViews();
+    paint(primitive);
+    const [sell] = primitive.px;
+    const [arrow, price] = paneWords(chart).rects;
+    expect(arrow).toEqual({ left: 108 - sell.size / 2, top: sell.y - sell.size / 2, right: 108 + sell.size / 2,
+      bottom: sell.y + sell.size / 2 });
+    // '$3.10' is five characters at six pixels, centred on its candle, 12px tall.
+    expect(price).toEqual({ left: 108 - 15, top: sell.textY - 6, right: 108 + 15, bottom: sell.textY + 6 });
+
+    primitive.setMarkers([]);
+    primitive.updateAllViews();
+    paint(primitive);
+    expect(paneWords(chart).rects).toEqual([]);
+
+    primitive.setMarkers([SELL]);
+    primitive.updateAllViews();
+    paint(primitive);
+    expect(paneWords(chart).rects).toHaveLength(2);
+    primitive.detached();
+    expect(paneWords(chart).rects).toEqual([]);
   });
 });
