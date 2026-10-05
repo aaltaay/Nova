@@ -13,7 +13,7 @@ from constants import (
     EXECUTION_NON_TERMINAL_STATUSES,
     EXECUTION_SWEEP_ROW_LIMIT,
 )
-from execution import ledger_generation
+from execution import ledger_conn, ledger_generation
 from execution.store_schema import (
     SCHEMA,
     ensure_executions_columns,
@@ -31,10 +31,8 @@ def _db_path() -> Path:
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(_db_path(), timeout=5.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+    """This thread's kept ledger connection (``execution.ledger_conn``); ``close()`` it after use."""
+    return ledger_conn.connection(_db_path())
 
 
 def init_db() -> None:
@@ -49,7 +47,7 @@ def init_db() -> None:
     path = _db_path()
     if schema_ensured(path):
         return
-    conn = get_connection()
+    conn = ledger_conn.fresh(path)  # once per file: a migration never runs on a kept connection
     try:
         conn.executescript(_SCHEMA)
         ensure_executions_columns(conn)
