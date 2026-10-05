@@ -43,8 +43,11 @@ issue references are eligible; `Refs`, prose mentions, quoted/code examples,
 foreign repositories and PR references never close work. Confirm the PR merged
 into the default release branch before reading issue state. Leave already closed
 issues unchanged; close eligible open issues with reason `completed`, then read
-back the actual state. Report every read/write/readback failure and return a
-nonzero delivery result without undoing the merge or skipping pack/head cleanup.
+back the actual state. Native GitHub closure may race the fallback between its
+open-state read and its PATCH: after a refused write, do one fresh state read
+and accept only an actual closed issue. If it is still open or readback fails,
+report the original write error plus verification failure and return nonzero.
+Never retry blindly or skip pack/head cleanup after a landed merge.
 `tools/test_pr_delivery.py` pins the parser exclusions and full merge call order.
 
 If GitHub plan or token permissions prevent Projects or branch protection, report the exact limitation. Never claim the metadata or protection exists. Public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
