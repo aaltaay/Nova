@@ -747,7 +747,7 @@
         713
       ],
       "done": [
-        "Two simultaneous API startups sharing one cache cannot both acquire the instance lock; process death releases it, including with malformed diagnostic metadata.",
+        "Concurrent starts from different checkout/cache roots or bundled-engine data roots cannot both acquire one shared per-user guard; process death releases it, including with malformed diagnostic metadata.",
         "Electron starts the checkout as soon as the stopped port is free without querying or waiting for the watchdog, and proves a new process answers.",
         "Paper, Sim and IBKR rows with identical order ids reconcile independently; previous-process Sim scratch is abandoned explicitly, and disconnected IBKR does not block Paper.",
         "Persisted execution-door venue disambiguates Live on the legacy IBKR Paper Gateway; ambiguous legacy Paper labels stay unverified instead of being matched to either broker."
@@ -756,10 +756,9 @@
         {
           "title": "fix(startup): atomic API ownership and venue-correct leftover execution sweep",
           "issues": [
-            653,
             713
           ],
-          "note": "One startup recovery batch: never duplicate the backend and never let a new process attribute old rows to the wrong venue. No live desk intervention or broker mutation.",
+          "note": "Merged PR #735 completed venue-owned reconciliation; its backend exclusion still needed the cross-checkout follow-up batch.",
           "gated": false,
           "touches": [
             "backend/api_instance_lock.py",
@@ -774,6 +773,20 @@
             "architecture/decisions/007-centralized-trading-execution.md",
             "backend/execution/service.py",
             "backend/execution/record_payload.py"
+          ]
+        },
+        {
+          "title": "fix(startup): share the operator API guard across all checkout and bundled engines",
+          "issues": [
+            653
+          ],
+          "note": "Completes the remaining cross-checkout race from PR #735: diagnostic metadata stays local, exclusion is per operator. No trading PC intervention.",
+          "gated": false,
+          "touches": [
+            "backend/api_instance_lock.py",
+            "backend/api_lock_handle.py",
+            "backend/tests/test_api_instance_lock.py",
+            "architecture/decisions/038-installed-backend-ownership.md"
           ]
         }
       ]
