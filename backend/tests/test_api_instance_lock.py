@@ -178,9 +178,9 @@ sys.stdin.readline()  # keep the winning handle alive until the parent ends the 
 """
 
 
-def _contender(cache):
+def _contender(cache, code=_CHILD):
     return subprocess.Popen(
-        [sys.executable, "-c", _CHILD], cwd=Path(lock.__file__).parent,
+        [sys.executable, "-c", code], cwd=Path(lock.__file__).parent,
         env={**os.environ, "NOVA_CACHE_DIR": str(cache)},
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True,
@@ -231,3 +231,37 @@ def test_metadata_write_failure_refuses_and_releases_guard(tmp_path, monkeypatch
         ok, detail = lock.acquire()
         assert not ok and "disk full" in detail
     assert lock.acquire()[0] is True
+
+
+_GUARDED_CHILD = """
+import os, sys
+import api_instance_lock as lock
+import api_process_guard as guard
+os.environ.pop("PYTEST_CURRENT_TEST", None)
+os.environ.pop("NOVA_SKIP_INSTANCE_LOCK", None)
+lock._port_listening = lambda *_: False  # never probe a real desk port
+original_start = guard.start_guards
+def fast_guard(**kwargs):
+    return original_start(**kwargs, interval_sec=0.02, grace_sec=0.1)
+lock.start_guards = fast_guard
+sys.stdin.readline()
+lock.acquire_or_exit()
+print("claimed", flush=True)
+sys.stdin.readline()
+"""
+
+
+def test_dark_modern_holder_self_exits_and_releases_guard(tmp_path):
+    child = _contender(tmp_path, _GUARDED_CHILD)
+    fresh = None
+    try:
+        _start_contender(child)
+        assert child.stdout.readline().strip() == "claimed"
+        assert child.wait(timeout=5) == 1  # real listen-watch os._exit path
+        fresh = _contender(tmp_path)
+        _start_contender(fresh)
+        assert json.loads(fresh.stdout.readline())[0] is True
+    finally:
+        _end_contender(child)
+        if fresh is not None:
+            _end_contender(fresh)

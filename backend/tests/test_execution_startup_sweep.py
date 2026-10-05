@@ -448,3 +448,23 @@ def test_unreadable_paper_book_does_not_block_ibkr_sweep(monkeypatch):
     summary = sweep.run_startup_sweep()
     assert summary["resolved"] == [live]
     assert store.get_by_id(paper)["status"] == "sent"
+
+
+def test_paper_read_does_not_hide_disconnected_ibkr_history_resweep(monkeypatch):
+    from practice import broker
+
+    paper = _stale_row("paper-working-during-resweep", order_id=1, mode="paper")
+    live = _stale_row("ibkr-history-dropped", order_id=1, mode="live")
+    monkeypatch.setattr(broker, "for_venue", lambda venue: _PracticeBook(working=[{"order_id": 1}]))
+    _arm_connected(monkeypatch, working=[], closed=[], history_loaded=False)
+    assert sweep.run_startup_sweep()["unverified"] == [live]
+    # The one-shot listener fires, but IBKR drops before the scheduled run.
+    monkeypatch.setattr(client_mod, "is_connected", lambda: False)
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    assert store.get_by_id(paper)["status"] == "sent"
+    assert store.get_by_id(live)["status"] == "sent"
+    # Paper was readable throughout. The second IBKR load must still trigger resolution.
+    _arm_connected(monkeypatch, working=[], closed=[{"order_id": 1, "status": "Filled"}])
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    assert store.get_by_id(live)["status"] == "filled"
+    assert store.get_by_id(paper)["status"] == "sent"

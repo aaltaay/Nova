@@ -70,5 +70,7 @@ process-local scratch: previous-boot Sim rows are abandoned with an explicit
 `SWEEP_SIM_PROCESS_ENDED` reason, even when the new Sim book reused their ids.
 Only IBKR-label rows require a connected Gateway and consult IBKR-only order
 reads, completed-order readiness and execution evidence. Unreadable venue books
-leave their rows untouched without blocking another venue's sweep. Current-boot
+leave their rows untouched without blocking another venue's sweep. History-load
+retry readiness is tracked for IBKR separately: a successfully read Paper book
+cannot prevent rearming a disconnected IBKR sweep. Current-boot
 rows remain outside the sweep, and no reconciliation sends a broker mutation.

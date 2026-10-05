@@ -158,6 +158,8 @@ def run_startup_sweep() -> dict:
     summary: dict = {
         "scanned": len(rows),
         "broker_checked": False,
+        "ibkr_scanned": 0,
+        "ibkr_checked": False,
         "still_working": [],
         "resolved": [],
         "abandoned": [],
@@ -173,6 +175,7 @@ def run_startup_sweep() -> dict:
         # Unknown/disconnected legacy broker labels still use IBKR, never the desk book.
         key = mode if mode in ("paper", "sim") else "ibkr"
         groups.setdefault(key, []).append(row)
+    summary["ibkr_scanned"] = len(groups.get("ibkr", []))
     for mode, venue_rows in groups.items():
         if mode == "sim":
             for row in venue_rows:
@@ -190,6 +193,8 @@ def run_startup_sweep() -> dict:
         if broker is None:
             continue
         summary["broker_checked"] = True
+        if mode == "ibkr":
+            summary["ibkr_checked"] = True
         history_loaded = mode == "paper" or completed_orders_state.loaded_for(_client.get_ib())
         executed_shares = {} if mode == "paper" else _executed_shares_by_order()
         _reconcile_rows(venue_rows, broker, history_loaded, executed_shares, summary)
@@ -306,7 +311,7 @@ def _run_history_resweep() -> None:
             "startup sweep for rows left unverified"
         )
         summary = run_startup_sweep()
-        if summary["scanned"] and not summary["broker_checked"]:
+        if summary["ibkr_scanned"] and not summary["ibkr_checked"]:
             # The socket dropped between the answer and this run. Stay armed,
             # or the rows would sit unverified until the next API restart --
             # the exact thing D-077 exists to prevent.

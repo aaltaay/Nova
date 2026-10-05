@@ -106,7 +106,10 @@ Every API process takes a non-blocking OS-held lock on a separate, never-unlinke
 `flock`. The open handle lives until process exit; stale or malformed JSON never
 allows a second process past a held guard. Same-process acquisition is idempotent.
 Legacy PID/orphan checks run only after acquiring the guard, and failed claims
-release it. A failed metadata write refuses startup and releases the guard.
+release it. Modern holders retain `api_process_guard`'s independent listen
+watch: `acquire_or_exit` starts it before the app boots; a dark holder exits
+itself after the startup grace and releases the OS guard. A contender never
+kills a process based on metadata while another process holds the guard. A failed metadata write refuses startup and releases the guard.
 
 Once an operator-requested checkout restart has verified the old port is free,
 Electron immediately starts that checkout's engine, including when the watchdog
