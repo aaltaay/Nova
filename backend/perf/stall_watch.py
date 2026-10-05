@@ -86,6 +86,19 @@ def take_delay(name: str) -> tuple[float | None, bool]:
     return (round(worst / _NS_PER_MS, 1) if worst is not None else None), stalled
 
 
+def stalled_ms(name: str) -> float | None:
+    """How long the loop ``name`` has been stuck right now: the age of a ping it has not run yet
+    (0 when none is waiting). None when the loop is not watched. Read by the order gate (ADR 045)."""
+    now = time.perf_counter_ns()
+    with _lock:
+        w = _watched.get(name)
+        if w is None:
+            return None
+        if w.posted_ns is None or (w.acked_ns is not None and w.acked_ns >= w.posted_ns):
+            return 0.0
+        return round((now - w.posted_ns) / _NS_PER_MS, 1)
+
+
 def _finish(w: _Watched, ended_ns: int) -> dict:
     duration_ms = (ended_ns - (w.stall_started_ns or ended_ns)) / _NS_PER_MS
     started_ts = w.stall_started_ts or time.time()

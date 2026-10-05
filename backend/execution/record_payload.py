@@ -23,6 +23,7 @@ def build_reserve_payload(
     requested_price: float | None,
     measurement: dict[str, Any],
     forced_one_share: bool,
+    view_check: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Snapshot intent vs send, spend gates, and short_entry at reserve time."""
     qty = sent_qty if sent_qty is not None else _cmd_qty(cmd)
@@ -51,4 +52,7 @@ def build_reserve_payload(
         "short_enabled": bool(_safety.short_enabled()),
         "gateway_mode": _safety.gateway_mode(),
         "measurement": measurement,
+        # ADR 045: what the operator's screen showed, and the gate's measures of it.
+        "view": getattr(cmd, "view", None),
+        "view_check": view_check,
     }

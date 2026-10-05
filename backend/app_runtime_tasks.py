@@ -53,7 +53,8 @@ from practice import matcher as _practice_matcher
 from scan_loop import scan_loop
 from scanner_push import broadcast as _scanner_broadcast
 from ticker import _find_ibkr_cache_row
-from websocket import broadcast_trade_update, stream_loop
+from market_view.quote_push import broadcast_trade_update
+from websocket import stream_loop
 
 logger = logging.getLogger(__name__)
 

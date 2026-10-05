@@ -274,7 +274,7 @@ def observe_from_ticker(
 async def broadcast_live_halts() -> None:
     """Re-push current overlays after an RSS refresh (display only)."""
     try:
-        from websocket import broadcast_halt_update
+        from market_view.quote_push import broadcast_halt_update
     except Exception:
         logger.debug("IBKR halt: broadcast import failed", exc_info=True)
         return

@@ -2,6 +2,7 @@
  * Electron main process — Windows desktop shell for Nova.
  * Spawns the local FastAPI sidecar, then loads the Vite UI.
  */
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, powerMonitor, screen, shell } from 'electron';
@@ -21,6 +22,7 @@ import {
 import { startAutoUpdate } from './autoUpdate.mjs';
 import { attachEngineSync } from './engineSync.mjs';
 import { startPerfMetrics } from './perfMetrics.mjs';
+import { startProcessPriority } from './processPriority.mjs';
 import { startFocusSensor } from './focusSensor.mjs';
 import { startScreenRecorder } from './screenRecorder.mjs';
 import { createScreenRecordBridge } from './screenRecordBridge.mjs';
@@ -309,6 +311,13 @@ if (
         releaseTag: novaDesktopReleaseTag(app),
       });
       app.on('will-quit', stopPerfMetrics);
+      // ADR 045: the desk's own processes stay above background work, re-checked every 2 s.
+      app.on('will-quit', startProcessPriority({
+        app,
+        BrowserWindow,
+        os,
+        isDeskWindow: (w) => !hiddenWindow(w) && w !== startup?.window,
+      }));
       // ADR 033: which Nova window Windows has in front and each window's monitor (GET /sensors/focus).
       const stopFocusSensor = startFocusSensor({
         app,

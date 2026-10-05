@@ -19,6 +19,22 @@ import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 export type { TapePrint, TapeState, TapeSide } from './tapeFeed';
 
+/** One print as the socket sends it: a `print` frame, or an item of a `prints` frame (ADR 045). */
+interface TapeWirePrint {
+  symbol?: string;
+  time: string;
+  price: number;
+  size: number;
+  exchange?: string;
+  conditions?: string;
+  side?: TapePrint['side'];
+  bid?: number | null;
+  ask?: number | null;
+  unreported?: boolean;
+  sets_price?: boolean;
+  exchange_ts?: number | null;
+}
+
 export interface TapeOptions {
   /**
    * A Trader tab's Time & Sales: its socket says so (`tab=1`), so the backend may lend its AllLast
@@ -148,7 +164,9 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
         try {
           const msg = JSON.parse(e.data as string);
           if (!tapeMessageAllowed(msg.symbol, symKey!)) return;
-          if (msg.type === 'subscribed' || msg.type === 'print' || msg.type === 'error') line.answered();
+          if (msg.type === 'subscribed' || msg.type === 'print' || msg.type === 'prints' || msg.type === 'error') {
+            line.answered();
+          }
 
           if (msg.type !== 'ping') silenceRef.current = null;  // a print, or any word on the line, ends a silence
 
@@ -175,36 +193,40 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
             errorRef.current = null;
             retryAtRef.current = null;
             if (uiActiveRef.current) commitUi();
-          } else if (msg.type === 'print') {
+          } else if (msg.type === 'print' || msg.type === 'prints') {
             // A print means the line works: an error from before it is stale (#698).
             if (errorRef.current != null || !connectedRef.current) {
               connectedRef.current = true;
               errorRef.current = null;
               retryAtRef.current = null;
             }
-            const print: TapePrint = {
-              symbol: msg.symbol,
-              time: msg.time,
-              price: msg.price,
-              size: msg.size,
-              exchange: msg.exchange ?? '',
-              conditions: msg.conditions ?? '',
-              side: msg.side,
-              bid: msg.bid ?? null,
-              ask: msg.ask ?? null,
-              unreported: msg.unreported === true,
-              // Older backends send no verdict: treat the print as a price, as before.
-              setsPrice: msg.sets_price !== false,
-            };
-            printsRef.current = appendTapePrint(printsRef.current, print);
-            upsertTapePrint10SecBar(symKey!, {
-              time: print.time,
-              price: print.price,
-              size: print.size,
-              setsPrice: print.setsPrice,
-              // IBKR's own second: the 10-second candle's key, as in IBKR's history (#721).
-              exchangeTs: typeof msg.exchange_ts === 'number' ? msg.exchange_ts : null,
-            });
+            // ADR 045: prints waiting together arrive as one `prints` frame, oldest first.
+            const items: TapeWirePrint[] = msg.type === 'prints' ? (Array.isArray(msg.items) ? msg.items : []) : [msg];
+            for (const item of items) {
+              const print: TapePrint = {
+                symbol: item.symbol ?? msg.symbol,
+                time: item.time,
+                price: item.price,
+                size: item.size,
+                exchange: item.exchange ?? '',
+                conditions: item.conditions ?? '',
+                side: item.side,
+                bid: item.bid ?? null,
+                ask: item.ask ?? null,
+                unreported: item.unreported === true,
+                // Older backends send no verdict: treat the print as a price, as before.
+                setsPrice: item.sets_price !== false,
+              };
+              printsRef.current = appendTapePrint(printsRef.current, print);
+              upsertTapePrint10SecBar(symKey!, {
+                time: print.time,
+                price: print.price,
+                size: print.size,
+                setsPrice: print.setsPrice,
+                // IBKR's own second: the 10-second candle's key, as in IBKR's history (#721).
+                exchangeTs: typeof item.exchange_ts === 'number' ? item.exchange_ts : null,
+              });
+            }
             if (uiActiveRef.current) raf.schedule();
           } else if (msg.type === 'lent') {
             // Lent to a setup with the tab's Level 2 (ADR 044): this tape is no longer live; the socket closes next.

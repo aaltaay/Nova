@@ -1,7 +1,13 @@
-"""IBKR depth book streaming for WebSocket consumers."""
+"""IBKR depth book streaming for WebSocket consumers, and the frames that carry it (ADR 045)."""
 from __future__ import annotations
 
 import asyncio
+import json
+import time
+
+from constants_market_view import MARKET_VIEW_BEAT_SEC
+from market_view import versions
+from market_view.viewer_queues import BookVersion
 
 
 def should_send_current_book(book: dict | None) -> bool:
@@ -11,24 +17,41 @@ def should_send_current_book(book: dict | None) -> bool:
     return bool(book["bids"] or book["asks"] or book["l1_fallback"])
 
 
-# A viewer with no book for this long is sent a ping.
-DEPTH_STREAM_HEARTBEAT_SEC = 15.0
-
-
-async def stream(queue: asyncio.Queue, timeout: float = DEPTH_STREAM_HEARTBEAT_SEC):
-    """AsyncGenerator yielding book snapshots (or None after ``timeout`` without one)
-    for one viewer's own queue -- see ``state.open_viewer_queue``. The depth socket
-    wakes this often to push the book watcher's verdicts (ADR 033) and pings on its
-    own clock.
-
-    Like the tape's, the queue is filled from the IB thread, so the loop is handed
-    back after every book: a backlog cannot hold the HTTP loop (#619).
+async def stream(queue, timeout: float = MARKET_VIEW_BEAT_SEC):
+    """AsyncGenerator yielding one viewer's items -- a ``BookVersion`` (the newest book), a control
+    frame (``error`` / ``lent``) -- or None after ``timeout`` without one; see
+    ``state.open_viewer_queue``. The depth socket wakes this often to say the book is still current
+    (``beat``) and to push the book watcher's verdicts (ADR 033).
     """
     while True:
         try:
-            book = await asyncio.wait_for(queue.get(), timeout=timeout)
+            item = await asyncio.wait_for(queue.get(), timeout=timeout)
         except asyncio.TimeoutError:
             yield None
             continue
-        yield book
+        yield item
         await asyncio.sleep(0)
+
+
+def book_frame(symbol: str, item: BookVersion, now: float | None = None) -> str:
+    """``{"type": "book", "symbol", "data", "seq", "at", "sent"}`` -- ``data`` is the book as it always was."""
+    return json.dumps({
+        "type": "book",
+        "symbol": symbol,
+        "data": item.book,
+        "seq": item.seq,
+        "at": item.at,
+        "sent": time.time() if now is None else now,
+    })
+
+
+def beat_frame(symbol: str, now: float | None = None) -> str:
+    """``{"type": "beat", "symbol", "seq", "at", "now"}`` -- the line's newest version as of ``now``."""
+    latest = versions.latest(versions.BOOK, symbol)
+    return json.dumps({
+        "type": "beat",
+        "symbol": symbol,
+        "seq": latest.seq if latest is not None else 0,
+        "at": latest.at if latest is not None else None,
+        "now": time.time() if now is None else now,
+    })

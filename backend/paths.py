@@ -37,10 +37,22 @@ def cache_root() -> Path:
     return host_path(os.environ.get("NOVA_CACHE_DIR") or str(_BACKEND_DIR / ".cache"))
 
 
-def cache_dir() -> Path:
-    path = cache_root()
-    path.mkdir(parents=True, exist_ok=True)
+# Folders already made in this process (ADR 045): ``cache_dir()`` is called about 25 times per
+# order and on every poll, and a mkdir through the desk's F: junction held the socket loop up to
+# 2.3 s on 2026-10-05. A folder is made once per path; a path set later (tests) is made in turn.
+_made: set[str] = set()
+
+
+def _ensure(path: Path) -> Path:
+    key = str(path)
+    if key not in _made:
+        path.mkdir(parents=True, exist_ok=True)
+        _made.add(key)
     return path
+
+
+def cache_dir() -> Path:
+    return _ensure(cache_root())
 
 
 def log_root() -> Path:
@@ -49,9 +61,7 @@ def log_root() -> Path:
 
 
 def log_dir() -> Path:
-    path = log_root()
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return _ensure(log_root())
 
 
 def env_file_path() -> Path:

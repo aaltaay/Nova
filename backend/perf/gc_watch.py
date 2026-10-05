@@ -14,6 +14,9 @@ _started_ns = 0
 _counts = [0, 0, 0]
 _pause_ns = 0
 _max_ns = 0  # reset by take(); a race loses at most one maximum
+# ADR 045: which generation the time went to (a full collection walks the whole heap).
+_pause_ns_by_gen = [0, 0, 0]
+_max_ns_by_gen = [0, 0, 0]
 _installed = False
 
 
@@ -28,6 +31,9 @@ def _on_gc(phase: str, info: dict) -> None:
         gen = int(info.get("generation", 0))
         if 0 <= gen < 3:
             _counts[gen] += 1
+            _pause_ns_by_gen[gen] += dur
+            if dur > _max_ns_by_gen[gen]:
+                _max_ns_by_gen[gen] = dur
         _pause_ns += dur
         if dur > _max_ns:
             _max_ns = dur
@@ -55,6 +61,18 @@ def read() -> tuple[tuple[int, int, int], int]:
     return (_counts[0], _counts[1], _counts[2]), _pause_ns
 
 
+def read_by_gen() -> tuple[int, int, int]:
+    """Cumulative pause per generation, in ns."""
+    return _pause_ns_by_gen[0], _pause_ns_by_gen[1], _pause_ns_by_gen[2]
+
+
+def take_max_ms_by_gen() -> list[float]:
+    """Longest single pause per generation since the previous call, in ms."""
+    worst = list(_max_ns_by_gen)
+    _max_ns_by_gen[:] = [0, 0, 0]
+    return [round(w / 1_000_000, 2) for w in worst]
+
+
 def take_max_ms() -> float:
     """Longest single pause since the previous call, in ms."""
     global _max_ns
@@ -66,4 +84,6 @@ def reset_for_tests() -> None:
     global _pause_ns, _max_ns, _started_ns
     uninstall()
     _counts[:] = [0, 0, 0]
+    _pause_ns_by_gen[:] = [0, 0, 0]
+    _max_ns_by_gen[:] = [0, 0, 0]
     _pause_ns = _max_ns = _started_ns = 0

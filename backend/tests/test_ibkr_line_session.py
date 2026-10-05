@@ -207,9 +207,14 @@ def test_held_lines_are_asked_for_again_on_the_new_session(sess):
         assert tape._viewer_queues["IPDN"] == [tape_q]
         assert tape._tickers["IPDN"]["ticker"].updateEvent.handlers
         new_book = depth._tickers["WHLR"]
+        # A book only goes to its viewers when it changed (ADR 045): the new line's first one does.
+        from tests.depth_ticks import dom_ticks
+
+        new_book.domTicks = dom_ticks(bids=[(4.10, 300)], asks=[(4.12, 200)])
         for handler in list(new_book.updateEvent.handlers):
             handler(new_book)
-        assert depth_q.get_nowait()["l1_fallback"] is False
+        sent = depth_q.get_nowait().book
+        assert sent["l1_fallback"] is False and sent["bids"][0]["price"] == 4.10
 
     asyncio.run(run())
 

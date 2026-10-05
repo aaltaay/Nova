@@ -38,8 +38,9 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
   });
 
   it('StockViewPage does not fetch /api/config independently', () => {
+    // The page reads no workspace state itself since the ticker store left React (2026-10-05);
+    // what matters is that it fetches no config of its own.
     const page = readFileSync(join(src, 'pages/StockViewPage.tsx'), 'utf8');
-    expect(page).toMatch(/useWorkspace\(/);
     expect(page).not.toMatch(/\/config/);
     expect(page).not.toMatch(/setDiscoveryProvider/);
   });

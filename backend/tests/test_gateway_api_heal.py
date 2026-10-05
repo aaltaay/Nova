@@ -28,21 +28,41 @@ def _reset():
 
 
 def test_gateway_1045_runs_as_ibgateway1_and_counts_as_a_gateway():
-    csv = ('"System Idle Process","0","Services","0","8 K"\r\n'
-           '"ibgateway1.exe","55632","Console","1","712,532 K"\r\n'
-           '"tws.exe","10","Console","1","1 K"\r\n'
-           '"ibgatewayhelper.exe","11","Console","1","1 K"\r\n')
-    assert gateway_process.gateway_images(csv) == ["ibgateway1.exe", "tws.exe"]
-    assert gateway_process.gateway_images('"python.exe","1","Console","1","1 K"\r\n') == []
+    assert gateway_process.is_gateway_image("ibgateway1.exe")
+    assert gateway_process.is_gateway_image("tws.exe")
+    assert not gateway_process.is_gateway_image("ibgatewayhelper.exe")
+    assert not gateway_process.is_gateway_image("python.exe")
+
+
+def test_ibcs_gateway_runs_as_java_and_counts_as_a_gateway():
+    """2026-10-05: IBC starts the Gateway as the bundled java.exe; the image check alone read "no Gateway"."""
+    from types import SimpleNamespace as P
+
+    ibc = (r'"C:\Users\x\i4j_jres\bin\java.exe" -cp "C:\Jts\ibgateway\1045\jars\jts4launch-1045.jar;'
+           r'C:\IBC\IBC.jar" ibcalpha.ibc.IbcGateway "C:\Users\x\.nova\ibc\config.ini" live')
+    lines = {7: ibc, 8: r'"C:\Program Files\Java\bin\java.exe" -jar minecraft.jar', 9: None}
+    procs = [P(pid=7, name="java.exe"), P(pid=8, name="javaw.exe"), P(pid=9, name="java.exe"),
+             P(pid=10, name="ibgateway1.exe"), P(pid=11, name="python3.13.exe")]
+    assert gateway_process.find_gateways(procs, lines.get) == [7, 10]
 
 
 def test_the_process_check_is_cached(monkeypatch):
     calls = []
     monkeypatch.setattr(gateway_process.os, "name", "nt")
-    monkeypatch.setattr(gateway_process, "_tasklist", lambda: calls.append(1) or '"ibgateway1.exe","1"\r\n')
+    monkeypatch.setattr(gateway_process, "_read", lambda: calls.append(1) or (55632,))
     assert gateway_process.running(now=100.0) and gateway_process.running(now=102.0)
     assert len(calls) == 1
     assert gateway_process.running(now=200.0) and len(calls) == 2
+
+
+def test_a_process_list_windows_refuses_reads_no_gateway(monkeypatch):
+    monkeypatch.setattr(gateway_process.os, "name", "nt")
+
+    def refuse():
+        raise OSError("access denied")
+
+    monkeypatch.setattr(gateway_process, "_read", refuse)
+    assert gateway_process.running(now=1.0) is False
 
 
 def test_decide_restarts_only_a_logged_in_gateway_refusing_long_enough():

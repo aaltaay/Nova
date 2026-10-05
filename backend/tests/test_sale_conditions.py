@@ -87,7 +87,8 @@ def test_live_tape_lists_every_print_but_candles_take_only_prices(monkeypatch):
     minute: list[float] = []
     ten_sec: list[float] = []
     monkeypatch.setattr("archive.bar_builder.on_tape_print", lambda **kw: minute.append(kw["price"]))
-    monkeypatch.setattr("ibkr.tape_10sec.on_print", lambda _s, price, _z, _t: ten_sec.append(price))
+    # on_print(symbol, price, size, ts, exchange_ts) since #724.
+    monkeypatch.setattr("ibkr.tape_10sec.on_print", lambda _s, price, _z, _t, _x=None: ten_sec.append(price))
 
     t0 = 1_790_171_109.0  # 2026-09-23 09:45:09 ET
     tape._on_tape_update(_FakeTicker([

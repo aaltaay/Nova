@@ -581,7 +581,7 @@ class TestDepthAsyncErrorFallback:
         # A viewer already connected before the async rejection arrived must
         # learn about the fallback via the queue — it won't re-poll
         # current_book() on its own (see PROBLEM_LOG 2026-07-13).
-        queued = viewer_q.get_nowait()
+        queued = viewer_q.get_nowait().book
         assert queued["l1_fallback"] is True
 
     def test_unrelated_error_code_ignored(self, monkeypatch):

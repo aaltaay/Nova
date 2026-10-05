@@ -5,6 +5,10 @@ this module holds its body and the auto-record yield (ADR 023): the operator
 never loses Level 2 to auto-record, which gives back a line before the
 subscribe runs.
 
+Every book frame carries its version (``seq``, ``at``) and ``sent``; with nothing new for
+``MARKET_VIEW_BEAT_SEC`` the socket says the newest version is still current (``beat``), so the
+desk can tell a quiet book from a stalled socket and lock orders on the latter (ADR 045).
+
 A hidden Trader tab lends its line (ADR 044 decision 6, ``line_lending``): the
 Trader tab's Level 2 opens with ``?tab=1`` and ``front=1`` while it is the tab in
 front. While a loan stands, a socket for the lender gets ``{"type": "lent", ...}``
@@ -22,11 +26,15 @@ from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+import instance_identity
 from book_watch.constants_book_watch import BOOK_WATCH_PUSH_SEC
 from book_watch.ladder import LadderPush
+from constants_market_view import MARKET_VIEW_BEAT_SEC
 from ibkr import depth as _depth
-from ibkr.depth.stream import DEPTH_STREAM_HEARTBEAT_SEC
+from ibkr.depth.state import book_version
+from ibkr.depth.stream import beat_frame, book_frame
 from line_lending import socket_gate
+from market_view.viewer_queues import BookVersion
 
 logger = logging.getLogger(__name__)
 
@@ -146,27 +154,35 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
             await websocket.send_text(json.dumps(lent))
             await websocket.close()
             return
-        await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
+        await websocket.send_text(json.dumps(
+            {"type": "subscribed", "symbol": symbol, "instance": instance_identity.INSTANCE_ID}
+        ))
 
         # A symbol already subscribed by another viewer (or a fresh page
         # reload re-attaching to a still-open depth line) needs today's
         # snapshot right away — see should_send_current_book().
         current = _depth.current_book(symbol)
         if _depth.should_send_current_book(current):
-            await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": current}))
+            version = book_version(symbol)
+            await websocket.send_text(book_frame(
+                symbol, BookVersion(version.seq if version else 0, version.at if version else 0.0, current)
+            ))
 
         watch = _WatchFrames(symbol)
-        last_sent = time.monotonic()
-        async for item in _depth.stream(queue, timeout=BOOK_WATCH_PUSH_SEC):
+        last_view = time.monotonic()  # the last book or beat: what tells the desk its book is current
+        async for item in _depth.stream(queue, timeout=min(MARKET_VIEW_BEAT_SEC, BOOK_WATCH_PUSH_SEC)):
             mono = time.monotonic()
             verdicts = watch.due(mono)
             if verdicts is not None:
                 await websocket.send_text(json.dumps({"type": "book_watch", "symbol": symbol, "data": verdicts}))
-                last_sent = mono
             if item is None:
-                if mono - last_sent >= DEPTH_STREAM_HEARTBEAT_SEC:
-                    await websocket.send_text(json.dumps({"type": "ping"}))
-                    last_sent = mono
+                if mono - last_view >= MARKET_VIEW_BEAT_SEC:
+                    await websocket.send_text(beat_frame(symbol))
+                    last_view = mono
+                continue
+            if isinstance(item, BookVersion):
+                await websocket.send_text(book_frame(symbol, item))
+                last_view = mono
                 continue
             if item.get("type") == "lent":
                 # Lent to a setup (ADR 044): the tab waits for it to come back, never by its backoff.
@@ -190,9 +206,6 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
                 if item.get("evicted"):
                     await websocket.close()
                     break
-            else:
-                await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": item}))
-                last_sent = mono
     except WebSocketDisconnect:
         logger.debug("IBKR depth WS disconnected: %s", symbol)
     except Exception as exc:

@@ -40,12 +40,17 @@ def build(
     gc_collections: tuple[int, int, int],
     gc_pause_ms: float,
     gc_max_pause_ms: float,
+    gc_pause_ms_by_gen: list[float] | None = None,
+    gc_max_pause_ms_by_gen: list[float] | None = None,
+    page_faults: int | None = None,
+    working_set_mb: float | None = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": PERF_SCHEMA_VERSION,
         "ts": round(ts, 3),
         "interval_sec": round(interval_sec, 3),
-        "process": {"cpu_pct": process_cpu_pct, "threads": threads},
+        "process": {"cpu_pct": process_cpu_pct, "threads": threads,
+                    "page_faults": page_faults, "working_set_mb": working_set_mb},
         "loops": {name: dict(loops.get(name) or {"cpu_pct": None, "delay_max_ms": None, "stalled": False})
                   for name in LOOPS},
         "ops": ops,
@@ -54,8 +59,15 @@ def build(
             "collections": list(gc_collections),
             "pause_ms": round(gc_pause_ms, 2),
             "max_pause_ms": round(gc_max_pause_ms, 2),
+            "pause_ms_by_gen": [round(v, 2) for v in gc_pause_ms_by_gen] if gc_pause_ms_by_gen else None,
+            "max_pause_ms_by_gen": list(gc_max_pause_ms_by_gen) if gc_max_pause_ms_by_gen else None,
         },
     }
+
+
+def _by_gen(samples: list[dict[str, Any]], key: str, fold) -> list[float] | None:
+    rows = [s["gc"].get(key) for s in samples if s["gc"].get(key)]
+    return [round(fold(r[g] for r in rows), 2) for g in range(3)] if rows else None
 
 
 def _mean(values: list[float | None]) -> float | None:
@@ -96,6 +108,8 @@ def aggregate(samples: list[dict[str, Any]]) -> dict[str, Any] | None:
         "process": {
             "cpu_pct": _mean([s["process"]["cpu_pct"] for s in samples]),
             "threads": last["process"]["threads"],
+            "page_faults": _sum_known([s["process"].get("page_faults") for s in samples]),
+            "working_set_mb": last["process"].get("working_set_mb"),
         },
         "loops": loops,
         "ops": ops,
@@ -104,8 +118,15 @@ def aggregate(samples: list[dict[str, Any]]) -> dict[str, Any] | None:
             "collections": collections,
             "pause_ms": round(sum(s["gc"]["pause_ms"] for s in samples), 2),
             "max_pause_ms": _max([s["gc"]["max_pause_ms"] for s in samples]) or 0.0,
+            "pause_ms_by_gen": _by_gen(samples, "pause_ms_by_gen", sum),
+            "max_pause_ms_by_gen": _by_gen(samples, "max_pause_ms_by_gen", max),
         },
     }
+
+
+def _sum_known(values: list[int | None]) -> int | None:
+    known = [v for v in values if v is not None]
+    return sum(known) if known else None
 
 
 def drop_increase(samples: list[dict[str, Any]]) -> dict[str, float]:

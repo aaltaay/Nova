@@ -348,8 +348,8 @@ class TestStreamHeartbeat:
 
         depth_state.push_book("SHPH", {"bids": [{"price": 4.5}], "asks": [], "l1_fallback": False})
 
-        assert q1.get_nowait()["bids"][0]["price"] == 4.5
-        assert q2.get_nowait()["bids"][0]["price"] == 4.5
+        assert q1.get_nowait().book["bids"][0]["price"] == 4.5
+        assert q2.get_nowait().book["bids"][0]["price"] == 4.5
 
 
 class TestViewerLeakDoesNotBlockActiveSymbol:

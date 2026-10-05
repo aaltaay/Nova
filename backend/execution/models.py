@@ -74,6 +74,10 @@ class ExecutionCommand:
     # "Sent by" so a breaker's or a bot's order never reads as the operator's own. None for the
     # operator's own ticket. A label, never a permission: no gate reads it.
     origin: Origin | None = None
+    # What the operator's screen showed when they acted (ADR 045): ``action_wall_ms``, the Level 2
+    # book's and the quote's versions, the desk's own measures. Only the desk's routes set it; the
+    # door refuses a manual priced order from a view that lags (``market_view.gate``).
+    view: dict[str, Any] | None = None
 
     def normalized_symbol(self) -> str | None:
         return self.symbol.upper() if self.symbol else None

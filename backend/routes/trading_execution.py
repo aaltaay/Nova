@@ -30,6 +30,43 @@ class BrowserTimingRequest(BaseModel):
     request_performance_ms: float
 
 
+class ViewBook(BaseModel):
+    """The Level 2 book the screen showed: its version and its top."""
+
+    seq: int
+    at: float | None = None
+    bid: float | None = None
+    ask: float | None = None
+
+
+class ViewQuote(BaseModel):
+    """The quote the screen showed: its version and its price."""
+
+    seq: int
+    at: float | None = None
+    price: float | None = None
+
+
+class ViewDesk(BaseModel):
+    """The desk's own measures of its view at the action, in ms (null when unknown)."""
+
+    silent_ms: float | None = None
+    transit_ms: float | None = None
+    undrawn_ms: float | None = None
+
+
+class ViewStamp(BaseModel):
+    """What the operator's screen showed when they acted (ADR 045; ``market_view.gate``)."""
+
+    schema_version: int = 1
+    symbol: str | None = None
+    action_wall_ms: float
+    instance: str | None = None
+    book: ViewBook | None = None
+    quote: ViewQuote | None = None
+    desk: ViewDesk | None = None
+
+
 class OrderRequest(BaseModel):
     symbol: str
     side: str
@@ -52,6 +89,8 @@ class OrderRequest(BaseModel):
     # protective ``flatten`` -- never clamped by the one-share test gate. The
     # door refuses it past the shares not already being closed (QA R42).
     intent: Literal["flatten"] | None = None
+    # ADR 045: what the screen showed when the operator acted; a manual priced order without it is refused.
+    view: ViewStamp | None = None
 
     @model_validator(mode="after")
     def _legs_ride_a_limit_entry(self) -> "OrderRequest":
@@ -75,6 +114,8 @@ class ReplaceRequest(BaseModel):
     client_timing: BrowserTimingRequest | None = None
     # The venue the caller means; the door refuses VENUE_CHANGED when the desk is elsewhere.
     venue: str | None = None
+    # ADR 045: what the screen showed when the operator acted.
+    view: ViewStamp | None = None
 
 
 def _browser_timing(
@@ -122,6 +163,7 @@ def _manual_order_command(
         skip_risk=True,
         client_timing=client_timing,
         backend_ingress_wall_ns=ingress_wall,
+        view=req.view.model_dump() if req.view is not None else None,
     )
     if req.take_profit_price is None:
         return ExecutionCommand(
@@ -303,6 +345,7 @@ async def replace_order(
             expected_venue=req.venue or None,
             client_timing=_browser_timing(request, req.client_timing),
             backend_ingress_wall_ns=ingress_wall,
+            view=req.view.model_dump() if req.view is not None else None,
         ),
         received_ns=ingress_perf,
     )

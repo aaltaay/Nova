@@ -19,6 +19,7 @@ import {
 import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
 import { writeSkipPlaceConfirm } from './placeConfirmPrefs';
 import { placeActionLabel, type TicketSide } from './ticketSide';
+import { TICKET_VIEW_LOCKED_LABEL } from '../constantGroups/market_view';
 
 interface Props {
   isPaper: boolean;
@@ -31,6 +32,8 @@ interface Props {
   /** Whether `connected: false` is a status answer or an unknown (QA D10, #459). */
   gatewayStatus?: GatewayStatusFact;
   submitting: boolean;
+  /** ADR 045: why Place is locked because this symbol's market view lags, or null while it is live. */
+  viewLockWhy?: string | null;
   spendLocked: boolean;
   spendLockReason?: string | null;
   /** ADR 018: the env permits spending but this process is not armed -- a venue change or restart. */
@@ -55,6 +58,7 @@ export function ManualOrderFooter({
   connected,
   gatewayStatus = GATEWAY_STATUS_KNOWN,
   submitting,
+  viewLockWhy = null,
   spendLocked,
   spendLockReason = null,
   spendDisarmed = false,
@@ -78,14 +82,18 @@ export function ManualOrderFooter({
     ? gatewayLockWhy(gatewayStatus)
     : submitting
       ? TICKET_WHY_SENDING
-      : placeBlockedBySpend
-        ? lockReason
-        : null;
+      : viewLockWhy
+        ? viewLockWhy
+        : placeBlockedBySpend
+          ? lockReason
+          : null;
   const buttonText = !connected
     ? gatewayPlaceLabel(gatewayStatus)
     : needsPinUnlock
       ? TICKER_TRADE_UNLOCK_LABEL
-      : placeBlockedBySpend
+      : viewLockWhy && !submitting
+        ? TICKET_VIEW_LOCKED_LABEL
+        : placeBlockedBySpend
         ? spendDisarmed
           ? TICKER_TRADE_DISARMED_LABEL
           : TICKER_TRADE_ORDERS_LOCKED_LABEL

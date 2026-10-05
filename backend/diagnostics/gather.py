@@ -35,6 +35,7 @@ from diagnostics import (
     collect_gateway,
     collect_leaderboard,
     collect_perf,
+    collect_priority,
     collect_screen_record,
     collect_tape_archive,
     process_info,
@@ -298,6 +299,18 @@ def _perf_rows(now: float) -> list[dict[str, Any]]:
     )
 
 
+def _priority_view() -> dict[str, Any]:
+    from process_priority import trading_path
+
+    return trading_path.view()
+
+
+def _freeze_status() -> dict[str, Any]:
+    from perf import freeze_watch
+
+    return freeze_watch.status()
+
+
 def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, Any]:
     """The full ``GET /api/diagnostics`` payload."""
     ts = time.time() if now is None else float(now)
@@ -306,6 +319,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows += collect.process_rows(facts)
     rows += _safe(DIAG_GROUP_PROCESS, "data_folders", "Where Nova keeps its data",
                   lambda: collect_data_root.data_folder_rows(**_data_folder_inputs()))
+    rows += _safe(DIAG_GROUP_PROCESS, "process_priority", "Trading path priority",
+                  lambda: collect_priority.priority_rows(view=_priority_view()))
     rows += collect.integration_rows(env_file=facts["env_file"])
     rows += _safe(DIAG_GROUP_GATEWAY, "gateway", "Gateway", lambda: collect_gateway.gateway_rows(**_gateway_inputs()))
     rows += _safe(DIAG_GROUP_MARKET_DATA, "market_data", "Market data", lambda: collect_gateway.market_data_rows(**_market_data_inputs()))
@@ -328,6 +343,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
         ui_tag=ui_tag, backend_tag=facts.get("release_tag"), checkout_tag=facts.get("checkout_tag"),
     )
     rows += _safe(DIAG_GROUP_PERFORMANCE, "perf_recorder", "Performance recorder", lambda: _perf_rows(ts))
+    rows += _safe(DIAG_GROUP_PERFORMANCE, "perf_freezes", "Whole-process freezes",
+                  lambda: collect_priority.freeze_rows(status=_freeze_status(), now=ts))
     return {
         "schema_version": DIAG_SCHEMA_VERSION,
         "generated_at": ts,

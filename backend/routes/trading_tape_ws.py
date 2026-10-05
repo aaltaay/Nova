@@ -16,6 +16,9 @@ arrives after the request) is brought back by ``line_lending.tape_heal`` (#698):
 the socket forwards its words and ``retry_at``, then ``subscribed`` when the line
 is back. It used to stay open on a dead line until the tab was reopened.
 
+Prints waiting together go as one ``{"type": "prints", "items": [...], "sent"}`` frame (a single
+print stays a ``print`` frame), so a backlog after a stall reaches the pane at once (ADR 045).
+
 Each idle ``ping`` (no print for TAPE_STREAM_HEARTBEAT_SEC) on a live line carries ``silence``:
 ``ibkr.tape_silence``'s reading, or ``null`` (#722). The pane says HALTED, SILENT or QUIET with
 its words instead of reading LIVE over a tape that stopped.
@@ -97,8 +100,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
             logger.debug("SIM tape: capture seed skipped", exc_info=True)
 
         halt_seen_at: float | None = None  # the last ping that found the symbol halted
-        async for print_data in _tape.stream(queue):
-            if print_data is None:
+        async for batch in _tape.stream_batches(queue):
+            if batch is None:
                 silence = None
                 if not is_replay_desk() and _tape.is_subscribed(symbol):
                     silence = _silence(symbol, halt_seen_at)
@@ -108,38 +111,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 if not is_replay_desk() and not _tape.is_subscribed(symbol):
                     socket_gate.line_down(symbol)  # down with no word from IBKR: ask again all the same
                 continue
-            if print_data.get("symbol") != symbol:
-                continue
-            msg_type = print_data.get("type") or "print"
-            if msg_type == "lent":
-                # Lent to a setup (ADR 044): the tab waits for it to come back, never by its backoff.
-                await websocket.send_text(json.dumps(print_data))
-                await websocket.close()
+            if not await _send_batch(websocket, symbol, batch):
                 break
-            if msg_type == "subscribed":
-                # The line is back (``tape_heal``): the pane drops its error.
-                await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
-                continue
-            if msg_type == "error":
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "symbol": symbol,
-                            "message": print_data.get("message") or "Tape error",
-                            "retry_at": print_data.get("retry_at"),
-                        }
-                    )
-                )
-                if print_data.get("released"):
-                    await websocket.close()
-                    break
-                if not print_data.get("healing"):
-                    socket_gate.line_down(symbol)  # IBKR refused or ended it: ask again, never wait on a dead line
-            elif msg_type == "scrub_reset":
-                await websocket.send_text(json.dumps({"type": "scrub_reset", "symbol": symbol}))
-            else:
-                await websocket.send_text(json.dumps({**print_data, "type": "print"}))
     except WebSocketDisconnect:
         logger.debug("IBKR tape WS disconnected: %s", symbol)
     except Exception as exc:
@@ -158,6 +131,55 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
             # tab holds one at the live edge). With no line this is a no-op, so
             # a replay desk is unchanged.
             _tape.unsubscribe(symbol)
+
+
+async def _send_prints(websocket: WebSocket, symbol: str, prints: list[dict]) -> None:
+    if len(prints) == 1:
+        await websocket.send_text(json.dumps({**prints[0], "type": "print"}))
+    elif prints:
+        items = [{**p, "type": "print"} for p in prints]
+        await websocket.send_text(json.dumps({"type": "prints", "symbol": symbol, "items": items, "sent": time.time()}))
+    prints.clear()
+
+
+async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> bool:
+    """Send one batch in order: prints together, each control frame where it fell. False when the
+    socket must close (the line was lent or released)."""
+    prints: list[dict] = []
+    for item in batch:
+        if item.get("symbol") != symbol:
+            continue
+        msg_type = item.get("type") or "print"
+        if msg_type == "print":
+            prints.append(item)
+            continue
+        await _send_prints(websocket, symbol, prints)
+        if msg_type == "lent":
+            # Lent to a setup (ADR 044): the tab waits for it to come back, never by its backoff.
+            await websocket.send_text(json.dumps(item))
+            await websocket.close()
+            return False
+        if msg_type == "subscribed":
+            # The line is back (``tape_heal``): the pane drops its error.
+            await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
+        elif msg_type == "error":
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "symbol": symbol,
+                "message": item.get("message") or "Tape error",
+                "retry_at": item.get("retry_at"),
+            }))
+            if item.get("released"):
+                await websocket.close()
+                return False
+            if not item.get("healing"):
+                socket_gate.line_down(symbol)  # IBKR refused or ended it: ask again, never wait on a dead line
+        elif msg_type == "scrub_reset":
+            await websocket.send_text(json.dumps({"type": "scrub_reset", "symbol": symbol}))
+        else:
+            prints.append(item)
+    await _send_prints(websocket, symbol, prints)
+    return True
 
 
 def _silence(symbol: str, halt_seen_at: float | None) -> dict | None:

@@ -20,6 +20,7 @@ import { notifyOrderRejected } from './notifyOrderRejected';
 import { beginDeskAction } from './deskActionFlight';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import { readSkipPlaceConfirm } from './placeConfirmPrefs';
+import { viewLockReason } from '../market_view';
 import type {
   IbkrAccountSummary,
   IbkrMode,
@@ -143,6 +144,12 @@ export function useManualOrderSubmission(params: Params) {
     if (!params.connected || submitting || inFlightRef.current) return;
     if (params.spendLocked) {
       fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
+      return;
+    }
+    // ADR 045: a Confirm clicked while Level 2 lags never sends (the backend would refuse it anyway).
+    const lagging = viewLockReason(params.symbol);
+    if (lagging) {
+      fail(lagging, 'VIEW_STALE');
       return;
     }
     const timing = beginBrowserExecutionTiming(

@@ -41,6 +41,11 @@ export const ORDER_REJECT_TITLES: Record<string, string> = {
   IBKR_VERIFICATION_REQUIRED: IBKR_VERIFICATION_DIALOG_TITLE,
   ACCOUNT_UNAVAILABLE: 'Account unavailable',
   POSITION_UNAVAILABLE: 'Position unavailable',
+  // ADR 045: an order priced from a view that lags is refused, not sent.
+  VIEW_STALE: 'Your screen was behind the market',
+  ORDER_LATE: 'The order reached Nova too late',
+  FEED_STALE: 'Nova is behind the market',
+  VIEW_MISSING: 'Update the desk to place orders',
 };
 /** User dismissed the confirm dialog -- not a reject. */
 export const ORDER_REJECT_SKIP_MESSAGES = [

@@ -12,7 +12,7 @@ import time
 from typing import Any, Callable
 
 from constants_perf import PERF_ENV_SWITCH, PERF_HEAP_EVERY_SEC, PERF_HEAP_FIRST_AFTER_SEC
-from perf import gc_watch, heap, loop_cpu, recorder, stall_watch
+from perf import freeze_watch, gc_watch, heap, loop_cpu, recorder, stall_watch
 from perf.store import PerfStore, default_dir
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,10 @@ def start(spawn_ib: Callable[[str, Callable[[], Any]], None] | None = None) -> l
             stall_watch.watch("ib", ib_loop)
             spawn_ib("perf.ib_cpu", lambda: loop_cpu.sample_loop("ib"))
     stall_watch.start()
+    try:
+        freeze_watch.start(_store.root)  # ADR 045: a whole-process freeze writes every thread's stack
+    except Exception:
+        logger.exception("perf: the freeze watch did not start")
     logger.info("perf recorder: on (%s)", _store.root)
     return tasks
 
@@ -73,6 +77,8 @@ async def _heap_loop() -> None:
 def stop() -> None:
     global _store
     stall_watch.stop()
+    if freeze_watch._watch is not None:
+        freeze_watch._watch.stop()
     gc_watch.uninstall()
     if _store is not None:
         _store.stop()

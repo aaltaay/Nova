@@ -3902,6 +3902,79 @@ kept arriving, so this is not a feed gap (above).
 - **Not done here:** why a line goes silent, and what brings it back. Asking IBKR again did not bring VEEA's
   back that morning; SAIQ's came back without a new request.
 
+### Orders refuse a stale view; the market path stays real time (ADR 045, operator report 2026-10-05)
+
+"If it lags, then we cannot place an order." At 08:30:25 ET the operator sold APUS at a 6.58 bid their Level 2
+had shown since 08:30:18-21 (Nova's own book was 6.50 x 6.55 by then; Time & Sales showed 08:30:20 as newest);
+the order reached the backend 2-3 s after the click and rested above the market.
+
+- **Versions** (owner `market_view/versions.py`, memory only). Each symbol's Level 2 book (`book`) and quote
+  (`quote`) has a version: `seq` (an integer, +1 per change, never reset while the process runs) and `at`
+  (epoch seconds when Nova applied it), with the last `MARKET_VIEW_HISTORY_KEEP` versions kept so the gate can
+  tell when any `seq` it is shown was replaced.
+- **Level 2** (`/ws/ibkr/depth/{symbol}`). Each viewer holds the newest book only, never a backlog, plus a
+  short FIFO of control frames; the IB thread wakes the socket's loop thread-safely, once per burst. A book is
+  pushed only when its rows changed (an L1 tick or a print on the same contract no longer re-sends it).
+  - `{"type": "subscribed", "symbol", "instance"}` -- `instance` is the backend process (`/api/health`
+    `instance_id`).
+  - `{"type": "book", "symbol", "data": {bids, asks, l1_fallback}, "seq", "at", "sent"}` -- `data` unchanged.
+  - `{"type": "beat", "symbol", "seq", "at", "now"}` every `MARKET_VIEW_BEAT_SEC` (0.25) without a book frame:
+    the line's newest version (`seq` 0 and `at` null before its first book) as of `now`. It replaces the
+    15 s `ping`.
+- **Time & Sales** (`/ws/ibkr/tape/{symbol}`). Each viewer's prints wait in a thread-safe FIFO
+  (`IBKR_TAPE_QUEUE_MAXSIZE`, oldest dropped and counted in `tape.viewer_dropped`) with the same wake-up; two or
+  more waiting prints go as one `{"type": "prints", "symbol", "items": [print...], "sent"}` frame, a single one
+  as the `print` frame it was.
+- **Quote** (`/ws/ticker/{symbol}`): `trade_update` adds `seq` and `at`, the symbol's quote version.
+- **The view an order carries.** `POST /api/ibkr/order` and `PATCH /api/ibkr/order/{id}` accept `view:
+  {schema_version: 1, symbol, action_wall_ms, instance: string | null, book: {seq, at, bid, ask} | null, quote:
+  {seq, at, price} | null, desk: {silent_ms, transit_ms, undrawn_ms} | null}` -- when the operator acted
+  (epoch ms), the Level 2 book and the quote the screen showed (null when it showed none), and the desk's own
+  measures at that moment. The desk attaches it to every order it sends (`ibkr/placeOrder.ts`).
+- **The gate** (owner `market_view/gate.py`; constants `constants_market_view.py`). For a `manual` place,
+  bracket or replace that came through those routes (it carries `client_timing`), the execution door refuses,
+  after the duplicate-key replay and before anything is validated or sent, HTTP 200 `{ok: false, reason_code,
+  error}` like its other refusals:
+  - `VIEW_STALE`: the book or quote the screen showed had been replaced for more than `ORDER_VIEW_MAX_LAG_MS`
+    (500) at `action_wall_ms` (`lag = action - at(seq + 1)`), a `seq` older than the kept history, a `seq` past
+    the newest, or an `instance` that is not this process;
+  - `ORDER_LATE`: the door saw it more than `ORDER_MAX_ARRIVAL_MS` (500) after `action_wall_ms`, or the broker
+    send would leave more than `ORDER_MAX_SEND_MS` (750) after it (checked again just before the send);
+  - `FEED_STALE`: an IBKR feed gap is open or settling (`ibkr/feed_pulse`), or the IB loop is stalled now for
+    more than `ORDER_MAX_IB_STALL_MS` (500) (`perf/stall_watch.stalled_ms`) -- never on a Sim desk off the live
+    edge, whose market is the replay;
+  - `VIEW_MISSING`: no `view` (an older desk).
+
+  The protective sources (`flatten`, `kill`, `cancel_working`), cancels and every command without
+  `client_timing` (the bot, stock modes, the breakers) are exempt. The arithmetic mixes the desk's and the
+  backend's wall clocks, sound because the backend binds 127.0.0.1; an action more than 1 s in the backend's
+  future is `VIEW_STALE` ("the clocks disagree"). The execution row's payload keeps `view` and `view_check:
+  {schema_version: 1, verdict: "ok" | "refused" | "exempt" | "missing", code, arrival_ms, book_lag_ms,
+  quote_lag_ms, feed_gap: boolean | null (null on a replay desk), ib_stall_ms}`.
+- **The desk locks first** (owner `frontend/src/market_view/`). A symbol's view is stale while its Level 2 has
+  had no frame or beat for `VIEW_SILENT_LOCK_MS` (750), a frame took more than `VIEW_TRANSIT_LOCK_MS` (500)
+  from `sent` to arrival, or a received book has not been drawn for `VIEW_UNDRAWN_LOCK_MS` (500). Then Place,
+  the quick bar's and the hotkeys' priced actions and Fill now are locked with the reason (`data-why`); Flatten
+  and cancels never are. No age readout: locked or live.
+- **Nothing slow on the socket loop.** `ibkr/gateway_process.py` reads Windows' process list and listening
+  ports in-process (no `tasklist`; the Gateway is the `java.exe` IBC launches, or an `ibgateway*` / `tws*`
+  image); `paths.cache_dir()` / `log_dir()` create their folder once; the Closed blotter's place overlay is
+  read again only after the ledger is written (`execution/place_overlay.py`); the IBC log and the gateway trail are re-read only when
+  their file changed; a Time & Sales subscribe warms its 10-second bars off the loop.
+- **Priority** (owner `process_priority/`, Windows only). The backend raises itself to Above Normal, opts out
+  of Windows power throttling and keeps normal memory and I/O priority at start and every
+  `PROCESS_PRIORITY_RECHECK_SEC` (2); its IB and socket loop threads run Above Normal; it keeps IB Gateway's
+  process at Above Normal and IBC's launch loop, whose relaunch the Gateway inherits, at Normal. Nothing is lowered; a priority found lowered is raised and
+  logged. `/api/diagnostics` adds the `process_priority` row (group `process`), `evidence: {processes: [{role:
+  "api" | "gateway" | "ibc_loop", pid, name, priority, raised, error}]}`. The desk's Electron main raises its
+  own and its desk windows' processes (`frontend/electron/processPriority.mjs`).
+- **Freezes** (owner `perf/freeze_watch.py`). A C-level watchdog (`faulthandler`) re-armed every 0.5 s dumps
+  every thread's stack when the process stops for `PERF_FREEZE_DUMP_SEC` (2), to
+  `<cache_dir>/perf/freezes/YYYY-MM-DD.txt`, and `freezes.jsonl` beside it logs `{schema_version: 1, armed_at,
+  noticed_at, frozen_sec, file, offset}` per dump. `/api/diagnostics` adds `perf_freezes` (group
+  `performance`). Perf samples' `process` adds `page_faults` (in the interval) and `working_set_mb`, and `gc`
+  adds `pause_ms_by_gen` and `max_pause_ms_by_gen`.
+
 ### The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33)
 
 "How come these things are getting triggered right now? ... the entire market is closed, no?" -- the Bots
@@ -4457,6 +4530,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-05 | Orders refuse a stale view (ADR 045; operator report on APUS: "If it lags, then we cannot place an order ... Everything needs to happen in real time"). At 08:30:25 ET the operator sold at a 6.58 bid their Level 2 had shown since 08:30:18-21, while Nova's own book read 6.50 x 6.55; the order reached the backend 2-3 s after the click and rested above the market. Each Level 2 viewer replayed up to 100 old books in order from a queue the IB thread filled without waking the socket loop, the socket loop ran `tasklist` and re-read files on every status poll, and the backend and IB Gateway ran BelowNormal. Every book and quote now has a version; a Level 2 viewer holds the newest book only, woken thread-safely, with a beat every 250 ms; Time & Sales sends a backlog in one frame. Every desk order carries the view its screen showed, and the execution door refuses one whose book or quote had been replaced for more than 500 ms when the operator acted, that arrived more than 500 ms later, or that met a feed gap or a stalled IB loop (`VIEW_STALE`, `ORDER_LATE`, `FEED_STALE`, `VIEW_MISSING`); the desk locks Place, the hotkeys and Fill now first, with the reason, and never Flatten or a cancel. The socket loop's slow reads are gone, the backend keeps itself and the Gateway Above Normal (the desk app its own windows), and a freeze dumps every thread's stack. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | A silent tape says so, and 10-second candles keep one clock (#722, #721; operator reports: "time and sale is fully frozen", "two candles drawing together ... the previous candle should never move"). At 09:35:42 ET two AllLast lines stopped while their books kept updating, with no IBKR error, and Time & Sales read LIVE for six minutes; each idle `ping` now carries a silence reading (`ibkr/tape_silence.py`) and the pane reads SILENT / HALTED / QUIET with the reason. The recorder no longer calls a halted name's line dead (MI was dropped and re-asked through two halts). 10-second candles from prints are keyed by IBKR's own second, which IBKR delivers in order (1.2M October prints, none out of order) and its history uses; arrival time had built most candles differently. The pane's forming candle has one writer, the tape: a Level 1 trade stamped on Nova's clock opened the next candle at the boundary while prints still filled the last. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | The desk draws with the graphics card (#707; operator: "when I move the chart left and right with my mouse and hold, even when I have the eyes off, the setup off, and the levels off, it really feels laggy"). Software drawing had been the Windows default since the 2026-09-17 black-window fix, which changed three things at once; measured alone in Electron 41 on the demo desk at 4K/150%, a chart drag ran at about 22 fps in software and with 5 ms frames on the graphics card. The graphics card is the default now, kept in `graphics.json` and switched in View > Draw with the graphics card, with a safety net: a crash of the graphics process turns it off from the next start and says so; a blank window -- the screen under the focused desk window, read from the screen recording's own capture, one flat colour three looks in a row while the page draws content -- restarts Nova in software. The menu has one owner (`appMenu.mjs`) so the View switch and the updater's Help rows never drop each other. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | The close countdown keeps clear of the pane's words (operator report: on a 5-minute pane the timer sat on top of the setup's "5m ... +83.3%" label, and asked to check every chart). The chip drawn over the forming candle on every minute pane (`chart/BarCountdownPrimitive.ts`) knew only the candle, so any label or price near the tip ran under it -- a live lane's label starts at its box's left edge, a few candles back, so a forming setup always put its label over the chip. Each primitive that writes words on a pane now publishes the rectangles it drew (`chart/paneWords.ts`: the stock read's labels, pins, fixed labels and edge column, and the fill arrows with their prices), and the chip takes the first clear spot: beside the candle, under it, then a row at a time, never on the forming candle, and not drawn when nothing is clear. Only the chip yields; the labels place as before. Rendered headless with the real primitives on the screenshot's scenario: the chip moved from over the label to beside the candle. §3 amended. | User Directive + Claude Sonnet 5.5 |

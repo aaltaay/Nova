@@ -12,6 +12,7 @@ from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 from constants_tape import IBKR_LAST_TICK_TYPES
 from ibkr import feed_pulse
 from ibkr.open_tick import todays_open
+from market_view import versions as _versions
 from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ def _broadcast_halt(symbol: str, halt: dict | None) -> None:
     def _send() -> None:
         try:
             loop = asyncio.get_running_loop()
-            from websocket import broadcast_halt_update
+            from market_view.quote_push import broadcast_halt_update
 
             loop.create_task(broadcast_halt_update(symbol, halt))
         except RuntimeError:
@@ -325,10 +326,15 @@ def on_ticker_update(
     if sub is not None and owner_detail not in sub.get("owners", set()):
         return
     ts = datetime.now(timezone.utc).isoformat()
+    # The quote's version, taken here on the IB thread when Nova applied it (ADR 045): the frame
+    # carries its own, so a frame sent late after a stall still says how old it is.
+    version = _versions.bump(_versions.QUOTE, symbol)
     def _broadcast() -> None:
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(broadcast(symbol, price, None, ts, vol_i, prev_close))
+            loop.create_task(broadcast(
+                symbol, price, None, ts, vol_i, prev_close, seq=version.seq, at=version.at,
+            ))
         except RuntimeError:
             logger.debug("IBKR ticks: no running loop to broadcast %s", symbol)
 

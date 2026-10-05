@@ -19,6 +19,8 @@ import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 import { QuickTradeGearIcon, QuickTradeIcon } from './quickTradeIcons';
 import { quickTradeLabelPieces, quickTradeShortLabel, quickTradeTone } from './quickTradeLabel';
 import { useTopOfBook } from './TopOfBookContext';
+import { PROTECTIVE_KINDS } from './runNovaAction';
+import { useViewLock } from '../market_view';
 
 interface Props {
   /**
@@ -33,6 +35,8 @@ export function TradingQuickBar({ status = true }: Props = {}) {
   const dispatch = useHotkeyDispatchOptional();
   const settings = useSettingsOptional();
   const { topOfBook } = useTopOfBook();
+  // ADR 045: while this symbol's Level 2 lags, every action that places (all but cancels and Flatten) locks.
+  const viewLock = useViewLock(topOfBook?.symbol);
 
   if (!dispatch) return null;
 
@@ -53,7 +57,9 @@ export function TradingQuickBar({ status = true }: Props = {}) {
       >
         {buttons.map((action) => {
           const needsDepth = NOVA_ACTION_NEEDS_DEPTH.includes(action.kind);
-          const disabled = needsDepth && !depthOk;
+          const places = !(action.kind in PROTECTIVE_KINDS) && !action.kind.startsWith('clip_');
+          const why = needsDepth && !depthOk ? NOVA_ACTION_DEPTH_DISABLED_REASON : places ? viewLock : null;
+          const disabled = why != null;
           return (
             <button
               key={action.id}
@@ -61,7 +67,7 @@ export function TradingQuickBar({ status = true }: Props = {}) {
               className={`nova-qt__btn nova-qt__btn--${quickTradeTone(action.kind)}`}
               data-kind={action.kind}
               disabled={disabled}
-              data-why={disabled ? NOVA_ACTION_DEPTH_DISABLED_REASON : undefined}
+              data-why={why ?? undefined}
               aria-label={action.name}
               title={disabled ? undefined : `${action.name} (${formatKeyChord(action.key)})`}
               onClick={() => {

@@ -127,7 +127,7 @@ def session_start_ts(now: datetime | None = None) -> float:
 
 
 def load_session_ledger() -> list[dict]:
-    from execution.store_facts import list_session_place_overlay
+    from execution.place_overlay import list_session_place_overlay
 
     return list_session_place_overlay(since_ts=session_start_ts())
 

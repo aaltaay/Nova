@@ -1,4 +1,4 @@
-import { memo, useEffect, type CSSProperties, type ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, type CSSProperties, type ReactNode } from 'react';
 import {
   L2_DAS_HEADERS,
   L2_DAS_MM_FALLBACK,
@@ -34,6 +34,7 @@ import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
 import type { DepthLevel } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
+import { noteBookShown } from '../market_view';
 import { tipProps } from '../ux';
 
 interface Props {
@@ -254,6 +255,10 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
   const topBid = book?.bids[0]?.price ?? null;
   const topAsk = book?.asks[0]?.price ?? null;
   const depthSubscribed = book != null && connected;
+  // ADR 045: which book version is on screen -- an order says it was priced from this one.
+  useLayoutEffect(() => {
+    if (symbol && uiActive && book) noteBookShown(symbol, book.seq, topBid, topAsk);
+  }, [symbol, uiActive, book, topBid, topAsk]);
   useEffect(() => {
     if (!symbol || !uiActive) {
       setTopOfBook(null);

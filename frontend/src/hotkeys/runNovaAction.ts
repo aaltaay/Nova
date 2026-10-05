@@ -55,6 +55,7 @@ import {
 } from './runNovaActionPlace';
 import type { NovaActionRuntime } from './runNovaActionRuntime';
 import { runClipHotkey } from '../clips';
+import { viewLockReason } from '../market_view';
 
 export type { NovaActionRuntime } from './runNovaActionRuntime';
 
@@ -64,7 +65,7 @@ export type { NovaActionRuntime } from './runNovaActionRuntime';
  * protective source (`ibkr/safety.PROTECTIVE_SOURCES`). A kind not listed --
  * a new one included -- takes the opening-order gate.
  */
-const PROTECTIVE_KINDS: Partial<Record<NovaActionKind, 'cancel' | 'flatten'>> = {
+export const PROTECTIVE_KINDS: Partial<Record<NovaActionKind, 'cancel' | 'flatten'>> = {
   cancel_all_orders: 'cancel',
   cancel_symbol: 'cancel',
   exit_pos: 'flatten',
@@ -88,7 +89,8 @@ function gateFor(kind: NovaActionKind, runtime: NovaActionRuntime): NovaActionRe
   if (!gate.allowed) {
     return { ok: false, text: gate.reason ?? NOVA_ACTION_SPEND_LOCKED_MESSAGE };
   }
-  return null;
+  const lagging = viewLockReason(runtime.symbol);  // ADR 045: priced from a Level 2 that lags
+  return lagging ? { ok: false, text: lagging } : null;
 }
 
 async function maybeConfirm(

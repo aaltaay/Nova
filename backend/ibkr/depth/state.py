@@ -14,21 +14,21 @@ from typing import Any
 from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_RELEASE_GRACE_SEC
 from ibkr import line_session
 from ibkr.depth.book import DepthBook
+from market_view import versions
+from market_view.viewer_queues import BookVersion, LatestBookQueue
 from perf.counters import incr as _count_drop
 
 logger = logging.getLogger(__name__)
 
-IBKR_DEPTH_QUEUE_MAXSIZE = 100
-
 _subscriptions: dict[str, dict] = {}
 # Fan-out: one queue per *viewer*, not one shared queue per symbol. Two
 # viewers of the same symbol (StrictMode double-mount, or a genuine second
-# Trader tab on the same ticker) must each see every book update -- a single
-# shared queue makes them competing consumers instead, so whichever
-# socket's handler task keeps winning the race silently starves the other
-# (same defect class as tape_stream.py, fixed there first -- PROBLEM_LOG
-# 2026-08-25).
-_viewer_queues: dict[str, list[asyncio.Queue]] = {}
+# Trader tab on the same ticker) must each see the book -- a single shared
+# queue makes them competing consumers instead, so whichever socket's handler
+# task keeps winning the race silently starves the other (same defect class as
+# tape_stream.py, fixed there first -- PROBLEM_LOG 2026-08-25). Each holds the
+# newest book only, never a backlog, and wakes its socket thread-safely (ADR 045).
+_viewer_queues: dict[str, list[Any]] = {}
 _tickers: dict[str, Any] = {}
 _contracts: dict[str, Any] = {}
 # symbol -> the IBKR session generation its live line was requested on (#562).
@@ -182,7 +182,8 @@ async def release_when_idle(symbol: str) -> bool:
     return viewer_count(symbol) <= 0
 
 
-def _broadcast(symbol: str, payload: dict) -> None:
+def _broadcast(symbol: str, payload: Any) -> None:
+    # A viewer's ``LatestBookQueue`` never refuses; a plain asyncio.Queue (tests) drops its oldest.
     for q in list(_viewer_queues.get(symbol, ())):
         try:
             q.put_nowait(payload)
@@ -197,15 +198,23 @@ def _broadcast(symbol: str, payload: dict) -> None:
                 logger.warning("IBKR depth: queue still full for %s after drop", symbol)
 
 
-def push_book(symbol: str, book: dict) -> None:
-    """Broadcast a book snapshot to every viewer currently watching this symbol."""
+def push_book(symbol: str, book: dict) -> BookVersion:
+    """A new book for this symbol: versioned (ADR 045) and handed to every viewer watching it."""
+    version = versions.bump(versions.BOOK, symbol)
     try:
         from sensors.rings import observe_book
 
         observe_book(symbol, book)
     except Exception:
         logger.debug("IBKR depth: sensor ring skip for %s", symbol, exc_info=True)
-    _broadcast(symbol, book)
+    stamped = BookVersion(version.seq, version.at, book)
+    _broadcast(symbol, stamped)
+    return stamped
+
+
+def book_version(symbol: str) -> versions.Version | None:
+    """The symbol's newest book version (``seq`` / ``at``), or None before its first book."""
+    return versions.latest(versions.BOOK, symbol)
 
 
 def push_error(symbol: str, message: str, *, evicted: bool = False) -> None:
@@ -237,19 +246,19 @@ def drop_slot(symbol: str) -> None:
     _subscriptions.pop(symbol, None)
 
 
-def open_viewer_queue(symbol: str) -> asyncio.Queue:
-    """Register a new viewer's own queue so it gets every broadcast book update.
+def open_viewer_queue(symbol: str) -> LatestBookQueue:
+    """Register a new viewer's own queue: the newest book (never a backlog) and its control frames.
 
     Each caller (each WS connection) must hold exactly one queue and pass
     it to ``stream()``; release it via ``close_viewer_queue`` in a
     ``finally`` block regardless of how the connection ends.
     """
-    q: asyncio.Queue = asyncio.Queue(maxsize=IBKR_DEPTH_QUEUE_MAXSIZE)
+    q = LatestBookQueue()
     _viewer_queues.setdefault(symbol, []).append(q)
     return q
 
 
-def close_viewer_queue(symbol: str, q: asyncio.Queue) -> None:
+def close_viewer_queue(symbol: str, q: Any) -> None:
     queues = _viewer_queues.get(symbol)
     if not queues:
         return

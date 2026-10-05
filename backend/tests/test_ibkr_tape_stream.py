@@ -537,9 +537,39 @@ def _loop_turns_while_draining(stream_fn, items: int) -> tuple[int, int]:
     return asyncio.run(run())
 
 
-def test_stream_hands_the_loop_back_between_prints():
-    """The IB thread refills a viewer's queue directly, so a busy socket must still give the
-    HTTP loop back between prints (#619: a 55 s hold at the 2026-09-29 open)."""
-    got, turns = _loop_turns_while_draining(tape.stream, 200)
-    assert got == 200
-    assert turns >= 150
+def test_a_backlog_leaves_in_one_batch_and_the_loop_turns_between_batches():
+    """After a stall a viewer's backlog leaves in one send, oldest first (ADR 045), and the IB thread
+    refilling the queue at once still cannot hold the HTTP loop: it is handed back between batches
+    (#619: a 55 s hold at the 2026-09-29 open)."""
+    from market_view.viewer_queues import PrintQueue
+
+    async def run() -> tuple[list, list[int]]:
+        q = PrintQueue(1000)
+        for i in range(200):
+            q.put_nowait({"type": "print", "i": i})
+        turns = 0
+
+        async def other() -> None:
+            nonlocal turns
+            while True:
+                turns += 1
+                await asyncio.sleep(0)
+
+        side = asyncio.create_task(other())
+        await asyncio.sleep(0)
+        gen = tape.stream_batches(q)
+        first = await gen.__anext__()
+        between: list[int] = []
+        for i in range(50):
+            q.put_nowait({"type": "print", "i": 200 + i})  # refilled the moment it drained
+            before = turns
+            batch = await gen.__anext__()
+            assert [p["i"] for p in batch] == [200 + i]
+            between.append(turns - before)
+        await gen.aclose()
+        side.cancel()
+        return first, between
+
+    first, between = asyncio.run(run())
+    assert [p["i"] for p in first] == list(range(200))
+    assert min(between) >= 1

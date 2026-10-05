@@ -80,7 +80,10 @@ async def ibkr_status() -> dict:
     else:
         # #505: two TCP probes block up to their timeout; never on the HTTP loop.
         port_fields = await asyncio.to_thread(_ports.status_port_fields, connected=False)
-    sf_state = _second_factor.current_state()
+    # A usable session has no open 2FA prompt; otherwise the IBC log is read off the socket loop (ADR 045).
+    sf_state = (
+        _second_factor.NOT_PENDING if usable else await asyncio.to_thread(_second_factor.current_state)
+    )
     from ibkr.trading_allowed import evaluate_trading_allowed
     from sim.status import overlay_ibkr_status
 

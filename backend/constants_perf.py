@@ -74,3 +74,13 @@ PERF_HEAP_SCAN_CAP = 200_000             # values read per holder when counting 
 # collections stop walking the code and module state that live as long as the process.
 GC_FREEZE_AFTER_SEC = 300
 GC_FREEZE_ENV = "NOVA_GC_FREEZE"
+
+# Freezes (ADR 045, ``perf/freeze_watch.py``): a C-level watchdog (``faulthandler``), re-armed this
+# often by a thread that needs the GIL, dumps every thread's stack when it was not re-armed for
+# PERF_FREEZE_DUMP_SEC -- the whole process stopped. 2026-10-05 08:31: an 8.8 s freeze left no stack.
+PERF_FREEZE_DUMP_SEC = 2.0
+PERF_FREEZE_REARM_SEC = 0.5
+PERF_FREEZES_DIR_NAME = "freezes"
+PERF_FREEZE_LOG_NAME = "freezes.jsonl"
+PERF_FREEZE_SCHEMA_VERSION = 1
+PERF_DIAG_FREEZE_RECENT_SEC = 1800  # a freeze this recent makes the checklist row fail

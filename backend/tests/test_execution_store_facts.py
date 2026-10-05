@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import execution.place_overlay as place_overlay
 import execution.store as store
 import execution.store_facts as facts
 import execution.telemetry as telemetry
@@ -201,7 +202,7 @@ def test_mark_place_cancelled_closes_presubmitted_place_not_cancel_row():
         broker_ack_ns=22,
     )
     assert facts.list_session_placed(since_ts=0, limit=50) == []
-    overlay_ids = [r["id"] for r in facts.list_session_place_overlay(since_ts=0)]
+    overlay_ids = [r["id"] for r in place_overlay.list_session_place_overlay(since_ts=0)]
     assert place_id in overlay_ids
 
     marked = facts.mark_place_cancelled(order_id=116071, perm_id=888777)
@@ -301,7 +302,7 @@ def test_live_presubmitted_place_plus_ib_cancel_overlay_uses_nova_placed():
     }
     out = overlay_closed_orders(
         [ib],
-        ledger_rows=facts.list_session_place_overlay(since_ts=0, limit=50),
+        ledger_rows=place_overlay.list_session_place_overlay(since_ts=0, limit=50),
         limit=50,
     )
     assert len(out) == 1
