@@ -36,6 +36,17 @@ PR or closing reference alone is not evidence that the issue closed. If it
 remains open, inspect the full acceptance criteria and close only completed
 work through an authorized issue-write path.
 
+`tools/pr_delivery_actions.py` verifies issue closure after a successful merge,
+using the full fetched PR body (the squash commit message is truncated). Only
+explicit completion lines with GitHub's close/fix/resolve keywords and same-repo
+issue references are eligible; `Refs`, prose mentions, quoted/code examples,
+foreign repositories and PR references never close work. Confirm the PR merged
+into the default release branch before reading issue state. Leave already closed
+issues unchanged; close eligible open issues with reason `completed`, then read
+back the actual state. Report every read/write/readback failure and return a
+nonzero delivery result without undoing the merge or skipping pack/head cleanup.
+`tools/test_pr_delivery.py` pins the parser exclusions and full merge call order.
+
 If GitHub plan or token permissions prevent Projects or branch protection, report the exact limitation. Never claim the metadata or protection exists. Public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
 
 Current-tip preservation overrides mandatory head deletion: follow `branch-cleanup.mdc`. Never delete a recreated/unmerged or squash-only tip automatically; the guarded command rechecks ancestry and uses a SHA lease.
