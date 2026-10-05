@@ -142,6 +142,11 @@ def _exchange_time(value: Any) -> tuple[str | None, int | None, str | None]:
             return None, None, "exchange_timestamp_invalid"
     if parsed is None:
         return None, None, "exchange_timestamp_invalid"
+    if isinstance(value, datetime) and parsed.utcoffset():
+        # IBKR's execution digits are UTC; ib_async labels them with the Gateway's zone, so
+        # trusting it put every Live fill 4 h late (F, 2026-10-05). Same rule as
+        # ibkr.order_times.execution_time_to_iso.
+        parsed = parsed.replace(tzinfo=timezone.utc)
     if parsed.tzinfo is None:
         return parsed.isoformat(), None, "exchange_timestamp_timezone_unknown"
     utc = parsed.astimezone(timezone.utc)
