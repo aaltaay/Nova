@@ -161,9 +161,13 @@ export function StockViewPage({
     [refresh],
   );
 
+  // The book is read when Fill now is pressed, not bound into the callback: a new callback on every
+  // bid / ask would render the orders dock again on every quote (#707).
+  const bookRef = useRef(topOfBook);
+  bookRef.current = topOfBook;
   const onFillImmediately = useCallback(
     async (order: IbkrOrder) => {
-      const res = await confirmAndFillWorkingOrder(order, { book: topOfBook });
+      const res = await confirmAndFillWorkingOrder(order, { book: bookRef.current });
       if (res.ok && res.place_order_id != null) {
         setHighlightOrderId(res.place_order_id);
       }
@@ -172,7 +176,7 @@ export function StockViewPage({
       }
       refresh();
     },
-    [refresh, topOfBook],
+    [refresh],
   );
 
   return (

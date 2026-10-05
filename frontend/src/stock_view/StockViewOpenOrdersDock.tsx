@@ -4,7 +4,7 @@
  * position in the footer (approved Trader redesign, 2026-09-21; WID-019 /
  * 026 / 027 data and actions unchanged). Shared with the Scanner desk.
  */
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import {
   ORDERS_TODAY_TITLE,
@@ -63,7 +63,12 @@ type Props = {
   host: 'scanner' | 'trader';
 };
 
-export function StockViewOpenOrdersDock({
+/**
+ * Memoized (#707): the Trader page renders on every trade, and the orders tables rendered with it -- Closed
+ * orders alone was 8% of the main thread on a busy tape -- although their rows change only on an account
+ * or orders poll. Its props are the page's account state and stable callbacks.
+ */
+export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
   symbol,
   orders,
   positions,
@@ -266,4 +271,4 @@ export function StockViewOpenOrdersDock({
       )}
     </section>
   );
-}
+});

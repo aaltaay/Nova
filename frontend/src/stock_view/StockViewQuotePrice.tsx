@@ -12,6 +12,7 @@ import { fmtPct } from '../utils/quoteFormat';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { useReplayQuote } from '../sim/useReplayQuote';
+import { LiveText } from '../ux/LiveText';
 import { StockViewQuoteRank } from './StockViewQuoteRank';
 
 interface Props {
@@ -32,7 +33,7 @@ export function StockViewQuotePrice({ detail }: Props) {
       <span className="sv-quote-card__symbol" data-testid="stock-view-quote-symbol">{detail.symbol}</span>
       <StockViewQuoteRank symbol={detail.symbol} />
       {price != null ? (
-        <span className="sv-quote-card__last">${price.toFixed(2)}</span>
+        <LiveText className="sv-quote-card__last" text={`$${price.toFixed(2)}`} />
       ) : (
         <span
           className="sv-quote-card__last sv-quote-card__last--missing"
@@ -43,12 +44,10 @@ export function StockViewQuotePrice({ detail }: Props) {
         </span>
       )}
       {changeAbs != null ? (
-        <span
+        <LiveText
           className={`sv-quote-card__chg ${(changePct ?? 0) >= 0 ? 'positive' : 'negative'}`}
-        >
-          {changeAbs >= 0 ? '+' : ''}
-          {changeAbs.toFixed(2)} ({fmtPct(changePct)})
-        </span>
+          text={`${changeAbs >= 0 ? '+' : ''}${changeAbs.toFixed(2)} (${fmtPct(changePct)})`}
+        />
       ) : null}
     </div>
   );

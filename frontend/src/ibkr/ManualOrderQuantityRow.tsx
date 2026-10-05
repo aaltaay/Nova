@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import {
   TICKER_TRADE_FORCE_QTY,
   TICKER_TRADE_LABEL_QUANTITY,
@@ -76,7 +76,8 @@ function SharesModeIcon() {
   );
 }
 
-export function ManualOrderQuantityRow({
+/** Memoized (#707): a new price renders the ticket, and its inputs used to be reset with it. */
+export const ManualOrderQuantityRow = memo(function ManualOrderQuantityRow({
   quantityMode,
   quantityValue,
   disabled,
@@ -188,4 +189,4 @@ export function ManualOrderQuantityRow({
       </div>
     </>
   );
-}
+});

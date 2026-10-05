@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   forcedManualOrderQty,
   presetsForQuantityMode,
@@ -281,17 +281,21 @@ export function ManualOrderTicket({
     if (marketBlockedReason && orderType === 'MKT') selectOrderType('LMT');
   }, [marketBlockedReason, orderType]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function selectQuantityMode(next: QuantityMode) {
+  // Stable, so the quantity row skips the renders a new price causes (#707); resetSubmission touches
+  // only refs and setters, so its latest copy is the one to call.
+  const resetSubmissionRef = useRef(resetSubmission);
+  resetSubmissionRef.current = resetSubmission;
+  const selectQuantityMode = useCallback((next: QuantityMode) => {
     if (QTY_LOCKED) return;
     setQuantityMode(next);
     setQuantityValue(String(presetsForQuantityMode(next)[0]));
-    resetSubmission();
-  }
+    resetSubmissionRef.current();
+  }, []);
 
-  function onQuantityValueChange(next: string) {
+  const onQuantityValueChange = useCallback((next: string) => {
     if (QTY_LOCKED) return;
     setQuantityValue(next);
-  }
+  }, []);
 
   // Every locked field says why (ux/whyTip.ts).
   const fieldsWhy = !connected ? gatewayLockWhy(gatewayStatus) : submitting ? TICKET_WHY_SENDING : null;

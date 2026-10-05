@@ -86,7 +86,7 @@ function DepthAndTapeColumns({
               <h3 className="sv-md-pane__title">{STOCK_VIEW_MODULE_L2_TITLE}</h3>
               <div className="sv-md-pane__chips">{chips}</div>
             </div>
-            <div className="sv-md-pane__body">{level2}</div>
+            <div className="sv-md-pane__body"><div className="sv-md-pane__live">{level2}</div></div>
           </div>
         </div>
       )}

@@ -362,8 +362,10 @@ export function TimeSalesView({
           {headMeta}
         </div>
         <div className="sv-md-pane__body">
-          {cols}
-          {rows}
+          <div className="sv-md-pane__live">
+            {cols}
+            {rows}
+          </div>
         </div>
         {filterMenu}
       </div>

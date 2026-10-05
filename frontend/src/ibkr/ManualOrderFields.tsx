@@ -3,6 +3,7 @@
  * Sell / Short and Limit / Market / Stop, price with Bid / Mid / Ask, the qty
  * row, Extended hours beside `Cost · BP after`. Same fields and test ids.
  */
+import { memo } from 'react';
 import {
   TICKER_TRADE_LABEL_ORDER_TYPE,
   TICKER_TRADE_LABEL_SIDE,
@@ -37,6 +38,7 @@ import type { TicketCostEstimate } from './ticketCost';
 import type { QuickPriceKind } from './ticketPriceQuick';
 import type { TicketSide } from './ticketSide';
 import { useOrderExplainer } from './useOrderExplainer';
+import { LiveText } from '../ux/LiveText';
 
 interface Props {
   /** Symbol the Bid / Mid / Ask quick-set reads the book for. */
@@ -86,6 +88,30 @@ function money(value: number | null | undefined, decimals: number): string {
   return value == null ? TICKET_COST_UNKNOWN : formatMoney(value, decimals);
 }
 
+
+/** The Extended Hours box, memoized (#707): a new price renders the fields, and the box was reset with it. */
+const ExtendedHoursCheck = memo(function ExtendedHoursCheck({ checked, disabled, why, onChange }: {
+  checked: boolean;
+  disabled: boolean;
+  why: string | null | undefined;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label className="manual-order-extended" htmlFor="manual-order-extended">
+      <input
+        id="manual-order-extended"
+        className="manual-order-extended-check"
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        disabled={disabled}
+        data-why={why ?? undefined}
+        data-testid="manual-order-extended"
+      />
+      {TICKER_TRADE_LABEL_TRADING_HOURS}
+    </label>
+  );
+});
 export function ManualOrderFields({
   symbol = '',
   topOfBook = null,
@@ -303,24 +329,12 @@ export function ManualOrderFields({
       </div>
 
       <div className="mot-row mot-row--foot">
-        <label className="manual-order-extended" htmlFor="manual-order-extended">
-          <input
-            id="manual-order-extended"
-            className="manual-order-extended-check"
-            type="checkbox"
-            checked={outsideRth}
-            onChange={(event) => onOutsideRthChange(event.target.checked)}
-            disabled={disabled}
-            data-why={ticketWhy}
-            data-testid="manual-order-extended"
-          />
-          {TICKER_TRADE_LABEL_TRADING_HOURS}
-        </label>
+        <ExtendedHoursCheck checked={outsideRth} disabled={disabled} why={ticketWhy} onChange={onOutsideRthChange} />
         {cost !== undefined && (
           <span className="mot-cost" data-testid="manual-order-cost" title={cost?.note || TICKET_COST_TITLE}>
-            {TICKET_COST_LABEL} <b>{money(cost?.cost, 2)}</b>
+            {TICKET_COST_LABEL} <b><LiveText text={money(cost?.cost, 2)} /></b>
             {' · '}
-            {TICKET_BP_AFTER_LABEL} <b>{money(cost?.buyingPowerAfter, 0)}</b>
+            {TICKET_BP_AFTER_LABEL} <b><LiveText text={money(cost?.buyingPowerAfter, 0)} /></b>
           </span>
         )}
       </div>
