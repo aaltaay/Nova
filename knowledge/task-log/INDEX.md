@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-10-05 | [GitHub restoration and backlog reconciliation](2026-10-05-backlog-reconciliation.md) | Restore issue writes, verify seventeen completed closures, account for local agents and preserve remaining evidence gates. |
 | 2026-09-19 | [Sim pause and play clock control](2026-09-19-sim-pause-play.md) | Freeze Sim clock/feed and resume from the same timestamp; local commit only. |
 | 2026-09-19 | [Sim scrubbing preserves the active Trader tab](2026-09-19-sim-scrub-preserve-tab.md) | Keep IMCC active and SIM1 closed when moving replay time; local-only commit. |
 | 2026-09-10 | [IBKR verification-required flow](2026-09-10-ibkr-verification-required-flow.md) | Error 201 becomes an actionable per-symbol entry latch while exits stay available |

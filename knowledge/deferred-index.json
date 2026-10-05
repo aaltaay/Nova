@@ -2,29 +2,909 @@
   "schema_version": 1,
   "source": "github",
   "repo": "aaltaay/Nova",
-  "updated": "2026-09-20",
+  "updated": "2026-10-05",
   "items": [
+    {
+      "id": "#726",
+      "title": "Decide whether the market sockets and orders need their own event loop",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "726",
+      "url": "https://github.com/aaltaay/Nova/issues/726",
+      "state": "OPEN"
+    },
+    {
+      "id": "#725",
+      "title": "A Live order send blocks the socket loop while it waits for the IB thread",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "execution",
+      "number": "725",
+      "url": "https://github.com/aaltaay/Nova/issues/725",
+      "state": "OPEN"
+    },
+    {
+      "id": "#722",
+      "title": "Time & Sales goes silent with no error while Level 2 keeps updating, and the desk looks live",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "market-feed | ibkr",
+      "number": "722",
+      "url": "https://github.com/aaltaay/Nova/issues/722",
+      "state": "OPEN"
+    },
+    {
+      "id": "#721",
+      "title": "10-second chart: a closed candle changes while the next one forms",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed | frontend",
+      "number": "721",
+      "url": "https://github.com/aaltaay/Nova/issues/721",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#720",
+      "title": "Hourly archive maintenance redoes every finished day and stalls the backend for 30 minutes",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "ibkr-ops",
+      "number": "720",
+      "url": "https://github.com/aaltaay/Nova/issues/720",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#713",
+      "title": "Startup sweep checks every leftover row against the desk's venue, not the row's own",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "execution",
+      "number": "713",
+      "url": "https://github.com/aaltaay/Nova/issues/713",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#712",
+      "title": "Live: a cancelled order's execution rows stay acked until a restart, and a bracket's exits overwrite its entry's facts",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "712",
+      "url": "https://github.com/aaltaay/Nova/issues/712",
+      "state": "OPEN"
+    },
+    {
+      "id": "#707",
+      "title": "Trader tab still spends a frame's budget on layout and re-renders after the chart leak fix",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "frontend",
+      "number": "707",
+      "url": "https://github.com/aaltaay/Nova/issues/707",
+      "state": "OPEN"
+    },
+    {
+      "id": "#704",
+      "title": "Repair the 18 setups.db rows a later arming wrote over (one row per trigger)",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "704",
+      "url": "https://github.com/aaltaay/Nova/issues/704",
+      "state": "OPEN"
+    },
+    {
+      "id": "#700",
+      "title": "Should a filed share issuance mark the float for the max-float gates?",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "done",
+      "domain": "news",
+      "number": "700",
+      "url": "https://github.com/aaltaay/Nova/issues/700",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#698",
+      "title": "Time & Sales stays dead after IBKR's tick-by-tick cap (10190) while recordings hold the lines",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "ibkr",
+      "number": "698",
+      "url": "https://github.com/aaltaay/Nova/issues/698",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#695",
+      "title": "Trader's past setups and Decisions go empty from midnight to 04:00 ET: the stock-read routes default to the calendar date",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "ui",
+      "number": "695",
+      "url": "https://github.com/aaltaay/Nova/issues/695",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#685",
+      "title": "AccountPage.sim test fails since the month rolled over: it reads the real clock",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "frontend",
+      "number": "685",
+      "url": "https://github.com/aaltaay/Nova/issues/685",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#681",
+      "title": "A target beside Nova's exit stop: an exit-only one-cancels-other pair in the execution door",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "681",
+      "url": "https://github.com/aaltaay/Nova/issues/681",
+      "state": "OPEN"
+    },
+    {
+      "id": "#677",
+      "title": "Live working orders show no sender in Orders \"Sent by\"",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "execution",
+      "number": "677",
+      "url": "https://github.com/aaltaay/Nova/issues/677",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#674",
+      "title": "Backend froze 5 s at 09:18:20 while auto-record gave up NOWL's recording (recorder lock + IB error log)",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "674",
+      "url": "https://github.com/aaltaay/Nova/issues/674",
+      "state": "OPEN"
+    },
+    {
+      "id": "#667",
+      "title": "A trigger's age is read from IBKR's Last Timestamp, which lagged arrival by up to 7 minutes: a fresh trigger can be skipped as stale",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "667",
+      "url": "https://github.com/aaltaay/Nova/issues/667",
+      "state": "OPEN"
+    },
+    {
+      "id": "#664",
+      "title": "Live breakers count an overnight position's whole unrealized P&L as today's",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "664",
+      "url": "https://github.com/aaltaay/Nova/issues/664",
+      "state": "OPEN"
+    },
+    {
+      "id": "#658",
+      "title": "Decide: day lock, bot caps and stock-mode allowlist across venues",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "658",
+      "url": "https://github.com/aaltaay/Nova/issues/658",
+      "state": "OPEN"
+    },
+    {
+      "id": "#657",
+      "title": "Desk views keep the old venue's account, orders and prefs after a venue switch",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "frontend",
+      "number": "657",
+      "url": "https://github.com/aaltaay/Nova/issues/657",
+      "state": "OPEN"
+    },
+    {
+      "id": "#656",
+      "title": "KILL skips practice orders when the Gateway is disconnected",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "execution",
+      "number": "656",
+      "url": "https://github.com/aaltaay/Nova/issues/656",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#655",
+      "title": "Execution door is not venue-aware: commitments, watches and cancels cross Paper/Live",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "execution",
+      "number": "655",
+      "url": "https://github.com/aaltaay/Nova/issues/655",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#653",
+      "title": "The desk waits on the watchdog to start the backend after a restart; the instance lock is not atomic",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "ibkr-ops",
+      "number": "653",
+      "url": "https://github.com/aaltaay/Nova/issues/653",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#651",
+      "title": "Backend CI: the HOD trade log test fails in the full suite since 2026-09-30",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "ci",
+      "number": "651",
+      "url": "https://github.com/aaltaay/Nova/issues/651",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#649",
+      "title": "Draw setups forming on the 5-minute chart",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "done",
+      "domain": "frontend",
+      "number": "649",
+      "url": "https://github.com/aaltaay/Nova/issues/649",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#639",
+      "title": "Frontend E2E: 7 Playwright tests fail on every PR (Desk board footer, Sim replay chart fixture, stock read's Level 2 height)",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "frontend",
+      "number": "639",
+      "url": "https://github.com/aaltaay/Nova/issues/639",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#636",
+      "title": "Book watcher: a level a print traded through reads \"pulled\" when IBKR's book shows it gone late",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "636",
+      "url": "https://github.com/aaltaay/Nova/issues/636",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#629",
+      "title": "Flush exit: parked until the order path is proven sub-second and the recordings are 3x larger",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "",
+      "number": "629",
+      "url": "https://github.com/aaltaay/Nova/issues/629",
+      "state": "OPEN"
+    },
+    {
+      "id": "#625",
+      "title": "Time & Sales and Level 2 viewer queues are filled from the IB thread",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "625",
+      "url": "https://github.com/aaltaay/Nova/issues/625",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#619",
+      "title": "The backend stalls at the 09:30 open: volume boost re-sorts a day of samples per tick on the IB loop",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "market-feed | hod-momo",
+      "number": "619",
+      "url": "https://github.com/aaltaay/Nova/issues/619",
+      "state": "OPEN"
+    },
+    {
+      "id": "#617",
+      "title": "Mark what left the book on a replayed Level 2 (Sim)",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "617",
+      "url": "https://github.com/aaltaay/Nova/issues/617",
+      "state": "OPEN"
+    },
+    {
+      "id": "#616",
+      "title": "Should the desk pull and restart its backend by itself at night?",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "open",
+      "domain": "frontend",
+      "number": "616",
+      "url": "https://github.com/aaltaay/Nova/issues/616",
+      "state": "OPEN"
+    },
+    {
+      "id": "#612",
+      "title": "Hold the browser desk's code reloads while trading",
+      "kind": "decision",
+      "severity": "P1",
+      "status": "open",
+      "domain": "frontend",
+      "number": "612",
+      "url": "https://github.com/aaltaay/Nova/issues/612",
+      "state": "OPEN"
+    },
+    {
+      "id": "#606",
+      "title": "Take the first-pullback bot to Live once Paper proves it: Paper learns brackets first",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "606",
+      "url": "https://github.com/aaltaay/Nova/issues/606",
+      "state": "OPEN"
+    },
+    {
+      "id": "#604",
+      "title": "Trader: Approve & execute -- send the plan as one bracket order after the operator approves (Mode 1)",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "604",
+      "url": "https://github.com/aaltaay/Nova/issues/604",
+      "state": "OPEN"
+    },
+    {
+      "id": "#601",
+      "title": "Quote card's second stat row (Gap% / High / Low) reported cut off; not reproduced at 720-1080 px",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "open",
+      "domain": "ui",
+      "number": "601",
+      "url": "https://github.com/aaltaay/Nova/issues/601",
+      "state": "OPEN"
+    },
+    {
+      "id": "#600",
+      "title": "Setup scanner builds its minutes from sampled L1 lasts: its triggers and MACD can differ from IBKR's candles",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "600",
+      "url": "https://github.com/aaltaay/Nova/issues/600",
+      "state": "OPEN"
+    },
+    {
+      "id": "#595",
+      "title": "Follow watched symbols the HOD Momo set does not cover in the setup scanner (needs an L1-line decision)",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "595",
+      "url": "https://github.com/aaltaay/Nova/issues/595",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#585",
+      "title": "Attention interrupt: alert when a gapper/gainer jumps hard while mid-trade",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "ui",
+      "number": "585",
+      "url": "https://github.com/aaltaay/Nova/issues/585",
+      "state": "OPEN"
+    },
+    {
+      "id": "#571",
+      "title": "A live row's halted state is stamped per roster push, so Gappers can read a stale \"not halted\"",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "571",
+      "url": "https://github.com/aaltaay/Nova/issues/571",
+      "state": "OPEN"
+    },
+    {
+      "id": "#566",
+      "title": "The chart menu's priced Buy / Sell does nothing, silently, until the Trader ticket is on screen",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "ui",
+      "number": "566",
+      "url": "https://github.com/aaltaay/Nova/issues/566",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#565",
+      "title": "After an IBKR 1101 restore (data lost), L1 re-subscribes get the dead ticker back and ask IBKR for nothing",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "565",
+      "url": "https://github.com/aaltaay/Nova/issues/565",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#564",
+      "title": "The Live bot breaker reads commissions as $0 when the execution ledger read fails",
+      "kind": "decision",
+      "severity": "P3",
+      "status": "done",
+      "domain": "execution",
+      "number": "564",
+      "url": "https://github.com/aaltaay/Nova/issues/564",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#563",
+      "title": "Live tape prints are labelled ts_source \"exchange\" but carry ib_async's arrival time",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "563",
+      "url": "https://github.com/aaltaay/Nova/issues/563",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#562",
+      "title": "After a Gateway reconnect, tape and depth lines from the old session still count as subscribed",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "562",
+      "url": "https://github.com/aaltaay/Nova/issues/562",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#555",
+      "title": "A chart pane does not say IBKR history stopped answering, and its retries spend the pacing budget",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "555",
+      "url": "https://github.com/aaltaay/Nova/issues/555",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#554",
+      "title": "Desk polls hit the HTTP loop ~5 times a second; account / positions / bot breaker still open the execution ledger on the loop",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "554",
+      "url": "https://github.com/aaltaay/Nova/issues/554",
+      "state": "OPEN"
+    },
+    {
+      "id": "#553",
+      "title": "HOD Momo rewrites the whole day's alert file (4-10 MB) on the HTTP loop, and session highs on the IB loop",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "hod-momo",
+      "number": "553",
+      "url": "https://github.com/aaltaay/Nova/issues/553",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#548",
+      "title": "Nova Action hotkeys refuse Flatten and Cancel on a disarmed desk",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "execution | frontend",
+      "number": "548",
+      "url": "https://github.com/aaltaay/Nova/issues/548",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#543",
+      "title": "Time & Sales never dims prints that do not set a price",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "frontend",
+      "number": "543",
+      "url": "https://github.com/aaltaay/Nova/issues/543",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#542",
+      "title": "Sim replay previous close is a 15:59 minute close or an after-hours daily close",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "542",
+      "url": "https://github.com/aaltaay/Nova/issues/542",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#541",
+      "title": "IBKR's prior close is treated as a live trade: Paper fills, live 1-minute candles, quote snapshot",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed | execution",
+      "number": "541",
+      "url": "https://github.com/aaltaay/Nova/issues/541",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#540",
+      "title": "Level 2 book goes out of price order: ib_async treats a depth insert as an overwrite",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed | ibkr",
+      "number": "540",
+      "url": "https://github.com/aaltaay/Nova/issues/540",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#535",
+      "title": "Should a Session Record replay rebuild its candles from the prints instead of the stored bars?",
+      "kind": "decision",
+      "severity": "P3",
+      "status": "done",
+      "domain": "execution",
+      "number": "535",
+      "url": "https://github.com/aaltaay/Nova/issues/535",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#532",
+      "title": "Yahoo float is stale for diluting small caps and passes Low Float gates; short interest shown without its date",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed | hod-momo",
+      "number": "532",
+      "url": "https://github.com/aaltaay/Nova/issues/532",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#525",
+      "title": "Recordings lose their tape mid-session while the book keeps coming (IPDN, WHLR at 09:46:40)",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "525",
+      "url": "https://github.com/aaltaay/Nova/issues/525",
+      "state": "OPEN"
+    },
+    {
+      "id": "#517",
+      "title": "Catalyst feed: read Form 4 open-market purchases by officers as a weak catalyst",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "news",
+      "number": "517",
+      "url": "https://github.com/aaltaay/Nova/issues/517",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#516",
+      "title": "Finnhub company-news timestamps for Benzinga items are 4 hours early (Eastern stored as UTC)",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "news",
+      "number": "516",
+      "url": "https://github.com/aaltaay/Nova/issues/516",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#514",
+      "title": "Bot: first-pullback Strategy fire path once the read-out passes",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "done",
+      "domain": "execution",
+      "number": "514",
+      "url": "https://github.com/aaltaay/Nova/issues/514",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#511",
+      "title": "Practice fills can fill on volume-only prints (odd lots, average-price, derivatively priced)",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "execution",
+      "number": "511",
+      "url": "https://github.com/aaltaay/Nova/issues/511",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#505",
+      "title": "/api/ibkr/status probes both Gateway ports on the HTTP loop while disconnected, freezing every socket 0.3-0.4 s per poll",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "ibkr",
+      "number": "505",
+      "url": "https://github.com/aaltaay/Nova/issues/505",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#504",
+      "title": "Burst rig: replay a recorded open at 2x / 5x / 10x and find the desk's capacity knee (ADR 026 phase 2)",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "504",
+      "url": "https://github.com/aaltaay/Nova/issues/504",
+      "state": "OPEN"
+    },
+    {
+      "id": "#503",
+      "title": "Measure where the desk's time goes when the market bursts: an always-on performance recorder (ADR 026)",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed | frontend",
+      "number": "503",
+      "url": "https://github.com/aaltaay/Nova/issues/503",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#502",
+      "title": "Frontend E2E: 17 Playwright specs fail on master (Trader page, chart context menu, Sim replay)",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "frontend",
+      "number": "502",
+      "url": "https://github.com/aaltaay/Nova/issues/502",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#499",
+      "title": "Catalyst classifier: weak tier plateaus at ~73% precision -- a second reader or operator labels",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "news",
+      "number": "499",
+      "url": "https://github.com/aaltaay/Nova/issues/499",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#498",
+      "title": "Show each mover's catalyst in Sim playback of past days",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "done",
+      "domain": "news",
+      "number": "498",
+      "url": "https://github.com/aaltaay/Nova/issues/498",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#487",
+      "title": "Enable the Halted board filter where rows state their halt",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "ui",
+      "number": "487",
+      "url": "https://github.com/aaltaay/Nova/issues/487",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#486",
+      "title": "Live HOD Momo alert sounds play while Sim replays a past day",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "hod-momo",
+      "number": "486",
+      "url": "https://github.com/aaltaay/Nova/issues/486",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#485",
+      "title": "Choose a retention policy for the scanner leaderboard store on F:",
+      "kind": "decision",
+      "severity": "P3",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "485",
+      "url": "https://github.com/aaltaay/Nova/issues/485",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#484",
+      "title": "Halt state for rebuilt leaderboard days needs a dated halt source",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "484",
+      "url": "https://github.com/aaltaay/Nova/issues/484",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#483",
+      "title": "Scanner snapshots are saved under weekend dates, so the past-day menu offers Saturday for Friday's board",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "483",
+      "url": "https://github.com/aaltaay/Nova/issues/483",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#481",
+      "title": "The Phase D executor has no signal source since the setup scanner replaced the setups stream: retire it or feed it?",
+      "kind": "decision",
+      "severity": "P3",
+      "status": "done",
+      "domain": "execution",
+      "number": "481",
+      "url": "https://github.com/aaltaay/Nova/issues/481",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#459",
+      "title": "QA pass-two leftovers: ticket unknown-status wording, Desk rail GTC clip, prerequisites text while API down, after-hours volume 0, raw strategy universes",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ui",
+      "number": "459",
+      "url": "https://github.com/aaltaay/Nova/issues/459",
+      "state": "OPEN"
+    },
+    {
+      "id": "#449",
+      "title": "The sample desk needs its own workspace: no Trader tabs, Focus rail or pop-out, and the Desk says it is unavailable",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "ui",
+      "number": "449",
+      "url": "https://github.com/aaltaay/Nova/issues/449",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#448",
+      "title": "Paper judges the last price fresh by any quote tick, not by when the last trade happened",
+      "kind": "decision",
+      "severity": "P3",
+      "status": "done",
+      "domain": "execution",
+      "number": "448",
+      "url": "https://github.com/aaltaay/Nova/issues/448",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#444",
+      "title": "Should the one-share test gate apply to Paper and Sim? Practice orders are silently cut to 1 share",
+      "kind": "decision",
+      "severity": "P1",
+      "status": "done",
+      "domain": "execution",
+      "number": "444",
+      "url": "https://github.com/aaltaay/Nova/issues/444",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#430",
+      "title": "Scanner column squeezed to 254 px at 1280 px: shell breakpoint keys on the viewport, not the rail-adjusted shell",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "ui",
+      "number": "430",
+      "url": "https://github.com/aaltaay/Nova/issues/430",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#412",
+      "title": "PR delivery merges without a head-SHA precondition, so a push during the merge call can ship a head that skipped the settling floor",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "ci",
+      "number": "412",
+      "url": "https://github.com/aaltaay/Nova/issues/412",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#393",
+      "title": "App.tsx is 152 lines over a 150-line hard limit, and nothing in CI reports it",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "ui",
+      "number": "393",
+      "url": "https://github.com/aaltaay/Nova/issues/393",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#390",
+      "title": "test_ib_loop_offload shortability test fails on master with KeyError: 'SOAR'",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "ibkr",
+      "number": "390",
+      "url": "https://github.com/aaltaay/Nova/issues/390",
+      "state": "CLOSED"
+    },
     {
       "id": "#386",
       "title": "Historical replay calendar treats non-2026 exchange holidays as trading days",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "386",
       "url": "https://github.com/aaltaay/Nova/issues/386",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#385",
       "title": "Strategy replay exposes final minute bars before their interval closes",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "hod-momo",
       "number": "385",
       "url": "https://github.com/aaltaay/Nova/issues/385",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#369",
@@ -64,11 +944,11 @@
       "title": "Nova Marketing Sample Data on ?view=sample",
       "kind": "feature",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "ui",
       "number": "357",
       "url": "https://github.com/aaltaay/Nova/issues/357",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#356",
@@ -108,33 +988,33 @@
       "title": "Desktop delivery: installer-only, and an in-app update check off GitHub Releases",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "ci",
       "number": "347",
       "url": "https://github.com/aaltaay/Nova/issues/347",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-081",
       "title": "Actions-merged PRs never trigger Desktop pack, so no vNNN tag or Release since v757",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "ci",
       "number": "346",
       "url": "https://github.com/aaltaay/Nova/issues/346",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-080",
       "title": "Commit process for a parallel agent swarm: derive versions, shard the ledgers, queue the merges",
       "kind": "feature",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "ci",
       "number": "344",
       "url": "https://github.com/aaltaay/Nova/issues/344",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-079",
@@ -163,11 +1043,11 @@
       "title": "Recorder &amp; replay: capability gaps and recommendations (umbrella)",
       "kind": "decision",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | ui",
       "number": "340",
       "url": "https://github.com/aaltaay/Nova/issues/340",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-075",
@@ -229,11 +1109,11 @@
       "title": "Detect Gateway Read-Only API (Error 321) and show it as a named blocker",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "ibkr",
       "number": "333",
       "url": "https://github.com/aaltaay/Nova/issues/333",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-075",
@@ -306,11 +1186,11 @@
       "title": "Recordings and replay downloads grow unbounded: 29% duplicate rows, no retention, no delete, and an in-repo fallback path",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "320",
       "url": "https://github.com/aaltaay/Nova/issues/320",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-068",
@@ -361,11 +1241,11 @@
       "title": "P0: Recording a real ticker captures nothing; the recorder has no IBKR data source",
       "kind": "bug",
       "severity": "P0",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "315",
       "url": "https://github.com/aaltaay/Nova/issues/315",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-063",
@@ -405,44 +1285,44 @@
       "title": "Historical replay has no bid/ask or Level 2 (only TRADES ticks are ever downloaded)",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "311",
       "url": "https://github.com/aaltaay/Nova/issues/311",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-059",
       "title": "Historical replay cannot accept practice orders (SIM v1 serves SIM1 only)",
       "kind": "decision",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "310",
       "url": "https://github.com/aaltaay/Nova/issues/310",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-058",
       "title": "Recorded L2 archive is unreachable from the UI (/api/l2/* has no consumer)",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | ui",
       "number": "309",
       "url": "https://github.com/aaltaay/Nova/issues/309",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-057",
       "title": "L2 tape recorder writes nothing under the IBKR-only feed rule",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "308",
       "url": "https://github.com/aaltaay/Nova/issues/308",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-059",
@@ -482,11 +1362,11 @@
       "title": "Replay candles show sub-penny OHLC and omit IBKR flat bars",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "304",
       "url": "https://github.com/aaltaay/Nova/issues/304",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-055",
@@ -504,11 +1384,11 @@
       "title": "Backend restart silently drops the desk from Sim to Live",
       "kind": "decision",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "302",
       "url": "https://github.com/aaltaay/Nova/issues/302",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-053",
@@ -559,11 +1439,11 @@
       "title": "Scanner table column widths jitter when PRICE/CHANGE/GAP tick",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "ui",
       "number": "276",
       "url": "https://github.com/aaltaay/Nova/issues/276",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#222",
@@ -589,7 +1469,7 @@
     },
     {
       "id": "#189",
-      "title": "Scanner: Volume boost \u00e2\u20ac\u201d exceptional volume-spike tab (plan first)",
+      "title": "Scanner: Volume boost \u2014 exceptional volume-spike tab (plan first)",
       "kind": "feature",
       "severity": "P3",
       "status": "done",
@@ -599,26 +1479,15 @@
       "state": "CLOSED"
     },
     {
-      "id": "#147",
-      "title": "Follow-up: Advise opt-in multi-model (tabs, sequential, max 3)",
-      "kind": "feature",
-      "severity": "P3",
-      "status": "open",
-      "domain": "docs",
-      "number": "147",
-      "url": "https://github.com/aaltaay/Nova/issues/147",
-      "state": "OPEN"
-    },
-    {
       "id": "#131",
       "title": "Parked: shared invisible context across agents (ultracontext-style)",
       "kind": "feature",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "docs",
       "number": "131",
       "url": "https://github.com/aaltaay/Nova/issues/131",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-049",
@@ -636,11 +1505,11 @@
       "title": "Former Momo 39/40 HOD slot crowding (operator decision)",
       "kind": "decision",
       "severity": "P2",
-      "status": "parked",
+      "status": "done",
       "domain": "hod-momo",
       "number": "94",
       "url": "https://github.com/aaltaay/Nova/issues/94",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-047",
@@ -669,22 +1538,22 @@
       "title": "Backend TIF/GTC and bracket TP/SL defaults",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "91",
       "url": "https://github.com/aaltaay/Nova/issues/91",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-044",
       "title": "Per-row scanner Exchange via qualified-contract lookup",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "90",
       "url": "https://github.com/aaltaay/Nova/issues/90",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-042",
@@ -709,17 +1578,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-006",
-      "title": "init_sentry + cache restore block HTTP yield for ~94s",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "ibkr-ops",
-      "number": "47",
-      "url": "https://github.com/aaltaay/Nova/issues/47",
-      "state": "CLOSED"
-    },
-    {
       "id": "D-007",
       "title": "After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset",
       "kind": "decision",
@@ -731,14 +1589,14 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-001",
-      "title": "Scanner NEWS column is dead under discovery=ibkr",
+      "id": "D-006",
+      "title": "init_sentry + cache restore block HTTP yield for ~94s",
       "kind": "bug",
       "severity": "P1",
       "status": "done",
-      "domain": "news",
-      "number": "45",
-      "url": "https://github.com/aaltaay/Nova/issues/45",
+      "domain": "ibkr-ops",
+      "number": "47",
+      "url": "https://github.com/aaltaay/Nova/issues/47",
       "state": "CLOSED"
     },
     {
@@ -753,6 +1611,17 @@
       "state": "CLOSED"
     },
     {
+      "id": "D-001",
+      "title": "Scanner NEWS column is dead under discovery=ibkr",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "news",
+      "number": "45",
+      "url": "https://github.com/aaltaay/Nova/issues/45",
+      "state": "CLOSED"
+    },
+    {
       "id": "D-002",
       "title": "Afterhours Gap % equals Change %, not the open-vs-prior-close gap",
       "kind": "bug",
@@ -764,17 +1633,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-005",
-      "title": "Aborted API terminal can leave a live process with no HTTP listener",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "ibkr-ops",
-      "number": "42",
-      "url": "https://github.com/aaltaay/Nova/issues/42",
-      "state": "CLOSED"
-    },
-    {
       "id": "D-003",
       "title": "Trader 10Sec / Full Day sit on \"Loading IBKR historical...\" for minutes",
       "kind": "bug",
@@ -783,6 +1641,17 @@
       "domain": "market-feed",
       "number": "43",
       "url": "https://github.com/aaltaay/Nova/issues/43",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-005",
+      "title": "Aborted API terminal can leave a live process with no HTTP listener",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "ibkr-ops",
+      "number": "42",
+      "url": "https://github.com/aaltaay/Nova/issues/42",
       "state": "CLOSED"
     },
     {
@@ -852,17 +1721,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-016",
-      "title": "yfinance failure caches an empty row for 15 minutes, silently",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "market-feed",
-      "number": "34",
-      "url": "https://github.com/aaltaay/Nova/issues/34",
-      "state": "CLOSED"
-    },
-    {
       "id": "D-015",
       "title": "News / Earnings: Catalysts limited to IBKR roster; FinBERT cold load on scan pool; Finnhub no 429 path",
       "kind": "bug",
@@ -871,6 +1729,17 @@
       "domain": "news",
       "number": "35",
       "url": "https://github.com/aaltaay/Nova/issues/35",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-016",
+      "title": "yfinance failure caches an empty row for 15 minutes, silently",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "34",
+      "url": "https://github.com/aaltaay/Nova/issues/34",
       "state": "CLOSED"
     },
     {
@@ -896,17 +1765,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-017",
-      "title": "Persisted files still ship without `schema_version` (backend JSON + frontend localStorage)",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "done",
-      "domain": "market-feed | widgets | hod-momo | news",
-      "number": "30",
-      "url": "https://github.com/aaltaay/Nova/issues/30",
-      "state": "CLOSED"
-    },
-    {
       "id": "D-019",
       "title": "`apply_l1_quote` rebuilds every scanner cache list on each IB tick",
       "kind": "bug",
@@ -915,6 +1773,17 @@
       "domain": "market-feed",
       "number": "31",
       "url": "https://github.com/aaltaay/Nova/issues/31",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-017",
+      "title": "Persisted files still ship without `schema_version` (backend JSON + frontend localStorage)",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed | widgets | hod-momo | news",
+      "number": "30",
+      "url": "https://github.com/aaltaay/Nova/issues/30",
       "state": "CLOSED"
     },
     {
@@ -984,17 +1853,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-027",
-      "title": "Depth cap force-evicts a live viewer instead of refusing the 4th symbol",
-      "kind": "decision",
-      "severity": "P2",
-      "status": "done",
-      "domain": "market-feed",
-      "number": "22",
-      "url": "https://github.com/aaltaay/Nova/issues/22",
-      "state": "CLOSED"
-    },
-    {
       "id": "D-026",
       "title": "Roster commit mutates state then reports failure if the WS push throws",
       "kind": "bug",
@@ -1003,6 +1861,17 @@
       "domain": "market-feed",
       "number": "23",
       "url": "https://github.com/aaltaay/Nova/issues/23",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-027",
+      "title": "Depth cap force-evicts a live viewer instead of refusing the 4th symbol",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "22",
+      "url": "https://github.com/aaltaay/Nova/issues/22",
       "state": "CLOSED"
     },
     {
