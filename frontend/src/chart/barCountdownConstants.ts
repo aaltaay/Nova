@@ -19,3 +19,9 @@ export const CHART_BAR_COUNTDOWN_RADIUS_PX = 3;
 export const CHART_BAR_COUNTDOWN_GAP_PX = 6;
 /** The chip never touches the pane's edges. */
 export const CHART_BAR_COUNTDOWN_EDGE_PX = 2;
+/** Room kept between the chip and any word on the pane (a label, a pin, an edge tag). */
+export const CHART_BAR_COUNTDOWN_WORD_GAP_PX = 2;
+/** Rows above and under the wick the chip may climb to when words crowd its usual spot. */
+export const CHART_BAR_COUNTDOWN_STACK_ROWS = 3;
+/** Candle spacing assumed for the spots beside the candle when the pane does not say (lightweight-charts' default). */
+export const CHART_BAR_COUNTDOWN_BAR_SPACING_PX = 6;

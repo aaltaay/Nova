@@ -136,4 +136,51 @@ describe('barCountdownChipBox', () => {
     expect(barCountdownChipBox({ ...base, anchorX: null })).toBeNull();
     expect(barCountdownChipBox({ ...base, wickTopY: null })).toBeNull();
   });
+
+  describe('keeping clear of the words on the pane', () => {
+    /** A setup label sitting over the candle's wick, as a live lane's does (operator report 2026-10-05). */
+    const label = { left: 60, top: 20, right: 200, bottom: 34 };
+
+    it('stays where it is when no word is near', () => {
+      const far = [{ left: 300, top: 28, right: 400, bottom: 42 }, { left: 60, top: 150, right: 200, bottom: 164 }];
+      expect(barCountdownChipBox({ ...base, words: far })).toEqual({ x: 80, y: 28, width: 40, height: 16 });
+      expect(barCountdownChipBox({ ...base, words: [] })).toEqual({ x: 80, y: 28, width: 40, height: 16 });
+    });
+
+    it('moves beside the candle, level with its wick, when a label sits over it', () => {
+      expect(barCountdownChipBox({ ...base, words: [label] })).toEqual({ x: 109, y: 57, width: 40, height: 16 });
+    });
+
+    it('uses the candle spacing of the pane for the room beside the candle', () => {
+      expect(barCountdownChipBox({ ...base, barSpacing: 10, words: [label] })?.x).toBe(111);
+    });
+
+    it('keeps the gap it asks of every word: a word two pixels off does not count as touching', () => {
+      expect(barCountdownChipBox({ ...base, words: [{ left: 60, top: 0, right: 200, bottom: 26 }] })?.y).toBe(28);
+      expect(barCountdownChipBox({ ...base, words: [{ left: 60, top: 0, right: 200, bottom: 27 }] })?.y).toBe(57);
+    });
+
+    it('goes under the candle when the right side is taken too', () => {
+      const right = { left: 105, top: 50, right: 300, bottom: 80 };
+      expect(barCountdownChipBox({ ...base, words: [label, right] })).toEqual({ x: 80, y: 86, width: 40, height: 16 });
+    });
+
+    it('never sits on the forming candle itself', () => {
+      // At the pane's right edge the room beside the candle is clamped back over it: that spot is skipped.
+      const edge = { ...base, anchorX: 585, wickTopY: 60, wickBottomY: 90, words: [{ left: 540, top: 30, right: 600, bottom: 46 }] };
+      const box = barCountdownChipBox(edge);
+      expect(box).not.toBeNull();
+      expect(box!.x + box!.width <= 585 - 3 || box!.x >= 585 + 3 || box!.y >= 90 || box!.y + box!.height <= 60).toBe(true);
+    });
+
+    it('climbs a row at a time when everything near the candle is taken', () => {
+      const wall = { left: 40, top: 25, right: 160, bottom: 105 };
+      expect(barCountdownChipBox({ ...base, words: [wall] })).toEqual({ x: 80, y: 122, width: 40, height: 16 });
+    });
+
+    it('is not drawn at all rather than cover a word, when no spot is clear', () => {
+      const everything = { left: 0, top: 0, right: 600, bottom: 300 };
+      expect(barCountdownChipBox({ ...base, words: [everything] })).toBeNull();
+    });
+  });
 });
