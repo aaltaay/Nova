@@ -514,3 +514,180 @@ def test_cmd_sweep_skips_a_moved_head_without_reporting_an_error(monkeypatch):
         lambda n: (_ok_pr(headRefOid="moved"), []))
     monkeypatch.setattr(pr_delivery, "_merge_pr", lambda pr: pr_delivery.MERGE_HEAD_MOVED)
     assert pr_delivery.cmd_sweep(min_age_seconds=0) == 0
+
+
+def test_explicit_closing_lines_only_same_repository():
+    from tools.pr_delivery_text import closing_issue_numbers
+
+    body = '''Closes #12, fixes aaltaay/Nova#13; resolves https://github.com/aaltaay/Nova/issues/14
+- FIXED: #12
+Closed #15
+Resolved #16
+Close #17
+Fix #18
+Resolve #19
+Refs #20
+Mention #21
+This does not fix #22
+Closes other/repo#23
+Closes https://github.com/other/repo/issues/24
+Closes https://github.com/aaltaay/Nova/pull/25
+> Closes #26
+`Closes #27`
+<!-- Closes #28 -->
+```text
+Closes #29
+```
+~~~text
+Closes #30
+~~~
+    Closes #31
+Example: Closes #32
+Closes #0
+Closes #33oops
+Closes #12; example: fixes #34
+Closes #12 and does not fix #35
+'''
+    assert closing_issue_numbers(body, 'aaltaay/Nova') == [12, 13, 14, 15, 16, 17, 18, 19]
+
+
+def _closure_merge(monkeypatch, body, issues, *, patch_error='', readback_open=False,
+                   merged=True, base='master'):
+    """Exercise the real delivery wrapper with exact gh API call contracts."""
+    calls = []
+    reads = {}
+    deleted = []
+
+    def fake_gh(args, check=True, stdin=None):
+        calls.append((list(args), stdin))
+        endpoint = next((a for a in args if a.startswith('repos/')), '')
+        method = args[args.index('-X') + 1] if '-X' in args else 'GET'
+        if endpoint.endswith('/pulls/239/merge'):
+            return subprocess.CompletedProcess(args, 0, stdout='{"merged":true}', stderr='')
+        if endpoint.endswith('/pulls/239'):
+            value = {'merged': merged, 'base': {'ref': base}}
+        elif '/issues/' in endpoint:
+            number = int(endpoint.rsplit('/', 1)[1])
+            if method == 'PATCH':
+                assert json.loads(stdin) == {'state': 'closed', 'state_reason': 'completed'}
+                if patch_error:
+                    return subprocess.CompletedProcess(args, 1, stdout='', stderr=patch_error)
+                value = {'state': 'closed'}
+            else:
+                reads[number] = reads.get(number, 0) + 1
+                value = issues[number] if reads[number] == 1 or readback_open else {'state': 'closed'}
+        elif endpoint.endswith('desktop-pack.yml/dispatches'):
+            value = {}
+        else:
+            raise AssertionError(f'unexpected gh call: {args}')
+        return subprocess.CompletedProcess(args, 0, stdout=json.dumps(value), stderr='')
+
+    monkeypatch.setattr(pr_delivery, '_gh', fake_gh)
+    monkeypatch.setattr(pr_delivery, 'cmd_delete_closed', lambda ref, **kw: deleted.append(ref) or 0)
+    monkeypatch.setenv('NOVA_GITHUB_REPO', 'aaltaay/Nova')
+    rc = pr_delivery._merge_now(239, 'feature-head', title='t', body=body)
+    return rc, calls, deleted
+
+
+def test_merge_closes_from_full_body_and_confirms_actual_state(monkeypatch, capsys):
+    # #732's completion reference was beyond the 4,000-character commit cutoff.
+    body = 'Details ' + 'x' * 4100 + '\nCloses #720\nRefs #619\n'
+    rc, calls, deleted = _closure_merge(monkeypatch, body, {720: {'state': 'open'}})
+    assert rc == 0
+    assert '#720' not in json.loads(calls[0][1])['commit_message']
+    endpoints = [next(a for a in args if a.startswith('repos/')) for args, _ in calls]
+    assert endpoints == [
+        'repos/aaltaay/Nova/pulls/239/merge',
+        'repos/aaltaay/Nova/pulls/239',
+        'repos/aaltaay/Nova/issues/720',
+        'repos/aaltaay/Nova/issues/720',
+        'repos/aaltaay/Nova/issues/720',
+        'repos/aaltaay/Nova/actions/workflows/desktop-pack.yml/dispatches',
+    ]
+    assert calls[3][0][:3] == ['api', '-X', 'PATCH']
+    assert deleted == ['feature-head']
+    assert '#720 confirmed closed' in capsys.readouterr().out
+
+
+def test_native_closed_issue_is_not_written_and_repeated_references_deduplicate(monkeypatch):
+    rc, calls, _ = _closure_merge(monkeypatch, 'Closes #720\nFixes #720', {720: {'state': 'closed'}})
+    assert rc == 0
+    assert not any('PATCH' in args for args, _ in calls)
+    assert sum('/issues/720' in ' '.join(args) for args, _ in calls) == 1
+
+
+def test_closure_write_failure_is_loud_and_pack_and_cleanup_continue(monkeypatch, capsys):
+    rc, calls, deleted = _closure_merge(
+        monkeypatch, 'Closes #720', {720: {'state': 'open'}}, patch_error='HTTP 403 issue write refused',
+    )
+    assert rc == 2
+    out = capsys.readouterr()
+    assert 'HTTP 403 issue write refused' in out.err
+    assert '#720 confirmed closed' not in out.out
+    assert _dispatch_call([args for args, _ in calls])
+    assert deleted == ['feature-head']
+
+
+def test_successful_issue_write_without_closed_readback_is_failure(monkeypatch, capsys):
+    rc, calls, deleted = _closure_merge(
+        monkeypatch, 'Closes #720', {720: {'state': 'open'}}, readback_open=True,
+    )
+    assert rc == 2
+    out = capsys.readouterr()
+    assert 'still open' in out.err
+    assert '#720 confirmed closed' not in out.out
+    assert _dispatch_call([args for args, _ in calls])
+    assert deleted == ['feature-head']
+
+
+def test_closure_never_writes_a_pr_or_unknown_state(monkeypatch, capsys):
+    for issue in ({'state': 'open', 'pull_request': {}}, {'state': 'unknown'}):
+        rc, calls, _ = _closure_merge(monkeypatch, 'Closes #720', {720: issue})
+        assert rc == 2
+        assert not any('PATCH' in args for args, _ in calls)
+    assert 'cannot confirm issue' in capsys.readouterr().err
+
+
+def test_closure_requires_merged_pr_on_default_release_branch(monkeypatch):
+    for merged, base in [(False, 'master'), (True, 'feature-base')]:
+        rc, calls, deleted = _closure_merge(monkeypatch, 'Closes #720', {}, merged=merged, base=base)
+        assert rc == (2 if not merged else 0)
+        assert not any('/issues/' in ' '.join(args) for args, _ in calls)
+        assert deleted == ['feature-head']
+
+
+def test_closure_read_failure_and_invalid_json_are_loud_without_skipping_pack(monkeypatch, capsys):
+    for stdout, stderr, code in [('', 'issue read forbidden', 1), ('invalid', '', 0)]:
+        def fake_gh(args, check=True, stdin=None):
+            if args == ['api', 'repos/aaltaay/Nova/pulls/239']:
+                return subprocess.CompletedProcess(args, code, stdout=stdout, stderr=stderr)
+            return subprocess.CompletedProcess(args, 0, stdout='{}', stderr='')
+        monkeypatch.setattr(pr_delivery, '_gh', fake_gh)
+        deleted = []
+        monkeypatch.setattr(pr_delivery, 'cmd_delete_closed', lambda ref, **kw: deleted.append(ref) or 0)
+        assert pr_delivery._merge_now(239, 'head', body='Closes #720') == 2
+        assert deleted == ['head']
+    output = capsys.readouterr()
+    assert 'issue read forbidden' in output.err and 'invalid JSON' in output.err
+    assert '#720 confirmed closed' not in output.out
+    assert output.out.count('desktop pack dispatched') == 2
+
+
+def test_failed_merge_never_reads_or_closes_linked_issues(monkeypatch):
+    calls = []
+    def fake_gh(args, check=True, stdin=None):
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args, 1, stdout='', stderr='merge blocked')
+    monkeypatch.setattr(pr_delivery, '_gh', fake_gh)
+    assert pr_delivery._merge_now(239, 'head', body='Closes #720') == 2
+    assert len(calls) == 1
+
+
+def test_closure_failure_is_a_nonzero_result_from_both_delivery_entrypoints(monkeypatch):
+    monkeypatch.setattr(pr_delivery, '_fetch_pr', lambda n: (_ok_pr(n), _ok_checks()))
+    monkeypatch.setattr(pr_delivery, '_merge_pr', lambda pr: 2)
+    assert pr_delivery.cmd_merge(239, wait_desktop_minutes=0, min_age_seconds=0) == 2
+    monkeypatch.setattr(pr_delivery, '_gh', lambda args: subprocess.CompletedProcess(
+        args, 0, stdout='[{"number":239}]', stderr='',
+    ))
+    assert pr_delivery.cmd_sweep(min_age_seconds=0) == 1

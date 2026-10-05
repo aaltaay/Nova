@@ -9,12 +9,14 @@ from typing import Any
 
 try:
     from tools.pr_delivery_text import (
+        closing_issue_numbers,
         conflict_rebase_comment,
         should_post_conflict_comment,
         squash_merge_fields,
     )
 except ImportError:
     from pr_delivery_text import (
+        closing_issue_numbers,
         conflict_rebase_comment,
         should_post_conflict_comment,
         squash_merge_fields,
@@ -56,10 +58,69 @@ def merge_now(
         print(detail, file=sys.stderr)
         return 2
     print(f"merged #{number}")
+    issues_closed = confirm_linked_issue_closure(gh, repo, number, body)
     dispatch_desktop_pack(gh, repo)
     if head_ref:
         delete_closed(head_ref, same_repo=True)
-    return 0
+    return 0 if issues_closed else 2
+
+
+
+def _read_resource(gh: GhFn, endpoint: str) -> dict[str, Any]:
+    proc = gh(["api", endpoint], check=False)
+    if proc.returncode:
+        raise ValueError(proc.stderr or proc.stdout or "GitHub read failed")
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise ValueError("GitHub returned invalid JSON") from exc
+    if not isinstance(data, dict):
+        raise ValueError("GitHub returned no resource object")
+    return data
+
+
+def confirm_linked_issue_closure(gh: GhFn, repo: str, pr_number: int, body: str) -> bool:
+    """Verify native closure, falling back only for explicit completion lines.
+
+    A failed close is a failed delivery result, while the merge remains landed.
+    The caller must still dispatch its pack and attempt guarded head cleanup.
+    """
+    numbers = closing_issue_numbers(body, repo)
+    if not numbers:
+        return True
+    try:
+        pr = _read_resource(gh, f"repos/{repo}/pulls/{pr_number}")
+        if pr.get("merged") is not True:
+            raise ValueError("PR is not confirmed merged")
+        if (pr.get("base") or {}).get("ref") != RELEASE_BRANCH:
+            print(f"#{pr_number} skip linked issue closure: base is not {RELEASE_BRANCH}")
+            return True
+    except ValueError as exc:
+        print(f"#{pr_number} issue closure verification failed: {exc}", file=sys.stderr)
+        return False
+    completed = True
+    for number in numbers:
+        endpoint = f"repos/{repo}/issues/{number}"
+        try:
+            issue = _read_resource(gh, endpoint)
+            if "pull_request" in issue or issue.get("state") not in {"open", "closed"}:
+                raise ValueError("cannot confirm issue (PR reference or unknown state)")
+            if issue["state"] == "open":
+                proc = gh(
+                    ["api", "-X", "PATCH", endpoint, "--input", "-"],
+                    check=False,
+                    stdin=json.dumps({"state": "closed", "state_reason": "completed"}),
+                )
+                if proc.returncode:
+                    raise ValueError(proc.stderr or proc.stdout or "GitHub issue write failed")
+                actual = _read_resource(gh, endpoint)
+                if actual.get("state") != "closed" or "pull_request" in actual:
+                    raise ValueError("issue still open or closure readback invalid")
+            print(f"#{number} confirmed closed after merged PR #{pr_number}")
+        except ValueError as exc:
+            completed = False
+            print(f"#{number} closure after merged PR #{pr_number} failed: {exc}", file=sys.stderr)
+    return completed
 
 
 def dispatch_desktop_pack(gh: GhFn, repo: str, ref: str = RELEASE_BRANCH) -> bool:
