@@ -1,0 +1,20 @@
+/* A number that lays out only itself (ux/LiveText.tsx, #707): the hidden shape gives the box its width
+   and baseline; the ink is positioned and strictly contained, so Chromium lays it out alone. */
+.live-text {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-text::before {
+  content: attr(data-shape);
+  visibility: hidden;
+}
+
+.live-text__ink {
+  position: absolute;
+  inset: 0;
+  contain: strict;
+  white-space: nowrap;
+}

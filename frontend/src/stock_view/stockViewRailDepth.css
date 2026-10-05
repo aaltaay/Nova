@@ -18,6 +18,21 @@
   grid-template-columns: minmax(0, 1fr) clamp(126px, 40%, 220px);
 }
 
+/* Level 2 and Time & Sales lay themselves out (#707). Every box from the body down is a flex or grid
+   item, which Chromium never lays out on its own, so a print or a book laid out the whole page:
+   12-26 ms, many times a second. A positioned, strictly contained layer is laid out alone; the panes
+   take their height from the card (flex: 1 1 0, height: 100%), never from their rows, so nothing
+   here sizes itself to its contents. */
+.stock-view-page .sv-rail .sv-md-pane__body {
+  position: relative;
+}
+
+.stock-view-page .sv-rail .sv-md-pane__live {
+  position: absolute;
+  inset: 0;
+  contain: strict;
+}
+
 .stock-view-page .sv-quote-depth-card .sv-quote-stats.compact-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0 8px;

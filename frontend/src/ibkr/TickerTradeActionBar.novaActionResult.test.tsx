@@ -16,7 +16,8 @@ import type { IbkrAccountSummary, IbkrPosition } from './types';
 
 const mocks = vi.hoisted(() => ({
   close: vi.fn(),
-  lastResult: null as NovaActionOutcome | null,
+  dispatch: { lastResult: null as NovaActionOutcome | null },
+  listeners: new Set<() => void>(),
   quickBar: vi.fn(),
 }));
 
@@ -31,10 +32,20 @@ vi.mock('../hotkeys/TradingQuickBar', () => ({
     return null;
   },
 }));
-vi.mock('../hotkeys/HotkeyDispatchContext', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../hotkeys/HotkeyDispatchContext')>()),
-  useHotkeyDispatchOptional: () => ({ lastResult: mocks.lastResult }),
-}));
+vi.mock('../hotkeys/HotkeyDispatchContext', async (importOriginal) => {
+  const { useSyncExternalStore } = await import('react');
+  return {
+    ...(await importOriginal<typeof import('../hotkeys/HotkeyDispatchContext')>()),
+    // A context in the app: a new outcome renders its readers whatever their parent does (the bar is memoized).
+    useHotkeyDispatchOptional: () => useSyncExternalStore(
+      (onChange: () => void) => {
+        mocks.listeners.add(onChange);
+        return () => mocks.listeners.delete(onChange);
+      },
+      () => mocks.dispatch,
+    ),
+  };
+});
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
   subscribeTicketSessionUnlock: () => () => {},
@@ -56,7 +67,8 @@ describe('a Nova Action reports on the ticket (QA R35)', () => {
   beforeEach(() => {
     mocks.close.mockReset();
     mocks.quickBar.mockReset();
-    mocks.lastResult = null;
+    mocks.dispatch = { lastResult: null };
+    mocks.listeners.clear();
     seq = 0;
     mount = document.createElement('div');
     document.body.appendChild(mount);
@@ -81,10 +93,13 @@ describe('a Nova Action reports on the ticket (QA R35)', () => {
     });
   }
 
-  /** The dispatcher publishes an outcome; the bar re-reads its context. */
+  /** The dispatcher publishes an outcome; the bar re-reads its context (mounting it first when it is not yet). */
   function publish(outcome: Omit<NovaActionOutcome, 'seq'>) {
     seq += 1;
-    mocks.lastResult = { ...outcome, seq };
+    mocks.dispatch = { lastResult: { ...outcome, seq } };
+    act(() => {
+      for (const onChange of mocks.listeners) onChange();
+    });
     render();
   }
 

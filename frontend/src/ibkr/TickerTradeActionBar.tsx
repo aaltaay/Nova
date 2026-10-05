@@ -1,6 +1,6 @@
 /** Trading action bar — Open / Close.
  * Reuses the IBKR order API; does not invent a second order path. */
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   APP_DIALOG_FLATTEN_LABEL,
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
@@ -47,7 +47,12 @@ interface Props {
   variant?: 'footer' | 'sidebar' | 'rail';
 }
 
-export function TickerTradeActionBar({
+/**
+ * Memoized (#707): the Trader page renders on every trade, and the ticket re-rendered with it -- about 14
+ * times a second on a busy tape, resetting its inputs each time -- although none of its props had changed.
+ * What it shows from the market (the book, the venue's price) it reads itself.
+ */
+export const TickerTradeActionBar = memo(function TickerTradeActionBar({
   symbol,
   mode,
   connected,
@@ -274,4 +279,4 @@ export function TickerTradeActionBar({
       </div>
     </div>
   );
-}
+});

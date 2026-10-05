@@ -196,23 +196,42 @@ function parseOrderInstant(iso: string): Date {
   return new Date(hasZone ? text : `${text}Z`);
 }
 
+/** The two order-time formats, built once: building an Intl.DateTimeFormat is the slow part (#707). */
+const orderTimeFormats = new Map<boolean, Intl.DateTimeFormat>();
+/** Formatted times by their ISO text: an orders table formats the same few times on every render. */
+const orderTimeCache = new Map<string, string>();
+const ORDER_TIME_CACHE_MAX = 2000;
+
+function orderTimeFormat(withFraction: boolean): Intl.DateTimeFormat {
+  let fmt = orderTimeFormats.get(withFraction);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      ...(withFraction ? { fractionalSecondDigits: 3 as const } : {}),
+      hour12: false,
+    });
+    orderTimeFormats.set(withFraction, fmt);
+  }
+  return fmt;
+}
+
 export function formatOrderDateTime(iso: unknown): string {
   if (typeof iso !== 'string' || !iso.trim()) return '—';
+  const cached = orderTimeCache.get(iso);
+  if (cached !== undefined) return cached;
   const d = parseOrderInstant(iso);
   if (Number.isNaN(d.getTime())) return '—';
   const hasFraction = /[T ]\d{2}:\d{2}:\d{2}\.\d/.test(iso);
-  const formatted = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    ...(hasFraction ? { fractionalSecondDigits: 3 as const } : {}),
-    hour12: false,
-  }).format(d);
-  return `${formatted} ET`;
+  const out = `${orderTimeFormat(hasFraction).format(d)} ET`;
+  if (orderTimeCache.size >= ORDER_TIME_CACHE_MAX) orderTimeCache.clear();
+  orderTimeCache.set(iso, out);
+  return out;
 }
 
 /**
