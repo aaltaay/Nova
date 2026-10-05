@@ -48,3 +48,38 @@ def test_prune_old_backups(isolated_cache):
     removed = backup.prune_old_backups(keep_days=7, now=now)
     assert "2026-01-01" in removed
     assert not old.exists()
+
+
+def _db(path, value=1):
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE IF NOT EXISTS t (id INTEGER)")
+    conn.execute("INSERT INTO t VALUES (?)", (value,))
+    conn.commit()
+    conn.close()
+
+
+def test_backup_complete_reads_the_days_folder(isolated_cache):
+    """#720: maintenance takes one backup a day instead of copying 5 GB every hour."""
+    now = datetime(2026, 8, 17, 21, tzinfo=ZoneInfo("America/New_York"))
+    _db(isolated_cache / "journal.db")
+    _db(isolated_cache / "archive.db")
+    assert backup.backup_complete(now=now) is False
+    backup.backup_sqlite_once(now=now)
+    assert backup.backup_complete(now=now) is True
+    assert backup.backup_complete(now=datetime(2026, 8, 18, 1, tzinfo=ZoneInfo("America/New_York"))) is False
+
+
+def test_backup_leaves_no_partial_copy_under_its_final_name(isolated_cache):
+    """A copy is written as ``.part`` and renamed, so a final name is always a whole copy."""
+    now = datetime(2026, 8, 17, 21, tzinfo=ZoneInfo("America/New_York"))
+    _db(isolated_cache / "journal.db")
+    dest = isolated_cache / "backups" / "2026-08-17"
+    dest.mkdir(parents=True)
+    (dest / "journal.db.part").write_text("left by a crash", encoding="utf-8")
+    backup.backup_sqlite_once(now=now)
+    assert sorted(p.name for p in dest.iterdir()) == ["journal.db"]
+    copied = sqlite3.connect(dest / "journal.db")
+    try:
+        assert copied.execute("SELECT id FROM t").fetchone()[0] == 1
+    finally:
+        copied.close()

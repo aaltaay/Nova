@@ -110,3 +110,43 @@ def test_rollup_daily_writes_bars_1d():
     assert float(row["low"]) == 9.5
     assert float(row["close"]) == 11.5
     assert float(row["volume"]) == 150.0
+
+
+def test_rollup_daily_groups_by_symbol_and_source_in_any_insert_order():
+    """#720: SQLite aggregates; open is the first minute's, close the last minute's."""
+    day = "2026-08-18"
+    minutes = [
+        # (symbol, ts, open, high, low, close, volume, source), written out of order
+        ("BBB", 1_700_000_120.0, 5.2, 5.3, 5.1, 5.25, 30, "ibkr"),
+        ("BBB", 1_700_000_000.0, 5.0, 5.1, 4.9, 5.05, 10, "ibkr"),
+        ("BBB", 1_700_000_060.0, 5.05, 5.6, 5.0, 5.2, 20, "ibkr"),
+        ("BBB", 1_700_000_000.0, 7.0, 7.5, 6.5, 7.2, 5, "massive"),
+        ("AAA", 1_700_000_060.0, 10.5, 12.0, 10.0, 11.5, 50, "ibkr"),
+        ("AAA", 1_700_000_000.0, 10.0, 11.0, 9.5, 10.5, 100, "ibkr"),
+    ]
+    for symbol, ts, o, h, lo, c, v, source in minutes:
+        capture.record_bar(
+            symbol=symbol, ts=ts, open_=o, high=h, low=lo, close=c, volume=v,
+            timeframe="1m", source=source, session_date=day,
+        )
+
+    assert bar_builder.rollup_daily(day) == 3
+    assert bar_builder.rollup_daily(day) == 3  # an upsert: a second rollup adds nothing
+    conn = archive_db.get_connection()
+    try:
+        rows = {
+            (r["symbol"], r["source"]): (r["ts"], r["open"], r["high"], r["low"], r["close"], r["volume"])
+            for r in conn.execute("SELECT * FROM bars_1d WHERE session_date = ?", (day,))
+        }
+    finally:
+        conn.close()
+    assert rows == {
+        ("AAA", "ibkr"): (1_700_000_000.0, 10.0, 12.0, 9.5, 11.5, 150.0),
+        ("BBB", "ibkr"): (1_700_000_000.0, 5.0, 5.6, 4.9, 5.25, 60.0),
+        ("BBB", "massive"): (1_700_000_000.0, 7.0, 7.5, 6.5, 7.2, 5.0),
+    }
+    assert capture.get_counter("bars_1d") == 6
+
+
+def test_rollup_daily_with_no_minutes_writes_nothing():
+    assert bar_builder.rollup_daily("2026-08-19") == 0

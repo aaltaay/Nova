@@ -66,7 +66,7 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         while True:
             try:
                 await asyncio.sleep(L2_RETENTION_SWEEP_INTERVAL_SEC)
-                _l2_db.purge_older_than()
+                await asyncio.to_thread(_l2_db.purge_older_than)
             except asyncio.CancelledError:
                 raise
             except Exception:

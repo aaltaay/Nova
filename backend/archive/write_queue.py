@@ -305,6 +305,16 @@ def _write_batch(
         conn.close()
 
 
+def write_daily_bars(rows: list[tuple]) -> int:
+    """Upsert daily bars now, in one transaction (the archive rollup, off the event loops).
+
+    Rows are ``(symbol, ts, open, high, low, close, volume, source, session_date)``.
+    """
+    if rows:
+        _write_batch([], [], [], list(rows), [], 0)
+    return len(rows)
+
+
 def flush_blocking(max_batches: int = 200) -> dict[str, int]:
     """Drain until empty (shutdown / tests). Blocking -- off the IB loop only."""
     total: dict[str, int] = {}

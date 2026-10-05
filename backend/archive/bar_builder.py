@@ -201,62 +201,54 @@ def backfill_session_date(session_date: str) -> int:
     return backfill_from_tape_rows(rows)
 
 
+# One daily bar per (symbol, source): the open of its first minute, the close of its
+# last (SQLite takes a bare column from the row that holds a lone MIN() / MAX()), the
+# high, the low and the volume. A blank source is IBKR's, as ``record_bar`` writes it.
+_ROLLUP_SQL = """
+WITH day AS (
+    SELECT symbol,
+           CASE WHEN source = '' THEN ? ELSE source END AS src,
+           ts, open, high, low, close, volume
+    FROM bars_1m
+    WHERE session_date = ?
+)
+SELECT f.symbol, f.src, f.ts, f.open, a.high, a.low, l.close, a.volume
+FROM (SELECT symbol, src, MIN(ts) AS ts, open FROM day GROUP BY symbol, src) AS f
+JOIN (SELECT symbol, src, MAX(ts) AS ts, close FROM day GROUP BY symbol, src) AS l
+    USING (symbol, src)
+JOIN (
+    SELECT symbol, src, MAX(high) AS high, MIN(low) AS low, TOTAL(volume) AS volume
+    FROM day GROUP BY symbol, src
+) AS a USING (symbol, src)
+ORDER BY f.symbol, f.src
+"""
+
+
 def rollup_daily(session_date: str) -> int:
-    """Aggregate ``bars_1m`` for one session into ``bars_1d``. Returns bars written."""
+    """Aggregate ``bars_1m`` for one session into ``bars_1d``. Returns bars written.
+
+    SQLite aggregates and the bars go out in one transaction (#720): reading a
+    day's minutes as Python rows (644,348 of them at once on the desk) and
+    writing each daily bar on its own connection made the hourly archive run
+    stall the trading process.
+    """
     from archive import db as archive_db
+    from archive.write_queue import write_daily_bars
 
     if not session_date:
         return 0
     conn = archive_db.get_connection()
     try:
-        rows = conn.execute(
-            """
-            SELECT symbol, ts, open, high, low, close, volume, source
-            FROM bars_1m
-            WHERE session_date = ?
-            ORDER BY symbol, source, ts
-            """,
-            (session_date,),
-        ).fetchall()
+        rows = conn.execute(_ROLLUP_SQL, (ARCHIVE_SOURCE_IBKR, session_date)).fetchall()
     finally:
         conn.close()
-    groups: dict[tuple[str, str], dict] = {}
-    for row in rows:
-        key = (str(row["symbol"]), str(row["source"] or ARCHIVE_SOURCE_IBKR))
-        bucket = groups.get(key)
-        ts = float(row["ts"])
-        high = float(row["high"])
-        low = float(row["low"])
-        close = float(row["close"])
-        volume = float(row["volume"] or 0)
-        if bucket is None:
-            groups[key] = {
-                "ts": ts,
-                "open": float(row["open"]),
-                "high": high,
-                "low": low,
-                "close": close,
-                "volume": volume,
-            }
-            continue
-        bucket["high"] = max(bucket["high"], high)
-        bucket["low"] = min(bucket["low"], low)
-        bucket["close"] = close
-        bucket["volume"] += volume
-    for (symbol, source), bucket in groups.items():
-        record_bar(
-            symbol=symbol,
-            ts=bucket["ts"],
-            open_=bucket["open"],
-            high=bucket["high"],
-            low=bucket["low"],
-            close=bucket["close"],
-            volume=bucket["volume"],
-            timeframe="1d",
-            source=source,
-            session_date=session_date,
+    return write_daily_bars([
+        (
+            str(symbol).upper(), float(ts), float(open_), float(high), float(low),
+            float(close), float(volume or 0), str(source), session_date,
         )
-    return len(groups)
+        for symbol, source, ts, open_, high, low, close, volume in rows
+    ])
 
 
 def reset_for_tests() -> None:
