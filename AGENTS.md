@@ -299,7 +299,12 @@ a `capture_stopped` row with `reason: "tape"` (never a segment reason: the
 recorder did not stop; one row per streak) whose `resumed` turns true when a
 print arrives on a new line, `reacquired`
 on the session, and the manifest's `fidelity.tape_losses` /
-`tape_resubscribes`. A Record hold younger than `CAPTURE_HOLD_ORPHAN_GRACE_SEC`
+`tape_resubscribes`. A halted name is never a dead line (#722; MI on 2026-10-05
+was LULD-halted twice and its line was dropped and asked for again through both):
+while `ibkr.halt_status.halted_now` says the symbol is halted, no outage opens and
+an open one's new line is not dropped again (a pending ask still goes out, so the
+reopening finds a line), and the silence counts from the last moment it was seen
+halted. A Record hold younger than `CAPTURE_HOLD_ORPHAN_GRACE_SEC`
 is a start in flight and is never released as an orphan by a status poll. A
 resume never holds IBKR's lines for a start the recorder would refuse (#698): with
 `CAPTURE_MAX_CONCURRENT` other symbols recording it opens no line (the attempt is
@@ -3784,6 +3789,20 @@ Practice fills follow the same rule (#511): on Paper, and on Sim at the live edg
 
 **Print times (#563).** ib_async 2.1.0 stamps each AllLast tick with the moment its message reached Nova (`Wrapper.lastTime`) and throws IBKR's own `time` argument away. A live print's `time` / `ts` is that arrival time, and it says so: `ts_source: "receive"`. IBKR's whole epoch second for the print rides beside it as `exchange_ts: integer | null`, on each live print on `/ws/ibkr/tape/{symbol}` and on each Session Record print row; `ibkr/tape_exchange_time.py` keeps the `time` argument with a thin override of `Wrapper.tickByTickAllLast`, installed on the IB that opens the tape line. `exchange_ts` is `null` when the override did not see the tick. Prints stay ordered by arrival, because the books they are classified against are arrival-timed too. Rows recorded before #563 say `ts_source: "exchange"` but hold arrival times as well, and carry no `exchange_ts`; they load as they are and are never rewritten. `l2.db` `tape_trades` and the archive keep no `exchange_ts`.
 
+**A 10-second candle has one clock and one writer (#721; operator report 2026-10-05: "two candles drawing
+together ... the previous candle should never move").** Built from prints -- the Trader's client bar
+(`chart/barsStore.upsertTapePrint10SecBar`) and the backend's `ibkr/tape_10sec` -- a candle is keyed by
+IBKR's own second for each print (`exchange_ts`, arrival time only when it is missing), the clock IBKR's own
+10-second history uses, so a history fill moves no candle the tape drew. Arrival time had built 51-97% of the
+day's candles differently from IBKR's, and trails IBKR's second by 0.6 s at the median, up to 9 s. IBKR
+delivers prints in the order of that second: 1,219,396 October prints, none out of order. So a candle never
+takes a print after the next one opened. The backend flushes a quiet bucket `TAPE_10SEC_FLUSH_GRACE_SEC`
+after its ten seconds, and neither side reopens a closed candle. The 10-second pane's forming candle is the
+tape's while the tape delivered a print within `CHART_10SEC_TAPE_OWNS_MS` (`chart/useChartLiveTrade`,
+`tapeOwns10Sec`). The ticker's `trade_update`, stamped with Nova's clock when the Level 1 tick lands, opened
+the next candle while prints still filled the last one, and now paints it only when no tape feeds it (Time &
+Sales hidden, lent or silent). Minute candles and Sim replays keep their clocks.
+
 The L1 last every quote reader takes (`ibkr/ticks_handler.py`) is IBKR's Last (tick 4, or 68 delayed). It is never the RTVolume or AllLast price that ib_async also writes into the one `ticker.last` it keeps per contract. A line that has not yet delivered a tick 4 falls back to `ticker.last`.
 
 **The prior close is not a trade (#541).** Before a line's first trade its price is IBKR's prior close (tick 9), flagged `quote_quality: "close_fallback"`. Scanner rows show it as such; nothing else takes it as a trade: no live 1-minute candle (`ibkr/l1_minute`), no HOD Momo trade or L1 archive tick, no `trade_update` to a chart tip, no HOD enrichment price or change, and `snapshot_quotes` rows carry the same flag. `ibkr.ticks.last_quotes` rows add `quote_quality` and `last_trade_ts` (IBKR's Last Timestamp, tick 45 / 88, epoch seconds, `null` when IBKR has not sent one); a quote change keeps a line fresh but is not a trade. The ticker snapshot (`ticker_ibkr.fetch_ticker_snapshot_ibkr`) answers `latest_trade: null` and `daily_bar: null` before today's first trade (the prior close stays `prev_close`), stamps `latest_trade.timestamp` with the trade's own time (a stored bar's minute, a row's quote time, `null` when unknown -- never "now"), takes a stored 1-minute bar only from today's Eastern date, and reports an unknown volume as `null`, never `0`.
@@ -3856,6 +3875,32 @@ Then everything IBKR held arrived in one burst, stamped on arrival (#563).
 - **`/api/diagnostics`** adds the `ibkr_feed_gaps` row (group `market_data`). It is `fail` while a gap is
   open, `warn` with the count and the longest in the last `FEED_DIAG_WINDOW_SEC` (30 min), naming Wi-Fi when
   Windows logged it, `off` while disconnected or outside the session, and otherwise `ok`.
+
+### When one tape line goes silent (#722, operator report 2026-10-05)
+
+"time and sale is fully frozen". At 09:35:42 ET the AllLast lines of SAIQ (a Trader tab) and VEEA (a Session
+Record) stopped together while both books kept updating, with no IBKR error and no farm notice. SAIQ's Time &
+Sales sat on its last print under LIVE until about 09:42; its socket's only frame was the idle `ping`. Level 1
+kept arriving, so this is not a feed gap (above).
+
+- **The reading** (owner `ibkr/tape_silence.py`, memory only): `{schema_version: 1, state: "halted" | "silent"
+  | "quiet", since, last_print_ts, book_at, halted, text}` or `null` while the line prints.
+  - The facts are the line's last print and opening (`tape_recording.producer_status`), when its Level 2 line
+    last delivered a book (`ibkr/depth/state.last_book_at`, stamped by the depth handlers) and
+    `halt_status.halted_now`.
+  - `halted`: a halt prints nothing, so it is never read as a dead line.
+  - `silent`: no print for `TAPE_SILENT_SEC` (30) while a book came within `TAPE_SILENT_BOOK_FRESH_SEC` (10):
+    the line may be down.
+  - `quiet`: the book is quiet too, or there is no Level 2 line.
+  - The silence counts from the newest of the last print, the line's opening and the last ping that found the
+    symbol halted. Nothing here asks IBKR for anything.
+- **The wire.** Each idle `ping` on `/ws/ibkr/tape/{symbol}` (every `TAPE_STREAM_HEARTBEAT_SEC` without a
+  print) carries `silence: reading | null` on a live line, and `null` on a replay desk.
+- **The desk** (`ibkr/tapeSilence.ts`). The badge reads SILENT 47s or HALTED (amber), or QUIET 47s (grey),
+  counting on the desk's clock, with the backend's words on hover. For the first two, a short line above the
+  rows says why. Any print clears it, and NO DATA on every line (#672) comes first.
+- **Not done here:** why a line goes silent, and what brings it back. Asking IBKR again did not bring VEEA's
+  back that morning; SAIQ's came back without a new request.
 
 ### The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33)
 
@@ -4412,6 +4457,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-05 | A silent tape says so, and 10-second candles keep one clock (#722, #721; operator reports: "time and sale is fully frozen", "two candles drawing together ... the previous candle should never move"). At 09:35:42 ET two AllLast lines stopped while their books kept updating, with no IBKR error, and Time & Sales read LIVE for six minutes; each idle `ping` now carries a silence reading (`ibkr/tape_silence.py`) and the pane reads SILENT / HALTED / QUIET with the reason. The recorder no longer calls a halted name's line dead (MI was dropped and re-asked through two halts). 10-second candles from prints are keyed by IBKR's own second, which IBKR delivers in order (1.2M October prints, none out of order) and its history uses; arrival time had built most candles differently. The pane's forming candle has one writer, the tape: a Level 1 trade stamped on Nova's clock opened the next candle at the boundary while prints still filled the last. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | The desk draws with the graphics card (#707; operator: "when I move the chart left and right with my mouse and hold, even when I have the eyes off, the setup off, and the levels off, it really feels laggy"). Software drawing had been the Windows default since the 2026-09-17 black-window fix, which changed three things at once; measured alone in Electron 41 on the demo desk at 4K/150%, a chart drag ran at about 22 fps in software and with 5 ms frames on the graphics card. The graphics card is the default now, kept in `graphics.json` and switched in View > Draw with the graphics card, with a safety net: a crash of the graphics process turns it off from the next start and says so; a blank window -- the screen under the focused desk window, read from the screen recording's own capture, one flat colour three looks in a row while the page draws content -- restarts Nova in software. The menu has one owner (`appMenu.mjs`) so the View switch and the updater's Help rows never drop each other. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | The close countdown keeps clear of the pane's words (operator report: on a 5-minute pane the timer sat on top of the setup's "5m ... +83.3%" label, and asked to check every chart). The chip drawn over the forming candle on every minute pane (`chart/BarCountdownPrimitive.ts`) knew only the candle, so any label or price near the tip ran under it -- a live lane's label starts at its box's left edge, a few candles back, so a forming setup always put its label over the chip. Each primitive that writes words on a pane now publishes the rectangles it drew (`chart/paneWords.ts`: the stock read's labels, pins, fixed labels and edge column, and the fill arrows with their prices), and the chip takes the first clear spot: beside the candle, under it, then a row at a time, never on the forming candle, and not drawn when nothing is clear. Only the chip yields; the labels place as before. Rendered headless with the real primitives on the screenshot's scenario: the chip moved from over the label to beside the candle. §3 amended. | User Directive + Claude Sonnet 5.5 |
 | 2026-10-04 | A practice order's execution rows close when its venue closes it (TNMG, 2026-10-02). Nova's bot cancelled its unfilled Paper bracket entry 77 at 09:47:22 ET, three seconds after the venue answered `Submitted`. The bracket's row and the cancel's row stayed `acked` until the 10:36 restart, when the startup sweep called the venue's Cancelled `failed`. Three causes: the practice broker skipped the notice for an order Nova cancelled; the cancel path set only the place row's `broker_status`; and no callback follows a practice venue's first answer, so resting Paper fills also read `acked` until a restart (AIFF, NXL, CNTB). The ledger gains a terminal `cancelled`, classified by one rule (`execution.order_outcome.ledger_close`). Every practice close now ends its rows at once (`practice.watch.close_rows`), and the sweep reads a cancel as `cancelled`. A bracket's row keeps its entry's `perm_id`: TNMG's read the stop leg's 79. `tools/order_timing.py` no longer prints the order's status now beside the venue's first answer. Live's same gap is #712; the sweep's venue scoping is #713. §3 amended. | User Directive + Claude Opus 5.5 |

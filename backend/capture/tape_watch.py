@@ -17,6 +17,13 @@ a WARNING, a ``capture_stopped`` row with reason ``tape`` that reads resumed
 once a print arrives on the new line, ``reacquired`` on the session, and the
 manifest's ``fidelity.tape_losses`` / ``tape_resubscribes``.
 
+A halted name prints nothing, so a halt is never a dead line (#722: on 2026-10-05
+MI was LULD-halted 09:34:53-09:39:37 and again from 09:40:02, and its line was
+dropped and asked for again every few minutes through both). While the symbol
+is halted no outage opens and an open one is not dropped again; a pending ask
+still goes out, so the reopening finds a line. The silence counts from the
+last moment the symbol was seen halted, so a reopening is not read as dead.
+
 This module decides; ``capture.keepalive`` acts (it owns the status rows and
 the IBKR calls). State is process memory, one entry per recording symbol.
 """
@@ -68,6 +75,7 @@ class _Line:
     streak: int = 0                   # asks in this streak of outages: the backoff step
     quiet_until: float = 0.0          # no new silence verdict before this
     resumed_at: float | None = None   # when the last outage ended
+    halt_seen_at: float | None = None  # the last look that found the symbol halted
 
 
 _lines: dict[str, _Line] = {}
@@ -113,9 +121,11 @@ def _clock(ts: float) -> str:
     return datetime.fromtimestamp(ts, ET).strftime("%H:%M:%S ET")
 
 
-def _silence(producer: dict[str, Any], book: dict[str, Any], now: float) -> str | None:
+def _silence(producer: dict[str, Any], book: dict[str, Any], now: float,
+             halt_seen_at: float | None = None) -> str | None:
     """Why the line looks dead -- prints silent while the book moves -- else None."""
-    since = max(_num(producer.get("last_print_ts")) or 0.0, _num(producer.get("line_since")) or 0.0)
+    since = max(_num(producer.get("last_print_ts")) or 0.0, _num(producer.get("line_since")) or 0.0,
+                _num(halt_seen_at) or 0.0)
     book_ts = _num(book.get("last_book_ts"))
     if not since or book_ts is None:
         return None
@@ -133,9 +143,12 @@ def _ended_detail(ended: dict[str, Any]) -> str:
     return f"IBKR ended the tape line (error {code}: {ended.get('message')}) -- asking for it again"
 
 
-def observe(symbol: str, *, now: float, entry: dict[str, Any]) -> Verdict | None:
-    """One look at a recording's tape. ``entry`` is its ``capture.mode.status_payload()`` session."""
+def observe(symbol: str, *, now: float, entry: dict[str, Any], halted: bool | None = None) -> Verdict | None:
+    """One look at a recording's tape. ``entry`` is its ``capture.mode.status_payload()`` session;
+    ``halted`` is ``ibkr.halt_status.halted_now`` for the symbol (only True holds the verdicts)."""
     line = _lines.setdefault(symbol.strip().upper(), _Line())
+    if halted is True:
+        line.halt_seen_at = now
     producer = entry.get("producer") or {}
     book = entry.get("book") or {}
     ended = producer.get("ended") if producer.get("state") == "disconnected" else None
@@ -148,7 +161,9 @@ def observe(symbol: str, *, now: float, entry: dict[str, Any]) -> Verdict | None
             return Verdict(LOST, CAUSE_IB_ERROR, line.detail, end=False, repeat=repeat)
         if producer.get("state") == "disconnected" or now < line.quiet_until:
             return None  # a Gateway drop is the keepalive's; a quiet name waits its turn
-        detail = _silence(producer, book, now)
+        if halted is True:
+            return None  # a halt prints nothing: not a dead line
+        detail = _silence(producer, book, now, line.halt_seen_at)
         if detail is None:
             return None
         repeat = _open(line, now, CAUSE_STALE, detail)
@@ -171,9 +186,9 @@ def observe(symbol: str, *, now: float, entry: dict[str, Any]) -> Verdict | None
         line.detail = _ended_detail(ended)
         line.renew_at = max(now + CAPTURE_TAPE_RENEW_DELAY_SEC, line.quiet_until)
         return None
-    if now < line.quiet_until:
-        return None
-    detail = _silence(producer, book, now)
+    if now < line.quiet_until or halted is True:
+        return None  # waits its turn; in a halt the new line is not dropped again
+    detail = _silence(producer, book, now, line.halt_seen_at)
     if detail is None:
         return None
     line.detail = detail

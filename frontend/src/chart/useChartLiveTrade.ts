@@ -1,4 +1,10 @@
-/** ADR 005 -- monotonic live-trade candle merging into the open bar, with its volume. */
+/**
+ * ADR 005 -- monotonic live-trade candle merging into the open bar, with its volume.
+ *
+ * The 10-second pane has one writer (#721): while the tape feeds it (`tapeOwns10Sec`) its forming
+ * candle is the tape's prints, keyed by IBKR's second; a Level 1 trade, stamped on Nova's clock
+ * when its tick lands, opened the next candle while prints still filled the last one.
+ */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CandlestickData, ISeriesApi, Time } from 'lightweight-charts';
@@ -17,7 +23,7 @@ import type { ChartTradeUpdate } from './types';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { IDLE_TICKER, subscribeTicker, tickerLastTrade, tickerState } from '../hooks/tickerStore';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import { getBarsEntry } from './barsStore';
+import { getBarsEntry, tapeOwns10Sec } from './barsStore';
 import { volumeBarColor } from '../tickerChartData';
 
 export function useChartLiveTrade(
@@ -73,8 +79,15 @@ export function useChartLiveTrade(
     return true;
   }, [candleSeriesRef, volSeriesRef]);
 
+  /** The tape paints this pane's tip: drop any Level 1 tip it held. */
+  const tapeOwnsTip = useCallback((tf: string) => {
+    if (tf !== '10Sec' || !tapeOwns10Sec(chartSymbol)) return false;
+    liveTipRef.current = null;
+    return true;
+  }, [chartSymbol]);
+
   const applyLiveTrade = useCallback((trade: ChartTradeUpdate, tf: string) => {
-    if (replayOwnsBars(tf)) return;
+    if (replayOwnsBars(tf) || tapeOwnsTip(tf)) return;
     if (!trade.price || !trade.timestamp || !candleSeriesRef.current) return;
     if (!tradeMatchesChartSymbol(chartSymbol, trade.symbol)) return;
 
@@ -94,7 +107,7 @@ export function useChartLiveTrade(
     if (paintTip(next, shownTipVolume(live, store))) {
       liveTipRef.current = { candle: next, volume: live };
     }
-  }, [candleSeriesRef, chartSymbol, paintTip, replayOwnsBars]);
+  }, [candleSeriesRef, chartSymbol, paintTip, replayOwnsBars, tapeOwnsTip]);
 
   /**
    * After the store repainted the series (`lastCandleRef` is now its newest
@@ -107,7 +120,7 @@ export function useChartLiveTrade(
   ) => {
     const storeCandle = lastCandleRef.current;
     storeTipRef.current = storeCandle ? { time: storeCandle.time, volume: storeTipVolume } : null;
-    if (replayOwnsBars(tf)) return;
+    if (replayOwnsBars(tf) || tapeOwnsTip(tf)) return;
     const live = liveTipRef.current;
     if (live === null) {
       const newest = trade ?? latestTradeRef.current;
@@ -124,7 +137,7 @@ export function useChartLiveTrade(
     }
     if (!paintTip(restored.candle, restored.volume)) liveTipRef.current = null;
     else liveTipRef.current = { candle: restored.candle, volume: live.volume };
-  }, [applyLiveTrade, paintTip, replayOwnsBars]);
+  }, [applyLiveTrade, paintTip, replayOwnsBars, tapeOwnsTip]);
 
   /** Draw a trade unless it is the one drawn last. */
   const takeTrade = useCallback((trade: ChartTradeUpdate | null | undefined) => {

@@ -15,14 +15,20 @@ A line IBKR refuses or ends while the socket stands (10190, its tick-by-tick cap
 arrives after the request) is brought back by ``line_lending.tape_heal`` (#698):
 the socket forwards its words and ``retry_at``, then ``subscribed`` when the line
 is back. It used to stay open on a dead line until the tab was reopened.
+
+Each idle ``ping`` (no print for TAPE_STREAM_HEARTBEAT_SEC) on a live line carries ``silence``:
+``ibkr.tape_silence``'s reading, or ``null`` (#722). The pane says HALTED, SILENT or QUIET with
+its words instead of reading LIVE over a tape that stopped.
 """
 from __future__ import annotations
 
 import json
 import logging
+import time
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from ibkr import tape_silence
 from ibkr import tape_stream as _tape
 from line_lending import socket_gate
 from line_lending.sockets import TAPE
@@ -90,9 +96,15 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         except Exception:
             logger.debug("SIM tape: capture seed skipped", exc_info=True)
 
+        halt_seen_at: float | None = None  # the last ping that found the symbol halted
         async for print_data in _tape.stream(queue):
             if print_data is None:
-                await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol}))
+                silence = None
+                if not is_replay_desk() and _tape.is_subscribed(symbol):
+                    silence = _silence(symbol, halt_seen_at)
+                    if silence is not None and silence.get("halted") is True:
+                        halt_seen_at = time.time()
+                await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol, "silence": silence}))
                 if not is_replay_desk() and not _tape.is_subscribed(symbol):
                     socket_gate.line_down(symbol)  # down with no word from IBKR: ask again all the same
                 continue
@@ -146,3 +158,12 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
             # tab holds one at the live edge). With no line this is a no-op, so
             # a replay desk is unchanged.
             _tape.unsubscribe(symbol)
+
+
+def _silence(symbol: str, halt_seen_at: float | None) -> dict | None:
+    """The line's silence for the ping (memory only); None when it cannot be read."""
+    try:
+        return tape_silence.reading(symbol, halt_seen_at=halt_seen_at)
+    except Exception:
+        logger.exception("IBKR tape WS: silence reading failed for %s", symbol)
+        return None

@@ -11,20 +11,17 @@
  * DOM mounts a viewport window; the feed ring still holds TAPE_UI_MAX_ROWS.
  * Right-click opens a min-size display filter (does not change the tape stream).
  */
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from 'react';
 import {
   TAPE_COL_HEADERS,
   TAPE_EMPTY_LABEL,
-  TAPE_NO_PRICE_TITLE,
   TAPE_OVERSCAN_ROWS,
   TAPE_ROW_HEIGHT_PX,
   TAPE_SECTION_TITLE,
   TAPE_STATUS_LIVE,
   TAPE_STICK_TOP_PX,
-  TAPE_UNREPORTED_TITLE,
   TAPE_VIEWPORT_FALLBACK_ROWS,
 } from '../constants';
-import { STOCK_VIEW_CLOCK_TIMEZONE } from '../constantGroups/chart_api';
 import { TAPE_STATUS_LENT, TAPE_STATUS_RETRYING } from '../constantGroups/market_ui';
 import { SAMPLE_FEED_STATUS, SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { createRafCoalesce } from '../utils/rafCoalesce';
@@ -43,7 +40,8 @@ import {
   tapePinnedToNewest,
   tapeScrollAfterPrepend,
 } from './tapeWindow';
-import { tapePrintSetsPrice, type TapePrint, type TapeSide, type TapeState } from './tapeFeed';
+import { TapeRow, tapeRowKey } from './TapeRow';
+import type { TapeState } from './tapeFeed';
 
 export interface TimeSalesViewProps {
   symbol: string | null;
@@ -56,94 +54,18 @@ export interface TimeSalesViewProps {
   connectedText?: string;
   /** Badge tooltip, e.g. the replay data source. */
   statusTitle?: string;
-  /** Badge colour while connected: the IBKR feed is silent (bad) or was a moment ago (warn), #672. */
-  statusTone?: 'bad' | 'warn' | null;
+  /**
+   * Badge colour while connected: the IBKR feed is silent (bad) or was a moment ago (warn), #672;
+   * this line is silent or halted (warn) or quiet (quiet), #722.
+   */
+  statusTone?: 'bad' | 'warn' | 'quiet' | null;
+  /** A line above the rows: why the tape printed nothing for a while (#722). */
+  notice?: string | null;
+  /** The line's hover: the full words. */
+  noticeTitle?: string | null;
   /** Empty-tape message while connected (default "Waiting for prints…"). */
   emptyLabel?: string;
 }
-
-/** HH:MM:SS Eastern whatever the browser's zone -- the desk's one clock (QA W24). */
-export function fmtTapeTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('en-US', {
-      hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit',
-      timeZone: STOCK_VIEW_CLOCK_TIMEZONE,
-    });
-  } catch {
-    return iso.slice(11, 19) || iso;
-  }
-}
-
-function fmtPrice(p: number): string {
-  return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-}
-
-function fmtSize(s: number): string {
-  return s.toLocaleString('en-US');
-}
-
-function sideClass(side: TapeSide | undefined): string {
-  switch (side) {
-    case 'ask':
-      return 'ts-row--ask';
-    case 'bid':
-      return 'ts-row--bid';
-    case 'between':
-      return 'ts-row--mid';
-    default:
-      return 'ts-row--unknown';
-  }
-}
-
-/**
- * A live print has no id, and a key built from its place in the list changed for every row on every
- * print: React rebuilt all the visible rows each time (4,000 rows a few seconds at a busy open) and the
- * page laid out again under the charts. A print keeps its object from arrival to the ring's end, so
- * the object is its identity.
- */
-const liveKeys = new WeakMap<TapePrint, string>();
-let liveKeySeq = 0;
-
-export function tapeRowKey(print: TapePrint): string {
-  if (print.replayId != null) return print.replayId;
-  let key = liveKeys.get(print);
-  if (key === undefined) {
-    liveKeySeq += 1;
-    key = `live-${liveKeySeq}`;
-    liveKeys.set(print, key);
-  }
-  return key;
-}
-
-const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
-  // A print that does not set a price is dimmed, and its tooltip says why.
-  const setsPrice = tapePrintSetsPrice(print);
-  const title = print.unreported ? TAPE_UNREPORTED_TITLE : setsPrice ? undefined : TAPE_NO_PRICE_TITLE;
-  return (
-    <div
-      className={`ts-row ${sideClass(print.side)}${setsPrice ? '' : ' ts-row--no-price'}${
-        print.unreported ? ' ts-row--unreported' : ''}`}
-      style={{ height: TAPE_ROW_HEIGHT_PX }}
-      title={title}
-      data-unreported={print.unreported ? '1' : undefined}
-      data-sets-price={setsPrice ? undefined : '0'}
-    >
-      <span className="ts-col--time">{fmtTapeTime(print.time)}</span>
-      <span className="ts-col--price">{fmtPrice(print.price)}</span>
-      <span className="ts-col--size" data-testid="ts-size" data-size={print.size}>
-        {fmtSize(print.size)}
-      </span>
-      <span className="ts-col--exch">{print.exchange || '—'}</span>
-    </div>
-  );
-}, (previous, next) => {
-  const a = previous.print, b = next.print;
-  return a === b || (a.replayId != null && a.replayId === b.replayId
-    && a.price === b.price && a.size === b.size && a.time === b.time
-    && a.exchange === b.exchange && a.side === b.side && a.unreported === b.unreported
-    && a.setsPrice === b.setsPrice);
-});
 
 function TapeHeadMeta({
   badge,
@@ -177,6 +99,8 @@ export function TimeSalesView({
   statusTitle,
   statusTone = null,
   emptyLabel = TAPE_EMPTY_LABEL,
+  notice = null,
+  noticeTitle = null,
 }: TimeSalesViewProps) {
   const { prints, connected, error } = feed;
   // Lent to one of Nova's setups (ADR 044 decision 6): the pane says whose, in place of the rows.
@@ -312,6 +236,12 @@ export function TimeSalesView({
     </div>
   );
 
+  const noticeLine = notice && !lentWords ? (
+    <div className="ts-panel__notice" data-testid="ts-silence" role="status" title={noticeTitle ?? undefined}>
+      {notice}
+    </div>
+  ) : null;
+
   const rows = (
     <div
       className="ts-panel__rows"
@@ -364,6 +294,7 @@ export function TimeSalesView({
         <div className="sv-md-pane__body">
           <div className="sv-md-pane__live">
             {cols}
+            {noticeLine}
             {rows}
           </div>
         </div>
@@ -379,6 +310,7 @@ export function TimeSalesView({
         {headMeta}
       </div>
       {cols}
+      {noticeLine}
       {rows}
       {filterMenu}
     </div>

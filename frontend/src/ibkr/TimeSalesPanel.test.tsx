@@ -7,7 +7,7 @@ import { fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TAPE_MIN_SIZE_STORAGE_KEY, TAPE_UI_MAX_ROWS } from '../constants';
 import { TimeSalesPanel } from './TimeSalesPanel';
-import type { TapePrint } from './tapeFeed';
+import type { TapePrint, TapeSilence } from './tapeFeed';
 import { writeTapeMinSize } from './tapeMinSizeFilter';
 
 function makePrints(n: number, size = 100): TapePrint[] {
@@ -36,6 +36,7 @@ const tapeMock = {
   prints: makePrints(TAPE_UI_MAX_ROWS),
   connected: true,
   error: null as string | null,
+  silence: null as TapeSilence | null,
 };
 
 vi.mock('./useIbkrTape', () => ({
@@ -253,5 +254,78 @@ describe('TimeSalesPanel feed gap badge (#672)', () => {
     });
     expect(status().textContent).toBe('REPLAY');
     expect(status().className).not.toContain('ts-panel__status--bad');
+  });
+});
+
+describe('TimeSalesPanel -- a line that stopped printing says so (#722)', () => {
+  // 2026-10-05: SAIQ's tape stopped at 09:35:42 ET while its Level 2 kept updating, and the pane read LIVE.
+  const SINCE = Date.parse('2026-10-05T13:35:42Z') / 1000;
+  const SILENT_TEXT = 'No prints since 09:35:42 ET while Level 2 kept updating: IBKR\'s tape line may be down. '
+    + 'A quiet name looks the same; this clears on the next print.';
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-05T13:41:42Z'));
+    tapeMock.prints = mixedPrints();
+    tapeMock.connected = true;
+    tapeMock.error = null;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    tapeMock.silence = null;
+    gapMock.badge = null;
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    vi.useRealTimers();
+  });
+
+  const status = () => container.querySelector('[data-testid="ts-status"]') as HTMLElement;
+  const notice = () => container.querySelector('[data-testid="ts-silence"]');
+  const render = () => act(() => {
+    root.render(<TimeSalesPanel symbol="SAIQ" />);
+  });
+
+  it('reads SILENT with the seconds counting, in amber, and says why above the rows', () => {
+    tapeMock.silence = { state: 'silent', since: SINCE, text: SILENT_TEXT };
+    render();
+    expect(status().textContent).toBe('SILENT 360s');
+    expect(status().className).toContain('ts-panel__status--warn');
+    expect(status().getAttribute('title')).toBe(SILENT_TEXT);
+    expect(notice()?.textContent?.trim()).toBe('Silent since 09:35:42 while Level 2 moves: the line may be down');
+    expect(notice()?.getAttribute('title')).toBe(SILENT_TEXT);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(status().textContent).toBe('SILENT 362s');
+  });
+
+  it('says HALTED for a halt, never that the line may be down', () => {
+    tapeMock.silence = { state: 'halted', since: SINCE, text: 'Halted: no prints until it reopens. No prints since 09:35:42 ET.' };
+    render();
+    expect(status().textContent).toBe('HALTED');
+    expect(notice()?.textContent?.trim()).toBe('Halted: no prints until it reopens');
+  });
+
+  it('a quiet name is a grey badge and nothing in the pane', () => {
+    tapeMock.silence = { state: 'quiet', since: SINCE, text: 'No prints since 09:35:42 ET; Level 2 is quiet too.' };
+    render();
+    expect(status().textContent).toBe('QUIET 360s');
+    expect(status().className).toContain('ts-panel__status--quiet');
+    expect(notice()).toBeNull();
+  });
+
+  it('NO DATA on every line comes first', () => {
+    tapeMock.silence = { state: 'silent', since: SINCE, text: SILENT_TEXT };
+    gapMock.badge = { tone: 'bad', state: 'no-data', label: 'NO DATA 9s', title: 'No IBKR data on any line for 9 s.' };
+    render();
+    expect(status().textContent).toBe('NO DATA 9s');
+    expect(notice()).toBeNull();
   });
 });

@@ -25,7 +25,8 @@ vi.mock('../ibkr/ibkrStatusPoller', () => ({ getIbkrStatusSnapshot: () => ({ mod
 
 import { clearEtOffsetCacheForTests, tradeBucket, type RawBar } from '../tickerChartData';
 import { resetTickerStreamsForTests } from '../hooks/tickerStore';
-import { clearBarsStoreForTests } from './barsStore';
+import { CHART_10SEC_TAPE_OWNS_MS } from '../constants';
+import { clearBarsStoreForTests, getBarsEntry, upsertTapePrint10SecBar } from './barsStore';
 import { paintBars } from './chartBarsPaint';
 import type { ChartTradeUpdate } from './types';
 import { useChartLiveTrade } from './useChartLiveTrade';
@@ -232,5 +233,46 @@ describe('useChartLiveTrade -- following the ticker stream (#707)', () => {
     // A store refresh puts the live tip back, as with a passed trade.
     chart.storePaint([...STORE_THROUGH_2003]);
     expect(chart.tip()).toMatchObject({ open: 2.97, high: 3.14, low: 2.97, close: 3.05 });
+  });
+});
+
+describe('useChartLiveTrade -- the 10-second pane has one writer (#721)', () => {
+  // Operator report 2026-10-05: "two candles drawing together ... the previous candle should never move".
+  // The tape keyed its candle by arrival while a Level 1 trade, stamped when its tick landed, opened the
+  // next candle at the boundary: both candles moved at once.
+  const sec = (iso: string) => Date.parse(iso) / 1000;
+  const print = (iso: string, exchangeIso: string, price: number) => upsertTapePrint10SecBar('FOFO', {
+    time: iso, price, size: 100, exchangeTs: sec(exchangeIso),
+  });
+
+  beforeEach(() => {
+    clearBarsStoreForTests();
+    clearEtOffsetCacheForTests();
+    desk.mode = 'live';
+  });
+
+  afterEach(() => {
+    clearBarsStoreForTests();
+    vi.useRealTimers();
+  });
+
+  it("ignores the Level 1 last while the tape feeds the pane: no second candle opens", () => {
+    const chart = setup('10Sec');
+    print('2026-09-24T20:04:01.300Z', '2026-09-24T20:04:01Z', 3);
+    print('2026-09-24T20:04:09.900Z', '2026-09-24T20:04:09Z', 3.02);
+    chart.storePaint(getBarsEntry('FOFO', '10Sec')!.bars);
+    chart.trade('2026-09-24T20:04:10.150Z', 3.02, 1_000_000);    // its Level 1 tick, past the boundary
+    expect(chart.tip()).toMatchObject({ time: tradeBucket('2026-09-24T20:04:00Z', '10Sec'), close: 3.02 });
+  });
+
+  it('draws the Level 1 last when no tape feeds the pane', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-24T20:04:10Z'));
+    const chart = setup('10Sec');
+    print('2026-09-24T20:04:01.300Z', '2026-09-24T20:04:01Z', 3);
+    chart.storePaint(getBarsEntry('FOFO', '10Sec')!.bars);
+    vi.setSystemTime(Date.now() + CHART_10SEC_TAPE_OWNS_MS);     // the tape has said nothing since
+    chart.trade('2026-09-24T20:04:26Z', 3.1, null);
+    expect(chart.tip()).toMatchObject({ time: tradeBucket('2026-09-24T20:04:20Z', '10Sec'), close: 3.1 });
   });
 });

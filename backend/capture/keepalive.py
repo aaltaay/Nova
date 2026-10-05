@@ -306,10 +306,22 @@ def _give_up(resume: dict[str, Any], reason: str) -> None:
 # The tape line (#525)
 
 
+def _halted_now(symbol: str, now: float) -> bool | None:
+    """Is the symbol halted now (memory only)? A halt's silence is not a dead line (#722)."""
+    try:
+        from ibkr import halt_status
+
+        return halt_status.halted_now([symbol], now=now).get(symbol.strip().upper())
+    except Exception:
+        logger.warning("CAPTURE: could not read whether %s is halted; judging its tape without it", symbol,
+                       exc_info=True)
+        return None
+
+
 async def _watch_tape(symbol: str, *, now: float, entry: dict[str, Any], rec: dict[str, Any],
                       ready: Callable[[], bool], tape: TapeOps) -> None:
     """Act on ``tape_watch``'s verdict: drop, ask again, and say so."""
-    verdict = tape_watch.observe(symbol, now=now, entry=entry)
+    verdict = tape_watch.observe(symbol, now=now, entry=entry, halted=_halted_now(symbol, now))
     if verdict is None:
         return
     row = _stopped.get(symbol)

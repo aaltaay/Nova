@@ -11,8 +11,10 @@ import {
   parseBarsCoverage,
   setBars,
   subscribeBars,
+  tapeOwns10Sec,
   upsertTapePrint10SecBar,
 } from './barsStore';
+import { CHART_10SEC_TAPE_OWNS_MS } from '../constants';
 import type { RawBar } from '../tickerChartData';
 
 function bar(i: number): RawBar {
@@ -383,4 +385,27 @@ describe('barsStore', () => {
     expect(getBarsEntry('AAPL', '1Min')?.bars).toEqual([bar(1)]);
   });
 
+
+  it("keys a 10-second candle by IBKR's own second, as its history does (#721)", () => {
+    // VEEA 2026-10-05: a print IBKR stamps 13:30:09 arrived at 13:30:10.6, after the boundary.
+    const sec = (iso: string) => Date.parse(iso) / 1000;
+    upsertTapePrint10SecBar('VEEA', { time: '2026-10-05T13:30:03.200Z', price: 2, size: 100, exchangeTs: sec('2026-10-05T13:30:03Z') });
+    upsertTapePrint10SecBar('VEEA', { time: '2026-10-05T13:30:10.600Z', price: 2.05, size: 300, exchangeTs: sec('2026-10-05T13:30:09Z') });
+    expect(getBarsEntry('VEEA', '10Sec')?.bars).toEqual([
+      { t: '2026-10-05T13:30:00.000Z', o: 2, h: 2.05, l: 2, c: 2.05, v: 400 },
+    ]);
+  });
+
+  it('the tape owns the 10-second tip while it prints, a volume-only print included (#721)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-05T13:30:00Z'));
+    try {
+      expect(tapeOwns10Sec('VEEA')).toBe(false);
+      upsertTapePrint10SecBar('veea', { time: '2026-10-05T13:30:00.000Z', price: 2, size: 7, setsPrice: false });
+      expect(tapeOwns10Sec('VEEA')).toBe(true);
+      expect(tapeOwns10Sec('VEEA', Date.now() + CHART_10SEC_TAPE_OWNS_MS)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

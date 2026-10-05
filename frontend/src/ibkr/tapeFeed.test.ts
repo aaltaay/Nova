@@ -6,6 +6,7 @@ import {
   appendTapePrint,
   emptyTapeState,
   flushPendingTapePrints,
+  parseTapeSilence,
   tapeMessageAllowed,
   tapePrintSetsPrice,
   tapeSymbolKey,
@@ -33,13 +34,14 @@ describe('tapeSymbolKey', () => {
 });
 
 describe('emptyTapeState', () => {
-  it('clears prints, connection flags, a lent line and a retry (symbol-change reset)', () => {
+  it('clears prints, connection flags, a lent line, a retry and a silence (symbol-change reset)', () => {
     expect(emptyTapeState()).toEqual({
       prints: [],
       connected: false,
       error: null,
       lent: null,
       retryAt: null,
+      silence: null,
     });
   });
 });
@@ -109,5 +111,15 @@ describe('tapePrintSetsPrice', () => {
     expect(tapePrintSetsPrice({ setsPrice: false })).toBe(false);
     expect(tapePrintSetsPrice({ unreported: true })).toBe(false);
     expect(tapePrintSetsPrice({ unreported: true, setsPrice: true })).toBe(false);
+  });
+});
+
+describe('parseTapeSilence (#722)', () => {
+  it("reads the backend's word and refuses anything else", () => {
+    expect(parseTapeSilence({ schema_version: 1, state: 'silent', since: 5, text: 'x', book_at: 9 }))
+      .toEqual({ state: 'silent', since: 5, text: 'x' });
+    expect(parseTapeSilence(null)).toBeNull();
+    expect(parseTapeSilence({ state: 'stale', since: 5, text: 'x' })).toBeNull();
+    expect(parseTapeSilence({ state: 'quiet', since: 'now', text: 'x' })).toBeNull();
   });
 });

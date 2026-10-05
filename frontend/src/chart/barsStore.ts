@@ -3,7 +3,7 @@
  * Dedupes in-flight fetches per (symbol, timeframe). HTTP /bars is store-first
  * on the server (ADR 012); no client serial queue and no 25s abort.
  */
-import { API_BASE_URL, CHART_TIMEFRAME_BAR_LIMITS } from '../constants';
+import { API_BASE_URL, CHART_10SEC_TAPE_OWNS_MS, CHART_TIMEFRAME_BAR_LIMITS } from '../constants';
 import type { RawBar } from '../tickerChartData';
 import { getIbkrStatusSnapshot } from '../ibkr/ibkrStatusPoller';
 
@@ -42,6 +42,8 @@ const inflight = new Map<BarsStoreKey, Promise<RawBar[]>>();
 const generations = new Map<BarsStoreKey, number>();
 /** Store-owned controllers: a consumer abort never cancels another chart. */
 const controllers = new Map<BarsStoreKey, AbortController>();
+/** When each symbol's tape last delivered a print in this window (ms): the tape owns its 10-second tip. */
+const tapeFedAt = new Map<string, number>();
 
 export function barsStoreKey(symbol: string, timeframe: string): BarsStoreKey {
   return `${symbol.trim().toUpperCase()}|${timeframe}`;
@@ -54,6 +56,16 @@ export function clearBarsStoreForTests(): void {
   listeners.clear();
   inflight.clear();
   generations.clear();
+  tapeFedAt.clear();
+}
+
+/**
+ * The 10-second pane's forming candle is the tape's (#721): the tape delivered a print in this
+ * window within CHART_10SEC_TAPE_OWNS_MS. The Level 1 last paints it only when no tape feeds it.
+ */
+export function tapeOwns10Sec(symbol: string, nowMs: number = Date.now()): boolean {
+  const at = tapeFedAt.get(symbol.trim().toUpperCase());
+  return at !== undefined && nowMs - at < CHART_10SEC_TAPE_OWNS_MS;
 }
 
 /** Drop cached bars so the next ensureBars hits the network (Sim scrub). */
@@ -175,17 +187,28 @@ export function applyBarsPatch(
  * `setsPrice: false` is a print reported for volume only (odd lot, average
  * price, derivatively priced ...): Time & Sales lists it, no candle takes it --
  * its price can sit dollars from the market (backend `sale_conditions.py`).
+ *
+ * One clock (#721): a print lands in the candle of IBKR's own second for it
+ * (`exchangeTs`, epoch seconds), the clock IBKR's 10-second history and the
+ * backend's tape bars use, so a history fill moves no candle this drew. The
+ * arrival time keys it when IBKR's second is missing. IBKR delivers prints in
+ * the order of that second, and a print for a candle older than the newest is
+ * dropped: a closed candle is never reopened.
  */
 export function upsertTapePrint10SecBar(
   symbol: string,
-  print: { time: string; price: number; size: number; setsPrice?: boolean },
+  print: { time: string; price: number; size: number; setsPrice?: boolean; exchangeTs?: number | null },
 ): boolean {
   const sym = symbol.trim().toUpperCase();
+  if (sym) tapeFedAt.set(sym, Date.now());  // any print proves the line: the tape owns the tip
   if (print.setsPrice === false) return false;
   if (getIbkrStatusSnapshot().mode === 'sim' || getBarsEntry(sym, '10Sec')?.coverage?.replay) {
     return false;
   }
-  const stamp = new Date(print.time).getTime();
+  const exchangeMs = typeof print.exchangeTs === 'number' && Number.isFinite(print.exchangeTs) && print.exchangeTs > 0
+    ? print.exchangeTs * 1000
+    : null;
+  const stamp = exchangeMs ?? new Date(print.time).getTime();
   const price = Number(print.price);
   const size = Math.max(0, Number(print.size) || 0);
   if (!sym || !Number.isFinite(stamp) || !Number.isFinite(price) || price <= 0) {

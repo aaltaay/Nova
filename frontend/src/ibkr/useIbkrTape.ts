@@ -8,9 +8,11 @@ import { documentVisible, LentLine } from './lentLine';
 import {
   appendTapePrint,
   emptyTapeState,
+  parseTapeSilence,
   tapeMessageAllowed,
   tapeSymbolKey,
   type TapePrint,
+  type TapeSilence,
   type TapeState,
 } from './tapeFeed';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
@@ -43,6 +45,9 @@ export interface TapeOptions {
  * it, and the hook never reconnects by its backoff (LentLine): it reconnects when the shared lines
  * poll finds the loan ended, or at once when this Time & Sales comes to the front -- the same
  * moment as the tab's Level 2.
+ *
+ * A live line with no print for a while (#722): each idle `ping` carries the backend's reading
+ * (`silence`: halted, silent or quiet), and any print clears it.
  */
 export function useIbkrTape(symbol: string | null, uiActive = true, options: TapeOptions = {}): TapeState {
   const traderTab = options.traderTab === true;
@@ -59,6 +64,8 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
   const retryAtRef = useRef<number | null>(null);
   // This symbol's line while it may be lent; set by the socket effect.
   const lineRef = useRef<LentLine | null>(null);
+  // The backend's word on a line with no print for a while (#722); null while it prints.
+  const silenceRef = useRef<TapeSilence | null>(null);
 
   useEffect(() => {
     uiActiveRef.current = uiActive;
@@ -74,6 +81,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
       error: errorRef.current,
       lent: lineRef.current?.lent ?? null,
       retryAt: retryAtRef.current,
+      silence: silenceRef.current,
     });
   };
 
@@ -94,6 +102,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
     errorRef.current = null;
     retryAtRef.current = null;
     lineRef.current = null;
+    silenceRef.current = null;
     raf.cancel();
     setState(emptyTapeState());
 
@@ -141,6 +150,18 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
           if (!tapeMessageAllowed(msg.symbol, symKey!)) return;
           if (msg.type === 'subscribed' || msg.type === 'print' || msg.type === 'error') line.answered();
 
+          if (msg.type !== 'ping') silenceRef.current = null;  // a print, or any word on the line, ends a silence
+
+          if (msg.type === 'ping') {
+            const next = parseTapeSilence(msg.silence);
+            const prev = silenceRef.current;
+            if (next?.state !== prev?.state || next?.since !== prev?.since || next?.text !== prev?.text) {
+              silenceRef.current = next;
+              if (uiActiveRef.current) commitUi();
+            }
+            return;
+          }
+
           if (msg.type === 'scrub_reset') {
             printsRef.current = [];
             connectedRef.current = true;
@@ -181,6 +202,8 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
               price: print.price,
               size: print.size,
               setsPrice: print.setsPrice,
+              // IBKR's own second: the 10-second candle's key, as in IBKR's history (#721).
+              exchangeTs: typeof msg.exchange_ts === 'number' ? msg.exchange_ts : null,
             });
             if (uiActiveRef.current) raf.schedule();
           } else if (msg.type === 'lent') {
@@ -206,6 +229,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
       ws.onclose = () => {
         if (!mountedRef.current || ws !== wsRef.current) return;
         connectedRef.current = false;
+        silenceRef.current = null;
         // Lent: never by the backoff -- when the loan ends (the poll), or now if this pane is in front.
         const lent = line.closed();
         if (uiActiveRef.current) commitUi();

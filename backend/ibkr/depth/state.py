@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_RELEASE_GRACE_SEC
@@ -44,6 +45,10 @@ _update_handlers: dict[str, Any] = {}
 # Nova's own book per depth line, kept from ``ticker.domTicks`` with IBKR's row
 # rules -- ib_async's ``domBids`` / ``domAsks`` fall out of price order (#540).
 _books: dict[str, DepthBook] = {}
+
+# When each live line last delivered a book (epoch seconds). A Time & Sales gone silent while
+# this keeps moving reads "the tape line may be down" (``ibkr/tape_silence.py``, #722).
+_book_at: dict[str, float] = {}
 
 # Counts live depth WebSocket viewers per symbol (DepthLadder can be open in
 # more than one place at once). Only the LAST viewer closing should release.
@@ -119,6 +124,16 @@ def subscribed_symbols() -> list[str]:
 def current_book(symbol: str) -> dict | None:
     """The line's last book; None for a line of an ended session (never an old book as current)."""
     return None if is_stale(symbol) else _subscriptions.get(symbol)
+
+
+def note_book(symbol: str, now: float | None = None) -> None:
+    """A live line delivered a book now (the IB loop's handlers; a dict write, no wait)."""
+    _book_at[symbol] = time.time() if now is None else float(now)
+
+
+def last_book_at(symbol: str) -> float | None:
+    """When the symbol's live line last delivered a book; None without a live line or before its first."""
+    return _book_at.get(symbol) if is_live(symbol) else None
 
 
 def is_subscribed(symbol: str) -> bool:

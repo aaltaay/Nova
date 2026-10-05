@@ -8,10 +8,15 @@
  * (NO DATA 9s) or did a moment ago (DATA GAP 16s), with the reason on hover (#672):
  * on 2026-10-01 this tape froze for 16 s under a LIVE badge while the Wi-Fi reconnected.
  *
+ * A live line that printed nothing for a while says so (#722): SILENT 45s (Level 2 kept updating,
+ * so the line may be down), HALTED, or QUIET 45s, with the backend's words on hover and, for the
+ * first two, above the rows. It no longer reads LIVE over a tape that stopped.
+ *
  * A Trader tab's Time & Sales (`traderTab`) may lend its line with the tab's Level 2 while the
  * tab is hidden (ADR 044 decision 6); it then reads LENT and says whose setup took it.
  */
 import { useFeedGapBadge } from './feedPulseStore';
+import { tapeSilenceBadge, useSecondsTick } from './tapeSilence';
 import { TimeSalesView } from './TimeSalesView';
 import { useIbkrTape } from './useIbkrTape';
 
@@ -36,8 +41,10 @@ export function TimeSalesPanel({
 }: Props) {
   const feed = useIbkrTape(symbol, uiActive, { traderTab });
   const gap = useFeedGapBadge();
-  // A caller's own badge (a capture replay) is not the live feed's.
+  const nowMs = useSecondsTick(feed.silence != null && uiActive);
+  // A caller's own badge (a capture replay) is not the live feed's. Every line silent (NO DATA) comes first.
   const live = connectedText === undefined && gap != null;
+  const silence = connectedText === undefined && !live ? tapeSilenceBadge(feed.silence, nowMs) : null;
   return (
     <TimeSalesView
       symbol={symbol}
@@ -45,6 +52,9 @@ export function TimeSalesPanel({
       embedded={embedded}
       uiActive={uiActive}
       {...(live ? { connectedText: gap.label, statusTitle: gap.title, statusTone: gap.tone } : {})}
+      {...(silence ? { connectedText: silence.label, statusTitle: silence.title, statusTone: silence.tone } : {})}
+      notice={silence?.notice ?? null}
+      noticeTitle={silence?.title ?? null}
       {...(connectedText !== undefined ? { connectedText } : {})}
       {...(statusTitle !== undefined ? { statusTitle } : {})}
       {...(emptyLabel !== undefined ? { emptyLabel } : {})}
