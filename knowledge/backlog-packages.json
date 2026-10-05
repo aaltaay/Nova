@@ -749,7 +749,8 @@
       "done": [
         "Two simultaneous API startups sharing one cache cannot both acquire the instance lock; process death releases it, including with malformed diagnostic metadata.",
         "Electron starts the checkout as soon as the stopped port is free without querying or waiting for the watchdog, and proves a new process answers.",
-        "Paper, Sim and IBKR rows with identical order ids reconcile independently; previous-process Sim scratch is abandoned explicitly, and disconnected IBKR does not block Paper."
+        "Paper, Sim and IBKR rows with identical order ids reconcile independently; previous-process Sim scratch is abandoned explicitly, and disconnected IBKR does not block Paper.",
+        "Persisted execution-door venue disambiguates Live on the legacy IBKR Paper Gateway; ambiguous legacy Paper labels stay unverified instead of being matched to either broker."
       ],
       "prs": [
         {
@@ -770,7 +771,9 @@
             "frontend/electron/engineRestart.mjs",
             "frontend/src/electron/engineRestart.test.ts",
             "architecture/decisions/038-installed-backend-ownership.md",
-            "architecture/decisions/007-centralized-trading-execution.md"
+            "architecture/decisions/007-centralized-trading-execution.md",
+            "backend/execution/service.py",
+            "backend/execution/record_payload.py"
           ]
         }
       ]

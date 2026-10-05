@@ -37,7 +37,7 @@ def _stale_row(
         source="manual",
         symbol=symbol,
         received_ns=1,
-        payload={"side": "SELL", "qty": 100},
+        payload={"side": "SELL", "qty": 100, "venue": mode},
     )
     store.update_stages(execution_id, status=status, order_id=order_id, mode=mode)
     conn = store.get_connection()
@@ -468,3 +468,47 @@ def test_paper_read_does_not_hide_disconnected_ibkr_history_resweep(monkeypatch)
     sweep.completed_orders_state.mark_loaded(_FakeIb([]))
     assert store.get_by_id(live)["status"] == "filled"
     assert store.get_by_id(paper)["status"] == "sent"
+
+
+@pytest.mark.parametrize("gateway_mode", ["paper", "live"])
+def test_paper_gateway_and_ambiguous_legacy_rows_cannot_match_practice_book(monkeypatch, gateway_mode):
+    from practice import broker
+
+    ibkr = _stale_row("legacy-gateway-explicit", order_id=4, mode="paper")
+    ambiguous = _stale_row("legacy-gateway-unknown", order_id=4, mode="paper")
+    practice = _stale_row("practice-new-explicit", order_id=4, mode="paper")
+    store.update_stages(ibkr, payload={"qty": 100, "venue": "live", "gateway_mode": "paper"})
+    store.update_stages(ambiguous, payload={"qty": 100, "gateway_mode": gateway_mode})
+    monkeypatch.setattr(broker, "for_venue", lambda venue: _PracticeBook(closed=[{"order_id": 4, "status": "Filled"}]))
+    _arm_connected(monkeypatch, working=[{"order_id": 4}], closed=[])
+    summary = sweep.run_startup_sweep()
+    assert summary["still_working"] == [ibkr]
+    assert summary["resolved"] == [practice]
+    assert summary["unverified"] == [ambiguous]
+    assert store.get_by_id(ibkr)["status"] == "sent"
+    assert store.get_by_id(ambiguous)["status"] == "sent"
+    assert store.get_by_id(practice)["status"] == "filled"
+
+
+@pytest.mark.parametrize("venue", ["live", "paper", "sim"])
+def test_execution_door_persists_actual_venue_when_gateway_label_is_paper(monkeypatch, venue):
+    import asyncio
+    from execution import service, validate
+    from execution.models import ExecutionCommand
+    from sim.mode import reset_for_tests, set_venue
+
+    set_venue(venue, persist=False)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    # Stop after reservation: provenance must already be durable before a broker send.
+    monkeypatch.setattr(validate, "validate_command", lambda cmd, **kwargs: (False, "test refusal", "TEST_REFUSED"))
+    try:
+        cmd = ExecutionCommand(operation="cancel", idempotency_key=f"venue-reserve-{venue}",
+                               source="manual", order_id=4, symbol="AAPL", skip_risk=True)
+        receipt = asyncio.run(service.execute(cmd, wait_ack=False))
+        row = store.get_by_id(receipt.execution_id)
+        assert receipt.reason_code == "TEST_REFUSED"
+        assert row["payload"]["venue"] == venue
+        if venue == "live":
+            assert row["mode"] == "paper"  # the ambiguous broker label survives independently
+    finally:
+        reset_for_tests()

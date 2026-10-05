@@ -45,6 +45,20 @@ _resweep_armed = False
 _resweep_running = False
 
 
+def _row_venue(row: dict) -> str | None:
+    """Persisted send venue; the legacy broker label `paper` alone is ambiguous."""
+    payload = row.get("payload") or {}
+    venue = payload.get("venue") or payload.get("target_venue")
+    if venue in ("live", "paper", "sim"):
+        return "ibkr" if venue == "live" else venue
+    mode = str(row.get("mode") or "live").strip().lower()
+    if mode == "sim":
+        return "sim"
+    if mode != "paper":
+        return "ibkr"
+    return None
+
+
 def _order_id(row: dict) -> int | None:
     raw = row.get("order_id")
     if raw in (None, 0):
@@ -171,9 +185,11 @@ def run_startup_sweep() -> dict:
 
     groups: dict[str, list[dict]] = {}
     for row in rows:
-        mode = str(row.get("mode") or "live").strip().lower()
-        # Unknown/disconnected legacy broker labels still use IBKR, never the desk book.
-        key = mode if mode in ("paper", "sim") else "ibkr"
+        key = _row_venue(row)
+        if key is None:
+            summary["unverified"].append(str(row["id"]))
+            logger.warning("execution sweep: ambiguous legacy Paper venue for %s; leaving untouched", row["id"])
+            continue
         groups.setdefault(key, []).append(row)
     summary["ibkr_scanned"] = len(groups.get("ibkr", []))
     for mode, venue_rows in groups.items():

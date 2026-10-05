@@ -4573,6 +4573,13 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 ---
 
+### Execution venue provenance (#713)
+
+Execution ledger payload JSON adds `venue: "live" | "paper" | "sim"`, stamped
+from the execution door's resolved venue at reservation. The broker `mode`
+label remains unchanged; `paper` can name the legacy IBKR Paper Gateway.
+Ambiguous legacy rows remain unverified rather than joining a practice book.
+
 ## 11. 🔧 Maintenance Log
 
 | Date | Change | Author |

@@ -23,12 +23,14 @@ def build_reserve_payload(
     requested_price: float | None,
     measurement: dict[str, Any],
     forced_one_share: bool,
+    venue: str | None = None,
     view_check: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Snapshot intent vs send, spend gates, and short_entry at reserve time."""
     qty = sent_qty if sent_qty is not None else _cmd_qty(cmd)
     return {
         "setup": cmd.setup,
+        "venue": venue,  # resolved execution door, independent of IBKR Gateway label
         "order_type": cmd.order_type,
         "side": (cmd.side or "").upper() or None,
         "qty": qty,

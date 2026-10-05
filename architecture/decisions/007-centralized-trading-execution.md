@@ -74,3 +74,11 @@ leave their rows untouched without blocking another venue's sweep. History-load
 retry readiness is tracked for IBKR separately: a successfully read Paper book
 cannot prevent rearming a disconnected IBKR sweep. Current-boot
 rows remain outside the sweep, and no reconciliation sends a broker mutation.
+
+Reconciliation uses a persisted payload `venue` (`live` | `paper` | `sim`),
+stamped from the execution door's resolved venue at reservation. `mode=paper`
+alone is ambiguous: Live can connect manually to the legacy IBKR Paper Gateway.
+Legacy `target_venue` supplies known venue evidence. `gateway_mode` is only
+configuration, not proof of the actual connected session or execution venue;
+a Paper-labelled row without sufficient evidence stays
+`unverified`, never matched against either book by guessing.

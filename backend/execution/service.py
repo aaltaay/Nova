@@ -186,6 +186,7 @@ async def execute(
             received_ns=received,
             payload=build_reserve_payload(
                 cmd,
+                venue=send_venue,
                 requested_qty=requested_qty,
                 sent_qty=sent_qty,
                 requested_price=requested_price,
