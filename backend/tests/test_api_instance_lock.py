@@ -157,7 +157,9 @@ def test_acquire_refuses_if_orphan_kill_fails(tmp_path: Path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def release_test_guard():
+def release_test_guard(tmp_path, monkeypatch):
+    monkeypatch.setattr(lock, "_guard_path", lambda: tmp_path / "shared-runtime" / "api-instance.guard")
+    monkeypatch.setattr(lock, "_port_listening", lambda *_: False)
     lock.reset_for_testing()
     yield
     lock.reset_for_testing()
@@ -166,6 +168,9 @@ def release_test_guard():
 _CHILD = """
 import json, sys, time
 import api_instance_lock as lock
+from pathlib import Path
+lock._guard_path = lambda: Path(sys.argv[1])
+lock._port_listening = lambda *_: False
 original_read = lock._read_lock
 def widened_read(path):
     value = original_read(path)
@@ -178,9 +183,9 @@ sys.stdin.readline()  # keep the winning handle alive until the parent ends the 
 """
 
 
-def _contender(cache, code=_CHILD):
+def _contender(cache, code=_CHILD, guard=None):
     return subprocess.Popen(
-        [sys.executable, "-c", code], cwd=Path(lock.__file__).parent,
+        [sys.executable, "-c", code, str(guard or cache / "shared-runtime" / "api-instance.guard")], cwd=Path(lock.__file__).parent,
         env={**os.environ, "NOVA_CACHE_DIR": str(cache)},
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True,
@@ -237,6 +242,8 @@ _GUARDED_CHILD = """
 import os, sys
 import api_instance_lock as lock
 import api_process_guard as guard
+from pathlib import Path
+lock._guard_path = lambda: Path(sys.argv[1])
 os.environ.pop("PYTEST_CURRENT_TEST", None)
 os.environ.pop("NOVA_SKIP_INSTANCE_LOCK", None)
 lock._port_listening = lambda *_: False  # never probe a real desk port
@@ -265,3 +272,60 @@ def test_dark_modern_holder_self_exits_and_releases_guard(tmp_path):
         _end_contender(child)
         if fresh is not None:
             _end_contender(fresh)
+
+
+def test_different_checkout_caches_contend_for_one_operator_guard(tmp_path):
+    shared = tmp_path / "operator-runtime" / "api-instance.guard"
+    caches = [tmp_path / "checkout-a-cache", tmp_path / "checkout-b-cache"]
+    children = [_contender(cache, guard=shared) for cache in caches]
+    try:
+        for child in children:
+            _start_contender(child)
+        results = [json.loads(child.stdout.readline()) for child in children]
+        assert sorted(result[0] for result in results) == [False, True]
+        winner_index = next(i for i, result in enumerate(results) if result[0])
+        assert (caches[winner_index] / lock.LOCK_NAME).exists()
+        assert not (caches[1 - winner_index] / lock.LOCK_NAME).exists()
+        # A packaged-style cache is a third origin, and corrupt JSON never grants ownership.
+        (caches[winner_index] / lock.LOCK_NAME).write_text("corrupt")
+        bundled = _contender(tmp_path / "app-user-data-cache", guard=shared)
+        children.append(bundled)
+        _start_contender(bundled)
+        assert json.loads(bundled.stdout.readline())[0] is False
+        _end_contender(children[winner_index])
+        replacement = _contender(caches[1 - winner_index], guard=shared)
+        children.append(replacement)
+        _start_contender(replacement)
+        assert json.loads(replacement.stdout.readline())[0] is True
+    finally:
+        for child in children:
+            _end_contender(child)
+
+
+@pytest.mark.parametrize("platform", ["win32", "linux"])
+def test_default_guard_identity_ignores_cache_bind_and_frozen_origin(tmp_path, monkeypatch, platform):
+    import api_lock_handle as handles
+
+    monkeypatch.setattr(handles.sys, "platform", platform)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "operator-home")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "operator-local-data"))
+    first = handles.guard_path()
+    monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path / "another-checkout"))
+    monkeypatch.setenv("NOVA_API_HOST", "0.0.0.0")
+    monkeypatch.setenv("NOVA_API_PORT", "8765")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert handles.guard_path() == first
+    expected = (tmp_path / "operator-local-data" / "Nova" / "runtime" if platform == "win32"
+                else tmp_path / "operator-home" / ".cache" / "nova" / "runtime")
+    assert first == expected / "api-instance.guard"
+
+
+def test_legacy_listener_without_local_metadata_refuses_and_releases_guard(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path / "new-checkout-cache"))
+    monkeypatch.setattr(lock, "_port_listening", lambda *_: True)
+    monkeypatch.setattr(lock, "_terminate_pid", lambda *_: pytest.fail("never kill an unidentified listener"))
+    ok, detail = lock.acquire()
+    assert not ok and "already occupied" in detail and "clientId 17" in detail
+    assert not lock.lock_path().exists()
+    monkeypatch.setattr(lock, "_port_listening", lambda *_: False)
+    assert lock.acquire()[0] is True

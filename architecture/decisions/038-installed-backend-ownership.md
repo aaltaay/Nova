@@ -101,7 +101,8 @@ a second engine on top of it. That was fixed before the push.
 ## Atomic startup and immediate checkout restart (2026-10-05, #653)
 
 Every API process takes a non-blocking OS-held lock on a separate, never-unlinked
-`api-instance.lock.guard` file before reading or replacing the diagnostic JSON
+`api-instance.guard` file in a shared per-user Nova runtime directory before
+reading or replacing each checkout's diagnostic JSON
 `api-instance.lock`. Windows locks byte zero with `msvcrt.locking`; POSIX uses
 `flock`. The open handle lives until process exit; stale or malformed JSON never
 allows a second process past a held guard. Same-process acquisition is idempotent.
@@ -115,3 +116,20 @@ Once an operator-requested checkout restart has verified the old port is free,
 Electron immediately starts that checkout's engine, including when the watchdog
 runs. No watchdog query or polling interval delays the launch. Concurrent starts
 compete for the OS lock; success still requires a different health identity.
+
+### Shared ownership across checkouts and the bundled engine (#653 follow-up)
+
+The exclusion primitive is one per operator, regardless of checkout, cache,
+API bind or packaged-engine location: `%LOCALAPPDATA%/Nova/runtime/` on Windows
+(home AppData/Local when that variable is absent), `~/.cache/nova/runtime/`
+on POSIX. It must not derive from `NOVA_CACHE_DIR`: a watchdog and an attached
+engine can have different roots while both use clientId 17. All origins use the
+same OS-held `api-instance.guard`; diagnostic JSON remains cache-local for
+existing tools. Production offers no separate guard configuration bypass.
+Tests patch the guard path explicitly so independent test sessions stay isolated.
+
+For migration from an older cache-scoped holder, claim also refuses an already
+occupied API bind under the shared guard even if this cache has no diagnostic
+record. It never kills an unidentified listener. A still-unbound old process
+cannot participate in the new exclusion protocol; both startup origins need
+the shared-guard version before simultaneous starts are protected.

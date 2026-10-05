@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from api_lock_handle import try_lock
+from api_lock_handle import guard_path as _guard_path, try_lock
 from api_process_guard import (
     DEFAULT_API_HOST,
     DEFAULT_API_PORT,
@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 LOCK_NAME = "api-instance.lock"
-GUARD_NAME = LOCK_NAME + ".guard"
 _acquire_mutex = threading.RLock()
 _held_guard: tuple[int, Path, BinaryIO] | None = None
 LISTEN_PROBE_TIMEOUT_SEC = 0.4
@@ -213,6 +212,13 @@ def _claim_metadata() -> tuple[bool, str]:
     path.parent.mkdir(parents=True, exist_ok=True)
     existing = _read_lock(path)
     my_pid = os.getpid()
+    host, port = _api_bind()
+    if _port_listening(host, port):
+        recorded_pid = (existing or {}).get("pid", "unknown")
+        return False, (
+            f"API bind {host}:{port} is already occupied (recorded pid={recorded_pid}); "
+            "stop its holder before starting a second clientId 17"
+        )
     if existing is not None:
         try:
             holder = int(existing.get("pid") or 0)
@@ -279,15 +285,17 @@ def acquire() -> tuple[bool, str]:
     global _held_guard
     with _acquire_mutex:
         path = lock_path()
+        guard = _guard_path()
         if _held_guard is not None:
             pid, held_path, handle = _held_guard
-            if pid == os.getpid() and held_path == path:
+            if pid == os.getpid() and held_path == guard:
                 return True, "ok"
-            handle.close()  # a fork or test moved to another cache; never reuse ownership
+            handle.close()  # a fork or test changed the runtime guard; never reuse ownership
             _held_guard = None
         path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            handle = try_lock(path.parent / GUARD_NAME)
+            guard.parent.mkdir(parents=True, exist_ok=True)
+            handle = try_lock(guard)
             if handle is None:
                 return False, "another Nova API holds the OS instance lock; do not start a second clientId 17"
             try:
@@ -296,7 +304,7 @@ def acquire() -> tuple[bool, str]:
                 handle.close()
                 raise
             if ok:
-                _held_guard = (os.getpid(), path, handle)
+                _held_guard = (os.getpid(), guard, handle)
             else:
                 handle.close()
             return ok, detail

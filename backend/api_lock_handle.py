@@ -7,10 +7,21 @@ from __future__ import annotations
 
 import errno
 import os
+import sys
 from pathlib import Path
 from typing import BinaryIO
 
 LOCK_BYTES = 1
+
+
+def guard_path() -> Path:
+    """One operator's API guard, shared by all checkouts and packaged engines."""
+    if sys.platform == "win32":
+        root = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        runtime = root / "Nova" / "runtime"
+    else:
+        runtime = Path.home() / ".cache" / "nova" / "runtime"
+    return runtime / "api-instance.guard"
 
 
 def try_lock(path: Path) -> BinaryIO | None:
