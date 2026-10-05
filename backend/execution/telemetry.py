@@ -102,6 +102,33 @@ def ensure_handlers(ib) -> None:
         logger.exception("execution.telemetry: failed to wire IB handlers")
 
 
+async def wire_for_send(ib) -> str | None:
+    """Wire IBKR's order events before a send, awaiting the IB loop (#725): the refusal, or None.
+
+    READY wires them on the IB loop (``ibkr.session_usable``), so on the desk this returns at once.
+    ``ensure_handlers`` from the order path hopped with ``call_on_ib``, which blocked the socket
+    loop -- every socket with it -- for as long as the IB loop was busy, up to 5 s.
+    """
+    if ib is None or ib in _wired_instances:
+        return None
+    from constants_ibkr import IBKR_ORDER_EVENTS_UNWIRED_MSG, IBKR_ORDER_EVENTS_WIRE_TIMEOUT_SEC
+    from ibkr.loop_supervisor import is_ib_loop, is_ib_thread, is_started, on_ib
+
+    if not is_started() or is_ib_loop() or is_ib_thread():
+        ensure_handlers(ib)
+        return None
+
+    async def _wire() -> None:
+        ensure_handlers(ib)
+
+    try:
+        await on_ib(_wire(), IBKR_ORDER_EVENTS_WIRE_TIMEOUT_SEC, label="ensure_handlers")
+    except TimeoutError:
+        logger.warning("execution.telemetry: IBKR's thread did not wire the order events in time")
+        return IBKR_ORDER_EVENTS_UNWIRED_MSG.format(sec=IBKR_ORDER_EVENTS_WIRE_TIMEOUT_SEC)
+    return None
+
+
 def note_reconciliation_fill(fill: Any, *, complete: bool = True) -> bool:
     from execution.telemetry_handlers import note_reconciliation_fill as _note
 

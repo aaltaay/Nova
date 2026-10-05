@@ -38,4 +38,28 @@ At 08:30:25 ET the operator sold 100 APUS at what their Level 2 showed as the bi
 - An order priced from a view that lags is refused with the reason, and the desk locks before the click while it can see the lag. The incident cannot recur silently: at worst the order is refused and says why.
 - A busy name sends fewer Level 2 frames (changes only), and the desk always draws the newest book.
 - Thresholds are constants, set from this incident; every order records its measures, so they can be tightened with evidence.
-- Deferred, each to be judged by what the stamps measure after this change: a separate real-time server for the market sockets and orders (it moves every socket handler across event loops; #726); Live's order send waiting on IBKR while holding the socket loop (`call_on_ib`; #725); moving HOD Momo's per-tick evaluation off the IB thread (36 ms/s that morning) and GC threshold tuning (per-generation pauses are recorded first), both with #619.
+- Deferred, each to be judged by what the stamps measure after this change: a separate real-time server for the market sockets and orders (it moves every socket handler across event loops; #726); Live's order send waiting on IBKR while holding the socket loop (`call_on_ib`; #725, done in the amendment below); moving HOD Momo's per-tick evaluation off the IB thread (36 ms/s that morning) and GC threshold tuning (per-generation pauses are recorded first), both with #619.
+
+## Amendment 2026-10-05 -- the Live send awaits the IB loop, and goes out once or never (#725)
+
+**Decided by:** the operator, choosing this as the next step ("1 go").
+
+The Live place, replace and bracket still held the socket loop. `ibkr.orders` reached the IB loop with `call_on_ib`, which blocks its calling thread -- the socket loop -- until the IB loop has run the send, up to 15 s. Measured: while the IB loop was busy for 300 ms, the socket loop made no turn at all. Three more faults sat on the same path:
+
+- **A timeout left the order's fate unknown.** `run_coro` cancels the hop's future on its timeout. A send the IB loop had already started still reached IBKR, while the door logged "cancel too late" and recorded a failure: an order working at IBKR that Nova called failed.
+- **The 750 ms send deadline (decision 1) was checked before the hop.** An IB loop that took the send seconds later still sent it, so a slow IB loop could still place a stale order.
+- **The reply missed its ack.** The watch an order's status reaches was registered on the socket loop after the hop returned; a status for an order nobody watches is dropped. Its ack flag was an `asyncio.Event` set from the IB thread, which is not thread-safe and does not wake the waiting loop. On a quiet socket loop an ack that came at 50 ms was seen when the 5 s wait ran out.
+
+Decision:
+
+1. **The send is awaited** (`ibkr/send_hop.py`). The whole `ibkr.orders` call runs on the IB loop while the socket loop keeps serving every socket. One lock, which both loops take, settles whether it went out:
+   - the IB loop starts a send only while its caller still waits, and marks it running;
+   - a caller that gives up marks a send that has not started abandoned, and the IB loop never starts it (`IB_LOOP_WEDGED`: "it was not sent and never will be");
+   - a send already running reached IBKR, so it is awaited to its end, never reported unsent.
+2. **The deadline is enforced where the order leaves.** A desk order's deadline (`market_view.gate.send_deadline`: the click plus `ORDER_MAX_SEND_MS`) travels with the send. The IB loop refuses to start it later (`ORDER_LATE`), and the caller stops waiting at the deadline, so the operator's reply comes within it.
+3. **The watch is registered in the same IB-loop callback that placed the order** (`execution/live_send.py`), and the order id joins its in-flight commitment there. No status can arrive before either; a fill heard before the commitment knew its order id freed nothing, and a send that skips the ack wait (the bot, Flatten, KILL) kept the shares "already sent".
+4. **An order's ack and fill wake their waiter safely from any thread** (`OrderWatch`'s `_Flag`), at once.
+5. **IBKR's order events are wired when the session becomes READY, on the IB loop** (`ibkr/session_usable.py`). The first order after a connect no longer hops to wire them. The order path's own wiring awaits too, and refuses the order (`IB_LOOP_WEDGED`) when the IB loop cannot answer in 5 s.
+
+A send the IB loop started and did not finish within 30 s is `SEND_UNKNOWN`: Nova says it cannot tell, rather than guess. The cancels already awaited the IB loop (`on_ib`) and are unchanged.
+

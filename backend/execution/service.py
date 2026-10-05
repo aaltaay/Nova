@@ -307,8 +307,8 @@ async def execute(
                 IBKR_LOOP_WEDGED_ORDER_MSG, "IB_LOOP_WEDGED",
             )
 
-        ib = _client.get_ib()
-        telemetry.ensure_handlers(ib)
+        if (unwired := await telemetry.wire_for_send(_client.get_ib())) is not None:  # #725: awaited, never blocking
+            return _reject(execution_id, cmd, timings, unwired, "IB_LOOP_WEDGED")
 
         if (late := _view_gate.late_at_send(cmd)) is not None:  # ADR 045: the clock again, just before the send
             return _reject(execution_id, cmd, timings, late.text or "", late.code or "ORDER_LATE")

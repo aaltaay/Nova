@@ -247,17 +247,28 @@ def check(cmd: Any, *, now: float | None = None) -> Check:
     return Check("ok", measures=measures)
 
 
-def late_at_send(cmd: Any, *, now: float | None = None) -> Check | None:
-    """Just before the broker send: refused ``ORDER_LATE`` when the action is too long ago, else None."""
+def send_deadline(cmd: Any) -> float | None:
+    """The last moment (epoch seconds) a desk order may reach the broker: ``ORDER_MAX_SEND_MS`` after the
+    action. None for a command the gate does not judge. The IB loop refuses a Live send past it (#725)."""
     if not applies(cmd) or not isinstance(getattr(cmd, "view", None), dict):
         return None
     act = action_ms(cmd)
-    if act is None:
-        return None
-    elapsed = (time.time() if now is None else now) * 1000.0 - act
-    if elapsed <= ORDER_MAX_SEND_MS:
-        return None
+    return None if act is None else (act + ORDER_MAX_SEND_MS) / 1000.0
+
+
+def late_refusal(cmd: Any, *, now: float | None = None) -> Check:
+    """``ORDER_LATE`` for a send that would leave too long after the action, in the operator's words."""
+    elapsed = (time.time() if now is None else now) * 1000.0 - (action_ms(cmd) or 0.0)
     return Check("refused", ORDER_LATE, (
         f"Your order would have reached the broker {_secs(elapsed)} after your click (Nova was busy). Prices move "
         f"in that time, so it was not sent: place it again. {VIEW_GATE_EXEMPT_TEXT}"
     ), {"send_ms": round(elapsed, 1)})
+
+
+def late_at_send(cmd: Any, *, now: float | None = None) -> Check | None:
+    """Just before the broker send: refused ``ORDER_LATE`` when the action is too long ago, else None."""
+    deadline = send_deadline(cmd)
+    t = time.time() if now is None else now
+    if deadline is None or t <= deadline:
+        return None
+    return late_refusal(cmd, now=t)

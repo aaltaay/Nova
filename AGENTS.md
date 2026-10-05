@@ -3939,7 +3939,8 @@ the order reached the backend 2-3 s after the click and rested above the market.
     (500) at `action_wall_ms` (`lag = action - at(seq + 1)`), a `seq` older than the kept history, a `seq` past
     the newest, or an `instance` that is not this process;
   - `ORDER_LATE`: the door saw it more than `ORDER_MAX_ARRIVAL_MS` (500) after `action_wall_ms`, or the broker
-    send would leave more than `ORDER_MAX_SEND_MS` (750) after it (checked again just before the send);
+    send would leave more than `ORDER_MAX_SEND_MS` (750) after it -- checked again just before the send, and
+    on Live by the IB loop as it sends (`gate.send_deadline`, below);
   - `FEED_STALE`: an IBKR feed gap is open or settling (`ibkr/feed_pulse`), or the IB loop is stalled now for
     more than `ORDER_MAX_IB_STALL_MS` (500) (`perf/stall_watch.stalled_ms`) -- never on a Sim desk off the live
     edge, whose market is the replay;
@@ -3956,6 +3957,23 @@ the order reached the backend 2-3 s after the click and rested above the market.
   from `sent` to arrival, or a received book has not been drawn for `VIEW_UNDRAWN_LOCK_MS` (500). Then Place,
   the quick bar's and the hotkeys' priced actions and Fill now are locked with the reason (`data-why`); Flatten
   and cancels never are. No age readout: locked or live.
+- **The Live send awaits the IB loop, and goes out once or never** (#725; owners `ibkr/send_hop.py`,
+  `execution/live_send.py`). A Live place, replace or bracket runs its whole `ibkr.orders` call on the IB loop
+  while the socket loop keeps serving every socket (`call_on_ib` blocked it for as long as the IB loop was busy,
+  up to 15 s). One lock both loops take decides whether it went out:
+  - the IB loop starts a send only while its caller still waits;
+  - a caller that gives up marks a send not yet started abandoned, and it is never sent: refused
+    `IB_LOOP_WEDGED` after `IBKR_SEND_HOP_TIMEOUT_SEC` (15), or `ORDER_LATE` past the desk order's deadline,
+    which the IB loop enforces as it sends and at which the caller stops waiting;
+  - a send already running reached IBKR and is awaited to its end. One that has not finished within
+    `IBKR_SEND_RUNNING_GRACE_SEC` (30) is `SEND_UNKNOWN`: Nova says it cannot tell.
+
+  The order's watch is registered in the IB-loop callback that placed it, and the order id joins its in-flight
+  commitment there, so no status can arrive unheard and a fill heard first still frees the shares.
+  `OrderWatch`'s ack and fill wake their waiter from any thread at once (an `asyncio.Event` set from the IB
+  thread is not thread-safe and woke nothing). IBKR's order events are wired at READY on the IB loop
+  (`ibkr/session_usable.py`); the order path's own wiring awaits too and refuses `IB_LOOP_WEDGED` past
+  `IBKR_ORDER_EVENTS_WIRE_TIMEOUT_SEC` (5).
 - **Nothing slow on the socket loop.** `ibkr/gateway_process.py` reads Windows' process list and listening
   ports in-process (no `tasklist`; the Gateway is the `java.exe` IBC launches, or an `ibgateway*` / `tws*`
   image); `paths.cache_dir()` / `log_dir()` create their folder once; the Closed blotter's place overlay is
@@ -4530,6 +4548,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-05 | The Live send awaits the IB loop, and goes out once or never (#725, ADR 045 amendment; operator: "1 go" on the follow-up). A Live place, replace or bracket reached the IB loop with `call_on_ib`, which held the socket loop -- every Level 2, Time & Sales and quote socket -- for as long as the IB loop was busy (0 turns in a 300 ms busy spell, measured). It now awaits the IB loop (`ibkr/send_hop.py`), and one lock both loops take settles whether the order went out: a send the IB loop has not started when its caller gives up is never sent, and one already running is awaited, never reported unsent (`run_coro`'s timeout cancelled a hop that could still reach IBKR). The 750 ms deadline is enforced by the IB loop as it sends (it was checked before the hop). The order's watch and its in-flight commitment's order id are set in the callback that placed it, its ack wakes the reply safely from the IB thread (on a quiet loop an ack at 50 ms was seen when the wait ran out), and IBKR's order events are wired at READY instead of on the first order. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | Orders refuse a stale view (ADR 045; operator report on APUS: "If it lags, then we cannot place an order ... Everything needs to happen in real time"). At 08:30:25 ET the operator sold at a 6.58 bid their Level 2 had shown since 08:30:18-21, while Nova's own book read 6.50 x 6.55; the order reached the backend 2-3 s after the click and rested above the market. Each Level 2 viewer replayed up to 100 old books in order from a queue the IB thread filled without waking the socket loop, the socket loop ran `tasklist` and re-read files on every status poll, and the backend and IB Gateway ran BelowNormal. Every book and quote now has a version; a Level 2 viewer holds the newest book only, woken thread-safely, with a beat every 250 ms; Time & Sales sends a backlog in one frame. Every desk order carries the view its screen showed, and the execution door refuses one whose book or quote had been replaced for more than 500 ms when the operator acted, that arrived more than 500 ms later, or that met a feed gap or a stalled IB loop (`VIEW_STALE`, `ORDER_LATE`, `FEED_STALE`, `VIEW_MISSING`); the desk locks Place, the hotkeys and Fill now first, with the reason, and never Flatten or a cancel. The socket loop's slow reads are gone, the backend keeps itself and the Gateway Above Normal (the desk app its own windows), and a freeze dumps every thread's stack. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | A silent tape says so, and 10-second candles keep one clock (#722, #721; operator reports: "time and sale is fully frozen", "two candles drawing together ... the previous candle should never move"). At 09:35:42 ET two AllLast lines stopped while their books kept updating, with no IBKR error, and Time & Sales read LIVE for six minutes; each idle `ping` now carries a silence reading (`ibkr/tape_silence.py`) and the pane reads SILENT / HALTED / QUIET with the reason. The recorder no longer calls a halted name's line dead (MI was dropped and re-asked through two halts). 10-second candles from prints are keyed by IBKR's own second, which IBKR delivers in order (1.2M October prints, none out of order) and its history uses; arrival time had built most candles differently. The pane's forming candle has one writer, the tape: a Level 1 trade stamped on Nova's clock opened the next candle at the boundary while prints still filled the last. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | The desk draws with the graphics card (#707; operator: "when I move the chart left and right with my mouse and hold, even when I have the eyes off, the setup off, and the levels off, it really feels laggy"). Software drawing had been the Windows default since the 2026-09-17 black-window fix, which changed three things at once; measured alone in Electron 41 on the demo desk at 4K/150%, a chart drag ran at about 22 fps in software and with 5 ms frames on the graphics card. The graphics card is the default now, kept in `graphics.json` and switched in View > Draw with the graphics card, with a safety net: a crash of the graphics process turns it off from the next start and says so; a blank window -- the screen under the focused desk window, read from the screen recording's own capture, one flat colour three looks in a row while the page draws content -- restarts Nova in software. The menu has one owner (`appMenu.mjs`) so the View switch and the updater's Help rows never drop each other. §3 amended. | User Directive + Claude Opus 5.5 |
