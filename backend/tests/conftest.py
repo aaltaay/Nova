@@ -197,6 +197,11 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     # Position commitments are process-global; a working order left behind by
     # one module would refuse the next module's SELL (ADR 007 / D-011).
     _inflight.reset_for_tests()
+    # Each thread keeps its execution-ledger connection; a test moves or deletes the
+    # file, which Windows refuses while it is open, so every test starts with none.
+    from execution import ledger_conn as _ledger_conn
+
+    _ledger_conn.close_all()
     _chart_drawings.reset_for_testing()
     _large_cap_admin.reset_for_testing()
     _large_cap_alerts.reset_for_testing()
@@ -262,6 +267,7 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     import hod_momo_writer as _hod_writer
 
     _hod_writer.drain()
+    _ledger_conn.close_all()  # let pytest remove this test's ledger file
 
 
 def reset_hod_engine_state() -> None:

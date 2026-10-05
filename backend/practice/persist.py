@@ -87,8 +87,10 @@ def save(ledger: Ledger, path: str) -> None:
     os.makedirs(directory, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=directory, prefix=".practice-", suffix=".tmp")
     try:
+        # json.dumps: the C encoder, one write -- json.dump streams ~74k small writes from
+        # the Python encoder (7 ms of a Paper order's reply, 2026-10-05). The text is the same.
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(to_dict(ledger), f)
+            f.write(json.dumps(to_dict(ledger)))
         os.replace(tmp, path)
     except Exception:
         try:

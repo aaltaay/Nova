@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from execution import evidence_store, ledger_generation, store, store_facts
+from execution import evidence_store, ledger_conn, ledger_generation, store, store_facts
 from execution.store_schema import SCHEMA
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -346,6 +346,11 @@ def test_a_ledger_replaced_at_the_same_path_is_read_again():
         conn.commit()
     finally:
         conn.close()
+    # Windows refuses to replace a file SQLite holds open: a restore happens with no
+    # ledger connection open (Nova stopped). On Linux it succeeds under a kept one,
+    # which notices the new file by its identity (execution.ledger_conn).
+    if os.name == "nt":
+        ledger_conn.close_all()
     for suffix in ("-wal", "-shm"):
         Path(f"{path}{suffix}").unlink(missing_ok=True)
     os.replace(restored, path)
