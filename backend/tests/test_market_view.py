@@ -98,7 +98,7 @@ def test_a_book_put_from_another_thread_wakes_the_socket_at_once():
         item = await asyncio.wait_for(q.get(), timeout=5.0)
         return item, time.perf_counter() - start
 
-    item, waited = asyncio.run(run())
+    item, waited = asyncio.run(run(), debug=True)   # debug mode raises on a non-thread-safe wake-up (#625)
     assert waited < 1.0
     assert item.seq >= 1
     # Whatever got there first, the queue never holds more than the newest book.
@@ -135,7 +135,7 @@ def test_every_print_from_another_thread_arrives_in_order_and_at_once():
         await gen.aclose()
         return got
 
-    assert asyncio.run(run()) == list(range(1000))
+    assert asyncio.run(run(), debug=True) == list(range(1000))
 
 
 def test_a_print_queue_drops_its_oldest_past_its_size():
