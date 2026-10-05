@@ -49,7 +49,7 @@ const MAIN = { id: 22, label: 'main', bounds: { x: 0, y: 0, width: 1920, height:
 
 const worlds: { recorder: { stop: (reason?: string) => void } }[] = [];
 
-function makeWorld(tmp: string, opts: { env?: Record<string, string> } = {}) {
+function makeWorld(tmp: string, opts: { env?: Record<string, string>; onSample?: (ev: Row) => void } = {}) {
   const pages: FakePage[] = [];
   const ipcMain = emitter();
   let displays = [LEFT, MAIN];
@@ -97,6 +97,7 @@ function makeWorld(tmp: string, opts: { env?: Record<string, string> } = {}) {
     userData: path.join(tmp, 'userdata'),
     env: opts.env ?? { NOVA_SCREEN_RECORD_DIR: path.join(tmp, 'rec') },
     onView: (v: Row) => views.push(v),
+    onSample: opts.onSample,
     logger: { info: () => {}, warn: () => {} },
     segmentMs: 60_000,
   });
@@ -306,6 +307,25 @@ describe('startScreenRecorder', () => {
     const endsOf = () => manifest(path.join(tmp, 'rec')).filter((r) => r.event === 'end');
     await until(() => endsOf().length === 2);
     expect(endsOf().map((r) => r.reason)).toEqual(['recorder_gone', 'recorder_gone']);
+  });
+
+  it('reads a part of a recording monitor for the graphics safety net, and answers through onSample', async () => {
+    const answers: Row[] = [];
+    const w = makeWorld(tmp, { onSample: (ev) => answers.push(ev) });
+    const rect = { x: 0.1, y: 0.2, w: 0.5, h: 0.5 };
+    expect(w.recorder.sample(11, rect, 1, { width: 96, height: 54 })).toBe(false); // nothing records yet
+    w.ready();
+    await settle();
+    for (const s of w.starts()) w.event({ kind: 'started', id: s.id, mime: MIME });
+    expect(w.recorder.sample(11, rect, 2, { width: 96, height: 54 })).toBe(true);
+    expect(w.recorder.sample(99, rect, 3, { width: 96, height: 54 })).toBe(false); // no such monitor
+    expect(w.page().commands.filter((c) => c.cmd === 'sample')).toEqual([
+      { cmd: 'sample', reqId: 2, sourceId: 'screen:11:0', rect, width: 96, height: 54 },
+    ]);
+    const other = { webContents: {} };
+    w.ipcMain.emit(SCREEN_REC_EVENT_CHANNEL, { sender: other.webContents }, { kind: 'sampled', reqId: 9 });
+    w.event({ kind: 'sampled', reqId: 2, width: 96, height: 54, data: new Uint8Array(4) });
+    expect(answers).toEqual([{ kind: 'sampled', reqId: 2, width: 96, height: 54, data: new Uint8Array(4) }]);
   });
 
   it('ignores chunks and events from any window but its own recorder', async () => {

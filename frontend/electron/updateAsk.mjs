@@ -5,7 +5,8 @@
  * to when the window cannot show the notice, and the taskbar flash that points
  * at them. What to say is updateCopy.mjs; when to say it is updatePolicy.mjs.
  */
-import { dialog, Menu } from 'electron';
+import { dialog } from 'electron';
+import { setHelpMenu } from './appMenu.mjs';
 import { LOADING_NOTES } from './releaseNotesSource.mjs';
 import { errorText, noticeFor } from './updatePolicy.mjs';
 
@@ -84,27 +85,15 @@ export function createUpdateAsk({ bridge, notesSource, getWindow, getState, inst
   }
 
   /**
-   * The application menu with `rows` (updateCopy.updateMenuItems) under Help;
+   * Help's rows (updateCopy.updateMenuItems) in the application menu (appMenu.mjs);
    * `clicks` maps a row's action to what it does. Rebuilt only when a row changes.
    */
   function setMenu(rows, clicks) {
     const key = JSON.stringify(rows);
     if (key === lastMenuKey) return;
     lastMenuKey = key;
-    const submenu = rows.map((row) => ({ label: row.label, enabled: Boolean(row.action), click: clicks[row.action] }));
-    // Same roles as Electron's default Windows menu; only Help gains the update rows.
-    const template = [
-      { role: 'fileMenu' },
-      { role: 'editMenu' },
-      { role: 'viewMenu' },
-      { role: 'windowMenu' },
-      { role: 'help', submenu },
-    ];
-    try {
-      Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-    } catch (err) {
-      logger.error(`menu update failed: ${errorText(err)}`);
-    }
+    const failed = setHelpMenu(rows.map((row) => ({ label: row.label, enabled: Boolean(row.action), click: clicks[row.action] })));
+    if (failed) logger.error(`menu update failed: ${failed}`);
   }
 
   return { publish, notesFor, box, ask, attention, setMenu };

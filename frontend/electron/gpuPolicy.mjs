@@ -1,30 +1,21 @@
 /**
- * Windows Electron can paint a black webContents while JS still runs
- * (native title updates -- `AEMD · Trader · Nova · v477`). Two traps:
+ * Windows Electron could paint a black webContents while JS still ran
+ * (native title updates -- `AEMD · Trader · Nova · v477`, 2026-09-17).
+ * Chromium's `CalculateNativeWinOcclusion` stops presenting frames, so it is
+ * off on Windows whatever else is chosen.
  *
- * 1. Chromium `CalculateNativeWinOcclusion` stops presenting frames.
- * 2. GPU compositor + lightweight-charts canvases go black on win32.
- *
- * Software raster is the default on Windows. `NOVA_ELECTRON_GPU=1` keeps
- * GPU (occlusion switches still apply). `NOVA_ELECTRON_GPU=0` forces
- * software on any platform.
+ * Whether the desk draws with the graphics card is graphicsChoice.mjs's: the
+ * graphics card by default (2026-10-05), software when the operator, a crash
+ * of the graphics process or a blank window (graphicsWatch.mjs) turned it off,
+ * and `NOVA_ELECTRON_GPU=1` / `0` over both.
  *
  * Must run before `app.whenReady()`. Do not set `backgroundThrottling:
  * false` for the life of the window -- that can evict frames after idle
  * (Electron #42378).
  */
+import { decideGraphics, readChoice } from './graphicsChoice.mjs';
 
 export const WIN32_DISABLE_FEATURES = 'CalculateNativeWinOcclusion';
-
-export function shouldDisableHardwareAcceleration(
-  env = process.env,
-  platform = process.platform,
-) {
-  const raw = String(env.NOVA_ELECTRON_GPU ?? '').trim().toLowerCase();
-  if (raw === '1' || raw === 'true' || raw === 'yes') return false;
-  if (raw === '0' || raw === 'false' || raw === 'no') return true;
-  return platform === 'win32';
-}
 
 export function mergeDisableFeatures(existing, extra) {
   const parts = new Set(
@@ -60,9 +51,14 @@ export function applySoftwareRasterSwitches(app) {
   app.commandLine?.appendSwitch?.('disable-direct-composition');
 }
 
-export function applyGpuPolicy(app, env = process.env, platform = process.platform) {
+/**
+ * Apply how this start draws; returns graphicsChoice.decideGraphics's decision. `dir` is the
+ * app's userData, where the operator's choice is kept (none: the graphics card unless the env says).
+ */
+export function applyGpuPolicy(app, env = process.env, platform = process.platform, dir = null) {
   applyWin32PaintSwitches(app, platform);
-  if (!shouldDisableHardwareAcceleration(env, platform)) return false;
-  applySoftwareRasterSwitches(app);
-  return true;
+  const decision = decideGraphics({ env, read: dir ? readChoice(dir) : { choice: null, error: null } });
+  if (decision.error) console.warn(`[nova] graphics: ${decision.error}${decision.gpu ? '' : '; drawing in software'}`);
+  if (!decision.gpu) applySoftwareRasterSwitches(app);
+  return decision;
 }

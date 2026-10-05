@@ -1,5 +1,6 @@
 /**
- * The Windows desk composites in software (electron/gpuPolicy.mjs), where a
+ * The Windows desk can composite in software (electron/gpuPolicy.mjs: the
+ * operator's choice, or the graphics safety net's fallback), where a
  * backdrop-filter is recomputed on the CPU every time anything under it
  * repaints -- the Trading prerequisites panel scrolled at a few frames a second
  * over the live desk (2026-09-23). A scrim is a plain translucent background.
@@ -28,5 +29,6 @@ describe('no backdrop-filter on the desk', () => {
       /backdrop-filter\s*:|backdropFilter\s*:|\bbackdrop-blur/.test(stripComments(readFileSync(path, 'utf8'))),
     );
     expect(offenders.map((path) => relative(SRC, path))).toEqual([]);
-  });
+    // Explicit timeout: it reads every source file, which passed 5 s in a busy parallel run (2026-10-05).
+  }, 30_000);
 });

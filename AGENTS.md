@@ -2585,6 +2585,34 @@ worse). The header chip (`frontend/src/screen_record/`) is a monitor icon with a
 red dot while every monitor records and a red "Screen not recording" the moment
 one does not.
 
+### The desk draws with the graphics card (operator decision 2026-10-05, #707)
+
+"Especially when I move the chart left and right with my mouse and hold ... it really feels laggy." The desktop
+app drew in software on Windows from the 2026-09-17 black-window fix, which changed three things at once and
+never tested the graphics card alone. Dragging the 1-minute chart in Electron 41 on the demo desk (4K at 150%):
+about 22 fps in software (frames 40-55 ms at the median, 38-56 ms of main-thread work), and frames of 5 ms at the
+median with about 5 ms of work with the graphics card. It draws with the graphics card by default now, with a
+safety net (owner `frontend/electron/graphics*.mjs`, wired by `gpuPolicy.mjs` and `graphics.mjs`):
+
+- **The choice** is `graphics.json` in the app's userData: `{schema_version: 1, gpu: "on" | "off", reason:
+  "operator" | "gpu_crashed" | "blank_window", at: number | null, detail: string | null, told: boolean}` (`at`
+  epoch seconds; `told` once the operator was told why it is off). No file: the graphics card. A file of
+  another version, or one Nova cannot read: software, said in the log. `NOVA_ELECTRON_GPU` (1 / 0) wins over
+  the file. Occlusion tracking stays off on Windows either way.
+- **View > Draw with the graphics card** (native menu, so it works over a blank page) shows the mode and
+  switches it after a confirm, which restarts Nova; a note under it says why the safety net turned it off.
+- **The graphics process ends abnormally** (`child-process-gone`, type `GPU`, not a clean exit or a kill):
+  Chromium starts it again and Nova keeps running; the next start draws in software, and the operator is
+  told at once.
+- **The window goes blank**: every 5 s, while a desk window is focused, loaded 20 s, not minimised and the
+  operator gave input within 15 s, the screen under it is read from the trading screen recording's own
+  capture of that monitor (a `sample` command to the recorder page: a 96x54 picture, 75-290 ms; asking
+  Windows for a screen picture took 0.9-1.6 s a call). A picture is blank when 97% of it sits within 6 levels
+  of its median colour (healthy Trader pages measured 8-18%, a Scanner page 55%, whole monitors 53-81%). Only
+  then is the page itself read (`capturePage`); a page as flat as that (over 90%, loading) decides nothing.
+  The first blank look asks the window to draw again; three in a row store `blank_window` and restart Nova
+  in software, which tells the operator once after it starts. Any look that decides nothing starts over.
+
 ### Share clips (ADR 039, operator ask 2026-09-29)
 
 "I want to be able to record videos. Can I have maybe a small red button ... to share with the world?"
@@ -4384,6 +4412,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-05 | The desk draws with the graphics card (#707; operator: "when I move the chart left and right with my mouse and hold, even when I have the eyes off, the setup off, and the levels off, it really feels laggy"). Software drawing had been the Windows default since the 2026-09-17 black-window fix, which changed three things at once; measured alone in Electron 41 on the demo desk at 4K/150%, a chart drag ran at about 22 fps in software and with 5 ms frames on the graphics card. The graphics card is the default now, kept in `graphics.json` and switched in View > Draw with the graphics card, with a safety net: a crash of the graphics process turns it off from the next start and says so; a blank window -- the screen under the focused desk window, read from the screen recording's own capture, one flat colour three looks in a row while the page draws content -- restarts Nova in software. The menu has one owner (`appMenu.mjs`) so the View switch and the updater's Help rows never drop each other. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | The close countdown keeps clear of the pane's words (operator report: on a 5-minute pane the timer sat on top of the setup's "5m ... +83.3%" label, and asked to check every chart). The chip drawn over the forming candle on every minute pane (`chart/BarCountdownPrimitive.ts`) knew only the candle, so any label or price near the tip ran under it -- a live lane's label starts at its box's left edge, a few candles back, so a forming setup always put its label over the chip. Each primitive that writes words on a pane now publishes the rectangles it drew (`chart/paneWords.ts`: the stock read's labels, pins, fixed labels and edge column, and the fill arrows with their prices), and the chip takes the first clear spot: beside the candle, under it, then a row at a time, never on the forming candle, and not drawn when nothing is clear. Only the chip yields; the labels place as before. Rendered headless with the real primitives on the screenshot's scenario: the chip moved from over the label to beside the candle. §3 amended. | User Directive + Claude Sonnet 5.5 |
 | 2026-10-04 | A practice order's execution rows close when its venue closes it (TNMG, 2026-10-02). Nova's bot cancelled its unfilled Paper bracket entry 77 at 09:47:22 ET, three seconds after the venue answered `Submitted`. The bracket's row and the cancel's row stayed `acked` until the 10:36 restart, when the startup sweep called the venue's Cancelled `failed`. Three causes: the practice broker skipped the notice for an order Nova cancelled; the cancel path set only the place row's `broker_status`; and no callback follows a practice venue's first answer, so resting Paper fills also read `acked` until a restart (AIFF, NXL, CNTB). The ledger gains a terminal `cancelled`, classified by one rule (`execution.order_outcome.ledger_close`). Every practice close now ends its rows at once (`practice.watch.close_rows`), and the sweep reads a cancel as `cancelled`. A bracket's row keeps its entry's `perm_id`: TNMG's read the stop leg's 79. `tools/order_timing.py` no longer prints the order's status now beside the venue's first answer. Live's same gap is #712; the sweep's venue scoping is #713. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-02 | Auto-heal (operator: "when I view a stock or a ticker, the recorder will empty a space for me"; "Shouldn't this be fully auto-healed?"). The stock you look at outranks every recording you did not start: a recording a restart brought back with no owner on file is auto-record's and gives way (SDEV, SSM and CELU held all three lines from 10:36 and AZTA read "Symbol cap reached" for over an hour); the operator's own starts are kept in `auto-record.json` `operator`; the ladder names who holds the lines and backs off to 5 s (it asked every second). A Gateway logged in but refusing its API port (after the 12:12-12:45 Wi-Fi drop) restarts itself through IBC's `RESTART` on its saved login, no 2FA; IBC's command server turns on, on this PC only. The launcher no longer starts a second Gateway beside a running one (`ibgateway1.exe`), which is what took over the IBKR login at 12:46, and its process check is cached (a PowerShell run held the HTTP loop 250-935 ms per status poll). §3 amended. | User Directive + Claude Opus 5.5 |
