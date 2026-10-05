@@ -33,7 +33,8 @@ export interface WhoTradesState {
   moment: Moment | null;
   levels: OrderLevels | null;
   markers: DepthMarker[];
-  /** The moment's inputs without its clock: what the plan card's buttons and the switch's locks read. */
+  /** The moment's inputs without its clock or the live price (`last` is null): what the plan card's buttons and
+   * the switch's locks read. The price changes on every print; a reader that needs it reads the ticker (#707). */
   inputs: MomentInputs;
   setSides: (buy: StockSide, sell: StockSide) => Promise<void>;
   /** Approve the plan: at the trigger, or `now` on a triggered setup. */
@@ -118,17 +119,20 @@ export function useWhoTrades({
   const now = useNow(live);
   // What the rail's buttons read (no clock: a second going by redraws nothing), and the moment's view
   // of it with the clock, for the calls that last seconds.
-  const inputs = useMemo<MomentInputs>(() => ({
+  // The rail reads `base`, which has no price: a new object on every print rendered every reader of the
+  // stock read -- the chart layers, their keys, the plan -- about 20 times a second (#707).
+  const base = useMemo<MomentInputs>(() => ({
     read: live ? read : null,
     who: live ? view : null,
     position,
-    last,
+    last: null,
     now: 0,
     riskUsd,
     ttlSec,
     held,
     flush: flush ? { at: flush.at, score: flush.score, label: flush.label } : null,
-  }), [live, read, view, position, last, riskUsd, ttlSec, held, flush]);
+  }), [live, read, view, position, riskUsd, ttlSec, held, flush]);
+  const inputs = useMemo<MomentInputs>(() => ({ ...base, last }), [base, last]);
   const clocked = useMemo<MomentInputs>(() => ({ ...inputs, now }), [inputs, now]);
 
   useEffect(() => {
@@ -197,12 +201,12 @@ export function useWhoTrades({
     moment,
     levels,
     markers,
-    inputs,
+    inputs: base,
     setSides,
     approve,
     withdraw,
     takeOver,
     takeExit,
-  }), [view, polled.loading, polled.unavailable, polled.error, writeError, busy, moment, levels, markers, inputs,
+  }), [view, polled.loading, polled.unavailable, polled.error, writeError, busy, moment, levels, markers, base,
     setSides, approve, withdraw, takeOver, takeExit]);
 }

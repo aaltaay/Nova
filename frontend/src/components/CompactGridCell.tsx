@@ -1,7 +1,8 @@
 /** Label/value cell used by ticker quote and fundamentals grids. */
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 
-export function CompactGridCell({
+/** Memoized: the quote stats render on every print, and most of their cells did not change (#707). */
+export const CompactGridCell = memo(function CompactGridCell({
   label,
   value,
   valueClass,
@@ -19,4 +20,4 @@ export function CompactGridCell({
       <span className={`cq-value${valueClass ? ' ' + valueClass : ''}`}>{value}</span>
     </div>
   );
-}
+});

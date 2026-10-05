@@ -4,7 +4,6 @@ import { SimSessionHeader } from '../../src/sim/SimSessionHeader';
 import { SimSessionStrip } from '../../src/sim/SimSessionStrip';
 import { StockViewDepthTape } from '../../src/stock_view/StockViewDepthTape';
 import { useHistoricalSnapshot } from '../../src/sim/useHistoricalSnapshot';
-import type { TickerDetail } from '../../src/types/ticker';
 import '../../src/index.css';
 
 // Production components with a deterministic read-only API supplied by the test.
@@ -20,7 +19,7 @@ function Desk() {
       <p>Replay performance fixture · IMCC · 200 reached prints</p>
       <output data-testid="replay-count">{snapshot?.prints.length ?? 0}</output>
       <div style={{ width: 620, height: 560, display: 'flex' }}>
-        <StockViewDepthTape selectedSymbol="IMCC" detail={{symbol: 'IMCC'} as TickerDetail} />
+        <StockViewDepthTape selectedSymbol="IMCC" />
       </div>
     </main></>;
 }

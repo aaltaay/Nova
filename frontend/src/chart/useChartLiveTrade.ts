@@ -15,6 +15,8 @@ import {
 import { tradeMatchesChartSymbol } from './liveTradeGate';
 import type { ChartTradeUpdate } from './types';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { IDLE_TICKER, subscribeTicker, tickerLastTrade, tickerState } from '../hooks/tickerStore';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { getBarsEntry } from './barsStore';
 import { volumeBarColor } from '../tickerChartData';
 
@@ -24,8 +26,13 @@ export function useChartLiveTrade(
   lastTrade: ChartTradeUpdate | null | undefined,
   timeframe: string,
   chartSymbol: string,
+  /** Read the ticker stream for prints instead of `lastTrade` (the Trader grid, #707). */
+  followTicker = false,
 ) {
   const sim = useIbkrStatus().mode === 'sim';
+  const sample = useSampleDataOptional();
+  /** The newest trade, from `lastTrade` or the stream: what a repaint of the store puts back. */
+  const latestTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);
   /** The series' newest candle: the store's tip after a paint, the live tip after a trade. */
   const lastCandleRef = useRef<CandlestickData<Time> | null>(null);
   const liveTipRef = useRef<LiveTip | null>(null);
@@ -103,7 +110,8 @@ export function useChartLiveTrade(
     if (replayOwnsBars(tf)) return;
     const live = liveTipRef.current;
     if (live === null) {
-      if (trade?.price && trade.timestamp) applyLiveTrade(trade, tf);
+      const newest = trade ?? latestTradeRef.current;
+      if (newest?.price && newest.timestamp) applyLiveTrade(newest, tf);
       return;
     }
     const restored = restoreLiveTip(
@@ -118,13 +126,34 @@ export function useChartLiveTrade(
     else liveTipRef.current = { candle: restored.candle, volume: live.volume };
   }, [applyLiveTrade, paintTip, replayOwnsBars]);
 
+  /** Draw a trade unless it is the one drawn last. */
+  const takeTrade = useCallback((trade: ChartTradeUpdate | null | undefined) => {
+    latestTradeRef.current = trade;
+    if (!trade?.price || !trade.timestamp) return;
+    if (!tradeMatchesChartSymbol(chartSymbol, trade.symbol)) return;
+    if (trade.timestamp === prevTradeTsRef.current) return;
+    prevTradeTsRef.current = trade.timestamp;
+    applyLiveTrade(trade, timeframe);
+  }, [applyLiveTrade, chartSymbol, timeframe]);
+
   useEffect(() => {
-    if (!lastTrade?.price || !lastTrade.timestamp) return;
-    if (!tradeMatchesChartSymbol(chartSymbol, lastTrade.symbol)) return;
-    if (lastTrade.timestamp === prevTradeTsRef.current) return;
-    prevTradeTsRef.current = lastTrade.timestamp;
-    applyLiveTrade(lastTrade, timeframe);
-  }, [lastTrade, timeframe, applyLiveTrade, chartSymbol]);
+    if (followTicker) return;
+    takeTrade(lastTrade);
+  }, [followTicker, lastTrade, takeTrade]);
+
+  // Following the stream, a print goes to the series as it comes and the chart is not rendered for it.
+  // The sample desk has no stream: its fixed last trade is drawn once.
+  useEffect(() => {
+    if (!followTicker) return;
+    const key = chartSymbol.trim().toUpperCase();
+    if (sample) {
+      takeTrade(tickerLastTrade({ ...IDLE_TICKER, detail: sample.tickerDetail(chartSymbol) }, key));
+      return;
+    }
+    const read = () => takeTrade(tickerLastTrade(tickerState(key), key));
+    read();
+    return subscribeTicker(key, read);
+  }, [followTicker, sample, chartSymbol, takeTrade]);
 
   const resetTradeState = useCallback(() => {
     prevTradeTsRef.current = null;

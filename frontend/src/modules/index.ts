@@ -8,3 +8,4 @@ export { ChartsModule } from './ChartsModule';
 export { DataSourcesPanel } from './DataSourcesPanel';
 export { FundamentalsPanel } from './FundamentalsPanel';
 
+export { computeQuoteMetrics } from './quoteMetrics';

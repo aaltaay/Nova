@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { useSyncExternalStore } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StockViewVenueTag } from './StockViewVenueTag';
 
@@ -7,10 +8,22 @@ const mocks = vi.hoisted(() => ({
   mode: 'paper' as string,
   venue: undefined as string | undefined,
   clock: null as Record<string, unknown> | null,
+  version: 0,
+  listeners: new Set<() => void>(),
 }));
-vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: mocks.mode, venue: mocks.venue }) }));
+/** The real hooks are subscriptions: a change re-renders the (memoized) tag without new props. */
+const useMocks = () => useSyncExternalStore(
+  (onChange) => { mocks.listeners.add(onChange); return () => mocks.listeners.delete(onChange); },
+  () => mocks.version,
+);
+const changeMocks = (change: () => void) => act(() => {
+  change();
+  mocks.version += 1;
+  for (const onChange of mocks.listeners) onChange();
+});
+vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => { useMocks(); return { mode: mocks.mode, venue: mocks.venue }; } }));
 vi.mock('../sim/useSimReplayTarget', () => ({
-  useSimReplayTarget: () => ({ sim: mocks.mode === 'sim', clock: mocks.clock, target: { kind: 'ok' } }),
+  useSimReplayTarget: () => { useMocks(); return { sim: mocks.mode === 'sim', clock: mocks.clock, target: { kind: 'ok' } }; },
 }));
 
 afterEach(cleanup);
@@ -28,10 +41,9 @@ describe('StockViewVenueTag', () => {
   it('Sim: says live edge at the edge and replay off it', () => {
     mocks.mode = 'sim';
     mocks.clock = { sim: true, live_edge: true };
-    const view = render(<StockViewVenueTag symbol="GRML" />);
+    render(<StockViewVenueTag symbol="GRML" />);
     expect(screen.getByTestId('stock-view-venue-tag').textContent).toBe('SIM· live edge· fills est');
-    mocks.clock = { sim: true, live_edge: false, replay_source: 'historical' };
-    view.rerender(<StockViewVenueTag symbol="GRML" />);
+    changeMocks(() => { mocks.clock = { sim: true, live_edge: false, replay_source: 'historical' }; });
     expect(screen.getByTestId('stock-view-venue-tag').textContent).toBe('SIM· replay· fills est');
   });
 

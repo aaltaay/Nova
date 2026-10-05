@@ -6,6 +6,7 @@
  * a fact about the card, not a band over the page. Live and disconnected
  * show nothing -- a real venue needs no `est` marker.
  */
+import { memo } from 'react';
 import {
   TRADER_VENUE_TAG_FILLS,
   TRADER_VENUE_TAG_PAPER,
@@ -21,7 +22,8 @@ import { EstChip } from './EstChip';
 
 export { EstChip } from './EstChip';
 
-export function StockViewVenueTag({ symbol }: { symbol: string }) {
+/** Memoized: the quote head renders on every print; the venue does not change with it (#707). */
+export const StockViewVenueTag = memo(function StockViewVenueTag({ symbol }: { symbol: string }) {
   // The status venue, not `mode` (ADR 020): on Live `mode` is the Gateway port label.
   const mode = deskVenueOf(useIbkrStatus());
   const { clock } = useSimReplayTarget(symbol);
@@ -40,4 +42,4 @@ export function StockViewVenueTag({ symbol }: { symbol: string }) {
       <span className="sv-venue-tag__fills">· {TRADER_VENUE_TAG_FILLS} <EstChip /></span>
     </span>
   );
-}
+});

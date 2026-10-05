@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TICKER_WS_RECONNECT_MS } from '../constants';
 import { useTickerStream, type TickerStreamState } from './useTickerStream';
+import { resetTickerStreamsForTests } from './tickerStore';
 
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
@@ -92,6 +93,7 @@ describe('useTickerStream reconnect', () => {
       /* already unmounted by the cancel-timer case */
     }
     container.remove();
+    resetTickerStreamsForTests();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });

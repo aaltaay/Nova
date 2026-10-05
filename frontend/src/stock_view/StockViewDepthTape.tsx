@@ -8,6 +8,7 @@
  * (architecture/historical-replay.md).
  */
 import type { ReactNode } from 'react';
+import { shallowEqual, useTickerSelect } from '../hooks/useTickerStream';
 import { HaltEtaChip } from '../ibkr/HaltEtaChip';
 import { ShortabilityChip } from '../ibkr/ShortabilityChip';
 import { Level2Module } from '../modules/Level2Module';
@@ -41,13 +42,27 @@ import { StockReadRail, WhoTradesRow, useLevel2Markers } from '../stock_read';
 
 interface Props {
   selectedSymbol: string;
-  detail: TickerDetail;
   listingIbkr?: IbkrListingFlags | null;
   /** False on live-but-hidden trader tabs. */
   uiActive?: boolean;
 }
 
-function QuoteHead({ detail, symbol }: { detail: TickerDetail; symbol: string }) {
+/**
+ * The quote as the head shows it: the live detail, or a replay's view of it. A replay's view stands on
+ * the replay alone (the live detail only lends this ticker's name and float), so it never waits on the
+ * live line; the live view shows nothing until the line has answered.
+ */
+type QuoteView = (detail: TickerDetail | null) => TickerDetail | null;
+const LIVE_QUOTE: QuoteView = (detail) => detail;
+
+/**
+ * The price, the change and the stats. They read the ticker themselves, so a print renders the head and
+ * not the card around it (Level 2, Time & Sales, the stock read; #707).
+ */
+function QuoteHead({ symbol, view = LIVE_QUOTE }: { symbol: string; view?: QuoteView }) {
+  const live = useTickerSelect(symbol, (state) => state.detail);
+  const detail = view(live);
+  if (!detail) return null;
   return (
     <>
       <div className="sv-quote-head" data-testid="stock-view-quote-head">
@@ -101,14 +116,19 @@ function DepthAndTapeColumns({
 
 export function StockViewDepthTape({
   selectedSymbol,
-  detail,
   listingIbkr = null,
   uiActive = true,
 }: Props) {
   const { ibkrConnected, ibkrStatusKnown, ibkrStatusError } = useWorkspace();
   const { isVisible } = useModuleVisibility();
   const depthSymbol = selectedSymbol.toUpperCase();
-  const detailMatches = detail.symbol.toUpperCase() === depthSymbol;
+  // The card reads whose quote it holds and its halt; prices are the head's (#707).
+  const quote = useTickerSelect(
+    depthSymbol,
+    (state) => ({ symbol: state.detail?.symbol ?? '', halt: state.detail?.halt }),
+    shallowEqual,
+  );
+  const detailMatches = quote.symbol.toUpperCase() === depthSymbol;
   const showL2 = isVisible('level2');
   const showTape = isVisible('tape');
   const historical = useHistoricalSnapshot(depthSymbol, uiActive);
@@ -122,7 +142,7 @@ export function StockViewDepthTape({
   const markers = useLevel2Markers();
 
   if (historical?.active && !liveEdge) {
-    const replayDetail = historicalQuoteDetail(detail, historical);
+    const replayQuote: QuoteView = (detail) => historicalQuoteDetail(detail, historical);
     return (
       <StockViewModuleCard
         title={STOCK_VIEW_MODULE_QUOTE_TITLE}
@@ -130,7 +150,7 @@ export function StockViewDepthTape({
         testId="stock-view-depth-stack"
         aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
       >
-        <QuoteHead detail={replayDetail} symbol={depthSymbol} />
+        <QuoteHead symbol={depthSymbol} view={replayQuote} />
         {(showL2 || showTape) && (
           <DepthAndTapeColumns
             symbol={depthSymbol}
@@ -159,7 +179,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={simEmptyQuoteDetail(detail, depthSymbol)} symbol={depthSymbol} />
+        <QuoteHead symbol={depthSymbol} view={(detail) => simEmptyQuoteDetail(detail, depthSymbol)} />
         <p className="sv-depth-stack__hint" data-testid="stock-view-sim-rail-note">{simNote}</p>
         <SimReplayTargetNotice symbol={depthSymbol} />
       </StockViewModuleCard>
@@ -174,7 +194,9 @@ export function StockViewDepthTape({
   const captureReplay = sim && !liveEdge && clock?.replay_source === 'capture'
     && (clock.replay_symbol ?? '').toUpperCase() === depthSymbol;
   const gap = captureReplay && clock?.replay_quote?.covered === false;
-  const quoteDetail = captureReplay && clock ? captureQuoteDetail(detail, clock, depthSymbol) : detail;
+  const quoteView: QuoteView = captureReplay && clock
+    ? (detail) => captureQuoteDetail(detail, clock, depthSymbol)
+    : LIVE_QUOTE;
 
   if (!ibkrConnected || !detailMatches) {
     return (
@@ -183,7 +205,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
+        <QuoteHead symbol={depthSymbol} view={quoteView} />
         <p className="sv-depth-stack__hint" data-testid="stock-view-depth-hint">
           {depthUnavailableHint(ibkrStatusKnown, ibkrStatusError)}
         </p>
@@ -204,7 +226,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
+        <QuoteHead symbol={depthSymbol} view={quoteView} />
         {read}
         {whoTrades}
       </StockViewModuleCard>
@@ -218,14 +240,14 @@ export function StockViewDepthTape({
       testId="stock-view-depth-stack"
       aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
     >
-      <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
+      <QuoteHead symbol={depthSymbol} view={quoteView} />
       {read}
       {whoTrades}
       <DepthAndTapeColumns
         symbol={depthSymbol}
         chips={captureReplay ? <CaptureReplayL2Chip clock={clock} /> : (
           <>
-            <HaltEtaChip halt={detail.halt} />
+            <HaltEtaChip halt={quote.halt} />
             <ShortabilityChip ibkr={listingIbkr} />
           </>
         )}

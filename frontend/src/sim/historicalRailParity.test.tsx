@@ -4,13 +4,16 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDLE_TICKER, type TickerStreamState } from '../hooks/tickerStore';
 import { makeDetail } from '../modules/quoteFixtures';
+import type { TickerDetail } from '../types/ticker';
 import { StockViewDepthTape } from '../stock_view/StockViewDepthTape';
 import { captureQuoteDetail, historicalQuoteDetail } from './historicalQuoteDetail';
 import type { SimClockState } from './simClockTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
 const hooks = vi.hoisted(() => ({
+  detail: null as TickerDetail | null,
   snapshot: null as HistoricalSnapshot | null,
   tape: vi.fn(),
   visible: { level2: true, tape: true },
@@ -18,6 +21,12 @@ const hooks = vi.hoisted(() => ({
 }));
 
 vi.mock('./useHistoricalSnapshot', () => ({ useHistoricalSnapshot: () => hooks.snapshot }));
+
+// The panes read the ticker detail from the stream store (#707), not a prop: hand them the test's.
+vi.mock('../hooks/useTickerStream', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/useTickerStream')>()),
+  useTickerSelect: (_symbol: string, select: (state: TickerStreamState) => unknown) => select({ ...IDLE_TICKER, detail: hooks.detail }),
+}));
 // Replay must never open the live feeds for a past session.
 vi.mock('../ibkr/useIbkrTape', () => ({ useIbkrTape: hooks.tape }));
 vi.mock('../ibkr/useIbkrDepth', () => ({ useIbkrDepth: hooks.depth }));
@@ -71,7 +80,8 @@ describe('historical replay keeps the live Stock Quote structure', () => {
     });
     const todayBorrow = { state: 'shortable_est', shortable_shares: 123456, stale: false } as never;
     await act(async () => {
-      root.render(<StockViewDepthTape selectedSymbol="SPY" detail={live} listingIbkr={todayBorrow} />);
+      hooks.detail = live;
+      root.render(<StockViewDepthTape selectedSymbol="SPY" listingIbkr={todayBorrow} />);
     });
   }
 
@@ -168,6 +178,22 @@ describe('historicalQuoteDetail', () => {
     const out = historicalQuoteDetail(makeDetail({ symbol: 'AAPL' }), replaySnapshot());
     expect(out.symbol).toBe('SPY');
     expect(out.fundamentals).toBeNull();
+  });
+
+  it('prices the head from the replay before the live line has answered', async () => {
+    hooks.snapshot = replaySnapshot();
+    hooks.detail = null;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const own = createRoot(host);
+    await act(async () => {
+      own.render(<StockViewDepthTape selectedSymbol="SPY" />);
+    });
+    expect(host.querySelector('.sv-quote-card__last')?.textContent).toBe('$763.00');
+    expect(historicalQuoteDetail(null, replaySnapshot()).fundamentals).toBeNull();
+    act(() => own.unmount());
+    host.remove();
+    hooks.snapshot = null;
   });
 
   it('a midday window states the session figures it cannot know instead of passing its own off (QA W7)', () => {

@@ -3,7 +3,7 @@
  * quote head ("#1 Gappers", "#4 Gainers"). Its own leaf so a scanner price
  * patch redraws these chips and nothing else. Rules: `quoteRank.ts`.
  */
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useLiveScannerFeedOptional } from '../scanner';
 import { tipProps } from '../ux/hoverTip';
 import { rankTip, symbolRanks } from './quoteRank';
@@ -11,7 +11,8 @@ import { rankTip, symbolRanks } from './quoteRank';
 /** Ranks at or above this read as a leader (accent colour). */
 const RANK_LEADER_MAX = 3;
 
-export function StockViewQuoteRank({ symbol }: { symbol: string }) {
+/** Memoized: the quote head renders on every print; the ranks change with the scanner, not with it (#707). */
+export const StockViewQuoteRank = memo(function StockViewQuoteRank({ symbol }: { symbol: string }) {
   const feed = useLiveScannerFeedOptional();
   const ranks = useMemo(() => symbolRanks(symbol, feed), [symbol, feed]);
 
@@ -56,4 +57,4 @@ export function StockViewQuoteRank({ symbol }: { symbol: string }) {
       ))}
     </span>
   );
-}
+});

@@ -4,7 +4,7 @@
  * toggles (focused pane). Panes render a one-line header only.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { TickerChart, type ChartTradeUpdate } from '../TickerChart';
+import { TickerChart } from '../TickerChart';
 import { ChartGridToolbar } from './ChartGridToolbar';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
@@ -31,7 +31,9 @@ import type { RenderPaneOverlay } from '../chart';
 
 interface Props {
   symbol: string;
-  lastTrade?: ChartTradeUpdate | null;
+  /** Each pane follows the ticker stream itself (the Trader tab): a print draws the live candle without
+   * rendering the grid (#707). */
+  followTicker?: boolean;
   /** When false, panes pause refetch/resize (hidden Trader tab). */
   chartActive?: boolean;
   /** Drawn inside every pane (the Trader tab's stock read, ADR 036). */
@@ -60,7 +62,7 @@ function defaultIndicatorsByPane(): Record<string, ChartIndicatorId[]> {
 
 /** Memoized with its panes (see TickerChart): the Trader page re-renders far more often than a chart changes. */
 export const ChartGrid = memo(function ChartGrid({
-  symbol, lastTrade, chartActive = true, renderPaneOverlay, toolbarExtra,
+  symbol, followTicker = false, chartActive = true, renderPaneOverlay, toolbarExtra,
 }: Props) {
   const gridRef = useRef<HTMLDivElement>(null);
   const { topPct, onDragStart, reset } = useResizableHeight({
@@ -154,7 +156,7 @@ export const ChartGrid = memo(function ChartGrid({
       >
         <TickerChart
           symbol={symbol}
-          lastTrade={lastTrade}
+          followTicker={followTicker}
           variant="grid"
           fixedTimeframe={panel.id}
           title={panel.label}

@@ -15,14 +15,14 @@ import type { TickerDetail } from '../types/ticker';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
 export function historicalQuoteDetail(
-  detail: TickerDetail,
+  detail: TickerDetail | null,
   snap: HistoricalSnapshot,
 ): TickerDetail {
-  const matches = detail.symbol.toUpperCase() === snap.symbol.toUpperCase();
+  const own = detail && detail.symbol.toUpperCase() === snap.symbol.toUpperCase() ? detail : null;
   const session = snap.stats_scope === 'session';
   return {
     symbol: snap.symbol,
-    asset: matches ? detail.asset : {},
+    asset: own?.asset ?? {},
     // Today's borrow/shortability state is not this session's.
     listing: null,
     halt: null,
@@ -32,7 +32,7 @@ export function historicalQuoteDetail(
     volume_in_5min: null,
     news: [],
     // Float and sector are not session prices; keep them when they are this ticker's.
-    fundamentals: matches ? detail.fundamentals : null,
+    fundamentals: own?.fundamentals ?? null,
     mode: null,
     snapshot: {
       latest_trade: snap.last == null ? null : {
@@ -68,7 +68,7 @@ export function historicalQuoteDetail(
  * playhead, never the session's volume, high, low or open, so those are a
  * stated absence ("--"), and in a gap so is the price.
  */
-export function captureQuoteDetail(detail: TickerDetail, clock: SimClockState, symbol: string): TickerDetail {
+export function captureQuoteDetail(detail: TickerDetail | null, clock: SimClockState, symbol: string): TickerDetail {
   const base = simEmptyQuoteDetail(detail, symbol);
   const quote = clock.replay_quote ?? null;
   const stamp = quote?.ts != null && Number.isFinite(quote.ts) ? new Date(quote.ts * 1000).toISOString() : null;
@@ -99,12 +99,12 @@ export function captureQuoteDetail(detail: TickerDetail, clock: SimClockState, s
  * shortability must not appear at all. A live $1.74 above charts replaying
  * another day is exactly the incoherence the Sim prompt exists to end.
  */
-export function simEmptyQuoteDetail(detail: TickerDetail, symbol: string): TickerDetail {
+export function simEmptyQuoteDetail(detail: TickerDetail | null, symbol: string): TickerDetail {
   const wanted = symbol.trim().toUpperCase();
-  const matches = detail.symbol.toUpperCase() === wanted;
+  const own = detail && detail.symbol.toUpperCase() === wanted ? detail : null;
   return {
     symbol: wanted,
-    asset: matches ? detail.asset : {},
+    asset: own?.asset ?? {},
     listing: null,
     halt: null,
     avg_volume: null,
@@ -113,7 +113,7 @@ export function simEmptyQuoteDetail(detail: TickerDetail, symbol: string): Ticke
     volume_in_5min: null,
     news: [],
     // Float and sector are not session prices; keep them when they are this ticker's.
-    fundamentals: matches ? detail.fundamentals : null,
+    fundamentals: own?.fundamentals ?? null,
     mode: null,
     snapshot: {
       latest_trade: null,

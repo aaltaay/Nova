@@ -46,20 +46,29 @@ vi.mock('../ibkr/useIbkrAccount', () => ({
 const tickerStreamState = {
   detailSymbol: null as string | null,
   selectedPassthrough: true,
+  /** The detail a test names; else one made for the symbol asked. */
+  detail: null as ReturnType<typeof makeDetail> | null,
 };
 
-vi.mock('../hooks/useTickerStream', () => ({
-  useTickerStream: (symbol: string) => {
-    const detailSym = tickerStreamState.selectedPassthrough
-      ? symbol
-      : (tickerStreamState.detailSymbol ?? 'STALE');
-    return {
-      detail: makeDetail({ symbol: detailSym }),
-      loading: false,
-      refreshing: false,
-      fetchFailed: false,
-    };
-  },
+function streamFor(symbol: string) {
+  const detailSym = tickerStreamState.selectedPassthrough
+    ? symbol
+    : (tickerStreamState.detailSymbol ?? 'STALE');
+  return {
+    detail: tickerStreamState.detail ?? makeDetail({ symbol: detailSym }),
+    loading: false,
+    refreshing: false,
+    fetchFailed: false,
+    stale: false,
+    disconnectedSince: null,
+  };
+}
+
+// The page and its panels read the stream through useTickerSelect (#707): both read the test's detail.
+vi.mock('../hooks/useTickerStream', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/useTickerStream')>()),
+  useTickerStream: (symbol: string) => streamFor(symbol),
+  useTickerSelect: (symbol: string, select: (state: ReturnType<typeof streamFor>) => unknown) => select(streamFor(symbol)),
 }));
 
 vi.mock('../components/ChartGrid', () => ({
@@ -183,7 +192,7 @@ describe('StockViewDepthTape', () => {
     await act(async () => {
       root.render(
         wrap(
-          <StockViewDepthTape selectedSymbol="AAPL" detail={makeDetail()} />,
+          <StockViewDepthTape selectedSymbol="AAPL" />,
         ),
       );
     });
@@ -205,25 +214,20 @@ describe('StockViewDepthTape', () => {
   });
 
   it('shows the halt ETA chip beside SHORT in the Level 2 header', async () => {
-    await act(async () => {
-      root.render(
-        wrap(
-          <StockViewDepthTape
-            selectedSymbol="RETO"
-            detail={makeDetail({
-              symbol: 'RETO',
-              halt: {
-                halted: true,
-                kind: 'luld',
-                halt_code: 2,
-                halt_start: 1_700_000_000,
-                source: 'ibkr_ticker_halted',
-              },
-            })}
-          />,
-        ),
-      );
+    tickerStreamState.detail = makeDetail({
+      symbol: 'RETO',
+      halt: {
+        halted: true,
+        kind: 'luld',
+        halt_code: 2,
+        halt_start: 1_700_000_000,
+        source: 'ibkr_ticker_halted',
+      },
     });
+    await act(async () => {
+      root.render(wrap(<StockViewDepthTape selectedSymbol="RETO" />));
+    });
+    tickerStreamState.detail = null;
     const head = container.querySelector('.sv-md-pane__head');
     expect(head).toBeTruthy();
     const chip = head!.querySelector('[data-testid="halt-eta-chip"]');
@@ -266,13 +270,11 @@ describe('StockViewRail order', () => {
         wrap(
           <StockViewRail
             symbol="AAPL"
-            detail={makeDetail()}
             mode="paper"
             connected
             spendStatus="locked"
             position={null}
             summary={summary}
-            referencePrice={190.5}
             onOrderPlaced={() => {}}
           />,
         ),
