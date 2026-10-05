@@ -1,30 +1,28 @@
-import { describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { writeChoice } from '../../electron/graphicsChoice.mjs';
 import {
   applyGpuPolicy,
   applyWin32PaintSwitches,
   mergeDisableFeatures,
-  shouldDisableHardwareAcceleration,
   WIN32_DISABLE_FEATURES,
 } from '../../electron/gpuPolicy.mjs';
 
-describe('shouldDisableHardwareAcceleration', () => {
-  it('defaults on for Windows and off elsewhere', () => {
-    expect(shouldDisableHardwareAcceleration({}, 'win32')).toBe(true);
-    expect(shouldDisableHardwareAcceleration({}, 'linux')).toBe(false);
-    expect(shouldDisableHardwareAcceleration({}, 'darwin')).toBe(false);
-  });
+function fakeApp() {
+  return {
+    disableHardwareAcceleration: vi.fn(),
+    commandLine: { appendSwitch: vi.fn(), getSwitchValue: () => '' },
+  };
+}
 
-  it('NOVA_ELECTRON_GPU=1 keeps GPU on Windows', () => {
-    expect(shouldDisableHardwareAcceleration({ NOVA_ELECTRON_GPU: '1' }, 'win32')).toBe(
-      false,
-    );
-  });
-
-  it('NOVA_ELECTRON_GPU=0 forces software on Linux', () => {
-    expect(shouldDisableHardwareAcceleration({ NOVA_ELECTRON_GPU: '0' }, 'linux')).toBe(
-      true,
-    );
-  });
+let dir = '';
+beforeEach(() => {
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-gpu-'));
+});
+afterEach(() => {
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 describe('mergeDisableFeatures', () => {
@@ -58,47 +56,43 @@ describe('applyWin32PaintSwitches', () => {
 });
 
 describe('applyGpuPolicy', () => {
-  it('always applies Windows occlusion switches and software raster by default', () => {
-    const app = {
-      disableHardwareAcceleration: vi.fn(),
-      commandLine: { appendSwitch: vi.fn(), getSwitchValue: () => '' },
-    };
-    expect(applyGpuPolicy(app, {}, 'win32')).toBe(true);
-    expect(app.disableHardwareAcceleration).toHaveBeenCalledOnce();
-    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith(
-      'disable-features',
-      WIN32_DISABLE_FEATURES,
-    );
-    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith(
-      'disable-gpu-compositing',
-    );
-    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith(
-      'disable-direct-composition',
-    );
-  });
-
-  it('keeps GPU on Windows when opted in, but still kills occlusion', () => {
-    const app = {
-      disableHardwareAcceleration: vi.fn(),
-      commandLine: { appendSwitch: vi.fn(), getSwitchValue: () => '' },
-    };
-    expect(applyGpuPolicy(app, { NOVA_ELECTRON_GPU: '1' }, 'win32')).toBe(false);
+  it('draws with the graphics card on Windows by default, and still kills occlusion', () => {
+    const app = fakeApp();
+    expect(applyGpuPolicy(app, {}, 'win32', dir)).toMatchObject({ gpu: true, source: 'default' });
     expect(app.disableHardwareAcceleration).not.toHaveBeenCalled();
-    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith(
-      'disable-features',
-      WIN32_DISABLE_FEATURES,
-    );
-    expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith(
-      'disable-gpu-compositing',
-    );
+    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('disable-features', WIN32_DISABLE_FEATURES);
+    expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith('disable-gpu-compositing');
   });
 
-  it('leaves GPU and occlusion switches alone on Linux by default', () => {
-    const app = {
-      disableHardwareAcceleration: vi.fn(),
-      commandLine: { appendSwitch: vi.fn(), getSwitchValue: () => '' },
-    };
-    expect(applyGpuPolicy(app, {}, 'linux')).toBe(false);
+  it('draws in software when the saved choice says so', () => {
+    writeChoice(dir, { gpu: 'off', reason: 'blank_window', at: 1, detail: null, told: false });
+    const app = fakeApp();
+    expect(applyGpuPolicy(app, {}, 'win32', dir)).toMatchObject({ gpu: false, source: 'choice' });
+    expect(app.disableHardwareAcceleration).toHaveBeenCalledOnce();
+    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('disable-gpu-compositing');
+    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('disable-direct-composition');
+  });
+
+  it('draws in software, and says so, when the saved choice cannot be read', () => {
+    fs.writeFileSync(path.join(dir, 'graphics.json'), '{"schema_version": 7, "gpu": "on"}');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const app = fakeApp();
+    expect(applyGpuPolicy(app, {}, 'win32', dir)).toMatchObject({ gpu: false, source: 'unreadable' });
+    expect(app.disableHardwareAcceleration).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0][0]).toMatch(/schema_version 7 is not 1; drawing in software/);
+    warn.mockRestore();
+  });
+
+  it('lets NOVA_ELECTRON_GPU win over the saved choice', () => {
+    writeChoice(dir, { gpu: 'on', reason: 'operator', at: 1, detail: null, told: true });
+    const app = fakeApp();
+    expect(applyGpuPolicy(app, { NOVA_ELECTRON_GPU: '0' }, 'win32', dir)).toMatchObject({ gpu: false, source: 'env' });
+    expect(app.disableHardwareAcceleration).toHaveBeenCalledOnce();
+  });
+
+  it('leaves the occlusion switches alone on Linux', () => {
+    const app = fakeApp();
+    expect(applyGpuPolicy(app, {}, 'linux')).toMatchObject({ gpu: true });
     expect(app.disableHardwareAcceleration).not.toHaveBeenCalled();
     expect(app.commandLine.appendSwitch).not.toHaveBeenCalled();
   });

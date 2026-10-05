@@ -4,7 +4,7 @@
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, desktopCapturer, ipcMain, powerMonitor, screen, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, powerMonitor, screen, shell } from 'electron';
 import { shouldOpenDetachedDevTools } from './devtoolsGate.mjs';
 import {
   API_BASE,
@@ -27,6 +27,8 @@ import { createScreenRecordBridge } from './screenRecordBridge.mjs';
 import { startClipService } from './clipService.mjs';
 import { createClipBridge } from './clipBridge.mjs';
 import { applyGpuPolicy } from './gpuPolicy.mjs';
+import { startGraphics } from './graphics.mjs';
+import { createScreenSampler } from './graphicsWatch.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
@@ -43,7 +45,8 @@ import { formatScannerWindowTitle } from './appTitle.mjs';
 import { novaDesktopReleaseTag } from './loadReleaseTag.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-applyGpuPolicy(app);
+/** How this start draws (graphicsChoice.mjs): the graphics card unless the operator or the safety net said software. */
+const graphics = applyGpuPolicy(app, process.env, process.platform, app.getPath('userData'));
 const isDev = !app.isPackaged;
 const ALLOWED_EXTERNAL_HOSTS = new Set(['www.interactivebrokers.com']);
 // Title bar and taskbar; the packed exe carries the same icon (electron-builder).
@@ -60,6 +63,9 @@ let screenRecordBridge = null;
 /** ADR 039: share clips, cut from that recording (High quality on demand). */
 let clipService = null;
 let clipBridge = null;
+/** View > Draw with the graphics card, and pictures of the screen from the recording for its safety net. */
+let graphicsMenu = null;
+let screenSampler = null;
 
 /** The hidden recorder, capture and export pages: never a window the operator sees or closes. */
 const hiddenWindow = (w) => Boolean(screenRecorder?.isRecorderWindow(w) || clipService?.isClipWindow(w));
@@ -73,6 +79,9 @@ function startScreenRecording() {
     apiBase: API_BASE,
     apiKey: getDesktopApiKey,
   });
+  screenSampler = createScreenSampler({
+    request: (displayId, rect, reqId, size) => screenRecorder?.sample(displayId, rect, reqId, size) ?? false,
+  });
   screenRecorder = startScreenRecorder({
     BrowserWindow,
     desktopCapturer,
@@ -81,6 +90,7 @@ function startScreenRecording() {
     ipcMain,
     userData: app.getPath('userData'),
     onView: (view) => screenRecordBridge?.publish(view),
+    onSample: (ev) => screenSampler?.answer(ev),
   });
 }
 
@@ -269,6 +279,16 @@ if (
     // Recording needs no engine: it starts with the app, before the desk.
     startScreenRecording();
     startClips();
+    graphicsMenu = startGraphics({
+      decision: graphics,
+      app,
+      BrowserWindow,
+      screen,
+      powerMonitor,
+      dialog,
+      sampler: screenSampler,
+      isDeskWindow: (w) => !hiddenWindow(w) && w !== startup?.window,
+    });
     try {
       startup.step(engineStep(await startApiSidecar({ onStarting: () => startup.step(STARTUP_STEPS.starting) })));
       await openEnvFileIfNeeded();
@@ -278,6 +298,8 @@ if (
       startup.step(STARTUP_STEPS.loading);
       createWindow();
       startup.closeWhenShown(mainWindow);
+      // A start in software because the safety net turned the graphics card off says why, once.
+      mainWindow.once('show', () => void graphicsMenu?.tellIfOwed());
       // ADR 026: CPU / memory per window process, every 5 s. Measures only.
       const stopPerfMetrics = startPerfMetrics({
         app,
@@ -322,7 +344,6 @@ if (
     } catch (err) {
       console.error(err);
       if (quitting) return;
-      const { dialog } = await import('electron');
       await dialog.showErrorBox(
         'Nova failed to start',
         err instanceof Error ? err.message : String(err),

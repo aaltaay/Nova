@@ -50,6 +50,8 @@ export function startScreenRecorder({
   userData,
   env = process.env,
   onView = () => {},
+  /** The page's answer to `sample` (graphicsWatch.mjs reads the screen under a desk window from it). */
+  onSample = () => {},
   logger = console,
   now = () => Date.now(),
   timers = globalThis,
@@ -337,6 +339,7 @@ export function startScreenRecorder({
     if (ev.kind === 'started') onStarted(ev);
     else if (ev.kind === 'stopped') onStopped(ev);
     else if (ev.kind === 'error') onError(ev);
+    else if (ev.kind === 'sampled') onSample(ev);
   }
 
   function ensureAll() {
@@ -596,6 +599,15 @@ export function startScreenRecorder({
   return {
     view,
     isRecorderWindow: (w) => Boolean(w) && recorderWindows.has(w),
+    /**
+     * Ask the page for a `size` picture of `rect` (fractions of the monitor) from `displayId`'s live
+     * capture; the answer comes back through `onSample`. False when that monitor is not recording.
+     */
+    sample(displayId, rect, reqId, size) {
+      const state = states.get(String(displayId));
+      if (stopped || suspended || !state?.active) return false;
+      return send({ cmd: 'sample', reqId, sourceId: state.plan.sourceId, rect, width: size.width, height: size.height });
+    },
     /** Quitting: stop every capture and close every file; the last timeslice may not reach the disk. */
     stop(reason = 'quit') {
       if (stopped) return;
