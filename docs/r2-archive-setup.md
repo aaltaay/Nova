@@ -37,6 +37,10 @@ Object keys use prefix `nova-os/archive/` (`R2_PREFIX`) + sha256 path.
 6. Compact a finished day (maintenance loop or `compact_day`), then upload:
    - Python: `from archive.r2 import upload_day; upload_day("YYYY-MM-DD")`
    - Or enable `ARCHIVE_MAINTENANCE_ENABLED=true` so the hourly loop compacts + uploads.
+     It works only outside Nova's trading session (04:00-20:00 ET on an exchange day).
+     It compacts a finished day once, and again only when the day gains rows.
+     It uploads a day after compacting it, or while R2 has not verified it.
+     It backs the local SQLite files up once a day (#720).
 
 ## Health
 
