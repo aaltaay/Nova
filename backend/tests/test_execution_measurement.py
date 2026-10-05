@@ -161,6 +161,27 @@ def test_exchange_callback_delay_is_labeled_and_negative_is_excluded():
     )
 
 
+def test_an_execution_time_labelled_with_the_gateway_zone_reads_as_utc():
+    """F on Live, 2026-10-05: IBKR sent 23:03:18 for a fill Nova heard at 23:03:17.7 UTC, and
+    ib_async labelled it America/New_York -- read as 03:03:18Z, so no fill ever had a delay."""
+    from zoneinfo import ZoneInfo
+
+    execution_id = _execution("gateway-zone", order_id=125)
+    exchange = datetime(2026, 10, 5, 23, 3, 18, tzinfo=ZoneInfo("America/New_York"))
+    callback = int(datetime(2026, 10, 5, 23, 3, 18, tzinfo=timezone.utc).timestamp() * 1e9) + 300_000_000
+    evidence_store.record_fill(
+        execution_id=execution_id,
+        order_id=125,
+        provenance="execDetails",
+        complete=True,
+        exchange_time=exchange,
+        callback_wall_ns=callback,
+    )
+    item = evidence_store.list_for_execution(execution_id)[0]
+    assert item["exchange_ts_utc"] == "2026-10-05T23:03:18Z"
+    assert item["exchange_to_callback_ms"] == 300.0
+
+
 def test_existing_reconciliation_poll_records_provenance_once():
     execution_id = _execution("reconcile", order_id=130)
     telemetry.watch_order(130, execution_id, fresh=True)
