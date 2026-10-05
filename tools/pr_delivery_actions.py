@@ -111,11 +111,20 @@ def confirm_linked_issue_closure(gh: GhFn, repo: str, pr_number: int, body: str)
                     check=False,
                     stdin=json.dumps({"state": "closed", "state_reason": "completed"}),
                 )
-                if proc.returncode:
-                    raise ValueError(proc.stderr or proc.stdout or "GitHub issue write failed")
-                actual = _read_resource(gh, endpoint)
+                write_error = (
+                    proc.stderr or proc.stdout or "GitHub issue write failed"
+                ) if proc.returncode else ""
+                # Native GitHub closure may win after our open-state read,
+                # making this PATCH fail even though the issue is now closed.
+                try:
+                    actual = _read_resource(gh, endpoint)
+                except ValueError as exc:
+                    if write_error:
+                        raise ValueError(f"{write_error}; closure readback failed: {exc}") from exc
+                    raise
                 if actual.get("state") != "closed" or "pull_request" in actual:
-                    raise ValueError("issue still open or closure readback invalid")
+                    detail = "issue still open or closure readback invalid"
+                    raise ValueError(f"{write_error}; {detail}" if write_error else detail)
             print(f"#{number} confirmed closed after merged PR #{pr_number}")
         except ValueError as exc:
             completed = False

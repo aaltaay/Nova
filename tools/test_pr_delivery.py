@@ -619,6 +619,7 @@ def test_native_closed_issue_is_not_written_and_repeated_references_deduplicate(
 def test_closure_write_failure_is_loud_and_pack_and_cleanup_continue(monkeypatch, capsys):
     rc, calls, deleted = _closure_merge(
         monkeypatch, 'Closes #720', {720: {'state': 'open'}}, patch_error='HTTP 403 issue write refused',
+        readback_open=True,
     )
     assert rc == 2
     out = capsys.readouterr()
@@ -691,3 +692,76 @@ def test_closure_failure_is_a_nonzero_result_from_both_delivery_entrypoints(monk
         args, 0, stdout='[{"number":239}]', stderr='',
     ))
     assert pr_delivery.cmd_sweep(min_age_seconds=0) == 1
+
+
+def test_native_closure_racing_failed_patch_is_verified_without_retry(monkeypatch, capsys):
+    rc, calls, deleted = _closure_merge(
+        monkeypatch, 'Closes #653', {653: {'state': 'open'}},
+        patch_error='gh: Validation Failed (HTTP 422)',
+    )
+    assert rc == 0
+    issue_calls = [args for args, _ in calls if 'repos/aaltaay/Nova/issues/653' in args]
+    assert issue_calls == [
+        ['api', 'repos/aaltaay/Nova/issues/653'],
+        ['api', '-X', 'PATCH', 'repos/aaltaay/Nova/issues/653', '--input', '-'],
+        ['api', 'repos/aaltaay/Nova/issues/653'],
+    ]
+    output = capsys.readouterr()
+    assert '#653 confirmed closed' in output.out
+    assert not output.err
+    assert _dispatch_call([args for args, _ in calls])
+    assert deleted == ['feature-head']
+
+
+def test_failed_close_write_and_failed_readback_keep_both_errors(monkeypatch, capsys):
+    calls = []
+    issue_reads = 0
+    def fake_gh(args, check=True, stdin=None):
+        nonlocal issue_reads
+        calls.append(list(args))
+        if args == ['api', 'repos/aaltaay/Nova/pulls/239']:
+            value = {'merged': True, 'base': {'ref': 'master'}}
+        elif args == ['api', 'repos/aaltaay/Nova/issues/653']:
+            issue_reads += 1
+            if issue_reads > 1:
+                return subprocess.CompletedProcess(args, 1, stdout='', stderr='readback unavailable')
+            value = {'state': 'open'}
+        elif '-X' in args and args[args.index('-X') + 1] == 'PATCH':
+            return subprocess.CompletedProcess(args, 1, stdout='', stderr='HTTP 403 issue write refused')
+        else:
+            value = {}
+        return subprocess.CompletedProcess(args, 0, stdout=json.dumps(value), stderr='')
+    monkeypatch.setattr(pr_delivery, '_gh', fake_gh)
+    deleted = []
+    monkeypatch.setattr(pr_delivery, 'cmd_delete_closed', lambda ref, **kw: deleted.append(ref) or 0)
+    assert pr_delivery._merge_now(239, 'head', body='Closes #653') == 2
+    output = capsys.readouterr()
+    assert 'HTTP 403 issue write refused' in output.err
+    assert 'readback unavailable' in output.err
+    assert '#653 confirmed closed' not in output.out
+    assert issue_reads == 2
+    assert _dispatch_call(calls)
+    assert deleted == ['head']
+
+
+def test_refused_write_with_pr_shaped_closed_readback_is_not_success(monkeypatch, capsys):
+    issue_reads = 0
+    def fake_gh(args, check=True, stdin=None):
+        nonlocal issue_reads
+        if args == ['api', 'repos/aaltaay/Nova/pulls/239']:
+            value = {'merged': True, 'base': {'ref': 'master'}}
+        elif args == ['api', 'repos/aaltaay/Nova/issues/653']:
+            issue_reads += 1
+            value = {'state': 'open'} if issue_reads == 1 else {'state': 'closed', 'pull_request': {}}
+        elif 'PATCH' in args:
+            return subprocess.CompletedProcess(args, 1, stdout='', stderr='HTTP 422 close refused')
+        else:
+            value = {}
+        return subprocess.CompletedProcess(args, 0, stdout=json.dumps(value), stderr='')
+    monkeypatch.setattr(pr_delivery, '_gh', fake_gh)
+    monkeypatch.setattr(pr_delivery, 'cmd_delete_closed', lambda *args, **kw: 0)
+    assert pr_delivery._merge_now(239, 'head', body='Closes #653') == 2
+    output = capsys.readouterr()
+    assert 'HTTP 422 close refused' in output.err and 'readback invalid' in output.err
+    assert '#653 confirmed closed' not in output.out
+    assert issue_reads == 2
