@@ -17,6 +17,7 @@ from constants import (
     IBKR_L1_QUALIFY_TIMEOUT_SEC,
 )
 from ibkr import client as _client
+from ibkr import l1_refused as _refused
 from ibkr import ticks_generic as _generic
 from ibkr import ticks_status as _status
 from ibkr.ticks_handler import get_last_event_ts as get_last_event_ts
@@ -173,6 +174,7 @@ async def subscribe(
             logger.warning("IBKR ticks: qualify error for %s: %s", symbol, exc)
             return False
 
+        _refused.install_error_hook(ib, lambda: _subs)
         try:
             ticker = ib.reqMktData(contract, requested, False, False)
         except Exception as exc:
@@ -192,6 +194,7 @@ async def subscribe(
             "last_price": None,
             "last_update_ts": None,
         }
+        _refused.note_opened(symbol, ib, contract)
         logger.info(
             "IBKR ticks: subscribed last-price for %s (conId=%s, owner=%s, ticks=%s)",
             symbol, contract.conId, owner, generic_ticks or "-",
@@ -249,10 +252,14 @@ def _release_owner(symbol: str, owner: str) -> None:
             logger.debug("IBKR ticks: handler detach failed for %s: %s", symbol, exc)
     if ib is not None and contract is not None:
         try:
-            ib.cancelMktData(contract)
+            if sub.get("refused"):
+                _refused.forget_request(ib, contract)  # IBKR never opened it: no cancel
+            else:
+                ib.cancelMktData(contract)
         except Exception:
             logger.debug("IBKR ticks: cancelMktData failed for %s", symbol, exc_info=True)
     _subs.pop(symbol, None)
+    _refused.note_closed(symbol)
     logger.info("IBKR ticks: unsubscribed %s (last owner=%s)", symbol, owner)
 
 
@@ -292,6 +299,31 @@ async def set_owner_symbols(owner: str, symbols: list[str]) -> dict[str, Any]:
             sym for sym, sub in _subs.items() if owner in (sub.get("owners") or set())
         ),
     }
+
+
+async def retry_refused() -> list[str]:
+    """Ask IBKR again for the refused lines whose wait is over, while there is room; the symbols asked."""
+    from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
+
+    if not _refused.due(_subs):
+        return []
+    if is_started() and not is_ib_loop():
+        return await on_ib(retry_refused(), float(IBKR_L1_QUALIFY_TIMEOUT_SEC) + 5.0, label="reqMktData")
+    ib = _client.get_ib()
+    if ib is None:
+        return []
+    async with _get_lock():
+        return [sym for sym in _refused.due(_subs) if sym in _subs and _refused.rerequest(ib, sym, _subs[sym])]
+
+
+def stream_budget() -> int:
+    """Lines the scanner's rows and HOD Momo may hold, within the cap IBKR taught Nova (if any)."""
+    return _refused.plan_budget(_subs, {OWNER_SCANNER, OWNER_HOD})
+
+
+def refused_view() -> dict[str, Any]:
+    """``{refused: [...], cap, open}``: the lines IBKR refused and the cap Nova plans to."""
+    return _refused.view(_subs)
 
 
 def subscribed_symbols() -> list[str]:

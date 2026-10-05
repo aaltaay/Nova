@@ -81,8 +81,13 @@ def upgrade_line(ib: Any, symbol: str, sub: dict[str, Any], requested: str) -> b
     if ib is None or contract is None:
         return False
     merged = merge(sub.get("generic_ticks"), requested)
+    from ibkr import l1_refused
+
     try:
-        ib.cancelMktData(contract)
+        if sub.get("refused"):
+            l1_refused.forget_request(ib, contract)  # IBKR never opened it: no cancel
+        else:
+            ib.cancelMktData(contract)
         ticker = ib.reqMktData(contract, merged, False, False)
     except Exception as exc:
         logger.warning(
@@ -90,9 +95,11 @@ def upgrade_line(ib: Any, symbol: str, sub: dict[str, Any], requested: str) -> b
             symbol, sub.get("generic_ticks") or "-", merged, exc,
         )
         return False
-    _reattach_handler(symbol, sub, ticker)
+    reattach_handler(symbol, sub, ticker)
     sub["ticker"] = ticker
     sub["generic_ticks"] = merged
+    sub.pop("refused", None)  # a new request: IBKR answers it afresh
+    l1_refused.note_opened(symbol, ib, contract)
     logger.info(
         "IBKR ticks: upgraded %s L1 generic ticks to %s (owners=%s)",
         symbol, merged, sorted(sub.get("owners") or set()),
@@ -100,7 +107,7 @@ def upgrade_line(ib: Any, symbol: str, sub: dict[str, Any], requested: str) -> b
     return True
 
 
-def _reattach_handler(symbol: str, sub: dict[str, Any], ticker: Any) -> None:
+def reattach_handler(symbol: str, sub: dict[str, Any], ticker: Any) -> None:
     """Keep the owner's update handler bound if a fresh Ticker came back.
 
     The pooled Ticker is normally the same object, so this is a no-op. Guarding

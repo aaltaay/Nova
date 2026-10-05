@@ -26,8 +26,12 @@ def ticker_budget_status(
     """Live ``reqMktData`` lines vs ``IBKR_L1_STREAM_BUDGET`` (Error 101).
 
     One line per symbol. Owner counts can sum higher than ``reqMktData_lines``
-    when scanner / HOD / detail / depth / listing share a stream.
+    when scanner / HOD / detail / depth / listing share a stream. A line IBKR
+    refused at its cap (Error 101) is not one of the lines held: it is counted in
+    ``reqMktData_refused``, and ``reqMktData_cap`` is the cap Nova learned from the
+    refusal (null: none learned; ``ibkr/l1_refused.py``).
     """
+    from ibkr import l1_refused as _refused
     from ibkr import session_errors as _se
 
     by_owner: dict[str, int] = {owner: 0 for owner in owners}
@@ -35,13 +39,16 @@ def ticker_budget_status(
         for owner in sub.get("owners") or ():
             key = str(owner)
             by_owner[key] = by_owner.get(key, 0) + 1
-    lines = len(subs)
+    lines = _refused.open_count(subs)
+    cap = _refused.ceiling()
     limit = int(IBKR_L1_STREAM_BUDGET)
     return {
         "reqMktData_lines": lines,
         "reqMktData_by_owner": by_owner,
         "reqMktData_limit": limit,
-        "reqMktData_remaining": max(0, limit - lines),
+        "reqMktData_remaining": max(0, (limit if cap is None else min(limit, cap)) - lines),
+        "reqMktData_refused": len(subs) - lines,
+        "reqMktData_cap": cap,
         "max_tickers_hit": bool(_se.max_tickers_hit()),
         "max_tickers_ts": _se.max_tickers_ts(),
     }

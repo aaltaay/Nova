@@ -3876,6 +3876,35 @@ Then everything IBKR held arrived in one burst, stamped on arrival (#563).
   open, `warn` with the count and the longest in the last `FEED_DIAG_WINDOW_SEC` (30 min), naming Wi-Fi when
   Windows logged it, `off` while disconnected or outside the session, and otherwise `ok`.
 
+### A Level 1 line IBKR refused (operator report 2026-10-05)
+
+"Find out why 10 of the 50 after-hours rows never get a price." From 16:08 ET IBKR answered 176 Level 1
+requests with Error 101 ("Max number of tickers has been reached") while Nova held 51-56 lines of its own: the
+cap is the login's, and IBKR counts its other platforms against it (TWS and the API share it, per IBKR). ib_async 2.1.0 keeps a refused request
+registered and hands it back to the next request for that contract, so the line stayed "subscribed" for good.
+17 of the 50 After Hours rows had no price (INBS for 53 minutes), and Nova counted 76 of its 100 lines open.
+
+- **A refused line is not open** (owner `ibkr/l1_refused.py`). Every Level 1 request id is kept with its symbol.
+  Error 101 on a line's own id marks the line refused. It keeps its owners and handler (a Trader tab, the
+  scanner, HOD Momo), but no longer counts as open, and is let go without a cancel (IBKR never opened it).
+- **The cap Nova plans to.** The lines Nova held at the refusal become the cap (the fewest held within one
+  burst of refusals). It rises by `IBKR_L1_CAP_RELAX_STEP` every `IBKR_L1_CAP_RELAX_SEC` without a refusal, and
+  is forgotten at `IBKR_L1_STREAM_BUDGET`. The scanner plans within it, less the open lines no scanner or HOD
+  owner holds (a Trader tab's own quote) and `IBKR_L1_STREAM_RESERVE`. Displayed rows come first and HOD Momo's
+  other names get what is left, as before.
+- **Asked for again.** The scanner's reconcile re-requests a refused line in place once its wait
+  (`IBKR_L1_REFUSED_RETRY_SEC`: 15, 30, 60, then 120 s for refusals in a row within
+  `IBKR_L1_REFUSED_RESET_SEC`) is over, and only while Nova holds fewer lines than the cap. A Trader tab's line
+  goes first, then the displayed rows, then HOD Momo's.
+- **On the wire.** `/api/ibkr/status`:
+  - `reqMktData_lines` counts the open lines only;
+  - adds `reqMktData_refused` (integer) and `reqMktData_cap` (`integer | null`, null while none is learned);
+  - `reqMktData_remaining` is measured against the cap.
+
+  The scanner subscription state (on `/ws/scanner` price patches) adds `refused: string[]` and
+  `line_cap: integer | null`, and its `error` names the refused symbols. The desk shows that error in the
+  header's scanner hover. The `market_data_lines` diagnostics row warns while any line is refused.
+
 ### When one tape line goes silent (#722, operator report 2026-10-05)
 
 "time and sale is fully frozen". At 09:35:42 ET the AllLast lines of SAIQ (a Trader tab) and VEEA (a Session
@@ -4549,6 +4578,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-10-05 | The Live send awaits the IB loop, and goes out once or never (#725, ADR 045 amendment; operator: "1 go" on the follow-up). A Live place, replace or bracket reached the IB loop with `call_on_ib`, which held the socket loop -- every Level 2, Time & Sales and quote socket -- for as long as the IB loop was busy (0 turns in a 300 ms busy spell, measured). It now awaits the IB loop (`ibkr/send_hop.py`), and one lock both loops take settles whether the order went out: a send the IB loop has not started when its caller gives up is never sent, and one already running is awaited, never reported unsent (`run_coro`'s timeout cancelled a hop that could still reach IBKR). The 750 ms deadline is enforced by the IB loop as it sends (it was checked before the hop). The order's watch and its in-flight commitment's order id are set in the callback that placed it, its ack wakes the reply safely from the IB thread (on a quiet loop an ack at 50 ms was seen when the wait ran out), and IBKR's order events are wired at READY instead of on the first order. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-10-05 | A Level 1 line IBKR refused is not open (operator: "find out why 10 of the 50 after-hours rows never get a price"). From 16:08 ET IBKR refused 176 Level 1 lines with Error 101 while Nova held 51-56 of its own: the cap is the login's, shared with its other IBKR platforms. ib_async keeps a refused request registered and hands it back, so each line stayed "subscribed" for good and 17 After Hours rows had no price (INBS 53 minutes). A refused line now keeps its owners but is not counted, the lines held at the refusal become the cap the scanner plans to (rising again over time), and the line is asked for again in place once there is room; `/api/ibkr/status`, the scanner subscription state and the `market_data_lines` row say so. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | Orders refuse a stale view (ADR 045; operator report on APUS: "If it lags, then we cannot place an order ... Everything needs to happen in real time"). At 08:30:25 ET the operator sold at a 6.58 bid their Level 2 had shown since 08:30:18-21, while Nova's own book read 6.50 x 6.55; the order reached the backend 2-3 s after the click and rested above the market. Each Level 2 viewer replayed up to 100 old books in order from a queue the IB thread filled without waking the socket loop, the socket loop ran `tasklist` and re-read files on every status poll, and the backend and IB Gateway ran BelowNormal. Every book and quote now has a version; a Level 2 viewer holds the newest book only, woken thread-safely, with a beat every 250 ms; Time & Sales sends a backlog in one frame. Every desk order carries the view its screen showed, and the execution door refuses one whose book or quote had been replaced for more than 500 ms when the operator acted, that arrived more than 500 ms later, or that met a feed gap or a stalled IB loop (`VIEW_STALE`, `ORDER_LATE`, `FEED_STALE`, `VIEW_MISSING`); the desk locks Place, the hotkeys and Fill now first, with the reason, and never Flatten or a cancel. The socket loop's slow reads are gone, the backend keeps itself and the Gateway Above Normal (the desk app its own windows), and a freeze dumps every thread's stack. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | A silent tape says so, and 10-second candles keep one clock (#722, #721; operator reports: "time and sale is fully frozen", "two candles drawing together ... the previous candle should never move"). At 09:35:42 ET two AllLast lines stopped while their books kept updating, with no IBKR error, and Time & Sales read LIVE for six minutes; each idle `ping` now carries a silence reading (`ibkr/tape_silence.py`) and the pane reads SILENT / HALTED / QUIET with the reason. The recorder no longer calls a halted name's line dead (MI was dropped and re-asked through two halts). 10-second candles from prints are keyed by IBKR's own second, which IBKR delivers in order (1.2M October prints, none out of order) and its history uses; arrival time had built most candles differently. The pane's forming candle has one writer, the tape: a Level 1 trade stamped on Nova's clock opened the next candle at the boundary while prints still filled the last. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | The desk draws with the graphics card (#707; operator: "when I move the chart left and right with my mouse and hold, even when I have the eyes off, the setup off, and the levels off, it really feels laggy"). Software drawing had been the Windows default since the 2026-09-17 black-window fix, which changed three things at once; measured alone in Electron 41 on the demo desk at 4K/150%, a chart drag ran at about 22 fps in software and with 5 ms frames on the graphics card. The graphics card is the default now, kept in `graphics.json` and switched in View > Draw with the graphics card, with a safety net: a crash of the graphics process turns it off from the next start and says so; a blank window -- the screen under the focused desk window, read from the screen recording's own capture, one flat colour three looks in a row while the page draws content -- restarts Nova in software. The menu has one owner (`appMenu.mjs`) so the View switch and the updater's Help rows never drop each other. §3 amended. | User Directive + Claude Opus 5.5 |
