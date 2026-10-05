@@ -48,6 +48,7 @@ the backend packages.
 | `issue_report/` | feature | File an issue from the desk: the form (Bug / Feature, optional title and description, the desk details and a scrubbed diagnostics dump), opened from the What's new card and Help > File an Issue…; the backend files it on GitHub. |
 | `leaderboard/` | feature | The Scanner board replayed at the Sim playhead: per-minute leaderboard fetch, coverage, lanes, recorder toast. |
 | `lib/` | shared | The shadcn `cn()` class-merge helper only. |
+| `market_view/` | shared | How fresh the market on screen is (ADR 045): each symbol's Level 2 frames, beats and drawn book, its quote version, the lock while the view lags, and the view every order carries. |
 | `modules/` | feature | Trader modules the registry mounts: Level 2, time & sales, charts, news, quote header, fundamentals, data sources, watchlist strip. |
 | `nova_news/` | feature | The Nova News page: headline desk with masthead, lead story, columns and story filtering. |
 | `orders_today/` | feature | The Orders (Today) view: Working / Filled / Canceled / Partial segments in the Stock View footer dock. |

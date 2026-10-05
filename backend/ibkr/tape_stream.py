@@ -27,6 +27,7 @@ from ibkr import line_session as _line_session
 from ibkr import tape_exchange_time as _tape_exchange_time
 from ibkr import tape_line as _tape_line
 from ibkr.tape_events import warm_10sec_fill as _warm_10sec_fill
+from market_view.viewer_queues import PrintQueue
 from metrics.op_metrics import timed_sync
 from perf.counters import incr as _count_drop
 
@@ -42,7 +43,8 @@ _tickers: dict[str, Any] = {}
 # winning the race starves the other (see PROBLEM_LOG 2026-08-25: a live
 # soak proved 1,902 archived DAIC prints delivered zero of them to the
 # surviving viewer while a discarded StrictMode socket was still alive).
-_viewer_queues: dict[str, list[asyncio.Queue]] = {}
+# Each is a thread-safe ``PrintQueue`` that wakes its socket's loop (ADR 045).
+_viewer_queues: dict[str, list[Any]] = {}
 _ws_viewers: dict[str, int] = {}
 # Unix time when we last cancelled a symbol's tick-by-tick subscription.
 _cancelled_at: dict[str, float] = {}
@@ -80,6 +82,7 @@ def _push_queue(symbol: str, payload: dict) -> None:
         observe_print(symbol, payload)
     except Exception:
         logger.debug("IBKR tape: sensor ring skip for %s", symbol, exc_info=True)
+    # A ``PrintQueue`` drops its own oldest and never refuses; a plain asyncio.Queue (tests) does it here.
     for q in list(_viewer_queues.get(symbol, ())):
         try:
             q.put_nowait(payload)
@@ -271,7 +274,8 @@ async def _subscribe_locked(symbol: str, ib: Any) -> dict:
         _contracts.pop(symbol, None)
         return {"ok": False, "error": str(exc)}
 
-    _warm_10sec_fill(symbol)
+    # The warm check reads the bar store (up to 2.5 s on the socket loop, 2026-10-05): off the loop.
+    await asyncio.to_thread(_warm_10sec_fill, symbol)
     return {"ok": True, "error": None}
 
 
@@ -334,19 +338,19 @@ def is_subscribed(symbol: str) -> bool:
     return sub is not None and not _line_session.is_stale(sub.get("generation"))
 
 
-def open_viewer_queue(symbol: str) -> asyncio.Queue:
-    """Register a new viewer's own queue so it gets every broadcast print.
+def open_viewer_queue(symbol: str) -> PrintQueue:
+    """Register a new viewer's own queue so it gets every broadcast print, in order.
 
     Each caller (each WS connection) must hold exactly one queue and pass
     it to ``stream()``; release it via ``close_viewer_queue`` in a
     ``finally`` block regardless of how the connection ends.
     """
-    q: asyncio.Queue = asyncio.Queue(maxsize=IBKR_TAPE_QUEUE_MAXSIZE)
+    q = PrintQueue(IBKR_TAPE_QUEUE_MAXSIZE)
     _viewer_queues.setdefault(symbol, []).append(q)
     return q
 
 
-def close_viewer_queue(symbol: str, q: asyncio.Queue) -> None:
+def close_viewer_queue(symbol: str, q: Any) -> None:
     queues = _viewer_queues.get(symbol)
     if not queues:
         return
@@ -358,20 +362,20 @@ def close_viewer_queue(symbol: str, q: asyncio.Queue) -> None:
         _viewer_queues.pop(symbol, None)
 
 
-async def stream(queue: asyncio.Queue):
-    """AsyncGenerator yielding print dicts (or None on heartbeat timeout)
-    for one viewer's own queue -- see ``open_viewer_queue``.
+async def stream_batches(queue: Any):
+    """AsyncGenerator yielding everything one viewer has waiting, oldest first -- a list of print and
+    control dicts -- or None on heartbeat timeout; see ``open_viewer_queue``.
 
-    The IB thread fills the queue directly, so a backlog can refill as fast as
-    the socket drains it, and ``queue.get()`` returns without yielding while
-    anything is queued. The loop is handed back after every print, so one busy
-    tape socket cannot hold the HTTP loop (#619: 55 s at the 2026-09-29 open).
+    After a stall the socket sends the backlog at once instead of one print per loop turn (ADR 045),
+    and the loop is handed back after every batch, so one busy tape socket cannot hold the HTTP
+    loop (#619: 55 s at the 2026-09-29 open).
     """
     while True:
         try:
-            print_data = await asyncio.wait_for(queue.get(), timeout=TAPE_STREAM_HEARTBEAT_SEC)
+            first = await asyncio.wait_for(queue.get(), timeout=TAPE_STREAM_HEARTBEAT_SEC)
         except asyncio.TimeoutError:
             yield None
             continue
-        yield print_data
+        drain = getattr(queue, "drain_nowait", None)
+        yield [first, *(drain() if drain is not None else ())]
         await asyncio.sleep(0)

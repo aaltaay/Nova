@@ -62,14 +62,29 @@ def _read_loops() -> dict[str, dict[str, Any]]:
     return out
 
 
+def _memory() -> tuple[int | None, int | None]:
+    """``(page faults so far, working set bytes)`` of this process; None where unknown (ADR 045)."""
+    try:
+        from winapi import memory
+
+        return memory.process_memory()
+    except Exception:
+        logger.debug("perf: process memory unreadable", exc_info=True)
+        return None, None
+
+
 def tick(now: float | None = None) -> dict[str, Any]:
     """Take one sample; persist and finish stalls as due. Returns the sample."""
     now = time.time() if now is None else now
     totals = op_metrics.totals()
     gc_counts, gc_pause_ns = gc_watch.read()
+    gc_by_gen = gc_watch.read_by_gen()
     process_cpu, threads = loop_cpu.process_reading()
+    faults, working_set = _memory()
     prev_ts = _prev.get("ts")
     prev_gc_counts, prev_gc_pause = _prev.get("gc", ((0, 0, 0), 0))
+    prev_by_gen = _prev.get("gc_by_gen", (0, 0, 0))
+    prev_faults = _prev.get("faults")
     s = sample.build(
         ts=now,
         interval_sec=(now - prev_ts) if prev_ts else PERF_SAMPLE_INTERVAL_SEC,
@@ -81,8 +96,12 @@ def tick(now: float | None = None) -> dict[str, Any]:
         gc_collections=tuple(max(0, a - b) for a, b in zip(gc_counts, prev_gc_counts, strict=True)),
         gc_pause_ms=max(0, gc_pause_ns - prev_gc_pause) / 1_000_000,
         gc_max_pause_ms=gc_watch.take_max_ms(),
+        gc_pause_ms_by_gen=[max(0, a - b) / 1_000_000 for a, b in zip(gc_by_gen, prev_by_gen, strict=True)],
+        gc_max_pause_ms_by_gen=gc_watch.take_max_ms_by_gen(),
+        page_faults=(max(0, faults - prev_faults) if faults is not None and prev_faults is not None else None),
+        working_set_mb=round(working_set / 1_048_576, 1) if working_set is not None else None,
     )
-    _prev.update(ts=now, ops=totals, gc=(gc_counts, gc_pause_ns))
+    _prev.update(ts=now, ops=totals, gc=(gc_counts, gc_pause_ns), gc_by_gen=gc_by_gen, faults=faults)
     with _lock:
         _ring.append(s)
         _unpersisted.append(s)

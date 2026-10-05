@@ -20,6 +20,7 @@ import type { BarData, TickerDetail, TickerTradeUpdate } from '../types/ticker';
 import { applyBarsPatch, parseBarsCoverage } from '../chart/barsStore';
 import { tickerDetailFromHttp, tickerDetailFromWsInitial } from './tickerStreamHttp';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
+import { noteQuote } from '../market_view';
 
 const WS_URL = `${WS_BASE_URL}/ws`;
 
@@ -208,6 +209,7 @@ function open(symKey: string, s: Stream): () => void {
         if (!initialReceived) return;
         const prev = ours();
         set(prev ? { ...LIVE, detail: withTrade(prev, msg as TickerTradeUpdate) } : LIVE);
+        noteQuote(symKey, msg);  // ADR 045: the quote version on screen, for the order's view
       }
     } catch {
       // ignore parse errors

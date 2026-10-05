@@ -35,10 +35,26 @@ def test_build_has_the_documented_shape():
     assert s["schema_version"] == PERF_SCHEMA_VERSION
     assert set(s) == {"schema_version", "ts", "interval_sec", "process", "loops", "ops", "gauges", "gc"}
     assert set(s["loops"]) == {"ib", "http"}
-    assert s["gc"] == {"collections": [1, 0, 0], "pause_ms": 0.5, "max_pause_ms": 0.5}
+    assert s["gc"] == {"collections": [1, 0, 0], "pause_ms": 0.5, "max_pause_ms": 0.5,
+                       "pause_ms_by_gen": None, "max_pause_ms_by_gen": None}
     missing = sample.build(ts=1.0, interval_sec=1.0, process_cpu_pct=None, threads=1, loops={}, ops={},
                            gauges={}, gc_collections=(0, 0, 0), gc_pause_ms=0, gc_max_pause_ms=0)
     assert missing["loops"]["ib"] == {"cpu_pct": None, "delay_max_ms": None, "stalled": False}
+    assert missing["process"]["page_faults"] is None and missing["process"]["working_set_mb"] is None
+
+
+def test_gc_pauses_per_generation_and_page_faults_aggregate():
+    """ADR 045: which generation the pause went to, and how the process paged, are kept too."""
+    def one(ts, by_gen, worst, faults):
+        return sample.build(ts=ts, interval_sec=1.0, process_cpu_pct=1.0, threads=2, loops={}, ops={}, gauges={},
+                            gc_collections=(3, 1, 1), gc_pause_ms=sum(by_gen), gc_max_pause_ms=max(worst),
+                            gc_pause_ms_by_gen=by_gen, gc_max_pause_ms_by_gen=worst, page_faults=faults,
+                            working_set_mb=ts * 100)
+    agg = sample.aggregate([one(1.0, [1.0, 2.0, 900.0], [0.4, 2.0, 900.0], 100),
+                            one(2.0, [3.0, 0.0, 0.0], [1.5, 0.0, 0.0], 50)])
+    assert agg["gc"]["pause_ms_by_gen"] == [4.0, 2.0, 900.0]
+    assert agg["gc"]["max_pause_ms_by_gen"] == [1.5, 2.0, 900.0]
+    assert agg["process"]["page_faults"] == 150 and agg["process"]["working_set_mb"] == 200.0
 
 
 def test_aggregate_sums_ops_averages_cpu_maxes_delay_keeps_last_gauges():

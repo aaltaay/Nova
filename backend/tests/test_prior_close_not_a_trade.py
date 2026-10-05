@@ -36,7 +36,7 @@ def test_the_prior_close_is_never_broadcast_as_a_trade_update(monkeypatch):
     _line("APLX", owners={ticks.OWNER_SCANNER, ticks.OWNER_DETAIL})
     sent: list = []
 
-    async def broadcast(*args):
+    async def broadcast(*args, **kwargs):
         sent.append(args)
 
     monkeypatch.setattr(ticks, "_broadcast", broadcast)

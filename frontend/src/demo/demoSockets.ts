@@ -33,6 +33,24 @@ function bookFrame(s: LiveState) {
   return { type: 'book', symbol: s.symbol, data: { l1_fallback: false, bids: rows('bid'), asks: rows('ask') } };
 }
 
+/** A Level 2 line's versions, as the backend stamps them (ADR 045): each book `seq` / `at` / `sent`,
+ *  and a `beat` every 250 ms with the newest, so the demo's ladder reads live, never behind. */
+function versionedLine(symbol: string, emit: Emit): { book: (frame: ReturnType<typeof bookFrame>) => void; stop: () => void } {
+  let seq = 0;
+  let at: number | null = null;
+  const timer = setInterval(() => emit({ type: 'beat', symbol, seq, at, now: nowS() }), 250);
+  return {
+    book: (frame) => {
+      seq += 1;
+      at = nowS();
+      emit({ ...frame, seq, at, sent: nowS() });
+    },
+    stop: () => clearInterval(timer),
+  };
+}
+
+const quoteSeq = new Map<string, number>();
+
 /** A new HOD Momo alert every ~50 s, on a name already running, at its price now. */
 function alertsEvery(emit: Emit): () => void {
   const names = ['RUNR', 'SPIK', 'GAPX', 'FLTX', 'MMTX', 'HODX'];
@@ -69,25 +87,33 @@ const HANDLERS: [RegExp, Handler][] = [
     emit({ type: 'initial', ...tickerDetail(symbol) });
     if (demoVenue() === 'sim') return undefined; // the replay is paused at its playhead
     const live = watchMarket(symbol, {
-      print: (p, s) => emit({ type: 'trade_update', symbol, price: p.price, size: p.size, timestamp: iso(p.ms), volume: s.dayVolume, source: 'stream' }),
+      print: (p, s) => {
+        const seq = (quoteSeq.get(symbol) ?? 0) + 1;
+        quoteSeq.set(symbol, seq);
+        emit({ type: 'trade_update', symbol, price: p.price, size: p.size, timestamp: iso(p.ms), volume: s.dayVolume, source: 'stream', seq, at: nowS() });
+      },
     });
     return live.stop;
   }],
   [/^\/ws\/ibkr\/depth\/([^/?]+)/, (m, emit) => {
     const symbol = sym(m);
-    emit({ type: 'subscribed', symbol });
+    emit({ type: 'subscribed', symbol, instance: 'nova-demo' });
+    const line = versionedLine(symbol, emit);
     if (demoVenue() === 'sim') {
       // The replay's recorded book at the playhead; any other symbol has none.
       if (symbol === SIM_SYMBOL) {
         const book = sampleBook(SIM_LAST, 5);
-        emit(bookFrame({ symbol, last: SIM_LAST, bid: r2(SIM_LAST - 0.01), ask: SIM_LAST, dayVolume: 0, ...book }));
+        line.book(bookFrame({ symbol, last: SIM_LAST, bid: r2(SIM_LAST - 0.01), ask: SIM_LAST, dayVolume: 0, ...book }));
       }
-      return undefined;
+      return line.stop;
     }
-    const live = watchMarket(symbol, { book: (s) => emit(bookFrame(s)) });
-    emit(bookFrame(live.state));
+    const live = watchMarket(symbol, { book: (s) => line.book(bookFrame(s)) });
+    line.book(bookFrame(live.state));
     if (symbol === 'SMPL') emit(bookWatch(nowS()));
-    return live.stop;
+    return () => {
+      live.stop();
+      line.stop();
+    };
   }],
   [/^\/ws\/ibkr\/tape\/([^/?]+)/, (m, emit) => {
     const symbol = sym(m);

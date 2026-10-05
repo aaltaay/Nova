@@ -262,6 +262,9 @@ export interface DepthBook {
   l1_fallback: boolean;
   /** Set by the depth WS / hook — used to reject cross-symbol stale books. */
   symbol?: string;
+  /** The book's version and when Nova applied it (ADR 045); absent on a book from an older backend. */
+  seq?: number;
+  at?: number | null;
 }
 
 export interface RecordingSession {

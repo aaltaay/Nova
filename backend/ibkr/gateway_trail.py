@@ -71,12 +71,33 @@ def append_event(
         logger.warning("IBKR: gateway trail append failed", exc_info=True)
 
 
+# The trail's valid rows as last read, keyed by the file's (path, mtime_ns, size): the status poll
+# asks every 5 s on the socket loop, and the file changes only when the Gateway does (ADR 045).
+_rows_cache: tuple[tuple[str, int, int], list[dict[str, Any]]] | None = None
+
+
 def recent(limit: int = 40) -> list[dict[str, Any]]:
     """Oldest-first slice of the newest ``limit`` valid rows."""
+    global _rows_cache
     path = trail_path()
-    if not path.is_file():
+    try:
+        st = path.stat()
+    except FileNotFoundError:  # maintainer: allow-swallow no trail written yet: there is nothing to show
+        return []
+    except OSError:  # maintainer: allow-swallow a diagnostics trail, logged; no account or order state rides on it
+        logger.warning("IBKR: gateway trail stat failed", exc_info=True)
         return []
     cap = max(1, min(int(limit), IBKR_GATEWAY_TRAIL_MAX_EVENTS))
+    key = (str(path), st.st_mtime_ns, st.st_size)
+    cached = _rows_cache
+    if cached is not None and cached[0] == key:
+        return cached[1][-cap:]
+    rows = _read_rows(path)
+    _rows_cache = (key, rows)
+    return rows[-cap:]
+
+
+def _read_rows(path: Path) -> list[dict[str, Any]]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except Exception:  # maintainer: allow-swallow a diagnostics trail, logged; no account or order state rides on it
@@ -98,7 +119,7 @@ def recent(limit: int = 40) -> list[dict[str, Any]]:
         if not obj.get("event") or not obj.get("actor"):
             continue
         rows.append(obj)
-    return rows[-cap:]
+    return rows
 
 
 def _trim(path: Path) -> None:

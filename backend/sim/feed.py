@@ -225,7 +225,7 @@ def _broadcast_capture(payload: dict) -> None:
 
     async def broadcast() -> None:
         try:
-            from websocket import broadcast_trade_update
+            from market_view.quote_push import broadcast_trade_update
             await broadcast_trade_update(
                 payload["symbol"], payload["price"], payload["size"], payload["time"],
                 None, None, "sim",

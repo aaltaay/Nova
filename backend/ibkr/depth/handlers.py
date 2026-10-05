@@ -107,11 +107,27 @@ def on_update_book(ticker: Any, symbol: str) -> None:
             logger.warning("IBKR depth: %s book out of price order after an update; sorting it", symbol)
         bids, asks = sort_levels(bids, bid=True), sort_levels(asks, bid=False)
     book = {"bids": bids, "asks": asks, "l1_fallback": False}
-    state._subscriptions[symbol] = book
+    prev = state._subscriptions.get(symbol)
     state.note_book(symbol)
-    _broadcast_live(symbol, book)
+    if _same_book(prev, book):
+        # One ib_async Ticker carries the symbol's L1, prints and depth, so this runs on every L1 tick
+        # and print too: an unchanged book is not a new one -- no version, no frame (ADR 045).
+        book = prev
+    else:
+        state._subscriptions[symbol] = book
+        _broadcast_live(symbol, book)
     _record_book(symbol, book)
     _watch_book(symbol, book)
+
+
+def _same_book(prev: dict | None, book: dict) -> bool:
+    """The rows the desk shows are the same (an L1-only book is never the same as a depth book)."""
+    return (
+        prev is not None
+        and prev.get("l1_fallback") == book["l1_fallback"]
+        and prev.get("bids") == book["bids"]
+        and prev.get("asks") == book["asks"]
+    )
 
 
 def on_update_ticker(ticker: Any, symbol: str) -> None:
@@ -128,9 +144,13 @@ def on_update_ticker(ticker: Any, symbol: str) -> None:
         ),
         "l1_fallback": True,
     }
-    state._subscriptions[symbol] = book
+    prev = state._subscriptions.get(symbol)
     state.note_book(symbol)
-    _broadcast_live(symbol, book)
+    if _same_book(prev, book):
+        book = prev
+    else:
+        state._subscriptions[symbol] = book
+        _broadcast_live(symbol, book)
     _record_book(symbol, book)
 
 

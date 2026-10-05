@@ -26,6 +26,7 @@ from execution import venue_door, verification_gate
 from execution.venue_door import commit_position as _commit_position
 from ibkr import client as _client
 import loop_lag as _loop_lag
+from market_view import gate as _view_gate
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,7 @@ async def execute(
         backend_ingress_perf_ns=received,
         backend_ingress_wall_ns=cmd.backend_ingress_wall_ns or time.time_ns(),
     )
+    view_check = _view_gate.check(cmd)  # ADR 045: how old the operator's screen was when they acted
     async with _lock:
         # One read: checked, committed and sent on the same venue -- a kill switch cancel's own target.
         send_venue, target_why = venue_door.resolve(cmd)
@@ -194,6 +196,7 @@ async def execute(
                 and requested_qty is not None
                 and sent_qty is not None
                 and sent_qty != requested_qty,
+                view_check=view_check.record() if view_check.verdict != "exempt" else None,
             ),
         )
         timings.persisted_ns = time.perf_counter_ns()
@@ -216,6 +219,9 @@ async def execute(
         targeted = cmd.target_venue is not None     # the desk may show another venue: never "moved"
         if not targeted and (why := venue_door.wrong_venue(cmd, send_venue)):
             return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
+        if view_check.refused:  # "If it lags, then we cannot place an order" (ADR 045)
+            timings.validation_completed_ns = time.perf_counter_ns()
+            return _reject(execution_id, cmd, timings, view_check.text or "", view_check.code or "VIEW_STALE")
         ok, detail, reason = _validate.validate_command(cmd, venue=send_venue)
         if not ok:
             timings.validation_completed_ns = time.perf_counter_ns()
@@ -303,6 +309,9 @@ async def execute(
 
         ib = _client.get_ib()
         telemetry.ensure_handlers(ib)
+
+        if (late := _view_gate.late_at_send(cmd)) is not None:  # ADR 045: the clock again, just before the send
+            return _reject(execution_id, cmd, timings, late.text or "", late.code or "ORDER_LATE")
 
         # ADR 007 decision 5: the lock covers reservation, validation, and the
         # synchronous broker send. Commit the shares first so a command that

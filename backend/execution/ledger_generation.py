@@ -80,3 +80,45 @@ def session_commissions(
             if _generation == generation:
                 _commissions = (key, dict(totals))
     return dict(totals)
+
+
+# ((generation, since_ts, limit, ledger file identity), rows) or None: the Closed overlay's read.
+_overlay: tuple[tuple, list[dict]] | None = None
+
+
+def session_place_overlay(
+    since_ts: float,
+    limit: int,
+    ledger_path: Path,
+    compute: Callable[[], list[dict]],
+) -> list[dict]:
+    """``compute()`` once per ledger generation, session start, limit and ledger file (ADR 045).
+
+    The orders polls asked for these rows two or three times every 5 s on the socket loop, each a
+    query and a JSON parse of up to 300 payloads (1-4 s on 2026-10-05). Same rule as the
+    commissions: kept under the generation read before the query. Each row and its payload are
+    copied out, so a caller's edits never reach the kept rows.
+    """
+    global _overlay
+    with _lock:
+        generation = _generation
+        kept = _overlay
+    key = (generation, float(since_ts), int(limit), file_key(ledger_path))
+    if key[3] is not None and kept is not None and kept[0] == key:
+        return _copy_rows(kept[1])
+    rows = compute()
+    if key[3] is not None:
+        with _lock:
+            if _generation == generation:
+                _overlay = (key, _copy_rows(rows))
+    return rows
+
+
+def _copy_rows(rows: list[dict]) -> list[dict]:
+    out = []
+    for row in rows:
+        copy = dict(row)
+        if isinstance(copy.get("payload"), dict):
+            copy["payload"] = dict(copy["payload"])
+        out.append(copy)
+    return out

@@ -46,7 +46,7 @@ from ibkr import ticks as _ibkr_ticks
 from ibkr_bridge import apply_l1_quote
 from ticker import _find_ibkr_cache_row
 from universe import invalidate_universe_cache
-from websocket import broadcast_trade_update
+from market_view.quote_push import broadcast_trade_update
 from observability import init_sentry
 from runtime_state import get_runtime_state
 import instance_identity
@@ -234,6 +234,21 @@ def _local_startup() -> None:
     )
 
 
+def _trading_path_priority() -> None:
+    """ADR 045: the API, its two loop threads and the IB Gateway stay above background work."""
+    from ibkr.loop_supervisor import get_loop
+    from process_priority import trading_path
+
+    try:
+        trading_path.start()
+        trading_path.raise_current_thread("socket loop")
+        ib_loop = get_loop()
+        if ib_loop is not None:
+            ib_loop.call_soon_threadsafe(trading_path.raise_current_thread, "IB loop")
+    except Exception:
+        logger.exception("process priority: the trading path keeper did not start")
+
+
 async def _bootstrap_runtime() -> None:
     """Deferred after HTTP yield: local restore, then network/IBKR/loops."""
     global _runtime_tasks
@@ -244,6 +259,7 @@ async def _bootstrap_runtime() -> None:
 
     set_http_loop(asyncio.get_running_loop())
     start_ib_loop()
+    _trading_path_priority()
     await _ibkr_client.startup()
     spawn_ib("observability.ib_loop_lag", _loop_lag.sample_ib_loop_lag_loop)
     # ADR 026: who used the time -- loop CPU, stall stacks, handler busy time.

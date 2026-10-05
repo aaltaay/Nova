@@ -112,3 +112,27 @@ def test_open_prompt_still_asks_whether_gateway_runs(tmp_path, monkeypatch):
     (tmp_path / "IBC-x.txt").write_text(FRESH_PROMPT, encoding="utf-8")
     assert sf.current_state(log_dir=tmp_path).pending is False
     assert calls == [1]
+
+
+def test_the_log_is_read_again_only_as_it_grows(tmp_path):
+    """ADR 045: the status poll re-read and re-scanned the whole IBC log every 5 s on the socket loop.
+    Now an unchanged log is not read, and a grown one is read from where the last read stopped."""
+    sf._reset_for_tests()
+    log = tmp_path / "IBC-x.txt"
+    log.write_text(FRESH_PROMPT.lstrip(), encoding="utf-8")
+    now = datetime(2026, 8, 25, 20, 38, 0)
+    assert sf.current_state(log_dir=tmp_path, now=now, gateway_process_running=True).pending is True
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write("2026-08-25 20:37:30:001 IBC: Login has completed\n")
+    assert sf.current_state(log_dir=tmp_path, now=now, gateway_process_running=True).pending is False
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write("2026-08-25 20:37:50:001 IBC: Second Factor Authentication init")   # IBC mid-write
+    assert sf.current_state(log_dir=tmp_path, now=now, gateway_process_running=True).pending is False
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write("iated\n")
+    assert sf.current_state(log_dir=tmp_path, now=now, gateway_process_running=True).pending is True
+    sf._reset_for_tests()
+
+
+def test_a_usable_session_never_reads_the_log():
+    assert sf.NOT_PENDING.pending is False

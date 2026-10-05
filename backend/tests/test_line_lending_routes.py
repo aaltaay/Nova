@@ -184,7 +184,7 @@ def test_the_tab_in_front_recalls_both_lines_from_its_time_and_sales(lent, tape_
         return
         yield  # an async generator, like the real stream
 
-    monkeypatch.setattr(tape_stream, "stream", quiet)
+    monkeypatch.setattr(tape_stream, "stream_batches", quiet)
     with TestClient(app).websocket_connect("/ws/ibkr/tape/ABC?tab=1&front=1") as ws:
         assert ws.receive_json()["type"] == "subscribed"
     assert loans.lenders() == [] and "AISP" in lent.unsubscribed
@@ -201,9 +201,9 @@ def test_a_standing_time_and_sales_reads_the_lent_frame_and_closes(desk, tape_so
                                                        "setup_id": "AISP-1"}, "since": 1.0, "text": "lent"}
 
     async def stream(_queue):
-        yield frame
+        yield [frame]  # one batch: what the viewer had waiting (ADR 045)
 
-    monkeypatch.setattr(tape_stream, "stream", stream)
+    monkeypatch.setattr(tape_stream, "stream_batches", stream)
     with TestClient(app).websocket_connect("/ws/ibkr/tape/XYZ?tab=1") as ws:
         assert ws.receive_json()["type"] == "subscribed"
         assert ws.receive_json() == frame

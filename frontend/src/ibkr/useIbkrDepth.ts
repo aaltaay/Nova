@@ -8,6 +8,7 @@ import { documentVisible, LentLine } from './lentLine';
 import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
+import { forgetBook, noteBeat, noteBookFrame, noteSubscribed } from '../market_view';
 
 interface DepthState {
   book: DepthBook | null;
@@ -161,13 +162,20 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
           if (msgSym != null && msgSym !== symKey) return;
           if (msg.type === 'subscribed' || msg.type === 'book' || msg.type === 'error') line.answered();
 
+          if (msg.type === 'beat') {
+            // ADR 045: the newest version as of the backend's `now` -- freshness only, never a render.
+            noteBeat(symKey!, msg);
+            return;
+          }
           if (msg.type === 'subscribed') {
+            noteSubscribed(symKey!, msg.instance);
             backoffRef.current = 1000;
             connectedRef.current = true;
             errorRef.current = null;
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'book') {
-            const book: DepthBook = { ...msg.data, symbol: symKey };
+            noteBookFrame(symKey!, msg);
+            const book: DepthBook = { ...msg.data, symbol: symKey, seq: msg.seq, at: msg.at ?? null };
             if (shouldKeepPriorBook(book, bookRef.current)) {
               connectedRef.current = true;
               errorRef.current = null;
@@ -222,6 +230,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
 
     return () => {
       mountedRef.current = false;
+      forgetBook(symKey);
       line.dispose();
       if (lineRef.current === line) lineRef.current = null;
       if (reconnectTimerRef.current != null) {

@@ -2,8 +2,10 @@
 
 Owner: this module. Read-only -- never writes IBC config, jts.ini, or the
 gateway trail.
-Invalidation: nothing persisted to disk; every call re-reads the newest IBC
-log file, so state always reflects the current log tail.
+Invalidation: nothing persisted to disk. The newest IBC log is found again
+when the log folder changes, and read again -- from where the last read
+stopped -- when that file grows (ADR 045: the status poll re-read and
+re-scanned the whole log every 5 s on the socket loop).
 
 Why this exists (PROBLEM_LOG 2026-08-25): IBC timestamps a Second Factor
 Authentication prompt when it opens, and once it finally closes -- whether
@@ -45,26 +47,40 @@ class SecondFactorState:
 
 
 _EMPTY = SecondFactorState(pending=False, age_sec=None, stale=False)
+# What a usable IBKR session reads: a logged-in Gateway has no open prompt.
+NOT_PENDING = _EMPTY
+
+_UNSET = object()
+# The newest log, found again when the folder changes: (folder, its mtime_ns, newest path).
+_newest_cache: tuple[Path, int, Path | None] | None = None
+# What the newest log said so far: (path, bytes read, last open prompt or None).
+_read_cache: tuple[Path, int, datetime | None] | None = None
 
 
 def _newest_log(log_dir: Path) -> Path | None:
+    global _newest_cache
+    try:
+        stamp = log_dir.stat().st_mtime_ns
+    except OSError:
+        return None
+    cached = _newest_cache
+    if cached is not None and cached[0] == log_dir and cached[1] == stamp:
+        return cached[2]
     try:
         logs = sorted(log_dir.glob("IBC-*.txt"), key=lambda p: p.stat().st_mtime)
     except Exception:
         logger.warning("IBKR: second_factor log dir unreadable", exc_info=True)
         return None
-    return logs[-1] if logs else None
+    newest = logs[-1] if logs else None
+    _newest_cache = (log_dir, stamp, newest)
+    return newest
 
 
-def parse_second_factor_state(
-    text: str, *, now: datetime | None = None
-) -> SecondFactorState:
-    """Pure parse -- last ``Second Factor Authentication initiated`` line
-    with no later ``Login has completed`` line is the currently-open prompt.
-    A re-login (IBC's own timeout retry) naturally overwrites this with the
-    newer attempt's timestamp.
-    """
-    last_initiated: datetime | None = None
+def _last_open_prompt(text: str, start: datetime | None | object = _UNSET) -> datetime | None:
+    """The last ``Second Factor Authentication initiated`` with no later ``Login has completed``.
+
+    ``start`` carries the answer for the text before this one (an incremental read)."""
+    last_initiated: datetime | None = None if start is _UNSET else start  # type: ignore[assignment]
     for raw in text.splitlines():
         m = _LINE_RE.match(raw.strip())
         if not m:
@@ -78,6 +94,21 @@ def parse_second_factor_state(
                 continue
         elif "login has completed" in low:
             last_initiated = None
+    return last_initiated
+
+
+def parse_second_factor_state(
+    text: str, *, now: datetime | None = None
+) -> SecondFactorState:
+    """Pure parse -- last ``Second Factor Authentication initiated`` line
+    with no later ``Login has completed`` line is the currently-open prompt.
+    A re-login (IBC's own timeout retry) naturally overwrites this with the
+    newer attempt's timestamp.
+    """
+    return _state_from(_last_open_prompt(text), now)
+
+
+def _state_from(last_initiated: datetime | None, now: datetime | None) -> SecondFactorState:
     if last_initiated is None:
         return _EMPTY
     clock = now or datetime.now()
@@ -110,11 +141,11 @@ def current_state(
     if newest is None:
         return _EMPTY
     try:
-        text = newest.read_text(encoding="utf-8", errors="replace")
+        last = _read_newest(newest)
     except Exception:
         logger.warning("IBKR: second_factor log read failed", exc_info=True)
         return _EMPTY
-    state = parse_second_factor_state(text, now=now)
+    state = _state_from(last, now)
     if not state.pending:
         return state
     running = (
@@ -123,6 +154,32 @@ def current_state(
         else _gateway_process_running()
     )
     return state if running else _EMPTY
+
+
+def _read_newest(path: Path) -> datetime | None:
+    """The log's open prompt, reading only what was appended since the last call (IBC appends)."""
+    global _read_cache
+    size = path.stat().st_size
+    cached = _read_cache
+    if cached is not None and cached[0] == path and cached[1] == size:
+        return cached[2]
+    start: datetime | None | object = _UNSET
+    offset = 0
+    if cached is not None and cached[0] == path and cached[1] < size:
+        start, offset = cached[2], cached[1]
+    with path.open("rb") as fh:
+        fh.seek(offset)
+        chunk = fh.read(size - offset)
+    # Only whole lines: a line IBC is still writing is read on the next call.
+    end = chunk.rfind(b"\n") + 1
+    last = _last_open_prompt(chunk[:end].decode("utf-8", errors="replace"), start)
+    _read_cache = (path, offset + end, last)
+    return last
+
+
+def _reset_for_tests() -> None:
+    global _newest_cache, _read_cache
+    _newest_cache = _read_cache = None
 
 
 def _gateway_process_running() -> bool:

@@ -8,6 +8,7 @@ import {
   type QuantityMode,
 } from './orderEntry';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
+import { useViewLock } from '../market_view';
 import { TICKET_WHY_SENDING } from '../constantGroups/trader_chrome';
 import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedFollow, seedPricesForSide } from './applyTicketDefaults';
@@ -78,6 +79,7 @@ export function ManualOrderTicket({
 }: Props) {
   const ibkrStatus = useIbkrStatus();
   const { topOfBook } = useTopOfBook();
+  const viewLockWhy = useViewLock(symbol);  // ADR 045: Level 2 behind the market locks Place
   // Only this symbol's live book prices a Market order's Cost (R36).
   const liveBook = topOfBook && topOfBook.symbol.toUpperCase() === symbol.trim().toUpperCase()
     ? { bid: topOfBook.bid, ask: topOfBook.ask }
@@ -349,6 +351,7 @@ export function ManualOrderTicket({
         connected={connected}
         gatewayStatus={gatewayStatus}
         submitting={submitting}
+        viewLockWhy={viewLockWhy}
         spendLocked={spendLocked}
         spendLockReason={spendLockNote}
         spendDisarmed={spendStatus === 'locked_disarmed'}

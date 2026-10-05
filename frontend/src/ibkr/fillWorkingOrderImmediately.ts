@@ -24,6 +24,7 @@ import {
 } from './planFillWorkingOrder';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import type { IbkrOrder } from './types';
+import { viewLockReason } from '../market_view';
 
 export type FillWorkingOrderResult =
   | {
@@ -93,6 +94,11 @@ export async function fillWorkingOrderImmediately(
   const plan = planFillWorkingOrder(order, options);
   if (!plan.ok) {
     return { ok: false, error: plan.error };
+  }
+  // ADR 045: never cancel the working order when the fill would be refused for a lagging view.
+  const lagging = viewLockReason(plan.symbol);
+  if (lagging) {
+    return { ok: false, error: lagging };
   }
 
   const endDeskAction = beginDeskAction();

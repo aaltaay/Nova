@@ -10,6 +10,7 @@ import {
   type BrowserExecutionTiming,
 } from '../execution_latency';
 import type { ManualOrderPayload } from './orderEntry';
+import { viewStampFor } from '../market_view';
 
 export interface PlaceOrderResult {
   ok: boolean;
@@ -56,6 +57,10 @@ export async function placeIbkrOrder(
   }
   const timing = options?.timing ?? beginBrowserExecutionTiming('place_order');
   const clientTiming = timing.clientTimingAtRequest();
+  // ADR 045: what the screen shows as the order leaves -- after any confirm dialog, so a confirmed
+  // order is judged on the market at the moment it is sent. The backend refuses an order priced from
+  // a view that lags (VIEW_STALE / ORDER_LATE / FEED_STALE), and a manual one without it (VIEW_MISSING).
+  const view = viewStampFor(payload.symbol, Date.now());
   try {
     const response = await novaFetch(`${API_BASE_URL}/api/ibkr/order`, {
       method: 'POST',
@@ -69,6 +74,7 @@ export async function placeIbkrOrder(
             ? options.referencePrice
             : undefined,
         client_timing: clientTiming,
+        view,
       }),
     });
     return await parseTimedExecutionResponse<PlaceOrderResult>(response, timing);

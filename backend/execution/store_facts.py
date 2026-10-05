@@ -101,41 +101,6 @@ def list_session_placed(*, since_ts: float, limit: int = 300) -> list[dict]:
         conn.close()
 
 
-def list_session_place_overlay(*, since_ts: float, limit: int = 300) -> list[dict]:
-    """Place/bracket rows Closed can join -- including still-PreSubmitted ids.
-
-    ``list_session_placed`` stays closed-only so commissions and leftovers do
-    not treat a working order as a Closed row. Overlay matches IB Cancelled /
-    Filled by ``order_id`` or ``perm_id`` even when the place row is still
-    ``PreSubmitted`` after a restart mid-cancel.
-    """
-    store.init_db()
-    conn = store.get_connection()
-    try:
-        rows = conn.execute(
-            """
-            SELECT * FROM executions
-            WHERE created_ts >= ?
-              AND operation IN ('place', 'bracket')
-              AND IFNULL(source, '') != 'benchmark'
-              AND (
-                status = 'filled'
-                OR broker_status IN (
-                    'Filled', 'Cancelled', 'ApiCancelled', 'Inactive'
-                )
-                OR IFNULL(order_id, 0) > 0
-                OR IFNULL(perm_id, 0) > 0
-              )
-            ORDER BY created_ts DESC
-            LIMIT ?
-            """,
-            (float(since_ts), int(limit)),
-        ).fetchall()
-        return [store._row_to_dict(r) for r in rows]
-    finally:
-        conn.close()
-
-
 def session_commission_by_symbol(*, since_ts: float) -> dict[str, float]:
     """Sum real CommissionReport dollars per symbol this session. Never invent.
 
