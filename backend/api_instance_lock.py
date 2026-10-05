@@ -1,7 +1,7 @@
 """Single Nova API instance lock (one process on :8000 / clientId 17).
 
 Owner: this module (read + write).
-Invalidation: process start -- a lock whose PID is dead is stale.
+Invalidation: process exit releases the OS-held guard; PID metadata may remain stale.
 A live PID with no API listener after startup grace is an orphan: terminate
 it, then reclaim. Never start a second clientId 17 beside a living holder.
 schema_version: 1.
@@ -19,10 +19,12 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
+from api_lock_handle import try_lock
 from api_process_guard import (
     DEFAULT_API_HOST,
     DEFAULT_API_PORT,
@@ -34,6 +36,9 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 LOCK_NAME = "api-instance.lock"
+GUARD_NAME = LOCK_NAME + ".guard"
+_acquire_mutex = threading.RLock()
+_held_guard: tuple[int, Path, BinaryIO] | None = None
 LISTEN_PROBE_TIMEOUT_SEC = 0.4
 TERMINATE_WAIT_SEC = 2.0
 
@@ -198,7 +203,7 @@ def _read_lock(path: Path) -> dict[str, Any] | None:
     return raw
 
 
-def acquire() -> tuple[bool, str]:
+def _claim_metadata() -> tuple[bool, str]:
     """Claim the API instance lock for this PID.
 
     Returns ``(True, "ok"|"reclaimed")`` or ``(False, detail)``.
@@ -267,6 +272,46 @@ def acquire() -> tuple[bool, str]:
     claimed = "reclaimed" if existing is not None else "ok"
     logger.info("api_instance_lock: claimed pid=%s path=%s (%s)", my_pid, path, claimed)
     return True, claimed
+
+
+def acquire() -> tuple[bool, str]:
+    """Atomically claim startup and keep the OS guard until this process exits."""
+    global _held_guard
+    with _acquire_mutex:
+        path = lock_path()
+        if _held_guard is not None:
+            pid, held_path, handle = _held_guard
+            if pid == os.getpid() and held_path == path:
+                return True, "ok"
+            handle.close()  # a fork or test moved to another cache; never reuse ownership
+            _held_guard = None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            handle = try_lock(path.parent / GUARD_NAME)
+            if handle is None:
+                return False, "another Nova API holds the OS instance lock; do not start a second clientId 17"
+            try:
+                ok, detail = _claim_metadata()
+            except Exception:
+                handle.close()
+                raise
+            if ok:
+                _held_guard = (os.getpid(), path, handle)
+            else:
+                handle.close()
+            return ok, detail
+        except OSError as exc:
+            logger.exception("api_instance_lock: cannot claim %s", path)
+            return False, f"cannot claim API instance lock: {exc}"
+
+
+def reset_for_testing() -> None:
+    """Release only this test process's handle, without unlinking either file."""
+    global _held_guard
+    with _acquire_mutex:
+        if _held_guard is not None:
+            _held_guard[2].close()
+            _held_guard = None
 
 
 def acquire_or_exit() -> None:

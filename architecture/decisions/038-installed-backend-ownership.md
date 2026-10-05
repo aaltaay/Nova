@@ -97,3 +97,18 @@ a second engine on top of it. That was fixed before the push.
   before ADR 038.
 - A future separate backend service would need its own signed, atomic updater
   and a protocol compatibility policy, not implicit port adoption.
+
+## Atomic startup and immediate checkout restart (2026-10-05, #653)
+
+Every API process takes a non-blocking OS-held lock on a separate, never-unlinked
+`api-instance.lock.guard` file before reading or replacing the diagnostic JSON
+`api-instance.lock`. Windows locks byte zero with `msvcrt.locking`; POSIX uses
+`flock`. The open handle lives until process exit; stale or malformed JSON never
+allows a second process past a held guard. Same-process acquisition is idempotent.
+Legacy PID/orphan checks run only after acquiring the guard, and failed claims
+release it. A failed metadata write refuses startup and releases the guard.
+
+Once an operator-requested checkout restart has verified the old port is free,
+Electron immediately starts that checkout's engine, including when the watchdog
+runs. No watchdog query or polling interval delays the launch. Concurrent starts
+compete for the OS lock; success still requires a different health identity.

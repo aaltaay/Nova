@@ -5,7 +5,8 @@ process means Nova stopped before the broker outcome landed. Left as-is the
 operator sees an execution that never resolved, and a retry after a timeout
 looks like a brand-new order instead of the same intent (D-011).
 
-Runs once at startup, after IBKR connects, against the broker reads Nova
+Runs at startup for practice rows and after IBKR connects for IBKR rows. Each
+row is reconciled only against its own venue, using the broker reads Nova
 already has: `open_orders` (still working), `closed_orders` (already
 terminal), and `ib.fills()` (executions — the one history read that keeps
 answering while `reqCompletedOrders` is stuck). It never guesses — with no
@@ -32,7 +33,6 @@ from execution import store
 from execution.order_outcome import ledger_close
 from ibkr import client as _client
 from ibkr import completed_orders_state
-from ibkr.errors import IbkrAccountError
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ __all__ = ["run_startup_sweep"]
 
 _UNRESOLVED = "SWEEP_UNRESOLVED"
 _NEVER_SENT = "SWEEP_NEVER_SENT"
+_SIM_PROCESS_ENDED = "SWEEP_SIM_PROCESS_ENDED"
 _resweep_armed = False
 _resweep_running = False
 
@@ -54,23 +55,31 @@ def _order_id(row: dict) -> int | None:
         return None
 
 
-def _read_broker_orders() -> tuple[set[int], dict[int, dict]] | None:
+def _read_broker_orders(mode: str) -> tuple[set[int], dict[int, dict]] | None:
     """Working ids + terminal rows by order id, or None when unreadable."""
     from ibkr import orders as _orders
 
     try:
+        if mode == "paper":
+            from practice.broker import for_venue
+
+            broker = for_venue(mode)
+            open_rows, closed_rows = broker.working_orders(), broker.closed_orders()
+        else:
+            open_rows = _orders.open_orders(ibkr_only=True)
+            closed_rows = _orders.closed_orders(ibkr_only=True)
         working = {
             int(row["order_id"])
-            for row in _orders.open_orders()
+            for row in open_rows
             if row.get("order_id") is not None
         }
         terminal = {
             int(row["order_id"]): row
-            for row in _orders.closed_orders()
+            for row in closed_rows
             if row.get("order_id") is not None
         }
-    except IbkrAccountError:
-        logger.exception("execution sweep: broker order read failed")
+    except Exception:
+        logger.exception("execution sweep: %s broker order read failed", mode)
         return None
     return working, terminal
 
@@ -158,22 +167,48 @@ def run_startup_sweep() -> dict:
     if not rows:
         return summary
 
-    if not _client.is_connected():
-        logger.warning(
-            "execution sweep: %d ledger row(s) from a previous run are still "
-            "non-terminal and IBKR is disconnected — leaving them untouched",
-            len(rows),
-        )
-        return summary
+    groups: dict[str, list[dict]] = {}
+    for row in rows:
+        mode = str(row.get("mode") or "live").strip().lower()
+        # Unknown/disconnected legacy broker labels still use IBKR, never the desk book.
+        key = mode if mode in ("paper", "sim") else "ibkr"
+        groups.setdefault(key, []).append(row)
+    for mode, venue_rows in groups.items():
+        if mode == "sim":
+            for row in venue_rows:
+                execution_id = str(row["id"])
+                store.update_stages(
+                    execution_id, status="abandoned", reason_code=_SIM_PROCESS_ENDED,
+                    error="startup sweep: previous process's Sim scratch ledger no longer exists",
+                )
+                summary["abandoned"].append(execution_id)
+            continue
+        if mode == "ibkr" and not _client.is_connected():
+            logger.warning("execution sweep: IBKR disconnected; leaving %d IBKR rows untouched", len(venue_rows))
+            continue
+        broker = _read_broker_orders(mode)
+        if broker is None:
+            continue
+        summary["broker_checked"] = True
+        history_loaded = mode == "paper" or completed_orders_state.loaded_for(_client.get_ib())
+        executed_shares = {} if mode == "paper" else _executed_shares_by_order()
+        _reconcile_rows(venue_rows, broker, history_loaded, executed_shares, summary)
 
-    broker = _read_broker_orders()
-    if broker is None:
-        return summary
+    log = logger.error if summary["abandoned"] else logger.warning
+    log(
+        "execution sweep: scanned=%d still_working=%d resolved=%d abandoned=%d unverified=%d",
+        summary["scanned"], len(summary["still_working"]), len(summary["resolved"]),
+        len(summary["abandoned"]), len(summary["unverified"]),
+    )
+    return summary
+
+
+def _reconcile_rows(
+    rows: list[dict], broker: tuple[set[int], dict[int, dict]],
+    history_loaded: bool, executed_shares: dict[int, float] | None, summary: dict,
+) -> None:
+    """Resolve one venue's rows using evidence exclusively from that venue."""
     working_ids, terminal_by_id = broker
-    summary["broker_checked"] = True
-    history_loaded = completed_orders_state.loaded_for(_client.get_ib())
-    executed_shares = _executed_shares_by_order()
-
     for row in rows:
         execution_id = str(row["id"])
         order_id = _order_id(row)
@@ -182,7 +217,7 @@ def run_startup_sweep() -> dict:
                 execution_id,
                 status="abandoned",
                 reason_code=_NEVER_SENT,
-                error="startup sweep: no broker order id — never reached IBKR",
+                error="startup sweep: no broker order id — never reached its broker",
             )
             summary["abandoned"].append(execution_id)
             continue
@@ -228,21 +263,6 @@ def run_startup_sweep() -> dict:
 
     if summary["unverified"] and not history_loaded:
         _arm_history_resweep()
-
-    log = logger.error if summary["abandoned"] else logger.warning
-    log(
-        "execution sweep: scanned=%d still_working=%d resolved=%d "
-        "(%d from executions) abandoned=%d unverified=%d "
-        "(completed orders loaded=%s)",
-        summary["scanned"],
-        len(summary["still_working"]),
-        len(summary["resolved"]),
-        len(summary["resolved_by_executions"]),
-        len(summary["abandoned"]),
-        len(summary["unverified"]),
-        history_loaded,
-    )
-    return summary
 
 
 def _arm_history_resweep() -> None:

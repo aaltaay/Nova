@@ -6,9 +6,9 @@
  * nothing and re-attached to the engine it meant to replace. Now the engine names its own
  * checkout (/api/diagnostics `process.repo_root`), that checkout's stop script stops it -- the
  * script checks the listener is Nova's before it kills -- and a reload counts only when a
- * different process answers /api/health (a new `instance_id`). The localhost watchdog
- * (scripts/Watch-NovaLocalhost.ps1) starts the next engine; with no watchdog running, the
- * checkout's own scripts/Start-NovaApi.ps1 does, as scripts/windows/Run Nova.bat would -- never this app's
+ * different process answers /api/health (a new `instance_id`). The checkout's own
+ * scripts/Start-NovaApi.ps1 starts the next engine immediately, as scripts/windows/Run Nova.bat
+ * would -- never this app's
  * packaged engine, which keeps its data in another folder. The engine's instance lock makes a
  * start beside the watchdog's harmless: the second one exits.
  */
@@ -21,7 +21,7 @@ import { windowsPowerShell } from './updateSplash.mjs';
 
 export const ENGINE_STOP_SCRIPT = ['scripts', 'Stop-NovaPorts.ps1'];
 export const ENGINE_START_SCRIPT = ['scripts', 'Start-NovaApi.ps1'];
-/** The watchdog looks every 20 s, and a started engine can take most of a minute to answer. */
+/** A started engine can take most of a minute to answer. */
 export const ENGINE_NEW_TIMEOUT_MS = 120_000;
 const HEALTH_TIMEOUT_MS = 3_000;
 /** The checklist probes the Gateway ports on a worker thread; a dark port costs seconds. */
@@ -241,8 +241,7 @@ export async function restartCheckoutEngine(before, deps) {
   if (!scripts) {
     throw new Error(`Not restarted: ${label(from)} was started outside Nova, and its stop script was not found`);
   }
-  const watchdog = watchdogRunning({ run, env });
-  console.log(`[nova-api] reload: stopping ${label(from)} from ${scripts.root} (watchdog ${watchdog ? 'running' : 'not running'})`);
+  console.log(`[nova-api] reload: stopping ${label(from)} from ${scripts.root}`);
   const stopped = run(windowsPowerShell(env), ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scripts.stop, '-Ports', String(port)], {
     encoding: 'utf8',
     windowsHide: true,
@@ -252,12 +251,10 @@ export async function restartCheckoutEngine(before, deps) {
     const said = lastLine(stopped?.stdout);
     throw new Error(`Not restarted: ${label(from)} is still running${said ? ` -- ${said}` : ''}`);
   }
-  if (!watchdog) {
-    try {
-      startCheckoutEngine(scripts, { env, spawnFn });
-    } catch (err) {
-      throw new Error(`Stopped ${label(from)}, but ${err instanceof Error ? err.message : String(err)}`);
-    }
+  try {
+    startCheckoutEngine(scripts, { env, spawnFn });
+  } catch (err) {
+    throw new Error(`Stopped ${label(from)}, but ${err instanceof Error ? err.message : String(err)}`);
   }
   const after = await waitForNewEngine(apiBase, before, { fetchJson, sleep, now, timeoutMs });
   if (!after) {

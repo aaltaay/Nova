@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 import os
+import json
+import subprocess
+import sys
+
+import pytest
 from pathlib import Path
 
 import api_instance_lock as lock
@@ -149,3 +154,80 @@ def test_acquire_refuses_if_orphan_kill_fails(tmp_path: Path, monkeypatch):
     assert ok is False
     assert "still alive" in detail
     assert "clientId 17" in detail
+
+
+@pytest.fixture(autouse=True)
+def release_test_guard():
+    lock.reset_for_testing()
+    yield
+    lock.reset_for_testing()
+
+
+_CHILD = """
+import json, sys, time
+import api_instance_lock as lock
+original_read = lock._read_lock
+def widened_read(path):
+    value = original_read(path)
+    time.sleep(0.2)  # widen the old read/write race without weakening the OS guard
+    return value
+lock._read_lock = widened_read
+sys.stdin.readline()
+print(json.dumps(lock.acquire()), flush=True)
+sys.stdin.readline()  # keep the winning handle alive until the parent ends the process
+"""
+
+
+def _contender(cache):
+    return subprocess.Popen(
+        [sys.executable, "-c", _CHILD], cwd=Path(lock.__file__).parent,
+        env={**os.environ, "NOVA_CACHE_DIR": str(cache)},
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _start_contender(child):
+    child.stdin.write("go\n")
+    child.stdin.flush()
+
+
+def _end_contender(child):
+    if child.poll() is None:
+        child.kill()
+    child.communicate(timeout=10)
+
+
+def test_concurrent_processes_cannot_both_claim_and_death_releases_guard(tmp_path):
+    children = [_contender(tmp_path), _contender(tmp_path)]
+    try:
+        for child in children:
+            _start_contender(child)
+        results = [json.loads(child.stdout.readline()) for child in children]
+        assert sorted(result[0] for result in results) == [False, True]
+        winner = children[next(i for i, result in enumerate(results) if result[0])]
+        # Destroy diagnostic metadata while a live process holds the guard: still exclusive.
+        (tmp_path / lock.LOCK_NAME).write_text('{"schema_version": 99}')
+        late = _contender(tmp_path)
+        children.append(late)
+        _start_contender(late)
+        assert json.loads(late.stdout.readline())[0] is False
+        _end_contender(winner)
+        fresh = _contender(tmp_path)
+        children.append(fresh)
+        _start_contender(fresh)
+        assert json.loads(fresh.stdout.readline())[0] is True
+    finally:
+        for child in children:
+            _end_contender(child)
+
+
+def test_metadata_write_failure_refuses_and_releases_guard(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path))
+    with monkeypatch.context() as patch:
+        def full_disk(*args, **kwargs):
+            raise OSError("disk full")
+        patch.setattr(Path, "write_text", full_disk)
+        ok, detail = lock.acquire()
+        assert not ok and "disk full" in detail
+    assert lock.acquire()[0] is True
