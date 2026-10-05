@@ -177,9 +177,9 @@ describe('FocusRail', () => {
 
   it('mirrors HOD Momo from the HOD stream: one row per ticker, newest raised first, Former Momo off', () => {
     mocks.hod!.alerts = [
-      alert('GRML', 2, 100, { price: 8.1, gap_pct: 120.5 }),
-      alert('ZZZX', 3, 200, { price: 2.5, gap_pct: 45 }),
-      alert('GRML', 5, 300, { price: 8.9, gap_pct: 131.2 }),
+      alert('GRML', 2, 100, { price: 8.1, change_pct: 120.5 }),
+      alert('ZZZX', 3, 200, { price: 2.5, change_pct: 45 }),
+      alert('GRML', 5, 300, { price: 8.9, change_pct: 131.2 }),
       alert('OLDM', 1, 400),
       alert('RUNR', 12, 500, { price: 4, change_pct: 22 }),
     ];
@@ -276,8 +276,8 @@ describe('FocusRail', () => {
 
   it('shows HOD Momo in a lower half that keeps its own list and fold, newest alert first', async () => {
     mocks.hod!.alerts = [
-      alert('ZZZX', 3, 200, { price: 2.5, gap_pct: 45 }),
-      alert('GRML', 5, 300, { price: 8.1, gap_pct: 120 }),
+      alert('ZZZX', 3, 200, { price: 2.5, change_pct: 45 }),
+      alert('GRML', 5, 300, { price: 8.1, change_pct: 120 }),
     ];
     render(<FocusRail />);
     expect(screen.getByTestId('focus-rail').getAttribute('data-split')).toBe('1');
@@ -321,8 +321,8 @@ describe('FocusRail', () => {
 
   it('a sort saved on a HOD half before is ignored: the newest alert stays on top', () => {
     mocks.hod!.alerts = [
-      alert('ZZZX', 3, 200, { price: 2.5, gap_pct: 45 }),
-      alert('GRML', 5, 300, { price: 8.1, gap_pct: 120 }),
+      alert('ZZZX', 3, 200, { price: 2.5, change_pct: 45 }),
+      alert('GRML', 5, 300, { price: 8.1, change_pct: 120 }),
     ];
     localStorage.setItem(FOCUS_RAIL_STORAGE_KEY, JSON.stringify({
       v: 1, collapsed: false, list: 'gappers', lower: { list: 'hod_momo', sort: { key: 'symbol', dir: 'desc' }, folded: false },
@@ -337,7 +337,7 @@ describe('FocusRail', () => {
   it('a HOD row shows a live board price, or the alert price saying it is the alert\'s', () => {
     mocks.hod!.alerts = [
       alert('PFSA', 3, 100, { price: 4.38 }),
-      alert('NEWX', 3, 200, { price: 2.2, gap_pct: 12 }),
+      alert('NEWX', 3, 200, { price: 2.2, change_pct: 12 }),
     ];
     mocks.feed = makeLiveScannerFeedStub({ gainers: [row('PFSA', 70.2, 3.48)] });
     const view = render(<FocusRail />);
@@ -505,6 +505,18 @@ describe('focusRowsFor / stepCursor', () => {
     expect(focusRowsFor('gappers', null)).toBeNull();
   });
 
+  it("shows the Scanner's %, never the opening gap, on After Hours and on a HOD row it prices (2026-10-05)", () => {
+    // OLOX opened at 0.85 on a 0.8415 prior close (+1.0% gap) and traded 1.20 after hours (+42.6%).
+    const olox: ScannerRow = { ...row('OLOX', 1, 1.2), change_pct: 0.426, gap_percent: 0.0101 };
+    const feed = makeLiveScannerFeedStub({ afterhours: [olox] });
+    expect(focusRowsFor('afterhours', feed)?.[0].changePct).toBeCloseTo(42.6, 6);
+    expect(hodFocusRows('hod_momo', [alert('OLOX', 2, 2, { price: 1.1, change_pct: 30 })], feed)[0])
+      .toMatchObject({ price: 1.2, changePct: expect.closeTo(42.6, 6) });
+    // A row priced at IBKR's prior close (no trade yet) has no move, as on the Scanner.
+    const fallback: ScannerRow = { ...row('NOTR', 0, 2), quote_quality: 'close_fallback' };
+    expect(focusRowsFor('gainers', makeLiveScannerFeedStub({ gainers: [fallback] }))?.[0].changePct).toBeNull();
+  });
+
   it('HOD rows say "no news" only for a symbol the scanner feed knows', () => {
     const feed = makeLiveScannerFeedStub({ gappers: [row('CBRX', -5.4)] });
     const rows = hodFocusRows('hod_momo', [alert('CBRX', 2, 2), alert('NEWX', 2, 1)], feed);
@@ -515,8 +527,8 @@ describe('focusRowsFor / stepCursor', () => {
     const feed = makeLiveScannerFeedStub({ losers: [row('CBRX', -5.4)] });
     const rows = watchFocusRows(['NOPE', 'CBRX'], feed);
     expect(rows.map(r => r.symbol)).toEqual(['NOPE', 'CBRX']);
-    expect(rows[0]).toEqual({ symbol: 'NOPE', price: null, gapPct: null, headlineAt: null, newsKnown: false });
-    expect(rows[1].gapPct).toBe(-5.4);
+    expect(rows[0]).toEqual({ symbol: 'NOPE', price: null, changePct: null, headlineAt: null, newsKnown: false });
+    expect(rows[1].changePct).toBe(-5.4);
     expect(watchFocusRows(['NOPE'], null)[0].price).toBeNull();
   });
 
@@ -551,7 +563,7 @@ describe('focusRowsFor / stepCursor', () => {
 
 describe('focus rail sorting and the hover card position', () => {
   const focusRow = (symbol: string, patch: Partial<FocusRow> = {}): FocusRow => ({
-    symbol, price: 1, gapPct: 0, headlineAt: null, newsKnown: true, ...patch,
+    symbol, price: 1, changePct: 0, headlineAt: null, newsKnown: true, ...patch,
   });
 
   it('cycles a column: its first direction, flipped, then none', () => {

@@ -60,7 +60,7 @@ import './deskBoard.css';
 const SORT_COLUMNS: SortColumns<BoardRow> = {
   symbol: r => r.symbol,
   price: r => r.price,
-  gap_percent: r => r.gapPct,
+  gap_percent: r => r.changePct,
   volume: r => r.volume,
   rel_volume: r => r.relVolume,
   float: r => r.float,
@@ -194,7 +194,7 @@ export function DeskBoard({
                     row={row}
                     index={index}
                     selected={row.symbol === selected}
-                    barPct={gapBarPct(row.gapPct, widest)}
+                    barPct={gapBarPct(row.changePct, widest)}
                     recording={rec}
                     allowed={allowed}
                     held={allowed && (rec || live.has(row.symbol))}

@@ -16,7 +16,7 @@ import type { Catalyst } from '../types/catalyst';
 import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { ScannerRow } from '../types/scanner';
 import { parseFocusSort, type FocusSort } from './focusRailSort';
-import { catalystFor, fractionToPercent, scannerRowFor } from './tabContext';
+import { catalystFor, fractionToPercent, scannerChangePct, scannerRowFor } from './tabContext';
 
 export const FOCUS_RAIL_STATE_VERSION = 1;
 
@@ -125,7 +125,8 @@ function safeStorage(): Storage | null {
 export interface FocusRow {
   symbol: string;
   price: number | null;
-  gapPct: number | null;
+  /** The Scanner's %: the price against the prior close, in percent points. */
+  changePct: number | null;
   /** The newest headline's time, for the scanner's age circle. */
   headlineAt: string | null;
   /** The row's catalyst verdict (ADR 024); `undefined` when the row carries
@@ -191,11 +192,10 @@ function newsOf(row: ScannerRow | null, catalyst: Catalyst | null): Pick<FocusRo
 }
 
 function fromScannerRow(row: ScannerRow, catalysts: readonly Catalyst[]): FocusRow {
-  const gap = row.gap_percent ?? row.change_pct ?? null;
   return {
     symbol: row.symbol.toUpperCase(),
     price: row.price,
-    gapPct: fractionToPercent(gap),
+    changePct: scannerChangePct(row),
     ...newsOf(row, catalystFor(row.symbol, catalysts)),
     newsKnown: true,
   };
@@ -205,7 +205,8 @@ function fromCatalyst(row: Catalyst): FocusRow {
   return {
     symbol: row.symbol.toUpperCase(),
     price: row.current_price,
-    gapPct: fractionToPercent(row.gap_percent),
+    // A Catalysts row carries only its gap_percent (no change_pct).
+    changePct: fractionToPercent(row.gap_percent),
     headlineAt: row.newest_headline_at,
     newsKnown: true,
   };
@@ -240,7 +241,7 @@ function livePriceRow(symbol: string, feed: FeedRows | null | undefined): Scanne
  * when one carries the symbol -- the alert's print can be minutes old on a
  * name that has since pulled back (PFSA 4.38 at the alert, 3.48 live,
  * 2026-09-24) -- else from the alert, whose price then says it is the
- * alert's. Alerts carry percent points already, so their gap is not
+ * alert's. Alerts carry percent points already, so their change is not
  * converted. They carry no news, so the circle comes from the scanner feed;
  * a symbol no scanner list carries has no known news.
  */
@@ -259,10 +260,11 @@ export function hodFocusRows(
     const scannerRow = scannerRowFor(symbol, feed);
     const catalyst = catalystFor(symbol, feed?.catalysts);
     const live = livePriceRow(symbol, feed);
-    const alertGap = finite(alert.gap_pct) ?? finite(alert.change_pct);
+    // The alert's change, never its gap_pct: on a mover that is the opening gap.
+    const alertChange = finite(alert.change_pct);
     const price = live
-      ? { price: live.price, gapPct: fractionToPercent(live.gap_percent ?? live.change_pct ?? null) ?? alertGap }
-      : { price: finite(alert.price), gapPct: alertGap, priceTitle: focusRailAlertPriceTitle(fmtStripClock(alert)) };
+      ? { price: live.price, changePct: scannerChangePct(live) ?? alertChange }
+      : { price: finite(alert.price), changePct: alertChange, priceTitle: focusRailAlertPriceTitle(fmtStripClock(alert)) };
     rows.push({
       symbol,
       ...price,
@@ -284,7 +286,7 @@ export function watchFocusRows(symbols: readonly string[], feed: FeedRows | null
     if (row) return fromScannerRow(row, feed?.catalysts ?? []);
     const catalyst = catalystFor(symbol, feed?.catalysts);
     if (catalyst) return fromCatalyst(catalyst);
-    return { symbol, price: null, gapPct: null, headlineAt: null, newsKnown: false };
+    return { symbol, price: null, changePct: null, headlineAt: null, newsKnown: false };
   });
 }
 

@@ -120,7 +120,7 @@ export function searchTickers(
     desk.push({
       symbol,
       source,
-      movePct: tabContextFor(symbol, rows).gapPct,
+      movePct: tabContextFor(symbol, rows).changePct,
       name: listed?.name || null,
       exchange: listed?.exchange || null,
       ...match,

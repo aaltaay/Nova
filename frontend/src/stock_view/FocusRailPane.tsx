@@ -22,7 +22,7 @@ import {
   FOCUS_RAIL_SORT_RESET,
   FOCUS_RAIL_SORT_TITLES,
 } from '../constantGroups/trader_chrome';
-import { TRADER_TAB_GAP_TITLE } from '../constantGroups/trader_view';
+import { TRADER_TAB_CHANGE_TITLE } from '../constantGroups/trader_view';
 import { SIM_FOCUS_RAIL_REPLAY_NOTE } from '../sim';
 import type { NovaModule } from '../workspace';
 import { stepCursor, type FocusRow } from './focusRailState';
@@ -228,8 +228,8 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
                       data-testid={`${tid}-px-${row.symbol}`}>
                       {row.price != null ? row.price.toFixed(2) : '—'}
                     </span>
-                    <span className={`focus-rail__gap focus-rail__gap--${pctTone(row.gapPct)}`} title={TRADER_TAB_GAP_TITLE}>
-                      {formatSignedPct(row.gapPct)}
+                    <span className={`focus-rail__gap focus-rail__gap--${pctTone(row.changePct)}`} title={TRADER_TAB_CHANGE_TITLE}>
+                      {formatSignedPct(row.changePct)}
                     </span>
                   </>
                 )}

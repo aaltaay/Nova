@@ -12,6 +12,7 @@
  *
  * Pure: no module state.
  */
+import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../constantGroups/market_ui';
 import type { ScannerPricePatchRow } from '../hooks/useScannerPriceStream';
 import { applyScannerPricePatch } from '../hooks/useScannerPriceStream';
 import type { Catalyst } from '../types/catalyst';
@@ -77,7 +78,7 @@ const PATCH_NUMBERS = [
 const EARNINGS_SESSIONS = new Set(['bmo', 'amc', 'intraday']);
 
 /** IBKR sent no last trade, so the price is the prior close (ibkr/ticks_handler.py). */
-export const SCANNER_QUOTE_CLOSE_FALLBACK = 'close_fallback';
+export { SCANNER_QUOTE_CLOSE_FALLBACK };
 
 /** A price-patch row plus the quote quality the backend stamps on it. */
 export type HonestPatchRow = ScannerPricePatchRow & { quote_quality?: string | null };

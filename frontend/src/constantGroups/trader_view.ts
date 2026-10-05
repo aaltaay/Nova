@@ -115,12 +115,12 @@ export const TRADER_DEPTH_CONNECT_GATEWAY = 'Connect IB Gateway for Level 2 and 
 export const TRADER_DEPTH_STATUS_PENDING = GATEWAY_STATUS_PENDING;
 export const TRADER_DEPTH_STATUS_FAILED = `${GATEWAY_STATUS_FAILED} -- Level 2 and Time & Sales wait for it`;
 /**
- * W30: the tab / Focus rail figure is the scanner's gap (price against the
+ * W30: the tab / Focus rail figure is the Scanner's % (price against the
  * prior close); the quote card's Gap% is the opening gap (the open against
  * the prior close), which reads -- until the open prints. Each says which.
  */
-export const TRADER_TAB_GAP_TITLE =
-  "Scanner gap: the price against the prior close. The quote card's Gap% is the opening gap -- the open against the prior close -- so it reads -- before the open.";
+export const TRADER_TAB_CHANGE_TITLE =
+  "The Scanner's %: the price against the prior close. The quote card's Gap% is the opening gap -- the open against the prior close -- so it reads -- before the open.";
 export const QUOTE_GAP_OPEN_TITLE =
   "Opening gap: the day's open against the prior close -- it reads -- until the open prints. The tab's figure is the price against the prior close.";
 

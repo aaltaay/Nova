@@ -91,7 +91,7 @@ export const DESK_REL_VOL_SUFFIX = '×';
 export const DESK_BOARD_COLUMNS: [string, string][] = [
   ['symbol', 'Symbol'],
   ['price', 'Price'],
-  ['gap_percent', 'Gap %'],
+  ['gap_percent', '%'],
   ['volume', 'Vol'],
   ['rel_volume', 'RVOL'],
   ['float', 'Float'],
@@ -104,7 +104,7 @@ export const DESK_BOARD_FLEX_COLUMN = 'state';
 export const DESK_BOARD_COLUMN_TITLE: Record<string, string> = {
   volume: 'Volume',
   rel_volume: 'Relative volume',
-  gap_percent: 'Gap % vs prior close',
+  gap_percent: "% change: the price against the prior close, the Scanner's % column",
   state: 'Halt state',
 };
 

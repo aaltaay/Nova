@@ -26,7 +26,7 @@ import {
   TRADER_TAB_RECORDING_TITLE,
   TRADER_TAB_SUSPENDED_TITLE,
 } from '../constants';
-import { TRADER_TAB_GAP_TITLE } from '../constantGroups/trader_view';
+import { TRADER_TAB_CHANGE_TITLE } from '../constantGroups/trader_view';
 import { catalystInitial, formatSignedPct, pctTone, type TabContext } from './tabContext';
 
 export interface StockViewTabProps {
@@ -66,7 +66,7 @@ export function StockViewTab({
   moveTitle, dockWhy = null, extractWhy = null, editing, draft, inputRef, onDraftChange, onCommitEdit, onCancelEdit,
   onActivate, onExtract, onDock, onTogglePin, onClose,
 }: StockViewTabProps) {
-  const gap = context ? formatSignedPct(context.gapPct) : '';
+  const gap = context ? formatSignedPct(context.changePct) : '';
   const chip = context?.catalyst ?? null;
   const chipTitle = context?.headline ? `${chip} · ${context.headline}` : chip ?? undefined;
   const labelTitle = isDraft
@@ -111,9 +111,9 @@ export function StockViewTab({
           <span className="sv-tab__symbol">{label}</span>
           {gap && (
             <span
-              className={`sv-tab__gap sv-tab__gap--${pctTone(context?.gapPct)}`}
+              className={`sv-tab__gap sv-tab__gap--${pctTone(context?.changePct)}`}
               data-testid={`sv-tab-gap-${label}`}
-              title={TRADER_TAB_GAP_TITLE}
+              title={TRADER_TAB_CHANGE_TITLE}
             >
               {gap}
             </span>

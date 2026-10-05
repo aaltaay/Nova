@@ -253,6 +253,10 @@ export const SCANNER_ROW_NUM_LABEL = '#';
 export const SCANNER_ROW_NUM_TITLE =
   'Row number in the current list (after sort and filters). Not IB scanner rank.';
 
+/** A row's `quote_quality` when IBKR sent no last trade, so its price is the prior close
+ * (backend IBKR_QUOTE_QUALITY_CLOSE_FALLBACK, ibkr/ticks_handler.py). */
+export const SCANNER_QUOTE_CLOSE_FALLBACK = 'close_fallback';
+
 /** Scanner Volume column: live volume is IBKR; RVOL denominator is yfinance avg.
  * Deliberately NOT Alpaca: IEX daily bars capture a sliver of consolidated
  * volume for thin low-float names and blew RVOL up 100x-3000x (PROBLEM_LOG

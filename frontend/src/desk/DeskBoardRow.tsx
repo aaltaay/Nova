@@ -100,7 +100,7 @@ function DeskBoardRowImpl({
     }
   };
   const clock = headlineClockEt(row.headlineAt);
-  const tone = pctTone(row.gapPct);
+  const tone = pctTone(row.changePct);
   return (
     <tr
       className={`selectable-row desk-board__row${selected ? ' row-selected' : ''}`}
@@ -139,7 +139,7 @@ function DeskBoardRowImpl({
       </td>
       <td className={scannerColClass('gap_percent')}>
         <span className="desk-board__gap">
-          <b className={`desk-board__gap-num desk-board__gap-num--${tone}`}>{row.gapPct != null ? formatSignedPct(row.gapPct) : DESK_CELL_ABSENT}</b>
+          <b className={`desk-board__gap-num desk-board__gap-num--${tone}`}>{row.changePct != null ? formatSignedPct(row.changePct) : DESK_CELL_ABSENT}</b>
           <span className="desk-board__bar" aria-hidden="true">
             <i className={`desk-board__bar-fill desk-board__bar-fill--${tone}`} style={{ width: `${barPct}%` }} data-testid={`desk-board-bar-${sym}`} />
           </span>

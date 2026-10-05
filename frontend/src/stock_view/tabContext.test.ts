@@ -19,15 +19,15 @@ const rows = (over: Partial<ScannerDockRows>): ScannerDockRows => ({
 });
 
 describe('tabContextFor', () => {
-  it('is unknown (no gap, no chip) without a scanner row', () => {
-    expect(tabContextFor('ZZZZ', rows({}))).toEqual({ gapPct: null, catalyst: null, headline: null, known: false, price: null });
+  it('is unknown (no %, no chip) without a scanner row', () => {
+    expect(tabContextFor('ZZZZ', rows({}))).toEqual({ changePct: null, catalyst: null, headline: null, known: false, price: null });
     expect(tabContextFor('ZZZZ', null).known).toBe(false);
   });
 
-  it('reads the gap from the first list that names the symbol and falls back to the day change', () => {
+  it('reads the % from the first list that names the symbol', () => {
     // The wire carries a fraction; the tab prints percent points (QA V2 / C17).
     const ctx = tabContextFor('grml', rows({ gainers: [row('GRML', { change_pct: 0.125, price: 8.9 })] }));
-    expect(ctx.gapPct).toBe(12.5);
+    expect(ctx.changePct).toBe(12.5);
     expect(ctx.price).toBe(8.9);
     expect(ctx.known).toBe(true);
     expect(ctx.catalyst).toBeNull();
@@ -47,10 +47,30 @@ describe('tabContextFor', () => {
 
 describe('gap units (QA V2 / C17)', () => {
   it('reads GRML +156.49% from the live fraction 1.5649, not +1.6%', () => {
-    const ctx = tabContextFor('GRML', rows({ gappers: [row('GRML', { gap_percent: 1.5649, price: 9.42 })] }));
-    expect(ctx.gapPct).toBeCloseTo(156.49, 6);
-    expect(formatSignedPct(ctx.gapPct)).toBe('+156%');
-    expect(formatSignedPct(tabContextFor('X', rows({ losers: [row('X', { gap_percent: -0.054 })] })).gapPct)).toBe('−5.4%');
+    const ctx = tabContextFor('GRML', rows({ gappers: [row('GRML', { change_pct: 1.5649, gap_percent: 1.5649, price: 9.42 })] }));
+    expect(ctx.changePct).toBeCloseTo(156.49, 6);
+    expect(formatSignedPct(ctx.changePct)).toBe('+156%');
+    expect(formatSignedPct(tabContextFor('X', rows({ losers: [row('X', { change_pct: -0.054 })] })).changePct)).toBe('−5.4%');
+  });
+});
+
+describe("the Scanner's %, never the opening gap (2026-10-05)", () => {
+  it("shows QTEX's move on the prior close, not its opening gap", () => {
+    // Gainers: open 1.29 on a 1.10 prior close is a 17.3% gap; at 1.57 the stock is up 42.7%.
+    const qtex = row('QTEX', { price: 1.57, prev_close: 1.1, change_pct: 0.4273, gap_percent: 0.1727 });
+    expect(formatSignedPct(tabContextFor('QTEX', rows({ gainers: [qtex] })).changePct)).toBe('+42.7%');
+  });
+
+  it("shows an after-hours mover's move, not its opening gap", () => {
+    // OLOX opened at 0.85 on a 0.8415 prior close (+1.0%) and traded 1.20 after hours (+42.6%).
+    const olox = row('OLOX', { price: 1.2, prev_close: 0.8415, change_pct: 0.4260, gap_percent: 0.0101 });
+    expect(formatSignedPct(tabContextFor('OLOX', rows({ afterhours: [olox] })).changePct)).toBe('+42.6%');
+  });
+
+  it("states no % for a row priced at IBKR's prior close or not priced yet", () => {
+    const fallback = row('X', { change_pct: 0, gap_percent: 0, quote_quality: 'close_fallback' });
+    expect(tabContextFor('X', rows({ gainers: [fallback] })).changePct).toBeNull();
+    expect(tabContextFor('Y', rows({ gainers: [row('Y', { gap_percent: 0.2 })] })).changePct).toBeNull();
   });
 });
 
