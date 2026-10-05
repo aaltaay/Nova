@@ -480,12 +480,14 @@ export const CLOSED_ORDERS_EMPTY_MESSAGE =
   'No filled or cancelled orders this session.';
 export const CLOSED_ORDERS_SAMPLE_BANNER =
   'Sample preview — filled/cancelled rows (not from IBKR)';
-/** Closed rows completed within this window get a “just finished” highlight. */
-export const CLOSED_ORDERS_RECENT_HIGHLIGHT_MS = 60_000;
-/** Re-check recent highlight aging (drop class after the window elapses). */
-export const CLOSED_ORDERS_RECENT_TICK_MS = 5_000;
-export const CLOSED_ORDERS_RECENT_ROW_TITLE =
-  'Completed within the last minute';
+/**
+ * Closed rows completed within this window get a “just finished” highlight.
+ * Mirrored by `closedOrders.css` (three 1 s pulses): change both together.
+ */
+export const CLOSED_ORDERS_RECENT_HIGHLIGHT_MS = 3_000;
+/** The panel re-renders this long after the window ends, so the highlight is dropped on time. */
+export const CLOSED_ORDERS_RECENT_EXPIRY_SLACK_MS = 20;
+export const CLOSED_ORDERS_RECENT_ROW_TITLE = 'Just completed';
 /** Positions-row Flatten — full exit via ADR 007 place path (not cancel). */
 export const CLOSE_POSITION_BUTTON_LABEL = 'Flatten';
 export const CLOSE_POSITION_BUTTON_BUSY_LABEL = 'Flattening…';

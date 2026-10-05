@@ -2,14 +2,14 @@
  * Closed Orders — Webull History / filled+cancelled lifecycle (WID-027).
  * Column order drag-persisted (shared localStorage with Working Orders).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import {
   CLOSED_ORDERS_EMPTY_MESSAGE,
   CLOSED_ORDERS_PANEL_TITLE,
+  CLOSED_ORDERS_RECENT_EXPIRY_SLACK_MS,
   CLOSED_ORDERS_RECENT_HIGHLIGHT_MS,
   CLOSED_ORDERS_RECENT_ROW_TITLE,
-  CLOSED_ORDERS_RECENT_TICK_MS,
   CLOSED_ORDERS_SAMPLE_BANNER,
 } from '../constants';
 import { lastKnownBanner } from '../ibkr/disconnectCopy';
@@ -80,7 +80,9 @@ export function ClosedOrdersPanel({
 }: Props) {
   const [internalFilter, setInternalFilter] = useState<ClosedOrdersFilter>('all');
   const filter = statusFilter ?? internalFilter;
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  // Read at every render; a timer below renders once more when the newest highlight runs out.
+  const nowMs = Date.now();
+  const [, expireHighlight] = useReducer((n: number) => n + 1, 0);
   const { order, reorder, reset } = useOrderTableColumnOrder('closed');
   const { sortState, onSortColumn, clearSort } = useOrderTableSort('closed');
   const columns = useMemo(
@@ -99,13 +101,23 @@ export function ClosedOrdersPanel({
   // Not order_id: completed IB orders replay as orderId 0 (C29).
   const rowKeys = useMemo(() => orderRowKeys(rows), [rows]);
 
+  // When the next highlighted row stops being recent (null: none is highlighted).
+  let nextHighlightEndsAt: number | null = null;
+  for (const o of rows) {
+    const activityIso = orderActivityIso(o);
+    if (!isClosedOrderRecent(activityIso, nowMs, CLOSED_ORDERS_RECENT_HIGHLIGHT_MS)) continue;
+    const endsAt = Date.parse(activityIso as string) + CLOSED_ORDERS_RECENT_HIGHLIGHT_MS;
+    if (nextHighlightEndsAt === null || endsAt < nextHighlightEndsAt) nextHighlightEndsAt = endsAt;
+  }
+
   useEffect(() => {
-    const id = window.setInterval(
-      () => setNowMs(Date.now()),
-      CLOSED_ORDERS_RECENT_TICK_MS,
+    if (nextHighlightEndsAt === null) return undefined;
+    const id = window.setTimeout(
+      expireHighlight,
+      Math.max(0, nextHighlightEndsAt - Date.now()) + CLOSED_ORDERS_RECENT_EXPIRY_SLACK_MS,
     );
-    return () => window.clearInterval(id);
-  }, []);
+    return () => window.clearTimeout(id);
+  }, [nextHighlightEndsAt]);
 
   return (
     <div

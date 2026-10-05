@@ -1,10 +1,13 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { CLOSED_ORDERS_PANEL_TITLE } from '../constants';
+import {
+  CLOSED_ORDERS_PANEL_TITLE,
+  CLOSED_ORDERS_RECENT_HIGHLIGHT_MS,
+} from '../constants';
 import { ClosedOrdersPanel } from './ClosedOrdersPanel';
 import type { ClosedOrder } from './types';
 
@@ -52,6 +55,7 @@ describe('ClosedOrdersPanel', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     act(() => {
       root.unmount();
     });
@@ -84,7 +88,9 @@ describe('ClosedOrdersPanel', () => {
     expect(container.textContent).not.toContain('MSFT');
   });
 
-  it('highlights rows completed within the last minute', () => {
+  it('highlights rows completed just now, and drops the highlight after 3 seconds', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-05T12:00:00.000Z'));
     const recentIso = new Date().toISOString();
     const withRecent: ClosedOrder[] = [
       ...SAMPLE,
@@ -111,6 +117,17 @@ describe('ClosedOrdersPanel', () => {
     expect(recentRows.length).toBe(1);
     expect(recentRows[0].className).toMatch(/ibkr-order-row--recent/);
     expect(container.querySelectorAll('tr[data-side]').length).toBe(3);
+
+    act(() => {
+      vi.advanceTimersByTime(CLOSED_ORDERS_RECENT_HIGHLIGHT_MS - 100);
+    });
+    expect(container.querySelectorAll('tr[data-recent="1"]').length).toBe(1);
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(container.querySelectorAll('tr[data-recent="1"]').length).toBe(0);
+    expect(container.querySelector('.ibkr-order-row--recent')).toBeNull();
   });
 
   it('shows an error line instead of the empty message when the poll failed', () => {
