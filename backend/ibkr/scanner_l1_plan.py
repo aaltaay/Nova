@@ -10,8 +10,15 @@ from constants import (
 )
 
 
-def _budget_for_streams() -> int:
-    return max(1, int(IBKR_L1_STREAM_BUDGET) - int(IBKR_L1_STREAM_RESERVE))
+def budget_for_streams(cap: int | None = None, others: int = 0) -> int:
+    """Lines the displayed rows and HOD Momo may hold.
+
+    ``cap`` is the line cap Nova learned when IBKR refused a line (``ibkr/l1_refused.py``),
+    None while none is learned; ``others`` the lines held for no scanner or HOD owner (a
+    Trader tab's own quote), which come out of a learned cap before the reserve.
+    """
+    total = int(IBKR_L1_STREAM_BUDGET) if cap is None else min(int(IBKR_L1_STREAM_BUDGET), int(cap) - int(others))
+    return max(1, total - int(IBKR_L1_STREAM_RESERVE))
 
 
 def count_tab_contributions(
@@ -44,7 +51,7 @@ def plan_stream_symbols(
     tab_max: int = IBKR_L1_ACTIVE_TAB_MAX,
 ) -> dict[str, Any]:
     """Pure planner: reserve tab slots first, then HOD, dedupe, reject overflow."""
-    cap = int(budget if budget is not None else _budget_for_streams())
+    cap = int(budget if budget is not None else budget_for_streams())
     tab_cap = max(0, min(int(tab_max), cap))
     tab: list[str] = []
     seen: set[str] = set()
@@ -81,3 +88,19 @@ def plan_stream_symbols(
         "rejected": rejected,
         "budget": cap,
     }
+
+
+def subscription_error(
+    failed: list[str], rejected: list[str], starved: list[str], refused: str | None,
+) -> str | None:
+    """The subscription state's error: every reason a row has no live L1, joined; None when none."""
+    parts: list[str] = []
+    if failed:
+        parts.append(f"IBKR L1 subscribe failed for {len(failed)} symbol(s)")
+    if rejected:
+        parts.append(f"capacity: {len(rejected)} symbol(s) not streamed")
+    if refused:
+        parts.append(refused)
+    if starved:
+        parts.append(f"no live L1 for displayed table(s): {', '.join(starved)}")
+    return "; ".join(parts) or None

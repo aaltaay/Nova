@@ -518,6 +518,17 @@ IBKR_L1_TAB_SWITCH_GRACE_SEC = 0.75             # keep prior tab streams briefly
 # CLOSE_WAIT pile-up on :8000. Bound each qualify; cap adds per reconcile.
 IBKR_L1_QUALIFY_TIMEOUT_SEC = 4.0
 IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE = 5
+# A line IBKR refused (Error 101: the login's line cap, which its other IBKR platforms share) is
+# not open; it is asked for again after these waits, longer each time it is refused again
+# within IBKR_L1_REFUSED_RESET_SEC, and only while the lines Nova holds are under the cap
+# it learned (ibkr/l1_refused.py). The learned cap rises by IBKR_L1_CAP_RELAX_STEP lines
+# every IBKR_L1_CAP_RELAX_SEC without a refusal, back to IBKR_L1_STREAM_BUDGET.
+IBKR_L1_REFUSED_CODES = frozenset({IBKR_ERROR_MAX_TICKERS})
+IBKR_L1_REFUSED_RETRY_SEC: tuple[float, ...] = (15.0, 30.0, 60.0, 120.0)
+IBKR_L1_REFUSED_RESET_SEC = 600.0
+IBKR_L1_CAP_RELAX_SEC = 300.0
+IBKR_L1_CAP_RELAX_STEP = 5
+IBKR_L1_REQ_KEEP = 2048
 # Per-row honesty: tint when last IB tick older than this (liquid symbols).
 IBKR_L1_ROW_STALE_SEC = 3.0
 # Shortability (tick 236) rides the shared L1 line — see ibkr/ticks_generic.py.

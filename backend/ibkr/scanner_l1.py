@@ -25,7 +25,8 @@ from ibkr import ticks as _ticks
 from ibkr import l1_minute as _l1_minute
 from ibkr import tape_10sec as _tape_10sec
 from ibkr.scanner_l1_apply import apply_quote_compat, stamp_l1_minute
-from ibkr.scanner_l1_plan import count_tab_contributions, plan_stream_symbols
+from ibkr import l1_refused as _l1_refused
+from ibkr.scanner_l1_plan import count_tab_contributions, plan_stream_symbols, subscription_error
 from metrics.op_metrics import record_since
 from metrics.op_metrics import timed_fn
 
@@ -220,7 +221,8 @@ async def _reconcile_once(
             describe_exc(exc),
             exc_info=True,
         )
-    plan = plan_stream_symbols(raw_tab, raw_hod)
+    budget = _ticks.stream_budget()  # within the line cap IBKR taught Nova, if any
+    plan = plan_stream_symbols(raw_tab, raw_hod, budget=budget)
 
     # Brief grace: keep prior tab streams during switch so prices don't blink out.
     now = time.time()
@@ -231,7 +233,7 @@ async def _reconcile_once(
                 _tab_grace_until = now + float(IBKR_L1_TAB_SWITCH_GRACE_SEC)
             if now < _tab_grace_until:
                 grace_tab = list(dict.fromkeys(desired_tab + _prev_tab_symbols))
-                plan = plan_stream_symbols(grace_tab, raw_hod)
+                plan = plan_stream_symbols(grace_tab, raw_hod, budget=budget)
             else:
                 _prev_tab_symbols = desired_tab
                 _tab_grace_until = 0.0
@@ -261,9 +263,7 @@ async def _reconcile_once(
     hod_result = await _ticks.set_owner_symbols(_ticks.OWNER_HOD, plan["hod"])
 
     failed = list(tab_result.get("failed") or []) + list(hod_result.get("failed") or [])
-    error = None
     if failed:
-        error = f"IBKR L1 subscribe failed for {len(failed)} symbol(s)"
         # Keep unqualifiable explore names out of the next HOD active set so
         # they cannot occupy a dead slot and flap coverage 98%→fail.
         try:
@@ -275,20 +275,16 @@ async def _reconcile_once(
                 "scanner_l1: could not record L1 subscribe failures",
                 exc_info=True,
             )
-    if plan["rejected"]:
-        error = (error + "; " if error else "") + (
-            f"capacity: {len(plan['rejected'])} symbol(s) not streamed"
-        )
+    # A line IBKR refused at its cap is asked for again once there is room (ibkr/l1_refused.py).
+    await _ticks.retry_refused()
+    refused = _ticks.refused_view()
     # Fail loud, not quiet: the desk asked for tables that do have rows, yet
     # nothing is streaming. Silence here is what froze the whole scanner column.
     starved = sorted(
         {t for t in tables if t not in set(_active_tab_tables.values())}
         & {owner_table[s] for s in owner_table}
     )
-    if starved:
-        error = (error + "; " if error else "") + (
-            f"no live L1 for displayed table(s): {', '.join(starved)}"
-        )
+    error = subscription_error(failed, plan["rejected"], starved, _l1_refused.error_text(refused))
 
     _subscription_state = {
         "tab": tables[0] if tables else "none",
@@ -304,6 +300,8 @@ async def _reconcile_once(
         "budget": plan["budget"],
         "rejected": plan["rejected"][:40],
         "failed": failed[:40],
+        "refused": [row["symbol"] for row in refused["refused"]][:40],
+        "line_cap": refused["cap"],
         "error": error,
     }
 

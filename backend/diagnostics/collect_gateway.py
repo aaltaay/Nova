@@ -258,17 +258,28 @@ def market_data_rows(
     ))
     lines = int(budget.get("reqMktData_lines") or budget.get("lines") or 0)
     limit = budget.get("limit") or budget.get("budget")
+    # Lines IBKR refused at its cap now, and the cap Nova learned from them (ibkr/l1_refused.py).
+    refused = int(budget.get("reqMktData_refused") or 0)
+    cap = budget.get("reqMktData_cap")
     rows.append(row(
         id="market_data_lines",
         group=DIAG_GROUP_MARKET_DATA,
         title="Lines held",
-        state=DIAG_STATE_WARN if max_tickers else (DIAG_STATE_OK if usable else DIAG_STATE_OFF),
+        state=DIAG_STATE_WARN if max_tickers or refused else (DIAG_STATE_OK if usable else DIAG_STATE_OFF),
         detail=(
-            f"L1 {lines}{f'/{limit}' if limit else ''} · depth {len(depth_symbols)} · tape {len(tape_symbols)}"
-            + (" · Error 101 max tickers hit" if max_tickers else "")
+            f"L1 {lines}{f'/{cap if cap is not None else limit}' if limit else ''} · depth {len(depth_symbols)} · tape {len(tape_symbols)}"
+            + (f" · {refused} refused by IBKR (Error 101)" if refused else " · Error 101 max tickers hit" if max_tickers else "")
         ),
-        cause="What this process is asking the Gateway to stream right now." if not max_tickers else "The Gateway refused a new line: the account's ticker budget is used up.",
-        fix="Nothing to do." if not max_tickers else "Close Trader tabs / scanner lists you are not watching.",
+        cause=(
+            "What this process is asking the Gateway to stream right now." if not (max_tickers or refused)
+            else "IBKR refused a line at its cap, which this login's other IBKR platforms share (TWS and the API, per IBKR)"
+            + (f": Nova plans to the {cap} lines it held then" if cap is not None else "")
+            + "; a refused line is asked for again as lines free up."
+        ),
+        fix=(
+            "Nothing to do." if not (max_tickers or refused)
+            else "Close IBKR apps showing quotes on this login (mobile, web, TWS) or Trader tabs you are not watching."
+        ),
         evidence={"budget": budget, "depth_symbols": depth_symbols, "tape_symbols": tape_symbols, "max_tickers": max_tickers},
     ))
     return rows
