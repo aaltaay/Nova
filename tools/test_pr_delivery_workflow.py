@@ -127,6 +127,27 @@ def test_every_merge_path_may_dispatch_the_desktop_pack():
     )
 
 
+def test_every_merge_path_may_close_linked_issues():
+    """Grant issue writes to every merge token, including job overrides.
+
+    Merging permission alone does not grant issue-write authorization. Sweep
+    all workflows by their merging command so another path cannot bypass the
+    guard, and parse effective permissions so comments do not count as grants.
+    This verifies the token contract, not GitHub's live auto-close behavior.
+    """
+    jobs = _merging_jobs()
+    assert jobs, "no job merges PRs -- the delivery path moved, so this guard is blind"
+    refused = [
+        f"{name}:{job_id} runs with {_effective(workflow, job)!r}"
+        for name, job_id, workflow, job in jobs
+        if not _grants_write(_effective(workflow, job), "issues")
+    ]
+    assert not refused, (
+        "these merge paths lack issue-write authorization for closing linked "
+        f"issues: {refused}"
+    )
+
+
 TIMING_RULE = REPO_ROOT / ".cursor" / "rules" / "pr-delivery-timing.mdc"
 
 

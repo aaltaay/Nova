@@ -24,6 +24,18 @@ These session gates are **MUST**. They override casual user phrasing ("quick fix
 11. **Clean start (before any edits).** `git fetch origin`. Create or switch to a **new** focused branch from `origin/master` only -- never from a dirty local `master` tip, never from another feature branch unless the user explicitly names that branch to continue. If the worktree has uncommitted or unrelated dirty files, do **not** proceed on top of them: reset or clean tracked files you do not own in this task so they match `origin/master`, or abort and report the dirty paths. Cloud and desktop "isolated" means a clean tip of `origin/master` plus a new branch. Local dirty IDE state is not a valid base.
 12. **Mandatory finish (end of every coding session or task).** Verify. Commit on the focused branch. Push. Open a **ready (non-draft)** PR targeting `master`, filled from `.github/pull_request_template.md`. Draft or `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker (for example, needs live IBKR proof) is documented in the PR -- not because CI is still running. Do not end with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line.
 
+## Merge token permissions and closure
+
+Every job running `pr_delivery.py merge` or `pr_delivery.py sweep` grants its
+effective `GITHUB_TOKEN` `issues: write` alongside merge permissions. Job-level
+permissions replace the workflow block; `tools/test_pr_delivery_workflow.py`
+checks every merging job.
+
+After merge, verify the actual state of each issue named by `Closes`. A merged
+PR or closing reference alone is not evidence that the issue closed. If it
+remains open, inspect the full acceptance criteria and close only completed
+work through an authorized issue-write path.
+
 If GitHub plan or token permissions prevent Projects or branch protection, report the exact limitation. Never claim the metadata or protection exists. Public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
 
 Current-tip preservation overrides mandatory head deletion: follow `branch-cleanup.mdc`. Never delete a recreated/unmerged or squash-only tip automatically; the guarded command rechecks ancestry and uses a SHA lease.
