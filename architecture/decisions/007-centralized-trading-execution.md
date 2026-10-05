@@ -60,3 +60,25 @@ Operator decision on #91: GTC persists from Settings and the manual ticket may a
 - Blocking account-summary network refresh on every place (use cached account values; fail closed if incomplete)
 - Validate/flatten qty from `ib.portfolio()` alone (false-allow short if portfolio high/stale)
 - UI Flatten tagged `source="flatten"` to skip anti-short
+
+## Startup reconciliation belongs to the row's venue (2026-10-05, #713)
+
+The startup sweep partitions previous-boot rows by `mode`, never by the currently
+selected desk venue. Paper uses `practice.broker.for_venue("paper")` and its
+persistent ledger; order ids from another venue cannot explain its rows. Sim is
+process-local scratch: previous-boot Sim rows are abandoned with an explicit
+`SWEEP_SIM_PROCESS_ENDED` reason, even when the new Sim book reused their ids.
+Only IBKR-label rows require a connected Gateway and consult IBKR-only order
+reads, completed-order readiness and execution evidence. Unreadable venue books
+leave their rows untouched without blocking another venue's sweep. History-load
+retry readiness is tracked for IBKR separately: a successfully read Paper book
+cannot prevent rearming a disconnected IBKR sweep. Current-boot
+rows remain outside the sweep, and no reconciliation sends a broker mutation.
+
+Reconciliation uses a persisted payload `venue` (`live` | `paper` | `sim`),
+stamped from the execution door's resolved venue at reservation. `mode=paper`
+alone is ambiguous: Live can connect manually to the legacy IBKR Paper Gateway.
+Legacy `target_venue` supplies known venue evidence. `gateway_mode` is only
+configuration, not proof of the actual connected session or execution venue;
+a Paper-labelled row without sufficient evidence stays
+`unverified`, never matched against either book by guessing.

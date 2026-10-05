@@ -734,6 +734,49 @@
           ]
         }
       ]
+    },
+    {
+      "rank": 12,
+      "slug": "startup-reliability",
+      "title": "12 - One backend starts; leftover execution rows keep their venue",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Operator-requested restarts start the checkout immediately under an OS-held single-instance lock; previous-boot execution rows reconcile only against their own venue without waiting on an unrelated Gateway.",
+      "issues": [
+        653,
+        713
+      ],
+      "done": [
+        "Two simultaneous API startups sharing one cache cannot both acquire the instance lock; process death releases it, including with malformed diagnostic metadata.",
+        "Electron starts the checkout as soon as the stopped port is free without querying or waiting for the watchdog, and proves a new process answers.",
+        "Paper, Sim and IBKR rows with identical order ids reconcile independently; previous-process Sim scratch is abandoned explicitly, and disconnected IBKR does not block Paper.",
+        "Persisted execution-door venue disambiguates Live on the legacy IBKR Paper Gateway; ambiguous legacy Paper labels stay unverified instead of being matched to either broker."
+      ],
+      "prs": [
+        {
+          "title": "fix(startup): atomic API ownership and venue-correct leftover execution sweep",
+          "issues": [
+            653,
+            713
+          ],
+          "note": "One startup recovery batch: never duplicate the backend and never let a new process attribute old rows to the wrong venue. No live desk intervention or broker mutation.",
+          "gated": false,
+          "touches": [
+            "backend/api_instance_lock.py",
+            "backend/api_lock_handle.py",
+            "backend/ibkr/orders.py",
+            "backend/execution/startup_sweep.py",
+            "backend/tests/test_api_instance_lock.py",
+            "backend/tests/test_execution_startup_sweep.py",
+            "frontend/electron/engineRestart.mjs",
+            "frontend/src/electron/engineRestart.test.ts",
+            "architecture/decisions/038-installed-backend-ownership.md",
+            "architecture/decisions/007-centralized-trading-execution.md",
+            "backend/execution/service.py",
+            "backend/execution/record_payload.py"
+          ]
+        }
+      ]
     }
   ]
 }

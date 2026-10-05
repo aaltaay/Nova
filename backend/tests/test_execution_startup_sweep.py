@@ -28,7 +28,7 @@ def isolated_ledger(tmp_path, monkeypatch):
 
 
 def _stale_row(
-    key: str, *, order_id: int | None, status: str = "sent", symbol: str = "AAPL",
+    key: str, *, order_id: int | None, status: str = "sent", symbol: str = "AAPL", mode: str = "live",
 ) -> str:
     """A row from an earlier process (boot_id rewritten to a dead run)."""
     execution_id, _ = store.reserve(
@@ -37,9 +37,9 @@ def _stale_row(
         source="manual",
         symbol=symbol,
         received_ns=1,
-        payload={"side": "SELL", "qty": 100},
+        payload={"side": "SELL", "qty": 100, "venue": mode},
     )
-    store.update_stages(execution_id, status=status, order_id=order_id)
+    store.update_stages(execution_id, status=status, order_id=order_id, mode=mode)
     conn = store.get_connection()
     try:
         conn.execute(
@@ -82,14 +82,15 @@ def _arm_connected(
 ):
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(client_mod, "get_ib", lambda: _FakeIb(fills or []))
-    monkeypatch.setattr(orders_mod, "open_orders", lambda: working)
+    monkeypatch.setattr(orders_mod, "open_orders", lambda **kwargs: working)
     monkeypatch.setattr(orders_mod, "closed_orders", lambda *a, **k: closed)
     monkeypatch.setattr(
         sweep.completed_orders_state, "loaded_for", lambda _ib: history_loaded,
     )
 
 
-def test_current_boot_rows_are_not_swept(monkeypatch):
+@pytest.mark.parametrize("mode", ["live", "paper", "sim"])
+def test_current_boot_rows_are_not_swept(monkeypatch, mode):
     execution_id, _ = store.reserve(
         idempotency_key="live-1",
         operation="place",
@@ -97,7 +98,7 @@ def test_current_boot_rows_are_not_swept(monkeypatch):
         symbol="AAPL",
         received_ns=1,
     )
-    store.update_stages(execution_id, status="sent", order_id=11)
+    store.update_stages(execution_id, status="sent", order_id=11, mode=mode)
     _arm_connected(monkeypatch, working=[], closed=[])
     summary = sweep.run_startup_sweep()
     assert summary["scanned"] == 0
@@ -273,7 +274,7 @@ def test_history_load_reruns_the_sweep_for_unverified_rows(monkeypatch):
     closed: list[dict] = []
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(client_mod, "get_ib", lambda: _FakeIb([]))
-    monkeypatch.setattr(orders_mod, "open_orders", lambda: [])
+    monkeypatch.setattr(orders_mod, "open_orders", lambda **kwargs: [])
     monkeypatch.setattr(orders_mod, "closed_orders", lambda *a, **k: closed)
     monkeypatch.setattr(
         sweep.completed_orders_state, "loaded_for", lambda _ib: history["loaded"],
@@ -355,7 +356,7 @@ def test_one_failing_reconciliation_step_does_not_skip_the_rest(monkeypatch):
 
     ran: list[str] = []
 
-    def boom():
+    def boom(**kwargs):
         raise RuntimeError("journal unreadable")
 
     monkeypatch.setattr(risk_mod, "reconstruct_from_journal", boom)
@@ -370,10 +371,144 @@ def test_broker_read_failure_rewrites_nothing(monkeypatch):
     execution_id = _stale_row("stale-read-fail", order_id=26)
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
 
-    def boom():
+    def boom(**kwargs):
         raise IbkrAccountError("open_orders failed")
 
     monkeypatch.setattr(orders_mod, "open_orders", boom)
     summary = sweep.run_startup_sweep()
     assert summary["broker_checked"] is False
     assert store.get_by_id(execution_id)["status"] == "sent"
+
+
+class _PracticeBook:
+    def __init__(self, *, working=(), closed=()):
+        self.working = list(working)
+        self.closed = list(closed)
+
+    def working_orders(self):
+        return self.working
+
+    def closed_orders(self):
+        return self.closed
+
+
+def test_mixed_venues_with_reused_ids_are_swept_while_gateway_disconnected(monkeypatch):
+    from practice import broker
+
+    paper = _stale_row("paper-fill", order_id=1, mode="paper")
+    sim = _stale_row("old-sim", order_id=1, mode="sim")
+    live = _stale_row("ibkr-disconnected", order_id=1, mode="live")
+    monkeypatch.setattr(client_mod, "is_connected", lambda: False)
+    seen = []
+    def own_book(venue):
+        seen.append(venue)
+        return _PracticeBook(closed=[{"order_id": 1, "status": "Filled"}])
+    monkeypatch.setattr(broker, "for_venue", own_book)
+    summary = sweep.run_startup_sweep()
+    assert seen == ["paper"]  # never load the new Sim book as evidence for a previous boot
+    assert summary["resolved"] == [paper]
+    assert summary["abandoned"] == [sim]
+    assert store.get_by_id(paper)["status"] == "filled"
+    assert store.get_by_id(sim)["reason_code"] == "SWEEP_SIM_PROCESS_ENDED"
+    assert "scratch ledger" in store.get_by_id(sim)["error"]
+    assert store.get_by_id(live)["status"] == "sent"
+
+
+def test_ibkr_rows_bypass_selected_practice_desk_book(monkeypatch):
+    from types import SimpleNamespace
+    from practice import broker
+
+    paper = _stale_row("same-id-paper", order_id=2, mode="paper")
+    live = _stale_row("same-id-live", order_id=2, mode="live")
+    paper_book = _PracticeBook(closed=[{"order_id": 2, "status": "Cancelled"}])
+    monkeypatch.setattr(broker, "for_venue", lambda venue: paper_book)
+    monkeypatch.setattr(orders_mod, "_practice_broker", lambda: paper_book)
+    # Real read helpers must choose the IB object, even while the desk hook answers Paper.
+    ib = SimpleNamespace(openTrades=lambda: [], trades=lambda: [SimpleNamespace(
+        order=SimpleNamespace(orderId=2), orderStatus=SimpleNamespace(status="Filled"))], fills=lambda: [])
+    monkeypatch.setattr(client_mod, "get_ib", lambda: ib)
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(sweep.completed_orders_state, "loaded_for", lambda value: value is ib)
+    monkeypatch.setattr(orders_mod, "_trade_to_order_row", lambda trade: {"order_id": 2, "status": trade.orderStatus.status})
+    summary = sweep.run_startup_sweep()
+    assert set(summary["resolved"]) == {paper, live}
+    assert store.get_by_id(paper)["status"] == "cancelled"
+    assert store.get_by_id(live)["status"] == "filled"
+
+
+def test_unreadable_paper_book_does_not_block_ibkr_sweep(monkeypatch):
+    from practice import broker
+
+    paper = _stale_row("paper-unreadable", order_id=3, mode="paper")
+    live = _stale_row("live-known", order_id=3, mode="live")
+    def unavailable(venue):
+        raise OSError("paper storage unavailable")
+    monkeypatch.setattr(broker, "for_venue", unavailable)
+    _arm_connected(monkeypatch, working=[], closed=[{"order_id": 3, "status": "Filled"}])
+    summary = sweep.run_startup_sweep()
+    assert summary["resolved"] == [live]
+    assert store.get_by_id(paper)["status"] == "sent"
+
+
+def test_paper_read_does_not_hide_disconnected_ibkr_history_resweep(monkeypatch):
+    from practice import broker
+
+    paper = _stale_row("paper-working-during-resweep", order_id=1, mode="paper")
+    live = _stale_row("ibkr-history-dropped", order_id=1, mode="live")
+    monkeypatch.setattr(broker, "for_venue", lambda venue: _PracticeBook(working=[{"order_id": 1}]))
+    _arm_connected(monkeypatch, working=[], closed=[], history_loaded=False)
+    assert sweep.run_startup_sweep()["unverified"] == [live]
+    # The one-shot listener fires, but IBKR drops before the scheduled run.
+    monkeypatch.setattr(client_mod, "is_connected", lambda: False)
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    assert store.get_by_id(paper)["status"] == "sent"
+    assert store.get_by_id(live)["status"] == "sent"
+    # Paper was readable throughout. The second IBKR load must still trigger resolution.
+    _arm_connected(monkeypatch, working=[], closed=[{"order_id": 1, "status": "Filled"}])
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    assert store.get_by_id(live)["status"] == "filled"
+    assert store.get_by_id(paper)["status"] == "sent"
+
+
+@pytest.mark.parametrize("gateway_mode", ["paper", "live"])
+def test_paper_gateway_and_ambiguous_legacy_rows_cannot_match_practice_book(monkeypatch, gateway_mode):
+    from practice import broker
+
+    ibkr = _stale_row("legacy-gateway-explicit", order_id=4, mode="paper")
+    ambiguous = _stale_row("legacy-gateway-unknown", order_id=4, mode="paper")
+    practice = _stale_row("practice-new-explicit", order_id=4, mode="paper")
+    store.update_stages(ibkr, payload={"qty": 100, "venue": "live", "gateway_mode": "paper"})
+    store.update_stages(ambiguous, payload={"qty": 100, "gateway_mode": gateway_mode})
+    monkeypatch.setattr(broker, "for_venue", lambda venue: _PracticeBook(closed=[{"order_id": 4, "status": "Filled"}]))
+    _arm_connected(monkeypatch, working=[{"order_id": 4}], closed=[])
+    summary = sweep.run_startup_sweep()
+    assert summary["still_working"] == [ibkr]
+    assert summary["resolved"] == [practice]
+    assert summary["unverified"] == [ambiguous]
+    assert store.get_by_id(ibkr)["status"] == "sent"
+    assert store.get_by_id(ambiguous)["status"] == "sent"
+    assert store.get_by_id(practice)["status"] == "filled"
+
+
+@pytest.mark.parametrize("venue", ["live", "paper", "sim"])
+def test_execution_door_persists_actual_venue_when_gateway_label_is_paper(monkeypatch, venue):
+    import asyncio
+    from execution import service, validate
+    from execution.models import ExecutionCommand
+    from sim.mode import reset_for_tests, set_venue
+
+    set_venue(venue, persist=False)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    # Stop after reservation: provenance must already be durable before a broker send.
+    monkeypatch.setattr(validate, "validate_command", lambda cmd, **kwargs: (False, "test refusal", "TEST_REFUSED"))
+    try:
+        cmd = ExecutionCommand(operation="cancel", idempotency_key=f"venue-reserve-{venue}",
+                               source="manual", order_id=4, symbol="AAPL", skip_risk=True)
+        receipt = asyncio.run(service.execute(cmd, wait_ack=False))
+        row = store.get_by_id(receipt.execution_id)
+        assert receipt.reason_code == "TEST_REFUSED"
+        assert row["payload"]["venue"] == venue
+        if venue == "live":
+            assert row["mode"] == "paper"  # the ambiguous broker label survives independently
+    finally:
+        reset_for_tests()

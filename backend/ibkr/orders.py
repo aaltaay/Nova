@@ -285,9 +285,10 @@ def cancel_order(order_id: int) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
-def open_orders() -> list[dict]:
+def open_orders(*, ibkr_only: bool = False) -> list[dict]:
     """Return list of open / working orders as plain dicts.
 
+    ``ibkr_only`` bypasses the selected desk venue for row-owned reconciliation.
     Includes fill progress fields from IBKR ``orderStatus`` so the Working
     Orders panel can mirror Webull-style qty/filled/avg columns without a
     separate history API.
@@ -296,7 +297,7 @@ def open_orders() -> list[dict]:
     must never look like "no working orders" (cancel-all and the kill-switch
     reconciliation both depend on knowing the difference).
     """
-    practice = _practice_broker()
+    practice = None if ibkr_only else _practice_broker()
     if practice is not None:
         return practice.working_orders()
 
@@ -312,9 +313,10 @@ def open_orders() -> list[dict]:
         raise IbkrAccountError(f"open_orders failed: {detail}") from exc
 
 
-def closed_orders(limit: int | None = None) -> list[dict]:
+def closed_orders(limit: int | None = None, *, ibkr_only: bool = False) -> list[dict]:
     """Return filled / cancelled / failed session orders (Closed Orders WID-027).
 
+    ``ibkr_only`` bypasses the selected desk venue for row-owned reconciliation.
     Uses IBKR ``trades()`` filtered to terminal statuses — not a second broker
     path. Does not include still-working open trades. CSV / multi-day History
     export remains WID-020.
@@ -331,7 +333,7 @@ def closed_orders(limit: int | None = None) -> list[dict]:
         IBKR_CLOSED_ORDERS_LIMIT_DEFAULT,
     )
 
-    practice = _practice_broker()
+    practice = None if ibkr_only else _practice_broker()
     if practice is not None:
         return practice.closed_orders(limit)
 

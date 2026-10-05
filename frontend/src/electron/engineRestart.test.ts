@@ -101,13 +101,14 @@ describe('engineRestart', () => {
     expect(watchdogRunning({ run: (() => { throw new Error('no powershell'); }) as never, env: {} })).toBe(false);
   });
 
-  it('with the watchdog running: stops the engine, starts nothing, and waits for the new one', async () => {
+  it('starts immediately after stopping, even with a watchdog, and never queries it', async () => {
     const run = runFake(1);
     const d = deps({ run, fetchJson: engineFake([OLD, null, { status: 'ok', instance_id: 'new', pid: 300, release_tag: 'v1007' }]) });
     await expect(restartCheckoutEngine(OLD, d)).resolves.toEqual({ from: 'v991', to: 'v1007' });
     const stopCall = run.mock.calls.find(([, args]) => args.includes('-File'));
     expect(stopCall?.[1]).toEqual(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', STOP, '-Ports', '8000']);
-    expect(d.spawnFn).not.toHaveBeenCalled();
+    expect(d.spawnFn).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls.some(([, args]) => args.includes('-EncodedCommand'))).toBe(false);
   });
 
   it('with no watchdog: starts the checkout engine itself, outside this app', async () => {
@@ -131,12 +132,19 @@ describe('engineRestart', () => {
       fetchJson: engineFake([OLD]),
     });
     await expect(restartCheckoutEngine(OLD, held)).rejects.toThrow(/^Not restarted: backend v991 is still running -- Nova: port 8000 is held/);
+    expect(held.spawnFn).not.toHaveBeenCalled();
     // Stopped, but nothing new answered in time.
     const gone = deps({ run: runFake(1), fetchJson: engineFake([null]) });
     await expect(restartCheckoutEngine(OLD, gone)).rejects.toThrow(/^Stopped backend v991; no backend answered within 10 s/);
     // The same process still answering is not a reload.
     const same = deps({ run: runFake(1), fetchJson: engineFake([OLD]) });
     await expect(restartCheckoutEngine(OLD, same)).rejects.toThrow(/no backend answered/);
+  });
+
+  it('reports a missing start script after stop, even when a watchdog runs', async () => {
+    const d = deps({ run: runFake(1), exists: (p: string) => p === STOP, fetchJson: engineFake([OLD]) });
+    await expect(restartCheckoutEngine(OLD, d)).rejects.toThrow(/Stopped backend v991, but Start-NovaApi.ps1 is missing/);
+    expect(d.spawnFn).not.toHaveBeenCalled();
   });
 
   it('off Windows it says so instead of guessing', async () => {
