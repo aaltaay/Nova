@@ -125,3 +125,22 @@ and current feed callbacks are used. Run the existing scanner neighbors,
 TypeScript, lint, real browser, document and maintainer checks. This follow-up
 uses authored `desk-and-leftovers#12` and does not reopen measured evidence or
 source-policy acceptance.
+
+### Committed ownership verification (2026-10-06)
+
+All seven real React regression cases failed before the source correction:
+discarded provider/persistent previews stranded live and selected-history
+responses, a suspended history preview blocked the committed live halt, and
+preview feed callbacks leaked into current envelope polling and a fresh live
+refresh. The tests observe the old committed DOM and a real attempted Suspense
+render, release actual response JSON promises, and verify no replacement fetch
+was needed for props that never committed.
+
+After layout publication and the stable envelope callback, the ten-file scanner
+run passes 73 tests. The final three hook/request files pass 27 tests after the
+layout effect dependency list is explicit; this includes all existing timeout,
+scope-transition and receipt regressions. Owned-file ESLint, TypeScript build,
+document invariants, maintainer gate against `368dc564` and diff checks pass.
+No helper, stream, envelope-poll, backend, trading or evidence-policy runtime
+changed. The parent records current-head browser/full-suite review before
+publication, together with the separately owned recorder test correction.
