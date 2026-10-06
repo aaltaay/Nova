@@ -200,11 +200,13 @@ export function GatewayModeCapsule({
       && (!confirmedScope || isConfirmedDeskVenueStoreSnapshotCurrent(confirmedScope));
     try {
       const [res, body] = await postJson(DESK_VENUE_API_PATH, { venue: next });
-      // A later confirmed transition wins even if this older POST answered successfully.
-      // Check before notices, state publication or any follow-on Gateway write.
-      if (!isCurrent()) return null;
-      // What Nova cancelled on the venue it left is said even when the switch itself failed after it.
+      if (!route.isCurrent()) return null;
+      // Cancellations already happened, even if another window now owns the
+      // venue. Report their facts without accepting this reply's stale state.
       noticeVenueLeft(body.left);
+      // A later confirmed transition wins even if this older POST answered successfully.
+      // Check before state publication or any follow-on Gateway write.
+      if (!isCurrent()) return null;
       if (isRouteMissing(res, body)) {
         if (next !== 'sim') return DESK_VENUE_API_RESTART_HINT;
         const message = await legacySimFallback();

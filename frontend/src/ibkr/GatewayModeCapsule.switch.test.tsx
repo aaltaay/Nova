@@ -295,7 +295,7 @@ describe('GatewayModeCapsule — venue switch', () => {
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
   });
 
-  it.each(['sim', 'live'] as const)('a newer cross-window %s transition wins over an older successful venue POST', async (newerVenue) => {
+  it.each([['sim', 200], ['live', 200], ['sim', 503]] as const)('a newer cross-window %s transition wins over an older venue POST (%i) without losing cancellation facts', async (newerVenue, responseStatus) => {
     confirmDeskVenue('paper');
     const off = subscribeConfirmedDeskVenueStore(() => {});
     let release!: (reply: Response) => void;
@@ -306,13 +306,14 @@ describe('GatewayModeCapsule — venue switch', () => {
     if (newerVenue === 'live') remoteVenue('live');
     const newer = getConfirmedDeskVenueStoreSnapshot();
     await act(async () => {
-      release(json({ venue: 'live', left: [{ venue: 'paper', symbol: 'OLD', order_id: 41, by: 'bot' }] }));
+      release(json({ venue: 'live', left: [{ venue: 'paper', symbol: 'OLD', order_id: 41, by: 'bot' }] }, responseStatus));
       for (let i = 0; i < 8; i += 1) await Promise.resolve();
     });
     expect(getConfirmedDeskVenueStoreSnapshot()).toBe(newer);
     expect(newer.venue).toBe(newerVenue);
     expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue']);
-    expect(getBotNotices()).toEqual([]);
+    expect(getBotNotices()).toHaveLength(1);
+    expect(getBotNotices()[0].text).toBe("The bot's working entry #41 on OLD was cancelled when the desk left Paper.");
     expect(errorText()).toBeNull();
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
     off();
