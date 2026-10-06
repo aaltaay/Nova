@@ -82,7 +82,10 @@ function Fixture() {
             <AlertDialogTitle>Fixture confirmation</AlertDialogTitle>
             <AlertDialogDescription>Fixture only; no order is sent.</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel fixture</AlertDialogCancel><AlertDialogAction>Continue fixture</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel fixture</AlertDialogCancel>
+            <AlertDialogAction>Continue fixture</AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       <button onClick={() => setOrderOpen(true)}>Review practice order</button>

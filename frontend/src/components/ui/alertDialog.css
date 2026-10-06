@@ -1,0 +1,11 @@
+/* AlertDialog's media title layout (ADR 006, components layer).
+   The generated group-has utility contains a universal descendant inside :is().
+   Its :has() invalidation set then restyles the whole body on live tape inserts,
+   even with no dialog open (#707). An explicit title target keeps it bounded. */
+@layer components {
+  @media (min-width: 40rem) {
+    :where([data-slot="alert-dialog-content"])[data-size="default"]:has([data-slot="alert-dialog-media"]) [data-slot="alert-dialog-title"] {
+      grid-column-start: 2;
+    }
+  }
+}

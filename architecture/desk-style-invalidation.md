@@ -8,7 +8,7 @@ belong in the components layer; Desk composition stays in its feature sheet.
 
 The selector/memo and GPU items previously recorded on #707 are already fixed.
 The remaining drawing slowdown reproduces in a production demo at 2560 × 1400,
-DPR 1.5, with approximately 66 tape prints per second. Normal tape virtualization
+DPR 1.5, with a 15 ms scheduled print delay. Normal tape virtualization
 inserts and removes rows. Chromium marks BODY's `:has()` state dirty, then uses a
 shared pseudo-class invalidation set containing two whole-subtree selectors:
 
@@ -56,3 +56,22 @@ measurement or a guarantee of frame rate on another desk.
 - Run the neighboring Desk and order-confirmation checks, frontend build/lint
   and maintainer gate. Repeat paired production measurements after a quiet
   window becomes available; report the fixture and measurement limits.
+
+## Verified 2026-10-06
+
+- Before the fix, all eight production-tape updates in the regression restyled
+  578 elements, including its 500 unrelated canaries. After the fix, each update
+  restyles seven elements; canary text stays unchanged and the tape advances.
+- Eight browser checks pass: the count regression, Desk hover/keyboard/mouse
+  focus and Enter navigation, 12 responsive media/title cases, practice order
+  review/cancel/confirm callbacks, and four existing Desk footer cases.
+- The DeskBoard, AppDialogHost, ManualOrderFooter spend-lock and place-confirm
+  preference suites pass (25 tests). TypeScript, `npm run build`, full lint and
+  the maintainer gate pass.
+- Fresh baseline and fixed production demo builds share the same base, display
+  settings and 15 ms scheduled print fixture. All six four-second measurements
+  begin with a full 200-print ring. Baseline fps: 46.92 / 44.59 / 46.96; fixed:
+  58.28 / 58.59 / 59.25. All p95 frame times move from 33.4 ms to 16.8 ms. Mean
+  style recalculation falls 83.5%; tape/rail geometry, 19 mounted rows and Focus
+  list selections are identical, with no page errors. Physical-PC performance
+  remains outside this local verification.

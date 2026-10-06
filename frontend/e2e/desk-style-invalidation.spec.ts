@@ -22,9 +22,10 @@ test('live tape updates do not restyle unrelated desk elements', async ({ page, 
     await expect(page.getByTestId('print-count')).toHaveText(String(count));
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   }
-  const complete = new Promise<{ stream: string }>(resolve => cdp.once('Tracing.tracingComplete', resolve));
+  const complete = new Promise<{ stream?: string }>(resolve => cdp.once('Tracing.tracingComplete', resolve));
   await cdp.send('Tracing.end');
   const { stream } = await complete;
+  if (!stream) throw new Error('Chromium returned no trace stream.');
   let raw = '';
   for (;;) {
     const chunk = await cdp.send('IO.read', { handle: stream });
