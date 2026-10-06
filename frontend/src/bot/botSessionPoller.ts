@@ -16,7 +16,12 @@ import {
   publishDeskPollSnap,
   readDeskPollSnap,
   subscribeDeskPollSnap,
-} from '../ibkr/deskSharedPoll';
+  getConfirmedDeskVenueSnapshot,
+  isConfirmedDeskVenueSnapshotCurrent,
+  subscribeConfirmedDeskVenue,
+  watchDeskRequestRoute,
+  type ConfirmedDeskVenueSnapshot,
+} from '../ibkr';
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { isSampleView } from '../sample_data/sampleNav';
 import { fetchBotAudit, fetchBotProposals, fetchBotSession } from './api';
@@ -29,6 +34,13 @@ export interface BotSessionPollSnap {
   audit: BotAuditEntry[];
   error: string | null;
   errorSticky: boolean;
+}
+
+/** Shared schema 1 refuses the old unscoped cache after any venue transition. */
+interface BotSessionPollShare {
+  schema_version: 1;
+  scope: ConfirmedDeskVenueSnapshot;
+  snap: BotSessionPollSnap;
 }
 
 const EMPTY: BotSessionPollSnap = {
@@ -61,8 +73,11 @@ let subscriberCount = 0;
 let intervalVoters = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
 let inflight = false;
+let pending = false;
 let applyEpoch = 0;
 let shareUnsub: (() => void) | null = null;
+let venueUnsub: (() => void) | null = null;
+let snapshotScope = getConfirmedDeskVenueSnapshot();
 
 function bumpApplyEpoch(): number {
   applyEpoch += 1;
@@ -78,9 +93,32 @@ function applySnap(next: BotSessionPollSnap): void {
   emit();
 }
 
-function publishLocal(next: BotSessionPollSnap): void {
+function publishLocal(next: BotSessionPollSnap, scope: ConfirmedDeskVenueSnapshot): void {
+  snapshotScope = scope;
   applySnap(next);
-  publishDeskPollSnap(DESK_POLL_BOT_SHARE, next);
+  publishDeskPollSnap<BotSessionPollShare>(DESK_POLL_BOT_SHARE, { schema_version: 1, scope, snap: next });
+}
+
+function matchesSession(session: BotSession | null, scope: ConfirmedDeskVenueSnapshot): boolean {
+  return scope.venue !== null && scope.generation !== null
+    && session?.level_venue === scope.venue;
+}
+
+function applyShare(raw: BotSessionPollShare): void {
+  if (raw?.schema_version !== 1 || !raw.scope || !isConfirmedDeskVenueSnapshotCurrent(raw.scope)) return;
+  const next = normalizeSnap(raw.snap);
+  if (!matchesSession(next.session, raw.scope)) return;
+  snapshotScope = raw.scope;
+  applySnap(next);
+}
+
+function onConfirmedVenueChange(refresh = true): void {
+  const scope = getConfirmedDeskVenueSnapshot();
+  if (scope.venue === snapshotScope.venue && scope.generation === snapshotScope.generation) return;
+  snapshotScope = scope;
+  bumpApplyEpoch();
+  applySnap({ ...EMPTY });
+  if (refresh) void pollBotSessionOnce();
 }
 
 function isLeader(): boolean {
@@ -88,33 +126,37 @@ function isLeader(): boolean {
 }
 
 export async function pollBotSessionOnce(): Promise<void> {
-  if (inflight || isSampleView()) return;
+  if (isSampleView()) return;
+  if (inflight) { pending = true; return; }
+  const scope = getConfirmedDeskVenueSnapshot();
   if (!isLeader()) {
-    const env = readDeskPollSnap<BotSessionPollSnap>(DESK_POLL_BOT_SHARE);
+    const env = readDeskPollSnap<BotSessionPollShare>(DESK_POLL_BOT_SHARE);
     if (env && Date.now() - env.ts < DESK_POLL_SNAPSHOT_MAX_AGE_MS) {
-      applySnap(normalizeSnap(env.payload));
+      applyShare(env.payload);
     }
     return;
   }
   heartbeatDeskPollLeader(DESK_POLL_BOT_SHARE);
   inflight = true;
   const epoch = applyEpoch;
+  const route = watchDeskRequestRoute();
   try {
     const [session, proposals, audit] = await Promise.all([
       fetchBotSession(),
       fetchBotProposals(),
       fetchBotAudit(),
     ]);
-    if (epoch !== applyEpoch) return;
+    if (!route.isCurrent() || epoch !== applyEpoch || !isConfirmedDeskVenueSnapshotCurrent(scope)) return;
+    if (!matchesSession(session, scope)) return;
     publishLocal({
       session,
       proposals,
       audit,
       error: snapshot.errorSticky ? snapshot.error : null,
       errorSticky: snapshot.errorSticky,
-    });
+    }, scope);
   } catch (err) {
-    if (epoch !== applyEpoch) return;
+    if (!route.isCurrent() || epoch !== applyEpoch || !isConfirmedDeskVenueSnapshotCurrent(scope)) return;
     applySnap({
       ...snapshot,
       error: snapshot.errorSticky
@@ -122,7 +164,12 @@ export async function pollBotSessionOnce(): Promise<void> {
         : err instanceof Error ? err.message : 'bot session failed',
     });
   } finally {
+    route.dispose();
     inflight = false;
+    if (pending) {
+      pending = false;
+      void pollBotSessionOnce();
+    }
   }
 }
 
@@ -142,9 +189,9 @@ function startTimer(): void {
 
 function syncShare(): void {
   if (shareUnsub) return;
-  shareUnsub = subscribeDeskPollSnap<BotSessionPollSnap>(DESK_POLL_BOT_SHARE, (env) => {
+  shareUnsub = subscribeDeskPollSnap<BotSessionPollShare>(DESK_POLL_BOT_SHARE, (env) => {
     if (Date.now() - env.ts > DESK_POLL_SNAPSHOT_MAX_AGE_MS) return;
-    applySnap(normalizeSnap(env.payload));
+    applyShare(env.payload);
   });
 }
 
@@ -152,6 +199,8 @@ export function subscribeBotSession(listener: Listener): () => void {
   listeners.add(listener);
   subscriberCount += 1;
   if (subscriberCount === 1) {
+    onConfirmedVenueChange(false);
+    venueUnsub = subscribeConfirmedDeskVenue(() => onConfirmedVenueChange());
     syncShare();
     void pollBotSessionOnce();
     startTimer();
@@ -159,7 +208,13 @@ export function subscribeBotSession(listener: Listener): () => void {
   return () => {
     listeners.delete(listener);
     subscriberCount = Math.max(0, subscriberCount - 1);
-    if (subscriberCount === 0) stopTimer();
+    if (subscriberCount === 0) {
+      stopTimer();
+      venueUnsub?.();
+      venueUnsub = null;
+      shareUnsub?.();
+      shareUnsub = null;
+    }
   };
 }
 
@@ -174,12 +229,15 @@ export function voteBotPollInterval(pollMs: number): () => void {
 }
 
 export function getBotSessionSnapshot(): BotSessionPollSnap {
-  return isSampleView() ? SAMPLE_SNAP : snapshot;
+  if (isSampleView()) return SAMPLE_SNAP;
+  return isConfirmedDeskVenueSnapshotCurrent(snapshotScope) ? snapshot : EMPTY;
 }
 
 export function applyBotSessionLocal(session: BotSession): void {
+  const scope = getConfirmedDeskVenueSnapshot();
+  if (!matchesSession(session, scope) || !isConfirmedDeskVenueSnapshotCurrent(scope)) return;
   bumpApplyEpoch();
-  publishLocal({ ...snapshot, session, error: null, errorSticky: false });
+  publishLocal({ ...snapshot, session, error: null, errorSticky: false }, scope);
 }
 
 export function setBotSessionError(message: string): void {
@@ -188,11 +246,22 @@ export function setBotSessionError(message: string): void {
 
 export async function runBotSessionWrite(
   work: () => Promise<BotSession>,
-): Promise<BotSession> {
-  bumpApplyEpoch();
+): Promise<BotSession | null> {
+  const scope = getConfirmedDeskVenueSnapshot();
+  const epoch = bumpApplyEpoch();
+  const route = watchDeskRequestRoute();
   // A write answer the page cannot render is refused, never applied (C12).
-  const next = parseBotSession(await work());
+  let answer: BotSession;
+  try { answer = await work(); }
+  catch (error) {
+    if (!route.isCurrent() || epoch !== applyEpoch || !isConfirmedDeskVenueSnapshotCurrent(scope)) return null;
+    throw error;
+  }
+  finally { route.dispose(); }
+  if (!route.isCurrent() || epoch !== applyEpoch || !isConfirmedDeskVenueSnapshotCurrent(scope)) return null;
+  const next = parseBotSession(answer);
   if (!next) throw new Error(botUnreadableMessage(BOT_LABEL_SESSION, 0));
+  if (!matchesSession(next, scope)) return null;
   applyBotSessionLocal(next);
   return next;
 }
@@ -207,9 +276,13 @@ export function _resetBotSessionPollerForTests(): void {
   subscriberCount = 0;
   intervalVoters = 0;
   inflight = false;
+  pending = false;
   applyEpoch = 0;
   shareUnsub?.();
   shareUnsub = null;
+  venueUnsub?.();
+  venueUnsub = null;
+  snapshotScope = getConfirmedDeskVenueSnapshot();
   snapshot = { ...EMPTY };
 }
 

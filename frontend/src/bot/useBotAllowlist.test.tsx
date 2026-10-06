@@ -39,12 +39,16 @@ describe('useBotAllowlist', () => {
     // answer, and a body without them is refused as unreadable (QA C12).
     const session = (allow: string[]) => ({
       level: 0, armed: false, strategy: null, brain_session_id: null,
+      level_venue: 'paper',
       caps: { max_shares: 1, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: false, allowlist: [] },
       soft_breaker_fired: false, hard_lock_until_date: null, day_lock_active: false,
       focus: [], trader_live: [], working: [], symbol_allowlist: allow,
     });
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       const href = String(url);
+      if (href.includes('/ibkr/status')) {
+        return { ok: true, json: async () => ({ enabled: true, connected: true, mode: 'paper', venue: 'paper' }) };
+      }
       if (href.includes('/bot/proposals')) {
         return { ok: true, json: async () => ({ proposals: [] }) };
       }
