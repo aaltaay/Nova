@@ -616,14 +616,17 @@
         91,
         94,
         147,
-        331
+        331,
+        657,
+        658
       ],
       "done": [
         "The live desk runs master and the Gateway restart is confirmed, with the date recorded on #331.",
         "One real unattended premarket start is evidenced by a 03:55 ET line in morning-check.log.",
         "Ticket TIF reaches the broker (a GTC order survives the session) rather than being a UI-only 'DAY' literal.",
         "The HOD slot-crowding policy and the scanner Exchange backfill cost call are each recorded on their issue and implemented or closed.",
-        "#147 (opt-in multi-model Advise) is either built or reclassified out of the delivery backlog."
+        "#147 (opt-in multi-model Advise) is either built or reclassified out of the delivery backlog.",
+        "#657/#658: stock defaults follow the confirmed venue; mounted tickets switch immediately and old-venue bot reads, writes and shared snapshots cannot replace the current state."
       ],
       "prs": [
         {
@@ -682,6 +685,23 @@
             "backend/advise/",
             "frontend/src/advise/",
             "backend/tests/test_advise_worker.py"
+          ]
+        },
+        {
+          "title": "fix(desk): keep trade defaults and bot snapshots on their own venue",
+          "issues": [657, 658],
+          "note": "Venue-defaults-and-bot-snapshots batch verified against master and every comment on 2026-10-06. #661/#665 already fixed account snapshots, Who trades, risk, locks, caps and the bot list. Operator accepted the grouped per-venue-defaults plan with 1 go; unrelated unresolved decisions remain held. One PR completes only the remaining defaults and stale bot snapshot scope.",
+          "gated": false,
+          "touches": [
+            "frontend/src/settings/",
+            "frontend/src/ibkr/",
+            "frontend/src/bot/",
+            "frontend/src/chart/",
+            "frontend/src/setups/",
+            "frontend/src/advise/",
+            "frontend/src/constantGroups/trade_defaults.ts",
+            "frontend/src/constantGroups/global_bar.ts",
+            "architecture/decisions/042-one-owner-for-novas-buys.md"
           ]
         }
       ]
