@@ -197,7 +197,7 @@ export const FOCUS_RAIL_CARD_REC_BODY =
   'Nova is recording this symbol\'s tape and Level 2 to disk (Session Record), so the session can be replayed in Sim.';
 export const FOCUS_RAIL_CARD_BOT_HELD_HEAD = 'Bot trades it · watching';
 export const FOCUS_RAIL_CARD_BOT_HELD_BODY =
-  'Set to Bot (Nova buys and sells), and Nova holds its Level 2 line (an open Trader tab or a recording), so the bot can see it. '
+  'Set to Bot (bot buys and sells), and Nova holds its Level 2 line (an open Trader tab or a recording), so the bot can see it. '
   + 'Any bot entry still passes the gates on the Bots page.';
 export const FOCUS_RAIL_CARD_BOT_QUIET_HEAD = 'Bot trades it · quiet';
 export const FOCUS_RAIL_CARD_BOT_QUIET_BODY =

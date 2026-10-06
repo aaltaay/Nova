@@ -25,11 +25,18 @@ describe('tickers today', () => {
     expect(sidesOf('JAGU', modes)).toEqual(['you', 'you']);
   });
 
-  it('lists the stocks Nova buys first, then by when they joined; the rest by symbol', () => {
-    const { listed, unlisted } = orderTickers([row('MEDS', 10), row('AISP', 30), row('LPA', 20), row('ZZZ', null),
+  it('lists the stocks the bot buys first, then by when they joined; the rest by symbol', () => {
+    const { today, others } = orderTickers([row('MEDS', 10), row('AISP', 30), row('LPA', 20), row('ZZZ', null),
       row('ABC', null)], [mode('AISP', 'bot')]);
-    expect(listed.map(t => t.symbol)).toEqual(['AISP', 'MEDS', 'LPA']);
-    expect(unlisted.map(t => t.symbol)).toEqual(['ABC', 'ZZZ']);
+    expect(today.map(t => t.symbol)).toEqual(['AISP', 'MEDS', 'LPA']);
+    expect(others.map(t => t.symbol)).toEqual(['ABC', 'ZZZ']);
+  });
+
+  it('keeps a stock set to bot buy off the hot list with today\'s tickers: it has a now row', () => {
+    const offList = { ...row('NOWL', null), now: { cells: {}, answer: 'no' as const, reasons: [] } };
+    const { today, others } = orderTickers([row('MEDS', 10), offList, row('ZZZ', null)], [mode('NOWL', 'bot')]);
+    expect(today.map(t => t.symbol)).toEqual(['NOWL', 'MEDS']);
+    expect(others.map(t => t.symbol)).toEqual(['ZZZ']);
   });
 
   it('says each red in a few words, with the trigger\'s own grade and tape', () => {

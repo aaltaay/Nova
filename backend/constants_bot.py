@@ -229,7 +229,9 @@ BOT_GRADES_DEFAULT = BOT_GRADES_AB
 BOT_SETUPS_A_DAY_DEFAULT = 1
 BOT_SETUPS_A_DAY_MAX = 2
 BOT_SKIP_GRADE = "BOT_SKIP_GRADE"            # a grade the strategy does not buy
-BOT_SKIP_NOT_LISTED = "BOT_SKIP_NOT_LISTED"  # the stock is not on today's hot list (``hot_list``)
+# Today's 04:00 ET reset of yesterday's bot buys has not run, or failed (``hot_list.day_reset_block``). Until
+# 2026-10-06 this slot was BOT_SKIP_NOT_LISTED (the bot bought only starred stocks); old audit lines keep that code.
+BOT_SKIP_DAY_NOT_RESET = "BOT_SKIP_DAY_NOT_RESET"
 # The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
 BOT_AUDIT_ACTION_SWITCH = "bot_switch"
 # The squares, by ticker (``GET /api/bot/triggers``): the gates in the order Nova runs them.
@@ -240,8 +242,7 @@ BOT_TRIGGER_GATES = (
     ("grade", "Grade"),
     ("setups_a_day", "Setups a day"),
     ("bot_window", "Bot window"),
-    ("hot_list", "Hot list"),
-    ("nova_buys", "Nova buys"),
+    ("nova_buys", "Bot buys"),
     ("level2_line", "Level 2 line"),
     ("tape_go", "Tape GO"),
     ("trades_today", "Trades today"),

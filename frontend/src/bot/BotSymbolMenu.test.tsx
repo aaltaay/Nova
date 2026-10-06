@@ -127,7 +127,7 @@ describe('Let the bot trade it (ADR 042 F)', () => {
     toggle.mockResolvedValueOnce({ session: null, error: 'Nova places for a stock only on Paper and Sim' });
     await open();
     const row = container.querySelector('[data-testid="bot-symbol-menu-toggle"]') as HTMLButtonElement;
-    expect(row.textContent).toContain('Let the bot trade AAPL (Nova buys and sells)');
+    expect(row.textContent).toContain('Let the bot trade AAPL (bot buys and sells)');
     await act(async () => { row.click(); });
     expect(toggle).toHaveBeenCalledWith('AAPL', 'add', true);
     expect(container.querySelector('[data-testid="bot-symbol-menu-bot-error"]')?.textContent)

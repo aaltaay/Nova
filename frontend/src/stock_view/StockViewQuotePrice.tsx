@@ -13,6 +13,7 @@ import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { useReplayQuote } from '../sim/useReplayQuote';
 import { LiveText } from '../ux/LiveText';
+import { WatchMark } from '../watch_list';
 import { StockViewQuoteRank } from './StockViewQuoteRank';
 
 interface Props {
@@ -31,6 +32,7 @@ export function StockViewQuotePrice({ detail }: Props) {
   return (
     <div className="sv-quote-card__price" data-testid="stock-view-quote-price">
       <span className="sv-quote-card__symbol" data-testid="stock-view-quote-symbol">{detail.symbol}</span>
+      <WatchMark symbol={detail.symbol} className="sv-quote-card__star" />
       <StockViewQuoteRank symbol={detail.symbol} />
       {price != null ? (
         <LiveText className="sv-quote-card__last" text={`$${price.toFixed(2)}`} />

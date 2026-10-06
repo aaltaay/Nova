@@ -1,5 +1,5 @@
 /**
- * "Who trades SYMBOL", directly above Level 2 (ADR 037): Buy (You | Nova) and Sell (You | Nova), the mode
+ * "Who trades SYMBOL", directly above Level 2 (ADR 037): Buy (You | Bot) and Sell (You | Bot), the mode
  * they make, and under them everything the view says (ADR 042 draft): a refused change, every note that
  * keeps Nova from acting (each toned; none hidden behind the first), Nova's automatic buys today against
  * the day's cap, and the stock's last event -- the bot's skips on it included. A locked side carries its
@@ -50,7 +50,7 @@ function SideSwitch({ label, value, lockYou, lockNova, onPick, testId }: {
         data-testid={`${testId}-${side}`}
       >
         {side === 'nova' && !on && locked !== null ? '🔒 ' : ''}
-        {side === 'you' ? 'You' : 'Nova'}
+        {side === 'you' ? 'You' : 'Bot'}
       </button>
     );
   };
@@ -111,34 +111,35 @@ export function NotesList({ notes, sym }: { notes: StockModeView['notes']; sym: 
   );
 }
 
-/** The ★: today's hot list (ADR 044). Nova follows and may trade only listed stocks. */
+/** The ★: today's hot list (ADR 044, amended 2026-10-06). Watching only: who trades the stock is its Buy / Sell. */
 function HotStar({ sym, onError }: { sym: string; onError: (message: string | null) => void }) {
   const hot = useHotList();
   const listed = listedOn(hot.view, sym);
   const entry = hot.view?.entries.find(e => e.symbol === sym) ?? null;
   const why = hot.busy ? 'Saving the hot list…' : hot.view ? null : (hot.error ?? 'Reading today\'s hot list…');
+  const auto = listed === true && entry?.how === 'auto';
   const tip = listed
-    ? `On today's hot list (${entry?.how === 'auto' ? 'added by the top of the Gainers board' : 'your ★'}). The scanners `
-      + 'follow it all day and Nova may trade it per its Who trades switch. Click to take it off the list.'
-    : 'Not on today\'s hot list: Nova follows and may trade only listed stocks. Click to add it.';
+    ? `On today's hot list (${auto ? 'an auto ☆: the top of the Gainers board' : 'your ★'}). The scanners follow it all `
+      + 'day and you get its toasts. Watching only: the bot trades it only where Buy / Sell says Bot. Click to take it off.'
+    : 'Not on today\'s hot list. Star it and the scanners follow it all day, with a toast when it alerts. A star never '
+      + 'lets the bot trade it: that is Buy / Sell.';
   return (
     <button
       type="button"
-      className={`sr-who__star${listed ? ' sr-who__star--on' : ''}`}
+      className={`sr-who__star${listed ? ' sr-who__star--on' : ''}${auto ? ' sr-who__star--auto' : ''}`}
       aria-pressed={listed === true}
       disabled={why !== null}
       {...(why ? whyProps(true, why) : tipProps(tip, listed ? 'On today\'s hot list' : 'Add to today\'s hot list'))}
       onClick={() => void (listed ? hotListActions.unstar(sym) : hotListActions.star(sym)).then(onError)}
       data-testid="who-trades-star"
     >
-      {listed ? '★' : '☆'}
+      {listed && !auto ? '★' : '☆'}
     </button>
   );
 }
 
 function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const who = ctx.who;
-  const hot = useHotList();
   const [starError, setStarError] = useState<string | null>(null);
   const view = who.view;
   const sym = ctx.symbol;
@@ -153,13 +154,13 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const entries = entriesLine(view);
   const event = view?.last_event ?? null;
   const tip = [modeSentence(mode, sym), ...notes.map(n => n.text)].join('\n');
-  const answer = whoAnswer(sym, listedOn(hot.view, sym), view);
+  const answer = whoAnswer(sym, view);
   return (
     <section className="sr-who" data-testid="who-trades" aria-label={`Who trades ${sym}`}>
       <div className="sr-who__row">
         <HotStar sym={sym} onError={setStarError} />
         <span className="sr-who__kicker" {...tipProps(`Who places each side of the trade on ${sym}: Buy and Sell, each `
-          + 'You or Nova.', `Who trades ${sym}`)}>
+          + 'You or Bot.', `Who trades ${sym}`)}>
           <span className="sr-who__kicker-words">Who trades </span>
           {sym}
         </span>

@@ -1,6 +1,6 @@
-"""The squares' ``now`` row (ADR 044): would Nova buy this listed stock if its setup triggered this minute?
+"""The squares' ``now`` row (ADR 044): would the bot buy this stock if its setup triggered this minute?
 
-The same ten gates as a trigger (``bot.trigger_cells``), read from the desk as it stands -- the desk
+The same nine gates as a trigger (``bot.trigger_cells``), read from the desk as it stands -- the desk
 venue's dial, the strategies' rules today, the live setup board, the Who trades switch, the depth
 lines held and the day's Nova entries:
 
@@ -10,8 +10,8 @@ lines held and the day's Nova entries:
   grade against the strategy's ``bot_grades`` and NOT A TRADE's checks (grade C, too thin);
 - ``setups_a_day``: an On strategy may still buy its next setup on the stock today;
 - ``bot_window``: an On strategy's bot window is open now;
-- ``hot_list``: true (only listed stocks have a ``now`` row);
-- ``nova_buys``: the stock's Buy is Nova on the desk's venue (Auto-entry or Bot);
+- ``nova_buys`` ("Bot buys"): the stock's Buy is the bot's on the desk's venue (Auto-entry or Bot), and
+  today's 04:00 reset of yesterday's bot buys has run (``hot_list.day_reset_block``);
 - ``level2_line``: Nova holds the stock's Level 2 line now; ``null`` when it does not -- a line may
   still open, or be lent, before the trigger;
 - ``tape_go``: ``null`` -- the tape is read at the trigger;
@@ -26,7 +26,7 @@ import logging
 from typing import Any
 
 from bot import strategy_rules
-from bot.trigger_cells import GATE_IDS, cell, hhmm, num
+from bot.trigger_cells import GATE_IDS, cell, hhmm
 from constants_bot import BOT_GRADES_A, BOT_LEVEL_STRATEGY
 from constants_stock_mode import STOCK_MODE_AUTO_ENTRY, STOCK_MODE_BOT
 
@@ -132,12 +132,15 @@ def _window(desk: Desk) -> dict[str, Any]:
 
 
 def _nova_buys(sym: str, desk: Desk) -> dict[str, Any]:
+    from bot.first_pullback.admit import day_reset
+
     mode = desk.now.mode(desk.venue, sym)
-    if mode == STOCK_MODE_BOT:
-        return cell(True, "Buy is Nova (Bot)")
-    if mode == STOCK_MODE_AUTO_ENTRY:
-        return cell(True, "Buy is Nova (Auto-entry)")
-    return cell(False, f"Buy is You on {sym}: set its Buy to Nova (Who trades)")
+    if mode not in (STOCK_MODE_BOT, STOCK_MODE_AUTO_ENTRY):
+        return cell(False, f"Buy is You on {sym}: set its Buy to Bot (Who trades)")
+    reset = day_reset()
+    if reset is not None:
+        return cell(False, reset[1])
+    return cell(True, "Bot buys (Bot)" if mode == STOCK_MODE_BOT else "Bot buys (Auto-entry)")
 
 
 def _line(sym: str) -> dict[str, Any]:
@@ -179,15 +182,13 @@ def _unread(said: str) -> dict[str, Any]:
     return {"cells": {g: cell(None, said) for g in GATE_IDS}, "answer": "no", "reasons": [said]}
 
 
-def row(desk: Desk | None, sym: str, entry: dict[str, Any], todays: list[dict[str, Any]]) -> dict[str, Any]:
-    """``{cells, answer, reasons}`` for one listed stock now (``todays``: the day's triggers so far)."""
+def row(desk: Desk | None, sym: str, todays: list[dict[str, Any]]) -> dict[str, Any]:
+    """``{cells, answer, reasons}`` for one stock now (``todays``: the day's triggers so far)."""
     from bot.switch import is_on, why_off
 
     if desk is None:
         return _unread("the bot's session could not be read (the backend log has the error)")
     try:
-        how = "starred" if entry.get("how") == "star" else "listed by the leaders rule"
-        at = num(entry.get("at"))
         cells = {
             "bot_on": cell(True, "the bot is on") if is_on(desk.row) else cell(False, str(why_off(desk.row))),
             "strategy_on": (cell(True, "On: " + ", ".join(strategy_rules.name(s) for s in desk.on)) if desk.on
@@ -195,7 +196,6 @@ def row(desk: Desk | None, sym: str, entry: dict[str, Any], todays: list[dict[st
             "grade": _grade(sym, desk, _lanes(sym)),
             "setups_a_day": _setups_a_day(sym, desk, todays),
             "bot_window": _window(desk),
-            "hot_list": cell(True, f"on today's hot list ({how}" + (f" at {hhmm(at)} ET)" if at is not None else ")")),
             "nova_buys": _nova_buys(sym, desk),
             "level2_line": _line(sym),
             "tape_go": cell(None, "the tape is read at the trigger"),

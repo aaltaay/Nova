@@ -5,7 +5,7 @@ Every ``HOT_LIST_AUTO_TICK_SEC``, all day, the loop first makes today's list tod
 ``HOT_LIST_AUTO_END_ET`` on exchange days, it reads the live Gainers board as auto-record does
 (``scanner_surface.surface_rows``, each row as a leaderboard row, ``leaderboard.ranking.rank_rows`` with
 ``LEADERS_RULES``) and takes its top ``auto_n`` (``pick``, pure): each name not listed yet is added, sticky
-for the day, never past ``HOT_LIST_CAP``, and takes the list's default Buy / Sell (``stock_tie``). The feed
+for the day, never past ``HOT_LIST_CAP`` -- an auto star, which never changes who trades it. The feed
 adds a name once a day: one the operator took off is not added back while it still leads (``_added_on``:
 memory, seeded after a restart from the day's ``hot_list`` auto lines on the audit stream).
 
@@ -147,8 +147,6 @@ def live_gainers() -> tuple[list[dict[str, Any]], str | None]:
 async def tick(now: float | None = None) -> list[str]:
     """One pass (see the module): the names it added."""
     global _error, _last_tick
-    from hot_list import stock_tie
-
     ts = time.time() if now is None else float(now)
     _last_tick = ts
     try:
@@ -175,8 +173,6 @@ async def tick(now: float | None = None) -> list[str]:
         return []
     done.update(added)
     _error = None
-    for sym in added:
-        await stock_tie.apply_default(sym, now=ts)
     return added
 
 

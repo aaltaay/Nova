@@ -21,9 +21,9 @@ export const MODE_NAMES: Record<StockModeName, string> = {
 
 export const MODE_SIDES: Record<StockModeName, string> = {
   signal: 'you buy · you sell',
-  approve: 'you approve · Nova sells',
-  auto_entry: 'Nova buys · you sell',
-  bot: 'Nova buys · Nova sells',
+  approve: 'you approve · bot sells',
+  auto_entry: 'bot buys · you sell',
+  bot: 'bot buys · bot sells',
 };
 
 export const MODE_ORDER: readonly StockModeName[] = ['signal', 'approve', 'auto_entry', 'bot'];
@@ -36,8 +36,8 @@ export function modeSentence(mode: StockModeName, symbol: string): string {
     case 'approve':
       return 'You approve once. Nova sends the buy with its stop and target.';
     case 'auto_entry':
-      return `Nova buys ${symbol} at a go trigger of a setup at Strategy, by the bot's rules, while the bot is `
-        + 'active. Every sell is yours.';
+      return `The bot buys ${symbol} at a go trigger of a setup at Strategy, by the bot's rules, while the bot is `
+        + 'on. Every sell is yours.';
     case 'bot':
       return `The bot buys ${symbol} at a go trigger of a setup at Strategy while it is active, and sells at the `
         + 'target, the stop or after 15 minutes.';
@@ -289,7 +289,7 @@ export function planActions(a: PlanActionsInput): { actions: PlanAction[]; statu
     tip: 'Fills this tab\'s ticket with a buy limit at the entry for your size. It never sends.',
   };
   // A take-over always leaves Buy on You (ADR 042 draft): it never turns the stock into Auto-entry.
-  const buyStays = `Buy stays on You: Nova buys no more ${a.symbol}.`;
+  const buyStays = `Buy stays on You: the bot buys no more ${a.symbol}.`;
   if (qty > 0) {
     if (live?.exits === 'nova') {
       const approve = live.kind === 'approve';

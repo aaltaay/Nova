@@ -84,7 +84,7 @@ def paper(monkeypatch, api_key):
     apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
     issue_arm_token()
     hold_depth_line(SYM)
-    list_hot(SYM)                         # ADR 044: Nova buys only the stocks on today's hot list
+    list_hot()                            # today's 04:00 reset has run; IMCC is not starred (it needs not be)
     yield SimpleNamespace(broker=for_venue("paper"), ref=fake, clock=clock, key=api_key)
     runner.reset_for_tests()
     store.reset_for_tests()
@@ -249,19 +249,34 @@ def test_notes_say_everything_that_keeps_nova_from_acting(paper, monkeypatch):
     assert "no Level 2 line" in notes["no_depth"]
 
 
-def test_the_notes_say_a_stock_off_todays_hot_list(paper):
-    """ADR 044: Nova buys only listed stocks -- the Who trades view says so instead of promising a buy."""
+def test_the_notes_never_hold_a_stock_off_the_hot_list(paper):
+    """ADR 044, amended 2026-10-06: a star is watching, never permission -- the Who trades view of a stock off
+    today's list promises the buy without a word about the list."""
+    import hot_list
+
+    put(paper, "nova", "you")
+    assert not hot_list.is_listed(SYM)
+    said = client.get(f"/api/stock-mode/{SYM}").json()["notes"]
+    assert not {"not_listed", "hot_list_default", "day_reset"} & {n["id"] for n in said}
+    assert [n for n in said if "hot list" in n["text"]] == []
+
+
+def test_the_notes_say_the_bot_buys_nothing_before_todays_reset(paper):
+    """Until today's 04:00 reset of yesterday's bot buys has run, a Nova-buy stock's view says nothing buys yet;
+    a stock at Signal only gets no such note."""
     from constants_hot_list import HOT_LIST_FILE
     from paths import cache_dir
 
-    put(paper, "nova", "you")
-    assert "not_listed" not in {n["id"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
     (cache_dir() / HOT_LIST_FILE).unlink()
+    assert "day_reset" not in {n["id"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
+    put(paper, "nova", "you")
     said = client.get(f"/api/stock-mode/{SYM}").json()["notes"]
-    notes = {n["id"]: n["text"] for n in said}
-    assert notes["not_listed"] == "IMCC is not on today's hot list: Nova buys only listed stocks."
-    # Said once: the hot list's tie-in adds no second "not listed" note.
-    assert [n for n in said if "hot list" in n["text"]] == [{"id": "not_listed", "tone": "warn", "text": notes["not_listed"]}]
+    [note] = [n for n in said if n["id"] == "day_reset"]
+    assert note == {"id": "day_reset", "tone": "warn",
+                    "text": "The bot buys nothing yet: the 04:00 ET reset of yesterday's bot buys has not run yet "
+                            "today (it runs within 30 s of 04:00 and at every start)."}
+    list_hot()
+    assert "day_reset" not in {n["id"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
 
 
 def test_the_view_says_the_size_nova_would_send(paper, monkeypatch):
@@ -344,17 +359,29 @@ def test_what_keeps_auto_entry_from_buying_is_said(paper, event, code, words):
     assert client.get(f"/api/stock-mode/{SYM}").json()["last_event"]["text"].startswith("Nova did not buy")
 
 
-def test_auto_entry_buys_only_a_stock_on_todays_hot_list(paper):
-    """ADR 044: Nova buys only listed stocks -- Auto-entry too."""
+def test_auto_entry_buys_a_stock_off_the_hot_list(paper):
+    """ADR 044, amended 2026-10-06: Auto-entry buys a stock whether or not it is starred."""
+    import hot_list
+
+    put(paper, "nova", "you")
+    assert not hot_list.is_listed(SYM)
+    runner.submit(trigger())
+    trade = tick(paper)
+    assert trade["kind"] == "auto_entry" and mode_rows("skipped") == []
+
+
+def test_auto_entry_buys_nothing_before_todays_reset_ran(paper):
+    """No file for today: yesterday's Auto-entry switches are not known to be reset, so nothing is bought."""
     from constants_hot_list import HOT_LIST_FILE
     from paths import cache_dir
 
     put(paper, "nova", "you")
-    (cache_dir() / HOT_LIST_FILE).unlink()           # IMCC leaves today's list
+    (cache_dir() / HOT_LIST_FILE).unlink()
     runner.submit(trigger())
     tick(paper)
     [skip] = mode_rows("skipped")
-    assert skip["inputs"]["code"] == "BOT_SKIP_NOT_LISTED" and "IMCC is not on today's hot list" in skip["reason"]
+    assert skip["inputs"]["code"] == "BOT_SKIP_DAY_NOT_RESET"
+    assert "the 04:00 ET reset of yesterday's bot buys has not run yet today" in skip["reason"]
     assert paper.broker.ledger.held_qty(SYM) == 0.0
 
 

@@ -18,9 +18,9 @@ import type { KillSwitchControl } from './useKillSwitch';
 
 export const BOT_CARD_ANCHOR = 'bots-bot-card';
 
-const ON_TIP = 'On: Nova may act on the GO triggers of strategies at On, on stocks of today\'s hot list whose Buy is Nova. '
+const ON_TIP = 'On: the bot may act on the GO triggers of strategies at On, on the stocks whose Buy is Bot. '
   + 'Click to turn it off; Eyes keep running.';
-const OFF_TIP = 'Off: Nova buys nothing by itself. Strategies at Eyes or On still alert you. Click to turn it on.';
+const OFF_TIP = 'Off: the bot buys nothing by itself. Strategies at Eyes or On still alert you. Click to turn it on.';
 
 /** A write the backend refused for want of the desk's API key: save it here (it stays in this desk). */
 export function ApiKeyField({ className = 'bots-hero__key', testId = 'bots-api-key' }: { className?: string; testId?: string }) {

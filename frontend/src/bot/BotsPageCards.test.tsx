@@ -342,11 +342,12 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     const table = screen.getByTestId('bots-tickers');
     expect(table.querySelector('h3')?.textContent).toBe('Tickers today 1 on the hot list · 1 more triggered');
     const grml = screen.getByTestId('bots-tk-GRML');
-    expect(within(grml).getByText('★')).toBeTruthy();
+    // GRML came on by the auto top N: an outlined ☆, lit as listed (your own star is a filled ★).
+    expect(within(grml).getByText('☆').className).toBe('bots-tk__star is-on');
     expect(within(grml).getByText(/^auto /)).toBeTruthy();
     expect(within(grml).getByText('You trade it')).toBeTruthy();
-    // Ten squares in Nova's order: one red, said once in grey as the gate every ticker shares.
-    expect(grml.querySelectorAll('.bots-tk__cell')).toHaveLength(10);
+    // Nine squares in Nova's order (being listed is no gate): one red, said once in grey as the gate every ticker shares.
+    expect(grml.querySelectorAll('.bots-tk__cell')).toHaveLength(9);
     const red = grml.querySelectorAll('.bots-tk__cell.is-bad');
     expect(red).toHaveLength(1);
     expect(red[0].getAttribute('data-tip')).toBe('the bot window 07:00–10:00 closed');
@@ -362,12 +363,13 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     expect(past.querySelector('.bots-tk__stopword')?.getAttribute('data-tip')).toBe('no Level 2 line: the tape was BLIND');
     // Every column head says what its square asks.
     const head = Array.from(table.querySelectorAll('th.bots-tk__gh')).map(th => th.textContent);
-    expect(head).toEqual(['Bot on', 'Strategy on', 'Grade', 'Setups a day', 'Bot window', 'Hot list', 'Nova buys',
+    expect(head).toEqual(['Bot on', 'Strategy on', 'Grade', 'Setups a day', 'Bot window', 'Bot buys',
       'Level 2 line', 'Tape GO', 'Trades today']);
     expect(table.querySelector('th.bots-tk__gh')?.getAttribute('data-tip')).toBe('Was the Bot switch on for this venue?');
     // The tickers that triggered off the list fold into one row until opened, and each one's triggers again.
     expect(screen.queryByTestId('bots-tk-IMCC')).toBeNull();
-    expect(screen.getByTestId('bots-tk-unlisted-toggle').textContent).toMatch(/Triggered today, not on your hot list · 1 tickers · 1 triggers/);
+    expect(screen.getByTestId('bots-tk-unlisted-toggle').textContent)
+      .toMatch(/Triggered today, not on your hot list or set to bot buy · 1 tickers · 1 triggers/);
     await act(async () => { fireEvent.click(screen.getByTestId('bots-tk-unlisted-toggle')); await flush(); });
     const imcc = screen.getByTestId('bots-tk-IMCC');
     expect(imcc.className).toBe('bots-tk__unlisted');
@@ -385,10 +387,10 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     await renderPage();
     const grml = within(screen.getByTestId('bots-tk-GRML'));
     const buy = grml.getByRole('radiogroup', { name: 'Buy' });
-    await act(async () => { fireEvent.click(within(buy).getByText('Nova')); await flush(); });
+    await act(async () => { fireEvent.click(within(buy).getByText('Bot')); await flush(); });
     expect(calls(fetchMock, '/stock-mode/GRML', 'PUT').map(c => c.body)).toEqual(['{"buy":"nova","sell":"you"}']);
     const sell = grml.getByRole('radiogroup', { name: 'Sell' });
-    await act(async () => { fireEvent.click(within(sell).getByText('Nova')); await flush(); });
+    await act(async () => { fireEvent.click(within(sell).getByText('Bot')); await flush(); });
     expect(screen.getByTestId('bots-tk-GRML').querySelector('.bots-tk__stop')?.textContent)
       .toMatch(/You hold GRML -- sell it or take over the exit first$/);
   });
@@ -399,7 +401,7 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     await act(async () => { fireEvent.click(screen.getByTestId('bots-tk-unlisted-toggle')); await flush(); });
     await act(async () => { fireEvent.click(within(screen.getByTestId('bots-tk-IMCC')).getByText('☆')); await flush(); });
     expect(calls(fetchMock, '/hot-list/star', 'POST').map(c => c.body)).toEqual(['{"symbol":"IMCC"}']);
-    await act(async () => { fireEvent.click(within(screen.getByTestId('bots-tk-GRML')).getByText('★')); await flush(); });
+    await act(async () => { fireEvent.click(within(screen.getByTestId('bots-tk-GRML')).getByText('☆')); await flush(); });
     expect(calls(fetchMock, '/hot-list/GRML', 'DELETE')).toHaveLength(1);
     const input = screen.getByLabelText('Star a stock');
     await act(async () => {

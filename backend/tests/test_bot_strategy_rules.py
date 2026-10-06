@@ -3,8 +3,9 @@
 They are template parameters of the bot group (never a new revision or read-out), read from each
 setup's template in play -- the built-in's with the operator's own bot rules over it (``default_bot``)
 -- by one rule for Nova's bot and Auto-entry (``admit.blockers``: ``BOT_SKIP_GRADE``,
-``BOT_SKIP_NOT_FIRST``) and the squares. Nova buys only the stocks on today's hot list
-(``BOT_SKIP_NOT_LISTED``).
+``BOT_SKIP_NOT_FIRST``) and the squares. Being on today's hot list is no rule (ADR 044, amended
+2026-10-06): the bot buys nothing only until today's 04:00 ET reset of yesterday's bot buys has run
+(``BOT_SKIP_DAY_NOT_RESET``).
 """
 from __future__ import annotations
 
@@ -205,10 +206,36 @@ def test_the_admission_holds_back_each_rule_with_its_code(store):
     assert "BOT_NOT_FIRST_OF_DAY" not in _codes(_event(setup={"kind": "second_pullback", "nth": 2}))
     third = _codes(_event(setup={"kind": "second_pullback", "nth": 3}))
     assert third["BOT_NOT_FIRST_OF_DAY"] == "a 3rd first pullback: this strategy buys the 1st and 2nd of the day only"
-    assert _codes(_event(symbol="AISP"))["BOT_SKIP_NOT_LISTED"] == "AISP is not on today's hot list"
 
 
-def test_an_unreadable_hot_list_lists_nothing_and_says_why(monkeypatch):
+def test_a_stock_off_the_hot_list_meets_no_rule_for_it():
+    """ADR 044, amended 2026-10-06: a star is watching, never permission -- a stock off today's list is held
+    back by nothing the list says."""
+    import hot_list
+    from tests.bot_helpers import list_hot, ready_l2
+
+    ready_l2(brain=None, symbols=("IMCC",))
+    list_hot("LGHL")
+    assert not hot_list.is_listed("AISP") and not hot_list.is_listed("IMCC")
+    assert _codes(_event(symbol="AISP")) == {}
+    assert _codes(_event()) == {}
+
+
+def test_the_bot_buys_nothing_until_todays_reset_ran():
+    """No file for today: yesterday's bot buys are not known to be reset, so every entry is held back."""
+    from constants_hot_list import HOT_LIST_FILE
+    from paths import cache_dir
+    from tests.bot_helpers import list_hot, ready_l2
+
+    ready_l2(brain=None, symbols=("IMCC",))
+    (cache_dir() / HOT_LIST_FILE).unlink()
+    said = _codes(_event())["BOT_SKIP_DAY_NOT_RESET"]
+    assert said.startswith("the 04:00 ET reset of yesterday's bot buys has not run yet today")
+    list_hot()                                       # the rollover wrote today's file
+    assert _codes(_event()) == {}
+
+
+def test_an_unreadable_hot_list_holds_every_entry_and_says_why(monkeypatch):
     from tests.bot_helpers import ready_l2
 
     ready_l2(brain=None, symbols=("IMCC",))
@@ -217,12 +244,13 @@ def test_an_unreadable_hot_list_lists_nothing_and_says_why(monkeypatch):
         return None, "hot-list.json is unreadable: disk gone"
 
     monkeypatch.setattr("hot_list.store.read_raw", broken)
-    said = _codes(_event())["BOT_SKIP_NOT_LISTED"]
-    assert said.startswith("today's hot list could not be read") and "disk gone" not in said
+    said = _codes(_event())["BOT_SKIP_DAY_NOT_RESET"]
+    assert said.startswith("the 04:00 ET reset of yesterday's bot buys cannot be confirmed") and "disk gone" not in said
 
-    def raising(symbol, now=None):
+    def raising(now=None):
         raise OSError("disk gone")
 
-    monkeypatch.setattr("hot_list.listed_or_unread", raising)
-    said = _codes(_event())["BOT_SKIP_NOT_LISTED"]
-    assert said.startswith("today's hot list could not be read") and "disk gone" not in said
+    monkeypatch.setattr("hot_list.day_reset_block", raising)
+    said = _codes(_event())["BOT_SKIP_DAY_NOT_RESET"]
+    assert said.startswith("whether today's 04:00 ET reset of yesterday's bot buys ran could not be read")
+    assert "disk gone" not in said

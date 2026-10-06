@@ -168,20 +168,20 @@ export function stockModeView(symbol: string, buy: string, sell: string, partial
   };
 }
 
-/** Today's squares by ticker: GRML on the hot list (Buy Nova), one trigger stopped by its tape; IMCC not listed. */
+/** Today's squares by ticker: GRML on the hot list (an auto ☆), one trigger stopped by its tape; IMCC only triggered. */
 export function triggersView(partial: Record<string, unknown> = {}): Record<string, unknown> {
   const gate = (id: string, label: string) => ({ id, label });
   const cell = (ok: boolean | null, why = '') => ({ ok, why });
   const allOk = {
     bot_on: cell(true), strategy_on: cell(true), grade: cell(true), setups_a_day: cell(true), bot_window: cell(true),
-    hot_list: cell(true), nova_buys: cell(true), level2_line: cell(true), tape_go: cell(true), trades_today: cell(true),
+    nova_buys: cell(true), level2_line: cell(true), tape_go: cell(true), trades_today: cell(true),
   };
   return {
     schema_version: 1, date: '2026-10-01', generated_at: 0,
     gates: [
       gate('bot_on', 'Bot on'), gate('strategy_on', 'Strategy on'), gate('grade', 'Grade'),
-      gate('setups_a_day', 'Setups a day'), gate('bot_window', 'Bot window'), gate('hot_list', 'Hot list'),
-      gate('nova_buys', 'Nova buys'), gate('level2_line', 'Level 2 line'), gate('tape_go', 'Tape GO'),
+      gate('setups_a_day', 'Setups a day'), gate('bot_window', 'Bot window'),
+      gate('nova_buys', 'Bot buys'), gate('level2_line', 'Level 2 line'), gate('tape_go', 'Tape GO'),
       gate('trades_today', 'Trades today'),
     ],
     tickers: [
@@ -194,8 +194,8 @@ export function triggersView(partial: Record<string, unknown> = {}): Record<stri
           reasons: ['no Level 2 line: the tape was BLIND'] }] },
       { symbol: 'IMCC', listed: null, now: null,
         triggers: [{ ts: 1_790_001_200, setup_id: 'i1', setup_type: 'bull_flag', kind: 'bull_flag', nth: 1, grade: 'B',
-          tape: 'wait', outcome: 'stop_first', r: -1, cells: { ...allOk, hot_list: cell(false, 'not on the hot list') },
-          reasons: ['not on the hot list'] }] },
+          tape: 'wait', outcome: 'stop_first', r: -1, cells: { ...allOk, nova_buys: cell(false, 'Buy was You on IMCC') },
+          reasons: ['Buy was You on IMCC'] }] },
     ],
     impact: [{ gate: 'level2_line', blocked: 1, target_first: 1, stop_first: 0, r: 1.6 }],
     judged_now: [],
@@ -209,7 +209,6 @@ export function hotListView(partial: Record<string, unknown> = {}): Record<strin
   return {
     schema_version: 1, date: '2026-10-01', cap: 20,
     auto: { n: 5, start: '07:00', end: '16:00', rule: 'leaders', error: null },
-    default: { buy: 'you', sell: 'you' },
     entries: [{ symbol: 'GRML', how: 'auto', at: 1_790_000_000, board: 'gainers', rank: 1, change_pct: 0.42, followed: true }],
     yesterday: [], error: null,
     ...partial,

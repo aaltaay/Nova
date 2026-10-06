@@ -3,11 +3,13 @@
 ``ready_l2`` pins the venue clock inside the entry window (ADR 027) -- tests about
 that gate set their own. It puts the named setups at Strategy (ADR 042: the master
 is a ceiling, each setup has its own level), writes this venue's bot list directly
-(tests bypass stock mode's one-owner path; the routes go through it) and lists the
-stocks on today's hot list (ADR 044: Nova buys only listed stocks), and holds a
-depth line for each symbol (a reserved slot in ``ibkr.depth.state``), because a bot
-fires only on a listed symbol whose line the backend holds (``BOT_NO_DEPTH_LINE``,
-ADR 020 second pass). Lines are released by the autouse bot fixture in ``conftest.py``.
+(tests bypass stock mode's one-owner path; the routes go through it), writes today's
+hot list file without listing them (the 04:00 reset of yesterday's bot buys has run,
+``hot_list.day_reset_block``; being on the list is no rule, ADR 044 amended
+2026-10-06), and holds a depth line for each symbol (a reserved slot in
+``ibkr.depth.state``), because a bot fires only on a symbol on its list whose line
+the backend holds (``BOT_NO_DEPTH_LINE``, ADR 020 second pass). Lines are released
+by the autouse bot fixture in ``conftest.py``.
 """
 from __future__ import annotations
 
@@ -69,14 +71,14 @@ def on_practice(venue: str = "paper") -> None:
 
 
 def list_hot(*symbols: str, how: str = "star", at: float | None = None) -> None:
-    """Put these stocks on today's hot list (ADR 044: Nova buys only listed stocks), written as the
-    contract's ``hot-list.json`` (schema 1) in the test's operator cache."""
+    """Put these stocks on today's hot list, written as the contract's ``hot-list.json`` (schema 1) in the
+    test's operator cache. With no stocks it only writes today's file: the 04:00 reset has run, so the bot
+    may buy (``hot_list.day_reset_block``)."""
     import json
     import time
 
     from constants_hot_list import (
         HOT_LIST_AUTO_N_DEFAULT,
-        HOT_LIST_DEFAULT_SIDE,
         HOT_LIST_FILE,
         HOT_LIST_SCHEMA_VERSION,
     )
@@ -88,8 +90,7 @@ def list_hot(*symbols: str, how: str = "star", at: float | None = None) -> None:
     doc = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
     if not isinstance(doc, dict) or doc.get("date") != day:
         doc = {"schema_version": HOT_LIST_SCHEMA_VERSION, "date": day, "auto_n": HOT_LIST_AUTO_N_DEFAULT,
-               "default": {"buy": HOT_LIST_DEFAULT_SIDE, "sell": HOT_LIST_DEFAULT_SIDE}, "entries": [],
-               "yesterday": []}
+               "entries": [], "yesterday": []}
     have = {e["symbol"] for e in doc["entries"]}
     stamp = time.time() if at is None else at
     for raw in symbols:
@@ -103,13 +104,13 @@ def list_hot(*symbols: str, how: str = "star", at: float | None = None) -> None:
 
 
 def set_symbols(*symbols: str) -> None:
-    """Write this venue's bot list directly (and the Trader focus the Eyes gate reads), and list the
-    stocks on today's hot list: Nova buys only listed stocks (ADR 044)."""
+    """Write this venue's bot list directly (and the Trader focus the Eyes gate reads), and today's hot list
+    file with none of them on it: the 04:00 reset has run, and the list never decides who trades a stock."""
     row = load_session()
     row["symbol_allowlist"] = [s.upper() for s in symbols]
     row["trader_live"] = [s.upper() for s in symbols]
     save_session(row)
-    list_hot(*symbols)
+    list_hot()
 
 
 def ready_l2(

@@ -1,4 +1,5 @@
-"""Today's hot list (ADR 044): the stocks Nova watches all day and may trade."""
+"""Today's hot list (ADR 044, amended 2026-10-06): the stocks Nova watches all day. Who trades a stock is its
+own Buy / Sell switch (ADR 037), never the list."""
 from __future__ import annotations
 
 HOT_LIST_SCHEMA_VERSION = 1
@@ -13,12 +14,9 @@ HOT_LIST_AUTO_TICK_SEC = 30.0
 # The feed adds a name once a day: after a restart it reads back that day's adds from the audit stream's
 # tail, from this many bytes, growing the window until it reaches the day's 04:00 start.
 HOT_LIST_AUTO_SEED_BYTES = 1 << 20
-HOT_LIST_SIDES = ("you", "nova")
-HOT_LIST_DEFAULT_SIDE = "you"              # new names start as Buy You, Sell You (operator, 2026-10-01)
 
 HOT_LIST_FULL = "HOT_LIST_FULL"
 HOT_LIST_INVALID = "HOT_LIST_INVALID"
-HOT_LIST_NOVA_TRADE = "HOT_LIST_NOVA_TRADE"
 HOT_LIST_UNREADABLE = "HOT_LIST_UNREADABLE"
 
 # How a name came onto the list, and the one board the auto feed reads.
@@ -32,19 +30,21 @@ HOT_LIST_DATE_RE = r"^\d{4}-\d{2}-\d{2}$"
 
 # Every change is a line on the bot's audit stream: ``action`` this, ``inputs.event`` one of the events.
 HOT_LIST_AUDIT_ACTION = "hot_list"
-HOT_LIST_EVENT_ROLLOVER = "rollover"       # 04:00 ET: a fresh list, yesterday's Nova Buys cleared
+HOT_LIST_EVENT_ROLLOVER = "rollover"       # 04:00 ET: a fresh list, and yesterday's bot buys reset
 HOT_LIST_EVENT_AUTO = "auto"               # the auto feed added a leader
-HOT_LIST_EVENT_STAR = "star"               # a star: the operator, Buy set to Nova, or bring-back
-HOT_LIST_EVENT_REMOVE = "remove"           # off the list, You · You on every venue
-HOT_LIST_EVENT_SETTINGS = "settings"       # auto_n or the default Buy / Sell changed
-HOT_LIST_EVENT_DEFAULT = "default"         # a new name's default Buy / Sell, applied or not
+HOT_LIST_EVENT_STAR = "star"               # a star: the operator, or bring-back
+HOT_LIST_EVENT_REMOVE = "remove"           # off the list (who trades the stock is unchanged)
+HOT_LIST_EVENT_SETTINGS = "settings"       # auto_n changed
 # Who starred a name (``inputs.by`` on a star line).
 HOT_LIST_BY_OPERATOR = "operator"
-HOT_LIST_BY_NOVA_BUY = "nova_buy"          # Buy set to Nova on an unlisted stock stars it
 HOT_LIST_BY_BRING_BACK = "bring_back"
 
-# HOD Momo's active set admits listed names first, into the reserved block they share with Former Momo
-# (``HOD_MOMO_FORMER_MOMO_MAX_SLOTS``; ``hod_momo_active.build_active_set``), under these reasons.
+# HOD Momo's active set admits the stocks the bot buys first (Buy set to the bot on the desk's venue), then
+# listed names, into the reserved block they share with Former Momo (``HOD_MOMO_FORMER_MOMO_MAX_SLOTS``;
+# ``hod_momo_active.build_active_set``), under these reasons.
+BOT_BUY_ACTIVE_REASON = "bot_buy"
+BOT_BUY_ACTIVE_OVER_RESERVED = "bot_buy_over_reserved"     # past the reserved block: not followed
+BOT_BUY_ACTIVE_L1_BLOCKED = "bot_buy_l1_blocked"           # IBKR could not open its L1 line (a cooldown)
 HOT_LIST_ACTIVE_REASON = "hot_list"
 HOT_LIST_ACTIVE_OVER_RESERVED = "hot_list_over_reserved"   # listed past the reserved block: not followed
 HOT_LIST_ACTIVE_L1_BLOCKED = "hot_list_l1_blocked"         # IBKR could not open its L1 line (a cooldown)

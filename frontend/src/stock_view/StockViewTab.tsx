@@ -27,6 +27,7 @@ import {
   TRADER_TAB_SUSPENDED_TITLE,
 } from '../constants';
 import { TRADER_TAB_CHANGE_TITLE } from '../constantGroups/trader_view';
+import { WatchMark } from '../watch_list';
 import { catalystInitial, formatSignedPct, pctTone, type TabContext } from './tabContext';
 
 export interface StockViewTabProps {
@@ -109,6 +110,7 @@ export function StockViewTab({
           title={labelTitle}
         >
           <span className="sv-tab__symbol">{label}</span>
+          {!isDraft && <WatchMark symbol={label} className="sv-tab__star" />}
           {gap && (
             <span
               className={`sv-tab__gap sv-tab__gap--${pctTone(context?.changePct)}`}

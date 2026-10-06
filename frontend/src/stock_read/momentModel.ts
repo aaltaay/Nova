@@ -205,7 +205,7 @@ function entering(t: StockModeTrade, ttl: number | null): Moment {
   const size = `${t.qty ?? '?'} @ ${fmtPx(t.entry)}`;
   const words: Record<StockModeTrade['kind'], { badge: string; detail: string }> = {
     auto_entry: {
-      badge: `NOVA BUYING · ${size}`,
+      badge: `BOT BUYING · ${size}`,
       detail: `Nova sent the buy at ${hhmmssEt(t.sent_at)}. Unfilled after ${ttlWords(ttl)} it is `
         + 'cancelled. Every sell is yours.',
     },
@@ -219,7 +219,7 @@ function entering(t: StockModeTrade, ttl: number | null): Moment {
       detail: `The bot sent its buy. It sells at ${fmtPx(t.target)}, at ${fmtPx(t.stop)} or after 15 minutes. `
         + `Unfilled after ${ttlWords(ttl)} it is cancelled.`,
     },
-    exit: { badge: 'NOVA HOLDS THE EXIT', detail: `Nova's stop ${fmtPx(t.stop)} rests at the broker.` },
+    exit: { badge: 'BOT HOLDS THE EXIT', detail: `Nova's stop ${fmtPx(t.stop)} rests at the broker.` },
   };
   const w = words[t.kind];
   return {
@@ -230,7 +230,7 @@ function entering(t: StockModeTrade, ttl: number | null): Moment {
     track: true,
     call: {
       id: `sent:${t.entry_order_id ?? t.sent_at}`, tone: 'nova', title: w.badge, detail: w.detail,
-      pin: pinAt(t.kind === 'approve' ? 'SENT' : 'NOVA BUYING', t.entry, t.sent_at), ping: false,
+      pin: pinAt(t.kind === 'approve' ? 'SENT' : 'BOT BUYING', t.entry, t.sent_at), ping: false,
     },
   };
 }
@@ -239,15 +239,15 @@ function boughtCall(i: MomentInputs, t: StockModeTrade | null): MomentCall | nul
   if (!t || t.state !== 'holding' || !recent(t.filled_at, i.now)) return null;
   const fill = `${t.qty ?? '?'} @ ${fmtPx(t.fill_price)}`;
   const words: Record<StockModeTrade['kind'], [string, string, string]> = {
-    auto_entry: [`NOVA BOUGHT ${fill}`, 'NOVA BOUGHT', 'No stop or target is working. The exit is yours.'],
+    auto_entry: [`BOT BOUGHT ${fill}`, 'BOT BOUGHT', 'No stop or target is working. The exit is yours.'],
     approve: [`BOUGHT ${fill}`, 'BOUGHT', `The stop ${fmtPx(t.stop)} and the target ${fmtPx(t.target)} are working at `
       + 'the broker. The first one hit cancels the other.'],
     // The bot's entry is a bracket (spec I): both exits rest at the broker; an older bot watched its stop.
-    bot: [`NOVA BOUGHT ${fill}`, 'NOVA BOUGHT', t.stop_order_id !== null
+    bot: [`BOT BOUGHT ${fill}`, 'BOT BOUGHT', t.stop_order_id !== null
       ? `The stop ${fmtPx(t.stop)} and the target ${fmtPx(t.target)} rest at the broker; the first one hit cancels the `
         + 'other. The bot sells after 15 minutes if neither fills.'
       : `Target ${fmtPx(t.target)} resting. Nova watches the ${fmtPx(t.stop)} stop and sells after 15 minutes.`],
-    exit: ['NOVA TOOK THE EXIT', 'NOVA EXIT', `Nova's stop ${fmtPx(t.stop)} rests at the broker`
+    exit: ['BOT TOOK THE EXIT', 'BOT EXIT', `Nova's stop ${fmtPx(t.stop)} rests at the broker`
       + `${t.trail ? ', raised as 1-minute candles close over round numbers' : ''}. Take it back any time.`],
   };
   const [title, pill, detail] = words[t.kind];
@@ -275,9 +275,9 @@ function holding(i: MomentInputs, live: StockModeTrade | null, qty: number): Mom
   if (live?.exits === 'nova') {
     if (live.exiting) {
       return {
-        step: 3, exitLabel: 'Target / stop', tone: 'target', badge: 'NOVA IS SELLING', track,
+        step: 3, exitLabel: 'Target / stop', tone: 'target', badge: 'BOT IS SELLING', track,
         call: {
-          id: `exiting:${live.setup_id ?? live.entry_order_id}`, tone: 'nova', title: 'NOVA IS SELLING',
+          id: `exiting:${live.setup_id ?? live.entry_order_id}`, tone: 'nova', title: 'BOT IS SELLING',
           detail: 'The bot is selling: its target, its stop or its 15 minutes came.', pin: null,
           ping: false,
         },
@@ -287,7 +287,7 @@ function holding(i: MomentInputs, live: StockModeTrade | null, qty: number): Mom
       // Nova holds the exit of the shares you bought: its raises are its own words; a flush is still called.
       const flushed = heldCall(i);
       return { step: 2, exitLabel: 'Target / stop', tone: 'holding', track,
-        badge: flushed?.badge ?? `NOVA HOLDS THE EXIT${pnl !== null ? ` · ${fmtPnl(pnl)}` : ''}`,
+        badge: flushed?.badge ?? `BOT HOLDS THE EXIT${pnl !== null ? ` · ${fmtPnl(pnl)}` : ''}`,
         call: (flushed && flushed.call.id.startsWith('flush') ? flushed.call : null) ?? eventCall(i, live.sent_at)
           ?? boughtCall(i, live) };
     }
@@ -337,12 +337,12 @@ function finished(i: MomentInputs, t: StockModeTrade): Moment {
     : null;
   if (t.state === 'missed') {
     const again = t.kind === 'approve' ? ''
-      : ' A miss gives the day\'s buy back: Nova may buy at the next go trigger.';
+      : ' A miss gives the day\'s buy back: the bot may buy at the next go trigger.';
     return {
-      step: 1, exitLabel: t.exits === 'nova' ? 'Target / stop' : 'Your exit', tone: 'wait', badge: 'NOVA\'S BUY MISSED',
+      step: 1, exitLabel: t.exits === 'nova' ? 'Target / stop' : 'Your exit', tone: 'wait', badge: 'THE BOT\'S BUY MISSED',
       track: true,
       call: {
-        id: `missed:${t.entry_order_id ?? t.sent_at}`, tone: 'wait', title: 'NOVA\'S BUY MISSED',
+        id: `missed:${t.entry_order_id ?? t.sent_at}`, tone: 'wait', title: 'THE BOT\'S BUY MISSED',
         detail: `${t.qty ?? '?'} @ ${fmtPx(t.entry)} did not fill in ${ttlWords(i.ttlSec)} and was cancelled.${again}`,
         pin: null, ping: false,
       },
@@ -390,10 +390,10 @@ function blockedCall(i: MomentInputs, plan: StockPlan, mode: StockModeName, key:
   const bot = mode === 'bot';
   const used = capUsedText(i.who) !== null;
   const title = used
-    ? (bot ? 'THE BOT\'S BUY TODAY IS USED' : 'NOVA\'S BUY TODAY IS USED')
+    ? 'THE BOT\'S BUY TODAY IS USED'
     : triggered
-      ? (bot ? 'THE BOT IS NOT TRADING IT' : 'NOVA IS NOT BUYING IT')
-      : (bot ? 'THE BOT WILL NOT TRADE THIS' : 'NOVA WILL NOT BUY THIS');
+      ? (bot ? 'THE BOT IS NOT TRADING IT' : 'THE BOT IS NOT BUYING IT')
+      : (bot ? 'THE BOT WILL NOT TRADE THIS' : 'THE BOT WILL NOT BUY THIS');
   return { id: `blocked:${mode}:${key}`, tone: 'wait', title, detail: why[0], pin: null, ping: false,
     ...(why.length > 1 ? { more: why.slice(1) } : {}) };
 }
@@ -471,7 +471,7 @@ function waitingCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
     signal: ['GET READY', `${near}Enter above ${trigger}: the chart says ENTER NOW when it prints.`],
     approve: ['APPROVE TO SEND', `Approve the plan and Nova sends buy ${approveQty(i.who, i.riskUsd, plan) ?? '?'} @ `
       + `${fmtPx(plan.entry)} with its stop and target at the trigger.`],
-    auto_entry: [`NOVA BUYS AT ${trigger}`, `${near}If ${trigger} prints with the tape at go, Nova buys `
+    auto_entry: [`BOT BUYS AT ${trigger}`, `${near}If ${trigger} prints with the tape at go, the bot buys `
       + `${novaQty(i.who) ?? '?'}. Every sell is yours.`],
     bot: ['THE BOT TRADES THIS', `${near}It buys at the trigger and sells at ${fmtPx(plan.target)}, at `
       + `${fmtPx(plan.stop)} or after 15 minutes.`],

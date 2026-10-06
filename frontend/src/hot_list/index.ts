@@ -2,6 +2,7 @@
 export {
   getHotListState,
   hotListActions,
+  howListed,
   listedOn,
   resetHotListForTests,
   subscribeHotList,
@@ -10,4 +11,4 @@ export {
 } from './hotListStore';
 export { normalizeHotList } from './hotListApi';
 export { HOT_LIST_AUTO_CHOICES } from './constants';
-export type { HotEntry, HotListView, HotSide } from './types';
+export type { HotEntry, HotHow, HotListView } from './types';

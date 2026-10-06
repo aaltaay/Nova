@@ -80,9 +80,9 @@ export const WATCHLIST_FILTER_LABELS: Record<string, string> = {
 };
 
 export const WATCHLIST_FOOTNOTE =
-  'Click a row for pillars and setup in the side panel · click the ticker to open Trader · Bot ● lets the bot trade it (Nova buys and sells), or stops it.';
-export const WATCHLIST_BOT_ON_TITLE = 'The bot trades it (Nova buys and sells) -- click to stop the bot trading it';
-export const WATCHLIST_BOT_OFF_TITLE = 'Let the bot trade it (Nova buys and sells). The bot trades only these stocks; the scanners still watch every name.';
+  'Click a row for pillars and setup in the side panel · click the ticker to open Trader · Bot ● lets the bot trade it (bot buys and sells), or stops it.';
+export const WATCHLIST_BOT_ON_TITLE = 'The bot trades it (bot buys and sells) -- click to stop the bot trading it';
+export const WATCHLIST_BOT_OFF_TITLE = 'Let the bot trade it (bot buys and sells). The bot trades only these stocks; the scanners still watch every name.';
 
 /** Side-panel strip under News Headline — the symbol's Five Pillars grade, as on the Contenders tab. */
 export const TICKER_WATCHLIST_STRIP_TITLE = 'Pillars';

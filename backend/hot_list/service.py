@@ -1,9 +1,10 @@
 """Today's hot list, changed (ADR 044): every write goes through here, under one lock.
 
 ``today`` is the list a write starts from. When the file belongs to an earlier day it rolls over first:
-the old day is kept as its day copy, its names become ``yesterday`` (``store.roll``), every Nova Buy left
-from it is cleared (``nova_buys.clear_all``, at most once a day per process) with a ``hot_list`` audit
-line ``{event: "rollover", cleared}``, and today's list is written. ``peek`` is the same list for a
+the old day is kept as its day copy, its names become ``yesterday`` (``store.roll``), every bot buy left
+from it is reset (``nova_buys.clear_all``, at most once a day per process) with a ``hot_list`` audit
+line ``{event: "rollover", cleared}``, and today's list is written. The bot buys nothing until today's
+file exists (``store.day_reset_block``). ``peek`` is the same list for a
 reader, rolled in memory only. A file that cannot be read refuses every write (``HOT_LIST_UNREADABLE``),
 and so does one that cannot be written.
 
@@ -30,7 +31,6 @@ from constants_hot_list import (
     HOT_LIST_FULL,
     HOT_LIST_HOW_STAR,
     HOT_LIST_INVALID,
-    HOT_LIST_SIDES,
     HOT_LIST_UNREADABLE,
 )
 from hot_list import store
@@ -39,7 +39,7 @@ from hot_list.errors import HotListError
 logger = logging.getLogger(__name__)
 
 _lock = threading.RLock()
-_cleared_for: str | None = None      # the day whose rollover already cleared yesterday's Nova Buys
+_cleared_for: str | None = None      # the day whose rollover already reset yesterday's bot buys
 
 
 def listed(doc: dict[str, Any]) -> list[str]:
@@ -77,7 +77,7 @@ def today(now: float | None = None) -> dict[str, Any]:
             raise HotListError(HOT_LIST_UNREADABLE, f"today's hot list cannot be read ({error}): nothing changes "
                                                     "until the file is fixed or removed")
         if doc is not None and doc.get("date") == day:
-            return doc
+            return _retry_reset(doc) if doc.get("reset_error") else doc
         fresh = store.roll(doc, day)
         cleared: list[dict[str, Any]] = []
         clear_error = archive_error = None
@@ -89,17 +89,36 @@ def today(now: float | None = None) -> dict[str, Any]:
                 from hot_list import nova_buys
 
                 cleared, clear_error = nova_buys.clear_all(ts)
-                _cleared_for = day
+                if clear_error is None:
+                    _cleared_for = day      # a failed clear is tried again, never marked done
             archive_error = store.archive(doc)
+        if clear_error:
+            fresh["reset_error"] = clear_error        # the bot buys nothing until a retry resets them
         _save(fresh)
     if doc is not None:
         _wake()
         _audit(HOT_LIST_EVENT_ROLLOVER,
-               f"today's hot list started fresh ({day}); {len(cleared)} Nova Buy side(s) left from {doc['date']} "
-               "cleared -- trades Nova holds keep their exits",
+               f"today's hot list started fresh ({day}); {len(cleared)} bot buy(s) left from {doc['date']} "
+               "reset to you -- trades the bot holds keep their exits",
                {"from": doc["date"], "to": day, "cleared": cleared, "yesterday": fresh["yesterday"],
                 "error": clear_error or archive_error})
     return fresh
+
+
+def _retry_reset(doc: dict[str, Any]) -> dict[str, Any]:
+    """Today's reset of the bot's buys failed: try it again (under ``_lock``). The bot buys nothing meanwhile
+    (``store.day_reset_block``)."""
+    from hot_list import nova_buys
+
+    cleared, error = nova_buys.clear_lists()      # only the lists: a switch set since then is today's
+    if error:
+        logger.warning("hot list: the 04:00 reset of the bot's buys failed again: %s", error)
+        return doc
+    doc = {k: v for k, v in doc.items() if k != "reset_error"}
+    _save(doc)
+    _audit(HOT_LIST_EVENT_ROLLOVER, f"the 04:00 reset of the bot's buys ran after a retry; {len(cleared)} bot buy(s) "
+           "reset to you", {"from": doc["date"], "to": doc["date"], "cleared": cleared, "retry": True})
+    return doc
 
 
 def _wake() -> None:
@@ -184,7 +203,7 @@ def add_auto(entries: list[dict[str, Any]], *, now: float | None = None) -> list
 
 
 def remove(sym: str, *, now: float | None = None) -> bool:
-    """Take a stock off today's list (its Who trades side is the caller's). True when it was listed."""
+    """Take a stock off today's list; who trades it is unchanged. True when it was listed."""
     ts = time.time() if now is None else float(now)
     with _lock:
         doc = today(ts)
@@ -198,23 +217,18 @@ def remove(sym: str, *, now: float | None = None) -> bool:
     return True
 
 
-def settings(*, auto_n: Any = None, default_buy: Any = None, default_sell: Any = None,
-             now: float | None = None) -> dict[str, Any]:
-    """Change how many leaders the auto feed takes and the side a new name starts on."""
+def settings(*, auto_n: Any = None, now: float | None = None) -> dict[str, Any]:
+    """Change how many leaders the auto feed takes."""
     if auto_n is not None and (isinstance(auto_n, bool) or auto_n not in HOT_LIST_AUTO_N_CHOICES):
         raise HotListError(HOT_LIST_INVALID, f"auto_n is one of {', '.join(map(str, HOT_LIST_AUTO_N_CHOICES))} "
                                              "(0 is off)", status=400, field="auto_n")
-    for field, value in (("default_buy", default_buy), ("default_sell", default_sell)):
-        if value is not None and value not in HOT_LIST_SIDES:
-            raise HotListError(HOT_LIST_INVALID, f"{field} is 'you' or 'nova'", status=400, field=field)
     with _lock:
         doc = today(now)
-        if auto_n is not None:
-            doc["auto_n"] = int(auto_n)
-        doc["default"] = {"buy": default_buy or doc["default"]["buy"], "sell": default_sell or doc["default"]["sell"]}
+        if auto_n is None:
+            return doc                      # nothing asked for: no write, no audit line
+        doc["auto_n"] = int(auto_n)
         _save(doc)
-    _audit(HOT_LIST_EVENT_SETTINGS, f"auto top {doc['auto_n'] or 'off'}; new names start Buy {doc['default']['buy']} "
-           f"· Sell {doc['default']['sell']}", {"auto_n": doc["auto_n"], "default": dict(doc["default"])})
+    _audit(HOT_LIST_EVENT_SETTINGS, f"auto top {doc['auto_n'] or 'off'}", {"auto_n": doc["auto_n"]})
     return doc
 
 

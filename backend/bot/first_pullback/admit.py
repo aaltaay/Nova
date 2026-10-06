@@ -6,9 +6,9 @@ visibility rule): the venue (Paper, or Sim at its live edge), Activate, the setu
 effective Strategy, the strategy's bot rules (ADR 044, ``bot.strategy_rules``: the grades it
 buys and its setups a stock a day), the tape at go, NOT A TRADE
 (``setup_scanner.trade_verdict``), a fresh trigger, the padlock, the kill switch, this venue's
-day lock and bot trip, #564's commission hold, the setup's bot window, today's hot list (ADR
-043: Nova buys only listed stocks), extended hours, the venue's shared daily cap and the
-sleeve's size. Then each taker's own:
+day lock and bot trip, #564's commission hold, the setup's bot window, today's 04:00 reset of
+yesterday's bot buys (``hot_list.day_reset_block``; being on the hot list is no rule: ADR 044,
+amended 2026-10-06), extended hours, the venue's shared daily cap and the sleeve's size. Then each taker's own:
 
 - the bot: the stock on this venue's bot list with a held depth line, one trade at a time,
   no bot buy still working, the L2 session not held by another brain;
@@ -43,9 +43,9 @@ from constants_bot import (
     BOT_SKIP_EXTENDED_HOURS,
     BOT_SKIP_GRADE,
     BOT_SKIP_NOT_A_TRADE,
+    BOT_SKIP_DAY_NOT_RESET,
     BOT_SKIP_NOT_ACTIVE,
     BOT_SKIP_NOT_FIRST,
-    BOT_SKIP_NOT_LISTED,
     BOT_SKIP_ONE_TRADE,
     BOT_SKIP_SETUP_NOT_STRATEGY,
     BOT_SKIP_SIZE,
@@ -132,25 +132,16 @@ def _strategy_blocks(event: dict[str, Any], setup_type: str) -> list[Blocker]:
     return out
 
 
-def listed(sym: str) -> tuple[bool, str | None]:
-    """Whether ``sym`` is on today's hot list (ADR 044), and why not when the list cannot be read."""
+def day_reset() -> Blocker | None:
+    """The bot buys nothing until today's 04:00 ET reset of yesterday's bot buys has run (see the module)."""
     try:
         import hot_list
 
-        return hot_list.listed_or_unread(sym)
+        why = hot_list.day_reset_block()
     except Exception:
-        logger.warning("bot: today's hot list could not be read -- %s counts as not listed", sym, exc_info=True)
-        return False, "today's hot list could not be read (the backend log has the error)"
-
-
-def _not_listed(sym: str) -> Blocker | None:
-    """Nova buys only the stocks on today's hot list (ADR 044)."""
-    ok, unread = listed(sym)
-    if ok:
-        return None
-    if unread:
-        return BOT_SKIP_NOT_LISTED, f"{unread}: Nova buys only listed stocks"
-    return BOT_SKIP_NOT_LISTED, f"{sym} is not on today's hot list"
+        logger.warning("bot: whether today's 04:00 reset ran could not be read -- no automatic entry", exc_info=True)
+        why = "whether today's 04:00 ET reset of yesterday's bot buys ran could not be read (the backend log has the error)"
+    return None if why is None else (BOT_SKIP_DAY_NOT_RESET, why)
 
 
 def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
@@ -202,9 +193,9 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     if not win.get("open"):
         out.append((BOT_REASON_OUTSIDE_WINDOW, f"outside the bot's window: {entry_rules.window_text(win)} "
                                                f"(venue clock {clock.strftime('%H:%M')})"))
-    unlisted = _not_listed(str(event.get("symbol") or "").upper())
-    if unlisted is not None:
-        out.append(unlisted)
+    reset = day_reset()
+    if reset is not None:
+        out.append(reset)
     caps = sleeve_of(row)
     late = entry_rules.extended_hours_block(caps)
     if late is not None:
@@ -337,8 +328,8 @@ def taker(sym: str, setup_type: str) -> str | None:
     if activation.venue_block(*activation.venue_state()) is not None:
         return None
     sym = (sym or "").strip().upper()
-    if not listed(sym)[0]:
-        return None                  # ADR 044: Nova buys only the stocks on today's hot list
+    if day_reset() is not None:
+        return None                  # today's 04:00 reset of yesterday's bot buys has not run
     if sym in normalize_symbols(row.get("symbol_allowlist")):
         return "bot"
     from stock_mode import model, store

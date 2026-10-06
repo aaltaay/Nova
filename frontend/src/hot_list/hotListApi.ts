@@ -1,5 +1,5 @@
 /**
- * Today's hot list over HTTP (ADR 044). The reads are plain; the writes change what Nova may trade, so
+ * Today's hot list over HTTP (ADR 044). The reads are plain; the writes change what the scanners follow, so
  * they carry the desk's API key (`novaFetch`) and the sample desk refuses them before any request. A
  * refusal throws the backend's own words.
  */
@@ -8,9 +8,8 @@ import { API_BASE_URL } from '../constants';
 import { SAMPLE_WRITE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { HOT_LIST_PATH } from './constants';
-import type { HotEntry, HotListView, HotSide } from './types';
+import type { HotEntry, HotListView } from './types';
 
-const side = (v: unknown): HotSide => (v === 'nova' ? 'nova' : 'you');
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
 
@@ -20,7 +19,6 @@ export function normalizeHotList(raw: unknown): HotListView | null {
   const r = raw as Record<string, unknown>;
   if (r.schema_version !== 1 || !Array.isArray(r.entries)) return null;
   const auto = (r.auto && typeof r.auto === 'object' ? r.auto : {}) as Record<string, unknown>;
-  const dflt = (r.default && typeof r.default === 'object' ? r.default : {}) as Record<string, unknown>;
   const entries: HotEntry[] = [];
   for (const e of r.entries as unknown[]) {
     if (!e || typeof e !== 'object') continue;
@@ -47,7 +45,6 @@ export function normalizeHotList(raw: unknown): HotListView | null {
       rule: str(auto.rule),
       error: str(auto.error),
     },
-    default: { buy: side(dflt.buy), sell: side(dflt.sell) },
     entries,
     yesterday: Array.isArray(r.yesterday) ? (r.yesterday as unknown[]).filter((s): s is string => typeof s === 'string') : [],
     error: str(r.error),
@@ -83,5 +80,5 @@ async function call(method: 'GET' | 'POST' | 'DELETE' | 'PATCH', suffix = '', bo
 export const fetchHotList = () => call('GET');
 export const starSymbol = (symbol: string) => call('POST', '/star', { symbol });
 export const unstarSymbol = (symbol: string) => call('DELETE', `/${encodeURIComponent(symbol)}`);
-export const patchHotList = (patch: { auto_n?: number; default_buy?: HotSide; default_sell?: HotSide }) => call('PATCH', '', patch);
+export const patchHotList = (patch: { auto_n?: number }) => call('PATCH', '', patch);
 export const bringBackYesterday = () => call('POST', '/bring-back');

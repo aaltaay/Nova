@@ -6,6 +6,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScannerDockRows } from '../scanner/useScannerDockRows';
 import { StockViewTabStrip } from './StockViewTabStrip';
+import { fakeHotList } from '../hot_list/hotListFake';
+import { resetWatchListForTests } from '../watch_list/watchListStore';
+
+vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
 
 const mocks = vi.hoisted(() => ({
   rows: null as ScannerDockRows | null,
@@ -60,6 +64,23 @@ describe('StockViewTabStrip', () => {
       root.unmount();
     });
     container.remove();
+  });
+
+  it('marks a tab whose ticker is on today\'s hot list: ★ your star, ☆ an auto star, nothing otherwise', async () => {
+    fakeHotList.reset();
+    resetWatchListForTests();
+    fakeHotList.set(['IPDN', { symbol: 'QTEX', how: 'auto' }]);
+    await act(async () => {
+      root.render(
+        <StockViewTabStrip tabs={['IPDN', 'QTEX', 'WOK']} active="IPDN" onActivate={vi.fn()} onClose={vi.fn()}
+          onRename={vi.fn()} onAddDraft={vi.fn()} onExtract={vi.fn()} />,
+      );
+    });
+    const mark = (sym: string) => container.querySelector(`[data-testid="sv-tab-${sym}"] [data-testid="watch-mark"]`) as HTMLElement | null;
+    expect(mark('IPDN')?.dataset.how).toBe('star');
+    expect(mark('QTEX')?.dataset.how).toBe('auto');
+    expect(mark('WOK')).toBeNull();
+    fakeHotList.reset();
   });
 
   it('extract icon and double-click pop the tab out -- + stays in this window, the drag hint is the tooltip', async () => {

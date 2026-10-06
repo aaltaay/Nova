@@ -72,7 +72,7 @@ export const DESK_ACTION_ALLOWLIST_SHORT = 'Bot';
 export const DESK_ACTION_UNLIST_SHORT = 'No bot';
 export const DESK_ACTION_RECORD_TITLE = 'Start a Session Record for this symbol';
 export const DESK_ACTION_STOP_RECORD_TITLE = 'Stop recording this symbol';
-export const DESK_ACTION_ALLOWLIST_TITLE = 'Let the bot trade this stock (Nova buys and sells)';
+export const DESK_ACTION_ALLOWLIST_TITLE = 'Let the bot trade this stock (bot buys and sells)';
 export const DESK_ACTION_UNLIST_TITLE = 'Stop the bot trading this stock';
 
 /* ── Cells ──────────────────────────────────────────────────────────────── */
