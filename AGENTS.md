@@ -1035,6 +1035,43 @@ list is IBKR's after-hours gainers, ranked on the move since the regular close,
 which the rebuild does not measure; Large Cap needs a market cap as of the day,
 which the files do not carry.
 
+**Splits a rebuild confirms from SEC filings** (#772). A rebuilt day adjusts its
+prior close and RVOL lookback for the splits in Massive's split list, so a split
+missing there reads as a fake mover: PHGE's 1-for-10 reverse split on 2026-09-09
+read +925%. `research/leaderboard/confirm_splits.py` adds the splits SEC filings
+prove, and only those:
+- **Suspects.** For each pair of sessions in a span, a common / ADR ticker whose
+  open is at least 1.8x, or at most 0.7x, the prior close, with no split listed
+  between them.
+- **Filings.** The ticker's 8-K / 8-K/A with Item 5.03 or 3.03, or 6-K / 6-K/A,
+  filed from 60 days before to 3 days after the session. The list comes from the
+  bulk `submissions.zip` on F: (the live submissions JSON past the file's date);
+  the documents (primary, then EX-99) are fetched from SEC and cached by accession.
+- **What confirms.** A sentence about a reverse / forward split or a share
+  consolidation states a ratio outside any range ("one-for-ten reverse stock
+  split"); several ratios in a filing (a past split mentioned) leave the one the
+  price agrees with. The split-adjusted open must be 0.5-2x the prior close, and
+  a date the filing names beside "effective" / "split-adjusted" / "begin
+  trading" must fall after the prior session and by the session. With no such
+  date the band is 0.67-1.5x; a filing that names only other dates is refused.
+  A suspect whose ticker has a split listed within 10 sessions is reported,
+  never added: it would adjust twice.
+
+Confirmed splits live in `F:\Nova\leaderboard\splits_confirmed.json` (beside the
+store, `NOVA_LEADERBOARD_DIR`): `{schema_version: 1, updated_at, spans: [{start,
+end, checked_at, suspects, with_filings, confirmed, refused}], splits: [{ticker,
+execution_date, split_from, split_to, cik, form, items, accession, filed, url,
+ratio_text, date_match: boolean | null, prev_session, prev_close, open,
+price_ratio, adjusted_ratio, volume_ratio}], refused: [{ticker, execution_date,
+accession, reason}]}` -- `split_from` / `split_to` in Massive's convention (a
+1-for-10 reverse split is 10 / 1), `date_match` null when the filing names no
+effective date. A run replaces its span's entries and keeps every other; an
+unknown version refuses. `lb_io.load_splits` adds them to Massive's list
+(Massive's entry wins on the same ticker and day), and `spot_check.py` reads
+them too. The tool prints the rebuilt days a new split touches -- its day, and
+the next 20 sessions the ticker traded (the RVOL lookback) -- for
+`build_leaderboard.py --dates`.
+
 **Routes.** `GET /api/leaderboard/days` -> `{schema_version, store: {path,
 ok, error}, days: [{date, recorded: {minutes, first_ts, last_ts, boards} |
 null, reconstructed: {minutes, first_ts, last_ts} | null}]}` newest first.
@@ -4765,6 +4802,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-06 | A rebuilt day confirms the splits Massive's list misses from SEC filings (#772). PHGE's 1-for-10 reverse split on 2026-09-09 was not in the list, so the rebuilt boards read +925% (0.155 -> 1.60) and it topped Gainers and the frozen Gappers. `research/leaderboard/confirm_splits.py` takes each overnight jump of 1.8x or more (0.7x or less) that no listed split explains, reads the ticker's 8-K (Item 5.03 / 3.03) or 6-K filed from 60 days before to 3 after, and confirms a split only when the filing states one ratio outside a range, the split-adjusted open sits 0.5-2x the prior close and the filing's effective date falls on the session (`split_confirm.py`, pure). Never on the price jump alone. On 2026-06-16..09-21: 285 suspects, 181 with such a filing, 1 confirmed (PHGE, its own 8-K: "effected a one-for-ten reverse stock split ... split-adjusted basis ... September 9, 2026"), 107 refused, 0 unread; the refusals read on sample were right (GCDT's consolidation takes effect October 7; SGLD's "1 ADS for every 20 shares" is a new listing). `splits_confirmed.json` beside the store (schema in §3) is read by `lb_io.load_splits` and `spot_check.py`; `build_leaderboard.py --dates` rebuilds the days a split touches. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | A rebuilt day has Losers and Gappers (ADR 023 amendment; operator report on 2026-09-09 at 07:00 in Sim: "Don't we already have the data for this day ... Why do we not see gainers, losers, and gappers for that hour?"). The Massive files for the day were on disk, but the rebuild kept one board a minute, the top 100 risers (`market`), which the desk showed as Gainers; no stored row that day was under 0% at 07:00, 09:45 or 16:30, so Losers could not be read back, and nothing projected Gappers. `research/leaderboard` now writes `losers` (the worst 100, `LOSERS_RULES`) and `gappers` (the live premarket rule, `GAPPERS_RULES` = `ibkr/gapper_view.row_qualifies`, frozen at 09:30 in its 09:30 order and repriced after, as the live list is) beside `market`, every board covering every minute; a day counts complete only with all three, so the 66 days rebuilt before are rebuilt again. The desk fills Gainers, Losers and Gappers from a rebuilt day, and After Hours and Large Cap say why they are not rebuilt. Found alongside it: PHGE's 1-for-10 reverse split on 2026-09-09 is missing from Massive's split list, so the rebuilt boards show it +925% (one such jump in the 66 rebuilt days; the other 30 overnight jumps of 3x or more traded 10-1,000x more volume). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The 1-minute chart keeps the operator's zoom when the plan's lead setup changes (operator report: "As I was zooming in and watching the chart, all of a sudden it resized itself randomly ... We fixed it before"). The 2026-09-25 fix stopped the plan's zones from moving the view, but the stock read still framed every newly leading setup: FRGT's plan followed red to green (near) at 09:31 and Gap and Go (armed) at 09:34, and each change reframed the pane -- red to green on 40 candles, Gap and Go from its 04:05 premarket high. The screenshot's window was exactly that frame (40 candles plus 12 of room). `chart/operatorView.ts` notes when the operator zooms or pans a pane (a range change during a press that began on the chart, or within 300 ms of a wheel or a release); after that no automatic frame or zone slide moves it, until a first paint or Reset chart hands it back. A setup is framed once per symbol, so a flip-flopping lead no longer reframes an untouched pane either. Driven in the demo desk: zoomed to 36 candles, a new lead setup jumped the pre-fix build to 333 and left the fixed one at its 208; the badge and Reset chart still frame. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The hot list is watching only, and its ★ shows next to every ticker (ADR 044 amendment; operator: "if i star a ticker can we please see 'star' next to it", then "a star[red] ticker ... shouldn't be buying and selling if it's signal only ... just because it's [starred] or not, it shouldn't be a reason", and "1 go" on the five questions). The star decided trading three ways: setting Buy to Nova starred the stock, taking the star off flipped it to You · You, and the bot refused any unlisted stock (`BOT_SKIP_NOT_LISTED`). All three are gone, with the list's default Buy / Sell; the bot buys where the Bot is on, the strategy is On and the stock's Buy is Bot. The 04:00 reset of yesterday's bot buys stays, on its own: nothing buys until today's file shows it ran (`BOT_SKIP_DAY_NOT_RESET`), and a failed reset is retried every pass -- the not-listed rule had covered that by accident. Bot-buy stocks take HOD Momo's reserved slots ahead of the list, since the bot only buys what a lane reads. A filled ★ (yours) or outlined ☆ (an auto star) now sits beside the symbol on the Trader tab, the Focus rail, the HOD Momo strip, the quote card and the Who trades row, as on scanner rows; the Buy / Sell switch reads You | Bot and the chart says BOT BUYS AT. The triggers table loses its Hot list square (nine gates) and lists bot-buy stocks with a "now" row. §3 amended. | User Directive + Claude Opus 5.5 |

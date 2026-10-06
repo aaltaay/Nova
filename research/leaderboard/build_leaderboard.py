@@ -37,6 +37,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lb_config import (  # noqa: E402
     ARCHIVE_DB,
+    CONFIRMED_SPLITS_PATH,
     AVOID_FROM_MIN_ET,
     AVOID_UNTIL_MIN_ET,
     CHUNK_DAYS_DEFAULT,
@@ -59,6 +60,7 @@ from lb_io import (  # noqa: E402
     load_floats,
     load_news_archive,
     load_reference,
+    load_confirmed_splits,
     load_splits,
     news_window,
     open_research_db,
@@ -203,6 +205,9 @@ def _dates(args, minute: dict[date, Path]) -> list[date]:
     if args.date:
         d = date.fromisoformat(args.date)
         return [d] if d in minute else []
+    if args.dates:
+        wanted = {date.fromisoformat(part.strip()) for part in args.dates.split(",") if part.strip()}
+        return [d for d in minute if d in wanted]
     start = date.fromisoformat(args.start) if args.start else min(minute)
     end = date.fromisoformat(args.end) if args.end else max(minute)
     return [d for d in minute if start <= d <= end]
@@ -243,6 +248,7 @@ def _chunks(dates: list[date], size: int) -> list[list[date]]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--date", help="one session, YYYY-MM-DD")
+    ap.add_argument("--dates", help="several sessions, comma-separated (confirm_splits.py prints them)")
     ap.add_argument("--start", help="first session of a range, YYYY-MM-DD")
     ap.add_argument("--end", help="last session of a range, YYYY-MM-DD")
     ap.add_argument("--top", type=int, default=TOP_N_DEFAULT,
@@ -258,8 +264,8 @@ def main() -> int:
     ap.add_argument("--chunk-days", type=int, default=CHUNK_DAYS_DEFAULT,
                     help="sessions per reference / news load (bounds memory)")
     args = ap.parse_args()
-    if not (args.date or args.start or args.end or args.all):
-        ap.error("give --date, --start/--end or --all")
+    if not (args.date or args.dates or args.start or args.end or args.all):
+        ap.error("give --date, --dates, --start/--end or --all")
 
     minute = files_by_date(args.data_root / MINUTE_SUBDIR)
     dates = _dates(args, minute)
@@ -298,8 +304,10 @@ def _build(args, minute: dict[date, Path], dates: list[date]) -> int:
     finally:
         if research is not None:
             research.close()   # never hold the research store while the build runs
+    confirmed = len(load_confirmed_splits(CONFIRMED_SPLITS_PATH))
     print(f"reference {reference.source}: {len(reference.universe())} common/ADR tickers, "
-          f"{len(splits)} splits, {len(archive.articles)} ticker-articles loaded", flush=True)
+          f"{len(splits)} splits ({confirmed} confirmed from SEC filings in {CONFIRMED_SPLITS_PATH.name}), "
+          f"{len(archive.articles)} ticker-articles loaded", flush=True)
     print(f"store {'(dry run)' if args.dry_run else (args.db or store.path())}", flush=True)
     con = work_db()
     for d in dates:

@@ -22,6 +22,8 @@ py -3 research/leaderboard/build_leaderboard.py --date 2026-09-21 --dry-run     
 py -3 research/leaderboard/build_leaderboard.py --date 2026-09-21 --top 200 --db C:\tmp\lb.sqlite3
 py -3 research/leaderboard/s5_universe.py --date 2026-09-21 --from 07:00 --to 09:30
 py -3 research/leaderboard/spot_check.py --date 2026-09-21 --minutes 07:05 07:42 08:30 09:31 09:58
+py -3 research/leaderboard/confirm_splits.py --start 2026-06-16 --end 2026-09-21   # splits Massive misses (#772)
+py -3 research/leaderboard/build_leaderboard.py --dates 2026-09-09,2026-09-10      # the days it prints
 cd backend && py -3 -m pytest tests/test_leaderboard_reconstruct*.py tests/test_leaderboard_rebuild_runner.py -q
 ```
 
@@ -106,6 +108,42 @@ Real case, `splits`: UZX, `execution_date` 2026-09-21, `split_from` 23,
 Unadjusted it would read +2,052% and top the board. A 2-for-1 forward split
 (`split_from` 1, `split_to` 2) halves the prior close.
 
+### Splits Massive's list misses (#772)
+
+The splits are Massive's list (`orb.duckdb`'s `splits`, else `splits.json`) **plus**
+the ones an SEC filing proves, from `splits_confirmed.json` beside the store; on the
+same ticker and day Massive's entry wins. PHGE's 1-for-10 reverse split on 2026-09-09
+was missing from Massive's list, so the board read +925% (0.155 -> 1.60). With the
+confirmed split it reads about +3%.
+
+`confirm_splits.py` finds and proves them (rules in AGENTS.md section 3, "Splits a
+rebuild confirms from SEC filings"; the reading is `split_confirm.py`, pure and tested):
+
+1. **Suspects:** an overnight open at least 1.8x, or at most 0.7x, the prior close
+   with no split listed in between (285 in 2026-06-16..09-21).
+2. **Filings:** the ticker's 8-K with Item 5.03 / 3.03 or any 6-K, filed from 60 days
+   before to 3 days after (181 of the 285 had one). The list comes from SEC's bulk
+   `submissions.zip` (`F:\Nova\catalysts\edgar`, kept by the catalyst backfill), the
+   live submissions JSON past its date. Each filing's primary document, then its EX-99
+   exhibits, is fetched once and kept in `split_filings\<accession>.v1.txt`.
+3. **Proof:** the filing states one ratio outside a range, the split-adjusted open is
+   0.5-2x the prior close, and the filing's effective date falls after the prior
+   session and by the session (0.67-1.5x when it names none). A ratio stated beside
+   other dates only is an earlier split recalled.
+
+On 2026-06-16..09-21 it confirmed PHGE alone and refused 107: filings about a split on
+another date (GCDT's 6-for-1 consolidation is effective 2026-10-07), splits proposed
+within a range, ADS ratios ("1 ADS for every 20 shares" on a new listing), and
+boilerplate. Then rebuild the days it prints (the split's day and the next 20 sessions
+the ticker traded, which the RVOL lookback reaches):
+
+```text
+py -3 research/leaderboard/confirm_splits.py --start 2026-06-16 --end 2026-09-21
+py -3 research/leaderboard/build_leaderboard.py --dates 2026-09-09,2026-09-10
+```
+
+Run it over a span before building that span, so a missed split never lands in the store.
+
 ### Prior close source
 
 The day aggregate's close is the official session close, not the last minute bar:
@@ -182,3 +220,5 @@ stored with the same ranks. It exits 1 on any mismatch.
 | `lb_config.py` | The rebuild's own tunables and paths |
 | `s5_universe.py` | S5 per minute, read back from the store |
 | `spot_check.py` | Independent pandas check against the flat files |
+| `split_confirm.py` | Pure: a split ratio and effective date out of a filing, held against the overnight prices (#772) |
+| `confirm_splits.py` | CLI: suspects, their SEC filings, `splits_confirmed.json`, the days to rebuild (#772) |
