@@ -36,6 +36,7 @@ import type { DeskVenue } from '../constantGroups/desk_venue';
 import { SAMPLE_VENUE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { explicitVenueOf } from './deskVenue';
+import { confirmDeskVenue } from './confirmedDeskVenueStore';
 import { refreshIbkrAccountNow } from './ibkrAccountPoller';
 import { disconnectHintSwitchTarget } from './disconnectCopy';
 import type { IbkrMode } from './types';
@@ -180,6 +181,9 @@ export function GatewayModeCapsule({
     if (!res.ok || body.venue !== next) {
       return switchErrorMessage(res, body, next, DESK_VENUE_API_RESTART_HINT);
     }
+    // The backend already settled this venue. A later Gateway failure cannot
+    // turn its confirmed Live desk back into the previous practice venue.
+    confirmDeskVenue(body.venue);
     return next === 'live' ? ensureLiveGateway() : null;
   }
 

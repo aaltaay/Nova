@@ -21,6 +21,12 @@ import { isSampleView } from '../sample_data/sampleNav';
 import { SAMPLE_IBKR_STATUS } from '../sample_data/sampleStatus';
 import { readLastIbkrStatus, writeLastIbkrStatus } from './ibkrStatusCache';
 import { normalizeIbkrStatus } from './ibkrStatusNormalize';
+import {
+  confirmDeskVenue,
+  getConfirmedDeskVenueRevision,
+  getConfirmedDeskVenueStoreSnapshot,
+  subscribeConfirmedDeskVenueStore,
+} from './confirmedDeskVenueStore';
 import type { IbkrStatus } from './types';
 
 export type IbkrClientStatus = IbkrStatus & {
@@ -86,6 +92,8 @@ let fetchImpl: typeof fetch = (...args) => fetch(...args);
 let nowImpl = () => Date.now();
 let routeIsSample = false;
 let routeListening = false;
+let venueUnsub: (() => void) | null = null;
+let applyingStatus = false;
 
 function emit(): void {
   listeners.forEach((fn) => fn());
@@ -109,6 +117,9 @@ function listenRoute(on: boolean): void {
 }
 
 function applySuccess(next: IbkrStatus): void {
+  applyingStatus = true;
+  try { confirmDeskVenue(next.venue); }
+  finally { applyingStatus = false; }
   misses = 0;
   writeLastIbkrStatus(next);
   snapshot = {
@@ -120,6 +131,23 @@ function applySuccess(next: IbkrStatus): void {
     statusError: null,
   };
   emit();
+}
+
+/** A confirmed POST/other window clears old status facts before its fresh GET. */
+function onConfirmedVenueChange(): void {
+  if (applyingStatus || isSampleView()) return;
+  snapshot = {
+    ...DEFAULT_IBKR_STATUS,
+    ...RECORDING_WITHDRAWN,
+    venue: getConfirmedDeskVenueStoreSnapshot().venue ?? undefined,
+    clientReady: true,
+    stale: true,
+    staleSince: nowImpl(),
+    lastSuccessAt: null,
+    statusError: null,
+  };
+  emit();
+  refreshIbkrStatusNow();
 }
 
 function applyFailure(reason: string): void {
@@ -158,16 +186,20 @@ export async function pollIbkrStatusOnce(): Promise<void> {
     return;
   }
   inflight = true;
+  const askedRevision = getConfirmedDeskVenueRevision();
   try {
     const res = await fetchImpl(`${API_BASE_URL}/api/ibkr/status`);
     if (res.ok) {
       const body = await readStatusBody(res);
+      if (askedRevision !== getConfirmedDeskVenueRevision()) { pending = true; return; }
       if (body) applySuccess(body);
       else applyFailure('unreadable response');
     } else {
+      if (askedRevision !== getConfirmedDeskVenueRevision()) { pending = true; return; }
       applyFailure(res.status ? `HTTP ${res.status}` : 'HTTP error');
     }
   } catch (err) {
+    if (askedRevision !== getConfirmedDeskVenueRevision()) { pending = true; return; }
     // Once per outage, not every poll: the stale chip carries the rest.
     if (misses === 0) console.warn('[Nova] /api/ibkr/status poll failed', err);
     applyFailure('no answer');
@@ -204,6 +236,7 @@ export function subscribeIbkrStatus(listener: Listener): () => void {
   listeners.add(listener);
   subscriberCount += 1;
   if (subscriberCount === 1) {
+    venueUnsub = subscribeConfirmedDeskVenueStore(onConfirmedVenueChange);
     listenRoute(true);
     startPolling();
   }
@@ -211,6 +244,8 @@ export function subscribeIbkrStatus(listener: Listener): () => void {
     listeners.delete(listener);
     subscriberCount = Math.max(0, subscriberCount - 1);
     if (subscriberCount === 0) {
+      venueUnsub?.();
+      venueUnsub = null;
       stopPolling();
       listenRoute(false);
     }
@@ -225,6 +260,9 @@ export function refreshIbkrStatusNow(): void {
 }
 
 export function _resetIbkrStatusPollerForTests(): void {
+  venueUnsub?.();
+  venueUnsub = null;
+  applyingStatus = false;
   stopPolling();
   listenRoute(false);
   listeners.clear();
