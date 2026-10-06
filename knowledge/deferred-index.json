@@ -2,7 +2,7 @@
   "schema_version": 1,
   "source": "github",
   "repo": "aaltaay/Nova",
-  "updated": "2026-10-05",
+  "updated": "2026-10-06",
   "items": [
     {
       "id": "#726",
@@ -205,13 +205,13 @@
     {
       "id": "#658",
       "title": "Decide: day lock, bot caps and stock-mode allowlist across venues",
-      "kind": "decision",
+      "kind": "feature",
       "severity": "P2",
-      "status": "open",
-      "domain": "execution",
+      "status": "done",
+      "domain": "execution | frontend",
       "number": "658",
       "url": "https://github.com/aaltaay/Nova/issues/658",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#657",
@@ -350,7 +350,7 @@
       "title": "Should the desk pull and restart its backend by itself at night?",
       "kind": "decision",
       "severity": "P2",
-      "status": "open",
+      "status": "parked",
       "domain": "frontend",
       "number": "616",
       "url": "https://github.com/aaltaay/Nova/issues/616",
@@ -361,7 +361,7 @@
       "title": "Hold the browser desk's code reloads while trading",
       "kind": "decision",
       "severity": "P1",
-      "status": "open",
+      "status": "parked",
       "domain": "frontend",
       "number": "612",
       "url": "https://github.com/aaltaay/Nova/issues/612",
