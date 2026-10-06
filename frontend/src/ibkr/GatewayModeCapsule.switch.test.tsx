@@ -13,6 +13,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOVA_API_KEY_HEADER, NOVA_API_KEY_STORAGE } from '../constantGroups/api_auth';
+import { DESK_POLL_CONFIRMED_VENUE_SHARE, DESK_POLL_SNAP_KEY_PREFIX } from '../constantGroups/global_bar';
 
 const refreshIbkrStatusNow = vi.fn();
 const confirmAppMock = vi.fn();
@@ -33,13 +34,25 @@ import { GatewayModeCapsule } from './GatewayModeCapsule';
 import {
   _resetConfirmedDeskVenueStoreForTests,
   confirmDeskVenue,
+  getConfirmedDeskVenueRevision,
   getConfirmedDeskVenueStoreSnapshot,
+  subscribeConfirmedDeskVenueStore,
 } from './confirmedDeskVenueStore';
 
 type Route = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
+}
+
+function remoteVenue(venue: 'live' | 'paper' | 'sim') {
+  const key = `${DESK_POLL_SNAP_KEY_PREFIX}${DESK_POLL_CONFIRMED_VENUE_SHARE}`;
+  const revision = getConfirmedDeskVenueRevision() + 1;
+  const newValue = JSON.stringify({ ts: Date.now(), payload: {
+    schema_version: 1, venue, generation: `peer:${revision}`, revision,
+  } });
+  localStorage.setItem(key, newValue);
+  window.dispatchEvent(new StorageEvent('storage', { key, newValue }));
 }
 
 describe('GatewayModeCapsule — venue switch', () => {
@@ -50,6 +63,8 @@ describe('GatewayModeCapsule — venue switch', () => {
     refreshIbkrStatusNow.mockClear();
     confirmAppMock.mockReset();
     confirmAppMock.mockResolvedValue(true);
+    _resetConfirmedDeskVenueStoreForTests();
+    _resetBotNoticesForTests();
     localStorage.clear();
     localStorage.setItem(NOVA_API_KEY_STORAGE, 'test-nova-key');
     container = document.createElement('div');
@@ -63,6 +78,8 @@ describe('GatewayModeCapsule — venue switch', () => {
     });
     container.remove();
     localStorage.clear();
+    _resetConfirmedDeskVenueStoreForTests();
+    _resetBotNoticesForTests();
     vi.restoreAllMocks();
   });
 
@@ -157,6 +174,7 @@ describe('GatewayModeCapsule — venue switch', () => {
     expect(sentBody(fetchSpy, 0)).toEqual({ venue: 'live' });
     expect(sentBody(fetchSpy, 1)).toEqual({ mode: 'live' });
     expect(errorText()).toBeNull();
+    expect(getConfirmedDeskVenueStoreSnapshot().venue).toBe('live');
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
   });
 
@@ -238,8 +256,79 @@ describe('GatewayModeCapsule — venue switch', () => {
     await click(1);
 
     expect(errorText()).toMatch(/Could not connect/);
+    expect(getConfirmedDeskVenueStoreSnapshot().venue).toBe('live');
     expect(seg(1).classList.contains('is-selected')).toBe(false);
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
+  });
+
+  it.each(['sim', 'live'] as const)('a newer cross-window %s transition wins over an older successful venue POST', async (newerVenue) => {
+    confirmDeskVenue('paper');
+    const off = subscribeConfirmedDeskVenueStore(() => {});
+    let release!: (reply: Response) => void;
+    const fetchSpy = mockFetch(() => new Promise<Response>((resolve) => { release = resolve; }));
+    render('paper');
+    await click(1);
+    remoteVenue('sim');
+    if (newerVenue === 'live') remoteVenue('live');
+    const newer = getConfirmedDeskVenueStoreSnapshot();
+    await act(async () => {
+      release(json({ venue: 'live', left: [{ venue: 'paper', symbol: 'OLD', order_id: 41, by: 'bot' }] }));
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    });
+    expect(getConfirmedDeskVenueStoreSnapshot()).toBe(newer);
+    expect(newer.venue).toBe(newerVenue);
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue']);
+    expect(getBotNotices()).toEqual([]);
+    expect(errorText()).toBeNull();
+    expect(refreshIbkrStatusNow).toHaveBeenCalled();
+    off();
+  });
+
+  it.each(['response', 'network', 'message'] as const)('does not show an old Gateway %s after a newer transition', async (kind) => {
+    confirmDeskVenue('paper');
+    const off = subscribeConfirmedDeskVenueStore(() => {});
+    let release!: (reply: Response) => void;
+    let reject!: (error: Error) => void;
+    const fetchSpy = mockFetch(url => url.includes('/api/desk/venue')
+      ? json({ venue: 'live' })
+      : new Promise<Response>((resolve, fail) => { release = resolve; reject = fail; }));
+    render('paper');
+    await click(1);
+    expect(getConfirmedDeskVenueStoreSnapshot().venue).toBe('live');
+    remoteVenue('sim');
+    const newer = getConfirmedDeskVenueStoreSnapshot();
+    await act(async () => {
+      if (kind === 'network') reject(new Error('old Gateway disconnected'));
+      else release(json(kind === 'response'
+        ? { ok: false, error: 'old Gateway refused' }
+        : { ok: true, launch_action: 'launch', message: 'old Gateway started' }));
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    });
+    expect(getConfirmedDeskVenueStoreSnapshot()).toBe(newer);
+    expect(errorText()).toBeNull();
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue', '/api/ibkr/gateway-mode']);
+    expect(refreshIbkrStatusNow).toHaveBeenCalled();
+    off();
+  });
+
+  it('suppresses an old legacy Sim fallback error after another window switches', async () => {
+    confirmDeskVenue('paper');
+    const off = subscribeConfirmedDeskVenueStore(() => {});
+    let release!: (reply: Response) => void;
+    mockFetch(url => url.includes('/api/desk/venue')
+      ? json({ detail: 'Not Found' }, 404)
+      : new Promise<Response>((resolve) => { release = resolve; }));
+    render('paper');
+    await click(2);
+    remoteVenue('live');
+    await act(async () => {
+      release(json({ error: 'old Sim fallback failed' }, 409));
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    });
+    expect(getConfirmedDeskVenueStoreSnapshot().venue).toBe('live');
+    expect(errorText()).toBeNull();
+    expect(refreshIbkrStatusNow).toHaveBeenCalled();
+    off();
   });
 
   it('surfaces the backend error when the venue route refuses', async () => {

@@ -36,7 +36,13 @@ import type { DeskVenue } from '../constantGroups/desk_venue';
 import { SAMPLE_VENUE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { explicitVenueOf } from './deskVenue';
-import { confirmDeskVenue } from './confirmedDeskVenueStore';
+import {
+  confirmDeskVenue,
+  getConfirmedDeskVenueRevision,
+  getConfirmedDeskVenueStoreSnapshot,
+  isConfirmedDeskVenueStoreSnapshotCurrent,
+  type ConfirmedDeskVenueSnapshot,
+} from './confirmedDeskVenueStore';
 import { watchDeskRequestRoute } from './deskRequestRouteFence';
 import { refreshIbkrAccountNow } from './ibkrAccountPoller';
 import { disconnectHintSwitchTarget } from './disconnectCopy';
@@ -173,24 +179,39 @@ export function GatewayModeCapsule({
 
   async function switchVenue(next: DeskVenue): Promise<string | null> {
     const route = watchDeskRequestRoute();
-    let reply: [Response, VenueResponse];
-    try { reply = await postJson(DESK_VENUE_API_PATH, { venue: next }); }
-    finally { route.dispose(); }
-    if (!route.isCurrent()) return null;
-    const [res, body] = reply;
-    // What Nova cancelled on the venue it left is said even when the switch itself failed after it.
-    noticeVenueLeft(body.left);
-    if (isRouteMissing(res, body)) {
-      if (next === 'sim') return legacySimFallback();
-      return DESK_VENUE_API_RESTART_HINT;
+    let askedRevision = getConfirmedDeskVenueRevision();
+    let confirmedScope: ConfirmedDeskVenueSnapshot | null = null;
+    const isCurrent = () => route.isCurrent() && askedRevision === getConfirmedDeskVenueRevision()
+      && (!confirmedScope || isConfirmedDeskVenueStoreSnapshotCurrent(confirmedScope));
+    try {
+      const [res, body] = await postJson(DESK_VENUE_API_PATH, { venue: next });
+      // A later confirmed transition wins even if this older POST answered successfully.
+      // Check before notices, state publication or any follow-on Gateway write.
+      if (!isCurrent()) return null;
+      // What Nova cancelled on the venue it left is said even when the switch itself failed after it.
+      noticeVenueLeft(body.left);
+      if (isRouteMissing(res, body)) {
+        if (next !== 'sim') return DESK_VENUE_API_RESTART_HINT;
+        const message = await legacySimFallback();
+        return isCurrent() ? message : null;
+      }
+      if (!res.ok || body.venue !== next) {
+        return switchErrorMessage(res, body, next, DESK_VENUE_API_RESTART_HINT);
+      }
+      // The backend already settled this venue. A later Gateway failure cannot
+      // turn its confirmed Live desk back into the previous practice venue.
+      confirmDeskVenue(body.venue);
+      confirmedScope = getConfirmedDeskVenueStoreSnapshot();
+      askedRevision = getConfirmedDeskVenueRevision();
+      if (next !== 'live' || !isCurrent()) return null;
+      const message = await ensureLiveGateway();
+      return isCurrent() ? message : null;
+    } catch (error) {
+      if (!isCurrent()) return null;
+      throw error;
+    } finally {
+      route.dispose();
     }
-    if (!res.ok || body.venue !== next) {
-      return switchErrorMessage(res, body, next, DESK_VENUE_API_RESTART_HINT);
-    }
-    // The backend already settled this venue. A later Gateway failure cannot
-    // turn its confirmed Live desk back into the previous practice venue.
-    confirmDeskVenue(body.venue);
-    return next === 'live' ? ensureLiveGateway() : null;
   }
 
   async function requestVenue(next: DeskVenue) {
