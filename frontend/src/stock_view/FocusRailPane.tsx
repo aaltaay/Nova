@@ -5,14 +5,18 @@
  * time") is the same pane on its own list, HOD Momo unless another is picked,
  * and folds to its header. Each half keeps its own cursor (↑ ↓, Enter) and
  * hover card. The rail (FocusRail.tsx) reads the feeds and hands each half its
- * rows, or what their absence says; this file only draws and listens.
+ * rows, or what their absence says; this file only draws and listens. A HOD
+ * Momo / Running Up half draws the HOD strip's own rows, compact.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown } from 'lucide-react';
 import { openBotSymbolMenu } from '../bot';
+import { HodMomoStripRow, groupIsNew, type HodStripView } from '../hod_momo';
 import { NewsCell } from '../components/NewsCell';
+import { TICKER_OPEN_TRADER_TITLE } from '../constants';
 import { watchMarkTitle } from '../watch_list';
 import {
+  FOCUS_RAIL_ALERT_COLS,
   FOCUS_RAIL_ALERT_ORDER_TITLE,
   FOCUS_RAIL_BOT_HELD_TITLE,
   FOCUS_RAIL_BOT_QUIET_TITLE,
@@ -57,6 +61,24 @@ export interface FocusPaneView {
   sort: FocusSort | null;
   /** False for an alert list (HOD Momo, Running Up): newest first, headers do not sort. */
   sortable: boolean;
+  /** A HOD half: the strip's rows (one per `rows` entry, same order). */
+  alerts?: HodStripView | null;
+  /** What the header counts when it is not the row count (a HOD half: the strip tab's count). */
+  count?: number;
+}
+
+const noop = () => {};
+
+/** A HOD half's column labels, in the compact strip row's widths. */
+function AlertCols({ tid }: { tid: string }) {
+  return (
+    <div className="hod-strip__compact-cols" title={FOCUS_RAIL_ALERT_ORDER_TITLE} data-testid={`${tid}-cols`}>
+      <span className="hod-strip__time">{FOCUS_RAIL_ALERT_COLS.time}</span>
+      <span className="hod-strip__sym">{FOCUS_RAIL_ALERT_COLS.symbol}</span>
+      <span className="hod-strip__price">{FOCUS_RAIL_ALERT_COLS.price}</span>
+      <span>{FOCUS_RAIL_ALERT_COLS.strategy}</span>
+    </div>
+  );
 }
 
 /** One sortable column header; the active one shows its direction. On an
@@ -104,7 +126,7 @@ export interface FocusRailPaneProps {
 
 export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared, title, pickAria, control, folded = false }: FocusRailPaneProps) {
   const { replayDesk, watchList, isAllowed, isRecording, active, traderLiveTabs, open, modules } = shared;
-  const { list, title: listTitle, rows, absent, sort, sortable } = view;
+  const { list, title: listTitle, rows, absent, sort, sortable, alerts } = view;
   const [cursor, setCursor] = useState(-1);
   const [hover, setHover] = useState<FocusRailHover | null>(null);
   const hideTimer = useRef<number | null>(null);
@@ -139,7 +161,7 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
     }
   };
 
-  const count = rows ? ` ${rows.length}` : '';
+  const count = view.count != null ? ` ${view.count}` : rows ? ` ${rows.length}` : '';
   return (
     <section className={`focus-rail__pane focus-rail__pane--${half}${folded ? ' focus-rail__pane--folded' : ''}`}
       aria-label={listTitle} data-testid={`focus-rail-pane-${half}`} data-folded={folded ? '1' : '0'}
@@ -158,7 +180,8 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
         </label>
         {control}
       </div>
-      {!folded && rows != null && rows.length > 0 && (
+      {!folded && alerts && rows != null && rows.length > 0 && <AlertCols tid={tid} />}
+      {!folded && !alerts && rows != null && rows.length > 0 && (
         <div className="focus-rail__cols" data-testid={`${tid}-cols`}>
           {replayDesk ? <span className="focus-rail__news" /> : <SortHeader tid={tid} column="news" sort={sort} onSort={onSort} />}
           <span className="focus-rail__dots" />
@@ -174,12 +197,26 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
       {!folded && (
         <div className="focus-rail__rows" role="listbox" aria-label={listTitle} data-testid={`${tid}-rows`}
           onScroll={() => setHover(null)}>
-          {replayDesk && rows != null && rows.length > 0 && (
+          {replayDesk && !alerts && rows != null && rows.length > 0 && (
             <p className="focus-rail__absent" data-testid={`${tid}-replay-note`}>{SIM_FOCUS_RAIL_REPLAY_NOTE}</p>
           )}
           {rows == null || rows.length === 0 ? (
             <p className="focus-rail__absent" data-testid={`${tid}-absent`}>{absent}</p>
-          ) : rows.map((row, index) => {
+          ) : alerts ? alerts.groups.map((group, index) => (
+            <HodMomoStripRow
+              key={group.key}
+              compact
+              group={group}
+              selected={group.ticker === active}
+              cursor={index === cursor}
+              isNew={groupIsNew(group, alerts.newIds)}
+              strategyColors={alerts.strategyColors}
+              onSelect={(symbol) => { setCursor(index); open(symbol); }}
+              onOpenTrading={noop}
+              testId={`${tid}-alert-${group.ticker}`}
+              rowTitle={TICKER_OPEN_TRADER_TITLE}
+            />
+          )) : rows.map((row, index) => {
             const recording = isRecording(row.symbol);
             const allowed = isAllowed(row.symbol);
             const held = allowed && (recording || traderLiveTabs.includes(row.symbol));
@@ -224,7 +261,7 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
                 )}
                 {!replayDesk && (
                   <>
-                    <span className={`focus-rail__px${row.priceTitle ? ' focus-rail__px--alert' : ''}`} title={row.priceTitle}
+                    <span className="focus-rail__px"
                       data-testid={`${tid}-px-${row.symbol}`}>
                       {row.price != null ? row.price.toFixed(2) : '—'}
                     </span>

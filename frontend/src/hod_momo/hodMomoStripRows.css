@@ -298,3 +298,71 @@
   font-size: 10.5px;
   color: var(--text-muted, #9aa3b2);
 }
+
+/* ── compact row: the same row in a narrow column (Trader Focus rail, 2026-10-06) ── */
+.hod-strip__row--compact {
+  --hod-strip-row: 22px;
+  gap: 0.3rem;
+  padding: 0 0.4rem;
+  font-size: 11px;
+}
+
+.hod-strip__row--compact .hod-strip__sid {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Column labels over compact rows: the same widths, so labels sit over their cells. */
+.hod-strip__compact-cols {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 20px;
+  padding: 0 0.4rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-muted, #6b7280);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.hod-strip__row--compact .hod-strip__time,
+.hod-strip__compact-cols .hod-strip__time {
+  flex: 0 0 3.3rem;
+}
+
+.hod-strip__row--compact .hod-strip__sym,
+.hod-strip__compact-cols .hod-strip__sym {
+  flex: 0 0 2.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hod-strip__row--compact .hod-strip__price,
+.hod-strip__compact-cols .hod-strip__price {
+  flex: 0 0 2.5rem;
+}
+
+.hod-strip__compact-cols .hod-strip__time,
+.hod-strip__compact-cols .hod-strip__sym,
+.hod-strip__compact-cols .hod-strip__price {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+.hod-strip__row--compact .hod-strip__strat--group {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.hod-strip__row.is-cursor {
+  outline: 1px solid var(--accent-color, #3b82f6);
+  outline-offset: -1px;
+}

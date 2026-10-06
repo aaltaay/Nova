@@ -178,6 +178,8 @@ export const FOCUS_RAIL_SORT_TITLES = {
 export const FOCUS_RAIL_SORT_RESET = "click again for the list's own order";
 /** HOD Momo / Running Up are alert lists (operator decision 2026-09-24): the newest cross stays on top. */
 export const FOCUS_RAIL_ALERT_ORDER_TITLE = 'Newest high-of-day cross first. An alert list keeps its own order and does not sort.';
+/** A HOD half's columns: the HOD strip's row, compact (operator ask 2026-10-06). */
+export const FOCUS_RAIL_ALERT_COLS = { time: 'Time', symbol: 'Sym', price: 'Price', strategy: 'Strat' } as const;
 /** Focus rail hover cards: what a row's circles mean, in plain words. */
 export const FOCUS_RAIL_CARD_HIDE_MS = 200;
 export const FOCUS_RAIL_CARD_MAX_ITEMS = 5;
@@ -209,10 +211,6 @@ export const FOCUS_RAIL_DEFAULT_LOWER_LIST = 'hod_momo';
 export const FOCUS_RAIL_LOWER_PICK_ARIA = 'Mirror a scanner list in the lower half';
 export const FOCUS_RAIL_LOWER_FOLD = 'Fold the lower list to its header';
 export const FOCUS_RAIL_LOWER_UNFOLD = 'Show the lower list';
-/** A HOD / Running Up row's price when no scanner list carries the symbol:
- * it is the alert's print, not a last price, and says so. */
-export const focusRailAlertPriceTitle = (clock: string): string =>
-  `Price at the alert (${clock} ET) -- no scanner list carries this symbol, so there is no live last here`;
 
 /* ── Positions / Orders drawer ──────────────────────────────────────────── */
 

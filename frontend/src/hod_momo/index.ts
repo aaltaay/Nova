@@ -20,4 +20,10 @@ export {
 } from './scannerPartition';
 export { subscribeHodMomoLiveAlerts } from './hodMomoLiveAlerts';
 export { fmtStripClock, stripAlertMs } from './hodMomoStripRows';
+// The HOD rows every view draws (the Scanner's strip, the Trader's Focus rail half).
+export { HodMomoStripRow } from './HodMomoStripRow';
+export { groupIsNew } from './hodMomoStripGroups';
+export { HOD_MOMO_STRIP_EMPTY_CONNECTING } from './hodMomoStripConstants';
+export { useHodStripView } from './useHodStripView';
+export type { HodStripView } from './useHodStripView';
 export type { AlertObject } from './types';

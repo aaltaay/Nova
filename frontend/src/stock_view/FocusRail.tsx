@@ -13,7 +13,9 @@
  * Desk board) moves a half to that list when it mirrors it (routeFocusList).
  * Data is the live scanner feed the workspace already holds -- and, for HOD
  * Momo / Running Up, the HOD stream the app shell keeps open -- without one
- * the half says so.
+ * the half says so. A HOD half is the Scanner's HOD strip in compact form:
+ * the same rows from the same selector (useHodStripView), strategy picks
+ * included, drawn by the strip's own row (operator ask 2026-10-06).
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
@@ -39,8 +41,9 @@ import {
   focusRailNotMirrored,
 } from '../constantGroups/trader_chrome';
 import { listFeedFailed } from '../constantGroups/scanner_board';
-import { useHodMomoOptional, type HodMomoContextValue } from '../hod_momo/HodMomoContext';
-import { HOD_MOMO_STRIP_EMPTY_CONNECTING } from '../hod_momo/hodMomoStripConstants';
+import {
+  HOD_MOMO_STRIP_EMPTY_CONNECTING, useHodMomoOptional, useHodStripView, type HodMomoContextValue, type HodStripView,
+} from '../hod_momo';
 import { useLiveScannerFeedOptional, type LiveScannerFeed } from '../scanner/ScannerDataContext';
 import { listAbsenceText } from '../scanner/listAbsence';
 import { replayListAbsence } from '../leaderboard/leaderboardRows';
@@ -53,7 +56,7 @@ import {
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import type { ScannerRow } from '../types/scanner';
 import {
-  SAVED_FOCUS_RAIL_STORE, focusRowsFor, hodFocusRows, isHodFocusList, routeFocusList, watchFocusRows,
+  SAVED_FOCUS_RAIL_STORE, focusRowsFor, isHodFocusList, routeFocusList, watchFocusRows,
   FOCUS_RAIL_WATCH_LIST, type FocusPaneState, type FocusRailState, type FocusRailStore, type FocusRow,
 } from './focusRailState';
 import { FocusRailPane, type FocusPaneShared, type FocusPaneView } from './FocusRailPane';
@@ -70,10 +73,15 @@ interface FocusSources {
   watchList: readonly string[];
 }
 
+/** A HOD half's rows, one per strip row: the cursor and Enter walk them. */
+function alertRows(view: HodStripView): FocusRow[] {
+  return view.groups.map(g => ({ symbol: g.ticker, price: null, changePct: null, headlineAt: null, newsKnown: false }));
+}
+
 /** A list's rows in its own order; null when this desk does not carry it. */
-function listRows(list: string, src: FocusSources): FocusRow[] | null {
-  const { feed, hodStream, filterRows, watchList } = src;
-  if (isHodFocusList(list)) return hodStream ? hodFocusRows(list, hodStream.alerts, feed) : null;
+function listRows(list: string, src: FocusSources, hod: HodStripView | null): FocusRow[] | null {
+  const { feed, filterRows, watchList } = src;
+  if (isHodFocusList(list)) return hod ? alertRows(hod) : null;
   if (list === FOCUS_RAIL_WATCH_LIST) return watchFocusRows(watchList, feed);
   return focusRowsFor(list, feed, filterRows);
 }
@@ -100,13 +108,20 @@ function absenceText(title: string, list: string, rows: FocusRow[] | null, src: 
  * by today's price, % or news would show what the rows hide (QA W10). The HOD
  * lists are alert lists and never sort: the newest cross stays on top, even
  * over a sort saved before (operator decision 2026-09-24). */
-function paneView(pane: FocusPaneState, src: FocusSources, replayDesk: boolean, modules: readonly NovaModule[]): FocusPaneView {
+function paneView(
+  pane: FocusPaneState, src: FocusSources, hod: HodStripView | null, replayDesk: boolean, modules: readonly NovaModule[],
+): FocusPaneView {
   const title = (modules.find(m => m.id === pane.list) ?? modules[0])?.title ?? pane.list;
-  const sortable = !isHodFocusList(pane.list);
+  const alertList = isHodFocusList(pane.list);
+  const sortable = !alertList;
   const sort = !sortable || (replayDesk && pane.sort?.key !== 'symbol') ? null : pane.sort;
-  const listed = listRows(pane.list, src);
+  const listed = listRows(pane.list, src, hod);
   const rows = listed ? sortFocusRows(listed, sort) : null;
-  return { list: pane.list, title, rows, absent: absenceText(title, pane.list, rows, src), sort, sortable };
+  const alerts = alertList ? hod : null;
+  return {
+    list: pane.list, title, rows, absent: absenceText(title, pane.list, rows, src), sort, sortable,
+    alerts, count: alerts ? alerts.count : undefined,
+  };
 }
 
 export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_STORE }: {
@@ -115,7 +130,8 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
   store?: FocusRailStore;
 } = {}) {
   const feed = useLiveScannerFeedOptional();
-  const hodStream = useHodMomoOptional()?.stream ?? null;
+  const hod = useHodMomoOptional();
+  const hodStream = hod?.stream ?? null;
   const settings = useSettingsOptional();
   const { activeTraderSymbol, traderLiveTabs, openStockView } = useWorkspace();
   const { isAllowed } = useBotAllowlist();
@@ -181,8 +197,13 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
   const src = useMemo<FocusSources>(() => ({ feed, hodStream, filterRows, watchList }),
     [feed, hodStream, filterRows, watchList]);
   const upperPane = useMemo<FocusPaneState>(() => ({ list: state.list, sort: state.sort }), [state.list, state.sort]);
-  const upper = useMemo(() => paneView(upperPane, src, replayDesk, modules), [upperPane, src, replayDesk, modules]);
-  const lower = useMemo(() => paneView(state.lower, src, replayDesk, modules), [state.lower, src, replayDesk, modules]);
+  // The HOD halves read the strip's own rows (one selector for both views).
+  const upperHod = useHodStripView(hod, isHodFocusList(state.list) ? state.list : null);
+  const lowerHod = useHodStripView(hod, isHodFocusList(state.lower.list) ? state.lower.list : null);
+  const upper = useMemo(() => paneView(upperPane, src, upperHod, replayDesk, modules),
+    [upperPane, src, upperHod, replayDesk, modules]);
+  const lower = useMemo(() => paneView(state.lower, src, lowerHod, replayDesk, modules),
+    [state.lower, src, lowerHod, replayDesk, modules]);
   const shared = useMemo<FocusPaneShared>(() => ({
     replayDesk,
     watchList,
@@ -195,7 +216,7 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
   }), [replayDesk, watchList, isAllowed, activeTraderSymbol, traderLiveTabs, openStockView, modules]);
 
   if (state.collapsed) {
-    const count = upper.rows?.length ?? null;
+    const count = upper.count ?? upper.rows?.length ?? null;
     return (
       <aside className="focus-rail focus-rail--collapsed" aria-label={FOCUS_RAIL_ARIA} data-testid="focus-rail" data-collapsed="1">
         <button type="button" className="focus-rail__expand" aria-label={FOCUS_RAIL_EXPAND} title={FOCUS_RAIL_EXPAND}

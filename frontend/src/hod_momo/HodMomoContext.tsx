@@ -19,7 +19,7 @@ import {
   type HodMomoStripLayout,
 } from './hodMomoStripPersist';
 import { type HodDockMode } from './scannerDockModes';
-import { partitionScannerAlerts } from './scannerPartition';
+import { defaultHodMomentumVisibleStrategies, partitionScannerAlerts } from './scannerPartition';
 import type { useHodMomoConfig } from './useHodMomoConfig';
 import type { useHodMomoStream } from './useHodMomoStream';
 import type { HodMomoReplayState } from './useHodMomoReplay';
@@ -48,6 +48,13 @@ export type HodMomoContextValue = {
   setShowHodSettings: (open: boolean) => void;
   toggleHodSettings: () => void;
   /**
+   * The HOD Momo strategies shown, picked in the strip's menu. One set for every
+   * view of the list -- the Scanner strip and the Trader's Focus rail half -- so
+   * the two never disagree (operator ask 2026-10-06). Absent: the default set.
+   */
+  visibleStrategies?: ReadonlySet<number>;
+  toggleStrategy?: (id: number) => void;
+  /**
    * Sim off the live edge (ADR 023): `stream.alerts` are the day's history up
    * to the playhead, not the live socket. Null / absent on Live and Paper.
    */
@@ -60,6 +67,16 @@ export function useHodMomoDockState(stream: HodStream) {
   const [dockMode, setDockMode] = useState<HodDockMode>('hod_momo');
   const [layout, setLayout] = useState<HodMomoStripLayout>(readStripLayout);
   const [showHodSettings, setShowHodSettings] = useState(false);
+  const [visibleStrategies, setVisibleStrategies] = useState<ReadonlySet<number>>(defaultHodMomentumVisibleStrategies);
+
+  const toggleStrategy = useCallback((id: number) => {
+    setVisibleStrategies((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const updateLayout = useCallback((patch: (prev: HodMomoStripLayout) => HodMomoStripLayout) => {
     setLayout((prev) => {
@@ -95,9 +112,10 @@ export function useHodMomoDockState(stream: HodStream) {
     () => partitionScannerAlerts(stream.alerts),
     [stream.alerts],
   );
+  // Counts what the HOD lists show: the strategies picked in the strip menu.
   const hodCount = useMemo(
-    () => collapseAlertsBySymbol(hodMomentum).length,
-    [hodMomentum],
+    () => collapseAlertsBySymbol(hodMomentum.filter((a) => visibleStrategies.has(a.strategy_id))).length,
+    [hodMomentum, visibleStrategies],
   );
   const runningUpCount = useMemo(
     () => collapseAlertsBySymbol(runningUp).length,
@@ -117,6 +135,8 @@ export function useHodMomoDockState(stream: HodStream) {
       showHodSettings,
       setShowHodSettings,
       toggleHodSettings,
+      visibleStrategies,
+      toggleStrategy,
       hodCount,
       runningUpCount,
     }),
@@ -130,6 +150,8 @@ export function useHodMomoDockState(stream: HodStream) {
       focusDock,
       showHodSettings,
       toggleHodSettings,
+      visibleStrategies,
+      toggleStrategy,
       hodCount,
       runningUpCount,
     ],

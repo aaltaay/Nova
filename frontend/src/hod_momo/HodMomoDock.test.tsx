@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HOD_MOMO_ALERT_SOUND_KEY } from './hodMomoAlertSoundConstants';
 import { resetHodMomoAlertSoundForTests } from './hodMomoAlertSound';
@@ -10,6 +11,7 @@ import { consumeFocusListRequest } from '../workspace/focusListRequest';
 import { HodMomoDock } from './HodMomoDock';
 import type { HodMomoContextValue } from './HodMomoContext';
 import { HodMomoContextProvider } from './HodMomoContext';
+import { defaultHodMomentumVisibleStrategies } from './scannerPartition';
 import type { AlertObject } from './types';
 
 const workspaceMock = {
@@ -99,6 +101,22 @@ function renderStrip(value: HodMomoContextValue, props: Parameters<typeof HodMom
     <HodMomoContextProvider value={value}>
       <HodMomoDock {...props} />
     </HodMomoContextProvider>,
+  );
+}
+
+/** The provider's strategy picks: state shared through the context (the Focus rail reads the same set). */
+function WithStrategyPicks({ value }: { value: HodMomoContextValue }) {
+  const [visible, setVisible] = useState<ReadonlySet<number>>(defaultHodMomentumVisibleStrategies);
+  const toggleStrategy = (id: number) => setVisible((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+  return (
+    <HodMomoContextProvider value={{ ...value, visibleStrategies: visible, toggleStrategy }}>
+      <HodMomoDock />
+    </HodMomoContextProvider>
   );
 }
 
@@ -221,7 +239,7 @@ describe('HodMomoDock (strip)', () => {
 
   it('keeps sound, strategies, clear and configure behind the header menu', () => {
     const toggleHodSettings = vi.fn();
-    renderStrip(makeValue({ toggleHodSettings }));
+    render(<WithStrategyPicks value={makeValue({ toggleHodSettings })} />);
     expect(screen.queryByTestId('hod-momo-strip-menu')).toBeNull();
     fireEvent.click(screen.getByTestId('hod-momo-strip-more'));
     expect(screen.getByTestId('hod-momo-strip-menu')).toBeTruthy();
