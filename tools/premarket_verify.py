@@ -44,6 +44,7 @@ from constants_relogin import (  # noqa: E402
     PREMARKET_EVIDENCE_DAYS_DEFAULT,
 )
 from ibkr import relogin_reason, windows_restarts  # noqa: E402
+from premarket_ibc import IbcEvidence, parse_ibc_evidence  # noqa: E402
 from premarket_sources import (  # noqa: E402
     ReadResult, quiet_proof, read_ibc_logs, read_log, restart_source, windows_supported,
 )
@@ -51,10 +52,6 @@ from premarket_sources import (  # noqa: E402
 SCHEMA_VERSION = 1
 LOG_DIR = ROOT / "backend" / "logs"
 _LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.*)$")
-_IBC_STAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}:\d+ IBC: ")
-_IBC_BANNER_RE = re.compile(
-    r"Starting IBC version \S+ on .*?(\d{1,2})/(\d{1,2})/(\d{4}) at\s+"
-    r"(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?")
 _RUN_GAP_SEC = 10 * 60
 _SAME_START_SEC = 5 * 60
 
@@ -280,63 +277,21 @@ def _stamp(ts: float) -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
 
 
-def _valid_ibc_banner(line: str) -> bool:
-    """Validate known startup evidence without changing the diagnostic parser."""
-    match = _IBC_BANNER_RE.fullmatch(line)
-    if match is None:
-        return False
-    month, day, year, hour, minute, second = map(int, match.groups())
-    return _local(f"{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}") is not None
-
-
-def _ibc_auth_problems(text: str) -> list[str]:
-    """A banner dates its first auth record, never a later unplaceable record.
-
-    The diagnostic parser keeps a banner fallback; this evidence guard also
-    rejects pending records it could silently move across a startup boundary.
-    """
-    problems = []
-    fresh_banner = pending = pending_has_banner = False
-    for raw in text.splitlines():
-        line = raw.strip()
-        if line.startswith("Starting IBC version"):
-            if pending:
-                problems.append("an undated authentication record crosses another IBC startup")
-            pending = False
-            fresh_banner = _valid_ibc_banner(line)
-        elif line.lower().startswith(("autorestart file not found", "autorestart file found")):
-            if pending and not pending_has_banner:
-                problems.append("an authentication record has no fresh banner or following dated IBC line")
-            pending, pending_has_banner = True, fresh_banner
-            fresh_banner = False
-        elif pending and _IBC_STAMP_RE.match(line) and _local(line[:19]) is not None:
-            pending = False
-    if pending and not pending_has_banner:
-        problems.append("an authentication record has no fresh banner or following dated IBC line")
-    return problems
-
-
-def _source_summary(read: ReadResult, *, ibc: bool = False,
-                    logins: list[relogin_reason.IbcLogin] | None = None) -> dict:
+def _source_summary(read: ReadResult, *, ibc: list[IbcEvidence] | None = None) -> dict:
     """Dates in known line formats, plus explicit corruption/undated-launch failures."""
-    pattern = _IBC_STAMP_RE if ibc else _LINE_RE
-    stamps, problems = [], []
-    for text in read.texts:
-        if ibc:
-            problems.extend(_ibc_auth_problems(text))
+    stamps = [ts for source in ibc or [] for ts in source.stamps]
+    problems = [problem for source in ibc or [] for problem in source.problems]
+    for text in read.texts if ibc is None else ():
         for raw in text.splitlines():
             line = raw.strip()
-            matched = pattern.match(line)
+            matched = _LINE_RE.match(line)
             ts = _local(line[:19]) if matched else None
             if matched and ts is None:
                 problems.append("a dated log line has an unreadable timestamp")
-            if ibc and line.startswith("Starting IBC version") and not _valid_ibc_banner(line):
-                problems.append("a malformed IBC startup banner cannot establish when authentication occurred")
-            if not ibc and "Starting IB Gateway via IBC" in line and ts is None:
+            if "Starting IB Gateway via IBC" in line and ts is None:
                 problems.append("an undated Gateway start cannot be placed inside or outside the window")
             if ts is not None:
                 stamps.append(ts)
-    stamps.extend(login.ts for login in logins or [] if login.ts is not None)
     summary = read.summary(stamps)
     if problems:
         summary["problems"].extend(sorted(set(problems)))
@@ -364,14 +319,15 @@ def main(argv: list[str] | None = None) -> int:
     daily = read_log(args.log_dir / "daily-start.log", now)
     ibc = read_ibc_logs(args.ibc_log_dir, now)
     morning_text, daily_text = "\n".join(morning.texts), "\n".join(daily.texts)
-    logins = sorted((login for text in ibc.texts for login in relogin_reason.parse_ibc_logins(text)),
-                    key=lambda login: login.ts or 0)
+    ibc_evidence = [parse_ibc_evidence(text) for text in ibc.texts]
+    logins = sorted((relogin_reason.IbcLogin(login.ts, login.full_auth)
+                     for source in ibc_evidence for login in source.logins), key=lambda login: login.ts or 0)
     supported = windows_supported()
     restarts = windows_restarts.recent_restarts(args.days + 1) if supported else None
     sources = {
         "morning_check": _source_summary(morning),
         "daily_start": _source_summary(daily),
-        "ibc": _source_summary(ibc, ibc=True, logins=logins),
+        "ibc": _source_summary(ibc, ibc=ibc_evidence),
         "windows_restarts": restart_source(restarts, args.days, now, supported),
     }
     ev = build_evidence(
