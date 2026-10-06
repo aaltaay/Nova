@@ -45,3 +45,19 @@ non-race 405/403 failures and missing expected SHA. Keep failed linked-issue
 closure nonzero after a confirmed merge. Run delivery/review/cleanup neighbors,
 authored package/footprint checks, documentation invariants, agent contract and
 the maintainer gate. All GitHub behavior is mocked; no live merge is needed.
+
+## Verified results (2026-10-06)
+
+Before implementation, all six immediate/delayed `cmd_merge` and `cmd_sweep`
+success cases failed with the original nonzero result. A refusal control also
+caught an overbroad HTTP-status substring; the classifier now matches the exact
+405 status token and explicit in-progress message.
+
+The 144 focused delivery, review-status and guarded-cleanup tests pass, including
+both entrypoints' still-open, invalid identity, malformed resource and delayed
+read-failure controls. Combined with backlog triage/footprints/claims/branches,
+documentation, agent-contract and maintainer-policy tests, 422 tests pass.
+Production-file Ruff, live-document invariants, agent contract, the maintainer
+gate against `bb4d3e72`, and `git diff --check` pass. The test file has the same
+four pre-existing Ruff B023 findings as that base, with no new lint findings.
+Only the four authored batch paths changed; no live GitHub merge was performed.

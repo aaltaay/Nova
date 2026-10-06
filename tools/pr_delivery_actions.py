@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -30,6 +32,8 @@ DESKTOP_PACK_WORKFLOW = "desktop-pack.yml"
 # decided again from scratch, and it reads as `settling` (#412).
 MERGE_HEAD_MOVED = 3
 RELEASE_BRANCH = "master"
+MERGE_CONFIRM_ATTEMPTS = 3
+MERGE_CONFIRM_DELAY_SECONDS = 1
 
 
 def merge_now(
@@ -55,8 +59,12 @@ def merge_now(
         if sha and "409" in detail:
             print(f"#{number} skip head_moved", file=sys.stderr)
             return MERGE_HEAD_MOVED
-        print(detail, file=sys.stderr)
-        return 2
+        race = bool(re.search(r"\bHTTP\s*405\b", detail, re.IGNORECASE)) and (
+            "merge already in progress" in detail.lower()
+        )
+        if not (sha and race and _confirm_concurrent_merge(gh, repo, number, sha)):
+            print(detail, file=sys.stderr)
+            return 2
     print(f"merged #{number}")
     issues_closed = confirm_linked_issue_closure(gh, repo, number, body)
     dispatch_desktop_pack(gh, repo)
@@ -77,6 +85,41 @@ def _read_resource(gh: GhFn, endpoint: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("GitHub returned no resource object")
     return data
+
+
+def _confirm_concurrent_merge(gh: GhFn, repo: str, number: int, sha: str) -> bool:
+    """Read only: a failed PUT is successful only when its exact merge completed (#762)."""
+    for attempt in range(MERGE_CONFIRM_ATTEMPTS):
+        try:
+            pr = _read_resource(gh, f"repos/{repo}/pulls/{number}")
+        except ValueError as exc:
+            print(f"#{number} merge completion read failed: {exc}", file=sys.stderr)
+            return False
+        head, base = pr.get("head"), pr.get("base")
+        if not isinstance(head, dict) or not isinstance(base, dict):
+            return False
+        if head.get("sha") != sha or base.get("ref") != RELEASE_BRANCH:
+            return False
+        for endpoint in (head, base):
+            repository = endpoint.get("repo")
+            if not isinstance(repository, dict):
+                return False
+            name = repository.get("full_name")
+            if not isinstance(name, str) or name.lower() != repo.lower():
+                return False
+        commit = pr.get("merge_commit_sha")
+        if (
+            pr.get("merged") is True and pr.get("state") == "closed"
+            and isinstance(commit, str) and commit.strip()
+        ):
+            print(f"#{number} confirmed concurrent merge at {commit}")
+            return True
+        if pr.get("merged") is not False or pr.get("state") != "open":
+            return False
+        if attempt + 1 < MERGE_CONFIRM_ATTEMPTS:
+            time.sleep(MERGE_CONFIRM_DELAY_SECONDS)
+    print(f"#{number} merge remained unconfirmed after {MERGE_CONFIRM_ATTEMPTS} reads", file=sys.stderr)
+    return False
 
 
 def confirm_linked_issue_closure(gh: GhFn, repo: str, pr_number: int, body: str) -> bool:
