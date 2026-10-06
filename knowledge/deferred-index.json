@@ -5,6 +5,17 @@
   "updated": "2026-10-06",
   "items": [
     {
+      "id": "#748",
+      "title": "Closing cached ledger connections races active persistence and can crash Python",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "execution",
+      "number": "748",
+      "url": "https://github.com/aaltaay/Nova/issues/748",
+      "state": "OPEN"
+    },
+    {
       "id": "#744",
       "title": "Browser regressions still expect retired bot and per-stock risk contracts",
       "kind": "bug",
@@ -460,11 +471,11 @@
       "title": "A live row's halted state is stamped per roster push, so Gappers can read a stale \"not halted\"",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "571",
       "url": "https://github.com/aaltaay/Nova/issues/571",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#566",
