@@ -8,7 +8,10 @@ incomplete healthy Trader fixture hiding the real results behind layout failures
 - A healthy mocked Trader answers the Bot session, proposals and audit reads
   together. The rail card shares all three reads; leaving a sibling unanswered
   produces an error card and changes the space available to Level 2. Use the
-  existing Bot session fixture and explicit empty proposal/audit envelopes.
+  existing demo's ready Paper session fixture and explicit empty proposal/audit
+  envelopes. The status fixture names Paper explicitly, so the shared snapshot
+  passes the confirmed-venue fence; assert the known Bot state and absence of an
+  error. Keep the Trader fixture's sleeve risk when adapting the demo's figures.
 - Preserve the Level 2 height and held-target visibility checks. Fix an
   incomplete fixture before changing an assertion or production layout. A check
   for an API failure must arrange that failure explicitly and verify the stated

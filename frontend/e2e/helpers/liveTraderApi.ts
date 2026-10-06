@@ -1,4 +1,6 @@
 import type { Page, Route } from '@playwright/test';
+import { NOW_S } from '../../src/demo/data/market';
+import { botSession } from '../../src/demo/data/pages';
 import { E2E_ACCOUNT, E2E_IBKR_STATUS } from '../fixtures/orderRows';
 import { routeSampleBars } from './sampleBars';
 
@@ -92,10 +94,27 @@ export async function mockLiveTraderApi(
     const symbol = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
     return json(route, e2eTickerDetail(symbol.toUpperCase()));
   });
-  await page.route('**/api/ibkr/status', (route) => json(route, E2E_IBKR_STATUS));
+  // ADR 042: the shared Bot snapshot applies only to the backend-confirmed venue.
+  await page.route('**/api/ibkr/status', (route) => json(route, { ...E2E_IBKR_STATUS, venue: 'paper' }));
   await page.route('**/api/ibkr/account', (route) => json(route, E2E_ACCOUNT));
   await page.route('**/api/ibkr/positions', (route) => json(route, positions));
   await page.route('**/api/ibkr/orders**', (route) => json(route, []));
+  // The rail card shares all three reads. A missing sibling is an API-error flow,
+  // not this healthy fixture, and its error line takes space from Level 2 (#744).
+  // The demo owns a complete ready Paper session without browser-only imports.
+  // Keep the Trader fixtures' $20 sleeve (the demo's story uses $50).
+  const bot = botSession(NOW_S, 'paper');
+  bot.caps.risk_usd = 20;
+  for (const sleeve of Object.values(bot.caps_by_venue)) sleeve.risk_usd = 20;
+  await page.route(/\/api\/bot\/(session|proposals|audit)(\?.*)?$/, (route) => {
+    if (route.request().method() !== 'GET') {
+      mutations.push(`${route.request().method()} ${route.request().url()}`);
+      return json(route, HARD_BAN, 403);
+    }
+    const path = new URL(route.request().url()).pathname;
+    return json(route, path.endsWith('/session') ? bot
+      : path.endsWith('/proposals') ? { proposals: [] } : { entries: [] });
+  });
   // Place / cancel / flatten -- refused, never forwarded.
   await page.route(/\/api\/ibkr\/(order|flatten-account)(\/|$|\?)/, async (route) => {
     const request = route.request();

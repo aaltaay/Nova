@@ -1,10 +1,7 @@
 /**
- * Bot Autonomy chrome after ADR 027 (2026-09-23) and ADR 042 (2026-09-30): the bar
- * never carries arm controls -- the Bots page hero owns the master level and
- * Activate, the Trader carries them in its right-rail Bot Autonomy card (Master
- * level / how many setups are at Strategy / the bot's stocks / Activate; there is
- * no chosen setup), and every view keeps the bar to desk chrome and the
- * symbol-menu host.
+ * Bot chrome after ADR 044: the Bots page and Trader rail share one per-venue
+ * Bot switch. The sample Trader has no live Bot session and states that absence.
+ * Every view keeps the bar to desk chrome and the symbol-menu host.
  */
 import { test, expect, type Page } from '@playwright/test';
 import { clickThroughOverlay } from './helpers/accountReports';
@@ -20,11 +17,15 @@ const BAR_ARM_CONTROL_IDS = [
 ] as const;
 
 const CARD_CONTROL_IDS = [
+  'bot-card-switch',
+  'bot-card-open',
+] as const;
+
+const RETIRED_CARD_CONTROL_IDS = [
   'bot-card-level',
   'bot-card-at-strategy',
   'bot-arm-allowlist',
   'bot-arm-allowlist-toggle',
-  'bot-card-state',
   'bot-card-activate',
 ] as const;
 
@@ -49,7 +50,7 @@ async function expectBarHostOnly(page: Page) {
 }
 
 test.describe('GlobalAppBar bot row', () => {
-  test('sample scanner and the Bots page keep the bar to desk chrome -- the hero owns the level', async ({
+  test('sample scanner and the Bots page keep the bar to desk chrome', async ({
     page,
   }, testInfo) => {
     const { errors } = attachErrorCollector(page);
@@ -75,7 +76,7 @@ test.describe('GlobalAppBar bot row', () => {
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
-  test('sample trader window carries the bot controls in the rail Bot Autonomy card, not the bar', async ({
+  test('sample trader carries the locked Bot switch and its absence in the rail card', async ({
     page,
   }, testInfo) => {
     const { errors } = attachErrorCollector(page);
@@ -89,6 +90,16 @@ test.describe('GlobalAppBar bot row', () => {
     for (const id of CARD_CONTROL_IDS) {
       await expect(card.getByTestId(id)).toBeVisible();
     }
+    for (const id of RETIRED_CARD_CONTROL_IDS) {
+      await expect(card.getByTestId(id)).toHaveCount(0);
+    }
+    const botSwitch = card.getByTestId('bot-card-switch');
+    await expect(botSwitch).toHaveAttribute('role', 'switch');
+    await expect(botSwitch).toHaveAttribute('aria-checked', 'false');
+    await expect(botSwitch).toBeDisabled();
+    await expect(botSwitch).toHaveAttribute('data-why', /bot session has not loaded/);
+    await expect(card.getByTestId('bot-card-state')).toHaveText('');
+    await expect(card.getByTestId('bot-card-error')).toContainText('bots are not part of the sample desk');
     await expect(page.getByTestId('bot-autonomy-card')).toHaveCount(1);
 
     // The card sits in the rail under the bar, never over the page.
@@ -104,6 +115,9 @@ test.describe('GlobalAppBar bot row', () => {
     await card.screenshot({
       path: testInfo.outputPath('bot-autonomy-card-sample-trader.png'),
     });
+    await card.getByTestId('bot-card-open').click();
+    await expect(page.getByTestId('nav-rail-bots')).toHaveClass(/is-active/);
+    await expectBarHostOnly(page);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });

@@ -78,7 +78,7 @@ const SIGNAL_ONLY_VIEW = {
 
 /** `readFor(url)` answers each read (the forming flag by default). */
 async function openApus(page: Page, readFor: (url: string) => unknown = () => apusReadWire) {
-  await mockLiveTraderApi(page, { bars: false, positions: [] });
+  const api = await mockLiveTraderApi(page, { bars: false, positions: [] });
   const one = minuteBars();
   const byTf: Record<string, Bar[]> = {
     '1Min': one,
@@ -105,6 +105,9 @@ async function openApus(page: Page, readFor: (url: string) => unknown = () => ap
     body: JSON.stringify(SIGNAL_ONLY_VIEW) }));
   await page.goto('/?view=stock&symbol=APUS');
   await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('bot-card-state')).toContainText('ON');
+  await expect(page.getByTestId('bot-card-error')).toHaveCount(0);
+  return api;
 }
 
 /** A hand plan at `entry` with the backend's 3-candle stop, or the stop the query names. */
@@ -137,7 +140,7 @@ test.describe("The bot's read on one stock", () => {
 
   test('puts the plan and the tiles above Level 2 and the flag on the 1-minute chart', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openApus(page);
+    const { mutations } = await openApus(page);
 
     const plan = page.getByTestId('stock-read-plan');
     await expect(plan).toBeVisible({ timeout: 20_000 });
@@ -173,19 +176,22 @@ test.describe("The bot's read on one stock", () => {
     await expect(legend).toBeVisible();
     await expect(page.getByTestId('stock-read-legend-bull_flag')).toContainText('Bull flag 1/2');
     await expect(page.getByTestId('stock-read-badge')).toHaveText('BULL FLAG · FORMING 1 OF 2');
-    await expect(page.getByTestId('stock-read-legend-gap_and_go')).toHaveAttribute('data-why', /No scanner yet/);
+    const offLane = page.getByTestId('stock-read-legend-flat_top_breakout');
+    await expect(offLane).toBeDisabled();
+    await expect(offLane).toHaveAttribute('data-why', /strategy is Off on the Bots page/);
     await shot(page, 'desk');
 
     await page.getByTestId('stock-read-tile-front').hover();
     await expect(page.getByTestId('stock-read-popover')).toContainText('MACD 1-minute');
     await shot(page, 'hover-front');
 
+    expect(mutations).toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
   test("opens every signal, the bot's day and the history in the sheet", async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openApus(page);
+    const { mutations } = await openApus(page);
     await page.getByTestId('stock-read-all').click();
     const sheet = page.getByTestId('stock-read-sheet');
     await expect(sheet).toBeVisible();
@@ -208,6 +214,7 @@ test.describe("The bot's read on one stock", () => {
     await page.getByTestId('stock-read-focus-clear').click();
     await expect(page.getByTestId('stock-read-focus')).toHaveCount(0);
 
+    expect(mutations).toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
@@ -217,7 +224,7 @@ test.describe("The bot's read on one stock", () => {
     // The operator opened the whole plan before (the switch is kept).
     await page.addInitScript(() => localStorage.setItem('nova.stockRead.layers',
       JSON.stringify({ schema_version: 1, value: { setups: true, levels: true, hidden: [], plan: 'open' } })));
-    await openApus(page, url => {
+    const { mutations } = await openApus(page, url => {
       if (!url.includes('?entry=')) return { ...apusReadWire, plan: null };
       asked.push(url);
       return manualRead(url);
@@ -257,6 +264,7 @@ test.describe("The bot's read on one stock", () => {
 
     await page.getByTestId('stock-read-clear-manual').click();
     await expect(page.getByTestId('stock-read-entry-type')).toBeVisible();
+    expect(mutations).toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });
