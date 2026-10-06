@@ -196,6 +196,11 @@ window shorter than one week cannot establish #14's week. This is a verdict on
 the retained observations, not a guarantee of continuous monitoring or evidence
 that an unrecorded login never happened.
 
+A recognized IBC startup banner with a missing, truncated or invalid date/time
+makes that source partial. Later undated authentication evidence cannot borrow
+an older startup's timestamp to establish a quiet week; the report remains
+unknown / OPEN rather than guessing when that startup occurred.
+
 The unattended-PASS criterion is evaluated separately. Missed mornings remain
 context: they do not themselves add another closing criterion or require every
 morning to pass. One genuine unattended PASS plus adequate evidence of a quiet
