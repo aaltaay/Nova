@@ -2829,15 +2829,24 @@ execution ledger every order is written to). Exits, cancels, flatten and kill
 are never held, and Paper and Sim never are; a venue that cannot be read counts
 as Live. The failure is logged (at once, then at most every
 `BOT_COMMISSIONS_WARN_EVERY_SEC`), never read as $0. **The breakers compare
-IBKR's own figure** (ADR 042): on Live, `RealizedPnL + UnrealizedPnL`, which
-already include every commission (TWS Users' Guide, Profit and Loss) -- until
+IBKR's own figure** (ADR 042 / #664): on Live, the finite `dailyPnL` from
+`reqPnL` for the current READY IB instance, generation and account. IBKR owns
+that figure's reset (the TWS configuration, not Nova's 04:00 ET lock boundary);
+the API supplies no reset timestamp, so the meter never invents one. Pending,
+failed, disconnected or superseded subscriptions cannot supply cached daily
+P&L. While it is unavailable, the stated fallback is `RealizedPnL + UnrealizedPnL`,
+which can include an overnight position's lifetime move. Both broker figures
+already include commissions (TWS Users' Guide, Profit and Loss) -- until
 2026-09-30 the breakers subtracted the session's commissions again and tripped
 that many dollars early; on Paper and Sim at the live edge, the practice
 ledger's `DayPnL`; on a replay desk nothing (a replay's P&L is not today's).
 `GET /api/bot/pnl`'s meter says which: `{compares, source, venue, compared,
 note, error, day_pnl, commissions, commissions_in_figure, commissions_unknown,
-commissions_error, ...}`. IBKR's `UnrealizedPnL` covers an overnight position's
-whole life, not only today (#664).
+commissions_error, fallback, fallback_reason, reset_semantics, reset_time,
+daily_pnl_updated_at, ...}`. The fallback and its limitation are visible; no
+session commission is subtracted again. A commission read failure still holds
+new Live bot entries without invalidating the known P&L. Practice day boundaries,
+breaker thresholds, existing latches and trading authorization are unchanged.
 Proposals are accepted at Eyes and Strategy. **Every gate is drawn with its
 reason** (owner `bot/gates.py`): `gates: [{id, ok, stage: "activate" | "fire",
 detail: {..., text}}]` are `venue` (Paper, or Sim at its live edge), `level`
