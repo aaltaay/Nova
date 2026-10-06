@@ -91,6 +91,11 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
             "exchange_ts": exchange_ts,
             "source": "ibkr",
         }
+        from ibkr import l1_timestamp
+        from perf import l1_timestamps
+
+        l1_timestamps.note_tape(symbol, price, exchange_ts, payload["ts"],
+                                instance=l1_timestamp.instance(ticker), price_ok=price_ok)
         from ibkr.tape_recording import dispatch
 
         dispatch(MappingProxyType(dict(payload)))

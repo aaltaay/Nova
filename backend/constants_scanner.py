@@ -413,3 +413,6 @@ SCANNER_RVOL_SOURCE_YFINANCE = "yfinance"
 SCANNER_RVOL_SOURCE_ALPACA = "alpaca"
 # HOD snapshot label for pace RVOL over an Alpaca daily-bar average.
 SCANNER_HOD_RVOL_SOURCE_ALPACA_PACE = "alpaca_pace"
+
+# Served halt transition memory (#571): bounded, tied to each symbol's actual ticker identity.
+SCANNER_HALT_STATE_MAX_SYMBOLS = 256

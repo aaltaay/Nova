@@ -50,10 +50,10 @@ import {
   type ScannerRestSink,
 } from '../scanner/scannerRestApply';
 import {
-  applyHonestPricePatch,
-  normalizePatchRows,
   normalizeScannerRows,
 } from '../scanner/scannerRowShape';
+import { applyScannerPriceRows } from '../scanner/scannerPricePatchApply';
+import { applyScannerHaltRows, type ScannerHaltRow } from '../scanner/scannerHaltPatch';
 import { useScannerEnvelopePoll } from '../scanner/useScannerEnvelopePoll';
 
 type Mode = MarketMode;
@@ -113,64 +113,6 @@ export function useScannerData(opts: {
   const retryAttemptRef = useRef(0);
   const fetchDataRef = useRef<() => Promise<void>>(async () => {});
 
-  const onScannerPricePatch = useCallback(
-    (raw: ScannerPricePatchRow[], ts: number, table?: string | null) => {
-      // QA C5: the patch is applied inside a state updater, outside the
-      // socket's try/catch -- a row without a symbol must never get there.
-      const rows = normalizePatchRows(raw);
-      if (rows.length === 0) return;
-      const apply = (setter: typeof setGappers, ageKey: keyof ScannerScanAges) => {
-        setter(prev => applyHonestPricePatch(prev, rows));
-        setScanAges(prev => ({ ...prev, [ageKey]: Math.max(prev[ageKey], ts) }));
-      };
-      // Table-scoped: never let a live Gainers tick mutate a frozen Gappers row.
-      if (table === 'gappers') apply(setGappers, 'gappers');
-      else if (table === 'gainers') apply(setGainers, 'movers');
-      else if (table === 'losers') apply(setLosers, 'movers');
-      else if (table === 'afterhours') apply(setAfterhours, 'afterhours');
-      else if (table === 'large_cap') apply(setLargeCap, 'largeCap');
-      else {
-        // Legacy patches without table — apply to all (shadow / older backends).
-        setGappers(prev => applyHonestPricePatch(prev, rows));
-        setGainers(prev => applyHonestPricePatch(prev, rows));
-        setLosers(prev => applyHonestPricePatch(prev, rows));
-        setAfterhours(prev => applyHonestPricePatch(prev, rows));
-        setScanAges(prev => ({
-          ...prev,
-          gappers: Math.max(prev.gappers, ts),
-          movers: Math.max(prev.movers, ts),
-          afterhours: Math.max(prev.afterhours, ts),
-        }));
-      }
-    },
-    [],
-  );
-
-  const onRosterReplace = useCallback((table: string, rows: unknown[], meta: ScannerTableMeta) => {
-    setTableMeta(prev => ({ ...prev, [table]: meta }));
-    if (table === 'gappers') applyRosterTable(setGappers, setLastGood, table, rows);
-    else if (table === 'gainers') applyRosterTable(setGainers, setLastGood, table, rows);
-    else if (table === 'losers') applyRosterTable(setLosers, setLastGood, table, rows);
-    else if (table === 'afterhours') applyRosterTable(setAfterhours, setLastGood, table, rows);
-    else if (table === 'large_cap') applyRosterTable(setLargeCap, setLastGood, table, rows);
-    const ts = meta.roster_ts || Date.now() / 1000;
-    const ageKey = SCANNER_ENVELOPE_TABLE_AGE[table];
-    if (ageKey) setScanAges(prev => ({ ...prev, [ageKey]: ts }));
-  }, []);
-
-  const onTableState = useCallback((table: string, meta: ScannerTableMeta) => {
-    setTableMeta(prev => ({ ...prev, [table]: meta }));
-  }, []);
-
-  const { pricesStale, flashSymbols, lastPriceTs, rowQuoteTs, subscriptionError } =
-    useScannerPriceStream({
-      enabled: discoveryProvider === 'ibkr' && historyDate === null,
-      activeTabs,
-      onPatch: onScannerPricePatch,
-      onRosterReplace,
-      onTableState,
-    });
-
   /** mode / health / data feed / feed_error, from any scanner envelope. */
   const applyEnvelope = useCallback((data: Record<string, unknown>) => {
     const nextHealth = data.health;
@@ -197,6 +139,45 @@ export function useScannerData(opts: {
     setTableMeta,
     setScanAges,
   };
+
+  const onScannerPricePatch = useCallback(
+    (raw: ScannerPricePatchRow[], ts: number, table?: string | null) => {
+      applyScannerPriceRows(sinkRef.current, raw, ts, table);
+    },
+    [],
+  );
+
+  const onRosterReplace = useCallback((table: string, rows: unknown[], meta: ScannerTableMeta) => {
+    setTableMeta(prev => ({ ...prev, [table]: meta }));
+    if (table === 'gappers') applyRosterTable(setGappers, setLastGood, table, rows);
+    else if (table === 'gainers') applyRosterTable(setGainers, setLastGood, table, rows);
+    else if (table === 'losers') applyRosterTable(setLosers, setLastGood, table, rows);
+    else if (table === 'afterhours') applyRosterTable(setAfterhours, setLastGood, table, rows);
+    else if (table === 'large_cap') applyRosterTable(setLargeCap, setLastGood, table, rows);
+    const ts = meta.roster_ts || Date.now() / 1000;
+    const ageKey = SCANNER_ENVELOPE_TABLE_AGE[table];
+    if (ageKey) setScanAges(prev => ({ ...prev, [ageKey]: ts }));
+  }, []);
+
+  const onTableState = useCallback((table: string, meta: ScannerTableMeta) => {
+    setTableMeta(prev => ({ ...prev, [table]: meta }));
+  }, []);
+
+  const onHaltPatch = useCallback((rows: ScannerHaltRow[]) => {
+    // A queued live frame must never overwrite historical halt evidence.
+    if (historyDateRef.current !== null) return;
+    applyScannerHaltRows(sinkRef.current, rows);
+  }, []);
+
+  const { pricesStale, flashSymbols, lastPriceTs, rowQuoteTs, subscriptionError } =
+    useScannerPriceStream({
+      enabled: discoveryProvider === 'ibkr' && historyDate === null,
+      activeTabs,
+      onPatch: onScannerPricePatch,
+      onRosterReplace,
+      onTableState,
+      onHaltPatch,
+    });
 
   const scheduleRetry = useCallback(() => {
     // A polling desk re-fetches on its own cadence; only the mount-once desk needs this.

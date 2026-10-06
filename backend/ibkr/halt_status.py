@@ -19,10 +19,13 @@ from __future__ import annotations
 
 import logging
 import time
+import threading
+from collections import OrderedDict
 from collections.abc import Iterable
 from typing import Any
 
 from constants import HALT_LATE_START_SKEW_SEC
+from constants_scanner import SCANNER_HALT_STATE_MAX_SYMBOLS
 from ibkr.halt_eta import (
     HALT_START_SOURCE,
     HALT_START_SOURCE_NASDAQ,
@@ -41,6 +44,10 @@ _state: dict[str, dict[str, Any]] = {}
 _seen_clear: set[str] = set()
 # RSS-open chips already logged this process (avoid snapshot spam).
 _rss_announced: set[str] = set()
+# Pinned ib_async Ticker has slots and cannot hold our metadata. Keep bounded
+# identities here; a replacement line is a first reading, not the old line's code.
+_scanner_codes: OrderedDict[str, tuple[Any, int | None]] = OrderedDict()
+_scanner_lock = threading.Lock()
 
 
 def reset() -> None:
@@ -48,6 +55,20 @@ def reset() -> None:
     _state.clear()
     _seen_clear.clear()
     _rss_announced.clear()
+    with _scanner_lock:
+        _scanner_codes.clear()
+
+
+def scanner_code_changed(symbol: str, ticker: Any) -> bool:
+    code = parse_halt_code(getattr(ticker, "halted", None))
+    with _scanner_lock:
+        prior = _scanner_codes.get(symbol)
+        changed = prior is None or prior[0] is not ticker or prior[1] != code
+        _scanner_codes[symbol] = (ticker, code)
+        _scanner_codes.move_to_end(symbol)
+        if len(_scanner_codes) > SCANNER_HALT_STATE_MAX_SYMBOLS:
+            _scanner_codes.popitem(last=False)
+    return changed
 
 
 def _exchange_overlay(symbol: str) -> dict[str, Any]:
@@ -278,6 +299,9 @@ async def broadcast_live_halts() -> None:
     except Exception:
         logger.debug("IBKR halt: broadcast import failed", exc_info=True)
         return
+    from scanner_push import broadcast_halt_patch
+
+    await broadcast_halt_patch()
     now = time.time()
     for sym in watch_symbols():
         snap = snapshot(sym, now=now)

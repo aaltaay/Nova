@@ -206,11 +206,12 @@ async def poll_loop() -> None:
     """Background RSS poll -- at most once per NASDAQ_TRADE_HALT_RSS_POLL_SEC."""
     while True:
         try:
-            result = await asyncio.to_thread(refresh)
-            if not result.get("skipped"):
-                from ibkr import halt_status
+            await asyncio.to_thread(refresh)
+            from ibkr import halt_status
 
-                await halt_status.broadcast_live_halts()
+            # Restate scanner evidence even after a skipped poll: freshness can
+            # expire, and a failed/empty refresh must clear the previous overlay.
+            await halt_status.broadcast_live_halts()
         except asyncio.CancelledError:
             raise
         except Exception:

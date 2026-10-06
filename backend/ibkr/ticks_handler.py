@@ -23,6 +23,9 @@ def _observe_halt(symbol: str, ticker: Any) -> None:
     from ibkr import halt_status
 
     _snap, changed = halt_status.observe_from_ticker(symbol, ticker)
+    # First code 0 also changes a served unknown into known trading.
+    if halt_status.scanner_code_changed(symbol, ticker):
+        _broadcast_scanner_halt(symbol)
     if not changed:
         return
     try:
@@ -44,6 +47,24 @@ def _broadcast_halt(symbol: str, halt: dict | None) -> None:
             loop.create_task(broadcast_halt_update(symbol, halt))
         except RuntimeError:
             logger.debug("IBKR halt: no running loop to broadcast %s", symbol)
+
+    from ibkr.loop_supervisor import is_ib_loop, publish_to_http
+
+    if is_ib_loop():
+        publish_to_http(_send)
+    else:
+        _send()
+
+
+def _broadcast_scanner_halt(symbol: str) -> None:
+    """Cross the IB/HTTP seam before reading rosters or touching scanner sockets."""
+    def _send() -> None:
+        from scanner_push import broadcast_halt_patch
+
+        try:
+            asyncio.get_running_loop().create_task(broadcast_halt_patch([symbol]))
+        except RuntimeError:
+            logger.debug("scanner halt: no running loop to broadcast %s", symbol)
 
     from ibkr.loop_supervisor import is_ib_loop, publish_to_http
 
@@ -238,11 +259,13 @@ def on_ticker_update(
     find_cache_row: FindCacheRowFn | None,
     broadcast: BroadcastFn | None,
     owner_detail: str,
+    seed: bool = False,
 ) -> None:
     """Apply one IBKR ticker event: liveness, day-high, quote listeners, broadcast."""
     global _last_event_ts
-    _last_event_ts = time.time()
-    feed_pulse.note(_last_event_ts)
+    arrival_ts = time.time()
+    _last_event_ts = arrival_ts
+    feed_pulse.note(arrival_ts)
     sub = subs.get(symbol)
     if sub is not None:
         # Liveness for is_fresh() -- even when price is unchanged.
@@ -304,6 +327,14 @@ def on_ticker_update(
     # Also notify when day High arrives/raises so HOD can seed without a new last.
     # Volume-only RTVolume prints keep l1_minute size honest on a flat last.
     if price_changed or day_high_changed or volume_increased:
+        from ibkr import l1_timestamp
+        from perf import l1_timestamps
+
+        l1_timestamps.note_price(
+            symbol, float(price), ts_unix, arrival_ts,
+            metadata=l1_timestamp.provenance(ticker, arrival_ts, seed=seed),
+            seed=seed, quote_quality=quote_quality,
+        )
         notify_quote_listeners(
             quote_listeners,
             symbol,

@@ -30,6 +30,9 @@ from zoneinfo import ZoneInfo
 
 from constants_perf import (
     PERF_DAY_FILE_MAX_MB,
+    PERF_L1_TIMESTAMP_DAY_MAX_MB,
+    PERF_L1_TIMESTAMP_DIR,
+    PERF_L1_TIMESTAMP_SCHEMA_VERSION,
     PERF_DIR_NAME,
     PERF_RETENTION_DAYS,
     PERF_STALL_FILES_PER_HOUR,
@@ -62,8 +65,11 @@ class PerfStore:
         self._stop = threading.Event()
         self._day: str | None = None
         self._capped_days: set[str] = set()
+        self._timestamp_capped_days: set[str] = set()
+        self.timestamp_files_dropped = 0
         self._stall_hour: int | None = None
-        self._stall_files_this_hour = 0
+        self._stall_kept: dict[int, dict[str, float]] = {}
+        self._stall_lock = threading.Lock()
         self.write_dropped = 0
         self.stall_files_skipped = 0
         self.last_error: str | None = None
@@ -72,26 +78,63 @@ class PerfStore:
     def put(self, line: dict[str, Any]) -> None:
         self._enqueue("line", line)
 
-    def put_stall(self, report: dict[str, Any]) -> bool:
-        """Queue a full stall report; False when this hour's file budget is spent."""
-        hour = int(time.time() // 3600)
-        if hour != self._stall_hour:
-            self._stall_hour, self._stall_files_this_hour = hour, 0
-        if self._stall_files_this_hour >= PERF_STALL_FILES_PER_HOUR:
-            self.stall_files_skipped += 1
-            return False
-        self._stall_files_this_hour += 1
-        self._enqueue("stall", report)
-        return True
+    def put_timestamp(self, row: dict[str, Any]) -> bool:
+        """Independent capped evidence file; the callback only enqueues."""
+        if row.get("schema_version") != PERF_L1_TIMESTAMP_SCHEMA_VERSION:
+            raise ValueError("Unsupported L1 timestamp evidence schema")
+        return self._enqueue("timestamp", row)
+
+    def put_stall(self, report: dict[str, Any], *, evicted_ids: list[str] | None = None) -> bool:
+        """Queue a full report when it belongs to its start hour's longest stalls."""
+        hour = int(float(report.get("started_ts", time.time())) // 3600)
+        duration = float(report.get("duration_ms") or 0.0)
+        stall_id = str(report["id"])
+        with self._stall_lock:
+            self._stall_hour = max(hour, self._stall_hour or hour)
+            self._stall_kept = {h: kept for h, kept in self._stall_kept.items()
+                                if h >= self._stall_hour - 1}
+            if hour < self._stall_hour - 1 or PERF_STALL_FILES_PER_HOUR <= 0:
+                self.stall_files_skipped += 1
+                return False
+            kept = self._stall_kept.setdefault(hour, {})
+            evicted = None
+            if len(kept) >= PERF_STALL_FILES_PER_HOUR and stall_id not in kept:
+                shortest = min(kept, key=kept.get)
+                if duration <= kept[shortest]:
+                    self.stall_files_skipped += 1
+                    return False
+                evicted = shortest
+            if not self._enqueue("stall", {"report": report, "evicted": evicted}):
+                return False
+            if evicted is not None:
+                kept.pop(evicted)
+                if evicted_ids is not None:
+                    evicted_ids.append(evicted)
+                self.stall_files_skipped += 1
+            kept[stall_id] = duration
+            return True
+
+    def retained_stall(self, stall_id: str, started_ts: float) -> bool | None:
+        """Retained in a tracked hour, else unknown once its budget aged out.
+
+        Older files remain on disk under ordinary retention; their live summary
+        keeps its last known state instead of falsely reporting an eviction.
+        """
+        hour = int(started_ts // 3600)
+        with self._stall_lock:
+            kept = self._stall_kept.get(hour)
+            return stall_id in kept if kept is not None else None
 
     def stall_path(self, stall_id: str) -> Path:
         return self.stalls_dir / f"{stall_id}.json"
 
-    def _enqueue(self, kind: str, obj: dict[str, Any]) -> None:
+    def _enqueue(self, kind: str, obj: dict[str, Any]) -> bool:
         try:
             self._queue.put_nowait((kind, obj))
+            return True
         except queue.Full:
             self.write_dropped += 1
+            return False
 
     # -- writer thread -----------------------------------------------------
     def start(self) -> None:
@@ -134,15 +177,27 @@ class PerfStore:
 
     def _write(self, items: list[tuple[str, dict[str, Any]]]) -> None:
         by_day: dict[str, list[str]] = {}
+        timestamps: dict[str, list[dict]] = {}
         for kind, obj in items:
             try:
                 if kind == "stall":
-                    self._write_stall(obj)
+                    self._write_stall(obj["report"])
+                    if obj["evicted"] is not None:
+                        self.stall_path(obj["evicted"]).unlink(missing_ok=True)
+                    continue
+                if kind == "timestamp":
+                    day = et_date(float(obj["arrival_ts"]))
+                    timestamps.setdefault(day, []).append(obj)
                     continue
                 day = et_date(float(obj.get("ts") or time.time()))
                 if obj.get("kind") in ("sample", "client") and day in self._capped_days:
                     continue
                 by_day.setdefault(day, []).append(json.dumps(obj, separators=(",", ":")))
+            except (OSError, TypeError, ValueError) as exc:
+                self._error(f"{type(exc).__name__}: {exc}")
+        for day, rows in timestamps.items():
+            try:
+                self._write_timestamps(day, rows)
             except (OSError, TypeError, ValueError) as exc:
                 self._error(f"{type(exc).__name__}: {exc}")
         for day, lines in by_day.items():
@@ -159,6 +214,33 @@ class PerfStore:
                     logger.warning("perf: %s passed %d MB; samples stop for the day", path, PERF_DAY_FILE_MAX_MB)
             except OSError as exc:
                 self._error(f"{type(exc).__name__}: {exc}")
+
+    def _write_timestamps(self, day: str, rows: list[dict[str, Any]]) -> None:
+        """Batch one day's evidence; never open a file once per L1 event."""
+        from perf import counters
+
+        directory = self.root / PERF_L1_TIMESTAMP_DIR
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{day}.jsonl"
+        used = path.stat().st_size if path.exists() else 0
+        room = max(0, PERF_L1_TIMESTAMP_DAY_MAX_MB * 1_000_000 - used)
+        lines = []
+        for row in rows:
+            line = json.dumps(row, separators=(",", ":")) + "\n"
+            size = len(line.encode("utf-8"))
+            if day in self._timestamp_capped_days or size > room:
+                self._timestamp_capped_days.add(day)
+                self.timestamp_files_dropped += 1
+                counters.incr("l1_timestamp.file_dropped")
+                continue
+            room -= size
+            lines.append(line)
+        if lines:
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write("".join(lines))
+        if day != self._day:
+            self._day = day
+            self.sweep()
 
     def _write_stall(self, report: dict[str, Any]) -> None:
         self.stalls_dir.mkdir(parents=True, exist_ok=True)
@@ -183,6 +265,11 @@ class PerfStore:
                 if path.stem < cutoff_day:
                     path.unlink(missing_ok=True)
                     removed += 1
+            for path in (self.root / PERF_L1_TIMESTAMP_DIR).glob("*.jsonl"):
+                if path.stem < cutoff_day:
+                    path.unlink(missing_ok=True)
+                    removed += 1
+            self._timestamp_capped_days = {d for d in self._timestamp_capped_days if d >= cutoff_day}
             for path in list(self.stalls_dir.glob("*.json")):
                 if path.stat().st_mtime < cutoff_ts:
                     path.unlink(missing_ok=True)

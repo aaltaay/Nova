@@ -11,7 +11,7 @@ import os
 import time
 from typing import Any, Callable
 
-from constants_perf import PERF_ENV_SWITCH, PERF_HEAP_EVERY_SEC, PERF_HEAP_FIRST_AFTER_SEC
+from constants_perf import PERF_ENV_SWITCH, PERF_HEAP_EVERY_SEC, PERF_HEAP_FIRST_AFTER_SEC, PERF_L1_TIMESTAMP_FLUSH_SEC
 from perf import freeze_watch, gc_watch, heap, loop_cpu, recorder, stall_watch
 from perf.store import PerfStore, default_dir
 
@@ -43,6 +43,7 @@ def start(spawn_ib: Callable[[str, Callable[[], Any]], None] | None = None) -> l
         asyncio.create_task(loop_cpu.sample_loop("http"), name="perf.http_cpu"),
         asyncio.create_task(recorder.run(), name="perf.recorder"),
         asyncio.create_task(_heap_loop(), name="perf.heap"),
+        asyncio.create_task(_timestamp_loop(_store), name="perf.l1_timestamps"),
     ]
     if spawn_ib is not None:
         from ibkr.loop_supervisor import get_loop
@@ -58,6 +59,18 @@ def start(spawn_ib: Callable[[str, Callable[[], Any]], None] | None = None) -> l
         logger.exception("perf: the freeze watch did not start")
     logger.info("perf recorder: on (%s)", _store.root)
     return tasks
+
+
+async def _timestamp_loop(store: PerfStore) -> None:
+    """Correlate and serialize diagnostics on a worker, never either market loop."""
+    from perf import l1_timestamps
+
+    while True:
+        await asyncio.sleep(PERF_L1_TIMESTAMP_FLUSH_SEC)
+        try:
+            await asyncio.to_thread(l1_timestamps.flush, store.put_timestamp)
+        except Exception:
+            logger.exception("perf: L1 timestamp evidence drain failed")
 
 
 async def _heap_loop() -> None:
