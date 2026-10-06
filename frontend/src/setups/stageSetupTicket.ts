@@ -7,7 +7,7 @@
  * gets Settings > Trade's default quantity -- only a caller not yet moved to
  * risk sizing (the Bots page inbox) does. */
 import { SETUPS_STAGE_TICKET_DELAY_MS } from '../constants';
-import { defaultTicketQty, getConfirmedDeskVenueSnapshot } from '../ibkr';
+import { defaultTicketQty, getConfirmedDeskVenueSnapshot, isConfirmedDeskVenueSnapshotCurrent } from '../ibkr';
 import { requestOrderTicketPrefill } from '../ibkr/orderTicketPrefill';
 
 export function stageSetupTicket(
@@ -16,6 +16,8 @@ export function stageSetupTicket(
   openTrader: (symbol: string) => void,
   quantity?: number | null,
 ): boolean {
+  const asked = getConfirmedDeskVenueSnapshot();
+  if (!asked.venue || !asked.generation || !isConfirmedDeskVenueSnapshotCurrent(asked)) return false;
   if (!symbol || !limitPrice) return false;
   if (quantity !== undefined && (quantity === null || !(quantity >= 1))) return false;
   openTrader(symbol);
@@ -23,11 +25,13 @@ export function stageSetupTicket(
     symbol,
     side: 'BUY' as const,
     orderType: 'LMT' as const,
-    quantityValue: quantity === undefined ? defaultTicketQty(getConfirmedDeskVenueSnapshot().venue) : String(Math.floor(quantity)),
+    quantityValue: quantity === undefined ? defaultTicketQty(asked.venue) : String(Math.floor(quantity)),
     limitPrice,
   };
   // The Trader tab's ticket may still be mounting: stage now and once more after it has.
   requestOrderTicketPrefill(req);
-  window.setTimeout(() => requestOrderTicketPrefill(req), SETUPS_STAGE_TICKET_DELAY_MS);
+  window.setTimeout(() => {
+    if (isConfirmedDeskVenueSnapshotCurrent(asked)) requestOrderTicketPrefill(req);
+  }, SETUPS_STAGE_TICKET_DELAY_MS);
   return true;
 }
