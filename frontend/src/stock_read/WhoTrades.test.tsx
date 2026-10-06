@@ -136,8 +136,8 @@ describe('who trades APUS, above Level 2', () => {
       method: 'PUT', body: { buy: 'nova', sell: 'you' }, key: 'desk-key',
     })]);
     expect(screen.getByTestId('stock-read-action-auto-off').textContent).toBe('Auto-entry on · turn off');
-    expect(screen.getByTestId('stock-read-plan-note').textContent).toBe('Nova buys APUS at a go trigger of a setup at '
-      + "Strategy, by the bot's rules, while the bot is active. Every sell is yours.");
+    expect(screen.getByTestId('stock-read-plan-note').textContent).toBe('The bot buys APUS at a go trigger of a setup at '
+      + "Strategy, by the bot's rules, while the bot is on. Every sell is yours.");
   });
 
   it('shows every note, toned, the day\'s shared count and the last event -- none hidden behind the first', async () => {
@@ -180,7 +180,7 @@ describe('who trades APUS, above Level 2', () => {
       bot: { on_list: true, playing: true, reason: null, setup_at_strategy: true, active: true } });
     renderTab();
     const take = await screen.findByTestId('stock-read-action-take-over');
-    expect(take.getAttribute('data-tip')).toMatch(/Buy stays on You: Nova buys no more APUS/);
+    expect(take.getAttribute('data-tip')).toMatch(/Buy stays on You: the bot buys no more APUS/);
     fireEvent.click(take);
     await waitFor(() => expect(screen.getByTestId('who-trades-mode').textContent).toContain('Signal only'));
     const post = writes().find(c => c.url.endsWith('/take-over'));
@@ -195,7 +195,7 @@ describe('who trades APUS, above Level 2', () => {
     await waitFor(() => expect(screen.getByTestId('who-trades-buy-nova').getAttribute('data-why')).toMatch(/never buys by itself/));
     const buyNova = screen.getByTestId('who-trades-buy-nova');
     expect(buyNova.hasAttribute('disabled')).toBe(true);
-    expect(buyNova.textContent).toBe('🔒 Nova');
+    expect(buyNova.textContent).toBe('🔒 Bot');
     expect(screen.getByTestId('who-trades-sell-nova').getAttribute('data-why')).toMatch(/#604/);
     expect(screen.getByTestId('who-trades-buy-you').hasAttribute('disabled')).toBe(false);
   });
@@ -232,9 +232,9 @@ describe('on the 1-minute chart', () => {
     const menu = screen.getByTestId('who-trades-menu');
     expect(within(menu).getAllByRole('menuitemradio').map(b => b.textContent)).toEqual([
       'Signal only ✓you buy · you sell',
-      'Approveyou approve · Nova sells',
-      'Auto-entryNova buys · you sell',
-      'BotNova buys · Nova sells',
+      'Approveyou approve · bot sells',
+      'Auto-entrybot buys · you sell',
+      'Botbot buys · bot sells',
     ]);
     fireEvent.click(screen.getByTestId('who-trades-menu-approve'));
     await waitFor(() => expect(screen.getByTestId('who-trades-mode').textContent).toContain('Approve'));

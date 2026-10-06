@@ -35,7 +35,7 @@ describe('bot playbook copy (ADR 027)', () => {
   });
 
   it('never says "allowlist" where the operator reads it: the bot trades a stock, or it does not', () => {
-    expect(botTradeAddLabel('GRML')).toBe('Let the bot trade GRML (Nova buys and sells)');
+    expect(botTradeAddLabel('GRML')).toBe('Let the bot trade GRML (bot buys and sells)');
     expect(botTradeRemoveLabel('GRML')).toBe('Stop the bot trading GRML');
   });
 });

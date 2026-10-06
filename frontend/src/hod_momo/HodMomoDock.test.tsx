@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HOD_MOMO_ALERT_SOUND_KEY } from './hodMomoAlertSoundConstants';
@@ -13,6 +13,10 @@ import type { HodMomoContextValue } from './HodMomoContext';
 import { HodMomoContextProvider } from './HodMomoContext';
 import { defaultHodMomentumVisibleStrategies } from './scannerPartition';
 import type { AlertObject } from './types';
+import { fakeHotList } from '../hot_list/hotListFake';
+import { resetWatchListForTests } from '../watch_list/watchListStore';
+
+vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
 
 const workspaceMock = {
   selectedSymbol: 'ABC' as string | null,
@@ -153,6 +157,19 @@ describe('HodMomoDock (strip)', () => {
     expect(screen.getByTestId('hod-momo-dock-body').style.height).toBe(`${4 * HOD_MOMO_STRIP_ROW_PX}px`);
     expect(screen.getByTestId('hod-momo-strip-since').textContent).toMatch(/^2 alerts since \d{2}:\d{2}$/);
     expect(screen.getByTestId('hod-momo-strip-integrity').textContent).toContain('integrity ok');
+  });
+
+  it('puts the hot list mark beside a listed ticker: ★ your star, ☆ an auto star', () => {
+    fakeHotList.reset();
+    resetWatchListForTests();
+    act(() => fakeHotList.set([{ symbol: 'GRML', how: 'auto' }, 'BRNQ']));
+    renderStrip(makeValue());
+    const [grml, brnq] = screen.getAllByTestId('hod-momo-strip-row');
+    expect(within(grml).getByTestId('watch-mark').dataset.how).toBe('auto');
+    expect(within(brnq).getByTestId('watch-mark').dataset.how).toBe('star');
+    expect(grml.getAttribute('data-watched')).toBe('1');
+    act(() => fakeHotList.set([]));
+    expect(screen.queryAllByTestId('watch-mark')).toHaveLength(0);
   });
 
   it('shows Running Up alerts on that segment', () => {

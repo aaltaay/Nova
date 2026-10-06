@@ -1,8 +1,9 @@
 /**
- * Tickers today (ADR 044): today's hot list and the squares, by ticker. Each listed ticker has a "now" row
- * -- would Nova buy it if its setup triggered this minute -- with its Buy / Sell switch, and under it every
- * trigger of the day on it, judged by the same checks; red is what stopped it. Tickers that triggered but
- * are not listed fold at the end. Under the table, what each gate did to the day's triggers.
+ * Tickers today (ADR 044, amended 2026-10-06): today's hot list (★ yours, ☆ auto), the stocks set to bot buy,
+ * and the squares, by ticker. Each has a "now" row -- would the bot buy it if its setup triggered this minute --
+ * with its Buy / Sell switch, and under it every trigger of the day on it, judged by the same checks; red is
+ * what stopped it. Tickers that only triggered fold at the end. Under the table, what each gate did to the
+ * day's triggers. The star is watching only: it never sets Buy / Sell.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { HOT_LIST_AUTO_CHOICES, hotListActions, listedOn, useHotList } from '../hot_list';
@@ -66,7 +67,7 @@ function SideSeg({ label, value, onPick, lock }: { label: string; value: Side; o
       <span className="bots-mini-seg" role="radiogroup" aria-label={label}>
         {(['you', 'nova'] as const).map(s => (
           <button key={s} type="button" role="radio" aria-checked={value === s} disabled={lock !== null}
-            {...(lock ? whyProps(true, lock) : {})} onClick={() => { if (value !== s) onPick(s); }}>{s === 'you' ? 'You' : 'Nova'}</button>
+            {...(lock ? whyProps(true, lock) : {})} onClick={() => { if (value !== s) onPick(s); }}>{s === 'you' ? 'You' : 'Bot'}</button>
         ))}
       </span>
     </span>
@@ -99,7 +100,8 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
   const [draft, setDraft] = useState('');
   const [listError, setListError] = useState<string | null>(null);
   const order = (view?.gates ?? []).map(g => g.id);
-  const { listed, unlisted } = orderTickers(view?.tickers ?? [], modes);
+  const { today: listed, others: unlisted } = orderTickers(view?.tickers ?? [], modes);
+  const starred = hot.view?.entries.length ?? 0;
   const listLock = hot.busy ? 'Saving the hot list…' : hot.view ? null : (hot.error ?? 'Reading today\'s hot list…');
 
   const setSides = useCallback(async (symbol: string, buy: Side, sell: Side) => {
@@ -107,7 +109,6 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
       await putStockMode(symbol, buy, sell);
       setRowError(null);
       onModesChanged();
-      void hotListActions.refresh();
     } catch (err) {
       setRowError({ symbol, text: err instanceof Error ? err.message : String(err) });
     }
@@ -125,17 +126,20 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
     return next;
   });
 
-  const nowRow = (t: TickerRow, isListed: boolean) => {
+  const nowRow = (t: TickerRow, isToday: boolean) => {
     const [buy, sell] = sidesOf(t.symbol, modes);
     const reasons = t.now ? splitReasons(t.now.cells, order) : { own: [], shared: [] };
     const entry = hot.view?.entries.find(e => e.symbol === t.symbol);
+    const isListed = listedOn(hot.view, t.symbol) === true;
     return (
-      <tr key={`${t.symbol}-now`} className={isListed ? 'bots-tk__now' : 'bots-tk__unlisted'} data-testid={`bots-tk-${t.symbol}`}>
+      <tr key={`${t.symbol}-now`} className={isToday ? 'bots-tk__now' : 'bots-tk__unlisted'} data-testid={`bots-tk-${t.symbol}`}>
         <td className="bots-nowrap">
           <button type="button" className={`bots-tk__star${isListed ? ' is-on' : ''}`} disabled={listLock !== null}
-            {...(listLock ? whyProps(true, listLock) : tipProps(isListed ? 'On today\'s hot list. Click to take it off.' : 'Add it to today\'s hot list.'))}
+            {...(listLock ? whyProps(true, listLock) : tipProps(isListed
+              ? `On today's hot list (${entry?.how === 'auto' ? 'an auto ☆' : 'your ★'}): the scanners follow it all day. Click to take it off. Who trades it stays as it is.`
+              : 'Star it onto today\'s hot list: the scanners follow it all day. A star never lets the bot trade it: that is Buy / Sell.'))}
             onClick={() => void (isListed ? hotListActions.unstar(t.symbol) : hotListActions.star(t.symbol)).then(e => setRowError(e ? { symbol: t.symbol, text: e } : null))}>
-            {isListed ? '★' : '☆'}
+            {isListed && entry?.how !== 'auto' ? '★' : '☆'}
           </button>
           <button type="button" className="bots-linkbtn bots-tk__sym" onClick={() => onOpenSymbol(t.symbol)}>{t.symbol}</button>
           {entry ? <span className={`bots-tag bots-tag--${entry.how === 'auto' ? 'auto' : 'pin'}`}>{entry.how === 'auto' ? `auto ${etTime(entry.at)}` : `★ ${etTime(entry.at)}`}</span> : null}
@@ -147,20 +151,16 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
           ) : null}
         </td>
         <td className="bots-nowrap">
-          {isListed ? (
-            <>
-              <SideSeg label="Buy" value={buy} lock={null} onPick={s => void setSides(t.symbol, s, sell)} />
-              <SideSeg label="Sell" value={sell} lock={null} onPick={s => void setSides(t.symbol, buy, s)} />
-              <span className={`bots-tk__who bots-tk__who--${buy}-${sell}`}>{WHO_WORDS[`${buy}/${sell}`]}</span>
-            </>
-          ) : <span className="bots-muted">not on the list</span>}
+          <SideSeg label="Buy" value={buy} lock={null} onPick={s => void setSides(t.symbol, s, sell)} />
+          <SideSeg label="Sell" value={sell} lock={null} onPick={s => void setSides(t.symbol, buy, s)} />
+          <span className={`bots-tk__who bots-tk__who--${buy}-${sell}`}>{WHO_WORDS[`${buy}/${sell}`]}</span>
         </td>
-        <td>{isListed ? <span className="bots-tk__nowtag">now</span> : (
+        <td>{isToday ? <span className="bots-tk__nowtag">now</span> : (
           <button type="button" className="bots-linkbtn" onClick={() => toggle(t.symbol)} aria-expanded={open.has(t.symbol)}>
             {open.has(t.symbol) ? '▾' : '▸'} {t.triggers.length}
           </button>
         )}</td>
-        <td className="bots-muted bots-nowrap">{isListed ? boardWords(t.symbol, boardRows) : '–'}</td>
+        <td className="bots-muted bots-nowrap">{isToday ? boardWords(t.symbol, boardRows) : '–'}</td>
         <td className="bots-muted">–</td><td className="bots-muted">–</td>
         <td className="bots-muted bots-nowrap">{daySummary(t)}</td>
         {t.now ? <Squares cells={t.now.cells} order={order} /> : order.map(id => <td key={id} className="bots-tk__g" />)}
@@ -195,8 +195,8 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
   return (
     <section className="bots-card bots-tk" data-testid="bots-tickers">
       <header className="bots-card__head">
-        <h3>Tickers today <span className="bots-source">{listed.length} on the hot list{unlisted.length ? ` · ${unlisted.length} more triggered` : ''}</span></h3>
-        <span className="bots-card__sub">"now" says whether Nova would buy the ticker if its setup triggered this minute; the rows under it are its triggers today. Same squares; red is what stops it.</span>
+        <h3>Tickers today <span className="bots-source">{starred} on the hot list{listed.length > starred ? ` · ${listed.length - starred} more set to bot buy` : ''}{unlisted.length ? ` · ${unlisted.length} more triggered` : ''}</span></h3>
+        <span className="bots-card__sub">"now" says whether the bot would buy the ticker if its setup triggered this minute; the rows under it are its triggers today. Same squares; red is what stops it. The ★ is watching only: Buy / Sell decides who trades.</span>
       </header>
       <div className="bots-tk__controls">
         <span className="bots-tag bots-tag--auto">Auto</span><span>top</span>
@@ -212,11 +212,6 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
         {hot.view?.auto.error ? <span className="bots-tag bots-tag--warn" data-testid="bots-tk-auto-error"
           {...tipProps(hot.view.auto.error, 'The auto feed')}>auto feed: not reading the board</span> : null}
         <span className="bots-tk__gap" />
-        <span className="bots-muted">New names start as</span>
-        <SideSeg label="Buy" value={hot.view?.default.buy ?? 'you'} lock={listLock}
-          onPick={s => void hotListActions.setDefault(s, hot.view?.default.sell ?? 'you').then(setListError)} />
-        <SideSeg label="Sell" value={hot.view?.default.sell ?? 'you'} lock={listLock}
-          onPick={s => void hotListActions.setDefault(hot.view?.default.buy ?? 'you', s).then(setListError)} />
         <input className="bots-tk__input" value={draft} placeholder="★ Add a stock" aria-label="Star a stock"
           onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void star(); }} />
         <button type="button" className="bots-btn bots-btn--primary" disabled={listLock !== null}
@@ -239,15 +234,15 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
             <th>What stops it</th>
           </tr></thead>
           <tbody>
-            <tr className="bots-tk__group"><td colSpan={8 + order.length}>On your hot list · {listed.length} tickers</td></tr>
-            {listed.length ? listed.flatMap(t => [nowRow(t, listedOn(hot.view, t.symbol) !== false), ...triggerRows(t)])
-              : <tr><td colSpan={8 + order.length} className="bots-muted">Empty. Star a stock, or let the top of the Gainers board fill it from {hot.view?.auto.start ?? '07:00'}.</td></tr>}
+            <tr className="bots-tk__group"><td colSpan={8 + order.length}>On your hot list or set to bot buy · {listed.length} tickers</td></tr>
+            {listed.length ? listed.flatMap(t => [nowRow(t, true), ...triggerRows(t)])
+              : <tr><td colSpan={8 + order.length} className="bots-muted">Empty. Star a stock, set one to bot buy, or let the top of the Gainers board fill the hot list from {hot.view?.auto.start ?? '07:00'}.</td></tr>}
             {unlisted.length ? (
               <tr className="bots-tk__group">
                 <td colSpan={8 + order.length}>
                   <button type="button" className="bots-linkbtn bots-tk__fold" aria-expanded={showUnlisted}
                     onClick={() => setShowUnlisted(v => !v)} data-testid="bots-tk-unlisted-toggle">
-                    {showUnlisted ? '▾' : '▸'} Triggered today, not on your hot list · {unlisted.length} tickers ·{' '}
+                    {showUnlisted ? '▾' : '▸'} Triggered today, not on your hot list or set to bot buy · {unlisted.length} tickers ·{' '}
                     {unlisted.reduce((n, t) => n + t.triggers.length, 0)} triggers
                   </button>
                 </td>

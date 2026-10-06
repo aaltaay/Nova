@@ -112,6 +112,7 @@ function HotListRow({ symbol, onDone }: { symbol: string; onDone: () => void }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listed = listedOn(hot.view, symbol);
+  const auto = listed === true && hot.view?.entries.find(e => e.symbol === symbol.toUpperCase())?.how === 'auto';
   const why = busy || hot.busy ? 'Saving the hot list…' : listed === null ? (hot.error ?? 'Reading today\'s hot list…') : undefined;
   const press = async () => {
     setBusy(true);
@@ -128,12 +129,12 @@ function HotListRow({ symbol, onDone }: { symbol: string; onDone: () => void }) 
       <MenuRow
         tone="hot"
         testId="bot-symbol-menu-hot"
-        icon={<Star size={ICON_PX} fill={listed ? 'currentColor' : 'none'} />}
+        icon={<Star size={ICON_PX} fill={listed && !auto ? 'currentColor' : 'none'} />}
         label={listed ? `Take ${symbol} off today's hot list` : `★ ${symbol} on today's hot list`}
         hint={listed
-          ? 'Nova stops buying it, and its Buy and Sell go back to You. Its alerts and the chart stay.'
-          : 'The scanners follow it all day; Nova may buy it where its Buy is Nova. The list starts empty at 04:00.'}
-        state={listed ? 'Hot list' : null}
+          ? 'The scanners no longer keep it followed, and its hot list toasts stop. Who trades it (Buy / Sell) stays as it is.'
+          : 'The scanners follow it all day, with a toast when it alerts. Watching only: the bot trades it only where Buy / Sell says Bot. The list starts empty at 04:00.'}
+        state={listed ? (auto ? 'Auto ☆' : 'Hot list') : null}
         disabled={why !== undefined}
         why={why}
         onClick={() => void press()}

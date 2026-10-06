@@ -215,6 +215,8 @@ def test_the_live_taker_follows_activate_the_level_and_the_stocks_mode():
     from bot.arming import issue_arm_token
     from bot.autonomy import apply_patch
     from bot.first_pullback.admit import taker
+    from constants_hot_list import HOT_LIST_FILE
+    from paths import cache_dir
     from stock_mode import store
     from tests.bot_helpers import list_hot, on_practice, set_symbols
 
@@ -226,10 +228,12 @@ def test_the_live_taker_follows_activate_the_level_and_the_stocks_mode():
     assert taker("AAA", "bull_flag") == "bot"
     assert taker("AAA", "first_pullback") is None                    # at Eyes: the bot does not take it
     store.set_switch("BBB", {"buy": "nova", "sell": "you"})
-    assert taker("BBB", "bull_flag") is None                         # ADR 044: not on today's hot list
-    list_hot("BBB")
-    assert taker("BBB", "bull_flag") == "auto_entry"
+    assert taker("BBB", "bull_flag") == "auto_entry"                 # off the hot list: the list is no rule
     assert taker("CCC", "bull_flag") is None
+    (cache_dir() / HOT_LIST_FILE).unlink()                           # today's 04:00 reset not known to have run
+    assert taker("AAA", "bull_flag") is None and taker("BBB", "bull_flag") is None
+    list_hot()
+    assert taker("AAA", "bull_flag") == "bot" and taker("BBB", "bull_flag") == "auto_entry"
 
 
 def test_a_filtered_trigger_reaches_the_listeners_marked(tmp_path):

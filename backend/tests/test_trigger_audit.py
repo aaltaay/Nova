@@ -1,8 +1,10 @@
 """The squares, by ticker (ADR 044): ``GET /api/bot/triggers``.
 
 A day's eyes' journal, the bot's audit stream and the day's hot list are written as Nova writes them;
-every trigger is judged by the ten gates in Nova's order from what was recorded at it, the gates nothing
-recorded are named in ``judged_now``, and each gate's effect is summed in ``impact``.
+every trigger is judged by the nine gates in Nova's order from what was recorded at it, the gates nothing
+recorded are named in ``judged_now``, and each gate's effect is summed in ``impact``. Being on the hot list
+is no gate (ADR 044, amended 2026-10-06): the list orders the rows, and today's bot-buy stocks get a row of
+their own whether or not they are listed.
 """
 from __future__ import annotations
 
@@ -21,8 +23,8 @@ from main import app
 
 ET = ZoneInfo("America/New_York")
 DAY = "2026-09-30"
-GATES = ["bot_on", "strategy_on", "grade", "setups_a_day", "bot_window", "hot_list", "nova_buys", "level2_line",
-         "tape_go", "trades_today"]
+GATES = ["bot_on", "strategy_on", "grade", "setups_a_day", "bot_window", "nova_buys", "level2_line", "tape_go",
+         "trades_today"]
 client = TestClient(app)
 
 
@@ -55,8 +57,7 @@ def write_hot_list(entries: list[dict], day: str = DAY) -> None:
     folder = cache_dir() / HOT_LIST_DAY_DIR
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{day}.json").write_text(json.dumps({
-        "schema_version": 1, "date": day, "auto_n": 5, "default": {"buy": "you", "sell": "you"},
-        "entries": entries, "yesterday": []}), encoding="utf-8")
+        "schema_version": 1, "date": day, "auto_n": 5, "entries": entries, "yesterday": []}), encoding="utf-8")
 
 
 BOT_ON = {"level": 2, "active": True, "venue": "paper"}
@@ -153,7 +154,8 @@ def test_the_shape_the_gates_and_the_sources(day):
     body = get()
     assert body["schema_version"] == 1 and body["date"] == DAY
     assert [g["id"] for g in body["gates"]] == GATES
-    assert [g["label"] for g in body["gates"]][:2] == ["Bot on", "Strategy on"]
+    labels = {g["id"]: g["label"] for g in body["gates"]}
+    assert [labels["bot_on"], labels["strategy_on"], labels["nova_buys"]] == ["Bot on", "Strategy on", "Bot buys"]
     assert body["judged_now"] == ["grade", "setups_a_day", "bot_window"]
     assert body["sources"] == {"journal": {"ok": True, "error": None}, "audit": {"ok": True, "error": None},
                                "hot_list": {"ok": True, "error": None}}
@@ -170,7 +172,7 @@ def test_a_trigger_that_passes_every_gate_takes_the_days_cap(day):
     first = aisp[0]
     assert first["ts"] == at(9, 41) and first["grade"] == "A" and first["tape"] == "go"
     assert first["outcome"] == "target_first" and first["r"] == 1.5 and first["nth"] == 1
-    assert oks(first["cells"]) == [True] * 10 and first["reasons"] == []
+    assert oks(first["cells"]) == [True] * 9 and first["reasons"] == [] and list(first["cells"]) == GATES
     assert first["cells"]["trades_today"]["why"].startswith("it takes Nova's 1st entry of the day")
     assert first["cells"]["nova_buys"]["why"].startswith("Buy was Nova (Bot")
 
@@ -196,7 +198,7 @@ def test_what_was_set_at_the_trigger_is_read_from_the_records(day):
     cells = lghl["cells"]
     assert cells["bot_on"] == {"ok": False, "why": "the bot was off (at Eyes)"}
     assert cells["strategy_on"]["ok"] is False and "at Eyes" in cells["strategy_on"]["why"]   # before 07:20
-    assert cells["hot_list"] == {"ok": False, "why": "listed by the leaders rule at 07:30 ET, after this trigger"}
+    assert "hot_list" not in cells                                       # listed at 07:30, after it: no square
     assert cells["nova_buys"]["ok"] is False and cells["nova_buys"]["why"].startswith("Buy was You (Signal only)")
     assert cells["tape_go"] == {"ok": False, "why": "WAIT: burst of red"}
     assert cells["trades_today"]["ok"] is True                          # the cap still had room at 07:16
@@ -204,7 +206,8 @@ def test_what_was_set_at_the_trigger_is_read_from_the_records(day):
 
 def test_an_unlisted_ticker_and_not_a_trade(day):
     zzzz = by_symbol(get())["ZZZZ"]["triggers"][0]
-    assert zzzz["cells"]["hot_list"] == {"ok": False, "why": "ZZZZ was not on the day's hot list"}
+    assert list(zzzz["cells"]) == GATES                                 # never on the list: no square says so
+    assert not any("hot list" in reason for reason in zzzz["reasons"])
     assert zzzz["cells"]["grade"]["ok"] is False and zzzz["cells"]["grade"]["why"].startswith("grade C")
     assert zzzz["cells"]["tape_go"] == {"ok": False, "why": "VETO: a seller of 60,000 at 10.05"}
 
@@ -214,7 +217,7 @@ def test_the_impact_of_each_gate(day):
     assert list(impact) == GATES
     assert impact["trades_today"] == {"gate": "trades_today", "blocked": 3, "target_first": 1, "stop_first": 1,
                                       "r": 1.0}
-    assert impact["hot_list"]["blocked"] == 2 and impact["hot_list"]["r"] == 1.0      # LGHL +1.0, ZZZZ unscored
+    assert "hot_list" not in impact
     assert impact["level2_line"] == {"gate": "level2_line", "blocked": 1, "target_first": 1, "stop_first": 0,
                                      "r": 2.0}
     assert impact["tape_go"]["blocked"] == 2                            # LGHL wait, ZZZZ veto (not BLIND)
@@ -249,7 +252,7 @@ def test_now_says_whether_nova_would_buy_each_listed_ticker(monkeypatch):
     on_practice()
     apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
     issue_arm_token()
-    set_symbols("AISP")
+    set_symbols("AISP")                                                 # the bot buys AISP; it is not listed
     hold_depth_line("AISP")
     list_hot("LGHL")
     monkeypatch.setattr(trigger_now, "_lanes", lambda sym: [
@@ -257,12 +260,15 @@ def test_now_says_whether_nova_would_buy_each_listed_ticker(monkeypatch):
          "liquidity": None, "phase": None}])
     body = get(None)
     tickers = by_symbol(body)
+    assert list(tickers) == ["LGHL", "AISP"]                             # the listed, then the bot's own
+    assert tickers["AISP"]["listed"] is None
     aisp = tickers["AISP"]["now"]
-    assert aisp["answer"] == "yes" and aisp["reasons"] == []
+    assert aisp["answer"] == "yes" and aisp["reasons"] == [] and list(aisp["cells"]) == GATES
+    assert aisp["cells"]["nova_buys"] == {"ok": True, "why": "Bot buys (Bot)"}
     assert aisp["cells"]["tape_go"]["ok"] is None and aisp["cells"]["level2_line"]["ok"] is True
     lghl = tickers["LGHL"]["now"]
     assert lghl["answer"] == "no"
-    assert lghl["cells"]["nova_buys"] == {"ok": False, "why": "Buy is You on LGHL: set its Buy to Nova (Who trades)"}
+    assert lghl["cells"]["nova_buys"] == {"ok": False, "why": "Buy is You on LGHL: set its Buy to Bot (Who trades)"}
     assert lghl["cells"]["level2_line"]["ok"] is None                    # no line now: not known until the trigger
     from setup_templates.store import get_store
 
@@ -321,32 +327,90 @@ def test_the_nearest_record_tells_a_setting_at_any_moment():
     assert tl.mode_at("paper", "C", 250.0, lambda: "signal") == UNKNOWN    # ... but not what a switch was
 
 
-def test_the_hot_list_square_reads_when_a_stock_was_listed_and_taken_off():
-    """A star or the auto feed opens a span, a removal ends it, the 04:00 rollover ends them all; a trigger
-    is judged by the span it fell in, so a stock taken off before its trigger reads red."""
-    from bot import trigger_cells
-    from bot.trigger_inputs import hot_spans
+def test_a_retried_reset_clears_only_the_bot_lists_it_names():
+    """A reset that failed at 04:00 and ran on a retry at 06:00 cleared the bot lists it names, not every mode:
+    the Bot stock reads You · You after it, and an Auto-entry switch set at 05:00 is still Auto-entry."""
+    def mode(sym, to, h):
+        return {"timestamp": at(h, 0), "venue": "paper", "action": "stock_mode", "outcome": "set",
+                "inputs": {"symbol": sym, "from": "signal", "to": to}}
 
-    def line(ts, event, symbol=None):
-        inputs = {"event": event, **({"symbol": symbol} if symbol else {})}
-        return {"action": "hot_list", "outcome": event, "timestamp": ts, "inputs": inputs}
+    rows = [mode("BOTX", "bot", 5), mode("AUTOX", "auto_entry", 5),
+            {"timestamp": at(6, 0), "venue": "paper", "action": "hot_list", "outcome": "rollover",
+             "inputs": {"event": "rollover", "retry": True, "from": DAY, "to": DAY,
+                        "cleared": [{"venue": "paper", "symbol": "BOTX", "was": "bot"}]}}]
+    line = Timeline(rows)
+    unknown = lambda: UNKNOWN  # noqa: E731
+    assert line.mode_at("paper", "BOTX", at(5, 30), unknown) == "bot"
+    assert line.mode_at("paper", "BOTX", at(7, 0), unknown) == "signal"
+    assert line.mode_at("paper", "AUTOX", at(7, 0), unknown) == "auto_entry"
+    full = Timeline(rows[:2] + [{**rows[2], "inputs": {"event": "rollover"}}])        # the 04:00 kind clears all
+    assert full.mode_at("paper", "AUTOX", at(7, 0), unknown) == "signal"
 
-    rows = [line(at(4, 0), "rollover"), line(at(7, 5), "star", "AISP"), line(at(9, 50), "remove", "AISP"),
-            line(at(7, 12), "auto", "LGHL"), line(at(10, 30), "star", "AISP")]
-    spans = hot_spans(rows)
-    assert spans["AISP"] == [{"start": at(7, 5), "end": at(9, 50), "how": "star"},
-                             {"start": at(10, 30), "end": None, "how": "star"}]
-    ctx = trigger_cells.Context(timeline=Timeline([]), rules={}, spans=spans)
-    judge = lambda sym, ts: trigger_cells._hot({"symbol": sym, "ts": ts}, ctx)  # noqa: E731
-    assert judge("AISP", at(9, 41)) == {"ok": True, "why": "starred at 07:05 ET (taken off at 09:50 ET)"}
-    assert judge("AISP", at(10, 20)) == {"ok": False, "why": "AISP was taken off the hot list at 09:50 ET, before "
-                                                               "this trigger"}
-    assert judge("AISP", at(10, 31))["ok"] is True
-    assert judge("LGHL", at(7, 1)) == {"ok": False, "why": "listed at 07:12 ET, after this trigger"}
-    assert judge("LGHL", at(8, 0)) == {"ok": True, "why": "listed by the leaders rule at 07:12 ET"}
-    # The next rollover ends every span still open.
-    later = hot_spans(rows + [line(at(4, 0, day="2026-10-01"), "rollover")])
-    assert later["LGHL"][-1]["end"] == at(4, 0, day="2026-10-01")
+
+def test_a_stock_taken_off_the_hot_list_before_its_trigger_is_judged_the_same(day):
+    """A star is watching, never permission: AISP taken off the list at 09:30 still passes every gate at 09:41,
+    and LGHL listed only after its trigger is red for its own reasons, never for the list."""
+    write_audit([{"timestamp": at(9, 30), "venue": "paper", "action": "hot_list", "outcome": "remove",
+                  "inputs": {"event": "remove", "symbol": "AISP"}}])
+    tickers = by_symbol(get())
+    first = tickers["AISP"]["triggers"][0]
+    assert oks(first["cells"]) == [True] * 9 and first["reasons"] == []
+    lghl = tickers["LGHL"]["triggers"][0]
+    assert not any("hot list" in r or "listed" in r for r in lghl["reasons"])
+
+
+def test_a_bot_buy_stock_off_the_hot_list_gets_a_row_with_now(monkeypatch):
+    """Today's bot-buy stocks -- the bot list, then each Auto-entry switch -- get a row after the listed names
+    whether or not they are listed, each with a ``now``; a stock at Signal only off the list gets none."""
+    from bot import trigger_now
+    from bot.arming import issue_arm_token
+    from bot.autonomy import apply_patch
+    from stock_mode import store
+    from tests.bot_helpers import list_hot, on_practice, set_symbols
+
+    on_practice()
+    apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
+    issue_arm_token()
+    set_symbols("BOTX", "LGHL")                                         # LGHL is both listed and the bot's
+    store.set_switch("AUTOX", {"buy": "nova", "sell": "you", "set_at": time.time()})
+    store.set_switch("APPX", {"buy": "you", "sell": "nova", "set_at": time.time()})
+    list_hot("LGHL")
+    monkeypatch.setattr(trigger_now, "_lanes", lambda sym: [])
+    try:
+        tickers = by_symbol(get(None))
+    finally:
+        store.reset_for_tests()
+    assert list(tickers) == ["LGHL", "BOTX", "AUTOX"]
+    assert tickers["LGHL"]["listed"]["how"] == "star"
+    for sym in ("BOTX", "AUTOX"):
+        assert tickers[sym]["listed"] is None and tickers[sym]["triggers"] == []
+        assert list(tickers[sym]["now"]["cells"]) == GATES
+    assert tickers["BOTX"]["now"]["cells"]["nova_buys"] == {"ok": True, "why": "Bot buys (Bot)"}
+    assert tickers["AUTOX"]["now"]["cells"]["nova_buys"] == {"ok": True, "why": "Bot buys (Auto-entry)"}
+
+
+def test_now_says_the_bot_buys_nothing_before_todays_reset(monkeypatch):
+    """No file for today: the ``now`` row of a bot-buy stock is a no, with the reset's words in Bot buys."""
+    from bot import trigger_now
+    from bot.arming import issue_arm_token
+    from bot.autonomy import apply_patch
+    from constants_hot_list import HOT_LIST_FILE
+    from paths import cache_dir
+    from tests.bot_helpers import hold_depth_line, on_practice, set_symbols
+
+    on_practice()
+    apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
+    issue_arm_token()
+    set_symbols("AISP")
+    hold_depth_line("AISP")
+    (cache_dir() / HOT_LIST_FILE).unlink()
+    monkeypatch.setattr(trigger_now, "_lanes", lambda sym: [])
+    body = get(None)
+    now = by_symbol(body)["AISP"]["now"]
+    assert now["answer"] == "no"
+    assert now["cells"]["nova_buys"]["ok"] is False
+    assert now["cells"]["nova_buys"]["why"].startswith("the 04:00 ET reset of yesterday's bot buys has not run yet")
+    assert now["reasons"] == [now["cells"]["nova_buys"]["why"]]
 
 
 def test_now_says_whether_a_level_2_line_would_come(monkeypatch):

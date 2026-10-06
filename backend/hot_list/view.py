@@ -1,6 +1,6 @@
 """``GET /api/hot-list`` (ADR 044): today's list as the Bots page reads it. Memory and one small file; no wait.
 
-``{schema_version: 1, date, cap, auto: {n, start, end, rule, error}, default, entries: [{symbol, how, at,
+``{schema_version: 1, date, cap, auto: {n, start, end, rule, error}, entries: [{symbol, how, at,
 board, rank, change_pct, followed, why_not_followed}], yesterday, error}`` -- ``followed`` is whether the
 setup scanner reads the stock now (its universe), ``null`` when the scanner cannot be read, and
 ``why_not_followed`` says why whenever it is not ``true`` ("HOD Momo's 20 reserved slots are full" for a
@@ -33,7 +33,6 @@ def build(now: float | None = None) -> dict[str, Any]:
         "cap": HOT_LIST_CAP,
         "auto": {"n": n, "start": HOT_LIST_AUTO_START_ET, "end": HOT_LIST_AUTO_END_ET, "rule": auto.rule_text(n),
                  "error": auto.status()["error"]},
-        "default": dict(doc["default"]),
         "entries": entries,
         "yesterday": list(doc.get("yesterday") or []),
         "error": error,

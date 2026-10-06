@@ -203,7 +203,7 @@
 }
 
 .focus-rail__th--symbol {
-  flex: 0 0 42px;
+  flex: 0 0 52px; /* the symbol and its hot list ★ / ☆ */
 }
 
 .focus-rail__th--price {
@@ -287,8 +287,11 @@
 }
 
 .focus-rail__sym {
-  flex: 0 0 42px;
+  flex: 0 0 52px; /* the symbol and its hot list ★ / ☆ */
+  display: inline-flex;
+  align-items: center;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .focus-rail__px {

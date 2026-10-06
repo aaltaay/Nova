@@ -14,7 +14,7 @@ import { openBotSymbolMenu } from '../bot';
 import { HodMomoStripRow, groupIsNew, type HodStripView } from '../hod_momo';
 import { NewsCell } from '../components/NewsCell';
 import { TICKER_OPEN_TRADER_TITLE } from '../constants';
-import { watchMarkTitle } from '../watch_list';
+import { WatchMark } from '../watch_list';
 import {
   FOCUS_RAIL_ALERT_COLS,
   FOCUS_RAIL_ALERT_ORDER_TITLE,
@@ -254,8 +254,9 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
                   )}
                 </span>
                 {watchList.includes(row.symbol) ? (
-                  <span className="focus-rail__sym is-watched" title={watchMarkTitle(row.symbol)}
-                    data-testid={`${tid}-watched-${row.symbol}`}>{row.symbol}</span>
+                  <span className="focus-rail__sym is-watched" data-testid={`${tid}-watched-${row.symbol}`}>
+                    {row.symbol}<WatchMark symbol={row.symbol} className="focus-rail__star" />
+                  </span>
                 ) : (
                   <span className="focus-rail__sym">{row.symbol}</span>
                 )}

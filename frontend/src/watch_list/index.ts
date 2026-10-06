@@ -13,7 +13,9 @@ export {
   removeFromWatchList,
   toggleWatchList,
   useIsWatched,
+  useWatchHow,
   useWatchList,
+  watchHow,
 } from './watchListStore';
 export {
   WATCH_ACTION_WATCH,

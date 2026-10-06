@@ -167,6 +167,19 @@ export function useWatchList(): readonly string[] {
   return useSyncExternalStore(subscribeWatchList, current, current);
 }
 
+/** How ``symbol`` is on the list: your ★ (`star`, a star still being saved included), an auto ☆ (`auto`),
+ * or null when it is not listed. The sample desk's list is all stars. */
+export function watchHow(symbol: string): 'star' | 'auto' | null {
+  const s = normalizeWatchSymbol(symbol);
+  if (s === null || !current().includes(s)) return null;
+  if (isSampleView() || pending.get(s) === 'add') return 'star';
+  return getHotListState().view?.entries.find(e => e.symbol === s)?.how ?? 'star';
+}
+
+export function useWatchHow(symbol: string): 'star' | 'auto' | null {
+  return useSyncExternalStore(subscribeWatchList, () => watchHow(symbol), () => null);
+}
+
 export function useIsWatched(symbol: string): boolean {
   return useSyncExternalStore(
     subscribeWatchList,

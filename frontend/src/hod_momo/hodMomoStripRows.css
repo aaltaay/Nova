@@ -338,7 +338,7 @@
 
 .hod-strip__row--compact .hod-strip__sym,
 .hod-strip__compact-cols .hod-strip__sym {
-  flex: 0 0 2.9rem;
+  flex: 0 0 3.6rem; /* the symbol and its hot list ★ / ☆ */
   overflow: hidden;
   text-overflow: ellipsis;
 }

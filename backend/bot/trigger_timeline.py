@@ -12,8 +12,9 @@ nearest record:
 - else the setting now (nothing changed it since).
 
 A stock's mode has two more kinds of event. The 04:00 ET rollover of the hot list (a ``hot_list``
-line, ``event: "rollover"``) clears every Nova Buy on every venue, so a stock reads You · You after
-it. A process start (the eyes' journal's ``session`` line) and a venue change (a ``venue`` line)
+line, ``event: "rollover"``) clears every bot buy on every venue, so a stock reads You · You after
+it -- except a retry of a reset that failed (``inputs.retry``), which cleared only the bot lists it
+names in ``cleared``: each of those stocks reads You · You after it, and every other stock keeps its mode. A process start (the eyes' journal's ``session`` line) and a venue change (a ``venue`` line)
 drop the in-memory Auto-entry and Approve switches (ADR 037) and keep the bot list, which is
 persisted. Where a record cannot say what a mode was before such an event, it is ``UNKNOWN`` --
 stated, never guessed.
@@ -68,7 +69,13 @@ class Timeline:
             self.modes.setdefault((venue, _sym(inputs["symbol"])), []).append(
                 (ts, SET, inputs.get("from"), inputs.get("to")))
         elif action == _HOT_LIST and (inputs.get("event") == "rollover" or row.get("outcome") == "rollover"):
-            self.global_modes.append((ts, CLEAR, None, STOCK_MODE_SIGNAL))
+            if not inputs.get("retry"):
+                self.global_modes.append((ts, CLEAR, None, STOCK_MODE_SIGNAL))
+                return
+            for gone in inputs.get("cleared") or []:      # the retry cleared only these bot-list stocks
+                if isinstance(gone, dict) and gone.get("symbol"):
+                    self.modes.setdefault((gone.get("venue"), _sym(gone["symbol"])), []).append(
+                        (ts, SET, gone.get("was"), STOCK_MODE_SIGNAL))
         elif action == "venue":
             self.global_modes.append((ts, RESET, None, None))
         elif action == "caps":

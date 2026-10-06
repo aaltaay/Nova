@@ -13,7 +13,7 @@ import {
 } from './data/desk';
 import { cryptoBoard } from './data/crypto';
 import { DAY, NOW_S } from './data/market';
-import { botAudit, botSession, practiceHistory, setupRows, setupsBoard, stockModes } from './data/pages';
+import { botAudit, botSession, hotList, practiceHistory, setupRows, setupsBoard, stockModes } from './data/pages';
 import { decisions, history, pastSetups, stockMode, stockRead } from './data/read';
 import { hodHistory, leaderboardBoard, leaderboardCoverage, leaderboardDays, simClock, simStatus } from './data/sim';
 import { CATALYSTS, GAINERS, GAPPERS, HOD_CONFIG, LOSERS, WATCHLIST } from './data/universe';
@@ -106,6 +106,7 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/bot\/audit$/, () => ({ entries: botAudit() })],
     [/^\/api\/bot\/pnl$/, () => ({ day_pnl: 450.35, meter: { compares: 'day_pnl', source: 'practice_ledger_day_pnl', venue, compared: true, note: null, error: null, day_pnl: 450.35, commissions: null, commissions_in_figure: true, commissions_unknown: false } })],
     [/^\/api\/kill-switch$/, () => ({ tripped: false, reason: null, ts: null })],
+    [/^\/api\/hot-list$/, () => hotList()],
     [/^\/api\/stock-mode$/, () => stockModes(venue)],
     [/^\/api\/stock-mode\/([^/]+)$/, (m) => stockMode(sym(m))],
     [/^\/api\/setups\/templates$/, () => setupTemplates],

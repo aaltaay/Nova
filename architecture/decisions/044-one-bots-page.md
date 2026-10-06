@@ -36,3 +36,19 @@ On 2026-10-01 the Bots page held the same decision in three places (the master O
 - A trip no longer silences Eyes.
 - Lending takes a line from a tab the operator is not looking at. It never takes the front tab's line, and every loan is drawn on the tab, on the Bots page and in the audit stream.
 - Rejected: per-strategy lists ("a ticker can have many strategies"); HOD Momo as the trading universe; keeping the master dial as a ceiling; a separate checkpoints card beside the squares (the same checks looking ahead and back: merged into one table by ticker).
+
+## Amendment, 2026-10-06: the hot list is watching only
+
+**Decided by:** the operator, 2026-10-06, after asking for a star next to a starred ticker: "I think a star[red] ticker ... shouldn't be buying and selling if it's signal only. Again, what is the gate for Nova to buy and sell? The bot needs to be enabled, and we need to set it to strategy ... just because it's [starred] or not, it shouldn't be a reason"; "Let's not have Nova buy and sell terminology"; then on the five questions: "1 go" (untie the star, reset the bot's buys at 04:00, bot-buy stocks get a watch slot first, keep auto stars as an outlined ☆ with toasts, label the switch You | Bot).
+
+Decision 4 changes:
+
+- **A star never decides who trades.** Starring, an auto star, bring-back and taking a stock off never change its Buy / Sell, and setting Buy to Bot never stars it. The `BOT_SKIP_NOT_LISTED` blocker, the list's `default` Buy / Sell (`PATCH /api/hot-list {default_buy, default_sell}`, the `default` audit event) and the `HOT_LIST_NOVA_TRADE` refusal on removal are retired. The bot buys a stock when the Bot is on, its strategy is On and its Buy is Bot -- with every other rule as before.
+- **The 04:00 reset stays, on its own.** The rollover still clears every venue's bot list and every Auto-entry / Approve switch. The bot and Auto-entry buy nothing until today's file shows it ran (`BOT_SKIP_DAY_NOT_RESET`); a reset that fails is kept in the file (`reset_error`) and retried every pass. Before, the not-listed blocker covered this: yesterday's bot list could never buy on an empty list.
+- **The bot's stocks are watched first.** HOD Momo's reserved block takes the stocks whose Buy is Bot ahead of the hot list (reason `bot_buy`), since the bot can only buy what a lane reads.
+- **The mark.** A listed ticker shows a filled ★ (your star) or an outlined ☆ (an auto star) beside its symbol wherever it appears: scanner and Desk rows, the Trader tab, the Focus rail, the HOD Momo strip, the quote card, the Who trades row and Tickers today.
+- **Bot buy, bot sell.** The switch reads You | Bot; the chart's calls say BOT BUYS AT, BOT BOUGHT, BOT IS SELLING. The wire keeps `"you" | "nova"`.
+
+Decision 5 changes: the squares are nine -- the Hot list square is gone -- and "Nova buys" is "Bot buys" (red also while today's reset has not run). Tickers today lists the hot list, then today's bot-buy stocks not on it, each with a "now" row, then the tickers that only triggered. Past days are judged by the nine squares too; a trigger the old Hot list square held back reads by the others.
+
+Consequences: a stock the operator sets to Bot is bought by its own switch, starred or not, and still never outlives the day. The star means one thing everywhere: Nova keeps watching it and tells you when it moves.

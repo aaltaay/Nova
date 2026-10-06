@@ -100,12 +100,12 @@ describe('what Nova promises on the chart (ADR 042 draft)', () => {
   it("Auto-entry promises Nova's own size only when nothing blocks, and says so once the day's buy is used", () => {
     const auto = (over = {}) => pfsaView('auto_entry', over);
     const ok = momentOf(inputs({ read: armed, who: auto({ size: { qty: 10, by_risk: 153, capped_by: 'max_shares', text: null } }) }));
-    expect(ok?.call).toMatchObject({ title: 'NOVA BUYS AT 4.26' });
-    expect(ok?.call?.detail).toMatch(/Nova buys 10\. Every sell is yours/);
+    expect(ok?.call).toMatchObject({ title: 'BOT BUYS AT 4.26' });
+    expect(ok?.call?.detail).toMatch(/the bot buys 10\. Every sell is yours/);
     const used = auto({ entries_today: { count: 1, cap: 1 } });
     expect(capUsedText(used)).toBe("Nova's one automatic buy on Paper today is used (1 of 1): the bot and Auto-entry "
       + 'buy again on the next day.');
-    expect(momentOf(inputs({ read: armed, who: used }))?.call).toMatchObject({ title: "NOVA'S BUY TODAY IS USED",
+    expect(momentOf(inputs({ read: armed, who: used }))?.call).toMatchObject({ title: "THE BOT'S BUY TODAY IS USED",
       detail: capUsedText(used) });
     const idle = auto({ bot: { ...BOT_READY, on_list: false, active: false } });
     expect(novaBlockers(idle, armed.plan)).toEqual([
@@ -247,7 +247,7 @@ describe('the moment on the chart', () => {
   it('Auto-entry: Nova bought, and the target is yours to sell -- Nova will not', () => {
     const who = pfsaView('auto_entry', { trade: pfsaTrade('auto_entry', 'holding') });
     const m = momentOf(inputs({ who, last: 4.30 }));
-    expect(m?.call).toMatchObject({ title: 'NOVA BOUGHT 153 @ 4.27' });
+    expect(m?.call).toMatchObject({ title: 'BOT BOUGHT 153 @ 4.27' });
     expect(m?.call?.detail).toBe('No stop or target is working. The exit is yours.');
     const held = remember([{ who, last: 4.30 }, { who, last: 4.53, now: PFSA_TRIGGER + 26 }]);
     expect(momentOf(inputs({ who, last: 4.53, now: PFSA_TRIGGER + 26 }, held))?.call?.detail)
@@ -256,10 +256,10 @@ describe('the moment on the chart', () => {
 
   it('the bot selling says so, and a missed entry is not an event to ping', () => {
     const exiting = pfsaTrade('bot', 'holding', { exiting: true });
-    expect(momentOf(inputs({ who: pfsaView('bot', { trade: exiting }) }))?.badge).toBe('NOVA IS SELLING');
+    expect(momentOf(inputs({ who: pfsaView('bot', { trade: exiting }) }))?.badge).toBe('BOT IS SELLING');
     const missed = pfsaTrade('auto_entry', 'missed', { closed_at: PFSA_TRIGGER + 10 });
     const m = momentOf(inputs({ who: pfsaView('auto_entry', { trade: missed }), now: PFSA_TRIGGER + 12 }));
-    expect(m).toMatchObject({ badge: "NOVA'S BUY MISSED" });
+    expect(m).toMatchObject({ badge: "THE BOT'S BUY MISSED" });
     expect(m?.call?.ping).toBe(false);
     // The time limit is the sleeve's (one TTL for every Nova entry), or said as such while unread.
     expect(m?.call?.detail).toMatch(/did not fill in 10 s and was cancelled/);
@@ -343,11 +343,11 @@ describe("the plan card's buttons", () => {
     const approve = act(inputs({ who: pfsaView('approve', { trade: pfsaTrade('approve', 'holding') }) })).actions;
     expect(approve).toMatchObject([{ id: 'take-over', label: 'Cancel stop and target' }]);
     expect(approve[0].tip).toBe("Nova cancels the bracket's stop and target at the broker, and the exit is yours. "
-      + 'Buy stays on You: Nova buys no more PFSA.');
+      + 'Buy stays on You: the bot buys no more PFSA.');
     const bot = act(inputs({ who: pfsaView('bot', { trade: pfsaTrade('bot', 'holding') }) })).actions;
     expect(bot).toMatchObject([{ id: 'take-over', label: 'Take over the exit' }]);
     expect(bot[0].tip).toMatch(/^Nova cancels the bot's target and stop on PFSA/);
-    expect(bot[0].tip).toMatch(/Buy stays on You: Nova buys no more PFSA\.$/);
+    expect(bot[0].tip).toMatch(/Buy stays on You: the bot buys no more PFSA\.$/);
     const entering = act(inputs({ who: pfsaView('bot', { trade: pfsaTrade('bot', 'entering') }) })).actions;
     expect(entering[0].tip).toMatch(/Buy stays on You/);
   });

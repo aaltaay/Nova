@@ -203,12 +203,11 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
     if not is_desk_active(row):
         out.append(_note("not_active", "The bot is not active: Nova buys nothing by itself until you turn the Bot "
                                        "switch on (Bots page)."))
-    from bot.first_pullback.admit import listed
+    from bot.first_pullback.admit import day_reset
 
-    on_list, unread = listed(sym)
-    if not on_list:                       # ADR 044: Nova buys only the stocks on today's hot list
-        out.append(_note("not_listed", _sentence(f"{unread}: Nova buys only listed stocks" if unread else
-                                                 f"{sym} is not on today's hot list: Nova buys only listed stocks")))
+    reset = day_reset()
+    if reset is not None:
+        out.append(_note("day_reset", _sentence(f"The bot buys nothing yet: {reset[1]}")))
     setup = (lane or {}).get("setup_type")
     if setup and effective(row).get(setup, 0) < 2:
         own = own_levels(row).get(setup, 0)
@@ -303,9 +302,6 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         notes.append(_note("scanner_unreadable", f"The setup scanner's lanes for {sym} could not be read: Nova cannot "
                                                  "say which setup it would act on, or what size."))
     notes += _notes(sym, mode, venue, replay, loaded, lane, daily) + _sim_waits(sym, venue, replay, loaded)
-    from hot_list.stock_tie import notes as hot_list_notes
-
-    notes += hot_list_notes(sym, mode, venue, replay)   # ADR 044: not listed, unreadable, a default locked here
     mine = [e for e in (daily or {}).get("entries") or [] if e.get("symbol") == sym and e.get("outcome") != "missed"]
     return {
         "schema_version": STOCK_MODE_SCHEMA_VERSION,

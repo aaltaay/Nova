@@ -28,11 +28,16 @@ export const watchListRemoveLabel = (symbol: string): string => `${WATCH_LIST_RE
 export const WATCH_ACTION_WATCH = '★';
 export const WATCH_ACTION_WATCHING = '★ Listed';
 export const WATCH_ACTION_WATCH_TITLE =
-  'Star it onto today\'s hot list: the scanners follow it all day, a toast whenever it hits HOD Momo or Running Up '
-  + 'or a setup forms on it, and Nova may buy it where its Buy is Nova';
+  'Star it onto today\'s hot list: the scanners follow it all day, and a toast whenever it hits HOD Momo or Running '
+  + 'Up or a setup forms on it. A star never lets the bot trade it: that is its Buy / Sell (Who trades)';
 export const WATCH_ACTION_WATCHING_TITLE = 'On today\'s hot list -- click to take it off';
-export const watchMarkTitle = (symbol: string): string =>
-  `${symbol} is on today's hot list: a toast whenever it hits HOD Momo or Running Up, or a setup forms on it`;
+/** The mark beside a listed ticker: ★ your star, ☆ an auto star (the top of the Gainers board). */
+export const watchMarkTitle = (symbol: string, how: 'star' | 'auto' = 'star'): string =>
+  (how === 'auto'
+    ? `${symbol} was auto-starred onto today's hot list (the top of the Gainers board, 07:00-16:00 ET)`
+    : `${symbol} is on today's hot list: your star`)
+  + ': the scanners follow it all day, and a toast whenever it hits HOD Momo or Running Up, or a setup forms on it. '
+  + 'Watching only: the bot trades it only where its Buy / Sell says Bot';
 
 /** Toasts: how long one stays after its newest alert (hover holds it), and how many stack. */
 export const WATCH_TOAST_TTL_MS = 20_000;

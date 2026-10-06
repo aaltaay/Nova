@@ -8,28 +8,23 @@ const view = (over: Partial<StockModeView>): StockModeView => ({
   entries_today: { count: 0, cap: 1 }, nova_entries_today: 0, size: null, last_event: null, bot: null, ...over,
 } as unknown as StockModeView);
 
-describe('the stock\'s own answer (ADR 044)', () => {
-  it('says no while the stock is off the hot list, whatever its switch', () => {
-    expect(whoAnswer('AISP', false, view({}))).toEqual({ tone: 'no', text: 'Nova may buy AISP: no · not on today\'s hot list' });
-  });
-
+describe('the stock\'s own answer (ADR 044, amended 2026-10-06: the hot list is no part of it)', () => {
   it('says you buy it when Buy is You', () => {
-    expect(whoAnswer('AISP', true, view({ buy: 'you', mode: 'signal' }))?.text).toBe('Nova may buy AISP: no · you buy it');
+    expect(whoAnswer('AISP', view({ buy: 'you', mode: 'signal' }))).toEqual({ tone: 'you', text: 'Bot may buy AISP: no · you buy it' });
   });
 
-  it('names the first thing that keeps Nova from acting, and how many more', () => {
+  it('names the first thing that keeps the bot from acting, and how many more', () => {
     const notes = [
       { id: 'bot_trip', tone: 'warn', text: 'the bot trip fired at 09:43' },
       { id: 'window', tone: 'warn', text: 'the bot window closed at 10:00' },
       { id: 'info', tone: 'info', text: 'an info line' },
     ];
-    expect(whoAnswer('AISP', true, view({ notes } as Partial<StockModeView>))?.text)
-      .toBe('Nova may buy AISP: no · the bot trip fired at 09:43 (and 1 more below)');
+    expect(whoAnswer('AISP', view({ notes } as Partial<StockModeView>))?.text)
+      .toBe('Bot may buy AISP: no · the bot trip fired at 09:43 (and 1 more below)');
   });
 
-  it('says yes only when listed, Buy is Nova and nothing stands in the way', () => {
-    expect(whoAnswer('AISP', true, view({}))).toEqual({ tone: 'yes', text: 'Nova may buy AISP: yes, at its next go trigger' });
-    expect(whoAnswer('AISP', null, view({}))).toBeNull();     // the list not read yet: no claim
-    expect(whoAnswer('AISP', true, null)).toBeNull();
+  it('says yes when Buy is Bot and nothing stands in the way, starred or not', () => {
+    expect(whoAnswer('AISP', view({}))).toEqual({ tone: 'yes', text: 'Bot may buy AISP: yes, at its next go trigger' });
+    expect(whoAnswer('AISP', null)).toBeNull();
   });
 });

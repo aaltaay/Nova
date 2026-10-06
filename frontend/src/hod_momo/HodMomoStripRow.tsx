@@ -13,7 +13,7 @@
 import { memo } from 'react';
 import { openBotSymbolMenu } from '../bot';
 import { TICKER_OPEN_TRADER_TITLE } from '../constants';
-import { useIsWatched, watchMarkTitle } from '../watch_list';
+import { useWatchHow, WatchMark, watchMarkTitle } from '../watch_list';
 import {
   HOD_MOMO_STRIP_NEW_FLAG,
   HOD_MOMO_STRIP_ROW_TITLE,
@@ -101,7 +101,8 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
   rowTitle = HOD_MOMO_STRIP_ROW_TITLE,
 }: Props) {
   const { lead, ticker } = group;
-  const watched = useIsWatched(ticker);
+  const how = useWatchHow(ticker);
+  const watched = how !== null;
   const grouped = group.members.length > 1;
   const gates = gateValuesOf(group.members);
   const printNote = stripPrintNote(lead);
@@ -122,7 +123,7 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
         compact ? compactDetail(group, gates, burst) : null,
         rowTitle,
         printNote,
-        watched ? watchMarkTitle(ticker) : null,
+        how !== null ? watchMarkTitle(ticker, how) : null,
       ].filter(Boolean).join(' · ')}
       onClick={() => onSelect(ticker)}
       onContextMenu={(e) => {
@@ -148,6 +149,7 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
         }}
       >
         {ticker}
+        {how !== null ? <WatchMark symbol={ticker} className="hod-strip__star" /> : null}
       </button>
       <span className="hod-strip__price">{fmtStripPrice(lead.price)}</span>
       {!compact && <span className="hod-strip__new">{isNew ? HOD_MOMO_STRIP_NEW_FLAG : ''}</span>}

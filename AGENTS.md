@@ -3155,11 +3155,14 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
   and the answer is `rules_changed: false` with the revision unchanged.
 - A strategy at Off draws nothing on the charts.
 
-**Today's hot list** (owner `backend/hot_list/`): the stocks Nova watches all day and may trade.
+**Today's hot list** (owner `backend/hot_list/`): the stocks Nova watches all day. Watching only (amended
+2026-10-06, operator: "a starred ticker ... shouldn't be buying and selling if it's signal only"): a star never
+decides who trades a stock, and taking one off never changes it -- that is the stock's Buy / Sell alone.
 - **The file** is `hot-list.json` in the operator cache: `{schema_version: 1, date: "YYYY-MM-DD", auto_n: 0 | 3
-  | 5 | 10, default: {buy: "you" | "nova", sell: "you" | "nova"}, entries: [{symbol, how: "auto" |
-  "star", at, board: "gainers" | null, rank: integer | null, change_pct: number | null}], yesterday:
-  string[]}`.
+  | 5 | 10, entries: [{symbol, how: "auto" | "star", at, board: "gainers" | null, rank: integer | null,
+  change_pct: number | null}], yesterday: string[], reset_error?: string}`. A file written before
+  2026-10-06 may carry `default: {buy, sell}` (the side a new name started on); it is read and dropped.
+  `reset_error` is present only while today's 04:00 reset of the bot's buys failed (below).
   - `date` is the trading day, which starts at 04:00 ET; `at` is epoch seconds; `change_pct` is a fraction
     (0.6 = +60%), as on leaderboard rows. `yesterday` is the last day that had names, so Monday's
     bring-back finds Friday's.
@@ -3173,41 +3176,43 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
   `leaderboard.ranking.rank_rows` with `LEADERS_RULES`, its top `auto_n`. A name is added once a day and
   stays: one the operator takes off is not added again that day (remembered in memory, and re-read from
   the audit stream after a restart).
-- **At 04:00 ET**:
+- **At 04:00 ET** (the day's reset of the bot's buys, run by the rollover):
   - `entries` move to `yesterday`;
   - every venue's bot list (`symbol_allowlist`) and every Auto-entry / Approve switch are cleared,
-    with a `hot_list` audit line `{event: "rollover", cleared}`;
+    with a `hot_list` audit line `{event: "rollover", cleared}`, so yesterday's choices never buy today;
   - trades Nova holds keep their exits.
-- **Followed by the scanners.** Listed names share HOD Momo's 20 reserved slots
-  (`HOD_MOMO_FORMER_MOMO_MAX_SLOTS`) with Former Momo (`hod_momo_active.build_active_set`): the hot list
-  first, in list order, then Former Momo fills what is left, so live movers keep at least 20 of the 40. A
-  name on both counts once. A listed name past the 20 is admission reason `hot_list_over_reserved` (it can
-  still win a mover's slot on its own move); one IBKR cannot stream is `hot_list_l1_blocked` and frees its
-  slot. `GET /api/setups/symbol/{symbol}`'s `followed_note` says why a listed name is not followed.
-- **Who trades the stock.** The stock's Buy / Sell switch (ADR 037) is the only "who":
-  - setting Buy to Nova stars the stock (409 `HOT_LIST_FULL` when there is no room, before anything
-    changes);
-  - a new name takes `default` on the desk's venue when that venue allows a Nova side and the stock is
-    at Signal only with no Nova trade (otherwise it stays You · You, said in the view's
-    `hot_list_default` note);
-  - removing a stock sets it to You · You on every venue, and is refused 409 `HOT_LIST_NOVA_TRADE`
-    while Nova has an open trade on it;
-  - Nova buys only listed stocks: an unlisted trigger is `BOT_SKIP_NOT_LISTED`, and the stock's Who
-    trades view says so once, in its `not_listed` note. A list that cannot be read lists nothing, and
-    both say it could not be read.
+  - The bot and Auto-entry buy nothing until today's file is written: `BOT_SKIP_DAY_NOT_RESET`
+    (`hot_list.day_reset_block`; the auto feed's loop rolls over within `HOT_LIST_AUTO_TICK_SEC` of 04:00
+    and at every start). When clearing the bot lists fails, today's file carries `reset_error`, the bot
+    still buys nothing, and every later pass retries the lists (not the switches: one set since is today's);
+    the retry that works writes a `rollover` line with `inputs.retry: true`.
+- **Followed by the scanners.** The stocks the bot buys (Buy set to Bot on the desk's venue: its bot list,
+  then each Auto-entry switch; `hot_list.following.bot_buy_symbols`), then listed names, share HOD Momo's 20
+  reserved slots (`HOD_MOMO_FORMER_MOMO_MAX_SLOTS`) with Former Momo (`hod_momo_active.build_active_set`,
+  `bot_symbols` then `hot_symbols`), then Former Momo fills what is left, so live movers keep at least 20 of
+  the 40. A name on two lists counts once, as the first's. Past the 20 a name's admission reason is
+  `bot_buy_over_reserved` / `hot_list_over_reserved` (it can still win a mover's slot on its own move); one
+  IBKR cannot stream is `bot_buy_l1_blocked` / `hot_list_l1_blocked` and frees its slot. `GET
+  /api/setups/symbol/{symbol}`'s `followed_note` says why a bot-buy or listed name is not followed.
+- **Who trades the stock.** The stock's Buy / Sell switch (ADR 037) is the only "who", and the list is no
+  part of it: starring, an auto star, bring-back and taking a stock off never change Buy / Sell, setting Buy
+  to Bot never stars a stock, and the bot buys a stock whose Buy is Bot whether it is listed or not.
+- **The mark.** On the desk a listed ticker carries a filled ★ (your star) or an outlined ☆ (an auto star)
+  beside its symbol: scanner and Desk board rows, the Trader tab, the Focus rail, the HOD Momo strip, the
+  quote card and the Who trades row (`watch_list/WatchMark.tsx`, `watchHow`).
 - **Audited.** Every change is a `hot_list` line on the bot's audit stream, outcome and `inputs.event` one
-  of `rollover` | `auto` | `star` | `remove` | `settings` | `default`, with the symbol where there is one.
-  The triggers table reads them for when a stock was listed and taken off.
+  of `rollover` | `auto` | `star` | `remove` | `settings`, with the symbol where there is one (lines before
+  2026-10-06 may also read `default`).
 - **Routes** (writes need the API key):
-  - `GET /api/hot-list` -> `{schema_version: 1, date, cap, auto: {n, start, end, rule, error}, default,
+  - `GET /api/hot-list` -> `{schema_version: 1, date, cap, auto: {n, start, end, rule, error},
     entries: [{symbol, how, at, board, rank, change_pct, followed: boolean | null, why_not_followed:
     string | null}], yesterday, error}` -- `why_not_followed` is null while `followed` is true: "HOD Momo's
     20 reserved slots are full", IBKR could not open the name's line, the scanner has not picked it up
     yet, or the active set has not been rebuilt since it was listed; `followed` is null when the scanner
     could not be read;
   - `POST /api/hot-list/star {symbol}`;
-  - `DELETE /api/hot-list/{symbol}`;
-  - `PATCH /api/hot-list {auto_n?, default_buy?, default_sell?}`;
+  - `DELETE /api/hot-list/{symbol}` (who trades it is unchanged; `HOT_LIST_NOVA_TRADE` is retired);
+  - `PATCH /api/hot-list {auto_n?}`;
   - `POST /api/hot-list/bring-back` (yesterday's names as stars, up to the cap).
 
   Every write answers the view.
@@ -3228,20 +3233,22 @@ answers:
 ```
 
 - **The gates**, in Nova's order: `bot_on`, `strategy_on`, `grade`, `setups_a_day`, `bot_window`,
-  `hot_list`, `nova_buys`, `level2_line`, `tape_go`, `trades_today`.
+  `nova_buys` ("Bot buys"), `level2_line`, `tape_go`, `trades_today`. The `hot_list` gate is retired
+  (2026-10-06): being listed decides nothing, so no square asks it.
 - **`cells`** maps each gate to `{ok: true | false | null, why}`; `null` means the gate did not apply.
   A trigger reads the bot's state, tape, grade (its `armed` line), `nth`, liquidity and outcome as the
-  journal recorded them. It reads the hot list, the stock's mode and the strategy's level from the day's
-  list file and the audit stream at its moment. `judged_now` names the gates judged with today's
+  journal recorded them. It reads the stock's mode and the strategy's level from the audit stream at its
+  moment. `judged_now` names the gates judged with today's
   settings because nothing recorded them.
 - **`grade`** also carries NOT A TRADE's own checks (grade C, the spread, too thin), so every block has
   its red square.
 - **A setting at a trigger** is the nearest audit record before it; one that a restart, a venue change or
-  the rollover hides reads `null`. **`hot_list`** reads the spans of the day's `hot_list` audit lines:
-  listed at the trigger, taken off before it, or listed only after it.
+  the rollover hides reads `null`.
+- **The tickers**: the day's hot list (`listed`), then today's bot-buy stocks not on it, then every other
+  ticker that triggered (`listed: null`).
 - **BLIND** is the Level 2 line's red, never the tape's.
 - **`now`** (today only, the trading day: the rows stay from midnight to the 04:00 rollover) is each
-  listed ticker this minute.
+  listed or bot-buy ticker this minute; its `nova_buys` square is red while today's reset has not run.
 
 **A hidden Trader tab lends its Level 2 and Time & Sales lines** (owner `backend/line_lending/`). IBKR
 caps tick-by-tick lines too (ADR 044 took it for the depth lines' 3; on 2026-10-02 it carried 4 at once and
@@ -3293,8 +3300,12 @@ Elsewhere:
 - **The Trader's chart toolbar has one Eyes switch** for every pane of the tab. `nova.stockRead.layers`
   `value` adds `eyes: boolean` (true when a stored value lacks it); off hides every Nova drawing, while
   `setups` / `levels` keep their own values for when it is on.
-- **The Who trades row adds the ★** (on today's hot list) and the stock's own answer ("Nova may buy AISP:
-  no -- the bot is off").
+- **The Who trades row adds the ★** (on today's hot list; ☆ outlined for an auto star) and the stock's own
+  answer ("Bot may buy AISP: no -- the bot is off").
+- **Bot buy, bot sell** (operator, 2026-10-06: "Let's not have Nova buy and sell terminology"): every Buy /
+  Sell switch reads You | Bot, the modes "bot buys · you sell", "you approve · bot sells", "bot buys · bot
+  sells", and the chart's calls BOT BUYS AT / BOT BOUGHT / BOT IS SELLING / BOT HOLDS THE EXIT. The wire
+  keeps `"you" | "nova"`.
 
 ### Release notes and the update notice (operator ask, 2026-09-23)
 
@@ -4357,7 +4368,7 @@ at most 12; owner `components/tickerSearchRecents.ts`).
 
 ### The operator's watch list and its toasts (operator asks, 2026-09-23 and 2026-09-24)
 
-**The watch list is today's hot list** (ADR 044, "One Bots page" above; owner
+**The watch list is today's hot list** (ADR 044, "One Bots page" above: watching only, never who trades; owner
 `watch_list/watchListStore.ts`, over `hot_list`). A symbol is starred on or taken
 off from a scanner row's hover actions (★ / ★ Listed), the symbol menu's ★ row
 (right-click a scanner row, a HOD Momo strip or alert row, a Contenders or Setups
@@ -4716,6 +4727,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-06 | The hot list is watching only, and its ★ shows next to every ticker (ADR 044 amendment; operator: "if i star a ticker can we please see 'star' next to it", then "a star[red] ticker ... shouldn't be buying and selling if it's signal only ... just because it's [starred] or not, it shouldn't be a reason", and "1 go" on the five questions). The star decided trading three ways: setting Buy to Nova starred the stock, taking the star off flipped it to You · You, and the bot refused any unlisted stock (`BOT_SKIP_NOT_LISTED`). All three are gone, with the list's default Buy / Sell; the bot buys where the Bot is on, the strategy is On and the stock's Buy is Bot. The 04:00 reset of yesterday's bot buys stays, on its own: nothing buys until today's file shows it ran (`BOT_SKIP_DAY_NOT_RESET`), and a failed reset is retried every pass -- the not-listed rule had covered that by accident. Bot-buy stocks take HOD Momo's reserved slots ahead of the list, since the bot only buys what a lane reads. A filled ★ (yours) or outlined ☆ (an auto star) now sits beside the symbol on the Trader tab, the Focus rail, the HOD Momo strip, the quote card and the Who trades row, as on scanner rows; the Buy / Sell switch reads You | Bot and the chart says BOT BUYS AT. The triggers table loses its Hot list square (nine gates) and lists bot-buy stocks with a "now" row. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The Sim replays the operator's Massive flat files (ADR 046; operator: "u wanna populate the data inside the sim? that way when we go back in time, the data we downloaded all of its information gets picked up?", then "1 go also do the bid and ask"). A historical window could only be an IBKR download -- about 90 prints a second (a full AAPL day of 628,348 trades in two hours, over the 500,000 a selection holds) and no bid or ask. Now `auto` takes a day's Massive files when they are on disk: one import reads the ticker's trades, 1-minute bars and NBBO from the day's gzip files (its own process, below normal priority, unaltered rows, csv-parsed), and selecting such a day starts it. The snapshot answers the bid and ask at the playhead (never ahead), colours prints from the NBBO before them, shows the NBBO as a one-level Level 2 when no book was recorded, and practice orders fill at the far side. Candles built from the prints that set a price matched Massive's own minute bars exactly (AAPL 2026-10-02 09:30-09:40, 10 of 10). On the desk the Sim Day calendar now opens every day in the files (before, a day needed a Scanner board or a Session Record, so nothing before September 2021 could be), a Sim tab offers Load from files with no Gateway, and the quote card, ticket, tape and Level 2 show the bid and ask. Massive data never enters the IBKR chart store; the single-market-data-feed rule's Sim exception names the source. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | PR delivery checks issue state once more after a refused fallback close. Native GitHub closure can race the open-state read and PATCH (#737: #653 closed while its PATCH returned HTTP 422); only a fresh closed-state read counts as success, while still-open or failed readback retains the write error. No blind retry; pack dispatch and guarded head cleanup remain independent. | Backlog triage + Codex |
 | 2026-10-05 | Shared API ownership across checkouts (#653 follow-up): one per-user runtime guard excludes checkout and packaged engines even when caches differ. Diagnostic JSON stays cache-local; independent tests inject guard-path isolation directly. ADR 038 amended before behavior code. | Authorized backlog follow-up + Codex |

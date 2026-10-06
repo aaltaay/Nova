@@ -1,6 +1,8 @@
-"""Today's hot list (ADR 044): the file, the 04:00 ET rollover, the auto feed, and HOD Momo's admission.
+"""Today's hot list (ADR 044, amended 2026-10-06): the file, the 04:00 ET rollover and the reset of
+yesterday's bot buys (``day_reset_block``), the auto feed, and HOD Momo's admission -- the stocks the bot
+buys first, then the list.
 
-The routes and the Who trades tie-in are ``test_hot_list_routes.py``.
+The routes, and that the list never decides who trades a stock, are ``test_hot_list_routes.py``.
 """
 from __future__ import annotations
 
@@ -107,9 +109,49 @@ def test_fields_out_of_shape_read_as_their_defaults():
            "yesterday": ["ok", 5, None]}
     store._path().write_text(json.dumps(raw), encoding="utf-8")
     doc, error = store.read_raw()
-    assert error is None and doc["auto_n"] == 5 and doc["default"] == {"buy": "you", "sell": "you"}
+    assert error is None and doc["auto_n"] == 5 and "default" not in doc
     assert [e["symbol"] for e in doc["entries"]] == ["AISP", "LGHL"] and doc["entries"][1]["rank"] == 2
     assert doc["yesterday"] == ["OK"]
+
+
+def test_a_file_from_before_drops_its_default_side_without_a_word(caplog):
+    """A file written before 2026-10-06 carries ``default: {buy, sell}`` (the side a new name started on): it
+    reads without it, says nothing (it is no fault of the file), and the next write leaves it out."""
+    store.save(doc_for("2026-09-30", "AISP", default={"buy": "nova", "sell": "nova"}))
+    assert "default" in json.loads(store._path().read_text(encoding="utf-8"))
+    store.forget_cache_for_tests()
+    with caplog.at_level("WARNING", logger="hot_list.store"):
+        doc, error = store.read_raw()
+    assert error is None and "default" not in doc and [e["symbol"] for e in doc["entries"]] == ["AISP"]
+    assert not [r for r in caplog.records if "out of shape" in r.getMessage()]
+    assert service.star("LGHL", by="operator", now=WED_1000)
+    written = json.loads(store._path().read_text(encoding="utf-8"))
+    assert "default" not in written and [e["symbol"] for e in written["entries"]] == ["AISP", "LGHL"]
+    assert "default" not in service.today(WED_1000) and "default" not in store.roll(written, "2026-10-01")
+
+
+# -- the day's reset of yesterday's bot buys -------------------------------------------------------
+def test_the_bot_waits_for_todays_file():
+    """``day_reset_block``: the bot buys nothing until today's file is on disk -- it is written by the 04:00
+    rollover, which resets yesterday's bot buys first."""
+    assert store.day_reset_block(WED_1000).startswith("the 04:00 ET reset of yesterday's bot buys has not run "
+                                                      "yet today")                     # no file at all
+    store.save(doc_for("2026-09-29", "AAA"))                                           # yesterday's file
+    assert "has not run yet today" in store.day_reset_block(WED_1000)
+    store.save(doc_for("2026-09-30"))                                                  # today's, empty
+    assert store.day_reset_block(WED_1000) is None
+    assert store.day_reset_block(et(30, 3, 59)) is not None                           # still the 29th's day
+    assert hot_list.day_reset_block is store.day_reset_block
+
+
+def test_a_failed_reset_or_an_unreadable_file_holds_the_bot():
+    store.save(doc_for("2026-09-30", reset_error="the bot's stock lists could not be cleared (OSError: gone)"))
+    said = store.day_reset_block(WED_1000)
+    assert said.startswith("the 04:00 ET reset of yesterday's bot buys failed (the bot's stock lists could not "
+                           "be cleared (OSError: gone)); Nova tries it again")
+    store._path().write_text("{not json", encoding="utf-8")
+    said = store.day_reset_block(WED_1000)
+    assert said.startswith("the 04:00 ET reset of yesterday's bot buys cannot be confirmed") and "json" not in said
 
 
 # -- the 04:00 ET rollover ------------------------------------------------------------------------
@@ -123,7 +165,7 @@ def _session_with_lists(own: list[str], sim: list[str]) -> None:
 
 def test_the_rollover_keeps_the_day_moves_names_to_yesterday_and_clears_every_nova_buy():
     on_practice("paper")
-    store.save(doc_for("2026-09-29", "AAA", "BBB", auto_n=10, default={"buy": "nova", "sell": "you"}))
+    store.save(doc_for("2026-09-29", "AAA", "BBB", auto_n=10, default={"buy": "nova", "sell": "you"}))  # old file
     _session_with_lists(["AAA"], ["CCC"])
     stock_store.set_switch("DDD", {"buy": "nova", "sell": "you", "set_at": TUE_1500})
     stock_store.set_switch("EEE", {"buy": "you", "sell": "nova", "set_at": TUE_1500})
@@ -135,7 +177,8 @@ def test_the_rollover_keeps_the_day_moves_names_to_yesterday_and_clears_every_no
     fresh = service.today(WED_0430)
 
     assert fresh["date"] == "2026-09-30" and fresh["entries"] == [] and fresh["yesterday"] == ["AAA", "BBB"]
-    assert fresh["auto_n"] == 10 and fresh["default"] == {"buy": "nova", "sell": "you"}
+    assert fresh["auto_n"] == 10 and "default" not in fresh and "reset_error" not in fresh
+    assert store.day_reset_block(WED_0430) is None                             # the bot may buy again
     old = json.loads(store._day_path("2026-09-29").read_text(encoding="utf-8"))
     assert [e["symbol"] for e in old["entries"]] == ["AAA", "BBB"]
     assert store._day_path("2026-09-30").exists()
@@ -146,6 +189,7 @@ def test_the_rollover_keeps_the_day_moves_names_to_yesterday_and_clears_every_no
     assert stock_store.trade("paper", "AAA")["state"] == "holding"              # trades keep their exits
     [line] = [r for r in list_entries(limit=50) if r["action"] == "hot_list"]
     assert line["inputs"]["event"] == "rollover" and line["inputs"]["from"] == "2026-09-29"
+    assert line["inputs"]["error"] is None and "retry" not in line["inputs"]
     cleared = {(c["venue"], c["symbol"], c["was"]) for c in line["inputs"]["cleared"]}
     assert cleared == {("paper", "AAA", "bot"), ("sim", "CCC", "bot"), ("paper", "DDD", "auto_entry"),
                        ("paper", "EEE", "approve")}
@@ -154,6 +198,78 @@ def test_the_rollover_keeps_the_day_moves_names_to_yesterday_and_clears_every_no
     stock_store.set_switch("GGG", {"buy": "nova", "sell": "you", "set_at": WED_0430})
     service.today(WED_1000)                                                    # the same day: nothing rolls
     assert "GGG" in stock_store.switches()
+
+
+def test_a_failed_reset_holds_the_bot_and_is_retried_until_it_runs(monkeypatch):
+    """The bot lists could not be cleared at the rollover: today's file says so (``reset_error``), the bot buys
+    nothing, and every later pass tries the lists again -- only the lists: a switch set since is today's."""
+    from hot_list import nova_buys
+
+    on_practice("paper")
+    store.save(doc_for("2026-09-29", "AAA"))
+    _session_with_lists(["AAA"], ["CCC"])
+    stock_store.set_switch("DDD", {"buy": "nova", "sell": "you", "set_at": TUE_1500})
+
+    real = nova_buys._clear_bot_lists
+
+    def broken():
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(nova_buys, "_clear_bot_lists", broken)
+    fresh = service.today(WED_0430)
+    assert "could not be cleared (OSError: disk gone)" in fresh["reset_error"]
+    assert stock_store.switches() == {}                                        # the switches always clear
+    assert "failed" in store.day_reset_block(WED_0430) and load_session()["symbol_allowlist"] == ["AAA"]
+    [line] = [r for r in list_entries(limit=50) if r["action"] == "hot_list"]
+    assert "disk gone" in line["inputs"]["error"]
+
+    stock_store.set_switch("GGG", {"buy": "nova", "sell": "you", "set_at": WED_0430 + 10})
+    assert "reset_error" in service.today(WED_0430 + 30)                       # still broken: still held
+    assert "failed" in store.day_reset_block(WED_0430 + 30)
+
+    monkeypatch.setattr(nova_buys, "_clear_bot_lists", real)                   # the disk is back
+    doc = service.today(WED_1000)
+    assert "reset_error" not in doc and store.day_reset_block(WED_1000) is None
+    assert "reset_error" not in json.loads(store._path().read_text(encoding="utf-8"))
+    row = load_session()
+    assert row["symbol_allowlist"] == [] and row["venue_levels"]["sim"]["symbol_allowlist"] == []
+    assert "GGG" in stock_store.switches()                                     # today's switch stays
+    [line] = [r for r in list_entries(limit=50) if r["action"] == "hot_list" and (r.get("inputs") or {}).get("retry")]
+    assert line["outcome"] == "rollover" and line["inputs"]["from"] == line["inputs"]["to"] == "2026-09-30"
+    assert {(c["venue"], c["symbol"]) for c in line["inputs"]["cleared"]} == {("paper", "AAA"), ("sim", "CCC")}
+    service.today(WED_1000 + 30)                                               # ran: no second retry
+    assert len([r for r in list_entries(limit=50) if (r.get("inputs") or {}).get("retry")]) == 1
+
+
+def test_a_failed_reset_whose_file_was_not_written_is_never_marked_done(monkeypatch):
+    """The lists could not be cleared and today's file could not be written either: the next pass clears
+    again rather than writing today's file as if the reset had run, so the bot is never unblocked on
+    yesterday's lists."""
+    from hot_list import nova_buys
+
+    on_practice("paper")
+    store.save(doc_for("2026-09-29", "AAA"))
+    _session_with_lists(["AAA"], [])
+    real_clear, real_save = nova_buys._clear_bot_lists, store.save
+
+    def broken_clear():
+        raise OSError("session gone")
+
+    def broken_save(doc):
+        raise OSError("cache gone")
+
+    monkeypatch.setattr(nova_buys, "_clear_bot_lists", broken_clear)
+    monkeypatch.setattr(store, "save", broken_save)
+    with pytest.raises(HotListError) as refused:
+        service.today(WED_0430)
+    assert refused.value.reason == HOT_LIST_UNREADABLE
+    monkeypatch.setattr(store, "save", real_save)                              # the cache is back, the session not
+    fresh = service.today(WED_0430 + 30)
+    assert "session gone" in fresh["reset_error"] and "failed" in store.day_reset_block(WED_0430 + 30)
+    assert load_session()["symbol_allowlist"] == ["AAA"]
+    monkeypatch.setattr(nova_buys, "_clear_bot_lists", real_clear)             # and the session too
+    service.today(WED_0430 + 60)
+    assert store.day_reset_block(WED_0430 + 60) is None and load_session()["symbol_allowlist"] == []
 
 
 def test_a_day_with_no_names_keeps_the_last_names_for_bring_back():
@@ -211,6 +327,8 @@ def test_the_feed_adds_its_leaders_sticky_for_the_day(monkeypatch):
     assert auto.status()["error"] is None
     lines = [r["inputs"] for r in list_entries(limit=50) if r["action"] == "hot_list"]
     assert [i["symbol"] for i in lines if i["event"] == "auto"][-1] == "NEW"
+    assert {i["event"] for i in lines} <= {"auto", "rollover"}                 # no side is ever set for them
+    assert stock_store.switches() == {} and load_session().get("symbol_allowlist") in (None, [])
 
 
 def test_a_leader_you_took_off_is_not_added_back_that_day_even_after_a_restart(monkeypatch):
@@ -256,7 +374,7 @@ def test_the_feed_rolls_the_list_over_at_four():
     assert doc["date"] == "2026-09-30" and doc["yesterday"] == ["AAA"]
 
 
-# -- HOD Momo's active set admits the list first ----------------------------------------------------
+# -- HOD Momo's active set admits the bot's stocks, then the list ------------------------------------
 def test_listed_names_are_admitted_first_ahead_of_former_momo():
     active.clear_session_state()
     snap = active.build_active_set(
@@ -329,3 +447,79 @@ def test_the_bridge_reads_todays_list_when_it_rebuilds_the_set():
     store.save(doc_for(store.trading_day(), "ZHOT", "YHOT"))
     assert ibkr_bridge.refresh_hod_active_set()[:2] == ["ZHOT", "YHOT"]
     assert active.get_priority_reason("ZHOT") == "hot_list"
+
+
+def test_the_bots_stocks_are_admitted_ahead_of_the_list_and_counted_once():
+    """The bot can only buy what a lane reads: a stock whose Buy is the bot's takes its reserved slot first, and a
+    name on both counts as the bot's."""
+    active.clear_session_state()
+    snap = active.build_active_set(priority_symbols=["F1"], hot_symbols=["HOT1", "BOTH"],
+                                   bot_symbols=["bot1", "BOTH"], capacity=40)
+    assert snap.active[:4] == ["BOT1", "BOTH", "HOT1", "F1"]
+    assert [snap.reasons[s] for s in snap.active[:4]] == ["bot_buy", "bot_buy", "hot_list", "former_momo"]
+    assert snap.active.count("BOTH") == 1
+
+
+def test_a_bot_stock_past_the_reserved_slots_says_why_and_the_list_gets_none():
+    from hot_list import following
+
+    active.clear_session_state()
+    bots = [f"B{i:02d}" for i in range(21)]
+    snap = active.build_active_set(gainer_rows=MOVERS, hot_symbols=["H00"], bot_symbols=bots, capacity=40)
+    assert snap.active[:20] == bots[:20] and {snap.reasons[s] for s in bots[:20]} == {"bot_buy"}
+    assert snap.reasons["B20"] == "bot_buy_over_reserved" and snap.reasons["H00"] == "hot_list_over_reserved"
+    assert {"B20", "H00"} <= set(snap.uncovered)
+    assert len([s for s in snap.active if s.startswith("M")]) == 20            # the movers keep their 20
+    assert following.reason_not_followed("B20") == following.RESERVED_FULL
+
+
+def test_a_bot_stock_ibkr_cannot_stream_says_so_and_leaves_its_slot():
+    from hot_list import following
+
+    active.clear_session_state()
+    active.note_l1_subscribe_failed(["BAD"], cooldown_sec=600.0)
+    snap = active.build_active_set(bot_symbols=["BAD", "GOOD"], hot_symbols=["HOT"], capacity=40)
+    assert snap.active == ["GOOD", "HOT"] and snap.reasons["BAD"] == "bot_buy_l1_blocked"
+    assert following.reason_not_followed("BAD") == following.L1_BLOCKED
+
+
+def test_the_bots_stocks_are_its_list_then_its_auto_entry_switches():
+    """``bot_buy_symbols``: the desk venue's bot list in its order, then every Auto-entry switch (Buy Nova),
+    sorted; never another venue's list or an Approve switch (Buy You); each name once."""
+    from hot_list.following import bot_buy_symbols
+
+    on_practice("paper")
+    _session_with_lists(["ZZZ", "AAA"], ["SIMONLY"])
+    stock_store.set_switch("MMM", {"buy": "nova", "sell": "you", "set_at": TUE_1500})
+    stock_store.set_switch("BBB", {"buy": "nova", "sell": "you", "set_at": TUE_1500})
+    stock_store.set_switch("AAA", {"buy": "nova", "sell": "you", "set_at": TUE_1500})
+    stock_store.set_switch("APP", {"buy": "you", "sell": "nova", "set_at": TUE_1500})
+    assert bot_buy_symbols() == ["ZZZ", "AAA", "BBB", "MMM"]
+
+
+def test_the_bridge_admits_the_bots_stocks_before_todays_list():
+    import ibkr_bridge
+
+    on_practice("paper")
+    active.clear_session_state()
+    _session_with_lists(["ZBOT"], [])
+    stock_store.set_switch("YAUTO", {"buy": "nova", "sell": "you", "set_at": TUE_1500})
+    store.save(doc_for(store.trading_day(), "ZHOT", "ZBOT"))
+    assert ibkr_bridge.refresh_hod_active_set()[:3] == ["ZBOT", "YAUTO", "ZHOT"]
+    assert active.get_priority_reason("ZBOT") == "bot_buy" and active.get_priority_reason("ZHOT") == "hot_list"
+
+
+def test_the_setup_views_note_names_a_bot_stock_no_lane_reads():
+    from hot_list import following
+
+    on_practice("paper")
+    active.clear_session_state()
+    _session_with_lists(["BOTX"], [])
+    store.save(doc_for(store.trading_day(), "HOTX"))
+    bots = [f"B{i:02d}" for i in range(20)] + ["BOTX"]
+    active.build_active_set(gainer_rows=MOVERS, bot_symbols=bots, hot_symbols=["HOTX"], capacity=40)
+    assert following.listed_note("BOTX") == ("BOTX is set to bot buy, but no lane reads it: HOD Momo's 20 reserved "
+                                             "slots are full")
+    assert following.listed_note("HOTX") == ("HOTX is on today's hot list, but no lane reads it: HOD Momo's 20 "
+                                             "reserved slots are full")
+    assert following.listed_note("NONE") is None

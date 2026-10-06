@@ -167,7 +167,7 @@ export const BOT_STRATEGY_LEVEL_LABELS = {
 export const BOT_SETUP_LEVEL_TIPS = {
   0: 'Off: silent. Its scanner still watches and scores every armed setup, so its read-out keeps collecting, but it never alerts you and draws nothing on your charts.',
   1: 'Eyes: it draws its setups on your charts and alerts you when one comes near its trigger and the tape reads GO: a ping and a card in the inbox. You press Place. The default.',
-  2: 'On: everything Eyes does, and while the Bot is on Nova may act on its GO triggers on the stocks of today\'s hot list whose Buy is Nova, inside its bot window, its grades and its setups a day. Live trading by a bot is not built.',
+  2: 'On: everything Eyes does, and while the Bot is on the bot may act on its GO triggers on the stocks whose Buy is Bot, inside its bot window, its grades and its setups a day. Live trading by a bot is not built.',
 } as const;
 export const BOT_SETUP_LEVEL_CHIPS = {
   0: 'Off · silent',
@@ -206,7 +206,7 @@ export const BOT_GATE_TIPS: Record<string, string> = {
   level: 'The Bot switch: on, Nova may act on the strategies at On; off, they alert you like Eyes. Each venue keeps its own.',
   setups: 'At least one strategy set to On on its card. Nova acts only on those strategies\' GO triggers. The Bot switch needs this.',
   padlock: 'The desk padlock (spend arming). It is locked at every start and when anyone locks it, and locking it turns the Bot off. While locked nothing places an order. The Bot switch needs this.',
-  allowlist: 'The stocks whose Buy is Nova on this venue (Tickers today, or Who trades on a Trader tab). Nova buys nothing else; the scanners and Eyes still watch every HOD Momo name.',
+  allowlist: 'The stocks whose Buy is Bot on this venue (Tickers today, or Who trades on a Trader tab). The bot buys nothing else; the scanners and Eyes still watch every HOD Momo name.',
   depth_lines: 'Nova must hold a stock\'s Level 2 line to read its tape at the trigger (IBKR allows 3 at once). This is open while one bot stock has a line; a trigger on a stock without one is skipped, and the activity says so. Checked on every order.',
   bot_trip: 'The soft loss breaker: when this venue\'s day P&L falls to its bot trip, Nova flattens and turns the Bot off. Turning it back on asks you first and re-enables it for today; it clears by itself at 04:00 ET.',
   day_lock: 'The hard loss breaker on this venue: the all-stop flattened the account and locks bot and manual buys on this venue until 04:00 ET. Flatten and cancel still work. Checked on every order.',
@@ -253,9 +253,9 @@ export const BOT_DESK_ARM_HEADER = 'X-Nova-Desk-Arm';
 export const BOT_DESK_ARM_STORAGE = 'nova_bot_desk_arm';
 
 /* ---------- The bot's stocks (ADR 042 F): set per stock, one owner ----------
-   Adding a stock to the bot sets it to Bot (Nova buys and sells) through the
+   Adding a stock to the bot sets it to Bot (bot buys and sells) through the
    stock-mode rules; a refusal is shown in the backend's own words. */
-export const botTradeAddLabel = (symbol: string): string => `Let the bot trade ${symbol} (Nova buys and sells)`;
+export const botTradeAddLabel = (symbol: string): string => `Let the bot trade ${symbol} (bot buys and sells)`;
 export const botTradeRemoveLabel = (symbol: string): string => `Stop the bot trading ${symbol}`;
 export const botTradeRefusedTitle = (symbol: string, add: boolean): string =>
   (add ? `The bot cannot trade ${symbol}` : `${symbol} stays with the bot`);
