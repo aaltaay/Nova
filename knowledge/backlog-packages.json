@@ -163,7 +163,8 @@
         293,
         307,
         326,
-        748
+        748,
+        754
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
@@ -205,6 +206,19 @@
             "backend/execution/ledger_conn.py",
             "backend/tests/conftest.py",
             "backend/tests/test_execution_ledger_conn.py"
+          ]
+        },
+        {
+          "title": "test(alerts): isolate mocked webhook sends from DNS",
+          "issues": [
+            754
+          ],
+          "note": "Three mocked-HTTP unit tests still use external DNS in the SEC-008 preflight. Inject a deterministic public-IP resolver only in those tests, preserve real URL validation, and verify unresolved/private DNS refuses before HTTP. No runtime or policy changes.",
+          "gated": false,
+          "touches": [
+            "knowledge/backlog-packages.json",
+            "architecture/alerts-dispatch-test-isolation.md",
+            "backend/tests/test_alerts_dispatch.py"
           ]
         }
       ]

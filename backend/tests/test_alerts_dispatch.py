@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import socket
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,6 +26,19 @@ def _clear_status_ring():
     dispatch._status_ring.clear()
 
 
+@pytest.fixture
+def _public_webhook_dns(monkeypatch):
+    """Keep mocked sends offline without bypassing the SSRF preflight."""
+    def resolve(hostname, port):
+        assert hostname in {"discord.com", "example.com"}
+        assert port is None
+        return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", 0))]
+
+    resolver = MagicMock(side_effect=resolve)
+    monkeypatch.setattr("alerts.webhook_url.socket.getaddrinfo", resolver)
+    return resolver
+
+
 def test_mask_secret_hides_most_of_value():
     assert mask_secret("abcdefghijklmnop") == "************mnop"
     assert mask_secret("ab") == "**"
@@ -44,7 +58,7 @@ def test_channel_to_public_never_returns_full_secrets():
 
 
 @patch("alerts.discord.urllib.request.urlopen")
-def test_send_discord_success(mock_urlopen):
+def test_send_discord_success(mock_urlopen, _public_webhook_dns):
     resp = MagicMock()
     resp.status = 204
     resp.__enter__ = MagicMock(return_value=resp)
@@ -54,10 +68,12 @@ def test_send_discord_success(mock_urlopen):
     ok, err = send_discord("https://discord.com/api/webhooks/x/y", {"content": "hi"})
     assert ok is True
     assert err is None
+    _public_webhook_dns.assert_called_once_with("discord.com", None)
+    mock_urlopen.assert_called_once()
 
 
 @patch("alerts.discord.urllib.request.urlopen")
-def test_send_discord_loud_failure_on_bad_url(mock_urlopen):
+def test_send_discord_loud_failure_on_bad_url(mock_urlopen, _public_webhook_dns):
     import urllib.error
 
     mock_urlopen.side_effect = urllib.error.HTTPError(
@@ -66,6 +82,8 @@ def test_send_discord_loud_failure_on_bad_url(mock_urlopen):
     ok, err = send_discord("https://discord.com/api/webhooks/x/y", {"content": "hi"})
     assert ok is False
     assert "404" in (err or "")
+    _public_webhook_dns.assert_called_once_with("discord.com", None)
+    mock_urlopen.assert_called_once()
 
 
 @patch("alerts.telegram.urllib.request.urlopen")
@@ -83,7 +101,7 @@ def test_send_telegram_success(mock_urlopen):
 
 
 @patch("alerts.generic_webhook.urllib.request.urlopen")
-def test_send_webhook_posts_json(mock_urlopen):
+def test_send_webhook_posts_json(mock_urlopen, _public_webhook_dns):
     resp = MagicMock()
     resp.status = 200
     resp.__enter__ = MagicMock(return_value=resp)
@@ -93,8 +111,34 @@ def test_send_webhook_posts_json(mock_urlopen):
     ok, err = send_webhook("https://example.com/hook", {"type": "test"})
     assert ok is True
     assert err is None
+    _public_webhook_dns.assert_called_once_with("example.com", None)
+    mock_urlopen.assert_called_once()
     call_args = mock_urlopen.call_args[0][0]
     assert call_args.full_url == "https://example.com/hook"
+
+
+@pytest.mark.parametrize("sender, url, hostname", [
+    (send_discord, "https://discord.com/api/webhooks/x/y", "discord.com"),
+    (send_webhook, "https://example.com/hook", "example.com"),
+], ids=["discord", "webhook"])
+@pytest.mark.parametrize("dns_result, expected_error", [
+    ("unresolved", "could not be resolved"),
+    ("private", "private or link-local"),
+])
+def test_webhook_preflight_refuses_without_http(sender, url, hostname, dns_result, expected_error):
+    with patch("alerts.webhook_url.socket.getaddrinfo") as resolver, patch("urllib.request.urlopen") as http:
+        if dns_result == "unresolved":
+            resolver.side_effect = socket.gaierror(socket.EAI_NONAME, "test resolver failure")
+        else:
+            resolver.return_value = [
+                (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("10.0.0.5", 0)),
+            ]
+        ok, err = sender(url, {"content": "test"})
+
+        assert ok is False
+        assert expected_error in (err or "")
+        resolver.assert_called_once_with(hostname, None)
+        http.assert_not_called()
 
 
 @patch("alerts.dispatch._dispatch_to_channel")
