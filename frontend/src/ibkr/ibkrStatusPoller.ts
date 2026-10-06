@@ -21,6 +21,7 @@ import { isSampleView } from '../sample_data/sampleNav';
 import { SAMPLE_IBKR_STATUS } from '../sample_data/sampleStatus';
 import { readLastIbkrStatus, writeLastIbkrStatus } from './ibkrStatusCache';
 import { normalizeIbkrStatus } from './ibkrStatusNormalize';
+import { watchDeskRequestRoute } from './deskRequestRouteFence';
 import {
   confirmDeskVenue,
   getConfirmedDeskVenueRevision,
@@ -187,23 +188,26 @@ export async function pollIbkrStatusOnce(): Promise<void> {
   }
   inflight = true;
   const askedRevision = getConfirmedDeskVenueRevision();
+  const route = watchDeskRequestRoute();
+  const requestStillCurrent = () => route.isCurrent() && askedRevision === getConfirmedDeskVenueRevision();
   try {
     const res = await fetchImpl(`${API_BASE_URL}/api/ibkr/status`);
     if (res.ok) {
       const body = await readStatusBody(res);
-      if (askedRevision !== getConfirmedDeskVenueRevision()) { pending = true; return; }
+      if (!requestStillCurrent()) { pending = !isSampleView(); return; }
       if (body) applySuccess(body);
       else applyFailure('unreadable response');
     } else {
-      if (askedRevision !== getConfirmedDeskVenueRevision()) { pending = true; return; }
+      if (!requestStillCurrent()) { pending = !isSampleView(); return; }
       applyFailure(res.status ? `HTTP ${res.status}` : 'HTTP error');
     }
   } catch (err) {
-    if (askedRevision !== getConfirmedDeskVenueRevision()) { pending = true; return; }
+    if (!requestStillCurrent()) { pending = !isSampleView(); return; }
     // Once per outage, not every poll: the stale chip carries the rest.
     if (misses === 0) console.warn('[Nova] /api/ibkr/status poll failed', err);
     applyFailure('no answer');
   } finally {
+    route.dispose();
     inflight = false;
     if (pending) {
       pending = false;

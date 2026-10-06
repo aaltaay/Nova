@@ -10,6 +10,7 @@ import {
   DESK_POLL_SNAPSHOT_MAX_AGE_MS,
 } from '../constantGroups/global_bar';
 import type { DeskVenue } from '../constantGroups/desk_venue';
+import { isSampleView } from '../sample_data/sampleNav';
 import {
   deskPollOwnerId,
   publishDeskPollSnap,
@@ -88,6 +89,7 @@ export function isConfirmedDeskVenueStoreSnapshotCurrent(asked: ConfirmedDeskVen
 
 /** Use only a successful backend answer's explicit venue; null never means Live. */
 export function confirmDeskVenue(value: unknown): void {
+  if (isSampleView()) return;
   const venue = explicitVenueOf({ venue: value } as { venue?: DeskVenue });
   const latest = latestSignal();
   if (latest && fresh(latest) && latest.payload.venue === venue && latest.payload.revision >= revision) {

@@ -13,6 +13,7 @@ export {
   subscribeConfirmedDeskVenue, useConfirmedDeskVenue,
 } from './confirmedDeskVenue';
 export type { ConfirmedDeskVenueSnapshot } from './confirmedDeskVenue';
+export { watchDeskRequestRoute } from './deskRequestRouteFence';
 export { defaultTicketQty } from './applyTicketDefaults';
 export {
   claimDeskPollLeader, heartbeatDeskPollLeader, publishDeskPollSnap,

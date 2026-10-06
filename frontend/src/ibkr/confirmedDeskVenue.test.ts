@@ -113,9 +113,31 @@ describe('confirmed desk venue', () => {
     _setIbkrStatusPollerFetchForTests(fetcher);
     const off = subscribeConfirmedDeskVenue(() => {});
     await pollIbkrStatusOnce();
+    confirmDeskVenue('paper');
     expect(fetcher).not.toHaveBeenCalled();
     expect(getConfirmedDeskVenueSnapshot().venue).toBeNull();
     expect(getConfirmedDeskVenueStoreSnapshot().venue).toBeNull();
     off();
+  });
+
+  it.each([false, true])('rejects a real status finishing after entering sample (return to real: %s)', async (returnToReal) => {
+    let release!: (reply: Response) => void;
+    const fetcher = vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { release = resolve; }))
+      .mockResolvedValue(ok(status('live')));
+    _setIbkrStatusPollerFetchForTests(fetcher);
+    const old = pollIbkrStatusOnce();
+    window.history.replaceState({}, '', '/?view=sample');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    if (returnToReal) {
+      window.history.replaceState({}, '', '/');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+    release(ok(status('paper')));
+    await old;
+    expect(getConfirmedDeskVenueStoreSnapshot().venue).not.toBe('paper');
+    await flush();
+    expect(getConfirmedDeskVenueSnapshot().venue).toBe(returnToReal ? 'live' : null);
+    expect(fetcher).toHaveBeenCalledTimes(returnToReal ? 2 : 1);
   });
 });
