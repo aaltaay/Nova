@@ -50,4 +50,15 @@ describe('Settings stock defaults venue ownership', () => {
     expect(screen.getByRole('alert').textContent).toContain('Could not save trade defaults');
     expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('100');
   });
+
+  it('shows refusal feedback without replacing an unknown-version destination', () => {
+    const raw = '{ "schema_version": 99, "venue": "paper", "prefs": {"v": 1, "quantity": 37} }';
+    localStorage.setItem(tradeDefaultsStorageKey('paper'), raw);
+    render(<TradeSettingsSection />);
+    expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('100');
+    fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '43' } });
+    expect(screen.getByRole('alert').textContent).toContain('Could not save trade defaults');
+    expect(localStorage.getItem(tradeDefaultsStorageKey('paper'))).toBe(raw);
+    expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('100');
+  });
 });

@@ -2,12 +2,13 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TRADE_DEFAULTS_STORAGE_KEY } from '../constantGroups/trade_defaults';
+import { TRADE_DEFAULTS_CHANGED_EVENT, TRADE_DEFAULTS_STORAGE_KEY } from '../constantGroups/trade_defaults';
 import {
   defaultTradeDefaultsPrefs,
   parseTradeDefaultsPrefs,
   readTradeDefaultsPrefs,
   writeTradeDefaultsPrefs,
+  tradeDefaultsStorageKey,
 } from './tradeDefaultsPrefs';
 
 describe('tradeDefaultsPrefs', () => {
@@ -77,6 +78,38 @@ describe('tradeDefaultsPrefs', () => {
   it('cannot persist to an unknown venue', () => {
     expect(writeTradeDefaultsPrefs(null, { ...defaultTradeDefaultsPrefs(), tif: 'GTC' })).toBe(false);
     expect(localStorage.length).toBe(0);
+  });
+
+  it.each([
+    ['future envelope', '{ "schema_version": 99, "venue": "paper", "prefs": {"v": 1, "quantity": 37} }'],
+    ['foreign ownership', '{"schema_version":2,"venue":"live","prefs":{"v":1,"quantity":37}}'],
+    ['future prefs', '{"schema_version":2,"venue":"paper","prefs":{"v":2,"quantity":37}}'],
+    ['corrupt JSON', '{not-json'],
+    ['missing ownership', '{"schema_version":2,"prefs":{"v":1,"quantity":37}}'],
+    ['missing prefs', '{"schema_version":2,"venue":"paper"}'],
+    ['invalid prefs', '{"schema_version":2,"venue":"paper","prefs":[37]}'],
+    ['empty saved value', ''],
+  ])('refuses to overwrite a %s destination and emits no preference change', (_case, raw) => {
+    const key = tradeDefaultsStorageKey('paper');
+    localStorage.setItem(key, raw);
+    const changed = vi.fn();
+    window.addEventListener(TRADE_DEFAULTS_CHANGED_EVENT, changed);
+    try {
+      expect(writeTradeDefaultsPrefs('paper', { ...defaultTradeDefaultsPrefs(), quantity: 43 })).toBe(false);
+      expect(localStorage.getItem(key)).toBe(raw);
+      expect(changed).not.toHaveBeenCalled();
+    } finally { window.removeEventListener(TRADE_DEFAULTS_CHANGED_EVENT, changed); }
+  });
+
+  it('saves a missing destination and updates recognized preferences normally', () => {
+    const changed = vi.fn();
+    window.addEventListener(TRADE_DEFAULTS_CHANGED_EVENT, changed);
+    try {
+      expect(writeTradeDefaultsPrefs('paper', { ...defaultTradeDefaultsPrefs(), quantity: 7 })).toBe(true);
+      expect(writeTradeDefaultsPrefs('paper', { ...readTradeDefaultsPrefs('paper'), quantity: 43 })).toBe(true);
+      expect(readTradeDefaultsPrefs('paper').quantity).toBe(43);
+      expect(changed).toHaveBeenCalledTimes(2);
+    } finally { window.removeEventListener(TRADE_DEFAULTS_CHANGED_EVENT, changed); }
   });
 
   it('keeps sample reads and edits off operator settings and their migration receipt', () => {
