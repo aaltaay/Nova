@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createElement, startTransition, Suspense, useLayoutEffect, useState } from 'react';
+import { createElement, startTransition, StrictMode, Suspense, useLayoutEffect, useState } from 'react';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { useScannerData } from './useScannerData';
@@ -35,7 +35,7 @@ function pendingBody() {
 
 type Choice = { provider: string; persistent: boolean; suspend: boolean; feed: (value: string) => void };
 
-function harness() {
+function harness(strict = false) {
   let choose!: (patch: Partial<Choice>) => void;
   let committed!: ReturnType<typeof useScannerData>;
   let previews = 0;
@@ -54,8 +54,8 @@ function harness() {
     choose = patch => setChoice(previous => ({ ...previous, ...patch }));
     return createElement(Suspense, { fallback: createElement('div', null, 'fallback') }, createElement(Scanner, choice));
   }
-  const view = render(createElement(App));
-  return { row: view.getByTestId('scanner'), feed, committed: () => committed,
+  const view = render(strict ? createElement(StrictMode, null, createElement(App)) : createElement(App));
+  return { row: view.getByTestId('scanner'), feed, unmount: view.unmount, committed: () => committed,
     choose: (patch: Partial<Choice>) => choose(patch), previews: () => previews,
     discard: () => choose({ provider: 'ibkr', persistent: true, suspend: false, feed }) };
 }
@@ -124,4 +124,49 @@ it.each(['envelope', 'refresh'] as const)('uses committed feed callbacks for a l
   else await act(async () => h.committed().fetchData());
   expect(h.feed).toHaveBeenCalledWith('ibkr');
   expect(previewFeed).not.toHaveBeenCalled();
+});
+
+it.each(['live', 'history'] as const)('retains a pending %s response when Suspense hides then reveals the same committed view', async mode => {
+  const pending = pendingBody();
+  const pendingRoute = (url: string) => mode === 'live' ? url.endsWith('/gappers') : url.includes('/history/gappers/');
+  const fetcher = vi.fn(async (url: string) => pendingRoute(url) ? pending.response
+    : new Response(JSON.stringify(envelope()), { status: 200 }));
+  vi.stubGlobal('fetch', fetcher);
+  const h = harness();
+  if (mode === 'history') {
+    await waitFor(() => expect(h.row.textContent).toContain('ibkr/Live/4.3'));
+    act(() => h.committed().setHistoryDate('2026-09-23'));
+  }
+  await waitFor(() => expect(pending.read).toHaveBeenCalled());
+  act(() => h.choose({ suspend: true }));
+  expect(document.body.textContent).toContain('fallback');
+  await act(async () => pending.release(envelope(mode === 'live' ? 4.3 : 4.2)));
+  act(h.discard);
+  expect(h.row.textContent).toContain(mode === 'live' ? 'ibkr/Live/4.3' : 'ibkr/2026-09-23/4.2');
+  expect(fetcher.mock.calls.filter(([url]) => pendingRoute(url))).toHaveLength(1);
+});
+
+it('rejects pending response callbacks after a true unmount', async () => {
+  const pending = pendingBody();
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/gappers') ? pending.response
+    : new Response(JSON.stringify(envelope()), { status: 200 })));
+  const h = harness();
+  await waitFor(() => expect(pending.read).toHaveBeenCalled());
+  h.unmount();
+  await act(async () => pending.release(envelope()));
+  expect(h.feed).not.toHaveBeenCalled();
+});
+
+it('loads the current StrictMode effect mount and rejects the disposed mount response', async () => {
+  const pending = pendingBody();
+  let gappersRequests = 0;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('/gappers') && ++gappersRequests === 1) return pending.response;
+    return new Response(JSON.stringify(envelope()), { status: 200 });
+  }));
+  const h = harness(true);
+  await waitFor(() => expect(h.row.textContent).toContain('ibkr/Live/4.3'));
+  expect(gappersRequests).toBe(2);
+  await act(async () => pending.release(envelope(9.9)));
+  expect(h.row.textContent).toContain('ibkr/Live/4.3');
 });

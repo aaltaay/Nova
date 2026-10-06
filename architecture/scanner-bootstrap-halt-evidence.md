@@ -110,7 +110,10 @@ frame; that latent ref-ownership defect reproduces before and after #764.
 
 Publish scanner scope, history-date, health and callback-sink refs in a layout
 effect for the committed render, before the existing passive fetch and stream
-effects. Invalidate on layout unmount cleanup. A speculative or abandoned render
+effects. Invalidate on passive unmount cleanup. Suspense temporarily hides a
+retained component by cleaning up layout effects while its passive effects stay
+mounted; that hide must not cancel the pending request, because reveal does not
+restart the unchanged fetch effect. A speculative or abandoned render
 must not cancel committed requests, block current halt evidence, or publish
 preview feed callbacks. Keep the envelope callback stable and dispatch through
 the committed sink, so the existing envelope poll's render-written callback ref
@@ -144,3 +147,15 @@ document invariants, maintainer gate against `368dc564` and diff checks pass.
 No helper, stream, envelope-poll, backend, trading or evidence-policy runtime
 changed. The parent records current-head browser/full-suite review before
 publication, together with the separately owned recorder test correction.
+
+Independent review reproduced the hide/reveal distinction with real Suspense:
+layout cleanup stranded the pending bootstrap when the same retained view was
+hidden, its body resolved, and it was revealed. Add that red regression and
+controls for true unmount callback rejection and StrictMode effect remounts.
+Keep committed ref publication in layout and request invalidation in passive
+cleanup, without extra reveal requests or resumption behavior.
+Both live and selected-history hide/reveal tests failed before restoring passive
+cleanup. The final ten-file scanner run passes 77 tests, including 31
+hook/request cases: true unmount rejects external feed callbacks from the old
+response, and StrictMode remount loads the current response while ignoring the
+disposed mount's 9.9 reply. Owned hook/test ESLint and the diff check pass.

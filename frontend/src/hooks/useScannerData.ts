@@ -110,7 +110,7 @@ export function useScannerData(opts: {
   const healthRef = useRef(health);
   const historyDateRef = useRef(historyDate);
   const liveRequestsRef = useRef(createScannerLiveRequestScope());
-  useLayoutEffect(() => () => liveRequestsRef.current.invalidate(), []);
+  useEffect(() => () => liveRequestsRef.current.invalidate(), []);
   const pollingRef = useRef(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryAttemptRef = useRef(0);
