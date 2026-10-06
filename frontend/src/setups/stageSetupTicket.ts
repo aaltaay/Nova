@@ -9,6 +9,16 @@
 import { SETUPS_STAGE_TICKET_DELAY_MS } from '../constants';
 import { defaultTicketQty, getConfirmedDeskVenueSnapshot, isConfirmedDeskVenueSnapshotCurrent } from '../ibkr';
 import { requestOrderTicketPrefill } from '../ibkr/orderTicketPrefill';
+import type { DeskVenue } from '../constantGroups/desk_venue';
+import { TRADE_DEFAULTS_WAITING } from '../constantGroups/trade_defaults';
+import { isSampleView } from '../sample_data/sampleNav';
+import { SAMPLE_WRITE_REFUSAL } from '../sample_data/sampleCopy';
+
+/** Draw the venue guard before Stage is pressed, including the sample desk. */
+export function stageVenueLock(venue: DeskVenue | null, sample = false): string | null {
+  if (sample || isSampleView()) return SAMPLE_WRITE_REFUSAL;
+  return venue === null ? TRADE_DEFAULTS_WAITING : null;
+}
 
 export function stageSetupTicket(
   symbol: string,

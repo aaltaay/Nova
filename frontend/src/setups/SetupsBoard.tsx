@@ -6,6 +6,8 @@
  * is not a trade, locks it with the reason (ADR 042 draft). */
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
+import { useConfirmedDeskVenue } from '../ibkr';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { SETUP_COL_TIPS, SETUP_KIND_LABELS } from '../constants';
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
@@ -25,7 +27,7 @@ import {
   toGoWords,
   triggerWords,
 } from './setupWords';
-import { stageSetupTicket } from './stageSetupTicket';
+import { stageSetupTicket, stageVenueLock } from './stageSetupTicket';
 import { tf5Words } from './tf5Words';
 import type { SetupRow } from './types';
 
@@ -96,12 +98,15 @@ const COLUMNS: SortColumns<SetupRow> = {
 
 /** A proposal's Stage on the board: sized by the sleeve's risk per trade, locked with its reason. */
 function StageCell({ row, risk, onOpenTrading }: { row: SetupRow; risk: SleeveRisk; onOpenTrading: (s: string) => void }) {
+  const venue = useConfirmedDeskVenue();
+  const sample = useSampleDataOptional();
   const p = row.proposal;
   if (!p) return null;
   const limit = stagedLimit(row);
   const size = proposalStageSize({ risk: p.risk ?? row.setup?.risk ?? null, entry: p.entry ?? row.setup?.entry ?? null,
     stop: p.stop ?? row.setup?.stop ?? null }, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
-  const lock = proposalStageLock({ ...p, entry: p.entry ?? row.setup?.entry ?? null }, size);
+  const lock = proposalStageLock({ ...p, entry: p.entry ?? row.setup?.entry ?? null }, size)
+    ?? stageVenueLock(venue, Boolean(sample));
   const tip = `Stage a BUY limit at ${limit} for ${size.text} on this symbol's ticket. Stop ${fmtPx(row.setup?.stop)}. `
     + `Nothing is sent until you press Place.${risk.why ? `\n${risk.why}` : ''}`;
   return (
@@ -180,7 +185,7 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading, risk }: {
       <td className="num">{row.state === 'triggered' ? fmtR(row.bar_r) : '—'}</td>
       <td className="setups-reason" {...tipProps(row.reason, 'The scanner now')}>{row.reason}</td>
       <td>
-        <StageCell row={row} risk={risk} onOpenTrading={onOpenTrading} />
+        {row.proposal && <StageCell row={row} risk={risk} onOpenTrading={onOpenTrading} />}
       </td>
     </SelectableTableRow>
   );

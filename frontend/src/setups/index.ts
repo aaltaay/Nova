@@ -2,7 +2,7 @@
 
 export { useSetupsBoard, SetupsStreamProvider } from './SetupsStreamContext';
 export { useSetupRows } from './useSetupRows';
-export { stageSetupTicket } from './stageSetupTicket';
+export { stageSetupTicket, stageVenueLock } from './stageSetupTicket';
 export { etHms, isRecordedBoard, recordedEmptyText, simBoardLine, simBoardTip } from './simBoardWords';
 export { fmtCents, fmtPct, fmtPx, fmtR, isActionable, stagedLimit, tapeRank } from './setupsFormat';
 export {
