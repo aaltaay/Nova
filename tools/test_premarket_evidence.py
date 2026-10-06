@@ -225,6 +225,54 @@ def test_valid_ibc_start_banner_keeps_observed_quiet_week_known(logs, capsys, ba
     assert ev["evidence_sources"]["ibc"]["status"] == "readable"
 
 
+@pytest.mark.parametrize("later_records", [
+    "autorestart file not found\n",
+    "autorestart file not found\nautorestart file not found\n",
+    "autorestart file found\n",
+    "Starting IBC version 3.24.1 on Sun 09/13/2026 at 12:00:00.25\n"
+    "autorestart file not found\nautorestart file not found\n",
+    "Starting IBC version 3.24.1 on Tue 09/22/2026 at 12:00:00.25\n"
+    "autorestart file not found\n"
+    "Starting IBC version 3.24.1 on Sun 09/13/2026 at 12:00:00.25\n",
+])
+def test_later_undated_auth_cannot_borrow_consumed_or_other_startup_banner(logs, capsys, later_records):
+    (logs[1] / "IBC-quiet.txt").write_text(
+        "Starting IBC version 3.24.1 on Sun 09/13/2026 at 12:00:00.25\n"
+        "autorestart file found\n2026-09-13 12:00:00:100 IBC: saved login\n"
+        + "".join(f"2026-09-{day:02} 23:45:00:100 IBC: saved login\n"
+                  for day in range(15, 23))
+        + later_records, encoding="utf-8")
+    code, ev = _cli(logs, capsys)
+    assert code == 1 and ev["met"] is False
+    assert ev["evidence_sources"]["ibc"]["status"] == "partial"
+    assert ev["criteria"]["no_unexpected_logins"]["known"] is False
+    assert "authentication record" in pv.render_text(ev)
+
+
+def test_a_fresh_weekend_banner_can_date_its_first_full_auth_record(logs, capsys):
+    with (logs[1] / "IBC-quiet.txt").open("a", encoding="utf-8") as file:
+        file.write("Starting IBC version 3.24.1 on Sat 09/19/2026 at 12:00:00.25\n"
+                   "autorestart file not found\n")
+    code, ev = _cli(logs, capsys)
+    assert code == 0 and ev["met"] is True
+    assert ev["evidence_sources"]["ibc"]["status"] == "readable"
+    assert len(ev["full_logins"]) == 1 and ev["full_logins"][0]["expected"] is True
+
+
+@pytest.mark.parametrize("full_auth", [False, True])
+def test_later_auth_with_its_own_dated_line_remains_known(logs, capsys, full_auth):
+    with (logs[1] / "IBC-quiet.txt").open("a", encoding="utf-8") as file:
+        file.write("Starting IBC version 3.24.1 on Sun 09/13/2026 at 12:00:00.25\n"
+                   "autorestart file found\n2026-09-13 12:00:00:100 IBC: saved login\n"
+                   + ("autorestart file not found\n" if full_auth else "autorestart file found\n")
+                   + "2026-09-22 12:00:00:100 IBC: authentication complete\n")
+    code, ev = _cli(logs, capsys)
+    assert code == int(full_auth)
+    assert ev["evidence_sources"]["ibc"]["status"] == "readable"
+    assert ev["criteria"]["no_unexpected_logins"]["known"] is True
+    assert ev["criteria"]["no_unexpected_logins"]["count"] == int(full_auth)
+
+
 def test_real_unexpected_login_still_proves_failure(logs, capsys):
     with (logs[1] / "IBC-quiet.txt").open("a", encoding="utf-8") as file:
         file.write("autorestart file not found\n2026-09-22 12:00:00:100 IBC: fresh login\n")

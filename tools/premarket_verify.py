@@ -289,12 +289,41 @@ def _valid_ibc_banner(line: str) -> bool:
     return _local(f"{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}") is not None
 
 
+def _ibc_auth_problems(text: str) -> list[str]:
+    """A banner dates its first auth record, never a later unplaceable record.
+
+    The diagnostic parser keeps a banner fallback; this evidence guard also
+    rejects pending records it could silently move across a startup boundary.
+    """
+    problems = []
+    fresh_banner = pending = pending_has_banner = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("Starting IBC version"):
+            if pending:
+                problems.append("an undated authentication record crosses another IBC startup")
+            pending = False
+            fresh_banner = _valid_ibc_banner(line)
+        elif line.lower().startswith(("autorestart file not found", "autorestart file found")):
+            if pending and not pending_has_banner:
+                problems.append("an authentication record has no fresh banner or following dated IBC line")
+            pending, pending_has_banner = True, fresh_banner
+            fresh_banner = False
+        elif pending and _IBC_STAMP_RE.match(line) and _local(line[:19]) is not None:
+            pending = False
+    if pending and not pending_has_banner:
+        problems.append("an authentication record has no fresh banner or following dated IBC line")
+    return problems
+
+
 def _source_summary(read: ReadResult, *, ibc: bool = False,
                     logins: list[relogin_reason.IbcLogin] | None = None) -> dict:
     """Dates in known line formats, plus explicit corruption/undated-launch failures."""
     pattern = _IBC_STAMP_RE if ibc else _LINE_RE
     stamps, problems = [], []
     for text in read.texts:
+        if ibc:
+            problems.extend(_ibc_auth_problems(text))
         for raw in text.splitlines():
             line = raw.strip()
             matched = pattern.match(line)
