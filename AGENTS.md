@@ -638,6 +638,25 @@ logs it as `WHY:` and `Invoke-NovaMorningCheck.ps1` adds it to a failed
 Gateway leg's alert. Nova's IBC launchers set `DAYOFWEEK` so IBC's weekday
 log names survive Windows 11's missing `wmic`.
 
+**Proof availability (#742).** The verifier adds `evidence_sources` keyed by
+`morning_check`, `daily_start`, `ibc` and `windows_restarts`: each source reports
+`status: "readable" | "missing" | "unreadable" | "partial" | "unsupported"`,
+`read_at`, `first_ts`, `last_ts`, `dates[]`, `problems[]` and, for the Windows
+query, `queried_since`. `login_evidence` is `{complete, requested_from,
+requested_through, problems[]}`; `criteria.no_unexpected_logins` also carries
+`known` (an observed unexpected login establishes failure; absent observations
+establish a quiet week only with complete proof). Missing or partly read sources,
+insufficient retained dated history and unavailable Windows evidence keep the
+quiet-week verdict unknown and `met: false`. Readable-empty restart evidence is
+known; bare empty login lists carry no coverage. The one-PASS plus quiet-week
+criterion stays unchanged; missed mornings are context. The precise retained
+observation contract and its limits live in `docs/live-desk-sync.md` §4.
+`tools/premarket_ibc.py` owns the verifier's pure per-start timestamp acceptance:
+it returns records and source problems together. Rejected records have unknown
+timestamps and cannot populate `full_logins` or a known weekday failure;
+positively dated records retain their counts even if other evidence is partial.
+The shared `ibkr/relogin_reason.py` operator-diagnostic contract stays unchanged.
+
 ### Scanner rows and HOD Momo alerts on the wire (QA batch, 2026-09-22)
 
 The REST scanner routes and `/ws/scanner` (`roster_replace` and the connect

@@ -179,6 +179,46 @@ Gateway start -- read from the IBC logs, `daily-start.log` and the Windows
 event log. Until it prints `RESULT MET`, #14 stays open no matter how the code
 looks.
 
+**Proof availability (#742).** The report must distinguish a readable source
+with no login events from a missing, unreadable or partly read source. A quiet
+week needs both the retained `daily-start.log` and IBC logs: successful reads,
+dated observations reaching the requested window's start, and observations on
+each completed calendar day in that window. It also needs a successful Windows
+restart query covering that window. An empty successful restart query is known
+evidence; an empty login file supplies no dated history. A source's oldest
+timestamp alone does not establish the week's coverage.
+
+The report shows each source's read status, retained timestamp range, observed
+dates and any gaps. Missing files, failed reads (including one failed IBC file),
+short retained history and unsupported or unreadable Windows evidence leave the
+quiet-week criterion **unknown / OPEN**, even if zero logins were observed. A
+window shorter than one week cannot establish #14's week. This is a verdict on
+the retained observations, not a guarantee of continuous monitoring or evidence
+that an unrecorded login never happened.
+
+A recognized IBC startup banner with a missing, truncated or invalid date/time
+makes that source partial. Later undated authentication evidence cannot borrow
+an older startup's timestamp to establish a quiet week; the report remains
+unknown / OPEN rather than guessing when that startup occurred.
+
+Each valid startup banner supports only that startup's first authentication
+record. A later authentication record needs a fresh valid banner or a valid
+dated IBC line following it. A record still awaiting a dated line when another
+startup begins is partial evidence, even when a previous banner is readable:
+the diagnostic parser's retained fallback cannot certify the record's date.
+An unused banner also stops dating authentication once the recorded IBC history
+moves to another calendar date. Timestamp-rejected records stay unknown and do
+not create a weekday login, count or known failure. Genuinely dated unexpected
+records still establish failure even when another record or source is partial.
+The verifier's pure `tools/premarket_ibc.py` parser returns those records and
+their source problems together; the operator's diagnostic parser is unchanged.
+
+The unattended-PASS criterion is evaluated separately. Missed mornings remain
+context: they do not themselves add another closing criterion or require every
+morning to pass. One genuine unattended PASS plus adequate evidence of a quiet
+week still meets the same two criteria. Fixing this verifier does not close #14
+or produce the trading PC's proof.
+
 The first criterion was met on 2026-09-22 (`03:55:03 RESULT PASS`). The second
 was not: in the week to 2026-09-23 the desk needed the phone on weekdays after
 an unrecorded restart and an unexpected shutdown (09-21), a Start-menu restart
