@@ -23,6 +23,18 @@ def test_longer_replaces_shortest_tie_keeps_earlier_and_next_hour_is_independent
     assert json.loads(store.stall_path('long').read_text())['duration_ms'] == 55000
 
 
+def test_a_longer_report_evicts_the_latest_of_equal_shortest_reports(tmp_path, monkeypatch):
+    monkeypatch.setattr('perf.store.PERF_STALL_FILES_PER_HOUR', 2)
+    store = PerfStore(tmp_path)
+    assert store.put_stall(report('first', 201))
+    assert store.put_stall(report('second', 201))
+    evicted = []
+    assert store.put_stall(report('long', 55000), evicted_ids=evicted)
+    assert evicted == ['second']
+    store.drain()
+    assert {p.stem for p in store.stalls_dir.glob('*.json')} == {'first', 'long'}
+
+
 def test_evicted_summary_loses_file_and_late_reports_remain_bounded(tmp_path, monkeypatch):
     monkeypatch.setattr('perf.store.PERF_STALL_FILES_PER_HOUR', 1)
     store = PerfStore(tmp_path)

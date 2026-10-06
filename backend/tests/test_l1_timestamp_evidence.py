@@ -148,6 +148,26 @@ def test_queue_rate_and_pending_bounds_are_counted_and_off_switch_collects_nothi
     assert len(rows) == 1
 
 
+def test_a_full_shared_writer_queue_counts_timestamp_loss_once_but_none_sink_succeeds(tmp_path):
+    from perf import counters
+
+    counters.reset_for_tests()
+    store = PerfStore(tmp_path)
+    for _ in range(store._queue.maxsize):
+        store.put({'kind': 'sample', 'ts': BASE})
+    metadata = {'instance': 'one', 'timestamp_receipt': None, 'native_price_received': False}
+    l1_timestamps.note_price('PFSA', 4.3, BASE, BASE, metadata=metadata, seed=False, quote_quality=None)
+    l1_timestamps.flush(store.put_timestamp, now=BASE + 3)
+    assert store.write_dropped == 1
+    assert counters.read()['l1_timestamp.queue_dropped'] == 1
+    l1_timestamps.flush(store.put_timestamp, now=BASE + 4)
+    assert store.write_dropped == 1 and counters.read()['l1_timestamp.queue_dropped'] == 1
+    rows = []
+    l1_timestamps.note_price('PFSA', 4.3, BASE + 4, BASE + 4, metadata=metadata, seed=False, quote_quality=None)
+    l1_timestamps.flush(rows.append, now=BASE + 7)  # list.append returns None on success
+    assert len(rows) == 1 and counters.read()['l1_timestamp.queue_dropped'] == 1
+
+
 @pytest.mark.parametrize('timestamp_type,price_type', [(45, 4), (88, 68)])
 @pytest.mark.parametrize('first_timestamp', [False, True])
 def test_native_wire_receipts_survive_tape_hook_order_repeated_values_and_a_new_session(

@@ -129,7 +129,9 @@ guesses; the burst rig (phase 2) replaces them with measured limits.
 ## Amendment 2026-10-06 -- retain severe stalls and gather timestamp evidence (#619, #667)
 
 The hourly full-report budget retains the longest stalls, replacing the shortest
-only for a strictly longer report; earlier reports win ties. Disk deletion stays
+only for a strictly longer report; earlier reports win ties. When several kept
+reports share the shortest duration, replacement evicts the most recently kept
+one so the earlier tied report survives. Disk deletion stays
 on the writer thread, and a summary names a file only while its report is
 retained. Bookkeeping is bounded to the current and preceding report-start hour.
 The day file still keeps every summary. GC tuning and next-open verification
@@ -143,7 +145,11 @@ price receipt. Price stamps, timestamp receipts and nearby same-price AllLast
 candidates keep separate meanings. Correlation uses one IB instance, a short
 arrival window and only prints that set a price. Its bounded inbox is drained
 off both loops, through the existing perf writer, into a separately capped day
-file under `l1_timestamps/`; rate, queue and file omissions are counted. No
+file under `l1_timestamps/`; rate, queue and file omissions are counted. A row
+rejected by the shared writer queue also increments `l1_timestamp.queue_dropped`;
+an explicit `False` rejects the row, while a sink returning `None` keeps its
+existing successful-write meaning. Rejected rows are dropped once, without a
+retry or an unbounded backlog. No
 private subscription, disk write or correlation scan occurs in an IB callback.
 The exact line schema is in AGENTS.md §3. Files follow perf retention; a
 reader refuses unknown versions. The evidence does not change age gates, minute
