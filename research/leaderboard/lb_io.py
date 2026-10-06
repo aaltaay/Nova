@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 
 from lb_config import (
+    CONFIRMED_SPLITS_PATH,
+    CONFIRMED_SPLITS_SCHEMA_VERSION,
     CSV_COLUMNS,
     DUCKDB_MEMORY_LIMIT,
     DUCKDB_THREADS,
@@ -114,14 +116,43 @@ def load_reference(research: duckdb.DuckDBPyConnection | None, ref_dir: Path) ->
     )
 
 
-def load_splits(research: duckdb.DuckDBPyConnection | None, ref_dir: Path) -> list[Split]:
+def load_splits(
+    research: duckdb.DuckDBPyConnection | None,
+    ref_dir: Path,
+    confirmed: Path | None = CONFIRMED_SPLITS_PATH,
+) -> list[Split]:
+    """Massive's split list, plus the splits SEC filings proved that it misses (#772).
+
+    ``confirmed`` is ``confirm_splits.py``'s file (none read when ``None`` or absent); on the same
+    ticker and day Massive's own entry wins.
+    """
     if research is not None:
         rows = research.execute("SELECT ticker, execution_date, split_from, split_to FROM splits").fetchall()
     else:
         raw = json.loads((ref_dir / "splits.json").read_text(encoding="utf-8"))
         rows = [(r.get("ticker"), date.fromisoformat(r["execution_date"]), r.get("split_from"), r.get("split_to"))
                 for r in raw if r.get("execution_date")]
-    return [Split(t, d, float(f), float(to)) for t, d, f, to in rows if t and d and f and to]
+    splits = [Split(t, d, float(f), float(to)) for t, d, f, to in rows if t and d and f and to]
+    if confirmed is not None:
+        have = {(s.ticker, s.execution_date) for s in splits}
+        splits += [s for s in load_confirmed_splits(confirmed) if (s.ticker, s.execution_date) not in have]
+    return splits
+
+
+def load_confirmed_splits(path: Path) -> list[Split]:
+    """The splits ``confirm_splits.py`` proved from SEC filings; none when the file is absent.
+
+    An unknown ``schema_version`` refuses (AGENTS.md section 3, "Splits a rebuild confirms").
+    """
+    if not path.is_file():
+        return []
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if raw.get("schema_version") != CONFIRMED_SPLITS_SCHEMA_VERSION:
+        raise ValueError(f"{path}: schema_version {raw.get('schema_version')!r} is not {CONFIRMED_SPLITS_SCHEMA_VERSION}")
+    return [
+        Split(str(r["ticker"]), date.fromisoformat(r["execution_date"]), float(r["split_from"]), float(r["split_to"]))
+        for r in raw.get("splits", [])
+    ]
 
 
 def splits_by_ticker(splits: list[Split]) -> dict[str, list[Split]]:

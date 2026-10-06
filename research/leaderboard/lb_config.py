@@ -54,6 +54,33 @@ RVOL_LOOKBACK_SESSIONS = 20
 # Fewer prior sessions in which the symbol printed than this -> rvol unknown.
 RVOL_MIN_PRIOR_SESSIONS = 10
 
+# ── Splits confirmed from SEC filings (#772; AGENTS.md section 3) ──────────
+# Massive's split list misses some splits; confirm_splits.py adds the ones an SEC filing
+# proves, beside the leaderboard store, and lb_io.load_splits reads them back.
+LEADERBOARD_DIR = Path(os.environ.get("NOVA_LEADERBOARD_DIR") or r"F:\Nova\leaderboard")
+CONFIRMED_SPLITS_PATH = LEADERBOARD_DIR / "splits_confirmed.json"
+CONFIRMED_SPLITS_SCHEMA_VERSION = 1
+# A filing's text never changes; the suffix names how it was read, so a new reader re-reads.
+SPLIT_FILING_CACHE_DIR = LEADERBOARD_DIR / "split_filings"
+SPLIT_FILING_CACHE_SUFFIX = ".v1.txt"
+# Suspects: an overnight open at least / at most this multiple of the prior close, nothing listed.
+SPLIT_SUSPECT_UP = 1.8
+SPLIT_SUSPECT_DOWN = 0.7
+# The filings looked at: 8-K / 8-K/A with Item 5.03 or 3.03, or any 6-K / 6-K/A, filed in this window.
+SPLIT_FILING_DAYS_BEFORE = 60
+SPLIT_FILING_DAYS_AFTER = 3
+SPLIT_8K_FORMS = ("8-K", "8-K/A")
+SPLIT_8K_ITEMS = ("5.03", "3.03")
+SPLIT_6K_FORMS = ("6-K", "6-K/A")
+# The split-adjusted open over the prior close must sit in this band; tighter when the
+# filing names no effective date.
+SPLIT_ADJUSTED_BAND = (0.5, 2.0)
+SPLIT_ADJUSTED_BAND_NO_DATE = (0.67, 1.5)
+# Massive lists a split for the ticker this close: reported, never added (it would adjust twice).
+SPLIT_LISTED_NEARBY_SESSIONS = 10
+# Exhibits read when the primary document does not state the split.
+SPLIT_MAX_EXHIBITS = 3
+
 # ── Output ──────────────────────────────────────────────────────────────────
 TOP_N_DEFAULT = 100
 WRITE_CHUNK_MINUTES = 60
