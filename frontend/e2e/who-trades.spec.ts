@@ -109,11 +109,11 @@ interface Opts {
   view?: () => Record<string, unknown>;
 }
 
-async function openApus(page: Page, opts: Opts = {}): Promise<{ puts: unknown[] }> {
+async function openApus(page: Page, opts: Opts = {}): Promise<{ puts: unknown[]; mutations: string[] }> {
   const puts: unknown[] = [];
   let current = opts.view?.() ?? modeView('signal');
   await page.clock.setFixedTime(new Date(APUS_NOW * 1000));
-  await mockLiveTraderApi(page, { bars: false, positions: opts.positions ?? [] });
+  const { mutations } = await mockLiveTraderApi(page, { bars: false, positions: opts.positions ?? [] });
   const one = minuteBars();
   const byTf: Record<string, Bar[]> = {
     '1Min': one,
@@ -151,7 +151,9 @@ async function openApus(page: Page, opts: Opts = {}): Promise<{ puts: unknown[] 
   });
   await page.goto('/?view=stock&symbol=APUS');
   await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible({ timeout: 20_000 });
-  return { puts };
+  await expect(page.getByTestId('bot-card-state')).toContainText('ON');
+  await expect(page.getByTestId('bot-card-error')).toHaveCount(0);
+  return { puts, mutations };
 }
 
 async function shot(page: Page, name: string) {
@@ -165,7 +167,7 @@ test.describe('Who trades the stock', () => {
 
   test('sits right above Level 2, keeps Level 2 its room, and hands the buy to Nova', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    const { puts } = await openApus(page);
+    const { puts, mutations } = await openApus(page);
     const row = page.getByTestId('who-trades');
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('who-trades-mode')).toHaveText('Signal only');
@@ -183,19 +185,21 @@ test.describe('Who trades the stock', () => {
 
     await page.getByTestId('who-trades-buy-nova').click();
     await expect(page.getByTestId('who-trades-mode')).toHaveText('Auto-entry');
-    expect(puts).toEqual([{ buy: 'nova', sell: 'you', risk_usd: 20 }]);
+    // ADR 042: the venue sleeve owns risk; this write changes only the stock's sides.
+    expect(puts).toEqual([{ buy: 'nova', sell: 'you' }]);
     await expect(page.getByTestId('who-trades-chip')).toContainText('Nova buys · you sell');
     await shot(page, 'who-auto-entry');
 
     await page.getByTestId('who-trades-chip').click();
     await expect(page.getByTestId('who-trades-menu')).toBeVisible();
     await shot(page, 'who-chip-menu');
+    expect(mutations).toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
   test('says ENTER NOW at the trigger, on the chart and in words', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openApus(page, { read: triggeredRead, price: 5.45 });
+    const { mutations } = await openApus(page, { read: triggeredRead, price: 5.45 });
     const call = page.getByTestId('moment-call');
     await expect(call).toContainText('ENTER NOW · 5.44', { timeout: 20_000 });
     await expect(call).toContainText('181 shares risk $20. Your click.');
@@ -203,6 +207,7 @@ test.describe('Who trades the stock', () => {
     await expect(page.getByTestId('moment-track').getByText('Trigger')).toHaveAttribute('data-state', 'now');
     await expect(page.getByTestId('who-trades')).toBeVisible();
     await shot(page, 'who-enter-now');
+    expect(mutations).toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
@@ -214,7 +219,7 @@ test.describe('Who trades the stock', () => {
       target_order_id: 102, stop_order_id: 103, fill_price: 5.44, filled_at: APUS_NOW - 5, exit_price: null,
       exit_reason: null, exits: 'nova', sent_at: APUS_NOW - 6, closed_at: null, note: null, exiting: false,
     };
-    await openApus(page, {
+    const { mutations } = await openApus(page, {
       read: triggeredRead,
       price: 5.50,
       positions: [{ symbol: 'APUS', qty: 181, market_price: 5.5, market_value: 995.5, avg_cost: 5.44,
@@ -232,6 +237,7 @@ test.describe('Who trades the stock', () => {
     await expect(page.getByTestId('l2-marker-target')).toBeInViewport();
     if (SHOTS) await page.waitForTimeout(700); // the position tag follows its line on its next measure
     await shot(page, 'who-approve-held');
+    expect(mutations).toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });
