@@ -624,7 +624,8 @@
         664,
         667,
         674,
-        742
+        742,
+        744
       ],
       "done": [
         "The live desk runs master and the Gateway restart is confirmed, with the date recorded on #331.",
@@ -764,27 +765,29 @@
           "note": "#571 halt transition reaches ticker but never scanner. #619 discards later worst stalls; #667 lacks native timestamp/arrival diagnostics. Close only #571; retain #619/#667 for measured evidence. No GC tuning, trigger-age change or tape-source migration.",
           "gated": false,
           "touches": [
-            "architecture/scanner-halt-push.md",
-            "architecture/perf-observability.md",
-            "architecture/l1-timestamp-evidence.md",
             ".cursor/rules/perf-recorder.mdc",
+            "AGENTS.md",
+            "architecture/l1-timestamp-evidence.md",
+            "architecture/perf-observability.md",
+            "architecture/scanner-halt-push.md",
             "backend/ibkr/halt_status.py",
-            "backend/ibkr/ticks_handler.py",
             "backend/ibkr/l1_timestamp.py",
             "backend/ibkr/l1_timestamp_writer.py",
             "backend/ibkr/tape_events.py",
-            "backend/scanner_push.py",
-            "backend/scanner/",
-            "backend/perf/store.py",
+            "backend/ibkr/ticks.py",
+            "backend/ibkr/ticks_handler.py",
             "backend/perf/recorder.py",
-            "backend/tests/test_scanner_halt_push.py",
+            "backend/perf/store.py",
+            "backend/scanner/",
+            "backend/scanner_push.py",
             "backend/tests/test_l1_timestamp.py",
             "backend/tests/test_perf_store_routes.py",
-            "frontend/src/hooks/useScannerPriceStream.ts",
-            "frontend/src/hooks/useScannerData.ts",
-            "frontend/src/scanner/scannerHaltPatch.ts",
+            "backend/tests/test_scanner_halt_push.py",
             "frontend/src/hooks/",
-            "frontend/src/scanner/"
+            "frontend/src/hooks/useScannerData.ts",
+            "frontend/src/hooks/useScannerPriceStream.ts",
+            "frontend/src/scanner/",
+            "frontend/src/scanner/scannerHaltPatch.ts"
           ]
         },
         {
@@ -798,6 +801,21 @@
             "tools/premarket_verify.py",
             "tools/test_premarket_verify.py",
             "docs/live-desk-sync.md"
+          ]
+        },
+        {
+          "title": "test(desk): align browser fixtures with accepted bot and sleeve contracts",
+          "issues": [
+            744
+          ],
+          "note": "Current CI assertions refer to retired ADR042/044 controls and per-stock risk. Healthy bot read fixtures restore original depth/target geometry checks; no production CSS fix is warranted.",
+          "gated": false,
+          "touches": [
+            "architecture/browser-contract-verification.md",
+            "frontend/e2e/helpers/liveTraderApi.ts",
+            "frontend/e2e/global-bar-bot-row.spec.ts",
+            "frontend/e2e/stock-read.spec.ts",
+            "frontend/e2e/who-trades.spec.ts"
           ]
         }
       ]
