@@ -161,6 +161,31 @@ body:has(.recording-stopped) .watch-toasts {
   height: 11px;
 }
 
+/* The ★ / ☆ beside a ticker (WatchMark): inline, a hair after the symbol, never wider than its icon. */
+.watch-mark-host {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: 2px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.watch-mark-host.sv-quote-card__star {
+  margin-left: 4px;
+}
+
+.watch-mark-host.sv-quote-card__star .watch-mark {
+  width: 14px;
+  height: 14px;
+}
+
+.watch-mark-host.hod-strip__star .watch-mark,
+.watch-mark-host.focus-rail__star .watch-mark {
+  width: 9px;
+  height: 9px;
+}
+
 .scanner-row-actions__btn.is-watching {
   border-color: color-mix(in srgb, var(--watch-color) 55%, transparent);
   color: var(--watch-color);

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FOCUS_RAIL_STORAGE_KEY } from '../constantGroups/trader_chrome';
 import type { AlertObject } from '../hod_momo/types';
@@ -185,6 +185,8 @@ describe('FocusRail', () => {
     });
     expect(order()).toEqual(['NOPE', 'VXTL']);
     expect(screen.getByTestId('focus-rail-watched-VXTL')).toBeTruthy();
+    // The ★ beside each starred symbol (operator, 2026-10-06).
+    expect(within(screen.getByTestId('focus-rail-watched-VXTL')).getByTestId('watch-mark').dataset.how).toBe('star');
     localStorage.clear();
     resetWatchListForTests();
   });

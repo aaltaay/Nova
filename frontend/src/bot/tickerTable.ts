@@ -15,18 +15,17 @@ const SIDES: Record<StockModeName, [Side, Side]> = {
   signal: ['you', 'you'], approve: ['you', 'nova'], auto_entry: ['nova', 'you'], bot: ['nova', 'nova'],
 };
 export const WHO_WORDS: Record<string, string> = {
-  'you/you': 'You trade it', 'nova/you': 'Auto-entry', 'you/nova': 'Nova exits', 'nova/nova': 'Bot',
+  'you/you': 'You trade it', 'nova/you': 'Auto-entry', 'you/nova': 'Bot sells', 'nova/nova': 'Bot',
 };
 
 /** Each square's question, on its column head. */
 export const GATE_TIPS: Record<string, string> = {
   bot_on: "Was the Bot switch on for this venue?",
   strategy_on: "Was the setup's strategy at On (not Off or Eyes)?",
-  grade: "Was the grade one the strategy lets Nova buy (A, or A and B)? C is never a trade.",
+  grade: "Was the grade one the strategy lets the bot buy (A, or A and B)? C is never a trade.",
   setups_a_day: "Was it a setup the strategy buys on one stock in a day (the 1st, or the 1st and 2nd)?",
   bot_window: "Was it inside the strategy's bot window?",
-  hot_list: "Was the ticker on today's hot list?",
-  nova_buys: "Was the ticker's Buy set to Nova?",
+  nova_buys: "Was the ticker's Buy set to Bot (and today's 04:00 reset of yesterday's bot buys done)?",
   level2_line: "Did Nova hold the ticker's Level 2 line, so it could read the tape? Red is BLIND.",
   tape_go: "Did the tape read GO at the trigger?",
   trades_today: "Was there room under the day's cap of Nova's entries, with no trade open?",
@@ -38,12 +37,17 @@ export function sidesOf(symbol: string, modes: readonly StockModeRow[]): [Side, 
   return row ? SIDES[row.mode] : ['you', 'you'];
 }
 
-/** Listed first (the stocks Nova buys first, then by when they joined); then the rest by symbol. */
-export function orderTickers(rows: readonly TickerRow[], modes: readonly StockModeRow[]): { listed: TickerRow[]; unlisted: TickerRow[] } {
-  const novaBuys = (t: TickerRow) => (sidesOf(t.symbol, modes)[0] === 'nova' ? 0 : 1);
-  const listed = rows.filter(t => t.listed).sort((a, b) => novaBuys(a) - novaBuys(b) || (a.listed!.at - b.listed!.at));
-  const unlisted = rows.filter(t => !t.listed).sort((a, b) => a.symbol.localeCompare(b.symbol));
-  return { listed, unlisted };
+/** A row with a "now" (or a ★ / ☆): today's tickers -- listed, or set to bot buy. */
+const isToday = (t: TickerRow) => t.listed !== null || t.now !== null;
+
+/** Today's tickers first -- the stocks the bot buys first, then by when they joined the hot list (bot-buy stocks
+ * off the list before the listed ones) -- then the rest (triggered only) by symbol. */
+export function orderTickers(rows: readonly TickerRow[], modes: readonly StockModeRow[]): { today: TickerRow[]; others: TickerRow[] } {
+  const botBuys = (t: TickerRow) => (sidesOf(t.symbol, modes)[0] === 'nova' ? 0 : 1);
+  const joined = (t: TickerRow) => t.listed?.at ?? 0;
+  const today = rows.filter(isToday).sort((a, b) => botBuys(a) - botBuys(b) || joined(a) - joined(b));
+  const others = rows.filter(t => !isToday(t)).sort((a, b) => a.symbol.localeCompare(b.symbol));
+  return { today, others };
 }
 
 /** A red square in a few words: what "What stops it" says; the backend's whole sentence is its hover. */
@@ -57,7 +61,6 @@ export function stopWord(id: string, t?: { grade?: string | null; tape?: string 
     case 'grade': return t?.grade ? `grade ${t.grade}` : 'grade';
     case 'setups_a_day': return 'setups a day';
     case 'bot_window': return 'outside its bot window';
-    case 'hot_list': return 'not on the hot list';
     case 'nova_buys': return 'Buy is You';
     case 'level2_line': return 'BLIND: no Level 2 line';
     case 'tape_go': return t?.tape ? `tape ${t.tape.toUpperCase()}` : 'tape not GO';

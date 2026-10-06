@@ -1,10 +1,14 @@
-/** Today's hot list on the wire (ADR 044): `GET /api/hot-list`. */
+/**
+ * Today's hot list on the wire (ADR 044, amended 2026-10-06): `GET /api/hot-list`. The list is watching
+ * only: it never says who trades a stock (that is the stock's own Buy / Sell switch).
+ */
 
-export type HotSide = 'you' | 'nova';
+/** How a name came onto the list: the operator's ★, or an auto ☆ (the top of the Gainers board). */
+export type HotHow = 'auto' | 'star';
 
 export interface HotEntry {
   symbol: string;
-  how: 'auto' | 'star';
+  how: HotHow;
   /** Epoch seconds it joined the list. */
   at: number;
   board: string | null;
@@ -22,7 +26,6 @@ export interface HotListView {
   cap: number;
   /** `rule` is the leaders rule in words; `error` why the auto feed could not read the board. */
   auto: { n: number; start: string; end: string; rule: string | null; error: string | null };
-  default: { buy: HotSide; sell: HotSide };
   entries: HotEntry[];
   yesterday: string[];
   error: string | null;

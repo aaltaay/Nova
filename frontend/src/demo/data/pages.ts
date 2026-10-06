@@ -304,6 +304,20 @@ export function setupRows() {
   });
 }
 
+/** Today's hot list (ADR 044): SMPL your ★ from the open of the morning, GAPX an auto ☆ off the Gainers board. */
+export function hotList() {
+  const entry = (symbol: string, how: 'star' | 'auto', ts: number, rank: number | null, change: number | null) => ({
+    symbol, how, at: ts, board: how === 'auto' ? 'gainers' : null, rank, change_pct: change, followed: true,
+    why_not_followed: null,
+  });
+  return {
+    schema_version: 1, date: DAY, cap: 20,
+    auto: { n: 5, start: '07:00', end: '16:00', rule: 'the leaders rule: $3-10, float 10M or less, 100K shares or more', error: null },
+    entries: [entry('SMPL', 'star', at(6, 58), null, null), entry('GAPX', 'auto', at(7, 12), 2, 0.42)],
+    yesterday: [], error: null,
+  };
+}
+
 export function stockModes(venue: string) {
   const view = (symbol: string, mode: string, buy: string, sell: string, last: { ts: number; tone: string; text: string } | null) => ({
     schema_version: 1, symbol, generated_at: NOW_S, venue, mode, buy, sell, risk_usd: 50, set_at: at(6, 59),

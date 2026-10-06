@@ -1,7 +1,9 @@
 """The hot list's file (ADR 044): ``hot-list.json`` in the operator cache, plus a read-only copy per day.
 
-Shape (schema 1): ``{schema_version, date, auto_n, default: {buy, sell}, entries: [{symbol, how, at,
-board, rank, change_pct}], yesterday: [symbol]}``. ``date`` is the trading day, which starts at 04:00 ET
+Shape (schema 1): ``{schema_version, date, auto_n, entries: [{symbol, how, at, board, rank, change_pct}],
+yesterday: [symbol], reset_error?: string}`` -- ``reset_error`` is present only while today's 04:00 reset of the
+bot's buys failed (``service.today`` retries it every pass). A file written before 2026-10-06 may carry ``default: {buy, sell}`` (the side a new
+name started on); it is read and dropped: the list never sets who trades a stock. ``date`` is the trading day, which starts at 04:00 ET
 (the practice day's boundary); ``at`` is epoch seconds; ``change_pct`` is the leaderboard row's, a
 fraction against the prior close (``null`` for a star). An unknown version or an unreadable file reads
 as an empty list with the error stated; nothing guesses.
@@ -32,12 +34,10 @@ from constants_hot_list import (
     HOT_LIST_BOARD_GAINERS,
     HOT_LIST_DATE_RE,
     HOT_LIST_DAY_DIR,
-    HOT_LIST_DEFAULT_SIDE,
     HOT_LIST_FILE,
     HOT_LIST_HOW_STAR,
     HOT_LIST_HOWS,
     HOT_LIST_SCHEMA_VERSION,
-    HOT_LIST_SIDES,
     HOT_LIST_SYMBOL_RE,
 )
 
@@ -92,8 +92,8 @@ def trading_day(now: float | None = None) -> str:
 
 def empty(day: str) -> dict[str, Any]:
     return {
-        "schema_version": HOT_LIST_SCHEMA_VERSION, "date": day, "auto_n": HOT_LIST_AUTO_N_DEFAULT,
-        "default": {"buy": HOT_LIST_DEFAULT_SIDE, "sell": HOT_LIST_DEFAULT_SIDE}, "entries": [], "yesterday": [],
+        "schema_version": HOT_LIST_SCHEMA_VERSION, "date": day, "auto_n": HOT_LIST_AUTO_N_DEFAULT, "entries": [],
+        "yesterday": [],
     }
 
 
@@ -119,14 +119,12 @@ def _entry(raw: Any) -> dict[str, Any] | None:
 
 def normalize(doc: dict[str, Any], name: str = HOT_LIST_FILE) -> dict[str, Any]:
     """Every field in its shape: an entry without a ticker (or a second one of a ticker) is dropped, an
-    unknown ``auto_n`` or side reads as the default. Each change is logged, never silent."""
+    unknown ``auto_n`` reads as the default. Each change is logged, never silent; a retired ``default`` is
+    dropped without a word."""
     out = empty(str(doc.get("date")))
     auto_n = doc.get("auto_n")
     known = isinstance(auto_n, int) and not isinstance(auto_n, bool) and auto_n in HOT_LIST_AUTO_N_CHOICES
     out["auto_n"] = auto_n if known else HOT_LIST_AUTO_N_DEFAULT
-    default = doc.get("default") if isinstance(doc.get("default"), dict) else {}
-    out["default"] = {side: default.get(side) if default.get(side) in HOT_LIST_SIDES else HOT_LIST_DEFAULT_SIDE
-                      for side in ("buy", "sell")}
     raw_entries = doc.get("entries") if isinstance(doc.get("entries"), list) else []
     seen: set[str] = set()
     for raw in raw_entries:
@@ -136,8 +134,10 @@ def normalize(doc: dict[str, Any], name: str = HOT_LIST_FILE) -> dict[str, Any]:
             out["entries"].append(entry)
     raw_yesterday = doc.get("yesterday") if isinstance(doc.get("yesterday"), list) else []
     out["yesterday"] = list(dict.fromkeys(s for s in (valid_symbol(r) for r in raw_yesterday) if s))
+    if doc.get("reset_error") is not None:
+        out["reset_error"] = str(doc["reset_error"])
     if (len(out["entries"]) != len(raw_entries) or len(out["yesterday"]) != len(raw_yesterday)
-            or out["auto_n"] != doc.get("auto_n") or out["default"] != doc.get("default")):
+            or out["auto_n"] != doc.get("auto_n")):
         logger.warning("hot list: %s held fields out of shape; they read as their defaults (entries %d -> %d)",
                        name, len(raw_entries), len(out["entries"]))
     return out
@@ -151,7 +151,6 @@ def roll(doc: dict[str, Any] | None, day: str) -> dict[str, Any]:
     if doc is None:
         return out
     out["auto_n"] = doc.get("auto_n", out["auto_n"])
-    out["default"] = dict(doc.get("default") or out["default"])
     names = [str(e["symbol"]) for e in doc.get("entries") or [] if e.get("symbol")]
     out["yesterday"] = names or list(doc.get("yesterday") or [])
     return out
@@ -249,25 +248,35 @@ def current(now: float | None = None) -> tuple[dict[str, Any], str | None]:
     return doc, None
 
 
+def day_reset_block(now: float | None = None) -> str | None:
+    """Why the bot may not buy yet today, or None. The 04:00 ET rollover (``service.today``, within
+    ``HOT_LIST_AUTO_TICK_SEC`` of 04:00 and at every start) resets yesterday's bot buys -- every venue's bot
+    list and every Auto-entry switch -- and writes today's file. Until today's file is on disk that reset is
+    not known to have run, so yesterday's choices could still buy: nothing buys."""
+    day = trading_day(now)
+    doc, error = read_raw()
+    if error is not None:
+        logger.warning("hot list: today's file cannot be read -- the 04:00 reset of the bot's buys is not known to "
+                       "have run, so the bot buys nothing: %s", error)
+        return ("the 04:00 ET reset of yesterday's bot buys cannot be confirmed: today's hot list file could not be "
+                "read (the backend log has the error)")
+    if doc is not None and doc.get("date") == day and doc.get("reset_error"):
+        return (f"the 04:00 ET reset of yesterday's bot buys failed ({doc['reset_error']}); Nova tries it again "
+                "every 30 s")
+    if doc is None or doc.get("date") != day:
+        return ("the 04:00 ET reset of yesterday's bot buys has not run yet today (it runs within 30 s of 04:00 and "
+                "at every start)")
+    return None
+
+
 def listed_symbols(now: float | None = None) -> list[str]:
     doc, _error = current(now)
     return [str(e.get("symbol") or "").upper() for e in doc.get("entries") or [] if e.get("symbol")]
 
 
 def is_listed(symbol: str, now: float | None = None) -> bool:
-    """Whether ``symbol`` is on today's list. An unreadable list lists nothing (Nova buys nothing)."""
+    """Whether ``symbol`` is on today's list. An unreadable list lists nothing."""
     return (symbol or "").strip().upper() in set(listed_symbols(now))
-
-
-def listed_or_unread(symbol: str, now: float | None = None) -> tuple[bool, str | None]:
-    """Whether ``symbol`` is on today's list, and -- when the list cannot be read -- why, in words a page can
-    show (the file's own error goes to the log, never to the desk). Unreadable lists nothing: not listed."""
-    doc, error = current(now)
-    if error is not None:
-        logger.warning("hot list: today's list cannot be read -- %s counts as not listed: %s", symbol, error)
-        return False, "today's hot list could not be read (the backend log has the error)"
-    sym = (symbol or "").strip().upper()
-    return sym in {str(e.get("symbol") or "").upper() for e in doc.get("entries") or []}, None
 
 
 def entries_on(day: str) -> tuple[list[dict[str, Any]] | None, str | None]:

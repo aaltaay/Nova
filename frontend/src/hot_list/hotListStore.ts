@@ -6,7 +6,7 @@
 import { useSyncExternalStore } from 'react';
 import { bringBackYesterday, fetchHotList, patchHotList, starSymbol, unstarSymbol } from './hotListApi';
 import { HOT_LIST_POLL_MS } from './constants';
-import type { HotListView, HotSide } from './types';
+import type { HotHow, HotListView } from './types';
 
 export interface HotListState {
   view: HotListView | null;
@@ -63,7 +63,6 @@ export const hotListActions = {
   star: (symbol: string) => write(() => starSymbol(symbol)),
   unstar: (symbol: string) => write(() => unstarSymbol(symbol)),
   setAuto: (n: number) => write(() => patchHotList({ auto_n: n })),
-  setDefault: (buy: HotSide, sell: HotSide) => write(() => patchHotList({ default_buy: buy, default_sell: sell })),
   bringBack: () => write(() => bringBackYesterday()),
   refresh,
 };
@@ -83,6 +82,14 @@ export function listedOn(view: HotListView | null, symbol: string): boolean | nu
   if (!view) return null;
   const sym = symbol.trim().toUpperCase();
   return view.entries.some(e => e.symbol === sym);
+}
+
+/** How ``symbol`` is on today's list: your ★ (`star`), an auto ☆ (`auto`), null when it is not listed, and
+ * undefined while the list has not been read. */
+export function howListed(view: HotListView | null, symbol: string): HotHow | null | undefined {
+  if (!view) return undefined;
+  const sym = symbol.trim().toUpperCase();
+  return view.entries.find(e => e.symbol === sym)?.how ?? null;
 }
 
 export function resetHotListForTests(): void {

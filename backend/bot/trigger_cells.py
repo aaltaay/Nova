@@ -1,4 +1,4 @@
-"""How each trigger of a day met Nova's ten gates (ADR 044, the squares). Pure.
+"""How each trigger of a day met Nova's nine gates (ADR 044, the squares). Pure.
 
 ``triggers(lines)`` folds a day's eyes' journal -- the lines of each setup's template in play
 (``playing: true``) -- into its triggers: the first ``triggered`` line of each setup id (a restart's
@@ -7,14 +7,13 @@ warm-up says the same trigger again), with its grade (its ``armed`` line) and it
 (``BOT_TRIGGER_GATES``), from what was recorded at the trigger:
 
 - ``bot_on``: the bot's state the journal stamped on the line (``bot: {level, active, venue}``);
-- ``strategy_on`` / ``nova_buys``: the strategy's own level and the stock's mode on the trigger's
+- ``strategy_on`` / ``nova_buys`` ("Bot buys"): the strategy's own level and the stock's mode on the trigger's
   venue at its moment (``bot.trigger_timeline``);
 - ``grade``: the grade it armed with against the strategy's ``bot_grades``, and NOT A TRADE's
   checks of the setup itself -- grade C, the spread at or over the risk, too thin to trade
   (``setup_scanner.trade_verdict``): Nova's bot reads them on the same trigger;
 - ``setups_a_day``: the setup's ``nth`` against ``bot_setups_a_day``;
 - ``bot_window``: the trigger's time against the strategy's bot window;
-- ``hot_list``: on the day's hot list at or before the trigger;
 - ``level2_line`` / ``tape_go``: the tape the lane read at the trigger. BLIND is the Level 2 line's
   red, never the tape's (``tape_go`` did not apply);
 - ``trades_today`` (``take_cap``): the venue's daily cap -- the first trigger that passes every other
@@ -127,9 +126,7 @@ class Context:
 
     timeline: Timeline
     rules: dict[str, dict[str, Any]]                     # setup -> {grades, setups_a_day, window, error}
-    listed: dict[str, dict[str, Any]] = field(default_factory=dict)   # symbol -> its hot list entry
-    spans: dict[str, list[dict[str, Any]]] = field(default_factory=dict)  # symbol -> when it was listed (audit)
-    hot_error: str | None = None
+    listed: dict[str, dict[str, Any]] = field(default_factory=dict)   # symbol -> its hot list entry (the ★)
     audit_error: str | None = None
     level_now: Callable[[str | None, str], Any] = lambda venue, setup: None
     mode_now: Callable[[str | None, str], Any] = lambda venue, symbol: UNKNOWN
@@ -199,37 +196,6 @@ def _window(t: dict[str, Any], rules: dict[str, Any]) -> dict[str, Any]:
     return cell(inside, f"{at:%H:%M} ET, {said} the {w['start']}-{w['end']} bot window")
 
 
-def _hot_span(t: dict[str, Any], runs: list[dict[str, Any]]) -> dict[str, Any]:
-    """The square from the spans the audit stream recorded: listed at the trigger, taken off before it, or
-    listed only after it."""
-    for run in runs:
-        if run["start"] <= t["ts"] and (run["end"] is None or t["ts"] < run["end"]):
-            how = "starred" if run["how"] == "star" else "listed by the leaders rule"
-            off = f" (taken off at {hhmm(run['end'])} ET)" if run["end"] is not None else ""
-            return cell(True, f"{how} at {hhmm(run['start'])} ET{off}")
-    ended = [r for r in runs if r["end"] is not None and r["end"] <= t["ts"]]
-    if ended:
-        return cell(False, f"{t['symbol']} was taken off the hot list at {hhmm(ended[-1]['end'])} ET, before this "
-                           "trigger")
-    return cell(False, f"listed at {hhmm(runs[0]['start'])} ET, after this trigger")
-
-
-def _hot(t: dict[str, Any], ctx: Context) -> dict[str, Any]:
-    if ctx.hot_error:
-        return cell(None, ctx.hot_error)
-    runs = ctx.spans.get(t["symbol"])
-    if runs:
-        return _hot_span(t, runs)
-    entry = ctx.listed.get(t["symbol"])
-    if entry is None:
-        return cell(False, f"{t['symbol']} was not on the day's hot list")
-    at = num(entry.get("at"))
-    how = "starred" if entry.get("how") == "star" else "listed by the leaders rule"
-    if at is not None and at > t["ts"]:
-        return cell(False, f"{how} at {hhmm(at)} ET, after this trigger")
-    return cell(True, f"{how}" + (f" at {hhmm(at)} ET" if at is not None else ""))
-
-
 def _nova_buys(t: dict[str, Any], venue: str | None, ctx: Context) -> dict[str, Any]:
     if venue is None:
         return cell(None, "the journal did not record the venue at this trigger")
@@ -267,7 +233,7 @@ def judge(t: dict[str, Any], ctx: Context) -> dict[str, dict[str, Any]]:
             "grade": _grade(t, rules) if rules else cell(None, "the strategy's bot rules could not be read"),
             "setups_a_day": _setups_a_day(t, rules) if rules else cell(None, "the strategy's bot rules could not "
                                                                              "be read"),
-            "bot_window": _window(t, rules), "hot_list": _hot(t, ctx), "nova_buys": _nova_buys(t, venue, ctx),
+            "bot_window": _window(t, rules), "nova_buys": _nova_buys(t, venue, ctx),
             "level2_line": line, "tape_go": tape, "trades_today": cell(None, "")}
 
 

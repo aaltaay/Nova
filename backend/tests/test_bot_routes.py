@@ -363,7 +363,7 @@ def test_a_full_list_is_refused_and_nothing_is_audited_as_done(bot_iso, api_key)
 
     on_practice()
     set_symbols(*[f"S{i:02d}" for i in range(50)])
-    list_hot("FULL")                    # already listed: the bot list's own cap is what refuses it
+    list_hot("FULL")                    # a starred stock: the bot list's own cap still refuses it
     res = client.post("/api/bot/allowlist", json={"symbol": "FULL", "op": "add"}, headers=headers(api_key))
     assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_ALLOWLIST_FULL
     assert "full" in res.json()["detail"]["error"]
@@ -371,16 +371,20 @@ def test_a_full_list_is_refused_and_nothing_is_audited_as_done(bot_iso, api_key)
     assert [r for r in list_entries(limit=20) if r["action"] == "stock_mode"] == []
 
 
-def test_a_full_hot_list_refuses_a_stock_nova_would_buy(bot_iso, api_key):
-    """ADR 044: Buy = Nova stars the stock; with today's list full (20) the switch is refused, and says so."""
+def test_a_full_hot_list_never_refuses_a_stock_the_bot_buys(bot_iso, api_key):
+    """ADR 044, amended 2026-10-06: Buy = Nova never stars the stock, so a full list (20) refuses nothing and
+    the stock stays off it."""
+    import hot_list
     from bot.audit import list_entries
+    from constants_hot_list import HOT_LIST_CAP
 
     on_practice()
-    list_hot(*[f"H{i:02d}" for i in range(20)])
+    list_hot(*[f"H{i:02d}" for i in range(HOT_LIST_CAP)])
     res = client.post("/api/bot/allowlist", json={"symbol": "MORE", "op": "add"}, headers=headers(api_key))
-    assert res.status_code == 409 and res.json()["detail"]["reason"] == "HOT_LIST_FULL"
-    assert "MORE" not in client.get("/api/bot/session").json()["symbol_allowlist"]
-    assert [r for r in list_entries(limit=20) if r["action"] == "stock_mode"] == []
+    assert res.status_code == 200 and "MORE" in client.get("/api/bot/session").json()["symbol_allowlist"]
+    assert not hot_list.is_listed("MORE") and len(hot_list.listed_symbols()) == HOT_LIST_CAP
+    assert [r["outcome"] for r in list_entries(limit=20) if r["action"] == "stock_mode"] == ["set"]
+    assert [r for r in list_entries(limit=20) if r["action"] == "hot_list"] == []
 
 
 def test_focus_sync_and_pnl(bot_iso, api_key, monkeypatch):

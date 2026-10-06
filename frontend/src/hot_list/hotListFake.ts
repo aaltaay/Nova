@@ -8,15 +8,17 @@ import { useSyncExternalStore } from 'react';
 import { HOT_LIST_AUTO_CHOICES } from './constants';
 import { normalizeHotList } from './hotListApi';
 import type { HotListState } from './hotListStore';
-import type { HotListView } from './types';
+import type { HotHow, HotListView } from './types';
 
-function viewOf(symbols: readonly string[]): HotListView {
+/** A name as a test lists it: a ticker (a ★), or `{symbol, how: 'auto'}` for an auto ☆. */
+export type FakeEntry = string | { symbol: string; how: HotHow };
+
+function viewOf(names: readonly FakeEntry[]): HotListView {
   return {
     schema_version: 1, date: '2026-10-01', cap: 20,
     auto: { n: 5, start: '07:00', end: '16:00', rule: null, error: null },
-    default: { buy: 'you', sell: 'you' },
-    entries: symbols.map(symbol => ({ symbol, how: 'star', at: 0, board: null, rank: null, change_pct: null,
-      followed: true, why_not_followed: null })),
+    entries: names.map(n => ({ symbol: typeof n === 'string' ? n : n.symbol, how: typeof n === 'string' ? 'star' : n.how,
+      at: 0, board: null, rank: null, change_pct: null, followed: true, why_not_followed: null })),
     yesterday: [], error: null,
   };
 }
@@ -25,8 +27,8 @@ let state: HotListState = { view: viewOf([]), error: null, busy: false };
 let refusal: string | null = null;
 const listeners = new Set<() => void>();
 
-function publish(symbols: readonly string[]): void {
-  state = { ...state, view: viewOf(symbols) };
+function publish(names: readonly FakeEntry[]): void {
+  state = { ...state, view: viewOf(names) };
   listeners.forEach(fn => fn());
 }
 
@@ -34,7 +36,12 @@ function symbols(): string[] {
   return (state.view?.entries ?? []).map(e => e.symbol);
 }
 
-async function write(next: () => string[]): Promise<string | null> {
+/** Today's names as listed, each with how it came on. */
+function names(): FakeEntry[] {
+  return (state.view?.entries ?? []).map(e => ({ symbol: e.symbol, how: e.how }));
+}
+
+async function write(next: () => FakeEntry[]): Promise<string | null> {
   if (refusal) {
     const said = refusal;
     refusal = null;
@@ -46,7 +53,8 @@ async function write(next: () => string[]): Promise<string | null> {
 
 export const fakeHotList = {
   /** Today's list, newest first. */
-  set: (list: readonly string[]) => publish(list.map(s => s.toUpperCase())),
+  set: (list: readonly FakeEntry[]) => publish(list.map(n => (typeof n === 'string' ? n.toUpperCase()
+    : { ...n, symbol: n.symbol.toUpperCase() }))),
   /** The next write is refused with these words. */
   refuseNext: (words: string) => { refusal = words; },
   reset: () => { refusal = null; publish([]); },
@@ -65,11 +73,12 @@ export function hotListFakeModule() {
     useHotList: () => useSyncExternalStore(subscribe, () => state, () => state),
     listedOn: (view: HotListView | null, symbol: string) =>
       (view ? view.entries.some(e => e.symbol === symbol.trim().toUpperCase()) : null),
+    howListed: (view: HotListView | null, symbol: string) =>
+      (view ? view.entries.find(e => e.symbol === symbol.trim().toUpperCase())?.how ?? null : undefined),
     hotListActions: {
-      star: (s: string) => write(() => [s.toUpperCase(), ...symbols().filter(x => x !== s.toUpperCase())]),
-      unstar: (s: string) => write(() => symbols().filter(x => x !== s.toUpperCase())),
+      star: (s: string) => write(() => [s.toUpperCase(), ...names().filter(x => typeof x !== 'string' && x.symbol !== s.toUpperCase())]),
+      unstar: (s: string) => write(() => names().filter(x => typeof x !== 'string' && x.symbol !== s.toUpperCase())),
       setAuto: async () => null,
-      setDefault: async () => null,
       bringBack: async () => null,
       refresh: async () => {},
     },

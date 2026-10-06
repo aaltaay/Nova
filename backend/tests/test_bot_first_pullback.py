@@ -384,16 +384,52 @@ def test_a_name_off_the_list_is_left_to_auto_entry_or_the_scanner(paper):
     assert tick(paper) is None and trade_rows() == []
 
 
-def test_a_bot_stock_off_todays_hot_list_is_skipped_with_the_reason(paper):
-    """ADR 044: Nova buys only the stocks on today's hot list."""
+def test_a_bot_stock_off_the_hot_list_is_bought(paper):
+    """ADR 044, amended 2026-10-06: the hot list is watching only -- a stock set to Bot is bought whether or not
+    it is starred."""
+    import hot_list
+
+    assert not hot_list.is_listed(SYM)
+    runner.submit(trigger())
+    trade = tick(paper)
+    assert trade["state"] == "open" and trade["symbol"] == SYM and trade_rows("skipped") == []
+
+
+def test_the_bot_buys_nothing_before_todays_reset_ran(paper):
+    """No file for today (or yesterday's): the 04:00 reset of yesterday's bot buys is not known to have run, so a
+    stock left on the bot list from yesterday is not bought."""
     from constants_hot_list import HOT_LIST_FILE
+    from hot_list import store as hot_store
     from paths import cache_dir
 
     (cache_dir() / HOT_LIST_FILE).unlink()
     runner.submit(trigger())
     assert tick(paper) is None
     [row] = trade_rows("skipped")
-    assert row["inputs"]["code"] == "BOT_SKIP_NOT_LISTED" and "IMCC is not on today's hot list" in row["reason"]
+    assert row["inputs"]["code"] == "BOT_SKIP_DAY_NOT_RESET"
+    assert "the 04:00 ET reset of yesterday's bot buys has not run yet today" in row["reason"]
+    hot_store.save(hot_store.empty("2020-01-02"))                    # an old day's file is no proof either
+    runner.submit(trigger(setup_id="AGAIN"))
+    assert tick(paper) is None and len(trade_rows("skipped")) == 2
+    assert paper.broker.ledger.working_orders() == []
+
+
+def test_a_failed_reset_holds_the_bot_until_it_ran(paper):
+    """Today's file says the reset of the bot lists failed: nothing buys; once a retry clears the flag the bot
+    buys again."""
+    from hot_list import store as hot_store
+
+    doc = hot_store.empty(hot_store.trading_day())
+    hot_store.save({**doc, "reset_error": "the bot's stock lists could not be cleared (OSError: disk gone)"})
+    runner.submit(trigger())
+    assert tick(paper) is None
+    [row] = trade_rows("skipped")
+    assert row["inputs"]["code"] == "BOT_SKIP_DAY_NOT_RESET"
+    assert "the 04:00 ET reset of yesterday's bot buys failed (the bot's stock lists could not be cleared" in \
+        row["reason"]
+    hot_store.save(doc)                                              # the retry ran
+    runner.submit(trigger(setup_id="AFTER"))
+    assert tick(paper)["state"] == "open"
 
 
 def test_a_grade_the_strategy_does_not_buy_is_skipped(paper):

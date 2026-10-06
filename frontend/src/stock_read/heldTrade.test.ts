@@ -117,7 +117,7 @@ describe('the calls while you hold', () => {
     expect(printed?.call?.title).toBe('SELL NOW · STOP 5.45');
   });
 
-  it('says Nova holds the exit while it does', () => {
+  it('says the bot holds the exit while it does', () => {
     const trade = { kind: 'exit', state: 'holding', exits: 'nova', stop: 5.95, target: null, fill_price: 5.075,
       qty: 100, filled_at: APUS_HELD_NOW - 100, sent_at: APUS_HELD_NOW - 100, trail: true, raised: [] };
     const nova = read({ held: normalizeHeld({ ...apusHeldWire, raise: null,
@@ -125,6 +125,6 @@ describe('the calls while you hold', () => {
     const m = momentOf(inputs({ read: nova, who: pfsaView('signal', { trade: trade as never }), ...holding,
       now: APUS_HELD_NOW }, { ...NO_HELD, since: APUS_HELD_SINCE }));
     expect(m).toMatchObject({ step: 2, exitLabel: 'Target / stop' });
-    expect(m?.badge).toMatch(/^NOVA HOLDS THE EXIT/);
+    expect(m?.badge).toMatch(/^BOT HOLDS THE EXIT/);
   });
 });
