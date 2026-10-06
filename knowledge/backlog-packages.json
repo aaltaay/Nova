@@ -608,7 +608,7 @@
       "slug": "desk-and-leftovers",
       "title": "10 - Live desk on master, plus residual product asks",
       "readiness": "ready-now",
-      "gate": "#14/#331 still need evidence from the physical trading PC, so their execution batch is held. #90/#94 decisions landed in their comments; live issue state controls whether those batches have work left. #657/#658's remaining venue defaults and bot snapshots are the accepted current implementation batch; unrelated unresolved operator calls stay held.",
+      "gate": "#14/#331 still need evidence from the physical trading PC, so their execution batch is held. #90/#94 decisions landed in their comments; live issue state controls whether those batches have work left. #657/#658's remaining venue defaults and bot snapshots are the accepted current implementation batch; unrelated unresolved operator calls stay held. Verified residual bug batches #5-#8 are independently reproducible and ready; #712 policy choices, #600 source/scoring policy and all physical-PC evidence remain held.",
       "objective": "The physical trading PC still runs a dirty branch, so three merged IBKR reconnect/health fixes are not in effect, and the unattended premarket start has never been proven with a real 03:55 ET log line. Plus four residual product asks with no shared root cause that survive triage.",
       "issues": [
         14,
@@ -617,8 +617,14 @@
         94,
         147,
         331,
+        571,
+        619,
         657,
-        658
+        658,
+        664,
+        667,
+        674,
+        742
       ],
       "done": [
         "The live desk runs master and the Gateway restart is confirmed, with the date recorded on #331.",
@@ -689,7 +695,10 @@
         },
         {
           "title": "fix(desk): keep trade defaults and bot snapshots on their own venue",
-          "issues": [657, 658],
+          "issues": [
+            657,
+            658
+          ],
           "note": "Venue-defaults-and-bot-snapshots batch verified against master and every comment on 2026-10-06. #661/#665 already fixed account snapshots, Who trades, risk, locks, caps and the bot list. Operator accepted the grouped per-venue-defaults plan with 1 go; unrelated unresolved decisions remain held. One PR completes only the remaining defaults and stale bot snapshot scope.",
           "gated": false,
           "touches": [
@@ -706,6 +715,89 @@
             "frontend/e2e/fixtures/venueDefaultsSwitch.tsx",
             "frontend/e2e/fixtures/venue-defaults-switch.html",
             "tools/maintainer_lib/baselines.json"
+          ]
+        },
+        {
+          "title": "fix(bot): compare broker daily P&L and state its source",
+          "issues": [
+            664
+          ],
+          "note": "Verified 2026-10-05: lifetime unrealized P&L still enters the Live day breaker; reqPnL and explicit summary fallback already specified. Include truthful meter copy. No broker/PC actions.",
+          "gated": false,
+          "touches": [
+            "AGENTS.md",
+            "architecture/decisions/032-bot-levels.md",
+            "architecture/decisions/042-one-owner-for-novas-buys.md",
+            "backend/ibkr/day_pnl.py",
+            "backend/ibkr/client.py",
+            "backend/ibkr/session_usable.py",
+            "backend/bot/day_pnl.py",
+            "backend/tests/test_bot_day_pnl.py",
+            "backend/tests/test_ibkr_day_pnl.py",
+            "frontend/src/bot/useBotDayPnl.ts",
+            "frontend/src/pages/botsPageFormat.test.ts"
+          ]
+        },
+        {
+          "title": "fix(capture): keep status responsive during recorder finalization",
+          "issues": [
+            674
+          ],
+          "note": "350ms blocked fsync reproduces status-loop starvation. Move finalize I/O outside recorder lock, publish stable readers and fix empty-segment wording. Refs only: historical logging and account-cap evidence remain.",
+          "gated": false,
+          "touches": [
+            "architecture/capture-fidelity.md",
+            ".cursor/rules/capture-worker.mdc",
+            "backend/capture/recorder.py",
+            "backend/capture/recorder_state.py",
+            "backend/tests/test_capture_recorder.py",
+            "backend/tests/test_capture_worker.py"
+          ]
+        },
+        {
+          "title": "fix(feed): publish halt transitions and retain useful stall evidence",
+          "issues": [
+            571,
+            619,
+            667
+          ],
+          "note": "#571 halt transition reaches ticker but never scanner. #619 discards later worst stalls; #667 lacks native timestamp/arrival diagnostics. Close only #571; retain #619/#667 for measured evidence. No GC tuning, trigger-age change or tape-source migration.",
+          "gated": false,
+          "touches": [
+            "architecture/scanner-halt-push.md",
+            "architecture/perf-observability.md",
+            "architecture/l1-timestamp-evidence.md",
+            ".cursor/rules/perf-recorder.mdc",
+            "backend/ibkr/halt_status.py",
+            "backend/ibkr/ticks_handler.py",
+            "backend/ibkr/l1_timestamp.py",
+            "backend/ibkr/l1_timestamp_writer.py",
+            "backend/ibkr/tape_events.py",
+            "backend/scanner_push.py",
+            "backend/scanner/",
+            "backend/perf/store.py",
+            "backend/perf/recorder.py",
+            "backend/tests/test_scanner_halt_push.py",
+            "backend/tests/test_l1_timestamp.py",
+            "backend/tests/test_perf_store_routes.py",
+            "frontend/src/hooks/useScannerPriceStream.ts",
+            "frontend/src/hooks/useScannerData.ts",
+            "frontend/src/scanner/scannerHaltPatch.ts",
+            "frontend/src/hooks/",
+            "frontend/src/scanner/"
+          ]
+        },
+        {
+          "title": "fix(ops): refuse incomplete premarket evidence",
+          "issues": [
+            742
+          ],
+          "note": "New pure repro: missing login/restart evidence is accepted as quiet. Preserve readable observed-empty vs unavailable. No physical desk operations; #14 remains held.",
+          "gated": false,
+          "touches": [
+            "tools/premarket_verify.py",
+            "tools/test_premarket_verify.py",
+            "docs/live-desk-sync.md"
           ]
         }
       ]
