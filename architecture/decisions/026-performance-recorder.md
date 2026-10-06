@@ -125,3 +125,36 @@ guesses; the burst rig (phase 2) replaces them with measured limits.
 - **React Profiler** -- a no-op in production builds; render counters plus
   long-frame attribution answer the same question in the build the operator
   runs.
+
+## Amendment 2026-10-06 -- retain severe stalls and gather timestamp evidence (#619, #667)
+
+The hourly full-report budget retains the longest stalls, replacing the shortest
+only for a strictly longer report; earlier reports win ties. Disk deletion stays
+on the writer thread, and a summary names a file only while its report is
+retained. Bookkeeping is bounded to the current and preceding report-start hour.
+The day file still keeps every summary. GC tuning and next-open verification
+remain measured follow-ups (#619; ADR 045).
+
+The performance recorder also gathers L1 timestamp provenance (#667) without
+changing market or trading behavior. Native wrapper receipts preserve tick
+45/88 arrival (including unchanged values); a native last tick in that same
+dispatch establishes `with_price`. Seeds are labelled and never claim a native
+price receipt. Price stamps, timestamp receipts and nearby same-price AllLast
+candidates keep separate meanings. Correlation uses one IB instance, a short
+arrival window and only prints that set a price. Its bounded inbox is drained
+off both loops, through the existing perf writer, into a separately capped day
+file under `l1_timestamps/`; rate, queue and file omissions are counted. No
+private subscription, disk write or correlation scan occurs in an IB callback.
+The exact line schema is in AGENTS.md §3. Files follow perf retention; a
+reader refuses unknown versions. The evidence does not change age gates, minute
+bucketing, warm-up protection, or #600's accepted sampled-L1 source.
+
+Native receipt verification goes through the pinned SDK's wire decoder, not
+only direct wrapper calls. Its `Decoder.wrap` resolves `tickString` once when
+`IB()` is constructed, so installing the receipt hook also rebuilds only the
+decoder's string-tick message handler (46) with the SDK's unchanged field
+converters. Last-price (1) and AllLast (99) handlers resolve wrapper callbacks
+at dispatch and need no rebinding. Repeated installation keeps one hook; READY
+generation changes invalidate old receipt facts even when the wrapper survives.
+Regression messages cover both timestamp types, repeated values, a new session
+and either AllLast hook installation order.

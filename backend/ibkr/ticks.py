@@ -18,6 +18,7 @@ from constants import (
 )
 from ibkr import client as _client
 from ibkr import l1_refused as _refused
+from ibkr import l1_timestamp as _timestamp
 from ibkr import ticks_generic as _generic
 from ibkr import ticks_status as _status
 from ibkr.ticks_handler import get_last_event_ts as get_last_event_ts
@@ -89,7 +90,7 @@ def _load_ib_types() -> bool:
         return False
 
 
-def _on_ticker_update(ticker: Any, symbol: str) -> None:
+def _on_ticker_update(ticker: Any, symbol: str, *, seed: bool = False) -> None:
     on_ticker_update(
         ticker,
         symbol,
@@ -98,6 +99,7 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
         find_cache_row=_find_cache_row,
         broadcast=_broadcast,
         owner_detail=OWNER_DETAIL,
+        seed=seed,
     )
 
 
@@ -174,6 +176,7 @@ async def subscribe(
             logger.warning("IBKR ticks: qualify error for %s: %s", symbol, exc)
             return False
 
+        _timestamp.install(ib, session=_client.current_generation)
         _refused.install_error_hook(ib, lambda: _subs)
         try:
             ticker = ib.reqMktData(contract, requested, False, False)
@@ -208,7 +211,7 @@ def _seed_existing_ticker(symbol: str) -> None:
     ticker = get_ticker(symbol)
     if ticker is None:
         return
-    _on_ticker_update(ticker, symbol)
+    _on_ticker_update(ticker, symbol, seed=True)
 
 
 async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:

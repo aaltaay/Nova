@@ -66,3 +66,14 @@ and rejected alternatives.
 - **Single mutable "movers" cache with a `frozen: bool` flag.** Cannot express independent Gainers-vs-Losers freeze timing (Losers is RTH-only) or per-table revision/session bookkeeping without becoming an ad hoc nested dict; a typed per-table state model in `runtime_state` is clearer and testable.
 - **Immediate hard cutover to persistent subscriptions.** Rejected — a live trading data feed regression (stuck/duplicated scanner rows, a leaked slot, a frozen table that silently never freezes) would be discovered by the user mid-session instead of caught in shadow evidence first.
 - **Keep HOD volume seeds / sub-$20 pass "for now."** Rejected per explicit product decision: sub-$20 is not a special category, and HOD eligibility must equal what a user can see in a scanner tab plus their own curated Former Momo list — not an invisible side-channel scan.
+
+## Amendment 2026-10-06 -- live halt overlays follow transitions (#571)
+
+`halted` remains a decoration of served rows, never a stored roster value.
+`/ws/scanner` sends `halt_patch` with `{symbol, halted}` rows for IBKR tick-49
+transitions and RSS refreshes, removals, failures and expiry. RSS patches cover
+the current scanner symbols, so a removed row clears and unavailable evidence
+reads unknown; live IBKR codes retain precedence. These patches update only
+the client-side served halt overlay, including frozen tables. They never move
+membership, rank, price, revision, or roster/quote timestamps. A history desk
+ignores them. The Halted filter still keeps true/unknown and drops false.

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -68,6 +69,36 @@ async def broadcast_roster_replace(table: str, rows: list[dict], ts: TableState)
         "meta": _table_meta(ts),
         "ts": ts.roster_ts or time_now(),
     })
+
+
+async def broadcast_halt_patch(symbols: Iterable[str] | None = None) -> None:
+    """Update only the served halt overlay (#571), including frozen tables.
+
+    Reading the cache's symbols is safe on the HTTP loop; neither a row nor
+    any table metadata is written. All current symbols are restated after an
+    RSS poll so removals, failed reads and expiry cannot leave stale false/true.
+    """
+    if not _clients:
+        return
+    state = get_runtime_state()
+    names = {str(row.get("symbol") or "").strip().upper()
+             for rows in (state.gapper_cache, state.gainer_cache, state.loser_cache,
+                          state.afterhours_cache, state.large_cap_cache) for row in rows}
+    names.discard("")
+    if symbols is not None:
+        names.intersection_update(str(sym).strip().upper() for sym in symbols)
+    if not names:
+        return
+    from ibkr.halt_status import halted_now
+
+    try:
+        halts = halted_now(names)
+    except Exception:
+        logger.warning("scanner halt: state read failed; overlay left unknown", exc_info=True)
+        halts = {}
+    await broadcast({"type": "halt_patch", "rows": [
+        {"symbol": sym, "halted": halts.get(sym)} for sym in sorted(names)
+    ], "ts": time_now()})
 
 
 async def broadcast_table_state(table: str, ts: TableState) -> None:

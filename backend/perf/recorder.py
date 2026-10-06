@@ -146,10 +146,14 @@ def _finish_stalls(now: float) -> None:
             continue
         _awaiting_after.remove(report)
         report["after"] = _window(report["ended_ts"], report["ended_ts"] + PERF_STALL_CONTEXT_SEC)
-        if _store is not None and _store.put_stall(report):
+        if _store is not None:
+            evicted: list[str] = []
+            kept = _store.put_stall(report, evicted_ids=evicted)
             with _lock:
                 for summary in _stalls:
-                    if summary["id"] == report["id"]:
+                    if summary["id"] in evicted:
+                        summary["file"] = None
+                    elif summary["id"] == report["id"] and kept:
                         summary["file"] = str(_store.stall_path(report["id"]))
 
 

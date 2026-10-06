@@ -738,8 +738,12 @@ the read lists a market-wide circuit breaker, which carries no end time, so
 nothing reads `false` then. Anything else is `null`: not known, never "not
 halted", and a halt is never inferred from quiet tape. It is a view over the
 row, stamped on the served copy and never written into the cache (ADR 008);
-like `catalyst` it is as of the REST read or roster push that served it (a
-price patch does not carry it). The Scanner's Halted chip filters live and
+The scanner socket also sends `halt_patch` (#571): `{type: "halt_patch",
+rows: [{symbol, halted: boolean | null}], ts}` when tick 49 changes, on an RSS
+refresh (including removals or an unavailable feed), and when an RSS answer
+ages out. It updates only the served halt overlay, including a frozen table;
+cache rows, membership, prices, metadata and timestamps stay untouched. A
+history desk ignores live halt patches. The Scanner's Halted chip filters live and
 played-back boards alike -- it keeps `true` and `null` and drops `false` -- and
 a row stated halted shows the HALTED mark.
 
@@ -2261,6 +2265,34 @@ and counts a line of unknown `schema_version`, never guesses. `/api/diagnostics`
 adds group `performance` (rows `perf_process_cpu`, `perf_ib_loop`,
 `perf_http_loop`, `perf_stalls`, `perf_queues`, `perf_windows`,
 `perf_handlers`; one `unknown` row while the recorder has no samples).
+
+**The longest stalls keep their stacks (#619).** The hourly full-report cap keeps
+the longest `PERF_STALL_FILES_PER_HOUR` stalls, rather than the first ones. A
+strictly longer report replaces the shortest kept report; ties keep the earlier
+report. Replaced files are removed by the writer, and live summaries' `file`
+fields follow the retained set (null after eviction). Ordinary day summaries
+remain. The cap is per report's start hour, with bounded current/previous-hour
+bookkeeping; a late report outside that window is counted and declined. GC
+thresholds, startup freezing and trading behavior are unchanged.
+
+**L1 timestamp evidence (#667).** With the existing performance recorder on,
+`perf/l1_timestamps.py` queues the L1 updates delivered to quote listeners and
+price-setting AllLast facts; a bounded off-loop drain writes
+`<perf>/l1_timestamps/YYYY-MM-DD.jsonl`. Each line is `{schema_version: 1,
+kind: "l1_timestamp", symbol, instance, price, price_ts, arrival_ts,
+last_timestamp, rt_time, seed, quote_quality, native_price_received,
+timestamp_receipt: {tick_type: 45 | 88, stamp, received_at, with_price} | null,
+tape_candidates: [{price, exchange_ts, arrival_ts, delta_sec}],
+candidates_truncated}`. Native wrapper callbacks establish receipt: cached
+`ticker.ticks` cannot say whether a string tick arrived. `with_price` means a
+native last tick and timestamp receipt were in the same dispatch, never a seed.
+Nearby same-price prints are candidates, not proof they are the same trade.
+Correlation requires the same IB instance and recent arrival times; bounded
+rings, queue, rate and per-day file size count omissions in perf gauges. Files
+follow `PERF_RETENTION_DAYS` retention and unknown schema versions are refused
+by readers. Missing receipt/correlation stays null/empty. Evidence never
+changes trigger age, minute bucketing, warm-up protection or the sampled-L1
+source; #667 still needs recorded-market diagnosis before those decisions.
 
 **Heap census (#619).** A full (gen-2) garbage collection stops every thread
 while it walks every tracked object. On 2026-09-29 the backend ran about one a

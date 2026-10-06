@@ -8,7 +8,9 @@ increment under a race is acceptable for a counter that only has to say "drops a
 from __future__ import annotations
 
 # Seeded so a reader sees 0 before the first drop, not a missing gauge.
-KNOWN = ("depth.viewer_dropped", "depth.viewer_skipped", "tape.viewer_dropped")
+KNOWN = ("depth.viewer_dropped", "depth.viewer_skipped", "tape.viewer_dropped",
+         "l1_timestamp.rate_dropped", "l1_timestamp.queue_dropped",
+         "l1_timestamp.tape_discarded", "l1_timestamp.file_dropped", "l1_timestamp.receipt_discarded")
 _counts: dict[str, int] = dict.fromkeys(KNOWN, 0)
 
 

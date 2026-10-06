@@ -253,6 +253,9 @@ async def _subscribe_locked(symbol: str, ib: Any) -> dict:
     contract = qualified[0]
     _contracts[symbol] = contract
     _install_error_hook(ib)
+    from ibkr import l1_timestamp
+
+    l1_timestamp.install(ib, session=_client.current_generation)
     _tape_exchange_time.install(ib)  # keep IBKR's own second beside ib_async's arrival time (#563)
 
     try:

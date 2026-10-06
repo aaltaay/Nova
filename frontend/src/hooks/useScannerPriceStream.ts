@@ -5,6 +5,7 @@ import {
   SCANNER_PRICE_STALE_SEC,
   WS_BASE_URL,
 } from '../constants';
+import { normalizeHaltRows, type ScannerHaltRow } from '../scanner/scannerHaltPatch';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 export type ScannerPricePatchRow = {
@@ -54,6 +55,7 @@ export type ScannerRosterHandlers = {
   onPatch: (rows: ScannerPricePatchRow[], ts: number, table?: string | null) => void;
   onRosterReplace?: (table: string, rows: unknown[], meta: ScannerTableMeta) => void;
   onTableState?: (table: string, meta: ScannerTableMeta) => void;
+  onHaltPatch?: (rows: ScannerHaltRow[]) => void;
 };
 
 type Props = {
@@ -87,6 +89,7 @@ export function useScannerPriceStream({
   onPatch,
   onRosterReplace,
   onTableState,
+  onHaltPatch,
 }: Props): ScannerPriceFreshness {
   const [lastPriceTs, setLastPriceTs] = useState(0);
   const [heartbeatStale, setHeartbeatStale] = useState(false);
@@ -100,6 +103,8 @@ export function useScannerPriceStream({
   onRosterRef.current = onRosterReplace;
   const onStateRef = useRef(onTableState);
   onStateRef.current = onTableState;
+  const onHaltRef = useRef(onHaltPatch);
+  onHaltRef.current = onHaltPatch;
   const prevPricesRef = useRef<Record<string, number>>({});
   const wsRef = useRef<WebSocket | null>(null);
   const tabsKey = tabHints(activeTabs ?? []).join(',');
@@ -173,6 +178,9 @@ export function useScannerPriceStream({
             const meta = msg.meta as ScannerTableMeta;
             if (!meta || !applyMeta(msg.table, meta)) return;
             onStateRef.current?.(msg.table, meta);
+          } else if (msg.type === 'halt_patch') {
+            const rows = normalizeHaltRows(msg.rows);
+            if (rows.length) onHaltRef.current?.(rows);
           } else if (msg.type === 'price_patch' && Array.isArray(msg.rows)) {
             const ts = typeof msg.ts === 'number' ? msg.ts : Date.now() / 1000;
             const flash: Record<string, 'up' | 'down'> = {};
