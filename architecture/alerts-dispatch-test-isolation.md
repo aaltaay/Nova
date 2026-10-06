@@ -45,3 +45,18 @@ in scope; no real HTTP request or operator environment is required.
    local fixture and SEC-008 cases must remain sufficient.
 4. Run changed-file Ruff, relevant alert neighbors, package-plan checks and the
    maintainer gate; record fresh results before handing the clean branch back.
+
+## Verified 2026-10-06
+
+- The fresh `2efa1a35` baseline reproduces three failures and 14 passes before
+  the fixture change. The repaired focused suites pass all 21 tests: 17 existing
+  checks plus four unresolved/private DNS sender controls.
+- The same 21 pass under outer DNS and HTTP mocks that raise if reached, with
+  zero unmocked resolver or request calls. Successful sends still observe DNS
+  preflight, and rejected preflights never call HTTP.
+- The four alert-neighbor files pass 28 tests; their in-process TestClient cases
+  run with local networking enabled. No real endpoint is contacted.
+- Backlog triage, footprints, claim-resolution and document invariants pass
+  165 tests. Changed-file Ruff, the maintainer gate and `git diff --check` pass.
+- Authored batches 0 and 1 match the existing plan; #754 belongs only to appended
+  batch 2. Runtime modules and shared test fixtures are unchanged.
