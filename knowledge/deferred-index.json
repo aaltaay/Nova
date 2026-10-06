@@ -5,6 +5,28 @@
   "updated": "2026-10-06",
   "items": [
     {
+      "id": "#767",
+      "title": "Screen recorder rotation test assumes cross-monitor close completion order",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "frontend",
+      "number": "767",
+      "url": "https://github.com/aaltaay/Nova/issues/767",
+      "state": "OPEN"
+    },
+    {
+      "id": "#766",
+      "title": "Abandoned React scanner renders cancel committed requests and suppress Live halt evidence",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "frontend",
+      "number": "766",
+      "url": "https://github.com/aaltaay/Nova/issues/766",
+      "state": "OPEN"
+    },
+    {
       "id": "#764",
       "title": "Scanner bootstrap can replace newer halt evidence; browser reconnection fixture races",
       "kind": "bug",
