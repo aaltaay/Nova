@@ -1,7 +1,7 @@
 """Regression coverage for backend/capture (D-063, D-067, D-068, D-075).
 
 Every test that touches Stop goes through ``_stop_within`` rather than calling
-``stop_recorder()`` directly.  ``recorder._lock`` is a non-reentrant
+``stop_recorder()`` directly. ``recorder._writer_lock`` is a non-reentrant
 ``threading.Lock`` on purpose, so a re-entrancy regression (D-063) deadlocks
 instead of raising -- without a timeout guard that would hang CI forever rather
 than failing it.
@@ -92,7 +92,7 @@ def _stop_within(timeout: float = STOP_TIMEOUT_SEC) -> None:
     """Stop the recorder, failing (not hanging) if the stop path deadlocks."""
     returned, error = _call_guarded(recorder.stop_recorder, timeout)
     if not returned:
-        held, active = recorder._lock.locked(), recorder.is_recording()
+        held, active = recorder._writer_lock.locked(), recorder.is_recording()
         _hard_reset_recorder()
         pytest.fail(
             f"stop_recorder() did not return within {timeout}s — the stop path "
@@ -128,6 +128,7 @@ def _feed_prints(symbol: str, n: int, *, start_ts: float = 1_700_000_000.0) -> N
 def test_lock_is_non_reentrant() -> None:
     """An RLock would paper over D-063 and make the timeout guards useless."""
     assert not isinstance(recorder._lock, type(threading.RLock()))
+    assert not isinstance(recorder._writer_lock, type(threading.RLock()))
 
 
 def test_stop_with_open_bar_buckets_returns() -> None:
@@ -140,6 +141,7 @@ def test_stop_with_open_bar_buckets_returns() -> None:
 
     assert recorder.is_recording() is False
     assert recorder._lock.locked() is False
+    assert recorder._writer_lock.locked() is False
 
 
 def test_stop_flushes_open_buckets_to_disk() -> None:

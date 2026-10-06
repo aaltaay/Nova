@@ -19,6 +19,8 @@ class Fidelity:
         # The tape line lost and asked for again while recording (#525).
         self.tape_resubscribes = 0
         self.tape_losses = []
+        self._reader_losses_source = None
+        self._reader_losses = []
 
     def seed(self, root: Path, prior: dict):
         saved = prior.get("fidelity") or {}
@@ -84,11 +86,23 @@ class Fidelity:
             self.last_l2_ts = row["ts"]
         return row
 
-    def payload(self) -> dict:
+    def payload(self, *, copy_tape_losses: bool = True) -> dict:
+        """Fresh stats; the writer may borrow owned history that is replaced, never mutated.
+
+        Public exports keep copying. Recorder publication borrows a cached copy
+        to avoid walking fifty retained outages on every print (#674).
+        """
+        if copy_tape_losses:
+            losses = [dict(row) for row in self.tape_losses]
+        else:
+            if self._reader_losses_source is not self.tape_losses:
+                self._reader_losses = deepcopy(self.tape_losses)
+                self._reader_losses_source = self.tape_losses
+            losses = self._reader_losses
         return {"l2_offered": self.l2_offered, "l2_coalesced": self.l2_coalesced,
                 "l2_max_hz": CAPTURE_L2_MAX_HZ,
                 "invalid_timestamp_rows": self.invalid_timestamp_rows,
                 "timestamp_regressions": self.timestamp_regressions,
                 "last_stream_ts": dict(self.last_ts),
                 "tape_resubscribes": self.tape_resubscribes,
-                "tape_losses": [dict(row) for row in self.tape_losses]}
+                "tape_losses": losses}

@@ -28,6 +28,12 @@ half-done and drop Record mode. A stop or failure publishes inactive state and
 its known error before flushing, then publishes final counts and errors after
 closing every stream and finalizing the atomic manifest. Failed flush/fsync or
 close operations still close the remaining streams and report a failed session.
+If the terminal manifest cannot be written, retain its segment and crash marker
+for a finalization retry or restart recovery; no row or segment is counted twice.
+Snapshot publication copies changing counters and watermarks. The fidelity owner
+caches an owned loss-history copy until that history changes, so a tape burst
+never deep-copies up to fifty retained outages on every print; public status
+responses copy the pinned snapshot before returning it.
 An empty segment reports no received IBKR prints, without claiming write
 failures that never happened (#674).
 

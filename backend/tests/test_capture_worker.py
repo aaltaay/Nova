@@ -157,7 +157,8 @@ def test_overflow_reports_immediately_then_drains_and_marks_failed(monkeypatch):
     assert status["writer"]["accepting"] is True
 
 
-def test_a_burst_the_writer_cannot_keep_up_with_is_batched_not_dropped(monkeypatch):
+@pytest.mark.parametrize("retained_losses", [0, 50])
+def test_a_burst_the_writer_cannot_keep_up_with_is_batched_not_dropped(monkeypatch, retained_losses):
     """A runner's own volume must not stop its own recording (GRML, 2026-09-21).
 
     One job per print made CAPTURE_PENDING_BATCHES a bound on PRINTS: a hot tape
@@ -170,6 +171,8 @@ def test_a_burst_the_writer_cannot_keep_up_with_is_batched_not_dropped(monkeypat
     monkeypatch.setattr(bridge_ibkr, "CAPTURE_PRINT_BATCH_MAX", 200)
     mode.set_capture_mode(True, symbol=SYMBOL)
     directory = Path(recorder.status()["dir"])
+    for number in range(retained_losses):
+        recorder.note_tape(SYMBOL, loss={"at": _event_ts, "cause": "stale", "detail": f"outage {number}"})
     entered, release = _block_print(monkeypatch)
     burst = 600  # 150x the job bound, and every print must survive it
     try:
@@ -184,7 +187,9 @@ def test_a_burst_the_writer_cannot_keep_up_with_is_batched_not_dropped(monkeypat
         release.set()
     mode.set_capture_mode(False)
     assert [row["price"] for row in _prints(directory)] == [10 + n for n in range(burst)]
-    assert json.loads((directory / "manifest.json").read_text())["status"] == "stopped_partial_ok"
+    manifest = json.loads((directory / "manifest.json").read_text())
+    assert manifest["status"] == "stopped_partial_ok"
+    assert len(manifest["fidelity"]["tape_losses"]) == retained_losses
 
 
 def test_a_rotation_writes_the_prints_the_old_session_still_held(monkeypatch):
