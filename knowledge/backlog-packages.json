@@ -688,7 +688,8 @@
         674,
         707,
         742,
-        744
+        744,
+        764
       ],
       "done": [
         "The live desk runs master and the Gateway restart is confirmed, with the date recorded on #331.",
@@ -913,6 +914,25 @@
             "frontend/e2e/desk-style-invalidation.spec.ts",
             "frontend/e2e/fixtures/desk-style-invalidation.html",
             "frontend/e2e/fixtures/desk-style-invalidation.tsx"
+          ]
+        },
+        {
+          "title": "fix(scanner): preserve newer halt evidence during live bootstrap",
+          "issues": [
+            764
+          ],
+          "note": "Verified against master on 2026-10-06: a delayed live REST JSON body replaces newer same-scope WS halt evidence, and the halt browser fixture can reuse a closed socket route. Fence live request scope through decoding, retain bounded request-local true/false/null halt receipts, permit later fresh REST and use current-handshake browser barriers. No backend source or operator evidence-policy change.",
+          "gated": false,
+          "touches": [
+            "knowledge/backlog-packages.json",
+            "architecture/scanner-bootstrap-halt-evidence.md",
+            "frontend/src/hooks/useScannerData.ts",
+            "frontend/src/hooks/useScannerData.halt.test.tsx",
+            "frontend/src/scanner/scannerLiveRequest.ts",
+            "frontend/src/scanner/scannerLiveRequest.test.ts",
+            "frontend/src/constantGroups/scanner_board.ts",
+            "frontend/e2e/scanner-halt-patch.spec.ts",
+            "frontend/e2e/fixtures/scannerHalt.tsx"
           ]
         }
       ]
