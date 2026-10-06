@@ -253,7 +253,8 @@
         346,
         347,
         369,
-        367
+        367,
+        762
       ],
       "done": [
         "An Actions-merged PR packs and verifies the installer plus its latest.yml feed; a pushed vNNN tag publishes the GitHub Release - proven on one real merge and one real tag, not just a dry run.",
@@ -364,6 +365,20 @@
             "BACKLOG.md",
             ".cursor/rules/backlog-footprints.mdc",
             ".github/workflows/deploy.yml"
+          ]
+        },
+        {
+          "title": "fix(delivery): confirm concurrent same-head merges",
+          "issues": [
+            762
+          ],
+          "note": "A concurrent delivery actor can merge the expected head while our SHA-bound PUT returns HTTP 405 Merge already in progress. Confirm exact-head completion with at most three readbacks, then retain existing issue closure, pack and guarded cleanup. No repeated merge PUT, relaxed eligibility gate or acceptance of an unmerged/moved/malformed PR.",
+          "gated": false,
+          "touches": [
+            "architecture/merge-race-convergence.md",
+            "knowledge/backlog-packages.json",
+            "tools/pr_delivery_actions.py",
+            "tools/test_pr_delivery.py"
           ]
         }
       ]
