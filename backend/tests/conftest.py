@@ -120,6 +120,9 @@ class _EveryVenue(str):
 
 @pytest.fixture(autouse=True)
 def _isolate_operator_state(tmp_path, monkeypatch):
+    from execution import persist_queue as _persist_queue
+
+    assert _persist_queue.flush(), "execution persistence did not drain before test paths changed"
     cache_root = tmp_path / "nova_cache"
     cache_root.mkdir()
     log_root = tmp_path / "nova_logs"
@@ -267,6 +270,7 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     import hod_momo_writer as _hod_writer
 
     _hod_writer.drain()
+    assert _persist_queue.flush(), "execution persistence did not drain before test paths were restored"
     _ledger_conn.close_all()  # let pytest remove this test's ledger file
 
 

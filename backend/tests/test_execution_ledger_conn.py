@@ -13,7 +13,7 @@ import threading
 
 import pytest
 
-from execution import ledger_conn, store
+from execution import ledger_conn, persist_queue, store
 
 
 @pytest.fixture
@@ -151,3 +151,96 @@ def test_a_connection_that_cannot_roll_back_is_dropped(ledger, monkeypatch) -> N
         assert fresh.execute("SELECT COUNT(*) FROM executions").fetchone()[0] == 0
     finally:
         fresh.close()
+
+
+def test_cleanup_retires_active_queue_lease_without_losing_its_write(ledger, monkeypatch) -> None:
+    monkeypatch.setattr(persist_queue, "_on_ib_thread", lambda: True)
+    leased, release = threading.Event(), threading.Event()
+    errors, held, next_use = [], [], []
+
+    def write() -> None:
+        conn = store.get_connection()
+        held.append(conn)
+        leased.set()
+        try:
+            assert release.wait(3)
+            _insert(conn, "queued-after-retirement")
+            conn.commit()
+        except Exception as error:
+            errors.append(error)
+        finally:
+            conn.close()
+        again = store.get_connection()
+        try:
+            next_use.append(again)
+            assert again.execute("SELECT COUNT(*) FROM executions").fetchone()[0] == 1
+        except Exception as error:
+            errors.append(error)
+        finally:
+            again.close()
+
+    assert persist_queue.submit("test active lease", write)
+    try:
+        assert leased.wait(3)
+        ledger_conn.close_all()
+        still_alive = held[0].alive
+    finally:
+        release.set()
+        assert persist_queue.flush(3)
+    assert still_alive and errors == []
+    assert _count(store._db_path()) == 1
+    assert not held[0].alive and next_use[0] is not held[0]
+
+
+def test_cleanup_during_queue_rollback_waits_for_owner_release(ledger, monkeypatch) -> None:
+    monkeypatch.setattr(persist_queue, "_on_ib_thread", lambda: True)
+    rolling_back, release = threading.Event(), threading.Event()
+    errors, held = [], []
+
+    def rollback(conn) -> None:
+        rolling_back.set()
+        assert release.wait(3)
+        try:
+            sqlite3.Connection.rollback(conn)
+        except sqlite3.Error as error:
+            errors.append(error)
+            raise
+
+    monkeypatch.setattr(ledger_conn.KeptConnection, "rollback", rollback)
+
+    def write() -> None:
+        conn = store.get_connection()
+        held.append(conn)
+        try:
+            _insert(conn, "must-roll-back")
+        finally:
+            conn.close()
+
+    assert persist_queue.submit("test active rollback", write)
+    try:
+        assert rolling_back.wait(3)
+        ledger_conn.close_all()
+        still_alive = held[0].alive
+    finally:
+        release.set()
+        assert persist_queue.flush(3)
+    assert still_alive and errors == []
+    assert _count(store._db_path()) == 0 and not held[0].alive
+
+
+def test_retired_outer_lease_still_gets_a_fresh_nested_connection(ledger) -> None:
+    outer = store.get_connection()
+    try:
+        _insert(outer, "retired-outer")
+        ledger_conn.close_all()
+        inner = store.get_connection()
+        try:
+            assert not isinstance(inner, ledger_conn.KeptConnection)
+            assert outer.in_transaction
+            assert inner.execute("SELECT COUNT(*) FROM executions").fetchone()[0] == 0
+        finally:
+            inner.close()
+        outer.commit()
+    finally:
+        outer.close()
+    assert not outer.alive and _count(store._db_path()) == 1
