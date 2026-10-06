@@ -131,6 +131,18 @@ def install(ib: Any, *, session: Callable[[], int] | None = None) -> bool:
         tag(req_id)
 
     wrapper.tickString = tick_string
+    # Decoder.wrap captures the callback at IB construction. Price/AllLast
+    # decode dynamically, but wire message 46 must capture our new hook.
+    decoder = getattr(getattr(ib, "client", None), "decoder", None)
+    if decoder is not None:
+        try:
+            if decoder.wrapper is not wrapper or 46 not in decoder.handlers:
+                raise ValueError("Unexpected string-tick decoder")
+            decoder.handlers[46] = decoder.wrap("tickString", [int, int, str])
+        except Exception:
+            wrapper.tickString = methods["tickString"]
+            logger.warning("L1 timestamps: native decoder receipt hook unavailable", exc_info=True)
+            return False
     setattr(wrapper, price_method, tick_price)
     wrapper.tickByTickAllLast = all_last
     setattr(wrapper, _INSTALLED, token)

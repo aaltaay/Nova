@@ -148,30 +148,78 @@ def test_queue_rate_and_pending_bounds_are_counted_and_off_switch_collects_nothi
     assert len(rows) == 1
 
 
-def test_native_pinned_wrapper_receipts_survive_both_tape_hook_install_orders():
+@pytest.mark.parametrize('timestamp_type,price_type', [(45, 4), (88, 68)])
+@pytest.mark.parametrize('first_timestamp', [False, True])
+def test_native_wire_receipts_survive_tape_hook_order_repeated_values_and_a_new_session(
+    first_timestamp, timestamp_type, price_type,
+):
     from ib_async import IB, Stock
     from ibkr import tape_exchange_time
 
-    for first_timestamp in (False, True):
-        ib = IB()
-        contract = Stock('PFSA', 'SMART', 'USD')
-        contract.conId = 42
-        ib.client.getReqId = lambda: 123
-        ib.client.reqMktData = lambda *_args: None
-        ticker = ib.reqMktData(contract)
-        if first_timestamp:
-            l1_timestamp.install(ib)
-            tape_exchange_time.install(ib)
-        else:
-            tape_exchange_time.install(ib)
-            l1_timestamp.install(ib)
-        ib.wrapper.lastTime = datetime.fromtimestamp(BASE, timezone.utc)
-        ib.wrapper.tickString(123, 45, str(int(BASE - 31)))
-        ib.wrapper.priceSizeTick(123, 4, 4.3, 100)
+    ib = IB()
+    contract = Stock('PFSA', 'SMART', 'USD')
+    contract.conId = 42
+    ib.client.getReqId = lambda: 123
+    ib.client.reqMktData = lambda *_args: None
+    ticker = ib.reqMktData(contract)
+    generation = [1]
+    def session():
+        return generation[0]
+
+    if first_timestamp:
+        l1_timestamp.install(ib, session=session)
+        tape_exchange_time.install(ib)
+    else:
+        tape_exchange_time.install(ib)
+        l1_timestamp.install(ib, session=session)
+    handler = ib.client.decoder.handlers[46]
+    hook = ib.wrapper.tickString
+    assert l1_timestamp.install(ib, session=session)
+    assert ib.client.decoder.handlers[46] is handler and ib.wrapper.tickString is hook
+
+    def dispatch(at):
+        ib.wrapper.lastTime = datetime.fromtimestamp(at, timezone.utc)
+        ib.client.decoder.interpret(['46', '2', '123', str(timestamp_type), str(int(BASE - 31))])
+        ib.client.decoder.interpret(['1', '6', '123', str(price_type), '4.3', '100', '0'])
         ib.wrapper.tcpDataProcessed()
-        assert l1_timestamp.provenance(ticker, BASE, seed=False)['timestamp_receipt']['with_price'] is True
-        assert not any(t.tickType == 45 for t in ticker.ticks)
-        ib.client.decoder.tickByTick(['99', '123', '2', str(int(BASE - 1)), '4.3', '100', '0', 'NASDAQ', ''])
-        assert tape_exchange_time.exchange_second(ticker.tickByTicks[-1]) == int(BASE - 1)
-        assert ticker.tickByTicks[-1].time.timestamp() == BASE
-        assert l1_timestamp.instance(ticker) is not None
+        return l1_timestamp.provenance(ticker, at, seed=False)
+
+    first = dispatch(BASE)
+    assert first['native_price_received'] is True
+    assert first['timestamp_receipt'] == {'tick_type': timestamp_type, 'stamp': BASE - 31,
+                                          'received_at': BASE, 'with_price': True}
+    assert not any(t.tickType in (45, 88) for t in ticker.ticks)
+    repeated = dispatch(BASE + .25)
+    assert repeated['timestamp_receipt']['received_at'] == BASE + .25
+    assert repeated['timestamp_receipt']['stamp'] == BASE - 31
+    ib.client.decoder.interpret(['99', '123', '2', str(int(BASE - 1)), '4.3', '100', '0', 'NASDAQ', ''])
+    assert tape_exchange_time.exchange_second(ticker.tickByTicks[-1]) == int(BASE - 1)
+    assert ticker.tickByTicks[-1].time.timestamp() == BASE + .25
+    assert l1_timestamp.instance(ticker) == first['instance']
+    generation[0] = 2
+    assert l1_timestamp.provenance(ticker, BASE + .3, seed=False)['timestamp_receipt'] is None
+    assert l1_timestamp.instance(ticker) is None
+    renewed = dispatch(BASE + .5)
+    assert renewed['instance'] != first['instance']
+    assert renewed['timestamp_receipt']['with_price'] is True
+
+
+def test_decoder_rebind_failure_preserves_native_handlers_and_can_retry(monkeypatch, caplog):
+    from ib_async import IB
+
+    ib = IB()
+    wrapper, decoder = ib.wrapper, ib.client.decoder
+    originals = (wrapper.tickString, wrapper.priceSizeTick, wrapper.tickByTickAllLast, decoder.handlers[46])
+    native_wrap = decoder.wrap
+
+    def failed_wrap(*_args):
+        raise RuntimeError('cannot bind')
+
+    monkeypatch.setattr(decoder, 'wrap', failed_wrap)
+    assert l1_timestamp.install(ib) is False
+    assert (wrapper.tickString, wrapper.priceSizeTick, wrapper.tickByTickAllLast, decoder.handlers[46]) == originals
+    assert 'native decoder receipt hook unavailable' in caplog.text
+    monkeypatch.setattr(decoder, 'wrap', native_wrap)
+    assert l1_timestamp.install(ib) is True
+    handler = decoder.handlers[46]
+    assert l1_timestamp.install(ib) is True and decoder.handlers[46] is handler
