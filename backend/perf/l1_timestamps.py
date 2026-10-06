@@ -116,7 +116,8 @@ def flush(persist: Callable[[dict], Any], *, now: float | None = None) -> None:
                                       | {"delta_sec": round(delta, 6)})
             row["tape_candidates"] = candidates[:PERF_L1_TIMESTAMP_CANDIDATES]
             row["candidates_truncated"] = len(candidates) > PERF_L1_TIMESTAMP_CANDIDATES
-            persist(row)
+            if persist(row) is False:
+                counters.incr("l1_timestamp.queue_dropped")
         cutoff = now - PERF_L1_TIMESTAMP_WAIT_SEC - PERF_L1_TIMESTAMP_MATCH_SEC
         for key, ring in list(_tape.items()):
             while ring and ring[0]["arrival_ts"] < cutoff:

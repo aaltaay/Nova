@@ -99,7 +99,8 @@ class PerfStore:
             kept = self._stall_kept.setdefault(hour, {})
             evicted = None
             if len(kept) >= PERF_STALL_FILES_PER_HOUR and stall_id not in kept:
-                shortest = min(kept, key=kept.get)
+                # Among equally short reports, evict the latest so earlier ties survive.
+                shortest = min(reversed(kept), key=kept.get)
                 if duration <= kept[shortest]:
                     self.stall_files_skipped += 1
                     return False
