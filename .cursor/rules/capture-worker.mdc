@@ -25,5 +25,13 @@ HTTP sync routes already run in FastAPI's threadpool; async shutdown must await
 Regression tests must hold a real recorder write behind a threading event,
 prove another coroutine progresses, then release it in a finally block. Verify
 FIFO drain, cross-session isolation, overflow failure, and shutdown ordering.
-The existing non-reentrant recorder lock, atomic manifests, crash recovery and
-failure reporting remain authoritative; the worker must not duplicate them.
+The recorder's non-reentrant writer lock serializes stream mutations, atomic
+manifests, crash recovery and failure reporting; the worker must not duplicate
+them. Its separate state lock only publishes copied reader snapshots, never
+disk I/O or logging. Status, active-symbol and error readers pin that snapshot
+without waiting behind the writer. Rotation keeps the old active snapshot until
+the new segment is ready; stop/failure publishes inactive state before final
+I/O, then terminal counts/errors afterward. Failed flush/fsync/close still closes
+every stream and reports the error. Test actual blocked fsync with a concurrent
+status poll and loop heartbeat, plus rotation visibility and symbol isolation
+(#674); empty-segment errors never invent a consecutive-write-failure count.

@@ -19,9 +19,23 @@ Manifest fidelity describes offered/coalesced counts -- `l2_coalesced` counts ev
 book held back, at the IBKR bridge or by event time -- configured maximum Hz,
 invalid timestamp and regression counts, and per-stream watermarks. A backward print fails visibly before it can
 enter bars. Forward Eastern date changes finalize the old directory and resume
-the event's date; the recording continues across the swap, and recorder state is
-read under its lock so a status poll can never observe the swap half-done and
-drop Record mode. A day segment closed before its first print is marked empty.
+the event's date; the recording continues across the swap. The serialized writer
+publishes copied reader snapshots under a short state lock, with no disk I/O or
+logging inside that lock. Readers pin one published snapshot and never wait for
+the writer's separate, non-reentrant I/O lock. A rotation keeps the previous
+active snapshot until the new segment is ready, so a poll cannot see the swap
+half-done and drop Record mode. A stop or failure publishes inactive state and
+its known error before flushing, then publishes final counts and errors after
+closing every stream and finalizing the atomic manifest. Failed flush/fsync or
+close operations still close the remaining streams and report a failed session.
+If the terminal manifest cannot be written, retain its segment and crash marker
+for a finalization retry or restart recovery; no row or segment is counted twice.
+Snapshot publication copies changing counters and watermarks. The fidelity owner
+caches an owned loss-history copy until that history changes, so a tape burst
+never deep-copies up to fifty retained outages on every print; public status
+responses copy the pinned snapshot before returning it.
+An empty segment reports no received IBKR prints, without claiming write
+failures that never happened (#674).
 
 Session Record owns its IBKR lines (`capture/feed_hold.py`, #315). Starting a
 recording opens -- or joins -- the symbol's AllLast tape and a live depth line
