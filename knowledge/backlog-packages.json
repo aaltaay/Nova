@@ -166,7 +166,8 @@
         748,
         754,
         757,
-        758
+        758,
+        767
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
@@ -236,6 +237,19 @@
             "backend/tests/test_gc_policy_freeze.py",
             "backend/tests/test_prior_close_not_a_trade.py",
             "knowledge/backlog-packages.json"
+          ]
+        },
+        {
+          "title": "test(recorder): verify per-file asynchronous completion",
+          "issues": [
+            767
+          ],
+          "note": "Verified full-suite end-record ordering flaw: independent monitor closes may complete in either order. Controlled reverse completion preserves exact per-file records and every start-before-stop/no-gap assertion. Test-only correction; no recorder runtime or physical capture changes. Group with committed scanner-scope review correction #766.",
+          "gated": false,
+          "touches": [
+            "architecture/screen-recorder-finalize-test-contract.md",
+            "knowledge/backlog-packages.json",
+            "frontend/src/electron/screenRecorder.test.ts"
           ]
         }
       ]
