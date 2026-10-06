@@ -20,6 +20,10 @@ export function historicalQuoteDetail(
 ): TickerDetail {
   const own = detail && detail.symbol.toUpperCase() === snap.symbol.toUpperCase() ? detail : null;
   const session = snap.stats_scope === 'session';
+  // A Massive window's NBBO at the playhead (ADR 046); an IBKR download has none.
+  const quoted = snap.bid != null || snap.ask != null;
+  const quoteStamp = snap.quote_ts != null && Number.isFinite(snap.quote_ts)
+    ? new Date(snap.quote_ts * 1000).toISOString() : snap.as_of || null;
   return {
     symbol: snap.symbol,
     asset: own?.asset ?? {},
@@ -38,7 +42,12 @@ export function historicalQuoteDetail(
       latest_trade: snap.last == null ? null : {
         price: snap.last, size: null, exchange: null, timestamp: snap.as_of || null,
       },
-      latest_quote: null,
+      latest_quote: quoted
+        ? {
+            bid_price: snap.bid ?? null, bid_size: snap.bid_size ?? null,
+            ask_price: snap.ask ?? null, ask_size: snap.ask_size ?? null, timestamp: quoteStamp,
+          }
+        : null,
       minute_bar: null,
       daily_bar: {
         open: snap.session_open ?? null,

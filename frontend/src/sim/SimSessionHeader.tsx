@@ -19,6 +19,7 @@ import { SimDayPicker } from './SimDayPicker';
 import { leaderboardLane } from '../leaderboard/leaderboardLane';
 import { useLeaderboardCoverage } from '../leaderboard/useLeaderboardCoverage';
 import { useLeaderboardDays } from '../leaderboard/useLeaderboardDays';
+import { useMassiveDays } from './massiveDaysStore';
 import { simCaptureBandTitle, simCaptureGapTitle, simCaptureMissingLabel, simScrubberCoverageTitle } from './simConstants';
 import {
   SIM_LIVE_EDGE_EMPTY_NOTE, SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_SOURCE, SIM_LIVE_EDGE_TITLE, SIM_REPLAY_LOADING,
@@ -73,6 +74,8 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
   const { clock, sessions, day, symbol, dragMinute, setDay, setSymbol, applyReplay, busy } = controller;
   // ADR 023: watching a past day's Scanner starts here -- the Day picker and the board lane.
   const days = useLeaderboardDays(active);
+  // ADR 046: every day in the operator's Massive files replays any ticker, so the picker marks it too.
+  const massive = useMassiveDays(active);
   const today = todayEt();
   const boardCoverage = useLeaderboardCoverage(active && clock?.sim ? clock.session_date ?? null : null, today);
   if (!active) return null;
@@ -120,8 +123,9 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
     <span data-testid="sim-session-clock">{clockLabel}</span>
     {sessionDate && <span data-testid="sim-session-date" className="sim-muted" title="Session date being replayed">{sessionDate}</span>}
     <span className="sim-muted">{(clock?.phase || '--').toUpperCase()}</span>
-    <SimDayPicker clock={clock} days={days.days} sessions={sessions} error={days.error} busy={busy.has('day')} today={today}
-      onOpen={days.refresh} onPick={date => { void controller.jumpToDay(date); }} />
+    <SimDayPicker clock={clock} days={days.days} sessions={sessions} massiveDays={massive.data?.days}
+      error={days.error} busy={busy.has('day')} today={today}
+      onOpen={() => { days.refresh(); massive.refresh(); }} onPick={date => { void controller.jumpToDay(date); }} />
     <label className="sim-session-header__scrubber">
       <span data-testid="sim-session-bound-open">{scale.openLabel}</span>
       <span className="sim-session-header__range" title={[rangeTitle, boardLane?.title].filter(Boolean).join('\n') || undefined}>

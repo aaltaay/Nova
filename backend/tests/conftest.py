@@ -47,6 +47,8 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_LEADERBOARD_DIR": "leaderboard",
     "NOVA_EYES_DIR": "eyes",
     "NOVA_BOOK_WATCH_DIR": "book_watch",
+    # The Massive flat files (ADR 046) default to E:\Nova\massive; never read in a test.
+    "NOVA_MARKET_DATA_DIR": "market_data",
 }
 for _env, _name in _OPERATOR_DATA_DIRS.items():
     os.environ[_env] = str(_SESSION_CACHE / _name)

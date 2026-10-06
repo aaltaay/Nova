@@ -19,6 +19,7 @@ import { etDateToday, ownRecordingFor } from './ownRecording';
 import { capturesResource } from './useSimSessionController';
 import {
   SIM_TAB_ACTION_DOWNLOAD,
+  SIM_TAB_ACTION_IMPORT,
   SIM_TAB_ACTION_LOAD,
   SIM_TAB_ACTION_LOADING,
   SIM_TAB_ACTION_RECONNECT,
@@ -46,6 +47,11 @@ import {
   simTabOfferFailed,
   simTabOfferGatewayDown,
   simTabOfferGatewayWaiting,
+  simTabOfferImport,
+  simTabOfferImportBusy,
+  simTabOfferImportFailed,
+  simTabOfferImporting,
+  simTabOfferImportStopped,
   simTabOfferNotAnswering,
   simTabOfferNotAnsweringGaveUp,
   simTabOfferReady,
@@ -57,6 +63,11 @@ import {
 import './simReplayTargetNotice.css';
 
 const COPY = {
+  importOffer: simTabOfferImport,
+  importing: simTabOfferImporting,
+  importStopped: simTabOfferImportStopped,
+  importFailed: simTabOfferImportFailed,
+  importBusy: simTabOfferImportBusy,
   download: simTabOfferDownload,
   ready: simTabOfferReady,
   downloading: simTabOfferDownloading,
@@ -72,6 +83,7 @@ const COPY = {
 };
 
 const ACTION_LABEL: Record<OfferAction, string> = {
+  import: SIM_TAB_ACTION_IMPORT,
   download: SIM_TAB_ACTION_DOWNLOAD,
   load: SIM_TAB_ACTION_LOAD,
   resume: SIM_TAB_ACTION_RESUME,

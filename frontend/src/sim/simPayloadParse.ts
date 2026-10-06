@@ -7,7 +7,10 @@
  * skipped, and the views state the absence instead of crashing the desk.
  */
 import type { DepthLevel } from '../ibkr/types';
-import type { HistoricalDepthBook, HistoricalJob, HistoricalSelection, HistoricalStatus } from './historicalTypes';
+import type {
+  HistoricalDepthBook, HistoricalJob, HistoricalSelection, HistoricalStatus, MassiveDays, MassiveQuoteStatus,
+  MassiveSummary,
+} from './historicalTypes';
 import type { CaptureSegment, ReplayQuoteWire, SimClockState } from './simClockTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 import {
@@ -112,6 +115,24 @@ function windowFields(value: Obj) {
   };
 }
 
+const QUOTE_STATUSES = new Set<string>(['complete', 'none', 'not_downloaded']);
+
+/** A Massive window's bid / ask status; anything unknown reads as not stated. */
+function quoteStatus(value: unknown): MassiveQuoteStatus | null | undefined {
+  if (value === null) return null;
+  return typeof value === 'string' && QUOTE_STATUSES.has(value) ? value as MassiveQuoteStatus : undefined;
+}
+
+/** The fields a Massive import adds to a job or a selection (ADR 046); absent on an IBKR download. */
+function massiveFields(value: Obj) {
+  return {
+    source: text(value.source),
+    quote_status: quoteStatus(value.quote_status),
+    quote_count: finite(value.quote_count),
+    bar_count: finite(value.bar_count),
+  };
+}
+
 export function parseHistoricalSelection(value: Obj): HistoricalSelection {
   const start = finite(value.start_ts);
   return compact({
@@ -126,6 +147,7 @@ export function parseHistoricalSelection(value: Obj): HistoricalSelection {
     trade_count: finite(value.trade_count),
     download_status: text(value.download_status),
     job_id: nullableText(value.job_id),
+    ...massiveFields(value),
   }) as HistoricalSelection;
 }
 
@@ -152,7 +174,25 @@ function parseJob(value: Obj): HistoricalJob {
     started: finite(value.started),
     coverage: rangePairs(value.coverage),
     covered_seconds: finite(value.covered_seconds),
+    ...massiveFields(value),
+    stage: nullableText(value.stage),
+    stages: value.stages === null ? null : parseCounts(value.stages),
   }) as HistoricalJob;
+}
+
+/** The listing's `massive` block; absent (an older API) stays absent, junk reads as unavailable. */
+function parseMassiveSummary(value: unknown): MassiveSummary | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isObject(value)) return null;
+  return {
+    available: value.available === true,
+    reason: textOrNull(value.reason),
+    trade_days: finite(value.trade_days) ?? 0,
+    quote_days: finite(value.quote_days) ?? 0,
+    first: textOrNull(value.first),
+    last: textOrNull(value.last),
+    store_error: textOrNull(value.store_error),
+  };
 }
 
 /** `GET /api/sim/history`. */
@@ -165,7 +205,27 @@ export function parseHistoricalStatus(raw: unknown): HistoricalStatus {
     jobs: objects(raw.jobs).map(parseJob).filter(job => job.id),
     selection,
     default_date: text(raw.default_date),
+    massive: parseMassiveSummary(raw.massive),
   }) as HistoricalStatus;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** `GET /api/sim/history/massive/days`: the days whose Massive files are whole on disk. */
+export function parseMassiveDays(raw: unknown): MassiveDays {
+  if (!isObject(raw)) throw new Error(unreadable('Massive day list'));
+  return {
+    available: raw.available === true,
+    reason: textOrNull(raw.reason),
+    days: objects(raw.days)
+      .filter(day => typeof day.date === 'string' && ISO_DAY.test(day.date))
+      .map(day => ({
+        date: day.date as string,
+        trades: day.trades === true,
+        quotes: day.quotes === true,
+        minute_aggs: day.minute_aggs === true,
+      })),
+  };
 }
 
 function parseLevels(value: unknown, side: 'bid' | 'ask'): DepthLevel[] {
@@ -208,6 +268,8 @@ function parsePrint(value: Obj): HistoricalSnapshot['prints'][number] | null {
     conditions: text(value.conditions),
     unreported: value.unreported === true,
     ordinal: finite(value.ordinal),
+    // Only an explicit false says the print moves no price; absent (an IBKR download) reads as a price.
+    sets_price: value.sets_price === false ? false : undefined,
     side,
     bid: finiteOrNull(value.bid),
     ask: finiteOrNull(value.ask),
@@ -239,6 +301,16 @@ export function parseHistoricalSnapshot(raw: unknown): HistoricalSnapshot {
     selection: isObject(raw.selection) ? parseHistoricalSelection(raw.selection) : undefined,
     covered: flag(raw.covered),
     sides_recorded: finite(raw.sides_recorded),
+    bid: finiteOrNull(raw.bid),
+    ask: finiteOrNull(raw.ask),
+    bid_size: finiteOrNull(raw.bid_size),
+    ask_size: finiteOrNull(raw.ask_size),
+    bid_exchange: textOrNull(raw.bid_exchange),
+    ask_exchange: textOrNull(raw.ask_exchange),
+    quote_ts: finiteOrNull(raw.quote_ts),
+    quote_source: textOrNull(raw.quote_source),
+    quote_status: quoteStatus(raw.quote_status) ?? null,
+    sides_nbbo: finite(raw.sides_nbbo),
     prints: objects(raw.prints).map(parsePrint).filter((p): p is NonNullable<typeof p> => p != null),
   }) as HistoricalSnapshot;
 }

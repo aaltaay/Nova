@@ -5,9 +5,10 @@ and does not claim. Rules live in `backend/sim/fill_model.py` (pure) and are
 pinned by `backend/tests/test_sim_fill_model.py`; the market they read comes
 from `backend/sim/practice.py`. ADR 019 is the decision.
 
-**Every practice fill is an estimate.** A replay has no order queue, and a
-historical download carries trade prints with no bid/ask, so a fill is inferred
-rather than observed. Each filled row carries `fill_estimated: true` and a
+**Every practice fill is an estimate.** A replay has no order queue, and an
+IBKR historical download carries trade prints with no bid/ask, so a fill is
+inferred rather than observed (a window from the Massive files carries the
+NBBO, ADR 046, and still has no queue). Each filled row carries `fill_estimated: true` and a
 `fill_basis` naming the rule that produced it. Recorded prints in Time & Sales
 are untouched facts; a practice fill is not one and must never be displayed as
 one.
@@ -96,6 +97,10 @@ be unknown:
   moment is an explicit empty book, never the one from before the gap. A
   capture whose manifest names no segment cannot say where the recorder was up
   and reads unbounded, as before.
+- **Massive window** (ADR 046) — `bid`/`ask` are the window's NBBO at the
+  playhead (the last row at or before it), `last` the last print that sets a
+  price, so a marketable order fills at the far side (`quote`) as on a recording.
+  A day whose quotes file was not on disk at import has `last` only, as below.
 - **Historical download** — `last` only. IBKR historical trades carry no
   bid/ask (see #311), so spread-aware fills are not available on this source.
   **A stretch the download has not covered has no last** (QA R34): the

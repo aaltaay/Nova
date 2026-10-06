@@ -1,7 +1,7 @@
 """Pull everything else the Massive Stocks Starter plan includes that a strategy could need,
 so the subscription can be cancelled once and never revisited.
 
-Writes under ``F:\\Nova\\data\\massive\\reference``:
+Writes under ``E:\\Nova\\massive\\store\\reference`` (the store beside ``NOVA_MARKET_DATA_DIR``):
     tickers.json          every ticker, active and delisted (also fetched by build_store.py)
     splits.json           splits since 2021-06
     dividends.json        dividends since 2021-06

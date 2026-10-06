@@ -18,6 +18,7 @@ import { launchIbGateway } from '../utils/launchIbGateway';
 import { historicalStatus } from './historicalStatusStore';
 import { selectHistoricalReplay } from './historicalReplayLoad';
 import { gatewayReachable, offerWindow, replayOffer, windowKey, type ReplayOffer } from './simReplayOffer';
+import { useMassiveDay } from './massiveDaysStore';
 import { SIM_TAB_HEAL_MAX_ATTEMPTS, SIM_TAB_NOT_ANSWERING_MAX_ATTEMPTS } from './simConstants';
 import { useReplayActions } from './useReplayActions';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
@@ -47,8 +48,12 @@ export function useSimReplayOffer(
 
   const window = enabled ? offerWindow(symbol, clock, status.data) : null;
   const jobs = Array.isArray(status.data?.jobs) ? status.data.jobs : [];
-  const base = window ? replayOffer(window, jobs, reachable) : null;
+  // A day in the operator's Massive files reads from disk: no Gateway, no IBKR pacing (ADR 046).
+  const day = useMassiveDay(window?.date, enabled && status.data?.massive?.available === true);
+  const fromFiles = day?.trades ? { quotes: day.quotes } : null;
+  const base = window ? replayOffer(window, jobs, reachable, fromFiles) : null;
   const key = window ? windowKey(window) : null;
+  const readsFiles = Boolean(base && 'fromFiles' in base && base.fromFiles);
 
   const load = useCallback(async (spec: HistoricalWindow) => {
     intent.current = null;
@@ -118,16 +123,17 @@ export function useSimReplayOffer(
     && healAttempts < maxAttempts;
   const retryAt = failed?.retryAt ?? null;
 
-  // Gateway came up after "Start Gateway & download": run the queued download.
+  // Gateway came up after "Start Gateway & download" -- or the import slot freed
+  // after "Stop it & start this" (the files need no Gateway): run the queued one.
   useEffect(() => {
-    if (!reachable) return;
-    setLaunch(prev => (prev.waiting ? { waiting: false, message: null, key: null } : prev));
+    if (!reachable && !readsFiles) return;
+    if (reachable) setLaunch(prev => (prev.waiting ? { waiting: false, message: null, key: null } : prev));
     if (window && key && intent.current === key && (kind === 'download' || kind === 'stopped')) {
       void download(window);
     }
     // `window` is rebuilt every render; `key` is its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reachable, kind, key, download]);
+  }, [reachable, readsFiles, kind, key, download]);
 
   // Heal: a Gateway-unreachable failure retries itself once a port answers.
   useEffect(() => {

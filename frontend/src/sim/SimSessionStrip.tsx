@@ -42,6 +42,7 @@ import { SimDayPicker } from './SimDayPicker';
 import { leaderboardLane } from '../leaderboard/leaderboardLane';
 import { useLeaderboardCoverage } from '../leaderboard/useLeaderboardCoverage';
 import { useLeaderboardDays } from '../leaderboard/useLeaderboardDays';
+import { useMassiveDays } from './massiveDaysStore';
 import { useProgressiveReplay } from './useProgressiveReplay';
 import { useSimSessionController } from './useSimSessionController';
 import './simStrip.css';
@@ -66,6 +67,8 @@ export function SimSessionStrip() {
   const recorded = recordedLane(clock, controller.sessions, activeTraderSymbol, format);
   // ADR 023: the day picker lists every day with a Scanner board; the lane shows where it was kept.
   const days = useLeaderboardDays(true);
+  // ADR 046: every day in the operator's Massive files replays any ticker, so the picker marks it too.
+  const massive = useMassiveDays(true);
   const today = todayEt();
   const coverage = useLeaderboardCoverage(clock?.sim ? clock.session_date ?? null : null, today);
   const boardLane = leaderboardLane(clock, coverage, format);
@@ -116,8 +119,9 @@ export function SimSessionStrip() {
           <SkipForward size={13} aria-hidden="true" />
         </button>
       </div>
-      <SimDayPicker clock={clock} days={days.days} sessions={controller.sessions} error={days.error} busy={busy.has('day')} today={today}
-        onOpen={days.refresh} onPick={date => { void controller.jumpToDay(date); }} />
+      <SimDayPicker clock={clock} days={days.days} sessions={controller.sessions} massiveDays={massive.data?.days}
+        error={days.error} busy={busy.has('day')} today={today}
+        onOpen={() => { days.refresh(); massive.refresh(); }} onPick={date => { void controller.jumpToDay(date); }} />
       <SimStripBand
         minute={minute}
         max={max}

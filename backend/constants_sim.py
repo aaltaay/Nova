@@ -183,3 +183,50 @@ SIM_NOT_DOWNLOADED_REASON = (
 # 09:30 ET (the Gap% open); the day's volume / high / low count from 04:00 ET.
 SIM_HISTORY_SESSION_OPEN_HHMM = (9, 30)
 SIM_HISTORY_SESSION_START_HHMM = (4, 0)
+
+# --- The operator's Massive flat files as a replay source (ADR 046) -------------
+# Laid out as Massive serves them: <root>/<dataset>/YYYY/MM/YYYY-MM-DD.csv.gz, one
+# gzip CSV per dataset per trading day, every US stock in it, sorted by ticker.
+# One root for the Sim and the research scripts (research/*: NOVA_MARKET_DATA_DIR).
+SIM_MASSIVE_DIR_ENV = "NOVA_MARKET_DATA_DIR"
+SIM_MASSIVE_DEFAULT_ROOT_WIN = r"E:\Nova\massive"
+SIM_MASSIVE_SOURCE = "massive"
+SIM_HISTORY_SOURCES = ("auto", "ibkr", SIM_MASSIVE_SOURCE)
+SIM_MASSIVE_TRADES = "trades_v1"
+SIM_MASSIVE_QUOTES = "quotes_v1"
+SIM_MASSIVE_MINUTES = "minute_aggs_v1"
+# Imported windows live beside the files they came from (operator 2026-10-05:
+# everything from Massive stays on E:), in their own store and schema.
+SIM_MASSIVE_STORE_SUBDIR = "sim"
+SIM_MASSIVE_STORE_FILE = "replay.sqlite3"
+SIM_MASSIVE_SCHEMA_VERSION = 1
+# Compressed bytes per read while streaming a day file to one ticker's rows.
+SIM_MASSIVE_READ_CHUNK = 16 * 2**20
+# A running import rewrites its job at least this often: progress for the desk,
+# and the heartbeat that tells a live import from one a restart killed.
+SIM_MASSIVE_PROGRESS_EVERY_SEC = 1.0
+# Bid/ask rows a selection holds (compact arrays, about 44 bytes each).
+SIM_MASSIVE_MAX_SELECTION_QUOTES = 4_000_000
+# The calendar's list of days on disk is a walk of the folder tree; at most once per this many seconds.
+SIM_MASSIVE_DAYS_TTL_SEC = 60.0
+# Massive's numeric sale conditions that report a trade for volume only and never
+# set a price (the SIP's rules; IBKR names the same conditions with the letters in
+# constants_tape.TAPE_NO_PRICE_CONDITIONS): 2 average price, 7 cash, 10 derivatively
+# priced, 13 extended hours sold out of sequence, 15 / 16 official close / open,
+# 20 next day, 21 price variation, 22 prior reference, 29 seller, 37 odd lot,
+# 38 corrected consolidated close, 52 contingent, 53 qualified contingent.
+SIM_MASSIVE_NO_PRICE_CONDITIONS = frozenset({2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 37, 38, 52, 53})
+# Trade correction codes: 0 regular and 12 a correction record set prices; 1, 7, 8
+# (an original trade later corrected, marked erroneous or cancelled) printed and are
+# shown but set nothing; 10, 11 are cancel / error records, not trades, and are dropped.
+SIM_MASSIVE_PRICED_CORRECTIONS = frozenset({0, 12})
+SIM_MASSIVE_DROPPED_CORRECTIONS = frozenset({10, 11})
+# Massive's exchange ids, named the way IBKR's tape names them.
+SIM_MASSIVE_EXCHANGES = {
+    1: "AMEX", 2: "BEX", 3: "NYSENAT", 4: "FINRA", 6: "ISE", 7: "EDGEA", 8: "EDGX", 9: "CHX",
+    10: "NYSE", 11: "ARCA", 12: "NASDAQ", 14: "LTSE", 15: "IEX", 16: "CBSX", 17: "PSX", 18: "BYX",
+    19: "BATS", 20: "PEARL", 21: "MEMX", 22: "24X", 23: "TXSE", 62: "OTC",
+}
+# What the snapshot names as the source of its bid/ask and of a print's side.
+SIM_MASSIVE_QUOTE_SOURCE = "massive_nbbo"
+SIM_MASSIVE_SIDE_SOURCE = "nbbo"

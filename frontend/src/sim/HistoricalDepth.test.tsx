@@ -10,6 +10,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HistoricalDepth, HistoricalL2Chip } from './HistoricalDepth';
 import type { HistoricalDepthBook } from './historicalTypes';
+import { resetMassiveDaysForTests, setMassiveDaysForTests } from './massiveDaysStore';
+import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
 // 2026-09-18 08:41:16 UTC = 04:41:16 ET.
 const RECORDED_TS = Date.UTC(2026, 8, 18, 8, 41, 16) / 1000;
@@ -96,5 +98,41 @@ describe('replay Level 2', () => {
     expect(chip().textContent).toBe('ReplayRecorded L2');
     expect(chip().className).toContain('sv-shortability-chip--ok');
     expect(chip().getAttribute('title')).toMatch(/recorded locally/);
+  });
+
+  describe('a window from the Massive files (ADR 046)', () => {
+    const snapshot = (over: Partial<HistoricalSnapshot> = {}): HistoricalSnapshot => ({
+      active: true, symbol: 'IMCC', last: 10, volume: 100, source: 'trades', as_of: '', prints: [],
+      quote_status: 'complete',
+      selection: { symbol: 'IMCC', date: '2026-09-18', start: '09:30', end: '10:00', coverage_through: 0,
+        source: 'massive', trade_count: 5 },
+      ...over,
+    });
+    const nbbo = recorded({ source: 'massive_nbbo', l1_fallback: true, bids: [{ price: 10, size: 100, side: 'bid', mm: 'NASDAQ' }],
+      asks: [{ price: 10.02, size: 200, side: 'ask', mm: 'ARCA' }] });
+
+    afterEach(() => resetMassiveDaysForTests());
+
+    it('draws the NBBO as one level a side and says the files hold no depth', async () => {
+      await render(<HistoricalDepth depth={nbbo} snapshot={snapshot()} />);
+      expect(container.querySelector('[data-testid="historical-l2-nbbo"]')?.textContent)
+        .toBe('Best bid / ask (NBBO) at 04:41:16 ET · no depth in the files');
+      expect(container.querySelector('[data-testid="historical-l2-recorded"]')).toBeNull();
+      expect(container.querySelectorAll('.das-l2-row--tiered')).toHaveLength(2);
+      await render(<HistoricalL2Chip depth={nbbo} snapshot={snapshot()} />);
+      expect(container.querySelector('[data-testid="historical-l2-chip"]')?.textContent).toBe('ReplayNBBO only');
+    });
+
+    it("says the day's bid/ask is not downloaded yet -- and when it has landed since", async () => {
+      setMassiveDaysForTests({ available: true, reason: null, days: [] });
+      await render(<HistoricalDepth depth={null} snapshot={snapshot({ quote_status: 'not_downloaded' })} />);
+      const note = () => container.querySelector('[data-testid="historical-l2-empty"]')?.textContent;
+      expect(note()).toBe('Bid/ask for this day is not in your Massive folder yet');
+      await act(async () => {
+        setMassiveDaysForTests({ available: true, reason: null,
+          days: [{ date: '2026-09-18', trades: true, quotes: true, minute_aggs: true }] });
+      });
+      expect(note()).toBe('Bid/ask for this day is on disk now -- load the window again to add it');
+    });
   });
 });

@@ -79,6 +79,11 @@ def main() -> None:
         from advise.worker_main import main as advise_worker_main
 
         raise SystemExit(advise_worker_main(sys.argv[1:]))
+    if "--massive-import" in sys.argv:
+        # One Massive import, out of the API process (ADR 046; sim/massive_worker.py).
+        from sim.massive_worker import main as massive_worker_main
+
+        raise SystemExit(massive_worker_main(sys.argv[1:]))
     import uvicorn
 
     host = os.environ.get("NOVA_API_HOST", "127.0.0.1")

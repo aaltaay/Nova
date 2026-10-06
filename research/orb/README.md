@@ -8,7 +8,7 @@ Plan, decisions and results: `knowledge/obsidian/03-Nova-Decisions/Bot-Trading-P
 ## Data
 
 `massive_flatfiles.py` downloads `us_stocks_sip/minute_aggs_v1` and `day_aggs_v1` to
-`F:\Nova\data\massive` (`NOVA_MARKET_DATA_DIR` overrides) with the S3 pair from the desk
+`E:\Nova\massive` (`NOVA_MARKET_DATA_DIR` overrides; it was `F:\Nova\data\massive` until 2026-10-05) with the S3 pair from the desk
 `.env` (`MASSIVE_S3_ACCESS_KEY_ID` / `MASSIVE_S3_SECRET_ACCESS_KEY`). Resumable, retried,
 whole files in parallel. The files are unadjusted; `build_store.py --reference` pulls the
 splits and ticker types through the REST API (`MASSIVE_API_KEY`) so selection can exclude
@@ -24,7 +24,7 @@ funds, warrants, units and any symbol with a split inside its lookback.
 | 4 | `py -3 research/orb/extract_minutes.py` | `minutes_selected`: RTH minute bars for selected symbol-days only |
 | 5 | `py -3 research/orb/backtest_orb.py --top 20 --tag base` | `store/orb_<tag>.json` + trades / equity CSVs |
 
-The store is one DuckDB file, `F:\Nova\data\massive\store\orb.duckdb`. Steps 1 and 4 are
+The store is one DuckDB file, `E:\Nova\massive\store\orb.duckdb`. Steps 1 and 4 are
 incremental (a day is built once). Re-run step 3 after step 2, then clear `extracted_days`
 and `minutes_selected` before step 4 if the selection changed. `run_gate1.py` chains
 build, select, extract, the base run and the robustness pass in one log.

@@ -4,6 +4,13 @@ The Sim scratch account follows the selection (ADR 020 decision 3): clearing a
 loaded window or selecting a different one starts the account over, through
 the lock-free ``sim.broker.reset_scratch_account``. Re-selecting the same
 window (the download folding new ranges in) keeps it.
+
+A window comes from one of two stores (ADR 046): an IBKR download
+(``history_store``, whole-second prints, no bid/ask) or an import from the
+operator's Massive flat files (``massive_store``, nanosecond prints, the NBBO and
+1-minute bars). A Massive window answers bid and ask at the playhead, colours
+its prints from the NBBO and draws its candles from its own bars only -- never
+from the IBKR chart store.
 """
 from __future__ import annotations
 
@@ -17,8 +24,9 @@ from datetime import datetime, timezone
 
 from constants_sim import (
     SIM_HISTORY_MAX_SELECTION_PRINTS, SIM_HISTORY_QUOTE_CANDLES, SIM_HISTORY_TAPE_ROWS,
+    SIM_MASSIVE_MAX_SELECTION_QUOTES, SIM_MASSIVE_SOURCE,
 )
-from sim import history_coverage as coverage, history_depth, history_sides
+from sim import history_coverage as coverage, history_depth, history_quotes, history_sides
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
 from sim.history_cache import CandleCache
@@ -46,9 +54,15 @@ class Selection:
     candles: CandleCache
     #: ``(ts, price)`` of the regular session's open (W7), or None when unknown.
     session_open: tuple[float, float] | None = None
+    #: A Massive window's NBBO (ADR 046); None for an IBKR download or a day whose quotes are not on disk.
+    quotes: history_quotes.QuoteSeries | None = None
 
 
 _selection: Selection | None = None
+
+
+def is_massive(spec: dict | None) -> bool:
+    return bool(spec) and spec.get("source") == SIM_MASSIVE_SOURCE
 
 
 def clear():
@@ -96,12 +110,17 @@ def with_live_download_status(spec: dict, jobs: list[dict] | None = None) -> dic
     relabelled) when given, else from the store through the same rule.
     """
     job_id = spec.get("job_id")
-    if spec.get("download_status") not in store.ACTIVE or not job_id:
+    if spec.get("download_status") not in (*store.ACTIVE, "queued") or not job_id:
         return spec
     try:
         if jobs is not None:
             match = next((job for job in jobs if job.get("id") == job_id), None)
             current = match["status"] if match else spec["download_status"]
+        elif is_massive(spec):
+            from sim import massive_import, massive_store
+
+            job = massive_store.get(job_id)
+            current = massive_import.effective_status(job) if job else "missing"
         else:
             from sim import history_download
 
@@ -112,15 +131,56 @@ def with_live_download_status(spec: dict, jobs: list[dict] | None = None) -> dic
     return spec if current == spec["download_status"] else dict(spec, download_status=current)
 
 
+def _sets_price(row: dict) -> bool:
+    """Tape-eligible: an IBKR print not flagged ``unreported``; a Massive print whose conditions set a price."""
+    return row.get('sets_price', True) is not False and not row.get('unreported')
+
+
 def _load(spec: dict) -> Selection:
+    if is_massive(spec):
+        return _load_massive(spec)
     job = store.find(spec, 'trades')
     # Every stored print is inside a downloaded range, so read them all, in time
     # order -- coverage may have gaps once the worker has jumped to the playhead.
     rows = (store.read_prints(job['id'], limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1) if job else [])
     ranges = coverage.job_ranges(job) if job else []
+    return _build(spec, rows, ranges, job['status'] if job else 'missing', job['id'] if job else None)
+
+
+def _load_massive(spec: dict) -> Selection:
+    """A window imported from the Massive flat files: whole or absent, never part of one.
+
+    Nothing plays before the first import completes. An import that runs again (the
+    day's quotes arrived after the first) leaves the stored window whole until it
+    replaces it in one transaction, so the window it imported before keeps playing.
+    """
+    from sim import massive_import, massive_store
+
+    job = massive_store.find(spec)
+    status = massive_import.effective_status(job) if job else 'missing'
+    if not job or not job.get('ranges'):
+        return _build(spec, [], [], status, job['id'] if job else None, minutes=[],
+                      extra=dict(quote_status=None, quote_count=0, bar_count=0))
+    rows = massive_store.read_prints(job['id'], spec['symbol'], limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1)
+    minutes = massive_store.read_candles(job['id'])
+    quote_status = job.get('quote_status')
+    quotes = None
+    if quote_status in ('complete', 'none'):
+        quote_rows = massive_store.read_quotes(job['id'], limit=SIM_MASSIVE_MAX_SELECTION_QUOTES + 1)
+        if len(quote_rows) > SIM_MASSIVE_MAX_SELECTION_QUOTES:
+            raise ValueError(f'Replay exceeds {SIM_MASSIVE_MAX_SELECTION_QUOTES:,} quotes; narrow the window')
+        quotes = history_quotes.QuoteSeries(quote_rows)
+    return _build(spec, rows, [[spec['start_ts'], spec['end_ts']]], status, job['id'], minutes=minutes, quotes=quotes,
+                  extra=dict(quote_status=quote_status, quote_count=job.get('quote_count', 0),
+                             bar_count=job.get('bar_count', 0)))
+
+
+def _build(spec: dict, rows: list[dict], ranges: list, status: str, job_id: str | None, *,
+           minutes: list[dict] | None = None, quotes: history_quotes.QuoteSeries | None = None,
+           extra: dict | None = None) -> Selection:
     if len(rows) > SIM_HISTORY_MAX_SELECTION_PRINTS:
         raise ValueError(f'Replay exceeds {SIM_HISTORY_MAX_SELECTION_PRINTS:,} prints; narrow the window')
-    eligible = tuple(row for row in rows if not row.get('unreported'))
+    eligible = tuple(row for row in rows if _sets_price(row))
     volumes, highs, lows = array('d'), array('d'), array('d')
     total = 0
     for row in eligible:
@@ -130,13 +190,13 @@ def _load(spec: dict) -> Selection:
         lows.append(min(lows[-1], row['price']) if lows else row['price'])
     selected = dict(spec, coverage=ranges, covered_seconds=coverage.covered_seconds(ranges),
                     coverage_through=coverage.contiguous_through(ranges, spec['start_ts']),
-                    trade_count=len(rows), download_status=job['status'] if job else 'missing',
-                    job_id=job['id'] if job else None)
-    prints, eligible_keys = tuple(rows), array('q', (row['ts'] for row in eligible))
-    return Selection(selected, prints, array('q', (row['ts'] for row in rows)), eligible,
+                    trade_count=len(rows), download_status=status, job_id=job_id, **(extra or {}))
+    # Keys are float seconds: an IBKR print's whole second, a Massive print's SIP time to the nanosecond.
+    prints, eligible_keys = tuple(rows), array('d', (row['ts'] for row in eligible))
+    return Selection(selected, prints, array('d', (row['ts'] for row in rows)), eligible,
                      eligible_keys, volumes, highs, lows, previous_close(spec['symbol'], spec['date']),
-                     CandleCache(selected, prints, eligible, eligible_keys),
-                     _session_open(selected, eligible, eligible_keys, ranges))
+                     CandleCache(selected, prints, eligible, eligible_keys, minutes=minutes),
+                     _session_open(selected, eligible, eligible_keys, ranges), quotes)
 
 
 def select(spec: dict):
@@ -153,8 +213,9 @@ def select(spec: dict):
             if generation != _generation:
                 raise ValueError('Historical selection changed while loading; retry the desired window')
             previous = _selection.spec if _selection else None
+            # Another source for the same hours is another tape: the account starts over too.
             same_window = previous is not None and all(
-                previous[key] == spec[key] for key in ('symbol', 'date', 'start', 'end'))
+                previous.get(key) == spec.get(key) for key in ('symbol', 'date', 'start', 'end', 'source'))
             replay.clear_capture()
             history_depth.clear()
             history_sides.clear()
@@ -203,8 +264,9 @@ def snapshot(symbol: str):
     result = dict(active=symbol == spec['symbol'], symbol=symbol, as_of=now.isoformat(),
                   selection=selection, prints=[], last=None, volume=None, source='completed_bars',
                   open=None, high=None, low=None, prev_close=None, session_open=None,
-                  stats_scope='window', bid=None, ask=None, depth_available=False, depth=None,
-                  sides_recorded=0)
+                  stats_scope='window', bid=None, ask=None, bid_size=None, ask_size=None,
+                  bid_exchange=None, ask_exchange=None, quote_ts=None, quote_source=None, quote_status=None,
+                  depth_available=False, depth=None, sides_recorded=0, sides_nbbo=0)
     if not result['active']:
         return result
     result['prev_close'] = selected.prev_close
@@ -223,6 +285,13 @@ def snapshot(symbol: str):
     # An IBKR download carries no book, so depth is whatever the local recorder
     # happens to have archived for this second -- usually nothing (#309).
     book = history_depth.book_at(symbol, cutoff)
+    massive = is_massive(spec)
+    if massive:
+        # The Massive files carry the NBBO, never depth: bid and ask at the playhead
+        # (ADR 046), and with no recorded book a one-level ladder flagged l1_fallback.
+        result.update(history_quotes.snapshot_fields(selected.quotes, cutoff, spec.get('quote_status')))
+        if book is None:
+            book = history_quotes.top_of_book(selected.quotes, symbol, cutoff)
     if book is not None:
         result.update(depth=book, depth_available=True)
     if selected.prints:
@@ -243,8 +312,12 @@ def snapshot(symbol: str):
                                  time=datetime.fromtimestamp(row['ts'], timezone.utc).isoformat(),
                                  bid=None, ask=None, side=None)
                             for i, row in enumerate(selected.prints[start:end], start)][::-1]
-        # Real sides only, from the local L2 recording where it decides them.
-        result['sides_recorded'] = history_sides.attach_recorded_sides(symbol, result['prints'])
+        # Real sides only: from the window's own NBBO (Massive), else from the
+        # local L2 recording where it decides them.
+        if selected.quotes is not None:
+            result['sides_nbbo'] = history_quotes.attach_sides(selected.quotes, result['prints'])
+        else:
+            result['sides_recorded'] = history_sides.attach_recorded_sides(symbol, result['prints'])
     # Candles stand in only where the playhead's own second is not downloaded:
     # `coverage_through` is the end of the FIRST range, so every later range
     # used to price the last from a cent-rounded candle close (QA 2026-09-22, R19).

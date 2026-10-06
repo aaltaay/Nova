@@ -25,9 +25,15 @@ def bounded_put(cache, key, value, maximum):
 
 
 class CandleCache:
-    """All locks here belong to one immutable selection, never to playback globals."""
-    def __init__(self, spec: dict, prints: tuple, eligible: tuple, keys):
+    """All locks here belong to one immutable selection, never to playback globals.
+
+    ``minutes``: a Massive window's own 1-minute bars (ADR 046). Given, they are the
+    selected symbol's only archive -- the IBKR chart store and IBKR download candles
+    never stand in under a Massive tape.
+    """
+    def __init__(self, spec: dict, prints: tuple, eligible: tuple, keys, *, minutes: list[dict] | None = None):
         self.spec, self.prints, self.eligible, self.keys = spec, prints, eligible, keys
+        self.minutes = minutes
         self.lock = threading.RLock()
         self.archives = OrderedDict()
         self.selected_archives = {}
@@ -49,10 +55,13 @@ class CandleCache:
             from ibkr.historical_derive import derive_from_1min
             seconds = INTERVAL_SECONDS[timeframe]
             spec = self.spec
-            limit = (spec['end_ts'] - spec['start_ts']) // seconds + 1
-            stored = read(symbol, timeframe, limit, from_ts=spec['start_ts'],
-                          through_ts=spec['end_ts'] - seconds)
-            retained = store.read_candles(symbol, spec['start_ts'], spec['end_ts'])
+            if self.minutes is not None and symbol == spec['symbol']:
+                stored, retained = None, list(self.minutes)
+            else:
+                limit = (spec['end_ts'] - spec['start_ts']) // seconds + 1
+                stored = read(symbol, timeframe, limit, from_ts=spec['start_ts'],
+                              through_ts=spec['end_ts'] - seconds)
+                retained = store.read_candles(symbol, spec['start_ts'], spec['end_ts'])
             if timeframe != '1Min':
                 retained = derive_from_1min(retained, timeframe)
             merged = {timestamp(row): row for row in (stored or {}).get('bars', [])}

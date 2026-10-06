@@ -47,9 +47,10 @@ import {
   type MonthRef,
 } from './simDayCalendarModel';
 import type { SimClockState } from './simClockTypes';
-import { SIM_WHY_BUSY } from './simConstants';
+import { SIM_DAY_CAL_MASSIVE, SIM_DAY_PICKER_FILES, SIM_WHY_BUSY, simDayCalMassive } from './simConstants';
 import { formatShortDate, todayEt } from './simStripFormat';
 import { simClockWhy } from './simWhy';
+import type { MassiveDay } from './historicalTypes';
 import type { CaptureSessions } from './useSimSessionController';
 import './simDayCalendar.css';
 
@@ -58,6 +59,8 @@ interface Props {
   days: LeaderboardDay[];
   /** The operator's Session Records (`GET /api/capture/sessions`), to mark the days they recorded. */
   sessions?: CaptureSessions | null;
+  /** The days in the operator's Massive files (ADR 046): any ticker on them replays from disk. */
+  massiveDays?: readonly MassiveDay[] | null;
   /** Why the day list is missing, stated in the picker's title. */
   error?: string | null;
   busy: boolean;
@@ -99,13 +102,16 @@ function factsWord(facts: CalendarDayFacts | undefined): string {
   const kinds = [
     facts.recorded ? SIM_DAY_PICKER_RECORDED : null,
     facts.rebuilt ? SIM_DAY_PICKER_REBUILT : null,
+    facts.massive ? SIM_DAY_PICKER_FILES : null,
   ].filter(Boolean).join(' + ');
   return kinds ? ` · ${kinds}` : '';
 }
 
-export function SimDayPicker({ clock, days, sessions = null, error = null, busy, onOpen, onPick, today = todayEt() }: Props) {
+export function SimDayPicker({
+  clock, days, sessions = null, massiveDays = null, error = null, busy, onOpen, onPick, today = todayEt(),
+}: Props) {
   const [open, setOpen] = useState(false);
-  const facts = useMemo(() => dayFacts(days, sessions), [days, sessions]);
+  const facts = useMemo(() => dayFacts(days, sessions, massiveDays), [days, sessions, massiveDays]);
   const range = useMemo(() => monthRange(facts, today), [facts, today]);
   const date = clock?.session_date ?? '';
   // Today at the live edge is "Today"; today scrubbed back is that day like any other.
@@ -160,7 +166,7 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
   for (let y = range.last.year; y >= range.first.year; y -= 1) years.push(y);
   const labels = {
     rebuilt: SIM_DAY_CAL_REBUILT, recorded: SIM_DAY_CAL_RECORDED, sessions: simDayCalSessions,
-    nothing: SIM_DAY_CAL_NOTHING, closed: SIM_DAY_CAL_CLOSED, future: SIM_DAY_CAL_FUTURE,
+    nothing: SIM_DAY_CAL_NOTHING, closed: SIM_DAY_CAL_CLOSED, future: SIM_DAY_CAL_FUTURE, massive: simDayCalMassive,
   };
   // Why each control is locked (ux/whyTip.ts).
   const dayWhy = simClockWhy(clock) ?? (busy ? SIM_WHY_BUSY.day : null);
@@ -214,12 +220,14 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
                   data-recorded={cell.facts.recorded ? '1' : '0'}
                   data-sessions={cell.facts.sessions.length}
                   data-rebuilt={cell.facts.rebuilt ? '1' : '0'}
+                  data-massive={cell.facts.massive ?? 'none'}
                   className={[
                     'sim-day__cell',
                     cell.inMonth ? '' : 'is-other',
                     cell.weekend ? 'is-weekend' : '',
                     cell.facts.recorded ? 'is-recorded' : '',
                     cell.facts.rebuilt ? 'is-rebuilt' : '',
+                    cell.facts.massive ? 'is-massive' : '',
                     cell.selected ? 'is-selected' : '',
                     cell.today ? 'is-today' : '',
                   ].filter(Boolean).join(' ')}
@@ -238,6 +246,7 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
             <span><i className="sim-day__swatch is-recorded" />{SIM_DAY_CAL_RECORDED}</span>
             <span><i className="sim-day__rec sim-day__rec--legend" />{SIM_DAY_CAL_SESSIONS}</span>
             <span><i className="sim-day__swatch is-rebuilt" />{SIM_DAY_CAL_REBUILT}</span>
+            {massiveDays?.length ? <span><i className="sim-day__swatch is-massive" />{SIM_DAY_CAL_MASSIVE}</span> : null}
           </div>
           <button type="button" className="sim-day__today" data-testid="sim-day-today" onClick={() => pick(null)}>
             {SIM_DAY_CAL_TODAY}

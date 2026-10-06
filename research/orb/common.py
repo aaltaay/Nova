@@ -1,7 +1,7 @@
 """Shared paths, env loading and the DuckDB store for the ORB research harness.
 
-Data root: the Massive flat files on the operator's F: drive (``NOVA_MARKET_DATA_DIR``
-overrides). The store is one DuckDB file beside them. Nothing here touches the Nova
+Data root: the Massive flat files on the operator's E: drive (``E:\\Nova\\massive`` since
+2026-10-05; ``NOVA_MARKET_DATA_DIR`` overrides). The store is one DuckDB file beside them. Nothing here touches the Nova
 backend; this is offline research (AGENTS.md: vectorbt-style skills are research only).
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import duckdb
 
-DATA_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"F:\Nova\data\massive")
+DATA_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"E:\Nova\massive")
 MINUTE_DIR = DATA_ROOT / "minute_aggs_v1"
 STORE_DIR = DATA_ROOT / "store"
 DB_PATH = STORE_DIR / "orb.duckdb"

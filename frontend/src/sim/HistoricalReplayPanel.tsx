@@ -3,8 +3,9 @@ import { Popover } from 'radix-ui';
 import { useWorkspace } from '../workspace';
 import { etTime, previousEtWeekday } from './historicalReplayFormat';
 import {
-  SIM_HISTORY_LARGE_WINDOW_MINUTES, SIM_HISTORY_NO_TRADES_YET, SIM_HISTORY_PAGE_INTERVAL_SEC, SIM_SESSION_CLOSE_LABEL,
-  SIM_SESSION_OPEN_LABEL, SIM_WHY_DOWNLOAD_STARTING, SIM_WHY_TYPE_TICKER, SIM_WHY_WINDOW_LOADING,
+  SIM_HISTORY_IBKR_ONLY_NOTE, SIM_HISTORY_LARGE_WINDOW_MINUTES, SIM_HISTORY_NO_TRADES_YET, SIM_HISTORY_PAGE_INTERVAL_SEC,
+  SIM_SESSION_CLOSE_LABEL, SIM_SESSION_OPEN_LABEL, SIM_WHY_DOWNLOAD_STARTING, SIM_WHY_TYPE_TICKER,
+  SIM_WHY_WINDOW_LOADING, simMassiveAvailable, simMassiveUnavailable,
 } from './simConstants';
 import { useHistoricalStatus, historicalStatus } from './historicalStatusStore';
 import { useReplayActions } from './useReplayActions';
@@ -31,6 +32,8 @@ export function HistoricalReplayPanel() {
   const { request, busy, errors } = useReplayActions();
   const jobs = Array.isArray(status.data?.jobs) ? status.data.jobs : [];
   const selection = status.data?.selection;
+  // Absent from an API older than ADR 046: the panel then says nothing about Massive files.
+  const massive = status.data?.massive ?? null;
   const spec: HistoricalWindow = { symbol: symbol.trim().toUpperCase(), date: date ?? status.data?.default_date ?? previousEtWeekday(), start, end };
   // The summary states the current download only; an old failure stays in the list (V41).
   const primary = currentJob(jobs);
@@ -89,8 +92,12 @@ export function HistoricalReplayPanel() {
             <button type="button" disabled={busy.has('download:trades') || !spec.symbol} data-why={tradesWhy ?? undefined}
               onClick={() => void download('trades')}>Download trades</button>
           </p>
-          <p className="sim-muted">{windowMinutes(spec) >= SIM_HISTORY_LARGE_WINDOW_MINUTES && <strong>Large window ({(windowMinutes(spec) / 60).toFixed(1)} hours). </strong>}Trades are paced at least {SIM_HISTORY_PAGE_INTERVAL_SEC} seconds per page and can take many minutes. ETA starts after the first advancing checkpoint; choose a shorter window for a faster download.</p>
-          <p className="sim-muted">Load any time: a window loaded mid-download picks up new prints by itself, and the playhead stays put. Candles appear at interval close. Historical quotes and Level 2 are unavailable.</p>
+          {massive && <p className="sim-muted" data-testid="sim-history-massive">{massive.available && massive.first && massive.last
+            ? simMassiveAvailable(massive.first, massive.last, massive.trade_days, massive.quote_days)
+            : simMassiveUnavailable(massive.reason ?? 'not available')}</p>}
+          {massive?.store_error && <p role="alert" className="sim-error">{massive.store_error}</p>}
+          <p className="sim-muted">{windowMinutes(spec) >= SIM_HISTORY_LARGE_WINDOW_MINUTES && <strong>Large window ({(windowMinutes(spec) / 60).toFixed(1)} hours). </strong>}IBKR trades are paced at least {SIM_HISTORY_PAGE_INTERVAL_SEC} seconds per page and can take many minutes. ETA starts after the first advancing checkpoint; choose a shorter window for a faster download.</p>
+          <p className="sim-muted">Load any time: a window loaded mid-download picks up new prints by itself, and the playhead stays put. Candles appear at interval close. {SIM_HISTORY_IBKR_ONLY_NOTE}</p>
           {formError && <p role="alert" className="sim-error">{formError}</p>}
           {Object.entries(errors).map(([key, message]) => <p key={key} role="alert" className="sim-error">{message}</p>)}
           <HistoricalDownloads jobs={jobs} busy={busy} onPick={pick} onAction={(job, operation) => void action(job, operation)} />

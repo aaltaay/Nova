@@ -199,3 +199,47 @@ describe('offerCopy', () => {
     expect(offerDateLabel('not-a-date')).toBe('not-a-date');
   });
 });
+
+describe('replayOffer on a day in the Massive files (ADR 046)', () => {
+  const files = { quotes: true };
+  const imported = (over: Partial<HistoricalJob> = {}) => job({ source: 'massive', ...over });
+  const t = {
+    importOffer: (l: string, i: boolean, q: boolean) => `import ${l}${i ? ' instead' : ''}${q ? ' +quotes' : ''}`,
+    importing: (l: string, p: string) => `importing ${l}${p}`,
+    importStopped: (l: string) => `import stopped ${l}`,
+    importFailed: (l: string, e: string) => `import failed ${e}`,
+    importBusy: (l: string) => `busy ${l}`,
+    download: () => 'download', ready: () => 'ready', downloading: () => 'downloading', stopped: () => 'stopped',
+    failed: () => 'failed', busy: () => 'busy', gatewayDown: () => 'gateway down', gatewayWaiting: () => 'waiting',
+    retrying: () => 'retrying', notAnswering: () => 'not answering', notAnsweringGaveUp: () => 'gave up',
+    duration: (s: number) => `${s}s`,
+  };
+
+  it('offers to load from the files with Gateway down, never "start Gateway"', () => {
+    const offer = replayOffer(W, [], false, files);
+    expect(offer).toEqual({ kind: 'download', window: W, fromFiles: files });
+    expect(offerCopy(offer, false, t)).toEqual({ text: expect.stringContaining('+quotes'), action: 'import' });
+  });
+
+  it('follows the import, offers Stop while it runs and a load when it is done', () => {
+    const running = replayOffer(W, [imported({ progress_pct: 40, eta_seconds: 30 })], false, files);
+    expect(running).toMatchObject({ kind: 'downloading', hasCoverage: false, fromFiles: files });
+    expect(offerCopy(running, false, t)).toEqual({ text: expect.stringContaining('importing'), action: 'stop' });
+    expect(replayOffer(W, [imported({ status: 'complete' })], false, files)).toEqual({ kind: 'ready', window: W });
+    expect(offerCopy(replayOffer(W, [imported({ status: 'failed', error: 'disk' })], true, files), false, t))
+      .toEqual({ text: 'import failed disk', action: 'import' });
+  });
+
+  it('an unfinished IBKR download of the same hours gives way to the files; a finished one loads', () => {
+    expect(replayOffer(W, [job({ status: 'failed', error: 'IB Gateway unreachable' })], true, files).kind).toBe('download');
+    expect(replayOffer(W, [job({ status: 'complete' })], true, files).kind).toBe('ready');
+  });
+
+  it('an IBKR download of another window does not hold the import slot, another import does', () => {
+    const otherWindow = { date: '2026-09-17' };
+    expect(replayOffer(W, [job({ ...otherWindow, status: 'running' })], true, files).kind).toBe('download');
+    const busy = replayOffer(W, [imported({ ...otherWindow, status: 'running' })], true, files);
+    expect(busy).toMatchObject({ kind: 'busy', fromFiles: files });
+    expect(offerCopy(busy, false, t).action).toBe('stop-other');
+  });
+});

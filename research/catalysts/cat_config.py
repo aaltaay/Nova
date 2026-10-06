@@ -22,7 +22,7 @@ EDGAR_DIR = ROOT / "edgar"
 LABELS_DIR = ROOT / "labels"
 RESULTS_DIR = ROOT / "results"
 
-MASSIVE_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"F:\Nova\data\massive")
+MASSIVE_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"E:\Nova\massive")
 RESEARCH_DB = MASSIVE_ROOT / "store" / "orb.duckdb"
 REFERENCE_DIR = MASSIVE_ROOT / "store" / "reference"
 LEADERBOARD_DB = Path(os.environ.get("NOVA_LEADERBOARD_DIR") or r"F:\Nova\leaderboard") / "leaderboard.sqlite3"
