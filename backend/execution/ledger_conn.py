@@ -21,6 +21,9 @@ connection is handed back for its thread's next use.
   ``close()`` leaves its thread on fresh connections, the old behaviour.
 - **Never shared across threads.** Thread-local; ``check_same_thread`` is off
   only so :func:`close_all` can close every thread's kept connection.
+- **Never closed during a lease.** Cleanup retires an active connection; its
+  owner finishes SQL and rollback before closing it physically. Acquisition,
+  registration, release and retirement share one lifecycle lock (#748).
 - **Another file, another connection.** The ledger's path and the file's
   identity (device and file id: stable across writes, new for a file replaced
   at the same path) are read on every use; a kept connection to another file is
@@ -42,7 +45,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _local = threading.local()
-_lock = threading.Lock()
+_lock = threading.RLock()
 _kept: "weakref.WeakSet[KeptConnection]" = weakref.WeakSet()
 
 
@@ -51,21 +54,42 @@ class KeptConnection(sqlite3.Connection):
 
     in_use: bool = False
     alive: bool = True
+    retired: bool = False
     path: str = ""
     ident: tuple[int, int] | None = None
 
     def close(self) -> None:  # noqa: D401 - the callers' close, see the module docstring
-        self.in_use = False
+        with _lock:
+            if not self.alive:
+                return
+            self.in_use = True  # remain leased until rollback has finished
+        broken = False
         try:
             if self.in_transaction:
                 self.rollback()
         except sqlite3.Error:
             logger.warning("execution ledger: a kept connection could not roll back; dropping it", exc_info=True)
-            self.close_for_real()
+            broken = True
+        finally:
+            with _lock:
+                self.in_use = False
+                if broken or self.retired:
+                    self._close_idle_locked()
 
     def close_for_real(self) -> None:
-        self.in_use = False
+        """Retire now; only an idle connection may be physically closed."""
+        with _lock:
+            self.retired = True
+            if not self.in_use:
+                self._close_idle_locked()
+
+    def _close_idle_locked(self) -> None:
+        if not self.alive:
+            return
+        assert not self.in_use
         self.alive = False
+        self.retired = True
+        _kept.discard(self)
         if getattr(_local, "conn", None) is self:
             _local.conn = None
         try:
@@ -98,30 +122,38 @@ def _identity(path: str) -> tuple[int, int] | None:
 def connection(path: Path | str) -> sqlite3.Connection:
     """This thread's kept connection to ``path`` (fresh and unkept while it is in use)."""
     key = str(path)
-    conn: KeptConnection | None = getattr(_local, "conn", None)
-    if conn is not None and not conn.alive:
-        conn = None  # closed by close_all() from another thread
-    if conn is not None and conn.in_use:
+    with _lock:
+        conn: KeptConnection | None = getattr(_local, "conn", None)
+        if conn is not None and not conn.alive:
+            conn = None  # closed by close_all() from another thread
+        nested = conn is not None and conn.in_use
+        if not nested:
+            if conn is not None and (conn.retired or conn.path != key or conn.ident != _identity(key)):
+                conn.close_for_real()  # another ledger file, or this one replaced
+                conn = None
+            if conn is not None:
+                conn.in_use = True
+                return conn
+    if nested:
         return fresh(key)  # a use inside a use: its own connection
-    if conn is not None and (conn.path != key or conn.ident != _identity(key)):
-        conn.close_for_real()  # another ledger file, or this one replaced
-        conn = None
-    if conn is None:
-        conn = _open(key, KeptConnection, kept=True)  # type: ignore[assignment]
-        conn.path = key
-        conn.ident = _identity(key)
+    # Opening does SQLite I/O; it owns no shared lease and holds no lifecycle lock.
+    conn = _open(key, KeptConnection, kept=True)  # type: ignore[assignment]
+    conn.path = key
+    conn.ident = _identity(key)
+    with _lock:
+        conn.in_use = True
         _local.conn = conn
-        with _lock:
-            _kept.add(conn)
-    conn.in_use = True
+        _kept.add(conn)
     return conn
 
 
 def close_all() -> None:
-    """Close every thread's kept connection (tests that delete or replace the ledger file)."""
+    """Retire all kept connections; active owners close them after their leases end.
+
+    Callers deleting or replacing the file must first drain its queued writers.
+    """
     with _lock:
         conns = list(_kept)
         _kept.clear()
-    for conn in conns:
-        conn.close_for_real()
-    _local.conn = None
+        for conn in conns:
+            conn.close_for_real()
