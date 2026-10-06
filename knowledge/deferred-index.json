@@ -9,22 +9,22 @@
       "title": "test(feed): prior-close trade assertion counts valid halt callbacks",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "758",
       "url": "https://github.com/aaltaay/Nova/issues/758",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#757",
       "title": "test(perf): freeze regression assumes the frozen count cannot decline",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "757",
       "url": "https://github.com/aaltaay/Nova/issues/757",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#754",
@@ -405,7 +405,7 @@
       "title": "Mark what left the book on a replayed Level 2 (Sim)",
       "kind": "feature",
       "severity": "P3",
-      "status": "open",
+      "status": "parked",
       "domain": "market-feed",
       "number": "617",
       "url": "https://github.com/aaltaay/Nova/issues/617",
