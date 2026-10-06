@@ -323,11 +323,12 @@
   pointer-events: auto;
 }
 
-/* While they show, the actions stand in for the Catalyst cell: the text they
-   cover would otherwise peek out as a sliver beside the buttons. */
-.desk-board__row:hover .scanner-col--catalyst > *,
-.desk-board__row:focus-visible .scanner-col--catalyst > *,
-.desk-board__row:has(.desk-board__acts :focus-visible) .scanner-col--catalyst > * {
+/* While they show, the actions stand in for the Catalyst text. Name the content
+   targets: a universal descendant after :has() makes Chromium's shared pseudo
+   invalidation set restyle the whole body on unrelated tape row changes (#707). */
+.desk-board__row:hover .scanner-col--catalyst > :is(.desk-board__chip, .desk-board__chip-time, .desk-board__none),
+.desk-board__row:focus-visible .scanner-col--catalyst > :is(.desk-board__chip, .desk-board__chip-time, .desk-board__none),
+.desk-board__row:has(.desk-board__acts :focus-visible) .scanner-col--catalyst > :is(.desk-board__chip, .desk-board__chip-time, .desk-board__none) {
   visibility: hidden;
 }
 
