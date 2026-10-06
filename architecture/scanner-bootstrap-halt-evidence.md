@@ -23,6 +23,9 @@ mount changes, including leaving and reentering the same view. A newer request
 supersedes its older pending predecessor. Check scope at each state application,
 including after JSON decoding; obsolete errors and catalysts cannot paint the
 new view either.
+When provider or persistent-authoritative settings invalidate a pending history
+load, restart that selected date's load in the replacement scope. Discarding an
+old result must not strand live rows beneath a selected history date.
 
 Retain only halt receipts received while that particular live request is
 pending. Its guarded row setters merge those receipts into the incoming roster
@@ -84,3 +87,12 @@ before permitting a fresh request. Owned-file ESLint, TypeScript, document
 invariants and maintainer gate against `36c4cf3` pass. The stable-source cold
 Chromium run passes all four browser cases; broader publication checks are
 recorded by the parent in the PR.
+
+Independent review then reproduced pending history stranded on live price 4.3
+after either provider or persistent-setting changes. Both additional real-hook
+regressions failed before the minimal history-effect dependency correction.
+They now prove a replacement history load paints 4.2 before the obsolete body
+is released and that its later 9.9 value is ignored. The final nine-file scanner
+run passes 66 tests, including 20 request/hook tests, and changed hook/test
+ESLint and the diff check pass. This correction preserves the obsolete-result
+guard and adds no runtime beyond restarting the selected history load.

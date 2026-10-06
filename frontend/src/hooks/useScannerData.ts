@@ -368,7 +368,7 @@ export function useScannerData(opts: {
 
   useEffect(() => {
     if (historyDate) fetchHistoryData(historyDate);
-  }, [historyDate, fetchHistoryData]);
+  }, [historyDate, fetchHistoryData, discoveryProvider, scannerPersistentAuthoritative]);
 
   return {
     mode,

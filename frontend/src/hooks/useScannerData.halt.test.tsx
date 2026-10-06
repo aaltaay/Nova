@@ -121,6 +121,26 @@ it('ignores a queued IBKR halt callback after selecting a different provider', a
   expect(result.current.gappers[0].halted).toBe(false);
 });
 
+it.each(['provider', 'persistent'] as const)('restarts pending history when its %s scope changes and rejects the obsolete result', async dimension => {
+  const pending = pendingBody();
+  let historyRequests = 0;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.includes('/history/gappers/') && ++historyRequests === 1) return pending.response;
+    return new Response(JSON.stringify(envelope(url.includes('/history/') ? 4.2 : 4.3)), { status: 200 });
+  }));
+  const { result, rerender } = renderHook(({ provider, persistent }) => useScannerData({ discoveryProvider: provider,
+    scannerPersistentAuthoritative: persistent }), { initialProps: { provider: 'ibkr', persistent: true } });
+  await waitFor(() => expect(result.current.gappers[0]?.price).toBe(4.3));
+  act(() => result.current.setHistoryDate('2026-09-23'));
+  await waitFor(() => expect(pending.read).toHaveBeenCalled());
+  rerender({ provider: dimension === 'provider' ? 'other' : 'ibkr', persistent: dimension !== 'persistent' });
+  await waitFor(() => expect(result.current.gappers[0].price).toBe(4.2));
+  expect(historyRequests).toBe(2);
+  await act(async () => pending.resolve(envelope(9.9, true)));
+  expect(result.current.historyDate).toBe('2026-09-23');
+  expect(result.current.gappers[0]).toMatchObject({ price: 4.2, halted: false });
+});
+
 it('does not paint old catalysts or failure state after history is chosen during catalyst decoding', async () => {
   scannerFetch([]);
   const { result } = renderHook(() => useScannerData({ discoveryProvider: 'ibkr', scannerPersistentAuthoritative: true }));
