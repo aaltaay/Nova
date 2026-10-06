@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
 import { buildSeriesTimeIndex } from '../chart';
+import { watchOperatorView } from '../chart/operatorView';
 import { etChartSeconds } from '../tickerChartData';
 import type { PriceLineSpec } from './chartShapes';
 import { lineWords, runMarks } from './paneScene';
@@ -72,6 +73,33 @@ describe('roomAtLiveEdge (the plan zones never move a view the operator moved)',
     const { chart, setVisibleLogicalRange } = viewAt({ from: 240, to: 292 });
     roomAtLiveEdge(chart, 281);
     expect(setVisibleLogicalRange).not.toHaveBeenCalled();
+  });
+
+  it('leaves a view the operator zoomed at the live edge exactly where they put it (2026-10-06)', () => {
+    const listeners = new Map<string, () => void>();
+    let onRange: (() => void) | null = null;
+    const setVisibleLogicalRange = vi.fn();
+    const chart = {
+      chartElement: () => ({
+        addEventListener: (type: string, fn: () => void) => listeners.set(type, fn),
+        removeEventListener: vi.fn(),
+        ownerDocument: { defaultView: null },
+      }),
+      timeScale: () => ({
+        getVisibleLogicalRange: () => ({ from: 260, to: 280 }),
+        setVisibleLogicalRange,
+        subscribeVisibleLogicalRangeChange: (h: () => void) => {
+          onRange = h;
+        },
+        unsubscribeVisibleLogicalRangeChange: vi.fn(),
+      }),
+    } as unknown as IChartApi;
+    const stop = watchOperatorView(chart, () => 0);
+    listeners.get('wheel')?.();
+    (onRange as (() => void) | null)?.();
+    roomAtLiveEdge(chart, 281);
+    expect(setVisibleLogicalRange).not.toHaveBeenCalled();
+    stop();
   });
 });
 

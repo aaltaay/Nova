@@ -32,6 +32,11 @@ vi.mock('lightweight-charts', async (importOriginal) => ({
       removeSeries: vi.fn(guard),
       addSeries: vi.fn(() => ({ setData: vi.fn() })),
       priceScale: vi.fn(() => ({ applyOptions: vi.fn() })),
+      chartElement: vi.fn(() => document.createElement('div')),
+      timeScale: vi.fn(() => ({
+        subscribeVisibleLogicalRangeChange: vi.fn(),
+        unsubscribeVisibleLogicalRangeChange: vi.fn(),
+      })),
       remove: vi.fn(() => {
         chart.removed = true;
       }),
