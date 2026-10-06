@@ -38,6 +38,11 @@ import {
   getConfirmedDeskVenueStoreSnapshot,
   subscribeConfirmedDeskVenueStore,
 } from './confirmedDeskVenueStore';
+import {
+  _resetIbkrStatusPollerForTests,
+  _setIbkrStatusPollerFetchForTests,
+  pollIbkrStatusOnce,
+} from './ibkrStatusPoller';
 
 type Route = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
@@ -64,6 +69,7 @@ describe('GatewayModeCapsule — venue switch', () => {
     confirmAppMock.mockReset();
     confirmAppMock.mockResolvedValue(true);
     _resetConfirmedDeskVenueStoreForTests();
+    _resetIbkrStatusPollerForTests();
     _resetBotNoticesForTests();
     localStorage.clear();
     localStorage.setItem(NOVA_API_KEY_STORAGE, 'test-nova-key');
@@ -79,6 +85,7 @@ describe('GatewayModeCapsule — venue switch', () => {
     container.remove();
     localStorage.clear();
     _resetConfirmedDeskVenueStoreForTests();
+    _resetIbkrStatusPollerForTests();
     _resetBotNoticesForTests();
     vi.restoreAllMocks();
   });
@@ -187,6 +194,33 @@ describe('GatewayModeCapsule — venue switch', () => {
     render('paper');
     await click(1);
     expect(errorText()).toMatch(/approve 2FA/);
+  });
+
+  it('still ensures the Live Gateway when status confirms the pending switch before its POST reply', async () => {
+    confirmDeskVenue('paper');
+    let release!: (reply: Response) => void;
+    const fetchSpy = mockFetch(url => url.includes('/api/desk/venue')
+      ? new Promise<Response>((resolve) => { release = resolve; })
+      : json({ ok: true, mode: 'live', launch_action: 'noop' }));
+    render('paper', 'paper');
+    await click(1);
+    _setIbkrStatusPollerFetchForTests(vi.fn(async () => json({
+      enabled: true, connected: true, mode: 'paper', venue: 'live',
+    })));
+    await act(async () => { await pollIbkrStatusOnce(); });
+    const early = getConfirmedDeskVenueStoreSnapshot();
+    expect(early.venue).toBe('live');
+    const persisted = vi.spyOn(Storage.prototype, 'setItem');
+    await act(async () => {
+      release(json({ venue: 'live' }));
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    });
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue', '/api/ibkr/gateway-mode']);
+    expect(getConfirmedDeskVenueStoreSnapshot()).toBe(early);
+    const signalKey = `${DESK_POLL_SNAP_KEY_PREFIX}${DESK_POLL_CONFIRMED_VENUE_SHARE}`;
+    expect(persisted.mock.calls.filter(([key]) => key === signalKey)).toHaveLength(0);
+    expect(errorText()).toBeNull();
+    expect(refreshIbkrStatusNow).toHaveBeenCalled();
   });
 
   it('Sim POSTs the venue and never touches /api/sim when the route exists', async () => {

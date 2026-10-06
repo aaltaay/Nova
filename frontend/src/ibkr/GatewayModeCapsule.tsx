@@ -41,6 +41,7 @@ import {
   getConfirmedDeskVenueRevision,
   getConfirmedDeskVenueStoreSnapshot,
   isConfirmedDeskVenueStoreSnapshotCurrent,
+  subscribeConfirmedDeskVenueStore,
   type ConfirmedDeskVenueSnapshot,
 } from './confirmedDeskVenueStore';
 import { watchDeskRequestRoute } from './deskRequestRouteFence';
@@ -181,7 +182,21 @@ export function GatewayModeCapsule({
     const route = watchDeskRequestRoute();
     let askedRevision = getConfirmedDeskVenueRevision();
     let confirmedScope: ConfirmedDeskVenueSnapshot | null = null;
-    const isCurrent = () => route.isCurrent() && askedRevision === getConfirmedDeskVenueRevision()
+    let awaitingConfirmation = true;
+    let invalidated = false;
+    const offVenue = subscribeConfirmedDeskVenueStore(() => {
+      const observed = getConfirmedDeskVenueStoreSnapshot();
+      // Status may see this switch before its POST reply. Accept only that
+      // first requested transition; any competing or later/ABA transition wins.
+      if (invalidated) return;
+      if (!awaitingConfirmation || confirmedScope || observed.venue !== next) {
+        invalidated = true;
+        return;
+      }
+      confirmedScope = observed;
+      askedRevision = getConfirmedDeskVenueRevision();
+    });
+    const isCurrent = () => !invalidated && route.isCurrent() && askedRevision === getConfirmedDeskVenueRevision()
       && (!confirmedScope || isConfirmedDeskVenueStoreSnapshotCurrent(confirmedScope));
     try {
       const [res, body] = await postJson(DESK_VENUE_API_PATH, { venue: next });
@@ -198,11 +213,14 @@ export function GatewayModeCapsule({
       if (!res.ok || body.venue !== next) {
         return switchErrorMessage(res, body, next, DESK_VENUE_API_RESTART_HINT);
       }
-      // The backend already settled this venue. A later Gateway failure cannot
-      // turn its confirmed Live desk back into the previous practice venue.
-      confirmDeskVenue(body.venue);
-      confirmedScope = getConfirmedDeskVenueStoreSnapshot();
-      askedRevision = getConfirmedDeskVenueRevision();
+      // An early status confirmation already owns its generation. Do not
+      // republish the older reply, but still ensure the requested Live Gateway.
+      if (!confirmedScope) {
+        confirmDeskVenue(body.venue);
+        confirmedScope = getConfirmedDeskVenueStoreSnapshot();
+        askedRevision = getConfirmedDeskVenueRevision();
+      }
+      awaitingConfirmation = false;
       if (next !== 'live' || !isCurrent()) return null;
       const message = await ensureLiveGateway();
       return isCurrent() ? message : null;
@@ -210,6 +228,7 @@ export function GatewayModeCapsule({
       if (!isCurrent()) return null;
       throw error;
     } finally {
+      offVenue();
       route.dispose();
     }
   }
