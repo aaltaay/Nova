@@ -9,11 +9,11 @@
       "title": "Browser regressions still expect retired bot and per-stock risk contracts",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "frontend",
       "number": "744",
       "url": "https://github.com/aaltaay/Nova/issues/744",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#742",
@@ -218,11 +218,11 @@
       "title": "Live breakers count an overnight position's whole unrealized P&L as today's",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "664",
       "url": "https://github.com/aaltaay/Nova/issues/664",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#658",
@@ -394,7 +394,7 @@
       "title": "Take the first-pullback bot to Live once Paper proves it: Paper learns brackets first",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "parked",
       "domain": "execution",
       "number": "606",
       "url": "https://github.com/aaltaay/Nova/issues/606",
@@ -405,7 +405,7 @@
       "title": "Trader: Approve & execute -- send the plan as one bracket order after the operator approves (Mode 1)",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "parked",
       "domain": "execution",
       "number": "604",
       "url": "https://github.com/aaltaay/Nova/issues/604",
@@ -427,7 +427,7 @@
       "title": "Setup scanner builds its minutes from sampled L1 lasts: its triggers and MACD can differ from IBKR's candles",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "parked",
       "domain": "market-feed",
       "number": "600",
       "url": "https://github.com/aaltaay/Nova/issues/600",
@@ -823,7 +823,7 @@
       "title": "QA pass-two leftovers: ticket unknown-status wording, Desk rail GTC clip, prerequisites text while API down, after-hours volume 0, raw strategy universes",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "parked",
       "domain": "ui",
       "number": "459",
       "url": "https://github.com/aaltaay/Nova/issues/459",
