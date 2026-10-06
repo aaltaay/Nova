@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PROPOSAL_DISMISSED_KEY } from '../constantGroups/setups';
 import { ORDER_TICKET_PREFILL_EVENT, type OrderTicketPrefill } from '../ibkr/orderTicketPrefill';
+import { confirmDeskVenue, _resetConfirmedDeskVenueStoreForTests } from '../ibkr/confirmedDeskVenueStore';
 import { SAMPLE_SETUPS_BOARD, SAMPLE_SETUPS_SCOREBOARD } from '../sample_data/sampleSetups';
 import { _resetDismissedForTests, dismiss, isDismissed, parseDismissed } from './proposalDismissals';
 import { SetupsAlertCard } from './SetupsAlertCard';
@@ -14,8 +15,11 @@ import { SetupsScoreboard } from './SetupsScoreboard';
 import { resetSetupsBoardFilterForTests } from './setupsBoardFilter';
 import { _resetSleeveForTests, type SleeveRisk } from './sleeveRisk';
 import type { SetupProposal, SetupsBoard as Board } from './types';
+import { TRADE_DEFAULTS_WAITING } from '../constantGroups/trade_defaults';
+import * as staging from './stageSetupTicket';
 
 const openStockView = vi.fn();
+let fixtureVenue: 'paper' | null = 'paper';
 vi.mock('../workspace/WorkspaceContext', () => ({ useWorkspace: () => ({ openStockView }) }));
 const stream = vi.hoisted(() => ({ value: null as null | { board: unknown; connected: boolean } }));
 vi.mock('./SetupsStreamContext', () => ({ useSetupsBoard: () => stream.value }));
@@ -43,11 +47,19 @@ function withProposal(over: Partial<SetupProposal>): Board {
 }
 
 beforeEach(() => {
+  fixtureVenue = 'paper';
+  _resetConfirmedDeskVenueStoreForTests();
+  // This fixture represents the backend-confirmed Paper desk, not a cached
+  // Gateway mode. Stage refuses an unknown venue before opening a ticket.
+  confirmDeskVenue('paper');
   _resetSleeveForTests();
   _resetDismissedForTests();
   sessionStorage.clear();
   // Every read here is the fake desk's: the Paper sleeve risks $20 a trade.
   vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
+    if (/\/api\/ibkr\/status$/.test(String(input))) {
+      return new Response(JSON.stringify({ venue: fixtureVenue, mode: 'paper', connected: true }), { status: 200 });
+    }
     if (/\/api\/bot\/session$/.test(String(input))) {
       return new Response(JSON.stringify({ caps: { venue: 'paper', risk_usd: 20, working_ttl_sec: 3 },
         caps_bounds: { risk_usd: [1, 10_000] } }), { status: 200 });
@@ -58,16 +70,29 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  _resetConfirmedDeskVenueStoreForTests();
   openStockView.mockReset();
   resetSetupsBoardFilterForTests();
   localStorage.clear();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 /** The first cell of every body row: the symbol on the board, the group on the scoreboard. */
 const firstCells = () => screen.getAllByRole('row').slice(1).map(r => r.querySelector('td, th')?.textContent);
 
 describe('SetupsBoard', () => {
+  it('locks Stage with a visible reason until its desk venue is confirmed', () => {
+    fixtureVenue = null;
+    confirmDeskVenue(null);
+    const onOpen = vi.fn();
+    render(<SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={onOpen} risk={RISK} />);
+    const stage = screen.getByText('Stage ticket') as HTMLButtonElement;
+    expect(stage.disabled).toBe(true);
+    expect(stage.dataset.why).toBe(TRADE_DEFAULTS_WAITING);
+    fireEvent.click(stage);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
   it('shows state, levels, the tape read and a stage button only on a proposal', () => {
     const onOpen = vi.fn();
     render(
@@ -192,6 +217,27 @@ describe('SetupsScoreboard', () => {
 });
 
 describe('SetupsAlertCard', () => {
+  it('keeps an unknown-venue proposal visible and explains its disabled Stage', () => {
+    fixtureVenue = null;
+    confirmDeskVenue(null);
+    render(<SetupsAlertCard board={WITH_PROPOSAL} />);
+    const stage = screen.getByTestId('setups-alert-stage') as HTMLButtonElement;
+    expect(stage.disabled).toBe(true);
+    expect(stage.dataset.why).toBe(TRADE_DEFAULTS_WAITING);
+    fireEvent.click(stage);
+    expect(screen.getByTestId('setups-alert')).toBeTruthy();
+    expect(isDismissed('sample-1')).toBe(false);
+  });
+
+  it('does not dismiss a proposal if staging was refused after rendering', async () => {
+    vi.spyOn(staging, 'stageSetupTicket').mockReturnValue(false);
+    render(<SetupsAlertCard board={WITH_PROPOSAL} />);
+    const stage = screen.getByTestId('setups-alert-stage');
+    await waitFor(() => expect((stage as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(stage);
+    expect(screen.getByTestId('setups-alert')).toBeTruthy();
+    expect(isDismissed('sample-1')).toBe(false);
+  });
   it("names the setup, stages on request sized by the sleeve's risk, and then steps aside", async () => {
     const { staged, stop } = captureStaged();
     render(<SetupsAlertCard board={WITH_PROPOSAL} />);

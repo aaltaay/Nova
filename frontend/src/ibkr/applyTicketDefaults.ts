@@ -7,7 +7,8 @@ import {
   usesStopPrice,
 } from './orderEntry';
 import type { ManualOrderSide, ManualOrderType } from './orderEntry';
-import { readTradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
+import { readTradeDefaultsPrefs } from '../settings';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { followKindForSeed, type QuickPriceKind } from './ticketPriceQuick';
 import {
   formatSeedPrice,
@@ -27,12 +28,13 @@ export interface TopOfBookLike {
  * Shared with the chart context menu so its "Buy SYM 100" label cannot drift
  * from the qty the ticket actually receives.
  */
-export function defaultTicketQty(): string {
+export function defaultTicketQty(venue: DeskVenue | null): string {
   const forced = forcedManualOrderQty();
-  return String(forced ?? readTradeDefaultsPrefs().quantity);
+  return String(forced ?? readTradeDefaultsPrefs(venue).quantity);
 }
 
 export function applyTicketDefaults(
+  venue: DeskVenue | null,
   symbolKey: string,
   referencePrice: number | null,
   topOfBook: TopOfBookLike | null,
@@ -44,7 +46,7 @@ export function applyTicketDefaults(
   outsideRth: boolean;
   side: ManualOrderSide;
 } {
-  const prefs = readTradeDefaultsPrefs();
+  const prefs = readTradeDefaultsPrefs(venue);
   const side: ManualOrderSide = 'BUY';
   const book =
     topOfBook && topOfBook.symbol.toUpperCase() === symbolKey.toUpperCase()
@@ -60,7 +62,7 @@ export function applyTicketDefaults(
   const outsideRth = prefs.tradingHours === 'extended';
   return {
     orderType,
-    quantityValue: defaultTicketQty(),
+    quantityValue: defaultTicketQty(venue),
     limitPrice: formatSeedPrice(limit),
     stopPrice: formatSeedPrice(stop),
     outsideRth,
@@ -69,13 +71,14 @@ export function applyTicketDefaults(
 }
 
 export function seedPricesForSide(
+  venue: DeskVenue | null,
   side: ManualOrderSide,
   orderType: ManualOrderType,
   symbolKey: string,
   referencePrice: number | null,
   topOfBook: TopOfBookLike | null,
 ): { limitPrice: string; stopPrice: string } {
-  const prefs = readTradeDefaultsPrefs();
+  const prefs = readTradeDefaultsPrefs(venue);
   const book =
     topOfBook && topOfBook.symbol.toUpperCase() === symbolKey.toUpperCase()
       ? {
@@ -101,8 +104,9 @@ export function seedPricesForSide(
 
 /** The book side a Settings seed reads, so a seeded Limit keeps following it. */
 export function seedFollow(
+  venue: DeskVenue | null,
   side: ManualOrderSide,
   orderType: ManualOrderType,
 ): QuickPriceKind | null {
-  return followKindForSeed(readTradeDefaultsPrefs().limitPriceSource, side, orderType);
+  return followKindForSeed(readTradeDefaultsPrefs(venue).limitPriceSource, side, orderType);
 }

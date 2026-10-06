@@ -30,6 +30,11 @@ vi.mock('../ux', () => ({
 
 import { _resetBotNoticesForTests, getBotNotices } from '../bot/botNoticeStore';
 import { GatewayModeCapsule } from './GatewayModeCapsule';
+import {
+  _resetConfirmedDeskVenueStoreForTests,
+  confirmDeskVenue,
+  getConfirmedDeskVenueStoreSnapshot,
+} from './confirmedDeskVenueStore';
 
 type Route = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
@@ -298,6 +303,25 @@ describe('GatewayModeCapsule — venue switch', () => {
     } finally {
       window.history.replaceState({}, '', '/');
     }
+  });
+
+  it('does not publish an old switch or launch its Gateway after a visit to sample', async () => {
+    _resetConfirmedDeskVenueStoreForTests();
+    confirmDeskVenue('paper');
+    const before = getConfirmedDeskVenueStoreSnapshot();
+    let release!: (reply: Response) => void;
+    const fetchSpy = mockFetch(() => new Promise<Response>((resolve) => { release = resolve; }));
+    render('paper');
+    await click(1);
+    window.history.replaceState({}, '', '/?view=sample');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    window.history.replaceState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await act(async () => { release(json({ venue: 'live' })); for (let i = 0; i < 8; i += 1) await Promise.resolve(); });
+    expect(getConfirmedDeskVenueStoreSnapshot()).toBe(before);
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue']);
+    expect(refreshIbkrStatusNow).toHaveBeenCalled();
+    _resetConfirmedDeskVenueStoreForTests();
   });
 
   it('follows the status venue over a Gateway-label mode: Live on the paper Gateway is Live (C26)', () => {

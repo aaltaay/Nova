@@ -8,6 +8,17 @@ export { TimeSalesView } from './TimeSalesView';
 export type { TapePrint, TapeState } from './tapeFeed';
 export { cancelIbkrOrderWithFeedback } from './cancelOrder';
 export { useIbkrStatus } from './useIbkrStatus';
+export {
+  getConfirmedDeskVenueSnapshot, isConfirmedDeskVenueSnapshotCurrent,
+  subscribeConfirmedDeskVenue, useConfirmedDeskVenue,
+} from './confirmedDeskVenue';
+export type { ConfirmedDeskVenueSnapshot } from './confirmedDeskVenue';
+export { watchDeskRequestRoute } from './deskRequestRouteFence';
+export { defaultTicketQty } from './applyTicketDefaults';
+export {
+  claimDeskPollLeader, heartbeatDeskPollLeader, publishDeskPollSnap,
+  readDeskPollSnap, subscribeDeskPollSnap,
+} from './deskSharedPoll';
 export { useTradingPinGate } from './useTradingPinGate';
 export { simPlayhead } from './marketOutsideRth';
 export { flattenSpendLockReason } from './spendLock';

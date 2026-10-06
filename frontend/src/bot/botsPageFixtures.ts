@@ -246,6 +246,9 @@ export function botsFetchRouter(opts: BotsFetchOpts = {}) {
     const href = String(url);
     const method = init?.method ?? 'GET';
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+    if (href.includes('/ibkr/status')) return ok({
+      enabled: true, connected: true, mode: 'paper', venue: current.level_venue,
+    });
     if (href.includes('/bot/triggers')) return ok(opts.triggers ?? triggersView());
     if (href.includes('/hot-list')) {
       const answer = method === 'GET' ? undefined : opts.onHotList?.(method, href, body);

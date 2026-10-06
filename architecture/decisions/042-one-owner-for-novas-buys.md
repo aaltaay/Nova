@@ -37,4 +37,57 @@ Nova grew two automatic buyers one ADR at a time. ADR 027 gave the bot one level
 - After a restart nothing automatic buys until the operator presses Activate.
 - Auto-entry sizes like the bot, so on the default sleeve (1 share, $50) it buys far less than its old risk-sized orders did; the sleeve's sliders are the way to change that.
 - With NOT A TRADE binding and most arms graded C, Nova's bot will skip most triggers; each skip is on the timeline and on that stock's Trader tab.
-- Left for the operator: #658's trade defaults (TIF, default take-profit / stop-loss) per venue; whether a bot ever trades Live.
+- Left for the operator: whether a bot ever trades Live.
+
+## Amendment — venue defaults and confirmed snapshots (2026-10-06, #657/#658)
+
+The operator accepted the grouped implementation plan with `1 go`, asking us
+to verify that the backlog is current and hold any unresolved operator call.
+Current master and all issue comments confirm #661 already repaired account
+snapshots and Who trades; #665 already separated risk, locks, caps and the bot
+list. Only stock-order defaults and the stale bot snapshot remain in this batch.
+The accepted plan separates defaults by venue, consistent with the existing
+sleeves. A bot trading Live remains an unresolved, held decision outside it.
+
+- **Stock defaults belong to Live, Paper or Sim.** Settings, mounted tickets,
+  staging helpers and submission read the explicit backend-confirmed desk venue,
+  never a Gateway-mode fallback. Unknown venue uses factory values and cannot
+  persist settings. The deliberately shared place-confirmation preference stays
+  shared. Venue switches invalidate prepared submission and reseed open tickets;
+  ordinary preference changes update the relevant values without erasing edits
+  to unrelated prices. Stage uses the same confirmed venue and generation;
+  an unknown venue disables Stage with its reason, a changed generation cancels
+  delayed replay, and a refused stage never dismisses its proposal.
+- **Storage owner and migration.** `settings/tradeDefaultsPrefs` owns
+  `nova.trade.defaults.v2.<venue>` with `{schema_version:2, venue, prefs}` (the
+  existing preference fields). A schema-1 receipt at
+  `nova.trade.defaults.migration.v1` binds legacy `nova.trade.defaults.v1` to the
+  first confirmed venue only. Verify the receipt and destination before removing
+  the legacy source; preserve it on failure, let existing destination values win,
+  and never clone old practice choices to all venues. Other venues retain the
+  factory DAY/optional-legs-off defaults. Refuse unknown versions; same-window
+  notifications and storage events keep readers current. Venue/version changes
+  invalidate consumer snapshots; storage failure is visible to the editor.
+- **One confirmed venue source.** The IBKR feature exports a stable nullable
+  venue/generation snapshot, subscription and hook through its public barrel.
+  `confirmedDeskVenueStore` owns the `confirmed-venue` desk-shared-poll channel
+  (`nova.desk.poll.snap.confirmed-venue` / `nova-desk-poll-confirmed-venue`) with
+  `{schema_version:1, venue, generation, revision}`. This is synchronization
+  metadata, never cached proof of a backend venue. Fresh explicit status or a
+  successful desk-venue response supplies authority. Existing shared-snapshot
+  expiry applies; transition/schema changes invalidate it. Every transition,
+  including Paper → Live → Paper, gets a new token. A late status GET cannot
+  undo a newer confirmed POST or another window's transition.
+- **Bot state follows that source.** Clear old state and request an immediate
+  refresh on a confirmed transition; queue it if an old read is busy. Stamp
+  snapshots with venue and generation, validate `session.level_venue`, and reject
+  old HTTP, mutation and shared responses (including unstamped legacy shares).
+  Keep one shared bot polling leader. Sample data neither migrates real settings
+  nor publishes real venue changes.
+
+Regression evidence must include mounted same-symbol ticket/Settings switches,
+one-time/failed migration, cross-window changes, late GET/write/share replies,
+ABA transitions, queued refresh, sample isolation and explicit Live on the legacy
+Paper Gateway. Existing account, Who-trades, confirmation and protective-leg
+checks remain neighbors. This amendment changes frontend ownership, not backend
+spending gates or the held Live-bot decision.

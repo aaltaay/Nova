@@ -18,6 +18,11 @@ import { ManualOrderTicket } from './ManualOrderTicket';
 import type { IbkrAccountSummary, IbkrMode } from './types';
 
 const placeIbkrOrder = vi.fn();
+const confirmed = vi.hoisted(() => ({ current: { venue: 'paper' as 'paper' | 'live' | null, generation: 'paper-1' as string | null } }));
+vi.mock('./confirmedDeskVenue', () => ({
+  getConfirmedDeskVenueSnapshot: () => confirmed.current,
+  subscribeConfirmedDeskVenue: () => () => {},
+}));
 
 vi.mock('./placeOrder', () => ({
   placeIbkrOrder: (...args: unknown[]) => placeIbkrOrder(...args),
@@ -55,6 +60,7 @@ describe('ManualOrderTicket compact layout', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    confirmed.current = { venue: 'paper', generation: 'paper-1' };
     placeIbkrOrder.mockReset();
     placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 7, mode: 'paper' });
     mount = document.createElement('div');
@@ -68,6 +74,8 @@ describe('ManualOrderTicket compact layout', () => {
   });
 
   function renderTicket(opts: { book?: TopOfBook | null; mode?: IbkrMode } = {}) {
+    const venue = opts.mode === 'live' ? 'live' : 'paper';
+    if (confirmed.current.venue !== venue) confirmed.current = { venue, generation: `${venue}-1` };
     act(() => {
       root.render(
         <TopOfBookProvider>
@@ -120,11 +128,57 @@ describe('ManualOrderTicket compact layout', () => {
     act(() => {
       q<HTMLButtonElement>('[data-testid="manual-order-tif-gtc"]').click();
     });
-    expect(readTradeDefaultsPrefs().tif).toBe('GTC');
+    expect(readTradeDefaultsPrefs('paper').tif).toBe('GTC');
     expect(q<HTMLButtonElement>('[data-testid="manual-order-tif-gtc"]').getAttribute('aria-pressed')).toBe('true');
     await place();
     expect(placeIbkrOrder).toHaveBeenCalledTimes(1);
     expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({ symbol: 'GRML', tif: 'GTC' });
+  });
+
+  it('same-symbol venue switches restore defaults, TIF and legs without a remount', async () => {
+    writeTradeDefaultsPrefs('paper', { ...defaultTradeDefaultsPrefs(), orderType: 'LMT', quantity: 7, tif: 'GTC', protectiveLegs: true });
+    writeTradeDefaultsPrefs('live', { ...defaultTradeDefaultsPrefs(), quantity: 31, tradingHours: 'rth' });
+    renderTicket({ book: BOOK });
+    expect(q<HTMLInputElement>('#manual-order-quantity').value).toBe('7');
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-tif-gtc"]').getAttribute('aria-pressed')).toBe('true');
+    await place();
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({ tif: 'GTC', take_profit_price: expect.any(Number) });
+    renderTicket({ book: BOOK, mode: 'live' });
+    expect(q<HTMLInputElement>('#manual-order-quantity').value).toBe('31');
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-tif-day"]').getAttribute('aria-pressed')).toBe('true');
+    expect(q<HTMLInputElement>('[data-testid="manual-order-extended"]').checked).toBe(false);
+    await place();
+    expect(placeIbkrOrder.mock.calls[1][0].take_profit_price).toBeUndefined();
+    renderTicket({ book: BOOK });
+    expect(q<HTMLInputElement>('#manual-order-quantity').value).toBe('7');
+  });
+
+  it('a TIF or quantity preference change preserves an edited Limit price', () => {
+    writeTradeDefaultsPrefs('paper', { ...defaultTradeDefaultsPrefs(), orderType: 'LMT' });
+    renderTicket({ book: BOOK });
+    act(() => {
+      const input = q<HTMLInputElement>('#manual-order-limit');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, '8.80');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      q<HTMLButtonElement>('[data-testid="manual-order-tif-gtc"]').click();
+    });
+    expect(q<HTMLInputElement>('#manual-order-limit').value).toBe('8.80');
+    act(() => {
+      writeTradeDefaultsPrefs('paper', { ...readTradeDefaultsPrefs('paper'), quantity: 23 });
+    });
+    expect(q<HTMLInputElement>('#manual-order-quantity').value).toBe('23');
+    expect(q<HTMLInputElement>('#manual-order-limit').value).toBe('8.80');
+  });
+
+  it('unknown venue uses factory defaults and disables persistence even with a Live mode prop', () => {
+    writeTradeDefaultsPrefs('live', { ...defaultTradeDefaultsPrefs(), tif: 'GTC', quantity: 31 });
+    act(() => {
+      confirmed.current = { venue: null, generation: null };
+      root.render(<ManualOrderTicket symbol="GRML" mode="live" connected spendStatus="live_armed" summary={SUMMARY} position={null} referencePrice={8.6} />);
+    });
+    expect(q<HTMLInputElement>('#manual-order-quantity').value).toBe('100');
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-tif-gtc"]').disabled).toBe(true);
+    expect(readTradeDefaultsPrefs('live').tif).toBe('GTC');
   });
 
   it('Bid / Mid / Ask set the limit from the live book and mark the one that matches', () => {
@@ -202,7 +256,7 @@ describe('ManualOrderTicket compact layout', () => {
   });
 
   it('a Limit seeded from the ask keeps following it, and holds when the book goes', () => {
-    writeTradeDefaultsPrefs({ ...defaultTradeDefaultsPrefs(), orderType: 'LMT' });
+    writeTradeDefaultsPrefs('paper', { ...defaultTradeDefaultsPrefs(), orderType: 'LMT' });
     renderTicket({ book: BOOK });
     const limit = () => q<HTMLInputElement>('#manual-order-limit');
     expect(limit().value).toBe('8.91');

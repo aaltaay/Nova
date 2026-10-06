@@ -11,6 +11,7 @@ import {
   TAPE_VERDICT_TIPS,
 } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { useConfirmedDeskVenue } from '../ibkr';
 import { tipProps } from '../ux/hoverTip';
 import { whyProps } from '../ux/whyTip';
 import { useWorkspace } from '../workspace/WorkspaceContext';
@@ -19,13 +20,14 @@ import { proposalStageLock, proposalStageSize, proposalVerdictLine, stageLimit }
 import { fmtCents, fmtPx } from './setupsFormat';
 import { setupTypeOf } from './setupWords';
 import { riskSourceWords, useSleeveRisk } from './sleeveRisk';
-import { stageSetupTicket } from './stageSetupTicket';
+import { stageSetupTicket, stageVenueLock } from './stageSetupTicket';
 import type { SetupsBoard } from './types';
 import './setups.css';
 
 export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
   const { openStockView } = useWorkspace();
   const sample = useSampleDataOptional();
+  const venue = useConfirmedDeskVenue();
   const dismissed = useSyncExternalStore(subscribe, dismissedProposals, dismissedProposals);
   const open = (board?.proposals ?? [])
     .filter(p => p.status === 'open' && !dismissed.has(p.id))
@@ -37,7 +39,7 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
   const kind = top.kind ? (SETUP_KIND_LABELS[top.kind] ?? top.kind) : 'Setup';
   const limit = stageLimit(top.entry);
   const size = proposalStageSize(top, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
-  const lock = proposalStageLock(top, size);
+  const lock = proposalStageLock(top, size) ?? stageVenueLock(venue, Boolean(sample));
   const verdict = proposalVerdictLine(top);
   const tapeNow = top.tape_now ?? 'go';
   const level = SETUP_TRIGGER_LEVEL_WORDS[setupTypeOf(top)] ?? 'trigger';
@@ -74,8 +76,7 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
           {...(lock === null ? tipProps(stageTip, 'Stage ticket') : {})}
           onClick={() => {
             if (lock !== null) return;
-            stageSetupTicket(top.symbol, limit, openStockView, size.qty);
-            dismiss(top.id);
+            if (stageSetupTicket(top.symbol, limit, openStockView, size.qty)) dismiss(top.id);
           }}
           data-testid="setups-alert-stage"
         >

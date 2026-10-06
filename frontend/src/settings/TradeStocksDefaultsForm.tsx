@@ -1,6 +1,8 @@
 /**
  * Settings > Trade > Stocks — Default Order Values form.
  */
+import { useState } from 'react';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
   TRADE_DEFAULT_LEG_PCT_MAX,
   TRADE_DEFAULT_LEG_PCT_MIN,
@@ -19,6 +21,8 @@ import {
   TRADE_DEFAULTS_TAKE_PROFIT_LABEL,
   TRADE_DEFAULTS_TIF_HINT,
   TRADE_DEFAULTS_TIF_LABEL,
+  TRADE_DEFAULTS_WAITING,
+  TRADE_DEFAULTS_SAVE_FAILED,
   type TradeDefaultLimitSource,
   type TradeDefaultOrderType,
   type TradeDefaultTif,
@@ -29,15 +33,15 @@ import {
 } from './tradeDefaultsPrefs';
 
 interface Props {
+  venue: DeskVenue | null;
   prefs: TradeDefaultsPrefs;
-  onChange: (next: TradeDefaultsPrefs) => void;
 }
 
-export function TradeStocksDefaultsForm({ prefs, onChange }: Props) {
+export function TradeStocksDefaultsForm({ venue, prefs }: Props) {
+  const [saveFailed, setSaveFailed] = useState(false);
   function patch(partial: Partial<TradeDefaultsPrefs>) {
     const next = { ...prefs, ...partial, v: 1 as const };
-    writeTradeDefaultsPrefs(next);
-    onChange(next);
+    setSaveFailed(!writeTradeDefaultsPrefs(venue, next));
   }
 
   function patchLegPct(key: 'takeProfitPct' | 'stopLossPct', raw: string) {
@@ -53,7 +57,14 @@ export function TradeStocksDefaultsForm({ prefs, onChange }: Props) {
 
   return (
     <div className="trade-defaults-form" data-testid="trade-stocks-defaults">
-      <h3 className="settings-block-title">{TRADE_DEFAULTS_SECTION_TITLE}</h3>
+      <h3 className="settings-block-title">{TRADE_DEFAULTS_SECTION_TITLE}{venue ? ` · ${venue.toUpperCase()}` : ''}</h3>
+      {!venue && <p role="status">{TRADE_DEFAULTS_WAITING}</p>}
+      {saveFailed && <p role="alert">{TRADE_DEFAULTS_SAVE_FAILED}</p>}
+      <fieldset
+        disabled={venue === null}
+        data-why={venue === null ? TRADE_DEFAULTS_WAITING : undefined}
+        style={{ border: 0, margin: 0, padding: 0 }}
+      >
 
       <div className="trade-defaults-row">
         <label htmlFor="trade-def-order-type">{TRADE_DEFAULTS_ORDER_TYPE_LABEL}</label>
@@ -197,6 +208,7 @@ export function TradeStocksDefaultsForm({ prefs, onChange }: Props) {
           }}
         />
       </div>
+      </fieldset>
     </div>
   );
 }

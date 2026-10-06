@@ -36,6 +36,8 @@ import type { DeskVenue } from '../constantGroups/desk_venue';
 import { SAMPLE_VENUE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { explicitVenueOf } from './deskVenue';
+import { confirmDeskVenue } from './confirmedDeskVenueStore';
+import { watchDeskRequestRoute } from './deskRequestRouteFence';
 import { refreshIbkrAccountNow } from './ibkrAccountPoller';
 import { disconnectHintSwitchTarget } from './disconnectCopy';
 import type { IbkrMode } from './types';
@@ -170,7 +172,12 @@ export function GatewayModeCapsule({
   }
 
   async function switchVenue(next: DeskVenue): Promise<string | null> {
-    const [res, body] = await postJson(DESK_VENUE_API_PATH, { venue: next });
+    const route = watchDeskRequestRoute();
+    let reply: [Response, VenueResponse];
+    try { reply = await postJson(DESK_VENUE_API_PATH, { venue: next }); }
+    finally { route.dispose(); }
+    if (!route.isCurrent()) return null;
+    const [res, body] = reply;
     // What Nova cancelled on the venue it left is said even when the switch itself failed after it.
     noticeVenueLeft(body.left);
     if (isRouteMissing(res, body)) {
@@ -180,6 +187,9 @@ export function GatewayModeCapsule({
     if (!res.ok || body.venue !== next) {
       return switchErrorMessage(res, body, next, DESK_VENUE_API_RESTART_HINT);
     }
+    // The backend already settled this venue. A later Gateway failure cannot
+    // turn its confirmed Live desk back into the previous practice venue.
+    confirmDeskVenue(body.venue);
     return next === 'live' ? ensureLiveGateway() : null;
   }
 

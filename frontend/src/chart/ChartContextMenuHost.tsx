@@ -10,7 +10,8 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import type { ChartIndicatorId } from '../constants';
-import { defaultTicketQty } from '../ibkr/applyTicketDefaults';
+import { defaultTicketQty, useConfirmedDeskVenue } from '../ibkr';
+import { useTradeDefaultsPrefs } from '../settings';
 import { requestStockViewDock } from '../stock_view/requestDockSurface';
 import { ChartContextMenu } from './ChartContextMenu';
 import { chartContextMenuPortalTarget } from './chartContextMenuPortal';
@@ -41,6 +42,8 @@ export function ChartContextMenuHost(props: {
   onIndicatorToggle: (id: ChartIndicatorId) => void;
 }) {
   const [open, setOpen] = useState<OpenState | null>(null);
+  const venue = useConfirmedDeskVenue();
+  useTradeDefaultsPrefs(venue); // Keep the open menu's staged-size label current.
   const rootRef = useRef<HTMLElement | null>(null);
   const positionCtx = useChartPositionContext(props.symbol);
   const allowlist = useBotAllowlist();
@@ -105,7 +108,7 @@ export function ChartContextMenuHost(props: {
       <ChartContextMenu
         symbol={props.symbol}
         price={open.price}
-        quantityValue={defaultTicketQty()}
+        quantityValue={defaultTicketQty(venue)}
         anchor={{ x: open.x, y: open.y }}
         position={positionCtx.position}
         mode={positionCtx.mode}

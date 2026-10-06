@@ -10,6 +10,7 @@ import {
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import { useViewLock } from '../market_view';
 import { TICKET_WHY_SENDING } from '../constantGroups/trader_chrome';
+import { TRADE_DEFAULTS_WAITING } from '../constantGroups/trade_defaults';
 import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedFollow, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
@@ -41,6 +42,9 @@ import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
 import { useTradingPinGate } from './useTradingPinGate';
 import { useVenuePrice } from '../sim/useReplayQuote';
+import { getConfirmedDeskVenueSnapshot, subscribeConfirmedDeskVenue } from './confirmedDeskVenue';
+import { useTradeDefaultsPrefs } from '../settings';
+import { useTicketDefaultsSync } from './useTicketDefaultsSync';
 
 interface Props {
   symbol: string;
@@ -78,6 +82,8 @@ export function ManualOrderTicket({
   externalResult = null,
 }: Props) {
   const ibkrStatus = useIbkrStatus();
+  const { venue, generation } = useSyncExternalStore(subscribeConfirmedDeskVenue, getConfirmedDeskVenueSnapshot);
+  const prefs = useTradeDefaultsPrefs(venue);
   const { topOfBook } = useTopOfBook();
   const viewLockWhy = useViewLock(symbol);  // ADR 045: Level 2 behind the market locks Place
   // Only this symbol's live book prices a Market order's Cost (R36).
@@ -86,7 +92,7 @@ export function ManualOrderTicket({
     : null;
   // Sim off the live edge prices from the replay at the playhead, never the live feed (R10 / V24).
   const { price: referencePrice, note: priceNote, bid: quoteBid, ask: quoteAsk } = useVenuePrice(symbol, livePrice, liveBook);
-  const initial = applyTicketDefaults(symbol, referencePrice, topOfBook);
+  const initial = applyTicketDefaults(venue, symbol, referencePrice, topOfBook);
   const allowShort = allowShortSide(summary);
   const [ticketSide, setTicketSide] = useState<TicketSide>(() =>
     clampTicketSide(orderSideToTicketSide(initial.side), allowShort),
@@ -120,7 +126,7 @@ export function ManualOrderTicket({
     position,
   };
   const { tif, selectTif, cost, practice } = useCompactTicket({
-    mode, ...ticketValues, priceNote, quote: { bid: quoteBid, ask: quoteAsk },
+    venue, mode, ...ticketValues, priceNote, quote: { bid: quoteBid, ask: quoteAsk },
   });
   const trading = evaluateTradingAllowed({
     connected,
@@ -146,6 +152,7 @@ export function ManualOrderTicket({
     showResult,
   } = useManualOrderSubmission({
     ...ticketValues,
+    venue,
     mode,
     connected,
     spendLocked,
@@ -165,7 +172,7 @@ export function ManualOrderTicket({
   const priceFollow = useTicketPriceFollow({
     symbol,
     book: topOfBook,
-    initial: seedFollow(initial.side, initial.orderType),
+    initial: seedFollow(venue, initial.side, initial.orderType),
     active: usesLimitPrice(orderType),
     frozen: submitting || confirmSummary != null,
     setLimitPrice,
@@ -181,18 +188,11 @@ export function ManualOrderTicket({
       ? `Live cap: this order sends ${qtyCap} of ${typedShares} shares.`
       : null;
 
-  useEffect(() => {
-    const next = applyTicketDefaults(symbol, referencePrice, topOfBook);
-    setTicketSide(orderSideToTicketSide(next.side));
-    setOrderType(next.orderType);
-    setQuantityMode('shares');
-    setQuantityValue(next.quantityValue);
-    setLimitPrice(next.limitPrice);
-    priceFollow.setFollowing(seedFollow(next.side, next.orderType));
-    setStopPrice(next.stopPrice);
-    setOutsideRth(next.outsideRth);
-    resetSubmission();
-  }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
+  useTicketDefaultsSync({
+    symbol, venue, generation, prefs, side, orderType, referencePrice, topOfBook,
+    setTicketSide, setOrderType, setQuantityMode, setQuantityValue,
+    setLimitPrice, setStopPrice, setOutsideRth, setFollowing: priceFollow.setFollowing, resetSubmission,
+  });
 
   // A confirm built on one venue is never sent on another: it names the old
   // account, and Confirm would place it wherever the desk points now.
@@ -225,6 +225,7 @@ export function ManualOrderTicket({
     setTicketSide(next);
     const mapped = ticketSideToOrder(next);
     const seeded = seedPricesForSide(
+      venue,
       mapped.side,
       orderType,
       symbol,
@@ -232,7 +233,7 @@ export function ManualOrderTicket({
       topOfBook,
     );
     if (usesLimitPrice(orderType)) setLimitPrice(seeded.limitPrice);
-    priceFollow.setFollowing(seedFollow(mapped.side, orderType));
+    priceFollow.setFollowing(seedFollow(venue, mapped.side, orderType));
     if (usesStopPrice(orderType)) setStopPrice(seeded.stopPrice);
     resetSubmission();
   }
@@ -240,6 +241,7 @@ export function ManualOrderTicket({
   useEffect(() => {
     if (referencePrice != null && !limitPrice && usesLimitPrice(orderType)) {
       const seeded = seedPricesForSide(
+        venue,
         side,
         orderType,
         symbol,
@@ -248,11 +250,12 @@ export function ManualOrderTicket({
       );
       setLimitPrice(seeded.limitPrice);
     }
-  }, [referencePrice, limitPrice, orderType, side, symbol, topOfBook]);
+  }, [referencePrice, limitPrice, orderType, side, symbol, topOfBook, venue]);
 
   function selectOrderType(next: ManualOrderType) {
     setOrderType(next);
     const seeded = seedPricesForSide(
+      venue,
       side,
       next,
       symbol,
@@ -260,7 +263,7 @@ export function ManualOrderTicket({
       topOfBook,
     );
     if (usesLimitPrice(next)) setLimitPrice(seeded.limitPrice);
-    priceFollow.setFollowing(seedFollow(side, next));
+    priceFollow.setFollowing(seedFollow(venue, side, next));
     if (usesStopPrice(next)) setStopPrice(seeded.stopPrice);
     resetSubmission();
   }
@@ -308,8 +311,8 @@ export function ManualOrderTicket({
         symbol={symbol}
         mode={mode}
         tif={tif}
-        disabled={submitting}
-        why={TICKET_WHY_SENDING}
+        disabled={submitting || venue === null}
+        why={venue === null ? TRADE_DEFAULTS_WAITING : TICKET_WHY_SENDING}
         onTifChange={selectTif}
       />
       <ManualOrderFields

@@ -29,6 +29,7 @@ import {
 function params() {
   return {
     symbol: 'AAPL',
+    venue: 'paper' as const,
     mode: 'paper' as const,
     connected: true,
     spendLocked: false,
@@ -154,7 +155,7 @@ describe('useManualOrderSubmission gesture identity', () => {
     expect(placeIbkrOrder.mock.calls[0][0].tif).toBe('DAY');
     expect(placeIbkrOrder.mock.calls[0][0].take_profit_price).toBeUndefined();
 
-    writeTradeDefaultsPrefs({ ...defaultTradeDefaultsPrefs(), tif: 'GTC' });
+    writeTradeDefaultsPrefs('paper', { ...defaultTradeDefaultsPrefs(), tif: 'GTC' });
     const gtc = renderHook(() => useManualOrderSubmission(params()));
     await act(async () => {
       await gtc.result.current.executeOrder();
@@ -163,7 +164,7 @@ describe('useManualOrderSubmission gesture identity', () => {
   });
 
   it('attaches the default legs to an opening limit entry (#91)', async () => {
-    writeTradeDefaultsPrefs({
+    writeTradeDefaultsPrefs('paper', {
       ...defaultTradeDefaultsPrefs(),
       protectiveLegs: true,
       takeProfitPct: 2,
@@ -186,7 +187,7 @@ describe('useManualOrderSubmission gesture identity', () => {
   });
 
   it('attaches the default legs on Sim too: it fills the bracket Paper and Live send (#606)', async () => {
-    writeTradeDefaultsPrefs({
+    writeTradeDefaultsPrefs('sim', {
       ...defaultTradeDefaultsPrefs(),
       protectiveLegs: true,
       takeProfitPct: 2,
@@ -195,6 +196,7 @@ describe('useManualOrderSubmission gesture identity', () => {
     const { result } = renderHook(() =>
       useManualOrderSubmission({
         ...params(),
+        venue: 'sim' as const,
         mode: 'sim' as const,
         orderType: 'LMT',
         limitPrice: '10',
@@ -210,7 +212,7 @@ describe('useManualOrderSubmission gesture identity', () => {
   });
 
   it('refuses a market entry while the default legs are on (#91)', async () => {
-    writeTradeDefaultsPrefs({
+    writeTradeDefaultsPrefs('paper', {
       ...defaultTradeDefaultsPrefs(),
       protectiveLegs: true,
     });
@@ -225,7 +227,7 @@ describe('useManualOrderSubmission gesture identity', () => {
   });
 
   it('leaves an exit alone while the default legs are on (#91)', async () => {
-    writeTradeDefaultsPrefs({
+    writeTradeDefaultsPrefs('paper', {
       ...defaultTradeDefaultsPrefs(),
       protectiveLegs: true,
     });

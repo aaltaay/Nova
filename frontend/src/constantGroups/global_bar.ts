@@ -44,6 +44,8 @@ export const DESK_POLL_LEADER_STALE_MS = 1_800;
 export const DESK_POLL_SNAPSHOT_MAX_AGE_MS = 2_000;
 export const DESK_POLL_ACCOUNT_SHARE = 'ibkr-account';
 export const DESK_POLL_BOT_SHARE = 'bot-session';
+/** Backend-confirmed venue transition tokens; persisted data is synchronization only. */
+export const DESK_POLL_CONFIRMED_VENUE_SHARE = 'confirmed-venue';
 /** Bot header + Strategy share one poller; this is the armed interval. */
 export const DESK_BOT_POLL_MS = 2_500;
 export const DESK_POLL_LEADER_KEY_PREFIX = 'nova.desk.poll.leader.';
@@ -356,4 +358,3 @@ export const rosterScannerError = (source: string, error: string): string =>
 export const GLOBAL_BAR_CONNECTION_CHECKING_LABEL = 'Checking IBKR';
 export const GLOBAL_BAR_CONNECTION_CHECKING_TITLE =
   "Nova's status request has not answered yet -- IB Gateway's state is not known";
-

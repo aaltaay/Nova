@@ -9,6 +9,8 @@
  * the Trader ticket and you press Place.
  */
 import { useSyncExternalStore } from 'react';
+import { useConfirmedDeskVenue } from '../ibkr';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { SETUP_KIND_LABELS } from '../constants';
 import {
   BOTS_PROPOSAL_DISMISS,
@@ -34,6 +36,7 @@ import {
   setupTypeOf,
   stageLimit,
   stageSetupTicket,
+  stageVenueLock,
   subscribeDismissedProposals,
   useSetupsBoard,
   useSleeveRisk,
@@ -109,6 +112,8 @@ interface Props {
 }
 
 export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Props) {
+  const venue = useConfirmedDeskVenue();
+  const sample = useSampleDataOptional();
   const stream = useSetupsBoard();
   // One dismissed list with the floating alert card (ADR 042): a proposal dismissed there is gone here too.
   const dismissed = useSyncExternalStore(subscribeDismissedProposals, dismissedProposals, dismissedProposals);
@@ -135,7 +140,8 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
         const entry = stageLimit(p.entry);
         const ids = [p.id, ...also.map(a => a.id)];
         const size = proposalStageSize(p, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
-        const stageWhy = !entry ? SETUPS_STAGE_NO_ENTRY_WHY : stageLock(p) ?? proposalStageLock(p, size);
+        const stageWhy = !entry ? SETUPS_STAGE_NO_ENTRY_WHY : stageLock(p) ?? proposalStageLock(p, size)
+          ?? stageVenueLock(venue, Boolean(sample));
         return (
           <article key={p.id} className="bots-prop" data-testid={`bots-setup-proposal-${p.symbol}`}>
             <div className="bots-prop__head">

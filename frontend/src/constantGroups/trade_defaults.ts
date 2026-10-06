@@ -4,6 +4,13 @@
  */
 
 export const TRADE_DEFAULTS_STORAGE_KEY = 'nova.trade.defaults.v1';
+export const TRADE_DEFAULTS_VENUE_STORAGE_PREFIX = 'nova.trade.defaults.v2.';
+export const TRADE_DEFAULTS_SCHEMA_VERSION = 2;
+export const TRADE_DEFAULTS_MIGRATION_KEY = 'nova.trade.defaults.migration.v1';
+export const TRADE_DEFAULTS_MIGRATION_VERSION = 1;
+export const TRADE_DEFAULTS_CHANGED_EVENT = 'nova:trade-defaults-changed';
+export const TRADE_DEFAULTS_WAITING = 'Waiting for Nova to confirm the desk venue.';
+export const TRADE_DEFAULTS_SAVE_FAILED = 'Could not save trade defaults. Browser storage may be unavailable.';
 
 export type TradeDefaultOrderType = 'MKT' | 'LMT' | 'STP';
 export type TradeDefaultTradingHours = 'rth' | 'extended';

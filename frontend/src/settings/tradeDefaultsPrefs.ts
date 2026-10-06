@@ -1,5 +1,7 @@
 /**
- * Read/write Trade > Stocks defaults in localStorage.
+ * Owns per-venue Trade > Stocks defaults in localStorage (ADR 042).
+ * Venue/version changes invalidate readers. The migration receipt binds the
+ * old shared values to one confirmed venue even if a later write or cleanup fails.
  */
 import {
   TRADE_DEFAULT_LEG_PCT_MAX,
@@ -15,11 +17,18 @@ import {
   TRADE_DEFAULT_TIFS,
   TRADE_DEFAULT_TRADING_HOURS,
   TRADE_DEFAULTS_STORAGE_KEY,
+  TRADE_DEFAULTS_VENUE_STORAGE_PREFIX,
+  TRADE_DEFAULTS_SCHEMA_VERSION,
+  TRADE_DEFAULTS_MIGRATION_KEY,
+  TRADE_DEFAULTS_MIGRATION_VERSION,
+  TRADE_DEFAULTS_CHANGED_EVENT,
   type TradeDefaultLimitSource,
   type TradeDefaultOrderType,
   type TradeDefaultTif,
   type TradeDefaultTradingHours,
 } from '../constantGroups/trade_defaults';
+import type { DeskVenue } from '../constantGroups/desk_venue';
+import { isSampleView } from '../sample_data/sampleNav';
 
 export interface TradeDefaultsPrefs {
   v: 1;
@@ -107,21 +116,120 @@ export function parseTradeDefaultsPrefs(raw: unknown): TradeDefaultsPrefs {
   };
 }
 
-export function readTradeDefaultsPrefs(): TradeDefaultsPrefs {
+export function tradeDefaultsStorageKey(venue: DeskVenue): string {
+  return `${TRADE_DEFAULTS_VENUE_STORAGE_PREFIX}${venue}`;
+}
+
+function jsonRecord(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(TRADE_DEFAULTS_STORAGE_KEY);
-    if (!raw) return defaultTradeDefaultsPrefs();
-    return parseTradeDefaultsPrefs(JSON.parse(raw) as unknown);
+    const value: unknown = JSON.parse(raw);
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown> : null;
   } catch {
-    return defaultTradeDefaultsPrefs();
+    return null;
   }
 }
 
-export function writeTradeDefaultsPrefs(prefs: TradeDefaultsPrefs): void {
+function knownPrefs(value: unknown): TradeDefaultsPrefs | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (record.v !== undefined && record.v !== 1) {
+    console.warn('[Nova] refusing unknown stock defaults version', record.v);
+    return null;
+  }
+  return parseTradeDefaultsPrefs(record);
+}
+
+function destinationPrefs(raw: string | null, venue: DeskVenue): TradeDefaultsPrefs | null {
+  const record = jsonRecord(raw);
+  if (!record) return null;
+  if (record.schema_version !== TRADE_DEFAULTS_SCHEMA_VERSION || record.venue !== venue) {
+    console.warn('[Nova] refusing stock defaults with unknown schema or venue ownership');
+    return null;
+  }
+  return knownPrefs(record.prefs);
+}
+
+function persistVerified(key: string, serialized: string): boolean {
+  localStorage.setItem(key, serialized);
+  return localStorage.getItem(key) === serialized;
+}
+
+function serializePrefs(venue: DeskVenue, prefs: TradeDefaultsPrefs): string {
+  return JSON.stringify({ schema_version: TRADE_DEFAULTS_SCHEMA_VERSION, venue, prefs });
+}
+
+/** The caller supplies a backend-confirmed venue; null never adopts or writes. */
+export function readTradeDefaultsPrefs(venue: DeskVenue | null): TradeDefaultsPrefs {
+  const fallback = defaultTradeDefaultsPrefs();
+  if (!venue || isSampleView()) return fallback;
   try {
-    const next = parseTradeDefaultsPrefs(prefs);
-    localStorage.setItem(TRADE_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+    const key = tradeDefaultsStorageKey(venue);
+    const saved = localStorage.getItem(key);
+    const existing = destinationPrefs(saved, venue);
+    const legacyRaw = localStorage.getItem(TRADE_DEFAULTS_STORAGE_KEY);
+    const legacy = knownPrefs(jsonRecord(legacyRaw));
+    // An unreadable/unknown destination is preserved, never repaired by a read.
+    if (!legacy || (saved !== null && !existing)) return existing ?? fallback;
+    const receiptRaw = localStorage.getItem(TRADE_DEFAULTS_MIGRATION_KEY);
+    const receipt = jsonRecord(receiptRaw);
+    if (receiptRaw !== null && receipt?.schema_version !== TRADE_DEFAULTS_MIGRATION_VERSION) {
+      console.warn('[Nova] refusing unknown stock defaults migration receipt');
+      return existing ?? fallback;
+    }
+    if (receiptRaw !== null && (
+      receipt?.venue !== venue
+    )) return existing ?? fallback;
+    if (receiptRaw === null && !persistVerified(TRADE_DEFAULTS_MIGRATION_KEY, JSON.stringify({
+      schema_version: TRADE_DEFAULTS_MIGRATION_VERSION, venue,
+    }))) return existing ?? fallback;
+    const next = existing ?? legacy;
+    if (!existing && !persistVerified(key, serializePrefs(venue, next))) return fallback;
+    // Both receipt and destination now exist. A failed removal leaves the
+    // legacy copy recoverable, but the receipt forbids another venue adopting it.
+    try { localStorage.removeItem(TRADE_DEFAULTS_STORAGE_KEY); } catch { /* retry next read */ }
+    return next;
   } catch {
-    /* private mode / quota */
+    return destinationPrefs(safeGet(tradeDefaultsStorageKey(venue)), venue) ?? fallback;
+  }
+}
+
+function safeGet(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+/** Stable primitive for React readers, including migration changes. */
+export function tradeDefaultsPrefsSnapshot(venue: DeskVenue | null): string {
+  if (!venue || isSampleView()) return '';
+  return JSON.stringify([
+    safeGet(tradeDefaultsStorageKey(venue)),
+    safeGet(TRADE_DEFAULTS_STORAGE_KEY),
+    safeGet(TRADE_DEFAULTS_MIGRATION_KEY),
+  ]);
+}
+
+export function subscribeTradeDefaultsPrefs(listener: () => void): () => void {
+  const storage = (event: StorageEvent) => {
+    if (event.storageArea && event.storageArea !== localStorage) return;
+    if (event.key === null || event.key === TRADE_DEFAULTS_STORAGE_KEY ||
+      event.key === TRADE_DEFAULTS_MIGRATION_KEY || event.key.startsWith(TRADE_DEFAULTS_VENUE_STORAGE_PREFIX)) listener();
+  };
+  window.addEventListener('storage', storage);
+  window.addEventListener(TRADE_DEFAULTS_CHANGED_EVENT, listener);
+  return () => {
+    window.removeEventListener('storage', storage);
+    window.removeEventListener(TRADE_DEFAULTS_CHANGED_EVENT, listener);
+  };
+}
+
+export function writeTradeDefaultsPrefs(venue: DeskVenue | null, prefs: TradeDefaultsPrefs): boolean {
+  if (!venue || isSampleView()) return false;
+  try {
+    if (!persistVerified(tradeDefaultsStorageKey(venue), serializePrefs(venue, parseTradeDefaultsPrefs(prefs)))) return false;
+    window.dispatchEvent(new Event(TRADE_DEFAULTS_CHANGED_EVENT));
+    return true;
+  } catch {
+    return false;
   }
 }
