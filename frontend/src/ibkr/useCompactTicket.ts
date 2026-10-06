@@ -10,18 +10,20 @@
  * `priceNote` when there is none, so a Market order is never priced from a
  * live last the quote card does not show (QA 2026-09-22, V24 / R10).
  */
-import { useState } from 'react';
 import type { TradeDefaultTif } from '../constantGroups/trade_defaults';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
   readTradeDefaultsPrefs,
   writeTradeDefaultsPrefs,
-} from '../settings/tradeDefaultsPrefs';
+  useTradeDefaultsPrefs,
+} from '../settings';
 import { marketFillPrice } from '../sim/useReplayQuote';
 import type { ManualOrderSide, ManualOrderType, QuantityMode } from './orderEntry';
 import { estimateTicketCost, type TicketCostEstimate } from './ticketCost';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 
 interface Params {
+  venue: DeskVenue | null;
   symbol: string;
   mode: IbkrMode;
   side: ManualOrderSide;
@@ -47,11 +49,10 @@ export function useCompactTicket(p: Params): {
   cost: TicketCostEstimate;
   practice: boolean;
 } {
-  const [tif, setTif] = useState<TradeDefaultTif>(() => readTradeDefaultsPrefs().tif);
+  const { tif } = useTradeDefaultsPrefs(p.venue);
 
   function selectTif(next: TradeDefaultTif) {
-    writeTradeDefaultsPrefs({ ...readTradeDefaultsPrefs(), tif: next });
-    setTif(next);
+    writeTradeDefaultsPrefs(p.venue, { ...readTradeDefaultsPrefs(p.venue), tif: next });
   }
 
   const practice = p.mode === 'paper' || p.mode === 'sim';

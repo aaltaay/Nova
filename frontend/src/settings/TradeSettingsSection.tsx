@@ -6,17 +6,16 @@ import {
   TRADE_SETTINGS_SUB_TABS,
   type TradeSettingsSubTab,
 } from './settingsNav';
-import {
-  readTradeDefaultsPrefs,
-  type TradeDefaultsPrefs,
-} from './tradeDefaultsPrefs';
+import { useConfirmedDeskVenue } from '../ibkr';
+import { useTradeDefaultsPrefs } from './useTradeDefaultsPrefs';
 import { PracticeAccountSettings } from './PracticeAccountSettings';
 import { TradeOrderPreferencesForm } from './TradeOrderPreferencesForm';
 import { TradeStocksDefaultsForm } from './TradeStocksDefaultsForm';
 
 export function TradeSettingsSection() {
   const [subTab, setSubTab] = useState<TradeSettingsSubTab>('stocks');
-  const [prefs, setPrefs] = useState<TradeDefaultsPrefs>(readTradeDefaultsPrefs);
+  const venue = useConfirmedDeskVenue();
+  const prefs = useTradeDefaultsPrefs(venue);
 
   return (
     <div className="settings-trade" data-testid="settings-trade">
@@ -33,7 +32,7 @@ export function TradeSettingsSection() {
         ))}
       </nav>
       {subTab === 'stocks' && (
-        <TradeStocksDefaultsForm prefs={prefs} onChange={setPrefs} />
+        <TradeStocksDefaultsForm key={venue ?? 'unknown'} venue={venue} prefs={prefs} />
       )}
       {subTab === 'order_preferences' && <TradeOrderPreferencesForm />}
       {subTab === 'practice' && <PracticeAccountSettings />}

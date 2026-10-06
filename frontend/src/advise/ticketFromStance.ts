@@ -1,4 +1,4 @@
-import { defaultTicketQty } from '../ibkr/applyTicketDefaults';
+import { defaultTicketQty, getConfirmedDeskVenueSnapshot } from '../ibkr';
 import {
   requestOrderTicketPrefill,
   type OrderTicketPrefill,
@@ -16,7 +16,7 @@ export function adviseTicketPrefill(
     symbol: symbol.trim().toUpperCase(),
     side,
     orderType: ticket.order_type === 'LMT' ? 'LMT' : ticket.order_type === 'STP' ? 'STP' : 'MKT',
-    quantityValue: ticket.quantity_value || defaultTicketQty(),
+    quantityValue: ticket.quantity_value || defaultTicketQty(getConfirmedDeskVenueSnapshot().venue),
     limitPrice: ticket.limit_price || '',
   };
 }

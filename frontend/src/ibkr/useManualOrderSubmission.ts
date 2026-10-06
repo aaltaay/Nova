@@ -13,7 +13,8 @@ import {
   type QuantityMode,
 } from './orderEntry';
 import { planProtectiveLegs } from './protectiveLegs';
-import { readTradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
+import { useTradeDefaultsPrefs } from '../settings';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { executionTransportError } from './executionTransportError';
 import { newGestureKey } from './gestureKey';
 import { notifyOrderRejected } from './notifyOrderRejected';
@@ -28,6 +29,7 @@ import type {
 } from './types';
 
 interface Params {
+  venue: DeskVenue | null;
   symbol: string;
   mode: IbkrMode;
   connected: boolean;
@@ -64,10 +66,9 @@ export function useManualOrderSubmission(params: Params) {
   // tick between the click and Confirm must not change what is sent.
   const confirmedRef = useRef<BuildOrderResult | null>(null);
 
-  // #91: Settings owns TIF and the optional default TP/SL. Read per render
-  // (localStorage, like the ticket's other defaults) so a Settings change
-  // reaches the next order instead of waiting for a remount.
-  const prefs = readTradeDefaultsPrefs();
+  // #657/#658: Settings owns this confirmed venue's TIF and optional TP/SL.
+  // Pref notifications reach the next order without waiting for a remount.
+  const prefs = useTradeDefaultsPrefs(params.venue);
   const limitNumber = Number(params.limitPrice);
   const legsPlan = planProtectiveLegs({
     prefs,

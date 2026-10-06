@@ -3,7 +3,7 @@
  * it never calls `placeIbkrOrder`, never re-implements a gate, and never
  * flattens (Close Position stays on `ClosePositionButton` -> `closeFullPosition`).
  */
-import { defaultTicketQty } from '../ibkr/applyTicketDefaults';
+import { defaultTicketQty, getConfirmedDeskVenueSnapshot } from '../ibkr';
 import type { ManualOrderSide } from '../ibkr/orderEntry';
 import {
   requestOrderTicketPrefill,
@@ -28,7 +28,7 @@ export function chartOrderPrefill(input: {
     symbol: input.symbol.trim().toUpperCase(),
     side: chartOrderSide(input.intent),
     orderType: 'LMT',
-    quantityValue: input.quantityValue ?? defaultTicketQty(),
+    quantityValue: input.quantityValue ?? defaultTicketQty(getConfirmedDeskVenueSnapshot().venue),
     limitPrice: formatSeedPrice(input.price),
   };
 }

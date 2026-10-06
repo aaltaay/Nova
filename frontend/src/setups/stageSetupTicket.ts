@@ -7,7 +7,7 @@
  * gets Settings > Trade's default quantity -- only a caller not yet moved to
  * risk sizing (the Bots page inbox) does. */
 import { SETUPS_STAGE_TICKET_DELAY_MS } from '../constants';
-import { defaultTicketQty } from '../ibkr/applyTicketDefaults';
+import { defaultTicketQty, getConfirmedDeskVenueSnapshot } from '../ibkr';
 import { requestOrderTicketPrefill } from '../ibkr/orderTicketPrefill';
 
 export function stageSetupTicket(
@@ -23,7 +23,7 @@ export function stageSetupTicket(
     symbol,
     side: 'BUY' as const,
     orderType: 'LMT' as const,
-    quantityValue: quantity === undefined ? defaultTicketQty() : String(Math.floor(quantity)),
+    quantityValue: quantity === undefined ? defaultTicketQty(getConfirmedDeskVenueSnapshot().venue) : String(Math.floor(quantity)),
     limitPrice,
   };
   // The Trader tab's ticket may still be mounting: stage now and once more after it has.

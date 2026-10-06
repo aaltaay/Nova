@@ -16,6 +16,11 @@ import { ManualOrderTicket } from './ManualOrderTicket';
 import type { IbkrAccountSummary } from './types';
 
 const placeIbkrOrder = vi.fn();
+const confirmed = vi.hoisted(() => ({ venue: 'paper' as const, generation: 'paper-test' }));
+vi.mock('./confirmedDeskVenue', () => ({
+  getConfirmedDeskVenueSnapshot: () => confirmed,
+  subscribeConfirmedDeskVenue: () => () => {},
+}));
 
 vi.mock('./placeOrder', () => ({
   placeIbkrOrder: (...args: unknown[]) => placeIbkrOrder(...args),

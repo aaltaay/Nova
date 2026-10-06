@@ -12,32 +12,32 @@ describe('applyTicketDefaults extended hours', () => {
   });
 
   it('defaults Extended Hours on for Market when no prefs exist', () => {
-    const next = applyTicketDefaults('AAPL', 25, null);
+    const next = applyTicketDefaults('paper', 'AAPL', 25, null);
     expect(next.orderType).toBe('MKT');
     expect(next.outsideRth).toBe(true);
     expect(defaultTradeDefaultsPrefs().tradingHours).toBe('extended');
   });
 
   it('honors a saved Regular Hours pref on Market', () => {
-    writeTradeDefaultsPrefs({
+    writeTradeDefaultsPrefs('paper', {
       ...defaultTradeDefaultsPrefs(),
       orderType: 'MKT',
       tradingHours: 'rth',
     });
-    expect(applyTicketDefaults('MSFT', 10, null).outsideRth).toBe(false);
+    expect(applyTicketDefaults('paper', 'MSFT', 10, null).outsideRth).toBe(false);
   });
 
   it('keeps Extended Hours on for Market when prefs say extended', () => {
-    writeTradeDefaultsPrefs({
+    writeTradeDefaultsPrefs('paper', {
       ...defaultTradeDefaultsPrefs(),
       orderType: 'MKT',
       tradingHours: 'extended',
     });
-    expect(applyTicketDefaults('NVDA', 100, null).outsideRth).toBe(true);
+    expect(applyTicketDefaults('paper', 'NVDA', 100, null).outsideRth).toBe(true);
   });
 
   it('does not write prefs just by reading defaults', () => {
-    applyTicketDefaults('AAPL', 25, null);
+    applyTicketDefaults('paper', 'AAPL', 25, null);
     expect(localStorage.getItem(TRADE_DEFAULTS_STORAGE_KEY)).toBeNull();
   });
 });
