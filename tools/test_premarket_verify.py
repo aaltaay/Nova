@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import premarket_verify as pv  # noqa: E402
+from premarket_sources import ReadResult, restart_source  # noqa: E402
 from ibkr.relogin_reason import IbcLogin  # noqa: E402
 from ibkr.windows_restarts import Restart  # noqa: E402
 
@@ -63,6 +64,12 @@ def _evidence(now: str, **kw):
         now=_ts(now),
     )
     base.update(kw)
+    now_ts = base["now"]
+    stamps = [now_ts - back * 86400 for back in range(base["days"] + 1)]
+    base["sources"] = {
+        name: ReadResult("readable", now_ts).summary(stamps) for name in ("daily_start", "ibc")
+    }
+    base["sources"]["windows_restarts"] = restart_source(base["restarts"], base["days"], now_ts, True)
     return pv.build_evidence(**base)
 
 

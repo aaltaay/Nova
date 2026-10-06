@@ -44,10 +44,14 @@ from constants_relogin import (  # noqa: E402
     PREMARKET_EVIDENCE_DAYS_DEFAULT,
 )
 from ibkr import relogin_reason, windows_restarts  # noqa: E402
+from premarket_sources import (  # noqa: E402
+    ReadResult, quiet_proof, read_ibc_logs, read_log, restart_source, windows_supported,
+)
 
 SCHEMA_VERSION = 1
 LOG_DIR = ROOT / "backend" / "logs"
 _LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.*)$")
+_IBC_STAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}:\d+ IBC: ")
 _RUN_GAP_SEC = 10 * 60
 _SAME_START_SEC = 5 * 60
 
@@ -106,9 +110,19 @@ def build_evidence(
     restarts: list[windows_restarts.Restart] | None,
     days: int,
     now: float,
+    sources: dict[str, dict] | None = None,
 ) -> dict[str, Any]:
-    """Pure: the #14 verdict from already-read facts."""
+    """Pure: the #14 verdict from facts and their availability/window evidence.
+
+    Legacy bare lists still describe observed events; they cannot prove a quiet week.
+    """
     since = now - days * 86400
+    sources = sources or {}
+    proof = quiet_proof(sources, restarts=restarts, days=days, now=now,
+                        minimum_days=PREMARKET_EVIDENCE_DAYS_DEFAULT)
+    if any(login.ts is None for login in ibc_logins):
+        proof["complete"] = False
+        proof["problems"].append("ibc: an undated Gateway start cannot be placed inside or outside the window")
     full_logins: list[dict[str, Any]] = []
     for login in ibc_logins:
         if login.full_auth and login.ts is not None and since <= login.ts <= now:
@@ -116,14 +130,14 @@ def build_evidence(
     # IBC keeps a patchy history (see docs/live-desk-sync.md, "IBC log
     # history"), so Nova's own launch log fills the gaps; a launch the IBC log
     # already shows (its login within a few minutes after) is not counted twice.
-    ibc_times = [l.ts for l in ibc_logins if l.ts is not None]
+    ibc_times = [login.ts for login in ibc_logins if login.ts is not None]
     for ts in launches:
         if not since <= ts <= now or any(ts <= t <= ts + _SAME_START_SEC for t in ibc_times):
             continue
         full_logins.append(_login_row(ts, "daily_start", restarts, now, None))
     full_logins.sort(key=lambda r: r["ts"])
 
-    recent = [r for r in runs if (_local(f"{r['date']} {r['started']}") or 0) >= since]
+    recent = [r for r in runs if since <= (_local(f"{r['date']} {r['started']}") or 0) <= now]
     passes = [r for r in recent if r["unattended"] and r["result"] == "PASS"]
     unexpected = [r for r in full_logins if not r["expected"]]
     return {
@@ -131,15 +145,19 @@ def build_evidence(
         "generated_at": now,
         "days": days,
         "morning_runs": recent,
-        "missed_mornings": _missed_mornings(recent, restarts, days, now),
+        "missed_mornings": _missed_mornings(recent, restarts, days, now,
+                                            (sources.get("windows_restarts") or {}).get("status", "unknown")),
         "full_logins": full_logins,
         "restarts": [r.to_dict() for r in restarts or [] if r.boot_ts >= since],
         "restarts_readable": restarts is not None,
+        "evidence_sources": sources,
+        "login_evidence": proof,
         "criteria": {
             "unattended_pass": {"met": bool(passes), "date": passes[-1]["date"] if passes else None},
-            "no_unexpected_logins": {"met": not unexpected, "count": len(unexpected)},
+            "no_unexpected_logins": {"met": proof["complete"] and not unexpected, "count": len(unexpected),
+                                     "known": proof["complete"] or bool(unexpected)},
         },
-        "met": bool(passes) and not unexpected,
+        "met": bool(passes) and proof["complete"] and not unexpected,
     }
 
 
@@ -168,6 +186,7 @@ def _missed_mornings(
     restarts: list[windows_restarts.Restart] | None,
     days: int,
     now: float,
+    restart_status: str,
 ) -> list[dict[str, Any]]:
     ran = {r["date"] for r in runs if r["unattended"]}
     today = datetime.fromtimestamp(now).date()
@@ -181,11 +200,12 @@ def _missed_mornings(
             continue
         if day.isoformat() in ran:
             continue
-        missed.append({"date": day.isoformat(), "reason": _missed_reason(day, restarts, now)})
+        missed.append({"date": day.isoformat(), "reason": _missed_reason(day, restarts, now, restart_status)})
     return missed
 
 
-def _missed_reason(day: date, restarts: list[windows_restarts.Restart] | None, now: float) -> str:
+def _missed_reason(day: date, restarts: list[windows_restarts.Restart] | None,
+                   now: float, restart_status: str) -> str:
     check_at = _local(f"{day.isoformat()} {PREMARKET_CHECK_WINDOW_START}:00") or 0
     for r in restarts or []:
         signed_in_late = r.first_signin_ts is None or r.first_signin_ts > check_at
@@ -198,35 +218,40 @@ def _missed_reason(day: date, restarts: list[windows_restarts.Restart] | None, n
                 "the scheduled tasks only run while you are signed in"
             )
     if restarts is None:
-        return "no 03:55 run in morning-check.log (the Windows event log could not be read)"
+        why = ("Windows restart evidence is unsupported on this platform" if restart_status == "unsupported" else
+               "the Windows event log could not be read" if restart_status == "unreadable" else
+               "Windows restart evidence is unavailable")
+        return f"no 03:55 run in morning-check.log ({why})"
     return "no 03:55 run in morning-check.log (the PC was asleep, off, or the task did not fire)"
-
-
-def read_ibc_logins(log_dir: Path) -> list[relogin_reason.IbcLogin]:
-    """Every Gateway start in every IBC log, oldest first."""
-    logins: list[relogin_reason.IbcLogin] = []
-    try:
-        files = sorted(log_dir.glob("IBC-*.txt"), key=lambda p: p.stat().st_mtime)
-    except OSError:
-        return []
-    for path in files:
-        try:
-            logins += relogin_reason.parse_ibc_logins(path.read_text(encoding="utf-8", errors="replace"))
-        except OSError:
-            continue
-    return sorted(logins, key=lambda l: l.ts or 0)
 
 
 def render_text(ev: dict[str, Any]) -> str:
     crit = ev["criteria"]
     lines = [f"Premarket evidence for #14, last {ev['days']} days"]
+    proof = ev["login_evidence"]
+    lines.append(f"  Requested proof window: {_stamp(proof['requested_from'])} to {_stamp(proof['requested_through'])}")
     up = crit["unattended_pass"]
     lines.append(
         f"  [{'MET' if up['met'] else 'OPEN'}] unattended 03:55 RESULT PASS"
-        + (f" -- latest {up['date']}" if up["date"] else " -- none in the window")
+        + (f" -- latest {up['date']}" if up["date"] else " -- no unattended PASS observed in the window")
     )
     nu = crit["no_unexpected_logins"]
-    lines.append(f"  [{'MET' if nu['met'] else 'OPEN'}] no weekday phone login -- {nu['count']} found")
+    label = "no weekday phone login" if nu["known"] else "quiet week not verified"
+    lines.append(f"  [{'MET' if nu['met'] else 'OPEN'}] {label} -- {nu['count']} weekday phone logins observed")
+    for name, source in ev["evidence_sources"].items():
+        first, last = source.get("first_ts"), source.get("last_ts")
+        retained = (f"{_stamp(first)} to {_stamp(last)}" if first is not None else "no dated observations")
+        if name == "windows_restarts":
+            queried_since = source.get("queried_since")
+            retained = f"query from {_stamp(queried_since)}" if queried_since is not None else "no Windows query available"
+        else:
+            retained = f"retained {retained}"
+        action = "checked" if source["status"] == "unsupported" else "read"
+        lines.append(f"  {name}: {source['status']}; {retained}; {action} at {_stamp(source['read_at'])}")
+        if source.get("dates"):
+            lines.append(f"      observed dates: {', '.join(source['dates'])}")
+    for problem in ev["login_evidence"]["problems"]:
+        lines.append(f"  Evidence: {problem}")
     for row in ev["full_logins"]:
         tag = "weekend, expected" if row["expected"] else "UNEXPECTED"
         stamp = time.strftime("%a %Y-%m-%d %H:%M", time.localtime(row["ts"]))
@@ -236,7 +261,7 @@ def render_text(ev: dict[str, Any]) -> str:
         for m in ev["missed_mornings"]:
             lines.append(f"      {m['date']}: {m['reason']}")
     if not ev["restarts_readable"]:
-        lines.append("  Note: the Windows event log could not be read -- restarts are unknown, not absent.")
+        lines.append("  Note: restarts are unknown, not absent.")
     lines.append(f"RESULT {'MET' if ev['met'] else 'OPEN'}")
     return "\n".join(lines)
 
@@ -244,15 +269,37 @@ def render_text(ev: dict[str, Any]) -> str:
 def _local(text: str) -> float | None:
     try:
         return time.mktime(datetime.strptime(text, "%Y-%m-%d %H:%M:%S").timetuple())
-    except ValueError:
+    except (ValueError, OverflowError, OSError):
         return None
 
 
-def _read(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
+def _stamp(ts: float) -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+
+
+def _source_summary(read: ReadResult, *, ibc: bool = False,
+                    logins: list[relogin_reason.IbcLogin] | None = None) -> dict:
+    """Dates in known line formats, plus explicit corruption/undated-launch failures."""
+    pattern = _IBC_STAMP_RE if ibc else _LINE_RE
+    stamps, problems = [], []
+    for text in read.texts:
+        for raw in text.splitlines():
+            line = raw.strip()
+            matched = pattern.match(line)
+            ts = _local(line[:19]) if matched else None
+            if matched and ts is None:
+                problems.append("a dated log line has an unreadable timestamp")
+            if not ibc and "Starting IB Gateway via IBC" in line and ts is None:
+                problems.append("an undated Gateway start cannot be placed inside or outside the window")
+            if ts is not None:
+                stamps.append(ts)
+    stamps.extend(login.ts for login in logins or [] if login.ts is not None)
+    summary = read.summary(stamps)
+    if problems:
+        summary["problems"].extend(sorted(set(problems)))
+        if summary["status"] == "readable":
+            summary["status"] = "partial"
+    return summary
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -270,13 +317,28 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     now = time.time()
+    morning = read_log(args.log_dir / "morning-check.log", now)
+    daily = read_log(args.log_dir / "daily-start.log", now)
+    ibc = read_ibc_logs(args.ibc_log_dir, now)
+    morning_text, daily_text = "\n".join(morning.texts), "\n".join(daily.texts)
+    logins = sorted((login for text in ibc.texts for login in relogin_reason.parse_ibc_logins(text)),
+                    key=lambda login: login.ts or 0)
+    supported = windows_supported()
+    restarts = windows_restarts.recent_restarts(args.days + 1) if supported else None
+    sources = {
+        "morning_check": _source_summary(morning),
+        "daily_start": _source_summary(daily),
+        "ibc": _source_summary(ibc, ibc=True, logins=logins),
+        "windows_restarts": restart_source(restarts, args.days, now, supported),
+    }
     ev = build_evidence(
-        runs=parse_morning_runs(_read(args.log_dir / "morning-check.log")),
-        ibc_logins=read_ibc_logins(args.ibc_log_dir),
-        launches=parse_gateway_launches(_read(args.log_dir / "daily-start.log")),
-        restarts=windows_restarts.recent_restarts(args.days + 1),
+        runs=parse_morning_runs(morning_text),
+        ibc_logins=logins,
+        launches=parse_gateway_launches(daily_text),
+        restarts=restarts,
         days=args.days,
         now=now,
+        sources=sources,
     )
     print(json.dumps(ev, indent=1) if args.json else render_text(ev))
     return 0 if ev["met"] else 1
