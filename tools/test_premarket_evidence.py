@@ -192,6 +192,39 @@ def test_undated_gateway_authentication_cannot_be_assumed_outside_window(logs, c
     assert code == 1 and "undated Gateway start" in pv.render_text(ev)
 
 
+@pytest.mark.parametrize("banner", [
+    "Starting IBC version 3.24.1 on Tue 09/22/2026 at 12:",
+    "Starting IBC version 3.24.1",
+    "Starting IBC version 3.24.1 on Tue 09/99/2026 at 12:00:00.25",
+])
+def test_malformed_ibc_start_cannot_reuse_an_older_out_of_window_banner(logs, capsys, banner):
+    (logs[1] / "IBC-quiet.txt").write_text(
+        "Starting IBC version 3.24.1 on Sun 09/13/2026 at 12:00:00.25\n"
+        "autorestart file found\n2026-09-13 12:00:00:100 IBC: saved login\n"
+        + "".join(f"2026-09-{day:02} 23:45:00:100 IBC: saved login\n"
+                  for day in range(15, 23))
+        + banner + "\nautorestart file not found: full authentication will be required\n",
+        encoding="utf-8")
+    code, ev = _cli(logs, capsys)
+    assert code == 1 and ev["met"] is False
+    assert ev["evidence_sources"]["ibc"]["status"] == "partial"
+    assert ev["criteria"]["no_unexpected_logins"]["known"] is False
+    text = pv.render_text(ev)
+    assert "malformed IBC startup banner" in text and "quiet week not verified" in text
+
+
+@pytest.mark.parametrize("banner", [
+    "Starting IBC version 3.24.1 on Tue 09/22/2026 at 12:00:00.25",
+    "Starting IBC version 3.24.1 on Tue 9/22/2026 at  9:23:06.25",
+])
+def test_valid_ibc_start_banner_keeps_observed_quiet_week_known(logs, capsys, banner):
+    with (logs[1] / "IBC-quiet.txt").open("a", encoding="utf-8") as file:
+        file.write(banner + "\nautorestart file found\n")
+    code, ev = _cli(logs, capsys)
+    assert code == 0 and ev["met"] is True
+    assert ev["evidence_sources"]["ibc"]["status"] == "readable"
+
+
 def test_real_unexpected_login_still_proves_failure(logs, capsys):
     with (logs[1] / "IBC-quiet.txt").open("a", encoding="utf-8") as file:
         file.write("autorestart file not found\n2026-09-22 12:00:00:100 IBC: fresh login\n")

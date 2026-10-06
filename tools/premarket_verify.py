@@ -52,6 +52,9 @@ SCHEMA_VERSION = 1
 LOG_DIR = ROOT / "backend" / "logs"
 _LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) \[(\w+)\] (.*)$")
 _IBC_STAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}:\d+ IBC: ")
+_IBC_BANNER_RE = re.compile(
+    r"Starting IBC version \S+ on .*?(\d{1,2})/(\d{1,2})/(\d{4}) at\s+"
+    r"(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?")
 _RUN_GAP_SEC = 10 * 60
 _SAME_START_SEC = 5 * 60
 
@@ -277,6 +280,15 @@ def _stamp(ts: float) -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
 
 
+def _valid_ibc_banner(line: str) -> bool:
+    """Validate known startup evidence without changing the diagnostic parser."""
+    match = _IBC_BANNER_RE.fullmatch(line)
+    if match is None:
+        return False
+    month, day, year, hour, minute, second = map(int, match.groups())
+    return _local(f"{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}") is not None
+
+
 def _source_summary(read: ReadResult, *, ibc: bool = False,
                     logins: list[relogin_reason.IbcLogin] | None = None) -> dict:
     """Dates in known line formats, plus explicit corruption/undated-launch failures."""
@@ -289,6 +301,8 @@ def _source_summary(read: ReadResult, *, ibc: bool = False,
             ts = _local(line[:19]) if matched else None
             if matched and ts is None:
                 problems.append("a dated log line has an unreadable timestamp")
+            if ibc and line.startswith("Starting IBC version") and not _valid_ibc_banner(line):
+                problems.append("a malformed IBC startup banner cannot establish when authentication occurred")
             if not ibc and "Starting IB Gateway via IBC" in line and ts is None:
                 problems.append("an undated Gateway start cannot be placed inside or outside the window")
             if ts is not None:
