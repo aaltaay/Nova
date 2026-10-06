@@ -12,6 +12,7 @@ function Desk() {
     <button data-testid="halted-chip" onClick={() => setHaltedOnly(value => !value)}>Halted</button>
     <button data-testid="history" onClick={() => scanner.setHistoryDate('2026-09-23')}>History</button>
     <button data-testid="live" onClick={() => scanner.setHistoryDate(null)}>Live</button>
+    <button data-testid="refresh-live" onClick={() => void scanner.fetchData()}>Refresh live</button>
     <output data-testid="history-date">{scanner.historyDate ?? 'Live'}</output>
     <output data-testid="quote-age">{scanner.scanAges.gappers}</output>
     <ul>{rows.map(row => <li data-testid={`row-${row.symbol}`} key={row.symbol}>

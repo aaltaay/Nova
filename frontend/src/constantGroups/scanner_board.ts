@@ -114,6 +114,8 @@ export const SCANNER_ENVELOPE_POLL_MS = 15_000;
 /** A failed scanner REST fetch retries from this delay, doubling up to the max (QA C31). */
 export const SCANNER_REST_RETRY_BASE_MS = 2_000;
 export const SCANNER_REST_RETRY_MAX_MS = 30_000;
+/** Pending bootstrap receipts only; matches backend SCANNER_HALT_STATE_MAX_SYMBOLS. */
+export const SCANNER_LIVE_REQUEST_HALT_MAX_SYMBOLS = 256;
 export const SCANNER_EMPTY_FEED_FAILED_HINT =
   'This is a load failure, not an empty market. Nova retries on its own; the rows appear when the route answers.';
 /** Closed-session empty copy: the list is empty, so nothing is being "shown" (QA V25). */
