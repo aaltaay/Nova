@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -514,6 +516,179 @@ def test_cmd_sweep_skips_a_moved_head_without_reporting_an_error(monkeypatch):
         lambda n: (_ok_pr(headRefOid="moved"), []))
     monkeypatch.setattr(pr_delivery, "_merge_pr", lambda pr: pr_delivery.MERGE_HEAD_MOVED)
     assert pr_delivery.cmd_sweep(min_age_seconds=0) == 0
+
+
+_RACE_ERROR = "gh: Merge already in progress (HTTP 405)"
+_RACE_SHA = "a" * 40
+
+
+def _race_resource(*, merged=True, state="closed", sha=_RACE_SHA, commit="b" * 40):
+    return {
+        "state": state, "merged": merged, "merge_commit_sha": commit,
+        "head": {"sha": sha, "repo": {"full_name": "aaltaay/Nova"}},
+        "base": {"ref": "master", "repo": {"full_name": "aaltaay/Nova"}},
+    }
+
+
+def _race_delivery(monkeypatch, observations, *, command="merge", error=_RACE_ERROR,
+                   expected_sha=_RACE_SHA, issue_closed=True):
+    """Drive both real entrypoints; no issue, pack or cleanup before exact-head proof."""
+    calls, sleeps, deleted = [], [], []
+    reads = 0
+    proof = False
+
+    def fake_gh(args, check=True, stdin=None):
+        nonlocal reads, proof
+        calls.append((list(args), stdin))
+        if args[:2] == ["pr", "list"]:
+            return subprocess.CompletedProcess(args, 0, stdout='[{"number":762}]', stderr="")
+        endpoint = next((arg for arg in args if arg.startswith("repos/")), "")
+        method = args[args.index("-X") + 1] if "-X" in args else "GET"
+        if endpoint.endswith("/pulls/762/merge"):
+            payload = json.loads(stdin)
+            assert payload.get("sha", "") == expected_sha
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr=error)
+        if endpoint.endswith("/pulls/762"):
+            value = observations[min(reads, len(observations) - 1)]
+            reads += 1
+            if isinstance(value, tuple):
+                return subprocess.CompletedProcess(args, value[0], stdout="", stderr=value[1])
+            if isinstance(value, str):
+                return subprocess.CompletedProcess(args, 0, stdout=value, stderr="")
+            head = value.get("head") if isinstance(value, dict) else None
+            proof = (isinstance(value, dict) and value.get("merged") is True
+                     and isinstance(head, dict) and head.get("sha") == expected_sha
+                     and bool(value.get("merge_commit_sha")))
+        elif endpoint.endswith("/issues/762"):
+            assert proof, "issue state was touched before merge completion proof"
+            if method == "PATCH":
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="HTTP 403 close refused")
+            value = {"state": "closed" if issue_closed else "open"}
+        elif endpoint.endswith("desktop-pack.yml/dispatches"):
+            assert proof, "pack was dispatched before merge completion proof"
+            value = {}
+        else:
+            raise AssertionError(f"unexpected GitHub request: {args}")
+        return subprocess.CompletedProcess(args, 0, stdout=json.dumps(value), stderr="")
+
+    def cleanup(ref, **kwargs):
+        assert proof, "head cleanup preceded merge completion proof"
+        assert kwargs == {"same_repo": True}
+        deleted.append(ref)
+        return 0
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(pr_delivery, "cmd_delete_closed", cleanup)
+    monkeypatch.setattr(pr_delivery.time, "sleep", sleeps.append)
+    monkeypatch.setattr(pr_delivery, "_fetch_pr", lambda _number: (
+        _ok_pr(762, headRefOid=expected_sha, headRefName="fix/merge-race", body="Closes #762"), [],
+    ))
+    if command == "merge":
+        result = pr_delivery.cmd_merge(762, wait_desktop_minutes=0, min_age_seconds=0)
+    else:
+        result = pr_delivery.cmd_sweep(min_age_seconds=0)
+    return result, calls, sleeps, deleted, reads
+
+
+@pytest.mark.parametrize("command", ["merge", "sweep"])
+@pytest.mark.parametrize("delay", [0, 1, 2])
+def test_concurrent_merge_success_converges_from_both_entrypoints(monkeypatch, command, delay):
+    pending = _race_resource(merged=False, state="open", commit=None)
+    result, calls, sleeps, deleted, reads = _race_delivery(
+        monkeypatch, [pending] * delay + [_race_resource()], command=command,
+    )
+    assert result == 0
+    assert sum(args[:3] == ["api", "-X", "PUT"] for args, _ in calls) == 1
+    assert reads == delay + 2  # bounded confirmation, then existing issue-closure proof
+    assert sleeps == [1] * delay
+    assert deleted == ["fix/merge-race"]
+    assert sum("/issues/762" in " ".join(args) for args, _ in calls) == 1
+    assert sum("desktop-pack.yml/dispatches" in " ".join(args) for args, _ in calls) == 1
+
+
+@pytest.mark.parametrize("command", ["merge", "sweep"])
+def test_concurrent_merge_still_open_exhausts_three_reads_without_mutations(monkeypatch, command):
+    result, calls, sleeps, deleted, reads = _race_delivery(
+        monkeypatch, [_race_resource(merged=False, state="open", commit=None)], command=command,
+    )
+    assert result == (2 if command == "merge" else 1)
+    assert reads == 3 and sleeps == [1, 1] and deleted == []
+    assert sum(args[:3] == ["api", "-X", "PUT"] for args, _ in calls) == 1
+    assert not any("/issues/" in " ".join(args) or "dispatches" in " ".join(args) for args, _ in calls)
+
+
+def _invalid_race_resources():
+    foreign_head = _race_resource()
+    foreign_head["head"]["repo"]["full_name"] = "someone/Nova"
+    foreign_base = _race_resource()
+    foreign_base["base"]["repo"]["full_name"] = "someone/Nova"
+    other_base = _race_resource()
+    other_base["base"]["ref"] = "feature"
+    malformed_head = _race_resource()
+    malformed_head["head"] = ["not a head resource"]
+    malformed_base = _race_resource()
+    malformed_base["base"] = ["not a base resource"]
+    malformed_repository = _race_resource()
+    malformed_repository["base"]["repo"] = "aaltaay/Nova"
+    return [
+        _race_resource(merged=False), _race_resource(sha="new-head"), _race_resource(sha=None),
+        _race_resource(commit=None), _race_resource(commit=""), _race_resource(merged="true"),
+        _race_resource(commit="  "), _race_resource(commit=True),
+        foreign_head, foreign_base, other_base, malformed_head, malformed_base, malformed_repository,
+        {}, [], "invalid json", (1, "HTTP 403 read refused"),
+    ]
+
+
+@pytest.mark.parametrize("command", ["merge", "sweep"])
+@pytest.mark.parametrize("resource", _invalid_race_resources())
+def test_concurrent_merge_incomplete_or_invalid_proof_remains_failure(monkeypatch, command, resource):
+    result, calls, sleeps, deleted, reads = _race_delivery(monkeypatch, [resource], command=command)
+    assert result == (2 if command == "merge" else 1)
+    assert reads == 1 and sleeps == [] and deleted == []
+    assert sum(args[:3] == ["api", "-X", "PUT"] for args, _ in calls) == 1
+    assert not any("/issues/" in " ".join(args) or "dispatches" in " ".join(args) for args, _ in calls)
+
+
+@pytest.mark.parametrize("command", ["merge", "sweep"])
+@pytest.mark.parametrize("next_read", [
+    _race_resource(sha="moved-during-confirmation"), "invalid json", (1, "HTTP 403 read refused"),
+])
+def test_concurrent_merge_invalid_delayed_read_stops_without_mutations(monkeypatch, command, next_read):
+    pending = _race_resource(merged=False, state="open", commit=None)
+    result, calls, sleeps, deleted, reads = _race_delivery(
+        monkeypatch, [pending, next_read], command=command,
+    )
+    assert result == (2 if command == "merge" else 1)
+    assert reads == 2 and sleeps == [1] and deleted == []
+    assert sum(args[:3] == ["api", "-X", "PUT"] for args, _ in calls) == 1
+    assert not any("/issues/" in " ".join(args) or "dispatches" in " ".join(args) for args, _ in calls)
+
+
+@pytest.mark.parametrize("error", [
+    "gh: merge cannot be performed (HTTP 405)",
+    "gh: Merge already in progress (HTTP 403)",
+    "gh: Forbidden (HTTP 403)",
+    "gh: Merge already in progress (HTTP 4050)",
+])
+def test_other_merge_refusals_never_enter_confirmation(monkeypatch, error):
+    result, calls, sleeps, deleted, reads = _race_delivery(monkeypatch, [_race_resource()], error=error)
+    assert result == 2 and len(calls) == 1 and reads == 0 and sleeps == [] and deleted == []
+
+
+def test_unbound_in_progress_merge_never_enters_confirmation(monkeypatch):
+    result, calls, sleeps, deleted, reads = _race_delivery(
+        monkeypatch, [_race_resource()], expected_sha="",
+    )
+    assert result == 2 and len(calls) == 1 and reads == 0 and sleeps == [] and deleted == []
+
+
+def test_concurrent_merge_keeps_failed_issue_closure_loud_but_completes_cleanup(monkeypatch, capsys):
+    result, calls, sleeps, deleted, _reads = _race_delivery(
+        monkeypatch, [_race_resource()], issue_closed=False,
+    )
+    assert result == 2 and sleeps == [] and deleted == ["fix/merge-race"]
+    assert "HTTP 403 close refused" in capsys.readouterr().err
+    assert any("desktop-pack.yml/dispatches" in " ".join(args) for args, _ in calls)
 
 
 def test_explicit_closing_lines_only_same_repository():
