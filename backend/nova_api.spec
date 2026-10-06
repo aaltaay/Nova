@@ -39,6 +39,13 @@ hiddenimports = [
     "advise.estimate",
     "constants_advise",
     "routes.advise",
+    "sim.massive_worker",
+    "sim.massive_import",
+    "sim.massive_read",
+    "sim.massive_files",
+    "sim.massive_store",
+    "sim.massive_days",
+    "sim.history_quotes",
     "multipart",
     "email.mime.multipart",
 ]

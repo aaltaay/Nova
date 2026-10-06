@@ -420,6 +420,78 @@ that session (never an older close), absent until IBKR has answered. The live
 ticker snapshot's `prev_close` falls back to the L1 line's tick 9, then today's
 leaderboard, and is `null` rather than a daily bar.
 
+### Massive flat files in Sim replay (ADR 046, operator ask 2026-10-06)
+
+"u wanna populate the data inside the sim? that way when we go back in time, the data we downloaded all of
+its information gets picked up?", then "1 go also do the bid and ask." A historical window comes from an IBKR
+download or from the operator's Massive flat files (owners `sim/massive_files.py` the files,
+`sim/massive_read.py` the import itself, `sim/massive_import.py` + `sim/massive_worker.py` its job and process,
+`sim/massive_store.py` the store, `sim/history_quotes.py` the NBBO, `sim/massive_days.py` the days on disk; on the
+desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
+
+- **The files.** `NOVA_MARKET_DATA_DIR` (default `E:\Nova\massive`), laid out as Massive serves them:
+  `<root>/<trades_v1 | quotes_v1 | minute_aggs_v1>/YYYY/MM/YYYY-MM-DD.csv.gz`, one gzip CSV per dataset per day,
+  every ticker, sorted by ticker. A file counts only whole (a `.part` still arriving does not).
+- **Choosing the source.** `POST /api/sim/history` and `POST /api/sim/history/select` add `source: "auto" | "ibkr"
+  | "massive"` (default `auto`). A download takes the Massive files when the day's trades file is on disk, else
+  IBKR; `kind` does not matter for Massive (one import fills trades, bars and quotes). A selection keeps a
+  Massive import of the window, else an IBKR download of it, else takes the Massive files when on disk -- and
+  **starts the import** when none is running or complete, loading the window empty until the desk's quiet
+  re-select folds it in. `POST /{job_id}/pause` and `/resume` route by the job's store; a Massive resume
+  imports the window again from the start.
+- **Jobs.** The listing (`GET /api/sim/history`) returns IBKR downloads and Massive imports together, most
+  recently updated first. Every job carries `source` (`ibkr_historical` | `massive`). A Massive job is shaped
+  like a download (`id`, `kind: "trades"`, `status`, `ranges`, `count`, `volume`, `progress_pct`, `eta_seconds`,
+  `stale`, ...) with `precision: "nanoseconds"` and adds `stage: "reading" | "saving" | null`, `stages:
+  {trades_v1, quotes_v1, minute_aggs_v1: percent} | null`, `scan_pct`, `bar_count`, `quote_count`,
+  `quote_status: "complete" | "none" | "not_downloaded" | null`, `files: {trades, quotes, minute_aggs}`,
+  `elapsed_sec`. `status` is `queued | running | complete | failed | paused | interrupted` (a running job
+  rewritten by no live import for 60 s). The listing adds `massive: {available, reason, root, store,
+  trade_days, quote_days, first, last, store_error}` -- `store_error` names why the import store could not be
+  read (its imports are then not listed), null when it could.
+- **Days on disk.** `GET /api/sim/history/massive/days` -> `{schema_version: 1, available, reason, root, days:
+  [{date, trades, quotes, minute_aggs}]}`, newest first, the folder walked at most once a minute;
+  `GET /api/sim/history/massive/{date}` -> `{date, available, reason, trades, quotes, minute_aggs}` (422 for a
+  bad date; `available` false with the reason when that day's trades file is not on disk).
+- **The import.** Its own process (`python -m sim.massive_worker --job-id ID`, frozen `nova-api.exe
+  --massive-import --job-id ID`), below normal priority, one at a time; the three files are read side by side,
+  each to the end of the ticker's block, every row parsed with the csv module. The window's prints (typed),
+  1-minute bars that lie wholly inside it and NBBO rows -- plus the quote standing at the window's open -- are
+  written in one transaction. More than 500,000 prints (`SIM_HISTORY_MAX_SELECTION_PRINTS`) or 4,000,000 quotes
+  (`SIM_MASSIVE_MAX_SELECTION_QUOTES`) is refused with the reason before anything is written. A day without its
+  quotes file imports trades and bars with `quote_status: "not_downloaded"`; a download or selection after
+  that file arrives imports the window again, and the window imported before keeps playing until the new one
+  replaces it. Pause ends the process (`paused`); a process that ends otherwise leaves `failed` with its exit
+  code.
+- **The store.** `<root>/sim/replay.sqlite3`, its own `PRAGMA user_version = 1` (unknown versions refuse):
+  `jobs (id, payload)`, `prints (job_id, ordinal, ts, ns, price, size, exchange, exchange_id, conditions,
+  correction, trf_id, sequence, tape, sets_price)`, `candles (job_id, ts, payload)`, `quotes (job_id, ordinal,
+  ts, bid, bid_size, bid_x, ask, ask_size, ask_x, conditions, indicators)`. The IBKR download store is never
+  touched.
+- **Prints.** `ts` is the SIP time in epoch seconds (float), `ns` the nanoseconds; each adds `exchange_id`,
+  `correction`, `trf_id`, `sequence`, `tape`, `sets_price` and `unreported: false`. `sets_price` is true when the
+  conditions miss `SIM_MASSIVE_NO_PRICE_CONDITIONS` (2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 37, 38, 52, 53) and the
+  correction is 0 or 12; corrections 1, 7, 8 show and set nothing; 10 and 11 are dropped. Last, volume, high,
+  low, candles and practice fills read only prints that set a price.
+- **The snapshot** adds, for every window, `bid_size`, `ask_size`, `bid_exchange`, `ask_exchange`, `quote_ts`,
+  `quote_source: "massive_nbbo" | null`, `quote_status` and `sides_nbbo: integer` (all null / 0 for an IBKR
+  download). For a Massive window `bid` / `ask` are the last NBBO row at or before the playhead, never after;
+  each tape print's `side` / `bid` / `ask` come from the last NBBO row strictly before it by the live tape's
+  rule, `side_source: "nbbo"`; with no recorded book `depth` is the NBBO as one level per side, `l1_fallback:
+  true`, `source: "massive_nbbo"`. The selection adds `source`, `quote_status`, `quote_count`, `bar_count`.
+- **Fills and charts.** A Massive window's practice reference carries `bid` / `ask`: a marketable order fills at
+  the far side (`fill_basis: "quote"`). Its candles come from its own prints and its own 1-minute bars only --
+  never the IBKR chart store, which a Massive import never writes.
+- **On the desk.** The Sim Day calendar marks a day whose trades are in the files (a bar under the number; the
+  title says whether its bid/ask is there) and lets it be opened, whatever else is on file. A Sim tab on such a
+  day offers **Load from files** with no Gateway gating; its import has its own slot (an IBKR download of
+  another window does not block it), Stop pauses it, and the window loads when it completes. The quote card and
+  the ticket take `bid` / `ask` (a Market order is priced at the far side), Time & Sales dims prints with
+  `sets_price: false` and says its colours come from the NBBO, and the Level 2 note reads "Best bid / ask
+  (NBBO) at HH:MM:SS ET · no depth in the files", or why there is no quote (not downloaded yet, on disk now --
+  load again, none in the window). The quiet re-select keeps the loaded window's source and reloads a Massive
+  window once, when an import of it completes with something the loaded copy lacks.
+
 ### Desk diagnostics (ADR 021)
 
 `GET /api/diagnostics` (owner `backend/diagnostics/`) answers `schema_version: 1`,
@@ -4644,6 +4716,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-06 | The Sim replays the operator's Massive flat files (ADR 046; operator: "u wanna populate the data inside the sim? that way when we go back in time, the data we downloaded all of its information gets picked up?", then "1 go also do the bid and ask"). A historical window could only be an IBKR download -- about 90 prints a second (a full AAPL day of 628,348 trades in two hours, over the 500,000 a selection holds) and no bid or ask. Now `auto` takes a day's Massive files when they are on disk: one import reads the ticker's trades, 1-minute bars and NBBO from the day's gzip files (its own process, below normal priority, unaltered rows, csv-parsed), and selecting such a day starts it. The snapshot answers the bid and ask at the playhead (never ahead), colours prints from the NBBO before them, shows the NBBO as a one-level Level 2 when no book was recorded, and practice orders fill at the far side. Candles built from the prints that set a price matched Massive's own minute bars exactly (AAPL 2026-10-02 09:30-09:40, 10 of 10). On the desk the Sim Day calendar now opens every day in the files (before, a day needed a Scanner board or a Session Record, so nothing before September 2021 could be), a Sim tab offers Load from files with no Gateway, and the quote card, ticket, tape and Level 2 show the bid and ask. Massive data never enters the IBKR chart store; the single-market-data-feed rule's Sim exception names the source. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-05 | PR delivery checks issue state once more after a refused fallback close. Native GitHub closure can race the open-state read and PATCH (#737: #653 closed while its PATCH returned HTTP 422); only a fresh closed-state read counts as success, while still-open or failed readback retains the write error. No blind retry; pack dispatch and guarded head cleanup remain independent. | Backlog triage + Codex |
 | 2026-10-05 | Shared API ownership across checkouts (#653 follow-up): one per-user runtime guard excludes checkout and packaged engines even when caches differ. Diagnostic JSON stays cache-local; independent tests inject guard-path isolation directly. ADR 038 amended before behavior code. | Authorized backlog follow-up + Codex |
 | 2026-10-05 | PR delivery verifies explicit same-repository completion references from the full PR body after merge, closes eligible open issues and reads back their actual state. Partial `Refs`, foreign repositories, quoted/code examples and PR references are excluded; failures remain visible without skipping Desktop pack dispatch or guarded head cleanup. | Backlog triage + Codex |

@@ -1,10 +1,27 @@
 import {
   SIM_ET_TIME_ZONE, SIM_HISTORY_NOTHING_DOWNLOADED, SIM_HISTORY_SUMMARY_RECENT_SEC, SIM_HISTORY_SYMBOL_PATTERN,
+  SIM_MASSIVE_FILE_WORDS, SIM_MASSIVE_QUOTE_WORDS, SIM_MASSIVE_SAVING, SIM_MASSIVE_STATUS_WORDS,
 } from './simConstants';
-import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
+import { isMassive, type HistoricalJob, type HistoricalWindow } from './historicalTypes';
 
-/** Backend `history_store.ACTIVE`: the statuses a worker may be advancing. */
+/** Backend `history_store.ACTIVE`: the statuses a worker may be advancing (a Massive import runs as `running` too). */
 const ACTIVE_STATUSES = new Set(['running', 'pause_requested']);
+
+/** "trades 64% · bars 100% · bid/ask 12%" -- a running import's files, each by its share read. */
+export function importStagesLabel(job: HistoricalJob): string | null {
+  if (job.stage === 'saving') return SIM_MASSIVE_SAVING;
+  const stages = Object.entries(job.stages ?? {});
+  if (!stages.length) return null;
+  return stages.map(([file, pct]) => `${SIM_MASSIVE_FILE_WORDS[file] ?? file} ${pct.toFixed(0)}%`).join(' · ');
+}
+
+/** "5,120 prints · 135 bars · bid/ask" -- what a finished import holds. */
+export function importContentsLabel(job: Pick<HistoricalJob, 'count' | 'bar_count' | 'quote_status'>): string {
+  const prints = job.count != null && Number.isFinite(job.count) ? job.count.toLocaleString() : '--';
+  const bars = job.bar_count != null ? `${job.bar_count.toLocaleString()} bars` : 'bars --';
+  const quotes = job.quote_status ? SIM_MASSIVE_QUOTE_WORDS[job.quote_status] ?? job.quote_status : 'bid/ask --';
+  return `${prints} prints · ${bars} · ${quotes}`;
+}
 
 /** Nothing of the window is downloaded -- the backend said so (0 covered seconds). */
 export function nothingDownloaded(coveredSeconds: number | null | undefined): boolean {
@@ -38,6 +55,12 @@ export function validateHistoricalWindow(spec: HistoricalWindow, now = new Date(
 }
 export function jobSummary(job: HistoricalJob): string {
   const percent = progressPercent(job);
+  if (isMassive(job)) {
+    // An import is whole or absent (ADR 046): its percent is the files read, and "nothing downloaded" never applies.
+    const words = SIM_MASSIVE_STATUS_WORDS[job.stale ? 'interrupted' : job.status] ?? job.status;
+    const running = ACTIVE_STATUSES.has(job.status) && !job.stale;
+    return `${job.symbol} ${words}${running && percent != null ? ` ${percent.toFixed(0)}%` : ''}`;
+  }
   const status = job.stale ? 'Stalled' : job.status === 'pause_requested' ? 'Pausing' : job.status;
   // A stopped job that holds nothing says so, rather than "failed 0%" (QA 2026-09-22, V41 / C45).
   if (!ACTIVE_STATUSES.has(job.status) && nothingDownloaded(job.covered_seconds)) {
@@ -86,7 +109,16 @@ export function jobStatusLine(job: HistoricalJob): string {
  * downloaded stretches are drawn on the scrubber band, so the text does not
  * list them; the title keeps the long form.
  */
-export function selectionStatusLine(selection: HistoricalWindow & { trade_count?: number | null; download_status?: string | null }): string {
+export function selectionStatusLine(selection: HistoricalWindow & {
+  trade_count?: number | null; download_status?: string | null; source?: string; quote_status?: string | null;
+}): string {
+  if (isMassive(selection)) {
+    // Whole or absent (ADR 046): nothing plays until the first import of the window finishes.
+    const contents = selection.trade_count
+      ? `${compactCount(selection.trade_count)} prints${selection.quote_status === 'complete' ? ' + bid/ask' : ''}`
+      : 'importing from Massive files';
+    return `Selected: ${selection.symbol} ${selection.start}–${selection.end} · ${contents}`;
+  }
   const prints = selection.download_status === 'missing'
     ? 'no trades downloaded'
     : `${compactCount(selection.trade_count)} prints`;

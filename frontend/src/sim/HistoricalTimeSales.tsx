@@ -5,10 +5,14 @@
 import { useMemo } from 'react';
 import { TimeSalesView, type TapePrint, type TapeState } from '../ibkr';
 import { sourceLabel } from './historicalReplayFormat';
+import { isMassive } from './historicalTypes';
 import { playheadBeyondCoverage } from './simCoverage';
 import {
   SIM_REPLAY_TAPE_EMPTY,
   SIM_REPLAY_TAPE_NO_TRADES,
+  SIM_REPLAY_TAPE_SIDES_NBBO,
+  SIM_REPLAY_TAPE_SIDES_NBBO_MISSING,
+  SIM_REPLAY_TAPE_SIDES_NBBO_NONE,
   SIM_REPLAY_TAPE_SIDES_NONE,
   SIM_REPLAY_TAPE_SIDES_RECORDED,
   SIM_REPLAY_TAPE_STATUS,
@@ -33,14 +37,27 @@ export function historicalTapeFeed(snapshot: HistoricalSnapshot): TapeState {
     size: p.size,
     exchange: p.exchange ?? '',
     conditions: p.conditions ?? '',
-    // A side exists only where the local L2 recording decided it (the quote held
-    // across the print's second). Otherwise unknown -- never inferred.
+    // A side exists only where a real quote decided it: the local L2 recording
+    // (the quote held across the print's second) or a Massive window's NBBO (the
+    // quote standing just before the print). Otherwise unknown -- never inferred.
     side: p.side ?? 'unknown',
     bid: p.bid ?? null,
     ask: p.ask ?? null,
     unreported: Boolean(p.unreported),
+    // A Massive print that moves no price (odd lot, average price, busted) is dimmed like the live tape's (#543).
+    setsPrice: p.sets_price !== false,
   }));
   return { prints, connected: true, error: prints.length ? null : snapshot.error ?? null };
+}
+
+/** Where the tape's colours come from, for its status title. */
+export function tapeSidesTitle(snapshot: HistoricalSnapshot): string {
+  if (isMassive(snapshot.selection)) {
+    if (snapshot.quote_status === 'not_downloaded') return SIM_REPLAY_TAPE_SIDES_NBBO_MISSING;
+    if (snapshot.quote_status === 'none') return SIM_REPLAY_TAPE_SIDES_NBBO_NONE;
+    return SIM_REPLAY_TAPE_SIDES_NBBO;
+  }
+  return (snapshot.sides_recorded ?? 0) > 0 ? SIM_REPLAY_TAPE_SIDES_RECORDED : SIM_REPLAY_TAPE_SIDES_NONE;
 }
 
 export function HistoricalTimeSales({ symbol, snapshot, uiActive = true }: Props) {
@@ -65,8 +82,7 @@ export function HistoricalTimeSales({ symbol, snapshot, uiActive = true }: Props
       embedded
       uiActive={uiActive}
       connectedText={SIM_REPLAY_TAPE_STATUS}
-      statusTitle={`${sourceLabel(snapshot)} ${(snapshot.sides_recorded ?? 0) > 0
-        ? SIM_REPLAY_TAPE_SIDES_RECORDED : SIM_REPLAY_TAPE_SIDES_NONE}`}
+      statusTitle={`${sourceLabel(snapshot)}. ${tapeSidesTitle(snapshot)}`}
       emptyLabel={emptyLabel}
     />
     </>

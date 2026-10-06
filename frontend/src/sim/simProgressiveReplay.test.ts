@@ -46,3 +46,27 @@ describe('shouldRefreshSelection with coverage ranges', () => {
     expect(at(sel, [job({ cursor: 900, covered_seconds: 600 })])).toBe(false);
   });
 });
+
+describe('shouldRefreshSelection for a window from the Massive files (ADR 046)', () => {
+  const massive = (over: Partial<HistoricalSelection> = {}): HistoricalSelection =>
+    ({ ...W, coverage_through: 0, source: 'massive', covered_seconds: 0, trade_count: 0, quote_status: null, ...over });
+  const imported = (over: Partial<HistoricalJob> = {}): HistoricalJob =>
+    job({ source: 'massive', status: 'complete', count: 5, covered_seconds: 8100, quote_status: 'complete', quote_count: 4, ...over });
+
+  it('reloads once the first import finishes, never while it runs', () => {
+    expect(at(massive(), [imported({ status: 'running', covered_seconds: 0, count: 0 })])).toBe(false);
+    expect(at(massive(), [imported()])).toBe(true);
+  });
+
+  it('reloads when an import added the bid/ask, and not again once loaded', () => {
+    const loaded = massive({ covered_seconds: 8100, trade_count: 5, quote_status: 'not_downloaded', quote_count: 0 });
+    expect(at(loaded, [imported({ status: 'running', quote_status: 'not_downloaded', quote_count: 0 })])).toBe(false);
+    expect(at(loaded, [imported()])).toBe(true);
+    expect(at({ ...loaded, quote_status: 'complete', quote_count: 4 }, [imported()])).toBe(false);
+  });
+
+  it("reads only its own source's job for the same hours", () => {
+    expect(at(massive(), [job({ status: 'complete', covered_seconds: 8100 })])).toBe(false);
+    expect(at(selection(100), [imported()])).toBe(false);
+  });
+});

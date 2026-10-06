@@ -1,16 +1,19 @@
 /**
  * Pure model for the Sim Day calendar (ADR 023): which days have what, and the
- * month grid. A day can carry three independent facts, each from its own source:
+ * month grid. A day can carry four independent facts, each from its own source:
  *
  * - rebuilt:  a Scanner board rebuilt from the minute flat files;
  * - recorded: a Scanner board Nova's own recorder saved while the desk ran;
- * - sessions: the operator's own Session Records (tape + Level 2) of symbols.
+ * - sessions: the operator's own Session Records (tape + Level 2) of symbols;
+ * - massive:  the day's trades in the operator's Massive flat files (ADR 046),
+ *             `quotes` when its bid/ask file is there too -- any ticker replays.
  *
- * Nothing is inferred: a day with none of the three is not selectable, and a
+ * Nothing is inferred: a day with none of the four is not selectable, and a
  * Session Record on a non-exchange day is shown but cannot be opened (the Sim
  * clock refuses a closed day).
  */
 import type { LeaderboardDay } from '../leaderboard/leaderboardTypes';
+import type { MassiveDay } from './historicalTypes';
 import type { CaptureSessions } from './useSimSessionController';
 
 export interface CalendarDayFacts {
@@ -18,6 +21,8 @@ export interface CalendarDayFacts {
   recorded: boolean;
   /** Usable Session Records on this day, by symbol. */
   sessions: string[];
+  /** The day's trades are in the Massive files: `quotes` with its bid/ask too, `trades` without; null when not. */
+  massive?: 'quotes' | 'trades' | null;
 }
 
 export interface CalendarCell {
@@ -36,20 +41,30 @@ export interface CalendarCell {
 /** What a day's tooltip and locked reason say, one label per fact. */
 export interface CellLabels {
   rebuilt: string; recorded: string; sessions: (symbols: string[]) => string; nothing: string; closed: string;
+  /** The Massive files' line; absent, the fact is not described. */
+  massive?: (quotes: boolean) => string;
 }
 
-const NONE: CalendarDayFacts = { rebuilt: false, recorded: false, sessions: [] };
+const NONE: CalendarDayFacts = { rebuilt: false, recorded: false, sessions: [], massive: null };
 
-export function dayFacts(days: LeaderboardDay[], sessions: CaptureSessions | null | undefined): Map<string, CalendarDayFacts> {
+export function dayFacts(
+  days: LeaderboardDay[],
+  sessions: CaptureSessions | null | undefined,
+  massive: readonly MassiveDay[] | null | undefined = null,
+): Map<string, CalendarDayFacts> {
   const out = new Map<string, CalendarDayFacts>();
   const entry = (date: string) => {
     let facts = out.get(date);
     if (!facts) {
-      facts = { rebuilt: false, recorded: false, sessions: [] };
+      facts = { rebuilt: false, recorded: false, sessions: [], massive: null };
       out.set(date, facts);
     }
     return facts;
   };
+  // A day replays from the files only when its trades are there (bars and bid/ask alone are no tape).
+  for (const day of massive ?? []) {
+    if (day.trades) entry(day.date).massive = day.quotes ? 'quotes' : 'trades';
+  }
   for (const day of days) {
     const facts = entry(day.date);
     facts.rebuilt = facts.rebuilt || day.reconstructed != null;
@@ -99,7 +114,7 @@ export function monthGrid(
       const date = isoDay(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate());
       const f = facts.get(date) ?? NONE;
       const weekend = i === 0 || i === 6;
-      const hasAny = f.rebuilt || f.recorded || f.sessions.length > 0;
+      const hasAny = f.rebuilt || f.recorded || f.sessions.length > 0 || Boolean(f.massive);
       week.push({
         date,
         day: cursor.getUTCDate(),
@@ -132,6 +147,7 @@ export function cellTitle(cell: CalendarCell, labels: CellLabels): string {
   if (cell.facts.recorded) lines.push(labels.recorded);
   if (cell.facts.sessions.length) lines.push(labels.sessions(cell.facts.sessions));
   if (cell.facts.rebuilt) lines.push(labels.rebuilt);
+  if (cell.facts.massive && labels.massive) lines.push(labels.massive(cell.facts.massive === 'quotes'));
   if (lines.length === 1) lines.push(labels.nothing);
   else if (cell.weekend) lines.push(labels.closed);
   return lines.join('\n');

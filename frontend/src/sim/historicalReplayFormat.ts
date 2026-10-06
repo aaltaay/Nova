@@ -1,5 +1,6 @@
 /** Pure formatting for the historical replay panel and quote/tape card. */
 import { SIM_ET_TIME_ZONE } from './simConstants';
+import { isMassive } from './historicalTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
 /** Previous Eastern weekday; the API's holiday-aware default_date replaces it. */
@@ -16,6 +17,13 @@ export function etTime(value: string | number): string {
 }
 
 export function sourceLabel(data: HistoricalSnapshot): string {
+  if (isMassive(data.selection)) {
+    // ADR 046: the whole window is imported or nothing is; its bid/ask may still be on its way.
+    if (data.selection?.download_status !== 'complete' && !data.selection?.trade_count) return 'Massive files · importing…';
+    const quotes = data.quote_status === 'complete' ? 'NBBO bid/ask'
+      : data.quote_status === 'none' ? 'no quotes in this window' : 'bid/ask not downloaded yet';
+    return `Massive files · trades to the nanosecond · ${quotes}`;
+  }
   switch (data.source) {
     case 'trades':
       return 'Recorded trades · one-second timestamps';

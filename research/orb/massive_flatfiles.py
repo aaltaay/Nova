@@ -1,7 +1,7 @@
-"""Download Massive (formerly Polygon) US-stocks flat files to the F: drive.
+"""Download Massive (formerly Polygon) US-stocks flat files to the E: drive.
 
 Pulls every daily ``minute_aggs_v1`` and ``day_aggs_v1`` file for the
-subscribed range into ``F:\\Nova\\data\\massive\\<dataset>\\YYYY\\MM\\YYYY-MM-DD.csv.gz``.
+subscribed range into ``E:\\Nova\\massive\\<dataset>\\YYYY\\MM\\YYYY-MM-DD.csv.gz``.
 Resumable: a file whose size matches the bucket listing is skipped.
 
 Credentials come from the desk ``.env`` (never from this file):
@@ -9,7 +9,7 @@ Credentials come from the desk ``.env`` (never from this file):
     MASSIVE_S3_SECRET_ACCESS_KEY=...
 Optional:
     MASSIVE_S3_ENDPOINT=https://files.massive.com   (files.polygon.io also works)
-    NOVA_MARKET_DATA_DIR=F:\\Nova\\data\\massive
+    NOVA_MARKET_DATA_DIR=E:\\Nova\\massive
 
 Usage:
     py -3 massive_flatfiles.py --check                # credentials + bucket reachable
@@ -36,7 +36,7 @@ FALLBACK_ENDPOINT = "https://files.polygon.io"
 BUCKET = "flatfiles"
 PREFIX = "us_stocks_sip"
 DATASETS = ("minute_aggs_v1", "day_aggs_v1")
-DEFAULT_DIR = Path(r"F:\Nova\data\massive")
+DEFAULT_DIR = Path(r"E:\Nova\massive")
 
 
 def _load_env() -> None:

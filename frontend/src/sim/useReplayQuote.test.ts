@@ -68,3 +68,17 @@ describe('marketFillPrice (QA R36)', () => {
     expect(marketFillPrice('SELL', { bid: 0, ask: 8.84 })).toBeNull();
   });
 });
+
+describe('a window from the Massive files (ADR 046)', () => {
+  it('prices a Market order from its NBBO at the playhead, like a recording', () => {
+    const clock: SimClockState = { sim: true, live_edge: false, replay_source: 'historical', replay_symbol: 'IMCC' };
+    const snap = { active: true, symbol: 'IMCC', last: 10.05, volume: 300, source: 'trades', as_of: '', prints: [],
+      covered: true, bid: 10.0, ask: 10.02, quote_status: 'complete' } as HistoricalSnapshot;
+    const quote = replayQuoteFor('IMCC', clock, snap, true);
+    expect(quote).toMatchObject({ active: true, last: 10.05, bid: 10.0, ask: 10.02, note: null });
+    expect(marketFillPrice('BUY', venuePriceFor(quote, null))).toBe(10.02);
+    expect(marketFillPrice('SELL', venuePriceFor(quote, null))).toBe(10.0);
+    // An IBKR download has no quote: the ticket prices from the last.
+    expect(replayQuoteFor('IMCC', clock, { ...snap, bid: undefined, ask: undefined }, true)).toMatchObject({ bid: null, ask: null });
+  });
+});

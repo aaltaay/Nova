@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from datetime import date, datetime
@@ -25,7 +26,7 @@ import pandas as pd
 
 ET = ZoneInfo("America/New_York")
 UNIVERSE = ("CS", "ADRC")
-DATA_ROOT = Path(r"F:\Nova\data\massive")
+DATA_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"E:\Nova\massive")
 CHANGE_TOL = 1e-12
 VOLUME_REL_TOL = 1e-9
 

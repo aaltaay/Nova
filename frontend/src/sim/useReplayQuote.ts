@@ -62,8 +62,11 @@ export function replayQuoteFor(
     if (snapshot.covered === false && snapshot.source !== 'completed_bars') {
       return { ...NONE, prevClose: snapshot.prev_close ?? null, note: SIM_REPLAY_PRICE_NOT_DOWNLOADED };
     }
+    // An IBKR download carries no quotes (null); a Massive window carries the NBBO at
+    // the playhead (ADR 046), and a Market order fills at its far side like a recording's.
     return {
-      active: true, last: snapshot.last, bid: null, ask: null, prevClose: snapshot.prev_close ?? null,
+      active: true, last: snapshot.last, bid: snapshot.bid ?? null, ask: snapshot.ask ?? null,
+      prevClose: snapshot.prev_close ?? null,
       note: snapshot.last == null ? SIM_REPLAY_PRICE_NONE : null,
     };
   }

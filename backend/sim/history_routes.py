@@ -1,4 +1,12 @@
-"""Operator-facing acquisition and historical session selection."""
+"""Operator-facing acquisition and historical session selection.
+
+Two sources fill a historical window (ADR 046): an IBKR download (paced, trades and
+candles) and an import from the operator's Massive flat files (trades, 1-minute bars
+and the NBBO). ``source`` on a request is ``auto`` by default: a download or a
+selection takes the Massive files when the day's trades file is on disk, and an
+IBKR download otherwise; a selection keeps a window already downloaded from IBKR
+when no Massive import of it exists. ``ibkr`` / ``massive`` force one.
+"""
 import json
 import logging
 import sqlite3
@@ -8,6 +16,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from sim import history_download as download, history_playback as playback, history_store as store
+from sim import massive_days, massive_import, massive_store
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +29,7 @@ class Window(BaseModel):
     start: str = "04:00"
     end: str = "20:00"
     kind: Literal["bars", "trades"] = "trades"
+    source: Literal["auto", "ibkr", "massive"] = "auto"
 
     def spec(self):
         return store.window(self.symbol, self.date, self.start, self.end)
@@ -50,13 +60,27 @@ def _default_date() -> str | None:
         return None
 
 
+def _massive_jobs() -> tuple[list[dict], str | None]:
+    """The Massive imports, or none with the reason the store could not be read -- stated, never an empty list."""
+    error = None
+    try:
+        jobs = massive_import.list_jobs()
+    except (sqlite3.DatabaseError, OSError) as exc:
+        logger.warning("Massive replay store unreadable; its imports are not listed", exc_info=True)
+        jobs, error = [], f"The Massive replay store cannot be read: {exc}"
+    return jobs, error
+
+
 def _listing() -> dict:
-    jobs = download.list_jobs()
+    imports, store_error = _massive_jobs()
+    # Every job, IBKR downloads and Massive imports, the most recently active first.
+    jobs = sorted([*download.list_jobs(), *imports], key=lambda job: job.get("updated") or 0, reverse=True)
     selection = playback.status()
     if selection:
         # The selection's download status as of now, from the listing it rides with (C38).
         selection = playback.with_live_download_status(selection, jobs)
-    return {"jobs": jobs, "selection": selection, "storage": str(store.path()), "default_date": _default_date()}
+    return {"jobs": jobs, "selection": selection, "storage": str(store.path()), "default_date": _default_date(),
+            "massive": dict(massive_days.summary(), store_error=store_error)}
 
 
 @router.get("")
@@ -64,8 +88,16 @@ def list_downloads():
     return checked(_listing)
 
 
+def _massive_available(window: dict) -> bool:
+    return massive_import.availability(window["date"])["available"]
+
+
 def _begin(body: Window):
-    return download.begin(body.spec(), body.kind)
+    window = body.spec()
+    if body.source == "massive" or (body.source == "auto" and _massive_available(window)):
+        # One import fills trades, candles and quotes, so either download button starts it.
+        return massive_import.begin(window)
+    return download.begin(window, body.kind)
 
 
 @router.post("")
@@ -73,18 +105,56 @@ def begin(body: Window):
     return checked(lambda: _begin(body))
 
 
+def _select_spec(body: Window) -> dict:
+    """The window to load, from the source the request names or ``auto`` picks."""
+    window = body.spec()
+    if body.source == "ibkr":
+        return window
+    massive = massive_import.spec(window)
+    if body.source == "massive":
+        return massive
+    if massive_store.find(massive) is not None:
+        return massive
+    if store.find(window, "trades") is not None:
+        return window
+    return massive if _massive_available(window) else window
+
+
+def _select(body: Window):
+    spec = _select_spec(body)
+    if playback.is_massive(spec) and massive_import.wants_import(massive_store.find(spec),
+                                                                 massive_import.availability(spec["date"])):
+        # Picked up on selection: the import starts (or starts again, once the day's
+        # quotes are on disk), and the desk's quiet re-select folds it in when it
+        # completes. A window imported before keeps playing meanwhile.
+        massive_import.begin(body.spec())
+    return playback.select(spec)
+
+
 @router.post("/select")
 def select(body: Window):
     from sim.mode import is_sim_mode
     if not is_sim_mode():
         raise HTTPException(409, "Select Sim mode before loading historical replay")
-    return checked(lambda: playback.select(body.spec()))
+    return checked(lambda: _select(body))
 
 
 @router.get("/snapshot/{symbol}")
 def snapshot(symbol: str):
     from sim.mode import is_sim_mode
     return checked(lambda: playback.snapshot(symbol.strip().upper())) if is_sim_mode() else {"active": False}
+
+
+@router.get("/massive/days")
+def massive_day_list():
+    """The days whose Massive files are whole on disk (the Sim Day calendar's mark)."""
+    return checked(massive_days.listing)
+
+
+@router.get("/massive/{day}")
+def massive_day(day: str):
+    """What the Massive folder holds for one ISO date."""
+    return checked(lambda: dict(date=massive_days.iso_date(day), **massive_import.availability(day)))
 
 
 class DepthLine(BaseModel):
@@ -100,11 +170,27 @@ def depth_line(body: DepthLine):
     return history_depth_line.hold(body.symbol) if body.hold else history_depth_line.release(body.symbol)
 
 
+def _massive_job(job_id: str) -> dict | None:
+    try:
+        return massive_store.get(job_id)
+    except (sqlite3.DatabaseError, OSError):
+        logger.warning("Massive replay store unreadable while routing job %s", job_id, exc_info=True)
+        return None
+
+
+def _resume(job_id: str):
+    job = _massive_job(job_id)
+    if job is not None:
+        # A Massive import does not resume mid-file: it reads the window again from the start.
+        return massive_import.begin(store.window(job["symbol"], job["date"], job["start"], job["end"]))
+    return download.start(job_id)
+
+
 @router.post("/{job_id}/resume")
 def resume(job_id: str):
-    return checked(lambda: download.start(job_id))
+    return checked(lambda: _resume(job_id))
 
 
 @router.post("/{job_id}/pause")
 def pause(job_id: str):
-    return checked(lambda: download.pause(job_id))
+    return checked(lambda: massive_import.pause(job_id) if _massive_job(job_id) is not None else download.pause(job_id))

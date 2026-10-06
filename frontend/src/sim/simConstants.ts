@@ -12,6 +12,14 @@ export const SIM_REPLAY_TAPE_SIDES_RECORDED =
   "Colours come from your local L2 recording, only where its quote held across the print's second. Other rows are uncoloured.";
 export const SIM_REPLAY_TAPE_SIDES_NONE =
   'Uncoloured: a historical download has no quotes, and no local L2 recording covers these prints.';
+/** A window from the Massive files (ADR 046): its own NBBO colours the tape. */
+export const SIM_REPLAY_TAPE_SIDES_NBBO =
+  'Colours come from the NBBO in your Massive files: each print against the quote standing just before it. '
+  + 'Uncoloured rows came before the first quote, or with the quote crossed. Dimmed rows set no price '
+  + '(odd lots, average-price and later-busted trades).';
+export const SIM_REPLAY_TAPE_SIDES_NBBO_MISSING =
+  'Uncoloured: this day\'s bid/ask file is not in your Massive folder yet. Load the window again once it is.';
+export const SIM_REPLAY_TAPE_SIDES_NBBO_NONE = 'Uncoloured: no quote for this ticker in this window.';
 export const SIM_REPLAY_TAPE_EMPTY = 'No prints yet at this replay time';
 export const SIM_REPLAY_TAPE_NO_TRADES = 'Completed candles only -- download trades for Time & Sales';
 /** Tape past the download edge: say so rather than show the edge's prints as current. */
@@ -44,6 +52,16 @@ export const SIM_REPLAY_L2_RECORDED_TITLE =
   'Level 2 recorded locally for this session, replayed at the playhead. Live halt and borrow state are hidden because they describe today, not this session.';
 /** Said inside the ladder, because the rail hides .ibkr-depth-fallback-badge. */
 export const SIM_REPLAY_L2_EMPTY_NOTE = 'Level 2 was not recorded for this moment';
+/** A Massive window's ladder: the NBBO only (ADR 046) -- the files hold the best bid and ask, never depth. */
+export const SIM_REPLAY_L2_NBBO_VALUE = 'NBBO only';
+export const SIM_REPLAY_L2_NBBO_TITLE =
+  'Best bid and ask from your Massive files, replayed at the playhead. The files carry the national best quote, '
+  + 'not the venues\' depth, so the ladder shows one level a side. Live halt and borrow state are hidden because '
+  + 'they describe today, not this session.';
+export const simReplayL2NbboNote = (time: string): string => `Best bid / ask (NBBO) at ${time} ET · no depth in the files`;
+export const SIM_REPLAY_L2_NBBO_MISSING = 'Bid/ask for this day is not in your Massive folder yet';
+export const SIM_REPLAY_L2_NBBO_ARRIVED = 'Bid/ask for this day is on disk now -- load the window again to add it';
+export const SIM_REPLAY_L2_NBBO_NONE = 'No quote for this ticker yet in this window';
 
 /** Requests are bounded; slow polls never overlap. */
 export const SIM_REQUEST_TIMEOUT_MS = 15_000;
@@ -159,6 +177,22 @@ export const simTabOfferNotAnswering = (label: string, attempt: number, max: num
 export const simTabOfferNotAnsweringGaveUp = (label: string, failedAt?: string | null): string =>
   `IBKR didn't answer IB Gateway${failedAt ? ` (last try ${failedAt})` : ''}, so ${label} hasn't downloaded. `
   + 'Check the Gateway window for a login, 2FA prompt or maintenance notice, then Reconnect.';
+/**
+ * A day in the operator's Massive files (ADR 046): the window is read from disk
+ * -- trades, 1-minute bars and, once that file is down, the bid/ask -- with no
+ * Gateway and no IBKR pacing. One import at a time, in its own process.
+ */
+export const simTabOfferImport = (label: string, instead: boolean, quotes: boolean): string =>
+  `${label} is in your Massive files (trades, 1-minute bars${quotes ? ', bid/ask' : '; bid/ask not downloaded yet'}) `
+  + `-- load it${instead ? ' instead' : ''}?`;
+export const simTabOfferImporting = (label: string, progress: string): string =>
+  `Reading ${label} from your Massive files${progress}. It loads when the import finishes.`;
+export const simTabOfferImportStopped = (label: string, progress: string): string =>
+  `${label} import stopped${progress}.`;
+export const simTabOfferImportFailed = (label: string, error: string): string => `${label} import failed: ${error}`;
+export const simTabOfferImportBusy = (runningLabel: string): string =>
+  `${runningLabel} is importing from your Massive files, and the desk reads one window at a time.`;
+export const SIM_TAB_ACTION_IMPORT = 'Load from files';
 export const SIM_TAB_ACTION_DOWNLOAD = 'Download';
 export const SIM_TAB_ACTION_LOAD = 'Load';
 export const SIM_TAB_ACTION_RESUME = 'Resume';
@@ -222,6 +256,33 @@ export const CAPTURE_REASON_WORDS: Record<string, string> = {
 export const SIM_HISTORY_NOTHING_DOWNLOADED = 'nothing downloaded';
 export const SIM_HISTORY_NOTHING_DOWNLOADED_LINE = 'Nothing downloaded yet.';
 export const SIM_HISTORY_NO_TRADES_YET = 'No trades downloaded yet for this window';
+/** The Sim Day calendar's fourth fact (ADR 046): a day in the Massive files replays any ticker. */
+export const SIM_DAY_CAL_MASSIVE = 'In your Massive files';
+/** The Day button's word for it ("Sep 18 · rebuilt + files"). */
+export const SIM_DAY_PICKER_FILES = 'files';
+export const simDayCalMassive = (quotes: boolean): string => (quotes
+  ? 'In your Massive files: trades, 1-minute bars and bid/ask for every ticker'
+  : 'In your Massive files: trades and 1-minute bars for every ticker (bid/ask not downloaded yet)');
+/** Massive imports in the Historical replay panel and the Sim bar (ADR 046). */
+export const SIM_MASSIVE_FILE_WORDS: Record<string, string> = {
+  trades_v1: 'trades', quotes_v1: 'bid/ask', minute_aggs_v1: 'bars',
+};
+export const SIM_MASSIVE_STATUS_WORDS: Record<string, string> = {
+  running: 'importing', queued: 'importing', complete: 'imported', paused: 'stopped',
+  failed: 'failed', interrupted: 'stopped by a restart',
+};
+export const SIM_MASSIVE_QUOTE_WORDS: Record<string, string> = {
+  complete: 'bid/ask', none: 'no quotes in this window', not_downloaded: 'bid/ask not downloaded yet',
+};
+export const SIM_MASSIVE_IMPORT_NOTHING_YET = 'Nothing imported yet -- the window loads when the import finishes.';
+export const SIM_MASSIVE_SAVING = 'Saving the window';
+export const simMassiveAvailable = (first: string, last: string, days: number, quoteDays: number): string =>
+  `Your Massive files hold ${days.toLocaleString()} days (${first} to ${last}; bid/ask on ${quoteDays.toLocaleString()}). `
+  + 'A window on one of those days loads from disk -- trades to the nanosecond, 1-minute bars and the bid/ask -- '
+  + 'with no Gateway. Other days download from IBKR.';
+export const simMassiveUnavailable = (reason: string): string => `Massive files: ${reason}. Days download from IBKR.`;
+export const SIM_HISTORY_IBKR_ONLY_NOTE =
+  'An IBKR download carries trades only: historical quotes and Level 2 are unavailable for it.';
 /** The Sim bar's download summary names a stopped / failed / finished job only this long after its last update. */
 export const SIM_HISTORY_SUMMARY_RECENT_SEC = 15 * 60;
 /** A capture replay's own panes (R16): REPLAY on the tape, the recording's L2 state, a gap stated as one. */

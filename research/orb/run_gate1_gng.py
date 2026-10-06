@@ -3,7 +3,7 @@ load news + ticker details, build both selections (with and without the float pi
 extract the minute bars once for their union, and run the base + grid. One log.
 
 Usage:
-    py -3 run_gate1_gng.py --wait-pid 4868 --wait-marker "F:\\Nova\\data\\massive\\store\\reference\\dump.log"
+    py -3 run_gate1_gng.py --wait-pid 4868 --wait-marker "E:\\Nova\\massive\\store\\reference\\dump.log"
 """
 from __future__ import annotations
 

@@ -26,10 +26,28 @@ const LABELS = {
 describe('dayFacts', () => {
   it('keeps each source apart and lists only usable Session Records', () => {
     const facts = dayFacts(DAYS, SESSIONS);
-    expect(facts.get('2026-09-21')).toEqual({ rebuilt: true, recorded: true, sessions: ['AAPL', 'GRML'] });
-    expect(facts.get('2026-09-18')).toEqual({ rebuilt: true, recorded: false, sessions: [] });
-    expect(facts.get('2026-09-22')).toEqual({ rebuilt: false, recorded: false, sessions: ['GRML'] });
+    expect(facts.get('2026-09-21')).toEqual({ rebuilt: true, recorded: true, sessions: ['AAPL', 'GRML'], massive: null });
+    expect(facts.get('2026-09-18')).toEqual({ rebuilt: true, recorded: false, sessions: [], massive: null });
+    expect(facts.get('2026-09-22')).toEqual({ rebuilt: false, recorded: false, sessions: ['GRML'], massive: null });
     expect(facts.has('2026-09-17')).toBe(false);
+  });
+
+  it('marks a day in the Massive files only when its trades are there (ADR 046)', () => {
+    const facts = dayFacts([], null, [
+      { date: '2016-01-05', trades: true, quotes: true, minute_aggs: true },
+      { date: '2016-01-06', trades: true, quotes: false, minute_aggs: true },
+      { date: '2016-01-07', trades: false, quotes: true, minute_aggs: false },
+    ]);
+    expect(facts.get('2016-01-05')?.massive).toBe('quotes');
+    expect(facts.get('2016-01-06')?.massive).toBe('trades');
+    expect(facts.has('2016-01-07')).toBe(false);
+    const cells = monthGrid({ year: 2016, month0: 0 }, facts, '2026-10-05', null).flat();
+    const cell = (date: string) => cells.find(c => c.date === date)!;
+    expect(cell('2016-01-05').selectable).toBe(true);
+    expect(cell('2016-01-07').selectable).toBe(false);
+    const labels = { ...LABELS, massive: (quotes: boolean) => (quotes ? 'files + quotes' : 'files') };
+    expect(cellTitle(cell('2016-01-06'), labels).split('\n')).toEqual(['2016-01-06', 'files']);
+    expect(monthRange(facts, '2026-10-05').first).toEqual({ year: 2016, month0: 0 });
   });
 });
 

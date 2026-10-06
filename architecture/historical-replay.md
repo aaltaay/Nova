@@ -123,6 +123,50 @@ symbol switches, and sum of reached reported sizes equal candle volume. Compare
 IBKR bars per minute: the raw archive keeps every print unaltered, and
 differences are reported rather than hidden.
 
+## The Massive flat files (ADR 046, 2026-10-06)
+
+A historical window has a second source: the operator's Massive Stocks Advanced
+flat files (`NOVA_MARKET_DATA_DIR`, default `E:\Nova\massive`; one gzip CSV per
+dataset per day, every ticker, sorted by ticker). `source: "auto"` on a download
+or a selection takes them when the day's trades file is whole on disk; a
+selection keeps a window already imported, else one already downloaded from
+IBKR, and selecting a day on disk starts its import (the window loads empty and
+the desk's quiet re-select folds it in). Everything below this section --
+selection, coverage, the tape, candles, practice -- reads a Massive window the
+same way, with these differences:
+
+- **Import, not download.** One import (`sim/massive_import.py`) reads the
+  ticker's trades, 1-minute bars and NBBO from the three day files, side by side,
+  each to the end of the ticker's block, in its own process
+  (`sim/massive_worker.py`, below normal priority) so the inflating and parsing
+  never share the API's GIL. The window's rows and the quote standing at its
+  open are written in one transaction to `<root>/sim/replay.sqlite3`
+  (`sim/massive_store.py`, its own schema; the IBKR store on F: is untouched):
+  whole or absent, so coverage is the whole window once complete. Progress is
+  the share of the files' bytes read. A ticker late in the alphabet reads most of
+  both files (TSLA 09:30-09:32 on 2026-10-02: 232 s; AAPL: 8 s).
+- **Prints to the nanosecond.** `ts` is the SIP time in float seconds, so the
+  tape and practice fills follow the playhead inside a second; selection keys
+  are float arrays for both sources. Every print is listed; `sets_price` (the
+  SIP's volume-only conditions and the correction code, ADR 046 decision 4)
+  decides what moves the last, volume, high, low, candles and fills -- the role
+  IBKR's `unreported` plays for a download.
+- **The bid and ask.** `sim/history_quotes.py` holds the window's NBBO in arrays:
+  the snapshot's `bid` / `ask` / sizes / venues are the last row at or before the
+  playhead, each print's side the live tape's rule against the last row strictly
+  before it (`side_source: "nbbo"`, counted in `sides_nbbo`), and with no
+  recorded book `depth` is the NBBO as one level flagged `l1_fallback`. Practice
+  orders at placement fill at the far side (`fill_basis: "quote"`).
+- **Its own candles.** A Massive window's selected-symbol archive is its own
+  1-minute bars (`CandleCache(minutes=...)`), never `bars_store` or IBKR job
+  candles; nothing from Massive is written to the shared chart store. Candles
+  built from its prints that set a price equalled Massive's minute bars in open,
+  high, low and close (AAPL 2026-10-02 09:30-09:40, 10 of 10 minutes); their
+  volume excludes odd lots, as the desk counts IBKR's tape.
+- **Quotes not on disk yet** (`quote_status: "not_downloaded"`): trades and bars
+  import alone and the bid and ask stay null with that reason; asking again
+  after the quotes file arrives imports the window again.
+
 ## Bounded replay snapshots and progress (2026-09-20, #321/#324/#303)
 
 ADR 017's canonical engine publishes an immutable selection only after its disk

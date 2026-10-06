@@ -67,3 +67,31 @@ describe('currentJob -- the Sim bar summary states the current download only (V4
     expect(jobSummary(job({ progress_pct: 0, covered_seconds: 0 }))).toBe('GRML running 0%');
   });
 });
+
+describe('an import from the Massive files (ADR 046)', () => {
+  const imported = (over: Partial<HistoricalJob> = {}) => job({
+    source: 'massive', pages: 0, count: 0, progress_pct: 42, stage: 'reading',
+    stages: { trades_v1: 64, minute_aggs_v1: 100, quotes_v1: 12 }, ...over,
+  });
+
+  it('reads each file while it runs, with no pages and no "downloaded through"', () => {
+    render(<HistoricalDownloads jobs={[imported()]} busy={new Set()} onPick={() => {}} onAction={() => {}} />);
+    expect(screen.getByRole('status').textContent).toBe('GRML importing 42%  -  Massive files');
+    const item = screen.getByRole('listitem');
+    expect(item.textContent).toMatch(/Reading trades 64% · bars 100% · bid\/ask 12%\./);
+    expect(item.textContent).not.toMatch(/pages|Downloaded through/);
+    expect(screen.getByRole('button', { name: /^Stop import:/ })).toBeTruthy();
+  });
+
+  it('says what a finished import holds, and offers to import a stopped one again', () => {
+    render(<HistoricalDownloads busy={new Set()} onPick={() => {}} onAction={() => {}} jobs={[
+      imported({ status: 'complete', count: 5120, bar_count: 135, quote_status: 'not_downloaded', progress_pct: 100 }),
+      imported({ id: 'k', status: 'failed', error: 'disk read failed' }),
+    ]} />);
+    const [done, failed] = screen.getAllByRole('status');
+    expect(done.textContent).toBe('GRML imported  -  Massive files: 5,120 prints · 135 bars · bid/ask not downloaded yet');
+    expect(failed.textContent).toBe('GRML failed  -  Massive files');
+    expect(screen.getAllByRole('button', { name: /^Import again:/ })).toHaveLength(1);
+    expect(jobSummary(imported({ status: 'running', stale: true }))).toBe('GRML stopped by a restart');
+  });
+});

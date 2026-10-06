@@ -112,7 +112,7 @@ before its prior sessions' first print time, however hard it runs.
 
 ### News
 
-`news_tickers` in `F:\Nova\data\massive\store\orb.duckdb` (one row per article and
+`news_tickers` in `E:\Nova\massive\store\orb.duckdb` (one row per article and
 ticker; deduplicated per article). `has_news` is true when an article naming the
 symbol was published **after the prior session's 16:00 ET close and at or before
 `minute_ts`**; `news_first_seen_ts` is the earliest such publish time (epoch

@@ -4,7 +4,7 @@ import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from './simClockEvents';
 import { SIM_HISTORY_POLL_MS, SIM_HISTORY_REQUEST_FAILED } from './simConstants';
 import { replayPollResource } from './replayPollResource';
 import { parseHistoricalSnapshot } from './simPayloadParse';
-import type { HistoricalDepthBook, HistoricalSelection } from './historicalTypes';
+import type { HistoricalDepthBook, HistoricalSelection, MassiveQuoteStatus } from './historicalTypes';
 
 export interface HistoricalSnapshot {
   active: boolean; symbol: string; last: number | null; volume: number | null;
@@ -26,10 +26,26 @@ export interface HistoricalSnapshot {
   covered?: boolean;
   /** Prints whose side the local L2 recording decided (AGENTS.md §3). */
   sides_recorded?: number;
+  /**
+   * A Massive window's NBBO at the playhead (ADR 046): the last quote at or
+   * before it, null on an IBKR download or before the window's first quote.
+   */
+  bid?: number | null; ask?: number | null;
+  bid_size?: number | null; ask_size?: number | null;
+  bid_exchange?: string | null; ask_exchange?: string | null;
+  /** Epoch seconds of that quote. */
+  quote_ts?: number | null;
+  /** `massive_nbbo` when the window carries the NBBO; null otherwise. */
+  quote_source?: string | null;
+  quote_status?: MassiveQuoteStatus | null;
+  /** Prints whose side the window's own NBBO decided (the quote standing just before each print). */
+  sides_nbbo?: number;
   prints: {
     ordinal?: number; time: string; price: number; size: number; exchange: string;
     conditions?: string; unreported?: boolean;
-    /** Real side from a recorded book that held across the print's second; else null. */
+    /** False for a print that moves no price (odd lot, average price, a later-busted trade...); absent reads true. */
+    sets_price?: boolean;
+    /** Real side from a recorded book that held across the print's second, or the window's NBBO; else null. */
     side?: 'ask' | 'bid' | 'between' | null;
     bid?: number | null; ask?: number | null;
     side_source?: string | null;

@@ -155,9 +155,10 @@ export function StockViewDepthTape({
           <DepthAndTapeColumns
             symbol={depthSymbol}
             // Today's halt and borrow state are not the replayed session's.
-            chips={<HistoricalL2Chip depth={historical.depth} />}
+            chips={<HistoricalL2Chip depth={historical.depth} snapshot={historical} />}
             // Holds the replay depth slot a bot needs while shown (QA R44).
-            level2={showL2 ? <HistoricalDepth depth={historical.depth} holdLineFor={depthSymbol} /> : null}
+            level2={showL2
+              ? <HistoricalDepth depth={historical.depth} holdLineFor={depthSymbol} snapshot={historical} /> : null}
             tape={showTape ? (
               <HistoricalTimeSales symbol={depthSymbol} snapshot={historical} uiActive={uiActive} />
             ) : null}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseCaptureSessions } from './captureSessionsParse';
 import { coverageFraction, coverageSegments, captureBandSegments } from './simCoverage';
-import { parseHistoricalSnapshot, parseHistoricalStatus, parseSimClock } from './simPayloadParse';
+import { parseHistoricalSnapshot, parseHistoricalStatus, parseMassiveDays, parseSimClock } from './simPayloadParse';
 
 const OPEN = '2026-09-21T09:15:00-04:00';
 const CLOSE = '2026-09-21T11:30:00-04:00';
@@ -133,5 +133,42 @@ describe('parseCaptureSessions (C13 / C21 / C22)', () => {
     expect(rows[0]).toMatchObject({ prints: 172020, l2: null, source: 'sim', spans: [[1, 2]] });
     expect(rows[1]).toMatchObject({ prints: null, status: 'recording', segments: 1 });
     expect(parsed.tickers_by_day['2026-09-18']).toEqual([]);
+  });
+});
+
+describe('the Massive fields (ADR 046)', () => {
+  it("a snapshot keeps the NBBO and each print's price verdict; junk reads as absent", () => {
+    const snap = parseHistoricalSnapshot({
+      active: true, symbol: 'IMCC', prints: [
+        { time: '2026-09-18T13:30:00.25Z', price: 9.5, size: 10, exchange: 'NASDAQ', sets_price: false },
+        { time: '2026-09-18T13:30:00.1Z', price: 10, size: 100, exchange: 'NASDAQ', sets_price: true },
+      ],
+      bid: 10, ask: 10.02, bid_size: 100, ask_size: 'x', quote_ts: 1_790_000_000, quote_source: 'massive_nbbo',
+      quote_status: 'complete', sides_nbbo: 2,
+    });
+    expect([snap.bid, snap.ask, snap.bid_size, snap.ask_size]).toEqual([10, 10.02, 100, null]);
+    expect([snap.quote_source, snap.quote_status, snap.sides_nbbo]).toEqual(['massive_nbbo', 'complete', 2]);
+    expect(snap.prints.map(p => p.sets_price)).toEqual([false, undefined]);
+    expect(parseHistoricalSnapshot({ active: true, symbol: 'X', prints: [], quote_status: 'weird' }).quote_status).toBeNull();
+  });
+
+  it('a listing keeps the import fields and the Massive summary; an older API has none', () => {
+    const status = parseHistoricalStatus({
+      jobs: [{ id: 'm', kind: 'trades', status: 'running', symbol: 'IMCC', date: '2026-09-18', start: '09:30', end: '10:00',
+        source: 'massive', stage: 'reading', stages: { trades_v1: 50, quotes_v1: 'x' }, quote_status: null }],
+      massive: { available: true, reason: null, trade_days: 2600, quote_days: 300, first: '2016-01-04', last: '2026-10-02' },
+    });
+    expect(status.jobs[0]).toMatchObject({ source: 'massive', stage: 'reading', stages: { trades_v1: 50 }, quote_status: null });
+    expect(status.massive).toEqual({ available: true, reason: null, trade_days: 2600, quote_days: 300,
+      first: '2016-01-04', last: '2026-10-02', store_error: null });
+    expect(parseHistoricalStatus({ jobs: [] }).massive).toBeUndefined();
+  });
+
+  it('the day list keeps real dates only', () => {
+    expect(parseMassiveDays({ available: true, days: [
+      { date: '2016-01-05', trades: true, quotes: 'yes', minute_aggs: true }, { date: 'tomorrow' }, 3,
+    ] })).toEqual({ available: true, reason: null,
+      days: [{ date: '2016-01-05', trades: true, quotes: false, minute_aggs: true }] });
+    expect(() => parseMassiveDays(null)).toThrow();
   });
 });

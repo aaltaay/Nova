@@ -132,6 +132,10 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
 const SIM_ROUTES: [RegExp, Handler][] = [
   [/^\/api\/sim\/clock$/, () => simClock()],
   [/^\/api\/sim\/history$/, () => ({ jobs: [], selection: null, default_date: '2026-09-29' })],
+  // ADR 046: the demo holds no Massive flat files, and says so.
+  [/^\/api\/sim\/history\/massive\/days$/, () => ({
+    schema_version: 1, available: false, reason: 'The demo holds no Massive files', root: '', days: [],
+  })],
   [/^\/api\/leaderboard\/days$/, () => leaderboardDays()],
   [/^\/api\/leaderboard\/([0-9-]+)\/coverage$/, (m) => leaderboardCoverage(m[1])],
   [/^\/api\/leaderboard\/([0-9-]+)\/halts$/, (m) => ({ date: m[1], events: [] })],

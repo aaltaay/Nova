@@ -14,7 +14,7 @@ BACKEND_DIR = REPO_ROOT / "backend"
 
 # ── Inputs ──────────────────────────────────────────────────────────────────
 # Massive flat files (same env override as research/orb/common.py).
-DATA_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"F:\Nova\data\massive")
+DATA_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"E:\Nova\massive")
 MINUTE_SUBDIR = "minute_aggs_v1"
 DAY_SUBDIR = "day_aggs_v1"
 REFERENCE_SUBDIR = Path("store") / "reference"

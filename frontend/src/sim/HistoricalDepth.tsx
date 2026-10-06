@@ -14,19 +14,30 @@
  */
 import { MontageSide, bookPeak } from '../ibkr';
 import { etTime } from './historicalReplayFormat';
+import { useMassiveDay } from './massiveDaysStore';
 import {
   SIM_REPLAY_L2_CHIP_LABEL,
   SIM_REPLAY_L2_CHIP_TITLE,
   SIM_REPLAY_L2_CHIP_VALUE,
   SIM_REPLAY_L2_EMPTY_NOTE,
+  SIM_REPLAY_L2_NBBO_ARRIVED,
+  SIM_REPLAY_L2_NBBO_MISSING,
+  SIM_REPLAY_L2_NBBO_NONE,
+  SIM_REPLAY_L2_NBBO_TITLE,
+  SIM_REPLAY_L2_NBBO_VALUE,
   SIM_REPLAY_L2_RECORDED_TITLE,
   SIM_REPLAY_L2_RECORDED_VALUE,
+  simReplayL2NbboNote,
 } from './simConstants';
-import type { HistoricalDepthBook } from './historicalTypes';
+import { isMassive, type HistoricalDepthBook } from './historicalTypes';
+import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 import { useHistoricalDepthLine } from './useHistoricalDepthLine';
 
+/** A Massive window's best bid and ask as a one-level ladder (ADR 046), never a recorded book. */
+export const MASSIVE_NBBO_SOURCE = 'massive_nbbo';
+
 interface Props {
-  /** The recorded book at the playhead, or null when none was recorded. */
+  /** The recorded book at the playhead (or a Massive window's NBBO), or null when there is none. */
   depth?: HistoricalDepthBook | null;
   /**
    * The loaded historical window's symbol when this panel is its Level 2: the
@@ -34,26 +45,42 @@ interface Props {
    * capture gap renders this panel without one.
    */
   holdLineFor?: string | null;
+  /** The replay snapshot, so a Massive window can say why it has no quote. */
+  snapshot?: HistoricalSnapshot | null;
 }
 
-export function HistoricalDepth({ depth = null, holdLineFor = null }: Props) {
+/** Why a Massive window shows no bid/ask here; null when it shows one, or the window is not Massive. */
+function useMassiveQuoteNote(snapshot: HistoricalSnapshot | null | undefined, depth: HistoricalDepthBook | null): string | null {
+  const massive = isMassive(snapshot?.selection);
+  const missing = massive && depth == null && snapshot?.quote_status === 'not_downloaded';
+  // Only a window still missing its bid/ask asks whether the day's quotes have landed since.
+  const day = useMassiveDay(missing ? snapshot?.selection?.date : null, missing);
+  if (!massive || depth != null) return null;
+  if (snapshot?.quote_status === 'not_downloaded') return day?.quotes ? SIM_REPLAY_L2_NBBO_ARRIVED : SIM_REPLAY_L2_NBBO_MISSING;
+  return snapshot?.selection?.trade_count ? SIM_REPLAY_L2_NBBO_NONE : null;
+}
+
+export function HistoricalDepth({ depth = null, holdLineFor = null, snapshot = null }: Props) {
   useHistoricalDepthLine(holdLineFor ?? '', Boolean(holdLineFor));
+  const massiveNote = useMassiveQuoteNote(snapshot, depth);
   const bids = depth?.bids ?? [];
   const asks = depth?.asks ?? [];
   const peak = bookPeak(bids, asks);
+  const nbbo = depth?.source === MASSIVE_NBBO_SOURCE;
   return (
     <div className="das-l2" data-testid="historical-l2" data-depth-source={depth?.source ?? 'none'}>
       {depth ? (
-        <div className="sim-replay-l2-note" data-testid="historical-l2-recorded">
-          Recorded book at {etTime(depth.ts)} ET
+        <div className="sim-replay-l2-note" data-testid={nbbo ? 'historical-l2-nbbo' : 'historical-l2-recorded'}
+          title={nbbo ? SIM_REPLAY_L2_NBBO_TITLE : undefined}>
+          {nbbo ? simReplayL2NbboNote(etTime(depth.ts)) : <>Recorded book at {etTime(depth.ts)} ET</>}
         </div>
       ) : (
         <div
           className="sim-replay-l2-note sim-replay-l2-note--empty"
           data-testid="historical-l2-empty"
-          title={SIM_REPLAY_L2_CHIP_TITLE}
+          title={massiveNote ? SIM_REPLAY_L2_NBBO_TITLE : SIM_REPLAY_L2_CHIP_TITLE}
         >
-          {SIM_REPLAY_L2_EMPTY_NOTE}
+          {massiveNote ?? SIM_REPLAY_L2_EMPTY_NOTE}
         </div>
       )}
       <div className="das-l2-montage">
@@ -65,18 +92,19 @@ export function HistoricalDepth({ depth = null, holdLineFor = null }: Props) {
 }
 
 /** Stands in for the live halt / shortability chips in the Level 2 header. */
-export function HistoricalL2Chip({ depth = null }: Props) {
-  const recorded = depth != null;
+export function HistoricalL2Chip({ depth = null, snapshot = null }: Props) {
+  const nbbo = depth?.source === MASSIVE_NBBO_SOURCE || (depth == null && isMassive(snapshot?.selection));
+  const recorded = depth != null && !nbbo;
+  const title = nbbo ? SIM_REPLAY_L2_NBBO_TITLE : recorded ? SIM_REPLAY_L2_RECORDED_TITLE : SIM_REPLAY_L2_CHIP_TITLE;
+  const value = nbbo ? SIM_REPLAY_L2_NBBO_VALUE : recorded ? SIM_REPLAY_L2_RECORDED_VALUE : SIM_REPLAY_L2_CHIP_VALUE;
   return (
     <span
-      className={`sv-shortability-chip sv-shortability-chip--${recorded ? 'ok' : 'unknown'}`}
-      title={recorded ? SIM_REPLAY_L2_RECORDED_TITLE : SIM_REPLAY_L2_CHIP_TITLE}
+      className={`sv-shortability-chip sv-shortability-chip--${depth != null ? 'ok' : 'unknown'}`}
+      title={title}
       data-testid="historical-l2-chip"
     >
       <span className="sv-shortability-chip__label">{SIM_REPLAY_L2_CHIP_LABEL}</span>
-      <span className="sv-shortability-chip__value">
-        {recorded ? SIM_REPLAY_L2_RECORDED_VALUE : SIM_REPLAY_L2_CHIP_VALUE}
-      </span>
+      <span className="sv-shortability-chip__value">{value}</span>
     </span>
   );
 }

@@ -79,7 +79,9 @@ def reference(symbol: str) -> Reference:
         if snap.get("source") == "completed_bars" or snap.get("covered") is False:
             # Not downloaded here: the snapshot's last is a candle close (R34).
             return Reference(None)
-        return Reference(snap.get("last"))
+        # An IBKR download has no bid/ask (null); a Massive window carries the NBBO
+        # at the playhead, so its orders fill at the far side like a recording's (ADR 046).
+        return Reference(snap.get("last"), snap.get("bid"), snap.get("ask"))
     from sim import capture_player
 
     now = playhead_ts()

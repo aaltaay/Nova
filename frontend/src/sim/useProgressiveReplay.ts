@@ -14,7 +14,7 @@ import { shouldRefreshSelection } from './simProgressiveReplay';
 import { windowKey } from './simReplayOffer';
 import { SIM_HISTORY_REQUEST_FAILED, SIM_PROGRESSIVE_RELOAD_MS } from './simConstants';
 import { serializeSimSessionMutation } from './simSessionMutations';
-import type { HistoricalSelection } from './historicalTypes';
+import { isMassive, MASSIVE_SOURCE, type HistoricalSelection } from './historicalTypes';
 
 export function useProgressiveReplay(active: boolean): void {
   const subscribe = useCallback(
@@ -36,7 +36,11 @@ export function useProgressiveReplay(active: boolean): void {
     if (!shouldRefreshSelection(selection, jobs, lastAt.current, Date.now(), SIM_PROGRESSIVE_RELOAD_MS)) return;
     inFlight.current = true;
     lastAt.current = Date.now();
-    const spec = { symbol: selection.symbol, date: selection.date, start: selection.start, end: selection.end };
+    // The same source as the loaded window, never whichever `auto` would pick now (ADR 046).
+    const spec = {
+      symbol: selection.symbol, date: selection.date, start: selection.start, end: selection.end,
+      source: isMassive(selection) ? MASSIVE_SOURCE : 'ibkr',
+    };
     void serializeSimSessionMutation('/history/select', () =>
       replayRequest<HistoricalSelection>('/history/select', replayPost(spec), SIM_HISTORY_REQUEST_FAILED))
       .then(selected => {
