@@ -624,6 +624,7 @@
         664,
         667,
         674,
+        707,
         742,
         744
       ],
@@ -816,6 +817,24 @@
             "frontend/e2e/global-bar-bot-row.spec.ts",
             "frontend/e2e/stock-read.spec.ts",
             "frontend/e2e/who-trades.spec.ts"
+          ]
+        },
+        {
+          "title": "fix(desk): bound style invalidation during live tape updates",
+          "issues": [
+            707
+          ],
+          "note": "Verified against current master with a production demo: tape row insertion/removal dirties BODY :has(), whose shared invalidation set includes two selectors that invalidate all descendants. Constrain the Desk Catalyst and alert-dialog media-title targets while preserving hover, keyboard and responsive layout behavior. Existing selector/memo/GPU fixes are complete; no operator policy change.",
+          "gated": false,
+          "touches": [
+            "knowledge/backlog-packages.json",
+            "architecture/desk-style-invalidation.md",
+            "frontend/src/desk/deskBoard.css",
+            "frontend/src/components/ui/alert-dialog.tsx",
+            "frontend/src/components/ui/alertDialog.css",
+            "frontend/e2e/desk-style-invalidation.spec.ts",
+            "frontend/e2e/fixtures/desk-style-invalidation.html",
+            "frontend/e2e/fixtures/desk-style-invalidation.tsx"
           ]
         }
       ]
