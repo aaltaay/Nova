@@ -226,7 +226,12 @@ export function subscribeTradeDefaultsPrefs(listener: () => void): () => void {
 export function writeTradeDefaultsPrefs(venue: DeskVenue | null, prefs: TradeDefaultsPrefs): boolean {
   if (!venue || isSampleView()) return false;
   try {
-    if (!persistVerified(tradeDefaultsStorageKey(venue), serializePrefs(venue, parseTradeDefaultsPrefs(prefs)))) return false;
+    const key = tradeDefaultsStorageKey(venue);
+    const saved = localStorage.getItem(key);
+    // A fallback shown by this older UI never authorizes replacing unknown
+    // versions, foreign ownership or corrupt data already in the destination.
+    if (saved !== null && !destinationPrefs(saved, venue)) return false;
+    if (!persistVerified(key, serializePrefs(venue, parseTradeDefaultsPrefs(prefs)))) return false;
     window.dispatchEvent(new Event(TRADE_DEFAULTS_CHANGED_EVENT));
     return true;
   } catch {
