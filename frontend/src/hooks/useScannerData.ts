@@ -10,7 +10,7 @@
  * maintainer: one-concern the live/history scanner state lifecycle owns all
  * roster, envelope and error setters; request mechanics live in scannerLiveRequest.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   API_BASE_URL,
   API_URL,
@@ -108,11 +108,8 @@ export function useScannerData(opts: {
   /** True once every scanner route answered: only then does the failure grace apply. */
   const loadedOnceRef = useRef(false);
   const healthRef = useRef(health);
-  healthRef.current = health;
   const historyDateRef = useRef(historyDate);
-  historyDateRef.current = historyDate;
   const liveRequestsRef = useRef(createScannerLiveRequestScope());
-  liveRequestsRef.current.setView(historyDate, discoveryProvider, scannerPersistentAuthoritative);
   useEffect(() => () => liveRequestsRef.current.invalidate(), []);
   const pollingRef = useRef(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -134,17 +131,23 @@ export function useScannerData(opts: {
   }, [onActiveFeed, onFeedFellBack]);
 
   const sinkRef = useRef<ScannerRestSink>(null as unknown as ScannerRestSink);
-  sinkRef.current = {
-    applyEnvelope,
-    setGappers,
-    setGainers,
-    setLosers,
-    setAfterhours,
-    setLargeCap,
-    setLastGood,
-    setTableMeta,
-    setScanAges,
-  };
+  useLayoutEffect(() => {
+    // Abandoned renders must leave the committed view and its callbacks intact.
+    healthRef.current = health;
+    historyDateRef.current = historyDate;
+    liveRequestsRef.current.setView(historyDate, discoveryProvider, scannerPersistentAuthoritative);
+    sinkRef.current = {
+      applyEnvelope,
+      setGappers,
+      setGainers,
+      setLosers,
+      setAfterhours,
+      setLargeCap,
+      setLastGood,
+      setTableMeta,
+      setScanAges,
+    };
+  }, [health, historyDate, discoveryProvider, scannerPersistentAuthoritative, applyEnvelope]);
 
   const onScannerPricePatch = useCallback(
     (raw: ScannerPricePatchRow[], ts: number, table?: string | null) => {
@@ -353,9 +356,10 @@ export function useScannerData(opts: {
   ]);
 
   const onEnvelope = useCallback((data: Record<string, unknown>) => {
-    applyEnvelope(data);
-    applyEnvelopeTables(data, sinkRef.current);
-  }, [applyEnvelope]);
+    const sink = sinkRef.current;
+    sink.applyEnvelope(data);
+    applyEnvelopeTables(data, sink);
+  }, []);
 
   useScannerEnvelopePoll({
     enabled: discoveryProvider === 'ibkr' && scannerPersistentAuthoritative && historyDate === null,

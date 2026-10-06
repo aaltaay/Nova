@@ -17,6 +17,7 @@ import {
   startScreenRecorder,
 } from '../../electron/screenRecorder.mjs';
 import { SCREEN_RECORD_STALL_MS } from '../../electron/screenRecordPlan.mjs';
+import { SegmentFile } from '../../electron/screenRecordFiles.mjs';
 
 type Handler = (...args: unknown[]) => void;
 type Cmd = { cmd: string; id: string; sourceId?: string; width?: number };
@@ -211,7 +212,7 @@ describe('startScreenRecorder', () => {
     expect(rows[0]).toMatchObject({ schema_version: 1, fps: 15, mime: MIME });
   });
 
-  it('starts the next file before stopping the old one, so a rotation leaves no gap', async () => {
+  it.each([1, 2])('starts the next file before stopping the old one, even when screen %s closes last', async (lastScreen) => {
     const w = await recordingWorld();
     const first = w.starts().map((s) => s.id);
     w.chunk(first[0], new Uint8Array(10));
@@ -220,18 +221,53 @@ describe('startScreenRecorder', () => {
     const next = w.starts().slice(2);
     expect(next).toHaveLength(2);
     expect(w.stops()).toHaveLength(0); // the old files keep going until the new ones run
-    for (const s of next) w.event({ kind: 'started', id: s.id, mime: MIME });
+    for (const [index, s] of next.entries()) {
+      w.event({ kind: 'started', id: s.id, mime: MIME });
+      expect(w.stops().map(command => command.id)).toEqual(first.slice(0, index + 1));
+    }
     expect(w.stops().map((s) => s.id)).toEqual(first);
-    for (const id of first) w.event({ kind: 'stopped', id });
-    await until(() => manifest(path.join(tmp, 'rec')).filter((r) => r.event === 'end').length === 2);
-    const ends = manifest(path.join(tmp, 'rec')).filter((r) => r.event === 'end');
-    expect(ends.map((r) => [r.file, r.reason])).toEqual([
-      ['094400-screen1.mkv', 'rotation'],
-      ['094400-screen2.mkv', 'rotation'],
-    ]);
-    expect(ends[0].bytes).toBe(10);
-    expect(w.view().state).toBe('recording');
-    expect((w.view() as { problems: unknown[] }).problems).toEqual([]);
+    const closeFile = SegmentFile.prototype.close;
+    let release!: () => void;
+    const delayedClose = new Promise<void>(resolve => { release = resolve; });
+    // Real files still close; the barrier controls only which completion reaches the manifest first.
+    const close = vi.spyOn(SegmentFile.prototype, 'close').mockImplementation(function (this: SegmentFile) {
+      const bytes = closeFile.call(this);
+      return this.file.endsWith(`094400-screen${lastScreen}.mkv`)
+        ? bytes.then(async value => { await delayedClose; return value; })
+        : bytes;
+    });
+    const ends = () => manifest(path.join(tmp, 'rec')).filter((r) => r.event === 'end');
+    try {
+      for (const id of first) w.event({ kind: 'stopped', id });
+      await until(() => ends().length === 1);
+      expect(ends().map(r => r.file)).toEqual([`094400-screen${3 - lastScreen}.mkv`]);
+      expect(w.view().state).toBe('recording');
+      expect((w.view() as { problems: unknown[] }).problems).toEqual([]);
+      release();
+      await until(() => ends().length === 2);
+      const records = ends();
+      expect(records).toHaveLength(2);
+      expect(records.map(r => r.file)).toEqual([
+        `094400-screen${3 - lastScreen}.mkv`,
+        `094400-screen${lastScreen}.mkv`,
+      ]);
+      // Monitor files finish independently; each complete record belongs to its file and segment.
+      expect(Object.fromEntries(records.map(r => [r.file, r]))).toEqual({
+        '094400-screen1.mkv': {
+          schema_version: 1, event: 'end', segment_id: first[0], file: '094400-screen1.mkv',
+          ended_ts: Date.UTC(2026, 8, 24, 13, 45, 0) / 1000, bytes: 10, reason: 'rotation', error: null,
+        },
+        '094400-screen2.mkv': {
+          schema_version: 1, event: 'end', segment_id: first[1], file: '094400-screen2.mkv',
+          ended_ts: Date.UTC(2026, 8, 24, 13, 45, 0) / 1000, bytes: 0, reason: 'rotation', error: null,
+        },
+      });
+      expect(w.view().state).toBe('recording');
+      expect((w.view() as { problems: unknown[] }).problems).toEqual([]);
+    } finally {
+      release();
+      close.mockRestore();
+    }
   });
 
   it('keeps the old file going when the next one fails to start', async () => {

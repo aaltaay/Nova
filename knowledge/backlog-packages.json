@@ -166,7 +166,8 @@
         748,
         754,
         757,
-        758
+        758,
+        767
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
@@ -236,6 +237,19 @@
             "backend/tests/test_gc_policy_freeze.py",
             "backend/tests/test_prior_close_not_a_trade.py",
             "knowledge/backlog-packages.json"
+          ]
+        },
+        {
+          "title": "test(recorder): verify per-file asynchronous completion",
+          "issues": [
+            767
+          ],
+          "note": "Verified full-suite end-record ordering flaw: independent monitor closes may complete in either order. Controlled reverse completion preserves exact per-file records and every start-before-stop/no-gap assertion. Test-only correction; no recorder runtime or physical capture changes. Group with committed scanner-scope review correction #766.",
+          "gated": false,
+          "touches": [
+            "architecture/screen-recorder-finalize-test-contract.md",
+            "knowledge/backlog-packages.json",
+            "frontend/src/electron/screenRecorder.test.ts"
           ]
         }
       ]
@@ -689,7 +703,8 @@
         707,
         742,
         744,
-        764
+        764,
+        766
       ],
       "done": [
         "The live desk runs master and the Gateway restart is confirmed, with the date recorded on #331.",
@@ -933,6 +948,20 @@
             "frontend/src/constantGroups/scanner_board.ts",
             "frontend/e2e/scanner-halt-patch.spec.ts",
             "frontend/e2e/fixtures/scannerHalt.tsx"
+          ]
+        },
+        {
+          "title": "fix(scanner): publish request scope only for committed views",
+          "issues": [
+            766
+          ],
+          "note": "Verified native #765 review with real React Suspense/startTransition: an abandoned provider preview cancels the committed pending request; render-written history refs also reject current live halt evidence. Publish scope/history/health/sink refs in layout effects and route the stable envelope callback through the committed sink. Preserve #764 timeout, bounded receipt and history-reload behavior; no poll/stream/backend rewrite or evidence-policy change.",
+          "gated": false,
+          "touches": [
+            "knowledge/backlog-packages.json",
+            "architecture/scanner-bootstrap-halt-evidence.md",
+            "frontend/src/hooks/useScannerData.ts",
+            "frontend/src/hooks/useScannerData.committed.test.tsx"
           ]
         }
       ]
