@@ -206,6 +206,12 @@ record. A later authentication record needs a fresh valid banner or a valid
 dated IBC line following it. A record still awaiting a dated line when another
 startup begins is partial evidence, even when a previous banner is readable:
 the diagnostic parser's retained fallback cannot certify the record's date.
+An unused banner also stops dating authentication once the recorded IBC history
+moves to another calendar date. Timestamp-rejected records stay unknown and do
+not create a weekday login, count or known failure. Genuinely dated unexpected
+records still establish failure even when another record or source is partial.
+The verifier's pure `tools/premarket_ibc.py` parser returns those records and
+their source problems together; the operator's diagnostic parser is unchanged.
 
 The unattended-PASS criterion is evaluated separately. Missed mornings remain
 context: they do not themselves add another closing criterion or require every
