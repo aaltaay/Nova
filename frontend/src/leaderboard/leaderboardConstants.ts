@@ -35,8 +35,13 @@ export const LEADERBOARD_PLAYBACK_RETRY_MS = 5_000;
 /** Today's coverage grows while the recorder runs: the lane re-reads it this often (never a past day). */
 export const LEADERBOARD_COVERAGE_TODAY_REFRESH_MS = 60_000;
 
-/** Board lists the Scanner shows; a reconstructed day's one `market` board is shown under Gainers. */
+/**
+ * A rebuilt day's boards (ADR 023 amendment 2026-10-06): the whole market's `market` board is
+ * shown under Gainers, and its `losers` / `gappers` boards under Losers and Gappers.
+ */
 export const LEADERBOARD_BOARD_MARKET = 'market';
+export const LEADERBOARD_BOARD_LOSERS = 'losers';
+export const LEADERBOARD_BOARD_GAPPERS = 'gappers';
 export const LEADERBOARD_SOURCE_RECORDED = 'recorded';
 export const LEADERBOARD_SOURCE_RECONSTRUCTED = 'reconstructed';
 export const LEADERBOARD_SOURCE_WORD: Record<string, string> = {
@@ -83,8 +88,13 @@ export const LEADERBOARD_GAP_STOP_WORD: Record<string, string> = {
 export const leaderboardLoadingText = (clock: string): string => `Loading the board at ${clock} ET…`;
 export const leaderboardErrorText = (clock: string, error: string): string =>
   `Could not load the board at ${clock} ET: ${error}`;
-export const LEADERBOARD_NOT_REBUILT =
-  'Not rebuilt for this day -- a rebuilt day has one whole-market board, shown under Gainers.';
+/** A rebuilt day's lists that have no board: each says why. */
+export const LEADERBOARD_NOT_REBUILT_OLDER =
+  'Not rebuilt for this day: it was rebuilt before Losers and Gappers were. Its board is under Gainers.';
+export const LEADERBOARD_NOT_REBUILT_AFTERHOURS =
+  'Not rebuilt: the After Hours list ranks the move since the 16:00 close, which a rebuilt day does not measure.';
+export const LEADERBOARD_NOT_REBUILT_LARGE_CAP =
+  'Not rebuilt: the minute files carry no market cap as of this day.';
 export const leaderboardListNotRecorded = (label: string, clock: string): string =>
   `No ${label} list recorded at ${clock} ET`;
 export const leaderboardListUnavailable = (label: string, clock: string, state: string): string =>

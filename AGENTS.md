@@ -922,8 +922,9 @@ uses only minute bars that closed by then; a recorded row is the desk's board
 snapshotted within `LEADERBOARD_RECORD_SETTLE_SEC` after it). `source` is
 `recorded | reconstructed`; `board` is `gappers | gainers | losers |
 afterhours | large_cap` (recorded: the desk's lists through
-`scanner_surface.surface_rows`, so blocklisted names never appear) or `market`
-(reconstructed: the whole market). `change_pct` is a fraction against the
+`scanner_surface.surface_rows`, so blocklisted names never appear); a
+reconstructed day writes `market` (the whole market, shown as Gainers),
+`losers` and `gappers` ("A rebuilt day's lists" below). `change_pct` is a fraction against the
 prior close, computed from `price` and `prev_close` and `null` when either is
 unknown (a `close_fallback` row has no print: `price` / `change_pct` null).
 `rvol_basis` is `daily_avg` (the desk's RVOL: volume over the average daily
@@ -974,7 +975,8 @@ runs `py -3 research/catalysts/export_leaderboard.py` (research store
 and writes, each minute 04:00-20:00 ET on exchange days, one `minutes` row
 (`run_id`, `feed_live`, `halt_feed_ok`) and one `coverage` row per board
 (`state: live | frozen | unavailable | feed_down`, `row_count`); a
-reconstructed day writes `coverage` with `state: rebuilt`. A minute without a
+reconstructed day writes `coverage` per board with `state: rebuilt` (`frozen`
+for its Gappers from 09:30). A minute without a
 `minutes` row was not recorded. Playback never carries a board across a gap:
 the board at a playhead inside one is `null` with `gap: {reason, start, end,
 stop}`, `reason` one of `not_running | feed_down | not_recorded |
@@ -990,10 +992,13 @@ session_date}` from IBKR tick 49 transitions and Nasdaq Trade Halt RSS rows.
 A halt is never inferred from a gap in the prints.
 
 **One ranking** (`leaderboard/ranking.py`, pure): qualify, then order by
-`change_pct` (ties: volume, symbol). Playback's `leaders`, the S5 offline
-universe and live auto-record call the same function; presets are
+`change_pct` (ties: volume, symbol; worst first under `worst_first`). Playback's `leaders`, the S5 offline
+universe, the rebuild and live auto-record call the same function; presets are
 `BOARD_RULES`, `LEADERS_RULES` ($3-10, float <= 10M or unknown, volume >=
-100k, top 3) and `S5_RULES` (top 3 with `time_of_day_20` RVOL >= 5). Under
+100k, top 3), `S5_RULES` (top 3 with `time_of_day_20` RVOL >= 5),
+`LOSERS_RULES` (a known change under 0, worst first) and `GAPPERS_RULES` (the
+live premarket Gappers floor, `ibkr/gapper_view.row_qualifies`: price >=
+`SCANNER_MIN_PRICE`, `change_pct * 100 >= GAPPER_MIN_GAP_PCT`). Under
 `LEADERS_RULES` a contradicted float (#532) qualifies only on shares
 outstanding <= 10M and is otherwise refused `float_contradicted` -- an unknown
 float is admitted, a contradicted one is not, because its own counts say it is
@@ -1001,7 +1006,34 @@ likely larger than shown; a row without the check (reconstructed, or recorded
 before schema 3) is judged as before. Playback and auto-record read the same
 stored check, so they still agree on who led. A
 recorded row's `rank` is the desk's own order of that list (Losers stay
-worst-first); a reconstructed row's `rank` is `BOARD_RULES`.
+worst-first); a reconstructed row's `rank` is its board's: `BOARD_RULES` on
+`market`, `LOSERS_RULES` on `losers`, `GAPPERS_RULES` on `gappers` (from 09:30
+the 09:30 order).
+
+**A rebuilt day's lists** (ADR 023 amendment 2026-10-06; operator report:
+"Don't we already have the data for this day ... Why do we not see gainers,
+losers, and gappers for that hour?"). A rebuilt day kept only `market`, the top
+100 risers each minute, shown as Gainers: 2026-09-09 held no row under 0% at
+07:00, 09:45 or 16:30, so it had no Losers, and nothing projected its Gappers.
+`research/leaderboard` writes three boards per minute from the same rows (every
+universe symbol with a closed bar by the minute):
+- `market`: the top `--top` by `BOARD_RULES`, plus every `LEADERS_RULES` /
+  `S5_RULES` pick (unchanged);
+- `losers`: the bottom `--top` by `LOSERS_RULES`, ranked 1 = worst;
+- `gappers`: before 09:30 the top `--top` by `GAPPERS_RULES`, `gap_pct` the
+  move (the live list's own number before there is an open); from the 09:30
+  minute, built from premarket bars only, its membership and order are frozen
+  as the live list freezes, and each later minute reprices those symbols
+  (`state: frozen`).
+
+Each board writes a coverage row every minute, so an empty list reads as empty,
+never as not rebuilt. A day counts complete for `--skip-complete` only when all
+three boards cover its 960 minutes. On the desk a rebuilt day fills Gainers,
+Losers and Gappers; Losers and Gappers on a day rebuilt before say so. After
+Hours and Large Cap are not rebuilt, and each says why: the live After Hours
+list is IBKR's after-hours gainers, ranked on the move since the regular close,
+which the rebuild does not measure; Large Cap needs a market cap as of the day,
+which the files do not carry.
 
 **Routes.** `GET /api/leaderboard/days` -> `{schema_version, store: {path,
 ok, error}, days: [{date, recorded: {minutes, first_ts, last_ts, boards} |
@@ -4733,6 +4765,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-06 | A rebuilt day has Losers and Gappers (ADR 023 amendment; operator report on 2026-09-09 at 07:00 in Sim: "Don't we already have the data for this day ... Why do we not see gainers, losers, and gappers for that hour?"). The Massive files for the day were on disk, but the rebuild kept one board a minute, the top 100 risers (`market`), which the desk showed as Gainers; no stored row that day was under 0% at 07:00, 09:45 or 16:30, so Losers could not be read back, and nothing projected Gappers. `research/leaderboard` now writes `losers` (the worst 100, `LOSERS_RULES`) and `gappers` (the live premarket rule, `GAPPERS_RULES` = `ibkr/gapper_view.row_qualifies`, frozen at 09:30 in its 09:30 order and repriced after, as the live list is) beside `market`, every board covering every minute; a day counts complete only with all three, so the 66 days rebuilt before are rebuilt again. The desk fills Gainers, Losers and Gappers from a rebuilt day, and After Hours and Large Cap say why they are not rebuilt. Found alongside it: PHGE's 1-for-10 reverse split on 2026-09-09 is missing from Massive's split list, so the rebuilt boards show it +925% (one such jump in the 66 rebuilt days; the other 30 overnight jumps of 3x or more traded 10-1,000x more volume). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The 1-minute chart keeps the operator's zoom when the plan's lead setup changes (operator report: "As I was zooming in and watching the chart, all of a sudden it resized itself randomly ... We fixed it before"). The 2026-09-25 fix stopped the plan's zones from moving the view, but the stock read still framed every newly leading setup: FRGT's plan followed red to green (near) at 09:31 and Gap and Go (armed) at 09:34, and each change reframed the pane -- red to green on 40 candles, Gap and Go from its 04:05 premarket high. The screenshot's window was exactly that frame (40 candles plus 12 of room). `chart/operatorView.ts` notes when the operator zooms or pans a pane (a range change during a press that began on the chart, or within 300 ms of a wheel or a release); after that no automatic frame or zone slide moves it, until a first paint or Reset chart hands it back. A setup is framed once per symbol, so a flip-flopping lead no longer reframes an untouched pane either. Driven in the demo desk: zoomed to 36 candles, a new lead setup jumped the pre-fix build to 333 and left the fixed one at its 208; the badge and Reset chart still frame. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The hot list is watching only, and its ★ shows next to every ticker (ADR 044 amendment; operator: "if i star a ticker can we please see 'star' next to it", then "a star[red] ticker ... shouldn't be buying and selling if it's signal only ... just because it's [starred] or not, it shouldn't be a reason", and "1 go" on the five questions). The star decided trading three ways: setting Buy to Nova starred the stock, taking the star off flipped it to You · You, and the bot refused any unlisted stock (`BOT_SKIP_NOT_LISTED`). All three are gone, with the list's default Buy / Sell; the bot buys where the Bot is on, the strategy is On and the stock's Buy is Bot. The 04:00 reset of yesterday's bot buys stays, on its own: nothing buys until today's file shows it ran (`BOT_SKIP_DAY_NOT_RESET`), and a failed reset is retried every pass -- the not-listed rule had covered that by accident. Bot-buy stocks take HOD Momo's reserved slots ahead of the list, since the bot only buys what a lane reads. A filled ★ (yours) or outlined ☆ (an auto star) now sits beside the symbol on the Trader tab, the Focus rail, the HOD Momo strip, the quote card and the Who trades row, as on scanner rows; the Buy / Sell switch reads You | Bot and the chart says BOT BUYS AT. The triggers table loses its Hot list square (nine gates) and lists bot-buy stocks with a "now" row. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The Sim replays the operator's Massive flat files (ADR 046; operator: "u wanna populate the data inside the sim? that way when we go back in time, the data we downloaded all of its information gets picked up?", then "1 go also do the bid and ask"). A historical window could only be an IBKR download -- about 90 prints a second (a full AAPL day of 628,348 trades in two hours, over the 500,000 a selection holds) and no bid or ask. Now `auto` takes a day's Massive files when they are on disk: one import reads the ticker's trades, 1-minute bars and NBBO from the day's gzip files (its own process, below normal priority, unaltered rows, csv-parsed), and selecting such a day starts it. The snapshot answers the bid and ask at the playhead (never ahead), colours prints from the NBBO before them, shows the NBBO as a one-level Level 2 when no book was recorded, and practice orders fill at the far side. Candles built from the prints that set a price matched Massive's own minute bars exactly (AAPL 2026-10-02 09:30-09:40, 10 of 10). On the desk the Sim Day calendar now opens every day in the files (before, a day needed a Scanner board or a Session Record, so nothing before September 2021 could be), a Sim tab offers Load from files with no Gateway, and the quote card, ticket, tape and Level 2 show the bid and ask. Massive data never enters the IBKR chart store; the single-market-data-feed rule's Sim exception names the source. §3 amended. | User Directive + Claude Opus 5.5 |

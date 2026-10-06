@@ -7,7 +7,13 @@ import { parseLeaderboardAt, parseLeaderboardCoverage, parseLeaderboardDays } fr
 import {
   gapText, replayFromAnswer, replayLabel, replayListAbsence, replayNotice, replayPending, scannerRowFromLeaderboard,
 } from './leaderboardRows';
-import { LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN, LEADERBOARD_CATALYSTS_NOT_RECORDED } from './leaderboardConstants';
+import {
+  LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN,
+  LEADERBOARD_CATALYSTS_NOT_RECORDED,
+  LEADERBOARD_NOT_REBUILT_AFTERHOURS,
+  LEADERBOARD_NOT_REBUILT_LARGE_CAP,
+  LEADERBOARD_NOT_REBUILT_OLDER,
+} from './leaderboardConstants';
 import type { LeaderboardRow } from './leaderboardTypes';
 
 /** 2026-09-21 07:42:00 ET (EDT, UTC-4). */
@@ -131,14 +137,42 @@ describe('the played-back board', () => {
     expect(replay.leaders).toEqual(['A']);
   });
 
-  it('a rebuilt day shows its one market board under Gainers and states the rest', () => {
-    const replay = replayFromAnswer('2026-09-18', M0742, answer({
+  it('a rebuilt day fills Gainers, Losers and Gappers from its three boards (ADR 023 amendment)', () => {
+    const replay = replayFromAnswer('2026-09-09', M0742, answer({
+      source: 'reconstructed',
+      boards: {
+        market: { state: 'rebuilt', rows: [row({ symbol: 'UP2', rank: 2, board: 'market' }), row({ symbol: 'UP1', rank: 1, board: 'market' })] },
+        losers: { state: 'rebuilt', rows: [row({ symbol: 'DN2', rank: 2, board: 'losers', change_pct: -0.1 }),
+          row({ symbol: 'DN1', rank: 1, board: 'losers', change_pct: -0.3 })] },
+        gappers: { state: 'rebuilt', rows: [row({ symbol: 'UP1', rank: 1, board: 'gappers', gap_pct: 0.854 })] },
+      },
+    }));
+    expect(replay.tables.gainers.map(r => r.symbol)).toEqual(['UP1', 'UP2']);
+    expect(replay.tables.losers.map(r => r.symbol)).toEqual(['DN1', 'DN2']);   // worst first, by its own rank
+    expect(replay.tables.gappers.map(r => [r.symbol, r.gap_percent])).toEqual([['UP1', 0.854]]);
+    expect(replay.tables.afterhours).toEqual([]);
+    expect(replay.tables.largeCap).toEqual([]);
+    expect(replayLabel(replay)).toBe('Sim · 2026-09-09 07:42 ET · rebuilt');
+    expect(replayListAbsence(replay, 'afterhours')).toBe(LEADERBOARD_NOT_REBUILT_AFTERHOURS);
+    expect(replayListAbsence(replay, 'large_cap')).toBe(LEADERBOARD_NOT_REBUILT_LARGE_CAP);
+  });
+
+  it('an empty rebuilt list is empty, and a day rebuilt before Losers and Gappers says so', () => {
+    const empty = replayFromAnswer('2026-09-09', M0742, answer({
+      source: 'reconstructed',
+      boards: { market: { state: 'rebuilt', rows: [] }, losers: { state: 'rebuilt', rows: [] }, gappers: { state: 'frozen', rows: [] } },
+    }));
+    expect(replayListAbsence(empty, 'losers')).toBe('No losers on the board at 07:42 ET');
+    expect(replayListAbsence(empty, 'gappers')).toBe('No gappers on the board at 07:42 ET');
+    expect(replayListAbsence(empty, 'gainers')).toBe('No gainers on the board at 07:42 ET');
+
+    const older = replayFromAnswer('2026-09-18', M0742, answer({
       source: 'reconstructed', boards: { market: { state: 'rebuilt', rows: [row({ symbol: 'MKT', board: 'market' })] } },
     }));
-    expect(replay.tables.gainers.map(r => r.symbol)).toEqual(['MKT']);
-    expect(replay.tables.gappers).toEqual([]);
-    expect(replayLabel(replay)).toBe('Sim · 2026-09-18 07:42 ET · rebuilt');
-    expect(replayListAbsence(replay, 'gappers')).toMatch(/^Not rebuilt for this day/);
+    expect(older.tables.gainers.map(r => r.symbol)).toEqual(['MKT']);
+    expect(older.tables.losers).toEqual([]);
+    expect(replayListAbsence(older, 'losers')).toBe(LEADERBOARD_NOT_REBUILT_OLDER);
+    expect(replayListAbsence(older, 'gappers')).toBe(LEADERBOARD_NOT_REBUILT_OLDER);
   });
 
   it('a gap is a stated absence with its reason and times, and no rows', () => {

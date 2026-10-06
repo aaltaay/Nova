@@ -90,8 +90,23 @@ def build(
     )
 
 
-def rows_at(db: Path, d: date, hh: int, mm: int) -> dict[str, dict]:
+def rows_at(db: Path, d: date, hh: int, mm: int, board: str = "market") -> dict[str, dict]:
+    """One rebuilt board's rows at hh:mm ET, by symbol (the ``market`` board unless named)."""
     from leaderboard import store
 
     with store.connect(db) as con:
-        return {r["symbol"]: r for r in store.rows_at(con, d.isoformat(), "reconstructed", ts(d, hh, mm))}
+        return {
+            r["symbol"]: r for r in store.rows_at(con, d.isoformat(), "reconstructed", ts(d, hh, mm))
+            if r["board"] == board
+        }
+
+
+def states_at(db: Path, d: date, hh: int, mm: int) -> dict[str, tuple[str, int]]:
+    """Each rebuilt board's (state, row_count) at hh:mm ET."""
+    from leaderboard import store
+
+    with store.connect(db) as con:
+        return {
+            c["board"]: (c["state"], c["row_count"])
+            for c in store.coverage_at(con, d.isoformat(), "reconstructed", ts(d, hh, mm))
+        }

@@ -37,6 +37,9 @@ SESSION_START_MIN_ET = 4 * 60          # 04:00 ET, the first bar's window
 SESSION_MINUTES = 16 * 60              # 04:00-20:00 ET: bar windows j = 0..959
 # Board boundaries k = 1..960 -> minute_ts 04:01..20:00 ET; bar j is used at k iff j + 1 <= k.
 REGULAR_OPEN_J = 9 * 60 + 30 - SESSION_START_MIN_ET   # the 09:30 bar
+# The 09:30 boundary (bars closed by 09:30: premarket only). The live Gappers list freezes
+# at 09:30 ET, so the rebuilt Gappers take their membership and order from this board.
+GAPPERS_FREEZE_K = REGULAR_OPEN_J
 PRIOR_CLOSE_HOUR_ET = 16               # news counts from the prior session's 16:00 ET close
 
 # ── Universe ────────────────────────────────────────────────────────────────

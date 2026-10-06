@@ -32,7 +32,8 @@ LEADERBOARD_SOURCE_RECORDED = "recorded"
 LEADERBOARD_SOURCE_RECONSTRUCTED = "reconstructed"
 LEADERBOARD_SOURCES = (LEADERBOARD_SOURCE_RECORDED, LEADERBOARD_SOURCE_RECONSTRUCTED)
 
-# Recorded boards are the desk's lists; a reconstructed day has one whole-market board.
+# Recorded boards are the desk's lists. A reconstructed day has the whole market's board
+# (shown as Gainers) and, since 2026-10-06, its Losers and Gappers (ADR 023 amendment).
 LEADERBOARD_BOARD_GAPPERS = "gappers"
 LEADERBOARD_BOARD_GAINERS = "gainers"
 LEADERBOARD_BOARD_LOSERS = "losers"
@@ -47,6 +48,8 @@ LEADERBOARD_RECORDED_BOARDS = (
     LEADERBOARD_BOARD_LARGE_CAP,
 )
 LEADERBOARD_BOARDS = LEADERBOARD_RECORDED_BOARDS + (LEADERBOARD_BOARD_MARKET,)
+# What one rebuilt minute writes; a day is rebuilt whole only when each covers every minute.
+LEADERBOARD_REBUILT_BOARDS = (LEADERBOARD_BOARD_MARKET, LEADERBOARD_BOARD_LOSERS, LEADERBOARD_BOARD_GAPPERS)
 
 # Per-minute coverage state of one board. A minute with no coverage row was not recorded.
 LEADERBOARD_STATE_LIVE = "live"
