@@ -5,6 +5,28 @@
   "updated": "2026-10-06",
   "items": [
     {
+      "id": "#744",
+      "title": "Browser regressions still expect retired bot and per-stock risk contracts",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "frontend",
+      "number": "744",
+      "url": "https://github.com/aaltaay/Nova/issues/744",
+      "state": "OPEN"
+    },
+    {
+      "id": "#742",
+      "title": "Premarket verifier accepts missing login evidence as a quiet week",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ibkr-ops",
+      "number": "742",
+      "url": "https://github.com/aaltaay/Nova/issues/742",
+      "state": "OPEN"
+    },
+    {
       "id": "#726",
       "title": "Decide whether the market sockets and orders need their own event loop",
       "kind": "feature",
@@ -75,7 +97,7 @@
       "title": "Live: a cancelled order's execution rows stay acked until a restart, and a bracket's exits overwrite its entry's facts",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "parked",
       "domain": "execution",
       "number": "712",
       "url": "https://github.com/aaltaay/Nova/issues/712",
@@ -515,11 +537,11 @@
       "title": "Desk polls hit the HTTP loop ~5 times a second; account / positions / bot breaker still open the execution ledger on the loop",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "554",
       "url": "https://github.com/aaltaay/Nova/issues/554",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#553",
