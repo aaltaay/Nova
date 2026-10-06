@@ -51,7 +51,12 @@ def test_a_bar_is_used_only_once_its_window_has_closed(tmp_path):
         count = con.execute("SELECT COUNT(*) FROM rows").fetchone()[0]
         cov = store.coverage_at(con, day.isoformat(), "reconstructed", ts(day, 4, 6))
     assert len(minutes) == 960 and minutes[0] == ts(day, 4, 1) and minutes[-1] == ts(day, 20, 0)
-    assert cov == [{"board": "market", "state": "rebuilt", "row_count": 2, "run_id": None}]
+    # Every rebuilt board writes its minute, an empty one too (ADR 023 amendment 2026-10-06).
+    assert cov == [
+        {"board": "gappers", "state": "rebuilt", "row_count": 2, "run_id": None},
+        {"board": "losers", "state": "rebuilt", "row_count": 0, "run_id": None},
+        {"board": "market", "state": "rebuilt", "row_count": 2, "run_id": None},
+    ]
 
     build(root, day, types, db=db)   # idempotent: the day is replaced, not appended
     with store.connect(db) as con:

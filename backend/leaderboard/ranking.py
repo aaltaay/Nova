@@ -1,14 +1,16 @@
 """The one leaderboard ranking (ADR 023) -- pure, no I/O, no clock.
 
-Three callers share it so they can never disagree about who led:
+Its callers share it so they can never disagree about who led:
 
 * playback (``leaderboard.playback``) orders a stored minute and names its leaders;
-* the S5 rolling universe (``research/leaderboard``) picks its names offline;
+* the rebuild and the S5 rolling universe (``research/leaderboard``) rank each
+  minute's whole market offline: its board, its Losers and its Gappers;
 * live auto-record (``leaderboard.auto_record``) picks what to record 07:00-10:00.
 
 A row qualifies first, then qualified rows are ordered by ``change_pct``
-(biggest gainer first; an unknown change sorts last), ties broken by volume
-then symbol so the order is total and repeatable. A value a rule needs but the
+(biggest gainer first, or biggest loser first under ``worst_first``; an
+unknown change sorts last), ties broken by volume then symbol so the order is
+total and repeatable. A value a rule needs but the
 row does not carry fails the rule -- except float, which ``float_unknown_ok``
 may admit -- so an unknown is never read as a pass. A float its own share
 counts contradict (#532, ``strategy.float_gate``) qualifies under ``max_float``
@@ -33,6 +35,7 @@ from constants_leaderboard import (
     LEADERBOARD_S5_MIN_RVOL,
     LEADERBOARD_S5_TOP_N,
 )
+from constants_scanner import GAPPER_MIN_GAP_PCT, SCANNER_MIN_PRICE
 from strategy.float_gate import float_for_gate
 
 
@@ -50,6 +53,13 @@ class RankingRules:
     rvol_basis: str | None = None
     min_change_pct: float | None = None
     top_n: int | None = None
+    # A known change strictly under this passes (a fraction, like ``min_change_pct``).
+    max_change_pct: float | None = None
+    # The live premarket Gappers floor in percent points (``GAPPER_MIN_GAP_PCT``), compared as
+    # ``ibkr/gapper_view.row_qualifies`` compares it: ``change_pct * 100 >= gap_floor_pct``.
+    gap_floor_pct: float | None = None
+    # Order the biggest loser first (a Losers list); an unknown change still sorts last.
+    worst_first: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -71,6 +81,10 @@ S5_RULES = RankingRules(
     min_change_pct=0.0,
     top_n=LEADERBOARD_S5_TOP_N,
 )
+# A rebuilt day's Losers (ADR 023 amendment 2026-10-06): a known drop, the worst first.
+LOSERS_RULES = RankingRules(max_change_pct=0.0, worst_first=True)
+# A rebuilt day's premarket Gappers: the live projection's own rule (ibkr/gapper_view.row_qualifies).
+GAPPERS_RULES = RankingRules(min_price=SCANNER_MIN_PRICE, gap_floor_pct=GAPPER_MIN_GAP_PCT)
 
 
 def _num(value: Any) -> float | None:
@@ -88,6 +102,16 @@ def refusal(row: Mapping[str, Any], rules: RankingRules) -> str | None:
         if change is None:
             return "change_unknown"
         if change <= rules.min_change_pct:
+            return "change"
+    if rules.max_change_pct is not None:
+        if change is None:
+            return "change_unknown"
+        if change >= rules.max_change_pct:
+            return "change"
+    if rules.gap_floor_pct is not None:
+        if change is None:
+            return "change_unknown"
+        if change * 100 < rules.gap_floor_pct:
             return "change"
     if rules.min_price is not None or rules.max_price is not None:
         if price is None:
@@ -125,24 +149,28 @@ def refusal(row: Mapping[str, Any], rules: RankingRules) -> str | None:
     return None
 
 
-def _order_key(row: Mapping[str, Any]) -> tuple[float, float, str]:
+def _order_key(row: Mapping[str, Any], worst_first: bool = False) -> tuple[float, float, str]:
     change = _num(row.get("change_pct"))
     volume = _num(row.get("volume"))
+    if change is None:
+        first = float("inf")   # unknown last, either way
+    else:
+        first = change if worst_first else -change
     return (
-        -(change if change is not None else float("-inf")),
+        first,
         -(volume if volume is not None else 0.0),
         str(row.get("symbol") or ""),
     )
 
 
 def rank_rows(rows: Iterable[Mapping[str, Any]], rules: RankingRules = BOARD_RULES) -> list[dict[str, Any]]:
-    """Qualified rows, best first, as copies carrying ``rank`` 1..n.
+    """Qualified rows, best first (worst first under ``worst_first``), as copies carrying ``rank`` 1..n.
 
     One row per symbol: a duplicate symbol keeps its better-ordered row.
     """
     seen: set[str] = set()
     kept: list[Mapping[str, Any]] = []
-    for row in sorted(rows, key=_order_key):
+    for row in sorted(rows, key=lambda r: _order_key(r, rules.worst_first)):
         symbol = str(row.get("symbol") or "").strip().upper()
         if not symbol or symbol in seen:
             continue

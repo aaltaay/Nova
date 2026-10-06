@@ -1,10 +1,13 @@
 """The rebuild's pure core: the as-of grid, time-of-day RVOL, news first-seen and
-the per-minute board. No I/O and no clock -- ``lb_io`` reads the flat files into a
+the per-minute boards. No I/O and no clock -- ``lb_io`` reads the flat files into a
 ``DayInputs``; this turns it into leaderboard rows.
 
 Every row is built by ``leaderboard.rows.make_row`` and every rank comes from
-``leaderboard.ranking.rank_rows(rows, BOARD_RULES)``, the function playback, the
-S5 universe and live auto-record share.
+``leaderboard.ranking.rank_rows``, the function playback, the S5 universe and
+live auto-record share: ``BOARD_RULES`` on the ``market`` board, ``LOSERS_RULES``
+on ``losers``, ``GAPPERS_RULES`` on ``gappers`` (ADR 023 amendment 2026-10-06).
+Gappers freeze at 09:30 as the live list does: the 09:30 board's members, in its
+order, repriced each later minute.
 
 The no-hindsight rule, in one place: bar ``j`` (window 04:00 + j minutes) closes
 at boundary ``k = j + 1`` and is used at every boundary ``k >= j + 1`` -- never at
@@ -19,18 +22,29 @@ from typing import Any
 
 import numpy as np
 
-from lb_config import BACKEND_DIR, REGULAR_OPEN_J, RVOL_MIN_PRIOR_SESSIONS, SESSION_MINUTES
+from lb_config import BACKEND_DIR, GAPPERS_FREEZE_K, REGULAR_OPEN_J, RVOL_MIN_PRIOR_SESSIONS, SESSION_MINUTES
 
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from constants_leaderboard import (  # noqa: E402
+    LEADERBOARD_BOARD_GAPPERS,
+    LEADERBOARD_BOARD_LOSERS,
     LEADERBOARD_BOARD_MARKET,
     LEADERBOARD_RVOL_BASIS_TOD,
     LEADERBOARD_SOURCE_RECONSTRUCTED,
+    LEADERBOARD_STATE_FROZEN,
     LEADERBOARD_STATE_REBUILT,
 )
-from leaderboard.ranking import BOARD_RULES, LEADERS_RULES, S5_RULES, leader_symbols, rank_rows  # noqa: E402
+from leaderboard.ranking import (  # noqa: E402
+    BOARD_RULES,
+    GAPPERS_RULES,
+    LEADERS_RULES,
+    LOSERS_RULES,
+    S5_RULES,
+    leader_symbols,
+    rank_rows,
+)
 from leaderboard.rows import make_row  # noqa: E402
 
 
@@ -53,6 +67,15 @@ class DayInputs:
     exchange: list[str | None]
     news_first_ts: np.ndarray       # float64 per sid: earliest article in the news window; nan = none
     news_known: bool                # False -> has_news is unknown (None), never False
+
+
+@dataclass(frozen=True)
+class Board:
+    """One rebuilt board at one minute: its name, its coverage state and the rows stored."""
+
+    name: str
+    state: str
+    rows: list[dict[str, Any]]
 
 
 def minute_ts_at(open_ts: int, k: int) -> int:
@@ -160,12 +183,40 @@ def select_rows(rows: Sequence[Mapping[str, Any]], top_n: int) -> list[dict[str,
     return [row for row in ranked if row["symbol"] in keep]
 
 
+def loser_rows(rows: Sequence[Mapping[str, Any]], top_n: int) -> list[dict[str, Any]]:
+    """The worst ``top_n`` by LOSERS_RULES on the ``losers`` board, rank 1 the biggest drop."""
+    return [
+        {**row, "board": LEADERBOARD_BOARD_LOSERS}
+        for row in rank_rows(rows, LOSERS_RULES)[: max(0, int(top_n))]
+    ]
+
+
+def _as_gapper(row: Mapping[str, Any]) -> dict[str, Any]:
+    # Before 09:30 there is no open to measure a gap from: like the live list
+    # (ibkr/gapper_view.derive_rows), a gapper's gap is its move against the prior close.
+    return {**row, "board": LEADERBOARD_BOARD_GAPPERS, "gap_pct": row.get("change_pct")}
+
+
+def gapper_rows(rows: Sequence[Mapping[str, Any]], top_n: int) -> list[dict[str, Any]]:
+    """The live premarket Gappers rule (GAPPERS_RULES) over the whole market, biggest move first."""
+    return [_as_gapper(row) for row in rank_rows(rows, GAPPERS_RULES)[: max(0, int(top_n))]]
+
+
+def frozen_gapper_rows(rows: Sequence[Mapping[str, Any]], frozen: Sequence[tuple[str, int]]) -> list[dict[str, Any]]:
+    """The Gappers frozen at 09:30, repriced: each member's row at this minute, at its 09:30 rank.
+
+    A member printed by 09:30, so its latest bar stands at every later minute of the session.
+    """
+    by_symbol = {row["symbol"]: row for row in rows}
+    return [_as_gapper({**by_symbol[symbol], "rank": rank}) for symbol, rank in frozen if symbol in by_symbol]
+
+
 def _none_if_nan(values: np.ndarray) -> list[float | None]:
     return [None if v != v else v for v in values.tolist()]
 
 
-def day_boards(inp: DayInputs, top_n: int) -> Iterator[tuple[int, list[dict[str, Any]]]]:
-    """(minute_ts, stored rows) for every boundary 04:01..20:00 ET, in order."""
+def day_boards(inp: DayInputs, top_n: int) -> Iterator[tuple[int, list[Board]]]:
+    """(minute_ts, [market, losers, gappers]) for every boundary 04:01..20:00 ET, in order."""
     n_sym = len(inp.symbols)
     cumvol = cumulative_by_symbol(inp.sid, inp.volume)
     bar, k = expand_asof(inp.sid, inp.j)
@@ -182,6 +233,7 @@ def day_boards(inp: DayInputs, top_n: int) -> Iterator[tuple[int, list[dict[str,
     prev = inp.prev_close[sid]
     news = inp.news_first_ts[sid]
     bounds = np.searchsorted(k, np.arange(1, SESSION_MINUTES + 2))
+    frozen: list[tuple[str, int]] = []
     for step in range(1, SESSION_MINUTES + 1):
         lo, hi = bounds[step - 1], bounds[step]
         minute_ts = minute_ts_at(inp.open_ts, step)
@@ -193,7 +245,19 @@ def day_boards(inp: DayInputs, top_n: int) -> Iterator[tuple[int, list[dict[str,
                 _none_if_nan(news[lo:hi]),
             )
         ]
-        yield minute_ts, select_rows(rows, top_n)
+        if step < GAPPERS_FREEZE_K:
+            gappers = Board(LEADERBOARD_BOARD_GAPPERS, LEADERBOARD_STATE_REBUILT, gapper_rows(rows, top_n))
+        elif step == GAPPERS_FREEZE_K:
+            at_freeze = gapper_rows(rows, top_n)
+            frozen = [(row["symbol"], row["rank"]) for row in at_freeze]
+            gappers = Board(LEADERBOARD_BOARD_GAPPERS, LEADERBOARD_STATE_FROZEN, at_freeze)
+        else:
+            gappers = Board(LEADERBOARD_BOARD_GAPPERS, LEADERBOARD_STATE_FROZEN, frozen_gapper_rows(rows, frozen))
+        yield minute_ts, [
+            Board(LEADERBOARD_BOARD_MARKET, LEADERBOARD_STATE_REBUILT, select_rows(rows, top_n)),
+            Board(LEADERBOARD_BOARD_LOSERS, LEADERBOARD_STATE_REBUILT, loser_rows(rows, top_n)),
+            gappers,
+        ]
 
 
 def _row(inp: DayInputs, minute_ts: int, s: int, price, prev_close, volume, rvol, gap, news_ts) -> dict[str, Any]:
@@ -223,13 +287,19 @@ def _row(inp: DayInputs, minute_ts: int, s: int, price, prev_close, volume, rvol
     )
 
 
-def coverage_row(session_date: str, minute_ts: int, row_count: int) -> dict[str, Any]:
+def coverage_row(
+    session_date: str,
+    minute_ts: int,
+    row_count: int,
+    board: str = LEADERBOARD_BOARD_MARKET,
+    state: str = LEADERBOARD_STATE_REBUILT,
+) -> dict[str, Any]:
     return {
         "session_date": session_date,
         "minute_ts": int(minute_ts),
         "source": LEADERBOARD_SOURCE_RECONSTRUCTED,
-        "board": LEADERBOARD_BOARD_MARKET,
-        "state": LEADERBOARD_STATE_REBUILT,
+        "board": board,
+        "state": state,
         "row_count": int(row_count),
         "run_id": None,
     }

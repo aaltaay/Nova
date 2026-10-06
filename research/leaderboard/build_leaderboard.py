@@ -1,11 +1,13 @@
 """Rebuild the whole-market per-minute leaderboard from the Massive minute flat files (ADR 023).
 
-Writes ``source="reconstructed"``, ``board="market"`` rows into the leaderboard store
-(``backend/leaderboard/store.py``; default F:\\Nova\\leaderboard\\leaderboard.sqlite3), one
-board per minute 04:01-20:00 ET: the top ``--top`` rows by ``rank_rows(rows, BOARD_RULES)``
-plus every row ``LEADERS_RULES`` or ``S5_RULES`` picks, so playback leaders and the S5
-universe read back exactly. A row is the board as it stood at its minute: only bars
-that closed by then. Idempotent: a day's (date, reconstructed) rows are replaced.
+Writes ``source="reconstructed"`` rows into the leaderboard store
+(``backend/leaderboard/store.py``; default F:\\Nova\\leaderboard\\leaderboard.sqlite3), three
+boards per minute 04:01-20:00 ET: ``market``, the top ``--top`` rows by
+``rank_rows(rows, BOARD_RULES)`` plus every row ``LEADERS_RULES`` or ``S5_RULES`` picks, so
+playback leaders and the S5 universe read back exactly; ``losers``, the worst ``--top`` by
+``LOSERS_RULES``; ``gappers``, the live premarket Gappers rule (``GAPPERS_RULES``), frozen at
+09:30 as the live list is. A row is the board as it stood at its minute: only bars that
+closed by then. Idempotent: a day's (date, reconstructed) rows are replaced.
 See research/leaderboard/README.md for every definition.
 
 Usage (from the repo root):
@@ -69,7 +71,11 @@ from lb_io import (  # noqa: E402
     work_db,
 )
 
-from constants_leaderboard import LEADERBOARD_SOURCE_RECONSTRUCTED  # noqa: E402  (backend on sys.path via lb_core)
+from constants_leaderboard import (  # noqa: E402  (backend on sys.path via lb_core)
+    LEADERBOARD_BOARD_MARKET,
+    LEADERBOARD_REBUILT_BOARDS,
+    LEADERBOARD_SOURCE_RECONSTRUCTED,
+)
 from leaderboard import store  # noqa: E402
 from leaderboard.ranking import S5_RULES, leader_symbols  # noqa: E402
 
@@ -156,6 +162,7 @@ def rebuild_day(
         return {"date": session_date.isoformat(), **info}
     iso = session_date.isoformat()
     stats = {"minutes": 0, "rows": 0, "s5_minutes": 0, "max_rows": 0}
+    stats.update({f"{name}_rows": 0 for name in LEADERBOARD_REBUILT_BOARDS})
     rows_buf: list[dict] = []
     cov_buf: list[dict] = []
 
@@ -166,15 +173,21 @@ def rebuild_day(
         cov_buf.clear()
 
     def run(db) -> None:
-        for minute_ts, rows in day_boards(inputs, top_n):
-            rows_buf.extend(rows)
-            cov_buf.append(coverage_row(iso, minute_ts, len(rows)))
+        buffered = 0
+        for minute_ts, boards in day_boards(inputs, top_n):
+            for board in boards:
+                rows_buf.extend(board.rows)
+                cov_buf.append(coverage_row(iso, minute_ts, len(board.rows), board.name, board.state))
+                stats["rows"] += len(board.rows)
+                stats[f"{board.name}_rows"] += len(board.rows)
+            market = next(b.rows for b in boards if b.name == LEADERBOARD_BOARD_MARKET)
             stats["minutes"] += 1
-            stats["rows"] += len(rows)
-            stats["max_rows"] = max(stats["max_rows"], len(rows))
-            stats["s5_minutes"] += bool(leader_symbols(rows, S5_RULES))
-            if len(cov_buf) >= WRITE_CHUNK_MINUTES:
+            stats["max_rows"] = max(stats["max_rows"], len(market))
+            stats["s5_minutes"] += bool(leader_symbols(market, S5_RULES))
+            buffered += 1
+            if buffered >= WRITE_CHUNK_MINUTES:
                 flush(db)
+                buffered = 0
         flush(db)
 
     if dry_run:
@@ -196,14 +209,24 @@ def _dates(args, minute: dict[date, Path]) -> list[date]:
 
 
 def complete_days(database: Path | None) -> set[str]:
-    """Days whose rebuilt board covers every minute (a day cut off mid-way is not complete)."""
+    """Days whose every rebuilt board covers every minute.
+
+    A day cut off mid-way is not complete, nor one rebuilt before a board existed
+    (its Losers and Gappers, ADR 023 amendment 2026-10-06): both are rebuilt again.
+    """
     with store.connect(database) as db:
         rows = db.execute(
-            "SELECT session_date, COUNT(*) FROM coverage WHERE source = ? AND board = 'market'"
-            " GROUP BY session_date",
+            "SELECT session_date, board, COUNT(*) FROM coverage WHERE source = ?"
+            " GROUP BY session_date, board",
             (LEADERBOARD_SOURCE_RECONSTRUCTED,),
         ).fetchall()
-    return {day for day, minutes in rows if minutes >= EXPECTED_MINUTES}
+    minutes: dict[str, dict[str, int]] = {}
+    for day, board, count in rows:
+        minutes.setdefault(day, {})[board] = count
+    return {
+        day for day, boards in minutes.items()
+        if all(boards.get(name, 0) >= EXPECTED_MINUTES for name in LEADERBOARD_REBUILT_BOARDS)
+    }
 
 
 def in_desk_session(now: datetime | None = None) -> bool:
@@ -222,7 +245,8 @@ def main() -> int:
     ap.add_argument("--date", help="one session, YYYY-MM-DD")
     ap.add_argument("--start", help="first session of a range, YYYY-MM-DD")
     ap.add_argument("--end", help="last session of a range, YYYY-MM-DD")
-    ap.add_argument("--top", type=int, default=TOP_N_DEFAULT, help="rows kept per minute besides preset picks")
+    ap.add_argument("--top", type=int, default=TOP_N_DEFAULT,
+                    help="rows kept per board per minute (the market board also keeps its preset picks)")
     ap.add_argument("--db", type=Path, default=None, help=f"leaderboard store (default {store.path()})")
     ap.add_argument("--data-root", type=Path, default=DATA_ROOT, help="Massive flat-file root")
     ap.add_argument("--dry-run", action="store_true", help="build and report, write nothing")
