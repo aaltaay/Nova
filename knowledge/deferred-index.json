@@ -9,11 +9,11 @@
       "title": "fix(delivery): concurrent successful merge is reported as HTTP405 failure",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "delivery",
       "number": "762",
       "url": "https://github.com/aaltaay/Nova/issues/762",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#758",
