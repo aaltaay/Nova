@@ -85,6 +85,11 @@ sleeves. A bot trading Live remains an unresolved, held decision outside it.
   required Gateway launch, without republishing an older generation. A competing
   transition or ABA invalidates the pending acknowledgment. Refresh authoritative
   status afterward, including when a concurrent transition invalidates the reply.
+  A stale reply's `left` entries are historical cancellation facts, not current
+  venue authority. Show those notices on the unchanged real route even when the
+  venue fence rejects its acknowledgment; never restore stale venue state or
+  launch its Gateway action. The sample-route fence still rejects real replies
+  after a sample visit.
 - **Bot state follows that source.** Clear old state and request an immediate
   refresh on a confirmed transition; queue it if an old read is busy. Stamp
   snapshots with venue and generation, validate `session.level_venue`, and reject
