@@ -78,8 +78,9 @@ measurement or a guarantee of frame rate on another desk.
 
 ### Verification correction
 
-Independent review found that `deskLayout.test.ts` still requires the obsolete
-universal Catalyst selector. Align its existing visibility contract with all
-three named children and the hover/visible-focus conditions, then run it with
-the 25 neighboring unit checks. The production target semantics stay as defined
-above.
+Independent review found that `deskLayout.test.ts` still required the obsolete
+universal Catalyst selector. Its existing visibility contract now checks all
+three named children for hover, row visible focus and action visible focus,
+retaining `visibility: hidden` without removing their layout boxes. The corrected
+file and the 25 neighboring unit checks pass (37 tests total), and changed-file
+lint passes. The production target semantics stay as defined above.

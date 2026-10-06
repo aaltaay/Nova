@@ -123,8 +123,20 @@ describe('desk board geometry', () => {
     expect(boardCss).toMatch(/\.desk-board__acts:has\(:focus-visible\)/);
   });
 
-  it('hides the Catalyst content the actions cover while they show', () => {
-    expect(ruleBody(boardCss, '.desk-board__row:hover .scanner-col--catalyst > *')).toMatch(/visibility:\s*hidden/);
+  it.each([
+    '.desk-board__row:hover',
+    '.desk-board__row:focus-visible',
+    '.desk-board__row:has(.desk-board__acts :focus-visible)',
+  ])('hides all named Catalyst content while actions show on %s', trigger => {
+    const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const targets = new RegExp(`${escaped}\\s+\\.scanner-col--catalyst\\s*>\\s*:is\\(([^)]+)\\)`).exec(boardCss);
+    expect(targets, 'the Catalyst targets must be named instead of universal').not.toBeNull();
+    const children = targets![1].split(',').map(selector => selector.trim());
+    expect(children).toEqual(expect.arrayContaining(['.desk-board__chip', '.desk-board__chip-time', '.desk-board__none']));
+    expect(children).not.toContain('*');
+    const body = ruleBody(boardCss, `${trigger} .scanner-col--catalyst`);
+    expect(body).toMatch(/visibility:\s*hidden/);
+    expect(body).not.toMatch(/display:\s*none/);
   });
 
   it('lets the gap bar give way before the figure is clipped', () => {
