@@ -173,7 +173,7 @@ def read_account_day_pnl() -> tuple[float | None, dict[str, Any]]:
     """``(day_pnl, meter)``: the figure the breakers compare now, and what it is in plain words.
 
     The meter always says ``compares`` (the words), ``source`` and ``venue``; ``day_pnl`` is None
-    when there is nothing to compare (a Sim replay, an unreadable account summary -- ``error``).
+    when there is nothing to compare (a Sim replay, or neither broker figure known -- ``error``).
     """
     from bot.breaker_limits import REPLAY_NOTE
 
@@ -196,7 +196,8 @@ def read_account_day_pnl() -> tuple[float | None, dict[str, Any]]:
         if venue in ("paper", "sim"):
             return None, {**meter, "source": "error", "day_pnl": None, "error": summary_error,
                           "compares": f"Nothing: the account summary cannot be read ({summary_error})."}
-    meter.update(RealizedPnL=summary.get("RealizedPnL"), UnrealizedPnL=summary.get("UnrealizedPnL"))
+    meter.update(RealizedPnL=_finite(summary.get("RealizedPnL")),
+                 UnrealizedPnL=_finite(summary.get("UnrealizedPnL")))
     if venue in ("paper", "sim") or summary.get("practice"):
         name = str(venue or "the practice account").capitalize()
         practice = practice_day_pnl(summary)

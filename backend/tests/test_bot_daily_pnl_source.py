@@ -1,6 +1,7 @@
 """The breaker chooses today's broker P&L and states any fallback (#664)."""
 from __future__ import annotations
 
+import json
 import sys
 from types import SimpleNamespace
 
@@ -57,6 +58,8 @@ def test_neither_an_invalid_daily_nor_invalid_summary_is_a_usable_figure(live, m
                         lambda: {'connected': True, 'RealizedPnL': invalid, 'UnrealizedPnL': invalid})
     pnl, meter = day_pnl.read_account_day_pnl()
     assert pnl is None and meter['error']
+    # Starlette's JSON response rejects NaN/Infinity even in diagnostic fields.
+    json.dumps({'day_pnl': pnl, 'meter': meter}, allow_nan=False)
 
 
 def test_known_daily_pnl_survives_a_failed_summary_read(live, monkeypatch):
