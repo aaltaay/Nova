@@ -162,7 +162,8 @@
       "issues": [
         293,
         307,
-        326
+        326,
+        748
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
@@ -189,6 +190,21 @@
             "frontend/scripts/vite-nova-api-key.test.ts",
             "frontend/src/api/novaFetch.test.ts",
             "frontend/src/hotkeys/htkFormat.test.ts"
+          ]
+        },
+        {
+          "title": "fix(execution): retire active ledger leases before closing",
+          "issues": [
+            748
+          ],
+          "note": "PR #745 CI exposed a current-master SQLite close/use race. Atomically acquire, return and retire kept connections; active owners finish writes and rollback before physical close. Drain execution persistence before test paths change or are restored. Red-first actual-queue temporary-ledger regressions preserve reuse, nested fresh connections, path replacement and off-loop callbacks; no operator database or trading-gate changes.",
+          "gated": false,
+          "touches": [
+            "knowledge/backlog-packages.json",
+            "architecture/execution-ledger-lifecycle.md",
+            "backend/execution/ledger_conn.py",
+            "backend/tests/conftest.py",
+            "backend/tests/test_execution_ledger_conn.py"
           ]
         }
       ]
