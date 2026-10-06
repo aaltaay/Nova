@@ -148,3 +148,13 @@ private subscription, disk write or correlation scan occurs in an IB callback.
 The exact line schema is in AGENTS.md §3. Files follow perf retention; a
 reader refuses unknown versions. The evidence does not change age gates, minute
 bucketing, warm-up protection, or #600's accepted sampled-L1 source.
+
+Native receipt verification goes through the pinned SDK's wire decoder, not
+only direct wrapper calls. Its `Decoder.wrap` resolves `tickString` once when
+`IB()` is constructed, so installing the receipt hook also rebuilds only the
+decoder's string-tick message handler (46) with the SDK's unchanged field
+converters. Last-price (1) and AllLast (99) handlers resolve wrapper callbacks
+at dispatch and need no rebinding. Repeated installation keeps one hook; READY
+generation changes invalidate old receipt facts even when the wrapper survives.
+Regression messages cover both timestamp types, repeated values, a new session
+and either AllLast hook installation order.
