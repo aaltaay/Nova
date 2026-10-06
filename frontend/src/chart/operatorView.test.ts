@@ -85,6 +85,22 @@ describe('operatorView (a view the operator moved is theirs)', () => {
     expect(operatorOwnsView(chart)).toBe(false);
   });
 
+  it("does not take back a view a release just handed over when the release's range comes a frame late", () => {
+    const { chart, element, clock, rangeMoves } = fakeChart();
+    watchOperatorView(chart, clock.now);
+    element.dispatchEvent(new Event('pointerdown')); // the right-click that opened Reset chart
+    window.dispatchEvent(new Event('pointerup'));
+    element.dispatchEvent(new WheelEvent('wheel'));
+    releaseView(chart);
+    clock.advance(16);
+    rangeMoves(); // the reset's own range, reported on the next frame
+    expect(operatorOwnsView(chart)).toBe(false);
+    element.dispatchEvent(new Event('pointerdown'));
+    releaseView(chart); // a first paint under a held press
+    rangeMoves();
+    expect(operatorOwnsView(chart)).toBe(false);
+  });
+
   it('stops watching when the chart goes', () => {
     const { chart, element, handlers, clock, rangeMoves } = fakeChart();
     const stop = watchOperatorView(chart, clock.now);

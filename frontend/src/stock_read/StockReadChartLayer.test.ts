@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
-import { buildSeriesTimeIndex } from '../chart';
-import { watchOperatorView } from '../chart/operatorView';
+import { buildSeriesTimeIndex, watchOperatorView } from '../chart';
 import { etChartSeconds } from '../tickerChartData';
 import type { PriceLineSpec } from './chartShapes';
 import { lineWords, runMarks } from './paneScene';

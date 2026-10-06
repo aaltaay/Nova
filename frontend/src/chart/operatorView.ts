@@ -19,31 +19,33 @@ export const OPERATOR_VIEW_SETTLE_MS = 300;
 
 interface ViewWatch {
   owned: boolean;
+  /** A press that began on the chart is held. */
+  pressed: boolean;
+  /** Range changes until then are the last wheel's or release's. */
+  settleUntil: number;
 }
 
 const watches = new WeakMap<IChartApi, ViewWatch>();
 
 /** Watch one chart for the operator's own zoom and pan; returns the cleanup. */
 export function watchOperatorView(chart: IChartApi, now: () => number = () => performance.now()): () => void {
-  const watch: ViewWatch = { owned: false };
+  const watch: ViewWatch = { owned: false, pressed: false, settleUntil: -Infinity };
   watches.set(chart, watch);
   const element = chart.chartElement();
   const view = element.ownerDocument.defaultView;
-  let pressed = false;
-  let settleUntil = -Infinity;
   const settle = () => {
-    settleUntil = now() + OPERATOR_VIEW_SETTLE_MS;
+    watch.settleUntil = now() + OPERATOR_VIEW_SETTLE_MS;
   };
   const onDown = () => {
-    pressed = true;
+    watch.pressed = true;
   };
   const onUp = () => {
-    if (!pressed) return;
-    pressed = false;
+    if (!watch.pressed) return;
+    watch.pressed = false;
     settle();
   };
   const onRange = () => {
-    if (pressed || now() <= settleUntil) watch.owned = true;
+    if (watch.pressed || now() <= watch.settleUntil) watch.owned = true;
   };
   const capture = { capture: true, passive: true } as const;
   element.addEventListener('wheel', settle, capture);
@@ -70,8 +72,15 @@ export function operatorOwnsView(chart: IChartApi | null): boolean {
   return !!chart && watches.get(chart)?.owned === true;
 }
 
-/** The view is Nova's again: a first paint or Reset chart put it back. */
+/**
+ * The view is Nova's again: a first paint or Reset chart put it back. The gesture before it is over too:
+ * the range change the release itself makes is reported a frame later, often inside the settle window of
+ * the click that asked for it, and must not take the view straight back.
+ */
 export function releaseView(chart: IChartApi | null): void {
   const watch = chart ? watches.get(chart) : undefined;
-  if (watch) watch.owned = false;
+  if (!watch) return;
+  watch.owned = false;
+  watch.pressed = false;
+  watch.settleUntil = -Infinity;
 }
