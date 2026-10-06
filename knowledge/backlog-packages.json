@@ -608,7 +608,7 @@
       "slug": "desk-and-leftovers",
       "title": "10 - Live desk on master, plus residual product asks",
       "readiness": "ready-now",
-      "gate": "#14 and #331 need the operator at the physical trading PC, and #90/#94 need one cost call and one policy call - those three batches are gated. The TIF half of #91 and #147 are startable now.",
+      "gate": "#14/#331 still need evidence from the physical trading PC, so their execution batch is held. #90/#94 decisions landed in their comments; live issue state controls whether those batches have work left. #657/#658's remaining venue defaults and bot snapshots are the accepted current implementation batch; unrelated unresolved operator calls stay held.",
       "objective": "The physical trading PC still runs a dirty branch, so three merged IBKR reconnect/health fixes are not in effect, and the unattended premarket start has never been proven with a real 03:55 ET log line. Plus four residual product asks with no shared root cause that survive triage.",
       "issues": [
         14,
@@ -636,7 +636,7 @@
             14
           ],
           "note": "OPERATOR-ONLY execution; the recipe is prepared in docs/live-desk-sync.md. Operator chose 2026-09-20 to sync and cold-restart Gateway, upload diagnostics first, and enable the IBC command server.",
-          "gated": false,
+          "gated": true,
           "touches": [
             "scripts/Install-NovaDailyTask.ps1",
             "scripts/",
@@ -701,7 +701,11 @@
             "frontend/src/advise/",
             "frontend/src/constantGroups/trade_defaults.ts",
             "frontend/src/constantGroups/global_bar.ts",
-            "architecture/decisions/042-one-owner-for-novas-buys.md"
+            "architecture/decisions/042-one-owner-for-novas-buys.md",
+            "frontend/e2e/venue-defaults-switch.spec.ts",
+            "frontend/e2e/fixtures/venueDefaultsSwitch.tsx",
+            "frontend/e2e/fixtures/venue-defaults-switch.html",
+            "tools/maintainer_lib/baselines.json"
           ]
         }
       ]
