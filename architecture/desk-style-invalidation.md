@@ -75,3 +75,11 @@ measurement or a guarantee of frame rate on another desk.
   style recalculation falls 83.5%; tape/rail geometry, 19 mounted rows and Focus
   list selections are identical, with no page errors. Physical-PC performance
   remains outside this local verification.
+
+### Verification correction
+
+Independent review found that `deskLayout.test.ts` still requires the obsolete
+universal Catalyst selector. Align its existing visibility contract with all
+three named children and the hover/visible-focus conditions, then run it with
+the 25 neighboring unit checks. The production target semantics stay as defined
+above.

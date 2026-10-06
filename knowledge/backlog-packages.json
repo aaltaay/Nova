@@ -830,6 +830,7 @@
             "knowledge/backlog-packages.json",
             "architecture/desk-style-invalidation.md",
             "frontend/src/desk/deskBoard.css",
+            "frontend/src/desk/deskLayout.test.ts",
             "frontend/src/components/ui/alert-dialog.tsx",
             "frontend/src/components/ui/alertDialog.css",
             "frontend/e2e/desk-style-invalidation.spec.ts",
