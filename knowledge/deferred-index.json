@@ -9,11 +9,11 @@
       "title": "Scanner bootstrap can replace newer halt evidence; browser reconnection fixture races",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "frontend",
       "number": "764",
       "url": "https://github.com/aaltaay/Nova/issues/764",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#762",
