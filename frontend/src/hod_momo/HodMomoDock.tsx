@@ -27,23 +27,25 @@ import {
   HOD_MOMO_STRIP_GRIP_LABEL,
   HOD_MOMO_STRIP_GRIP_TITLE,
   HOD_MOMO_STRIP_ROW_PX,
-  hodMomoStripGroupWindowSec,
   hodMomoStripSinceLabel,
 } from './hodMomoStripConstants';
-import { groupIsNew, groupStripAlerts } from './hodMomoStripGroups';
+import { groupIsNew, type StripAlertGroup } from './hodMomoStripGroups';
 import { stripRowsToPx } from './hodMomoStripPersist';
-import { fmtStripSince, stripAlertsForMode } from './hodMomoStripRows';
+import { fmtStripSince } from './hodMomoStripRows';
 import { isAlertDockMode } from './scannerDockModes';
 import { defaultHodMomentumVisibleStrategies } from './scannerPartition';
 import { useHodMomoIntegrity } from './useHodMomoIntegrity';
 import { useHodMomoStripResize } from './useHodMomoStripResize';
-import { useStripNewAlerts } from './useStripNewAlerts';
+import { useHodStripView } from './useHodStripView';
 import { hodReplayEmptyText, hodReplayFeed } from './hodMomoReplayCopy';
 import type { AlertObject } from './types';
 
 const STRIP_OVERSCAN_ROWS = 6;
 const NO_ALERTS: AlertObject[] = [];
+const NO_GROUPS: StripAlertGroup[] = [];
 const NO_NEW_IDS: ReadonlySet<string> = new Set();
+const NO_COLORS: Readonly<Record<number, string>> = {};
+const DEFAULT_VISIBLE: ReadonlySet<number> = defaultHodMomentumVisibleStrategies();
 
 type Props = {
   /** Sample shell / Desk: open the symbol their own way. `from` is the strip's
@@ -54,6 +56,7 @@ type Props = {
 };
 
 export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
+  const hod = useHodMomo();
   const {
     stream,
     config,
@@ -70,16 +73,15 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
     setShowHodSettings,
     toggleHodSettings,
     replay = null,
-  } = useHodMomo();
+    visibleStrategies = DEFAULT_VISIBLE,
+    toggleStrategy,
+  } = hod;
   const { selectedSymbol, setSelectedSymbol, selectRowSymbol, openStockView } = useWorkspace();
   const sample = useSampleDataOptional();
   const rootRef = useRef<HTMLElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
-  const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
-    defaultHodMomentumVisibleStrategies,
-  );
   const integrity = useHodMomoIntegrity();
   const resize = useHodMomoStripResize({ rows, setRows, rootRef });
 
@@ -97,15 +99,12 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
     select(symbol);
   }, [select, mode]);
 
-  const alerts = useMemo(
-    () => stripAlertsForMode(stream.alerts, mode, mode === 'hod_momo' ? visibleStrategies : null),
-    [stream.alerts, mode, visibleStrategies],
-  );
-  const groupWindowSec = hodMomoStripGroupWindowSec(config.state.master?.consolidation_sec);
-  const groups = useMemo(() => groupStripAlerts(alerts, groupWindowSec), [alerts, groupWindowSec]);
-  // Past alerts at the Sim playhead are never NEW: they arrive as the playhead reaches them.
-  const liveNewIds = useStripNewAlerts(replay ? NO_ALERTS : stream.alerts);
-  const newIds = replay ? NO_NEW_IDS : liveNewIds;
+  // The same rows the Trader's Focus rail half draws (useHodStripView).
+  const view = useHodStripView(hod, mode);
+  const alerts = view?.alerts ?? NO_ALERTS;
+  const groups = view?.groups ?? NO_GROUPS;
+  const newIds = view?.newIds ?? NO_NEW_IDS;
+  const configColors = view?.strategyColors ?? NO_COLORS;
   const since = useMemo(() => fmtStripSince(alerts), [alerts]);
 
   const strategyCounts = useMemo(() => {
@@ -113,11 +112,6 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
     for (const a of stream.alerts) c[a.strategy_id] = (c[a.strategy_id] ?? 0) + 1;
     return c;
   }, [stream.alerts]);
-  const configColors = useMemo(() => {
-    const out: Record<number, string> = {};
-    for (const [sid, cfg] of Object.entries(config.state.strategies ?? {})) out[Number(sid)] = cfg.color;
-    return out;
-  }, [config.state.strategies]);
 
   const clearAlerts = useCallback(() => {
     if (replay) return;
@@ -149,14 +143,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
     if (collapsed) setCollapsed(false);
   };
 
-  const toggleStrategy = (id: number) => {
-    setVisibleStrategies((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const onToggleStrategy = (id: number) => toggleStrategy?.(id);
 
   const onScroll = (e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop);
   const bodyPx = stripRowsToPx(rows);
@@ -192,7 +179,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
             strategyCounts={strategyCounts}
             configColors={configColors}
             debugOpen={debugOpen}
-            onToggleStrategy={toggleStrategy}
+            onToggleStrategy={onToggleStrategy}
             onClear={clearAlerts}
             clearDisabled={replay != null}
             onConfigure={toggleHodSettings}

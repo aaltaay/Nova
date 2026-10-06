@@ -9,7 +9,7 @@ import { consumeFocusListRequest, requestFocusList } from '../workspace/focusLis
 import { FocusRail } from './FocusRail';
 import { focusCardPosition } from './FocusRailHoverCard';
 import {
-  FOCUS_RAIL_DEFAULT_STATE, followedFocusList, focusRowsFor, hodFocusRows, readFocusRailState, routeFocusList, stepCursor,
+  FOCUS_RAIL_DEFAULT_STATE, followedFocusList, focusRowsFor, readFocusRailState, routeFocusList, stepCursor,
   watchFocusRows, type FocusRow,
 } from './focusRailState';
 import { focusNewsRank, nextFocusSort, parseFocusSort, sortFocusRows } from './focusRailSort';
@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   scanner: vi.fn(),
   replayDesk: false,
   hod: null as { alerts: AlertObject[]; connected: boolean; feedError: string | null; totalToday: number } | null,
+  /** The strip menu's strategy picks, shared through the HOD context; null = the default set. */
+  visible: null as ReadonlySet<number> | null,
   panel: null as unknown,
 }));
 
@@ -41,9 +43,25 @@ vi.mock('../scanner/ScannerDataContext', async importOriginal => {
   return { ...actual, useLiveScannerFeedOptional: () => mocks.feed };
 });
 vi.mock('../settings/SettingsContext', () => ({ useSettingsOptional: () => null }));
-vi.mock('../hod_momo/HodMomoContext', () => ({
-  useHodMomoOptional: () => (mocks.hod ? { stream: mocks.hod } : null),
-}));
+// The HOD context as the provider builds it: the stream, its tab counts and the strategy picks.
+vi.mock('../hod_momo/HodMomoContext', async () => {
+  const { defaultHodMomentumVisibleStrategies, partitionScannerAlerts } = await import('../hod_momo/scannerPartition');
+  const { collapseAlertsBySymbol } = await import('../hod_momo/collapseAlertsBySymbol');
+  return {
+    useHodMomoOptional: () => {
+      if (!mocks.hod) return null;
+      const { hodMomentum, runningUp } = partitionScannerAlerts(mocks.hod.alerts);
+      const visible = mocks.visible ?? defaultHodMomentumVisibleStrategies();
+      return {
+        stream: mocks.hod,
+        config: { state: {} },
+        hodCount: collapseAlertsBySymbol(hodMomentum.filter(a => visible.has(a.strategy_id))).length,
+        runningUpCount: collapseAlertsBySymbol(runningUp).length,
+        visibleStrategies: mocks.visible ?? undefined,
+      };
+    },
+  };
+});
 vi.mock('../workspace/WorkspaceContext', () => ({
   useWorkspace: () => ({
     activeTraderSymbol: mocks.active, traderLiveTabs: mocks.live, openStockView: mocks.open, showScannerView: mocks.scanner,
@@ -75,6 +93,10 @@ function row(symbol: string, gap: number, price = 1, headlineAt: string | null =
 const order = (): string[] => Array.from(screen.getByTestId('focus-rail-rows').querySelectorAll('[role="option"]'))
   .map(r => (r.getAttribute('data-testid') ?? '').replace('focus-rail-row-', ''));
 
+/** A HOD half's strip rows, top to bottom, by symbol. */
+const alertOrder = (tid = 'focus-rail'): string[] => Array.from(screen.getByTestId(`${tid}-rows`).querySelectorAll('[role="row"]'))
+  .map(r => r.getAttribute('data-symbol') ?? '');
+
 /** A HOD alert raised at `raised` (epoch s); HOD percents are percent points. */
 function alert(ticker: string, strategyId: number, raised: number, extra: Partial<AlertObject> = {}): AlertObject {
   return {
@@ -88,6 +110,7 @@ function alert(ticker: string, strategyId: number, raised: number, extra: Partia
 beforeEach(() => {
   localStorage.clear();
   mocks.hod = { alerts: [], connected: true, feedError: null, totalToday: 0 };
+  mocks.visible = null;
   mocks.feed = makeLiveScannerFeedStub({ gappers: [row('GRML', 131.2, 8.9, ago(30)), row('VXTL', 38.2, 3.42), row('CBRX', -5.4, 4.56)] });
   mocks.allow = ['GRML', 'VXTL'];
   mocks.recording = ['GRML'];
@@ -175,7 +198,7 @@ describe('FocusRail', () => {
     expect(screen.getByTestId('focus-rail-absent').textContent).toBe('No scanner feed in this window');
   });
 
-  it('mirrors HOD Momo from the HOD stream: one row per ticker, newest raised first, Former Momo off', () => {
+  it("mirrors HOD Momo as the Scanner's strip does, compact: the same batches, newest first, Former Momo off", () => {
     mocks.hod!.alerts = [
       alert('GRML', 2, 100, { price: 8.1, change_pct: 120.5 }),
       alert('ZZZX', 3, 200, { price: 2.5, change_pct: 45 }),
@@ -185,24 +208,30 @@ describe('FocusRail', () => {
     ];
     render(<FocusRail />);
     fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'hod_momo' } });
+    // The strip tab's own count; a row per strip row (GRML fired twice, 200 s apart).
     expect(screen.getByTestId('focus-rail-list-label').textContent).toBe('· HOD Momo 2');
-    const rows = screen.getByTestId('focus-rail-rows').querySelectorAll('[role="option"]');
-    expect(Array.from(rows).map(r => r.getAttribute('data-testid'))).toEqual(['focus-rail-row-GRML', 'focus-rail-row-ZZZX']);
-    const grml = screen.getByTestId('focus-rail-row-GRML');
-    expect(grml.textContent).toContain('8.90');
-    expect(grml.textContent).toContain('+131%');
-    // GRML is on Gappers with news, so the scanner feed supplies its circle.
-    expect(screen.getByTestId('focus-rail-news-GRML').querySelector('.news-flame')).toBeTruthy();
-    // ZZZX is on no scanner list: its news is unknown, never "no news".
-    const zzzx = screen.getByTestId('focus-rail-row-ZZZX');
-    expect(zzzx.textContent).toContain('+45.0%');
-    expect(screen.getByTestId('focus-rail-news-ZZZX').childElementCount).toBe(0);
-    expect(screen.queryByTestId('focus-rail-row-OLDM')).toBeNull();
-    fireEvent.click(zzzx);
+    expect(alertOrder()).toEqual(['GRML', 'ZZZX', 'GRML']);
+    const [grml] = screen.getAllByTestId('focus-rail-alert-GRML');
+    // The strip's cells, compact: time, ticker, the alert's price, its strategy chip.
+    expect(grml.querySelector('.hod-strip__time')?.textContent).toMatch(/^\d\d:\d\d:\d\d$/);
+    expect(grml.querySelector('.hod-strip__price')?.textContent).toBe('8.90');
+    expect(grml.querySelector('.hod-strip__sid')?.textContent).toBe('S5');
+    expect(grml.className).toContain('hod-strip__row--compact');
+    expect(screen.queryByTestId('focus-rail-alert-OLDM')).toBeNull();
+    fireEvent.click(screen.getByTestId('focus-rail-alert-ZZZX'));
     expect(mocks.open).toHaveBeenCalledWith('ZZZX');
     fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'running_up' } });
     expect(screen.getByTestId('focus-rail-list-label').textContent).toBe('· Running Up 1');
-    expect(screen.getByTestId('focus-rail-row-RUNR').textContent).toContain('+22.0%');
+    expect(screen.getByTestId('focus-rail-alert-RUNR').querySelector('.hod-strip__sid')?.textContent).toBe('S12');
+  });
+
+  it("follows the strip menu's strategy picks: one set for both views", () => {
+    mocks.hod!.alerts = [alert('GRML', 2, 100), alert('ZZZX', 5, 200)];
+    const view = render(<FocusRail />);
+    expect(alertOrder('focus-rail-lower')).toEqual(['ZZZX', 'GRML']);
+    mocks.visible = new Set([2]);
+    view.rerender(<FocusRail />);
+    expect(alertOrder('focus-rail-lower')).toEqual(['GRML']);
   });
 
   it('the HOD lists name their own stream state and do not need the scanner feed', () => {
@@ -219,8 +248,7 @@ describe('FocusRail', () => {
     mocks.feed = null;
     mocks.hod = { alerts: [alert('GRML', 2, 100, { price: 8.9 })], connected: true, feedError: null, totalToday: 1 };
     view.rerender(<FocusRail />);
-    expect(screen.getByTestId('focus-rail-row-GRML').textContent).toContain('8.90');
-    expect(screen.getByTestId('focus-rail-row-GRML').textContent).not.toContain('no news');
+    expect(screen.getByTestId('focus-rail-alert-GRML').querySelector('.hod-strip__price')?.textContent).toBe('8.90');
   });
 
   it('persists collapsed state and the mirrored list under the versioned key', async () => {
@@ -283,18 +311,14 @@ describe('FocusRail', () => {
     expect(screen.getByTestId('focus-rail').getAttribute('data-split')).toBe('1');
     expect(screen.getByTestId('focus-rail-list-label').textContent).toBe('· Gappers 3');
     expect(screen.getByTestId('focus-rail-lower-list-label').textContent).toBe('HOD Momo 2');
-    const lowerOrder = () => Array.from(screen.getByTestId('focus-rail-lower-rows').querySelectorAll('[role="option"]'))
-      .map(r => (r.getAttribute('data-testid') ?? '').replace('focus-rail-lower-row-', ''));
+    const lowerOrder = () => alertOrder('focus-rail-lower');
     // Newest alert first; a symbol on both lists shows in both halves.
     expect(lowerOrder()).toEqual(['GRML', 'ZZZX']);
     expect(screen.getByTestId('focus-rail-row-GRML')).toBeTruthy();
-    // An alert list does not sort (operator decision 2026-09-24): its headers
-    // are labels that say so, and the newest cross stays on top.
-    const symHead = screen.getByTestId('focus-rail-lower-sort-symbol');
-    expect(symHead.tagName).toBe('SPAN');
-    expect(symHead.getAttribute('title')).toMatch(/^Newest high-of-day cross first/);
-    fireEvent.click(symHead);
-    expect(lowerOrder()).toEqual(['GRML', 'ZZZX']);
+    // An alert list does not sort (operator decision 2026-09-24): its column
+    // labels say so, and the newest cross stays on top.
+    expect(screen.getByTestId('focus-rail-lower-cols').getAttribute('title')).toMatch(/^Newest high-of-day cross first/);
+    expect(screen.queryByTestId('focus-rail-lower-sort-symbol')).toBeNull();
     expect(readFocusRailState().lower.sort).toBeNull();
     // The upper half still sorts on its own.
     fireEvent.click(screen.getByTestId('focus-rail-sort-symbol'));
@@ -328,35 +352,14 @@ describe('FocusRail', () => {
       v: 1, collapsed: false, list: 'gappers', lower: { list: 'hod_momo', sort: { key: 'symbol', dir: 'desc' }, folded: false },
     }));
     render(<FocusRail />);
-    const lowerOrder = Array.from(screen.getByTestId('focus-rail-lower-rows').querySelectorAll('[role="option"]'))
-      .map(r => (r.getAttribute('data-testid') ?? '').replace('focus-rail-lower-row-', ''));
-    expect(lowerOrder).toEqual(['GRML', 'ZZZX']);
-    expect(screen.getByTestId('focus-rail-lower-sort-symbol').getAttribute('aria-sort')).toBeNull();
+    expect(alertOrder('focus-rail-lower')).toEqual(['GRML', 'ZZZX']);
   });
 
-  it('a HOD row shows a live board price, or the alert price saying it is the alert\'s', () => {
-    mocks.hod!.alerts = [
-      alert('PFSA', 3, 100, { price: 4.38 }),
-      alert('NEWX', 3, 200, { price: 2.2, change_pct: 12 }),
-    ];
+  it("a HOD row shows the strip's price -- the alert's print -- whatever a board says now", () => {
+    mocks.hod!.alerts = [alert('PFSA', 3, 100, { price: 4.38 })];
     mocks.feed = makeLiveScannerFeedStub({ gainers: [row('PFSA', 70.2, 3.48)] });
-    const view = render(<FocusRail />);
-    const pfsa = screen.getByTestId('focus-rail-lower-px-PFSA');
-    expect(pfsa.textContent).toBe('3.48');
-    expect(pfsa.getAttribute('title')).toBeNull();
-    expect(screen.getByTestId('focus-rail-lower-row-PFSA').textContent).toContain('+70.2%');
-    const newx = screen.getByTestId('focus-rail-lower-px-NEWX');
-    expect(newx.textContent).toBe('2.20');
-    expect(newx.className).toContain('focus-rail__px--alert');
-    expect(newx.getAttribute('title')).toMatch(/^Price at the alert \(\d\d:\d\d:\d\d ET\)/);
-    // A frozen board takes no ticks: its price is not a live last.
-    mocks.feed = makeLiveScannerFeedStub({
-      gappers: [row('PFSA', 70.2, 3.9)],
-      tableMeta: { gappers: { state: 'frozen', session_key: '', revision: 1, roster_ts: 0, quote_ts: 0, frozen_at: 1, source: 'ibkr' } },
-    });
-    view.rerender(<FocusRail />);
-    expect(screen.getByTestId('focus-rail-lower-px-PFSA').textContent).toBe('4.38');
-    expect(screen.getByTestId('focus-rail-lower-px-PFSA').className).toContain('focus-rail__px--alert');
+    render(<FocusRail />);
+    expect(screen.getByTestId('focus-rail-lower-alert-PFSA').querySelector('.hod-strip__price')?.textContent).toBe('4.38');
   });
 
   it('declares its lists for live prices only while their rows are on screen', async () => {
@@ -505,22 +508,14 @@ describe('focusRowsFor / stepCursor', () => {
     expect(focusRowsFor('gappers', null)).toBeNull();
   });
 
-  it("shows the Scanner's %, never the opening gap, on After Hours and on a HOD row it prices (2026-10-05)", () => {
+  it("shows the Scanner's %, never the opening gap, on After Hours (2026-10-05)", () => {
     // OLOX opened at 0.85 on a 0.8415 prior close (+1.0% gap) and traded 1.20 after hours (+42.6%).
     const olox: ScannerRow = { ...row('OLOX', 1, 1.2), change_pct: 0.426, gap_percent: 0.0101 };
     const feed = makeLiveScannerFeedStub({ afterhours: [olox] });
     expect(focusRowsFor('afterhours', feed)?.[0].changePct).toBeCloseTo(42.6, 6);
-    expect(hodFocusRows('hod_momo', [alert('OLOX', 2, 2, { price: 1.1, change_pct: 30 })], feed)[0])
-      .toMatchObject({ price: 1.2, changePct: expect.closeTo(42.6, 6) });
     // A row priced at IBKR's prior close (no trade yet) has no move, as on the Scanner.
     const fallback: ScannerRow = { ...row('NOTR', 0, 2), quote_quality: 'close_fallback' };
     expect(focusRowsFor('gainers', makeLiveScannerFeedStub({ gainers: [fallback] }))?.[0].changePct).toBeNull();
-  });
-
-  it('HOD rows say "no news" only for a symbol the scanner feed knows', () => {
-    const feed = makeLiveScannerFeedStub({ gappers: [row('CBRX', -5.4)] });
-    const rows = hodFocusRows('hod_momo', [alert('CBRX', 2, 2), alert('NEWX', 2, 1)], feed);
-    expect(rows.map(r => [r.symbol, r.headlineAt, r.newsKnown])).toEqual([['CBRX', null, true], ['NEWX', null, false]]);
   });
 
   it('watch list rows keep the list order, take facts from the board that holds them, and invent none', () => {

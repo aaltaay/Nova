@@ -6,11 +6,8 @@
  * never an empty table.
  */
 import {
-  FOCUS_RAIL_DEFAULT_LIST, FOCUS_RAIL_DEFAULT_LOWER_LIST, FOCUS_RAIL_STORAGE_KEY, focusRailAlertPriceTitle,
+  FOCUS_RAIL_DEFAULT_LIST, FOCUS_RAIL_DEFAULT_LOWER_LIST, FOCUS_RAIL_STORAGE_KEY,
 } from '../constantGroups/trader_chrome';
-import { fmtStripClock, stripAlertsForMode } from '../hod_momo/hodMomoStripRows';
-import { defaultHodMomentumVisibleStrategies } from '../hod_momo/scannerPartition';
-import type { AlertObject } from '../hod_momo/types';
 import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
 import type { Catalyst } from '../types/catalyst';
 import type { CatalystVerdict } from '../types/catalystVerdict';
@@ -132,11 +129,9 @@ export interface FocusRow {
   /** The row's catalyst verdict (ADR 024); `undefined` when the row carries
    * none, so the circle falls back to the headline's age like the Scanner's. */
   verdict?: CatalystVerdict | null;
-  /** True when the desk knows this symbol's news; false for a HOD symbol no
-   * scanner list carries, whose news cell stays blank (unknown, not "none"). */
+  /** True when the desk knows this symbol's news; false when it does not
+   * (a watched symbol no list carries), whose news cell stays blank (unknown, not "none"). */
   newsKnown: boolean;
-  /** Says where the price is from when it is not a last (a HOD row's alert print). */
-  priceTitle?: string;
 }
 
 type FeedRows = Pick<LiveScannerFeed, 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'largeCap' | 'catalysts'>
@@ -210,69 +205,6 @@ function fromCatalyst(row: Catalyst): FocusRow {
     headlineAt: row.newest_headline_at,
     newsKnown: true,
   };
-}
-
-function finite(value: number | null | undefined): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-/** Boards a live price may come from, in the desk's order. A frozen board
- * (Gappers after the open) takes no ticks, so its price is left out. */
-const LIVE_PRICE_BOARDS = [
-  ['gappers', 'gappers'], ['gainers', 'gainers'], ['losers', 'losers'],
-  ['afterhours', 'afterhours'], ['largeCap', 'large_cap'],
-] as const;
-
-/** The board row whose price is a live last for `symbol`, or null. */
-function livePriceRow(symbol: string, feed: FeedRows | null | undefined): ScannerRow | null {
-  if (!feed) return null;
-  for (const [key, table] of LIVE_PRICE_BOARDS) {
-    if (feed.tableMeta?.[table]?.state === 'frozen') continue;
-    const hit = feed[key].find(row => row.symbol.toUpperCase() === symbol);
-    if (hit && finite(hit.price) != null) return hit;
-  }
-  return null;
-}
-
-/**
- * HOD Momo / Running Up rows: what the Scanner's strip shows by default
- * (exact duplicates dropped, newest raised first, Former Momo off), one row
- * per ticker from its newest alert. Last and % come from a live board row
- * when one carries the symbol -- the alert's print can be minutes old on a
- * name that has since pulled back (PFSA 4.38 at the alert, 3.48 live,
- * 2026-09-24) -- else from the alert, whose price then says it is the
- * alert's. Alerts carry percent points already, so their change is not
- * converted. They carry no news, so the circle comes from the scanner feed;
- * a symbol no scanner list carries has no known news.
- */
-export function hodFocusRows(
-  list: FocusRailHodList,
-  alerts: readonly AlertObject[],
-  feed: FeedRows | null | undefined,
-): FocusRow[] {
-  const shown = stripAlertsForMode(alerts, list, list === 'hod_momo' ? defaultHodMomentumVisibleStrategies() : null);
-  const seen = new Set<string>();
-  const rows: FocusRow[] = [];
-  for (const alert of shown) {
-    const symbol = alert.ticker.trim().toUpperCase();
-    if (!symbol || seen.has(symbol)) continue;
-    seen.add(symbol);
-    const scannerRow = scannerRowFor(symbol, feed);
-    const catalyst = catalystFor(symbol, feed?.catalysts);
-    const live = livePriceRow(symbol, feed);
-    // The alert's change, never its gap_pct: on a mover that is the opening gap.
-    const alertChange = finite(alert.change_pct);
-    const price = live
-      ? { price: live.price, changePct: scannerChangePct(live) ?? alertChange }
-      : { price: finite(alert.price), changePct: alertChange, priceTitle: focusRailAlertPriceTitle(fmtStripClock(alert)) };
-    rows.push({
-      symbol,
-      ...price,
-      ...newsOf(scannerRow, catalyst),
-      newsKnown: Boolean(scannerRow || catalyst),
-    });
-  }
-  return rows;
 }
 
 /**

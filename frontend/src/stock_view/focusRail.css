@@ -297,10 +297,6 @@
 }
 
 /* A HOD row's price from the alert's print, not a live last (its title says so). */
-.focus-rail__px--alert {
-  color: var(--text-muted, #6b7280);
-}
-
 .focus-rail__gap {
   flex: 0 0 44px;
   text-align: right;
