@@ -60,7 +60,11 @@ export function TradeStocksDefaultsForm({ venue, prefs }: Props) {
       <h3 className="settings-block-title">{TRADE_DEFAULTS_SECTION_TITLE}{venue ? ` · ${venue.toUpperCase()}` : ''}</h3>
       {!venue && <p role="status">{TRADE_DEFAULTS_WAITING}</p>}
       {saveFailed && <p role="alert">{TRADE_DEFAULTS_SAVE_FAILED}</p>}
-      <fieldset disabled={venue === null} style={{ border: 0, margin: 0, padding: 0 }}>
+      <fieldset
+        disabled={venue === null}
+        data-why={venue === null ? TRADE_DEFAULTS_WAITING : undefined}
+        style={{ border: 0, margin: 0, padding: 0 }}
+      >
 
       <div className="trade-defaults-row">
         <label htmlFor="trade-def-order-type">{TRADE_DEFAULTS_ORDER_TYPE_LABEL}</label>

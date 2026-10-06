@@ -39,6 +39,7 @@ describe('Settings stock defaults venue ownership', () => {
     render(<TradeSettingsSection />);
     expect(screen.getByRole('status').textContent).toContain('confirm the desk venue');
     expect((screen.getByLabelText('Quantity') as HTMLInputElement).closest('fieldset')?.disabled).toBe(true);
+    expect((screen.getByLabelText('Quantity') as HTMLInputElement).closest('fieldset')?.dataset.why).toContain('confirm the desk venue');
     expect(localStorage.length).toBe(0);
   });
 

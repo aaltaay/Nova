@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PROPOSAL_DISMISSED_KEY } from '../constantGroups/setups';
 import { ORDER_TICKET_PREFILL_EVENT, type OrderTicketPrefill } from '../ibkr/orderTicketPrefill';
+import { confirmDeskVenue, _resetConfirmedDeskVenueStoreForTests } from '../ibkr/confirmedDeskVenueStore';
 import { SAMPLE_SETUPS_BOARD, SAMPLE_SETUPS_SCOREBOARD } from '../sample_data/sampleSetups';
 import { _resetDismissedForTests, dismiss, isDismissed, parseDismissed } from './proposalDismissals';
 import { SetupsAlertCard } from './SetupsAlertCard';
@@ -43,11 +44,18 @@ function withProposal(over: Partial<SetupProposal>): Board {
 }
 
 beforeEach(() => {
+  _resetConfirmedDeskVenueStoreForTests();
+  // This fixture represents the backend-confirmed Paper desk, not a cached
+  // Gateway mode. Stage refuses an unknown venue before opening a ticket.
+  confirmDeskVenue('paper');
   _resetSleeveForTests();
   _resetDismissedForTests();
   sessionStorage.clear();
   // Every read here is the fake desk's: the Paper sleeve risks $20 a trade.
   vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
+    if (/\/api\/ibkr\/status$/.test(String(input))) {
+      return new Response(JSON.stringify({ venue: 'paper', mode: 'paper', connected: true }), { status: 200 });
+    }
     if (/\/api\/bot\/session$/.test(String(input))) {
       return new Response(JSON.stringify({ caps: { venue: 'paper', risk_usd: 20, working_ttl_sec: 3 },
         caps_bounds: { risk_usd: [1, 10_000] } }), { status: 200 });
@@ -58,6 +66,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  _resetConfirmedDeskVenueStoreForTests();
   openStockView.mockReset();
   resetSetupsBoardFilterForTests();
   localStorage.clear();
