@@ -218,11 +218,11 @@
       "title": "Desk views keep the old venue's account, orders and prefs after a venue switch",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "frontend",
       "number": "657",
       "url": "https://github.com/aaltaay/Nova/issues/657",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#656",
