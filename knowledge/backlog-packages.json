@@ -164,7 +164,9 @@
         307,
         326,
         748,
-        754
+        754,
+        757,
+        758
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
@@ -198,7 +200,7 @@
           "issues": [
             748
           ],
-          "note": "PR #745 CI exposed a current-master SQLite close/use race. Atomically acquire, return and retire kept connections; active owners finish writes and rollback before physical close. Drain execution persistence before test paths change or are restored. Red-first actual-queue temporary-ledger regressions preserve reuse, nested fresh connections, path replacement and off-loop callbacks; no operator database or trading-gate changes.",
+          "note": "Completed by merged #753; #748 is closed. Kept ledger connections now acquire, return and retire atomically, active owners finish writes and rollback before physical close, and tests drain execution persistence before paths change or are restored. Red-first actual-queue temporary-ledger regressions preserve reuse, nested fresh connections, path replacement and off-loop callbacks; no operator database or trading-gate changes.",
           "gated": false,
           "touches": [
             "knowledge/backlog-packages.json",
@@ -213,12 +215,27 @@
           "issues": [
             754
           ],
-          "note": "Three mocked-HTTP unit tests still use external DNS in the SEC-008 preflight. Inject a deterministic public-IP resolver only in those tests, preserve real URL validation, and verify unresolved/private DNS refuses before HTTP. No runtime or policy changes.",
+          "note": "Completed by merged #756; #754 is closed. Explicit public-IP fixtures isolate the three mocked webhook sends while real SEC-008 validation remains active; unresolved/private DNS refuses before HTTP. No runtime or policy changes.",
           "gated": false,
           "touches": [
             "knowledge/backlog-packages.json",
             "architecture/alerts-dispatch-test-isolation.md",
             "backend/tests/test_alerts_dispatch.py"
+          ]
+        },
+        {
+          "title": "test(perf): verify frozen keepers and prior-close trade events",
+          "issues": [
+            757,
+            758
+          ],
+          "note": "A frozen-count snapshot can decline through ordinary refcount release; verify strongly held objects are excluded from the real collection walk. Prior-close trade tests must inspect actual payloads while allowing independent scanner halt callbacks. Test-only corrections preserve production GC/trade policies and #619 evidence hold. Also gate shipped recorder/feed batches6/7 and reconcile merged footprints without changing decisions or indices.",
+          "gated": false,
+          "touches": [
+            "architecture/gc-freeze-test-contract.md",
+            "backend/tests/test_gc_policy_freeze.py",
+            "backend/tests/test_prior_close_not_a_trade.py",
+            "knowledge/backlog-packages.json"
           ]
         }
       ]
@@ -638,7 +655,7 @@
       "slug": "desk-and-leftovers",
       "title": "10 - Live desk on master, plus residual product asks",
       "readiness": "ready-now",
-      "gate": "#14/#331 still need evidence from the physical trading PC, so their execution batch is held. #90/#94 decisions landed in their comments; live issue state controls whether those batches have work left. #657/#658's remaining venue defaults and bot snapshots are the accepted current implementation batch; unrelated unresolved operator calls stay held. Verified residual bug batches #5-#8 are independently reproducible and ready; #712 policy choices, #600 source/scoring policy and all physical-PC evidence remain held.",
+      "gate": "#14/#331 still need evidence from the physical trading PC, so their execution batch is held. #90/#94 decisions landed in their comments; live issue state controls whether those batches have work left. #657/#658's remaining venue defaults and bot snapshots are the accepted current implementation batch; unrelated unresolved operator calls stay held. Batches #5 and #8-#10 shipped; #6/#7 recorder/feed implementation shipped, while #674/#619/#667 acceptance remains held for recorded desk evidence. #712 policy choices, #600 source/scoring policy and all physical-PC evidence remain held.",
       "objective": "The physical trading PC still runs a dirty branch, so three merged IBKR reconnect/health fixes are not in effect, and the unattended premarket start has never been proven with a real 03:55 ET log line. Plus four residual product asks with no shared root cause that survive triage.",
       "issues": [
         14,
@@ -754,20 +771,21 @@
           "issues": [
             664
           ],
-          "note": "Verified 2026-10-05: lifetime unrealized P&L still enters the Live day breaker; reqPnL and explicit summary fallback already specified. Include truthful meter copy. No broker/PC actions.",
+          "note": "Completed by merged #745; #664 is closed. Broker daily P&L ownership, finite fallback and truthful Live meter source are implemented. No broker or physical-PC actions.",
           "gated": false,
           "touches": [
             "AGENTS.md",
-            "architecture/decisions/032-bot-levels.md",
-            "architecture/decisions/042-one-owner-for-novas-buys.md",
-            "backend/ibkr/day_pnl.py",
-            "backend/ibkr/client.py",
-            "backend/ibkr/session_usable.py",
+            "architecture/decisions/032-loss-breakers-per-venue.md",
             "backend/bot/day_pnl.py",
-            "backend/tests/test_bot_day_pnl.py",
+            "backend/ibkr/day_pnl.py",
+            "backend/ibkr/session_usable.py",
+            "backend/tests/test_bot_daily_pnl_source.py",
             "backend/tests/test_ibkr_day_pnl.py",
-            "frontend/src/bot/useBotDayPnl.ts",
-            "frontend/src/pages/botsPageFormat.test.ts"
+            "frontend/e2e/fixtures/live-daily-pnl.html",
+            "frontend/e2e/fixtures/live-daily-pnl.tsx",
+            "frontend/e2e/live-daily-pnl.spec.ts",
+            "frontend/src/bot/botsPageFormat.test.ts",
+            "frontend/src/bot/useBotDayPnl.ts"
           ]
         },
         {
@@ -775,13 +793,14 @@
           "issues": [
             674
           ],
-          "note": "350ms blocked fsync reproduces status-loop starvation. Move finalize I/O outside recorder lock, publish stable readers and fix empty-segment wording. Refs only: historical logging and account-cap evidence remain.",
-          "gated": false,
+          "note": "Implementation completed by merged #746: recorder finalization no longer starves status readers and empty-segment wording is accurate. #674 remains evidence-held for the historical five-second logging-handler cause and actual broker account tape-cap/pre-admission acceptance. This completed implementation must not be offered again; new recorded evidence must establish any further scoped work.",
+          "gated": true,
           "touches": [
-            "architecture/capture-fidelity.md",
             ".cursor/rules/capture-worker.mdc",
+            "architecture/capture-fidelity.md",
+            "backend/capture/fidelity.py",
             "backend/capture/recorder.py",
-            "backend/capture/recorder_state.py",
+            "backend/tests/test_capture_reader_snapshots.py",
             "backend/tests/test_capture_recorder.py",
             "backend/tests/test_capture_worker.py"
           ]
@@ -793,32 +812,40 @@
             619,
             667
           ],
-          "note": "#571 halt transition reaches ticker but never scanner. #619 discards later worst stalls; #667 lacks native timestamp/arrival diagnostics. Close only #571; retain #619/#667 for measured evidence. No GC tuning, trigger-age change or tape-source migration.",
-          "gated": false,
+          "note": "Implementation completed by merged #750 and its merged #755 evidence-retention/queue-drop corrections; #571 is closed. #619/#667 remain evidence-held for actual market-open/per-generation GC and native timestamp/arrival diagnosis. This completed implementation must not be offered again; new measurements must establish any further scoped work. No GC tuning, trigger-age change or tape-source migration.",
+          "gated": true,
           "touches": [
-            ".cursor/rules/perf-recorder.mdc",
             "AGENTS.md",
-            "architecture/l1-timestamp-evidence.md",
-            "architecture/perf-observability.md",
-            "architecture/scanner-halt-push.md",
+            "architecture/decisions/008-persistent-ibkr-scanner-rosters.md",
+            "architecture/decisions/026-performance-recorder.md",
+            "backend/constants_perf.py",
+            "backend/constants_scanner.py",
             "backend/ibkr/halt_status.py",
             "backend/ibkr/l1_timestamp.py",
-            "backend/ibkr/l1_timestamp_writer.py",
+            "backend/ibkr/nasdaq_halt_feed.py",
             "backend/ibkr/tape_events.py",
+            "backend/ibkr/tape_stream.py",
             "backend/ibkr/ticks.py",
             "backend/ibkr/ticks_handler.py",
+            "backend/perf/counters.py",
+            "backend/perf/l1_timestamps.py",
             "backend/perf/recorder.py",
+            "backend/perf/runtime.py",
             "backend/perf/store.py",
-            "backend/scanner/",
             "backend/scanner_push.py",
-            "backend/tests/test_l1_timestamp.py",
-            "backend/tests/test_perf_store_routes.py",
+            "backend/tests/test_l1_timestamp_evidence.py",
+            "backend/tests/test_perf_stall_budget.py",
             "backend/tests/test_scanner_halt_push.py",
-            "frontend/src/hooks/",
+            "frontend/e2e/fixtures/scannerHalt.html",
+            "frontend/e2e/fixtures/scannerHalt.tsx",
+            "frontend/e2e/scanner-halt-patch.spec.ts",
+            "frontend/src/hooks/useScannerData.halt.test.tsx",
             "frontend/src/hooks/useScannerData.ts",
+            "frontend/src/hooks/useScannerPriceStream.render.test.tsx",
             "frontend/src/hooks/useScannerPriceStream.ts",
-            "frontend/src/scanner/",
-            "frontend/src/scanner/scannerHaltPatch.ts"
+            "frontend/src/scanner/scannerHaltPatch.test.ts",
+            "frontend/src/scanner/scannerHaltPatch.ts",
+            "frontend/src/scanner/scannerPricePatchApply.ts"
           ]
         },
         {
@@ -826,12 +853,17 @@
           "issues": [
             742
           ],
-          "note": "New pure repro: missing login/restart evidence is accepted as quiet. Preserve readable observed-empty vs unavailable. No physical desk operations; #14 remains held.",
+          "note": "Completed by merged #749/#752; #742 is closed. Premarket verification now refuses unavailable, partial, unplaceable and regressing authentication evidence. #14 remains held for physical desk evidence; the one-PASS plus quiet-week criterion is unchanged.",
           "gated": false,
           "touches": [
+            "AGENTS.md",
+            "docs/live-desk-sync.md",
+            "tools/premarket_ibc.py",
+            "tools/premarket_sources.py",
             "tools/premarket_verify.py",
-            "tools/test_premarket_verify.py",
-            "docs/live-desk-sync.md"
+            "tools/test_premarket_evidence.py",
+            "tools/test_premarket_ibc.py",
+            "tools/test_premarket_verify.py"
           ]
         },
         {
@@ -839,7 +871,7 @@
           "issues": [
             744
           ],
-          "note": "Current CI assertions refer to retired ADR042/044 controls and per-stock risk. Healthy bot read fixtures restore original depth/target geometry checks; no production CSS fix is warranted.",
+          "note": "Completed by merged #747; #744 is closed. Browser fixtures now follow the accepted bot/sleeve and healthy-read contracts; original depth/target geometry checks remain. No production CSS change was required.",
           "gated": false,
           "touches": [
             "architecture/browser-contract-verification.md",
@@ -854,7 +886,7 @@
           "issues": [
             707
           ],
-          "note": "Verified against current master with a production demo: tape row insertion/removal dirties BODY :has(), whose shared invalidation set includes two selectors that invalidate all descendants. Constrain the Desk Catalyst and alert-dialog media-title targets while preserving hover, keyboard and responsive layout behavior. Existing selector/memo/GPU fixes are complete; no operator policy change.",
+          "note": "Completed by merged #751; #707 is closed. Desk Catalyst and alert-dialog media-title targets now constrain tape-induced style invalidation, preserving hover, keyboard and responsive layout behavior. No operator policy change.",
           "gated": false,
           "touches": [
             "knowledge/backlog-packages.json",

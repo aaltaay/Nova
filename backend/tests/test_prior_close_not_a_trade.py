@@ -1,7 +1,9 @@
 """IBKR's prior close is never a trade (#541): candles, HOD Momo, the chart tip and Paper fills."""
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from ibkr import ticks
 
@@ -45,11 +47,31 @@ def test_the_prior_close_is_never_broadcast_as_a_trade_update(monkeypatch):
 
     monkeypatch.setattr(sup, "is_ib_loop", lambda: True)
     monkeypatch.setattr(sup, "publish_to_http", lambda fn: scheduled.append(fn))
-    ticks._on_ticker_update(_ticker(close=9.52), "APLX")
-    assert scheduled == []  # nothing traded: no chart tip at the prior close
-    ticks._on_ticker_update(_ticker(last=8.60, close=9.52), "APLX")
-    assert len(scheduled) == 1
-    ticks._subs.clear()
+    # Halt metadata is independent of trades; keep it away from real sockets.
+    monkeypatch.setattr("scanner_push.broadcast_halt_patch", AsyncMock())
+
+    async def flush_scheduled():
+        existing = asyncio.all_tasks()
+        for callback in scheduled:
+            callback()
+        scheduled.clear()
+        spawned = asyncio.all_tasks() - existing
+        if spawned:
+            await asyncio.gather(*spawned)
+
+    async def run():
+        ticks._on_ticker_update(_ticker(close=9.52), "APLX")
+        await flush_scheduled()
+        assert sent == []  # nothing traded: no chart tip at the prior close
+        ticks._on_ticker_update(_ticker(last=8.60, close=9.52), "APLX")
+        await flush_scheduled()
+        assert len(sent) == 1
+        assert sent[0][:2] == ("APLX", 8.60)
+
+    try:
+        asyncio.run(run())
+    finally:
+        ticks._subs.clear()
 
 
 def test_no_live_minute_candle_from_the_prior_close(monkeypatch):

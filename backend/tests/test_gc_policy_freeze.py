@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import logging
 
 import pytest
 
@@ -15,13 +16,32 @@ def _unfreeze():
     gc.unfreeze()                     # the rest of the suite keeps an ordinary collector
 
 
-def test_freeze_moves_live_objects_out_of_full_collections():
+def test_freeze_moves_live_objects_out_of_full_collections(caplog):
+    class ReleaseDuringLog(logging.Handler):
+        def __init__(self):
+            super().__init__()
+            self.pending = [[], []]
+            self.released = False
+
+        def emit(self, _record):
+            self.pending.clear()  # ordinary decref after the freeze-time snapshot
+            self.released = True
+
     keep = [[i] for i in range(10_000)]
-    out = freeze.freeze_now()
-    assert out["frozen"] >= 10_000
-    assert gc.get_freeze_count() == out["frozen"]
-    walked = len(gc.get_objects())    # what a full collection walks now
-    assert walked < out["frozen"]
+    keeper_ids = {id(keep)} | {id(obj) for obj in keep}
+    handler = ReleaseDuringLog()
+    with caplog.at_level(logging.INFO, logger=freeze.logger.name):
+        freeze.logger.addHandler(handler)
+        try:
+            out = freeze.freeze_now()
+            assert handler.released and handler.pending == []
+            assert out["frozen"] >= 10_000
+            active_ids = {id(obj) for obj in gc.get_objects()}
+            assert keeper_ids.isdisjoint(active_ids)
+            assert len(active_ids) < out["frozen"]
+        finally:
+            freeze.logger.removeHandler(handler)
+            handler.close()
     del keep
 
 
