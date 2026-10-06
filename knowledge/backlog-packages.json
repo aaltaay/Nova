@@ -689,7 +689,8 @@
         707,
         742,
         744,
-        764
+        764,
+        766
       ],
       "done": [
         "The live desk runs master and the Gateway restart is confirmed, with the date recorded on #331.",
@@ -933,6 +934,20 @@
             "frontend/src/constantGroups/scanner_board.ts",
             "frontend/e2e/scanner-halt-patch.spec.ts",
             "frontend/e2e/fixtures/scannerHalt.tsx"
+          ]
+        },
+        {
+          "title": "fix(scanner): publish request scope only for committed views",
+          "issues": [
+            766
+          ],
+          "note": "Verified native #765 review with real React Suspense/startTransition: an abandoned provider preview cancels the committed pending request; render-written history refs also reject current live halt evidence. Publish scope/history/health/sink refs in layout effects and route the stable envelope callback through the committed sink. Preserve #764 timeout, bounded receipt and history-reload behavior; no poll/stream/backend rewrite or evidence-policy change.",
+          "gated": false,
+          "touches": [
+            "knowledge/backlog-packages.json",
+            "architecture/scanner-bootstrap-halt-evidence.md",
+            "frontend/src/hooks/useScannerData.ts",
+            "frontend/src/hooks/useScannerData.committed.test.tsx"
           ]
         }
       ]

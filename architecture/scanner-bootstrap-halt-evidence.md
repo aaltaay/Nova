@@ -96,3 +96,32 @@ is released and that its later 9.9 value is ignored. The final nine-file scanner
 run passes 66 tests, including 20 request/hook tests, and changed hook/test
 ESLint and the diff check pass. This correction preserves the obsolete-result
 guard and adds no runtime beyond restarting the selected history load.
+
+## Committed view ownership (#766)
+
+Native review of merged #765 identified render-time scope mutation. A real
+React `startTransition` render that changes the provider and suspends after
+calling the scanner hook leaves the old live view committed. Nevertheless,
+render-time `setView` cancels its pending request; discarding the preview then
+leaves that original request rejected without a replacement. The same proof
+passes before #764 and fails on the merged implementation. A suspended history
+preview also makes the render-written history ref reject a current live halt
+frame; that latent ref-ownership defect reproduces before and after #764.
+
+Publish scanner scope, history-date, health and callback-sink refs in a layout
+effect for the committed render, before the existing passive fetch and stream
+effects. Invalidate on layout unmount cleanup. A speculative or abandoned render
+must not cancel committed requests, block current halt evidence, or publish
+preview feed callbacks. Keep the envelope callback stable and dispatch through
+the committed sink, so the existing envelope poll's render-written callback ref
+cannot introduce a preview callback. No poll or stream hook rewrite is needed.
+
+Preserve all request-local receipt, timeout/retry, overflow, committed scope
+transition and history reload behavior from #764. Use real Suspense/transition
+tests with observable committed output and an attempted suspended-render
+barrier; verify pending live and history responses survive discarded provider
+and persistent-setting previews, live halt frames survive a history preview,
+and current feed callbacks are used. Run the existing scanner neighbors,
+TypeScript, lint, real browser, document and maintainer checks. This follow-up
+uses authored `desk-and-leftovers#12` and does not reopen measured evidence or
+source-policy acceptance.
