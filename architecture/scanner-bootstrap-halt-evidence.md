@@ -40,6 +40,11 @@ request's older snapshot and use the existing REST retry instead of applying
 incomplete halt evidence. Do not add a polling loop, new socket, clock policy,
 backend halt rule, source decision or trading gate.
 
+The hook keeps the single scanner state lifecycle: REST, stream and history
+must apply to the same owned setters. Its request mechanics are extracted into
+the new helper; modest growth past the 400-line advisory limit is documented
+with that one-concern reason rather than moving unrelated state into a new file.
+
 ## Browser boundary
 
 The halt fixture must wait for a newly assigned socket route and that route's
@@ -60,3 +65,22 @@ stream, roster, price and board-filter neighbors; run the real browser fixture,
 TypeScript build, frontend lint and repository document/maintainer checks.
 Record exact outcomes before publication. No physical-PC operation or measured
 feed/GC evidence gate is part of this issue.
+
+## Runtime verification results (2026-10-06)
+
+The first unchanged-runtime hook run reproduced five failures: each newer
+true/false/null receipt was lost, a decoded live body replaced a history view,
+and an old live body replaced the new view after a history round trip. Provider
+scope and delayed catalyst regressions cover the same application boundary.
+Review then caught timeout cancellation suppressing the existing failure/retry;
+two red header/body abort regressions verified that defect before correction.
+
+The final two focused files pass 18 tests. A nine-file scanner REST, history,
+honesty, halt, filter and stream run passed 63 tests before the final provider
+guard; the focused rerun includes that additional provider regression. Tests
+explicitly queue React-style functional updates until after receipt disposal,
+exercise timeout/supersession/unmount, and reject incomplete overflow snapshots
+before permitting a fresh request. Owned-file ESLint, TypeScript, document
+invariants and maintainer gate against `36c4cf3` pass. The stable-source cold
+Chromium run passes all four browser cases; broader publication checks are
+recorded by the parent in the PR.

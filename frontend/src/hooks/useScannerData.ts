@@ -7,6 +7,8 @@
  * scanner/scannerRest so a failed route is named on the board and retried
  * (QA C31), and persistent-authoritative desks keep their envelope fresh
  * (QA C48).
+ * maintainer: one-concern the live/history scanner state lifecycle owns all
+ * roster, envelope and error setters; request mechanics live in scannerLiveRequest.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -55,6 +57,7 @@ import {
 import { applyScannerPriceRows } from '../scanner/scannerPricePatchApply';
 import { applyScannerHaltRows, type ScannerHaltRow } from '../scanner/scannerHaltPatch';
 import { useScannerEnvelopePoll } from '../scanner/useScannerEnvelopePoll';
+import { createScannerLiveRequestScope } from '../scanner/scannerLiveRequest';
 
 type Mode = MarketMode;
 
@@ -108,6 +111,9 @@ export function useScannerData(opts: {
   healthRef.current = health;
   const historyDateRef = useRef(historyDate);
   historyDateRef.current = historyDate;
+  const liveRequestsRef = useRef(createScannerLiveRequestScope());
+  liveRequestsRef.current.setView(historyDate, discoveryProvider, scannerPersistentAuthoritative);
+  useEffect(() => () => liveRequestsRef.current.invalidate(), []);
   const pollingRef = useRef(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryAttemptRef = useRef(0);
@@ -165,7 +171,8 @@ export function useScannerData(opts: {
 
   const onHaltPatch = useCallback((rows: ScannerHaltRow[]) => {
     // A queued live frame must never overwrite historical halt evidence.
-    if (historyDateRef.current !== null) return;
+    if (historyDateRef.current !== null || !liveRequestsRef.current.acceptsHalt()) return;
+    liveRequestsRef.current.recordHalt(rows);
     applyScannerHaltRows(sinkRef.current, rows);
   }, []);
 
@@ -191,80 +198,94 @@ export function useScannerData(opts: {
   }, []);
 
   const fetchData = useCallback(async () => {
+    if (historyDateRef.current !== null) return;
     const signal = AbortSignal.timeout(SCANNER_FETCH_TIMEOUT_MS);
-    let responses: Response[];
+    const request = liveRequestsRef.current.begin(sinkRef.current, signal);
     try {
-      responses = await Promise.all([
-        fetch(`${API_URL}/gappers`, { signal }),
-        fetch(`${API_URL}/movers`, { signal }),
-        fetch(`${API_URL}/afterhours`, { signal }),
-        fetch(`${API_URL}/large-cap`, { signal }),
-        fetch(`${API_URL}/news-catalysts`, { signal }),
-      ]);
-    } catch (e) {
-      consecutiveFailuresRef.current += 1;
-      scheduleRetry();
-      // The grace keeps a board that has rows from flapping on a blip. Before
-      // anything has loaded there is nothing to protect: "Loading market
-      // data…" over an API that never answers is a failure unstated (QA D10).
-      if (loadedOnceRef.current && consecutiveFailuresRef.current < SCANNER_HEALTH_FAIL_GRACE_COUNT) {
-        console.warn('[Nova] Scanner REST fetch failed; retrying', e);
+      let responses: Response[];
+      try {
+        responses = await Promise.all([
+          fetch(`${API_URL}/gappers`, { signal }),
+          fetch(`${API_URL}/movers`, { signal }),
+          fetch(`${API_URL}/afterhours`, { signal }),
+          fetch(`${API_URL}/large-cap`, { signal }),
+          fetch(`${API_URL}/news-catalysts`, { signal }),
+        ]);
+      } catch (e) {
+        if (!request.isCurrent()) return;
+        consecutiveFailuresRef.current += 1;
+        scheduleRetry();
+        // The grace keeps a board that has rows from flapping on a blip. Before
+        // anything has loaded there is nothing to protect: "Loading market
+        // data…" over an API that never answers is a failure unstated (QA D10).
+        if (loadedOnceRef.current && consecutiveFailuresRef.current < SCANNER_HEALTH_FAIL_GRACE_COUNT) {
+          console.warn('[Nova] Scanner REST fetch failed; retrying', e);
+          return;
+        }
+        setRestError(scannerRestTransportError(e));
+        const diag = await diagnoseBackend();
+        if (!request.isCurrent()) return;
+        logBackendDiagnosis(diag);
+        if (diag.ok) {
+          console.warn('[Nova] Scanner API route failed; /api/health is OK', {
+            API_URL,
+            flag: diag.flag,
+            health_url: `${API_BASE_URL}/api/health`,
+          });
+        } else {
+          console.error('[Nova] Scanner API network error', {
+            API_URL,
+            API_BASE_URL,
+            flag: diag.flag,
+            hint: diag.hint,
+            health_url: `${API_BASE_URL}/api/health`,
+            trace: isNovaApiDebug() ? e : '(set localStorage novaApiDebug=1 and reload for details)',
+          });
+        }
+        setHealth(healthAfterFailedRoute(healthRef.current, diag));
         return;
       }
-      setRestError(scannerRestTransportError(e));
-      const diag = await diagnoseBackend();
-      logBackendDiagnosis(diag);
-      if (diag.ok) {
-        console.warn('[Nova] Scanner API route failed; /api/health is OK', {
-          API_URL,
-          flag: diag.flag,
-          health_url: `${API_BASE_URL}/api/health`,
-        });
-      } else {
-        console.error('[Nova] Scanner API network error', {
-          API_URL,
-          API_BASE_URL,
-          flag: diag.flag,
-          hint: diag.hint,
-          health_url: `${API_BASE_URL}/api/health`,
-          trace: isNovaApiDebug() ? e : '(set localStorage novaApiDebug=1 and reload for details)',
-        });
-      }
-      setHealth(healthAfterFailedRoute(healthRef.current, diag));
-      return;
-    }
-    // A late answer must not paint live rows over a history view (QA C51).
-    if (historyDateRef.current !== null) return;
-    const [gr, moversRes, ahRes, largeCapRes, catalystRes] = responses;
-    const failures = await applyScannerTableReplies(
-      { gappers: gr, movers: moversRes, afterhours: ahRes, largeCap: largeCapRes },
-      sinkRef.current,
-    );
-    const cat = await readCatalystReply(catalystRes);
-    if (cat.rows) setCatalysts(cat.rows);
-    setCatalystsError(cat.error);
+      // A late answer must not paint live rows over a history view (QA C51).
+      if (!request.isCurrent()) return;
+      const [gr, moversRes, ahRes, largeCapRes, catalystRes] = responses;
+      const failures = await applyScannerTableReplies(
+        { gappers: gr, movers: moversRes, afterhours: ahRes, largeCap: largeCapRes },
+        request.sink,
+      );
+      if (!request.isCurrent()) return;
+      if (request.overflowed()) { scheduleRetry(); return; }
+      const cat = await readCatalystReply(catalystRes);
+      if (!request.isCurrent()) return;
+      if (cat.rows) setCatalysts(cat.rows);
+      setCatalystsError(cat.error);
 
-    const errText = scannerRestErrorText(failures);
-    setRestError(errText);
-    if (errText) {
-      console.warn(`[Nova] ${errText}`);
-      scheduleRetry();
-    } else {
-      consecutiveFailuresRef.current = 0;
-      retryAttemptRef.current = 0;
-      loadedOnceRef.current = true;
+      const errText = scannerRestErrorText(failures);
+      setRestError(errText);
+      if (errText) {
+        console.warn(`[Nova] ${errText}`);
+        scheduleRetry();
+      } else {
+        consecutiveFailuresRef.current = 0;
+        retryAttemptRef.current = 0;
+        loadedOnceRef.current = true;
+      }
+    } finally {
+      request.finish();
     }
   }, [scheduleRetry]);
   fetchDataRef.current = fetchData;
 
   const fetchCatalystsOnly = useCallback(async () => {
+    const scope = liveRequestsRef.current.capture();
     try {
       const cat = await readCatalystReply(await fetch(`${API_URL}/news-catalysts`, {
         signal: AbortSignal.timeout(SCANNER_FETCH_TIMEOUT_MS),
       }));
+      if (!liveRequestsRef.current.isScope(scope) || historyDateRef.current !== null) return;
       if (cat.rows) setCatalysts(cat.rows);
       setCatalystsError(cat.error);
     } catch {
+      if (!liveRequestsRef.current.isScope(scope) || historyDateRef.current !== null) return;
       setCatalystsError(SCANNER_CATALYSTS_FETCH_FAILED);
     }
   }, []);
@@ -282,8 +303,9 @@ export function useScannerData(opts: {
   }, []);
 
   const fetchHistoryData = useCallback(async (date: string) => {
+    const scope = liveRequestsRef.current.capture();
     const { tables, error, failed } = await fetchScannerHistory(API_URL, date);
-    if (historyDateRef.current !== date) return;
+    if (!liveRequestsRef.current.isScope(scope) || historyDateRef.current !== date) return;
     // Every table is replaced -- a failed one is cleared and named (QA C51).
     setGappers(normalizeScannerRows(tables.gappers) ?? []);
     setGainers(normalizeScannerRows(tables.gainers) ?? []);
