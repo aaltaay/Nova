@@ -65,7 +65,9 @@ sleeves. A bot trading Live remains an unresolved, held decision outside it.
   first confirmed venue only. Verify the receipt and destination before removing
   the legacy source; preserve it on failure, let existing destination values win,
   and never clone old practice choices to all venues. Other venues retain the
-  factory DAY/optional-legs-off defaults. Refuse unknown versions; same-window
+  factory DAY/optional-legs-off defaults. Refuse unknown versions and mismatched
+  venue ownership on both reads and writes; editing factory fallback values must
+  preserve an unsupported existing record and show the save refusal. Same-window
   notifications and storage events keep readers current. Venue/version changes
   invalidate consumer snapshots; storage failure is visible to the editor.
 - **One confirmed venue source.** The IBKR feature exports a stable nullable
@@ -76,8 +78,11 @@ sleeves. A bot trading Live remains an unresolved, held decision outside it.
   metadata, never cached proof of a backend venue. Fresh explicit status or a
   successful desk-venue response supplies authority. Existing shared-snapshot
   expiry applies; transition/schema changes invalidate it. Every transition,
-  including Paper → Live → Paper, gets a new token. A late status GET cannot
-  undo a newer confirmed POST or another window's transition.
+  including Paper → Live → Paper, gets a new token. A late status GET or
+  desk-venue POST reply cannot undo a newer confirmed transition from another
+  window. Capture the confirmed revision before the POST and refuse stale
+  replies before confirming or launching a Gateway; refresh authoritative status
+  afterward, including when a concurrent transition invalidates the reply.
 - **Bot state follows that source.** Clear old state and request an immediate
   refresh on a confirmed transition; queue it if an old read is busy. Stamp
   snapshots with venue and generation, validate `session.level_venue`, and reject
