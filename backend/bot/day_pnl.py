@@ -1,6 +1,8 @@
 """The day P&L the loss breakers compare, and the meter that says exactly what it is.
 
-- **Live**: IBKR's ``RealizedPnL`` + ``UnrealizedPnL`` from the account summary. IBKR already
+- **Live**: IBKR's ``reqPnL.dailyPnL`` for the READY session/account (#664); a stated
+  ``RealizedPnL`` + ``UnrealizedPnL`` summary fallback while daily P&L is unavailable.
+  The fallback includes lifetime unrealized P&L on overnight positions. IBKR already
   counts every commission in both: realized P&L is "the difference between your entry execution
   cost (execution price + commissions to open the position) and exit execution cost (execution
   price + commissions to close the position)", and the average cost behind unrealized P&L is
@@ -26,6 +28,8 @@ next one that succeeds.
 from __future__ import annotations
 
 import logging
+import math
+import sys
 import threading
 import time
 from typing import Any, Callable
@@ -34,8 +38,13 @@ from constants_bot import BOT_COMMISSIONS_WARN_EVERY_SEC
 
 logger = logging.getLogger(__name__)
 
-LIVE_COMPARES = ("IBKR's realized + unrealized P&L for the account, as TWS shows them: every "
-                 "commission is already inside both, so none is subtracted again.")
+LIVE_COMPARES = "IBKR's daily P&L for the account; commissions are already included."
+LIVE_FALLBACK_COMPARES = ("Fallback: IBKR's realized + unrealized P&L for the account. "
+                         "It includes an overnight position's lifetime unrealized P&L; "
+                         "commissions are already inside both, so none is subtracted again.")
+LIVE_RESET = ("IBKR owns the daily reset, configured in TWS; the API does not report its time. "
+              "Nova's breaker locks still lift at 04:00 ET.")
+FALLBACK_RESET = "The account-summary fallback has no daily-reset guarantee."
 PRACTICE_COMPARES = ("{venue}'s day P&L since 04:00 ET: net liquidation less the 04:00 equity, "
                      "every commission and fee already paid.")
 
@@ -46,11 +55,13 @@ _clock: Callable[[], float] = time.time
 
 
 def _finite(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
-    if number != number:  # NaN
+    if not math.isfinite(number) or abs(number) == sys.float_info.max:
         return None
     return number
 
@@ -137,12 +148,11 @@ def _ibkr_day(summary: dict[str, Any]) -> float | None:
     unrealized = _finite(summary.get("UnrealizedPnL"))
     if realized is None and unrealized is None:
         return None
-    return (realized or 0.0) + (unrealized or 0.0)
+    return _finite((realized or 0.0) + (unrealized or 0.0))
 
 
 def day_pnl_usd(summary: dict[str, Any] | None) -> float | None:
-    """The figure the breakers compare: the practice ledger's ``DayPnL``, else IBKR's realized +
-    unrealized (commissions already inside both); None when neither is known."""
+    """The practice ``DayPnL`` or Live summary fallback; the breaker uses ``read_account_day_pnl``."""
     if not summary:
         return None
     practice = practice_day_pnl(summary)
@@ -163,40 +173,59 @@ def read_account_day_pnl() -> tuple[float | None, dict[str, Any]]:
     """``(day_pnl, meter)``: the figure the breakers compare now, and what it is in plain words.
 
     The meter always says ``compares`` (the words), ``source`` and ``venue``; ``day_pnl`` is None
-    when there is nothing to compare (a Sim replay, an unreadable account summary -- ``error``).
+    when there is nothing to compare (a Sim replay, or neither broker figure known -- ``error``).
     """
     from bot.breaker_limits import REPLAY_NOTE
 
     venue, replay = _desk()
     meter: dict[str, Any] = {"venue": venue, "compared": True, "note": None, "error": None,
                              "commissions": None, "commissions_in_figure": True,
-                             "commissions_unknown": False, "commissions_error": None}
+                             "commissions_unknown": False, "commissions_error": None,
+                             "fallback": False, "fallback_reason": None, "reset_time": None,
+                             "reset_semantics": None, "daily_pnl_updated_at": None}
     if replay:
         return None, {**meter, "compared": False, "source": "replay", "day_pnl": None,
                       "compares": REPLAY_NOTE, "note": REPLAY_NOTE}
+    summary_error = None
     try:
         from ibkr import account as _account
 
         summary = _account.get_account_summary() or {}
     except Exception as exc:  # the account module logs the failure itself
-        error = f"{type(exc).__name__}: {exc}"
-        return None, {**meter, "source": "error", "day_pnl": None, "error": error,
-                      "compares": f"Nothing: the account summary cannot be read ({error})."}
-    meter.update(RealizedPnL=summary.get("RealizedPnL"), UnrealizedPnL=summary.get("UnrealizedPnL"))
-    if summary.get("practice"):
+        summary, summary_error = {}, f"{type(exc).__name__}: {exc}"
+        if venue in ("paper", "sim"):
+            return None, {**meter, "source": "error", "day_pnl": None, "error": summary_error,
+                          "compares": f"Nothing: the account summary cannot be read ({summary_error})."}
+    meter.update(RealizedPnL=_finite(summary.get("RealizedPnL")),
+                 UnrealizedPnL=_finite(summary.get("UnrealizedPnL")))
+    if venue in ("paper", "sim") or summary.get("practice"):
         name = str(venue or "the practice account").capitalize()
         practice = practice_day_pnl(summary)
         return practice, {**meter, "source": "practice_ledger_day_pnl", "day_pnl": practice,
                           "compares": PRACTICE_COMPARES.format(venue=name),
                           "error": None if practice is not None else "the practice ledger reported no day P&L"}
-    pnl = _ibkr_day(summary)
+    from ibkr import day_pnl as broker_day_pnl
+
+    daily = broker_day_pnl.read()
+    pnl = _finite(daily.get("daily_pnl"))
+    fallback = pnl is None
+    if fallback:
+        pnl = _ibkr_day(summary)
     commissions, error = _read_commissions()    # the #564 hold reads them; they are never subtracted
-    out = {**meter, "source": "account_summary", "day_pnl": pnl, "compares": LIVE_COMPARES,
+    out = {**meter, "source": "account_summary" if fallback else "ibkr_daily_pnl",
+           "day_pnl": pnl, "compares": LIVE_FALLBACK_COMPARES if fallback else LIVE_COMPARES,
+           "fallback": fallback, "fallback_reason": daily.get("error") or (
+               "IBKR has no valid daily P&L update yet" if fallback else None),
+           "reset_semantics": FALLBACK_RESET if fallback else LIVE_RESET,
+           "daily_pnl_updated_at": None if fallback else daily.get("updated_at"),
+           "summary_error": summary_error,
            "commissions": commissions, "commissions_unknown": commissions is None,
            "commissions_error": error}
     if pnl is None:
-        out["error"] = ("IBKR's account summary has no realized or unrealized P&L yet"
+        out["source"] = "error" if summary_error else "account_summary"
+        out["error"] = summary_error or ("IBKR's account summary has no realized or unrealized P&L yet"
                         + (" (Gateway disconnected)" if summary.get("connected") is False else ""))
+        out["compares"] = f"Nothing: daily P&L and its account-summary fallback are unavailable ({out['error']})."
     return pnl, out
 
 

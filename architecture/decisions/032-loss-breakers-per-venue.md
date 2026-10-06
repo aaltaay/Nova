@@ -47,3 +47,28 @@ survive a restart. What did not exist was any way to change the breakers.
   audit stream records it.
 - Nothing about who is gated changes: the breakers still flatten through the same door and still
   gate manual buys with the all-stop's day lock.
+
+## Live daily P&L source (#664)
+
+Live compares IBKR's `reqPnL(account).dailyPnL`, not an overnight holding's
+lifetime unrealized gain or loss. `ibkr.day_pnl` owns one read-only subscription
+for the current READY IB instance, generation and selected account. It starts
+on READY on the IB loop, replaces the old scope on reconnect/account changes,
+and accepts only matching subscription events. Disconnection, stale callbacks,
+request errors, non-finite values and IBKR's unset-double sentinel invalidate
+its value; repeated READY wiring does not duplicate it. Reads are in-memory
+and cannot issue broker requests from the HTTP loop.
+
+Until a valid daily value arrives, retain the existing account-summary
+`RealizedPnL + UnrealizedPnL` as an explicitly labelled fallback, including why
+daily P&L is unavailable and that the fallback includes lifetime open P&L.
+No usable broker figure means unknown, never zero. Commissions are already in
+both figures and are never subtracted again; an unreadable commission ledger
+continues to hold new Live bot entries independently.
+
+IBKR owns its daily reset, configured in TWS. The API does not supply the reset
+time, so `reset_time` stays null and the meter states the broker-owned reset
+semantics. Nova does not infer a reset from a change in P&L. The existing 04:00 ET
+breaker-latch boundary and practice-ledger day are unchanged. This fixes the
+Live breaker source; it grants no Live bot authorization and needs no broker
+mutation to verify the subscription and fallback contracts locally.
