@@ -213,6 +213,15 @@ records still establish failure even when another record or source is partial.
 The verifier's pure `tools/premarket_ibc.py` parser returns those records and
 their source problems together; the operator's diagnostic parser is unchanged.
 
+### Authentication boundary completeness (#742 review)
+
+Every observed IBC startup must include an authentication outcome. A valid banner
+followed by another startup or EOF without that outcome is partial evidence,
+even when the other retained dates cover the requested window. A dated line
+earlier than its pending startup contradicts lineage: retain the authentication
+timestamp as unknown, report the problem, and exclude it from weekday counts.
+This does not change the one-unattended-PASS acceptance criterion.
+
 The unattended-PASS criterion is evaluated separately. Missed mornings remain
 context: they do not themselves add another closing criterion or require every
 morning to pass. One genuine unattended PASS plus adequate evidence of a quiet
@@ -231,11 +240,3 @@ an unrecorded restart and an unexpected shutdown (09-21), a Start-menu restart
 - `tools/premarket_verify.py` (#14 evidence, `relogin`) · `backend/ibkr/relogin_reason.py` · `backend/ibkr/windows_restarts.py`
 - `architecture/decisions/018-desk-venue-vs-spend-arming.md` (venue persists, arming never does)
 - `docs/paper-shadow-protocol.md` · `AGENTS.md` §8
-### Authentication boundary completeness (#742 review)
-
-Every observed IBC startup must include an authentication outcome. A valid banner
-followed by another startup or EOF without that outcome is partial evidence,
-even when the other retained dates cover the requested window. A dated line
-earlier than its pending startup contradicts lineage: retain the authentication
-timestamp as unknown, report the problem, and exclude it from weekday counts.
-This does not change the one-unattended-PASS acceptance criterion.

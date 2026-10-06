@@ -48,11 +48,13 @@ def parse_ibc_evidence(text: str) -> IbcEvidence:
     """Parse each auth record once, together with its retained evidence limits.
 
     A banner belongs to its first auth record on that startup date. A following
-    dated IBC line is independent proof. Crossing another startup while awaiting
-    that line rejects the record's timestamp instead of relabelling the record.
+    dated IBC line must not predate that banner. Crossing another startup while
+    awaiting that line rejects the record's timestamp instead of relabelling it.
+    An unused banner still needs an outcome after its timestamp fallback expires.
     """
     logins, stamps, problems = [], [], []
     fresh_banner: float | None = None
+    unmatched_banner = False
     pending: bool | None = None
     pending_banner: float | None = None
 
@@ -69,8 +71,11 @@ def parse_ibc_evidence(text: str) -> IbcEvidence:
         line = raw.strip()
         low = line.lower()
         if low.startswith("starting ibc version"):
+            if unmatched_banner:
+                problems.append("an IBC startup has no authentication outcome")
             finish(None, "an undated authentication record crosses another IBC startup")
             fresh_banner = _banner_ts(line)
+            unmatched_banner = fresh_banner is not None
             if fresh_banner is None:
                 problems.append("a malformed IBC startup banner cannot establish when authentication occurred")
             continue
@@ -78,6 +83,7 @@ def parse_ibc_evidence(text: str) -> IbcEvidence:
             finish(pending_banner)
             pending = low.startswith("autorestart file not found")
             pending_banner, fresh_banner = fresh_banner, None
+            unmatched_banner = False
             continue
         if _STAMP_RE.match(line):
             ts = _local(line[:19])
@@ -86,9 +92,14 @@ def parse_ibc_evidence(text: str) -> IbcEvidence:
                 continue
             stamps.append(ts)
             if pending is not None:
-                finish(ts)
+                if pending_banner is not None and ts < pending_banner:
+                    finish(None, "a dated authentication line predates its IBC startup banner")
+                else:
+                    finish(ts)
             elif fresh_banner is not None and datetime.fromtimestamp(ts).date() != datetime.fromtimestamp(fresh_banner).date():
                 fresh_banner = None
     finish(pending_banner)
+    if unmatched_banner:
+        problems.append("an IBC startup has no authentication outcome")
     stamps.extend(login.ts for login in logins if login.ts is not None)
     return IbcEvidence(tuple(logins), tuple(stamps), tuple(sorted(set(problems))))
