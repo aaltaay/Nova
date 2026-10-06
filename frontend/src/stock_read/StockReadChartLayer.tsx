@@ -25,6 +25,7 @@ import {
   edgeContents,
   isFollowingRightEdge,
   nearestSeriesTime,
+  operatorOwnsView,
   subscribeEdge,
   toCanonicalTime,
   type ChartPaneOverlayProps,
@@ -111,8 +112,9 @@ export function frameFrom(
 }
 
 /** Slide a view that follows the live edge so the plan's zones have room past the last candle; a view
- * the operator moved elsewhere stays where it is. */
+ * the operator zoomed or panned stays exactly where they put it, even at the live edge. */
 export function roomAtLiveEdge(chart: NonNullable<ChartPaneOverlayProps['chart']>, barCount: number): void {
+  if (operatorOwnsView(chart)) return;
   const last = barCount - 1;
   try {
     const ts = chart.timeScale();
@@ -300,8 +302,11 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     }
   }, [chart, kind, nonce, focusTs, enabled]);
 
-  // A forming setup sits a few pixels wide at the pane's right edge: frame it once per setup, and
-  // again whenever the operator presses the badge. Their own zoom is theirs until a new setup.
+  // A forming setup sits a few pixels wide at the pane's right edge: frame it once per setup while the view
+  // is still Nova's, and whenever the operator presses the badge. Once they zoom or pan, no setup moves it
+  // (operator report 2026-10-06: the plan's lead went from red to green to Gap and Go, and each change
+  // reframed the pane -- Gap and Go's frame starts at its 04:05 premarket high). A setup that leads again is
+  // not framed again either: the lead can go back and forth by the minute.
   const lead = read ? leadLane(read) : null;
   const startSec = lead && ctx?.layers.setups ? laneStartSec(lead, legStartOf(series)) : null;
   const frameKey = lead && startSec !== null ? `${ctx?.symbol}:${lead.setup_type}:${lead.leg?.t ?? startSec}` : null;
@@ -311,10 +316,12 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     ctx?.clearFocus();
     frameFrom(chart, series, startSec);
   }, [chart, series, startSec, kind, ctx]);
-  const framed = useRef<string | null>(null);
+  const framed = useRef(new Set<string>());
   useEffect(() => {
-    if (kind !== 'full' || !enabled || !frameKey || framed.current === frameKey || focusTs !== null) return;
-    if (startSec !== null && frameFrom(chart, series, startSec)) framed.current = frameKey;
+    if (kind !== 'full' || !enabled || !frameKey || framed.current.has(frameKey) || focusTs !== null) return;
+    // The operator's view: this setup is seen, and never framed later (after a Reset chart, say).
+    if (operatorOwnsView(chart)) framed.current.add(frameKey);
+    else if (startSec !== null && frameFrom(chart, series, startSec)) framed.current.add(frameKey);
   }, [chart, series, index, kind, enabled, frameKey, startSec, focusTs]);
 
   if (!ctx || !enabled || !read) return null;

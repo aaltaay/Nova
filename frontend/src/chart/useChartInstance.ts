@@ -19,6 +19,7 @@ import {
 } from './chartPriceScale';
 import { removeChartAfterCleanups } from './chartDispose';
 import { measureChartFillHeight } from './measureChartFillHeight';
+import { watchOperatorView } from './operatorView';
 import { isSubMinuteTimeframe } from '../tickerChartData';
 
 export interface ChartSeriesRefs {
@@ -127,6 +128,8 @@ export function useChartInstance({
       minimumWidth: CHART_PRICE_SCALE_MIN_WIDTH_PX,
     });
 
+    // Whose view it is: once the operator zooms or pans, Nova's own moves leave it alone.
+    const stopViewWatch = watchOperatorView(chart);
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volSeriesRef.current = volSeries;
@@ -160,6 +163,7 @@ export function useChartInstance({
       disposed = true;
       cancelAnimationFrame(firstFrame);
       ro.disconnect();
+      stopViewWatch();
       // After the overlays' own cleanups, not before them (chartDispose.ts).
       removeChartAfterCleanups(chart);
       setChartApi(null);

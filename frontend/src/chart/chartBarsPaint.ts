@@ -19,6 +19,7 @@ import {
   snapshotChartViewport,
   type ChartViewportSnapshot,
 } from './chartViewportPaint';
+import { releaseView } from './operatorView';
 
 export interface ChartSeriesRefs {
   chartRef: React.RefObject<IChartApi | null>;
@@ -61,6 +62,8 @@ export function paintFull(
     : null;
   const command = paintTimeScaleCommand(timeframe, candles.length, snapshot, seriesTime);
   applyTimeScaleCommand(chartRef.current, command);
+  // A first paint (another symbol or timeframe, a Sim seek) shows Nova's default window: the view is Nova's again.
+  if (!snapshot) releaseView(chartRef.current);
   if (typeof requestAnimationFrame !== 'function') return;
   requestAnimationFrame(() => {
     if (paintEpoch.current !== epoch) return;
