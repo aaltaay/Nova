@@ -55,7 +55,9 @@ sleeves. A bot trading Live remains an unresolved, held decision outside it.
   persist settings. The deliberately shared place-confirmation preference stays
   shared. Venue switches invalidate prepared submission and reseed open tickets;
   ordinary preference changes update the relevant values without erasing edits
-  to unrelated prices.
+  to unrelated prices. Stage uses the same confirmed venue and generation;
+  an unknown venue disables Stage with its reason, a changed generation cancels
+  delayed replay, and a refused stage never dismisses its proposal.
 - **Storage owner and migration.** `settings/tradeDefaultsPrefs` owns
   `nova.trade.defaults.v2.<venue>` with `{schema_version:2, venue, prefs}` (the
   existing preference fields). A schema-1 receipt at
