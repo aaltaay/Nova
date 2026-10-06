@@ -36,12 +36,7 @@ function usd(v: number): string {
   return `${v < 0 ? '−' : ''}$${text}`;
 }
 
-/**
- * The meter in words: the practice ledger's own day P&L on Paper and Sim; realized +
- * unrealized − the session's commissions on Live; and, when the commissions cannot be
- * read, the figure before them -- the day is at least that bad, and the breakers still
- * trip on it. Null when the meter says nothing.
- */
+/** The backend names the figure, fallback and reset; commissions are already included (#664). */
 export function dayPnlParts(body: unknown): string | null {
   const meter = body && typeof body === 'object' ? (body as { meter?: unknown }).meter : null;
   if (!meter || typeof meter !== 'object') return null;
@@ -50,17 +45,28 @@ export function dayPnlParts(body: unknown): string | null {
   if (m.source === 'practice_ledger_day_pnl') {
     return 'The practice ledger\'s day P&L: net liquidation less the 04:00 ET equity, every fee already paid.';
   }
-  const realized = num(m.RealizedPnL);
-  const unrealized = num(m.UnrealizedPnL);
-  if (m.commissions_unknown === true) {
-    const before = num(m.day_pnl_before_commissions);
-    return `Commissions unreadable${typeof m.commissions_error === 'string' ? ` (${m.commissions_error})` : ''}: `
-      + `before commissions the day is ${before == null ? 'unknown' : usd(before)} — the breakers still trip on that.`;
+  const parts: string[] = [];
+  if (typeof m.compares === 'string' && m.compares) {
+    parts.push(m.compares);
+  } else if (m.source === 'ibkr_daily_pnl') {
+    parts.push("IBKR's daily P&L for the account; commissions are already included.");
+  } else {
+    const realized = num(m.RealizedPnL);
+    const unrealized = num(m.UnrealizedPnL);
+    if (realized != null || unrealized != null) {
+      parts.push(`Fallback: realized ${usd(realized ?? 0)} + unrealized ${usd(unrealized ?? 0)}; `
+        + 'includes lifetime open P&L, commissions already included.');
+    }
   }
-  const commissions = num(m.commissions);
-  if (realized == null && unrealized == null) return null;
-  const sum = `realized ${usd(realized ?? 0)} + unrealized ${usd(unrealized ?? 0)}`;
-  return commissions == null ? sum : `${sum} − commissions ${usd(Math.abs(commissions))}`;
+  if (m.fallback === true && typeof m.fallback_reason === 'string' && m.fallback_reason) {
+    parts.push(`Daily P&L unavailable: ${m.fallback_reason}.`);
+  }
+  if (typeof m.reset_semantics === 'string' && m.reset_semantics) parts.push(m.reset_semantics);
+  if (m.commissions_unknown === true) {
+    parts.push(`Commissions unreadable${typeof m.commissions_error === 'string' ? ` (${m.commissions_error})` : ''}; `
+      + 'new Live bot entries held.');
+  }
+  return parts.length ? parts.join(' ') : null;
 }
 
 export function useBotDayPnl(enabled = true): BotDayPnl {

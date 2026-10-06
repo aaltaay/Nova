@@ -222,13 +222,29 @@ describe('the figure the breakers compare (ADR 042 D)', () => {
   it('says how the day P&L was reached, and what is unknown', () => {
     expect(dayPnlParts({ day_pnl: -9.54, meter: { source: 'practice_ledger_day_pnl', commissions: 0 } }))
       .toMatch(/^The practice ledger's day P&L: net liquidation less the 04:00 ET equity/);
-    expect(dayPnlParts({ day_pnl: -12.5, meter: { source: 'account_summary', RealizedPnL: -10, UnrealizedPnL: '-1.5', commissions: 1 } }))
-      .toBe('realized −$10.00 + unrealized −$1.50 − commissions $1.00');
-    expect(dayPnlParts({ day_pnl: null, meter: { commissions_unknown: true, commissions_error: 'OperationalError: locked',
-      day_pnl_before_commissions: -60 } }))
-      .toBe('Commissions unreadable (OperationalError: locked): before commissions the day is −$60.00 — the breakers still trip on that.');
+    expect(dayPnlParts({ day_pnl: -12.5, meter: { source: 'account_summary', fallback: true,
+      fallback_reason: 'Daily P&L pending', RealizedPnL: -10, UnrealizedPnL: '-2.5', commissions: 1, commissions_in_figure: true } }))
+      .toContain('Fallback');
+    expect(dayPnlParts({ day_pnl: -60, meter: { source: 'ibkr_daily_pnl', day_pnl: -60,
+      compares: 'IBKR daily P&L, commissions already included.', commissions_unknown: true,
+      commissions_error: 'OperationalError: locked' } }))
+      .toBe('IBKR daily P&L, commissions already included. Commissions unreadable (OperationalError: locked); new Live bot entries held.');
     expect(dayPnlParts({ day_pnl: null, meter: {} })).toBeNull();
     expect(dayPnlParts(null)).toBeNull();
+  });
+
+  it('states broker reset ownership and does not subtract commissions again', () => {
+    const parts = dayPnlParts({ day_pnl: 0, meter: { source: 'ibkr_daily_pnl', day_pnl: 0,
+      compares: 'IBKR daily P&L, commissions already included.', reset_semantics: 'IBKR owns the reset; its time is not reported.',
+      commissions: 5, commissions_in_figure: true } });
+    expect(parts).toBe('IBKR daily P&L, commissions already included. IBKR owns the reset; its time is not reported.');
+    expect(parts).not.toContain('− commissions');
+    const fallback = dayPnlParts({ day_pnl: -250, meter: { source: 'account_summary', fallback: true,
+      fallback_reason: 'Daily subscription unavailable', compares: 'Fallback includes lifetime unrealized P&L.',
+      reset_semantics: 'The summary is not a daily-reset figure.', commissions: 1 } });
+    expect(fallback).toContain('Fallback includes lifetime');
+    expect(fallback).toContain('Daily subscription unavailable');
+    expect(fallback).not.toContain('− commissions');
   });
 });
 

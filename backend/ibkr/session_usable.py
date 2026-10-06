@@ -137,6 +137,7 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
     gen = _session.set_ready()
     _clear_sticky_bridge_error_on_ready()
     _wire_order_events(ib)
+    _wire_daily_pnl(ib, gen)
     # History after READY, never before it (D-057). Fire-and-forget: a Gateway
     # that never answers reqCompletedOrders must not delay a usable desk.
     _completed_orders_warm.schedule(ib)
@@ -163,6 +164,16 @@ def _wire_order_events(ib) -> None:
         _telemetry.ensure_handlers(ib)
     except Exception:
         logger.exception("IBKR: order events not wired on READY -- the first order wires them")
+
+
+def _wire_daily_pnl(ib, generation: int) -> None:
+    """READY owns the generation; a missing P&L subscription must not interrupt the other hooks."""
+    try:
+        from ibkr import client, day_pnl
+
+        day_pnl.start(ib, generation=generation, account=client.account_id())
+    except Exception:
+        logger.exception("IBKR: daily P&L unavailable on READY; the meter uses its stated fallback")
 
 
 def reset_for_tests() -> None:
