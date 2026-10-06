@@ -5,6 +5,17 @@
   "updated": "2026-10-06",
   "items": [
     {
+      "id": "#762",
+      "title": "fix(delivery): concurrent successful merge is reported as HTTP405 failure",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "delivery",
+      "number": "762",
+      "url": "https://github.com/aaltaay/Nova/issues/762",
+      "state": "OPEN"
+    },
+    {
       "id": "#758",
       "title": "test(feed): prior-close trade assertion counts valid halt callbacks",
       "kind": "bug",
