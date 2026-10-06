@@ -29,6 +29,7 @@ def fresh():
     service.reset_for_tests()
     auto.reset_for_tests()
     stock_store.reset_for_tests()
+    store.save(store.empty(store.trading_day()))      # a desk past 04:00: today's file, the reset done
     yield
     service.reset_for_tests()
     auto.reset_for_tests()

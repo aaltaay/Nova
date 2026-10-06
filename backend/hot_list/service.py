@@ -81,27 +81,32 @@ def today(now: float | None = None) -> dict[str, Any]:
         fresh = store.roll(doc, day)
         cleared: list[dict[str, Any]] = []
         clear_error = archive_error = None
-        if doc is not None:
-            if str(doc["date"]) > day:
-                logger.warning("hot list: the file is dated %s, after today (%s) -- the clock moved back; "
-                               "nothing is cleared", doc["date"], day)
-            elif _cleared_for != day:
-                from hot_list import nova_buys
+        reset = False
+        if doc is not None and str(doc["date"]) > day:
+            logger.warning("hot list: the file is dated %s, after today (%s) -- the clock moved back; "
+                           "nothing is cleared", doc["date"], day)
+        elif _cleared_for != day:
+            # No file is no proof today's reset ran (a first start, or a file removed after it could not be
+            # read): writing one would tell ``day_reset_block`` it had, so the reset runs here too.
+            from hot_list import nova_buys
 
-                cleared, clear_error = nova_buys.clear_all(ts)
-                if clear_error is None:
-                    _cleared_for = day      # a failed clear is tried again, never marked done
+            cleared, clear_error = nova_buys.clear_all(ts)
+            reset = True
+            if clear_error is None:
+                _cleared_for = day          # a failed clear is tried again, never marked done
+        if doc is not None:
             archive_error = store.archive(doc)
         if clear_error:
             fresh["reset_error"] = clear_error        # the bot buys nothing until a retry resets them
         _save(fresh)
-    if doc is not None:
+    if doc is not None or reset:
         _wake()
+        since = f"left from {doc['date']}" if doc is not None else "with no earlier hot list file"
         _audit(HOT_LIST_EVENT_ROLLOVER,
-               f"today's hot list started fresh ({day}); {len(cleared)} bot buy(s) left from {doc['date']} "
-               "reset to you -- trades the bot holds keep their exits",
-               {"from": doc["date"], "to": day, "cleared": cleared, "yesterday": fresh["yesterday"],
-                "error": clear_error or archive_error})
+               f"today's hot list started fresh ({day}); {len(cleared)} bot buy(s) {since} reset to you -- "
+               "trades the bot holds keep their exits",
+               {"from": doc["date"] if doc is not None else None, "to": day, "cleared": cleared,
+                "yesterday": fresh["yesterday"], "error": clear_error or archive_error, "reset_error": clear_error})
     return fresh
 
 

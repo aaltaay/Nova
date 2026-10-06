@@ -33,9 +33,12 @@ describe('tickers today', () => {
   });
 
   it('keeps a stock set to bot buy off the hot list with today\'s tickers: it has a now row', () => {
-    const offList = { ...row('NOWL', null), now: { cells: {}, answer: 'no' as const, reasons: [] } };
-    const { today, others } = orderTickers([row('MEDS', 10), offList, row('ZZZ', null)], [mode('NOWL', 'bot')]);
-    expect(today.map(t => t.symbol)).toEqual(['NOWL', 'MEDS']);
+    const now = { cells: {}, answer: 'no' as const, reasons: [] };
+    const offList = [{ ...row('NOWL', null), now }, { ...row('AAAA', null), now }];
+    const { today, others } = orderTickers([offList[0], row('MEDS', 10), offList[1], row('ZZZ', null), row('LPA', 20)],
+      [mode('NOWL', 'bot'), mode('AAAA', 'auto_entry'), mode('LPA', 'bot')]);
+    // The hot list first (a listed bot stock leads it), then the off-list bot stocks in the backend's order.
+    expect(today.map(t => t.symbol)).toEqual(['LPA', 'MEDS', 'NOWL', 'AAAA']);
     expect(others.map(t => t.symbol)).toEqual(['ZZZ']);
   });
 

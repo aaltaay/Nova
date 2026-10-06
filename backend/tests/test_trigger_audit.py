@@ -174,7 +174,7 @@ def test_a_trigger_that_passes_every_gate_takes_the_days_cap(day):
     assert first["outcome"] == "target_first" and first["r"] == 1.5 and first["nth"] == 1
     assert oks(first["cells"]) == [True] * 9 and first["reasons"] == [] and list(first["cells"]) == GATES
     assert first["cells"]["trades_today"]["why"].startswith("it takes Nova's 1st entry of the day")
-    assert first["cells"]["nova_buys"]["why"].startswith("Buy was Nova (Bot")
+    assert first["cells"]["nova_buys"]["why"].startswith("Buy was Bot (Bot")
 
 
 def test_each_red_square_says_why(day):
@@ -345,6 +345,37 @@ def test_a_retried_reset_clears_only_the_bot_lists_it_names():
     assert line.mode_at("paper", "AUTOX", at(7, 0), unknown) == "auto_entry"
     full = Timeline(rows[:2] + [{**rows[2], "inputs": {"event": "rollover"}}])        # the 04:00 kind clears all
     assert full.mode_at("paper", "AUTOX", at(7, 0), unknown) == "signal"
+
+
+def test_a_trigger_before_the_days_reset_ran_is_red_on_bot_buys(day):
+    """The 04:00 reset failed (``reset_error``) and ran on a retry at 09:45: AISP's 09:41 trigger was held back
+    by it, so its Bot buys square is red, it takes no slot of the day's cap, and it says when the reset ran."""
+    write_audit([{"timestamp": at(4, 0, 6), "venue": "paper", "action": "hot_list", "outcome": "rollover",
+                  "inputs": {"event": "rollover", "from": "2026-09-29", "to": DAY, "cleared": [],
+                             "reset_error": "the bot's stock lists could not be cleared (OSError: gone)"}},
+                 {"timestamp": at(9, 45), "venue": "paper", "action": "hot_list", "outcome": "rollover",
+                  "inputs": {"event": "rollover", "from": DAY, "to": DAY, "cleared": [], "retry": True}}])
+    first = by_symbol(get())["AISP"]["triggers"][0]
+    cell = first["cells"]["nova_buys"]
+    assert cell["ok"] is False and "had not run yet (it ran at 09:45 ET)" in cell["why"]
+    assert "takes" not in first["cells"]["trades_today"]["why"]                    # it took no slot of the cap
+
+
+def test_the_days_reset_reads_from_its_rollover_lines():
+    """Ran at the rollover; ran on the retry after a failure; never ran; or not recorded at all."""
+    import math
+
+    from bot.trigger_inputs import reset_at
+
+    def roll(h, m, **extra):
+        return {"timestamp": at(h, m), "action": "hot_list", "outcome": "rollover",
+                "inputs": {"event": "rollover", "to": DAY, **extra}}
+
+    assert reset_at([roll(4, 0)], DAY) == at(4, 0)
+    assert reset_at([roll(4, 0, reset_error="x"), roll(6, 0, retry=True)], DAY) == at(6, 0)
+    assert reset_at([roll(4, 0, reset_error="x")], DAY) == math.inf
+    assert reset_at([], DAY) is None
+    assert reset_at([{**roll(4, 0), "inputs": {"event": "rollover", "to": "2026-09-29"}}], DAY) is None
 
 
 def test_a_stock_taken_off_the_hot_list_before_its_trigger_is_judged_the_same(day):

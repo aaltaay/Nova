@@ -165,7 +165,7 @@ async function shot(page: Page, name: string) {
 test.describe('Who trades the stock', () => {
   test.use({ viewport: { width: 1920, height: 1080 } });
 
-  test('sits right above Level 2, keeps Level 2 its room, and hands the buy to Nova', async ({ page }) => {
+  test('sits right above Level 2, keeps Level 2 its room, and hands the buy to the bot', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     const { puts, mutations } = await openApus(page);
     const row = page.getByTestId('who-trades');
@@ -187,7 +187,7 @@ test.describe('Who trades the stock', () => {
     await expect(page.getByTestId('who-trades-mode')).toHaveText('Auto-entry');
     // ADR 042: the venue sleeve owns risk; this write changes only the stock's sides.
     expect(puts).toEqual([{ buy: 'nova', sell: 'you' }]);
-    await expect(page.getByTestId('who-trades-chip')).toContainText('Nova buys · you sell');
+    await expect(page.getByTestId('who-trades-chip')).toContainText('bot buys · you sell');
     await shot(page, 'who-auto-entry');
 
     await page.getByTestId('who-trades-chip').click();

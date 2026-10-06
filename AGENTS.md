@@ -3183,9 +3183,11 @@ decides who trades a stock, and taking one off never changes it -- that is the s
   - trades Nova holds keep their exits.
   - The bot and Auto-entry buy nothing until today's file is written: `BOT_SKIP_DAY_NOT_RESET`
     (`hot_list.day_reset_block`; the auto feed's loop rolls over within `HOT_LIST_AUTO_TICK_SEC` of 04:00
-    and at every start). When clearing the bot lists fails, today's file carries `reset_error`, the bot
-    still buys nothing, and every later pass retries the lists (not the switches: one set since is today's);
-    the retry that works writes a `rollover` line with `inputs.retry: true`.
+    and at every start). No file at all (a first start, or one removed after it could not be read) is no
+    proof the reset ran, so that pass resets too (`rollover` line with `from: null`). When clearing the bot
+    lists fails, today's file carries `reset_error` (and the line `inputs.reset_error`), the bot still buys
+    nothing, and every later pass retries the lists (not the switches: one set since is today's); the retry
+    that works writes a `rollover` line with `inputs.retry: true`.
 - **Followed by the scanners.** The stocks the bot buys (Buy set to Bot on the desk's venue: its bot list,
   then each Auto-entry switch; `hot_list.following.bot_buy_symbols`), then listed names, share HOD Momo's 20
   reserved slots (`HOD_MOMO_FORMER_MOMO_MAX_SLOTS`) with Former Momo (`hod_momo_active.build_active_set`,
@@ -3245,7 +3247,11 @@ answers:
 - **A setting at a trigger** is the nearest audit record before it; one that a restart, a venue change or
   the rollover hides reads `null`.
 - **The tickers**: the day's hot list (`listed`), then today's bot-buy stocks not on it, then every other
-  ticker that triggered (`listed: null`).
+  ticker that triggered (`listed: null`); the desk keeps that order (hot list first, then the off-list
+  bot-buy stocks).
+- **The day's reset** (`bot.trigger_inputs.reset_at`): a trigger before the day's rollover line -- or, when its
+  clear failed, before the retry that ran it -- reads `nova_buys` red ("had not run yet") and takes no slot of
+  the cap; a day with no such line is not judged on it.
 - **BLIND** is the Level 2 line's red, never the tape's.
 - **`now`** (today only, the trading day: the rows stay from midnight to the 04:00 rollover) is each
   listed or bot-buy ticker this minute; its `nova_buys` square is red while today's reset has not run.

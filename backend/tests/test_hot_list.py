@@ -285,11 +285,15 @@ def test_before_the_rollover_a_reader_sees_the_rolled_list_and_nothing_is_writte
     assert store._path().read_text(encoding="utf-8") == before
 
 
-def test_a_first_start_writes_today_and_clears_nothing():
+def test_no_file_is_no_proof_the_reset_ran_so_it_runs():
+    """A first start, or a file removed after it could not be read: nothing shows today's reset ran, and
+    writing today's file would tell the bot it had -- so the bot lists are reset first, and said so."""
     _session_with_lists(["AAA"], [])
     assert service.today(WED_1000)["entries"] == []
-    assert load_session()["symbol_allowlist"] == ["AAA"]
-    assert [r for r in list_entries(limit=20) if r["action"] == "hot_list"] == []
+    assert load_session()["symbol_allowlist"] == [] and store.day_reset_block(WED_1000) is None
+    [line] = [r for r in list_entries(limit=20) if r["action"] == "hot_list"]
+    assert line["outcome"] == "rollover" and line["inputs"]["from"] is None and line["inputs"]["to"] == "2026-09-30"
+    assert line["inputs"]["reset_error"] is None and "with no earlier hot list file" in line["reason"]
 
 
 # -- the auto feed ---------------------------------------------------------------------------------

@@ -8,7 +8,8 @@ warm-up says the same trigger again), with its grade (its ``armed`` line) and it
 
 - ``bot_on``: the bot's state the journal stamped on the line (``bot: {level, active, venue}``);
 - ``strategy_on`` / ``nova_buys`` ("Bot buys"): the strategy's own level and the stock's mode on the trigger's
-  venue at its moment (``bot.trigger_timeline``);
+  venue at its moment (``bot.trigger_timeline``); ``nova_buys`` is red too for a trigger before the day's 04:00
+  reset of yesterday's bot buys ran (``Context.reset_at``, read from the day's rollover lines);
 - ``grade``: the grade it armed with against the strategy's ``bot_grades``, and NOT A TRADE's
   checks of the setup itself -- grade C, the spread at or over the risk, too thin to trade
   (``setup_scanner.trade_verdict``): Nova's bot reads them on the same trigger;
@@ -41,9 +42,9 @@ _ET = ZoneInfo(BOT_TZ)
 # A ``session`` line this long after midnight ET is Nova starting, not the eyes' date turning.
 RESTART_AFTER_MIDNIGHT_SEC = 300.0
 _MODE_WORDS = {
-    STOCK_MODE_AUTO_ENTRY: (True, "Buy was Nova (Auto-entry: Nova buys, you sell)"),
-    STOCK_MODE_BOT: (True, "Buy was Nova (Bot: Nova buys and sells)"),
-    STOCK_MODE_SIGNAL: (False, "Buy was You (Signal only): Nova buys only stocks whose Buy is Nova"),
+    STOCK_MODE_AUTO_ENTRY: (True, "Buy was Bot (Auto-entry: the bot buys, you sell)"),
+    STOCK_MODE_BOT: (True, "Buy was Bot (Bot: the bot buys and sells)"),
+    STOCK_MODE_SIGNAL: (False, "Buy was You (Signal only): the bot buys only stocks whose Buy is Bot"),
     STOCK_MODE_APPROVE: (False, "Buy was You (Approve: Nova sends only a plan you approve)"),
 }
 
@@ -127,6 +128,7 @@ class Context:
     timeline: Timeline
     rules: dict[str, dict[str, Any]]                     # setup -> {grades, setups_a_day, window, error}
     listed: dict[str, dict[str, Any]] = field(default_factory=dict)   # symbol -> its hot list entry (the ★)
+    reset_at: float | None = None       # when the day's 04:00 reset of the bot's buys ran (inf: never; None: unknown)
     audit_error: str | None = None
     level_now: Callable[[str | None, str], Any] = lambda venue, setup: None
     mode_now: Callable[[str | None, str], Any] = lambda venue, symbol: UNKNOWN
@@ -203,7 +205,12 @@ def _nova_buys(t: dict[str, Any], venue: str | None, ctx: Context) -> dict[str, 
         return cell(None, ctx.audit_error)
     mode = ctx.timeline.mode_at(venue, t["symbol"], t["ts"], lambda: ctx.mode_now(venue, t["symbol"]))
     if mode in _MODE_WORDS:
-        return cell(*_MODE_WORDS[mode])
+        ok, why = _MODE_WORDS[mode]
+        if ok and ctx.reset_at is not None and t["ts"] < ctx.reset_at:
+            ran = f"it ran at {hhmm(ctx.reset_at)} ET" if ctx.reset_at != float("inf") else "it never ran that day"
+            return cell(False, f"{why}, but the 04:00 reset of yesterday's bot buys had not run yet ({ran}): "
+                               "the bot bought nothing until it did")
+        return cell(ok, why)
     return cell(None, f"not known: a restart or the 04:00 rollover came between this trigger and the last record of "
                       f"who trades {t['symbol']}")
 

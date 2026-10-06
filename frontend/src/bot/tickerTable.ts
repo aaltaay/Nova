@@ -37,17 +37,16 @@ export function sidesOf(symbol: string, modes: readonly StockModeRow[]): [Side, 
   return row ? SIDES[row.mode] : ['you', 'you'];
 }
 
-/** A row with a "now" (or a ★ / ☆): today's tickers -- listed, or set to bot buy. */
-const isToday = (t: TickerRow) => t.listed !== null || t.now !== null;
-
-/** Today's tickers first -- the stocks the bot buys first, then by when they joined the hot list (bot-buy stocks
- * off the list before the listed ones) -- then the rest (triggered only) by symbol. */
+/** Today's tickers: the hot list first (the stocks the bot buys first, then by when they joined), then the
+ * bot-buy stocks off the list in the backend's order (they have a "now" row); then the rest (triggered only)
+ * by symbol. */
 export function orderTickers(rows: readonly TickerRow[], modes: readonly StockModeRow[]): { today: TickerRow[]; others: TickerRow[] } {
   const botBuys = (t: TickerRow) => (sidesOf(t.symbol, modes)[0] === 'nova' ? 0 : 1);
-  const joined = (t: TickerRow) => t.listed?.at ?? 0;
-  const today = rows.filter(isToday).sort((a, b) => botBuys(a) - botBuys(b) || joined(a) - joined(b));
-  const others = rows.filter(t => !isToday(t)).sort((a, b) => a.symbol.localeCompare(b.symbol));
-  return { today, others };
+  const listed = rows.filter(t => t.listed !== null)
+    .sort((a, b) => botBuys(a) - botBuys(b) || (a.listed!.at - b.listed!.at));
+  const offList = rows.filter(t => t.listed === null && t.now !== null);
+  const others = rows.filter(t => t.listed === null && t.now === null).sort((a, b) => a.symbol.localeCompare(b.symbol));
+  return { today: [...listed, ...offList], others };
 }
 
 /** A red square in a few words: what "What stops it" says; the backend's whole sentence is its hover. */

@@ -174,3 +174,34 @@ def reset_for_tests() -> None:
     global _today
     with _lock:
         _today = None
+
+
+def reset_at(rows: list[dict[str, Any]], day: str) -> float | None:
+    """When ``day``'s 04:00 reset of yesterday's bot buys ran, from its ``hot_list`` rollover lines (ADR 044,
+    amended 2026-10-06): the rollover's own time, or -- when its clear failed (``reset_error``) -- the
+    retry's that ran it; ``math.inf`` when none did. None when no line says (a day before the amendment, or
+    nothing recorded): unknown, and no trigger is held back for it."""
+    import math
+
+    from constants_hot_list import HOT_LIST_AUDIT_ACTION, HOT_LIST_EVENT_ROLLOVER
+
+    lines = sorted(
+        ((ts, row.get("inputs") or {}) for row in rows
+         if row.get("action") == HOT_LIST_AUDIT_ACTION and (ts := _num_ts(row)) is not None),
+        key=lambda pair: pair[0])
+    first = None
+    for ts, inputs in lines:
+        if inputs.get("event") != HOT_LIST_EVENT_ROLLOVER or inputs.get("to") != day:
+            continue
+        if not inputs.get("retry") and first is None:
+            first = ts
+            if not inputs.get("reset_error"):
+                return ts
+        elif inputs.get("retry") and first is not None:
+            return ts
+    return math.inf if first is not None else None
+
+
+def _num_ts(row: dict[str, Any]) -> float | None:
+    ts = row.get("timestamp")
+    return float(ts) if isinstance(ts, (int, float)) and not isinstance(ts, bool) else None
