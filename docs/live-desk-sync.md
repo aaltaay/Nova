@@ -201,6 +201,12 @@ makes that source partial. Later undated authentication evidence cannot borrow
 an older startup's timestamp to establish a quiet week; the report remains
 unknown / OPEN rather than guessing when that startup occurred.
 
+Each valid startup banner supports only that startup's first authentication
+record. A later authentication record needs a fresh valid banner or a valid
+dated IBC line following it. A record still awaiting a dated line when another
+startup begins is partial evidence, even when a previous banner is readable:
+the diagnostic parser's retained fallback cannot certify the record's date.
+
 The unattended-PASS criterion is evaluated separately. Missed mornings remain
 context: they do not themselves add another closing criterion or require every
 morning to pass. One genuine unattended PASS plus adequate evidence of a quiet
