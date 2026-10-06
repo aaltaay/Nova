@@ -80,9 +80,11 @@ sleeves. A bot trading Live remains an unresolved, held decision outside it.
   expiry applies; transition/schema changes invalidate it. Every transition,
   including Paper → Live → Paper, gets a new token. A late status GET or
   desk-venue POST reply cannot undo a newer confirmed transition from another
-  window. Capture the confirmed revision before the POST and refuse stale
-  replies before confirming or launching a Gateway; refresh authoritative status
-  afterward, including when a concurrent transition invalidates the reply.
+  window. Track confirmed transitions while the POST is pending. A first
+  confirmation of its requested venue may precede the reply and must retain its
+  required Gateway launch, without republishing an older generation. A competing
+  transition or ABA invalidates the pending acknowledgment. Refresh authoritative
+  status afterward, including when a concurrent transition invalidates the reply.
 - **Bot state follows that source.** Clear old state and request an immediate
   refresh on a confirmed transition; queue it if an old read is busy. Stamp
   snapshots with venue and generation, validate `session.level_venue`, and reject
