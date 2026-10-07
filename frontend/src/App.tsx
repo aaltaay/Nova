@@ -38,6 +38,7 @@ import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
 import { parseStockViewSymbol } from './utils/stockViewNav';
 import { useNovaDeskWindowTitle } from './utils/useNovaWindowTitle';
 import { AdviseHost } from './advise/AdvisePanel';
+import { AgentDeskHost } from './agent_desk';
 import { AdviseProvider } from './advise/AdviseContext';
 import { AppDialogHost } from './ux';
 import { DesktopUpdateHost } from './desktop_update';
@@ -108,6 +109,8 @@ function AppShell() {
             {/* Desktop app only: a newer Nova is out, and what the last update brought. */}
             {!detached && <DesktopUpdateHost />}
             {!detached && <IssueReportHost />}
+            {/* An agent's show / move runs here (ADR 050); the main window only. */}
+            {!detached && <AgentDeskHost />}
             <MwcbBannerHost />
             <NovaOsAttentionStrip global />
             <div className={branchClass}>

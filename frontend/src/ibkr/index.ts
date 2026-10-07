@@ -14,6 +14,8 @@ export {
 } from './confirmedDeskVenue';
 export type { ConfirmedDeskVenueSnapshot } from './confirmedDeskVenue';
 export { watchDeskRequestRoute } from './deskRequestRouteFence';
+// ADR 050: an agent's show moves the desk through the same door as the venue pills.
+export { moveDeskToVenue, switchDeskVenue } from './deskVenueSwitch';
 export { defaultTicketQty } from './applyTicketDefaults';
 export {
   claimDeskPollLeader, heartbeatDeskPollLeader, publishDeskPollSnap,

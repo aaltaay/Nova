@@ -89,6 +89,12 @@ def is_hot_list_mutate(method: str, path: str) -> bool:
     return method in _MUTATING and (normalized == "/api/hot-list" or normalized.startswith("/api/hot-list/"))
 
 
+def is_agent_mutate(method: str, path: str) -> bool:
+    """The agent endpoints drive the desk (ADR 050): keyed like a bot route."""
+    normalized = path.rstrip("/") or "/"
+    return method in _MUTATING and (normalized == "/api/agent" or normalized.startswith("/api/agent/"))
+
+
 def is_sensor_http_path(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
     return normalized == "/sensors" or normalized.startswith("/sensors/")
@@ -103,6 +109,9 @@ _BOT_KEY_REQUIRED = (
 )
 _ISSUE_KEY_REQUIRED = (
     "NOVA_API_KEY must be set to file an issue from the desk, including on loopback"
+)
+_AGENT_KEY_REQUIRED = (
+    "NOVA_API_KEY must be set for the agent endpoints, including on loopback"
 )
 
 
@@ -157,6 +166,20 @@ async def require_bot_auth(
         raise HTTPException(status_code=status, detail=detail)
 
 
+async def require_agent_key(
+    api_key: Annotated[str | None, Security(_api_key_header)] = None,
+) -> None:
+    """The agent endpoints' writes and the desk's long poll (ADR 050) -- always a configured API key."""
+    rejected = check_api_key(
+        api_key,
+        require_configured_key=True,
+        missing_key_detail=_AGENT_KEY_REQUIRED,
+    )
+    if rejected is not None:
+        status, detail = rejected
+        raise HTTPException(status_code=status, detail=detail)
+
+
 class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
     """Enforce API key on mutating ``/api/*``, ``/bot/*``, and ``/sensors/*``."""
 
@@ -166,13 +189,15 @@ class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
         bot = (is_bot_mutate(request.method, path) or is_setup_template_mutate(request.method, path)
                or is_stock_mode_mutate(request.method, path) or is_hot_list_mutate(request.method, path))
         issue = is_issue_report_mutate(request.method, path)
+        agent = is_agent_mutate(request.method, path)
         api = path.startswith("/api/")
         sensors = is_sensor_mutate(request.method, path)
         if mutating and (bot or api or sensors):
             rejected = check_api_key(
                 request.headers.get(NOVA_API_KEY_HEADER),
-                require_configured_key=is_config_mutate(request.method, path) or bot or issue,
-                missing_key_detail=_BOT_KEY_REQUIRED if bot else (_ISSUE_KEY_REQUIRED if issue else None),
+                require_configured_key=is_config_mutate(request.method, path) or bot or issue or agent,
+                missing_key_detail=_BOT_KEY_REQUIRED if bot else (
+                    _ISSUE_KEY_REQUIRED if issue else (_AGENT_KEY_REQUIRED if agent else None)),
             )
             if rejected is not None:
                 status, detail = rejected
@@ -208,6 +233,7 @@ __all__ = [
     "MutatingApiKeyMiddleware",
     "check_api_key",
     "configure_api_auth",
+    "is_agent_mutate",
     "is_bot_http_path",
     "is_bot_mutate",
     "is_config_mutate",
@@ -215,6 +241,7 @@ __all__ = [
     "is_sensor_http_path",
     "is_sensor_mutate",
     "is_setup_template_mutate",
+    "require_agent_key",
     "require_auth",
     "require_bot_auth",
 ]

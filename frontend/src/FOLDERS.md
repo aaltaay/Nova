@@ -22,6 +22,7 @@ the backend packages.
 | `account/` | feature | The Account page: practice-ledger history, equity curve, positions / orders, P&L components, calendar and the details column. |
 | `activity/` | feature | The activity trail: the order and Gateway event timeline on the Trading tab's activity dashboard. |
 | `advise/` | feature | The Advise overlay: per-symbol advice runs, cost estimate, streamed transcript and a ticket prefilled from the advice. |
+| `agent_desk/` | app | The desk side of the agent endpoints (ADR 050): the main window takes an agent's show / move by a long poll and runs it with the desk's own steps (venue, Sim day, Trader tab, the window from the Massive files, the playhead), with a notice of what it is doing. |
 | `api/` | shared | HTTP plumbing: the `novaFetch` wrapper that attaches the Nova API key, plus the sensor REST client. |
 | `assets/` | shared | Static images: a hero image and the default Vite / React logos (scaffold leftovers). |
 | `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling. |
