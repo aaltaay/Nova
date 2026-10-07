@@ -20,7 +20,7 @@ setup enters (``side``: ``long`` / ``short``) and a short's SSR at its trigger, 
 version-5 file is migrated in place and its rows are long.
 
 One row per trigger (2026-10-02): a setup armed again on a key whose row holds a trigger is its own row,
-``KEY#2`` (``setup_scanner/lane_ids.py``); no column changed. ``triggered_ids`` tells a lane made after a
+``KEY#2`` (``setup_scanner/lane_ids.py``); no column changed. ``triggered_on`` tells a lane made after a
 restart which of today's ids already hold a trade, so it never writes over one.
 """
 from __future__ import annotations
@@ -226,13 +226,17 @@ class SetupStore:
                         logger.warning("setups.db: bad JSON in %s for %s", k, r.get("id"))
         return out
 
-    def triggered_ids(self, session_date: str, symbol: str, *, template_id: str, setup_type: str) -> list[str]:
-        """The ids of ``session_date``'s rows on ``symbol`` (one template, one setup) that hold a trigger."""
-        sql = ("SELECT id FROM setups WHERE session_date = ? AND symbol = ? AND template_id = ? "
-               "AND (setup_type = ? OR (setup_type IS NULL AND ? = ?)) AND triggered_at IS NOT NULL")
-        args = (session_date, symbol.upper(), template_id, setup_type, setup_type, BOT_SETUP_FIRST_PULLBACK)
+    def triggered_on(self, session_date: str) -> dict[tuple[str, str, str], set[str]]:
+        """The ids of ``session_date``'s rows that hold a trigger, by ``(symbol, template_id, setup_type)``.
+        One read for the whole day: asked per symbol and lane, a cold start's 1,111 asks took 2.3 s."""
+        sql = ("SELECT id, symbol, template_id, setup_type FROM setups "
+               "WHERE session_date = ? AND triggered_at IS NOT NULL")
         with self._lock:
-            return [r[0] for r in self._conn.execute(sql, args).fetchall()]
+            got = self._conn.execute(sql, (session_date,)).fetchall()
+        out: dict[tuple[str, str, str], set[str]] = {}
+        for sid, symbol, template_id, setup_type in got:
+            out.setdefault((symbol, template_id, setup_type or BOT_SETUP_FIRST_PULLBACK), set()).add(sid)
+        return out
 
     def close(self) -> None:
         with self._lock:

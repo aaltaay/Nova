@@ -43,6 +43,7 @@ def init_sentry() -> bool:
         import sentry_sdk
         from sentry_sdk.integrations.fastapi import FastApiIntegration
         from sentry_sdk.integrations.logging import LoggingIntegration
+        from sentry_sdk.integrations.modules import ModulesIntegration
         from sentry_sdk.integrations.starlette import StarletteIntegration
 
         from observability_filters import before_send
@@ -63,6 +64,10 @@ def init_sentry() -> bool:
             # against 682, 20-46 s of each restart on the desk (2026-09-30), and more for
             # every full garbage collection to walk (#619).
             "auto_enabling_integrations": False,
+            # A default integration: on the first captured event of a process it reads every installed
+            # package's metadata to list them on the event, on whichever loop logged the error --
+            # 4.3-6.0 s on the IB and HTTP loops, four times on 2026-10-07.
+            "disabled_integrations": [ModulesIntegration()],
             "traces_sample_rate": max(0.0, min(1.0, traces)),
             "send_default_pii": False,
             "environment": environment,

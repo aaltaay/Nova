@@ -140,6 +140,35 @@ def test_a_restart_never_writes_a_setup_over_a_stored_trade(tmp_path):
     assert rows[f"{base}#2"]["kind"] == "second_pullback"
 
 
+def test_a_cold_start_reads_the_days_stored_triggers_once(tmp_path):
+    """2026-10-07 13:12:27: a restart followed 101 symbols on 11 lanes and asked setups.db for each pair's
+    stored triggers -- 1,111 queries at 1.9 ms, the HTTP loop held 2.3 s. The day is read once now."""
+    bars = armed_bars()
+    store = SetupStore(tmp_path / "setups.db")
+    asked: list[str] = []
+    store._conn.set_trace_callback(lambda sql: asked.append(sql) if "triggered_at IS NOT NULL" in sql else None)
+    syms = [f"{SYM}{i}" for i in range(6)]
+    clock = {"t": bars[-1].t + 30}
+    eng = SetupEngine(store=store, tape=FakeTape(), universe=lambda: syms, seed=lambda sym, since: list(bars),
+                      replay_desk=lambda: False, audit=lambda **kw: None, clock=lambda: clock["t"],
+                      journal=[].append, bot_state=lambda: {"level": 1, "active": True, "venue": "paper"},
+                      levels=EYES)
+    run(eng, clock["t"])
+    assert len(eng.lanes) > 1 and set(eng.bars) == set(syms)
+    assert len(asked) == 1
+
+
+def test_a_trigger_saved_after_the_days_read_is_still_a_stored_trade(tmp_path):
+    bars = armed_bars()
+    eng, clock = make(tmp_path / "setups.db", bars)
+    run(eng, clock["t"])
+    assert eng.stored_triggers(SYM, "default", "first_pullback") == []
+    first_trade(eng, clock)
+    base = f"{SYM}-{eng.session}-{int(eng.det[SYM].triggered['leg_t'])}"
+    assert eng.stored_triggers(SYM, "default", "first_pullback") == [base]
+    assert eng.stored_triggers(SYM, "other", "first_pullback") == []
+
+
 def test_a_symbol_back_in_the_universe_starts_from_the_days_triggers(tmp_path):
     bars = armed_bars()
     eng, clock = make(tmp_path / "setups.db", bars)

@@ -30,6 +30,39 @@ def test_init_sentry_loads_only_its_own_integrations(monkeypatch):
     }
 
 
+def test_the_first_event_never_scans_the_installed_packages(monkeypatch):
+    """2026-10-07: Sentry's modules integration read every installed package's metadata on the first
+    captured event of a process -- 4.3 s to 6.0 s on the IB and HTTP loops, four times that day."""
+    import sentry_sdk
+    import sentry_sdk.utils
+    from sentry_sdk.transport import Transport
+
+    import observability
+
+    scanned: list[bool] = []
+    sent: list[dict] = []
+
+    class Kept(Transport):
+        def capture_envelope(self, envelope):
+            sent.append(envelope.get_event())
+
+    real_init = sentry_sdk.init
+    monkeypatch.setenv("SENTRY_DSN", "https://public@127.0.0.1/1")
+    monkeypatch.setattr(sentry_sdk.utils, "_installed_modules", None)
+    monkeypatch.setattr(sentry_sdk.utils, "_generate_installed_modules", lambda: scanned.append(True) or iter(()))
+    monkeypatch.setattr(sentry_sdk, "init", lambda **kw: real_init(**kw, transport=Kept()))
+    try:
+        assert init_sentry() is True
+        sentry_sdk.capture_message("ibkr.session.unusable", level="error")
+        sentry_sdk.flush()
+        assert sent and "modules" not in sent[0]
+        assert scanned == []
+    finally:
+        monkeypatch.setattr(observability, "_sentry_enabled", False)
+        sentry_sdk.get_client().close()
+        sentry_sdk.get_global_scope().set_client(None)
+
+
 def test_before_send_drops_bridge_keep_cache():
     event = {
         "message": "Gainers bridge failed — keeping 50 cached row(s): TimeoutError",

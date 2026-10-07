@@ -12,7 +12,7 @@ import logging
 import time
 from typing import Any, Callable
 
-from constants_bot import BOT_LEVEL_EYES
+from constants_bot import BOT_LEVEL_EYES, BOT_SETUP_FIRST_PULLBACK
 from constants_setups import SETUPS_THIN_SIZE_TTL_SEC
 from setup_scanner import grade as _grade
 from setup_scanner import tape_flow, tape_gap
@@ -168,13 +168,23 @@ class LaneHost:
             self.store.upsert(row)
         except Exception:
             logger.exception("setup scanner: could not save %s", row.get("id"))
+            return
+        memo = self.__dict__.get("_triggered_memo")
+        if row.get("triggered_at") and memo is not None and memo["session"] == row.get("session_date"):
+            key = (row["symbol"], row.get("template_id"), row.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
+            memo["ids"].setdefault(key, set()).add(row["id"])
 
     def stored_triggers(self, sym: str, template_id: str, setup_type: str) -> list[str]:
         """Today's ids on ``sym`` (one template, one setup) whose stored row holds a trigger: a lane made
-        after a restart never writes a setup over a stored trade (one row per trigger, 2026-10-02)."""
+        after a restart never writes a setup over a stored trade (one row per trigger, 2026-10-02). The
+        day is read from ``setups.db`` once and kept as rows are saved."""
         if self.store is None or not self.session:
             return []
-        return self.store.triggered_ids(self.session, sym, template_id=template_id, setup_type=setup_type)
+        memo = self.__dict__.get("_triggered_memo")
+        if memo is None or memo["session"] != self.session:
+            memo = {"session": self.session, "ids": self.store.triggered_on(self.session)}
+            self.__dict__["_triggered_memo"] = memo
+        return sorted(memo["ids"].get((sym.upper(), template_id, setup_type), ()))
 
     def journal(self, event: dict) -> None:
         try:
