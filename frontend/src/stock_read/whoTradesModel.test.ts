@@ -104,13 +104,13 @@ describe('what Nova promises on the chart (ADR 042 draft)', () => {
     expect(ok?.call).toMatchObject({ title: 'BOT BUYS AT 4.26' });
     expect(ok?.call?.detail).toMatch(/the bot buys 10\. Every sell is yours/);
     const used = auto({ entries_today: { count: 1, cap: 1 } });
-    expect(capUsedText(used)).toBe("Nova's one automatic buy on Paper today is used (1 of 1): the bot and Auto-entry "
-      + 'buy again on the next day.');
-    expect(momentOf(inputs({ read: armed, who: used }))?.call).toMatchObject({ title: "THE BOT'S BUY TODAY IS USED",
+    expect(capUsedText(used)).toBe("Nova's one automatic trade on Paper today is used (1 of 1): the bot and Auto-entry "
+      + 'trade again on the next day.');
+    expect(momentOf(inputs({ read: armed, who: used }))?.call).toMatchObject({ title: "THE BOT'S TRADE TODAY IS USED",
       detail: capUsedText(used) });
     const idle = auto({ bot: { ...BOT_READY, on_list: false, active: false } });
     expect(novaBlockers(idle, armed.plan)).toEqual([
-      'The bot is not active: Auto-entry buys only while it is. Press Activate on the Bots page.',
+      'The bot is not active: Auto-entry enters only while it is. Press Activate on the Bots page.',
     ]);
     // Signal only and Approve: the operator decides, Nova promises nothing by itself.
     expect(novaBlockers(pfsaView('approve', { notes: [{ id: 'x', tone: 'warn', text: 'y' }] }), armed.plan)).toEqual([]);

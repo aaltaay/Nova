@@ -47,10 +47,10 @@ describe('tickers today', () => {
   });
 
   it('splits a now row\'s reds into its own and the shared ones, and keeps a trigger\'s in gate order', () => {
-    const cells: Cells = { bot_on: cell(false, 'the bot was off'), nova_buys: cell(false, 'Buy is You on AISP'),
+    const cells: Cells = { bot_on: cell(false, 'the bot was off'), nova_buys: cell(false, 'Entry is You on AISP'),
       bot_window: cell(false, 'outside 07:00-10:00'), level2_line: cell(true), tape_go: cell(null) };
     const { own, shared } = splitReasons(cells, ORDER);
-    expect(own.map(s => s.word)).toEqual(['Buy is You']);
+    expect(own.map(s => s.word)).toEqual(['Entry is You']);
     expect(shared.map(s => s.id)).toEqual(['bot_on', 'bot_window']);
     expect(allStops(cells, ORDER).map(s => s.id)).toEqual(['bot_on', 'bot_window', 'nova_buys']);
     expect(allStops(cells, ORDER)[0].why).toBe('the bot was off');

@@ -73,6 +73,24 @@ export type BotTrade = {
   slippage: number | null;
   r: number | null;
   note?: string | null;
+  /** ADR 049 (#778 step 5): the side the strategy entered -- absent on an older API: a long. */
+  side?: 'long' | 'short' | string | null;
+  /** A short priced at the ask under SSR, and the SSR it read ('on' | 'off' | 'unknown'). */
+  priced_at_ask?: boolean;
+  ssr?: string | null;
+};
+
+/** One of the answer line's short chips (ADR 049, #778 step 5): ok, not, or not known (null). */
+export type ShortChip = { ok: boolean | null; text: string; value?: string | null };
+
+/** What a short needs from the account and the clock, said once for the desk's venue. */
+export type BotShortsView = {
+  venue?: string;
+  margin_account?: ShortChip;
+  equity?: ShortChip;
+  hours?: ShortChip;
+  live?: ShortChip;
+  error?: string;
 };
 
 /** Why Activate was cleared (ADR 042): the backend clears it and says so. */
@@ -184,7 +202,9 @@ export type BotSession = {
   breakers?: BotBreakers;
   runner?: BotRunner;
   trade?: BotTrade | null;
-  /** This venue's Bot stocks (Nova buys and sells). */
+  /** ADR 049 (#778 step 5): the answer line's short chips. */
+  shorts?: BotShortsView;
+  /** This venue's Bot stocks (the bot enters and exits them). */
   symbol_allowlist?: string[];
   caps: BotCaps;
   caps_bounds?: BotCapsBounds;

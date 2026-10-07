@@ -3,12 +3,14 @@
  * mockup v4, ADR 022, ADR 031, ADR 042). Each count says what it counts on hover:
  * armed / triggered are the picked setup's scoreboard counts for the day (its template
  * in play; scores, not trades); proposed counts every setup's proposals the audit
- * stream recorded that day; Nova's buys are the bot and Auto-entry against the sleeve's
- * cap; bot P&L is the bot's own fills in the practice ledger (a stated absence on Live).
- * The setup picker starts on the first setup at Strategy.
+ * stream recorded that day; Nova's trades are the bot and Auto-entry against the sleeve's
+ * cap, longs and shorts together (ADR 049); bot P&L is the bot's own fills in the practice
+ * ledger (a stated absence on Live). The setup picker starts on the first setup at
+ * Strategy, and every setup says its side.
  */
 import { useMemo, useState } from 'react';
 import { BOT_SCANNER_SETUP_IDS } from '../constantGroups/bot';
+import { isShortSetup } from '../constantGroups/short_setups';
 import { SETUPS_SPLIT_TITLES } from '../constants';
 import {
   BOTS_TODAY_ENTRIES_TIP,
@@ -68,6 +70,7 @@ export function BotTodayCard({ venue, audit, botPnl, entries, firstAtStrategy }:
   const [picked, setPicked] = useState<string | null>(null);
   const setup = picked ?? firstAtStrategy ?? BOT_SCANNER_SETUP_IDS[0];
   const name = setupLabelOf(setup);
+  const sided = (id: string) => `${setupLabelOf(id)} ${isShortSetup(id) ? '▼ short' : '▲ long'}`;
   const { data, error } = useSetupsScoreboard(true, BOTS_TODAY_SCOREBOARD_DAYS, setup);
   const today = useSetupsScoreboard(true, 1, setup).data?.summary?.all;
   const byTape = data?.summary?.by?.tape_at_trigger;
@@ -88,21 +91,21 @@ export function BotTodayCard({ venue, audit, botPnl, entries, firstAtStrategy }:
       <label className="bots-today__pick">
         <span className="bots-muted">{BOTS_TODAY_SETUP_PICK}</span>
         <select data-testid="bots-today-setup" value={setup} onChange={e => setPicked(e.target.value)}>
-          {BOT_SCANNER_SETUP_IDS.map(id => <option key={id} value={id}>{setupLabelOf(id)}</option>)}
+          {BOT_SCANNER_SETUP_IDS.map(id => <option key={id} value={id}>{sided(id)}</option>)}
         </select>
       </label>
       <div className="bots-kpis bots-kpis--today">
         <div {...tipProps(botsTodayArmedTip(name), `${name} · armed`)}>
-          <span>Armed</span><b data-testid="bots-kpi-armed">{today ? today.armed : '—'}</b><small>{name}</small>
+          <span>Armed</span><b data-testid="bots-kpi-armed">{today ? today.armed : '—'}</b><small>{sided(setup)}</small>
         </div>
         <div {...tipProps(botsTodayTriggeredTip(name), `${name} · triggered`)}>
-          <span>Triggered</span><b data-testid="bots-kpi-triggered">{today ? today.triggered : '—'}</b><small>{name}</small>
+          <span>Triggered</span><b data-testid="bots-kpi-triggered">{today ? today.triggered : '—'}</b><small>{sided(setup)}</small>
         </div>
         <div {...tipProps(BOTS_TODAY_PROPOSED_TIP, 'Proposed · every setup')}>
           <span>Proposed</span><b data-testid="bots-kpi-proposed">{proposedOn(audit, venue.today)}</b><small>every setup</small>
         </div>
-        <div {...tipProps(BOTS_TODAY_ENTRIES_TIP, 'Nova buys')}>
-          <span>Nova buys</span>
+        <div {...tipProps(BOTS_TODAY_ENTRIES_TIP, 'Nova trades')}>
+          <span>Nova trades</span>
           <b data-testid="bots-kpi-entries">{entries ? `${entries.count} / ${entries.cap}` : '—'}</b><small data-testid="bots-kpi-entries-note">bot + Auto-entry{entries?.approved ? ` · ${entries.approved} approved by you` : ''}</small>
         </div>
         <div {...tipProps(venue.practiceVenue ? BOTS_TODAY_PNL_TIP : BOTS_TODAY_PNL_LIVE_TITLE, 'Bot P&L')}>

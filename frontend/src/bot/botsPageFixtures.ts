@@ -187,34 +187,48 @@ export function stockModeView(symbol: string, buy: string, sell: string, partial
   };
 }
 
-/** Today's squares by ticker: GRML on the hot list (an auto ☆), one trigger stopped by its tape; IMCC only triggered. */
+/** Today's squares by ticker: GRML on the hot list (an auto ☆), one trigger stopped by its tape, then a bear flag
+ * short under SSR (amber, never red) stopped by its borrow; IMCC only triggered. */
 export function triggersView(partial: Record<string, unknown> = {}): Record<string, unknown> {
   const gate = (id: string, label: string) => ({ id, label });
   const cell = (ok: boolean | null, why = '') => ({ ok, why });
   const allOk = {
     bot_on: cell(true), strategy_on: cell(true), grade: cell(true), setups_a_day: cell(true), bot_window: cell(true),
     nova_buys: cell(true), level2_line: cell(true), tape_go: cell(true), trades_today: cell(true),
+    not_against: cell(true, 'you held no GRML the other way'),
   };
   return {
     schema_version: 1, date: '2026-10-01', generated_at: 0,
     gates: [
       gate('bot_on', 'Bot on'), gate('strategy_on', 'Strategy on'), gate('grade', 'Grade'),
       gate('setups_a_day', 'Setups a day'), gate('bot_window', 'Bot window'),
-      gate('nova_buys', 'Bot buys'), gate('level2_line', 'Level 2 line'), gate('tape_go', 'Tape GO'),
-      gate('trades_today', 'Trades today'),
+      gate('nova_buys', 'Entry: Bot'), gate('level2_line', 'Level 2 line'), gate('tape_go', 'Tape GO'),
+      gate('trades_today', 'Trades today'), gate('not_against', 'Not against you'),
+    ],
+    short_gates: [
+      gate('short_borrow', 'Borrow'), gate('short_ssr', 'SSR'), gate('short_halt', 'No halt 10 min'),
+      gate('short_margin', 'Margin 25%'), gate('short_hours', 'Before 15:50'),
     ],
     tickers: [
       { symbol: 'GRML', listed: { how: 'auto', at: 1_790_000_000 },
         now: { cells: { ...allOk, bot_window: cell(false, 'the bot window 07:00–10:00 closed') }, answer: 'no',
           reasons: ['the bot window 07:00–10:00 closed'] },
         triggers: [{ ts: 1_790_000_600, setup_id: 'g1', setup_type: 'first_pullback', kind: 'first_pullback', nth: 1,
-          grade: 'A', tape: 'blind', outcome: 'target_first', r: 1.6,
+          grade: 'A', tape: 'blind', outcome: 'target_first', r: 1.6, side: 'long', ssr: null,
           cells: { ...allOk, level2_line: cell(false, 'no Level 2 line: the tape was BLIND'), tape_go: cell(null, 'no tape to read') },
-          reasons: ['no Level 2 line: the tape was BLIND'] }] },
+          reasons: ['no Level 2 line: the tape was BLIND'] },
+        { ts: 1_790_003_000, setup_id: 'g2', setup_type: 'bear_flag', kind: 'bear_flag', nth: 1, grade: 'A',
+          tape: 'go', outcome: 'target_first', r: 2, side: 'short', ssr: 'on',
+          cells: { ...allOk, short_borrow: cell(false, 'Borrow: IBKR lists 200 GRML shares to borrow, under the order'),
+            short_ssr: { ok: true, why: 'SSR · at the ask: under SSR a short sells only above the bid, so the bot sells at the ask', warn: true },
+            short_halt: cell(true, 'no halt'), short_margin: cell(null, 'the bot\'s short check did not reach this rule'),
+            short_hours: cell(true, '10:30 ET, before the 15:50 last short') },
+          reasons: ['Borrow: IBKR lists 200 GRML shares to borrow, under the order'] }] },
       { symbol: 'IMCC', listed: null, now: null,
         triggers: [{ ts: 1_790_001_200, setup_id: 'i1', setup_type: 'bull_flag', kind: 'bull_flag', nth: 1, grade: 'B',
-          tape: 'wait', outcome: 'stop_first', r: -1, cells: { ...allOk, nova_buys: cell(false, 'Buy was You on IMCC') },
-          reasons: ['Buy was You on IMCC'] }] },
+          tape: 'wait', outcome: 'stop_first', r: -1, side: 'long', ssr: null,
+          cells: { ...allOk, nova_buys: cell(false, 'Entry was You (Signal only): the bot enters only stocks whose Entry is Bot') },
+          reasons: ['Entry was You (Signal only): the bot enters only stocks whose Entry is Bot'] }] },
     ],
     impact: [{ gate: 'level2_line', blocked: 1, target_first: 1, stop_first: 0, r: 1.6 }],
     judged_now: [],

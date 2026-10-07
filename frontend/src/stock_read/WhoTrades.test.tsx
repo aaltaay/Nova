@@ -159,7 +159,7 @@ describe('who trades APUS, above Level 2', () => {
     expect(screen.getByTestId('who-trades-note-window').getAttribute('data-tip')).toMatch(/bot window is closed/);
     expect(screen.getByTestId('who-trades-mode').textContent).toContain('Bot');
     const entries = screen.getByTestId('who-trades-entries');
-    expect(entries.textContent).toBe("Nova's automatic buys today: 1 of 1");
+    expect(entries.textContent).toBe("Nova's automatic trades today: 1 of 1");
     expect(entries.className).toContain('--warn');
     expect(screen.getByTestId('who-trades-event').textContent).toMatch(/The bot skipped APUS: the bot is not active$/);
   });

@@ -56,7 +56,7 @@ describe('GlobalBarBotPill', () => {
     const pill = screen.getByTestId('global-bar-bot-pill');
     expect(pill.textContent).toBe('BotOFF');
     expect(pill.className).toContain('global-bar-bot-pill--off');
-    expect(pill.title).toMatch(/^Bot off on Paper: Turned off — the backend restarted\. Strategies at On: First pullback\./);
+    expect(pill.title).toMatch(/^Bot off on Paper: Turned off — the backend restarted\. Strategies at On: First pullback ▲ long\./);
     fireEvent.click(pill);
     expect(getNavPage()).toBe('bots');
     expect(workspace.showScannerView).not.toHaveBeenCalled();

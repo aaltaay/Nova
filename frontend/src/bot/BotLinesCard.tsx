@@ -1,7 +1,7 @@
 /**
  * IBKR's three Level 2 lines on one row (ADR 044): who holds each (your Trader tab, in front or hidden, a
  * Record, auto-record, a loan), the switch that lets a hidden tab lend its Level 2 and Time & Sales lines to
- * a setup near its trigger on a stock Nova buys, and the loans now -- with whether the setup's prints arrive
+ * a setup near its trigger on a stock Nova trades, and the loans now -- with whether the setup's prints arrive
  * -- and today. Read every few seconds while the page shows.
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -85,7 +85,7 @@ export function BotLinesCard() {
           onClick={() => void toggle()} data-testid="bots-lines-lending">
           <span className="bots-switch__track" aria-hidden="true" />
           <span className="bots-switch__txt"><b>Hidden tabs lend their lines</b>
-            <small>to a setup near its trigger on a stock Nova buys; back when it ends or you bring the tab to the front</small></span>
+            <small>to a setup near its trigger on a stock Nova trades; back when it ends or you bring the tab to the front</small></span>
         </button>
         <div className="bots-lines__loans" data-testid="bots-lines-loans">
           {lending?.loans.length ? lending.loans.map(l => (

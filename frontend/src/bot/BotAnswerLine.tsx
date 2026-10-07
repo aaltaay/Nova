@@ -1,8 +1,10 @@
 /**
- * "Can Nova buy right now?" in one line, for every ticker at once (ADR 044). The checks that hold for
+ * "Can Nova trade right now?" in one line, for every ticker at once (ADR 044). The checks that hold for
  * every stock -- the Bot switch, the desk, a strategy at On, the windows, the day's cap -- are named with
  * their fix when one stops it; otherwise it names the tickers that are ready. Each ticker's own answer is
- * in Tickers today below and in its Trader tab's Who trades row. The desk's checks sit under it as chips.
+ * in Tickers today below and in its Trader tab's Who trades row. The desk's checks sit under it as chips,
+ * then what a short needs (ADR 049, #778 step 5): a margin account, $2,000 of equity, the short hours and
+ * Live -- they hold the short strategies only, never a long.
  */
 import { BOTS_VENUE_NAMES, botsDayLocked } from '../constantGroups/bots_page';
 import { tipProps } from '../ux';
@@ -13,11 +15,17 @@ import { gateLine, type GateContext } from './botGateWords';
 import { prose } from './botsPageFormat';
 import { etTime, etUntil, usdCents } from './botWhen';
 import type { TriggersView } from './triggersApi';
-import type { BotSession } from './types';
+import type { BotSession, ShortChip } from './types';
 
 /** The gates that hold for every stock at once: one of them closed means no ticker can be bought. */
 const DESK_WIDE = ['venue', 'padlock', 'kill_switch', 'day_lock', 'commissions', 'setups', 'window', 'daily_cap', 'extended_hours'];
 const CHIPS: [string, string][] = [['venue', 'Venue'], ['padlock', 'Padlock'], ['kill_switch', 'Orders not frozen'], ['day_lock', 'All-stop clear']];
+/** The short chips (``GET /api/bot/session`` ``shorts``), in the spec's order. */
+const SHORT_CHIPS: [keyof NonNullable<BotSession['shorts']>, string][] = [
+  ['margin_account', 'Margin account'], ['equity', 'Equity ≥ $2,000'], ['hours', 'Shorts until 15:50'],
+  ['live', 'Live shorts: after the Paper proof'],
+];
+const SHORT_UNREAD = 'This backend does not report what a short needs (it predates #778 step 5).';
 
 export type AnswerFix = 'bot' | 'strategies' | 'unlock';
 export interface AnswerReason { id: string; text: string; fix: { kind: AnswerFix; label: string } | null }
@@ -83,7 +91,7 @@ export function BotAnswerLine({ session, ctx, triggers, strategiesAnchor, onUnlo
   const gates = new Map((session.gates ?? []).map(g => [g.id, g]));
   return (
     <section className="bots-card bots-answer" data-testid="bots-answer">
-      <div className="bots-answer__q">Can Nova buy right now?</div>
+      <div className="bots-answer__q">Can Nova trade right now?</div>
       <div className="bots-answer__row">
         <span className={`bots-answer__a${reasons.length || !ready.length ? ' is-no' : ' is-yes'}`} data-testid="bots-answer-headline">
           <i className="bots-answer__dot" aria-hidden="true" />{headline}
@@ -112,6 +120,20 @@ export function BotAnswerLine({ session, ctx, triggers, strategiesAnchor, onUnlo
           );
         })}
         <span className="bots-answer__note">Each ticker's own answer is in Tickers today below, and in the Who trades row on its Trader tab.</span>
+      </div>
+      <div className="bots-answer__chips bots-answer__chips--short" data-testid="bots-answer-shorts">
+        <span className="bots-answer__label">▼ SHORT needs</span>
+        {SHORT_CHIPS.map(([id, label]) => {
+          const chip = session.shorts?.[id] as ShortChip | undefined;
+          const ok = chip ? chip.ok : null;
+          const tip = chip ? prose(chip.text) : session.shorts?.error ?? SHORT_UNREAD;
+          return (
+            <span key={id} className={`bots-answer__chip${ok === false ? ' is-no' : ok ? ' is-ok' : ''}`}
+              {...tipProps(tip, label)} data-testid={`bots-answer-short-${id}`}>
+              <i className="bots-answer__dot" aria-hidden="true" />{label}
+            </span>
+          );
+        })}
       </div>
     </section>
   );

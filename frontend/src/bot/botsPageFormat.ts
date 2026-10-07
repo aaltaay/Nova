@@ -4,7 +4,8 @@
  * the Bot switch is bot/botSwitch.ts.
  */
 import { BOTS_VENUE_NAMES } from '../constantGroups/bots_page';
-import { setupLabelOf } from './botLevels';
+import { isShortSetup } from '../constantGroups/short_setups';
+import { setupLabelOf, strategySetups } from './botLevels';
 import { etTime } from './botWhen';
 import type { BotDeactivated, BotSession, BotTrade } from './types';
 
@@ -49,24 +50,59 @@ const EXIT_WORDS: Record<string, string> = {
   outside: 'closed outside the bot',
   handed: 'handed to you',
 };
+const SHORT_EXIT_WORDS: Record<string, string> = {
+  target: 'covered at the target',
+  stop: 'stopped out over the buy stop',
+  flush: 'covered on a burst of buying',
+  outside: 'covered outside the bot',
+};
+
+/** The side a bot trade entered (ADR 049, #778 step 5), always in words beside its arrow. */
+export function tradeSideTag(trade: Pick<BotTrade, 'side'>): string {
+  return trade.side === 'short' ? '▼ short' : '▲ long';
+}
+
+/** What the bot trades next (ADR 049, #778 step 5): the first GO trigger among the strategies at On, each with
+ * its side. Null while a trade is live (one trade at a time) or the Bot is off. */
+export function nextTradeLine(session: BotSession, on: boolean): string | null {
+  const live = session.trade && ['entering', 'open', 'exiting'].includes(session.trade.state);
+  if (!on || live) return null;
+  const ids = strategySetups(session);
+  if (!ids.length) return 'Next: nothing — no strategy is On.';
+  const names = ids.map(id => {
+    const info = (session.setups ?? []).find(s => s.id === id);
+    const side = info?.side ?? (isShortSetup(id) ? 'short' : 'long');
+    return `${setupLabelOf(id).toLowerCase()} ${tradeSideTag({ side })}`;
+  });
+  return `Next: the first GO trigger of ${names.join(', ')}, on a stock whose Entry is Bot.`;
+}
 
 /** The bot's trade in one line, naming its setup (ADR 030, ADR 042 I); empty when it has none. */
 export function tradeLine(trade: BotTrade | null | undefined): string {
   if (!trade) return '';
-  const sym = trade.symbol;
+  const short = trade.side === 'short';
+  const sym = `${trade.symbol} ${tradeSideTag(trade)}`;
   const what = trade.setup_type ? ` (${setupLabelOf(trade.setup_type).toLowerCase()})` : '';
   const qty = trade.qty;
   switch (trade.state) {
-    case 'entering':
-      return `Buying ${sym}${what} · ${qty} at ${px(trade.entry_planned)} limit`;
+    case 'entering': {
+      const ssr = short && trade.priced_at_ask ? ` (SSR ${trade.ssr ?? 'unknown'}: at the ask)` : '';
+      return `${short ? 'Shorting' : 'Buying'} ${sym}${what} · ${qty} at ${px(trade.entry_planned)} limit${ssr}`;
+    }
     case 'open':
-      return `In ${sym}${what} · ${qty} @ ${px(trade.entry_fill_price)} · stop ${px(trade.stop)} · target ${px(trade.target1)}`;
-    case 'exiting':
-      return `Closing ${sym}${what} · ${trade.exit_why === 'stop' ? 'the stop printed' : trade.exit_why === 'flush' ? 'a flush' : 'time stop'}`;
+      return short
+        ? `In ${sym}${what} · ${qty} @ ${px(trade.entry_fill_price)} · buy stop ${px(trade.stop)} · cover ${px(trade.target1)}`
+        : `In ${sym}${what} · ${qty} @ ${px(trade.entry_fill_price)} · stop ${px(trade.stop)} · target ${px(trade.target1)}`;
+    case 'exiting': {
+      const stop = short ? 'the buy stop printed' : 'the stop printed';
+      const flush = short ? 'a burst of buying' : 'a flush';
+      return `${short ? 'Covering' : 'Closing'} ${sym}${what} · ${trade.exit_why === 'stop' ? stop : trade.exit_why === 'flush' ? flush : 'time stop'}`;
+    }
     case 'missed':
       return `Missed ${sym}${what} · ${prose(trade.note ?? 'the entry did not fill')}`;
     case 'closed': {
-      const why = EXIT_WORDS[trade.exit_reason ?? ''] ?? trade.exit_reason ?? 'closed';
+      const why = (short ? SHORT_EXIT_WORDS[trade.exit_reason ?? ''] : null) ?? EXIT_WORDS[trade.exit_reason ?? '']
+        ?? trade.exit_reason ?? 'closed';
       return `Last trade ${sym}${what} · ${why}${trade.r != null ? ` · ${fmtR(trade.r)}` : ''}`;
     }
     default:

@@ -1,7 +1,8 @@
 /**
  * The plan card's buttons for who trades the stock (ADR 037), pure: Stage in ticket (a short plan's "Stage short
  * in ticket", ADR 048), Stage sell, Approve and Approve now, cancelling an approval, taking over the exit, turning
- * Auto-entry or the bot off -- each with why it cannot act now -- and the line that says a trade is done.
+ * Auto-entry or the bot off -- each with why it cannot act now -- and the line that says a trade is done. A short
+ * plan is approved as a long one is (#778 step 5): Nova sends the short with its buy stop and cover.
  */
 import { NOT_A_TRADE_NOVA } from './constants';
 import { fmtPnl, heldQty, judgedLevels, type Moment, type MomentInputs } from './momentModel';
@@ -51,10 +52,6 @@ function notTradeLock(notTrade: string | null | undefined): string | null {
 
 const NO_TICKET = 'This tab has no order ticket open to fill. Show the Order Entry module on the rail.';
 
-/** Why Approve waits on a short setup (ADR 048): it comes with the bot's short side, on Paper and Sim. */
-export const SHORT_APPROVE_LATER = 'Approve sends a short with its buy stop once the bot trades both sides (#778 step '
-  + '5). Until then, stage the short in the ticket.';
-
 function stageSell(a: PlanActionsInput, qty: number): PlanAction {
   const due = a.moment?.tone === 'target' || a.moment?.tone === 'stop' ? a.moment.tone : null;
   const lv = judgedLevels(a.inputs);
@@ -78,26 +75,26 @@ function approveAction(a: PlanActionsInput, plan: StockPlan | null, view: StockM
     return { id: 'cancel-approval', label: 'Approved · cancel', tone: 'plain', locked: null,
       tip: 'Withdraws the approval. Nova sends nothing at the trigger.' };
   }
-  // A short setup's Approve comes with the bot's short side (#778 step 5); until then the plan stages a short.
-  if (plan?.side === 'short') {
-    return { id: 'approve', label: 'Approve', tone: 'primary', locked: SHORT_APPROVE_LATER,
-      tip: 'Approve the plan once; Nova sends it at the trigger.' };
-  }
   // Nova's size for the plan when the view gives one (the sleeve's), else the risk per trade over the risk.
   const size = approveQty(view, a.inputs.riskUsd, plan);
+  // A short plan is approved like a long one (#778 step 5): its buy stop over the entry, its cover under it.
+  const short = plan?.side === 'short';
+  const verb = short ? 'short' : 'buy';
+  const legs = (p: StockPlan) => (short
+    ? `its buy stop ${fmtPx(p.stop)} and cover ${fmtPx(p.target)}` : `its stop ${fmtPx(p.stop)} and target ${fmtPx(p.target)}`);
+  const ssr = short ? ' Under SSR it sells at the ask, never under the plan.' : '';
   const noSize = view.size?.text
     ? `Nova sends nothing: ${view.size.text}`
-    : plan ? `$${a.inputs.riskUsd} of risk buys no whole share at ${fmtStep(plan.risk, plan.entry)} a share.` : '';
+    : plan ? `$${a.inputs.riskUsd} of risk ${verb}s no whole share at ${fmtStep(plan.risk, plan.entry)} a share.` : '';
   const sized = view.size ? ' (the size Nova sends for this plan)' : ` ($${a.inputs.riskUsd} risk per trade)`;
   if (plan?.source === 'setup' && plan.state === 'triggered') {
     return {
       id: 'approve-now',
-      label: `Approve: buy ${size ?? '?'} now`,
+      label: `Approve: ${verb} ${size ?? '?'} now`,
       tone: 'primary',
       locked: notTradeLock(a.notTrade) ?? (plan.setup_id === null ? 'The setup has no live id to approve.'
         : size === null ? noSize : null),
-      tip: `Sends buy ${size ?? '?'}${sized} @ ${fmtPx(plan.entry)} now, with its stop ${fmtPx(plan.stop)} and target `
-        + `${fmtPx(plan.target)} at the broker.`,
+      tip: `Sends ${verb} ${size ?? '?'}${sized} @ ${fmtPx(plan.entry)} now, with ${legs(plan)} at the broker.${ssr}`,
     };
   }
   const why = !plan || plan.source !== 'setup'
@@ -107,12 +104,11 @@ function approveAction(a: PlanActionsInput, plan: StockPlan | null, view: StockM
       : size === null ? noSize : null;
   return {
     id: 'approve',
-    label: size !== null && plan ? `Approve ${size} @ ${fmtPx(plan.entry)}` : 'Approve',
+    label: size !== null && plan ? `Approve ${short ? 'short ' : ''}${size} @ ${fmtPx(plan.entry)}` : 'Approve',
     tone: 'primary',
     locked: why ?? notTradeLock(a.notTrade),
-    tip: plan ? `At the trigger, with the tape at go, Nova sends buy ${size ?? '?'}${sized} @ ${fmtPx(plan.entry)} `
-      + `with stop ${fmtPx(plan.stop)} and target ${fmtPx(plan.target)}. Withdrawn if the setup re-arms, fails or `
-      + 'disarms.'
+    tip: plan ? `At the trigger, with the tape at go, Nova sends ${verb} ${size ?? '?'}${sized} @ ${fmtPx(plan.entry)} `
+      + `with ${legs(plan)}. Withdrawn if the setup re-arms, fails or disarms.${ssr}`
       : 'Approve the plan once; Nova sends it at the trigger.',
   };
 }
@@ -155,16 +151,19 @@ export function planActions(a: PlanActionsInput): { actions: PlanAction[]; statu
     return { actions: [stageSell(a, qty)], status: null };
   }
   if (live?.state === 'entering') {
+    // An entry still working, long or short (#778 step 5): cancelling it takes its exits with it.
+    const entry = live.side === 'short' ? 'short' : 'buy';
+    const exits = live.side === 'short' ? 'its buy stop and cover' : 'its stop and target';
     if (live.kind === 'approve') {
-      return { actions: [{ id: 'cancel-approval', label: 'Cancel the buy', tone: 'plain', locked: null,
-        tip: 'Cancels the buy that has not filled; its stop and target go with it.' }], status: null };
+      return { actions: [{ id: 'cancel-approval', label: `Cancel the ${entry}`, tone: 'plain', locked: null,
+        tip: `Cancels the ${entry} that has not filled; ${exits} go with it.` }], status: null };
     }
     if (live.kind === 'auto_entry') {
       return { actions: [{ id: 'auto-off', label: 'Auto-entry on · turn off', tone: 'plain', locked: null,
-        tip: 'Buy goes back to You and cancels the buy that has not filled.' }], status: null };
+        tip: `Entry goes back to You and cancels the ${entry} that has not filled.` }], status: null };
     }
     return { actions: [{ id: 'take-over', label: 'Take over', tone: 'plain', locked: null,
-      tip: `Nova cancels the bot's buy that has not filled, with its stop and target. The stock leaves the bot's `
+      tip: `Nova cancels the bot's ${entry} that has not filled, with ${exits}. The stock leaves the bot's `
         + `list (Signal only): ${buyStays}` }], status: null };
   }
   const done = view?.trade && view.trade.state === 'closed' && view.trade.setup_id !== null
@@ -177,7 +176,7 @@ export function planActions(a: PlanActionsInput): { actions: PlanAction[]; statu
     case 'auto_entry':
       return {
         actions: [{ id: 'auto-off', label: 'Auto-entry on · turn off', tone: 'plain', locked: null,
-          tip: 'Buy goes back to You: Nova will not buy this stock.' }],
+          tip: 'Entry goes back to You: Nova will not enter this stock, long or short.' }],
         status,
       };
     case 'bot':

@@ -1,9 +1,10 @@
 /**
- * Whether Nova will buy this stock by itself, and with what size (ADR 042 draft, spec F). Pure. The chart's
- * call promises a Nova buy ("THE BOT TRADES THIS", "NOVA BUYS AT ...") only when nothing stands in the way,
+ * Whether Nova will trade this stock by itself, and with what size (ADR 042 draft, spec F), long or short (ADR 049).
+ * Pure. The chart's call promises a Nova trade ("THE BOT TRADES THIS", "BOT BUYS AT ...", "BOT SHORTS AT ...") only
+ * when nothing stands in the way,
  * and otherwise says why -- every reason, in order: the view's blocking notes, then what the bot's own fields
  * say (the plan's setup not at Strategy, the bot not active or not playing), then the day's shared cap of
- * Nova's automatic buys. The size is the backend's own (`size`), never estimated here.
+ * Nova's automatic trades, both sides counted. The size is the backend's own (`size`), never estimated here.
  */
 import { setupName, sizeFor } from './planMath';
 import type { StockModeSize, StockModeView, StockPlan } from './types';
@@ -20,19 +21,20 @@ function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : many;
 }
 
-/** The day's shared cap of Nova's automatic buys is used: in words; null while one is left or unknown. */
+/** The day's shared cap of Nova's automatic trades (longs and shorts) is used: in words; null while one is left or
+ * unknown. */
 export function capUsedText(who: StockModeView | null): string | null {
   const e = who?.entries_today ?? null;
   if (!e || e.cap === null || e.count < e.cap) return null;
   const venue = who?.venue ? ` on ${who.venue === 'sim' ? 'Sim' : who.venue === 'live' ? 'Live' : 'Paper'}` : '';
-  const buys = plural(e.cap, 'automatic buy', `${e.cap} automatic buys`);
-  return `Nova's ${e.cap === 1 ? 'one ' : ''}${buys}${venue} today ${plural(e.cap, 'is', 'are')} used `
-    + `(${e.count} of ${e.cap}): the bot and Auto-entry buy again on the next day.`;
+  const trades = plural(e.cap, 'automatic trade', `${e.cap} automatic trades`);
+  return `Nova's ${e.cap === 1 ? 'one ' : ''}${trades}${venue} today ${plural(e.cap, 'is', 'are')} used `
+    + `(${e.count} of ${e.cap}): the bot and Auto-entry trade again on the next day.`;
 }
 
 /**
- * Every reason Nova will not buy this stock by itself now, first to last; empty when nothing stands in the
- * way, or the stock is not in a mode where Nova buys (Signal only, Approve: the operator decides).
+ * Every reason Nova will not trade this stock by itself now, first to last; empty when nothing stands in the
+ * way, or the stock is not in a mode where Nova enters (Signal only, Approve: the operator decides).
  */
 export function novaBlockers(who: StockModeView | null, plan: StockPlan | null): string[] {
   if (!who || (who.mode !== 'bot' && who.mode !== 'auto_entry')) return [];
@@ -65,10 +67,10 @@ export function novaBlockers(who: StockModeView | null, plan: StockPlan | null):
   } else if (bot) {
     // Auto-entry follows the bot's rules: a setup at Strategy, and only while the bot is active.
     if (bot.setup_at_strategy === false && !has(SAYS_STRATEGY)) {
-      out.push(`${capital(setup)} is not at Strategy: Auto-entry buys only a setup at Strategy.`);
+      out.push(`${capital(setup)} is not at Strategy: Auto-entry enters only a setup at Strategy.`);
     }
     if (bot.active === false && !has(SAYS_ACTIVE)) {
-      out.push('The bot is not active: Auto-entry buys only while it is. Press Activate on the Bots page.');
+      out.push('The bot is not active: Auto-entry enters only while it is. Press Activate on the Bots page.');
     }
   }
   return [...new Set(out)];
