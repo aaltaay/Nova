@@ -147,10 +147,81 @@ def test_a_fill_the_position_never_shows_raises_the_alarm_and_no_second_cover(li
     [done] = _run(_at(15, 55))
     live.book.rows = []
     live.book.states[done["order_id"]] = {"status": "Filled", "filled": 400.0, "remaining": 0.0}
+    assert _run(_at(15, 55) + 1) == [] and cover_alarm.view()["alarms"] == []   # filled: the wait starts
     live.clock["t"] += SHORT_COVER_CONFIRM_SEC + 1
     assert _run(_at(15, 56)) == [] and len(live.door.calls) == 2
     [alarm] = cover_alarm.view()["alarms"]
     assert alarm["reason_code"] == "DAY_COVER_UNCONFIRMED" and "no second cover" in alarm["text"]
+
+
+def test_the_wait_for_the_position_counts_from_the_fill_not_the_send(live):
+    """A cover that rested through a halt and then filled raises no alarm while IBKR's position catches up:
+    the 15 s count from when it left the working orders."""
+    [done] = _run(_at(15, 55))
+    live.book.rows = [{"order_id": done["order_id"], "symbol": "RDYN", "side": "BUY", "order_type": "MKT"}]
+    live.clock["t"] += 4 * 60                                     # halted: it works four minutes
+    assert _run(_at(15, 59)) == [] and len(live.door.calls) == 2
+    live.book.rows = []                                           # it fills; the position is a moment behind
+    live.book.states[done["order_id"]] = {"status": "Filled", "filled": 400.0, "remaining": 0.0}
+    assert _run(_at(15, 59) + 1) == [] and cover_alarm.view()["alarms"] == []
+    live.clock["t"] += 1
+    live.book.positions = {"AAPL": 10.0}
+    assert _run(_at(15, 59) + 2) == [] and cover_alarm.view()["alarms"] == [] and len(live.door.calls) == 2
+
+
+def test_a_cover_filled_in_parts_stands_until_the_position_shows_every_share(live):
+    """PR #793 review (P1): a 400-share cover reads Filled while IBKR's position has applied only its first
+    200-share part. The short reading smaller is not the cover confirmed: a second cover for the 200 would leave
+    the account 200 long once the rest arrives."""
+    from constants_shorts import SHORT_COVER_CONFIRM_SEC
+
+    [done] = _run(_at(15, 55))
+    oid = done["order_id"]
+    live.book.rows = []
+    live.book.states[oid] = {"status": "Filled", "filled": 400.0, "remaining": 0.0}
+    live.book.positions = {"RDYN": -200.0, "AAPL": 10.0}       # one part of the fill reached the position
+    assert _run(_at(15, 55) + 1) == [] and len(live.door.calls) == 2
+    live.clock["t"] += SHORT_COVER_CONFIRM_SEC + 1                # ... and the rest never does: the alarm, no cover
+    assert _run(_at(15, 56)) == [] and len(live.door.calls) == 2
+    [alarm] = cover_alarm.view()["alarms"]
+    assert alarm["reason_code"] == "DAY_COVER_UNCONFIRMED" and "400 filled" in alarm["text"]
+    assert "200 short" in alarm["text"]
+    live.book.positions = {"AAPL": 10.0}                          # the rest arrives: flat, nothing more is sent
+    assert _run(_at(15, 56) + 1) == [] and len(live.door.calls) == 2
+    assert cover_alarm.view()["alarms"] == [] and live_closes._sent == {}
+
+
+def test_a_cover_ibkr_still_works_stands_even_when_its_working_orders_were_read_first(live):
+    [done] = _run(_at(15, 55))
+    live.book.rows = []                                           # read before IBKR listed its status below
+    live.book.states[done["order_id"]] = {"status": "Submitted", "filled": 200.0, "remaining": 200.0}
+    live.book.positions = {"RDYN": -200.0, "AAPL": 10.0}
+    assert _run(_at(15, 55) + 1) == [] and len(live.door.calls) == 2
+
+
+def test_a_cover_closed_part_filled_is_followed_by_one_for_the_rest_once_the_position_shows_the_part(live):
+    [done] = _run(_at(15, 55))
+    live.book.rows = []
+    live.book.states[done["order_id"]] = {"status": "Cancelled", "filled": 150.0, "remaining": 250.0}
+    assert _run(_at(15, 55) + 1) == [] and len(live.door.calls) == 2     # the position has not shown the 150 yet
+    live.book.positions = {"RDYN": -250.0, "AAPL": 10.0}
+    [again] = _run(_at(15, 55) + 2)
+    assert again["ok"] is True and again["qty"] == 250 and live.door.calls[-1].qty == 250
+
+
+def test_a_cover_this_session_does_not_know_waits_before_covering_what_is_left(live):
+    """A cover placed before a reconnect: IBKR's status of it is unknown, so the short reading smaller does not
+    say how much it filled. Nova waits ``SHORT_COVER_CONFIRM_SEC`` for the position to settle, then covers the
+    rest."""
+    from constants_shorts import SHORT_COVER_CONFIRM_SEC
+
+    _run(_at(15, 55))
+    live.book.rows = []                                           # no status in ``states``: unknown to the session
+    live.book.positions = {"RDYN": -100.0, "AAPL": 10.0}
+    assert _run(_at(15, 55) + 1) == [] and len(live.door.calls) == 2
+    live.clock["t"] += SHORT_COVER_CONFIRM_SEC + 1
+    [rest] = _run(_at(15, 56))
+    assert rest["ok"] is True and rest["qty"] == 100 and cover_alarm.view()["alarms"] == []
 
 
 def test_a_short_that_survived_the_night_is_covered_at_0930_not_before(live):

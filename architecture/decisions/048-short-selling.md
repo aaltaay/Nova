@@ -210,10 +210,13 @@ is off, and the proof cannot complete until the operator answers how a day is re
     practice guard for that one targeted order. The door checks the cover under its lock against IBKR's own
     position less the covers already working there (`ibkr.live_book`), so a cancel that failed leaves the cover
     refused, never a buy past flat.
-  - **A cover stands until the position shows it.** IBKR sends a fill to the orders before the position, so a
-    cover gone from the working orders is not yet a reason to cover again: no second cover goes until the
-    position shows the short smaller, or IBKR says the cover closed with nothing filled. A fill the position
-    still does not show after 15 s raises the alarm, never a second cover (PR #792 review).
+  - **A cover stands until the position shows it.** IBKR sends a fill to the orders before the position, and a
+    fill in parts can reach the position one part at a time, so a cover gone from the working orders is not yet
+    a reason to cover again: no second cover goes until the position shows the short smaller by every share
+    IBKR says the cover filled (then one goes for what is still short), or IBKR says the cover closed with
+    nothing filled. A fill the position still does not show 15 s after the cover left the working orders (never
+    counted from its send: a cover can rest through a halt) raises the alarm, never a second cover (PR #792 and
+    PR #793 reviews).
   - **Nova's own Live short entries** lapse as Paper's do (outside the short hours, or on a later day) and are
     cancelled, found from Nova's execution record. A Live short entry is never repriced in place
     (`SHORT_REPRICE`).
