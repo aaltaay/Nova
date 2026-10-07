@@ -171,7 +171,7 @@ async def place_entry(trade: dict[str, Any]) -> Any:
     """The entry as one practice bracket: a BUY limit at the entry the scanner scored at the trigger
     (it never chases), a SELL limit at target 1 and a SELL stop at the stop -- the exits rest at the
     broker, held until the entry fills, then one cancels the other. A short is the mirror: a short
-    limit at its entry (at the ask under SSR, ``admit.short_price``), a BUY stop over it and a BUY
+    limit at its entry (at the ask under SSR, ``short_side.price``), a BUY stop over it and a BUY
     limit at its cover."""
     entry = round(float(trade["entry_planned"]), 4)
     short = is_short(trade)
