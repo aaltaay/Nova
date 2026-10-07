@@ -57,6 +57,14 @@ Rules:
   (2–3 agents, claims each batch, ramps down before token limits). Only when the
   user has opted into workflows.
 
+## the Sim, for agents
+
+When the operator asks to find stocks or charts on past days ("a small cap whose high was 300%", "with a float
+under 10M", "show me", "jump to the high"), use the `nova-sim-navigator` skill: `py -3 tools/nova_agent.py`
+drives Nova's private `/api/agent` endpoints (ADR 050) -- the day movers index, and the desk landing in the Sim.
+Read the dictionary first (`dict`), say the numbers you used for any word, and save the wording the operator
+confirms. Never send `--confirm` before the operator agreed to what it lists as at stake.
+
 ## ledger
 
 There is **no changelog** (AGENTS.md §7.1). `CHANGELOG.md` is retired and

@@ -1,0 +1,74 @@
+/*
+ * What an agent is doing on the desk (ADR 050): a small card, bottom left, out of the way of the issue form
+ * and the update notice (bottom right). Running: the accent; done: green; failed: red until closed.
+ */
+.nova-agent-notice {
+  position: fixed;
+  left: 4.25rem;
+  bottom: 1rem;
+  z-index: 1500;
+  width: min(24rem, calc(100vw - 6rem));
+  padding: 0.55rem 0.7rem 0.6rem;
+  color: var(--nova-text);
+  background: var(--nova-panel);
+  border: 1px solid var(--nova-border-strong);
+  border-left: 3px solid var(--nova-accent);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-size: 0.8rem;
+}
+
+.nova-agent-notice--done {
+  border-left-color: var(--success);
+}
+
+.nova-agent-notice--failed {
+  border-left-color: var(--danger);
+}
+
+.nova-agent-notice--cancelled {
+  opacity: 0.75;
+}
+
+.nova-agent-notice__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.nova-agent-notice__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+}
+
+.nova-agent-notice__title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nova-agent-notice__close {
+  padding: 0 0.25rem;
+  color: var(--nova-text-muted);
+  background: none;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nova-agent-notice__close:hover {
+  color: var(--nova-text);
+}
+
+.nova-agent-notice__text {
+  margin-top: 0.2rem;
+  color: var(--nova-text);
+  overflow-wrap: anywhere;
+}
