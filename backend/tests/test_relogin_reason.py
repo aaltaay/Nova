@@ -74,6 +74,130 @@ def test_unexpected_shutdown_and_unrecorded_restart_are_stated_not_guessed():
     assert causes == ["unknown", "unexpected", "start_menu"]
 
 
+def _recorded_1074(when_utc: str, sid: str, process: str, reason: str, code: str, kind: str, user: str) -> str:
+    """A System 1074 as ``wevtutil qe /f:xml`` printed it on the desk, the
+    operator's user name and SID replaced."""
+    return (
+        f"<Event xmlns='{NS}'><System><Provider Name='User32' Guid='{{b0aa8734-56f7-41cc-b2f4-de228e98b946}}' "
+        "EventSourceName='User32'/><EventID Qualifiers='32768'>1074</EventID><Version>0</Version><Level>4</Level>"
+        "<Task>0</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords>"
+        f"<TimeCreated SystemTime='{_utc(when_utc)}'/><EventRecordID>157917</EventRecordID><Correlation/>"
+        "<Execution ProcessID='1620' ThreadID='5716'/><Channel>System</Channel><Computer>DESKTOP-K82GUGN</Computer>"
+        f"<Security UserID='{sid}'/></System><EventData>"
+        f"<Data Name='param1'>{process} (DESKTOP-K82GUGN)</Data><Data Name='param2'>DESKTOP-K82GUGN</Data>"
+        f"<Data Name='param3'>{reason}</Data><Data Name='param4'>{code}</Data><Data Name='param5'>{kind}</Data>"
+        f"<Data Name='param6'></Data><Data Name='param7'>{user}</Data></EventData></Event>"
+    )
+
+
+SYSTEM = ("S-1-5-18", "NT AUTHORITY\\SYSTEM")
+OPERATOR = ("S-1-5-21-1-2-3-1001", "DESKTOP-K82GUGN\\operator")
+WINLOGON = "C:\\WINDOWS\\system32\\winlogon.exe"
+START_MENU = (
+    "C:\\Windows\\SystemApps\\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\\StartMenuExperienceHost.exe"
+)
+NO_TITLE = "No title for this reason could be found"
+
+# 2026-10-05 06:45 ET: the power button, the PC back on two minutes later.
+POWER_BUTTON_MORNING = "".join([
+    _recorded_1074("2026-10-05T10:45:27.4809345", SYSTEM[0], WINLOGON, NO_TITLE, "0x500ff", "power off",
+                   SYSTEM[1]),
+    _event(12, "Microsoft-Windows-Kernel-General", "2026-10-05T10:47:26.0"),
+    _event(7001, "Microsoft-Windows-Winlogon", "2026-10-05T10:48:37.0"),
+])
+
+# 2026-10-04 19:58 ET: Start > Power > Shut down, back on at 20:01.
+START_MENU_EVENING = "".join([
+    _recorded_1074("2026-10-04T23:58:57.0161278", OPERATOR[0], START_MENU, "Other (Unplanned)", "0x0",
+                   "power off", OPERATOR[1]),
+    _event(12, "Microsoft-Windows-Kernel-General", "2026-10-05T00:01:48.0"),
+    _event(7001, "Microsoft-Windows-Winlogon", "2026-10-05T00:02:04.0"),
+])
+
+
+def test_the_power_button_is_named_and_said_as_a_power_off():
+    (r,) = wr.restarts_from_events(wr.parse_events_xml(POWER_BUTTON_MORNING))
+    assert (r.cause, r.label) == ("power_button", "the PC's power button")
+    assert r.process == "winlogon.exe" and r.reason_code == "0x500ff" and r.shutdown_type == "power_off"
+    assert r.windows_reason == NO_TITLE
+    phrase = rr.restart_phrase(r, now=r.boot_ts + 600)
+    assert phrase.startswith("This PC was powered off with its power button at ")
+    assert "Start menu" not in phrase and "restarted" not in phrase
+    why = rr.explain(rr.IbcLogin(ts=r.boot_ts + 300, full_auth=True), [r], now=r.boot_ts + 600)
+    assert why["reason"] == "pc_restarted" and why["restart"]["cause"] == "power_button"
+    assert why["text"].endswith("Powering the PC off ends IB Gateway's saved login, so IBKR needs your phone again.")
+
+
+def test_the_second_power_button_morning_reads_the_same():
+    xml = "".join([
+        _recorded_1074("2026-10-06T11:16:00.3628754", SYSTEM[0], WINLOGON, NO_TITLE, "0x500ff", "power off",
+                       SYSTEM[1]),
+        _event(12, "Microsoft-Windows-Kernel-General", "2026-10-06T11:18:56.0"),
+    ])
+    (r,) = wr.restarts_from_events(wr.parse_events_xml(xml))
+    assert r.cause == "power_button" and r.initiated_ts == _ts("2026-10-06T11:16:00.362875")
+
+
+def test_a_start_menu_power_off_says_powered_off_not_restarted():
+    (r,) = wr.restarts_from_events(wr.parse_events_xml(START_MENU_EVENING))
+    assert (r.cause, r.shutdown_type, r.reason_code) == ("start_menu", "power_off", "0x0")
+    assert rr.restart_phrase(r, now=r.boot_ts + 600).startswith("This PC was powered off from the Start menu at ")
+
+
+def test_winlogon_on_behalf_of_a_user_stays_the_start_menu():
+    xml = _recorded_1074("2026-09-22T17:20:32.0", OPERATOR[0], WINLOGON, "Other (Unplanned)", "0x0", "restart",
+                         OPERATOR[1]) + _event(12, "Microsoft-Windows-Kernel-General", "2026-09-22T17:20:40.0")
+    (r,) = wr.restarts_from_events(wr.parse_events_xml(xml))
+    assert (r.cause, r.shutdown_type) == ("start_menu", "restart")
+    assert rr.restart_phrase(r, now=r.boot_ts + 60).startswith("This PC was restarted from the Start menu at ")
+
+
+def test_winlogon_for_system_that_restarts_is_not_the_power_button():
+    # Recorded 2026-09-12 15:21 ET: the power-button signature, but Shutdown
+    # Type restart -- a power button only powers off, so Nova names winlogon.
+    xml = _recorded_1074("2026-09-12T19:21:43.2956091", SYSTEM[0], WINLOGON, NO_TITLE, "0x500ff", "restart",
+                         SYSTEM[1]) + _event(12, "Microsoft-Windows-Kernel-General", "2026-09-12T19:22:30.0")
+    (r,) = wr.restarts_from_events(wr.parse_events_xml(xml))
+    assert r.cause == "app" and r.shutdown_type == "restart"
+    phrase = rr.restart_phrase(r, now=r.boot_ts + 60)
+    assert phrase.startswith("Windows' sign-in process (winlogon.exe), with no user named restarted this PC at ")
+    assert "power button" not in phrase and "Start menu" not in phrase
+
+
+def test_system_is_read_from_the_account_name_when_the_sid_is_missing():
+    xml = _planned("2026-10-05T10:45:27.48", "winlogon.exe", NO_TITLE).replace(
+        "<Data Name='param5'>restart</Data>",
+        "<Data Name='param4'>0x500ff</Data><Data Name='param5'>power off</Data>"
+        "<Data Name='param7'>NT AUTHORITY\\SYSTEM</Data>",
+    ) + _event(12, "Microsoft-Windows-Kernel-General", "2026-10-05T10:47:26.0")
+    (r,) = wr.restarts_from_events(wr.parse_events_xml(xml))
+    assert r.cause == "power_button"
+
+
+def test_a_shutdown_type_nova_cannot_read_is_unknown_and_says_restarted():
+    xml = _recorded_1074("2026-10-05T10:45:27.48", SYSTEM[0], WINLOGON, NO_TITLE, "0x500ff", "Ausschalten",
+                         SYSTEM[1]) + _event(12, "Microsoft-Windows-Kernel-General", "2026-10-05T10:47:26.0")
+    (r,) = wr.restarts_from_events(wr.parse_events_xml(xml))
+    assert r.shutdown_type is None and r.cause == "app"
+    assert " restarted this PC at " in rr.restart_phrase(r, now=r.boot_ts + 60)
+
+
+def test_the_query_asks_each_event_of_its_own_provider_only(monkeypatch):
+    seen = {}
+
+    def fake_run(args, **kw):
+        seen["query"] = next(a for a in args if a.startswith("/q:"))
+        return type("Done", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(wr.sys, "platform", "win32")
+    monkeypatch.setattr(wr.subprocess, "run", fake_run)
+    assert wr._query_events(8) == ""
+    assert "(EventID=12 and Provider[@Name='Microsoft-Windows-Kernel-General'])" in seen["query"]
+    assert "(EventID=1074 and Provider[@Name='User32'])" in seen["query"]
+    assert "(EventID=6008 and Provider[@Name='EventLog'])" in seen["query"]
+    assert "(EventID=7001 and Provider[@Name='Microsoft-Windows-Winlogon'])" in seen["query"]
+
+
 def test_unreadable_event_xml_is_unknown_not_no_events():
     assert wr.parse_events_xml("<Event><broken") is None
     assert wr.parse_events_xml("") == []
