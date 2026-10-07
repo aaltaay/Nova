@@ -6,8 +6,10 @@
  *   hotkey's own offset over the limit, else the venue's Settings > Trade offset. It is an ordinary manual order:
  *   the opening-order gate, ADR 045's view lock, and the one short check at the door. Regular hours only: no
  *   short opens outside 09:35-15:50.
- * - A Cover buys the whole short back: at the ask plus its offset (a limit), or all of it through the protective
- *   flatten (`cover_pos`, like Flatten: never past flat, and the door checks it).
+ * - A Cover buys the whole short back: at the ask plus its offset (a limit), or at market (`cover_pos`). Both are
+ *   the protective flatten (`intent: "flatten"`, like Flatten): the padlock and the kill switch never hold them,
+ *   and the door sends one only while it closes shares not already being closed -- never past flat. The short's
+ *   own resting buy stop is such a close: cancel it first, or use KILL.
  * - Nova never flips: a Short while you are long, or a Cover with no short, is refused here before anything is
  *   sent (the door refuses both too).
  */
@@ -63,7 +65,7 @@ async function send(
   symbol: string,
   side: 'BUY' | 'SELL',
   qty: number,
-  extra: { limit_price: number; short_entry?: boolean; stop_loss_price?: number },
+  extra: { limit_price: number; short_entry?: boolean; stop_loss_price?: number; intent?: 'flatten' },
   base: number,
   actionTiming: BrowserActionStamp,
   idempotencyKey: string,
@@ -117,7 +119,11 @@ export async function runShortHotkey(
     if (!(await maybeConfirm(runtime, `COVER ${qty} ${symbol} (BUY LMT @ $${limit.toFixed(2)}) on ${mode} account.`))) {
       return { ok: false, text: 'Order cancelled' };
     }
-    return send(runtime, symbol, 'BUY', qty, { limit_price: limit }, tob.ask, actionTiming, idempotencyKey);
+    // The whole short, so a protective close: a disarmed desk can still cover at a limit, and the door's flatten
+    // check keeps it from buying past flat.
+    return send(
+      runtime, symbol, 'BUY', qty, { limit_price: limit, intent: 'flatten' }, tob.ask, actionTiming, idempotencyKey,
+    );
   }
 
   if (held > 0) return { ok: false, text: SHORT_WHY_LONG(symbol) };

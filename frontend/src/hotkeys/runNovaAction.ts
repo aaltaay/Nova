@@ -58,9 +58,10 @@ export type { NovaActionRuntime } from './runNovaActionRuntime';
 
 /**
  * The kinds the backend's arm latch never holds: a cancel is validated before
- * the latch, and `exit_pos` / `cancel_and_exit` send `intent: "flatten"`, a
- * protective source (`ibkr/safety.PROTECTIVE_SOURCES`). A kind not listed --
- * a new one included -- takes the opening-order gate.
+ * the latch, and `exit_pos` / `cancel_and_exit` and both covers of the whole
+ * short send `intent: "flatten"`, a protective source
+ * (`ibkr/safety.PROTECTIVE_SOURCES`). A kind not listed -- a new one included
+ * -- takes the opening-order gate.
  */
 export const PROTECTIVE_KINDS: Partial<Record<NovaActionKind, 'cancel' | 'flatten'>> = {
   cancel_all_orders: 'cancel',
@@ -68,6 +69,7 @@ export const PROTECTIVE_KINDS: Partial<Record<NovaActionKind, 'cancel' | 'flatte
   exit_pos: 'flatten',
   cancel_and_exit: 'flatten',
   cover_pos: 'flatten',
+  cover_limit_ask_offset: 'flatten',
 };
 
 /** Why *kind* cannot run now, or null when it may. */

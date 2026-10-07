@@ -109,11 +109,21 @@ describe('Short / Cover hotkeys (ADR 048)', () => {
     expect(placeIbkrOrder).not.toHaveBeenCalled();
   });
 
-  it('Cover at Ask + offset buys the whole short back with a limit', async () => {
+  it('Cover at Ask + offset buys the whole short back with a limit, as the protective flatten', async () => {
     const res = await runNovaAction(action({ kind: 'cover_limit_ask_offset', params: { offsetDollars: 0.03 } }), runtime(-200));
     expect(res.ok).toBe(true);
     expect(placeIbkrOrder.mock.calls[0][0]).toEqual({
-      symbol: 'RDYN', side: 'BUY', qty: 200, order_type: 'LMT', outside_rth: false, limit_price: 5.83,
+      symbol: 'RDYN', side: 'BUY', qty: 200, order_type: 'LMT', outside_rth: false, limit_price: 5.83, intent: 'flatten',
     });
+  });
+
+  it('Cover at Ask + offset is a close: the padlock never holds it (PR #788 review)', async () => {
+    latch.armed = false;
+    const res = await runNovaAction(
+      action({ kind: 'cover_limit_ask_offset', params: { offsetDollars: 0.03 } }),
+      runtime(-200, { spendStatus: 'locked_disarmed' }),
+    );
+    expect(res.ok).toBe(true);
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({ side: 'BUY', qty: 200, limit_price: 5.83, intent: 'flatten' });
   });
 });
