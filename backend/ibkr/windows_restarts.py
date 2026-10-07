@@ -11,7 +11,10 @@ ran -- and nothing on the desk said why. These facts let Nova say so.
 
 Events read (System log):
 - 12, provider Microsoft-Windows-Kernel-General -- the OS started (a boot);
-- 1074, provider User32 -- a planned restart or shutdown and who asked for it;
+- 1074, provider User32 -- a planned restart or shutdown: the process that
+  asked (param1), the reason (param3, code param4), the Shutdown Type
+  (param5: restart or power off) and on whose behalf (param7, and the
+  event's Security UserID);
 - 6008, provider EventLog -- the previous shutdown was unexpected;
 - 7001, provider Microsoft-Windows-Winlogon -- a user signed in.
 
@@ -32,8 +35,13 @@ from typing import Any
 
 from constants_relogin import (
     RELOGIN_BOOT_MERGE_SEC,
+    RELOGIN_POWER_BUTTON_REASON_CODE,
     RELOGIN_RESTART_CHAIN_SEC,
+    RELOGIN_SHUTDOWN_TYPES,
+    RELOGIN_SIGNIN_PROCESS,
     RELOGIN_START_MENU_PROCESSES,
+    RELOGIN_SYSTEM_ACCOUNT,
+    RELOGIN_SYSTEM_SID,
     RELOGIN_UNEXPECTED_AFTER_BOOT_SEC,
     RELOGIN_WEVTUTIL_MAX_EVENTS,
     RELOGIN_WEVTUTIL_TIMEOUT_SEC,
@@ -53,9 +61,11 @@ _SIGNIN = (7001, "Microsoft-Windows-Winlogon")
 class Restart:
     """One restart of the PC, as the event log records it.
 
-    ``cause`` is ``windows_update`` | ``start_menu`` | ``app`` (another
-    program asked) | ``unexpected`` (power loss, crash, forced power-off) |
-    ``unknown`` (a boot with no record of why).
+    ``cause`` is ``windows_update`` | ``start_menu`` | ``power_button`` (the
+    PC's power button) | ``app`` (another program asked) | ``unexpected``
+    (power loss, crash, forced power-off) | ``unknown`` (a boot with no record
+    of why). ``shutdown_type`` is the 1074's ``restart`` | ``power_off`` |
+    ``shutdown``, ``None`` without one (or in a word Nova cannot read).
     """
 
     boot_ts: float
@@ -65,6 +75,8 @@ class Restart:
     process: str | None = None
     windows_reason: str | None = None
     first_signin_ts: float | None = None
+    reason_code: str | None = None
+    shutdown_type: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -72,9 +84,10 @@ class Restart:
 
 def parse_events_xml(text: str) -> list[dict[str, Any]] | None:
     """``wevtutil qe /f:xml`` prints bare ``<Event>`` elements; wrap and read
-    them into ``{id, provider, ts, data}`` rows (``data`` by ``Name``, else
-    positional). Rows without a readable time are skipped; XML that does not
-    parse is ``None`` -- unknown, never 'no events'."""
+    them into ``{id, provider, ts, sid, data}`` rows (``sid`` the event's
+    Security UserID or ``None``; ``data`` by ``Name``, else positional). Rows
+    without a readable time are skipped; XML that does not parse is ``None``
+    -- unknown, never 'no events'."""
     body = (text or "").strip()
     if not body:
         return []
@@ -91,6 +104,7 @@ def parse_events_xml(text: str) -> list[dict[str, Any]] | None:
         provider = system.find(f"{_NS}Provider")
         created = system.find(f"{_NS}TimeCreated")
         event_id = system.find(f"{_NS}EventID")
+        security = system.find(f"{_NS}Security")
         ts = _parse_system_time(created.get("SystemTime") if created is not None else None)
         if ts is None or event_id is None or not (event_id.text or "").strip().isdigit():
             continue
@@ -103,6 +117,7 @@ def parse_events_xml(text: str) -> list[dict[str, Any]] | None:
             "id": int((event_id.text or "0").strip()),
             "provider": provider.get("Name") if provider is not None else "",
             "ts": ts,
+            "sid": (security.get("UserID") or None) if security is not None else None,
             "data": data,
         })
     rows.sort(key=lambda r: r["ts"])
@@ -135,16 +150,25 @@ def restarts_from_events(events: list[dict[str, Any]]) -> list[Restart]:
         signin = next((s for s in signins if s >= last), None)
         if chain:
             starter = min(chain, key=lambda p: p["ts"])
-            process = _process_name(starter["data"].get("param1", ""))
-            cause, label = _label(process)
+            data = starter["data"]
+            process = _process_name(data.get("param1", ""))
+            shutdown_type = _shutdown_type(data.get("param5", ""))
+            cause, label = _label(
+                process,
+                by_system=_on_behalf_of_system(starter.get("sid"), data.get("param7", "")),
+                reason_code=_reason_code(data.get("param4", "")),
+                shutdown_type=shutdown_type,
+            )
             restarts.append(Restart(
                 boot_ts=last,
                 cause=cause,
                 label=label,
                 initiated_ts=starter["ts"],
                 process=process or None,
-                windows_reason=starter["data"].get("param3") or None,
+                windows_reason=data.get("param3") or None,
                 first_signin_ts=signin,
+                reason_code=data.get("param4") or None,
+                shutdown_type=shutdown_type,
             ))
         elif any(first <= u <= first + RELOGIN_UNEXPECTED_AFTER_BOOT_SEC for u in unexpected):
             restarts.append(Restart(
@@ -223,7 +247,12 @@ def _query_events(days: float) -> str | None:
     if sys.platform != "win32":
         return None
     window_ms = int(max(days, 0.0) * 86400 * 1000)
-    ids = " or ".join(f"EventID={i}" for i in (_BOOT[0], _PLANNED[0], _UNEXPECTED[0], _SIGNIN[0]))
+    # Each id with its own provider: other providers write event 12 too (an
+    # ASUS power tool wrote 818 in 8 days on the desk), and unfiltered they
+    # filled the newest-first event cap, so a 'week' read held ~4 days.
+    ids = " or ".join(
+        f"(EventID={i} and Provider[@Name='{name}'])" for i, name in (_BOOT, _PLANNED, _UNEXPECTED, _SIGNIN)
+    )
     query = f"*[System[({ids}) and TimeCreated[timediff(@SystemTime) <= {window_ms}]]]"
     try:
         completed = subprocess.run(
@@ -262,12 +291,42 @@ def _process_name(param1: str) -> str:
     return path.replace("/", "\\").rsplit("\\", 1)[-1]
 
 
-def _label(process: str) -> tuple[str, str]:
+def _shutdown_type(param5: str) -> str | None:
+    """``power off`` -> ``power_off``; a word Nova cannot read is ``None``."""
+    return RELOGIN_SHUTDOWN_TYPES.get(param5.strip().lower())
+
+
+def _reason_code(param4: str) -> int | None:
+    try:
+        return int(param4.strip(), 16)
+    except ValueError:
+        return None
+
+
+def _on_behalf_of_system(sid: str | None, param7: str) -> bool:
+    """No user asked: the event runs as LocalSystem (a SID every Windows
+    language shares), or its text names ``NT AUTHORITY\\SYSTEM``."""
+    return sid == RELOGIN_SYSTEM_SID or param7.strip().lower() == RELOGIN_SYSTEM_ACCOUNT
+
+
+def _label(
+    process: str,
+    *,
+    by_system: bool = False,
+    reason_code: int | None = None,
+    shutdown_type: str | None = None,
+) -> tuple[str, str]:
     low = process.lower()
     if low in RELOGIN_WINDOWS_UPDATE_PROCESSES:
         return "windows_update", f"Windows Update ({process})"
+    if low == RELOGIN_SIGNIN_PROCESS and by_system:
+        if reason_code == RELOGIN_POWER_BUTTON_REASON_CODE and shutdown_type == "power_off":
+            return "power_button", "the PC's power button"
+        # Windows' sign-in process with no user named is never the Start
+        # menu (that names its own process and the user); say only who asked.
+        return "app", f"Windows' sign-in process ({process}), with no user named"
     if low in RELOGIN_START_MENU_PROCESSES:
-        return "start_menu", "a restart from the Start menu"
+        return "start_menu", "the Start menu"
     if not process:
         return "unknown", "a restart Windows did not record a reason for"
     return "app", f"{process}"

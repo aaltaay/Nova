@@ -91,6 +91,30 @@ def test_the_missed_morning_says_nobody_was_signed_in():
     assert "Windows Update" in missed["2026-09-23"] and "nobody signed in until 09:22" in missed["2026-09-23"]
 
 
+def test_a_power_button_morning_is_said_as_the_power_button_not_the_start_menu():
+    # 2026-10-05: the power button at 06:45, back on at 06:47, a phone login after.
+    power_button = Restart(
+        boot_ts=_ts("2026-10-05 06:47:26"),
+        cause="power_button",
+        label="the PC's power button",
+        initiated_ts=_ts("2026-10-05 06:45:27"),
+        process="winlogon.exe",
+        first_signin_ts=_ts("2026-10-05 06:48:37"),
+        reason_code="0x500ff",
+        shutdown_type="power_off",
+    )
+    ev = _evidence(
+        "2026-10-05 10:00:00",
+        ibc_logins=[IbcLogin(ts=_ts("2026-10-05 06:50:00"), full_auth=True)],
+        launches=[],
+        restarts=[power_button],
+    )
+    (row,) = ev["full_logins"]
+    assert row["relogin"]["reason"] == "pc_restarted" and row["relogin"]["restart"]["cause"] == "power_button"
+    assert row["relogin"]["text"].startswith("This PC was powered off with its power button at 06:45")
+    assert "Start menu" not in pv.render_text(ev)
+
+
 def test_a_weekend_phone_login_is_expected():
     ev = _evidence(
         "2026-09-27 10:00:00",

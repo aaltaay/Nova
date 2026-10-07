@@ -29,15 +29,56 @@ async function openTrader(page: Page) {
   return { chart, api };
 }
 
-/** Right-click inside the plot area, away from the position tag in the corner. */
+/**
+ * Right-click inside the plot area, away from the position tag. The plot is the first pane of
+ * lightweight-charts (its table's first row, between the price axes). The spot 40% across and 60% down
+ * the chart body is taken whenever the plot shows there. Where the position tag sits follows the price
+ * scale, and on a short pane that spot can fall on the time axis under the tag, which opens the position
+ * menu instead. So the first point of the plot itself that nothing covers is taken.
+ */
 async function rightClickChart(page: Page, chart = page.locator('.chart-body').first()) {
   const box = await chart.boundingBox();
   expect(box).toBeTruthy();
   if (!box) throw new Error('chart body has no box');
-  await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.6, {
-    button: 'right',
+  const at = await chart.evaluate((body) => {
+    const plot = body.querySelector('.tv-lightweight-charts table tr')?.children[1];
+    if (!plot) return null;
+    const shows = (x: number, y: number) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit instanceof HTMLCanvasElement && plot.contains(hit);
+    };
+    const b = body.getBoundingClientRect();
+    const usual = { x: b.x + b.width * 0.4, y: b.y + b.height * 0.6 };
+    if (shows(usual.x, usual.y)) return usual;
+    const p = plot.getBoundingClientRect();
+    for (const fy of [0.5, 0.25, 0.75]) {
+      for (const fx of [0.4, 0.25, 0.1, 0.55, 0.7, 0.85]) {
+        const point = { x: p.x + p.width * fx, y: p.y + p.height * fy };
+        if (shows(point.x, point.y)) return point;
+      }
+    }
+    return null;
   });
+  if (!at) throw new Error('no point of the plot is free of the position tag');
+  await page.mouse.click(at.x, at.y, { button: 'right' });
   return box;
+}
+
+/** The chart column, its grid and each pane's chart body, as heights in px to a tenth. */
+async function chartLayout(page: Page) {
+  return page.locator('.stock-view-charts').evaluate((column) => {
+    const height = (el: Element | null) =>
+      Math.round((el?.getBoundingClientRect().height ?? 0) * 10) / 10;
+    const panes: Record<string, number> = {};
+    for (const cell of column.querySelectorAll('[data-testid^="chart-grid-cell-"]')) {
+      panes[cell.getAttribute('data-testid') ?? ''] = height(cell.querySelector('.chart-body'));
+    }
+    return {
+      column: height(column),
+      grid: height(column.querySelector('[data-testid="chart-grid"]')),
+      panes,
+    };
+  });
 }
 
 test.describe('Trader chart right-click context menu', () => {
@@ -149,11 +190,15 @@ test.describe('Trader chart right-click context menu', () => {
   test('priced rows say why until the quote brings the ticket (#566)', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     const api = await mockLiveTraderApi(page);
-    // Hold the quote: the rail mounts the ticket only once it has loaded.
+    // Hold the quote: the rail mounts the ticket only once it has loaded. The ticker socket opens and
+    // says nothing, as on a desk whose backend is slow to answer, so the note reads "Loading quote".
+    // Unrouted, the socket has no server behind it: it fails at no fixed moment, and the note turns to
+    // "No quote data".
     let releaseQuote: () => void = () => {};
     const quoteHeld = new Promise<void>((resolve) => {
       releaseQuote = resolve;
     });
+    await page.routeWebSocket(/\/ws\/ticker\/SMPL(\?.*)?$/, () => {});
     await page.route('**/api/ticker/SMPL', async (route) => {
       await quoteHeld;
       await route.fallback();
@@ -166,6 +211,14 @@ test.describe('Trader chart right-click context menu', () => {
     );
     await expect(page.getByTestId('stock-view-rail-pending')).toBeVisible();
     await expect(page.locator('form.manual-order-ticket')).toHaveCount(0);
+    // The wait lies over the charts and takes no room: the grid fills its column from the first paint.
+    const note = page.getByTestId('stock-view-quote-overlay');
+    await expect(note).toHaveText('Loading quote for SMPL…');
+    await expect(note).toHaveAttribute('aria-live', 'polite');
+    const waiting = await chartLayout(page);
+    expect(waiting.grid, 'the chart grid fills its column while the quote loads').toBe(
+      waiting.column,
+    );
 
     await rightClickChart(page);
     for (const id of ['create_order', 'buy', 'sell']) {
@@ -192,6 +245,11 @@ test.describe('Trader chart right-click context menu', () => {
     releaseQuote();
     const ticket = page.locator('form.manual-order-ticket').first();
     await expect(ticket).toBeVisible();
+    await expect(note).toHaveCount(0);
+    // Nothing jumps when the quote lands: every pane keeps the height it had while the quote loaded.
+    expect(await chartLayout(page), 'the chart panes keep their size when the quote lands').toEqual(
+      waiting,
+    );
     const sell = page.getByTestId('chart-context-menu-sell');
     await expect(sell).toBeEnabled();
     await expect(page.getByTestId('chart-context-menu-hint')).toContainText('trade ticket');
