@@ -19,6 +19,13 @@ so the first such ``p`` is found by bisection. **The cushion** (ADR 048 1.5): a 
 when that price is under ``entry * (1 + SHORT_CUSHION_PCT)``, the price a 25% move against it
 reaches.
 
+**Shorts of the stock on the way** keep their own limits (``cushion(flying=...)``). Each one, once
+sold at its limit ``L`` and marked at ``p``, changes equity by ``qty * (L - p)`` and needs the
+maintenance of ``p``; a short resting above the market sells only when the price gets there. So the
+whole short is judged at the highest of those prices (its ``fill_price``: the moment the last of it
+is sold) and the cushion is 25% over that. Pricing a $20 short on the way at a new $15 entry would
+understate both the requirement and the move it must survive.
+
 **IBKR's own figure.** When IBKR's what-if answered for a stock (``short_sale.whatif``), its
 maintenance over the published one is that stock's ``ratio`` -- IBKR's extra charge on a volatile
 name -- and every function here scales the stock's published maintenance by it. ``ratio`` 1 is the
@@ -27,6 +34,7 @@ published rules.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 
 from constants_shorts import (
     LONG_MAINT_PCT,
@@ -127,25 +135,36 @@ def long_liquidation_price(*, equity: float, other_maint: float, qty: float, mar
 
 
 def cushion(*, equity: float, other_maint: float, qty: float, entry: float,
-            cushion_pct: float = SHORT_CUSHION_PCT, ratio: float = 1.0) -> dict[str, float | bool | None]:
-    """``{ok, fits, liquidation_price, cushion_price, requirement, surplus_at_entry}`` for a short of ``qty`` at ``entry``.
+            cushion_pct: float = SHORT_CUSHION_PCT, ratio: float = 1.0,
+            flying: Sequence[tuple[float, float]] = ()) -> dict[str, float | bool | None]:
+    """``{ok, fits, liquidation_price, cushion_price, requirement, surplus_at_entry, fill_price, qty}`` for a short.
 
-    ``qty`` is the whole short in the stock once this order fills (held + in flight + this order);
-    ``other_maint`` everything else's maintenance. ``fits`` -- the requirement fits at the entry;
-    ``ok`` -- IBKR would not liquidate within ``cushion_pct`` (which implies ``fits``); ``ratio`` --
-    IBKR's charge on this stock over the published one.
+    ``qty`` is the short marked at ``entry`` once this order fills (this order and the short held);
+    ``flying`` the stock's shorts on the way, ``(qty, limit)`` each, at their own limits.
+    ``other_maint`` is everything else's maintenance. ``fits`` -- the requirement fits once the last
+    of the short is sold (``fill_price``, the highest price); ``ok`` -- IBKR would not liquidate
+    within ``cushion_pct`` over it (which implies ``fits``); ``ratio`` -- IBKR's charge on this
+    stock over the published one. With nothing on the way, ``fill_price`` is ``entry``.
     """
-    q = abs(float(qty))
     e = float(entry)
-    target = e * (1.0 + float(cushion_pct))
-    args = {"equity": float(equity), "other_maint": float(other_maint), "qty": q, "mark": e, "ratio": float(ratio)}
-    at_entry = _short_surplus(e, **args)
+    pieces = [(abs(float(n)), float(price)) for n, price in flying
+              if abs(float(n)) > 0 and math.isfinite(float(price)) and float(price) > 0]
+    q = abs(float(qty)) + sum(piece_qty for piece_qty, _ in pieces)
+    fill = max([e] + [price for _, price in pieces])
+    # Each piece sold at its own limit: equity moves by qty * (limit - p), not qty * (entry - p).
+    credit = sum(piece_qty * (price - e) for piece_qty, price in pieces)
+    target = fill * (1.0 + float(cushion_pct))
+    args = {"equity": float(equity) + credit, "other_maint": float(other_maint), "qty": q, "mark": e,
+            "ratio": float(ratio)}
+    at_fill = _short_surplus(fill, **args)
     liq = short_liquidation_price(**args)
     return {
         "ok": _short_surplus(target, **args) >= 0,
-        "fits": at_entry >= 0,
+        "fits": at_fill >= 0,
         "liquidation_price": liq,
         "cushion_price": target,
-        "requirement": short_requirement(e, q) * float(ratio),
-        "surplus_at_entry": at_entry,
+        "requirement": short_requirement(fill, q) * float(ratio),
+        "surplus_at_entry": at_fill,
+        "fill_price": fill,
+        "qty": q,
     }

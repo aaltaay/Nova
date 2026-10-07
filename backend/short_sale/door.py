@@ -63,21 +63,27 @@ def _venue(venue: str | None) -> str:
     return desk_venue()
 
 
-def _flying(symbol: str, venue: str) -> tuple[float, float]:
-    """Shorts on the way on ``venue``: this stock's shares, and what the others' will need."""
+def _flying(symbol: str, venue: str) -> tuple[float, tuple[tuple[float, float], ...], float]:
+    """Shorts on the way on ``venue``: this stock's shares, those with their limits, and what the others' need.
+
+    Each keeps its own limit: a short resting at $20 is never priced at a new $15 entry.
+    """
     same, other = 0.0, 0.0
+    priced: list[tuple[float, float]] = []
     for row in inflight.commitments(inflight.SHORT, venue):
         if row.symbol == symbol:
             same += row.qty
+            if row.price is not None:
+                priced.append((row.qty, row.price))
         elif row.price is not None:
             factor, _ = whatif.ratio(row.symbol, "short")
             other += margin.short_requirement(row.price, row.qty) * factor
-    return same, other
+    return same, tuple(priced), other
 
 
 def read_account(symbol: str, venue: str) -> check.Account:
     """The account the short is judged against: the venue's own, read from memory."""
-    same, other = _flying(symbol, venue)
+    same, same_at, other = _flying(symbol, venue)
     try:
         if venue in ("paper", "sim"):
             from practice.broker import for_venue
@@ -86,16 +92,16 @@ def read_account(symbol: str, venue: str) -> check.Account:
             held = broker.ledger.held_qty(symbol)
             return check.Account(summary=broker.account_summary(), positions=broker.positions(),
                                  held_long=max(0.0, held), held_short=max(0.0, -held),
-                                 flying_same=same, flying_other_maint=other)
+                                 flying_same=same, flying_other_maint=other, flying_same_at=same_at)
         from ibkr import account as _acct
 
         return check.Account(summary=_acct.get_account_summary(), positions=list(_acct.get_positions() or []),
                              held_long=float(_acct.long_qty(symbol)), held_short=float(_acct.short_qty(symbol)),
-                             flying_same=same, flying_other_maint=other)
+                             flying_same=same, flying_other_maint=other, flying_same_at=same_at)
     except IbkrAccountError as exc:
         logger.exception("short check: the account could not be read -- refusing the short of %s", symbol)
         return check.Account(summary=None, positions=[], held_long=None, held_short=None, error=str(exc),
-                             flying_same=same, flying_other_maint=other)
+                             flying_same=same, flying_other_maint=other, flying_same_at=same_at)
 
 
 def verdicts(cmd: ExecutionCommand, *, facts: Facts | None = None, borrow: dict[str, Any] | None = None,

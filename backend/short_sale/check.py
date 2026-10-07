@@ -70,6 +70,7 @@ class Account:
     error: str | None = None
     flying_same: float = 0.0          # shorts of this stock on the way
     flying_other_maint: float = 0.0   # what the shorts of other stocks on the way will need
+    flying_same_at: tuple[tuple[float, float], ...] = ()   # those of this stock with a limit: (qty, limit)
 
 
 @dataclass(frozen=True)
@@ -270,16 +271,22 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
                      ("Nova cannot read what the account's other positions need in margin, so it cannot check this "
                       "short. Try again once the positions load."), state="unknown")]
     other += account.flying_other_maint
-    qty = order.qty + (account.held_short or 0.0) + account.flying_same
-    verdict = margin.cushion(equity=equity, other_maint=other, qty=qty, entry=entry, ratio=ratio)
+    # This stock's shorts on the way keep their own limits; one Nova cannot price counts at this entry.
+    priced = account.flying_same_at
+    unpriced = max(0.0, account.flying_same - sum(qty for qty, _ in priced))
+    verdict = margin.cushion(equity=equity, other_maint=other, qty=order.qty + (account.held_short or 0.0) + unpriced,
+                             entry=entry, ratio=ratio, flying=priced)
+    qty = float(verdict["qty"] or 0)
+    fill = float(verdict["fill_price"] or entry)
+    at = f"at {entry:.2f}" if fill <= entry else f"up to {fill:.2f} (the shorts on the way keep their prices)"
     liq = verdict["liquidation_price"]
     need = float(verdict["requirement"] or 0)
     left = max(0.0, equity - other)
     numbers = {"source": source, "ratio": round(ratio, 4), "requirement": round(need, 2), "excess": round(left, 2),
-               "liquidation_price": liq, "cushion_price": verdict["cushion_price"]}
+               "liquidation_price": liq, "cushion_price": verdict["cushion_price"], "fill_price": fill}
     if not verdict["fits"]:
         return [_bad("margin", "Margin", SHORT_MARGIN,
-                     (f"Margin ({source}): {qty:,.0f} {order.symbol} short at {entry:.2f} needs {_money(need)}, and "
+                     (f"Margin ({source}): {qty:,.0f} {order.symbol} short {at} needs {_money(need)}, and "
                       f"the account's {_money(equity)} of equity has {_money(left)} left after its other positions. "
                       "Short fewer shares."), _money(need), **numbers)]
     fits = _ok("margin", "Margin", f"Margin ({source}): {_money(need)} of {_money(left)}.", _money(need), **numbers)
@@ -287,7 +294,7 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
         where = f"IBKR would liquidate near {liq:.2f}" if isinstance(liq, float) else "IBKR would liquidate at once"
         return [fits, _bad("cushion", "25% cushion", SHORT_CUSHION,
                            (f"Margin ({source}): {where}, under {verdict['cushion_price']:.2f}, the "
-                            f"{SHORT_CUSHION_PCT:.0%} move against a short at {entry:.2f}. Nova keeps a "
+                            f"{SHORT_CUSHION_PCT:.0%} move against a short at {fill:.2f}. Nova keeps a "
                             f"{SHORT_CUSHION_PCT:.0%} cushion: short fewer shares."),
                            f"LIQ {liq:.2f}" if isinstance(liq, float) else None, **numbers)]
     return [fits, _ok("cushion", "25% cushion",

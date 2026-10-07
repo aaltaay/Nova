@@ -315,6 +315,31 @@ def test_shorts_in_flight_count_toward_the_margin(live, monkeypatch):
     assert second.ok is False and second.reason_code in ("SHORT_MARGIN", "SHORT_CUSHION")
 
 
+def test_a_short_on_the_way_keeps_its_own_limit():
+    """PR #782 review: a short resting at $20 is never priced at a new $4 entry."""
+    alone = margin.cushion(equity=5_000, other_maint=0, qty=400, entry=4.0)
+    assert alone["ok"] is True and alone["fill_price"] == 4.0
+    mixed = margin.cushion(equity=5_000, other_maint=0, qty=20, entry=4.0, flying=[(380, 20.0)])
+    # Sold at its own $20, the 380 needs $20's maintenance, and the cushion runs 25% over $20.
+    assert mixed["fill_price"] == 20.0 and mixed["cushion_price"] == 25.0 and mixed["qty"] == 400
+    assert mixed["requirement"] == pytest.approx(400 * 0.30 * 20.0)
+    assert mixed["fits"] is True and mixed["ok"] is False
+    # A short on the way under the entry sold for less: never more equity than the entry gives.
+    lower = margin.cushion(equity=5_000, other_maint=0, qty=20, entry=4.0, flying=[(380, 3.9)])
+    assert lower["fill_price"] == 4.0 and lower["surplus_at_entry"] < alone["surplus_at_entry"]
+
+
+def test_the_door_prices_a_short_on_the_way_at_its_own_limit(live, monkeypatch):
+    _spy_place(monkeypatch)
+    short_mod.remember_for_tests(SYMBOL, _borrow())
+    first = asyncio.run(exec_svc.execute(_short("own-1", qty=380, limit=20.00), wait_ack=False))
+    assert first.ok is True, first.error
+    second = asyncio.run(exec_svc.execute(_short("own-2", qty=20, limit=4.00), wait_ack=False))
+    # Repriced at $4 the 400 would pass; at the first short's own $20 they cannot take 25% more.
+    assert (second.ok, second.reason_code) == (False, "SHORT_CUSHION")
+    assert "a short at 20.00" in second.error
+
+
 def test_the_live_key_still_refuses_first(live, monkeypatch):
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: False)
     short_mod.remember_for_tests(SYMBOL, _borrow())

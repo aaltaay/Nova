@@ -22,8 +22,9 @@ A bracket's exits (#606) are one close, not two: its take-profit and stop-loss
 share a one-cancels-other group, so at most one of them fills and the group
 counts once. An exit still waiting on its entry -- the entry is itself working
 -- closes nothing held yet (it sells what the entry has not bought) and counts
-nothing. Both read the rows' ``oca_group`` / ``parent_id``, which only the
-practice venues fill in today (Live rows carry neither, so Live is unchanged).
+nothing. Both read the rows' ``oca_group`` / ``parent_id``: the practice venues
+fill in both, and Live rows carry IBKR's ``parentId`` as ``parent_id`` (ADR 048),
+so a Live bracket's exits count once too, grouped by their entry.
 """
 from __future__ import annotations
 
@@ -66,7 +67,12 @@ def closing_committed(symbol: str, side: str) -> tuple[float, list[int]]:
     ids: list[int] = []
     groups: dict[Any, float] = {}  # one-cancels-other group -> the most any one of its orders closes
     rows = _orders.open_orders()
-    working = {int(row["order_id"]) for row in rows if row.get("order_id") is not None}
+    # Entries working with nothing filled: an exit waiting on one closes nothing held yet. Once an
+    # entry has filled some, IBKR may already work its exits, so they count.
+    unfilled = {
+        int(row["order_id"]) for row in rows
+        if row.get("order_id") is not None and _qty(row.get("filled_qty")) <= _EPS
+    }
     for row in rows:
         if str(row.get("symbol") or "").strip().upper() != symbol:
             continue
@@ -78,8 +84,8 @@ def closing_committed(symbol: str, side: str) -> tuple[float, list[int]]:
             else _qty(row.get("qty")) - _qty(row.get("filled_qty"))
         )
         parent = row.get("parent_id")
-        if open_qty <= _EPS or (parent is not None and int(parent) in working):
-            continue  # nothing open, or an exit waiting on an entry that is still working
+        if open_qty <= _EPS or (parent is not None and int(parent) in unfilled):
+            continue  # nothing open, or an exit waiting on an entry that has bought nothing yet
         group = row.get("oca_group") or (("parent", int(parent)) if parent is not None else None)
         if group is None:
             committed += open_qty

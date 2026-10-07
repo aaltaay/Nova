@@ -17,11 +17,16 @@ loop every other order runs on: it used to run ``execute`` under ``asyncio.run``
 a second event loop that raised "bound to a different event loop" on the door's lock whenever an
 order held it (#656).
 
-**Protective stops stay resting** (ADR 048 gap 6, the operator's decision): a working stop (STP,
-STP LMT, TRAIL) on the side that closes a position the venue holds -- a SELL stop under a long, a
-BUY stop over a short -- and no larger than it is kept, listed in ``kept`` with why; entries and
-targets are still cancelled. A stop waiting on an entry that has not filled protects nothing yet
-and is cancelled with it. When the venue's positions cannot be read no stop can be told
+**Protective stops stay resting** (ADR 048 gap 6, the operator's decision): working stops (STP,
+STP LMT, TRAIL) on the side that closes a position the venue holds -- SELL stops under a long, BUY
+stops over a short -- are kept, together no larger than the position, and listed in ``kept`` with
+why; entries and targets are still cancelled. Two stops that each cover the whole position would
+both fill and flip it, so the stops are kept in turn until the next would pass the position. An
+order Nova cannot cancel rests whatever the sweep does, so a closing one takes its room first; then
+Nova's stops, the nearest the market first (it limits the loss most), then the oldest. The rest are
+cancelled, and the venue's ``note`` names them. A bracket's stop whose entry is still working with
+nothing filled protects nothing yet and is cancelled with it (its ``parent_id`` names that entry:
+Live rows carry IBKR's ``parentId``). When the venue's positions cannot be read no stop can be told
 protective: every order is cancelled, as before, and the venue's ``note`` says so.
 
 Owns no state.
@@ -74,6 +79,7 @@ def _sim_rows() -> tuple[Rows | None, str | None, str | None]:
 
 
 _STOP_TYPES = frozenset({"STP", "STP LMT", "TRAIL", "TRAIL LIMIT"})
+_TRAIL_TYPES = frozenset({"TRAIL", "TRAIL LIMIT"})   # their stop_price is the trail amount, not a trigger
 _WAITING = frozenset({"PreSubmitted", "PendingSubmit"})
 _EPS = 1e-9
 POSITIONS_UNREAD = "its positions could not be read, so no stop could be told protective: every order was cancelled"
@@ -112,12 +118,44 @@ def held_positions(venue: str) -> dict[str, float] | None:
         return None
 
 
-def protective_stop(row: dict[str, Any], held: dict[str, float]) -> str | None:
-    """Why ``row`` is a stop protecting a held position (it stays resting), or None to cancel it."""
-    if str(row.get("order_type") or "").strip().upper() not in _STOP_TYPES:
-        return None
-    if str(row.get("status") or "") in _WAITING and row.get("parent_id") is not None:
-        return None   # a bracket exit waiting on its entry protects nothing yet
+def _filled(row: dict[str, Any]) -> float:
+    try:
+        return float(row.get("filled_qty") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def unfilled_entries(rows: Rows) -> set[int]:
+    """Order ids of the venue's working orders that have filled nothing: entries a bracket exit may wait on."""
+    return {oid for row in rows if (oid := _order_id(row)) is not None and oid > 0 and _filled(row) <= _EPS}
+
+
+def _waits_on_entry(row: dict[str, Any], unfilled: set[int] | None) -> bool:
+    """A bracket exit whose entry is still working and has bought nothing: it closes nothing held yet.
+
+    With the venue's working orders (``unfilled_entries``), the entry's own row decides: on Live a
+    stop IBKR holds PreSubmitted after its entry filled still protects, and once an entry has filled
+    some IBKR may already work its exits. Without them, the row's status does.
+    """
+    parent = row.get("parent_id")
+    if parent is None:
+        return False
+    if unfilled is not None:
+        try:
+            return int(parent) in unfilled
+        except (TypeError, ValueError):
+            return True   # a parent Nova cannot read: never kept as protective
+    return str(row.get("status") or "") in _WAITING
+
+
+def _closing_qty(row: dict[str, Any], held: dict[str, float],
+                 unfilled: set[int] | None) -> tuple[str, float, float] | None:
+    """``(symbol, open qty, signed position)`` when ``row`` would close a held position if it filled.
+
+    None for an order on the opening side, one with nothing open, or a bracket exit waiting on its entry.
+    """
+    if _waits_on_entry(row, unfilled):
+        return None   # a bracket exit waiting on its entry closes nothing held yet
     symbol = str(row.get("symbol") or "").strip().upper()
     side = str(row.get("side") or "").strip().upper()
     position = float(held.get(symbol, 0.0))
@@ -127,10 +165,104 @@ def protective_stop(row: dict[str, Any], held: dict[str, float]) -> str | None:
     except (TypeError, ValueError):
         return None
     closes = (side == "SELL" and position > _EPS) or (side == "BUY" and position < -_EPS)
-    if not closes or open_qty <= _EPS or open_qty > abs(position) + _EPS:
+    if not closes or open_qty <= _EPS:
         return None
+    return symbol, open_qty, position
+
+
+def _is_stop(row: dict[str, Any]) -> bool:
+    return str(row.get("order_type") or "").strip().upper() in _STOP_TYPES
+
+
+def _closing_stop(row: dict[str, Any], held: dict[str, float],
+                  unfilled: set[int] | None) -> tuple[str, float, float] | None:
+    """``(symbol, open qty, signed position)`` when ``row`` is a stop that closes a held position by
+    itself (no larger than it); None when it is anything else."""
+    if not _is_stop(row):
+        return None
+    judged = _closing_qty(row, held, unfilled)
+    if judged is None or judged[1] > abs(judged[2]) + _EPS:
+        return None
+    return judged
+
+
+def _why(symbol: str, qty: float, position: float) -> str:
     kind = "long" if position > 0 else "short"
-    return f"protects the {abs(position):g} {symbol} {kind}"
+    if qty >= abs(position) - _EPS:
+        return f"protects the {abs(position):g} {symbol} {kind}"
+    return f"protects {qty:g} of the {abs(position):g} {symbol} {kind}"
+
+
+def protective_stop(row: dict[str, Any], held: dict[str, float], unfilled: set[int] | None = None) -> str | None:
+    """Why ``row`` alone would be a stop protecting a held position, or None to cancel it.
+
+    One row at a time; the sweep also caps the stops it keeps at the position (``kept_stops``).
+    """
+    judged = _closing_stop(row, held, unfilled)
+    return None if judged is None else _why(*judged)
+
+
+def _trigger(row: dict[str, Any]) -> float | None:
+    """The price a stop fires at, when its row says (a trailing stop's ``stop_price`` is its trail)."""
+    if str(row.get("order_type") or "").strip().upper() in _TRAIL_TYPES:
+        return None
+    try:
+        price = float(row.get("stop_price"))
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 else None
+
+
+def _keep_order(row: dict[str, Any], position: float) -> tuple[int, float, int]:
+    """Which of Nova's stops is kept first: the nearest the market (it limits the loss most), then the oldest."""
+    trigger = _trigger(row)
+    if trigger is None:
+        nearest = (1, 0.0)
+    else:   # a long's SELL stop nearer the market is higher; a short's BUY stop is lower
+        nearest = (0, -trigger if position > 0 else trigger)
+    return nearest[0], nearest[1], _order_id(row) or 0
+
+
+def kept_stops(rows: Rows, held: dict[str, float]) -> tuple[dict[int, str], list[str]]:
+    """``({row index: why}, [what was not kept and why])`` for one venue's working orders.
+
+    The stops kept on a position, with the closing orders Nova cannot cancel, never pass it: two
+    stops that each cover it would both fill and flip it. An order Nova cannot cancel (no API order
+    id) rests whatever the sweep does, so it takes its room first -- a stop among them is listed as
+    kept when it fits, and any other is named as a problem by the sweep.
+    """
+    unfilled = unfilled_entries(rows)
+    taken: dict[str, float] = {}
+    kept: dict[int, str] = {}
+    candidates: dict[str, list[tuple[tuple[int, float, int], int, float]]] = {}
+    for index, row in enumerate(rows):
+        order_id = _order_id(row)
+        if order_id is None or order_id <= 0:
+            judged = _closing_qty(row, held, unfilled)
+            if judged is not None:
+                symbol, open_qty, position = judged
+                fits = _is_stop(row) and taken.get(symbol, 0.0) + open_qty <= abs(position) + _EPS
+                taken[symbol] = taken.get(symbol, 0.0) + open_qty
+                if fits:
+                    kept[index] = _why(symbol, open_qty, position)
+            continue
+        judged = _closing_stop(row, held, unfilled)
+        if judged is not None:
+            symbol, open_qty, position = judged
+            candidates.setdefault(symbol, []).append((_keep_order(row, position), index, open_qty))
+    dropped: list[str] = []
+    for symbol, stops in candidates.items():
+        position = held[symbol]
+        room = abs(position) - taken.get(symbol, 0.0)
+        kind = "long" if position > 0 else "short"
+        for _, index, open_qty in sorted(stops):
+            if open_qty > room + _EPS:
+                dropped.append(f"order {_order_id(rows[index])} ({symbol} stop, {open_qty:g}): keeping it too would "
+                               f"take the closing orders past the {abs(position):g} {symbol} {kind}")
+                continue
+            room -= open_qty
+            kept[index] = _why(symbol, open_qty, position)
+    return kept, dropped
 
 
 def read_working(venue: str) -> tuple[Rows | None, str | None, str | None]:
@@ -179,12 +311,18 @@ async def sweep_venue(venue: str) -> dict[str, Any]:
     if rows is None:
         return out
     held = held_positions(venue) if rows else {}
+    kept: dict[int, str] = {}
     if held is None:
         out["note"] = "; ".join(part for part in (note, POSITIONS_UNREAD) if part)
+    else:
+        kept, dropped = kept_stops(rows, held)
+        if dropped:
+            out["note"] = "; ".join(part for part in (note, "stops beyond the position were cancelled: "
+                                                      + "; ".join(dropped)) if part)
     problems: list[str] = []
-    for row in rows:
+    for index, row in enumerate(rows):
         order_id = _order_id(row)
-        why_kept = protective_stop(row, held) if held is not None else None
+        why_kept = kept.get(index)
         if why_kept is not None:
             out["kept"].append({
                 "order_id": order_id, "symbol": row.get("symbol"), "side": row.get("side"),

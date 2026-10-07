@@ -133,10 +133,19 @@ def trade_to_order_row(trade) -> dict:
         perm_id = None
     if perm_id is not None and perm_id <= 0:
         perm_id = None
+    # A bracket's exits name their entry: the kill switch's kept stops and the ticket's Flatten read it.
+    parent_raw = getattr(trade.order, "parentId", None)
+    try:
+        parent_id = int(parent_raw) if parent_raw not in (None, 0, "0") else None
+    except (TypeError, ValueError):
+        parent_id = None
+    if parent_id is not None and parent_id <= 0:
+        parent_id = None
 
     return {
         "order_id": oid,
         "perm_id": perm_id,
+        "parent_id": parent_id,
         "symbol": trade.contract.symbol,
         "side": trade.order.action,
         "qty": qty,
