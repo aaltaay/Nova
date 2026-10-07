@@ -10,7 +10,16 @@ import { EDGE_PRIORITY } from '../chart';
 import { drawColumn, layoutColumn, type ColumnItem, type ColumnReserve } from './edgeColumn';
 import { drawLevels, fillLevelBands, type LevelPx, type TickPx } from './levelRender';
 import { fmtPx } from './planMath';
-import type { SceneBox, SceneEdgeTag, SceneMark, ScenePin, SceneSegment, SceneVLine, SceneWord } from './sceneTypes';
+import type {
+  SceneBox,
+  SceneDot,
+  SceneEdgeTag,
+  SceneMark,
+  ScenePin,
+  SceneSegment,
+  SceneVLine,
+  SceneWord,
+} from './sceneTypes';
 import {
   drawLabel,
   drawPin,
@@ -29,6 +38,9 @@ import {
 const MARK_GAP_PX = 3;
 const MARK_H = 6;
 const MARK_HALF_W = 4;
+/** A flat top's touch: a ring this wide on the candle's high, its label this far over it. */
+export const RING_R_PX = 4;
+const RING_LABEL_GAP_PX = 9;
 
 export interface Px {
   boxes: { x1: number; x2: number | null; y1: number; y2: number; b: SceneBox }[];
@@ -43,6 +55,7 @@ export interface Px {
   reserves: ColumnReserve[];
   topInset: number;
   marks: { x: number; y: number; m: SceneMark }[];
+  dots: { x: number; y: number; d: SceneDot }[];
 }
 
 /** A label the last draw put on the pane, with its box's story: a mark alone is hovered too. */
@@ -53,16 +66,16 @@ export interface LabelHit {
 
 export function emptyPx(): Px {
   return { boxes: [], segments: [], vlines: [], tags: [], pins: [], labels: 'compact', levels: [], ticks: [], words: [],
-    reserves: [], topInset: 0, marks: [] };
+    reserves: [], topInset: 0, marks: [], dots: [] };
 }
 
-/** A label that stays where it is: a level's, the focus line's, an edge tag. */
+/** A label that stays where it is: a level's, the focus line's, an edge tag, a flat top's touch count. */
 interface FixedLabel {
   text: string;
   x: number;
   y: number;
   color: string;
-  align: 'left' | 'right';
+  align: 'left' | 'right' | 'center';
 }
 
 /** The column's words: each level's name, each line's tag, and a tag for every price out of view. */
@@ -87,16 +100,30 @@ export function columnItems(px: Pick<Px, 'levels' | 'words' | 'tags'>, height: n
   return items;
 }
 
-/** A mark's arrow, pointing down at its candle's high. */
-function drawMarkArrow(ctx: CanvasRenderingContext2D, x: number, y: number, color: string): void {
-  const tip = y - MARK_GAP_PX;
+/** A mark's arrow over its candle's high: pointing down at it (a run), or up from it (a flat top's break). */
+function drawMarkArrow(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, dir: 'up' | 'down' = 'down'): void {
+  const near = y - MARK_GAP_PX;
+  const far = near - MARK_H;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(x, tip);
-  ctx.lineTo(x - MARK_HALF_W, tip - MARK_H);
-  ctx.lineTo(x + MARK_HALF_W, tip - MARK_H);
+  ctx.moveTo(x, dir === 'down' ? near : far);
+  ctx.lineTo(x - MARK_HALF_W, dir === 'down' ? far : near);
+  ctx.lineTo(x + MARK_HALF_W, dir === 'down' ? far : near);
   ctx.closePath();
   ctx.fill();
+}
+
+/** A flat top's touch: a filled ring on the candle's high. */
+function drawRing(ctx: CanvasRenderingContext2D, x: number, y: number, d: SceneDot): void {
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(x, y, RING_R_PX, 0, 2 * Math.PI);
+  ctx.fillStyle = d.fill;
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = d.color;
+  ctx.stroke();
+  ctx.lineWidth = 1;
 }
 
 export class FillRenderer implements IPrimitivePaneRenderer {
@@ -171,7 +198,14 @@ export class LineRenderer implements IPrimitivePaneRenderer {
         }
       }
       ctx.setLineDash([]);
-      for (const { x, y, m } of this.px.marks) drawMarkArrow(ctx, x, y, m.color);
+      for (const { x, y, m } of this.px.marks) drawMarkArrow(ctx, x, y, m.color, m.dir);
+      for (const { x, y, d } of this.px.dots) {
+        drawRing(ctx, x, y, d);
+        if (d.label) {
+          fixed.push({ text: d.label, x, y: y - RING_R_PX - RING_LABEL_GAP_PX, color: d.labelColor ?? d.color,
+            align: 'center' });
+        }
+      }
       // Every word at the right edge in one column; the boxes' labels take the room around it.
       const items = columnItems(this.px, height);
       const column = drawColumn(ctx, items, layoutColumn(items, height, this.px.topInset, this.px.reserves), width,

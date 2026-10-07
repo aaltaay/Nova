@@ -86,12 +86,12 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
     failed: 'The flag broke a rule: too many red candles, too deep, heavy volume on the way down, a close under the 9 EMA, or the day\'s biggest candle was red.',
   },
   flat_top_breakout: {
-    leg: 'A new high of day on an impulse. The scanner waits for a base: two to six candles closing just under that high, none making a new one.',
-    pullback: 'A base is there, but one rule holds it back (MACD under zero, a risk outside the band, or the time of day).',
-    armed: 'A flat top: tight candles closing just under the high of day. The trigger is that high.',
-    near: 'Price is a few cents under the high of day. The tape is read now.',
-    triggered: 'The breakout held: a green candle closed over the high without trading back under it. The scoreboard follows it from here.',
-    failed: 'The base broke: it ran too long, lost the 9 EMA, or price closed back under the high before a candle held it.',
+    leg: 'A new high of day on an impulse, or a flat top still counting its touches: candles whose high comes back up to it (within 0.5% or a cent under it). From its second touch it is drawn forming; the third arms it.',
+    pullback: 'A flat top is there, but one rule holds it back (MACD under zero, a risk outside the band, or the time of day).',
+    armed: 'A flat top: the high of day tapped three times or more, the candles under it closing just below it on the 9 EMA. The trigger is that high.',
+    near: 'Price is at the flat top. The tape is read now. Once a price trades over it, the first candle that holds it and closes green is the entry.',
+    triggered: 'The breakout held: a candle held the flat top (a retest into the touch zone counts) and closed green over it. The scoreboard follows it from here.',
+    failed: 'The base broke: it ran too long, lost the 9 EMA, or price closed back under the touch zone before a candle held it.',
   },
   red_to_green: {
     leg: 'Trading under the open. Red to green needs enough closes under the open before a move back through it counts as the reclaim.',

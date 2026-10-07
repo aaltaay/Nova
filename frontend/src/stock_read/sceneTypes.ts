@@ -68,7 +68,8 @@ export interface SceneReserve {
   height: number;
 }
 
-/** A day marked on its candle (a +40% run): an arrow over `price` and its label, which makes room. */
+/** A candle marked over `price`: a day's +40% run (an arrow pointing down at the high) or a flat top's break (`up`:
+ * a triangle pointing up over the breaking candle), and its label, which makes room. */
 export interface SceneMark {
   t: Time;
   price: number;
@@ -76,6 +77,21 @@ export interface SceneMark {
   color: string;
   /** Higher keeps its label where marks crowd. */
   rank: number;
+  /** Which way the triangle points; down by default. */
+  dir?: 'up' | 'down';
+}
+
+/** A ring on one candle at a price -- a flat top's touch (2026-10-06) -- and a label over it, which stays put. */
+export interface SceneDot {
+  t: Time;
+  price: number;
+  /** The ring's outline, and its fill. */
+  color: string;
+  fill: string;
+  label?: string | null;
+  labelColor?: string;
+  /** What the pane reports as hovered over the ring: its setup's story. */
+  hoverId?: string;
 }
 
 /** A filled tag over a price on one candle, on a stem down to the price. */
@@ -105,6 +121,8 @@ export interface Scene {
   /** The pane's top pixels its corner chips cover at the right edge: the column starts under them. */
   topInset?: number;
   marks?: SceneMark[];
+  /** The flat tops' touches. */
+  dots?: SceneDot[];
 }
 
 export const EMPTY_SCENE: Scene = {

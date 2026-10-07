@@ -9,7 +9,8 @@
  * shapes are `sceneTypes.ts`; drawing them is `sceneRender.ts` -- where each label goes, and how much a past
  * setup's says (`sceneLabels.ts`), and every word at the right edge in one column (`edgeColumn.ts`): the levels'
  * names, the lines' tags (`words`: the EMAs, VWAP, the plan's ENTRY / STOP / TARGET) and the tags for prices out
- * of view. The Full Day pane's +40% runs are marks: an arrow over the day's high and a label that makes room.
+ * of view. The Full Day pane's +40% runs are marks: an arrow over the day's high and a label that makes room. A flat
+ * top's touches are rings on their candles' highs, and its break a mark pointing up (2026-10-06).
  */
 import { MismatchDirection } from 'lightweight-charts';
 import type {
@@ -26,7 +27,7 @@ import type {
   Time,
 } from 'lightweight-charts';
 import { publishPaneWords } from '../chart';
-import { emptyPx, FillRenderer, LineRenderer, type LabelHit, type Px } from './sceneRender';
+import { emptyPx, FillRenderer, LineRenderer, RING_R_PX, type LabelHit, type Px } from './sceneRender';
 import type { LabelRect } from './sceneLabels';
 import { EMPTY_SCENE, type Scene } from './sceneTypes';
 
@@ -173,21 +174,34 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const yy = y(m.price);
       if (xx !== null && yy !== null) marks.push({ x: xx, y: yy, m });
     }
+    const dots: Px['dots'] = [];
+    for (const d of this.scene.dots ?? []) {
+      const xx = x(d.t);
+      const yy = y(d.price);
+      if (xx !== null && yy !== null) dots.push({ x: xx, y: yy, d });
+    }
     this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks, words, reserves,
-      topInset: this.scene.topInset ?? 0, marks };
+      topInset: this.scene.topInset ?? 0, marks, dots };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {
     return this.views;
   }
 
-  /** The story under the pointer: a label drawn for a box (labels sit on top), else the top-most box (the
-   * last drawn wins: live lanes over past setups). */
+  /** The story under the pointer: a label drawn for a box (labels sit on top), else a flat top's ring, else the
+   * top-most box (the last drawn wins: live lanes over past setups). */
   hitTest(x: number, y: number): PrimitiveHoveredItem | null {
     for (let i = this.labelHits.length - 1; i >= 0; i -= 1) {
       const { rect, hoverId } = this.labelHits[i];
       if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
         return { externalId: hoverId, zOrder: 'top' };
+      }
+    }
+    const dots = this.px.dots ?? [];
+    for (let i = dots.length - 1; i >= 0; i -= 1) {
+      const { x: dx, y: dy, d } = dots[i];
+      if (d.hoverId && Math.hypot(x - dx, y - dy) <= RING_R_PX + HIT_SLACK_PX) {
+        return { externalId: d.hoverId, zOrder: 'top' };
       }
     }
     for (let i = this.px.boxes.length - 1; i >= 0; i -= 1) {

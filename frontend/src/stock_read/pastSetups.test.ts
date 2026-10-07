@@ -103,6 +103,8 @@ describe('what the chart draws, and says', () => {
       .toBe('volume faded');
     expect(shortReason('red, 2.7% under the 2.17 open; MACD below zero -- a reclaim now is not a try')).toBe('MACD negative');
     expect(shortReason('something the scanner will say one day (with detail) -- and why')).toBe('something the scanner will say one day');
+    expect(shortReason('flat top 1.53: 2 of 3 touches -- 1 more tap of it arms it')).toBe('too few taps');
+    expect(shortReason('the 1.53 high of day, touched once -- a flat top needs 3 touches')).toBe('no taps yet');
     expect(shortReason(null)).toBe('');
   });
 

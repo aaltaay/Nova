@@ -67,12 +67,17 @@ describe('templateFormat', () => {
       Trade: 'Risk $0.03–0.20 · target 1 the pole high or 2R · bot 07:00–10:00',
     });
     expect(Object.fromEntries(ruleLines('flat_top_breakout', values('flat_top_breakout')))).toMatchObject({
-      Setup: 'Impulse ≥ 3% into the high of day · 2–6 candles close within 2% under it, lows over the 9 EMA'
-        + ' · MACD above zero',
-      Entry: 'A green candle holding over the high within 3 candles, at its close +$0.01 · arms 07:00–11:30'
-        + ' · only when the tape says GO',
+      Setup: 'Impulse ≥ 3% into the high of day · tapped 3+ times, a high within 0.5% or $0.01 under it'
+        + ' · from the first touch, 2–20 candles close within 2% under it, lows over the 9 EMA · MACD above zero',
+      Entry: 'A green candle that holds it and closes over the high within 3 candles, at its close +$0.01'
+        + ' · arms 07:00–11:30 · only when the tape says GO',
       Trade: 'Risk $0.03–0.20 · target 1 2R · bot 07:00–10:00',
     });
+    // The research's P2, one setting away: no touches counted, the base after the last candle at the high.
+    const p2 = { ...values('flat_top_breakout'), ft_base_start: 'last_high', ft_min_touches: 1, ft_touch_pct: 0,
+      ft_touch_dollars: 0, ft_max_consol: 6 };
+    expect(Object.fromEntries(ruleLines('flat_top_breakout', p2)).Setup).toBe(
+      'Impulse ≥ 3% into the high of day · 2–6 candles close within 2% under it, lows over the 9 EMA · MACD above zero');
     expect(Object.fromEntries(ruleLines('flat_top_breakout', { ...values('flat_top_breakout'), ft_entry: 'break' })).Entry)
       .toBe('The break of the high +$0.01 · arms 07:00–11:30 · only when the tape says GO');
     expect(Object.fromEntries(ruleLines('red_to_green', values('red_to_green')))).toMatchObject({
@@ -83,7 +88,7 @@ describe('templateFormat', () => {
     expect(ruleSummary('first_pullback', defaults)).toBe('Leg ≥ 5% · 1–3 bar pullback · stop at the pullback low');
     expect(ruleSummary('bull_flag', values('bull_flag'))).toBe('Pole 3+ green, ≥ 5% · 2–3 bar flag · stop at the flag low');
     expect(ruleSummary('flat_top_breakout', values('flat_top_breakout')))
-      .toBe('2–6 bar base within 2% of the high · buy a green hold over it');
+      .toBe('3+ touches · 2–20 bar base within 2% of the high · buy a green hold over it');
     expect(ruleSummary('red_to_green', values('red_to_green'))).toBe('1+ red under the 09:30 open · reclaim by 10:30');
     expect(ruleSummary('gap_and_go', values('gap_and_go')))
       .toBe('Open under the pre-market high · break it by 10:00 · stop $0.20 / 4%');

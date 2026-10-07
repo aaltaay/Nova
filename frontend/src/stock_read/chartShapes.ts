@@ -27,10 +27,10 @@ import type { CallTone, MomentCall } from './momentModel';
 import { drawnPast, failingNow, type Episode } from './pastSetups';
 import { fiveMinuteOnMinute, fiveMinuteScene } from './fiveMinuteShapes';
 import { laneHoverId, laneShapes, levelsOf } from './laneShapes';
-import { pastShapes } from './pastShapes';
+import { pastRings, pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, setupName } from './planMath';
 import { thinPlan } from './planVerdict';
-import type { Scene, SceneBox } from './sceneTypes';
+import type { Scene, SceneBox, SceneDot, SceneMark, SceneWord } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
 import { levelTitle, type OrderLevel, type OrderLevels } from './whoTradesModel';
@@ -62,6 +62,8 @@ export interface DrawOptions {
   toTime: (epochSec: number) => Time | null;
   /** Where a leg began, from the pane's candles (the lowest low before its high). */
   legStart?: (leg: SetupLeg) => number;
+  /** The high of the pane's candle that starts at an epoch second (a flat top's break). */
+  highAt?: (epochSec: number) => number | null;
   focus?: { ts: number; title: string; setup: { trigger: number; stop: number; target1: number; armed_bar_t?: number } | null } | null;
   /** The levels with what stands behind each (Who trades, ADR 037); without them the plan's own, dashed. */
   levels?: OrderLevels | null;
@@ -91,6 +93,13 @@ export function paneKind(timeframe: string): PaneKind {
   if (timeframe === '10Sec') return 'thin';
   if (timeframe === '1Day') return 'daily';
   return 'none';
+}
+
+/** A lane's rings, marks and edge words (the flat top's) into the pane's scene. */
+function mergeExtras(scene: Scene, s: { dots?: SceneDot[]; marks?: SceneMark[]; words?: SceneWord[] }): void {
+  if (s.dots?.length) scene.dots = [...(scene.dots ?? []), ...s.dots];
+  if (s.marks?.length) scene.marks = [...(scene.marks ?? []), ...s.marks];
+  if (s.words?.length) scene.words = [...(scene.words ?? []), ...s.words];
 }
 
 /** The plan's zones, from the consolidation's last bar to the pane's right edge. */
@@ -188,13 +197,16 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
       // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.
       const past = o.layers.past && o.past ? o.past : [];
       const failing = failingNow(past);
-      scene.boxes.push(...pastShapes(drawnPast(past, o.layers.hidden), o));
+      const drawn = drawnPast(past, o.layers.hidden);
+      scene.boxes.push(...pastShapes(drawn, o));
+      mergeExtras(scene, { dots: pastRings(drawn, o) });
       for (const lane of read.setups) {
         if (o.layers.hidden.includes(lane.setup_type)) continue;
         if (lane.state === 'failed' && failing.has(lane.setup_type)) continue;
         const s = laneShapes(lane, lane === lead && !thinPlan(plan), o);
         scene.boxes.push(...s.boxes);
         scene.segments.push(...s.segments);
+        mergeExtras(scene, s);
       }
       if (lv && (!lead || !o.layers.hidden.includes(lead.setup_type))) {
         const shape = lead ? levelsOf(lead) : null;
@@ -207,10 +219,11 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
       lines.push(...fiveMinuteOnMinute(read).lines);
     } else if (o.pane === 'map') {
       // The 5-minute setups: drawn on this pane only (operator decision 2026-09-30).
-      const f = fiveMinuteScene(read, { toTime: o.toTime, legStart: o.legStart, hidden: o.layers.hidden,
-        past: o.layers.past ? o.past5 ?? null : null });
+      const f = fiveMinuteScene(read, { toTime: o.toTime, legStart: o.legStart, highAt: o.highAt,
+        hidden: o.layers.hidden, past: o.layers.past ? o.past5 ?? null : null });
       scene.boxes.push(...f.boxes);
       scene.segments.push(...f.segments);
+      mergeExtras(scene, f);
       lines.push(...f.lines);
     }
   }

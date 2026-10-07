@@ -46,14 +46,16 @@ describe('the 5-minute setups on the 5-minute chart', () => {
     const f = fiveMinuteScene(r, { toTime: identity, hidden: [], past: PAST });
     expect(f.boxes.every(b => !b.label || b.label.startsWith('5m · '))).toBe(true);
     expect(f.boxes.some(b => b.hoverId === lane5HoverId('flat_top_breakout') && b.label?.startsWith('5m · BASE'))).toBe(true);
-    expect(f.segments.map(s => s.label)).toContain('5m · FLAT TOP 13.80');
+    // The lead flat top's level is its 5m line's name (below); its segment carries no second one.
+    expect(f.segments.some(s => s.price === 13.8 && s.label === null)).toBe(true);
+    expect(f.words).toEqual([]);
     // The lead's labels are drawn whole; a faded lane's make room (shown where they fit, else hidden).
     const pole = f.boxes.find(b => b.hoverId === lane5HoverId('bull_flag'));
     expect(pole?.label).toMatch(/^5m · POLE/);
     expect(pole?.shrink).toMatchObject({ short: null, icon: null });
     expect(f.boxes.find(b => b.hoverId === lane5HoverId('flat_top_breakout'))?.shrink).toBeUndefined();
     expect(f.lines.map(l => [l.title, l.price, l.style, l.axisLabel])).toEqual([
-      ['5m TRIGGER', 13.8, 'dashed', true], ['5m STOP', 13.25, 'dashed', true], ['5m TARGET', 14.94, 'dashed', true],
+      ['5m FLAT TOP', 13.8, 'dashed', true], ['5m STOP', 13.25, 'dashed', true], ['5m TARGET', 14.94, 'dashed', true],
     ]);
     // The day's 5-minute setups that ended: their own hover ids, labels starting 5m, on 5-minute candles.
     const past = f.boxes.filter(b => b.hoverId === past5HoverId(PAST[0]));
@@ -68,7 +70,7 @@ describe('the 5-minute setups on the 5-minute chart', () => {
     expect(fiveMinuteScene(r, { toTime: identity, hidden: ['flat_top_breakout'], past: null }).boxes).toEqual([]);
     const map = paneDraw(r, { pane: 'map', layers: LAYERS, toTime: identity, past5: PAST });
     expect(map.scene.boxes.some(b => b.hoverId === lane5HoverId('flat_top_breakout'))).toBe(true);
-    expect(map.lines.map(l => l.title)).toEqual(['5m TRIGGER', '5m STOP', '5m TARGET']);
+    expect(map.lines.map(l => l.title)).toEqual(['5m FLAT TOP', '5m STOP', '5m TARGET']);
     expect(paneDraw(r, { pane: 'map', layers: { ...LAYERS, setups: false }, toTime: identity }).scene.boxes).toEqual([]);
     const one = paneDraw(r, { pane: 'full', layers: LAYERS, toTime: identity });
     expect(one.scene.boxes.some(b => b.hoverId?.startsWith('lane5:'))).toBe(false);

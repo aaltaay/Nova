@@ -152,13 +152,28 @@ function bullFlagLines(v: Values, w?: TemplateBotWindow | null): [string, string
   ];
 }
 
+/** Where a high touched the flat top (2026-10-06): within the share or the cents under it, whichever is more. */
+function touchZone(v: Values): string {
+  const pct = num(v.ft_touch_pct) ?? 0;
+  const dollars = num(v.ft_touch_dollars) ?? 0;
+  if (pct <= 0 && dollars <= 0) return 'at the high itself';
+  if (pct <= 0) return `within ${money(dollars)} under it`;
+  if (dollars <= 0) return `within ${trim(pct)}% under it`;
+  return `within ${trim(pct)}% or ${money(dollars)} under it`;
+}
+
 function flatTopLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
+  const touches = num(v.ft_min_touches) ?? 1;
+  const base = `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} candles close within ${trim(num(v.ft_band) ?? 0)}% `
+    + `under it, lows over the ${ema(v)}`;
+  // The research's P2 (`last_high`) counts no touches: the base right after the last candle at the high.
   const setup = `Impulse ≥ ${trim(num(v.ft_impulse_pct) ?? 0)}% into the high of day · `
-    + `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} candles close within ${trim(num(v.ft_band) ?? 0)}% under it, `
-    + `lows over the ${ema(v)}` + (v.macd_positive ? ' · MACD above zero' : '');
+    + (v.ft_base_start === 'last_high' ? base
+      : `tapped ${touches}+ time${touches === 1 ? '' : 's'}, a high ${touchZone(v)} · from the first touch, ${base}`)
+    + (v.macd_positive ? ' · MACD above zero' : '');
   const entry = v.ft_entry === 'break'
     ? entryLine('The break of the high', v)
-    : `A green candle holding over the high within ${num(v.ft_hold_bars)} candles, at its close `
+    : `A green candle that holds it and closes over the high within ${num(v.ft_hold_bars)} candles, at its close `
       + `+${money(num(v.entry_offset) ?? 0)} · arms ${v.session_start}–${v.entry_cutoff} · only when the tape says GO`;
   const target = v.target_mode === 'fixed' ? fixedTarget(v) : `target 1 ${trim(num(v.target_r) ?? 0)}R`;
   return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', tradeLine(v, target, w)]];
@@ -220,7 +235,8 @@ export function ruleSummary(setup: string, v: Values): string {
       return `Pole ${num(v.pole_min_bars)}+ green, ≥ ${trim(num(v.pole_min_pct) ?? 0)}% · `
         + `${bars(num(v.min_flag_bars), num(v.max_flag_bars))} bar flag · stop at the flag low`;
     case 'flat_top_breakout':
-      return `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} bar base within ${trim(num(v.ft_band) ?? 0)}% of the high · `
+      return (v.ft_base_start === 'last_high' ? '' : `${num(v.ft_min_touches) ?? 1}+ touches · `)
+        + `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} bar base within ${trim(num(v.ft_band) ?? 0)}% of the high · `
         + (v.ft_entry === 'break' ? 'buy the break' : 'buy a green hold over it');
     case 'red_to_green':
       return `${num(v.r2g_min_red_bars) ?? 1}+ red under the ${v.session_start} open · reclaim by ${v.r2g_cutoff}`;

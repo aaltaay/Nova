@@ -38,6 +38,8 @@ from setup_scanner.five_minute import candles
 
 SETUPS_5M_SETUPS: tuple[str, ...] = (BOT_SETUP_FIRST_PULLBACK, BOT_SETUP_BULL_FLAG, BOT_SETUP_FLAT_TOP)
 FIVE_MIN_REV = 1
+# A 5-minute lane's rules revision moves with its setup's default rules (2026-10-06: the flat top counts touches).
+FIVE_MIN_REVS: dict[str, int] = {BOT_SETUP_FLAT_TOP: 2}
 
 
 def is_five_minute(lane: Any) -> bool:
@@ -53,7 +55,8 @@ def five_minute_params(setup: str) -> Any:
     rules = {**values, "bar_sec": SETUPS_5M_BAR_SEC, "stop_cap_pct": SETUPS_5M_STOP_CAP_PCT,
              "score_window_min": SETUPS_5M_SCORE_WINDOW_MIN}
     stamp = hashlib.sha256(json.dumps(rules, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:12]
-    base = lane_params(SimpleNamespace(id=SETUPS_5M_TEMPLATE_ID, rev=FIVE_MIN_REV, fingerprint=stamp,
+    base = lane_params(SimpleNamespace(id=SETUPS_5M_TEMPLATE_ID, rev=FIVE_MIN_REVS.get(setup, FIVE_MIN_REV),
+                                       fingerprint=stamp,
                                        name=SETUPS_5M_TEMPLATE_NAME, setup=setup, values=values))
     pattern = dataclasses.replace(base.pattern, bar_sec=SETUPS_5M_BAR_SEC, stop_cap_pct=SETUPS_5M_STOP_CAP_PCT)
     return dataclasses.replace(base, pattern=pattern, bar_sec=SETUPS_5M_BAR_SEC,

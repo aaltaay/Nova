@@ -26,6 +26,7 @@ pytest.importorskip("duckdb")
 
 from setup_scanner.bars import Bar  # noqa: E402
 from setup_scanner.flat_top import FlatTopDetector, FlatTopParams  # noqa: E402
+from setup_scanner.flat_top_shape import P2_RULE  # noqa: E402
 from setup_scanner.red_to_green import RedToGreenDetector, RedToGreenParams  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
@@ -137,7 +138,9 @@ def _agree(a, b) -> bool:
 @pytest.mark.parametrize("entry", ["hold", "break"])
 def test_the_flat_top_detector_takes_the_research_trades(entry):
     params = bs.Params(setup="flat_top", ft_entry=entry, slippage=SLIP, **BAND)
-    live_params = FlatTopParams(entry_mode=entry, session_start="09:30", entry_cutoff="11:30")
+    # The research's P2 is one setting away from the default (ADR 031 amendment 2026-10-06): the base right after the
+    # last candle at the high, no touch count, no tolerance.
+    live_params = FlatTopParams(entry_mode=entry, session_start="09:30", entry_cutoff="11:30", **P2_RULE)
     agree, trades, misses = 0, 0, []
     for seed in range(160):
         bars = flat_top_day(seed)
