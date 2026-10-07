@@ -1,14 +1,15 @@
-"""Who trades the stock (ADR 037, ADR 042 F).
+"""Who trades the stock (ADR 037, ADR 042 F; Entry · Exit, ADR 048).
 
   GET    /api/stock-mode                       every stock not at Signal only
   GET    /api/stock-mode/{symbol}              one stock's view (polled by the Trader tab)
-  PUT    /api/stock-mode/{symbol}              {buy, sell}: set the switch (a ``risk_usd`` sent is ignored:
-                                               risk per trade is the venue sleeve's, PATCH /api/bot/session)
+  PUT    /api/stock-mode/{symbol}              {entry, exit} (or {buy, sell}, one release): set the switch
+                                               (a ``risk_usd`` sent is ignored: risk per trade is the venue
+                                               sleeve's, PATCH /api/bot/session)
   POST   /api/stock-mode/{symbol}/approve      {setup_id, entry, stop, target, qty, now?}
   DELETE /api/stock-mode/{symbol}/approve      withdraw the approval (or cancel its unfilled entry)
   POST   /api/stock-mode/{symbol}/take-over    cancel the exits Nova holds on the stock; Buy goes to You
-  POST   /api/stock-mode/{symbol}/take-exit    {stop, trail}: Nova takes the exit of the shares you hold
-                                               (Paper, and Sim at the live edge)
+  POST   /api/stock-mode/{symbol}/take-exit    {stop, trail}: Nova takes the exit of the shares you hold --
+                                               the cover of a short (Paper, and Sim at the live edge)
 
 Writes place and cancel orders, so they need the desk's API key even on loopback, like the bot's routes
 (``auth.is_stock_mode_mutate``).
@@ -19,7 +20,7 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from auth import require_bot_auth
 from constants_stock_mode import STOCK_MODE_SCHEMA_VERSION
@@ -32,9 +33,24 @@ _write = [Depends(require_bot_auth)]
 
 
 class SwitchBody(BaseModel):
-    buy: str
-    sell: str
+    """Who trades the stock: Entry · Exit (ADR 048), each ``you`` or ``nova``. ``buy`` / ``sell`` are the
+    same two sides by their names before shorts (one release)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    entry: str | None = None
+    exit_: str | None = Field(None, alias="exit")
+    buy: str | None = None
+    sell: str | None = None
     risk_usd: float | None = None
+
+    @model_validator(mode="after")
+    def _one_pair(self) -> "SwitchBody":
+        if (self.entry or self.buy) is None or (self.exit_ or self.sell) is None:
+            raise ValueError("entry and exit (or buy and sell) are each 'you' or 'nova'")
+        return self
+
+    def sides(self) -> tuple[str | None, str | None]:
+        return self.entry or self.buy, self.exit_ or self.sell
 
 
 class ApproveBody(BaseModel):
@@ -82,7 +98,8 @@ def stock_mode(symbol: str) -> dict[str, Any]:
 @router.put("/api/stock-mode/{symbol}", dependencies=_write)
 async def set_stock_mode(symbol: str, body: SwitchBody) -> dict[str, Any]:
     try:
-        return wire_safe(await actions.set_mode(symbol, body.buy, body.sell, body.risk_usd))
+        entry, exit_ = body.sides()
+        return wire_safe(await actions.set_mode(symbol, entry, exit_, body.risk_usd))
     except StockModeError as exc:
         raise _refused(exc) from exc
 

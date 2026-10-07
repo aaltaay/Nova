@@ -4,6 +4,10 @@ the way. Pure.
 A setup plan is the most advanced lane's own levels -- its armed (or triggered) setup, else the
 levels it would arm with while it forms (provisional). A hand plan starts from the operator's entry:
 the stop is theirs or the low of the last few closed one-minute candles, the target entry + 2R.
+A plan has a ``side`` (ADR 048): a short plan -- a short setup's lane (``lane["side"]``), or the
+operator's own plan with ``side="short"`` -- sells at its entry, protects with a buy stop over it
+(theirs, or the high of the last few candles) and covers at entry - 2R; its checks, marks, level notes
+and liquidity are the mirror (``plan_checks``, ``level_notes``, ``plan_liquidity``).
 The checks and marks describe; they never block anything. ``trade`` says when a setup plan is not a
 trade and why (operator report, 2026-09-29: a grade C that triggered with the tape at WAIT read
 TRIGGERED for twenty minutes after its stop printed); it too only describes -- the runners and the
@@ -22,20 +26,19 @@ from constants_setups import (
     SETUP_STATE_ARMED,
     SETUP_STATE_NEAR,
     SETUP_STATE_TRIGGERED,
-    TAPE_GATE_BIG_SELLER_SHARES,
-    TAPE_GATE_WALL_SHARES,
 )
 from constants_stock_read import (
     STOCK_READ_MANUAL_STOP_BARS,
-    STOCK_READ_STOP_CAP_DEFAULT,
     STOCK_READ_TARGET_R,
     STOCK_READ_TRIGGERED_PLAN_SEC,
 )
-from setup_scanner.five_minute import words as tf5_words
 from setup_scanner.grade import pillar_count
-from stock_read import plan_liquidity, rounds
-from stock_read.indicators import manual_stop
+from stock_read import plan_liquidity
+from stock_read.indicators import manual_stop, manual_stop_short
 from stock_read.level_notes import notes as level_notes
+from stock_read.plan_checks import checks, obstacles
+
+__all__ = ["build", "checks", "choose", "manual", "obstacles", "setup_name", "trade_verdict"]
 
 ET = ZoneInfo("America/New_York")
 FILTERED = "filtered"
@@ -92,9 +95,11 @@ def choose(setups: list[dict[str, Any]], now: float) -> dict[str, Any] | None:
     return pick
 
 
-def target_rule(setup_type: str, rules: dict[str, Any]) -> str:
+def target_rule(setup_type: str, rules: dict[str, Any], side: str = "long") -> str:
     r = rules.get("target_r") or STOCK_READ_TARGET_R
     mode = rules.get("target_mode") or "r"
+    if side == "short":     # a short covers under its entry (ADR 049: entry - 2 x risk)
+        return "a fixed amount under the entry (the template's)" if mode == "fixed" else f"entry - {r:g} x risk"
     if mode == "fixed":
         return "a fixed amount over the entry (the template's)"
     if setup_type == "flat_top_breakout" or mode == "r":
@@ -127,13 +132,16 @@ def from_setup(lane: dict[str, Any]) -> dict[str, Any]:
         if lv.get("blocked") and lv.get("blocked") not in bits[0]:
             bits.append(f"blocked: {lv['blocked']}")
         reason = " -- ".join(b for b in bits if b)
+    side = "short" if lane.get("side") == "short" else "long"
     return _levels({
-        "source": "setup", "setup_type": lane.get("setup_type"), "setup_id": lane.get("setup_id") if live else None,
-        "kind": lane.get("kind"), "state": shown,
+        "source": "setup", "side": side, "setup_type": lane.get("setup_type"),
+        "setup_id": lane.get("setup_id") if live else None, "kind": lane.get("kind"), "state": shown,
         "provisional": not live, "trigger": lv.get("trigger"), "grade": lane.get("grade"),
         "pillars": pillar_count((lane.get("pillars") or {}).get("checks")), "reason": reason,
-        "target_rule": target_rule(lane.get("setup_type") or "", lane.get("rules") or {}),
-        "entry_rule": _ENTRY_RULES.get(lane.get("setup_type") or "", "the setup's trigger + 1 cent"),
+        "target_rule": target_rule(lane.get("setup_type") or "", lane.get("rules") or {}, side),
+        "entry_rule": _ENTRY_RULES.get(lane.get("setup_type") or "",
+                                       "the setup's trigger - 1 cent" if side == "short"
+                                       else "the setup's trigger + 1 cent"),
         "stop_rule": _STOP_RULES.get(lane.get("setup_type") or "", "the setup's stop"),
         "tape": ({"verdict": tape.get("verdict"), "reasons": tape.get("reasons") or []}
                  if live and tape else None),
@@ -141,147 +149,43 @@ def from_setup(lane: dict[str, Any]) -> dict[str, Any]:
     }, entry, stop, target)
 
 
-def manual(entry: float, stop: float | None, bars: list[dict[str, Any]]) -> dict[str, Any]:
-    """The operator's own plan: their entry, their stop or the last candles' low, a 2R target."""
-    own = stop is not None and stop < entry - EPS
-    stop_px = stop if own else manual_stop(bars, entry, STOCK_READ_MANUAL_STOP_BARS)
-    base = {"source": "manual", "setup_type": None, "setup_id": None, "kind": None, "state": "manual",
-            "provisional": True,
+def manual(entry: float, stop: float | None, bars: list[dict[str, Any]], side: str = "long") -> dict[str, Any]:
+    """The operator's own plan: their entry, their stop or the last candles' low, a 2R target. A short
+    (``side="short"``): their buy stop over the entry or the last candles' high, a cover at entry - 2R."""
+    short = side == "short"
+    own = stop is not None and (stop > entry + EPS if short else stop < entry - EPS)
+    if own:
+        stop_px = stop
+    elif short:
+        stop_px = manual_stop_short(bars, entry, STOCK_READ_MANUAL_STOP_BARS)
+    else:
+        stop_px = manual_stop(bars, entry, STOCK_READ_MANUAL_STOP_BARS)
+    extreme = "highest high" if short else "lowest low"
+    base = {"source": "manual", "side": "short" if short else "long", "setup_type": None, "setup_id": None,
+            "kind": None, "state": "manual", "provisional": True,
             "trigger": None, "grade": None, "pillars": None,
-            "reason": "no setup is forming: your entry, a 2:1 target",
-            "target_rule": f"entry + {STOCK_READ_TARGET_R:g} x risk",
+            "reason": ("no setup is forming: your short, a 2:1 cover" if short
+                       else "no setup is forming: your entry, a 2:1 target"),
+            "target_rule": f"entry {'-' if short else '+'} {STOCK_READ_TARGET_R:g} x risk",
             "entry_rule": "your entry",
-            "stop_rule": ("your stop" if own
-                          else f"the lowest low of the last {STOCK_READ_MANUAL_STOP_BARS} closed 1-min candles"),
+            "stop_rule": (("your buy stop" if short else "your stop") if own
+                          else f"the {extreme} of the last {STOCK_READ_MANUAL_STOP_BARS} closed 1-min candles"),
             "tape": None, "window": None}
     if stop_px is None:
+        missing = ("no candle high over your entry to stop at -- name a buy stop" if short
+                   else "no candle low under your entry to stop at -- name a stop")
         return {**base, "entry": round(entry, 4), "stop": None, "target": None, "risk": None, "reward": None,
-                "rr": None, "reason": "no candle low under your entry to stop at -- name a stop"}
-    risk = entry - stop_px
-    return _levels(base, entry, stop_px, entry + STOCK_READ_TARGET_R * risk)
+                "rr": None, "reason": missing}
+    risk = abs(entry - stop_px)
+    return _levels(base, entry, stop_px, entry - STOCK_READ_TARGET_R * risk if short
+                   else entry + STOCK_READ_TARGET_R * risk)
 
 
 def _levels(plan: dict[str, Any], entry: float, stop: float, target: float) -> dict[str, Any]:
-    risk, reward = round(entry - stop, 4), round(target - entry, 4)
+    """Risk and reward a share, either side: the distance to the stop and to the target."""
+    risk, reward = round(abs(entry - stop), 4), round(abs(target - entry), 4)
     return {**plan, "entry": round(entry, 4), "stop": round(stop, 4), "target": round(target, 4), "risk": risk,
             "reward": reward, "rr": round(reward / risk, 2) if risk > EPS else None}
-
-
-def _obstacles(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
-    """Levels strictly between the entry and the target: the high of day, VWAP, the premarket
-    high, the open, each round number of the stock's scale (``rounds``: the half and whole dollars up
-    to $25, the $5 numbers on ACN at $223), and a large seller on Nova's book."""
-    lo, hi = plan.get("entry"), plan.get("target")
-    if lo is None or hi is None:
-        return []
-    rnd = (rounds.of((ctx.get("level_map") or {}).get("price")) or rounds.of(ctx.get("price"))
-           or rounds.of(lo))
-    lv = ctx.get("levels") or {}
-    out: list[dict[str, Any]] = []
-
-    def add(price: float | None, label: str, kind: str, size: float | None = None) -> None:
-        if price is not None and lo + EPS < float(price) < hi - EPS:
-            out.append({"price": round(float(price), 4), "label": label, "kind": kind,
-                        "size": int(size) if size is not None else None})
-
-    add((lv.get("hod") or {}).get("price"), "high of day", "hod")
-    add(lv.get("vwap"), "VWAP", "vwap")
-    add(lv.get("pmh"), "premarket high", "pmh")
-    add(lv.get("open"), "the open", "open")
-    for r in rnd.between(lo, hi) if rnd else []:
-        add(r, f"${r:.2f}", "round")
-    for ask in ctx.get("asks") or []:
-        size = float(ask.get("size") or 0)
-        if size >= TAPE_GATE_WALL_SHARES:
-            add(ask.get("price"), f"a seller of {int(size):,}", "wall", size)
-    out.sort(key=lambda m: m["price"])
-    return out
-
-
-def _listing(labels: list[str]) -> str:
-    """"$225.00", "$225.00 and $230.00", "$5.50, $6.00 and $6.50", "4 round numbers ($15.50 to $17.00)"."""
-    if len(labels) > 3:
-        return f"{len(labels)} round numbers ({labels[0]} to {labels[-1]})"
-    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + f" and {labels[-1]}" if labels else ""
-
-
-def checks(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
-    """What stands in the way, in the order a trader reads it. ``state``: ok / warn / bad / unknown."""
-    out: list[dict[str, Any]] = []
-    risk = plan.get("risk")
-    cap = ctx.get("stop_cap") or STOCK_READ_STOP_CAP_DEFAULT
-    floor = ctx.get("min_stop")
-    if risk is None or risk <= 0:
-        out.append({"id": "risk", "state": "unknown", "text": "no stop under the entry: nothing to measure"})
-    elif risk > cap + EPS:
-        out.append({"id": "risk", "state": "bad", "text": f"risk {risk:.2f} is over the {cap:.2f} stop cap"})
-    elif floor is not None and risk < floor - EPS:
-        out.append({"id": "risk", "state": "warn", "text": f"risk {risk:.2f} is under the {floor:.2f} floor"})
-    else:
-        out.append({"id": "risk", "state": "ok", "text": f"risk {risk:.2f} within the {cap:.2f} cap"})
-    spread = ctx.get("spread")
-    if risk and risk > EPS and spread is not None:
-        state = "bad" if spread >= risk - EPS else ("warn" if spread > risk / 2 + EPS else "ok")
-        out.append({"id": "spread", "state": state,
-                    "text": (f"the spread {spread:.2f} is at least the {risk:.2f} risk" if state == "bad"
-                             else f"the spread {spread:.2f} is {'over half' if state == 'warn' else 'within half'} "
-                                  f"the {risk:.2f} risk")})
-    med = ctx.get("median_range")
-    if risk and med and risk < med - EPS:
-        out.append({"id": "candle", "state": "warn",
-                    "text": f"the {risk:.2f} stop is inside one normal 1-min candle ({med:.2f})"})
-    hist = ctx.get("macd_hist")
-    if hist is None:
-        out.append({"id": "macd", "state": "unknown", "text": "1-min MACD not known yet"})
-    else:
-        out.append({"id": "macd", "state": "ok" if hist > 0 else "bad", "text": f"1-min MACD histogram {hist:+.3f}"})
-    price, ema9, vw = ctx.get("price"), ctx.get("ema9"), (ctx.get("levels") or {}).get("vwap")
-    if price is not None and ema9 is not None:
-        out.append({"id": "ema9", "state": "ok" if price >= ema9 else "bad",
-                    "text": f"{'above' if price >= ema9 else 'under'} the 9 EMA {ema9:.2f}"})
-    tf5 = ctx.get("tf5")
-    if isinstance(tf5, dict) and isinstance(tf5.get("agrees"), bool):
-        out.append({"id": "tf5", "state": "info", "text": f"{tf5_words(tf5)} (trial T8)"})
-    entry = plan.get("entry")
-    if entry is not None and vw is not None:
-        out.append({"id": "vwap", "state": "ok" if entry >= vw else "bad",
-                    "text": f"{'above' if entry >= vw else 'under'} VWAP {vw:.2f}"})
-    in_way = _obstacles(plan, ctx)
-    round_words = _listing([m["label"] for m in in_way if m["kind"] == "round"])
-    for m in in_way:
-        if m["kind"] == "round":
-            # The rounds are one line, where the first of them sits: a wide plan crosses several.
-            if round_words:
-                out.append({"id": "in_way_round", "state": "warn", "text": f"{round_words} before the target"})
-                round_words = ""
-            continue
-        big = m["kind"] == "wall" and (m.get("size") or 0) >= TAPE_GATE_BIG_SELLER_SHARES
-        out.append({"id": f"in_way_{m['kind']}", "state": "bad" if big else "warn",
-                    "text": f"{m['label']} at {m['price']:.2f} before the target"})
-    tape = plan.get("tape")
-    if tape and tape.get("verdict"):
-        verdict = str(tape["verdict"])
-        first = (tape.get("reasons") or [""])[0]
-        state = {"go": "ok", "wait": "warn", "veto": "bad"}.get(verdict, "unknown")
-        text = f"tape {verdict.upper()}" + (f": {first}" if first else "")
-        if verdict == "blind":
-            text = "tape blind: Nova holds no Level 2 line for it"
-        out.append({"id": "tape", "state": state, "text": text})
-    flow = ctx.get("flow") or {}
-    if flow.get("label") in ("burst", "flush") and flow.get("score") is not None:
-        out.append({"id": "flow", "state": "ok" if flow["label"] == "burst" else "bad",
-                    "text": f"the tape is {'bursting' if flow['label'] == 'burst' else 'flushing'} ({flow['score']:+.2f})"})
-    pulls = ctx.get("bid_pulls") or 0
-    if pulls:
-        out.append({"id": "pulls", "state": "warn",
-                    "text": f"bids being pulled ({pulls} flag{'' if pulls == 1 else 's'} in the last minute)"})
-    if ctx.get("halted") is True:
-        out.append({"id": "halted", "state": "bad", "text": "halted now"})
-    win = plan.get("window") or {}
-    if plan.get("source") == "setup" and win.get("state") in ("before", "after"):
-        out.append({"id": "window", "state": "warn",
-                    "text": f"outside the bot's {win.get('start')}-{win.get('end')} window: a hand trade"})
-    return out
 
 
 def _hhmm(ts: Any) -> str:
@@ -325,11 +229,11 @@ def trade_verdict(plan: dict[str, Any], lane: dict[str, Any] | None,
 
 
 def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entry: float | None = None,
-          stop: float | None = None) -> dict[str, Any] | None:
-    """The plan for the read: the operator's when they named an entry, else the leading lane's."""
+          stop: float | None = None, side: str = "long") -> dict[str, Any] | None:
+    """The plan for the read: the operator's when they named an entry (``side``: theirs), else the leading lane's."""
     lane = None
     if entry is not None and entry > 0:
-        plan = manual(float(entry), stop, ctx.get("bars") or [])
+        plan = manual(float(entry), stop, ctx.get("bars") or [], side)
     else:
         lane = choose(setups, now)
         if lane is None:
@@ -338,9 +242,9 @@ def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entr
         ctx = {**ctx, "stop_cap": (lane.get("rules") or {}).get("stop_cap") or ctx.get("stop_cap"),
                "min_stop": (lane.get("rules") or {}).get("min_stop"),
                "flow": ctx.get("flow") if lane.get("state") in LIVE_STATES else None}
-    plan["liquidity"] = plan_liquidity.read(ctx, now, plan.get("risk"))
+    plan["liquidity"] = plan_liquidity.read(ctx, now, plan.get("risk"), plan.get("side") or "long")
     plan["checks"] = [plan_liquidity.check(plan["liquidity"]), *checks(plan, ctx)]
-    plan["marks"] = _obstacles(plan, ctx)
+    plan["marks"] = obstacles(plan, ctx)
     plan["flow"] = ctx.get("flow") if (ctx.get("flow") or {}).get("label") else None
     plan["result"] = result_of(plan, lane)
     plan["trade"] = trade_verdict(plan, lane, ctx.get("spread"), plan["liquidity"])

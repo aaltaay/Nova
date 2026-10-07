@@ -157,7 +157,7 @@ async def _on_trigger(event: dict[str, Any], now: float) -> None:
 
 def _refusal(event: dict[str, Any], now: float) -> tuple[str, str] | None:
     """What keeps an approved plan from going out on this trigger: the venue, the desk, a stale trigger,
-    the tape, and NOT A TRADE."""
+    the tape, NOT A TRADE, and a position you hold the other way (ADR 048)."""
     from setup_scanner.trade_verdict import of_event
 
     venue, replay = gates.venue_state()
@@ -181,7 +181,9 @@ def _refusal(event: dict[str, Any], now: float) -> tuple[str, str] | None:
     judged = of_event(event)
     if not judged["ok"]:
         return "BOT_NOT_A_TRADE", "not a trade: " + "; ".join(judged["reasons"])
-    return None
+    from bot.first_pullback.admit import against_held
+
+    return against_held(str(event.get("symbol") or ""), str(event.get("side") or "long"))
 
 
 async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:

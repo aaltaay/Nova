@@ -426,6 +426,32 @@ def test_order_route_refuses_one_sided_legs():
     assert res.status_code == 422
 
 
+def test_a_shorts_buy_stop_may_go_alone_and_makes_a_two_leg_bracket():
+    """ADR 048: every short carries its buy stop; the cover target is the trader's choice."""
+    from routes.trading_execution import OrderRequest, _manual_order_command
+
+    req = OrderRequest(symbol="rdyn", side="SELL", qty=416, order_type="LMT", limit_price=5.77,
+                       short_entry=True, stop_loss_price=5.89)
+    cmd = _manual_order_command(req, "short-stop-only", None, 0)
+    assert (cmd.operation, cmd.side, cmd.short_entry) == ("bracket", "SELL", True)
+    assert (cmd.entry_price, cmd.stop_price, cmd.target_price) == (5.77, 5.89, None)
+    with_target = _manual_order_command(
+        OrderRequest(symbol="RDYN", side="SELL", qty=416, order_type="LMT", limit_price=5.77,
+                     short_entry=True, stop_loss_price=5.89, take_profit_price=5.53),
+        "short-both", None, 0)
+    assert (with_target.operation, with_target.target_price) == ("bracket", 5.53)
+
+
+def test_a_short_target_never_goes_without_its_stop():
+    for body in (
+        {"symbol": "RDYN", "side": "SELL", "qty": 1, "order_type": "LMT", "limit_price": 5.77,
+         "short_entry": True, "take_profit_price": 5.53},
+        {"symbol": "RDYN", "side": "SELL", "qty": 1, "order_type": "MKT", "short_entry": True,
+         "stop_loss_price": 5.89},
+    ):
+        assert client.post("/api/ibkr/order", json=body).status_code == 422
+
+
 def test_cancel_order_route_blocked_when_not_connected():
     with patch.object(client_mod, "is_connected", return_value=False), \
          patch.object(client_mod, "is_enabled", return_value=True):

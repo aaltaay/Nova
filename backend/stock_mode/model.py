@@ -28,7 +28,8 @@ EPS = 1e-9
 
 
 def mode_of(buy: str | None, sell: str | None) -> str:
-    """You / you is Signal only; you / Nova Approve; Nova / you Auto-entry; Nova / Nova the bot."""
+    """Entry · Exit (``buy`` / ``sell`` before shorts): You / you is Signal only; you / Nova Approve; Nova / you
+    Auto-entry; Nova / Nova the bot."""
     if buy == STOCK_MODE_SIDE_NOVA:
         return STOCK_MODE_BOT if sell == STOCK_MODE_SIDE_NOVA else STOCK_MODE_AUTO_ENTRY
     return STOCK_MODE_APPROVE if sell == STOCK_MODE_SIDE_NOVA else STOCK_MODE_SIGNAL
@@ -50,14 +51,17 @@ def side(raw: Any, field: str) -> str:
 
 
 def locks(venue: str | None, replay: bool) -> dict[str, str | None]:
-    """Why Nova cannot take each side now (None: it can). A venue Nova cannot read counts as Live."""
+    """Why Nova cannot take each side now (None: it can). A venue Nova cannot read counts as Live.
+    ``entry`` / ``exit`` are the switch's names since shorts (ADR 048); ``buy`` / ``sell`` stay one release."""
     if venue is None:
-        return {"buy": STOCK_MODE_WHY_VENUE_UNKNOWN, "sell": STOCK_MODE_WHY_VENUE_UNKNOWN}
-    if venue not in DESK_PRACTICE_VENUES:
-        return {"buy": STOCK_MODE_WHY_LIVE_BUY, "sell": STOCK_MODE_WHY_LIVE_SELL}
-    if replay:
-        return {"buy": STOCK_MODE_WHY_REPLAY, "sell": STOCK_MODE_WHY_REPLAY}
-    return {"buy": None, "sell": None}
+        entry, exit_ = STOCK_MODE_WHY_VENUE_UNKNOWN, STOCK_MODE_WHY_VENUE_UNKNOWN
+    elif venue not in DESK_PRACTICE_VENUES:
+        entry, exit_ = STOCK_MODE_WHY_LIVE_BUY, STOCK_MODE_WHY_LIVE_SELL
+    elif replay:
+        entry, exit_ = STOCK_MODE_WHY_REPLAY, STOCK_MODE_WHY_REPLAY
+    else:
+        entry, exit_ = None, None
+    return {"entry": entry, "exit": exit_, "buy": entry, "sell": exit_}
 
 
 def same_price(a: Any, b: Any, tolerance: float = STOCK_MODE_PRICE_TOLERANCE) -> bool:

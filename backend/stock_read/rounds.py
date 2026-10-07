@@ -79,6 +79,13 @@ class Rounds:
     def at_or_below(self, p: float) -> float:
         return round(math.floor(p / self.minor + EPS) * self.minor, 2)
 
+    def below(self, p: float) -> float:
+        """The next round strictly under ``p`` (a short's ``above``)."""
+        return round((math.ceil(p / self.minor - EPS) - 1) * self.minor, 2)
+
+    def at_or_above(self, p: float) -> float:
+        return round(math.ceil(p / self.minor - EPS) * self.minor, 2)
+
     def between(self, lo: float, hi: float) -> list[float]:
         """Every round strictly between ``lo`` and ``hi``, cheapest first."""
         out, r = [], self.above(lo)

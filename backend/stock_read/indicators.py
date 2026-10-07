@@ -118,6 +118,15 @@ def manual_stop(bars: list[dict[str, Any]], entry: float, n: int) -> float | Non
     return round(low, 4) if low < entry - EPS else None
 
 
+def manual_stop_short(bars: list[dict[str, Any]], entry: float, n: int) -> float | None:
+    """A hand short's buy stop: the highest high of the last ``n`` closed candles, when it is over the entry."""
+    highs = [float(b["h"]) for b in bars[-n:]]
+    if not highs:
+        return None
+    high = max(highs)
+    return round(high, 4) if high > entry + EPS else None
+
+
 def backside(bars: list[dict[str, Any]]) -> list[str]:
     """Warnings the candles themselves give that the move may be done (descriptive, never a call):
     a topping tail on the high-of-day candle, that candle being the day's biggest volume and red,

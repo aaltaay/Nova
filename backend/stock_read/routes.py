@@ -1,7 +1,9 @@
 """The bot's read on one stock (ADR 036). Read-only: nothing here places, stages or cancels an order.
 
-  GET /api/stock-read/{symbol}?entry=&stop=          the plan, the seven groups and every lane (polled);
-      &held_qty=&held_avg=&held_stop=&held_risk=&held_since=   with ``held``: the trade you hold
+  GET /api/stock-read/{symbol}?entry=&stop=&side=    the plan, the seven groups and every lane (polled);
+                                                     side=short: your own plan is a short (ADR 048)
+      &held_qty=&held_avg=&held_stop=&held_risk=&held_since=&held_side=   with ``held``: the trade you hold
+                                                     (held_side=short: you hold it short)
   GET /api/stock-read/{symbol}/flush                 trial T1's 30 s tape reading (sensor rings only)
   GET /api/stock-read/{symbol}/decisions?date=       one symbol's day as the bot saw it
   GET /api/stock-read/{symbol}/past-setups?date=&tf= the day's setups that ended, and what price did next
@@ -18,7 +20,7 @@ import logging
 import re
 import threading
 import time
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -45,14 +47,14 @@ def _symbol(raw: str) -> str:
 
 
 def stock_read(symbol: str, *, entry: float | None = None, stop: float | None = None,
-               held: dict[str, Any] | None = None, now: float | None = None) -> dict[str, Any]:
+               held: dict[str, Any] | None = None, now: float | None = None, side: str = "long") -> dict[str, Any]:
     now = time.time() if now is None else now
-    key = (symbol, entry, stop, tuple(sorted((held or {}).items())))
+    key = (symbol, entry, stop, side, tuple(sorted((held or {}).items())))
     with _lock:
         hit = _cache.get(key)
         if hit is not None and now - hit[0] < STOCK_READ_CACHE_SEC:
             return hit[1]
-    body = read.build(gather.gather(symbol, now), entry=entry, stop=stop, held=held)
+    body = read.build(gather.gather(symbol, now), entry=entry, stop=stop, held=held, side=side)
     with _lock:
         if len(_cache) > 64:
             _cache.clear()
@@ -114,7 +116,9 @@ def stock_read_flush(symbol: str):
 def stock_read_route(symbol: str, entry: float | None = Query(None, gt=0), stop: float | None = Query(None, gt=0),
                      held_qty: float | None = Query(None, gt=0), held_avg: float | None = Query(None, gt=0),
                      held_stop: float | None = Query(None, gt=0), held_risk: float | None = Query(None, gt=0),
-                     held_since: float | None = Query(None, gt=0)):
-    held = ({"qty": held_qty, "avg": held_avg, "stop": held_stop, "risk": held_risk, "since": held_since}
-            if held_qty and held_avg else None)
-    return stock_read(_symbol(symbol), entry=entry, stop=stop, held=held)
+                     held_since: float | None = Query(None, gt=0),
+                     side: Literal["long", "short"] = Query("long", description="your own plan's side"),
+                     held_side: Literal["long", "short"] = Query("long", description="the side you hold")):
+    held = ({"qty": held_qty, "avg": held_avg, "stop": held_stop, "risk": held_risk, "since": held_since,
+             "side": held_side} if held_qty and held_avg else None)
+    return stock_read(_symbol(symbol), entry=entry, stop=stop, held=held, side=side)

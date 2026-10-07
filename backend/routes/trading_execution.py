@@ -81,6 +81,8 @@ class OrderRequest(BaseModel):
     tif: str = IBKR_ORDER_TIF_DEFAULT
     # #91: the ticket's default protective legs. Both or neither, on a Limit
     # entry only; present -> operation "bracket" through the same execute().
+    # A short's buy stop may go alone (ADR 048: every short carries its stop;
+    # the door lets a practice short leave its target out).
     take_profit_price: float | None = Field(default=None, gt=0)
     stop_loss_price: float | None = Field(default=None, gt=0)
     idempotency_key: str | None = None
@@ -97,8 +99,9 @@ class OrderRequest(BaseModel):
         legs = (self.take_profit_price, self.stop_loss_price)
         if all(leg is None for leg in legs):
             return self
-        if any(leg is None for leg in legs):
-            raise ValueError("take_profit_price and stop_loss_price go together")
+        stop_alone = self.short_entry and self.take_profit_price is None
+        if any(leg is None for leg in legs) and not stop_alone:
+            raise ValueError("take_profit_price and stop_loss_price go together (a short's buy stop may go alone)")
         if normalize_order_type(self.order_type) != "LMT" or self.limit_price is None:
             raise ValueError("protective legs attach to a Limit entry only")
         return self
@@ -145,7 +148,11 @@ def _response(receipt) -> dict:
 def _manual_order_command(
     req: OrderRequest, key: str, client_timing: dict | None, ingress_wall: int,
 ) -> ExecutionCommand:
-    """Ticket request -> ADR 007 command. Legs make it a bracket, same door."""
+    """Ticket request -> ADR 007 command. Legs make it a bracket, same door.
+
+    A short entry with its buy stop alone is a two-leg bracket (no target): the door takes one
+    on Paper and Sim, and refuses it on Live, where a bracket still sends both exits.
+    """
     common = dict(
         idempotency_key=key,
         source="flatten" if req.intent == "flatten" else "manual",
@@ -165,7 +172,7 @@ def _manual_order_command(
         backend_ingress_wall_ns=ingress_wall,
         view=req.view.model_dump() if req.view is not None else None,
     )
-    if req.take_profit_price is None:
+    if req.take_profit_price is None and req.stop_loss_price is None:
         return ExecutionCommand(
             operation="place",
             order_type=normalize_order_type(req.order_type),

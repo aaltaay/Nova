@@ -236,6 +236,9 @@ BOT_SKIP_GRADE = "BOT_SKIP_GRADE"            # a grade the strategy does not buy
 # Today's 04:00 ET reset of yesterday's bot buys has not run, or failed (``hot_list.day_reset_block``). Until
 # 2026-10-06 this slot was BOT_SKIP_NOT_LISTED (the bot bought only starred stocks); old audit lines keep that code.
 BOT_SKIP_DAY_NOT_RESET = "BOT_SKIP_DAY_NOT_RESET"
+# ADR 048: Nova never trades against a position you hold -- a long entry while the account is short the
+# stock (or a short entry while it is long, step 5), and an entry while the position cannot be read.
+BOT_SKIP_HELD_OTHER_SIDE = "BOT_SKIP_HELD_OTHER_SIDE"
 # The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
 BOT_AUDIT_ACTION_SWITCH = "bot_switch"
 # The squares, by ticker (``GET /api/bot/triggers``): the gates in the order Nova runs them.

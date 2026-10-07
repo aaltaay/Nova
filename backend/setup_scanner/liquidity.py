@@ -14,7 +14,8 @@ A stock is **too thin** at a moment when any of these fails:
 - **book**: with a Level 2 book and a size -- the desk's risk per trade over the setup's risk a share
   -- buying that size walks the asks no more than ``SETUPS_THIN_MAX_WALK_R`` of the risk past the best
   ask. A best ask of 100 shares with a hole behind it hides the real price of a fill; the inside
-  spread alone never shows it.
+  spread alone never shows it. A short sells into the bids, so its walk is the bids' (``walk_bids``,
+  ADR 048): the same limit, under the best bid.
 
 A check Nova cannot make is **unknown** and its reason is kept: never thin on a guess, never a pass.
 The reading is ``ok`` only when the day and the pace are both known and pass (and the book, when it
@@ -140,6 +141,43 @@ def walk(asks: Iterable[Any], qty: int) -> dict[str, Any] | None:
             "over_ask": round(avg - best, 4), "shown": round(sum(levels.values())), "short": left > _EPS}
 
 
+def walk_bids(bids: Iterable[Any], qty: int) -> dict[str, Any] | None:
+    """Selling ``qty`` shares (a short) through the displayed bids, highest first (venue rows at one price
+    summed): ``{qty, best_bid, last, avg, under_bid, shown, short}`` -- ``walk``'s mirror (ADR 048: "Too thin
+    to trade" walks the bids for a short). None without a bid or a size."""
+    if qty < 1:
+        return None
+    levels: dict[float, float] = {}
+    for lvl in bids or []:
+        if not isinstance(lvl, dict):
+            continue
+        px, sz = _num(lvl.get("price")), _num(lvl.get("size"))
+        if px is None or px <= 0 or sz is None or sz <= 0:
+            continue
+        key = round(px, 4)
+        levels[key] = levels.get(key, 0.0) + sz
+    if not levels:
+        return None
+    left, proceeds, last = float(qty), 0.0, None
+    for px in sorted(levels, reverse=True):
+        take = min(left, levels[px])
+        proceeds += take * px
+        left -= take
+        last = px
+        if left <= _EPS:
+            break
+    filled = qty - max(left, 0.0)
+    best = max(levels)
+    avg = proceeds / filled if filled > 0 else best
+    return {"qty": int(qty), "best_bid": best, "last": last, "avg": round(avg, 4),
+            "under_bid": round(best - avg, 4), "shown": round(sum(levels.values())), "short": left > _EPS}
+
+
+def slippage(book: dict[str, Any]) -> float:
+    """How far a walk's average fill lands past the inside: over the ask for a buy, under the bid for a short."""
+    return float(book["under_bid"] if "under_bid" in book else book["over_ask"])
+
+
 def size_for(risk_usd: Any, risk: Any) -> int:
     """Whole shares of the desk's risk per trade over the risk a share; 0 when either is unknown."""
     usd, per = _num(risk_usd), _num(risk)
@@ -149,16 +187,20 @@ def size_for(risk_usd: Any, risk: Any) -> int:
 
 
 def _walk_words(w: dict[str, Any], risk: float) -> str:
-    cents = w["over_ask"] * 100
-    return (f"buying {w['qty']:,} shares walks the asks to {w['last']:.2f}: {cents:.0f}c over the "
-            f"{w['best_ask']:.2f} ask on average, {w['over_ask'] / risk:.1f}R of the {risk * 100:.0f}c risk")
+    slip = slippage(w)
+    if "under_bid" in w:
+        return (f"shorting {w['qty']:,} shares walks the bids to {w['last']:.2f}: {slip * 100:.0f}c under the "
+                f"{w['best_bid']:.2f} bid on average, {slip / risk:.1f}R of the {risk * 100:.0f}c risk")
+    return (f"buying {w['qty']:,} shares walks the asks to {w['last']:.2f}: {slip * 100:.0f}c over the "
+            f"{w['best_ask']:.2f} ask on average, {slip / risk:.1f}R of the {risk * 100:.0f}c risk")
 
 
 def judge(*, day: float | None, pace: float | None, pace_sec: float = SETUPS_THIN_PACE_SEC, now: float,
           book: dict[str, Any] | None = None, risk: Any = None,
           unknown: dict[str, str] | None = None) -> dict[str, Any]:
     """The reading: ``{state: "ok" | "thin" | "unknown", reasons, failed: ("day" | "pace" | "book")[],
-    unknown, day_dollars, pace_dollars, pace_sec, walk, as_of, limits}``. ``book`` is a ``walk`` answer;
+    unknown, day_dollars, pace_dollars, pace_sec, walk, as_of, limits}``. ``book`` is a ``walk`` (or, for a
+    short, ``walk_bids``) answer;
     ``unknown`` names why a check could not be made (``{"day" | "pace" | "book": words}``)."""
     unknown = dict(unknown or {})
     reasons: list[str] = []
@@ -177,7 +219,7 @@ def judge(*, day: float | None, pace: float | None, pace_sec: float = SETUPS_THI
     per = _num(risk)
     walked = None
     if book is not None and per is not None and per > _EPS:
-        walked = {**book, "r": round(book["over_ask"] / per, 2)}
+        walked = {**book, "r": round(slippage(book) / per, 2)}
         if walked["r"] > SETUPS_THIN_MAX_WALK_R + _EPS:
             words = _walk_words(walked, per)
             if walked["short"]:

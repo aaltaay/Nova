@@ -208,6 +208,20 @@ def test_a_short_counts_the_shorts_already_held_against_the_borrow(paper) -> Non
     assert "500 already short" in receipt.error
 
 
+def test_the_tickets_short_with_its_buy_stop_alone_rests_as_two_orders(paper) -> None:
+    """The ticket's Short sends its required buy stop and, unless set, no cover target (step 3)."""
+    from routes.trading_execution import OrderRequest, _manual_order_command
+
+    req = OrderRequest(symbol=SYMBOL, side="SELL", qty=500, order_type="LMT", limit_price=4.50,
+                       short_entry=True, stop_loss_price=4.80)
+    receipt = _send(_manual_order_command(req, "ticket-short", None, 0))
+    assert receipt.ok is True, receipt.error
+    legs = {r["leg_role"]: r for r in paper.broker.working_orders()}
+    assert set(legs) == {"parent", "stop"} and receipt.target_order_id is None
+    assert (legs["parent"]["side"], legs["parent"]["short_entry"]) == ("SELL", True)
+    assert (legs["stop"]["side"], legs["stop"]["status"]) == ("BUY", "PreSubmitted")
+
+
 # ── SSR: a short fills only above the bid ─────────────────────────────────────
 
 def test_adding_above_the_market_counts_the_short_held_from_its_mark(paper) -> None:
