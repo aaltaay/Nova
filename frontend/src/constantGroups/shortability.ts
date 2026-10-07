@@ -21,6 +21,13 @@ export const SHORTABILITY_STATE_LABELS: Record<string, string> = {
 export const SHORTABILITY_SHORT_DISABLED =
   'Short entry locked (IBKR_SHORT_ENABLED is false)';
 
+/** Live (ADR 048 step 6): the Live short proof is not complete, so the door refuses every Live short. */
+export const SHORTABILITY_PROOF_INCOMPLETE = (done: number, total: number) =>
+  `Short entry locked: the Live short proof is not complete (${done} of ${total} days and drills). See the Bot card on the Bots page.`;
+
+export const SHORTABILITY_PROOF_UNKNOWN =
+  'Short entry locked: the Live short proof could not be read, so Live refuses every short.';
+
 export const SHORTABILITY_NOT_SHORTABLE =
   'Not shortable for Nova orders (refresh listing or check TWS)';
 

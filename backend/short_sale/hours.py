@@ -23,7 +23,7 @@ from constants_nova_os import (
     NOVA_OS_NYSE_EARLY_CLOSES,
     NOVA_OS_NYSE_HOLIDAYS,
 )
-from constants_scanner import SESSION_RTH_CLOSE_MIN_ET
+from constants_scanner import SESSION_RTH_CLOSE_MIN_ET, SESSION_RTH_OPEN_MIN_ET
 from constants_shorts import SHORT_COVER_LEAD_MIN, SHORT_LAST_ENTRY_LEAD_MIN, SHORT_OPEN_MIN_ET
 
 ET = ZoneInfo("America/New_York")
@@ -106,6 +106,19 @@ def cover_due(ts: float) -> bool:
     """A short held at ``ts`` is due its cover: the clock stands outside its day's short hours."""
     hours = hours_on(ts)
     return hours is None or not (hours.open_ts <= ts < hours.cover_ts)
+
+
+def regular_session(ts: float) -> bool:
+    """``ts`` stands in a trading day's regular session: 09:30 ET to the close (13:00 on an early close).
+
+    Live's day cover sends its market order only here (ADR 048 step 6): outside it IBKR would hold a market
+    order until the next open.
+    """
+    hours = hours_on(ts)
+    if hours is None:
+        return False
+    opens = hours.open_ts - (SHORT_OPEN_MIN_ET - SESSION_RTH_OPEN_MIN_ET) * 60
+    return opens <= ts < hours.close_ts
 
 
 def venue_now(venue: str) -> float:

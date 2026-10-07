@@ -9,8 +9,11 @@ Two exceptions. The kill switch (spec D, #656): its sweep cancels every venue's 
 whatever the desk shows, so a ``kill`` cancel names its ``target_venue`` and is sent there
 (``resolve``). Nova's own closes (ADR 048): the day cover and the margin call close a position on
 the venue that holds it, so their ``cancel_working`` cancels and their protective ``flatten``
-closes name it too. Nothing else may name one -- any other place, buy or source is refused -- and
-Live only while IBKR, Live's broker, is connected.
+closes name it too. On Live only the day cover may (step 6) -- IBKR liquidates Live itself, so a
+margin call never goes there -- and its close only as a market BUY carrying ``intent: "flatten"``,
+which the door checks against IBKR's own position (``execution.flatten_intent``). Nothing else may
+name one -- any other place, buy or source is refused -- and Live only while IBKR, Live's broker,
+is connected.
 
 Owner: this module (the rules; the lock and the send are ``execution.service``'s).
 """
@@ -60,11 +63,22 @@ def target_refusal(cmd: ExecutionCommand) -> str | None:
     if not (kill_cancel or nova_close):
         return ("only the kill switch's cancels and Nova's own closes (the day cover, a margin call) may name "
                 "a venue other than the desk's -- every other order is sent on the desk's venue")
-    if nova_close and target == DESK_VENUE_LIVE:
-        # Nova's closes run on Paper and Sim; Live's day cover is ADR 048's last step.
-        return "Nova's own closes run on Paper and Sim only -- nothing was sent to Live"
+    if nova_close and target == DESK_VENUE_LIVE and (why := _live_close_refusal(cmd)):
+        return why
     if target == DESK_VENUE_LIVE and not ibkr_connected():
         return "Live's orders are IBKR's, and IBKR is not connected -- nothing was sent"
+    return None
+
+
+def _live_close_refusal(cmd: ExecutionCommand) -> str | None:
+    """Why a Nova close may not go to Live, or None: only the day cover, its close a market BUY to flat."""
+    if cmd.origin != "day_cover":
+        return "a margin call never goes to Live -- IBKR liquidates Live itself; nothing was sent"
+    if cmd.operation == "cancel":
+        return None
+    if (cmd.side or "").upper() != "BUY" or cmd.order_type != "MKT" or getattr(cmd, "intent", None) != "flatten":
+        return ("Live's day cover is a market BUY checked against IBKR's own short (intent flatten) -- "
+                "nothing was sent")
     return None
 
 

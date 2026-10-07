@@ -345,3 +345,31 @@ export function stockModes(venue: string) {
     ],
   };
 }
+
+/** The Live short proof (ADR 048 step 6) as this demo answers it: no IBKR account, no short on Paper yet. */
+export function shortProof() {
+  const step = (id: string, label: string, ok: boolean | null, text: string, extra: Record<string, unknown> = {}) => ({
+    id, label, ok, text, value: null, seen: 'nova', enforced: false, how: null, at: null, ...extra,
+  });
+  const drill = (name: string, label: string) => step(`drill_${name}`, label, false, 'Not run yet.',
+    { enforced: true, how: 'Run it on Paper with a short open.' });
+  const wait = 'No day can be marked reviewed until #778\'s question 3 (how a Paper day is reviewed) is answered.';
+  return {
+    schema_version: 1, generated_at: NOW_S, complete: false, error: null, done: 0, total: 7,
+    missing: '0 of 3 reviewed Paper days with shorts; the four drills still to run on Paper.',
+    steps: [
+      step('margin_account', 'Margin account', null, 'The demo has no IBKR account, so Nova cannot see one.', { enforced: true }),
+      step('practice_reset', 'Paper reset to $5,000', false, `Paper starts at $${STARTING_CASH.toLocaleString('en-US')}, not $5,000.`),
+      step('short_tests', 'Five-year tests run', false, '0 of 5 have a result.', { value: '0 of 5' }),
+      step('paper_days', '3 Paper days with shorts, reviewed', false, `No Paper day with shorts yet. ${wait}`,
+        { value: '0 of 3', seen: 'operator', enforced: true }),
+      drill('freeze', 'Freeze all orders with a short open'),
+      drill('flatten', 'Flatten with a short open'),
+      drill('day_cover', 'The 15:55 cover'),
+      drill('gateway_drop', 'A Gateway drop with a short open'),
+      step('live_key', 'IBKR_SHORT_ENABLED', false, 'Off: the demo has no broker, so Live is off.',
+        { enforced: true, seen: 'operator' }),
+    ],
+    days: [], review: { open: false, why: wait },
+  };
+}

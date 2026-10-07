@@ -170,6 +170,24 @@ def test_execute_sends_one_share_when_gate_on(monkeypatch):
     assert "gateway_mode" in row["payload"]
 
 
+def test_a_live_short_stays_under_the_live_share_cap_and_its_day_cover_is_never_cut(monkeypatch):
+    """ADR 048 §3.10 (#778 step 6): a Live short entry -- a place or a bracket -- is held to the Live cap like every
+    Live order, the IBKR send refuses one still over it, and Live's day cover (a protective flatten) closes the
+    whole short."""
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", True)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 1.0)
+    short = ExecutionCommand(operation="bracket", idempotency_key="short-cap", source="manual", symbol="RDYN",
+                             side="SELL", qty=416, order_type="LMT", entry_price=5.77, stop_price=5.89,
+                             short_entry=True)
+    assert qty_gate.apply_force_one_share(short).qty == 1.0
+    assert "at most 1 share" in qty_gate.live_cap_refusal(short, 416)
+    cover = ExecutionCommand(operation="place", idempotency_key="cover-all", source="flatten", intent="flatten",
+                             symbol="RDYN", side="BUY", qty=416, order_type="MKT", target_venue="live",
+                             origin="day_cover")
+    assert qty_gate.apply_force_one_share(cover).qty == 416
+    assert qty_gate.live_cap_refusal(cover, 416) is None
+
+
 @pytest.mark.parametrize("source", ["flatten", "kill", "cancel_working"])
 def test_protective_sources_are_never_clamped(monkeypatch, source):
     """QA R6 (2026-09-22): a clamped flatten left N-1 shares after an Emergency KILL."""

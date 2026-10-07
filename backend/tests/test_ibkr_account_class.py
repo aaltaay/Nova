@@ -65,3 +65,21 @@ def test_attach_skips_disconnected():
     connected = attach_account_class({"connected": True, "mode": "live", "AccountType": "INDIVIDUAL"})
     assert connected["account_class"] == "cash"
     assert connected["AccountType"] == "INDIVIDUAL"
+
+
+def test_ibkrs_own_class_never_takes_the_override(monkeypatch):
+    """ADR 048 step 6: a Live short needs IBKR's word; the .env override decides only the header's chip."""
+    from ibkr.account_class import ibkr_account_class
+
+    cash_like = {"connected": True, "mode": "live", "AccountType": "INDIVIDUAL", "BuyingPower": 383.0,
+                 "TotalCashValue": 383.0}
+    monkeypatch.setenv("IBKR_ACCOUNT_CLASS", "margin")
+    assert ibkr_account_class(cash_like) == "cash"
+    stamped = attach_account_class(cash_like)
+    assert (stamped["account_class"], stamped["ibkr_account_class"], stamped["account_class_source"]) == (
+        "margin", "cash", "override")
+    monkeypatch.delenv("IBKR_ACCOUNT_CLASS")
+    margin_like = {**cash_like, "BuyingPower": 20_000.0, "TotalCashValue": 5_000.0}
+    stamped = attach_account_class(margin_like)
+    assert (stamped["account_class"], stamped["ibkr_account_class"], stamped["account_class_source"]) == (
+        "margin", "margin", "ibkr")

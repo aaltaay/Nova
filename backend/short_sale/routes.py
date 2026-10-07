@@ -51,7 +51,8 @@ async def get_short_check(
     facts = await asyncio.to_thread(gather, sym, venue)
     order = check.Order(symbol=sym, qty=qty, entry=price, stop=stop, target=target)
     account = await asyncio.to_thread(door.read_account, sym, venue)
-    verdicts = check.rules(order, facts, account, live_key=_safety.short_enabled() if venue == "live" else None)
+    verdicts = check.rules(order, facts, account, live_key=_safety.short_enabled() if venue == "live" else None,
+                           live_proof=door.live_proof() if venue == "live" else None)
     first = check.first_refusal(verdicts)
     answer = facts.whatif
     return {

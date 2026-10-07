@@ -264,12 +264,14 @@ class TestProtectiveLegDefaults:
         _arm_paper(monkeypatch)
         brackets = _spy_bracket(monkeypatch)
         monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
-        # ADR 048: the short check reads a margin account and its borrow from the cache.
+        monkeypatch.setattr("short_sale.door.live_proof", lambda: (True, ""))   # the Live short proof (step 6)
+        # ADR 048: the short check reads a margin account (IBKR's own figures on Live) and its borrow from the cache.
         monkeypatch.setattr(
             account_mod,
             "get_account_summary",
             lambda: {"connected": True, "BuyingPower": 100_000.0, "pending": False,
-                     "NetLiquidation": 100_000.0, "ExcessLiquidity": 100_000.0, "account_class": "margin"},
+                     "NetLiquidation": 100_000.0, "ExcessLiquidity": 100_000.0, "account_class": "margin",
+                     "ibkr_account_class": "margin"},
         )
         monkeypatch.setattr(
             "ibkr.shortability.for_order",

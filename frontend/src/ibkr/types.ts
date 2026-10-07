@@ -55,6 +55,8 @@ export interface IbkrStatus {
   live_trading_confirmed?: boolean;
   /** Phase K / ADR 009 -- third key for opening shorts. */
   short_enabled?: boolean;
+  /** The Live short proof (ADR 048 step 6): Live shorts stay refused until it is complete. */
+  short_proof?: { complete: boolean; done: number; total: number; error?: string | null } | null;
   /**
    * locked | locked_live_unconfirmed | locked_account_unconfirmed
    * | paper_armed | live_armed | sim_armed -- read it through `spendLock.ts`, never by
@@ -169,6 +171,10 @@ export interface IbkrAccountSummary {
   ExcessLiquidity?: number | null;
   /** Backend Cash vs Margin class. Set on a connected snapshot. */
   account_class?: 'cash' | 'margin' | null;
+  /** Live only: the class from IBKR's own figures, never the .env override (ADR 048 step 6). */
+  ibkr_account_class?: 'cash' | 'margin' | null;
+  /** Which decided ``account_class``: the .env override or IBKR's figures. */
+  account_class_source?: 'override' | 'ibkr' | null;
   error?: string;
 }
 

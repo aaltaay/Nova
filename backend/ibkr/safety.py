@@ -265,6 +265,17 @@ def spend_state(broker_account_kind: str | None) -> tuple[str, str]:
     return status, locked_reason
 
 
+def _short_proof() -> dict:
+    """The Live short proof's progress (ADR 048 step 6): Live shorts stay refused until it is complete."""
+    try:
+        from short_proof.view import progress
+
+        return progress()
+    except Exception as exc:
+        logger.exception("safety: the Live short proof could not be read for the status")
+        return {"complete": False, "done": 0, "total": 0, "error": str(exc)}
+
+
 def status_snapshot(broker_account_kind: str | None = None) -> dict:
     """Fields for /api/ibkr/status — UI + operators."""
     mode = gateway_mode()
@@ -282,6 +293,7 @@ def status_snapshot(broker_account_kind: str | None = None) -> dict:
         "orders_enabled": orders_enabled(),
         "live_trading_confirmed": live_trading_confirmed(),
         "short_enabled": short_enabled(),
+        "short_proof": _short_proof(),
         "spend_status": spend,
         "armed_for_account_kind": armed_kind,
         "spend_locked_reason": locked_reason or None,

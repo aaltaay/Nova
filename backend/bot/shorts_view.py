@@ -1,10 +1,12 @@
 """What a short needs from the account and the clock, for the Bots page's answer line (ADR 049, #778 step 5).
 
 ``GET /api/bot/session`` carries ``shorts``: the facts the one short check (``short_sale.check``) reads before
-any short, the bot's or yours, said once for the desk's venue -- a margin account, at least $2,000 of equity,
-the short hours by the venue's clock, and Live, where shorts wait on the Paper proof (step 6) and the operator's
-``IBKR_SHORT_ENABLED``. Each is ``{ok: true | false | null, text, value}``; ``null`` is not known, never a pass.
-Memory reads only (the venue's account summary as the short check reads it); never a wait on IBKR.
+any short, the bot's or yours, said once for the desk's venue -- a margin account (on Live, by IBKR's own
+figures), at least $2,000 of equity, the short hours by the venue's clock, and Live, where shorts wait on the
+Live short proof and the operator's ``IBKR_SHORT_ENABLED`` (ADR 048 step 6). Each is ``{ok: true | false |
+null, text, value}``; ``null`` is not known, never a pass. ``live_cover`` says whether Nova covers Live shorts
+at 15:55 (the switch is on), and ``day_cover`` carries the day cover's alarms (``short_sale.cover_alarm``),
+which every desk window polls through this session. Memory reads only; never a wait on IBKR.
 """
 from __future__ import annotations
 
@@ -49,9 +51,13 @@ def _account(venue: str) -> tuple[dict[str, Any], dict[str, Any]]:
         said = "the account has not loaded yet"
         return _chip(None, said), _chip(None, said)
     cls = str(summary.get("account_class") or "").strip().lower()
-    margin = (_chip(True, "a margin account: it can short") if cls == "margin" else
-              _chip(False, "not a margin account: only a margin account can short") if cls else
-              _chip(None, "the account's type is not known yet"))
+    if venue == "live" and cls == "margin" and str(summary.get("ibkr_account_class") or "") != "margin":
+        margin = _chip(False, "IBKR's own figures do not show a margin account (the IBKR_ACCOUNT_CLASS override "
+                              "in .env never counts for a short)")
+    else:
+        margin = (_chip(True, "a margin account: it can short") if cls == "margin" else
+                  _chip(False, "not a margin account: only a margin account can short") if cls else
+                  _chip(None, "the account's type is not known yet"))
     equity = _num(summary.get("NetLiquidation"))
     if equity is None:
         return margin, _chip(None, "the account's net liquidation is not known yet")
@@ -79,17 +85,39 @@ def _hours(venue: str) -> dict[str, Any]:
     return _chip(True, f"new shorts until {until} ET; Nova covers what is left at {cover}", f"until {until}")
 
 
+def _proof() -> tuple[bool, int, int]:
+    """The Live short proof: ``(complete, items done, items)``; a proof Nova cannot read is incomplete."""
+    from short_proof import store, view as proof_view
+
+    doc, _error = store.read()
+    done, total = proof_view.done(doc)
+    return proof_view.status()[0], done, total
+
+
 def _live() -> dict[str, Any]:
     from ibkr import safety
 
-    if safety.short_enabled():
-        return _chip(None, "IBKR_SHORT_ENABLED is on: Live shorts by hand; Nova's bot never trades Live")
-    return _chip(False, "Live shorts: after the Paper proof -- IBKR_SHORT_ENABLED is off, and Nova's bot never "
-                        "trades Live")
+    try:
+        complete, done, total = _proof()
+    except Exception as exc:
+        logger.warning("bot: the Live short proof could not be read for the short chips", exc_info=True)
+        return _chip(False, f"Live shorts: the Live short proof could not be read ({exc}), so Live refuses every "
+                            "short; Nova's bot never trades Live")
+    proof = "the Live short proof is complete" if complete else f"the Live short proof: {done} of {total} done"
+    if safety.short_enabled() and complete:
+        return _chip(None, f"IBKR_SHORT_ENABLED is on and {proof}: Live shorts by hand; Nova's bot never trades Live",
+                     f"{done}/{total}")
+    key = "IBKR_SHORT_ENABLED is on" if safety.short_enabled() else "IBKR_SHORT_ENABLED is off"
+    return _chip(False, f"Live shorts: after the Paper proof -- {proof}, {key}, and Nova's bot never trades Live",
+                 f"{done}/{total}")
 
 
 def view(venue: str | None) -> dict[str, Any]:
-    """``{margin_account, equity, hours, live}`` for the desk's venue."""
+    """``{margin_account, equity, hours, live, live_cover, day_cover}`` for the desk's venue."""
+    from ibkr import safety
+    from short_sale import cover_alarm
+
     where = venue or "paper"
     margin, equity = _account(where)
-    return {"venue": where, "margin_account": margin, "equity": equity, "hours": _hours(where), "live": _live()}
+    return {"venue": where, "margin_account": margin, "equity": equity, "hours": _hours(where), "live": _live(),
+            "live_cover": bool(safety.short_enabled()), "day_cover": cover_alarm.view()}

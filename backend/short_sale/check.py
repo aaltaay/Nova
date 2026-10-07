@@ -6,9 +6,11 @@ bot's squares show the whole list (``GET /api/short-check/{symbol}``). Each verd
 its numbers and its fix:
 
 1. ``live_key`` -- Live only: ``IBKR_SHORT_ENABLED`` (ADR 009, ``SHORT_DISABLED``);
+   ``live_proof`` -- Live only: the Live short proof is complete (``SHORT_PROOF_INCOMPLETE``; ADR 048 step 6);
 2. ``order`` -- a SELL, a limit, and a buy stop above it (``SHORT_NEEDS_LIMIT``, ``SHORT_NEEDS_STOP``);
 3. ``not_long`` -- never a short while the account holds the stock long (``SHORT_WHILE_LONG``);
-4. ``account`` -- a margin account with at least $2,000 of equity;
+4. ``account`` -- a margin account with at least $2,000 of equity; on Live, margin by IBKR's own figures,
+   never the ``.env`` override (``ibkr_account_class``);
 5. ``hours`` -- 09:35 to 15:50 ET by the venue's clock (12:50 on an early close);
 6. ``halt`` -- not halted, not within 10 minutes of an up-halt's resumption, never unknown;
 7. ``borrow`` -- IBKR's estimate covers this order, the short held and the shorts on the way;
@@ -40,6 +42,7 @@ from constants_shorts import (
     SHORT_NEEDS_STOP,
     SHORT_NO_RECORDED_BORROW,
     SHORT_NOT_MARGIN,
+    SHORT_PROOF_INCOMPLETE,
     SHORT_SSR_AT_BID,
     SHORT_SSR_NO_BID,
     SHORT_WHILE_LONG,
@@ -142,7 +145,7 @@ def _not_long(order: Order, account: Account) -> Verdict:
     return _ok("not_long", "You hold", text, "none long")
 
 
-def _account(account: Account) -> tuple[float | None, Verdict]:
+def _account(account: Account, *, live: bool = False) -> tuple[float | None, Verdict]:
     summary = account.summary or {}
     if not summary or summary.get("connected") is False or summary.get("pending"):
         return None, _bad("account", "Equity", SHORT_MARGIN_UNKNOWN,
@@ -157,6 +160,11 @@ def _account(account: Account) -> tuple[float | None, Verdict]:
         return None, _bad("account", "Margin account", SHORT_NOT_MARGIN,
                           ("This account is not a margin account, and only a margin account can short. IBKR must "
                            "show the account as margin before Nova offers a short."))
+    if live and str(summary.get("ibkr_account_class") or "").strip().lower() != "margin":
+        return None, _bad("account", "Margin account", SHORT_NOT_MARGIN,
+                          ("IBKR's own figures do not show a margin account yet; the IBKR_ACCOUNT_CLASS override "
+                           "in .env never counts for a short. IBKR must show the account as margin before Nova "
+                           "offers a Live short."))
     if equity < SHORT_MIN_EQUITY:
         return None, _bad("account", "Equity", SHORT_EQUITY,
                           (f"A short needs at least {_money(SHORT_MIN_EQUITY)} of equity (FINRA's margin minimum); "
@@ -323,15 +331,31 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
                       f"LIQ {liq:.2f}" if isinstance(liq, float) else None, **numbers)]
 
 
-def rules(order: Order, facts: Facts, account: Account, *, live_key: bool | None) -> list[Verdict]:
-    """Every rule's verdict, in order; ``live_key`` is None off Live (Paper and Sim need none)."""
+def _live_proof(proof: tuple[bool, str]) -> Verdict:
+    complete, missing = proof
+    if complete:
+        return _ok("live_proof", "Live short proof", "The Live short proof is complete.")
+    return _bad("live_proof", "Live short proof", SHORT_PROOF_INCOMPLETE,
+                (f"The Live short proof is not complete: {missing} Finish it on Paper (Bots page, the Bot card's "
+                 "Live short proof); until then no short goes to Live."))
+
+
+def rules(order: Order, facts: Facts, account: Account, *, live_key: bool | None,
+          live_proof: tuple[bool, str] | None = None) -> list[Verdict]:
+    """Every rule's verdict, in order; ``live_key`` is None off Live (Paper and Sim need none).
+
+    ``live_proof`` is Live's ``(complete, what is missing)`` (``short_proof.status``); off Live None. On Live
+    a missing reading is an incomplete proof, never a pass.
+    """
     out: list[Verdict] = []
-    if live_key is not None:
+    live = live_key is not None
+    if live:
         out.append(_ok("live_key", "Live shorts", "IBKR_SHORT_ENABLED is on.") if live_key else
                    _bad("live_key", "Live shorts", "SHORT_DISABLED",
                         "IBKR_SHORT_ENABLED is false — short entry locked"))
+        out.append(_live_proof(live_proof or (False, "Nova could not read it.")))
     out += [_order(order), _not_long(order, account)]
-    equity, verdict = _account(account)
+    equity, verdict = _account(account, live=live)
     out += [verdict, _hours(facts), _halt(facts), _borrow(order, facts, account), _ssr(order, facts)]
     if equity is not None and order.entry:
         out += _margin(order, facts, account, equity)

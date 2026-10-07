@@ -5,11 +5,13 @@
  * Mounted once per window with the symbol menu host, so a refusal raised from a
  * pop-out shows in that pop-out, and a breaker's sale shows in every window. A refusal
  * or a breaker's sale stays until dismissed; the rest leave after BOT_NOTICE_TTL_MS
- * unless pointed at.
+ * unless pointed at. The day cover's alarm (bot/DayCoverAlarms.tsx, ADR 048 step 6)
+ * rides here too, so a short Nova could not cover reaches every window.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { DESK_BOT_POLL_MS } from '../constants';
 import { noteBreakerTrips } from './breakerNotices';
+import { DayCoverAlarms } from './DayCoverAlarms';
 import { dismissBotNotice, getBotNotices, pushBotNotice, subscribeBotNotices, type BotNotice } from './botNoticeStore';
 import { useBotSession } from './useBotSession';
 import './botNotices.css';
@@ -49,10 +51,14 @@ function useBreakerTripNotices(): void {
 export function BotNotices() {
   useBreakerTripNotices();
   const notices = useSyncExternalStore(subscribeBotNotices, getBotNotices, getBotNotices);
-  if (notices.length === 0) return null;
   return (
-    <div className="bot-notices" aria-label="Bot notices" data-testid="bot-notices">
-      {notices.map(n => <NoticeCard key={n.id} notice={n} />)}
-    </div>
+    <>
+      <DayCoverAlarms />
+      {notices.length > 0 ? (
+        <div className="bot-notices" aria-label="Bot notices" data-testid="bot-notices">
+          {notices.map(n => <NoticeCard key={n.id} notice={n} />)}
+        </div>
+      ) : null}
+    </>
   );
 }

@@ -21,6 +21,7 @@ import {
   triggersView,
   type BotsFetchOpts,
 } from './botsPageFixtures';
+import { shortProofView } from './shortProofFixtures';
 
 const ibkrStatus = {
   connected: true,
@@ -261,6 +262,52 @@ describe('Freeze all orders (ADR 044)', () => {
     expect(screen.getByTestId('bots-kill-reset').textContent).toMatch(/Unfreeze orders/);
     await act(async () => { fireEvent.click(screen.getByTestId('bots-kill-reset')); await flush(); });
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/kill-switch/reset'))).toBe(true);
+  });
+});
+
+describe('the Live short proof (ADR 048 step 6)', () => {
+  it('lists the operator\'s steps on the Bot card, under Freeze all orders, each ticked from what Nova sees', async () => {
+    const fetchMock = mockFetch();
+    await renderPage();
+    expect(called(fetchMock, '/short-proof')).toBe(true);
+    const proof = screen.getByTestId('bots-short-proof');
+    expect(within(screen.getByTestId('bots-bot-card')).getByTestId('bots-short-proof')).toBe(proof);
+    expect(screen.getByTestId('bots-freeze').compareDocumentPosition(proof) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(screen.getByTestId('bots-proof-count').textContent).toBe('0 of 7 days and drills');
+    expect(proof.getAttribute('data-complete')).toBe('false');
+    const step = (id: string) => screen.getByTestId(`bots-proof-step-${id}`);
+    expect(step('margin_account').getAttribute('data-ok')).toBe('true');
+    expect(step('margin_account').textContent).toContain('✓');
+    expect(step('drill_freeze').getAttribute('data-ok')).toBe('false');
+    expect(step('drill_freeze').textContent).toContain('✗Freeze all orders with a short open');
+    // Only the operator can judge a Paper day or set the switch: the step says "you".
+    expect(step('paper_days').textContent).toContain('you');
+    expect(step('live_key').textContent).toContain('you');
+    expect(step('practice_reset').textContent).not.toContain('you');
+    // A step not done says what to do, and whether the door reads it.
+    const tip = step('drill_freeze').getAttribute('data-tip') ?? '';
+    expect(tip).toContain('To do: Run the freeze all orders with a short open drill on Paper.');
+    expect(tip).toContain('The execution door refuses every Live short until this step is done.');
+    expect(step('practice_reset').getAttribute('data-tip')).toContain('Shown for you: the door does not read this step.');
+  });
+
+  it('says so when the proof is complete', async () => {
+    mockFetch({ shortProof: shortProofView({ complete: true, done: 7 }) });
+    await renderPage();
+    expect(screen.getByTestId('bots-proof-count').textContent).toBe('7 of 7 days and drills');
+    expect(screen.getByTestId('bots-short-proof').textContent).toContain('The Paper days and the drills are done.');
+  });
+
+  it('says why when the backend has no proof, never a checklist that reads done', async () => {
+    const router = botsFetchRouter();
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => (String(url).includes('/short-proof')
+      ? { ok: false, status: 404, json: async () => ({ detail: 'Not Found' }) }
+      : router(url, init))));
+    await renderPage();
+    expect(screen.getByTestId('bots-proof-error').textContent)
+      .toBe('The Live short proof could not be read: This backend has no Live short proof yet: reload the backend after the update.');
+    expect(screen.queryByTestId('bots-proof-count')).toBeNull();
   });
 });
 

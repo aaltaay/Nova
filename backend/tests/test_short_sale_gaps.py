@@ -69,7 +69,7 @@ def _cover(key: str = "cover-1", qty: float = 100) -> ExecutionCommand:
 
 def _summary(equity: float = 5_000.0, excess: float | None = 5_000.0, **kw) -> dict:
     row = {"connected": True, "pending": False, "NetLiquidation": equity, "BuyingPower": 20_000.0,
-           "account_class": "margin"}
+           "account_class": "margin", "ibkr_account_class": "margin"}
     if excess is not None:
         row["ExcessLiquidity"] = excess
     row.update(kw)
@@ -97,6 +97,8 @@ def live(monkeypatch, tmp_path, short_market_open):
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
     monkeypatch.setattr(safety_mod, "orders_enabled", lambda: True)
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
+    # The Live short proof is complete here: these tests are about the other rules (its own: test_short_proof.py).
+    monkeypatch.setattr("short_sale.door.live_proof", lambda: (True, ""))
     monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
     monkeypatch.setenv("IBKR_QTY_CAP", "100000")     # the Live test cap would cut every size to 1
     state = {"summary": _summary(), "positions": []}

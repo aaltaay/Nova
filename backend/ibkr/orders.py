@@ -71,10 +71,12 @@ def place_order(
     outside_rth: bool = False,
     order_id: int | None = None,
     tif: str | None = None,
+    targeted: bool = False,
 ) -> dict:
     """
     Place a market, limit, stop, stop-limit, or trailing-stop order
-    (or price-modify when order_id set).
+    (or price-modify when order_id set). ``targeted``: the execution door sent it to Live whatever
+    the desk shows (Live's day cover, ADR 048 step 6), so the desk's practice guard does not apply.
 
     Returns {"ok": bool, "order_id": int|None, "error": str|None, "mode": str}.
     Adapter only — callers must enter via execution.service.execute (ADR 007).
@@ -83,7 +85,7 @@ def place_order(
     """
     from sim.mode import is_practice_venue
 
-    if is_practice_venue():
+    if is_practice_venue() and not targeted:
         from sim.guard import refuse_place
 
         return _practice_refusal(refuse_place())

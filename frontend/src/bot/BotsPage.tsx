@@ -30,6 +30,7 @@ import { BotProposalsInbox } from './BotProposalsInbox';
 import { BotBreakerBlock, BotRiskCard } from './BotRiskCard';
 import { BotsPageHeader } from './BotsPageHeader';
 import { BotsStatusBar } from './BotsStatusBar';
+import { BotShortProof } from './BotShortProof';
 import { BotStrategiesCard } from './BotStrategiesCard';
 import { BotSwitchCard } from './BotSwitchCard';
 import { BotTickersTable, useTriggers } from './BotTickersTable';
@@ -99,7 +100,7 @@ function LiveBotsPage() {
               <>
                 <BotAnswerLine session={session} ctx={gateContext(session, dayPnl)} triggers={today.view}
                   strategiesAnchor={BOTS_STRATEGIES_ANCHOR} onUnlock={() => void ensureUnlocked()} />
-                <BotSwitchCard arm={arm} killSwitch={killSwitch}
+                <BotSwitchCard arm={arm} killSwitch={killSwitch} proof={<BotShortProof />}
                   breakers={<BotBreakerBlock session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} />}>
                   <BotRiskCard session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} breakers={false} />
                 </BotSwitchCard>

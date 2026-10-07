@@ -94,6 +94,9 @@ async def trip(reason: str = "kill_switch") -> dict:
     failed = [oid for venue in sweep for oid in venue["failed"]]
     kept = [row["order_id"] for venue in sweep for row in venue.get("kept") or []]
     receipt_error = _record(sweep, cancelled, failed, persisted)
+    from short_proof import observe as _proof
+
+    _proof.note_freeze(sweep)       # the Live short proof's freeze drill (ADR 048 step 6); never raises
     logger.warning(
         "KILL SWITCH -- every new order refused until reset; sweep %s",
         "; ".join(f"{v['venue']}: cancelled={v['cancelled']} failed={v['failed']} "

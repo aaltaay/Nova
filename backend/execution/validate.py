@@ -97,7 +97,10 @@ def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[b
         )
         if not ok:
             return False, reason, "ORDERS_GATE"
-        return True, "OK", None
+        from short_sale import door as _short_door
+
+        refused = _short_door.replace_refusal(cmd, venue)  # a Live short entry too (ADR 048 step 6)
+        return (False, refused[0], refused[1]) if refused else (True, "OK", None)
 
     symbol = cmd.normalized_symbol()
     if not symbol:
