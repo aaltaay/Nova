@@ -51,11 +51,15 @@ def run(eng, now):
 def test_every_setup_gets_a_lane_and_a_card_on_the_board(tmp_path):
     eng, _, clock = make(tmp_path, flag_day())
     run(eng, clock["t"])
-    assert [lane.setup for lane in eng.playing_lanes()] == [
-        "first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green", "gap_and_go"]
+    every = ["first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green", "gap_and_go",
+             "backside_lower_high", "bear_flag", "failed_breakout", "lost_vwap", "ssr_bounce"]   # ADR 049: the five shorts run on the same lanes
+    assert [lane.setup for lane in eng.playing_lanes()] == every
     board = eng.board(clock["t"])
-    assert board["schema_version"] == 2 and [s["id"] for s in board["setups"]] == [
-        "first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green", "gap_and_go"]
+    assert board["schema_version"] == 2 and [s["id"] for s in board["setups"]] == every
+    sides = {s["id"]: s["side"] for s in board["setups"]}
+    assert [sid for sid in every if sides[sid] == "short"] == every[6:]
+    assert all(s["test"] is None for s in board["setups"] if s["side"] == "long")
+    assert all(s["test"]["state"] == "queued" for s in board["setups"] if s["side"] == "short")
     cards = {s["id"]: s for s in board["setups"]}
     assert cards["bull_flag"]["level"] == 1 and cards["bull_flag"]["proposing"] is True
     assert cards["first_pullback"]["level"] == 0 and cards["first_pullback"]["proposing"] is False

@@ -16,7 +16,7 @@ Nova's setup scanners are all long: the first pullback, the bull flag, the flat-
    - the same universe: the names the long scanners follow (HOD Momo's, the hot list and Former Momo included).
 
    Everything a long setup reads upward, a short setup reads downward:
-   - **The trigger** is a low. A live price at or under it triggers, and the entry is one cent under the trigger.
+   - **The trigger** is a low, and the entry is one cent under it. A live price at or under the entry triggers: the short sells when its entry trades, as a long buys when its entry trades (wording fixed in step 4, before any code read a bar; it read "at or under it").
    - **The stop** is above the entry.
    - **The target** is entry − 2 × risk: "cover at 2R", with no leg-or-R variant.
    - **Risk.** The risk is checked with one cent of slippage and must sit between $0.03 and $0.20, the long default.
@@ -119,7 +119,7 @@ Nova's setup scanners are all long: the first pullback, the bull flag, the flat-
     - **Paper read-outs** report SSR trades as their own group, so a losing SSR group can be switched off on its own (a template's `ssr: "skip"`).
     - **The bot.** Under SSR it trades the same strategies, but its short goes in as a limit at the ask, never at the bid, and is tagged SSR.
 
-12. **The five-year test.** Each short strategy gets a five-year minute-bar test on the operator's store (`F:\Nova\data\massive`, 2021-09-21 onward), run by `research/shorts/` on the desk.
+12. **The five-year test.** Each short strategy gets a five-year minute-bar test on the operator's store (the Massive minute files under `NOVA_MARKET_DATA_DIR`, by default `E:\Nova\massive`, 2021-09-21 to 2026-09-21 as gate 1 read them; this read `F:\Nova\data\massive` until step 4 corrected it), run by `research/shorts/` on the desk.
     - **What the bars cannot know is stated.**
       - Past borrow is unknown, so every stock is assumed shortable, and the result says so.
       - SSR days are found from the bars: the 10% line against the prior close, that day and the next.
@@ -134,6 +134,164 @@ Nova's setup scanners are all long: the first pullback, the bull flag, the flat-
     - **The lock.** A strategy whose test failed, or has not run, stays at Eyes with On locked, and the card says why: "five-year test queued / running / failed". This applies to shorts only (ADR 048). No agent writes a result; the test's own output file is the only source.
 
 13. **New strategies.** The operator asks for a pattern and it gets built; a variant is a template, with no code. "+ Add a setup" offers short setups too.
+
+## Step 4: what the build chose (2026-10-07)
+
+Written before any detector code existed, under the operator's standing grant for routine calls. Each choice is the
+long mirror's where one exists.
+
+### The scanner
+
+- **The setups.** `backside_lower_high`, `bear_flag`, `failed_breakout`, `lost_vwap` and `ssr_bounce`.
+  - They join the playbook after Gap and Go, and start at Off on every venue, like every new setup.
+  - Their kinds are the setup's id and `second_<id>`; Lost VWAP has only its own.
+  - Each is one more lane per template on the scanner's bars.
+- **A short's trigger on a live price** (§1). An armed short triggers on a price at or under its entry before its
+  cutoff.
+  - When the minute opened under the entry, the entry is that open. When the gap pushes the risk over the cap, the
+    setup is disarmed, the long rule mirrored.
+  - The near band is above the trigger: `max(near_dollars, near_pct)` of the price.
+  - A price under the trigger after the cutoff disarms it.
+- **The SSR bounce's trigger.** Its entry rests: `trigger` and `entry` are both one cent under the level. A live price
+  over the entry fills it, at the entry, never better or worse. That is §11's "a candle trades through the level"
+  read live, so the live and the bar reading agree. Its near band is the long one, under the trigger.
+- **Backside lower high.**
+  - The fade's candle F is a new 30-candle low: its low is at or under every low of the 30 candles before it. Its
+    fade is (high of day through F − its low) / high of day.
+  - The first m of 1, 2, 3 that qualifies is the setup, as the first pullback reads its m.
+  - A bounce candle with a low under F's low makes that candle the next fade.
+  - A fade 4 to 10 candles back with no lower low since and no setup fails: "the bounce ran past 3 candles".
+  - The fade's candle is the setup's key and its leg: `{t, high: the high of day, low, pct: the fade}`.
+- **Bear flag.**
+  - The pole drops (pole high − pole low) / pole high.
+  - A flag candle is green or a doji: its close at or over its open.
+  - "Drifting up": no flag candle's low is under the candle before it.
+  - The pole-bottom candle is the key and the leg: `{t, high, low, pct, bars}`.
+  - A flag of more than 3 candles fails: "too much buying".
+- **Failed breakout.**
+  - The flat top is the high of day before the poke. Its touches are the candles in the 30 before the poke whose
+    high came within the tolerance under it (the one that made it included). Two or more are needed, and one after
+    the first made no new high: the level was retested, as the flat top's touch rule reads it. Highs rising a
+    cent at a time are a move, not a flat top.
+  - The poke is the first candle whose high is at least one cent over it.
+  - The failure is the first close under the flat top among the poke and the 2 candles after it.
+  - The trigger must print within 3 candles after the failure candle (CHOSEN: the first pullback's three-candle
+    pullback). Otherwise it fails: "no breakdown within 3 candles".
+  - A close back over the flat top before then also fails it, as does a high over the poke's.
+  - The poke candle is the key. The leg is `{t, high: the highest high since the poke, low: the flat top, touches,
+    zone}`.
+- **Lost VWAP.**
+  - VWAP is the scanner's own: the typical price weighted by volume, from the session's first bar. That is the
+    chart's rule (`sensors.math_indicators`).
+  - "From the open" starts at the first candle at or after 09:30 (`lv_open`). A day whose opening candle closes
+    under VWAP is out.
+  - A retest before 09:35 is not the try: the scanner waits for one inside the window.
+  - After it arms, the setup stays armed until it triggers, a candle closes back over VWAP (the day ends) or the
+    window closes.
+  - The loss candle is the key.
+- **SSR bounce.**
+  - **SSR** comes from the lane's own bars and the prior close. It is on when a bar's low today reached 90% of the
+    prior close, or when yesterday's SSR carries:
+    - the live host reads yesterday from `short_sale.ssr`'s daily reads, from memory;
+    - a replay of a recording does not know yesterday.
+  - The setup arms only on a known on. Unknown is not an SSR stock.
+  - **The drop** is the candle that made the low of day. It is at least 6% under the highest high of the 30 candles
+    before it, and the two candles after it are green.
+  - **The half or whole dollar** is the next one over the price.
+  - **The last lower high** is the highest high from the candle of the previous low of day up to this low.
+  - The armed levels never move. A resting order is cancelled, never repriced.
+  - **Cancelled** when a bar's low is under the drop's low, a bar closes over the level, or a live price comes 10
+    minutes or more after it armed. Then it fails, and a new drop and bounce may arm again (two a day).
+- **Every row, proposal and trigger event carries `side`** (`long` | `short`) and `ssr`.
+  - `ssr` is `on` | `off` | `unknown` on a short row, `null` on a long one: the setup's SSR at its trigger, else at
+    its arm.
+  - `setups.db` is schema 6, adding `side` and `ssr`. A schema-5 file migrates in place: its rows read `long`, and
+    `ssr` null.
+- **SSR in the read-out and the templates** (§11).
+  - For the four breakdown setups, a row whose SSR was `on` or `unknown` at its trigger counts in the read-out's SSR
+    group, apart. The go and control pools read the other rows. Unknown counts as on, as the door prices it.
+  - The SSR bounce's rows are all SSR, so its pools read them all.
+  - A breakdown template's `ssr` is `trade` (the default) or `skip`. With `skip`, a setup armed while SSR is on or
+    unknown is filtered, as the stock filter keeps a name out.
+- **The short grade** (§10) reads:
+  - the high of day and session VWAP from the lane's bars;
+  - the prior close from the host (the board's, else the line's tick 9);
+  - the price at the arm;
+  - the stock read's "Dilution on file" reading (`stock_read.dilution_reader`, from memory) and today's catalyst
+    verdict;
+  - IBKR's cached tick 236 against the desk sleeve's size for the setup's risk (`bot.sizing`).
+
+  A replay host knows none of the last two: those pillars are unknown there.
+- **Liquidity.** A short's "Too thin to trade" walks the bids (ADR 048 step 3's rule).
+- **The 5-minute read** (trial T8) is not taken on a short row. T8 reads long setups, and nothing has measured its
+  mirror.
+
+- **The journal.** A short's `armed` and `triggered` lines carry its `ssr`, so a playback of the day (the Sim eyes)
+  draws the same card. A line's side is its setup's.
+- **Past setups** (ADR 036's "what price did next") read a short episode on prices turned upside down, so the long
+  rules apply unchanged: a breakdown under its level is the move it was waiting for, and the refused trade is a
+  short. The SSR bounce has no aftermath: its entry rests over the price.
+- **Auto-record** (CHOSEN) gives a short setup no line, and its setups window leaves the shorts' arming windows out.
+  The three depth lines serve the trials that read long setups (ADR 041). A short's On is decided by its five-year
+  test, not its tape, so its triggers mostly read the tape blind until step 5 settles how shorts share the lines.
+
+### Until step 5
+
+- Nova's bot and Auto-entry skip a short trigger (`BOT_SKIP_SHORT_LATER`, the first of its reasons), and a short
+  proposal names no taker.
+- Approve refuses a short setup (`STOCK_MODE_SHORT_LATER`), and the stock's Who trades view says why in a note
+  (`short_later`) while the plan's setup is a short and the stock is not at Signal only.
+- The Bots page's squares read a short trigger's "strategy on" square red, with the same reason.
+- On the desk, a short proposal stages a short with its buy stop in the ticket, never a buy.
+
+### The lock (§12)
+
+- `PATCH /api/bot/session {setup_levels}` refuses On (2) for a short setup (`BOT_SHORT_TEST`) until a passed result
+  exists for the rules of its template in play: the result's `rules_hash` equals the template's `params_hash`.
+- A short setup already at On whose result stops matching (another template in play, a failed or removed result)
+  is read as Eyes.
+- The lock is checked against the file each time it is read, at most every 30 s.
+
+### The five-year test
+
+Run by `research/shorts/` on the desk:
+
+- **The universe** comes from the day movers index (ADR 050), with no hindsight:
+  - a common stock is followed from the first minute its high reached +10% over the prior close (`up10_ts`);
+  - at that price (110% of the prior close) it is $1 to $20;
+  - it is followed only once its volume today reached 100,000 shares;
+  - likely splits are left out;
+  - for the SSR bounce, yesterday's +10% movers are followed from 04:00 too (Former Momo).
+- **SSR days** are found from the minute bars: today's from its bars, yesterday's from yesterday's movers row.
+- **The bars** are the minute files from 04:00 to 16:00 for those symbol-days, extracted into the store.
+- **The detectors and exits are the scanner's own.** The detectors run on the bars. Each minute's open, and then its
+  extreme, is fed as the live price: the low for a breakdown, the high for the SSR bounce. Exits are the scoring's,
+  with costs on every fill.
+- **Costs and size** are gate 1's: $25,000, 1% risk a trade, at most 25% of equity a trade, IBKR's fixed commission,
+  and one cent of slippage on every fill.
+- **The neighbourhood** is a named list of variations per strategy: the risk cap, the target R, the window, the
+  setup's own key numbers, and the MACD rule. "Mostly positive" means more than half of them have a positive net
+  expectancy.
+- **The permutation** (CHOSEN).
+  - Each of 1,000 seeded shuffles moves every trade's entry to a random minute of the same symbol-day, inside the
+    strategy's window. It keeps that trade's risk a share and exits by the same rules.
+  - p is (1 + shuffles whose mean net R is at least the strategy's) / 1,001.
+  - It asks whether the pattern's timing beats shorting the same stock-days at random.
+- **The result file** is `<NOVA_MARKET_DATA_DIR>/research/short_tests/<setup>.json`; `NOVA_SHORT_TESTS_DIR` moves
+  the folder. Its shape:
+
+  ```
+  {schema_version: 1, setup, state: "running" | "passed" | "failed" | "error",
+   started_at, updated_at, finished_at, harness: {version, command},
+   rules: {template_id, template_rev, rules_hash},
+   data: {first_day, last_day, days, symbol_days}, assumptions: string[],
+   progress: {done, total, unit: "days" | "shuffles"} | null,
+   main, ssr_days, criteria: {trades, best_year_removed, costs_2x, neighbourhood, permutation} | null,
+   passed: boolean | null, error: string | null}
+  ```
+
+  It is written through a temporary file and a rename. The harness writes `running` first and the verdict last. An
+  unreadable file, or one of an unknown version, reads `error` and keeps On locked.
 
 ## Consequences
 

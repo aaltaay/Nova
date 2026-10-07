@@ -197,6 +197,24 @@ def _previous_close(symbol: str, day: date, rth: dict[str, dict[str, Any]]) -> f
     return previous_close(symbol, day.isoformat())
 
 
+def yesterday_on(symbol: str, now: float) -> bool | None:
+    """Whether SSR carries into today from yesterday, from IBKR's daily reads already in memory
+    (``request_history``): yesterday's low against 90% of the regular close before it. None when either is
+    not in memory -- a read, never a wait, never a database (the setup scanner asks it on its loop, ADR 049)."""
+    from sim.trading_day import last_open_day
+
+    hist = history_for(symbol, now) or {}
+    whole = {b["date"]: b for b in hist.get("all") or []}
+    regular = {b["date"]: b for b in hist.get("rth") or []}
+    prior = last_open_day(_et_day(now) - timedelta(days=1))
+    before = last_open_day(prior - timedelta(days=1))
+    y_low = _num((whole.get(prior.isoformat()) or {}).get("low"))
+    y_prior = _num((regular.get(before.isoformat()) or {}).get("close"))
+    if y_low is None or y_prior is None:
+        return None
+    return y_low <= y_prior * (1.0 - SSR_TRIGGER_FRACTION)
+
+
 def judge(*, symbol: str, prior_close: float | None, seen: list[float], today_complete: bool,
           yesterday_low: float | None, yesterday_prior: float | None, why_unknown: str) -> SsrRead:
     """The verdict from the facts (pure)."""

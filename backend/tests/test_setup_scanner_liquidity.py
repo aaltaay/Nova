@@ -173,7 +173,7 @@ def test_a_schema_4_scoreboard_is_migrated_and_its_rows_carry_no_reading(tmp_pat
 
     path = tmp_path / "setups.db"
     con = sqlite3.connect(path)
-    v4 = [c for c in COLUMNS[3:] if c != "liquidity"]
+    v4 = [c for c in COLUMNS[3:] if c not in ("liquidity", "side", "ssr")]
     con.executescript("CREATE TABLE setups (id TEXT PRIMARY KEY, session_date TEXT NOT NULL, symbol TEXT NOT NULL, "
                       + ", ".join(f"{c} {_type(c)}" for c in v4) + ");"
                       "INSERT INTO setups (id, session_date, symbol, kind, armed_at) VALUES ('OLD', '2026-09-30', 'X',"
@@ -183,11 +183,11 @@ def test_a_schema_4_scoreboard_is_migrated_and_its_rows_carry_no_reading(tmp_pat
     con.close()
     store = SetupStore(path)
     [row] = store.rows()
-    assert row["liquidity"] is None
+    assert row["liquidity"] is None and row["side"] == "long" and row["ssr"] is None   # schema 6: every older row long
     store.upsert({"id": "NEW", "session_date": "2026-10-01", "symbol": "LPA", "armed_at": 2.0,
                   "liquidity": {"state": "thin", "reasons": ["traded $999K today, under $2.00M"]}})
     assert next(r for r in store.rows() if r["id"] == "NEW")["liquidity"]["state"] == "thin"
-    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == SETUPS_DB_SCHEMA_VERSION == 5
+    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == SETUPS_DB_SCHEMA_VERSION == 6
 
 
 def test_the_traders_plan_reads_a_thin_stock_as_not_a_trade_and_the_in_play_tile_says_so():

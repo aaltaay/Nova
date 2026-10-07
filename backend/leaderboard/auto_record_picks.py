@@ -3,6 +3,9 @@
 ``leaderboard.auto_record`` decides who holds a line; this says who wants one and how much:
 a setup in a trade, then near its trigger, then armed, then a leader of the Gainers board
 (the same ranking playback applies to the recorded minute). ``left``: on neither list now.
+
+A short setup (ADR 049) wants no line until #778 step 5: the lines serve the trials that read long setups
+(ADR 041), and a short's On is decided by its five-year test, not its tape.
 """
 from __future__ import annotations
 
@@ -35,6 +38,8 @@ def pick_setups(lanes: list[Any], now: float) -> list[tuple[str, str]]:
     """``(symbol, why)`` for every setup of the templates in play: in a trade, near, then armed."""
     best: dict[str, str] = {}
     for lane in lanes:
+        if getattr(getattr(lane, "p", None), "short", False):
+            continue                           # no auto line for a short setup until step 5 (ADR 049)
         found = [(s, WHY_TRADE) for s in lane.trade_symbols(now)]
         for sym in lane.watching():
             state = getattr(lane.det.get(sym), "state", None)

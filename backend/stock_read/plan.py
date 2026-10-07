@@ -45,7 +45,10 @@ FILTERED = "filtered"
 LIVE_STATES = (SETUP_STATE_NEAR, SETUP_STATE_ARMED, FILTERED)
 EPS = 1e-9
 _NAMES = {"first_pullback": "first pullback", "bull_flag": "bull flag", "flat_top_breakout": "flat-top breakout",
-          "flat_top_5m": "5-minute flat top", "red_to_green": "red to green", "gap_and_go": "Gap and Go"}
+          "flat_top_5m": "5-minute flat top", "red_to_green": "red to green", "gap_and_go": "Gap and Go",
+          # ADR 049: the short setups.
+          "backside_lower_high": "backside lower high", "bear_flag": "bear flag", "failed_breakout": "failed breakout",
+          "lost_vwap": "lost VWAP", "ssr_bounce": "SSR bounce short"}
 _ENTRY_RULES = {
     "first_pullback": "1 cent over the last pullback candle's high",
     "bull_flag": "1 cent over the last flag candle's high",
@@ -53,6 +56,11 @@ _ENTRY_RULES = {
     "flat_top_5m": "1 cent over the close of the first 1-minute candle that holds the 5-minute flat top after the break",
     "red_to_green": "1 cent over the open",
     "gap_and_go": "1 cent over the pre-market high, from the open",
+    "backside_lower_high": "1 cent under the last bounce candle's low",
+    "bear_flag": "1 cent under the last flag candle's low",
+    "failed_breakout": "1 cent under the low of the candle that closed back under the flat top",
+    "lost_vwap": "1 cent under the low of the candle that failed at VWAP",
+    "ssr_bounce": "a short resting 1 cent under the level the bounce runs into",
 }
 _STOP_RULES = {
     "first_pullback": "the pullback's low",
@@ -61,6 +69,11 @@ _STOP_RULES = {
     "flat_top_5m": "the 1-minute pullback's low, once a candle holds (the 5-minute base's low until then)",
     "red_to_green": "the lowest low since the open",
     "gap_and_go": "20 cents or 4% under the entry, whichever is smaller",
+    "backside_lower_high": "1 cent over the bounce's high",
+    "bear_flag": "1 cent over the flag's high",
+    "failed_breakout": "1 cent over the poke's high",
+    "lost_vwap": "1 cent over the retest's high, or over VWAP when VWAP is higher",
+    "ssr_bounce": "2% over the entry, at least 5 cents",
 }
 
 

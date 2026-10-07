@@ -22,6 +22,12 @@ tightened stop that is hit ``flush_stop`` / ``flush_stop_runner``.
 A 5-minute lane (``five_minute_lane.py``) feeds its own 5-minute candles: the bailout and the 9 EMA exit
 count 5-minute candles (``bar_sec``), and its first touch, MFE and MAE are read over ``window_min``.
 
+A short setup (ADR 049, ``side="short"``) reads every rule mirrored: R is (entry - exit) / risk; the first touch
+is target 1 at or under, or the stop at or over; the entry bar's stop counts on a close at or over it; half
+covers at target 1 and the stop moves down to the entry; the rest covers on a close over the 9 EMA; the
+bailout is five candles without a close under the entry; a ``burst`` of buying is its flush, covered at the
+ask. Every comparison is the long one on the sign ``s`` (+1 long, -1 short), so the long path is unchanged.
+
 Pure: the engine feeds prices, completed bars and flow readings.
 """
 from __future__ import annotations
@@ -77,10 +83,15 @@ class ScoreTracker:
     flush_at: float | None = None
     window_min: int = SETUPS_SCORE_WINDOW_MIN   # MFE / MAE and the flow are read this long after the trigger
     bar_sec: int = SETUPS_BAR_SEC              # the candles fed: a minute, or a 5-minute lane's five
+    side: str = "long"                         # ADR 049: a short reads every rule mirrored
     _entry_bar_done: bool = field(default=False, repr=False)
 
     def __post_init__(self) -> None:
         self.bar_stop = self.stop
+
+    @property
+    def _s(self) -> int:
+        return -1 if self.side == "short" else 1
 
     @property
     def done(self) -> bool:
@@ -91,15 +102,16 @@ class ScoreTracker:
         """Returns True when the first-touch outcome changed."""
         if ts < self.triggered_at:
             return False
+        s = self._s
         if ts <= self.triggered_at + self.window_min * 60:
-            self.mfe = max(self.mfe, price - self.entry)
-            self.mae = min(self.mae, price - self.entry)
+            self.mfe = max(self.mfe, s * (price - self.entry))
+            self.mae = min(self.mae, s * (price - self.entry))
         if self.outcome != SETUP_OUTCOME_OPEN or _flat_by(ts):
             return False
-        if price >= self.target1 - 1e-9:
+        if s * price >= s * self.target1 - 1e-9:
             self.outcome, self.outcome_at = SETUP_OUTCOME_TARGET_FIRST, ts
             return True
-        if price <= self.stop + 1e-9:
+        if s * price <= s * self.stop + 1e-9:
             self.outcome, self.outcome_at = SETUP_OUTCOME_STOP_FIRST, ts
             return True
         return False
@@ -111,25 +123,28 @@ class ScoreTracker:
             return False
         if ema9 is None:
             ema9 = bar.c                     # no EMA yet (never after a seeded day): no EMA exit this bar
+        s = self._s
+        fav, adv = (bar.h, bar.lo) if s > 0 else (bar.lo, bar.h)    # the bar's extreme the trade's way, and against
         if not self._entry_bar_done:
             self._entry_bar_done = True
-            if bar.c <= self.bar_stop:
+            if s * bar.c <= s * self.bar_stop:
                 return self._exit(self.bar_stop, bar, self._stop_reason("stop_entry_bar"))
-            if self.half_on_entry_bar and bar.h >= self.target1 > self.entry:
-                self.half_done, self.half_px, self.bar_stop = True, self.target1, max(self.bar_stop, self.entry)
+            if self.half_on_entry_bar and s * fav >= s * self.target1 > s * self.entry:
+                self.half_done, self.half_px = True, self.target1
+                self.bar_stop = s * max(s * self.bar_stop, s * self.entry)
             return False
         self.bars_seen += 1
         if _flat_by(bar.t):
             return self._exit(bar.c, bar, "close")
-        if bar.lo <= self.bar_stop:
-            return self._exit(min(bar.o, self.bar_stop), bar,
+        if s * adv <= s * self.bar_stop:
+            return self._exit(s * min(s * bar.o, s * self.bar_stop), bar,
                               self._stop_reason("breakeven" if self.half_done else "stop"))
-        if not self.half_done and bar.h >= self.target1:
-            self.half_done, self.half_px = True, max(bar.o, self.target1)
-            self.bar_stop = max(self.bar_stop, self.entry)
-        elif self.half_done and bar.c < ema9:
+        if not self.half_done and s * fav >= s * self.target1:
+            self.half_done, self.half_px = True, s * max(s * bar.o, s * self.target1)
+            self.bar_stop = s * max(s * self.bar_stop, s * self.entry)
+        elif self.half_done and s * bar.c < s * ema9:
             return self._exit(bar.c, bar, "ema")
-        elif not self.half_done and self.bars_seen >= self.bailout_bars and bar.c <= self.entry:
+        elif not self.half_done and self.bars_seen >= self.bailout_bars and s * bar.c <= s * self.entry:
             return self._exit(bar.c, bar, "bailout")
         return False
 
@@ -144,18 +159,23 @@ class ScoreTracker:
         return "flush_stop_runner" if self.half_done else "flush_stop"
 
     # -- flow readings: the template's flush exit (ADR 034) -----------------------
-    def on_flow(self, *, label: str | None, price: float | None, bid: float | None, ts: float) -> str | None:
-        """Apply one flow reading; returns ``"tighten"`` / ``"exit"`` when the flush did something."""
+    def on_flow(self, *, label: str | None, price: float | None, bid: float | None, ts: float,
+                ask: float | None = None) -> str | None:
+        """Apply one flow reading; returns ``"tighten"`` / ``"exit"`` when the flush did something. A long's
+        flush sells into the ``bid``; a short's (a burst of buying) covers at the ``ask``."""
         if self.exit_px is not None or ts < self.triggered_at or _flat_by(ts):
             return None
         act = flush_action(self.flush, label=label, price=price, ts=ts, entry=self.entry, risk=self.risk,
-                           stop=self.bar_stop, since=self.triggered_at)
+                           stop=self.bar_stop, since=self.triggered_at, side=self.side)
         if act is None:
             return None
         self.flush_action, self.flush_at = act["action"], ts
         if act["action"] == "exit":
             px = float(price)
-            if bid is not None and 0 < bid <= px:
+            if self.side == "short":
+                if ask is not None and ask >= px > 0:
+                    px = float(ask)              # a short's flush covers at the ask
+            elif bid is not None and 0 < bid <= px:
                 px = float(bid)                  # a flush sells into the bid
             self.exit_px, self.closed_at = px, ts
             self.exit_reason = "flush_runner" if self.half_done else "flush"
@@ -166,10 +186,11 @@ class ScoreTracker:
     def bar_r(self) -> float | None:
         if self.exit_px is None or self.risk <= 0:
             return None
+        s = self._s
         if self.half_done and self.half_px is not None:
-            pnl = 0.5 * (self.half_px - self.entry) + 0.5 * (self.exit_px - self.entry)
+            pnl = 0.5 * s * (self.half_px - self.entry) + 0.5 * s * (self.exit_px - self.entry)
         else:
-            pnl = self.exit_px - self.entry
+            pnl = s * (self.exit_px - self.entry)
         return round(pnl / self.risk, 3)
 
     def as_dict(self) -> dict:

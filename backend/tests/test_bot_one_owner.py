@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from bot.sizing import size
+from constants_bot import BOT_SHORT_SETUPS
 from setup_scanner.trade_verdict import of_event, verdict
 
 
@@ -93,7 +94,8 @@ def test_a_v4_session_migrates_its_chosen_setup_sleeve_list_and_lock_into_every_
         assert gone not in row
     assert row["schema_version"] == 5 and row["level_venue"] == "paper"
     assert row["setup_levels"] == {"first_pullback": 1, "bull_flag": 2, "flat_top_breakout": 0, "flat_top_5m": 0,
-                                   "red_to_green": 0, "gap_and_go": 0}
+                                   "red_to_green": 0, "gap_and_go": 0,
+                                   **{sid: 0 for sid in BOT_SHORT_SETUPS}}   # every short setup starts Off (ADR 049)
     live = dial_of(row, "live")
     assert live["level"] == 1 and live["setup_levels"]["bull_flag"] == 1 and live["setup_levels"]["red_to_green"] == 1
     assert row["symbol_allowlist"] == ["GRML", "IMCC"]
@@ -173,7 +175,7 @@ def _lane(host, grade="A", checks=None):
     sid = "IMCC-2026-09-30-1"
     lane = SimpleNamespace(
         host=host, playing=True, proposals={}, alerts=[], journal=lambda *a, **k: None,
-        p=SimpleNamespace(setup="bull_flag", template_id="default", template_rev=1, name="Default"),
+        p=SimpleNamespace(setup="bull_flag", template_id="default", template_rev=1, name="Default", side="long"),
         rows={sid: {"kind": "bull_flag", "trigger": 4.37, "entry_planned": 4.38, "stop": 4.30, "target1": 4.54,
                     "risk": 0.08, "grade": grade,
                     "pillars": {"checks": checks or {"a": True, "b": True, "c": True, "d": True, "e": True}}}})

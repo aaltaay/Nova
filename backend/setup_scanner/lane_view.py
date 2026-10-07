@@ -17,6 +17,8 @@ from constants_setups import (
     SETUP_STATE_TRIGGERED,
     SETUPS_BOARD_MAX_ROWS,
 )
+from setup_scanner.detector import distance as to_trigger
+from setup_scanner.detectors import trigger_up
 
 WATCH_STATES = (SETUP_STATE_ARMED, SETUP_STATE_NEAR)
 FORMING_STATES = (SETUP_STATE_LEG, SETUP_STATE_PULLBACK)
@@ -132,12 +134,13 @@ def _payload(lane: Any, sym: str, view: dict, sid: str | None, row: dict | None,
     setup = view.get("setup")
     last = view.get("last_price")
     distance = None
-    if setup and last is not None and in_reach(state, phase):
-        distance = round(float(setup["trigger"]) - float(last), 4)
+    if setup and last is not None and in_reach(state, phase):   # still to go: down to a breakdown short's trigger
+        distance = to_trigger(float(setup["trigger"]), float(last), up=trigger_up(lane.p.setup))
     prop = lane.proposals.get(sid) if sid else None
     tape = lane.tape_view.get(sym)
     return {
-        "symbol": sym, "setup_type": lane.p.setup, "state": state, "reason": reason, "kind": view.get("kind"),
+        "symbol": sym, "setup_type": lane.p.setup, "side": lane.p.side, "ssr": (row or {}).get("ssr"),
+        "state": state, "reason": reason, "kind": view.get("kind"),
         "nth": view.get("nth"), "setup_id": sid if row else None, "setup": setup,
         "leg": view.get("leg"), "last_price": last, "distance": distance,
         **graded(row, lane.forming.get(sym), state), **tf5_read(row, lane.forming.get(sym), state), "phase": phase,

@@ -4990,6 +4990,94 @@ refuses every short (`IBKR_SHORT_ENABLED` is the operator's, set last), and no s
   (`BOT_SKIP_HELD_OTHER_SIDE`; the view's note `held_other_side`).
 - **Close of day.** The 15:50 card for a Paper short names Nova's 15:55 day cover.
 
+### The short setups on the scanner (ADR 049, step 4 of #778)
+
+Five short setups run on the setup scanner's lanes beside the long ones (owners `setup_scanner/` and
+`setup_templates/`; the rules are ADR 049, pre-registered, with its step 4 section). Read-only like every lane:
+nothing here places, stages or cancels an order, and until step 5 nothing trades them.
+
+- **The setups.** `setup_type` adds `backside_lower_high`, `bear_flag`, `failed_breakout`, `lost_vwap` and
+  `ssr_bounce`, after Gap and Go. `kind` adds each id and `second_<id>`; Lost VWAP has only its own. Each starts at
+  Off on every venue.
+- **Their windows** are their bot windows: backside lower high and failed breakout 09:35-11:30, bear flag
+  09:35-15:30, lost VWAP 09:35-12:00 and the SSR bounce 09:35-15:50.
+- **A short reads downward.**
+  - The trigger is a low, and the entry is one cent under it. A live price at or under the entry triggers it,
+    entering at the minute's open when it gapped under.
+  - The stop is over the entry. Target 1 is entry - target R x risk, and the near band is over the trigger.
+  - The SSR bounce's entry rests one cent under its level. A live price over the entry fills it at the entry.
+- **On the wire.** Every board row, `GET /api/setups/symbol/{symbol}` lane, proposal, trigger event and stored
+  row adds:
+  - `side: "long" | "short"`;
+  - `ssr: "on" | "off" | "unknown" | null`: the short's SSR at its trigger, else at its arm; null on a long.
+
+  The board's and `GET /api/setups/templates`'s `setups[]` add `side` and `test` (null on a long setup).
+- **A short row's grade** (A all five pillars, B four, C three or fewer; unknown is never a pass).
+  - `pillars.checks` is `{run, fade, vwap, bad_news, borrow}`.
+  - The pillars add `run_pct` (the high of day over the prior close, percent), `fade_pct` (the price at arm under
+    the high of day, percent), `hod`, `vwap`, `prior_close`, `bad_news: {dilution, negative, text} | null` and
+    `borrow: {shares, state, age_sec, order_shares} | null`.
+  - The template's thresholds are `pillar_min_run_pct` (30), `pillar_min_fade_pct` (8) and
+    `pillar_borrow_mult` (10).
+- **The tape gate and the flow, mirrored** (`tape_gate.evaluate(side="short")`).
+  - The level is the bids from the trigger + 1c down to the trigger - `band`.
+  - GO is `min_ask_prints` or more prints at the bid, with more shares at the bid than at the ask.
+  - WAIT is a buyer of `wall` shares at the level not thinning, a green burst (`red_mult` x the bid volume at the
+    ask), or no red yet.
+  - VETO is the spread, a buyer of `big_seller` shares at the level, or a hidden buyer (`hidden_mult` x the inside
+    bid sold into a bid that did not move).
+  - The template keys are the long's; only their words mirror.
+  - The flow's entry needs a score at or under minus `flow_entry_min`. A `burst` is a short's flush: tighten the
+    buy stop down to `flush_trail_r` R over the price, or cover at the ask.
+- **Scoring, mirrored.** R is (entry - exit) / risk; the first touch is target 1 at or under, or the stop at or
+  over. The bar exit takes half at target 1 and moves the stop to the entry. Then a close over the 9 EMA covers,
+  as does the bailout after `bailout_bars` candles without a close under the entry.
+- **The 5-minute read.** `tf5` is null on a short row.
+- **SSR.** A breakdown template adds `ssr: "trade" | "skip"`: `skip` filters a setup armed while SSR is on or
+  unknown. The SSR bounce arms only while SSR is known on.
+- **`setups.db` is schema 6.** Rows add `side` and `ssr`. A schema-5 file migrates in place, its rows `long`.
+- **The read-out** of a breakdown setup judges the rows whose `ssr` at the trigger was `off`. It adds `ssr:
+  {triggered, scored, win_pct, avg_net_r} | null`, the SSR rows apart, and `rules.ssr_apart: boolean`.
+- **The five-year test and the On lock** (ADR 049 §12).
+  - A short setup's `test` is `{state: "queued" | "running" | "passed" | "failed" | "error", text, rules_hash:
+    string | null, matches: boolean | null, started_at, updated_at, finished_at, summary: {trades, pf, pf_2x,
+    exp_r, p} | null, file}`. `matches` says whether the tested rules are the template in play's (`params_hash`).
+  - `PATCH /api/bot/session {setup_levels}` refuses On (2) for a short setup, 409 `BOT_SHORT_TEST`, unless its test
+    passed on the rules in play. A short setup at On whose test stops matching reads as Eyes.
+  - `GET /api/bot/session`'s `setups[]` add `side`, `test` and `locked: string | null` (why On is locked).
+  - The harness writes the result file `<NOVA_MARKET_DATA_DIR>/research/short_tests/<setup>.json`
+    (`NOVA_SHORT_TESTS_DIR` moves the folder) through a temporary file and a rename. No agent writes it. Its
+    shape:
+
+    ```
+    {schema_version: 1, setup, state: "running" | "passed" | "failed" | "error", started_at,
+     updated_at, finished_at, harness: {version, command},
+     rules: {template_id, template_rev, rules_hash},
+     data: {first_day, last_day, days, symbol_days}, assumptions: string[],
+     progress: {done, total, unit: "days" | "shuffles"} | null, main, ssr_days,
+     criteria: {trades, best_year_removed, costs_2x, neighbourhood, permutation} | null,
+     passed: boolean | null, error: string | null}
+    ```
+
+    An unreadable file or an unknown version reads `error`.
+- **Past setups** (`GET /api/stock-read/{symbol}/past-setups`). A short episode's `after` is read on the mirror:
+  `level` is the low it was building over, `floor` the high it would have stopped over, `first` is `low` when it
+  broke down under the level first (`high` over the floor), and `trade` is the short the rule refused (entry under
+  the level, its stop the floor, its target under the entry). The SSR bounce's `after` is null: its entry rests
+  over the price.
+- **The journal and auto-record.** A short's `armed` and `triggered` journal lines carry its `ssr`. Auto-record gives
+  a short setup no line, and its setups window (`/api/ibkr/status` `auto_record.windows`) leaves the shorts out: the
+  lines serve ADR 041's long trials until step 5.
+- **Until step 5.** Nova's bot and Auto-entry skip a short trigger (`BOT_SKIP_SHORT_LATER`, the first of its
+  reasons), and a short proposal's `taken_by` is null. `POST /api/stock-mode/{symbol}/approve` refuses a short
+  setup, 409 `STOCK_MODE_SHORT_LATER`, and `GET /api/stock-mode/{symbol}`'s `notes` add `short_later` while the
+  plan's setup is a short and the stock is not at Signal only. `GET /api/bot/triggers` reads a short trigger's
+  `strategy_on` square red with the same reason. On the desk a short proposal stages a short with its buy stop,
+  never a buy.
+- **On the desk.** Short setups are drawn in orange with ▼ SHORT, live and past. Their cards carry the ▼ SHORT tag,
+  the mirrored tape gate words and "Test: five-year test queued / running / passed / failed". Their On is locked
+  with the reason until the test passes.
+
 ### Execution command (ADR 007 — sole broker mutation entry)
 
 All buy/sell/cancel/replace requests enter `execution.service.execute` with:

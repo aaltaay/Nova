@@ -32,7 +32,15 @@ from zoneinfo import ZoneInfo
 
 from bot import strategy_rules
 from bot.trigger_timeline import UNKNOWN, Timeline
-from constants_bot import BOT_LEVEL_STRATEGY, BOT_SETUP_FIRST_PULLBACK, BOT_TRIGGER_GATES, BOT_TZ
+from constants_bot import (
+    BOT_LEVEL_STRATEGY,
+    BOT_SETUP_FIRST_PULLBACK,
+    BOT_SHORT_LATER_TEXT,
+    BOT_TRIGGER_GATES,
+    BOT_TZ,
+    SIDE_SHORT,
+    setup_side,
+)
 from constants_setups import TAPE_VERDICT_BLIND, TAPE_VERDICT_GO
 from constants_stock_mode import STOCK_MODE_APPROVE, STOCK_MODE_AUTO_ENTRY, STOCK_MODE_BOT, STOCK_MODE_SIGNAL
 
@@ -145,6 +153,8 @@ def _bot_on(bot: dict[str, Any] | None) -> dict[str, Any]:
 
 def _strategy_on(t: dict[str, Any], venue: str | None, ctx: Context) -> dict[str, Any]:
     name = strategy_rules.name(t["setup_type"])
+    if setup_side(t["setup_type"]) == SIDE_SHORT:
+        return cell(False, BOT_SHORT_LATER_TEXT)      # ADR 049: nothing trades a short until #778 step 5
     if venue is None:
         return cell(None, "the journal did not record the venue at this trigger")
     if ctx.audit_error:

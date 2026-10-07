@@ -8,7 +8,8 @@ host's shared, cached reading when it has one (``LaneHost.flow``,
 ``TAPE_FLOW_EVAL_SEC``: the template's flush exit acts on the scoring
 (``ScoreTracker.on_flow``), the newest reading is kept for Nova's bot
 (``lane.flow_last``), and a turn into or out of a burst or a flush is journalled
-as ``flow`` (what a flush did, as ``flush``). Nothing here places an order.
+as ``flow`` (what a flush did, as ``flush``). A short's trade (ADR 049) reads a burst of buying
+as its flush and covers at the ask. Nothing here places an order.
 """
 from __future__ import annotations
 
@@ -46,17 +47,19 @@ def read_trades(lane: Any, now: float) -> None:
         reading = flow(lane, sym, now)
         price = det.last_price if det is not None else None
         bid = (reading.get("metrics") or {}).get("best_bid")
+        ask = (reading.get("metrics") or {}).get("best_ask")
         label, score = reading.get("label"), reading.get("score")
         lane.flow_last[sid] = {"ts": now, "label": label, "score": score, "price": price, "bid": bid,
-                               "readings": reading.get("readings")}
+                               "readings": reading.get("readings"), **({"ask": ask} if tr.side == "short" else {})}
         was = lane._flow_said.get(sid)
         if label != was and (label in LOUD or was in LOUD):
             lane.journal("flow", sym, setup_id=sid, label=label, was=was, score=score,
                          readings=reading.get("readings"), price=price,
                          since_trigger=round(now - tr.triggered_at, 1))
         lane._flow_said[sid] = label
-        act = tr.on_flow(label=label, price=price, bid=bid, ts=now)
+        act = tr.on_flow(label=label, price=price, bid=bid, ts=now, ask=ask)
         if act is not None:
             lane.journal("flush", sym, setup_id=sid, action=act, score=score, price=price, bid=bid,
-                         stop=tr.bar_stop, exit_px=tr.exit_px, mode=lane.p.flush.mode)
+                         stop=tr.bar_stop, exit_px=tr.exit_px, mode=lane.p.flush.mode,
+                         **({"ask": ask, "side": "short"} if tr.side == "short" else {}))
             lane._score(sid)

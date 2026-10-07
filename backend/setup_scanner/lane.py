@@ -35,6 +35,9 @@ trigger tells the bot it is NOT A TRADE.
 ADR 022 amendment 2026-10-02: one row per trigger. A setup armed again on a key whose row holds a
 trigger opens the next attempt's row (``KEY#2``), and a detector made mid-day starts from the day's
 triggers on its symbol (``lane_ids.py``).
+
+ADR 049: a short setup's lane reads every rule mirrored (``LaneParams.side``; its rows, tape, score and flush
+read the short side, ``lane_rows.prime`` hands its detector the prior close and yesterday's SSR).
 """
 from __future__ import annotations
 
@@ -115,7 +118,7 @@ class Lane:
 
     def stamp(self) -> dict[str, Any]:
         return {"template_id": self.p.template_id, "template_rev": self.p.template_rev,
-                "params_hash": self.p.params_hash, "setup_type": self.p.setup}
+                "params_hash": self.p.params_hash, "setup_type": self.p.setup, "side": self.p.side}
 
     def journal(self, event: str, sym: str | None, **fields: Any) -> None:
         lane_journal.line(self, event, sym, fields)
@@ -168,11 +171,11 @@ class Lane:
         if five and (bars := self.candles.feed(sym, bars, now)[0]) is None:
             return                                 # no 5-minute candle completed: nothing for the detector
         new_bar = bars[-1] if five and bars else new_bar
-        det = self.ensure(sym)
+        det = lane_rows.prime(self, sym, self.ensure(sym), now)
         # The 5-minute chart's read on a 1-minute setup (trial T8). A pattern read on 5-minute candles -- the
-        # 5-minute flat top's -- is that chart itself: its rows carry none, so T8 stays the 1-minute setups'.
+        # 5-minute flat top's -- is that chart itself, and T8 reads long setups: such rows carry none.
         pattern_five = int(getattr(self.p.pattern, "bar_sec", SETUPS_BAR_SEC)) != SETUPS_BAR_SEC
-        self.tf5[sym] = None if five or pattern_five else five_minute.context(bars, now)
+        self.tf5[sym] = None if five or pattern_five or self.p.short else five_minute.context(bars, now)
         self.handle(sym, det.on_bars(bars), now)
         lane_journal.say_state(self, sym, det)
         lane_liquidity.refresh(self, sym, now)
@@ -262,7 +265,7 @@ class Lane:
                             "entry": setup.get("entry"), "nth": setup.get("nth"), "trigger_tape": tape,
                             "outcome": "open", "stop": setup.get("stop"), "risk": setup.get("risk"),
                             "target1": setup.get("target1"), "detail": setup.get("detail"),
-                            "tf5_trigger": self.tf5.get(sym)})
+                            "tf5_trigger": self.tf5.get(sym), **lane_rows.at_trigger(self, sym)})
                 lane_liquidity.stamp(self, sym, row, self.read_at(ts))
                 # A flat-top hold enters at a candle's close: it is scored from that candle,
                 # which takes no half at target 1 (the research's half_on_entry_bar=False).
@@ -271,7 +274,7 @@ class Lane:
                     risk=float(setup["risk"]), triggered_at=ts,
                     entry_bar_t=float(setup.get("score_bar_t") or candle_start(self.p, ts)),
                     bailout_bars=self.p.bailout_bars, window_min=self.p.score_window_min, bar_sec=self.p.bar_sec,
-                    half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)), flush=self.p.flush)
+                    half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)), flush=self.p.flush, side=self.p.side)
                 self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
                              tape=tape, reason=view["reason"], tf5=row["tf5_trigger"], liquidity=row["liquidity"])
                 self._close_proposal(sid, "triggered")
@@ -330,7 +333,7 @@ class Lane:
         gaps = getattr(self.host, "feed_gaps", None)
         res = evaluate_tape(trigger=float(setup["trigger"]), now=now, books=self.host.tape_books(sym),
                             prints=self.host.tape_prints(sym), p=self.p.gate, flow=self.flow(sym, now),
-                            gaps=gaps(now) if gaps is not None else None)
+                            gaps=gaps(now) if gaps is not None else None, side=self.p.side)
         res["line"] = self.host.tape_line(sym)
         return res
 
@@ -373,15 +376,7 @@ class Lane:
         lane_announce.trigger(self, sym, sid, setup, tape, ts)
 
     def _close_proposal(self, sid: str, status: str) -> None:
-        prop = self.proposals.get(sid)
-        if prop is not None and prop["status"] == "open":
-            prop["status"] = status
-            prop["closed_at"] = self.host.clock()
-            self.journal("proposal", prop["symbol"], setup_id=sid, status=status,
-                         reason=PROPOSAL_CLOSE_REASONS.get(status, status))
-            # The close is on the audit stream too: a re-arm replaces this entry.
-            self.host.audit(action="setup_proposal", outcome=status,
-                            reason=PROPOSAL_CLOSE_REASONS.get(status, status), inputs=dict(prop))
+        lane_announce.close(self, sid, status)
 
     def withdraw_all(self, status: str = "template") -> None:
         for sid in list(self.proposals):

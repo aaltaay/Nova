@@ -90,6 +90,13 @@ def levels_text(levels: dict[str, Any]) -> str:
     return f"{fmt(levels.get('entry'))} / {fmt(levels.get('stop'))} / {fmt(levels.get('target1', levels.get('target')))}"
 
 
+def lane_side(lane: dict[str, Any]) -> str:
+    """``"short"`` for a short setup's lane (ADR 049), else ``"long"``: its own ``side``, else its setup's."""
+    from constants_bot import setup_side
+
+    return str(lane.get("side") or setup_side(lane.get("setup_type")))
+
+
 def lane_verdict(lane: dict[str, Any], spread: Any = None) -> dict[str, Any]:
     """NOT A TRADE on a scanner lane (``setup_scanner.trade_verdict``): grade, filter, the tape at its
     trigger, a played-out setup, the spread against its risk and a stock too thin to trade."""
@@ -109,5 +116,5 @@ def lane_verdict(lane: dict[str, Any], spread: Any = None) -> dict[str, Any]:
                    spread=spread, risk=setup.get("risk"), liquidity=lane.get("liquidity"))
 
 
-__all__ = ["STOCK_MODE_APPROVE", "STOCK_MODE_AUTO_ENTRY", "STOCK_MODE_BOT", "STOCK_MODE_SIGNAL", "lane_verdict",
-           "levels_text", "locks", "mode_of", "plan_matches", "same_price", "side", "symbol"]
+__all__ = ["STOCK_MODE_APPROVE", "STOCK_MODE_AUTO_ENTRY", "STOCK_MODE_BOT", "STOCK_MODE_SIGNAL", "lane_side",
+           "lane_verdict", "levels_text", "locks", "mode_of", "plan_matches", "same_price", "side", "symbol"]

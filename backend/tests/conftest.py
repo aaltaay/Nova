@@ -50,6 +50,7 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_BORROW_DIR": "borrow",   # ADR 048's recorded borrow
     # The Massive flat files (ADR 046) default to E:\Nova\massive; never read in a test.
     "NOVA_MARKET_DATA_DIR": "market_data",
+    "NOVA_SHORT_TESTS_DIR": "short_tests",   # ADR 049's five-year test results
 }
 for _env, _name in _OPERATOR_DATA_DIRS.items():
     os.environ[_env] = str(_SESSION_CACHE / _name)
@@ -229,6 +230,9 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     from setup_templates.store import set_store_for_tests as _reset_templates
 
     _reset_templates(None)
+    from setup_scanner import short_tests as _short_tests
+
+    _short_tests.reset_for_tests()
     _eyes_journal.reset_for_tests()
     _reset_sim_eyes()
     from sim.mode import reset_for_tests as _reset_sim

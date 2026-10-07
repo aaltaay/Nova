@@ -16,6 +16,8 @@ from constants_bot import (
     BOT_REASON_NOT_ACTIVE,
 )
 from main import app
+
+SHORTS = ("backside_lower_high", "bear_flag", "failed_breakout", "lost_vwap", "ssr_bounce")   # ADR 049
 from tests.bot_helpers import headers, list_hot, on_practice, ready_l2, set_symbols
 
 client = TestClient(app)
@@ -51,14 +53,18 @@ def test_session_get_l0_open_without_key(bot_iso):
     setups = {row["id"]: row["scanner"] for row in body["setups"]}
     # ADR 031: the bull flag joins; it, the flat-top breakout, red to green, (2026-10-02) Gap and Go and
     # (2026-10-06) the 5-minute flat top have scanners.
+    # ADR 049 (#778 step 4): the five short setups have scanners too, each Off until set.
     assert setups == {"first_pullback": True, "bull_flag": True, "flat_top_breakout": True, "flat_top_5m": True,
-                      "red_to_green": True, "gap_and_go": True, "micro_pullback": False}
+                      "red_to_green": True, "gap_and_go": True, **dict.fromkeys(SHORTS, True),
+                      "micro_pullback": False}
     levels = {row["id"]: (row["level"], row["effective"]) for row in body["setups"]}
     assert levels == {"first_pullback": (0, 0), "bull_flag": (0, 0), "flat_top_breakout": (0, 0),
                       "flat_top_5m": (0, 0), "red_to_green": (0, 0), "gap_and_go": (0, 0),
-                      "micro_pullback": (None, None)}
+                      **dict.fromkeys(SHORTS, (0, 0)), "micro_pullback": (None, None)}
+    sides = {row["id"]: row["side"] for row in body["setups"]}
+    assert {sid for sid, side in sides.items() if side == "short"} == set(SHORTS)
     assert body["setup_levels"] == {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0, "flat_top_5m": 0,
-                                    "red_to_green": 0, "gap_and_go": 0}
+                                    "red_to_green": 0, "gap_and_go": 0, **dict.fromkeys(SHORTS, 0)}
     assert body["breakers"]["soft_usd"] == -50.0 and body["breakers"]["hard_usd"] == -200.0
     assert [g["id"] for g in body["gates"]] == [
         "venue", "level", "setups", "padlock", "allowlist", "depth_lines", "bot_trip", "day_lock",

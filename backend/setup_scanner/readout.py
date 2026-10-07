@@ -32,6 +32,11 @@ Operator decision 2026-10-01: a setup too thin to trade at its trigger (``setup_
 counts in neither pool -- nobody could have traded it at the scored price -- and the answer adds
 ``thin_left_out``, how many such triggers it left out (``null`` when the store could not say). Rows
 stored before the reading existed carry none and count as before.
+
+ADR 049: a breakdown short (``BOT_SHORT_BREAKDOWN_SETUPS``) is judged on its triggers with SSR off: a trigger under
+SSR (on, or unknown, which counts as on) is a different trade -- the short must sell above the bid -- so those
+are reported apart, ``ssr: {triggered, scored, win_pct, avg_net_r}``, and ``rules.ssr_apart`` is true. The SSR
+bounce arms only under SSR: its triggers are one pool, as a long setup's are (``ssr: null``).
 """
 from __future__ import annotations
 
@@ -56,6 +61,8 @@ from constants_setups import (
     TAPE_VERDICT_GO,
     TAPE_VERDICT_WAIT,
 )
+from constants_bot import BOT_SHORT_BREAKDOWN_SETUPS
+from constants_short_setups import SETUPS_SSR_OFF
 from setup_scanner.detector import et_time, hhmm
 from setup_scanner.liquidity import is_thin
 from setup_scanner.summary import stats, tape_at_trigger
@@ -66,10 +73,11 @@ _lock = threading.Lock()
 _cached: dict[tuple[Any, ...], tuple[float, dict[str, Any]]] = {}
 
 
-def _rules(template: dict[str, Any] | None = None, kind: str = SETUPS_READOUT_KIND) -> dict[str, Any]:
+def _rules(template: dict[str, Any] | None = None, kind: str = SETUPS_READOUT_KIND,
+           ssr_apart: bool = False) -> dict[str, Any]:
     return {"kind": kind, "min_go": SETUPS_READOUT_MIN_GO,
             "fail_go": SETUPS_READOUT_FAIL_GO, "min_net_r": SETUPS_READOUT_MIN_NET_R,
-            "template": template}
+            "template": template, "ssr_apart": ssr_apart}
 
 
 def _block(rows: list[dict]) -> dict[str, Any]:
@@ -92,11 +100,16 @@ def window_counts(judged: list[dict], go: list[dict], bot_window: dict[str, Any]
 
 
 def evaluate(rows: Iterable[dict], template: dict[str, Any] | None = None,
-             kind: str = SETUPS_READOUT_KIND, bot_window: dict[str, Any] | None = None) -> dict[str, Any]:
+             kind: str = SETUPS_READOUT_KIND, bot_window: dict[str, Any] | None = None,
+             ssr_apart: bool = False) -> dict[str, Any]:
     """The read-out over ``rows`` (one template's): ``{state, passed, go, control, rules, reason,
-    bot_window}`` -- ``bot_window`` (``{start, end, clipped?}``) only counts, it never decides."""
+    bot_window, ssr}`` -- ``bot_window`` (``{start, end, clipped?}``) only counts, it never decides; with
+    ``ssr_apart`` the triggers under SSR are counted apart (``ssr``) and never judged."""
     triggered = sorted((r for r in rows if r.get("kind") == kind and r.get("triggered_at")),
                        key=lambda r: float(r["triggered_at"]))
+    under_ssr = [r for r in triggered if r.get("ssr") != SETUPS_SSR_OFF] if ssr_apart else []
+    if ssr_apart:
+        triggered = [r for r in triggered if r.get("ssr") == SETUPS_SSR_OFF]
     pool = [r for r in triggered if not is_thin(r.get("liquidity"))]
     go = [r for r in pool if tape_at_trigger(r) == TAPE_VERDICT_GO]
     control = [r for r in pool if tape_at_trigger(r) in (TAPE_VERDICT_BLIND, TAPE_VERDICT_WAIT)]
@@ -126,12 +139,13 @@ def evaluate(rows: Iterable[dict], template: dict[str, Any] | None = None,
         reason = (f"go {go_r:+.2f}R over {n} setups; needs above +{SETUPS_READOUT_MIN_NET_R:.2f}R "
                   f"and above blind / wait {control_r:+.2f}R")
     return {"state": state, "passed": state == SETUPS_READOUT_PASSED, "reason": reason,
-            "go": go_block, "control": control_block, "rules": _rules(template, kind),
-            "bot_window": window_counts(judged, go, bot_window), "thin_left_out": len(triggered) - len(pool)}
+            "go": go_block, "control": control_block, "rules": _rules(template, kind, ssr_apart),
+            "bot_window": window_counts(judged, go, bot_window), "thin_left_out": len(triggered) - len(pool),
+            "ssr": _block([r for r in under_ssr if not is_thin(r.get("liquidity"))]) if ssr_apart else None}
 
 
 def unavailable(reason: str, template: dict[str, Any] | None = None, kind: str = SETUPS_READOUT_KIND,
-                bot_window: dict[str, Any] | None = None) -> dict[str, Any]:
+                bot_window: dict[str, Any] | None = None, ssr_apart: bool = False) -> dict[str, Any]:
     empty = {"triggered": 0, "scored": 0, "win_pct": None, "avg_net_r": None}
     window = None
     if bot_window and bot_window.get("start") and bot_window.get("end"):
@@ -140,8 +154,8 @@ def unavailable(reason: str, template: dict[str, Any] | None = None, kind: str =
                   "clipped": bool(bot_window.get("clipped")), "triggered": None, "triggered_inside": None,
                   "go_triggered": None, "go_triggered_inside": None}
     return {"state": SETUPS_READOUT_UNAVAILABLE, "passed": False, "reason": reason,
-            "go": dict(empty), "control": dict(empty), "rules": _rules(template, kind), "bot_window": window,
-            "thin_left_out": None}
+            "go": dict(empty), "control": dict(empty), "rules": _rules(template, kind, ssr_apart), "bot_window": window,
+            "thin_left_out": None, "ssr": None}
 
 
 def template_bot_window(t: Any) -> dict[str, Any] | None:
@@ -170,11 +184,12 @@ def current(*, now: float | None = None, template: Any = None, setup: str | None
     now = time.time() if now is None else now
     setup = getattr(template, "setup", None) or setup or BOT_SETUP_FIRST_PULLBACK
     kind = SETUPS_READOUT_KINDS.get(setup, SETUPS_READOUT_KIND)
+    apart = setup in BOT_SHORT_BREAKDOWN_SETUPS
     try:
         t = template if template is not None else _in_play(setup)
     except Exception as exc:
         logger.warning("setup read-out: the template in play could not be read", exc_info=True)
-        return unavailable(f"the template in play could not be read: {exc}", kind=kind)
+        return unavailable(f"the template in play could not be read: {exc}", kind=kind, ssr_apart=apart)
     stamp = {"id": t.id, "rev": int(t.rev), "name": t.name}
     window = template_bot_window(t)
     # The bot window is not in the revision: an edit to it must still re-count, never wait out the cache.
@@ -189,13 +204,13 @@ def current(*, now: float | None = None, template: Any = None, setup: str | None
         eng = get_engine()
         store = eng.store
         if store is None:
-            out = unavailable(eng.store_error or "the scoreboard is not open yet", stamp, kind, window)
+            out = unavailable(eng.store_error or "the scoreboard is not open yet", stamp, kind, window, apart)
         else:
             out = evaluate(store.rows(setup_type=setup, template_id=t.id, template_rev=int(t.rev)), stamp, kind,
-                           window)
+                           window, apart)
     except Exception as exc:
         logger.warning("setup read-out: scoreboard read failed", exc_info=True)
-        out = unavailable(f"scoreboard read failed: {exc}", stamp, kind, window)
+        out = unavailable(f"scoreboard read failed: {exc}", stamp, kind, window, apart)
     with _lock:
         _cached[key] = (now, out)
     return out

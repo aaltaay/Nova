@@ -69,6 +69,12 @@ STOCK_MODE_SEND = "STOCK_MODE_SEND"
 # ADR 042 F: Approve refuses a setup the template's filter keeps out, and any NOT A TRADE plan.
 STOCK_MODE_FILTERED = "STOCK_MODE_FILTERED"
 STOCK_MODE_NOT_A_TRADE = "STOCK_MODE_NOT_A_TRADE"
+# ADR 049 (#778 step 4): Approve sends a long bracket, so it refuses a short setup until the bot trades both sides.
+STOCK_MODE_SHORT_LATER = "STOCK_MODE_SHORT_LATER"
+STOCK_MODE_SHORT_LATER_TEXT = (
+    "{sym}'s {setup} is a short setup: Approve sends a short with its buy stop once the bot trades both sides "
+    "(#778 step 5). Until then, stage the short in the ticket."
+)
 
 # Why a side is locked (``locks``), in the operator's words.
 STOCK_MODE_WHY_LIVE_BUY = (
@@ -104,6 +110,11 @@ STOCK_MODE_WHY_KILL = "The kill switch is tripped: nothing is sent until you res
 STOCK_MODE_WHY_DAY_LOCK = "The all-stop tripped on this venue today: buys here are locked until 04:00 ET."
 STOCK_MODE_WHY_BOT_TRIP = ("The bot trip fired on this venue today: Nova buys nothing more here until you "
                            "re-enable the bot (Activate on the Bots page) or 04:00 ET.")
+# ADR 049 (#778 step 4): the plan's setup is a short, which no Nova mode trades until step 5 (the view's note).
+STOCK_MODE_NOTE_SHORT_LATER = (
+    "The {setup} is a short setup: the bot, Auto-entry and Approve trade shorts once the bot trades both sides "
+    "(#778 step 5). Until then it alerts you, and you stage the short in the ticket."
+)
 STOCK_MODE_NOTE_NOT_FOLLOWED = (
     "The setup scanner does not follow {sym} (it follows the HOD Momo names): no setup can trigger here, "
     "so Nova will not act."

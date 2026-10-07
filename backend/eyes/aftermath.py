@@ -15,13 +15,19 @@ For a failed (its lane may still show it) or faded episode (``eyes/episodes.py``
   scoreboard scores an armed setup (``setup_scanner/scoring.py``): the first touch
   of the target or the stop, the move for and against it, and the bar exit rules.
 
+A short setup (ADR 049) is read on the mirror: the same rules on prices turned upside down (``_flip``), so
+``level`` is the low it was building over, ``floor`` the high it would have stopped over, ``first`` reads
+``low`` when it broke down under the level first and ``high`` when it went over the floor, and ``trade`` is the
+short the rule refused. The SSR bounce has none: its entry rests over the price, so there is no breakdown to
+wait for.
+
 Scores, never fills: no tape, no slippage. Pure: an episode and bars in, a dict out.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from constants_bot import BOT_SETUP_GAP_AND_GO, BOT_SETUP_RED_TO_GREEN
+from constants_bot import BOT_SETUP_GAP_AND_GO, BOT_SETUP_RED_TO_GREEN, BOT_SETUP_SSR_BOUNCE, SIDE_SHORT, setup_side
 from constants_eyes import EYES_EPISODE_AFTER_MIN
 from constants_setups import (
     SETUP_OUTCOME_OPEN,
@@ -82,7 +88,49 @@ def died(ep: dict[str, Any]) -> bool:
 def after(ep: dict[str, Any], bars: list[Bar], *, now: float,
           window_min: int = EYES_EPISODE_AFTER_MIN) -> dict[str, Any] | None:
     """What price did after a setup failed or faded, over ``window_min`` (a 5-minute setup's is longer);
-    ``None`` for any other episode."""
+    ``None`` for any other episode, and for the SSR bounce."""
+    if setup_side(ep.get("setup_type")) == SIDE_SHORT:
+        if ep.get("setup_type") == BOT_SETUP_SSR_BOUNCE:
+            return None
+        got = _after(_flip_episode(ep), [_flip(b) for b in bars], now=now, window_min=window_min)
+        return _unflip(got) if got is not None else None
+    return _after(ep, bars, now=now, window_min=window_min)
+
+
+def _neg(v: Any) -> float | None:
+    x = _num(v)
+    return None if x is None else round(-x, 4)
+
+
+def _flip(b: Bar) -> Bar:
+    """The candle upside down: a short's way down is a long's way up."""
+    return Bar(b.t, -b.o, -b.lo, -b.h, -b.c, b.v)
+
+
+def _flip_episode(ep: dict[str, Any]) -> dict[str, Any]:
+    setup = dict(ep.get("setup") or {})
+    for key in ("trigger", "entry", "stop", "target1"):
+        if setup.get(key) is not None:
+            setup[key] = _neg(setup[key])
+    leg = dict(ep.get("leg") or {})
+    if leg:
+        leg["high"], leg["low"] = _neg(leg.get("low")), _neg(leg.get("high"))
+    return {**ep, "setup": setup, "leg": leg}
+
+
+def _unflip(got: dict[str, Any]) -> dict[str, Any]:
+    """The flipped answer back the right way up."""
+    first = {FIRST_HIGH: FIRST_LOW, FIRST_LOW: FIRST_HIGH}.get(got["first"], got["first"])
+    out = {**got, "price": _neg(got["price"]), "level": _neg(got["level"]), "entry": _neg(got["entry"]),
+           "floor": _neg(got["floor"]), "high": _neg(got["low"]), "low": _neg(got["high"]), "first": first}
+    trade = got.get("trade")
+    if trade is not None:
+        out["trade"] = {**trade, "entry": _neg(trade["entry"]), "stop": _neg(trade["stop"]),
+                        "target": _neg(trade["target"])}
+    return out
+
+
+def _after(ep: dict[str, Any], bars: list[Bar], *, now: float, window_min: int) -> dict[str, Any] | None:
     died_at = _num(ep.get("died_at"))
     if not died(ep) or died_at is None:
         return None

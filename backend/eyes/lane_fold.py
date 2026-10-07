@@ -21,6 +21,9 @@ from constants_setups import (
     SETUP_STATE_WATCHING,
     SETUPS_BOARD_MAX_ROWS,
 )
+from constants_bot import setup_side
+from setup_scanner.detector import distance as to_trigger
+from setup_scanner.detectors import trigger_up
 from setup_scanner.lane_view import (
     FAILED_SHOW_SEC,
     JOURNAL_EVENT_STATES,
@@ -68,6 +71,7 @@ class LaneFold:
                 row["setup"] = setup
             if ev == "armed":
                 row["liquidity"] = line.get("liquidity")      # too thin to trade? (2026-10-01; absent before)
+            row["ssr"] = line.get("ssr")                      # a short's SSR at its arm (ADR 049; absent on a long)
             self.active[sym] = sid
             if ev == STATE_FILTERED:
                 self.filtered[sid] = line.get("reason") or "the template's stock filter"
@@ -89,7 +93,7 @@ class LaneFold:
             if row is not None:
                 row.update(setup=setup or row.get("setup"), triggered_at=float(setup.get("triggered_at") or ts),
                            outcome="open", trigger_tape=tape_brief(line.get("tape")), tf5_trigger=line.get("tf5"),
-                           liquidity=line.get("liquidity", row.get("liquidity")))
+                           liquidity=line.get("liquidity", row.get("liquidity")), ssr=line.get("ssr", row.get("ssr")))
         elif ev in ("failed", "disarmed") and row is not None and not row.get("triggered_at"):
             row["failed_at" if ev == "failed" else "disarmed_at"] = ts
         elif ev == "scored" and row is not None:
@@ -101,7 +105,7 @@ class LaneFold:
             tape = line["tape"] if ev == "near" else line
             self.tape[sym] = {"verdict": tape.get("verdict"), "reasons": tape.get("reasons"),
                               "line": tape.get("line"), "metrics": tape.get("metrics")}
-        self._state(ev, s, line)
+        self._state(ev, s, line, up=trigger_up(self.setup))
         if "leg" in line:
             s["leg"] = line["leg"]               # the detector's leg when the line was written
         if s["state"] not in WATCH_STATES:
@@ -109,7 +113,7 @@ class LaneFold:
         return raised
 
     @staticmethod
-    def _state(ev: str, s: dict[str, Any], line: dict[str, Any]) -> None:
+    def _state(ev: str, s: dict[str, Any], line: dict[str, Any], *, up: bool = True) -> None:
         state = line.get("state") if ev == "state" else JOURNAL_EVENT_STATES.get(ev)
         if not state:
             return
@@ -117,7 +121,7 @@ class LaneFold:
         if ev == "triggered" and not line.get("reason"):
             setup = line.get("setup") or {}
             price, trig = line.get("price"), setup.get("trigger")
-            s["reason"] = (f"traded {float(price):.2f} over the {float(trig):.2f} trigger"
+            s["reason"] = (f"traded {float(price):.2f} {'over' if up else 'under'} the {float(trig):.2f} trigger"
                            if price is not None and trig is not None else "triggered")
         else:
             s["reason"] = line.get("reason") or ""
@@ -170,10 +174,11 @@ class LaneFold:
             px = last.get(sym)
             distance = None
             if setup and px is not None and in_reach(state, phase) and setup.get("trigger") is not None:
-                distance = round(float(setup["trigger"]) - float(px), 4)
+                distance = to_trigger(float(setup["trigger"]), float(px), up=trigger_up(self.setup))
             prop = self.proposals.get(sid) if sid else None
             out.append({
-                "symbol": sym, "setup_type": self.setup, "state": state, "reason": reason,
+                "symbol": sym, "setup_type": self.setup, "side": setup_side(self.setup), "ssr": (row or {}).get("ssr"),
+                "state": state, "reason": reason,
                 "kind": (setup or {}).get("kind") or s.get("kind"), "nth": s.get("nth") or 0,
                 "setup_id": sid, "setup": setup, "leg": s.get("leg"), "last_price": px, "distance": distance,
                 **graded(row, s.get("forming"), state), **tf5_read(row, s.get("forming"), state), "phase": phase,
