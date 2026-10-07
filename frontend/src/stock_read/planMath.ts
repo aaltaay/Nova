@@ -7,6 +7,7 @@ import {
   RULER_LABEL_RANK,
 } from './constants';
 import { resultBadge, resultBadgeShort } from './planVerdict';
+import { SHORT_SETUP_LABELS, SHORT_SETUP_TAGS } from '../constantGroups/short_setups';
 import type { ReadState, SetupLane, StockPlan } from './types';
 
 const SETUP_NAMES: Record<string, string> = {
@@ -17,6 +18,7 @@ const SETUP_NAMES: Record<string, string> = {
   red_to_green: 'Red to green',
   gap_and_go: 'Gap and Go',
   micro_pullback: 'Micro pullback',
+  ...SHORT_SETUP_LABELS,
 };
 
 export function setupName(setupType: string | null | undefined): string {
@@ -26,7 +28,7 @@ export function setupName(setupType: string | null | undefined): string {
 
 const SETUP_SHORT: Record<string, string> = {
   first_pullback: 'Pullback', bull_flag: 'Flag', flat_top_breakout: 'Flat top', flat_top_5m: '5m flat top',
-  red_to_green: 'R→G', gap_and_go: 'Gap & Go',
+  red_to_green: 'R→G', gap_and_go: 'Gap & Go', ...SHORT_SETUP_TAGS,
 };
 
 /** The setup in a word or two, where a tile or a one-line plan has no room for its name. */

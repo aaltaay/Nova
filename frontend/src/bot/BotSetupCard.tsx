@@ -55,11 +55,19 @@ import {
   SETUP_STATUS_TIPS,
   SETUP_WINDOW_TIP,
 } from '../constantGroups/setups';
-import { funnelSteps, windowWords, type SetupRow, type SetupSummary } from '../setups';
+import {
+  SETUP_SIDE_TAG,
+  SETUP_SIDE_TAG_TIPS,
+  SHORT_SETUP_ON_LATER_CHIP,
+  SHORT_SETUP_ON_LATER_TIP,
+  SHORT_SETUP_TEST_HELD_CHIP,
+} from '../constantGroups/short_setups';
+import { funnelSteps, windowWords, type SetupRow, type ShortTest, type SetupSummary } from '../setups';
 import { tipProps } from '../ux/hoverTip';
 import { clampLevel } from './botLevels';
 import { BotReadoutLine, BotResearchLine } from './BotReadout';
 import { BotSetupScanner } from './BotSetupScanner';
+import { BotShortTestLine } from './BotShortTestLine';
 import { BotStrategyRules } from './BotStrategyRules';
 import { ruleLines, ruleSummary } from './templateFormat';
 import type { SetupTemplates } from './templateTypes';
@@ -108,6 +116,12 @@ interface Props {
   emptyText?: string | null;
   /** The setup's tape gate. */
   children?: ReactNode;
+  /** ADR 049: the side the setup trades; a short card carries ▼ SHORT and its five-year test. */
+  side?: 'long' | 'short';
+  /** A short setup's five-year test (null on a long one). */
+  test?: ShortTest | null;
+  /** Why On is locked (a short whose test has not passed on the rules in play); null when it is not. */
+  locked?: string | null;
 }
 
 function templateWhy(t: SetupTemplates | null, error: string | null | undefined, busy: boolean, stale: boolean): string | null {
@@ -122,7 +136,7 @@ function levelWhy(p: Pick<Props, 'busy' | 'levelsKnown' | 'stale'>): string | nu
   return p.levelsKnown ? null : BOTS_SETUP_NO_LEVELS_WHY;
 }
 
-function StatusLine({ effective, own, masterName, botActive, summary, connected, seeding }: {
+function StatusLine({ effective, own, masterName, botActive, summary, connected, seeding, short, locked }: {
   effective: 0 | 1 | 2;
   own: 0 | 1 | 2;
   masterName: string;
@@ -130,20 +144,25 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
   summary: SetupSummary | null;
   connected: boolean;
   seeding: number;
+  short: boolean;
+  locked: string | null;
 }) {
   const silent = effective >= 1 && summary != null && !summary.proposing;
   const unrecorded = connected && summary?.recorded === false;
   const win = unrecorded ? '' : windowWords(summary);
   // ADR 044: On while the Bot is off alerts like Eyes until the Bot is on; only a legacy master below Eyes caps.
   const waiting = own === 2 && !botActive;
-  const capped = !waiting && own > effective;
+  // A short at On: held at Eyes by its test, or (its test passed) alerting until the bot trades both sides.
+  const held = short && own === 2 && Boolean(locked);
+  const later = short && own === 2 && !held && !waiting;
+  const capped = !waiting && !held && own > effective;
   const [words, tip] = !connected
     ? [BOTS_STATUS_NOT_CONNECTED, SETUP_STATUS_TIPS.disconnected]
     : unrecorded
       ? [BOTS_STATUS_NOT_RECORDED, BOTS_STATUS_NOT_RECORDED_TIP]
       : [BOTS_STATUS_WATCHING(summary?.counts.watching ?? 0), SETUP_STATUS_TIPS.watching];
   const chipTip = [
-    waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
+    held ? locked : later ? SHORT_SETUP_ON_LATER_TIP : waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
     capped ? BOT_SETUP_CAPPED_TIP : '',
     silent ? 'This desk is a replay: nothing proposes live from it.' : '',
   ].filter(Boolean).join('\n');
@@ -155,7 +174,9 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
       {connected && seeding > 0 ? <span {...tipProps(SETUP_STATUS_TIPS.seeding)}>{` · ${BOTS_STATUS_SEEDING(seeding)}`}</span> : null}
       <span className={`bots-lvlchip bots-lvlchip--${effective}`} data-testid="bots-setup-level-chip"
         {...tipProps(chipTip, BOT_LEVEL_LABELS[own])}>
-        {capped ? botSetupCapped(BOT_LEVEL_LABELS[own], masterName) : waiting ? BOT_SETUP_LEVEL_CHIP_WAITING : BOT_SETUP_LEVEL_CHIPS[own]}
+        {held ? SHORT_SETUP_TEST_HELD_CHIP : later ? SHORT_SETUP_ON_LATER_CHIP
+          : capped ? botSetupCapped(BOT_LEVEL_LABELS[own], masterName) : waiting ? BOT_SETUP_LEVEL_CHIP_WAITING
+            : BOT_SETUP_LEVEL_CHIPS[own]}
       </span>
     </div>
   );
@@ -204,28 +225,34 @@ function Funnel({ id, summary }: { id: string; summary: SetupSummary | null }) {
   );
 }
 
-/** Its own Off / Eyes / Strategy: every setup with a scanner may be at any of them (ADR 042). */
-function LevelSwitch({ id, label, own, why, onLevel }: {
-  id: string; label: string; own: 0 | 1 | 2; why: string | null; onLevel: (id: string, level: number) => void;
+/** Its own Off / Eyes / Strategy: every setup with a scanner may be at any of them (ADR 042); a short's On waits on
+ * its five-year test (ADR 049), and says so. */
+function LevelSwitch({ id, label, own, why, onLock, onLevel }: {
+  id: string; label: string; own: 0 | 1 | 2; why: string | null; onLock: string | null;
+  onLevel: (id: string, level: number) => void;
 }) {
   return (
     <span className="bots-levels" role="radiogroup" aria-label={`${label} level`}>
-      {LEVELS.map(n => (
-        <button
-          key={n}
-          type="button"
-          role="radio"
-          aria-checked={own === n}
-          className={`bots-levels__opt${own === n ? ' is-on' : ''}`}
-          data-testid={`bots-setup-level-${id}-${n}`}
-          disabled={why != null}
-          data-why={why ?? undefined}
-          {...(why ? {} : tipProps(BOT_SETUP_LEVEL_TIPS[n], `${BOT_LEVEL_LABELS[n]} · ${label}`))}
-          onClick={() => { if (own !== n) onLevel(id, n); }}
-        >
-          {BOT_LEVEL_LABELS[n]}
-        </button>
-      ))}
+      {LEVELS.map(n => {
+        // On stays reachable from On itself (to go down), never into it while its test locks it.
+        const lock = why ?? (n === 2 && onLock && own !== 2 ? onLock : null);
+        return (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={own === n}
+            className={`bots-levels__opt${own === n ? ' is-on' : ''}${n === 2 && onLock ? ' is-locked' : ''}`}
+            data-testid={`bots-setup-level-${id}-${n}`}
+            disabled={lock != null}
+            data-why={lock ?? undefined}
+            {...(lock ? {} : tipProps(BOT_SETUP_LEVEL_TIPS[n], `${BOT_LEVEL_LABELS[n]} · ${label}`))}
+            onClick={() => { if (own !== n) onLevel(id, n); }}
+          >
+            {n === 2 && onLock ? '🔒 ' : ''}{BOT_LEVEL_LABELS[n]}
+          </button>
+        );
+      })}
     </span>
   );
 }
@@ -234,8 +261,9 @@ export function BotSetupCard(props: Props) {
   const {
     id, playable, stale = false, own, effective, masterName, botActive, onLevel, templates, templatesError = null,
     templateBusy = false, onPlayTemplate, onOpenParams, onApplyTemplates, summary, rows, allRows, connected, seeding, hovered, onHover,
-    onOpenBoard, onOpenSymbol, emptyText, children,
+    onOpenBoard, onOpenSymbol, emptyText, children, side = 'long', test = null, locked = null,
   } = props;
+  const short = side === 'short';
   const label = BOT_SETUP_LABELS[id] ?? id;
   const blurb = BOT_SETUP_BLURBS[id] ?? '';
   if (!playable && !stale) {
@@ -264,12 +292,17 @@ export function BotSetupCard(props: Props) {
       data-testid={`bots-setup-${id}`}>
       <div className="bots-strat__head">
         <b className="bots-strat__name" {...tipProps(stale ? `${blurb}\n\n${BOT_STALE_BACKEND_STATUS}.` : blurb, label)}>{label}</b>
-        <LevelSwitch id={id} label={label} own={ownLevel} why={levelWhy(props)} onLevel={onLevel} />
+        {short ? (
+          <span className="bots-sidetag bots-sidetag--short" data-testid={`bots-setup-side-${id}`}
+            {...tipProps(SETUP_SIDE_TAG_TIPS.short, SETUP_SIDE_TAG.short)}>{SETUP_SIDE_TAG.short}</span>
+        ) : null}
+        <LevelSwitch id={id} label={label} own={ownLevel} why={levelWhy(props)} onLock={short ? locked : null}
+          onLevel={onLevel} />
       </div>
 
       {stale ? <StaleStatus /> : (
         <StatusLine effective={shown} own={ownLevel} masterName={masterName} botActive={botActive}
-          summary={summary} connected={connected} seeding={seeding} />
+          summary={summary} connected={connected} seeding={seeding} short={short} locked={locked} />
       )}
 
       <div className="bots-strat__tpl">
@@ -316,6 +349,7 @@ export function BotSetupCard(props: Props) {
           </div>
           <Funnel id={id} summary={summary} />
           {children}
+          {short ? <BotShortTestLine setup={id} test={test} /> : null}
           <BotReadoutLine setup={id} readout={inPlay?.readout} />
         </>
       )}

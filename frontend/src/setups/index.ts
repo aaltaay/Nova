@@ -80,10 +80,13 @@ export type {
   SetupCounts,
   SetupProposal,
   SetupRow,
+  SetupSide,
   SetupsBoard,
   SetupState,
   SetupSummary,
   SetupType,
+  ShortTest,
+  SsrState,
   TapeRead,
   TapeVerdict,
 } from './types';

@@ -24,6 +24,7 @@ import {
   BOTS_TAPE_GATE_HEAD,
 } from '../constantGroups/bots_page';
 import { TAPE_VERDICT_TIPS } from '../constantGroups/setups';
+import { isShortSetup, SHORT_TAPE_VERDICT_TIPS } from '../constantGroups/short_setups';
 import {
   recordedEmptyText,
   setupTypeOf,
@@ -90,16 +91,17 @@ function bySetup(rows: readonly SetupRow[]): Map<string, SetupRow[]> {
   return out;
 }
 
-/** The setup's tape gate in its template in play's own numbers. */
-function TapeGate({ templates }: { templates: SetupTemplates | null }) {
+/** The setup's tape gate in its template in play's own numbers; a short's mirrored (ADR 049). */
+function TapeGate({ templates, side }: { templates: SetupTemplates | null; side: 'long' | 'short' }) {
   const inPlay = templates?.templates.find(t => t.id === templates.in_play) ?? null;
   if (!inPlay) return null;
+  const tips = side === 'short' ? SHORT_TAPE_VERDICT_TIPS : TAPE_VERDICT_TIPS;
   return (
     <div className="bots-tape" aria-label={BOTS_TAPE_GATE_HEAD}>
       <span className="bots-tape__head">{BOTS_TAPE_GATE_HEAD}</span>
-      {tapeLines(inPlay.values).map(([verdict, text]) => (
+      {tapeLines(inPlay.values, side).map(([verdict, text]) => (
         <span key={verdict} className="bots-tape__v"
-          {...tipProps(TAPE_VERDICT_TIPS[verdict] ?? verdict, `${verdict.toUpperCase()} · the tape gate`)}>
+          {...tipProps(tips[verdict] ?? verdict, `${verdict.toUpperCase()} · the tape gate`)}>
           <b className={`bots-vbadge bots-vbadge--${verdict}`}>{verdict.toUpperCase()}</b> {text}
         </span>
       ))}
@@ -163,6 +165,9 @@ export function BotStrategiesCard({ session, busy, onSetupLevel, onOpenBoard, on
       <div className="bots-strat-grid">
         {BOT_SETUP_IDS.filter(id => Boolean(infos.get(id)?.scanner) || staleSetup(id)).map(id => {
           const templates = tpl.setup(id);
+          const info = infos.get(id);
+          const side = info?.side ?? templates?.side ?? (isShortSetup(id) ? 'short' : 'long');
+          const test = info?.test ?? templates?.test ?? summaries.get(id)?.test ?? null;
           return (
             <BotSetupCard key={id} id={id} playable={Boolean(infos.get(id)?.scanner)} stale={staleSetup(id)}
               own={ownLevel(session, id) ?? 0} effective={effectiveLevel(session, id) ?? 0} masterName={master}
@@ -171,8 +176,9 @@ export function BotStrategiesCard({ session, busy, onSetupLevel, onOpenBoard, on
               onPlayTemplate={(s, t) => void play(s, t)} onOpenParams={setEditing} onApplyTemplates={tpl.apply}
               summary={summaries.get(id) ?? null} rows={rows.get(id) ?? []} allRows={allRows}
               connected={Boolean(stream?.connected)} seeding={board?.seeding ?? 0} emptyText={recordedEmptyText(board)}
-              hovered={hovered} onHover={setHovered} onOpenBoard={onOpenBoard} onOpenSymbol={onOpenSymbol}>
-              <TapeGate templates={templates} />
+              hovered={hovered} onHover={setHovered} onOpenBoard={onOpenBoard} onOpenSymbol={onOpenSymbol}
+              side={side} test={side === 'short' ? test : null} locked={info?.locked ?? null}>
+              <TapeGate templates={templates} side={side} />
             </BotSetupCard>
           );
         })}

@@ -65,6 +65,20 @@ export function caps(venue = 'paper', partial: Partial<BotCaps> = {}): BotCaps {
   };
 }
 
+/** ADR 049: the five short setups, at Off, their five-year tests queued, so On is locked. */
+export const SHORT_SETUPS: NonNullable<BotSession['setups']> = [
+  { id: 'backside_lower_high', scanner: true, level: 0, effective: 0, side: 'short' as const, test: { state: 'queued', text: 'five-year test queued: run `py -3 research/shorts/test_shorts.py --setup backside_lower_high` on the desk', rules_hash: null, matches: null },
+    locked: 'On waits on the backside lower high five-year test: five-year test queued' },
+  { id: 'bear_flag', scanner: true, level: 0, effective: 0, side: 'short' as const, test: { state: 'queued', text: 'five-year test queued: run `py -3 research/shorts/test_shorts.py --setup bear_flag` on the desk', rules_hash: null, matches: null },
+    locked: 'On waits on the bear flag five-year test: five-year test queued' },
+  { id: 'failed_breakout', scanner: true, level: 0, effective: 0, side: 'short' as const, test: { state: 'queued', text: 'five-year test queued: run `py -3 research/shorts/test_shorts.py --setup failed_breakout` on the desk', rules_hash: null, matches: null },
+    locked: 'On waits on the failed breakout five-year test: five-year test queued' },
+  { id: 'lost_vwap', scanner: true, level: 0, effective: 0, side: 'short' as const, test: { state: 'queued', text: 'five-year test queued: run `py -3 research/shorts/test_shorts.py --setup lost_vwap` on the desk', rules_hash: null, matches: null },
+    locked: 'On waits on the lost vwap five-year test: five-year test queued' },
+  { id: 'ssr_bounce', scanner: true, level: 0, effective: 0, side: 'short' as const, test: { state: 'queued', text: 'five-year test queued: run `py -3 research/shorts/test_shorts.py --setup ssr_bounce` on the desk', rules_hash: null, matches: null },
+    locked: 'On waits on the ssr bounce five-year test: five-year test queued' },
+];
+
 export function session(partial: Partial<BotSession> = {}): BotSession {
   return {
     level: 1, active: false, armed: false, has_desk_arm: false, deactivated: null,
@@ -76,6 +90,7 @@ export function session(partial: Partial<BotSession> = {}): BotSession {
       { id: 'flat_top_5m', scanner: true, level: 0, effective: 0 },
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
       { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
+      ...SHORT_SETUPS,
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
     setup_levels: { first_pullback: 2, bull_flag: 1, flat_top_breakout: 0, flat_top_5m: 0, red_to_green: 0,
@@ -109,6 +124,7 @@ export function strategySession(partial: Partial<BotSession> = {}): BotSession {
       { id: 'flat_top_5m', scanner: true, level: 0, effective: 0 },
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
       { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
+      ...SHORT_SETUPS,
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
     gates: openGates(),

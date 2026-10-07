@@ -204,6 +204,30 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
     expect(screen.getByTestId('bots-strategies').textContent).not.toMatch(/100 Paper trades|unlock Strategy on Live/);
   });
 
+  it('a short setup carries ▼ SHORT, its five-year test ahead of its read-out, and On locked until it passes', async () => {
+    mockFetch();
+    await renderPage();
+    for (const id of ['backside_lower_high', 'bear_flag', 'failed_breakout', 'lost_vwap', 'ssr_bounce']) {
+      const card = screen.getByTestId(`bots-setup-${id}`);
+      expect(within(card).getByTestId(`bots-setup-side-${id}`).textContent).toBe('▼ SHORT');
+      expect(within(card).getByTestId(`bots-setup-test-${id}`).textContent)
+        .toBe(`Test five-year test queued: run \`py -3 research/shorts/test_shorts.py --setup ${id}\` on the desk`);
+      const on = within(card).getByTestId(`bots-setup-level-${id}-2`) as HTMLButtonElement;
+      expect(on.disabled).toBe(true);
+      expect(on.getAttribute('data-why')).toMatch(/five-year test queued/);
+      for (const n of [0, 1]) expect((within(card).getByTestId(`bots-setup-level-${id}-${n}`) as HTMLButtonElement).disabled).toBe(false);
+    }
+    // A long card has neither.
+    expect(screen.queryByTestId('bots-setup-side-first_pullback')).toBeNull();
+    expect(screen.queryByTestId('bots-setup-test-first_pullback')).toBeNull();
+    // The tape gate is the mirror's, and the rules say the buy stop.
+    const bear = screen.getByTestId('bots-setup-bear_flag');
+    expect(within(bear).getByText(/red prints \(3\+ at the bid\), no buyer holding the level/)).toBeTruthy();
+    expect(within(bear).getByText(/25k\+ buyer not thinning/)).toBeTruthy();
+    expect(within(bear).getByText(/spread over \$0\.05 \/ 100k\+ buyer/)).toBeTruthy();
+    expect(screen.getByTestId('bots-setup-rules-bear_flag').getAttribute('data-tip')).toMatch(/buy stop \$0\.01 over the flag/);
+  });
+
   it('the setups without a scanner share one line, each saying on hover why it cannot watch yet', async () => {
     mockFetch();
     await renderPage();

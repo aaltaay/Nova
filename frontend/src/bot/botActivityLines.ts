@@ -224,6 +224,7 @@ function armedShape(r: SetupStoreRow): string {
   const bars = r.pullback_bars ?? 0;
   const s = (n: number) => (n === 1 ? '' : 's');
   const leg = r.leg_pct != null ? `${r.leg_pct >= 0 ? '+' : '−'}${Math.abs(r.leg_pct * 100).toFixed(1)}%` : '';
+  const drop = r.leg_pct != null ? `−${Math.abs(r.leg_pct * 100).toFixed(1)}%` : '';   // a short's fade or pole
   switch (r.setup_type) {
     case 'bull_flag':
       return [bars ? `flag of ${bars}` : '', leg ? `pole ${leg}` : ''].filter(Boolean).join(' · ');
@@ -236,6 +237,16 @@ function armedShape(r: SetupStoreRow): string {
       return bars ? `${bars} close${s(bars)} under the open` : '';
     case 'gap_and_go':
       return 'opened under the pre-market high';
+    case 'backside_lower_high':
+      return [bars ? `bounce of ${bars} under the high of day` : '', drop ? `fade ${drop}` : ''].filter(Boolean).join(' · ');
+    case 'bear_flag':
+      return [bars ? `flag of ${bars} drifting up` : '', drop ? `pole ${drop}` : ''].filter(Boolean).join(' · ');
+    case 'failed_breakout':
+      return 'closed back under the flat top it poked over';
+    case 'lost_vwap':
+      return 'a retest failed at VWAP';
+    case 'ssr_bounce':
+      return 'a short resting under the level, under SSR';
     default:
       return [bars ? `${bars} red candle${s(bars)} held the 9 EMA` : '', leg ? `leg ${leg}` : ''].filter(Boolean).join(' · ');
   }

@@ -6,6 +6,28 @@ import type { LiquidityRead } from './liquidity';
 export type SetupType =
   'first_pullback' | 'bull_flag' | 'flat_top_breakout' | 'flat_top_5m' | 'red_to_green' | 'gap_and_go' | string;
 
+/** ADR 049: which way a setup trades. A short setup sells at its entry and covers under it. */
+export type SetupSide = 'long' | 'short';
+/** Reg SHO's short-sale restriction at a short setup's trigger, else at its arm; null on a long row. */
+export type SsrState = 'on' | 'off' | 'unknown';
+
+/** A short setup's five-year test (ADR 049 section 12), as its card and its On lock read it. Its result file is
+ *  written by `research/shorts/test_shorts.py` on the desk, never by an agent. */
+export interface ShortTest {
+  state: 'queued' | 'running' | 'passed' | 'failed' | 'error' | string;
+  /** The words the card shows ("five-year test queued: run `py -3 ...`"). */
+  text: string;
+  rules_hash: string | null;
+  /** Whether the tested rules are the template in play's; null before a result exists. */
+  matches: boolean | null;
+  started_at?: number | null;
+  updated_at?: number | null;
+  finished_at?: number | null;
+  summary?: { trades: number | null; pf: number | null; pf_2x: number | null; exp_r: number | null;
+    p: number | null } | null;
+  file?: string;
+}
+
 /** `filtered`: the pattern armed but the template's stock filter keeps the name out (ADR 029). */
 export type SetupState = 'near' | 'armed' | 'triggered' | 'pullback' | 'leg' | 'failed' | 'watching' | 'filtered';
 export type TapeVerdict = 'go' | 'wait' | 'veto' | 'blind';
@@ -48,6 +70,21 @@ export interface SetupDetail {
   pole_volume?: number;
   flag_volume?: number;
   volume_known?: boolean;
+  /** Backside lower high (ADR 049): the bounce under the fade. */
+  bounce_bars?: number;
+  bounce_high?: number;
+  /** Failed breakout: the flat top it poked over and failed back under; the SSR bounce: the level it rests under. */
+  level?: number;
+  poke_t?: number;
+  failed_bar_t?: number;
+  /** Lost VWAP: VWAP at the arm, the candle that lost it and the retest that failed. */
+  vwap?: number;
+  loss_t?: number;
+  retest_t?: number;
+  /** SSR bounce: which level it rests under, the drop's low, and when the resting short is cancelled. */
+  level_kind?: string;
+  drop_low?: number;
+  cancel_at?: number;
 }
 
 /** The tape flow score riding on a tape read (ADR 034): -1 sellers .. +1 buyers. */
@@ -89,6 +126,9 @@ export interface SetupProposal {
   taken_by?: 'bot' | 'auto_entry' | null;
   /** Not a trade, with its reasons: still raised, never bought (absent on an older API). */
   not_a_trade?: { reasons: string[] } | null;
+  /** ADR 049: a short proposal stages a short with its buy stop, never a buy (absent on an older API: long). */
+  side?: SetupSide;
+  ssr?: SsrState | null;
 }
 
 /** The catalyst classifier's verdict at arm time (ADR 024): the same rules as the backfilled history. */
@@ -104,6 +144,14 @@ export interface SetupPillars {
   headline: string | null;
   catalyst?: SetupCatalyst | null;
   checks?: Record<string, boolean | null>;
+  /** A short's grade (ADR 049): the high of day over the prior close and the price under it, in percent. */
+  run_pct?: number | null;
+  fade_pct?: number | null;
+  vwap?: number | null;
+  /** Dilution on file and today's negative news; null when not read. */
+  bad_news?: { dilution: boolean | null; negative: boolean | null; text: string | null } | null;
+  /** IBKR's shortable estimate against the order's shares. */
+  borrow?: { shares: number | null; state?: string | null; age_sec?: number | null; order_shares?: number | null } | null;
 }
 
 /** The 5-minute chart's read on a 1-minute setup (trial T8, backend `setup_scanner/five_minute.py`): the last
@@ -158,6 +206,10 @@ export interface SetupRow {
   /** Too thin to trade? (2026-10-01) The armed setup's reading -- at its trigger once it triggered; null
    *  before it armed, on a filtered setup, and from an older API. */
   liquidity?: LiquidityRead | null;
+  /** ADR 049: the side the row's setup trades (absent on an older API: long). */
+  side?: SetupSide;
+  /** A short row's SSR at its trigger, else at its arm; null on a long row. */
+  ssr?: SsrState | null;
 }
 
 /** Today's funnel for one setup's card (ADR 031). */
@@ -187,6 +239,10 @@ export interface SetupSummary {
   counts: SetupCounts;
   /** A recorded moment (`replay.kind` `journal`): false when Nova's eyes were not running this setup then. */
   recorded?: boolean;
+  /** ADR 049: the side the setup trades (absent on an older API: long). */
+  side?: SetupSide;
+  /** A short setup's five-year test; null on a long one (absent on an older API). */
+  test?: ShortTest | null;
 }
 
 /** Why a recorded moment has no board (backend `eyes/playback.py`). */

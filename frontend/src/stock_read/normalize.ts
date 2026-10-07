@@ -243,6 +243,8 @@ function lane(raw: unknown): SetupLane | null {
     series: series(l.series),
     timeframe: l.timeframe === '5m' ? '5m' : '1m',
     liquidity: normalizeLiquidity(l.liquidity),
+    side: l.side === 'short' ? 'short' : 'long',
+    ssr: l.ssr === 'on' || l.ssr === 'off' || l.ssr === 'unknown' ? l.ssr : null,
   };
 }
 

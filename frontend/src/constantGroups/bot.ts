@@ -1,3 +1,11 @@
+import {
+  SHORT_SETUP_BLURBS,
+  SHORT_SETUP_IDS,
+  SHORT_SETUP_LABELS,
+  SHORT_SETUP_RESEARCH,
+  SHORT_SETUP_TAGS,
+} from './short_setups';
+
 /** Bot localhost API tunables -- mirrors backend/constants_bot.py. */
 export const BOT_ACTION_KINDS = [
   'buy_market',
@@ -57,7 +65,8 @@ export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn it on on the Bots pa
 /* ---------- The playbook (ADR 027): the operator's setups ---------- */
 /** Mirrors backend/constants_bot.py BOT_SETUPS. */
 export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
-/** In the backend's order (constants_bot.BOT_SETUPS): the six with a scanner first. */
+/** In the backend's order (constants_bot.BOT_SETUPS): the six long setups with a scanner, the five shorts
+ * (ADR 049), then the one without a scanner. */
 export const BOT_SETUP_IDS = [
   'first_pullback',
   'bull_flag',
@@ -65,6 +74,7 @@ export const BOT_SETUP_IDS = [
   'flat_top_5m',
   'red_to_green',
   'gap_and_go',
+  ...SHORT_SETUP_IDS,
   'micro_pullback',
 ] as const;
 export type BotSetupId = (typeof BOT_SETUP_IDS)[number];
@@ -77,6 +87,7 @@ export const BOT_SETUP_LABELS: Record<string, string> = {
   flat_top_5m: '5-minute flat top',
   red_to_green: 'Red to green',
   micro_pullback: 'Micro pullback',
+  ...SHORT_SETUP_LABELS,
 };
 
 /** The name as a tag beside a symbol (the Symbols card, the inbox, the Setups board). */
@@ -88,6 +99,7 @@ export const BOT_SETUP_SHORT: Record<string, string> = {
   flat_top_5m: '5m flat top',
   red_to_green: 'Red to green',
   micro_pullback: 'Micro pullback',
+  ...SHORT_SETUP_TAGS,
 };
 
 /** One line on what each setup trades. */
@@ -99,6 +111,7 @@ export const BOT_SETUP_BLURBS: Record<string, string> = {
   flat_top_5m: 'The same flat top on the 5-minute chart, bought the way the material trades it: the first 1-minute candle that holds the break.',
   red_to_green: 'Trades below the 09:30 open, then back through it — buy the reclaim, one try a day.',
   micro_pullback: 'A 1-2 candle dip inside a fast move, read on seconds.',
+  ...SHORT_SETUP_BLURBS,
 };
 
 /**
@@ -135,6 +148,7 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
   micro_pullback: {
     verdict: 'not_tested', text: 'Not tested -- planned on one-second bars (S5).', detail: 'planned on one-second bars (S5)',
   },
+  ...SHORT_SETUP_RESEARCH,
 };
 
 /** A setup without a scanner says what is missing and what unblocks it (ADR 031 decision C). */
@@ -153,7 +167,7 @@ export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot watch, propose 
 
 /** The setups this build has a scanner for -- mirrors backend constants_bot.BOT_SCANNER_SETUPS (ADR 031). */
 export const BOT_SCANNER_SETUP_IDS: readonly string[] = [
-  'first_pullback', 'bull_flag', 'flat_top_breakout', 'flat_top_5m', 'red_to_green', 'gap_and_go',
+  'first_pullback', 'bull_flag', 'flat_top_breakout', 'flat_top_5m', 'red_to_green', 'gap_and_go', ...SHORT_SETUP_IDS,
 ];
 /* A backend older than ADR 031 runs the first pullback only. The page says the backend needs a
    reload -- never "No scanner yet", which would say the feature is missing when it is not loaded. */

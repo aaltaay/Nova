@@ -17,12 +17,12 @@ import {
   SETUP_TYPE_STATE_LABELS,
   SETUP_TYPE_STATE_TIPS,
   SETUP_WINDOW_WORDS,
-  TAPE_UNREAD_TIP,
-  TAPE_VERDICT_TIPS,
 } from '../constantGroups/setups';
-import { fmtCents, fmtPx, fmtR, isActionable } from './setupsFormat';
-import { flowLine } from './flowWords';
-import type { SetupCounts, SetupRow, SetupSummary, TapeRead } from './types';
+import { fmtCents, fmtPx, fmtR, isActionable, prose } from './setupsFormat';
+import { isShortRow, shortContextLine, shortOutcome, shortStateText, shortToGoTip, shortTriggerLines } from './shortWords';
+import type { SetupCounts, SetupRow, SetupSummary } from './types';
+
+export { tapeWords } from './tapeChip';
 
 export const FIRST_PULLBACK = 'first_pullback';
 
@@ -61,11 +61,6 @@ export function signedPct(fraction: number | null | undefined): string {
   const digits = Math.abs(pct) >= 10 ? 0 : 1;
   const text = Math.abs(pct).toFixed(digits);
   return `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${text}%`;
-}
-
-/** Backend prose writes ASCII " -- "; a hover sets it as a dash. */
-function prose(text: string | null | undefined): string {
-  return (text ?? '').replace(/ -- /g, ' — ');
 }
 
 const TRIGGER_WORDS: Record<string, string> = {
@@ -117,6 +112,7 @@ function broke(row: SetupRow): boolean {
 function contextLine(row: SetupRow): string {
   const leg = row.leg;
   if (!leg) return '';
+  if (isShortRow(row)) return shortContextLine(row);
   const type = setupTypeOf(row);
   if (type === 'bull_flag') {
     const bars = leg.bars ? `${leg.bars} green candle${leg.bars === 1 ? '' : 's'}, ` : '';
@@ -143,19 +139,22 @@ function levelsLine(row: SetupRow): string {
   if (!s) return '';
   const waitingHold = holdMode(row) && row.state !== 'triggered';
   const minutes = holdOnMinutes(row);
+  const short = isShortRow(row);
   const parts = [
     `Trigger ${fmtPx(s.trigger)}`,
-    `entry ${waitingHold ? `the hold ${minutes ? 'minute' : 'candle'}'s close +1c` : fmtPx(s.entry)}`,
-    `stop ${waitingHold ? (minutes ? 'the pullback\'s low' : 'the hold candle\'s low') : fmtPx(s.stop)}`,
+    `${short ? 'short' : 'entry'} ${waitingHold ? `the hold ${minutes ? 'minute' : 'candle'}'s close +1c` : fmtPx(s.entry)}`,
+    `${short ? 'buy stop' : 'stop'} ${waitingHold ? (minutes ? 'the pullback\'s low' : 'the hold candle\'s low') : fmtPx(s.stop)}`,
   ];
   if (waitingHold) parts.push('risk and target 1 from the hold candle');
-  else parts.push(`risk ${fmtCents(s.risk)} a share`, `target 1 ${fmtPx(s.target1)}`);
+  else parts.push(`risk ${fmtCents(s.risk)} a share`, `${short ? 'cover 1' : 'target 1'} ${fmtPx(s.target1)}`);
   return `${parts.join(' · ')}.`;
 }
 
 function stateText(row: SetupRow): string {
   const type = setupTypeOf(row);
   const base = SETUP_TYPE_STATE_LABELS[type]?.[row.state] ?? SETUP_STATE_LABELS[row.state] ?? row.state;
+  const short = isShortRow(row) ? shortStateText(row, base) : null;
+  if (short != null) return short;
   const s = row.setup;
   switch (row.state) {
     case 'leg': {
@@ -218,6 +217,8 @@ export function stateWords(row: SetupRow): Words {
 }
 
 function outcomeWords(row: SetupRow): string {
+  const short = isShortRow(row) ? shortOutcome(row.outcome, row.bar_r != null ? fmtR(row.bar_r) : null) : null;
+  if (short) return short;
   if (row.outcome === 'target_first') return `target 1 first${row.bar_r != null ? ` (${fmtR(row.bar_r)})` : ''}`;
   if (row.outcome === 'stop_first') return `the stop first${row.bar_r != null ? ` (${fmtR(row.bar_r)})` : ''}`;
   return row.bar_r != null ? `still open, ${fmtR(row.bar_r)}` : 'still open';
@@ -234,6 +235,7 @@ export function triggerWords(row: SetupRow): Words {
       tip: 'The trigger is set when the setup arms. Until then the scanner is still watching the pattern form.',
     };
   }
+  if (isShortRow(row)) return { text: fmtPx(s.trigger), title: `Trigger · ${setupLabel(type)}`, tip: shortTriggerLines(row, s).join('\n') };
   const what = TRIGGER_WORDS[type] ?? 'the level';
   const lines = [`Trigger ${fmtPx(s.trigger)}: ${what}. Trading over it starts the trade.`];
   if (holdMode(row)) {
@@ -278,56 +280,10 @@ export function toGoWords(row: SetupRow): Words {
   }
   const cents = Math.round(row.distance * 100);
   const text = cents <= 0 ? 'at' : cents < 100 ? `${cents}¢` : `$${row.distance.toFixed(2)}`;
-  const tip = cents <= 0
+  const tip = isShortRow(row) ? shortToGoTip(row, cents, s) : cents <= 0
     ? `At the ${fmtPx(s.trigger)} trigger now (last ${fmtPx(row.last_price)}).`
     : `${cents}¢ under the ${fmtPx(s.trigger)} trigger (last ${fmtPx(row.last_price)}). Within a few cents it reads Near, and the tape is read there.`;
   return { text, title: 'To go', tip };
-}
-
-function metricsLine(tape: TapeRead): string {
-  const m = tape.metrics ?? {};
-  const num = (k: string) => (typeof m[k] === 'number' && Number.isFinite(m[k] as number) ? (m[k] as number) : null);
-  const parts: string[] = [];
-  const bid = num('best_bid');
-  const ask = num('best_ask');
-  if (bid != null && ask != null) parts.push(`bid ${fmtPx(bid)} × ask ${fmtPx(ask)}`);
-  const spread = num('spread');
-  if (spread != null) parts.push(`spread ${fmtCents(spread)}`);
-  const askN = num('ask_prints');
-  const bidN = num('bid_prints');
-  if (askN != null || bidN != null) {
-    const askV = num('ask_volume') ?? 0;
-    const bidV = num('bid_volume') ?? 0;
-    parts.push(`${askN ?? 0} prints at the ask (${shares(askV)}) vs ${bidN ?? 0} at the bid (${shares(bidV)})`);
-  }
-  const wall = num('wall_size');
-  const wallPx = num('wall_price');
-  if (wall != null && wall > 0 && wallPx != null) parts.push(`biggest seller at the level ${shares(wall)} at ${fmtPx(wallPx)}`);
-  const win = num('window_sec');
-  return parts.length ? `${parts.join(' · ')}${win != null ? ` (last ${win} s)` : ''}.` : '';
-}
-
-function shares(v: number): string {
-  if (v >= 1000) return `${(v / 1000).toFixed(v >= 10_000 ? 0 : 1)}k`;
-  return String(Math.round(v));
-}
-
-/** The tape chip: GO / WAIT / VETO / BLIND, and why, with the numbers the gate read. */
-export function tapeWords(row: SetupRow): Words | null {
-  const tape = row.tape;
-  if (!tape) {
-    if (!isActionable(row)) return null;
-    return { text: '·', title: 'Tape', tip: TAPE_UNREAD_TIP };
-  }
-  const v = tape.verdict;
-  const lines = [TAPE_VERDICT_TIPS[v] ?? v];
-  const reasons = (tape.reasons ?? []).map(prose).filter(Boolean);
-  if (reasons.length) lines.push(`Why: ${reasons.join('; ')}.`);
-  const metrics = metricsLine(tape);
-  if (metrics) lines.push(metrics);
-  if (tape.flow) lines.push(flowLine(tape.flow));
-  if (!isActionable(row)) lines.push('This is the last read, taken while the setup was armed or near.');
-  return { text: String(v).toUpperCase(), title: `Tape · ${row.symbol}`, tip: lines.join('\n') };
 }
 
 /** The setup's arming window as the card's status line says it. */
