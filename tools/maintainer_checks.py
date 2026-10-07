@@ -6,8 +6,8 @@ severity policy; this script only measures. ``--update-baselines`` is the one
 write: it rewrites ``maintainer_lib/baselines.json`` to the tree.
 
 Rules it measures: AGENTS.md §2 (ownership, size, feature imports), §6.3
-(silent failures) and §6.7 (the backend lint, ruff). Architecture dependency
-rules: architecture/dependency-rules.md.
+(silent failures), §6.7 (ruff) and ADR 051 (always-on bytes). Architecture
+dependency rules: architecture/dependency-rules.md.
 """
 
 from __future__ import annotations
@@ -24,8 +24,9 @@ _TOOLS_DIR = str(REPO_ROOT / "tools")
 if _TOOLS_DIR not in sys.path:
     sys.path.insert(0, _TOOLS_DIR)
 
-from maintainer_lib import size_policy, swallow  # noqa: E402
+from maintainer_lib import always_on, size_policy, swallow  # noqa: E402
 from maintainer_lib.artifacts import check_artifacts as _check_artifacts  # noqa: E402
+from maintainer_lib.css_contract import check_css_design_contract as _check_css_design_contract  # noqa: E402
 from maintainer_lib.baselines import (  # noqa: E402
     apply_baseline_counts,
     build_counts,
@@ -88,19 +89,6 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".css"}
-
-# Feature/domain CSS must not use bare element selectors (ADR 006).
-BARE_FEATURE_SELECTOR = re.compile(
-    r"^(form|label|input(?!\[)|button|table|thead|tbody|th|td|header)\s*[,{]",
-    re.MULTILINE,
-)
-# Domain CSS must not read Tailwind --color-muted as text (collision with bg token).
-COLOR_MUTED_AS_TEXT = re.compile(r"color\s*:\s*var\(\s*--color-muted\b")
-# Allowed adapter / token sheets for Tailwind semantic vars.
-CSS_TOKEN_ADAPTER_PATHS = {
-    "frontend/src/styles/tailwind-theme.css",
-    "frontend/src/index.css",
-}
 
 
 @dataclass
@@ -220,40 +208,8 @@ def check_artifacts() -> list[Finding]:
 
 
 def check_css_design_contract(files: list[Path]) -> list[Finding]:
-    """Reject bare feature selectors and --color-muted used as text (ADR 006)."""
-    findings: list[Finding] = []
-    for path in files:
-        if path.suffix != ".css":
-            continue
-        rel = _rel(path)
-        if _is_generated_path(path):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if rel not in CSS_TOKEN_ADAPTER_PATHS:
-            for match in BARE_FEATURE_SELECTOR.finditer(text):
-                line = text.count("\n", 0, match.start()) + 1
-                findings.append(
-                    Finding(
-                        kind="bare_css_selector",
-                        path=rel,
-                        detail=f"bare '{match.group(1)}' selector — scope to a feature class (ADR 006)",
-                        line=line,
-                    )
-                )
-            for match in COLOR_MUTED_AS_TEXT.finditer(text):
-                line = text.count("\n", 0, match.start()) + 1
-                findings.append(
-                    Finding(
-                        kind="css_token_collision",
-                        path=rel,
-                        detail="color: var(--color-muted) — use --nova-text-muted / --text-secondary (ADR 006)",
-                        line=line,
-                    )
-                )
-    return findings
+    """ADR 006 (maintainer_lib/css_contract.py)."""
+    return _check_css_design_contract(files, _rel, Finding, _is_generated_path)
 
 
 def check_ib_loop_purity(files: list[Path]) -> list[Finding]:
@@ -263,6 +219,7 @@ def check_ib_loop_purity(files: list[Path]) -> list[Finding]:
 def _collect(files: list[Path], base: str | None) -> list[Finding]:
     return (
         check_file_sizes(files + [p for p in (REPO_ROOT / "AGENTS.md",) if p.is_file() and p not in files], base)
+        + always_on.check_always_on(REPO_ROOT, Finding, base)  # ADR 051
         + check_secrets(files)
         + check_swallowed_errors(files)
         + check_artifacts()
@@ -307,6 +264,7 @@ def run_checks(base: str | None = None) -> dict:
         "size_base": resolved,
         "css_line_counts": css_report,
         "logical_line_counts": logical_line_counts(files),
+        **always_on.report_fields(REPO_ROOT),
         "findings": [asdict(f) for f in findings],
     }
 
@@ -329,6 +287,8 @@ def print_human(report: dict) -> None:
         print("CSS stylesheets:")
         for path, lines in sorted(css.items(), key=lambda kv: (-kv[1], kv[0])):
             print(f"  {lines:5d}  {path}")
+    for line in always_on.report_lines(report):
+        print(line)
     print()
     if not report["findings"]:
         print("No findings.")

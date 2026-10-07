@@ -19,6 +19,8 @@ GATE_KINDS = (
     "file_size_ceiling",       # any code file past 800 lines, reason or not
     "file_size_growth",        # past 400 and grew in this change, no reason stated
     "one_concern_no_reason",   # a one-concern marker with no reason
+    # ADR 051 -- the bytes that load on every agent request (maintainer_lib/always_on.py)
+    "always_on_budget",        # AGENTS.md + CLAUDE.md + alwaysApply rules past the byte budget
     # AGENTS.md §2.1 / §2.2 -- ownership and feature imports
     "package_owner_missing",
     "folder_owner_missing",

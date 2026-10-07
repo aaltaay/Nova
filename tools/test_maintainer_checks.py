@@ -111,6 +111,70 @@ def test_real_agents_md_under_limit(mc):
     assert lines <= mc.HARD_LIMIT_FILES["AGENTS.md"]
 
 
+# --- the always-on context budget (ADR 051) ---------------------------------------------------
+
+
+def _always_on_root(tmp_path: Path) -> Path:
+    root = tmp_path / "repo"
+    rules = root / ".cursor" / "rules"
+    rules.mkdir(parents=True)
+    (root / "AGENTS.md").write_bytes(b"# law\r\n" * 10)          # CRLF on purpose
+    (root / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+    (rules / "on.mdc").write_text("---\ndescription: x\nalwaysApply: true\n---\nbody\n", encoding="utf-8")
+    (rules / "off.mdc").write_text("---\ndescription: y\nglobs: a/**\nalwaysApply: false\n---\n" + "z" * 5000,
+                                   encoding="utf-8")
+    (rules / "body-says-true.mdc").write_text("---\ndescription: w\nalwaysApply: false\n---\nalwaysApply: true\n",
+                                              encoding="utf-8")
+    return root
+
+
+def test_always_on_set_counts_only_what_loads_every_request(tmp_path: Path):
+    from maintainer_lib import always_on
+
+    members = always_on.always_on_set(_always_on_root(tmp_path))
+    assert set(members) == {"AGENTS.md", "CLAUDE.md", ".cursor/rules/on.mdc"}
+    assert members["AGENTS.md"] == len("# law\n" * 10), "CRLF counts as one byte, like the git blob"
+
+
+def test_always_on_budget_is_a_gate_finding_naming_the_largest(mc, tmp_path: Path):
+    from maintainer_lib import always_on
+
+    root = _always_on_root(tmp_path)
+    findings = always_on.check_always_on(root, mc.Finding, budget=10)
+    assert [f.kind for f in findings] == ["always_on_budget"]
+    assert "AGENTS.md" in findings[0].detail and "ADR 051" in findings[0].detail
+    assert "always_on_budget" in mc.GATE_KINDS
+    assert always_on.check_always_on(root, mc.Finding, budget=10_000) == []
+
+
+def test_always_on_growth_is_reported_not_gated(mc, tmp_path: Path, monkeypatch):
+    from maintainer_lib import always_on
+
+    root = _always_on_root(tmp_path)
+    monkeypatch.setattr(always_on, "always_on_total_at", lambda repo_root, sha: 5)
+    [finding] = always_on.check_always_on(root, mc.Finding, base="abc", budget=10_000)
+    assert finding.kind == "always_on_growth" and "always_on_growth" not in mc.GATE_KINDS
+    monkeypatch.setattr(always_on, "always_on_total_at", lambda repo_root, sha: 10_000_000)
+    assert always_on.check_always_on(root, mc.Finding, base="abc", budget=10_000) == []
+    monkeypatch.setattr(always_on, "always_on_total_at", lambda repo_root, sha: None)
+    assert always_on.check_always_on(root, mc.Finding, base="abc", budget=10_000) == []
+
+
+def test_the_real_always_on_set_is_under_budget_and_reported(mc):
+    from maintainer_lib import always_on
+
+    members = always_on.always_on_set(mc.REPO_ROOT)
+    total = sum(members.values())
+    assert total <= always_on.ALWAYS_ON_BUDGET_BYTES, members
+    assert "AGENTS.md" in members and "CLAUDE.md" in members
+    assert ".cursor/rules/single-market-data-feed.mdc" in members
+    assert ".cursor/rules/single-market-data-feed-catalog.mdc" not in members, "the catalog is glob-scoped"
+    report = mc.run_checks()
+    assert report["always_on_bytes"] == members and report["always_on_budget"] == always_on.ALWAYS_ON_BUDGET_BYTES
+    line = always_on.session_brief_line(mc.REPO_ROOT)
+    assert line.startswith("Always-on context:") and f"{total:,}" in line
+
+
 def test_domain_css_over_limit(mc, tmp_path: Path, monkeypatch):
     fake_root = tmp_path / "repo"
     styles = fake_root / "frontend" / "src" / "styles"

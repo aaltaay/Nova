@@ -89,6 +89,12 @@ def build_brief() -> str | None:
         lines.extend(repo_hygiene.format_session_brief_lines())
     except Exception:
         pass
+    try:
+        from maintainer_lib import always_on  # noqa: E402  (path inserted above)
+
+        lines.append(always_on.session_brief_line(REPO_ROOT))
+    except Exception:
+        pass
     lines.append(
         "Zero-hop default: work in-session; invoke a specialist only if explicitly named. "
         "Cracks? Prefer `py -3 tools/agent_fleet.py` (no hop). (specialist-routing.mdc)"
