@@ -109,12 +109,38 @@
 }
 
 .stock-view-page .stock-view-charts {
+  /* The containing block of what lies over the charts: the quote's note (below), the read sheet. */
+  position: relative;
   min-width: 0;
   min-height: 0;
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* "Loading quote for X…" / "No quote data for X." lie over the charts until the quote comes. As a flex
+   child (.detail-loading is flex: 1) the note took half the column, squeezing the panes until the quote
+   landed, when they jumped to full height. Over the charts it takes no room. The pointer passes through,
+   so the charts stay usable under it. It sits over the panes' own chips and notes (z-index 10 at most)
+   and under the read sheet (40). */
+.stock-view-page .stock-view-charts > .detail-loading--charts-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+}
+
+/* A solid chip, so the words read over candles and grid lines in either theme. */
+.stock-view-page .detail-loading--charts-overlay > span {
+  max-width: calc(100% - 24px);
+  padding: 4px 12px;
+  border: 1px solid var(--nova-border-strong, var(--sv-border));
+  border-radius: var(--sv-card-radius);
+  background: var(--panel-bg, var(--sv-bg-raised));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  color: var(--sv-primary);
+  text-align: center;
 }
 
 .stock-view-page .stock-view-charts .chart-grid {
