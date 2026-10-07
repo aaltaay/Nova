@@ -1,0 +1,18 @@
+---
+description: Confirmed wire and persisted shapes live in architecture/schema/<domain>.md -- read and update them in the same commit
+globs: backend/**,frontend/src/**,frontend/electron/**,research/**
+alwaysApply: false
+---
+
+# Schema docs
+
+`AGENTS.md` §3 indexes the confirmed schemas; the text lives in `architecture/schema/`, one file per domain.
+
+Before you change a route, a socket frame, a persisted file or its `schema_version`:
+
+1. Find its file in the §3 index (or grep `architecture/schema/` for the route or field).
+2. Update that file first, in the same commit (Invariants #1 and #5).
+3. A new domain gets a new file and a row in the §3 index.
+4. Add a row to `architecture/maintenance-log.md` when the change amends a decision.
+
+Do not paste schema text back into `AGENTS.md`: it loads on every request, and `maintainer_checks.py` caps its size.

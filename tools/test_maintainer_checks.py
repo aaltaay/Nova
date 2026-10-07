@@ -93,6 +93,24 @@ def test_index_css_hard_limit(mc, tmp_path: Path, monkeypatch):
     assert "1005" in findings[0].detail
 
 
+def test_agents_md_hard_limit(mc, tmp_path: Path, monkeypatch):
+    fake_root = tmp_path / "repo"
+    fake_root.mkdir()
+    agents = fake_root / "AGENTS.md"
+    agents.write_text("\n".join(f"line {i}" for i in range(mc.HARD_LIMIT_FILES["AGENTS.md"] + 5)) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+
+    findings = mc.check_file_sizes([agents])
+    assert [f.kind for f in findings] == ["file_size_hard"]
+    assert str(mc.HARD_LIMIT_FILES["AGENTS.md"] + 5) in findings[0].detail
+
+
+def test_real_agents_md_under_limit(mc):
+    lines = len((mc.REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8").splitlines())
+    assert lines <= mc.HARD_LIMIT_FILES["AGENTS.md"]
+
+
 def test_domain_css_over_limit(mc, tmp_path: Path, monkeypatch):
     fake_root = tmp_path / "repo"
     styles = fake_root / "frontend" / "src" / "styles"
