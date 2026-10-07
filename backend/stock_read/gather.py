@@ -141,6 +141,13 @@ def _dilution(sym: str, now: float) -> dict[str, Any]:
     return dilution_reader.view(sym, now)
 
 
+def _luld(sym: str, now: float) -> dict[str, Any]:
+    """The stock's LULD bands on the live feed (ADR 047; memory only)."""
+    from luld import live
+
+    return live.view(sym, now)
+
+
 def gather(symbol: str, now: float) -> dict[str, Any]:
     from ibkr.halt_status import halted_now
     from ibkr.shortability import cached as shortability
@@ -171,4 +178,5 @@ def gather(symbol: str, now: float) -> dict[str, Any]:
         "board": _try(errors, "board", lambda: _board(sym)),
         "nova_exit": _try(errors, "nova_exit", lambda: _nova_exit(sym)),
         "dilution": _try(errors, "dilution", lambda: _dilution(sym, now)),
+        "luld": _try(errors, "luld", lambda: _luld(sym, now)),
     }

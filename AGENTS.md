@@ -2732,6 +2732,62 @@ level first (`grew_first`); 7.8% sat in the book untouched until it showed them 
 stays 0.5 s: with the rule on, reaching 1 s before the earlier book still adds 2.0%, 0.3-0.4 points
 beyond chance.
 
+### LULD bands on Level 2 (ADR 047, operator ask 2026-10-06)
+
+"do we have LULD levels?", then, beside DAS screenshots of red `LULD` rows at each band: "1 go.. make it obvious".
+IBKR passes on the halt but no band, so Nova computes each stock's limit up / limit down from the published LULD
+Plan rules (owner `backend/luld/`). Read-only: nothing places, stages, gates or cancels an order on it.
+
+- **The rules** (`luld/rules.py`, `luld/tracker.py`, pure):
+  - The percentage comes from the previous close (IBKR's tick 9), fixed for the day. Over $3.00 it is 5% (Tier 1)
+    or 10% (Tier 2); from $0.75 to $3.00, 20%; under $0.75, the lesser of $0.15 or 75%. It doubles 15:35-16:00 for
+    Tier 1 and for Tier 2 at or under $3.00.
+  - Bands round to the penny, half up. There are none outside 09:30-16:00 ET.
+  - The first reference is the listing exchange's opening print (condition `O`, from any venue but a trade-report
+    facility). For five minutes the mean of the trades since it follows; after that, the arithmetic mean of the
+    eligible (price-setting) trades of the preceding five minutes. A new mean replaces the reference only when it is
+    1% or more away and the old one has stood 30 s. Five minutes without a trade keep it.
+  - A limit state (the NBO on the lower band, or the NBB on the upper, not crossed) holds the reference; 15 s in it
+    is a pause due. A halt shows no band; the reopening print (`5`) is the next reference.
+  - Measured against the SIP's own band flags (the Massive NBBO indicators), a limit state's end makes no reference
+    of its own. The Plan's text says it does; keeping the reference matched 81% exactly, against 64%.
+- **Exact or approximate.** `exact` when Nova saw the stock open or reopen with its tape unbroken since.
+  - Otherwise a band appears after five minutes of tape, seeded from the mean: `exact: false`, with `spread` (how
+    far it may sit from the exchanges', in dollars). An approximate band never claims a limit state.
+  - A lost tape line or an IBKR feed gap makes an exact band approximate until the next reopen.
+  - The tier: a company of at least $15B is Tier 1 and one of at most $2B Tier 2 (sure). Between them, the side of
+    $4.5B; with no size known, Tier 2. Both read `tier_sure: false` and show `≈`.
+- **The live worker** (`luld/live.py`). The AllLast and Level 1 handlers only enqueue (ADR 010). One thread keeps a
+  tracker for every stock whose tape line Nova holds, from its first live print until 30 minutes without one. Every
+  0.25 s it reads the halt state (`halt_status.halted_now`), the line (`tape_stream.is_subscribed`) and feed gaps
+  (`feed_pulse`). In memory only; `NOVA_LULD=0` turns it off.
+- **The replay** (`luld/replay.py`). On a Sim desk off the live edge with a Session Record loaded: the bands at the
+  playhead, from the recording's prints, book tops and the day's halt log, never ahead of the playhead. It runs on
+  its own thread, with a checkpoint every 5 minutes of replay.
+- **The view** (`luld/views.py`) is one shape for `GET /api/luld/{symbol}` and the depth socket's `{"type": "luld",
+  "symbol", "data": view}` frames (sent on change, and at least every 5 s): `{schema_version: 1, symbol, source:
+  "live" | "replay", state: "off" | "unknown" | "warming" | "bands" | "limit" | "pause_due" | "paused", exact, lower,
+  upper, reference, reference_since, reference_source: "open" | "reopen" | "mean" | "open_mean" | "seeded" |
+  "first_trade_after_halt" | "limit_exit" | null, reference_words, percent, prev_close, tier: 1 | 2 | null,
+  tier_text, tier_sure, spread, limit: {side: "down" | "up", since, band, pause_at, overdue} | null, straddle: "down"
+  | "up" | null, anchor: {kind, ts, price} | null, halted_since, watching_since, warm_until, gap: {ts, reason} |
+  null, last, distance: {down_pct, up_pct} | null, near: "down" | "up" | null, reason, history: [{ts, reference,
+  source}], note, rules, track, as_of, text, watching?}`.
+  - `lower` / `upper` are null unless `state` is `bands`, `limit` or `pause_due`. `near` means within 2% of the
+    price or 5 cents. `track` is the measured record (`luld/track_record.py`).
+  - `GET /api/luld` lists the stocks the live worker follows. The stock read's halts row `luld` reads the view.
+- **On the desk** (`frontend/src/ibkr/luld.ts`, `LuldStrip.tsx`, `luld.css`):
+  - The Level 2 ladder draws the lower band in the bid column and the upper in the ask column: a bold rose line and
+    a `LULD 4.40` tag where the price sits among the rows, or under the last row (`↓`) when deeper. It pulses while
+    the price is near or on it.
+  - A 15 px strip above the book reads `LULD ▼ 4.40 −18.6% | ▲ 6.60 +22.0%`, the side amber when near. In a limit
+    state it reads `LIMIT DOWN 4.40 · PAUSE IN 9s` in red, the 15 s counting down. Outside 09:30-16:00 it is gone.
+  - `≈` marks an approximate band or an assumed tier. Every piece's hover says it is Nova's calculation, how it
+    knows, and the measured record.
+- **Measured** (`tools/luld_check.py`): `massive` replays the Massive flat files' trades and NBBO and compares with
+  the SIP's own flagged bands; `records` checks Nova's Session Records against the price the quote sat at for the
+  15 s before each logged pause.
+
 ### The trading screen is always recorded (ADR 035, operator decision 2026-09-24)
 
 "I always, always, always want the screen that I'm trading to be recorded.
@@ -4802,6 +4858,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-06 | LULD bands on Level 2 (ADR 047; operator: "do we have LULD levels?", then, with DAS screenshots, "1 go.. make it obvious"). IBKR passes on the halt, never the band, and the Nasdaq halt feed's threshold is blank, so Nova computes each stock's limit up / limit down from the published Plan rules over the tape and NBBO it holds (`backend/luld/`): the opening or reopening print first, then the 5-minute mean, moved only on a 1% change after 30 s, held in a limit state. Where the Plan's text leaves room, the SIP's own band flags in the Massive NBBO decided. A limit state's end makes no reference (the text says it does: 64% exact against 81%), and the mean is unrounded. On 10 days of SIP data Nova's band matched the exchanges' to the cent on 81% of 593 band touches and within 1c on 87%; on Nova's own recordings, GRML's three pauses of 2026-09-22 land exactly (14.18, 17.18, 15.87). The Level 2 ladder draws a red `LULD` row in each column and a strip above the book that counts a limit state's 15 s down to the pause; an approximate band (no open or reopen seen) shows `≈`. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | A rebuilt day confirms the splits Massive's list misses from SEC filings (#772). PHGE's 1-for-10 reverse split on 2026-09-09 was not in the list, so the rebuilt boards read +925% (0.155 -> 1.60) and it topped Gainers and the frozen Gappers. `research/leaderboard/confirm_splits.py` takes each overnight jump of 1.8x or more (0.7x or less) that no listed split explains, reads the ticker's 8-K (Item 5.03 / 3.03) or 6-K filed from 60 days before to 3 after, and confirms a split only when the filing states one ratio outside a range, the split-adjusted open sits 0.5-2x the prior close and the filing's effective date falls on the session (`split_confirm.py`, pure). Never on the price jump alone. On 2026-06-16..09-21: 285 suspects, 181 with such a filing, 1 confirmed (PHGE, its own 8-K: "effected a one-for-ten reverse stock split ... split-adjusted basis ... September 9, 2026"), 107 refused, 0 unread; the refusals read on sample were right (GCDT's consolidation takes effect October 7; SGLD's "1 ADS for every 20 shares" is a new listing). `splits_confirmed.json` beside the store (schema in §3) is read by `lb_io.load_splits` and `spot_check.py`; `build_leaderboard.py --dates` rebuilds the days a split touches. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | A rebuilt day has Losers and Gappers (ADR 023 amendment; operator report on 2026-09-09 at 07:00 in Sim: "Don't we already have the data for this day ... Why do we not see gainers, losers, and gappers for that hour?"). The Massive files for the day were on disk, but the rebuild kept one board a minute, the top 100 risers (`market`), which the desk showed as Gainers; no stored row that day was under 0% at 07:00, 09:45 or 16:30, so Losers could not be read back, and nothing projected Gappers. `research/leaderboard` now writes `losers` (the worst 100, `LOSERS_RULES`) and `gappers` (the live premarket rule, `GAPPERS_RULES` = `ibkr/gapper_view.row_qualifies`, frozen at 09:30 in its 09:30 order and repriced after, as the live list is) beside `market`, every board covering every minute; a day counts complete only with all three, so the 66 days rebuilt before are rebuilt again. The desk fills Gainers, Losers and Gappers from a rebuilt day, and After Hours and Large Cap say why they are not rebuilt. Found alongside it: PHGE's 1-for-10 reverse split on 2026-09-09 is missing from Massive's split list, so the rebuilt boards show it +925% (one such jump in the 66 rebuilt days; the other 30 overnight jumps of 3x or more traded 10-1,000x more volume). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The 1-minute chart keeps the operator's zoom when the plan's lead setup changes (operator report: "As I was zooming in and watching the chart, all of a sudden it resized itself randomly ... We fixed it before"). The 2026-09-25 fix stopped the plan's zones from moving the view, but the stock read still framed every newly leading setup: FRGT's plan followed red to green (near) at 09:31 and Gap and Go (armed) at 09:34, and each change reframed the pane -- red to green on 40 candles, Gap and Go from its 04:05 premarket high. The screenshot's window was exactly that frame (40 candles plus 12 of room). `chart/operatorView.ts` notes when the operator zooms or pans a pane (a range change during a press that began on the chart, or within 300 ms of a wheel or a release); after that no automatic frame or zone slide moves it, until a first paint or Reset chart hands it back. A setup is framed once per symbol, so a flip-flopping lead no longer reframes an untouched pane either. Driven in the demo desk: zoomed to 36 candles, a new lead setup jumped the pre-fix build to 333 and left the fixed one at its 208; the badge and Reset chart still frame. §3 amended. | User Directive + Claude Opus 5.5 |

@@ -130,7 +130,7 @@ def test_a_standing_socket_reads_the_lent_frame_and_closes(desk, depth_socket, m
     with TestClient(app).websocket_connect("/ws/ibkr/depth/XYZ?tab=1") as ws:
         assert ws.receive_json()["type"] == "subscribed"
         got = ws.receive_json()
-        while got["type"] == "book_watch":                # the book watcher's word rides beside the books
+        while got["type"] in ("book_watch", "luld"):      # the book watcher's word and the LULD bands ride beside the books
             got = ws.receive_json()
         assert got == frame
         with pytest.raises(WebSocketDisconnect):

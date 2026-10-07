@@ -105,6 +105,12 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
             enqueue_print(payload)  # the book watcher's tape (ADR 033); enqueue only
         except Exception:
             logger.exception("IBKR tape: book watcher enqueue failed for %s", symbol)
+        try:
+            from luld.live import enqueue_print as luld_print
+
+            luld_print(payload)  # the LULD bands' tape (ADR 047); enqueue only
+        except Exception:
+            logger.exception("IBKR tape: LULD enqueue failed for %s", symbol)
         # On a Sim desk off the live edge the only live line is one Session
         # Record holds (#315): it feeds the recording above, but the practice
         # desk's viewers and sensors read the replay through these same queues
