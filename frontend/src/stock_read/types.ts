@@ -142,6 +142,9 @@ export interface SetupLeg {
   low: number;
   pct: number;
   bars?: number;
+  /** A flat top's touches, `[time, high]` oldest first, and the zone a high reached to touch it (2026-10-06). */
+  touches?: [number, number][];
+  zone?: number;
 }
 
 export interface LaneSeries {

@@ -5,10 +5,11 @@
  * it was building under -- fainter than the live lane, dashed, and labelled with how it ended and what
  * came next (`pastSetups.ts` has the words). Pure: episodes in, boxes out; every box carries its hover id.
  * Every label makes room (`sceneLabels.ts`): a trigger's result first, then the newest setup's, and how
- * one ended before any leg.
+ * one ended before any leg. A past flat top keeps its touches as faint rings (`pastRings`).
  */
-import { PAST_COLORS } from './constants';
-import type { SceneBox } from './sceneTypes';
+import { FLAT_TOP_PAST_RING, PAST_COLORS } from './constants';
+import { FLAT_TOP, flatTopTouches } from './flatTopShapes';
+import type { SceneBox, SceneDot } from './sceneTypes';
 import { endOf, pastIconLabel, pastLabel, pastShortLabel, type Episode } from './pastSetups';
 import type { LabelShrink } from './sceneLabels';
 import type { SetupLeg } from './types';
@@ -84,8 +85,10 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
       } else {
         box(start, leg.t, leg.low, leg.high, tone.fill, tone.stroke, `${legLabel} · ${label}`, tone.ink, outcome);
       }
-    } else if (type === 'flat_top_breakout') {
-      box(leg.t, end, low ?? high, high, tone.fill, tone.stroke, `BASE · ${label}`, tone.ink, outcome, true);
+    } else if (type === FLAT_TOP) {
+      // The base's own low: a hold entry's stop is the hold candle's, under or over it.
+      const base = typeof ep.setup?.detail?.base_low === 'number' ? ep.setup.detail.base_low : low;
+      box(leg.t, end, base ?? high, high, tone.fill, tone.stroke, `BASE · ${label}`, tone.ink, outcome, true);
     } else if (type === 'red_to_green') {
       box(leg.t, end, low ?? leg.low, leg.high, tone.fill, tone.stroke, `RED${leg.bars ? ` ${leg.bars}` : ''} · ${label}`,
         tone.ink, outcome, true);
@@ -97,4 +100,21 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
     }
   }
   return boxes;
+}
+
+/** A past flat top's touches (2026-10-06): faint rings on their candles' highs, each telling its setup's story. */
+export function pastRings(episodes: Episode[], o: Pick<PastDrawOptions, 'toTime'> & { barSec?: number }): SceneDot[] {
+  const out: SceneDot[] = [];
+  for (const ep of episodes) {
+    const how = endOf(ep);
+    if (!how || how === 'cut' || ep.setup_type !== FLAT_TOP) continue;
+    for (const [t, high] of flatTopTouches(ep)) {
+      const at = o.toTime(t);
+      if (at !== null) {
+        out.push({ t: at, price: high, color: FLAT_TOP_PAST_RING.stroke, fill: FLAT_TOP_PAST_RING.fill,
+          hoverId: pastHoverId(ep) });
+      }
+    }
+  }
+  return out;
 }

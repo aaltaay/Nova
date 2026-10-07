@@ -90,6 +90,22 @@ function legStartOf(series: ISeriesApi<'Candlestick'> | null): (leg: SetupLeg) =
   };
 }
 
+/** The high of the pane's candle that starts at an epoch second (a flat top's break), null when it has none. */
+function highAtOf(series: ISeriesApi<'Candlestick'> | null): (epochSec: number) => number | null {
+  return (epochSec: number) => {
+    if (!series) return null;
+    const target = etChartSeconds(epochSec * 1000);
+    const data = series.data();
+    for (let i = data.length - 1; i >= 0; i -= 1) {
+      const t = toCanonicalTime(data[i].time);
+      if (t < target) break;
+      const high = (data[i] as { high?: number }).high;
+      if (t === target) return typeof high === 'number' ? high : null;
+    }
+    return null;
+  };
+}
+
 /**
  * Show the pane's candles from a little before `fromSec` to its last one and the plan's room after it.
  * The range is bar positions, so they are read from the candles the pane holds now: an index kept from
@@ -202,6 +218,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     layers: ctx?.layers ?? { eyes: false, setups: false, levels: false, past: false, labels: 'compact', hidden: [], plan: 'auto' },
     toTime: snapper(index),
     legStart: legStartOf(series),
+    highAt: highAtOf(series),
     focus: ctx?.focus ? {
       ts: ctx.focus.ts,
       title: focusEvent ? focusEvent.title.slice(0, 48) : '',
@@ -228,6 +245,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const scene = useMemo<Scene>(() => {
     if (!enabled) return EMPTY_SCENE;
     const words: SceneWord[] = [
+      ...(draw.scene.words ?? []),
       ...lineWords(draw.lines),
       ...edge.words.map(w => ({ id: w.id, text: w.text, color: w.color, priority: w.priority, price: null,
         series: w.series, valueWhenOff: w.valueWhenOff })),
@@ -237,7 +255,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
       words,
       reserves: edge.reserves.map(r => ({ price: r.price, height: r.height })),
       topInset: kind === 'full' && cornerBottom > 0 ? cornerBottom + CORNER_GAP_PX : 0,
-      marks: runs ? runMarks(runs, index) : [],
+      marks: [...(draw.scene.marks ?? []), ...(runs ? runMarks(runs, index) : [])],
     };
   }, [enabled, draw, edge, kind, cornerBottom, runs, index]);
 

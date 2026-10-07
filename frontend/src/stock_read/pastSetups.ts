@@ -7,6 +7,7 @@
  * Nothing here is estimated: every price is the scanner's or the chart's own bars'.
  */
 import { list, normalizeLeg, normalizeSetupLevels, num, obj, str } from './normalize';
+import { FLAT_TOP, flatTopStory, flatTopTouches } from './flatTopShapes';
 import { fmtPx, setupName } from './planMath';
 import { hhmmEt } from './timeWords';
 import type { SetupLane, SetupLeg, SetupLevels } from './types';
@@ -213,6 +214,11 @@ const RULE_WORDS: [RegExp, string][] = [
   [/a flag needs|wait for the flag/, 'no flag yet'],
   [/wait for the pullback/, 'no pullback yet'],
   [/wait for a base/, 'no base yet'],
+  // The flat top (2026-10-06): it counts its touches before it arms.
+  [/wait for candles to tap it|touched once/, 'no taps yet'],
+  [/\d+ of \d+ touches/, 'too few taps'],
+  [/the flat top has \d+ touch/, 'lost its taps'],
+  [/a newer flat top took over/, 'a newer flat top'],
 ];
 
 /** A reason in a few words: a known rule's name, else its first clause cut to `max` characters. */
@@ -307,6 +313,8 @@ export function pastStory(ep: Episode): { title: string; lines: string[] } {
     ? `, gone ${hhmmEt(ep.ended_at)}${ep.ended_by && end !== 'failed' ? ` (${ep.ended_by})` : ''}`
     : end === 'failed' ? '; the scanner still shows it failed' : '';
   lines.push(`Leg ${ep.leg.pct >= 0 ? '+' : ''}${(ep.leg.pct * 100).toFixed(1)}% to ${fmtPx(ep.leg.high)}; seen ${hhmmEt(ep.started_at)}${gone}`);
+  const touches = ep.setup_type === FLAT_TOP ? flatTopTouches(ep) : [];
+  if (touches.length) lines.push(`Touches: ${touches.map(([t, h]) => `${hhmmEt(t)} ${fmtPx(h)}`).join(' · ')}`);
   if (ep.setup) {
     lines.push(`Armed: trigger ${fmtPx(ep.setup.trigger)}, stop ${fmtPx(ep.setup.stop)}, target ${fmtPx(ep.setup.target1)}`);
   }
@@ -341,6 +349,7 @@ function afterLines(a: EpisodeAfter): string[] {
 
 /** Whole sentences for a live lane's box. */
 export function laneStory(lane: SetupLane): { title: string; lines: string[] } {
+  if (lane.setup_type === FLAT_TOP) return flatTopStory(lane);
   const lines = [lane.reason || lane.state];
   if (lane.leg) lines.push(`Leg ${lane.leg.pct >= 0 ? '+' : ''}${(lane.leg.pct * 100).toFixed(1)}% to ${fmtPx(lane.leg.high)}`);
   const lv = lane.setup ?? lane.forming;

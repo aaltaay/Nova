@@ -152,8 +152,9 @@ def test_the_scoreboard_answers_for_the_setup_named(tmp_path, monkeypatch):
     assert c.get("/api/setups/scoreboard", params={"days": 0}).json()["setup_type"] == "first_pullback"
     assert c.get("/api/setups/scoreboard", params={"setup": "micro_pullback"}).status_code == 404
     day = c.get("/api/setups/rows", params={"date": eng.session, "setup": "all"}).json()
-    # The same candles are a bull flag, a first pullback and a flat-top base: each setup keeps its own row.
-    assert sorted(r["setup_type"] for r in day["rows"]) == ["bull_flag", "first_pullback", "flat_top_breakout"]
+    # The same candles are a bull flag and a first pullback: each setup keeps its own row. They are no flat top
+    # (2026-10-06): the flag taps the 4.35 high once -- two touches of the three a flat top needs -- so it only forms.
+    assert sorted(r["setup_type"] for r in day["rows"]) == ["bull_flag", "first_pullback"]
 
 
 def test_a_schema_2_scoreboard_is_migrated_and_its_rows_are_the_first_pullbacks(tmp_path):

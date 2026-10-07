@@ -55,7 +55,12 @@ def _research_defaults(path: Path, cls: str) -> dict:
 
 def test_research_setups_mirror_the_harness_defaults():
     p = _research_defaults(REPO / "research/momentum/backtest_setups.py", "Params")
-    ft, r2g = catalogue.defaults("flat_top_breakout"), catalogue.defaults("red_to_green")
+    # The flat top's default is the material's since 2026-10-06 (touches, a tolerance, a longer base); the research's
+    # P2 is what a template saved before then runs: its stored values, the new parameters at their LEGACY values.
+    ft = catalogue.validate("flat_top_breakout", {"ft_max_consol": p["ft_max_consol"]}, base={})
+    r2g = catalogue.defaults("red_to_green")
+    assert (ft["ft_base_start"], ft["ft_min_touches"], ft["ft_touch_pct"], ft["ft_touch_dollars"]) == (
+        "last_high", 1, 0.0, 0.0)
     assert ft["ft_impulse_pct"] == p["ft_impulse_pct"] * 100 and ft["ft_band"] == p["ft_band"] * 100
     assert (ft["ft_min_consol"], ft["ft_max_consol"], ft["ft_entry"], ft["ft_hold_bars"]) == (
         p["ft_min_consol"], p["ft_max_consol"], p["ft_entry"], p["ft_hold_bars"])

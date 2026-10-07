@@ -2939,7 +2939,7 @@
    "catalogue": {
     "setup": "flat_top_breakout",
     "scanner": true,
-    "source": "The live scanner reads the research's pre-registered rules (P2, ADR 031); it arms from 07:00 where the research began at 09:30. Every template is watched at once.",
+    "source": "The live scanner reads the flat top as your material draws it (ADR 031, amended 2026-10-06): the high of day tapped again and again within a tolerance, then the break. The research's P2 rule is the last-high base with one touch and no tolerance. It arms from 07:00. Every template is watched at once.",
     "groups": [
      {
       "id": "stock",
@@ -3106,7 +3106,7 @@
         "step": 0.5,
         "choices": [],
         "nullable": false,
-        "help": "The move into the high of day, over the lowest low of the impulse window.",
+        "help": "The move into the flat top, over the lowest low of the impulse window.",
         "live": true,
         "affects_readout": true
        },
@@ -3122,7 +3122,80 @@
         "step": 1,
         "choices": [],
         "nullable": false,
-        "help": "The candles ending at the high-of-day candle the impulse is measured over.",
+        "help": "The candles ending at the first touch the impulse is measured over.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "ft_min_touches",
+        "group": "setup",
+        "label": "Touches at least",
+        "kind": "int",
+        "default": 3,
+        "unit": "candles",
+        "min": 1,
+        "max": 10,
+        "step": 1,
+        "choices": [],
+        "nullable": false,
+        "help": "Candles whose high reached the flat top, the first one included: the level is tapped again and again before it breaks. Two is a double top. From its second touch it is drawn forming.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "ft_touch_pct",
+        "group": "setup",
+        "label": "A touch is within",
+        "kind": "number",
+        "default": 0.5,
+        "unit": "% under the high",
+        "min": 0,
+        "max": 5,
+        "step": 0.1,
+        "choices": [],
+        "nullable": false,
+        "help": "A high this close under the high of day touched it, or within the dollars below, whichever is more: a real flat top is never perfect. A candle a little over the earlier touches, inside this, is a touch too.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "ft_touch_dollars",
+        "group": "setup",
+        "label": "... or within",
+        "kind": "number",
+        "default": 0.01,
+        "unit": "$",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "choices": [],
+        "nullable": false,
+        "help": "",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "ft_base_start",
+        "group": "setup",
+        "label": "The base starts",
+        "kind": "choice",
+        "default": "first_touch",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "first_touch",
+          "label": "at the first candle that touched the flat top"
+         },
+         {
+          "value": "last_high",
+          "label": "after the last candle at the high (the research's P2)"
+         }
+        ],
+        "nullable": false,
+        "help": "First touch: the flat top runs from the first candle that reached it, every touch counted. Last high: the research's rule, the base right after the last candle at the high.",
         "live": true,
         "affects_readout": true
        },
@@ -3138,7 +3211,7 @@
         "step": 1,
         "choices": [],
         "nullable": false,
-        "help": "Candles right after the high-of-day candle, none making a new high.",
+        "help": "Candles after the first touch, none making a high past the tolerance.",
         "live": true,
         "affects_readout": true
        },
@@ -3147,14 +3220,14 @@
         "group": "setup",
         "label": "Base at most",
         "kind": "int",
-        "default": 6,
+        "default": 20,
         "unit": "candles",
         "min": 1,
-        "max": 30,
+        "max": 60,
         "step": 1,
         "choices": [],
         "nullable": false,
-        "help": "A longer base is stale: the setup fails.",
+        "help": "A flat top that began longer ago is stale: the setup fails.",
         "live": true,
         "affects_readout": true
        },
@@ -3170,7 +3243,7 @@
         "step": 0.1,
         "choices": [],
         "nullable": false,
-        "help": "Every base close sits within this of the high of day: a flat top.",
+        "help": "Every base close sits within this of the high of day: a flat top, not a pullback.",
         "live": true,
         "affects_readout": true
        },
@@ -3314,7 +3387,7 @@
          }
         ],
         "nullable": false,
-        "help": "Hold: after the break, buy the close of the first candle whose low holds the high and closes green. Break: buy the break itself.",
+        "help": "Hold: after the break, buy the close of the first candle that holds the flat top (its low in the touch zone or over it) and closes green over the high. Break: buy the break itself.",
         "live": true,
         "affects_readout": true
        },
@@ -4251,8 +4324,12 @@
       "unknown_passes": true,
       "ft_impulse_pct": 3.0,
       "leg_window": 10,
+      "ft_min_touches": 3,
+      "ft_touch_pct": 0.5,
+      "ft_touch_dollars": 0.01,
+      "ft_base_start": "first_touch",
       "ft_min_consol": 2,
-      "ft_max_consol": 6,
+      "ft_max_consol": 20,
       "ft_band": 2.0,
       "ema_period": 9,
       "ema_tol": 0.0,
@@ -4320,7 +4397,7 @@
      "setup": "flat_top_breakout",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "1eb5af7e5e9c",
+     "fingerprint": "3aa53a1e8d99",
      "error": null,
      "readout": {
       "state": "collecting",

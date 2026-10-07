@@ -2,13 +2,14 @@
  * A live lane's shapes on a chart pane (ADR 036): its leg, pole, impulse or open, the pullback, flag,
  * base or red phase it forms, and its levels -- the lead lane in colour, the rest faded; a failed one
  * says the rule it broke. ``bar`` is the pane's candle (a minute; the 5-minute lanes' five,
- * ``fiveMinuteShapes.ts``) and ``hoverId`` the id its boxes report under the pointer. Pure.
+ * ``fiveMinuteShapes.ts``) and ``hoverId`` the id its boxes report under the pointer. The flat top draws its own
+ * way (``flatTopShapes.ts``: its touches, the break, the hold). Pure.
  */
 import type { Time } from 'lightweight-charts';
 import { SETUP_COLORS } from './constants';
+import { FLAT_TOP, flatTopShapes, type LaneDraw } from './flatTopShapes';
 import { shortReason } from './pastSetups';
 import { formingProgress, fmtPx } from './planMath';
-import type { SceneBox, SceneSegment } from './sceneTypes';
 import type { SetupLane, SetupLeg, StockPlan } from './types';
 
 /** What drawing a lane needs from a pane. */
@@ -17,6 +18,8 @@ export interface LaneDrawOptions {
   toTime: (epochSec: number) => Time | null;
   /** Where a leg began, from the pane's candles (the lowest low before its high). */
   legStart?: (leg: SetupLeg) => number;
+  /** The high of the pane's candle that starts at an epoch second (a flat top's break), null when it has none. */
+  highAt?: (epochSec: number) => number | null;
 }
 
 /** The hover id a live lane's boxes carry. */
@@ -49,11 +52,11 @@ export function levelsOf(lane: SetupLane): { trigger: number; stop: number; bars
 }
 
 export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, bar: number = MIN,
-  hoverId: string = laneHoverId(lane.setup_type)): { boxes: SceneBox[]; segments: SceneSegment[] } {
-  const boxes: SceneBox[] = [];
-  const segments: SceneSegment[] = [];
+  hoverId: string = laneHoverId(lane.setup_type)): LaneDraw {
+  const draw: LaneDraw = { boxes: [], segments: [], dots: [], marks: [], words: [] };
+  const { boxes, segments } = draw;
   const leg = lane.leg;
-  if (!LIVE_DRAWN.has(lane.state) && !lane.forming) return { boxes, segments };
+  if (!LIVE_DRAWN.has(lane.state) && !lane.forming) return draw;
   // A failed setup stays on the chart faded for as long as the scanner shows it, saying why (once the
   // past setups are read, it is drawn as past instead: `paneDraw`).
   const failed = lane.state === 'failed';
@@ -63,6 +66,8 @@ export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, b
   const legFill = bright ? SETUP_COLORS.leg : SETUP_COLORS.faded;
   const legStroke = bright ? SETUP_COLORS.legStroke : SETUP_COLORS.fadedStroke;
   const tag = failed ? ` · FAILED: ${shortReason(lane.reason) || 'a rule broke'}` : '';
+  // The flat top has a look of its own: its touches ringed, the base boxed, the break and the hold marked.
+  if (lane.setup_type === FLAT_TOP) return flatTopShapes(lane, lead, o, bar, hoverId, tag);
   const lv = levelsOf(lane);
   const lastT = lane.series?.bars_as_of ?? null;
   const endT = lv?.end ?? lastT;
@@ -89,12 +94,6 @@ export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, b
     }
     // Failed before its flag or pullback was drawn (NCPL 2026-09-29: a pole): the pole says so.
     if (failed && legBoxes === 1 && boxes.length === 1) boxes[0] = { ...boxes[0], label: `${boxes[0].label}${tag}` };
-  } else if (type === 'flat_top_breakout') {
-    if (lv && leg && endT !== null) {
-      box(leg.t, endT, lv.stop, lv.trigger, c.fill, c.stroke, `BASE${lv.bars ? ` ${lv.bars}` : ''}${tag}`, provisional, true);
-      const t1 = o.toTime(leg.t);
-      if (t1 !== null) segments.push({ t1, price: lv.trigger, color: c.stroke, dashed: true, label: `FLAT TOP ${fmtPx(lv.trigger)}` });
-    }
   } else if (type === 'red_to_green' && leg) {
     const t1 = o.toTime(leg.t);
     if (t1 !== null) {
@@ -110,5 +109,5 @@ export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, b
     const t1 = o.toTime(leg.t);
     if (t1 !== null) segments.push({ t1, price: leg.high, color: c.stroke, dashed: provisional, label: `PMH ${fmtPx(leg.high)}` });
   }
-  return { boxes, segments };
+  return draw;
 }
