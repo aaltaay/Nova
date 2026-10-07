@@ -140,6 +140,19 @@ def exit_side_fields(entry: dict[str, Any]) -> dict[str, Any]:
     return {"short_entry": False, "position_side": entry.get("position_side") or "long", "effect": "closes"}
 
 
+def entered_ts(row: dict[str, Any]) -> float:
+    """When ``row`` was first placed, by the venue's clock: a replace re-dates ``placed_ts``, never this.
+
+    A row without the ledger's ``entered_ts`` (a test double) reads its ``placed_ts``; neither reads 0,
+    which no short session holds, so such a short entry lapses rather than rests.
+    """
+    for key in ("entered_ts", "placed_ts"):
+        value = row.get(key)
+        if value is not None:
+            return float(value)
+    return 0.0
+
+
 def fill_refusal(ledger: Any, row: dict[str, Any], price: float,
                  fill_ts: float | None = None) -> tuple[str, str] | None:
     """``(reason, code)`` when a working order may not fill at ``price`` now; ``None`` to fill it.
@@ -147,8 +160,9 @@ def fill_refusal(ledger: Any, row: dict[str, Any], price: float,
     A SELL past the held quantity would open a short nobody asked for -- another
     close filled first (QA R42: two flattens both rested and both filled, leaving
     the Sim account short) -- and a short entry never fills against a long, nor at
-    ``fill_ts`` (the fill's time) outside the short hours: a Sim jump past 15:50 fills on
-    the prints it crossed before the runner's cutoff pass (ADR 048 1.9). A cover past flat
+    ``fill_ts`` (the fill's time) outside the short hours of the day it was placed: a Sim jump
+    past 15:50 fills on the prints it crossed before the runner's cutoff pass (ADR 048 1.9), and
+    a GTC entry Nova was closed over meets the next day's prints first. A cover past flat
     would turn the short into a long (ADR 048 gap 8). A BUY the account can no
     longer afford is refused as at admission. Either way the order is cancelled
     at the fill, never filled.
@@ -162,7 +176,7 @@ def fill_refusal(ledger: Any, row: dict[str, Any], price: float,
         if fill_ts is not None:
             from short_sale import hours as short_hours
 
-            closed = short_hours.entry_refusal(float(fill_ts))
+            closed = short_hours.entry_lapsed(entered_ts(row), float(fill_ts))
             if closed is not None:
                 return f"{closed} This short entry was cancelled at its fill.", SHORT_HOURS
     elif opening_short(held, side, qty):

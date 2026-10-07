@@ -160,6 +160,11 @@ What step 3 decided where the design left room:
 - **No flush call on a short.** Trial T1 (ADR 041) reads a long's tape; nothing calls COVER NOW on a burst.
 - **The 15:50 card names the 15:55 cover on Paper** (Sim is left out, as before). Live's day cover is step 6, so a
   Live short's card still says to be flat by 15:55.
+- **A short entry lapses with its own day** (the PR #787 review, fixed here). The cutoff pass cancelled resting
+  short entries only while the clock stood outside the short hours, so a GTC one Nova was closed over came back
+  inside the next day's hours, and the next day's prints could fill it on the day before's borrow, SSR, halt and
+  margin checks. Its day is when it was first placed (`entered_ts`; a replace re-dates `placed_ts`, never the
+  session it was checked in), and both the pass and the fill read it.
 
 ## Rejected
 
