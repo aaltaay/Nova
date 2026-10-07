@@ -379,7 +379,24 @@ def test_a_replace_never_carries_a_short_entry_into_a_new_session(paper) -> None
     assert _held(paper.broker) == 0 and paper.broker.working_orders() == []
 
 
-def test_a_short_entry_repriced_the_same_day_still_fills(paper) -> None:
+def test_the_door_never_reprices_a_resting_short_entry(paper) -> None:
+    """A replace runs no short check: a resting short entry is cancelled and placed again, never repriced
+    (a new price would skip the borrow, SSR, margin and cushion rules). Its buy stop still moves."""
+    receipt = _send(_short("rest-reprice", qty=100, entry=4.50, stop=4.80, target=4.00))
+    assert receipt.ok is True
+    refused = _send(ExecutionCommand(operation="replace", idempotency_key="reprice-1", source="manual",
+                                     order_id=int(receipt.parent_order_id), limit_price=4.05, skip_risk=True))
+    assert (refused.ok, refused.reason_code) == (False, "SHORT_REPRICE")
+    assert "Cancel it and place it again" in (refused.error or "")
+    assert paper.broker.ledger.working_row(int(receipt.parent_order_id))["limit_price"] == 4.50
+    moved = _send(ExecutionCommand(operation="replace", idempotency_key="restop-1", source="manual",
+                                   order_id=int(receipt.stop_order_id), stop_price=4.70, skip_risk=True))
+    assert moved.ok is True, moved.error
+    assert paper.broker.ledger.working_row(int(receipt.stop_order_id))["stop_price"] == 4.70
+
+
+def test_a_short_entry_repriced_at_the_broker_the_same_day_still_fills(paper) -> None:
+    """The ledger's own rule, under the door: a replace re-dates ``placed_ts``, and the entry keeps its day."""
     receipt = _send(_short("rest-same-day", qty=100, entry=4.50, stop=4.80, target=4.00))
     assert receipt.ok is True
     paper.market.now = paper.now + 60

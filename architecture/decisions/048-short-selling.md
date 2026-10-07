@@ -165,6 +165,10 @@ What step 3 decided where the design left room:
   inside the next day's hours, and the next day's prints could fill it on the day before's borrow, SSR, halt and
   margin checks. Its day is when it was first placed (`entered_ts`; a replace re-dates `placed_ts`, never the
   session it was checked in), and both the pass and the fill read it.
+- **A resting short entry is never repriced in place** (found with the review fix). A replace runs no short check,
+  so a new price could skip the borrow, SSR, margin and cushion rules the entry passed at its own price. The door
+  refuses it `SHORT_REPRICE` on Paper and Sim: cancel it and place it again. Its exits still move. No desk control
+  reprices an order today; this closes the order API. Live gets the same rule with its short entries (step 6).
 
 ## Rejected
 

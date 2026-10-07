@@ -85,7 +85,10 @@ def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[b
             # Callers must not attempt to mutate immutable fields via replace.
             pass
         if _practice(venue):
-            return True, "OK", None
+            from short_sale import door as _short_door
+
+            refused = _short_door.replace_refusal(cmd, venue)  # never a short entry repriced past its check
+            return (False, refused[0], refused[1]) if refused else (True, "OK", None)
         ok, reason = _safety.assert_orders_allowed(
             client_enabled=_client.is_enabled(),
             connected=_client.is_connected(),
