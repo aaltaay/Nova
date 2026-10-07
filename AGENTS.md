@@ -3,7 +3,7 @@
 > **Single source of truth.** Every agent reads this file; `CLAUDE.md` imports it.
 >
 > **Status:** ENFORCED — Active governance document
-> **Last Updated:** 2026-09-29
+> **Last Updated:** 2026-10-07
 > **Project:** Nova — Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
@@ -119,6 +119,8 @@ below.
 | Any code file over 800 lines | split it; no reason covers this | `file_size_ceiling` (gate) |
 | Constants tables (`backend/constants*.py`, `frontend/src/constantGroups/`) | exempt from 400; 800 still applies | -- |
 | Stylesheets | advisory at 1000, prefer 700 or less | `file_size` |
+| `AGENTS.md` | 700 raw lines | `file_size_hard` (gate) |
+| The always-on context: this file + `CLAUDE.md` + every `alwaysApply: true` rule | one byte budget, ratchets down only (ADR 051, `tools/maintainer_lib/always_on.py`) | `always_on_budget` (gate); `always_on_growth` (advisory) |
 | Tests | exempt | -- |
 
 **Stating the reason:** one line in the file's first 40 lines, next to what the
@@ -570,25 +572,27 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 
 Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full rule text into this file (it double-loads and drifts). Do **not** create a root `.cursorrules` file -- scoped `.mdc` frontmatter is strictly better.
 
+**What earns always-on (ADR 051):** a rule loads on every request only when an agent editing *any* file -- a README typo included -- could lose money or break delivery without it. Everything else gets `globs` or stays agent-requested. One law has one home; the other files hold a line and a link. A rule a script enforces is a pointer to the script. A rule says what to do; the incident story lives in the ADR or on the issue. `maintainer_checks.py` caps the set's byte total (`always_on_budget`) and the session brief prints it.
+
 ### Index (name -- purpose -- attachment)
 
 **Always-on** (every request):
 
 - `constitution.mdc` -- read AGENTS.md; hierarchy; common violations + context economy
 - `specialist-routing.mdc` -- zero-hop default; specialists opt-in only
-- `single-market-data-feed.mdc` -- IBKR-only prices; quote-panel symbol gates; HOD pool rules
+- `single-market-data-feed.mdc` -- IBKR-only prices; the 13 feed rules as headlines (mechanics and anti-patterns: `single-market-data-feed-catalog.mdc`, glob)
 - `ibkr-gateway-login-warning.mdc` -- loud-warn when Gateway needs login/2FA
 - `nova-roadmap-continuity.mdc` -- Master Roadmap phase continuity
 - `engineering-standards.mdc` -- Tailwind direction, tests, CI, deps, patterns
 - `karpathy-guidelines.mdc` -- think / simplify / surgical / verify
 - `deferred-log.mdc` -- check GitHub Issues (`deferred`) before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
 - `task-log.mdc` -- reasoning narrative after material work (PR body first; file when no PR)
-- `commit-push-deploy.mdc` -- clean start from `origin/master`; verify, commit, push, open a ready PR; Actions merges it; delete head after merge (+ deploy when applicable)
+- `commit-push-deploy.mdc` -- pointer to §5.1 (clean start from `origin/master`, ready PR, delete head) + the deploy step
 - `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`
 - `self-annealing.mdc` -- root-cause fix protocol on any error
 - `verification-before-completion.mdc` -- no done/fixed claims without fresh evidence
 - `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
-- `github-delivery.mdc` -- issue metadata, [Nova Delivery](https://github.com/users/aaltaay/projects/1) board, clean-start + ready-PR session gates, Actions merge of ready PRs, delete head after merge/close, strict gates
+- `github-delivery.mdc` -- issue metadata, [Nova Delivery](https://github.com/users/aaltaay/projects/1) board, Actions merge of ready PRs, delete head after merge/close, closure after merge; session gates point to §5.1
 - `persisted-state.mdc` -- cache files need owner + invalidation + schema_version
 - `workspace-hygiene.mdc` -- never stash; one worktree per task; finish with a clean tree; `tools/repo_hygiene.py status|fix|stop-gate`
 - `graphify.mdc` -- vault/decision questions: `py -3 tools/graphify_ask.py query` + savings meter
@@ -601,6 +605,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `file-size-limits.mdc` -- backend + frontend src -- soft 400 with a one-concern reason, no growth without one, 800 ceiling
 - `centralized-constants.mdc` -- backend + frontend src -- tunables in domain modules
 - `schema-docs.mdc` -- backend, frontend, electron, research -- read and update the owning `architecture/schema/<domain>.md` in the same commit
+- `single-market-data-feed-catalog.mdc` -- backend + frontend src -- the full feed law: mechanics of the 13 rules, the ❌ anti-pattern catalog, the module map
 - Continuity rules (already glob): `hotkeys-continuity`, `docs-continuity`, `execution-continuity`, `widgets-continuity`, `security-continuity`
 
 **Agent-requested** (name + description always visible; body fetched on demand):
