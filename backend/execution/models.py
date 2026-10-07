@@ -26,6 +26,8 @@ Origin = Literal[
     "approve",
     "bot_api",
     "nova_exit",
+    "day_cover",
+    "margin_call",
 ]
 
 
@@ -66,9 +68,10 @@ class ExecutionCommand:
     # venue that issued it, so a cancel or replace of a known id names it; the door refuses
     # ``VENUE_CHANGED`` when the desk is elsewhere by the time it runs (audit 2026-09-30).
     expected_venue: str | None = None
-    # The venue to send to instead of the desk's: the kill switch's sweep only (spec D, #656).
-    # Only a ``cancel`` from the ``kill`` source may name one, and Live only while IBKR is
-    # connected (``execution.venue_door.resolve``); a place or a buy is never routed by it.
+    # The venue to send to instead of the desk's: the kill switch's sweep (spec D, #656) and Nova's
+    # own closes -- the day cover and the margin call (ADR 048) -- only: a ``kill`` cancel, or a
+    # ``cancel_working`` cancel or a protective ``flatten`` place with origin ``day_cover`` /
+    # ``margin_call``; Live only while IBKR is connected (``execution.venue_door.resolve``).
     target_venue: str | None = None
     # Who in Nova sent it (``Origin``): recorded with the order and shown in the Orders table's
     # "Sent by" so a breaker's or a bot's order never reads as the operator's own. None for the

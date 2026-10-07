@@ -11,6 +11,7 @@ import {
 } from './orderDisplay';
 import { sessionKindNow } from './extendedSession';
 import { FillLatencyTd } from './FillLatencyCell';
+import { OrderSideTd } from './OrderSideCell';
 import { SentByTd } from './SentByCell';
 import { commissionCellTitle, formatCommission } from './orderCommission';
 import { displayFilledQty, practiceFillTitle } from './orderFillHonesty';
@@ -135,6 +136,8 @@ export function renderWorkingOrderCell(
       return <FillLatencyTd key={col} audit={o.fill_audit} />;
     case 'sent_by':
       return <SentByTd key={col} order={o} />;
+    case 'side':
+      return <OrderSideTd key={col} order={o} />;
     case 'status': {
       const shown = workingOrderStatusDisplay(
         o,

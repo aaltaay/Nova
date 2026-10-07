@@ -37,7 +37,7 @@ The design session read the code at `7d9948d` (2026-10-06); master at `60cbc82` 
    2. **Equity.** At least $2,000, FINRA's margin minimum, before the trade.
    3. **Borrow.** IBKR's shortable estimate (tick 236) must cover this order, plus the shares already short in the stock, plus the short entries in flight. Unknown or stale borrow refuses. The door reads it from the cache and never asks IBKR under its lock. When the cache is stale, the door asks IBKR again in the background.
    4. **Margin.** The requirement must fit the account. The figure is IBKR's what-if first (decision 2), else the published rules, labelled "published rules".
-   5. **A 25% cushion.** The price at which IBKR would liquidate the account must be at least 25% above the entry. That price is where equity falls to the maintenance requirement, with the other positions held still. With $5,000 on a stock under $5, this caps a short at about $3,300.
+   5. **A 25% cushion.** The price at which IBKR would liquidate the account must be at least 25% above the entry. With shorts of the stock still on the way, each keeps its own limit and the entry is the highest of those prices. That price is where equity falls to the maintenance requirement, with the other positions held still. With $5,000 on a stock under $5, this caps a short at about $3,300.
    6. **A stop on the entry.** A short goes out with a protective BUY stop above the entry, working once the short fills. On the wire it is a bracket whose target is optional: an entry limit, a BUY stop, and an optional BUY limit target. No stop price, no short. A short entry is a limit order (CHOSEN): the SSR rule, the margin and the cushion all need its price, and the ticket opens a short with a Limit.
    7. **No flips, no trading against a position.**
       - A short opens only from flat, or adds to a short.
@@ -77,7 +77,7 @@ The design session read the code at `7d9948d` (2026-10-06); master at `60cbc82` 
    3. A cover is never refused by the day lock or by buying power. A BUY while the account is short, up to the short, is a close, like selling what you hold.
    4. The door reads borrow from the cache before it takes its lock. With no fresh read it refuses `SHORT_STALE_BORROW` with the fix, and asks IBKR again in the background. An open Trader tab re-reads its stock's borrow before the read goes stale.
    5. A short entry, a place or a bracket, is held in flight as `SHORT` until its order resolves, and the borrow and margin checks count it.
-   6. Freeze all orders keeps every protective stop resting: a working stop on the side that closes a held position, no larger than that position, on longs and shorts alike. It still cancels entries and targets, and the sweep lists the stops it kept.
+   6. Freeze all orders keeps every protective stop resting: the working stops on the side that closes a held position, on longs and shorts alike, together never larger than that position (two stops that each cover it would both fill and flip it; the nearest the market is kept first). A bracket stop whose entry is still working protects nothing and is cancelled with it. It still cancels entries and targets, and the sweep lists the stops it kept.
    7. Fill now never turns a short into a plain sell. Order rows carry Nova's `short_entry`, and Fill now refuses a short entry before it cancels anything: a short goes out with its stop, so it is placed again from the ticket.
    8. Paper and Sim never fill past flat. A cover that would buy more than the short is cancelled at the fill (`PRACTICE_OVERCOVER`), mirroring QA R42's rule for sells. On Live a fill is IBKR's: the door holds a cover to the short less the covers in flight, as it holds a sell to the long.
 
@@ -149,6 +149,7 @@ Six pull requests under #778. Each is safe on its own: before step 2 nothing new
 - The short grade pillar "ran 30%+ today" will usually fail on a day-2 SSR name (ADR 049).
 - What "no wrong refusal or wrong fill" needs from the operator on each Paper day of the Live short proof.
 - Notes to confirm against the live margin account: no pattern-day-trader limit, and no borrow fees on day-only shorts.
+- Early closes (step 2): new shorts stop at 12:50 and Nova covers at 12:55 on an NYSE 13:00 close, ten and five minutes before it, by the same rule as 15:50 / 15:55.
 
 ## Related
 

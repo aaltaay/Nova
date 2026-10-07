@@ -152,7 +152,7 @@ class _Ref:
 
 def _sim_broker(monkeypatch, playhead: dt.datetime) -> None:
     fake = SimpleNamespace(reference=_Ref(playhead))
-    monkeypatch.setattr(practice_checks, "venue_broker", lambda: fake)
+    monkeypatch.setattr(practice_checks, "venue_broker", lambda venue=None: fake)
 
 
 def test_sim_judges_by_the_playhead_not_the_wall_clock(real_gate, monkeypatch) -> None:
@@ -173,7 +173,7 @@ def test_a_venue_without_a_clock_falls_back_to_wall_time_loudly(real_gate, monke
     _on("sim")
     monkeypatch.setattr(session_gate, "now_et", lambda: MONDAY_AFTER)
 
-    def broken():
+    def broken(venue=None):
         raise RuntimeError("nothing loaded")
 
     monkeypatch.setattr(practice_checks, "venue_broker", broken)

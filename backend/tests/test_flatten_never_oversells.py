@@ -133,7 +133,7 @@ def test_a_flatten_on_a_flat_practice_position_says_it_is_not_a_close(venue, mon
         reference=SimpleNamespace(admission=lambda symbol: (True, "OK", None)),
         ledger=SimpleNamespace(held_qty=lambda symbol: 0.0),
     )
-    monkeypatch.setattr(practice_checks, "venue_broker", lambda: fake)
+    monkeypatch.setattr(practice_checks, "venue_broker", lambda venue=None: fake)
     monkeypatch.setattr("sim.mode.is_practice_venue", lambda: True)
     venue["positions"] = []
 
@@ -228,6 +228,26 @@ def test_exits_waiting_on_a_working_entry_close_nothing_held(venue) -> None:
     ]
     assert flatten_intent.closing_committed("GRML", "SELL") == (0.0, [])
     assert flatten_intent.refusal(_flatten(qty=2)) is None
+
+
+def test_a_live_brackets_exits_count_once_grouped_by_their_entry(venue) -> None:
+    """Live rows carry IBKR's parentId and no OCA group: the exits still close the shares once."""
+    venue["positions"] = [{"symbol": "GRML", "qty": 4}]
+    venue["orders"] = [{**_working(21), "parent_id": 20}, {**_working(22), "parent_id": 20}]
+    assert flatten_intent.closing_committed("GRML", "SELL") == (2.0, [21, 22])
+    assert flatten_intent.refusal(_flatten(qty=2)) is None
+
+
+def test_exits_of_an_entry_that_filled_some_count(venue) -> None:
+    """Once an entry has bought some, IBKR may already work its exits: they count as closing."""
+    venue["positions"] = [{"symbol": "GRML", "qty": 2}]
+    venue["orders"] = [
+        _working(20, side="BUY", qty=4.0, filled=2.0),
+        _exit(21, 20, "target", qty=4.0), _exit(22, 20, "stop", qty=4.0),
+    ]
+    assert flatten_intent.closing_committed("GRML", "SELL") == (4.0, [21, 22])
+    refusal = flatten_intent.refusal(_flatten(qty=2))
+    assert refusal is not None and "already being closed" in refusal
 
 
 def test_a_practice_brackets_exits_count_once_for_the_flatten(paper, venue, monkeypatch) -> None:

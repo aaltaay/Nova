@@ -14,7 +14,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from constants_practice import PRACTICE_NO_SHORTS_CODE
 from execution import inflight, service, store, telemetry
 from execution.models import ExecutionCommand
 from ibkr import orders as ibkr_orders
@@ -142,12 +141,36 @@ async def test_an_entry_the_venue_cancels_at_the_fill_is_refused_in_its_words(pa
 
 
 @pytest.mark.asyncio
-async def test_a_short_bracket_is_refused_no_shorts(paper) -> None:
+async def test_a_short_bracket_goes_through_the_door_on_paper(paper, short_market_open) -> None:
+    """ADR 048 step 2: Paper takes a short as Live will -- a bracket with its buy stop."""
+    import time
+
+    import ibkr.shortability as short_mod
+
+    short_mod.remember_for_tests("IMCC", short_mod.enrich_ibkr_listing(
+        {"connected": True, "qualified": True, "shortable_shares": 50_000, "error": None},
+        fetched_at=time.time(),   # the borrow's age is wall-clock seconds on every venue but a replay
+    ))
     receipt = await service.execute(_bracket(
         "short", entry=10.0, side="SELL", short_entry=True, target_price=9.5, stop_price=10.5,
     ))
 
-    assert (receipt.ok, receipt.reason_code) == (False, PRACTICE_NO_SHORTS_CODE)
+    assert receipt.ok is True, receipt.error
+    p = receipt.parent_order_id
+    assert (receipt.target_order_id, receipt.stop_order_id) == (p + 1, p + 2)
+    rows = {int(r["order_id"]): r for r in paper.broker.working_orders()}
+    assert [(rows[i]["side"], rows[i]["effect"]) for i in (p, p + 1, p + 2)] == [
+        ("SELL", "opens"), ("BUY", "closes"), ("BUY", "closes"),
+    ]
+    short_mod.reset_for_tests()
+
+
+@pytest.mark.asyncio
+async def test_a_sell_bracket_without_short_entry_is_refused(paper, short_market_open) -> None:
+    receipt = await service.execute(_bracket(
+        "no-flag", entry=10.0, side="SELL", target_price=9.5, stop_price=10.5,
+    ))
+    assert receipt.ok is False
     assert paper.broker.working_orders() == [] and paper.broker.ledger.events == []
 
 

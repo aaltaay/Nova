@@ -176,10 +176,13 @@ the same shape:
 - **Admission is the entry's.** The entry passes a place's gates in the
   execution door's order: shape (`BRACKET_GEOMETRY`, `QTY_INVALID`), TIF
   (`TIF_INVALID`), the venue's admission (`SIM_*` / `PRACTICE_NO_LIVE_PRINT`),
-  no shorts -- a SELL entry is a short bracket and is refused
-  `PRACTICE_NO_SHORTS` -- and buying power at the entry limit
-  (`PRACTICE_BUYING_POWER`). The exits never pass a place's gates: its
-  no-shorts rule would refuse a SELL before anything is held.
+  the short rule -- a SELL entry is a short bracket (ADR 048), from flat or
+  adding to a short, refused `PRACTICE_SHORT_WHILE_LONG` while the stock is
+  held long -- and buying power (a short: its margin) at the entry limit
+  (`PRACTICE_BUYING_POWER`). The exits never pass a place's gates: a long
+  bracket's exits SELL before anything is held. A short bracket's exits are
+  BUYs that cover; its target may be left out (two consecutive ids: the entry
+  and its buy stop), while a long bracket always carries both exits.
 - **The exits wait.** They rest `PreSubmitted` (the blotter reads "Pending",
   as it does for IBKR's own held children) until the entry fills. The ledger
   wakes them when it applies the entry's `filled` event: `Submitted`, placed at
@@ -233,6 +236,23 @@ bracket's stop leg. IBKR holds a plain stop until 09:30 even with
 position while Paper's does. Nova keeps the practice behaviour for now; whether
 Paper should hold the stop leg the way IBKR does is an open operator question
 on #604 / #606 step 2.
+
+## Shorts under SSR (ADR 048 step 2)
+
+Under SSR (Reg SHO Rule 201, `short_sale/ssr.py`) a short may execute only
+above the national best bid: a buyer has to lift it. While SSR is on -- or
+unknown, which counts as on -- a practice short entry fills only at a price over
+the venue's bid at that moment (`short_sale/ssr_fill.py`): at placement (a
+short limit at or under the bid rests instead of filling at the bid) and on a
+print (a resting short whose limit the bid has caught up with keeps resting
+until the bid falls back under it). It is never cancelled for SSR, and a bid
+Nova cannot see proves nothing, so the short rests. A cover is never held.
+
+This is conservative: an exchange re-prices an SSR short to one tick over a
+rising bid and it can still execute there; Paper waits for the bid instead.
+The door's short check already refuses a short priced at or under the bid
+under SSR (`SHORT_SSR_AT_BID`), so the case arises only when the bid rises
+after placement.
 
 ## The venue's answer is the acknowledgment (operator report, 2026-09-24)
 

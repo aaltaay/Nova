@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from execution import order_side
+
 logger = logging.getLogger(__name__)
 
 _LEG_ID_KEYS = ("order_id", "parent_order_id", "target_order_id", "stop_order_id")
@@ -27,10 +29,13 @@ def ledger_sent_by(led: dict[str, Any], side: str | None = None) -> dict[str, An
     """
     payload = led.get("payload") or {}
     row_side = str(side or payload.get("side") or "").strip().upper()
+    position_side, effect = order_side.from_record(payload, row_side, str(led.get("operation") or ""))
     return {
         "order_source": led.get("source"),
         "order_origin": payload.get("origin"),
         "short_entry": bool(payload.get("short_entry")) and row_side == "SELL",
+        "position_side": position_side,
+        "effect": effect,
     }
 
 

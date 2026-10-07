@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRACTICE_NO_SHORTS_REASON } from '../constantGroups/practice';
+import { PRACTICE_TICKET_SHORT_LOCKED } from '../constantGroups/practice';
 import { TICKET_COST_NO_POSITION } from '../constantGroups/trader_chrome';
 import { SIM_REPLAY_PRICE_NONE } from '../sim/simConstants';
 import { estimateTicketCost } from './ticketCost';
@@ -91,7 +91,7 @@ describe('estimateTicketCost', () => {
     const short = { ...BASE, side: 'SELL' as const, shortEntry: true };
     const practice = estimateTicketCost(short, CTX, { forceQty: null }, { practice: true });
     expect(practice.buyingPowerAfter).toBeNull();
-    expect(practice.note).toBe(PRACTICE_NO_SHORTS_REASON);
+    expect(practice.note).toBe(PRACTICE_TICKET_SHORT_LOCKED);
     expect(estimateTicketCost(short, CTX, { forceQty: null }, { practice: false }).buyingPowerAfter).toBe(397_354 - 890);
   });
 

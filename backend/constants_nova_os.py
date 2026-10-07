@@ -88,6 +88,8 @@ EXECUTION_ORIGINS = (
     "approve",
     "bot_api",
     "nova_exit",
+    "day_cover",      # ADR 048: Nova covers every short at 15:55 ET (12:55 on an early close)
+    "margin_call",    # ADR 048: equity under maintenance -- IBKR liquidates, so Paper and Sim do
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
 # ── NYSE exchange calendar ───────────────────────────────────────────────────
@@ -110,8 +112,10 @@ EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
 # every derived date against a hand-entered table taken from the published NYSE
 # calendars, so the rules are checked against something other than themselves.
 #
-# NOT modelled: early-close (13:00 ET) half-days. This table is full-day
-# closures only; see sim/trading_day.py for what that costs a replayed session.
+# Early-close (13:00 ET) half-days are a separate table below
+# (NOVA_OS_NYSE_EARLY_CLOSES, ADR 048). Only the short hours and the day cover read
+# it; every other consumer still treats a half-day as a full day (see
+# sim/trading_day.py for what that costs a replayed session).
 from types import MappingProxyType as _MappingProxyType
 
 # The supported (vouchable) range. Callers refuse dates outside it.
@@ -203,6 +207,41 @@ NOVA_OS_NYSE_HOLIDAY_NAMES = _MappingProxyType({
 # Same name and same frozenset-of-ISO-strings contract as the 2026-only literal
 # it replaces, so its readers became year-correct with no edit of their own.
 NOVA_OS_NYSE_HOLIDAYS = frozenset(NOVA_OS_NYSE_HOLIDAY_NAMES)
+
+# NYSE early closes: the session ends at 13:00 ET (ADR 048: the day cover runs at 12:55
+# and new shorts stop at 12:50). Derived by rule over the same range as the holidays;
+# tests/test_nyse_early_closes.py pins every date against the published NYSE calendars.
+NOVA_OS_NYSE_EARLY_CLOSE_MIN_ET = 13 * 60
+
+
+def _nyse_early_closes(year):
+    """``{date: name}`` of NYSE 13:00 ET closes in ``year``.
+
+    - July 3, when it is a Monday to Thursday. A Friday July 3 is itself the holiday
+      (Independence Day on a Saturday), and on a weekend there is no session.
+    - The day after Thanksgiving.
+    - December 24, when it is a Monday to Thursday. A Friday December 24 is the
+      observed Christmas.
+    """
+    from datetime import date, timedelta
+    days = {}
+    july3 = date(year, 7, 3)
+    if july3.weekday() < 4:
+        days[july3] = "Day before Independence Day"
+    days[_nth_weekday(year, 11, 3, 4) + timedelta(days=1)] = "Day after Thanksgiving"
+    eve = date(year, 12, 24)
+    if eve.weekday() < 4:
+        days[eve] = "Christmas Eve"
+    return days
+
+
+NOVA_OS_NYSE_EARLY_CLOSE_NAMES = _MappingProxyType({
+    day.isoformat(): name
+    for year in range(NOVA_OS_CALENDAR_TABLE_FIRST_YEAR, NOVA_OS_CALENDAR_LAST_YEAR + 1)
+    for day, name in sorted(_nyse_early_closes(year).items())
+    if day.isoformat() not in NOVA_OS_NYSE_HOLIDAYS
+})
+NOVA_OS_NYSE_EARLY_CLOSES = frozenset(NOVA_OS_NYSE_EARLY_CLOSE_NAMES)
 
 # Action codes — what Nova OS actually did with a decision. The "no silent
 # action" contract means every one of these is recorded as an event receipt.

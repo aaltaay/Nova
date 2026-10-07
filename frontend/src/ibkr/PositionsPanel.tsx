@@ -9,6 +9,8 @@ import { formatShareQty } from '../utils/formatShareQty';
 import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader';
 import { lastKnownBanner } from './disconnectCopy';
 import { positionSideClass, positionSideRowClass } from './orderDisplay';
+import { PositionSideTd } from './OrderSideCell';
+import { liquidationTitle, positionSideWords } from './orderSide';
 import {
   DEFAULT_POSITION_COLUMNS,
   POSITION_COLUMN_META,
@@ -45,6 +47,8 @@ interface Props {
 /** What each position column sorts on, keyed by its column id: the numbers, never their text. */
 const POSITION_SORT_COLUMNS: SortColumns<IbkrPosition> = {
   symbol: (p) => p.symbol,
+  side: (p) => { const w = positionSideWords(p); return w.tone === 'unknown' ? null : w.tag; },
+  liq: (p) => p.liquidation_price ?? null,
   qty: (p) => p.qty,
   avg_cost: (p) => p.avg_cost,
   commission: (p) => p.commission,
@@ -72,6 +76,14 @@ function renderPositionCell(
       return (
         <td key={col} className={`ibkr-col--num ${sideCls}`} title={sideTitle}>
           {formatShareQty(p.qty)}
+        </td>
+      );
+    case 'side':
+      return <PositionSideTd key={col} position={p} />;
+    case 'liq':
+      return (
+        <td key={col} className="ibkr-col--num ibkr-col--liq" title={liquidationTitle(p)}>
+          {p.liquidation_price == null ? '—' : formatMoney(p.liquidation_price)}
         </td>
       );
     case 'avg_cost':

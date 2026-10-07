@@ -30,6 +30,7 @@ from execution.venue_door import commit_position as _commit_position
 from ibkr import client as _client
 import loop_lag as _loop_lag
 from market_view import gate as _view_gate
+from short_sale import prelock as _prelock
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +83,6 @@ def _receipt_from_row(row: dict, *, duplicate: bool = False) -> ExecutionReceipt
         timings=timings,
         payload=payload,
     )
-
-
-def _short_borrow(cmd: ExecutionCommand) -> dict | None:
-    """A short entry's tick-236 read from the cache (ADR 048 gap 4); a stale one asks IBKR in the background."""
-    if not getattr(cmd, "short_entry", False) or cmd.operation not in ("place", "bracket"):
-        return None
-    from ibkr import shortability
-
-    return shortability.for_order(cmd.normalized_symbol() or "")
 
 
 def _open_order_symbol(order_id: int) -> str | None:
@@ -187,7 +179,7 @@ async def execute(
         backend_ingress_wall_ns=cmd.backend_ingress_wall_ns or time.time_ns(),
     )
     view_check = _view_gate.check(cmd)  # ADR 045: how old the operator's screen was when they acted
-    borrow = _short_borrow(cmd)  # ADR 048: a short's borrow from the cache, never asked under the lock
+    short_facts = await _prelock.facts_for(cmd)  # ADR 048: a short's facts and IBKR's margin, never under the lock
     async with _lock:
         # One read: checked, committed and sent on the same venue -- a kill switch cancel's own target.
         send_venue, target_why = venue_door.resolve(cmd)
@@ -290,7 +282,7 @@ async def execute(
                     timings.validation_completed_ns = time.perf_counter_ns()
                     return _reject(execution_id, cmd, timings, "; ".join(issues), "PLAN_INVALID")
 
-        ok, detail, reason = _validate.check_account_and_position(cmd, borrow=borrow, venue=send_venue)
+        ok, detail, reason = _validate.check_account_and_position(cmd, facts=short_facts, venue=send_venue)
         if not ok:
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "ACCOUNT")

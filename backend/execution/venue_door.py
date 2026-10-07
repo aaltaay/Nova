@@ -5,9 +5,11 @@ committed on and sent to that venue -- however the desk moves meanwhile. An orde
 meaningful on the venue that issued it (practice ids restart at 1 per venue), so a caller
 that knows the venue names it (``ExecutionCommand.expected_venue``).
 
-One exception, the kill switch (spec D, #656): its sweep cancels every venue's working orders
+Two exceptions. The kill switch (spec D, #656): its sweep cancels every venue's working orders
 whatever the desk shows, so a ``kill`` cancel names its ``target_venue`` and is sent there
-(``resolve``). Nothing else may name one -- a place, a buy or any other source is refused -- and
+(``resolve``). Nova's own closes (ADR 048): the day cover and the margin call close a position on
+the venue that holds it, so their ``cancel_working`` cancels and their protective ``flatten``
+closes name it too. Nothing else may name one -- any other place, buy or source is refused -- and
 Live only while IBKR, Live's broker, is connected.
 
 Owner: this module (the rules; the lock and the send are ``execution.service``'s).
@@ -19,6 +21,8 @@ from execution import inflight
 from execution.models import ExecutionCommand
 
 TARGET_REFUSED = "TARGET_VENUE_REFUSED"
+# ADR 048: the closes Nova makes on a venue whatever the desk shows.
+NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call")
 
 
 def current() -> str:
@@ -49,9 +53,16 @@ def target_refusal(cmd: ExecutionCommand) -> str | None:
     target = cmd.target_venue
     if target not in DESK_VENUES:
         return f"unknown target venue {target!r} -- one of {', '.join(DESK_VENUES)}"
-    if cmd.operation != "cancel" or cmd.source != "kill":
-        return ("only the kill switch's cancels may name a venue other than the desk's -- every other "
-                "order is sent on the desk's venue")
+    kill_cancel = cmd.operation == "cancel" and cmd.source == "kill"
+    nova_close = cmd.origin in NOVA_CLOSE_ORIGINS and (
+        (cmd.operation == "cancel" and cmd.source == "cancel_working")
+        or (cmd.operation == "place" and cmd.source == "flatten" and not cmd.short_entry))
+    if not (kill_cancel or nova_close):
+        return ("only the kill switch's cancels and Nova's own closes (the day cover, a margin call) may name "
+                "a venue other than the desk's -- every other order is sent on the desk's venue")
+    if nova_close and target == DESK_VENUE_LIVE:
+        # Nova's closes run on Paper and Sim; Live's day cover is ADR 048's last step.
+        return "Nova's own closes run on Paper and Sim only -- nothing was sent to Live"
     if target == DESK_VENUE_LIVE and not ibkr_connected():
         return "Live's orders are IBKR's, and IBKR is not connected -- nothing was sent"
     return None

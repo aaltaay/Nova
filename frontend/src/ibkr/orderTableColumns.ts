@@ -3,12 +3,14 @@
  * Drag headers to reorder; layout survives refresh via localStorage.
  */
 import { TICKER_OPEN_TRADER_TITLE } from '../constants';
+import { LIQUIDATION_META, POSITION_SIDE_META, SIDE_COLUMN_META } from './orderSide';
 
 export type OrderTableId = 'working' | 'closed' | 'positions';
 
 export type WorkingOrderColumnId =
   | 'order_id'
   | 'symbol'
+  | 'side'
   | 'qty'
   | 'filled'
   | 'remaining'
@@ -26,6 +28,7 @@ export type WorkingOrderColumnId =
 export type ClosedOrderColumnId =
   | 'order_id'
   | 'symbol'
+  | 'side'
   | 'qty'
   | 'filled'
   | 'type'
@@ -40,6 +43,8 @@ export type ClosedOrderColumnId =
 
 export type PositionColumnId =
   | 'symbol'
+  | 'side'
+  | 'liq'
   | 'qty'
   | 'avg_cost'
   | 'commission'
@@ -50,6 +55,7 @@ export type PositionColumnId =
 /** Left→right default for Open / Working Orders (Actions stay pinned right). */
 export const DEFAULT_WORKING_ORDER_COLUMNS: WorkingOrderColumnId[] = [
   'symbol',
+  'side',
   'qty',
   'status',
   'sent_by',
@@ -72,6 +78,7 @@ export const DEFAULT_WORKING_ORDER_COLUMNS: WorkingOrderColumnId[] = [
  */
 export const DEFAULT_CLOSED_ORDER_COLUMNS: ClosedOrderColumnId[] = [
   'symbol',
+  'side',
   'qty',
   'status',
   'sent_by',
@@ -88,10 +95,12 @@ export const DEFAULT_CLOSED_ORDER_COLUMNS: ClosedOrderColumnId[] = [
 
 export const DEFAULT_POSITION_COLUMNS: PositionColumnId[] = [
   'symbol',
+  'side',
   'qty',
   'avg_cost',
   'commission',
   'mkt_price',
+  'liq',
   'mkt_value',
   'unrealized',
 ];
@@ -175,6 +184,7 @@ export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
   },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
   sent_by: SENT_BY_META,
+  side: SIDE_COLUMN_META,
   time: {
     id: 'time',
     label: 'Time Placed',
@@ -234,6 +244,7 @@ export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
   },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
   sent_by: SENT_BY_META,
+  side: SIDE_COLUMN_META,
   time: {
     id: 'time',
     label: 'Time Placed',
@@ -271,6 +282,8 @@ export const POSITION_COLUMN_META: Record<PositionColumnId, ColumnMeta> = {
     title:
       'Session CommissionReport sum for this symbol -- blank until IBKR sends a report; not avg_cost minus fill',
   },
+  side: POSITION_SIDE_META,
+  liq: LIQUIDATION_META,
   mkt_price: { id: 'mkt_price', label: 'Mkt Price', className: 'ibkr-col--num' },
   mkt_value: { id: 'mkt_value', label: 'Mkt Value', className: 'ibkr-col--num' },
   unrealized: { id: 'unrealized', label: 'Unrealized P&L', className: 'ibkr-col--num' },

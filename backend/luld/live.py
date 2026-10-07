@@ -53,6 +53,10 @@ _close: dict[str, float] = {}              # IBKR tick 9 per symbol, as the L1 l
 _facts_at: dict[str, float] = {}
 _line: dict[str, dict[str, Any]] = {}      # per symbol: {"held": bool, "lost_at": float | None}
 _gaps_seen: set[float] = set()
+# ADR 048: the limit side each halt came from ({start, side}: "up" | "down" | None), and the halts
+# still open (so a halt's side is read once, at its start).
+_halt_side: dict[str, dict[str, Any]] = {}
+_halt_side_open: set[str] = set()
 _board_close: dict[tuple[str, str], float | None] = {}   # (symbol, day) -> the leaderboard's previous close
 _counts = {"queued": 0, "dropped": 0, "processed": 0, "errors": 0}
 
@@ -239,6 +243,13 @@ def tick(now: float | None = None) -> None:
                 _facts_at[symbol] = now
             state = halted.get(symbol)
             if state is not None:
+                if state and symbol not in _halt_side_open:
+                    # The side of the limit state the halt came from: ADR 048's halt cool-off reads it.
+                    limit = tracker.view(now).get("limit")
+                    _halt_side[symbol] = {"start": now, "side": (limit or {}).get("side")}
+                    _halt_side_open.add(symbol)
+                elif not state:
+                    _halt_side_open.discard(symbol)
                 tracker.on_halt(now, state)
             line = _line.setdefault(symbol, {"held": True, "lost_at": None})
             held = _line_held(symbol)
@@ -289,6 +300,13 @@ def view(symbol: str, now: float | None = None) -> dict[str, Any]:
     return out
 
 
+def halt_side(symbol: str) -> dict[str, Any] | None:
+    """The LULD side the last halt Nova's tracker saw on ``symbol`` came from: ``{start, side}``; None when none."""
+    with _lock:
+        got = _halt_side.get((symbol or "").strip().upper())
+    return dict(got) if got else None
+
+
 def status() -> dict[str, Any]:
     with _lock:
         return {"enabled": enabled(), "symbols": sorted(_trackers), "queue_depth": _q.qsize(), **_counts}
@@ -298,6 +316,8 @@ def reset_for_tests() -> None:
     with _lock:
         _trackers.clear()
         _tracked.clear()
+        _halt_side.clear()
+        _halt_side_open.clear()
         _last_l1.clear()
         _close.clear()
         _facts_at.clear()

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import get_args
+from typing import Any, get_args
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
 from execution import flatten_intent as _flatten_intent
@@ -126,7 +126,10 @@ def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[b
         if refusal is not None:
             return False, refusal[0], refusal[1]
     elif cmd.operation == "bracket":
-        if cmd.entry_price is None or cmd.stop_price is None or cmd.target_price is None:
+        # A short's bracket may leave out its target (ADR 048 1.6) -- on Paper and Sim; Live's
+        # two-leg bracket comes with ADR 048's last step, so Live still needs all three.
+        optional_target = bool(cmd.short_entry) and _practice(venue)
+        if cmd.entry_price is None or cmd.stop_price is None or (cmd.target_price is None and not optional_target):
             return False, "bracket requires entry/stop/target", "BRACKET_FIELDS"
         shares = int(cmd.shares or cmd.qty or 0)
         if shares <= 0:
@@ -152,7 +155,7 @@ def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[b
         # SELL is only ever risk-reducing (execution/practice_checks.py).
         from execution.practice_checks import practice_refusal
 
-        refusal = practice_refusal(cmd)
+        refusal = practice_refusal(cmd, venue)
         if refusal is not None:
             return False, refusal[0], refusal[1]
         return True, "OK", None
@@ -192,14 +195,18 @@ def _bracket_refusal(cmd: ExecutionCommand) -> tuple[str, str] | None:
     try:
         entry = float(cmd.entry_price)  # type: ignore[arg-type]
         stop = float(cmd.stop_price)  # type: ignore[arg-type]
-        target = float(cmd.target_price)  # type: ignore[arg-type]
+        target = float(cmd.target_price) if cmd.target_price is not None else None
     except (TypeError, ValueError):
         return "bracket prices must be numbers", "BRACKET_FIELDS"
-    if not all(math.isfinite(p) and p > 0 for p in (entry, stop, target)):
+    prices = (entry, stop) if target is None else (entry, stop, target)
+    if not all(math.isfinite(p) and p > 0 for p in prices):
         return "bracket prices must be greater than zero", "BRACKET_FIELDS"
     if cmd.limit_price is not None and abs(float(cmd.limit_price) - entry) > 1e-9:
         return "bracket limit_price must equal entry_price", "BRACKET_FIELDS"
-    in_order = target < entry < stop if short else stop < entry < target
+    if short:
+        in_order = entry < stop and (target is None or target < entry)
+    else:
+        in_order = target is not None and stop < entry < target
     if not in_order:
         need = "target < entry < stop" if short else "stop < entry < target"
         return (
@@ -211,21 +218,23 @@ def _bracket_refusal(cmd: ExecutionCommand) -> tuple[str, str] | None:
 
 
 def check_account_and_position(
-    cmd: ExecutionCommand, *, borrow: dict | None = None, venue: str | None = None,
+    cmd: ExecutionCommand, *, facts: Any = None, borrow: dict | None = None, venue: str | None = None,
 ) -> tuple[bool, str, str | None]:
     """Cached account/position checks. Fail closed when data is incomplete for spends.
 
-    ``borrow`` is the short entry's tick-236 read, taken from the cache before the execution lock
-    (ADR 048 gap 4); ``venue`` the one the door sends on.
+    ``facts`` are the short entry's facts, gathered before the execution lock (``short_sale.prelock``;
+    ADR 048 gap 4) -- ``borrow`` a tick-236 read for a caller that has only that; ``venue`` the one
+    the door sends on.
     """
     if cmd.operation in ("cancel",):
         return True, "OK", None
 
-    from sim.mode import desk_connected, is_practice_venue
+    from sim.mode import desk_connected
 
     # A practice account is a local ledger, readable with the Gateway dark
     # (ADR 020); a protective close on Paper then settles at the last mark.
-    if not is_practice_venue() and not desk_connected():
+    # The venue is the one the door sends on: a day cover on Paper while the desk shows Live.
+    if not _practice(venue) and not desk_connected():
         return False, "account checks require IBKR connection", "ACCOUNT_UNAVAILABLE"
 
     if getattr(cmd, "intent", None) == "flatten":
@@ -246,7 +255,7 @@ def check_account_and_position(
             # borrow from the cache, margin and the 25% cushion.
             from short_sale import door as _short_door
 
-            refused = _short_door.refusal(cmd, borrow=borrow, venue=venue)
+            refused = _short_door.refusal(cmd, facts=facts, borrow=borrow, venue=venue)
             return (False, refused[0], refused[1]) if refused else (True, "OK", None)
 
         # A BUY while the account is short covers it -- a close, like selling what you hold: it is

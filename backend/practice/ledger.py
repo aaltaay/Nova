@@ -80,6 +80,9 @@ class Ledger:
         self.events: list[dict[str, Any]] = [dict(e) for e in (events or [])]
         # A replacing ledger continues its predecessor's ids: an old id never joins a new order (R41).
         self.first_order_id = max(1, int(first_order_id))
+        # Each stock's margin ratio -- IBKR's what-if over the published rules, or 1 (ADR 048 decision
+        # 2). The venue's broker sets it; never persisted.
+        self.margin_ratio: margin.RatioFn = margin.published_ratio
         self._derive()
 
     # ------------------------------------------------------------------ derive
@@ -355,12 +358,23 @@ class Ledger:
     def net_liquidation(self) -> float:
         return self.cash + sum(float(r["market_value"]) for r in self.position_rows())
 
+    def maintenance(self) -> float:
+        """Every held position's maintenance at its mark (``practice.margin``)."""
+        return margin.maintenance(self.position_rows(), self.margin_ratio)
+
+    def excess_liquidity(self) -> float:
+        return self.net_liquidation() - self.maintenance()
+
     def buying_power(self) -> float:
-        return margin.buying_power(self.net_liquidation(), self.gross_position_value())
+        return margin.buying_power(self.net_liquidation(), self.gross_position_value(), self.maintenance())
 
     def can_afford(self, symbol: str, side: str, qty: float, price: float) -> tuple[bool, float, float]:
+        held = self.held_qty(symbol)
+        opens_short = (side or "").upper() == "SELL" and margin.opening_qty("SELL", qty, held) > _EPS
+        factor, _ = self.margin_ratio(symbol.upper(), "short" if opens_short else "long")
         return margin.check(
-            side, qty, price, self.held_qty(symbol), self.net_liquidation(), self.gross_position_value(),
+            side, qty, price, held, self.net_liquidation(), self.gross_position_value(),
+            maint=self.maintenance(), ratio=factor,
         )
 
     def working_orders(self) -> list[dict[str, Any]]:

@@ -1,0 +1,43 @@
+/* The Side column (ADR 048): LONG a green tag, SHORT an orange tag, the effect in grey. The row
+   keeps its green (buy) / red (sell) tint; the word, never the colour alone, carries the side. */
+.ibkr-table--orders th.ibkr-col--side,
+.ibkr-table--orders td.ibkr-col--side {
+  width: 7.5rem;
+  min-width: 6.5rem;
+  white-space: nowrap;
+}
+
+.ibkr-side-tag {
+  /* No shared orange token exists: the short tag's orange lives here. */
+  --ibkr-side-short: #ff9f0a;
+  display: inline-block;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.35;
+}
+
+.ibkr-side-tag--long {
+  color: var(--nova-success);
+  border: 1px solid color-mix(in srgb, var(--nova-success) 55%, transparent);
+}
+
+.ibkr-side-tag--short {
+  color: var(--ibkr-side-short);
+  border: 1px solid color-mix(in srgb, var(--ibkr-side-short) 55%, transparent);
+}
+
+.ibkr-side-tag--unknown {
+  color: var(--text-secondary);
+  border: 1px dashed var(--text-secondary);
+}
+
+.ibkr-side-effect {
+  color: var(--text-secondary);
+}
+
+.ibkr-table--orders td.ibkr-col--liq {
+  color: var(--text-secondary);
+}

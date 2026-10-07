@@ -9,7 +9,8 @@
 7. Fill now never re-sends a short as a plain SELL (frontend, ``planFillWorkingOrder.test.ts``);
 8. Paper and Sim never fill a cover past flat (``test_practice_overcover.py``).
 
-Live only: Paper and Sim still refuse every opening short until step 2.
+Each short goes out as ADR 048 step 2 requires: a bracket with its buy stop, inside the short hours,
+with halts and SSR pinned clear (``short_market_open``).
 """
 from __future__ import annotations
 
@@ -47,8 +48,10 @@ def _borrow(shares: float = 30_000, age: float = 1.0) -> dict:
 
 
 def _short(key: str = "short-1", qty: float = 416, limit: float = 5.77, **kw) -> ExecutionCommand:
-    base = dict(operation="place", idempotency_key=key, source="manual", symbol=SYMBOL, side="SELL",
-                qty=qty, order_type="LMT", limit_price=limit, short_entry=True, skip_risk=True)
+    """A short as the door takes it: a bracket with its buy stop (ADR 048 1.6)."""
+    base = dict(operation="bracket", idempotency_key=key, source="manual", symbol=SYMBOL, side="SELL",
+                qty=qty, order_type="LMT", limit_price=limit, entry_price=limit, stop_price=round(limit + 0.12, 2),
+                target_price=round(limit - min(0.24, limit / 4), 2), short_entry=True, skip_risk=True)
     base.update(kw)
     return ExecutionCommand(**base)
 
@@ -74,7 +77,7 @@ def _summary(equity: float = 5_000.0, excess: float | None = 5_000.0, **kw) -> d
 
 
 @pytest.fixture
-def live(monkeypatch, tmp_path):
+def live(monkeypatch, tmp_path, short_market_open):
     """A Live desk on IBKR with shorts enabled (the key is mocked: no agent sets it)."""
     monkeypatch.setattr("paths.cache_dir", lambda: tmp_path)
     monkeypatch.setattr("execution.store.cache_dir", lambda: tmp_path)
@@ -119,7 +122,14 @@ def _spy_place(monkeypatch) -> list[dict]:
         calls.append(kw)
         return {"ok": True, "order_id": 100 + len(calls), "error": None, "mode": "paper"}
 
+    def bracket(**kw):
+        calls.append(kw)
+        base = 100 + 3 * len(calls)
+        return {"ok": True, "order_id": base, "parent_order_id": base, "target_order_id": base + 1,
+                "stop_order_id": base + 2, "error": None, "mode": "paper"}
+
     monkeypatch.setattr(orders_mod, "place_order", place)
+    monkeypatch.setattr(orders_mod, "place_bracket_order", bracket)
     return calls
 
 
@@ -187,8 +197,19 @@ def test_cash_account_and_small_equity_refuse(live):
 
 
 def test_a_market_short_is_refused(live):
-    ok, _detail, code = _check(_short(order_type="MKT", limit_price=None), _borrow())
+    market = ExecutionCommand(operation="place", idempotency_key="mkt", source="manual", symbol=SYMBOL,
+                              side="SELL", qty=10, order_type="MKT", short_entry=True, skip_risk=True)
+    ok, _detail, code = _check(market, _borrow())
     assert (ok, code) == (False, "SHORT_NEEDS_LIMIT")
+
+
+def test_a_short_without_its_buy_stop_is_refused(live):
+    """ADR 048 1.6: a plain limit short carries no stop -- no stop price, no short."""
+    plain = ExecutionCommand(operation="place", idempotency_key="no-stop", source="manual", symbol=SYMBOL,
+                             side="SELL", qty=10, order_type="LMT", limit_price=5.77, short_entry=True,
+                             skip_risk=True)
+    ok, detail, code = _check(plain, _borrow())
+    assert (ok, code) == (False, "SHORT_NEEDS_STOP") and "buy stop" in detail
 
 
 # ---------------------------------------------------------------- gap 2: never short while long
@@ -292,6 +313,31 @@ def test_shorts_in_flight_count_toward_the_margin(live, monkeypatch):
     second = asyncio.run(exec_svc.execute(
         _short("margin-2", qty=600, limit=4.00, symbol="FADE"), wait_ack=False))
     assert second.ok is False and second.reason_code in ("SHORT_MARGIN", "SHORT_CUSHION")
+
+
+def test_a_short_on_the_way_keeps_its_own_limit():
+    """PR #782 review: a short resting at $20 is never priced at a new $4 entry."""
+    alone = margin.cushion(equity=5_000, other_maint=0, qty=400, entry=4.0)
+    assert alone["ok"] is True and alone["fill_price"] == 4.0
+    mixed = margin.cushion(equity=5_000, other_maint=0, qty=20, entry=4.0, flying=[(380, 20.0)])
+    # Sold at its own $20, the 380 needs $20's maintenance, and the cushion runs 25% over $20.
+    assert mixed["fill_price"] == 20.0 and mixed["cushion_price"] == 25.0 and mixed["qty"] == 400
+    assert mixed["requirement"] == pytest.approx(400 * 0.30 * 20.0)
+    assert mixed["fits"] is True and mixed["ok"] is False
+    # A short on the way under the entry sold for less: never more equity than the entry gives.
+    lower = margin.cushion(equity=5_000, other_maint=0, qty=20, entry=4.0, flying=[(380, 3.9)])
+    assert lower["fill_price"] == 4.0 and lower["surplus_at_entry"] < alone["surplus_at_entry"]
+
+
+def test_the_door_prices_a_short_on_the_way_at_its_own_limit(live, monkeypatch):
+    _spy_place(monkeypatch)
+    short_mod.remember_for_tests(SYMBOL, _borrow())
+    first = asyncio.run(exec_svc.execute(_short("own-1", qty=380, limit=20.00), wait_ack=False))
+    assert first.ok is True, first.error
+    second = asyncio.run(exec_svc.execute(_short("own-2", qty=20, limit=4.00), wait_ack=False))
+    # Repriced at $4 the 400 would pass; at the first short's own $20 they cannot take 25% more.
+    assert (second.ok, second.reason_code) == (False, "SHORT_CUSHION")
+    assert "a short at 20.00" in second.error
 
 
 def test_the_live_key_still_refuses_first(live, monkeypatch):

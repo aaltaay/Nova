@@ -191,7 +191,8 @@ async def _send_bracket(
     )
     raw = broker.place_bracket(
         symbol, entry_side, float(cmd.shares or cmd.qty or 0),
-        float(cmd.entry_price or 0), float(cmd.target_price or 0), float(cmd.stop_price or 0),
+        float(cmd.entry_price or 0), float(cmd.target_price) if cmd.target_price is not None else None,
+        float(cmd.stop_price or 0),
         tif=cmd.tif, outside_rth=cmd.outside_rth, source=cmd.source, short_entry=bool(cmd.short_entry),
         origin=cmd.origin,
     )
@@ -215,6 +216,8 @@ async def _send_bracket(
         ("target", raw.get("target_order_id"), cmd.target_price),
         ("stop", raw.get("stop_order_id"), cmd.stop_price),
     ):
+        if child is None:
+            continue  # a short's bracket with no target (ADR 048 1.6)
         telemetry.watch_order(
             int(child), execution_id, venue=venue, fresh=True, leg_role=role, side=exit_side,
             reference_price=reference, reference_source=f"bracket_{role}", aggregate_eligible=False,

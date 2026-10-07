@@ -9,6 +9,8 @@ to the broker row.
 """
 from __future__ import annotations
 
+from constants_practice import PRACTICE_STARTING_CASH as START  # ADR 048: the operator's $5,000
+
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -98,7 +100,7 @@ def test_expire_due_closes_a_day_order_at_the_close_with_the_expired_status(pape
     assert paper.broker.working_orders() == []
     closed = paper.broker.closed_orders()[0]
     assert closed["status"] == "Expired" and closed["remaining_qty"] == 10 and closed["filled_qty"] == 0
-    assert paper.broker.positions() == [] and paper.broker.account_summary()["TotalCashValue"] == 100_000
+    assert paper.broker.positions() == [] and paper.broker.account_summary()["TotalCashValue"] == START
     event = paper.broker.ledger.events[-1]
     assert (event["type"], event["ts"], event["code"]) == (EVENT_EXPIRED, CLOSE, PRACTICE_TIF_EXPIRED_CODE)
 

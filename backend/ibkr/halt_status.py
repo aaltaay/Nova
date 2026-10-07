@@ -48,6 +48,10 @@ _rss_announced: set[str] = set()
 # identities here; a replacement line is a first reading, not the old line's code.
 _scanner_codes: OrderedDict[str, tuple[Any, int | None]] = OrderedDict()
 _scanner_lock = threading.Lock()
+# ADR 048 (no short within 10 minutes of an up-halt's resumption): the last halt this process saw
+# resume per symbol, and since when tick 49 has read "trading" without a halt in between.
+_resumed: dict[str, dict[str, Any]] = {}
+_clear_since: dict[str, float] = {}
 
 
 def reset() -> None:
@@ -55,6 +59,8 @@ def reset() -> None:
     _state.clear()
     _seen_clear.clear()
     _rss_announced.clear()
+    _resumed.clear()
+    _clear_since.clear()
     with _scanner_lock:
         _scanner_codes.clear()
 
@@ -167,6 +173,17 @@ def halted_now(symbols: Iterable[str], *, now: float | None = None) -> dict[str,
     return out
 
 
+def last_resume(symbol: str) -> dict[str, Any] | None:
+    """The last halt this process saw resume on ``symbol``'s tick 49: ``{resumed_at, halt_start, kind, code}``."""
+    got = _resumed.get((symbol or "").strip().upper())
+    return dict(got) if got else None
+
+
+def clear_since(symbol: str) -> float | None:
+    """Since when tick 49 has read "trading" on ``symbol`` with no halt between; None when not seen so."""
+    return _clear_since.get((symbol or "").strip().upper())
+
+
 def live_symbols() -> list[str]:
     return sorted(_state.keys())
 
@@ -252,9 +269,13 @@ def observe_code(
     if kind is None:
         _seen_clear.add(sym)
         _rss_announced.discard(sym)
+        _clear_since.setdefault(sym, ts)
         if prev is None:
             return None, False
         _state.pop(sym, None)
+        _resumed[sym] = {"resumed_at": ts, "halt_start": prev.get("halt_start"), "kind": prev.get("kind"),
+                         "code": prev.get("halt_code"), "source": "ibkr"}
+        _clear_since[sym] = ts
         logger.info("IBKR halt: %s cleared (ticker.halted=%s)", sym, code)
         return None, True
 
@@ -268,6 +289,7 @@ def observe_code(
         halt_start = ts
         start_late = sym not in _seen_clear
 
+    _clear_since.pop(sym, None)
     _state[sym] = {
         "kind": kind,
         "halt_code": code,

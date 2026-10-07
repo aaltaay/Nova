@@ -66,10 +66,27 @@ class PracticeBroker:
         persist_path: str | None = None,
     ) -> None:
         self.reference = reference
+        self.venue = venue
         self.ledger = ledger
         self.account_id = account_id
-        self.venue = venue
         self.persist_path = persist_path
+
+    @property
+    def ledger(self) -> Ledger:
+        return self._ledger
+
+    @ledger.setter
+    def ledger(self, value: Ledger) -> None:
+        # Every ledger this venue holds -- loaded, reset, a new replay's -- reads IBKR's margin.
+        value.margin_ratio = self._margin_ratio
+        self._ledger = value
+
+    def _margin_ratio(self, symbol: str, position_side: str) -> tuple[float, str]:
+        """IBKR's what-if ratio for the stock (ADR 048 decision 2); a past-day replay's is the published rules'."""
+        from short_sale import whatif
+        from short_sale.facts import is_replay
+
+        return whatif.ratio(symbol, position_side, published_only=is_replay(self.venue))
 
     # ---------------------------------------------------------------- orders
     def place(
@@ -114,9 +131,14 @@ class PracticeBroker:
         at_mark = not ok and protective and typ == "MKT" and self._closes_position(sym, side_u, qty_f)
         if not ok and not at_mark:
             return self._refused(reason, code)
-        # Admission first, then the no-shorts rule -- the same order as the
-        # execution door (execution/practice_checks.py), so both gates answer alike.
-        if order_rules.opening_short(self.ledger.held_qty(sym), side_u, qty_f, short_entry):
+        # Admission first, then the short rules -- the same order as the execution
+        # door (execution/practice_checks.py, short_sale), so both gates answer alike.
+        held = self.ledger.held_qty(sym)
+        if short_entry:
+            refused = order_rules.short_entry_refusal(held, side_u)
+            if refused is not None:
+                return self._refused(*refused)
+        elif order_rules.opening_short(held, side_u, qty_f):
             return self._refused(PRACTICE_NO_SHORTS_REASON, PRACTICE_NO_SHORTS_CODE)
         ref = None if at_mark else self.reference.reference(sym)
         now = self.reference.now_ts()
@@ -153,7 +175,7 @@ class PracticeBroker:
         side: str,
         qty: float,
         entry_price: float,
-        target_price: float,
+        target_price: float | None,
         stop_price: float,
         *,
         tif: str | None = None,
@@ -163,15 +185,14 @@ class PracticeBroker:
         short_entry: bool = False,
         origin: str | None = None,
     ) -> dict[str, Any]:
-        """Place the bracket Live sends: a LMT entry, then two exits that wait on it (``practice.bracket``).
+        """Place the bracket Live sends: a LMT entry, then exits that wait on it (``practice.bracket``).
 
-        The entry passes ``place``'s gates -- TIF, the venue's admission, no
-        shorts (a SELL entry is a short bracket), buying power at the entry
-        limit. The exits (``bracket.exit_rows``) never pass ``place``, whose
-        no-shorts rule would refuse a SELL before anything is held; they rest
-        ``PreSubmitted`` until the entry fills. Three consecutive ids, entry
-        first, as IBKR allocates them. A marketable entry fills at once, which
-        wakes the exits.
+        The entry passes ``place``'s gates -- TIF, the venue's admission, the short
+        rules (a SELL entry is a short bracket: from flat or adding to a short, ADR
+        048), margin at the entry limit. The exits (``bracket.exit_rows``) never pass
+        ``place``; they rest ``PreSubmitted`` until the entry fills. Consecutive ids,
+        entry first, as IBKR allocates them -- three, or two for a short with no
+        target. A marketable entry fills at once, which wakes the exits.
         """
         del outside_rth  # practice orders are always live; there is no session gate
         sym = (symbol or "").strip().upper()
@@ -188,18 +209,24 @@ class PracticeBroker:
         ok, reason, code = self.reference.admission(sym)
         if not ok:
             return self._bracket_refused(reason, code)
-        if short:  # a bracket's entry opens a position: a SELL entry opens a short
-            return self._bracket_refused(PRACTICE_NO_SHORTS_REASON, PRACTICE_NO_SHORTS_CODE)
+        if short:  # a SELL entry opens a short: from flat, or adding to one (ADR 048 1.7)
+            refused = order_rules.short_entry_refusal(self.ledger.held_qty(sym), "SELL")
+            if refused is not None:
+                return self._bracket_refused(*refused)
         now = self.reference.now_ts()
         self.ledger.rollover(now)
-        afford, needed, available = self.ledger.can_afford(sym, side_u, qty_f, float(entry_price))
+        afford, needed, available = self.ledger.can_afford(sym, "SELL" if short else side_u, qty_f,
+                                                           float(entry_price))
         if not afford:
             return self._bracket_refused(
                 f"{PRACTICE_BUYING_POWER_REASON} (needs {needed:,.2f}, has {available:,.2f})",
                 PRACTICE_BUYING_POWER_CODE,
             )
-        parent_id, target_id, stop_id = (self.ledger.alloc_id() for _ in range(3))
-        parent = self._row(parent_id, sym, side_u, qty_f, "LMT", entry_price, None, now, source, bot_id, tif_u,
+        parent_id = self.ledger.alloc_id()
+        target_id = self.ledger.alloc_id() if target_price is not None else None
+        stop_id = self.ledger.alloc_id()
+        entry_side = "SELL" if short else side_u
+        parent = self._row(parent_id, sym, entry_side, qty_f, "LMT", entry_price, None, now, source, bot_id, tif_u,
                            origin=origin, short_entry=short)
         parent.update(bracket.leg_fields(parent_id, PRACTICE_LEG_PARENT))
         exits = bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price)
@@ -207,7 +234,7 @@ class PracticeBroker:
             leg.update(order_rules.exit_side_fields(parent))
         for leg in (parent, *exits):
             self.ledger.place(leg, ts=now, source=source, bot_id=bot_id)
-        fill = fill_model.at_placement(side_u, "LMT", self.reference.reference(sym), limit=parent["limit_price"])
+        fill = fill_model.at_placement(entry_side, "LMT", self.reference.reference(sym), limit=parent["limit_price"])
         if fill is not None:
             self._settle(parent_id, now, fill)
         self._commit()
@@ -328,6 +355,10 @@ class PracticeBroker:
             # already net of every fee. The bot breakers compare this (W2).
             "DayPnL": round(ledger.day_pnl(), 2),
             "GrossPositionValue": round(ledger.gross_position_value(), 2),
+            # IBKR's own tags (ADR 048): every position's maintenance -- IBKR's what-if ratio over the
+            # published rules per stock -- and the equity left over it.
+            "MaintMarginReq": round(ledger.maintenance(), 2),
+            "ExcessLiquidity": round(ledger.excess_liquidity(), 2),
             "account_class": "margin",
             "AccountType": PRACTICE_ACCOUNT_TYPE_SIM if sim else PRACTICE_ACCOUNT_TYPE_PAPER,
         }
@@ -426,6 +457,10 @@ class PracticeBroker:
         row = self.ledger.working_row(oid)
         if row is None or bracket.is_waiting(row):
             return None
+        from short_sale import ssr_fill
+
+        if not ssr_fill.allows(self.venue, row, fill.price, self.reference, ts):
+            return None  # under SSR a short fills only above the bid: it keeps resting (ADR 048)
         mark = len(self.ledger.events)
         refused = order_rules.fill_refusal(self.ledger, row, fill.price)
         if refused is not None:

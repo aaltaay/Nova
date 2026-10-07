@@ -547,6 +547,7 @@ export const ORDER_TABLE_DATA_SORT_KEYS = [
   'order_id',
   'filled_at',
   'sent_by',
+  'side',
 ] as const;
 /** localStorage: `1` = Stock View open-orders dock collapsed. */
 export const STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY =

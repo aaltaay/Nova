@@ -4,6 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PRACTICE_TICKET_SHORT_LOCKED } from '../constantGroups/practice';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import { placeActionLabel } from './ticketSide';
 import type { IbkrAccountSummary } from './types';
@@ -122,7 +123,7 @@ describe('ManualOrderTicket Side vs account_class', () => {
     expect(btn.classList.contains('manual-order-submit--short')).toBe(true);
   });
 
-  it.each(['paper', 'sim'] as const)('on %s the Short is refused with Nova\'s reason, however shortable the symbol (V13)', (mode) => {
+  it.each(['paper', 'sim'] as const)('on %s the Short waits on its Buy stop, however shortable the symbol (V13, ADR 048)', (mode) => {
     venue.mode = mode;
     render({
       connected: true,
@@ -134,7 +135,7 @@ describe('ManualOrderTicket Side vs account_class', () => {
     const short = container.querySelector('[data-testid="manual-order-side-short"]') as HTMLButtonElement;
     expect(short).toBeTruthy();
     expect(short.disabled).toBe(true);
-    expect(short.dataset.why).toBe('Nova does not support short entries yet');
+    expect(short.dataset.why).toBe(PRACTICE_TICKET_SHORT_LOCKED);
     expect(container.textContent).not.toMatch(/check TWS/);
   });
 });

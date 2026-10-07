@@ -115,6 +115,21 @@ def halted(symbol: str, *, now: float | None = None) -> bool | None:
     return None if _mwcb is not None else False
 
 
+def last_resume(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
+    """The latest resumption the feed lists for ``symbol`` at or before now (ADR 048's halt cool-off).
+
+    ``{resumed_at, halt_start, code, pause_threshold}``; None when the feed lists none. A read that
+    is not answering still lists what it last read: the caller asks ``answering`` before it reads
+    "no resumption" as a fact.
+    """
+    ts = time.time() if now is None else float(now)
+    row = _rows.get(normalize_symbol(symbol))
+    if row is None or row.trade_resume is None or row.trade_resume > ts:
+        return None
+    return {"resumed_at": row.trade_resume, "halt_start": row.official_halt_start, "code": row.reason_code,
+            "pause_threshold": row.pause_threshold, "source": "nasdaq"}
+
+
 def desk_snapshot(*, now: float | None = None) -> dict[str, Any]:
     ts = time.time() if now is None else float(now)
     age = None if _last_success_at is None else max(0.0, ts - _last_success_at)

@@ -75,20 +75,22 @@ def leg_fields(parent_id: int, role: str) -> dict[str, Any]:
     }
 
 
-def exit_rows(entry: dict[str, Any], target_id: int, stop_id: int, target: float, stop: float) -> list[dict[str, Any]]:
-    """The two exits of the bracket whose entry row is ``entry``, as Live's ``bracketOrder`` builds them.
+def exit_rows(entry: dict[str, Any], target_id: int | None, stop_id: int, target: float | None,
+              stop: float) -> list[dict[str, Any]]:
+    """The exits of the bracket whose entry row is ``entry``, as Live's ``bracketOrder`` builds them.
 
     Each is the entry's row on the reverse side -- the same symbol, quantity,
     TIF, expiry, attribution and placement stamps -- at its own price: the
     take-profit a LMT at ``target``, the stop-loss a STP at ``stop``. Both wait.
+    A short's bracket may leave out its target (ADR 048 1.6): then the stop alone.
     """
     parent_id = int(entry["order_id"])
     reverse = "SELL" if str(entry["side"]).upper() == "BUY" else "BUY"
     legs = []
-    for oid, role, typ, limit, trigger in (
-        (target_id, PRACTICE_LEG_TARGET, "LMT", float(target), None),
-        (stop_id, PRACTICE_LEG_STOP, "STP", None, float(stop)),
-    ):
+    wanted = [(stop_id, PRACTICE_LEG_STOP, "STP", None, float(stop))]
+    if target is not None and target_id is not None:
+        wanted.insert(0, (target_id, PRACTICE_LEG_TARGET, "LMT", float(target), None))
+    for oid, role, typ, limit, trigger in wanted:
         legs.append({
             **entry, "order_id": int(oid), "perm_id": int(oid), "side": reverse, "order_type": typ,
             "limit_price": limit, "stop_price": trigger, **leg_fields(parent_id, role),
@@ -114,23 +116,30 @@ def waiting_exits(rows: Iterable[dict[str, Any]], parent_id: int) -> list[dict[s
 
 
 def shape_error(
-    qty: float, entry: float, target: float, stop: float, *, short: bool = False,
+    qty: float, entry: float, target: float | None, stop: float, *, short: bool = False,
 ) -> tuple[str, str] | None:
     """``(reason, code)`` when a bracket's numbers do not hang together, else ``None``.
 
     The execution door refuses the same shapes with the same words
     (``execution.validate``); the broker repeats it for callers that bypass
     the door. Exits on the wrong side of the entry would fill the moment the
-    entry does.
+    entry does. Only a short's bracket may leave out its target (ADR 048 1.6).
     """
+    if target is None and not short:
+        return "a long bracket needs its target", PRACTICE_BRACKET_GEOMETRY_CODE
     try:
-        q, e, t, s = float(qty), float(entry), float(target), float(stop)
+        q, e, s = float(qty), float(entry), float(stop)
+        t = float(target) if target is not None else None
     except (TypeError, ValueError):
         return "bracket qty and prices must be numbers", PRACTICE_BRACKET_GEOMETRY_CODE
     if not math.isfinite(q) or q <= 0:
         return "bracket qty must be greater than zero", PRACTICE_BRACKET_QTY_CODE
-    if not all(math.isfinite(p) and p > 0 for p in (e, t, s)):
+    if not all(math.isfinite(p) and p > 0 for p in (e, s, t if t is not None else e)):
         return "bracket prices must be greater than zero", PRACTICE_BRACKET_GEOMETRY_CODE
+    if t is None:
+        if e < s:
+            return None
+        return (f"short bracket needs entry < stop (entry {e}, stop {s})", PRACTICE_BRACKET_GEOMETRY_CODE)
     if not (t < e < s if short else s < e < t):
         need = "target < entry < stop" if short else "stop < entry < target"
         return (
