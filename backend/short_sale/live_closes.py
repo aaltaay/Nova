@@ -11,8 +11,9 @@ Per short stock: every working Live order on it is cancelled first (``cancel_wor
 (source ``flatten``, origin ``day_cover``, ``intent: "flatten"``). The door checks that cover under its
 lock against IBKR's own position less the covers already working there (``execution.flatten_intent``),
 so an order Nova could not cancel leaves the cover refused, never a buy past flat. A cover stands for its
-short until IBKR's position shows it -- a fill reaches the orders before the position, so a cover gone from
-the working orders is not yet a cover to send again (``SHORT_COVER_CONFIRM_SEC``) -- and is never sent twice.
+short until IBKR's position shows every share it filled -- a fill reaches the orders before the position, and
+a fill in parts can reach the position one part at a time, so a cover gone from the working orders is not yet
+a cover to send again (``SHORT_COVER_CONFIRM_SEC``) -- and is never sent twice.
 Nova reads Live's book only while IBKR's session is the Live Gateway on a live account: the legacy paper
 Gateway's book is another account (PR #792 review). Each step is a ``day_cover`` line on the bot audit stream.
 
@@ -42,9 +43,11 @@ _EPS = 1e-9
 # IBKR's shorts as last read: what the alarm names while IBKR is not ready.
 _last: dict[str, Any] = {"shorts": {}, "at": None}
 _retry_at: dict[str, float] = {}           # symbol (or "#order id") -> monotonic time it may be tried again
-# symbol -> the cover Nova sent last: {order_id, short (IBKR's short when it went out), at (monotonic)}
+# symbol -> the cover Nova sent last: {order_id, short (IBKR's short when it went out), at (monotonic),
+# gone (monotonic: when it was first seen gone from IBKR's working orders)}
 _sent: dict[str, dict[str, Any]] = {}
 _DEAD = frozenset({"Cancelled", "ApiCancelled", "Inactive"})
+_DONE = _DEAD | {"Filled"}                   # ib_async's done states: an order in no other is still working
 # order id -> (when Nova placed it as a short entry, or None: not one; when that was read). A "not one" is
 # read again after _NOT_ENTRY_TTL_SEC: IBKR can list a new order before its execution row has the id.
 _entries: dict[int, tuple[float | None, float]] = {}
@@ -194,33 +197,39 @@ def _when(now: float) -> str:
 
 def _covering(rows: list[dict[str, Any]], symbol: str, short_now: float) -> bool:
     """Nova's last cover of ``symbol`` still stands for its short: working at IBKR, or gone from the working
-    orders while IBKR's position does not show it yet (a fill reaches the orders first). It stops standing once
-    the position shows the short smaller than when it went out, or once IBKR says it closed with nothing filled
-    -- then a new cover may go. A fill the position still does not show after ``SHORT_COVER_CONFIRM_SEC`` raises
-    the alarm, never a second cover: a second one could buy past flat."""
+    orders while IBKR's position does not show every share it filled yet (a fill reaches the orders first, and
+    a fill in parts can reach the position one part at a time). It stops standing once the position shows the
+    short smaller by at least the shares IBKR says it filled, or once IBKR says it closed with nothing filled --
+    then a new cover may go, for what is still short. A fill the position still does not show
+    ``SHORT_COVER_CONFIRM_SEC`` after the cover left the working orders raises the alarm, never a second cover:
+    a second one could buy past flat."""
     from ibkr import live_book
 
     sent = _sent.get(symbol)
     if sent is None:
         return False
     oid = int(sent["order_id"])
-    if any(_oid(r) == oid for r in rows):
-        return True
-    if short_now < float(sent["short"]) - _EPS:
-        _sent.pop(symbol, None)                      # the position shows the cover
-        return False
     try:
         state = live_book.order_state(oid)
     except IbkrAccountError:
         logger.warning("SHORTS: IBKR's status of the cover %s could not be read", oid, exc_info=True)
         state = None
-    if state is not None and state["status"] in _DEAD and state["filled"] <= _EPS:
-        _sent.pop(symbol, None)                      # it closed with nothing filled: cover again
-        return False
-    if time.monotonic() - float(sent["at"]) < SHORT_COVER_CONFIRM_SEC:
+    if any(_oid(r) == oid for r in rows) or (state is not None and state["status"] not in _DONE):
+        sent.pop("gone", None)
+        return True                                  # still working at IBKR
+    # When it left the working orders: the wait for the position counts from its fill, never from its send.
+    gone = float(sent.setdefault("gone", time.monotonic()))
+    if state is not None:
+        if state["status"] in _DEAD and state["filled"] <= _EPS:
+            _sent.pop(symbol, None)                  # it closed with nothing filled: cover again
+            return False
+        if float(sent["short"]) - short_now >= state["filled"] - _EPS:
+            _sent.pop(symbol, None)                  # the position shows every share it filled (PR #793 review)
+            return False
+    if time.monotonic() - gone < SHORT_COVER_CONFIRM_SEC:
         return True                                  # IBKR's position has not caught up yet
     if state is None:
-        _sent.pop(symbol, None)                      # this session does not know it, and the position shows no fill
+        _sent.pop(symbol, None)                      # this session does not know it: the position is the truth now
         return False
     _alarm(symbol, short_now, "refused",
            (f"Nova's cover of {symbol} (order {oid}) reads {state['status'] or 'unknown'} at IBKR with "
