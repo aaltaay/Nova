@@ -49,6 +49,26 @@ RELOGIN_START_MENU_PROCESSES = frozenset({
     "winlogon.exe",
 })
 
+# The PC's power button: Windows' sign-in process asks for the power-off on
+# behalf of SYSTEM (no user named) with reason 0x500ff ("No title for this
+# reason could be found"). The desk recorded exactly that at 06:45 ET on
+# 2026-10-05 and 07:16 ET on 2026-10-06, while a Start-menu power-off names
+# StartMenuExperienceHost.exe and the signed-in user. The same process and
+# reason with Shutdown Type "restart" (2026-09-12 15:21 ET) cannot be the
+# power button, which only powers off, so that stays winlogon's own.
+RELOGIN_SIGNIN_PROCESS = "winlogon.exe"
+RELOGIN_SYSTEM_SID = "S-1-5-18"
+RELOGIN_SYSTEM_ACCOUNT = "nt authority\\system"
+RELOGIN_POWER_BUTTON_REASON_CODE = 0x500FF
+
+# System 1074's Shutdown Type (param5, English Windows) -> Nova's word.
+# Anything else (a localized Windows) is unknown: ``None``.
+RELOGIN_SHUTDOWN_TYPES = {
+    "restart": "restart",
+    "power off": "power_off",
+    "shutdown": "shutdown",
+}
+
 # Premarket evidence (#14): the unattended NovaMorningCheck run fires at
 # 03:55 local (the desk runs on Eastern time). A run whose first line lands in
 # this window was started by the scheduler, not by hand.

@@ -121,11 +121,20 @@ def explain(
     return out
 
 
+_DONE = {"power_off": "powered off", "shutdown": "shut down"}
+_ENDS = {"power_off": "Powering the PC off", "shutdown": "Shutting the PC down"}
+
+
 def restart_phrase(restart: Restart, now: float) -> str:
-    """``Windows Update (MoUsoCoreWorker.exe) restarted this PC at 02:29``."""
+    """``Windows Update (MoUsoCoreWorker.exe) restarted this PC at 02:29``;
+    ``This PC was powered off with its power button at 06:45``. The verb is
+    the event's own Shutdown Type -- ``restarted`` when it named none."""
     at = _clock(restart.initiated_ts or restart.boot_ts, now)
+    done = _DONE.get(restart.shutdown_type or "", "restarted")
     if restart.cause == "start_menu":
-        return f"This PC was restarted from the Start menu at {at}"
+        return f"This PC was {done} from the Start menu at {at}"
+    if restart.cause == "power_button":
+        return f"This PC was {done} with its power button at {at}"
     if restart.cause == "unexpected":
         return (
             "This PC came back from an unexpected shutdown (power loss, a crash or a forced "
@@ -133,10 +142,11 @@ def restart_phrase(restart: Restart, now: float) -> str:
         )
     if restart.cause == "unknown":
         return f"This PC restarted at {at} (Windows recorded no reason)"
-    return f"{restart.label} restarted this PC at {at}"
+    return f"{restart.label} {done} this PC at {at}"
 
 
 def _restart_text(restart: Restart, clock: float) -> str:
+    ends = _ENDS.get(restart.shutdown_type or "", "A restart")
     text = restart_phrase(restart, clock)
     signin = restart.first_signin_ts
     if signin is not None and signin - restart.boot_ts >= RELOGIN_SIGNIN_GAP_NOTE_SEC:
@@ -146,7 +156,7 @@ def _restart_text(restart: Restart, clock: float) -> str:
         )
     elif signin is None:
         text += ", and nobody has signed in since (Nova's morning tasks only run while you are signed in)"
-    return text + ". A restart ends IB Gateway's saved login, so IBKR needs your phone again."
+    return text + f". {ends} ends IB Gateway's saved login, so IBKR needs your phone again."
 
 
 def _restart_before(restarts: list[Restart], at: float) -> Restart | None:

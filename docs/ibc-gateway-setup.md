@@ -52,7 +52,7 @@ inside the running process. So:
 |---|---|
 | Gateway's own 11:45 PM restart | No -- IBC logs `autorestart file found ...: authentication will not be required` |
 | IBKR's weekly re-auth (weekend) | Yes |
-| **PC restart** (Windows Update, the Start menu, a power cut) | **Yes** |
+| **PC restart or power-off** (Windows Update, the Start menu, the power button, a power cut) | **Yes** |
 | Gateway closed, crashed, or killed | Yes |
 | Nova's "Start fresh login" | Yes (on purpose) |
 
