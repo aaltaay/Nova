@@ -10,6 +10,9 @@ import {
   TRADE_DEFAULT_ORDER_TYPE,
   TRADE_DEFAULT_PROTECTIVE_LEGS,
   TRADE_DEFAULT_QUANTITY,
+  TRADE_DEFAULT_SHORT_STOP_OFFSET,
+  TRADE_DEFAULT_SHORT_STOP_OFFSET_MAX,
+  TRADE_DEFAULT_SHORT_STOP_OFFSET_MIN,
   TRADE_DEFAULT_STOP_LOSS_PCT,
   TRADE_DEFAULT_STOP_OFFSET_PCT,
   TRADE_DEFAULT_TAKE_PROFIT_PCT,
@@ -42,6 +45,8 @@ export interface TradeDefaultsPrefs {
   protectiveLegs: boolean;
   takeProfitPct: number;
   stopLossPct: number;
+  /** ADR 048: a short's buy stop starts this many dollars over its limit (the ticket, each Short hotkey). */
+  shortStopOffset: number;
 }
 
 export function defaultTradeDefaultsPrefs(): TradeDefaultsPrefs {
@@ -56,7 +61,18 @@ export function defaultTradeDefaultsPrefs(): TradeDefaultsPrefs {
     protectiveLegs: TRADE_DEFAULT_PROTECTIVE_LEGS,
     takeProfitPct: TRADE_DEFAULT_TAKE_PROFIT_PCT,
     stopLossPct: TRADE_DEFAULT_STOP_LOSS_PCT,
+    shortStopOffset: TRADE_DEFAULT_SHORT_STOP_OFFSET,
   };
+}
+
+/** A short's buy stop offset, in dollars inside its band; anything else is the default. */
+export function shortStopOffsetOf(value: unknown): number {
+  return typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= TRADE_DEFAULT_SHORT_STOP_OFFSET_MIN &&
+    value <= TRADE_DEFAULT_SHORT_STOP_OFFSET_MAX
+    ? value
+    : TRADE_DEFAULT_SHORT_STOP_OFFSET;
 }
 
 function isOrderType(v: unknown): v is TradeDefaultOrderType {
@@ -113,6 +129,7 @@ export function parseTradeDefaultsPrefs(raw: unknown): TradeDefaultsPrefs {
     protectiveLegs: o.protectiveLegs === true,
     takeProfitPct: legPct(o.takeProfitPct, fallback.takeProfitPct),
     stopLossPct: legPct(o.stopLossPct, fallback.stopLossPct),
+    shortStopOffset: shortStopOffsetOf(o.shortStopOffset),
   };
 }
 

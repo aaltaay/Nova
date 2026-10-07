@@ -11,10 +11,10 @@ import {
 } from '../ibkr/orderTicketPrefill';
 import { formatSeedPrice } from '../ibkr/tradeDefaultSeed';
 
-export type ChartOrderIntent = 'create_order' | 'buy' | 'sell';
+export type ChartOrderIntent = 'create_order' | 'buy' | 'sell' | 'short';
 
 export function chartOrderSide(intent: ChartOrderIntent): ManualOrderSide {
-  return intent === 'sell' ? 'SELL' : 'BUY';
+  return intent === 'sell' || intent === 'short' ? 'SELL' : 'BUY';
 }
 
 /** Pure: what the ticket will receive for this click. */
@@ -30,6 +30,8 @@ export function chartOrderPrefill(input: {
     orderType: 'LMT',
     quantityValue: input.quantityValue ?? defaultTicketQty(getConfirmedDeskVenueSnapshot().venue),
     limitPrice: formatSeedPrice(input.price),
+    // ADR 048: a short lands on the ticket's Short side, which starts its buy stop at the venue's offset.
+    ...(input.intent === 'short' ? { shortEntry: true } : {}),
   };
 }
 

@@ -63,8 +63,10 @@ export interface StockReadContextValue {
   past: PolledState<PastSetups>;
   /** The 5-minute lanes' setups that ended (the 5-minute chart's); absent outside a live Trader tab. */
   past5?: PolledState<PastSetups>;
-  manual: { entry: number | null; stop: number | null };
-  setManualPlan: (entry: number | null, stop: number | null) => void;
+  /** The operator's own plan; `side` short is a hand short (ADR 048): its buy stop over the entry. */
+  manual: ManualPlan;
+  /** Sets the hand plan; without `side` it keeps the plan's side, and clearing it (`entry` null) is long again. */
+  setManualPlan: (entry: number | null, stop: number | null, side?: 'long' | 'short') => void;
   /** The venue sleeve's risk per trade (else the stated fallback): sizes the operator's own buys. */
   riskUsd: number;
   /** Saves it into the venue's sleeve: Nova's automatic buys size by it too. */
@@ -94,12 +96,27 @@ export interface StockReadContextValue {
   flush: PolledState<FlushReading>;
   /** "Nova takes the exit": its sheet over the plan box. */
   exitSheet: { open: boolean; setOpen: (open: boolean) => void };
+  /** The account's position in the stock on the desk's venue; null when none (Level 2's LIQ chip). */
+  position: TabPosition | null;
 }
+
+export interface ManualPlan {
+  entry: number | null;
+  stop: number | null;
+  side: 'long' | 'short';
+}
+
+const NO_MANUAL: ManualPlan = { entry: null, stop: null, side: 'long' };
 
 /** The account's position in the tab's stock, as the rail knows it. */
 export interface TabPosition {
   qty: number;
   avgCost: number | null;
+  /** Where IBKR would liquidate it (ADR 048), and the margin it is measured by; null when not known. */
+  liquidationPrice?: number | null;
+  liquidationSource?: string | null;
+  /** The stop order resting at the broker that protects it (`protectiveStop`); null when none. */
+  workingStop?: number | null;
 }
 
 const DEFAULT_LAYERS: StockReadLayers = {
@@ -159,13 +176,13 @@ export function StockReadProvider({
   // The tab's live last trade, read here (#707): it renders this provider on a print; the value it gives
   // its readers changes only when what they show does (useWhoTrades keeps the price to itself).
   const lastPrice = useTickerSelect(sym, (state) => tickerLastTrade(state, sym)?.price ?? null);
-  const [manual, setManual] = useState<{ entry: number | null; stop: number | null }>({ entry: null, stop: null });
+  const [manual, setManual] = useState<ManualPlan>(NO_MANUAL);
   const [layers, setLayerState] = useState(() => readPref(STOCK_READ_LAYERS_KEY, DEFAULT_LAYERS, parseLayers));
   const [sheet, setSheet] = useState<StockReadContextValue['sheet']>({ open: false, tab: 'signals', group: null });
   const [focus, setFocus] = useState<ChartFocus | null>(null);
 
   useEffect(() => {
-    setManual({ entry: null, stop: null });
+    setManual(NO_MANUAL);
     setFocus(null);
   }, [sym]);
 
@@ -175,11 +192,21 @@ export function StockReadProvider({
   const riskUsd = risk.riskUsd;
   const posQty = position?.qty ?? null;
   const posCost = position?.avgCost ?? null;
+  const posLiq = position?.liquidationPrice ?? null;
+  const posLiqSource = position?.liquidationSource ?? null;
+  const posStop = position?.workingStop ?? null;
   const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
+  const tabPosition = useMemo<TabPosition | null>(
+    () => (posQty === null ? null : { qty: posQty, avgCost: posCost, liquidationPrice: posLiq,
+      liquidationSource: posLiqSource, workingStop: posStop }),
+    [posQty, posCost, posLiq, posLiqSource, posStop],
+  );
   // The held query needs the last read (its plan and stop); the read needs the query: the last answer drives it.
   const [lastRead, setLastRead] = useState<StockRead | null>(null);
-  const heldTrade = useHeldTrade({ symbol: sym, live: live && !sample, position: pos, read: lastRead });
-  const read = useStockRead(sym, { active: live, entry: manual.entry, stop: manual.stop, held: heldTrade.query });
+  const heldTrade = useHeldTrade({ symbol: sym, live: live && !sample, position: pos, read: lastRead,
+    workingStop: posStop });
+  const read = useStockRead(sym, { active: live, entry: manual.entry, stop: manual.stop, side: manual.side,
+    held: heldTrade.query });
   useEffect(() => setLastRead(read.data), [read.data]);
   const [exitOpen, setExitOpen] = useState(false);
   useEffect(() => setExitOpen(false), [sym]);
@@ -203,8 +230,11 @@ export function StockReadProvider({
     flush: heldTrade.flush.data,
   });
 
-  const setManualPlan = useCallback((entry: number | null, stop: number | null) => {
-    setManual({ entry: entry !== null && entry > 0 ? entry : null, stop: stop !== null && stop > 0 ? stop : null });
+  const setManualPlan = useCallback((entry: number | null, stop: number | null, side?: 'long' | 'short') => {
+    setManual(prev => {
+      const e = entry !== null && entry > 0 ? entry : null;
+      return { entry: e, stop: stop !== null && stop > 0 ? stop : null, side: e === null ? 'long' : side ?? prev.side };
+    });
   }, []);
   const setRiskUsd = useCallback((usd: number) => {
     const next = parseRiskUsd(usd);
@@ -272,9 +302,10 @@ export function StockReadProvider({
     held: { track: heldTrade.track, setStop: heldTrade.setStop },
     flush: heldTrade.flush,
     exitSheet: { open: exitOpen, setOpen: setExitOpen },
+    position: tabPosition,
   }), [sym, active, replay, read, history, decisions, past, past5, manual, setManualPlan, riskUsd, setRiskUsd, risk,
     layers, drawn, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who,
-    heldTrade.track, heldTrade.setStop, heldTrade.flush, exitOpen]);
+    heldTrade.track, heldTrade.setStop, heldTrade.flush, exitOpen, tabPosition]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.
   if (sample) return <>{children}</>;

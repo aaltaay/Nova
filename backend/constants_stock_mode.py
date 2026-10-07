@@ -82,8 +82,8 @@ STOCK_MODE_WHY_LIVE_SELL = (
 STOCK_MODE_WHY_VENUE_UNKNOWN = "Nova cannot read the desk's venue, so it counts as Live: Nova places nothing."
 STOCK_MODE_WHY_REPLAY = "Off the live edge the desk is a replay: Nova trades live triggers only."
 STOCK_MODE_WHY_HELD = (
-    "You hold {sym}: hand Nova the exit with \"Nova takes the exit\" on the plan box (Paper and Sim), or sell it "
-    "yourself."
+    "You hold {sym}: hand Nova the exit with \"Nova takes the exit\" (\"Nova takes the cover\" on a short) on "
+    "the plan box (Paper and Sim), or close it yourself."
 )
 STOCK_MODE_WHY_LIVE_EXIT = (
     "On Live, Nova never moves a Live order by itself, and a plain IBKR stop does not trigger before 9:30 "

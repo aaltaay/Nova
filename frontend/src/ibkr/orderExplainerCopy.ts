@@ -64,7 +64,7 @@ export const ORDER_EXPLAINERS: Readonly<Record<OrderExplainerKind, OrderExplaine
     ],
     facts: [
       'Closes or trims your position',
-      'Only shares you hold: Nova does not open short positions yet',
+      'Only shares you hold: selling shares you do not own is the Short side, which goes out with its buy stop',
     ],
   },
   LMT: {

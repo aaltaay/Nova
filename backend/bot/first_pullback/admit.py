@@ -42,6 +42,7 @@ from constants_bot import (
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SKIP_EXTENDED_HOURS,
     BOT_SKIP_GRADE,
+    BOT_SKIP_HELD_OTHER_SIDE,
     BOT_SKIP_NOT_A_TRADE,
     BOT_SKIP_DAY_NOT_RESET,
     BOT_SKIP_NOT_ACTIVE,
@@ -66,6 +67,23 @@ def name(setup_type: str | None) -> str:
 
 def setup_of(event: dict[str, Any]) -> str:
     return str(event.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
+
+
+def against_held(sym: str, side: str = "long") -> Blocker | None:
+    """Nova never enters against a position you hold (ADR 048: "never buys a stock you are short"): a long
+    entry while the venue holds the stock short, a short entry while it holds it long. A position Nova cannot
+    read refuses too -- unknown is never flat."""
+    from bot.first_pullback.orders import ReadError, held_qty, short_held_qty
+
+    sym = (sym or "").strip().upper()
+    try:
+        other = held_qty(sym) if side == "short" else short_held_qty(sym)
+    except ReadError as exc:
+        return (BOT_SKIP_HELD_OTHER_SIDE, f"Nova cannot read your {sym} position ({exc}): no automatic entry")
+    if other > 0:
+        held = "long" if side == "short" else "short"
+        return (BOT_SKIP_HELD_OTHER_SIDE, f"you hold {sym} {held}: Nova enters nothing on {sym} while you do")
+    return None
 
 
 def triggered_at(event: dict[str, Any]) -> float:
@@ -179,6 +197,9 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     judged = of_event(event)
     if not judged["ok"]:
         out.append((BOT_SKIP_NOT_A_TRADE, "not a trade: " + "; ".join(judged["reasons"])))
+    held = against_held(str(event.get("symbol") or ""), str(event.get("side") or "long"))
+    if held is not None:
+        out.append(held)
     age = now - triggered_at(event)
     if age > BOT_FP_TRIGGER_MAX_AGE_SEC:
         out.append((BOT_SKIP_STALE, f"the trigger is {age:.0f}s old (Nova buys one at most "

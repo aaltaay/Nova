@@ -7,4 +7,6 @@ export { StockReadSheet } from './ReadSheet';
 export { StockReadChartLayer } from './StockReadChartLayer';
 export { StockReadToolbar } from './StockReadToolbar';
 export { WhoTradesRow, useLevel2Markers } from './WhoTradesRow';
+export { ShortChips } from './ShortChips';
 export { putStockMode } from './whoTradesApi';
+export { protectiveStop } from './protectiveStop';

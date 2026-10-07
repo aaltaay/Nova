@@ -45,6 +45,7 @@ SHORT_HALT_UNKNOWN = "SHORT_HALT_UNKNOWN"         # Nova cannot tell whether the
 SHORT_SSR_AT_BID = "SHORT_SSR_AT_BID"             # under SSR, a short priced at or below the bid (1.10)
 SHORT_SSR_NO_BID = "SHORT_SSR_NO_BID"             # under SSR, no bid to price above (1.10)
 SHORT_NO_RECORDED_BORROW = "SHORT_NO_RECORDED_BORROW"  # a past-day replay with no borrow recorded then (4)
+SHORT_REPRICE = "SHORT_REPRICE"                   # a working short entry is never repriced in place
 
 # -- The hours (ADR 048 1.9 and 5): new shorts from 09:35 ET until ten minutes before the close
 # (15:50, or 12:50 on an NYSE early close); the day cover five minutes before it (15:55 / 12:55).

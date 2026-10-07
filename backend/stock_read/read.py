@@ -16,7 +16,7 @@ from constants_stock_read import (
 from scanner_wire import wire_safe
 from setup_scanner import five_minute
 from setup_scanner.bars import bar_from
-from stock_read import held as held_mod, history, indicators, level_map, plan as plan_mod, plan_liquidity, rows, rows_trade
+from stock_read import held as held_mod, held_short, history, indicators, level_map, plan as plan_mod, plan_liquidity, rows, rows_trade
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -62,8 +62,8 @@ def derive(f: dict[str, Any]) -> dict[str, Any]:
         macd_src = "stored 1-minute bars (the scanner does not follow it)"
         ema9, ema_src = indicators.ema_last(closes, 9), "stored 1-minute bars"
     pulls = f.get("pulls") or {}
-    bid_flags = [fl for fl in pulls.get("flags") or []
-                 if fl.get("side") == "bid" and now - float(fl.get("ts") or 0) <= STOCK_READ_PULL_WINDOW_SEC]
+    recent_flags = [fl for fl in pulls.get("flags") or [] if now - float(fl.get("ts") or 0) <= STOCK_READ_PULL_WINDOW_SEC]
+    bid_flags = [fl for fl in recent_flags if fl.get("side") == "bid"]
     bot = f.get("bot") or {}
     return {
         "now": now, "price": price, "prev_close": prev_close, "change_pct": change, "bars": bars,
@@ -75,6 +75,7 @@ def derive(f: dict[str, Any]) -> dict[str, Any]:
         "median_range": indicators.median_range(bars, STOCK_READ_MEDIAN_RANGE_BARS),
         "backside": indicators.backside(bars),
         "bid_pulls": len(bid_flags),
+        "ask_pulls": sum(1 for fl in recent_flags if fl.get("side") == "ask"),   # a short's warning (ADR 048)
         "breakers": bot.get("breakers"),
         # The 5-minute chart now, made from these minutes as the setup scanner makes it (trial T8).
         "tf5": five_minute.context([b for b in map(bar_from, bars) if b is not None], now),
@@ -183,25 +184,37 @@ HELD_CHECK_IDS = ("spread", "macd", "ema9", "vwap", "flow", "pulls", "halted")
 
 
 def held_read(f: dict[str, Any], ctx: dict[str, Any], held: dict[str, Any], now: float) -> dict[str, Any]:
-    """``held`` (AGENTS.md "Managing a trade you hold"): the trade you hold, measured from the price."""
+    """``held`` (AGENTS.md "Managing a trade you hold"): the trade you hold, measured from the price -- a
+    short's measured downward (``held_short``, ADR 048)."""
     price = ctx.get("price")
     avg, qty = float(held["avg"]), float(held["qty"])
-    built = held_mod.build(bars=ctx.get("bars") or [], price=price, level_map=ctx.get("level_map"), avg=avg, qty=qty,
-                           now=now, since=held.get("since"), stop=held.get("stop"),
-                           nova_stop=(f.get("nova_exit") or {}).get("stop"), risk=held.get("risk"))
+    short = held.get("side") == "short"
+    builder = held_short.build if short else held_mod.build
+    built = builder(bars=ctx.get("bars") or [], price=price, level_map=ctx.get("level_map"), avg=avg, qty=qty,
+                    now=now, since=held.get("since"), stop=held.get("stop"),
+                    nova_stop=(f.get("nova_exit") or {}).get("stop"), risk=held.get("risk"))
     stop_px = (built.get("stop") or {}).get("price")
     nxt = next((row["price"] for row in built["ladder"] if row["role"] == "next"), None)
-    like = {"source": "manual", "entry": price,
-            "risk": round(price - stop_px, 4) if price is not None and stop_px is not None and stop_px < price else None,
-            "target": nxt}
+    risk = None
+    if price is not None and stop_px is not None and (stop_px > price if short else stop_px < price):
+        risk = round(abs(price - stop_px), 4)
+    like = {"source": "manual", "side": "short" if short else "long", "entry": price, "risk": risk, "target": nxt}
     built["checks"] = [c for c in plan_mod.checks(like, ctx) if c["id"] in HELD_CHECK_IDS]
+    if short:
+        from short_sale import hours as short_hours
+
+        day = short_hours.hours_on(now)
+        cover = short_hours.clock(day.cover_ts) if day else "15:55"
+        built["checks"].append({"id": "day_cover", "state": "info",
+                                "text": f"day only: Nova covers what is left at {cover}"})
     return built
 
 
 def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None = None,
-          held: dict[str, Any] | None = None) -> dict[str, Any]:
+          held: dict[str, Any] | None = None, side: str = "long") -> dict[str, Any]:
     """The whole read from gathered facts (pure but for the daily-bar history cache). ``held``: the position
-    you hold (``{qty, avg, stop, risk, since}``), which adds ``held`` to the read."""
+    you hold (``{qty, avg, stop, risk, since, side}``), which adds ``held`` to the read; ``side``: your own
+    plan's (a short when ``"short"``)."""
     now = float(f["now"])
     d = derive(f)
     view = f.get("setups") or {}
@@ -217,11 +230,12 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
                              daily_error=None if hist else "the daily history could not be read")
     ctx = {"price": d["price"], "levels": d["levels"], "macd_hist": (d["macd_1m"] or {}).get("macd_hist"),
            "ema9": d["ema9"], "median_range": d["median_range"], "asks": (f.get("l2") or {}).get("asks") or [],
+           "bids": (f.get("l2") or {}).get("bids") or [], "ask_pulls": d["ask_pulls"],
            "spread": (f.get("l2") or {}).get("spread_dollars"),
            "flow": f.get("flow"), "bid_pulls": d["bid_pulls"], "halted": f.get("halted"), "bars": d["bars"],
            "level_map": levels, "tf5": d["tf5"], "volume": (((f.get("why") or {}).get("facts")) or {}).get("volume"),
            "risk_usd": (f.get("bot") or {}).get("risk_usd"), "l1_only": bool((f.get("l2") or {}).get("l1_fallback"))}
-    plan = plan_mod.build(setups, ctx, now=now, entry=entry, stop=stop)
+    plan = plan_mod.build(setups, ctx, now=now, entry=entry, stop=stop, side=side)
     liquid = (plan or {}).get("liquidity") or plan_liquidity.read(ctx, now)
     held_out = held_read(f, ctx, held, now) if held else None
     groups = tiles(f, d, plan, hist, liquid)

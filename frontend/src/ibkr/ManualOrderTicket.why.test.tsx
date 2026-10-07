@@ -13,8 +13,8 @@ import { TICKET_WHY_SENDING, WHY_GATEWAY_NOT_CONNECTED } from '../constantGroups
 import { TopOfBookProvider, useTopOfBook, type TopOfBook } from '../hotkeys/TopOfBookContext';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderTicket } from './ManualOrderTicket';
-import type { IbkrAccountSummary } from './types';
-import { PRACTICE_TICKET_SHORT_LOCKED } from '../constantGroups/practice';
+import type { IbkrAccountSummary, IbkrPosition } from './types';
+import { SHORTABILITY_SHORT_DISABLED } from '../constantGroups/shortability';
 
 const placeIbkrOrder = vi.fn();
 const confirmed = vi.hoisted(() => ({ venue: 'paper' as const, generation: 'paper-test' }));
@@ -38,6 +38,8 @@ vi.mock('./useIbkrStatus', () => ({
 }));
 
 const SUMMARY = { connected: true, NetLiquidation: 50_000, BuyingPower: 100_000 } as IbkrAccountSummary;
+// Long, so Sell is open (ADR 048: flat, Sell carries its own reason -- a sale of shares you do not own is a short).
+const LONG = { symbol: 'GRML', qty: 100, avg_cost: 8.5 } as IbkrPosition;
 const BOOK: TopOfBook = { symbol: 'GRML', bid: 8.89, ask: 8.91, depthSubscribed: true };
 
 /** Every field control the ticket locks with its own `disabled`. */
@@ -93,7 +95,7 @@ describe('ManualOrderTicket says why a control is locked', () => {
             connected={connected}
             spendStatus="paper_armed"
             summary={SUMMARY}
-            position={null}
+            position={LONG}
             referencePrice={8.6}
           />
         </TopOfBookProvider>,
@@ -182,7 +184,7 @@ describe('ManualOrderFields: a control\'s own block answers before the ticket lo
           outsideRth={false}
           disabled
           why={WHY_GATEWAY_NOT_CONNECTED}
-          shortDisabledReason={PRACTICE_TICKET_SHORT_LOCKED}
+          shortDisabledReason={SHORTABILITY_SHORT_DISABLED}
           marketDisabledReason="Market orders need regular hours"
           onTicketSideChange={() => undefined}
           onOrderTypeChange={() => undefined}
@@ -196,7 +198,7 @@ describe('ManualOrderFields: a control\'s own block answers before the ticket lo
     });
     const why = (testId: string) =>
       (container.querySelector(`[data-testid="${testId}"]`) as HTMLElement).dataset.why;
-    expect(why('manual-order-side-short')).toBe(PRACTICE_TICKET_SHORT_LOCKED);
+    expect(why('manual-order-side-short')).toBe(SHORTABILITY_SHORT_DISABLED);
     expect(why('manual-order-type-mkt')).toBe('Market orders need regular hours');
     expect(why('manual-order-side-buy')).toBe(WHY_GATEWAY_NOT_CONNECTED);
     expect(why('manual-order-type-lmt')).toBe(WHY_GATEWAY_NOT_CONNECTED);

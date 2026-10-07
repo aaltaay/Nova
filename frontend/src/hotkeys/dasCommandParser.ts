@@ -13,7 +13,7 @@ const TRIGGER_RE = /^(TriggerOrder|WithTrigger)\s*=/i;
 function classifyAssignment(name: string, value: string | undefined): DasCommandTokenKind {
   const n = name.toUpperCase();
   if (n === 'TRIGGERORDER' || n === 'WITHTRIGGER') return 'trigger';
-  if (n === 'BUY' || n === 'SELL' || n === 'SEND' || n === 'LOAD') return 'action';
+  if (n === 'BUY' || n === 'SELL' || n === 'SHORT' || n === 'SEND' || n === 'LOAD') return 'action';
   if (value !== undefined) return 'assignment';
   return 'unknown';
 }
@@ -65,11 +65,11 @@ export function parseSegment(segment: string): DasCommandToken {
     };
   }
 
-  // Bare BUY / SELL / SEND=Reverse / NewOrder Market
+  // Bare BUY / SELL / SHORT / SEND=Reverse / NewOrder Market
   const eq = raw.indexOf('=');
   if (eq < 0) {
     const upper = raw.toUpperCase();
-    if (upper === 'BUY' || upper === 'SELL' || upper.startsWith('NEWORDER')) {
+    if (upper === 'BUY' || upper === 'SELL' || upper === 'SHORT' || upper.startsWith('NEWORDER')) {
       return { raw, kind: 'action', name: raw };
     }
     if (URL_RE.test(raw) || raw.includes('%SYMB%') || /\.(com|net|org)\//i.test(raw)) {

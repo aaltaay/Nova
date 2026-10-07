@@ -137,6 +137,8 @@ class Ledger:
             return
         if not float(row.get("filled_qty") or 0):
             row["commission"] = None  # no fill, no commission -- older events stamped 0.0 (QA C30)
+        # When it was first placed: a replace re-dates ``placed_ts``, never this (a short entry's session).
+        row["entered_ts"] = float(event["ts"])
         self._working[oid] = row
         self._next_id = max(self._next_id, oid + 1)
 

@@ -142,6 +142,34 @@ Four findings on step 2's pull request, each fixed with a regression test:
 - **A SELL bracket without `short_entry`.** The practice broker opened a short from any SELL bracket. It now needs `short_entry`, as the door does, so a short is never inferred (ADR 009).
 - **SSR at a print.** A resting short filling on a print read the bid at the matcher's pass, which a Sim jump or a late read moves. It now reads the bid that stood when the print traded: the NBBO before it on a Massive window, the recorded quote on a Session Record, and on the live feed the top of book the print met when it arrived, which the tape archive now keeps (`tape_trades.bid` / `ask`).
 
+## Step 3: the Trader screens (2026-10-07)
+
+What step 3 decided where the design left room:
+
+- **The switch reads Entry · Exit, each You | Bot.** Decision 7 says You | Nova; ADR 044's amendment of 2026-10-06
+  ("Let's not have Nova buy and sell terminology") already names the switch's Nova side Bot, so the answers read
+  "Bot may trade RDYN: no · Entry is You". The wire adds `entry` / `exit` and keeps `buy` / `sell` one release.
+- **Nova never enters against a position you hold**, from this step: the bot, Auto-entry and Approve skip a long
+  entry on a stock you hold short, and any entry while the position cannot be read (`BOT_SKIP_HELD_OTHER_SIDE`).
+  Step 5 adds the short side's mirror.
+- **Approve on a short setup waits on step 5.** No short setup exists before step 4; between steps 4 and 5 the plan
+  box says why and stages the short in the ticket instead.
+- **The held card's stop is the one resting at the broker** until you set one for the tab: a short always goes out
+  with its buy stop, and a card proposing another stop beside it would misstate the trade. The same holds for a
+  long's working sell stop.
+- **No flush call on a short.** Trial T1 (ADR 041) reads a long's tape; nothing calls COVER NOW on a burst.
+- **The 15:50 card names the 15:55 cover on Paper** (Sim is left out, as before). Live's day cover is step 6, so a
+  Live short's card still says to be flat by 15:55.
+- **A short entry lapses with its own day** (the PR #787 review, fixed here). The cutoff pass cancelled resting
+  short entries only while the clock stood outside the short hours, so a GTC one Nova was closed over came back
+  inside the next day's hours, and the next day's prints could fill it on the day before's borrow, SSR, halt and
+  margin checks. Its day is when it was first placed (`entered_ts`; a replace re-dates `placed_ts`, never the
+  session it was checked in), and both the pass and the fill read it.
+- **A resting short entry is never repriced in place** (found with the review fix). A replace runs no short check,
+  so a new price could skip the borrow, SSR, margin and cushion rules the entry passed at its own price. The door
+  refuses it `SHORT_REPRICE` on Paper and Sim: cancel it and place it again. Its exits still move. No desk control
+  reprices an order today; this closes the order API. Live gets the same rule with its short entries (step 6).
+
 ## Rejected
 
 - A separate short bot, switch and sleeve. It was the operator's earlier draft, replaced by one bot and one list.

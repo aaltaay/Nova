@@ -12,7 +12,7 @@ import {
 import type { NovaActionKind } from '../constants';
 import type { NovaActionParams } from './novaActionTypes';
 
-export type QuickTradeTone = 'buy' | 'sell' | 'protective' | 'cancel';
+export type QuickTradeTone = 'buy' | 'sell' | 'short' | 'protective' | 'cancel';
 
 export function quickTradeTone(kind: NovaActionKind): QuickTradeTone {
   switch (kind) {
@@ -24,10 +24,16 @@ export function quickTradeTone(kind: NovaActionKind): QuickTradeTone {
     case 'cancel_and_exit':
     case 'exit_pos':
     case 'exit_pos_pct':
+    case 'cover_pos':
       return 'protective';
     case 'buy_market':
     case 'buy_limit_ask_offset':
+    case 'cover_limit_ask_offset':
       return 'buy';
+    // A short is orange and its label always says SS (ADR 048): never the colour alone.
+    case 'short_limit_bid_offset':
+    case 'short_limit_ask_offset':
+      return 'short';
     default:
       return 'sell';
   }
@@ -36,6 +42,14 @@ export function quickTradeTone(kind: NovaActionKind): QuickTradeTone {
 function cents(offsetDollars: number | undefined): string {
   if (offsetDollars == null || !Number.isFinite(offsetDollars)) return '';
   return String(Math.round(offsetDollars * 100));
+}
+
+/** "+1", "−5", "" for a signed offset in cents (a short's price may sit either side of the bid or ask). */
+function signedCents(offsetDollars: number | undefined): string {
+  if (offsetDollars == null || !Number.isFinite(offsetDollars)) return '';
+  const c = Math.round(offsetDollars * 100);
+  if (c === 0) return '';
+  return c > 0 ? `+${c}` : `−${Math.abs(c)}`;
 }
 
 export function quickTradeShortLabel(
@@ -50,6 +64,7 @@ export function quickTradeShortLabel(
     .replace('{n}', params.shares != null ? String(params.shares) : '')
     .replace('{p}', params.percent != null ? String(params.percent) : '')
     .replace('{c}', cents(params.offsetDollars))
+    .replace('{s}', signedCents(params.offsetDollars))
     .replace(/\s+/g, ' ')
     .trim();
 }

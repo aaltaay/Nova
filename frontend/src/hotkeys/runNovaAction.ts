@@ -13,11 +13,8 @@
 
 import {
   NOVA_ACTION_ACCOUNT_ERROR_MESSAGE,
-  NOVA_ACTION_DEPTH_DISABLED_REASON,
   NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS,
   NOVA_ACTION_DEFAULT_BUY_MARKET_SHARES,
-  NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
-  NOVA_ACTION_DEFAULT_SHARES,
   NOVA_ACTION_NO_SYMBOL_MESSAGE,
   NOVA_ACTION_SPEND_LOCKED_MESSAGE,
   WHY_GATEWAY_NOT_CONNECTED,
@@ -45,14 +42,14 @@ import { readSkipPlaceConfirm } from '../ibkr/placeConfirmPrefs';
 import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import { evaluateTradingAllowed } from '../ibkr/tradingAllowed';
 import { confirmApp } from '../ux';
-import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import {
   accountModeLabel,
+  placeBookOffsetLimit,
   placeLongPctLimit,
   placeMarketExit,
-  requireDepth,
 } from './runNovaActionPlace';
+import { runShortHotkey, SHORT_HOTKEY_KINDS } from './runNovaActionShort';
 import type { NovaActionRuntime } from './runNovaActionRuntime';
 import { runClipHotkey } from '../clips';
 import { viewLockReason } from '../market_view';
@@ -61,15 +58,18 @@ export type { NovaActionRuntime } from './runNovaActionRuntime';
 
 /**
  * The kinds the backend's arm latch never holds: a cancel is validated before
- * the latch, and `exit_pos` / `cancel_and_exit` send `intent: "flatten"`, a
- * protective source (`ibkr/safety.PROTECTIVE_SOURCES`). A kind not listed --
- * a new one included -- takes the opening-order gate.
+ * the latch, and `exit_pos` / `cancel_and_exit` and both covers of the whole
+ * short send `intent: "flatten"`, a protective source
+ * (`ibkr/safety.PROTECTIVE_SOURCES`). A kind not listed -- a new one included
+ * -- takes the opening-order gate.
  */
 export const PROTECTIVE_KINDS: Partial<Record<NovaActionKind, 'cancel' | 'flatten'>> = {
   cancel_all_orders: 'cancel',
   cancel_symbol: 'cancel',
   exit_pos: 'flatten',
   cancel_and_exit: 'flatten',
+  cover_pos: 'flatten',
+  cover_limit_ask_offset: 'flatten',
 };
 
 /** Why *kind* cannot run now, or null when it may. */
@@ -338,61 +338,12 @@ export async function runNovaAction(
     || action.kind === 'sell_limit_bid_offset'
     || action.kind === 'sell_limit_ask_offset'
   ) {
-    const tobOrErr = requireDepth(runtime, symbol);
-    if ('ok' in tobOrErr && tobOrErr.ok === false) return tobOrErr;
-    const tob = tobOrErr as TopOfBook;
-    const offset = action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_OFFSET_DOLLARS;
-    const shares = action.params.shares ?? NOVA_ACTION_DEFAULT_SHARES;
-    const isBuy = action.kind === 'buy_limit_ask_offset';
-    const fromAsk = action.kind !== 'sell_limit_bid_offset';
-    const base = fromAsk ? tob.ask : tob.bid;
-    if (base == null || base <= 0) {
-      return { ok: false, text: NOVA_ACTION_DEPTH_DISABLED_REASON };
-    }
-    const limit = fromAsk ? base + offset : base - offset;
-    if (limit <= 0) {
-      return { ok: false, text: 'Computed limit price is invalid' };
-    }
-    const side = isBuy ? 'BUY' : 'SELL';
-    const outside_rth = shouldUseOutsideRth(Boolean(action.params.outsideRth));
-    const mode = accountModeLabel(runtime.accountMode);
-    const summary =
-      `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)}${outside_rth ? ' EH' : ''}) `
-      + `on ${mode} account.`;
-    if (!(await maybeConfirm(runtime, summary))) {
-      return { ok: false, text: 'Order cancelled' };
-    }
-    try {
-      const res = await placeIbkrOrder(
-        {
-          symbol,
-          side,
-          qty: shares,
-          order_type: 'LMT',
-          limit_price: Number(limit.toFixed(4)),
-          outside_rth,
-        },
-        idempotencyKey,
-        {
-          timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
-          referencePrice: base,
-        },
-      );
-      return {
-        ok: res.ok,
-        text: res.ok
-          ? `Order #${res.order_id} placed`
-          : res.error ?? 'Order failed',
-        ...(!res.ok
-          ? {
-              reasonCode: res.reason_code,
-              order: { symbol, side, qty: shares, mode },
-            }
-          : {}),
-      };
-    } catch {
-      return { ok: false, text: 'Network error placing order' };
-    }
+    return placeBookOffsetLimit(action, runtime, symbol, actionTiming, maybeConfirm, idempotencyKey);
+  }
+
+  // Short / Cover (ADR 048): a short with its buy stop, a cover never past flat.
+  if (SHORT_HOTKEY_KINDS.has(action.kind)) {
+    return runShortHotkey(action, runtime, symbol, actionTiming, maybeConfirm, idempotencyKey);
   }
 
   return { ok: false, text: 'Unknown Nova Action' };

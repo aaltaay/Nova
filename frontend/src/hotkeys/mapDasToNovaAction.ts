@@ -9,6 +9,7 @@ import {
   NOVA_ACTION_KIND_LABELS,
   type NovaActionKind,
 } from '../constants';
+import { DAS_SHORT_NEEDS_PRICE, DAS_SHORT_STOP_NOTE } from '../constantGroups/short_ticket';
 import { tokenizeDasCommand } from './dasCommandParser';
 import type { NovaActionParams, NovaActionRecord } from './novaActionTypes';
 import type { HotkeyRecord } from './types';
@@ -19,6 +20,8 @@ export type MapSuggestion =
     kind: NovaActionKind;
     params: NovaActionParams;
     name: string;
+    /** What the mapping leaves out or changes, said before it is created (a DAS short's stop trigger). */
+    note?: string;
   }
   | { ok: false; reason: string };
 
@@ -55,11 +58,48 @@ function parseOffsetDollars(value: string | undefined): number {
   return Number.isFinite(n) && n >= 0 ? n : NOVA_ACTION_DEFAULT_OFFSET_DOLLARS;
 }
 
+/** "Bid+0.01" -> 0.01, "Ask-0.02" -> -0.02, "Bid" -> 0; null when the price is not the bid or the ask. */
+function parseSignedBookOffset(value: string | undefined): { base: 'bid' | 'ask'; offset: number } | null {
+  const m = value?.trim().match(/^(bid|ask)\s*(?:([+-])\s*(\d+(?:\.\d+)?))?$/i);
+  if (!m) return null;
+  const n = m[3] ? Number(m[3]) : 0;
+  if (!Number.isFinite(n)) return null;
+  return { base: m[1].toLowerCase() as 'bid' | 'ask', offset: m[2] === '-' ? -n : n };
+}
+
+/**
+ * A DAS short (`SHORT=Send`, ADR 048): a Short hotkey at the Bid or the Ask plus its offset. Its buy stop is the
+ * hotkey's own offset (Settings > Trade's to start): a DAS stop trigger is not run, and the mapping says so.
+ */
+function suggestDasShort(command: string, shares: number | null, price: string | undefined): MapSuggestion {
+  const book = parseSignedBookOffset(price);
+  if (!book) return { ok: false, reason: DAS_SHORT_NEEDS_PRICE };
+  const kind: NovaActionKind = book.base === 'bid' ? 'short_limit_bid_offset' : 'short_limit_ask_offset';
+  return {
+    ok: true,
+    kind,
+    params: { shares: shares ?? NOVA_ACTION_DEFAULT_SHARES, offsetDollars: book.offset },
+    name: NOVA_ACTION_KIND_LABELS[kind],
+    ...(/triggerorder/i.test(command) ? { note: DAS_SHORT_STOP_NOTE } : {}),
+  };
+}
+
 /** Infer the best Nova Action kind + params from a DAS command string. */
 export function suggestNovaActionFromDas(command: string): MapSuggestion {
   const tokens = tokenizeDasCommand(command);
   if (tokens.length === 0) {
     return { ok: false, reason: 'Command is empty' };
+  }
+
+  const shortSend = tokens.some(
+    (t) => (t.kind === 'action' || t.kind === 'assignment')
+      && t.name.toUpperCase() === 'SHORT'
+      && (!t.value || t.value.toUpperCase() === 'SEND'),
+  );
+  if (shortSend) {
+    const shareTok = tokens.find((t) => t.kind === 'assignment' && t.name.toUpperCase() === 'SHARE');
+    const priceTok = tokens.find((t) => t.kind === 'assignment' && t.name.toUpperCase() === 'PRICE');
+    return suggestDasShort(command, parseShareLiteral(shareTok?.value), priceTok?.value);
   }
 
   // Reject complex OTO scripts before any BUY/SELL heuristic (TriggerOrder=... is not a token.kind).
@@ -125,6 +165,16 @@ export function suggestNovaActionFromDas(command: string): MapSuggestion {
       kind: 'exit_pos',
       params: {},
       name: NOVA_ACTION_KIND_LABELS.exit_pos,
+    };
+  }
+  // A BUY of the whole position is DAS's cover (ADR 048): at Ask + offset, else all of it at market.
+  if (isBuy && isFullPos) {
+    const kind: NovaActionKind = priceIsAskOffset(priceTok?.value) ? 'cover_limit_ask_offset' : 'cover_pos';
+    return {
+      ok: true,
+      kind,
+      params: kind === 'cover_limit_ask_offset' ? { offsetDollars: parseOffsetDollars(priceTok?.value) } : {},
+      name: NOVA_ACTION_KIND_LABELS[kind],
     };
   }
   if ((isSell || isBuy) && posPct != null) {

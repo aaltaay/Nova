@@ -83,6 +83,25 @@ def entry_refusal(ts: float) -> str | None:
     return None
 
 
+def entry_lapsed(entered_ts: float, ts: float) -> str | None:
+    """Why a short entry placed at ``entered_ts`` may no longer rest or fill at ``ts``, or None.
+
+    A short entry lives inside the short hours of the trading day it was placed on: the door checked
+    its borrow, SSR, halt and margin that day. It lapses at that day's last short time, and a GTC one
+    never carries into the next session -- even when Nova was closed over the cutoff and the clock
+    stands inside the next day's hours again (PR #787 review).
+    """
+    closed = entry_refusal(ts)
+    if closed is not None:
+        return closed
+    placed, now = hours_on(entered_ts), hours_on(ts)
+    if placed is not None and now is not None and placed.date == now.date:
+        return None
+    day = datetime.fromtimestamp(float(entered_ts), ET).date().isoformat()
+    return (f"This short entry was placed on {day}, and a short entry never carries into the next session, "
+            "GTC or not: its borrow, SSR, halt and margin checks were that day's. Place it again.")
+
+
 def cover_due(ts: float) -> bool:
     """A short held at ``ts`` is due its cover: the clock stands outside its day's short hours."""
     hours = hours_on(ts)

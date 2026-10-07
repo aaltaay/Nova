@@ -12,7 +12,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { stageChartOrder } from '../chart/chartOrderActions';
 import { ManualOrderTicket } from './ManualOrderTicket';
-import type { IbkrAccountSummary } from './types';
+import type { IbkrAccountSummary, IbkrPosition } from './types';
 
 const placeIbkrOrder = vi.fn();
 
@@ -68,7 +68,7 @@ describe('chart menu order -> ManualOrderTicket -> placeIbkrOrder', () => {
     vi.restoreAllMocks();
   });
 
-  function renderTicket() {
+  function renderTicket(position: IbkrPosition | null = null) {
     act(() => {
       root.render(
         <ManualOrderTicket
@@ -77,12 +77,14 @@ describe('chart menu order -> ManualOrderTicket -> placeIbkrOrder', () => {
           connected
           spendStatus="paper_armed"
           summary={SUMMARY}
-          position={null}
+          position={position}
           referencePrice={4.1}
         />,
       );
     });
   }
+
+  const LONG_200 = { symbol: 'SMPL', qty: 200, avg_cost: 4.0 } as IbkrPosition;
 
   function limitInput(): HTMLInputElement {
     return mount.querySelector('#manual-order-limit') as HTMLInputElement;
@@ -126,7 +128,7 @@ describe('chart menu order -> ManualOrderTicket -> placeIbkrOrder', () => {
   });
 
   it('Sell @ price stages a limit SELL without inferring a short entry', async () => {
-    renderTicket();
+    renderTicket(LONG_200);
     act(() => {
       stageChartOrder({ symbol: 'SMPL', intent: 'sell', price: 4.1 });
     });
@@ -144,6 +146,46 @@ describe('chart menu order -> ManualOrderTicket -> placeIbkrOrder', () => {
     // ADR 009: opening a short needs the explicit ticket opt-in, never a
     // side+flat inference from a chart click.
     expect(payload.short_entry).toBeUndefined();
+  });
+
+  it('Sell @ price while flat is refused with the side\'s words: a staged sale never turns into a buy (ADR 048)', () => {
+    renderTicket();
+    act(() => {
+      stageChartOrder({ symbol: 'SMPL', intent: 'buy', price: 4.0 });
+    });
+    act(() => {
+      stageChartOrder({ symbol: 'SMPL', intent: 'sell', price: 4.3 });
+    });
+    expect(sidePressed('Buy')).toBe(true);
+    expect(limitInput().value).toBe('4.00');
+    expect(mount.querySelector('[data-testid="manual-order-result"]')?.textContent).toMatch(/You hold no SMPL to sell/);
+    expect(placeIbkrOrder).not.toHaveBeenCalled();
+  });
+
+  it('Short @ price lands on the Short side, its buy stop started at the venue offset (ADR 048)', async () => {
+    act(() => {
+      root.render(
+        <ManualOrderTicket
+          symbol="SMPL"
+          mode="paper"
+          connected
+          spendStatus="paper_armed"
+          summary={{ ...SUMMARY, account_class: 'margin' }}
+          position={null}
+          referencePrice={4.1}
+        />,
+      );
+    });
+    act(() => {
+      stageChartOrder({ symbol: 'SMPL', intent: 'short', price: 4.2 });
+    });
+    expect(sidePressed('Short')).toBe(true);
+    expect(limitInput().value).toBe('4.20');
+    expect((mount.querySelector('[data-testid="manual-order-buy-stop"]') as HTMLInputElement).value).toBe('4.30');
+    await place();
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
+      side: 'SELL', order_type: 'LMT', limit_price: 4.2, short_entry: true, stop_loss_price: 4.3,
+    });
   });
 
   it('ignores a request staged for a different symbol', () => {

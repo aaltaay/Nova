@@ -16,7 +16,8 @@ import {
   pfsaTrade,
   pfsaView,
 } from './whoTradesFixtures';
-import { level2Markers, MODE_NAMES, modeOf, orderLevels, planActions, sidesOf, switchLock } from './whoTradesModel';
+import { planActions } from './planActions';
+import { level2Markers, MODE_NAMES, modeOf, orderLevels, sidesOf, switchLock } from './whoTradesModel';
 import { normalizeStockMode } from './whoTradesNormalize';
 
 /** Feed the memory a sequence of looks, as the hook does. */
@@ -339,17 +340,17 @@ describe("the plan card's buttons", () => {
       .toBe('cancel-approval');
   });
 
-  it('whoever holds the exits: cancel the bracket, or take over from the bot -- and Buy stays on You', () => {
+  it('whoever holds the exits: cancel the bracket, or take over from the bot -- and Entry stays on You', () => {
     const approve = act(inputs({ who: pfsaView('approve', { trade: pfsaTrade('approve', 'holding') }) })).actions;
     expect(approve).toMatchObject([{ id: 'take-over', label: 'Cancel stop and target' }]);
     expect(approve[0].tip).toBe("Nova cancels the bracket's stop and target at the broker, and the exit is yours. "
-      + 'Buy stays on You: the bot buys no more PFSA.');
+      + 'Entry stays on You: the bot enters nothing more on PFSA.');
     const bot = act(inputs({ who: pfsaView('bot', { trade: pfsaTrade('bot', 'holding') }) })).actions;
     expect(bot).toMatchObject([{ id: 'take-over', label: 'Take over the exit' }]);
     expect(bot[0].tip).toMatch(/^Nova cancels the bot's target and stop on PFSA/);
-    expect(bot[0].tip).toMatch(/Buy stays on You: the bot buys no more PFSA\.$/);
+    expect(bot[0].tip).toMatch(/Entry stays on You: the bot enters nothing more on PFSA\.$/);
     const entering = act(inputs({ who: pfsaView('bot', { trade: pfsaTrade('bot', 'entering') }) })).actions;
-    expect(entering[0].tip).toMatch(/Buy stays on You/);
+    expect(entering[0].tip).toMatch(/Entry stays on You/);
   });
 
   it('Auto-entry and the bot turn off, and a closed trade says how it went', () => {

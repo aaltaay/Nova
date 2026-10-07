@@ -75,6 +75,9 @@ export interface PlanResult {
 
 export interface StockPlan {
   source: 'setup' | 'manual';
+  /** ADR 048: a short plan sells at its entry, protects with a buy stop over it and covers under it. Absent
+   * (a backend before it, a fixture): long. */
+  side?: 'long' | 'short';
   setup_type: string | null;
   /** The live setup the plan follows (null for a forming setup or the operator's own plan): what an
    * approval binds to (ADR 037). */
@@ -296,8 +299,11 @@ export interface StockModeApproval {
 }
 
 export interface StockModeTrade {
-  /** `exit`: Nova holds the exit of a stock you bought (ADR 037 amendment 2026-10-01). */
+  /** `exit`: Nova holds the exit of a stock you bought (ADR 037 amendment 2026-10-01) -- or the cover of one you
+   * shorted (`side: 'short'`, ADR 048). */
   kind: 'auto_entry' | 'approve' | 'bot' | 'exit';
+  /** Long or short (ADR 048); a trade made before shorts, or a wire without it, is a long. */
+  side?: 'long' | 'short';
   state: 'entering' | 'holding' | 'closed' | 'missed' | 'handed';
   venue: string | null;
   venue_day: string | null;

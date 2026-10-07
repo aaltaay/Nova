@@ -208,6 +208,20 @@ def test_a_short_counts_the_shorts_already_held_against_the_borrow(paper) -> Non
     assert "500 already short" in receipt.error
 
 
+def test_the_tickets_short_with_its_buy_stop_alone_rests_as_two_orders(paper) -> None:
+    """The ticket's Short sends its required buy stop and, unless set, no cover target (step 3)."""
+    from routes.trading_execution import OrderRequest, _manual_order_command
+
+    req = OrderRequest(symbol=SYMBOL, side="SELL", qty=500, order_type="LMT", limit_price=4.50,
+                       short_entry=True, stop_loss_price=4.80)
+    receipt = _send(_manual_order_command(req, "ticket-short", None, 0))
+    assert receipt.ok is True, receipt.error
+    legs = {r["leg_role"]: r for r in paper.broker.working_orders()}
+    assert set(legs) == {"parent", "stop"} and receipt.target_order_id is None
+    assert (legs["parent"]["side"], legs["parent"]["short_entry"]) == ("SELL", True)
+    assert (legs["stop"]["side"], legs["stop"]["status"]) == ("BUY", "PreSubmitted")
+
+
 # ── SSR: a short fills only above the bid ─────────────────────────────────────
 
 def test_adding_above_the_market_counts_the_short_held_from_its_mark(paper) -> None:
@@ -321,6 +335,74 @@ def test_a_gtc_short_entry_is_cancelled_before_the_next_open(paper) -> None:
     paper.market.now = _at(9, 0) + 86_400            # the next morning, before 09:35
     [done] = asyncio.run(closes.entry_cutoff(paper.broker))
     assert done["ok"] is True and paper.broker.working_orders() == [] and _held(paper.broker) == 0
+
+
+def test_a_gtc_short_entry_from_an_earlier_session_is_cancelled_inside_todays_hours(paper) -> None:
+    """PR #787 review: Nova was closed over the 15:50 cutoff and came back after the next 09:35. The entry's
+    borrow, SSR, halt and margin checks were the day before's: it never rests or fills into a new session."""
+    receipt = _send(_short("rest-closed-over", entry=4.50, stop=4.80, target=4.00, tif="GTC"))
+    assert receipt.ok is True
+    paper.market.now = _at(10, 0) + 86_400           # Thursday 10:00, inside its short hours
+    assert hours.entry_refusal(paper.market.now) is None
+    [done] = asyncio.run(closes.entry_cutoff(paper.broker))
+    assert (done["ok"], done["order_id"]) == (True, receipt.parent_order_id)
+    assert paper.broker.working_orders() == [] and _held(paper.broker) == 0
+    [line] = [a for a in paper.audit if a["action"] == "day_cover"]
+    assert line["outcome"] == "cancelled" and "placed on 2026-10-07" in line["reason"]
+    assert asyncio.run(closes.entry_cutoff(paper.broker)) == []
+
+
+def test_a_print_the_next_day_never_fills_an_earlier_sessions_short_entry(paper) -> None:
+    """Before the runner's first pass, the matcher's next-day prints cancel the entry instead of filling it."""
+    receipt = _send(_short("rest-gtc-fill", qty=100, entry=4.50, stop=4.80, target=4.00, tif="GTC"))
+    assert receipt.ok is True and _held(paper.broker) == 0
+    paper.market.now = _at(9, 41) + 86_400
+    assert paper.broker.try_fill_working(SYMBOL, [(_at(9, 40) + 86_400, 4.55)]) == []
+    assert _held(paper.broker) == 0 and paper.broker.working_orders() == []
+    [event] = [e for e in paper.broker.ledger.events
+               if e.get("type") == "cancelled" and e.get("order_id") == receipt.parent_order_id]
+    assert event["code"] == "SHORT_HOURS" and "placed on 2026-10-07" in event["reason"]
+
+
+def test_a_replace_never_carries_a_short_entry_into_a_new_session(paper) -> None:
+    """A replace re-dates the order's ``placed_ts`` (no fill on prints before it), never the session it was
+    checked in: a short entry repriced the next morning still lapses."""
+    receipt = _send(_short("rest-replaced", qty=100, entry=4.50, stop=4.80, target=4.00, tif="GTC"))
+    assert receipt.ok is True
+    parent = int(receipt.parent_order_id)
+    paper.market.now = _at(9, 40) + 86_400
+    assert paper.broker.replace(parent, limit_price=4.45)["ok"] is True
+    row = paper.broker.ledger.working_row(parent)
+    assert row["placed_ts"] == paper.market.now and row["entered_ts"] == paper.now
+    paper.market.now = _at(9, 42) + 86_400
+    assert paper.broker.try_fill_working(SYMBOL, [(_at(9, 41) + 86_400, 4.50)]) == []
+    assert _held(paper.broker) == 0 and paper.broker.working_orders() == []
+
+
+def test_the_door_never_reprices_a_resting_short_entry(paper) -> None:
+    """A replace runs no short check: a resting short entry is cancelled and placed again, never repriced
+    (a new price would skip the borrow, SSR, margin and cushion rules). Its buy stop still moves."""
+    receipt = _send(_short("rest-reprice", qty=100, entry=4.50, stop=4.80, target=4.00))
+    assert receipt.ok is True
+    refused = _send(ExecutionCommand(operation="replace", idempotency_key="reprice-1", source="manual",
+                                     order_id=int(receipt.parent_order_id), limit_price=4.05, skip_risk=True))
+    assert (refused.ok, refused.reason_code) == (False, "SHORT_REPRICE")
+    assert "Cancel it and place it again" in (refused.error or "")
+    assert paper.broker.ledger.working_row(int(receipt.parent_order_id))["limit_price"] == 4.50
+    moved = _send(ExecutionCommand(operation="replace", idempotency_key="restop-1", source="manual",
+                                   order_id=int(receipt.stop_order_id), stop_price=4.70, skip_risk=True))
+    assert moved.ok is True, moved.error
+    assert paper.broker.ledger.working_row(int(receipt.stop_order_id))["stop_price"] == 4.70
+
+
+def test_a_short_entry_repriced_at_the_broker_the_same_day_still_fills(paper) -> None:
+    """The ledger's own rule, under the door: a replace re-dates ``placed_ts``, and the entry keeps its day."""
+    receipt = _send(_short("rest-same-day", qty=100, entry=4.50, stop=4.80, target=4.00))
+    assert receipt.ok is True
+    paper.market.now = paper.now + 60
+    assert paper.broker.replace(int(receipt.parent_order_id), limit_price=4.40)["ok"] is True
+    filled = paper.broker.try_fill_working(SYMBOL, [(paper.now + 61, 4.41)])
+    assert [int(r["order_id"]) for r in filled] == [receipt.parent_order_id] and _held(paper.broker) == -100
 
 
 def test_a_print_past_1550_never_fills_a_resting_short_entry(paper) -> None:

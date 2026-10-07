@@ -7,6 +7,8 @@ export const STOCK_READ_POLL_MS = 5_000;
 export const STOCK_READ_DECISIONS_POLL_MS = 60_000;
 /** While you hold: trial T1's 30 s tape reading (`/flush`), read this often for the SELL NOW · FLUSH call. */
 export const STOCK_READ_FLUSH_POLL_MS = 1_000;
+/** A short plan's short check (ADR 048), read while the plan shows. */
+export const STOCK_READ_SHORT_CHECK_POLL_MS = 5_000;
 /** The flush call waits this long after you first held (trial T1: 10 s after the fill). */
 export const STOCK_READ_FLUSH_AFTER_SEC = 10;
 /** The day's setups that ended (ADR 036 amendment): read this often while the 1-minute pane shows, and
@@ -183,3 +185,11 @@ export const STOCK_MODE_COLORS = {
 
 /** Who trades: notes shown on their own lines before the rest fold into "+N more" (Level 2 keeps its room). */
 export const WHO_TRADES_NOTES_SHOWN = 3;
+
+/** Level 2's short chips (ADR 048): SSR, the halt cool-off and where IBKR would liquidate the position. */
+export const SHORT_CHIP_LIQ = 'LIQ';
+export const SHORT_CHIP_COOLOFF = 'COOL-OFF';
+export const SHORT_CHIP_SSR_TIP =
+  'Under SSR a short sells only above the bid, so Nova prices it at the ask; not known counts as on. A cover is never held by it.';
+export const SHORT_CHIP_COOLOFF_TIP =
+  'No short for 10 minutes after an up-halt resumes: a stock that halted on its way up can halt again on its way up.';

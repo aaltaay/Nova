@@ -2,18 +2,17 @@
  * Phase K -- sample Stock View Short side (fixtures only).
  * Does not place broker orders.
  *
- * The sample desk is a Paper desk. Paper takes shorts as a bracket with a buy stop
- * (ADR 048), but the ticket's Short mode and its Buy stop are not built yet: the
- * Short segment is shown for the margin account but locked, with Nova's reason
- * rather than the symbol's (ibkr/shortDisabledReason.ts, QA V13).
+ * The sample desk is a Paper desk, and Paper shorts (ADR 048). Its account holds SMPL long, so the ticket
+ * follows the position (#778 step 3): Buy / Sell, with Short shown for the margin account but off -- Nova never
+ * flips a long into a short -- and saying why on hover.
  */
 import { expect, test } from '@playwright/test';
-import { PRACTICE_TICKET_SHORT_LOCKED } from '../src/constantGroups/practice';
+import { SHORT_WHY_LONG } from '../src/constantGroups/short_ticket';
 
 const ARTIFACTS = '/opt/cursor/artifacts';
 
 test.describe('sample shortability (Phase K)', () => {
-  test('SMPL Stock View shows Short on Side, locked with the practice reason', async ({
+  test('SMPL Stock View shows Short on Side, off while you hold SMPL long', async ({
     page,
   }) => {
     // The sample status is an armed Paper desk, so the ticket shows Place without an unlock.
@@ -23,11 +22,9 @@ test.describe('sample shortability (Phase K)', () => {
     const shortBtn = page.getByTestId('manual-order-side-short');
     await expect(shortBtn).toBeVisible();
     await expect(shortBtn).toBeDisabled();
-    // A locked control says why (ux/whyTip.ts), and the ticket prints it too.
-    await expect(shortBtn).toHaveAttribute('data-why', PRACTICE_TICKET_SHORT_LOCKED);
-    await expect(page.getByTestId('manual-order-short-reason')).toHaveText(
-      PRACTICE_TICKET_SHORT_LOCKED,
-    );
+    // A locked control says why (ux/whyTip.ts); the Live lock's line under the sides is not shown on Paper.
+    await expect(shortBtn).toHaveAttribute('data-why', SHORT_WHY_LONG('SMPL'));
+    await expect(page.getByTestId('manual-order-short-reason')).toHaveCount(0);
 
     const ticket = page.locator('form.manual-order-ticket').first();
     await ticket.scrollIntoViewIfNeeded();

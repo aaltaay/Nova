@@ -39,6 +39,7 @@ import { useRenderCount } from '../perf/useRenderCount';
 import type { ChartPaneOverlayProps } from '../chart';
 import { useSimReplayDesk } from '../sim';
 import {
+  protectiveStop,
   StockReadChartLayer,
   StockReadProvider,
   StockReadSheet,
@@ -181,7 +182,12 @@ export function StockViewPage({
       active={chartActive}
       replay={replayDesk}
       topOfBook={topOfBook}
-      position={symbolPosition ? { qty: symbolPosition.qty, avgCost: symbolPosition.avg_cost } : null}
+      position={symbolPosition ? {
+        qty: symbolPosition.qty, avgCost: symbolPosition.avg_cost,
+        liquidationPrice: symbolPosition.liquidation_price ?? null,
+        liquidationSource: symbolPosition.liquidation_source ?? null,
+        workingStop: protectiveStop(orders, symbol, symbolPosition.qty),
+      } : null}
       venue={deskVenueOf(ibkrStatus)}
     >
     <div

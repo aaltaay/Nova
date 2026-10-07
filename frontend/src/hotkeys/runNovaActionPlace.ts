@@ -4,6 +4,8 @@
 
 import {
   NOVA_ACTION_ACCOUNT_ERROR_MESSAGE,
+  NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
+  NOVA_ACTION_DEFAULT_SHARES,
   NOVA_ACTION_DEPTH_DISABLED_REASON,
 } from '../constants';
 import {
@@ -16,7 +18,7 @@ import { venueClockNow } from '../ibkr/marketOutsideRth';
 import { planFlattenExit } from '../ibkr/planFlattenExit';
 import { placeIbkrOrder } from '../ibkr/placeOrder';
 import type { TopOfBook } from './TopOfBookContext';
-import type { NovaActionResult } from './novaActionTypes';
+import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import type { NovaActionRuntime } from './runNovaActionRuntime';
 
 export function accountModeLabel(mode?: string): string {
@@ -182,6 +184,72 @@ export async function placeLongPctLimit(
         ? {
             reasonCode: res.reason_code,
             order: { symbol, side: 'SELL', qty: built.qty, mode },
+          }
+        : {}),
+    };
+  } catch {
+    return { ok: false, text: 'Network error placing order' };
+  }
+}
+
+/** Buy at Ask + offset, or sell at Bid - offset / Ask + offset: a limit priced from the book (needs Level 2). */
+export async function placeBookOffsetLimit(
+  action: NovaActionRecord,
+  runtime: NovaActionRuntime,
+  symbol: string,
+  actionTiming: BrowserActionStamp,
+  maybeConfirm: (runtime: NovaActionRuntime, summary: string) => Promise<boolean>,
+  idempotencyKey?: string,
+): Promise<NovaActionResult> {
+  const tobOrErr = requireDepth(runtime, symbol);
+  if ('ok' in tobOrErr && tobOrErr.ok === false) return tobOrErr;
+  const tob = tobOrErr as TopOfBook;
+  const offset = action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_OFFSET_DOLLARS;
+  const shares = action.params.shares ?? NOVA_ACTION_DEFAULT_SHARES;
+  const isBuy = action.kind === 'buy_limit_ask_offset';
+  const fromAsk = action.kind !== 'sell_limit_bid_offset';
+  const base = fromAsk ? tob.ask : tob.bid;
+  if (base == null || base <= 0) {
+    return { ok: false, text: NOVA_ACTION_DEPTH_DISABLED_REASON };
+  }
+  const limit = fromAsk ? base + offset : base - offset;
+  if (limit <= 0) {
+    return { ok: false, text: 'Computed limit price is invalid' };
+  }
+  const side = isBuy ? 'BUY' : 'SELL';
+  const outside_rth = shouldUseOutsideRth(Boolean(action.params.outsideRth));
+  const mode = accountModeLabel(runtime.accountMode);
+  const summary =
+    `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)}${outside_rth ? ' EH' : ''}) `
+    + `on ${mode} account.`;
+  if (!(await maybeConfirm(runtime, summary))) {
+    return { ok: false, text: 'Order cancelled' };
+  }
+  try {
+    const res = await placeIbkrOrder(
+      {
+        symbol,
+        side,
+        qty: shares,
+        order_type: 'LMT',
+        limit_price: Number(limit.toFixed(4)),
+        outside_rth,
+      },
+      idempotencyKey,
+      {
+        timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
+        referencePrice: base,
+      },
+    );
+    return {
+      ok: res.ok,
+      text: res.ok
+        ? `Order #${res.order_id} placed`
+        : res.error ?? 'Order failed',
+      ...(!res.ok
+        ? {
+            reasonCode: res.reason_code,
+            order: { symbol, side, qty: shares, mode },
           }
         : {}),
     };

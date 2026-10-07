@@ -6,7 +6,8 @@ broke or lost, and today's zones between the stop and the target (the 1-minute c
 ruler's marks). The rounds are the stock's own scale (``rounds``: half and whole dollars up to $25).
 A sentence quotes the level study's in-sample figures only where the study looked -- half and whole
 dollars on a $1-$20 stock -- and says the rest is not measured; nothing here blocks or places anything.
-The zones come from ``level_map``.
+The zones come from ``level_map``. A short plan's notes are measured downward (``level_notes_short``,
+ADR 048); ``between`` is the same for both sides.
 """
 from __future__ import annotations
 
@@ -185,9 +186,10 @@ def between(plan: dict[str, Any], intraday: list[dict[str, Any]]) -> list[dict[s
     stop, target = plan.get("stop"), plan.get("target")
     if stop is None or target is None:
         return []
+    lo, hi = min(stop, target), max(stop, target)       # a short's stop is over its target
     out = []
     for z in sorted(intraday, key=lambda z: z["lo"]):
-        if z["lo"] > stop + EPS and z["hi"] < target - EPS:
+        if z["lo"] > lo + EPS and z["hi"] < hi - EPS:
             out.append({"price": z["price"], "lo": z["lo"], "hi": z["hi"], "tag": z["tag"], "label": z["label"],
                         "round": any(m["kind"] in ROUND_KINDS for m in z["members"]),
                         "hod": any(m["kind"] == "hod" for m in z["members"])})
@@ -203,6 +205,13 @@ def notes(plan: dict[str, Any], level_map: dict[str, Any] | None, bars: list[dic
     intra, day = level_map.get("intraday") or [], level_map.get("daily") or []
     # The map's own scale, so the notes and the map's zones name the same rounds.
     rnd = rounds.of(level_map.get("price")) or rounds.of(price) or rounds.of(plan.get("entry"))
+    if plan.get("side") == "short":
+        from stock_read import level_notes_short as short
+
+        nxt, recent = short.round_notes(bars, price=price, entry=plan.get("entry"), now=now, rnd=rnd)
+        return {"room": short.room(plan, intra, day, rnd), "target": short.target_note(plan.get("target"), rnd),
+                "stop": short.stop_note(plan.get("stop"), plan.get("entry"), rnd), "next": nxt, "recent": recent,
+                "between": between(plan, intra)}
     nxt, recent = round_notes(bars, price=price, entry=plan.get("entry"), now=now, rnd=rnd)
     return {
         "room": room(plan, intra, day, rnd),

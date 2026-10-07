@@ -15,9 +15,11 @@ import { riskSourceWords } from '../setups';
 import { tipProps, whyProps } from '../ux';
 import { NOT_A_TRADE_NOVA } from './constants';
 import { novaSizeWords } from './novaPromise';
+import { EmptyPlan } from './PlanEmpty';
 import { PlanNumbers } from './PlanNumbers';
 import { PlanLevels } from './PlanLevels';
 import { PlanChecks, PlanRuler } from './PlanRuler';
+import { ShortPlanChecks } from './ShortPlanChecks';
 import {
   fmtPx,
   fmtStep,
@@ -31,14 +33,19 @@ import {
 } from './planMath';
 import { liquidityTip } from '../setups';
 import { HeldCard } from './HeldCard';
-import { heldQty } from './momentModel';
+import { heldAnyQty } from './momentShort';
 import { gradeChip, gradeTip, notATrade, thinPlan } from './planVerdict';
 import type { StockReadContextValue } from './StockReadContext';
-import type { StockPlan, StockRead } from './types';
-import { modeSentence, planActions, type PlanAction } from './whoTradesModel';
+import type { StockPlan } from './types';
+import { planActions, type PlanAction } from './planActions';
+import { modeSentence } from './whoTradesModel';
 import './whoTrades.css';
+import './shortRead.css';
 
 const STAGED_NOTE_MS = 8_000;
+
+const SHORT_PLAN_TIP = 'A short plan (ADR 048): sell at the entry, a buy stop over it, cover at entry - 2R. Shorts '
+  + 'go out with their buy stop on Paper and Sim; Nova covers what is left at 15:55 ET.';
 
 /** The folded line's word for an action. */
 const SHORT: Record<PlanAction['id'], string> = {
@@ -81,45 +88,6 @@ function riskTrouble(ctx: StockReadContextValue): string | null {
   return r.saveError ?? r.moveError ?? r.why;
 }
 
-function EmptyPlan({ ctx, read }: { ctx: StockReadContextValue; read: StockRead }) {
-  const ask = ctx.topOfBook?.ask ?? null;
-  const [text, setText] = useState('');
-  const commit = () => {
-    const n = Number(text.replace(/[$,\s]/g, ''));
-    if (Number.isFinite(n) && n > 0) ctx.setManualPlan(n, null);
-  };
-  const why = read.followed ? 'No setup is forming on it.' : (read.followed_note ?? 'The setup scanner does not follow it.');
-  return (
-    <div className="sr-plan__empty" data-testid="stock-read-plan-empty">
-      <span className="sr-plan__empty-why">{why} Plan a hand trade at 2:1:</span>
-      <button
-        type="button"
-        className="sr-btn"
-        disabled={ask === null}
-        {...whyProps(ask === null, 'No ask on Level 2 yet.')}
-        onClick={() => ask !== null && ctx.setManualPlan(ask, null)}
-        data-testid="stock-read-entry-ask"
-      >
-        Entry at the ask {ask === null ? '' : fmtPx(ask)}
-      </button>
-      <input
-        className="sr-num__input sr-plan__empty-input"
-        inputMode="decimal"
-        aria-label="Your entry"
-        placeholder="or type an entry"
-        value={text}
-        onChange={e => setText(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter') commit();
-          e.stopPropagation();
-        }}
-        onBlur={commit}
-        data-testid="stock-read-entry-type"
-      />
-    </div>
-  );
-}
-
 export function PlanCard({ ctx, roomy = true }: {
   ctx: StockReadContextValue;
   /** The quote card has room for the whole plan and Level 2 (the plan's `auto` mode reads it). */
@@ -144,7 +112,7 @@ export function PlanCard({ ctx, roomy = true }: {
   const mode = ctx.layers.plan;
   const folded = mode === 'folded' || (mode === 'auto' && !roomy);
   // While you hold the stock the box is the trade's (ADR 036 amendment 2026-10-01), folded the same way.
-  if (read.held && heldQty(ctx.who.inputs) > 0) {
+  if (read.held && heldAnyQty(ctx.who.inputs) > 0) {
     return <HeldCard ctx={ctx} held={read.held} folded={folded}
       onFold={() => ctx.setLayers({ plan: folded ? 'open' : 'folded' })} />;
   }
@@ -158,19 +126,26 @@ export function PlanCard({ ctx, roomy = true }: {
   // Not a trade: Stage and Approve say why instead of acting (operator report, 2026-09-29).
   const noTrade = notATrade(plan);
   const locked = plan ? (noTrade ?? stageLock(plan, size, ctx.riskUsd, listening)) : 'No plan yet.';
+  const short = plan?.side === 'short';
   const stage = () => {
     if (!plan || locked || plan.entry === null || size === null) return;
+    // A short stages on the ticket's Short side with the plan's buy stop (ADR 048): it never goes out without one.
     requestOrderTicketPrefill({
       symbol: ctx.symbol,
-      side: 'BUY',
+      side: short ? 'SELL' : 'BUY',
       orderType: 'LMT',
       quantityValue: String(size),
       limitPrice: fmtPx(plan.entry),
+      ...(short && plan.stop !== null ? { shortEntry: true, buyStop: fmtPx(plan.stop) } : {}),
     });
     // Where the size came from, said with it: the sleeve's risk per trade (or the stated fallback).
-    setStaged(`Staged BUY ${size} LMT ${fmtPx(plan.entry)}: $${ctx.riskUsd} of risk (${riskSourceWords(ctx.risk)} `
-      + `risk per trade) over ${fmtStep(plan.risk, plan.entry)} a share. Set the stop ${fmtPx(plan.stop)} and the `
-      + `target ${fmtPx(plan.target)} yourself: the ticket takes no bracket from the plan.`);
+    const sized = `$${ctx.riskUsd} of risk (${riskSourceWords(ctx.risk)} risk per trade) over `
+      + `${fmtStep(plan.risk, plan.entry)} a share.`;
+    setStaged(short
+      ? `Staged SHORT ${size} LMT ${fmtPx(plan.entry)} with its buy stop ${fmtPx(plan.stop)}: ${sized} The cover `
+        + `${fmtPx(plan.target)} is yours to set.`
+      : `Staged BUY ${size} LMT ${fmtPx(plan.entry)}: ${sized} Set the stop ${fmtPx(plan.stop)} and the target `
+        + `${fmtPx(plan.target)} yourself: the ticket takes no bracket from the plan.`);
   };
   const who = ctx.who;
   const whoMode = who.view?.mode ?? 'signal';
@@ -257,6 +232,8 @@ export function PlanCard({ ctx, roomy = true }: {
           {folded ? '▸' : '▾'}
         </button>
         {!folded && <span className="sr-plan__kicker">Plan</span>}
+        {short && <span className="sr-plan__side" {...tipProps(SHORT_PLAN_TIP, 'Short')}
+          data-testid="stock-read-plan-short">SHORT</span>}
         {!folded && <span className="sr-plan__name">{name}</span>}
         {plan && grade && (
           <span className={`sr-plan__grade sr-plan__grade--${plan.grade}`} {...tipProps(gradeTip(plan), `Grade ${grade}`)}
@@ -287,7 +264,8 @@ export function PlanCard({ ctx, roomy = true }: {
         )}
         {folded && plan && (
           <span className="sr-plan__folded" data-testid="stock-read-plan-line"
-            {...tipProps(`Entry / stop / target · your size${novaFolded ? ' · the size Nova sends' : ''}`, 'The plan')}>
+            {...tipProps(`${short ? 'Short at / buy stop / cover' : 'Entry / stop / target'} · your size${
+              novaFolded ? ' · the size Nova sends' : ''}`, 'The plan')}>
             {fmtPx(plan.entry)}/{fmtPx(plan.stop)}/{fmtPx(plan.target)}
             {size !== null ? ` · ${size.toLocaleString('en-US')} sh` : ''}
             {novaFolded ? ` · Nova ${novaFolded}` : ''}
@@ -332,6 +310,7 @@ export function PlanCard({ ctx, roomy = true }: {
           {plan && <PlanRuler plan={plan} price={read.price} />}
           {plan && <PlanLevels plan={plan} />}
           {plan && <PlanChecks plan={plan} />}
+          {plan && <ShortPlanChecks symbol={ctx.symbol} plan={plan} size={size} />}
           <footer className="sr-plan__foot">
             {status && (
               <span

@@ -1,0 +1,209 @@
+/* The ticket's short side (ADR 048, #778 step 3): a short is orange and always
+   says SHORT; a cover is green. Imported by tradeTicketCompact.css (its layer). */
+
+.manual-order-submit--short {
+  background: var(--short, #ea580c) !important;
+  color: #fff !important;
+  border-color: #c2410c !important;
+}
+
+.manual-order-submit--short:hover:not(:disabled) {
+  background: var(--short-hover, #f97316) !important;
+  color: #fff !important;
+}
+
+.manual-order-submit--cover {
+  background: var(--cover, #22c55e) !important;
+  color: #fff !important;
+  border-color: #15803d !important;
+}
+
+.manual-order-submit--cover:hover:not(:disabled) {
+  background: #16a34a !important;
+  color: #fff !important;
+}
+
+/* ---------- what the order does to the position, under the sides */
+.mot-side-note {
+  margin: 0;
+  color: var(--text-muted, #98989d);
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.mot-side-note.is-short {
+  color: var(--short-ink, #fb923c);
+}
+
+/* ---------- a field's note (LIMIT: "SSR: priced at the ask"; BUY STOP: its risk) */
+.mot-field__note {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted, #98989d);
+  font-size: 0.64rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mot-field--buy-stop .mot-field__k {
+  color: var(--short-ink, #fb923c);
+}
+
+.manual-order-ticket .mot-field input.manual-order-price.is-refused {
+  border-color: var(--red, #ef4444);
+}
+
+.mot-field--buy-stop .is-refused + .mot-field__note,
+.mot-field--buy-stop input[aria-invalid='true'] ~ .mot-field__note {
+  color: var(--red, #ef4444);
+  white-space: normal;
+}
+
+.mot-required {
+  margin-left: auto;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--short-tint, rgba(234, 88, 12, 0.16));
+  color: var(--short-ink, #fb923c);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ---------- SHORT CHECK: every rule the door runs, with its numbers */
+.short-check {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 7px;
+  border: 1px solid color-mix(in srgb, var(--short, #ea580c) 45%, transparent);
+  border-radius: 6px;
+  background: var(--short-tint, rgba(234, 88, 12, 0.08));
+}
+
+.short-check__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.short-check__tag {
+  color: var(--short-ink, #fb923c);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.short-check__sub {
+  color: var(--text-muted, #98989d);
+  font-size: 0.62rem;
+}
+
+.short-check__verdict {
+  margin-left: auto;
+  font-size: 0.64rem;
+  font-weight: 600;
+}
+
+.short-check__verdict.is-ok {
+  color: var(--green, #22c55e);
+}
+
+.short-check__verdict.is-bad {
+  color: var(--red, #ef4444);
+}
+
+.short-check__note {
+  margin: 0;
+  color: var(--text-muted, #98989d);
+  font-size: 0.64rem;
+  line-height: 1.3;
+}
+
+.short-check__rules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.short-check__rule {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary, #c7c7cc);
+  font-size: 0.64rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.short-check__mark {
+  flex: 0 0 auto;
+  width: 0.8em;
+  text-align: center;
+}
+
+.short-check__rule.is-ok .short-check__mark {
+  color: var(--green, #22c55e);
+}
+
+.short-check__rule.is-bad {
+  color: var(--red, #ef4444);
+}
+
+.short-check__rule.is-unknown .short-check__mark {
+  color: #f59e0b;
+}
+
+/* ---------- the trade bar's position: a short says SHORT, in its colour */
+.ticker-trade-bar-short {
+  color: var(--short-ink, #fb923c);
+  font-weight: 600;
+}
+
+/* ---------- Quick Trades: a Short hotkey is orange, and its label says SS */
+.nova-qt__btn--short svg {
+  color: var(--short-ink, #fb923c);
+}
+
+.nova-qt__btn--short {
+  color: var(--short-ink, #fb923c);
+}
+
+/* ---------- Level 2's short chips (stock_read/ShortChips): SSR, the cool-off, LIQ */
+.sv-short-chip {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 3px;
+  color: var(--nova-text-muted, var(--text-secondary));
+  font-size: 0.65rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.sv-short-chip--ssr.is-on,
+.sv-short-chip--ssr.is-unknown {
+  border-color: color-mix(in srgb, #f59e0b 45%, transparent);
+  color: #f59e0b;
+}
+
+.sv-short-chip--cooloff {
+  border-color: color-mix(in srgb, var(--ask-color, #e35d6a) 45%, transparent);
+  color: var(--ask-color, #e35d6a);
+}
+
+.sv-short-chip--liq.is-short {
+  border-color: color-mix(in srgb, var(--short, #ea580c) 45%, transparent);
+  color: var(--short-ink, #fb923c);
+}

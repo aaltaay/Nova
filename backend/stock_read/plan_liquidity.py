@@ -4,7 +4,7 @@
 The read measures the stock as the operator sees it: today's volume (the scanner row's, repriced by
 the L1 line), the chart's own stored minutes for the day's average price and the last five closed
 minutes, and the Level 2 book on the Trader tab, walked for the desk's risk per trade over the plan's
-risk a share. Stored minutes that end more than ``SETUPS_THIN_BARS_STALE_SEC`` before now leave the
+risk a share: the asks for a long, the bids for a short (ADR 048). Stored minutes that end more than ``SETUPS_THIN_BARS_STALE_SEC`` before now leave the
 pace unknown -- never a dead stock on a late store. The reading rides on the plan (``plan.liquidity``),
 leads its checks, makes a setup plan NOT A TRADE when thin, and is the In play group's Liquidity row.
 """
@@ -28,8 +28,8 @@ def _end(bars: list[dict[str, Any]], now: float) -> tuple[float | None, str | No
     return min(end, floor), None
 
 
-def read(ctx: dict[str, Any], now: float, risk: Any = None) -> dict[str, Any]:
-    """The stock's liquidity now; the book is walked only for a plan's ``risk``."""
+def read(ctx: dict[str, Any], now: float, risk: Any = None, side: str = "long") -> dict[str, Any]:
+    """The stock's liquidity now; the book is walked only for a plan's ``risk`` -- a short's into the bids."""
     bars = [b for b in ctx.get("bars") or [] if isinstance(b, dict)]
     unknown: dict[str, str] = {}
     end, why = _end(bars, now)
@@ -41,14 +41,15 @@ def read(ctx: dict[str, Any], now: float, risk: Any = None) -> dict[str, Any]:
     day = liquidity.day_dollars(ctx.get("volume"), bars, now, ctx.get("price"))
     walked = None
     qty = liquidity.size_for(ctx.get("risk_usd"), risk)
-    asks = ctx.get("asks") or []
+    short = side == "short"
+    book = (ctx.get("bids") if short else ctx.get("asks")) or []
     if risk is not None:                     # without a plan there is no fill to size
-        if not asks or ctx.get("l1_only"):
+        if not book or ctx.get("l1_only"):
             unknown["book"] = "Nova holds no Level 2 book for it"
         elif qty < 1:
             unknown["book"] = "no risk per trade to size the fill by"
         else:
-            walked = liquidity.walk(asks, qty)
+            walked = liquidity.walk_bids(book, qty) if short else liquidity.walk(book, qty)
     return liquidity.judge(day=day, pace=pace, now=now, book=walked, risk=risk, unknown=unknown)
 
 
@@ -75,8 +76,9 @@ def row(r: dict[str, Any]) -> dict[str, Any]:
     state = r.get("state")
     limits = r.get("limits") or {}
     rule = (f"Too thin to trade under {liquidity.money(limits.get('day_dollars'))} traded today or "
-            f"{liquidity.money(limits.get('pace_dollars'))} in the last 5 minutes, or when buying your size "
-            f"walks the asks more than {limits.get('walk_r', 0.25):g}R past the ask.")
+            f"{liquidity.money(limits.get('pace_dollars'))} in the last 5 minutes, or when your size walks the "
+            f"book more than {limits.get('walk_r', 0.25):g}R past the inside (the asks for a buy, the bids for a "
+            f"short).")
     if state == LIQUIDITY_THIN:
         return make_row("liquidity", "Liquidity", "Too thin", "bad", "Nova's volume and Level 2",
                         f"{'; '.join(r.get('reasons') or [])}. {rule}", r.get("as_of"))

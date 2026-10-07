@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from constants_shorts import SHORT_REPRICE
 from execution import inflight
 from execution.models import ExecutionCommand
 from ibkr.errors import IbkrAccountError
@@ -125,3 +126,25 @@ def refusal(cmd: ExecutionCommand, *, facts: Facts | None = None, borrow: dict[s
     if _venue(venue) == "live" and not _safety.short_enabled():
         return "IBKR_SHORT_ENABLED is false — short entry locked", "SHORT_DISABLED"
     return check.first_refusal(verdicts(cmd, facts=facts, borrow=borrow, venue=venue))
+
+
+def replace_refusal(cmd: ExecutionCommand, venue: str | None) -> Refusal | None:
+    """``(detail, reason_code)`` when ``cmd`` would reprice a working short entry; None otherwise.
+
+    A replace runs no short check, so a new price could skip the borrow, SSR, margin and cushion
+    rules the entry passed at its own price. Nova never reprices one: cancel it and place it again.
+    Paper and Sim know their short entries; a Live one cannot be placed until ADR 048's last step.
+    """
+    from practice.broker import for_venue
+
+    where = _venue(venue)
+    if where not in ("paper", "sim") or cmd.order_id is None:
+        return None
+    oid = int(cmd.order_id)
+    rows = for_venue(where).working_orders()     # the broker the replace is sent to
+    row = next((r for r in rows if int(r.get("order_id") or 0) == oid), None)
+    if row is None or not row.get("short_entry"):
+        return None
+    return (f"Order {oid} is a short entry ({row.get('symbol')}): Nova never reprices one in place, "
+            "because a new price needs the short check again (borrow, SSR, margin and the 25% cushion). "
+            "Cancel it and place it again.", SHORT_REPRICE)

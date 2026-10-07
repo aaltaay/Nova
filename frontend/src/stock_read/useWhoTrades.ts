@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DepthMarker } from '../ibkr';
 import { STOCK_MODE_PATH, STOCK_MODE_POLL_MS } from './constants';
-import { momentOf, NO_HELD, nextHeld, type HeldMemory, type Moment, type MomentInputs } from './momentModel';
+import { NO_HELD, type HeldMemory, type Moment, type MomentInputs } from './momentModel';
+import { momentOfSides, nextHeldSides } from './momentShort';
 import { approveQty } from './novaPromise';
 import type { StockModeView, StockRead, StockSide } from './types';
 import { usePolledRead } from './useStockRead';
@@ -137,14 +138,14 @@ export function useWhoTrades({
 
   useEffect(() => {
     if (!live) return;
-    const next = nextHeld(held, clocked);
+    const next = nextHeldSides(held, clocked);
     if (next !== held) setHeld(next);
   }, [live, held, clocked]);
 
-  const moment = useStable(live ? momentOf(clocked) : null);
+  const moment = useStable(live ? momentOfSides(clocked) : null);
   const levels = useStable(live ? orderLevels(inputs) : null);
   // While you hold: NEXT with the asks and your STOP with the bids (the read's own view of the position).
-  const markers = useStable(live && read?.held ? heldMarkers(read.held) : level2Markers(levels));
+  const markers = useStable(live && read?.held ? heldMarkers(read.held) : level2Markers(levels, read?.plan?.side));
 
   const call = moment?.call ?? null;
   useEffect(() => {

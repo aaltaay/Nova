@@ -1,6 +1,6 @@
 /**
- * Drag the operator's own entry or stop on the 1-minute chart (ADR 036). Only a hand plan moves --
- * a setup's levels are the scanner's. The pointer grabs a line within a few pixels of it; while it
+ * Drag the operator's own entry or stop on the 1-minute chart (ADR 036; a short's entry and buy stop, ADR 048).
+ * Only a hand plan moves -- a setup's levels are the scanner's. The pointer grabs a line within a few pixels of it; while it
  * drags, `preview` holds the moving levels (the target follows at 2R); on release the plan is the
  * operator's new entry and stop. A press anywhere else is the chart's, untouched.
  */
@@ -20,11 +20,11 @@ function roundPx(p: number): number {
   return Math.round(p / step) * step;
 }
 
-/** The plan with a dragged entry and stop, its target back at 2R. */
+/** The plan with a dragged entry and stop, its target back at 2R (a short's cover under its entry). */
 export function draggedPlan(plan: StockPlan, d: DragPreview): StockPlan {
-  const risk = d.entry - d.stop;
-  const target = d.entry + 2 * risk;
-  return { ...plan, entry: d.entry, stop: d.stop, target, risk, reward: target - d.entry, rr: 2 };
+  const risk = Math.abs(d.entry - d.stop);
+  const target = plan.side === 'short' ? d.entry - 2 * risk : d.entry + 2 * risk;
+  return { ...plan, entry: d.entry, stop: d.stop, target, risk, reward: 2 * risk, rr: 2 };
 }
 
 export function usePlanDrag({
@@ -45,6 +45,8 @@ export function usePlanDrag({
   commit.current = onCommit;
   const entry = plan?.entry ?? null;
   const stop = plan?.stop ?? null;
+  // A short's buy stop stays over its entry (ADR 048); a long's stop under it.
+  const short = plan?.side === 'short';
 
   // A new read with the committed levels ends the preview.
   useEffect(() => setPreview(null), [entry, stop]);
@@ -74,8 +76,8 @@ export function usePlanDrag({
       const p = roundPx(price);
       const tick = Math.abs(p) < 1 ? 0.0001 : 0.01;
       current = dragging === 'entry'
-        ? { entry: Math.max(p, current.stop + tick), stop: current.stop }
-        : { entry: current.entry, stop: Math.min(p, current.entry - tick) };
+        ? { entry: short ? Math.min(p, current.stop - tick) : Math.max(p, current.stop + tick), stop: current.stop }
+        : { entry: current.entry, stop: short ? Math.max(p, current.entry + tick) : Math.min(p, current.entry - tick) };
       setPreview({ ...current });
     };
     const onDown = (e: PointerEvent) => {
@@ -115,7 +117,7 @@ export function usePlanDrag({
       for (const [type, fn] of listeners) el.removeEventListener(type, fn, true);
       el.style.cursor = '';
     };
-  }, [containerRef, series, enabled, entry, stop]);
+  }, [containerRef, series, enabled, entry, stop, short]);
 
   return preview;
 }

@@ -88,6 +88,7 @@ def _public_trade(t: dict[str, Any] | None) -> dict[str, Any] | None:
             "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "filled_at", "exit_price",
             "exit_reason", "exits", "sent_at", "closed_at", "note", "ttl_sec", "trail", "raised")
     out = {k: t.get(k) for k in keys}
+    out["side"] = "short" if t.get("side") == "short" else "long"   # a trade made before shorts was a long
     out["exiting"] = bool(t.get("exiting"))
     return out
 
@@ -196,6 +197,12 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
         judged = model.lane_verdict(lane, spread_of(sym))
         if not judged["ok"]:
             out.append(_note("not_a_trade", "Not a trade: " + "; ".join(judged["reasons"])))
+    if mode in _NOVA_BUYS or mode == STOCK_MODE_APPROVE:
+        from bot.first_pullback.admit import against_held
+
+        held = against_held(sym, str((lane or {}).get("side") or "long"))
+        if held is not None:
+            out.append(_note("held_other_side", _sentence(held[1])))
     if row is None or mode not in _NOVA_BUYS:
         return out
     from bot.arming import is_desk_active
@@ -309,6 +316,9 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         "generated_at": now,
         "venue": venue,
         "mode": mode,
+        # Entry · Exit (ADR 048): who enters and who exits; ``buy`` / ``sell`` are the same, one release.
+        "entry": buy,
+        "exit": sell,
         "buy": buy,
         "sell": sell,
         # The venue sleeve's risk per trade (ADR 042 E): read-only here, set on the Bots page / plan card.

@@ -12,7 +12,8 @@ import {
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
-import { planProtectiveLegs } from './protectiveLegs';
+import { formatLegPrice, planProtectiveLegs } from './protectiveLegs';
+import { SHORT_LEGS_NOTE } from '../constantGroups/short_ticket';
 import { useTradeDefaultsPrefs } from '../settings';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import { executionTransportError } from './executionTransportError';
@@ -38,6 +39,10 @@ interface Params {
   side: ManualOrderSide;
   shortEntry: boolean;
   shortBlockReason: string | null;
+  /** A short's required buy stop (ADR 048): it goes out as the bracket's stop. */
+  buyStop?: string;
+  /** Why that buy stop cannot go out as typed (missing, or not over the limit); null when it can. */
+  buyStopRefusal?: string | null;
   orderType: ManualOrderType;
   quantityMode: QuantityMode;
   quantityValue: string;
@@ -51,6 +56,13 @@ interface Params {
   qtyCap?: number | null;
   onNeedsPin: () => void;
   onOrderPlaced?: (result: PlaceOrderResult) => void;
+}
+
+/** A short's confirm names its buy stop, and its cover target when Settings' legs add one. */
+function shortLegsText(payload: ManualOrderPayload): string {
+  const stop = payload.stop_loss_price != null ? ` Buy stop ${payload.stop_loss_price.toFixed(2)}` : '';
+  const target = payload.take_profit_price != null ? `, cover target ${payload.take_profit_price.toFixed(2)}` : '';
+  return stop ? `${stop}${target}.` : '';
 }
 
 export function useManualOrderSubmission(params: Params) {
@@ -79,7 +91,12 @@ export function useManualOrderSubmission(params: Params) {
       Number.isFinite(limitNumber) && limitNumber > 0 ? limitNumber : null,
     positionQty: params.position?.qty ?? null,
   });
-  const legsNote = legsPlan.kind === 'refuse' ? legsPlan.error : legsPlan.note;
+  // A short's stop is its Buy stop field, never Settings' stop-loss: the note names only the cover target.
+  const legsNote = legsPlan.kind === 'refuse'
+    ? legsPlan.error
+    : params.shortEntry && legsPlan.kind === 'attach'
+      ? SHORT_LEGS_NOTE(formatLegPrice(legsPlan.takeProfitPrice))
+      : legsPlan.note;
 
   function build(): BuildOrderResult {
     const built = buildManualOrder(
@@ -104,6 +121,19 @@ export function useManualOrderSubmission(params: Params) {
     // Defaults on but this entry cannot carry legs: refuse instead of placing
     // the unprotected order the operator asked Nova to stop sending.
     if (legsPlan.kind === 'refuse') return { ok: false, error: legsPlan.error };
+    // ADR 048: a short goes out with its buy stop, the ticket's own; Settings' legs add only the cover target.
+    if (params.shortEntry) {
+      if (params.buyStopRefusal) return { ok: false, error: params.buyStopRefusal };
+      return {
+        ...built,
+        payload: {
+          ...built.payload,
+          tif: prefs.tif,
+          stop_loss_price: Number(params.buyStop),
+          ...(legsPlan.kind === 'attach' ? { take_profit_price: legsPlan.takeProfitPrice } : {}),
+        },
+      };
+    }
     return {
       ...built,
       payload: {
@@ -232,7 +262,9 @@ export function useManualOrderSubmission(params: Params) {
     // DAY and no legs read exactly as before; GTC / a bracket must be said out
     // loud, because both outlive the click that placed them.
     const tifText = prefs.tif === 'DAY' ? '' : `, ${prefs.tif}`;
-    const legsText = legsPlan.kind === 'attach' ? ` ${legsPlan.note}.` : '';
+    const legsText = params.shortEntry
+      ? shortLegsText(built.payload)
+      : legsPlan.kind === 'attach' ? ` ${legsPlan.note}.` : '';
     // MASTER TEST QTY GATE (#444): the door caps every Live place at
     // `qty_cap` shares (null on Paper / Sim). Say the sent size here, so the
     // confirm never names a size the backend will not send.
@@ -274,6 +306,13 @@ export function useManualOrderSubmission(params: Params) {
     setConfirmSummary(null);
   }
 
+  /** Close an open confirm and forget its order, keeping the Last line. */
+  function cancelConfirm() {
+    gestureKeyRef.current = null;
+    confirmedRef.current = null;
+    setConfirmSummary(null);
+  }
+
   return {
     submitting,
     result,
@@ -284,6 +323,7 @@ export function useManualOrderSubmission(params: Params) {
     executeOrder,
     setConfirmSummary,
     resetSubmission,
+    cancelConfirm,
     /** Put another action's outcome on the ticket's Last line (the rail's Flatten, QA R32). */
     showResult: setResult,
   };

@@ -19,6 +19,7 @@ from bot.first_pullback.orders import (  # noqa: F401 (re-exported)
     last_price,
     order_row,
     order_state,
+    short_held_qty,
 )
 from execution.models import ExecutionCommand
 from execution.service import execute

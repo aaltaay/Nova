@@ -10,14 +10,15 @@ import { hotListActions, listedOn, useHotList } from '../hot_list';
 import type { DepthMarker } from '../ibkr';
 import { tipProps, whyProps } from '../ux';
 import { STOCK_MODE_COLORS, WHO_TRADES_NOTES_SHOWN } from './constants';
-import { heldQty } from './momentModel';
+import { heldAnyQty, shortQty } from './momentShort';
 import { capUsedText } from './novaPromise';
 import { useStockReadContext, type StockReadContextValue } from './StockReadContext';
 import { hhmmssEt } from './timeWords';
 import type { StockModeView, StockSide } from './types';
-import { whoAnswer } from './whoAnswer';
+import { sideLine, whoAnswer } from './whoAnswer';
 import { MODE_NAMES, MODE_SIDES, modeSentence, switchLock } from './whoTradesModel';
 import './whoTrades.css';
+import './shortRead.css';
 
 /** The desk's own reason to wait before a change: an old backend, a read in flight, a save in flight. */
 export function switchPending(ctx: StockReadContextValue): string | null {
@@ -146,26 +147,28 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const mode = view?.mode ?? 'signal';
   const buy = view?.buy ?? 'you';
   const sell = view?.sell ?? 'you';
-  const held = heldQty(who.inputs);
+  const held = heldAnyQty(who.inputs);
   const pending = switchPending(ctx);
-  const lock = (to: { buy: StockSide; sell: StockSide }) => switchLock(view, to, { symbol: sym, held, pending });
+  const short = shortQty(who.inputs) > 0;
+  const lock = (to: { buy: StockSide; sell: StockSide }) => switchLock(view, to, { symbol: sym, held, pending, short });
   const line = who.error ?? (who.unavailable ? pending : null);
   const notes = view?.notes ?? [];
   const entries = entriesLine(view);
   const event = view?.last_event ?? null;
   const tip = [modeSentence(mode, sym), ...notes.map(n => n.text)].join('\n');
-  const answer = whoAnswer(sym, view);
+  const answer = whoAnswer(sym, view, short ? shortQty(who.inputs) : 0);
+  const sides = sideLine(view, ctx.read.data?.plan ?? null);
   return (
     <section className="sr-who" data-testid="who-trades" aria-label={`Who trades ${sym}`}>
       <div className="sr-who__row">
         <HotStar sym={sym} onError={setStarError} />
-        <span className="sr-who__kicker" {...tipProps(`Who places each side of the trade on ${sym}: Buy and Sell, each `
-          + 'You or Bot.', `Who trades ${sym}`)}>
+        <span className="sr-who__kicker" {...tipProps(`Who places each side of the trade on ${sym}: the Entry and the `
+          + 'Exit, each You or Bot. With Entry on Bot, the strategy that triggers decides long or short.', `Who trades ${sym}`)}>
           <span className="sr-who__kicker-words">Who trades </span>
           {sym}
         </span>
         <SideSwitch
-          label="Buy"
+          label="Entry"
           value={buy}
           lockYou={lock({ buy: 'you', sell })}
           lockNova={lock({ buy: 'nova', sell })}
@@ -173,12 +176,12 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
           testId="who-trades-buy"
         />
         <SideSwitch
-          label="Sell"
+          label="Exit"
           value={sell}
           lockYou={lock({ buy, sell: 'you' })}
           lockNova={lock({ buy, sell: 'nova' })}
           onPick={side => (side === 'nova' && sell === 'you' && held > 0
-            ? ctx.exitSheet.setOpen(true)                 // a stock you bought: "Nova takes the exit"
+            ? ctx.exitSheet.setOpen(true)                 // a stock you hold: "Nova takes the exit" (or the cover)
             : void who.setSides(buy, side))}
           testId="who-trades-sell"
         />
@@ -191,6 +194,9 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
         <p className={`sr-who__answer sr-who__answer--${answer.tone}`} {...tipProps(answer.text)} data-testid="who-trades-answer">
           {answer.text}
         </p>
+      )}
+      {sides && (
+        <p className="sr-who__answer sr-who__answer--sides" {...tipProps(sides)} data-testid="who-trades-sides">{sides}</p>
       )}
       {starError && (
         <p className="sr-who__note sr-who__note--bad" {...tipProps(starError)} data-testid="who-trades-star-error">{starError}</p>

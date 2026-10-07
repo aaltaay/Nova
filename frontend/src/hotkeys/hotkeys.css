@@ -822,6 +822,12 @@
   font-weight: 600;
 }
 
+.hk-side-short.is-active {
+  background: var(--short-tint, rgba(234, 88, 12, 0.16));
+  color: var(--short-ink, #fb923c);
+  font-weight: 600;
+}
+
 /* Below the editor: the DAS import. */
 .hk-advanced-das {
   border-top: 1px solid var(--nova-border, var(--border-color));

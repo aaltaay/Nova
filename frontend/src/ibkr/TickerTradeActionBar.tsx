@@ -18,6 +18,7 @@ import { closeFullPosition } from './closeFullPosition';
 import { executionTransportError } from './executionTransportError';
 import { GATEWAY_STATUS_KNOWN, gatewayLockWhy, type GatewayStatusFact } from './gatewayStatusWording';
 import { ManualOrderTicket } from './ManualOrderTicket';
+import { SHORT_TICKET_FLATTEN_COVER } from '../constantGroups/short_ticket';
 import { notifyOrderRejected } from './notifyOrderRejected';
 import { flattenSpendLockReason, isDisarmed, spendLockReason } from './spendLock';
 import type { PlaceOrderResult } from './placeOrder';
@@ -45,6 +46,12 @@ interface Props {
    *   (account/automate in header; height vs depth via rail horizontal splitter).
    */
   variant?: 'footer' | 'sidebar' | 'rail';
+}
+
+/** "Short 416" for a short (orange, and always the word SHORT: ADR 048), the signed count for a long. */
+function PositionQty({ qty }: { qty: number }) {
+  if (qty < 0) return <span className="ticker-trade-bar-short">Short {formatShareQty(Math.abs(qty))}</span>;
+  return <>{formatShareQty(qty)}</>;
 }
 
 /**
@@ -124,11 +131,13 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
     // No padlock step: arming here would also unlock every order that opens.
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide: 'BUY' | 'SELL' = position.qty > 0 ? 'SELL' : 'BUY';
+    // A short's flatten buys the borrowed shares back: it says Cover (ADR 048).
+    const verb = position.qty < 0 ? 'Cover' : 'Flatten';
     const confirmed = await confirmApp({
-      title: `Flatten ${symbol}?`,
+      title: `${verb} ${symbol}?`,
       message:
         `${TICKER_TRADE_ORDER_DISCLOSURE}\n\n` +
-        `Flatten (close full position) ${absQty} shares of ${symbol} with a ${closeSide} market order ` +
+        `${verb} (close full position) ${absQty} shares of ${symbol} with a ${closeSide} market order ` +
         `on the ${mode.toUpperCase()} account?\n\n` +
         `This is not Cancel — Cancel only removes a working order.`,
       confirmLabel: APP_DIALOG_FLATTEN_LABEL,
@@ -208,7 +217,7 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
             )}
             {hasPosition && (
               <span className="ticker-trade-bar-metric">
-                <label>Pos</label> {formatShareQty(position!.qty)} @{' '}
+                <label>Pos</label> <PositionQty qty={position!.qty} /> @{' '}
                 {position!.avg_cost?.toFixed(2) ?? '—'}
               </span>
             )}
@@ -218,7 +227,7 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
         {compactChrome && hasPosition && (
           <div className="ticker-trade-bar-account ticker-trade-bar-account--pos-only">
             <span className="ticker-trade-bar-metric">
-              <label>Pos</label> {formatShareQty(position!.qty)} @{' '}
+              <label>Pos</label> <PositionQty qty={position!.qty} /> @{' '}
               {position!.avg_cost?.toFixed(2) ?? '—'}
             </span>
           </div>
@@ -262,7 +271,9 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
             {closing
               ? 'Closing…'
               : hasPosition
-                ? `Flatten ${Math.abs(position!.qty)}`
+                ? position!.qty < 0
+                  ? SHORT_TICKET_FLATTEN_COVER(formatShareQty(Math.abs(position!.qty)))
+                  : `Flatten ${Math.abs(position!.qty)}`
                 : 'No position'}
           </button>
         </div>

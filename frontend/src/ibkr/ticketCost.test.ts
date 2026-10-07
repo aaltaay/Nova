@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRACTICE_TICKET_SHORT_LOCKED } from '../constantGroups/practice';
+import { SHORT_COST_NOTE } from '../constantGroups/short_ticket';
 import { TICKET_COST_NO_POSITION } from '../constantGroups/trader_chrome';
 import { SIM_REPLAY_PRICE_NONE } from '../sim/simConstants';
 import { estimateTicketCost } from './ticketCost';
@@ -35,19 +35,13 @@ describe('estimateTicketCost', () => {
     expect(est.cost).toBeCloseTo(886, 6);
   });
 
-  it('a sell of a held long frees buying power; a short entry consumes it', () => {
+  it('a sell of a held long frees buying power', () => {
     const sell = estimateTicketCost(
       { ...BASE, side: 'SELL' },
       { ...CTX, positionQty: 100 },
       { forceQty: null },
     );
     expect(sell.buyingPowerAfter).toBe(397_354 + 890);
-    const short = estimateTicketCost(
-      { ...BASE, side: 'SELL', shortEntry: true },
-      CTX,
-      { forceQty: null },
-    );
-    expect(short.buyingPowerAfter).toBe(397_354 - 890);
   });
 
   it('is a stated absence, never a guess, when the ticket cannot size or price', () => {
@@ -87,12 +81,15 @@ describe('estimateTicketCost', () => {
     expect(over.note).toBe(TICKET_COST_NO_POSITION);
   });
 
-  it('a practice venue refuses the short entry a Live margin account may open', () => {
+  it('a short entry is its value at the limit on every venue; its margin is the short check\'s, never BP less the value (ADR 048)', () => {
     const short = { ...BASE, side: 'SELL' as const, shortEntry: true };
-    const practice = estimateTicketCost(short, CTX, { forceQty: null }, { practice: true });
-    expect(practice.buyingPowerAfter).toBeNull();
-    expect(practice.note).toBe(PRACTICE_TICKET_SHORT_LOCKED);
-    expect(estimateTicketCost(short, CTX, { forceQty: null }, { practice: false }).buyingPowerAfter).toBe(397_354 - 890);
+    for (const practice of [true, false]) {
+      const est = estimateTicketCost(short, CTX, { forceQty: null }, { practice });
+      expect(est).toEqual({ shares: 100, price: 8.9, cost: 890, buyingPowerAfter: null, note: SHORT_COST_NOTE });
+    }
+    const unpriced = estimateTicketCost({ ...short, limitPrice: '' }, { ...CTX, marketReferencePrice: null }, { forceQty: null });
+    expect(unpriced.cost).toBeNull();
+    expect(unpriced.note).toBe(SHORT_COST_NOTE);
   });
 
   it('says why there is no market price when the venue knows (Sim off the edge)', () => {

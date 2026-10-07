@@ -17,7 +17,7 @@ at 6.64 it read "$5.50 is 42c above". This measures from the price.
   the stop and the average -- highest first.
 
 Nothing here places or moves an order: it says what the levels are. ``stock_mode.exit_trade`` raises
-Nova's own stop by the same rule (``raise_for``).
+Nova's own stop by the same rule (``raise_for``). A short you hold is ``held_short``'s mirror (ADR 048).
 """
 from __future__ import annotations
 
@@ -232,6 +232,7 @@ def build(*, bars: list[dict[str, Any]], price: float | None, level_map: dict[st
     ladder.sort(key=lambda row: (-row["price"], order[row["role"]]))
     return {
         "schema_version": STOCK_READ_HELD_SCHEMA_VERSION,
+        "side": "long",
         "qty": qty,
         "avg": round(avg, 4),
         "price": price,
@@ -241,6 +242,7 @@ def build(*, bars: list[dict[str, Any]], price: float | None, level_map: dict[st
         "since": since,
         "stop": st,
         "raise": up,
+        "lower": None,
         "target": target,
         "ladder": ladder,
         "broke": broke,

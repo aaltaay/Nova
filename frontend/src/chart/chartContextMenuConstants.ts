@@ -4,6 +4,8 @@ export const CHART_CONTEXT_MENU_LABEL = 'Chart actions';
 export const CHART_CONTEXT_MENU_CREATE_ORDER = 'Create New Order';
 export const CHART_CONTEXT_MENU_BUY = 'Buy';
 export const CHART_CONTEXT_MENU_SELL = 'Sell';
+/** ADR 048: stages a short on the ticket's Short side, where its Buy stop and the short check wait. */
+export const CHART_CONTEXT_MENU_SHORT = 'Short';
 export const CHART_CONTEXT_MENU_CLOSE_POSITION = 'Close Position';
 export const CHART_CONTEXT_MENU_DRAWINGS = 'Drawings';
 export const CHART_CONTEXT_MENU_SHOW_LAYERS = 'Show Layers';

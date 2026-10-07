@@ -10,6 +10,9 @@ import {
 } from '../constants';
 import { formatKeyChord, parseKeyChord } from './htkFormat';
 import type { NovaActionRecord } from './novaActionTypes';
+import { isShortHotkeyKind, ShortActionFields } from './ShortActionFields';
+import { getConfirmedDeskVenueSnapshot } from '../ibkr';
+import { useTradeDefaultsPrefs } from '../settings';
 import type { HotkeyKeyChord } from './types';
 
 interface Props {
@@ -61,6 +64,7 @@ export function NovaActionEditor({
   onCancel,
 }: Props) {
   const [capturing, setCapturing] = useState(false);
+  const { shortStopOffset } = useTradeDefaultsPrefs(getConfirmedDeskVenueSnapshot().venue);
 
   return (
     <div className="hotkey-editor-backdrop" role="dialog" aria-label="Edit Nova Action">
@@ -180,6 +184,14 @@ export function NovaActionEditor({
               </label>
             )}
           </>
+        )}
+        {isShortHotkeyKind(draft.kind) && (
+          <ShortActionFields
+            action={draft}
+            fieldClass="hotkey-editor-field"
+            venueStopOffset={shortStopOffset}
+            onChange={onChange}
+          />
         )}
         {(error || conflictMsg) && (
           <p className="empty-state">{error || conflictMsg}</p>

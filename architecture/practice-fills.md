@@ -254,6 +254,18 @@ The door's short check already refuses a short priced at or under the bid
 under SSR (`SHORT_SSR_AT_BID`), so the case arises only when the bid rises
 after placement.
 
+## A short entry lives one day (ADR 048)
+
+A practice short entry fills only inside the short hours (09:35 to 15:50 ET,
+12:50 on an NYSE early close) of the trading day it was first placed on
+(`entered_ts`, the venue's clock then; a replace re-dates `placed_ts`, never
+this). A print outside them, or on a later day, cancels it at the fill
+(`SHORT_HOURS`, `practice.order_rules.fill_refusal`), and the runner's cutoff
+pass cancels it at the same moments (`short_sale/closes.py`). GTC never
+carries a short entry into the next session: its borrow, SSR, halt and margin
+checks were the day it was placed, and Nova may have been closed over the
+15:50 cutoff (the PR #787 review).
+
 ## The venue's answer is the acknowledgment (operator report, 2026-09-24)
 
 A Live order's reply waits for IBKR's first status -- a real round trip

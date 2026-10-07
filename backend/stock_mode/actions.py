@@ -60,8 +60,9 @@ def _venue_gate(buy: str, sell: str) -> None:
 
 
 def _held(sym: str) -> float:
+    """The shares you hold either way (a long, or a short you sold): Exit to Nova on a held stock opens the sheet."""
     try:
-        return float(orders.held_qty(sym))
+        return float(orders.held_qty(sym)) + float(orders.short_held_qty(sym))
     except orders.ReadError as exc:
         logger.warning("stock mode: the %s position is unreadable -- the exit is not taken", sym, exc_info=True)
         raise StockModeError(STOCK_MODE_HELD, f"Nova cannot read your {sym} position (the backend log has the error), so it will not "

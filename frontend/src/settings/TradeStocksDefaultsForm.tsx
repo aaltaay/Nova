@@ -18,6 +18,10 @@ import {
   TRADE_DEFAULTS_SECTION_TITLE,
   TRADE_DEFAULTS_STOP_LOSS_LABEL,
   TRADE_DEFAULTS_STOP_OFFSET_LABEL,
+  TRADE_DEFAULTS_SHORT_STOP_HINT,
+  TRADE_DEFAULTS_SHORT_STOP_LABEL,
+  TRADE_DEFAULT_SHORT_STOP_OFFSET_MAX,
+  TRADE_DEFAULT_SHORT_STOP_OFFSET_MIN,
   TRADE_DEFAULTS_TAKE_PROFIT_LABEL,
   TRADE_DEFAULTS_TIF_HINT,
   TRADE_DEFAULTS_TIF_LABEL,
@@ -208,6 +212,27 @@ export function TradeStocksDefaultsForm({ venue, prefs }: Props) {
           }}
         />
       </div>
+
+      <div className="trade-defaults-row">
+        <label htmlFor="trade-def-short-stop">{TRADE_DEFAULTS_SHORT_STOP_LABEL}</label>
+        <input
+          id="trade-def-short-stop"
+          type="number"
+          min={TRADE_DEFAULT_SHORT_STOP_OFFSET_MIN}
+          max={TRADE_DEFAULT_SHORT_STOP_OFFSET_MAX}
+          step={0.01}
+          value={prefs.shortStopOffset}
+          title={TRADE_DEFAULTS_SHORT_STOP_HINT}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n) && n >= TRADE_DEFAULT_SHORT_STOP_OFFSET_MIN && n <= TRADE_DEFAULT_SHORT_STOP_OFFSET_MAX) {
+              patch({ shortStopOffset: n });
+            }
+          }}
+          data-testid="trade-def-short-stop"
+        />
+      </div>
+      <p className="settings-block-hint">{TRADE_DEFAULTS_SHORT_STOP_HINT}</p>
       </fieldset>
     </div>
   );

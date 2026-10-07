@@ -83,6 +83,16 @@ def held_qty(symbol: str) -> float:
         raise ReadError(f"position unreadable: {exc}") from exc
 
 
+def short_held_qty(symbol: str) -> float:
+    """The shares the venue holds short (a positive count); a failed read raises ``ReadError``."""
+    from ibkr import account as _account
+
+    try:
+        return float(_account.short_qty(symbol) or 0.0)
+    except Exception as exc:
+        raise ReadError(f"position unreadable: {exc}") from exc
+
+
 def last_price(symbol: str) -> float | None:
     """IBKR's Last (a print that set a price), from the shared feed; None when unknown."""
     from bot.quotes import last_quote

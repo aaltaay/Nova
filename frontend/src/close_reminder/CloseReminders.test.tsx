@@ -63,6 +63,13 @@ describe('CloseReminders', () => {
     expect(screen.queryByTestId('close-reminder')).toBeNull();
   });
 
+  it('names Nova\'s 15:55 day cover for a Paper short (ADR 048)', () => {
+    render(<CloseReminders positions={[{ symbol: 'RDYN', qty: -416 }]} venue="paper" />);
+    expect(screen.getByTestId('close-reminder-title').textContent)
+      .toBe('Still holding 416 short RDYN at 15:50 -- cover it, or Nova covers it at 15:55');
+    expect(screen.getByTestId('close-reminder').textContent).toContain('at 15:55 Nova buys back what is left of a short');
+  });
+
   it('says the rows are last known when the Gateway dropped', () => {
     render(<CloseReminders positions={[{ symbol: 'ACN', qty: -100 }]} venue="live" stale />);
     expect(screen.getByTestId('close-reminder-title').textContent).toBe('Still holding 100 short ACN at 15:50 -- be flat by 15:55');

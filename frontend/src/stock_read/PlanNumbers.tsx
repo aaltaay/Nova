@@ -1,5 +1,5 @@
 /** The plan's five numbers -- entry, stop, target, risk a share, size -- each with the rule it came
- * from. On the operator's own plan the entry and the stop are theirs to type; the risk per trade that
+ * from (a short plan's Short at, Buy stop and Cover, ADR 048). On the operator's own plan the entry and the stop are theirs to type; the risk per trade that
  * sizes every plan is the venue sleeve's (ADR 042 draft): typed here, it is saved there, and Nova's
  * automatic buys size by it too. */
 import { useEffect, useState, type KeyboardEvent } from 'react';
@@ -144,30 +144,35 @@ export function PlanNumbers({
   const size = sizeFor(riskUsd, plan.risk);
   const sub = planSubLines(plan, riskUsd, size);
   const targetR = plan.rr === null ? '' : ` ${plan.rr.toFixed(plan.rr % 1 ? 1 : 0)}R`;
+  // A short plan (ADR 048): Short at, Buy stop (over the entry) and Cover 2R (entry - 2 x risk).
+  const short = plan.side === 'short';
+  const words = short
+    ? { entry: 'Short at', stop: 'Buy stop', target: 'Cover', yourEntry: 'Your short entry', yourStop: 'Your buy stop' }
+    : { entry: 'Entry', stop: 'Stop', target: 'Target', yourEntry: 'Your entry', yourStop: 'Your stop' };
   return (
     <div className="sr-plan__nums">
-      <div className="sr-num sr-num--entry" {...tipProps(plan.entry_rule, 'Entry')}>
-        <span className="sr-num__k">Entry</span>
+      <div className="sr-num sr-num--entry" {...tipProps(plan.entry_rule, words.entry)}>
+        <span className="sr-num__k">{words.entry}</span>
         {onManual ? (
-          <PriceInput value={plan.entry} label="Your entry" testId="stock-read-entry-input"
+          <PriceInput value={plan.entry} label={words.yourEntry} testId="stock-read-entry-input"
             onCommit={v => onManual(v, v === null ? null : manualStop)} />
         ) : (
           <span className="sr-num__v" data-testid="stock-read-entry">{fmtPx(plan.entry)}</span>
         )}
         <span className="sr-num__s">{sub.entry}</span>
       </div>
-      <div className="sr-num sr-num--stop" {...tipProps(plan.stop_rule, 'Stop')}>
-        <span className="sr-num__k">Stop</span>
+      <div className="sr-num sr-num--stop" {...tipProps(plan.stop_rule, words.stop)}>
+        <span className="sr-num__k">{words.stop}</span>
         {onManual ? (
-          <PriceInput value={plan.stop} label="Your stop" testId="stock-read-stop-input"
+          <PriceInput value={plan.stop} label={words.yourStop} testId="stock-read-stop-input"
             onCommit={v => onManual(plan.entry, v)} />
         ) : (
           <span className="sr-num__v" data-testid="stock-read-stop">{fmtPx(plan.stop)}</span>
         )}
         <span className="sr-num__s">{sub.stop}</span>
       </div>
-      <div className="sr-num sr-num--target" {...tipProps(plan.target_rule, 'Target')}>
-        <span className="sr-num__k">Target{targetR}</span>
+      <div className="sr-num sr-num--target" {...tipProps(plan.target_rule, words.target)}>
+        <span className="sr-num__k">{words.target}{targetR}</span>
         <span className="sr-num__v" data-testid="stock-read-target">{fmtPx(plan.target)}</span>
         <span className="sr-num__s">{sub.target}</span>
       </div>

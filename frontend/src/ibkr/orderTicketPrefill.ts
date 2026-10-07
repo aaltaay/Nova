@@ -26,6 +26,13 @@ export interface OrderTicketPrefill {
   quantityValue: string;
   /** Formatted limit price; empty for non-limit orders. */
   limitPrice: string;
+  /**
+   * A short entry (ADR 048): a SELL Limit opening a short. The ticket stages it on its Short side, or refuses it
+   * with the side's own lock -- never as a plain Sell.
+   */
+  shortEntry?: boolean;
+  /** The short's buy stop (formatted); absent, the ticket starts it at the venue's offset over the limit. */
+  buyStop?: string;
 }
 
 function isSide(value: unknown): value is ManualOrderSide {
@@ -45,12 +52,17 @@ export function parseOrderTicketPrefill(detail: unknown): OrderTicketPrefill | n
   if (typeof req.quantityValue !== 'string' || !req.quantityValue) return null;
   const limitPrice = typeof req.limitPrice === 'string' ? req.limitPrice : '';
   if (req.orderType === 'LMT' && !limitPrice) return null;
+  const shortEntry = req.shortEntry === true;
+  // A short is a SELL Limit with its buy stop: any other shape is not a short this channel stages.
+  if (shortEntry && (req.side !== 'SELL' || req.orderType !== 'LMT')) return null;
+  const buyStop = shortEntry && typeof req.buyStop === 'string' && req.buyStop.trim() ? req.buyStop.trim() : undefined;
   return {
     symbol,
     side: req.side,
     orderType: req.orderType,
     quantityValue: req.quantityValue,
     limitPrice,
+    ...(shortEntry ? { shortEntry: true, ...(buyStop ? { buyStop } : {}) } : {}),
   };
 }
 

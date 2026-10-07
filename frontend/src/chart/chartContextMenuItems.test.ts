@@ -19,7 +19,7 @@ const BASE = {
   hasPosition: false,
   ticketReady: true,
 };
-const ORDER_IDS = ['create_order', 'buy', 'sell'];
+const ORDER_IDS = ['create_order', 'buy', 'sell', 'short'];
 
 describe('chartContextMenuItems', () => {
   it('labels the Webull order rows with the price under the cursor', () => {
@@ -45,6 +45,16 @@ describe('chartContextMenuItems', () => {
     const rows = chartContextMenuItems(BASE).filter((item) => item.kind === 'order');
     expect(rows.map((item) => item.id)).toEqual(ORDER_IDS);
     expect(rows.every((item) => item.reason === undefined)).toBe(true);
+  });
+
+  it('stages a short as Short, and locks it on a long: Nova never flips (ADR 048)', () => {
+    const flat = chartContextMenuItems(BASE).find((item) => item.id === 'short');
+    expect(flat).toMatchObject({ label: 'Short SMPL 100 @4.20', kind: 'order' });
+    expect(flat?.reason).toBeUndefined();
+    const long = chartContextMenuItems({ ...BASE, hasPosition: true, heldQty: 300 }).find((item) => item.id === 'short');
+    expect(long?.reason).toMatch(/You're long SMPL: Nova never flips/);
+    const short = chartContextMenuItems({ ...BASE, hasPosition: true, heldQty: -300 }).find((item) => item.id === 'short');
+    expect(short?.reason).toBeUndefined();
   });
 
   it('keeps view actions when the series cannot price the cursor', () => {

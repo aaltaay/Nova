@@ -103,6 +103,16 @@
   --venue-sim: #e879f9;
 }
 
+/* A short (ADR 048): orange, and always beside the word SHORT -- Paper's chip and
+   VWAP are orange too, so the colour alone never says it. A cover buys it back: green. */
+:root {
+  --short: #ea580c;
+  --short-hover: #f97316;
+  --short-ink: #fb923c;
+  --short-tint: color-mix(in srgb, #ea580c 16%, transparent);
+  --cover: var(--success, #22c55e);
+}
+
 /* Default before FOUC script / JS: dark */
 html:not([data-theme]) {
   color-scheme: dark;

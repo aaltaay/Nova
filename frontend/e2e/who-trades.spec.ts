@@ -187,8 +187,9 @@ test.describe('Who trades the stock', () => {
     await expect(page.getByTestId('who-trades-mode')).toHaveText('Auto-entry');
     // ADR 042: the venue sleeve owns risk; this write changes only the stock's sides.
     expect(puts).toEqual([{ buy: 'nova', sell: 'you' }]);
-    // The desk says bot buy / bot sell (operator, 2026-10-06); the wire keeps 'nova'.
-    await expect(page.getByTestId('who-trades-chip')).toContainText('bot buys · you sell');
+    // The desk says who enters and who exits (ADR 048: Entry · Exit; "Bot", not "Nova", since 2026-10-06); the
+    // wire keeps buy / sell and 'nova'.
+    await expect(page.getByTestId('who-trades-chip')).toContainText('bot enters · you exit');
     await shot(page, 'who-auto-entry');
 
     await page.getByTestId('who-trades-chip').click();

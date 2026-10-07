@@ -1,0 +1,33 @@
+/*
+ * A short on the stock read (ADR 048, #778 step 3): orange, and always beside the word SHORT -- VWAP and the
+ * Paper chip are orange too, so the colour alone never says it. Tokens: styles/tokens-shell.css (--short*).
+ */
+.sr-plan__side {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border: 1px solid var(--short);
+  border-radius: 3px;
+  background: var(--short-tint);
+  color: var(--short-ink);
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 14px;
+}
+
+.sr-btn.sr-btn--short {
+  border-color: var(--short);
+  background: var(--short-tint);
+  color: var(--short-ink);
+}
+
+/* The moment track while you hold a short: Forming · Trigger · Short · Your cover. */
+.sr-track--short.sr-track--holding .sr-track__step--now {
+  background: var(--short);
+  color: #fff;
+}
+
+/* With Entry on Bot: "Long or short: the strategy decides · forming now: ...". */
+.sr-who__answer--sides {
+  color: var(--sr-muted);
+}

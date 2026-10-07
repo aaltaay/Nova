@@ -1,6 +1,7 @@
 /**
  * The close-of-day reminder's numbers and words (operator ask, 2026-10-01: flat by 15:55 ET,
- * nothing held overnight). Feature-local constants (AGENTS.md §6.1).
+ * nothing held overnight). A Paper short names Nova's 15:55 day cover (ADR 048). Feature-local constants
+ * (AGENTS.md §6.1).
  */
 import type { CloseReminder } from './closeReminderStore';
 
@@ -26,15 +27,27 @@ function sizeWords(qty: number): string {
   return qty < 0 ? `${shares} short` : shares;
 }
 
-export function closeReminderTitle(r: Pick<CloseReminder, 'symbol' | 'qty' | 'stage'>): string {
+/** A Paper short is covered by Nova at 15:55 (ADR 048's day cover); Live's comes with #778 step 6. */
+function dayCover(r: Pick<CloseReminder, 'qty' | 'venue'>): boolean {
+  return r.qty < 0 && r.venue === 'paper';
+}
+
+export function closeReminderTitle(r: Pick<CloseReminder, 'symbol' | 'qty' | 'stage'> & Partial<Pick<CloseReminder, 'venue'>>): string {
   const size = sizeWords(r.qty);
-  return r.stage === 'final'
-    ? `15:55: ${size} ${r.symbol} still open -- close it now`
+  const covers = dayCover({ qty: r.qty, venue: r.venue ?? 'live' });
+  if (r.stage === 'final') {
+    return covers ? `15:55: Nova covers ${size} ${r.symbol} now -- the day cover`
+      : `15:55: ${size} ${r.symbol} still open -- close it now`;
+  }
+  return covers ? `Still holding ${size} ${r.symbol} at 15:50 -- cover it, or Nova covers it at 15:55`
     : `Still holding ${size} ${r.symbol} at 15:50 -- be flat by 15:55`;
 }
 
-export function closeReminderBody(r: Pick<CloseReminder, 'venue' | 'stale'>): string {
+export function closeReminderBody(r: Pick<CloseReminder, 'venue' | 'stale'> & Partial<Pick<CloseReminder, 'qty'>>): string {
   const venue = `${VENUE_WORDS[r.venue]} position`;
   const stale = r.stale ? ' · last known: the Gateway dropped' : '';
+  if (dayCover({ qty: r.qty ?? 0, venue: r.venue })) {
+    return `${venue}${stale} · at 15:55 Nova buys back what is left of a short, at market; nothing is held overnight`;
+  }
   return `${venue}${stale} · the close is 16:00 ET; nothing is held overnight`;
 }

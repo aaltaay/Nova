@@ -107,14 +107,6 @@ export const PRACTICE_STARTING_CASH_DEFAULT_LABEL = '$5,000';
 /** A failed practice poll keeps the last figures this long (a blip), then drops them -- money never outlives its source (C44). */
 export const PRACTICE_ACCOUNT_STALE_MS = 3 * PRACTICE_ACCOUNT_POLL_MS;
 export const PRACTICE_ACCOUNT_REQUEST_FAILED = 'Practice account request failed';
-/**
- * Why the ticket's Short is locked on Paper and Sim (ADR 048). The practice venues take shorts --
- * a bracket with its buy stop, through the short check -- but the ticket's Short mode (its Buy
- * stop, the SHORT CHECK box) is ADR 048's next step: until it lands, a short does not leave the ticket.
- */
-export const PRACTICE_TICKET_SHORT_LOCKED =
-  "The ticket's Short is not built yet: a short goes out with its buy stop, and the ticket has no Buy stop " +
-  'field until its Short mode lands (ADR 048).';
 
 /* ── QA batch fix/qa2-account-practice-sim (2026-09-22): the ticket's BP after ── */
 /**

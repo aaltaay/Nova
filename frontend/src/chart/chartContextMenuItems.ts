@@ -8,6 +8,7 @@
  * Line Style and Chart Settings still have no surface -- omit.
  */
 import { formatSeedPrice } from '../ibkr/tradeDefaultSeed';
+import { SHORT_WHY_LONG } from '../constantGroups/short_ticket';
 import { CHART_POSITION_MENU_VIEW_DETAILS } from './positionOverlayConstants';
 import {
   CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD,
@@ -21,6 +22,7 @@ import {
   CHART_CONTEXT_MENU_IGNORE_SELECTOR,
   CHART_CONTEXT_MENU_RESET,
   CHART_CONTEXT_MENU_SELL,
+  CHART_CONTEXT_MENU_SHORT,
   CHART_CONTEXT_MENU_SHOW_LAYERS,
   CHART_CONTEXT_MENU_SNAPSHOT,
   CHART_CONTEXT_MENU_TICKET_WAIT_REASON,
@@ -32,6 +34,7 @@ export type ChartContextMenuItemId =
   | 'create_order'
   | 'buy'
   | 'sell'
+  | 'short'
   | 'close_position'
   | 'view_details'
   | 'drawings'
@@ -73,6 +76,8 @@ export interface ChartContextMenuInput {
   /** Share count the ticket would receive (see `defaultTicketQty`). */
   quantityValue: string;
   hasPosition: boolean;
+  /** The position's signed size when known: a long locks Short (Nova never flips, ADR 048). */
+  heldQty?: number | null;
   /** A mounted ticket for `symbol` takes prefills (`useOrderTicketListening`). */
   ticketReady: boolean;
   allowlisted?: boolean;
@@ -113,6 +118,14 @@ export function chartContextMenuItems(
       label: `${CHART_CONTEXT_MENU_SELL} ${symbol} ${input.quantityValue} @${price}`,
       kind: 'order',
       ...lock,
+    });
+    // The ticket's Short side takes it, with its Buy stop; on a long Nova never flips.
+    const long = input.heldQty != null && input.heldQty > 0;
+    items.push({
+      id: 'short',
+      label: `${CHART_CONTEXT_MENU_SHORT} ${symbol} ${input.quantityValue} @${price}`,
+      kind: 'order',
+      ...(long ? { reason: SHORT_WHY_LONG(symbol) } : lock),
     });
   }
 

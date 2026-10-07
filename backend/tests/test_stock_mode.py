@@ -134,7 +134,7 @@ def sleeve(**caps) -> None:
 def test_every_stock_starts_at_signal_only_with_nothing_locked_on_paper(paper):
     body = client.get(f"/api/stock-mode/{SYM}").json()
     assert body["mode"] == "signal" and (body["buy"], body["sell"]) == ("you", "you")
-    assert body["locks"] == {"buy": None, "sell": None} and body["venue"] == "paper"
+    assert body["locks"] == {"entry": None, "exit": None, "buy": None, "sell": None} and body["venue"] == "paper"
     assert body["trade"] is None and body["approval"] is None and body["notes"] == []
     assert body["risk_usd"] == 20.0 and body["size"] is None                # the venue sleeve's risk per trade
     assert body["entries_today"] == {"count": 0, "cap": 1} and body["nova_entries_today"] == 0

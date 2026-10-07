@@ -13,6 +13,11 @@ export interface NovaActionParams {
   percent?: number;
   /** Force IB outsideRth (extended hours) on this place. */
   outsideRth?: boolean;
+  /**
+   * A Short hotkey's own buy stop: this many dollars over its limit (ADR 048: every short goes out with one).
+   * Unset, the venue's Settings > Trade short buy stop offset.
+   */
+  stopOffsetDollars?: number;
 }
 
 export interface NovaActionRecord {

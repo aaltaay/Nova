@@ -18,6 +18,7 @@ import {
   CHART_CONTEXT_MENU_EST_HEIGHT_PX,
   CHART_CONTEXT_MENU_LABEL,
   CHART_CONTEXT_MENU_ORDER_HINT,
+  CHART_CONTEXT_MENU_TICKET_WAIT_REASON,
   CHART_CONTEXT_MENU_WIDTH_PX,
   CHART_CONTEXT_SUBMENU_WIDTH_PX,
 } from './chartContextMenuConstants';
@@ -94,6 +95,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     price: props.price,
     quantityValue: props.quantityValue,
     hasPosition: Boolean(props.position && props.position.qty !== 0),
+    heldQty: props.position?.qty ?? null,
     ticketReady,
     allowlisted: props.allowlisted,
     watched,
@@ -138,7 +140,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
   }
 
   function runItem(id: ChartContextMenuItemId): void {
-    if (id === 'create_order' || id === 'buy' || id === 'sell') {
+    if (id === 'create_order' || id === 'buy' || id === 'sell' || id === 'short') {
       props.onStageOrder(id);
     } else if (id === 'view_details') {
       props.onViewDetails();
@@ -191,8 +193,9 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
       );
     }
     if (item.kind === 'unavailable' || item.reason) {
-      // A locked order row's reason is said once, in the hint under the rows.
-      const inlineReason = item.kind === 'unavailable' && item.reason;
+      // The ticket's wait is said once, in the hint under the rows; a row's own lock (Short on a long, ADR 048)
+      // is said under that row.
+      const inlineReason = item.reason && (item.kind === 'unavailable' || item.reason !== CHART_CONTEXT_MENU_TICKET_WAIT_REASON);
       return (
         <button
           key={item.id}
@@ -232,7 +235,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
   }
 
   const orderRows = items.filter((item) => item.kind === 'order');
-  const orderLock = orderRows.find((item) => item.reason)?.reason ?? null;
+  const orderLock = orderRows.find((item) => item.reason === CHART_CONTEXT_MENU_TICKET_WAIT_REASON)?.reason ?? null;
 
   return (
     <div

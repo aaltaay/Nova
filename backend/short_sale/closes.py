@@ -8,9 +8,11 @@ then its stop, target and covers -- so nothing fills after the cover and opens a
 **The short-entry cutoff.** A short entry the door let go before 15:50 may still rest when the
 short hours end, and a GTC one into the next morning: its fill would open a short the hours rule
 forbids. So while the venue's clock stands outside the short hours (09:35 to 15:50, 12:50 on an
-early close), Nova cancels every working short entry on the venue, its waiting exits with it. The
-fill refuses one too (``practice.order_rules.fill_refusal``): a Sim jump past 15:50 fills on the
-prints it crossed before this pass runs.
+early close), Nova cancels every working short entry on the venue, its waiting exits with it --
+and, at any hour, one placed on an earlier day: Nova closed over the cutoff and back after the
+next 09:35 finds it inside the hours again, with the day before's borrow, SSR, halt and margin
+checks. The fill refuses one too (``practice.order_rules.fill_refusal``): a Sim jump past 15:50
+fills on the prints it crossed before this pass runs, and so would the next day's prints.
 
 **The margin call.** IBKR sends no margin call: when equity falls under the maintenance
 requirement it liquidates. When a practice account's equity is under its maintenance
@@ -101,17 +103,22 @@ def _closing(broker: Any, symbol: str) -> bool:
 
 
 async def entry_cutoff(broker: Any) -> list[dict[str, Any]]:
-    """Cancel every working short entry on the broker's venue while its clock is outside the short hours."""
+    """Cancel every working short entry on the broker's venue that has lapsed (``hours.entry_lapsed``).
+
+    One lapses when its clock stands outside the short hours, or in a later session than the one it
+    was placed in: GTC or not, a short entry never carries into the next day (PR #787 review).
+    """
     from execution.service import execute
+    from practice.order_rules import entered_ts
 
     now = float(broker.reference.now_ts())
-    why = hours.entry_refusal(now)
-    if why is None:
-        return []
     venue = str(broker.venue)
     out = []
     for row in broker.working_orders():
         if not row.get("short_entry"):
+            continue
+        why = hours.entry_lapsed(entered_ts(row), now)
+        if why is None:
             continue
         symbol, oid = str(row.get("symbol") or "").upper(), int(row["order_id"])
         key = (venue, f"{symbol}#{oid}", "entry_cutoff")
