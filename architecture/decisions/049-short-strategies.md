@@ -233,9 +233,10 @@ long mirror's where one exists.
   short. The SSR bounce has no aftermath: its entry rests over the price.
 - **Auto-record** (CHOSEN) gives a short setup no line, and its setups window leaves the shorts' arming windows out.
   The three depth lines serve the trials that read long setups (ADR 041). A short's On is decided by its five-year
-  test, not its tape, so its triggers mostly read the tape blind until step 5 settles how shorts share the lines.
+  test, not its tape, so its triggers mostly read the tape blind until step 5 settles how shorts share the lines
+  (it did: "Step 5" below).
 
-### Until step 5
+### Until step 5 (retired by step 5, below)
 
 - Nova's bot and Auto-entry skip a short trigger (`BOT_SKIP_SHORT_LATER`, the first of its reasons), and a short
   proposal names no taker.
@@ -268,7 +269,8 @@ bars), then `test_shorts.py --setup <setup>` once per setup. Each card says its 
 - **The bars** are the minute files from 04:00 to 16:00 for those symbol-days, extracted into the store.
 - **The detectors and exits are the scanner's own.** The detectors run on the bars. Each minute's open, and then its
   extreme, is fed as the live price: the low for a breakdown, the high for the SSR bounce. Exits are the scoring's,
-  with costs on every fill.
+  with costs on every fill. The harness reads no tape, so a template whose flush exit is on is refused: its result
+  reads `error`, and On stays locked (PR #789 review).
 - **Costs and size** are gate 1's: $25,000, 1% risk a trade, at most 25% of equity a trade, IBKR's fixed commission,
   and one cent of slippage on every fill.
 - **The neighbourhood** is a named list of variations per strategy: the risk cap, the target R, the window, the
@@ -294,6 +296,42 @@ bars), then `test_shorts.py --setup <setup>` once per setup. Each card says its 
 
   It is written through a temporary file and a rename. The harness writes `running` first and the verdict last. An
   unreadable file, or one of an unknown version, reads `error` and keeps On locked.
+
+## Step 5: the bot trades both sides (2026-10-07)
+
+The operator's §6.3: one bot, one Bot switch, one list; the strategy that triggers decides the side. Paper and Sim
+only (ADR 042: a bot never trades Live). What the build chose where §6.3 gives no rule:
+
+- **One trade per stock, never a flip.** The bot, Auto-entry and Approve read one rule (`admit.against_held`): no
+  short while the venue holds the stock long, no buy while it holds it short, nothing while the position cannot be
+  read. The daily cap counts both sides; the bot holds one trade at a time overall, as before.
+- **The short's price** (CHOSEN). Off SSR it sells at the scanner's entry, as a long buys at its entry: it never
+  chases. Under SSR, on or not known, it sells at the higher of the entry and the ask: above the bid, as Rule 201
+  requires, and never under the plan. No ask, an ask not above the bid, or an ask at or over the buy stop is a
+  skip (`BOT_SKIP_SHORT_PRICE`).
+- **The short check before the send** (CHOSEN). The bot reads the one short check at that price and size on the
+  door's own facts (memory reads) before anything goes out, so a short the door would refuse is a stated skip on
+  the timeline -- borrow, SSR, the halt, the hours, the margin and its cushion -- never a refused order. The door
+  still runs the check: this reading is the bot's, the door's is the rule.
+- **The bot's short** is its long's bracket mirrored: a SELL limit with `short_entry`, a BUY limit at target 1, a
+  BUY stop. The time stop, the flush (a burst of buying) and the last resort cover with a BUY limit at the ask +
+  3c, then the protective flatten. R is (fill - exit) / risk.
+- **Auto-entry's short** (CHOSEN) keeps Auto-entry's meaning -- the bot enters, you exit -- with ADR 048's rule that
+  every short carries its buy stop: a two-leg bracket, the SELL limit and its BUY stop, no target. Its stop is
+  cancelled once the position is gone. **Approve's short** sends the short bracket the operator approved.
+- **The localhost bot API** (CHOSEN offsets): `short_limit_bid_offset` shorts at the bid + 1c with its buy stop 10c
+  over, as a bracket, with no free-form size or stop; `cover_limit_ask_offset` covers with a BUY limit at the ask +
+  5c; `cover_market` and `cover_pos` cover at market, never past flat (`cover_pos` is protective like Flatten).
+- **The squares** (CHOSEN). A short trigger's shorts-only squares are what the bot or Auto-entry recorded at it --
+  the latest skip, entry or refusal per setup id, with the short check it read -- never a check recomputed later. A
+  trigger nothing judged (its Entry was You) reads not known. The SSR square is never red: on or unknown it is an
+  amber pass ("SSR · at the ask"), because the price rule above already handles it.
+- **Auto-record** (CHOSEN) gives a short setup a line only while its strategy is On (effective Strategy): a short the
+  bot may trade needs its tape, and the other shorts keep leaving the lines to ADR 041's long trials.
+- **The Bots page** (CHOSEN). The buckets sort by each strategy's own switch, except a short at On that its test
+  holds at Eyes: it sits in Eyes and says so, because Nova trades it no more than an Eyes strategy.
+- **Not built here.** The Live short proof checklist on the Bot card, the Live margin-account check and Live's 15:55
+  cover and alarm are step 6. Until the operator finishes it and sets `IBKR_SHORT_ENABLED`, Live refuses every short.
 
 ## Consequences
 
