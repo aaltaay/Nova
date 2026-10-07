@@ -16,6 +16,9 @@ Every ``BOT_FP_POLL_SEC``, and at once when the scanner announces a trigger (``b
 4. **The trade** on is managed. The entry is a practice bracket: a BUY limit at the entry,
    a SELL limit at target 1 and a SELL stop at the stop, the exits resting at the broker
    once the entry fills -- so Paper's exits fill while the desk shows another venue. The
+   strategy that triggers decides the side (ADR 049, #778 step 5): a short strategy's
+   trade is the same bracket mirrored -- a short limit, a BUY stop over it and a BUY limit
+   at its cover -- managed by the same states, its stop watched from above. The
    entry fills, or is cancelled (its exits with it) after the sleeve's working TTL (a
    miss). The time stop, the template's flush exit (``flush.py``: a tightened stop is a
    replace of the stop leg) and a stop leg that is gone (the bot then watches the stop on
@@ -48,6 +51,7 @@ from bot.persist import load_session, save_session
 from bot.wake import Wake
 from constants_bot import (
     BOT_AUDIT_ACTION_TRADE,
+    BOT_KIND_SETUP_SHORT,
     BOT_FP_CANCEL_WAIT_SEC,
     BOT_FP_CLOSE_ATTEMPTS,
     BOT_FP_HEARTBEAT_SEC,
@@ -200,43 +204,77 @@ async def _on_trigger(event: dict[str, Any], now: float) -> None:
         return                                  # not one of the bot's stocks: Auto-entry's or the scanner's record
     found, sized = admit.for_bot(event, row, now=now)
     if found:
-        _skip(event, found)
+        _skip(event, found, sized)
         return
-    trade = admit.trade(event, row, qty=int((sized or {})["qty"]), size_text=(sized or {}).get("text"))
-    await _enter(trade, now)
+    trade = admit.trade(event, row, qty=int((sized or {})["qty"]), size_text=(sized or {}).get("text"), sized=sized)
+    await _enter(trade, now, sized)
 
 
-async def _enter(trade: dict[str, Any], now: float) -> None:
+async def _enter(trade: dict[str, Any], now: float, sized: dict[str, Any] | None = None) -> None:
     from bot.risk import remember_working
 
+    short = orders.is_short(trade)
+    action = BOT_KIND_SETUP_SHORT if short else BOT_KIND_SETUP_ENTRY
     receipt = await orders.place_entry(trade)
     inputs = {"symbol": trade["symbol"], "qty": trade["qty"], "limit": trade["entry_planned"],
               "venue_day": trade["venue_day"], "setup_id": trade["setup_id"], "template_id": trade["template_id"],
-              "setup_type": trade.get("setup_type"), "size": trade.get("size_text")}
+              "setup_type": trade.get("setup_type"), "size": trade.get("size_text"), "side": trade.get("side"),
+              **_short_inputs(sized)}
     entry_id, target_id, stop_id = orders.leg_ids(receipt)
     if not receipt.ok or entry_id is None:
         why = orders.receipt_error(receipt)
-        audit(action=BOT_KIND_SETUP_ENTRY, outcome="failed", reason=why, inputs=inputs)
-        _tell(trade["symbol"], now, "warn", f"Nova's bot did not buy: the order was refused ({why})")
+        audit(action=action, outcome="failed", reason=why, inputs=inputs)
+        _tell(trade["symbol"], now, "warn", f"Nova's bot did not {_verb(trade)}: the order was refused ({why})")
         return
     trade.update(entry_order_id=entry_id, target_order_id=target_id, stop_order_id=stop_id, entry_sent_ts=now)
     _save(trade)
-    remember_working(order_id=entry_id, symbol=trade["symbol"], side="BUY", qty=trade["qty"],
-                     price=trade["entry_planned"], kind=BOT_KIND_SETUP_ENTRY, ttl_sec=None)
-    said = (f"{label(trade.get('setup_type'))} over {trade['trigger']} with the tape at go -- buy {trade['qty']:g} "
-            f"at {trade['entry_planned']} with target {trade['target1']} and stop {trade['stop']} (one bracket)")
-    audit(action=BOT_KIND_SETUP_ENTRY, outcome="ok", order_id=entry_id, inputs=inputs, reason=said)
-    _tell(trade["symbol"], now, "info", f"Nova's bot is buying: {said}")
+    remember_working(order_id=entry_id, symbol=trade["symbol"], side="SELL" if short else "BUY", qty=trade["qty"],
+                     price=trade["entry_planned"], kind=action, ttl_sec=None, short_entry=short)
+    if short:
+        said = (f"{label(trade.get('setup_type'))} under {trade['trigger']} with the tape at go -- short "
+                f"{trade['qty']:g} at {trade['entry_planned']}{_ssr_words(trade)} with its buy stop {trade['stop']} "
+                f"and cover {trade['target1']} (one bracket)")
+    else:
+        said = (f"{label(trade.get('setup_type'))} over {trade['trigger']} with the tape at go -- buy "
+                f"{trade['qty']:g} at {trade['entry_planned']} with target {trade['target1']} and stop "
+                f"{trade['stop']} (one bracket)")
+    audit(action=action, outcome="ok", order_id=entry_id, inputs=inputs, reason=said)
+    _tell(trade["symbol"], now, "info", f"Nova's bot is {'shorting' if short else 'buying'}: {said}")
 
 
-def _skip(event: dict[str, Any], found: list[tuple[str, str]]) -> None:
+def _verb(trade_or_event: dict[str, Any]) -> str:
+    """``short`` for a short trade or trigger, else ``buy``."""
+    from constants_bot import SIDE_SHORT, setup_side
+
+    side = trade_or_event.get("side") or setup_side(trade_or_event.get("setup_type"))
+    return "short" if side == SIDE_SHORT else "buy"
+
+
+def _ssr_words(trade: dict[str, Any]) -> str:
+    """Why a short's price is the ask: SSR (on, or not known)."""
+    if trade.get("priced_at_ask"):
+        return f" (SSR {trade.get('ssr') or 'unknown'}: at the ask, above the bid)"
+    return ""
+
+
+def _short_inputs(sized: dict[str, Any] | None) -> dict[str, Any]:
+    """A short's price and its short check, as the bot read them at the trigger (the squares show them)."""
+    if not sized or sized.get("side") != "short":
+        return {}
+    return {"side": "short", "ssr": sized.get("ssr"), "priced_at_ask": bool(sized.get("priced_at_ask")),
+            "short_limit": sized.get("limit"), "short_check": sized.get("short_check") or [],
+            "short_error": sized.get("short_error")}
+
+
+def _skip(event: dict[str, Any], found: list[tuple[str, str]], sized: dict[str, Any] | None = None) -> None:
     reason = admit.text(found)
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="skipped", reason=reason,
           inputs={"symbol": event.get("symbol"), "setup_id": event.get("setup_id"),
                   "setup_type": event.get("setup_type"), "template_id": event.get("template_id"),
-                  "code": found[0][0], "codes": [c for c, _w in found], "reasons": [w for _c, w in found]})
+                  "code": found[0][0], "codes": [c for c, _w in found], "reasons": [w for _c, w in found],
+                  **_short_inputs(sized)})
     _tell(str(event.get("symbol") or ""), _clock(), "warn",
-          f"Nova's bot did not buy the {label(event.get('setup_type'))}: {reason}")
+          f"Nova's bot did not {_verb(event)} the {label(event.get('setup_type'))}: {reason}")
 
 
 def _tell(symbol: str, now: float, tone: str, text: str) -> None:
@@ -313,21 +351,24 @@ async def _filled(trade: dict[str, Any], row: dict[str, Any], now: float) -> Non
 
     fill = _num(row.get("avg_fill_price")) or float(trade["entry_planned"])
     qty = float(row.get("filled_qty") or trade["qty"])
-    trade.update(state="open", qty=qty, entry_fill_price=fill, entry_filled_ts=now,
-                 slippage=round(fill - float(trade["entry_planned"]), 4),
+    short = orders.is_short(trade)
+    # Slippage is what the fill cost against the plan: paid more on a long, sold lower on a short.
+    slip = float(trade["entry_planned"]) - fill if short else fill - float(trade["entry_planned"])
+    trade.update(state="open", qty=qty, entry_fill_price=fill, entry_filled_ts=now, slippage=round(slip, 4),
                  stop_leg_at=float(trade["stop"]) if trade.get("stop_order_id") else None)
     drop_working(int(trade["entry_order_id"]))
-    adjust_bot_qty(trade["symbol"], qty)
-    legs = [f"target {trade['target1']}" if trade.get("target_order_id") else None,
-            f"stop {trade['stop']}" if trade.get("stop_order_id") else None]
+    adjust_bot_qty(trade["symbol"], -qty if short else qty)
+    legs = [f"{'cover' if short else 'target'} {trade['target1']}" if trade.get("target_order_id") else None,
+            f"{'buy stop' if short else 'stop'} {trade['stop']}" if trade.get("stop_order_id") else None]
     rest = " and ".join(x for x in legs if x)
     plan = f"{rest} resting at the broker" if rest else "no exit rests at the broker: the bot watches the stop"
     if not trade.get("stop_order_id"):
         trade["note"] = "the stop leg is missing: the bot watches the stop on the last price"
     _save(trade)
+    did = "shorted" if short else "bought"
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="filled", order_id=trade["entry_order_id"], inputs=_summary(trade),
-          reason=f"bought {qty:g} at {fill} (planned {trade['entry_planned']}); {plan}")
-    _tell(trade["symbol"], now, "ok", f"Nova's bot bought {qty:g} {trade['symbol']} at {fill}; {plan}")
+          reason=f"{did} {qty:g} at {fill} (planned {trade['entry_planned']}); {plan}")
+    _tell(trade["symbol"], now, "ok", f"Nova's bot {did} {qty:g} {trade['symbol']} at {fill}; {plan}")
 
 
 def _leg_fill(trade: dict[str, Any]) -> tuple[str, float | None, str] | None:
@@ -355,17 +396,18 @@ async def _manage_open(trade: dict[str, Any], now: float) -> None:
         trade["exit_order_id"] = trade.get(done[2])          # the resting exit that filled
         _close(trade, now, done[0], done[1])
         return
-    held = orders.held_qty(symbol)
+    held = orders.held(trade)
     if held <= _EPS:
         await _cancel_legs(trade)
         _close(trade, now, "outside", None)
         return
     if held + _EPS < float(trade["qty"]):
-        trade["qty"] = held                     # someone sold part of it: the bot closes what is left
+        trade["qty"] = held                     # someone closed part of it: the bot closes what is left
         _save(trade)
     last = orders.last_price(symbol)
-    if _watches_stop(trade) and last is not None and last <= float(trade["stop"]) + _EPS:
-        await _start_exit(trade, now, "stop", f"{last:g} printed at or under the {trade['stop']:g} stop")
+    if _watches_stop(trade) and last is not None and _stop_printed(trade, last):
+        where = "over" if orders.is_short(trade) else "under"
+        await _start_exit(trade, now, "stop", f"{last:g} printed at or {where} the {trade['stop']:g} stop")
         return
     act = flush.decide(trade, now, last=last)
     if act is not None and act["action"] == "exit":
@@ -379,13 +421,25 @@ async def _manage_open(trade: dict[str, Any], now: float) -> None:
 
 def _watches_stop(trade: dict[str, Any]) -> bool:
     """The bot watches the stop on the last price itself when no stop leg rests at it (gone, or left
-    lower by a tighten the broker refused)."""
+    behind by a tighten the broker refused: lower on a long, higher on a short)."""
     at = trade.get("stop_leg_at")
-    return not trade.get("stop_order_id") or at is None or float(trade["stop"]) > float(at) + _EPS
+    if not trade.get("stop_order_id") or at is None:
+        return True
+    if orders.is_short(trade):
+        return float(trade["stop"]) < float(at) - _EPS
+    return float(trade["stop"]) > float(at) + _EPS
+
+
+def _stop_printed(trade: dict[str, Any], last: float) -> bool:
+    """A print at or through the stop: at or under it on a long, at or over a short's buy stop."""
+    if orders.is_short(trade):
+        return last >= float(trade["stop"]) - _EPS
+    return last <= float(trade["stop"]) + _EPS
 
 
 async def _tighten(trade: dict[str, Any], stop: float, why: str) -> None:
-    """Move the stop up: a replace of the resting stop leg; refused, the bot watches the new stop itself."""
+    """Move the stop toward the price (up on a long, down on a short): a replace of the resting stop leg;
+    refused, the bot watches the new stop itself."""
     note = why
     if trade.get("stop_order_id"):
         receipt = await orders.replace_stop(trade, int(trade["stop_order_id"]), stop)
@@ -434,17 +488,18 @@ async def _start_exit(trade: dict[str, Any], now: float, why: str, detail: str) 
 
 
 async def _send_close(trade: dict[str, Any], now: float) -> None:
-    """A limit under the bid, twice; then the protective flatten."""
+    """A limit under the bid (a short's over the ask), twice; then the protective flatten."""
     attempt = int(trade.get("exit_attempt") or 0) + 1
     trade["exit_attempt"] = attempt
     if attempt <= BOT_FP_CLOSE_ATTEMPTS and not trade.get("exit_protective"):
-        receipt, limit = await orders.close_at_bid(trade, attempt)
+        receipt, limit = await orders.close_now(trade, attempt)
         if receipt is not None and receipt.ok and receipt.order_id is not None:
             trade.update(exit_order_id=int(receipt.order_id), exit_sent_ts=now, exit_limit=limit)
             _save(trade)
             return
-        logger.warning("Nova's bot: closing %s at the bid failed -- %s; using the protective flatten",
-                       trade["symbol"], "no bid on the book" if receipt is None else orders.receipt_error(receipt))
+        book = "no ask on the book" if orders.is_short(trade) else "no bid on the book"
+        logger.warning("Nova's bot: closing %s at the book failed -- %s; using the protective flatten",
+                       trade["symbol"], book if receipt is None else orders.receipt_error(receipt))
     out = await orders.protective_close(trade, float(trade["qty"]))
     trade.update(exit_order_id=out.get("order_id"), exit_sent_ts=now, exit_limit=None, exit_protective=True)
     _save(trade)
@@ -461,7 +516,7 @@ async def _manage_exit(trade: dict[str, Any], now: float) -> None:
     if state == "filled":
         _close(trade, now, str(trade.get("exit_why") or "time"), _num((row or {}).get("avg_fill_price")))
         return
-    held = orders.held_qty(trade["symbol"])
+    held = orders.held(trade)
     if held <= _EPS:
         _close(trade, now, "outside" if state != "working" else str(trade.get("exit_why")), None)
         return
@@ -478,14 +533,22 @@ async def _manage_exit(trade: dict[str, Any], now: float) -> None:
 def _close(trade: dict[str, Any], now: float, reason: str, price: float | None) -> None:
     from bot.risk import adjust_bot_qty
 
+    short = orders.is_short(trade)
     fill, risk = trade.get("entry_fill_price"), float(trade.get("risk") or 0)
-    r = round((price - float(fill)) / risk, 3) if price is not None and fill is not None and risk > 0 else None
+    r = None
+    if price is not None and fill is not None and risk > 0:
+        r = round(((float(fill) - price) if short else (price - float(fill))) / risk, 3)
     trade.update(state="closed", exit_reason=reason, exit_price=price, closed_ts=now, r=r)
-    adjust_bot_qty(trade["symbol"], -float(trade["qty"]))
+    adjust_bot_qty(trade["symbol"], float(trade["qty"]) if short else -float(trade["qty"]))
     _save(trade)
-    said = {"target": f"target {trade['target1']:g} filled", "stop": f"stopped out under {trade['stop']:g}",
-            "time": f"{BOT_FP_TIME_STOP_MIN}-minute time stop", "flush": "out on a flush on the tape",
-            "outside": "the position was closed outside the bot"}.get(reason, reason)
+    if short:
+        said = {"target": f"covered at {trade['target1']:g}", "stop": f"stopped out over {trade['stop']:g}",
+                "time": f"{BOT_FP_TIME_STOP_MIN}-minute time stop", "flush": "out on a burst of buying on the tape",
+                "outside": "the short was covered outside the bot"}.get(reason, reason)
+    else:
+        said = {"target": f"target {trade['target1']:g} filled", "stop": f"stopped out under {trade['stop']:g}",
+                "time": f"{BOT_FP_TIME_STOP_MIN}-minute time stop", "flush": "out on a flush on the tape",
+                "outside": "the position was closed outside the bot"}.get(reason, reason)
     at = f" at {price:g}" if price is not None else ""
     text = f"{said}{at}" + (f" · {r:+.2f}R" if r is not None else "")
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="closed", order_id=trade.get("exit_order_id"),
@@ -502,7 +565,7 @@ def _save(trade: dict[str, Any]) -> None:
 
 
 def _summary(trade: dict[str, Any]) -> dict[str, Any]:
-    keys = ("symbol", "setup_id", "setup_type", "template_id", "venue", "venue_day", "qty", "entry_planned",
+    keys = ("symbol", "setup_id", "setup_type", "side", "template_id", "venue", "venue_day", "qty", "entry_planned",
             "entry_fill_price", "stop", "target1", "risk", "exit_price", "exit_reason", "slippage", "r",
             "entry_order_id", "target_order_id", "stop_order_id")
     return {k: trade.get(k) for k in keys}

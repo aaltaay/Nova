@@ -32,8 +32,6 @@ from constants_stock_mode import (
     STOCK_MODE_NOTHING_HELD,
     STOCK_MODE_PLAN_CHANGED,
     STOCK_MODE_SEND,
-    STOCK_MODE_SHORT_LATER,
-    STOCK_MODE_SHORT_LATER_TEXT,
     STOCK_MODE_SIDE_NOVA,
     STOCK_MODE_SIDE_YOU,
     STOCK_MODE_SIGNAL,
@@ -209,12 +207,14 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
                              "check the plan, so it approves nothing") from exc
     if lane is None:
         raise StockModeError(STOCK_MODE_PLAN_CHANGED, "that setup is gone from the scanner: nothing to approve")
-    if model.lane_side(lane) == "short":    # Approve sends a long bracket (ADR 049: until #778 step 5)
-        raise StockModeError(STOCK_MODE_SHORT_LATER, STOCK_MODE_SHORT_LATER_TEXT.format(
-            sym=sym, setup=str(lane.get("setup_type") or "setup").replace("_", " ")))
-    if not approved["stop"] < approved["entry"] < approved["target"]:
+    side = model.lane_side(lane)             # the strategy decides the side (ADR 049, #778 step 5)
+    if side == "short" and not approved["target"] < approved["entry"] < approved["stop"]:
+        raise StockModeError(STOCK_MODE_INVALID, "a short plan has its buy stop over the entry and its cover under "
+                             "it", status=400)
+    if side != "short" and not approved["stop"] < approved["entry"] < approved["target"]:
         raise StockModeError(STOCK_MODE_INVALID, "a long plan has its stop under the entry and its target over it",
                              status=400)
+    verb = "short" if side == "short" else "buy"
     if lane.get("state") == "filtered":
         why = str(lane.get("reason") or "").removeprefix("filtered: ")
         raise StockModeError(STOCK_MODE_FILTERED, f"the template's stock filter keeps {sym} out ({why}): Nova sends "
@@ -227,8 +227,8 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
                              f"the setup is armed at {model.levels_text(lane.get('setup') or {})} now: approve "
                              "those levels")
     state = lane.get("state")
-    approval = {**approved, "setup_type": lane.get("setup_type"), "approved_at": now, "state": "waiting",
-                "reason": None}
+    approval = {**approved, "setup_type": lane.get("setup_type"), "side": side, "approved_at": now,
+                "state": "waiting", "reason": None}
     if state in runner.WAITING_STATES:
         if body.get("now"):
             raise StockModeError(STOCK_MODE_PLAN_CHANGED, "the setup has not triggered: approve it and Nova sends "
@@ -237,22 +237,22 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
         store.note_event(sym, now, "info", f"Approved: Nova sends at the {float(lane['setup'].get('trigger') or 0):.2f} "
                                            f"trigger if the tape says go")
         audit(action=STOCK_MODE_AUDIT_ACTION, outcome="approved",
-              reason=f"{sym}: buy {approved['qty']} at {approved['entry']:.2f}, stop {approved['stop']:.2f}, target "
-                     f"{approved['target']:.2f} at the trigger", inputs={"symbol": sym, **approved})
+              reason=f"{sym}: {verb} {approved['qty']} at {approved['entry']:.2f}, stop {approved['stop']:.2f}, "
+                     f"target {approved['target']:.2f} at the trigger", inputs={"symbol": sym, **approved, "side": side})
         return view.build(sym, now=now)
     if state == SETUP_STATE_TRIGGERED and body.get("now"):
         blocked = gates.desk_block()
         if blocked:
             raise StockModeError(STOCK_MODE_SEND, blocked[1])
         store.set_approval(sym, approval)
-        audit(action=STOCK_MODE_AUDIT_ACTION, outcome="approved", reason=f"{sym}: buy now at {approved['entry']:.2f}",
-              inputs={"symbol": sym, **approved, "now": True})
+        audit(action=STOCK_MODE_AUDIT_ACTION, outcome="approved", reason=f"{sym}: {verb} now at {approved['entry']:.2f}",
+              inputs={"symbol": sym, **approved, "side": side, "now": True})
         trade = await runner.send_bracket_now(sym, approval, now, setup_type=lane.get("setup_type"))
         if trade is None:
             refused = store.approval(sym) or {}
             raise StockModeError(STOCK_MODE_SEND, str(refused.get("reason") or "the execution door refused it"))
-        store.note_event(sym, now, "info", f"Sent: buy {approved['qty']} {sym} at {approved['entry']:.2f} with its stop "
-                                           "and target")
+        store.note_event(sym, now, "info", f"Sent: {verb} {approved['qty']} {sym} at {float(trade['entry']):.2f} "
+                                           "with its stop and target")
         return view.build(sym, now=now)
     raise StockModeError(STOCK_MODE_PLAN_CHANGED, f"the setup is {state}: nothing to approve")
 

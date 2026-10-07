@@ -11,10 +11,14 @@ yesterday's bot buys (``hot_list.day_reset_block``; being on the hot list is no 
 amended 2026-10-06), extended hours, the venue's shared daily cap and the sleeve's size. Then each taker's own:
 
 - the bot: the stock on this venue's bot list with a held depth line, one trade at a time,
-  no bot buy still working, the L2 session not held by another brain;
+  no bot entry still working, the L2 session not held by another brain;
 - Auto-entry: the stock not on the bot list (one mode per stock), no entry of it still working.
 
-``size`` is the sleeve's (``bot.sizing``) against what Nova's automatic buys already hold or
+The strategy that triggers decides the side (ADR 049, #778 step 5): a short trigger meets every rule
+above, never a stock you hold long (``against_held``), and its own short check -- its price at the ask
+under SSR, borrow, the halt, 09:35-15:50, the margin and its 25% cushion (``short_side``).
+
+``size`` is the sleeve's (``bot.sizing``) against what Nova's automatic entries already hold or
 have working on this venue. ``taker`` says who would take a setup's go trigger on a stock
 (the proposals carry it). Reads only; the runners send.
 """
@@ -23,6 +27,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from bot.first_pullback.short_side import blocks as short_blocks
+from bot.first_pullback.short_side import side_of
 from constants_bot import (
     BOT_FP_TRIGGER_MAX_AGE_SEC,
     BOT_LEVEL_STRATEGY,
@@ -49,14 +55,11 @@ from constants_bot import (
     BOT_SKIP_NOT_FIRST,
     BOT_SKIP_ONE_TRADE,
     BOT_SKIP_SETUP_NOT_STRATEGY,
-    BOT_SHORT_LATER_TEXT,
-    BOT_SKIP_SHORT_LATER,
     BOT_SKIP_SIZE,
     BOT_SKIP_STALE,
     BOT_SKIP_TAPE,
     BOT_SKIP_VENUE_CHANGING,
     SIDE_SHORT,
-    setup_side,
 )
 from constants_setups import TAPE_VERDICT_GO
 
@@ -178,8 +181,6 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     from stock_mode.leave import leaving, leaving_text
 
     out: list[Blocker] = []
-    if SIDE_SHORT in (event.get("side"), setup_side(setup_of(event))):
-        out.append((BOT_SKIP_SHORT_LATER, BOT_SHORT_LATER_TEXT))    # ADR 049: first -- longs only until step 5
     venue, edge, readable = venue_now or activation.venue_state()
     blocked = activation.venue_block(venue, edge, readable)
     if blocked is not None:
@@ -203,12 +204,12 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     judged = of_event(event)
     if not judged["ok"]:
         out.append((BOT_SKIP_NOT_A_TRADE, "not a trade: " + "; ".join(judged["reasons"])))
-    held = against_held(str(event.get("symbol") or ""), str(event.get("side") or "long"))
+    held = against_held(str(event.get("symbol") or ""), side_of(event))
     if held is not None:
         out.append(held)
     age = now - triggered_at(event)
     if age > BOT_FP_TRIGGER_MAX_AGE_SEC:
-        out.append((BOT_SKIP_STALE, f"the trigger is {age:.0f}s old (Nova buys one at most "
+        out.append((BOT_SKIP_STALE, f"the trigger is {age:.0f}s old (Nova enters on one at most "
                                     f"{BOT_FP_TRIGGER_MAX_AGE_SEC:g}s old)"))
     out.extend(_desk_blocks(row, venue))
     hold = commission_hold(venue)
@@ -240,7 +241,8 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
 
 # -- size ----------------------------------------------------------------------------------
 def exposure(row: dict[str, Any], venue: str | None) -> float:
-    """Dollars Nova's automatic buys hold or have working on this venue: the bot's and Auto-entry's."""
+    """Dollars Nova's automatic entries hold or have working on this venue, long or short: the bot's and
+    Auto-entry's."""
     from bot.risk import open_plus_working_usd
 
     from stock_mode import store
@@ -253,19 +255,34 @@ def exposure(row: dict[str, Any], venue: str | None) -> float:
 
 
 def size(event: dict[str, Any], row: dict[str, Any], venue: str | None) -> dict[str, Any]:
-    """The sleeve's size for this trigger (``bot.sizing``); an unreadable budget sizes nothing, and says so."""
+    """The sleeve's size for this trigger (``bot.sizing``); an unreadable budget sizes nothing, and says so.
+    A short's carries its price and its short check (``short_side.size``)."""
+    from bot.first_pullback import short_side
     from bot.sizing import size as sized
     from bot.sleeve import of as sleeve_of
 
     caps = sleeve_of(row)
     setup = event.get("setup") or {}
+    short = side_of(event) == SIDE_SHORT
     try:
         left = float(caps["bp_budget_usd"]) - exposure(row, venue)
     except Exception as exc:
-        logger.warning("bot: what Nova's automatic buys hold could not be read for the budget", exc_info=True)
-        return {"qty": 0, "by_risk": None, "capped_by": None,
-                "text": f"what Nova's automatic buys hold could not be read ({exc}): Nova does not buy"}
-    return sized(caps["risk_usd"], setup.get("entry"), setup.get("stop"), caps["max_shares"], left)
+        logger.warning("bot: what Nova's automatic entries hold could not be read for the budget", exc_info=True)
+        verb = "short" if short else "buy"
+        return {"qty": 0, "by_risk": None, "capped_by": None, "side": side_of(event),
+                "text": f"what Nova's automatic entries hold could not be read ({exc}): Nova does not {verb}"}
+    if short:
+        return short_side.size(event, caps, left, venue)
+    return {**sized(caps["risk_usd"], setup.get("entry"), setup.get("stop"), caps["max_shares"], left),
+            "side": "long"}
+
+
+def size_blocks(sized: dict[str, Any]) -> list[Blocker]:
+    """What the size says: under one share (or a short with no price), then the short check's failures."""
+    out: list[Blocker] = []
+    if sized["qty"] < 1:
+        out.append((str(sized.get("price_code") or BOT_SKIP_SIZE), str(sized.get("text"))))
+    return out + short_blocks(sized)
 
 
 # -- the bot ---------------------------------------------------------------------------------
@@ -273,7 +290,7 @@ def for_bot(event: dict[str, Any], row: dict[str, Any], *, now: float) -> tuple[
     """``(blockers, size)`` for Nova's bot on this trigger."""
     from bot import activation
     from bot.eligibility import holds_depth_line, normalize_symbols
-    from bot.risk import working_bot_orders
+    from bot.risk import is_working_entry, working_bot_orders
 
     venue_now = activation.venue_state()
     out = blockers(event, row, now=now, venue_now=venue_now)
@@ -285,33 +302,41 @@ def for_bot(event: dict[str, Any], row: dict[str, Any], *, now: float) -> tuple[
     current = row.get("trade")
     if isinstance(current, dict) and current.get("state") in LIVE_STATES:
         out.append((BOT_SKIP_ONE_TRADE, f"already in {current.get('symbol')} -- one trade at a time"))
-    if any(str(w.get("side") or "").upper() == "BUY" for w in working_bot_orders(row)):
-        out.append((BOT_REASON_WORKING_BLOCK, "a bot buy is still working"))
+    if any(is_working_entry(w) for w in working_bot_orders(row)):
+        out.append((BOT_REASON_WORKING_BLOCK, "a bot entry is still working"))
     held = (row.get("brain_session_id") or "").strip()
     if held and held != BOT_RUNNER_BRAIN_ID:
         out.append((BOT_REASON_BRAIN_EXCLUSIVE, f"another bot ({held}) holds the Strategy session"))
     sized = size(event, row, venue_now[0])
-    if sized["qty"] < 1:
-        out.append((BOT_SKIP_SIZE, sized["text"]))
-    return out, sized
+    return out + size_blocks(sized), sized
 
 
-def trade(event: dict[str, Any], row: dict[str, Any], *, qty: int, size_text: str | None = None) -> dict[str, Any]:
-    """The bot's trade for an admitted trigger (``bot-session.json``'s ``trade``)."""
+def trade(event: dict[str, Any], row: dict[str, Any], *, qty: int, size_text: str | None = None,
+          sized: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The bot's trade for an admitted trigger (``bot-session.json``'s ``trade``). A short's entry is the
+    price its size was read at (``short_side.price``: the ask under SSR), and its risk runs up to its buy stop."""
     from bot.entry_rules import venue_day
     from bot.gates import current_venue
     from bot.sleeve import of as sleeve_of
 
     setup = event["setup"]
+    side = side_of(event)
+    entry, stop = float(setup["entry"]), float(setup["stop"])
+    risk = float(setup["risk"])
+    if side == SIDE_SHORT and sized and sized.get("limit") is not None:
+        entry = float(sized["limit"])
+        risk = round(stop - entry, 4)
     return {
-        "setup_id": str(event.get("setup_id") or ""), "setup_type": setup_of(event),
+        "setup_id": str(event.get("setup_id") or ""), "setup_type": setup_of(event), "side": side,
         "symbol": str(event.get("symbol") or "").upper(), "venue": current_venue(),
         "venue_day": venue_day(), "template_id": event.get("template_id"),
         "template_rev": event.get("template_rev"), "template_name": event.get("template_name"),
         "state": "entering", "qty": float(qty), "size_text": size_text, "trigger": setup.get("trigger"),
         "trigger_price": setup.get("trigger_price"), "triggered_at": triggered_at(event),
-        "entry_planned": float(setup["entry"]), "stop": float(setup["stop"]), "target1": float(setup["target1"]),
-        "risk": float(setup["risk"]), "entry_order_id": None, "target_order_id": None, "stop_order_id": None,
+        "entry_planned": entry, "entry_scanned": float(setup["entry"]), "stop": stop,
+        "target1": float(setup["target1"]), "risk": risk,
+        "priced_at_ask": bool((sized or {}).get("priced_at_ask")), "ssr": (sized or {}).get("ssr"),
+        "entry_order_id": None, "target_order_id": None, "stop_order_id": None,
         "stop_leg_at": None, "entry_sent_ts": None, "entry_ttl_sec": int(sleeve_of(row)["working_ttl_sec"]),
         "entry_cancel_ts": None, "entry_fill_price": None, "entry_filled_ts": None,
         "exit_order_id": None, "exit_attempt": 0, "exit_sent_ts": None,
@@ -335,9 +360,7 @@ def for_auto_entry(event: dict[str, Any], row: dict[str, Any], *, now: float,
     if working:
         out.append((BOT_REASON_WORKING_BLOCK, "an entry Nova sent is still working"))
     sized = size(event, row, venue_now[0])
-    if sized["qty"] < 1:
-        out.append((BOT_SKIP_SIZE, sized["text"]))
-    return out, sized
+    return out + size_blocks(sized), sized
 
 
 # -- who takes a setup's go trigger -------------------------------------------------------------
@@ -349,8 +372,6 @@ def taker(sym: str, setup_type: str) -> str | None:
     from bot.persist import load_session
     from bot.setup_levels import effective
 
-    if setup_side(setup_type) == SIDE_SHORT:
-        return None                  # ADR 049: nothing takes a short trigger by itself until #778 step 5
     row = load_session()
     if not is_desk_active(row) or effective(row).get(setup_type, 0) < BOT_LEVEL_STRATEGY:
         return None

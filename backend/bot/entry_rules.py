@@ -1,7 +1,7 @@
 """The rules a Nova automatic entry meets at Strategy (ADR 027, ADR 042): each setup's window,
 the venue's daily cap, extended hours, and #564's commission hold.
 
-Only entries (``BOT_BUY_KINDS``) are gated; exits, cancels and protective sources never
+Only entries (``BOT_ENTRY_KINDS``: a buy or a short) are gated; exits, cancels and protective sources never
 are. The clock is the venue's (``execution.session_gate``: the replay playhead on Sim).
 
 - **Windows.** Each setup at Strategy has its template in play's bot window
@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 from bot.errors import BotError
 from constants_bot import (
     BOT_AUDIT_ACTION_TRADE,
-    BOT_BUY_KINDS,
+    BOT_ENTRY_KINDS,
     BOT_ENTRY_WINDOW_END_ET,
     BOT_ENTRY_WINDOW_START_ET,
     BOT_REASON_COMMISSIONS_UNKNOWN,
@@ -171,7 +171,7 @@ def audit_rows(day: str) -> list[dict[str, Any]]:
 def _entry_of(row: dict[str, Any]) -> dict[str, Any] | None:
     """A line that sent a Nova automatic entry (or an approved bracket): what it was, else None."""
     action, outcome, inputs = row.get("action"), row.get("outcome"), row.get("inputs") or {}
-    if action in BOT_BUY_KINDS and outcome == "ok":
+    if action in BOT_ENTRY_KINDS and outcome == "ok":
         by = "bot"
     elif action == _STOCK_MODE and outcome == "sent" and inputs.get("kind") in ("auto_entry", "approve"):
         by = str(inputs["kind"])
@@ -265,7 +265,7 @@ def assert_entry_allowed(kind: str, setup: str | None = None) -> None:
     any Strategy setup's), outside regular hours without extended hours, or past the day's cap.
 
     Anything that is not an entry passes."""
-    if kind not in BOT_BUY_KINDS:
+    if kind not in BOT_ENTRY_KINDS:
         return
     from bot.day_pnl import commission_hold
     from bot.persist import load_session

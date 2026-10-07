@@ -15,7 +15,6 @@ from constants_stock_mode import (
     STOCK_MODE_BOT,
     STOCK_MODE_EXIT,
     STOCK_MODE_NOTE_NOT_FOLLOWED,
-    STOCK_MODE_NOTE_SHORT_LATER,
     STOCK_MODE_SCHEMA_VERSION,
     STOCK_MODE_SIDE_NOVA,
     STOCK_MODE_SIDE_YOU,
@@ -201,12 +200,9 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
     if mode in _NOVA_BUYS or mode == STOCK_MODE_APPROVE:
         from bot.first_pullback.admit import against_held
 
-        held = against_held(sym, str((lane or {}).get("side") or "long"))
+        held = against_held(sym, model.lane_side(lane) if lane else "long")
         if held is not None:
             out.append(_note("held_other_side", _sentence(held[1])))
-        if (lane or {}).get("side") == "short":
-            setup_name = str(lane.get("setup_type") or "setup").replace("_", " ")
-            out.append(_note("short_later", STOCK_MODE_NOTE_SHORT_LATER.format(setup=setup_name)))
     if row is None or mode not in _NOVA_BUYS:
         return out
     from bot.arming import is_desk_active

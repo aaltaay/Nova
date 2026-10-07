@@ -12,6 +12,9 @@ Every ``STOCK_MODE_POLL_SEC``, and at once when the scanner announces a trigger 
      sleeve, only while the bot is Active, never a NOT A TRADE -- and never a stock on the bot list.
    - Approve sends the approved plan as one bracket at its setup's go trigger, unless the trigger is
      not a trade.
+   - The strategy decides the side (ADR 049, #778 step 5): a short setup's Auto-entry sells short with
+     its buy stop resting (the cover is yours), and an approved short plan goes out as a short bracket;
+     under SSR either sells at the ask (``bot.first_pullback.short_side.price``).
    Anything that keeps Nova from sending is a skip with every reason, on the bot's audit stream and
    as the stock's last event.
 3. **Approvals** waiting on a trigger are held against their lane: a re-arm at other levels, a failed
@@ -181,9 +184,9 @@ def _refusal(event: dict[str, Any], now: float) -> tuple[str, str] | None:
     judged = of_event(event)
     if not judged["ok"]:
         return "BOT_NOT_A_TRADE", "not a trade: " + "; ".join(judged["reasons"])
-    from bot.first_pullback.admit import against_held
+    from bot.first_pullback.admit import against_held, side_of
 
-    return against_held(str(event.get("symbol") or ""), str(event.get("side") or "long"))
+    return against_held(str(event.get("symbol") or ""), side_of(event))
 
 
 async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
@@ -198,22 +201,34 @@ async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
         _skip(sym, event, now, (found[0][0], admit.text(found)), codes=[c for c, _w in found])
         return
     setup = event.get("setup") or {}
+    short = admit.side_of(event) == "short"
+    entry = (sized or {}).get("limit") if short and (sized or {}).get("limit") is not None else setup.get("entry")
     trade = _new_trade(STOCK_MODE_AUTO_ENTRY, sym, event, now, venue=venue, day=venue_day(now),
-                       qty=int((sized or {})["qty"]), entry=setup.get("entry"), stop=setup.get("stop"),
+                       qty=int((sized or {})["qty"]), entry=entry, stop=setup.get("stop"),
                        target=setup.get("target1"), attempt=str(event.get("setup_id")), exits=STOCK_MODE_SIDE_YOU)
     trade["size_text"] = (sized or {}).get("text")
     receipt = await orders.place_entry(trade)
-    if not receipt.ok or receipt.order_id is None:
+    if short:
+        entry_id, _target_id, stop_id = orders.leg_ids(receipt)
+    else:
+        entry_id, stop_id = getattr(receipt, "order_id", None), None
+    if not receipt.ok or entry_id is None:
         _skip(sym, event, now, (getattr(receipt, "reason_code", None) or "REFUSED", orders.receipt_error(receipt)),
               outcome="refused")
         return
-    trade["entry_order_id"] = int(receipt.order_id)
+    trade.update(entry_order_id=int(entry_id), stop_order_id=stop_id)
     store.set_trade(trade)
-    _say(sym, now, "info", f"Nova is buying {trade['qty']:g} {sym} at {float(trade['entry']):.2f} (limit) -- "
-                           f"{trade['size_text']}; the exit is yours")
+    if short:
+        _say(sym, now, "info", f"Nova is shorting {trade['qty']:g} {sym} at {float(trade['entry']):.2f} (limit) with "
+                               f"its buy stop {float(trade['stop']):.2f} -- {trade['size_text']}; the cover is yours")
+        order = f"SHORT {trade['qty']:g} {sym} LMT {float(trade['entry']):.2f}, buy stop {float(trade['stop']):.2f}"
+    else:
+        _say(sym, now, "info", f"Nova is buying {trade['qty']:g} {sym} at {float(trade['entry']):.2f} (limit) -- "
+                               f"{trade['size_text']}; the exit is yours")
+        order = f"BUY {trade['qty']:g} {sym} LMT {float(trade['entry']):.2f}"
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="sent", order_id=trade["entry_order_id"],
-          reason=f"auto-entry: BUY {trade['qty']:g} {sym} LMT {float(trade['entry']):.2f} on the "
-                 f"{_setup_name(event)} trigger ({trade['size_text']})", inputs=_summary(trade))
+          reason=f"auto-entry: {order} on the {_setup_name(event)} trigger ({trade['size_text']})",
+          inputs=_summary(trade))
 
 
 async def _send_approved(sym: str, approval: dict[str, Any], event: dict[str, Any], now: float) -> None:
@@ -225,18 +240,32 @@ async def _send_approved(sym: str, approval: dict[str, Any], event: dict[str, An
     trade = await send_bracket_now(sym, approval, now, setup_type=event.get("setup_type"))
     if trade is None:
         return
-    _say(sym, now, "info", f"Sent: buy {float(trade['qty']):g} {sym} at {float(trade['entry']):.2f} with stop "
+    verb = "short" if orders.is_short(trade) else "buy"
+    _say(sym, now, "info", f"Sent: {verb} {float(trade['qty']):g} {sym} at {float(trade['entry']):.2f} with stop "
                            f"{float(trade['stop']):.2f} and target {float(trade['target']):.2f}")
 
 
 async def send_bracket_now(sym: str, approval: dict[str, Any], now: float, *,
                            setup_type: str | None = None) -> dict[str, Any] | None:
-    """Send an approved plan as one bracket; the trade, or None when the door refused (said so)."""
+    """Send an approved plan as one bracket; the trade, or None when the door refused (said so). An approved
+    short sells at the ask under SSR -- never under the approved price (``short_side.price``)."""
+    from bot.first_pullback import short_side
+
     venue, _replay = gates.venue_state()
     event = {"symbol": sym, "setup_id": approval.get("setup_id"),
-             "setup_type": setup_type or approval.get("setup_type")}
+             "setup_type": setup_type or approval.get("setup_type"), "side": approval.get("side")}
+    entry = approval["entry"]
+    if short_side.side_of(event) == "short":
+        facts, error = short_side.gather(sym, venue)
+        priced = short_side.price(approval, facts) if facts is not None else None
+        if priced is None or priced.limit is None:
+            why = error if priced is None else priced.why
+            store.set_approval(sym, {**approval, "state": "withdrawn", "reason": f"not sent: {why}"})
+            _skip(sym, event, now, ("BOT_SKIP_SHORT_PRICE", str(why)), outcome="refused")
+            return None
+        entry = priced.limit
     trade = _new_trade(STOCK_MODE_APPROVE, sym, event, now, venue=venue, day=venue_day(now),
-                       qty=int(approval["qty"]), entry=approval["entry"], stop=approval["stop"],
+                       qty=int(approval["qty"]), entry=entry, stop=approval["stop"],
                        target=approval["target"], exits=STOCK_MODE_SIDE_NOVA,
                        attempt=f"{approval.get('setup_id')}@{int(float(approval.get('approved_at') or now) * 1000)}")
     receipt = await orders.send_bracket(trade)
@@ -250,8 +279,9 @@ async def send_bracket_now(sym: str, approval: dict[str, Any], now: float, *,
     store.set_trade(trade)
     store.set_approval(sym, {**approval, "state": "sent", "reason": None})
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="sent", order_id=entry_id,
-          reason=(f"approved plan: BUY {float(trade['qty']):g} {sym} LMT {float(trade['entry']):.2f}, target "
-                  f"{float(trade['target']):.2f}, stop {float(trade['stop']):.2f} (one bracket)"),
+          reason=(f"approved plan: {'SHORT' if orders.is_short(trade) else 'BUY'} {float(trade['qty']):g} {sym} LMT "
+                  f"{float(trade['entry']):.2f}, target {float(trade['target']):.2f}, stop "
+                  f"{float(trade['stop']):.2f} (one bracket)"),
           inputs=_summary(trade))
     return trade
 
@@ -330,7 +360,7 @@ async def _manage(trade: dict[str, Any], now: float) -> None:
         elif trade["kind"] == STOCK_MODE_APPROVE and trade.get("exits") == STOCK_MODE_SIDE_NOVA:
             _manage_exits(trade, now)
         else:
-            _manage_yours(trade, now)
+            await _manage_yours(trade, now)
     except orders.ReadError as exc:
         _warn_once(f"read:{trade['symbol']}:{trade['state']}", "stock mode: %s -- %s not managed this tick",
                    exc, trade["symbol"])
@@ -346,11 +376,15 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
         qty = filled or float(trade["qty"])
         trade.update(state=STOCK_MODE_TRADE_HOLDING, qty=qty, fill_price=fill, filled_at=now)
         store.set_trade(trade)
-        exits = ("the stop and the target rest at the broker" if trade["exits"] == STOCK_MODE_SIDE_NOVA
-                 else "the exit is yours")
-        _say(sym, now, "ok", f"Nova bought {qty:g} {sym} at {fill:.2f} -- {exits}")
+        short = orders.is_short(trade)
+        if trade["exits"] == STOCK_MODE_SIDE_NOVA:
+            exits = "the stop and the target rest at the broker"
+        else:
+            exits = "the buy stop rests at the broker and the cover is yours" if short else "the exit is yours"
+        did = "shorted" if short else "bought"
+        _say(sym, now, "ok", f"Nova {did} {qty:g} {sym} at {fill:.2f} -- {exits}")
         audit(action=STOCK_MODE_AUDIT_ACTION, outcome="filled", order_id=trade.get("entry_order_id"),
-              reason=f"bought {qty:g} {sym} at {fill:.2f} (limit {float(trade['entry']):.2f}); {exits}",
+              reason=f"{did} {qty:g} {sym} at {fill:.2f} (limit {float(trade['entry']):.2f}); {exits}",
               inputs=_summary(trade))
         return
     ttl = float(trade.get("ttl_sec") or ttl_sec())
@@ -389,27 +423,37 @@ def miss(trade: dict[str, Any], now: float, why: str) -> None:
 
 def _manage_exits(trade: dict[str, Any], now: float) -> None:
     """Approve: the bracket's exits rest at the broker; the first to fill closes the trade."""
-    sym = trade["symbol"]
     for leg, reason in (("target_order_id", "target"), ("stop_order_id", "stop")):
         row = orders.order_row(trade.get(leg))
         if orders.order_state(row) == "filled":
             price = _num((row or {}).get("avg_fill_price")) or float(trade[reason])
             _close(trade, now, reason, price)
             return
-    if orders.held_qty(sym) <= _EPS:
+    if orders.held(trade) <= _EPS:
         _close(trade, now, "outside", None)
 
 
-def _manage_yours(trade: dict[str, Any], now: float) -> None:
-    """Auto-entry (or a taken-over bracket): the position is the operator's; Nova only notices it closed."""
-    if orders.held_qty(trade["symbol"]) <= _EPS:
-        _close(trade, now, "outside", None)
+async def _manage_yours(trade: dict[str, Any], now: float) -> None:
+    """Auto-entry (or a taken-over bracket): the position is the operator's; Nova only notices it closed. An
+    Auto-entry short's buy stop still resting then is cancelled: with nothing short it would be a buy."""
+    if orders.held(trade) > _EPS:
+        return
+    leg = trade.get("stop_order_id") if trade["kind"] == STOCK_MODE_AUTO_ENTRY else None
+    if leg and orders.order_state(orders.order_row(leg)) == "working":
+        receipt = await orders.cancel(trade, int(leg))
+        if not receipt.ok:
+            logger.warning("stock mode: %s's buy stop %s could not be cancelled -- %s", trade["symbol"], leg,
+                           orders.receipt_error(receipt))
+    _close(trade, now, "outside", None)
 
 
 def _close(trade: dict[str, Any], now: float, reason: str, price: float | None) -> None:
     sym = trade["symbol"]
     fill = trade.get("fill_price")
-    pnl = round((price - float(fill)) * float(trade["qty"]), 2) if price is not None and fill is not None else None
+    pnl = None
+    if price is not None and fill is not None:
+        move = float(fill) - price if orders.is_short(trade) else price - float(fill)
+        pnl = round(move * float(trade["qty"]), 2)
     trade.update(state=STOCK_MODE_TRADE_CLOSED, exit_reason=reason, exit_price=price, closed_at=now)
     store.set_trade(trade)
     said = {"target": f"the target {float(trade['target']):.2f} filled",
@@ -426,8 +470,11 @@ def _close(trade: dict[str, Any], now: float, reason: str, price: float | None) 
 # -- helpers ----------------------------------------------------------------------------
 def _new_trade(kind: str, sym: str, event: dict[str, Any], now: float, *, venue: str | None, day: str, qty: int,
                entry: Any, stop: Any, target: Any, attempt: str, exits: str) -> dict[str, Any]:
+    from bot.first_pullback.short_side import side_of
+
     return {"kind": kind, "state": STOCK_MODE_TRADE_ENTERING, "venue": venue, "venue_day": day, "symbol": sym,
-            "setup_id": event.get("setup_id"), "setup_type": event.get("setup_type"), "attempt": attempt,
+            "setup_id": event.get("setup_id"), "setup_type": event.get("setup_type"), "side": side_of(event),
+            "attempt": attempt,
             "qty": int(qty), "entry": float(entry), "stop": float(stop),
             "target": float(target) if target is not None else None,
             "entry_order_id": None, "target_order_id": None, "stop_order_id": None, "sent_at": now,
@@ -438,7 +485,9 @@ def _new_trade(kind: str, sym: str, event: dict[str, Any], now: float, *, venue:
 def _skip(sym: str, event: dict[str, Any], now: float, refused: tuple[str, str], *, outcome: str = "skipped",
           codes: list[str] | None = None) -> None:
     code, why = refused
-    _say(sym, now, "warn", f"Nova did not buy: {why}")
+    from bot.first_pullback.short_side import side_of
+
+    _say(sym, now, "warn", f"Nova did not {'short' if side_of(event) == 'short' else 'buy'}: {why}")
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome=outcome, reason=why,
           inputs={"symbol": sym, "setup_id": event.get("setup_id"), "setup_type": event.get("setup_type"),
                   "code": code, "codes": codes or [code]})
@@ -449,7 +498,7 @@ def _say(sym: str, now: float, tone: str, text: str) -> None:
 
 
 def _summary(trade: dict[str, Any]) -> dict[str, Any]:
-    keys = ("symbol", "kind", "setup_id", "setup_type", "venue", "venue_day", "qty", "entry", "stop", "target",
+    keys = ("symbol", "kind", "setup_id", "setup_type", "side", "venue", "venue_day", "qty", "entry", "stop", "target",
             "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "exit_price", "exit_reason", "exits",
             "ttl_sec", "size_text")
     return {k: trade.get(k) for k in keys}

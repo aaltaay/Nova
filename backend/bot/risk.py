@@ -1,12 +1,16 @@
 """The localhost bot API's risk filters from the venue's sleeve (ADR 042 E): order kinds, shares,
-the buying-power budget, the working block, extended hours, the TTL."""
+the buying-power budget, the working block, extended hours, the TTL.
+
+``bot_qty`` is the shares Nova's bot holds per symbol on this venue, signed: a long is positive, a short
+(ADR 049, #778 step 5) negative. The budget counts both at their value; a working entry -- a buy, or a
+short -- blocks the next."""
 from __future__ import annotations
 
 import time
 from typing import Any
 
 from bot.errors import BotError
-from bot.kinds import is_allowlisted, is_buy_kind
+from bot.kinds import is_allowlisted, is_entry_kind
 from bot.persist import load_session, save_session
 from bot.quotes import last_quote, top_of_book
 from constants_bot import (
@@ -92,14 +96,22 @@ def working_bot_orders(row: dict[str, Any] | None = None) -> list[dict[str, Any]
 
 
 def assert_no_working_buy(kind: str, row: dict[str, Any]) -> None:
-    if not is_buy_kind(kind):
+    """A new entry -- a buy or a short -- waits while any bot order works."""
+    if not is_entry_kind(kind):
         return
     if working_bot_orders(row):
         raise BotError(
-            "new bot buy blocked while a working bot order exists",
+            "new bot entry blocked while a working bot order exists",
             409,
             BOT_REASON_WORKING_BLOCK,
         )
+
+
+def is_working_entry(order: dict[str, Any]) -> bool:
+    """A remembered working order that would open a position: a buy that is not a cover, or a short."""
+    if order.get("short_entry"):
+        return True
+    return str(order.get("side") or "").upper() == "BUY" and not order.get("cover")
 
 
 def _mark_price(symbol: str, limit_price: float | None) -> float:
@@ -121,14 +133,14 @@ def open_plus_working_usd(row: dict[str, Any]) -> float:
     qty_map = dict(row.get("bot_qty") or {})
     for symbol, qty in qty_map.items():
         try:
-            shares = float(qty)
+            shares = abs(float(qty))        # a short holds its value too
         except (TypeError, ValueError):
             continue
         if shares <= 0:
             continue
         total += shares * _mark_price(str(symbol), None)
     for order in working_bot_orders(row):
-        if str(order.get("side") or "").upper() != "BUY":
+        if not is_working_entry(order):
             continue
         try:
             shares = abs(float(order.get("qty") or 0))
@@ -140,7 +152,7 @@ def open_plus_working_usd(row: dict[str, Any]) -> float:
 
 
 def assert_bp_budget(kind: str, symbol: str, qty: float, price: float | None, row: dict[str, Any]) -> None:
-    if not is_buy_kind(kind):
+    if not is_entry_kind(kind):
         return
     budget = float(_caps(row).get("bp_budget_usd") or 0)
     used = open_plus_working_usd(row)
@@ -184,8 +196,11 @@ def remember_working(
     price: float | None,
     kind: str,
     ttl_sec: int | None,
+    short_entry: bool = False,
+    cover: bool = False,
 ) -> None:
-    """Record a working bot order; ``ttl_sec=None`` is one whose owner cancels it (ADR 030), not the TTL loop."""
+    """Record a working bot order; ``ttl_sec=None`` is one whose owner cancels it (ADR 030), not the TTL loop.
+    ``short_entry`` marks a short (it opens a position), ``cover`` a buy that closes one."""
     row = load_session()
     working = [w for w in list(row.get("working") or []) if int(w.get("order_id") or 0) != order_id]
     working.append({
@@ -197,6 +212,8 @@ def remember_working(
         "kind": kind,
         "expire_ts": None if ttl_sec is None else time.time() + max(1, int(ttl_sec)),
         "venue": _venue(),
+        **({"short_entry": True} if short_entry else {}),
+        **({"cover": True} if cover else {}),
     })
     row["working"] = working
     save_session(row)
@@ -217,11 +234,12 @@ def drop_working(order_id: int) -> dict[str, Any] | None:
 
 
 def adjust_bot_qty(symbol: str, delta: float) -> None:
+    """Move the bot's signed shares in ``symbol``: a buy or a cover adds, a sell or a short takes away."""
     row = load_session()
     qty_map = dict(row.get("bot_qty") or {})
     key = symbol.upper()
     nxt = float(qty_map.get(key) or 0) + float(delta)
-    if nxt <= 1e-9:
+    if abs(nxt) <= 1e-9:
         qty_map.pop(key, None)
     else:
         qty_map[key] = nxt

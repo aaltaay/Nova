@@ -113,23 +113,6 @@ def test_a_short_arms_proposes_triggers_downward_and_scores_with_its_side_and_ss
     assert eng.store.rows()[0]["outcome"] == "target_first"
 
 
-def test_the_bot_and_auto_entry_skip_a_short_trigger_until_step_5():
-    from bot.first_pullback import admit
-    from constants_bot import BOT_SKIP_SHORT_LATER
-
-    event = {"symbol": SYM, "setup_type": SETUP, "side": "short", "tape": {"verdict": "go"}, "grade": "A"}
-    found = admit.blockers(event, {}, now=0.0, venue_now=("paper", True, True))
-    assert found[0][0] == BOT_SKIP_SHORT_LATER and "step 5 of #778" in found[0][1]
-    assert admit.taker(SYM, SETUP) is None
-
-
-def test_the_squares_say_a_short_trigger_waits_on_step_5():
-    from bot import trigger_cells
-
-    cell = trigger_cells._strategy_on({"setup_type": "bear_flag", "symbol": SYM, "ts": 0.0}, "paper", None)
-    assert cell["ok"] is False and "step 5 of #778" in cell["why"]
-
-
 def test_auto_record_gives_a_short_setup_no_line_and_leaves_its_window_out():
     from types import SimpleNamespace
 
