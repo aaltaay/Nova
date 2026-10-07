@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from execution.models import ExecutionCommand
+from execution.order_side import held_at_send
 from ibkr import safety as _safety
 
 
@@ -39,6 +40,9 @@ def build_reserve_payload(
         "forced_one_share": bool(forced_one_share)
         and cmd.operation in ("place", "bracket"),
         "short_entry": bool(cmd.short_entry),
+        # ADR 048: the position the door saw as it sent the order -- the Side column of a Live row.
+        "position_at_send": (held_at_send(venue, cmd.normalized_symbol())
+                             if cmd.operation in ("place", "bracket") else None),
         "intent": getattr(cmd, "intent", None),
         "origin": getattr(cmd, "origin", None),   # who in Nova sent it ("Sent by")
         "target_venue": getattr(cmd, "target_venue", None),   # a kill switch cancel aimed at a venue

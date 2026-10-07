@@ -50,6 +50,7 @@ from leaderboard import queue as _leaderboard_queue
 from leaderboard import recorder as _leaderboard_recorder
 from line_lending import loans as _line_lending
 from practice import matcher as _practice_matcher
+from short_sale import runner as _short_runner
 from scan_loop import scan_loop
 from scanner_push import broadcast as _scanner_broadcast
 from ticker import _find_ibkr_cache_row
@@ -127,6 +128,7 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("capture.keepalive", _capture_keepalive.run),
         # Paper venue (ADR 020): resting practice orders fill on live tape prints.
         ("practice.matcher", _practice_matcher.run),
+        ("short_sale.closes", _short_runner.run),
         # Scanner leaderboard (ADR 023): always recording, enqueue + one writer.
         ("leaderboard.write_queue", _leaderboard_queue.drain_loop),
         ("leaderboard.recorder", _leaderboard_recorder.run),

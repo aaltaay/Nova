@@ -26,6 +26,8 @@ export type { GatewayStatusFact } from './gatewayStatusWording';
 export { useOrderTicketListening } from './useOrderTicketListening';
 export { requestOrderTicketPrefill } from './orderTicketPrefill';
 export { SentByTd } from './SentByCell';
+export { OrderSideTd, PositionSideTd } from './OrderSideCell';
+export { flattenLabel } from './orderSide';
 export { orderSentBy } from './orderSentBy';
 // ADR 044 decision 6: who holds each Level 2 line, the loans, and the lending switch.
 export { fetchDepthLines, loanFor, normalizeDepthLines, setDepthLending } from './depthLines';

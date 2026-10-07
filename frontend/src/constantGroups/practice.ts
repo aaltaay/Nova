@@ -70,7 +70,7 @@ export const PRACTICE_SETTINGS_HINT =
   "Start Nova's practice ledger over: cash back to the starting balance, positions and working orders cleared. Fake money only -- nothing reaches IBKR.";
 export const PRACTICE_STARTING_CASH_LABEL = 'Starting cash (optional)';
 /** Blank resets to the default, never "the current" (C43: backend PracticeResetRequest.starting_cash). */
-export const PRACTICE_STARTING_CASH_PLACEHOLDER = 'Blank = $100,000 (the default)';
+export const PRACTICE_STARTING_CASH_PLACEHOLDER = 'Blank = $5,000 (the default)';
 export const PRACTICE_PAPER_ARCHIVE_NOTE =
   'Paper archives the old ledger as practice-paper-<date-time>.json before starting over.';
 export const PRACTICE_SIM_RESET_NOTE =
@@ -98,17 +98,23 @@ export const practiceStartingCashInvalid = (min: string, max: string): string =>
   `Starting cash must be a whole-dollar amount between ${min} and ${max}, or left blank.`;
 
 /* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
-/** Mirrors backend PRACTICE_STARTING_CASH: what a reset with no amount starts from (C43). */
-export const PRACTICE_STARTING_CASH_DEFAULT = 100_000;
-export const PRACTICE_STARTING_CASH_DEFAULT_LABEL = '$100,000';
+/** Mirrors backend PRACTICE_STARTING_CASH: what a reset with no amount starts from (C43; $5,000 since ADR 048). */
+export const PRACTICE_STARTING_CASH_DEFAULT = 5_000;
+export const PRACTICE_STARTING_CASH_DEFAULT_LABEL = '$5,000';
 
 /* ── QA batch fix/qa-sim-replay (2026-09-22): stale money, practice-ticket copy ── */
 
 /** A failed practice poll keeps the last figures this long (a blip), then drops them -- money never outlives its source (C44). */
 export const PRACTICE_ACCOUNT_STALE_MS = 3 * PRACTICE_ACCOUNT_POLL_MS;
 export const PRACTICE_ACCOUNT_REQUEST_FAILED = 'Practice account request failed';
-/** Both practice venues refuse every short entry (`PRACTICE_NO_SHORTS`, AGENTS.md section 3). */
-export const PRACTICE_NO_SHORTS_REASON = 'Nova does not support short entries yet';
+/**
+ * Why the ticket's Short is locked on Paper and Sim (ADR 048). The practice venues take shorts --
+ * a bracket with its buy stop, through the short check -- but the ticket's Short mode (its Buy
+ * stop, the SHORT CHECK box) is ADR 048's next step: until it lands, a short does not leave the ticket.
+ */
+export const PRACTICE_TICKET_SHORT_LOCKED =
+  "The ticket's Short is not built yet: a short goes out with its buy stop, and the ticket has no Buy stop " +
+  'field until its Short mode lands (ADR 048).';
 
 /* ── QA batch fix/qa2-account-practice-sim (2026-09-22): the ticket's BP after ── */
 /**

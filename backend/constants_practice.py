@@ -22,12 +22,12 @@ PRACTICE_ACCOUNT_ID_SIM = "NOVA-SIM"
 # ---------------------------------------------------------------------------
 # Starting cash
 # ---------------------------------------------------------------------------
-# Same figure the in-memory Sim ledger has used since ADR 019
-# (constants_sim.SIM_STARTING_CASH). IBKR's own paper account seeds USD
-# 1,000,000 and Alpaca's USD 100,000; 100k keeps the Paper P&L readable
-# against a retail-sized live account. Operator-resettable via
-# POST /api/practice/reset {starting_cash}.
-PRACTICE_STARTING_CASH = float(SIM_STARTING_CASH)  # 100_000.0
+# USD 5,000: the operator's IBKR margin account (ADR 048 decision 4, operator decision
+# 2026-10-07), so a practice short is refused, sized and liquidated where the real account
+# would be. The same figure as the in-memory Sim ledger (constants_sim.SIM_STARTING_CASH).
+# A Paper ledger already on disk keeps its own starting cash until the operator presses the
+# reset (POST /api/practice/reset, blank = this figure), which archives it.
+PRACTICE_STARTING_CASH = float(SIM_STARTING_CASH)  # 5_000.0
 
 # ---------------------------------------------------------------------------
 # Commission -- IBKR Pro, US stocks, FIXED pricing
@@ -183,12 +183,17 @@ PRACTICE_TIF_INVALID_CODE = "TIF_INVALID"
 # ---------------------------------------------------------------------------
 # No shorts (operator decision, 2026-09-21)
 # ---------------------------------------------------------------------------
-# A SELL on a practice venue is only ever risk-reducing, exactly as Invariant
-# #7 keeps it on Live: a SELL for more than the held quantity, or any order
-# carrying ``short_entry``, is an opening short and is refused at admission
-# (execution/practice_checks.py) and again in the broker (practice/broker.py).
+# A short is never inferred, exactly as Invariant #7 keeps it on Live: a SELL for
+# more than the held quantity is refused at admission (execution/practice_checks.py)
+# and again in the broker (practice/broker.py). An opening short carries
+# ``short_entry`` and passes the short check (ADR 048, short_sale/).
 PRACTICE_NO_SHORTS_CODE = "PRACTICE_NO_SHORTS"
-PRACTICE_NO_SHORTS_REASON = "Nova does not support short entries yet"
+PRACTICE_NO_SHORTS_REASON = (
+    "A SELL never sells past what you hold: a short goes out as a short entry, with its buy stop"
+)
+# ADR 048 1.7: a short entry never fills while the account holds the stock long (no flips).
+PRACTICE_SHORT_WHILE_LONG_CODE = "PRACTICE_SHORT_WHILE_LONG"
+PRACTICE_SHORT_WHILE_LONG_REASON = "Nova never flips a long into a short: sell what you hold first, then short from flat"
 # A cover never buys past flat (ADR 048 gap 8, the mirror of QA R42): a resting cover that would
 # fill after another cover already closed the short is cancelled at the fill, never filled.
 PRACTICE_OVERCOVER_CODE = "PRACTICE_OVERCOVER"

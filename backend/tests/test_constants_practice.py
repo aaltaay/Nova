@@ -13,7 +13,7 @@ import constants_sim
 
 
 def test_starting_cash_is_the_sim_ledger_seed():
-    assert cp.PRACTICE_STARTING_CASH == constants_sim.SIM_STARTING_CASH == 100_000.0
+    assert cp.PRACTICE_STARTING_CASH == constants_sim.SIM_STARTING_CASH == 5_000.0  # ADR 048: the operator's account
 
 
 def test_ibkr_fixed_commission_schedule():

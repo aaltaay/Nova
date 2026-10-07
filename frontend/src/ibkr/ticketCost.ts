@@ -14,7 +14,7 @@
  * venue "BP after" follows the ledger's own rule (fees out of equity, the
  * position re-marked at the fill, 4x, 1x under $2,000), not BP +/- the order value (W28).
  */
-import { PRACTICE_NO_SHORTS_REASON } from '../constantGroups/practice';
+import { PRACTICE_TICKET_SHORT_LOCKED } from '../constantGroups/practice';
 import { TICKET_COST_NO_POSITION } from '../constantGroups/trader_chrome';
 import { practiceBuyingPowerAfter } from '../practice/practiceBuyingPower';
 import {
@@ -65,7 +65,7 @@ export function estimateTicketCost(
   if ('error' in resolved) return UNKNOWN;
   const { quantity, referencePrice } = resolved;
   const shares = quantity > 0 ? quantity : null;
-  if (venue.practice && values.shortEntry) return { ...UNKNOWN, shares, note: PRACTICE_NO_SHORTS_REASON };
+  if (venue.practice && values.shortEntry) return { ...UNKNOWN, shares, note: PRACTICE_TICKET_SHORT_LOCKED };
   if (values.side === 'SELL' && !values.shortEntry) {
     const held = context.positionQty;
     if (held == null || !(held > 0) || (shares != null && shares > held)) {

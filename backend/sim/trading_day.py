@@ -25,9 +25,11 @@ supported day: the table carries one margin year below
 ``NOVA_OS_CALENDAR_FIRST_YEAR`` (``NOVA_OS_CALENDAR_TABLE_FIRST_YEAR``) purely so
 the backward walk has somewhere to land.
 
-NOT MODELLED — early-close (13:00 ET) half-days. The table holds full-day
-closures only, so the day after Thanksgiving, and Dec 24 / Jul 3 when they fall
-next to a weekday-observed holiday, are reported as ordinary open days. Session
+NOT MODELLED HERE — early-close (13:00 ET) half-days. The holiday table holds
+full-day closures only, so the day after Thanksgiving, and Dec 24 / Jul 3 when
+they fall next to a weekday-observed holiday, are reported as ordinary open days.
+The early closes have their own table (``NOVA_OS_NYSE_EARLY_CLOSES``), read only by
+the short hours and the day cover (ADR 048). Session
 bounds ignore half-days entirely: ``sim.session_clock.session_bounds_on`` opens
 the full 04:00–20:00 window on them, so a replayed half-day shows a live-looking
 but empty tape after 13:00 instead of a closed session. That was already true

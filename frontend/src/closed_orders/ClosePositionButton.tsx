@@ -17,6 +17,7 @@ import {
   WHY_GATEWAY_NOT_CONNECTED,
 } from '../constants';
 import { captureBrowserAction } from '../execution_latency';
+import { flattenLabel } from '../ibkr';
 import { closeFullPosition } from '../ibkr/closeFullPosition';
 import { flattenSpendLockReason, isDisarmed } from '../ibkr/spendLock';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
@@ -74,12 +75,14 @@ export function ClosePositionButton({
     const actionTiming = captureBrowserAction('user_action');
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide = position.qty > 0 ? 'SELL' : 'BUY';
+    // A short's flatten buys the borrowed shares back (ADR 048): the dialog says so.
+    const what = position.qty < 0 ? ' (a cover: it buys back the borrowed shares)' : '';
     const confirmed = await confirmApp({
       title: `Flatten ${position.symbol}?`,
       message:
         `${TICKER_TRADE_ORDER_DISCLOSURE}\n\n` +
         `${CLOSE_POSITION_VS_CANCEL_HINT}\n\n` +
-        `Flatten ${absQty} shares of ${position.symbol} with a ${closeSide} market order ` +
+        `Flatten ${absQty} shares of ${position.symbol} with a ${closeSide} market order${what} ` +
         `on the ${mode.toUpperCase()} account?`,
       confirmLabel: APP_DIALOG_FLATTEN_LABEL,
       tone: 'danger',
@@ -124,7 +127,7 @@ export function ClosePositionButton({
         : label
           ? label
           : hasPosition
-            ? `${CLOSE_POSITION_BUTTON_LABEL} ${Math.abs(position.qty)}`
+            ? flattenLabel(position.qty, CLOSE_POSITION_BUTTON_LABEL)
             : CLOSE_POSITION_BUTTON_LABEL}
     </button>
   );

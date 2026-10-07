@@ -33,13 +33,13 @@ is an operator knob, not a model.
 
 | Constant | Value | Why |
 |---|---|---|
-| `PRACTICE_STARTING_CASH` | 100 000 | The Sim ledger's existing seed (`SIM_STARTING_CASH`); Alpaca's default; readable against a retail live account. IBKR's 1M would flatter every bot. Operator-resettable. |
+| `PRACTICE_STARTING_CASH` | 5 000 | The operator's own account size (ADR 048, 2026-10-07; until then 100 000, Alpaca's default). Practice margin, the short check's cushion and every bot's size are only honest at the size the operator trades: on 100 000 a short the real account could never carry looked fine. IBKR's 1M would flatter every bot. Operator-resettable. |
 | `PRACTICE_COMMISSION_PER_SHARE` / `_MIN` / `_MAX_PCT` | 0.005 / 1.00 / 1 % | IBKR Pro **Fixed** as published today. Live Nova trades on IBKR, so Paper charges what Live would; Fixed rather than Tiered because it has no volume tiers or exchange rebates to fake. QuantConnect's 0.5 % cap is stale and is not used. |
 | `PRACTICE_SEC_FEE_RATE` | 20.60 per 1M | FY2026 §31 rate, on **sell** value only, as IBKR passes it through. |
 | `PRACTICE_FINRA_TAF_PER_SHARE` / `_MAX` | 0.000195 / 9.79 | 2026 TAF on shares **sold**, per-trade cap. Both regulatory fees are refreshed by editing the constant when the SEC/FINRA notice changes; no auto-lookup. |
 | `PRACTICE_FINRA_TAF_HOLIDAYS` | 2026-10-01 to 2026-12-31 | FINRA's three-month TAF pause (SR-FINRA-2026-021): no TAF on a sell whose Eastern trade date falls inside, both days included -- the fill's own time, so a Sim replay of an earlier day still pays it. TAF resumes 2027-01-01. |
 | `PRACTICE_FINRA_CAT_PER_SHARE` | 0.000003 | FINRA Consolidated Audit Trail fee on **every** share executed, as IBKR lists it (prospective plus historical CAT, re-evaluated twice a year). Seen on Nova's own Live fills: a 1-share buy at 7.38 cost 0.073803, the 1 % cap plus 0.000003. |
-| `PRACTICE_MARGIN_INTRADAY_MULT` | 4.0 | FINRA 4210 intraday margin (2026-06-04): equity covers 25 % maintenance on what is held, so 4x. Nova's bots are day traders, so this is the number they hit. Applied as `equity * 4` minus gross position value while `net_liquidation >= PRACTICE_MARGIN_MIN_EQUITY`. The retired USD 25,000 pattern-day-trader line (`PRACTICE_PDT_MIN_EQUITY`, 2x below it) is gone with the rule. |
+| `PRACTICE_MARGIN_INTRADAY_MULT` | 4.0 | FINRA 4210 intraday margin (2026-06-04): equity covers the maintenance of what is held, 25 % for a long, so 4x. Nova's bots are day traders, so this is the number they hit. Applied as `(equity - maintenance) * 4` while `net_liquidation >= PRACTICE_MARGIN_MIN_EQUITY` -- with longs only and no IBKR figure, `equity * 4` minus gross position value. The retired USD 25,000 pattern-day-trader line (`PRACTICE_PDT_MIN_EQUITY`, 2x below it) is gone with the rule. |
 | `PRACTICE_MARGIN_MIN_EQUITY` | 2 000 | FINRA 4210(b)(2): no credit below USD 2,000 of equity; IBKR keeps it for margin and short sales under the new rule. |
 | `PRACTICE_CASH_MULT` | 1.0 | Under the minimum the account is a cash account: `equity * 1` minus gross position value is the cash on hand. |
 | `PRACTICE_LIVE_FRESH_SEC` | 15 s | An L1 last older than this cannot price a Paper fill; the broker then uses a recent tape print or refuses `PRACTICE_NO_LIVE_PRINT`. IBKR and Alpaca *hold* an order with no opposite quote; Nova refuses and says why, because a held practice order looks like a working order. |
@@ -52,12 +52,23 @@ Fee math, applied per fill: `commission = clamp(qty * 0.005, 1.00,
 * SEC rate` and `min(qty * TAF, 9.79)` (zero on a TAF holiday). The fees a fill
 was charged are stored on its event, so a schedule change never rewrites a fill
 already made. Commissions and fees reduce cash at the fill, appear on the row,
-and sum into `commissions_today`. Realized P&L is net of them. Buying power
-`= max(0, net_liquidation * mult - gross_position_value)`; an order is admitted
-while `qty * reference_price <= buying_power` for opening trades; closing
-trades are always admitted.
+and sum into `commissions_today`. Realized P&L is net of them.
 
-## 3. Time-in-force and no shorts (operator decisions, 2026-09-21)
+**Margin** (`practice/margin.py`, ADR 048 decision 2). Every held position's
+maintenance is its stock's published requirement (`short_sale/margin.py`: 25 %
+of a long's value; a short's $2.50 a share under $2.50, 100 % of value to $5,
+$5 a share to $16.67, 30 % above) times that stock's **ratio**: IBKR's what-if
+answer for it over the published rule (`short_sale/whatif.py`; over 1 when IBKR
+charges a volatile name extra), else 1. The account summary carries IBKR's own
+tags for it, `MaintMarginReq` and `ExcessLiquidity` (equity less maintenance).
+Buying power `= max(0, (net_liquidation - maintenance) * mult)` at or above USD
+2,000 of equity, the cash on hand below it. An opening long is admitted while
+`qty * reference_price * ratio <= buying_power`; an opening short while its
+requirement fits the excess liquidity (none below USD 2,000; the door's short
+check adds the 25 % liquidation cushion); closing trades are always admitted.
+A past-day Sim replay uses the published rules: IBKR cannot speak for that day.
+
+## 3. Time-in-force and shorts (operator decisions, 2026-09-21; ADR 048)
 
 **Time-in-force.** The practice venues honour the two TIFs the execution
 command carries (#91): `DAY`, the default, and `GTC`. A `DAY` order expires
@@ -75,30 +86,40 @@ Sim feed tick (`sim/feed.py`) both expire due orders after matching prints;
 the row and its `placed` event carry `tif` and `expires_ts`. Rules:
 `practice/order_rules.py`.
 
-**No shorts.** A SELL on a practice venue is only ever risk-reducing, exactly
-as Invariant #7 keeps it on Live: a SELL for more than the held quantity, or
-any order carrying `short_entry`, is an opening short and is refused
-`PRACTICE_NO_SHORTS` ("Nova does not support short entries yet") -- at
-admission in the execution door (`execution/practice_checks.py`) and again in
-`PracticeBroker.place`, on every source. Nothing is inferred from side plus a
-flat position beyond that arithmetic. The rule holds at the fill too
-(`order_rules.fill_refusal`, QA R42): a resting SELL that would fill past what
-is held when its print arrives -- another close filled first -- is cancelled
-`PRACTICE_NO_SHORTS`, never filled, so two closes of the same shares can never
-leave the account short. Its mirror (ADR 048 gap 8): every row records what it
-does to the position when it is placed (`short_entry`, `position_side`,
-`effect`), and a cover -- a BUY placed against a short -- that would buy past
-flat when its print arrives is cancelled `PRACTICE_OVERCOVER`, so a short is
-never turned into a long. Opening a short on Paper and Sim comes with ADR 048's
-step 2; until then this rule guards the ledger alone.
+**Shorts (ADR 048 step 2; until then none).** A short is never inferred: a
+SELL for more than the held quantity without `short_entry` is refused
+`PRACTICE_NO_SHORTS` ("A SELL never sells past what you hold: a short goes out
+as a short entry, with its buy stop") -- at admission in the execution door
+(`execution/practice_checks.py`) and again in `PracticeBroker.place`, on every
+source -- and the rule holds at the fill too (`order_rules.fill_refusal`, QA
+R42): a resting SELL that would fill past what is held when its print arrives
+-- another close filled first -- is cancelled `PRACTICE_NO_SHORTS`, so two
+closes of the same shares can never leave the account short.
+
+A short entry is the explicit opt-in: a SELL carrying `short_entry`, from flat
+or adding to a short. The execution door runs the one short check on it (AGENTS.md
+§3, "Short selling": a buy stop, the hours, halts, borrow, SSR, margin and the
+cushion) with no Live key; the broker repeats its own rule -- never while the
+account holds the stock long (`PRACTICE_SHORT_WHILE_LONG`), at placement and at
+the fill, so a long opened while the short rested cancels it rather than flip
+the position. Every row records what it does to the position when it is placed
+(`short_entry`, `position_side`, `effect`), and a cover -- a BUY placed against
+a short -- that would buy past flat when its print arrives is cancelled
+`PRACTICE_OVERCOVER` (ADR 048 gap 8), so a short is never turned into a long.
+
+Nova covers every short still open at 15:55 ET (12:55 on an early close) by the
+venue's clock, and closes the position that needs the most margin, shorts first,
+while equity is under the maintenance requirement -- where IBKR liquidates
+(`short_sale/closes.py`; AGENTS.md §3).
 
 **Brackets (#606).** A bracket's entry is charged like any `LMT` BUY: buying
 power at the entry limit when it is placed, and again at the entry's fill. Its
 two exits are SELLs of what the entry bought, so they need no buying power;
 they wait until the entry fills and then close as one-cancels-other, so at most
 one of them ever sells (fill rules: `architecture/practice-fills.md`,
-"Brackets"). A SELL entry is a short bracket and is refused
-`PRACTICE_NO_SHORTS`. As on Live, a bracket holds no in-flight commitment
+"Brackets"). A SELL entry is a short bracket (ADR 048): its entry is charged
+the short's margin, and its exits are BUYs that cover what it sold; its target
+may be left out, leaving the entry and its buy stop. As on Live, a bracket holds no in-flight commitment
 (`execution/inflight.py` commits a plain place's shares only); the ticket's
 Flatten counts a bracket's working exits once instead (`execution/flatten_intent.py`).
 Every leg carries the entry's TIF: an entry that expires unfilled takes its
@@ -119,11 +140,14 @@ Named so nobody reads a practice P&L as a live one:
   coin flip, not liquidity; Nova fills whole. Order size is not checked against
   displayed depth, so a 50k-share bot fill on a thin book is unrealistic and
   looks it.
-- **No borrow, no short-locate cost, no margin interest, no overnight call.**
-  The 4x intraday multiplier applies at any hour -- Reg T's 2x on positions
-  held past the close is not charged -- and there is no end-of-day
-  liquidation. The rule's 90-day freeze for unmet intraday deficits is not
-  modelled either: buying power is enforced up front, so no deficit arises.
+- **No short-locate cost, no borrow fee, no margin interest, no overnight call.**
+  IBKR's borrow is read (live, or as recorded for a past-day replay) and
+  checked, but a practice short pays no borrow fee or interest. The 4x
+  intraday multiplier applies at any hour -- Reg T's 2x on positions held past
+  the close is not charged -- and longs see no end-of-day liquidation (shorts
+  are covered at 15:55). The rule's 90-day freeze for unmet intraday deficits
+  is not modelled either: margin is enforced up front, and a position the
+  margin no longer carries is closed (the margin call above).
 - **No exchange or clearing pass-throughs beyond SEC §31, FINRA TAF and FINRA
   CAT.** IBKR Fixed folds the rest into the per-share rate; the three
   regulatory fees are the ones IBKR passes through on a Fixed account.

@@ -282,15 +282,19 @@ def test_place_rejects_fractional_qty_preflight(monkeypatch):
 
 
 def _short_sell_cmd(qty: float = 10.0) -> ExecutionCommand:
+    """ADR 048: a short entry is a limit order, sent as a bracket with its buy stop."""
     return ExecutionCommand(
-        operation="place",
+        operation="bracket",
         idempotency_key="short-1",
         source="manual",
         symbol="AAPL",
         side="SELL",
         qty=qty,
-        order_type="LMT",          # ADR 048: a short entry is a limit order
+        order_type="LMT",
         limit_price=20.0,
+        entry_price=20.0,
+        stop_price=20.5,
+        target_price=19.0,
         short_entry=True,
     )
 
@@ -320,7 +324,7 @@ def test_short_entry_disabled_without_env(monkeypatch):
     assert reason == "SHORT_DISABLED"
 
 
-def test_short_entry_allowed_when_enabled_and_shortable(monkeypatch):
+def test_short_entry_allowed_when_enabled_and_shortable(monkeypatch, short_market_open):
     import ibkr.safety as safety_mod
     import ibkr.shortability as short_mod
     import time

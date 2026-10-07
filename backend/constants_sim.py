@@ -25,9 +25,10 @@ SIM_NO_TRADES_REASON = (
 )
 SIM_ORDER_TYPE_CODE = "SIM_ORDER_TYPE"
 
-# Practice ledger -- not real buying power. In-memory only (process start).
-SIM_STARTING_CASH = 100_000.0
-SIM_STARTING_BUYING_POWER = 200_000.0
+# Practice ledger -- not real buying power. In-memory only (process start). $5,000: the operator's
+# IBKR margin account (ADR 048 decision 4); Paper starts at the same figure.
+SIM_STARTING_CASH = 5_000.0
+SIM_STARTING_BUYING_POWER = 20_000.0
 
 SIM_SPEND_STATUS = "sim_armed"
 # Effective status when the ADR 018 arm latch is off. Must match the value

@@ -54,7 +54,7 @@ These rules CANNOT be violated under ANY circumstance:
 | 4 | **`.tmp/` is ephemeral** | Never treat `.tmp/` files as a source of truth. |
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
 | 6 | **Self-Annealing** | Any error -> Analyze -> Patch -> Test -> Update SOP/rules -> Record the cause, fix, and verification in the PR or issue. If the bug cannot be fixed this session (too big, wrong task, needs an ADR), **MUST** open or update a GitHub Issue labeled `deferred` instead of a band-aid (`deferred-log.mdc`). |
-| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway connection default is **live** (port 4001). The IBKR paper Gateway (4002) is **legacy**: by hand only (`POST /api/ibkr/gateway-mode {"mode":"paper"}`), never an automatic fallback -- `IBKR_PAPER_GATEWAY_FALLBACK` is off by default because a paper login beside a live session is read-only and carries no tape (ADR 020). Spending still requires `IBKR_ENABLED=true` and `IBKR_ORDERS_ENABLED=true`; live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. **Short entry (ADR 009, ADR 048):** every SELL is risk-reducing unless an explicit `short_entry` opt-in on the execution command passes the one short check (`backend/short_sale/`): a limit price, never while the account holds the stock long, a margin account with $2,000 of equity, IBKR's tick-236 borrow from the cache covering the order plus the short held and in flight, and margin with a 25% liquidation cushion. Live also needs `IBKR_SHORT_ENABLED=true`, which only the operator sets, last, after the Live short proof (ADR 048); Paper and Sim refuse every opening short (`PRACTICE_NO_SHORTS`) until ADR 048's step 2. A BUY that covers a short is a close: never locked by the day lock, never held to buying power, never past flat. Never infer shorts from side + flat position. `auto_live` remains NO-GO, and a bot never trades Live. |
+| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway connection default is **live** (port 4001). The IBKR paper Gateway (4002) is **legacy**: by hand only (`POST /api/ibkr/gateway-mode {"mode":"paper"}`), never an automatic fallback -- `IBKR_PAPER_GATEWAY_FALLBACK` is off by default because a paper login beside a live session is read-only and carries no tape (ADR 020). Spending still requires `IBKR_ENABLED=true` and `IBKR_ORDERS_ENABLED=true`; live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. **Short entry (ADR 009, ADR 048):** every SELL is risk-reducing unless an explicit `short_entry` opt-in on the execution command passes the one short check (`backend/short_sale/`), on every venue: a limit price with a buy stop above it, never while the account holds the stock long, a margin account with $2,000 of equity, 09:35 to 15:50 ET by the venue's clock, no halt, IBKR's tick-236 borrow covering the order plus the short held and in flight, SSR priced above the bid, and margin (IBKR's what-if, else the published rules) with a 25% liquidation cushion. Live also needs `IBKR_SHORT_ENABLED=true`, which only the operator sets, last, after the Live short proof (ADR 048); Paper and Sim need no Live key and short on their own ledger (ADR 048 step 2), where Nova covers every short at 15:55 ET. A BUY that covers a short is a close: never locked by the day lock, never held to buying power, never past flat. Never infer shorts from side + flat position. `auto_live` remains NO-GO, and a bot never trades Live. |
 | 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a maintenance log entry, THEN write the code. |
 
 ---
@@ -3838,9 +3838,11 @@ the day lock there, with no commission subtracted twice (QA W2);
 as a recorded print. Refusals: `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`,
 `SIM_NO_TRADES`, `SIM_NO_PRICE`, `SIM_ORDER_TYPE` (Sim),
 `PRACTICE_NO_LIVE_PRINT` (Paper: no fresh last and no recent tape print --
-never a guess), `PRACTICE_BUYING_POWER` (both), `PRACTICE_NO_SHORTS` (both:
-a SELL is only ever risk-reducing -- a SELL beyond the held quantity or any
-`short_entry` is refused "Nova does not support short entries yet") and
+never a guess), `PRACTICE_BUYING_POWER` (both: a buy's buying power, a short's
+margin), `PRACTICE_NO_SHORTS` (both: a short is never inferred -- a SELL beyond
+the held quantity without `short_entry` is refused "A SELL never sells past what
+you hold: a short goes out as a short entry, with its buy stop"),
+`PRACTICE_SHORT_WHILE_LONG` (both: a short entry never flips a long, ADR 048) and
 `PRACTICE_TIF_EXPIRED` (both: a `DAY` order expires at its session's close --
 20:00 ET on Paper, the replayed window's end on Sim -- as an `expired` ledger
 event with status `Expired`; `GTC` persists across days and restarts; the row
@@ -3898,8 +3900,9 @@ source `venue`, so no event type and no ledger schema changed. Cancelling one
 exit leaves the other; cancelling a leg the bracket already closed answers
 `{ok: true, verified_gone: true, closed_by: <code>}`. A bracket's shape is
 checked again at the broker (`BRACKET_GEOMETRY`, `QTY_INVALID`, then the TIF,
-admission, `PRACTICE_NO_SHORTS` -- a bracket that opens with a SELL is refused
--- and buying power at the entry's limit). The ticket's Flatten counts a
+admission, `PRACTICE_SHORT_WHILE_LONG` -- a bracket that opens with a SELL is a
+short bracket, from flat or adding to a short (ADR 048), whose target may be left
+out: two consecutive ids -- and buying power, or a short's margin, at the entry's limit). The ticket's Flatten counts a
 bracket's two exits once, at the larger open quantity. **Stated difference
 before 09:30 ET:** a practice stop triggers on any price-setting print, while
 IBKR holds a plain stop until the open; it stands until #604's question 2 is
@@ -4624,37 +4627,102 @@ Nothing here places, stages or cancels an order.
 ### Short selling (ADR 048, operator decisions 2026-10-01 to 2026-10-07; #778)
 
 "Short selling: Paper and Sim first, Live last" -- built in six steps under #778 (ADR 048 "The build"),
-each safe alone. This section says what is on master; ADR 048 is the whole design and ADR 049 the five
-short strategies, pre-registered.
+each safe alone. This section says what is on master (steps 1-2); ADR 048 is the whole design and ADR
+049 the five short strategies, pre-registered. Paper and Sim short; Live still refuses every short
+(`IBKR_SHORT_ENABLED` is the operator's, set last), and the ticket's Short waits on step 3.
 
-- **The one short check** (owner `short_sale/door.py`, run by `execution.validate.check_account_and_position`
-  under the execution lock for every place or bracket carrying `short_entry`). In order, the first failure
-  refuses with its rule, its numbers and its fix:
-  1. the Live key, `IBKR_SHORT_ENABLED` (`SHORT_DISABLED`, ADR 009);
-  2. a short entry is a SELL and a limit -- a place's `limit_price` on a `LMT`, a bracket's `entry_price`
-     (`SIDE_INVALID`, `SHORT_NEEDS_LIMIT`);
+- **The one short check** (owner `short_sale/`: the rules `check.py`, pure; the door `door.py`, run by
+  `execution.validate.check_account_and_position` under the execution lock for every place or bracket
+  carrying `short_entry`, on every venue). In order, the first failure refuses with its rule, its
+  numbers and its fix:
+  1. Live only: the Live key, `IBKR_SHORT_ENABLED` (`SHORT_DISABLED`, ADR 009). Paper and Sim need none;
+  2. a SELL and a limit -- a place's `limit_price` on a `LMT`, a bracket's `entry_price` (`SIDE_INVALID`,
+     `SHORT_NEEDS_LIMIT`) -- with a buy stop above it: a short is a bracket, a plain limit carries no stop
+     (`SHORT_NEEDS_STOP`, ADR 048 1.6). On Paper and Sim its target may be left out (a two-leg bracket:
+     the entry and its stop); a Live bracket still sends both exits;
   3. never while the account holds the stock long (`SHORT_WHILE_LONG`: Nova never flips);
   4. a margin account (`account_class: "margin"`, `SHORT_NOT_MARGIN`) with at least $2,000 of equity
      (`SHORT_EQUITY`); unreadable equity is `SHORT_MARGIN_UNKNOWN`;
-  5. borrow: the cached tick-236 read, fresh and `shortable_est`, covering this order plus the shares
+  5. the hours by the venue's clock (`short_sale/hours.py`; the playhead on Sim): new shorts from 09:35
+     ET until ten minutes before the close, 15:50, or 12:50 on an NYSE early close (`SHORT_HOURS`);
+  6. halts (`short_sale/halts.py`): not halted (`SHORT_HALTED`), not within 10 minutes of an up-halt's
+     resumption (`SHORT_HALT_COOLOFF`; a halt Nova cannot place is up), never unknown (`SHORT_HALT_UNKNOWN`);
+  7. borrow: the cached tick-236 read, fresh and `shortable_est`, covering this order plus the shares
      already short plus the short entries in flight (`SHORT_STALE_BORROW`, `SHORT_NOT_SHORTABLE`,
-     `SHORT_BORROW_TOO_SMALL`);
-  6. margin by the published rules (`short_sale/margin.py`, labelled "published rules"; constants
+     `SHORT_BORROW_TOO_SMALL`); a past-day replay reads the borrow recorded then
+     (`SHORT_NO_RECORDED_BORROW`);
+  8. SSR (`short_sale/ssr.py`): while SSR is on or unknown, the short's limit must be over the bid
+     (`SHORT_SSR_AT_BID`; no bid to price over, `SHORT_SSR_NO_BID`);
+  9. margin: IBKR's what-if for the stock, else the published rules (`short_sale/margin.py`; constants
      `constants_shorts.py`): a short's maintenance is $2.50 a share under $2.50, 100% of value to $5,
-     $5 a share to $16.67 and 30% above, a long's 25% of value. The account's maintenance now is IBKR's own
-     on Live (`NetLiquidation - ExcessLiquidity`) and the published rules over the ledger's marked
-     positions on a practice venue; shorts in flight elsewhere add theirs at their limits. `SHORT_MARGIN`
-     when the requirement does not fit at the entry, `SHORT_CUSHION` when IBKR would liquidate within a
-     25% move against the short (the liquidation price, where equity meets maintenance with every other
-     position held still, under `entry * 1.25`).
+     $5 a share to $16.67 and 30% above, a long's 25% of value. The account's maintenance now is the
+     account's own (`NetLiquidation - ExcessLiquidity`: IBKR's on Live, the ledger's on a practice
+     venue); shorts in flight elsewhere add theirs at their limits. `SHORT_MARGIN` when the requirement
+     does not fit at the entry, `SHORT_CUSHION` when IBKR would liquidate within a 25% move against the
+     short (the liquidation price, where equity meets maintenance with every other position held
+     still, under `entry * 1.25`).
+- **Nothing under the lock waits on IBKR** (`short_sale/prelock.py`, `facts.py`). Before the lock the door
+  gathers a short's facts -- the cached borrow, the kept what-if, SSR, the halt, the venue's quote and
+  clock -- from memory or small local files. A bot's short may wait `SHORT_WHATIF_BOT_WAIT_SEC` (1.5 s)
+  for IBKR's what-if; the ticket's short never waits (ADR 045's deadline): the what-if is asked in the
+  background and the order is judged by the answer kept for the stock, else the published rules. A Live
+  short while the key is off gathers nothing. A missing or stale borrow asks IBKR on a worker thread
+  (`request_refresh`) and the short is refused with the fix ("place the short again in a moment"); an open
+  Trader tab's ticker socket re-reads borrow every `IBKR_SHORTABILITY_REFRESH_SEC` (20 s), under the 60 s TTL.
+- **IBKR's what-if margin** (`ibkr/margin_whatif.py`, `short_sale/whatif.py`; ADR 048 decision 2). One
+  `whatIfOrderAsync` with a DAY limit -- never `placeOrder` -- and never for a stock the account holds
+  (IBKR would net it). An answer becomes the stock's **ratio** per side: IBKR's maintenance change over the
+  published rules' requirement for the same order (over 1 where IBKR charges a volatile name extra), read
+  as current for 60 s and kept 8 hours, in memory. Every practice margin figure scales that stock's
+  published maintenance by its ratio and names its source ("IBKR what-if" or "published rules"); a
+  past-day Sim replay uses the published rules. Before a Paper or Sim buy, the door asks in the background
+  for the next order.
+- **The practice account's margin** (`practice/margin.py`, `practice/ledger.py`). Buying power is (equity
+  - maintenance) x 4 at $2,000 of equity or more, else the cash; a long is held to buying power, a short to
+  its maintenance against the equity left over it (none under $2,000). The account summary adds IBKR's own
+  `MaintMarginReq` and `ExcessLiquidity`. A practice account starts at $5,000 (`PRACTICE_STARTING_CASH`,
+  so $20,000 of buying power), the operator's own account size; a reset with no amount returns to it.
+- **Shorts on Paper and Sim** (`practice/broker.py`, `practice/order_rules.py`). A short entry is a SELL
+  from flat or adding to a short; while the account holds the stock long it is refused
+  `PRACTICE_SHORT_WHILE_LONG`, at placement and again at the fill (a long opened since cancels it). A
+  short is never inferred: a SELL past the held quantity without `short_entry` stays `PRACTICE_NO_SHORTS`.
+  A short bracket's exits are BUYs that close what the entry opens; with no target it is two orders.
+  **SSR at the fill** (`short_sale/ssr_fill.py`): while SSR is on or unknown, a short entry fills only at a
+  price over the venue's bid at that moment -- at placement or on a print; otherwise it keeps resting (never
+  cancelled for SSR), and a bid Nova cannot see proves nothing. A cover is never held by SSR.
+- **SSR** (Reg SHO Rule 201): on once a trade reaches 90% of the prior close, for the rest of that day and
+  all of the next; `on`, `off` or `unknown`, and unknown counts as on. Today: the prior close is IBKR's tick
+  9, else its regular-hours daily close, else the leaderboard's; a trade reached the trigger when IBKR's day low (tick 7), the last
+  trade, a stored 1-minute low or the whole-day bar did; off only when the whole day's low is known (IBKR's
+  04:00-20:00 daily bar read at or after 09:30, and the day low since). Yesterday: on when its low reached
+  90% of the session before's regular-hours close. IBKR's two daily reads (`historical_service.
+  request_daily_bars`, `useRTH` both ways) are asked once a stock a day on a worker thread. A past-day
+  replay is on when its own prints reached the trigger, else unknown -- never off.
+- **Halts.** Live: `ibkr.halt_status.halted_now` (IBKR's tick 49, then the Nasdaq halt list), with the
+  resumption each remembers (`halt_status.last_resume`, `clear_since`; `nasdaq_halt_feed.last_resume`). A
+  halt's side is LULD's band when LULD held it (`luld.live.halt_side`), else the price's direction over the
+  5 minutes before it. A past-day replay reads that day's halt log (the leaderboard's `halt_events`) at
+  the playhead.
+- **Borrow, recorded** (`short_sale/borrow_log.py`). Every tick-236 read Nova makes is kept for good in
+  `<root>/borrow.sqlite3` -- `NOVA_BORROW_DIR`, else `F:\Nova\borrow` while F: is mounted, else
+  `<cache>/borrow` -- `PRAGMA user_version = 1` (an unknown version refuses), one table `reads (symbol, ts,
+  shares, state, source)`; nothing prunes it. Writes are enqueued and one thread writes them;
+  `NOVA_BORROW_LOG=0` turns it off. A past-day Sim replay shorts only on the newest read at or before its
+  playhead, and one older than the 60 s TTL there is no read.
+- **The day cover and the margin call** (`short_sale/closes.py`, every second from `short_sale/runner.py`;
+  `NOVA_SHORT_RUNNER=0` off), on each practice venue this process has loaded, by its own clock:
+  - at 15:55 ET (12:55 on an early close), and whenever the clock stands outside the day's hours, Nova
+    cancels a short's working orders and covers it at market;
+  - when the account's equity falls under its maintenance, Nova closes the position that needs the most
+    -- shorts first -- at market, one a pass.
 
-  Paper and Sim still refuse every opening short `PRACTICE_NO_SHORTS` (`execution/practice_checks.py`)
-  before this check; ADR 048's step 2 teaches them.
-- **Borrow never under the lock.** The door reads `ibkr.shortability.for_order(symbol)` -- the cached read,
-  never IBKR -- before it takes its lock; a missing or stale read asks IBKR on a worker thread
-  (`request_refresh`, `IBKR_SHORTABILITY_REFRESH_WORKERS`) and the short is refused with the fix ("place the
-  short again in a moment"). An open Trader tab's ticker socket re-reads a known state every
-  `IBKR_SHORTABILITY_REFRESH_SEC` (20 s), under the 60 s TTL, and an unknown one every 30 s.
+  Each close is an ordinary order through the execution door: source `flatten` (protective), origin
+  `day_cover` / `margin_call` (`EXECUTION_ORIGINS`), sent to the venue that holds the position whatever
+  the desk shows: `ExecutionCommand.target_venue` now admits the kill switch's cancels and these closes'
+  `cancel_working` cancels and `flatten` places -- to Paper or Sim only -- and nothing else
+  (`execution/venue_door.py`). Each writes a `day_cover` / `margin_call` line on the bot audit stream; a
+  close the venue refuses is tried again `SHORT_CLOSE_RETRY_SEC` (15 s) later, not on every pass. Live's
+  15:55 cover and its alarm are step 6.
 - **Shorts in flight.** A short entry, a place or a bracket, is committed in `execution.inflight` as side
   `SHORT` with its limit (never as `SELL`: it spends no long, so a closing sell keeps its shares) until its
   order resolves; the borrow and margin checks count it.
@@ -4662,13 +4730,29 @@ short strategies, pre-registered.
   is held to the short less the covers in flight (`OVERCOVER`) and never to buying power, and the all-stop's
   day lock never refuses it (`bot.buy_lock.buy_refusal(..., covers=True)`). A position Nova cannot read is no
   cover: the BUY then meets buying power and the position check, as before.
-- **Order rows say what they are.** Working and closed order rows add `short_entry: boolean | null` --
-  Nova's record that the row is the SELL it sent as a short entry: a practice row stamps it when placed, a
-  Live row takes it from the execution row that sent it (`execution/sent_by.py`; a bracket's BUY exits read
-  `false`); absent or `null` when not recorded. Practice rows also add `position_side: "long" | "short"` and
-  `effect: "opens" | "closes"`, what the order does to the position as placed (`practice.order_rules.side_fields`;
-  a bracket's exits close what their entry opens). **Fill now** refuses a row with `short_entry: true`
-  before it cancels anything: it would re-send the short without its buy stop.
+- **What an order does** (`execution/order_side.py`; the Side column). Every order row, working and closed,
+  on every venue, carries `position_side: "long" | "short" | null` and `effect: "opens" | "closes" | null`,
+  beside `short_entry: boolean | null` (Nova's record that the row is the SELL it sent as a short entry). A
+  practice row stamps them when placed (`practice.order_rules.side_fields`; a bracket's exits close what
+  their entry opens). A Live row Nova sent reads its execution row: `short_entry`, a bracket's legs, and the
+  new payload field `position_at_send` (the signed position the door saw as it sent; `null` when it could
+  not read it) (`execution/sent_by.py`). A Live working order placed outside Nova reads the position now; a
+  closed one Nova has no record of reads `null`. **Fill now** refuses a row with `short_entry: true` before
+  it cancels anything: it would re-send the short without its buy stop.
+- **Positions say their side and where IBKR would liquidate them** (`short_sale/positions.py`).
+  `GET /api/ibkr/positions` rows add `position_side`, `liquidation_price: number | null` and
+  `liquidation_source: string | null`: the price where the account's equity -- this position marked
+  there, every other position held still -- meets the maintenance requirement (Paper and Sim: the ledger's,
+  by the what-if ratio; Live: IBKR's equity and maintenance). `null` when the account cannot be read or the
+  position can never be liquidated by its own price alone (a long the account pays for in full).
+- **The check, read-only** (`short_sale/routes.py`). `GET /api/short-check/{symbol}?qty=&price=&stop=&target=`
+  answers `{schema_version: 1, symbol, venue, generated_at, now, replay, ok, first: {text, code} | null,
+  rules: [{id, label, ok, state: "ok" | "bad" | "unknown" | "info", text, code, value, numbers}], facts:
+  {bid, ask, last, borrow: {shares, state, age_sec, stale, source: "live" | "recorded"} | null, whatif:
+  {...} | null, whatif_error, ssr: {state, effective_on, text, since, trigger, prior_close, low}, halt:
+  {state, text, resumed_at, until, side, source}, hours: {date, half_day, open, last_short, cover, close} |
+  null}}` -- the verdict the door would give, for the desk venue. Asking places nothing; it may wait up to
+  `SHORT_WHATIF_TIMEOUT_SEC` (2 s) for IBKR's what-if, as no order waits on it.
 - **Never past flat at the fill.** The practice broker cancels a cover that would buy past the short when its
   print arrives (`PRACTICE_OVERCOVER`: "A cover never buys past flat: Nova never turns a short into a long"),
   as it cancels a SELL past the long (`PRACTICE_NO_SHORTS`, QA R42).
@@ -4678,6 +4762,10 @@ short strategies, pre-registered.
   nothing and is cancelled with it. Each venue's sweep adds `kept: [{order_id, symbol, side, qty, order_type,
   stop_price, why}]` and the trip's answer `kept_order_ids`; positions Nova cannot read keep no stop, and the
   venue's `note` says so. The header's red KILL, which flattens, still cancels everything first.
+- **On the desk.** The Orders tables add a **Side** column (LONG / SHORT, Buy / Sell, opens / closes; "?"
+  when not known, with why), the Positions table **Side** and **Liq. price**; Sent by names "Day cover" and
+  "Margin call"; a short's Flatten reads "Flatten 416 (cover)". The ticket's Short stays locked on Paper and
+  Sim until its Buy stop field lands (step 3), and on Live while `IBKR_SHORT_ENABLED` is off.
 
 ### Execution command (ADR 007 — sole broker mutation entry)
 
@@ -4706,7 +4794,7 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
 }
 ```
 
-**Who sent it** (operator report 2026-10-01: "Could you see who sold here? I don't remember selling it." -- the Paper bot trip sold 100 ACN, and the row read like any other market sell, because the ticket's Flatten, the header's KILL, both loss breakers and the bot's own last-resort exit all send source `flatten`). `origin` names which part of Nova sent an order, one of `constants_nova_os.EXECUTION_ORIGINS`: `ticket_flatten` (the ticket's, quick bar's or a hotkey's Flatten), `emergency_kill` (`POST /api/ibkr/flatten-account`, the header's KILL), `bot_trip` / `all_stop` (the loss breakers' flatten), `bot` (Nova's bot: entry, exits, last-resort close), `auto_entry`, `approve` (Who trades the stock) and `bot_api` (the localhost bot API); `null` for the operator's own ticket. A label, never a permission: no gate reads it. The execution record's payload keeps it, a practice order row (Paper / Sim, working and closed, every bracket leg) carries it as `order_origin` beside `order_source`, and a Live row -- working (`GET /api/ibkr/orders`) or closed (`execution/closed_blotter.py`) -- takes both from today's execution row for this desk that sent it (`execution/sent_by.py`, #677: by permId, else order id, the symbols agreeing; a bracket's exit legs share their entry's sender, so a closed leg reads Nova's, not "Outside Nova"); a Live row no execution row claims carries neither. A row placed before 2026-10-01 has `order_origin: null`: a `flatten` there could be any of the five, and the desk says so rather than guessing. The Working and Closed order tables add a **Sent by** column (`frontend/src/ibkr/orderSentBy.ts`: You, You · Flatten, KILL, Bot trip, All-stop, Bot, Auto-entry, Approve, Bot API, Outside Nova; a breaker's or KILL's in amber), its reason on hover; a layout saved before it gets the column where the defaults put it (after Status), not off the far edge.
+**Who sent it** (operator report 2026-10-01: "Could you see who sold here? I don't remember selling it." -- the Paper bot trip sold 100 ACN, and the row read like any other market sell, because the ticket's Flatten, the header's KILL, both loss breakers and the bot's own last-resort exit all send source `flatten`). `origin` names which part of Nova sent an order, one of `constants_nova_os.EXECUTION_ORIGINS`: `ticket_flatten` (the ticket's, quick bar's or a hotkey's Flatten), `emergency_kill` (`POST /api/ibkr/flatten-account`, the header's KILL), `bot_trip` / `all_stop` (the loss breakers' flatten), `bot` (Nova's bot: entry, exits, last-resort close), `auto_entry`, `approve` (Who trades the stock), `bot_api` (the localhost bot API), `nova_exit` (Nova takes the exit) and `day_cover` / `margin_call` (ADR 048: Nova's own closes on Paper and Sim); `null` for the operator's own ticket. A label, never a permission -- with one exception: a `cancel_working` cancel or `flatten` place stamped `day_cover` / `margin_call` may name the venue that holds the position (`target_venue`, "Short selling" above). Only Nova's own code sets an origin; no HTTP caller can. The execution record's payload keeps it, a practice order row (Paper / Sim, working and closed, every bracket leg) carries it as `order_origin` beside `order_source`, and a Live row -- working (`GET /api/ibkr/orders`) or closed (`execution/closed_blotter.py`) -- takes both from today's execution row for this desk that sent it (`execution/sent_by.py`, #677: by permId, else order id, the symbols agreeing; a bracket's exit legs share their entry's sender, so a closed leg reads Nova's, not "Outside Nova"); a Live row no execution row claims carries neither. A row placed before 2026-10-01 has `order_origin: null`: a `flatten` there could be any of the five, and the desk says so rather than guessing. The Working and Closed order tables add a **Sent by** column (`frontend/src/ibkr/orderSentBy.ts`: You, You · Flatten, KILL, Bot trip, All-stop, Bot, Auto-entry, Approve, Bot API, Nova exit, Day cover, Margin call, Outside Nova; a breaker's, KILL's, the day cover's or a margin call's in amber), its reason on hover; a layout saved before it gets the column where the defaults put it (after Status), not off the far edge.
 
 `STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. `tif` defaults to `DAY` (`IBKR_ORDER_TIF_DEFAULT`), so a caller that omits it is unchanged; anything outside `DAY | GTC` is refused `TIF_INVALID`. `place` and every `bracket` leg carry `tif` and `outside_rth`; `replace` keeps the working order's own TIF. **Market orders need regular hours** (operator decision, 2026-09-21): a `MKT` place from a non-protective source is refused `MKT_OUTSIDE_RTH` ("use a limit at the ask") whenever the venue's clock is outside weekday 09:30-16:00 ET, NYSE holidays excluded -- no US exchange takes an unpriced order then and IBKR would hold it until the next open (Warning 399) while ignoring `outsideRth` on it (Warning 2109). The clock is the venue's (the replay playhead on Sim). Owner `execution/session_gate.py`; the practice broker repeats the check (`practice/order_rules.py`). Protective sources are exempt (flatten plans an extended-hours limit); `STP` orders are unchanged.
 
@@ -4967,6 +5055,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-07 | Short selling, step 2 of 6: Paper and Sim short (ADR 048; #778). The one short check runs on every venue -- a buy stop on every short (a short is a bracket; on Paper and Sim its target may be left out), 09:35-15:50 ET by the venue's clock (12:50 on an early close), no halt and no short within 10 minutes of an up-halt's resumption, borrow (a past-day Sim replay reads the borrow Nova recorded then), SSR priced above the bid (unknown counts as on), and margin from IBKR's what-if for the stock (never placed; the published rules when IBKR has not answered) with the 25% cushion -- with no Live key on Paper and Sim. Nothing under the execution lock waits on IBKR: the facts are gathered before it, and only a bot's short waits a moment for the what-if. The practice account starts at $5,000 (the operator's account size, was $100,000), its margin follows IBKR's ratio per stock and its summary adds `MaintMarginReq` / `ExcessLiquidity`; a practice short fills only above the bid under SSR; Nova covers every short at 15:55 and closes what the margin no longer carries, through the door, on the venue that holds it (`target_venue`, origins `day_cover` / `margin_call`). Every order row says its side and effect, every position its side and liquidation price, and `GET /api/short-check/{symbol}` answers every rule read-only. Every tick-236 read is recorded (`borrow.sqlite3`). Live still refuses every short, and the ticket's Short stays locked until step 3. §3 and Invariant 7 amended. | User Directive + Claude Code |
 | 2026-10-07 | Short selling, step 1 of 6 (ADR 048, ADR 049; #778; the operator's design, approved 2026-10-07: "Paper and Sim first, Live last"). The design is recorded whole -- one short check on every venue, margin from IBKR's what-if with the published rules as the fallback, a 25% liquidation cushion, a buy stop on every short, no flips, halts, 09:35-15:50 and a 15:55 day cover, SSR above the bid, Paper and Sim shorting like IBKR, Entry · Exit, one bot for both sides, and Live last behind the operator's Live short proof and their own `IBKR_SHORT_ENABLED` -- and the five short strategies are pre-registered before any code reads a bar. This step closes the eight gaps the design found on master, so nothing new can short yet: a short entry is now checked against margin and the cushion (published rules), refused while the account is long, and its borrow is read from the cache before the execution lock (the door had asked IBKR for up to 10 s under it); a short entry is held in flight (`SHORT`); a cover is never locked by the day lock or held to buying power; Freeze all orders keeps the stops that protect a position; Fill now refuses a short entry instead of re-sending it as a plain sell; Paper and Sim cancel a cover that would fill past flat. Invariant 7 and §3 amended. | User Directive + Claude Code |
 | 2026-10-06 | The PC's power button is named, and a power-off is said as one (#14). The desk's 06:45 ET 2026-10-05 and 07:16 ET 2026-10-06 shutdowns were System 1074 from `winlogon.exe` on behalf of SYSTEM, reason `0x500ff`, Shutdown Type `power off` -- the power button -- and `premarket_verify.py` / `relogin_reason.py` said "This PC was restarted from the Start menu": every `winlogon.exe` was the Start menu, and every restart was "restarted". That signature is now `power_button`; `winlogon.exe` on behalf of a user stays `start_menu`, and on behalf of SYSTEM otherwise names winlogon (a restart with the same reason, 2026-09-12, cannot be the power button). The restart object carries `reason_code` and `shutdown_type`, and the text says "powered off" or "restarted" by it. Found alongside: the `wevtutil` query took every event 12, and an ASUS power tool wrote 818 in 8 days, so the 400-event cap held about 4 days while the report said it had read 8; each id now asks its own provider (30 days: 21 restarts, was 6). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The flat top counts its touches (ADR 031 amendment; operator, with a sketch: "Make it something special like this ... when it starts forming. I doubt real life is going to be perfect as this, so we may need a drift or a ratio to still consider flat top"). The flat top read no taps of the level at all: it armed any 2-6 candles closing within 2% under the high of day, a tie of the high started it over on a new row, and a cent over the high reset the base. Now the level is the high of day, and a touch is a high within 0.5% or a cent under it (a candle a little over the earlier touches drifts the level up and keeps the row). The base runs from the first touch, needs a retest, is drawn forming from the second touch, arms at the third, and may run 20 candles. The hold reads the zone as the level. The research's P2 stays one setting away (and a saved template keeps it); the flat top's default revision moves to 2. The desk draws it as the sketch on the 1-minute and 5-minute charts: the violet level, a ring per touch with the count, the base boxed, the break and the hold candle marked. No flat-bottom short (Invariant 7). The catalogue's tables moved to `setup_templates/params.py`. §3 amended. | User Directive + Claude Opus 5.5 |

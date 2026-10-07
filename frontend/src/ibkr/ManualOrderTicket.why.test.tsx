@@ -14,6 +14,7 @@ import { TopOfBookProvider, useTopOfBook, type TopOfBook } from '../hotkeys/TopO
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import type { IbkrAccountSummary } from './types';
+import { PRACTICE_TICKET_SHORT_LOCKED } from '../constantGroups/practice';
 
 const placeIbkrOrder = vi.fn();
 const confirmed = vi.hoisted(() => ({ venue: 'paper' as const, generation: 'paper-test' }));
@@ -181,7 +182,7 @@ describe('ManualOrderFields: a control\'s own block answers before the ticket lo
           outsideRth={false}
           disabled
           why={WHY_GATEWAY_NOT_CONNECTED}
-          shortDisabledReason="Nova does not support short entries yet"
+          shortDisabledReason={PRACTICE_TICKET_SHORT_LOCKED}
           marketDisabledReason="Market orders need regular hours"
           onTicketSideChange={() => undefined}
           onOrderTypeChange={() => undefined}
@@ -195,7 +196,7 @@ describe('ManualOrderFields: a control\'s own block answers before the ticket lo
     });
     const why = (testId: string) =>
       (container.querySelector(`[data-testid="${testId}"]`) as HTMLElement).dataset.why;
-    expect(why('manual-order-side-short')).toBe('Nova does not support short entries yet');
+    expect(why('manual-order-side-short')).toBe(PRACTICE_TICKET_SHORT_LOCKED);
     expect(why('manual-order-type-mkt')).toBe('Market orders need regular hours');
     expect(why('manual-order-side-buy')).toBe(WHY_GATEWAY_NOT_CONNECTED);
     expect(why('manual-order-type-lmt')).toBe(WHY_GATEWAY_NOT_CONNECTED);

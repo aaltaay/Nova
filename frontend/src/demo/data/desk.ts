@@ -96,9 +96,11 @@ export function ibkrAccount(venue: Venue) {
 }
 
 export function ibkrPositions(venue: Venue) {
+  // ADR 048: a position says its side and where IBKR would liquidate it -- never, for a long paid in full.
   return practiceAccount(venue).positions.map((p) => ({
     symbol: p.symbol, qty: p.qty, market_price: p.mark, market_value: +(p.qty * p.mark).toFixed(2),
     avg_cost: p.avg_cost, commission: 2.5, unrealized_pnl: p.unrealized, realized_pnl: 0, venue,
+    position_side: p.qty < 0 ? 'short' : 'long', liquidation_price: null, liquidation_source: null,
   }));
 }
 
@@ -109,7 +111,9 @@ function order(id: number, symbol: string, side: string, qty: number, filled: nu
     filled_qty: filled, remaining_qty: qty - filled, order_type: type, limit_price: limit, stop_price: stop,
     avg_fill_price: avg, fill_estimated: true, fill_basis: 'quote', outside_rth: false, status, tif: 'DAY',
     submitted_at: iso(at), updated_at: iso(at + 900), filled_at: status === 'Filled' ? iso(at + 900) : null,
-    commission: status === 'Filled' ? 1.0 : null, ...extra,
+    commission: status === 'Filled' ? 1.0 : null,
+    // ADR 048: what the order does to the position, as a practice row stamps it (the demo's trades are longs).
+    short_entry: false, position_side: 'long', effect: side === 'BUY' ? 'opens' : 'closes', ...extra,
   };
 }
 

@@ -260,7 +260,7 @@ class TestProtectiveLegDefaults:
         assert receipt.reason_code == "BRACKET_GEOMETRY"
         assert brackets == []
 
-    def test_short_bracket_geometry_is_mirrored(self, monkeypatch):
+    def test_short_bracket_geometry_is_mirrored(self, monkeypatch, short_market_open):
         _arm_paper(monkeypatch)
         brackets = _spy_bracket(monkeypatch)
         monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)

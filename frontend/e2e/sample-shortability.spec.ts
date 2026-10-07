@@ -2,13 +2,13 @@
  * Phase K -- sample Stock View Short side (fixtures only).
  * Does not place broker orders.
  *
- * The sample desk is a Paper desk, and both practice venues refuse every short
- * entry (`PRACTICE_NO_SHORTS`, AGENTS.md section 3): the Short segment is shown
- * for the margin account but locked, with Nova's reason rather than the
- * symbol's (ibkr/shortDisabledReason.ts, QA V13).
+ * The sample desk is a Paper desk. Paper takes shorts as a bracket with a buy stop
+ * (ADR 048), but the ticket's Short mode and its Buy stop are not built yet: the
+ * Short segment is shown for the margin account but locked, with Nova's reason
+ * rather than the symbol's (ibkr/shortDisabledReason.ts, QA V13).
  */
 import { expect, test } from '@playwright/test';
-import { PRACTICE_NO_SHORTS_REASON } from '../src/constantGroups/practice';
+import { PRACTICE_TICKET_SHORT_LOCKED } from '../src/constantGroups/practice';
 
 const ARTIFACTS = '/opt/cursor/artifacts';
 
@@ -24,9 +24,9 @@ test.describe('sample shortability (Phase K)', () => {
     await expect(shortBtn).toBeVisible();
     await expect(shortBtn).toBeDisabled();
     // A locked control says why (ux/whyTip.ts), and the ticket prints it too.
-    await expect(shortBtn).toHaveAttribute('data-why', PRACTICE_NO_SHORTS_REASON);
+    await expect(shortBtn).toHaveAttribute('data-why', PRACTICE_TICKET_SHORT_LOCKED);
     await expect(page.getByTestId('manual-order-short-reason')).toHaveText(
-      PRACTICE_NO_SHORTS_REASON,
+      PRACTICE_TICKET_SHORT_LOCKED,
     );
 
     const ticket = page.locator('form.manual-order-ticket').first();

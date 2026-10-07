@@ -149,6 +149,7 @@ Six pull requests under #778. Each is safe on its own: before step 2 nothing new
 - The short grade pillar "ran 30%+ today" will usually fail on a day-2 SSR name (ADR 049).
 - What "no wrong refusal or wrong fill" needs from the operator on each Paper day of the Live short proof.
 - Notes to confirm against the live margin account: no pattern-day-trader limit, and no borrow fees on day-only shorts.
+- Early closes (step 2): new shorts stop at 12:50 and Nova covers at 12:55 on an NYSE 13:00 close, ten and five minutes before it, by the same rule as 15:50 / 15:55.
 
 ## Related
 

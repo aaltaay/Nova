@@ -182,6 +182,12 @@ export interface IbkrPosition {
   commission?: number | null;
   unrealized_pnl: number | null;
   realized_pnl: number | null;
+  /** ADR 048: long (shares you own) or short (borrowed). Absent from an older backend. */
+  position_side?: 'long' | 'short' | null;
+  /** ADR 048: where IBKR would liquidate this position; null when unknown or never. */
+  liquidation_price?: number | null;
+  /** Where the liquidation price's margin came from: "IBKR what-if" or "published rules". */
+  liquidation_source?: string | null;
 }
 
 export type FillAuditLevel = 'ok' | 'warn' | 'danger';

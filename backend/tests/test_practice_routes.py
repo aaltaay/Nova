@@ -1,6 +1,8 @@
 """GET /api/practice/account and POST /api/practice/reset answer the ADR 020 contract."""
 from __future__ import annotations
 
+from constants_practice import PRACTICE_STARTING_CASH as START  # ADR 048: the operator's $5,000
+
 import os
 
 import pytest
@@ -54,8 +56,8 @@ def test_account_answers_the_contract_for_both_venues(client) -> None:
     assert paper.status_code == 200
     body = paper.json()
     assert set(body) == CONTRACT
-    assert (body["venue"], body["account_id"], body["starting_cash"]) == ("paper", "NOVA-PAPER", 100_000)
-    assert body["cash"] == 100_000 and body["buying_power"] == 400_000 and body["positions"] == []
+    assert (body["venue"], body["account_id"], body["starting_cash"]) == ("paper", "NOVA-PAPER", START)
+    assert body["cash"] == START and body["buying_power"] == START * 4 and body["positions"] == []
 
 
 def test_an_unknown_venue_is_a_400_and_a_missing_one_a_422(client) -> None:
@@ -72,8 +74,8 @@ def test_reset_paper_returns_the_new_account_and_archives_the_old_ledger(client)
     assert second.status_code == 200
     archived = second.json()["archived"]
     assert archived and os.path.basename(archived).startswith("practice-paper-") and os.path.exists(archived)
-    assert second.json()["starting_cash"] == 100_000
-    assert client.get("/api/practice/account", params={"venue": "paper"}).json()["cash"] == 100_000
+    assert second.json()["starting_cash"] == START
+    assert client.get("/api/practice/account", params={"venue": "paper"}).json()["cash"] == START
 
 
 def test_reset_sim_starts_over_without_an_archive(client) -> None:

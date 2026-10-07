@@ -7,6 +7,7 @@ import { ORDER_TABLE_DATA_SORT_KEYS } from '../constants';
 import { formatOrderStatus, orderFilledIso, orderSubmittedIso } from './orderDisplay';
 import { fillLatencyFaceMs } from './orderFillLatency';
 import { orderSentBy } from './orderSentBy';
+import { orderSideSortKey } from './orderSide';
 import type { IbkrOrder } from './types';
 
 export type OrderSortDir = 'asc' | 'desc';
@@ -158,6 +159,10 @@ export function compareOrderField(
       av = sentByKey(a);
       bv = sentByKey(b);
       break;
+    case 'side':
+      av = orderSideSortKey(a);
+      bv = orderSideSortKey(b);
+      break;
     default:
       return 0;
   }
@@ -177,7 +182,7 @@ export function compareOrderField(
  * (Working first, Market first, regular hours first). Every other column is
  * a number or a time, and its first click is highest / newest first -- the
  * rule every table on the desk follows (`table_sort/`). */
-const ASC_FIRST_KEYS: ReadonlySet<OrderSortKey> = new Set<OrderSortKey>(['symbol', 'status', 'type', 'session', 'sent_by']);
+const ASC_FIRST_KEYS: ReadonlySet<OrderSortKey> = new Set<OrderSortKey>(['symbol', 'status', 'type', 'session', 'sent_by', 'side']);
 
 /**
  * Click: set/cycle primary sort (first direction → flipped → off).

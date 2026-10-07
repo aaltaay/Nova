@@ -10,6 +10,8 @@ Re-selecting the same window (the download folding new ranges in) keeps it.
 """
 from __future__ import annotations
 
+from constants_practice import PRACTICE_STARTING_CASH as START  # ADR 048: the operator's $5,000
+
 import json
 from datetime import datetime
 
@@ -18,7 +20,7 @@ from sim import history_playback as playback, session_clock as clock
 from tests.test_sim_practice import DAY, TAPE, historical, isolated  # noqa: F401 -- autouse fixture
 
 OTHER_DAY = "2026-09-17"
-START_CASH = 100_000.0
+START_CASH = START
 KEY = ["historical", "IMCC", DAY, "04:00", "09:30"]
 
 

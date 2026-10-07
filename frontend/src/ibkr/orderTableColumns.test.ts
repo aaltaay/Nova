@@ -17,6 +17,7 @@ describe('orderTableColumns', () => {
     expect(DEFAULT_WORKING_ORDER_COLUMNS.slice(0, 3)).not.toContain('time');
     expect(DEFAULT_WORKING_ORDER_COLUMNS).toEqual([
       'symbol',
+      'side',
       'qty',
       'status',
       'sent_by',
@@ -40,6 +41,7 @@ describe('orderTableColumns', () => {
     expect(DEFAULT_CLOSED_ORDER_COLUMNS.slice(0, 3)).not.toContain('filled_at');
     expect(DEFAULT_CLOSED_ORDER_COLUMNS).toEqual([
       'symbol',
+      'side',
       'qty',
       'status',
       'sent_by',
@@ -65,7 +67,8 @@ describe('orderTableColumns', () => {
     const saved = ['symbol', 'qty', 'status', 'type', 'filled', 'avg_fill', 'limit', 'commission', 'latency',
       'time', 'filled_at', 'order_id'];
     const next = normalizeColumnOrder(saved, DEFAULT_CLOSED_ORDER_COLUMNS);
-    expect(next.slice(0, 5)).toEqual(['symbol', 'qty', 'status', 'sent_by', 'type']);
+    // Side (ADR 048) lands after Symbol, Sent by after Status: where the defaults put them.
+    expect(next.slice(0, 6)).toEqual(['symbol', 'side', 'qty', 'status', 'sent_by', 'type']);
     expect(next.at(-1)).toBe('order_id');
     const moved = normalizeColumnOrder(['order_id', 'status', 'symbol'], DEFAULT_CLOSED_ORDER_COLUMNS);
     expect(moved.slice(0, 3)).toEqual(['order_id', 'status', 'sent_by']);
@@ -76,7 +79,8 @@ describe('orderTableColumns', () => {
     const saved = ['symbol', 'qty', 'bogus', 'symbol', 'status'];
     const next = normalizeColumnOrder(saved, DEFAULT_WORKING_ORDER_COLUMNS);
     expect(next[0]).toBe('symbol');
-    expect(next[1]).toBe('qty');
+    expect(next[1]).toBe('side');
+    expect(next[2]).toBe('qty');
     expect(next).toContain('order_id');
     expect(next).not.toContain('bogus');
     expect(new Set(next).size).toBe(next.length);

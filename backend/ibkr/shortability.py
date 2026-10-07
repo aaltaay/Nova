@@ -102,6 +102,10 @@ def fetch_shortability(symbol: str) -> dict[str, Any]:
     raw = _listing_flags.fetch_listing_flags_sync(symbol)
     snap = enrich_ibkr_listing(raw, fetched_at=time.time())
     _last[(symbol or "").strip().upper()] = snap
+    if raw.get("connected") and not raw.get("error"):
+        from short_sale import borrow_log
+
+        borrow_log.note(symbol, snap)  # kept for good: a past-day replay shorts on what IBKR said then
     return snap
 
 

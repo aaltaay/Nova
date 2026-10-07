@@ -47,6 +47,7 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_LEADERBOARD_DIR": "leaderboard",
     "NOVA_EYES_DIR": "eyes",
     "NOVA_BOOK_WATCH_DIR": "book_watch",
+    "NOVA_BORROW_DIR": "borrow",   # ADR 048's recorded borrow
     # The Massive flat files (ADR 046) default to E:\Nova\massive; never read in a test.
     "NOVA_MARKET_DATA_DIR": "market_data",
 }
@@ -59,6 +60,11 @@ os.environ["IBKR_GATEWAY_MODE"] = os.environ.get("IBKR_GATEWAY_MODE") or "paper"
 os.environ["NOVA_PERF"] = "0"
 # ADR 028: an app a test boots must not poll IBKR's short-stock file; the borrow tests drive the feed directly.
 os.environ["NOVA_BORROW_FEED"] = "0"
+# ADR 048's borrow recording writes on its own thread; its tests turn it on and write in-line.
+os.environ["NOVA_BORROW_LOG"] = "0"
+# ADR 048's day cover and margin call: an app a test boots must not close positions on the wall clock;
+# the tests drive short_sale.closes directly.
+os.environ["NOVA_SHORT_RUNNER"] = "0"
 # ADR 029: an app a test boots must not start the eyes' journal writer; the journal tests drive it directly.
 os.environ["NOVA_EYES_JOURNAL"] = "0"
 # ADR 033: an app a test boots must not start the book watcher's worker or journal; its tests drive them directly.
@@ -304,3 +310,26 @@ def hod_engine():
     """Function-scoped fresh HOD engine; yields the live state object."""
     reset_hod_engine_state()
     yield hm.get_state()
+
+
+@pytest.fixture
+def short_market_open(monkeypatch):
+    """ADR 048's short check reads the clock, halts and SSR: pinned open, clear and off.
+
+    The venues' own clocks are the wall clock (Paper) or a playhead (Sim), so a short test would
+    otherwise pass or fail by the hour CI runs. Tests about the hours, halts or SSR set their own.
+    Returns the pinned clock: 2026-10-07 10:30 ET, a Wednesday inside the short hours.
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from short_sale import facts, halts, hours, ssr, ssr_fill
+
+    now = datetime(2026, 10, 7, 10, 30, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    monkeypatch.setattr(hours, "venue_now", lambda venue: now)
+    monkeypatch.setattr(facts, "venue_now", lambda venue: now)
+    monkeypatch.setattr(halts, "live", lambda symbol, now=None: halts.HaltRead("clear", f"{symbol} is trading."))
+    monkeypatch.setattr(ssr, "live", lambda symbol, now=None: ssr.SsrRead("off", "No SSR (pinned by the test)."))
+    monkeypatch.setattr(ssr, "request_history", lambda symbol, now=None: False)
+    monkeypatch.setattr(ssr_fill, "effective_on", lambda *a, **k: False)
+    return now

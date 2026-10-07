@@ -1,6 +1,8 @@
 """GET /api/practice/history: the practice ledger as history, derived from its events only."""
 from __future__ import annotations
 
+from constants_practice import PRACTICE_STARTING_CASH as START  # ADR 048: the operator's $5,000
+
 import logging
 from datetime import datetime
 
@@ -252,7 +254,7 @@ def test_sim_with_nothing_loaded_is_the_shape_with_empty_lists(client) -> None:
     body = res.json()
     assert set(body) == SHAPE
     assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("sim", "NOVA-SIM", "1D", 1)
-    assert body["starting_cash"] == 100_000 and body["range_start"] is not None
+    assert body["starting_cash"] == START and body["range_start"] is not None
     assert (body["equity"], body["fills"], body["by_source"], body["daily"]) == ([], [], [], [])
     assert (body["archives"], body["warnings"]) == ([], [])
     assert body["components"] == {

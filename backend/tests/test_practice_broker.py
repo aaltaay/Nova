@@ -1,6 +1,8 @@
 """The practice broker on both venues: live fills, resting fills, buying power, persistence."""
 from __future__ import annotations
 
+from constants_practice import PRACTICE_STARTING_CASH as START  # ADR 048: the operator's $5,000
+
 import os
 from types import SimpleNamespace
 
@@ -68,7 +70,7 @@ def test_a_paper_market_buy_fills_at_the_live_ask_with_fees_and_attribution(pape
     assert (row["source"], row["order_source"], row["bot_id"]) == ("nova", "bot", "alpha")
     assert (row["account_id"], row["venue"], row["commission"]) == ("NOVA-PAPER", "paper", 1.0)
     summary = paper.broker.account_summary()
-    assert summary["TotalCashValue"] == pytest.approx(100_000 - 1_002 - 1.0)
+    assert summary["TotalCashValue"] == pytest.approx(START - 1_002 - 1.0)
     assert (summary["mode"], summary["sim"], summary["practice"], summary["AccountType"]) == (
         "paper", False, True, "PAPER",
     )

@@ -11,17 +11,20 @@ import execution.validate as validate
 from execution.models import ExecutionCommand
 
 
-def _cmd(*, short_entry: bool = True) -> ExecutionCommand:
+def _cmd(*, short_entry: bool = True, operation: str = "bracket") -> ExecutionCommand:
+    """ADR 048: a short entry is a limit order, sent as a bracket with its buy stop."""
+    legs = {"entry_price": 4.0, "stop_price": 4.2, "target_price": 3.6} if operation == "bracket" else {}
     return ExecutionCommand(
-        operation="place",
+        operation=operation,
         idempotency_key="e2e-short-1",
         source="manual",
         symbol="SMPL",
         side="SELL",
         qty=1,
-        order_type="LMT",          # ADR 048: a short entry is a limit order
+        order_type="LMT",
         limit_price=4.0,
         short_entry=short_entry,
+        **legs,
     )
 
 
@@ -32,7 +35,7 @@ def _listing(shares: float) -> dict:
     )
 
 
-def test_e2e_short_entry_gate_matrix(monkeypatch):
+def test_e2e_short_entry_gate_matrix(monkeypatch, short_market_open):
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(
         account_mod,
@@ -56,6 +59,10 @@ def test_e2e_short_entry_gate_matrix(monkeypatch):
     ok, _, reason = validate.check_account_and_position(_cmd(), borrow=_listing(0))
     assert ok is False and reason == "SHORT_NOT_SHORTABLE"
 
-    # 4) No short_entry flag still anti-short
-    ok, _, reason = validate.check_account_and_position(_cmd(short_entry=False))
+    # 4) A short with no buy stop (a plain limit) -> SHORT_NEEDS_STOP
+    ok, _, reason = validate.check_account_and_position(_cmd(operation="place"), borrow=_listing(250_000))
+    assert ok is False and reason == "SHORT_NEEDS_STOP"
+
+    # 5) No short_entry flag still anti-short
+    ok, _, reason = validate.check_account_and_position(_cmd(short_entry=False, operation="place"))
     assert ok is False and reason == "NO_POSITION"

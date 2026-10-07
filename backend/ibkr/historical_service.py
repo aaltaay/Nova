@@ -40,6 +40,8 @@ Priority = Literal["open_chart", "warm", "background"]
 # The pacing key of a regular-hours daily request (ADR 040): not a chart timeframe, so it never dedupes
 # against the desk's extended-hours daily bars.
 RTH_DAILY_KEY = "1Day:rth"
+# ADR 048's SSR read: the same daily bars with extended hours, kept apart from the chart's own key.
+ALL_DAILY_KEY = "1Day:all"
 _ET = ZoneInfo("America/New_York")
 
 
@@ -236,13 +238,14 @@ async def _run_fetch(
             _open_chart_depth = max(0, _open_chart_depth - 1)
 
 
-async def request_rth_daily_closes(symbol: str, duration: str) -> list[tuple[str, float]]:
-    """``(session date, close)`` of IBKR's regular-hours daily TRADES bars, oldest first (ADR 040).
+async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool) -> list[dict[str, Any]]:
+    """IBKR's daily TRADES bars, ``[{date, open, high, low, close}]`` oldest first (ADR 040, ADR 048).
 
-    ``useRTH``: each close is the regular session's, never the last after-hours trade the desk's stored daily
-    bars end on. Background priority, paced like every other historical request: ``HistoricalShed`` while an
-    open chart is loading or pacing asks for a wait, and the caller asks again later. Nothing is stored or
-    pushed. Must run on the IB connect-loop.
+    ``use_rth``: the regular session's bars, whose close is the official one, never the last
+    after-hours trade the desk's stored daily bars end on; without it, the whole 04:00-20:00 day,
+    today's bar running to now (the SSR read takes its low). Background priority, paced like every
+    other historical request: ``HistoricalShed`` while an open chart is loading or pacing asks for a
+    wait, and the caller asks again later. Nothing is stored or pushed. Must run on the IB connect-loop.
     """
     assert_ib_loop()
     from ib_async import Stock
@@ -251,32 +254,43 @@ async def request_rth_daily_closes(symbol: str, duration: str) -> list[tuple[str
     from ibkr import client as _client
 
     sym = symbol.upper()
+    key = RTH_DAILY_KEY if use_rth else ALL_DAILY_KEY
     if open_chart_busy():
         raise HistoricalShed("open chart has priority")
-    if _pacing.wait_seconds(sym, RTH_DAILY_KEY, duration) > 0:
+    if _pacing.wait_seconds(sym, key, duration) > 0:
         raise HistoricalShed("pacing asks for a wait")
     ib = _client.get_ib()
     if ib is None:
         raise ConnectionError("IBKR is not connected")
     async with _semaphore():
-        if _pacing.wait_seconds(sym, RTH_DAILY_KEY, duration) > 0:
+        if _pacing.wait_seconds(sym, key, duration) > 0:
             raise HistoricalShed("pacing asks for a wait")
-        _pacing.record(sym, RTH_DAILY_KEY, duration)
+        _pacing.record(sym, key, duration)
         qualified = await ib.qualifyContractsAsync(Stock(sym, "SMART", "USD"))
         contract = next((c for c in qualified or [] if c is not None), None)
         if contract is None:
             raise ValueError(f"IBKR could not qualify {sym}")
         rows = await ib.reqHistoricalDataAsync(
             contract, endDateTime="", durationStr=duration, barSizeSetting="1 day", whatToShow="TRADES",
-            useRTH=True, formatDate=1, keepUpToDate=False, timeout=IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC,
+            useRTH=use_rth, formatDate=1, keepUpToDate=False, timeout=IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC,
         )
-    out: list[tuple[str, float]] = []
+    out: list[dict[str, Any]] = []
     for r in rows or []:
         when = r.date.astimezone(_ET).date() if isinstance(r.date, datetime) else r.date
-        close = float(r.close) if isinstance(r.close, (int, float)) else math.nan
-        if math.isfinite(close) and close > 0:
-            out.append((when.isoformat(), close))
+        bar = {k: _bar_price(getattr(r, k, None)) for k in ("open", "high", "low", "close")}
+        if bar["close"] is not None:  # a bar without a close is no session; a missing low reads unknown
+            out.append({"date": when.isoformat(), **bar})
     return out
+
+
+def _bar_price(value: Any) -> float | None:
+    price = float(value) if isinstance(value, (int, float)) else math.nan
+    return price if math.isfinite(price) and price > 0 else None
+
+
+async def request_rth_daily_closes(symbol: str, duration: str) -> list[tuple[str, float]]:
+    """``(session date, close)`` of IBKR's regular-hours daily TRADES bars, oldest first (ADR 040)."""
+    return [(bar["date"], bar["close"]) for bar in await request_daily_bars(symbol, duration, use_rth=True)]
 
 
 async def _persist_derived(symbol: str, one_min: dict[str, Any]) -> None:

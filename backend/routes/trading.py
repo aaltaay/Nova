@@ -257,9 +257,13 @@ async def ibkr_account() -> dict:
 
 @router.get("/positions")
 async def ibkr_positions() -> list:
-    # Qty from positions()/long_qty SSOT; MTM/PnL joined from portfolio.
+    # Qty from positions()/long_qty SSOT; MTM/PnL joined from portfolio. ADR 048: each row's side and
+    # the price IBKR would liquidate it at.
+    from short_sale.positions import decorate
+    from sim.mode import venue as desk_venue
+
     try:
-        return _account.positions_for_ui()
+        return decorate(_account.positions_for_ui(), desk_venue())
     except IbkrAccountError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -278,7 +282,15 @@ async def ibkr_open_orders() -> list:
         logger.exception("open orders: session ledger read failed -- no latency or sender joined")
         ledgers = []
     rows = attach_fill_audit(rows, ledger_rows=ledgers, desk=desk)
-    return attach_sent_by(rows, _closed_blotter.ledger_rows_for_desk(ledgers, desk))
+    rows = attach_sent_by(rows, _closed_blotter.ledger_rows_for_desk(ledgers, desk))
+    # ADR 048: an order placed outside Nova reads its side against the position now.
+    from execution.order_side import fill_from_positions
+
+    try:
+        positions = _account.get_positions()
+    except IbkrAccountError:
+        positions = None
+    return fill_from_positions(rows, positions)
 
 
 @router.get("/orders/closed")

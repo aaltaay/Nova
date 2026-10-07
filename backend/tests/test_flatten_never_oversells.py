@@ -133,7 +133,7 @@ def test_a_flatten_on_a_flat_practice_position_says_it_is_not_a_close(venue, mon
         reference=SimpleNamespace(admission=lambda symbol: (True, "OK", None)),
         ledger=SimpleNamespace(held_qty=lambda symbol: 0.0),
     )
-    monkeypatch.setattr(practice_checks, "venue_broker", lambda: fake)
+    monkeypatch.setattr(practice_checks, "venue_broker", lambda venue=None: fake)
     monkeypatch.setattr("sim.mode.is_practice_venue", lambda: True)
     venue["positions"] = []
 

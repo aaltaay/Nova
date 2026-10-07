@@ -4,7 +4,8 @@
  * market sell).
  *
  * Read from the row's own stamps, never inferred from its side, price or time:
- * - `order_origin`: which part of Nova sent it (the backend's `EXECUTION_ORIGINS`);
+ * - `order_origin`: which part of Nova sent it (the backend's `EXECUTION_ORIGINS`; ADR 048 adds the
+ *   day cover and the margin call);
  * - `order_source`: the ADR 007 command source, for rows placed before origins were recorded;
  * - `source: 'ib_recovered'`: IBKR knows the order and Nova never placed it.
  * A row with none of them says so rather than guessing "You".
@@ -68,6 +69,20 @@ const BY_ORIGIN: Record<string, SentBy> = {
     tone: 'nova',
     tip: 'Nova takes the exit: you bought the shares and handed Nova the sell. Its stop rests here, raised as '
       + '1-minute candles close over round numbers.',
+  },
+  day_cover: {
+    label: 'Day cover',
+    tone: 'breaker',
+    tip:
+      'The day cover: Nova covers every short still open at 15:55 ET (12:55 on an early close), so no ' +
+      "short is held overnight. It cancelled the stock's working orders first.",
+  },
+  margin_call: {
+    label: 'Margin call',
+    tone: 'breaker',
+    tip:
+      "The margin call: the account's equity fell under its maintenance requirement, where IBKR " +
+      'liquidates, so Nova closed the position that needed the most margin -- shorts first -- at market.',
   },
 };
 

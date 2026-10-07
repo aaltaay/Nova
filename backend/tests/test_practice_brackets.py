@@ -18,12 +18,12 @@ import pytest
 from constants_practice import (
     PRACTICE_BUYING_POWER_CODE,
     PRACTICE_NO_LIVE_PRINT_CODE,
-    PRACTICE_NO_SHORTS_CODE,
     PRACTICE_OCO_CANCELLED_CODE,
     PRACTICE_PARENT_CANCELLED_CODE,
     PRACTICE_PARENT_CANCELLED_REASON,
     PRACTICE_PARENT_EXPIRED_REASON,
     PRACTICE_SESSION_CLOSE_HOUR_ET,
+    PRACTICE_SHORT_WHILE_LONG_CODE,
     PRACTICE_TIF_EXPIRED_CODE,
 )
 from execution import telemetry
@@ -175,17 +175,62 @@ def test_a_marketable_entry_fills_at_once_and_its_exits_rest_working(paper) -> N
     assert paper.broker.positions()[0]["qty"] == 100
 
 
-def test_a_short_bracket_is_refused_no_shorts(paper) -> None:
+def test_a_short_bracket_rests_with_its_exits_buying_it_back(paper, short_market_open) -> None:
+    """ADR 048: a SELL entry opens a short; its target and its stop are BUYs that close it."""
+    raw = paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5, short_entry=True)
+
+    assert (raw["ok"], raw["broker_status"]) == (True, "Submitted")
+    p = raw["parent_order_id"]
+    assert (raw["target_order_id"], raw["stop_order_id"]) == (p + 1, p + 2)
+    rows = _working(paper.broker)
+    assert [
+        (r["side"], r["order_type"], r["limit_price"], r["stop_price"], r["status"], r["position_side"],
+         r["effect"], r["short_entry"])
+        for r in (rows[p], rows[p + 1], rows[p + 2])
+    ] == [
+        ("SELL", "LMT", 10.0, None, "Submitted", "short", "opens", True),
+        ("BUY", "LMT", 9.5, None, "PreSubmitted", "short", "closes", False),
+        ("BUY", "STP", None, 10.5, "PreSubmitted", "short", "closes", False),
+    ]
+
+
+def test_a_short_brackets_entry_fills_on_a_print_and_its_stop_closes_it(paper, short_market_open) -> None:
+    raw = paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5, short_entry=True)
+    p = raw["parent_order_id"]
+
+    paper.ref.now = NOW + 5
+    filled = paper.broker.try_fill_working("IMCC", [(NOW + 5, 10.01)])   # a resting limit fills at its limit
+    assert [(r["order_id"], r["avg_fill_price"]) for r in filled] == [(p, 10.0)]
+    assert paper.broker.positions()[0]["qty"] == -100
+    assert {r["status"] for r in _working(paper.broker).values()} == {"Submitted"}
+
+    paper.ref.now = NOW + 9
+    filled = paper.broker.try_fill_working("IMCC", [(NOW + 9, 10.55)])
+    assert [r["order_id"] for r in filled] == [p + 2]
+    assert paper.broker.positions() == [] and paper.broker.working_orders() == []
+    target = _closed(paper.broker)[p + 1]
+    assert (target["status"], target["reason_code"]) == ("Cancelled", PRACTICE_OCO_CANCELLED_CODE)
+
+
+def test_a_short_bracket_may_go_without_a_target(paper, short_market_open) -> None:
+    raw = paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, None, 10.5, short_entry=True)
+
+    assert raw["ok"] is True and raw["target_order_id"] is None
+    assert raw["stop_order_id"] == raw["parent_order_id"] + 1
+    assert sorted(r["leg_role"] for r in paper.broker.working_orders()) == ["parent", "stop"]
+    # A long bracket still sends both exits.
+    assert paper.broker.place_bracket("IMCC", "BUY", 100, 9.90, None, 9.50)["reason_code"] == "BRACKET_GEOMETRY"
+
+
+def test_a_short_bracket_is_refused_while_the_stock_is_held_long(paper) -> None:
+    paper.broker.place("IMCC", "BUY", 100, "MKT")
     for raw in (
         paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5, short_entry=True),
         paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5),
     ):
-        assert (raw["ok"], raw["reason_code"], raw["parent_order_id"]) == (False, PRACTICE_NO_SHORTS_CODE, None)
-    assert paper.broker.ledger.events == []
-    # A SELL entry is a short entry even while shares are held: its exits would buy.
-    paper.broker.place("IMCC", "BUY", 100, "MKT")
-    raw = paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5)
-    assert raw["reason_code"] == PRACTICE_NO_SHORTS_CODE and paper.broker.working_orders() == []
+        assert (raw["ok"], raw["reason_code"], raw["parent_order_id"]) == (
+            False, PRACTICE_SHORT_WHILE_LONG_CODE, None)
+    assert paper.broker.working_orders() == [] and paper.broker.positions()[0]["qty"] == 100
 
 
 def test_buying_power_is_checked_at_the_entry_limit(paper) -> None:

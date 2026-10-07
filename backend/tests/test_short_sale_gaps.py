@@ -9,7 +9,8 @@
 7. Fill now never re-sends a short as a plain SELL (frontend, ``planFillWorkingOrder.test.ts``);
 8. Paper and Sim never fill a cover past flat (``test_practice_overcover.py``).
 
-Live only: Paper and Sim still refuse every opening short until step 2.
+Each short goes out as ADR 048 step 2 requires: a bracket with its buy stop, inside the short hours,
+with halts and SSR pinned clear (``short_market_open``).
 """
 from __future__ import annotations
 
@@ -47,8 +48,10 @@ def _borrow(shares: float = 30_000, age: float = 1.0) -> dict:
 
 
 def _short(key: str = "short-1", qty: float = 416, limit: float = 5.77, **kw) -> ExecutionCommand:
-    base = dict(operation="place", idempotency_key=key, source="manual", symbol=SYMBOL, side="SELL",
-                qty=qty, order_type="LMT", limit_price=limit, short_entry=True, skip_risk=True)
+    """A short as the door takes it: a bracket with its buy stop (ADR 048 1.6)."""
+    base = dict(operation="bracket", idempotency_key=key, source="manual", symbol=SYMBOL, side="SELL",
+                qty=qty, order_type="LMT", limit_price=limit, entry_price=limit, stop_price=round(limit + 0.12, 2),
+                target_price=round(limit - min(0.24, limit / 4), 2), short_entry=True, skip_risk=True)
     base.update(kw)
     return ExecutionCommand(**base)
 
@@ -74,7 +77,7 @@ def _summary(equity: float = 5_000.0, excess: float | None = 5_000.0, **kw) -> d
 
 
 @pytest.fixture
-def live(monkeypatch, tmp_path):
+def live(monkeypatch, tmp_path, short_market_open):
     """A Live desk on IBKR with shorts enabled (the key is mocked: no agent sets it)."""
     monkeypatch.setattr("paths.cache_dir", lambda: tmp_path)
     monkeypatch.setattr("execution.store.cache_dir", lambda: tmp_path)
@@ -119,7 +122,14 @@ def _spy_place(monkeypatch) -> list[dict]:
         calls.append(kw)
         return {"ok": True, "order_id": 100 + len(calls), "error": None, "mode": "paper"}
 
+    def bracket(**kw):
+        calls.append(kw)
+        base = 100 + 3 * len(calls)
+        return {"ok": True, "order_id": base, "parent_order_id": base, "target_order_id": base + 1,
+                "stop_order_id": base + 2, "error": None, "mode": "paper"}
+
     monkeypatch.setattr(orders_mod, "place_order", place)
+    monkeypatch.setattr(orders_mod, "place_bracket_order", bracket)
     return calls
 
 
@@ -187,8 +197,19 @@ def test_cash_account_and_small_equity_refuse(live):
 
 
 def test_a_market_short_is_refused(live):
-    ok, _detail, code = _check(_short(order_type="MKT", limit_price=None), _borrow())
+    market = ExecutionCommand(operation="place", idempotency_key="mkt", source="manual", symbol=SYMBOL,
+                              side="SELL", qty=10, order_type="MKT", short_entry=True, skip_risk=True)
+    ok, _detail, code = _check(market, _borrow())
     assert (ok, code) == (False, "SHORT_NEEDS_LIMIT")
+
+
+def test_a_short_without_its_buy_stop_is_refused(live):
+    """ADR 048 1.6: a plain limit short carries no stop -- no stop price, no short."""
+    plain = ExecutionCommand(operation="place", idempotency_key="no-stop", source="manual", symbol=SYMBOL,
+                             side="SELL", qty=10, order_type="LMT", limit_price=5.77, short_entry=True,
+                             skip_risk=True)
+    ok, detail, code = _check(plain, _borrow())
+    assert (ok, code) == (False, "SHORT_NEEDS_STOP") and "buy stop" in detail
 
 
 # ---------------------------------------------------------------- gap 2: never short while long

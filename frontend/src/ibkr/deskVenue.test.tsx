@@ -64,10 +64,10 @@ describe('Account module sections (V23)', () => {
 });
 
 describe('practice reset copy (C43)', () => {
-  it('says a blank amount resets to $100,000, never "unchanged"', () => {
-    expect(practiceResetConfirmMessage('paper', null)).toContain('Starting cash resets to $100,000.');
+  it('says a blank amount resets to $5,000, never "unchanged"', () => {
+    expect(practiceResetConfirmMessage('paper', null)).toContain('Starting cash resets to $5,000.');
     expect(practiceResetConfirmMessage('paper', null)).not.toMatch(/unchanged/);
     expect(practiceResetConfirmMessage('sim', '$50,000.00')).toContain('Starting cash will be $50,000.00.');
-    expect(PRACTICE_STARTING_CASH_PLACEHOLDER).toMatch(/\$100,000/);
+    expect(PRACTICE_STARTING_CASH_PLACEHOLDER).toMatch(/\$5,000/);
   });
 });
