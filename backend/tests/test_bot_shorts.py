@@ -320,3 +320,15 @@ def test_the_bot_api_shorts_with_its_buy_stop_and_covers_never_past_flat(paper):
     with pytest.raises(BotError) as flat:
         asyncio.run(actions.fire({"kind": "cover_pos", "symbol": SYM}, brain_session_id="brain-1"))
     assert flat.value.status_code == 409 and "no short position" in flat.value.message
+
+
+def test_the_session_says_what_a_short_needs_from_the_account_and_the_clock(paper):
+    from bot.session import get_session
+
+    shorts = get_session()["shorts"]
+    assert shorts["venue"] == "paper"
+    assert shorts["margin_account"]["ok"] is True and shorts["equity"]["ok"] is True
+    assert shorts["equity"]["value"] == "$5,000"
+    assert shorts["hours"] == {"ok": True, "text": "new shorts until 15:50 ET; Nova covers what is left at 15:55",
+                               "value": "until 15:50"}
+    assert shorts["live"]["ok"] is False and "after the Paper proof" in shorts["live"]["text"]
