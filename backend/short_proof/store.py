@@ -78,9 +78,12 @@ def _parse(p: Path) -> tuple[dict[str, Any] | None, str | None]:
         return empty(), None
     try:
         raw = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        logger.exception("short proof: %s could not be read -- the proof reads incomplete: %s", p, exc)
-        return None, f"{p.name} could not be read ({exc})"
+    except OSError:
+        logger.exception("short proof: %s could not be read -- the proof reads incomplete", p)
+        return None, f"{p.name} could not be read from disk; the engine log has the details"
+    except ValueError:
+        logger.exception("short proof: %s is not valid JSON -- the proof reads incomplete", p)
+        return None, f"{p.name} is not valid JSON; the engine log has the details"
     if not isinstance(raw, dict) or raw.get("schema_version") != SHORT_PROOF_SCHEMA_VERSION:
         version = raw.get("schema_version") if isinstance(raw, dict) else None
         logger.error("short proof: %s has schema_version %r, not %s -- refused", p, version, SHORT_PROOF_SCHEMA_VERSION)

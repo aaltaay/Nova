@@ -11,9 +11,10 @@ whatever the desk shows, so a ``kill`` cancel names its ``target_venue`` and is 
 the venue that holds it, so their ``cancel_working`` cancels and their protective ``flatten``
 closes name it too. On Live only the day cover may (step 6) -- IBKR liquidates Live itself, so a
 margin call never goes there -- and its close only as a market BUY carrying ``intent: "flatten"``,
-which the door checks against IBKR's own position (``execution.flatten_intent``). Nothing else may
-name one -- any other place, buy or source is refused -- and Live only while IBKR, Live's broker,
-is connected.
+which the door checks against IBKR's own position (``execution.flatten_intent``), and only while IBKR's
+session is the Live Gateway on a live account: the legacy paper Gateway connects too, and its account is not
+the one Live's short is in (PR #792 review). Nothing else may name one -- any other place, buy or source is
+refused -- and Live only while IBKR, Live's broker, is connected.
 
 Owner: this module (the rules; the lock and the send are ``execution.service``'s).
 """
@@ -70,10 +71,24 @@ def target_refusal(cmd: ExecutionCommand) -> str | None:
     return None
 
 
+def live_session_refusal() -> str | None:
+    """Why IBKR's session is not Live's -- the Live Gateway on a live account -- or None."""
+    from ibkr import client as _client
+
+    mode, kind = _client.account_mode(), _client.broker_account_kind()
+    if mode == "live" and kind == "live":
+        return None
+    return (f"IBKR's session is the {mode} Gateway on a {kind} account, not the Live account -- Live's day cover "
+            "goes only to Live; nothing was sent")
+
+
 def _live_close_refusal(cmd: ExecutionCommand) -> str | None:
-    """Why a Nova close may not go to Live, or None: only the day cover, its close a market BUY to flat."""
+    """Why a Nova close may not go to Live, or None: only the day cover, to the Live account, its close a market
+    BUY to flat."""
     if cmd.origin != "day_cover":
         return "a margin call never goes to Live -- IBKR liquidates Live itself; nothing was sent"
+    if ibkr_connected() and (why := live_session_refusal()):
+        return why
     if cmd.operation == "cancel":
         return None
     if (cmd.side or "").upper() != "BUY" or cmd.order_type != "MKT" or getattr(cmd, "intent", None) != "flatten":

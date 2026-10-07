@@ -478,3 +478,59 @@ def test_a_trigger_against_a_position_you_hold_says_so(day):
 def test_a_trigger_nova_never_judged_says_so_never_a_pass(day):
     zzzz = by_symbol(get())["ZZZZ"]["triggers"][0]
     assert zzzz["cells"]["not_against"]["ok"] is None and "did not judge" in zzzz["cells"]["not_against"]["why"]
+
+
+# -- a short-only square stops only the short side (PR #790 review) --------------------------------
+def _mixed_desk(on: list[str], *, long_window_open: bool = True):
+    from types import SimpleNamespace
+
+    window = {"start": "09:30", "end": "11:30"}
+    rules = {"first_pullback": {"window": {**window, "open": long_window_open}, "setups_a_day": 1},
+             "bear_flag": {"window": {**window, "start": "09:35", "open": True}, "setups_a_day": 1}}
+    return SimpleNamespace(on=on, rules=rules, row={}, venue="paper", cap=2, used=0,
+                           now=SimpleNamespace(mode=lambda venue, sym: "bot"))
+
+
+@pytest.fixture
+def short_block_blocked(monkeypatch):
+    """A desk reading where only the short block fails: before 09:35, no short may enter."""
+    from bot import switch, trigger_now, trigger_short
+    from bot.trigger_cells import cell
+
+    held = {"long": None, "short": None}
+    monkeypatch.setattr(switch, "is_on", lambda row: True)
+    monkeypatch.setattr(trigger_now, "_lanes", lambda sym: [])
+    monkeypatch.setattr(trigger_now, "_line", lambda sym: cell(True, f"Nova holds {sym}'s Level 2 line"))
+    monkeypatch.setattr("bot.first_pullback.admit.day_reset", lambda: None)
+    monkeypatch.setattr(trigger_short, "against_now", lambda sym, sides: {s: held[s] for s in sorted(sides)})
+    monkeypatch.setattr(trigger_short, "now_cells", lambda sym, venue, armed, row: {
+        "short_borrow": cell(True, "IBKR lists 50,000 FADE shares to borrow"),
+        "short_ssr": cell(True, "no SSR: the short sells at its entry"),
+        "short_halt": cell(True, "not halted"),
+        "short_margin": cell(None, "no short setup is armed or near on FADE"),
+        "short_hours": cell(False, "09:31 ET: new shorts open at 09:35")})
+    return held
+
+
+def test_a_short_only_square_never_vetoes_a_long_that_could_trade(short_block_blocked):
+    from bot import trigger_now
+
+    got = trigger_now.row(_mixed_desk(["first_pullback", "bear_flag"]), "FADE", [])
+    assert got["cells"]["short_hours"]["ok"] is False                   # the square stays red
+    assert got["answer"] == "yes" and got["reasons"] == []              # a long trigger would still be taken
+
+
+def test_the_short_block_stops_the_answer_when_no_long_could_trade(short_block_blocked):
+    from bot import trigger_now
+
+    short_only = trigger_now.row(_mixed_desk(["bear_flag"]), "FADE", [])
+    assert short_only["answer"] == "no" and short_only["reasons"] == ["09:31 ET: new shorts open at 09:35"]
+    long_window_shut = trigger_now.row(_mixed_desk(["first_pullback", "bear_flag"], long_window_open=False),
+                                       "FADE", [])
+    assert long_window_shut["answer"] == "no" and "09:31 ET: new shorts open at 09:35" in long_window_shut["reasons"]
+    long_used = trigger_now.row(_mixed_desk(["first_pullback", "bear_flag"]), "FADE",
+                                [{"symbol": "FADE", "setup_type": "first_pullback", "nth": 1, "ts": at(9, 40)}])
+    assert long_used["answer"] == "no" and "09:31 ET: new shorts open at 09:35" in long_used["reasons"]
+    short_block_blocked["long"] = ("BOT_SKIP_HELD_OTHER_SIDE", "you hold FADE short: Nova enters nothing long")
+    held_short = trigger_now.row(_mixed_desk(["first_pullback", "bear_flag"]), "FADE", [])
+    assert held_short["answer"] == "no" and "09:31 ET: new shorts open at 09:35" in held_short["reasons"]

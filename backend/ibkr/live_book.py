@@ -39,6 +39,17 @@ def open_rows() -> list[dict[str, Any]]:
     return [trade_to_order_row(trade) for trade in _ib().openTrades()]
 
 
+def order_state(order_id: int) -> dict[str, Any] | None:
+    """IBKR's status of order ``order_id`` this session -- ``{status, filled, remaining}`` -- or None when the
+    session does not know it (placed before a reconnect)."""
+    for trade in _ib().trades():
+        if int(getattr(trade.order, "orderId", 0) or 0) == int(order_id):
+            st = trade.orderStatus
+            return {"status": str(st.status or ""), "filled": float(st.filled or 0),
+                    "remaining": float(st.remaining or 0)}
+    return None
+
+
 def account_summary() -> dict[str, Any]:
     """IBKR's account values as the summary ``ibkr.account`` builds on Live (its ``account_class`` stamps
     included); ``pending`` until IBKR has sent the net liquidation."""

@@ -125,9 +125,9 @@ def live_proof() -> tuple[bool, str]:
         from short_proof import status
 
         return status()
-    except Exception as exc:
+    except Exception:
         logger.exception("short check: the Live short proof could not be read -- refusing the Live short")
-        return False, f"the proof could not be read ({exc})."
+        return False, "the proof could not be read (the engine log has the details)."
 
 
 def refusal(cmd: ExecutionCommand, *, facts: Facts | None = None, borrow: dict[str, Any] | None = None,
@@ -159,10 +159,11 @@ def replace_refusal(cmd: ExecutionCommand, venue: str | None) -> Refusal | None:
 
         try:
             row = store_orders.short_entries([oid]).get(oid)
-        except Exception as exc:
+        except Exception:
             logger.exception("short check: the execution record could not be read for order %s", oid)
-            return (f"Nova's execution record could not be read ({exc}), so it cannot tell whether order {oid} "
-                    "is a short entry: it was not repriced. Cancel it and place it again.", SHORT_REPRICE)
+            return (f"Nova's execution record could not be read (the engine log has the details), so it cannot "
+                    f"tell whether order {oid} is a short entry: it was not repriced. Cancel it and place it again.",
+                    SHORT_REPRICE)
         symbol = row.get("symbol") if row else None
     elif where in ("paper", "sim"):
         rows = for_venue(where).working_orders()     # the broker the replace is sent to

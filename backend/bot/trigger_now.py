@@ -19,8 +19,10 @@ lines held and the day's Nova entries:
 - ``not_against`` and, with a short strategy On, the short block (ADR 049, #778 step 5): the position you
   hold against the sides the On strategies enter, and the short check's facts now (``bot.trigger_short``).
 
-``answer`` is ``yes`` only when no gate is false; ``reasons`` are the false gates' words. Owner: this
-module (no state; it reads, never writes).
+``answer`` is ``yes`` only when no gate is false; ``reasons`` are the false gates' words. A square of the short
+block stops only the short side: while a long strategy that is On could still trade the stock (its window open,
+its next setup allowed, no short held), it stays red and leaves the answer alone. Owner: this module (no state;
+it reads, never writes).
 """
 from __future__ import annotations
 
@@ -29,7 +31,7 @@ from typing import Any
 
 from bot import strategy_rules, trigger_short
 from bot.trigger_cells import ALL_GATE_IDS, GATE_IDS, cell, hhmm
-from constants_bot import BOT_GRADES_A, BOT_LEVEL_STRATEGY, SIDE_SHORT, setup_side
+from constants_bot import BOT_GRADES_A, BOT_LEVEL_STRATEGY, SIDE_LONG, SIDE_SHORT, setup_side
 from constants_stock_mode import STOCK_MODE_AUTO_ENTRY, STOCK_MODE_BOT
 
 logger = logging.getLogger(__name__)
@@ -104,15 +106,21 @@ def _grade(sym: str, desk: Desk, lanes: list[dict[str, Any]] | None) -> dict[str
     return cell(False, " | ".join(whys))
 
 
+def _next_setup(sym: str, desk: Desk, todays: list[dict[str, Any]],
+                setup: str) -> tuple[int, list[dict[str, Any]], str | None]:
+    """``(its number today, the day's triggers of it, what stops it)`` for ``setup``'s next trigger on ``sym``."""
+    done = [t for t in todays if t["symbol"] == sym and t["setup_type"] == setup]
+    number = max((t["nth"] for t in done), default=0) + 1
+    rule = desk.rules.get(setup, {}).get("setups_a_day", 1)
+    return number, done, strategy_rules.nth_block(number, rule, setup)
+
+
 def _setups_a_day(sym: str, desk: Desk, todays: list[dict[str, Any]]) -> dict[str, Any]:
     if not desk.on:
         return cell(None, "no strategy is On")
     blocks = []
     for setup in desk.on:
-        done = [t for t in todays if t["symbol"] == sym and t["setup_type"] == setup]
-        number = max((t["nth"] for t in done), default=0) + 1
-        rule = desk.rules.get(setup, {}).get("setups_a_day", 1)
-        block = strategy_rules.nth_block(number, rule, setup)
+        number, done, block = _next_setup(sym, desk, todays, setup)
         if block is None:
             return cell(True, f"the next {strategy_rules.name(setup)} would be its {strategy_rules.ordinal(number)} "
                               "today")
@@ -189,6 +197,21 @@ def _short_block(sym: str, desk: Desk) -> dict[str, Any]:
     return trigger_short.now_cells(sym, desk.venue, armed, desk.row)
 
 
+def _long_can(sym: str, desk: Desk, todays: list[dict[str, Any]],
+              against: dict[str, tuple[str, str] | None]) -> bool:
+    """A long strategy that is On could still take a trigger on ``sym`` now: its own bot window is open, its next
+    setup today is allowed, and you hold none of the stock short. Then a square of the short block stops only the
+    short side: it stays red, and never makes the answer no (PR #790 review)."""
+    if against.get(SIDE_LONG) is not None:
+        return False
+    for setup in desk.on:
+        if setup_side(setup) == SIDE_SHORT or not (desk.rules.get(setup, {}).get("window") or {}).get("open"):
+            continue
+        if _next_setup(sym, desk, todays, setup)[2] is None:
+            return True
+    return False
+
+
 def _unread(said: str) -> dict[str, Any]:
     """A ``now`` row Nova could not read: never a yes."""
     return {"cells": {g: cell(None, said) for g in GATE_IDS}, "answer": "no", "reasons": [said]}
@@ -201,6 +224,8 @@ def row(desk: Desk | None, sym: str, todays: list[dict[str, Any]]) -> dict[str, 
     if desk is None:
         return _unread("the bot's session could not be read (the backend log has the error)")
     try:
+        sides = {setup_side(s) for s in desk.on}
+        against = trigger_short.against_now(sym, sides)
         cells = {
             "bot_on": cell(True, "the bot is on") if is_on(desk.row) else cell(False, str(why_off(desk.row))),
             "strategy_on": (cell(True, "On: " + ", ".join(strategy_rules.name(s) for s in desk.on)) if desk.on
@@ -212,11 +237,14 @@ def row(desk: Desk | None, sym: str, todays: list[dict[str, Any]]) -> dict[str, 
             "level2_line": _line(sym),
             "tape_go": cell(None, "the tape is read at the trigger"),
             "trades_today": _trades(desk),
-            "not_against": trigger_short.not_against_now(sym, {setup_side(s) for s in desk.on}),
+            "not_against": trigger_short.not_against_now(sym, sides, against),
             **_short_block(sym, desk),
         }
+        long_can = _long_can(sym, desk, todays, against)
     except Exception:
         logger.warning("triggers audit: the desk could not be read for %s", sym, exc_info=True)
         return _unread("the desk could not be read (the backend log has the error)")
-    reasons = [cells[g]["why"] for g in ALL_GATE_IDS if cells.get(g, {}).get("ok") is False]
+    short_ids = set(trigger_short.SHORT_GATE_IDS)
+    reasons = [cells[g]["why"] for g in ALL_GATE_IDS if cells.get(g, {}).get("ok") is False
+               and not (long_can and g in short_ids)]
     return {"cells": cells, "answer": "no" if reasons else "yes", "reasons": reasons}

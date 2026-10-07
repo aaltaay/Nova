@@ -131,13 +131,20 @@ def short_cells(t: dict[str, Any], judged: dict[str, dict[str, Any]]) -> dict[st
 
 
 # -- now ---------------------------------------------------------------------------------------------
-def not_against_now(sym: str, sides: set[str]) -> dict[str, Any]:
-    """The sides the On strategies would enter, against the position you hold now."""
+def against_now(sym: str, sides: set[str]) -> dict[str, tuple[str, str] | None]:
+    """Per side the On strategies would enter, what the position you hold now says (``admit.against_held``)."""
     from bot.first_pullback.admit import against_held
 
+    return {side: against_held(sym, side) for side in sorted(sides)}
+
+
+def not_against_now(sym: str, sides: set[str],
+                    blocked: dict[str, tuple[str, str] | None] | None = None) -> dict[str, Any]:
+    """The sides the On strategies would enter, against the position you hold now (``blocked``: ``against_now``'s
+    read, when the caller has it)."""
     if not sides:
         return cell(None, "no strategy is On")
-    blocked = {side: against_held(sym, side) for side in sorted(sides)}
+    blocked = against_now(sym, sides) if blocked is None else blocked
     stopped = {side: b for side, b in blocked.items() if b is not None}
     if not stopped:
         return cell(True, f"you hold no {sym} the other way")
