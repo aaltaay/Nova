@@ -311,6 +311,61 @@ def test_the_day_cover_waits_for_1555_then_covers_through_the_door(paper) -> Non
     assert asyncio.run(closes.day_cover(paper.broker)) == []     # nothing left to cover
 
 
+def test_a_paper_day_cover_that_cannot_go_out_raises_the_alarm_until_one_does(paper, monkeypatch) -> None:
+    """ADR 048 decision 5 (step 6): a cover that cannot go out is an alarm on every desk window."""
+    from execution.models import ExecutionReceipt
+    from short_sale import cover_alarm
+
+    cover_alarm.reset_for_tests()
+    _open_short(paper)
+    paper.market.now = _at(15, 55)
+    real = service.execute
+
+    async def refuse_the_cover(cmd, **kw):
+        if cmd.operation == "place" and cmd.origin == "day_cover":
+            return ExecutionReceipt(ok=False, execution_id="x", operation="place", source="flatten",
+                                    idempotency_key=cmd.idempotency_key, error="no live print -- the Gateway is down",
+                                    reason_code="PRACTICE_NO_LIVE_PRINT")
+        return await real(cmd, **kw)
+
+    monkeypatch.setattr(service, "execute", refuse_the_cover)
+    [done] = asyncio.run(closes.day_cover(paper.broker))
+    assert done["ok"] is False and _held(paper.broker) == -500
+    [alarm] = cover_alarm.view()["alarms"]
+    assert (alarm["venue"], alarm["symbol"], alarm["qty"], alarm["kind"]) == ("paper", SYMBOL, 500.0, "refused")
+    assert "Gateway is down" in alarm["text"] and alarm["reason_code"] == "PRACTICE_NO_LIVE_PRINT"
+
+    monkeypatch.setattr(service, "execute", real)
+    closes.reset_for_tests()                                    # the retry wait is over
+    [done] = asyncio.run(closes.day_cover(paper.broker))
+    assert done["ok"] is True and _held(paper.broker) == 0
+    assert cover_alarm.view()["alarms"] == []
+
+    cover_alarm.raise_("paper", SYMBOL, 500, kind="refused", text="stale")
+    asyncio.run(closes.day_cover(paper.broker))                 # nothing short any more: the alarm goes
+    assert cover_alarm.view()["alarms"] == []
+
+
+def test_freeze_all_orders_with_a_paper_short_open_passes_the_proofs_freeze_drill(paper) -> None:
+    """ADR 048 step 6: the kill switch's trip is the Live short proof's freeze drill, ticked from its sweep."""
+    import kill_switch
+    from short_proof import store as proof_store
+
+    proof_store.reset_for_tests()
+    _open_short(paper)
+    try:
+        result = asyncio.run(kill_switch.trip("test"))
+        [paper_sweep] = [v for v in result["sweep"] if v["venue"] == "paper"]
+        assert [(k["side"], k["order_type"]) for k in paper_sweep["kept"]] == [("BUY", "STP")]
+        drill = proof_store.read()[0]["drills"]["freeze"]
+        assert drill["passed"] is not None and SYMBOL in drill["passed"]["detail"]
+        assert "kept its buy stop resting" in drill["passed"]["detail"]
+    finally:
+        kill_switch.reset()
+        kill_switch.reset_for_tests()
+        proof_store.reset_for_tests()
+
+
 def test_a_short_entry_still_resting_at_1550_is_cancelled_before_it_fills(paper) -> None:
     """PR #786 review: a short the door let go before 15:50 never opens after it."""
     receipt = _send(_short("rest-past", entry=4.50, stop=4.80, target=4.00))   # over the market: it rests
@@ -506,7 +561,16 @@ def test_only_the_closes_name_a_venue_other_than_the_desks(paper, monkeypatch) -
     assert target_refusal(cmd(origin="ticket_flatten")) is not None
     assert target_refusal(cmd(side="SELL", short_entry=True)) is not None
     monkeypatch.setattr("execution.venue_door.ibkr_connected", lambda: True)
-    assert "Paper and Sim only" in target_refusal(cmd(target_venue="live"))   # Live's cover is step 6
+    # Live (ADR 048 step 6): the day cover alone, its close a market BUY the door checks as a flatten.
+    assert "intent flatten" in target_refusal(cmd(target_venue="live"))
+    assert target_refusal(cmd(target_venue="live", intent="flatten")) is None
+    assert target_refusal(cmd(target_venue="live", operation="cancel", source="cancel_working", order_id=1)) is None
+    assert "IBKR liquidates Live itself" in target_refusal(cmd(target_venue="live", origin="margin_call",
+                                                               intent="flatten"))
+    assert target_refusal(cmd(target_venue="live", intent="flatten", side="SELL")) is not None
+    assert target_refusal(cmd(target_venue="live", intent="flatten", order_type="LMT", limit_price=5.0)) is not None
+    monkeypatch.setattr("execution.venue_door.ibkr_connected", lambda: False)
+    assert "not connected" in target_refusal(cmd(target_venue="live", intent="flatten"))
 
 
 # ── positions ──────────────────────────────────────────────────────────────────

@@ -2,6 +2,10 @@
 
 TWS AccountType is ownership (INDIVIDUAL / LLC / IRA), not Cash vs Margin.
 A live connected snapshot is always cash or margin. Unknown is not a class.
+
+``account_class`` takes the operator's ``.env`` override (``IBKR_ACCOUNT_CLASS``) first;
+``ibkr_account_class`` is IBKR's own figures alone, and ``account_class_source`` says which
+decided. A Live short needs IBKR's word, never the override (ADR 048 step 6).
 """
 from __future__ import annotations
 
@@ -59,6 +63,11 @@ def classify_account_class(summary: dict) -> AccountClass:
     override = account_class_override()
     if override:
         return override
+    return ibkr_account_class(summary)
+
+
+def ibkr_account_class(summary: dict) -> AccountClass:
+    """Cash or margin from IBKR's own figures alone -- the override never counts."""
     for key in ("AccountType", "TradingType"):
         kind = _token_class(summary.get(key))
         if kind:
@@ -85,4 +94,6 @@ def attach_account_class(summary: dict) -> dict:
         return summary
     out = dict(summary)
     out["account_class"] = classify_account_class(out)
+    out["ibkr_account_class"] = ibkr_account_class(out)
+    out["account_class_source"] = "override" if account_class_override() else "ibkr"
     return out

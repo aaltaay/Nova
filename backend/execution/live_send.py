@@ -285,6 +285,7 @@ async def place(
             stop_price=cmd.stop_price,
             outside_rth=cmd.outside_rth,
             tif=cmd.tif,
+            targeted=cmd.target_venue == "live",
         )
         inflight.attach_order(execution_id, raw.get("order_id"))
         watch = _watch(

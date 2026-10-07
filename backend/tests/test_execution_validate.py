@@ -300,7 +300,7 @@ def _short_sell_cmd(qty: float = 10.0) -> ExecutionCommand:
 
 
 _MARGIN_SUMMARY = {"connected": True, "BuyingPower": 100_000.0, "NetLiquidation": 25_000.0,
-                   "ExcessLiquidity": 25_000.0, "account_class": "margin"}
+                   "ExcessLiquidity": 25_000.0, "account_class": "margin", "ibkr_account_class": "margin"}
 
 
 def test_short_entry_disabled_without_env(monkeypatch):
@@ -331,6 +331,7 @@ def test_short_entry_allowed_when_enabled_and_shortable(monkeypatch, short_marke
 
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
+    monkeypatch.setattr("short_sale.door.live_proof", lambda: (True, ""))   # the Live short proof (step 6)
     monkeypatch.setattr(account_mod, "get_account_summary", lambda: dict(_MARGIN_SUMMARY))
     monkeypatch.setattr(account_mod, "get_positions", lambda: [])
     borrow = short_mod.enrich_ibkr_listing(

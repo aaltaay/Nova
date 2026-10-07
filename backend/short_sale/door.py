@@ -115,7 +115,19 @@ def verdicts(cmd: ExecutionCommand, *, facts: Facts | None = None, borrow: dict[
     if facts is None or facts.venue != where or facts.symbol != order.symbol:
         facts = gather(order.symbol, where, borrow=borrow)
     return check.rules(order, facts, read_account(order.symbol, where),
-                       live_key=_safety.short_enabled() if where == "live" else None)
+                       live_key=_safety.short_enabled() if where == "live" else None,
+                       live_proof=live_proof() if where == "live" else None)
+
+
+def live_proof() -> tuple[bool, str]:
+    """The Live short proof's ``(complete, what is missing)`` (ADR 048 step 6); unreadable is incomplete."""
+    try:
+        from short_proof import status
+
+        return status()
+    except Exception as exc:
+        logger.exception("short check: the Live short proof could not be read -- refusing the Live short")
+        return False, f"the proof could not be read ({exc})."
 
 
 def refusal(cmd: ExecutionCommand, *, facts: Facts | None = None, borrow: dict[str, Any] | None = None,
@@ -133,18 +145,33 @@ def replace_refusal(cmd: ExecutionCommand, venue: str | None) -> Refusal | None:
 
     A replace runs no short check, so a new price could skip the borrow, SSR, margin and cushion
     rules the entry passed at its own price. Nova never reprices one: cancel it and place it again.
-    Paper and Sim know their short entries; a Live one cannot be placed until ADR 048's last step.
+    Paper and Sim know their short entries; Live's are the ones Nova's execution record sent as
+    short entries (ADR 048 step 6) -- a record Nova cannot read refuses, never guesses.
     """
     from practice.broker import for_venue
 
     where = _venue(venue)
-    if where not in ("paper", "sim") or cmd.order_id is None:
+    if cmd.order_id is None:
         return None
     oid = int(cmd.order_id)
-    rows = for_venue(where).working_orders()     # the broker the replace is sent to
-    row = next((r for r in rows if int(r.get("order_id") or 0) == oid), None)
-    if row is None or not row.get("short_entry"):
+    if where == "live":
+        from execution import store_orders
+
+        try:
+            row = store_orders.short_entries([oid]).get(oid)
+        except Exception as exc:
+            logger.exception("short check: the execution record could not be read for order %s", oid)
+            return (f"Nova's execution record could not be read ({exc}), so it cannot tell whether order {oid} "
+                    "is a short entry: it was not repriced. Cancel it and place it again.", SHORT_REPRICE)
+        symbol = row.get("symbol") if row else None
+    elif where in ("paper", "sim"):
+        rows = for_venue(where).working_orders()     # the broker the replace is sent to
+        found = next((r for r in rows if int(r.get("order_id") or 0) == oid), None)
+        row, symbol = (found if found is not None and found.get("short_entry") else None), (found or {}).get("symbol")
+    else:
         return None
-    return (f"Order {oid} is a short entry ({row.get('symbol')}): Nova never reprices one in place, "
+    if row is None:
+        return None
+    return (f"Order {oid} is a short entry ({symbol}): Nova never reprices one in place, "
             "because a new price needs the short check again (borrow, SSR, margin and the 25% cushion). "
             "Cancel it and place it again.", SHORT_REPRICE)

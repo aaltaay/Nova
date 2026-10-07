@@ -332,3 +332,33 @@ def test_the_session_says_what_a_short_needs_from_the_account_and_the_clock(pape
     assert shorts["hours"] == {"ok": True, "text": "new shorts until 15:50 ET; Nova covers what is left at 15:55",
                                "value": "until 15:50"}
     assert shorts["live"]["ok"] is False and "after the Paper proof" in shorts["live"]["text"]
+    # ADR 048 step 6: the Live chip counts the proof; Live's cover is off with the switch; no alarm.
+    assert shorts["live"]["value"] == "0/7" and "0 of 7 done" in shorts["live"]["text"]
+    assert shorts["live_cover"] is False and shorts["day_cover"] == {"alarms": []}
+
+
+def test_the_live_margin_chip_takes_ibkrs_word_never_the_override(monkeypatch):
+    from bot import shorts_view
+    from ibkr import account as account_mod
+
+    summary = {"connected": True, "NetLiquidation": 5_000.0, "account_class": "margin", "ibkr_account_class": "cash",
+               "account_class_source": "override"}
+    monkeypatch.setattr(account_mod, "get_account_summary", lambda: dict(summary))
+    margin, equity = shorts_view._account("live")
+    assert margin["ok"] is False and "override" in margin["text"] and equity["ok"] is True
+    summary["ibkr_account_class"] = "margin"
+    assert shorts_view._account("live")[0]["ok"] is True
+
+
+def test_a_cover_alarm_reaches_the_session_every_window_polls(paper):
+    from bot.session import get_session
+    from short_sale import cover_alarm
+
+    cover_alarm.reset_for_tests()
+    try:
+        cover_alarm.raise_("live", "rdyn", 400, kind="disconnected", text="Nova cannot cover 400 RDYN short on Live.")
+        [alarm] = get_session()["shorts"]["day_cover"]["alarms"]
+        assert (alarm["id"], alarm["venue"], alarm["symbol"], alarm["qty"], alarm["kind"]) == (
+            "live:RDYN", "live", "RDYN", 400.0, "disconnected")
+    finally:
+        cover_alarm.reset_for_tests()

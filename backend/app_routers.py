@@ -55,6 +55,7 @@ from hot_list.routes import router as hot_list_router
 from crypto.routes import router as crypto_router
 from luld.routes import router as luld_router
 from short_sale.routes import router as short_check_router
+from short_proof.routes import router as short_proof_router
 from agent_desk.routes import router as agent_desk_router
 
 
@@ -111,4 +112,5 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(crypto_router)
     app.include_router(luld_router)
     app.include_router(short_check_router)
+    app.include_router(short_proof_router)
     app.include_router(agent_desk_router)

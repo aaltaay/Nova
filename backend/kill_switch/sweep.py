@@ -50,17 +50,15 @@ Rows = list[dict[str, Any]]
 
 
 def _live_rows() -> tuple[Rows | None, str | None, str | None]:
-    """IBKR's own working orders -- never the desk's practice ledger."""
+    """IBKR's own working orders -- never the desk's practice ledger (``ibkr.live_book``)."""
     from ibkr import client as _client
+    from ibkr import live_book
 
     if not _client.is_connected():
         return None, LIVE_DISCONNECTED, None
-    ib = _client.get_ib()
-    if ib is None:
+    if _client.get_ib() is None:
         return None, LIVE_NOT_READY, None
-    from ibkr.order_rows import trade_to_order_row
-
-    return [trade_to_order_row(trade) for trade in ib.openTrades()], None, None
+    return live_book.open_rows(), None, None
 
 
 def _paper_rows() -> tuple[Rows | None, str | None, str | None]:
@@ -86,17 +84,10 @@ POSITIONS_UNREAD = "its positions could not be read, so no stop could be told pr
 
 
 def _live_held() -> dict[str, float]:
-    """IBKR's own positions, signed (never the desk's practice ledger)."""
-    from ibkr import client as _client
+    """IBKR's own positions, signed (never the desk's practice ledger; ``ibkr.live_book``)."""
+    from ibkr import live_book
 
-    ib = _client.get_ib()
-    if ib is None:
-        raise RuntimeError("IBKR is not ready")
-    held: dict[str, float] = {}
-    for pos in ib.positions():
-        sym = str(pos.contract.symbol or "").strip().upper()
-        held[sym] = held.get(sym, 0.0) + float(pos.position or 0)
-    return held
+    return live_book.positions()
 
 
 def _practice_held(venue: str) -> dict[str, float]:

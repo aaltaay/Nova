@@ -24,7 +24,9 @@ Every close is an ordinary order through the execution door (ADR 007): source ``
 ``day_cover`` / ``margin_call`` (the Orders table's "Sent by"), sent to the venue it closes on
 (``target_venue``) whatever the desk shows. Each is a ``day_cover`` / ``margin_call`` line on the
 bot audit stream. A close the venue refuses is logged and tried again ``SHORT_CLOSE_RETRY_SEC``
-later, not on every pass. Live's day cover and its alarm come with ADR 048's last step.
+later, not on every pass. A day cover that cannot go out raises the alarm every desk window shows
+(``short_sale.cover_alarm``) until a cover goes out or the short is gone. Live's day cover is
+``short_sale.live_closes`` (ADR 048 step 6).
 """
 from __future__ import annotations
 
@@ -34,7 +36,7 @@ from typing import Any
 
 from constants_shorts import SHORT_CLOSE_RETRY_SEC
 from execution.models import ExecutionCommand
-from short_sale import hours
+from short_sale import cover_alarm, hours
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +91,18 @@ async def close(broker: Any, row: dict[str, Any], *, origin: str, reason: str, n
     _audit(origin, "closed" if receipt.ok else "failed", reason, out)
     if receipt.ok:
         _retry_at.pop((venue, symbol, origin), None)
+        if origin == "day_cover":
+            cover_alarm.clear(venue, symbol)
     else:
         _retry_at[(venue, symbol, origin)] = time.monotonic() + SHORT_CLOSE_RETRY_SEC
         logger.error("SHORTS: %s of %s %s on %s failed (tried again in %.0f s): %s", origin, side, symbol, venue,
                      SHORT_CLOSE_RETRY_SEC, receipt.error)
+        if origin == "day_cover":
+            where = cover_alarm.VENUE_WORDS.get(venue, venue)
+            cover_alarm.raise_(venue, symbol, qty, kind="refused", error=receipt.error,
+                               reason_code=receipt.reason_code, text=(
+                                   f"Nova could not cover {qty:g} {symbol} short on {where}: {receipt.error}. "
+                                   f"Cover it yourself now; Nova tries again every {SHORT_CLOSE_RETRY_SEC:.0f} s."))
     return out
 
 
@@ -145,10 +155,13 @@ async def entry_cutoff(broker: Any) -> list[dict[str, Any]]:
 async def day_cover(broker: Any) -> list[dict[str, Any]]:
     """Cover every short on the broker's venue when its clock stands past the day's cover time."""
     now = float(broker.reference.now_ts())
+    held = broker.positions()
+    cover_alarm.keep_only(str(broker.venue), {str(r["symbol"]).upper() for r in held
+                                             if float(r.get("qty") or 0) < -_EPS})
     if not hours.cover_due(now):
         return []
     out = []
-    for row in broker.positions():
+    for row in held:
         symbol = str(row["symbol"]).upper()
         if float(row.get("qty") or 0) < -_EPS and not _closing(broker, symbol) \
                 and not _waiting(str(broker.venue), symbol, "day_cover"):

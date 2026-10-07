@@ -25,6 +25,10 @@ counts once. An exit still waiting on its entry -- the entry is itself working
 nothing. Both read the rows' ``oca_group`` / ``parent_id``: the practice venues
 fill in both, and Live rows carry IBKR's ``parentId`` as ``parent_id`` (ADR 048),
 so a Live bracket's exits count once too, grouped by their entry.
+
+Live's day cover (ADR 048 step 6) carries the same intent and is sent to Live whatever the desk shows
+(``target_venue``): its check reads IBKR's own book (``ibkr.live_book``), never the desk's practice
+ledger, and counts only Live's in-flight closes.
 """
 from __future__ import annotations
 
@@ -45,8 +49,13 @@ def _qty(value: Any) -> float:
         return 0.0
 
 
-def held_qty(symbol: str) -> float:
-    """Signed position in ``symbol`` from the venue's own positions (raises ``IbkrAccountError``)."""
+def held_qty(symbol: str, *, live: bool = False) -> float:
+    """Signed position in ``symbol`` from the venue's own positions -- IBKR's own with ``live`` (raises
+    ``IbkrAccountError``)."""
+    if live:
+        from ibkr import live_book
+
+        return float(live_book.positions().get(symbol, 0.0))
     from ibkr import account as _account
 
     return sum(
@@ -55,18 +64,19 @@ def held_qty(symbol: str) -> float:
     )
 
 
-def closing_committed(symbol: str, side: str) -> tuple[float, list[int]]:
+def closing_committed(symbol: str, side: str, *, live: bool = False) -> tuple[float, list[int]]:
     """Shares of ``symbol`` already working or sent on the closing ``side``, and those order ids.
 
     Raises ``IbkrAccountError`` when the venue's open orders cannot be read --
-    a failed read is never "nothing working".
+    a failed read is never "nothing working". ``live``: IBKR's own orders and Live's in-flight sends.
     """
+    from ibkr import live_book
     from ibkr import orders as _orders
 
     committed = 0.0
     ids: list[int] = []
     groups: dict[Any, float] = {}  # one-cancels-other group -> the most any one of its orders closes
-    rows = _orders.open_orders()
+    rows = live_book.open_rows() if live else _orders.open_orders()
     # Entries working with nothing filled: an exit waiting on one closes nothing held yet. Once an
     # entry has filled some, IBKR may already work its exits, so they count.
     unfilled = {
@@ -95,26 +105,31 @@ def closing_committed(symbol: str, side: str) -> tuple[float, list[int]]:
             ids.append(int(row["order_id"]))
     committed += sum(groups.values())
     # Committed under the execution lock but not yet an order: counted until it is one.
-    for row in inflight.snapshot():
+    for row in inflight.snapshot("live" if live else None):     # the desk's venue's, or Live's
         if row["symbol"] == symbol and row["side"] == side and row["order_id"] is None:
             committed += _qty(row["qty"])
     return committed, ids
 
 
 def refusal(cmd: ExecutionCommand) -> str | None:
-    """Why this flatten is not a close of the position still open to close, or None when it is."""
+    """Why this flatten is not a close of the position still open to close, or None when it is.
+
+    A flatten the door sends to Live whatever the desk shows (Live's day cover) is checked against IBKR's
+    own book.
+    """
     if cmd.operation != "place" or cmd.short_entry:
         return "A flatten closes a position; it cannot open one or carry legs"
     symbol = cmd.normalized_symbol() or ""
     side = (cmd.side or "").strip().upper()
+    live = cmd.target_venue == "live"
     try:
-        held = held_qty(symbol)
+        held = held_qty(symbol, live=live)
         if abs(held) < _EPS:
             return f"No open {symbol} position to flatten"
         closing = "SELL" if held > 0 else "BUY"
         if side != closing:
             return f"A {side} does not close the {symbol} position ({held:g})"
-        committed, ids = closing_committed(symbol, closing)
+        committed, ids = closing_committed(symbol, closing, live=live)
     except IbkrAccountError as exc:
         return f"Positions or working orders unavailable ({exc}) -- cannot confirm the close"
     qty = _qty(cmd.qty)
