@@ -102,17 +102,20 @@ function setupRows(): KeySection {
   };
 }
 
-/** The flat top's own drawing (2026-10-06): the level, its touches, the base, the break and the hold. */
-function flatTopRows(prefix = ''): KeySection {
+/** The flat top's own drawing (2026-10-06): the level, its touches, the base, the break and the hold -- on the
+ * 5-minute pane the 5-minute flat top's, whose hold is a 1-minute candle (`five`). */
+function flatTopRows(five = false): KeySection {
   const c = FLAT_TOP_COLORS;
   return {
-    title: `${prefix}Flat top`,
+    title: five ? '5-minute flat top (a strategy: it can trade)' : 'Flat top',
     rows: [
       { swatch: 'line', color: c.line, label: 'Flat top', text: 'the high of day the candles keep tapping (dashed while it forms)' },
       { swatch: 'ring', color: c.ringStroke, fill: c.ring, label: 'Touch', text: 'a candle whose high reached it (within 0.5% or a cent under it)' },
       { swatch: 'box', color: c.line, fill: c.fill, label: 'Base', text: 'the candles under it, from the first touch' },
-      { swatch: 'up', color: c.go, label: 'Break', text: 'the candle that traded over it' },
-      { swatch: 'box', color: c.go, fill: c.holdFill, label: 'Hold', text: 'the candle that held it and closed green: the entry' },
+      { swatch: 'up', color: c.go, label: 'Break', text: five ? 'the 5-minute candle a price over it printed in' : 'the candle that traded over it' },
+      five
+        ? { swatch: 'box', color: c.go, fill: c.holdFill, label: '1m hold', text: 'the 5-minute candle the entry printed in: the first 1-minute candle that held it and closed green' }
+        : { swatch: 'box', color: c.go, fill: c.holdFill, label: 'Hold', text: 'the candle that held it and closed green: the entry' },
     ],
   };
 }
@@ -125,16 +128,18 @@ function fiveMinuteRows(): KeySection {
       { swatch: 'box', color: SETUP_COLORS.trigger, fill: SETUP_COLORS.leg, label: 'Armed / near', text: 'waiting for its trigger' },
       { swatch: 'box', color: SETUP_COLORS.fadedStroke, fill: SETUP_COLORS.faded, label: 'Ended (faint)', text: '✕ failed · ○ faded · ✓ triggered, and what price did next' },
       { swatch: 'dash', color: SETUP_COLORS.trigger, label: '5m trigger', text: 'with its stop (red) and target (green), dashed' },
-      { swatch: 'line', color: GREY, label: 'Scored only', text: 'Nova scores them in silence: they never propose or trade' },
+      { swatch: 'line', color: GREY, label: 'Scored only', text: 'the first pullback and the bull flag: Nova scores them in silence, they never propose or trade' },
     ],
   };
 }
 
 function fiveOnMinuteRows(): KeySection {
+  const c = FLAT_TOP_COLORS;
   return {
     title: 'From the 5-minute chart',
     rows: [
       { swatch: 'dash', color: SETUP_COLORS.trigger, label: '5m trigger', text: 'a 5-minute setup armed or near its trigger (its chip is in the legend)' },
+      { swatch: 'line', color: c.line, label: '5m flat top', text: 'once it arms: its level from the first touch, the break, and the 1-minute candle that holds it (the entry)' },
     ],
   };
 }
@@ -167,7 +172,7 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
   } else if (kind === 'thin') {
     out.push(planRows(false));
   } else {
-    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows('5-minute '));
+    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows(true));
     if (layers.levels) out.push(kind === 'daily' ? dailyRows() : fiveMinuteLevelRows());
   }
   if (kind !== 'daily') out.push(sessionRows());

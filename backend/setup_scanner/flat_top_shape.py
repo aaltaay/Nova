@@ -20,7 +20,9 @@ every touch is read against it.
   retested   a touch after the first made no new high: the level was tapped, not pushed through -- a run
              of rising highs a cent apart is a move, not a flat top
 
-A flat top whose first touch is more than ``max_consol`` candles back is stale. A base of one candle is read
+``new_high``, ``stale_base`` and ``miss_leg`` read the rest of the pattern: a fresh high of day the flat top
+waits on, the research's stale base, and the leg a missed flat top had. A flat top whose first touch is more
+than ``max_consol`` candles back is stale. A base of one candle is read
 too, so a flat top shows forming at its second touch; arming needs ``min_consol``. With ``base_start =
 "last_high"`` -- the research's P2 rule -- the first is the last candle at the high itself, the nearest that
 leaves ``min_consol`` candles after it, and touches are counted from there; ``P2_RULE`` holds the values that
@@ -135,6 +137,38 @@ def find(s: Any, last: int, p: Any) -> tuple[Shape | None, Miss | None]:
         return Shape(first=top, last=last, level=level, zone=round(zone, 6), touches=touches,
                      base_low=min(s.lo[top + 1:last + 1]), impulse_low=low, retested=retested), miss
     return None, miss
+
+
+def impulse_leg(s: Any, top: int, level: float, p: Any) -> dict[str, Any] | None:
+    """The run into ``level`` at ``top`` as a leg, when it is an impulse; else None."""
+    low = impulse_low(s, top, level, p)
+    if low is None:
+        return None
+    return {"t": s.t[top], "high": level, "low": low, "pct": round(level / low - 1, 4), "bars": 0}
+
+
+def new_high(s: Any, last: int, p: Any) -> dict[str, Any] | None:
+    """The last candle set a new high of day on an impulse -- the flat top waits for its taps -- or None."""
+    if last < p.leg_window or s.h[last] < s.hod[last] or (last > 0 and s.h[last] <= s.hod[last - 1]):
+        return None
+    return impulse_leg(s, last, s.h[last], p)
+
+
+def stale_base(s: Any, last: int, p: Any) -> tuple[dict[str, Any], str] | None:
+    """The research's P2 (``base_start = "last_high"``): a high-of-day candle more than ``max_consol`` candles
+    back with no higher high since, as its leg and the rule. The first-touch flat top's own staleness is ``find``'s."""
+    level, top = s.hod[last], s.hod_i[last]
+    if last - top <= p.max_consol or top < p.leg_window:
+        return None
+    ctx = impulse_leg(s, top, level, p)
+    return None if ctx is None else (ctx, f"the base ran past {p.max_consol} candles without a break")
+
+
+def miss_leg(s: Any, miss: Miss) -> tuple[dict[str, Any], str]:
+    """A missed flat top's leg -- from the candle it would have started at, to today's high -- and the rule."""
+    level = s.hod[-1]
+    return ({"t": s.t[miss.first], "high": level, "low": miss.impulse_low,
+             "pct": round(level / miss.impulse_low - 1, 4), "bars": 0}, miss.why)
 
 
 def leg(s: Any, shape: Shape) -> dict[str, Any]:

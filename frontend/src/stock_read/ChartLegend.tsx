@@ -158,7 +158,7 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
               const chip = laneChip(lane);
               const off = layers.hidden.includes(lane.setup_type);
               // A strategy at Off on the Bots page draws nothing: the chip says so and cannot turn it back on here.
-              const strategyOff = lane.timeframe !== '5m' && lane.level === 0;
+              const strategyOff = lane.level === 0;
               return (
                 <button
                   key={lane.setup_type}

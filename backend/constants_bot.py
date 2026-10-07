@@ -28,17 +28,20 @@ BOT_LEVEL_UNRESTRICTED = 3  # parked -- refuse
 # -- The playbook (ADR 027): the operator's setups from their trading material.
 # ADR 031: the bull flag joins, and it, the flat-top breakout and red to green get
 # scanners. ADR 042: no setup is "chosen" -- each setup with a scanner has its own
-# level, under the master ``level``.
+# level, under the master ``level``. ADR 031 amendment 2026-10-06: the 5-minute flat top -- the flat top
+# read on 5-minute candles, bought on the 1-minute candle that holds it -- is a strategy of its own.
 BOT_SETUP_FIRST_PULLBACK = "first_pullback"
 BOT_SETUP_BULL_FLAG = "bull_flag"
 BOT_SETUP_GAP_AND_GO = "gap_and_go"
 BOT_SETUP_FLAT_TOP = "flat_top_breakout"
+BOT_SETUP_FLAT_TOP_5M = "flat_top_5m"
 BOT_SETUP_RED_TO_GREEN = "red_to_green"
 BOT_SETUP_MICRO_PULLBACK = "micro_pullback"
 BOT_SETUPS = (
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_MICRO_PULLBACK,
@@ -48,6 +51,7 @@ BOT_SCANNER_SETUPS = (
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
 )

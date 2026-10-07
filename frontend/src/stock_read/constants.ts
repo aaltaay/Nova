@@ -140,6 +140,7 @@ export const LANE_LABELS: Record<string, string> = {
   first_pullback: 'FP',
   bull_flag: 'FLAG',
   flat_top_breakout: 'FLAT',
+  flat_top_5m: 'FLAT 5M',
   red_to_green: 'R→G',
   gap_and_go: 'G&G',
   hod_momo: 'HOD',

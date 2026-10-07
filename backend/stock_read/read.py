@@ -30,13 +30,14 @@ GROUPS = (
     ("halts", "Halts", "What could stop me out or freeze me?"),
 )
 SHORT_NAMES = {"first_pullback": "Pullback", "bull_flag": "Flag", "flat_top_breakout": "Flat top",
-               "red_to_green": "Red to green", "gap_and_go": "Gap and Go"}
+               "flat_top_5m": "5m flat top", "red_to_green": "Red to green", "gap_and_go": "Gap and Go"}
 
 
 def _lead_series(setups: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """The scanner's own indicators: a lane at Strategy first (every lane reads the same minutes; a
-    template may change the periods)."""
-    ordered = sorted(setups, key=lambda s: 0 if s.get("level") == 2 else 1)
+    """The scanner's own 1-minute indicators: a lane at Strategy first (every 1-minute lane reads the same
+    minutes; a template may change the periods). A lane whose pattern reads 5-minute candles keeps those."""
+    minute = [s for s in setups if s.get("timeframe", "1m") == "1m"]
+    ordered = sorted(minute, key=lambda s: 0 if s.get("level") == 2 else 1)
     return next((s["series"] for s in ordered if s.get("series")), None)
 
 

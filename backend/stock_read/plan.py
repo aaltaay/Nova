@@ -42,11 +42,12 @@ FILTERED = "filtered"
 LIVE_STATES = (SETUP_STATE_NEAR, SETUP_STATE_ARMED, FILTERED)
 EPS = 1e-9
 _NAMES = {"first_pullback": "first pullback", "bull_flag": "bull flag", "flat_top_breakout": "flat-top breakout",
-          "red_to_green": "red to green", "gap_and_go": "Gap and Go"}
+          "flat_top_5m": "5-minute flat top", "red_to_green": "red to green", "gap_and_go": "Gap and Go"}
 _ENTRY_RULES = {
     "first_pullback": "1 cent over the last pullback candle's high",
     "bull_flag": "1 cent over the last flag candle's high",
     "flat_top_breakout": "1 cent over the flat top (the taught entry waits for a candle to hold over it)",
+    "flat_top_5m": "1 cent over the close of the first 1-minute candle that holds the 5-minute flat top after the break",
     "red_to_green": "1 cent over the open",
     "gap_and_go": "1 cent over the pre-market high, from the open",
 }
@@ -54,6 +55,7 @@ _STOP_RULES = {
     "first_pullback": "the pullback's low",
     "bull_flag": "the flag's low",
     "flat_top_breakout": "the base's low",
+    "flat_top_5m": "the 1-minute pullback's low, once a candle holds (the 5-minute base's low until then)",
     "red_to_green": "the lowest low since the open",
     "gap_and_go": "20 cents or 4% under the entry, whichever is smaller",
 }

@@ -3,7 +3,8 @@ import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { LiquidityRead } from './liquidity';
 
 /** A setup with a scanner (ADR 031): every row, proposal and card names one. */
-export type SetupType = 'first_pullback' | 'bull_flag' | 'flat_top_breakout' | 'red_to_green' | 'gap_and_go' | string;
+export type SetupType =
+  'first_pullback' | 'bull_flag' | 'flat_top_breakout' | 'flat_top_5m' | 'red_to_green' | 'gap_and_go' | string;
 
 /** `filtered`: the pattern armed but the template's stock filter keeps the name out (ADR 029). */
 export type SetupState = 'near' | 'armed' | 'triggered' | 'pullback' | 'leg' | 'failed' | 'watching' | 'filtered';

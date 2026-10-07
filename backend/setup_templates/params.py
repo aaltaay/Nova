@@ -18,6 +18,7 @@ parameters took it past the size ceiling).
 """
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,6 +30,7 @@ from constants_bot import (
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_MICRO_PULLBACK,
     BOT_SETUP_RED_TO_GREEN,
@@ -67,7 +69,12 @@ from constants_setups import (
     SETUPS_FT_BASE_START,
     SETUPS_FT_ENTRY,
     SETUPS_FT_HOLD_BARS,
+    SETUPS_FT_HOLD_STOP_CANDLE,
+    SETUPS_FT_HOLD_STOP_PULLBACK,
     SETUPS_FT_IMPULSE_PCT,
+    SETUPS_FT5_HOLD_BARS,
+    SETUPS_FT5_HOLD_STOP,
+    SETUPS_5M_ENTRY_CUTOFF_ET,
     SETUPS_FT_LEG_WINDOW_BARS,
     SETUPS_FT_MAX_CONSOL,
     SETUPS_FT_MAX_PER_SYMBOL_DAY,
@@ -530,6 +537,66 @@ _FLAT_TOP: tuple[ParamSpec, ...] = _STOCK + (
     _TARGET_R, _TARGET_FIXED, _BAILOUT,
 ) + _TAPE + _FLOW + _GRADE + _BOT
 
+# -- The 5-minute flat top (ADR 031 amendment 2026-10-06): the flat top's parameters read on 5-minute
+# candles, the hold on the 1-minute candles after the break (``setup_scanner/flat_top_5m.py``). ----------
+_FIVE = "5-min candles"
+_FLAT_TOP_5M_CHANGES: dict[str, dict[str, Any]] = {
+    "ft_impulse_pct": {"help": "The move into the flat top, over the lowest low of the impulse window (5-minute "
+                               "candles)."},
+    "leg_window": {"unit": _FIVE, "help": "The 5-minute candles ending at the first touch the impulse is measured "
+                                          "over."},
+    "ft_min_touches": {"unit": _FIVE, "help": "5-minute candles whose high reached the flat top, the first one "
+                                              "included: the level is tapped again and again before it breaks. "
+                                              "From its second touch it is drawn forming."},
+    "ft_min_consol": {"unit": _FIVE, "help": "5-minute candles after the first touch, none making a high past the "
+                                             "tolerance."},
+    "ft_max_consol": {"unit": _FIVE},
+    "ft_band": {"help": "Every 5-minute base close sits within this of the high of day: a flat top, not a pullback."},
+    "ema_period": {"unit": _FIVE, "help": "Every 5-minute base candle's low is at or above this EMA of the 5-minute "
+                                          "closes (the scoring exit reads the 1-minute EMA: the trade is a 1-minute "
+                                          "one)."},
+    "macd_positive": {"help": "The last 5-minute base candle's MACD histogram is above zero (the front side of the "
+                              "move)."},
+    "macd_fast": {"unit": _FIVE},
+    "macd_slow": {"unit": _FIVE},
+    "macd_signal": {"unit": _FIVE},
+    "ft_entry": {"choices": (("hold", "a 1-minute candle that holds over the high (the taught way)"),
+                             ("break", "the break of the high")),
+                 "help": "Hold: after the break, buy the close of the first 1-minute candle that holds the flat top "
+                         "(its low in the touch zone or over it) and closes green over the high -- the 1-minute "
+                         "pullback your material buys inside the 5-minute breakout candle. Break: buy the break "
+                         "itself."},
+    "ft_hold_bars": {"default": SETUPS_FT5_HOLD_BARS, "unit": "minutes",
+                     "help": "Hold entry: 1-minute candles after the break's own minute before the setup disarms "
+                             "(five: the 5-minute breakout candle)."},
+    "entry_offset": {"help": "Break: over the high of day by this. Hold: over the hold minute's close by this."},
+    "entry_cutoff": {"default": SETUPS_5M_ENTRY_CUTOFF_ET,
+                     "help": "No flat top arms, and no break triggers, at or after this time (slow movers set up "
+                             "later in the day too)."},
+    "stop_cap": {"help": "Hold: entry minus the stop (the stop below). Break: entry minus the 5-minute base low. A "
+                         "bigger risk skips the setup."},
+    "bailout_bars": {"unit": "minutes", "help": "Scoring exit: this many 1-minute candles without a close over the "
+                                                "entry -> out at the close."},
+}
+_HOLD_STOP = _p("ft_hold_stop", "entry", "Hold stop", CHOICE, SETUPS_FT5_HOLD_STOP,
+                choices=((SETUPS_FT_HOLD_STOP_PULLBACK, "the pullback's low: every minute since the break's"),
+                         (SETUPS_FT_HOLD_STOP_CANDLE, "the hold minute's low")),
+                help="Pullback: the lowest low of the minutes after the break's own, the hold included -- where the "
+                     "pullback went. Candle: the hold minute's low alone, as the 1-minute flat top does.")
+
+
+def _flat_top_5m() -> tuple[ParamSpec, ...]:
+    """The flat top's specs with the 5-minute words and defaults, and the hold's stop after its window."""
+    out: list[ParamSpec] = []
+    for spec in _FLAT_TOP:
+        out.append(dataclasses.replace(spec, **_FLAT_TOP_5M_CHANGES.get(spec.key, {})))
+        if spec.key == "ft_hold_bars":
+            out.append(_HOLD_STOP)
+    return tuple(out)
+
+
+_FLAT_TOP_5M = _flat_top_5m()
+
 # -- Red to green (P3, ``find_red_to_green``): the open, then back through it. ----------
 _RED_TO_GREEN: tuple[ParamSpec, ...] = _STOCK + (
     _p("r2g_min_red_bars", "setup", "Closes under the open at least", INT, SETUPS_R2G_MIN_RED_BARS, unit="candles", min=1,
@@ -583,6 +650,7 @@ CATALOGUE: dict[str, tuple[ParamSpec, ...]] = {
     BOT_SETUP_FIRST_PULLBACK: _FIRST_PULLBACK,
     BOT_SETUP_BULL_FLAG: _BULL_FLAG,
     BOT_SETUP_FLAT_TOP: _FLAT_TOP,
+    BOT_SETUP_FLAT_TOP_5M: _FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN: _RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO: _GAP_AND_GO,
     BOT_SETUP_MICRO_PULLBACK: (),
@@ -597,6 +665,10 @@ SOURCES: dict[str, str] = {
                          "the high of day tapped again and again within a tolerance, then the break. The research's P2 "
                          "rule is the last-high base with one touch and no tolerance. It arms from 07:00. Every "
                          "template is watched at once."),
+    BOT_SETUP_FLAT_TOP_5M: ("The flat top read on 5-minute candles, as your material reads it, and bought the way it "
+                            "executes it: after the break, the first 1-minute candle that holds the level and closes "
+                            "green (ADR 031, amended 2026-10-06). Its read-out is its first live test. It arms "
+                            "07:00-15:30. Every template is watched at once."),
     BOT_SETUP_RED_TO_GREEN: ("The live scanner reads the research's pre-registered rules (P3, ADR 031). Every template "
                              "is watched at once."),
     BOT_SETUP_GAP_AND_GO: ("The live scanner reads the research's pre-registered rules (A2, ADR 031 amendment): the break "

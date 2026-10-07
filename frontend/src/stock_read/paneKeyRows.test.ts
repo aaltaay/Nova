@@ -7,7 +7,7 @@ const titles = (kind: Parameters<typeof chartKey>[0], layers = ON) => chartKey(k
 describe("each chart pane's Key", () => {
   it('names the levels the 5-minute candles show and the time-of-day background', () => {
     expect(titles('map')).toEqual([
-      '5-minute setups (labels start "5m")', '5-minute Flat top', 'Levels from 5-minute candles (hover a label for why)',
+      '5-minute setups (labels start "5m")', '5-minute flat top (a strategy: it can trade)', 'Levels from 5-minute candles (hover a label for why)',
       'Background (time of day, ET)',
     ]);
     expect(chartKey('map', ON)[0].rows.map(r => r.label)).toEqual(
@@ -43,7 +43,7 @@ describe("each chart pane's Key", () => {
   it('lists nothing for levels that are switched off, and nothing on a pane Nova does not draw on', () => {
     expect(titles('map', { setups: false, levels: false })).toEqual(['Background (time of day, ET)']);
     expect(titles('map', { ...ON, levels: false })).toEqual(
-      ['5-minute setups (labels start "5m")', '5-minute Flat top', 'Background (time of day, ET)']);
+      ['5-minute setups (labels start "5m")', '5-minute flat top (a strategy: it can trade)', 'Background (time of day, ET)']);
   });
 
   it("draws the flat top's own marks: its line, a ring per touch, the base, the break and the hold", () => {
@@ -51,6 +51,11 @@ describe("each chart pane's Key", () => {
     expect(flat?.rows.map(r => [r.swatch, r.label])).toEqual([
       ['line', 'Flat top'], ['ring', 'Touch'], ['box', 'Base'], ['up', 'Break'], ['box', 'Hold'],
     ]);
+    // The 5-minute flat top (a strategy since 2026-10-06): its hold is a 1-minute candle in its 5-minute one.
+    const five = chartKey('map', ON).find(s => s.title.startsWith('5-minute flat top'));
+    expect(five?.rows.map(r => r.label)).toEqual(['Flat top', 'Touch', 'Base', 'Break', '1m hold']);
+    expect(chartKey('full', ON).find(s => s.title === 'From the 5-minute chart')?.rows.map(r => r.label))
+      .toEqual(['5m trigger', '5m flat top']);
     expect(chartKey('none', ON)).toEqual([]);
   });
 });

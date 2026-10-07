@@ -1103,7 +1103,7 @@ adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
 **Auto-record.** The backend records, first, the setups of the templates in
 play that are in a scored trade (`trade`), near their trigger (`near`) or armed
 (`armed`) -- whenever any setup's template in play is inside its arming window
-(07:00-11:30 ET by default; red to green 09:30-10:30; ADR 042: until then a
+(07:00-11:30 ET by default; red to green 09:30-10:30; the 5-minute flat top 07:00-15:30; ADR 042: until then a
 setup arming after 10:00 had no line, and red to green's triggers were never
 "go") -- then, 07:00-10:00 ET only, the top
 `LEADERBOARD_AUTO_RECORD_TOP_N` `LEADERS_RULES` names of the live Gainers
@@ -1278,15 +1278,16 @@ rules pre-registered in ADR 031), on the same ladder of states, the same tape
 gate and the same scoring; since 2026-10-02 Gap and Go too (`gap_and_go.py`, the
 research's A2 rule, ADR 031 amendment: the pre-market high, armed at the 09:30
 open when the open is under it, broken by 10:00, stop `min(20c, 4%)` under the
-entry, one try a day; a new setup starts Off on every venue). The board is `schema_version: 2`: every row and
+entry, one try a day; a new setup starts Off on every venue); since 2026-10-06 the 5-minute flat top
+(`flat_top_5m.py`, "The 5-minute flat top" below). The board is `schema_version: 2`: every row and
 proposal adds `setup_type: "first_pullback" | "bull_flag" | "flat_top_breakout"
-| "red_to_green" | "gap_and_go"`; a row adds `failed_at: number | null` and its `setup` adds
+| "flat_top_5m" | "red_to_green" | "gap_and_go"`; a row adds `failed_at: number | null` and its `setup` adds
 `detail: object | null` (the setup's own facts: `entry_mode`, `broke_at` and the touches for
 the flat-top breakout ("The flat top counts its touches" below), `open` and `red_bars` for red to green, `pole_bars` for the
 bull flag, `pm_high`, `pm_high_t`, `open`, `open_t` and `stop_rule` for Gap and Go);
 `kind` is one of `first_pullback | second_pullback | bull_flag |
-second_bull_flag | flat_top_breakout | second_flat_top_breakout | red_to_green |
-gap_and_go`
+second_bull_flag | flat_top_breakout | second_flat_top_breakout | flat_top_5m |
+second_flat_top_5m | red_to_green | gap_and_go`
 (the kind without `second_` is the first of that setup on that symbol that day);
 `leg` is the setup's context (`{t, high, low, pct, bars?}`: the leg, the pole, the
 impulse into the high of day, the open and the red phase, or Gap and Go's
@@ -1367,7 +1368,8 @@ we may need a drift or a ratio to still consider flat top." Owners `setup_scanne
   (P2's values), never the new defaults. The catalogue's tables moved to `setup_templates/params.py`; `catalogue.py`
   keeps the validator.
 - **Revisions.** The built-in default's revision is per setup (`SETUP_TEMPLATE_DEFAULT_REVS`, `setup_default_rev`): the
-  flat top's is 2 and its read-out starts over. The 5-minute flat-top lane's revision is 2 (`FIVE_MIN_REVS`).
+  flat top's is 2 and its read-out starts over. The 5-minute flat top became a strategy of its own the same day
+  ("The 5-minute flat top" below).
 - **On the wire.** A flat top's `leg` adds `touches: [[t, high], ...]` (oldest first) and `zone` (the lowest high that
   touches), and `bars` counts the base. Its armed `detail` adds `touches`, `zone`, `min_touches` and `broke_bar_t`
   (the break's candle, hold entry). A triggered hold adds `hold_bar_t` and `hold_high`. A row, journal line or
@@ -1380,10 +1382,37 @@ we may need a drift or a ratio to still consider flat top." Owners `setup_scanne
   - its name in the edge column ("FLAT TOP = HOD 5.50" until it breaks).
 
   A flat top that is not the plan's lead is a dimmed violet without labels, and a failed one is grey. A past flat top
-  keeps its rings, faint. The 5-minute chart draws its lane the same way, and its trigger line reads "5m FLAT TOP".
-  Every pane's Key adds the flat top's marks.
-- **Unchanged.** The 1-minute flat top plays as before; the 5-minute one is drawn and scored only. No flat-bottom
-  short: Nova opens no shorts (Invariant 7).
+  keeps its rings, faint. The 5-minute flat top draws the same way on the 5-minute chart, and its trigger line reads
+  "5m FLAT TOP". Every pane's Key adds the flat top's marks.
+- **Unchanged.** The 1-minute flat top plays as before. No flat-bottom short: Nova opens no shorts (Invariant 7).
+
+### The 5-minute flat top (ADR 031 amendment, operator ask 2026-10-06)
+
+"Make the 5-minute flat top a Paper buy with a 1-minute hold entry, as the material trades it." The material reads
+the flat top on the 5-minute chart and buys the 1-minute pullback that holds it after the break. Owner
+`setup_scanner/flat_top_5m.py`; on the desk `frontend/src/stock_read/flatTopShapes.ts` and `fiveMinuteShapes.ts`.
+
+- **A sixth strategy**, `flat_top_5m`: its own Off / Eyes / On per venue (starting Off), templates, read-out (kind
+  `flat_top_5m` / `second_flat_top_5m`), bot rules and window, like every setup. Nova's bot buys it at On, on Paper
+  and Sim only.
+- **A 1-minute lane, a 5-minute pattern.** Its lane is fed the scanner's minutes, so the tape gate, the liquidity
+  check, the scoring and the bot are the minutes'. Its detector makes 5-minute candles of them
+  (`five_minute.candles`; one is over once its last minute or a later one is in) and reads the flat top on those by
+  the flat top's own rules ("The flat top counts its touches" above): `bar_sec` 300, arming 07:00-15:30.
+- **The entry is the 1-minute hold.** After a price over the flat top, it is the first of the next `ft_hold_bars` (5)
+  minutes after the break's own that holds the touch zone and closes green over the high. Entry is one cent over its
+  close, the stop is the pullback's low (`ft_hold_stop`: `pullback`, or `candle` for the hold minute's low), and the
+  dollar caps read that risk. A minute closing under the zone fails it. It is scored on 1-minute candles from the
+  hold minute. Its rows carry no 5-minute read (`tf5_*` null): its pattern is that chart, and trial T8 reads
+  1-minute setups.
+- **The built-in 5-minute flat-top lane is gone** ("The 5-minute setups" below keeps the first pullback and the bull
+  flag), and auto-record's setups window now runs to 15:30 ("Auto-record" above).
+- **On the wire.** It comes in the stock read's and the symbol view's `setups` with `timeframe: "5m"` and `rules`
+  adding `hold_bar_sec`. Its `detail.broke_bar_t` and `hold_bar_t` are minutes. The past setups at `?tf=5m` fold its
+  lines; `?tf=1m` leaves them out.
+- **On the desk.** The 5-minute chart draws it as the flat top, its hold named "1m hold" in its 5-minute candle.
+  Once it arms, the 1-minute chart draws its level from the first touch, the break and the hold minute. At Off it
+  draws nothing, like every strategy.
 
 ### One row per trigger (ADR 022 amendment, 2026-10-02)
 
@@ -1494,8 +1523,8 @@ seed with the first close (`series.ema`), `as_of` the last complete candle's sta
 "We need 5-minute strategies ... sometimes I see slow stocks moving upwards, and you can see clear patterns in
 the 5-minute chart, but they're not clear in the 1-minute chart"; on the IOVA mockup: build it this way, chart
 only, a chip and the trigger line on the 1-minute, arming 07:00-15:30. Owner `setup_scanner/five_minute_lane.py`.
-- **The lanes.** One built-in lane per setup in `SETUPS_5M_SETUPS` (the first pullback, the bull flag, the flat
-  top) runs beside the template lanes: the setup's own detector on 5-minute candles made of the scanner's
+- **The lanes.** One built-in lane per setup in `SETUPS_5M_SETUPS` (the first pullback and the bull flag; the flat
+  top's became a strategy on 2026-10-06, "The 5-minute flat top" above) runs beside the template lanes: the setup's own detector on 5-minute candles made of the scanner's
   minutes (`five_minute.candles`: on the clock from 04:00 ET, complete once their five minutes are over). The
   detector reads only when a candle completes, and a price inside a forming candle carries that candle's open.
   Its rules are the default template's except:
@@ -1510,11 +1539,11 @@ only, a chip and the trigger line on the 1-minute, arming 07:00-15:30. Owner `se
 - **It never plays.** A 5-minute lane raises no proposal, tells the bot nothing, and has no Setups board row
   and no Bots page card. It reads the tape gate and scores like any lane. Its journal lines carry `template:
   "5m"` and `playing: false`, and the Sim playback leaves it out of a setup's counts.
-- **The wire.** `GET /api/setups/symbol/{symbol}` adds `setups_5m` (the 5-minute lanes, shaped like `setups`,
-  `level` 0, `chosen` false), and every lane adds `timeframe: "1m" | "5m"`; `rules` adds `stop_cap_pct` and
-  `bar_sec`. The stock read adds `setups_5m` (never a plan's lane). `GET
-  /api/stock-read/{symbol}/past-setups?tf=5m` folds the 5-minute lanes' lines (`EpisodeFold("5m", 300)`: the
-  candle a line is about is a 5-minute one), measures what came after over 60 minutes and adds `timeframe`; a
+- **The wire.** `GET /api/setups/symbol/{symbol}` adds `setups_5m` (the built-in 5-minute lanes, shaped like
+  `setups`, `level` 0, `chosen` false), and every lane adds `timeframe: "1m" | "5m"` (the candles its pattern reads:
+  the 5-minute flat top in `setups` is `5m`); `rules` adds `stop_cap_pct`, `bar_sec` and `hold_bar_sec`. The stock
+  read adds `setups_5m` (never a plan's lane). `GET /api/stock-read/{symbol}/past-setups?tf=5m` folds the 5-minute
+  lanes' lines and the 5-minute flat top's (`EpisodeFold("5m", 300)`: the candle a line is about is a 5-minute one), measures what came after over 60 minutes and adds `timeframe`; a
   `tf` other than `1m` or `5m` is a 400.
 - **On the desk** (`frontend/src/stock_read/fiveMinuteShapes.ts`; a live lane's drawing moved to
   `laneShapes.ts`, which with `pastShapes.ts` takes the candle's length):
@@ -1522,8 +1551,8 @@ only, a chip and the trigger line on the 1-minute, arming 07:00-15:30. Owner `se
     colour; the rest are faded, and their labels make room. The ones that ended stay faint, with how they
     ended and what came next. Every label starts "5m", and the lead's trigger, stop and target are dashed
     lines with axis labels. A hover card is titled "5-minute".
-  - The 1-minute pane shows a 5-minute setup armed or near its trigger as a legend chip ("5m flat top · near
-    13.80") and one dashed trigger line, nothing else.
+  - The 1-minute pane shows a built-in 5-minute setup armed or near its trigger as a legend chip ("5m bull flag ·
+    near 13.80") and one dashed trigger line, nothing else.
   - Each pane's Key lists them.
 - **What is known.** The bar-level 5-minute versions lost less than their 1-minute twins over five years, and
   still lost (2026-09-29). On IOVA 2026-09-29 the 1-minute scanners saw 33 setups and triggered one. On
@@ -4968,6 +4997,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-10-07 | Short selling, step 1 of 6 (ADR 048, ADR 049; #778; the operator's design, approved 2026-10-07: "Paper and Sim first, Live last"). The design is recorded whole -- one short check on every venue, margin from IBKR's what-if with the published rules as the fallback, a 25% liquidation cushion, a buy stop on every short, no flips, halts, 09:35-15:50 and a 15:55 day cover, SSR above the bid, Paper and Sim shorting like IBKR, Entry · Exit, one bot for both sides, and Live last behind the operator's Live short proof and their own `IBKR_SHORT_ENABLED` -- and the five short strategies are pre-registered before any code reads a bar. This step closes the eight gaps the design found on master, so nothing new can short yet: a short entry is now checked against margin and the cushion (published rules), refused while the account is long, and its borrow is read from the cache before the execution lock (the door had asked IBKR for up to 10 s under it); a short entry is held in flight (`SHORT`); a cover is never locked by the day lock or held to buying power; Freeze all orders keeps the stops that protect a position; Fill now refuses a short entry instead of re-sending it as a plain sell; Paper and Sim cancel a cover that would fill past flat. Invariant 7 and §3 amended. | User Directive + Claude Code |
+| 2026-10-06 | The 5-minute flat top is a strategy, bought on the 1-minute hold (ADR 031 amendment (b); operator: "Make the 5-minute flat top a Paper buy with a 1-minute hold entry, as the material trades it; done when its lane proposes and the bot can take it"). The material reads the flat top on the 5-minute chart and buys the 1-minute pullback that holds it after the break; Nova drew the 5-minute flat top and scored it in silence (2026-09-30). `flat_top_5m` is a sixth strategy with its own Off / Eyes / On, templates, read-out and bot rules: a 1-minute lane whose detector (`setup_scanner/flat_top_5m.py`) reads the flat top on 5-minute candles made of the minutes and, after a price over it, triggers on the first 1-minute candle that holds the touch zone and closes green, the stop at the pullback's low. It replaces the built-in 5-minute flat-top lane, starts Off, arms 07:00-15:30 (so auto-record's setups window runs to 15:30), and draws on the 5-minute chart, with its level, break and hold on the 1-minute. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The PC's power button is named, and a power-off is said as one (#14). The desk's 06:45 ET 2026-10-05 and 07:16 ET 2026-10-06 shutdowns were System 1074 from `winlogon.exe` on behalf of SYSTEM, reason `0x500ff`, Shutdown Type `power off` -- the power button -- and `premarket_verify.py` / `relogin_reason.py` said "This PC was restarted from the Start menu": every `winlogon.exe` was the Start menu, and every restart was "restarted". That signature is now `power_button`; `winlogon.exe` on behalf of a user stays `start_menu`, and on behalf of SYSTEM otherwise names winlogon (a restart with the same reason, 2026-09-12, cannot be the power button). The restart object carries `reason_code` and `shutdown_type`, and the text says "powered off" or "restarted" by it. Found alongside: the `wevtutil` query took every event 12, and an ASUS power tool wrote 818 in 8 days, so the 400-event cap held about 4 days while the report said it had read 8; each id now asks its own provider (30 days: 21 restarts, was 6). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The flat top counts its touches (ADR 031 amendment; operator, with a sketch: "Make it something special like this ... when it starts forming. I doubt real life is going to be perfect as this, so we may need a drift or a ratio to still consider flat top"). The flat top read no taps of the level at all: it armed any 2-6 candles closing within 2% under the high of day, a tie of the high started it over on a new row, and a cent over the high reset the base. Now the level is the high of day, and a touch is a high within 0.5% or a cent under it (a candle a little over the earlier touches drifts the level up and keeps the row). The base runs from the first touch, needs a retest, is drawn forming from the second touch, arms at the third, and may run 20 candles. The hold reads the zone as the level. The research's P2 stays one setting away (and a saved template keeps it); the flat top's default revision moves to 2. The desk draws it as the sketch on the 1-minute and 5-minute charts: the violet level, a ring per touch with the count, the base boxed, the break and the hold candle marked. No flat-bottom short (Invariant 7). The catalogue's tables moved to `setup_templates/params.py`. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | LULD bands on Level 2 (ADR 047; operator: "do we have LULD levels?", then, with DAS screenshots, "1 go.. make it obvious"). IBKR passes on the halt, never the band, and the Nasdaq halt feed's threshold is blank, so Nova computes each stock's limit up / limit down from the published Plan rules over the tape and NBBO it holds (`backend/luld/`): the opening or reopening print first, then the 5-minute mean, moved only on a 1% change after 30 s, held in a limit state. Where the Plan's text leaves room, the SIP's own band flags in the Massive NBBO decided. A limit state's end makes no reference (the text says it does: 64% exact against 81%), and the mean is unrounded. On 10 days of SIP data Nova's band matched the exchanges' to the cent on 81% of 593 band touches and within 1c on 87%; on Nova's own recordings, GRML's three pauses of 2026-09-22 land exactly (14.18, 17.18, 15.87). The Level 2 ladder draws a red `LULD` row in each column and a strip above the book that counts a limit state's 15 s down to the pause; an approximate band (no open or reopen seen) shows `≈`. §3 amended. | User Directive + Claude Opus 5.5 |

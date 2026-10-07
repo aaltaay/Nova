@@ -97,7 +97,11 @@ def test_symbol_view_answers_every_lane_for_a_followed_symbol(tmp_path):
     view = symbol_view(eng, SYM.lower(), clock["t"])
     assert view["followed"] is True and view["followed_note"] is None and view["symbol"] == SYM
     lanes = {s["setup_type"]: s for s in view["setups"]}
-    assert list(lanes) == ["first_pullback", "bull_flag", "flat_top_breakout", "red_to_green", "gap_and_go"]
+    assert list(lanes) == ["first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green",
+                           "gap_and_go"]
+    assert lanes["flat_top_5m"]["timeframe"] == "5m" and lanes["flat_top_5m"]["rules"]["hold_bar_sec"] == 60
+    assert lanes["bull_flag"]["timeframe"] == "1m" and [f["setup_type"] for f in view["setups_5m"]] == [
+        "first_pullback", "bull_flag"]          # the 5-minute flat top is a strategy, no longer a chart-only lane
     flag = lanes["bull_flag"]
     assert flag["state"] == "leg" and flag["forming"]["waiting"] == "1 more red or doji candle"
     assert flag["series"]["macd_hist"] is not None and flag["template"]["id"] == "default"
@@ -132,5 +136,5 @@ def test_the_symbol_route(tmp_path, monkeypatch):
     body = TestClient(app).get(f"/api/setups/symbol/{SYM}").json()
     assert body["schema_version"] == 1 and body["followed"] is True
     assert {s["setup_type"] for s in body["setups"]} == {"first_pullback", "bull_flag", "flat_top_breakout",
-                                                          "red_to_green", "gap_and_go"}
+                                                          "flat_top_5m", "red_to_green", "gap_and_go"}
     assert et_ts(9, 0) > 0

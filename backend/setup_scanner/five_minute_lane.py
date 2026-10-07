@@ -2,8 +2,8 @@
 moving upwards, and you can see clear patterns in the 5-minute chart, but they're not clear in the 1-minute
 chart"; on the mockup: build it, chart only, 07:00-15:30).
 
-One built-in lane per setup in ``SETUPS_5M_SETUPS`` -- the first pullback, the bull flag and the flat top --
-runs the setup's own detector on 5-minute candles made of the scanner's minutes (``five_minute.candles``:
+One built-in lane per setup in ``SETUPS_5M_SETUPS`` -- the first pullback and the bull flag -- runs the
+setup's own detector on 5-minute candles made of the scanner's minutes (``five_minute.candles``:
 on the clock from 04:00 ET, complete once their five minutes are over). Its rules are the default template's
 but for these, the 2026-09-29 study's 5-minute rules and the operator's window: a candle of
 ``SETUPS_5M_BAR_SEC``, arming until ``SETUPS_5M_ENTRY_CUTOFF_ET``, a risk up to ``SETUPS_5M_STOP_CAP_PCT`` of
@@ -14,6 +14,9 @@ template in play's, so no read-out, trial or bot reads them.
 It never plays: it raises no proposal, tells the bot nothing, and draws no Setups board row and no Bots
 page card. The stock read hands it to the 5-minute chart (``setups_5m``), and the 1-minute chart shows an
 armed or near one as a chip and its trigger.
+
+The flat top's lane left on 2026-10-06: the 5-minute flat top is a strategy of its own (``flat_top_5m``, ADR 031
+amendment) -- a 1-minute lane whose detector reads the pattern on 5-minute candles (``flat_top_5m.py``).
 """
 from __future__ import annotations
 
@@ -32,18 +35,23 @@ from constants_setups import (
     SETUPS_5M_TEMPLATE_NAME,
     SETUPS_BAR_SEC,
 )
-from constants_bot import BOT_SETUP_BULL_FLAG, BOT_SETUP_FIRST_PULLBACK, BOT_SETUP_FLAT_TOP
+from constants_bot import BOT_SETUP_BULL_FLAG, BOT_SETUP_FIRST_PULLBACK
 from setup_scanner.bars import Bar
 from setup_scanner.five_minute import candles
 
-SETUPS_5M_SETUPS: tuple[str, ...] = (BOT_SETUP_FIRST_PULLBACK, BOT_SETUP_BULL_FLAG, BOT_SETUP_FLAT_TOP)
+SETUPS_5M_SETUPS: tuple[str, ...] = (BOT_SETUP_FIRST_PULLBACK, BOT_SETUP_BULL_FLAG)
 FIVE_MIN_REV = 1
-# A 5-minute lane's rules revision moves with its setup's default rules (2026-10-06: the flat top counts touches).
-FIVE_MIN_REVS: dict[str, int] = {BOT_SETUP_FLAT_TOP: 2}
 
 
 def is_five_minute(lane: Any) -> bool:
+    """A built-in 5-minute lane: chart only (its candles, at the lane, are 5-minute ones)."""
     return int(getattr(lane.p, "bar_sec", SETUPS_BAR_SEC)) != SETUPS_BAR_SEC
+
+
+def pattern_bar_sec(lane: Any) -> int:
+    """The candles a lane's pattern reads: a minute, or five -- a built-in 5-minute lane's, or the 5-minute flat
+    top's (a 1-minute lane whose detector makes its own 5-minute candles)."""
+    return int(getattr(lane.p.pattern, "bar_sec", None) or getattr(lane.p, "bar_sec", SETUPS_BAR_SEC))
 
 
 def five_minute_params(setup: str) -> Any:
@@ -55,8 +63,7 @@ def five_minute_params(setup: str) -> Any:
     rules = {**values, "bar_sec": SETUPS_5M_BAR_SEC, "stop_cap_pct": SETUPS_5M_STOP_CAP_PCT,
              "score_window_min": SETUPS_5M_SCORE_WINDOW_MIN}
     stamp = hashlib.sha256(json.dumps(rules, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:12]
-    base = lane_params(SimpleNamespace(id=SETUPS_5M_TEMPLATE_ID, rev=FIVE_MIN_REVS.get(setup, FIVE_MIN_REV),
-                                       fingerprint=stamp,
+    base = lane_params(SimpleNamespace(id=SETUPS_5M_TEMPLATE_ID, rev=FIVE_MIN_REV, fingerprint=stamp,
                                        name=SETUPS_5M_TEMPLATE_NAME, setup=setup, values=values))
     pattern = dataclasses.replace(base.pattern, bar_sec=SETUPS_5M_BAR_SEC, stop_cap_pct=SETUPS_5M_STOP_CAP_PCT)
     return dataclasses.replace(base, pattern=pattern, bar_sec=SETUPS_5M_BAR_SEC,

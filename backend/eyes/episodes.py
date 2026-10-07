@@ -34,6 +34,7 @@ from constants_setups import (
     SETUP_STATE_PULLBACK,
     SETUP_STATE_TRIGGERED,
     SETUP_STATE_WATCHING,
+    SETUPS_FIVE_MINUTE_STRATEGIES,
 )
 from setup_scanner.bars import minute_start
 from setup_scanner.lane_view import JOURNAL_EVENT_STATES
@@ -76,7 +77,9 @@ def _same_move(leg: dict[str, Any], new: dict[str, Any]) -> bool:
 
 class EpisodeFold:
     """Every (symbol, setup) a day's lines name, folded line by line into episodes: the lines of each setup's
-    template in play, or -- with ``template`` -- that template's (the 5-minute lanes': ``bar_sec`` 300)."""
+    template in play, or -- with ``template`` -- that template's (the 5-minute lanes': ``bar_sec`` 300). A fold
+    reads the patterns on its own candles: the 5-minute flat top's template in play (a 1-minute lane whose
+    pattern reads 5-minute candles, ADR 031 amendment 2026-10-06) is the 5-minute fold's, not the 1-minute's."""
 
     def __init__(self, template: str | None = None, bar_sec: int = 60) -> None:
         self.template, self.bar_sec = template, int(bar_sec)
@@ -85,6 +88,12 @@ class EpisodeFold:
         self._by_setup_id: dict[str, dict[str, Any]] = {}
 
     # -- feed -----------------------------------------------------------------------------
+    def _mine(self, line: dict[str, Any]) -> bool:
+        five = line.get("setup_type") in SETUPS_FIVE_MINUTE_STRATEGIES and line.get("playing") is True
+        if self.template:
+            return line.get("template") == self.template or (five and self.bar_sec != 60)
+        return line.get("playing") is True and not (five and self.bar_sec == 60)
+
     def apply(self, line: dict[str, Any]) -> None:
         ev = line.get("event")
         ts = float(line.get("ts") or 0.0)
@@ -93,8 +102,7 @@ class EpisodeFold:
                 self._end(key, ts, "Nova restarted: the eyes began again", cut=True)
             return
         sym = line.get("symbol")
-        mine = line.get("template") == self.template if self.template else line.get("playing") is True
-        if not sym or not mine:
+        if not sym or not self._mine(line):
             return
         if ev == "scored":
             self._score(line)

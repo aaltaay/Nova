@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 
 from setup_scanner.bars import Bar
-from setup_scanner.five_minute_lane import five_minute_params
+from setup_scanner.five_minute_lane import SETUPS_5M_SETUPS, five_minute_params
 from setup_scanner.flat_top import FlatTopDetector, FlatTopParams
 from setup_scanner.flat_top_shape import P2_RULE, find, tolerance
 from setup_scanner.lane_params import flat_top_params
@@ -193,9 +193,11 @@ def test_the_default_runs_the_material_and_a_template_saved_before_keeps_the_res
 
 def test_the_flat_tops_default_rules_are_a_new_revision_and_no_other_setups_are():
     assert default_template("flat_top_breakout").rev == 2
-    assert {default_template(s).rev for s in ("first_pullback", "bull_flag", "red_to_green", "gap_and_go")} == {1}
-    assert five_minute_params("flat_top_breakout").template_rev == 2
+    assert {default_template(s).rev for s in ("first_pullback", "bull_flag", "red_to_green", "gap_and_go",
+                                              "flat_top_5m")} == {1}
     assert five_minute_params("first_pullback").template_rev == 1
+    # The 5-minute flat top is a strategy of its own now (flat_top_5m), not a built-in chart-only lane.
+    assert "flat_top_breakout" not in SETUPS_5M_SETUPS
 
 
 def test_a_template_of_two_touches_waits_for_its_base_not_for_a_touch():

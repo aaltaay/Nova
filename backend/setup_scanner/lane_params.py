@@ -10,6 +10,7 @@ existed reads its default (the catalogue's rule). Pure.
 """
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,11 +18,15 @@ from constants_bot import (
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_RED_TO_GREEN,
 )
 from constants_setups import (
+    SETUPS_5M_BAR_SEC,
     SETUPS_BAR_SEC,
+    SETUPS_FT5_HOLD_BAR_SEC,
+    SETUPS_FT5_HOLD_STOP,
     SETUPS_GRADE_A,
     SETUPS_GRADE_B,
     SETUPS_GRADE_C,
@@ -179,6 +184,12 @@ def flat_top_params(v: dict[str, Any]) -> FlatTopParams:
     )
 
 
+def flat_top_5m_params(v: dict[str, Any]) -> FlatTopParams:
+    """The 5-minute flat top (``flat_top_5m``): the flat top's values on 5-minute candles, its hold on the minutes."""
+    return dataclasses.replace(flat_top_params(v), bar_sec=SETUPS_5M_BAR_SEC, hold_bar_sec=SETUPS_FT5_HOLD_BAR_SEC,
+                               hold_stop=str(v.get("ft_hold_stop") or SETUPS_FT5_HOLD_STOP))
+
+
 def red_to_green_params(v: dict[str, Any]) -> RedToGreenParams:
     return RedToGreenParams(
         session_start=str(v["session_start"]), r2g_cutoff=str(v["r2g_cutoff"]),
@@ -201,6 +212,7 @@ PATTERNS = {
     BOT_SETUP_FIRST_PULLBACK: pullback_params,
     BOT_SETUP_BULL_FLAG: bull_flag_params,
     BOT_SETUP_FLAT_TOP: flat_top_params,
+    BOT_SETUP_FLAT_TOP_5M: flat_top_5m_params,
     BOT_SETUP_RED_TO_GREEN: red_to_green_params,
     BOT_SETUP_GAP_AND_GO: gap_and_go_params,
 }

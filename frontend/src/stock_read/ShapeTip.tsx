@@ -9,7 +9,8 @@
 import { useEffect, useState, type RefObject } from 'react';
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts';
 import { laneHoverId } from './chartShapes';
-import { lane5HoverId, past5HoverId } from './fiveMinuteShapes';
+import { fiveMinuteLanes, lane5HoverId, past5HoverId } from './fiveMinuteShapes';
+import { FLAT_TOP_5M } from './flatTopShapes';
 import { levelStory } from './levelPicks';
 import { laneStory, pastStory, type Episode } from './pastSetups';
 import { pastHoverId } from './pastShapes';
@@ -77,13 +78,15 @@ export function shapeStory(id: string, read: StockRead, past: Episode[] | null,
   past5: Episode[] | null = null): ShapeStory | null {
   if (id.startsWith('level:')) return levelStory(id, read);
   const five = (s: ShapeStory | null) => (s ? { ...s, title: `5-minute · ${s.title}` } : null);
+  // The 5-minute flat top names itself; a built-in 5-minute lane's story is the 1-minute setup's, named so.
+  const named = (type: string, s: ShapeStory | null) => (type === FLAT_TOP_5M ? s : five(s));
   if (id.startsWith('lane5:')) {
-    const lane = (read.setups_5m ?? []).find(l => lane5HoverId(l.setup_type) === id);
-    return lane ? five(laneStory(lane)) : null;
+    const lane = fiveMinuteLanes(read).find(l => lane5HoverId(l.setup_type) === id);
+    return lane ? named(lane.setup_type, laneStory(lane)) : null;
   }
   if (id.startsWith('past5:')) {
     const ep = past5?.find(e => past5HoverId(e) === id);
-    return ep ? five(pastStory(ep)) : null;
+    return ep ? named(ep.setup_type, pastStory(ep)) : null;
   }
   if (id.startsWith('lane:')) {
     const lane = read.setups.find(l => laneHoverId(l.setup_type) === id);

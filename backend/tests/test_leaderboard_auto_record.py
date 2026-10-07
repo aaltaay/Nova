@@ -245,12 +245,12 @@ def test_a_trade_keeps_its_tape_past_the_windows_until_its_score_ends(desk):
     run(auto_record.tick(et(9, 58)))
     assert set(desk.recording) == {"TRD", "ARM", "AAA"}
     run(auto_record.tick(et(10, 0)))
-    assert desk.recording == ["TRD", "ARM"]  # the leaders' window closed; the setups' is open to 11:30
+    assert desk.recording == ["TRD", "ARM"]  # the leaders' window closed; the setups' is open
     assert desk.stops == [("AAA", "auto")]
-    run(auto_record.tick(et(11, 30)))
+    run(auto_record.tick(et(15, 30)))     # the last arming window -- the 5-minute flat top's -- closed
     assert desk.recording == ["TRD"] and ("ARM", "auto") in desk.stops  # every arming window closed
     desk.lanes = [Lane()]  # its scoring window ended
-    run(auto_record.tick(et(11, 42)))
+    run(auto_record.tick(et(15, 42)))
     assert desk.recording == [] and ("TRD", "auto") in desk.stops
 
 
@@ -264,7 +264,7 @@ def test_after_ten_setups_still_get_lines_and_leaders_do_not(desk):
     assert desk.recording == ["R2G"]  # a trigger after 10:00 has its tape; no leader is taken
     got = auto_record.status(et(10, 15))
     assert got["active"] is True and got["leaders"] == [] and got["why"] == {"R2G": "near"}
-    assert got["windows"]["open"] == "setups" and got["window"].startswith("setups only (setups 07:00-11:30 ET")
+    assert got["windows"]["open"] == "setups" and got["window"].startswith("setups only (setups 07:00-15:30 ET")
     assert got["windows"]["leaders"] == {"open": False, "start": "07:00", "end": "10:00"}
     by_setup = {w["setup"]: w for w in got["windows"]["setups"]["by_setup"]}
     assert by_setup["red_to_green"] == {"setup": "red_to_green", "start": "09:30", "end": "10:30", "open": True}
@@ -280,30 +280,30 @@ def test_the_leaders_window_closing_stops_only_lines_taken_for_leaders(desk):
     run(auto_record.tick(et(9, 55)))
     assert set(desk.recording) == {"SET", "AAA", "BBB"}  # a line that left is kept until it is needed
     run(auto_record.tick(et(10, 0)))
-    assert desk.recording == ["SET"]  # the leaders' lines stop as planned; the setup's stays to 11:30
+    assert desk.recording == ["SET"]  # the leaders' lines stop as planned; the setup's stays to 15:30
     assert set(desk.stops) == {("AAA", "auto"), ("BBB", "auto")}
-    run(auto_record.tick(et(11, 30)))
+    run(auto_record.tick(et(15, 30)))
     assert desk.recording == [] and ("SET", "auto") in desk.stops
 
 
 def test_the_setups_window_is_the_template_in_plays_arming_window(desk):
     from setup_templates.store import get_store
 
-    late = get_store().create("first_pullback", name="Late", values={"entry_cutoff": "13:00"})
+    late = get_store().create("first_pullback", name="Late", values={"entry_cutoff": "16:00"})
     get_store().play("first_pullback", late.id)
     desk.lanes = [Lane(armed=["SET"])]
-    run(auto_record.tick(et(12, 30)))
+    run(auto_record.tick(et(15, 45)))      # past every pre-registered arming window (15:30 the latest)
     assert desk.recording == ["SET"]
-    got = auto_record.status(et(12, 30))
-    assert got["windows"]["setups"]["end"] == "13:00" and got["windows"]["open"] == "setups"
-    run(auto_record.tick(et(13, 0)))
+    got = auto_record.status(et(15, 45))
+    assert got["windows"]["setups"]["end"] == "16:00" and got["windows"]["open"] == "setups"
+    run(auto_record.tick(et(16, 0)))
     assert desk.recording == []
 
 
 def test_outside_both_windows_and_on_a_weekend_the_status_names_them(desk):
-    got = auto_record.status(et(12, 0))
+    got = auto_record.status(et(15, 45))
     assert got["active"] is False and got["windows"]["open"] == "none"
-    assert got["window"] == "its windows (setups 07:00-11:30 ET, leaders 07:00-10:00 ET)"
+    assert got["window"] == "its windows (setups 07:00-15:30 ET, leaders 07:00-10:00 ET)"
     saturday = datetime(2026, 9, 19, 9, 0, tzinfo=ET).timestamp()
     assert auto_record.status(saturday)["windows"]["open"] == "none"
     both = auto_record.status(et(8, 0))

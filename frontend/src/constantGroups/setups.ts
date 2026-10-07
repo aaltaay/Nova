@@ -38,7 +38,7 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
 
 /** What a setup's trigger is, where "the trigger" would say less: the alert card and the watch toasts. */
 export const SETUP_TRIGGER_LEVEL_WORDS: Record<string, string> = {
-  red_to_green: 'open', flat_top_breakout: 'high', gap_and_go: 'pre-market high',
+  red_to_green: 'open', flat_top_breakout: 'high', flat_top_5m: 'high', gap_and_go: 'pre-market high',
 };
 
 export const SETUP_KIND_LABELS: Record<string, string> = {
@@ -48,6 +48,8 @@ export const SETUP_KIND_LABELS: Record<string, string> = {
   second_bull_flag: 'Second bull flag',
   flat_top_breakout: 'Flat-top breakout',
   second_flat_top_breakout: 'Second flat-top',
+  flat_top_5m: '5-minute flat top',
+  second_flat_top_5m: 'Second 5-minute flat top',
   red_to_green: 'Red to green',
   gap_and_go: 'Gap and Go',
 };
@@ -63,6 +65,7 @@ export const SETUP_TYPE_STATE_LABELS: Record<string, Partial<Record<string, stri
   first_pullback: { leg: 'Leg up', pullback: 'Pullback · held back', triggered: 'Triggered' },
   bull_flag: { leg: 'Pole', pullback: 'Flag · held back', armed: 'Flag', triggered: 'Broke the flag' },
   flat_top_breakout: { leg: 'Pushing HOD', pullback: 'Base · held back', armed: 'Base', triggered: 'Held' },
+  flat_top_5m: { leg: 'Pushing HOD', pullback: 'Base · held back', armed: '5m base', triggered: 'Held' },
   red_to_green: { leg: 'Red', pullback: 'Red · held back', armed: 'Red', near: 'Near the open', triggered: 'Reclaimed' },
   gap_and_go: { pullback: 'Open · held back', armed: 'Under the PMH', near: 'Near the PMH', triggered: 'Broke the PMH' },
 };
@@ -93,6 +96,14 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
     triggered: 'The breakout held: a candle held the flat top (a retest into the touch zone counts) and closed green over it. The scoreboard follows it from here.',
     failed: 'The base broke: it ran too long, lost the 9 EMA, or price closed back under the touch zone before a candle held it.',
   },
+  flat_top_5m: {
+    leg: 'On the 5-minute chart: a new high of day on an impulse, or a flat top still counting its touches (5-minute highs within 0.5% or a cent under it). From its second touch it is drawn forming; the third arms it.',
+    pullback: 'A 5-minute flat top is there, but one rule holds it back (MACD under zero, or the time of day).',
+    armed: 'A 5-minute flat top: the high of day tapped three times or more, the 5-minute candles under it closing just below it on their 9 EMA. The trigger is that high.',
+    near: 'Price is at the flat top. The tape is read now. Once a price trades over it, the first 1-minute candle that holds it and closes green is the entry — the 1-minute pullback inside the 5-minute breakout candle.',
+    triggered: 'The breakout held: a 1-minute candle held the flat top (a retest into the touch zone counts) and closed green over it. The stop is the pullback\'s low. The scoreboard follows it from here.',
+    failed: 'The base broke on the 5-minute chart (it ran too long or lost the 9 EMA), or a 1-minute candle closed back under the touch zone before one held it.',
+  },
   red_to_green: {
     leg: 'Trading under the open. Red to green needs enough closes under the open before a move back through it counts as the reclaim.',
     pullback: 'Red, but not a try yet: MACD under zero, or the risk from the low is outside the band (a reclaim now would spend the day\'s one try).',
@@ -113,8 +124,8 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
 
 /** A setup's flat-top hold after the break (detail.broke_at). */
 export const SETUP_FT_BROKE_LABEL = 'Broke · wants a hold';
-export const SETUP_FT_BROKE_TIP = (level: string, at: string, n: number): string =>
-  `Broke the ${level} high at ${at} ET. Now the first of the next ${n} candles that holds over it (its low at or over ${level}) and closes green is the entry — at its close +1c, stop its low. A close back under ${level} fails the setup.`;
+export const SETUP_FT_BROKE_TIP = (level: string, at: string, n: number, minutes = false): string =>
+  `Broke the ${level} high at ${at} ET. Now the first of the next ${n} ${minutes ? '1-minute candles' : 'candles'} that holds over it (its low at or over ${level}) and closes green is the entry — at its close +1c, stop ${minutes ? 'the pullback\'s low' : 'its low'}. A close back under ${level} fails the setup.`;
 
 /** The tape verdicts' hover heads (the reasons and numbers follow). */
 export const TAPE_VERDICT_TIPS: Record<string, string> = {
@@ -166,6 +177,7 @@ export const SETUP_FUNNEL_WORDS: Record<string, { forming: string; armed: string
   first_pullback: { forming: 'forming', armed: 'armed', near: 'near', triggered: 'triggered' },
   bull_flag: { forming: 'poles', armed: 'flags', near: 'near', triggered: 'broke out' },
   flat_top_breakout: { forming: 'pushing HOD', armed: 'bases', near: 'near', triggered: 'held' },
+  flat_top_5m: { forming: 'pushing HOD', armed: '5m bases', near: 'near', triggered: 'held' },
   red_to_green: { forming: 'red', armed: 'armed', near: 'near', triggered: 'reclaimed' },
   gap_and_go: { forming: 'held back', armed: 'under the PMH', near: 'near', triggered: 'broke out' },
 };

@@ -4,8 +4,9 @@ Two windows, on exchange days:
 
 * **setups** -- whenever any setup's arming window is open: each setup with a
   scanner, its template in play's ``setup_templates.windows.arming_window``
-  (07:00-11:30 ET by default, red to green 09:30-10:30). Red to green triggered 32
-  times and was never at go, partly because no line was held after 10:00.
+  (07:00-11:30 ET by default, red to green 09:30-10:30, the 5-minute flat top
+  07:00-15:30). Red to green triggered 32 times and was never at go, partly
+  because no line was held after 10:00.
 * **leaders** -- 07:00-10:00 ET, as the operator set it (2026-09-22).
 
 ``window_state`` answers both, and ``window_label`` says which is open in words --

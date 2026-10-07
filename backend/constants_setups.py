@@ -13,6 +13,7 @@ from constants_bot import (
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_RED_TO_GREEN,
 )
@@ -53,16 +54,27 @@ SETUPS_SEED_HISTORY_BUDGET = 30
 SETUPS_SEED_HISTORY_TIMEOUT_SEC = 30.0       # one ask on the IB loop (qualify + a 12 s background fetch)
 
 # -- 5-minute setups (operator decision 2026-09-30: "Mockup, then build"; on the mockup: build it,
-# chart only, a chip and the trigger on the 1-minute, 07:00-15:30). The first pullback, the bull flag
-# and the flat top read on 5-minute candles made of the scanner's own minutes, by the default
-# template's rules but for these: a built-in lane per setup that watches and scores, never proposes,
-# never tells the bot, and draws only on the 5-minute chart.
+# chart only, a chip and the trigger on the 1-minute, 07:00-15:30). The first pullback and the bull flag
+# read on 5-minute candles made of the scanner's own minutes, by the default template's rules but for
+# these: a built-in lane per setup that watches and scores, never proposes, never tells the bot, and
+# draws only on the 5-minute chart. The flat top's became a strategy on 2026-10-06 (below).
 SETUPS_5M_TEMPLATE_ID = "5m"
 SETUPS_5M_TEMPLATE_NAME = "5-minute"
 SETUPS_5M_BAR_SEC = 300
 SETUPS_5M_ENTRY_CUTOFF_ET = "15:30"     # slow movers set up later in the day too (operator's choice)
 SETUPS_5M_STOP_CAP_PCT = 0.06           # risk up to 6% of the entry: the 2026-09-29 study's 5-minute rule
 SETUPS_5M_SCORE_WINDOW_MIN = 60         # first touch read over an hour of a 5-minute setup (12 candles)
+# -- The 5-minute flat top (ADR 031 amendment 2026-10-06; operator: "Make the 5-minute flat top a Paper buy with
+# a 1-minute hold entry, as the material trades it"). The material reads the pattern on the 5-minute chart and
+# buys the 1-minute pullback inside the 5-minute breakout candle: the flat top's rules on 5-minute candles,
+# then the hold read on the minutes after the break. A strategy like every other (templates, levels, read-out);
+# drawn on the 5-minute chart, its hold on the 1-minute.
+SETUPS_FIVE_MINUTE_STRATEGIES = frozenset({BOT_SETUP_FLAT_TOP_5M})   # patterns read on 5-minute candles
+SETUPS_FT5_HOLD_BAR_SEC = 60            # the hold is a 1-minute candle
+SETUPS_FT5_HOLD_BARS = 5                # within the five minutes after the break's own (one 5-minute candle). CHOSEN
+SETUPS_FT_HOLD_STOP_CANDLE = "candle"   # the stop at the hold candle's low (the research's hold rule)
+SETUPS_FT_HOLD_STOP_PULLBACK = "pullback"   # ... at the pullback's low: the minutes after the break, the hold's too
+SETUPS_FT5_HOLD_STOP = SETUPS_FT_HOLD_STOP_PULLBACK   # the material buys the 1-minute pullback. CHOSEN
 
 # -- Pullback family (P1). Same values as the research harness Params.
 SETUPS_LEG_PCT = 0.05                   # leg high >= 5% over the lowest low of the window
@@ -253,6 +265,8 @@ SETUP_KIND_BULL_FLAG = "bull_flag"
 SETUP_KIND_SECOND_BULL_FLAG = "second_bull_flag"
 SETUP_KIND_FLAT_TOP = "flat_top_breakout"
 SETUP_KIND_SECOND_FLAT_TOP = "second_flat_top_breakout"
+SETUP_KIND_FLAT_TOP_5M = "flat_top_5m"
+SETUP_KIND_SECOND_FLAT_TOP_5M = "second_flat_top_5m"
 SETUP_KIND_RED_TO_GREEN = "red_to_green"
 SETUP_KIND_GAP_AND_GO = "gap_and_go"
 # The read-out counts each setup's first-of-the-day kind (ADR 027, ADR 031).
@@ -260,6 +274,7 @@ SETUPS_READOUT_KINDS = {
     BOT_SETUP_FIRST_PULLBACK: SETUP_KIND_FIRST_PULLBACK,
     BOT_SETUP_BULL_FLAG: SETUP_KIND_BULL_FLAG,
     BOT_SETUP_FLAT_TOP: SETUP_KIND_FLAT_TOP,
+    BOT_SETUP_FLAT_TOP_5M: SETUP_KIND_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN: SETUP_KIND_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO: SETUP_KIND_GAP_AND_GO,
 }
