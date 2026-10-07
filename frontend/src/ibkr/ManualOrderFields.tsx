@@ -6,14 +6,13 @@
 import { memo } from 'react';
 import {
   TICKER_TRADE_LABEL_ORDER_TYPE,
-  TICKER_TRADE_LABEL_SIDE,
   TICKER_TRADE_LABEL_TRADING_HOURS,
 } from '../constants';
 import {
-  TICKER_TRADE_LABEL_BUY,
-  TICKER_TRADE_LABEL_SELL,
-  TICKER_TRADE_LABEL_SHORT,
-} from '../constantGroups/shortability';
+  SHORT_COST_LABEL,
+  SHORT_MARGIN_LABEL,
+  SHORT_WHY_TYPE,
+} from '../constantGroups/short_ticket';
 import {
   TICKET_BP_AFTER_LABEL,
   TICKET_COST_LABEL,
@@ -37,6 +36,9 @@ import {
 import type { TicketCostEstimate } from './ticketCost';
 import type { QuickPriceKind } from './ticketPriceQuick';
 import type { TicketSide } from './ticketSide';
+import { BuyStopField } from './BuyStopField';
+import { ManualOrderSideSegment } from './ManualOrderSideSegment';
+import { sideButtons, type SideButton } from './shortTicketModel';
 import { useOrderExplainer } from './useOrderExplainer';
 import { LiveText } from '../ux/LiveText';
 
@@ -63,6 +65,18 @@ interface Props {
   /** When true, quantity input / units / presets are inert (forced share qty). */
   quantityLocked?: boolean;
   shortDisabledReason?: string | null;
+  /** The sides for the position held (ADR 048): absent, the plain Buy / Sell / Short with no position lock. */
+  sideButtons?: SideButton[];
+  /** What the order does to the position, under the sides ("A short sale: ..."); null says nothing. */
+  sideNote?: string | null;
+  /** A short's required buy stop (shown while the side is Short). */
+  buyStop?: string;
+  buyStopRefusal?: string | null;
+  onBuyStopChange?: (value: string) => void;
+  /** Under the limit: why a short sits at the ask (SSR), or null. */
+  limitNote?: string | null;
+  /** A short's margin requirement from the short check, shown in place of "BP after" (null: not known yet). */
+  shortMargin?: number | null;
   /** Set while the backend would refuse a MKT (MKT_OUTSIDE_RTH): Market greys out with this title. */
   marketDisabledReason?: string | null;
   /** `Cost · BP after` estimate; omitted (undefined) hides the line. */
@@ -129,6 +143,13 @@ export function ManualOrderFields({
   why = null,
   quantityLocked = false,
   shortDisabledReason = null,
+  sideButtons: buttons,
+  sideNote = null,
+  buyStop = '',
+  buyStopRefusal = null,
+  onBuyStopChange,
+  limitNote = null,
+  shortMargin = null,
   marketDisabledReason = null,
   cost,
   onTicketSideChange,
@@ -139,65 +160,26 @@ export function ManualOrderFields({
   onStopPriceChange,
   onOutsideRthChange,
 }: Props) {
-  const shortBlocked = Boolean(shortDisabledReason);
   // A locked field says why (ux/whyTip.ts): its own block first -- it outlives a
   // reconnect -- then the ticket-wide lock.
   const ticketWhy = disabled ? why || undefined : undefined;
-  const shortWhy = shortDisabledReason || ticketWhy;
   const explainer = useOrderExplainer();
+  const sides = buttons ?? sideButtons({ symbol, qty: null, known: false, allowShort, shortBlock: shortDisabledReason });
+  // A short goes out as a Limit with its buy stop (ADR 048): Market and the stops are off for it.
+  const shortTypeWhy = ticketSide === 'short' ? SHORT_WHY_TYPE : null;
 
   return (
     <>
-      <div
-        className={`manual-order-segment manual-order-side${allowShort ? ' manual-order-side--with-short' : ''}`}
-        role="group"
-        aria-label={TICKER_TRADE_LABEL_SIDE}
-      >
-        <button
-          type="button"
-          className={ticketSide === 'buy' ? 'is-buy' : ''}
-          aria-pressed={ticketSide === 'buy'}
-          {...explainer.bind('buy')}
-          onClick={() => onTicketSideChange('buy')}
-          disabled={disabled}
-          data-why={ticketWhy}
-          data-testid="manual-order-side-buy"
-        >
-          {TICKER_TRADE_LABEL_BUY}
-        </button>
-        <button
-          type="button"
-          className={ticketSide === 'sell' ? 'is-sell' : ''}
-          aria-pressed={ticketSide === 'sell'}
-          {...explainer.bind('sell')}
-          onClick={() => onTicketSideChange('sell')}
-          disabled={disabled}
-          data-why={ticketWhy}
-          data-testid="manual-order-side-sell"
-        >
-          {TICKER_TRADE_LABEL_SELL}
-        </button>
-        {allowShort && (
-          <button
-            type="button"
-            className={ticketSide === 'short' ? 'is-short' : ''}
-            aria-pressed={ticketSide === 'short'}
-            onClick={() => {
-              if (!shortBlocked) onTicketSideChange('short');
-            }}
-            disabled={disabled || shortBlocked}
-            data-why={shortWhy}
-            data-testid="manual-order-side-short"
-          >
-            {TICKER_TRADE_LABEL_SHORT}
-          </button>
-        )}
-      </div>
-      {allowShort && shortBlocked && (
-        <p className="manual-order-hint mot-reason" data-testid="manual-order-short-reason">
-          {shortDisabledReason}
-        </p>
-      )}
+      <ManualOrderSideSegment
+        buttons={sides}
+        ticketSide={ticketSide}
+        disabled={disabled}
+        why={ticketWhy}
+        note={sideNote}
+        shortReason={shortDisabledReason}
+        explain={explainer.bind}
+        onTicketSideChange={onTicketSideChange}
+      />
 
       <div
         className="manual-order-segment manual-order-types"
@@ -206,8 +188,8 @@ export function ManualOrderFields({
       >
         {PRIMARY_TYPES.map((item) => {
           const isActive = orderType === item.value;
-          const blocked = item.value === 'MKT' && Boolean(marketDisabledReason);
-          const typeWhy = (blocked && marketDisabledReason) || ticketWhy;
+          const blocked = item.value === 'MKT' && Boolean(marketDisabledReason || shortTypeWhy);
+          const typeWhy = (blocked && (shortTypeWhy || marketDisabledReason)) || ticketWhy;
           return (
             <button
               key={item.value}
@@ -228,8 +210,8 @@ export function ManualOrderFields({
         })}
         <ManualOrderStopControl
           orderType={orderType}
-          disabled={disabled}
-          why={ticketWhy}
+          disabled={disabled || Boolean(shortTypeWhy)}
+          why={shortTypeWhy || ticketWhy}
           onOrderTypeChange={onOrderTypeChange}
           explain={explainer.bind}
         />
@@ -274,7 +256,24 @@ export function ManualOrderFields({
               })
             }
           />
+          {limitNote && (
+            <span className="mot-field__note" data-testid="manual-order-limit-note">
+              {limitNote}
+            </span>
+          )}
         </div>
+      )}
+
+      {ticketSide === 'short' && onBuyStopChange && (
+        <BuyStopField
+          value={buyStop}
+          limit={limitPrice}
+          orderQty={quantityMode === 'shares' ? quantityValue : ''}
+          disabled={disabled}
+          why={ticketWhy}
+          refusal={buyStopRefusal}
+          onChange={onBuyStopChange}
+        />
       )}
 
       {(orderType === 'STP' || orderType === 'STP LMT') && (
@@ -332,9 +331,13 @@ export function ManualOrderFields({
         <ExtendedHoursCheck checked={outsideRth} disabled={disabled} why={ticketWhy} onChange={onOutsideRthChange} />
         {cost !== undefined && (
           <span className="mot-cost" data-testid="manual-order-cost" title={cost?.note || TICKET_COST_TITLE}>
-            {TICKET_COST_LABEL} <b><LiveText text={money(cost?.cost, 2)} /></b>
+            {ticketSide === 'short' ? SHORT_COST_LABEL : TICKET_COST_LABEL} <b><LiveText text={money(cost?.cost, 2)} /></b>
             {' · '}
-            {TICKET_BP_AFTER_LABEL} <b><LiveText text={money(cost?.buyingPowerAfter, 0)} /></b>
+            {ticketSide === 'short' ? (
+              <>{SHORT_MARGIN_LABEL} <b><LiveText text={money(shortMargin, 0)} /></b></>
+            ) : (
+              <>{TICKET_BP_AFTER_LABEL} <b><LiveText text={money(cost?.buyingPowerAfter, 0)} /></b></>
+            )}
           </span>
         )}
       </div>

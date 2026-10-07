@@ -27,6 +27,10 @@ interface Props {
   practice?: boolean;
   ticketSide?: TicketSide;
   symbol?: string;
+  /** ADR 048: a short's or a cover's own words ("Short RDYN · 416 @ 5.77 · stop 5.89"); null keeps the side's. */
+  submitLabel?: string | null;
+  /** A short wears orange, a cover green; null keeps the venue's colour. */
+  submitTone?: 'short' | 'cover' | null;
   needsPinUnlock: boolean;
   connected: boolean;
   /** Whether `connected: false` is a status answer or an unknown (QA D10, #459). */
@@ -54,6 +58,8 @@ export function ManualOrderFooter({
   practice = false,
   ticketSide = 'buy',
   symbol = '',
+  submitLabel = null,
+  submitTone = null,
   needsPinUnlock,
   connected,
   gatewayStatus = GATEWAY_STATUS_KNOWN,
@@ -71,7 +77,8 @@ export function ManualOrderFooter({
   onConfirmClose,
   onConfirmPlace,
 }: Props) {
-  const placeLabel = placeActionLabel(ticketSide, symbol);
+  const placeLabel = submitLabel || placeActionLabel(ticketSide, symbol);
+  const tone = submitTone ?? (ticketSide === 'short' ? 'short' : null);
   const lockReason =
     spendLockReason ?? 'IBKR orders remain gated by environment safety settings';
   // Unlock is not a place — keep the unlock affordance reachable while locked so
@@ -115,8 +122,8 @@ export function ManualOrderFooter({
         variant="default"
         size="lg"
         className={
-          ticketSide === 'short' && !needsPinUnlock && connected
-            ? 'manual-order-submit manual-order-submit--short mt-1 w-full'
+          tone && !needsPinUnlock && connected
+            ? `manual-order-submit manual-order-submit--${tone} mt-1 w-full`
             : isPaper && !needsPinUnlock && connected
             ? 'manual-order-submit manual-order-submit--paper mt-1 w-full'
             : 'manual-order-submit mt-1 w-full'

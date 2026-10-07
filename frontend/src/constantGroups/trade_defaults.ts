@@ -28,6 +28,13 @@ export const TRADE_DEFAULT_TRADING_HOURS: TradeDefaultTradingHours =
 export const TRADE_DEFAULT_TIF: TradeDefaultTif = 'DAY';
 export const TRADE_DEFAULT_LIMIT_SOURCE: TradeDefaultLimitSource = 'ask_bid';
 export const TRADE_DEFAULT_STOP_OFFSET_PCT = 1;
+/**
+ * A short's buy stop (ADR 048: every short goes out with one over its entry), prefilled this many dollars
+ * over its limit on the ticket; each Short hotkey starts from it. Per venue, like every default here.
+ */
+export const TRADE_DEFAULT_SHORT_STOP_OFFSET = 0.1;
+export const TRADE_DEFAULT_SHORT_STOP_OFFSET_MIN = 0.01;
+export const TRADE_DEFAULT_SHORT_STOP_OFFSET_MAX = 50;
 
 export const TRADE_DEFAULTS_SECTION_TITLE = 'Default Order Values';
 export const TRADE_DEFAULTS_ORDER_TYPE_LABEL = 'Order Type';
@@ -36,6 +43,10 @@ export const TRADE_DEFAULTS_HOURS_LABEL = 'Extended Hours';
 export const TRADE_DEFAULTS_TIF_LABEL = 'Time-in-Force';
 export const TRADE_DEFAULTS_LIMIT_SOURCE_LABEL = 'Limit Price';
 export const TRADE_DEFAULTS_STOP_OFFSET_LABEL = 'Stop Offset (%)';
+export const TRADE_DEFAULTS_SHORT_STOP_LABEL = 'Short buy stop ($ over the limit)';
+export const TRADE_DEFAULTS_SHORT_STOP_HINT =
+  'Every short goes out with a buy stop over its entry. The ticket and each Short hotkey start the stop this many ' +
+  'dollars over the limit; change it on any order.';
 export const TRADE_DEFAULTS_EH_HINT =
   'Default on. Uncheck for Regular Hours only. IBKR may reject some Market or Stop + EH combinations -- Nova shows that error after Place.';
 export const TRADE_DEFAULTS_TIF_HINT =

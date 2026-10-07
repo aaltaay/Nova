@@ -1,7 +1,10 @@
 /* Compact ticket + quick-trade row (approved Trader redesign, 2026-09-21).
    Source: ux/mockup-trader.html -- the right-rail TRADE card and the icon row
    above it. Layout and density only: field ids, test ids and the submission
-   path are unchanged. Loads after tradeTicket.css so it wins on ties. */
+   path are unchanged. Loads after tradeTicket.css so it wins on ties.
+   The short side (ADR 048) -- its Buy stop, the SHORT CHECK box, the cover's
+   green -- is shortTicket.css, inheriting this sheet's layer. */
+@import "./shortTicket.css";
 
 .manual-order-ticket {
   --mot-space-3: 7px;
@@ -437,15 +440,13 @@
   font-weight: 600;
 }
 
-.manual-order-submit--paper,
-.manual-order-submit--short {
+.manual-order-submit--paper {
   background: #ea580c !important;
   color: #fff !important;
   border-color: #c2410c !important;
 }
 
-.manual-order-submit--paper:hover:not(:disabled),
-.manual-order-submit--short:hover:not(:disabled) {
+.manual-order-submit--paper:hover:not(:disabled) {
   background: #f97316 !important;
   color: #fff !important;
 }

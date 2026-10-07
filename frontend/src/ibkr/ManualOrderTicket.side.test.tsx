@@ -4,7 +4,6 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PRACTICE_TICKET_SHORT_LOCKED } from '../constantGroups/practice';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import { placeActionLabel } from './ticketSide';
 import type { IbkrAccountSummary } from './types';
@@ -17,7 +16,7 @@ vi.mock('./ticketUnlock', () => ({
   subscribeTicketSessionUnlock: () => () => {},
 }));
 
-// Side vs account class is an IBKR (Live) question: the practice venues never short (below).
+// Side vs account class; the practice venues short through the same Short side (below, ADR 048).
 const venue = vi.hoisted(() => ({ mode: 'live' as 'live' | 'paper' | 'sim' }));
 vi.mock('./useIbkrStatus', () => ({
   useIbkrStatus: () => ({
@@ -119,23 +118,31 @@ describe('ManualOrderTicket Side vs account_class', () => {
         ?.getAttribute('aria-pressed'),
     ).toBe('false');
     const btn = container.querySelector('.manual-order-submit') as HTMLButtonElement;
-    expect(btn.textContent).toBe(placeActionLabel('short', 'NVDA'));
+    // ADR 048: the short's own words -- size, price and its buy stop -- in orange.
+    expect(btn.textContent?.startsWith(placeActionLabel('short', 'NVDA'))).toBe(true);
     expect(btn.classList.contains('manual-order-submit--short')).toBe(true);
   });
 
-  it.each(['paper', 'sim'] as const)('on %s the Short waits on its Buy stop, however shortable the symbol (V13, ADR 048)', (mode) => {
+  it.each(['paper', 'sim'] as const)('on %s the Short opens whatever the listing says: the short check decides (ADR 048)', (mode) => {
     venue.mode = mode;
-    render({
-      connected: true,
-      mode,
-      AccountType: 'INDIVIDUAL',
-      account_class: 'margin',
-      BuyingPower: 50_000,
+    act(() => {
+      root.render(
+        <ManualOrderTicket
+          symbol="NVDA"
+          mode={mode}
+          connected
+          spendStatus={`${mode}_armed`}
+          summary={{ connected: true, mode, AccountType: 'INDIVIDUAL', account_class: 'margin', BuyingPower: 50_000 }}
+          position={null}
+          referencePrice={100}
+          listingIbkr={null}
+        />,
+      );
     });
     const short = container.querySelector('[data-testid="manual-order-side-short"]') as HTMLButtonElement;
     expect(short).toBeTruthy();
-    expect(short.disabled).toBe(true);
-    expect(short.dataset.why).toBe(PRACTICE_TICKET_SHORT_LOCKED);
+    expect(short.disabled).toBe(false);
+    expect(short.dataset.why).toBeUndefined();
     expect(container.textContent).not.toMatch(/check TWS/);
   });
 });

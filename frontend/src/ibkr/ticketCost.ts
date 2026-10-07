@@ -6,15 +6,16 @@
  * Anything Nova cannot work out yet is null -- the line shows a dash, never a
  * guess -- and an order the door would refuse is priced at nothing: a SELL
  * only ever reduces a held long (Invariant #7; `OVERSELL`, `PRACTICE_NO_SHORTS`),
- * so a SELL from flat or past the held quantity frees no buying power, and a
- * practice venue refuses every short entry (QA 2026-09-22, V24).
+ * so a SELL from flat or past the held quantity frees no buying power. A short
+ * entry is priced at its value (`Short $x`); what it holds of the account is its
+ * margin requirement, which the short check answers (ADR 048), never BP +/- the value.
  *
  * A Market order is priced where it fills -- the far side of a known quote,
  * the ask to buy and the bid to sell -- not the last (QA R36). On a practice
  * venue "BP after" follows the ledger's own rule (fees out of equity, the
  * position re-marked at the fill, 4x, 1x under $2,000), not BP +/- the order value (W28).
  */
-import { PRACTICE_TICKET_SHORT_LOCKED } from '../constantGroups/practice';
+import { SHORT_COST_NOTE } from '../constantGroups/short_ticket';
 import { TICKET_COST_NO_POSITION } from '../constantGroups/trader_chrome';
 import { practiceBuyingPowerAfter } from '../practice/practiceBuyingPower';
 import {
@@ -34,7 +35,7 @@ export interface TicketCostEstimate {
 }
 
 export interface TicketCostVenue {
-  /** Paper / Sim: Nova's practice broker, which refuses every short entry. */
+  /** Paper / Sim: Nova's practice broker. */
   practice?: boolean;
   /** Why there is no market reference price on this venue right now, if that is known. */
   priceNote?: string | null;
@@ -65,7 +66,11 @@ export function estimateTicketCost(
   if ('error' in resolved) return UNKNOWN;
   const { quantity, referencePrice } = resolved;
   const shares = quantity > 0 ? quantity : null;
-  if (venue.practice && values.shortEntry) return { ...UNKNOWN, shares, note: PRACTICE_TICKET_SHORT_LOCKED };
+  if (values.shortEntry) {
+    // A short is a Limit (ADR 048): its value at the limit; the margin it holds is the short check's.
+    if (referencePrice == null || !(quantity > 0)) return { ...UNKNOWN, shares, note: SHORT_COST_NOTE };
+    return { shares: quantity, price: referencePrice, cost: quantity * referencePrice, buyingPowerAfter: null, note: SHORT_COST_NOTE };
+  }
   if (values.side === 'SELL' && !values.shortEntry) {
     const held = context.positionQty;
     if (held == null || !(held > 0) || (shares != null && shares > held)) {

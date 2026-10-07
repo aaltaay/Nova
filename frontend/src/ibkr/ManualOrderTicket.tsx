@@ -20,6 +20,7 @@ import { ManualOrderTicketHeader } from './ManualOrderTicketHeader';
 import { useMarketOrdersRefused } from './marketOutsideRth';
 import { ManualOrderLegsNote } from './ManualOrderLegsNote';
 import { shortDisabledReason } from './shortDisabledReason';
+import { ShortCheckBox } from './ShortCheckBox';
 import {
   allowShortSide,
   clampTicketSide,
@@ -27,7 +28,6 @@ import {
   ticketSideToOrder,
   type TicketSide,
 } from './ticketSide';
-import { subscribeOrderTicketPrefill } from './orderTicketPrefill';
 import type { PlaceOrderResult } from './placeOrder';
 import { evaluateTradingAllowed } from './tradingAllowed';
 import {
@@ -45,6 +45,8 @@ import { useVenuePrice } from '../sim/useReplayQuote';
 import { getConfirmedDeskVenueSnapshot, subscribeConfirmedDeskVenue } from './confirmedDeskVenue';
 import { useTradeDefaultsPrefs } from '../settings';
 import { useTicketDefaultsSync } from './useTicketDefaultsSync';
+import { useShortTicket } from './useShortTicket';
+import { useTicketSideActions } from './useTicketSideActions';
 
 interface Props {
   symbol: string;
@@ -125,6 +127,11 @@ export function ManualOrderTicket({
     summary,
     position,
   };
+  // ADR 048: the sides follow the position, and a short carries its Buy stop and the short check.
+  const short = useShortTicket({
+    symbol, summary, position, allowShort, shortBlock: shortBlockReason, ticketSide, orderType, limitPrice, topOfBook,
+    quantityMode: displayQuantityMode, quantityValue: displayQuantityValue, stopOffset: prefs.shortStopOffset,
+  });
   const { tif, selectTif, cost, practice } = useCompactTicket({
     venue, mode, ...ticketValues, priceNote, quote: { bid: quoteBid, ask: quoteAsk },
   });
@@ -149,6 +156,7 @@ export function ManualOrderTicket({
     executeOrder,
     setConfirmSummary,
     resetSubmission,
+    cancelConfirm,
     showResult,
   } = useManualOrderSubmission({
     ...ticketValues,
@@ -158,6 +166,8 @@ export function ManualOrderTicket({
     spendLocked,
     needsPinUnlock,
     shortBlockReason,
+    buyStop: short.buyStop,
+    buyStopRefusal: short.stopRefusal,
     qtyCap: ibkrStatus.qty_cap ?? null,
     // Place while locked unlocks and stops there: the operator presses Place again.
     onNeedsPin: () => {
@@ -200,43 +210,17 @@ export function ManualOrderTicket({
     resetSubmission();
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The chart menu stages an order here; the PIN / spend / confirm gates still own the place.
-  useEffect(() => {
-    return subscribeOrderTicketPrefill(symbol, (req) => {
-      setTicketSide(orderSideToTicketSide(req.side));
-      setOrderType(req.orderType);
-      setQuantityMode('shares');
-      if (!QTY_LOCKED) setQuantityValue(req.quantityValue);
-      setLimitPrice(req.limitPrice);
-      priceFollow.setFollowing(null);
-      resetSubmission();
-    });
-  }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => setTicketSide((current) => clampTicketSide(current, allowShort)), [allowShort]);
+  // Choosing a side seeds its prices; a staged order lands on its side; a side the position locks gives way.
+  const selectTicketSide = useTicketSideActions({
+    venue, symbol, ticketSide, orderType, referencePrice, topOfBook, quantityLocked: QTY_LOCKED, short,
+    setTicketSide, setOrderType, setQuantityMode, setQuantityValue, setLimitPrice, setStopPrice,
+    setFollowing: priceFollow.setFollowing, resetSubmission, cancelConfirm, say: showResult,
+  });
 
   // The rail's Flatten reports here: its own footer is hidden in the rail (QA R32).
   useEffect(() => {
     if (externalResult) showResult({ ok: externalResult.ok, text: externalResult.text });
   }, [externalResult?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function selectTicketSide(next: TicketSide) {
-    if (next === 'short' && (!allowShort || shortBlockReason)) return;
-    setTicketSide(next);
-    const mapped = ticketSideToOrder(next);
-    const seeded = seedPricesForSide(
-      venue,
-      mapped.side,
-      orderType,
-      symbol,
-      referencePrice,
-      topOfBook,
-    );
-    if (usesLimitPrice(orderType)) setLimitPrice(seeded.limitPrice);
-    priceFollow.setFollowing(seedFollow(venue, mapped.side, orderType));
-    if (usesStopPrice(orderType)) setStopPrice(seeded.stopPrice);
-    resetSubmission();
-  }
 
   useEffect(() => {
     if (referencePrice != null && !limitPrice && usesLimitPrice(orderType)) {
@@ -333,6 +317,13 @@ export function ManualOrderTicket({
         why={fieldsWhy}
         quantityLocked={QTY_LOCKED}
         shortDisabledReason={shortBlockReason}
+        sideButtons={short.buttons}
+        sideNote={short.note}
+        buyStop={short.buyStop}
+        buyStopRefusal={short.stopRefusal}
+        onBuyStopChange={short.setBuyStop}
+        limitNote={short.limitNote}
+        shortMargin={short.margin}
         marketDisabledReason={marketBlockedReason}
         onTicketSideChange={selectTicketSide}
         onOrderTypeChange={selectOrderType}
@@ -343,6 +334,8 @@ export function ManualOrderTicket({
         onOutsideRthChange={setOutsideRth}
       />
 
+      {ticketSide === 'short' && <ShortCheckBox state={short.check} />}
+
       <ManualOrderLegsNote note={legsNote} blocked={legsBlocked} />
 
       <ManualOrderFooter
@@ -350,6 +343,8 @@ export function ManualOrderTicket({
         practice={practice}
         ticketSide={ticketSide}
         symbol={symbol}
+        submitLabel={short.submitLabel}
+        submitTone={short.submitTone}
         needsPinUnlock={needsPinUnlock}
         connected={connected}
         gatewayStatus={gatewayStatus}

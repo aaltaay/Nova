@@ -91,7 +91,12 @@
 }
 
 .manual-order-side button.is-short {
-  background: #ea580c;
+  background: var(--short, #ea580c);
+  color: #fff;
+}
+
+.manual-order-side button.is-cover {
+  background: var(--cover, #22c55e);
   color: #fff;
 }
 
