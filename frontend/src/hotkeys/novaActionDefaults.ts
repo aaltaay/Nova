@@ -7,6 +7,7 @@ import {
   NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS,
   NOVA_ACTION_DEFAULT_BUY_MARKET_SHARES,
   NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
+  NOVA_ACTION_DEFAULT_SHORT_OFFSET_DOLLARS,
   NOVA_ACTION_DESK_SHARES,
 } from '../constants';
 import { parseKeyChord } from './htkFormat';
@@ -170,6 +171,26 @@ export function createDefaultNovaActions(): NovaActionRecord[] {
         percent: 25,
         offsetDollars: NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS,
       },
+      enabled: true,
+      showButton: false,
+    },
+    // Short selling (ADR 048): shipped unbound and off the bar -- the operator picks the keys. The Short's buy
+    // stop is the venue's Settings > Trade offset until the operator sets the hotkey's own.
+    {
+      id: 'nova-short-bid',
+      name: `SS${NOVA_ACTION_DESK_SHARES} Bid+${Math.round(NOVA_ACTION_DEFAULT_SHORT_OFFSET_DOLLARS * 100)}`,
+      kind: 'short_limit_bid_offset',
+      key: { label: '', key: '' },
+      params: { shares: NOVA_ACTION_DESK_SHARES, offsetDollars: NOVA_ACTION_DEFAULT_SHORT_OFFSET_DOLLARS },
+      enabled: true,
+      showButton: false,
+    },
+    {
+      id: 'nova-cover-all',
+      name: 'Cover all',
+      kind: 'cover_pos',
+      key: { label: '', key: '' },
+      params: {},
       enabled: true,
       showButton: false,
     },

@@ -15,6 +15,7 @@ import {
   HOTKEYS_CREATE_SIDE_BUY,
   HOTKEYS_CREATE_SIDE_LABEL,
   HOTKEYS_CREATE_SIDE_SELL,
+  HOTKEYS_CREATE_SIDE_SHORT,
   HOTKEYS_CREATE_SUBMIT,
   HOTKEYS_DEFAULT_CUSTOM_NAME,
   NOVA_ACTION_KIND_LABELS,
@@ -27,6 +28,8 @@ import {
   type CustomButtonSide,
 } from './createBlankNovaAction';
 import type { NovaActionRecord } from './novaActionTypes';
+import { getConfirmedDeskVenueSnapshot } from '../ibkr';
+import { useTradeDefaultsPrefs } from '../settings';
 
 export function CreateCustomButtonForm({
   onCancel,
@@ -39,6 +42,8 @@ export function CreateCustomButtonForm({
   const [side, setSide] = useState<CustomButtonSide>('buy');
   const kinds = useMemo(() => kindsForSide(side), [side]);
   const [kind, setKind] = useState<NovaActionKind>(() => defaultKindForSide('buy'));
+  // A Short hotkey's own buy stop starts at this venue's Settings > Trade offset (ADR 048).
+  const { shortStopOffset } = useTradeDefaultsPrefs(getConfirmedDeskVenueSnapshot().venue);
 
   function onSideChange(next: CustomButtonSide) {
     setSide(next);
@@ -47,7 +52,7 @@ export function CreateCustomButtonForm({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    onCreate(createBlankNovaAction(name, kind));
+    onCreate(createBlankNovaAction(name, kind, shortStopOffset));
   }
 
   return (
@@ -94,6 +99,15 @@ export function CreateCustomButtonForm({
             onClick={() => onSideChange('sell')}
           >
             {HOTKEYS_CREATE_SIDE_SELL}
+          </button>
+          <button
+            type="button"
+            className={`hk-side-short${side === 'short' ? ' is-active' : ''}`}
+            aria-pressed={side === 'short'}
+            onClick={() => onSideChange('short')}
+            data-testid="hotkeys-create-side-short"
+          >
+            {HOTKEYS_CREATE_SIDE_SHORT}
           </button>
         </div>
       </div>

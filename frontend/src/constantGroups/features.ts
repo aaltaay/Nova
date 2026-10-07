@@ -188,6 +188,11 @@ export const NOVA_ACTION_KINDS = [
   'sell_limit_ask_offset',
   'sell_pos_pct_ask',
   'sell_pos_pct_bid_offset',
+  // Short selling (ADR 048): a short goes out as a Limit with its buy stop; a cover never buys past flat.
+  'short_limit_bid_offset',
+  'short_limit_ask_offset',
+  'cover_limit_ask_offset',
+  'cover_pos',
   // Share clips (ADR 039): no order, ever -- runNovaAction hands them to the clips feature first.
   'clip_toggle',
   'clip_save_last',
@@ -207,6 +212,10 @@ export const NOVA_ACTION_KIND_LABELS: Record<NovaActionKind, string> = {
   sell_limit_ask_offset: 'Sell limit at Ask ± offset',
   sell_pos_pct_ask: 'Sell long % at Ask (limit)',
   sell_pos_pct_bid_offset: 'Sell long % at Bid − offset (limit)',
+  short_limit_bid_offset: 'Short limit at Bid ± offset (with its buy stop)',
+  short_limit_ask_offset: 'Short limit at Ask ± offset (with its buy stop)',
+  cover_limit_ask_offset: 'Cover the short at Ask + offset (limit)',
+  cover_pos: 'Cover all (the whole short, at market)',
   clip_toggle: 'Start / stop a video clip (this tab)',
   clip_save_last: 'Save the last 5 min as a clip (this tab)',
 };
@@ -235,7 +244,13 @@ export const NOVA_ACTION_NEEDS_DEPTH: NovaActionKind[] = [
   'sell_limit_ask_offset',
   'sell_pos_pct_ask',
   'sell_pos_pct_bid_offset',
+  'short_limit_bid_offset',
+  'short_limit_ask_offset',
+  'cover_limit_ask_offset',
 ];
+
+/** A Short hotkey's default price: a cent over the bid, which SSR allows (a short under SSR sells above the bid). */
+export const NOVA_ACTION_DEFAULT_SHORT_OFFSET_DOLLARS = 0.01;
 
 export const NOVA_ACTION_DEPTH_DISABLED_REASON =
   'Needs live L2 bid/ask for the open symbol — open Level 2 depth first.';
@@ -277,6 +292,7 @@ export const HOTKEYS_CREATE_APPLY_LOCKED_WHY = 'Nova trades stocks only, so a cu
 export const HOTKEYS_CREATE_SIDE_LABEL = 'Side';
 export const HOTKEYS_CREATE_SIDE_BUY = 'Buy';
 export const HOTKEYS_CREATE_SIDE_SELL = 'Sell';
+export const HOTKEYS_CREATE_SIDE_SHORT = 'Short';
 export const HOTKEYS_CREATE_ACTION_LABEL = 'Action';
 export const HOTKEYS_CREATE_CANCEL = 'Cancel';
 export const HOTKEYS_CREATE_SUBMIT = 'Create';

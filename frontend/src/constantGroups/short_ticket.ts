@@ -15,6 +15,17 @@ export const SHORT_WHY_LONG = (sym: string): string =>
   `You're long ${sym}: Nova never flips. Sell what you hold first; a short opens only from flat.`;
 export const SHORT_WHY_SHORT_SELL = (sym: string): string =>
   `You're short ${sym}: a sell would add to the short without its buy stop. Use Short more, which carries its own.`;
+export const SHORT_HOTKEY_STOP_LABEL = 'Buy stop ($ over the limit)';
+export const SHORT_HOTKEY_OFFSET_HINT =
+  'From the Bid (or the Ask), plus or minus. Under SSR a short sells only above the bid: keep it over the bid.';
+export const SHORT_HOTKEY_COVER_ALL_NOTE =
+  'Covers the whole short at market, like Flatten: never past flat, and never on a long.';
+export const DAS_SHORT_NEEDS_PRICE =
+  'A DAS SHORT maps to a Short at Bid or Ask plus an offset (Price=Bid+0.01): Nova shorts only with a limit and a buy stop.';
+export const DAS_SHORT_STOP_NOTE =
+  "Its DAS stop trigger is not run: Nova's Short goes out with its own buy stop, the hotkey's offset over the limit.";
+export const SHORT_HOTKEY_NO_SHORT = (sym: string): string =>
+  `You hold no ${sym} short: a cover buys a short back, and Nova never buys past flat.`;
 export const SHORT_WHY_TYPE =
   'A short goes out as a Limit with its buy stop: Market has no price for SSR, the margin or the cushion (ADR 048).';
 

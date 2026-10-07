@@ -22,6 +22,11 @@ export function formatNovaActionParams(row: NovaActionRecord): string {
     const eh = row.params.outsideRth ? ' · EH' : '';
     return `Qty: ${shares}${eh}`;
   }
+  if (row.kind === 'short_limit_bid_offset' || row.kind === 'short_limit_ask_offset') {
+    const stop = row.params.stopOffsetDollars;
+    return `Qty: ${row.params.shares ?? 100}${stop != null ? ` · stop +$${stop.toFixed(2)}` : ''}`;
+  }
+  if (row.kind === 'cover_limit_ask_offset' || row.kind === 'cover_pos') return 'Short';
   if (row.kind === 'exit_pos' || row.kind === 'cancel_and_exit') return 'Position';
   if (row.kind === 'cancel_symbol') return 'Symbol open';
   if (row.kind === 'cancel_all_orders') return 'All stocks';
@@ -70,6 +75,21 @@ export function describeNovaAction(row: NovaActionRecord): string {
       return `Sell ${row.params.percent ?? 50}% of a long at Ask (limit). Long-only; whole shares; needs L2.`;
     case 'sell_pos_pct_bid_offset':
       return `Sell ${row.params.percent ?? 50}% of a long at Bid - $${row.params.offsetDollars ?? 0.03} (limit). Long-only; needs L2.`;
+    case 'short_limit_bid_offset':
+    case 'short_limit_ask_offset': {
+      const base = row.kind === 'short_limit_bid_offset' ? 'Bid' : 'Ask';
+      const off = row.params.offsetDollars ?? (row.kind === 'short_limit_bid_offset' ? 0.01 : -0.01);
+      const stop = row.params.stopOffsetDollars;
+      return (
+        `SHORT ${row.params.shares ?? 100} at ${base} ${off >= 0 ? '+' : '-'} $${Math.abs(off).toFixed(2)} (limit), `
+        + `with a buy stop ${stop != null ? `$${stop.toFixed(2)}` : "Settings > Trade's offset"} over it. `
+        + 'Regular hours; never on a stock you hold long.'
+      );
+    }
+    case 'cover_limit_ask_offset':
+      return `Cover the whole short at Ask + $${row.params.offsetDollars ?? 0.05} (limit). Never past flat.`;
+    case 'cover_pos':
+      return 'Cover the whole short at market, like Flatten. Never past flat; never on a long.';
     case 'clip_toggle':
       return "Start a video clip of the active Trader tab, or stop the one recording. Places nothing.";
     case 'clip_save_last':

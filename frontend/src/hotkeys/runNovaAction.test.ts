@@ -277,7 +277,7 @@ describe('runNovaAction whole-position exits (QA R32)', () => {
 describe('disarmed desk (#548, ADR 018 decision 4)', () => {
   // The kinds the backend's arm latch never holds: cancels, and the
   // whole-position exits sent as `intent: "flatten"`.
-  const PROTECTIVE: NovaActionKind[] = ['cancel_symbol', 'cancel_all_orders', 'exit_pos', 'cancel_and_exit'];
+  const PROTECTIVE: NovaActionKind[] = ['cancel_symbol', 'cancel_all_orders', 'exit_pos', 'cancel_and_exit', 'cover_pos'];
   // Every other kind -- a new one included -- is an ordinary manual order.
   // Share clips (ADR 039) are no order at all: the padlock is not theirs to hold.
   const CLIPS: NovaActionKind[] = ['clip_toggle', 'clip_save_last'];

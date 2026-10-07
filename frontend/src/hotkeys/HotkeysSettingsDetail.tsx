@@ -14,6 +14,9 @@ import { ConfirmDeleteIconButton } from './ConfirmDeleteIconButton';
 import { KeyCapture } from './KeyCapture';
 import { describeNovaAction } from './novaActionFormat';
 import type { NovaActionRecord } from './novaActionTypes';
+import { isShortHotkeyKind, ShortActionFields } from './ShortActionFields';
+import { getConfirmedDeskVenueSnapshot } from '../ibkr';
+import { useTradeDefaultsPrefs } from '../settings';
 
 export function HotkeysSettingsDetail({
   action,
@@ -27,6 +30,7 @@ export function HotkeysSettingsDetail({
   onDelete?: (id: string) => void;
 }) {
   const [capturing, setCapturing] = useState(false);
+  const { shortStopOffset } = useTradeDefaultsPrefs(getConfirmedDeskVenueSnapshot().venue);
 
   return (
     <div className="hk-detail" data-testid="hotkeys-settings-detail">
@@ -154,6 +158,10 @@ export function HotkeysSettingsDetail({
             </label>
           )}
         </div>
+      )}
+
+      {isShortHotkeyKind(action.kind) && (
+        <ShortActionFields action={action} fieldClass="hk-field" venueStopOffset={shortStopOffset} onChange={onChange} />
       )}
 
       <label className="hk-check-row">

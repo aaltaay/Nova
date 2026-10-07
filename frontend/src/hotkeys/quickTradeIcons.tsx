@@ -14,6 +14,10 @@ const ICON_PATHS: Record<NovaActionKind, string> = {
   sell_limit_ask_offset: 'M12 5v14M5 12l7 7 7-7',
   sell_pos_pct_ask: 'M12 5v14M5 12l7 7 7-7',
   sell_pos_pct_bid_offset: 'M12 5v14M5 12l7 7 7-7',
+  short_limit_bid_offset: 'M12 5v14M5 12l7 7 7-7M4 3h16',
+  short_limit_ask_offset: 'M12 5v14M5 12l7 7 7-7M4 3h16',
+  cover_limit_ask_offset: 'M12 19V5M5 12l7-7 7 7M4 21h16',
+  cover_pos: 'M4 6h16M4 12h16M4 18h10M17 15l3 3 3-3',
   clip_toggle: 'M3 7h11v10H3zM14 10l7-4v12l-7-4',
   clip_save_last: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2',
 };

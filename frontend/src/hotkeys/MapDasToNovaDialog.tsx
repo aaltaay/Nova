@@ -5,6 +5,8 @@
 import { NOVA_ACTION_KIND_LABELS } from '../constants';
 import { formatKeyChord } from './htkFormat';
 import type { MapSuggestion } from './mapDasToNovaAction';
+import { describeNovaAction } from './novaActionFormat';
+import { isShortHotkeyKind } from './ShortActionFields';
 import type { HotkeyRecord } from './types';
 
 type Props = {
@@ -56,9 +58,14 @@ export function MapDasToNovaDialog({
               {(suggestion.kind === 'cancel_symbol'
                 || suggestion.kind === 'cancel_and_exit'
                 || suggestion.kind === 'exit_pos') && '—'}
+              {isShortHotkeyKind(suggestion.kind) && describeNovaAction({
+                id: '', name: suggestion.name, kind: suggestion.kind, key: record.key,
+                params: suggestion.params, enabled: false, showButton: false,
+              })}
             </dd>
           </div>
         </dl>
+        {suggestion.note && <p className="na-muted" data-testid="map-das-note">{suggestion.note}</p>}
         <div className="hotkey-editor-actions">
           <button type="button" className="btn-primary" onClick={onConfirm}>
             Create Nova Action

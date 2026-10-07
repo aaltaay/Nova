@@ -84,3 +84,28 @@ describe('buildMappedNovaAction', () => {
     expect(mapped.kind).toBe('cancel_symbol');
   });
 });
+
+describe('DAS SHORT commands (ADR 048)', () => {
+  it('maps SHORT=Send at Bid+0.01 to a Short at the bid plus its signed offset', () => {
+    const s = suggestNovaActionFromDas('ROUTE=SMRTL;Price=Bid+0.01;Share=100;TIF=DAY+;SHORT=Send');
+    expect(s).toMatchObject({ ok: true, kind: 'short_limit_bid_offset', params: { shares: 100, offsetDollars: 0.01 } });
+  });
+
+  it('maps a short at Ask-0.02, and says its DAS stop trigger is not run', () => {
+    const s = suggestNovaActionFromDas(
+      'ROUTE=SMRTL;Price=Ask-0.02;Share=200;SHORT=Send;TriggerOrder=RT:STOP STOPTYPE:MARKET PX:Ask+0.10 ACT:BUY QTY:POS',
+    );
+    expect(s).toMatchObject({ ok: true, kind: 'short_limit_ask_offset', params: { shares: 200, offsetDollars: -0.02 } });
+    expect(s.ok && s.note).toMatch(/stop trigger is not run/);
+  });
+
+  it('refuses a SHORT with no Bid / Ask price: Nova shorts only with a limit and a buy stop', () => {
+    expect(suggestNovaActionFromDas('ROUTE=SMRTL;Price=Last;Share=100;SHORT=Send')).toMatchObject({ ok: false });
+  });
+
+  it('maps BUY of the whole position to Cover all, or a limit cover at Ask + offset', () => {
+    expect(suggestNovaActionFromDas('ROUTE=SMRTL;Share=Pos;BUY=Send')).toMatchObject({ ok: true, kind: 'cover_pos' });
+    expect(suggestNovaActionFromDas('ROUTE=SMRTL;Price=Ask+0.05;Share=Pos;BUY=Send'))
+      .toMatchObject({ ok: true, kind: 'cover_limit_ask_offset', params: { offsetDollars: 0.05 } });
+  });
+});

@@ -27,6 +27,8 @@ export { flattenSpendLockReason } from './spendLock';
 export type { GatewayStatusFact } from './gatewayStatusWording';
 export { useOrderTicketListening } from './useOrderTicketListening';
 export { requestOrderTicketPrefill } from './orderTicketPrefill';
+// ADR 048: the Short / Cover hotkeys send through the one order helper.
+export { placeIbkrOrder } from './placeOrder';
 export { SentByTd } from './SentByCell';
 export { OrderSideTd, PositionSideTd } from './OrderSideCell';
 export { flattenLabel } from './orderSide';
