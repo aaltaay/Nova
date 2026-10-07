@@ -53,19 +53,24 @@ def live(monkeypatch):
     cover_alarm.reset_for_tests()
     book = SimpleNamespace(positions={"RDYN": -400.0, "AAPL": 10.0},
                            rows=[{"order_id": 41, "symbol": "RDYN", "side": "BUY", "order_type": "STP",
-                                  "remaining_qty": 400}], ready=True)
+                                  "remaining_qty": 400}], ready=True, mode="live", kind="live", states={})
     monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
     monkeypatch.setattr(client_mod, "is_connected", lambda: book.ready)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: book.mode if book.ready else "disconnected")
+    monkeypatch.setattr(client_mod, "broker_account_kind", lambda: book.kind if book.ready else "unknown")
     monkeypatch.setattr(client_mod, "get_ib", lambda: object() if book.ready else None)
     monkeypatch.setattr(live_book, "positions", lambda: dict(book.positions))
     monkeypatch.setattr(live_book, "open_rows", lambda: [dict(r) for r in book.rows])
+    monkeypatch.setattr(live_book, "order_state", lambda oid: book.states.get(int(oid)))
+    clock = {"t": 1000.0}                                   # the monotonic clock the cover's confirm reads
+    monkeypatch.setattr(live_closes, "time", SimpleNamespace(monotonic=lambda: clock["t"], time=lambda: 0.0))
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
     monkeypatch.setattr("execution.store_orders.short_entries", lambda ids, **kw: {})
     door = Door()
     monkeypatch.setattr(exec_svc, "execute", door.execute)
     audit: list[dict] = []
     monkeypatch.setattr("bot.audit.record", lambda **kw: audit.append(kw) or kw)
-    yield SimpleNamespace(book=book, door=door, audit=audit)
+    yield SimpleNamespace(book=book, door=door, audit=audit, clock=clock)
     live_closes.reset_for_tests()
     cover_alarm.reset_for_tests()
 
@@ -100,6 +105,52 @@ def test_at_1555_the_stocks_orders_are_cancelled_then_one_market_cover_goes_to_l
     # The cover is still working at IBKR: never a second one.
     live.book.rows = [{"order_id": done["order_id"], "symbol": "RDYN", "side": "BUY", "order_type": "MKT"}]
     assert _run(_at(15, 55) + 1) == [] and len(live.door.calls) == 2
+
+
+def test_on_the_paper_gateway_nova_reads_no_live_book_and_raises_the_alarm(live):
+    """PR #792 review (P1): the paper Gateway's book is another account -- Nova neither covers nor cancels there,
+    and the short it last saw on Live raises the alarm."""
+    _run(_at(15, 50))                                     # the Live session reported RDYN short
+    live.book.mode, live.book.kind = "paper", "paper"
+    live.book.rows = [{"order_id": 51, "symbol": "FADE", "side": "SELL", "order_type": "LMT"}]
+    assert _run(_at(15, 56)) == [] and live.door.calls == []
+    [alarm] = cover_alarm.view()["alarms"]
+    assert alarm["kind"] == "disconnected" and "paper Gateway" in alarm["text"] and "15:50 ET" in alarm["text"]
+
+
+def test_a_cover_stands_until_ibkrs_position_shows_it(live):
+    """PR #792 review (P1): a fill reaches IBKR's orders before its position. A cover gone from the working orders
+    while the position still shows the short is never sent again."""
+    [done] = _run(_at(15, 55))
+    oid = done["order_id"]
+    live.book.rows = []                                       # filled: gone from the working orders ...
+    live.book.states[oid] = {"status": "Filled", "filled": 400.0, "remaining": 0.0}
+    assert _run(_at(15, 55) + 1) == [] and len(live.door.calls) == 2   # ... the position has not caught up
+    live.clock["t"] += 5
+    assert _run(_at(15, 55) + 6) == [] and len(live.door.calls) == 2
+    live.book.positions = {"AAPL": 10.0}                      # the position shows the cover
+    assert _run(_at(15, 55) + 7) == [] and cover_alarm.view()["alarms"] == []
+    assert live_closes._sent == {}
+
+
+def test_a_cover_that_closed_with_nothing_filled_is_sent_again(live):
+    [done] = _run(_at(15, 55))
+    live.book.rows = []
+    live.book.states[done["order_id"]] = {"status": "Cancelled", "filled": 0.0, "remaining": 400.0}
+    [again] = _run(_at(15, 55) + 1)
+    assert again["ok"] is True and [c.operation for c in live.door.calls] == ["cancel", "place", "place"]
+
+
+def test_a_fill_the_position_never_shows_raises_the_alarm_and_no_second_cover(live):
+    from constants_shorts import SHORT_COVER_CONFIRM_SEC
+
+    [done] = _run(_at(15, 55))
+    live.book.rows = []
+    live.book.states[done["order_id"]] = {"status": "Filled", "filled": 400.0, "remaining": 0.0}
+    live.clock["t"] += SHORT_COVER_CONFIRM_SEC + 1
+    assert _run(_at(15, 56)) == [] and len(live.door.calls) == 2
+    [alarm] = cover_alarm.view()["alarms"]
+    assert alarm["reason_code"] == "DAY_COVER_UNCONFIRMED" and "no second cover" in alarm["text"]
 
 
 def test_a_short_that_survived_the_night_is_covered_at_0930_not_before(live):
@@ -198,11 +249,13 @@ def door_desk(monkeypatch, tmp_path):
     set_venue("paper")
     monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
-    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
-    monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "paper")
+    session = SimpleNamespace(mode="live", kind="live")      # IBKR's session: the Live Gateway, a live account
+    monkeypatch.setattr(client_mod, "account_mode", lambda: session.mode)
+    monkeypatch.setattr(client_mod, "broker_account_kind", lambda: session.kind)
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
     monkeypatch.setattr(safety_mod, "orders_enabled", lambda: True)
-    monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
+    monkeypatch.setattr(safety_mod, "live_trading_confirmed", lambda: True)   # mocked, never set in .env
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "live")
     # The desk's own reads say Paper is flat: the check must read IBKR's book, never these.
     monkeypatch.setattr(account_mod, "get_positions", lambda: [])
     book = SimpleNamespace(positions={"RDYN": -400.0}, rows=[])
@@ -215,7 +268,7 @@ def door_desk(monkeypatch, tmp_path):
         return {"ok": True, "order_id": 500 + len(calls), "error": None, "mode": "paper"}
 
     monkeypatch.setattr(orders_mod, "place_order", place)
-    yield SimpleNamespace(book=book, calls=calls)
+    yield SimpleNamespace(book=book, calls=calls, session=session)
     inflight.reset_for_tests()
     telemetry.reset_for_tests()
     reset_venue()
@@ -256,6 +309,22 @@ def test_only_lives_day_cover_may_aim_at_live(door_desk):
     assert no_intent.reason_code == "TARGET_VENUE_REFUSED"
     a_short = asyncio.run(exec_svc.execute(_cover("dc-sell", side="SELL"), wait_ack=False))
     assert a_short.ok is False
+    assert door_desk.calls == []
+
+
+def test_lives_cover_never_goes_to_the_paper_gateway(door_desk):
+    """PR #792 review (P1): the legacy paper Gateway connects too, and its account is not the one Live's short is
+    in. A day cover aimed at Live goes only while IBKR's session is the Live Gateway on a live account."""
+    door_desk.session.mode, door_desk.session.kind = "paper", "paper"
+    cover = asyncio.run(exec_svc.execute(_cover("dc-paper-gw"), wait_ack=False))
+    assert cover.reason_code == "TARGET_VENUE_REFUSED" and "paper Gateway" in cover.error
+    cancel = asyncio.run(exec_svc.execute(ExecutionCommand(
+        operation="cancel", idempotency_key="dc-paper-gw-cancel", source="cancel_working", symbol="RDYN",
+        order_id=41, target_venue="live", origin="day_cover"), wait_ack=False))
+    assert cancel.reason_code == "TARGET_VENUE_REFUSED" and "paper Gateway" in cancel.error
+    door_desk.session.mode, door_desk.session.kind = "live", "unknown"   # managedAccounts not in yet
+    unnamed = asyncio.run(exec_svc.execute(_cover("dc-unnamed"), wait_ack=False))
+    assert unnamed.reason_code == "TARGET_VENUE_REFUSED"
     assert door_desk.calls == []
 
 
@@ -300,7 +369,19 @@ def test_a_live_reprice_nova_cannot_check_is_refused(monkeypatch):
 
     monkeypatch.setattr("execution.store_orders.short_entries", broken)
     cmd = ExecutionCommand(operation="replace", idempotency_key="r", source="manual", order_id=5, limit_price=4.0)
-    assert door.replace_refusal(cmd, "live")[1] == "SHORT_REPRICE"
+    detail, code = door.replace_refusal(cmd, "live")
+    assert code == "SHORT_REPRICE" and "ledger locked" not in detail      # the log has the exception (PR #792)
+
+
+def test_a_live_proof_nova_cannot_read_refuses_in_fixed_words(monkeypatch):
+    from short_sale import door
+
+    def broken():
+        raise RuntimeError("SECRET-TRACE disk gone")
+
+    monkeypatch.setattr("short_proof.status", broken)
+    complete, missing = door.live_proof()
+    assert complete is False and "could not be read" in missing and "SECRET-TRACE" not in missing
 
 
 def test_the_ledger_names_novas_live_short_entries_by_order_id(monkeypatch, tmp_path):

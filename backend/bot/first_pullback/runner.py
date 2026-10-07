@@ -44,7 +44,7 @@ from typing import Any, Callable
 from bot.arming import is_desk_active
 from bot.audit import record as audit
 from bot.errors import BotError
-from bot.first_pullback import admit, flush, orders
+from bot.first_pullback import admit, flush, orders, short_side
 # The operator takes over the exit, and the desk leaves a venue (ADR 037, 042): re-exported.
 from bot.first_pullback.handover import hand_over, leave_venue
 from bot.persist import load_session, save_session
@@ -219,7 +219,7 @@ async def _enter(trade: dict[str, Any], now: float, sized: dict[str, Any] | None
     inputs = {"symbol": trade["symbol"], "qty": trade["qty"], "limit": trade["entry_planned"],
               "venue_day": trade["venue_day"], "setup_id": trade["setup_id"], "template_id": trade["template_id"],
               "setup_type": trade.get("setup_type"), "size": trade.get("size_text"), "side": trade.get("side"),
-              **_short_inputs(sized)}
+              **short_side.audit_inputs(sized)}
     entry_id, target_id, stop_id = orders.leg_ids(receipt)
     if not receipt.ok or entry_id is None:
         why = orders.receipt_error(receipt)
@@ -257,22 +257,13 @@ def _ssr_words(trade: dict[str, Any]) -> str:
     return ""
 
 
-def _short_inputs(sized: dict[str, Any] | None) -> dict[str, Any]:
-    """A short's price and its short check, as the bot read them at the trigger (the squares show them)."""
-    if not sized or sized.get("side") != "short":
-        return {}
-    return {"side": "short", "ssr": sized.get("ssr"), "priced_at_ask": bool(sized.get("priced_at_ask")),
-            "short_limit": sized.get("limit"), "short_check": sized.get("short_check") or [],
-            "short_error": sized.get("short_error")}
-
-
 def _skip(event: dict[str, Any], found: list[tuple[str, str]], sized: dict[str, Any] | None = None) -> None:
     reason = admit.text(found)
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="skipped", reason=reason,
           inputs={"symbol": event.get("symbol"), "setup_id": event.get("setup_id"),
                   "setup_type": event.get("setup_type"), "template_id": event.get("template_id"),
                   "code": found[0][0], "codes": [c for c, _w in found], "reasons": [w for _c, w in found],
-                  **_short_inputs(sized)})
+                  **short_side.audit_inputs(sized)})
     _tell(str(event.get("symbol") or ""), _clock(), "warn",
           f"Nova's bot did not {_verb(event)} the {label(event.get('setup_type'))}: {reason}")
 

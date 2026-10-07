@@ -205,10 +205,15 @@ is off, and the proof cannot complete until the operator answers how a day is re
   - **How:** the stock's working Live orders are cancelled first, then a protective market BUY covers the
     short (source `flatten`, origin `day_cover`, `intent: "flatten"`). Both are sent to Live whatever the desk
     shows: the door admits `target_venue: "live"` for `day_cover` alone (never `margin_call`: IBKR liquidates
-    Live itself), only while IBKR is connected, and the IBKR send skips the desk's practice guard for that one
-    targeted order. The door checks the cover under its lock against IBKR's own position less the covers
-    already working there (`ibkr.live_book`), so a cancel that failed leaves the cover refused, never a buy
-    past flat.
+    Live itself), only while IBKR is connected and its session is the Live Gateway on a live account (the
+    legacy paper Gateway connects too, and its account is not Live's), and the IBKR send skips the desk's
+    practice guard for that one targeted order. The door checks the cover under its lock against IBKR's own
+    position less the covers already working there (`ibkr.live_book`), so a cancel that failed leaves the cover
+    refused, never a buy past flat.
+  - **A cover stands until the position shows it.** IBKR sends a fill to the orders before the position, so a
+    cover gone from the working orders is not yet a reason to cover again: no second cover goes until the
+    position shows the short smaller, or IBKR says the cover closed with nothing filled. A fill the position
+    still does not show after 15 s raises the alarm, never a second cover (PR #792 review).
   - **Nova's own Live short entries** lapse as Paper's do (outside the short hours, or on a later day) and are
     cancelled, found from Nova's execution record. A Live short entry is never repriced in place
     (`SHORT_REPRICE`).

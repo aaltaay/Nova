@@ -99,10 +99,10 @@ def _live() -> dict[str, Any]:
 
     try:
         complete, done, total = _proof()
-    except Exception as exc:
+    except Exception:
         logger.warning("bot: the Live short proof could not be read for the short chips", exc_info=True)
-        return _chip(False, f"Live shorts: the Live short proof could not be read ({exc}), so Live refuses every "
-                            "short; Nova's bot never trades Live")
+        return _chip(False, "Live shorts: the Live short proof could not be read (the engine log has the details), "
+                            "so Live refuses every short; Nova's bot never trades Live")
     proof = "the Live short proof is complete" if complete else f"the Live short proof: {done} of {total} done"
     if safety.short_enabled() and complete:
         return _chip(None, f"IBKR_SHORT_ENABLED is on and {proof}: Live shorts by hand; Nova's bot never trades Live",

@@ -82,7 +82,11 @@ def test_an_unknown_version_or_a_damaged_file_is_never_read_and_never_written_ov
 
     path.write_text("{not json", encoding="utf-8")
     store.reset_for_tests()
-    assert store.read()[0] is None and proof_view.status()[0] is False
+    doc, error = store.read()
+    assert doc is None and proof_view.status()[0] is False
+    # The reason names the file and the log, never the parser's own words (CodeQL, PR #792).
+    assert error == "short-proof.json is not valid JSON; the engine log has the details"
+    assert "Expecting" not in proof_view.status()[1]
 
 
 def test_a_drill_keeps_its_first_pass_and_its_last_misses(fresh_proof):
@@ -269,7 +273,8 @@ def test_the_ibkr_status_carries_the_proof_and_a_failed_read_is_incomplete(fresh
 
     monkeypatch.setattr(proof_view, "progress", broken)
     got = safety.status_snapshot()["short_proof"]
-    assert got["complete"] is False and "disk gone" in got["error"]
+    assert got["complete"] is False and got["error"]
+    assert "disk gone" not in got["error"]        # the exception stays in the engine log (CodeQL, PR #792)
 
 
 # ── the checklist ──────────────────────────────────────────────────────────────
@@ -316,7 +321,8 @@ def test_the_margin_step_is_unknown_while_ibkr_cannot_say(fresh_proof, monkeypat
 
     monkeypatch.setattr(live_book, "account_summary", down)
     step = proof_view._margin_step()
-    assert step["ok"] is None and "Gateway not connected" in step["text"]
+    assert step["ok"] is None and "IBKR is not ready" in step["text"]
+    assert "transport down" not in step["text"]   # the exception stays in the engine log (CodeQL, PR #792)
     monkeypatch.setattr(live_book, "account_summary",
                         lambda: {"connected": True, "ibkr_account_class": "margin", "NetLiquidation": 5_000.0})
     assert proof_view._margin_step()["ok"] is True
@@ -333,6 +339,37 @@ def test_the_route_answers_the_checklist(fresh_proof, monkeypatch):
     app.include_router(router)
     body = TestClient(app).get("/api/short-proof").json()
     assert body == {"schema_version": 1, "complete": False, "steps": []}
+
+
+def test_the_route_never_carries_an_exceptions_own_words(fresh_proof, monkeypatch):
+    """CodeQL (PR #792): a damaged proof, a Live account and a Paper ledger that cannot be read answer in fixed
+    words; what went wrong is in the engine log, never in the response."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from ibkr import client as client_mod
+    from ibkr import live_book
+    from practice import broker as practice_broker
+    from short_proof.routes import router
+
+    def boom(*_a, **_k):
+        raise RuntimeError("SECRET-TRACE C:\\Users\\someone\\nova")
+
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "live")
+    monkeypatch.setattr(live_book, "account_summary", boom)
+    monkeypatch.setattr(practice_broker, "for_venue", boom)
+    store.path().write_text("{not json", encoding="utf-8")
+    store.reset_for_tests()
+    app = FastAPI()
+    app.include_router(router)
+    res = TestClient(app).get("/api/short-proof")
+    assert res.status_code == 200
+    text = res.text
+    assert "SECRET-TRACE" not in text and "Expecting" not in text and "Traceback" not in text
+    body = res.json()
+    steps = {s["id"]: s for s in body["steps"]}
+    assert body["complete"] is False and body["error"].startswith("short-proof.json is not valid JSON")
+    assert steps["margin_account"]["ok"] is None and steps["practice_reset"]["ok"] is None
 
 
 def test_the_store_lives_in_the_operator_cache(fresh_proof):

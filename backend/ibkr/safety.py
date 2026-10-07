@@ -271,9 +271,10 @@ def _short_proof() -> dict:
         from short_proof.view import progress
 
         return progress()
-    except Exception as exc:
+    except Exception:
         logger.exception("safety: the Live short proof could not be read for the status")
-        return {"complete": False, "done": 0, "total": 0, "error": str(exc)}
+        return {"complete": False, "done": 0, "total": 0,
+                "error": "The Live short proof could not be read; the engine log has the details."}
 
 
 def status_snapshot(broker_account_kind: str | None = None) -> dict:

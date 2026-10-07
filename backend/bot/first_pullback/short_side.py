@@ -113,6 +113,16 @@ def blocks(sized: dict[str, Any]) -> list[Blocker]:
     return out
 
 
+def audit_inputs(sized: dict[str, Any] | None) -> dict[str, Any]:
+    """A short's price and its short check, as the bot or Auto-entry read them at the trigger: the audit
+    line carries them so the squares (``bot.trigger_short``) show the verdict. ``{}`` for a long."""
+    if not sized or sized.get("side") != SIDE_SHORT:
+        return {}
+    return {"side": SIDE_SHORT, "ssr": sized.get("ssr"), "priced_at_ask": bool(sized.get("priced_at_ask")),
+            "short_limit": sized.get("limit"), "short_check": sized.get("short_check") or [],
+            "short_error": sized.get("short_error")}
+
+
 def size(event: dict[str, Any], caps: dict[str, Any], left: float, venue: str | None) -> dict[str, Any]:
     """The sleeve's size for a short trigger, its price, and the short check at that size."""
     from bot.sizing import size as sized_by

@@ -190,7 +190,7 @@ def _refusal(event: dict[str, Any], now: float) -> tuple[str, str] | None:
 
 
 async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
-    from bot.first_pullback import admit
+    from bot.first_pullback import admit, short_side
     from bot.persist import load_session
 
     venue, _replay = gates.venue_state()
@@ -198,7 +198,8 @@ async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
     working = bool(current and current.get("state") == STOCK_MODE_TRADE_ENTERING)
     found, sized = admit.for_auto_entry(event, load_session(), now=now, working=working)
     if found:
-        _skip(sym, event, now, (found[0][0], admit.text(found)), codes=[c for c, _w in found])
+        _skip(sym, event, now, (found[0][0], admit.text(found)), codes=[c for c, _w in found],
+              reasons=[w for _c, w in found], sized=sized)
         return
     setup = event.get("setup") or {}
     short = admit.side_of(event) == "short"
@@ -214,7 +215,7 @@ async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
         entry_id, stop_id = getattr(receipt, "order_id", None), None
     if not receipt.ok or entry_id is None:
         _skip(sym, event, now, (getattr(receipt, "reason_code", None) or "REFUSED", orders.receipt_error(receipt)),
-              outcome="refused")
+              outcome="refused", sized=sized)
         return
     trade.update(entry_order_id=int(entry_id), stop_order_id=stop_id)
     store.set_trade(trade)
@@ -228,7 +229,7 @@ async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
         order = f"BUY {trade['qty']:g} {sym} LMT {float(trade['entry']):.2f}"
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="sent", order_id=trade["entry_order_id"],
           reason=f"auto-entry: {order} on the {_setup_name(event)} trigger ({trade['size_text']})",
-          inputs=_summary(trade))
+          inputs={**_summary(trade), **short_side.audit_inputs(sized)})
 
 
 async def _send_approved(sym: str, approval: dict[str, Any], event: dict[str, Any], now: float) -> None:
@@ -435,15 +436,27 @@ def _manage_exits(trade: dict[str, Any], now: float) -> None:
 
 async def _manage_yours(trade: dict[str, Any], now: float) -> None:
     """Auto-entry (or a taken-over bracket): the position is the operator's; Nova only notices it closed. An
-    Auto-entry short's buy stop still resting then is cancelled: with nothing short it would be a buy."""
+    Auto-entry short's buy stop still resting then is cancelled: with nothing short it would be a buy. The trade
+    stays open until the stop is gone -- a refused cancel is asked again every ``STOCK_MODE_CANCEL_RETRY_SEC``
+    (PR #790 review), so a stale stop never waits to cover a later short."""
     if orders.held(trade) > _EPS:
         return
     leg = trade.get("stop_order_id") if trade["kind"] == STOCK_MODE_AUTO_ENTRY else None
     if leg and orders.order_state(orders.order_row(leg)) == "working":
+        asked = trade.get("stop_cancel_sent_at")
+        if asked is not None and now - float(asked) < STOCK_MODE_CANCEL_RETRY_SEC:
+            return
         receipt = await orders.cancel(trade, int(leg))
-        if not receipt.ok:
-            logger.warning("stock mode: %s's buy stop %s could not be cancelled -- %s", trade["symbol"], leg,
-                           orders.receipt_error(receipt))
+        trade["stop_cancel_sent_at"] = now
+        store.set_trade(trade)
+        if not receipt.ok or orders.order_state(orders.order_row(leg)) == "working":
+            sym = trade["symbol"]
+            why = orders.receipt_error(receipt) if not receipt.ok else "it still shows working"
+            logger.warning("stock mode: %s is flat but its buy stop %s still rests -- %s; asking again", sym, leg, why)
+            _say(sym, now, "bad", f"{sym} is flat, but its buy stop {float(trade['stop']):.2f} (order {leg}) still "
+                                  f"rests ({why}): Nova asks again in {STOCK_MODE_CANCEL_RETRY_SEC:g}s -- cancel it "
+                                  "yourself to be sure")
+            return
     _close(trade, now, "outside", None)
 
 
@@ -483,14 +496,18 @@ def _new_trade(kind: str, sym: str, event: dict[str, Any], now: float, *, venue:
 
 
 def _skip(sym: str, event: dict[str, Any], now: float, refused: tuple[str, str], *, outcome: str = "skipped",
-          codes: list[str] | None = None) -> None:
+          codes: list[str] | None = None, reasons: list[str] | None = None,
+          sized: dict[str, Any] | None = None) -> None:
+    """A trigger Nova did not take, on the audit stream with what it read: the codes, their reasons and, for a
+    short, the short check at the trigger (``short_side.audit_inputs``), so the squares show the verdict."""
     code, why = refused
-    from bot.first_pullback.short_side import side_of
+    from bot.first_pullback import short_side
 
-    _say(sym, now, "warn", f"Nova did not {'short' if side_of(event) == 'short' else 'buy'}: {why}")
+    _say(sym, now, "warn", f"Nova did not {'short' if short_side.side_of(event) == 'short' else 'buy'}: {why}")
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome=outcome, reason=why,
           inputs={"symbol": sym, "setup_id": event.get("setup_id"), "setup_type": event.get("setup_type"),
-                  "code": code, "codes": codes or [code]})
+                  "code": code, "codes": codes or [code], "reasons": reasons or [why],
+                  **short_side.audit_inputs(sized)})
 
 
 def _say(sym: str, now: float, tone: str, text: str) -> None:
