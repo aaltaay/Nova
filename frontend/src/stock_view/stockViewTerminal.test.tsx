@@ -48,6 +48,8 @@ const tickerStreamState = {
   selectedPassthrough: true,
   /** The detail a test names; else one made for the symbol asked. */
   detail: null as ReturnType<typeof makeDetail> | null,
+  /** The quote could not be read (the stream's own flag). */
+  fetchFailed: false,
 };
 
 function streamFor(symbol: string) {
@@ -58,7 +60,7 @@ function streamFor(symbol: string) {
     detail: tickerStreamState.detail ?? makeDetail({ symbol: detailSym }),
     loading: false,
     refreshing: false,
-    fetchFailed: false,
+    fetchFailed: tickerStreamState.fetchFailed,
     stale: false,
     disconnectedSince: null,
   };
@@ -445,5 +447,37 @@ describe('StockViewPage symbol gate', () => {
       container.querySelector('[data-testid="stock-view-open-orders-dock"]'),
     ).toBeTruthy();
     expect(container.textContent).toMatch(/Loading quote for MVO/i);
+    // The wait is a note over the charts (stockViewTerminal.css), and a live region.
+    const note = container.querySelector('.stock-view-charts > [data-testid="stock-view-quote-overlay"]');
+    expect(note?.textContent).toBe('Loading quote for MVO…');
+    expect(note?.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('says a quote that failed in the same note over the charts', async () => {
+    tickerStreamState.selectedPassthrough = false;
+    tickerStreamState.detailSymbol = 'NXTC';
+    tickerStreamState.fetchFailed = true;
+    try {
+      await act(async () => {
+        root.render(
+          wrap(
+            <StockViewPage
+              symbol="MVO"
+              onBack={() => {}}
+              onSelectSymbol={() => {}}
+            />,
+          ),
+        );
+      });
+      const note = container.querySelector('.stock-view-charts > [data-testid="stock-view-quote-overlay"]');
+      expect(note?.textContent).toBe('No quote data for MVO.');
+      expect(note?.getAttribute('aria-live')).toBe('polite');
+      // One note: the failure replaces the wait, never a second block beside the charts.
+      expect(container.querySelectorAll('[data-testid="stock-view-quote-overlay"]')).toHaveLength(1);
+      expect(container.textContent).not.toMatch(/Loading quote for MVO/i);
+      expect(container.querySelector('.stock-view-charts > .empty-state')).toBeNull();
+    } finally {
+      tickerStreamState.fetchFailed = false;
+    }
   });
 });

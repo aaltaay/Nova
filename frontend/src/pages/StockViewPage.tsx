@@ -225,13 +225,18 @@ export function StockViewPage({
                 toolbarExtra={STOCK_READ_TOOLBAR}
               />
               <StockReadSheet />
-              {showSpinner && !detailReady ? (
-                <div className="detail-loading detail-loading--charts-overlay" aria-live="polite">
-                  <span>Loading quote for {symbol}…</span>
+              {/* Over the charts, never beside them, so the panes keep their size from the first
+                  paint. One live region: a quote that fails is announced in place of its wait. */}
+              {!detailReady && (showSpinner || fetchFailed) ? (
+                <div
+                  className="detail-loading detail-loading--charts-overlay"
+                  aria-live="polite"
+                  data-testid="stock-view-quote-overlay"
+                >
+                  <span>
+                    {showSpinner ? `Loading quote for ${symbol}…` : `No quote data for ${symbol}.`}
+                  </span>
                 </div>
-              ) : null}
-              {fetchFailed && !detailReady ? (
-                <div className="empty-state">No quote data for {symbol}.</div>
               ) : null}
             </div>
             {!ordersCollapsed && (
