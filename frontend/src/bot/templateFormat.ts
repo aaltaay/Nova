@@ -162,19 +162,25 @@ function touchZone(v: Values): string {
   return `within ${trim(pct)}% or ${money(dollars)} under it`;
 }
 
-function flatTopLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
+/** The flat top's lines; ``five``: the 5-minute flat top (its pattern on 5-minute candles, the hold on the minutes). */
+function flatTopLines(v: Values, w?: TemplateBotWindow | null, five = false): [string, string][] {
   const touches = num(v.ft_min_touches) ?? 1;
-  const base = `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} candles close within ${trim(num(v.ft_band) ?? 0)}% `
-    + `under it, lows over the ${ema(v)}`;
+  const base = `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} ${five ? '5-minute ' : ''}candles close within `
+    + `${trim(num(v.ft_band) ?? 0)}% under it, lows over the ${ema(v)}`;
   // The research's P2 (`last_high`) counts no touches: the base right after the last candle at the high.
   const setup = `Impulse ≥ ${trim(num(v.ft_impulse_pct) ?? 0)}% into the high of day · `
     + (v.ft_base_start === 'last_high' ? base
       : `tapped ${touches}+ time${touches === 1 ? '' : 's'}, a high ${touchZone(v)} · from the first touch, ${base}`)
     + (v.macd_positive ? ' · MACD above zero' : '');
+  const hold = five
+    ? `A green 1-minute candle that holds it and closes over the high within ${num(v.ft_hold_bars)} minutes of the `
+      + `break, at its close +${money(num(v.entry_offset) ?? 0)} · stop `
+      + `${v.ft_hold_stop === 'candle' ? 'its low' : 'the pullback\'s low'}`
+    : `A green candle that holds it and closes over the high within ${num(v.ft_hold_bars)} candles, at its close `
+      + `+${money(num(v.entry_offset) ?? 0)}`;
   const entry = v.ft_entry === 'break'
     ? entryLine('The break of the high', v)
-    : `A green candle that holds it and closes over the high within ${num(v.ft_hold_bars)} candles, at its close `
-      + `+${money(num(v.entry_offset) ?? 0)} · arms ${v.session_start}–${v.entry_cutoff} · only when the tape says GO`;
+    : `${hold} · arms ${v.session_start}–${v.entry_cutoff} · only when the tape says GO`;
   const target = v.target_mode === 'fixed' ? fixedTarget(v) : `target 1 ${trim(num(v.target_r) ?? 0)}R`;
   return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', tradeLine(v, target, w)]];
 }
@@ -217,6 +223,8 @@ export function ruleLines(setup: string, v: Values, botWindow?: TemplateBotWindo
       return bullFlagLines(v, botWindow);
     case 'flat_top_breakout':
       return flatTopLines(v, botWindow);
+    case 'flat_top_5m':
+      return flatTopLines(v, botWindow, true);
     case 'red_to_green':
       return redToGreenLines(v, botWindow);
     case 'gap_and_go':
@@ -238,6 +246,10 @@ export function ruleSummary(setup: string, v: Values): string {
       return (v.ft_base_start === 'last_high' ? '' : `${num(v.ft_min_touches) ?? 1}+ touches · `)
         + `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} bar base within ${trim(num(v.ft_band) ?? 0)}% of the high · `
         + (v.ft_entry === 'break' ? 'buy the break' : 'buy a green hold over it');
+    case 'flat_top_5m':
+      return `${num(v.ft_min_touches) ?? 1}+ touches on 5-minute candles · `
+        + `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} bar base within ${trim(num(v.ft_band) ?? 0)}% of the high · `
+        + (v.ft_entry === 'break' ? 'buy the break' : 'buy a 1-minute hold over it');
     case 'red_to_green':
       return `${num(v.r2g_min_red_bars) ?? 1}+ red under the ${v.session_start} open · reclaim by ${v.r2g_cutoff}`;
     case 'gap_and_go':

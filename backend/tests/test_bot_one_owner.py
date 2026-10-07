@@ -92,8 +92,8 @@ def test_a_v4_session_migrates_its_chosen_setup_sleeve_list_and_lock_into_every_
     for gone in ("setup", "strategy", "advise"):
         assert gone not in row
     assert row["schema_version"] == 5 and row["level_venue"] == "paper"
-    assert row["setup_levels"] == {"first_pullback": 1, "bull_flag": 2, "flat_top_breakout": 0, "red_to_green": 0,
-                                   "gap_and_go": 0}
+    assert row["setup_levels"] == {"first_pullback": 1, "bull_flag": 2, "flat_top_breakout": 0, "flat_top_5m": 0,
+                                   "red_to_green": 0, "gap_and_go": 0}
     live = dial_of(row, "live")
     assert live["level"] == 1 and live["setup_levels"]["bull_flag"] == 1 and live["setup_levels"]["red_to_green"] == 1
     assert row["symbol_allowlist"] == ["GRML", "IMCC"]

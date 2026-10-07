@@ -29,14 +29,14 @@ def test_every_setup_starts_off_and_its_effective_level_is_under_the_master():
     row = load_session()
     assert levels_of(row) == {"chosen": None, "master": 0,
                               "levels": {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0,
-                                         "red_to_green": 0, "gap_and_go": 0},
+                                         "flat_top_5m": 0, "red_to_green": 0, "gap_and_go": 0},
                               "own": {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0,
-                                      "red_to_green": 0, "gap_and_go": 0}}
+                                      "flat_top_5m": 0, "red_to_green": 0, "gap_and_go": 0}}
     apply_patch({"setup_levels": {"bull_flag": 2, "red_to_green": 1}}, desk=True)
     assert effective(load_session())["bull_flag"] == 0             # the master is Off: a ceiling
     apply_patch({"level": 1}, desk=True)
     assert effective(load_session()) == {"first_pullback": 0, "bull_flag": 1, "flat_top_breakout": 0,
-                                         "red_to_green": 1, "gap_and_go": 0}
+                                         "flat_top_5m": 0, "red_to_green": 1, "gap_and_go": 0}
     apply_patch({"level": 2}, desk=True)
     assert effective(load_session())["bull_flag"] == 2 and at_strategy(load_session()) == ["bull_flag"]
 
@@ -48,8 +48,9 @@ def test_the_wire_lists_own_and_effective_levels():
     assert setups["bull_flag"]["level"] == 2 and setups["bull_flag"]["effective"] == 1
     assert setups["micro_pullback"]["scanner"] is False and setups["micro_pullback"]["level"] is None
     assert setups["gap_and_go"]["scanner"] is True and setups["gap_and_go"]["level"] == 0   # Off until set
-    assert view["setup_levels"] == {"first_pullback": 0, "bull_flag": 2, "flat_top_breakout": 0, "red_to_green": 0,
-                                    "gap_and_go": 0}
+    assert setups["flat_top_5m"]["scanner"] is True and setups["flat_top_5m"]["level"] == 0  # a new strategy: Off
+    assert view["setup_levels"] == {"first_pullback": 0, "bull_flag": 2, "flat_top_breakout": 0, "flat_top_5m": 0,
+                                    "red_to_green": 0, "gap_and_go": 0}
     assert "setup" not in view and "strategy" not in view and "readout" not in view and "advise" not in view
 
 

@@ -264,3 +264,55 @@ far armed on that minimum 2-candle base.
 - **No short.** The flat-bottom breakdown is the material's mirror (a short, a stop-out signal for a long, or a bear
   trap). Nova does not open shorts (Invariant 7: a short entry needs its own opt-in and the short gate, and the
   practice venues refuse one), so no flat-bottom strategy is built here.
+
+
+## Amendment 2026-10-06 (b) -- the 5-minute flat top is a strategy, bought on the 1-minute hold
+
+**Decided by:** the operator, 2026-10-06, choosing from the flat-top change's menu: "Make the 5-minute flat top a
+Paper buy with a 1-minute hold entry, as the material trades it; done when its lane proposes and the bot can take
+it."
+
+The operator's material reads the flat top on the 5-minute chart and executes on the 1-minute: it waits for the
+break, lets the 1-minute candles spike and pull back, and buys when the pullback holds the level -- the 1-minute
+pullback inside the 5-minute breakout candle, not the break itself (a buy stop at the level risks a jackknife). The
+2026-09-30 amendment drew the 5-minute flat top and scored it in silence. This one makes it a sixth strategy.
+
+- **A strategy of its own:** `flat_top_5m`, "5-minute flat top", beside the 1-minute flat top. It has its own Off /
+  Eyes / On per venue (starting Off, like every new setup), templates (the flat top's parameters with 5-minute words
+  and defaults), read-out (its first-of-the-day kind `flat_top_5m`), bot rules and window, cards and squares. Nova's
+  bot buys it at On on Paper and Sim only, like every setup.
+- **A 1-minute lane.** Its lane is fed the scanner's minutes like every other, so its tape gate, liquidity check,
+  scoring and bot admission are the minutes'. Its detector (`setup_scanner/flat_top_5m.py`) makes 5-minute candles of
+  those minutes (`five_minute.candles`; a candle is complete once its last minute, or a later one, is in) and reads the
+  flat top on them by the 1-minute flat top's own rules (`bar_sec` 300: the touches, the base, the 9 EMA and the MACD
+  are the 5-minute chart's). The pattern reads a candle only once it is over.
+- **The entry is the 1-minute hold.** After a live price over the flat top, the hold is read on the next
+  `ft_hold_bars` completed minutes after the break's own (default 5, one 5-minute candle). The first of them whose low
+  stays in the touch zone and that closes green over the high triggers at its close, with entry one cent over it.
+  - The stop is the pullback's low: the lowest low of those minutes, the hold's included (`ft_hold_stop: "pullback"`,
+    the default). `"candle"` stops at the hold minute's low, as the 1-minute flat top does.
+  - A minute closing under the zone first fails it, and no hold within the window disarms it.
+  - The risk checks are the template's dollar caps, read on that 1-minute risk.
+  - The break entry (`ft_entry: "break"`) stays one setting away: entry over the high, stop the 5-minute base low.
+- **Scored as a 1-minute trade:** from the hold minute (no half at target 1 on it), on 1-minute candles with the
+  minutes' 9 EMA, over the 1-minute scoring window. Its rows carry no 5-minute read (`tf5_armed` / `tf5_trigger`
+  null): its pattern is that chart, and trial T8 measures the 5-minute chart against 1-minute setups.
+- **Arms 07:00-15:30** (the operator's 5-minute window). The bot's entries default to the material's 07:00-10:00
+  inside it.
+- **Auto-record runs to 15:30.** Auto-record follows every arming window, so its setups window now runs to 15:30. An
+  armed 5-minute flat top's tape in the afternoon is recorded on free Level 2 lines, never the operator's; without a
+  held line its tape reads blind and it can never propose.
+- **The built-in 5-minute flat-top lane is gone,** replaced by the strategy (`SETUPS_5M_SETUPS` keeps the first pullback
+  and the bull flag). Its `~5m` rows stay in `setups.db`; the strategy's rows end `@flat_top_5m`. Like every strategy,
+  it draws nothing at Off: the charts show it at Eyes or On on the venue.
+- **On the wire.** `GET /api/setups/symbol/{symbol}` and the stock read list it in `setups` with `timeframe: "5m"`
+  (the pattern's candles), and its `rules` add `hold_bar_sec: 60`; `setups_5m` keeps the built-in lanes. Its armed
+  `detail.broke_bar_t` and `hold_bar_t` are minutes. The past setups at `?tf=5m` fold its lines with the built-in
+  lanes'; `?tf=1m` leaves them out. The plan reads the 1-minute lanes' indicators, never its 5-minute ones.
+- **On the desk.**
+  - The 5-minute chart draws it as the flat top: rings on its 5-minute touches, the base, the level, the break on the
+    5-minute candle it printed in, and the hold named "1m hold" in its 5-minute candle.
+  - Once it arms, the 1-minute chart draws its level from the first touch, the break on the minute it printed and the
+    hold box on the hold minute (the entry this chart trades), and the plan's zones when it leads the plan.
+- **What is known.** The bar-level 5-minute versions lost less than their 1-minute twins and still lost (2026-09-29).
+  Its read-out on Paper is its first live test.

@@ -187,13 +187,15 @@ export function StockReadProvider({
   const decisions = useStockReadDecisions(sym, live && sheet.open && sheet.tab === 'decisions');
   // The lanes' drawn states: a setup that fails or ends is read as past at once, not at the next poll.
   const lanes = read.data?.setups;
-  // A strategy at Off on the Bots page draws nothing (ADR 044): its lane's own level is 0.
-  const offKey = (lanes ?? []).filter(l => l.timeframe !== '5m' && l.level === 0).map(l => l.setup_type).join('|');
+  // A strategy at Off on the Bots page draws nothing (ADR 044): its lane's own level is 0 -- the 5-minute flat
+  // top's too (a strategy since 2026-10-06); the built-in 5-minute lanes are no strategy and come in `setups_5m`.
+  const offKey = (lanes ?? []).filter(l => l.level === 0).map(l => l.setup_type).join('|');
   const drawn = useMemo(() => drawnLayers(layers, offKey ? offKey.split('|') : []), [layers, offKey]);
   const laneKey = useMemo(() => (lanes ?? []).map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes]);
   const past = useStockReadPast(sym, live && drawn.setups && drawn.past, laneKey);
   const lanes5 = read.data?.setups_5m;
-  const laneKey5 = useMemo(() => (lanes5 ?? []).map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes5]);
+  const laneKey5 = useMemo(() => [...(lanes5 ?? []), ...(lanes ?? []).filter(l => l.timeframe === '5m')]
+    .map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes5, lanes]);
   const past5 = useStockReadPast(sym, live && drawn.setups && drawn.past, laneKey5, '5m');
   const who = useWhoTrades({
     symbol: sym, live: live && !sample, read: read.data, riskUsd, ttlSec: risk.ttlSec, position: pos, last: lastPrice,

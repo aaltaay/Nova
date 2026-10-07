@@ -7,7 +7,7 @@
  */
 import type { Time } from 'lightweight-charts';
 import { SETUP_COLORS } from './constants';
-import { FLAT_TOP, flatTopShapes, type LaneDraw } from './flatTopShapes';
+import { flatTop5mOnMinute, flatTopShapes, isFlatTop, type LaneDraw } from './flatTopShapes';
 import { shortReason } from './pastSetups';
 import { formingProgress, fmtPx } from './planMath';
 import type { SetupLane, SetupLeg, StockPlan } from './types';
@@ -51,6 +51,15 @@ export function levelsOf(lane: SetupLane): { trigger: number; stop: number; bars
   return null;
 }
 
+/** A setup in play on the 1-minute pane: a lane whose pattern reads 5-minute candles (the 5-minute flat top)
+ * draws only what this chart trades -- its level, break and 1-minute hold; the 5-minute pane draws the rest. */
+export function laneOnMinute(lane: SetupLane, lead: boolean, o: LaneDrawOptions): LaneDraw {
+  if (lane.timeframe !== '5m') return laneShapes(lane, lead, o);
+  const tag = lane.state === 'failed' ? ` · FAILED: ${shortReason(lane.reason) || 'a rule broke'}` : '';
+  return isFlatTop(lane.setup_type) ? flatTop5mOnMinute(lane, lead, o, laneHoverId(lane.setup_type), tag)
+    : { boxes: [], segments: [], dots: [], marks: [], words: [] };
+}
+
 export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, bar: number = MIN,
   hoverId: string = laneHoverId(lane.setup_type)): LaneDraw {
   const draw: LaneDraw = { boxes: [], segments: [], dots: [], marks: [], words: [] };
@@ -67,7 +76,7 @@ export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, b
   const legStroke = bright ? SETUP_COLORS.legStroke : SETUP_COLORS.fadedStroke;
   const tag = failed ? ` · FAILED: ${shortReason(lane.reason) || 'a rule broke'}` : '';
   // The flat top has a look of its own: its touches ringed, the base boxed, the break and the hold marked.
-  if (lane.setup_type === FLAT_TOP) return flatTopShapes(lane, lead, o, bar, hoverId, tag);
+  if (isFlatTop(lane.setup_type)) return flatTopShapes(lane, lead, o, bar, hoverId, tag);
   const lv = levelsOf(lane);
   const lastT = lane.series?.bars_as_of ?? null;
   const endT = lv?.end ?? lastT;

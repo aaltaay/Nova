@@ -72,6 +72,7 @@ const TRIGGER_WORDS: Record<string, string> = {
   first_pullback: 'the last pullback candle\'s high',
   bull_flag: 'the last flag candle\'s high',
   flat_top_breakout: 'the high of day',
+  flat_top_5m: 'the high of day (a 5-minute flat top)',
   red_to_green: 'the open',
   gap_and_go: 'the pre-market high',
 };
@@ -80,6 +81,7 @@ const STOP_WORDS: Record<string, string> = {
   first_pullback: 'the pullback low',
   bull_flag: 'the flag low',
   flat_top_breakout: 'the base low',
+  flat_top_5m: 'the 1-minute pullback\'s low',
   red_to_green: 'the lowest low since the open',
   gap_and_go: '20c or 4% under the entry, whichever is smaller',
 };
@@ -88,12 +90,23 @@ const TARGET_WORDS: Record<string, string> = {
   first_pullback: 'the leg high or 2R, whichever is higher',
   bull_flag: 'the pole high or 2R, whichever is higher',
   flat_top_breakout: 'R x the risk over the entry',
+  flat_top_5m: 'R x the risk over the entry',
   red_to_green: 'R x the risk (or the high of day)',
   gap_and_go: 'R x the risk over the entry',
 };
 
+/** A flat top: the 1-minute one, or the 5-minute one whose hold is a 1-minute candle (ADR 031, 2026-10-06). */
+function flatTop(type: string): boolean {
+  return type === 'flat_top_breakout' || type === 'flat_top_5m';
+}
+
 function holdMode(row: SetupRow): boolean {
-  return setupTypeOf(row) === 'flat_top_breakout' && row.setup?.detail?.entry_mode !== 'break';
+  return flatTop(setupTypeOf(row)) && row.setup?.detail?.entry_mode !== 'break';
+}
+
+/** The 5-minute flat top holds on 1-minute candles, with the pullback's low as its stop. */
+function holdOnMinutes(row: SetupRow): boolean {
+  return setupTypeOf(row) === 'flat_top_5m';
 }
 
 function broke(row: SetupRow): boolean {
@@ -109,8 +122,9 @@ function contextLine(row: SetupRow): string {
     const bars = leg.bars ? `${leg.bars} green candle${leg.bars === 1 ? '' : 's'}, ` : '';
     return `Pole: ${bars}${signedPct(leg.pct)} to ${fmtPx(leg.high)} (from ${fmtPx(leg.low)}).`;
   }
-  if (type === 'flat_top_breakout') {
-    return `High of day ${fmtPx(leg.high)} on a ${signedPct(leg.pct)} impulse (from ${fmtPx(leg.low)}).`;
+  if (flatTop(type)) {
+    const chart = type === 'flat_top_5m' ? ' on the 5-minute chart' : '';
+    return `High of day ${fmtPx(leg.high)} on a ${signedPct(leg.pct)} impulse (from ${fmtPx(leg.low)})${chart}.`;
   }
   if (type === 'gap_and_go') {
     const open = row.setup?.detail?.open;
@@ -128,10 +142,11 @@ function levelsLine(row: SetupRow): string {
   const s = row.setup;
   if (!s) return '';
   const waitingHold = holdMode(row) && row.state !== 'triggered';
+  const minutes = holdOnMinutes(row);
   const parts = [
     `Trigger ${fmtPx(s.trigger)}`,
-    `entry ${waitingHold ? 'the hold candle\'s close +1c' : fmtPx(s.entry)}`,
-    `stop ${waitingHold ? 'the hold candle\'s low' : fmtPx(s.stop)}`,
+    `entry ${waitingHold ? `the hold ${minutes ? 'minute' : 'candle'}'s close +1c` : fmtPx(s.entry)}`,
+    `stop ${waitingHold ? (minutes ? 'the pullback\'s low' : 'the hold candle\'s low') : fmtPx(s.stop)}`,
   ];
   if (waitingHold) parts.push('risk and target 1 from the hold candle');
   else parts.push(`risk ${fmtCents(s.risk)} a share`, `target 1 ${fmtPx(s.target1)}`);
@@ -144,7 +159,7 @@ function stateText(row: SetupRow): string {
   const s = row.setup;
   switch (row.state) {
     case 'leg': {
-      if (type === 'flat_top_breakout') return base;
+      if (flatTop(type)) return base;
       if (type === 'bull_flag') return row.leg?.bars ? `${base} · ${row.leg.bars} green` : base;
       const pct = signedPct(row.leg?.pct);
       return pct ? `${base} ${pct}` : base;
@@ -152,6 +167,7 @@ function stateText(row: SetupRow): string {
     case 'armed':
       if (type === 'bull_flag') return `${base} · ${s?.detail?.flag_bars ?? s?.pullback_bars ?? '?'} bars`;
       if (type === 'flat_top_breakout') return `${base} · ${s?.pullback_bars ?? '?'} bars`;
+      if (type === 'flat_top_5m') return `${base} · ${s?.pullback_bars ?? '?'} × 5m`;
       if (type === 'red_to_green') {
         const pct = signedPct(row.leg?.pct);
         return pct ? `${base} ${pct}` : base;
@@ -186,7 +202,8 @@ export function stateWords(row: SetupRow): Words {
   const lines = [meaning];
   if (broke(row)) {
     const s = row.setup!;
-    lines.push(SETUP_FT_BROKE_TIP(fmtPx(s.trigger), etHm(s.detail?.broke_at), s.detail?.hold_bars ?? 3));
+    lines.push(SETUP_FT_BROKE_TIP(fmtPx(s.trigger), etHm(s.detail?.broke_at), s.detail?.hold_bars ?? 3,
+      holdOnMinutes(row)));
   }
   const context = contextLine(row);
   if (context) lines.push(context);

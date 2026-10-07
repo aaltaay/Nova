@@ -15,7 +15,7 @@ from scanner_wire import wire_safe
 from setup_scanner import lane_view
 from setup_scanner.board import template_view
 from setup_scanner.detectors import window, window_state
-from setup_scanner.five_minute_lane import is_five_minute
+from setup_scanner.five_minute_lane import is_five_minute, pattern_bar_sec
 
 NOT_FOLLOWED = ("{sym} is not on today's hot list and not among the HOD Momo names the scanners follow, so no "
                 "lane reads it -- star it to follow it")
@@ -42,7 +42,8 @@ def rules_of(params: Any) -> dict[str, Any]:
     """The numbers a plan names: the stop cap (dollars, or a share of the entry) and floor, the target rule,
     the entry cent, and the candle's length."""
     return {"stop_cap": getattr(params, "stop_cap", None), "stop_cap_pct": getattr(params, "stop_cap_pct", None),
-            "bar_sec": getattr(params, "bar_sec", 60), "min_stop": getattr(params, "min_stop", None),
+            "bar_sec": getattr(params, "bar_sec", 60), "hold_bar_sec": getattr(params, "hold_bar_sec", None),
+            "min_stop": getattr(params, "min_stop", None),
             "target_r": getattr(params, "target_r", None), "target_mode": getattr(params, "target_mode", "r"),
             "entry_offset": getattr(params, "entry_offset", None),
             "risk_slippage": getattr(params, "risk_slippage", None)}
@@ -58,9 +59,10 @@ def lane_entry(lane: Any, sym: str, levels: dict, now: float) -> dict[str, Any]:
                "distance": None, "grade": None, "pillars": None, "graded": None, "phase": None, "tape": None,
                "trigger_tape": None, "proposal": None, "outcome": None, "outcome_at": None, "bar_r": None,
                "mfe": None, "mae": None, "failed_at": None, "forming": None, "series": None}
-    five = is_five_minute(lane)
+    five = is_five_minute(lane)                   # a built-in 5-minute lane: chart only, no level
     return {**row, "template": template_view(lane), "level": 0 if five else level,
-            "chosen": not five and levels.get("chosen") == lane.setup, "timeframe": "5m" if five else "1m",
+            "chosen": not five and levels.get("chosen") == lane.setup,
+            "timeframe": "1m" if pattern_bar_sec(lane) == 60 else "5m",   # the pattern's candles
             "window": {"start": start, "end": end, "state": window_state(now, start, end)},
             "rules": rules_of(lane.p.pattern)}
 
@@ -86,5 +88,5 @@ def symbol_view(engine: Any, symbol: str, now: float | None = None) -> dict[str,
         "followed_note": note,
         "seeding": sym in engine.seeding,
         "setups": setups,
-        "setups_5m": five,          # the 5-minute lanes (five_minute_lane.py): the 5-minute chart's only
+        "setups_5m": five,          # the built-in 5-minute lanes (five_minute_lane.py): the 5-minute chart's only
     })

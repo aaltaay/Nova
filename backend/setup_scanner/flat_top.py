@@ -12,9 +12,11 @@ their lows on the 9 EMA. Read after every completed bar the way the first pullba
   hold       (the default, the taught way) after a live price over the high, the first of the next
              ``hold_bars`` completed candles that holds the flat top (its low in the zone or over it: a retest
              of the level holds) and closes green over the high triggers at its close: entry one cent over that
-             close, stop that candle's low -- the risk check reads entry minus stop, the cent standing for the
-             research's slippage; a close back under the zone first fails it, and ``hold_bars`` candles without
-             a hold disarm it
+             close, stop that candle's low (or, with ``hold_stop`` "pullback", the lowest low since the break's
+             candle) -- the risk check reads entry minus stop, the cent standing for the research's slippage; a
+             close back under the zone first fails it, and ``hold_bars`` candles without a hold disarm it. The
+             hold reads the pattern's own candles, or -- ``hold_bar_sec``, the 5-minute flat top's minutes
+             (``flat_top_5m``) -- candles of its own the host feeds to ``on_hold_bars``
   break      (the variant) a live price over the high triggers: entry one cent over it (the bar's open when it
              gapped over), stop the base low
 
@@ -51,6 +53,8 @@ from constants_setups import (
     SETUPS_FT_ENTRY_BREAK,
     SETUPS_FT_FORMING_TOUCHES,
     SETUPS_FT_HOLD_BARS,
+    SETUPS_FT_HOLD_STOP_CANDLE,
+    SETUPS_FT_HOLD_STOP_PULLBACK,
     SETUPS_FT_IMPULSE_PCT,
     SETUPS_FT_LEG_WINDOW_BARS,
     SETUPS_FT_MAX_CONSOL,
@@ -77,14 +81,13 @@ from setup_scanner.bars import Bar
 from setup_scanner.detector import (
     EPS,
     TriggerDetector,
-    candle_start,
     et_time,
     forming_levels,
     hhmm,
     risk_blocked,
     window_blocked,
 )
-from setup_scanner.flat_top_shape import Shape, find, leg, pct_words, tolerance
+from setup_scanner.flat_top_shape import Shape, find, leg, miss_leg, new_high, pct_words, stale_base, tolerance
 
 
 @dataclass(frozen=True)
@@ -100,6 +103,8 @@ class FlatTopParams:
     base_start: str = SETUPS_FT_BASE_START                # "first_touch", or the research's "last_high" (P2)
     entry_mode: str = SETUPS_FT_ENTRY
     hold_bars: int = SETUPS_FT_HOLD_BARS
+    hold_bar_sec: int | None = None                       # the hold's candle when not the pattern's (5m flat top: 60)
+    hold_stop: str = SETUPS_FT_HOLD_STOP_CANDLE           # "candle": the hold candle's low; "pullback": since the break
     ema_period: int = SETUPS_EMA_PERIOD
     ema_tol: float = SETUPS_EMA_TOLERANCE
     macd_positive: bool = SETUPS_MACD_POSITIVE
@@ -128,6 +133,23 @@ class FlatTopParams:
     @property
     def from_first_touch(self) -> bool:
         return self.base_start == SETUPS_FT_BASE_FIRST_TOUCH
+
+    @property
+    def hold_sec(self) -> int:
+        """The hold candle's length: the pattern's own, or ``hold_bar_sec``."""
+        return int(self.hold_bar_sec or self.bar_sec)
+
+    @property
+    def hold_apart(self) -> bool:
+        """The hold reads candles of its own (``on_hold_bars``), not the pattern's."""
+        return self.hold_sec != int(self.bar_sec)
+
+    def hold_words(self, plural: bool = True) -> str:
+        """The hold's candles in words: candles, or the 5-minute flat top's minutes."""
+        minutes = self.hold_apart and self.hold_sec == 60
+        if plural:
+            return "minutes" if minutes else "candles"
+        return "1-minute candle" if minutes else "candle"
 
     def target1(self, entry: float, risk: float) -> float:
         if self.target_mode == "fixed":
@@ -161,7 +183,8 @@ class FlatTopDetector(TriggerDetector):
             return []                     # the day's setups on this symbol are used (or were, before a restart)
         last = n - 1
         if self.broke is not None and self.armed is not None:
-            return self._hold_check(bars, last)
+            # Broken and waiting for a hold: the hold's own candles decide when it reads them apart.
+            return [] if self.p.hold_apart else self._hold_check(bars, last)
         prev = self.armed if self.state in (SETUP_STATE_ARMED, SETUP_STATE_NEAR) else None
         shape, miss = find(self.series, last, self.p)
         if shape is not None and self.p.min_touches > 1 and len(shape.touches) > 1 and not shape.retested:
@@ -169,7 +192,7 @@ class FlatTopDetector(TriggerDetector):
         ready = shape is not None and len(shape.touches) >= self.p.min_touches and shape.bars >= self.p.min_consol
 
         if self.state == SETUP_STATE_TRIGGERED:
-            fresh = self._impulse_high(bars, last)
+            fresh = new_high(self.series, last, self.p)
             new = (ready and self.series.t[shape.first] != self.triggered.get("leg_t")) or (
                 fresh is not None and fresh["t"] != self.triggered.get("leg_t"))
             if not new:
@@ -181,7 +204,7 @@ class FlatTopDetector(TriggerDetector):
             return self._forming(shape, prev)
 
         events: list[tuple[str, dict]] = []
-        fresh = self._impulse_high(bars, last)
+        fresh = new_high(self.series, last, self.p)
         if fresh is not None:
             self.leg, self.armed = fresh, None
             was = self.state
@@ -194,9 +217,9 @@ class FlatTopDetector(TriggerDetector):
             return events
         if shape is not None:
             return self._forming(shape, prev)       # one touch: the high of day, not tapped again yet
-        fail = self._miss_leg(miss) if miss is not None else None
+        fail = miss_leg(self.series, miss) if miss is not None else None
         if fail is None and not self.p.from_first_touch:
-            fail = self._stale_base(bars, last)
+            fail = stale_base(self.series, last, self.p)
         self.armed = None
         if fail is not None:
             self.leg = fail[0]
@@ -276,7 +299,7 @@ class FlatTopDetector(TriggerDetector):
                        "zone": shape.zone, "min_touches": p.min_touches},
         }
         how = (f"stop {base_low:.2f}, risk {risk:.2f}" if p.breaks
-               else f"then a green candle holding over it (up to {p.hold_bars})")
+               else f"then a green {p.hold_words(plural=False)} holding over it (up to {p.hold_bars})")
         self._set(SETUP_STATE_ARMED, f"flat top {level:.2f}: {touch_words(n)}, a base of {m} candles -- "
                                      f"trigger {level:.2f}, {how}")
         return events + self.arm_events(prev)
@@ -293,12 +316,13 @@ class FlatTopDetector(TriggerDetector):
             return self._near_check(price)
         if et_time(ts) >= hhmm(self.cutoff()):
             return self._disarm(self.armed, "the entry window closed before the break")
-        self.broke = {"at": ts, "bar_t": candle_start(self.p, ts)}
+        hold = self.p.hold_sec
+        self.broke = {"at": ts, "bar_t": float(int(ts // hold) * hold)}
         self.armed = {**self.armed, "detail": {**(self.armed.get("detail") or {}), "broke_at": ts,
                                                "broke_bar_t": self.broke["bar_t"]}}
         was = self.state
-        self._set(SETUP_STATE_NEAR, f"broke the {trig:.2f} high -- the first of the next {self.p.hold_bars} candles "
-                                    "that holds over it and closes green is the entry")
+        self._set(SETUP_STATE_NEAR, f"broke the {trig:.2f} high -- the first of the next {self.p.hold_bars} "
+                                    f"{self.p.hold_words()} that holds over it and closes green is the entry")
         return [("near", self.view())] if was != SETUP_STATE_NEAR else []
 
     def _hold_check(self, bars: list[Bar], last: int) -> list[tuple[str, dict]]:
@@ -322,6 +346,8 @@ class FlatTopDetector(TriggerDetector):
         if b.lo >= floor - EPS and b.c > b.o + EPS and b.c > level + EPS:
             entry = round(b.c + self.p.entry_offset, 4)
             stop = round(b.lo, 4)
+            if self.p.hold_stop == SETUPS_FT_HOLD_STOP_PULLBACK:   # the pullback's low: every candle since the break's
+                stop = round(min(x.lo for x in bars if broke_bar < x.t <= b.t), 4)
             risk = round(entry - stop, 4)
             why = risk_blocked(self.p, risk, entry=entry, slippage=False)
             if why:
@@ -329,54 +355,27 @@ class FlatTopDetector(TriggerDetector):
             self.nth += 1
             self.triggered = {
                 **prev, "entry": entry, "stop": stop, "risk": risk, "target1": self.p.target1(entry, risk),
-                "triggered_at": b.t + self.p.bar_sec, "nth": self.nth, "trigger_price": b.c, "score_bar_t": b.t,
+                "triggered_at": b.t + self.p.hold_sec, "nth": self.nth, "trigger_price": b.c, "score_bar_t": b.t,
                 "half_on_entry_bar": False,
                 "detail": {**(prev.get("detail") or {}), "hold_bar_t": b.t, "hold_high": b.h},
             }
             self.broke = None
-            self._set(SETUP_STATE_TRIGGERED, f"held over {level:.2f}: a green candle closed at {b.c:.2f} -- "
-                                             f"entry {entry:.2f}, stop {stop:.2f}")
+            self._set(SETUP_STATE_TRIGGERED, f"held over {level:.2f}: a green {self.p.hold_words(plural=False)} "
+                                             f"closed at {b.c:.2f} -- entry {entry:.2f}, stop {stop:.2f}")
             return [("triggered", self.view())]
         if waited >= self.p.hold_bars:
-            return self._disarm(prev, f"no candle held over {level:.2f} and closed green within {self.p.hold_bars}")
-        self.reason = (f"broke {level:.2f}: {waited} of {self.p.hold_bars} candles, none held over it and "
-                       "closed green yet")
+            return self._disarm(prev, f"no {self.p.hold_words(plural=False)} held over {level:.2f} and closed green "
+                                      f"within {self.p.hold_bars}")
+        self.reason = (f"broke {level:.2f}: {waited} of {self.p.hold_bars} {self.p.hold_words()}, none held over "
+                       "it and closed green yet")
         return []
+
+    def on_hold_bars(self, bars: list[Bar]) -> list[tuple[str, dict]]:
+        """A completed hold candle when the hold reads its own (``hold_apart``): the hold check, else nothing."""
+        if not self.p.hold_apart or self.broke is None or self.armed is None or not bars:
+            return []
+        return self._hold_check(bars, len(bars) - 1)
 
     def _disarm(self, prev: dict, why: str) -> list[tuple[str, dict]]:
         self.broke = None
         return super()._disarm(prev, why)
-
-    # -- the pattern ----------------------------------------------------------
-    def _miss_leg(self, miss: Any) -> tuple[dict, str]:
-        s = self.series
-        level = s.hod[-1]
-        return ({"t": s.t[miss.first], "high": level, "low": miss.impulse_low,
-                 "pct": round(level / miss.impulse_low - 1, 4), "bars": 0}, miss.why)
-
-    def _impulse(self, bars: list[Bar], top: int, level: float) -> dict | None:
-        s, p = self.series, self.p
-        low = min(s.lo[max(0, top - p.leg_window + 1):top + 1])
-        if low <= 0 or level / low - 1 < p.impulse_pct:
-            return None
-        return {"t": bars[top].t, "high": level, "low": low, "pct": round(level / low - 1, 4), "bars": 0}
-
-    def _impulse_high(self, bars: list[Bar], last: int) -> dict | None:
-        """The last candle set a new high of day on an impulse: wait for the taps."""
-        s = self.series
-        if last < self.p.leg_window or s.h[last] < s.hod[last] or (last > 0 and s.h[last] <= s.hod[last - 1]):
-            return None
-        return self._impulse(bars, last, s.h[last])
-
-    def _stale_base(self, bars: list[Bar], last: int) -> tuple[dict, str] | None:
-        """The research's P2 (``base_start = "last_high"``): a high-of-day candle more than ``max_consol``
-        candles back with no higher high since. The first-touch flat top's own staleness is ``find``'s."""
-        s, p = self.series, self.p
-        level = s.hod[last]
-        top = s.hod_i[last]                   # the latest candle at the high of day
-        if last - top <= p.max_consol or top < p.leg_window:
-            return None
-        ctx = self._impulse(bars, top, level)
-        if ctx is None:
-            return None
-        return ctx, f"the base ran past {p.max_consol} candles without a break"

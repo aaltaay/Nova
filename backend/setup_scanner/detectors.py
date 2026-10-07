@@ -8,12 +8,14 @@ from constants_bot import (
     BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_RED_TO_GREEN,
 )
 from setup_scanner.bull_flag import BullFlagDetector
 from setup_scanner.detector import ET, TriggerDetector, hhmm
 from setup_scanner.flat_top import FlatTopDetector
+from setup_scanner.flat_top_5m import FlatTop5mDetector
 from setup_scanner.gap_and_go import GapAndGoDetector
 from setup_scanner.pullback import PullbackDetector
 from setup_scanner.red_to_green import RedToGreenDetector
@@ -22,6 +24,7 @@ DETECTORS: dict[str, type[TriggerDetector]] = {
     BOT_SETUP_FIRST_PULLBACK: PullbackDetector,
     BOT_SETUP_BULL_FLAG: BullFlagDetector,
     BOT_SETUP_FLAT_TOP: FlatTopDetector,
+    BOT_SETUP_FLAT_TOP_5M: FlatTop5mDetector,
     BOT_SETUP_RED_TO_GREEN: RedToGreenDetector,
     BOT_SETUP_GAP_AND_GO: GapAndGoDetector,
 }

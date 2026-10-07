@@ -13,6 +13,7 @@ const LANES: { id: string; label: string }[] = [
   { id: 'first_pullback', label: 'First pullback' },
   { id: 'bull_flag', label: 'Bull flag' },
   { id: 'flat_top_breakout', label: 'Flat top' },
+  { id: 'flat_top_5m', label: '5m flat top' },
   { id: 'red_to_green', label: 'Red to green' },
   { id: 'gap_and_go', label: 'Gap and Go' },
   { id: 'hod_momo', label: 'HOD Momo' },

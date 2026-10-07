@@ -177,7 +177,7 @@ def test_sim_eyes_follow_the_playhead_and_journal_each_moment_once(tmp_path):
     first = next(s for s in board["setups"] if s["id"] == "first_pullback")
     assert fp(board)[0]["state"] == "near" and first["template"]["id"] == "default" and first["proposing"]
     assert board["schema_version"] == 2 and [s["id"] for s in board["setups"]] == [
-        "first_pullback", "bull_flag", "flat_top_breakout", "red_to_green", "gap_and_go"]
+        "first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green", "gap_and_go"]
     assert all(not s["proposing"] for s in board["setups"] if s["id"] != "first_pullback")
     assert board["proposals"] and all(p["setup_type"] == "first_pullback" for p in board["proposals"])
     assert eyes.take_alerts()

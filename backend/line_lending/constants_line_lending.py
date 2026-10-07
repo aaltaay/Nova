@@ -87,8 +87,8 @@ WHY_WORDS = {WHY_TRADE: "in a trade", WHY_NEAR: "near its trigger", WHY_ARMED: "
 
 # The setups' names in the sentences (stock_read/plan.py's words).
 SETUP_WORDS = {"first_pullback": "first pullback", "bull_flag": "bull flag",
-               "flat_top_breakout": "flat-top breakout", "red_to_green": "red to green",
-               "gap_and_go": "Gap and Go"}
+               "flat_top_breakout": "flat-top breakout", "flat_top_5m": "5-minute flat top",
+               "red_to_green": "red to green", "gap_and_go": "Gap and Go"}
 
 # Nova's own trades that keep a loan standing past the scanner's scoring window.
 BOT_TRADE_LIVE_STATES = ("entering", "open", "exiting")

@@ -9,6 +9,11 @@
  * grey. The backend reads the shape
  * (`setup_scanner/flat_top_shape.py`): the leg carries the touches as `[time, high]`, the armed setup's detail the
  * zone, the break's candle and the hold's. Pure: the lane in, the shapes out.
+ *
+ * The 5-minute flat top (2026-10-06, `flat_top_5m`: the pattern on 5-minute candles, the entry the first 1-minute
+ * candle that holds the break) draws this way on the 5-minute pane -- its break and hold on the 5-minute candles
+ * they fell in, the hold named "1m hold" -- and on the 1-minute pane only its level, the break and the hold
+ * (`flatTop5mOnMinute`): its touches and base are 5-minute highs and lows, and would sit on the wrong candles here.
  */
 import { EDGE_PRIORITY } from '../chart';
 import { FLAT_TOP_COLORS, FLAT_TOP_DIM, FLAT_TOP_FADED } from './constants';
@@ -19,6 +24,13 @@ import { hhmmEt } from './timeWords';
 import type { SetupLane } from './types';
 
 export const FLAT_TOP = 'flat_top_breakout';
+/** The 5-minute flat top: the pattern on 5-minute candles, its hold a 1-minute candle. */
+export const FLAT_TOP_5M = 'flat_top_5m';
+
+/** A flat top: the 1-minute one or the 5-minute one. */
+export function isFlatTop(setupType: string | null | undefined): boolean {
+  return setupType === FLAT_TOP || setupType === FLAT_TOP_5M;
+}
 /** The flat top's name in the edge column: over VWAP's and the levels', under the plan's lines. */
 const WORD_PRIORITY = EDGE_PRIORITY.vwap + 10;
 /** The break's label keeps its room before any run's. */
@@ -68,11 +80,12 @@ function touchWords(n: number): string {
   return `${n} touch${n === 1 ? '' : 'es'}`;
 }
 
-/** The candle the break printed in: the hold entry's noted candle, else (the break entry) the trigger's. */
+/** The candle the break printed in, on the pane's candles: the hold entry's noted candle, else (the break
+ * entry) the trigger's. */
 export function breakBar(lane: Pick<SetupLane, 'setup'>, bar: number): number | null {
   const s = lane.setup;
   const noted = num(s?.detail?.broke_bar_t);
-  if (noted !== null) return noted;
+  if (noted !== null) return Math.floor(noted / bar) * bar;    // the 5-minute flat top notes the break's minute
   const at = num(s?.triggered_at);
   return s?.detail?.entry_mode === 'break' && at !== null ? Math.floor(at / bar) * bar : null;
 }
@@ -125,24 +138,64 @@ export function flatTopShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions
       label: bright && i === touches.length - 1 ? count : null, labelColor: c.text, hoverId });
   });
   if (!bright || !setup) return out;
-  // The break, over its candle's high, and the candle that held it: the entry.
+  breakAndHold(out, lane, setup, o, bar, level, hoverId);
+  return out;
+}
+
+/** The break, over its candle's high, and the candle that held it -- the entry -- on the pane's candles: the
+ * 5-minute flat top's 1-minute hold sits in a 5-minute candle on the 5-minute pane, named so. */
+function breakAndHold(out: LaneDraw, lane: SetupLane, setup: NonNullable<SetupLane['setup']>, o: LaneDrawOptions,
+  bar: number, level: number, hoverId: string): void {
+  const c = FLAT_TOP_COLORS;
   const brk = breakBar(lane, bar);
+  const holdT = num(setup.detail?.hold_bar_t);
+  const at = holdT === null ? null : Math.floor(holdT / bar) * bar;
+  const th = lane.state === 'triggered' && at !== null ? o.toTime(at) : null;
+  const holdWord = lane.setup_type === FLAT_TOP_5M && bar !== 60 ? '1m hold' : 'hold';
+  // On the 5-minute pane the 1-minute hold often prints in the break's own 5-minute candle: one label says both,
+  // over the break's triangle, and the hold's box goes unlabelled (its label would cover the triangle).
+  const together = th !== null && at === brk;
   const tb = brk !== null ? o.toTime(brk) : null;
   if (brk !== null && tb !== null) {
-    out.marks.push({ t: tb, price: o.highAt?.(brk) ?? level, label: 'break', color: c.go, rank: BREAK_RANK, dir: 'up' });
+    out.marks.push({ t: tb, price: o.highAt?.(brk) ?? level, label: together ? `break · ${holdWord}` : 'break',
+      color: c.go, rank: BREAK_RANK, dir: 'up' });
   }
-  const holdT = num(setup.detail?.hold_bar_t);
-  const th = lane.state === 'triggered' && holdT !== null ? o.toTime(holdT) : null;
-  if (holdT !== null && th !== null) {
+  if (at !== null && th !== null) {
     const high = num(setup.detail?.hold_high) ?? setup.trigger_price ?? level;
     out.boxes.push({ t1: th, t2: th, p1: setup.stop, p2: high, fill: c.holdFill, stroke: c.go, dashed: false,
-      label: 'hold', labelColor: c.go, hoverId });
+      label: together ? null : holdWord, labelColor: c.go, hoverId });
   }
+}
+
+/** The 5-minute flat top on the 1-minute pane, once it is armed: its level from the first touch, the break and the
+ * 1-minute hold -- the entry this chart trades. Forming, it is the legend's chip; its touches and base are the
+ * 5-minute pane's. */
+export function flatTop5mOnMinute(lane: SetupLane, lead: boolean, o: LaneDrawOptions, hoverId: string,
+  tag: string): LaneDraw {
+  const out = emptyDraw();
+  const leg = lane.leg;
+  const setup = lane.setup && lane.state !== 'watching' ? lane.setup : null;
+  if (!leg || !setup) return out;
+  const failed = lane.state === 'failed';
+  const bright = lead && !failed;
+  const c = bright ? FLAT_TOP_COLORS : failed ? FLAT_TOP_FADED : FLAT_TOP_DIM;
+  const level = setup.trigger;
+  const t1 = o.toTime(leg.t);
+  if (t1 !== null) {
+    out.segments.push({ t1, price: level, color: c.line, dashed: false,
+      label: bright ? null : `5m FLAT TOP ${fmtPx(level)}${failed ? tag : ''}` });
+  }
+  if (!bright) return out;
+  const hod = lane.state !== 'triggered' && num(setup.detail?.broke_at) === null;
+  out.words.push({ id: `flat:${hoverId}`, text: `5m FLAT TOP${hod ? ' = HOD' : ''} ${fmtPx(level)}`, color: c.line,
+    priority: WORD_PRIORITY, price: level, series: null, valueWhenOff: false });
+  breakAndHold(out, lane, setup, o, 60, level, hoverId);
   return out;
 }
 
 /** The flat top's story under the pointer: where it stands, every touch, the base, and how it enters. */
 export function flatTopStory(lane: SetupLane): { title: string; lines: string[] } {
+  const five = lane.setup_type === FLAT_TOP_5M;
   const touches = flatTopTouches(lane);
   const setup = lane.setup;
   const detail = setup?.detail ?? {};
@@ -156,16 +209,23 @@ export function flatTopStory(lane: SetupLane): { title: string; lines: string[] 
   }
   const baseLow = num(detail.base_low) ?? lane.forming?.stop ?? null;
   if (lane.leg?.bars) {
-    lines.push(`Base: ${lane.leg.bars} candles after the first touch${baseLow !== null ? `, low ${fmtPx(baseLow)}` : ''}`);
+    lines.push(`Base: ${lane.leg.bars} ${five ? '5-minute ' : ''}candles after the first touch`
+      + `${baseLow !== null ? `, low ${fmtPx(baseLow)}` : ''}`);
   }
   const broke = num(detail.broke_at);
   if (broke !== null) lines.push(`Broke over ${fmtPx(level)} at ${hhmmEt(broke)}`);
   const hold = num(detail.hold_bar_t);
   if (lane.state === 'triggered' && setup && hold !== null) {
-    lines.push(`Held at ${hhmmEt(hold)}: entry ${fmtPx(setup.entry)}, stop ${fmtPx(setup.stop)}, target ${fmtPx(setup.target1)}`);
+    lines.push(`Held ${five ? 'on the 1-minute candle ' : ''}at ${hhmmEt(hold)}: entry ${fmtPx(setup.entry)}, stop `
+      + `${fmtPx(setup.stop)}${five ? ' (the pullback\'s low)' : ''}, target ${fmtPx(setup.target1)}`);
   } else if (setup && detail.entry_mode !== 'break') {
-    lines.push('The entry, the taught way: after a price over it, the first candle that holds it (its low in the '
-      + 'touch zone or over it) and closes green over it. A close back under the zone fails it.');
+    lines.push(five
+      ? 'The entry, the taught way: after a price over it, the first 1-minute candle that holds it (its low in the '
+        + 'touch zone or over it) and closes green over it -- the 1-minute pullback inside the 5-minute breakout '
+        + 'candle -- with the stop at the pullback\'s low. A minute closing under the zone fails it.'
+      : 'The entry, the taught way: after a price over it, the first candle that holds it (its low in the '
+        + 'touch zone or over it) and closes green over it. A close back under the zone fails it.');
   }
-  return { title: `Flat top${level !== null ? ` ${fmtPx(level)}` : ''} · ${lane.state}`, lines };
+  const name = five ? '5-minute flat top' : 'Flat top';
+  return { title: `${name}${level !== null ? ` ${fmtPx(level)}` : ''} · ${lane.state}`, lines };
 }

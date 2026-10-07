@@ -229,6 +229,9 @@ function armedShape(r: SetupStoreRow): string {
       return [bars ? `flag of ${bars}` : '', leg ? `pole ${leg}` : ''].filter(Boolean).join(' · ');
     case 'flat_top_breakout':
       return [bars ? `base of ${bars} under the high of day` : '', leg ? `impulse ${leg}` : ''].filter(Boolean).join(' · ');
+    case 'flat_top_5m':
+      return [bars ? `base of ${bars} 5-minute candles under the high of day` : '', leg ? `impulse ${leg}` : '']
+        .filter(Boolean).join(' · ');
     case 'red_to_green':
       return bars ? `${bars} close${s(bars)} under the open` : '';
     case 'gap_and_go':
