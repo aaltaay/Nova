@@ -253,6 +253,20 @@ def prints_between(symbol: str, after_ts: float, through_ts: float) -> list[tupl
     return [(float(row['ts']), float(row['price'])) for row in selected.eligible[lo:hi]]
 
 
+def bid_before(symbol: str, ts: float) -> float | None:
+    """The NBBO bid standing just before a print at ``ts`` (a Massive window); None without quotes there.
+
+    The tape's own rule for a print's side (``history_quotes.attach_sides``): the last NBBO row
+    strictly before it. An IBKR download carries no quotes, so it never has one.
+    """
+    with _lock:
+        selected = _selection
+    if not selected or selected.spec['symbol'] != symbol or selected.quotes is None or not len(selected.quotes):
+        return None
+    row = selected.quotes.before(float(ts))
+    return row['bid'] if row else None
+
+
 def snapshot(symbol: str):
     from sim import session_clock
     with _lock:

@@ -165,3 +165,27 @@ def test_recorded_capture_fills_market_orders_at_its_quote(isolated) -> None:
     broker.place("AAPL", "BUY", 1, "MKT")
     row = broker.closed_orders()[0]
     assert (row["avg_fill_price"], row["fill_basis"]) == (10.1, "quote")
+
+
+def test_a_print_is_judged_by_the_bid_recorded_then_not_the_playheads(isolated) -> None:
+    """PR #786 review: the SSR fill rule reads the bid that stood when a print traded (ADR 048)."""
+    ts = datetime.fromisoformat(DAY + "T10:00:00-04:00").timestamp()
+    directory = isolated / "capture" / DAY / "AAPL"
+    directory.mkdir(parents=True)
+    (directory / "prints.jsonl").write_text("".join(
+        json.dumps(dict(ts=ts + sec, symbol="AAPL", price=price)) + "\n" for sec, price in ((0, 10.0), (6, 10.3))))
+    (directory / "quotes.jsonl").write_text("".join(
+        json.dumps(dict(ts=ts + sec, symbol="AAPL", bid=bid, ask=bid + 0.2, last=10.0)) + "\n"
+        for sec, bid in ((0, 9.9), (5, 10.2))))
+    assert replay.set_replay(DAY, "AAPL")["replay_ok"]
+    clock.set_paused(True)
+    clock.scrub_to_second(int(ts + 10 - clock.session_bounds_on(clock.now_et())[0].timestamp()))
+    assert practice.reference("AAPL").bid == 10.2                 # the playhead's
+    assert practice.bid_at("AAPL", ts + 1) == 9.9                 # what stood at the print at 10:00:01
+    assert practice.bid_at("AAPL", ts + 6) == 10.2
+    assert practice.bid_at("IMCC", ts + 6) is None                # not the loaded symbol
+
+
+def test_an_ibkr_download_has_no_bid_to_judge_a_print_by() -> None:
+    spec = historical(TAPE)
+    assert practice.bid_at("IMCC", spec["start_ts"] + 30) is None

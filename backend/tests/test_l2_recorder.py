@@ -108,6 +108,33 @@ class TestRangeAndRecall:
         assert ranged["tape_count"] == 2
 
 
+    def test_the_archive_keeps_the_bid_and_ask_each_print_met(self):
+        tape.watch_symbol("AAPL", session_id="sess-1")
+        tape.persist_prints([
+            {"symbol": "AAPL", "ts": 1000.0, "price": 5.01, "size": 100, "source": "ibkr", "bid": 5.0, "ask": 5.02},
+            {"symbol": "AAPL", "ts": 1000.5, "price": 5.02, "size": 100, "source": "ibkr", "bid": None},
+            {"symbol": "AAPL", "ts": 1001.0, "price": 5.03, "size": 100, "source": "ibkr", "bid": "junk", "ask": 0},
+        ])
+        rows = tape.get_trades_in_range("AAPL", 999.0, 1002.0)
+        assert [(r["bid"], r["ask"]) for r in rows] == [(5.0, 5.02), (None, None), (None, None)]
+
+    def test_an_archive_from_before_gains_the_bid_and_ask_columns(self, tmp_path, monkeypatch):
+        import sqlite3
+
+        old = tmp_path / "old"
+        old.mkdir()
+        conn = sqlite3.connect(old / l2_db.L2_DB_FILENAME)
+        conn.execute("CREATE TABLE tape_trades (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, "
+                     "ts REAL NOT NULL, price REAL NOT NULL, size REAL NOT NULL, exchange TEXT, "
+                     "source TEXT NOT NULL, session_id TEXT, conditions TEXT, receive_ts REAL, unreported INTEGER)")
+        conn.execute("INSERT INTO tape_trades (symbol, ts, price, size, source) VALUES ('AAPL', 1, 5.0, 1, 'ibkr')")
+        conn.commit()
+        conn.close()
+        monkeypatch.setattr(l2_db, "cache_dir", lambda: old)
+        l2_db.init_db()
+        assert tape.get_trades_in_range("AAPL", 0, 2)[0]["bid"] is None    # a row stored before reads unknown
+
+
 class TestSessionsAndRetention:
     def test_session_covering(self):
         sid = sessions.start_session("AAPL", "depth", started_ts=100.0)

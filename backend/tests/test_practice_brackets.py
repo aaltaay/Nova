@@ -18,6 +18,7 @@ import pytest
 from constants_practice import (
     PRACTICE_BUYING_POWER_CODE,
     PRACTICE_NO_LIVE_PRINT_CODE,
+    PRACTICE_NO_SHORTS_CODE,
     PRACTICE_OCO_CANCELLED_CODE,
     PRACTICE_PARENT_CANCELLED_CODE,
     PRACTICE_PARENT_CANCELLED_REASON,
@@ -224,12 +225,21 @@ def test_a_short_bracket_may_go_without_a_target(paper, short_market_open) -> No
 
 def test_a_short_bracket_is_refused_while_the_stock_is_held_long(paper) -> None:
     paper.broker.place("IMCC", "BUY", 100, "MKT")
-    for raw in (
-        paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5, short_entry=True),
-        paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5),
-    ):
-        assert (raw["ok"], raw["reason_code"], raw["parent_order_id"]) == (
-            False, PRACTICE_SHORT_WHILE_LONG_CODE, None)
+    raw = paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5, short_entry=True)
+    assert (raw["ok"], raw["reason_code"], raw["parent_order_id"]) == (False, PRACTICE_SHORT_WHILE_LONG_CODE, None)
+    assert paper.broker.working_orders() == [] and paper.broker.positions()[0]["qty"] == 100
+
+
+def test_a_short_is_never_inferred_from_a_sell_bracket(paper) -> None:
+    """PR #786 review: the broker stays a gate for callers past the door -- a SELL needs short_entry."""
+    for held in (0, 100):
+        if held:
+            paper.broker.place("IMCC", "BUY", held, "MKT")
+        raw = paper.broker.place_bracket("IMCC", "SELL", 100, 10.0, 9.5, 10.5)
+        assert (raw["ok"], raw["reason_code"], raw["parent_order_id"]) == (False, PRACTICE_NO_SHORTS_CODE, None)
+    for side in ("BUY", "SHORT", ""):
+        raw = paper.broker.place_bracket("IMCC", side, 100, 10.0, 9.5, 10.5, short_entry=side == "BUY")
+        assert (raw["ok"], raw["reason_code"]) == (False, "SIDE_INVALID")
     assert paper.broker.working_orders() == [] and paper.broker.positions()[0]["qty"] == 100
 
 

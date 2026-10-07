@@ -10,7 +10,9 @@ Tables:
   l2_snapshots     -- order-book snapshots (signal windows + continuous depth)
   tape_trades      -- time & sales prints for watched symbols (IBKR AllLast), with
                       their sale ``conditions`` and IBKR's ``unreported`` flag so a
-                      practice fill reads only prints that set a price (#511)
+                      practice fill reads only prints that set a price (#511), and
+                      the top of book each met (``bid`` / ``ask`` at receipt), which
+                      a practice short under SSR fills against (ADR 048)
   record_sessions  -- lightweight session metadata (symbol, reason, wall-clock)
 """
 from __future__ import annotations
@@ -54,7 +56,9 @@ CREATE TABLE IF NOT EXISTS tape_trades (
     session_id TEXT,
     conditions TEXT,
     receive_ts REAL,
-    unreported INTEGER
+    unreported INTEGER,
+    bid REAL,
+    ask REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tape_trades_symbol_ts ON tape_trades(symbol, ts);
@@ -117,7 +121,8 @@ def init_db() -> None:
         conn.executescript(_SCHEMA)
         _migrate_l2_snapshot_columns(conn)
         existing = {row[1] for row in conn.execute("PRAGMA table_info(tape_trades)")}
-        for column, kind in (("conditions", "TEXT"), ("receive_ts", "REAL"), ("unreported", "INTEGER")):
+        for column, kind in (("conditions", "TEXT"), ("receive_ts", "REAL"), ("unreported", "INTEGER"),
+                             ("bid", "REAL"), ("ask", "REAL")):
             if column not in existing:
                 conn.execute(f"ALTER TABLE tape_trades ADD COLUMN {column} {kind}")
         conn.commit()

@@ -26,6 +26,11 @@ whole short is judged at the highest of those prices (its ``fill_price``: the mo
 is sold) and the cushion is 25% over that. Pricing a $20 short on the way at a new $15 entry would
 understate both the requirement and the move it must survive.
 
+**The short already held** keeps its own mark (``cushion(held=...)``): equity is read with it
+marked at the market now, so by the time the price reaches ``entry`` it has moved by
+``qty * (mark - entry)`` -- a loss when the new short rests above the market. Counting the held
+shares as if sold at ``entry`` hid that loss and passed a cushion the account could not hold.
+
 **IBKR's own figure.** When IBKR's what-if answered for a stock (``short_sale.whatif``), its
 maintenance over the published one is that stock's ``ratio`` -- IBKR's extra charge on a volatile
 name -- and every function here scales the stock's published maintenance by it. ``ratio`` 1 is the
@@ -136,11 +141,13 @@ def long_liquidation_price(*, equity: float, other_maint: float, qty: float, mar
 
 def cushion(*, equity: float, other_maint: float, qty: float, entry: float,
             cushion_pct: float = SHORT_CUSHION_PCT, ratio: float = 1.0,
-            flying: Sequence[tuple[float, float]] = ()) -> dict[str, float | bool | None]:
+            flying: Sequence[tuple[float, float]] = (),
+            held: tuple[float, float] | None = None) -> dict[str, float | bool | None]:
     """``{ok, fits, liquidation_price, cushion_price, requirement, surplus_at_entry, fill_price, qty}`` for a short.
 
-    ``qty`` is the short marked at ``entry`` once this order fills (this order and the short held);
-    ``flying`` the stock's shorts on the way, ``(qty, limit)`` each, at their own limits.
+    ``qty`` is what sells at ``entry`` (this order, and shorts on the way Nova cannot price);
+    ``flying`` the stock's shorts on the way, ``(qty, limit)`` each, at their own limits; ``held``
+    the short already held, ``(qty, mark)``, marked at the market now.
     ``other_maint`` is everything else's maintenance. ``fits`` -- the requirement fits once the last
     of the short is sold (``fill_price``, the highest price); ``ok`` -- IBKR would not liquidate
     within ``cushion_pct`` over it (which implies ``fits``); ``ratio`` -- IBKR's charge on this
@@ -149,9 +156,12 @@ def cushion(*, equity: float, other_maint: float, qty: float, entry: float,
     e = float(entry)
     pieces = [(abs(float(n)), float(price)) for n, price in flying
               if abs(float(n)) > 0 and math.isfinite(float(price)) and float(price) > 0]
-    q = abs(float(qty)) + sum(piece_qty for piece_qty, _ in pieces)
     fill = max([e] + [price for _, price in pieces])
     # Each piece sold at its own limit: equity moves by qty * (limit - p), not qty * (entry - p).
+    # The short held is already sold: it moves from its mark now, and never sets the fill price.
+    if held is not None and abs(float(held[0])) > 0 and math.isfinite(float(held[1])) and float(held[1]) > 0:
+        pieces.append((abs(float(held[0])), float(held[1])))
+    q = abs(float(qty)) + sum(piece_qty for piece_qty, _ in pieces)
     credit = sum(piece_qty * (price - e) for piece_qty, price in pieces)
     target = fill * (1.0 + float(cushion_pct))
     args = {"equity": float(equity) + credit, "other_maint": float(other_maint), "qty": q, "mark": e,

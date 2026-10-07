@@ -314,6 +314,18 @@ def test_practice_orders_see_the_bid_and_ask(root, monkeypatch):
     assert (ref.last, ref.bid, ref.ask) == (10.05, 10.00, 10.02)
 
 
+def test_a_print_meets_the_nbbo_that_stood_before_it_not_the_playheads(root, monkeypatch):
+    """PR #786 review: the SSR fill rule reads the bid before each print, wherever the playhead is."""
+    spec, _job = _imported()
+    playback.select(spec)
+    _at(monkeypatch, "09:30:02", 500)
+    assert practice.reference("IMCC").bid == 10.00                                   # the playhead's
+    assert practice.bid_at("IMCC", _sec("09:30:00") + 0.100) == 9.98                # the quote before 09:30:00.100
+    assert practice.bid_at("IMCC", _sec("09:30:02")) == 10.00
+    assert practice.bid_at("IMCC", _sec("09:30:00") + 0.300) is None                # an empty bid side then
+    assert practice.bid_at("IMCD", _sec("09:30:02")) is None                        # not the window's symbol
+
+
 def test_a_massive_window_draws_its_own_bars_never_the_ibkr_chart_store(root, monkeypatch):
     import bars_store
 

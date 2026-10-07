@@ -4,9 +4,10 @@ A short is never inferred: a SELL past the held quantity without ``short_entry``
 ``PRACTICE_NO_SHORTS`` -- at admission in the execution door (``execution.validate`` via
 ``execution.practice_checks``) and again in ``PracticeBroker.place``, on every source. A short entry is
 a SELL that opens from flat or adds to a short; while the account holds the stock long it is refused
-``PRACTICE_SHORT_WHILE_LONG``, at placement and at the fill. Everything else a short needs -- its buy
-stop, the hours, halts, SSR, borrow, margin and the cushion -- is the short check's
-(``short_sale``; ``test_practice_shorts.py``). Closing and trimming sells are untouched.
+``PRACTICE_SHORT_WHILE_LONG``, at placement and at the fill, and its fill outside the short hours is
+refused ``SHORT_HOURS``. Everything else a short needs -- its buy stop, halts, SSR, borrow, margin and
+the cushion -- is the short check's (``short_sale``; ``test_practice_shorts.py``). Closing and trimming
+sells are untouched.
 """
 from __future__ import annotations
 
@@ -101,6 +102,7 @@ def test_a_sell_beyond_the_held_quantity_is_refused_but_closing_and_trimming_are
 
 
 def test_a_short_entry_opens_from_flat_and_adds_to_a_short(paper, short_market_open) -> None:
+    paper.ref.now = short_market_open          # the venue's clock inside the short hours: a fill outside them is refused
     first = paper.broker.place("IMCC", "SELL", 5, "LMT", limit_price=9.98, short_entry=True)
     assert (first["ok"], first["broker_status"], first["avg_fill_price"]) == (True, "Filled", 9.98)
     more = paper.broker.place("IMCC", "SELL", 3, "LMT", limit_price=9.98, short_entry=True)
@@ -121,11 +123,12 @@ def test_a_short_entry_never_flips_a_long_and_is_never_a_buy(paper) -> None:
 
 
 def test_a_resting_short_is_cancelled_at_the_fill_when_a_long_opened_since(paper, short_market_open) -> None:
+    paper.ref.now = short_market_open
     short = paper.broker.place("IMCC", "SELL", 5, "LMT", limit_price=10.40, short_entry=True)
     assert short["broker_status"] == "Submitted"
     paper.broker.place("IMCC", "BUY", 10, "MKT")
-    paper.ref.now = NOW + 5
-    assert paper.broker.try_fill_working("IMCC", [(NOW + 5, 10.45)]) == []
+    paper.ref.now = short_market_open + 5
+    assert paper.broker.try_fill_working("IMCC", [(short_market_open + 5, 10.45)]) == []
     row = {int(r["order_id"]): r for r in paper.broker.closed_orders()}[short["order_id"]]
     assert (row["status"], row["reason_code"]) == ("Cancelled", PRACTICE_SHORT_WHILE_LONG_CODE)
     assert paper.broker.positions()[0]["qty"] == 10

@@ -16,8 +16,10 @@ SELL for more than the held quantity without ``short_entry`` is refused
 ``PRACTICE_NO_SHORTS``, exactly as Invariant #7 keeps it on Live. A short entry
 is a SELL that opens from flat or adds to a short; while the account holds the
 stock long it is refused ``PRACTICE_SHORT_WHILE_LONG``, at placement and at the
-fill. The execution door's short check judges everything else (``short_sale``),
-and the broker repeats these rules for callers that bypass the door.
+fill, and one whose fill would come outside the short hours (09:35 to 15:50 ET by
+the venue's clock) is cancelled ``SHORT_HOURS`` at the fill. The execution door's
+short check judges everything else (``short_sale``), and the broker repeats these
+rules for callers that bypass the door.
 
 **Never past flat at the fill** (ADR 048 gap 8). A row records what it does to the position when
 it is placed (``side_fields``: ``short_entry``, ``position_side``, ``effect``). A cover -- a BUY
@@ -45,6 +47,7 @@ from constants_practice import (
     PRACTICE_TIF_GTC,
     PRACTICE_TIFS,
 )
+from constants_shorts import SHORT_HOURS
 from market import regular_hours_at
 from practice.clock import at
 
@@ -137,12 +140,15 @@ def exit_side_fields(entry: dict[str, Any]) -> dict[str, Any]:
     return {"short_entry": False, "position_side": entry.get("position_side") or "long", "effect": "closes"}
 
 
-def fill_refusal(ledger: Any, row: dict[str, Any], price: float) -> tuple[str, str] | None:
+def fill_refusal(ledger: Any, row: dict[str, Any], price: float,
+                 fill_ts: float | None = None) -> tuple[str, str] | None:
     """``(reason, code)`` when a working order may not fill at ``price`` now; ``None`` to fill it.
 
     A SELL past the held quantity would open a short nobody asked for -- another
     close filled first (QA R42: two flattens both rested and both filled, leaving
-    the Sim account short) -- and a short entry never fills against a long. A cover past flat
+    the Sim account short) -- and a short entry never fills against a long, nor at
+    ``fill_ts`` (the fill's time) outside the short hours: a Sim jump past 15:50 fills on
+    the prints it crossed before the runner's cutoff pass (ADR 048 1.9). A cover past flat
     would turn the short into a long (ADR 048 gap 8). A BUY the account can no
     longer afford is refused as at admission. Either way the order is cancelled
     at the fill, never filled.
@@ -153,6 +159,12 @@ def fill_refusal(ledger: Any, row: dict[str, Any], price: float) -> tuple[str, s
         refused = short_entry_refusal(held, side)  # a long opened since it was placed: never flip
         if refused is not None:
             return refused[0] + " when this short would fill", refused[1]
+        if fill_ts is not None:
+            from short_sale import hours as short_hours
+
+            closed = short_hours.entry_refusal(float(fill_ts))
+            if closed is not None:
+                return f"{closed} This short entry was cancelled at its fill.", SHORT_HOURS
     elif opening_short(held, side, qty):
         return (
             f"{PRACTICE_NO_SHORTS_REASON} -- {held:g} held when this SELL {qty:g} would fill",
