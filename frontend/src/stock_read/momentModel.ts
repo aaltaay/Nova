@@ -12,6 +12,7 @@ import { heldCall } from './heldCalls';
 import { approveQty, capUsedText, novaBlockers, novaQty } from './novaPromise';
 import { fmtPx, fmtStep, planBadge, planLane, setupName, sizeFor } from './planMath';
 import { notATrade, resultBadge, thinPlan } from './planVerdict';
+import { enterWord, nearSide, SHORT_ACT, shortWaitingWords } from './momentWords';
 import { hhmmssEt } from './timeWords';
 import type { SetupLane, StockModeName, StockModeTrade, StockModeView, StockPlan, StockRead } from './types';
 
@@ -437,12 +438,12 @@ function triggerCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
   const size = sizeFor(i.riskUsd, plan.risk);
   const printed = fmtPx(lane?.setup?.trigger_price ?? plan.trigger);
   const shares = size !== null ? ` ${size.toLocaleString('en-US')} shares risk $${i.riskUsd}.` : '';
-  const act = mode === 'approve'
+  const act = plan.side === 'short' ? SHORT_ACT : mode === 'approve'
     ? ` Approve: buy ${approveQty(i.who, i.riskUsd, plan) ?? '?'} now sends it with its stop and target.`
     : ' Your click.';
   return {
-    id: `enter:${key}`, tone: 'go', title: `ENTER NOW · ${fmtPx(plan.entry)}`,
-    detail: `${printed} printed with the tape at go.${shares}${act}`, pin: pinAt('ENTER NOW', plan.entry, at),
+    id: `enter:${key}`, tone: 'go', title: `${enterWord(plan)} · ${fmtPx(plan.entry)}`,
+    detail: `${printed} printed with the tape at go.${shares}${act}`, pin: pinAt(enterWord(plan), plan.entry, at),
     ping: true,
   };
 }
@@ -469,7 +470,8 @@ function waitingCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
     if (blocked) return blocked;
   }
   const trigger = fmtPx(plan.trigger);
-  const near = plan.state === 'near' && lane?.distance != null ? `${fmtStep(lane.distance, plan.entry)} under the trigger. ` : '';
+  const near = plan.state === 'near' && lane?.distance != null
+    ? `${fmtStep(lane.distance, plan.entry)} ${nearSide(plan)} the trigger. ` : '';
   const words: Record<StockModeName, [string, string]> = {
     signal: ['GET READY', `${near}Enter above ${trigger}: the chart says ENTER NOW when it prints.`],
     approve: ['APPROVE TO SEND', `Approve the plan and Nova sends buy ${approveQty(i.who, i.riskUsd, plan) ?? '?'} @ `
@@ -480,7 +482,7 @@ function waitingCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
       + `${fmtPx(plan.stop)} or after 15 minutes.`],
   };
   if (mode === 'signal' && plan.state !== 'near') return eventCall(i, null);
-  const [title, detail] = words[mode];
+  const [title, detail] = shortWaitingWords(plan, mode, near, trigger) ?? words[mode];
   return { id: `waiting:${mode}:${key}`, tone: 'info', title, detail, pin: null, ping: false };
 }
 
@@ -497,7 +499,7 @@ function setup(i: MomentInputs, plan: StockPlan): Moment {
   const read = i.read as StockRead;
   const lane = planLane(plan, read.setups);
   const mode = modeOf(i);
-  const name = setupName(plan.setup_type).toUpperCase();
+  const name = `${setupName(plan.setup_type).toUpperCase()}${plan.side === 'short' ? ' ▼ SHORT' : ''}`;
   const exitLabel = novaHoldsExits(mode);
   if (thinPlan(plan)) {
     // Too thin to trade (operator decision 2026-10-01): no track, no call to enter, not even its result --
@@ -547,5 +549,7 @@ export function momentOf(i: MomentInputs): Moment | null {
     return { step: 4, exitLabel: novaHoldsExits(modeOf(i)), tone: 'done', badge: 'FLAT · YOU SOLD', track: true, call: null };
   }
   if (!plan || plan.source !== 'setup') return null;
-  return setup(i, plan);
+  // A short setup's plan (ADR 049): its track reads Forming · Trigger · Short · Your cover.
+  const m = setup(i, plan);
+  return plan.side === 'short' ? { ...m, side: 'short' } : m;
 }

@@ -9,6 +9,7 @@
 import { list, normalizeLeg, normalizeSetupLevels, num, obj, str } from './normalize';
 import { flatTopStory, flatTopTouches, isFlatTop } from './flatTopShapes';
 import { fmtPx, setupName } from './planMath';
+import { isShortEpisode, shortAfterLines, shortArmedLine, shortLegLine, shortOutcomeWords, SHORT_RULE_WORDS } from './pastShort';
 import { hhmmEt } from './timeWords';
 import type { SetupLane, SetupLeg, SetupLevels } from './types';
 
@@ -194,6 +195,7 @@ export function failingNow(episodes: Episode[]): Set<string> {
 
 /** The scanners' rules in a few words, for a label on the chart (the hover has the whole reason). */
 const RULE_WORDS: [RegExp, string][] = [
+  ...SHORT_RULE_WORDS,
   [/new high without a fresh/, 'new high, no fresh leg'],
   [/made a higher high/, 'higher high in the flag'],
   [/gave back/, 'gave back too much'],
@@ -312,17 +314,22 @@ export function pastStory(ep: Episode): { title: string; lines: string[] } {
   const gone = ep.ended_at !== null
     ? `, gone ${hhmmEt(ep.ended_at)}${ep.ended_by && end !== 'failed' ? ` (${ep.ended_by})` : ''}`
     : end === 'failed' ? '; the scanner still shows it failed' : '';
-  lines.push(`Leg ${ep.leg.pct >= 0 ? '+' : ''}${(ep.leg.pct * 100).toFixed(1)}% to ${fmtPx(ep.leg.high)}; seen ${hhmmEt(ep.started_at)}${gone}`);
+  const short = isShortEpisode(ep);
+  const legLine = short ? shortLegLine(ep.setup_type, ep.leg)
+    : `Leg ${ep.leg.pct >= 0 ? '+' : ''}${(ep.leg.pct * 100).toFixed(1)}% to ${fmtPx(ep.leg.high)}`;
+  lines.push(`${legLine}; seen ${hhmmEt(ep.started_at)}${gone}`);
   const touches = isFlatTop(ep.setup_type) ? flatTopTouches(ep) : [];
   if (touches.length) lines.push(`Touches: ${touches.map(([t, h]) => `${hhmmEt(t)} ${fmtPx(h)}`).join(' · ')}`);
   if (ep.setup) {
-    lines.push(`Armed: trigger ${fmtPx(ep.setup.trigger)}, stop ${fmtPx(ep.setup.stop)}, target ${fmtPx(ep.setup.target1)}`);
+    lines.push(short ? shortArmedLine(ep.setup, true)
+      : `Armed: trigger ${fmtPx(ep.setup.trigger)}, stop ${fmtPx(ep.setup.stop)}, target ${fmtPx(ep.setup.target1)}`);
   }
   if (end === 'triggered' && ep.score) {
-    lines.push(`Scored: ${OUTCOME_WORDS[ep.score.outcome ?? ''] ?? ep.score.outcome ?? 'not yet'}, bar exits ${r(ep.score.bar_r)}`);
+    const said = (short ? shortOutcomeWords(ep.score.outcome) : null) ?? OUTCOME_WORDS[ep.score.outcome ?? ''];
+    lines.push(`Scored: ${said ?? ep.score.outcome ?? 'not yet'}, bar exits ${r(ep.score.bar_r)}`);
   }
   const a = ep.after;
-  if (a) lines.push(...afterLines(a));
+  if (a) lines.push(...(short ? shortAfterLines(a) : afterLines(a)));
   else if (end === 'failed' || end === 'faded') lines.push('What came next: not known (no chart bars were read for it).');
   return { title, lines };
 }
@@ -351,9 +358,16 @@ function afterLines(a: EpisodeAfter): string[] {
 export function laneStory(lane: SetupLane): { title: string; lines: string[] } {
   if (isFlatTop(lane.setup_type)) return flatTopStory(lane);
   const lines = [lane.reason || lane.state];
-  if (lane.leg) lines.push(`Leg ${lane.leg.pct >= 0 ? '+' : ''}${(lane.leg.pct * 100).toFixed(1)}% to ${fmtPx(lane.leg.high)}`);
+  const short = isShortEpisode(lane);
+  if (lane.leg) {
+    lines.push(short ? shortLegLine(lane.setup_type, lane.leg)
+      : `Leg ${lane.leg.pct >= 0 ? '+' : ''}${(lane.leg.pct * 100).toFixed(1)}% to ${fmtPx(lane.leg.high)}`);
+  }
   const lv = lane.setup ?? lane.forming;
-  if (lv) lines.push(`${lane.setup ? 'Armed' : 'Would arm'}: trigger ${fmtPx(lv.trigger)}, stop ${fmtPx(lv.stop)}, target ${fmtPx(lv.target1)}`);
+  if (lv) {
+    lines.push(short ? shortArmedLine(lv, Boolean(lane.setup))
+      : `${lane.setup ? 'Armed' : 'Would arm'}: trigger ${fmtPx(lv.trigger)}, stop ${fmtPx(lv.stop)}, target ${fmtPx(lv.target1)}`);
+  }
   if (lane.state === 'failed') lines.push('It stays here faint once the lane moves on, with what price did next.');
   return { title: `${setupName(lane.setup_type)} · ${lane.state}`, lines };
 }

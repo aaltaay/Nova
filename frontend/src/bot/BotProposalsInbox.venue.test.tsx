@@ -56,7 +56,7 @@ describe('proposal inbox Stage uses the confirmed desk venue', () => {
     const stage = screen.getByTestId('bots-stage-AAPL') as HTMLButtonElement;
     expect(stage.disabled).toBe(false);
     fireEvent.click(stage);
-    expect(fixture.staged).toHaveBeenCalledWith('AAPL', '10.00', expect.any(Function), 200);
+    expect(fixture.staged).toHaveBeenCalledWith('AAPL', '10.00', expect.any(Function), 200, null);
     expect(fixture.dismissed).toHaveBeenCalledWith(['p1']);
   });
 

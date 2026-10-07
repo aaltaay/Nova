@@ -105,9 +105,10 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
   return (
     <div className="setups-panel">
       <div className="watchlist-description" data-testid="setups-description">
-        One scanner per setup — first pullback, bull flag, flat-top breakout and red to green — on the HOD Momo
-        names. Near the trigger the bot reads Level 2 and the tape. {SETUPS_LEVEL_WORDS} &ldquo;Stage ticket&rdquo;
-        only fills your ticket, sized by your risk per trade; you press Place. Hover any chip for what it means.
+        One scanner per setup on the HOD Momo names: the long ones (first pullback, bull flag, flat-top breakout, red
+        to green, Gap and Go) and the five shorts, marked ▼. Near the trigger the bot reads Level 2 and the tape.
+        {' '}{SETUPS_LEVEL_WORDS} &ldquo;Stage ticket&rdquo; only fills your ticket, sized by your risk per trade: a
+        short goes in on its Short side with its buy stop. You press Place. Hover any chip for what it means.
       </div>
       <div className="setups-toolbar">
         <button type="button" className={`sub-tab ${view === 'board' ? 'active' : ''}`} onClick={() => setView('board')}>

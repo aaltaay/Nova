@@ -20,7 +20,7 @@ import { proposalStageLock, proposalStageSize, proposalVerdictLine, stageLimit }
 import { fmtCents, fmtPx } from './setupsFormat';
 import { setupTypeOf } from './setupWords';
 import { riskSourceWords, useSleeveRisk } from './sleeveRisk';
-import { stageSetupTicket, stageVenueLock } from './stageSetupTicket';
+import { shortStageOf, stageSetupTicket, stageVenueLock } from './stageSetupTicket';
 import type { SetupsBoard } from './types';
 import './setups.css';
 
@@ -39,19 +39,23 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
   const kind = top.kind ? (SETUP_KIND_LABELS[top.kind] ?? top.kind) : 'Setup';
   const limit = stageLimit(top.entry);
   const size = proposalStageSize(top, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
+  // A short proposal (ADR 049) stages a short with its buy stop, never a buy.
+  const short = shortStageOf(top);
   const lock = proposalStageLock(top, size) ?? stageVenueLock(venue, Boolean(sample));
   const verdict = proposalVerdictLine(top);
   const tapeNow = top.tape_now ?? 'go';
   const level = SETUP_TRIGGER_LEVEL_WORDS[setupTypeOf(top)] ?? 'trigger';
   const grade = top.grade ? `${top.grade}${top.pillars ? ` ${top.pillars.passed}/${top.pillars.total}` : ''}` : null;
-  const stageTip = `Open ${top.symbol} and stage a BUY limit at ${limit} for ${size.text}. Nothing is sent until you `
+  const what = short ? `a SHORT limit at ${limit} with its buy stop ${short.buyStop}` : `a BUY limit at ${limit}`;
+  const stageTip = `Open ${top.symbol} and stage ${what} for ${size.text}. Nothing is sent until you `
     + `press Place.${risk.why ? `\n${risk.why}` : ''}`;
   return (
     <div className={`setups-alert${verdict ? ` setups-alert--${verdict.tone}` : ''}`} role="status" aria-live="polite"
       data-testid="setups-alert">
       <div className="setups-alert-body">
-        <strong>{top.symbol}</strong> {kind.toLowerCase()} near the {fmtPx(top.trigger)} {level}.
-        {' '}Stop {fmtPx(top.stop)}, risk {fmtCents(top.risk)}, target {fmtPx(top.target1)}.
+        <strong>{top.symbol}</strong> {short ? <span className="setups-short-tag">▼ SHORT</span> : null}{short ? ' ' : ''}
+        {kind.toLowerCase()} near the {fmtPx(top.trigger)} {level}.
+        {' '}{short ? 'Buy stop' : 'Stop'} {fmtPx(top.stop)}, risk {fmtCents(top.risk)}, {short ? 'cover' : 'target'} {fmtPx(top.target1)}.
         {' '}<span className={`setups-tape--${tapeNow}`} {...tipProps(TAPE_VERDICT_TIPS[tapeNow] ?? tapeNow, 'The tape now')}>
           {TAPE_VERDICT_LABELS[tapeNow] ?? tapeNow}
         </span>
@@ -76,7 +80,7 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
           {...(lock === null ? tipProps(stageTip, 'Stage ticket') : {})}
           onClick={() => {
             if (lock !== null) return;
-            if (stageSetupTicket(top.symbol, limit, openStockView, size.qty)) dismiss(top.id);
+            if (stageSetupTicket(top.symbol, limit, openStockView, size.qty, short)) dismiss(top.id);
           }}
           data-testid="setups-alert-stage"
         >

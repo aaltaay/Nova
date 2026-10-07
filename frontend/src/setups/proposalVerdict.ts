@@ -49,11 +49,13 @@ export function stageLimit(entry: number | null | undefined): string {
   return entry != null && Number.isFinite(entry) && entry > 0 ? fmtPx(entry) : '';
 }
 
-/** The proposal's risk a share: its own, else entry minus stop; null when neither is known and positive. */
-export function proposalRisk(p: Pick<SetupProposal, 'risk' | 'entry' | 'stop'>): number | null {
+/** The proposal's risk a share: its own, else the distance from the entry to the stop (under it on a long,
+ * over it on a short, ADR 049); null when neither is known and positive. */
+export function proposalRisk(p: Pick<SetupProposal, 'risk' | 'entry' | 'stop'> & { side?: string | null }): number | null {
   if (p.risk != null && Number.isFinite(p.risk) && p.risk > 0) return p.risk;
-  if (p.entry != null && p.stop != null && p.entry > p.stop) return p.entry - p.stop;
-  return null;
+  if (p.entry == null || p.stop == null) return null;
+  const risk = p.side === 'short' ? p.stop - p.entry : p.entry - p.stop;
+  return risk > 0 ? risk : null;
 }
 
 export interface StageSize {
@@ -73,15 +75,17 @@ function perShare(risk: number): string {
 /** The risk per trade over the risk a share, in whole shares, with the words that say so. `source` names
  * where the risk per trade comes from ("the Paper sleeve's"). */
 export function proposalStageSize(
-  p: Pick<SetupProposal, 'risk' | 'entry' | 'stop'>,
+  p: Pick<SetupProposal, 'risk' | 'entry' | 'stop'> & { side?: string | null },
   riskUsd: number,
   source: string,
 ): StageSize {
   const risk = proposalRisk(p);
-  if (risk === null) return { qty: null, text: SETUPS_STAGE_NO_STOP_WHY };
+  // A short needs its stop itself, not only a risk (no stop, no short).
+  if (risk === null || (p.side === 'short' && p.stop == null)) return { qty: null, text: SETUPS_STAGE_NO_STOP_WHY };
   const n = riskUsd > 0 ? Math.floor(riskUsd / risk + 1e-9) : 0;
   if (n < 1) {
-    return { qty: null, text: `${usd(riskUsd)} of risk (${source}) buys no whole share at ${perShare(risk)} a share.` };
+    const verb = p.side === 'short' ? 'shorts' : 'buys';
+    return { qty: null, text: `${usd(riskUsd)} of risk (${source}) ${verb} no whole share at ${perShare(risk)} a share.` };
   }
   return {
     qty: n,

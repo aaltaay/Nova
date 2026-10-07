@@ -26,6 +26,9 @@ export interface ClosedProposal {
   label: string;
   reason: string;
   closedAt: number;
+  /** ADR 049: the proposal's setup and side (absent on an older API: a long). */
+  setup_type?: string | null;
+  side?: string | null;
 }
 
 function num(v: unknown): number | null {
@@ -56,6 +59,8 @@ export function closedProposals(audit: readonly BotAuditEntry[], nowSec: number,
       label: BOTS_PROPOSAL_CLOSED_LABELS[row.outcome],
       reason: row.reason ?? '',
       closedAt,
+      setup_type: typeof inputs.setup_type === 'string' ? inputs.setup_type : null,
+      side: typeof inputs.side === 'string' ? inputs.side : null,
     });
     if (out.length >= BOTS_PROPOSAL_CLOSED_MAX) break;
   }

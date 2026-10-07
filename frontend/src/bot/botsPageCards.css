@@ -64,6 +64,7 @@
 .bots-side { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 0 6px; line-height: 18px; }
 .bots-side--buy { color: var(--bots-green); background: color-mix(in srgb, var(--bots-green) 16%, transparent); }
 .bots-side--sell { color: var(--bots-red); background: color-mix(in srgb, var(--bots-red) 16%, transparent); }
+.bots-side--short { color: var(--short-ink, #fb923c); background: var(--short-tint, rgba(234, 88, 12, 0.16)); }
 .bots-grade {
   font-size: 10.5px;
   font-weight: 700;

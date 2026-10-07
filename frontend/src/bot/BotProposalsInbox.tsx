@@ -31,9 +31,11 @@ import {
   fmtPx,
   proposalStageLock,
   proposalStageSize,
+  isShortRow,
   riskSourceWords,
   setupLabel,
   setupTypeOf,
+  shortStageOf,
   stageLimit,
   stageSetupTicket,
   stageVenueLock,
@@ -140,6 +142,9 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
         const entry = stageLimit(p.entry);
         const ids = [p.id, ...also.map(a => a.id)];
         const size = proposalStageSize(p, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
+        // A short proposal (ADR 049) stages a short with its buy stop, never a buy.
+        const short = shortStageOf(p);
+        const what = short ? `a SHORT limit at ${entry} with its buy stop ${short.buyStop}` : `a BUY limit at ${entry}`;
         const stageWhy = !entry ? SETUPS_STAGE_NO_ENTRY_WHY : stageLock(p) ?? proposalStageLock(p, size)
           ?? stageVenueLock(venue, Boolean(sample));
         return (
@@ -149,9 +154,9 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
                 {kindLabel(p.kind)}
               </span>
               <b className="bots-prop__sym">{p.symbol}</b>
-              <span className="bots-side bots-side--buy">BUY</span>
+              {short ? <span className="bots-side bots-side--short">▼ SHORT</span> : <span className="bots-side bots-side--buy">BUY</span>}
               <span className="bots-prop__lv">
-                trigger <b>{fmtPx(p.trigger)}</b> · stop {fmtPx(p.stop)} · target {fmtPx(p.target1)}
+                trigger <b>{fmtPx(p.trigger)}</b> · {short ? 'buy stop' : 'stop'} {fmtPx(p.stop)} · {short ? 'cover' : 'target'} {fmtPx(p.target1)}
               </span>
               <span className={`bots-vbadge bots-vbadge--${tape}`} {...tipProps(TAPE_VERDICT_TIPS[tape] ?? tape, 'The tape now')}>tape {tape.toUpperCase()}</span>
               {p.grade ? <span className="bots-grade">{p.grade}</span> : null}
@@ -167,8 +172,8 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
               <button type="button" className="bots-btn bots-btn--primary" disabled={stageWhy != null}
                 data-testid={`bots-stage-${p.symbol}`}
                 data-why={stageWhy ?? undefined}
-                title={stageWhy == null ? `Open ${p.symbol} and stage a BUY limit at ${entry} for ${size.text}. Nothing is sent until you press Place.` : undefined}
-                onClick={() => { if (stageWhy == null && stageSetupTicket(p.symbol, entry, openTrader, size.qty)) dismissAll(ids); }}>
+                title={stageWhy == null ? `Open ${p.symbol} and stage ${what} for ${size.text}. Nothing is sent until you press Place.` : undefined}
+                onClick={() => { if (stageWhy == null && stageSetupTicket(p.symbol, entry, openTrader, size.qty, short)) dismissAll(ids); }}>
                 {BOTS_PROPOSAL_STAGE}
               </button>
               <button type="button" className="bots-btn" data-testid={`bots-dismiss-${p.symbol}`} onClick={() => dismissAll(ids)}>
@@ -184,8 +189,8 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
           <div className="bots-prop__head">
             <span className="bots-kind">{kindLabel(c.kind)}</span>
             <b className="bots-prop__sym">{c.symbol}</b>
-            <span className="bots-side bots-side--buy">BUY</span>
-            <span className="bots-prop__lv">trigger {fmtPx(c.trigger)} · stop {fmtPx(c.stop)}</span>
+            {isShortRow(c) ? <span className="bots-side bots-side--short">▼ SHORT</span> : <span className="bots-side bots-side--buy">BUY</span>}
+            <span className="bots-prop__lv">trigger {fmtPx(c.trigger)} · {isShortRow(c) ? 'buy stop' : 'stop'} {fmtPx(c.stop)}</span>
             <span className="bots-prop__time bots-prop__time--end">{c.label} {etClock(c.closedAt).slice(0, 5)}</span>
           </div>
           {c.reason ? <p className="bots-prop__why">{prose(c.reason.charAt(0).toUpperCase() + c.reason.slice(1))}</p> : null}

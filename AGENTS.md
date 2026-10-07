@@ -5045,6 +5045,9 @@ nothing here places, stages or cancels an order, and until step 5 nothing trades
   - `PATCH /api/bot/session {setup_levels}` refuses On (2) for a short setup, 409 `BOT_SHORT_TEST`, unless its test
     passed on the rules in play. A short setup at On whose test stops matching reads as Eyes.
   - `GET /api/bot/session`'s `setups[]` add `side`, `test` and `locked: string | null` (why On is locked).
+  - The operator runs the test on the desk (`research/shorts/README.md`: `select_shorts.py`, then
+    `research/orb/extract_minutes.py --selection shorts_selection --table minutes_shorts --start 04:00`, then
+    `test_shorts.py --setup <setup>`); a queued card names its own command.
   - The harness writes the result file `<NOVA_MARKET_DATA_DIR>/research/short_tests/<setup>.json`
     (`NOVA_SHORT_TESTS_DIR` moves the folder) through a temporary file and a rename. No agent writes it. Its
     shape:
@@ -5076,7 +5079,8 @@ nothing here places, stages or cancels an order, and until step 5 nothing trades
   never a buy.
 - **On the desk.** Short setups are drawn in orange with ▼ SHORT, live and past. Their cards carry the ▼ SHORT tag,
   the mirrored tape gate words and "Test: five-year test queued / running / passed / failed". Their On is locked
-  with the reason until the test passes.
+  with the reason until the test passes. A short plan's badge reads "BEAR FLAG ▼ SHORT · ARMED", and its calls say
+  SHORT NOW under the trigger and, in a Nova mode, STAGE THE SHORT until step 5.
 
 ### Execution command (ADR 007 — sole broker mutation entry)
 

@@ -7,6 +7,7 @@
  * uses, read from the same constants.
  */
 import { CHART_SESSION_COLORS } from '../constants';
+import { SHORT_SETUP_COLORS } from '../constantGroups/short_setups';
 import type { PaneKind } from './chartShapes';
 import { FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS } from './constants';
 
@@ -98,6 +99,7 @@ function setupRows(): KeySection {
       { swatch: 'box', color: SETUP_COLORS.trigger, fill: SETUP_COLORS.leg, label: 'Armed / near', text: 'ready: waiting for the trigger price' },
       { swatch: 'box', color: SETUP_COLORS.target, fill: 'rgba(48, 209, 88, 0.12)', label: 'Triggered', text: 'price went through the trigger' },
       { swatch: 'box', color: SETUP_COLORS.fadedStroke, fill: SETUP_COLORS.faded, label: 'Ended (faint, dashed)', text: '✕ failed · ○ faded · ✓ triggered earlier' },
+      { swatch: 'box', color: SHORT_SETUP_COLORS.stroke, fill: SHORT_SETUP_COLORS.fill, label: '▼ SHORT', text: 'a short setup (always labelled SHORT): its trigger under the pattern, its buy stop over it' },
     ],
   };
 }
@@ -146,14 +148,14 @@ function fiveOnMinuteRows(): KeySection {
 
 function planRows(full: boolean): KeySection {
   const rows: KeyRow[] = [
-    { swatch: 'line', color: SETUP_COLORS.trigger, label: 'Entry', text: 'where the plan buys' },
+    { swatch: 'line', color: SETUP_COLORS.trigger, label: 'Entry', text: 'where the plan buys (a short plan: where it shorts)' },
     { swatch: 'line', color: SETUP_COLORS.stop, label: 'Stop', text: 'where the plan gets out at a loss' },
     { swatch: 'line', color: SETUP_COLORS.target, label: 'Target', text: 'where the plan takes profit' },
   ];
   if (full) {
     rows.push(
-      { swatch: 'band', color: SETUP_COLORS.risk, label: 'Red zone', text: 'the risk: entry down to the stop' },
-      { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: entry up to the target' },
+      { swatch: 'band', color: SETUP_COLORS.risk, label: 'Red zone', text: 'the risk: from the entry to the stop (over the entry on a short)' },
+      { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: from the entry to the target (under it on a short)' },
     );
   }
   rows.push({ swatch: 'dash', color: GREY, label: 'Dashed vs solid', text: 'dashed: only a plan · solid: an order is working' });

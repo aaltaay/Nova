@@ -254,7 +254,9 @@ long mirror's where one exists.
 
 ### The five-year test
 
-Run by `research/shorts/` on the desk:
+Run by `research/shorts/` on the desk, in three commands (`research/shorts/README.md`): `select_shorts.py` (the
+universe), `research/orb/extract_minutes.py --selection shorts_selection --table minutes_shorts --start 04:00` (the
+bars), then `test_shorts.py --setup <setup>` once per setup. Each card says its own command while its test is queued.
 
 - **The universe** comes from the day movers index (ADR 050), with no hindsight:
   - a common stock is followed from the first minute its high reached +10% over the prior close (`up10_ts`);
