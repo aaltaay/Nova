@@ -110,12 +110,21 @@ SETUPS_BF_REQUIRE_HOD = False           # the material asks no new high of day
 SETUPS_BF_MAX_PER_SYMBOL_DAY = 2        # the first and second flag, skip the third
 SETUPS_BF_TARGET_MODES = ("leg_or_r", "leg", "fixed")
 
-# -- Flat-top breakout (P2, research/momentum/backtest_setups.py find_flat_top).
+# -- Flat-top breakout (ADR 031; amended 2026-10-06: the flat top the operator's material draws -- the high of
+# day tapped again and again). The research's P2 rule (research/momentum/backtest_setups.py find_flat_top) is
+# one setting away: flat_top_shape.P2_RULE.
 SETUPS_FT_IMPULSE_PCT = 0.03            # the move into the high of day over the window's lowest low
 SETUPS_FT_LEG_WINDOW_BARS = 10
-SETUPS_FT_MIN_CONSOL = 2                # base candles right after the high-of-day candle
-SETUPS_FT_MAX_CONSOL = 6
+SETUPS_FT_MIN_CONSOL = 2                # base candles after the first touch
+SETUPS_FT_MAX_CONSOL = 20               # a flat top that began longer ago is stale (P2: 6). CHOSEN
 SETUPS_FT_BAND = 0.02                   # every base close within this fraction under the high
+SETUPS_FT_MIN_TOUCHES = 3               # candles whose high reached the flat top, the first included ("three taps")
+SETUPS_FT_TOUCH_PCT = 0.005             # a high this fraction under the flat top touched it ...
+SETUPS_FT_TOUCH_DOLLARS = 0.01          # ... or a cent under it (one tick), whichever is more. CHOSEN
+SETUPS_FT_FORMING_TOUCHES = 2           # drawn as forming from its second touch
+SETUPS_FT_BASE_FIRST_TOUCH = "first_touch"   # the base runs from the first candle that touched the flat top
+SETUPS_FT_BASE_LAST_HIGH = "last_high"       # the research's P2: right after the last candle at the high
+SETUPS_FT_BASE_START = SETUPS_FT_BASE_FIRST_TOUCH
 SETUPS_FT_ENTRY_HOLD = "hold"           # the taught way: a green candle holding over the high
 SETUPS_FT_ENTRY_BREAK = "break"         # the variant: the break itself
 SETUPS_FT_ENTRY = SETUPS_FT_ENTRY_HOLD
@@ -290,8 +299,17 @@ SETUP_TEMPLATES_FILENAME = "setup-templates.json"   # under paths.cache_dir(), n
 SETUP_TEMPLATE_DEFAULT_ID = "default"
 SETUP_TEMPLATE_DEFAULT_NAME = "Default (pre-registered)"
 # The default's rules revision. Bump it when the defaults above change what the
-# scanner arms or scores, so the read-out starts over for the new rules.
+# scanner arms or scores, so the read-out starts over for the new rules -- per setup,
+# so one setup's new rules never restart another's evidence.
 SETUP_TEMPLATE_DEFAULT_REV = 1
+SETUP_TEMPLATE_DEFAULT_REVS: dict[str, int] = {
+    BOT_SETUP_FLAT_TOP: 2,      # 2026-10-06: the flat top counts its touches (ADR 031 amendment)
+}
+
+
+def setup_default_rev(setup: str) -> int:
+    """The built-in default's rules revision for ``setup``."""
+    return SETUP_TEMPLATE_DEFAULT_REVS.get(setup, SETUP_TEMPLATE_DEFAULT_REV)
 SETUP_TEMPLATES_MAX_PER_SETUP = 6                   # the default included; all watched at once
 SETUP_TEMPLATE_NAME_MAX = 40
 SETUP_TEMPLATE_NOTE_MAX = 280

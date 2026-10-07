@@ -1271,8 +1271,8 @@ open when the open is under it, broken by 10:00, stop `min(20c, 4%)` under the
 entry, one try a day; a new setup starts Off on every venue). The board is `schema_version: 2`: every row and
 proposal adds `setup_type: "first_pullback" | "bull_flag" | "flat_top_breakout"
 | "red_to_green" | "gap_and_go"`; a row adds `failed_at: number | null` and its `setup` adds
-`detail: object | null` (the setup's own facts: `entry_mode` and `broke_at` for
-the flat-top breakout, `open` and `red_bars` for red to green, `pole_bars` for the
+`detail: object | null` (the setup's own facts: `entry_mode`, `broke_at` and the touches for
+the flat-top breakout ("The flat top counts its touches" below), `open` and `red_bars` for red to green, `pole_bars` for the
 bull flag, `pm_high`, `pm_high_t`, `open`, `open_t` and `stop_rule` for Gap and Go);
 `kind` is one of `first_pullback | second_pullback | bull_flag |
 second_bull_flag | flat_top_breakout | second_flat_top_breakout | red_to_green |
@@ -1333,6 +1333,47 @@ the snapshot has none (`null` when neither knows). Board rows and `GET
   trigger (`null` before one, and on a filtered setup).
 - `outcome_at: number | null` -- when the scoring's first touch (target 1 or
   the stop) printed; `scored` journal lines carry it.
+
+### The flat top counts its touches (ADR 031 amendment, operator ask 2026-10-06)
+
+"Make it something special like this ... when it starts forming. I doubt real life is going to be perfect as this, so
+we may need a drift or a ratio to still consider flat top." Owners `setup_scanner/flat_top_shape.py` (the shape, pure),
+`setup_scanner/flat_top.py` (the states); on the desk `frontend/src/stock_read/flatTopShapes.ts`.
+
+- **The rule.** The level is the high of day.
+  - A **touch** is a candle whose high is within the tolerance under it: `ft_touch_pct` of the level (0.5%) or
+    `ft_touch_dollars` ($0.01), whichever is more. A candle a little over the earlier touches, inside the tolerance,
+    is a touch too: the level drifts up to it and keeps its row.
+  - The base runs from the **first touch**, the earliest candle in the zone after an impulse into it. Every later
+    close stays within `ft_band` under the level and every low on the EMA.
+  - At least one touch after the first makes no new high (a retest): highs rising a cent at a time are a move.
+  - It is drawn forming from its second touch (state `leg`, `forming.waiting: "N more touch(es)"`, `forming.bars` the
+    touches). It arms at `ft_min_touches` (3) on a base of `ft_min_consol`-`ft_max_consol` (2-20) candles. A flat top
+    that began longer ago is stale.
+  - The hold entry reads the zone as the level: a candle whose low stays in it and that closes green over the high
+    holds. Only a close under the zone fails it.
+- **The research's P2 is a setting.** `ft_base_start: "last_high"`, one touch, no tolerance and a 6-candle base
+  (`flat_top_shape.P2_RULE`) run it exactly. A stored template without the new parameters reads `catalogue.LEGACY`
+  (P2's values), never the new defaults. The catalogue's tables moved to `setup_templates/params.py`; `catalogue.py`
+  keeps the validator.
+- **Revisions.** The built-in default's revision is per setup (`SETUP_TEMPLATE_DEFAULT_REVS`, `setup_default_rev`): the
+  flat top's is 2 and its read-out starts over. The 5-minute flat-top lane's revision is 2 (`FIVE_MIN_REVS`).
+- **On the wire.** A flat top's `leg` adds `touches: [[t, high], ...]` (oldest first) and `zone` (the lowest high that
+  touches), and `bars` counts the base. Its armed `detail` adds `touches`, `zone`, `min_touches` and `broke_bar_t`
+  (the break's candle, hold entry). A triggered hold adds `hold_bar_t` and `hold_high`. A row, journal line or
+  episode written before has none of them.
+- **On the desk.** The drawing follows the operator's sketch:
+  - a violet level from the first touch to the right edge, dashed while it forms;
+  - a ring on each touch, the last ring counting them ("4 touches", "2 of 3 touches");
+  - the base boxed;
+  - a green triangle over the candle that broke it, and a green box around the candle that held it;
+  - its name in the edge column ("FLAT TOP = HOD 5.50" until it breaks).
+
+  A flat top that is not the plan's lead is a dimmed violet without labels, and a failed one is grey. A past flat top
+  keeps its rings, faint. The 5-minute chart draws its lane the same way, and its trigger line reads "5m FLAT TOP".
+  Every pane's Key adds the flat top's marks.
+- **Unchanged.** The 1-minute flat top plays as before; the 5-minute one is drawn and scored only. No flat-bottom
+  short: Nova opens no shorts (Invariant 7).
 
 ### One row per trigger (ADR 022 amendment, 2026-10-02)
 
@@ -4858,6 +4899,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-06 | The flat top counts its touches (ADR 031 amendment; operator, with a sketch: "Make it something special like this ... when it starts forming. I doubt real life is going to be perfect as this, so we may need a drift or a ratio to still consider flat top"). The flat top read no taps of the level at all: it armed any 2-6 candles closing within 2% under the high of day, a tie of the high started it over on a new row, and a cent over the high reset the base. Now the level is the high of day, and a touch is a high within 0.5% or a cent under it (a candle a little over the earlier touches drifts the level up and keeps the row). The base runs from the first touch, needs a retest, is drawn forming from the second touch, arms at the third, and may run 20 candles. The hold reads the zone as the level. The research's P2 stays one setting away (and a saved template keeps it); the flat top's default revision moves to 2. The desk draws it as the sketch on the 1-minute and 5-minute charts: the violet level, a ring per touch with the count, the base boxed, the break and the hold candle marked. No flat-bottom short (Invariant 7). The catalogue's tables moved to `setup_templates/params.py`. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | LULD bands on Level 2 (ADR 047; operator: "do we have LULD levels?", then, with DAS screenshots, "1 go.. make it obvious"). IBKR passes on the halt, never the band, and the Nasdaq halt feed's threshold is blank, so Nova computes each stock's limit up / limit down from the published Plan rules over the tape and NBBO it holds (`backend/luld/`): the opening or reopening print first, then the 5-minute mean, moved only on a 1% change after 30 s, held in a limit state. Where the Plan's text leaves room, the SIP's own band flags in the Massive NBBO decided. A limit state's end makes no reference (the text says it does: 64% exact against 81%), and the mean is unrounded. On 10 days of SIP data Nova's band matched the exchanges' to the cent on 81% of 593 band touches and within 1c on 87%; on Nova's own recordings, GRML's three pauses of 2026-09-22 land exactly (14.18, 17.18, 15.87). The Level 2 ladder draws a red `LULD` row in each column and a strip above the book that counts a limit state's 15 s down to the pause; an approximate band (no open or reopen seen) shows `≈`. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | A rebuilt day confirms the splits Massive's list misses from SEC filings (#772). PHGE's 1-for-10 reverse split on 2026-09-09 was not in the list, so the rebuilt boards read +925% (0.155 -> 1.60) and it topped Gainers and the frozen Gappers. `research/leaderboard/confirm_splits.py` takes each overnight jump of 1.8x or more (0.7x or less) that no listed split explains, reads the ticker's 8-K (Item 5.03 / 3.03) or 6-K filed from 60 days before to 3 after, and confirms a split only when the filing states one ratio outside a range, the split-adjusted open sits 0.5-2x the prior close and the filing's effective date falls on the session (`split_confirm.py`, pure). Never on the price jump alone. On 2026-06-16..09-21: 285 suspects, 181 with such a filing, 1 confirmed (PHGE, its own 8-K: "effected a one-for-ten reverse stock split ... split-adjusted basis ... September 9, 2026"), 107 refused, 0 unread; the refusals read on sample were right (GCDT's consolidation takes effect October 7; SGLD's "1 ADS for every 20 shares" is a new listing). `splits_confirmed.json` beside the store (schema in §3) is read by `lb_io.load_splits` and `spot_check.py`; `build_leaderboard.py --dates` rebuilds the days a split touches. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | A rebuilt day has Losers and Gappers (ADR 023 amendment; operator report on 2026-09-09 at 07:00 in Sim: "Don't we already have the data for this day ... Why do we not see gainers, losers, and gappers for that hour?"). The Massive files for the day were on disk, but the rebuild kept one board a minute, the top 100 risers (`market`), which the desk showed as Gainers; no stored row that day was under 0% at 07:00, 09:45 or 16:30, so Losers could not be read back, and nothing projected Gappers. `research/leaderboard` now writes `losers` (the worst 100, `LOSERS_RULES`) and `gappers` (the live premarket rule, `GAPPERS_RULES` = `ibkr/gapper_view.row_qualifies`, frozen at 09:30 in its 09:30 order and repriced after, as the live list is) beside `market`, every board covering every minute; a day counts complete only with all three, so the 66 days rebuilt before are rebuilt again. The desk fills Gainers, Losers and Gappers from a rebuilt day, and After Hours and Large Cap say why they are not rebuilt. Found alongside it: PHGE's 1-for-10 reverse split on 2026-09-09 is missing from Massive's split list, so the rebuilt boards show it +925% (one such jump in the 66 rebuilt days; the other 30 overnight jumps of 3x or more traded 10-1,000x more volume). §3 amended. | User Directive + Claude Opus 5.5 |

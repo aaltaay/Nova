@@ -196,7 +196,17 @@ export function normalizeLeg(raw: unknown): SetupLeg | null {
   const high = num(l?.high);
   const low = num(l?.low);
   if (!l || t === null || high === null || low === null) return null;
-  return { t, high, low, pct: num(l.pct) ?? 0, bars: num(l.bars) ?? undefined };
+  const leg: SetupLeg = { t, high, low, pct: num(l.pct) ?? 0, bars: num(l.bars) ?? undefined };
+  // A flat top's touches and its zone (2026-10-06); absent from every other setup and from an older backend.
+  const touches = list(l.touches, (x): [number, number] | null => {
+    const at = Array.isArray(x) && x.length === 2 ? num(x[0]) : null;
+    const px = Array.isArray(x) && x.length === 2 ? num(x[1]) : null;
+    return at !== null && px !== null ? [at, px] : null;
+  });
+  if (touches.length) leg.touches = touches;
+  const zone = num(l.zone);
+  if (zone !== null) leg.zone = zone;
+  return leg;
 }
 
 function series(raw: unknown): LaneSeries | null {

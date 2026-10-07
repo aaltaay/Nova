@@ -204,3 +204,63 @@ are full strategies because the bet is the live tape gate and the Paper read-out
   pre-market's. A history that never comes is given up and the name is seeded with what the store holds; its
   pre-market high is then only as complete as those minutes.
 - Not built here: the micro pullback (one-second bars).
+
+
+## Amendment 2026-10-06 -- the flat top counts its touches, within a tolerance
+
+**Decided by:** the operator, 2026-10-06, with a sketch of the pattern (a run-up, candles tapping the high of day,
+each touch ringed, the base boxed, the break and the hold candle marked): "Make it something special like this ...
+when it starts forming. I doubt real life is going to be perfect as this, so we may need a drift or a ratio to still
+consider flat top ... you need to study the material to make sure what I'm talking about is correct ... maybe it's
+5 minutes, maybe it's 1 minute ... I don't know if it's worth adding the strategy as a short position ... do what you
+think is best."
+
+In the operator's material a flat top is a stock that ran up and then taps the same price, the high of day, again
+and again: the consolidation candles sit at or just under the high, rest on the 9 EMA, and the pattern breaks on the
+first candle over it. It reads best on 5-minute candles and is bought on the 1-minute, on the first pullback that
+holds the level after the break.
+
+Decision 1's flat top (the research's P2) counted no taps at all. It armed any 2-6 candles closing within 2% under
+the high, so a base whose highs never came back to the level armed as a flat top. A candle that tied the high started
+the setup over on a new row, and one a cent over it reset the base. Every flat top the live scanner had triggered so
+far armed on that minimum 2-candle base.
+
+- **The shape** (`setup_scanner/flat_top_shape.py`). The level is the high of day. A **touch** is a candle whose high
+  is within the tolerance under it: `ft_touch_pct` of the level (default 0.5%) or `ft_touch_dollars` (default $0.01,
+  one tick), whichever is more, so a consolidation a couple of cents under the high still counts. A candle a
+  little over the earlier touches, inside the tolerance, is a touch too: the level drifts up to it and the setup
+  keeps its row. The base runs from the **first touch**: the earliest candle in the zone after an impulse
+  into it (unchanged: 3% over the 10-candle low), from which every close stays within 2% under the level and every
+  low on the 9 EMA. At least one touch after the first must make no new high (a **retest**), so highs rising a cent at
+  a time are a move, not a flat top.
+- **Forming, then armed.** From its second touch it is drawn forming ("2 of 3 touches", state `leg` with `forming`
+  levels and `waiting: "1 more touch"`). It arms at `ft_min_touches` (default 3: the high-of-day candle and two
+  taps) on a base of `ft_min_consol`-`ft_max_consol` candles after the first touch, with the MACD and window rules
+  as before. A flat top that began more than `ft_max_consol` candles back is stale; the default rises from 6 to 20.
+  The material puts no limit on the base, and long ones keep tapping.
+- **The hold** reads the zone as the level: after the break, the first of the next 3 candles whose low stays in the
+  zone or over it and that closes green over the high triggers at its close (a retest of the level holds). Only a
+  close under the zone fails it. At tolerance 0 this is exactly the old rule.
+- **The research's P2 is one setting away.** `ft_base_start: "last_high"` with one touch and no tolerance, base at
+  most 6, runs it exactly (`flat_top_shape.P2_RULE`), and the research parity test runs it. A template saved before
+  these parameters keeps the rule it ran: a stored template that lacks one reads its `catalogue.LEGACY` value, never
+  the new default.
+- **A new revision.** The built-in default's rules revision is per setup now (`SETUP_TEMPLATE_DEFAULT_REVS`): the
+  flat top's is 2, so its read-out starts over on the new rules. No other setup's moves. The 5-minute flat-top lane's
+  revision is 2 too (`FIVE_MIN_REVS`).
+- **On the wire.** A flat top's `leg` adds `touches: [[t, high], ...]` (oldest first) and `zone` (the lowest high
+  that touches), and `bars` counts the base's candles. Its armed `detail` adds `touches`, `zone`, `min_touches` and
+  `broke_bar_t` (the candle the break printed in; hold entry). A triggered hold adds `hold_bar_t` and `hold_high`.
+- **On the desk** (`frontend/src/stock_read/flatTopShapes.ts`). The flat top is drawn as the sketch: a violet level from
+  the first touch to the right edge, dashed while it forms and solid once armed. Each touch gets a lavender ring on its
+  candle's high, and the last ring counts them ("4 touches", "2 of 3 touches"). The base is boxed. A green triangle
+  marks the candle that broke it, and a green box marks the candle that held it. The level's name is in the edge
+  column ("FLAT TOP = HOD 5.50" until it breaks). A flat top that is not the plan's lead is a dimmed violet without
+  labels; a failed one is grey. Past flat tops keep their rings, faint. The same drawing runs on the 5-minute chart's
+  lane (labels "5m"), where the lead's trigger line is named "5m FLAT TOP". Each pane's Key lists the marks. The
+  5-minute flat top's chip on the 1-minute chart says how the material buys it there.
+- **Both timeframes, unchanged roles.** The 1-minute flat top plays as before (Off / Eyes / On). The 5-minute one is
+  still drawn and scored only (the 2026-09-30 decision); turning it into a buy is a separate decision.
+- **No short.** The flat-bottom breakdown is the material's mirror (a short, a stop-out signal for a long, or a bear
+  trap). Nova does not open shorts (Invariant 7: a short entry needs its own opt-in and the short gate, and the
+  practice venues refuse one), so no flat-bottom strategy is built here.

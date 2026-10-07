@@ -6,7 +6,7 @@ never git: the operator's variations are their edge.
 Schema: ``{schema_version: 1, setups: {SETUP: {in_play: ID | null, templates:
 [{id, name, note, rev, values, created_at, updated_at}], default_bot?: {KEY: value}}}}``.
 The built-in ``default`` is not stored: it is the catalogue's defaults at
-``SETUP_TEMPLATE_DEFAULT_REV``, with the operator's own bot rules over them
+the setup's default revision (``setup_default_rev``), with the operator's own bot rules over them
 (``default_bot``, ADR 044: ``setup_templates.default_bot``; a file without it reads as
 no overrides). An unknown schema version or an unreadable file
 is refused loudly: the file is left as it is, every setup reads its default
@@ -45,12 +45,12 @@ from typing import Any
 from constants_setups import (
     SETUP_TEMPLATE_DEFAULT_ID,
     SETUP_TEMPLATE_DEFAULT_NAME,
-    SETUP_TEMPLATE_DEFAULT_REV,
     SETUP_TEMPLATE_NAME_MAX,
     SETUP_TEMPLATE_NOTE_MAX,
     SETUP_TEMPLATES_FILENAME,
     SETUP_TEMPLATES_MAX_PER_SETUP,
     SETUP_TEMPLATES_SCHEMA_VERSION,
+    setup_default_rev,
 )
 from setup_templates import catalogue, default_bot, windows
 from setup_templates.catalogue import TemplateError
@@ -101,7 +101,7 @@ class Template:
 def default_template(setup_id: str, bot: dict[str, Any] | None = None) -> Template:
     """The built-in: the catalogue's defaults, with the operator's bot rules (``bot``) over them."""
     return Template(setup=setup_id, id=SETUP_TEMPLATE_DEFAULT_ID, name=SETUP_TEMPLATE_DEFAULT_NAME,
-                    rev=SETUP_TEMPLATE_DEFAULT_REV, values=default_bot.values(setup_id, bot), builtin=True)
+                    rev=setup_default_rev(setup_id), values=default_bot.values(setup_id, bot), builtin=True)
 
 
 class TemplateStore:

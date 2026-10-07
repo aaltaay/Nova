@@ -15,6 +15,14 @@ function Swatch({ row }: { row: KeyRow }) {
       <i className="sr-key__swatch sr-key__swatch--box" style={{ background: row.fill, borderColor: row.color }} aria-hidden="true" />
     );
   }
+  if (row.swatch === 'ring') {
+    return (
+      <i className="sr-key__swatch sr-key__swatch--ring" style={{ background: row.fill, borderColor: row.color }} aria-hidden="true" />
+    );
+  }
+  if (row.swatch === 'up') {
+    return <i className="sr-key__swatch sr-key__swatch--up" style={{ borderBottomColor: row.color }} aria-hidden="true" />;
+  }
   const style = row.swatch === 'line' ? 'solid' : row.swatch === 'dash' ? 'dashed' : 'dotted';
   return <i className="sr-key__swatch sr-key__swatch--line" style={{ borderTop: `2px ${style} ${row.color}` }} aria-hidden="true" />;
 }

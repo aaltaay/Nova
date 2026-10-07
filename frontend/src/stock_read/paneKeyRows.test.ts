@@ -7,17 +7,17 @@ const titles = (kind: Parameters<typeof chartKey>[0], layers = ON) => chartKey(k
 describe("each chart pane's Key", () => {
   it('names the levels the 5-minute candles show and the time-of-day background', () => {
     expect(titles('map')).toEqual([
-      '5-minute setups (labels start "5m")', 'Levels from 5-minute candles (hover a label for why)',
+      '5-minute setups (labels start "5m")', '5-minute Flat top', 'Levels from 5-minute candles (hover a label for why)',
       'Background (time of day, ET)',
     ]);
     expect(chartKey('map', ON)[0].rows.map(r => r.label)).toEqual(
       ['Forming', 'Armed / near', 'Ended (faint)', '5m trigger', 'Scored only']);
-    const rows = chartKey('map', ON)[1].rows.map(r => r.label);
+    const rows = chartKey('map', ON)[2].rows.map(r => r.label);
     expect(rows).toContain('Round number');
     // Yesterday's and old daily levels belong to the Full Day pane only.
     expect(rows).not.toContain("Yesterday's");
     expect(rows).not.toContain('Old daily level');
-    expect(chartKey('map', ON)[2].rows.map(r => r.label)).toEqual(['Premarket', 'Regular hours', 'After hours', 'Closed']);
+    expect(chartKey('map', ON)[3].rows.map(r => r.label)).toEqual(['Premarket', 'Regular hours', 'After hours', 'Closed']);
   });
 
   it("names past days' levels on the Full Day pane, which has no session background", () => {
@@ -28,11 +28,11 @@ describe("each chart pane's Key", () => {
 
   it("names the setups, the plan and the 1-minute candles' levels on the 1-minute", () => {
     expect(titles('full')).toEqual([
-      'Setups', 'The plan', 'Levels from 1-minute candles (hover a label for why)', 'From the 5-minute chart',
+      'Setups', 'Flat top', 'The plan', 'Levels from 1-minute candles (hover a label for why)', 'From the 5-minute chart',
       'Background (time of day, ET)',
     ]);
     expect(titles('full', { setups: false, levels: false })).toEqual(['The plan', 'Background (time of day, ET)']);
-    const levels = chartKey('full', ON)[2].rows.map(r => r.label);
+    const levels = chartKey('full', ON)[3].rows.map(r => r.label);
     expect(levels).toEqual(['Resistance', 'Support', 'Round number', 'Shaded band', 'Thick line']);
   });
 
@@ -42,7 +42,15 @@ describe("each chart pane's Key", () => {
 
   it('lists nothing for levels that are switched off, and nothing on a pane Nova does not draw on', () => {
     expect(titles('map', { setups: false, levels: false })).toEqual(['Background (time of day, ET)']);
-    expect(titles('map', { ...ON, levels: false })).toEqual(['5-minute setups (labels start "5m")', 'Background (time of day, ET)']);
+    expect(titles('map', { ...ON, levels: false })).toEqual(
+      ['5-minute setups (labels start "5m")', '5-minute Flat top', 'Background (time of day, ET)']);
+  });
+
+  it("draws the flat top's own marks: its line, a ring per touch, the base, the break and the hold", () => {
+    const flat = chartKey('full', ON).find(s => s.title === 'Flat top');
+    expect(flat?.rows.map(r => [r.swatch, r.label])).toEqual([
+      ['line', 'Flat top'], ['ring', 'Touch'], ['box', 'Base'], ['up', 'Break'], ['box', 'Hold'],
+    ]);
     expect(chartKey('none', ON)).toEqual([]);
   });
 });

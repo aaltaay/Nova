@@ -428,5 +428,10 @@
 .sr-key__swatch--line { height: 0; }
 .sr-key__swatch--band { height: 10px; border-radius: 2px; outline: 1px solid rgba(255, 255, 255, 0.12); }
 .sr-key__swatch--box { height: 10px; border: 1px solid; border-radius: 2px; }
+.sr-key__swatch--ring { width: 8px; height: 8px; margin: 0 7px; border: 1.5px solid; border-radius: 50%; }
+.sr-key__swatch--up {
+  width: 0; height: 0; margin: 0 7px;
+  border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 7px solid;
+}
 .sr-key__label { font-weight: 600; }
 .sr-key__text { color: var(--sr-secondary); }

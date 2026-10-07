@@ -169,7 +169,9 @@ def bull_flag_params(v: dict[str, Any]) -> BullFlagParams:
 def flat_top_params(v: dict[str, Any]) -> FlatTopParams:
     return FlatTopParams(
         impulse_pct=_pct(v["ft_impulse_pct"]), leg_window=int(v["leg_window"]), min_consol=int(v["ft_min_consol"]),
-        max_consol=int(v["ft_max_consol"]), band=_pct(v["ft_band"]), entry_mode=str(v["ft_entry"]),
+        max_consol=int(v["ft_max_consol"]), band=_pct(v["ft_band"]), min_touches=int(v["ft_min_touches"]),
+        touch_pct=_pct(v["ft_touch_pct"]), touch_dollars=float(v["ft_touch_dollars"]),
+        base_start=str(v["ft_base_start"]), entry_mode=str(v["ft_entry"]),
         hold_bars=int(v["ft_hold_bars"]), ema_period=int(v["ema_period"]), ema_tol=_pct(v["ema_tol"]), **_macd(v),
         **_risk(v), target_mode=str(v["target_mode"]), target_r=float(v["target_r"]),
         target_fixed=float(v["target_fixed"]), session_start=str(v["session_start"]),

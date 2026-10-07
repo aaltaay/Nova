@@ -94,6 +94,40 @@ export const LEVEL_MAP_WINDOW_PCT = 0.12;
 export const LEVEL_DAILY_WINDOW_PCT = 0.4;
 export const LEVEL_PER_SIDE = 3;
 
+/** The flat top's own look (operator's sketch, 2026-10-06): the violet level the candles tap, each touch ringed
+ * lavender, the base boxed violet, and the break and the hold candle green. Faded for a lane that is not the plan's. */
+export const FLAT_TOP_COLORS = {
+  line: '#a855f7',
+  fill: 'rgba(168, 85, 247, 0.10)',
+  ring: '#d8b4fe',
+  ringStroke: '#a855f7',
+  text: '#c4b5fd',
+  go: '#30d158',
+  holdFill: 'rgba(48, 209, 88, 0.06)',
+} as const;
+/** A flat top that is not the plan's: its own violet, dimmed, so it still reads as a flat top among the rest. */
+export const FLAT_TOP_DIM = {
+  line: 'rgba(168, 85, 247, 0.55)',
+  fill: 'rgba(168, 85, 247, 0.06)',
+  ring: 'rgba(216, 180, 254, 0.5)',
+  ringStroke: 'rgba(168, 85, 247, 0.6)',
+  text: 'rgba(196, 181, 253, 0.8)',
+  go: 'rgba(48, 209, 88, 0.55)',
+  holdFill: 'rgba(48, 209, 88, 0.04)',
+} as const;
+/** A flat top that failed: grey, like every faded lane. */
+export const FLAT_TOP_FADED = {
+  line: '#8e8e93',
+  fill: 'rgba(142, 142, 147, 0.10)',
+  ring: 'rgba(142, 142, 147, 0.45)',
+  ringStroke: '#8e8e93',
+  text: '#aeaeb2',
+  go: '#8e8e93',
+  holdFill: 'rgba(142, 142, 147, 0.06)',
+} as const;
+/** A past flat top's touches: rings as faint as its box. */
+export const FLAT_TOP_PAST_RING = { stroke: 'rgba(168, 85, 247, 0.45)', fill: 'rgba(216, 180, 254, 0.30)' } as const;
+
 /** Setups that ended, drawn fainter than the live lane: red a rule broke, grey faded, green triggered. */
 export const PAST_COLORS = {
   failed: { stroke: 'rgba(255, 69, 58, 0.55)', fill: 'rgba(255, 69, 58, 0.05)', ink: '#ff8a80' },

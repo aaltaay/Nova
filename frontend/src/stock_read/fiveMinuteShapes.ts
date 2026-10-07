@@ -10,12 +10,13 @@
  * nothing else of it. Their hover ids are their own (`lane5:`, `past5:`), so a card never mixes the two.
  */
 import type { PriceLineSpec } from './chartShapes';
-import { SETUP_COLORS } from './constants';
+import { FLAT_TOP_COLORS, SETUP_COLORS } from './constants';
 import { laneShapes, type LaneDrawOptions } from './laneShapes';
 import { drawnPast, failingNow, type Episode } from './pastSetups';
 import { pastHoverId, pastShapes } from './pastShapes';
 import { fmtPx, setupName } from './planMath';
-import type { SceneBox, SceneSegment } from './sceneTypes';
+import { pastRings } from './pastShapes';
+import type { SceneBox, SceneDot, SceneMark, SceneSegment, SceneWord } from './sceneTypes';
 import type { SetupLane, StockRead } from './types';
 
 export const FIVE_MIN_SEC = 300;
@@ -54,6 +55,9 @@ export interface FiveMinuteDraw {
   boxes: SceneBox[];
   segments: SceneSegment[];
   lines: PriceLineSpec[];
+  dots: SceneDot[];
+  marks: SceneMark[];
+  words: SceneWord[];
 }
 
 export interface FiveMinuteOptions extends LaneDrawOptions {
@@ -65,7 +69,7 @@ export interface FiveMinuteOptions extends LaneDrawOptions {
 
 /** What the 5-minute pane draws of the 5-minute lanes. */
 export function fiveMinuteScene(read: StockRead, o: FiveMinuteOptions): FiveMinuteDraw {
-  const out: FiveMinuteDraw = { boxes: [], segments: [], lines: [] };
+  const out: FiveMinuteDraw = { boxes: [], segments: [], lines: [], dots: [], marks: [], words: [] };
   const lanes = (read.setups_5m ?? []).filter(l => !o.hidden.includes(l.setup_type));
   const past = o.past ? drawnPast(o.past, o.hidden) : [];
   const failing = failingNow(past);
@@ -77,6 +81,10 @@ export function fiveMinuteScene(read: StockRead, o: FiveMinuteOptions): FiveMinu
       hoverId: ep ? past5HoverId(ep) : box.hoverId,
     });
   }
+  for (const dot of pastRings(past, { toTime: o.toTime, barSec: FIVE_MIN_SEC })) {
+    const ep = past.find(e => pastHoverId(e) === dot.hoverId);
+    out.dots.push({ ...dot, hoverId: ep ? past5HoverId(ep) : dot.hoverId });
+  }
   const lead = leadFive(lanes);
   for (const lane of lanes) {
     if (lane.state === 'failed' && failing.has(lane.setup_type)) continue;   // drawn as past instead
@@ -85,13 +93,17 @@ export function fiveMinuteScene(read: StockRead, o: FiveMinuteOptions): FiveMinu
     out.boxes.push(...s.boxes.map(b => (isLead ? named(b)
       : { ...named(b), shrink: { short: null, icon: null, rank: RANK_FADED_LANE + (lane.leg?.t ?? 0) } })));
     out.segments.push(...s.segments.map(named));
+    out.dots.push(...s.dots.map(d => (d.label ? { ...d, label: `${PREFIX}${d.label}` } : d)));
+    out.marks.push(...s.marks.map(m => ({ ...m, label: `${PREFIX}${m.label}` })));
+    // The lead's trigger line below names a flat top's level already: one name per price.
   }
   const s = lead?.setup;
   if (lead && s && (IN_REACH.has(lead.state) || lead.state === 'triggered')) {
     const line = (id: string, price: number, color: string, title: string): PriceLineSpec =>
       ({ id: `5m-${id}`, price, color, width: 1, style: 'dashed', title, axisLabel: true });
+    const flat = lead.setup_type === 'flat_top_breakout';
     out.lines.push(
-      line('trigger', s.trigger, SETUP_COLORS.trigger, '5m TRIGGER'),
+      line('trigger', s.trigger, flat ? FLAT_TOP_COLORS.line : SETUP_COLORS.trigger, flat ? '5m FLAT TOP' : '5m TRIGGER'),
       line('stop', s.stop, SETUP_COLORS.stop, '5m STOP'),
       line('target', s.target1, SETUP_COLORS.target, '5m TARGET'),
     );
@@ -114,12 +126,17 @@ export function fiveMinuteOnMinute(read: StockRead): { chips: FiveMinuteChip[]; 
     const s = lane.setup;
     if (!s || !IN_REACH.has(lane.state)) continue;
     const name = CHIP_NAMES[lane.setup_type] ?? setupName(lane.setup_type).toLowerCase();
+    // Your material draws the flat top on the 5-minute chart and buys it on this one.
+    const howToBuy = lane.setup_type === 'flat_top_breakout'
+      ? 'The taught way to buy it is on this chart: after a 5-minute candle breaks it, the first 1-minute candle '
+        + 'that holds over it and closes green. '
+      : '';
     chips.push({
       setupType: lane.setup_type,
       text: `5m ${name} · ${lane.state} ${fmtPx(s.trigger)}`,
       tip: `A ${name} on 5-minute candles is ${lane.state === 'near' ? 'near' : 'armed at'} its ${fmtPx(s.trigger)} `
         + `trigger (stop ${fmtPx(s.stop)}, target ${fmtPx(s.target1)}). ${lane.reason}\n`
-        + 'The 5-minute chart draws it; here it is only this chip and its trigger line. '
+        + `${howToBuy}The 5-minute chart draws it; here it is only this chip and its trigger line. `
         + 'Nova scores 5-minute setups in silence: they never propose or trade.',
     });
     lines.push({ id: `5m-trigger:${lane.setup_type}`, price: s.trigger, color: SETUP_COLORS.trigger, width: 1,

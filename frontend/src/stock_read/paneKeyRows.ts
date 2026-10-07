@@ -8,10 +8,11 @@
  */
 import { CHART_SESSION_COLORS } from '../constants';
 import type { PaneKind } from './chartShapes';
-import { LEVEL_COLORS, SETUP_COLORS } from './constants';
+import { FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS } from './constants';
 
-/** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, or a box. */
-export type KeySwatch = 'line' | 'dash' | 'dots' | 'band' | 'box';
+/** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, a box, a ring (a flat top's
+ * touch) or a triangle pointing up (its break). */
+export type KeySwatch = 'line' | 'dash' | 'dots' | 'band' | 'box' | 'ring' | 'up';
 
 export interface KeyRow {
   swatch: KeySwatch;
@@ -101,6 +102,21 @@ function setupRows(): KeySection {
   };
 }
 
+/** The flat top's own drawing (2026-10-06): the level, its touches, the base, the break and the hold. */
+function flatTopRows(prefix = ''): KeySection {
+  const c = FLAT_TOP_COLORS;
+  return {
+    title: `${prefix}Flat top`,
+    rows: [
+      { swatch: 'line', color: c.line, label: 'Flat top', text: 'the high of day the candles keep tapping (dashed while it forms)' },
+      { swatch: 'ring', color: c.ringStroke, fill: c.ring, label: 'Touch', text: 'a candle whose high reached it (within 0.5% or a cent under it)' },
+      { swatch: 'box', color: c.line, fill: c.fill, label: 'Base', text: 'the candles under it, from the first touch' },
+      { swatch: 'up', color: c.go, label: 'Break', text: 'the candle that traded over it' },
+      { swatch: 'box', color: c.go, fill: c.holdFill, label: 'Hold', text: 'the candle that held it and closed green: the entry' },
+    ],
+  };
+}
+
 function fiveMinuteRows(): KeySection {
   return {
     title: '5-minute setups (labels start "5m")',
@@ -144,14 +160,14 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
   if (kind === 'none') return [];
   const out: KeySection[] = [];
   if (kind === 'full') {
-    if (layers.setups) out.push(setupRows());
+    if (layers.setups) out.push(setupRows(), flatTopRows());
     out.push(planRows(true));
     if (layers.levels) out.push(minuteRows());
     if (layers.setups) out.push(fiveOnMinuteRows());
   } else if (kind === 'thin') {
     out.push(planRows(false));
   } else {
-    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows());
+    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows('5-minute '));
     if (layers.levels) out.push(kind === 'daily' ? dailyRows() : fiveMinuteLevelRows());
   }
   if (kind !== 'daily') out.push(sessionRows());
