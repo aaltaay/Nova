@@ -1,8 +1,9 @@
 """Spot-check a rebuilt leaderboard day against the flat files, independently (ADR 023).
 
 For each chosen minute the whole-market board is recomputed from scratch with pandas --
-the minute file, the prior session's day-aggregate file, reference/tickers.json and
-reference/splits.json read directly; none of the builder's code, SQL or research store --
+the minute file, the prior session's day-aggregate file, reference/tickers.json,
+reference/splits.json and the splits SEC filings confirmed (splits_confirmed.json, #772)
+read directly; none of the builder's code, SQL or research store --
 and compared with the stored reconstructed rows: every stored row's rank, change_pct,
 price and volume, and that every symbol the independent board ranks 1..N (N = the
 top N stored contiguously) is stored with that rank. Exit status 1 on any mismatch.
@@ -27,6 +28,7 @@ import pandas as pd
 ET = ZoneInfo("America/New_York")
 UNIVERSE = ("CS", "ADRC")
 DATA_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"E:\Nova\massive")
+CONFIRMED_SPLITS = Path(os.environ.get("NOVA_LEADERBOARD_DIR") or r"F:\Nova\leaderboard") / "splits_confirmed.json"
 CHANGE_TOL = 1e-12
 VOLUME_REL_TOL = 1e-9
 
@@ -47,6 +49,15 @@ def load_minutes(path: Path, universe: set[str]) -> pd.DataFrame:
     df = df[df["ticker"].isin(universe)].copy()
     df["start_s"] = df["window_start"] // 1_000_000_000
     return df.sort_values(["ticker", "window_start"], kind="mergesort")
+
+
+def with_confirmed(splits: list[dict], confirmed: Path) -> list[dict]:
+    """``splits.json`` plus the splits SEC filings confirmed; on the same ticker and day the listed one wins."""
+    if not confirmed.is_file():
+        return splits
+    have = {(s.get("ticker"), s.get("execution_date")) for s in splits}
+    extra = json.loads(confirmed.read_text(encoding="utf-8")).get("splits", [])
+    return splits + [s for s in extra if (s.get("ticker"), s.get("execution_date")) not in have]
 
 
 def prior_closes(path: Path, splits: list[dict], prev: date, d: date) -> pd.Series:
@@ -134,13 +145,14 @@ def main() -> int:
     ap.add_argument("--minutes", nargs="+", required=True, help="HH:MM ET boundaries, e.g. 07:05 09:31")
     ap.add_argument("--db", type=Path, default=None)
     ap.add_argument("--data-root", type=Path, default=DATA_ROOT)
+    ap.add_argument("--confirmed", type=Path, default=CONFIRMED_SPLITS, help="splits confirmed from SEC filings")
     args = ap.parse_args()
     d = date.fromisoformat(args.date)
     db_path = args.db or default_db()
     ref = args.data_root / "store" / "reference"
     universe = {t["ticker"] for t in json.loads((ref / "tickers.json").read_text(encoding="utf-8"))
                 if t.get("type") in UNIVERSE and t.get("ticker")}
-    splits = json.loads((ref / "splits.json").read_text(encoding="utf-8"))
+    splits = with_confirmed(json.loads((ref / "splits.json").read_text(encoding="utf-8")), args.confirmed)
     prev = prior_session(args.data_root, d)
     minutes = load_minutes(day_file(args.data_root, "minute_aggs_v1", d), universe)
     closes = prior_closes(day_file(args.data_root, "day_aggs_v1", prev), splits, prev, d)

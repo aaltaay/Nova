@@ -22,16 +22,24 @@ def test_it_never_builds_inside_the_desks_session():
     assert not build_leaderboard.in_desk_session(datetime(2026, 9, 19, 12, 0, tzinfo=ET))  # Saturday
 
 
-def test_only_a_day_covering_every_minute_counts_as_complete(tmp_path):
+def test_only_a_day_covering_every_minute_on_every_board_counts_as_complete(tmp_path):
     db_path = tmp_path / "lb.sqlite3"
 
-    def coverage(day: str, minutes: int) -> list[dict]:
+    def coverage(day: str, minutes: int, board: str = "market") -> list[dict]:
         base = int(datetime.fromisoformat(f"{day}T04:01:00-04:00").timestamp())
-        return [{"session_date": day, "minute_ts": base + 60 * i, "source": "reconstructed", "board": "market",
+        return [{"session_date": day, "minute_ts": base + 60 * i, "source": "reconstructed", "board": board,
                  "state": "rebuilt", "row_count": 0, "run_id": None} for i in range(minutes)]
 
+    def whole(day: str, minutes: int = 960) -> list[dict]:
+        return coverage(day, minutes) + coverage(day, minutes, "losers") + coverage(day, minutes, "gappers")
+
     with store.connect(db_path) as db:
-        store.write_batch(db, coverage=coverage("2026-09-17", 960) + coverage("2026-09-18", 420))
+        store.write_batch(db, coverage=(
+            whole("2026-09-17")
+            + whole("2026-09-18", 420)                                       # cut off mid-way
+            + coverage("2026-09-16", 960)                                    # rebuilt before Losers / Gappers
+            + coverage("2026-09-15", 960) + coverage("2026-09-15", 960, "losers") + coverage("2026-09-15", 300, "gappers")
+        ))
     assert build_leaderboard.complete_days(db_path) == {"2026-09-17"}
 
 

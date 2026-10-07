@@ -9,13 +9,17 @@
 import { etTime } from '../sim/historicalReplayFormat';
 import type { ScannerRow } from '../types/scanner';
 import {
+  LEADERBOARD_BOARD_GAPPERS,
+  LEADERBOARD_BOARD_LOSERS,
   LEADERBOARD_BOARD_MARKET,
   LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN,
   LEADERBOARD_CATALYSTS_NOT_RECORDED,
   LEADERBOARD_GAP_DAY_NOT_RECORDED,
   LEADERBOARD_GAP_STOP_WORD,
   LEADERBOARD_LABEL_LOADING,
-  LEADERBOARD_NOT_REBUILT,
+  LEADERBOARD_NOT_REBUILT_AFTERHOURS,
+  LEADERBOARD_NOT_REBUILT_LARGE_CAP,
+  LEADERBOARD_NOT_REBUILT_OLDER,
   LEADERBOARD_SOURCE_WORD,
   leaderboardErrorText,
   leaderboardGapText,
@@ -82,11 +86,19 @@ function rowsOf(answer: LeaderboardAt, board: string): ScannerRow[] {
   return [...(answer.boards[board]?.rows ?? [])].sort(byRank).map(row => scannerRowFromLeaderboard(row, answer.at));
 }
 
-/** The five Scanner lists from one answer; a rebuilt day's `market` board is the Gainers list. */
+/**
+ * The five Scanner lists from one answer. A rebuilt day's `market` board is the Gainers list and
+ * its `losers` / `gappers` boards the Losers and Gappers lists; it has no After Hours or Large Cap.
+ */
 export function replayTables(answer: LeaderboardAt): ScannerReplayTables {
   if (answer.gap || !answer.covered) return EMPTY_REPLAY_TABLES;
   if (answer.source === 'reconstructed') {
-    return { ...EMPTY_REPLAY_TABLES, gainers: rowsOf(answer, LEADERBOARD_BOARD_MARKET) };
+    return {
+      ...EMPTY_REPLAY_TABLES,
+      gainers: rowsOf(answer, LEADERBOARD_BOARD_MARKET),
+      losers: rowsOf(answer, LEADERBOARD_BOARD_LOSERS),
+      gappers: rowsOf(answer, LEADERBOARD_BOARD_GAPPERS),
+    };
   }
   return {
     gappers: rowsOf(answer, 'gappers'),
@@ -159,6 +171,10 @@ const LIST_BOARD: Record<ReplayListKey, string> = {
 const LIST_LABEL: Record<ReplayListKey, string> = {
   gappers: 'gappers', gainers: 'gainers', losers: 'losers', afterhours: 'after-hours movers', large_cap: 'large cap movers',
 };
+/** Which board fills each list a rebuilt day has. */
+const REBUILT_BOARD: Record<'gappers' | 'gainers' | 'losers', string> = {
+  gappers: LEADERBOARD_BOARD_GAPPERS, gainers: LEADERBOARD_BOARD_MARKET, losers: LEADERBOARD_BOARD_LOSERS,
+};
 
 /** What an empty list says while the Scanner follows the playhead. Never "quiet market" copy. */
 export function replayListAbsence(replay: ScannerReplay, list: string): string {
@@ -173,7 +189,11 @@ export function replayListAbsence(replay: ScannerReplay, list: string): string {
   const key = (list in LIST_BOARD ? list : 'gainers') as ReplayListKey;
   const label = LIST_LABEL[key];
   if (replay.source === 'reconstructed') {
-    return key === 'gainers' ? leaderboardListEmpty(label, clock) : LEADERBOARD_NOT_REBUILT;
+    if (key === 'afterhours') return LEADERBOARD_NOT_REBUILT_AFTERHOURS;
+    if (key === 'large_cap') return LEADERBOARD_NOT_REBUILT_LARGE_CAP;
+    // A day rebuilt before its Losers and Gappers boards has only the market board.
+    if (key !== 'gainers' && !(REBUILT_BOARD[key] in replay.boardStates)) return LEADERBOARD_NOT_REBUILT_OLDER;
+    return leaderboardListEmpty(label, clock);
   }
   const board = LIST_BOARD[key];
   if (!(board in replay.boardStates)) return leaderboardListNotRecorded(label, clock);

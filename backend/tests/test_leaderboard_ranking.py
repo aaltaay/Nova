@@ -6,7 +6,18 @@ import math
 import pytest
 
 from constants_leaderboard import LEADERBOARD_RVOL_BASIS_DAILY, LEADERBOARD_RVOL_BASIS_TOD
-from leaderboard.ranking import BOARD_RULES, LEADERS_RULES, S5_RULES, RankingRules, leader_symbols, rank_rows, refusal
+from ibkr import gapper_view
+from leaderboard.ranking import (
+    BOARD_RULES,
+    GAPPERS_RULES,
+    LEADERS_RULES,
+    LOSERS_RULES,
+    S5_RULES,
+    RankingRules,
+    leader_symbols,
+    rank_rows,
+    refusal,
+)
 from leaderboard.rows import from_desk_row, make_row
 
 MINUTE = 1_790_000_040  # a whole minute
@@ -63,6 +74,35 @@ def test_s5_never_compares_rvol_across_bases():
     assert leader_symbols(rows, S5_RULES) == ["TOD"]
     assert refusal(rows[0], S5_RULES) == "rvol_basis"
     assert refusal(rows[3], S5_RULES) == "rvol_unknown"
+
+
+def test_losers_keep_only_known_drops_and_put_the_worst_first():
+    rows = [row("SMALL", -0.05), row("FLAT", 0.0), row("UP", 0.2), row("UNKNOWN", None),
+            row("BIGTHIN", -0.4, volume=10), row("BIG", -0.4, volume=999)]
+    ranked = rank_rows(rows, LOSERS_RULES)
+    assert [(r["symbol"], r["rank"]) for r in ranked] == [("BIG", 1), ("BIGTHIN", 2), ("SMALL", 3)]
+    assert refusal(row("FLAT", 0.0), LOSERS_RULES) == "change"
+    assert refusal(row("X", None), LOSERS_RULES) == "change_unknown"
+    # The board's own order is untouched: biggest gainer first, unknown last.
+    assert [r["symbol"] for r in rank_rows(rows)] == ["UP", "FLAT", "SMALL", "BIG", "BIGTHIN", "UNKNOWN"]
+
+
+@pytest.mark.parametrize(("price", "prev_close", "qualifies"), [
+    (12.0, 10.0, True),     # +20%
+    (5.5, 5.0, True),       # exactly +10%: the live floor is inclusive
+    (0.55, 0.5, True),      # +10% at the price floor's neighbourhood
+    (0.5, 0.4, True),       # exactly the $0.50 price floor
+    (3.3, 3.0, False),      # +9.99...%: under the floor
+    (0.45, 0.3, False),     # +50% but under $0.50
+    (9.0, 10.0, False),     # a drop
+    (5.0, None, False),     # no prior close: no gap
+    (None, 5.0, False),     # no price: no gap
+])
+def test_gappers_rules_are_the_live_premarket_projection(price, prev_close, qualifies):
+    r = make_row(symbol="GAP", minute_ts=MINUTE, board="gappers", source="reconstructed", rank=1,
+                 price=price, prev_close=prev_close)
+    assert gapper_view.row_qualifies(r) is qualifies
+    assert (refusal(r, GAPPERS_RULES) is None) is qualifies
 
 
 def test_make_row_computes_change_and_keeps_unknowns_null():

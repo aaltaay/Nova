@@ -110,3 +110,53 @@ was known before it (an earlier dilution notice, a routine item, "none found"),
 and a later cutoff's verdict would leak into an earlier playhead. *Article
 text in the leaderboard store* so the backend reclassifies with current rules:
 several times the size for what a re-export already gives.
+
+## Amendment 2026-10-06 -- a rebuilt day's Losers and Gappers
+
+**Context.** The operator opened 2026-09-09 at 07:00 in Sim ("Don't we already
+have the data for this day? ... Why do we not see gainers, losers, and gappers
+for that hour?"). The Massive files for the day were all on disk, but a rebuilt
+day kept one board, `market`: the top 100 by `BOARD_RULES` each minute (plus
+the leaders and S5 picks). The desk showed it under Gainers and said "Not
+rebuilt" on every other list. No stored row that day had a change under 0 at
+07:00, 09:45 or 16:30, so Losers could not be read back, and nothing projected
+the premarket Gappers the live desk shows.
+
+**Decision.**
+
+1. **Three boards per rebuilt minute**, from the same rows (every universe
+   symbol with a closed bar by the minute): `market` as before; `losers`, the
+   bottom `--top` by `LOSERS_RULES` (a known change under 0, worst first,
+   ranked 1..n); `gappers`, the live premarket projection's own rule.
+2. **Gappers follow the live list, freeze included.** Before 09:30 a gapper is
+   what `ibkr/gapper_view.row_qualifies` admits -- price at or over
+   `SCANNER_MIN_PRICE`, change at or over `GAPPER_MIN_GAP_PCT`, compared as
+   that function compares them (`GAPPERS_RULES`, held to it by a test) --
+   biggest move first, with `gap_pct` the move, as on the live list. The live
+   desk freezes Gappers at 09:30 (recorded days read `frozen` from the 09:30
+   minute, in their 09:30 order), so the rebuilt board takes its membership and
+   order from the 09:30 minute (premarket bars only) and reprices those symbols
+   each later minute, `state: frozen`.
+3. **One ranking still.** `rank_rows` gains `worst_first` and two qualifiers
+   (`max_change_pct`, `gap_floor_pct`); `LOSERS_RULES` and `GAPPERS_RULES` are
+   presets beside `BOARD_RULES`.
+4. **Every rebuilt board writes coverage every minute**, so an empty list reads
+   as empty, never as not rebuilt. A day counts complete for `--skip-complete`
+   only when all three boards cover its 960 minutes, so a day rebuilt before
+   this amendment is rebuilt again.
+5. **The desk** fills Gainers, Losers and Gappers from a rebuilt day; a day
+   rebuilt before says so on Losers and Gappers.
+
+**Consequences.** About twice the rows per rebuilt day. After Hours and Large
+Cap stay unbuilt and say why: the live After Hours list is IBKR's after-hours
+gainers, ranked on the move since the regular close, which the rebuild does not
+measure; Large Cap needs a market cap as of the day, which the files do not
+carry. A rebuilt Losers or Gappers list is the whole market's, like `market`:
+it is not IBKR's 50-row list, and names that printed once premarket appear on
+it.
+
+**Rejected.** *Derive Gappers at read time from the stored `market` rows*: no
+re-run, but after 09:30 a frozen gapper that left the top 100 has no row to
+reprice. *Store the Losers as extra `market` rows*: the desk would show them
+under Gainers, and their `BOARD_RULES` ranks (in the thousands) mean nothing on
+a Losers list.
