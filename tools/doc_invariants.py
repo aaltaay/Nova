@@ -35,10 +35,12 @@ LIVE_PATHS: tuple[str, ...] = (
     "SECURITY.md",
     "tools/security_lib/checks_api.py",
     "tools/security_lib/checks_infra.py",
+    "architecture/maintenance-log.md",
 )
 
 LIVE_GLOBS: tuple[str, ...] = (
     ".cursor/rules/*.mdc",
+    "architecture/schema/*.md",
 )
 
 # (id, compiled pattern, human reason)

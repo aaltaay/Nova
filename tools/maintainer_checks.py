@@ -50,6 +50,7 @@ HARD_LIMIT_FILES: dict[str, int] = {
     "backend/main.py": MAIN_PY_LIMIT,
     "frontend/src/App.tsx": APP_TSX_LIMIT,
     "frontend/src/index.css": INDEX_CSS_LIMIT,
+    "AGENTS.md": 700,  # loads on every agent request; schemas live in architecture/schema/
 }
 
 SKIP_DIR_NAMES = {
@@ -261,7 +262,7 @@ def check_ib_loop_purity(files: list[Path]) -> list[Finding]:
 
 def _collect(files: list[Path], base: str | None) -> list[Finding]:
     return (
-        check_file_sizes(files, base)
+        check_file_sizes(files + [p for p in (REPO_ROOT / "AGENTS.md",) if p.is_file() and p not in files], base)
         + check_secrets(files)
         + check_swallowed_errors(files)
         + check_artifacts()
