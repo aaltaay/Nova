@@ -238,17 +238,27 @@ def _ssr(order: Order, facts: Facts) -> Verdict:
                "on · at the ask" if read.state == "on" else "unknown · at the ask", **numbers)
 
 
-def _maintenance_now(account: Account, symbol: str, entry: float, ratio: float) -> float | None:
+def _held_mark(account: Account, symbol: str) -> float | None:
+    """The price the short already held is marked at now (its position row's), or None."""
+    for row in account.positions:
+        if str(row.get("symbol") or "").strip().upper() == symbol:
+            price = _num(row.get("market_price"))
+            return price if price is not None and price > 0 else None
+    return None
+
+
+def _maintenance_now(account: Account, symbol: str, held_mark: float | None, ratio: float) -> float | None:
     """What every position but this stock's short needs now; None when it cannot be read.
 
     The account's own figure when its summary carries one (net liquidation less excess liquidity,
-    less this stock's short); else the published rules over the positions' marks.
+    less this stock's short at its mark now); else the published rules over the positions' marks.
     """
     summary = account.summary or {}
     held_short = account.held_short or 0.0
     equity, excess = _num(summary.get("NetLiquidation")), _num(summary.get("ExcessLiquidity"))
     if equity is not None and excess is not None:
-        return max(0.0, equity - excess - margin.short_requirement(entry, held_short) * ratio)
+        held_need = margin.short_requirement(held_mark, held_short) * ratio if held_mark is not None else 0.0
+        return max(0.0, equity - excess - held_need)
     total = 0.0
     for row in account.positions:
         if str(row.get("symbol") or "").strip().upper() == symbol:
@@ -265,17 +275,24 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
     answer = None if facts.replay else facts.whatif
     ratio = answer.ratio if answer is not None else 1.0
     source = SHORT_MARGIN_SOURCE_WHATIF if answer is not None else SHORT_MARGIN_SOURCE_PUBLISHED
-    other = _maintenance_now(account, order.symbol, entry, ratio)
+    held = account.held_short or 0.0
+    held_mark = _held_mark(account, order.symbol) if held > 0 else None
+    if held > 0 and held_mark is None:
+        return [_bad("margin", "Margin", SHORT_MARGIN_UNKNOWN,
+                     (f"Nova cannot read the price of the {held:g} {order.symbol} already short, so it cannot check "
+                      "what adding to it needs. Try again once the positions load."), state="unknown")]
+    other = _maintenance_now(account, order.symbol, held_mark, ratio)
     if other is None:
         return [_bad("margin", "Margin", SHORT_MARGIN_UNKNOWN,
                      ("Nova cannot read what the account's other positions need in margin, so it cannot check this "
                       "short. Try again once the positions load."), state="unknown")]
     other += account.flying_other_maint
     # This stock's shorts on the way keep their own limits; one Nova cannot price counts at this entry.
+    # The short already held keeps its mark now: by the time the price reaches the entry it has moved.
     priced = account.flying_same_at
     unpriced = max(0.0, account.flying_same - sum(qty for qty, _ in priced))
-    verdict = margin.cushion(equity=equity, other_maint=other, qty=order.qty + (account.held_short or 0.0) + unpriced,
-                             entry=entry, ratio=ratio, flying=priced)
+    verdict = margin.cushion(equity=equity, other_maint=other, qty=order.qty + unpriced, entry=entry, ratio=ratio,
+                             flying=priced, held=(held, held_mark) if held_mark is not None else None)
     qty = float(verdict["qty"] or 0)
     fill = float(verdict["fill_price"] or entry)
     at = f"at {entry:.2f}" if fill <= entry else f"up to {fill:.2f} (the shorts on the way keep their prices)"
@@ -283,7 +300,10 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
     need = float(verdict["requirement"] or 0)
     left = max(0.0, equity - other)
     numbers = {"source": source, "ratio": round(ratio, 4), "requirement": round(need, 2), "excess": round(left, 2),
-               "liquidation_price": liq, "cushion_price": verdict["cushion_price"], "fill_price": fill}
+               "liquidation_price": liq, "cushion_price": verdict["cushion_price"], "fill_price": fill,
+               "held_short": held, "held_mark": held_mark}
+    held_note = f" (the {held:g} already short counted from its mark {held_mark:.2f})" if held_mark is not None else ""
+    at += held_note
     if not verdict["fits"]:
         return [_bad("margin", "Margin", SHORT_MARGIN,
                      (f"Margin ({source}): {qty:,.0f} {order.symbol} short {at} needs {_money(need)}, and "
@@ -294,7 +314,7 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
         where = f"IBKR would liquidate near {liq:.2f}" if isinstance(liq, float) else "IBKR would liquidate at once"
         return [fits, _bad("cushion", "25% cushion", SHORT_CUSHION,
                            (f"Margin ({source}): {where}, under {verdict['cushion_price']:.2f}, the "
-                            f"{SHORT_CUSHION_PCT:.0%} move against a short at {fill:.2f}. Nova keeps a "
+                            f"{SHORT_CUSHION_PCT:.0%} move against a short at {fill:.2f}{held_note}. Nova keeps a "
                             f"{SHORT_CUSHION_PCT:.0%} cushion: short fewer shares."),
                            f"LIQ {liq:.2f}" if isinstance(liq, float) else None, **numbers)]
     return [fits, _ok("cushion", "25% cushion",

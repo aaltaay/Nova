@@ -5,6 +5,13 @@ Nova covers every short still open on the venue, and any short it finds outside 
 (one that survived a closed Nova). That stock's working orders go first -- its short entries,
 then its stop, target and covers -- so nothing fills after the cover and opens a long.
 
+**The short-entry cutoff.** A short entry the door let go before 15:50 may still rest when the
+short hours end, and a GTC one into the next morning: its fill would open a short the hours rule
+forbids. So while the venue's clock stands outside the short hours (09:35 to 15:50, 12:50 on an
+early close), Nova cancels every working short entry on the venue, its waiting exits with it. The
+fill refuses one too (``practice.order_rules.fill_refusal``): a Sim jump past 15:50 fills on the
+prints it crossed before this pass runs.
+
 **The margin call.** IBKR sends no margin call: when equity falls under the maintenance
 requirement it liquidates. When a practice account's equity is under its maintenance
 (``Ledger.maintenance``: IBKR's what-if ratio per stock, else the published rules), Nova closes the
@@ -93,6 +100,41 @@ def _closing(broker: Any, symbol: str) -> bool:
                for r in _working(broker, symbol))
 
 
+async def entry_cutoff(broker: Any) -> list[dict[str, Any]]:
+    """Cancel every working short entry on the broker's venue while its clock is outside the short hours."""
+    from execution.service import execute
+
+    now = float(broker.reference.now_ts())
+    why = hours.entry_refusal(now)
+    if why is None:
+        return []
+    venue = str(broker.venue)
+    out = []
+    for row in broker.working_orders():
+        if not row.get("short_entry"):
+            continue
+        symbol, oid = str(row.get("symbol") or "").upper(), int(row["order_id"])
+        key = (venue, f"{symbol}#{oid}", "entry_cutoff")
+        if time.monotonic() < _retry_at.get(key, 0.0):
+            continue
+        receipt = await execute(ExecutionCommand(
+            operation="cancel", idempotency_key=f"day_cover:{venue}:cutoff:{oid}:{int(now)}", source="cancel_working",
+            symbol=symbol, order_id=oid, target_venue=venue, origin="day_cover",  # type: ignore[arg-type]
+        ))
+        done = {"venue": venue, "symbol": symbol, "order_id": oid, "qty": row.get("remaining_qty") or row.get("qty"),
+                "ok": bool(receipt.ok), "error": receipt.error, "reason_code": receipt.reason_code}
+        _audit("day_cover", "cancelled" if receipt.ok else "failed",
+               f"{venue}: the short entry {oid} ({symbol}) was cancelled before it could fill. {why}", done)
+        if receipt.ok:
+            _retry_at.pop(key, None)
+        else:
+            _retry_at[key] = time.monotonic() + SHORT_CLOSE_RETRY_SEC
+            logger.error("SHORTS: the %s short entry %s on %s was not cancelled (tried again in %.0f s): %s",
+                         symbol, oid, venue, SHORT_CLOSE_RETRY_SEC, receipt.error)
+        out.append(done)
+    return out
+
+
 async def day_cover(broker: Any) -> list[dict[str, Any]]:
     """Cover every short on the broker's venue when its clock stands past the day's cover time."""
     now = float(broker.reference.now_ts())
@@ -132,7 +174,7 @@ async def margin_call(broker: Any) -> list[dict[str, Any]]:
 
 
 async def pass_once() -> list[dict[str, Any]]:
-    """One pass over every practice venue this process has loaded: the day cover, then the margin call."""
+    """One pass over every practice venue this process has loaded: the cutoff, the day cover, the margin call."""
     from practice.broker import loaded
 
     out: list[dict[str, Any]] = []
@@ -141,6 +183,7 @@ async def pass_once() -> list[dict[str, Any]]:
         if broker is None:
             continue
         try:
+            out += await entry_cutoff(broker)
             out += await day_cover(broker)
             out += await margin_call(broker)
         except Exception:  # one venue's failure never stops the other's closes; the next pass tries again

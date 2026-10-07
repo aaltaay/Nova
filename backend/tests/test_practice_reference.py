@@ -136,6 +136,20 @@ def test_an_unwatched_symbol_has_no_archived_print_to_fall_back_to(live) -> None
     assert Frozen().prints_between("IMCC", 0, NOW) == []
 
 
+def test_each_print_keeps_the_bid_it_met_for_the_ssr_fill_rule(live) -> None:
+    """PR #786 review: the matcher reads prints late; the bid each met is the archive's, not the book now."""
+    live.watched.add("IMCC")
+    live.books["IMCC"] = BOOK                      # 9.98 now
+    live.trades.extend([
+        {"symbol": "IMCC", "ts": 20.0, "price": 9.1, "bid": 9.05},
+        {"symbol": "IMCC", "ts": 30.0, "price": 9.2, "bid": None},     # archived before Nova kept the bid
+    ])
+    ref = Frozen()
+    assert ref.prints_between("IMCC", 10.0, 30.0) == [(20.0, 9.1), (30.0, 9.2)]
+    assert (ref.bid_at("imcc", 20.0), ref.bid_at("IMCC", 30.0), ref.bid_at("IMCC", 25.0)) == (9.05, None, None)
+    assert ref.reference("IMCC").bid == 9.98
+
+
 def test_prints_between_is_half_open_oldest_first_and_drops_junk(live) -> None:
     live.watched.add("IMCC")
     live.trades.extend([

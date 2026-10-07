@@ -56,6 +56,10 @@ class Market:
     def prints_between(self, symbol: str, after_ts: float, through_ts: float):
         return []
 
+    def bid_at(self, symbol: str, ts: float) -> float | None:
+        """The bid a print at ``ts`` met: the bid the test set before handing the print over."""
+        return self.bid if symbol == SYMBOL else None
+
     def now_ts(self) -> float:
         return self.now
 
@@ -206,6 +210,17 @@ def test_a_short_counts_the_shorts_already_held_against_the_borrow(paper) -> Non
 
 # ── SSR: a short fills only above the bid ─────────────────────────────────────
 
+def test_adding_above_the_market_counts_the_short_held_from_its_mark(paper) -> None:
+    """PR #786 review: 100 short at $10, adding 250 resting at $20, on $5,000 -- IBKR liquidates near 24.18."""
+    paper.market.last, paper.market.bid, paper.market.ask = 10.00, 10.00, 10.01   # a buyer at 10: it fills
+    held = _send(_short("held-at-10", qty=100, entry=10.00, stop=10.50, target=9.00))
+    assert held.ok is True and _held(paper.broker) == -100, held.error
+    more = _send(_short("add-at-20", qty=250, entry=20.00, stop=21.00, target=18.00))
+    # Counted as if the 100 sold at $20 too, the add passed (liquidation near 26.37, over 25).
+    assert (more.ok, more.reason_code) == (False, "SHORT_CUSHION")
+    assert "counted from its mark 10.00" in more.error and _held(paper.broker) == -100
+
+
 def test_under_ssr_a_short_rests_until_it_can_fill_above_the_bid(paper, monkeypatch) -> None:
     monkeypatch.setattr(ssr, "live", lambda symbol, now=None: ssr.SsrRead("on", "SSR is on today.", "today"))
     monkeypatch.setattr(ssr_fill, "effective_on", lambda *a, **k: True)
@@ -223,6 +238,25 @@ def test_under_ssr_a_short_rests_until_it_can_fill_above_the_bid(paper, monkeypa
     filled = paper.broker.try_fill_working(SYMBOL, [(paper.market.now, 4.01)])
     assert [(r["order_id"], r["avg_fill_price"]) for r in filled] == [(receipt.parent_order_id, 4.01)]
     assert _held(paper.broker) == -500
+
+
+def test_under_ssr_a_print_fills_against_the_bid_that_stood_then(paper, monkeypatch) -> None:
+    """PR #786 review: a jump or a late read never judges an earlier print by the bid now."""
+    monkeypatch.setattr(ssr_fill, "effective_on", lambda *a, **k: True)
+    receipt = _send(_short("ssr-then", entry=4.05, stop=4.30))
+    assert receipt.ok is True and _held(paper.broker) == 0
+    at_print: dict[float, float] = {}
+    paper.market.bid_at = lambda symbol, ts: at_print.get(ts)
+    first, second = paper.market.now + 5, paper.market.now + 10
+    at_print.update({first: 4.05, second: 4.04})      # the short's price was the bid at the first print
+    paper.market.bid = 3.50                          # ... and the bid now says nothing about either
+    assert paper.broker.try_fill_working(SYMBOL, [(first, 4.05)]) == []
+    filled = paper.broker.try_fill_working(SYMBOL, [(second, 4.05)])
+    assert [r["order_id"] for r in filled] == [receipt.parent_order_id] and _held(paper.broker) == -500
+    # A print whose bid Nova never saw proves nothing: the short rests.
+    again = _send(_short("ssr-unseen", qty=100, entry=4.05, stop=4.30))
+    assert paper.broker.try_fill_working(SYMBOL, [(paper.market.now + 15, 4.06)]) == []
+    assert again.parent_order_id in {int(r["order_id"]) for r in paper.broker.working_orders()}
 
 
 def test_under_ssr_a_marketable_short_rests_instead_of_filling_at_the_bid(paper, monkeypatch) -> None:
@@ -261,6 +295,61 @@ def test_the_day_cover_waits_for_1555_then_covers_through_the_door(paper) -> Non
     [line] = [a for a in paper.audit if a["action"] == "day_cover"]
     assert line["outcome"] == "closed" and "15:55 ET" in line["reason"]
     assert asyncio.run(closes.day_cover(paper.broker)) == []     # nothing left to cover
+
+
+def test_a_short_entry_still_resting_at_1550_is_cancelled_before_it_fills(paper) -> None:
+    """PR #786 review: a short the door let go before 15:50 never opens after it."""
+    receipt = _send(_short("rest-past", entry=4.50, stop=4.80, target=4.00))   # over the market: it rests
+    assert receipt.ok is True and _held(paper.broker) == 0
+    paper.market.now = _at(15, 49, 59)
+    assert asyncio.run(closes.entry_cutoff(paper.broker)) == []
+    set_venue("sim")     # the desk moved: Paper's entry is still cancelled, on Paper
+    paper.market.now = _at(15, 50)
+    [done] = asyncio.run(closes.entry_cutoff(paper.broker))
+    assert (done["ok"], done["venue"], done["order_id"]) == (True, "paper", receipt.parent_order_id)
+    assert paper.broker.working_orders() == []        # its waiting stop and target went with it
+    row = {int(r["order_id"]): r for r in paper.broker.closed_orders()}[receipt.parent_order_id]
+    assert row["status"] == "Cancelled" and row["order_origin"] in (None, "day_cover")
+    [line] = [a for a in paper.audit if a["action"] == "day_cover"]
+    assert line["outcome"] == "cancelled" and "New shorts stop at 15:50 ET" in line["reason"]
+    assert asyncio.run(closes.entry_cutoff(paper.broker)) == []
+
+
+def test_a_gtc_short_entry_is_cancelled_before_the_next_open(paper) -> None:
+    receipt = _send(_short("rest-overnight", entry=4.50, stop=4.80, target=4.00, tif="GTC"))
+    assert receipt.ok is True
+    paper.market.now = _at(9, 0) + 86_400            # the next morning, before 09:35
+    [done] = asyncio.run(closes.entry_cutoff(paper.broker))
+    assert done["ok"] is True and paper.broker.working_orders() == [] and _held(paper.broker) == 0
+
+
+def test_a_print_past_1550_never_fills_a_resting_short_entry(paper) -> None:
+    """A Sim jump past 15:50 fills on the prints it crossed before the runner's cutoff pass: the fill refuses."""
+    early = _send(_short("rest-early", qty=100, entry=4.50, stop=4.80, target=4.00))
+    late = _send(_short("rest-late", qty=100, entry=4.60, stop=4.90, target=4.10))
+    assert early.ok is True and late.ok is True and _held(paper.broker) == 0
+    paper.market.now = _at(15, 52)                     # the playhead jumped; no cutoff pass has run
+    filled = paper.broker.try_fill_working(SYMBOL, [(_at(15, 49, 30), 4.55), (_at(15, 50, 30), 4.65)])
+    # The 15:49:30 print was inside the hours: it fills the 4.50 short. The later one cancels the 4.60.
+    assert [int(r["order_id"]) for r in filled] == [early.parent_order_id] and _held(paper.broker) == -100
+    [event] = [e for e in paper.broker.ledger.events
+               if e.get("type") == "cancelled" and e.get("order_id") == late.parent_order_id]
+    assert event["code"] == "SHORT_HOURS" and "New shorts stop at 15:50 ET" in event["reason"]
+    late_legs = {late.target_order_id, late.stop_order_id}
+    assert late_legs.isdisjoint({int(r["order_id"]) for r in paper.broker.working_orders()})
+
+
+def test_the_cutoff_leaves_a_longs_orders_and_a_shorts_exits_alone(paper) -> None:
+    long_entry = paper.broker.place(SYMBOL, "BUY", 10, "LMT", limit_price=3.50)     # rests under the market
+    paper.market.now = _at(15, 51)
+    assert asyncio.run(closes.entry_cutoff(paper.broker)) == []
+    assert [int(r["order_id"]) for r in paper.broker.working_orders()] == [long_entry["order_id"]]
+    paper.broker.cancel(long_entry["order_id"])
+    paper.market.now = paper.now
+    _open_short(paper)            # filled: its stop and target rest as exits, never short entries
+    paper.market.now = _at(15, 51)
+    assert asyncio.run(closes.entry_cutoff(paper.broker)) == []
+    assert sorted(r["effect"] for r in paper.broker.working_orders()) == ["closes", "closes"]
 
 
 def test_a_short_found_before_the_open_is_covered_too(paper) -> None:
@@ -402,7 +491,11 @@ def test_one_venues_failed_pass_never_stops_the_others(monkeypatch) -> None:
     async def margin_call(broker):
         return []
 
+    async def entry_cutoff(broker):
+        return []
+
     monkeypatch.setattr("practice.broker.loaded", lambda venue: brokers.get(venue))
+    monkeypatch.setattr(closes, "entry_cutoff", entry_cutoff)
     monkeypatch.setattr(closes, "day_cover", day_cover)
     monkeypatch.setattr(closes, "margin_call", margin_call)
     assert asyncio.run(closes.pass_once()) == [{"venue": "sim"}]

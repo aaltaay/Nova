@@ -340,6 +340,38 @@ def test_the_door_prices_a_short_on_the_way_at_its_own_limit(live, monkeypatch):
     assert "a short at 20.00" in second.error
 
 
+def test_a_short_already_held_counts_from_its_own_mark():
+    """PR #786 review: adding at $20 to 100 short marked at $10 loses $1,000 before the add sells."""
+    held = margin.cushion(equity=5_000, other_maint=0, qty=250, entry=20.0, held=(100, 10.0))
+    # 5,000 - 1,000 = 4,000 at $20; 4,000 - 350 (p - 20) = 0.30 * 350 p at p = 11,000 / 455.
+    assert held["liquidation_price"] == pytest.approx(11_000 / 455, abs=0.01)
+    assert (held["qty"], held["fill_price"], held["fits"], held["ok"]) == (350, 20.0, True, False)
+    # Read as if all 350 sold at $20, the same account looked safe: liquidation near 26.37, over 25.
+    lumped = margin.cushion(equity=5_000, other_maint=0, qty=350, entry=20.0)
+    assert lumped["liquidation_price"] == pytest.approx(12_000 / 455, abs=0.01) and lumped["ok"] is True
+    # Held at the entry's own price, nothing changes; the short held never sets the fill price.
+    assert margin.cushion(equity=5_000, other_maint=0, qty=250, entry=20.0, held=(100, 20.0)) == lumped
+    assert margin.cushion(equity=5_000, other_maint=0, qty=250, entry=20.0, held=(100, 30.0))["fill_price"] == 20.0
+
+
+def test_adding_to_a_short_nova_cannot_price_is_refused(short_market_open):
+    from short_sale import check, halts, ssr
+    from short_sale import facts as short_facts
+
+    facts = short_facts.Facts(venue="paper", symbol=SYMBOL, now=short_market_open, replay=False, borrow=_borrow(),
+                              borrow_why=None, whatif=None, ssr=ssr.SsrRead("off", "No SSR."),
+                              halt=halts.HaltRead("clear", "trading"), bid=5.76, ask=5.78, last=5.77)
+    order = check.Order(symbol=SYMBOL, qty=100, entry=5.77, stop=5.89)
+    summary = _summary(equity=5_000, excess=4_500)
+
+    def first(positions):
+        account = check.Account(summary=summary, positions=positions, held_long=0.0, held_short=100.0)
+        return check.first_refusal(check.rules(order, facts, account, live_key=None))
+
+    assert first([{"symbol": SYMBOL, "qty": -100, "market_price": None}])[1] == "SHORT_MARGIN_UNKNOWN"
+    assert first([{"symbol": SYMBOL, "qty": -100, "market_price": 5.77}]) is None
+
+
 def test_the_live_key_still_refuses_first(live, monkeypatch):
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: False)
     short_mod.remember_for_tests(SYMBOL, _borrow())

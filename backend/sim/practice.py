@@ -89,6 +89,25 @@ def reference(symbol: str) -> Reference:
     return Reference(capture_player.last_print_at(now), quote.get("bid"), quote.get("ask"))
 
 
+def bid_at(symbol: str, ts: float) -> float | None:
+    """The bid that stood when the replay printed at ``ts``; None when the replay has none there.
+
+    A Massive window's NBBO just before the print; a recording's quote at or before it; an IBKR
+    download carries no quotes. The SSR fill rule reads it (``short_sale.ssr_fill``).
+    """
+    active = loaded()
+    if active is None or active.symbol != symbol:
+        return None
+    if active.source == HISTORICAL:
+        from sim import history_playback
+
+        return history_playback.bid_before(symbol, ts)
+    from sim import capture_player
+
+    bid = (capture_player.quote_at(float(ts)) or {}).get("bid")
+    return float(bid) if bid is not None else None
+
+
 def admission(symbol: str) -> tuple[bool, str, str | None]:
     """May a practice place/bracket for ``symbol`` proceed right now?"""
     active = loaded()

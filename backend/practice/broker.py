@@ -197,8 +197,13 @@ class PracticeBroker:
         del outside_rth  # practice orders are always live; there is no session gate
         sym = (symbol or "").strip().upper()
         side_u = (side or "").strip().upper()
-        # The execution door's order (execution/validate.py): shape, TIF, admission, no shorts.
-        short = side_u != "BUY" or bool(short_entry)
+        # The execution door's order (execution/validate.py): side, shape, TIF, admission, no shorts.
+        # A short is never inferred from the side: a SELL entry opens one only as a short entry.
+        if side_u not in ("BUY", "SELL") or (short_entry and side_u != "SELL"):
+            return self._bracket_refused(
+                "short_entry requires side=SELL" if short_entry else f"side must be BUY or SELL, not {side!r}",
+                "SIDE_INVALID")
+        short = side_u == "SELL"
         shape = bracket.shape_error(qty, entry_price, target_price, stop_price, short=short)
         if shape is not None:
             return self._bracket_refused(*shape)
@@ -210,13 +215,14 @@ class PracticeBroker:
         if not ok:
             return self._bracket_refused(reason, code)
         if short:  # a SELL entry opens a short: from flat, or adding to one (ADR 048 1.7)
+            if not short_entry:
+                return self._bracket_refused(PRACTICE_NO_SHORTS_REASON, PRACTICE_NO_SHORTS_CODE)
             refused = order_rules.short_entry_refusal(self.ledger.held_qty(sym), "SELL")
             if refused is not None:
                 return self._bracket_refused(*refused)
         now = self.reference.now_ts()
         self.ledger.rollover(now)
-        afford, needed, available = self.ledger.can_afford(sym, "SELL" if short else side_u, qty_f,
-                                                           float(entry_price))
+        afford, needed, available = self.ledger.can_afford(sym, side_u, qty_f, float(entry_price))
         if not afford:
             return self._bracket_refused(
                 f"{PRACTICE_BUYING_POWER_REASON} (needs {needed:,.2f}, has {available:,.2f})",
@@ -225,7 +231,7 @@ class PracticeBroker:
         parent_id = self.ledger.alloc_id()
         target_id = self.ledger.alloc_id() if target_price is not None else None
         stop_id = self.ledger.alloc_id()
-        entry_side = "SELL" if short else side_u
+        entry_side = side_u
         parent = self._row(parent_id, sym, entry_side, qty_f, "LMT", entry_price, None, now, source, bot_id, tif_u,
                            origin=origin, short_entry=short)
         parent.update(bracket.leg_fields(parent_id, PRACTICE_LEG_PARENT))
@@ -303,7 +309,7 @@ class PracticeBroker:
                 )
                 if fill is None:
                     continue
-                closed = self._settle(int(row["order_id"]), float(ts), fill)
+                closed = self._settle(int(row["order_id"]), float(ts), fill, on_print=True)
                 if closed is not None and closed.get("status") == "Filled":
                     filled.append(closed)
         if prints:
@@ -448,21 +454,22 @@ class PracticeBroker:
             **bracket.plain_fields(),
         }
 
-    def _settle(self, oid: int, ts: float, fill: fill_model.Fill) -> dict[str, Any] | None:
+    def _settle(self, oid: int, ts: float, fill: fill_model.Fill, *, on_print: bool = False) -> dict[str, Any] | None:
         """Fill a working order, or cancel it when it may no longer fill (``order_rules.fill_refusal``).
 
         An exit still waiting on its entry never fills, whatever the path that
-        priced it; one-cancels-other runs in the ledger's ``fill``.
+        priced it; one-cancels-other runs in the ledger's ``fill``. ``on_print``:
+        ``ts`` is the print the order fills on, and SSR reads the bid that stood then.
         """
         row = self.ledger.working_row(oid)
         if row is None or bracket.is_waiting(row):
             return None
         from short_sale import ssr_fill
 
-        if not ssr_fill.allows(self.venue, row, fill.price, self.reference, ts):
+        if not ssr_fill.allows(self.venue, row, fill.price, self.reference, ts, on_print=on_print):
             return None  # under SSR a short fills only above the bid: it keeps resting (ADR 048)
         mark = len(self.ledger.events)
-        refused = order_rules.fill_refusal(self.ledger, row, fill.price)
+        refused = order_rules.fill_refusal(self.ledger, row, fill.price, ts)
         if refused is not None:
             reason, code = refused
             logger.warning("PRACTICE %s: order %s cancelled -- %s", self.venue, oid, reason)

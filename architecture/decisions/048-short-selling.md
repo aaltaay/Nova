@@ -133,6 +133,15 @@ Six pull requests under #778. Each is safe on its own: before step 2 nothing new
 - The day cover means a short never survives the session on any venue, so borrow fees, overnight margin and Reg T calls never apply to Nova's shorts.
 - Paper's and Sim's margin follows IBKR's own number when the Gateway answers, so a practice short is refused where IBKR would refuse it, including for IBKR's extra charge on a volatile name.
 
+## After step 2's review (2026-10-07)
+
+Four findings on step 2's pull request, each fixed with a regression test:
+
+- **Adding to a short held.** The cushion counted the short already held as if sold at the new entry. Equity is read with that short at its mark now, so by the time the price reaches an entry over the market the held short has lost the move. It now keeps its mark (`margin.cushion(held=...)`): 100 short at $10 plus 250 resting at $20, on $5,000, liquidates near 24.18, under the 25 the cushion needs, and is refused; counted at $20 it passed at 26.37.
+- **A short entry still resting when the hours end.** The door checks the hours when a short is placed, and a resting one could fill after 15:50, or a GTC one before 09:35. Outside the short hours Nova now cancels every working short entry (the runner's cutoff, origin `day_cover`), and the fill refuses one too (`SHORT_HOURS`), since a Sim jump past 15:50 fills on the prints it crossed before the next pass.
+- **A SELL bracket without `short_entry`.** The practice broker opened a short from any SELL bracket. It now needs `short_entry`, as the door does, so a short is never inferred (ADR 009).
+- **SSR at a print.** A resting short filling on a print read the bid at the matcher's pass, which a Sim jump or a late read moves. It now reads the bid that stood when the print traded: the NBBO before it on a Massive window, the recorded quote on a Session Record, and on the live feed the top of book the print met when it arrived, which the tape archive now keeps (`tape_trades.bid` / `ask`).
+
 ## Rejected
 
 - A separate short bot, switch and sleeve. It was the operator's earlier draft, replaced by one bot and one list.

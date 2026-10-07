@@ -98,6 +98,15 @@ def _row(row) -> dict:
     return out
 
 
+def _book_price(payload, side: str) -> float | None:
+    """The bid or ask the print met at receipt; a payload without one (or a bad one) stays unknown (NULL)."""
+    try:
+        price = float(payload.get(side))
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 else None
+
+
 def _unreported(payload) -> int | None:
     """IBKR's flag as SQLite stores it; a payload that does not carry it stays unknown (NULL)."""
     flag = payload.get("unreported")
@@ -121,8 +130,8 @@ def watch_started(symbol: str) -> float | None:
 
 _INSERT = (
     "INSERT INTO tape_trades "
-    "(symbol, ts, price, size, exchange, source, session_id, conditions, receive_ts, unreported) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "(symbol, ts, price, size, exchange, source, session_id, conditions, receive_ts, unreported, bid, ask) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 _COLUMNS = ("symbol", "ts", "price", "size", "exchange", "source", "session_id", "conditions", "receive_ts")
 
@@ -142,7 +151,8 @@ def persist_prints(payloads) -> None:
     payloads = list(payloads)
     if not payloads:
         return
-    rows = [tuple(p.get(key) for key in _COLUMNS) + (_unreported(p),) for p in payloads]
+    rows = [tuple(p.get(key) for key in _COLUMNS) + (_unreported(p), _book_price(p, "bid"), _book_price(p, "ask"))
+            for p in payloads]
     conn = get_connection()
     try:
         conn.executemany(_INSERT, rows)

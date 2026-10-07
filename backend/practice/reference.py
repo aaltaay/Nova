@@ -38,6 +38,9 @@ Print = tuple[float, float]
 
 @runtime_checkable
 class MarketReference(Protocol):
+    """The market a practice venue fills against. A reference may also answer ``bid_at(symbol, ts)``:
+    the bid that stood when the print at ``ts`` traded (the SSR fill rule reads it, ADR 048)."""
+
     def reference(self, symbol: str) -> Reference: ...
 
     def admission(self, symbol: str) -> tuple[bool, str, str | None]: ...
@@ -64,6 +67,11 @@ class ReplayReference:
         from sim import practice
 
         return practice.prints_between(symbol, after_ts, through_ts)
+
+    def bid_at(self, symbol: str, ts: float) -> float | None:
+        from sim import practice
+
+        return practice.bid_at(symbol, ts)
 
     def now_ts(self) -> float:
         from sim import practice
@@ -107,6 +115,9 @@ class LiveReference:
 
     def __init__(self, fresh_sec: float = PRACTICE_LIVE_FRESH_SEC) -> None:
         self.fresh_sec = float(fresh_sec)
+        # The bid each print of the last ``prints_between`` read met at receipt, by symbol and time:
+        # the matcher reads a symbol's prints, then fills against them (``bid_at``).
+        self._print_bids: dict[str, dict[float, float]] = {}
 
     def now_ts(self) -> float:
         return time.time()
@@ -193,13 +204,26 @@ class LiveReference:
         if through_ts <= after_ts or not tape.is_watched(sym):
             return []
         out: list[Print] = []
+        bids: dict[float, float] = {}
         for row in tape.get_trades_in_range(sym, after_ts, through_ts):
             ts = row.get("ts")
             px = _price(row.get("price"))
             if ts is None or px is None or float(ts) <= after_ts or not row_sets_price(row):
                 continue
             out.append((float(ts), px))
+            bid = _price(row.get("bid"))
+            if bid is not None:
+                bids[float(ts)] = bid
+        self._print_bids[sym] = bids
         return out
+
+    def bid_at(self, symbol: str, ts: float) -> float | None:
+        """The bid the print at ``ts`` met at receipt, from the last ``prints_between`` read of the symbol.
+
+        None for a print Nova archived before it kept the bid, or one it never read: a bid Nova
+        cannot see proves nothing (``short_sale.ssr_fill``).
+        """
+        return self._print_bids.get((symbol or "").strip().upper(), {}).get(float(ts))
 
 
 class SimReference:
@@ -236,6 +260,10 @@ class SimReference:
 
     def prints_between(self, symbol: str, after_ts: float, through_ts: float) -> list[Print]:
         return self._market().prints_between(symbol, after_ts, through_ts)
+
+    def bid_at(self, symbol: str, ts: float) -> float | None:
+        getter = getattr(self._market(), "bid_at", None)
+        return getter(symbol, ts) if callable(getter) else None
 
     def archived_through(self, now: float) -> float:
         """The live archive's mark at the edge; the replay is complete through the playhead."""
