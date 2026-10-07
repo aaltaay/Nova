@@ -375,8 +375,9 @@ def halts_rows(f: dict[str, Any], d: dict[str, Any]) -> list[dict[str, Any]]:
         parts = [f"{k} {h[k]}" for k in ("news", "luld", "volatility", "other") if h.get(k)]
         out.append(row("halts_today", "Halts today", "None" if not n else ", ".join(parts),
                        "ok" if not n else "warn", "The halt log (Nasdaq halts and IBKR)"))
-    out.append(row("luld", "Limit up / down band", "Not computed", "unknown", "--",
-                   "Nova has no source for the limit-up / limit-down bands yet"))
+    from luld.views import stock_read_row
+
+    out.append(stock_read_row(f.get("luld")))
     med = d.get("median_range")
     out.append(row("candle", "Normal 1-minute candle", f"{med:.2f}" if med is not None else "Not known",
                    "info" if med is not None else "unknown", "The median range of the last 20 closed candles",

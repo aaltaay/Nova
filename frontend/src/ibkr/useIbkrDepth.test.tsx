@@ -181,6 +181,22 @@ describe('useIbkrDepth lifecycle', () => {
     expect(latest?.watch).toBeNull();
   });
 
+  it('keeps the LULD bands its socket sends, and starts over for another symbol (ADR 047)', () => {
+    renderSymbol('GRML');
+    const ws = FakeWebSocket.instances[0];
+    const frame = (symbol: string, data: Record<string, unknown>) => act(() => {
+      ws.onmessage?.({ data: JSON.stringify({ type: 'luld', symbol, data }) });
+    });
+    frame('GRML', { schema_version: 1, symbol: 'GRML', state: 'bands', exact: true, lower: 14.18, upper: 17.33 });
+    expect(latest?.luld?.lower).toBe(14.18);
+    frame('GRML', { schema_version: 9, symbol: 'GRML', state: 'bands' });   // an unknown version is no view
+    expect(latest?.luld).toBeNull();
+    frame('GRML', { schema_version: 1, symbol: 'GRML', state: 'paused', exact: false, lower: null, upper: null });
+    expect(latest?.luld?.state).toBe('paused');
+    renderSymbol('MVO');
+    expect(latest?.luld).toBeNull();
+  });
+
   it('holds the latest book while hidden and applies it on show', () => {
     renderSymbol('AAPL', false);
     act(() => {

@@ -2,10 +2,12 @@
    Owner: ibkr/. Domain CSS uses --nova-* / --text-* only — never --color-muted.
    Split three ways to stay under the 400-line limit (QA pass two, 2026-09-22):
    this sheet holds the depth + tape layout, the pane chrome and the chips;
-   timeSales.css the tape; level2Montage.css the DAS montage. The two imports
-   inherit this sheet's layer (index.css) and share no selector with it. */
+   timeSales.css the tape; level2Montage.css the DAS montage; luld.css the LULD
+   bands on it (ADR 047). The imports inherit this sheet's layer (index.css) and
+   share no selector with it. */
 @import "./timeSales.css";
 @import "./level2Montage.css";
+@import "./luld.css";
 
 /* ── Side-by-side depth + tape ───────────────────────────────────────────── */
 .depth-and-tape {

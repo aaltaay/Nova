@@ -87,6 +87,33 @@ class _WatchFrames:
             return None
 
 
+class _LuldFrames:
+    """The LULD bands for one depth socket (ADR 047): asked at most every ``LULD_PUSH_SEC``, sent
+    when they change (``luld/ladder.py``). Memory reads only, safe on the socket loop."""
+
+    def __init__(self, symbol: str) -> None:
+        from luld.ladder import LuldPush
+
+        self.push = LuldPush(symbol)
+        self.next_check = 0.0
+        self.failed = False
+
+    def due(self, mono: float) -> dict[str, Any] | None:
+        if mono < self.next_check:
+            return None
+        from luld.constants_luld import LULD_PUSH_SEC
+
+        self.next_check = mono + LULD_PUSH_SEC
+        try:
+            return self.push.frame()
+        except Exception:
+            # Once per socket: a band that cannot be read never costs the ladder its books.
+            if not self.failed:
+                self.failed = True
+                logger.exception("LULD: no ladder frame for %s", self.push.symbol)
+            return None
+
+
 async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
     symbol = symbol.upper()
     await websocket.accept()
@@ -169,12 +196,16 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
             ))
 
         watch = _WatchFrames(symbol)
+        luld = _LuldFrames(symbol)
         last_view = time.monotonic()  # the last book or beat: what tells the desk its book is current
         async for item in _depth.stream(queue, timeout=min(MARKET_VIEW_BEAT_SEC, BOOK_WATCH_PUSH_SEC)):
             mono = time.monotonic()
             verdicts = watch.due(mono)
             if verdicts is not None:
                 await websocket.send_text(json.dumps({"type": "book_watch", "symbol": symbol, "data": verdicts}))
+            bands = luld.due(mono)
+            if bands is not None:
+                await websocket.send_text(json.dumps({"type": "luld", "symbol": symbol, "data": bands}))
             if item is None:
                 if mono - last_view >= MARKET_VIEW_BEAT_SEC:
                     await websocket.send_text(beat_frame(symbol))

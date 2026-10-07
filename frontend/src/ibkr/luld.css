@@ -1,0 +1,180 @@
+/* LULD bands on the Level 2 ladder (ADR 047; components layer, imported by marketData.css).
+   Owner: ibkr/LuldStrip.tsx and the band rows of ibkr/DepthLadder.tsx.
+
+   Rose red is the limit: a hard line the price cannot trade through, never the book's own bid green
+   or ask red, the plan's ENTRY / STOP / TARGET colours, or the book watcher's amber / slate / violet.
+   The strip is one 15 px line, shown only while the bands apply (09:30-16:00 ET), so the book keeps
+   its height the rest of the day; a band row takes an empty padding row's place while one is left. */
+
+.das-l2-luld {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  height: 15px;
+  margin-bottom: 2px;
+  font-size: 0.66rem;
+  line-height: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  cursor: default;
+}
+
+.das-l2-luld__side {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #fecdd3;
+  background: rgba(244, 63, 94, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.45);
+}
+
+/* Each band sits next to the centre line, like the book's inside prices. */
+.das-l2-luld__side--bid { justify-content: flex-end; }
+.das-l2-luld__side--ask { justify-content: flex-start; }
+
+.das-l2-luld__label {
+  margin-right: auto;
+  color: #f43f5e;
+  letter-spacing: 0.06em;
+}
+
+.das-l2-luld__price { color: #fff1f2; }
+
+.das-l2-luld__pct {
+  color: #fda4af;
+  font-weight: 600;
+}
+
+/* An approximate band: Nova did not see the stock open or reopen (the ≈ in the numbers says so too). */
+.das-l2-luld--approx .das-l2-luld__side {
+  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.45);
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgba(244, 63, 94, 0.08) 5px 7px);
+}
+
+/* The price is near a band: that side lights up. */
+.das-l2-luld__side--near {
+  color: #111111;
+  background: #fbbf24;
+  box-shadow: none;
+}
+
+.das-l2-luld__side--near .das-l2-luld__price,
+.das-l2-luld__side--near .das-l2-luld__pct,
+.das-l2-luld__side--near .das-l2-luld__label {
+  color: #111111;
+}
+
+.das-l2-luld__center {
+  position: relative;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  padding: 0 6px;
+  border-radius: 3px;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A limit state: the 15 s to the pause, counted down under the words. The pulse is a darker layer whose
+   opacity alone moves (compositor only: ux/compositorAnimations.test.ts, #707). */
+.das-l2-luld--limit .das-l2-luld__center {
+  isolation: isolate;
+  color: #ffffff;
+  background: #e11d48;
+}
+
+.das-l2-luld--limit .das-l2-luld__center::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #881337;
+  opacity: 0;
+  animation: das-l2-luld-fade 0.7s ease-in-out infinite alternate;
+}
+
+.das-l2-luld__countdown {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: #ffffff;
+  transition: width 0.25s linear;
+}
+
+.das-l2-luld--pause .das-l2-luld__center {
+  color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.22);
+}
+
+.das-l2-luld--idle .das-l2-luld__center {
+  color: var(--nova-text-muted, var(--text-secondary));
+  background: rgba(148, 163, 184, 0.08);
+  font-weight: 600;
+}
+
+@keyframes das-l2-luld-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The band rows, as DAS draws them: a compact row of its own at the band's price, rose on dark, its word in
+   the size column (a narrow ladder hides the MM column) -- never over a size or a price. */
+.das-l2-row--luld {
+  min-height: 1.05rem;
+  background: rgba(244, 63, 94, 0.22);
+  box-shadow: inset 0 1px 0 #f43f5e, inset 0 -1px 0 #f43f5e;
+  cursor: default;
+}
+
+.das-l2-row--luld .das-l2-price {
+  color: #ffe4e6;
+  font-weight: 800;
+}
+
+.das-l2-row--luld .das-l2-luld-word {
+  color: #fb7185;
+  font-size: 0.72em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0 4px;
+}
+
+.das-l2-side--ask .das-l2-row--luld .das-l2-luld-word { text-align: left; }
+
+/* The price is near the band, or on it in a limit state: a brighter layer under the digits pulses. */
+.das-l2-row--luld-hot {
+  isolation: isolate;
+}
+
+.das-l2-row--luld-hot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(225, 29, 72, 0.6);
+  opacity: 0;
+  animation: das-l2-luld-fade 0.7s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+/* A narrow ladder (the Trader rail) keeps the numbers and drops the strip's word: the rows say LULD. */
+@container md-pane (max-width: 279px) {
+  .das-l2-luld__label { display: none; }
+  .das-l2-luld__side { padding: 0 3px; gap: 3px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .das-l2-luld--limit .das-l2-luld__center::before,
+  .das-l2-row--luld-hot::before {
+    animation: none;
+    opacity: 0.6;
+  }
+}

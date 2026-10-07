@@ -17,6 +17,10 @@ export interface DepthMarker {
   rests: 'bid' | 'ask';
   /** What it is, on hover. */
   tip: string;
+  /** A LULD band (ADR 047): drawn bolder, and it keeps its own column whatever the book does. */
+  variant?: 'luld';
+  /** The price is at or near it: the mark pulses. */
+  hot?: boolean;
 }
 
 export interface PlacedMarker extends DepthMarker {

@@ -5,6 +5,7 @@ import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { shouldKeepPriorBook } from './depthBookGuards';
 import { applyBookWatchFrame, type BookWatchState } from './bookWatch';
 import { documentVisible, LentLine } from './lentLine';
+import { readLuldFrame, type LuldView } from './luld';
 import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
@@ -19,6 +20,8 @@ interface DepthState {
   watch: BookWatchState | null;
   /** The line is lent to one of Nova's setups (ADR 044 decision 6); null while this tab has it. */
   lent: LineLent | null;
+  /** The stock's LULD bands, Nova's calculation (ADR 047); null until the first frame. */
+  luld: LuldView | null;
 }
 
 export interface DepthOptions {
@@ -37,6 +40,7 @@ const EMPTY: DepthState = {
   error: null,
   watch: null,
   lent: null,
+  luld: null,
 };
 
 /**
@@ -81,6 +85,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
   const l1FallbackRef = useRef(false);
   const errorRef = useRef<string | null>(null);
   const watchRef = useRef<BookWatchState | null>(null);
+  const luldRef = useRef<LuldView | null>(null);
   // This symbol's line while it may be lent; set by the socket effect.
   const lineRef = useRef<LentLine | null>(null);
 
@@ -98,6 +103,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       error: errorRef.current,
       watch: watchRef.current,
       lent: lineRef.current?.lent ?? null,
+      luld: luldRef.current,
     });
   };
 
@@ -115,6 +121,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     l1FallbackRef.current = false;
     errorRef.current = null;
     watchRef.current = null;
+    luldRef.current = null;
     lineRef.current = null;
     setState(EMPTY);
 
@@ -190,11 +197,16 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             // What left the book: a reset frame on every (re)connect, then each verdict once.
             watchRef.current = applyBookWatchFrame(watchRef.current, msg.data, Date.now());
             if (uiActiveRef.current) commitUi();
+          } else if (msg.type === 'luld') {
+            // The LULD bands (ADR 047): sent when they change, and every few seconds.
+            luldRef.current = readLuldFrame(msg.data, symKey!);
+            if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'lent') {
             // Lent to a setup (ADR 044): this book is no longer live; the socket closes next.
             line.lend(msg);
             bookRef.current = null;
             watchRef.current = null;
+            luldRef.current = null;
             connectedRef.current = false;
             errorRef.current = null;
             if (uiActiveRef.current) commitUi();

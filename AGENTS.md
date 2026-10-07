@@ -2663,6 +2663,62 @@ level first (`grew_first`); 7.8% sat in the book untouched until it showed them 
 stays 0.5 s: with the rule on, reaching 1 s before the earlier book still adds 2.0%, 0.3-0.4 points
 beyond chance.
 
+### LULD bands on Level 2 (ADR 047, operator ask 2026-10-06)
+
+"do we have LULD levels?", then, beside DAS screenshots of red `LULD` rows at each band: "1 go.. make it obvious".
+IBKR passes on the halt but no band, so Nova computes each stock's limit up / limit down from the published LULD
+Plan rules (owner `backend/luld/`). Read-only: nothing places, stages, gates or cancels an order on it.
+
+- **The rules** (`luld/rules.py`, `luld/tracker.py`, pure):
+  - The percentage comes from the previous close (IBKR's tick 9), fixed for the day. Over $3.00 it is 5% (Tier 1)
+    or 10% (Tier 2); from $0.75 to $3.00, 20%; under $0.75, the lesser of $0.15 or 75%. It doubles 15:35-16:00 for
+    Tier 1 and for Tier 2 at or under $3.00.
+  - Bands round to the penny, half up. There are none outside 09:30-16:00 ET.
+  - The first reference is the listing exchange's opening print (condition `O`, from any venue but a trade-report
+    facility). For five minutes the mean of the trades since it follows; after that, the arithmetic mean of the
+    eligible (price-setting) trades of the preceding five minutes. A new mean replaces the reference only when it is
+    1% or more away and the old one has stood 30 s. Five minutes without a trade keep it.
+  - A limit state (the NBO on the lower band, or the NBB on the upper, not crossed) holds the reference; 15 s in it
+    is a pause due. A halt shows no band; the reopening print (`5`) is the next reference.
+  - Measured against the SIP's own band flags (the Massive NBBO indicators), a limit state's end makes no reference
+    of its own. The Plan's text says it does; keeping the reference matched 81% exactly, against 64%.
+- **Exact or approximate.** `exact` when Nova saw the stock open or reopen with its tape unbroken since.
+  - Otherwise a band appears after five minutes of tape, seeded from the mean: `exact: false`, with `spread` (how
+    far it may sit from the exchanges', in dollars). An approximate band never claims a limit state.
+  - A lost tape line or an IBKR feed gap makes an exact band approximate until the next reopen.
+  - The tier: a company of at least $15B is Tier 1 and one of at most $2B Tier 2 (sure). Between them, the side of
+    $4.5B; with no size known, Tier 2. Both read `tier_sure: false` and show `≈`.
+- **The live worker** (`luld/live.py`). The AllLast and Level 1 handlers only enqueue (ADR 010). One thread keeps a
+  tracker for every stock whose tape line Nova holds, from its first live print until 30 minutes without one. Every
+  0.25 s it reads the halt state (`halt_status.halted_now`), the line (`tape_stream.is_subscribed`) and feed gaps
+  (`feed_pulse`). In memory only; `NOVA_LULD=0` turns it off.
+- **The replay** (`luld/replay.py`). On a Sim desk off the live edge with a Session Record loaded: the bands at the
+  playhead, from the recording's prints, book tops and the day's halt log, never ahead of the playhead. It runs on
+  its own thread, with a checkpoint every 5 minutes of replay.
+- **The view** (`luld/views.py`) is one shape for `GET /api/luld/{symbol}` and the depth socket's `{"type": "luld",
+  "symbol", "data": view}` frames (sent on change, and at least every 5 s): `{schema_version: 1, symbol, source:
+  "live" | "replay", state: "off" | "unknown" | "warming" | "bands" | "limit" | "pause_due" | "paused", exact, lower,
+  upper, reference, reference_since, reference_source: "open" | "reopen" | "mean" | "open_mean" | "seeded" |
+  "first_trade_after_halt" | "limit_exit" | null, reference_words, percent, prev_close, tier: 1 | 2 | null,
+  tier_text, tier_sure, spread, limit: {side: "down" | "up", since, band, pause_at, overdue} | null, straddle: "down"
+  | "up" | null, anchor: {kind, ts, price} | null, halted_since, watching_since, warm_until, gap: {ts, reason} |
+  null, last, distance: {down_pct, up_pct} | null, near: "down" | "up" | null, reason, history: [{ts, reference,
+  source}], note, rules, track, as_of, text, watching?}`.
+  - `lower` / `upper` are null unless `state` is `bands`, `limit` or `pause_due`. `near` means within 2% of the
+    price or 5 cents. `track` is the measured record (`luld/track_record.py`).
+  - `GET /api/luld` lists the stocks the live worker follows. The stock read's halts row `luld` reads the view.
+- **On the desk** (`frontend/src/ibkr/luld.ts`, `LuldStrip.tsx`, `luld.css`):
+  - The Level 2 ladder draws the lower band in the bid column and the upper in the ask column: a bold rose line and
+    a `LULD 4.40` tag where the price sits among the rows, or under the last row (`↓`) when deeper. It pulses while
+    the price is near or on it.
+  - A 15 px strip above the book reads `LULD ▼ 4.40 −18.6% | ▲ 6.60 +22.0%`, the side amber when near. In a limit
+    state it reads `LIMIT DOWN 4.40 · PAUSE IN 9s` in red, the 15 s counting down. Outside 09:30-16:00 it is gone.
+  - `≈` marks an approximate band or an assumed tier. Every piece's hover says it is Nova's calculation, how it
+    knows, and the measured record.
+- **Measured** (`tools/luld_check.py`): `massive` replays the Massive flat files' trades and NBBO and compares with
+  the SIP's own flagged bands; `records` checks Nova's Session Records against the price the quote sat at for the
+  15 s before each logged pause.
+
 ### The trading screen is always recorded (ADR 035, operator decision 2026-09-24)
 
 "I always, always, always want the screen that I'm trading to be recorded.
@@ -4733,6 +4789,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-06 | LULD bands on Level 2 (ADR 047; operator: "do we have LULD levels?", then, with DAS screenshots, "1 go.. make it obvious"). IBKR passes on the halt, never the band, and the Nasdaq halt feed's threshold is blank, so Nova computes each stock's limit up / limit down from the published Plan rules over the tape and NBBO it holds (`backend/luld/`): the opening or reopening print first, then the 5-minute mean, moved only on a 1% change after 30 s, held in a limit state. Where the Plan's text leaves room, the SIP's own band flags in the Massive NBBO decided. A limit state's end makes no reference (the text says it does: 64% exact against 81%), and the mean is unrounded. On 10 days of SIP data Nova's band matched the exchanges' to the cent on 81% of 593 band touches and within 1c on 87%; on Nova's own recordings, GRML's three pauses of 2026-09-22 land exactly (14.18, 17.18, 15.87). The Level 2 ladder draws a red `LULD` row in each column and a strip above the book that counts a limit state's 15 s down to the pause; an approximate band (no open or reopen seen) shows `≈`. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The 1-minute chart keeps the operator's zoom when the plan's lead setup changes (operator report: "As I was zooming in and watching the chart, all of a sudden it resized itself randomly ... We fixed it before"). The 2026-09-25 fix stopped the plan's zones from moving the view, but the stock read still framed every newly leading setup: FRGT's plan followed red to green (near) at 09:31 and Gap and Go (armed) at 09:34, and each change reframed the pane -- red to green on 40 candles, Gap and Go from its 04:05 premarket high. The screenshot's window was exactly that frame (40 candles plus 12 of room). `chart/operatorView.ts` notes when the operator zooms or pans a pane (a range change during a press that began on the chart, or within 300 ms of a wheel or a release); after that no automatic frame or zone slide moves it, until a first paint or Reset chart hands it back. A setup is framed once per symbol, so a flip-flopping lead no longer reframes an untouched pane either. Driven in the demo desk: zoomed to 36 candles, a new lead setup jumped the pre-fix build to 333 and left the fixed one at its 208; the badge and Reset chart still frame. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The hot list is watching only, and its ★ shows next to every ticker (ADR 044 amendment; operator: "if i star a ticker can we please see 'star' next to it", then "a star[red] ticker ... shouldn't be buying and selling if it's signal only ... just because it's [starred] or not, it shouldn't be a reason", and "1 go" on the five questions). The star decided trading three ways: setting Buy to Nova starred the stock, taking the star off flipped it to You · You, and the bot refused any unlisted stock (`BOT_SKIP_NOT_LISTED`). All three are gone, with the list's default Buy / Sell; the bot buys where the Bot is on, the strategy is On and the stock's Buy is Bot. The 04:00 reset of yesterday's bot buys stays, on its own: nothing buys until today's file shows it ran (`BOT_SKIP_DAY_NOT_RESET`), and a failed reset is retried every pass -- the not-listed rule had covered that by accident. Bot-buy stocks take HOD Momo's reserved slots ahead of the list, since the bot only buys what a lane reads. A filled ★ (yours) or outlined ☆ (an auto star) now sits beside the symbol on the Trader tab, the Focus rail, the HOD Momo strip, the quote card and the Who trades row, as on scanner rows; the Buy / Sell switch reads You | Bot and the chart says BOT BUYS AT. The triggers table loses its Hot list square (nine gates) and lists bot-buy stocks with a "now" row. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The Sim replays the operator's Massive flat files (ADR 046; operator: "u wanna populate the data inside the sim? that way when we go back in time, the data we downloaded all of its information gets picked up?", then "1 go also do the bid and ask"). A historical window could only be an IBKR download -- about 90 prints a second (a full AAPL day of 628,348 trades in two hours, over the 500,000 a selection holds) and no bid or ask. Now `auto` takes a day's Massive files when they are on disk: one import reads the ticker's trades, 1-minute bars and NBBO from the day's gzip files (its own process, below normal priority, unaltered rows, csv-parsed), and selecting such a day starts it. The snapshot answers the bid and ask at the playhead (never ahead), colours prints from the NBBO before them, shows the NBBO as a one-level Level 2 when no book was recorded, and practice orders fill at the far side. Candles built from the prints that set a price matched Massive's own minute bars exactly (AAPL 2026-10-02 09:30-09:40, 10 of 10). On the desk the Sim Day calendar now opens every day in the files (before, a day needed a Scanner board or a Session Record, so nothing before September 2021 could be), a Sim tab offers Load from files with no Gateway, and the quote card, ticket, tape and Level 2 show the bid and ask. Massive data never enters the IBKR chart store; the single-market-data-feed rule's Sim exception names the source. §3 amended. | User Directive + Claude Opus 5.5 |

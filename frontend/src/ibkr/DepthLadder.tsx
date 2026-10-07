@@ -24,6 +24,9 @@ import { priceKey, pulledHere, pullMarks, type BookWatchState, type PulledHere }
 import { hiddenHere, hiddenMarks } from './bookWatchHidden';
 import { PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
 import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from './depthMarkers';
+import { luldMarkers } from './luld';
+import { withBands } from './LuldRows';
+import { LuldStrip } from './LuldStrip';
 import {
   depthEmptyMessage,
   depthLiveBadge,
@@ -165,7 +168,10 @@ export function MontageSide({
   const isBid = side === 'bid';
   const shown = Math.min(levels.length, TICKER_TRADE_DEPTH_LEVELS);
   const rows = levels.slice(0, shown);
-  const placed = markers.length ? placeMarkers(side, rows, markers) : [];
+  const all = markers.length ? placeMarkers(side, rows, markers) : [];
+  // The plan's levels are drawn over a row boundary; a LULD band is a row of its own (ADR 047).
+  const placed = all.filter(m => m.variant !== 'luld');
+  const bands = all.filter(m => m.variant === 'luld');
   // A hidden seller or buyer's mark comes first at its place; one that holds outlines its rows.
   const marks = watch && shown ? [...hiddenMarks(watch, side, rows, nowMs), ...pullMarks(watch, side, rows, nowMs)] : [];
   const here = watch && shown ? pulledHere(watch, side, rows, nowMs) : NO_PULLED_HERE;
@@ -215,7 +221,7 @@ export function MontageSide({
       </div>
       {shown === 0 && lines(0, 'flow')}
       {shown > 0 && pulls(0, 'head')}
-      {padded.map((level, i) => {
+      {withBands(padded, shown, bands, isBid, (level, i) => {
         const tier = level != null ? (tiers[i] ?? 0) : 0;
         const bg = level ? tierBackground(tier) : 'transparent';
         const gauge = level ? sizeGaugePct(level.size, peak) : 0;
@@ -246,7 +252,7 @@ export function MontageSide({
 
 export function DepthLadder({ symbol, uiActive = true, markers, traderTab = false }: Props) {
   useRenderCount('DepthLadder');
-  const { book, connected, l1Fallback, error, watch, lent } = useIbkrDepth(symbol, uiActive, { traderTab });
+  const { book, connected, l1Fallback, error, watch, lent, luld } = useIbkrDepth(symbol, uiActive, { traderTab });
   const { setTopOfBook } = useTopOfBook();
   // What left the book (ADR 033 amendment): the watcher reads depth, so an L1-only book carries none.
   const ladderWatch = l1Fallback ? null : watch;
@@ -305,7 +311,12 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
   const liveBadgeText = depthLiveBadgeText(liveBadge);
   const overnightOnly = isOvernightOnlyBook(book);
   const peak = bookPeak(book.bids, book.asks);
-  const sides = markers?.length ? splitMarkers(markers, book.bids, book.asks) : NO_MARKERS;
+  const plan = markers?.length ? splitMarkers(markers, book.bids, book.asks) : NO_MARKERS;
+  // The LULD bands keep their own columns (ADR 047): the lower with the bids, the upper with the asks.
+  const bands = luldMarkers(luld);
+  const sides = bands.bid.length || bands.ask.length
+    ? { bid: [...plan.bid, ...bands.bid], ask: [...plan.ask, ...bands.ask] }
+    : plan;
 
   return (
     <div className="das-l2">
@@ -334,6 +345,7 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
         )}
       </div>
       <PullsStrip watch={ladderWatch} />
+      <LuldStrip view={luld} />
       <div className="das-l2-montage">
         <MontageSide side="bid" levels={book.bids} peak={peak} markers={sides.bid} watch={ladderWatch} nowMs={nowMs} />
         <MontageSide side="ask" levels={book.asks} peak={peak} markers={sides.ask} watch={ladderWatch} nowMs={nowMs} />

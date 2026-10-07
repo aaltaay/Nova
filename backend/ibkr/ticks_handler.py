@@ -38,6 +38,16 @@ def _observe_halt(symbol: str, ticker: Any) -> None:
     _broadcast_halt(symbol, _snap)
 
 
+def _note_luld(symbol: str, ticker: Any, arrival_ts: float) -> None:
+    """The LULD bands' best bid / offer (ADR 047): enqueue only, and only for a stock it follows."""
+    try:
+        from luld import live as _luld
+
+        _luld.note_l1(symbol, ticker, arrival_ts)
+    except Exception:
+        logger.warning("IBKR ticks: LULD quote enqueue failed for %s", symbol, exc_info=True)
+
+
 def _broadcast_halt(symbol: str, halt: dict | None) -> None:
     def _send() -> None:
         try:
@@ -272,6 +282,7 @@ def on_ticker_update(
         sub["last_update_ts"] = time.time()
     # ticker.halted can arrive with no last. Observe before the price-none return.
     _observe_halt(symbol, ticker)
+    _note_luld(symbol, ticker, arrival_ts)
     last = reportable_last(ticker, sub)
     close = clean(getattr(ticker, "close", None))
     # Tick type 14 = session OPEN. IB sends it on the same streaming ticker, so
