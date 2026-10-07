@@ -37,6 +37,24 @@ BOT_SETUP_FLAT_TOP = "flat_top_breakout"
 BOT_SETUP_FLAT_TOP_5M = "flat_top_5m"
 BOT_SETUP_RED_TO_GREEN = "red_to_green"
 BOT_SETUP_MICRO_PULLBACK = "micro_pullback"
+# ADR 049 (#778 step 4): the five short setups, the long ones mirrored, plus the SSR bounce. A short setup sells
+# at its entry and covers under it; until step 5 nothing trades one (``BOT_SKIP_SHORT_LATER``).
+BOT_SETUP_BACKSIDE = "backside_lower_high"
+BOT_SETUP_BEAR_FLAG = "bear_flag"
+BOT_SETUP_FAILED_BREAKOUT = "failed_breakout"
+BOT_SETUP_LOST_VWAP = "lost_vwap"
+BOT_SETUP_SSR_BOUNCE = "ssr_bounce"
+BOT_SHORT_SETUPS = (
+    BOT_SETUP_BACKSIDE,
+    BOT_SETUP_BEAR_FLAG,
+    BOT_SETUP_FAILED_BREAKOUT,
+    BOT_SETUP_LOST_VWAP,
+    BOT_SETUP_SSR_BOUNCE,
+)
+BOT_SHORT_SETUP_SET = frozenset(BOT_SHORT_SETUPS)
+# The breakdown shorts: their read-out and five-year test judge the triggers with SSR off and report SSR's apart
+# (the SSR bounce arms only under SSR, so its triggers are one pool).
+BOT_SHORT_BREAKDOWN_SETUPS = (BOT_SETUP_BACKSIDE, BOT_SETUP_BEAR_FLAG, BOT_SETUP_FAILED_BREAKOUT, BOT_SETUP_LOST_VWAP)
 BOT_SETUPS = (
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_BULL_FLAG,
@@ -44,6 +62,7 @@ BOT_SETUPS = (
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
+    *BOT_SHORT_SETUPS,
     BOT_SETUP_MICRO_PULLBACK,
 )
 # The setups whose scanners run, in the order the engine builds their lanes.
@@ -54,8 +73,16 @@ BOT_SCANNER_SETUPS = (
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
+    *BOT_SHORT_SETUPS,
 )
 BOT_SETUPS_WITH_SCANNER = frozenset(BOT_SCANNER_SETUPS)
+SIDE_LONG = "long"
+SIDE_SHORT = "short"
+
+
+def setup_side(setup: str | None) -> str:
+    """``short`` for a short setup (ADR 049), else ``long``: the side a setup's trigger enters."""
+    return SIDE_SHORT if setup in BOT_SHORT_SETUP_SET else SIDE_LONG
 # The setup a schema 4 session called "chosen" when it named none (the v5 migration).
 BOT_SETUP_DEFAULT = BOT_SETUP_FIRST_PULLBACK
 # The material's trading window: entries (buy_* kinds) at Strategy only, the venue's
@@ -239,6 +266,13 @@ BOT_SKIP_DAY_NOT_RESET = "BOT_SKIP_DAY_NOT_RESET"
 # ADR 048: Nova never trades against a position you hold -- a long entry while the account is short the
 # stock (or a short entry while it is long, step 5), and an entry while the position cannot be read.
 BOT_SKIP_HELD_OTHER_SIDE = "BOT_SKIP_HELD_OTHER_SIDE"
+# ADR 049 (#778 step 4): a short setup's trigger. Nova's bot and Auto-entry trade shorts from step 5; until
+# then a short alerts the operator only, and its proposal names no taker.
+BOT_SKIP_SHORT_LATER = "BOT_SKIP_SHORT_LATER"
+BOT_SHORT_LATER_TEXT = ("a short setup: Nova's bot and Auto-entry trade shorts from step 5 of #778 -- until then a "
+                        "short alerts you only")
+# ADR 049 section 12: a short setup is On only once its five-year test passed on the rules in play.
+BOT_REASON_SHORT_TEST = "BOT_SHORT_TEST"
 # The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
 BOT_AUDIT_ACTION_SWITCH = "bot_switch"
 # The squares, by ticker (``GET /api/bot/triggers``): the gates in the order Nova runs them.

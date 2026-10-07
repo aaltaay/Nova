@@ -132,6 +132,12 @@
 .sr-lane--red_to_green { color: var(--sr-bad); }
 .sr-lane--hod_momo { color: var(--sr-ok); }
 .sr-lane--bot { color: #ff9f0a; }
+/* ADR 049: the short setups, orange (their labels carry ▼ and the setup's name, so colour never speaks alone). */
+.sr-lane--backside_lower_high,
+.sr-lane--bear_flag,
+.sr-lane--failed_breakout,
+.sr-lane--lost_vwap,
+.sr-lane--ssr_bounce { color: var(--short-ink, #fb923c); background: var(--short-tint, rgba(234, 88, 12, 0.16)); }
 
 .sr-daily {
   display: block;

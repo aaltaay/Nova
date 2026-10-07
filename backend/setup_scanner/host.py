@@ -31,11 +31,10 @@ class LaneHost:
             memo["read"][sym] = _grade.read_pillars(sym, now)
         return memo["read"][sym]
 
-    def risk_usd(self) -> float | None:
-        """The desk's risk per trade -- the desk venue's bot sleeve, the size every Nova buy and the operator's
-        Stage use (ADR 042) -- re-read at most every ``SETUPS_THIN_SIZE_TTL_SEC``; None when unread. The
-        liquidity sizes its walk through the asks by it (2026-10-01)."""
-        memo = self.__dict__.setdefault("_risk_usd_memo", {"at": None, "usd": None})
+    def _sleeve(self) -> dict | None:
+        """The desk venue's bot sleeve (ADR 042), re-read at most every ``SETUPS_THIN_SIZE_TTL_SEC``; None
+        when unread."""
+        memo = self.__dict__.setdefault("_sleeve_memo", {"at": None, "caps": None})
         mono = time.monotonic()
         if memo["at"] is None or mono - memo["at"] >= SETUPS_THIN_SIZE_TTL_SEC:
             memo["at"] = mono
@@ -43,11 +42,75 @@ class LaneHost:
                 from bot.persist import load_session
                 from bot.sleeve import of
 
-                memo["usd"] = float(of(load_session())["risk_usd"])
+                memo["caps"] = dict(of(load_session()))
             except Exception:
                 logger.warning("setup scanner: the desk's risk per trade could not be read", exc_info=True)
-                memo["usd"] = None
-        return memo["usd"]
+                memo["caps"] = None
+        return memo["caps"]
+
+    def risk_usd(self) -> float | None:
+        """The desk's risk per trade -- the desk venue's bot sleeve, the size every Nova buy and the operator's
+        Stage use (ADR 042); None when unread. The liquidity sizes its walk through the book by it (2026-10-01)."""
+        caps = self._sleeve()
+        try:
+            return float(caps["risk_usd"]) if caps else None
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def order_shares(self, risk: float | None) -> int | None:
+        """The sleeve's size for a setup risking ``risk`` a share: the risk per trade over it, cut to the
+        sleeve's max shares (a short's borrow pillar reads it, ADR 049); None when either is unknown."""
+        caps = self._sleeve()
+        try:
+            usd, cap = float(caps["risk_usd"]), int(caps["max_shares"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if risk is None or float(risk) <= 0:
+            return None
+        return min(int(usd // float(risk)), cap) or None
+
+    # -- what a short's detector and grade read (ADR 049): memory only, never a wait --------------
+    def short_context(self, sym: str, now: float) -> dict:
+        """``{prior_close, ssr_yesterday}`` for a short's detector: the board's prior close (else the line's
+        tick 9) and whether SSR carries from yesterday (IBKR's daily reads in memory). A stock trading under
+        its prior close with no daily reads yet has them asked for on a worker thread."""
+        memo = self.__dict__.setdefault("_short_ctx_memo", {"now": None, "read": {}})
+        if memo["now"] != now:
+            memo["now"], memo["read"] = now, {}
+        if sym not in memo["read"]:
+            from short_sale import ssr
+
+            prior = _grade.prior_close(sym)
+            yesterday = ssr.yesterday_on(sym, now)
+            if yesterday is None and prior is not None:
+                mb = getattr(self, "bars", {}).get(sym)
+                last = mb.completed[-1].c if mb is not None and getattr(mb, "completed", None) else None
+                if last is not None and last < prior:
+                    ssr.request_history(sym, now)       # a worker thread; yesterday reads unknown until it lands
+            memo["read"][sym] = {"prior_close": prior, "ssr_yesterday": yesterday}
+        return memo["read"][sym]
+
+    def dilution(self, sym: str, now: float) -> tuple[bool | None, str | None]:
+        """``(on file, words)`` from the stock read's "Dilution on file" reading (``stock_read.dilution_reader``,
+        from memory; a missing read is queued and reads unknown)."""
+        from stock_read import dilution_reader
+
+        row = dilution_reader.view(sym, now) or {}
+        state = row.get("state")
+        if state == "warn":
+            return True, f"dilution on file: {row.get('value')}"
+        if state == "ok":
+            return False, None
+        return None, None
+
+    def borrow(self, sym: str) -> dict | None:
+        """IBKR's cached shortable estimate (tick 236): ``{shares, state, age_sec}``; None when never read."""
+        from ibkr import shortability
+
+        snap = shortability.cached(sym)
+        if not snap:
+            return None
+        return {"shares": snap.get("shortable_shares"), "state": snap.get("state"), "age_sec": snap.get("age_sec")}
 
     def tape_books(self, sym: str) -> list:
         return self.tape.books(sym) if self.tape is not None else []

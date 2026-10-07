@@ -80,7 +80,12 @@ def _setup_view(setup_id: str) -> dict[str, Any]:
         if catalogue.has_scanner(setup_id):
             row["readout"] = _readout(t)
         templates.append(row)
-    return {"id": setup_id, "scanner": catalogue.has_scanner(setup_id), "catalogue": catalogue.wire(setup_id),
+    from constants_bot import setup_side
+    from setup_scanner import short_tests
+
+    # ADR 049: the side a setup enters, and a short's five-year test against the template in play.
+    return {"id": setup_id, "side": setup_side(setup_id), "test": short_tests.test_in_play(setup_id),
+            "scanner": catalogue.has_scanner(setup_id), "catalogue": catalogue.wire(setup_id),
             "in_play": playing, "templates": templates}
 
 

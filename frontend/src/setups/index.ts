@@ -2,7 +2,8 @@
 
 export { useSetupsBoard, SetupsStreamProvider } from './SetupsStreamContext';
 export { useSetupRows } from './useSetupRows';
-export { stageSetupTicket, stageVenueLock } from './stageSetupTicket';
+export { shortStageOf, stageSetupTicket, stageVenueLock } from './stageSetupTicket';
+export { isShortRow } from './shortWords';
 export { etHms, isRecordedBoard, recordedEmptyText, simBoardLine, simBoardTip } from './simBoardWords';
 export { fmtCents, fmtPct, fmtPx, fmtR, isActionable, stagedLimit, tapeRank } from './setupsFormat';
 export {
@@ -80,10 +81,13 @@ export type {
   SetupCounts,
   SetupProposal,
   SetupRow,
+  SetupSide,
   SetupsBoard,
   SetupState,
   SetupSummary,
   SetupType,
+  ShortTest,
+  SsrState,
   TapeRead,
   TapeVerdict,
 } from './types';

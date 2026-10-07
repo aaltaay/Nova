@@ -55,6 +55,9 @@ class Series:
     v: list[float] = field(default_factory=list)
     hod: list[float] = field(default_factory=list)      # hod[i] = max(h[: i + 1])
     hod_i: list[int] = field(default_factory=list)      # the latest bar at that high (ties move it on)
+    lod: list[float] = field(default_factory=list)      # lod[i] = min(lo[: i + 1]) -- the short setups (ADR 049)
+    lod_i: list[int] = field(default_factory=list)      # the latest bar at that low (ties move it on)
+    vw: list[float | None] = field(default_factory=list)  # the session VWAP through bar i; None before any volume
     vmax_i: list[int] = field(default_factory=list)     # the first bar with the day's biggest volume so far
     e: list[float] = field(default_factory=list)        # ema(c, ema_period)
     _fast: list[float] = field(default_factory=list)
@@ -62,11 +65,14 @@ class Series:
     _line: list[float] = field(default_factory=list)
     _sig: list[float] = field(default_factory=list)
     hist: list[float] = field(default_factory=list)
+    _pv: float = field(default=0.0, repr=False)         # the VWAP's running sums
+    _vol: float = field(default=0.0, repr=False)
 
     def reset(self) -> None:
-        for arr in (self.t, self.o, self.h, self.lo, self.c, self.v, self.hod, self.hod_i, self.vmax_i, self.e,
-                    self._fast, self._slow, self._line, self._sig, self.hist):
+        for arr in (self.t, self.o, self.h, self.lo, self.c, self.v, self.hod, self.hod_i, self.lod, self.lod_i,
+                    self.vw, self.vmax_i, self.e, self._fast, self._slow, self._line, self._sig, self.hist):
             arr.clear()
+        self._pv = self._vol = 0.0
 
     def update(self, bars: Sequence) -> None:
         """Bring the arrays up to ``bars`` (oldest first, each with t / o / h / lo / c / v)."""
@@ -88,6 +94,18 @@ class Series:
             else:
                 self.hod.append(self.hod[-1])
                 self.hod_i.append(self.hod_i[-1])
+            if not self.lod or b.lo <= self.lod[-1]:
+                self.lod.append(b.lo)
+                self.lod_i.append(i)
+            else:
+                self.lod.append(self.lod[-1])
+                self.lod_i.append(self.lod_i[-1])
+            if self.v[i] > 0:
+                # The chart's session VWAP (``sensors.math_indicators.session_vwap``): the typical price weighted
+                # by volume; a bar without volume leaves it where it was.
+                self._pv += (b.h + b.lo + b.c) / 3.0 * self.v[i]
+                self._vol += self.v[i]
+            self.vw.append(self._pv / self._vol if self._vol > 0 else None)
             self.vmax_i.append(i if not self.vmax_i or self.v[i] > self.v[self.vmax_i[-1]] else self.vmax_i[-1])
         _extend_ema(self.e, self.c, n, self.ema_period)
         _extend_ema(self._fast, self.c, n, self.macd_fast)
@@ -101,6 +119,10 @@ class Series:
     def prior_high(self, i: int) -> float | None:
         """max(h[:i]) -- the high of day before bar ``i`` (None for the first bar)."""
         return self.hod[i - 1] if i > 0 else None
+
+    def prior_low(self, i: int) -> float | None:
+        """min(lo[:i]) -- the low of day before bar ``i`` (None for the first bar)."""
+        return self.lod[i - 1] if i > 0 else None
 
     def last_values(self) -> dict[str, float | int] | None:
         """The indicators at the last completed bar -- the values the gates read (ADR 036) -- or

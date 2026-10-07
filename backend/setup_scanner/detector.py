@@ -45,6 +45,7 @@ from datetime import datetime, time as dtime
 from typing import Any, ClassVar
 from zoneinfo import ZoneInfo
 
+from constants_bot import SIDE_LONG
 from constants_setups import (
     SETUP_STATE_ARMED,
     SETUP_STATE_LEG,
@@ -86,6 +87,8 @@ class TriggerDetector:
 
     FIRST_KIND: ClassVar[str] = ""
     SECOND_KIND: ClassVar[str | None] = None
+    SIDE: ClassVar[str] = SIDE_LONG
+    TRIGGER_UP: ClassVar[bool] = True     # a price over the trigger triggers; a breakdown short reads it down (ADR 049)
 
     def __post_init__(self) -> None:
         self.series = Series(ema_period=self.p.ema_period, macd_fast=self.p.macd_fast,
@@ -221,6 +224,12 @@ class TriggerDetector:
         """``view()`` plus the forming levels and the lane's own indicators (ADR 036)."""
         return {**self.view(), "forming": dict(self.forming) if self.forming else None,
                 "series": self.series.last_values()}
+
+
+def distance(trigger: float, last: float, *, up: bool = True) -> float:
+    """How far the price is from the trigger, in the direction it must still go: ``trigger - last`` for a
+    trigger the price rises to, ``last - trigger`` for a breakdown short's (ADR 049)."""
+    return round(float(trigger) - float(last), 4) if up else round(float(last) - float(trigger), 4)
 
 
 def forming_levels(trigger: float, entry: float, stop: float, target1: float, *, bars: int,

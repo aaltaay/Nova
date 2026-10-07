@@ -10,12 +10,24 @@ and are ours; the scoreboard exists to tell us whether they are right.
 from __future__ import annotations
 
 from constants_bot import (
+    BOT_SETUP_BACKSIDE,
+    BOT_SETUP_BEAR_FLAG,
     BOT_SETUP_BULL_FLAG,
+    BOT_SETUP_FAILED_BREAKOUT,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
+    BOT_SETUP_LOST_VWAP,
     BOT_SETUP_RED_TO_GREEN,
+    BOT_SETUP_SSR_BOUNCE,
+)
+from constants_short_setups import (
+    SETUP_KIND_BACKSIDE,
+    SETUP_KIND_BEAR_FLAG,
+    SETUP_KIND_FAILED_BREAKOUT,
+    SETUP_KIND_LOST_VWAP,
+    SETUP_KIND_SSR_BOUNCE,
 )
 
 # The board / socket payload. 2 (ADR 031): rows and proposals carry
@@ -25,7 +37,8 @@ SETUPS_SCHEMA_VERSION_SYMBOL = 1           # GET /api/setups/symbol/{symbol} (AD
 # setups.db: 2 adds template_id / template_rev / params_hash (ADR 029); a v1
 # file is migrated in place, its rows becoming the default template's. 3 (ADR
 # 031) adds setup_type and detail; a v2 file's rows are the first pullback's.
-SETUPS_DB_SCHEMA_VERSION = 5
+# 6 (ADR 049, #778 step 4) adds side and ssr; a v5 file's rows are long.
+SETUPS_DB_SCHEMA_VERSION = 6
 
 # -- Session window (America/New_York). The material's window is 07:00-10:00;
 # the research screen ran 09:30-11:30. Covering 07:00-11:30 lets the
@@ -277,6 +290,11 @@ SETUPS_READOUT_KINDS = {
     BOT_SETUP_FLAT_TOP_5M: SETUP_KIND_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN: SETUP_KIND_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO: SETUP_KIND_GAP_AND_GO,
+    BOT_SETUP_BACKSIDE: SETUP_KIND_BACKSIDE,
+    BOT_SETUP_BEAR_FLAG: SETUP_KIND_BEAR_FLAG,
+    BOT_SETUP_FAILED_BREAKOUT: SETUP_KIND_FAILED_BREAKOUT,
+    BOT_SETUP_LOST_VWAP: SETUP_KIND_LOST_VWAP,
+    BOT_SETUP_SSR_BOUNCE: SETUP_KIND_SSR_BOUNCE,
 }
 
 # -- The pre-registered read-out (Bot-Trading-Plan §2g, ADR 027): read once

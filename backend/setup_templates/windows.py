@@ -28,6 +28,7 @@ from constants_bot import (
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_RED_TO_GREEN,
+    BOT_SHORT_SETUPS,
 )
 from setup_templates.catalogue import Problem
 
@@ -40,6 +41,7 @@ ARMING_KEYS: dict[str, tuple[str, str]] = {
     BOT_SETUP_FLAT_TOP_5M: ("session_start", "entry_cutoff"),
     BOT_SETUP_RED_TO_GREEN: ("session_start", "r2g_cutoff"),
     BOT_SETUP_GAP_AND_GO: ("session_start", "entry_cutoff"),
+    **{sid: ("session_start", "entry_cutoff") for sid in BOT_SHORT_SETUPS},   # ADR 049: 09:35 to each cutoff
 }
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 

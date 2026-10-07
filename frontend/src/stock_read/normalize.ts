@@ -155,7 +155,7 @@ export function normalizeSetupLevels(raw: unknown): SetupLevels | null {
     trigger,
     entry,
     stop,
-    risk: num(s.risk) ?? entry - stop,
+    risk: num(s.risk) ?? Math.abs(entry - stop),     // a short's buy stop is over its entry
     target1,
     leg_t: num(s.leg_t) ?? undefined,
     leg_high: num(s.leg_high) ?? undefined,
@@ -179,7 +179,7 @@ function forming(raw: unknown): FormingLevels | null {
     trigger,
     entry,
     stop,
-    risk: num(f.risk) ?? entry - stop,
+    risk: num(f.risk) ?? Math.abs(entry - stop),
     target1,
     bars: num(f.bars) ?? 0,
     blocked: str(f.blocked),
@@ -243,6 +243,8 @@ function lane(raw: unknown): SetupLane | null {
     series: series(l.series),
     timeframe: l.timeframe === '5m' ? '5m' : '1m',
     liquidity: normalizeLiquidity(l.liquidity),
+    side: l.side === 'short' ? 'short' : 'long',
+    ssr: l.ssr === 'on' || l.ssr === 'off' || l.ssr === 'unknown' ? l.ssr : null,
   };
 }
 

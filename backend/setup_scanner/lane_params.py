@@ -15,12 +15,20 @@ from dataclasses import dataclass
 from typing import Any
 
 from constants_bot import (
+    BOT_SETUP_BACKSIDE,
+    BOT_SETUP_BEAR_FLAG,
     BOT_SETUP_BULL_FLAG,
+    BOT_SETUP_FAILED_BREAKOUT,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
+    BOT_SETUP_LOST_VWAP,
     BOT_SETUP_RED_TO_GREEN,
+    BOT_SETUP_SSR_BOUNCE,
+    SIDE_LONG,
+    SIDE_SHORT,
+    setup_side,
 )
 from constants_setups import (
     SETUPS_5M_BAR_SEC,
@@ -32,7 +40,16 @@ from constants_setups import (
     SETUPS_GRADE_C,
     SETUPS_SCORE_WINDOW_MIN,
 )
+from constants_short_setups import SETUPS_SSR_TRADE
 from setup_scanner.bull_flag import BullFlagParams
+from setup_scanner.lane_params_short import (
+    backside_params,
+    bear_flag_params,
+    failed_breakout_params,
+    lost_vwap_params,
+    short_grade_rules,
+    ssr_bounce_params,
+)
 from setup_scanner.flat_top import FlatTopParams
 from setup_scanner.gap_and_go import GapAndGoParams
 from setup_scanner.pullback import PullbackParams
@@ -215,6 +232,11 @@ PATTERNS = {
     BOT_SETUP_FLAT_TOP_5M: flat_top_5m_params,
     BOT_SETUP_RED_TO_GREEN: red_to_green_params,
     BOT_SETUP_GAP_AND_GO: gap_and_go_params,
+    BOT_SETUP_BACKSIDE: backside_params,
+    BOT_SETUP_BEAR_FLAG: bear_flag_params,
+    BOT_SETUP_FAILED_BREAKOUT: failed_breakout_params,
+    BOT_SETUP_LOST_VWAP: lost_vwap_params,
+    BOT_SETUP_SSR_BOUNCE: ssr_bounce_params,
 }
 
 
@@ -282,7 +304,7 @@ class LaneParams:
     name: str
     pattern: Any              # the setup's own detector params (PullbackParams, BullFlagParams, ...)
     gate: GateParams
-    grade: GradeRules
+    grade: Any                # GradeRules; a short's ShortGradeRules (ADR 049)
     stock: StockFilter
     bailout_bars: int
     setup: str = BOT_SETUP_FIRST_PULLBACK
@@ -290,6 +312,12 @@ class LaneParams:
     flush: FlushPolicy = FlushPolicy()
     bar_sec: int = SETUPS_BAR_SEC                 # a 5-minute lane's candles (five_minute_lane.py): 300
     score_window_min: int = SETUPS_SCORE_WINDOW_MIN
+    side: str = SIDE_LONG                         # ADR 049: a short setup's lane reads every rule mirrored
+    ssr: str = SETUPS_SSR_TRADE                   # a short template under SSR: trade, or skip (filtered)
+
+    @property
+    def short(self) -> bool:
+        return self.side == SIDE_SHORT
 
     @property
     def pullback(self) -> Any:
@@ -300,7 +328,10 @@ class LaneParams:
 def lane_params(template: Any) -> LaneParams:
     v = template.values
     setup = getattr(template, "setup", None) or BOT_SETUP_FIRST_PULLBACK
+    side = setup_side(setup)
+    grade = short_grade_rules(v) if side == SIDE_SHORT else grade_rules(v)
     return LaneParams(template_id=template.id, template_rev=int(template.rev), params_hash=template.fingerprint,
-                      name=template.name, pattern=PATTERNS[setup](v), gate=gate_params(v), grade=grade_rules(v),
+                      name=template.name, pattern=PATTERNS[setup](v), gate=gate_params(v), grade=grade,
                       stock=stock_filter(v), bailout_bars=int(v["bailout_bars"]), setup=setup,
-                      flow=flow_params(v), flush=flush_policy(v))
+                      flow=flow_params(v), flush=flush_policy(v), side=side,
+                      ssr=str(v.get("ssr") or SETUPS_SSR_TRADE))

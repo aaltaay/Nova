@@ -370,21 +370,29 @@ class FlowIndex:
 
 
 def flush_action(policy: FlushPolicy, *, label: str | None, price: float | None, ts: float, entry: float,
-                 risk: float, stop: float, since: float) -> dict[str, Any] | None:
+                 risk: float, stop: float, since: float, side: str = "long") -> dict[str, Any] | None:
     """What a template does about one reading while a trade is on; ``None`` when nothing.
 
     Only a ``flush`` counts, only ``hold_sec`` after ``since`` (the entry), and with
     ``min_r`` set only while the trade is up at least that many R. ``exit`` gets out;
-    ``tighten`` moves the stop to ``trail_r`` R under the price -- up only, never down."""
-    if not policy.active or label != TAPE_FLOW_FLUSH or price is None or risk <= 0:
+    ``tighten`` moves the stop to ``trail_r`` R under the price -- up only, never down.
+    A short (ADR 049) reads the mirror: a ``burst`` of buying is its flush, its R is (entry -
+    price) / risk, and ``tighten`` moves the buy stop down to ``trail_r`` R over the price."""
+    short = side == "short"
+    if not policy.active or label != (TAPE_FLOW_BURST if short else TAPE_FLOW_FLUSH) or price is None or risk <= 0:
         return None
     if ts < since + policy.hold_sec:
         return None
-    r_now = (float(price) - entry) / risk
+    r_now = ((entry - float(price)) if short else (float(price) - entry)) / risk
     if policy.min_r is not None and r_now < policy.min_r:
         return None
     if policy.mode == FLUSH_EXIT_EXIT:
         return {"action": "exit", "r_now": round(r_now, 3)}
+    if short:
+        new_stop = round(float(price) + policy.trail_r * risk, 4)
+        if new_stop >= stop - 1e-9:
+            return None
+        return {"action": "tighten", "stop": new_stop, "r_now": round(r_now, 3)}
     new_stop = round(float(price) - policy.trail_r * risk, 4)
     if new_stop <= stop + 1e-9:
         return None

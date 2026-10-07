@@ -183,6 +183,10 @@ export interface SetupLane {
   timeframe?: '1m' | '5m';
   /** Too thin to trade? (2026-10-01) The armed setup's reading, at its trigger once it triggered. */
   liquidity?: LiquidityRead | null;
+  /** ADR 049: a short setup sells at its entry and covers under it (absent on an older API: long). */
+  side?: 'long' | 'short';
+  /** A short lane's SSR at its trigger, else at its arm; null on a long one (absent on an older API). */
+  ssr?: 'on' | 'off' | 'unknown' | null;
 }
 
 export interface ReadLevels {

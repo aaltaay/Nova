@@ -99,6 +99,12 @@ class EyesReplay:
     def pillars(self, sym: str, now: float) -> dict:
         return self._pillars_fn(sym, self.session, now, last_price=self.last_price, prev_close=self.rec.prev_close)
 
+    def short_context(self, sym: str, now: float) -> dict:
+        """A short's detector context (ADR 049): the replayed session's prior close (``sim.prior_close``).
+        Yesterday's SSR is not known here, so a replay's SSR reads on (today's low reached the trigger) or
+        unknown -- never off."""
+        return {"prior_close": self.rec.prev_close, "ssr_yesterday": None}
+
     def tape_books(self, sym: str) -> list:
         return self.rec.books_between(self.now - self._keep, self.now)
 

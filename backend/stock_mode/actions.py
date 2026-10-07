@@ -32,6 +32,8 @@ from constants_stock_mode import (
     STOCK_MODE_NOTHING_HELD,
     STOCK_MODE_PLAN_CHANGED,
     STOCK_MODE_SEND,
+    STOCK_MODE_SHORT_LATER,
+    STOCK_MODE_SHORT_LATER_TEXT,
     STOCK_MODE_SIDE_NOVA,
     STOCK_MODE_SIDE_YOU,
     STOCK_MODE_SIGNAL,
@@ -199,9 +201,6 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
                              status=400) from None
     if approved["qty"] < 1:
         raise StockModeError(STOCK_MODE_INVALID, "the size is at least one share", status=400, field="qty")
-    if not approved["stop"] < approved["entry"] < approved["target"]:
-        raise StockModeError(STOCK_MODE_INVALID, "a long plan has its stop under the entry and its target over it",
-                             status=400)
     try:
         lane = runner.lane_of(sym, approved["setup_id"])
     except runner.LanesUnreadable as exc:
@@ -210,6 +209,12 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
                              "check the plan, so it approves nothing") from exc
     if lane is None:
         raise StockModeError(STOCK_MODE_PLAN_CHANGED, "that setup is gone from the scanner: nothing to approve")
+    if model.lane_side(lane) == "short":    # Approve sends a long bracket (ADR 049: until #778 step 5)
+        raise StockModeError(STOCK_MODE_SHORT_LATER, STOCK_MODE_SHORT_LATER_TEXT.format(
+            sym=sym, setup=str(lane.get("setup_type") or "setup").replace("_", " ")))
+    if not approved["stop"] < approved["entry"] < approved["target"]:
+        raise StockModeError(STOCK_MODE_INVALID, "a long plan has its stop under the entry and its target over it",
+                             status=400)
     if lane.get("state") == "filtered":
         why = str(lane.get("reason") or "").removeprefix("filtered: ")
         raise StockModeError(STOCK_MODE_FILTERED, f"the template's stock filter keeps {sym} out ({why}): Nova sends "

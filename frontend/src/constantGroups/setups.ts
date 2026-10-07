@@ -1,4 +1,11 @@
 /** Setup scanner UI (ADR 022). The backend owns the rules (`backend/constants_setups.py`). */
+import {
+  SHORT_FUNNEL_WORDS,
+  SHORT_KIND_LABELS,
+  SHORT_TRIGGER_LEVEL_WORDS,
+  SHORT_TYPE_STATE_LABELS,
+  SHORT_TYPE_STATE_TIPS,
+} from './short_setups';
 
 export const SETUPS_WS_PATH = '/ws/setups';
 export const SETUPS_SCOREBOARD_PATH = '/api/setups/scoreboard';
@@ -39,6 +46,7 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
 /** What a setup's trigger is, where "the trigger" would say less: the alert card and the watch toasts. */
 export const SETUP_TRIGGER_LEVEL_WORDS: Record<string, string> = {
   red_to_green: 'open', flat_top_breakout: 'high', flat_top_5m: 'high', gap_and_go: 'pre-market high',
+  ...SHORT_TRIGGER_LEVEL_WORDS,
 };
 
 export const SETUP_KIND_LABELS: Record<string, string> = {
@@ -52,6 +60,7 @@ export const SETUP_KIND_LABELS: Record<string, string> = {
   second_flat_top_5m: 'Second 5-minute flat top',
   red_to_green: 'Red to green',
   gap_and_go: 'Gap and Go',
+  ...SHORT_KIND_LABELS,
 };
 
 /* ---------- Every setup's words (ADR 031) ----------
@@ -68,6 +77,7 @@ export const SETUP_TYPE_STATE_LABELS: Record<string, Partial<Record<string, stri
   flat_top_5m: { leg: 'Pushing HOD', pullback: 'Base · held back', armed: '5m base', triggered: 'Held' },
   red_to_green: { leg: 'Red', pullback: 'Red · held back', armed: 'Red', near: 'Near the open', triggered: 'Reclaimed' },
   gap_and_go: { pullback: 'Open · held back', armed: 'Under the PMH', near: 'Near the PMH', triggered: 'Broke the PMH' },
+  ...SHORT_TYPE_STATE_LABELS,
 };
 
 /** What each state means for each setup: the first paragraph of its hover. */
@@ -120,6 +130,7 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
     triggered: 'Price traded over the pre-market high: Gap and Go. The scoreboard follows it from here. That was the day\'s one try.',
     failed: 'No break by the cutoff, a gap through the high at the open, or the try was spent.',
   },
+  ...SHORT_TYPE_STATE_TIPS,
 };
 
 /** A setup's flat-top hold after the break (detail.broke_at). */
@@ -180,6 +191,7 @@ export const SETUP_FUNNEL_WORDS: Record<string, { forming: string; armed: string
   flat_top_5m: { forming: 'pushing HOD', armed: '5m bases', near: 'near', triggered: 'held' },
   red_to_green: { forming: 'red', armed: 'armed', near: 'near', triggered: 'reclaimed' },
   gap_and_go: { forming: 'held back', armed: 'under the PMH', near: 'near', triggered: 'broke out' },
+  ...SHORT_FUNNEL_WORDS,
 };
 export const SETUP_FUNNEL_TIPS = {
   watching: 'Symbols this scanner follows right now: the HOD Momo names.',
@@ -292,7 +304,7 @@ export const SETUPS_SPLIT_KEY_LABELS: Record<string, Record<string, string>> = {
   kind: {
     first_pullback: 'First pullback', second_pullback: 'Second pullback', bull_flag: 'First flag',
     second_bull_flag: 'Second flag', flat_top_breakout: 'First flat top', second_flat_top_breakout: 'Second flat top',
-    red_to_green: 'Red to green', '?': 'Unknown',
+    red_to_green: 'Red to green', ...SHORT_KIND_LABELS, '?': 'Unknown',
   },
 };
 

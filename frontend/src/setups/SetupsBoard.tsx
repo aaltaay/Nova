@@ -27,7 +27,8 @@ import {
   toGoWords,
   triggerWords,
 } from './setupWords';
-import { stageSetupTicket, stageVenueLock } from './stageSetupTicket';
+import { shortStageOf, stageSetupTicket, stageVenueLock } from './stageSetupTicket';
+import { isShortRow } from './shortWords';
 import { tf5Words } from './tf5Words';
 import type { SetupRow } from './types';
 
@@ -71,9 +72,12 @@ function kindWords(row: SetupRow): { text: string; tip: string } {
   const type = setupTypeOf(row);
   const second = Boolean(row.kind?.startsWith('second_'));
   const kind = row.kind ? SETUP_KIND_LABELS[row.kind] ?? row.kind : setupLabel(type);
+  // A short (ADR 049) says so in its name: ▼ and the word SHORT on hover (the colour never speaks alone).
+  const short = isShortRow(row) ? '▼ ' : '';
   return {
-    text: second ? `${setupShort(type)} · 2nd` : setupShort(type),
-    tip: `${kind}: ${second ? 'the second of this setup on the symbol today (the read-out counts only the first)' : 'the first of this setup on the symbol today'}.`,
+    text: `${short}${second ? `${setupShort(type)} · 2nd` : setupShort(type)}`,
+    tip: `${short ? 'A SHORT setup: it sells under its trigger, with a buy stop over it. ' : ''}`
+      + `${kind}: ${second ? 'the second of this setup on the symbol today (the read-out counts only the first)' : 'the first of this setup on the symbol today'}.`,
   };
 }
 
@@ -103,11 +107,16 @@ function StageCell({ row, risk, onOpenTrading }: { row: SetupRow; risk: SleeveRi
   const p = row.proposal;
   if (!p) return null;
   const limit = stagedLimit(row);
+  const stop = p.stop ?? row.setup?.stop ?? null;
+  const side = isShortRow(row) ? 'short' : 'long';
   const size = proposalStageSize({ risk: p.risk ?? row.setup?.risk ?? null, entry: p.entry ?? row.setup?.entry ?? null,
-    stop: p.stop ?? row.setup?.stop ?? null }, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
+    stop, side }, risk.riskUsd, `${riskSourceWords(risk)} risk per trade`);
+  // A short proposal (ADR 049) stages a short with its buy stop, never a buy.
+  const short = shortStageOf({ side, stop });
   const lock = proposalStageLock({ ...p, entry: p.entry ?? row.setup?.entry ?? null }, size)
     ?? stageVenueLock(venue, Boolean(sample));
-  const tip = `Stage a BUY limit at ${limit} for ${size.text} on this symbol's ticket. Stop ${fmtPx(row.setup?.stop)}. `
+  const tip = (short ? `Stage a SHORT limit at ${limit} with its buy stop ${short.buyStop} for ${size.text} on this `
+    + 'symbol\'s ticket. ' : `Stage a BUY limit at ${limit} for ${size.text} on this symbol's ticket. Stop ${fmtPx(stop)}. `)
     + `Nothing is sent until you press Place.${risk.why ? `\n${risk.why}` : ''}`;
   return (
     <button
@@ -117,7 +126,7 @@ function StageCell({ row, risk, onOpenTrading }: { row: SetupRow; risk: SleeveRi
       {...whyProps(lock !== null, lock)}
       onClick={e => {
         e.stopPropagation();
-        if (lock === null) stageSetupTicket(row.symbol, limit, onOpenTrading, size.qty);
+        if (lock === null) stageSetupTicket(row.symbol, limit, onOpenTrading, size.qty, short);
       }}
       {...(lock === null ? tipProps(tip, 'Stage ticket') : {})}
       data-testid={`setups-stage-${row.symbol}`}
@@ -157,7 +166,7 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading, risk }: {
       <td>
         <SymbolSelectButton symbol={row.symbol} selected={selected} onSelect={onSelectSymbol} onOpenTrading={onOpenTrading} />
       </td>
-      <td className="setups-kind" {...tipProps(kind.tip, setupLabel(setupTypeOf(row)))}>{kind.text}</td>
+      <td className={`setups-kind${isShortRow(row) ? ' setups-kind--short' : ''}`} {...tipProps(kind.tip, setupLabel(setupTypeOf(row)))}>{kind.text}</td>
       <td>
         <span className={`pillar-chip setups-state setups-state--${broke ? 'broke' : row.state}`} {...tipProps(state.tip, state.title)}>
           {state.text}
@@ -170,7 +179,8 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading, risk }: {
       </td>
       <td className="num" {...tipProps(trig.tip, trig.title)}>{s ? trig.text : '—'}</td>
       <td className="num">{fmtPx(s?.stop)}</td>
-      <td className="num" {...tipProps('Entry minus the stop, per share: what one share risks.', 'Risk')}>{fmtCents(s?.risk)}</td>
+      <td className="num" {...tipProps(isShortRow(row) ? 'The buy stop minus the entry, per share: what one share short risks.'
+        : 'Entry minus the stop, per share: what one share risks.', 'Risk')}>{fmtCents(s?.risk)}</td>
       <td className="num">{fmtPx(s?.target1)}</td>
       <td className="num setups-distance" {...tipProps(toGo.tip, toGo.title)}>
         {row.state === 'triggered' ? outcomeLabel(row) : toGo.text === '·' ? '—' : toGo.text}

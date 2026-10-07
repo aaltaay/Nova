@@ -7,15 +7,18 @@
  * Every label makes room (`sceneLabels.ts`): a trigger's result first, then the newest setup's, and how
  * one ended before any leg. A past flat top keeps its touches as faint rings (`pastRings`).
  */
-import { FLAT_TOP_PAST_RING, PAST_COLORS } from './constants';
+import { FLAT_TOP_PAST_RING, PAST_COLORS, PAST_SHORT } from './constants';
 import { flatTopTouches, isFlatTop } from './flatTopShapes';
 import type { SceneBox, SceneDot } from './sceneTypes';
 import { endOf, pastIconLabel, pastLabel, pastShortLabel, type Episode } from './pastSetups';
+import { isShortEpisode } from './pastShort';
 import type { LabelShrink } from './sceneLabels';
 import type { SetupLeg } from './types';
 import type { Time } from 'lightweight-charts';
 
 const MIN = 60;
+/** A short's context box, by setup. */
+const PAST_SHORT_WORDS: Record<string, string> = { backside_lower_high: 'FADE', bear_flag: 'POLE', ssr_bounce: 'DROP' };
 /** A label's claim to the room: a trigger's result, then how any ended, then the legs -- each the newest
  * first (by epoch seconds). */
 const RANK_TRIGGERED = 3e10;
@@ -76,7 +79,24 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
     const low = ep.setup?.stop ?? ep.after?.floor ?? null;
     const label = pastLabel(ep);
     const type = ep.setup_type;
-    if (type === 'first_pullback' || type === 'bull_flag') {
+    if (isShortEpisode(ep)) {
+      // A short (ADR 049): orange, ▼ SHORT, between its trigger (under) and its buy stop (over).
+      const near = ep.setup?.trigger ?? ep.after?.level ?? leg.low;
+      const far = ep.setup?.stop ?? ep.after?.floor ?? null;
+      const ctx = type === 'bear_flag' && leg.bars ? leg.t - (leg.bars - 1) * bar : leg.t - 5 * bar;
+      const withContext = type === 'backside_lower_high' || type === 'bear_flag' || type === 'ssr_bounce';
+      if (withContext) {
+        box(ctx, leg.t, leg.low, leg.high, PAST_SHORT.legFill, PAST_SHORT.legStroke, `▼ ${PAST_SHORT_WORDS[type]}`,
+          PAST_SHORT.ink, legOnly);
+      }
+      const from = withContext ? leg.t + bar : leg.t;
+      if (far !== null && end > from) {
+        box(from, end, near, far, PAST_SHORT.fill, PAST_SHORT.stroke, `▼ SHORT · ${label}`, tone.ink, outcome, true);
+      } else if (!withContext) {
+        box(leg.t, Math.max(end, leg.t + bar), leg.low, leg.high, PAST_SHORT.fill, PAST_SHORT.stroke,
+          `▼ SHORT · ${label}`, tone.ink, outcome, true);
+      }
+    } else if (type === 'first_pullback' || type === 'bull_flag') {
       const start = type === 'bull_flag' && leg.bars ? leg.t - (leg.bars - 1) * bar : (o.legStart?.(leg) ?? leg.t - 5 * bar);
       const legLabel = `${type === 'bull_flag' ? 'POLE' : 'LEG'} ${pct(leg.pct)}`;
       if (low !== null && end > leg.t) {

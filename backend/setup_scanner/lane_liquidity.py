@@ -8,7 +8,7 @@ playback draws the card the lane showed. A thin setup never proposes and its tri
 (``trade_verdict``); it is still scored -- outside the read-out -- so the rule itself can be checked.
 
 The reading uses the lane's own one-minute bars, the day volume in its pillars, the host's newest fresh
-Level 2 book and the desk's risk per trade (``host.risk_usd``; a replay host has none, so it never judges
+Level 2 book (a short's walk is through the bids, ADR 049) and the desk's risk per trade (``host.risk_usd``; a replay host has none, so it never judges
 the book). Owner: ``setup_scanner/lane.py`` (the row holds the reading; nothing is kept here).
 """
 from __future__ import annotations
@@ -70,9 +70,10 @@ def reading(lane: Any, sym: str, now: float, risk: Any) -> dict[str, Any]:
     elif qty < 1:
         unknown["book"] = "no risk per trade to size the fill by"
     else:
-        walked = liquidity.walk(book.get("asks") or [], qty)
+        short = getattr(lane.p, "short", False)    # ADR 049: a short sells into the bids
+        walked = liquidity.walk_bids(book.get("bids") or [], qty) if short else liquidity.walk(book.get("asks") or [], qty)
         if walked is None:
-            unknown["book"] = "the book shows no offer"
+            unknown["book"] = "the book shows no bid" if short else "the book shows no offer"
     return liquidity.judge(day=day, pace=pace, now=now, book=walked, risk=risk, unknown=unknown)
 
 

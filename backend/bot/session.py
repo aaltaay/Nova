@@ -25,6 +25,19 @@ from constants_bot import (
 logger = logging.getLogger(__name__)
 
 
+def short_view(setup: str) -> dict[str, Any]:
+    """ADR 049: every setup's ``side``; a short's five-year ``test`` and why its On is ``locked``."""
+    from bot.setup_levels import short_lock
+    from constants_bot import SIDE_SHORT, setup_side
+
+    side = setup_side(setup)
+    if side != SIDE_SHORT:
+        return {"side": side, "test": None, "locked": None}
+    from setup_scanner import short_tests
+
+    return {"side": side, "test": short_tests.test_in_play(setup), "locked": short_lock(setup)}
+
+
 def get_session() -> dict[str, Any]:
     row = persist.load_session()
     return public_view(row)
@@ -64,7 +77,8 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         # ADR 042: every setup with a scanner has its own level; effective = min(master, own).
         "setups": [{"id": sid, "scanner": sid in BOT_SETUPS_WITH_SCANNER,
                     "level": own.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None,
-                    "effective": eff.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None} for sid in BOT_SETUPS],
+                    "effective": eff.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None,
+                    **short_view(sid)} for sid in BOT_SETUPS],
         "setup_levels": dict(own),
         "ready": ready,
         "ready_reason": ready_reason,

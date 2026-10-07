@@ -26,11 +26,12 @@ from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
-from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
+from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK, setup_side
 from constants_eyes import EYES_PLAYBACK_GAP_SEC, EYES_SCHEMA_VERSION
 from constants_setups import SETUP_TEMPLATE_DEFAULT_ID, SETUPS_5M_TEMPLATE_ID
 from eyes.journal_day import JournalDay
 from eyes.lane_fold import COUNT_KEYS, LaneFold
+from setup_scanner import short_tests
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -165,7 +166,8 @@ class Playback:
                                                                                     "watching": len(self.universe)}
             level = int((levels.get("levels") or {}).get(setup) or 0)
             setups.append({
-                "id": setup, "level": level, "chosen": levels.get("chosen") == setup, "proposing": False,
+                "id": setup, "side": setup_side(setup), "test": short_tests.test_in_play(setup),   # today's, a control
+                "level": level, "chosen": levels.get("chosen") == setup, "proposing": False,
                 "template": self.meta.get((setup, template)) if template else None,
                 "templates_watched": self._running(setup),
                 "window": ({"start": win[0], "end": win[1], "state": window_state(at, win[0], win[1])} if win

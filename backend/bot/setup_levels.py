@@ -11,10 +11,15 @@ from it is Off). A setup's **effective** level is ``min(master, its own)``:
 - Strategy lets Nova's bot trade its go triggers -- only while the bot is Active
   (``bot.activation``); while it is not, a Strategy setup proposes like Eyes.
 
+ADR 049: a short setup is On (Strategy) only once its five-year test passed on the rules in play
+(``setup_scanner.short_tests``): ``apply`` refuses On before that (409 ``BOT_SHORT_TEST``), and a short at On
+whose test stops matching -- its template edited, the result replaced -- reads as Eyes.
+
 Owner: this module (the rules; the session file is ``bot.persist``'s).
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from bot.errors import BotError
@@ -23,10 +28,14 @@ from constants_bot import (
     BOT_LEVEL_OFF,
     BOT_LEVEL_STRATEGY,
     BOT_REASON_SETUP_LEVEL,
+    BOT_REASON_SHORT_TEST,
     BOT_SCANNER_SETUPS,
     BOT_SETUPS_WITH_SCANNER,
+    SIDE_SHORT,
+    setup_side,
 )
 
+logger = logging.getLogger(__name__)
 LEVEL_NAMES = {BOT_LEVEL_OFF: "Off", BOT_LEVEL_EYES: "Eyes", BOT_LEVEL_STRATEGY: "Strategy"}
 
 
@@ -50,10 +59,30 @@ def own_levels(row: dict[str, Any]) -> dict[str, int]:
     return {sid: _level(raw.get(sid)) or BOT_LEVEL_OFF for sid in BOT_SCANNER_SETUPS}
 
 
+def short_lock(setup: str) -> str | None:
+    """Why a short setup may not be On (ADR 049): its five-year test has not passed on the rules in play. None
+    for a long setup. A test or a template Nova cannot read keeps it locked, and says so."""
+    if setup_side(setup) != SIDE_SHORT:
+        return None
+    try:
+        from setup_scanner import short_tests
+        from setup_templates.store import get_store
+
+        return short_tests.lock(setup, get_store().in_play(setup).fingerprint)
+    except Exception as exc:
+        logger.warning("bot: %s's five-year test could not be read -- On stays locked", setup, exc_info=True)
+        return f"On waits on the {name(setup)} five-year test, which could not be read ({exc})"
+
+
 def effective(row: dict[str, Any]) -> dict[str, int]:
-    """``{SETUP: min(master, own)}``: what each setup does on this venue now."""
+    """``{SETUP: min(master, own)}``: what each setup does on this venue now. A short setup at On whose test no
+    longer passes on the rules in play reads as Eyes (ADR 049)."""
     top = master(row)
-    return {sid: min(top, lvl) for sid, lvl in own_levels(row).items()}
+    out = {sid: min(top, lvl) for sid, lvl in own_levels(row).items()}
+    for sid, lvl in out.items():
+        if lvl >= BOT_LEVEL_STRATEGY and short_lock(sid):
+            out[sid] = BOT_LEVEL_EYES
+    return out
 
 
 def at_strategy(row: dict[str, Any]) -> list[str]:
@@ -92,6 +121,10 @@ def apply(row: dict[str, Any], patch: Any) -> dict[str, tuple[int, int]]:
         if level is None:
             raise BotError(f"the level of {name(sid)} is 0 (Off), 1 (Eyes) or 2 (Strategy)", 400,
                            BOT_REASON_SETUP_LEVEL)
+        if level >= BOT_LEVEL_STRATEGY and before.get(sid, BOT_LEVEL_OFF) < BOT_LEVEL_STRATEGY:
+            locked = short_lock(sid)
+            if locked:
+                raise BotError(locked, 409, BOT_REASON_SHORT_TEST)
         after[sid] = level
     row["setup_levels"] = after
     return {sid: (before[sid], after[sid]) for sid in after if after[sid] != before[sid]}

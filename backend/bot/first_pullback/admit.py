@@ -49,10 +49,14 @@ from constants_bot import (
     BOT_SKIP_NOT_FIRST,
     BOT_SKIP_ONE_TRADE,
     BOT_SKIP_SETUP_NOT_STRATEGY,
+    BOT_SHORT_LATER_TEXT,
+    BOT_SKIP_SHORT_LATER,
     BOT_SKIP_SIZE,
     BOT_SKIP_STALE,
     BOT_SKIP_TAPE,
     BOT_SKIP_VENUE_CHANGING,
+    SIDE_SHORT,
+    setup_side,
 )
 from constants_setups import TAPE_VERDICT_GO
 
@@ -174,6 +178,8 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     from stock_mode.leave import leaving, leaving_text
 
     out: list[Blocker] = []
+    if SIDE_SHORT in (event.get("side"), setup_side(setup_of(event))):
+        out.append((BOT_SKIP_SHORT_LATER, BOT_SHORT_LATER_TEXT))    # ADR 049: first -- longs only until step 5
     venue, edge, readable = venue_now or activation.venue_state()
     blocked = activation.venue_block(venue, edge, readable)
     if blocked is not None:
@@ -343,6 +349,8 @@ def taker(sym: str, setup_type: str) -> str | None:
     from bot.persist import load_session
     from bot.setup_levels import effective
 
+    if setup_side(setup_type) == SIDE_SHORT:
+        return None                  # ADR 049: nothing takes a short trigger by itself until #778 step 5
     row = load_session()
     if not is_desk_active(row) or effective(row).get(setup_type, 0) < BOT_LEVEL_STRATEGY:
         return None

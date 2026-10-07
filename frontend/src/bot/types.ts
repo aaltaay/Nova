@@ -1,4 +1,5 @@
 import type { BotActionKind } from '../constantGroups/bot';
+import type { ShortTest } from '../setups';
 
 /** The master ceiling and each setup's own level (ADR 042): 0 Off, 1 Eyes, 2 Strategy. */
 export type BotLevel = 0 | 1 | 2;
@@ -8,7 +9,18 @@ export type BotLevel = 0 | 1 | 2;
  * switch (0 Off, 1 Eyes, 2 Strategy; null without a scanner); `effective` is
  * min(master level, own level) -- what it may do now. Absent on an older API.
  */
-export type BotSetupInfo = { id: string; scanner: boolean; level?: number | null; effective?: number | null };
+export type BotSetupInfo = {
+  id: string;
+  scanner: boolean;
+  level?: number | null;
+  effective?: number | null;
+  /** ADR 049: the side the setup trades (absent on an older API: long). */
+  side?: 'long' | 'short';
+  /** A short setup's five-year test; null on a long one. */
+  test?: ShortTest | null;
+  /** Why On is locked (a short whose five-year test has not passed on the rules in play); null when it is not. */
+  locked?: string | null;
+};
 
 /** One venue's loss breakers (ADR 032): negative dollars, the bot trip above the all-stop. */
 export type BotBreakerPair = { soft_usd: number; hard_usd: number };

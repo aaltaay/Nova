@@ -249,6 +249,16 @@ def test_notes_say_everything_that_keeps_nova_from_acting(paper, monkeypatch):
     assert "no Level 2 line" in notes["no_depth"]
 
 
+def test_a_short_setups_plan_says_no_nova_mode_trades_it_until_step_5(paper, monkeypatch):
+    monkeypatch.setattr("stock_mode.view._plan_lane",
+                        lambda sym, now: plan_lane(setup_type="backside_lower_high", side="short"))
+    put(paper, "nova", "you")                                   # Auto-entry
+    notes = {n["id"]: n["text"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
+    assert "backside lower high is a short setup" in notes["short_later"] and "step 5" in notes["short_later"]
+    put(paper, "you", "you")                                    # Signal only says nothing
+    assert "short_later" not in {n["id"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
+
+
 def test_the_notes_never_hold_a_stock_off_the_hot_list(paper):
     """ADR 044, amended 2026-10-06: a star is watching, never permission -- the Who trades view of a stock off
     today's list promises the buy without a word about the list."""
@@ -571,6 +581,19 @@ def test_approve_refuses_a_filtered_setup_and_a_plan_that_is_not_a_trade(paper, 
     put(paper, "you", "nova")
     r = client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(), headers=headers(paper.key))
     assert r.status_code == 409 and r.json()["detail"]["reason"] == reason and words in r.json()["detail"]["error"]
+    assert store.approval(SYM) is None
+
+
+def test_approve_refuses_a_short_setup_until_the_bot_trades_both_sides(paper, monkeypatch):
+    short = lane(setup_type="bear_flag", side="short",
+                 setup={"trigger": 9.99, "entry": 9.98, "stop": 10.11, "target1": 9.72, "risk": 0.13})
+    monkeypatch.setattr(runner, "lane_of", lambda sym, sid: short)
+    put(paper, "you", "nova")
+    r = client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(entry=9.98, stop=10.11, target=9.72),
+                    headers=headers(paper.key))
+    detail = r.json()["detail"]
+    assert r.status_code == 409 and detail["reason"] == "STOCK_MODE_SHORT_LATER"   # ADR 049, #778 step 4
+    assert "bear flag is a short setup" in detail["error"] and "stage the short in the ticket" in detail["error"]
     assert store.approval(SYM) is None
 
 

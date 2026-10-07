@@ -1,4 +1,5 @@
 /** Wire shapes of `/api/setups/templates` (backend `setup_templates/`, ADR 029). */
+import type { ShortTest } from '../setups';
 
 export type ParamKind = 'number' | 'int' | 'bool' | 'time' | 'choice';
 export type ParamValue = number | boolean | string | null;
@@ -94,6 +95,10 @@ export interface SetupTemplates {
   catalogue: SetupCatalogue;
   in_play: string;
   templates: SetupTemplate[];
+  /** ADR 049: the side the setup trades (absent on an older API: long). */
+  side?: 'long' | 'short';
+  /** A short setup's five-year test, for the rules of its template in play; null on a long one. */
+  test?: ShortTest | null;
 }
 
 export interface TemplatesPayload {

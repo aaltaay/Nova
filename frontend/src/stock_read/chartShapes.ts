@@ -20,6 +20,7 @@
  * lane faded like the others -- an order that stands behind a level is still drawn.
  */
 import type { Time } from 'lightweight-charts';
+import { SHORT_SETUP_CHIPS } from '../constantGroups/short_setups';
 import { LEVEL_COLORS, SETUP_COLORS } from './constants';
 import { heldLines } from './heldView';
 import { levelScene, minuteScene } from './levelPicks';
@@ -159,7 +160,8 @@ function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): Pri
 export function laneStartSec(lane: SetupLane, legStart?: (leg: SetupLeg) => number): number | null {
   const leg = lane.leg;
   if (!leg) return lane.setup?.leg_t ?? null;
-  if (lane.setup_type === 'bull_flag' && leg.bars) return leg.t - (leg.bars - 1) * MIN;
+  if ((lane.setup_type === 'bull_flag' || lane.setup_type === 'bear_flag') && leg.bars) return leg.t - (leg.bars - 1) * MIN;
+  if (lane.setup_type === 'backside_lower_high' || lane.setup_type === 'ssr_bounce') return leg.t - 5 * MIN;
   if (lane.setup_type === 'first_pullback') return legStart?.(leg) ?? leg.t - 5 * MIN;
   return leg.t;
 }
@@ -214,7 +216,10 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
         const start = shape?.end ?? lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
           ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
         scene.boxes.push(...planZones(lv, start, o));
-        if (lv.stop && lv.target) scene.keepInView = { min: lv.stop.price, max: lv.target.price };
+        // A short's stop is over its target (ADR 048): the range is the two, whichever is lower first.
+        if (lv.stop && lv.target) {
+          scene.keepInView = { min: Math.min(lv.stop.price, lv.target.price), max: Math.max(lv.stop.price, lv.target.price) };
+        }
       }
       // A 5-minute setup armed or near its trigger: one dashed line here (the chip is the legend's).
       lines.push(...fiveMinuteOnMinute(read).lines);
@@ -272,7 +277,7 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
 export function laneChip(lane: SetupLane): { text: string; state: 'forming' | 'live' | 'done' | 'idle' | 'failed' } {
   const short: Record<string, string> = {
     first_pullback: '1st pullback', bull_flag: 'Bull flag', flat_top_breakout: 'Flat top', flat_top_5m: '5m flat top',
-    red_to_green: 'Red→green', gap_and_go: 'Gap & Go',
+    red_to_green: 'Red→green', gap_and_go: 'Gap & Go', ...SHORT_SETUP_CHIPS,
   };
   const name = short[lane.setup_type] ?? setupName(lane.setup_type);
   const prog = formingProgress(lane);
@@ -294,5 +299,5 @@ export function planBadgeText(read: StockRead): string | null {
   const lane = leadLane(read);
   const prog = formingProgress(lane);
   const state = p.state === 'forming' && prog ? `FORMING ${prog.replace('/', ' OF ')}` : p.state.toUpperCase();
-  return `${setupName(p.setup_type).toUpperCase()} · ${state}`;
+  return `${setupName(p.setup_type).toUpperCase()}${p.side === 'short' ? ' ▼ SHORT' : ''} · ${state}`;
 }

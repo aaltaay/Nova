@@ -13,6 +13,7 @@ as it stood then, so a lane's lines say everything its card shows:
 - ``say_price`` writes a ``price`` line for a name within reach of the playing
   lane's trigger, at most every ``EYES_JOURNAL_PRICE_EVERY_SEC``, so a playback's
   "to go" is the card's.
+- A short setup's armed and triggered lines carry its SSR (``ssr``, ADR 049).
 
 Owner: ``setup_scanner/lane.py`` (the lane keeps ``_said`` / ``_priced``; nothing
 is kept here).
@@ -23,7 +24,9 @@ from typing import Any
 
 from constants_eyes import EYES_JOURNAL_PRICE_EVERY_SEC
 from constants_setups import SETUP_STATE_TRIGGERED
-from setup_scanner.lane_view import JOURNAL_EVENT_STATES, WATCH_STATES
+from setup_scanner.lane_view import JOURNAL_EVENT_STATES, STATE_FILTERED, WATCH_STATES
+
+SSR_SAID = ("armed", STATE_FILTERED, "triggered")   # the lines a short's SSR rides on (its arm, its trigger)
 
 
 def line(lane: Any, event: str, sym: str | None, fields: dict[str, Any]) -> None:
@@ -36,6 +39,10 @@ def line(lane: Any, event: str, sym: str | None, fields: dict[str, Any]) -> None
         implied = fields.get("state") if event == "state" else JOURNAL_EVENT_STATES.get(event)
         if implied:
             lane._said[sym] = (implied, str(fields.get("reason") or ""))
+    if lane.p.short and event in SSR_SAID:      # a short's SSR at its arm and at its trigger (ADR 049)
+        row = lane.rows.get(fields.get("setup_id") or "")
+        if row is not None and row.get("ssr") is not None:
+            fields.setdefault("ssr", row["ssr"])
     lane.host.journal({"event": event, "symbol": sym, "setup_type": lane.p.setup, "template": lane.p.template_id,
                        "rev": lane.p.template_rev, "playing": lane.playing, **fields})
 

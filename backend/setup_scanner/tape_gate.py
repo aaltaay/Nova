@@ -12,6 +12,12 @@ material makes before pressing buy (ADR 022, Bot-Trading-Plan section 2g):
   blind  no fresh book -- Nova holds no Level 2 line for the symbol; or the
          window touches an IBKR feed gap, whose prints arrived in one burst (#673)
 
+A short setup's gate is the mirror (ADR 049, ``side="short"``): its level is the bids from one cent over the
+trigger down to ``band`` under it; a buyer there waits or vetoes; red on the tape (prints at the bid
+outweighing the ask) is go; a green burst waits; a hidden buyer -- the bid sold into without moving down --
+vetoes; a flow score at or under minus the entry minimum enters. The template keys are the long's; only their
+words mirror.
+
 A template may decide the entry by the tape flow score instead (ADR 034,
 ``entry_mode``): ``gate`` is the rule above; ``score`` keeps the vetoes and a
 wall that is not thinning, and replaces the green / red print counts with the
@@ -101,26 +107,53 @@ def _levels(book: dict | None, side: str) -> list[tuple[float, float]]:
     return out
 
 
-def _wall(book: dict | None, trigger: float, band: float) -> tuple[float | None, float]:
-    """Biggest single ask level from one cent under the trigger to ``band`` over it."""
+@dataclass(frozen=True)
+class _Side:
+    """What the gate reads on each side, and the words it says (ADR 049: the short mirror)."""
+
+    wall_book: str           # the book side the level sits on
+    with_print: str          # prints that move the setup's way
+    against_print: str
+    trader: str              # who waits / vetoes at the level
+    flow_word: str           # "green" for a long, "red" for a short
+    burst_word: str
+    hidden: str
+    flow_key: str
+
+
+_LONG = _Side("asks", "ask", "bid", "seller", "green", "red", "hidden seller: {k:.1f}k bought at the ask and the "
+              "ask did not move", "green_flow")
+_SHORT = _Side("bids", "bid", "ask", "buyer", "red", "green", "hidden buyer: {k:.1f}k sold at the bid and the bid "
+               "did not move", "red_flow")
+
+
+def _wall(book: dict | None, trigger: float, band: float, side: _Side = _LONG) -> tuple[float | None, float]:
+    """Biggest single level at the setup's level: for a long the asks from one cent under the trigger to
+    ``band`` over it; for a short the bids from one cent over it down to ``band`` under it."""
     best_px, best_sz = None, 0.0
-    for px, sz in _levels(book, "asks"):
-        if trigger - 0.01 - 1e-9 <= px <= trigger + band + 1e-9 and sz > best_sz:
+    lo, hi = (trigger - 0.01, trigger + band) if side is _LONG else (trigger - band, trigger + 0.01)
+    for px, sz in _levels(book, side.wall_book):
+        if lo - 1e-9 <= px <= hi + 1e-9 and sz > best_sz:
             best_px, best_sz = px, sz
     return best_px, best_sz
 
 
-def _size_at(book: dict | None, price: float) -> float:
-    return sum(sz for px, sz in _levels(book, "asks") if abs(px - price) < 1e-6)
+def _size_at(book: dict | None, price: float, side: _Side = _LONG) -> float:
+    return sum(sz for px, sz in _levels(book, side.wall_book) if abs(px - price) < 1e-6)
 
 
-def _score_check(flow: dict | None, p: GateParams) -> tuple[bool, str]:
-    """Whether the flow score clears the template's entry minimum, and the reason in words."""
+def _score_check(flow: dict | None, p: GateParams, side: _Side = _LONG) -> tuple[bool, str]:
+    """Whether the flow score clears the template's entry minimum (for a short: at or under minus it), and
+    the reason in words."""
     if not isinstance(flow, dict) or flow.get("label") == TAPE_FLOW_BLIND:
         return False, "no flow reading"
     score = flow.get("score")
     if flow.get("label") == TAPE_FLOW_QUIET or score is None:
         return False, "the tape is too quiet to score"
+    if side is _SHORT:
+        if score <= -p.entry_min_score + 1e-9:
+            return True, f"flow {score:+.2f} ({flow.get('label')})"
+        return False, f"flow {score:+.2f} is over {-p.entry_min_score:+.2f}"
     if score >= p.entry_min_score - 1e-9:
         return True, f"flow {score:+.2f} ({flow.get('label')})"
     return False, f"flow {score:+.2f} is under {p.entry_min_score:+.2f}"
@@ -128,27 +161,31 @@ def _score_check(flow: dict | None, p: GateParams) -> tuple[bool, str]:
 
 def evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
              prints: Iterable[dict], p: GateParams = DEFAULT_GATE, flow: dict | None = None,
-             gaps: Iterable[dict] | None = None) -> dict[str, Any]:
+             gaps: Iterable[dict] | None = None, side: str = "long") -> dict[str, Any]:
     """Judge the tape at ``trigger`` from the samples inside the window ending at ``now``.
 
     ``metrics.read_at`` is ``now``: the moment the read stands for (ADR 022 amendment 2026-09-30).
     ``gaps`` are the live feed's gaps (``ibkr.feed_pulse``): a window that touches one reads
-    ``blind`` with the gap as its reason (#673)."""
+    ``blind`` with the gap as its reason (#673). ``side`` is the setup's (ADR 049): a short reads the
+    mirror."""
     gap = tape_gap.touching(gaps, now - p.window_sec, now) if gaps else None
     if gap is not None:
         res = tape_gap.blind_gate(gap, now, p.window_sec)
     else:
-        res = _evaluate(trigger=trigger, now=now, books=books, prints=prints, p=p, flow=flow)
+        res = _evaluate(trigger=trigger, now=now, books=books, prints=prints, p=p, flow=flow,
+                        mirror=_SHORT if side == "short" else _LONG)
     if flow is not None:
         res["flow"] = flow
         res["metrics"]["flow_score"] = flow.get("score")
     res["metrics"]["entry_mode"] = p.entry_mode
     res["metrics"]["read_at"] = now
+    if side == "short":
+        res["metrics"]["side"] = "short"
     return res
 
 
 def _evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
-              prints: Iterable[dict], p: GateParams, flow: dict | None) -> dict[str, Any]:
+              prints: Iterable[dict], p: GateParams, flow: dict | None, mirror: _Side = _LONG) -> dict[str, Any]:
     window = [(ts, b) for ts, b in books if now - p.window_sec <= ts <= now and b]
     reasons: list[str] = []
     metrics: dict[str, Any] = {"window_sec": p.window_sec}
@@ -174,26 +211,27 @@ def _evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]]
     if spread > spread_cap + 1e-9:
         vetoes.append(f"spread {spread:.2f} is wider than {spread_cap:.2f}")
 
-    wall_px, wall_sz = _wall(book, trigger, p.band)
-    start_sz = _size_at(first_book, wall_px) if wall_px is not None else 0.0
+    who = mirror.trader
+    wall_px, wall_sz = _wall(book, trigger, p.band, mirror)
+    start_sz = _size_at(first_book, wall_px, mirror) if wall_px is not None else 0.0
     metrics.update({"wall_price": wall_px, "wall_size": wall_sz, "wall_size_start": start_sz})
     # A wall that was there at the start of the window and has been eaten below
     # the threshold is the strongest "go" the material describes -- say so.
-    was_px, was_sz = _wall(first_book, trigger, p.band)
+    was_px, was_sz = _wall(first_book, trigger, p.band, mirror)
     if was_px is not None and was_sz >= p.wall and wall_sz < p.wall:
-        left = _size_at(book, was_px)
+        left = _size_at(book, was_px, mirror)
         if left <= (1 - p.thin_fraction) * was_sz:
-            reasons.append(f"seller at {was_px:.2f} thinning out ({was_sz / 1000:.0f}k to {left / 1000:.0f}k)")
+            reasons.append(f"{who} at {was_px:.2f} thinning out ({was_sz / 1000:.0f}k to {left / 1000:.0f}k)")
             metrics["wall_thinning"] = True
     if wall_sz >= p.big_seller:
-        vetoes.append(f"{wall_sz / 1000:.0f}k-share seller at {wall_px:.2f}")
+        vetoes.append(f"{wall_sz / 1000:.0f}k-share {who} at {wall_px:.2f}")
     elif wall_sz >= p.wall:
         thinning = start_sz > 0 and wall_sz <= (1 - p.thin_fraction) * start_sz
         metrics["wall_thinning"] = thinning
         if thinning:
-            reasons.append(f"seller at {wall_px:.2f} thinning ({start_sz / 1000:.0f}k to {wall_sz / 1000:.0f}k)")
+            reasons.append(f"{who} at {wall_px:.2f} thinning ({start_sz / 1000:.0f}k to {wall_sz / 1000:.0f}k)")
         else:
-            waits.append(f"{wall_sz / 1000:.0f}k-share seller at {wall_px:.2f} is not thinning")
+            waits.append(f"{wall_sz / 1000:.0f}k-share {who} at {wall_px:.2f} is not thinning")
 
     ask_vol = bid_vol = 0.0
     ask_n = bid_n = 0
@@ -215,19 +253,25 @@ def _evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]]
             bid_n += 1
     metrics.update({"ask_volume": ask_vol, "bid_volume": bid_vol, "ask_prints": ask_n, "bid_prints": bid_n})
 
-    first_asks = _levels(first_book, "asks")
-    start_ask = first_asks[0][0] if first_asks else None
-    start_inside = first_asks[0][1] if first_asks else 0.0
-    if (start_ask is not None and ask_vol > 0 and start_inside > 0
-            and ask_vol >= p.hidden_mult * start_inside and best_ask <= start_ask + 1e-9):
-        vetoes.append(f"hidden seller: {ask_vol / 1000:.1f}k bought at the ask and the ask did not move")
+    # The setup's side of the tape: a long's buyers lift the ask, a short's sellers hit the bid.
+    long_side = mirror is _LONG
+    with_vol, against_vol = (ask_vol, bid_vol) if long_side else (bid_vol, ask_vol)
+    with_n = ask_n if long_side else bid_n
+    first_inside = _levels(first_book, mirror.wall_book)
+    start_px = first_inside[0][0] if first_inside else None
+    start_inside = first_inside[0][1] if first_inside else 0.0
+    best_px = best_ask if long_side else best_bid
+    held = start_px is not None and (best_px <= start_px + 1e-9 if long_side else best_px >= start_px - 1e-9)
+    if held and with_vol > 0 and start_inside > 0 and with_vol >= p.hidden_mult * start_inside:
+        vetoes.append(mirror.hidden.format(k=with_vol / 1000))
     use_prints = p.entry_mode in (TAPE_ENTRY_GATE, TAPE_ENTRY_BOTH)
     use_score = p.entry_mode in (TAPE_ENTRY_SCORE, TAPE_ENTRY_BOTH)
-    if use_prints and bid_vol > 0 and bid_vol > p.red_mult * ask_vol:
-        waits.append(f"burst of red on the tape ({bid_vol / 1000:.1f}k at the bid vs {ask_vol / 1000:.1f}k at the ask)")
-    green = ask_n >= p.min_ask_prints and ask_vol > bid_vol
-    metrics["green_flow"] = green
-    score_ok, score_said = _score_check(flow, p) if use_score else (True, "")
+    if use_prints and against_vol > 0 and against_vol > p.red_mult * with_vol:
+        waits.append(f"burst of {mirror.burst_word} on the tape ({bid_vol / 1000:.1f}k at the bid vs "
+                     f"{ask_vol / 1000:.1f}k at the ask)")
+    moving = with_n >= p.min_ask_prints and with_vol > against_vol
+    metrics[mirror.flow_key] = moving
+    score_ok, score_said = _score_check(flow, p, mirror) if use_score else (True, "")
     if not score_ok:
         waits.append(score_said)
 
@@ -235,12 +279,14 @@ def _evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]]
         return {"verdict": TAPE_VERDICT_VETO, "reasons": vetoes + waits, "metrics": metrics}
     if waits:
         return {"verdict": TAPE_VERDICT_WAIT, "reasons": waits, "metrics": metrics}
-    if use_prints and not green:
-        return {"verdict": TAPE_VERDICT_WAIT, "reasons": ["no green on the tape yet"] + reasons, "metrics": metrics}
+    if use_prints and not moving:
+        return {"verdict": TAPE_VERDICT_WAIT, "reasons": [f"no {mirror.flow_word} on the tape yet"] + reasons,
+                "metrics": metrics}
     if use_score:
         reasons.insert(0, score_said)
     if use_prints:
-        reasons.insert(0, f"green on the tape ({ask_n} prints, {ask_vol / 1000:.1f}k at the ask)")
+        reasons.insert(0, f"{mirror.flow_word} on the tape ({with_n} prints, {with_vol / 1000:.1f}k at the "
+                          f"{mirror.with_print})")
     if l1_only:
         reasons.append("top of book only -- no depth line")
     return {"verdict": TAPE_VERDICT_GO, "reasons": reasons, "metrics": metrics}

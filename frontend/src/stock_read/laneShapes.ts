@@ -6,10 +6,12 @@
  * way (``flatTopShapes.ts``: its touches, the break, the hold). Pure.
  */
 import type { Time } from 'lightweight-charts';
+import { isShortSetup } from '../constantGroups/short_setups';
 import { SETUP_COLORS } from './constants';
 import { flatTop5mOnMinute, flatTopShapes, isFlatTop, type LaneDraw } from './flatTopShapes';
 import { shortReason } from './pastSetups';
 import { formingProgress, fmtPx } from './planMath';
+import { shortLaneShapes } from './shortShapes';
 import type { SetupLane, SetupLeg, StockPlan } from './types';
 
 /** What drawing a lane needs from a pane. */
@@ -77,6 +79,8 @@ export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, b
   const tag = failed ? ` · FAILED: ${shortReason(lane.reason) || 'a rule broke'}` : '';
   // The flat top has a look of its own: its touches ringed, the base boxed, the break and the hold marked.
   if (isFlatTop(lane.setup_type)) return flatTopShapes(lane, lead, o, bar, hoverId, tag);
+  // A short (ADR 049): orange, ▼ SHORT, its trigger under the pattern and its buy stop over it.
+  if (lane.side === 'short' || isShortSetup(lane.setup_type)) return shortLaneShapes(lane, lead, o, bar, hoverId, tag);
   const lv = levelsOf(lane);
   const lastT = lane.series?.bars_as_of ?? null;
   const endT = lv?.end ?? lastT;

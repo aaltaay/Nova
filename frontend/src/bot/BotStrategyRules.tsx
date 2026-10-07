@@ -4,6 +4,7 @@
  * parameters: changing one never starts the read-out over, and the built-in template takes them too.
  */
 import { useState } from 'react';
+import { isShortSetup } from '../constantGroups/short_setups';
 import { tipProps, whyProps } from '../ux';
 import { updateTemplate } from './templatesApi';
 import type { ParamValue, SetupTemplates } from './templateTypes';
@@ -55,12 +56,14 @@ export function BotStrategyRules({ setup, templates, onApply }: {
       </span>
     </span>
   );
+  // ADR 049: a short strategy's bot shorts (from #778 step 5); its rules are set the same way.
+  const verb = isShortSetup(setup) ? 'short' : 'buy';
   return (
     <div className="bots-rules" data-testid={`bots-rules-${setup}`}>
-      {seg('Grades', GRADES, grades, 'bot_grades', 'Which grades the bot may buy at On. C is never a trade.')}
+      {seg('Grades', GRADES, grades, 'bot_grades', `Which grades the bot may ${verb} at On. C is never a trade.`)}
       <span className="bots-muted bots-rules__never">C never</span>
       {seg('Setups a stock a day', PER_DAY, perDay, 'bot_setups_a_day',
-        'How many setups of this strategy the bot may buy on one stock in a day: the 1st only, or the 1st and the 2nd.')}
+        `How many setups of this strategy the bot may ${verb} on one stock in a day: the 1st only, or the 1st and the 2nd.`)}
       <span className="bots-rules__item" {...tipProps('Nova sends an entry only inside this window (the venue\'s clock). It sits inside the arming window.', 'Bot window')}>
         <span className="bots-rules__label">Bot window</span>
         <select aria-label="Bot window start" value={start ?? ''} disabled={lock !== null || !start} {...(lock ? whyProps(true, lock) : {})}

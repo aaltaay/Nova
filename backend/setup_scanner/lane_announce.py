@@ -17,6 +17,7 @@ import uuid
 from typing import Any
 
 from setup_scanner.grade import pillar_count
+from setup_scanner.lane_view import PROPOSAL_CLOSE_REASONS
 from setup_scanner.trade_verdict import verdict
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ def propose(lane: Any, sym: str, sid: str, res: dict, now: float) -> dict:
             "pillars": _count(row), "spread": spread, "reasons": res.get("reasons"), "created_at": now,
             "status": "open", "tape_now": res["verdict"], "template_id": lane.p.template_id,
             "template_name": lane.p.name, "source": lane.host.source, "setup_type": lane.p.setup,
+            "side": lane.p.side, "ssr": row.get("ssr"),
             "not_a_trade": not_a_trade, "taken_by": None if not_a_trade else _taker(lane, sym)}
     lane.proposals[sid] = prop
     lane.alerts.append(prop)
@@ -72,6 +74,19 @@ def propose(lane: Any, sym: str, sid: str, res: dict, now: float) -> dict:
                             + (f"; not a trade: {'; '.join(not_a_trade['reasons'])}" if not_a_trade else said or "")),
                     inputs=prop)
     return prop
+
+
+def close(lane: Any, sid: str, status: str) -> None:
+    """Close ``sid``'s open proposal (``triggered``, ``failed``, ``rearmed``, ...): journalled, and on the audit
+    stream too, where a re-arm replaces the entry."""
+    prop = lane.proposals.get(sid)
+    if prop is None or prop["status"] != "open":
+        return
+    reason = PROPOSAL_CLOSE_REASONS.get(status, status)
+    prop["status"] = status
+    prop["closed_at"] = lane.host.clock()
+    lane.journal("proposal", prop["symbol"], setup_id=sid, status=status, reason=reason)
+    lane.host.audit(action="setup_proposal", outcome=status, reason=reason, inputs=dict(prop))
 
 
 def trigger(lane: Any, sym: str, sid: str, setup: dict, tape: dict | None, ts: float, *,
@@ -89,4 +104,5 @@ def trigger(lane: Any, sym: str, sid: str, setup: dict, tape: dict | None, ts: f
     notify({"symbol": sym, "setup_id": sid, "setup": dict(setup), "tape": slim(tape) if tape else None, "ts": ts,
             "template_id": lane.p.template_id, "template_rev": lane.p.template_rev,
             "template_name": lane.p.name, "setup_type": lane.p.setup, "grade": row.get("grade"),
-            "pillars": _count(row), "filtered": filtered, "spread": _spread(tape), "liquidity": row.get("liquidity")})
+            "pillars": _count(row), "filtered": filtered, "spread": _spread(tape), "liquidity": row.get("liquidity"),
+            "side": lane.p.side, "ssr": row.get("ssr")})

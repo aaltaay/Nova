@@ -130,6 +130,12 @@ export const FLAT_TOP_FADED = {
 /** A past flat top's touches: rings as faint as its box. */
 export const FLAT_TOP_PAST_RING = { stroke: 'rgba(168, 85, 247, 0.45)', fill: 'rgba(216, 180, 254, 0.30)' } as const;
 
+/** A short setup that ended (ADR 049): its box orange and faint, its label ▼ SHORT in the outcome's ink. */
+export const PAST_SHORT = {
+  stroke: 'rgba(249, 115, 22, 0.55)', fill: 'rgba(249, 115, 22, 0.05)',
+  legStroke: 'rgba(249, 115, 22, 0.35)', legFill: 'rgba(249, 115, 22, 0.03)', ink: '#fdba74',
+} as const;
+
 /** Setups that ended, drawn fainter than the live lane: red a rule broke, grey faded, green triggered. */
 export const PAST_COLORS = {
   failed: { stroke: 'rgba(255, 69, 58, 0.55)', fill: 'rgba(255, 69, 58, 0.05)', ink: '#ff8a80' },
@@ -145,6 +151,11 @@ export const LANE_LABELS: Record<string, string> = {
   flat_top_5m: 'FLAT 5M',
   red_to_green: 'R→G',
   gap_and_go: 'G&G',
+  backside_lower_high: '▼ BACKSIDE',
+  bear_flag: '▼ BEAR FLAG',
+  failed_breakout: '▼ FAILED BO',
+  lost_vwap: '▼ LOST VWAP',
+  ssr_bounce: '▼ SSR BOUNCE',
   hod_momo: 'HOD',
   market: 'MKT',
   bot: 'BOT',

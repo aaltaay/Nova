@@ -201,7 +201,7 @@ GROUP_LABELS: dict[str, tuple[str, str]] = {
                           "they come, where price went, and the book. Read at the trigger and while a trade is on; "
                           "it can decide the entry and get out on a flush."),
     "grade": ("Five Pillars grade", "Grades every armed setup A / B / C. A pillar Nova does not know never passes."),
-    BOT_GROUP: ("Bot entries at Strategy", "When and what the bot may buy while this template is in play: its window, "
+    BOT_GROUP: ("Bot entries at Strategy", "When and what the bot may trade while this template is in play: its window, "
                            "inside the setup's arming window, the grades and the setups a stock a day. Changing them "
                            "never starts the read-out over: the read-out scores the setup, not the bot."),
 }

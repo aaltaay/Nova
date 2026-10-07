@@ -105,6 +105,27 @@ describe('templateFormat', () => {
     expect(changedKeys(defaults, { ...defaults, leg_pct: 6 })).toEqual(['leg_pct']);
   });
 
+  it('says each short setup\'s rules from its own values, its tape gate mirrored (ADR 049)', () => {
+    const short = (id: string) => payload.setups.find(s => s.id === id)!.templates[0].values;
+    expect(tapeLines(short('bear_flag'), 'short').map(([v, t]) => `${v}: ${t}`)).toEqual([
+      'go: red prints (3+ at the bid), no buyer holding the level',
+      'wait: 25k+ buyer not thinning',
+      'veto: spread over $0.05 / 100k+ buyer',
+      'blind: no Level 2',
+    ]);
+    const back = Object.fromEntries(ruleLines('backside_lower_high', short('backside_lower_high')));
+    expect(back.Setup).toMatch(/^Fade ≥ 8% off the high of day to a new 30-candle low · 1–3 candle bounce under the high/);
+    expect(back.Entry).toBe('Under the last bounce candle\'s low −$0.01 · buy stop $0.01 over the bounce · arms '
+      + '09:35–11:30 · only when the tape says GO');
+    expect(back.Trade).toMatch(/cover at 2R under the entry · bot 09:35–11:30$/);
+    expect(Object.fromEntries(ruleLines('ssr_bounce', short('ssr_bounce'))).Entry)
+      .toMatch(/^Rests \$0\.01 under the level once the bounce is within 2% of it, so a buyer fills it above the bid · buy stop 2% over the entry \(≥ \$0\.05\) · cancelled after 10 min/);
+    for (const id of ['backside_lower_high', 'bear_flag', 'failed_breakout', 'lost_vwap', 'ssr_bounce']) {
+      expect(ruleLines(id, short(id))).toHaveLength(4);
+      expect(ruleSummary(id, short(id))).toMatch(/^▼ /);
+    }
+  });
+
   it('draws the tape gate and the research setups from their own values', () => {
     expect(tapeLines(defaults).map(([v, t]) => `${v}: ${t}`)).toEqual([
       'go: green prints (3+ at the ask), nothing holding the level',

@@ -3,6 +3,11 @@ import { CATALYST_CATEGORY_LABELS, CATALYST_VERDICT_TITLES } from '../constants'
 import { isThin, normalizeLiquidity } from './liquidity';
 import type { SetupPillars, SetupRow } from './types';
 
+/** Backend prose writes ASCII " -- "; a hover sets it as a dash. */
+export function prose(text: string | null | undefined): string {
+  return (text ?? '').replace(/ -- /g, ' — ');
+}
+
 export function fmtPx(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
   return v < 1 ? v.toFixed(4) : v.toFixed(2);
@@ -23,12 +28,13 @@ export function fmtPct(v: number | null | undefined, digits = 0): string {
   return `${v.toFixed(digits)}%`;
 }
 
-/** How far under the trigger the last price sits, as a signed cents label ("3¢ under"). */
+/** How far the last price sits from the trigger, as a cents label: "3¢ under" (a breakdown short's "3¢ over"; the
+ * SSR bounce rests over the price, so it reads under, as a long does). */
 export function distanceLabel(row: SetupRow): string {
   if (row.distance == null) return '';
   const cents = Math.round(row.distance * 100);
   if (cents <= 0) return 'at trigger';
-  return `${cents}¢ under`;
+  return `${cents}¢ ${row.side === 'short' && row.setup_type !== 'ssr_bounce' ? 'over' : 'under'}`;
 }
 
 /** The staged limit price for a proposal: the planned entry (trigger + 1c), in the desk's decimals -- four
