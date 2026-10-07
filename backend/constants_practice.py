@@ -189,6 +189,10 @@ PRACTICE_TIF_INVALID_CODE = "TIF_INVALID"
 # (execution/practice_checks.py) and again in the broker (practice/broker.py).
 PRACTICE_NO_SHORTS_CODE = "PRACTICE_NO_SHORTS"
 PRACTICE_NO_SHORTS_REASON = "Nova does not support short entries yet"
+# A cover never buys past flat (ADR 048 gap 8, the mirror of QA R42): a resting cover that would
+# fill after another cover already closed the short is cancelled at the fill, never filled.
+PRACTICE_OVERCOVER_CODE = "PRACTICE_OVERCOVER"
+PRACTICE_OVERCOVER_REASON = "A cover never buys past flat: Nova never turns a short into a long"
 
 # ---------------------------------------------------------------------------
 # Brackets (#606 step 1): the order shape Live sends, filled by the practice broker

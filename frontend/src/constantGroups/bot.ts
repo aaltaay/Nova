@@ -302,10 +302,10 @@ export const BOT_LABEL_AUDIT = 'Bot audit';
 /** The one kill latch, in the words of what it does: on the desk it is "Freeze all orders" (ADR 044). */
 export const KILL_SWITCH_TITLE = 'Freeze all orders';
 export const KILL_SWITCH_HINT =
-  'Freezes every order: cancels every working order on every venue and refuses every new order on every venue -- from you or from Nova, a sell included -- until you unfreeze. It sells nothing: Flatten and cancels still work. It stays on across a restart. The red KILL at the top of the desk is the one that sells: it turns the bot off, locks the padlock, cancels and flattens this venue.';
+  'Freezes every order: cancels every working order on every venue -- except a stop that protects a position you hold, which stays resting -- and refuses every new order on every venue -- from you or from Nova, a sell included -- until you unfreeze. It sells nothing: Flatten and cancels still work. It stays on across a restart. The red KILL at the top of the desk is the one that sells: it turns the bot off, locks the padlock, cancels everything and flattens this venue.';
 export const KILL_SWITCH_TRIP_LABEL = 'Freeze all orders';
 export const KILL_SWITCH_RESET_LABEL = 'Unfreeze orders';
 export const KILL_SWITCH_TRIP_CONFIRM =
-  'Freeze all orders? It cancels every working order on every venue and refuses every new order on every venue, a sell included, until you unfreeze. It sells nothing; Flatten and cancels still work.';
+  'Freeze all orders? It cancels every working order on every venue but the stops that protect a position, and refuses every new order on every venue, a sell included, until you unfreeze. It sells nothing; Flatten and cancels still work.';
 export const KILL_SWITCH_RESET_CONFIRM = 'Unfreeze orders? New orders will be allowed again.';
 export const KILL_SWITCH_POLL_MS = 5000;

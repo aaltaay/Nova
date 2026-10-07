@@ -19,8 +19,16 @@ def _cmd(*, short_entry: bool = True) -> ExecutionCommand:
         symbol="SMPL",
         side="SELL",
         qty=1,
-        order_type="MKT",
+        order_type="LMT",          # ADR 048: a short entry is a limit order
+        limit_price=4.0,
         short_entry=short_entry,
+    )
+
+
+def _listing(shares: float) -> dict:
+    return short_mod.enrich_ibkr_listing(
+        {"connected": True, "qualified": True, "shortable_shares": shares, "error": None},
+        fetched_at=time.time(),
     )
 
 
@@ -29,48 +37,23 @@ def test_e2e_short_entry_gate_matrix(monkeypatch):
     monkeypatch.setattr(
         account_mod,
         "get_account_summary",
-        lambda: {"connected": True, "BuyingPower": 100_000.0},
+        lambda: {"connected": True, "BuyingPower": 100_000.0, "NetLiquidation": 25_000.0,
+                 "ExcessLiquidity": 25_000.0, "account_class": "margin"},
     )
-    monkeypatch.setattr(account_mod, "long_qty", lambda _s: 0.0)
+    monkeypatch.setattr(account_mod, "get_positions", lambda: [])
 
     # 1) Env off → SHORT_DISABLED
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: False)
-    ok, _, reason = validate.check_account_and_position(_cmd())
+    ok, _, reason = validate.check_account_and_position(_cmd(), borrow=_listing(250_000))
     assert ok is False and reason == "SHORT_DISABLED"
 
-    # 2) Env on + shortable → OK
+    # 2) Env on + shortable (read from the cache, ADR 048) → OK
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
-    monkeypatch.setattr(
-        short_mod,
-        "fetch_shortability",
-        lambda _s: short_mod.enrich_ibkr_listing(
-            {
-                "connected": True,
-                "qualified": True,
-                "shortable_shares": 250_000,
-                "error": None,
-            },
-            fetched_at=time.time(),
-        ),
-    )
-    ok, _, reason = validate.check_account_and_position(_cmd())
+    ok, _, reason = validate.check_account_and_position(_cmd(), borrow=_listing(250_000))
     assert ok is True and reason is None
 
     # 3) HTB → SHORT_NOT_SHORTABLE
-    monkeypatch.setattr(
-        short_mod,
-        "fetch_shortability",
-        lambda _s: short_mod.enrich_ibkr_listing(
-            {
-                "connected": True,
-                "qualified": True,
-                "shortable_shares": 0,
-                "error": None,
-            },
-            fetched_at=time.time(),
-        ),
-    )
-    ok, _, reason = validate.check_account_and_position(_cmd())
+    ok, _, reason = validate.check_account_and_position(_cmd(), borrow=_listing(0))
     assert ok is False and reason == "SHORT_NOT_SHORTABLE"
 
     # 4) No short_entry flag still anti-short

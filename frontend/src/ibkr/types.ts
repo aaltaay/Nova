@@ -209,6 +209,15 @@ export interface IbkrOrder {
   order_origin?: string | null;
   /** Practice rows only: the bot that placed it, when a bot did. */
   bot_id?: string | null;
+  /**
+   * Nova sent this SELL as a short entry (ADR 048): practice rows stamp it, Live rows take it from
+   * the execution ledger. null / absent: not recorded (placed outside Nova, or an older backend).
+   */
+  short_entry?: boolean | null;
+  /** Practice rows (ADR 048): which side of the position the order trades, as placed. */
+  position_side?: 'long' | 'short' | null;
+  /** Practice rows (ADR 048): what the order does to that position, as placed. */
+  effect?: 'opens' | 'closes' | null;
   /** Practice rows only: the venue whose ledger holds the order (ADR 020). */
   venue?: 'paper' | 'sim' | 'live' | null;
   /** Execution-ledger row id when the blotter joined one (closed rows). */

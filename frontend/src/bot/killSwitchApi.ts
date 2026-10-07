@@ -1,8 +1,9 @@
 /**
  * GET / POST /api/kill-switch (D-037, ADR 025, ADR 042 D). A trip answers its
- * sweep per venue -- `sweep: [{venue, cancelled, failed, error}]` -- so the page
- * can say what it cancelled where, what it could not, and which venue it could
- * not read (a failed read is a failure, never "nothing to cancel").
+ * sweep per venue -- `sweep: [{venue, cancelled, failed, kept, error}]` -- so the page
+ * can say what it cancelled where, what it could not, which venue it could
+ * not read (a failed read is a failure, never "nothing to cancel"), and which
+ * stops it kept resting because they protect a position (ADR 048).
  */
 import { novaFetch } from '../api/novaFetch';
 import { API_URL } from '../constantGroups/chart_api';
@@ -11,13 +12,23 @@ import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 
 const KILL = `${API_URL}/kill-switch`;
 
-/** One venue's sweep: the orders it cancelled, the ones still working, and why it could not read. */
+/** One venue's sweep: the orders it cancelled, the ones still working, the protective stops it kept, and why it could not read. */
 export type KillSweep = {
   venue: string;
   cancelled: number[];
   failed: number[];
+  /** Stops kept resting because they protect a held position (ADR 048); [] from an older API. */
+  kept: number[];
   error: string | null;
 };
+
+function keptIds(v: unknown): number[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((row): number[] => {
+    const id = row && typeof row === 'object' ? (row as { order_id?: unknown }).order_id : row;
+    return typeof id === 'number' && Number.isFinite(id) ? [id] : [];
+  });
+}
 
 export type KillSwitchStatus = {
   tripped: boolean;
@@ -40,13 +51,14 @@ function sweepOf(raw: Record<string, unknown>): KillSweep[] | undefined {
         venue: typeof r.venue === 'string' ? r.venue : '?',
         cancelled: ids(r.cancelled),
         failed: ids(r.failed),
+        kept: keptIds(r.kept),
         error: typeof r.error === 'string' && r.error.trim() ? r.error : null,
       }];
     });
   }
   // An API before ADR 042 answers one flat list for the account it swept.
   if (Array.isArray(raw.cancelled_order_ids) || Array.isArray(raw.failed_cancel_order_ids)) {
-    return [{ venue: 'account', cancelled: ids(raw.cancelled_order_ids), failed: ids(raw.failed_cancel_order_ids), error: null }];
+    return [{ venue: 'account', cancelled: ids(raw.cancelled_order_ids), failed: ids(raw.failed_cancel_order_ids), kept: [], error: null }];
   }
   return undefined;
 }

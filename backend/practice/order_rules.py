@@ -17,6 +17,11 @@ carrying ``short_entry``, is an opening short and is refused
 ``PRACTICE_NO_SHORTS``. The execution door checks it at admission
 (``execution.practice_checks``) and the broker checks it again. Nothing is
 inferred from side plus a flat position beyond that arithmetic.
+
+**Never past flat at the fill** (ADR 048 gap 8). A row records what it does to the position when
+it is placed (``side_fields``: ``short_entry``, ``position_side``, ``effect``). A cover -- a BUY
+placed against a short -- that would buy past flat when its print arrives, because another cover
+filled first, is cancelled ``PRACTICE_OVERCOVER``, as a SELL past the long is (QA R42).
 """
 from __future__ import annotations
 
@@ -28,6 +33,8 @@ from constants_practice import (
     PRACTICE_BUYING_POWER_REASON,
     PRACTICE_NO_SHORTS_CODE,
     PRACTICE_NO_SHORTS_REASON,
+    PRACTICE_OVERCOVER_CODE,
+    PRACTICE_OVERCOVER_REASON,
     PRACTICE_SESSION_CLOSE_HOUR_ET,
     PRACTICE_TIF_DAY,
     PRACTICE_TIF_EXPIRED_CODE,
@@ -97,14 +104,36 @@ def opening_short(held_qty: float, side: str, qty: float, short_entry: bool = Fa
     return float(qty) > float(held_qty) + _EPS
 
 
+def side_fields(side: str, held: float, short_entry: bool = False) -> dict[str, Any]:
+    """What an order does to the position it trades, as Nova knew it when the order was placed.
+
+    ``{short_entry, position_side: "long" | "short", effect: "opens" | "closes"}``: a short entry
+    opens a short; a BUY against a short covers it; any other BUY opens or adds to a long; a SELL
+    against a long closes it (ADR 048: the Orders table's Side column reads these).
+    """
+    if short_entry:
+        return {"short_entry": True, "position_side": "short", "effect": "opens"}
+    if (side or "").strip().upper() == "BUY":
+        covering = float(held) < -_EPS
+        return {"short_entry": False, "position_side": "short" if covering else "long",
+                "effect": "closes" if covering else "opens"}
+    return {"short_entry": False, "position_side": "long", "effect": "closes"}
+
+
+def exit_side_fields(entry: dict[str, Any]) -> dict[str, Any]:
+    """A bracket exit closes the position its entry opens: the entry's side, ``closes``."""
+    return {"short_entry": False, "position_side": entry.get("position_side") or "long", "effect": "closes"}
+
+
 def fill_refusal(ledger: Any, row: dict[str, Any], price: float) -> tuple[str, str] | None:
     """``(reason, code)`` when a working order may not fill at ``price`` now; ``None`` to fill it.
 
     A SELL past the held quantity would open a short -- another close filled
     first -- and a practice account never goes short (QA R42: two flattens both
-    rested and both filled, leaving the Sim account short). A BUY the account
-    can no longer afford is refused as at admission. Either way the order is
-    cancelled at the fill, never filled.
+    rested and both filled, leaving the Sim account short). A cover past flat
+    would turn the short into a long (ADR 048 gap 8). A BUY the account can no
+    longer afford is refused as at admission. Either way the order is cancelled
+    at the fill, never filled.
     """
     symbol, side, qty = str(row["symbol"]), str(row["side"]), float(row["qty"])
     held = float(ledger.held_qty(symbol))
@@ -113,6 +142,13 @@ def fill_refusal(ledger: Any, row: dict[str, Any], price: float) -> tuple[str, s
             f"{PRACTICE_NO_SHORTS_REASON} -- {held:g} held when this SELL {qty:g} would fill",
             PRACTICE_NO_SHORTS_CODE,
         )
+    if side.strip().upper() == "BUY" and (row.get("effect") == "closes" or held < -_EPS):
+        short = max(0.0, -held)
+        if qty > short + _EPS:
+            return (
+                f"{PRACTICE_OVERCOVER_REASON} -- {short:g} short when this BUY {qty:g} would fill",
+                PRACTICE_OVERCOVER_CODE,
+            )
     ok, needed, available = ledger.can_afford(symbol, side, qty, price)
     if not ok:
         return (

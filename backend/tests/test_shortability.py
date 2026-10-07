@@ -68,10 +68,13 @@ def test_the_last_read_is_kept_and_aged_without_asking_ibkr_again(monkeypatch):
     assert kept["state"] == "htb_likely" and kept["fetched_at"] == snap["fetched_at"]
 
 
-def test_an_unknown_state_is_asked_again_sooner_than_a_known_one():
+def test_a_known_state_is_reread_before_its_ttl_and_an_unknown_one_every_30_s():
+    """ADR 048: the door reads borrow from the cache only, so an open tab re-reads a known state
+    before its 60 s TTL runs out (it used to wait the whole TTL, leaving a stale read up to 30 s)."""
     from ibkr import shortability as sh
 
+    assert sh.refresh_due({"state": "unknown"}, 29.0) is False
     assert sh.refresh_due({"state": "unknown"}, 30.0) is True
-    assert sh.refresh_due({"state": "htb_likely"}, 30.0) is False
-    assert sh.refresh_due({"state": "htb_likely"}, 60.0) is True
+    assert sh.refresh_due({"state": "htb_likely"}, 19.0) is False
+    assert sh.refresh_due({"state": "htb_likely"}, 20.0) is True
     assert sh.refresh_due(None, 30.0) is True

@@ -1,4 +1,7 @@
-"""Sole public broker-mutation entry point (ADR 007)."""
+"""Sole public broker-mutation entry point (ADR 007).
+
+maintainer: one-concern the one door every broker mutation passes: its lock, and the order its checks run in
+"""
 from __future__ import annotations
 
 import asyncio
@@ -79,6 +82,15 @@ def _receipt_from_row(row: dict, *, duplicate: bool = False) -> ExecutionReceipt
         timings=timings,
         payload=payload,
     )
+
+
+def _short_borrow(cmd: ExecutionCommand) -> dict | None:
+    """A short entry's tick-236 read from the cache (ADR 048 gap 4); a stale one asks IBKR in the background."""
+    if not getattr(cmd, "short_entry", False) or cmd.operation not in ("place", "bracket"):
+        return None
+    from ibkr import shortability
+
+    return shortability.for_order(cmd.normalized_symbol() or "")
 
 
 def _open_order_symbol(order_id: int) -> str | None:
@@ -175,6 +187,7 @@ async def execute(
         backend_ingress_wall_ns=cmd.backend_ingress_wall_ns or time.time_ns(),
     )
     view_check = _view_gate.check(cmd)  # ADR 045: how old the operator's screen was when they acted
+    borrow = _short_borrow(cmd)  # ADR 048: a short's borrow from the cache, never asked under the lock
     async with _lock:
         # One read: checked, committed and sent on the same venue -- a kill switch cancel's own target.
         send_venue, target_why = venue_door.resolve(cmd)
@@ -249,8 +262,10 @@ async def execute(
                 )
             from bot.buy_lock import buy_refusal
 
-            # This venue's all-stop (spec D): its own line, its own lock, until 04:00 ET.
-            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry))
+            # This venue's all-stop (spec D): its own line, its own lock, until 04:00 ET. A cover is a
+            # close and is never locked (ADR 048 gap 3).
+            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry),
+                                 covers=_validate.covers_short(cmd))
             if locked is not None:
                 timings.validation_completed_ns = time.perf_counter_ns()
                 return _reject(execution_id, cmd, timings, locked["text"], locked["code"])
@@ -275,7 +290,7 @@ async def execute(
                     timings.validation_completed_ns = time.perf_counter_ns()
                     return _reject(execution_id, cmd, timings, "; ".join(issues), "PLAN_INVALID")
 
-        ok, detail, reason = _validate.check_account_and_position(cmd)
+        ok, detail, reason = _validate.check_account_and_position(cmd, borrow=borrow, venue=send_venue)
         if not ok:
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "ACCOUNT")

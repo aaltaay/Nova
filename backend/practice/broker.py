@@ -131,7 +131,7 @@ class PracticeBroker:
                 )
         oid = int(order_id) if order_id is not None else self.ledger.alloc_id()
         row = self._row(oid, sym, side_u, qty_f, typ, limit_price, stop_price, now, source, bot_id, tif_u,
-                        origin=origin)
+                        origin=origin, short_entry=short_entry)
         self.ledger.place(row, ts=now, source=source, bot_id=bot_id)
         if at_mark:
             mark = self.ledger.mark_of(sym, self.ledger.avg_cost(sym))
@@ -200,9 +200,12 @@ class PracticeBroker:
             )
         parent_id, target_id, stop_id = (self.ledger.alloc_id() for _ in range(3))
         parent = self._row(parent_id, sym, side_u, qty_f, "LMT", entry_price, None, now, source, bot_id, tif_u,
-                           origin=origin)
+                           origin=origin, short_entry=short)
         parent.update(bracket.leg_fields(parent_id, PRACTICE_LEG_PARENT))
-        for leg in (parent, *bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price)):
+        exits = bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price)
+        for leg in exits:
+            leg.update(order_rules.exit_side_fields(parent))
+        for leg in (parent, *exits):
             self.ledger.place(leg, ts=now, source=source, bot_id=bot_id)
         fill = fill_model.at_placement(side_u, "LMT", self.reference.reference(sym), limit=parent["limit_price"])
         if fill is not None:
@@ -390,7 +393,7 @@ class PracticeBroker:
     def _row(
         self, oid: int, sym: str, side: str, qty: float, typ: str, limit_price: float | None,
         stop_price: float | None, now: float, source: str, bot_id: str | None, tif: str,
-        *, origin: str | None = None,
+        *, origin: str | None = None, short_entry: bool = False,
     ) -> dict[str, Any]:
         wall = iso_utc(time.time())
         # Placed at the venue's time (the playhead on Sim), like every other row stamp (R27).
@@ -409,6 +412,8 @@ class PracticeBroker:
             "account_id": self.account_id, "nova_placed_at": wall, "placed_ts": float(now),
             "fill_estimated": True, "fill_basis": None,
             "tif": tif, "expires_ts": order_rules.expiry_ts(tif, self.reference, now),
+            # What it does to the position, as placed (ADR 048): the Side column and the fill rules.
+            **order_rules.side_fields(side, self.ledger.held_qty(sym), short_entry),
             **bracket.plain_fields(),
         }
 

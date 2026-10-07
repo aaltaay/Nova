@@ -17,6 +17,13 @@ loop every other order runs on: it used to run ``execute`` under ``asyncio.run``
 a second event loop that raised "bound to a different event loop" on the door's lock whenever an
 order held it (#656).
 
+**Protective stops stay resting** (ADR 048 gap 6, the operator's decision): a working stop (STP,
+STP LMT, TRAIL) on the side that closes a position the venue holds -- a SELL stop under a long, a
+BUY stop over a short -- and no larger than it is kept, listed in ``kept`` with why; entries and
+targets are still cancelled. A stop waiting on an entry that has not filled protects nothing yet
+and is cancelled with it. When the venue's positions cannot be read no stop can be told
+protective: every order is cancelled, as before, and the venue's ``note`` says so.
+
 Owns no state.
 """
 from __future__ import annotations
@@ -66,6 +73,66 @@ def _sim_rows() -> tuple[Rows | None, str | None, str | None]:
     return broker.working_orders(), None, None
 
 
+_STOP_TYPES = frozenset({"STP", "STP LMT", "TRAIL", "TRAIL LIMIT"})
+_WAITING = frozenset({"PreSubmitted", "PendingSubmit"})
+_EPS = 1e-9
+POSITIONS_UNREAD = "its positions could not be read, so no stop could be told protective: every order was cancelled"
+
+
+def _live_held() -> dict[str, float]:
+    """IBKR's own positions, signed (never the desk's practice ledger)."""
+    from ibkr import client as _client
+
+    ib = _client.get_ib()
+    if ib is None:
+        raise RuntimeError("IBKR is not ready")
+    held: dict[str, float] = {}
+    for pos in ib.positions():
+        sym = str(pos.contract.symbol or "").strip().upper()
+        held[sym] = held.get(sym, 0.0) + float(pos.position or 0)
+    return held
+
+
+def _practice_held(venue: str) -> dict[str, float]:
+    from practice.broker import for_venue, loaded
+
+    broker = for_venue(venue) if venue == DESK_VENUE_PAPER else loaded(venue)
+    if broker is None:
+        return {}
+    ledger = broker.ledger
+    return {sym: float(ledger.held_qty(sym)) for sym in ledger.held_symbols()}
+
+
+def held_positions(venue: str) -> dict[str, float] | None:
+    """``{SYMBOL: signed qty}`` the venue holds; None when they cannot be read (logged)."""
+    try:
+        return _live_held() if venue == DESK_VENUE_LIVE else _practice_held(venue)
+    except Exception:
+        logger.exception("kill: %s's positions could not be read -- no stop is kept", venue)
+        return None
+
+
+def protective_stop(row: dict[str, Any], held: dict[str, float]) -> str | None:
+    """Why ``row`` is a stop protecting a held position (it stays resting), or None to cancel it."""
+    if str(row.get("order_type") or "").strip().upper() not in _STOP_TYPES:
+        return None
+    if str(row.get("status") or "") in _WAITING and row.get("parent_id") is not None:
+        return None   # a bracket exit waiting on its entry protects nothing yet
+    symbol = str(row.get("symbol") or "").strip().upper()
+    side = str(row.get("side") or "").strip().upper()
+    position = float(held.get(symbol, 0.0))
+    try:
+        remaining = row.get("remaining_qty")
+        open_qty = float(remaining if remaining is not None else row.get("qty") or 0)
+    except (TypeError, ValueError):
+        return None
+    closes = (side == "SELL" and position > _EPS) or (side == "BUY" and position < -_EPS)
+    if not closes or open_qty <= _EPS or open_qty > abs(position) + _EPS:
+        return None
+    kind = "long" if position > 0 else "short"
+    return f"protects the {abs(position):g} {symbol} {kind}"
+
+
 def read_working(venue: str) -> tuple[Rows | None, str | None, str | None]:
     """``(rows, error, note)``: ``venue``'s working orders, or None with why they could not be read."""
     readers: dict[str, Callable[[], tuple[Rows | None, str | None, str | None]]] = {
@@ -106,14 +173,25 @@ def _order_id(row: dict[str, Any]) -> int | None:
 
 
 async def sweep_venue(venue: str) -> dict[str, Any]:
-    """``{venue, cancelled, failed, error, note}`` for one venue's working orders."""
+    """``{venue, cancelled, failed, kept, error, note}`` for one venue's working orders."""
     rows, error, note = read_working(venue)
-    out: dict[str, Any] = {"venue": venue, "cancelled": [], "failed": [], "error": error, "note": note}
+    out: dict[str, Any] = {"venue": venue, "cancelled": [], "failed": [], "kept": [], "error": error, "note": note}
     if rows is None:
         return out
+    held = held_positions(venue) if rows else {}
+    if held is None:
+        out["note"] = "; ".join(part for part in (note, POSITIONS_UNREAD) if part)
     problems: list[str] = []
     for row in rows:
         order_id = _order_id(row)
+        why_kept = protective_stop(row, held) if held is not None else None
+        if why_kept is not None:
+            out["kept"].append({
+                "order_id": order_id, "symbol": row.get("symbol"), "side": row.get("side"),
+                "qty": row.get("remaining_qty") if row.get("remaining_qty") is not None else row.get("qty"),
+                "order_type": row.get("order_type"), "stop_price": row.get("stop_price"), "why": why_kept,
+            })
+            continue
         if order_id is None or order_id <= 0:
             # An order Nova's API session did not place (TWS shows it with id 0): Nova cannot cancel it.
             problems.append(f"an order ({row.get('symbol') or '?'}, perm id {row.get('perm_id') or '?'}) "
@@ -135,5 +213,5 @@ async def sweep_venue(venue: str) -> dict[str, Any]:
 
 
 async def sweep_every_venue() -> list[dict[str, Any]]:
-    """Every venue's sweep, Live first: ``[{venue, cancelled, failed, error, note}]``."""
+    """Every venue's sweep, Live first: ``[{venue, cancelled, failed, kept, error, note}]``."""
     return [await sweep_venue(venue) for venue in VENUES]

@@ -54,6 +54,8 @@ def release_commitment(order_id: int, row: dict[str, Any]) -> bool:
     oid = int(order_id)
     symbol = str(row.get("symbol") or "").strip().upper()
     side = str(row.get("side") or "").strip().upper()
+    # A short entry is held as SHORT, never SELL (ADR 048): a SELL row may hold either.
+    sides = {side, inflight.SHORT} if side == "SELL" else {side}
     venue = row.get("venue")
     for held in inflight.snapshot(all_venues=True):
         if held.get("order_id") != oid:
@@ -62,7 +64,7 @@ def release_commitment(order_id: int, row: dict[str, Any]) -> bool:
             continue
         if symbol and held.get("symbol") != symbol:
             continue
-        if side and held.get("side") != side:
+        if side and held.get("side") not in sides:
             continue
         return inflight.release_execution(str(held.get("execution_id")))
     return False

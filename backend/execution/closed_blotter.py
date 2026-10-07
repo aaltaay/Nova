@@ -170,7 +170,7 @@ def overlay_closed_orders(
             if sender is None:
                 row["source"] = "ib_recovered"
             else:
-                row.update(source="nova", **_sent_by.ledger_sent_by(sender))
+                row.update(source="nova", **_sent_by.ledger_sent_by(sender, row.get("side")))
             out.append(row)
         else:
             out.append(_merge_ib_ledger(ib, match))
@@ -321,7 +321,7 @@ def _merge_ib_ledger(ib: dict, led: dict) -> dict:
             out["submitted_at"] = fallback
     out["source"] = "nova"
     out["execution_id"] = led.get("id")
-    out.update(_sent_by.ledger_sent_by(led))
+    out.update(_sent_by.ledger_sent_by(led, out.get("side")))
     return out
 
 
@@ -399,7 +399,7 @@ def _row_from_ledger(led: dict) -> dict:
         "source": "nova",
         "execution_id": led.get("id"),
         "commission": _commission_from_ledger(led),
-        **_sent_by.ledger_sent_by(led),
+        **_sent_by.ledger_sent_by(led, side),
     }
 
 

@@ -2,18 +2,32 @@
 
 Wraps tick-236 listing flags with fail-closed states + freshness TTL.
 Alpaca shortable/ETB is never consulted here.
+
+The execution door never asks IBKR (ADR 048): ``for_order`` is a cache read, and a stale or
+missing read asks IBKR again on a worker thread (``request_refresh``) so the next try finds one.
+An open Trader tab re-reads its stock's borrow every ``IBKR_SHORTABILITY_REFRESH_SEC``, under the
+TTL, so the read it holds never goes stale between the socket's wakes.
 """
 from __future__ import annotations
 
+import logging
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Literal
 
 from constants import (
     IBKR_SHORTABILITY_TTL_SEC,
     IBKR_SHORTABLE_EST_MIN_SHARES,
 )
-from constants_ibkr import IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC
+from constants_ibkr import (
+    IBKR_SHORTABILITY_REFRESH_SEC,
+    IBKR_SHORTABILITY_REFRESH_WORKERS,
+    IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC,
+)
 from ibkr import listing_flags as _listing_flags
+
+logger = logging.getLogger(__name__)
 
 ShortState = Literal["shortable_est", "thin", "htb_likely", "unknown"]
 
@@ -104,10 +118,70 @@ def cached(symbol: str) -> dict[str, Any] | None:
 
 
 def refresh_due(snapshot: dict[str, Any] | None, age_sec: float) -> bool:
-    """Whether a socket that read ``snapshot`` ``age_sec`` ago should ask IBKR again."""
+    """Whether a socket that read ``snapshot`` ``age_sec`` ago should ask IBKR again.
+
+    A known state is re-read before its TTL runs out (ADR 048: the door reads the cache only).
+    """
     state = (snapshot or {}).get("state") or "unknown"
-    wait = IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC if state == "unknown" else IBKR_SHORTABILITY_TTL_SEC
+    wait = IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC if state == "unknown" else IBKR_SHORTABILITY_REFRESH_SEC
     return age_sec >= float(wait)
+
+
+def for_order(symbol: str) -> dict[str, Any] | None:
+    """The cached read the execution door judges a short entry by: ``cached``, never a wait.
+
+    None when nothing was read for ``symbol``. A missing or stale read asks IBKR again in the
+    background, so the next try can find a fresh one.
+    """
+    snap = cached(symbol)
+    if snap is None or snap.get("stale"):
+        request_refresh(symbol)
+    return snap
+
+
+_pool: ThreadPoolExecutor | None = None
+_pool_lock = threading.Lock()
+_refreshing: set[str] = set()
+
+
+def _refresh(symbol: str) -> None:
+    try:
+        fetch_shortability(symbol)
+    except Exception:
+        logger.warning("shortability: the background read of %s failed", symbol, exc_info=True)
+    finally:
+        with _pool_lock:
+            _refreshing.discard(symbol)
+
+
+def request_refresh(symbol: str) -> bool:
+    """Ask IBKR for ``symbol``'s borrow on a worker thread; False when one is already on its way."""
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return False
+    global _pool
+    with _pool_lock:
+        if sym in _refreshing:
+            return False
+        _refreshing.add(sym)
+        if _pool is None:
+            _pool = ThreadPoolExecutor(
+                max_workers=IBKR_SHORTABILITY_REFRESH_WORKERS, thread_name_prefix="nova-borrow",
+            )
+        pool = _pool
+    pool.submit(_refresh, sym)
+    return True
+
+
+def remember_for_tests(symbol: str, snapshot: dict[str, Any]) -> None:
+    """Seed the cache as a read would (tests only)."""
+    _last[(symbol or "").strip().upper()] = snapshot
+
+
+def reset_for_tests() -> None:
+    with _pool_lock:
+        _refreshing.clear()
+    _last.clear()
 
 
 def assert_shortable_for_order(snapshot: dict[str, Any] | None) -> tuple[bool, str, str | None]:

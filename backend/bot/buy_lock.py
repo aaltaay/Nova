@@ -12,7 +12,7 @@ back does not escape it. Its fields:
 
 ``execution.service`` asks ``buy_refusal`` with the door's own venue for every place or bracket
 from a non-protective source, manual and bot alike: a BUY, and a SELL that opens a short. Selling
-what is held, cancels, Flatten and KILL are never locked. The bot and stock mode ask
+what is held, a BUY that covers a short (ADR 048), cancels, Flatten and KILL are never locked. The bot and stock mode ask
 ``day_lock_active``. A session Nova cannot read counts as locked, stated: the all-stop's state is
 unknown, never assumed clear.
 
@@ -35,7 +35,7 @@ from ibkr.safety import PROTECTIVE_SOURCES
 logger = logging.getLogger(__name__)
 
 _VENUE_NAMES = {"live": "Live", "paper": "Paper", "sim": "Sim"}
-_STILL_WORKS = "Selling what you hold, cancels, Flatten and KILL still work."
+_STILL_WORKS = "Selling what you hold, covering a short, cancels, Flatten and KILL still work."
 
 
 def desk_venue() -> str | None:
@@ -161,13 +161,15 @@ def buy_refusal(
     venue: str | None = None,
     *,
     short_entry: bool = False,
+    covers: bool = False,
 ) -> dict[str, Any] | None:
     """``{code, text, lock}`` when ``venue``'s day lock refuses this order, else None.
 
-    It refuses what adds exposure: a BUY, or a SELL that opens a short. Protective sources
-    (flatten / kill / cancel_working) are never refused.
+    It refuses what adds exposure: a BUY, or a SELL that opens a short. A BUY that ``covers`` a
+    short is a close, never refused (ADR 048 gap 3), nor is a protective source (flatten / kill /
+    cancel_working).
     """
-    opens = (side or "").upper() == "BUY" or ((side or "").upper() == "SELL" and short_entry)
+    opens = ((side or "").upper() == "BUY" and not covers) or ((side or "").upper() == "SELL" and short_entry)
     if not opens or source in PROTECTIVE_SOURCES:
         return None
     lock = day_lock(venue)
