@@ -99,6 +99,11 @@ SHORT_RUNNER_INTERVAL_SEC = 1.0
 SHORT_RUNNER_ENV = "NOVA_SHORT_RUNNER"
 # A close the venue refused is tried again this long after (wall clock), not on every pass.
 SHORT_CLOSE_RETRY_SEC = 15.0
+# Live's cover stands for its short until IBKR's position shows it: a fill reaches the orders before the
+# position (PR #792 review). A cover gone from the working orders that the position still does not show after
+# this long is judged by IBKR's own status for it -- closed with nothing filled: cover again; filled: the alarm,
+# never a second cover.
+SHORT_COVER_CONFIRM_SEC = 15.0
 
 # -- The Live short proof (ADR 048 step 6): short-proof.json in the operator cache. Three Paper days
 # with shorts, each reviewed by the operator, and four drills with a Paper short open. The observer

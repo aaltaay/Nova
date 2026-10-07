@@ -113,8 +113,9 @@ def _margin_step() -> dict[str, Any]:
                                                      "Live account."), enforced=True, how=how)
     try:
         summary = live_book.account_summary()
-    except Exception as exc:
-        return _step("margin_account", label, None, f"IBKR is not ready, so Nova cannot see the Live account ({exc}).",
+    except Exception:
+        logger.warning("short proof: the Live account could not be read for its class", exc_info=True)
+        return _step("margin_account", label, None, "IBKR is not ready, so Nova cannot see the Live account.",
                      enforced=True, how=how)
     if summary.get("pending"):
         return _step("margin_account", label, None, "The Live account has not loaded yet.", enforced=True, how=how)
@@ -135,9 +136,10 @@ def _reset_step() -> dict[str, Any]:
     how = "Press Reset to $5,000 on the Account page (Paper); it archives the old ledger, whose history stays."
     try:
         cash = float(for_venue("paper").ledger.starting_cash)
-    except Exception as exc:
+    except Exception:
         logger.warning("short proof: the Paper ledger could not be read for its starting cash", exc_info=True)
-        return _step("practice_reset", label, None, f"The Paper ledger could not be read ({exc}).", how=how)
+        return _step("practice_reset", label, None, "The Paper ledger could not be read; the engine log has the "
+                     "details.", how=how)
     if abs(cash - PRACTICE_STARTING_CASH) < 0.005:
         return _step("practice_reset", label, True, f"Paper starts at ${cash:,.0f}.", value=f"${cash:,.0f}")
     return _step("practice_reset", label, False, f"Paper starts at ${cash:,.0f}, not ${PRACTICE_STARTING_CASH:,.0f}.",

@@ -10,8 +10,11 @@ Per short stock: every working Live order on it is cancelled first (``cancel_wor
 ``day_cover``, aimed at Live whatever the desk shows), then one protective market BUY covers the short
 (source ``flatten``, origin ``day_cover``, ``intent: "flatten"``). The door checks that cover under its
 lock against IBKR's own position less the covers already working there (``execution.flatten_intent``),
-so an order Nova could not cancel leaves the cover refused, never a buy past flat. A cover working at
-IBKR is never sent twice. Each step is a ``day_cover`` line on the bot audit stream.
+so an order Nova could not cancel leaves the cover refused, never a buy past flat. A cover stands for its
+short until IBKR's position shows it -- a fill reaches the orders before the position, so a cover gone from
+the working orders is not yet a cover to send again (``SHORT_COVER_CONFIRM_SEC``) -- and is never sent twice.
+Nova reads Live's book only while IBKR's session is the Live Gateway on a live account: the legacy paper
+Gateway's book is another account (PR #792 review). Each step is a ``day_cover`` line on the bot audit stream.
 
 **The cutoff.** Nova's own Live short entries -- the SELLs its execution record sent as short entries --
 lapse as Paper's do (``hours.entry_lapsed``: outside the short hours, or a later day than they were
@@ -27,7 +30,7 @@ import logging
 import time
 from typing import Any
 
-from constants_shorts import SHORT_CLOSE_RETRY_SEC
+from constants_shorts import SHORT_CLOSE_RETRY_SEC, SHORT_COVER_CONFIRM_SEC
 from execution.models import ExecutionCommand
 from ibkr.errors import IbkrAccountError
 from short_sale import closes, cover_alarm, hours
@@ -39,25 +42,33 @@ _EPS = 1e-9
 # IBKR's shorts as last read: what the alarm names while IBKR is not ready.
 _last: dict[str, Any] = {"shorts": {}, "at": None}
 _retry_at: dict[str, float] = {}           # symbol (or "#order id") -> monotonic time it may be tried again
-_sent: dict[str, int] = {}                 # symbol -> the cover order Nova sent last
+# symbol -> the cover Nova sent last: {order_id, short (IBKR's short when it went out), at (monotonic)}
+_sent: dict[str, dict[str, Any]] = {}
+_DEAD = frozenset({"Cancelled", "ApiCancelled", "Inactive"})
 # order id -> (when Nova placed it as a short entry, or None: not one; when that was read). A "not one" is
 # read again after _NOT_ENTRY_TTL_SEC: IBKR can list a new order before its execution row has the id.
 _entries: dict[int, tuple[float | None, float]] = {}
 _NOT_ENTRY_TTL_SEC = 5.0
 
 
-def _book() -> tuple[dict[str, float], list[dict[str, Any]]] | None:
-    """IBKR's own positions and working orders, or None while IBKR is not ready (logged once a read fails)."""
+def _book() -> tuple[tuple[dict[str, float], list[dict[str, Any]]] | None, str]:
+    """``(IBKR's own positions and working orders, "")`` while its session is Live's; ``(None, why not)`` while
+    IBKR is not ready, or its session is the paper Gateway or an account it has not named (logged once a read
+    fails)."""
+    from execution.venue_door import live_session_refusal
     from ibkr import client as _client
     from ibkr import live_book
 
     if not (_client.is_enabled() and _client.is_connected()) or _client.get_ib() is None:
-        return None
+        return None, "IBKR is not connected"
+    if live_session_refusal() is not None:
+        return None, (f"IBKR's session is the {_client.account_mode()} Gateway on a {_client.broker_account_kind()} "
+                      "account, so Nova cannot see the Live account")
     try:
-        return live_book.positions(), live_book.open_rows()
+        return (live_book.positions(), live_book.open_rows()), ""
     except IbkrAccountError:
         logger.warning("SHORTS: IBKR's book could not be read for Live's day cover", exc_info=True)
-        return None
+        return None, "IBKR's book could not be read"
 
 
 def _waiting(key: str) -> bool:
@@ -88,7 +99,7 @@ def _entry_times(rows: list[dict[str, Any]]) -> dict[int, float]:
     unknown = [oid for oid in sells if oid not in _entries
                or (_entries[oid][0] is None and now - _entries[oid][1] >= _NOT_ENTRY_TTL_SEC)]
     if unknown:
-        found = store_orders.short_entries(unknown)
+        found = store_orders.short_entries(unknown, mode="live")   # sent through the Live Gateway only
         for oid in unknown:
             led = found.get(oid)
             _entries[oid] = (float(led["created_ts"]) if led is not None else None, now)
@@ -160,7 +171,7 @@ async def _cover(symbol: str, qty: float, rows: list[dict[str, Any]], now: float
         out.update(ok=bool(receipt.ok), order_id=receipt.order_id, error=receipt.error, reason_code=receipt.reason_code)
         if receipt.ok:
             if receipt.order_id is not None:
-                _sent[symbol] = int(receipt.order_id)
+                _sent[symbol] = {"order_id": int(receipt.order_id), "short": float(qty), "at": time.monotonic()}
             cover_alarm.clear(VENUE, symbol)
         else:
             _alarm(symbol, qty, "refused", (f"Nova could not cover {qty:g} {symbol} short on Live: {receipt.error}. "
@@ -181,10 +192,42 @@ def _when(now: float) -> str:
     return f"{hours.clock(got.cover_ts)} ET" if got is not None and now >= got.cover_ts else "the open"
 
 
-def _covering(rows: list[dict[str, Any]], symbol: str) -> bool:
-    """Nova's last cover of ``symbol`` is still working at IBKR."""
-    oid = _sent.get(symbol)
-    return oid is not None and any(_oid(r) == oid for r in rows)
+def _covering(rows: list[dict[str, Any]], symbol: str, short_now: float) -> bool:
+    """Nova's last cover of ``symbol`` still stands for its short: working at IBKR, or gone from the working
+    orders while IBKR's position does not show it yet (a fill reaches the orders first). It stops standing once
+    the position shows the short smaller than when it went out, or once IBKR says it closed with nothing filled
+    -- then a new cover may go. A fill the position still does not show after ``SHORT_COVER_CONFIRM_SEC`` raises
+    the alarm, never a second cover: a second one could buy past flat."""
+    from ibkr import live_book
+
+    sent = _sent.get(symbol)
+    if sent is None:
+        return False
+    oid = int(sent["order_id"])
+    if any(_oid(r) == oid for r in rows):
+        return True
+    if short_now < float(sent["short"]) - _EPS:
+        _sent.pop(symbol, None)                      # the position shows the cover
+        return False
+    try:
+        state = live_book.order_state(oid)
+    except IbkrAccountError:
+        logger.warning("SHORTS: IBKR's status of the cover %s could not be read", oid, exc_info=True)
+        state = None
+    if state is not None and state["status"] in _DEAD and state["filled"] <= _EPS:
+        _sent.pop(symbol, None)                      # it closed with nothing filled: cover again
+        return False
+    if time.monotonic() - float(sent["at"]) < SHORT_COVER_CONFIRM_SEC:
+        return True                                  # IBKR's position has not caught up yet
+    if state is None:
+        _sent.pop(symbol, None)                      # this session does not know it, and the position shows no fill
+        return False
+    _alarm(symbol, short_now, "refused",
+           (f"Nova's cover of {symbol} (order {oid}) reads {state['status'] or 'unknown'} at IBKR with "
+            f"{state['filled']:g} filled, but IBKR still shows {short_now:g} short after "
+            f"{SHORT_COVER_CONFIRM_SEC:.0f} s: Nova sends no second cover, which could buy past flat. Check TWS now."),
+           code="DAY_COVER_UNCONFIRMED")
+    return True
 
 
 async def pass_once(now: float | None = None) -> list[dict[str, Any]]:
@@ -195,10 +238,12 @@ async def pass_once(now: float | None = None) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
     try:
-        book = _book()
+        book, why_not = _book()
         if book is not None:
             positions, rows = book
             _last.update(shorts={s: -q for s, q in positions.items() if q < -_EPS}, at=now)
+            for symbol in [s for s in _sent if s not in _last["shorts"]]:
+                _sent.pop(symbol, None)                  # flat: its cover stands for nothing now
             out += await entry_cutoff(rows, now)
         if not safety.short_enabled():
             cover_alarm.keep_only(VENUE, set())          # Nova places nothing at Live's cover while it is off
@@ -210,9 +255,9 @@ async def pass_once(now: float | None = None) -> list[dict[str, Any]]:
         if book is None:
             seen = hours.clock(float(_last["at"])) if _last["at"] else "?"
             for symbol, qty in shorts.items():
-                _alarm(symbol, qty, "disconnected", (f"Nova cannot cover {qty:g} {symbol} short on Live: IBKR is not "
-                                                     f"connected (last seen short at {seen} ET). Cover it in TWS or "
-                                                     "on your phone now."), last_seen=_last["at"])
+                _alarm(symbol, qty, "disconnected", (f"Nova cannot cover {qty:g} {symbol} short on Live: {why_not} "
+                                                     f"(last seen short at {seen} ET). Cover it in TWS or on your "
+                                                     "phone now."), last_seen=_last["at"])
             return out
         if not hours.regular_session(now):
             for symbol, qty in shorts.items():
@@ -222,7 +267,7 @@ async def pass_once(now: float | None = None) -> list[dict[str, Any]]:
                         "covers it at 09:30."))
             return out
         for symbol, qty in shorts.items():
-            if _covering(rows, symbol) or _waiting(symbol):
+            if _covering(rows, symbol, qty) or _waiting(symbol):
                 continue
             out.append(await _cover(symbol, qty, rows, now))
     except Exception:

@@ -301,6 +301,21 @@ def test_the_view_says_the_size_nova_would_send(paper, monkeypatch):
     assert size["qty"] == 153 and size["capped_by"] is None and "you approve it" in size["text"]
 
 
+def test_a_short_plan_sizes_on_its_buy_stop(paper, monkeypatch):
+    """PR #790 review (P1): a short's risk a share is its buy stop over the entry. Sized as a long, a real short
+    plan read qty 0, so Approve stayed locked and Auto-entry said it sends nothing."""
+    short = plan_lane(setup_type="bear_flag", side="short",
+                      setup={"trigger": 9.99, "entry": 9.98, "stop": 10.11, "target1": 9.72, "risk": 0.13})
+    monkeypatch.setattr("stock_mode.view._plan_lane", lambda sym, now: short)
+    put(paper, "nova", "you")                                   # Auto-entry: the sleeve's caps
+    size = client.get(f"/api/stock-mode/{SYM}").json()["size"]
+    assert size["by_risk"] == 153 and size["qty"] == 1 and size["capped_by"] == "max_shares"
+    assert "$0.13 a share = 153" in size["text"]                 # the buy stop 10.11 over the entry 9.98
+    put(paper, "you", "nova")                                   # Approve: the operator's own size
+    size = client.get(f"/api/stock-mode/{SYM}").json()["size"]
+    assert size["qty"] == 153 and size["capped_by"] is None and "you approve it" in size["text"]
+
+
 # -- Auto-entry: the bot's rules, the exit handed to you -------------------------------------------
 def test_auto_entry_buys_the_go_trigger_sized_by_the_sleeve_and_never_sells(paper):
     put(paper, "nova", "you")

@@ -275,6 +275,90 @@ def test_auto_entry_shorts_with_its_buy_stop_resting_and_the_cover_is_yours(pape
     assert leg(paper, stop["order_id"])["status"] == "Cancelled"
 
 
+def test_a_refused_cancel_of_the_buy_stop_keeps_the_trade_open_and_asks_again(paper, monkeypatch):
+    """PR #790 review (P2): you covered an Auto-entry short and the cancel of its buy stop was refused. The trade
+    stays open and Nova asks again, so the stale stop never waits to cover a later short."""
+    from constants_stock_mode import STOCK_MODE_CANCEL_RETRY_SEC
+    from stock_mode import orders as sm_orders
+    from stock_mode import runner as sm_runner
+    from stock_mode import store as sm_store
+
+    sm_runner.reset_for_tests(lambda: paper.now)
+    _stock_mode(paper, "nova", "you")
+    sm_runner.submit(trigger(paper))
+    _stock_tick(paper)
+    trade = _stock_tick(paper, paper.now + 1)
+    assert trade["state"] == "holding" and paper.broker.ledger.held_qty(SYM) == -1.0
+    stop_id = trade["stop_order_id"]
+    cover = ExecutionCommand(operation="place", idempotency_key="cover-r", source="manual", symbol=SYM, side="BUY",
+                             qty=1, order_type="LMT", limit_price=4.01, skip_risk=True)
+    assert asyncio.run(service.execute(cover, wait_ack=False)).ok
+
+    real_cancel, asked = sm_orders.cancel, []
+
+    async def refused(t, order_id, **kw):
+        asked.append(order_id)
+        return SimpleNamespace(ok=False, error="the venue refused the cancel (the test)", reason_code="REFUSED")
+
+    monkeypatch.setattr(sm_orders, "cancel", refused)
+    t0 = paper.now + 2
+    trade = _stock_tick(paper, t0)
+    assert trade["state"] == "holding" and asked == [stop_id]             # not closed: the stop still rests
+    assert leg(paper, stop_id)["status"] == "Submitted"
+    assert "still rests" in sm_store.event(SYM)["text"]
+    _stock_tick(paper, t0 + STOCK_MODE_CANCEL_RETRY_SEC / 2)
+    assert asked == [stop_id]                                            # not before the retry gap
+    monkeypatch.setattr(sm_orders, "cancel", real_cancel)
+    trade = _stock_tick(paper, t0 + STOCK_MODE_CANCEL_RETRY_SEC + 0.1)
+    assert trade["state"] == "closed" and trade["exit_reason"] == "outside"
+    assert leg(paper, stop_id)["status"] == "Cancelled"
+
+
+def _auto_entry_lines() -> list[dict]:
+    from constants_stock_mode import STOCK_MODE_AUDIT_ACTION
+
+    return [r for r in list_entries(limit=100) if r["action"] == STOCK_MODE_AUDIT_ACTION
+            and r["outcome"] in ("sent", "skipped", "refused")]
+
+
+def test_auto_entrys_short_carries_its_short_check_to_the_squares(paper):
+    """PR #790 review (P2): Auto-entry's audit line carries the short check it read, as the bot's does, so the
+    borrow, halt and margin squares show the verdict instead of "judged without reading the short check"."""
+    from bot import trigger_short
+    from stock_mode import runner as sm_runner
+
+    sm_runner.reset_for_tests(lambda: paper.now)
+    _stock_mode(paper, "nova", "you")                  # Auto-entry
+    event = trigger(paper)
+    sm_runner.submit(event)
+    assert _stock_tick(paper)["side"] == "short"
+    [sent] = [r for r in _auto_entry_lines() if r["outcome"] == "sent"]
+    assert sent["inputs"]["side"] == "short" and sent["inputs"]["ssr"] == "off"
+    assert {v["id"] for v in sent["inputs"]["short_check"]} >= {"borrow", "halt", "cushion"}
+    cells = trigger_short.short_cells({**event, "symbol": SYM}, trigger_short.judgments(list_entries(limit=100)))
+    assert cells["short_borrow"]["ok"] is True and cells["short_halt"]["ok"] is True
+    assert cells["short_margin"]["ok"] is True
+
+
+def test_auto_entrys_short_the_check_refuses_records_the_failing_rule(paper, monkeypatch):
+    from bot import trigger_short
+    from stock_mode import runner as sm_runner
+
+    short_mod.reset_for_tests()                       # no borrow read
+    monkeypatch.setattr(short_mod, "request_refresh", lambda symbol: True)   # no worker asks IBKR
+    sm_runner.reset_for_tests(lambda: paper.now)
+    _stock_mode(paper, "nova", "you")
+    event = trigger(paper)
+    sm_runner.submit(event)
+    assert _stock_tick(paper) is None
+    [skip] = [r for r in _auto_entry_lines() if r["outcome"] == "skipped"]
+    assert any(code.startswith("SHORT_") for code in skip["inputs"]["codes"]) and skip["inputs"]["reasons"]
+    borrow = next(v for v in skip["inputs"]["short_check"] if v["id"] == "borrow")
+    assert borrow["ok"] is False
+    cells = trigger_short.short_cells({**event, "symbol": SYM}, trigger_short.judgments(list_entries(limit=100)))
+    assert cells["short_borrow"]["ok"] is False
+
+
 def test_an_approved_short_goes_out_as_a_short_bracket_at_its_trigger(paper):
     from stock_mode import runner as sm_runner
     from stock_mode import store as sm_store
@@ -348,6 +432,17 @@ def test_the_live_margin_chip_takes_ibkrs_word_never_the_override(monkeypatch):
     assert margin["ok"] is False and "override" in margin["text"] and equity["ok"] is True
     summary["ibkr_account_class"] = "margin"
     assert shorts_view._account("live")[0]["ok"] is True
+
+
+def test_the_live_chip_says_an_unreadable_proof_in_fixed_words(monkeypatch):
+    from bot import shorts_view
+
+    def broken():
+        raise RuntimeError("SECRET-TRACE disk gone")
+
+    monkeypatch.setattr(shorts_view, "_proof", broken)
+    chip = shorts_view._live()
+    assert chip["ok"] is False and "could not be read" in chip["text"] and "SECRET-TRACE" not in chip["text"]
 
 
 def test_a_cover_alarm_reaches_the_session_every_window_polls(paper):

@@ -152,9 +152,10 @@ def _size(mode: str, row: dict[str, Any], lane: dict[str, Any] | None, venue: st
     lv = _levels(lane)
     if mode == STOCK_MODE_SIGNAL or lv is None:
         return None
+    side = model.lane_side(lane)             # a short's risk a share is its buy stop over the entry (ADR 049)
     caps = of(row)
     if mode == STOCK_MODE_APPROVE:
-        out = size(caps["risk_usd"], lv.get("entry"), lv.get("stop"), None, None)
+        out = size(caps["risk_usd"], lv.get("entry"), lv.get("stop"), None, None, side=side)
         return {**out, "text": f"{out['text']} -- you approve it; the sleeve's caps do not apply"}
     try:
         left = float(caps["bp_budget_usd"]) - exposure(row, venue)
@@ -162,7 +163,7 @@ def _size(mode: str, row: dict[str, Any], lane: dict[str, Any] | None, venue: st
         logger.warning("stock mode: Nova's open trades could not be read for the budget", exc_info=True)
         return {"qty": 0, "by_risk": None, "capped_by": None,
                 "text": "what Nova's automatic buys hold could not be read (the backend log has the error): Nova does not buy"}
-    return size(caps["risk_usd"], lv.get("entry"), lv.get("stop"), caps["max_shares"], left)
+    return size(caps["risk_usd"], lv.get("entry"), lv.get("stop"), caps["max_shares"], left, side=side)
 
 
 # -- the notes -----------------------------------------------------------------------------

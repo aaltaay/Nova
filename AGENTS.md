@@ -5118,7 +5118,8 @@ long strategy buys, a short strategy shorts. Paper and Sim only, as ADR 042 says
   (a `burst`: the buy stop moves down to `flush_trail_r` R over the price, or it covers) and the last-resort close
   cover with a BUY limit at the ask + 3c, then the protective flatten.
 - **Auto-entry's short** follows the bot's rules: a two-leg bracket, the SELL limit with `short_entry` and its BUY
-  stop, no target -- every cover is yours; its buy stop is cancelled once the position is gone. **Approve's short**:
+  stop, no target -- every cover is yours; its buy stop is cancelled once the position is gone, and the trade stays
+  open until it is (a refused cancel is asked again every 2 s and said on the stock). **Approve's short**:
   `POST /api/stock-mode/{symbol}/approve` takes a short plan whose buy stop is over the entry and cover under it
   (`STOCK_MODE_INVALID` otherwise) and sends a short bracket at the trigger, priced as the bot's. Approvals and trades
   add `side`. `BOT_SKIP_SHORT_LATER`, 409 `STOCK_MODE_SHORT_LATER` and the `short_later` note are retired.
@@ -5132,7 +5133,9 @@ long strategy buys, a short strategy shorts. Paper and Sim only, as ADR 042 says
   15:50. A short trigger's are read from what the bot or Auto-entry recorded at it (the latest skip, entry or
   refusal per setup id, and its `short_check`); a long trigger's are absent. A cell may add `warn: true`, an amber
   pass: **the SSR square is never red** ("SSR · at the ask"). Triggers add `side` and `ssr`. `now` adds both
-  blocks for a stock with a short strategy On; its margin square is read only for a short armed or near.
+  blocks for a stock with a short strategy On; its margin square is read only for a short armed or near. A square
+  of the short block stops only the short side: while a long strategy that is On could still trade the stock (its
+  window open, its next setup allowed, no short held), it stays red and `now.answer` stays `yes`.
 - **`GET /api/bot/session`** adds `shorts: {venue, margin_account, equity, hours, live, live_cover, day_cover}` --
   the first four `{ok: true | false | null, text, value}` (memory reads; null is not known, never a pass; on Live
   the margin chip reads IBKR's own figures, and `live` counts the Live short proof's progress), `live_cover` and
@@ -5204,18 +5207,28 @@ only while the switch is on.
     `day_cover`), then one protective market BUY covers the short (source `flatten`, `intent: "flatten"`, origin
     `day_cover`), both with `target_venue: "live"` whatever the desk shows. The door admits a Live target for
     `day_cover` alone -- never `margin_call` (IBKR liquidates Live itself) -- only as a cancel or that market
-    BUY, and only while IBKR is connected; the IBKR send skips the desk's practice guard for that one targeted
-    order (`ibkr.orders.place_order(targeted=True)`). The door checks the cover under its lock against IBKR's own
+    BUY, only while IBKR is connected, and only while its session is the Live Gateway on a live account
+    (`venue_door.live_session_refusal`): the legacy paper Gateway connects too, and its account is not the one
+    Live's short is in. The IBKR send skips the desk's practice guard for that one targeted order
+    (`ibkr.orders.place_order(targeted=True)`). The door checks the cover under its lock against IBKR's own
     position less the covers already working there (`ibkr/live_book.py`, IBKR's book whatever the desk shows;
     the kill switch's Live sweep reads it too), so a cancel that failed leaves the cover refused, never a buy
-    past flat. A cover still working is never sent twice; a refused one is tried again after
+    past flat. Nova reads Live's book for the cover and the cutoff only from a Live session; on the paper Gateway
+    the short it last saw on Live raises the alarm. A cover stands for its short until IBKR's position shows it
+    (a fill reaches the orders before the position): while it works, and while it is gone from the working
+    orders but the position still shows the short, no second cover goes. It stops standing when the position
+    shows the short smaller, or when IBKR says it closed with nothing filled (then Nova covers again); a fill the
+    position still does not show after `SHORT_COVER_CONFIRM_SEC` (15 s) raises the alarm
+    (`DAY_COVER_UNCONFIRMED`), never a second cover. A refused cover is tried again after
     `SHORT_CLOSE_RETRY_SEC`. Each step is a `day_cover` line on the bot audit stream.
-  - **Nova's own Live short entries** (the SELLs its execution record sent as short entries) lapse as Paper's do
+  - **Nova's own Live short entries** (the SELLs its execution record sent as short entries through the Live
+    Gateway, `store_orders.short_entries(mode="live")`) lapse as Paper's do
     (`hours.entry_lapsed`: outside the short hours, or a later day than they were placed) and are cancelled,
     whether or not the switch is on.
 - **The day cover's alarm** (`short_sale/cover_alarm.py`, in memory): a short due its cover that cannot get one --
-  the venue refused it or a cancel before it, IBKR is not connected (the short as IBKR last reported it), or Live
-  stands outside the regular session -- raises one alarm per venue and symbol, `{id: "<venue>:<SYMBOL>", venue,
+  the venue refused it or a cancel before it, a fill IBKR's position does not show, IBKR is not connected or its
+  session is not Live's (the short as IBKR last reported it), or Live stands outside the regular session --
+  raises one alarm per venue and symbol, `{id: "<venue>:<SYMBOL>", venue,
   symbol, qty, kind: "refused" | "disconnected" | "outside_session", since, updated, error, reason_code, text,
   last_seen}`, cleared when a cover goes out or the short is gone. Paper's and Sim's day cover raises it too. The
   bot session carries `shorts.live_cover` (the switch is on) and `shorts.day_cover: {alarms}`.
@@ -5516,6 +5529,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-07 | Short selling, step 6's review (ADR 048 step 6; #778). PR #792 merged before its review was read, so the findings land here, each with a test that fails without its fix. Live's day cover goes only to the Live account: the door refuses a Live close, and the cover pass reads no book, unless IBKR's session is the Live Gateway on a live account (the legacy paper Gateway connects too, and its account is not Live's), and the cutoff matches only orders sent through the Live Gateway. A cover stands until IBKR's position shows it: a fill reaches the orders first, and the next pass would have sent a second cover and left the account long; a fill the position never shows raises the alarm (`DAY_COVER_UNCONFIRMED`), never a second cover. `/api/short-proof` and the Live short texts carry fixed words, the exception in the engine log (CodeQL). From step 5's review (PR #790): a short plan's size read 0 shares (sized as a long), so Approve stayed locked; Auto-entry's audit line carries the short check it read; a refused cancel of an Auto-entry short's buy stop keeps the trade open and is asked again; a short-only square no longer makes a ticker's `now` read no while a long could trade. §3 amended. | User Directive + Claude Code |
 | 2026-10-07 | Short selling, step 6 of 6: Live readiness, with Live shorts still refused (ADR 048 step 6; #778 §7). The Live short proof is recorded as it happens on Paper (`short_proof/`, `short-proof.json` schema 1): days with shorts and four drills with a short open -- Freeze all orders kept its buy stop, Flatten covered it, the 15:55 cover covered it, a Gateway drop left it protected. The door refuses a Live short `SHORT_PROOF_INCOMPLETE` until three reviewed days and the drills are done; how a day is reviewed waits on the operator (#778 question 3), so the proof cannot complete in this release. A Live margin account is IBKR's own word (`ibkr_account_class`), never the `.env` override. Live's 15:55 cover runs only while `IBKR_SHORT_ENABLED` is on: the stock's working Live orders cancelled, then a protective market BUY the door checks against IBKR's own short (`ibkr/live_book.py`), sent to Live whatever the desk shows and only in the regular session; Nova's own Live short entries lapse and are cancelled, and a Live short entry is never repriced (`SHORT_REPRICE`). A cover that cannot go out, on any venue, raises an alarm every desk window shows as a red bar. The Bot card lists the operator's steps with what Nova sees; the ticket locks a Live short while the proof is incomplete; the 15:50 card names Live's cover while the switch is on; the public demo answers the proof route. §3 amended. | User Directive + Claude Code |
 | 2026-10-07 | Short selling, step 5 of 6: the bot trades both sides on Paper and Sim (ADR 049 §6.3; #778). The strategy that triggers decides the side: a short strategy at On shorts its go triggers, with one bot, one Bot switch, one sleeve, one bot trip and one all-stop for both sides. One trade per stock at a time, the first go trigger wins, never a flip (`BOT_SKIP_HELD_OTHER_SIDE`), and the day's cap counts both sides. A short trigger is priced at its entry, or under SSR (on or unknown) at the higher of the entry and the ask (`BOT_SKIP_SHORT_PRICE` when there is none), sized to its buy stop, and run through the one short check on the door's own facts before anything is sent, so a refusal is a stated skip; the bot's short is a bracket (`short_setup_limit`), Auto-entry's a short with its buy stop and the cover yours, Approve's a short bracket. The localhost bot API adds `short_limit_bid_offset`, `cover_limit_ask_offset`, `cover_market` and `cover_pos` (Live refused). The squares add "Not against you" and, behind an orange divider, the shorts-only block (borrow, SSR, no halt in 10 min, margin 25%, before 15:50), the SSR square amber, never red. Auto-record gives a short setup a line only while its strategy is On. The Bots page asks "Can Nova trade right now?" with the short's chips, says one bot for both sides, sorts the strategies into On / Eyes / Off buckets with their ▲ LONG / ▼ SHORT tags, and names the side in proposals, activity and today ("Nova trades"); the Trader's calls say the short in every Nova mode. Fixed with it (PR #789 review): a short triggers only at or under its entry (a sub-penny print under the trigger never traded the sell entry), SSR at a trigger counts the trade that triggered it, Lost VWAP ends at its window close armed or not, and the five-year harness refuses a template whose flush exit it cannot test. Live shorts stay impossible until the operator finishes step 6. §3 amended. | User Directive + Claude Code |
 | 2026-10-07 | Short selling, step 3 of 6: the Trader shorts by hand on Paper and Sim (ADR 048 §6.1; #778). The ticket follows the position (flat Buy / Short, long Buy / Sell with Short off, short Cover / Short more with Sell off), a short is a Limit with a required Buy stop (the venue's offset in Settings > Trade, priced at the ask under SSR) and a SHORT CHECK box lists the door's rules with their numbers; the submit reads "Short RDYN · 416 @ 5.77 · stop 5.89" in orange and "Cover RDYN · 416 @ 5.46" in green. Short and Cover hotkeys (each Short with its own buy stop; DAS SHORT imports), "Short @ price" on the chart, SSR / cool-off / LIQ chips and SHORT / STOP ↑ marks on Level 2. The plan box plans a short (`side=short`; Short at, Buy stop, Cover 2R, the short checks in its list, "Stage short in ticket"); holding one, the "This trade" card is the mirror (Shorted at, Buy stop, Cover 2R, "Lower stop to X", Stage cover, "Nova takes the cover": a buy stop that only moves down, Paper and Sim), its stop the order resting at the broker until you set one, and the 1-minute badge reads "SHORT 416 · BROKE $5.50 · NEXT 5.35". Who trades becomes Entry · Exit (`entry` / `exit` on the wire beside `buy` / `sell` for one release), and Nova never enters against a position you hold (`BOT_SKIP_HELD_OTHER_SIDE`). The 15:50 card names a Paper short's 15:55 day cover. Fixed with it (PR #787 review): a GTC short entry Nova was closed over came back inside the next day's hours with the day before's checks, and the next day's prints could fill it; a short entry now lapses with its own day, in the cutoff pass and at the fill (`entered_ts`), and the door refuses to reprice a resting short entry (`SHORT_REPRICE`): a replace runs no short check. Live shorts stay impossible; no strategy or bot shorts until steps 4-5. §3 amended. | User Directive + Claude Code |

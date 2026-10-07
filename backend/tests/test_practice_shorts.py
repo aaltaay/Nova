@@ -561,6 +561,7 @@ def test_only_the_closes_name_a_venue_other_than_the_desks(paper, monkeypatch) -
     assert target_refusal(cmd(origin="ticket_flatten")) is not None
     assert target_refusal(cmd(side="SELL", short_entry=True)) is not None
     monkeypatch.setattr("execution.venue_door.ibkr_connected", lambda: True)
+    monkeypatch.setattr("execution.venue_door.live_session_refusal", lambda: None)   # the Live Gateway, a live account
     # Live (ADR 048 step 6): the day cover alone, its close a market BUY the door checks as a flatten.
     assert "intent flatten" in target_refusal(cmd(target_venue="live"))
     assert target_refusal(cmd(target_venue="live", intent="flatten")) is None
@@ -569,6 +570,12 @@ def test_only_the_closes_name_a_venue_other_than_the_desks(paper, monkeypatch) -
                                                                intent="flatten"))
     assert target_refusal(cmd(target_venue="live", intent="flatten", side="SELL")) is not None
     assert target_refusal(cmd(target_venue="live", intent="flatten", order_type="LMT", limit_price=5.0)) is not None
+    # PR #792 review: never through the legacy paper Gateway -- its account is not the one Live's short is in.
+    monkeypatch.setattr("execution.venue_door.live_session_refusal",
+                        lambda: "IBKR's session is the paper Gateway on a paper account, not the Live account")
+    assert "paper Gateway" in target_refusal(cmd(target_venue="live", intent="flatten"))
+    assert "paper Gateway" in target_refusal(cmd(target_venue="live", operation="cancel", source="cancel_working",
+                                                 order_id=1))
     monkeypatch.setattr("execution.venue_door.ibkr_connected", lambda: False)
     assert "not connected" in target_refusal(cmd(target_venue="live", intent="flatten"))
 
