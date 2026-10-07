@@ -151,9 +151,10 @@ What step 3 decided where the design left room:
   "Bot may trade RDYN: no · Entry is You". The wire adds `entry` / `exit` and keeps `buy` / `sell` one release.
 - **Nova never enters against a position you hold**, from this step: the bot, Auto-entry and Approve skip a long
   entry on a stock you hold short, and any entry while the position cannot be read (`BOT_SKIP_HELD_OTHER_SIDE`).
-  Step 5 adds the short side's mirror.
+  Step 5 adds the short side's mirror (done: ADR 049's step 5 section).
 - **Approve on a short setup waits on step 5.** No short setup exists before step 4; between steps 4 and 5 the plan
-  box says why and stages the short in the ticket instead.
+  box says why and stages the short in the ticket instead. Step 5 lifted it: Approve sends the short with its buy
+  stop and cover (ADR 049).
 - **The held card's stop is the one resting at the broker** until you set one for the tab: a short always goes out
   with its buy stop, and a card proposing another stop beside it would misstate the trade. The same holds for a
   long's working sell stop.

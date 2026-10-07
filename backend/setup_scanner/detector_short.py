@@ -3,7 +3,8 @@
 A long setup's trigger is a high: a live price over it buys at the entry one cent over (``detector.py``). A
 short's is a low, and its entry is one cent under it: a live price at or under the entry sells -- at the
 minute's open when it gapped under, and the setup is disarmed when that gap pushes the risk over the cap (the
-long rule mirrored). Its stop is over the entry, its target 1 under it (entry - target R x risk), and its near
+long rule mirrored). A print under the trigger but over the entry (a sub-penny trade) is still near: the sell
+entry never traded (PR #789 review). Its stop is over the entry, its target 1 under it (entry - target R x risk), and its near
 band over the trigger. The SSR bounce short reads the long way up -- its entry rests at the level and a price
 over it fills it -- so it keeps the long trigger (``ssr_bounce.py``).
 
@@ -82,7 +83,7 @@ class ShortTriggerDetector(TriggerDetector):
         if self.armed is None or self.state not in (SETUP_STATE_ARMED, SETUP_STATE_NEAR):
             return []
         trig = self.armed["trigger"]
-        if price >= trig - EPS:
+        if price > self.armed["entry"] + EPS:
             return self._near_check(price)
         prev = self.armed
         if et_time(ts) >= hhmm(self.cutoff()):
@@ -101,9 +102,10 @@ class ShortTriggerDetector(TriggerDetector):
             return []
         trig = self.armed["trigger"]
         band = max(self.p.near_dollars, self.p.near_pct * price)
-        if price - trig <= band:
+        over = max(0.0, price - trig)          # under the trigger but over the entry reads as at it
+        if over <= band:
             if self.state != SETUP_STATE_NEAR:
-                self._set(SETUP_STATE_NEAR, f"{price - trig:.2f} over the {trig:.2f} trigger -- read the tape")
+                self._set(SETUP_STATE_NEAR, f"{over:.2f} over the {trig:.2f} trigger -- read the tape")
                 return [("near", self.view())]
         elif self.state == SETUP_STATE_NEAR:
             self._set(SETUP_STATE_ARMED, self.armed_reason())
@@ -114,5 +116,7 @@ class ShortTriggerDetector(TriggerDetector):
         return f"short under {a.get('trigger', 0):.2f}, buy stop {a.get('stop', 0):.2f}, risk {a.get('risk', 0):.2f}"
 
     def ssr(self) -> str:
-        """SSR now, from this symbol's bars today and the host's context."""
-        return ssr_today(self.series.lo, self.context)
+        """SSR now, from this symbol's bars today, the live price it was last fed (the trade that triggers it may be
+        the first at 90% of the prior close: PR #789 review) and the host's context."""
+        lows = [*self.series.lo, self.last_price] if self.last_price is not None else self.series.lo
+        return ssr_today(lows, self.context)

@@ -1,5 +1,5 @@
 /**
- * A strategy's bot rules on its card (ADR 044): the grades Nova buys (A and B, or A only; C never), setups a
+ * A strategy's bot rules on its card (ADR 044): the grades Nova trades (A and B, or A only; C never), setups a
  * stock a day (the 1st, or the 1st and 2nd), and the bot window. They are the template in play's bot-group
  * parameters: changing one never starts the read-out over, and the built-in template takes them too.
  */
@@ -56,7 +56,7 @@ export function BotStrategyRules({ setup, templates, onApply }: {
       </span>
     </span>
   );
-  // ADR 049: a short strategy's bot shorts (from #778 step 5); its rules are set the same way.
+  // ADR 049: the strategy decides the side -- a short strategy's bot shorts; its rules are set the same way.
   const verb = isShortSetup(setup) ? 'short' : 'buy';
   return (
     <div className="bots-rules" data-testid={`bots-rules-${setup}`}>

@@ -215,6 +215,9 @@ def main() -> int:
     result = Result(a.setup, template, command, a.dry_run)
     try:
         rules, left_out = variants(template)
+        why = sim.untestable(rules[0][1])
+        if why:
+            raise ValueError(why)      # the result reads `error`: On stays locked, never a pass on untested exits
         con = connect(read_only=True)
         days = load_days(con, a.setup, a.days)
         result.write(assumptions=[*cfg.ASSUMPTIONS, *(f"Neighbour left out -- {x}" for x in left_out)],

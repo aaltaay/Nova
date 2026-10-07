@@ -3409,7 +3409,8 @@ carries `venue`, and the daily entry cap counts this
 venue's entries (a line without it counts on every venue). A TTL cancel and a
 take-over of the exit never send another venue's order id.
 
-**Nova's own bot** (ADR 030, owner `bot/first_pullback/`; #514; ADR 042).
+**Nova's own bot** (ADR 030, owner `bot/first_pullback/`; #514; ADR 042; both sides since ADR 049's
+step 5, "The bot trades both sides" below: a short strategy's trigger is a short, mirrored).
 Active at Strategy, on Paper or on Sim at the live edge -- never on Live -- it
 hears the setup scanner's triggers (each setup's template in play's lane, live
 feed only: `SetupEngine.add_trigger_listener`; the event carries `setup_type`,
@@ -4774,10 +4775,10 @@ Nothing here places, stages or cancels an order.
 ### Short selling (ADR 048, operator decisions 2026-10-01 to 2026-10-07; #778)
 
 "Short selling: Paper and Sim first, Live last" -- built in six steps under #778 (ADR 048 "The build"),
-each safe alone. This section says what is on master (steps 1-3); ADR 048 is the whole design and ADR
-049 the five short strategies, pre-registered. Paper and Sim short, by hand from the Trader; Live still
-refuses every short (`IBKR_SHORT_ENABLED` is the operator's, set last), and no strategy or bot shorts yet
-(steps 4-5).
+each safe alone. This section says what is on master (steps 1-5); ADR 048 is the whole design and ADR
+049 the five short strategies, pre-registered. Paper and Sim short, by hand from the Trader and by Nova's
+bot, Auto-entry and Approve on the short strategies at On ("The bot trades both sides" below); Live still
+refuses every short (`IBKR_SHORT_ENABLED` is the operator's, set last), and a bot never trades Live.
 
 - **The one short check** (owner `short_sale/`: the rules `check.py`, pure; the door `door.py`, run by
   `execution.validate.check_account_and_position` under the execution lock for every place or bracket
@@ -4966,7 +4967,7 @@ refuses every short (`IBKR_SHORT_ENABLED` is the operator's, set last), and no s
   round numbers are measured downward, and "Too thin to trade" walks the bids. The plan box carries a SHORT
   tag, reads Short at / Buy stop / Cover, lists the short check's rules in its check list, and "Stage short
   in ticket" fills the ticket's Short side with the plan's buy stop. "Short at the bid" starts a hand short.
-  Approve on a short setup waits on step 5.
+  Approve on a short setup sends it with its buy stop and cover ("The bot trades both sides" below).
 - **Holding a short.** The read takes `held_side=short` (with `held_qty`, a positive count) and answers
   `held` with `side: "short"`, `lower: {to, round, at, text} | null` (`raise` null) and ladder roles adding
   `resistance` (`stock_read/held_short.py`). The "This trade" card is the mirror: Shorted at, Buy stop, Next
@@ -4994,7 +4995,7 @@ refuses every short (`IBKR_SHORT_ENABLED` is the operator's, set last), and no s
 
 Five short setups run on the setup scanner's lanes beside the long ones (owners `setup_scanner/` and
 `setup_templates/`; the rules are ADR 049, pre-registered, with its step 4 section). Read-only like every lane:
-nothing here places, stages or cancels an order, and until step 5 nothing trades them.
+nothing here places, stages or cancels an order; Nova's bot trades them at On ("The bot trades both sides" below).
 
 - **The setups.** `setup_type` adds `backside_lower_high`, `bear_flag`, `failed_breakout`, `lost_vwap` and
   `ssr_bounce`, after Gap and Go. `kind` adds each id and `second_<id>`; Lost VWAP has only its own. Each starts at
@@ -5009,7 +5010,8 @@ nothing here places, stages or cancels an order, and until step 5 nothing trades
 - **On the wire.** Every board row, `GET /api/setups/symbol/{symbol}` lane, proposal, trigger event and stored
   row adds:
   - `side: "long" | "short"`;
-  - `ssr: "on" | "off" | "unknown" | null`: the short's SSR at its trigger, else at its arm; null on a long.
+  - `ssr: "on" | "off" | "unknown" | null`: the short's SSR at its trigger (counting the trade that triggered it),
+    else at its arm; null on a long.
 
   The board's and `GET /api/setups/templates`'s `setups[]` add `side` and `test` (null on a long setup).
 - **A short row's grade** (A all five pillars, B four, C three or fewer; unknown is never a pass).
@@ -5045,6 +5047,8 @@ nothing here places, stages or cancels an order, and until step 5 nothing trades
   - `PATCH /api/bot/session {setup_levels}` refuses On (2) for a short setup, 409 `BOT_SHORT_TEST`, unless its test
     passed on the rules in play. A short setup at On whose test stops matching reads as Eyes.
   - `GET /api/bot/session`'s `setups[]` add `side`, `test` and `locked: string | null` (why On is locked).
+  - The harness reads bars, never the tape: a template whose `flush_exit` is not `off` is refused, and its result
+    reads `error` (PR #789 review), so a flush exit is never unlocked untested.
   - The operator runs the test on the desk (`research/shorts/README.md`: `select_shorts.py`, then
     `research/orb/extract_minutes.py --selection shorts_selection --table minutes_shorts --start 04:00`, then
     `test_shorts.py --setup <setup>`); a queued card names its own command.
@@ -5069,18 +5073,71 @@ nothing here places, stages or cancels an order, and until step 5 nothing trades
   the level, its stop the floor, its target under the entry). The SSR bounce's `after` is null: its entry rests
   over the price.
 - **The journal and auto-record.** A short's `armed` and `triggered` journal lines carry its `ssr`. Auto-record gives
-  a short setup no line, and its setups window (`/api/ibkr/status` `auto_record.windows`) leaves the shorts out: the
-  lines serve ADR 041's long trials until step 5.
-- **Until step 5.** Nova's bot and Auto-entry skip a short trigger (`BOT_SKIP_SHORT_LATER`, the first of its
-  reasons), and a short proposal's `taken_by` is null. `POST /api/stock-mode/{symbol}/approve` refuses a short
-  setup, 409 `STOCK_MODE_SHORT_LATER`, and `GET /api/stock-mode/{symbol}`'s `notes` add `short_later` while the
-  plan's setup is a short and the stock is not at Signal only. `GET /api/bot/triggers` reads a short trigger's
-  `strategy_on` square red with the same reason. On the desk a short proposal stages a short with its buy stop,
-  never a buy.
+  a short setup a line only while its strategy is On (effective Strategy), and its setups window (`/api/ibkr/status`
+  `auto_record.windows`) counts only those: the lines serve ADR 041's long trials, and a short the bot may trade
+  needs its tape.
 - **On the desk.** Short setups are drawn in orange with ▼ SHORT, live and past. Their cards carry the ▼ SHORT tag,
   the mirrored tape gate words and "Test: five-year test queued / running / passed / failed". Their On is locked
   with the reason until the test passes. A short plan's badge reads "BEAR FLAG ▼ SHORT · ARMED", and its calls say
-  SHORT NOW under the trigger and, in a Nova mode, STAGE THE SHORT until step 5.
+  SHORT NOW under the trigger; a short proposal stages a short with its buy stop, never a buy.
+
+### The bot trades both sides (ADR 049, step 5 of #778)
+
+One bot, one Bot switch, one list of strategies (ADR 044): **the strategy that triggers decides the side** -- a
+long strategy buys, a short strategy shorts. Paper and Sim only, as ADR 042 says: a bot never trades Live. Owners
+`bot/first_pullback/` (`short_side.py` the short's own rules), `stock_mode/`, `bot/trigger_short.py`,
+`bot/shorts_view.py`; on the desk `frontend/src/bot/` and `frontend/src/stock_read/`.
+
+- **One trade per stock, never a flip.** The first go trigger wins, long or short. The bot, Auto-entry and Approve
+  never enter against a position the venue holds (`admit.against_held`, `BOT_SKIP_HELD_OTHER_SIDE`): after a trade
+  is flat, the other side needs its own trigger. The bot holds one trade at a time overall. The daily cap
+  ("Nova trades a day", the sleeve's `entries_per_day`) counts both sides (`BOT_ENTRY_KINDS`).
+- **One sleeve, one bot trip, one all-stop.** A short is sized by the same caps (`bot.sizing.size(..., side)`): its
+  risk a share is the buy stop minus the entry. `bot_qty` is signed: a short holds a negative count.
+- **A short trigger's own rules** (`short_side.py`), before anything is sent:
+  - **The price.** Off SSR the short sells at the scanner's entry. Under SSR, on or not known, it sells at the
+    higher of the entry and the ask: above the bid, never under the plan. No ask, an ask not above the bid, or an
+    ask at or over the buy stop is a skip, `BOT_SKIP_SHORT_PRICE`.
+  - **The check.** The one short check (`short_sale.check.rules`) at that price and size, on the door's own facts
+    (`short_sale.facts.gather`, memory reads). Each failure is a stated skip with its code (`SHORT_*`); a check that
+    cannot be read is `SHORT_CHECK_UNREAD`. `not_long` is `against_held`'s, and `live_key` never applies.
+- **The bot's short** is a practice bracket like its long: a SELL limit with `short_entry`, a BUY limit at target 1
+  and a BUY stop. Its audit action is `short_setup_limit` (inputs add `side`, `ssr`, `priced_at_ask`, `short_limit`,
+  `short_check`, `short_error`); its trade adds `side: "short"`, `entry_scanned` (the scanner's entry beside the
+  priced `entry_planned`), `priced_at_ask` and `ssr`, and R is (fill - exit) / risk. The time stop, the flush exit
+  (a `burst`: the buy stop moves down to `flush_trail_r` R over the price, or it covers) and the last-resort close
+  cover with a BUY limit at the ask + 3c, then the protective flatten.
+- **Auto-entry's short** follows the bot's rules: a two-leg bracket, the SELL limit with `short_entry` and its BUY
+  stop, no target -- every cover is yours; its buy stop is cancelled once the position is gone. **Approve's short**:
+  `POST /api/stock-mode/{symbol}/approve` takes a short plan whose buy stop is over the entry and cover under it
+  (`STOCK_MODE_INVALID` otherwise) and sends a short bracket at the trigger, priced as the bot's. Approvals and trades
+  add `side`. `BOT_SKIP_SHORT_LATER`, 409 `STOCK_MODE_SHORT_LATER` and the `short_later` note are retired.
+- **The localhost bot API** (ADR 016) adds `short_limit_bid_offset` (a short at the bid + 1c as a bracket with its
+  buy stop 10c over; no free-form size or stop; refused while you hold the stock long, 409 `BOT_SKIP_HELD_OTHER_SIDE`),
+  `cover_limit_ask_offset` (a BUY limit at the ask + 5c), `cover_market` and `cover_pos` (protective: the whole short
+  at market, never past flat). Live refuses every one (`BOT_LIVE_NOT_BUILT`).
+- **The squares** (`GET /api/bot/triggers`, "One Bots page" above). `gates` add `not_against` ("Not against you")
+  after `trades_today`, and `nova_buys` reads "Entry: Bot". The answer adds `short_gates`: `short_borrow`,
+  `short_ssr`, `short_halt`, `short_margin`, `short_hours` -- borrow, SSR, no halt in 10 min, margin 25%, before
+  15:50. A short trigger's are read from what the bot or Auto-entry recorded at it (the latest skip, entry or
+  refusal per setup id, and its `short_check`); a long trigger's are absent. A cell may add `warn: true`, an amber
+  pass: **the SSR square is never red** ("SSR · at the ask"). Triggers add `side` and `ssr`. `now` adds both
+  blocks for a stock with a short strategy On; its margin square is read only for a short armed or near.
+- **`GET /api/bot/session`** adds `shorts: {venue, margin_account, equity, hours, live}`, each `{ok: true | false |
+  null, text, value}` (memory reads; null is not known, never a pass), or `{venue, error}`.
+- **On the desk.** The Bots page asks "Can Nova trade right now?" with the short's chips (Margin account, Equity ≥
+  $2,000, Shorts until 15:50, Live shorts: after the Paper proof). The Bot card reads "On for Paper. One bot for both
+  sides: each strategy at On trades its own side." with the trade and next-trade lines naming ▲ long / ▼ short.
+  The sleeve adds "A short adds: a buy stop always goes in with the entry · a 25% margin cushion · 09:35–15:50, and
+  Nova covers what is left at 15:55 · under SSR it sells at the ask · never on a stock you hold." The strategies
+  sit in three buckets above their cards -- **On · the bot trades these**, **Eyes · alerts you, Nova never
+  trades**, **Off · watches and scores, silent** -- each row with its ▲ LONG / ▼ SHORT tag, its test or read-out and
+  its Off · Eyes · On (🔒 On while a short's test has not passed; a short held at Eyes sits there), and the rule
+  line under them. Tickers today puts the shorts-only block behind an orange divider. Proposals, Activity and Today
+  name the side; "Nova buys" is "Nova trades". On the Trader, Approve, Auto-entry and the bot say the short: BOT
+  SHORTS AT, APPROVED with its buy stop and cover, BOT SHORTING / SHORTED / IS COVERING / COVERED / SHORT MISSED.
+- **Step 6** adds the Live short proof checklist and Live's 15:55 cover; until the operator finishes it and sets
+  `IBKR_SHORT_ENABLED`, Live refuses every short.
 
 ### Execution command (ADR 007 — sole broker mutation entry)
 
@@ -5370,6 +5427,7 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-10-07 | Short selling, step 5 of 6: the bot trades both sides on Paper and Sim (ADR 049 §6.3; #778). The strategy that triggers decides the side: a short strategy at On shorts its go triggers, with one bot, one Bot switch, one sleeve, one bot trip and one all-stop for both sides. One trade per stock at a time, the first go trigger wins, never a flip (`BOT_SKIP_HELD_OTHER_SIDE`), and the day's cap counts both sides. A short trigger is priced at its entry, or under SSR (on or unknown) at the higher of the entry and the ask (`BOT_SKIP_SHORT_PRICE` when there is none), sized to its buy stop, and run through the one short check on the door's own facts before anything is sent, so a refusal is a stated skip; the bot's short is a bracket (`short_setup_limit`), Auto-entry's a short with its buy stop and the cover yours, Approve's a short bracket. The localhost bot API adds `short_limit_bid_offset`, `cover_limit_ask_offset`, `cover_market` and `cover_pos` (Live refused). The squares add "Not against you" and, behind an orange divider, the shorts-only block (borrow, SSR, no halt in 10 min, margin 25%, before 15:50), the SSR square amber, never red. Auto-record gives a short setup a line only while its strategy is On. The Bots page asks "Can Nova trade right now?" with the short's chips, says one bot for both sides, sorts the strategies into On / Eyes / Off buckets with their ▲ LONG / ▼ SHORT tags, and names the side in proposals, activity and today ("Nova trades"); the Trader's calls say the short in every Nova mode. Fixed with it (PR #789 review): a short triggers only at or under its entry (a sub-penny print under the trigger never traded the sell entry), SSR at a trigger counts the trade that triggered it, Lost VWAP ends at its window close armed or not, and the five-year harness refuses a template whose flush exit it cannot test. Live shorts stay impossible until the operator finishes step 6. §3 amended. | User Directive + Claude Code |
 | 2026-10-07 | Short selling, step 3 of 6: the Trader shorts by hand on Paper and Sim (ADR 048 §6.1; #778). The ticket follows the position (flat Buy / Short, long Buy / Sell with Short off, short Cover / Short more with Sell off), a short is a Limit with a required Buy stop (the venue's offset in Settings > Trade, priced at the ask under SSR) and a SHORT CHECK box lists the door's rules with their numbers; the submit reads "Short RDYN · 416 @ 5.77 · stop 5.89" in orange and "Cover RDYN · 416 @ 5.46" in green. Short and Cover hotkeys (each Short with its own buy stop; DAS SHORT imports), "Short @ price" on the chart, SSR / cool-off / LIQ chips and SHORT / STOP ↑ marks on Level 2. The plan box plans a short (`side=short`; Short at, Buy stop, Cover 2R, the short checks in its list, "Stage short in ticket"); holding one, the "This trade" card is the mirror (Shorted at, Buy stop, Cover 2R, "Lower stop to X", Stage cover, "Nova takes the cover": a buy stop that only moves down, Paper and Sim), its stop the order resting at the broker until you set one, and the 1-minute badge reads "SHORT 416 · BROKE $5.50 · NEXT 5.35". Who trades becomes Entry · Exit (`entry` / `exit` on the wire beside `buy` / `sell` for one release), and Nova never enters against a position you hold (`BOT_SKIP_HELD_OTHER_SIDE`). The 15:50 card names a Paper short's 15:55 day cover. Fixed with it (PR #787 review): a GTC short entry Nova was closed over came back inside the next day's hours with the day before's checks, and the next day's prints could fill it; a short entry now lapses with its own day, in the cutoff pass and at the fill (`entered_ts`), and the door refuses to reprice a resting short entry (`SHORT_REPRICE`): a replace runs no short check. Live shorts stay impossible; no strategy or bot shorts until steps 4-5. §3 amended. | User Directive + Claude Code |
 | 2026-10-07 | Short selling, step 2's review (ADR 048; #778). Four findings on step 2's pull request, each with a regression test. Adding to a short held counted the held shares as if sold at the new entry, while equity reads them at their mark: a short resting over the market hid the held short's loss to it (100 at $10 plus 250 at $20 on $5,000 passed at 26.37 and now reads 24.18, under the 25 the cushion needs); the held short now keeps its mark. A short entry still resting when the hours end could fill after 15:50, or a GTC one before 09:35: outside the short hours Nova cancels every working short entry, and the fill refuses one (`SHORT_HOURS`). The practice broker opened a short from any SELL bracket; it now needs `short_entry`, as the door does. Under SSR a resting short filled on a print against the bid at the matcher's pass; it now reads the bid that stood when the print traded, and `tape_trades` keeps the top of book each live print met (`bid` / `ask`). §3 amended. | User Directive + Claude Code |
 | 2026-10-07 | Short selling, step 2 of 6: Paper and Sim short (ADR 048; #778). The one short check runs on every venue -- a buy stop on every short (a short is a bracket; on Paper and Sim its target may be left out), 09:35-15:50 ET by the venue's clock (12:50 on an early close), no halt and no short within 10 minutes of an up-halt's resumption, borrow (a past-day Sim replay reads the borrow Nova recorded then), SSR priced above the bid (unknown counts as on), and margin from IBKR's what-if for the stock (never placed; the published rules when IBKR has not answered) with the 25% cushion -- with no Live key on Paper and Sim. Nothing under the execution lock waits on IBKR: the facts are gathered before it, and only a bot's short waits a moment for the what-if. The practice account starts at $5,000 (the operator's account size, was $100,000), its margin follows IBKR's ratio per stock and its summary adds `MaintMarginReq` / `ExcessLiquidity`; a practice short fills only above the bid under SSR; Nova covers every short at 15:55 and closes what the margin no longer carries, through the door, on the venue that holds it (`target_venue`, origins `day_cover` / `margin_call`). Every order row says its side and effect, every position its side and liquidation price, and `GET /api/short-check/{symbol}` answers every rule read-only. Every tick-236 read is recorded (`borrow.sqlite3`). Live still refuses every short, and the ticket's Short stays locked until step 3. Three findings from step 1's review fixed with it: the kept stops never pass the position, a Live bracket stop whose entry still works is cancelled with it (Live rows carry `parent_id`), and a short of the stock in flight keeps its own limit in the margin check. §3 and Invariant 7 amended. | User Directive + Claude Code |

@@ -213,7 +213,7 @@ describe('the Bot switch (ADR 044)', () => {
     _resetBotSessionPollerForTests();
     mockFetch({ session: strategySession({ bot_on: true, active: true, ready: false, ready_reason: 'every bot window is closed' }) });
     await renderPage();
-    expect(screen.getByTestId('bots-switch-why').textContent).toBe('On for Paper. Not trading now — every bot window is closed.');
+    expect(screen.getByTestId('bots-switch-why').textContent).toBe('On for Paper. One bot for both sides: each strategy at On trades its own side. Not trading now — every bot window is closed.');
   });
 
   it('shows the bot\'s own trade', async () => {
@@ -222,7 +222,7 @@ describe('the Bot switch (ADR 044)', () => {
       trigger: 8.72, entry_planned: 8.73, stop: 8.52, target1: 8.92, risk: 0.21, entry_fill_price: 8.73,
     } as never }) });
     await renderPage();
-    expect(screen.getByTestId('bots-trade').textContent).toBe('In GRML (first pullback) · 1 @ 8.73 · stop 8.52 · target 8.92');
+    expect(screen.getByTestId('bots-trade').textContent).toBe('In GRML ▲ long (first pullback) · 1 @ 8.73 · stop 8.52 · target 8.92');
   });
 
   it('offers the API key field when a write needs the key', async () => {

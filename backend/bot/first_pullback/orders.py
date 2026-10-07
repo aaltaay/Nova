@@ -6,9 +6,12 @@ the step, so a repeated send replays its receipt instead of placing twice, and
 stamped with the setup it trades (``setup=<setup_type>``). The entry is a
 practice bracket -- a BUY limit at the entry, a SELL limit at target 1 and a
 SELL stop at the stop -- so the exits rest at the broker and Paper's fill while
-the desk shows another venue. A tightened stop is a replace of the stop leg. The
-one exception to source ``bot`` is the last-resort close, which is the protective
-flatten (``bot.flatten``): a practice position can always get flat, padlock or not.
+the desk shows another venue. A short (ADR 049, #778 step 5) is the same bracket
+mirrored: a short limit (``short_entry``), a BUY stop over it and a BUY limit at
+its cover, through the one short check (``short_sale``) at the door. A tightened
+stop is a replace of the stop leg. The one exception to source ``bot`` is the
+last-resort close, which is the protective flatten (``bot.flatten``): a practice
+position can always get flat, padlock or not.
 
 Reads come from ``ibkr.orders`` / ``ibkr.account`` / ``bot.quotes``, which
 answer from the practice ledger and the live feed on Paper and Sim. A failed
@@ -19,7 +22,12 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from constants_bot import BOT_DEFAULT_BID_EXIT_OFFSET_USD, BOT_SETUP_FIRST_PULLBACK
+from constants_bot import (
+    BOT_DEFAULT_ASK_COVER_OFFSET_USD,
+    BOT_DEFAULT_BID_EXIT_OFFSET_USD,
+    BOT_SETUP_FIRST_PULLBACK,
+    SIDE_SHORT,
+)
 from execution.models import ExecutionCommand
 from execution.service import execute
 
@@ -114,6 +122,22 @@ def best_bid(symbol: str) -> float | None:
     return float(bid) if bid is not None and bid > 0 else None
 
 
+def best_ask(symbol: str) -> float | None:
+    from bot.quotes import top_of_book
+
+    _bid, ask = top_of_book(symbol)
+    return float(ask) if ask is not None and ask > 0 else None
+
+
+def is_short(trade: dict[str, Any]) -> bool:
+    return trade.get("side") == SIDE_SHORT
+
+
+def held(trade: dict[str, Any]) -> float:
+    """The shares the venue holds on the trade's side: long for a long, short for a short."""
+    return short_held_qty(trade["symbol"]) if is_short(trade) else held_qty(trade["symbol"])
+
+
 # -- sends ---------------------------------------------------------------------
 def _setup(trade: dict[str, Any]) -> str:
     return str(trade.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
@@ -146,8 +170,11 @@ async def _place(trade: dict[str, Any], step: str, *, side: str, qty: float, ord
 async def place_entry(trade: dict[str, Any]) -> Any:
     """The entry as one practice bracket: a BUY limit at the entry the scanner scored at the trigger
     (it never chases), a SELL limit at target 1 and a SELL stop at the stop -- the exits rest at the
-    broker, held until the entry fills, then one cancels the other."""
+    broker, held until the entry fills, then one cancels the other. A short is the mirror: a short
+    limit at its entry (at the ask under SSR, ``short_side.price``), a BUY stop over it and a BUY
+    limit at its cover."""
     entry = round(float(trade["entry_planned"]), 4)
+    short = is_short(trade)
     return await execute(
         ExecutionCommand(
             operation="bracket",
@@ -155,7 +182,8 @@ async def place_entry(trade: dict[str, Any]) -> Any:
             source="bot",
             origin="bot",
             symbol=trade["symbol"],
-            side="BUY",
+            side="SELL" if short else "BUY",
+            short_entry=short,
             qty=float(trade["qty"]),
             order_type="LMT",
             limit_price=entry,
@@ -203,13 +231,22 @@ async def replace_stop(trade: dict[str, Any], order_id: int, stop: float) -> Any
     )
 
 
-async def close_at_bid(trade: dict[str, Any], attempt: int) -> tuple[Any | None, float | None]:
-    """SELL limit a few cents under the bid (marketable); ``(None, None)`` when no bid is known."""
-    bid = best_bid(trade["symbol"])
-    if bid is None:
-        return None, None
-    limit = max(0.01, round(bid - BOT_DEFAULT_BID_EXIT_OFFSET_USD, 4))
-    receipt = await _place(trade, f"close:{attempt}", side="SELL", qty=trade["qty"], order_type="LMT",
+async def close_now(trade: dict[str, Any], attempt: int) -> tuple[Any | None, float | None]:
+    """A marketable close: a SELL limit a few cents under the bid, or a short's BUY limit a few cents over
+    the ask; ``(None, None)`` when that side of the book is not known."""
+    if is_short(trade):
+        ask = best_ask(trade["symbol"])
+        if ask is None:
+            return None, None
+        limit = round(ask + BOT_DEFAULT_ASK_COVER_OFFSET_USD, 4)
+        side = "BUY"
+    else:
+        bid = best_bid(trade["symbol"])
+        if bid is None:
+            return None, None
+        limit = max(0.01, round(bid - BOT_DEFAULT_BID_EXIT_OFFSET_USD, 4))
+        side = "SELL"
+    receipt = await _place(trade, f"close:{attempt}", side=side, qty=trade["qty"], order_type="LMT",
                            limit_price=limit)
     return receipt, limit
 
@@ -230,10 +267,11 @@ async def cancel(trade: dict[str, Any], order_id: int) -> Any:
 
 
 async def protective_close(trade: dict[str, Any], qty: float) -> dict[str, Any]:
-    """The last resort: the protective flatten, which a disarmed desk still sends (ADR 018)."""
+    """The last resort: the protective flatten, which a disarmed desk still sends (ADR 018) -- a SELL, or a
+    short's cover (a BUY never past flat)."""
     from bot.flatten import place_close
 
-    return await place_close(trade["symbol"], qty, "SELL", origin="bot")
+    return await place_close(trade["symbol"], qty, "BUY" if is_short(trade) else "SELL", origin="bot")
 
 
 def receipt_error(receipt: Any) -> str:

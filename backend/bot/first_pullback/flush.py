@@ -5,7 +5,9 @@ scoring window (``Lane.read_trades``) and keeps the newest reading with the
 template's flush rule (``SetupEngine.flow_reading``). This applies that rule --
 ``tape_flow.flush_action``, the one the scoring exit follows -- to the bot's own
 trade, from its own fill: ``exit`` closes it at the bid like a stop, ``tighten``
-moves the watched stop up. The pre-registered rule (``off``) does nothing.
+moves the watched stop up. A short (ADR 049) reads the mirror: a burst of buying is
+its flush, it covers at the ask, and ``tighten`` moves its buy stop down. The
+pre-registered rule (``off``) does nothing.
 
 A reading older than ``TAPE_FLOW_READING_STALE_SEC`` is not acted on; no
 reading (the symbol's tape is not held, the scanner restarted) is no flush --
@@ -54,14 +56,18 @@ def decide(trade: dict[str, Any], now: float, *, last: float | None,
     if fill is None or not risk or filled is None:
         return None
     price = last if last is not None else got.get("price")
+    side = str(trade.get("side") or "long")
     act = flush_action(policy, label=got.get("label"), price=price, ts=at, entry=float(fill), risk=float(risk),
-                       stop=float(trade["stop"]), since=float(filled))
+                       stop=float(trade["stop"]), since=float(filled), side=side)
     if act is None:
         return None
     score = got.get("score")
-    said = f"flush on the tape (score {score:+.2f})" if isinstance(score, (int, float)) else "flush on the tape"
+    what = "burst of buying" if side == "short" else "flush"
+    said = f"{what} on the tape (score {score:+.2f})" if isinstance(score, (int, float)) else f"{what} on the tape"
     if act["action"] == "exit":
         act["why"] = f"{said} at {price:g} -- the template gets out"
+    elif side == "short":
+        act["why"] = f"{said} at {price:g} -- the buy stop moves down to {act['stop']:g}"
     else:
         act["why"] = f"{said} at {price:g} -- the stop moves up to {act['stop']:g}"
     act["score"] = score

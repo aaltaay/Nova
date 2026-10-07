@@ -217,8 +217,8 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
       expect(on.getAttribute('data-why')).toMatch(/five-year test queued/);
       for (const n of [0, 1]) expect((within(card).getByTestId(`bots-setup-level-${id}-${n}`) as HTMLButtonElement).disabled).toBe(false);
     }
-    // A long card has neither.
-    expect(screen.queryByTestId('bots-setup-side-first_pullback')).toBeNull();
+    // A long card carries ▲ LONG and no test (its read-out is its evidence).
+    expect(screen.getByTestId('bots-setup-side-first_pullback').textContent).toBe('▲ LONG');
     expect(screen.queryByTestId('bots-setup-test-first_pullback')).toBeNull();
     // The tape gate is the mirror's, and the rules say the buy stop.
     const bear = screen.getByTestId('bots-setup-bear_flag');
@@ -226,6 +226,38 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
     expect(within(bear).getByText(/25k\+ buyer not thinning/)).toBeTruthy();
     expect(within(bear).getByText(/spread over \$0\.05 \/ 100k\+ buyer/)).toBeTruthy();
     expect(screen.getByTestId('bots-setup-rules-bear_flag').getAttribute('data-tip')).toMatch(/buy stop \$0\.01 over the flag/);
+  });
+
+  it('sorts the strategies into On, Eyes and Off, each with its side, its evidence and its switch (#778 step 5)', async () => {
+    const fetchMock = mockFetch({ onPatch: () => undefined });
+    await renderPage();
+    const on = screen.getByTestId('bots-bucket-2');
+    const eyes = screen.getByTestId('bots-bucket-1');
+    const off = screen.getByTestId('bots-bucket-0');
+    expect(on.getAttribute('aria-label')).toBe('On · the bot trades these');
+    expect(eyes.getAttribute('aria-label')).toBe('Eyes · alerts you, Nova never trades');
+    expect(off.getAttribute('aria-label')).toBe('Off · watches and scores, silent');
+    expect(within(on).getByTestId('bots-bucket-row-first_pullback').textContent)
+      .toBe('First pullback▲ LONGRead-out collecting · 12/50 goOffEyesOn');
+    // The Bot is off: the On bucket alerts like Eyes until it is on, and says so.
+    expect(within(on).getByTestId('bots-bucket-bot-off').textContent)
+      .toBe('The Bot is off: these alert you like Eyes until it is on.');
+    expect(within(eyes).getByTestId('bots-bucket-row-bull_flag')).toBeTruthy();
+    const bear = within(off).getByTestId('bots-bucket-row-bear_flag');
+    expect(bear.textContent).toMatch(/^Bear flag▼ SHORTTest queued/);
+    const lockedOn = within(bear).getByTestId('bots-bucket-level-bear_flag-2') as HTMLButtonElement;
+    expect(lockedOn.disabled).toBe(true);
+    expect(lockedOn.textContent).toBe('🔒 On');
+    expect(lockedOn.getAttribute('data-why')).toMatch(/five-year test queued/);
+    expect(screen.getByTestId('bots-buckets-rule').textContent).toBe('On one stock the bot holds one trade at a time: '
+      + 'the first go trigger wins, long or short. It never flips: after a long closes, a short needs its own trigger, '
+      + 'and the reverse. The day\'s trades count both sides.');
+    // The bucket's switch is the card's: one PATCH of the strategy's own level.
+    await act(async () => {
+      fireEvent.click(within(eyes).getByTestId('bots-bucket-level-bull_flag-0'));
+      await flush();
+    });
+    expect(patches(fetchMock)).toEqual([{ setup_levels: { bull_flag: 0 } }]);
   });
 
   it('the setups without a scanner share one line, each saying on hover why it cannot watch yet', async () => {
@@ -360,7 +392,7 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
 });
 
 describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', () => {
-  it('lists the hot list first with its Buy / Sell, each gate a square, and what stops each ticker', async () => {
+  it('lists the hot list first with its Entry / Exit, each gate a square, and what stops each ticker', async () => {
     mockFetch();
     await renderPage();
     const table = screen.getByTestId('bots-tickers');
@@ -370,8 +402,9 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     expect(within(grml).getByText('☆').className).toBe('bots-tk__star is-on');
     expect(within(grml).getByText(/^auto /)).toBeTruthy();
     expect(within(grml).getByText('You trade it')).toBeTruthy();
-    // Nine squares in Nova's order (being listed is no gate): one red, said once in grey as the gate every ticker shares.
-    expect(grml.querySelectorAll('.bots-tk__cell')).toHaveLength(9);
+    // Ten squares in Nova's order (being listed is no gate), the shorts-only block empty on a stock with no short
+    // strategy On: one red, said once in grey as the gate every ticker shares.
+    expect(grml.querySelectorAll('.bots-tk__cell')).toHaveLength(10);
     const red = grml.querySelectorAll('.bots-tk__cell.is-bad');
     expect(red).toHaveLength(1);
     expect(red[0].getAttribute('data-tip')).toBe('the bot window 07:00–10:00 closed');
@@ -387,13 +420,14 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     expect(past.querySelector('.bots-tk__stopword')?.getAttribute('data-tip')).toBe('no Level 2 line: the tape was BLIND');
     // Every column head says what its square asks.
     const head = Array.from(table.querySelectorAll('th.bots-tk__gh')).map(th => th.textContent);
-    expect(head).toEqual(['Bot on', 'Strategy on', 'Grade', 'Setups a day', 'Bot window', 'Bot buys',
-      'Level 2 line', 'Tape GO', 'Trades today']);
+    expect(head).toEqual(['Bot on', 'Strategy on', 'Grade', 'Setups a day', 'Bot window', 'Entry: Bot',
+      'Level 2 line', 'Tape GO', 'Trades today', 'Not against you',
+      'Borrow', 'SSR', 'No halt 10 min', 'Margin 25%', 'Before 15:50']);
     expect(table.querySelector('th.bots-tk__gh')?.getAttribute('data-tip')).toBe('Was the Bot switch on for this venue?');
     // The tickers that triggered off the list fold into one row until opened, and each one's triggers again.
     expect(screen.queryByTestId('bots-tk-IMCC')).toBeNull();
     expect(screen.getByTestId('bots-tk-unlisted-toggle').textContent)
-      .toMatch(/Triggered today, not on your hot list or set to bot buy · 1 tickers · 1 triggers/);
+      .toMatch(/Triggered today, not on your hot list or set to bot entry · 1 tickers · 1 triggers/);
     await act(async () => { fireEvent.click(screen.getByTestId('bots-tk-unlisted-toggle')); await flush(); });
     const imcc = screen.getByTestId('bots-tk-IMCC');
     expect(imcc.className).toBe('bots-tk__unlisted');
@@ -405,15 +439,37 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
       .toMatch(/Level 2 line blocked 1 · 1 would have hit target, 0 stopped · 1\.6R missed/);
   });
 
-  it('sets Buy and Sell per stock through Who trades, and says a refusal in the backend\'s words', async () => {
+  it('mixes long and short triggers: each setup with its side, the shorts-only block behind the orange line (#778 step 5)', async () => {
+    mockFetch();
+    await renderPage();
+    const table = screen.getByTestId('bots-tickers');
+    expect(screen.getByTestId('bots-tk-short-head').textContent).toBe('▼ SHORT only');
+    const long = screen.getByTestId('bots-tk-GRML').nextElementSibling as HTMLElement;
+    const short = long.nextElementSibling as HTMLElement;
+    expect(long.textContent).toMatch(/▲ LONG First pullback/);
+    // A long trigger leaves the shorts-only block empty.
+    expect(long.querySelectorAll('.bots-tk__cell')).toHaveLength(10);
+    expect(short.textContent).toMatch(/▼ SHORT Bear flag/);
+    expect(short.querySelectorAll('.bots-tk__cell')).toHaveLength(15);
+    // The SSR square is never red: amber, and it says the short sells at the ask.
+    const ssr = short.querySelector('td[data-gate="short_ssr"] .bots-tk__cell') as HTMLElement;
+    expect(ssr.className).toBe('bots-tk__cell is-warn');
+    expect(ssr.getAttribute('data-tip')).toMatch(/^SSR · at the ask/);
+    expect(short.querySelector('.bots-tk__stop')?.textContent).toBe('no borrow');
+    // The first square of the block draws the orange line, in the head and in every row.
+    expect(table.querySelector('th.bots-tk__gh--short')?.className).toMatch(/bots-tk__g--divider/);
+    expect((short.querySelector('td[data-gate="short_borrow"]') as HTMLElement).className).toMatch(/bots-tk__g--divider/);
+  });
+
+  it('sets Entry and Exit per stock through Who trades, and says a refusal in the backend\'s words', async () => {
     const fetchMock = mockFetch({ onStockModePut: (symbol, body) => (body.sell === 'nova'
       ? refusal(409, 'STOCK_MODE_HELD', `You hold ${symbol} -- sell it or take over the exit first`) : undefined) });
     await renderPage();
     const grml = within(screen.getByTestId('bots-tk-GRML'));
-    const buy = grml.getByRole('radiogroup', { name: 'Buy' });
+    const buy = grml.getByRole('radiogroup', { name: 'Entry' });
     await act(async () => { fireEvent.click(within(buy).getByText('Bot')); await flush(); });
     expect(calls(fetchMock, '/stock-mode/GRML', 'PUT').map(c => c.body)).toEqual(['{"buy":"nova","sell":"you"}']);
-    const sell = grml.getByRole('radiogroup', { name: 'Sell' });
+    const sell = grml.getByRole('radiogroup', { name: 'Exit' });
     await act(async () => { fireEvent.click(within(sell).getByText('Bot')); await flush(); });
     expect(screen.getByTestId('bots-tk-GRML').querySelector('.bots-tk__stop')?.textContent)
       .toMatch(/You hold GRML -- sell it or take over the exit first$/);
@@ -524,8 +580,13 @@ describe('Risk sleeve (ADR 042 E: one per venue)', () => {
     ]));
     const risk = screen.getByTestId('bots-risk');
     expect(within(risk).getByText('Risk per trade').getAttribute('data-tip'))
-      .toBe('Sizes every Nova buy and your Stage: shares = risk ÷ risk per share, capped by max shares and the budget.');
-    expect(within(risk).getByText('Nova entries a day').getAttribute('data-tip')).toMatch(/One count for the bot and Auto-entry/);
+      .toBe('Sizes every Nova trade and your Stage: shares = risk ÷ risk per share (to the stop under a long\'s entry, '
+        + 'or the buy stop over a short\'s), capped by max shares and the budget.');
+    expect(within(risk).getByText('Nova trades a day').getAttribute('data-tip'))
+      .toMatch(/One count for the bot and Auto-entry on this venue, longs and shorts together/);
+    expect(screen.getByTestId('bots-sleeve-short').textContent).toBe('▼ SHORT A short adds: a buy stop always goes in '
+      + 'with the entry · a 25% margin cushion · 09:35–15:50, and Nova covers what is left at 15:55 · under SSR it sells '
+      + 'at the ask · never on a stock you hold.');
     expect(screen.getByTestId('bots-sleeve-kinds').textContent).toMatch(/Order kinds \(the localhost bot API\)/);
   });
 
@@ -543,7 +604,7 @@ describe('Risk sleeve (ADR 042 E: one per venue)', () => {
     });
     expect(patches(fetchMock)).toEqual([{ caps: { venue: 'sim', max_shares: 6 } }]);
     fireEvent.click(screen.getByTestId('bots-sleeve-tab-live'));
-    expect(screen.getByTestId('bots-risk').textContent).toMatch(/Nova buys nothing by itself on Live/);
+    expect(screen.getByTestId('bots-risk').textContent).toMatch(/Nova trades nothing by itself on Live/);
   });
 
   it('draws the desk venue\'s breakers and today\'s P&L on one bar (ADR 032)', async () => {
@@ -684,9 +745,18 @@ describe('Proposals, activity and today', () => {
         { timestamp: 1_790_000_400, level: 2, strategy: null, brain_session_id: null, action: 'setup_proposal',
           inputs: { symbol: 'GRML', kind: 'first_pullback', tape_now: 'go', grade: 'A' }, reason: null, order_id: null,
           advise_spend: null, outcome: 'proposed' },
+        // ADR 049 (#778 step 5): a short strategy's proposal and the bot's short, each naming its side.
+        { timestamp: 1_790_000_450, level: 2, brain_session_id: null, action: 'setup_proposal',
+          inputs: { symbol: 'FADE', kind: 'bear_flag', setup_type: 'bear_flag', side: 'short', tape_now: 'go', grade: 'A' },
+          reason: null, order_id: null, outcome: 'proposed' },
+        { timestamp: 1_790_000_500, level: 2, brain_session_id: null, action: 'short_setup_limit',
+          inputs: { symbol: 'FADE', setup_type: 'bear_flag', side: 'short', qty: 1, limit: 4.01, priced_at_ask: true,
+            ssr: 'on' }, reason: null, order_id: 7, outcome: 'ok' },
       ],
       setupRows: [
         setupRow({ armed_at: 1_790_000_100 }),
+        setupRow({ id: 'FADE-1', symbol: 'FADE', setup_type: 'bear_flag', kind: 'bear_flag', trigger: 4.02, stop: 4.13,
+          pullback_bars: 2, leg_pct: -0.07, armed_at: 1_790_000_060 }),
         setupRow({ id: 'IMCC-1', symbol: 'IMCC', trigger: 1.45, stop: 1.39, pullback_bars: 1, leg_pct: 0.05, grade: 'B',
           armed_at: 1_790_000_050, near_at: 1_790_000_200,
           near_tape: { verdict: 'wait', reasons: ['25k seller at the level, not thinning'] } }),
@@ -697,14 +767,18 @@ describe('Proposals, activity and today', () => {
     expect(activity.getByText('Master level Eyes → Strategy')).toBeTruthy();
     expect(activity.getByText('Stopped the bot')).toBeTruthy();
     expect(activity.getByText('the backend restarted')).toBeTruthy();
-    expect(activity.getByText('Skipped GRML · bull flag')).toBeTruthy();
+    expect(activity.getByText('Skipped GRML ▲ long · bull flag')).toBeTruthy();
     expect(activity.getByText('outside the bull flag\'s bot window 07:00-10:00')).toBeTruthy();
-    expect(activity.getByText('Proposed GRML first pullback')).toBeTruthy();
-    expect(activity.getByText('Armed GRML · First pullback · trigger 8.72 · stop 8.52')).toBeTruthy();
+    expect(activity.getByText('Proposed GRML ▲ long first pullback')).toBeTruthy();
+    expect(activity.getByText('Armed GRML · ▲ long · First pullback · trigger 8.72 · stop 8.52')).toBeTruthy();
     expect(activity.getByText('Wait IMCC near 1.45')).toBeTruthy();
+    // Both sides, each said in words beside its arrow.
+    expect(activity.getByText('Proposed FADE ▼ short bear flag')).toBeTruthy();
+    expect(activity.getByText('Entered FADE ▼ short 1 at 4.01 (SSR on: at the ask)')).toBeTruthy();
+    expect(activity.getByText('Armed FADE · ▼ short · Bear flag · trigger 4.02 · stop 4.13')).toBeTruthy();
     await act(async () => { fireEvent.click(activity.getByText('Proposals')); });
     expect(activity.queryByText('Master level Eyes → Strategy')).toBeNull();
-    expect(activity.getByText('Proposed GRML first pullback')).toBeTruthy();
+    expect(activity.getByText('Proposed GRML ▲ long first pullback')).toBeTruthy();
   });
 
   it('says what each of today\'s counts counts, and reads the setup at Strategy first', async () => {
@@ -716,7 +790,8 @@ describe('Proposals, activity and today', () => {
     expect(screen.getByTestId('bots-kpi-armed').textContent).toBe('6');
     expect(screen.getByTestId('bots-kpi-triggered').textContent).toBe('2');
     expect(screen.getByTestId('bots-kpi-entries').textContent).toBe('1 / 1');
-    expect(screen.getByTestId('bots-kpi-armed').parentElement?.textContent).toBe('Armed6First pullback');
+    expect(screen.getByTestId('bots-kpi-armed').parentElement?.textContent).toBe('Armed6First pullback ▲ long');
+    expect(screen.getByTestId('bots-kpi-entries').parentElement?.textContent).toMatch(/^Nova trades1 \/ 1/);
     expect(screen.getByTestId('bots-kpi-proposed').parentElement?.textContent).toBe('Proposed0every setup');
     expect(screen.getByTestId('bots-kpi-pnl').parentElement?.textContent).toBe('Bot P&L—its own fills');
     const table = within(screen.getByTestId('bots-scoreboard'));

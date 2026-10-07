@@ -142,21 +142,29 @@ export const BOTS_STOCK_MODES_POLL_MS = 5_000;
 
 /* ---------- Risk sleeve (ADR 042 E): one per venue ---------- */
 export const BOTS_RISK_TITLE = 'Risk sleeve';
-export const BOTS_RISK_SUB = 'every Nova buy on the venue shown';
+export const BOTS_RISK_SUB = 'every Nova trade, long or short, on the venue shown';
 export const BOTS_RISK_TIP =
-  'One sleeve per venue sizes and caps every automatic Nova buy there — the bot and Auto-entry — and sets the risk your Stage sizes by. Each venue keeps its own; the tab shows which one you are editing.';
-export const BOTS_RISK_LIVE_NOTE = 'Nova buys nothing by itself on Live: these numbers size your own Stage there and bind no bot.';
+  'One sleeve per venue sizes and caps every automatic Nova trade there, long or short — the bot and Auto-entry — and sets the risk your Stage sizes by. Each venue keeps its own; the tab shows which one you are editing.';
+export const BOTS_RISK_LIVE_NOTE = 'Nova trades nothing by itself on Live: these numbers size your own Stage there and bind no bot.';
 export const BOTS_SLIDER_COMMIT_MS = 400;
+/** One sleeve for both sides (ADR 049, #778 step 5): what a short adds to it. */
+export const BOTS_SLEEVE_SHORT_LINE = 'A short adds: a buy stop always goes in with the entry · a 25% margin cushion · '
+  + '09:35–15:50, and Nova covers what is left at 15:55 · under SSR it sells at the ask · never on a stock you hold.';
+export const BOTS_SLEEVE_SHORT_TIP = 'The one short check Nova runs before every short, the bot\'s or yours (ADR 048): '
+  + 'the buy stop goes in with the entry as one bracket; the margin must leave 25% before IBKR would liquidate; no new '
+  + 'short after 15:50 ET (12:50 on an early close) and Nova covers every short left at 15:55; under SSR a short sells '
+  + 'only above the bid, so the bot sells at the ask; and Nova never shorts a stock you hold long, nor buys one you '
+  + 'hold short.';
 export const BOTS_RISK_LABEL = 'Risk per trade';
 export const BOTS_RISK_SLIDER_TIP =
-  'Sizes every Nova buy and your Stage: shares = risk ÷ risk per share, capped by max shares and the budget.';
-export const BOTS_ENTRIES_LABEL = 'Nova entries a day';
+  'Sizes every Nova trade and your Stage: shares = risk ÷ risk per share (to the stop under a long\'s entry, or the buy stop over a short\'s), capped by max shares and the budget.';
+export const BOTS_ENTRIES_LABEL = 'Nova trades a day';
 export const BOTS_ENTRIES_SLIDER_TIP =
-  'One count for the bot and Auto-entry on this venue. A missed entry gives the day back; Approve is yours and never capped.';
+  'One count for the bot and Auto-entry on this venue, longs and shorts together. A missed entry gives the day back; Approve is yours and never capped.';
 export const BOTS_SHARES_LABEL = 'Max shares';
-export const BOTS_SHARES_TIP = 'The most shares one Nova buy may be, whatever the risk would buy.';
+export const BOTS_SHARES_TIP = 'The most shares one Nova trade may be, long or short, whatever the risk would size.';
 export const BOTS_BUDGET_LABEL = 'Buying-power budget';
-export const BOTS_BUDGET_TIP = 'The most one Nova buy may spend (shares × entry).';
+export const BOTS_BUDGET_TIP = 'The most one Nova trade may hold (shares × entry), long or short.';
 export const BOTS_TTL_LABEL = 'Entry time-to-live';
 export const BOTS_TTL_TIP = 'An unfilled Nova entry — the bot, Auto-entry or Approve — is cancelled after this, and a missed entry gives the day back.';
 export const BOTS_EH_LABEL = 'Extended hours';
@@ -200,8 +208,8 @@ export const BOTS_PROPOSAL_TAKEN: Record<string, string> = {
   auto_entry: 'Auto-entry is taking this — nothing to do',
 };
 export const BOTS_PROPOSAL_TAKEN_WHY: Record<string, string> = {
-  bot: 'Nova\'s bot is taking this trigger -- staging your own ticket would buy it twice',
-  auto_entry: 'Auto-entry is taking this trigger -- staging your own ticket would buy it twice',
+  bot: 'Nova\'s bot is taking this trigger -- staging your own ticket would trade it twice',
+  auto_entry: 'Auto-entry is taking this trigger -- staging your own ticket would trade it twice',
 };
 export const botsNotATrade = (reasons: string): string => `Not a trade: ${reasons}`;
 export const botsNotATradeWhy = (reasons: string): string => `Not a trade -- ${reasons}`;
@@ -233,10 +241,10 @@ export const BOTS_TODAY_SCORES_NOTE = 'Scores, not fills — the research exit r
 export const botsTodayArmedTip = (setup: string): string =>
   `${setup} setups the scanner armed today (its template in play): the pattern was in place with a trigger and a stop. Scores, not trades.`;
 export const botsTodayTriggeredTip = (setup: string): string =>
-  `${setup} setups that traded over the trigger today. Each is scored on the scoreboard; the bot bought only those it took.`;
+  `${setup} setups that traded through the trigger today. Each is scored on the scoreboard; the bot traded only those it took.`;
 export const BOTS_TODAY_PROPOSED_TIP = 'Proposals every setup at Eyes or Strategy raised today (near + GO), from the bot audit stream.';
 export const BOTS_TODAY_ENTRIES_TIP =
-  'Nova\'s automatic buys today on this venue: the bot and Auto-entry, one count, against the sleeve\'s cap.';
+  'Nova\'s automatic trades today on this venue, longs and shorts: the bot and Auto-entry, one count, against the sleeve\'s cap.';
 export const BOTS_TODAY_PNL_TIP =
   'The bot\'s own fills today in this venue\'s practice ledger (source bot), net of fees and commission. Auto-entry and your own trades are not in it.';
 
@@ -249,3 +257,33 @@ export const BOTS_STATUS_ORDER_KINDS = 'Order kinds (the localhost bot API):';
 export const BOTS_PILL_LABEL = 'Bot';
 export const BOTS_PILL_TITLE = 'Open the Bots page';
 export const botsStrategiesOn = (n: number): string => (n === 1 ? '1 strategy On' : `${n} strategies On`);
+
+/* ---------- Strategy buckets (ADR 049, #778 step 5): one bot, both sides ---------- */
+export const BOTS_BUCKETS = [
+  { level: 2, title: 'On', sub: 'the bot trades these',
+    tip: 'While the Bot is on, the bot trades these strategies\' GO triggers on Paper and Sim: a long strategy buys, a '
+      + 'short strategy shorts. While it is off they alert you like Eyes.' },
+  { level: 1, title: 'Eyes', sub: 'alerts you, Nova never trades',
+    tip: 'These draw their setups on your charts and alert you near the trigger with the tape at GO. Nova never trades '
+      + 'them: you press Place.' },
+  { level: 0, title: 'Off', sub: 'watches and scores, silent',
+    tip: 'These still watch and score every setup they arm, so their read-out or test keeps counting, but they never '
+      + 'alert you and draw nothing on your charts.' },
+] as const;
+export const BOTS_BUCKET_EMPTY: Record<number, string> = {
+  2: 'No strategy is On: the bot trades nothing.',
+  1: 'None at Eyes.',
+  0: 'None Off.',
+};
+export const BOTS_BUCKET_BOT_OFF = 'The Bot is off: these alert you like Eyes until it is on.';
+export const BOTS_BUCKETS_RULE = 'On one stock the bot holds one trade at a time: the first go trigger wins, long or '
+  + 'short. It never flips: after a long closes, a short needs its own trigger, and the reverse. The day\'s trades count '
+  + 'both sides.';
+/** A short at On whose five-year test has not passed on the rules in play: Nova holds it at Eyes (ADR 049). */
+export const BOTS_BUCKET_HELD = 'On · held at Eyes until its test passes';
+export const BOTS_BUCKET_NO_TEST = 'Test not reported';
+export const BOTS_BUCKET_NO_TEST_TIP = 'This backend does not report the five-year test of this short strategy.';
+export const BOTS_BUCKET_LOADING_READOUT = 'Read-out loading';
+export const BOTS_BUCKET_LOADING_READOUT_TIP = 'The template in play has not loaded yet, so its read-out is not known.';
+export const BOTS_BUCKET_NO_READOUT = 'No read-out reported';
+export const BOTS_BUCKET_NO_READOUT_TIP = 'The backend reports no read-out for this strategy\'s template in play.';

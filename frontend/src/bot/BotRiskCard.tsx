@@ -1,9 +1,10 @@
 /**
- * What every Nova buy may risk -- the sleeve, one per venue (ADR 042 E) -- and the
- * two loss breakers (approved mockup v4, ADR 032). The tabs pick the venue whose
- * sleeve you edit (the desk venue first); each slider PATCHes `{caps: {venue,
- * field}}` once let go. The breakers are the desk venue's own pair, dragged on their
- * bar, with what fired today and when it lifts (04:00 ET).
+ * What every Nova trade may risk -- the sleeve, one per venue (ADR 042 E), shared by
+ * longs and shorts (ADR 049, with the line on what a short adds) -- and the two loss
+ * breakers (approved mockup v4, ADR 032). The tabs pick the venue whose sleeve you
+ * edit (the desk venue first); each slider PATCHes `{caps: {venue, field}}` once let
+ * go. The breakers are the desk venue's own pair, dragged on their bar, with what
+ * fired today and when it lifts (04:00 ET).
  */
 import { useState } from 'react';
 import {
@@ -11,8 +12,11 @@ import {
   BOTS_RISK_SUB,
   BOTS_RISK_TIP,
   BOTS_RISK_TITLE,
+  BOTS_SLEEVE_SHORT_LINE,
+  BOTS_SLEEVE_SHORT_TIP,
   BOTS_VENUE_NAMES,
 } from '../constantGroups/bots_page';
+import { SETUP_SIDE_TAG } from '../constantGroups/short_setups';
 import { tipProps } from '../ux/hoverTip';
 import { BotBreakerBar } from './BotBreakerBar';
 import { BotBreakerStatus } from './BotBreakerStatus';
@@ -83,6 +87,10 @@ export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null, bre
       {venue === 'live' ? <p className="bots-muted bots-sleeve__note">{BOTS_RISK_LIVE_NOTE}</p> : null}
       <BotSleeve key={venue} venue={venue} caps={capsFor(session, venue)} capsBounds={session.caps_bounds}
         busy={busy} patch={patch} />
+      <p className="bots-muted bots-sleeve__short" data-testid="bots-sleeve-short"
+        {...tipProps(BOTS_SLEEVE_SHORT_TIP, SETUP_SIDE_TAG.short)}>
+        <span className="bots-sidetag bots-sidetag--short">{SETUP_SIDE_TAG.short}</span> {BOTS_SLEEVE_SHORT_LINE}
+      </p>
 
       {breakers ? <BotBreakerBlock session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} /> : null}
     </section>

@@ -12,7 +12,7 @@ import { heldCall } from './heldCalls';
 import { approveQty, capUsedText, novaBlockers, novaQty } from './novaPromise';
 import { fmtPx, fmtStep, planBadge, planLane, setupName, sizeFor } from './planMath';
 import { notATrade, resultBadge, thinPlan } from './planVerdict';
-import { enterWord, nearSide, SHORT_ACT, shortWaitingWords } from './momentWords';
+import { actWords, approvedWords, blockedTitle, enterWord, nearSide, shortWaitingWords } from './momentWords';
 import { hhmmssEt } from './timeWords';
 import type { SetupLane, StockModeName, StockModeTrade, StockModeView, StockPlan, StockRead } from './types';
 
@@ -391,13 +391,7 @@ function blockedCall(i: MomentInputs, plan: StockPlan, mode: StockModeName, key:
 ): MomentCall | null {
   const why = novaBlockers(i.who, plan);
   if (!why.length) return null;
-  const bot = mode === 'bot';
-  const used = capUsedText(i.who) !== null;
-  const title = used
-    ? 'THE BOT\'S BUY TODAY IS USED'
-    : triggered
-      ? (bot ? 'THE BOT IS NOT TRADING IT' : 'THE BOT IS NOT BUYING IT')
-      : (bot ? 'THE BOT WILL NOT TRADE THIS' : 'THE BOT WILL NOT BUY THIS');
+  const title = blockedTitle(plan, mode, capUsedText(i.who) !== null, triggered);
   return { id: `blocked:${mode}:${key}`, tone: 'wait', title, detail: why[0], pin: null, ping: false,
     ...(why.length > 1 ? { more: why.slice(1) } : {}) };
 }
@@ -438,9 +432,7 @@ function triggerCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
   const size = sizeFor(i.riskUsd, plan.risk);
   const printed = fmtPx(lane?.setup?.trigger_price ?? plan.trigger);
   const shares = size !== null ? ` ${size.toLocaleString('en-US')} shares risk $${i.riskUsd}.` : '';
-  const act = plan.side === 'short' ? SHORT_ACT : mode === 'approve'
-    ? ` Approve: buy ${approveQty(i.who, i.riskUsd, plan) ?? '?'} now sends it with its stop and target.`
-    : ' Your click.';
+  const act = actWords(plan, mode, approveQty(i.who, i.riskUsd, plan));
   return {
     id: `enter:${key}`, tone: 'go', title: `${enterWord(plan)} · ${fmtPx(plan.entry)}`,
     detail: `${printed} printed with the tape at go.${shares}${act}`, pin: pinAt(enterWord(plan), plan.entry, at),
@@ -453,9 +445,7 @@ function waitingCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
   const approval = i.who?.approval ?? null;
   if (mode === 'approve' && approval?.state === 'waiting') {
     return {
-      id: `approved:${approval.setup_id}`, tone: 'nova', title: 'APPROVED',
-      detail: `Nova sends buy ${approval.qty} @ ${fmtPx(approval.entry)} with stop ${fmtPx(approval.stop)} and target `
-        + `${fmtPx(approval.target)} when ${fmtPx(plan.trigger)} prints with the tape at go.`,
+      id: `approved:${approval.setup_id}`, tone: 'nova', title: 'APPROVED', detail: approvedWords(plan, approval),
       pin: null, ping: false,
     };
   }
@@ -482,7 +472,8 @@ function waitingCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
       + `${fmtPx(plan.stop)} or after 15 minutes.`],
   };
   if (mode === 'signal' && plan.state !== 'near') return eventCall(i, null);
-  const [title, detail] = shortWaitingWords(plan, mode, near, trigger) ?? words[mode];
+  const qty = { approve: approveQty(i.who, i.riskUsd, plan), nova: novaQty(i.who) };
+  const [title, detail] = shortWaitingWords(plan, mode, near, trigger, qty) ?? words[mode];
   return { id: `waiting:${mode}:${key}`, tone: 'info', title, detail, pin: null, ping: false };
 }
 

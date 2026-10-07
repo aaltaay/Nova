@@ -2,16 +2,17 @@
 
 One row per ticker -- every name on the day's hot list (the ★, ``listed``), then today's bot-buy stocks
 not on it, then every name that triggered (``listed: null`` off the list) -- saying now whether the bot
-would buy it if its setup triggered this minute (``now``: today, listed and bot-buy names, ``bot.trigger_now``),
-and under it every trigger of the day on it, judged by the nine gates in the order Nova runs them
-(``bot.trigger_cells``). Being listed is no gate (ADR 044, amended 2026-10-06). Under the table, what
+would trade it if its setup triggered this minute (``now``: today, listed and bot-buy names, ``bot.trigger_now``),
+and under it every trigger of the day on it, judged by the gates in the order Nova runs them
+(``bot.trigger_cells``), then a short's own block (ADR 049, #778 step 5: ``bot.trigger_short``). Being listed is no gate (ADR 044, amended 2026-10-06). Under the table, what
 each gate did (``impact``). ``judged_now`` names the gates judged with today's settings because
 nothing recorded them at a trigger; ``sources`` says what could not be read.
 
-Shape (schema 1): ``{schema_version, date, generated_at, gates: [{id, label}], tickers: [{symbol,
-listed: {how, at} | null, now: {cells, answer, reasons} | null, triggers: [{ts, setup_id, setup_type,
-kind, nth, grade, tape, outcome, r, cells, reasons}]}], impact: [{gate, blocked, target_first,
-stop_first, r}], judged_now, sources: {journal, audit, hot_list: {ok, error}}}``.
+Shape (schema 1): ``{schema_version, date, generated_at, gates: [{id, label}], short_gates: [{id, label}],
+tickers: [{symbol, listed: {how, at} | null, now: {cells, answer, reasons} | null, triggers: [{ts, setup_id,
+setup_type, side, ssr, kind, nth, grade, tape, outcome, r, cells, reasons}]}], impact: [{gate, blocked,
+target_first, stop_first, r}], judged_now, sources: {journal, audit, hot_list: {ok, error}}}``. A cell is
+``{ok, why}``, plus ``warn: true`` on an amber pass (SSR); a long trigger's cells hold no short gate.
 
 Owner: this module (the answer; the reads are ``bot.trigger_inputs``', the cells ``bot.trigger_cells``'
 and ``bot.trigger_now``'s; no state).
@@ -24,7 +25,12 @@ from typing import Any, Callable
 
 from bot import trigger_cells
 from bot.trigger_timeline import Timeline
-from constants_bot import BOT_TRIGGER_GATES, BOT_TRIGGER_JUDGED_NOW, BOT_TRIGGERS_SCHEMA_VERSION
+from constants_bot import (
+    BOT_TRIGGER_GATES,
+    BOT_TRIGGER_JUDGED_NOW,
+    BOT_TRIGGER_SHORT_GATES,
+    BOT_TRIGGERS_SCHEMA_VERSION,
+)
 
 logger = logging.getLogger(__name__)
 NowRow = Callable[[str, list[dict[str, Any]]], dict[str, Any]]
@@ -57,6 +63,7 @@ def build(day: str, *, lines: list[dict[str, Any]], ctx: trigger_cells.Context, 
         })
     return {"schema_version": BOT_TRIGGERS_SCHEMA_VERSION, "date": day, "generated_at": generated_at,
             "gates": [{"id": gid, "label": label} for gid, label in BOT_TRIGGER_GATES],
+            "short_gates": [{"id": gid, "label": label} for gid, label in BOT_TRIGGER_SHORT_GATES],
             "tickers": tickers, "impact": trigger_cells.impact(found), "judged_now": list(BOT_TRIGGER_JUDGED_NOW),
             "sources": sources}
 
@@ -64,7 +71,7 @@ def build(day: str, *, lines: list[dict[str, Any]], ctx: trigger_cells.Context, 
 def answer(day: str, now: float, *, today: bool) -> dict[str, Any]:
     """Read the day's inputs and answer (``GET /api/bot/triggers``)."""
     from bot import trigger_inputs as inputs
-    from bot import trigger_now
+    from bot import trigger_now, trigger_short
 
     lines, journal_src = inputs.journal(day, today=today)
     rows, audit_src = inputs.audit(day)
@@ -79,7 +86,7 @@ def answer(day: str, now: float, *, today: bool) -> dict[str, Any]:
         state = None
     ctx = trigger_cells.Context(
         timeline=Timeline(rows, restarts=trigger_cells.restarts(lines, start)), rules=rules, listed=listed,
-        audit_error=None if audit_src["ok"] else audit_src["error"])
+        judged=trigger_short.judgments(rows), audit_error=None if audit_src["ok"] else audit_src["error"])
     if state is not None:
         ctx.level_now, ctx.mode_now, ctx.cap_now = state.level, state.mode, state.cap
     now_row: NowRow | None = None

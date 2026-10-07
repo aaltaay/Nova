@@ -38,7 +38,7 @@ BOT_SETUP_FLAT_TOP_5M = "flat_top_5m"
 BOT_SETUP_RED_TO_GREEN = "red_to_green"
 BOT_SETUP_MICRO_PULLBACK = "micro_pullback"
 # ADR 049 (#778 step 4): the five short setups, the long ones mirrored, plus the SSR bounce. A short setup sells
-# at its entry and covers under it; until step 5 nothing trades one (``BOT_SKIP_SHORT_LATER``).
+# at its entry and covers under it. Since step 5 the strategy that triggers decides the side: one bot, one list.
 BOT_SETUP_BACKSIDE = "backside_lower_high"
 BOT_SETUP_BEAR_FLAG = "bear_flag"
 BOT_SETUP_FAILED_BREAKOUT = "failed_breakout"
@@ -107,6 +107,10 @@ BOT_ACTION_KINDS = (
     "exit_pos_pct",
     "sell_pos_pct_ask",
     "sell_pos_pct_bid_offset",
+    "short_limit_bid_offset",
+    "cover_limit_ask_offset",
+    "cover_market",
+    "cover_pos",
 )
 
 BOT_LATER_KINDS = (
@@ -118,12 +122,30 @@ BOT_LATER_KINDS = (
 # scanner scored. A buy kind (the day's cap counts it), never on a brain's
 # allowlist: it carries the scanner's price, not a session preset.
 BOT_KIND_SETUP_ENTRY = "buy_setup_limit"
+# ADR 049 (#778 step 5): its short entry, a short limit with its buy stop and its cover in one bracket.
+BOT_KIND_SETUP_SHORT = "short_setup_limit"
 
 BOT_BUY_KINDS = frozenset({
     "buy_market",
     "buy_limit_ask_offset",
     BOT_KIND_SETUP_ENTRY,
 })
+# The localhost bot API's short kinds (#778 step 5): every short carries its buy stop; a cover is a close.
+BOT_SHORT_KINDS = frozenset({
+    "short_limit_bid_offset",
+    BOT_KIND_SETUP_SHORT,
+})
+BOT_COVER_KINDS = frozenset({
+    "cover_limit_ask_offset",
+    "cover_market",
+    "cover_pos",
+})
+# What opens a position: the day's cap counts these, and a working one blocks the next.
+BOT_ENTRY_KINDS = BOT_BUY_KINDS | BOT_SHORT_KINDS
+# A bot API short's buy stop, over its limit (a session preset like the offsets: no free-form stop).
+BOT_DEFAULT_SHORT_STOP_OFFSET_USD = 0.10
+# The bot's own close of a short: a buy limit this far over the ask (marketable), the long close mirrored.
+BOT_DEFAULT_ASK_COVER_OFFSET_USD = 0.03
 
 # The sleeve (ADR 042): one per venue, for every Nova automatic buy (the bot and Auto-entry).
 BOT_DEFAULT_MAX_SHARES = 1
@@ -264,13 +286,11 @@ BOT_SKIP_GRADE = "BOT_SKIP_GRADE"            # a grade the strategy does not buy
 # 2026-10-06 this slot was BOT_SKIP_NOT_LISTED (the bot bought only starred stocks); old audit lines keep that code.
 BOT_SKIP_DAY_NOT_RESET = "BOT_SKIP_DAY_NOT_RESET"
 # ADR 048: Nova never trades against a position you hold -- a long entry while the account is short the
-# stock (or a short entry while it is long, step 5), and an entry while the position cannot be read.
+# stock, a short entry while it is long, and an entry while the position cannot be read.
 BOT_SKIP_HELD_OTHER_SIDE = "BOT_SKIP_HELD_OTHER_SIDE"
-# ADR 049 (#778 step 4): a short setup's trigger. Nova's bot and Auto-entry trade shorts from step 5; until
-# then a short alerts the operator only, and its proposal names no taker.
-BOT_SKIP_SHORT_LATER = "BOT_SKIP_SHORT_LATER"
-BOT_SHORT_LATER_TEXT = ("a short setup: Nova's bot and Auto-entry trade shorts from step 5 of #778 -- until then a "
-                        "short alerts you only")
+# ADR 049 (#778 step 5): a short trigger whose sell price cannot be set -- under SSR the short sells at the ask,
+# and with no ask on the book, or an ask at or over the buy stop, there is no short to send.
+BOT_SKIP_SHORT_PRICE = "BOT_SKIP_SHORT_PRICE"
 # ADR 049 section 12: a short setup is On only once its five-year test passed on the rules in play.
 BOT_REASON_SHORT_TEST = "BOT_SHORT_TEST"
 # The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
@@ -283,10 +303,20 @@ BOT_TRIGGER_GATES = (
     ("grade", "Grade"),
     ("setups_a_day", "Setups a day"),
     ("bot_window", "Bot window"),
-    ("nova_buys", "Bot buys"),
+    ("nova_buys", "Entry: Bot"),
     ("level2_line", "Level 2 line"),
     ("tape_go", "Tape GO"),
     ("trades_today", "Trades today"),
+    ("not_against", "Not against you"),
+)
+# ADR 049 (#778 step 5): the short check's own squares, behind the orange divider. A long trigger leaves them
+# empty; the SSR square is never red -- under SSR the short sells at the ask.
+BOT_TRIGGER_SHORT_GATES = (
+    ("short_borrow", "Borrow"),
+    ("short_ssr", "SSR"),
+    ("short_halt", "No halt 10 min"),
+    ("short_margin", "Margin 25%"),
+    ("short_hours", "Before 15:50"),
 )
 # Nothing records the template's bot rules at a trigger: these gates read today's.
 BOT_TRIGGER_JUDGED_NOW = ("grade", "setups_a_day", "bot_window")

@@ -5,6 +5,10 @@
  * own read-out. There is no chosen setup: every setup at Strategy may be traded once
  * the bot is active, and the master level caps them all. Every parameter opens in the
  * template editor. Nothing here places an order.
+ *
+ * One bot for both sides (ADR 049, #778 step 5): the strategy that triggers decides the
+ * side. Above the cards, the strategies sit in three buckets -- On, Eyes, Off -- each with
+ * its ▲ LONG / ▼ SHORT tag and the same switch as its card (`BotStrategyBuckets`).
  */
 import { useState } from 'react';
 import { BackendReloadButton } from '../components/BackendReloadButton';
@@ -15,6 +19,7 @@ import {
   BOTS_ADD_SETUP_HINT,
   BOTS_ADD_SETUP_LABEL,
   BOTS_ADD_SETUP_MESSAGE,
+  BOTS_BUSY_WHY,
   BOTS_CATALOGUE_PATH,
   BOTS_STRATEGIES_ANCHOR,
   BOTS_STRATEGIES_SOURCE,
@@ -36,9 +41,11 @@ import {
 import { confirmApp } from '../ux/appDialogApi';
 import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { tipProps } from '../ux/hoverTip';
-import { effectiveLevel, levelName, masterLevel, ownLevel } from './botLevels';
+import { effectiveLevel, levelName, masterLevel, ownLevel, setupLabelOf } from './botLevels';
 import { botOn } from './botSwitch';
 import { BotSetupCard } from './BotSetupCard';
+import { BotStrategyBuckets } from './BotStrategyBuckets';
+import type { BucketRow } from './strategyBuckets';
 import { BotTemplateEditor } from './BotTemplateEditor';
 import { tapeLines } from './templateFormat';
 import { playTemplate } from './templatesApi';
@@ -129,6 +136,24 @@ export function BotStrategiesCard({ session, busy, onSetupLevel, onOpenBoard, on
   const [playError, setPlayError] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
 
+  const sideOf = (id: string): 'long' | 'short' =>
+    infos.get(id)?.side ?? tpl.setup(id)?.side ?? (isShortSetup(id) ? 'short' : 'long');
+  const visible = BOT_SETUP_IDS.filter(id => Boolean(infos.get(id)?.scanner) || staleSetup(id));
+  const bucketRows: BucketRow[] = levelsKnown ? visible.filter(id => infos.get(id)?.scanner).map(id => {
+    const templates = tpl.setup(id);
+    const inPlay = templates?.templates.find(t => t.id === templates.in_play) ?? null;
+    const side = sideOf(id);
+    return {
+      id,
+      label: setupLabelOf(id),
+      side,
+      own: ownLevel(session, id) ?? 0,
+      locked: side === 'short' ? infos.get(id)?.locked ?? null : null,
+      test: side === 'short' ? infos.get(id)?.test ?? templates?.test ?? summaries.get(id)?.test ?? null : null,
+      readout: templates ? inPlay?.readout ?? null : undefined,
+    };
+  }) : [];
+
   async function play(setupId: string, templateId: string) {
     setPlaying(true);
     setPlayError(null);
@@ -162,11 +187,15 @@ export function BotStrategiesCard({ session, busy, onSetupLevel, onOpenBoard, on
       {tpl.payload?.error ? <p className="bots-hero__error" role="alert">{tpl.payload.error}</p> : null}
       {playError ? <p className="bots-hero__error" role="alert" data-testid="bots-template-play-error">{playError}</p> : null}
 
+      {bucketRows.length ? (
+        <BotStrategyBuckets rows={bucketRows} botOn={active} why={busy ? BOTS_BUSY_WHY : null} onLevel={onSetupLevel} />
+      ) : null}
+
       <div className="bots-strat-grid">
-        {BOT_SETUP_IDS.filter(id => Boolean(infos.get(id)?.scanner) || staleSetup(id)).map(id => {
+        {visible.map(id => {
           const templates = tpl.setup(id);
           const info = infos.get(id);
-          const side = info?.side ?? templates?.side ?? (isShortSetup(id) ? 'short' : 'long');
+          const side = sideOf(id);
           const test = info?.test ?? templates?.test ?? summaries.get(id)?.test ?? null;
           return (
             <BotSetupCard key={id} id={id} playable={Boolean(infos.get(id)?.scanner)} stale={staleSetup(id)}

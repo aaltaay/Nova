@@ -1,7 +1,7 @@
 /**
  * Who trades, for the Bots page (ADR 042 F): `GET /api/stock-mode` polled every
  * `BOTS_STOCK_MODES_POLL_MS` while the page is up. A failed read keeps the last
- * rows and says why -- never an empty list that would read "Nova buys nothing".
+ * rows and says why -- never an empty list that would read "Nova trades nothing".
  * The sample desk has no stock modes and asks nothing.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';

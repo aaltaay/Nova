@@ -1,6 +1,6 @@
-"""The squares' ``now`` row (ADR 044): would the bot buy this stock if its setup triggered this minute?
+"""The squares' ``now`` row (ADR 044): would the bot trade this stock if its setup triggered this minute?
 
-The same nine gates as a trigger (``bot.trigger_cells``), read from the desk as it stands -- the desk
+The same gates as a trigger (``bot.trigger_cells``), read from the desk as it stands -- the desk
 venue's dial, the strategies' rules today, the live setup board, the Who trades switch, the depth
 lines held and the day's Nova entries:
 
@@ -15,7 +15,9 @@ lines held and the day's Nova entries:
 - ``level2_line``: Nova holds the stock's Level 2 line now; ``null`` when it does not -- a line may
   still open, or be lent, before the trigger;
 - ``tape_go``: ``null`` -- the tape is read at the trigger;
-- ``trades_today``: the venue's daily cap has room.
+- ``trades_today``: the venue's daily cap has room;
+- ``not_against`` and, with a short strategy On, the short block (ADR 049, #778 step 5): the position you
+  hold against the sides the On strategies enter, and the short check's facts now (``bot.trigger_short``).
 
 ``answer`` is ``yes`` only when no gate is false; ``reasons`` are the false gates' words. Owner: this
 module (no state; it reads, never writes).
@@ -25,9 +27,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from bot import strategy_rules
-from bot.trigger_cells import GATE_IDS, cell, hhmm
-from constants_bot import BOT_GRADES_A, BOT_LEVEL_STRATEGY
+from bot import strategy_rules, trigger_short
+from bot.trigger_cells import ALL_GATE_IDS, GATE_IDS, cell, hhmm
+from constants_bot import BOT_GRADES_A, BOT_LEVEL_STRATEGY, SIDE_SHORT, setup_side
 from constants_stock_mode import STOCK_MODE_AUTO_ENTRY, STOCK_MODE_BOT
 
 logger = logging.getLogger(__name__)
@@ -136,11 +138,11 @@ def _nova_buys(sym: str, desk: Desk) -> dict[str, Any]:
 
     mode = desk.now.mode(desk.venue, sym)
     if mode not in (STOCK_MODE_BOT, STOCK_MODE_AUTO_ENTRY):
-        return cell(False, f"Buy is You on {sym}: set its Buy to Bot (Who trades)")
+        return cell(False, f"Entry is You on {sym}: set its Entry to Bot (Who trades)")
     reset = day_reset()
     if reset is not None:
         return cell(False, reset[1])
-    return cell(True, "Bot buys (Bot)" if mode == STOCK_MODE_BOT else "Bot buys (Auto-entry)")
+    return cell(True, "Entry: Bot (Bot)" if mode == STOCK_MODE_BOT else "Entry: Bot (Auto-entry)")
 
 
 def _line(sym: str) -> dict[str, Any]:
@@ -177,6 +179,16 @@ def _trades(desk: Desk) -> dict[str, Any]:
     return cell(True, f"{desk.used} of {desk.cap} Nova entr{'y' if desk.cap == 1 else 'ies'} a day used")
 
 
+def _short_block(sym: str, desk: Desk) -> dict[str, Any]:
+    """The short check's squares now, when a short strategy is On; nothing otherwise (the block stays empty)."""
+    shorts = [s for s in desk.on if setup_side(s) == SIDE_SHORT]
+    if not shorts:
+        return {}
+    lanes = _lanes(sym) or []
+    armed = [lane for lane in lanes if lane.get("setup_type") in shorts and lane.get("state") in _ARMED]
+    return trigger_short.now_cells(sym, desk.venue, armed, desk.row)
+
+
 def _unread(said: str) -> dict[str, Any]:
     """A ``now`` row Nova could not read: never a yes."""
     return {"cells": {g: cell(None, said) for g in GATE_IDS}, "answer": "no", "reasons": [said]}
@@ -200,9 +212,11 @@ def row(desk: Desk | None, sym: str, todays: list[dict[str, Any]]) -> dict[str, 
             "level2_line": _line(sym),
             "tape_go": cell(None, "the tape is read at the trigger"),
             "trades_today": _trades(desk),
+            "not_against": trigger_short.not_against_now(sym, {setup_side(s) for s in desk.on}),
+            **_short_block(sym, desk),
         }
     except Exception:
         logger.warning("triggers audit: the desk could not be read for %s", sym, exc_info=True)
         return _unread("the desk could not be read (the backend log has the error)")
-    reasons = [cells[g]["why"] for g in GATE_IDS if cells[g]["ok"] is False]
+    reasons = [cells[g]["why"] for g in ALL_GATE_IDS if cells.get(g, {}).get("ok") is False]
     return {"cells": cells, "answer": "no" if reasons else "yes", "reasons": reasons}

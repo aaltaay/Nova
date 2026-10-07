@@ -9,6 +9,7 @@
  */
 import { BOT_ACTION_KINDS, BOT_LEVEL_LABELS, BOT_SETUP_LABELS, BOT_SETUP_SHORT } from '../constantGroups/bot';
 import { SETUP_KIND_LABELS } from '../constantGroups/setups';
+import { isShortSetup } from '../constantGroups/short_setups';
 import type { SetupStoreRow } from '../setups/useSetupRows';
 import type { BotAuditEntry } from './types';
 
@@ -35,8 +36,10 @@ export interface ActivityLine {
 }
 
 const KINDS = new Set<string>(BOT_ACTION_KINDS);
-/** Nova's own bot (ADR 030, ADR 042): its entry on a setup at Strategy, and every step of its trade. */
+/** Nova's own bot (ADR 030, ADR 042): its entry on a setup at Strategy, and every step of its trade. A short
+ * strategy's entry is its own action (ADR 049, #778 step 5). */
 const SETUP_ENTRY = 'buy_setup_limit';
+const SETUP_SHORT = 'short_setup_limit';
 const TRADE = 'bot_trade';
 const TRADE_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']]> = {
   skipped: ['Skipped', 'muted', 'refused'],
@@ -104,6 +107,22 @@ function setupOf(row: BotAuditEntry): string {
   return typeof v === 'string' && v ? (BOT_SETUP_LABELS[v] ?? v).toLowerCase() : '';
 }
 
+/** The side a line's trade or setup is on (ADR 049), in words beside its arrow: the line's own, else its setup's;
+ * '' when the line names neither. */
+function sideOf(row: BotAuditEntry): string {
+  const side = row.inputs?.side;
+  const kind = typeof row.inputs?.kind === 'string' ? row.inputs.kind.replace(/^second_/, '') : null;
+  const setup = row.inputs?.setup_type ?? row.inputs?.setup ?? kind;
+  if (side === 'short' || (side !== 'long' && typeof setup === 'string' && isShortSetup(setup))) return '▼ short';
+  return side === 'long' || typeof setup === 'string' ? '▲ long' : '';
+}
+
+/** "GRML ▼ short · bear flag": the symbol, its side and its setup, each when known. */
+function tradeWhat(row: BotAuditEntry): string {
+  const side = sideOf(row);
+  return `${sym(row)}${side ? ` ${side}` : ''}${setupOf(row) ? ` · ${setupOf(row)}` : ''}`;
+}
+
 /** Whole dollars with a real minus: -50 -> "−$50". */
 function usd(v: unknown): string {
   const n = Number(v);
@@ -121,7 +140,8 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
   const base = { key: `a-${row.timestamp}-${index}`, ts: Number(row.timestamp) || 0, note: row.reason ?? '' };
   const action = row.action;
   if (action === 'setup_proposal') {
-    const what = `${sym(row)} ${kindName(row.inputs?.kind)}`.trim();
+    const side = sideOf(row);
+    const what = `${sym(row)}${side ? ` ${side}` : ''} ${kindName(row.inputs?.kind)}`.trim();
     if (WITHDRAWN.has(row.outcome)) {
       return { ...base, tag: 'Withdrawn', tone: 'muted', category: 'proposals', text: `${sym(row)} proposal` };
     }
@@ -138,13 +158,16 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
     return { ...base, tag, tone: row.outcome === 'rejected' ? 'muted' : 'good', category: 'proposals',
       text: `${sym(row)} ${String(row.inputs?.kind ?? '')}`.trim() };
   }
-  if (action === SETUP_ENTRY) {
+  if (action === SETUP_ENTRY || action === SETUP_SHORT) {
     const ok = row.outcome === 'ok';
+    const short = action === SETUP_SHORT;
+    const ask = short && row.inputs?.priced_at_ask === true ? ` (SSR ${String(row.inputs?.ssr ?? 'unknown')}: at the ask)` : '';
+    const verb = short ? '▼ short' : '▲ buy';
     return { ...base, tag: ok ? 'Entered' : 'Refused', tone: ok ? 'good' : 'bad', category: ok ? 'fired' : 'refused',
-      text: `${sym(row)} buy ${String(row.inputs?.qty ?? '')} at ${px(Number(row.inputs?.limit))}`.trim() };
+      text: `${sym(row)} ${verb} ${String(row.inputs?.qty ?? '')} at ${px(Number(row.inputs?.limit))}${ask}`.trim() };
   }
   if (action === TRADE) {
-    const what = `${sym(row)}${setupOf(row) ? ` · ${setupOf(row)}` : ''}`;
+    const what = tradeWhat(row);
     if (row.outcome === 'closed') {
       const r = Number(row.inputs?.r);
       const tone: ActivityTone = !Number.isFinite(r) ? 'plain' : r > 0 ? 'good' : 'bad';
@@ -156,7 +179,7 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
   if (action === STOCK_MODE) {
     const [tag, tone, category] = STOCK_MODE_TAGS[row.outcome] ?? [row.outcome, 'muted', 'system'];
     const mode = typeof row.inputs?.mode === 'string' ? ` → ${String(row.inputs.mode).replace(/_/g, '-')}` : '';
-    const what = `${sym(row)}${row.outcome === 'set' ? mode : ''}${setupOf(row) ? ` · ${setupOf(row)}` : ''}`;
+    const what = row.outcome === 'set' ? `${sym(row)}${mode}` : tradeWhat(row);
     return { ...base, tag, tone, category, text: what };
   }
   if (KINDS.has(action)) {
@@ -257,7 +280,8 @@ export function setupActivityLines(rows: readonly SetupStoreRow[]): ActivityLine
   const out: ActivityLine[] = [];
   for (const r of rows) {
     const k = (suffix: string) => `s-${r.id}-${suffix}`;
-    const name = BOT_SETUP_SHORT[r.setup_type ?? 'first_pullback'] ?? r.setup_type ?? '';
+    const setup = r.setup_type ?? 'first_pullback';
+    const name = `${isShortSetup(setup) ? '▼ short' : '▲ long'} · ${BOT_SETUP_SHORT[setup] ?? setup}`;
     if (r.armed_at) {
       const note = [armedShape(r), r.grade ? `grade ${r.grade}` : ''].filter(Boolean).join(' · ');
       out.push({ key: k('armed'), ts: r.armed_at, tag: 'Armed', tone: 'accent', category: 'scanner',

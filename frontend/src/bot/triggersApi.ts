@@ -1,13 +1,17 @@
 /**
  * The squares, by ticker (ADR 044): `GET /api/bot/triggers`. Every listed ticker's answer now, and every
- * trigger of the day on it, judged by the same ten checks in Nova's order. Checked on arrival: an unknown
- * shape is an error, never an empty table.
+ * trigger of the day on it, judged by the same checks in Nova's order. Both sides (ADR 049, #778 step 5):
+ * every trade's squares end with "not against you", and behind them the shorts-only block (`short_gates`),
+ * which a long trigger leaves empty; an amber square (`warn`) passes and says what it changed. Checked on
+ * arrival: an unknown shape is an error, never an empty table.
  */
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { isShortSetup } from '../constantGroups/short_setups';
 
 export type CellOk = boolean | null;
-export interface Cell { ok: CellOk; why: string }
+/** A square: passed, failed or did not apply (null). `warn`: an amber pass (SSR · at the ask). */
+export interface Cell { ok: CellOk; why: string; warn?: boolean }
 export type Cells = Record<string, Cell>;
 
 export interface TickerTrigger {
@@ -22,6 +26,10 @@ export interface TickerTrigger {
   r: number | null;
   cells: Cells;
   reasons: string[];
+  /** The side the strategy trades (ADR 049): the wire's, else its setup's. */
+  side: 'long' | 'short';
+  /** SSR as the journal stamped it on the trigger: "on" | "off" | "unknown" | null. */
+  ssr: string | null;
 }
 
 export interface TickerRow {
@@ -36,6 +44,8 @@ export interface GateImpact { gate: string; blocked: number; target_first: numbe
 export interface TriggersView {
   date: string;
   gates: { id: string; label: string }[];
+  /** The shorts-only squares, behind the orange divider; [] on a backend older than #778 step 5. */
+  shortGates: { id: string; label: string }[];
   tickers: TickerRow[];
   impact: GateImpact[];
   judgedNow: string[];
@@ -55,16 +65,20 @@ function cells(v: unknown): Cells {
   for (const [k, raw] of Object.entries(o)) {
     const c = obj(raw);
     if (!c) continue;
-    out[k] = { ok: typeof c.ok === 'boolean' ? c.ok : null, why: str(c.why) ?? '' };
+    out[k] = { ok: typeof c.ok === 'boolean' ? c.ok : null, why: str(c.why) ?? '', ...(c.warn === true ? { warn: true } : {}) };
   }
   return out;
+}
+
+function gateList(v: unknown): { id: string; label: string }[] {
+  return (Array.isArray(v) ? v : []).map(obj).filter(Boolean).map(g => ({ id: str(g!.id) ?? '', label: str(g!.label) ?? '' }))
+    .filter(g => g.id);
 }
 
 export function parseTriggers(raw: unknown): TriggersView | null {
   const r = obj(raw);
   if (!r || r.schema_version !== 1 || !Array.isArray(r.gates) || !Array.isArray(r.tickers)) return null;
-  const gates = (r.gates as unknown[]).map(obj).filter(Boolean).map(g => ({ id: str(g!.id) ?? '', label: str(g!.label) ?? '' }))
-    .filter(g => g.id);
+  const gates = gateList(r.gates);
   const tickers: TickerRow[] = [];
   for (const t of r.tickers as unknown[]) {
     const o = obj(t);
@@ -80,6 +94,8 @@ export function parseTriggers(raw: unknown): TriggersView | null {
         ts: num(x!.ts) ?? 0, setup_id: str(x!.setup_id), setup_type: str(x!.setup_type) ?? '', kind: str(x!.kind),
         nth: num(x!.nth), grade: str(x!.grade), tape: str(x!.tape), outcome: str(x!.outcome), r: num(x!.r),
         cells: cells(x!.cells), reasons: strs(x!.reasons),
+        side: x!.side === 'short' || (x!.side !== 'long' && isShortSetup(str(x!.setup_type))) ? 'short' as const : 'long' as const,
+        ssr: str(x!.ssr),
       })),
     });
   }
@@ -92,7 +108,8 @@ export function parseTriggers(raw: unknown): TriggersView | null {
     const s = obj(v);
     if (s) sources[k] = { ok: s.ok === true, error: str(s.error) };
   }
-  return { date: str(r.date) ?? '', gates, tickers, impact, judgedNow: strs(r.judged_now), sources };
+  return { date: str(r.date) ?? '', gates, shortGates: gateList(r.short_gates), tickers, impact,
+    judgedNow: strs(r.judged_now), sources };
 }
 
 export async function fetchTriggers(date?: string): Promise<TriggersView> {

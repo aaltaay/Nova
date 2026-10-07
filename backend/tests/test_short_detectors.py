@@ -106,6 +106,31 @@ def test_backside_triggers_on_a_price_at_its_entry_and_reads_near_over_the_trigg
     assert det.triggered["entry"] == 5.46 and det.nth == 1
 
 
+def test_a_print_under_the_trigger_but_over_the_entry_does_not_trigger():
+    # PR #789 review: a sub-penny print between the 5.47 trigger and the 5.46 entry never traded the sell entry.
+    det = BacksideDetector("FADE")
+    feed(det, _backside_day())
+    t = et_ts(10, 23, DAY)
+    assert det.armed["trigger"] == 5.47 and det.armed["entry"] == 5.46
+    near = det.on_price(5.465, t)
+    assert near and near[0][0] == "near" and det.state == SETUP_STATE_NEAR
+    assert det.on_price(5.4651, t + 1) == []
+    fired = det.on_price(5.46, t + 2)
+    assert fired[0][0] == "triggered" and det.triggered["entry"] == 5.46
+
+
+def test_ssr_at_the_trigger_counts_the_trade_that_triggered_it():
+    # PR #789 review: the triggering trade can be the day's first at 90% of the prior close.
+    det = BacksideDetector("FADE")
+    bars = _backside_day()
+    feed(det, bars)
+    prior = min(b.lo for b in bars) / 0.95            # every bar's low over 90% of the prior close
+    det.context = {"prior_close": prior, "ssr_yesterday": False}
+    assert det.ssr() == "off"
+    det.on_price(prior * 0.899, et_ts(10, 23, DAY))  # the live price reaches the SSR trigger
+    assert det.ssr() == "on"
+
+
 def test_backside_gap_under_enters_at_the_open_and_skips_when_the_risk_goes_over_the_cap():
     det = BacksideDetector("FADE")
     feed(det, _backside_day())
@@ -297,6 +322,23 @@ def test_lost_vwap_close_back_over_vwap_ends_the_day():
     add(bars, vw, vw + 0.01, vw - 0.20, vw - 0.15, 50_000)      # lost again: the day's try is spent
     feed(det, bars)
     assert det.armed is None and det.done
+
+
+def test_lost_vwap_ends_at_its_window_close_armed_or_not():
+    # PR #789 review: an armed retest re-armed on every bar past 12:00, so it could go near and propose late.
+    bars, vw = _lost_vwap_day()
+    det = LostVwapDetector("VWAP")
+    feed(det, bars)
+    assert det.state == SETUP_STATE_ARMED
+    trig = det.armed["trigger"]
+    while bars[-1].t + 60 < et_ts(11, 59, DAY):            # quiet under VWAP, never under the trigger, to 11:58
+        add(bars, trig + 0.03, trig + 0.04, trig + 0.02, trig + 0.03, 10_000)
+    assert det.on_bars(bars) == [] and det.state == SETUP_STATE_ARMED
+    add(bars, trig + 0.03, trig + 0.04, trig + 0.02, trig + 0.03, 10_000)   # the 11:59 candle ends at 12:00
+    ended = det.on_bars(bars)
+    assert ended and ended[0][0] == "disarmed" and det.armed is None
+    assert det.state == SETUP_STATE_WATCHING and "window closed at 12:00" in det.reason
+    assert det.on_price(trig - 0.05, bars[-1].t + 70) == []                  # nothing triggers after it
 
 
 def test_lost_vwap_opening_under_vwap_is_out():

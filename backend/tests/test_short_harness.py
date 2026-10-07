@@ -157,6 +157,17 @@ def test_neighbours_resolve_from_the_template_and_say_what_a_setup_lacks():
     assert len(names) + len(left_out) == 1 + len(cfg.COMMON_NEIGHBOURS) + len(cfg.NEIGHBOURS["backside_lower_high"])
 
 
+def test_a_flush_exit_the_harness_cannot_test_is_refused_never_passed():
+    # PR #789 review: the harness reads bars, never the tape, so a template's flush exit would go untested while
+    # its fingerprint unlocked On. The run refuses it, and the result reads `error`.
+    template = default_template("bear_flag")
+    assert sim.untestable(lane_params(template)) is None
+    flushed = template.__class__(setup=template.setup, id="t1", name="flush", rev=1,
+                                 values={**template.values, "flush_exit": "tighten"})
+    why = sim.untestable(lane_params(flushed))
+    assert why and "flush exit is 'tighten'" in why and "flush_exit off" in why
+
+
 def test_the_result_file_is_what_the_setups_card_and_lock_read():
     template = default_template("bear_flag")
     result = runner.Result("bear_flag", template, "py -3 research/shorts/test_shorts.py --setup bear_flag", False)

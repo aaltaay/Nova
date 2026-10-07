@@ -249,14 +249,13 @@ def test_notes_say_everything_that_keeps_nova_from_acting(paper, monkeypatch):
     assert "no Level 2 line" in notes["no_depth"]
 
 
-def test_a_short_setups_plan_says_no_nova_mode_trades_it_until_step_5(paper, monkeypatch):
+def test_a_short_setups_plan_takes_a_nova_mode_like_a_long(paper, monkeypatch):
+    """#778 step 5: the strategy decides the side -- a short plan's notes are a long's, no "wait for step 5"."""
     monkeypatch.setattr("stock_mode.view._plan_lane",
                         lambda sym, now: plan_lane(setup_type="backside_lower_high", side="short"))
     put(paper, "nova", "you")                                   # Auto-entry
-    notes = {n["id"]: n["text"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
-    assert "backside lower high is a short setup" in notes["short_later"] and "step 5" in notes["short_later"]
-    put(paper, "you", "you")                                    # Signal only says nothing
-    assert "short_later" not in {n["id"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
+    notes = {n["id"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
+    assert "short_later" not in notes and "held_other_side" not in notes
 
 
 def test_the_notes_never_hold_a_stock_off_the_hot_list(paper):
@@ -584,17 +583,22 @@ def test_approve_refuses_a_filtered_setup_and_a_plan_that_is_not_a_trade(paper, 
     assert store.approval(SYM) is None
 
 
-def test_approve_refuses_a_short_setup_until_the_bot_trades_both_sides(paper, monkeypatch):
+def test_approve_takes_a_short_plan_with_its_buy_stop_over_the_entry(paper, monkeypatch):
+    """#778 step 5: Approve sends a short setup's plan as a short bracket at its trigger."""
     short = lane(setup_type="bear_flag", side="short",
                  setup={"trigger": 9.99, "entry": 9.98, "stop": 10.11, "target1": 9.72, "risk": 0.13})
     monkeypatch.setattr(runner, "lane_of", lambda sym, sid: short)
     put(paper, "you", "nova")
     r = client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(entry=9.98, stop=10.11, target=9.72),
                     headers=headers(paper.key))
-    detail = r.json()["detail"]
-    assert r.status_code == 409 and detail["reason"] == "STOCK_MODE_SHORT_LATER"   # ADR 049, #778 step 4
-    assert "bear flag is a short setup" in detail["error"] and "stage the short in the ticket" in detail["error"]
-    assert store.approval(SYM) is None
+    assert r.status_code == 200, r.text
+    approval = store.approval(SYM)
+    assert approval["state"] == "waiting" and approval["side"] == "short" and approval["stop"] == 10.11
+    upside_down = client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(entry=9.98, stop=9.72, target=10.11),
+                              headers=headers(paper.key))
+    detail = upside_down.json()["detail"]
+    assert upside_down.status_code == 400 and detail["reason"] == "STOCK_MODE_INVALID"
+    assert "buy stop over the entry" in detail["error"]
 
 
 def test_an_approved_plan_is_sent_as_one_bracket_at_its_trigger(paper, monkeypatch, sent):

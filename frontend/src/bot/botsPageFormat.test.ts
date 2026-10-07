@@ -6,7 +6,7 @@ import { closedProposals, proposalWhy } from './botProposalsModel';
 import { botPnlOn } from './useBotPnlToday';
 import { dayPnlParts } from './useBotDayPnl';
 import { breakerFloor, breakerLimits, breakerPct, markerRange, valueAt } from './breakerScale';
-import { deactivatedLine, fmtUsdCents, tradeLine } from './botsPageFormat';
+import { deactivatedLine, fmtUsdCents, nextTradeLine, tradeLine } from './botsPageFormat';
 import { offWords, reenableWords, switchLock, tripLatch, BOT_SWITCH_LIVE_WHY } from './botSwitch';
 import { etTime, etUntil } from './botWhen';
 import { breakers, gates, openGates, session, strategySession } from './botsPageFixtures';
@@ -142,14 +142,42 @@ describe('the page\'s words', () => {
       stop: 9.89, target1: 10.3, risk: 0.14, entry_fill_price: null, exit_price: null, exit_reason: null,
       slippage: null, r: null };
     expect(tradeLine(null)).toBe('');
-    expect(tradeLine({ ...base, state: 'entering' })).toBe('Buying IMCC · 3 at 10.02 limit');
-    expect(tradeLine({ ...base, setup_type: 'bull_flag', state: 'entering' })).toBe('Buying IMCC (bull flag) · 3 at 10.02 limit');
+    expect(tradeLine({ ...base, state: 'entering' })).toBe('Buying IMCC ▲ long · 3 at 10.02 limit');
+    expect(tradeLine({ ...base, setup_type: 'bull_flag', state: 'entering' })).toBe('Buying IMCC ▲ long (bull flag) · 3 at 10.02 limit');
     expect(tradeLine({ ...base, state: 'open', entry_fill_price: 10.03 }))
-      .toBe('In IMCC · 3 @ 10.03 · stop 9.89 · target 10.30');
-    expect(tradeLine({ ...base, state: 'exiting', exit_why: 'stop' })).toBe('Closing IMCC · the stop printed');
-    expect(tradeLine({ ...base, state: 'closed', exit_reason: 'target', r: 2 })).toBe('Last trade IMCC · target · +2.00R');
+      .toBe('In IMCC ▲ long · 3 @ 10.03 · stop 9.89 · target 10.30');
+    expect(tradeLine({ ...base, state: 'exiting', exit_why: 'stop' })).toBe('Closing IMCC ▲ long · the stop printed');
+    expect(tradeLine({ ...base, state: 'closed', exit_reason: 'target', r: 2 })).toBe('Last trade IMCC ▲ long · target · +2.00R');
     expect(tradeLine({ ...base, state: 'missed', note: 'not filled in 3s -- the price ran past 10.02' }))
-      .toBe('Missed IMCC · not filled in 3s — the price ran past 10.02');
+      .toBe('Missed IMCC ▲ long · not filled in 3s — the price ran past 10.02');
+  });
+
+  it('says a short trade the short way: its buy stop, its cover, the ask under SSR (#778 step 5)', () => {
+    const base = { setup_id: 'S', symbol: 'FADE', venue: 'paper', venue_day: '2026-10-07', qty: 1, entry_planned: 4.01,
+      stop: 4.13, target1: 3.71, risk: 0.12, entry_fill_price: 4.01, exit_price: null, exit_reason: null,
+      slippage: null, r: null, side: 'short', setup_type: 'bear_flag' };
+    expect(tradeLine({ ...base, state: 'entering', priced_at_ask: true, ssr: 'on' }))
+      .toBe('Shorting FADE ▼ short (bear flag) · 1 at 4.01 limit (SSR on: at the ask)');
+    expect(tradeLine({ ...base, state: 'open' })).toBe('In FADE ▼ short (bear flag) · 1 @ 4.01 · buy stop 4.13 · cover 3.71');
+    expect(tradeLine({ ...base, state: 'exiting', exit_why: 'stop' })).toBe('Covering FADE ▼ short (bear flag) · the buy stop printed');
+    expect(tradeLine({ ...base, state: 'closed', exit_reason: 'target', r: 2.5 }))
+      .toBe('Last trade FADE ▼ short (bear flag) · covered at the target · +2.50R');
+  });
+
+  it('names what the bot trades next, each strategy at On with its side; nothing while a trade is live', () => {
+    const both = strategySession({ setups: [
+      { id: 'first_pullback', scanner: true, level: 2, effective: 2, side: 'long' },
+      { id: 'bear_flag', scanner: true, level: 2, effective: 2, side: 'short' },
+      { id: 'lost_vwap', scanner: true, level: 2, effective: 1, side: 'short',
+        locked: 'On waits on the lost vwap five-year test' },
+    ] });
+    expect(nextTradeLine(both, true)).toBe('Next: the first GO trigger of first pullback ▲ long, bear flag ▼ short, '
+      + 'on a stock whose Entry is Bot.');
+    expect(nextTradeLine(both, false)).toBeNull();
+    const busy = { ...both, trade: { setup_id: 'S', symbol: 'FADE', state: 'open', side: 'short' } } as never;
+    expect(nextTradeLine(busy, true)).toBeNull();
+    expect(nextTradeLine(strategySession({ setups: [{ id: 'bull_flag', scanner: true, level: 1, effective: 1 }] }), true))
+      .toBe('Next: nothing — no strategy is On.');
   });
 
   it('formats cents with a real minus sign, and Eastern times', () => {
@@ -182,7 +210,7 @@ describe('header pill, nav dot and rail card (ADR 044)', () => {
     const off = botHeaderState(strategySession());
     expect(off).toMatchObject({ on: false, name: 'OFF', detail: '1 strategy On', tone: 'off' });
     expect(off.reason).toBe('Off. The strategies at Eyes or On still alert you.');
-    expect(off.title).toMatch(/^Bot off on Paper: Off\. The strategies at Eyes or On still alert you\. Strategies at On: First pullback\.$/);
+    expect(off.title).toMatch(/^Bot off on Paper: Off\. The strategies at Eyes or On still alert you\. Strategies at On: First pullback ▲ long\.$/);
     expect(botHeaderState(strategySession({ active: true, ready: true }))).toMatchObject({ on: true, name: 'ON', tone: 'on', reason: null });
     const notReady = botHeaderState(strategySession({ active: true, ready: false, ready_reason: 'no depth line held' }));
     expect(notReady).toMatchObject({ on: true, tone: 'idle', reason: 'Not trading now — no depth line held' });

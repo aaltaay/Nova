@@ -24,10 +24,11 @@ export function setupSideOf(x: { side?: string | null; setup_type?: string | nul
 /** The side tag beside a setup's name: green ▲ LONG, orange ▼ SHORT. */
 export const SETUP_SIDE_TAG = { long: '▲ LONG', short: '▼ SHORT' } as const;
 export const SETUP_SIDE_TAG_TIPS = {
-  long: 'A long setup: it buys at its entry, with its stop under it, and sells over it.',
+  long: 'A long setup: it buys at its entry, with its stop under it, and sells over it. At On, while the Bot is on, '
+    + 'Nova\'s bot buys its GO triggers on Paper and Sim.',
   short: 'A short setup: it sells borrowed shares at its entry, with a buy stop over it, and covers (buys them back) '
-    + 'under it. Until the bot trades both sides (#778 step 5) a short only alerts you: you stage it in the ticket, '
-    + 'with its buy stop.',
+    + 'under it. At On, while the Bot is on, Nova\'s bot shorts its GO triggers on Paper and Sim: the buy stop goes in '
+    + 'with the entry, and Nova covers what is left at 15:55.',
 } as const;
 
 /** The canvas's oranges (a chart cannot read the CSS tokens): the stroke, the lead's fill and a faded fill. */
@@ -178,8 +179,8 @@ export const SHORT_FUNNEL_WORDS: Record<string, { forming: string; armed: string
 
 /** The tape verdicts' hover heads for a short (the reasons and numbers follow). */
 export const SHORT_TAPE_VERDICT_TIPS: Record<string, string> = {
-  go: 'GO: red prints at the bid and no buyer holding the level. At Eyes it proposes the short; until the bot trades '
-    + 'both sides (#778 step 5) you stage it yourself.',
+  go: 'GO: red prints at the bid and no buyer holding the level. At Eyes it proposes the short; at On, while the Bot '
+    + 'is on, Nova\'s bot shorts it on Paper and Sim.',
   wait: 'WAIT: not yet. A buyer at the level that is not thinning, a burst of buying on the tape, or no red prints yet.',
   veto: 'VETO: no. The spread is too wide, a very big buyer sits at the level, or a hidden buyer is soaking up the selling.',
   blind: 'BLIND: Nova holds no Level 2 line for this symbol, so the tape cannot be read. Open its Level 2 in the Trader '
@@ -217,10 +218,5 @@ export const SHORT_TEST_TIP = 'The five-year test runs this setup\'s rules (its 
 export const SHORT_TEST_STALE_TIP = 'The result is for other rules: the template in play changed since, so it tests '
   + 'again.';
 
-/** A short at On (its test passed) still only alerts until the bot trades both sides (#778 step 5). */
-export const SHORT_SETUP_ON_LATER_CHIP = 'On · alerts you: the bot trades shorts from step 5';
-export const SHORT_SETUP_ON_LATER_TIP = 'This short is On and its five-year test passed, but Nova\'s bot and Auto-entry '
-  + 'trade shorts only once the bot trades both sides (#778 step 5). Until then it alerts you like Eyes, and you stage '
-  + 'the short in the ticket.';
 /** A short whose On is held at Eyes by its test (a result that failed, is missing or is for other rules). */
 export const SHORT_SETUP_TEST_HELD_CHIP = 'On · held at Eyes until its test passes';

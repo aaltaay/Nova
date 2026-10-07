@@ -4,7 +4,8 @@
  * with every closed gate. Pure.
  */
 import { BOTS_NOT_TRADING_NOW, botsStrategiesOn } from '../constantGroups/bots_page';
-import { isReady, ownStrategySetups, setupNames } from './botLevels';
+import { isShortSetup } from '../constantGroups/short_setups';
+import { isReady, ownStrategySetups, setupLabelOf } from './botLevels';
 import { prose, sessionVenueName } from './botsPageFormat';
 import { botOn, offWords } from './botSwitch';
 import type { BotSession } from './types';
@@ -25,6 +26,15 @@ export interface BotHeaderState {
   title: string;
 }
 
+/** The strategies at On, each with its side (ADR 049): "First pullback ▲ long, Bear flag ▼ short". */
+function sidedNames(session: BotSession, ids: readonly string[]): string {
+  if (!ids.length) return 'none';
+  return ids.map(id => {
+    const side = (session.setups ?? []).find(s => s.id === id)?.side ?? (isShortSetup(id) ? 'short' : 'long');
+    return `${setupLabelOf(id)} ${side === 'short' ? '▼ short' : '▲ long'}`;
+  }).join(', ');
+}
+
 export function botHeaderState(session: BotSession): BotHeaderState {
   const venue = sessionVenueName(session);
   const on = botOn(session);
@@ -37,7 +47,7 @@ export function botHeaderState(session: BotSession): BotHeaderState {
   if (!on) {
     const reason = offWords(session);
     return { on, name: 'OFF', detail, tone: 'off', reason,
-      title: `Bot off on ${venue}: ${reason} Strategies at On: ${setupNames(strategies)}.` };
+      title: `Bot off on ${venue}: ${reason} Strategies at On: ${sidedNames(session, strategies)}.` };
   }
   const reason = isReady(session) ? null : `${BOTS_NOT_TRADING_NOW}${session.ready_reason ? ` — ${prose(session.ready_reason)}` : ''}`;
   return {
@@ -46,6 +56,6 @@ export function botHeaderState(session: BotSession): BotHeaderState {
     detail,
     tone: reason ? 'idle' : 'on',
     reason,
-    title: `Bot on ${venue} · strategies at On: ${setupNames(strategies)} · ${reason ?? 'ready for a GO trigger'} · ${gatesText}`,
+    title: `Bot on ${venue} · strategies at On: ${sidedNames(session, strategies)} · ${reason ?? 'ready for a GO trigger'} · ${gatesText}`,
   };
 }

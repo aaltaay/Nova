@@ -112,11 +112,23 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         # Nova's own bot (ADR 030, 042): whether it plays, and its current or last trade.
         "runner": _runner_view(row),
         "trade": _trade_view(row.get("trade"), venue),
+        # ADR 049 (#778 step 5): what a short needs from the account and the clock, for the answer line.
+        "shorts": _shorts(venue),
         # Sim time travel (ADR 020): the last scratch-account unwind this
         # process published, so a polling bot re-reads the ledger after it.
         "last_rewind": _last_rewind(),
         "updated_ts": row.get("updated_ts"),
     }
+
+
+def _shorts(venue: str | None) -> dict[str, Any]:
+    from bot import shorts_view
+
+    try:
+        return shorts_view.view(venue)
+    except Exception as exc:
+        logger.warning("bot: the short chips could not be read", exc_info=True)
+        return {"venue": venue, "error": f"the short facts could not be read ({exc})"}
 
 
 def _deactivated(value: Any) -> dict[str, Any] | None:

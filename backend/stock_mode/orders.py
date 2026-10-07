@@ -1,7 +1,9 @@
 """Every order Nova sends for a stock (ADR 037), through the execution door (ADR 007).
 
 Auto-entry sends a BUY limit (source ``bot``); Approve sends the plan as one bracket (source
-``manual``: the operator decided the trade, Nova only picked the moment). Every send carries an
+``manual``: the operator decided the trade, Nova only picked the moment). A short setup's trade (ADR 049,
+#778 step 5) is the mirror, through the one short check at the door: Auto-entry's short goes out with its
+buy stop (a short never rests without one) and the cover is yours; Approve's is a short bracket. Every send carries an
 idempotency key made of the kind, the venue, the setup and the attempt, so a repeat replays its
 receipt, and the setup it trades (``setup=<setup_type>``, ADR 042 G); every send and cancel names
 the trade's venue (``expected_venue``), so an order id is never sent to another venue.
@@ -36,8 +38,42 @@ def _key(trade: dict[str, Any], step: str) -> str:
     return f"stock:{trade['kind']}:{trade['venue']}:{trade['symbol']}:{trade['attempt']}:{step}"
 
 
+def is_short(trade: dict[str, Any]) -> bool:
+    return trade.get("side") == "short"
+
+
+def held(trade: dict[str, Any]) -> float:
+    """The shares the venue holds on the trade's side (long, or short as a positive count)."""
+    return short_held_qty(trade["symbol"]) if is_short(trade) else held_qty(trade["symbol"])
+
+
 async def place_entry(trade: dict[str, Any]) -> Any:
-    """Auto-entry: one BUY limit at the setup's entry. It never chases."""
+    """Auto-entry: one BUY limit at the setup's entry. It never chases. A short goes out as a short limit with
+    its buy stop and no target: the cover is yours, the stop rests until you cover."""
+    if is_short(trade):
+        entry = round(float(trade["entry"]), 4)
+        return await execute(
+            ExecutionCommand(
+                operation="bracket",
+                idempotency_key=_key(trade, "entry"),
+                source="bot",
+                origin="auto_entry",
+                symbol=trade["symbol"],
+                side="SELL",
+                short_entry=True,
+                qty=float(trade["qty"]),
+                order_type="LMT",
+                limit_price=entry,
+                entry_price=entry,
+                stop_price=round(float(trade["stop"]), 4),
+                reference_price=entry,
+                outside_rth=_outside_rth(),
+                setup=trade.get("setup_type"),
+                skip_risk=True,
+                expected_venue=trade.get("venue"),
+            ),
+            wait_ack=False,
+        )
     return await execute(
         ExecutionCommand(
             operation="place",
@@ -61,8 +97,10 @@ async def place_entry(trade: dict[str, Any]) -> Any:
 
 async def send_bracket(trade: dict[str, Any]) -> Any:
     """Approve: the plan as one bracket -- a BUY limit at the entry, a SELL limit at the target and a
-    SELL stop at the stop, the exits held until the entry fills and then one-cancels-other."""
+    SELL stop at the stop, the exits held until the entry fills and then one-cancels-other. A short plan's
+    is the mirror: a short limit, a BUY limit at its cover and a BUY stop over it."""
     entry = round(float(trade["entry"]), 4)
+    short = is_short(trade)
     return await execute(
         ExecutionCommand(
             operation="bracket",
@@ -70,7 +108,8 @@ async def send_bracket(trade: dict[str, Any]) -> Any:
             source="manual",
             origin="approve",   # the operator approved it; Nova sent it at the trigger
             symbol=trade["symbol"],
-            side="BUY",
+            side="SELL" if short else "BUY",
+            short_entry=short,
             qty=float(trade["qty"]),
             order_type="LMT",
             limit_price=entry,

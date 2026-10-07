@@ -24,7 +24,8 @@ from main import app
 ET = ZoneInfo("America/New_York")
 DAY = "2026-09-30"
 GATES = ["bot_on", "strategy_on", "grade", "setups_a_day", "bot_window", "nova_buys", "level2_line", "tape_go",
-         "trades_today"]
+         "trades_today", "not_against"]
+SHORT_GATES = ["short_borrow", "short_ssr", "short_halt", "short_margin", "short_hours"]
 client = TestClient(app)
 
 
@@ -99,6 +100,8 @@ def day(monkeypatch):
          "inputs": {"symbol": "AISP", "from": "signal", "to": "bot"}},
         {"timestamp": at(7, 20), "venue": "paper", "action": "setup_level", "outcome": "first_pullback:1->2",
          "inputs": {"setup": "first_pullback", "from": 1, "to": 2}},
+        {"timestamp": at(9, 41, 1), "venue": "paper", "action": "buy_setup_limit", "outcome": "ok",
+         "inputs": {"symbol": "AISP", "setup_id": "AISP-1", "setup_type": "first_pullback", "side": "long"}},
     ])
     write_hot_list([
         {"symbol": "AISP", "how": "star", "at": at(7, 5), "board": None, "rank": None, "change_pct": None},
@@ -155,7 +158,8 @@ def test_the_shape_the_gates_and_the_sources(day):
     assert body["schema_version"] == 1 and body["date"] == DAY
     assert [g["id"] for g in body["gates"]] == GATES
     labels = {g["id"]: g["label"] for g in body["gates"]}
-    assert [labels["bot_on"], labels["strategy_on"], labels["nova_buys"]] == ["Bot on", "Strategy on", "Bot buys"]
+    assert [labels["bot_on"], labels["strategy_on"], labels["nova_buys"]] == ["Bot on", "Strategy on", "Entry: Bot"]
+    assert labels["not_against"] == "Not against you" and [g["id"] for g in body["short_gates"]] == SHORT_GATES
     assert body["judged_now"] == ["grade", "setups_a_day", "bot_window"]
     assert body["sources"] == {"journal": {"ok": True, "error": None}, "audit": {"ok": True, "error": None},
                                "hot_list": {"ok": True, "error": None}}
@@ -172,15 +176,16 @@ def test_a_trigger_that_passes_every_gate_takes_the_days_cap(day):
     first = aisp[0]
     assert first["ts"] == at(9, 41) and first["grade"] == "A" and first["tape"] == "go"
     assert first["outcome"] == "target_first" and first["r"] == 1.5 and first["nth"] == 1
-    assert oks(first["cells"]) == [True] * 9 and first["reasons"] == [] and list(first["cells"]) == GATES
+    assert oks(first["cells"]) == [True] * 10 and first["reasons"] == [] and list(first["cells"]) == GATES
+    assert first["side"] == "long" and first["cells"]["not_against"]["why"] == "you held no AISP short"
     assert first["cells"]["trades_today"]["why"].startswith("it takes Nova's 1st entry of the day")
-    assert first["cells"]["nova_buys"]["why"].startswith("Buy was Nova (Bot")
+    assert first["cells"]["nova_buys"]["why"].startswith("Entry was Bot (Bot")
 
 
 def test_each_red_square_says_why(day):
     aisp = by_symbol(get())["AISP"]["triggers"]
     bull, second = aisp[1], aisp[2]
-    assert bull["cells"]["strategy_on"] == {"ok": False, "why": "the bull flag was Off: Nova buys only the "
+    assert bull["cells"]["strategy_on"] == {"ok": False, "why": "the bull flag was Off: Nova trades only the "
                                                                  "strategies that are On"}
     assert bull["cells"]["grade"]["ok"] is True                         # B, and the bull flag buys A and B
     assert bull["cells"]["trades_today"] == {"ok": False, "why": "the day's 1 Nova entry went to AISP at 09:41 ET"}
@@ -199,7 +204,7 @@ def test_what_was_set_at_the_trigger_is_read_from_the_records(day):
     assert cells["bot_on"] == {"ok": False, "why": "the bot was off (at Eyes)"}
     assert cells["strategy_on"]["ok"] is False and "at Eyes" in cells["strategy_on"]["why"]   # before 07:20
     assert "hot_list" not in cells                                       # listed at 07:30, after it: no square
-    assert cells["nova_buys"]["ok"] is False and cells["nova_buys"]["why"].startswith("Buy was You (Signal only)")
+    assert cells["nova_buys"]["ok"] is False and cells["nova_buys"]["why"].startswith("Entry was You (Signal only)")
     assert cells["tape_go"] == {"ok": False, "why": "WAIT: burst of red"}
     assert cells["trades_today"]["ok"] is True                          # the cap still had room at 07:16
 
@@ -214,7 +219,7 @@ def test_an_unlisted_ticker_and_not_a_trade(day):
 
 def test_the_impact_of_each_gate(day):
     impact = {i["gate"]: i for i in get()["impact"]}
-    assert list(impact) == GATES
+    assert list(impact) == GATES + SHORT_GATES
     assert impact["trades_today"] == {"gate": "trades_today", "blocked": 3, "target_first": 1, "stop_first": 1,
                                       "r": 1.0}
     assert "hot_list" not in impact
@@ -264,11 +269,11 @@ def test_now_says_whether_nova_would_buy_each_listed_ticker(monkeypatch):
     assert tickers["AISP"]["listed"] is None
     aisp = tickers["AISP"]["now"]
     assert aisp["answer"] == "yes" and aisp["reasons"] == [] and list(aisp["cells"]) == GATES
-    assert aisp["cells"]["nova_buys"] == {"ok": True, "why": "Bot buys (Bot)"}
+    assert aisp["cells"]["nova_buys"] == {"ok": True, "why": "Entry: Bot (Bot)"}
     assert aisp["cells"]["tape_go"]["ok"] is None and aisp["cells"]["level2_line"]["ok"] is True
     lghl = tickers["LGHL"]["now"]
     assert lghl["answer"] == "no"
-    assert lghl["cells"]["nova_buys"] == {"ok": False, "why": "Buy is You on LGHL: set its Buy to Bot (Who trades)"}
+    assert lghl["cells"]["nova_buys"] == {"ok": False, "why": "Entry is You on LGHL: set its Entry to Bot (Who trades)"}
     assert lghl["cells"]["level2_line"]["ok"] is None                    # no line now: not known until the trigger
     from setup_templates.store import get_store
 
@@ -354,7 +359,7 @@ def test_a_stock_taken_off_the_hot_list_before_its_trigger_is_judged_the_same(da
                   "inputs": {"event": "remove", "symbol": "AISP"}}])
     tickers = by_symbol(get())
     first = tickers["AISP"]["triggers"][0]
-    assert oks(first["cells"]) == [True] * 9 and first["reasons"] == []
+    assert oks(first["cells"]) == [True] * 10 and first["reasons"] == []
     lghl = tickers["LGHL"]["triggers"][0]
     assert not any("hot list" in r or "listed" in r for r in lghl["reasons"])
 
@@ -385,8 +390,8 @@ def test_a_bot_buy_stock_off_the_hot_list_gets_a_row_with_now(monkeypatch):
     for sym in ("BOTX", "AUTOX"):
         assert tickers[sym]["listed"] is None and tickers[sym]["triggers"] == []
         assert list(tickers[sym]["now"]["cells"]) == GATES
-    assert tickers["BOTX"]["now"]["cells"]["nova_buys"] == {"ok": True, "why": "Bot buys (Bot)"}
-    assert tickers["AUTOX"]["now"]["cells"]["nova_buys"] == {"ok": True, "why": "Bot buys (Auto-entry)"}
+    assert tickers["BOTX"]["now"]["cells"]["nova_buys"] == {"ok": True, "why": "Entry: Bot (Bot)"}
+    assert tickers["AUTOX"]["now"]["cells"]["nova_buys"] == {"ok": True, "why": "Entry: Bot (Auto-entry)"}
 
 
 def test_now_says_the_bot_buys_nothing_before_todays_reset(monkeypatch):
@@ -431,3 +436,45 @@ def test_now_says_whether_a_level_2_line_would_come(monkeypatch):
     blind = trigger_now._line("AISP")
     assert blind == {"ok": False, "why": "Nova holds no Level 2 line on AISP, every line is taken and lending is off: "
                                          "a trigger now would read BLIND"}
+
+
+# -- both sides (ADR 049, #778 step 5) --------------------------------------------------------------
+def test_a_short_trigger_gets_the_short_block_and_its_ssr_square_is_never_red(day):
+    write_journal([
+        {"ts": at(4, 0, 1), "event": "session", "symbol": None, "bot": BOT_ON},
+        {**triggered("FADE", "FADE-BF", at(10, 30), setup_type="bear_flag", kind="bear_flag"), "side": "short",
+         "ssr": "on"},
+    ])
+    check = [{"id": "borrow", "label": "Borrow", "ok": False, "text": "IBKR lists no FADE shares to borrow."},
+             {"id": "halt", "label": "Halt", "ok": True, "text": "FADE is trading."},
+             {"id": "margin", "label": "Margin", "ok": True, "text": "$400 of $5,000 fits."},
+             {"id": "cushion", "label": "25% cushion", "ok": True, "text": "IBKR would liquidate near 9.10."}]
+    write_audit([{"timestamp": at(10, 30, 1), "venue": "paper", "action": "bot_trade", "outcome": "skipped",
+                  "inputs": {"symbol": "FADE", "setup_id": "FADE-BF", "setup_type": "bear_flag", "side": "short",
+                             "ssr": "on", "codes": ["SHORT_NOT_SHORTABLE"], "short_check": check}}])
+    fade = by_symbol(get())["FADE"]["triggers"][0]
+    cells = fade["cells"]
+    assert fade["side"] == "short" and list(cells) == GATES + SHORT_GATES
+    assert cells["not_against"] == {"ok": True, "why": "you held no FADE long"}
+    assert cells["short_borrow"] == {"ok": False, "why": "Borrow: IBKR lists no FADE shares to borrow."}
+    assert cells["short_ssr"]["ok"] is True and cells["short_ssr"]["warn"] is True
+    assert cells["short_ssr"]["why"].startswith("SSR · at the ask")
+    assert cells["short_halt"]["ok"] is True and cells["short_margin"]["ok"] is True
+    assert cells["short_hours"] == {"ok": True, "why": "10:30 ET, before the 15:50 last short"}
+    assert "Borrow: IBKR lists no FADE shares to borrow." in fade["reasons"]
+
+
+def test_a_trigger_against_a_position_you_hold_says_so(day):
+    write_audit([{"timestamp": at(9, 50, 1), "venue": "paper", "action": "bot_trade", "outcome": "skipped",
+                  "inputs": {"symbol": "AISP", "setup_id": "AISP-BF", "setup_type": "bull_flag",
+                             "codes": ["BOT_SKIP_HELD_OTHER_SIDE"],
+                             "reasons": ["you hold AISP short: Nova enters nothing on AISP while you do"]}}])
+    bull = by_symbol(get())["AISP"]["triggers"][1]
+    assert bull["cells"]["not_against"] == {"ok": False, "why": "you hold AISP short: Nova enters nothing on AISP "
+                                                                "while you do"}
+    assert "short_borrow" not in bull["cells"]                         # a long leaves the short block empty
+
+
+def test_a_trigger_nova_never_judged_says_so_never_a_pass(day):
+    zzzz = by_symbol(get())["ZZZZ"]["triggers"][0]
+    assert zzzz["cells"]["not_against"]["ok"] is None and "did not judge" in zzzz["cells"]["not_against"]["why"]

@@ -88,8 +88,8 @@ export function WhoTradesChip({ ctx }: { ctx: StockReadContextValue }) {
           })}
           <p className="sr-whochip__foot">
             Also above Level 2. Approve and Auto-entry go back to Signal only when Nova restarts; Bot is the
-            bot&apos;s list on this venue and stays. Nova buys nothing by itself until the bot is Active (the Bots
-            page), and never on Live.
+            bot&apos;s list on this venue and stays. Nova trades nothing by itself, long or short, until the bot is Active
+            (the Bots page), and never on Live.
           </p>
         </div>
       )}

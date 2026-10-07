@@ -96,6 +96,16 @@ def _tracker(params: Any, *, entry: float, stop: float, target1: float, risk: fl
                         half_on_entry_bar=half_on_entry_bar, side=params.side)
 
 
+def untestable(params: Any) -> str | None:
+    """Why this harness cannot test the rules, or None. It reads bars, never the tape: a flush exit (ADR 034) acts
+    on flow readings it never has, so a result would pass on exits the template does not use (PR #789 review)."""
+    mode = str(getattr(getattr(params, "flush", None), "mode", "off") or "off")
+    if mode != "off":
+        return (f"the template's flush exit is {mode!r}: this harness reads bars, never the tape, so it cannot test a "
+                "flush exit -- put a template with flush_exit off in play to test it")
+    return None
+
+
 def _close(trade: Trade, tr: ScoreTracker) -> Trade:
     trade.half_px, trade.exit_px, trade.exit_reason = tr.half_px, tr.exit_px, tr.exit_reason
     trade.gross_r = tr.bar_r()

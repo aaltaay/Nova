@@ -55,24 +55,17 @@ import {
   SETUP_STATUS_TIPS,
   SETUP_WINDOW_TIP,
 } from '../constantGroups/setups';
-import {
-  SETUP_SIDE_TAG,
-  SETUP_SIDE_TAG_TIPS,
-  SHORT_SETUP_ON_LATER_CHIP,
-  SHORT_SETUP_ON_LATER_TIP,
-  SHORT_SETUP_TEST_HELD_CHIP,
-} from '../constantGroups/short_setups';
+import { SETUP_SIDE_TAG, SETUP_SIDE_TAG_TIPS, SHORT_SETUP_TEST_HELD_CHIP } from '../constantGroups/short_setups';
 import { funnelSteps, windowWords, type SetupRow, type ShortTest, type SetupSummary } from '../setups';
 import { tipProps } from '../ux/hoverTip';
 import { clampLevel } from './botLevels';
+import { BotLevelSwitch } from './BotLevelSwitch';
 import { BotReadoutLine, BotResearchLine } from './BotReadout';
 import { BotSetupScanner } from './BotSetupScanner';
 import { BotShortTestLine } from './BotShortTestLine';
 import { BotStrategyRules } from './BotStrategyRules';
 import { ruleLines, ruleSummary } from './templateFormat';
 import type { SetupTemplates } from './templateTypes';
-
-const LEVELS = [0, 1, 2] as const;
 
 interface Props {
   id: string;
@@ -152,9 +145,8 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
   const win = unrecorded ? '' : windowWords(summary);
   // ADR 044: On while the Bot is off alerts like Eyes until the Bot is on; only a legacy master below Eyes caps.
   const waiting = own === 2 && !botActive;
-  // A short at On: held at Eyes by its test, or (its test passed) alerting until the bot trades both sides.
+  // A short at On is held at Eyes by its test until it passes (ADR 049); once it passes it trades like a long.
   const held = short && own === 2 && Boolean(locked);
-  const later = short && own === 2 && !held && !waiting;
   const capped = !waiting && !held && own > effective;
   const [words, tip] = !connected
     ? [BOTS_STATUS_NOT_CONNECTED, SETUP_STATUS_TIPS.disconnected]
@@ -162,7 +154,7 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
       ? [BOTS_STATUS_NOT_RECORDED, BOTS_STATUS_NOT_RECORDED_TIP]
       : [BOTS_STATUS_WATCHING(summary?.counts.watching ?? 0), SETUP_STATUS_TIPS.watching];
   const chipTip = [
-    held ? locked : later ? SHORT_SETUP_ON_LATER_TIP : waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
+    held ? locked : waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
     capped ? BOT_SETUP_CAPPED_TIP : '',
     silent ? 'This desk is a replay: nothing proposes live from it.' : '',
   ].filter(Boolean).join('\n');
@@ -174,7 +166,7 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
       {connected && seeding > 0 ? <span {...tipProps(SETUP_STATUS_TIPS.seeding)}>{` · ${BOTS_STATUS_SEEDING(seeding)}`}</span> : null}
       <span className={`bots-lvlchip bots-lvlchip--${effective}`} data-testid="bots-setup-level-chip"
         {...tipProps(chipTip, BOT_LEVEL_LABELS[own])}>
-        {held ? SHORT_SETUP_TEST_HELD_CHIP : later ? SHORT_SETUP_ON_LATER_CHIP
+        {held ? SHORT_SETUP_TEST_HELD_CHIP
           : capped ? botSetupCapped(BOT_LEVEL_LABELS[own], masterName) : waiting ? BOT_SETUP_LEVEL_CHIP_WAITING
             : BOT_SETUP_LEVEL_CHIPS[own]}
       </span>
@@ -225,38 +217,6 @@ function Funnel({ id, summary }: { id: string; summary: SetupSummary | null }) {
   );
 }
 
-/** Its own Off / Eyes / Strategy: every setup with a scanner may be at any of them (ADR 042); a short's On waits on
- * its five-year test (ADR 049), and says so. */
-function LevelSwitch({ id, label, own, why, onLock, onLevel }: {
-  id: string; label: string; own: 0 | 1 | 2; why: string | null; onLock: string | null;
-  onLevel: (id: string, level: number) => void;
-}) {
-  return (
-    <span className="bots-levels" role="radiogroup" aria-label={`${label} level`}>
-      {LEVELS.map(n => {
-        // On stays reachable from On itself (to go down), never into it while its test locks it.
-        const lock = why ?? (n === 2 && onLock && own !== 2 ? onLock : null);
-        return (
-          <button
-            key={n}
-            type="button"
-            role="radio"
-            aria-checked={own === n}
-            className={`bots-levels__opt${own === n ? ' is-on' : ''}${n === 2 && onLock ? ' is-locked' : ''}`}
-            data-testid={`bots-setup-level-${id}-${n}`}
-            disabled={lock != null}
-            data-why={lock ?? undefined}
-            {...(lock ? {} : tipProps(BOT_SETUP_LEVEL_TIPS[n], `${BOT_LEVEL_LABELS[n]} · ${label}`))}
-            onClick={() => { if (own !== n) onLevel(id, n); }}
-          >
-            {n === 2 && onLock ? '🔒 ' : ''}{BOT_LEVEL_LABELS[n]}
-          </button>
-        );
-      })}
-    </span>
-  );
-}
-
 export function BotSetupCard(props: Props) {
   const {
     id, playable, stale = false, own, effective, masterName, botActive, onLevel, templates, templatesError = null,
@@ -292,11 +252,9 @@ export function BotSetupCard(props: Props) {
       data-testid={`bots-setup-${id}`}>
       <div className="bots-strat__head">
         <b className="bots-strat__name" {...tipProps(stale ? `${blurb}\n\n${BOT_STALE_BACKEND_STATUS}.` : blurb, label)}>{label}</b>
-        {short ? (
-          <span className="bots-sidetag bots-sidetag--short" data-testid={`bots-setup-side-${id}`}
-            {...tipProps(SETUP_SIDE_TAG_TIPS.short, SETUP_SIDE_TAG.short)}>{SETUP_SIDE_TAG.short}</span>
-        ) : null}
-        <LevelSwitch id={id} label={label} own={ownLevel} why={levelWhy(props)} onLock={short ? locked : null}
+        <span className={`bots-sidetag bots-sidetag--${side}`} data-testid={`bots-setup-side-${id}`}
+          {...tipProps(SETUP_SIDE_TAG_TIPS[side], SETUP_SIDE_TAG[side])}>{SETUP_SIDE_TAG[side]}</span>
+        <BotLevelSwitch id={id} label={label} own={ownLevel} why={levelWhy(props)} onLock={short ? locked : null}
           onLevel={onLevel} />
       </div>
 

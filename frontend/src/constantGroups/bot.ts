@@ -17,6 +17,11 @@ export const BOT_ACTION_KINDS = [
   'exit_pos_pct',
   'sell_pos_pct_ask',
   'sell_pos_pct_bid_offset',
+  // ADR 049 (#778 step 5): a short goes in with its buy stop; a cover never buys past flat. Live refuses them.
+  'short_limit_bid_offset',
+  'cover_limit_ask_offset',
+  'cover_market',
+  'cover_pos',
 ] as const;
 
 export type BotActionKind = (typeof BOT_ACTION_KINDS)[number];
@@ -190,7 +195,7 @@ export const BOT_STRATEGY_LEVEL_LABELS = {
 export const BOT_SETUP_LEVEL_TIPS = {
   0: 'Off: silent. Its scanner still watches and scores every armed setup, so its read-out keeps collecting, but it never alerts you and draws nothing on your charts.',
   1: 'Eyes: it draws its setups on your charts and alerts you when one comes near its trigger and the tape reads GO: a ping and a card in the inbox. You press Place. The default.',
-  2: 'On: everything Eyes does, and while the Bot is on the bot may act on its GO triggers on the stocks whose Buy is Bot, inside its bot window, its grades and its setups a day. Live trading by a bot is not built.',
+  2: 'On: everything Eyes does, and while the Bot is on the bot may trade its GO triggers -- a long strategy buys, a short strategy shorts -- on the stocks whose Entry is Bot, inside its bot window, its grades and its setups a day. Live trading by a bot is not built.',
 } as const;
 export const BOT_SETUP_LEVEL_CHIPS = {
   0: 'Off · silent',
