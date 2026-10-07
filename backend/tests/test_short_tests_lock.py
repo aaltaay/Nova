@@ -91,6 +91,14 @@ def test_a_number_that_is_not_finite_never_reaches_the_wire():
     assert got["summary"]["pf"] is None and got["text"] == "five-year test failed (1 trade, +1.70R a trade)"
 
 
+def test_a_result_file_is_named_only_by_a_known_short_setup():
+    assert short_tests.path_of(SETUP).name == f"{SETUP}.json"
+    for name in ("../../etc/passwd", "first_pullback", "", f"{SETUP}/../x"):
+        with pytest.raises(ValueError):
+            short_tests.path_of(name)
+    assert short_tests.test("../x", "h") is None and short_tests.lock("../x", "h") is None
+
+
 # -- the On lock ------------------------------------------------------------------------------------
 def test_on_is_refused_until_the_test_passed_on_the_rules_in_play():
     with pytest.raises(BotError) as refused:

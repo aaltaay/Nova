@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from constants_bot import SIDE_SHORT, setup_side
+from constants_bot import BOT_SHORT_SETUPS, SIDE_SHORT, setup_side
 from constants_short_setups import (
     SHORT_TEST_COMMAND,
     SHORT_TEST_ERROR,
@@ -54,7 +54,12 @@ def folder() -> Path:
 
 
 def path_of(setup: str) -> Path:
-    return folder() / f"{setup}.json"
+    """The result file of one of the five short setups. Its name is the constant from ``BOT_SHORT_SETUPS``,
+    never the caller's string, so no input reaches the path; anything else raises ``ValueError``."""
+    known = next((name for name in BOT_SHORT_SETUPS if name == setup), None)
+    if known is None:
+        raise ValueError(f"not a short setup: {setup!r}")
+    return folder() / f"{known}.json"
 
 
 def _load(setup: str, now: float) -> dict[str, Any] | str | None:
