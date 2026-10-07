@@ -1,9 +1,9 @@
 /**
  * The kill switch on the Bots page hero (D-037, ADR 025, ADR 042 D): it cancels every
- * working order on every venue and refuses every new order on every venue (a sell included; Flatten
- * and cancels still work) until you reset it;
+ * working order on every venue but the stops protecting a position (ADR 048), and refuses every
+ * new order on every venue (a sell included; Flatten and cancels still work) until you reset it;
  * it does not sell positions. After a trip the page says what the sweep did on each
- * venue -- cancelled, still working, or not read at all (a Gateway that is down is a
+ * venue -- cancelled, still working, kept resting, or not read at all (a Gateway that is down is a
  * stated failure, never "nothing to cancel").
  */
 import { KILL_SWITCH_HINT, KILL_SWITCH_TITLE } from '../constantGroups/bot';
@@ -18,6 +18,7 @@ import {
   BOTS_VENUE_NAMES,
   botsKillSweepCancelled,
   botsKillSweepFailed,
+  botsKillSweepKept,
 } from '../constantGroups/bots_page';
 import { tipProps } from '../ux/hoverTip';
 import { prose } from './botsPageFormat';
@@ -32,6 +33,7 @@ export function sweepWords(s: KillSweep): string {
   const parts: string[] = [];
   if (s.cancelled.length) parts.push(botsKillSweepCancelled(s.cancelled.length, ids(s.cancelled)));
   if (s.failed.length) parts.push(botsKillSweepFailed(s.failed.length, ids(s.failed)));
+  if (s.kept.length) parts.push(botsKillSweepKept(s.kept.length, ids(s.kept)));
   if (s.error) parts.push(prose(s.error));
   if (!parts.length) parts.push(BOTS_KILL_SWEEP_NOTHING);
   return `${venue}: ${parts.join(' · ')}`;

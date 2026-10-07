@@ -94,3 +94,19 @@ def test_an_unreadable_ledger_leaves_the_rows_unjoined_not_failed(monkeypatch) -
     monkeypatch.setattr("execution.closed_blotter.current_desk", lambda: LIVE)
     res = TestClient(app).get("/api/ibkr/orders")
     assert res.status_code == 200 and "order_source" not in res.json()[0]
+
+
+def test_a_live_short_entry_row_says_so_and_its_cover_legs_do_not() -> None:
+    """ADR 048 gap 7: Fill now reads ``short_entry`` from the row, so only the SELL that opened the short
+    carries it; the short bracket's BUY exits cover and never read as a short entry."""
+    bracket = _led(operation="bracket", order_id=90, perm_id=9090, parent_order_id=90, target_order_id=91,
+                   stop_order_id=92, payload={"side": "SELL", "qty": 416, "origin": None, "short_entry": True})
+    plain = _led(id="e2", order_id=95, perm_id=9595, payload={"side": "SELL", "qty": 10, "short_entry": False})
+    rows = attach_sent_by([
+        _ib(order_id=90, perm_id=9090, side="SELL"),
+        _ib(order_id=91, perm_id=9191, side="BUY"),
+        _ib(order_id=92, perm_id=9292, side="BUY", order_type="STP"),
+        _ib(order_id=95, perm_id=9595, side="SELL"),
+        _ib(order_id=99, perm_id=9999, side="SELL"),
+    ], [bracket, plain])
+    assert [row.get("short_entry") for row in rows] == [True, False, False, False, None]

@@ -17,9 +17,21 @@ logger = logging.getLogger(__name__)
 _LEG_ID_KEYS = ("order_id", "parent_order_id", "target_order_id", "stop_order_id")
 
 
-def ledger_sent_by(led: dict[str, Any]) -> dict[str, Any]:
-    """The sender fields of one execution row: the ADR 007 source and the part of Nova (origin)."""
-    return {"order_source": led.get("source"), "order_origin": (led.get("payload") or {}).get("origin")}
+def ledger_sent_by(led: dict[str, Any], side: str | None = None) -> dict[str, Any]:
+    """The sender fields of one execution row: the ADR 007 source, the part of Nova (origin), and
+    whether the order row is a short entry Nova sent (ADR 048: Fill now never re-sends one as a
+    plain SELL).
+
+    ``side`` is the order row's own: a bracket's exits share their entry's execution row, and the
+    exits of a short bracket are BUYs that cover -- so only a SELL row is the short entry itself.
+    """
+    payload = led.get("payload") or {}
+    row_side = str(side or payload.get("side") or "").strip().upper()
+    return {
+        "order_source": led.get("source"),
+        "order_origin": payload.get("origin"),
+        "short_entry": bool(payload.get("short_entry")) and row_side == "SELL",
+    }
 
 
 def _as_int(value: object) -> int:
@@ -78,6 +90,6 @@ def attach_sent_by(rows: list[dict[str, Any]], ledger_rows: list[dict[str, Any]]
         if "order_source" not in copy:
             led = lookup(index, copy)
             if led is not None:
-                copy.update(ledger_sent_by(led))
+                copy.update(ledger_sent_by(led, copy.get("side")))
         out.append(copy)
     return out

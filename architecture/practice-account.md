@@ -85,7 +85,12 @@ flat position beyond that arithmetic. The rule holds at the fill too
 (`order_rules.fill_refusal`, QA R42): a resting SELL that would fill past what
 is held when its print arrives -- another close filled first -- is cancelled
 `PRACTICE_NO_SHORTS`, never filled, so two closes of the same shares can never
-leave the account short.
+leave the account short. Its mirror (ADR 048 gap 8): every row records what it
+does to the position when it is placed (`short_entry`, `position_side`,
+`effect`), and a cover -- a BUY placed against a short -- that would buy past
+flat when its print arrives is cancelled `PRACTICE_OVERCOVER`, so a short is
+never turned into a long. Opening a short on Paper and Sim comes with ADR 048's
+step 2; until then this rule guards the ledger alone.
 
 **Brackets (#606).** A bracket's entry is charged like any `LMT` BUY: buying
 power at the entry limit when it is placed, and again at the entry's fill. Its

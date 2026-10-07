@@ -97,7 +97,7 @@ def test_the_door_reads_its_own_venues_lock_and_says_whose(monkeypatch):
 
         monkeypatch.setattr(exec_svc, "send_broker", record)
         monkeypatch.setattr("execution.validate.validate_command", lambda cmd, venue=None: (True, "OK", None))
-        monkeypatch.setattr("execution.validate.check_account_and_position", lambda cmd: (True, "OK", None))
+        monkeypatch.setattr("execution.validate.check_account_and_position", lambda cmd, **_kw: (True, "OK", None))
         live = asyncio.run(exec_svc.execute(_buy("manual", "live-buy"), wait_ack=False))
         assert live.ok is True and sent == ["live"]                       # Live has no lock of its own
 

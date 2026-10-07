@@ -16,6 +16,22 @@ const FTFT: IbkrOrder = {
 };
 
 describe('planFillWorkingOrder', () => {
+  it('never re-sends a short entry as a plain SELL, and never cancels it for one (ADR 048 gap 7)', () => {
+    const short: IbkrOrder = { ...FTFT, order_type: 'LMT', limit_price: 5.77, short_entry: true };
+    for (const sessionKind of ['rth', 'premarket'] as const) {
+      const plan = planFillWorkingOrder(short, { sessionKind, book: { symbol: 'FTFT', bid: 5.76, ask: 5.78 } });
+      expect(plan.ok).toBe(false);
+      if (!plan.ok) {
+        expect(plan.error).toMatch(/does not short/);
+        expect(plan.error).toMatch(/was not cancelled/);
+      }
+    }
+    // A cover (a BUY) of a short and a plain SELL still fill now.
+    expect(planFillWorkingOrder({ ...short, side: 'BUY' }, { sessionKind: 'rth' }).ok).toBe(true);
+    expect(planFillWorkingOrder({ ...short, short_entry: false }, { sessionKind: 'rth' }).ok).toBe(true);
+    expect(planFillWorkingOrder({ ...short, short_entry: null }, { sessionKind: 'rth' }).ok).toBe(true);
+  });
+
   it('markets remaining qty during regular hours', () => {
     const plan = planFillWorkingOrder(FTFT, { sessionKind: 'rth' });
     expect(plan).toMatchObject({

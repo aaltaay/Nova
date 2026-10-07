@@ -92,6 +92,19 @@ describe('fillWorkingOrderImmediately', () => {
     );
   });
 
+  it('never cancels a resting short entry or re-sends it as a plain SELL (ADR 048 gap 7)', async () => {
+    const spy = vi.spyOn(placeOrder, 'placeIbkrOrder');
+    const res = await fillWorkingOrderImmediately(
+      { ...FTFT, order_type: 'LMT', limit_price: 6.7, short_entry: true },
+      undefined,
+      { sessionKind: 'rth', book: { symbol: 'FTFT', bid: 6.67, ask: 6.8 } },
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/does not short/);
+    expect(novaFetch).not.toHaveBeenCalled();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it('does not cancel a premarket MKT when there is no live bid', async () => {
     const spy = vi.spyOn(placeOrder, 'placeIbkrOrder');
     const res = await fillWorkingOrderImmediately(FTFT, undefined, {

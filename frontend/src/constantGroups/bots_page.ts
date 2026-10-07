@@ -22,7 +22,7 @@ export const BOTS_VENUE_UNKNOWN = 'Venue unknown — the desk status has not ans
 export const BOTS_VENUE_NAMES: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
 
 export const BOTS_KILL_TRIP_NOTE =
-  'Cancels every working order on every venue and refuses every new order, from you or from Nova, a sell included, until you unfreeze. It sells nothing; the red KILL at the top is the one that sells.';
+  'Cancels every working order on every venue but the stops that protect a position, and refuses every new order, from you or from Nova, a sell included, until you unfreeze. It sells nothing; the red KILL at the top is the one that sells.';
 export const BOTS_KILL_RESET_LABEL = 'Unfreeze orders';
 export const BOTS_KILL_TRIPPED_NOTE = 'Orders are frozen: every new order is refused on every venue until you unfreeze (Flatten and cancels still work)';
 export const BOTS_KILL_SWEEP_HEAD = 'Freezing cancelled';
@@ -30,6 +30,9 @@ export const botsKillSweepCancelled = (n: number, ids: string): string =>
   `cancelled ${n} order${n === 1 ? '' : 's'}${ids ? ` (${ids})` : ''}`;
 export const botsKillSweepFailed = (n: number, ids: string): string =>
   `could not cancel ${n}${ids ? ` (${ids})` : ''} — still working`;
+/** ADR 048: the stops that protect a held position stay resting through a freeze. */
+export const botsKillSweepKept = (n: number, ids: string): string =>
+  `kept ${n} protective stop${n === 1 ? '' : 's'} resting${ids ? ` (${ids})` : ''}`;
 export const BOTS_KILL_SWEEP_NOTHING = 'nothing was working';
 
 /** Gate chip actions: the link text after the dash. */

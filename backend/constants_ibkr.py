@@ -58,8 +58,13 @@ IBKR_QTY_CAP_ENV = "IBKR_QTY_CAP"  # .env override of the Live default above (wh
 # Tick-236 shortability freshness for order gates (seconds).
 IBKR_SHORTABILITY_TTL_SEC = 60.0
 # The Trader's ticker socket re-reads shortability this often while it reads "unknown" (ADR 036);
-# a known state is re-read every IBKR_SHORTABILITY_TTL_SEC.
+# a known state is re-read every IBKR_SHORTABILITY_REFRESH_SEC.
 IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC = 30.0
+# ... and a known one after this long, under the TTL: the execution door reads borrow from the cache
+# only (ADR 048), so an open Trader tab keeps its stock's read fresh between the socket's 30 s wakes.
+IBKR_SHORTABILITY_REFRESH_SEC = 20.0
+# Background borrow reads the door asks for when the cache is stale (ibkr.shortability.request_refresh).
+IBKR_SHORTABILITY_REFRESH_WORKERS = 2
 # Shares thresholds for shortability states (IBKR tick 236 estimate).
 IBKR_SHORTABLE_EST_MIN_SHARES = 10_000.0
 IBKR_PAPER_PORT = 4002       # IB Gateway paper trading port

@@ -84,11 +84,18 @@ def moved(send_venue: str) -> str | None:
 def commit_position(cmd: ExecutionCommand, execution_id: str, symbol: str | None, venue: str | None = None) -> None:
     """Hold the position this send will consume until the order resolves.
 
-    Short-opening SELLs are skipped — they add exposure instead of spending a
-    long, and holding one would refuse a legitimate exit in the same symbol.
+    A short entry -- a place or a bracket -- is held as ``inflight.SHORT`` (ADR 048 gap 5): it
+    spends no long, so it never shrinks what a closing SELL may sell, and the next short's borrow
+    and margin checks count it. A long bracket holds nothing, as before (its exits close what its
+    entry buys).
     """
-    if cmd.operation != "place" or not symbol:
+    if not symbol:
         return
-    if (cmd.side or "").upper() == "SELL" and getattr(cmd, "short_entry", False):
+    if getattr(cmd, "short_entry", False) and cmd.operation in ("place", "bracket"):
+        qty = cmd.qty if cmd.qty is not None else cmd.shares
+        price = cmd.limit_price if cmd.limit_price is not None else cmd.entry_price
+        inflight.commit(execution_id, symbol=symbol, side=inflight.SHORT, qty=qty, venue=venue, price=price)
+        return
+    if cmd.operation != "place":
         return
     inflight.commit(execution_id, symbol=symbol, side=cmd.side, qty=cmd.qty, venue=venue)

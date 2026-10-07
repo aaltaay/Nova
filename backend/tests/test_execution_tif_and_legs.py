@@ -264,12 +264,17 @@ class TestProtectiveLegDefaults:
         _arm_paper(monkeypatch)
         brackets = _spy_bracket(monkeypatch)
         monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
+        # ADR 048: the short check reads a margin account and its borrow from the cache.
         monkeypatch.setattr(
-            "ibkr.shortability.fetch_shortability", lambda symbol: {"ok": True},
+            account_mod,
+            "get_account_summary",
+            lambda: {"connected": True, "BuyingPower": 100_000.0, "pending": False,
+                     "NetLiquidation": 100_000.0, "ExcessLiquidity": 100_000.0, "account_class": "margin"},
         )
         monkeypatch.setattr(
-            "ibkr.shortability.assert_shortable_for_order",
-            lambda snap: (True, "OK", None),
+            "ibkr.shortability.for_order",
+            lambda symbol: {"state": "shortable_est", "stale": False, "orderable": True,
+                            "shortable_shares": 50_000},
         )
         good = asyncio.run(
             exec_svc.execute(

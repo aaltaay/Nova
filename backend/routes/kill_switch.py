@@ -2,9 +2,11 @@
 
 Endpoints:
   GET  /api/kill-switch        -- {tripped, reason, ts}
-  POST /api/kill-switch        -- trip: latch, then cancel every working order on every venue;
-                                  adds {persisted, sweep: [{venue, cancelled, failed, error, note}],
-                                  cancelled_order_ids, failed_cancel_order_ids, receipt_error}
+  POST /api/kill-switch        -- trip: latch, then cancel every working order on every venue but
+                                  the stops protecting a position (ADR 048); adds {persisted,
+                                  sweep: [{venue, cancelled, failed, kept, error, note}],
+                                  cancelled_order_ids, failed_cancel_order_ids, kept_order_ids,
+                                  receipt_error}
   POST /api/kill-switch/reset  -- clear the latch; adds {persisted}
 
 The trip is async: its cancels go through ``execution.service.execute`` on this loop, the one

@@ -8,7 +8,7 @@
  * same unfillable MKT and treat broker-accept as success (#168).
  */
 import type { MarketSessionKind } from '../chart/sessionHighlight';
-import { FILL_WORKING_ORDER_CONFIRM_PREFIX } from '../constants';
+import { FILL_NOW_SHORT_ENTRY_REFUSAL, FILL_WORKING_ORDER_CONFIRM_PREFIX } from '../constants';
 import { formatMoney } from '../utils/formatMoney';
 import { resolveFillSessionKind } from './extendedSession';
 import { remainingSharesWhole } from './orderQtyMath';
@@ -120,6 +120,11 @@ export function planFillWorkingOrder(
   const qty = remainingSharesWhole(order);
   if (qty <= 0) {
     return { ok: false, error: 'Nothing left to fill on this order' };
+  }
+  // ADR 048: a short goes out with its buy stop, and Fill now would re-send it as a plain order --
+  // a short entry is never turned into a plain SELL, and the resting order is never cancelled for it.
+  if (order.short_entry === true && order.side === 'SELL') {
+    return { ok: false, error: FILL_NOW_SHORT_ENTRY_REFUSAL };
   }
   const side = order.side === 'SELL' ? 'SELL' : 'BUY';
   const symbol = order.symbol.trim().toUpperCase();

@@ -9,8 +9,9 @@ re-arm the desk; only ``reset()`` clears it. It sells nothing: positions stay.
 Tripping sets and persists the latch FIRST, so no place can race in between
 the cancels, then cancels every working order on every venue that has any --
 Live while IBKR is connected, Paper always, Sim when a scratch ledger is loaded
-(``kill_switch/sweep.py``, spec D, #656). The answer and the receipt say, per
-venue, what was cancelled, what failed and why.
+(``kill_switch/sweep.py``, spec D, #656) -- except the stops that protect a held
+position, which stay resting (ADR 048). The answer and the receipt say, per
+venue, what was cancelled, what failed and why, and which stops were kept.
 """
 from __future__ import annotations
 
@@ -91,14 +92,16 @@ async def trip(reason: str = "kill_switch") -> dict:
     sweep = await _sweep.sweep_every_venue()
     cancelled = [oid for venue in sweep for oid in venue["cancelled"]]
     failed = [oid for venue in sweep for oid in venue["failed"]]
+    kept = [row["order_id"] for venue in sweep for row in venue.get("kept") or []]
     receipt_error = _record(sweep, cancelled, failed, persisted)
     logger.warning(
         "KILL SWITCH -- every new order refused until reset; sweep %s",
-        "; ".join(f"{v['venue']}: cancelled={v['cancelled']} failed={v['failed']}"
+        "; ".join(f"{v['venue']}: cancelled={v['cancelled']} failed={v['failed']} "
+                  f"kept={[k['order_id'] for k in v.get('kept') or []]}"
                   + (f" ({v['error']})" if v["error"] else "") for v in sweep),
     )
     return {**status(), "persisted": persisted, "sweep": sweep, "cancelled_order_ids": cancelled,
-            "failed_cancel_order_ids": failed, "receipt_error": receipt_error}
+            "failed_cancel_order_ids": failed, "kept_order_ids": kept, "receipt_error": receipt_error}
 
 
 def reset() -> dict:

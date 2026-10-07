@@ -289,9 +289,14 @@ def _short_sell_cmd(qty: float = 10.0) -> ExecutionCommand:
         symbol="AAPL",
         side="SELL",
         qty=qty,
-        order_type="MKT",
+        order_type="LMT",          # ADR 048: a short entry is a limit order
+        limit_price=20.0,
         short_entry=True,
     )
+
+
+_MARGIN_SUMMARY = {"connected": True, "BuyingPower": 100_000.0, "NetLiquidation": 25_000.0,
+                   "ExcessLiquidity": 25_000.0, "account_class": "margin"}
 
 
 def test_short_entry_disabled_without_env(monkeypatch):
@@ -322,27 +327,23 @@ def test_short_entry_allowed_when_enabled_and_shortable(monkeypatch):
 
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
-    monkeypatch.setattr(
-        account_mod,
-        "get_account_summary",
-        lambda: {"connected": True, "BuyingPower": 100_000.0},
+    monkeypatch.setattr(account_mod, "get_account_summary", lambda: dict(_MARGIN_SUMMARY))
+    monkeypatch.setattr(account_mod, "get_positions", lambda: [])
+    borrow = short_mod.enrich_ibkr_listing(
+        {
+            "connected": True,
+            "qualified": True,
+            "shortable_shares": 50_000,
+            "error": None,
+        },
+        fetched_at=time.time(),
     )
-    monkeypatch.setattr(
-        short_mod,
-        "fetch_shortability",
-        lambda _s: short_mod.enrich_ibkr_listing(
-            {
-                "connected": True,
-                "qualified": True,
-                "shortable_shares": 50_000,
-                "error": None,
-            },
-            fetched_at=time.time(),
-        ),
-    )
-    ok, _detail, reason = validate.check_account_and_position(_short_sell_cmd())
+    ok, _detail, reason = validate.check_account_and_position(_short_sell_cmd(), borrow=borrow)
     assert ok is True
     assert reason is None
+    # ADR 048 gap 4: the door hands the cached read in; with none, the short is refused, never asked for.
+    ok, _detail, reason = validate.check_account_and_position(_short_sell_cmd(), borrow=None)
+    assert (ok, reason) == (False, "SHORT_STALE_BORROW")
 
 
 def test_no_flag_still_anti_short(monkeypatch):

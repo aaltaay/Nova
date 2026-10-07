@@ -510,6 +510,9 @@ export const WORKING_ORDER_READ_FAILED_WHY =
 export const FILL_WORKING_ORDER_NOTHING_LEFT_WHY = 'Nothing left to fill -- no shares remain on this order.';
 /** Working-order remainder fill (RTH market / EH limit sweep). */
 export const FILL_WORKING_ORDER_BUTTON_LABEL = 'Fill now';
+/** ADR 048: Fill now never re-sends a short entry as a plain order (it would lose its buy stop). */
+export const FILL_NOW_SHORT_ENTRY_REFUSAL =
+  'Fill now does not short: a short goes out with its buy stop, and Fill now would send it without one. The resting short was not cancelled -- reprice it, or cancel it and short again from the ticket.';
 export const FILL_WORKING_ORDER_BUTTON_TITLE =
   'Cancel this working order and fill the remaining shares (same side). Regular hours: market. Pre/after-market: IBKR does not fill market orders -- Fill now sweeps a limit at the live bid (sell) or ask (buy) when that symbol is open in Trader. Otherwise it stops and says so. Not Flatten.';
 export const FILL_WORKING_ORDER_CONFIRM_PREFIX =

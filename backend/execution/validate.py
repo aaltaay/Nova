@@ -7,7 +7,9 @@ from typing import get_args
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
 from execution import flatten_intent as _flatten_intent
-from execution import inflight as _inflight
+from execution import inflight as _inflight  # noqa: F401 -- tests patch committed_qty through it
+from execution import position_checks as _positions
+from execution.position_checks import covers_short, position_qty as _position_qty  # noqa: F401 -- public names
 from execution import session_gate as _session_gate
 from execution.models import ExecutionCommand, Source
 from execution.venue_door import is_practice as _practice
@@ -208,8 +210,14 @@ def _bracket_refusal(cmd: ExecutionCommand) -> tuple[str, str] | None:
     return None
 
 
-def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
-    """Cached account/position checks. Fail closed when data is incomplete for spends."""
+def check_account_and_position(
+    cmd: ExecutionCommand, *, borrow: dict | None = None, venue: str | None = None,
+) -> tuple[bool, str, str | None]:
+    """Cached account/position checks. Fail closed when data is incomplete for spends.
+
+    ``borrow`` is the short entry's tick-236 read, taken from the cache before the execution lock
+    (ADR 048 gap 4); ``venue`` the one the door sends on.
+    """
     if cmd.operation in ("cancel",):
         return True, "OK", None
 
@@ -233,8 +241,20 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
         summary_error = exc
 
     if cmd.operation in ("place", "bracket") and cmd.source not in ("flatten", "kill"):
-        if cmd.operation == "bracket" and getattr(cmd, "short_entry", False):
-            return _check_short_entry_sell(cmd)
+        if getattr(cmd, "short_entry", False):
+            # The one short check (ADR 048): the Live key, a limit, no flip, the account, the
+            # borrow from the cache, margin and the 25% cushion.
+            from short_sale import door as _short_door
+
+            refused = _short_door.refusal(cmd, borrow=borrow, venue=venue)
+            return (False, refused[0], refused[1]) if refused else (True, "OK", None)
+
+        # A BUY while the account is short covers it -- a close, like selling what you hold: it is
+        # held to the short (OVERCOVER), never to buying power (ADR 048 gap 3).
+        # A position Nova cannot read is no cover: the BUY then meets buying power and the position
+        # check below, as before.
+        if covers_short(cmd):
+            return _positions.cover_refusal(cmd)
 
         # A long bracket is a BUY entry: it gets the same BuyingPower gate a
         # Limit BUY place gets (#91 -- the manual ticket's default legs must
@@ -265,118 +285,17 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
                 return False, f"estimated notional {est:.2f} exceeds BuyingPower {bp}", "BUYING_POWER"
 
             if long_bracket:
-                return _check_long_bracket_not_short(cmd)
-            return _check_cover_qty(cmd)
+                return _positions.long_bracket_refusal(cmd)
+            return _positions.cover_refusal(cmd)
 
         if cmd.operation == "place" and (cmd.side or "").upper() == "SELL":
             # Position-reducing sells (flatten/close) are allowed; opening a short
-            # requires explicit short_entry + IBKR_SHORT_ENABLED + fresh shortable_est
-            # (Phase K / ADR 009). source=flatten skips anti-short — reconcile uses
+            # requires explicit short_entry, which the short check above answers
+            # (ADR 009, ADR 048). source=flatten skips anti-short — reconcile uses
             # long_qty / short cover separately.
             if cmd.source not in ("flatten",):
-                if getattr(cmd, "short_entry", False):
-                    return _check_short_entry_sell(cmd)
-                try:
-                    pos_qty = _position_qty(cmd.normalized_symbol() or "")
-                except IbkrAccountError as exc:
-                    logger.exception(
-                        "validate: long_qty failed — refusing SELL for %s: %s",
-                        cmd.normalized_symbol(),
-                        exc,
-                    )
-                    return (
-                        False,
-                        f"SELL refused — position unavailable: {exc}",
-                        "POSITION_UNAVAILABLE",
-                    )
-                sell_qty = float(cmd.qty or 0)
-                if pos_qty <= 0:
-                    return False, "SELL refused — no long position to reduce", "NO_POSITION"
-                # Shares already sent and not yet resolved are spent, even
-                # though the broker position will not move until they fill.
-                working = _inflight.committed_qty(
-                    cmd.normalized_symbol() or "", "SELL",
-                )
-                available = pos_qty - working
-                if sell_qty > available + 1e-6:
-                    if working > 0:
-                        # Never a negative count (QA R35): more shares already
-                        # sent than held leaves none available, not "-5.0".
-                        return (
-                            False,
-                            f"SELL qty {sell_qty} exceeds {max(0.0, available)} available "
-                            f"(long {pos_qty}, {working} already sent)",
-                            "OVERSELL",
-                        )
-                    return False, f"SELL qty {sell_qty} exceeds position {pos_qty}", "OVERSELL"
+                return _positions.sell_refusal(cmd)
 
-    return True, "OK", None
-
-
-def _check_cover_qty(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
-    """BUY mirror of OVERSELL — never buy past the short being covered.
-
-    Only fires while the account is short that symbol: an opening BUY from
-    flat or long is a normal entry and stays on the BuyingPower gate alone.
-    """
-    symbol = cmd.normalized_symbol() or ""
-    try:
-        short_open = _account.short_qty(symbol)
-    except IbkrAccountError as exc:
-        logger.exception(
-            "validate: short_qty failed — refusing BUY for %s: %s", symbol, exc,
-        )
-        return False, f"BUY refused — position unavailable: {exc}", "POSITION_UNAVAILABLE"
-    if short_open <= 0:
-        return True, "OK", None
-
-    working = _inflight.committed_qty(symbol, "BUY")
-    available = short_open - working
-    buy_qty = float(cmd.qty or 0)
-    if buy_qty > available + 1e-6:
-        detail = f"BUY qty {buy_qty} exceeds short position {short_open}"
-        if working > 0:
-            detail = (
-                f"BUY qty {buy_qty} exceeds {available} available "
-                f"(short {short_open}, {working} already sent)"
-            )
-        return False, detail, "OVERCOVER"
-    return True, "OK", None
-
-
-def _check_long_bracket_not_short(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
-    """Refuse a long bracket while short: its SELL legs would re-open the short."""
-    symbol = cmd.normalized_symbol() or ""
-    try:
-        short_open = _account.short_qty(symbol)
-    except IbkrAccountError as exc:
-        logger.exception(
-            "validate: short_qty failed — refusing bracket for %s: %s", symbol, exc,
-        )
-        return False, f"bracket refused — position unavailable: {exc}", "POSITION_UNAVAILABLE"
-    if short_open > 0:
-        return (
-            False,
-            f"bracket refused — account is short {short_open} {symbol}; cover "
-            "without legs first (the bracket's exit legs would re-open the short)",
-            "BRACKET_WHILE_SHORT",
-        )
-    return True, "OK", None
-
-
-def _check_short_entry_sell(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
-    """Short-opening SELL / short bracket path (explicit opt-in only)."""
-    from ibkr import safety as _safety
-    from ibkr import shortability as _shortability
-
-    if not _safety.short_enabled():
-        return False, "IBKR_SHORT_ENABLED is false — short entry locked", "SHORT_DISABLED"
-    if cmd.operation == "place" and (cmd.side or "").upper() != "SELL":
-        return False, "short_entry requires side=SELL", "SIDE_INVALID"
-    snap = _shortability.fetch_shortability(cmd.normalized_symbol() or "")
-    ok, detail, code = _shortability.assert_shortable_for_order(snap)
-    if not ok:
-        return False, detail, code
     return True, "OK", None
 
 
@@ -388,12 +307,3 @@ def _estimate_notional(cmd: ExecutionCommand) -> float | None:
     if px is None or px <= 0:
         return None  # market — cannot estimate; skip BP numeric compare
     return qty * float(px)
-
-
-def _position_qty(symbol: str) -> float:
-    """Verified long qty for ``symbol`` via ``account.long_qty`` (positions SSOT).
-
-    Returns ``0.0`` when flat. Raises ``IbkrAccountError`` when the broker
-    position cache cannot be read (caller maps that to ``POSITION_UNAVAILABLE``).
-    """
-    return _account.long_qty(symbol)
