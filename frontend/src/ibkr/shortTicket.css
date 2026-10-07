@@ -177,3 +177,33 @@
 .nova-qt__btn--short {
   color: var(--short-ink, #fb923c);
 }
+
+/* ---------- Level 2's short chips (stock_read/ShortChips): SSR, the cool-off, LIQ */
+.sv-short-chip {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 3px;
+  color: var(--nova-text-muted, var(--text-secondary));
+  font-size: 0.65rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.sv-short-chip--ssr.is-on,
+.sv-short-chip--ssr.is-unknown {
+  border-color: color-mix(in srgb, #f59e0b 45%, transparent);
+  color: #f59e0b;
+}
+
+.sv-short-chip--cooloff {
+  border-color: color-mix(in srgb, var(--ask-color, #e35d6a) 45%, transparent);
+  color: var(--ask-color, #e35d6a);
+}
+
+.sv-short-chip--liq.is-short {
+  border-color: color-mix(in srgb, var(--short, #ea580c) 45%, transparent);
+  color: var(--short-ink, #fb923c);
+}

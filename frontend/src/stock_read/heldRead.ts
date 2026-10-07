@@ -10,7 +10,7 @@ import { list, normalizeCheck, num, obj, str } from './normalize';
 import type { PlanLevelNote } from './levelTypes';
 import type { PlanCheck } from './types';
 
-export type HeldRole = 'then' | 'next' | 'now' | 'through' | 'broke' | 'support' | 'stop' | 'cost';
+export type HeldRole = 'then' | 'next' | 'now' | 'through' | 'broke' | 'support' | 'resistance' | 'stop' | 'cost';
 export type HeldStopSource = 'yours' | 'proposed' | 'nova';
 
 export interface HeldRow {
@@ -47,6 +47,9 @@ export interface HeldLevels {
 }
 
 export interface StockHeld {
+  /** ADR 048: a short's read is the mirror -- its stop over the price, its levels under it, lower not raise.
+   * Absent: long. */
+  side?: 'long' | 'short';
   qty: number;
   avg: number;
   price: number | null;
@@ -56,6 +59,8 @@ export interface StockHeld {
   since: number | null;
   stop: HeldStop | null;
   raise: HeldRaise | null;
+  /** A short's: the broke round its buy stop may come down to (`to` the stop, `round` the round). */
+  lower?: HeldRaise | null;
   target: { price: number; rule: string; traded_at: number | null } | null;
   ladder: HeldRow[];
   broke: { round: number; at: number; close: number }[];
@@ -64,7 +69,9 @@ export interface StockHeld {
   checks: PlanCheck[];
 }
 
-const ROLES: ReadonlySet<string> = new Set<HeldRole>(['then', 'next', 'now', 'through', 'broke', 'support', 'stop', 'cost']);
+const ROLES: ReadonlySet<string> = new Set<HeldRole>([
+  'then', 'next', 'now', 'through', 'broke', 'support', 'resistance', 'stop', 'cost',
+]);
 const SOURCES: ReadonlySet<string> = new Set<HeldStopSource>(['yours', 'proposed', 'nova']);
 
 function row(raw: unknown): HeldRow | null {
@@ -99,6 +106,7 @@ export function normalizeHeld(raw: unknown): StockHeld | null {
   const tPrice = num(t?.price);
   const lv = obj(h.levels) ?? {};
   return {
+    side: h.side === 'short' ? 'short' : 'long',
     qty,
     avg,
     price: num(h.price),
@@ -108,6 +116,7 @@ export function normalizeHeld(raw: unknown): StockHeld | null {
     since: num(h.since),
     stop: stop(h.stop),
     raise: raiseOf(h.raise),
+    lower: raiseOf(h.lower),
     target: t && tPrice !== null ? { price: tPrice, rule: str(t.rule) ?? '', traded_at: num(t.traded_at) } : null,
     ladder: list(h.ladder, row),
     broke: list(h.broke, x => {
@@ -118,7 +127,8 @@ export function normalizeHeld(raw: unknown): StockHeld | null {
     through: list(h.through, x => {
       const b = obj(x);
       const round = num(b?.round);
-      return b && round !== null ? { round, at: num(b.at), high: num(b.high) } : null;
+      // A long's through row has the candle's high; a short's its low.
+      return b && round !== null ? { round, at: num(b.at), high: num(b.high) ?? num(b.low) } : null;
     }),
     levels: {
       room: normalizeLevelNote(lv.room),
@@ -139,12 +149,15 @@ export const ROLE_WORDS: Record<HeldRole, string> = {
   through: 'THROUGH',
   broke: 'BROKE',
   support: 'SUPPORT',
+  resistance: 'RESIST',
   stop: 'STOP',
   cost: 'COST',
 };
 
 /** The rows the 10-second chart draws as lines (the price is the chart's own). */
-export const CHART_ROLES: ReadonlySet<HeldRole> = new Set<HeldRole>(['then', 'next', 'through', 'broke', 'support', 'stop', 'cost']);
+export const CHART_ROLES: ReadonlySet<HeldRole> = new Set<HeldRole>([
+  'then', 'next', 'through', 'broke', 'support', 'resistance', 'stop', 'cost',
+]);
 
 /** "the stop Nova proposes", "your stop", "Nova's stop". */
 export function stopWords(s: HeldStop | null): string {

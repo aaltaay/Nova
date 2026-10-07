@@ -38,7 +38,7 @@ import {
 } from '../sim/simConstants';
 import { StockViewVenueTag } from './StockViewVenueTag';
 import { depthUnavailableHint } from './depthUnavailableHint';
-import { StockReadRail, WhoTradesRow, useLevel2Markers } from '../stock_read';
+import { ShortChips, StockReadRail, WhoTradesRow, useLevel2Markers } from '../stock_read';
 
 interface Props {
   selectedSymbol: string;
@@ -250,6 +250,7 @@ export function StockViewDepthTape({
           <>
             <HaltEtaChip halt={quote.halt} />
             <ShortabilityChip ibkr={listingIbkr} />
+            <ShortChips />
           </>
         )}
         level2={showL2 ? (gap ? <HistoricalDepth depth={null} />

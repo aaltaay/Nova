@@ -27,8 +27,11 @@ export { flattenSpendLockReason } from './spendLock';
 export type { GatewayStatusFact } from './gatewayStatusWording';
 export { useOrderTicketListening } from './useOrderTicketListening';
 export { requestOrderTicketPrefill } from './orderTicketPrefill';
-// ADR 048: the Short / Cover hotkeys send through the one order helper.
+// ADR 048: the Short / Cover hotkeys send through the one order helper; Level 2's short chips read the facts.
 export { placeIbkrOrder } from './placeOrder';
+export { useShortFacts } from './shortFacts';
+export type { ShortCheckState } from './shortCheck';
+export { liquidationTitle } from './orderSide';
 export { SentByTd } from './SentByCell';
 export { OrderSideTd, PositionSideTd } from './OrderSideCell';
 export { flattenLabel } from './orderSide';

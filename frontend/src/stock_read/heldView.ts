@@ -16,29 +16,34 @@ const ROLE_COLORS: Record<HeldRole, string> = {
   through: SETUP_COLORS.round,
   broke: SETUP_COLORS.level,
   support: SETUP_COLORS.level,
+  resistance: SETUP_COLORS.level,
   stop: SETUP_COLORS.stop,
   cost: SETUP_COLORS.trigger,
 };
 
-/** NEXT with the asks and the STOP with the bids, on Level 2. */
+/** NEXT with the asks and the STOP with the bids, on Level 2; a short's mirror: STOP ↑ with the asks (its buy
+ * stop over the price) and NEXT ↓ with the bids (ADR 048). */
 export function heldMarkers(held: StockHeld | null): DepthMarker[] {
   if (!held) return [];
+  const short = held.side === 'short';
   const out: DepthMarker[] = [];
   const next = rowOf(held, 'next');
   if (held.stop) {
     const nova = held.stop.source === 'nova';
+    const what = short ? 'buy stop' : 'stop';
     out.push({
-      id: 'stop', price: held.stop.price, label: `STOP ${fmtPx(held.stop.price)}`, color: SETUP_COLORS.stop,
-      working: nova, rests: 'bid',
-      tip: nova ? "Nova's stop order rests here." : held.stop.source === 'yours'
-        ? 'Your stop. Only a plan: no order stands behind it.'
-        : `The stop Nova proposes (${held.stop.rule}). Only a plan: no order stands behind it.`,
+      id: 'stop', price: held.stop.price, label: `${short ? 'STOP ↑' : 'STOP'} ${fmtPx(held.stop.price)}`,
+      color: SETUP_COLORS.stop, working: nova, rests: short ? 'ask' : 'bid',
+      tip: nova ? `Nova's ${what} order rests here.` : held.stop.source === 'yours'
+        ? `Your ${what}. Only a plan: no order stands behind it.`
+        : `The ${what} Nova proposes (${held.stop.rule}). Only a plan: no order stands behind it.`,
     });
   }
   if (next) {
     out.push({
-      id: 'target', price: next.price, label: `NEXT ${fmtPx(next.price)}`, color: SETUP_COLORS.target, working: false,
-      rests: 'ask', tip: `The next level over the price: ${next.text}.`,
+      id: 'target', price: next.price, label: `${short ? 'NEXT ↓' : 'NEXT'} ${fmtPx(next.price)}`,
+      color: SETUP_COLORS.target, working: false, rests: short ? 'bid' : 'ask',
+      tip: `The next level ${short ? 'under' : 'over'} the price: ${next.text}.`,
     });
   }
   return out;

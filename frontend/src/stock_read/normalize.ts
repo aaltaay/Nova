@@ -118,6 +118,7 @@ export function normalizePlan(raw: unknown): StockPlan | null {
   const flow = obj(p.flow);
   return {
     source: p.source,
+    side: p.side === 'short' ? 'short' : 'long',
     setup_type: str(p.setup_type),
     setup_id: str(p.setup_id),
     kind: str(p.kind),

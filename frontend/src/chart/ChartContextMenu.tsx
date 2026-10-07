@@ -94,6 +94,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     price: props.price,
     quantityValue: props.quantityValue,
     hasPosition: Boolean(props.position && props.position.qty !== 0),
+    heldQty: props.position?.qty ?? null,
     ticketReady,
     allowlisted: props.allowlisted,
     watched,
@@ -138,7 +139,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
   }
 
   function runItem(id: ChartContextMenuItemId): void {
-    if (id === 'create_order' || id === 'buy' || id === 'sell') {
+    if (id === 'create_order' || id === 'buy' || id === 'sell' || id === 'short') {
       props.onStageOrder(id);
     } else if (id === 'view_details') {
       props.onViewDetails();

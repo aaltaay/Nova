@@ -162,6 +162,32 @@ describe('chart menu order -> ManualOrderTicket -> placeIbkrOrder', () => {
     expect(placeIbkrOrder).not.toHaveBeenCalled();
   });
 
+  it('Short @ price lands on the Short side, its buy stop started at the venue offset (ADR 048)', async () => {
+    act(() => {
+      root.render(
+        <ManualOrderTicket
+          symbol="SMPL"
+          mode="paper"
+          connected
+          spendStatus="paper_armed"
+          summary={{ ...SUMMARY, account_class: 'margin' }}
+          position={null}
+          referencePrice={4.1}
+        />,
+      );
+    });
+    act(() => {
+      stageChartOrder({ symbol: 'SMPL', intent: 'short', price: 4.2 });
+    });
+    expect(sidePressed('Short')).toBe(true);
+    expect(limitInput().value).toBe('4.20');
+    expect((mount.querySelector('[data-testid="manual-order-buy-stop"]') as HTMLInputElement).value).toBe('4.30');
+    await place();
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
+      side: 'SELL', order_type: 'LMT', limit_price: 4.2, short_entry: true, stop_loss_price: 4.3,
+    });
+  });
+
   it('ignores a request staged for a different symbol', () => {
     renderTicket();
     act(() => {

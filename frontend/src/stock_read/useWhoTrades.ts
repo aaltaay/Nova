@@ -144,7 +144,7 @@ export function useWhoTrades({
   const moment = useStable(live ? momentOf(clocked) : null);
   const levels = useStable(live ? orderLevels(inputs) : null);
   // While you hold: NEXT with the asks and your STOP with the bids (the read's own view of the position).
-  const markers = useStable(live && read?.held ? heldMarkers(read.held) : level2Markers(levels));
+  const markers = useStable(live && read?.held ? heldMarkers(read.held) : level2Markers(levels, read?.plan?.side));
 
   const call = moment?.call ?? null;
   useEffect(() => {

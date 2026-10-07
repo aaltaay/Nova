@@ -149,25 +149,46 @@ const TIPS: Record<'entry' | 'stop' | 'target', Partial<Record<Behind, string>>>
   },
 };
 
-/** ENTRY / STOP / TARGET for the Level 2 book. */
-export function level2Markers(levels: OrderLevels | null): DepthMarker[] {
+const TIPS_SHORT: Record<'entry' | 'stop' | 'target', Partial<Record<Behind, string>>> = {
+  entry: {
+    plan: "The plan's short entry, a sell limit here that goes out with its buy stop. Only a plan: no order stands behind it.",
+    order: 'A short entry is working here.',
+    held: 'Shares are held short: the plan\'s entry is in effect.',
+  },
+  stop: {
+    plan: "The plan's buy stop over the entry. Only a plan: no order stands behind it.",
+    order: 'A buy stop order stands here.',
+    watched: 'The bot watches this buy stop and covers when it prints.',
+  },
+  target: {
+    plan: "The plan's cover target. Only a plan: no order stands behind it.",
+    order: 'A buy limit (the cover) rests here.',
+  },
+};
+
+/** ENTRY / STOP / TARGET for the Level 2 book; a short plan's SHORT, STOP ↑ and TARGET ↓ (ADR 048): its entry
+ * sells and its buy stop sits over the price with the asks, its cover target under it with the bids. */
+export function level2Markers(levels: OrderLevels | null, side: 'long' | 'short' = 'long'): DepthMarker[] {
   if (!levels) return [];
+  const short = side === 'short';
+  const words = short ? { entry: 'SHORT', stop: 'STOP ↑', target: 'TARGET ↓' } : { entry: 'ENTRY', stop: 'STOP', target: 'TARGET' };
+  const tips = short ? TIPS_SHORT : TIPS;
   const out: DepthMarker[] = [];
   const add = (id: 'entry' | 'stop' | 'target', lv: OrderLevel | null, color: string, rests: 'bid' | 'ask') => {
     if (!lv) return;
     out.push({
       id,
       price: lv.price,
-      label: `${id.toUpperCase()} ${fmtPx(lv.price)}`,
+      label: `${words[id]} ${fmtPx(lv.price)}`,
       color,
       working: lv.behind !== 'plan',
       rests,
-      tip: TIPS[id][lv.behind] ?? '',
+      tip: tips[id][lv.behind] ?? '',
     });
   };
-  add('entry', levels.entry, SETUP_COLORS.trigger, 'bid');
-  add('stop', levels.stop, SETUP_COLORS.stop, 'bid');
-  add('target', levels.target, SETUP_COLORS.target, 'ask');
+  add('entry', levels.entry, SETUP_COLORS.trigger, short ? 'ask' : 'bid');
+  add('stop', levels.stop, SETUP_COLORS.stop, short ? 'ask' : 'bid');
+  add('target', levels.target, SETUP_COLORS.target, short ? 'bid' : 'ask');
   return out;
 }
 

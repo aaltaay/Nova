@@ -94,12 +94,17 @@ export interface StockReadContextValue {
   flush: PolledState<FlushReading>;
   /** "Nova takes the exit": its sheet over the plan box. */
   exitSheet: { open: boolean; setOpen: (open: boolean) => void };
+  /** The account's position in the stock on the desk's venue; null when none (Level 2's LIQ chip). */
+  position: TabPosition | null;
 }
 
 /** The account's position in the tab's stock, as the rail knows it. */
 export interface TabPosition {
   qty: number;
   avgCost: number | null;
+  /** Where IBKR would liquidate it (ADR 048), and the margin it is measured by; null when not known. */
+  liquidationPrice?: number | null;
+  liquidationSource?: string | null;
 }
 
 const DEFAULT_LAYERS: StockReadLayers = {
@@ -175,7 +180,13 @@ export function StockReadProvider({
   const riskUsd = risk.riskUsd;
   const posQty = position?.qty ?? null;
   const posCost = position?.avgCost ?? null;
+  const posLiq = position?.liquidationPrice ?? null;
+  const posLiqSource = position?.liquidationSource ?? null;
   const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
+  const tabPosition = useMemo<TabPosition | null>(
+    () => (posQty === null ? null : { qty: posQty, avgCost: posCost, liquidationPrice: posLiq, liquidationSource: posLiqSource }),
+    [posQty, posCost, posLiq, posLiqSource],
+  );
   // The held query needs the last read (its plan and stop); the read needs the query: the last answer drives it.
   const [lastRead, setLastRead] = useState<StockRead | null>(null);
   const heldTrade = useHeldTrade({ symbol: sym, live: live && !sample, position: pos, read: lastRead });
@@ -272,9 +283,10 @@ export function StockReadProvider({
     held: { track: heldTrade.track, setStop: heldTrade.setStop },
     flush: heldTrade.flush,
     exitSheet: { open: exitOpen, setOpen: setExitOpen },
+    position: tabPosition,
   }), [sym, active, replay, read, history, decisions, past, past5, manual, setManualPlan, riskUsd, setRiskUsd, risk,
     layers, drawn, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who,
-    heldTrade.track, heldTrade.setStop, heldTrade.flush, exitOpen]);
+    heldTrade.track, heldTrade.setStop, heldTrade.flush, exitOpen, tabPosition]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.
   if (sample) return <>{children}</>;
