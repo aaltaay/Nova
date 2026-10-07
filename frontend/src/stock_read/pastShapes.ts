@@ -8,7 +8,7 @@
  * one ended before any leg. A past flat top keeps its touches as faint rings (`pastRings`).
  */
 import { FLAT_TOP_PAST_RING, PAST_COLORS } from './constants';
-import { FLAT_TOP, flatTopTouches } from './flatTopShapes';
+import { flatTopTouches, isFlatTop } from './flatTopShapes';
 import type { SceneBox, SceneDot } from './sceneTypes';
 import { endOf, pastIconLabel, pastLabel, pastShortLabel, type Episode } from './pastSetups';
 import type { LabelShrink } from './sceneLabels';
@@ -85,7 +85,7 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
       } else {
         box(start, leg.t, leg.low, leg.high, tone.fill, tone.stroke, `${legLabel} · ${label}`, tone.ink, outcome);
       }
-    } else if (type === FLAT_TOP) {
+    } else if (isFlatTop(type)) {
       // The base's own low: a hold entry's stop is the hold candle's, under or over it.
       const base = typeof ep.setup?.detail?.base_low === 'number' ? ep.setup.detail.base_low : low;
       box(leg.t, end, base ?? high, high, tone.fill, tone.stroke, `BASE · ${label}`, tone.ink, outcome, true);
@@ -107,7 +107,7 @@ export function pastRings(episodes: Episode[], o: Pick<PastDrawOptions, 'toTime'
   const out: SceneDot[] = [];
   for (const ep of episodes) {
     const how = endOf(ep);
-    if (!how || how === 'cut' || ep.setup_type !== FLAT_TOP) continue;
+    if (!how || how === 'cut' || !isFlatTop(ep.setup_type)) continue;
     for (const [t, high] of flatTopTouches(ep)) {
       const at = o.toTime(t);
       if (at !== null) {

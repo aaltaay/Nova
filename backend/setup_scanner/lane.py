@@ -169,7 +169,10 @@ class Lane:
             return                                 # no 5-minute candle completed: nothing for the detector
         new_bar = bars[-1] if five and bars else new_bar
         det = self.ensure(sym)
-        self.tf5[sym] = None if five else five_minute.context(bars, now)
+        # The 5-minute chart's read on a 1-minute setup (trial T8). A pattern read on 5-minute candles -- the
+        # 5-minute flat top's -- is that chart itself: its rows carry none, so T8 stays the 1-minute setups'.
+        pattern_five = int(getattr(self.p.pattern, "bar_sec", SETUPS_BAR_SEC)) != SETUPS_BAR_SEC
+        self.tf5[sym] = None if five or pattern_five else five_minute.context(bars, now)
         self.handle(sym, det.on_bars(bars), now)
         lane_journal.say_state(self, sym, det)
         lane_liquidity.refresh(self, sym, now)

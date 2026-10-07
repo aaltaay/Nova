@@ -57,11 +57,12 @@ export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn it on on the Bots pa
 /* ---------- The playbook (ADR 027): the operator's setups ---------- */
 /** Mirrors backend/constants_bot.py BOT_SETUPS. */
 export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
-/** In the backend's order (constants_bot.BOT_SETUPS): the five with a scanner first. */
+/** In the backend's order (constants_bot.BOT_SETUPS): the six with a scanner first. */
 export const BOT_SETUP_IDS = [
   'first_pullback',
   'bull_flag',
   'flat_top_breakout',
+  'flat_top_5m',
   'red_to_green',
   'gap_and_go',
   'micro_pullback',
@@ -73,6 +74,7 @@ export const BOT_SETUP_LABELS: Record<string, string> = {
   bull_flag: 'Bull flag',
   gap_and_go: 'Gap and Go',
   flat_top_breakout: 'Flat-top breakout',
+  flat_top_5m: '5-minute flat top',
   red_to_green: 'Red to green',
   micro_pullback: 'Micro pullback',
 };
@@ -83,6 +85,7 @@ export const BOT_SETUP_SHORT: Record<string, string> = {
   bull_flag: 'Bull flag',
   gap_and_go: 'Gap and Go',
   flat_top_breakout: 'Flat-top',
+  flat_top_5m: '5m flat top',
   red_to_green: 'Red to green',
   micro_pullback: 'Micro pullback',
 };
@@ -92,7 +95,8 @@ export const BOT_SETUP_BLURBS: Record<string, string> = {
   first_pullback: 'The first 1-3 candle dip after a 5%+ leg to a new high, bought over the pullback high.',
   bull_flag: 'A pole of 3+ green candles on rising volume, then 2-3 quiet red candles that hold the 9 EMA — bought over the flag.',
   gap_and_go: 'Buy the break of the pre-market high on a gapper at the open.',
-  flat_top_breakout: '2-6 tight candles just under the high of day, then a green candle that holds the break.',
+  flat_top_breakout: 'The high of day tapped 3+ times by tight candles under it, then the first green candle that holds the break.',
+  flat_top_5m: 'The same flat top on the 5-minute chart, bought the way the material trades it: the first 1-minute candle that holds the break.',
   red_to_green: 'Trades below the 09:30 open, then back through it — buy the reclaim, one try a day.',
   micro_pullback: 'A 1-2 candle dip inside a fast move, read on seconds.',
 };
@@ -120,6 +124,11 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
   flat_top_breakout: {
     verdict: 'failed', text: 'Bars alone: failed, -0.83R on 63 trades (P2).', detail: '−0.83R on 63 trades (P2)',
   },
+  flat_top_5m: {
+    verdict: 'failed',
+    text: 'Bars alone (2026-09-29): the 5-minute versions lost less than their 1-minute twins, and still lost. Live with the 1-minute hold and the tape gate: the read-out measures it.',
+    detail: 'the 5-minute versions still lost on bars (2026-09-29): the 1-minute hold and the tape gate are what is being tested',
+  },
   red_to_green: {
     verdict: 'failed', text: 'Bars alone: failed, -0.22R on 398 trades (P3).', detail: '−0.22R on 398 trades (P3)',
   },
@@ -144,7 +153,7 @@ export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot watch, propose 
 
 /** The setups this build has a scanner for -- mirrors backend constants_bot.BOT_SCANNER_SETUPS (ADR 031). */
 export const BOT_SCANNER_SETUP_IDS: readonly string[] = [
-  'first_pullback', 'bull_flag', 'flat_top_breakout', 'red_to_green', 'gap_and_go',
+  'first_pullback', 'bull_flag', 'flat_top_breakout', 'flat_top_5m', 'red_to_green', 'gap_and_go',
 ];
 /* A backend older than ADR 031 runs the first pullback only. The page says the backend needs a
    reload -- never "No scanner yet", which would say the feature is missing when it is not loaded. */

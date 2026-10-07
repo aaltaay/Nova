@@ -492,6 +492,124 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   load again, none in the window). The quiet re-select keeps the loaded window's source and reloads a Massive
   window once, when an import of it completes with something the loaded copy lacks.
 
+### Agents find stock-days and show them in the Sim (ADR 050, operator ask 2026-10-06)
+
+"Go to a small-cap stock that increased, where the high of the day was 300% ... punch it in on the simulator so I
+could see it", then "this is just going to be for agents for now ... like some secret endpoints that they can
+manipulate and show me." Owners `backend/day_movers/` (the index), `backend/agent_desk/` (the routes, commands,
+dictionary), `research/movers/` (the builder), `frontend/src/agent_desk/` (the desk side), `tools/nova_agent.py`
+and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels an order, or arms the desk.
+
+- **The index.** `<NOVA_MARKET_DATA_DIR>/movers/day_movers.sqlite3` (`PRAGMA user_version = 1`; an unknown
+  version refuses), written only by `research/movers/` through `day_movers.store`:
+  - `sessions (session_date PK, prev_date, tickers, rows, minute_bars, builder, built_ts, note)` -- one per
+    session built: `tickers` the day bars that session, `minute_bars` 1 when the minute file was read.
+  - `movers`, primary key (session_date, symbol): `kind, prev_date, prev_close, prev_volume, split_factor,
+    split_listed, split_suspect, open, high, low, close, volume, pm_high, pm_low, pm_volume, ah_high, ah_low,
+    ah_volume, day_high, day_high_ts, day_low, day_low_ts, dollar_volume, first_ts, last_ts, high_pct, low_pct,
+    close_pct, gap_pct, up10_ts, up20_ts, up50_ts, up100_ts, up300_ts, down10_ts, down20_ts, down50_ts`.
+    - `kind`: the Massive reference type (`CS`, `ADRC`, `WARRANT`, ...; null when the reference has none).
+    - `prev_close`: the official close of `prev_date`, the session before in the files, times `split_factor` for
+      a split Massive lists or `confirm_splits.py` proved executing in between (`split_listed` 1); null when the
+      stock did not trade that session, never an older close. `prev_volume` is that session's volume on today's
+      share basis.
+    - `open` / `high` / `low` / `close` / `volume`: the day bar -- regular hours, the official close.
+    - `pm_*` 04:00-09:30 ET, `ah_*` 16:00-20:00 and `day_high` / `day_low` 04:00-20:00 come from the minute bars,
+      with the start of the first minute that printed each (`*_ts`, epoch seconds); `dollar_volume` is the
+      minutes' close x volume; `first_ts` / `last_ts` the first and last minute that printed.
+    - `*_pct` are fractions against `prev_close` (`gap_pct` from the 09:30 open; null without a prior close);
+      `upN_ts` / `downN_ts` the first minute whose high reached +N% (whose low reached -N%).
+    - `split_suspect` 1 when the open is 1.8x or more (0.7x or less) the prior close and no split is listed.
+    - A row is kept when the high is +10% or the low -10%, the close or the gap is 5% either way, or a split
+      suspect; without a prior close, when the day's high is 20% over its low.
+  - `sec_shares (symbol, cik, as_of, filed, shares, form)`: shares outstanding a filing reported as of `as_of`,
+    from SEC's companyfacts (`research/movers/export_sec_shares.py`; several share classes keep the largest).
+  - `splits (symbol, execution_date, split_from, split_to)`: the split list the builder adjusted prices by.
+- **Routes** (`/api/agent`, loopback clients only; every write needs `X-Nova-Api-Key` even on loopback;
+  percentages on this wire are percent points):
+  - `GET /api/agent` -> `{schema_version: 1, endpoints: [{method, path, does}], index: {ok, error, path,
+    sessions, first, last, files_last, behind, missing, rows}, dictionary: {entries, error}, desk: {listening,
+    last_poll_ts, window_id}, rules: string[]}` (`behind`: minute-file days newer than the newest session built;
+    `missing`: minute-file days not built; both null when the folder cannot be listed).
+  - `GET /api/agent/movers` -> `{schema_version: 1, query, units: "percent", count, rows[], summary, excluded,
+    coverage, notes[]}`. Query: `from`, `to`, `symbol`, `kinds` (default `common`: `CS`, `ADRC`, and a ticker of
+    1-4 letters the reference has no type for), `price_min` / `price_max` (the prior close), `high_min` /
+    `high_max`, `low_min` / `low_max`, `close_min` / `close_max`, `gap_min` / `gap_max` (percent), `close_pos_min`
+    / `close_pos_max` (0 = closed at the day's low, 1 = at its high), `giveback_min` / `giveback_max` (the share
+    of the run over the prior close given back by the close, 0-1), `high_after` / `high_before` (`HH:MM` ET),
+    `volume_min`, `dollar_volume_min`, `float_max` (shares), `float_unknown` (`exclude` | `include` | `only`),
+    `replayable` (only days whose trades file is on disk), `splits` (`exclude_likely` default | `include` |
+    `only_suspects`), `sort` (`newest` | `oldest` | `high` | `low` | `close` | `gap` | `volume` |
+    `dollar_volume`), `limit` (default 25, at most 500). A row is `{date, symbol, kind, prev_close, open, high,
+    low, close, volume, dollar_volume, day_high, day_high_et, day_low, day_low_et, pm_high, ah_high, high_pct,
+    low_pct, close_pct, gap_pct, close_pos, giveback, first_et: {up10, up20, up50, up100, up300, down10, down20,
+    down50}, replayable, split: null | "listed" | "suspect" | "likely_split", float: {shares, source:
+    "recorded" | "enrichment" | "sec_shares_outstanding" | null, as_of, proof: "pass" | "fail" | "unknown"} |
+    null}` (`float` only when `float_max` is asked). A split suspect is a `likely_split` when it traded no more
+    shares than `prev_volume`, and no split at all (`null`, a real overnight move) when it traded 3x or more
+    (#772). `summary` covers every match, not only the rows returned: `{matched,
+    closed_above_prior_close, closed_above_open, closed_top_third, closed_bottom_third, median_high_pct,
+    median_close_pct, median_giveback}` (shares of `matched`, in percent). A search matching more than
+    `AGENT_MOVERS_MAX_SCAN` stock-days answers `too_broad: true` with the count only. `GET
+    /api/agent/movers/{date}/{symbol}` -> `{schema_version, row, coverage}` (`AGENT_NOT_IN_INDEX` 404).
+    Refusals: `AGENT_INVALID` 400 with `field`, `AGENT_INDEX_UNAVAILABLE` 503 (not built, or unreadable).
+  - `POST /api/agent/show {symbol, date, at?: "run" | "drop" | "high" | "low" | "open" | "premarket" | "HH:MM",
+    confirm?: boolean}` -> 202 `{command}`. A run or a drop parks five minutes before its first +20% (else +10%)
+    mark; a mark the stock already stood at within five minutes of its first print is where it opened, so the
+    next mark it reached later (+50%, +100%, +300%) is taken, else the day's high (low). The window loaded is
+    135 minutes from the quarter hour 30 minutes before the park (so the charts show what came before), with 60-
+    and 30-minute windows to fall back on when the Sim's print or quote cap refuses it. Refusals are `{detail: {reason, error, ...}}`: `AGENT_INVALID` 400 (also a day not over yet),
+    `AGENT_NOT_ON_FILE` 404 (no trades file for that day), `AGENT_NO_DESK` 409 (no main desk window listening),
+    `AGENT_AT_STAKE` 409 with `at_stake: {venue, safe, items: [{kind, venue, symbol, text}], unknown: [{kind,
+    error}]}`. A new show replaces one not finished (`cancelled`).
+  - `POST /api/agent/move {to?: "high" | "low" | "run" | "drop" | "open" | "premarket" | "HH:MM", by_min?: number,
+    paused?: boolean, confirm?: boolean}` -> 202 `{command}`; `AGENT_NOTHING_LOADED` 409 unless the Sim holds a
+    window. A target outside the loaded window loads one around it (`AGENT_AT_STAKE` as a show's).
+  - `GET /api/agent/commands/{id}?wait=` -> `{command}`, waiting up to `wait` seconds (at most 30) for a change;
+    `GET /api/agent/commands` the newest; `POST /api/agent/commands/{id}/cancel`. A **command** is `{id, kind:
+    "show" | "move", status: "queued" | "running" | "done" | "failed" | "expired" | "cancelled", created_ts,
+    updated_ts, args, plan, step, steps: [{step, ts, text}], result, error, claimed_by}`. A show's `plan` is
+    `{symbol, date, at, anchor_et, park_et, park_ts, park_words, window, fallback_windows, switch_venue,
+    in_index}` and a move's `{symbol, date, paused, target_ts, target_et, target_words, loaded_start_ts, window,
+    fallback_windows}` (`park_words` / `target_words`: where it lands, in words), a window `{start, end, start_ts,
+    end_ts}` (ET `HH:MM` and epoch seconds). A command no desk window takes within `AGENT_COMMAND_CLAIM_SEC`
+    (15 s) expires. One a window took and never reported on within `AGENT_COMMAND_FIRST_REPORT_SEC` (10 s) goes
+    back in the queue -- a reloaded or closed window's poll can still be waiting on the server -- at most three
+    times, and the desk's poll gives a command back at once when its request is gone; one the desk stops
+    reporting on for `AGENT_COMMAND_LEASE_SEC` (90 s), or still running after `AGENT_COMMAND_STALE_SEC`, fails.
+  - `GET /api/agent/desk` -> `{schema_version: 1, venue, live_edge, sim: {session_date, playhead_et, paused,
+    loaded: {source, symbol, date, start, end} | null} | null, focus: {page, symbol, window_id} | null,
+    listening, at_stake}`.
+  - `GET /api/agent/dictionary` -> `{schema_version: 1, error, entries[]}`; `POST /api/agent/dictionary {entry}`
+    adds or replaces an operator entry by `id`; `DELETE /api/agent/dictionary/{id}`.
+  - The desk's side (keyed, the long poll too): `GET /api/agent/desk/next?wait=&window_id=` (the main window's
+    long poll, `{command | null}`, the command now `running` and its) and `POST /api/agent/desk/commands/{id}
+    {status: "running" | "done" | "failed", step, text, result?, error?}` -> `{command}` (a command already
+    cancelled or expired answers as it is, and the desk stops).
+- **The dictionary** (operator: "If I'm obviously asking for a command ... I want it to be added to our
+  dictionary"): `<cache_dir>/agent-dictionary.json` = `{schema_version: 1, entries: [{id, phrases: string[],
+  means, call: {method, path, params?, body?}, then?, notes?, added_by, added_at, updated_at}]}`, written through
+  a temp file and a rename. Seed entries live in code (`seed: true` on the wire); an operator entry with a seed's
+  id replaces it. An unknown version or an unreadable file reads as the seeds with the error stated, and writes
+  are refused `AGENT_DICTIONARY_UNREADABLE`. Nova defines no shape words: an agent turns words into the numbers
+  above, asks when they have no agreed meaning, and saves what the operator confirms.
+- **At stake** (operator: switch "when nothing is at stake"; owner `agent_desk/safety.py`): on the venue the
+  desk would leave, a position or a working order (Paper's ledger, Live's IBKR cache), the Bot on, an open bot
+  or Nova trade, a Nova stock mode or approval, or the desk armed; and, when the show or move loads another Sim
+  window (which starts the Sim's scratch account over), the Sim account's positions and working orders. A check
+  that cannot be read is at stake too. `confirm` is sent only after the operator agreed in the chat.
+- **The desk side.** Only the main window (never a Trader pop-out, the sample desk or the demo) long-polls for
+  commands. It runs them with the desk's own steps -- venue, Sim day, Trader tab, the Massive window, the wait
+  for its import, the playhead (paused) -- reports each step, and shows a notice of what it is doing. A window
+  refused for the print or quote cap is retried with the plan's narrower windows.
+- **Float** (operator: proven, else unknown; owner `day_movers/floats.py`): `float_max` passes on the float
+  Nova knew that day (the desk's enrichment snapshot in `archive.db`, 2026-07-28 on) at or under the limit, or
+  on `sec_shares` at or under the limit -- a float cannot exceed the shares outstanding: the newest count filed
+  by the session, as of a day on or before it and at most `DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS` (120) before it,
+  put on the session's basis through the splits listed in between. Shares issued after the count are not in
+  it, and the answer carries its `as_of`, `filed` and `age_days`. A snapshot over the limit fails; anything
+  else is unknown, never today's float.
+
 ### Desk diagnostics (ADR 021)
 
 `GET /api/diagnostics` (owner `backend/diagnostics/`) answers `schema_version: 1`,
@@ -1103,7 +1221,7 @@ adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
 **Auto-record.** The backend records, first, the setups of the templates in
 play that are in a scored trade (`trade`), near their trigger (`near`) or armed
 (`armed`) -- whenever any setup's template in play is inside its arming window
-(07:00-11:30 ET by default; red to green 09:30-10:30; ADR 042: until then a
+(07:00-11:30 ET by default; red to green 09:30-10:30; the 5-minute flat top 07:00-15:30; ADR 042: until then a
 setup arming after 10:00 had no line, and red to green's triggers were never
 "go") -- then, 07:00-10:00 ET only, the top
 `LEADERBOARD_AUTO_RECORD_TOP_N` `LEADERS_RULES` names of the live Gainers
@@ -1278,15 +1396,16 @@ rules pre-registered in ADR 031), on the same ladder of states, the same tape
 gate and the same scoring; since 2026-10-02 Gap and Go too (`gap_and_go.py`, the
 research's A2 rule, ADR 031 amendment: the pre-market high, armed at the 09:30
 open when the open is under it, broken by 10:00, stop `min(20c, 4%)` under the
-entry, one try a day; a new setup starts Off on every venue). The board is `schema_version: 2`: every row and
+entry, one try a day; a new setup starts Off on every venue); since 2026-10-06 the 5-minute flat top
+(`flat_top_5m.py`, "The 5-minute flat top" below). The board is `schema_version: 2`: every row and
 proposal adds `setup_type: "first_pullback" | "bull_flag" | "flat_top_breakout"
-| "red_to_green" | "gap_and_go"`; a row adds `failed_at: number | null` and its `setup` adds
+| "flat_top_5m" | "red_to_green" | "gap_and_go"`; a row adds `failed_at: number | null` and its `setup` adds
 `detail: object | null` (the setup's own facts: `entry_mode`, `broke_at` and the touches for
 the flat-top breakout ("The flat top counts its touches" below), `open` and `red_bars` for red to green, `pole_bars` for the
 bull flag, `pm_high`, `pm_high_t`, `open`, `open_t` and `stop_rule` for Gap and Go);
 `kind` is one of `first_pullback | second_pullback | bull_flag |
-second_bull_flag | flat_top_breakout | second_flat_top_breakout | red_to_green |
-gap_and_go`
+second_bull_flag | flat_top_breakout | second_flat_top_breakout | flat_top_5m |
+second_flat_top_5m | red_to_green | gap_and_go`
 (the kind without `second_` is the first of that setup on that symbol that day);
 `leg` is the setup's context (`{t, high, low, pct, bars?}`: the leg, the pole, the
 impulse into the high of day, the open and the red phase, or Gap and Go's
@@ -1367,7 +1486,8 @@ we may need a drift or a ratio to still consider flat top." Owners `setup_scanne
   (P2's values), never the new defaults. The catalogue's tables moved to `setup_templates/params.py`; `catalogue.py`
   keeps the validator.
 - **Revisions.** The built-in default's revision is per setup (`SETUP_TEMPLATE_DEFAULT_REVS`, `setup_default_rev`): the
-  flat top's is 2 and its read-out starts over. The 5-minute flat-top lane's revision is 2 (`FIVE_MIN_REVS`).
+  flat top's is 2 and its read-out starts over. The 5-minute flat top became a strategy of its own the same day
+  ("The 5-minute flat top" below).
 - **On the wire.** A flat top's `leg` adds `touches: [[t, high], ...]` (oldest first) and `zone` (the lowest high that
   touches), and `bars` counts the base. Its armed `detail` adds `touches`, `zone`, `min_touches` and `broke_bar_t`
   (the break's candle, hold entry). A triggered hold adds `hold_bar_t` and `hold_high`. A row, journal line or
@@ -1380,10 +1500,37 @@ we may need a drift or a ratio to still consider flat top." Owners `setup_scanne
   - its name in the edge column ("FLAT TOP = HOD 5.50" until it breaks).
 
   A flat top that is not the plan's lead is a dimmed violet without labels, and a failed one is grey. A past flat top
-  keeps its rings, faint. The 5-minute chart draws its lane the same way, and its trigger line reads "5m FLAT TOP".
-  Every pane's Key adds the flat top's marks.
-- **Unchanged.** The 1-minute flat top plays as before; the 5-minute one is drawn and scored only. No flat-bottom
-  short: Nova opens no shorts (Invariant 7).
+  keeps its rings, faint. The 5-minute flat top draws the same way on the 5-minute chart, and its trigger line reads
+  "5m FLAT TOP". Every pane's Key adds the flat top's marks.
+- **Unchanged.** The 1-minute flat top plays as before. No flat-bottom short: Nova opens no shorts (Invariant 7).
+
+### The 5-minute flat top (ADR 031 amendment, operator ask 2026-10-06)
+
+"Make the 5-minute flat top a Paper buy with a 1-minute hold entry, as the material trades it." The material reads
+the flat top on the 5-minute chart and buys the 1-minute pullback that holds it after the break. Owner
+`setup_scanner/flat_top_5m.py`; on the desk `frontend/src/stock_read/flatTopShapes.ts` and `fiveMinuteShapes.ts`.
+
+- **A sixth strategy**, `flat_top_5m`: its own Off / Eyes / On per venue (starting Off), templates, read-out (kind
+  `flat_top_5m` / `second_flat_top_5m`), bot rules and window, like every setup. Nova's bot buys it at On, on Paper
+  and Sim only.
+- **A 1-minute lane, a 5-minute pattern.** Its lane is fed the scanner's minutes, so the tape gate, the liquidity
+  check, the scoring and the bot are the minutes'. Its detector makes 5-minute candles of them
+  (`five_minute.candles`; one is over once its last minute or a later one is in) and reads the flat top on those by
+  the flat top's own rules ("The flat top counts its touches" above): `bar_sec` 300, arming 07:00-15:30.
+- **The entry is the 1-minute hold.** After a price over the flat top, it is the first of the next `ft_hold_bars` (5)
+  minutes after the break's own that holds the touch zone and closes green over the high. Entry is one cent over its
+  close, the stop is the pullback's low (`ft_hold_stop`: `pullback`, or `candle` for the hold minute's low), and the
+  dollar caps read that risk. A minute closing under the zone fails it. It is scored on 1-minute candles from the
+  hold minute. Its rows carry no 5-minute read (`tf5_*` null): its pattern is that chart, and trial T8 reads
+  1-minute setups.
+- **The built-in 5-minute flat-top lane is gone** ("The 5-minute setups" below keeps the first pullback and the bull
+  flag), and auto-record's setups window now runs to 15:30 ("Auto-record" above).
+- **On the wire.** It comes in the stock read's and the symbol view's `setups` with `timeframe: "5m"` and `rules`
+  adding `hold_bar_sec`. Its `detail.broke_bar_t` and `hold_bar_t` are minutes. The past setups at `?tf=5m` fold its
+  lines; `?tf=1m` leaves them out.
+- **On the desk.** The 5-minute chart draws it as the flat top, its hold named "1m hold" in its 5-minute candle.
+  Once it arms, the 1-minute chart draws its level from the first touch, the break and the hold minute. At Off it
+  draws nothing, like every strategy.
 
 ### One row per trigger (ADR 022 amendment, 2026-10-02)
 
@@ -1494,8 +1641,8 @@ seed with the first close (`series.ema`), `as_of` the last complete candle's sta
 "We need 5-minute strategies ... sometimes I see slow stocks moving upwards, and you can see clear patterns in
 the 5-minute chart, but they're not clear in the 1-minute chart"; on the IOVA mockup: build it this way, chart
 only, a chip and the trigger line on the 1-minute, arming 07:00-15:30. Owner `setup_scanner/five_minute_lane.py`.
-- **The lanes.** One built-in lane per setup in `SETUPS_5M_SETUPS` (the first pullback, the bull flag, the flat
-  top) runs beside the template lanes: the setup's own detector on 5-minute candles made of the scanner's
+- **The lanes.** One built-in lane per setup in `SETUPS_5M_SETUPS` (the first pullback and the bull flag; the flat
+  top's became a strategy on 2026-10-06, "The 5-minute flat top" above) runs beside the template lanes: the setup's own detector on 5-minute candles made of the scanner's
   minutes (`five_minute.candles`: on the clock from 04:00 ET, complete once their five minutes are over). The
   detector reads only when a candle completes, and a price inside a forming candle carries that candle's open.
   Its rules are the default template's except:
@@ -1510,11 +1657,11 @@ only, a chip and the trigger line on the 1-minute, arming 07:00-15:30. Owner `se
 - **It never plays.** A 5-minute lane raises no proposal, tells the bot nothing, and has no Setups board row
   and no Bots page card. It reads the tape gate and scores like any lane. Its journal lines carry `template:
   "5m"` and `playing: false`, and the Sim playback leaves it out of a setup's counts.
-- **The wire.** `GET /api/setups/symbol/{symbol}` adds `setups_5m` (the 5-minute lanes, shaped like `setups`,
-  `level` 0, `chosen` false), and every lane adds `timeframe: "1m" | "5m"`; `rules` adds `stop_cap_pct` and
-  `bar_sec`. The stock read adds `setups_5m` (never a plan's lane). `GET
-  /api/stock-read/{symbol}/past-setups?tf=5m` folds the 5-minute lanes' lines (`EpisodeFold("5m", 300)`: the
-  candle a line is about is a 5-minute one), measures what came after over 60 minutes and adds `timeframe`; a
+- **The wire.** `GET /api/setups/symbol/{symbol}` adds `setups_5m` (the built-in 5-minute lanes, shaped like
+  `setups`, `level` 0, `chosen` false), and every lane adds `timeframe: "1m" | "5m"` (the candles its pattern reads:
+  the 5-minute flat top in `setups` is `5m`); `rules` adds `stop_cap_pct`, `bar_sec` and `hold_bar_sec`. The stock
+  read adds `setups_5m` (never a plan's lane). `GET /api/stock-read/{symbol}/past-setups?tf=5m` folds the 5-minute
+  lanes' lines and the 5-minute flat top's (`EpisodeFold("5m", 300)`: the candle a line is about is a 5-minute one), measures what came after over 60 minutes and adds `timeframe`; a
   `tf` other than `1m` or `5m` is a 400.
 - **On the desk** (`frontend/src/stock_read/fiveMinuteShapes.ts`; a live lane's drawing moved to
   `laneShapes.ts`, which with `pastShapes.ts` takes the candle's length):
@@ -1522,8 +1669,8 @@ only, a chip and the trigger line on the 1-minute, arming 07:00-15:30. Owner `se
     colour; the rest are faded, and their labels make room. The ones that ended stay faint, with how they
     ended and what came next. Every label starts "5m", and the lead's trigger, stop and target are dashed
     lines with axis labels. A hover card is titled "5-minute".
-  - The 1-minute pane shows a 5-minute setup armed or near its trigger as a legend chip ("5m flat top · near
-    13.80") and one dashed trigger line, nothing else.
+  - The 1-minute pane shows a built-in 5-minute setup armed or near its trigger as a legend chip ("5m bull flag ·
+    near 13.80") and one dashed trigger line, nothing else.
   - Each pane's Key lists them.
 - **What is known.** The bar-level 5-minute versions lost less than their 1-minute twins over five years, and
   still lost (2026-09-29). On IOVA 2026-09-29 the 1-minute scanners saw 33 setups and triggered one. On
@@ -5057,9 +5204,11 @@ Ambiguous legacy rows remain unverified rather than joining a practice book.
 |------|--------|--------|
 | 2026-10-07 | Short selling, step 2 of 6: Paper and Sim short (ADR 048; #778). The one short check runs on every venue -- a buy stop on every short (a short is a bracket; on Paper and Sim its target may be left out), 09:35-15:50 ET by the venue's clock (12:50 on an early close), no halt and no short within 10 minutes of an up-halt's resumption, borrow (a past-day Sim replay reads the borrow Nova recorded then), SSR priced above the bid (unknown counts as on), and margin from IBKR's what-if for the stock (never placed; the published rules when IBKR has not answered) with the 25% cushion -- with no Live key on Paper and Sim. Nothing under the execution lock waits on IBKR: the facts are gathered before it, and only a bot's short waits a moment for the what-if. The practice account starts at $5,000 (the operator's account size, was $100,000), its margin follows IBKR's ratio per stock and its summary adds `MaintMarginReq` / `ExcessLiquidity`; a practice short fills only above the bid under SSR; Nova covers every short at 15:55 and closes what the margin no longer carries, through the door, on the venue that holds it (`target_venue`, origins `day_cover` / `margin_call`). Every order row says its side and effect, every position its side and liquidation price, and `GET /api/short-check/{symbol}` answers every rule read-only. Every tick-236 read is recorded (`borrow.sqlite3`). Live still refuses every short, and the ticket's Short stays locked until step 3. §3 and Invariant 7 amended. | User Directive + Claude Code |
 | 2026-10-07 | Short selling, step 1 of 6 (ADR 048, ADR 049; #778; the operator's design, approved 2026-10-07: "Paper and Sim first, Live last"). The design is recorded whole -- one short check on every venue, margin from IBKR's what-if with the published rules as the fallback, a 25% liquidation cushion, a buy stop on every short, no flips, halts, 09:35-15:50 and a 15:55 day cover, SSR above the bid, Paper and Sim shorting like IBKR, Entry · Exit, one bot for both sides, and Live last behind the operator's Live short proof and their own `IBKR_SHORT_ENABLED` -- and the five short strategies are pre-registered before any code reads a bar. This step closes the eight gaps the design found on master, so nothing new can short yet: a short entry is now checked against margin and the cushion (published rules), refused while the account is long, and its borrow is read from the cache before the execution lock (the door had asked IBKR for up to 10 s under it); a short entry is held in flight (`SHORT`); a cover is never locked by the day lock or held to buying power; Freeze all orders keeps the stops that protect a position; Fill now refuses a short entry instead of re-sending it as a plain sell; Paper and Sim cancel a cover that would fill past flat. Invariant 7 and §3 amended. | User Directive + Claude Code |
+| 2026-10-06 | The 5-minute flat top is a strategy, bought on the 1-minute hold (ADR 031 amendment (b); operator: "Make the 5-minute flat top a Paper buy with a 1-minute hold entry, as the material trades it; done when its lane proposes and the bot can take it"). The material reads the flat top on the 5-minute chart and buys the 1-minute pullback that holds it after the break; Nova drew the 5-minute flat top and scored it in silence (2026-09-30). `flat_top_5m` is a sixth strategy with its own Off / Eyes / On, templates, read-out and bot rules: a 1-minute lane whose detector (`setup_scanner/flat_top_5m.py`) reads the flat top on 5-minute candles made of the minutes and, after a price over it, triggers on the first 1-minute candle that holds the touch zone and closes green, the stop at the pullback's low. It replaces the built-in 5-minute flat-top lane, starts Off, arms 07:00-15:30 (so auto-record's setups window runs to 15:30), and draws on the 5-minute chart, with its level, break and hold on the 1-minute. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The PC's power button is named, and a power-off is said as one (#14). The desk's 06:45 ET 2026-10-05 and 07:16 ET 2026-10-06 shutdowns were System 1074 from `winlogon.exe` on behalf of SYSTEM, reason `0x500ff`, Shutdown Type `power off` -- the power button -- and `premarket_verify.py` / `relogin_reason.py` said "This PC was restarted from the Start menu": every `winlogon.exe` was the Start menu, and every restart was "restarted". That signature is now `power_button`; `winlogon.exe` on behalf of a user stays `start_menu`, and on behalf of SYSTEM otherwise names winlogon (a restart with the same reason, 2026-09-12, cannot be the power button). The restart object carries `reason_code` and `shutdown_type`, and the text says "powered off" or "restarted" by it. Found alongside: the `wevtutil` query took every event 12, and an ASUS power tool wrote 818 in 8 days, so the 400-event cap held about 4 days while the report said it had read 8; each id now asks its own provider (30 days: 21 restarts, was 6). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The flat top counts its touches (ADR 031 amendment; operator, with a sketch: "Make it something special like this ... when it starts forming. I doubt real life is going to be perfect as this, so we may need a drift or a ratio to still consider flat top"). The flat top read no taps of the level at all: it armed any 2-6 candles closing within 2% under the high of day, a tie of the high started it over on a new row, and a cent over the high reset the base. Now the level is the high of day, and a touch is a high within 0.5% or a cent under it (a candle a little over the earlier touches drifts the level up and keeps the row). The base runs from the first touch, needs a retest, is drawn forming from the second touch, arms at the third, and may run 20 candles. The hold reads the zone as the level. The research's P2 stays one setting away (and a saved template keeps it); the flat top's default revision moves to 2. The desk draws it as the sketch on the 1-minute and 5-minute charts: the violet level, a ring per touch with the count, the base boxed, the break and the hold candle marked. No flat-bottom short (Invariant 7). The catalogue's tables moved to `setup_templates/params.py`. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | LULD bands on Level 2 (ADR 047; operator: "do we have LULD levels?", then, with DAS screenshots, "1 go.. make it obvious"). IBKR passes on the halt, never the band, and the Nasdaq halt feed's threshold is blank, so Nova computes each stock's limit up / limit down from the published Plan rules over the tape and NBBO it holds (`backend/luld/`): the opening or reopening print first, then the 5-minute mean, moved only on a 1% change after 30 s, held in a limit state. Where the Plan's text leaves room, the SIP's own band flags in the Massive NBBO decided. A limit state's end makes no reference (the text says it does: 64% exact against 81%), and the mean is unrounded. On 10 days of SIP data Nova's band matched the exchanges' to the cent on 81% of 593 band touches and within 1c on 87%; on Nova's own recordings, GRML's three pauses of 2026-09-22 land exactly (14.18, 17.18, 15.87). The Level 2 ladder draws a red `LULD` row in each column and a strip above the book that counts a limit state's 15 s down to the pause; an approximate band (no open or reopen seen) shows `≈`. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-10-06 | Agents find stock-days and show them in the Sim (ADR 050; operator: "if I speak to you ('Go to a small-cap stock that increased, where the high of the day was 300% or something like that'), I can ... punch it in on the simulator", then "this is just going to be for agents for now ... like some secret endpoints that they can manipulate and show me", and "If I'm obviously asking for a command ... I want it to be added to our dictionary"). Finding the day was the gap: the Scanner boards cover 75 days, and nothing searched the 2,515 sessions of Massive candles on E:. Massive's day bar is regular hours only (2,477 of 11,866 tickers on 2026-09-09 had a higher premarket or after-hours high), and of 6,104 regular-hours +300% days since Oct 2016, 90% were warrants, rights, sub-50c names or likely reverse splits. A day movers index (`research/movers/build_movers.py` -> `backend/day_movers/`, on E: beside the files) keeps one row per stock per session that moved: the official prior close through listed splits, premarket and after-hours highs from the minute bars with the minute each printed, the first minute of each +N% mark, split suspects tagged. Private `/api/agent` endpoints (loopback, writes keyed) search it with plain numbers and percentages back, and queue a show or move that the main desk window takes by a long poll and runs with the desk's own steps (the venue pill's door, the Sim Day jump, the Trader tab, Load from files, the playhead, paused); the venue moves and a new Sim window loads only when nothing is at stake, else the agent asks. The operator's words live in a dictionary (operator data, seeded with the plain commands; no shape word is defined by Nova). A float limit passes only on evidence: the float Nova knew that day, or SEC shares outstanding under it. `tools/nova_agent.py` and the `nova-sim-navigator` skill let any agent session use it without seeing the key. Voice and TypeSafe's Jev are parked. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | A rebuilt day confirms the splits Massive's list misses from SEC filings (#772). PHGE's 1-for-10 reverse split on 2026-09-09 was not in the list, so the rebuilt boards read +925% (0.155 -> 1.60) and it topped Gainers and the frozen Gappers. `research/leaderboard/confirm_splits.py` takes each overnight jump of 1.8x or more (0.7x or less) that no listed split explains, reads the ticker's 8-K (Item 5.03 / 3.03) or 6-K filed from 60 days before to 3 after, and confirms a split only when the filing states one ratio outside a range, the split-adjusted open sits 0.5-2x the prior close and the filing's effective date falls on the session (`split_confirm.py`, pure). Never on the price jump alone. On 2026-06-16..09-21: 285 suspects, 181 with such a filing, 1 confirmed (PHGE, its own 8-K: "effected a one-for-ten reverse stock split ... split-adjusted basis ... September 9, 2026"), 107 refused, 0 unread; the refusals read on sample were right (GCDT's consolidation takes effect October 7; SGLD's "1 ADS for every 20 shares" is a new listing). `splits_confirmed.json` beside the store (schema in §3) is read by `lb_io.load_splits` and `spot_check.py`; `build_leaderboard.py --dates` rebuilds the days a split touches. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | A rebuilt day has Losers and Gappers (ADR 023 amendment; operator report on 2026-09-09 at 07:00 in Sim: "Don't we already have the data for this day ... Why do we not see gainers, losers, and gappers for that hour?"). The Massive files for the day were on disk, but the rebuild kept one board a minute, the top 100 risers (`market`), which the desk showed as Gainers; no stored row that day was under 0% at 07:00, 09:45 or 16:30, so Losers could not be read back, and nothing projected Gappers. `research/leaderboard` now writes `losers` (the worst 100, `LOSERS_RULES`) and `gappers` (the live premarket rule, `GAPPERS_RULES` = `ibkr/gapper_view.row_qualifies`, frozen at 09:30 in its 09:30 order and repriced after, as the live list is) beside `market`, every board covering every minute; a day counts complete only with all three, so the 66 days rebuilt before are rebuilt again. The desk fills Gainers, Losers and Gappers from a rebuilt day, and After Hours and Large Cap say why they are not rebuilt. Found alongside it: PHGE's 1-for-10 reverse split on 2026-09-09 is missing from Massive's split list, so the rebuilt boards show it +925% (one such jump in the 66 rebuilt days; the other 30 overnight jumps of 3x or more traded 10-1,000x more volume). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-10-06 | The 1-minute chart keeps the operator's zoom when the plan's lead setup changes (operator report: "As I was zooming in and watching the chart, all of a sudden it resized itself randomly ... We fixed it before"). The 2026-09-25 fix stopped the plan's zones from moving the view, but the stock read still framed every newly leading setup: FRGT's plan followed red to green (near) at 09:31 and Gap and Go (armed) at 09:34, and each change reframed the pane -- red to green on 40 candles, Gap and Go from its 04:05 premarket high. The screenshot's window was exactly that frame (40 candles plus 12 of room). `chart/operatorView.ts` notes when the operator zooms or pans a pane (a range change during a press that began on the chart, or within 300 ms of a wheel or a release); after that no automatic frame or zone slide moves it, until a first paint or Reset chart hands it back. A setup is framed once per symbol, so a flip-flopping lead no longer reframes an untouched pane either. Driven in the demo desk: zoomed to 36 candles, a new lead setup jumped the pre-fix build to 333 and left the fixed one at its 208; the badge and Reset chart still frame. §3 amended. | User Directive + Claude Opus 5.5 |

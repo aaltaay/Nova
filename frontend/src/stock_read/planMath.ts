@@ -13,6 +13,7 @@ const SETUP_NAMES: Record<string, string> = {
   first_pullback: 'First pullback',
   bull_flag: 'Bull flag',
   flat_top_breakout: 'Flat-top breakout',
+  flat_top_5m: '5-minute flat top',
   red_to_green: 'Red to green',
   gap_and_go: 'Gap and Go',
   micro_pullback: 'Micro pullback',
@@ -24,7 +25,8 @@ export function setupName(setupType: string | null | undefined): string {
 }
 
 const SETUP_SHORT: Record<string, string> = {
-  first_pullback: 'Pullback', bull_flag: 'Flag', flat_top_breakout: 'Flat top', red_to_green: 'R→G', gap_and_go: 'Gap & Go',
+  first_pullback: 'Pullback', bull_flag: 'Flag', flat_top_breakout: 'Flat top', flat_top_5m: '5m flat top',
+  red_to_green: 'R→G', gap_and_go: 'Gap & Go',
 };
 
 /** The setup in a word or two, where a tile or a one-line plan has no room for its name. */

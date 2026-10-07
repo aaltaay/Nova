@@ -52,10 +52,10 @@ def test_every_setup_gets_a_lane_and_a_card_on_the_board(tmp_path):
     eng, _, clock = make(tmp_path, flag_day())
     run(eng, clock["t"])
     assert [lane.setup for lane in eng.playing_lanes()] == [
-        "first_pullback", "bull_flag", "flat_top_breakout", "red_to_green", "gap_and_go"]
+        "first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green", "gap_and_go"]
     board = eng.board(clock["t"])
     assert board["schema_version"] == 2 and [s["id"] for s in board["setups"]] == [
-        "first_pullback", "bull_flag", "flat_top_breakout", "red_to_green", "gap_and_go"]
+        "first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green", "gap_and_go"]
     cards = {s["id"]: s for s in board["setups"]}
     assert cards["bull_flag"]["level"] == 1 and cards["bull_flag"]["proposing"] is True
     assert cards["first_pullback"]["level"] == 0 and cards["first_pullback"]["proposing"] is False

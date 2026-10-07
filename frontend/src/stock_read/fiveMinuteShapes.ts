@@ -2,15 +2,18 @@
  * The 5-minute setups on the charts (operator decision 2026-09-30, on the mockup: "build it this way",
  * chart only, and on the 1-minute "a chip and its trigger line"). Pure.
  *
- * The built-in 5-minute lanes (`read.setups_5m`: the first pullback, the bull flag and the flat top read
- * on 5-minute candles) draw on the 5-minute pane the way the 1-minute pane draws its lanes -- the lead in
+ * The built-in 5-minute lanes (`read.setups_5m`: the first pullback and the bull flag read on 5-minute
+ * candles) and the 5-minute flat top -- a strategy of its own since 2026-10-06, in `read.setups` with
+ * `timeframe: '5m'` -- draw on the 5-minute pane the way the 1-minute pane draws its lanes -- the lead in
  * colour, the rest faded, the ones that ended faint with how they ended (`?tf=5m` past setups) -- every
  * label starting "5m", and the lead's trigger, stop and target as dashed lines. On the 1-minute pane a
- * 5-minute setup armed or near its trigger is a chip in the legend and one dashed line at its trigger;
- * nothing else of it. Their hover ids are their own (`lane5:`, `past5:`), so a card never mixes the two.
+ * built-in 5-minute setup armed or near its trigger is a chip in the legend and one dashed line at its trigger;
+ * nothing else of it (the 5-minute flat top draws its level, break and hold there: `laneOnMinute`). Their hover
+ * ids are their own (`lane5:`, `past5:`), so a card never mixes the two.
  */
 import type { PriceLineSpec } from './chartShapes';
 import { FLAT_TOP_COLORS, SETUP_COLORS } from './constants';
+import { isFlatTop } from './flatTopShapes';
 import { laneShapes, type LaneDrawOptions } from './laneShapes';
 import { drawnPast, failingNow, type Episode } from './pastSetups';
 import { pastHoverId, pastShapes } from './pastShapes';
@@ -29,7 +32,7 @@ const IN_REACH = new Set(['armed', 'near']);
 const RANK_FADED_LANE = 2.5e10;
 /** A setup's name on a chip: the words a trader says. */
 const CHIP_NAMES: Record<string, string> = {
-  first_pullback: 'first pullback', bull_flag: 'bull flag', flat_top_breakout: 'flat top',
+  first_pullback: 'first pullback', bull_flag: 'bull flag',
 };
 
 export function lane5HoverId(setupType: string): string {
@@ -38,6 +41,11 @@ export function lane5HoverId(setupType: string): string {
 
 export function past5HoverId(ep: Episode): string {
   return `past5:${ep.id}`;
+}
+
+/** The lanes on 5-minute candles: the built-in ones and the setups in play whose pattern reads them. */
+export function fiveMinuteLanes(read: StockRead): SetupLane[] {
+  return [...(read.setups_5m ?? []), ...read.setups.filter(l => l.timeframe === '5m')];
 }
 
 /** The most advanced 5-minute lane: near, armed, triggered, then forming; null when none is. */
@@ -70,7 +78,7 @@ export interface FiveMinuteOptions extends LaneDrawOptions {
 /** What the 5-minute pane draws of the 5-minute lanes. */
 export function fiveMinuteScene(read: StockRead, o: FiveMinuteOptions): FiveMinuteDraw {
   const out: FiveMinuteDraw = { boxes: [], segments: [], lines: [], dots: [], marks: [], words: [] };
-  const lanes = (read.setups_5m ?? []).filter(l => !o.hidden.includes(l.setup_type));
+  const lanes = fiveMinuteLanes(read).filter(l => !o.hidden.includes(l.setup_type));
   const past = o.past ? drawnPast(o.past, o.hidden) : [];
   const failing = failingNow(past);
   for (const box of pastShapes(past, { toTime: o.toTime, legStart: o.legStart, barSec: FIVE_MIN_SEC })) {
@@ -101,7 +109,7 @@ export function fiveMinuteScene(read: StockRead, o: FiveMinuteOptions): FiveMinu
   if (lead && s && (IN_REACH.has(lead.state) || lead.state === 'triggered')) {
     const line = (id: string, price: number, color: string, title: string): PriceLineSpec =>
       ({ id: `5m-${id}`, price, color, width: 1, style: 'dashed', title, axisLabel: true });
-    const flat = lead.setup_type === 'flat_top_breakout';
+    const flat = isFlatTop(lead.setup_type);
     out.lines.push(
       line('trigger', s.trigger, flat ? FLAT_TOP_COLORS.line : SETUP_COLORS.trigger, flat ? '5m FLAT TOP' : '5m TRIGGER'),
       line('stop', s.stop, SETUP_COLORS.stop, '5m STOP'),
@@ -126,17 +134,12 @@ export function fiveMinuteOnMinute(read: StockRead): { chips: FiveMinuteChip[]; 
     const s = lane.setup;
     if (!s || !IN_REACH.has(lane.state)) continue;
     const name = CHIP_NAMES[lane.setup_type] ?? setupName(lane.setup_type).toLowerCase();
-    // Your material draws the flat top on the 5-minute chart and buys it on this one.
-    const howToBuy = lane.setup_type === 'flat_top_breakout'
-      ? 'The taught way to buy it is on this chart: after a 5-minute candle breaks it, the first 1-minute candle '
-        + 'that holds over it and closes green. '
-      : '';
     chips.push({
       setupType: lane.setup_type,
       text: `5m ${name} · ${lane.state} ${fmtPx(s.trigger)}`,
       tip: `A ${name} on 5-minute candles is ${lane.state === 'near' ? 'near' : 'armed at'} its ${fmtPx(s.trigger)} `
         + `trigger (stop ${fmtPx(s.stop)}, target ${fmtPx(s.target1)}). ${lane.reason}\n`
-        + `${howToBuy}The 5-minute chart draws it; here it is only this chip and its trigger line. `
+        + 'The 5-minute chart draws it; here it is only this chip and its trigger line. '
         + 'Nova scores 5-minute setups in silence: they never propose or trade.',
     });
     lines.push({ id: `5m-trigger:${lane.setup_type}`, price: s.trigger, color: SETUP_COLORS.trigger, width: 1,

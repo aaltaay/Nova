@@ -46,6 +46,7 @@ Constitution (`AGENTS.md`) and `.cursor/rules/*` remain supreme for trading gate
 | [042](./decisions/042-one-owner-for-novas-buys.md) | One owner for Nova's buys: a level per setup under a master ceiling (no chosen setup), one Activate cleared on restart and padlock lock, one sleeve per venue sizing every Nova buy, the bot list written only through Who trades, NOT A TRADE as one rule, stops that lift at 04:00 ET and say what they do, and no silent blocks | Accepted |
 | [043](./decisions/043-public-demo.md) | A public demo of the desk at nova.altaystudio.com/demo/: the real desk on Nova Marketing Sample Data with its backend inside the page, no path to any backend, nothing placed | Accepted |
 | [044](./decisions/044-one-bots-page.md) | One Bots page: one Bot switch per venue (no master dial, no Activate), strategies Off / Eyes / On with their own bot rules, today's hot list (the watch list folds into its ★), the ten checks by ticker now and at every trigger, hidden Trader tabs lend Level 2 and Time & Sales to a setup near its trigger, Freeze all orders, and one Eyes switch on the charts | Accepted |
+| [050](./decisions/050-agents-find-and-show-in-the-sim.md) | Agents find stock-days and show them in the Sim: a day movers index from the Massive files, private `/api/agent` endpoints, the desk follows agent commands (never orders; the venue moves only when nothing is at stake), the operator's words in a dictionary, float proven or unknown | Accepted |
 
 ## Rules and maps
 

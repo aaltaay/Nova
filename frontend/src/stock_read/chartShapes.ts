@@ -26,7 +26,7 @@ import { levelScene, minuteScene } from './levelPicks';
 import type { CallTone, MomentCall } from './momentModel';
 import { drawnPast, failingNow, type Episode } from './pastSetups';
 import { fiveMinuteOnMinute, fiveMinuteScene } from './fiveMinuteShapes';
-import { laneHoverId, laneShapes, levelsOf } from './laneShapes';
+import { laneHoverId, laneOnMinute, levelsOf } from './laneShapes';
 import { pastRings, pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, setupName } from './planMath';
 import { thinPlan } from './planVerdict';
@@ -203,7 +203,7 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
       for (const lane of read.setups) {
         if (o.layers.hidden.includes(lane.setup_type)) continue;
         if (lane.state === 'failed' && failing.has(lane.setup_type)) continue;
-        const s = laneShapes(lane, lane === lead && !thinPlan(plan), o);
+        const s = laneOnMinute(lane, lane === lead && !thinPlan(plan), o);
         scene.boxes.push(...s.boxes);
         scene.segments.push(...s.segments);
         mergeExtras(scene, s);
@@ -270,8 +270,8 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
 /** The legend chip for a lane: its short name and where it stands. */
 export function laneChip(lane: SetupLane): { text: string; state: 'forming' | 'live' | 'done' | 'idle' | 'failed' } {
   const short: Record<string, string> = {
-    first_pullback: '1st pullback', bull_flag: 'Bull flag', flat_top_breakout: 'Flat top', red_to_green: 'Red→green',
-    gap_and_go: 'Gap & Go',
+    first_pullback: '1st pullback', bull_flag: 'Bull flag', flat_top_breakout: 'Flat top', flat_top_5m: '5m flat top',
+    red_to_green: 'Red→green', gap_and_go: 'Gap & Go',
   };
   const name = short[lane.setup_type] ?? setupName(lane.setup_type);
   const prog = formingProgress(lane);
