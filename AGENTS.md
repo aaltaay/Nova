@@ -4951,8 +4951,10 @@ refuses every short (`IBKR_SHORT_ENABLED` is the operator's, set last), and no s
     `IBKR_SHORT_ENABLED` is off.
 - **Hotkeys** (`hotkeys/runNovaActionShort.ts`): `short_limit_bid_offset` / `short_limit_ask_offset` (a Short with
   its own buy stop: the hotkey's `stopOffsetDollars`, else the venue's offset; "SS1 Bid+1"),
-  `cover_limit_ask_offset` and `cover_pos` ("Cover all": the whole short at market, never past flat, never on a
-  long; protective like Flatten). DAS `SHORT` commands import as a Short at Bid / Ask plus an offset.
+  `cover_limit_ask_offset` (the whole short at the ask plus an offset) and `cover_pos` ("Cover all": the whole
+  short at market). Both covers are protective like Flatten (`intent: "flatten"`): never past flat, never on a long,
+  and refused while the short's own buy stop rests ("cancel that order first, or use KILL"). DAS `SHORT` commands
+  import as a Short at Bid / Ask plus an offset.
 - **Chart and Level 2.** The chart menu adds "Short @ price" (staged on the ticket's Short side; on a long its
   own reason under the row). Level 2 adds chips beside the borrow chip, from the short check for one share:
   SSR off / on with its trigger / "SSR ?", COOL-OFF while an up-halt's 10 minutes run, and LIQ (the position's
