@@ -216,6 +216,10 @@ is off, and the proof cannot complete until the operator answers how a day is re
   connected, or Live outside the regular session -- raises an alarm per venue and symbol, kept in memory until
   the short is gone or a cover goes out. The bot session carries it (`shorts.day_cover`), which every desk
   window already polls, and each window shows a red banner while it holds (hidden for 10 minutes at most).
+- **The desk says it before the door does.** `/api/ibkr/status` carries the proof's progress (`short_proof`):
+  the ticket locks a Live short while the proof is incomplete or cannot be read, and shows Live's Short side
+  only for a margin account by IBKR's own figures. The 15:50 close card names Live's 15:55 cover only while
+  the switch is on.
 
 ## Rejected
 
@@ -227,7 +231,7 @@ is off, and the proof cannot complete until the operator answers how a day is re
 - Freeze all orders keeping only bracket stop legs. A plain stop placed by hand protects a position just as much.
 - A pattern-day-trader count. The rule is retired.
 
-## Questions left with the operator (on #778)
+## Questions left with the operator (on #778, gathered in #791)
 
 - The every-trade squares in the spec list a Hot list square. ADR 044's 2026-10-06 amendment retired it ("just because it's starred or not, it shouldn't be a reason"), so it stays off until the operator says otherwise.
 - The short grade pillar "ran 30%+ today" will usually fail on a day-2 SSR name (ADR 049).
@@ -235,6 +239,9 @@ is off, and the proof cannot complete until the operator answers how a day is re
   is answered no day can be marked reviewed, so the proof cannot complete (step 6).
 - Live's 15:55 cover while `IBKR_SHORT_ENABLED` is off: step 6 places nothing then (a short opened in TWS is the
   operator's). Should it cover a Live short opened outside Nova too?
+- A short entry resting over the market through a halt, or after its borrow runs out: it could fill at the
+  reopening inside the 10-minute cool-off, or with no borrow. Proposed: cancel resting short entries when a halt
+  starts and hold a fill while borrow reads unavailable, on Live too. Until answered both stay as they are.
 - Notes to confirm against the live margin account: no pattern-day-trader limit, and no borrow fees on day-only shorts.
 - Early closes (step 2): new shorts stop at 12:50 and Nova covers at 12:55 on an NYSE 13:00 close, ten and five minutes before it, by the same rule as 15:50 / 15:55.
 

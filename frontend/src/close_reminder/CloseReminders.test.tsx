@@ -70,6 +70,21 @@ describe('CloseReminders', () => {
     expect(screen.getByTestId('close-reminder').textContent).toContain('at 15:55 Nova buys back what is left of a short');
   });
 
+  it('names Live\'s 15:55 cover only while IBKR_SHORT_ENABLED is on (ADR 048 step 6)', () => {
+    render(<CloseReminders positions={[{ symbol: 'RDYN', qty: -416 }]} venue="live" />);
+    expect(screen.getByTestId('close-reminder-title').textContent)
+      .toBe('Still holding 416 short RDYN at 15:50 -- be flat by 15:55');
+    cleanup();
+    render(<CloseReminders positions={[{ symbol: 'RDYN', qty: -416 }]} venue="live" liveCover />);
+    expect(screen.getByTestId('close-reminder-title').textContent)
+      .toBe('Still holding 416 short RDYN at 15:50 -- cover it, or Nova covers it at 15:55');
+    expect(screen.getByTestId('close-reminder').textContent).toContain('Live position · at 15:55 Nova buys back');
+    cleanup();
+    // A long is the operator's to close, switch or no switch.
+    render(<CloseReminders positions={[{ symbol: 'GRML', qty: 500 }]} venue="live" liveCover />);
+    expect(screen.getByTestId('close-reminder-title').textContent).toBe('Still holding 500 GRML at 15:50 -- be flat by 15:55');
+  });
+
   it('says the rows are last known when the Gateway dropped', () => {
     render(<CloseReminders positions={[{ symbol: 'ACN', qty: -100 }]} venue="live" stale />);
     expect(screen.getByTestId('close-reminder-title').textContent).toBe('Still holding 100 short ACN at 15:50 -- be flat by 15:55');

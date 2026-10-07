@@ -237,6 +237,41 @@ def test_three_reviewed_days_and_the_four_drills_complete_it_once_reviews_open(f
     assert proof_view.status() == (True, "")
 
 
+def test_progress_counts_days_and_drills_in_one_read_for_the_status(fresh_proof, monkeypatch):
+    assert proof_view.progress() == {"complete": False, "done": 0, "total": 7, "error": None}
+    _all_drills_and_three_days()
+    # Four drills; three days with shorts but none reviewed (#778, question 3), so 4 of 7 and incomplete.
+    assert proof_view.progress() == {"complete": False, "done": 4, "total": 7, "error": None}
+    monkeypatch.setattr(proof_view, "SHORT_PROOF_REVIEW_OPEN", True)
+    path = store.path()
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["reviews"] = {day: {"ok": True} for day in doc["days"]}
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    store.reset_for_tests()
+    assert proof_view.progress() == {"complete": True, "done": 7, "total": 7, "error": None}
+
+
+def test_a_proof_nova_cannot_read_is_never_complete_in_the_status(fresh_proof):
+    store.path().write_text("{not json", encoding="utf-8")
+    store.reset_for_tests()
+    got = proof_view.progress()
+    assert got["complete"] is False and got["done"] == 0 and got["error"]
+
+
+def test_the_ibkr_status_carries_the_proof_and_a_failed_read_is_incomplete(fresh_proof, monkeypatch):
+    from ibkr import safety
+
+    store.record_drill("freeze", True, {"at": 1.0, "key": "z", "detail": "kept its buy stop"})
+    assert safety.status_snapshot()["short_proof"] == {"complete": False, "done": 1, "total": 7, "error": None}
+
+    def broken():
+        raise RuntimeError("disk gone")
+
+    monkeypatch.setattr(proof_view, "progress", broken)
+    got = safety.status_snapshot()["short_proof"]
+    assert got["complete"] is False and "disk gone" in got["error"]
+
+
 # ── the checklist ──────────────────────────────────────────────────────────────
 
 def test_the_checklist_lists_the_operators_steps_in_order(fresh_proof, monkeypatch):

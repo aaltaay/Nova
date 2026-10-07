@@ -17,13 +17,18 @@ vi.mock('./ticketUnlock', () => ({
 }));
 
 // Side vs account class; the practice venues short through the same Short side (below, ADR 048).
-const venue = vi.hoisted(() => ({ mode: 'live' as 'live' | 'paper' | 'sim' }));
+const venue = vi.hoisted(() => ({
+  mode: 'live' as 'live' | 'paper' | 'sim',
+  // The Live short proof (ADR 048 step 6): complete here unless a test says otherwise.
+  proof: { complete: true, done: 7, total: 7 } as { complete: boolean; done: number; total: number } | null,
+}));
 vi.mock('./useIbkrStatus', () => ({
   useIbkrStatus: () => ({
     connected: true,
     mode: venue.mode,
     spend_status: `${venue.mode}_armed`,
     short_enabled: true,
+    short_proof: venue.proof,
   }),
 }));
 
@@ -42,6 +47,7 @@ describe('ManualOrderTicket Side vs account_class', () => {
   beforeEach(() => {
     localStorage.clear();
     venue.mode = 'live';
+    venue.proof = { complete: true, done: 7, total: 7 };
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -92,6 +98,35 @@ describe('ManualOrderTicket Side vs account_class', () => {
       connected: true,
       mode: 'paper',
       BuyingPower: 50_000,
+    });
+    expect(container.querySelector('[data-testid="manual-order-side-short"]')).toBeNull();
+  });
+
+  it('locks a Live short while the Live short proof is incomplete, and says so', () => {
+    venue.proof = { complete: false, done: 2, total: 7 };
+    render({
+      connected: true,
+      mode: 'live',
+      AccountType: 'INDIVIDUAL',
+      account_class: 'margin',
+      ibkr_account_class: 'margin',
+      BuyingPower: 50_000,
+    });
+    const short = container.querySelector('[data-testid="manual-order-side-short"]') as HTMLButtonElement;
+    expect(short).toBeTruthy();
+    expect(short.disabled || short.getAttribute('aria-disabled') === 'true').toBe(true);
+    expect(short.getAttribute('data-why')).toContain('Live short proof is not complete (2 of 7 days and drills)');
+  });
+
+  it('gives Live no Short side when only the .env override says margin', () => {
+    render({
+      connected: true,
+      mode: 'live',
+      AccountType: 'INDIVIDUAL',
+      account_class: 'margin',
+      ibkr_account_class: 'cash',
+      account_class_source: 'override',
+      BuyingPower: 383,
     });
     expect(container.querySelector('[data-testid="manual-order-side-short"]')).toBeNull();
   });

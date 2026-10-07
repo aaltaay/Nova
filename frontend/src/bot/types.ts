@@ -83,6 +83,22 @@ export type BotTrade = {
 /** One of the answer line's short chips (ADR 049, #778 step 5): ok, not, or not known (null). */
 export type ShortChip = { ok: boolean | null; text: string; value?: string | null };
 
+/** A short whose day cover could not go out (ADR 048 decision 5, step 6), on any venue. */
+export type CoverAlarm = {
+  id: string;
+  venue: 'live' | 'paper' | 'sim' | string;
+  symbol: string;
+  qty: number;
+  kind: 'refused' | 'disconnected' | 'outside_session' | string;
+  since: number;
+  updated: number;
+  error: string | null;
+  reason_code: string | null;
+  text: string;
+  /** When IBKR last reported the short, while it is not ready; else null. */
+  last_seen: number | null;
+};
+
 /** What a short needs from the account and the clock, said once for the desk's venue. */
 export type BotShortsView = {
   venue?: string;
@@ -90,6 +106,10 @@ export type BotShortsView = {
   equity?: ShortChip;
   hours?: ShortChip;
   live?: ShortChip;
+  /** Nova covers Live shorts at 15:55 (IBKR_SHORT_ENABLED is on; ADR 048 step 6). */
+  live_cover?: boolean;
+  /** The day cover's alarms, every venue's: every desk window shows them. */
+  day_cover?: { alarms: CoverAlarm[] };
   error?: string;
 };
 

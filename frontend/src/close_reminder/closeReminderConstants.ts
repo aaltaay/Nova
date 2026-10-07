@@ -1,7 +1,7 @@
 /**
  * The close-of-day reminder's numbers and words (operator ask, 2026-10-01: flat by 15:55 ET,
- * nothing held overnight). A Paper short names Nova's 15:55 day cover (ADR 048). Feature-local constants
- * (AGENTS.md §6.1).
+ * nothing held overnight). A Paper short names Nova's 15:55 day cover (ADR 048), and so does a Live short while
+ * IBKR_SHORT_ENABLED is on (step 6: Live's cover runs only then). Feature-local constants (AGENTS.md §6.1).
  */
 import type { CloseReminder } from './closeReminderStore';
 
@@ -27,14 +27,18 @@ function sizeWords(qty: number): string {
   return qty < 0 ? `${shares} short` : shares;
 }
 
-/** A Paper short is covered by Nova at 15:55 (ADR 048's day cover); Live's comes with #778 step 6. */
-function dayCover(r: Pick<CloseReminder, 'qty' | 'venue'>): boolean {
-  return r.qty < 0 && r.venue === 'paper';
+/**
+ * Nova covers a Paper short at 15:55 (ADR 048's day cover), and a Live short only while IBKR_SHORT_ENABLED is
+ * on (#778 step 6): with the switch off a Live short was opened in TWS, and covering it is the operator's.
+ */
+function dayCover(r: Pick<CloseReminder, 'qty' | 'venue'>, liveCover: boolean): boolean {
+  return r.qty < 0 && (r.venue === 'paper' || (r.venue === 'live' && liveCover));
 }
 
-export function closeReminderTitle(r: Pick<CloseReminder, 'symbol' | 'qty' | 'stage'> & Partial<Pick<CloseReminder, 'venue'>>): string {
+export function closeReminderTitle(r: Pick<CloseReminder, 'symbol' | 'qty' | 'stage'> & Partial<Pick<CloseReminder, 'venue'>>,
+  liveCover = false): string {
   const size = sizeWords(r.qty);
-  const covers = dayCover({ qty: r.qty, venue: r.venue ?? 'live' });
+  const covers = dayCover({ qty: r.qty, venue: r.venue ?? 'live' }, liveCover);
   if (r.stage === 'final') {
     return covers ? `15:55: Nova covers ${size} ${r.symbol} now -- the day cover`
       : `15:55: ${size} ${r.symbol} still open -- close it now`;
@@ -43,10 +47,11 @@ export function closeReminderTitle(r: Pick<CloseReminder, 'symbol' | 'qty' | 'st
     : `Still holding ${size} ${r.symbol} at 15:50 -- be flat by 15:55`;
 }
 
-export function closeReminderBody(r: Pick<CloseReminder, 'venue' | 'stale'> & Partial<Pick<CloseReminder, 'qty'>>): string {
+export function closeReminderBody(r: Pick<CloseReminder, 'venue' | 'stale'> & Partial<Pick<CloseReminder, 'qty'>>,
+  liveCover = false): string {
   const venue = `${VENUE_WORDS[r.venue]} position`;
   const stale = r.stale ? ' · last known: the Gateway dropped' : '';
-  if (dayCover({ qty: r.qty ?? 0, venue: r.venue })) {
+  if (dayCover({ qty: r.qty ?? 0, venue: r.venue }, liveCover)) {
     return `${venue}${stale} · at 15:55 Nova buys back what is left of a short, at market; nothing is held overnight`;
   }
   return `${venue}${stale} · the close is 16:00 ET; nothing is held overnight`;

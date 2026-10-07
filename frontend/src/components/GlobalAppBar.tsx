@@ -25,6 +25,7 @@ import { GlobalBarBotPill } from '../bot/GlobalBarBotPill';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { CloseReminders } from '../close_reminder';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
+import { useIbkrStatus } from '../ibkr';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
@@ -72,6 +73,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
   const { summary, orders, positions, refresh, stale: accountStale, loading: accountLoading, error: accountError } =
     useIbkrAccountContext();
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
+  // ADR 048 step 6: Nova covers Live shorts at 15:55 only while IBKR_SHORT_ENABLED is on; the close card says which.
+  const liveShortCover = useIbkrStatus().short_enabled === true;
 
   const traderActive = traderViewActive;
   const detachedTrader = traderTabs.length > 0 && parseStockViewSymbol() != null;
@@ -105,7 +108,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
       <RecordingSignals onOpenSymbol={openStockView} />
       <WatchListToasts onOpenSymbol={openStockView} />
       {!isSampleView() && (
-        <CloseReminders positions={positions} venue={deskVenue} stale={accountStale} onOpenSymbol={openStockView} />
+        <CloseReminders positions={positions} venue={deskVenue} stale={accountStale} liveCover={liveShortCover}
+          onOpenSymbol={openStockView} />
       )}
       <ClipToasts />
       <ClipExportHost />

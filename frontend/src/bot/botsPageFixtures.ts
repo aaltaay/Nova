@@ -7,6 +7,7 @@
  */
 import type { SetupStoreRow } from '../setups/useSetupRows';
 import templatesFixture from './setupTemplatesFixture.json';
+import { shortProofView } from './shortProofFixtures';
 import type { TemplatesPayload } from './templateTypes';
 import type { BotAuditEntry, BotBreakers, BotCaps, BotGate, BotProposal, BotSession } from './types';
 
@@ -174,6 +175,8 @@ export interface BotsFetchOpts {
   lines?: unknown;
   /** `PUT /api/stock-mode/{symbol}`: the stock's view after it (default: the switch as sent), or a refusal. */
   onStockModePut?: (symbol: string, body: Record<string, unknown>) => Json | undefined;
+  /** `GET /api/short-proof` (ADR 048 step 6). */
+  shortProof?: unknown;
 }
 
 const MODE_OF: Record<string, string> = { 'you/you': 'signal', 'nova/you': 'auto_entry', 'you/nova': 'approve', 'nova/nova': 'bot' };
@@ -282,6 +285,7 @@ export function botsFetchRouter(opts: BotsFetchOpts = {}) {
       enabled: true, connected: true, mode: 'paper', venue: current.level_venue,
     });
     if (href.includes('/bot/triggers')) return ok(opts.triggers ?? triggersView());
+    if (href.includes('/short-proof')) return ok(opts.shortProof ?? shortProofView());
     if (href.includes('/hot-list')) {
       const answer = method === 'GET' ? undefined : opts.onHotList?.(method, href, body);
       return answer ?? ok(opts.hotList ?? hotListView());

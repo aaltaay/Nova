@@ -4,7 +4,8 @@
  * names it (▲ long or ▼ short).
  * The switch replaces the master dial and Activate: on is the master at Strategy with Activate, off leaves
  * the master at Eyes so alerts keep coming. After the bot trip it asks first, in words, before it turns
- * on again. On Live it is locked and says why. Nothing here places an order.
+ * on again. On Live it is locked and says why. The Live short proof (ADR 048 step 6) sits under Freeze all
+ * orders: the operator's steps before any short goes to Live. Nothing here places an order.
  */
 import { useState, type ReactNode } from 'react';
 import { writeNovaApiKey } from '../api/novaFetch';
@@ -40,11 +41,13 @@ export function ApiKeyField({ className = 'bots-hero__key', testId = 'bots-api-k
   );
 }
 
-export function BotSwitchCard({ arm, killSwitch, breakers, children }: {
+export function BotSwitchCard({ arm, killSwitch, breakers, proof, children }: {
   arm: BotArm;
   killSwitch: KillSwitchControl;
   /** The loss breakers: what turns the Bot off (the bot trip) and locks every buy (the all-stop). */
   breakers?: ReactNode;
+  /** The Live short proof (bot/BotShortProof.tsx): what stands between a short and Live. */
+  proof?: ReactNode;
   children: ReactNode;
 }) {
   const { session, error, on, lock, onSwitch, showKeyField } = arm;
@@ -81,6 +84,7 @@ export function BotSwitchCard({ arm, killSwitch, breakers, children }: {
         <div className="bots-freeze" data-testid="bots-freeze">
           <BotKillSwitch killSwitch={killSwitch} />
         </div>
+        {proof}
         {error ? <p className="bots-hero__error" role="alert" data-testid="bots-error">{prose(error)}</p> : null}
         {showKeyField ? <ApiKeyField /> : null}
       </div>

@@ -1,0 +1,65 @@
+/* The day cover's alarm (bot/DayCoverAlarms.tsx): a red bar across the top of every desk window, over the page,
+   until a cover goes out or the short is gone. */
+.day-cover-alarms {
+  --day-cover-color: #e5484d;
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(760px, calc(100vw - 32px));
+  transform: translateX(-50%);
+}
+
+.day-cover-alarm {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--day-cover-color) 70%, var(--border-color));
+  border-left-width: 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--day-cover-color) 18%, var(--panel-bg));
+  color: var(--text-primary);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+}
+
+/* The ring pulses on its opacity alone, which the compositor animates by itself: no repaint of the page while the
+   operator covers the short (#707). */
+.day-cover-alarm::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--day-cover-color) 60%, transparent);
+  pointer-events: none;
+  animation: day-cover-alarm-pulse 1.6s ease-in-out infinite;
+}
+
+.day-cover-alarm__title { font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
+.day-cover-alarm__text { flex: 1 1 320px; line-height: 1.4; overflow-wrap: anywhere; }
+.day-cover-alarm__hide {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 40%, transparent);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.day-cover-alarm__hide:hover { background: color-mix(in srgb, var(--text-primary) 12%, transparent); }
+
+@keyframes day-cover-alarm-pulse {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .day-cover-alarm::after { animation: none; }
+}

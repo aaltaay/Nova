@@ -65,12 +65,26 @@ def _missing(doc: dict[str, Any]) -> str:
 
 def status() -> tuple[bool, str]:
     """``(complete, what is missing)`` for the door; memory only."""
-    doc, error = store.read()
+    return _status_of(*store.read())
+
+
+def _status_of(doc: dict[str, Any] | None, error: str | None) -> tuple[bool, str]:
     if doc is None:
         return False, f"the proof could not be read ({error})."
-    complete = (len(_reviewed(doc)) >= SHORT_PROOF_DAYS_NEEDED
-                and all(doc["drills"][name]["passed"] is not None for name in SHORT_PROOF_DRILLS))
+    complete = _complete(doc)
     return complete, ("" if complete else _missing(doc))
+
+
+def _complete(doc: dict[str, Any]) -> bool:
+    return (len(_reviewed(doc)) >= SHORT_PROOF_DAYS_NEEDED
+            and all(doc["drills"][name]["passed"] is not None for name in SHORT_PROOF_DRILLS))
+
+
+def progress() -> dict[str, Any]:
+    """``{complete, done, total, error}``: the proof in one memory read (``/api/ibkr/status``, the ticket)."""
+    doc, error = store.read()
+    count, total = done(doc)
+    return {"complete": doc is not None and _complete(doc), "done": count, "total": total, "error": error}
 
 
 def done(doc: dict[str, Any] | None) -> tuple[int, int]:
@@ -197,7 +211,7 @@ def _key_step() -> dict[str, Any]:
 def view() -> dict[str, Any]:
     """``GET /api/short-proof``."""
     doc, error = store.read()
-    complete, missing = status()
+    complete, missing = _status_of(doc, error)
     count, total = done(doc)
     days = [{"date": day, "shorts": len(entry["orders"]), "symbols": entry["symbols"],
              "first_ts": entry.get("first_ts"), "last_ts": entry.get("last_ts"),

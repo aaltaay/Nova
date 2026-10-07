@@ -101,7 +101,7 @@ export function ManualOrderTicket({
   );
   const { side, shortEntry } = ticketSideToOrder(ticketSide);
   const [orderType, setOrderType] = useState<ManualOrderType>(initial.orderType);
-  const shortBlockReason = shortDisabledReason(ibkrStatus.short_enabled, listingIbkr, mode);
+  const shortBlockReason = shortDisabledReason(ibkrStatus.short_enabled, listingIbkr, mode, ibkrStatus.short_proof);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('shares');
   const [quantityValue, setQuantityValue] = useState(initial.quantityValue);
   const [limitPrice, setLimitPrice] = useState(initial.limitPrice);

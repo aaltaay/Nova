@@ -287,3 +287,27 @@ export const BOTS_BUCKET_LOADING_READOUT = 'Read-out loading';
 export const BOTS_BUCKET_LOADING_READOUT_TIP = 'The template in play has not loaded yet, so its read-out is not known.';
 export const BOTS_BUCKET_NO_READOUT = 'No read-out reported';
 export const BOTS_BUCKET_NO_READOUT_TIP = 'The backend reports no read-out for this strategy\'s template in play.';
+
+/* ---------- The Live short proof (ADR 048 step 6, #778 §7) on the Bot card ---------- */
+export const BOTS_PROOF_TITLE = 'Live short proof';
+export const BOTS_PROOF_LEDE = 'Live refuses every short until the steps the door reads are done (hover a step to see '
+  + 'which). Nova ticks what it can see; how a Paper day is reviewed waits on your answer (#778, question 3).';
+export const BOTS_PROOF_DONE = 'The Paper days and the drills are done. A Live short still needs IBKR to show a margin '
+  + 'account and IBKR_SHORT_ENABLED, which you set last.';
+/** The count beside the title: the reviewed Paper days and the drills, what the door counts. */
+export const BOTS_PROOF_COUNT = (done: number, total: number) => `${done} of ${total} days and drills`;
+export const BOTS_PROOF_COUNT_TIP = 'The door counts the three reviewed Paper days and the four drills. The margin '
+  + 'account and IBKR_SHORT_ENABLED are checked on their own.';
+export const BOTS_PROOF_POLL_MS = 15_000;
+export const BOTS_PROOF_SEEN_YOU = 'you';
+export const BOTS_PROOF_SEEN_YOU_TIP = 'Only you can do or judge this step: Nova shows what it can see.';
+export const BOTS_PROOF_ENFORCED_TIP = 'The execution door refuses every Live short until this step is done.';
+export const BOTS_PROOF_SHOWN_TIP = 'Shown for you: the door does not read this step.';
+export const BOTS_PROOF_UNREAD = 'The Live short proof could not be read';
+export const BOTS_PROOF_OLD_BACKEND = 'This backend has no Live short proof yet: reload the backend after the update.';
+
+/* ---------- The day cover's alarm (ADR 048 decision 5, step 6): every desk window ---------- */
+export const DAY_COVER_ALARM_TITLE = 'DAY COVER';
+export const DAY_COVER_ALARM_HIDE = 'Hide 10 min';
+export const DAY_COVER_ALARM_HIDE_MS = 10 * 60_000;
+export const DAY_COVER_ALARM_VENUES: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };

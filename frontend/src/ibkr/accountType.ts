@@ -60,8 +60,10 @@ export function classifyMarginKind(summary: IbkrAccountSummary): 'cash' | 'margi
   return 'cash';
 }
 
-/** #186: Short side is hidden on Cash. */
+/** #186: Short side is hidden on Cash. On Live (a summary IBKR stamped with its own class) it follows
+ * IBKR's figures alone: the .env override never gives Live a Short side (ADR 048 step 6). */
 export function shortSideVisible(summary: IbkrAccountSummary | null): boolean {
   if (!summary?.connected) return false;
+  if (summary.ibkr_account_class != null) return summary.ibkr_account_class === 'margin';
   return classifyMarginKind(summary) === 'margin';
 }

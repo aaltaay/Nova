@@ -29,10 +29,16 @@ export interface CloseRemindersProps {
   venue: string | null | undefined;
   /** The rows are last-known (the Gateway dropped). */
   stale?: boolean;
+  /** Nova covers Live shorts at 15:55: IBKR_SHORT_ENABLED is on (ADR 048 step 6). */
+  liveCover?: boolean;
   onOpenSymbol?: (symbol: string) => void;
 }
 
-function CloseReminderCard({ reminder, onOpenSymbol }: { reminder: CloseReminder; onOpenSymbol?: (symbol: string) => void }) {
+function CloseReminderCard({ reminder, liveCover, onOpenSymbol }: {
+  reminder: CloseReminder;
+  liveCover: boolean;
+  onOpenSymbol?: (symbol: string) => void;
+}) {
   const { symbol } = reminder;
   return (
     <div
@@ -44,9 +50,9 @@ function CloseReminderCard({ reminder, onOpenSymbol }: { reminder: CloseReminder
     >
       <div className="close-reminder__text">
         <strong className="close-reminder__title" data-testid="close-reminder-title">
-          {closeReminderTitle(reminder)}
+          {closeReminderTitle(reminder, liveCover)}
         </strong>
-        <span className="close-reminder__body">{closeReminderBody(reminder)}</span>
+        <span className="close-reminder__body">{closeReminderBody(reminder, liveCover)}</span>
         {onOpenSymbol ? (
           <div className="close-reminder__actions">
             <button
@@ -74,7 +80,7 @@ function CloseReminderCard({ reminder, onOpenSymbol }: { reminder: CloseReminder
   );
 }
 
-export function CloseReminders({ positions, venue, stale = false, onOpenSymbol }: CloseRemindersProps) {
+export function CloseReminders({ positions, venue, stale = false, liveCover = false, onOpenSymbol }: CloseRemindersProps) {
   const reminders = useSyncExternalStore(subscribeCloseReminders, getCloseReminders, getCloseReminders);
   useEffect(() => {
     const tick = () => noteCloseReminders(positions, venue, stale);
@@ -87,7 +93,7 @@ export function CloseReminders({ positions, venue, stale = false, onOpenSymbol }
   return (
     <div className="close-reminders" role="region" aria-label={CLOSE_REMIND_REGION} data-testid="close-reminders">
       {reminders.map(reminder => (
-        <CloseReminderCard key={reminder.symbol} reminder={reminder} onOpenSymbol={onOpenSymbol} />
+        <CloseReminderCard key={reminder.symbol} reminder={reminder} liveCover={liveCover} onOpenSymbol={onOpenSymbol} />
       ))}
     </div>
   );
