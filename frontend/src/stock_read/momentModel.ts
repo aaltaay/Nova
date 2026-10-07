@@ -61,7 +61,7 @@ export interface MomentInputs {
 export type StepIndex = 0 | 1 | 2 | 3 | 4;
 export type MomentTone = 'forming' | 'near' | 'go' | 'holding' | 'target' | 'stop' | 'done' | 'wait' | 'thin';
 export type CallTone = 'go' | 'target' | 'stop' | 'nova' | 'done' | 'wait' | 'info';
-export type ExitLabel = 'Your exit' | 'Target / stop';
+export type ExitLabel = 'Your exit' | 'Target / stop' | 'Your cover';
 
 /** A call's tag on the chart: at its price, on the candle of its moment. */
 export interface CallPin {
@@ -86,6 +86,8 @@ export interface MomentCall {
 export interface Moment {
   /** 0 Forming, 1 Trigger, 2 Holding, 3 the exit; 4 once every step is done. */
   step: StepIndex;
+  /** A short's moment (ADR 048): the track reads Forming · Trigger · Short · Your cover. */
+  side?: 'short';
   /** The last step: the operator's exit, or the orders Nova holds. */
   exitLabel: ExitLabel;
   tone: MomentTone;
@@ -118,11 +120,12 @@ function liveTrade(who: StockModeView | null): StockModeTrade | null {
   return t && (t.state === 'entering' || t.state === 'holding') ? t : null;
 }
 
-/** Shares held: the account's, or Nova's filled trade while the positions read catches up. */
+/** Shares held long: the account's, or Nova's filled long trade while the positions read catches up (a short is
+ * `shortQty`'s, ADR 048). */
 export function heldQty(i: MomentInputs): number {
   const live = liveTrade(i.who);
   const own = i.position && i.position.qty > 0 ? i.position.qty : 0;
-  const nova = live?.state === 'holding' && live.qty !== null ? live.qty : 0;
+  const nova = live?.state === 'holding' && live.side !== 'short' && live.qty !== null ? live.qty : 0;
   return Math.max(own, nova);
 }
 

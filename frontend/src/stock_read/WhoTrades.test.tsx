@@ -136,8 +136,8 @@ describe('who trades APUS, above Level 2', () => {
       method: 'PUT', body: { buy: 'nova', sell: 'you' }, key: 'desk-key',
     })]);
     expect(screen.getByTestId('stock-read-action-auto-off').textContent).toBe('Auto-entry on · turn off');
-    expect(screen.getByTestId('stock-read-plan-note').textContent).toBe('The bot buys APUS at a go trigger of a setup at '
-      + "Strategy, by the bot's rules, while the bot is on. Every sell is yours.");
+    expect(screen.getByTestId('stock-read-plan-note').textContent).toBe('The bot enters APUS at a go trigger of a '
+      + "strategy at On, by the bot's rules, while the bot is on: the strategy decides long or short. Every exit is yours.");
   });
 
   it('shows every note, toned, the day\'s shared count and the last event -- none hidden behind the first', async () => {
@@ -174,13 +174,13 @@ describe('who trades APUS, above Level 2', () => {
     expect(screen.getByTestId('stock-read-size').textContent).toBe('181 sh');      // your own Stage: no sleeve caps
   });
 
-  it('takes over with the symbol alone: Buy stays on You, never Auto-entry', async () => {
+  it('takes over with the symbol alone: Entry stays on You, never Auto-entry', async () => {
     view = modeWire('bot', { trade: { kind: 'bot', state: 'holding', qty: 10, entry: 5.44, stop: 5.33, target: 5.66,
       fill_price: 5.44, filled_at: clock, exits: 'nova', entry_order_id: 7, target_order_id: 8, stop_order_id: 9 },
       bot: { on_list: true, playing: true, reason: null, setup_at_strategy: true, active: true } });
     renderTab();
     const take = await screen.findByTestId('stock-read-action-take-over');
-    expect(take.getAttribute('data-tip')).toMatch(/Buy stays on You: the bot buys no more APUS/);
+    expect(take.getAttribute('data-tip')).toMatch(/Entry stays on You: the bot enters nothing more on APUS/);
     fireEvent.click(take);
     await waitFor(() => expect(screen.getByTestId('who-trades-mode').textContent).toContain('Signal only'));
     const post = writes().find(c => c.url.endsWith('/take-over'));
@@ -231,10 +231,10 @@ describe('on the 1-minute chart', () => {
     fireEvent.click(chip);
     const menu = screen.getByTestId('who-trades-menu');
     expect(within(menu).getAllByRole('menuitemradio').map(b => b.textContent)).toEqual([
-      'Signal only ✓you buy · you sell',
-      'Approveyou approve · bot sells',
-      'Auto-entrybot buys · you sell',
-      'Botbot buys · bot sells',
+      'Signal only ✓you enter · you exit',
+      'Approveyou approve · bot exits',
+      'Auto-entrybot enters · you exit',
+      'Botbot enters · bot exits',
     ]);
     fireEvent.click(screen.getByTestId('who-trades-menu-approve'));
     await waitFor(() => expect(screen.getByTestId('who-trades-mode').textContent).toContain('Approve'));

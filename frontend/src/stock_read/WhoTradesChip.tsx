@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { tipProps, whyProps } from '../ux';
 import { STOCK_MODE_COLORS } from './constants';
-import { heldQty } from './momentModel';
+import { heldAnyQty, shortQty } from './momentShort';
 import type { StockReadContextValue } from './StockReadContext';
 import { MODE_NAMES, MODE_ORDER, MODE_SIDES, modeSentence, sidesOf, switchLock } from './whoTradesModel';
 import { switchPending } from './WhoTradesRow';
@@ -35,7 +35,7 @@ export function WhoTradesChip({ ctx }: { ctx: StockReadContextValue }) {
     };
   }, [open]);
 
-  const held = heldQty(who.inputs);
+  const held = heldAnyQty(who.inputs);
   const pending = switchPending(ctx);
   return (
     <div className="sr-whochip" ref={box}>
@@ -57,7 +57,8 @@ export function WhoTradesChip({ ctx }: { ctx: StockReadContextValue }) {
         <div className="sr-whochip__menu" role="menu" aria-label={`Who trades ${ctx.symbol}`} data-testid="who-trades-menu">
           {MODE_ORDER.map(m => {
             const on = m === mode;
-            const locked = on ? null : switchLock(view, sidesOf(m), { symbol: ctx.symbol, held, pending });
+            const locked = on ? null : switchLock(view, sidesOf(m), { symbol: ctx.symbol, held, pending,
+              short: shortQty(who.inputs) > 0 });
             return (
               <button
                 key={m}

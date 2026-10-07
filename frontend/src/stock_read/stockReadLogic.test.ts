@@ -1,7 +1,8 @@
 import type { Time } from 'lightweight-charts';
 import { describe, expect, it } from 'vitest';
 import { laneChip, paneDraw, paneKind, planBadgeText } from './chartShapes';
-import { normalizeDecisions, normalizeHistory, normalizeStockRead } from './normalize';
+import { normalizeHistory } from './historyNormalize';
+import { normalizeDecisions, normalizeStockRead } from './normalize';
 import {
   fmtPx,
   fmtStep,

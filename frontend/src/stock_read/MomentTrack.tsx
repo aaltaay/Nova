@@ -8,6 +8,7 @@ import { tipProps } from '../ux';
 import { STEP_NAMES, type Moment, type MomentCall } from './momentModel';
 import { isStockReadSoundOn, setStockReadSound, subscribeStockReadSound } from './whoTradesSound';
 import './whoTrades.css';
+import './shortRead.css';
 
 function useSoundOn(): boolean {
   return useSyncExternalStore(subscribeStockReadSound, isStockReadSoundOn, isStockReadSoundOn);
@@ -17,15 +18,21 @@ const STEP_TIPS: Record<string, string> = {
   Forming: 'The setup is forming, armed or near its trigger.',
   Trigger: 'The trigger printed: the moment to enter.',
   Holding: 'Shares are held.',
+  Short: 'Shares are held short: borrowed through IBKR and sold. Nova covers what is left at 15:55 ET.',
   'Your exit': 'The exit is yours: Nova places no sell.',
+  'Your cover': 'The cover is yours: Nova buys nothing back unless you hand it the cover.',
   'Target / stop': 'Nova holds the exit: the target, the stop.',
 };
 
+/** A short's track (ADR 048): Forming · Trigger · Short · Your cover. */
+const SHORT_STEPS = ['Forming', 'Trigger', 'Short'] as const;
+
 export function MomentTrack({ moment }: { moment: Moment }) {
   const sound = useSoundOn();
-  const steps = [...STEP_NAMES, moment.exitLabel];
+  const steps = [...(moment.side === 'short' ? SHORT_STEPS : STEP_NAMES), moment.exitLabel];
   return (
-    <div className={`sr-track sr-track--${moment.tone}`} data-testid="moment-track" aria-label="Where the trade stands">
+    <div className={`sr-track sr-track--${moment.tone}${moment.side === 'short' ? ' sr-track--short' : ''}`}
+      data-testid="moment-track" aria-label="Where the trade stands">
       {steps.map((name, i) => {
         const state = i < moment.step ? 'done' : i === moment.step ? 'now' : 'next';
         return (

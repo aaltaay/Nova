@@ -326,6 +326,20 @@ describe('ChartContextMenuHost', () => {
     );
   });
 
+  it('says the Short row\'s own lock under it on a long, and keeps the hint for the ticket (ADR 048)', () => {
+    positions = [SMPL];
+    mountTicket();
+    render();
+    rightClick();
+    const short = item('short');
+    expect(short.disabled).toBe(true);
+    expect(short.getAttribute('data-why')).toMatch(/You're long SMPL: Nova never flips/);
+    expect(short.textContent).toMatch(/Nova never flips/);
+    expect(item('buy').disabled).toBe(false);
+    expect(document.querySelector('[data-testid="chart-context-menu-hint"]')?.textContent)
+      .not.toMatch(/never flips/);
+  });
+
   it('Drawings submenu arms an existing draw tool', () => {
     render();
     rightClick();

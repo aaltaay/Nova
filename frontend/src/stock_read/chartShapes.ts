@@ -134,6 +134,7 @@ function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): Pri
   const out: PriceLineSpec[] = [];
   const thin = pane !== 'full';
   const r = plan?.rr == null ? '' : ` ${plan.rr.toFixed(plan.rr % 1 ? 1 : 0)}R`;
+  const short = plan?.side === 'short';
   const add = (id: 'entry' | 'stop' | 'target', level: OrderLevel | null, color: string) => {
     if (!level) return;
     const provisional = id === 'entry' && level.behind === 'plan' && plan?.provisional && plan.source === 'setup';
@@ -143,7 +144,7 @@ function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): Pri
       color,
       width: thin ? 1 : 2,
       style: level.behind === 'plan' ? 'dashed' : 'solid',
-      title: thin ? '' : provisional ? 'ENTRY (provisional)' : levelTitle(id, level.behind, r),
+      title: thin ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)` : levelTitle(id, level.behind, r, short),
       axisLabel: !thin,
     });
   };

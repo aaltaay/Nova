@@ -7,6 +7,8 @@ export const STOCK_READ_POLL_MS = 5_000;
 export const STOCK_READ_DECISIONS_POLL_MS = 60_000;
 /** While you hold: trial T1's 30 s tape reading (`/flush`), read this often for the SELL NOW · FLUSH call. */
 export const STOCK_READ_FLUSH_POLL_MS = 1_000;
+/** A short plan's short check (ADR 048), read while the plan shows. */
+export const STOCK_READ_SHORT_CHECK_POLL_MS = 5_000;
 /** The flush call waits this long after you first held (trial T1: 10 s after the fill). */
 export const STOCK_READ_FLUSH_AFTER_SEC = 10;
 /** The day's setups that ended (ADR 036 amendment): read this often while the 1-minute pane shows, and

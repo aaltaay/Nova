@@ -1,5 +1,5 @@
-/** The plan's ruler (stop -> entry -> target, what stands between, where the price is now) and its
- * checks, one glyph each: ✓ for it, ✗ against it, ! caution, ? unknown. */
+/** The plan's ruler (stop -> entry -> target, what stands between, where the price is now; a short's runs
+ * from its buy stop down, ADR 048) and its checks, one glyph each: ✓ for it, ✗ against it, ! caution, ? unknown. */
 import { useLayoutEffect, useState } from 'react';
 import { tipProps } from '../ux';
 import { STATE_WORDS } from './constants';
@@ -28,9 +28,11 @@ export function PlanRuler({ plan, price }: { plan: StockPlan; price: number | nu
   const [ref, width] = useWidth();
   const lay = rulerLayout(plan, price, width);
   if (!lay) return null;
+  const short = plan.side === 'short';
   const nowTip = price === null ? null : lay.now?.edge === 'low'
-    ? `Last ${fmtPx(price)}: under the stop`
-    : lay.now?.edge === 'high' ? `Last ${fmtPx(price)}: over the target` : `Last ${fmtPx(price)}`;
+    ? `Last ${fmtPx(price)}: ${short ? 'over the buy stop' : 'under the stop'}`
+    : lay.now?.edge === 'high' ? `Last ${fmtPx(price)}: ${short ? 'under the cover target' : 'over the target'}`
+      : `Last ${fmtPx(price)}`;
   return (
     <div ref={ref} className="sr-ruler" data-testid="stock-read-ruler" aria-hidden="true">
       <span className="sr-ruler__risk" style={{ left: `${lay.stopPct}%`, width: `${lay.entryPct - lay.stopPct}%` }} />

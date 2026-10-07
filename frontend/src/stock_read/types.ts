@@ -299,8 +299,11 @@ export interface StockModeApproval {
 }
 
 export interface StockModeTrade {
-  /** `exit`: Nova holds the exit of a stock you bought (ADR 037 amendment 2026-10-01). */
+  /** `exit`: Nova holds the exit of a stock you bought (ADR 037 amendment 2026-10-01) -- or the cover of one you
+   * shorted (`side: 'short'`, ADR 048). */
   kind: 'auto_entry' | 'approve' | 'bot' | 'exit';
+  /** Long or short (ADR 048); a trade made before shorts, or a wire without it, is a long. */
+  side?: 'long' | 'short';
   state: 'entering' | 'holding' | 'closed' | 'missed' | 'handed';
   venue: string | null;
   venue_day: string | null;

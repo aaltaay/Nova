@@ -114,10 +114,12 @@ export function checkGlyph(state: ReadState): string {
 /** The sub-line under each of the five numbers. */
 export function planSubLines(plan: StockPlan, riskUsd: number, size: number | null): Record<string, string> {
   const risk = plan.risk;
-  const at2 = plan.entry !== null && risk !== null ? plan.entry + 2 * risk : null;
+  // A short covers under its entry (ADR 048): entry - 2 x risk.
+  const short = plan.side === 'short';
+  const at2 = plan.entry !== null && risk !== null ? plan.entry + (short ? -2 : 2) * risk : null;
   let target = plan.target_rule;
   if (plan.target !== null && at2 !== null && Math.abs(plan.target - at2) < 0.005) {
-    target = `entry + 2 × ${fmtStep(risk, plan.entry)}`;
+    target = `entry ${short ? '-' : '+'} 2 × ${fmtStep(risk, plan.entry)}`;
   } else if (/pole high/.test(plan.target_rule)) {
     target = 'the pole high';
   } else if (/leg high/.test(plan.target_rule)) {
@@ -131,10 +133,12 @@ export function planSubLines(plan: StockPlan, riskUsd: number, size: number | nu
     ? (riskCheck?.text ?? '')
     : `${riskCheck?.state === 'bad' ? '>' : '≤'} ${fmtStep(cap, plan.entry)} cap ${checkGlyph(riskCheck?.state ?? 'unknown')}`;
   const entry = plan.source === 'manual'
-    ? 'your entry'
-    : plan.trigger !== null && plan.entry !== null && plan.entry > plan.trigger
+    ? (short ? 'your short' : 'your entry')
+    : plan.trigger !== null && plan.entry !== null && !short && plan.entry > plan.trigger
       ? `${fmtPx(plan.trigger)} + ${fmtStep(plan.entry - plan.trigger, plan.entry)}`
-      : plan.entry_rule;
+      : plan.trigger !== null && plan.entry !== null && short && plan.entry < plan.trigger
+        ? `${fmtPx(plan.trigger)} - ${fmtStep(plan.trigger - plan.entry, plan.entry)}`
+        : plan.entry_rule;
   return {
     entry,
     stop: plan.stop_rule.replace(/^the /, ''),
@@ -189,14 +193,20 @@ export function placeRulerLabels(marks: Omit<RulerMark, 'showLabel'>[], widthPx:
 export function rulerLayout(plan: StockPlan, price: number | null,
   widthPx: number | null = null): RulerLayout | null {
   const { stop, entry, target } = plan;
-  if (stop === null || entry === null || target === null || !(target > stop)) return null;
-  const pad = (target - stop) * 0.06;
-  const lo = stop - pad;
-  const hi = target + pad;
-  const at = (p: number) => Math.min(100, Math.max(0, ((p - lo) / (hi - lo)) * 100));
+  // A short's ruler is the mirror (ADR 048): its buy stop over the entry at the left, the cover target under it at
+  // the right. `edge` names the end a price sits past: `low` the stop's, `high` the target's.
+  const short = plan.side === 'short';
+  if (stop === null || entry === null || target === null || !(short ? stop > target : target > stop)) return null;
+  const span = Math.abs(target - stop);
+  const pad = span * 0.06;
+  const from = short ? stop + pad : stop - pad;
+  const to = short ? target - pad : target + pad;
+  const at = (p: number) => Math.min(100, Math.max(0, ((p - from) / (to - from)) * 100));
   let now: RulerLayout['now'] = null;
   if (price !== null && Number.isFinite(price)) {
-    now = { pct: at(price), edge: price < lo ? 'low' : price > hi ? 'high' : null };
+    const pastStop = short ? price > from : price < from;
+    const pastTarget = short ? price < to : price > to;
+    now = { pct: at(price), edge: pastStop ? 'low' : pastTarget ? 'high' : null };
   }
   const marks = [
     ...plan.marks.map(m => ({ pct: at(m.price), label: fmtPx(m.price), kind: m.kind })),
@@ -217,6 +227,11 @@ export function rulerLayout(plan: StockPlan, price: number | null,
 
 /** The line under the buttons: what the plan is waiting on, or what the operator can do. */
 export function planFootnote(plan: StockPlan, lane: SetupLane | null): string {
+  if (plan.source === 'manual' && plan.side === 'short') {
+    return plan.stop === null
+      ? 'name a buy stop over your short'
+      : 'drag the short or its buy stop on the 1-minute chart; the cover stays 2R';
+  }
   if (plan.source === 'manual') {
     return plan.stop === null
       ? 'name a stop under your entry'

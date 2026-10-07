@@ -59,6 +59,7 @@ function trade(raw: unknown): StockModeTrade | null {
   if (typeof t.state !== 'string' || !TRADE_STATES.has(t.state)) return null;
   return {
     kind: t.kind as StockModeTrade['kind'],
+    side: t.side === 'short' ? 'short' : 'long',
     state: t.state as StockModeTrade['state'],
     venue: str(t.venue),
     venue_day: str(t.venue_day),

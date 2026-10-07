@@ -39,6 +39,7 @@ import { useRenderCount } from '../perf/useRenderCount';
 import type { ChartPaneOverlayProps } from '../chart';
 import { useSimReplayDesk } from '../sim';
 import {
+  protectiveStop,
   StockReadChartLayer,
   StockReadProvider,
   StockReadSheet,
@@ -185,6 +186,7 @@ export function StockViewPage({
         qty: symbolPosition.qty, avgCost: symbolPosition.avg_cost,
         liquidationPrice: symbolPosition.liquidation_price ?? null,
         liquidationSource: symbolPosition.liquidation_source ?? null,
+        workingStop: protectiveStop(orders, symbol, symbolPosition.qty),
       } : null}
       venue={deskVenueOf(ibkrStatus)}
     >

@@ -86,29 +86,38 @@ export interface HeldRulerLayout {
 const RANK_AS: Readonly<Record<string, string>> = { next: 'wall', broke: 'hod', through: 'level', target: 'round', support: 'round' };
 
 /** The held ruler: your average (●) at the left unless the stop is under it, the level after next at the
- * right; labels that would touch a stronger one are left off (their ticks stay). */
+ * right; labels that would touch a stronger one are left off (their ticks stay). A short's runs the other way
+ * (ADR 048): the higher prices -- its buy stop -- at the left, the levels under the price at the right. */
 export function heldRuler(held: StockHeld, widthPx: number | null = null): HeldRulerLayout | null {
+  const short = held.side === 'short';
   const price = held.price;
   const stop = held.stop?.price ?? null;
   const next = rowOf(held, 'next')?.price ?? null;
   const then = rowOf(held, 'then')?.price ?? null;
-  const end = then ?? next ?? (price !== null ? Math.max(price, held.avg) * 1.02 : null);
-  const left = Math.min(held.avg, stop ?? held.avg, price ?? held.avg);
-  if (end === null || !(end > left)) return null;
-  const pad = (end - left) * 0.06;
-  const lo = left - pad;
-  const hi = end + pad;
-  const at = (p: number) => Math.min(100, Math.max(0, ((p - lo) / (hi - lo)) * 100));
+  const fallback = price !== null
+    ? (short ? Math.min(price, held.avg) * 0.98 : Math.max(price, held.avg) * 1.02) : null;
+  const end = then ?? next ?? fallback;
+  const left = short
+    ? Math.max(held.avg, stop ?? held.avg, price ?? held.avg)
+    : Math.min(held.avg, stop ?? held.avg, price ?? held.avg);
+  if (end === null || !(short ? end < left : end > left)) return null;
+  const pad = Math.abs(end - left) * 0.06;
+  const lo = Math.min(left, end) - pad;
+  const hi = Math.max(left, end) + pad;
+  // Pct along the ruler: price up for a long, price down for a short (the trade's way is always right).
+  const at = (p: number) => Math.min(100, Math.max(0, ((short ? hi - p : p - lo) / (hi - lo)) * 100));
   const span = (a: number | null, b: number | null): [number, number] | null =>
-    a !== null && b !== null && b > a ? [at(a), at(b)] : null;
-  const over = stop !== null && stop >= held.avg;
+    a !== null && b !== null && at(b) > at(a) ? [at(a), at(b)] : null;
+  // The stop has locked money in: over your average for a long, under it for a short.
+  const over = stop !== null && (short ? stop <= held.avg : stop >= held.avg);
+  const between = (p: number) => at(p) > at(left) && at(p) < at(end);
+  const shelf = short ? 'resistance' : 'support';
   const marks = [
     ...held.broke.map(b => ({ pct: at(b.round), label: `$${b.round.toFixed(2)} ✓`, kind: 'broke' })),
     ...held.through.map(b => ({ pct: at(b.round), label: `$${b.round.toFixed(2)}`, kind: 'through' })),
     ...(next !== null && then !== null ? [{ pct: at(next), label: fmtPx(next), kind: 'next' }] : []),
-    ...(held.target && held.target.price > left && held.target.price < end
-      ? [{ pct: at(held.target.price), label: '2R', kind: 'target' }] : []),
-    ...held.ladder.filter(r => r.role === 'support').map(r => ({ pct: at(r.price), label: fmtPx(r.price), kind: 'support' })),
+    ...(held.target && between(held.target.price) ? [{ pct: at(held.target.price), label: '2R', kind: 'target' }] : []),
+    ...held.ladder.filter(r => r.role === shelf).map(r => ({ pct: at(r.price), label: fmtPx(r.price), kind: 'support' })),
   ];
   // The placer ranks by the plan's kinds: each held kind takes the rank of one (NEXT first, like a seller).
   const placed = placeRulerLabels(
@@ -116,6 +125,8 @@ export function heldRuler(held: StockHeld, widthPx: number | null = null): HeldR
     widthPx && widthPx > 0 ? widthPx : RULER_DEFAULT_WIDTH_PX,
     at(price ?? held.avg),
   ).map((m, i) => ({ ...m, kind: marks[i].kind }));
+  const best = (a: number | null, b: number | null) =>
+    a === null ? b : b === null ? a : (short ? Math.min(a, b) : Math.max(a, b));
   return {
     costPct: at(held.avg),
     stopPct: stop !== null ? at(stop) : null,
@@ -123,7 +134,7 @@ export function heldRuler(held: StockHeld, widthPx: number | null = null): HeldR
     nowPct: price !== null ? at(price) : null,
     locked: over ? span(held.avg, stop) : null,
     risk: over ? span(stop, price) : span(stop, held.avg),
-    reward: span(over ? Math.max(price ?? stop ?? held.avg, stop ?? held.avg) : Math.max(price ?? held.avg, held.avg), next ?? end),
+    reward: span(over ? best(price ?? stop ?? held.avg, stop ?? held.avg) : best(price ?? held.avg, held.avg), next ?? end),
     ahead: next !== null && then !== null ? span(next, then) : null,
     marks: placed,
   };

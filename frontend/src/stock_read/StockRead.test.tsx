@@ -303,7 +303,56 @@ describe('the plan on the rail', () => {
     fireEvent.blur(stopInput);
     await waitFor(() => expect(calls.some(u => /\?entry=5\.39&stop=5\.3$/.test(u))).toBe(true));
     fireEvent.click(screen.getByTestId('stock-read-clear-manual'));
-    expect(lastCtx?.manual).toEqual({ entry: null, stop: null });
+    expect(lastCtx?.manual).toEqual({ entry: null, stop: null, side: 'long' });
+  });
+
+  it('plans a hand short at the bid (ADR 048): SHORT, Short at / Buy stop / Cover, staged with its buy stop', async () => {
+    respond(/\/api\/stock-read\/APUS$/, { ...apusReadWire, plan: null });
+    respond(/\/api\/stock-read\/APUS\?entry=5\.36(&stop=[\d.]+)?&side=short$/, {
+      ...apusReadWire,
+      plan: { ...apusReadWire.plan, source: 'manual', side: 'short', setup_type: null, kind: null, state: 'manual',
+        trigger: null, entry: 5.36, stop: 5.44, target: 5.2, risk: 0.08, reward: 0.16, rr: 2,
+        stop_rule: 'the highest high of the last 3 closed 1-min candles', entry_rule: 'your entry',
+        target_rule: 'entry - 2 x risk', reason: 'no setup is forming: your short, a 2:1 cover' },
+    });
+    respond(/\/api\/short-check\/APUS\?/, {
+      schema_version: 1, symbol: 'APUS', venue: 'paper', ok: true, first: null,
+      rules: [
+        { id: 'borrow', label: 'Borrow', ok: true, state: 'ok', text: 'IBKR reads ~30,000 shortable.', value: '~30,000',
+          code: null, numbers: {} },
+        { id: 'ssr', label: 'SSR', ok: true, state: 'ok', text: 'SSR is off today.', value: 'off', code: null, numbers: {} },
+      ],
+      facts: { bid: 5.36, ask: 5.39, ssr: { state: 'off', effective_on: false, text: '' }, halt: { state: 'clear' } },
+    });
+    renderRail({ ask: 5.39 });
+    fireEvent.click(await screen.findByTestId('stock-read-short-bid'));
+    await waitFor(() => expect(calls.some(u => /\?entry=5\.36&side=short$/.test(u))).toBe(true));
+    expect(await screen.findByTestId('stock-read-plan-short')).toBeTruthy();
+    // The short checks sit in its check list: the door's own rules, asked for the plan's size, entry and stop.
+    const checks = await screen.findByTestId('stock-read-short-checks');
+    expect(within(checks).getAllByRole('listitem').map(li => li.textContent)).toEqual(['✓Borrow · ~30,000', '✓SSR · off']);
+    expect(calls.some(u => /\/api\/short-check\/APUS\?qty=250&price=5\.36&stop=5\.44&target=5\.2$/.test(u))).toBe(true);
+    const plan = screen.getByTestId('stock-read-plan');
+    expect([...plan.querySelectorAll('.sr-num__k')].slice(0, 3).map(k => k.textContent))
+      .toEqual(['Short at', 'Buy stop', 'Cover 2R']);
+    const got: OrderTicketPrefill[] = [];
+    let off = () => {};
+    act(() => {
+      off = subscribeOrderTicketPrefill('APUS', req => got.push(req));
+    });
+    const stage = screen.getByTestId('stock-read-stage');
+    expect(stage.textContent).toBe('Stage short in ticket');
+    await waitFor(() => expect(stage.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(stage);
+    expect(got).toEqual([{ symbol: 'APUS', side: 'SELL', orderType: 'LMT', quantityValue: '250', limitPrice: '5.36',
+      shortEntry: true, buyStop: '5.44' }]);
+    expect(screen.getByTestId('stock-read-plan-note').textContent).toMatch(/^Staged SHORT 250 LMT 5\.36 with its buy stop 5\.44/);
+    // A typed buy stop keeps the plan a short.
+    const stopInput = screen.getByTestId('stock-read-stop-input');
+    fireEvent.change(stopInput, { target: { value: '5.45' } });
+    fireEvent.blur(stopInput);
+    await waitFor(() => expect(calls.some(u => /\?entry=5\.36&stop=5\.45&side=short$/.test(u))).toBe(true));
+    off();
   });
 
   it('says why there is no read: a replay desk, an older backend', async () => {

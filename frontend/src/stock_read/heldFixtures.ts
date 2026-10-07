@@ -44,3 +44,45 @@ export const apusHeldWire = {
 };
 
 export const APUS_HELD_NOW = T0859 + 5;
+
+/** The read's `held` on a short (ADR 048), test data only: 416 RDYN short at 5.77 since 10:15 ET, the price 5.46,
+ * your buy stop 5.89; the 10:31 candle closed 5.44 under $5.50, so the stop may come down to 5.55. */
+const T1032 = 1_791_383_520;   // 2026-10-07 10:32:00 ET
+
+export const RDYN_SHORT_SINCE = 1_791_382_500;   // 10:15:00, the short's fill
+
+export const rdynShortWire = {
+  schema_version: 1,
+  side: 'short',
+  qty: 416,
+  avg: 5.77,
+  price: 5.46,
+  open_usd: 128.96,
+  r: 2.58,
+  risk: 0.12,
+  since: RDYN_SHORT_SINCE,
+  stop: { price: 5.89, source: 'yours', rule: 'your buy stop', printed: false },
+  raise: null,
+  lower: { to: 5.55, round: 5.5, at: T1032, text: 'Lower the stop to 5.55, 5c over $5.50' },
+  target: { price: 5.53, rule: 'your average - 2 x 0.12', traded_at: T1032 - 60 },
+  ladder: [
+    { role: 'stop', price: 5.89, text: 'your buy stop', r: -1, usd: -49.92 },
+    { role: 'cost', price: 5.77, text: 'your average, 416 sh short', r: 0, usd: 0 },
+    { role: 'broke', price: 5.5, text: 'the 10:31 candle closed 5.44 under it', r: null, usd: null },
+    { role: 'now', price: 5.46, text: '+128.96 open', r: 2.58, usd: 128.96 },
+    { role: 'next', price: 5.35, text: 'bottom ×2', r: 3.5, usd: 174.72 },
+    { role: 'then', price: 5.0, text: '$5.00 · open', r: 6.42, usd: 320.32 },
+  ],
+  broke: [{ round: 5.5, at: T1032, close: 5.44 }],
+  through: [],
+  levels: {
+    room: { state: 'info', text: '0.9R to 5.35, from the price', detail: null, trial: null },
+    target: { state: 'ok', text: '5.53 (2R) traded at 10:31: you are past it', detail: null },
+    stop: { state: 'ok', text: '5.89 is 9c over $5.80', detail: null },
+    next: { state: 'info', text: '$5.00 is 46c below: support until it prints through, a trigger after', detail: null },
+    recent: { state: 'ok', text: 'Lost $5.50: the 10:31 candle closed 5.44', detail: null },
+  },
+  checks: [{ id: 'spread', state: 'ok', text: 'the spread 0.01 is within half the 0.12 risk' }],
+};
+
+export const RDYN_SHORT_NOW = T1032 + 5;

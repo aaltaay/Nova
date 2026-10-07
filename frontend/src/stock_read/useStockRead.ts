@@ -9,7 +9,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { STOCK_READ_DECISIONS_POLL_MS, STOCK_READ_PAST_POLL_MS, STOCK_READ_PATH, STOCK_READ_POLL_MS } from './constants';
-import { normalizeDecisions, normalizeHistory, normalizeStockRead } from './normalize';
+import { normalizeHistory } from './historyNormalize';
+import { normalizeDecisions, normalizeStockRead } from './normalize';
 import { normalizePastSetups, type PastSetups } from './pastSetups';
 import type { StockDecisions, StockHistory, StockRead } from './types';
 
@@ -103,27 +104,28 @@ function symbolPath(symbol: string): string {
   return `${STOCK_READ_PATH}/${encodeURIComponent(symbol)}`;
 }
 
-/** Query string for the operator's own plan; empty when there is none. */
-export function planQuery(entry: number | null, stop: number | null): string {
+/** Query string for the operator's own plan; empty when there is none. A hand short adds `side=short`. */
+export function planQuery(entry: number | null, stop: number | null, side: 'long' | 'short' = 'long'): string {
   if (entry === null || !(entry > 0)) return '';
   const q = new URLSearchParams({ entry: String(entry) });
   if (stop !== null && stop > 0) q.set('stop', String(stop));
+  if (side === 'short') q.set('side', 'short');
   return `?${q.toString()}`;
 }
 
 /** The read's whole query: the operator's own plan and the position held (`held_*`). */
-export function readQuery(entry: number | null, stop: number | null, held = ''): string {
-  const qs = [planQuery(entry, stop).replace(/^\?/, ''), held].filter(Boolean).join('&');
+export function readQuery(entry: number | null, stop: number | null, held = '', side: 'long' | 'short' = 'long'): string {
+  const qs = [planQuery(entry, stop, side).replace(/^\?/, ''), held].filter(Boolean).join('&');
   return qs ? `?${qs}` : '';
 }
 
 export function useStockRead(
   symbol: string,
-  opts: { active: boolean; entry: number | null; stop: number | null; held?: string },
+  opts: { active: boolean; entry: number | null; stop: number | null; side?: 'long' | 'short'; held?: string },
 ): PolledState<StockRead> {
   const sym = symbol.trim().toUpperCase();
   return usePolledRead({
-    url: sym ? `${symbolPath(sym)}${readQuery(opts.entry, opts.stop, opts.held)}` : null,
+    url: sym ? `${symbolPath(sym)}${readQuery(opts.entry, opts.stop, opts.held, opts.side)}` : null,
     resetKey: sym,
     normalize: normalizeStockRead,
     pollMs: STOCK_READ_POLL_MS,

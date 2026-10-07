@@ -10,7 +10,7 @@ import { planBadge } from './planMath';
 import { gradeChip, gradeTip, normalizePlanVerdict, notATrade, resultBadge, resultBadgeShort } from './planVerdict';
 import type { StockPlan } from './types';
 import { inputs, pfsaAt, pfsaRead, pfsaView } from './whoTradesFixtures';
-import { planActions } from './whoTradesModel';
+import { planActions } from './planActions';
 
 const NOT_A_TRADE: Partial<StockPlan> = {
   grade: 'C',
