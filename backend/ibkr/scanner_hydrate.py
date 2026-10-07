@@ -212,7 +212,7 @@ async def commit_table(
     try:
         from large_cap_hooks import on_large_cap_roster_commit
 
-        await on_large_cap_roster_commit(table, rows)
+        on_large_cap_roster_commit(table, rows)
     except Exception:
         logger.debug("scanner_stream: Large Cap roster commit hook failed", exc_info=True)
     try:

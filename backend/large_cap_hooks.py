@@ -5,7 +5,9 @@ newly admitted symbols, ahead of the first L1 tick. Fundamentals runs on a
 background thread -- ``fetch_fundamentals_batch`` is synchronous network I/O
 per symbol and must never block the asyncio loop that also serves HTTP/WS
 (the same loop ``scanner_hydrate._hydrate_pending`` runs on). The stored
-daily bars are read on a worker thread for the same reason (D-018).
+daily bars are read on a worker thread for the same reason (D-018), from a
+task the commit does not wait on: ``_hydrate_pending`` commits its tables one
+after another.
 """
 from __future__ import annotations
 
@@ -17,17 +19,26 @@ from ibkr import scanner_session as _ss
 
 logger = logging.getLogger(__name__)
 
+_checks: set[asyncio.Task] = set()
 
-async def on_large_cap_roster_commit(table: str, rows: list[dict]) -> None:
+
+def on_large_cap_roster_commit(table: str, rows: list[dict]) -> asyncio.Task | None:
     if table != _ss.TABLE_LARGE_CAP:
-        return
+        return None
     symbols = [r.get("symbol") for r in rows if r.get("symbol")]
     if not symbols:
-        return
+        return None
     threading.Thread(
         target=_warm_fundamentals, args=(symbols,), daemon=True,
         name="large_cap_fundamentals_warm",
     ).start()
+    check = asyncio.get_running_loop().create_task(_fill_short_of_daily_bars(symbols), name="large_cap_daily_check")
+    _checks.add(check)
+    check.add_done_callback(_checks.discard)
+    return check
+
+
+async def _fill_short_of_daily_bars(symbols: list[str]) -> None:
     import large_cap_metrics as _metrics
 
     for sym in await asyncio.to_thread(_short_of_daily_bars, symbols):

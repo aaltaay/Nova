@@ -10,7 +10,11 @@ from ibkr import scanner_session as _ss
 
 
 def commit(table: str, rows: list[dict]) -> None:
-    asyncio.run(large_cap_hooks.on_large_cap_roster_commit(table, rows))
+    async def on_the_loop() -> None:
+        check = large_cap_hooks.on_large_cap_roster_commit(table, rows)
+        if check is not None:
+            await check
+    asyncio.run(on_the_loop())
 
 
 def test_ignores_non_large_cap_tables(monkeypatch):
@@ -67,20 +71,34 @@ def test_skips_schedule_when_store_already_complete(monkeypatch):
     assert scheduled == []
 
 
-def test_the_store_is_read_off_the_event_loop_and_fills_are_scheduled_on_it(monkeypatch):
-    """2026-10-07: the hook read each Large Cap symbol's daily bars on the HTTP loop, 206-549 ms a commit."""
+def test_the_store_is_read_off_the_loop_without_holding_up_the_commit(monkeypatch):
+    """2026-10-07: the hook read each Large Cap symbol's daily bars on the HTTP loop, 206-549 ms a commit.
+    scanner_stream commits its tables one after another, so the read must not hold up the next table either."""
     monkeypatch.setattr(large_cap_hooks, "_warm_fundamentals", lambda syms: None)
 
     import bars_store
     import large_cap_metrics as _metrics
 
+    release = threading.Event()
     readers: list[int] = []
-    monkeypatch.setattr(bars_store, "read", lambda *a, **k: readers.append(threading.get_ident()))
+
+    def read(*a, **k):
+        readers.append(threading.get_ident())
+        release.wait(5)
+
+    monkeypatch.setattr(bars_store, "read", read)
     scheduled: list[tuple[str, int]] = []
     monkeypatch.setattr(_metrics, "schedule_daily_fill", lambda sym: scheduled.append((sym, threading.get_ident())))
 
     async def on_the_loop() -> int:
-        await large_cap_hooks.on_large_cap_roster_commit(_ss.TABLE_LARGE_CAP, [{"symbol": "NVDA"}, {"symbol": "AMD"}])
+        check = large_cap_hooks.on_large_cap_roster_commit(_ss.TABLE_LARGE_CAP, [{"symbol": "NVDA"}, {"symbol": "AMD"}])
+        for _ in range(200):
+            if readers:
+                break
+            await asyncio.sleep(0.01)
+        assert readers and scheduled == []
+        release.set()
+        await check
         return threading.get_ident()
 
     loop_thread = asyncio.run(on_the_loop())
