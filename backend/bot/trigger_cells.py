@@ -1,4 +1,4 @@
-"""How each trigger of a day met Nova's nine gates (ADR 044, the squares). Pure.
+"""How each trigger of a day met Nova's gates (ADR 044, the squares). Pure.
 
 ``triggers(lines)`` folds a day's eyes' journal -- the lines of each setup's template in play
 (``playing: true``) -- into its triggers: the first ``triggered`` line of each setup id (a restart's
@@ -7,7 +7,7 @@ warm-up says the same trigger again), with its grade (its ``armed`` line) and it
 (``BOT_TRIGGER_GATES``), from what was recorded at the trigger:
 
 - ``bot_on``: the bot's state the journal stamped on the line (``bot: {level, active, venue}``);
-- ``strategy_on`` / ``nova_buys`` ("Bot buys"): the strategy's own level and the stock's mode on the trigger's
+- ``strategy_on`` / ``nova_buys`` ("Entry: Bot"): the strategy's own level and the stock's mode on the trigger's
   venue at its moment (``bot.trigger_timeline``);
 - ``grade``: the grade it armed with against the strategy's ``bot_grades``, and NOT A TRADE's
   checks of the setup itself -- grade C, the spread at or over the risk, too thin to trade
@@ -17,7 +17,9 @@ warm-up says the same trigger again), with its grade (its ``armed`` line) and it
 - ``level2_line`` / ``tape_go``: the tape the lane read at the trigger. BLIND is the Level 2 line's
   red, never the tape's (``tape_go`` did not apply);
 - ``trades_today`` (``take_cap``): the venue's daily cap -- the first trigger that passes every other
-  gate takes it.
+  gate takes it;
+- ``not_against`` and, for a short, the short check's block (ADR 049, #778 step 5): what the bot read at
+  the trigger, and the trigger's own time and SSR (``bot.trigger_short``).
 
 The strategy's bot rules and window are not recorded at a trigger: they are today's
 (``BOT_TRIGGER_JUDGED_NOW``). ``{ok: null}`` is a gate that did not apply, or that nothing recorded;
@@ -35,24 +37,24 @@ from bot.trigger_timeline import UNKNOWN, Timeline
 from constants_bot import (
     BOT_LEVEL_STRATEGY,
     BOT_SETUP_FIRST_PULLBACK,
-    BOT_SHORT_LATER_TEXT,
     BOT_TRIGGER_GATES,
+    BOT_TRIGGER_SHORT_GATES,
     BOT_TZ,
-    SIDE_SHORT,
     setup_side,
 )
 from constants_setups import TAPE_VERDICT_BLIND, TAPE_VERDICT_GO
 from constants_stock_mode import STOCK_MODE_APPROVE, STOCK_MODE_AUTO_ENTRY, STOCK_MODE_BOT, STOCK_MODE_SIGNAL
 
 GATE_IDS = tuple(gate for gate, _label in BOT_TRIGGER_GATES)
+ALL_GATE_IDS = GATE_IDS + tuple(gate for gate, _label in BOT_TRIGGER_SHORT_GATES)
 _ET = ZoneInfo(BOT_TZ)
 # A ``session`` line this long after midnight ET is Nova starting, not the eyes' date turning.
 RESTART_AFTER_MIDNIGHT_SEC = 300.0
 _MODE_WORDS = {
-    STOCK_MODE_AUTO_ENTRY: (True, "Buy was Nova (Auto-entry: Nova buys, you sell)"),
-    STOCK_MODE_BOT: (True, "Buy was Nova (Bot: Nova buys and sells)"),
-    STOCK_MODE_SIGNAL: (False, "Buy was You (Signal only): Nova buys only stocks whose Buy is Nova"),
-    STOCK_MODE_APPROVE: (False, "Buy was You (Approve: Nova sends only a plan you approve)"),
+    STOCK_MODE_AUTO_ENTRY: (True, "Entry was Bot (Auto-entry: the bot enters, you exit)"),
+    STOCK_MODE_BOT: (True, "Entry was Bot (Bot: the bot enters and exits)"),
+    STOCK_MODE_SIGNAL: (False, "Entry was You (Signal only): the bot enters only stocks whose Entry is Bot"),
+    STOCK_MODE_APPROVE: (False, "Entry was You (Approve: Nova sends only a plan you approve)"),
 }
 
 
@@ -107,7 +109,8 @@ def triggers(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
         grade = next((g for t, g in reversed(arms) if t <= ts + 1e-6), arms[-1][1] if arms else None)
         score = scored.get(sid) or {}
         out.append({"ts": ts, "symbol": str(line.get("symbol") or "").upper(), "setup_id": sid,
-                    "setup_type": setup_type, "kind": setup.get("kind"),
+                    "setup_type": setup_type, "side": line.get("side") or setup_side(setup_type),
+                    "ssr": line.get("ssr"), "kind": setup.get("kind"),
                     "nth": strategy_rules.number_of(setup, setup_type), "grade": grade,
                     "tape": line.get("tape") if isinstance(line.get("tape"), dict) else None, "setup": setup,
                     "bot": line.get("bot") if isinstance(line.get("bot"), dict) else None,
@@ -135,6 +138,7 @@ class Context:
     timeline: Timeline
     rules: dict[str, dict[str, Any]]                     # setup -> {grades, setups_a_day, window, error}
     listed: dict[str, dict[str, Any]] = field(default_factory=dict)   # symbol -> its hot list entry (the ★)
+    judged: dict[str, dict[str, Any]] = field(default_factory=dict)   # setup id -> what Nova read at it
     audit_error: str | None = None
     level_now: Callable[[str | None, str], Any] = lambda venue, setup: None
     mode_now: Callable[[str | None, str], Any] = lambda venue, symbol: UNKNOWN
@@ -153,8 +157,6 @@ def _bot_on(bot: dict[str, Any] | None) -> dict[str, Any]:
 
 def _strategy_on(t: dict[str, Any], venue: str | None, ctx: Context) -> dict[str, Any]:
     name = strategy_rules.name(t["setup_type"])
-    if setup_side(t["setup_type"]) == SIDE_SHORT:
-        return cell(False, BOT_SHORT_LATER_TEXT)      # ADR 049: nothing trades a short until #778 step 5
     if venue is None:
         return cell(None, "the journal did not record the venue at this trigger")
     if ctx.audit_error:
@@ -167,7 +169,7 @@ def _strategy_on(t: dict[str, Any], venue: str | None, ctx: Context) -> dict[str
     if level >= BOT_LEVEL_STRATEGY:
         return cell(True, f"the {name} was On")
     said = "at Eyes" if level == 1 else "Off"
-    return cell(False, f"the {name} was {said}: Nova buys only the strategies that are On")
+    return cell(False, f"the {name} was {said}: Nova trades only the strategies that are On")
 
 
 def _grade(t: dict[str, Any], rules: dict[str, Any]) -> dict[str, Any]:
@@ -235,7 +237,9 @@ def _tape(t: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def judge(t: dict[str, Any], ctx: Context) -> dict[str, dict[str, Any]]:
-    """Every gate but the daily cap (``take_cap``), in Nova's order."""
+    """Every gate but the daily cap (``take_cap``), in Nova's order; a short's block after them."""
+    from bot import trigger_short
+
     venue = (t.get("bot") or {}).get("venue")
     rules = ctx.rules.get(t["setup_type"]) or {}
     line, tape = _tape(t)
@@ -244,7 +248,8 @@ def judge(t: dict[str, Any], ctx: Context) -> dict[str, dict[str, Any]]:
             "setups_a_day": _setups_a_day(t, rules) if rules else cell(None, "the strategy's bot rules could not "
                                                                              "be read"),
             "bot_window": _window(t, rules), "nova_buys": _nova_buys(t, venue, ctx),
-            "level2_line": line, "tape_go": tape, "trades_today": cell(None, "")}
+            "level2_line": line, "tape_go": tape, "trades_today": cell(None, ""),
+            "not_against": trigger_short.not_against(t, ctx.judged), **trigger_short.short_cells(t, ctx.judged)}
 
 
 def _entries(n: int) -> str:
@@ -276,14 +281,14 @@ def take_cap(judged: list[dict[str, Any]], ctx: Context) -> None:
 
 
 def reasons(cells: dict[str, dict[str, Any]]) -> list[str]:
-    return [cells[g]["why"] for g in GATE_IDS if cells.get(g, {}).get("ok") is False]
+    return [cells[g]["why"] for g in ALL_GATE_IDS if cells.get(g, {}).get("ok") is False]
 
 
 def impact(judged: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """What each gate did: the triggers it held back, how they came out, and their R summed."""
     out = []
-    for gate in GATE_IDS:
-        held = [t for t in judged if t["cells"][gate]["ok"] is False]
+    for gate in ALL_GATE_IDS:
+        held = [t for t in judged if t["cells"].get(gate, {}).get("ok") is False]
         r = [t["r"] for t in held if t.get("r") is not None]
         out.append({"gate": gate, "blocked": len(held),
                     "target_first": sum(1 for t in held if t.get("outcome") == "target_first"),
@@ -294,6 +299,7 @@ def impact(judged: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def wire(t: dict[str, Any]) -> dict[str, Any]:
     """One trigger as the squares draw it."""
-    return {"ts": t["ts"], "setup_id": t["setup_id"], "setup_type": t["setup_type"], "kind": t.get("kind"),
+    return {"ts": t["ts"], "setup_id": t["setup_id"], "setup_type": t["setup_type"], "side": t.get("side"),
+            "ssr": t.get("ssr"), "kind": t.get("kind"),
             "nth": t["nth"], "grade": t.get("grade"), "tape": (t.get("tape") or {}).get("verdict"),
             "outcome": t.get("outcome"), "r": t.get("r"), "cells": t["cells"], "reasons": reasons(t["cells"])}

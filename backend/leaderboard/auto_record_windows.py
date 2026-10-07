@@ -6,8 +6,8 @@ Two windows, on exchange days:
   scanner, its template in play's ``setup_templates.windows.arming_window``
   (07:00-11:30 ET by default, red to green 09:30-10:30, the 5-minute flat top
   07:00-15:30). Red to green triggered 32 times and was never at go, partly
-  because no line was held after 10:00. The short setups (ADR 049) are left out:
-  they take no auto line until #778 step 5.
+  because no line was held after 10:00. A short setup (ADR 049) counts only while
+  its strategy is On (#778 step 5: ``auto_record_picks.shorts_on``).
 * **leaders** -- 07:00-10:00 ET, as the operator set it (2026-09-22).
 
 ``window_state`` answers both, and ``window_label`` says which is open in words --
@@ -51,10 +51,15 @@ def _windows_of(values_of) -> list[tuple[str, str, str]]:
     from constants_bot import BOT_SCANNER_SETUPS, SIDE_SHORT, setup_side
     from setup_templates import windows
 
+    from leaderboard.auto_record_picks import shorts_on
+
     out: list[tuple[str, str, str]] = []
+    on: set[str] | None = None
     for setup in BOT_SCANNER_SETUPS:
         if setup_side(setup) == SIDE_SHORT:
-            continue                           # no auto line for a short setup until step 5 (ADR 049)
+            on = shorts_on() if on is None else on
+            if setup not in on:
+                continue                       # a short at Eyes or Off takes no line (ADR 049)
         found = windows.arming_window(setup, values_of(setup))
         if found is not None:
             out.append((setup, found[0], found[1]))

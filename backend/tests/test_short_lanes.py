@@ -113,16 +113,18 @@ def test_a_short_arms_proposes_triggers_downward_and_scores_with_its_side_and_ss
     assert eng.store.rows()[0]["outcome"] == "target_first"
 
 
-def test_auto_record_gives_a_short_setup_no_line_and_leaves_its_window_out():
+def test_auto_record_gives_a_short_setup_a_line_only_while_its_strategy_is_on(monkeypatch):
+    """#778 step 5: the bot trades a short at On, and a trigger without a line reads BLIND."""
     from types import SimpleNamespace
 
+    from leaderboard import auto_record_picks
     from leaderboard.auto_record_picks import pick_setups
     from leaderboard.auto_record_windows import _windows_of
     from setup_templates import catalogue
 
     class Lane:
         def __init__(self, short):
-            self.p = SimpleNamespace(short=short)
+            self.p = SimpleNamespace(short=short, setup=SETUP if short else "first_pullback")
             self.det = {"X": SimpleNamespace(state="near")}
 
         def trade_symbols(self, now):
@@ -131,6 +133,11 @@ def test_auto_record_gives_a_short_setup_no_line_and_leaves_its_window_out():
         def watching(self):
             return {"X"}
 
+    monkeypatch.setattr(auto_record_picks, "shorts_on", lambda: set())          # at Eyes or Off
     assert pick_setups([Lane(short=True)], 0.0) == [] and pick_setups([Lane(short=False)], 0.0) == [("X", "near")]
     found = {setup for setup, _start, _end in _windows_of(catalogue.defaults)}
     assert SETUP not in found and "ssr_bounce" not in found and "first_pullback" in found
+    monkeypatch.setattr(auto_record_picks, "shorts_on", lambda: {SETUP})        # the bear flag On
+    assert pick_setups([Lane(short=True)], 0.0) == [("X", "near")]
+    found = {setup for setup, _start, _end in _windows_of(catalogue.defaults)}
+    assert SETUP in found and "ssr_bounce" not in found

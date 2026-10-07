@@ -104,9 +104,13 @@ def test_bp_budget_open_plus_working(monkeypatch, l2_row):
     with pytest.raises(BotError) as exc:
         assert_bp_budget("buy_market", "EFGH", 1, 1.0, row)
     assert exc.value.reason == BOT_REASON_BP_BUDGET
-    row["bot_qty"] = {"ABCD": -4}
+    row["bot_qty"] = {"ABCD": -4}       # the bot's short (#778 step 5) holds its value against the budget too
     row["working"] = []
-    assert open_plus_working_usd(row) == 0.0
+    assert open_plus_working_usd(row) == 40.0
+    row["working"] = [{"side": "BUY", "qty": 4, "price": 10.0, "cover": True}]    # a cover opens nothing
+    assert open_plus_working_usd(row) == 40.0
+    row["working"] = [{"side": "SELL", "qty": 1, "price": 10.0, "short_entry": True}]
+    assert open_plus_working_usd(row) == 50.0
 
 
 def test_ttl_due_working():

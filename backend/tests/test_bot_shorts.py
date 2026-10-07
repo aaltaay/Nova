@@ -290,3 +290,33 @@ def test_an_approved_short_goes_out_as_a_short_bracket_at_its_trigger(paper):
     target, stop = leg(paper, trade["target_order_id"]), leg(paper, trade["stop_order_id"])
     assert (target["side"], target["limit_price"]) == ("BUY", 3.71) and (stop["side"], stop["stop_price"]) == ("BUY", 4.13)
     assert sm_store.approval(SYM)["state"] == "sent"
+
+
+# -- the localhost bot API's short kinds -------------------------------------------------------------
+def test_the_bot_api_shorts_with_its_buy_stop_and_covers_never_past_flat(paper):
+    from bot import actions
+    from bot.arming import record_heartbeat
+    from bot.errors import BotError
+    from bot.session import require_l2_brain
+
+    require_l2_brain("brain-1", claim=True)
+    record_heartbeat("brain-1")
+    out = asyncio.run(actions.fire({"kind": "short_limit_bid_offset", "symbol": SYM}, brain_session_id="brain-1"))
+    assert out["ok"] is True
+    entry = leg(paper, out["order_id"])
+    assert entry["side"] == "SELL" and entry["limit_price"] == 4.00 and entry["position_side"] == "short"
+    stops = [r for r in paper.broker.ledger.working_orders() if r["order_type"] == "STP"]
+    assert [(r["side"], r["stop_price"]) for r in stops] == [("BUY", 4.10)]     # its buy stop rides with it
+    paper.broker.try_fill_working(SYM, [(paper.now + 1, 4.01)])
+    assert paper.broker.ledger.held_qty(SYM) == -1.0
+
+    with pytest.raises(BotError) as refused:                     # the short took the day's one entry
+        asyncio.run(actions.fire({"kind": "short_limit_bid_offset", "symbol": SYM}, brain_session_id="brain-1"))
+    assert refused.value.status_code == 409 and "1 already sent today" in refused.value.message
+
+    covered = asyncio.run(actions.fire({"kind": "cover_limit_ask_offset", "symbol": SYM}, brain_session_id="brain-1"))
+    assert covered["ok"] is True and leg(paper, covered["order_id"])["side"] == "BUY"
+    assert paper.broker.ledger.held_qty(SYM) == 0.0
+    with pytest.raises(BotError) as flat:
+        asyncio.run(actions.fire({"kind": "cover_pos", "symbol": SYM}, brain_session_id="brain-1"))
+    assert flat.value.status_code == 409 and "no short position" in flat.value.message
