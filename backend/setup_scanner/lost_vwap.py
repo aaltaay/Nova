@@ -13,7 +13,8 @@ One try a day. After every completed bar:
   armed      at the retest's close: trigger = its low, entry one cent under it, buy stop one cent over the higher
              of VWAP and the retest's high; the next minute inside the window (09:35-12:00); risk inside the
              band -- a risk outside it spends the day's try
-  after      armed until it triggers, a candle closes back over VWAP (the day ends) or the window closes
+  after      armed until it triggers, a candle closes back over VWAP (the day ends) or the window closes: the
+             minute that ends at the cutoff ends the day's try, armed or not (PR #789 review)
 
 Every number is a ``LostVwapParams`` field a template sets (ADR 029). Pure: no I/O, no clock.
 """
@@ -108,6 +109,9 @@ class LostVwapDetector(ShortTriggerDetector):
         if o_i is None:
             self._set(SETUP_STATE_WATCHING, f"waiting for the {p.open_at} open")
             return []
+        if et_time(bars[last].t + p.bar_sec) >= hhmm(p.entry_cutoff):
+            # The window closed: an armed retest never carries past it (red to green's rule).
+            return self._end(prev, None, f"the window closed at {p.entry_cutoff} -- the day's one try is spent")
         loss = None
         for i in range(o_i, last + 1):
             vw = s.vw[i]
