@@ -9,6 +9,7 @@ import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode }
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { parseRiskUsd, saveSleeveRisk, useSleeveRisk, venueOrNull, type SleeveRisk } from '../setups';
 import { tickerLastTrade } from '../hooks/tickerStore';
+import { useSimAccountClock } from '../practice';
 import { useTickerSelect } from '../hooks/useTickerStream';
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { readPref, writePref } from '../utils/prefStore';
@@ -27,6 +28,14 @@ import { useHeldTrade, type FlushReading, type HeldTrack } from './useHeldTrade'
 import { useWhoTrades, type WhoTradesState } from './useWhoTrades';
 
 export type SheetTab = 'signals' | 'decisions' | 'history';
+
+/** The read a tab may draw and plan on (ADR 052): this desk's -- a read from the other side of the live edge (the
+ * clock just moved) is not -- and on a replay never one made at a later playhead than `simNow` (a rewind shown
+ * before the next read). Pure. */
+export function readNowOf(read: StockRead | null, replay: boolean, simNow: number | null): StockRead | null {
+  if (!read || read.replay !== replay) return null;
+  return replay && simNow !== null && read.generated_at > simNow + 1 ? null : read;
+}
 
 export interface StockReadLayers {
   /** Eyes (ADR 044): everything Nova draws on the tab's charts, on or off; `setups` and `levels` are its parts. */
@@ -54,9 +63,14 @@ export interface ChartFocus {
 export interface StockReadContextValue {
   symbol: string;
   active: boolean;
-  /** The desk replays another moment: the read is today's live stock, so nothing is drawn. */
+  /** The desk replays another moment (ADR 052): the read is the replay's at the playhead -- the Sim eyes'
+   * setups, the plan and the replay's levels -- and the reads of whole days (past setups, decisions, history)
+   * are not made. */
   replay: boolean;
   read: PolledState<StockRead>;
+  /** The read the charts draw: this desk's (a replay's on a replay desk), and on a replay never one from after the
+   * playhead -- a rewind waits for the next read instead of showing what came later (ADR 052). */
+  readNow: StockRead | null;
   history: PolledState<StockHistory>;
   decisions: PolledState<StockDecisions>;
   /** The day's setups that ended and what price did next (read while the chart draws them). */
@@ -187,8 +201,11 @@ export function StockReadProvider({
   }, [sym]);
 
   const live = active && !replay;
+  // The read and who trades answer on a Sim replay too: the backend reads the replay at the playhead there.
+  const readable = active;
+  const simNow = useSimAccountClock(replay && readable).nowTs;
   const sleeveVenue = venueOrNull(venue);
-  const risk = useSleeveRisk(sleeveVenue, live && !sample);
+  const risk = useSleeveRisk(sleeveVenue, readable && !sample);
   const riskUsd = risk.riskUsd;
   const posQty = position?.qty ?? null;
   const posCost = position?.avgCost ?? null;
@@ -205,8 +222,10 @@ export function StockReadProvider({
   const [lastRead, setLastRead] = useState<StockRead | null>(null);
   const heldTrade = useHeldTrade({ symbol: sym, live: live && !sample, position: pos, read: lastRead,
     workingStop: posStop });
-  const read = useStockRead(sym, { active: live, entry: manual.entry, stop: manual.stop, side: manual.side,
-    held: heldTrade.query });
+  // On a replay the read follows the playhead: a new 5 s of it -- forward, or back on a rewind -- reads at once.
+  const nudge = replay && simNow !== null ? String(Math.floor(simNow / 5)) : undefined;
+  const read = useStockRead(sym, { active: readable, entry: manual.entry, stop: manual.stop, side: manual.side,
+    held: heldTrade.query, nudge });
   useEffect(() => setLastRead(read.data), [read.data]);
   const [exitOpen, setExitOpen] = useState(false);
   useEffect(() => setExitOpen(false), [sym]);
@@ -224,10 +243,12 @@ export function StockReadProvider({
   const laneKey5 = useMemo(() => [...(lanes5 ?? []), ...(lanes ?? []).filter(l => l.timeframe === '5m')]
     .map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes5, lanes]);
   const past5 = useStockReadPast(sym, live && drawn.setups && drawn.past, laneKey5, '5m');
+  const ownRead = readNowOf(read.data, replay, simNow);
   const who = useWhoTrades({
-    symbol: sym, live: live && !sample, read: read.data, riskUsd, ttlSec: risk.ttlSec, position: pos, last: lastPrice,
-    venue,
-    flush: heldTrade.flush.data,
+    symbol: sym, live: readable && !sample, read: ownRead, riskUsd, ttlSec: risk.ttlSec, position: pos,
+    last: lastPrice, venue,
+    flush: live ? heldTrade.flush.data : null,
+    clockNow: replay ? simNow : null,
   });
 
   const setManualPlan = useCallback((entry: number | null, stop: number | null, side?: 'long' | 'short') => {
@@ -278,6 +299,7 @@ export function StockReadProvider({
     active,
     replay,
     read,
+    readNow: ownRead,
     history,
     decisions,
     past,
@@ -303,7 +325,7 @@ export function StockReadProvider({
     flush: heldTrade.flush,
     exitSheet: { open: exitOpen, setOpen: setExitOpen },
     position: tabPosition,
-  }), [sym, active, replay, read, history, decisions, past, past5, manual, setManualPlan, riskUsd, setRiskUsd, risk,
+  }), [sym, active, replay, read, ownRead, history, decisions, past, past5, manual, setManualPlan, riskUsd, setRiskUsd, risk,
     layers, drawn, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who,
     heldTrade.track, heldTrade.setStop, heldTrade.flush, exitOpen, tabPosition]);
 

@@ -152,6 +152,21 @@ describe('the switch', () => {
     expect(switchLock(null, { buy: 'you', sell: 'you' }, o)).toMatch(/Reading who trades PFSA/);
     expect(switchLock(pfsaView('signal'), { buy: 'nova', sell: 'you' }, { ...o, pending: 'Saving…' })).toBe('Saving…');
   });
+
+  it('on a Sim replay only Bot is Nova\'s: the mode\'s own lock says so before the press (ADR 052)', () => {
+    const why = 'On a Sim replay Nova trades a stock only as Bot';
+    const raw = { symbol: 'PFSA', mode: 'signal', buy: 'you', sell: 'you', venue: 'sim',
+      locks: { buy: null, sell: null, modes: { bot: null, auto_entry: why, approve: why } } };
+    const replay = normalizeStockMode(raw);
+    expect(replay?.locks.modes).toEqual({ bot: null, auto_entry: why, approve: why });
+    const o = { symbol: 'PFSA', held: 0, pending: null };
+    expect(switchLock(replay, { buy: 'nova', sell: 'nova' }, o)).toBeNull();
+    expect(switchLock(replay, { buy: 'nova', sell: 'you' }, o)).toBe(why);
+    expect(switchLock(replay, { buy: 'you', sell: 'nova' }, o)).toBe(why);
+    expect(switchLock(replay, { buy: 'you', sell: 'you' }, o)).toBeNull();
+    // An older backend sends no `modes`: the sides' locks stand alone.
+    expect(normalizeStockMode({ ...raw, locks: { buy: null, sell: null } })?.locks.modes).toBeUndefined();
+  });
 });
 
 describe('the moment on the chart', () => {

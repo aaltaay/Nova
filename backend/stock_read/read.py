@@ -222,7 +222,7 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
     view = f.get("setups") or {}
     setups = view.get("setups") or []
     try:
-        hist = history.summary(f["symbol"], now)
+        hist = history.summary(f["symbol"], now, replay=bool(f.get("replay")))
     except Exception:
         logger.warning("stock read: the daily history of %s could not be read", f["symbol"], exc_info=True)
         hist = None
@@ -252,6 +252,8 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
         "session_date": datetime.fromtimestamp(now, ET).date().isoformat(),
         "price": d["price"], "prev_close": d["prev_close"], "change_pct": d["change_pct"],
         "followed": bool(view.get("followed")), "followed_note": view.get("followed_note"),
+        # A Sim replay's read (ADR 052): the replay at the playhead, the live feed's facts unknown.
+        "replay": bool(f.get("replay")),
         "setups": setups, "setups_5m": view.get("setups_5m") or [], "no_scanner": rows_trade.NO_SCANNER,
         "plan": plan, "held": held_out, "levels": d["levels"], "level_map": levels, "groups": groups,
         "counts": counts,

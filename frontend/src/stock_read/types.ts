@@ -209,6 +209,7 @@ export interface StockRead {
   change_pct: number | null;
   followed: boolean;
   followed_note: string | null;
+  replay: boolean;   // a Sim replay's read at the playhead (ADR 052): the Sim eyes' lanes, the replay's candles
   setups: SetupLane[];
   /** The 5-minute lanes (first pullback, bull flag, flat top on 5-minute candles): chart only, never a plan. */
   setups_5m: SetupLane[];
@@ -383,8 +384,8 @@ export interface StockModeView {
   /** The venue sleeve's risk per trade (read-only here). */
   risk_usd: number | null;
   set_at: number | null;
-  /** Why Nova cannot take each side now; null: it can. */
-  locks: { buy: string | null; sell: string | null };
+  /** Why Nova cannot take each side now; null: it can. `modes` per mode (ADR 052: on a Sim replay only Bot). */
+  locks: { buy: string | null; sell: string | null; modes?: Partial<Record<StockModeName, string | null>> };
   notes: StockModeNote[];
   approval: StockModeApproval | null;
   trade: StockModeTrade | null;

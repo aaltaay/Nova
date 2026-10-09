@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from constants_setups import TAPE_FLOW_BLIND
 from constants_stock_read import STOCK_READ_FLUSH_SCHEMA_VERSION, STOCK_READ_FLUSH_WINDOW_SEC
 from setup_scanner import tape_flow
 
@@ -24,3 +25,9 @@ def reading(symbol: str, now: float) -> dict[str, Any]:
     flow = tape_flow.evaluate(now=now, books=books, prints=prints, p=params, history_from=since)
     return {"schema_version": STOCK_READ_FLUSH_SCHEMA_VERSION, "symbol": symbol, "at": now,
             "score": flow.get("score"), "label": flow.get("label"), "window_sec": STOCK_READ_FLUSH_WINDOW_SEC}
+
+
+def blind(symbol: str, now: float) -> dict[str, Any]:
+    """On a Sim replay (ADR 052): the sensor rings hold the live tape, never the replay's -- no reading."""
+    return {"schema_version": STOCK_READ_FLUSH_SCHEMA_VERSION, "symbol": symbol, "at": now, "score": None,
+            "label": TAPE_FLOW_BLIND, "window_sec": STOCK_READ_FLUSH_WINDOW_SEC}

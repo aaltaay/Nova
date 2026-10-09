@@ -121,7 +121,9 @@ export function readQuery(entry: number | null, stop: number | null, held = '', 
 
 export function useStockRead(
   symbol: string,
-  opts: { active: boolean; entry: number | null; stop: number | null; side?: 'long' | 'short'; held?: string },
+  opts: { active: boolean; entry: number | null; stop: number | null; side?: 'long' | 'short'; held?: string;
+    /** A change reads at once: on a Sim replay, where the playhead is (ADR 052). */
+    nudge?: string },
 ): PolledState<StockRead> {
   const sym = symbol.trim().toUpperCase();
   return usePolledRead({
@@ -132,6 +134,7 @@ export function useStockRead(
     active: opts.active,
     what: 'stock read',
     accept: r => r.symbol === sym,
+    nudge: opts.nudge,
   });
 }
 

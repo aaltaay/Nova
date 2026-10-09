@@ -2,7 +2,7 @@
 Nova's bot and Auto-entry.
 
 ``blockers`` lists every rule that holds a trigger back -- all of them, not the first (the
-visibility rule): the venue (Paper, or Sim at its live edge), Activate, the setup at
+visibility rule): the venue (Paper, or Sim: its live edge or a loaded replay, ADR 052), Activate, the setup at
 effective Strategy, the strategy's bot rules (ADR 044, ``bot.strategy_rules``: the grades it
 buys and its setups a stock a day), the tape at go, NOT A TRADE
 (``setup_scanner.trade_verdict``), a fresh trigger, the padlock, the kill switch, this venue's
@@ -32,7 +32,6 @@ from bot.first_pullback.short_side import side_of
 from constants_bot import (
     BOT_FP_TRIGGER_MAX_AGE_SEC,
     BOT_LEVEL_STRATEGY,
-    BOT_NO_DEPTH_LINE_HINT,
     BOT_REASON_BRAIN_EXCLUSIVE,
     BOT_REASON_COMMISSIONS_UNKNOWN,
     BOT_REASON_DAY_LOCK,
@@ -289,7 +288,7 @@ def size_blocks(sized: dict[str, Any]) -> list[Blocker]:
 def for_bot(event: dict[str, Any], row: dict[str, Any], *, now: float) -> tuple[list[Blocker], dict[str, Any] | None]:
     """``(blockers, size)`` for Nova's bot on this trigger."""
     from bot import activation
-    from bot.eligibility import holds_depth_line, normalize_symbols
+    from bot.eligibility import holds_depth_line, no_line_text, normalize_symbols
     from bot.risk import is_working_entry, working_bot_orders
 
     venue_now = activation.venue_state()
@@ -298,7 +297,7 @@ def for_bot(event: dict[str, Any], row: dict[str, Any], *, now: float) -> tuple[
     if sym not in normalize_symbols(row.get("symbol_allowlist")):
         out.append((BOT_REASON_SYMBOL_BLOCKED, f"{sym} is not set to Bot on this venue"))
     elif not holds_depth_line(sym):
-        out.append((BOT_REASON_NO_DEPTH_LINE, f"{sym} holds no depth line -- {BOT_NO_DEPTH_LINE_HINT}"))
+        out.append((BOT_REASON_NO_DEPTH_LINE, no_line_text(sym)))
     current = row.get("trade")
     if isinstance(current, dict) and current.get("state") in LIVE_STATES:
         out.append((BOT_SKIP_ONE_TRADE, f"already in {current.get('symbol')} -- one trade at a time"))
@@ -317,6 +316,7 @@ def trade(event: dict[str, Any], row: dict[str, Any], *, qty: int, size_text: st
     price its size was read at (``short_side.price``: the ask under SSR), and its risk runs up to its buy stop."""
     from bot.entry_rules import venue_day
     from bot.gates import current_venue
+    from bot.replay_desk import desk as replay_desk
     from bot.sleeve import of as sleeve_of
 
     setup = event["setup"]
@@ -342,6 +342,8 @@ def trade(event: dict[str, Any], row: dict[str, Any], *, qty: int, size_text: st
         "exit_order_id": None, "exit_attempt": 0, "exit_sent_ts": None,
         "exit_limit": None, "exit_protective": False, "exit_why": None, "exit_price": None,
         "exit_reason": None, "closed_ts": None, "slippage": None, "r": None, "note": None,
+        # The Sim replay it was made on (ADR 052): it is managed only while the desk shows that replay.
+        "replay_key": (replay_desk() or {}).get("key"),
     }
 
 

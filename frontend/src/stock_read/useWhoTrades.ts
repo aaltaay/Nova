@@ -1,8 +1,9 @@
 /**
  * One Trader tab's Who trades switch (ADR 037): the stock's view, read every `STOCK_MODE_POLL_MS` while
- * the tab shows live; the writes behind the switch and the plan card; this tab's memory of the
- * position; and the moment the chart shows, with its one ping per call. Nothing is read on a replay
- * desk or the sample desk.
+ * the tab shows live or a Sim replay; the writes behind the switch and the plan card; this tab's memory of
+ * the position; and the moment the chart shows, with its one ping per call. On a Sim replay the moment
+ * runs on the playhead (`clockNow`, ADR 052): the bot's trade there is stamped with replay time. Nothing is
+ * read on the sample desk.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DepthMarker } from '../ibkr';
@@ -60,6 +61,8 @@ interface Options {
   venue?: string | null;
   /** Trial T1's tape reading while you hold. */
   flush?: FlushReading | null;
+  /** The clock the moment reads instead of the wall's: the Sim playhead on a replay (epoch seconds). */
+  clockNow?: number | null;
 }
 
 function useNow(on: boolean): number {
@@ -86,7 +89,7 @@ function useStable<T>(value: T): T {
 }
 
 export function useWhoTrades({
-  symbol, live, read, riskUsd, ttlSec = null, position, last, venue: deskVenue = null, flush = null,
+  symbol, live, read, riskUsd, ttlSec = null, position, last, venue: deskVenue = null, flush = null, clockNow
 }: Options): WhoTradesState {
   const sym = symbol.trim().toUpperCase();
   // The view is the venue's own (ADR 037: a venue change clears every switch), so the old
@@ -117,7 +120,8 @@ export function useWhoTrades({
   const view = written && written.symbol === sym && (!polledView || written.generated_at > polledView.generated_at)
     ? written
     : polledView;
-  const now = useNow(live);
+  const wall = useNow(live && clockNow == null);
+  const now = clockNow ?? wall;
   // What the rail's buttons read (no clock: a second going by redraws nothing), and the moment's view
   // of it with the clock, for the calls that last seconds.
   // The rail reads `base`, which has no price: a new object on every print rendered every reader of the

@@ -4,8 +4,8 @@ Activate (``POST /api/bot/session/arm``) says the bot may trade the go triggers 
 setups at Strategy on this venue. It refuses, with a plain reason the desk shows before
 the press and after it:
 
-- ``BOT_LIVE_NOT_BUILT`` on Live, ``BOT_REPLAY_DESK`` on Sim off the live edge,
-  ``BOT_VENUE_UNKNOWN`` when the venue cannot be read;
+- ``BOT_LIVE_NOT_BUILT`` on Live, ``BOT_REPLAY_DESK`` on Sim off the live edge with nothing loaded
+  (a loaded replay is traded like Paper, ADR 052), ``BOT_VENUE_UNKNOWN`` when the venue cannot be read;
 - ``BOT_LEVEL_NOT_STRATEGY`` with the master below Strategy;
 - ``BOT_NO_SETUP_AT_STRATEGY`` with no setup at effective Strategy;
 - ``BOT_PADLOCK_LOCKED`` while the desk's padlock is locked;
@@ -41,6 +41,7 @@ from constants_bot import (
     BOT_REASON_REPLAY_DESK,
     BOT_REASON_TRIP_LATCHED,
     BOT_REASON_VENUE_UNKNOWN,
+    BOT_REPLAY_NOTHING_LOADED_TEXT,
     BOT_TZ,
 )
 
@@ -81,7 +82,10 @@ def venue_state() -> tuple[str | None, bool, bool]:
 
 
 def venue_block(venue: str | None, live_edge: bool, readable: bool = True) -> tuple[str, str] | None:
-    """``(code, text)`` when Nova's bot cannot trade on this venue, else None."""
+    """``(code, text)`` when Nova's bot cannot trade on this venue, else None.
+
+    Sim off its live edge is a replay: the bot trades the loaded replay's go triggers there (ADR 052), so
+    only a replay desk with nothing loaded refuses."""
     from constants_sim import DESK_PRACTICE_VENUES
 
     if not readable or venue is None:
@@ -89,8 +93,10 @@ def venue_block(venue: str | None, live_edge: bool, readable: bool = True) -> tu
     if venue not in DESK_PRACTICE_VENUES:
         return BOT_REASON_LIVE_NOT_BUILT, BOT_LIVE_NOT_BUILT_TEXT
     if not live_edge:
-        return BOT_REASON_REPLAY_DESK, ("Sim is off its live edge -- a replay: the bot trades live triggers only. "
-                                        "Follow the wall clock to come back to the live edge")
+        from bot.replay_desk import desk
+
+        if desk() is None:
+            return BOT_REASON_REPLAY_DESK, BOT_REPLAY_NOTHING_LOADED_TEXT
     return None
 
 

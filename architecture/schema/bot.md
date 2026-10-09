@@ -99,7 +99,7 @@ with `live_fire_ready` as a one-release alias.
 **Activate: one control, one meaning, never carried** (ADR 042, owner
 `bot/activation.py`). `POST /api/bot/session/arm {reenable?}` refuses, `409`
 with a plain reason: `BOT_LIVE_NOT_BUILT` (Live), `BOT_REPLAY_DESK` (Sim off the
-live edge), `BOT_VENUE_UNKNOWN`, `BOT_LEVEL_NOT_STRATEGY`,
+live edge with nothing loaded; a loaded replay is traded, ADR 052), `BOT_VENUE_UNKNOWN`, `BOT_LEVEL_NOT_STRATEGY`,
 `BOT_NO_SETUP_AT_STRATEGY`, `BOT_PADLOCK_LOCKED` and `BOT_TRIP_LATCHED` (the
 bot trip fired on this venue today; the desk confirms in words, then sends
 `reenable: true`). Choosing Strategy never activates. The backend clears
@@ -195,9 +195,9 @@ take-over of the exit never send another venue's order id.
 
 **Nova's own bot** (ADR 030, owner `bot/first_pullback/`; #514; ADR 042; both sides since ADR 049's
 step 5, "The bot trades both sides" below: a short strategy's trigger is a short, mirrored).
-Active at Strategy, on Paper or on Sim at the live edge -- never on Live -- it
-hears the setup scanner's triggers (each setup's template in play's lane, live
-feed only: `SetupEngine.add_trigger_listener`; the event carries `setup_type`,
+Active at Strategy, on Paper or on Sim -- at the live edge, or on a loaded replay ("The bot trades a Sim
+replay" below) -- never on Live -- it hears the setup scanner's triggers (each setup's template in play's
+lane: `SetupEngine.add_trigger_listener`, and the Sim eyes' on a replay; the event carries `setup_type`,
 `grade`, `pillars`, `filtered` and `spread`) and plays **every setup at
 effective Strategy** on this venue's Bot stocks: the first go trigger wins, one
 trade at a time, then the shared daily cap. It takes the first of a setup on a
@@ -211,9 +211,8 @@ is a `bot_trade` `skipped` line with every reason (`inputs.codes` /
 **practice bracket** (`operation: "bracket"`, source `bot`: a BUY limit at the
 scanner's entry, a SELL limit at target 1 and a SELL stop, the exits held until
 the entry fills, then one-cancels-other), so its stop and target rest at the
-broker and Paper's fill while the desk shows another venue (Sim's matcher runs
-only at its live edge: a Sim trade waits while the desk is elsewhere, and says
-so). Unfilled after the sleeve's `working_ttl_sec` the entry is cancelled with
+broker and Paper's fill while the desk shows another venue (a Sim trade waits while the desk is
+elsewhere -- a replay's while the desk is not on the replay it was made on -- and says so). Unfilled after the sleeve's `working_ttl_sec` the entry is cancelled with
 its exits (a miss). The time stop (`BOT_FP_TIME_STOP_MIN`, 15 minutes), the
 flush exit (a tightened stop is a replace of the stop leg) and a stop leg that is
 gone (the bot then watches the stop on IBKR's Last) cancel both legs and sell at
@@ -223,7 +222,7 @@ the bid, then the protective flatten. Every order carries its real setup
 /api/bot/session` adds `runner: {brain_id, playing, reason}` and `trade` -- the
 current or last trade, `{setup_id, setup_type, symbol, venue, venue_day,
 template_id, template_rev, state: "entering" | "open" | "exiting" | "closed" |
-"missed" | "handed", qty, trigger, entry_planned, stop, target1, risk,
+"missed" | "handed" | "rewound", replay_key, qty, trigger, entry_planned, stop, target1, risk,
 entry_order_id, entry_fill_price, entry_filled_ts, target_order_id,
 stop_order_id, stop_leg_at, exit_order_id, exit_price, exit_reason: "target" |
 "stop" | "time" | "flush" | "outside" | "handed" | null, closed_ts, slippage, r,
@@ -421,3 +420,63 @@ Elsewhere:
   wire keeps `"you" | "nova"`. Since short selling (ADR 048) the switches are Entry and Exit and the modes
   "you enter · you exit", "you approve · bot exits", "bot enters · you exit", "bot enters · bot exits".
 
+## The bot trades a Sim replay (ADR 052, operator ask 2026-10-09, #814)
+
+On the Sim desk off its live edge with a replay loaded (`sim.practice.loaded`: a Session Record or a
+historical window), Nova's own bot trades like on Paper, on the Sim scratch account. Owner of the bot's
+side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `eyes/sim_target.py`,
+`eyes/history_recording.py`.
+
+- **Activate** (`POST /api/bot/session/arm`) refuses `409 BOT_REPLAY_DESK` on Sim off the live edge only
+  with nothing loaded ("load a Session Record or a download for the bot to trade ..."). The localhost bot
+  API (`POST /api/bot/action`) still refuses every replay desk `409 BOT_LIVE_NOT_BUILT`, loaded or not:
+  on a replay only Nova's own bot trades.
+- **Triggers.** The Sim eyes' trigger event is the live one (`{symbol, setup_id, setup, tape, ts,
+  template_id, template_rev, template_name, setup_type, grade, pillars, filtered, spread, liquidity, side,
+  ssr}`) with `source: "sim"` and `replay_key` -- the scratch account's key, `["capture", SYMBOL, DATE]` or
+  `["historical", SYMBOL, DATE, START, END]`. It is handed over only when the playhead played across it
+  (no older than `BOT_FP_TRIGGER_MAX_AGE_SEC` at the playhead, on a forward step); a rebuild or a jump
+  hands over nothing. The bot takes a trigger only from the feed the desk shows: `source != "sim"` on
+  Paper and at the live edge, `source == "sim"` with the loaded `replay_key` on a replay.
+- **The clock** of the bot's trade on Sim is the playhead: `entry_sent_ts`, `entry_cancel_ts`,
+  `entry_filled_ts`, `exit_sent_ts`, `closed_ts` and the trigger's age are replay time, and stand still
+  while it is paused.
+- **The trade** (`GET /api/bot/session` `trade`, `bot-session.json`) adds `replay_key: list | null` -- the
+  replay it was made on; null on Paper and at the live edge -- and the state `rewound`: a trade on a
+  replay this process did not make (a restart; the scratch account does not survive one), with `note`
+  saying so. A trade with a `replay_key` is managed only while the desk shows that replay; its `waiting`
+  text says what it waits on.
+- **Rewind.** When the playhead goes back, the replay's part of the bot's `trade`, `working`, `bot_qty` and
+  the replay's day count return to what they were at the new playhead (in-memory checkpoints by playhead);
+  a live trade made elsewhere in the one `trade` slot (Paper, the live edge, another replay) is never
+  touched. Loading another replay retires the old replay's live trade `rewound`, its working orders and
+  shares with it; a `bot_trade`
+  `note` line says so (`inputs.restored_to`), and an order of the bot's the restored trade does not know
+  is cancelled (a `note` line names it). Each rewind changes the bot's idempotency keys on the replay
+  (`bot:fp:sim:<replay>.<run>:<setup_id>:<step>`), so a setup played across again is sent again.
+- **The day's count** on a replay (`entry_rules.today`, the `daily_cap` gate, `assert_entry_allowed`) is
+  the replay run's own: the bot's entries sent before the playhead, a miss given back. Every bot audit
+  line written on a replay carries `replay: {key, playhead_ts}`; such a line never counts toward any
+  venue's daily cap in the audit fold.
+- **What the bot reads** on a replay: last, bid and ask are the replay's at the playhead
+  (`sim.practice.reference`, `bot.quotes`); the depth-line rule is met by the replay's own book --
+  recorded Level 2, the window's NBBO, or a book Nova recorded that day -- beside the historical Level
+  2's slot; the flush exit reads the Sim eyes' flow readings.
+- **Who trades** (`GET /api/stock-mode/{symbol}`): `locks` adds `modes: {bot, auto_entry, approve}` --
+  each mode's lock (null: open). On a replay `buy` / `sell` read null and `modes` locks Auto-entry and
+  Approve with `STOCK_MODE_WHY_REPLAY`; `PUT` refuses those modes `409 STOCK_MODE_REPLAY` and takes Bot.
+  "Nova takes the exit" stays refused on a replay.
+- **The board** (`/ws/setups` on a replay desk): `replay.kind` is `capture` or `history` for a loaded
+  replay (lanes over it) and `journal` with nothing loaded; `history` adds `source` (`massive` / `ibkr`)
+  and `book` (`nbbo` / `none`), and `note` says what the tape gate reads. `recording` adds `book`
+  (`l2` | `nbbo` | `none`). While a rewind waits for its rebuild, `rows`, `proposals` and `setups` are
+  empty and `loading` is true -- never the lanes as they stood later.
+- **The symbol's lanes** (`GET /api/setups/symbol/{symbol}`, the stock read's `setups`) on a replay are
+  the Sim eyes' for the loaded symbol at the playhead, with `replay: true`; while they read the replay or
+  catch up to a rewind, `followed` is false, `seeding` true and `followed_note` says which.
+- **The stock read** (`GET /api/stock-read/{symbol}`) adds `replay: boolean`. On a replay desk it is the
+  replay's at the playhead: `generated_at` and `session_date` are the playhead's, the setups and plan
+  the Sim eyes', the levels from the Sim chart's completed candles up to the playhead, the daily map from
+  the days before the replayed one; the live feed's facts are unknown. `past-setups` and `decisions`
+  answer empty with `replay: true` and a `note`; `history` adds `replay` and reads only the days before;
+  `flush` reads `blind`.

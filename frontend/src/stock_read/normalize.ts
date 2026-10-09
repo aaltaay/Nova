@@ -266,6 +266,7 @@ export function normalizeStockRead(raw: unknown): StockRead | null {
     change_pct: num(r.change_pct),
     followed: r.followed === true,
     followed_note: str(r.followed_note),
+    replay: r.replay === true,
     setups: list(r.setups, lane),
     setups_5m: list(r.setups_5m, lane),
     no_scanner: list(r.no_scanner, x => {

@@ -40,7 +40,12 @@ class ReadError(Exception):
 
 
 def _key(trade: dict[str, Any], step: str) -> str:
-    return f"bot:fp:{trade['venue']}:{trade['setup_id']}:{step}"
+    """On a Sim replay the key carries the replay's run (ADR 052): a setup the playhead plays across again
+    after a rewind is sent again, never answered from the receipt of the send the rewind took back."""
+    from bot.replay_desk import run_tag
+
+    tag = run_tag() if trade.get('replay_key') else ''
+    return f"bot:fp:{trade['venue']}:{tag}{trade['setup_id']}:{step}"
 
 
 def _outside_rth() -> bool:

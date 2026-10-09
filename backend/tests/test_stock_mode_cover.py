@@ -117,7 +117,8 @@ def test_the_switch_takes_entry_and_exit_and_says_both_names(paper):
     view = r.json()
     assert (view["mode"], view["entry"], view["exit"], view["buy"], view["sell"]) == (
         "auto_entry", "nova", "you", "nova", "you")
-    assert view["locks"] == {"entry": None, "exit": None, "buy": None, "sell": None}
+    assert view["locks"] == {"entry": None, "exit": None, "buy": None, "sell": None,
+                             "modes": {"bot": None, "auto_entry": None, "approve": None}}
     assert client.put(f"/api/stock-mode/{SYM}", json={"entry": "nova"}, headers=headers(paper.key)).status_code == 422
 
 

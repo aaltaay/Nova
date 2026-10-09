@@ -10,7 +10,9 @@
  * other in the charts!"): it claims the edge (`claimEdge`), so the EMAs' and VWAP's tags, the plan's
  * ENTRY / STOP / TARGET and the position tag's room come to its one column with the levels' names instead of
  * being drawn over them, and the column starts under the corner chips.
- * Nothing is drawn while the desk replays another moment: the read is today's live stock.
+ * On a Sim replay it draws the replay's read at the playhead (ADR 052): the Sim eyes' setups, the plan and
+ * the day's levels from the replay's own candles. The day's setups that ended and the daily runs read whole
+ * days, so they are not drawn there; a read from the other side of the live edge is never drawn.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
@@ -191,8 +193,9 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const series = chart ? candleSeriesRef.current : null;
   const kind = paneKind(timeframe);
   const daily = timeframe === '1Day';
-  const enabled = !!ctx && !ctx.replay && kind !== 'none';
-  const live = enabled ? ctx?.read.data ?? null : null;
+  // The read must be this desk's -- a replay's on a replay desk, never from after its playhead (`readNow`).
+  const enabled = !!ctx && kind !== 'none' && !!ctx.readNow;
+  const live = enabled ? ctx?.readNow ?? null : null;
   // The operator's own plan moves under the pointer on the 1-minute pane; the target follows at 2R.
   const setManualPlan = ctx?.setManualPlan;
   const preview = usePlanDrag({
@@ -211,8 +214,9 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   // Who trades (ADR 037): the levels with what stands behind them (a drag shows the plan's own), the pin.
   const levels = preview ? null : ctx?.who.levels ?? null;
   const call = ctx?.who.moment?.call ?? null;
-  const past = ctx?.past.data?.symbol === ctx?.symbol ? ctx?.past.data?.episodes ?? null : null;
-  const past5 = ctx?.past5?.data?.symbol === ctx?.symbol ? ctx?.past5?.data?.episodes ?? null : null;
+  // Whole days, read live only: a replay never draws them (nor one kept from before the desk went back).
+  const past = !ctx?.replay && ctx?.past.data?.symbol === ctx?.symbol ? ctx?.past.data?.episodes ?? null : null;
+  const past5 = !ctx?.replay && ctx?.past5?.data?.symbol === ctx?.symbol ? ctx?.past5?.data?.episodes ?? null : null;
   const draw = useMemo(() => paneDraw(read, {
     pane: kind,
     layers: ctx?.layers ?? { eyes: false, setups: false, levels: false, past: false, labels: 'compact', hidden: [], plan: 'auto' },
@@ -241,7 +245,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   );
   const scaleWidth = usePriceScaleWidth(chart, containerRef, barsRevision, kind === 'full' && enabled);
   const [cornerBottom, setCornerBottom] = useState(0);
-  const runs = daily && enabled ? ctx?.history.data?.runs ?? null : null;
+  const runs = daily && enabled && !ctx?.replay ? ctx?.history.data?.runs ?? null : null;
   const scene = useMemo<Scene>(() => {
     if (!enabled) return EMPTY_SCENE;
     const words: SceneWord[] = [

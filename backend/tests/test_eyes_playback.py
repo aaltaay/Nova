@@ -182,27 +182,38 @@ def test_the_sim_desk_plays_the_journal_back_and_pops_a_proposal_up_only_when_pl
     assert eyes.take_alerts() == []
 
 
-def test_the_default_target_plays_the_journal_back_off_the_edge_unless_a_session_record_is_loaded(monkeypatch):
+def test_the_default_target_plays_the_journal_back_off_the_edge_unless_a_replay_is_loaded(monkeypatch):
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
-    from eyes import sim_eyes
-    from sim import mode, replay, session_clock
+    from eyes import sim_target as sim_eyes
+    from sim import history_playback, mode, practice, replay, session_clock
 
     at = datetime(2026, 9, 24, 8, 7, 2, tzinfo=ZoneInfo("America/New_York"))
     monkeypatch.setattr(mode, "is_replay_desk", lambda: True)
     monkeypatch.setattr(session_clock, "now_et", lambda: at)
     monkeypatch.setattr(replay, "status_payload", lambda: {"replay_source": "none", "replay_ok": True})
-    assert sim_eyes._default_target() == {"kind": "journal", "date": "2026-09-24", "playhead": at.timestamp(),
+    assert sim_eyes.default_target() == {"kind": "journal", "date": "2026-09-24", "playhead": at.timestamp(),
                                           "symbol": None, "loaded": None}
     monkeypatch.setattr(replay, "status_payload", lambda: {"replay_source": "historical", "replay_ok": True,
                                                            "replay_symbol": "PFSA", "replay_date": "2026-09-24"})
-    assert sim_eyes._default_target()["kind"] == "journal" and sim_eyes._default_target()["symbol"] == "PFSA"
+    # A historical replay whose window is not loaded (yet): the journal of the day, with its symbol.
+    assert sim_eyes.default_target()["kind"] == "journal" and sim_eyes.default_target()["symbol"] == "PFSA"
+    # A loaded window: today's templates re-read it (ADR 052), keyed by the window and the scratch account's key.
+    spec = {"symbol": "PFSA", "date": "2026-09-24", "start": "07:00", "end": "10:00", "source": "massive",
+            "job_id": "j1", "trade_count": 10, "quote_status": "complete"}
+    monkeypatch.setattr(history_playback, "status", lambda: dict(spec))
+    monkeypatch.setattr(practice, "loaded", lambda: practice.Loaded("historical", "PFSA",
+                                                                    ("historical", "PFSA", "2026-09-24", "07:00", "10:00")))
+    got = sim_eyes.default_target()
+    assert got["kind"] == "history" and got["symbol"] == "PFSA" and got["source"] == "massive"
+    assert got["replay_key"] == ["historical", "PFSA", "2026-09-24", "07:00", "10:00"]
+    assert got["key"][:6] == ("historical", "PFSA", "2026-09-24", "07:00", "10:00", "massive")
     monkeypatch.setattr(replay, "status_payload", lambda: {"replay_source": "capture", "replay_ok": True,
                                                            "replay_symbol": "PFSA", "replay_date": "2026-09-24"})
-    assert sim_eyes._default_target()["kind"] == "capture"
+    assert sim_eyes.default_target()["kind"] == "capture"
     monkeypatch.setattr(mode, "is_replay_desk", lambda: False)
-    assert sim_eyes._default_target() is None
+    assert sim_eyes.default_target() is None
 
 
 def test_the_engine_beats_once_a_minute(tmp_path):

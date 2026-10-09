@@ -25,7 +25,7 @@ from stock_read.rows import row, shares
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 BORROW_HISTORY_DAYS = 14                  # the borrow store keeps this long (move_reason, MOVE_BORROW_RETENTION_DAYS)
-_cache: dict[tuple[str, str], dict[str, Any]] = {}
+_cache: dict[tuple[str, str, bool], dict[str, Any]] = {}
 _lock = threading.Lock()
 
 
@@ -56,19 +56,23 @@ def runs(daily: list[dict[str, Any]], today: str | None) -> list[dict[str, Any]]
     return out
 
 
-def summary(symbol: str, now: float) -> dict[str, Any] | None:
+def summary(symbol: str, now: float, *, replay: bool = False) -> dict[str, Any] | None:
     """``{daily, daily_days, runs, sma200}`` for the symbol, read once per session day. ``sma200`` is the
-    mean of the last 200 stored daily closes before today (None with fewer): the Full Day chart's level."""
+    mean of the last 200 stored daily closes before today (None with fewer): the Full Day chart's level.
+    ``replay``: ``now`` is a Sim replay's playhead (ADR 052) -- only the days before the replayed one are read,
+    never its own daily bar (the whole day's high) or a later day's."""
     from sensors.feeds import get_bars
 
     today = datetime.fromtimestamp(now, ET).date().isoformat()
-    key = (symbol, today)
+    key = (symbol, today, replay)
     with _lock:
         hit = _cache.get(key)
     if hit is not None:
         return hit
     raw, _src = get_bars(symbol, "1Day", STOCK_READ_HISTORY_READ_DAYS)
     daily = daily_bars(raw)
+    if replay:
+        daily = [b for b in daily if b["d"] < today]
     closes = [b["c"] for b in daily if b["d"] < today][-STOCK_READ_DAILY_SMA_DAYS:]
     sma200 = round(sum(closes) / len(closes), 4) if len(closes) == STOCK_READ_DAILY_SMA_DAYS else None
     out = {"daily": daily[-STOCK_READ_HISTORY_CHART_DAYS:], "daily_days": len(daily), "runs": runs(daily, today),

@@ -1,9 +1,9 @@
 /**
- * What the Setups board is on the Sim desk off the live edge (ADR 029; operator ask
- * 2026-09-24): a Session Record re-read by today's templates (`replay.kind` `capture`),
- * or what Nova's live eyes recorded at the playhead (`journal`, backend
- * `eyes/playback.py`) -- every setup card as it stood then. The Setups panel and the
- * Bots page say it in the same words. Pure.
+ * What the Setups board is on the Sim desk off the live edge (ADR 029, ADR 052; operator ask
+ * 2026-09-24): a loaded replay re-read by today's templates -- a Session Record (`replay.kind`
+ * `capture`) or a historical window (`history`) -- or, with nothing loaded, what Nova's live eyes
+ * recorded at the playhead (`journal`, backend `eyes/playback.py`) -- every setup card as it stood
+ * then. The Setups panel and the Bots page say it in the same words. Pure.
  */
 import type { SetupsBoard, SetupSummary } from './types';
 
@@ -29,8 +29,11 @@ export function simBoardLine(board: SetupsBoard, summary: SetupSummary | null = 
   }
   const what = `Sim eyes on ${r?.symbol ?? 'the replay'}${r?.date ? ` ${r.date}` : ''}`;
   if (r?.note) return `${what} · ${r.note}`;
-  if (r?.error) return `${what} · the recording could not be read: ${r.error}`;
-  if (r?.loading) return `${what} · reading the recording…`;
+  if (r?.error) return `${what} · the replay could not be read: ${r.error}`;
+  if (r?.loading) {
+    const behind = r.at !== null && r.playhead !== null && r.at > r.playhead;
+    return `${what} · ${behind ? 'catching up to the playhead' : 'reading the replay'}…`;
+  }
   return `${what} · following the playhead${summary?.template ? ` · template ${summary.template.name}` : ''}`;
 }
 
@@ -43,8 +46,13 @@ export function simBoardTip(board: SetupsBoard): string {
       + 'Off / Eyes, the template and its parameters are still today\'s controls.\n'
       + 'Load that day\'s Session Record instead to re-read the recording with today\'s templates.';
   }
-  return 'The Sim eyes run today\'s templates over the loaded Session Record, following the playhead. '
-    + 'Their proposals are practice proposals on this desk; nothing proposes live from a replay.';
+  const book = board.replay?.kind !== 'history' ? ''
+    : board.replay.book === 'nbbo'
+      ? '\nThe window has no Level 2: the tape gate reads its NBBO, the best bid and ask only.'
+      : '\nAn IBKR download has no bid or ask: the tape reads blind, so nothing goes and the bot enters nothing.';
+  return 'The Sim eyes run today\'s templates over the loaded replay, following the playhead, and never read past it. '
+    + 'Their proposals are practice proposals on this desk, and with the Bot on in Sim the bot trades their go '
+    + 'triggers on the Sim account as the playhead plays across them -- never one a jump skipped.' + book;
 }
 
 /** A card with nothing to show at a recorded moment says which moment. */

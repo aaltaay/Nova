@@ -21,6 +21,10 @@ ADR 034: the tape flow is read from a prefix-sum index over the whole recording
 (``tape_flow.FlowIndex``, the live rule summed another way), never before the
 start of the recorded stretch that holds the moment; a trade on keeps the lanes
 stepping so its flush exit is read.
+
+ADR 052: a playing lane's trigger is kept (``take_triggers``) with its flow readings
+(``flow_reading``), so the Sim eyes can hand Nova's bot the triggers the playhead plays
+across; the recording may be a loaded historical window (``eyes.history_recording``).
 """
 from __future__ import annotations
 
@@ -41,9 +45,10 @@ class EyesReplay:
     def __init__(self, rec: Recording, templates: list[Any], *, source: str, playing_id: str | None = None,
                  all_propose: bool = False, journal: Callable[[dict], None] | None = None,
                  pillars: Callable[..., dict] = pillars_at, playing: dict[str, str] | None = None,
-                 levels: Callable[[], dict] | None = None):
+                 levels: Callable[[], dict] | None = None, sizing: Any = None):
         self.rec = rec
         self.source = source
+        self._sizing = sizing           # the Sim eyes': the desk's sleeve (``LaneHost``); a backtest has none
         self.session = rec.date
         self._journal_fn = journal or (lambda event: None)
         self._pillars_fn = pillars
@@ -61,6 +66,7 @@ class EyesReplay:
         order = {s: i for i, s in enumerate(BOT_SCANNER_SETUPS)}
         self.lanes.sort(key=lambda lane: (order.get(lane.setup, 99), not lane.playing))
         self.rows: dict[str, dict] = {}
+        self.triggers: list[dict] = []
         self.now = day_start_ts(rec.date)
         self.end = self.now + SESSION_SEC
         self.last_price: float | None = None
@@ -142,6 +148,39 @@ class EyesReplay:
 
     def audit(self, **kw: Any) -> None:
         """A replay never writes the bot's audit stream: its proposals are practice, journalled only."""
+
+    def on_trigger(self, event: dict) -> None:
+        """A playing lane's setup triggered at the replay's clock (ADR 052): kept for the Sim eyes, which hand
+        it to Nova's bot only when the playhead played across it. A backtest never reads them."""
+        self.triggers.append({**event, "source": self.source})
+
+    def risk_usd(self) -> float | None:
+        """The desk's risk per trade on the Sim eyes (the liquidity sizes its walk by it); None in a backtest."""
+        return self._sizing.risk_usd() if self._sizing is not None else None
+
+    def order_shares(self, risk: float | None) -> int | None:
+        return self._sizing.order_shares(risk) if self._sizing is not None else None
+
+    def taker(self, sym: str, setup_type: str) -> str | None:
+        """Who takes this setup's go trigger by itself on the Sim eyes (the bot, on a replay it trades), so a
+        proposal says so as on Paper; a backtest has nobody."""
+        ask = getattr(self._sizing, "taker", None)
+        return ask(sym, setup_type) if ask is not None else None
+
+    def take_triggers(self) -> list[dict]:
+        out, self.triggers = self.triggers, []
+        return out
+
+    def flow_reading(self, setup_id: str) -> dict | None:
+        """The newest flow reading on a triggered setup and its template's flush rule (ADR 034): the bot's
+        flush exit on a Sim replay reads it here, as it reads the live engine's on Paper."""
+        for lane in self.lanes:
+            got = lane.flow_last.get(setup_id)
+            if got is not None:
+                f = lane.p.flush
+                return {**got, "template_id": lane.p.template_id,
+                        "policy": {"mode": f.mode, "hold_sec": f.hold_sec, "trail_r": f.trail_r, "min_r": f.min_r}}
+        return None
 
     def clock(self) -> float:
         return self.now

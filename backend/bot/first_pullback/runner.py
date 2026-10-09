@@ -5,7 +5,9 @@ Every ``BOT_FP_POLL_SEC``, and at once when the scanner announces a trigger (``b
 1. **Never Live.** An active bot on Live (a session from another build, a venue that
    could not be read) is deactivated, on the timeline.
 2. **Playing?** The master at Strategy, Activate on, a setup at effective Strategy, on
-   Paper or Sim at its live edge. While it plays, the bot holds the L2 session as brain
+   Paper or Sim -- at its live edge, or on a loaded replay (ADR 052: the Sim eyes' triggers, the
+   playhead as the clock, the bot's memory going back with a rewind, ``bot.replay_desk``). While
+   it plays, the bot holds the L2 session as brain
    ``nova-first-pullback`` (the id kept from ADR 030, so a running session keeps its
    claim) and heartbeats; when it stops playing it lets go.
 3. **Triggers** the setup scanner announced (``submit``) on this venue's bot stocks are
@@ -47,6 +49,7 @@ from bot.errors import BotError
 from bot.first_pullback import admit, flush, orders, short_side
 # The operator takes over the exit, and the desk leaves a venue (ADR 037, 042): re-exported.
 from bot.first_pullback.handover import hand_over, leave_venue
+from bot import replay_desk
 from bot.persist import load_session, save_session
 from bot.wake import Wake
 from constants_bot import (
@@ -69,7 +72,9 @@ LIVE_STATES = admit.LIVE_STATES
 _EPS = 1e-9
 _inbox: deque[dict[str, Any]] = deque(maxlen=50)
 _wake = Wake()
-_clock: Callable[[], float] = time.time
+# The venue's clock: the Sim playhead on Sim (ADR 052), else the wall clock. Heartbeats keep the wall's.
+_clock: Callable[[], float] = replay_desk.venue_now
+_wall: Callable[[], float] = time.time
 _last_beat = 0.0
 _warned: set[str] = set()
 
@@ -112,13 +117,16 @@ def status(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def waiting_text(trade: dict[str, Any], venue: str | None) -> str | None:
-    """What a live trade on another venue than the desk's waits on (the Bots page and the Trader say it)."""
-    if trade.get("state") not in LIVE_STATES or trade.get("venue") in (None, venue):
+    """What a live trade the bot is not managing now waits on (the Bots page and the Trader say it): another
+    venue than the desk's, or on Sim another replay -- or the live edge -- than the one it was made on."""
+    if trade.get("state") not in LIVE_STATES:
         return None
     where = trade.get("venue")
+    if where in (None, venue):
+        return replay_desk.waits(trade) if where == "sim" else None
     if where == "sim":
-        return ("the trade is on Sim: Sim fills only at its live edge, so it waits until the desk is back on Sim "
-                "following the wall clock")
+        return ("the trade is on Sim: Sim fills on its own clock, so it waits until the desk is back on Sim where "
+                "it was made")
     return (f"the trade is on {where}: its stop and target rest at the broker and still fill; the time stop and the "
             f"flush exit wait until the desk is back on {where}")
 
@@ -133,6 +141,9 @@ async def run() -> None:
     _wake.bind()
     engine = get_engine()
     engine.add_trigger_listener(submit)
+    sim_eyes = _sim_eyes()
+    if sim_eyes is not None:
+        sim_eyes.add_trigger_listener(submit)      # a Sim replay's go triggers (ADR 052)
     try:
         while True:
             try:
@@ -144,19 +155,85 @@ async def run() -> None:
             await _wake.sleep(BOT_FP_POLL_SEC)
     finally:
         engine.remove_trigger_listener(submit)
+        if sim_eyes is not None:
+            sim_eyes.remove_trigger_listener(submit)
+
+
+def _sim_eyes() -> Any:
+    try:
+        from eyes.sim_eyes import get_sim_eyes
+
+        return get_sim_eyes()
+    except Exception:
+        logger.warning("Nova's bot: the Sim eyes could not be reached -- no replay triggers", exc_info=True)
+        return None
 
 
 async def tick(now: float | None = None) -> None:
     now = _clock() if now is None else now
     row = load_session()
     _never_live(row)
+    await _follow_replay(row, now)
     on, _why = playing(row)
-    _hold_session(row, on, now)
+    _hold_session(row, on, _wall())
     while _inbox:
         await _on_trigger(_inbox.popleft(), now)
     trade = load_session().get("trade")
     if isinstance(trade, dict) and trade.get("state") in LIVE_STATES:
         await _manage(dict(trade), now)
+    if replay_desk.desk() is not None:
+        replay_desk.checkpoint(load_session(), _clock())
+
+
+async def _follow_replay(row: dict[str, Any], now: float) -> None:
+    """On a Sim replay (ADR 052): stay on the replay the desk shows, and take back what a rewind undid --
+    the trade, its working orders and its shares as they stood at the new playhead."""
+    if replay_desk.desk() is None:
+        return
+    out = replay_desk.follow(row, now)
+    retired, low = out["retired"], out["restored_to"]
+    if retired is None and low is None:
+        return
+    save_session(row)
+    if retired is not None:
+        audit(action=BOT_AUDIT_ACTION_TRADE, outcome="note", reason=retired["note"], inputs=_summary(retired))
+        _tell(retired["symbol"], now, "info", f"Nova's bot: {retired['note']}")
+    if low is None:
+        return
+    _inbox.clear()                              # triggers raised after the new playhead never happened
+    trade = row.get("trade") if isinstance(row.get("trade"), dict) else {}
+    at = _hms(low)
+    said = (f"the playhead went back to {at} ET: the bot's {trade.get('symbol')} trade is as it stood then "
+            f"({trade.get('state')})" if trade.get("state") in LIVE_STATES
+            else f"the playhead went back to {at} ET: the bot holds no trade at that moment")
+    audit(action=BOT_AUDIT_ACTION_TRADE, outcome="note", reason=said, inputs={"restored_to": low, **_summary(trade)})
+    for oid in out["orphans"]:
+        await _cancel_orphan(oid, trade)
+
+
+def _hms(ts: float) -> str:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    return datetime.fromtimestamp(ts, ZoneInfo("America/New_York")).strftime("%H:%M:%S")
+
+
+async def _cancel_orphan(order_id: int, trade: dict[str, Any]) -> None:
+    """An order of the bot's the ledger still holds after a rewind but the restored trade does not know (it
+    was sent between two of the bot's checkpoints): cancelled, so nothing rests that the bot does not manage."""
+    try:
+        row = orders.order_row(order_id)
+    except orders.ReadError as exc:
+        _warn_once(f"orphan:{order_id}", "Nova's bot: order %s unreadable after a rewind -- %s", order_id, exc)
+        return
+    if orders.order_state(row) != "working" or str((row or {}).get("order_source") or "bot") != "bot":
+        return
+    owner = {"venue": "sim", "setup_id": trade.get("setup_id") or "rewind", "symbol": (row or {}).get("symbol")}
+    receipt = await orders.cancel(owner, int(order_id))
+    said = "cancelled" if receipt.ok else f"could not be cancelled ({orders.receipt_error(receipt)})"
+    audit(action=BOT_AUDIT_ACTION_TRADE, outcome="note", order_id=int(order_id),
+          reason=f"order {order_id} was sent after the moment the playhead went back to: {said}",
+          inputs={"symbol": owner["symbol"]})
 
 
 def _never_live(row: dict[str, Any]) -> None:
@@ -196,9 +273,20 @@ def _hold_session(row: dict[str, Any], on: bool, now: float) -> None:
 
 
 # -- a trigger ----------------------------------------------------------------
+def _this_desks(event: dict[str, Any]) -> bool:
+    """A trigger from the feed the desk shows: the live scanner's on Paper and at the live edge, the Sim eyes'
+    on the replay loaded now (ADR 052). Any other is not this desk's to trade."""
+    here = replay_desk.desk()
+    if here is None:
+        return event.get("source") != "sim"
+    return event.get("source") == "sim" and list(event.get("replay_key") or []) == here["key"]
+
+
 async def _on_trigger(event: dict[str, Any], now: float) -> None:
     from bot.eligibility import normalize_symbols
 
+    if not _this_desks(event):
+        return                                  # another feed's: the desk moved since it was raised
     row = load_session()
     if str(event.get("symbol") or "").upper() not in normalize_symbols(row.get("symbol_allowlist")):
         return                                  # not one of the bot's stocks: Auto-entry's or the scanner's record
@@ -239,6 +327,8 @@ async def _enter(trade: dict[str, Any], now: float, sized: dict[str, Any] | None
                 f"{trade['qty']:g} at {trade['entry_planned']} with target {trade['target1']} and stop "
                 f"{trade['stop']} (one bracket)")
     audit(action=action, outcome="ok", order_id=entry_id, inputs=inputs, reason=said)
+    if replay_desk.on_replay(trade):
+        replay_desk.note_entry(trade, now)     # the replay's own day (ADR 052)
     _tell(trade["symbol"], now, "info", f"Nova's bot is {'shorting' if short else 'buying'}: {said}")
 
 
@@ -288,6 +378,10 @@ async def _manage(trade: dict[str, Any], now: float) -> None:
         _warn_once(f"venue:{trade['setup_id']}", "Nova's bot: the desk left %s -- %s waits there",
                    trade.get("venue"), trade["symbol"])
         return
+    waits = replay_desk.waits(trade) if trade.get("venue") == "sim" else None
+    if waits is not None:
+        _warn_once(f"replay:{trade['setup_id']}", "Nova's bot: %s -- %s", waits, trade["symbol"])
+        return
     state = trade["state"]
     try:
         if state == "entering":
@@ -319,6 +413,8 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
             why = "the entry is gone from the ledger (a Sim rewind or an account reset)"
         drop_working(int(trade["entry_order_id"]))
         trade.update(state="missed", closed_ts=now, note=why)
+        if replay_desk.on_replay(trade):
+            replay_desk.note_missed(trade, now)     # a miss gives the replay's day back
         _save(trade)
         audit(action=BOT_AUDIT_ACTION_TRADE, outcome="missed", order_id=trade["entry_order_id"], reason=why,
               inputs=_summary(trade))
@@ -582,11 +678,13 @@ def now() -> float:
 
 
 def reset_for_tests(clock: Callable[[], float] | None = None) -> None:
-    global _clock, _last_beat
+    global _clock, _wall, _last_beat
     _inbox.clear()
     _warned.clear()
     _last_beat = 0.0
-    _clock = clock or time.time
+    _clock = clock or replay_desk.venue_now
+    _wall = clock or time.time
+    replay_desk.reset_for_tests()
 
 
 __all__ = ["BOT_SETUP_FIRST_PULLBACK", "hand_over", "leave_venue", "playing", "status", "submit", "tick",

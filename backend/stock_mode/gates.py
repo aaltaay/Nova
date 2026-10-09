@@ -10,6 +10,7 @@ import logging
 from constants_sim import DESK_PRACTICE_VENUES
 from constants_stock_mode import (
     STOCK_MODE_BLOCK_BOT_TRIP,
+    STOCK_MODE_BOT,
     STOCK_MODE_BLOCK_DAY_LOCK,
     STOCK_MODE_BLOCK_DISARMED,
     STOCK_MODE_BLOCK_KILL,
@@ -44,12 +45,14 @@ def venue_state() -> tuple[str | None, bool]:
     return current, replay
 
 
-def venue_block(venue: str | None, replay: bool) -> tuple[str, str] | None:
+def venue_block(venue: str | None, replay: bool, mode: str | None = None) -> tuple[str, str] | None:
+    """Why Nova may not take a stock in ``mode`` on this venue (None: it may). On a Sim replay only Bot is Nova's
+    (ADR 052): the bot trades the replay like Paper; Auto-entry, Approve and Nova's exit wait for the live edge."""
     if venue is None:
         return STOCK_MODE_LIVE, STOCK_MODE_WHY_VENUE_UNKNOWN
     if venue not in DESK_PRACTICE_VENUES:
         return STOCK_MODE_LIVE, STOCK_MODE_WHY_LIVE_BUY
-    if replay:
+    if replay and mode != STOCK_MODE_BOT:
         return STOCK_MODE_REPLAY, STOCK_MODE_WHY_REPLAY
     return None
 
@@ -112,8 +115,14 @@ def _day_locked() -> bool:
 
 
 def followed(symbol: str) -> bool | None:
-    """Whether the setup scanner follows the stock (only followed stocks can trigger); None when unknown."""
+    """Whether the setup scanner follows the stock (only followed stocks can trigger); None when unknown. On a Sim
+    replay the Sim eyes follow the loaded symbol only (ADR 052)."""
     try:
+        from bot.replay_desk import desk
+
+        here = desk()
+        if here is not None:
+            return symbol == here["symbol"]
         from setup_scanner.engine import get_engine
 
         return symbol in get_engine().universe

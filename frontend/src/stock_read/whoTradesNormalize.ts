@@ -90,6 +90,18 @@ function trade(raw: unknown): StockModeTrade | null {
 const UNREADABLE_LOCK = 'The desk could not read whether Nova may take this side.';
 
 /** Null only when the wire says null: a missing or mistyped lock stays locked. */
+/** The per-mode locks (ADR 052), when the backend sends them: a mode it names is locked or open; one it does
+ * not name falls back to the sides' locks. */
+function modeLocks(locks: Record<string, unknown> | null): Partial<Record<StockModeName, string | null>> | undefined {
+  const modes = obj(locks?.modes);
+  if (!modes) return undefined;
+  const out: Partial<Record<StockModeName, string | null>> = {};
+  for (const m of ['bot', 'auto_entry', 'approve'] as const) {
+    if (m in modes) out[m] = modes[m] === null ? null : str(modes[m]) ?? UNREADABLE_LOCK;
+  }
+  return out;
+}
+
 function lock(locks: Record<string, unknown> | null, key: 'buy' | 'sell'): string | null {
   if (locks && locks[key] === null) return null;
   return str(locks?.[key]) ?? UNREADABLE_LOCK;
@@ -163,7 +175,7 @@ export function normalizeStockMode(raw: unknown): StockModeView | null {
     risk_usd: num(v.risk_usd),
     set_at: num(v.set_at),
     // A view without its locks is read as locked: Nova never looks free to trade by omission.
-    locks: { buy: lock(locks, 'buy'), sell: lock(locks, 'sell') },
+    locks: { buy: lock(locks, 'buy'), sell: lock(locks, 'sell'), modes: modeLocks(locks) },
     notes: list(v.notes, note),
     approval: approval(v.approval),
     trade: trade(v.trade),

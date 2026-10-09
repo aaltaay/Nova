@@ -101,6 +101,13 @@ def status():
         return dict(_selection.spec) if _selection else None
 
 
+def selected() -> Selection | None:
+    """The loaded window itself (immutable; its rows are shared, never to be changed by a reader): the Sim
+    eyes read their lanes' tape from it (``eyes.history_recording``)."""
+    with _lock:
+        return _selection
+
+
 def with_live_download_status(spec: dict, jobs: list[dict] | None = None) -> dict:
     """``spec`` with its download status as of now, not as of the load (QA 2026-09-22, C38).
 

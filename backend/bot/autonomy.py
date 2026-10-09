@@ -236,12 +236,16 @@ def assert_not_dark(row: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 def assert_not_live() -> None:
-    """J (ADR 042): Nova's bot -- and the localhost bot API -- never touch Live or a replay desk."""
+    """J (ADR 042): the localhost bot API never touches Live or a replay desk. On a Sim replay only Nova's own
+    bot trades (ADR 052): it takes its memory back with a rewind; an external brain's is its own."""
     from bot.activation import venue_block, venue_state
-    from constants_bot import BOT_LIVE_NOT_BUILT_TEXT, BOT_REASON_LIVE_NOT_BUILT
+    from constants_bot import BOT_LIVE_NOT_BUILT_TEXT, BOT_REASON_LIVE_NOT_BUILT, BOT_REASON_REPLAY_DESK
 
     venue, edge, readable = venue_state()
     blocked = venue_block(venue, edge, readable)
+    if blocked is None and not edge:
+        blocked = (BOT_REASON_REPLAY_DESK, "a Sim replay: on a replay only Nova's own bot trades -- the localhost "
+                                           "bot API trades Paper and Sim at its live edge")
     if blocked is not None:
         raise BotError(BOT_LIVE_NOT_BUILT_TEXT if blocked[0] == BOT_REASON_LIVE_NOT_BUILT
                        else f"{BOT_LIVE_NOT_BUILT_TEXT} ({blocked[1]})", 409, BOT_REASON_LIVE_NOT_BUILT)

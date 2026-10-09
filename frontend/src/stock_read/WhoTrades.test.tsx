@@ -216,10 +216,10 @@ describe('who trades APUS, above Level 2', () => {
     expect(screen.getByTestId('who-trades-buy-nova').getAttribute('data-why')).toMatch(/Reload the backend/);
   });
 
-  it('reads nothing and shows nothing on a replay desk', () => {
+  it('reads who trades on a replay desk too: the bot trades a Sim replay (ADR 052)', async () => {
     renderTab({ replay: true });
-    expect(screen.queryByTestId('who-trades')).toBeNull();
-    expect(calls.filter(c => c.url.includes('/api/stock-mode'))).toEqual([]);
+    await waitFor(() => expect(calls.some(c => c.url.includes('/api/stock-mode/APUS'))).toBe(true));
+    expect(await screen.findByTestId('who-trades')).toBeTruthy();     // its stock can be set to Bot there
   });
 });
 
