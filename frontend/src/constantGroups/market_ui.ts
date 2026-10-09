@@ -195,13 +195,16 @@ export const TAPE_STATUS_LENT = 'LENT';
 /** IBKR refused or ended the line and the backend is asking again by itself (#698). */
 export const TAPE_STATUS_RETRYING = 'RETRYING';
 /**
- * The live line printed nothing for a while (#722), counted in seconds on the badge: SILENT while
- * Level 2 kept updating (the line may be down), QUIET while the book is quiet too, HALTED in a halt.
+ * The live line printed nothing for a while (#722), counted in seconds on the badge: LINE DOWN while
+ * the stock's Level 1 counts trades the tape never printed, SILENT while Level 2 kept updating (the
+ * line may be down), QUIET while nothing traded or the book is quiet too, HALTED in a halt.
  */
+export const TAPE_STATUS_DEAD = 'LINE DOWN';
 export const TAPE_STATUS_SILENT = 'SILENT';
 export const TAPE_STATUS_QUIET = 'QUIET';
 export const TAPE_STATUS_HALTED = 'HALTED';
 /** The short line above the rows (the rail's tape column is narrow); the full words are on hover. */
+export const TAPE_SILENCE_DEAD_NOTICE = "No prints since {since} while Level 1 trades: IBKR's tape line is down";
 export const TAPE_SILENCE_SILENT_NOTICE = 'Silent since {since} while Level 2 moves: the line may be down';
 export const TAPE_SILENCE_HALTED_NOTICE = 'Halted: no prints until it reopens';
 

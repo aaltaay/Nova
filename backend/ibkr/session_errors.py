@@ -2,9 +2,10 @@
 
 Installed on each ``IB()`` before ``connectAsync`` (so Error 326 is seen)
 and again after READY. Covers clientId-in-use (326), connectivity
-(1100/1101/1102), data-farm notices (2104/2106/2108), max-tickers (101),
-delayed-data (10167), MD-subscription-required (10089), and Read-Only API
-rejections (321 whose message names read-only -- D-076).
+(1100/1101/1102), data-farm notices (2103-2108, 2157/2158) with depth halted
+(316) and competing session (10197) -- kept by ``ibkr.farm_notices``, never acted
+on (#722) -- max-tickers (101), delayed-data (10167), MD-subscription-required
+(10089), and Read-Only API rejections (321 whose message names read-only -- D-076).
 
 Handlers MUST NOT issue new IB requests (ib_async forbids it). Connectivity
 codes only observe + classify + enqueue; ``reconnect_loop`` acts via
@@ -19,12 +20,14 @@ from typing import Any, Literal
 
 from constants import (
     IBKR_ERROR_CLIENT_ID_IN_USE,
+    IBKR_ERROR_COMPETING_SESSION,
     IBKR_ERROR_CONNECTIVITY_CODES,
     IBKR_ERROR_CONNECTIVITY_LOST,
     IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_KEPT,
     IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_LOST,
     IBKR_ERROR_DATA_FARM_CODES,
     IBKR_ERROR_DELAYED_DATA_NOTICE,
+    IBKR_ERROR_DEPTH_HALTED,
     IBKR_ERROR_MAX_TICKERS,
     IBKR_ERROR_MD_REQUIRES_SUBSCRIPTION,
     IBKR_ERROR_NO_SECURITY_DEFINITION,
@@ -321,13 +324,17 @@ def _on_ib_error(
         _wake_reconnect()
         return
 
-    if code in IBKR_ERROR_DATA_FARM_CODES:
-        _data_farm_status = msg or f"farm code {code}"
-        _data_farm_status_ts = now
-        logger.warning(
-            "IBKR session_errors: data farm notice (Error %s) — %s",
-            code, _data_farm_status,
-        )
+    if code in IBKR_ERROR_DATA_FARM_CODES or code in (IBKR_ERROR_DEPTH_HALTED, IBKR_ERROR_COMPETING_SESSION):
+        # Recorded and shown only (#722): a farm notice never disconnects or restarts anything.
+        if code in IBKR_ERROR_DATA_FARM_CODES:
+            _data_farm_status = msg or f"farm code {code}"
+            _data_farm_status_ts = now
+        try:
+            from ibkr import farm_notices
+
+            farm_notices.note(code, msg, now=now, req_id=reqId, symbol=getattr(contract, "symbol", None))
+        except Exception:
+            logger.warning("IBKR session_errors: notice %s not recorded -- %s", code, msg, exc_info=True)
         return
 
     if code == IBKR_ERROR_MAX_TICKERS:

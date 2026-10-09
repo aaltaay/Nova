@@ -121,5 +121,7 @@ describe('parseTapeSilence (#722)', () => {
     expect(parseTapeSilence(null)).toBeNull();
     expect(parseTapeSilence({ state: 'stale', since: 5, text: 'x' })).toBeNull();
     expect(parseTapeSilence({ state: 'quiet', since: 'now', text: 'x' })).toBeNull();
+    expect(parseTapeSilence({ schema_version: 2, state: 'dead', since: 5, text: 'y', pipeline: ['VEEA'] }))
+      .toEqual({ state: 'dead', since: 5, text: 'y' });
   });
 });

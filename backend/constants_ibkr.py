@@ -275,8 +275,25 @@ IBKR_AUTH_BACKOFF_SEC_INITIAL = 30.0
 IBKR_AUTH_BACKOFF_SEC_MAX = 60.0
 # Hard wall for reqPositionsAsync during earn_usable warm-up (mirrors completed).
 IBKR_POSITIONS_TIMEOUT_SEC = 10.0
-# Data-farm OK / broken notices (async). Not fatal alone but worth surfacing.
-IBKR_ERROR_DATA_FARM_CODES = frozenset({2104, 2106, 2108})
+# Data-farm notices (async), each naming its farm after the last colon (#722). Broken:
+# 2103 market data, 2105 HMDS (history), 2157 sec-def; their OK pairs 2104 / 2106 / 2158;
+# 2107 / 2108 inactive (idle, available on demand). Recorded and shown only
+# (``ibkr/farm_notices.py``): a farm notice never disconnects, reconnects or restarts the
+# Gateway, which would also tear down the order channel.
+IBKR_FARM_BROKEN_CODES = frozenset({2103, 2105, 2157})
+IBKR_FARM_OK_CODES = frozenset({2104, 2106, 2158})
+IBKR_FARM_INACTIVE_CODES = frozenset({2107, 2108})
+IBKR_ERROR_DATA_FARM_CODES = IBKR_FARM_BROKEN_CODES | IBKR_FARM_OK_CODES | IBKR_FARM_INACTIVE_CODES
+# "Market depth data has been HALTED. Please re-subscribe." -- recorded beside the farms.
+IBKR_ERROR_DEPTH_HALTED = 316
+# "No market data during competing live session" -- another login holds the data.
+IBKR_ERROR_COMPETING_SESSION = 10197
+# Notices kept in memory for diagnostics (``farm_notices.view``), newest last.
+IBKR_NOTICES_KEEP = 100
+# The Diagnostics farm row looks back this far for depth halts, competing sessions and flaps.
+IBKR_NOTICES_DIAG_WINDOW_SEC = 1800.0
+# A tape line's silence names a farm or line notice that came this close before it began.
+IBKR_NOTICE_NEAR_SILENCE_SEC = 120.0
 # "Max number of tickers has been reached" -- keep OUT of IBKR_BENIGN_LOG_ERROR_CODES.
 IBKR_ERROR_MAX_TICKERS = 101
 # "Requested market data is not subscribed. Displaying delayed market data."

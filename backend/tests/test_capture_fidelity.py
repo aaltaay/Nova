@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from capture import bar_buckets, bridge_ibkr, recorder, sessions
+from capture import bar_buckets, bridge_ibkr, recorder, session_state, sessions
 from capture.constants_capture import CAPTURE_SCHEMA_VERSION
 from sim import capture_player as player, session_clock
 
@@ -85,6 +85,53 @@ def test_a_lost_tape_line_is_on_record_in_the_manifest_across_segments():
     recorder.note_tape(SYMBOL, resubscribed=True)
     assert recorder.status()["fidelity"]["tape_resubscribes"] == 2
     assert recorder.status()["fidelity"]["tape_losses"] == [loss]
+
+
+def manifest_of(directory):
+    return json.loads((directory / "manifest.json").read_text())
+
+
+def test_a_restart_keeps_the_interrupted_segments_tape_losses_and_stream_times(isolated):
+    """#722: VEEA 2026-10-05 lost its tape line at 09:37 in a segment a restart ended;
+    the manifest still showed the first segment's fidelity, with no loss and no re-ask."""
+    directory = start()
+    write_print(TS, 10)
+    recorder.stop_recorder()                                # a clean first segment, as VEEA's 07:00-07:13
+    recorder.start_recorder(SYMBOL, session_date=DAY)
+    write_print(TS + 60, 11)
+    loss = {"at": TS + 160, "cause": "stale", "detail": "No prints for 100s while the book kept updating"}
+    recorder.note_tape(SYMBOL, loss=loss)
+    recorder.note_tape(SYMBOL, resubscribed=True)
+    write_print(TS + 200, 12)                               # after the last checkpoint
+    recorder._crash_for_tests()                             # the process dies: no stop, no finalize
+    bar_buckets.reset_for_tests()
+    try:
+        assert [row["symbol"] for row in session_state.finalize_orphaned_sessions(isolated)] == [SYMBOL]
+    finally:
+        session_state.reset_for_tests()
+    manifest = manifest_of(directory)
+    assert [seg["reason"] for seg in manifest["segments"]] == ["operator", "restart"]
+    assert manifest["fidelity"]["tape_losses"] == [loss]
+    assert manifest["fidelity"]["tape_resubscribes"] == 1
+    assert manifest["fidelity"]["last_stream_ts"]["prints"] == TS + 200   # read from disk, not the checkpoint
+    assert manifest["counts"]["prints"] == 3 and manifest["segments"][-1]["counts"]["prints"] == 2
+    recorder.start_recorder(SYMBOL, session_date=DAY)       # the resumed segment carries the day's history
+    assert recorder.status()["fidelity"]["tape_losses"] == [loss]
+    assert recorder.status()["fidelity"]["tape_resubscribes"] == 1
+
+
+def test_a_running_recording_checkpoints_its_fidelity(monkeypatch):
+    """Book counters reach the manifest while recording, not only at a clean stop (#722)."""
+    directory = start()
+    recorder.record_l2(dict(symbol=SYMBOL, ts=TS, bids=[dict(price=10, size=1)], asks=[]))
+    assert manifest_of(directory)["fidelity"]["l2_offered"] == 0      # within the checkpoint interval
+    monkeypatch.setattr(recorder, "CAPTURE_MANIFEST_CHECKPOINT_SEC", 0.0)
+    recorder.record_l2(dict(symbol=SYMBOL, ts=TS + 1, bids=[dict(price=11, size=1)], asks=[]))
+    manifest = manifest_of(directory)
+    assert manifest["status"] == "recording" and manifest["stopped_et"] is None
+    assert manifest["fidelity"]["l2_offered"] == 2
+    assert manifest["fidelity"]["last_stream_ts"]["l2"] == TS + 1
+    assert manifest["counts"]["l2"] == 0      # restart recovery recounts rows against the segment's start
 
 
 def test_resume_keeps_timestamp_high_water_mark():

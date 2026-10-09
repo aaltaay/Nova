@@ -142,24 +142,64 @@ Record) stopped together while both books kept updating, with no IBKR error and 
 Sales sat on its last print under LIVE until about 09:42; its socket's only frame was the idle `ping`. Level 1
 kept arriving, so this is not a feed gap (above).
 
-- **The reading** (owner `ibkr/tape_silence.py`, memory only): `{schema_version: 1, state: "halted" | "silent"
-  | "quiet", since, last_print_ts, book_at, halted, text}` or `null` while the line prints.
-  - The facts are the line's last print and opening (`tape_recording.producer_status`), when its Level 2 line
-    last delivered a book (`ibkr/depth/state.last_book_at`, stamped by the depth handlers) and
-    `halt_status.halted_now`.
+- **What the record shows (2026-10-09).** The lines were dead, not quiet. In `archive.db` the same stocks'
+  Level 1 lines (`l1_ticks`: RTVolume 233 day volume, else tick 8) kept counting while the tape
+  (`tape_ibkr`, and VEEA's Session Record) had no print: SAIQ 1,381 volume updates, +2,496,982 shares in the
+  332 s to its next print at 09:41:14.184; VEEA 1,645 updates, +1,050,187 shares in the 574 s to 09:45:16.291.
+  When the lines print, tape shares and Level 1 volume agree within 1-3%. Both last prints carry the same
+  arrival, 09:35:42.388; the IB loop's delay stayed under 40 ms and Level 1 and depth handlers ran throughout,
+  so the prints never reached Nova. VEEA's asks at 09:37:34 and 09:39:54 brought nothing back, even after
+  SAIQ's original line recovered by itself at 09:41:14; VEEA's came back at 09:45:16, seconds after a new ask
+  (the perf record's tape subscribes fall in the 5 s samples ending 09:45:13 and 09:45:18).
+- **The reading** (owner `ibkr/tape_silence.py`, memory only): `{schema_version: 2, state: "halted" | "dead"
+  | "silent" | "quiet", since, last_print_ts, book_at, l1_trade_ts, halted, pipeline, notice, text}` or
+  `null` while the line prints.
+  - The facts are the line's last print, its IBKR second and the line's opening
+    (`tape_recording.producer_status`: `last_print_ts`, `last_print_exchange_ts`, `line_since`), when its
+    Level 2 line last delivered a book (`ibkr/depth/state.last_book_at`), `halt_status.halted_now`, and the
+    symbol's Level 1 trade clock (`l1_trade_ts`: the newest of IBKR's Last Timestamp, tick 45, and RTVolume's
+    trade time, 233; ib_async writes AllLast prints into `ticker.last` but never into these).
   - `halted`: a halt prints nothing, so it is never read as a dead line.
-  - `silent`: no print for `TAPE_SILENT_SEC` (30) while a book came within `TAPE_SILENT_BOOK_FRESH_SEC` (10):
-    the line may be down.
-  - `quiet`: the book is quiet too, or there is no Level 2 line.
+  - `dead`: no print for `TAPE_SILENT_SEC` (30) while Level 1 reported a trade at least
+    `TAPE_DEAD_L1_LEAD_SEC` (3) after the last print by IBKR's second (or after the line's opening or the
+    reopening, on the desk's clock): the tape missed trades.
+  - `quiet`: Level 1, updating within `TAPE_SILENT_BOOK_FRESH_SEC`, reports no trade since either; or, with
+    no Level 1 trade clock, the book is quiet too or there is no Level 2 line.
+  - `silent`: no Level 1 trade clock can tell, and a book came within `TAPE_SILENT_BOOK_FRESH_SEC` (10): the
+    line may be down.
+  - `pipeline` (dead or silent only, else `[]`): the other live tape lines whose last print arrived within
+    `TAPE_PIPELINE_SAME_SEC` (1) of this one's and that have printed nothing since, halted ones left out --
+    one tick-by-tick event, not this line alone. `notice` (dead or silent only, else `null`): the newest farm
+    or line notice that something stopped, from `IBKR_NOTICE_NEAR_SILENCE_SEC` before the silence began
+    (`{ts, code, notice, farm, farm_type, message, symbol}`, below).
   - The silence counts from the newest of the last print, the line's opening and the last ping that found the
-    symbol halted. Nothing here asks IBKR for anything.
+    symbol halted. Nothing here asks IBKR for anything. A line that turns dead or silent is logged once per
+    silence and written to the perf day file as `{schema_version: 1, kind: "tape_silence", ts, symbol,
+    reading}` (`architecture/schema/performance.md`).
 - **The wire.** Each idle `ping` on `/ws/ibkr/tape/{symbol}` (every `TAPE_STREAM_HEARTBEAT_SEC` without a
   print) carries `silence: reading | null` on a live line, and `null` on a replay desk.
-- **The desk** (`ibkr/tapeSilence.ts`). The badge reads SILENT 47s or HALTED (amber), or QUIET 47s (grey),
-  counting on the desk's clock, with the backend's words on hover. For the first two, a short line above the
-  rows says why. Any print clears it, and NO DATA on every line (#672) comes first.
-- **Not done here:** why a line goes silent, and what brings it back. Asking IBKR again did not bring VEEA's
-  back that morning; SAIQ's came back without a new request.
+- **The desk** (`ibkr/tapeSilence.ts`). The badge reads LINE DOWN 47s (red) for `dead`, SILENT 47s or HALTED
+  (amber), or QUIET 47s (grey), counting on the desk's clock, with the backend's words on hover. For the
+  first three, a short line above the rows says why. Any print clears it, and NO DATA on every line (#672)
+  comes first.
+- **A recording's line** (`capture/tape_watch.py`, `architecture/schema/recording-and-replay.md`) uses the
+  same witness: Level 1 trades after the last print make it dead, Level 1 updating with no trade since makes
+  it quiet (no ask), and a line silent in the same second as others is held, not asked for, until one of them
+  prints again (`CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC` at most), then asked for if still dead. The Trader's own
+  line is only read, never asked for again, here.
+- **IBKR's farm and line notices** (owner `ibkr/farm_notices.py`, via `session_errors`): farm broken 2103 /
+  2105 / 2157, OK 2104 / 2106 / 2158, inactive 2107 / 2108 (the farm is the text after the last colon, or
+  after "upon demand." for the inactive pair), depth halted 316 and competing live session 10197 are each
+  kept as `{ts, code, notice: "broken" | "ok" | "inactive" | "depth_halted" | "competing_session", farm,
+  farm_type, message, req_id, symbol}`, the last `IBKR_NOTICES_KEEP` in memory, logged (WARNING when
+  something stopped) and written to the perf day file as `kind: "ib_notice"`. Record and display only: a
+  notice never disconnects, reconnects or restarts the Gateway, which would also tear down the order channel.
+  `/api/diagnostics` adds the `market_data_farms` row (group `market_data`): `off` while there is no Gateway
+  session (what the farms last said is evidence, not a state); else `warn` while a farm reads broken, or for
+  `IBKR_NOTICES_DIAG_WINDOW_SEC` after a 316 or 10197; `ok` with the last notice named otherwise; its evidence
+  is `{farms, recent}`.
+- **Not done here:** bringing a silent Trader line back. Asks inside the event did nothing; whether a Gateway
+  reconnect would have is still unknown, and a reconnect also drops the order channel.
 
 ## The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33)
 

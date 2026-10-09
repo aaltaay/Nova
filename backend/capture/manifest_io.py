@@ -118,15 +118,24 @@ def merge(
 
 
 def count_rows(path: Path) -> tuple[int, bool]:
-    """Count parseable jsonl rows; report whether the final line is torn.
+    """Count parseable jsonl rows; report whether the final line is torn."""
+    rows, torn, _ = scan_rows(path)
+    return rows, torn
+
+
+def scan_rows(path: Path) -> tuple[int, bool, float | None]:
+    """Count parseable jsonl rows, report a torn line, and find the newest row ``ts``.
 
     Only used to rebuild terminal counts for a session the process died during
     -- one-shot recovery, never the hot ``list_sessions`` path.
     """
+    from capture.schema import valid_timestamp
+
     if not path.is_file():
-        return 0, False
+        return 0, False, None
     rows = 0
     torn = False
+    last_ts: float | None = None
     try:
         with path.open("r", encoding="utf-8", errors="ignore") as fh:
             for line in fh:
@@ -134,16 +143,19 @@ def count_rows(path: Path) -> tuple[int, bool]:
                 if not stripped:
                     continue
                 try:
-                    json.loads(stripped)
+                    row = json.loads(stripped)
                 except ValueError:
                     # Only a torn *final* line is expected after a hard kill;
                     # anything earlier is still surfaced by the same warning.
                     torn = True
                     continue
                 rows += 1
+                ts = row.get("ts") if isinstance(row, dict) else None
+                if valid_timestamp(ts):
+                    last_ts = ts if last_ts is None else max(last_ts, ts)
     except OSError:
         logger.exception("CAPTURE: could not recount %s", path)
-        return rows, torn
+        return rows, torn, last_ts
     if torn:
         logger.warning(
             "CAPTURE: %s has a truncated/unparseable line (torn tail from an "
@@ -151,15 +163,22 @@ def count_rows(path: Path) -> tuple[int, bool]:
             path,
             rows,
         )
-    return rows, torn
+    return rows, torn, last_ts
 
 
-def recount_from_disk(session_dir: Path) -> tuple[dict[str, int], bool]:
-    """Rebuild counts for every stream in ``session_dir``."""
+def recount_from_disk(session_dir: Path) -> tuple[dict[str, int], bool, dict[str, float]]:
+    """Rebuild counts for every stream in ``session_dir``, and each stream's newest ``ts``.
+
+    The newest ``ts`` per stream is the dead segment's ``fidelity.last_stream_ts``:
+    the manifest only holds the last checkpoint's (#722).
+    """
     counts: dict[str, int] = {}
+    last_ts: dict[str, float] = {}
     any_torn = False
     for name in CAPTURE_STREAM_NAMES:
-        rows, torn = count_rows(session_dir / f"{name}.jsonl")
+        rows, torn, newest = scan_rows(session_dir / f"{name}.jsonl")
         counts[name] = rows
         any_torn = any_torn or torn
-    return counts, any_torn
+        if newest is not None:
+            last_ts[name] = newest
+    return counts, any_torn, last_ts

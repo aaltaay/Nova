@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 from capture.constants_capture import (
     CAPTURE_FSYNC_INTERVAL_SEC,
     CAPTURE_L2_MAX_HZ,
+    CAPTURE_MANIFEST_CHECKPOINT_SEC,
     CAPTURE_MANIFEST_NAME,
     CAPTURE_MAX_CONCURRENT,
     CAPTURE_MAX_WRITE_FAILURES,
@@ -77,6 +78,8 @@ class _Session:
     files: dict[str, TextIO] = field(default_factory=dict)
     fidelity: Fidelity = field(default_factory=Fidelity)
     last_fsync_mono: float = 0.0
+    # When ``fidelity`` last reached the manifest; only a clean stop wrote it before (#722).
+    last_checkpoint_mono: float = 0.0
     counts: dict[str, int] = field(default_factory=_zero_counts)
     # Counts already on disk when this segment started, so a segment's own
     # totals stay recoverable from the cumulative ones.
@@ -283,10 +286,12 @@ def _start_locked(sym: str, *, resume: bool, session_date: str | None) -> dict[s
             "resume": bool(resume),
             "status": CAPTURE_STATUS_RECORDING,
             "counts": dict(s.counts),
+            "fidelity": s.fidelity.payload(),
         }
     )
     manifest.pop("error", None)
     manifest_io.write_json_atomic(man_path, manifest)
+    s.last_checkpoint_mono = time.monotonic()
     s.active = True
     session_state.mark_active(capture_root(), sessions=_marker_rows())
     logger.info("CAPTURE: recorder started %s (resume=%s)", s.dir, resume)
@@ -435,6 +440,33 @@ def _finalize_error(s: _Session, operation: str, exc: Exception) -> None:
     logger.exception("CAPTURE: %s failed for %s", operation, s.symbol)
 
 
+def _checkpoint_locked(s: _Session) -> None:
+    """Write the running segment's ``fidelity`` into the manifest. Caller holds ``_writer_lock``.
+
+    Only a clean stop wrote it before, so a segment a restart ended left the
+    previous segment's tape losses, re-asks and stream times on record (#722).
+    ``counts`` stay as start wrote them: restart recovery recounts the rows on
+    disk against them to find the dead segment's own.
+    """
+    s.last_checkpoint_mono = time.monotonic()
+    if s.dir is None:
+        return
+    from capture import manifest_io
+
+    man_path = s.dir / CAPTURE_MANIFEST_NAME
+    try:
+        man = manifest_io.read_json(man_path)
+        if not man:
+            logger.warning("CAPTURE: no readable manifest for %s -- fidelity checkpoint skipped", s.symbol)
+            return
+        man["fidelity"] = s.fidelity.payload()
+        manifest_io.write_json_atomic(man_path, man)
+    except (OSError, ValueError):
+        # The rows keep landing and a stop writes the manifest again; a failed
+        # checkpoint only narrows what a restart could keep.
+        logger.warning("CAPTURE: fidelity checkpoint failed for %s", s.symbol, exc_info=True)
+
+
 # ---------------------------------------------------------------------------
 # Writes
 
@@ -508,6 +540,8 @@ def _record(kind: str, payload: dict[str, Any]) -> bool:
         row = s.fidelity.offer_l2(payload) if kind == "l2" else payload
         if row is not None:
             _write(s, kind, row)
+        if s.active and time.monotonic() - s.last_checkpoint_mono >= CAPTURE_MANIFEST_CHECKPOINT_SEC:
+            _checkpoint_locked(s)
         _publish(s)
         return s.active
 
@@ -577,11 +611,15 @@ def fail_recorder(error: str, symbol: str | None = None) -> None:
 
 
 def note_tape(symbol: str, *, loss: dict[str, Any] | None = None, resubscribed: bool = False) -> None:
-    """Keep a lost / re-requested tape line in the recording's manifest ``fidelity`` (#525)."""
+    """Keep a lost / re-requested tape line in the recording's manifest ``fidelity`` (#525).
+
+    Written to disk at once: the outage is the incident a restart must not erase (#722).
+    """
     with _writer_lock:
         s = _sessions.get(symbol.strip().upper())
         if s is not None and s.active:
             s.fidelity.note_tape(loss=deepcopy(loss), resubscribed=resubscribed)
+            _checkpoint_locked(s)
             _publish(s)
 
 
