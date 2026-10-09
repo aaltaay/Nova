@@ -101,6 +101,25 @@ one until it is complete ("Live readiness" below) -- and a bot never trades Live
   shares, state, source)`; nothing prunes it. Writes are enqueued and one thread writes them;
   `NOVA_BORROW_LOG=0` turns it off. A past-day Sim replay shorts only on the newest read at or before its
   playhead, and one older than the 60 s TTL there is no read.
+- **Borrow in a trader's words** (`ibkr/borrow_terms.py`, pure; operator report 2026-10-09: BIYA read
+  "SHORT Unknown" all day while IBKR had nothing to lend). The live read adds `shortable_level` (IBKR's
+  tick 46 on the same 236 request: over 2.5 easy, 1.5-2.5 a locate is needed, 1.5 or under none), and every
+  live read carries `borrow: {schema_version: 1, term: "ETB" | "HTB" | "LOCATE" | "NSS" | "SHORTABLE" |
+  "UNKNOWN", chip, tone: "ok" | "warn" | "bad" | "unknown", text, source: "live" | "list" | null, shares,
+  level, fee_rate, list, list_age_sec, list_note}`.
+  - **Two IBKR sources.** The live read, and IBKR's public short-stock list from the borrow feed
+    (`move_reason/borrow_feed.BorrowFeed.list_read`: `{listed, fee_rate, available, capped, as_of,
+    polled_at, changed_at, was}`, read only while its last poll is under `IBKR_BORROW_LIST_MAX_AGE_SEC`;
+    `list_note` names it past `IBKR_BORROW_LIST_OLD_SEC`).
+  - **The words.** NSS: no shares, a level of 1.5 or under, or off the list (with when it left and what it
+    was). LOCATE: a level of 1.5-2.5. HTB: under `IBKR_SHORTABLE_EST_MIN_SHARES`, or a fee over
+    `IBKR_BORROW_HTB_FEE_PCT` (10%/yr). ETB: a fee at or under it. SHORTABLE: IBKR lends, but no fee or no
+    count is known. UNKNOWN: IBKR is not connected, or neither source says.
+  - **The list never passes a short.** A live count wins over the list; the door judges the live read as
+    before, and only its refusal now reads the terms' `text`.
+  - **On the desk.** The Level 2 chip shows `chip` (`NSS`, `HTB 50K · 181%`), red for NSS, amber for HTB and
+    LOCATE, grey for unknown, both sources and their times on hover. The SHORT CHECK's Borrow row shows the
+    chip as its value. The ticket greys Short on NSS or LOCATE on Paper and Live (`noBorrowReason`).
 - **The day cover and the margin call** (`short_sale/closes.py`, every second from `short_sale/runner.py`;
   `NOVA_SHORT_RUNNER=0` off), on each practice venue this process has loaded, by its own clock:
   - while the clock stands outside the short hours (09:35-15:50, 12:50 on an early close), Nova cancels

@@ -31,6 +31,9 @@ export const SHORTABILITY_PROOF_UNKNOWN =
 export const SHORTABILITY_NOT_SHORTABLE =
   'Not shortable for Nova orders (refresh listing or check TWS)';
 
+/** The ticket's Short side greyed: IBKR has nothing to lend, or needs a locate Nova cannot request. */
+export const SHORTABILITY_NO_BORROW = (text: string) => `Short off -- ${text}`;
+
 export const SHORTABILITY_STALE =
   'Shortability stale -- wait for a fresh listing tick';
 

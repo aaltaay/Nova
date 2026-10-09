@@ -25,6 +25,7 @@ from constants_ibkr import (
     IBKR_SHORTABILITY_REFRESH_WORKERS,
     IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC,
 )
+from ibkr import borrow_terms
 from ibkr import listing_flags as _listing_flags
 
 logger = logging.getLogger(__name__)
@@ -100,13 +101,26 @@ def enrich_ibkr_listing(raw: dict[str, Any], *, fetched_at: float | None = None)
 def fetch_shortability(symbol: str) -> dict[str, Any]:
     """Fresh shortability snapshot for ``symbol`` (sync; for validate + listing)."""
     raw = _listing_flags.fetch_listing_flags_sync(symbol)
-    snap = enrich_ibkr_listing(raw, fetched_at=time.time())
+    now = time.time()
+    snap = enrich_ibkr_listing(raw, fetched_at=now)
+    snap["borrow"] = borrow_terms.describe(raw, _list_read(symbol), symbol=symbol, now=now)
     _last[(symbol or "").strip().upper()] = snap
     if raw.get("connected") and not raw.get("error"):
         from short_sale import borrow_log
 
         borrow_log.note(symbol, snap)  # kept for good: a past-day replay shorts on what IBKR said then
     return snap
+
+
+def _list_read(symbol: str) -> dict[str, Any] | None:
+    """IBKR's short-stock list for ``symbol`` (the borrow feed's memory and its store), or None unread."""
+    try:
+        from move_reason.borrow_feed import get_feed
+
+        return get_feed().list_read(symbol)
+    except Exception:  # the list only explains a refusal; unread, the borrow terms say so
+        logger.warning("shortability: IBKR's short-stock list unread for %s", symbol, exc_info=True)
+        return None
 
 
 def cached(symbol: str) -> dict[str, Any] | None:
@@ -195,12 +209,14 @@ def assert_shortable_for_order(snapshot: dict[str, Any] | None) -> tuple[bool, s
     if snapshot.get("stale"):
         return False, "Shortability stale -- refresh before shorting", "SHORT_STALE_BORROW"
     state = snapshot.get("state") or "unknown"
+    # The borrow terms say why in a trader's words (ETB / HTB / LOCATE / NSS); the state still decides.
+    said = ((snapshot.get("borrow") or {}).get("text") or "").strip()
     if state == "unknown":
-        return False, "Shortability unknown -- refuse short entry", "SHORT_NOT_SHORTABLE"
+        return False, said or "Shortability unknown -- refuse short entry", "SHORT_NOT_SHORTABLE"
     if state in ("thin", "htb_likely"):
         return (
             False,
-            f"Not shortable for Nova orders (state={state})",
+            said or f"Not shortable for Nova orders (state={state})",
             "SHORT_NOT_SHORTABLE",
         )
     if state != "shortable_est" or not snapshot.get("orderable"):

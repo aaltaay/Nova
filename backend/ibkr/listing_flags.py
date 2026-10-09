@@ -34,6 +34,7 @@ def _empty(*, error: str | None = None, connected: bool = True) -> dict[str, Any
         "stock_type": None,
         "exchange": None,
         "shortable_shares": None,
+        "shortable_level": None,
         "short_type": None,
         "short_type_detail": None,
         "tradable_hint": None,
@@ -111,8 +112,9 @@ async def _fetch_async(symbol: str) -> dict[str, Any]:
         logger.debug("IBKR listing_flags: contractDetails %s: %s", sym, exc)
 
     try:
-        shares = await _shortable_shares(sym)
+        shares, level = await _shortable_shares(sym)
         out["shortable_shares"] = shares
+        out["shortable_level"] = level
         short_type, detail = _short_type_from_shares(shares)
         out["short_type"] = short_type
         out["short_type_detail"] = detail
@@ -124,7 +126,17 @@ async def _fetch_async(symbol: str) -> dict[str, Any]:
 
 
 def _shares_or_none(ticker: Any) -> float | None:
-    raw = getattr(ticker, "shortableShares", None)
+    return _field(ticker, "shortableShares")
+
+
+def _level_or_none(ticker: Any) -> float | None:
+    """IBKR's shortable level (generic tick 46, on the same 236 request): over 2.5 easy to borrow,
+    1.5-2.5 a locate is needed, 1.5 or under nothing to lend. IBKR can send it with no share count."""
+    return _field(ticker, "shortable")
+
+
+def _field(ticker: Any, name: str) -> float | None:
+    raw = getattr(ticker, name, None)
     if raw is None:
         return None
     try:
@@ -134,8 +146,8 @@ def _shares_or_none(ticker: Any) -> float | None:
     return None if shares != shares else shares  # NaN
 
 
-async def _shortable_shares(symbol: str) -> float | None:
-    """Read tick-236 shortableShares off the shared owner-aware L1 line.
+async def _shortable_shares(symbol: str) -> tuple[float | None, float | None]:
+    """Read tick-236 shortableShares and the shortable level off the shared owner-aware L1 line.
 
     Never opens a private ``reqMktData``: that call is idempotent per contract,
     so it would hand back the desk's pooled ticker without the extra tick, and
@@ -148,17 +160,20 @@ async def _shortable_shares(symbol: str) -> float | None:
     if not await _ticks.subscribe(
         symbol, _ticks.OWNER_LISTING, generic_ticks=_SHORTABLE_GENERIC_TICKS,
     ):
-        return None
+        return None, None
     try:
         ticker = _ticks.get_ticker(symbol)
         if ticker is None or not _ticks.has_generic_tick(
             symbol, _SHORTABLE_GENERIC_TICKS,
         ):
-            return None
+            return None, None
         shares = _shares_or_none(ticker)
-        if shares is not None:
-            return shares
-        return await _await_shortable_tick(ticker)
+        if shares is None:
+            shares = await _await_shortable_tick(ticker)
+        level = _level_or_none(ticker)
+        if shares is None:
+            logger.info("IBKR listing_flags: %s sent no shortable share count (level %s)", symbol, level)
+        return shares, level
     finally:
         await _ticks.unsubscribe(symbol, _ticks.OWNER_LISTING)
 

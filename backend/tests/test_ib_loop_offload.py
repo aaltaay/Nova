@@ -348,8 +348,9 @@ def test_shortability_uses_the_shared_line_and_waits_for_the_tick(ticks_env):
         ticker.updateEvent.fire(ticker)
         return await asyncio.wait_for(task, timeout=1.0)
 
-    shares = asyncio.run(_run())
+    shares, level = asyncio.run(_run())
     assert shares == 25_000.0
+    assert level is None
     # One line: default L1 generic ticks merged with listing 236, then released.
     from constants import IBKR_L1_GENERIC_TICKS
     assert fake_ib.mkt_data_calls == [("SOAR", f"{IBKR_L1_GENERIC_TICKS},236")]
@@ -365,7 +366,7 @@ def test_shortability_upgrades_an_existing_line_instead_of_opening_one(ticks_env
     async def _run():
         assert await ticks_mod.subscribe("SOAR", ticks_mod.OWNER_SCANNER)
         fake_ib.tickers["SOAR"].shortableShares = 900.0
-        shares = await listing_flags._shortable_shares("SOAR")
+        shares, _level = await listing_flags._shortable_shares("SOAR")
         return shares, ticks_mod.owners_for("SOAR")
 
     shares, owners = asyncio.run(_run())
@@ -387,8 +388,24 @@ def test_shortability_times_out_without_a_tick(ticks_env, monkeypatch):
     from ibkr import listing_flags
 
     monkeypatch.setattr(listing_flags, "IBKR_SHORTABLE_TICK_WAIT_SEC", 0.05)
-    shares = asyncio.run(listing_flags._shortable_shares("SOAR"))
+    shares, level = asyncio.run(listing_flags._shortable_shares("SOAR"))
     assert shares is None
+    assert level is None
+
+
+def test_shortability_keeps_the_level_ibkr_sends_without_a_count(ticks_env, monkeypatch):
+    """BIYA (2026-10-07): IBKR sent no share count all day; its shortable level says why."""
+    from ibkr import listing_flags
+
+    ticks_mod, fake_ib = ticks_env
+    monkeypatch.setattr(listing_flags, "IBKR_SHORTABLE_TICK_WAIT_SEC", 0.05)
+
+    async def _run():
+        assert await ticks_mod.subscribe("BIYA", ticks_mod.OWNER_SCANNER)
+        fake_ib.tickers["BIYA"].shortable = 1.0
+        return await listing_flags._shortable_shares("BIYA")
+
+    assert asyncio.run(_run()) == (None, 1.0)
 
 
 def test_scanner_subscribe_requests_rtvolume_on_the_shared_line(ticks_env):

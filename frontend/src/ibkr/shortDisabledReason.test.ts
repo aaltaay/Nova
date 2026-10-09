@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  SHORTABILITY_NO_BORROW,
   SHORTABILITY_NOT_SHORTABLE,
   SHORTABILITY_PROOF_INCOMPLETE,
   SHORTABILITY_PROOF_UNKNOWN,
@@ -45,5 +46,21 @@ describe('shortDisabledReason', () => {
     expect(shortDisabledReason(true, null, 'live', complete)).toBe(SHORTABILITY_NOT_SHORTABLE);
     expect(shortDisabledReason(true, { ...listing, stale: true }, 'live', complete)).toBe(SHORTABILITY_STALE);
     expect(shortDisabledReason(true, { ...listing, state: 'thin' }, 'live', complete)).toBe(SHORTABILITY_NOT_SHORTABLE);
+  });
+
+  it('greys Short on Paper and Live when IBKR has nothing to lend or needs a locate (BIYA, 2026-10-07)', () => {
+    const borrow = (term: 'NSS' | 'LOCATE' | 'HTB' | 'UNKNOWN') => ({
+      schema_version: 1 as const, term, chip: term, tone: 'bad' as const, text: `${term}: why`, source: 'live' as const,
+      shares: null, level: 1, fee_rate: null, list: null, list_age_sec: null, list_note: null,
+    });
+    const nss = { ...listing, state: 'unknown', borrow: borrow('NSS') };
+    expect(shortDisabledReason(false, nss, 'paper', null)).toBe(SHORTABILITY_NO_BORROW('NSS: why'));
+    expect(shortDisabledReason(false, { ...nss, borrow: borrow('LOCATE') }, 'paper', null)).toBe(SHORTABILITY_NO_BORROW('LOCATE: why'));
+    expect(shortDisabledReason(true, nss, 'live', complete)).toBe(SHORTABILITY_NO_BORROW('NSS: why'));
+    // Less certain words leave it pressable: the SHORT CHECK box says why the door would refuse.
+    expect(shortDisabledReason(false, { ...nss, borrow: borrow('HTB') }, 'paper', null)).toBeNull();
+    expect(shortDisabledReason(false, { ...nss, borrow: borrow('UNKNOWN') }, 'paper', null)).toBeNull();
+    expect(shortDisabledReason(false, { ...nss, stale: true }, 'paper', null)).toBeNull();
+    expect(shortDisabledReason(false, nss, 'sim', null)).toBeNull();
   });
 });
