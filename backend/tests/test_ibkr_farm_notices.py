@@ -152,3 +152,14 @@ def test_a_depth_halt_or_a_competing_session_warns_for_half_an_hour():
 def test_no_session_and_no_notice_is_off():
     assert _row(T0, usable=False)["state"] == "off"
     assert _row(T0)["detail"] == "no farm notice this session"
+
+
+def test_a_session_that_went_down_reads_off_whatever_the_farms_last_said():
+    """PR #807 review: an OK or broken farm from before a disconnect is evidence, not a state."""
+    farm_notices.note(2104, "Market data farm connection is OK:usfarm", now=T0)
+    row = _row(T0 + 60, usable=False)
+    assert row["state"] == "off" and "last word before it: 2104 ok usfarm" in row["detail"]
+    assert row["evidence"]["farms"][0]["farm"] == "usfarm"
+    farm_notices.note(2103, "Market data farm connection is broken:usfarm", now=T0 + 70)
+    assert _row(T0 + 80, usable=False)["state"] == "off"
+    assert _row(T0 + 80)["state"] == "warn"

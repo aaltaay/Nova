@@ -41,7 +41,13 @@ def farm_rows(*, view: dict[str, Any], usable: bool, now: float) -> list[dict[st
     broken = [f for f in farms if f.get("state") == "broken"]
     line_trouble = [n for n in recent if n.get("notice") in ("depth_halted", "competing_session")]
     since = None
-    if broken:
+    if not usable:
+        # No session can vouch for any farm now: the last notices are evidence, not a state.
+        state = DIAG_STATE_OFF
+        detail = ("no session -- IBKR sends farm notices on a connected session"
+                  + (f"; last word before it: {_said(recent[-1])}" if recent else ""))
+        cause = "Farm states are read only while the Gateway session is up."
+    elif broken:
         state = DIAG_STATE_WARN
         detail = "broken: " + ", ".join(f"{f['farm']} ({f.get('farm_type') or 'farm'}) since {_clock(f['since'])}"
                                         for f in broken)
@@ -55,10 +61,6 @@ def farm_rows(*, view: dict[str, Any], usable: bool, now: float) -> list[dict[st
         cause = ("316: IBKR halted a Level 2 line and asks for it again; 10197: another live login is using "
                  "the market data.")
         since = line_trouble[-1]["ts"]
-    elif not usable and not farms:
-        state = DIAG_STATE_OFF
-        detail = "no session -- IBKR sends farm notices on a connected session"
-        cause = "Nothing has been said yet."
     else:
         state = DIAG_STATE_OK
         named = ", ".join(f["farm"] for f in farms)

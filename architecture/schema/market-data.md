@@ -194,9 +194,10 @@ kept arriving, so this is not a feed gap (above).
   farm_type, message, req_id, symbol}`, the last `IBKR_NOTICES_KEEP` in memory, logged (WARNING when
   something stopped) and written to the perf day file as `kind: "ib_notice"`. Record and display only: a
   notice never disconnects, reconnects or restarts the Gateway, which would also tear down the order channel.
-  `/api/diagnostics` adds the `market_data_farms` row (group `market_data`): `warn` while a farm reads broken,
-  or for `IBKR_NOTICES_DIAG_WINDOW_SEC` after a 316 or 10197; `ok` with the last notice named otherwise; its
-  evidence is `{farms, recent}`.
+  `/api/diagnostics` adds the `market_data_farms` row (group `market_data`): `off` while there is no Gateway
+  session (what the farms last said is evidence, not a state); else `warn` while a farm reads broken, or for
+  `IBKR_NOTICES_DIAG_WINDOW_SEC` after a 316 or 10197; `ok` with the last notice named otherwise; its evidence
+  is `{farms, recent}`.
 - **Not done here:** bringing a silent Trader line back. Asks inside the event did nothing; whether a Gateway
   reconnect would have is still unknown, and a reconnect also drops the order channel.
 
