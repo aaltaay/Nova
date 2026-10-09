@@ -134,7 +134,12 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
         set_session_reason("disconnected")
         return False, "transport_lost"
 
-    _raise_order_id_floor(ib)
+    if not _raise_order_id_floor(ib):
+        # Lean IBKR #242: never READY on IBKR's unverified next id -- a reused id hands one order's
+        # callbacks to another order's row. The watchdog's stuck-unusable reset asks again.
+        set_session_reason("order_id_floor_unreadable")
+        _session_errors.stamp_unusable()
+        return False, "order_id_floor_unreadable"
     gen = _session.set_ready()
     _clear_sticky_bridge_error_on_ready()
     _wire_order_events(ib)
@@ -168,14 +173,20 @@ def _wire_order_events(ib) -> None:
         logger.exception("IBKR: order events not wired on READY -- the first order wires them")
 
 
-def _raise_order_id_floor(ib) -> None:
-    """Before READY lets an order out: ids start above every id Nova used (Lean IBKR issue 242)."""
+def _raise_order_id_floor(ib) -> bool:
+    """Before READY lets an order out: ids start above every id Nova used (Lean IBKR issue 242).
+
+    False when the floor cannot be read (the ledger, or the session's executions): the session stays
+    unusable rather than count from an id IBKR may already have given out.
+    """
     try:
         from execution import order_id_floor
 
         order_id_floor.raise_floor(ib)
     except Exception:
-        logger.exception("IBKR: the order-id floor could not be read -- this session counts from IBKR's next id")
+        logger.exception("IBKR: the order-id floor could not be read -- the session is not made READY")
+        return False
+    return True
 
 
 def _reconcile_session(ib) -> None:

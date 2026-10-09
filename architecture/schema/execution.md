@@ -188,13 +188,15 @@ ib_async's bracket helper), closed on Nova's Live path. Every reason code below 
 - **A send Nova could not see finish** (`SEND_UNKNOWN`, #725). The row now stays `sent` (it read `failed`),
   with the error, the reason and its reference. When the send itself ends, the row takes the order id it got
   (`reason_code: SEND_FINISHED_LATE`, error cleared); otherwise the sweep finds the order by its reference
-  (`SEND_RESOLVED_BY_REF`), in the working or closed orders or in an execution carrying it, or -- once
+  (`SEND_RESOLVED_BY_REF`), in the working or closed orders or in executions carrying it (the same symbol
+  and side, the row's permId when known, and no more shares than the row sent), or -- once
   completed orders have answered with none -- closes the row `abandoned` `SWEEP_NEVER_SENT`. The receipt is
   unchanged.
 - **Order ids are never reused** (Lean issue 242). Before a session becomes READY, ib_async's next id is raised
   above the highest Live order id any ledger row names (entry or bracket leg; Paper and Sim rows excluded) and
-  the highest id among this client's executions the session read back (`execution/order_id_floor.py`). The
-  sweep never takes an IBKR order whose reference differs from the row's as that row's outcome: the row stays
+  the highest id among this client's executions the session read back (`execution/order_id_floor.py`). When
+  that floor cannot be read, the session is not made READY (`order_id_floor_unreadable`; the watchdog's
+  stuck-unusable reset asks again). The sweep never takes an IBKR order whose reference differs from the row's as that row's outcome: the row stays
   `unverified`.
 - **whyHeld.** IBKR's `orderStatus.whyHeld` (`locate`: shares to short not found yet; a trigger or a parent)
   is kept on the order's watch, on order rows as `why_held: string | null`, and in the ledger's new
@@ -204,8 +206,10 @@ ib_async's bracket helper), closed on Nova's Live path. Every reason code below 
   READY the fills no handler heard go to their order's watch as if heard live (its row, its in-flight shares,
   its fill evidence), or are claimed below; IBKR's positions are compared with the last ones it reported, with
   the executions known then; and after the first READY the startup sweep runs again over this process's own
-  Live rows too, closing them only on the broker's evidence (never `abandoned`). Each position update between
-  READYs claims fills no handler heard.
+  Live rows too, closing them only on the broker's evidence (never `abandoned`). The first READY's positions
+  are the baseline. Each position update between READYs claims fills no handler heard, and one the fills
+  do not explain after `IBKR_POSITION_GAP_GRACE_SEC` (3; IBKR can send the position before its fill) is a
+  position gap.
 - **Commissions.** A fill's commission counts once IBKR's report for that execution has arrived
   (`CommissionReport.execId` equals the execution's); before then a row's `commission` is null, never the
   0.0 ib_async pre-fills. A read-back fill whose report can never reach Nova (no order for it in the session)
@@ -215,8 +219,8 @@ ib_async's bracket helper), closed on Nova's Live path. Every reason code below 
   A cancel answered 10148 `state: Filled` is receipt `ok: true`, `reason_code: CANCEL_TOO_LATE`,
   `broker_status: "Filled"`, and the order's place row is never marked Cancelled.
 - **A bracket whole, or taken back** (owners `ibkr/order_bracket.py`, `execution/bracket_guard.py`). A leg's
-  `placeOrder` that raises after earlier legs went cancels them and itself (it may have reached the
-  Gateway before it raised); the adapter's result adds `taken_back:
+  `placeOrder` that raises -- the entry's included -- cancels itself and the legs before it (it may have
+  reached the Gateway before it raised); the adapter's result adds `taken_back:
   number[]` and `not_taken_back: number[]`. A leg IBKR closes before any working status, within
   `IBKR_BRACKET_LEG_REFUSAL_WINDOW_SEC` (5) of the send, cancels the legs still open on Live: row `failed`,
   receipt `ok: false`, `reason_code: BRACKET_LEG_REFUSED`, the error in IBKR's words. If the entry has filled,
@@ -224,7 +228,7 @@ ib_async's bracket helper), closed on Nova's Live path. Every reason code below 
 - **IBKR events no Nova order claims** (owner `ibkr/unclaimed.py`, memory only, the last
   `IBKR_UNCLAIMED_KEEP` (50)). Kinds: `liquidation` (an execution with `liquidation` set or a negative order
   id: IBKR's own order, Lean issue 156), `position_gap` (a position that moved by more than the fills read
-  back explain), `outside_fill` (another client id), `order_error` (an IBKR error on an order the session
+  back, or a position update, explain), `outside_fill` (another client id), `order_error` (an IBKR error on an order the session
   knows and no watch holds; it was dropped without a word). A liquidation and a position gap log an error and
   write one Nova OS event receipt each, `payload: {event: "ibkr_liquidation", symbol, side, shares, price,
   exec_id, order_id, perm_id, client_id, account, order_ref, time}` and `{event: "ibkr_position_gap",

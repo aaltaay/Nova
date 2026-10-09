@@ -106,11 +106,14 @@ def test_a_stop_that_never_went_out_takes_back_the_legs_held_at_the_gateway(monk
     assert "Nova cancelled them" in out["error"]
 
 
-def test_a_first_leg_that_fails_leaves_nothing_to_take_back(monkeypatch):
+def test_an_entry_whose_send_raised_is_cancelled_too(monkeypatch):
+    """PR #811 review: the entry may have reached the Gateway before its ``placeOrder`` raised."""
     gateway = _Gateway(break_on=0)
     _arm(monkeypatch, gateway)
     out = _bracket()
-    assert out["ok"] is False and gateway.cancelled == [] and "socket closed" in out["error"]
+    entry = gateway.next_id - 2                     # ids are taken for all three legs before any is sent
+    assert out["ok"] is False and gateway.cancelled == [entry] and "socket closed" in out["error"]
+    assert out["taken_back"] == [entry]
 
 
 def _legs(execution_id: str) -> dict:

@@ -115,9 +115,8 @@ def place_bracket_order(
                 try:
                     ib.placeOrder(contract, order)
                 except Exception as exc:
-                    if not sent:
-                        raise
-                    # The leg that raised may have reached the Gateway before it did: cancel it too.
+                    # The leg that raised -- the entry included -- may have reached the Gateway before it
+                    # did: it is cancelled with the legs before it.
                     cancelled, failed = _cancel_legs(ib, [*sent, order])
                     return None, nova_stamp, exc, cancelled, failed
                 sent.append(order)

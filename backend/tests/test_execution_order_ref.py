@@ -272,3 +272,31 @@ def test_a_reconnect_finds_this_process_unknown_send_by_its_reference(monkeypatc
     assert summary["still_working"] == [unknown]
     assert store.get_by_id(unknown)["order_id"] == 61
     assert store.get_by_id(on_its_way)["order_id"] is None      # its own send path writes it
+
+
+def _execution(perm_id: int, shares: float, *, order_id: int = 31) -> SimpleNamespace:
+    return SimpleNamespace(
+        contract=SimpleNamespace(symbol="AAPL"),
+        execution=SimpleNamespace(orderRef=REF, side="SLD", permId=perm_id, orderId=order_id, shares=shares,
+                                  cumQty=shares),
+    )
+
+
+def test_an_execution_match_needs_the_rows_perm_id_and_size_too(monkeypatch):
+    """PR #811 review: executions matched on reference, symbol and side alone."""
+    other_perm = _stale("exec-perm")
+    store.update_stages(other_perm, order_ref=REF)
+    conn = store.get_connection()
+    try:
+        conn.execute("UPDATE executions SET perm_id = 9001 WHERE id = ?", (other_perm,))
+        conn.commit()
+    finally:
+        conn.close()
+    _broker(monkeypatch, fills=[_execution(7777, 100)], history_loaded=False)
+    sweep.run_startup_sweep()
+    assert store.get_by_id(other_perm)["order_id"] is None          # another permId: not this row's order
+    sweep.reset_for_testing()
+    too_big = _stale("exec-size")
+    _broker(monkeypatch, fills=[_execution(9100, 60), _execution(9100, 60)], history_loaded=False)
+    sweep.run_startup_sweep()
+    assert store.get_by_id(too_big)["order_id"] is None             # 120 filled: more than the 100 it sent

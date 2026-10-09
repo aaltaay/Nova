@@ -209,6 +209,8 @@ IBKR_WHY_HELD_LOCATE = "locate"
 IBKR_BRACKET_LEG_REFUSAL_WINDOW_SEC = 5.0
 # IBKR order ids are signed 32-bit; the order-id floor never pushes the sequence past this.
 IBKR_ORDER_ID_MAX = 2_147_483_647
+# A position update no fill explains waits this long for its fill before it is a position gap.
+IBKR_POSITION_GAP_GRACE_SEC = 3.0
 # How many IBKR events no Nova order claims (liquidations, outside fills, order errors) are kept.
 IBKR_UNCLAIMED_KEEP = 50
 # Fill latency detective (#177). MKT during RTH only; LMT working is expected.

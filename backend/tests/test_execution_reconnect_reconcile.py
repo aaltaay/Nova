@@ -7,6 +7,7 @@ no ``execDetailsEvent`` fires for them. These tests drive that read-back with a 
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -249,3 +250,34 @@ def test_fills_and_commissions_are_heard_while_the_session_reads_disconnected(mo
     assert watch.has_fill() and watch.commission == 0.5
     assert store.get_by_id(execution_id)["status"] == "filled"
     session_state.reset_for_testing()
+
+
+def test_a_position_that_moves_between_reconnects_with_no_fill_is_said(monkeypatch):
+    """PR #811 review: a position update overwrote the mirror, so the next READY saw no move at all."""
+    monkeypatch.setattr(session_fills, "IBKR_POSITION_GAP_GRACE_SEC", 0.05)
+    ib = _Ib(positions=[_position("ZTG", 100)])
+
+    async def run():
+        reconnect_reconcile.on_ready(ib)
+        await asyncio.sleep(0)                      # the READY reconcile sets the baseline
+        ib.positionEvent.emit(_position("ZTG", 40))
+        await asyncio.sleep(0.2)
+
+    asyncio.run(run())
+    assert unclaimed.status()["counts"] == {"position_gap": 1}
+    assert unclaimed.status()["events"][0]["unexplained"] == -60.0
+
+
+def test_a_fill_that_lands_just_after_its_position_is_no_gap(monkeypatch):
+    monkeypatch.setattr(session_fills, "IBKR_POSITION_GAP_GRACE_SEC", 0.1)
+    ib = _Ib(positions=[_position("ZTG", 100)])
+
+    async def run():
+        reconnect_reconcile.on_ready(ib)
+        await asyncio.sleep(0)
+        ib.positionEvent.emit(_position("ZTG", 0))  # IBKR's position first...
+        ib._fills.append(_fill("e-sell", order_id=0, client_id=0, side="SLD", shares=100))  # ...then the fill
+        await asyncio.sleep(0.3)
+
+    asyncio.run(run())
+    assert "position_gap" not in unclaimed.status()["counts"]

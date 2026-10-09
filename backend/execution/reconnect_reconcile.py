@@ -12,7 +12,8 @@ on the IB loop right after READY's own hooks:
    process's own rows too, closing them only on the broker's evidence (``execution.startup_sweep``).
 
 Between READYs, each position update catches up fills no handler heard, so an IBKR liquidation is
-said as it lands rather than at the next reconnect.
+said as it lands rather than at the next reconnect, and a position that moved with no fill to explain
+it is said once IBKR's fill has had its grace to arrive.
 """
 from __future__ import annotations
 
@@ -34,7 +35,7 @@ def on_ready(ib: Any) -> None:
     reconnect = _ready_seen
     _ready_seen = True
     try:
-        session_fills.wire(ib, _on_position)
+        session_fills.wire(ib, _on_position, unclaimed.note_position_gap)
         asyncio.get_running_loop().call_soon(_run, ib, reconnect)
     except RuntimeError:
         _run(ib, reconnect)  # no running loop (tests)
@@ -49,9 +50,12 @@ def _run(ib: Any, reconnect: bool) -> None:
         logger.exception("execution: the READY reconcile failed -- this process's rows were not swept")
 
 
-def _fills_and_positions(ib: Any) -> dict[str, Any]:
-    """Steps 1 and 2. Raises when IBKR's fills or positions are unreadable: nothing is compared then."""
-    before = session_fills.mirror()
+def _fills_and_positions(ib: Any, *, compare: bool) -> dict[str, Any]:
+    """Steps 1 and 2. Raises when IBKR's fills or positions are unreadable: nothing is compared then.
+
+    ``compare`` only on a reconnect: the first session's positions are the baseline, not a move.
+    """
+    before = session_fills.mirror() if compare else None
     unheard = session_fills.take_unheard(ib)
     counts = fill_claims.catch_up(ib, unheard, telemetry._watches.get)
     fills_now = list(ib.fills() or [])
@@ -67,7 +71,7 @@ def reconcile(ib: Any, *, reconnect: bool) -> dict[str, Any]:
     """Steps 1-3 above; returns what each found (for the log and tests). The sweep runs either way."""
     found: dict[str, Any] = {"unheard": None, "claims": None, "gaps": None, "swept": None}
     try:
-        found.update(_fills_and_positions(ib))
+        found.update(_fills_and_positions(ib, compare=reconnect))
     except Exception:
         logger.exception("execution: IBKR's fills or positions could not be read -- they were not compared")
     if reconnect:

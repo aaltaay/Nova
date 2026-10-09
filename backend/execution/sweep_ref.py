@@ -58,16 +58,26 @@ def find(row: dict, broker_rows: Iterable[dict], fills: Iterable[Any]) -> Found:
         return Found("ambiguous", order_ids=tuple(matched.order_ids()))
     if matched.verdict == "one" and matched.row is not None:
         return Found("one", order_id=int(matched.row["order_id"]), perm_id=matched.row.get("perm_id"))
+    if qty is None:
+        return Found("none")  # a size Nova does not know matches nothing, as in ``order_ref.match``
+    want_perm = int(perm or 0)
     orders: dict[int, int] = {}
+    executed: dict[int, float] = {}
     for fill in fills:
         execution = getattr(fill, "execution", None)
         if str(getattr(execution, "orderRef", "") or "") != ref:
             continue
-        if str(getattr(getattr(fill, "contract", None), "symbol", "") or "").upper() not in ("", symbol):
+        if str(getattr(getattr(fill, "contract", None), "symbol", "") or "").upper() != symbol:
             continue
-        if _SIDE_OF_EXECUTION.get(str(getattr(execution, "side", "") or "").upper(), side) != side:
+        if _SIDE_OF_EXECUTION.get(str(getattr(execution, "side", "") or "").upper()) != side:
             continue
-        orders[int(getattr(execution, "permId", 0) or 0)] = int(getattr(execution, "orderId", 0) or 0)
+        fill_perm = int(getattr(execution, "permId", 0) or 0)
+        if want_perm and fill_perm and fill_perm != want_perm:
+            continue
+        orders[fill_perm] = int(getattr(execution, "orderId", 0) or 0)
+        executed[fill_perm] = executed.get(fill_perm, 0.0) + abs(float(getattr(execution, "shares", 0) or 0))
+    # Executions are parts of an order: one that filled more than the row sent is not the row's order.
+    orders = {perm_id: oid for perm_id, oid in orders.items() if executed[perm_id] <= qty + 1e-9}
     if len(orders) > 1:
         return Found("ambiguous", order_ids=tuple(orders.values()))
     if len(orders) == 1:

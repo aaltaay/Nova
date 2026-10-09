@@ -270,6 +270,7 @@ def test_earn_usable_wires_daily_pnl_without_losing_other_ready_hooks(scope, mon
     monkeypatch.setattr('ibkr.completed_orders_warm.schedule', lambda ib: ready_hooks.append('history'))
     monkeypatch.setattr('ibkr.line_session.on_session_ready', lambda gen: ready_hooks.append(gen))
     monkeypatch.setattr(session_usable, '_wire_order_events', lambda ib: None)
+    monkeypatch.setattr('execution.order_id_floor.raise_floor', lambda ib: {})  # the fake IB has no id sequence
     monkeypatch.setattr(client, '_on_session_ready', ready)
     if failed_subscription:
         s.ib.failure = RuntimeError('subscription refused')
