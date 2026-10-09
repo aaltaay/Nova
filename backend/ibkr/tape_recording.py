@@ -14,6 +14,9 @@ from ibkr.tape_sink import Sink
 
 logger = logging.getLogger(__name__)
 _last: dict[str, float] = {}
+# The last print's second on IBKR's clock (``exchange_ts``): the Level 1 line's trade times are on
+# the same clock, so a trade it reports after this one is a print the tape never delivered (#722).
+_last_exchange: dict[str, float] = {}
 _since: dict[str, float] = {}
 _errors: dict[str, str] = {}
 dispatch_errors: dict[str, str] = {}
@@ -44,6 +47,9 @@ def dispatch(payload) -> None:
     from capture.bridge_ibkr import enqueue_print
 
     _last[payload["symbol"]] = payload["receive_ts"]
+    exchange_ts = payload.get("exchange_ts")
+    if isinstance(exchange_ts, (int, float)) and exchange_ts > 0:
+        _last_exchange[payload["symbol"]] = float(exchange_ts)
     for name, enqueue in (("capture", enqueue_print), ("l2", _enqueue_l2)):
         try:
             enqueue(payload)
@@ -77,15 +83,17 @@ def rejected(symbol: str, error: str) -> None:
 def subscribed(symbol: str) -> None:
     _errors.pop(symbol, None)
     _last.pop(symbol, None)
+    _last_exchange.pop(symbol, None)
     _since[symbol] = time.time()
 
 
 def producer_status(symbol: str) -> dict:
     """``line_since``: when the current line opened -- a line's silence counts from
-    its last print, or from this before its first (the tape watch, #525)."""
+    its last print, or from this before its first (the tape watch, #525).
+    ``last_print_exchange_ts``: that print's second on IBKR's clock (#722)."""
     last = _last.get(symbol)
     error = _errors.get(symbol)
     stale = time.time() - (last or _since.get(symbol, time.time())) > TAPE_RECORD_STALE_SEC
     state = "error" if error else "stale" if stale else "waiting" if last is None else "receiving"
     return {"state": state, "healthy": state == "receiving", "last_print_ts": last, "error": error,
-            "line_since": _since.get(symbol)}
+            "line_since": _since.get(symbol), "last_print_exchange_ts": _last_exchange.get(symbol)}

@@ -244,6 +244,7 @@ const DIAG_ROWS: Row[] = [
   ['market_data_entitlement', 'market_data', 'Entitlement', 'ok', 'live (type 1)'],
   ['market_data_lines', 'market_data', 'Lines held', 'ok', '62 of 100 L1 · 2 of 3 depth'],
   ['ibkr_feed_gaps', 'market_data', 'IBKR feed gaps', 'ok', 'no gaps in the last 30 min'],
+  ['market_data_farms', 'market_data', 'IBKR data farms', 'ok', 'all farms OK or idle: secdefnj, usfarm, ushmds'],
   ['leaderboard_recorder', 'recorder', 'Scanner board recorder', 'ok', 'recording since 04:00 · 2.4 TB free'],
   ['tape_archive', 'practice', 'Tape archive', 'ok', 'writing · 0 lost'],
   ['practice_ledger', 'practice', 'Paper ledger', 'ok', 'NOVA-PAPER · $26,905.25'],

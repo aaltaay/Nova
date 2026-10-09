@@ -341,6 +341,11 @@ def is_subscribed(symbol: str) -> bool:
     return sub is not None and not _line_session.is_stale(sub.get("generation"))
 
 
+def live_symbols() -> list[str]:
+    """Every symbol with an active tick-by-tick line on this IBKR session, sorted."""
+    return sorted(s for s in list(_tickers) if is_subscribed(s))
+
+
 def open_viewer_queue(symbol: str) -> PrintQueue:
     """Register a new viewer's own queue so it gets every broadcast print, in order.
 

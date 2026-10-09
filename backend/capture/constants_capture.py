@@ -92,6 +92,10 @@ CAPTURE_TAPE_RENEW_DELAY_SEC = 17.0
 # streak of outages (a quiet name that prints now and then shouts once, not every
 # 90 s) and resets once the line has stayed up for the longest step.
 CAPTURE_TAPE_RESUBSCRIBE_MIN_SEC = (120.0, 300.0, 600.0, 900.0)
+# A line that went silent in the same second as another live tape line is held, not asked
+# for again, until one of them prints (the pipeline is back), or this long (#722: asks inside
+# the 2026-10-05 event brought nothing back; SAIQ's line recovered by itself after 332 s).
+CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC = 600.0
 # Tape losses kept in a recording's manifest (``fidelity.tape_losses``), newest last.
 CAPTURE_TAPE_LOSS_KEEP = 50
 # A Record hold younger than this is a start in flight, never an orphan: the

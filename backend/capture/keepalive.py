@@ -36,6 +36,7 @@ from capture.constants_capture import (
     CAPTURE_RESUME_RESTART_WINDOW_SEC,
     CAPTURE_STOP_FAILURE,
     CAPTURE_STOP_RESTART,
+    CAPTURE_TAPE_BOOK_FRESH_SEC,
     CAPTURE_TAPE_LOST,
 )
 
@@ -318,10 +319,23 @@ def _halted_now(symbol: str, now: float) -> bool | None:
         return None
 
 
+def _tape_witness(symbol: str, now: float) -> dict[str, Any]:
+    """What else tells a dead line from a quiet one (#722); memory only."""
+    try:
+        from ibkr import tape_silence
+
+        return tape_silence.witness(symbol, now=now, fresh_sec=CAPTURE_TAPE_BOOK_FRESH_SEC)
+    except Exception:
+        logger.warning("CAPTURE: could not read %s's Level 1 witness; judging its tape by the book", symbol,
+                       exc_info=True)
+        return {}
+
+
 async def _watch_tape(symbol: str, *, now: float, entry: dict[str, Any], rec: dict[str, Any],
                       ready: Callable[[], bool], tape: TapeOps) -> None:
     """Act on ``tape_watch``'s verdict: drop, ask again, and say so."""
-    verdict = tape_watch.observe(symbol, now=now, entry=entry, halted=_halted_now(symbol, now))
+    verdict = tape_watch.observe(symbol, now=now, entry=entry, halted=_halted_now(symbol, now),
+                                 witness=_tape_witness(symbol, now))
     if verdict is None:
         return
     row = _stopped.get(symbol)

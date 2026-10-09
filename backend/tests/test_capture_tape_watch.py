@@ -18,6 +18,7 @@ import pytest
 from capture import keepalive, tape_watch
 from capture.constants_capture import (
     CAPTURE_TAPE_LOST,
+    CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC,
     CAPTURE_TAPE_RENEW_DELAY_SEC,
     CAPTURE_TAPE_RESUBSCRIBE_MIN_SEC,
     CAPTURE_TAPE_STALE_SEC,
@@ -269,3 +270,84 @@ def test_a_halt_found_mid_outage_still_brings_the_line_back_and_drops_it_no_more
     assert desk.renews == ["IPDN"]
     desk.tick(desk.now + CAPTURE_TAPE_STALE_SEC + 60)        # silent on the new line, but halted
     assert len(desk.ends) == 1
+
+
+# -- dead or quiet, and one event for lines that stop together (#722) ----------------------------
+# 2026-10-05: SAIQ's (a Trader tab) and VEEA's (a Session Record) lines stopped at 09:35:42.388 while
+# their Level 1 lines counted 2.5M and 1.05M shares. VEEA was asked for at 09:37:34 and 09:39:54 with
+# nothing back; SAIQ's line came back by itself at 09:41:14; VEEA's came back at 09:45:16, seconds after
+# a new ask.
+
+
+def _witness(monkeypatch, witness):
+    monkeypatch.setattr(keepalive, "_tape_witness", lambda symbol, now: dict(witness))
+
+
+def test_level_1_trades_the_tape_never_printed_make_a_dead_line(monkeypatch):
+    _witness(monkeypatch, {"trade_at": LAST_PRINT + 40, "fresh": True, "peers": []})
+    desk = Desk("VEEA")
+    desk.tick(LAST_PRINT + CAPTURE_TAPE_STALE_SEC + 5)
+    assert [s for s, _ in desk.ends] == ["VEEA"]
+    assert "Level 1 shows trades up to 09:47:20 ET -- the IBKR tape line is dead" in row_of("VEEA")["error"]
+
+
+def test_a_quiet_name_by_level_1_is_never_asked_for_again(monkeypatch):
+    """The book moves but nothing trades: Level 1, updating, reports no trade since the last print."""
+    _witness(monkeypatch, {"trade_at": LAST_PRINT, "fresh": True, "peers": []})
+    desk = Desk()
+    for minutes in (2, 5, 15):
+        desk.tick(LAST_PRINT + minutes * 60)
+    assert desk.ends == [] and desk.renews == [] and row_of() is None
+
+
+def test_without_a_level_1_trade_clock_the_book_rule_stands(monkeypatch):
+    _witness(monkeypatch, {"trade_at": None, "fresh": True, "peers": []})
+    desk = Desk()
+    desk.tick(LAST_PRINT + CAPTURE_TAPE_STALE_SEC + 5)
+    assert [s for s, _ in desk.ends] == ["IPDN"] and "book kept updating" in row_of()["error"]
+
+
+def test_lines_that_stop_in_the_same_second_are_held_until_one_prints(monkeypatch):
+    witness = {"trade_at": LAST_PRINT + 30, "fresh": True, "peers": ["SAIQ"]}
+    monkeypatch.setattr(keepalive, "_tape_witness", lambda symbol, now: dict(witness))
+    desk = Desk("VEEA")
+    found = LAST_PRINT + CAPTURE_TAPE_STALE_SEC + 5
+    desk.tick(found)
+    assert desk.ends == [] and desk.renews == []                 # held: not dropped, not asked for
+    row = row_of("VEEA")
+    assert row["reason"] == CAPTURE_TAPE_LOST and "SAIQ went silent in the same second" in row["error"]
+    assert desk.notes[0]["loss"]["cause"] == tape_watch.CAUSE_PIPELINE
+    assert tape_watch.status("VEEA")["held_for"] == ["SAIQ"]
+    for later in (60, 180, 300):                                 # the event goes on: an ask brings nothing
+        desk.tick(found + later)
+    assert desk.ends == [] and desk.renews == []
+    witness["peers"] = []                                        # SAIQ prints again: the pipeline is back
+    back = found + 332
+    desk.tick(back)
+    assert [s for s, _ in desk.ends] == ["VEEA"]                 # still dead by Level 1: dropped ...
+    desk.tick(back + CAPTURE_TAPE_RENEW_DELAY_SEC)
+    assert desk.renews == ["VEEA"]                               # ... and asked for again once
+    desk.last_print = desk.now + 3
+    desk.tick(desk.now + 5)
+    assert row_of("VEEA")["resumed"] is True and tape_watch.in_outage("VEEA") is False
+
+
+def test_a_held_line_that_comes_back_by_itself_is_never_asked_for(monkeypatch):
+    _witness(monkeypatch, {"trade_at": LAST_PRINT + 30, "fresh": True, "peers": ["VEEA"]})
+    desk = Desk("SAIQ")
+    found = LAST_PRINT + CAPTURE_TAPE_STALE_SEC + 5
+    desk.tick(found)
+    desk.last_print = found + 240                                # SAIQ's own line prints again
+    desk.tick(found + 245)
+    assert desk.ends == [] and desk.renews == [] and row_of("SAIQ")["resumed"] is True
+
+
+def test_a_hold_has_a_limit(monkeypatch):
+    _witness(monkeypatch, {"trade_at": LAST_PRINT + 30, "fresh": True, "peers": ["SAIQ"]})
+    desk = Desk("VEEA")
+    found = LAST_PRINT + CAPTURE_TAPE_STALE_SEC + 5
+    desk.tick(found)
+    desk.tick(found + CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC - 1)
+    assert desk.ends == []
+    desk.tick(found + CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC)
+    assert [s for s, _ in desk.ends] == ["VEEA"]

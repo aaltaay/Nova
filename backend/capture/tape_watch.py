@@ -11,6 +11,22 @@ said so. A recording's AllLast line ends two ways Nova can see:
   again is harmless there; it backs off (CAPTURE_TAPE_RESUBSCRIBE_MIN_SEC) over
   a streak of outages, and a streak is one shout, not one per outage.
 
+Dead or quiet (#722): on 2026-10-05 SAIQ's and VEEA's lines stopped at the same
+instant while their Level 1 lines counted 2.5M and 1.05M shares. The symbol's
+Level 1 trade clock (``ibkr.tape_silence.l1_trade_at``) settles it where it is
+known: a trade after the last print is a dead line, said as such; a Level 1 line
+that is updating and reports no trade since is a quiet name, and nothing is asked
+for. Without it the book rule above stands.
+
+A pipeline event is not a reason to ask each line again. When other live tape
+lines went silent in the same second (``tape_silence.pipeline_peers``) the outage
+opens with cause ``pipeline`` and the line is held: not dropped, not asked for,
+until one of those lines prints again (or closes) or for
+CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC. That morning VEEA was asked for at 09:37:34
+and 09:39:54 with nothing back, SAIQ's line came back by itself at 09:41:14, and
+VEEA's line from 09:39:54 stayed dead until a new ask about 09:45:13 (prints from
+09:45:16). Then the line is judged like any other in an outage.
+
 Either way the tape -- only the tape; the depth line is left alone -- is asked
 for again once IB's 15 s same-instrument rule allows, and the outage is said:
 a WARNING, a ``capture_stopped`` row with reason ``tape`` that reads resumed
@@ -37,16 +53,19 @@ from zoneinfo import ZoneInfo
 from capture.constants_capture import (
     CAPTURE_RESUME_BACKOFF_SEC,
     CAPTURE_TAPE_BOOK_FRESH_SEC,
+    CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC,
     CAPTURE_TAPE_RENEW_DELAY_SEC,
     CAPTURE_TAPE_RESUBSCRIBE_MIN_SEC,
     CAPTURE_TAPE_STALE_SEC,
 )
+from ibkr.tape_silence import l1_shows_trade_after
 
 ET = ZoneInfo("America/New_York")
 
 # Causes, as the manifest's ``tape_losses[].cause`` names them.
 CAUSE_IB_ERROR = "ib_error"
 CAUSE_STALE = "stale"
+CAUSE_PIPELINE = "pipeline"   # silent in the same second as other lines: held, not asked for (#722)
 
 # What ``observe`` asks the keepalive to do.
 LOST = "lost"          # an outage opened: say so (and drop the line when ``end``)
@@ -76,6 +95,8 @@ class _Line:
     quiet_until: float = 0.0          # no new silence verdict before this
     resumed_at: float | None = None   # when the last outage ended
     halt_seen_at: float | None = None  # the last look that found the symbol halted
+    held: tuple[str, ...] = ()        # the lines that went silent with it: held until one prints
+    held_at: float | None = None
 
 
 _lines: dict[str, _Line] = {}
@@ -110,7 +131,8 @@ def status(symbol: str) -> dict[str, Any] | None:
     if line is None or line.lost_at is None:
         return None
     return {"lost_at": line.lost_at, "cause": line.cause, "detail": line.detail,
-            "renew_at": line.renew_at, "renewed_at": line.renewed_at, "failures": line.failures}
+            "renew_at": line.renew_at, "renewed_at": line.renewed_at, "failures": line.failures,
+            "held_for": list(line.held)}
 
 
 def _num(value: Any) -> float | None:
@@ -122,19 +144,27 @@ def _clock(ts: float) -> str:
 
 
 def _silence(producer: dict[str, Any], book: dict[str, Any], now: float,
-             halt_seen_at: float | None = None) -> str | None:
-    """Why the line looks dead -- prints silent while the book moves -- else None."""
-    since = max(_num(producer.get("last_print_ts")) or 0.0, _num(producer.get("line_since")) or 0.0,
-                _num(halt_seen_at) or 0.0)
-    book_ts = _num(book.get("last_book_ts"))
-    if not since or book_ts is None:
-        return None
-    silent, book_age = now - since, now - book_ts
-    if silent < CAPTURE_TAPE_STALE_SEC or book_age > CAPTURE_TAPE_BOOK_FRESH_SEC:
-        return None
+             halt_seen_at: float | None = None, witness: dict[str, Any] | None = None) -> str | None:
+    """Why the line is dead -- Level 1 trades it never printed, else prints silent while the book
+    moves -- or None (printing, quiet by Level 1, or nothing to tell)."""
     last = _num(producer.get("last_print_ts"))
+    since = max(last or 0.0, _num(producer.get("line_since")) or 0.0, _num(halt_seen_at) or 0.0)
+    if not since or now - since < CAPTURE_TAPE_STALE_SEC:
+        return None
+    silent = now - since
     what = f"No prints since {_clock(last)} ({silent:.0f}s)" if last else f"No prints for {silent:.0f}s"
-    return (f"{what} while the book kept updating ({book_age:.0f}s ago) -- the IBKR tape line looks dead; "
+    witness = witness or {}
+    trade = _num(witness.get("trade_at"))
+    if l1_shows_trade_after(l1_trade_at=trade, last_print_exchange_ts=producer.get("last_print_exchange_ts"),
+                            last_print_ts=last, line_since=producer.get("line_since"), halt_seen_at=halt_seen_at):
+        return (f"{what} while Level 1 shows trades up to {_clock(trade)} -- the IBKR tape line is dead; "
+                "asking for it again")
+    if trade is not None and witness.get("fresh"):
+        return None  # Level 1 is updating and reports no trade since: a quiet name
+    book_ts = _num(book.get("last_book_ts"))
+    if book_ts is None or now - book_ts > CAPTURE_TAPE_BOOK_FRESH_SEC:
+        return None
+    return (f"{what} while the book kept updating ({now - book_ts:.0f}s ago) -- the IBKR tape line looks dead; "
             "asking for it again. A quiet name looks the same: this clears on the next print")
 
 
@@ -143,9 +173,13 @@ def _ended_detail(ended: dict[str, Any]) -> str:
     return f"IBKR ended the tape line (error {code}: {ended.get('message')}) -- asking for it again"
 
 
-def observe(symbol: str, *, now: float, entry: dict[str, Any], halted: bool | None = None) -> Verdict | None:
+def observe(symbol: str, *, now: float, entry: dict[str, Any], halted: bool | None = None,
+            witness: dict[str, Any] | None = None) -> Verdict | None:
     """One look at a recording's tape. ``entry`` is its ``capture.mode.status_payload()`` session;
-    ``halted`` is ``ibkr.halt_status.halted_now`` for the symbol (only True holds the verdicts)."""
+    ``halted`` is ``ibkr.halt_status.halted_now`` for the symbol (only True holds the verdicts);
+    ``witness`` is ``{trade_at, fresh, peers}``: the symbol's Level 1 trade clock, whether that line
+    is updating, and the live tape lines silent since the same second (#722)."""
+    witness = witness or {}
     line = _lines.setdefault(symbol.strip().upper(), _Line())
     if halted is True:
         line.halt_seen_at = now
@@ -163,9 +197,17 @@ def observe(symbol: str, *, now: float, entry: dict[str, Any], halted: bool | No
             return None  # a Gateway drop is the keepalive's; a quiet name waits its turn
         if halted is True:
             return None  # a halt prints nothing: not a dead line
-        detail = _silence(producer, book, now, line.halt_seen_at)
+        detail = _silence(producer, book, now, line.halt_seen_at, witness)
         if detail is None:
             return None
+        peers = tuple(sorted(witness.get("peers") or ()))
+        if peers:
+            # One event on IBKR's side: an ask inside it brings nothing back. Hold the line.
+            detail = (f"{detail.split(' -- ')[0]} -- {', '.join(peers)} went silent in the same second: "
+                      "one IBKR tick-by-tick event; asking again once one of them prints")
+            repeat = _open(line, now, CAUSE_PIPELINE, detail)
+            line.held, line.held_at = peers, now
+            return Verdict(LOST, CAUSE_PIPELINE, detail, end=False, repeat=repeat)
         repeat = _open(line, now, CAUSE_STALE, detail)
         line.renew_at = now + CAPTURE_TAPE_RENEW_DELAY_SEC
         return Verdict(LOST, CAUSE_STALE, detail, end=True, repeat=repeat)
@@ -178,7 +220,13 @@ def observe(symbol: str, *, now: float, entry: dict[str, Any], halted: bool | No
         # must not be dropped, asked for and shouted about every 90 s.
         line.lost_at = line.cause = line.detail = line.renew_at = line.renewed_at = None
         line.failures, line.resumed_at = 0, now
+        line.held, line.held_at = (), None
         return Verdict(RESUMED)
+    if line.held:
+        still = set(line.held) <= set(witness.get("peers") or ())
+        if still and now - (line.held_at or now) < CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC:
+            return None  # the event goes on: none of the lines that stopped with it has printed
+        line.held, line.held_at = (), None  # one printed (or closed): judge this line on its own
     if line.renew_at is not None:
         return Verdict(RENEW) if now >= line.renew_at else None
     if ended:
@@ -188,7 +236,7 @@ def observe(symbol: str, *, now: float, entry: dict[str, Any], halted: bool | No
         return None
     if now < line.quiet_until or halted is True:
         return None  # waits its turn; in a halt the new line is not dropped again
-    detail = _silence(producer, book, now, line.halt_seen_at)
+    detail = _silence(producer, book, now, line.halt_seen_at, witness)
     if detail is None:
         return None
     line.detail = detail
@@ -203,6 +251,7 @@ def _open(line: _Line, now: float, cause: str, detail: str) -> bool:
         line.streak = 0
     line.lost_at, line.cause, line.detail = now, cause, detail
     line.renewed_at, line.failures = None, 0
+    line.held, line.held_at = (), None
     return repeat
 
 

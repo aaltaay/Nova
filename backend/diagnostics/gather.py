@@ -31,6 +31,7 @@ from diagnostics import (
     collect_catalysts,
     collect_clips,
     collect_data_root,
+    collect_farms,
     collect_feed,
     collect_gateway,
     collect_leaderboard,
@@ -116,6 +117,13 @@ def _feed_view(ts: float) -> dict[str, Any]:
     return feed_pulse.view(ts)
 
 
+def _farm_inputs(ts: float) -> dict[str, Any]:
+    from ibkr import client as _client
+    from ibkr import farm_notices
+
+    return {"view": farm_notices.view(), "usable": _client.is_ready(), "now": ts}
+
+
 def _market_data_inputs() -> dict[str, Any]:
     from ibkr import client as _client
     from ibkr import session_errors as _se
@@ -131,8 +139,8 @@ def _market_data_inputs() -> dict[str, Any]:
         "max_tickers": bool(_se.max_tickers_hit()),
         "budget": _ticks.ticker_budget_status(),
         "depth_symbols": [s for s in _depth_state.subscribed_symbols() if _depth_state.is_live(s)],
-        # Read-only peek at the tape line map: this IBKR session's lines only (#562).
-        "tape_symbols": sorted(s for s in list(getattr(_tape, "_tickers", {})) if _tape.is_subscribed(s)),
+        # This IBKR session's tape lines only (#562).
+        "tape_symbols": _tape.live_symbols(),
     }
 
 
@@ -326,6 +334,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows += _safe(DIAG_GROUP_MARKET_DATA, "market_data", "Market data", lambda: collect_gateway.market_data_rows(**_market_data_inputs()))
     rows += _safe(DIAG_GROUP_MARKET_DATA, "ibkr_feed_gaps", "IBKR feed gaps",
                   lambda: collect_feed.feed_rows(view=_feed_view(ts), now=ts))
+    rows += _safe(DIAG_GROUP_MARKET_DATA, "market_data_farms", "IBKR data farms",
+                  lambda: collect_farms.farm_rows(**_farm_inputs(ts)))
     rows += _safe(DIAG_GROUP_RECORDER, "recorder", "Recorder", lambda: collect_gateway.recorder_rows(**_recorder_inputs()))
     rows += _safe(DIAG_GROUP_RECORDER, "leaderboard_recorder", "Scanner board recorder",
                   lambda: collect_leaderboard.leaderboard_rows(**_leaderboard_inputs()))
