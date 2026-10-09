@@ -1,7 +1,9 @@
 /** ADR 005 / 012 -- store-first bar loading; fills arrive as bars_patch.
  * A pane with no periodic refetch (see CHART_REFETCH_SEC) still self-heals if
  * the one-shot fetch lands empty+filling and the bars_patch push is missed
- * (see the stuck-retry effect below / chartBarsStuckRetry.ts). */
+ * (see the stuck-retry effect below / chartBarsStuckRetry.ts).
+ *
+ * maintainer: one-concern a request's version decides both its paint and the end of the pane's "Loading…" */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
@@ -46,6 +48,7 @@ import { createRafCoalesce } from '../utils/rafCoalesce';
 import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { invalidateReplayBars, subscribeReplayBarsRefresh } from './replayBarsRefresh';
+import { useSimChartReplays } from './simChartReplays';
 
 interface UseChartBarsOptions {
   symbol: string;
@@ -93,7 +96,9 @@ export function useChartBars({
   chartActive = true,
 }: UseChartBarsOptions) {
   const { discoveryProvider } = useWorkspace();
-  const sim = useIbkrStatus().mode === 'sim';
+  const simVenue = useIbkrStatus().mode === 'sim';
+  /** The replay owns this pane: Sim off the live edge, where live bars are refused. */
+  const sim = useSimChartReplays(simVenue);
   const replay = useSimReplayTarget(symbol);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +113,8 @@ export function useChartBars({
   const [indicatorBars, setIndicatorBars] = useState<IndicatorBar[]>([]);
 
   const barsRequestVersionRef = useRef(0);
+  /** A foreground load still waits: the newest request answers it, background or not. */
+  const awaitingBarsRef = useRef(false);
   const lastTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);
   const paintedBarsRef = useRef<RawBar[] | null>(null);
   /**
@@ -221,6 +228,7 @@ export function useChartBars({
   ) => {
     const requestVersion = ++barsRequestVersionRef.current;
     if (!background) {
+      awaitingBarsRef.current = true;
       setLoading(true);
       setError(null);
     }
@@ -237,11 +245,14 @@ export function useChartBars({
     } catch (err) {
       if (!isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current)) return;
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      if (!background) {
+      if (awaitingBarsRef.current) {
         setError(err instanceof Error ? err.message : 'Failed to load chart');
       }
     } finally {
-      if (isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current) && !background) {
+      // A refresh that superseded the foreground load ends it too, or the pane
+      // would read "Loading…" for good with nothing left to clear it.
+      if (isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current) && awaitingBarsRef.current) {
+        awaitingBarsRef.current = false;
         setLoading(false);
       }
     }
@@ -318,7 +329,7 @@ export function useChartBars({
   useEffect(() => {
     if (!chartActive) return undefined;
     const onScrub = (event?: Event) => {
-      if (event && (!sim || !matchesSimClockScrub(event, symbol))) return;
+      if (event && (!simVenue || !matchesSimClockScrub(event, symbol))) return;
       barsRequestVersionRef.current += 1;
       if (event) pendingViewportRef.current = null;
       else carryViewport();
@@ -334,7 +345,7 @@ export function useChartBars({
     window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
     return () => window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
   }, [
-    symbol, timeframe, chartActive, fetchBars, sim, onSeriesReset, carryViewport,
+    symbol, timeframe, chartActive, fetchBars, sim, simVenue, onSeriesReset, carryViewport,
     candleSeriesRef, volSeriesRef,
   ]);
 

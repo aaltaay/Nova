@@ -6,6 +6,7 @@
 import { API_BASE_URL, CHART_10SEC_TAPE_OWNS_MS, CHART_TIMEFRAME_BAR_LIMITS } from '../constants';
 import type { RawBar } from '../tickerChartData';
 import { getIbkrStatusSnapshot } from '../ibkr/ibkrStatusPoller';
+import { simChartReplaysNow } from './simChartReplays';
 
 const API_URL = `${API_BASE_URL}/api`;
 
@@ -109,6 +110,11 @@ export function parseBarsCoverage(raw: unknown): BarsCoverage | undefined {
   };
 }
 
+/** A Sim desk off the live edge: the replay owns every pane's candles (`simChartReplays`). */
+function replayDesk(): boolean {
+  return simChartReplaysNow(getIbkrStatusSnapshot().mode === 'sim');
+}
+
 function notify(key: BarsStoreKey): void {
   const set = listeners.get(key);
   if (!set) return;
@@ -124,7 +130,7 @@ export function setBars(
   const key = barsStoreKey(symbol, timeframe);
   const prev = entries.get(key);
   // Replay HTTP owns candles. A broker patch must not replace them.
-  if (!coverage?.replay && (getIbkrStatusSnapshot().mode === 'sim' || prev?.coverage?.replay)) {
+  if (!coverage?.replay && (replayDesk() || prev?.coverage?.replay)) {
     return prev ?? { bars: [], revision: 0, fetchedAt: 0 };
   }
   const next: BarsStoreEntry = {
@@ -202,7 +208,7 @@ export function upsertTapePrint10SecBar(
   const sym = symbol.trim().toUpperCase();
   if (sym) tapeFedAt.set(sym, Date.now());  // any print proves the line: the tape owns the tip
   if (print.setsPrice === false) return false;
-  if (getIbkrStatusSnapshot().mode === 'sim' || getBarsEntry(sym, '10Sec')?.coverage?.replay) {
+  if (replayDesk() || getBarsEntry(sym, '10Sec')?.coverage?.replay) {
     return false;
   }
   const exchangeMs = typeof print.exchangeTs === 'number' && Number.isFinite(print.exchangeTs) && print.exchangeTs > 0
@@ -296,7 +302,7 @@ async function fetchSingleBars(
     throw new DOMException('Replay position changed', 'AbortError');
   }
   const coverage = parseBarsCoverage(data.coverage);
-  if (getIbkrStatusSnapshot().mode === 'sim' && !coverage?.replay) {
+  if (replayDesk() && !coverage?.replay) {
     throw new DOMException('Desk mode changed', 'AbortError');
   }
   const bars = data.bars ?? [];

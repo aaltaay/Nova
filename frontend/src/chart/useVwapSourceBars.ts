@@ -21,6 +21,7 @@ import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
 
 import { invalidateReplayBars, subscribeReplayBarsRefresh } from './replayBarsRefresh';
+import { useSimChartReplays } from './simChartReplays';
 
 export interface VwapSource {
   bars: IndicatorBar[];
@@ -32,7 +33,9 @@ export interface VwapSource {
 const EMPTY: VwapSource = { bars: [], revision: 0, coversOpen: false };
 
 export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
-  const sim = useIbkrStatus().mode === 'sim';
+  const simVenue = useIbkrStatus().mode === 'sim';
+  /** Sim off the live edge: VWAP reads the replay's bars, never live ones. */
+  const sim = useSimChartReplays(simVenue);
   const [source, setSource] = useState<VwapSource>(EMPTY);
 
   useEffect(() => {
@@ -76,7 +79,7 @@ export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
     };
 
     const onScrub = (event?: Event) => {
-      if (event && (!sim || !matchesSimClockScrub(event, symbol))) return;
+      if (event && (!simVenue || !matchesSimClockScrub(event, symbol))) return;
       invalidateReplayBars(event, symbol, timeframe);
       setSource(EMPTY);
       refresh();
@@ -98,7 +101,7 @@ export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
       if (timer) clearInterval(timer);
       stopReplay?.();
     };
-  }, [symbol, active, sim]);
+  }, [symbol, active, sim, simVenue]);
 
   return source;
 }

@@ -21,6 +21,7 @@ import {
 import { tradeMatchesChartSymbol } from './liveTradeGate';
 import type { ChartTradeUpdate } from './types';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { useSimChartReplays } from './simChartReplays';
 import { IDLE_TICKER, subscribeTicker, tickerLastTrade, tickerState } from '../hooks/tickerStore';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { getBarsEntry, tapeOwns10Sec } from './barsStore';
@@ -35,7 +36,8 @@ export function useChartLiveTrade(
   /** Read the ticker stream for prints instead of `lastTrade` (the Trader grid, #707). */
   followTicker = false,
 ) {
-  const sim = useIbkrStatus().mode === 'sim';
+  /** Sim off the live edge: the replay owns the candles and live prints stay off them. */
+  const sim = useSimChartReplays(useIbkrStatus().mode === 'sim');
   const sample = useSampleDataOptional();
   /** The newest trade, from `lastTrade` or the stream: what a repaint of the store puts back. */
   const latestTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);

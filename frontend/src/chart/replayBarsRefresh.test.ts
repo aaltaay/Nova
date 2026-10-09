@@ -3,6 +3,8 @@ import { clearBarsStoreForTests, ensureBars, getBarsEntry, setBars } from './bar
 import { invalidateReplayBars, subscribeReplayBarsRefresh } from './replayBarsRefresh';
 import { SIM_CHART_REFRESH_MS } from '../sim/simClockEvents';
 vi.mock('../ibkr/ibkrStatusPoller', () => ({getIbkrStatusSnapshot: () => ({mode: 'sim'})}));
+// A replay desk: Sim, its clock off the live edge (`simChartReplays`).
+vi.mock('../sim', () => ({ simClockResource: { getSnapshot: () => ({ data: { live_edge: false } }), subscribe: () => () => {} } }));
 afterEach(() => {clearBarsStoreForTests(); vi.unstubAllGlobals(); vi.useRealTimers();});
 const reply = {ok: true, json: async () => ({bars: [], coverage: {replay: true}})} as Response;
 
