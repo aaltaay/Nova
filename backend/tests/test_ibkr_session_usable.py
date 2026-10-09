@@ -107,3 +107,38 @@ def test_earn_usable_reaches_ready_when_completed_orders_future_is_stale(monkeyp
 
     assert (ok, detail) == (True, "ok")
     assert session_state.state() == session_state.READY
+
+
+def test_ready_raises_the_order_id_floor_first_and_reconciles_after(monkeypatch):
+    """Lean IBKR #242 / #249: ids above every id Nova used before READY lets an order out; the session's
+    unheard fills and positions are reconciled once it is READY."""
+    from execution import order_id_floor, reconnect_reconcile
+
+    async def _noop(*_a, **_k):
+        return None
+
+    seen: list[tuple[str, str]] = []
+    monkeypatch.setattr(account_mod, "refresh_positions_cache", _noop)
+    monkeypatch.setattr(order_id_floor, "raise_floor", lambda _ib: seen.append(("floor", session_state.state())))
+    monkeypatch.setattr(reconnect_reconcile, "on_ready", lambda _ib: seen.append(("reconcile", session_state.state())))
+    ok, _ = asyncio.run(session_usable.earn_usable(_fake_ib(), "connect"))
+    assert ok is True
+    assert seen == [("floor", session_state.SYNCHRONIZING), ("reconcile", session_state.READY)]
+
+
+def test_no_ready_while_the_order_id_floor_cannot_be_read(monkeypatch):
+    """PR #811 review: counting from IBKR's unverified next id could reuse an id Nova already sent."""
+    from execution import order_id_floor
+
+    async def _noop(*_a, **_k):
+        return None
+
+    def unreadable(_ib):
+        raise OSError("ledger locked")
+
+    monkeypatch.setattr(account_mod, "refresh_positions_cache", _noop)
+    monkeypatch.setattr(order_id_floor, "raise_floor", unreadable)
+    ok, detail = asyncio.run(session_usable.earn_usable(_fake_ib(), "connect"))
+    assert (ok, detail) == (False, "order_id_floor_unreadable")
+    assert session_state.state() != session_state.READY
+    assert session_errors.unusable_since() is not None

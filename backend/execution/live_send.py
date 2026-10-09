@@ -13,6 +13,8 @@ to send the order (``ORDER_LATE``), however long it was busy (ADR 045).
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
 from typing import Any, Callable
@@ -27,7 +29,8 @@ from constants import (
     IBKR_SEND_RUNNING_GRACE_SEC,
     IBKR_SEND_UNKNOWN_MSG,
 )
-from execution import inflight, store, telemetry
+from execution import inflight, order_ref, store, telemetry
+from execution.bracket_guard import BracketGuard
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.nova_placed import persist_nova_placed_at
 from execution.qty_gate import live_cap_refusal
@@ -39,6 +42,7 @@ from market_view import gate as _view_gate
 logger = logging.getLogger(__name__)
 
 RejectFn = Callable[[str, ExecutionCommand, StageTimings, str, str], ExecutionReceipt]
+_NO_LOCK = contextlib.nullcontext()
 
 
 def _working_tif(row: dict) -> str:
@@ -87,15 +91,39 @@ async def _hop(
     except send_hop.SendNotSent:
         detail = IBKR_SEND_NOT_STARTED_MSG.format(sec=IBKR_SEND_HOP_TIMEOUT_SEC)
         return None, reject(execution_id, cmd, timings, detail, "IB_LOOP_WEDGED")
-    except send_hop.SendOutcomeUnknown:
+    except send_hop.SendOutcomeUnknown as unknown:
         detail = IBKR_SEND_UNKNOWN_MSG.format(sec=IBKR_SEND_RUNNING_GRACE_SEC)
-        # Not "rejected": the order may be working at IBKR, and Working orders will show it.
-        store.update_stages(execution_id, status="failed", error=detail, reason_code="SEND_UNKNOWN", mode=mode)
+        # Not "rejected", and not closed: the order may be working at IBKR. The row stays open with its
+        # reference, for the send's own end (``_settle_late``) or the sweep's match by orderRef.
+        store.update_stages(execution_id, status="sent", error=detail, reason_code="SEND_UNKNOWN", mode=mode)
+        if unknown.pending is not None:
+            unknown.pending.add_done_callback(lambda done: _settle_late(execution_id, done, label))
         return None, ExecutionReceipt(
             ok=False, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
             idempotency_key=cmd.idempotency_key, error=detail, reason_code="SEND_UNKNOWN",
             mode=mode, symbol=cmd.normalized_symbol(), timings=timings,
         )
+
+
+def _settle_late(execution_id: str, done, label: str) -> None:
+    """A send that outlasted its grace has ended: write what it did to the row it left open."""
+    try:
+        raw, _watch = done.result()
+    except BaseException:
+        logger.exception(
+            "live send: the %s that outlasted its grace ended in an error -- row %s stays SEND_UNKNOWN "
+            "for the sweep", label, execution_id,
+        )
+        return
+    order_id = raw.get("order_id") or raw.get("parent_order_id")
+    if not raw.get("ok") or not order_id:
+        store.update_stages(execution_id, status="failed", error=str(raw.get("error")), reason_code="BROKER_REJECT")
+        return
+    order_ref.adopt(execution_id, order_id=int(order_id), reason_code=order_ref.FINISHED_LATE)
+    store.update_stages(
+        execution_id, parent_order_id=raw.get("parent_order_id"), target_order_id=raw.get("target_order_id"),
+        stop_order_id=raw.get("stop_order_id"),
+    )
 
 
 async def replace(
@@ -119,9 +147,11 @@ async def replace(
         )
     timings.broker_sent_ns = time.perf_counter_ns()
     assert cmd.order_id is not None
+    # A modify is the order whole again: without its reference, IBKR would erase it.
+    ref = existing.get("order_ref") or None
     store.update_stages(
         execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns,
-        order_id=cmd.order_id, mode=mode,
+        order_id=cmd.order_id, mode=mode, order_ref=ref,
     )
 
     def call() -> tuple[dict, telemetry.OrderWatch | None]:
@@ -141,6 +171,7 @@ async def replace(
             outside_rth=bool(existing.get("outside_rth")),
             order_id=cmd.order_id,
             tif=_working_tif(existing),
+            order_ref=ref,
         )
         inflight.attach_order(execution_id, cmd.order_id)
         return raw, watch
@@ -150,6 +181,18 @@ async def replace(
         return refusal
     raw, watch = sent
     return await finish_place(execution_id, cmd, timings, raw, watch, mode, wait_ack=wait_ack)
+
+
+async def _ack_or_refusal(watch: telemetry.OrderWatch, guard: BracketGuard | None) -> None:
+    """The entry's first answer, or a leg's refusal, whichever comes first (at most the ack wait)."""
+    waits = [asyncio.ensure_future(watch.wait_ack(EXECUTION_ACK_WAIT_SEC))]
+    if guard is not None:
+        waits.append(asyncio.ensure_future(guard.wait_refused()))
+    try:
+        await asyncio.wait(waits, timeout=EXECUTION_ACK_WAIT_SEC, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for pending in waits:
+            pending.cancel()
 
 
 async def bracket(
@@ -170,9 +213,10 @@ async def bracket(
     if refusal is not None:
         return reject(execution_id, cmd, timings, refusal, "QTY_CAP_LIVE")
     timings.broker_sent_ns = time.perf_counter_ns()
+    ref = order_ref.mint(execution_id)  # on the ledger before the bracket leaves
     store.update_stages(
         execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns,
-        mode=mode, symbol=symbol,
+        mode=mode, symbol=symbol, order_ref=ref,
     )
     entry_side = (
         EXECUTOR_ENTRY_SIDE_IBKR_SHORT
@@ -180,6 +224,8 @@ async def bracket(
         else EXECUTOR_ENTRY_SIDE_IBKR
     ).upper()
     exit_side = "SELL" if entry_side == "BUY" else "BUY"
+
+    guard: list[BracketGuard] = []
 
     def call() -> tuple[dict, telemetry.OrderWatch | None]:
         raw = _orders.place_bracket_order(
@@ -191,20 +237,25 @@ async def bracket(
             target_price=float(cmd.target_price or 0),
             tif=cmd.tif,
             outside_rth=cmd.outside_rth,
+            order_ref=ref,
         )
         inflight.attach_order(execution_id, raw.get("parent_order_id"))
         watch = _watch(
             raw.get("parent_order_id"), execution_id, leg_role="parent", side=entry_side,
             reference_price=cmd.entry_price, reference_source="bracket_entry", aggregate_eligible=True,
         )
+        legs = {"parent": watch}
         for role, child_id, reference in (
             ("target", raw.get("target_order_id"), cmd.target_price),
             ("stop", raw.get("stop_order_id"), cmd.stop_price),
         ):
-            _watch(
+            legs[role] = _watch(
                 child_id, execution_id, leg_role=role, side=exit_side, reference_price=reference,
                 reference_source=f"bracket_{role}", aggregate_eligible=False,
             )
+        if raw.get("ok"):
+            # Here, in the placing callback, so no leg's first status can come before it.
+            guard.append(BracketGuard(execution_id, legs))
         return raw, watch
 
     sent, refused = await _hop(cmd, execution_id, timings, call, mode=mode, reject=reject, label="bracket")
@@ -227,18 +278,29 @@ async def bracket(
         execution_id, raw.get("nova_placed_at") or raw.get("submitted_at")
     )
     if watch is not None and wait_ack:
-        await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
+        await _ack_or_refusal(watch, guard[0] if guard else None)
         timings.broker_ack_ns = watch.ack_ns
-    store.update_stages(
-        execution_id,
-        status="acked" if timings.broker_ack_ns else "sent",
-        order_id=parent,
-        parent_order_id=raw.get("parent_order_id"),
-        target_order_id=raw.get("target_order_id"),
+    leg_ids = dict(
+        parent_order_id=raw.get("parent_order_id"), target_order_id=raw.get("target_order_id"),
         stop_order_id=raw.get("stop_order_id"),
-        broker_ack_ns=timings.broker_ack_ns,
-        broker_status=watch.ack_status if watch else None,
     )
+    with guard[0].lock if guard else _NO_LOCK:
+        if guard and guard[0].refused is not None:
+            # The guard writes the row (failed, BRACKET_LEG_REFUSED) and takes the open legs back.
+            store.update_stages(execution_id, order_id=parent, **leg_ids)
+            return ExecutionReceipt(
+                ok=False, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
+                idempotency_key=cmd.idempotency_key, error=guard[0].error, reason_code="BRACKET_LEG_REFUSED",
+                mode=mode, symbol=symbol, order_id=parent, timings=timings, **leg_ids,
+            )
+        store.update_stages(
+            execution_id,
+            status="acked" if timings.broker_ack_ns else "sent",
+            order_id=parent,
+            broker_ack_ns=timings.broker_ack_ns,
+            broker_status=watch.ack_status if watch else None,
+            **leg_ids,
+        )
     return ExecutionReceipt(
         ok=True, execution_id=execution_id, operation=cmd.operation,
         source=cmd.source, idempotency_key=cmd.idempotency_key,
@@ -269,9 +331,10 @@ async def place(
     if refusal is not None:
         return reject(execution_id, cmd, timings, refusal, "QTY_CAP_LIVE")
     timings.broker_sent_ns = time.perf_counter_ns()
+    ref = order_ref.mint(execution_id)  # on the ledger before the order leaves
     store.update_stages(
         execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns,
-        mode=mode, symbol=symbol,
+        mode=mode, symbol=symbol, order_ref=ref,
     )
     side = (cmd.side or "BUY").upper()
 
@@ -286,6 +349,7 @@ async def place(
             outside_rth=cmd.outside_rth,
             tif=cmd.tif,
             targeted=cmd.target_venue == "live",
+            order_ref=ref,
         )
         inflight.attach_order(execution_id, raw.get("order_id"))
         watch = _watch(

@@ -13,7 +13,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Literal, Mapping
 
-from constants import IBKR_SOFT_ORDER_WARNING_CODES
+from constants import (
+    IBKR_ERROR_CANCEL_ALREADY_CLOSED,
+    IBKR_ERROR_NO_OPENING_TRADES,
+    IBKR_OCA_CLOSED_MARKERS,
+    IBKR_SOFT_ORDER_WARNING_CODES,
+)
 from constants_practice import (
     PRACTICE_OCO_CANCELLED_CODE,
     PRACTICE_ORDER_STATUS_EXPIRED,
@@ -41,10 +46,40 @@ def is_soft_warning(code: int | None) -> bool:
         return False
 
 
+def is_closure_notice(code: int | None, message: str | None) -> bool:
+    """IBKR saying the order is already closed, not refusing it (a cancel, never a reject).
+
+    10148 answers a cancel of an order that had already filled or been cancelled; 201 that names
+    the OCA group is a one-cancels-all sibling closed because another member filled.
+    """
+    try:
+        number = int(code or 0)
+    except (TypeError, ValueError):
+        return False
+    if number == IBKR_ERROR_CANCEL_ALREADY_CLOSED:
+        return True
+    text = str(message or "").lower()
+    return number == IBKR_ERROR_NO_OPENING_TRADES and any(m in text for m in IBKR_OCA_CLOSED_MARKERS)
+
+
+def closed_state(errors: Iterable[tuple[int, str]]) -> str | None:
+    """The state a 10148 names ("Filled", "Cancelled"...), the latest one; None when none was heard."""
+    state: str | None = None
+    for raw_code, raw_msg in errors:
+        try:
+            code = int(raw_code)
+        except (TypeError, ValueError):
+            continue
+        text = str(raw_msg or "")
+        if code == IBKR_ERROR_CANCEL_ALREADY_CLOSED and "state:" in text.lower():
+            state = text[text.lower().rindex("state:") + len("state:"):].strip().rstrip(".").strip() or None
+    return state
+
+
 def latest_hard_error(
     errors: Iterable[tuple[int, str]],
 ) -> tuple[int | None, str | None]:
-    """Latest hard error wins. Soft warnings never latch."""
+    """Latest hard error wins. Soft warnings and closure notices never latch."""
     hard_code: int | None = None
     hard_msg: str | None = None
     for raw_code, raw_msg in errors:
@@ -52,7 +87,7 @@ def latest_hard_error(
             code = int(raw_code)
         except (TypeError, ValueError):
             continue
-        if is_soft_warning(code):
+        if is_soft_warning(code) or is_closure_notice(code, raw_msg):
             continue
         hard_code = code
         hard_msg = str(raw_msg or "").strip() or None

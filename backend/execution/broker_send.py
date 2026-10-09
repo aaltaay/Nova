@@ -5,6 +5,7 @@ The practice venues' sends go to ``sim.execution``; Live's place, replace and br
 """
 from __future__ import annotations
 
+import logging
 import time
 
 from constants import (
@@ -22,12 +23,14 @@ from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.broker_ack import wait_broker_ack
 from execution.fill_audit import audit_place_watch
 from execution.nova_placed import persist_nova_placed_at
-from execution.place_reject_guard import confirm_terminal_reject
+from execution.place_reject_guard import cancel_came_too_late, closed_not_refused, confirm_terminal_reject
 from execution.store_facts import persist_successful_cancel
 from ibkr import client as _client
 from ibkr.cancel_verify import cancel_order_verified_on_ib
 
 __all__ = ["RejectFn", "wait_broker_ack", "send_broker", "finish_place"]
+
+logger = logging.getLogger(__name__)
 
 
 async def send_broker(
@@ -91,6 +94,19 @@ async def send_broker(
             await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
             timings.broker_ack_ns = watch.ack_ns
         inflight.release_order(cmd.order_id, "live")      # only Live sends to IBKR
+        if cancel_came_too_late(watch):
+            # 10148 "state: Filled": the order is no longer working because it filled, so its place row
+            # keeps the fill and is never marked Cancelled. The cancel's caller sees Filled.
+            logger.warning("execution: cancel of IBKR order %s came too late -- it had filled", cmd.order_id)
+            store.update_stages(
+                execution_id, status="acked", reason_code="CANCEL_TOO_LATE", broker_status="Filled",
+                broker_ack_ns=timings.broker_ack_ns,
+            )
+            return ExecutionReceipt(
+                ok=True, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
+                idempotency_key=cmd.idempotency_key, reason_code="CANCEL_TOO_LATE",
+                mode=mode, order_id=cmd.order_id, broker_status="Filled", timings=timings,
+            )
         broker_status = watch.ack_status or (
             "Cancelled" if raw.get("verified_gone") else None
         )
@@ -156,6 +172,18 @@ async def finish_place(
         is_reject, broker_status = await confirm_terminal_reject(
             watch, int(oid) if oid is not None else None,
         )
+        if is_reject and closed_not_refused(watch):
+            inflight.release_execution(execution_id)
+            store.update_stages(
+                execution_id, status="cancelled", order_id=oid, broker_ack_ns=timings.broker_ack_ns,
+                broker_status=broker_status, mode=mode,
+            )
+            audit_place_watch(watch, cmd, mode, broker_status)
+            return ExecutionReceipt(
+                ok=True, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
+                idempotency_key=cmd.idempotency_key, mode=mode, symbol=cmd.normalized_symbol(),
+                order_id=oid, broker_status=broker_status, timings=timings,
+            )
         if is_reject:
             verification = verification_gate.classify_reject(
                 watch.error_code, watch.error_message, cmd.normalized_symbol(),

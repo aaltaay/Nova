@@ -279,8 +279,8 @@ def test_filled_commission_report_is_surfaced():
         ),
         fills=[
             SimpleNamespace(
-                execution=SimpleNamespace(shares=1.0, price=150.48),
-                commissionReport=SimpleNamespace(commission=1.0),
+                execution=SimpleNamespace(execId="e1", shares=1.0, price=150.48),
+                commissionReport=SimpleNamespace(execId="e1", commission=1.0),
             ),
         ],
     )
@@ -306,12 +306,12 @@ def test_an_unreadable_commission_report_states_no_commission():
         orderStatus=SimpleNamespace(status="Filled", filled=2, remaining=0, avgFillPrice=150.5),
         fills=[
             SimpleNamespace(
-                execution=SimpleNamespace(shares=1.0, price=150.48),
-                commissionReport=SimpleNamespace(commission=1.0),
+                execution=SimpleNamespace(execId="e1", shares=1.0, price=150.48),
+                commissionReport=SimpleNamespace(execId="e1", commission=1.0),
             ),
             SimpleNamespace(
-                execution=SimpleNamespace(shares=1.0, price=150.52),
-                commissionReport=SimpleNamespace(commission="n/a"),
+                execution=SimpleNamespace(execId="e2", shares=1.0, price=150.52),
+                commissionReport=SimpleNamespace(execId="e2", commission="n/a"),
             ),
         ],
     )

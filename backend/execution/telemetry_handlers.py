@@ -1,11 +1,18 @@
-"""IB event handlers for OrderWatch (kept out of telemetry.py size budget)."""
+"""IB event handlers for OrderWatch (kept out of telemetry.py size budget).
+
+Nothing IBKR says is dropped without a word: a fill or an order error no watch claims goes to
+``execution.fill_claims`` / ``ibkr.unclaimed``, and every fill heard is remembered across reconnects
+(``ibkr.session_fills``) so a new session can tell the fills it never heard.
+"""
 from __future__ import annotations
 
 import logging
 import time
+import weakref
 from typing import Any
 
-from execution import inflight
+from execution import fill_claims, inflight
+from ibkr import session_fills
 
 logger = logging.getLogger("execution.telemetry")
 
@@ -25,8 +32,9 @@ def perm_id_or_none(order: Any) -> int | None:
     return perm if perm > 0 else None
 
 
-def make_handlers(get_watch):
-    """Bind handlers to a watch lookup (avoids circular imports)."""
+def make_handlers(get_watch, ib: Any = None):
+    """Bind handlers to a watch lookup (avoids circular imports) and the ``IB()`` they hear."""
+    session = weakref.ref(ib) if ib is not None else (lambda: None)
 
     def on_ib_error(
         reqId: int, errorCode: int, errorString: str, _contract: Any = None,
@@ -35,10 +43,13 @@ def make_handlers(get_watch):
             oid = int(reqId)
         except (TypeError, ValueError):
             return
-        w = get_watch(oid)
-        if w is None:
-            return
         try:
+            w = get_watch(oid)
+            if w is None:
+                # An order IBKR knows that no Nova watch holds: said, never dropped. A data request's
+                # error (no such order) belongs to its own handler.
+                fill_claims.unwatched_order_error(session(), oid, int(errorCode), str(errorString or ""))
+                return
             w.note_error(int(errorCode), str(errorString or ""))
         except Exception:
             logger.exception("execution.telemetry: errorEvent handler error")
@@ -61,6 +72,7 @@ def make_handlers(get_watch):
                 perm_id=perm_id_or_none(trade.order),
                 callback_perf_ns=time.perf_counter_ns(),
                 callback_wall_ns=time.time_ns(),
+                why_held=str(getattr(order_status, "whyHeld", "") or ""),
             )
             if status == "Filled":
                 w.note_filled()
@@ -70,9 +82,11 @@ def make_handlers(get_watch):
 
     def on_exec_details(trade, fill) -> None:
         try:
+            session_fills.note_heard(fill)
             oid = int(trade.order.orderId)
             w = get_watch(oid)
             if w is None:
+                fill_claims.unwatched_fill(session(), fill)
                 return
             execution = fill.execution
             order_status = trade.orderStatus

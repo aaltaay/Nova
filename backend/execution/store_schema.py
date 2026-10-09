@@ -60,7 +60,9 @@ CREATE TABLE IF NOT EXISTS executions (
     perm_id INTEGER,
     filled_qty REAL,
     avg_fill_price REAL,
-    commission REAL
+    commission REAL,
+    order_ref TEXT,
+    why_held TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_exec_symbol ON executions(symbol);
 CREATE INDEX IF NOT EXISTS idx_exec_created ON executions(created_ts);
@@ -72,6 +74,8 @@ _EXEC_COLUMN_MIGRATIONS = (
     ("filled_qty", "REAL"),
     ("avg_fill_price", "REAL"),
     ("commission", "REAL"),
+    ("order_ref", "TEXT"),
+    ("why_held", "TEXT"),
 )
 
 
@@ -98,4 +102,7 @@ def ensure_executions_columns(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_exec_perm_id ON executions(perm_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_exec_order_ref ON executions(order_ref)"
     )

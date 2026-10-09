@@ -35,6 +35,7 @@ from diagnostics import (
     collect_feed,
     collect_gateway,
     collect_leaderboard,
+    collect_order_events,
     collect_perf,
     collect_priority,
     collect_screen_record,
@@ -226,6 +227,12 @@ def _catalyst_feed_status() -> dict[str, Any]:
     return {**feed.get_feed().status(), "finnhub": live_finnhub.status()}
 
 
+def _unclaimed_status() -> dict[str, Any]:
+    from ibkr import unclaimed
+
+    return unclaimed.status()
+
+
 def _borrow_feed_status() -> dict[str, Any]:
     from move_reason import borrow_feed
 
@@ -331,6 +338,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
                   lambda: collect_priority.priority_rows(view=_priority_view()))
     rows += collect.integration_rows(env_file=facts["env_file"])
     rows += _safe(DIAG_GROUP_GATEWAY, "gateway", "Gateway", lambda: collect_gateway.gateway_rows(**_gateway_inputs()))
+    rows += _safe(DIAG_GROUP_GATEWAY, "ibkr_unclaimed", "IBKR events Nova did not send",
+                  lambda: collect_order_events.unclaimed_rows(status=_unclaimed_status(), now=ts))
     rows += _safe(DIAG_GROUP_MARKET_DATA, "market_data", "Market data", lambda: collect_gateway.market_data_rows(**_market_data_inputs()))
     rows += _safe(DIAG_GROUP_MARKET_DATA, "ibkr_feed_gaps", "IBKR feed gaps",
                   lambda: collect_feed.feed_rows(view=_feed_view(ts), now=ts))

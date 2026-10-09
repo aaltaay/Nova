@@ -17,8 +17,14 @@ def record_broker_facts(
     filled_qty: float | None = None,
     avg_fill_price: float | None = None,
     commission: float | None = None,
+    why_held: str | None = None,
+    commission_unknown: bool = False,
 ) -> bool:
-    """Update permId / fill size / avg without touching stage clocks."""
+    """Update permId / fill size / avg without touching stage clocks.
+
+    ``why_held`` is the last hold IBKR named for the order (``locate``, a trigger...), kept after it clears.
+    ``commission_unknown``: a fill's commission will never be reported, so the total is unknown (NULL).
+    """
     if not execution_id:
         return False
     fields: list[str] = ["updated_ts = ?"]
@@ -32,9 +38,14 @@ def record_broker_facts(
     if avg_fill_price is not None and float(avg_fill_price) != 0.0:
         fields.append("avg_fill_price = ?")
         values.append(float(avg_fill_price))
-    if commission is not None:
+    if commission_unknown:
+        fields.append("commission = NULL")
+    elif commission is not None:
         fields.append("commission = ?")
         values.append(float(commission))
+    if why_held:
+        fields.append("why_held = ?")
+        values.append(str(why_held))
     if len(fields) == 1:
         return False
     values.append(execution_id)

@@ -14,6 +14,7 @@ import threading
 import time
 from typing import Any, Callable
 
+from constants_ibkr import IBKR_WHY_HELD_LOCATE
 from execution import telemetry_persist as _persist
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,8 @@ class OrderWatch:
         self.error_message: str | None = None
         self.error_events: list[tuple[int, str]] = []
         self.commission: float | None = None
+        # A fill whose commission IBKR will never report to this session (read back after a reconnect).
+        self.commission_unknown = False
         self._fill_audit_emitted: bool = False
         self._ack_event = _Flag()
         self._fill_event = _Flag()
@@ -132,6 +135,10 @@ class OrderWatch:
         self.perm_id: int | None = None
         self.last_filled_qty: float | None = None
         self.last_avg_fill: float | None = None
+        # IBKR's whyHeld now ("locate": shares to short not found yet; a trigger or a parent), and the last
+        # one it named, which the ledger keeps after the hold clears.
+        self.why_held: str | None = None
+        self.last_why_held: str | None = None
 
     def _persist_ack(self, status: str, *, allow_upgrade: bool = False) -> None:
         if not self.aggregate_eligible or self.ack_ns is None:
@@ -167,7 +174,9 @@ class OrderWatch:
             perm_id=self.perm_id if self.aggregate_eligible else None,
             filled_qty=self.last_filled_qty,
             avg_fill_price=self.last_avg_fill,
-            commission=self.commission,
+            commission=None if self.commission_unknown else self.commission,
+            commission_unknown=self.commission_unknown,
+            why_held=self.last_why_held,
         )
 
     def note_status(
@@ -180,10 +189,13 @@ class OrderWatch:
         perm_id: int | None = None,
         callback_wall_ns: int | None = None,
         callback_perf_ns: int | None = None,
+        why_held: str | None = None,
     ) -> None:
         callback_perf = callback_perf_ns or time.perf_counter_ns()
         callback_wall = callback_wall_ns or time.time_ns()
         self._remember_facts(perm_id=perm_id)
+        if why_held is not None and (why_held.strip() or None) != self.why_held:
+            self._note_why_held(why_held.strip() or None)
         self.latest_status = status
         if status:
             self._status_history.append(status)
@@ -235,6 +247,17 @@ class OrderWatch:
             self.filled_ns = callback_perf
             self._fill_event.set()
         self._fire_status_listeners(status)
+
+    def _note_why_held(self, why_held: str | None) -> None:
+        """A locate hold is told apart from a trigger or parent hold, in the log and on the ledger row."""
+        self.why_held = why_held
+        if why_held is None:
+            logger.info("execution.telemetry: IBKR no longer holds order %s", self.order_id)
+            return
+        self.last_why_held = why_held
+        log = logger.warning if why_held == IBKR_WHY_HELD_LOCATE else logger.info
+        log("execution.telemetry: IBKR holds order %s (whyHeld=%s)", self.order_id, why_held)
+        self._persist_facts()
 
     def note_execution(
         self,

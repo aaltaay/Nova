@@ -21,6 +21,13 @@ listener so that the moment completed orders do load — a re-probe minutes
 later, or the post-READY warm on a reconnect — it runs again and those rows
 resolve, instead of sitting non-terminal until the next API restart.
 
+A Live row's reference (``order_ref``) finds its order when the row has no
+order id, and vetoes an order id IBKR gave to another order (``execution.
+sweep_ref``). A reconnect inside this process runs the sweep over this
+process's own Live rows too (``include_current_boot``,
+``execution.reconnect_reconcile``): those close only on the broker's evidence
+and are never abandoned, since their sends may still be settling.
+
 Timings are not back-filled: `perf_counter_ns` stamps from a dead process
 cannot be compared with this one (ADR 007 decision 7).
 """
@@ -29,7 +36,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from execution import store
+from execution import inflight, store, sweep_ref
 from execution.order_outcome import ledger_close
 from ibkr import client as _client
 from ibkr import completed_orders_state
@@ -43,6 +50,7 @@ _NEVER_SENT = "SWEEP_NEVER_SENT"
 _SIM_PROCESS_ENDED = "SWEEP_SIM_PROCESS_ENDED"
 _resweep_armed = False
 _resweep_running = False
+_resweep_current_boot = False
 
 
 def _row_venue(row: dict) -> str | None:
@@ -69,8 +77,8 @@ def _order_id(row: dict) -> int | None:
         return None
 
 
-def _read_broker_orders(mode: str) -> tuple[set[int], dict[int, dict]] | None:
-    """Working ids + terminal rows by order id, or None when unreadable."""
+def _read_broker_orders(mode: str) -> tuple[set[int], dict[int, dict], list[dict]] | None:
+    """Working ids + terminal rows by order id + every row, or None when unreadable."""
     from ibkr import orders as _orders
 
     try:
@@ -95,7 +103,7 @@ def _read_broker_orders(mode: str) -> tuple[set[int], dict[int, dict]] | None:
     except Exception:
         logger.exception("execution sweep: %s broker order read failed", mode)
         return None
-    return working, terminal
+    return working, terminal, list(open_rows) + list(closed_rows)
 
 
 def _row_qty(row: dict) -> float:
@@ -105,6 +113,17 @@ def _row_qty(row: dict) -> float:
         return abs(float(payload.get("qty") or 0))
     except (TypeError, ValueError):
         return 0.0
+
+
+def _session_fills() -> list | None:
+    """The executions IBKR's session holds (they carry ``orderRef``); None when unreadable, never "none"."""
+    ib = _client.get_ib()
+    fills_fn = getattr(ib, "fills", None) if ib is not None else None
+    try:
+        return list(fills_fn() or []) if callable(fills_fn) else []
+    except Exception:
+        logger.warning("execution sweep: ib.fills() read failed -- no reference match by executions", exc_info=True)
+        return None
 
 
 def _executed_shares_by_order() -> dict[int, float] | None:
@@ -166,9 +185,16 @@ def _swept(terminal: dict) -> dict:
     }
 
 
-def run_startup_sweep() -> dict:
-    """Reconcile abandoned ledger rows. Returns a summary for logs / tests."""
-    rows = store.non_terminal_rows()
+def run_startup_sweep(*, include_current_boot: bool = False) -> dict:
+    """Reconcile abandoned ledger rows. Returns a summary for logs / tests.
+
+    ``include_current_boot`` (a reconnect): this process's Live rows too, on evidence only.
+    """
+    rows = store.non_terminal_rows(exclude_current_boot=not include_current_boot)
+    if include_current_boot:
+        # This process's practice rows are its own brokers' to close, never the sweep's.
+        boot = store.current_boot_id()
+        rows = [r for r in rows if r.get("boot_id") != boot or _row_venue(r) == "ibkr"]
     summary: dict = {
         "scanned": len(rows),
         "broker_checked": False,
@@ -213,7 +239,8 @@ def run_startup_sweep() -> dict:
             summary["ibkr_checked"] = True
         history_loaded = mode == "paper" or completed_orders_state.loaded_for(_client.get_ib())
         executed_shares = {} if mode == "paper" else _executed_shares_by_order()
-        _reconcile_rows(venue_rows, broker, history_loaded, executed_shares, summary)
+        fills = [] if mode == "paper" else _session_fills()
+        _reconcile_rows(venue_rows, broker, history_loaded, executed_shares, summary, fills)
 
     log = logger.error if summary["abandoned"] else logger.warning
     log(
@@ -225,20 +252,31 @@ def run_startup_sweep() -> dict:
 
 
 def _reconcile_rows(
-    rows: list[dict], broker: tuple[set[int], dict[int, dict]],
+    rows: list[dict], broker: tuple[set[int], dict[int, dict], list[dict]],
     history_loaded: bool, executed_shares: dict[int, float] | None, summary: dict,
+    fills: list | None = None,
 ) -> None:
     """Resolve one venue's rows using evidence exclusively from that venue."""
-    working_ids, terminal_by_id = broker
+    working_ids, terminal_by_id, all_rows = broker
+    boot = store.current_boot_id()
     for row in rows:
         execution_id = str(row["id"])
-        order_id = _order_id(row)
+        current = row.get("boot_id") == boot
+        if current and _order_id(row) is None and row.get("reason_code") != "SEND_UNKNOWN":
+            continue  # this process's send on its way: its own path writes the order id
+        verdict, order_id = sweep_ref.decide(row, _order_id(row), all_rows, fills or [])
+        unknown_stays = current or not history_loaded or _order_id(row) or fills is None
+        if verdict == "ambiguous" or (verdict == "unknown" and unknown_stays):
+            # An id IBKR gave another order reached IBKR all the same: unknown, never "never sent".
+            summary["unverified"].append(execution_id)
+            continue
         if order_id is None:
             store.update_stages(
                 execution_id,
                 status="abandoned",
                 reason_code=_NEVER_SENT,
-                error="startup sweep: no broker order id — never reached its broker",
+                error=("startup sweep: IBKR has no order under its reference — never reached IBKR"
+                       if row.get("order_ref") else "startup sweep: no broker order id — never reached its broker"),
             )
             summary["abandoned"].append(execution_id)
             continue
@@ -248,6 +286,7 @@ def _reconcile_rows(
         terminal = terminal_by_id.get(order_id)
         if terminal is not None:
             store.update_stages(execution_id, **_swept(terminal))
+            inflight.release_execution(execution_id)
             summary["resolved"].append(execution_id)
             continue
         executed = (executed_shares or {}).get(order_id, 0.0)
@@ -262,13 +301,14 @@ def _reconcile_rows(
                 status="filled",
                 broker_status="Filled",
             )
+            inflight.release_execution(execution_id)
             summary["resolved"].append(execution_id)
             summary["resolved_by_executions"].append(execution_id)
             continue
-        if not history_loaded or executed > 0.0 or executed_shares is None:
+        if current or not history_loaded or executed > 0.0 or executed_shares is None:
             # No history, a partial execution with no terminal record, or no
             # executions to check: something may have happened at the broker,
-            # so this is unknown, not abandoned.
+            # so this is unknown, not abandoned. Nor is this process's own row.
             summary["unverified"].append(execution_id)
             continue
         store.update_stages(
@@ -283,12 +323,13 @@ def _reconcile_rows(
         summary["abandoned"].append(execution_id)
 
     if summary["unverified"] and not history_loaded:
-        _arm_history_resweep()
+        _arm_history_resweep(current_boot=any(r.get("boot_id") == boot for r in rows))
 
 
-def _arm_history_resweep() -> None:
-    """Re-run the sweep the next time completed orders load (D-077)."""
-    global _resweep_armed
+def _arm_history_resweep(*, current_boot: bool = False) -> None:
+    """Re-run the sweep the next time completed orders load (D-077), over the same rows."""
+    global _resweep_armed, _resweep_current_boot
+    _resweep_current_boot = _resweep_current_boot or current_boot
     if _resweep_armed:
         return
     completed_orders_state.add_load_listener(_on_history_loaded)
@@ -326,12 +367,14 @@ def _run_history_resweep() -> None:
             "execution sweep: completed orders answered — re-running the "
             "startup sweep for rows left unverified"
         )
-        summary = run_startup_sweep()
+        global _resweep_current_boot
+        current_boot, _resweep_current_boot = _resweep_current_boot, False
+        summary = run_startup_sweep(include_current_boot=True) if current_boot else run_startup_sweep()
         if summary["ibkr_scanned"] and not summary["ibkr_checked"]:
             # The socket dropped between the answer and this run. Stay armed,
             # or the rows would sit unverified until the next API restart --
             # the exact thing D-077 exists to prevent.
-            _arm_history_resweep()
+            _arm_history_resweep(current_boot=current_boot)
     except Exception:
         logger.exception("execution sweep: completed-orders re-run failed")
     finally:
@@ -339,7 +382,8 @@ def _run_history_resweep() -> None:
 
 
 def reset_for_testing() -> None:
-    global _resweep_armed, _resweep_running
+    global _resweep_armed, _resweep_running, _resweep_current_boot
     completed_orders_state.remove_load_listener(_on_history_loaded)
     _resweep_armed = False
     _resweep_running = False
+    _resweep_current_boot = False

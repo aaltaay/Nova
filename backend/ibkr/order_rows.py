@@ -22,6 +22,24 @@ def _nonzero_price(value) -> float | None:
     return price
 
 
+def _reported_commission(fill, execution) -> float | None:
+    """The commission IBKR reported for this fill; None while its report has not arrived.
+
+    ib_async gives every fill an empty ``CommissionReport`` (``execId`` "", commission 0.0) and fills
+    it in when IBKR's report for that execution arrives -- late, or never for a fill read back after a
+    reconnect. Read before then, the 0.0 is not a commission, so it is never booked as one.
+    """
+    report = getattr(fill, "commissionReport", None)
+    report_id = str(getattr(report, "execId", "") or "")
+    exec_id = str(getattr(execution, "execId", "") or "")
+    if report is None or not report_id or (exec_id and report_id != exec_id):
+        return None
+    try:
+        return float(getattr(report, "commission", None))
+    except (TypeError, ValueError):
+        return None
+
+
 def trade_to_order_row(trade) -> dict:
     """Map one cached Trade; recording evidence adds no broker request."""
     from execution.order_outcome import honest_broker_fill_qty
@@ -38,7 +56,7 @@ def trade_to_order_row(trade) -> dict:
     notional = 0.0
     commission_total = 0.0
     has_commission = False
-    commission_unreadable = False
+    commission_unknown = False
     for fill in fills:
         note_reconciliation_fill(
             fill,
@@ -59,14 +77,13 @@ def trade_to_order_row(trade) -> dict:
         if shares > 0 and price > 0:
             filled_qty += shares
             notional += shares * price
-        report = getattr(fill, "commissionReport", None)
-        if report is not None:
-            try:
-                commission_total += float(getattr(report, "commission", 0) or 0)
-                has_commission = True
-            except (TypeError, ValueError):
-                # A total missing one fill's commission is a guess: state none.
-                commission_unreadable = True
+        commission = _reported_commission(fill, execution)
+        if commission is None:
+            # A total missing one fill's commission is a guess: state none.
+            commission_unknown = True
+        else:
+            commission_total += commission
+            has_commission = True
     if filled_qty > 0:
         avg_fill = notional / filled_qty
     elif fills:
@@ -165,5 +182,9 @@ def trade_to_order_row(trade) -> dict:
         "updated_at": updated_at,
         "filled_at": filled_at,
         "held_until": held_until_iso_from_trade(trade),
-        "commission": commission_total if has_commission and not commission_unreadable else None,
+        "commission": commission_total if has_commission and not commission_unknown else None,
+        # Nova's reference (``nova-...``) on the orders it sent; a replace sends it again (orderRef).
+        "order_ref": str(getattr(trade.order, "orderRef", "") or "").strip() or None,
+        # IBKR's reason it holds the order now: ``locate`` (shares to short), a trigger or a parent.
+        "why_held": str(getattr(status, "whyHeld", "") or "").strip() or None,
     }

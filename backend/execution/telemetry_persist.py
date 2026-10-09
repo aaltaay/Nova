@@ -43,6 +43,8 @@ def submit_facts(
     filled_qty: float | None,
     avg_fill_price: float | None,
     commission: float | None = None,
+    why_held: str | None = None,
+    commission_unknown: bool = False,
 ) -> None:
     def _write() -> None:
         from execution.store_facts import record_broker_facts
@@ -53,6 +55,8 @@ def submit_facts(
             filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
             commission=commission,
+            why_held=why_held,
+            commission_unknown=commission_unknown,
         )
         try:
             from journal.flatten_close import on_flatten_fill_recorded
