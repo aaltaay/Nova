@@ -173,6 +173,35 @@ class BorrowFeed:
             "max_fee_today": max(fees) if fees else None, "min_available_today": min(avail) if avail else None,
         }
 
+    def list_read(self, symbol: str) -> dict[str, Any] | None:
+        """The symbol on IBKR's short-stock list now, for the desk's borrow terms (ibkr/borrow_terms.py).
+
+        ``{listed, fee_rate, available, capped, as_of, changed_at, was}`` -- ``changed_at`` when this value
+        began (the file it first appeared in), ``was`` the value before it ({listed, fee_rate, available,
+        since}) -- or None while no complete poll has been read (unknown, never "nothing to lend").
+        """
+        sym = (symbol or "").strip().upper()
+        with self._lock:
+            if self.last_poll is None:
+                return None
+            cur = self._last.get(sym) or {"listed": False, "fee_rate": None, "available": None, "capped": False}
+            history: list[dict[str, Any]] = []
+            if self._db is not None:
+                try:
+                    history = borrow_store.last_changes(self._db, sym, 2)
+                except Exception:  # noqa: BLE001 -- when it changed is unknown; the value still answers
+                    logger.warning("borrow feed: change history unread for %s", sym, exc_info=True)
+            as_of = self.last_file_ts or self.last_poll
+        changed_at = history[0]["ts"] if history else None
+        prev = history[1] if len(history) > 1 else None
+        return {
+            "listed": bool(cur.get("listed")), "fee_rate": cur.get("fee_rate"), "available": cur.get("available"),
+            "capped": bool(cur.get("capped")), "as_of": as_of, "polled_at": self.last_poll,
+            "changed_at": changed_at,
+            "was": ({"listed": bool(prev.get("listed")), "fee_rate": prev.get("fee_rate"),
+                     "available": prev.get("available"), "since": prev.get("ts")} if prev else None),
+        }
+
     def status(self) -> dict[str, Any]:
         with self._lock:
             return {"enabled": enabled(), "running": self.started is not None, "since": self.since,

@@ -67,6 +67,16 @@ IBKR_SHORTABILITY_REFRESH_SEC = 20.0
 IBKR_SHORTABILITY_REFRESH_WORKERS = 2
 # Shares thresholds for shortability states (IBKR tick 236 estimate).
 IBKR_SHORTABLE_EST_MIN_SHARES = 10_000.0
+# Borrow terms on the desk (ibkr/borrow_terms.py): IBKR's tick-46 shortable level -- over 2.5 easy to
+# borrow, 1.5-2.5 a locate is needed, 1.5 or under nothing to lend (NSS).
+IBKR_SHORTABLE_LEVEL_EASY = 2.5
+IBKR_SHORTABLE_LEVEL_LOCATE = 1.5
+# A borrow fee over this (annual percent, IBKR's short-stock list) reads HTB; at or under it, ETB.
+IBKR_BORROW_HTB_FEE_PCT = 10.0
+# IBKR's short-stock list (refreshed about every 15 min) is read for a stock only while its last complete
+# poll is younger than this; past IBKR_BORROW_LIST_OLD_SEC the desk says how old it is.
+IBKR_BORROW_LIST_MAX_AGE_SEC = 3600.0
+IBKR_BORROW_LIST_OLD_SEC = 1800.0
 IBKR_PAPER_PORT = 4002       # IB Gateway paper trading port
 IBKR_LIVE_PORT = 4001        # IB Gateway live trading port
 # Default 17 (not 1): clientId 1 is commonly held by zombie uvicorn/--reload

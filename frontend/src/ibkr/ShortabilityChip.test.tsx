@@ -64,4 +64,28 @@ describe('ShortabilityChip', () => {
     expect(chip.getAttribute('data-state')).toBe('htb_likely');
     expect(chip.textContent).toMatch(/HTB/);
   });
+
+  it("shows the trader's word and both IBKR sources on hover", () => {
+    render(
+      <ShortabilityChip
+        ibkr={{
+          source: 'ibkr', state: 'unknown', shortable_shares: null, stale: false, age_sec: 12,
+          borrow: {
+            schema_version: 1, term: 'NSS', chip: 'NSS', tone: 'bad', source: 'list',
+            text: "NSS: IBKR's short-stock list dropped BIYA at 04:28 ET; was 10K @ 181%.",
+            shares: null, level: null, fee_rate: null, list_age_sec: 300, list_note: null,
+            list: { listed: false, fee_rate: null, available: null, as_of: 1791386086, changed_at: 1791398880,
+              was: { listed: true, fee_rate: 181.0464, available: 10000, since: 1791397080 } },
+          },
+        }}
+      />,
+    );
+    const chip = screen.getByTestId('shortability-chip');
+    expect(chip.textContent).toBe('NSS');
+    expect(chip.getAttribute('data-term')).toBe('NSS');
+    expect(chip.className).toContain('sv-shortability-chip--nss');
+    const tip = chip.getAttribute('data-tip') ?? '';
+    expect(tip).toContain('Live (IBKR, 12 s ago): no share count');
+    expect(tip).toMatch(/short-stock list \(as of \d\d:\d\d ET\): not listed since \d\d:\d\d ET -- was 10,000 @ 181%\/yr/);
+  });
 });

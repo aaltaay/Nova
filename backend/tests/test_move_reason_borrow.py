@@ -122,3 +122,14 @@ def test_an_unknown_store_version_refuses(tmp_path):
     raw.close()
     with pytest.raises(RuntimeError, match="refusing to open"):
         borrow_store.connect(path)
+
+
+def test_the_list_read_says_when_a_stock_left_the_list_and_what_it_was(feed):
+    """BIYA (2026-10-07): IBKR's list dropped it at 04:28; the desk names the drop for its NSS."""
+    assert feed.list_read("MSS") is None                      # no poll yet: unknown, not "nothing to lend"
+    assert poll(feed, at(3, 50), [("MSS", "USD", "-170", "181.0464", "10000")])
+    assert poll(feed, at(4, 28), [("TLSA", "USD", "2.6", "1.3", "1500000")])
+    r = feed.list_read("mss")
+    assert (r["listed"], r["changed_at"], r["polled_at"]) == (False, at(4, 28), at(4, 28))
+    assert r["was"] == {"listed": True, "fee_rate": 181.0464, "available": 10000, "since": at(3, 50)}
+    assert feed.list_read("TLSA")["was"] is None
