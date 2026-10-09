@@ -2,6 +2,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { clearBarsStoreForTests, ensureBars, getBarsEntry, invalidateBars, setBars, upsertTapePrint10SecBar } from './barsStore';
 
 vi.mock('../ibkr/ibkrStatusPoller', () => ({ getIbkrStatusSnapshot: () => ({ mode: 'sim' }) }));
+// A replay desk: Sim, its clock off the live edge (`simChartReplays`).
+vi.mock('../sim', () => ({ simClockResource: { getSnapshot: () => ({ data: { live_edge: false } }), subscribe: () => () => {} } }));
 const future = { t: '2026-09-18T19:00:00Z', o: 10, h: 99, l: 1, c: 50, v: 900 };
 const coverage = { asOf: null, completeThrough: null, filling: false, replay: true };
 const response = (bars: typeof future[]) => ({ ok: true, json: async () => ({ bars, coverage: { replay: true, replay_mode: 'completed_bars' } }) });
