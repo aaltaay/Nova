@@ -35,13 +35,13 @@ export interface TapePrint {
  * kept updating: the line may be down) or quiet (the book is quiet too). Any print clears it.
  */
 export interface TapeSilence {
-  state: 'halted' | 'silent' | 'quiet';
+  state: 'halted' | 'dead' | 'silent' | 'quiet';
   /** Epoch seconds the silence counts from: the last print, the line's opening or the reopening. */
   since: number;
   text: string;
 }
 
-const SILENCE_STATES = new Set(['halted', 'silent', 'quiet']);
+const SILENCE_STATES = new Set(['halted', 'dead', 'silent', 'quiet']);
 
 /** A ping's `silence`, or null for anything else (no reading, an older backend, a broken frame). */
 export function parseTapeSilence(raw: unknown): TapeSilence | null {

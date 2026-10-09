@@ -20,8 +20,8 @@ Prints waiting together go as one ``{"type": "prints", "items": [...], "sent"}``
 print stays a ``print`` frame), so a backlog after a stall reaches the pane at once (ADR 045).
 
 Each idle ``ping`` (no print for TAPE_STREAM_HEARTBEAT_SEC) on a live line carries ``silence``:
-``ibkr.tape_silence``'s reading, or ``null`` (#722). The pane says HALTED, SILENT or QUIET with
-its words instead of reading LIVE over a tape that stopped.
+``ibkr.tape_silence``'s reading, or ``null`` (#722). The pane says LINE DOWN, HALTED, SILENT or QUIET
+with its words instead of reading LIVE over a tape that stopped.
 """
 from __future__ import annotations
 

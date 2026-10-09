@@ -31,6 +31,14 @@ IBKR_LAST_TICK_TYPES: frozenset[int] = frozenset({4, 68})
 # Saying so is cheap, so it is far shorter than the recorder's own re-ask (CAPTURE_TAPE_STALE_SEC).
 TAPE_SILENT_SEC = 30.0
 TAPE_SILENT_BOOK_FRESH_SEC = 10.0
+# Dead, not quiet: the symbol's Level 1 line reported a trade (IBKR's Last Timestamp, tick 45,
+# or RTVolume's trade time, 233) at least this long after the line's last print by IBKR's own
+# second (#722). On 2026-10-05 SAIQ's Level 1 counted 2.5M shares in the 332 s its tape printed
+# nothing, VEEA's 1.05M in 574 s. Both clocks are IBKR's, in whole seconds, so a few is enough.
+TAPE_DEAD_L1_LEAD_SEC = 3.0
+# Lines whose last prints arrived this close together and that are all still silent went
+# silent together: one pipeline event (SAIQ and VEEA stopped at the same 09:35:42.388 arrival).
+TAPE_PIPELINE_SAME_SEC = 1.0
 
 # A tape-built 10-second candle is keyed by IBKR's own second (``exchange_ts``) and closes
 # this long after its ten seconds on the desk's clock, so a print that arrives late still

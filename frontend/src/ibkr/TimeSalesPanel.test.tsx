@@ -306,6 +306,18 @@ describe('TimeSalesPanel -- a line that stopped printing says so (#722)', () => 
     expect(status().textContent).toBe('SILENT 362s');
   });
 
+  it('reads LINE DOWN in red when Level 1 counted trades the tape never printed', () => {
+    const deadText = 'No prints since 09:35:42 ET while Level 1 shows trades up to 09:41:40 ET: '
+      + "IBKR's tape line is down, not quiet. VEEA stopped printing in the same second: one IBKR "
+      + 'tick-by-tick event, not this line alone.';
+    tapeMock.silence = { state: 'dead', since: SINCE, text: deadText };
+    render();
+    expect(status().textContent).toBe('LINE DOWN 360s');
+    expect(status().className).toContain('ts-panel__status--bad');
+    expect(status().getAttribute('title')).toBe(deadText);
+    expect(notice()?.textContent?.trim()).toBe("No prints since 09:35:42 while Level 1 trades: IBKR's tape line is down");
+  });
+
   it('says HALTED for a halt, never that the line may be down', () => {
     tapeMock.silence = { state: 'halted', since: SINCE, text: 'Halted: no prints until it reopens. No prints since 09:35:42 ET.' };
     render();

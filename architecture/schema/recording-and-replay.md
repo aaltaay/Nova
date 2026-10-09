@@ -89,7 +89,7 @@ migrated; unknown versions refuse loudly. Capture load diagnostics include
 `invalid_timestamp_rows`, `invalid_rows`, and `legacy_schema`. Recorder
 `fidelity` includes `l2_offered`, `l2_coalesced` (every book IBKR sent that the recording did not keep, at the IBKR bridge or by event time; ADR 033), `invalid_timestamp_rows`,
 `timestamp_regressions`, `last_stream_ts`, `tape_resubscribes` and
-`tape_losses: [{at, cause: "ib_error" | "stale", detail}]` (the recording's
+`tape_losses: [{at, cause: "ib_error" | "stale" | "pipeline", detail}]` (the recording's
 tape line lost while it ran, newest last, at most `CAPTURE_TAPE_LOSS_KEEP`;
 both carried across segments of the day, #525). The manifest's `fidelity` is
 written when a segment starts, at once on every tape loss or re-ask, and every
@@ -132,11 +132,18 @@ without a contract; a non-warning error on a live line's own request id ends
 that line (cancelled, so the next request is a real one -- ib_async hands back
 a line it still has registered), and every end is logged at WARNING. The
 recording's producer (`/api/capture` `sessions[SYM].producer`, which also
-carries `line_since`, when its line opened) then reads `disconnected` with
+carries `line_since`, when its line opened, and `last_print_exchange_ts`, the last print's
+IBKR second) then reads `disconnected` with
 `ended: {at, cause, code, message, req_id}`. `capture/tape_watch.py` also calls a line dead when no print
-came for `CAPTURE_TAPE_STALE_SEC` while the book updated within
-`CAPTURE_TAPE_BOOK_FRESH_SEC` (a quiet name looks the same; asking again is
-harmless). Either way the keepalive asks for the tape only -- the depth line is
+came for `CAPTURE_TAPE_STALE_SEC` and the symbol's Level 1 line reported a trade after the last
+print (#722, `ibkr/tape_silence.py`); when that Level 1 line is updating and reports no trade
+since, the name is quiet and nothing is asked for. Without a Level 1 trade clock it falls back to
+the book: dead when the book updated within `CAPTURE_TAPE_BOOK_FRESH_SEC` (a quiet name looks the
+same; asking again is harmless). A line that went silent in the same second as other live tape
+lines is one event (`cause: "pipeline"`): it is said, but held -- not dropped, not asked for --
+until one of those lines prints again or closes, or for `CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC`, and
+then judged like any other (on 2026-10-05 asks inside the event brought nothing back). Either way
+the keepalive asks for the tape only -- the depth line is
 left alone -- once IB's 15 s same-instrument rule allows
 (`CAPTURE_TAPE_RENEW_DELAY_SEC`), backing off by `CAPTURE_TAPE_RESUBSCRIBE_MIN_SEC`
 over a streak of outages (a quiet name that prints now and then), and says so:
