@@ -110,7 +110,7 @@ async def _match(broker: Any, *, now: float | None) -> list[dict[str, Any]]:
         if prints:
             filled.extend(broker.try_fill_working(sym, prints))
     for row in broker.expire_due(now_ts):
-        logger.info("PRACTICE %s: DAY order %s expired at the session close", broker.venue, row.get("order_id"))
+        logger.info("PRACTICE %s: order %s expired -- %s", broker.venue, row.get("order_id"), row.get("error"))
     return filled
 
 

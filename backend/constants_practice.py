@@ -180,6 +180,21 @@ PRACTICE_TIF_EXPIRED_REASON = "DAY order expired at the session close"
 # one word reaches the blotter whichever gate caught it (execution/validate.py).
 PRACTICE_TIF_INVALID_CODE = "TIF_INVALID"
 
+# An order's own expiry (#816, ADR 052 amendment). ``ExecutionCommand.good_for_sec`` gives a
+# place, or a bracket's entry, an expiry of its own: the earlier of its TIF's close and its
+# placement plus those seconds, by the venue's clock (the playhead on Sim). It expires there as a
+# DAY order does at the close, and a bracket's exits keep the TIF's close. Nova's bot sends it on a
+# Sim replay's entry so a jump of the playhead never fills it past the sleeve's working TTL.
+PRACTICE_GOOD_FOR_EXPIRED_CODE = "PRACTICE_GOOD_FOR_EXPIRED"
+PRACTICE_GOOD_FOR_EXPIRED_REASON = "Expired unfilled: its {seconds:g} s ran out"
+PRACTICE_PARENT_GOOD_FOR_EXPIRED_REASON = "Bracket exit cancelled: its entry expired unfilled"
+# Refused with the execution door's own codes, whichever gate caught it (execution/validate.py).
+PRACTICE_GOOD_FOR_INVALID_CODE = "GOOD_FOR_INVALID"
+PRACTICE_GOOD_FOR_INVALID_REASON = "good_for_sec must be a number of seconds above zero"
+# Live has no such order: IBKR's GTD would need its own ADR, and Nova's bot never trades Live.
+GOOD_FOR_LIVE_CODE = "GOOD_FOR_LIVE"
+GOOD_FOR_LIVE_REASON = "good_for_sec is a Paper / Sim order's own expiry -- Live orders do not carry it"
+
 # ---------------------------------------------------------------------------
 # No shorts (operator decision, 2026-09-21)
 # ---------------------------------------------------------------------------

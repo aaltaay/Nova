@@ -398,6 +398,83 @@ describe('the notice on the desk', () => {
   });
 });
 
+describe('Help > Check for Updates beside a release in hand (operator ask, 2026-10-09)', () => {
+  async function clickHelp(label: string) {
+    const row = h.menu.find((r) => r.role === 'help')?.submenu?.find((r) => r.label === label);
+    expect(row?.click, `Help > ${label}`).toBeTypeOf('function');
+    row?.click?.();
+    await vi.advanceTimersByTimeAsync(0);
+  }
+
+  it('stays in the menu beside Update, asks GitHub, and offers what shipped since', async () => {
+    h.versions.push('0.1.1188', '0.1.1190');
+    await start();
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    await answer('later');
+    expect(helpLabels().slice(0, 2)).toEqual(['Update to v1188…', 'Check for Updates…']);
+    await clickHelp('Check for Updates…');
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(lastView().notice).toMatchObject({ stage: 'available', tag: 'v1190' });
+    expect(helpLabels()[0]).toBe('Update to v1190…');
+    expect(h.updater?.downloadUpdate).not.toHaveBeenCalled();
+  });
+
+  it('stays beside Restart to Update: the same release asks for the restart again, a newer one replaces it', async () => {
+    h.versions.push('0.1.832', '0.1.832', '0.1.833');
+    await start();
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    await answer('download');
+    await answer('later');
+    expect(lastView().notice).toBeNull();
+    expect(helpLabels().slice(0, 2)).toEqual(['Restart to Update (v832)', 'Check for Updates…']);
+    await clickHelp('Check for Updates…');
+    expect(lastView().notice).toMatchObject({ stage: 'ready', tag: 'v832' });
+    expect(h.boxes).toEqual([]);
+    await clickHelp('Check for Updates…');
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(3);
+    expect(lastView().notice).toMatchObject({ stage: 'available', tag: 'v833' });
+    expect(helpLabels()[0]).toBe('Update to v833…');
+    expect(h.installs).toEqual([]);
+  });
+
+  it('says a failed check failed, and keeps the release on offer', async () => {
+    h.checkErrors.push(null, 'net::ERR_INTERNET_DISCONNECTED');
+    await start();
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    await clickHelp('Check for Updates…');
+    expect(h.boxes.at(-1)).toMatchObject({ message: 'Nova could not check for updates.' });
+    expect(h.boxes.at(-1)?.detail).toContain('Help > Update to v832 downloads it');
+    expect(helpLabels().slice(0, 3)).toEqual([
+      'Update to v832…',
+      'Check for Updates…',
+      'Last check failed: net::ERR_INTERNET_DISCONNECTED',
+    ]);
+    expect(lastView().notice).toMatchObject({ stage: 'available', tag: 'v832', error: '' });
+  });
+
+  it('runs one check at a time, and a click during a re-check makes its find the answer', async () => {
+    const MINUTE = 60_000;
+    vi.setSystemTime(new Date('2026-09-23T08:30:00Z')); // Wednesday 04:30 ET
+    h.versions.push('0.1.832', '0.1.833');
+    h.checkDelays.push(0, 30 * MINUTE); // the 06:40 re-check answers at 07:10, inside trading hours
+    await start();
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    await answer('later');
+    await vi.advanceTimersByTimeAsync(135 * MINUTE); // 06:45 ET: the re-check waits on GitHub
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
+    await clickHelp('Check for Updates…');
+    await clickHelp('Check for Updates…');
+    await vi.advanceTimersByTimeAsync(30 * MINUTE); // 07:15 ET
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
+    // A re-check's find would wait for 16:00; the operator asked, so it shows now.
+    expect(lastView().notice).toMatchObject({ stage: 'available', tag: 'v833' });
+  });
+});
+
 describe('re-checks while the desk stays open', () => {
   const MINUTE = 60_000;
 

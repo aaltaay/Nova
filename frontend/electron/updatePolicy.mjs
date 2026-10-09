@@ -93,7 +93,9 @@ export function errorText(err) {
  * operator picks Update. `failedStage` says which step a `failed` phase failed
  * in: `check` (asking GitHub for the latest release) or `download` (fetching the
  * installer, whose part is kept for Resume). `retry` is the chunk retry in
- * progress while downloading, 0 when none.
+ * progress while downloading, 0 when none. `checkError` is what a check said
+ * when it failed beside a release in hand (`available` or `ready`): that
+ * release stands, and the Help menu says the check failed.
  *
  * The notice: `offeredVersion` is the version the desk has told the operator
  * about this session, `dismissedVersion` the one they answered Later for (not
@@ -108,6 +110,7 @@ export const INITIAL_UPDATE_STATE = Object.freeze({
   error: '',
   failedStage: '',
   retry: 0,
+  checkError: '',
   offeredVersion: '',
   dismissedVersion: '',
   consentVersion: '',
@@ -123,19 +126,24 @@ function stoppedDownload(state) {
   return state.phase === 'failed' && state.failedStage === 'download';
 }
 
+function withoutCheckError(state) {
+  return state.checkError ? { ...state, checkError: '' } : state;
+}
+
 export function reduceUpdateState(state, event) {
   const ready = state.phase === 'ready';
   // An installer on disk, or a release on offer, survives a re-check that runs or fails.
   const held = ready || state.phase === 'available';
   switch (event?.type) {
     case 'checking':
-      return held ? state : { ...state, phase: 'checking', error: '', failedStage: '', retry: 0 };
+      return held ? state : { ...state, phase: 'checking', error: '', checkError: '', failedStage: '', retry: 0 };
     case 'available': {
-      if (ready) return state;
       const version = String(event.version || '');
+      // The downloaded installer stands unless a newer release replaces it (Help > Check for Updates).
+      if (ready && (!version || version === state.version)) return withoutCheckError(state);
       // The same version's stopped download keeps its percent for Resume.
       const percent = version === state.version ? state.percent : 0;
-      return { ...state, phase: 'available', version, percent, error: '', failedStage: '', retry: 0 };
+      return { ...state, phase: 'available', version, percent, error: '', checkError: '', failedStage: '', retry: 0 };
     }
     case 'download': {
       // The operator picked Update (or Resume). `version` is the newest release
@@ -157,7 +165,7 @@ export function reduceUpdateState(state, event) {
       };
     }
     case 'not-available':
-      return ready ? state : { ...state, phase: 'current', percent: 0, error: '' };
+      return ready ? withoutCheckError(state) : { ...state, phase: 'current', percent: 0, error: '', checkError: '' };
     case 'progress':
       return state.phase === 'downloading' ? { ...state, percent: clampPercent(event.percent), retry: 0 } : state;
     case 'retrying':
@@ -169,9 +177,11 @@ export function reduceUpdateState(state, event) {
         version: String(event.version || state.version),
         percent: 100,
         error: '',
+        checkError: '',
       };
     case 'error': {
-      if (held) return { ...state, error: errorText(event.message) };
+      // A failed check never takes away the release in hand, and is not an install failure.
+      if (held) return { ...state, checkError: errorText(event.message) };
       // A download that stopped keeps its percent: Resume continues from there.
       const download = state.phase === 'downloading';
       return {
@@ -194,7 +204,7 @@ export function reduceUpdateState(state, event) {
       return ready ? { ...state, phase: 'installing', error: '' } : state;
     case 'install-failed':
       // The downloaded installer is still cached; the operator can try again.
-      return { ...state, phase: 'ready', error: errorText(event.message) };
+      return { ...state, phase: 'ready', error: errorText(event.message), checkError: '' };
     default:
       return state;
   }
@@ -262,13 +272,12 @@ export function hasConsent(state) {
 }
 
 /**
- * Help > Check for Updates: raise the notice again for a release already found
- * ('offer') or downloaded ('prompt'), else check unless busy.
+ * Help > Check for Updates asks GitHub unless busy -- also with a release on
+ * offer or downloaded, since newer ones keep shipping (operator ask,
+ * 2026-10-09). What it finds raises the notice again, even after Later.
  */
 export function manualCheckAction(state, gate) {
   if (!gate?.updater) return 'unavailable';
-  if (state.phase === 'ready') return 'prompt';
-  if (state.phase === 'available') return 'offer';
   if (BUSY_PHASES.has(state.phase)) return 'busy';
   return 'check';
 }

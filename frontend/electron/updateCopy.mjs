@@ -11,20 +11,28 @@ export const RESTART_BUTTON = 0;
 export const UPDATE_BUTTON = 0;
 export const LATER_BUTTON = 1;
 
+const CHECK_ROW = Object.freeze({ label: 'Check for Updates…', action: 'check' });
+
 /**
  * Help-menu rows. `action` is 'check' | 'download' | 'restart' | 'whats-new' | 'file-issue';
  * rows without one are status text (disabled). The installed version is always
- * visible, with its release notes one click away.
+ * visible, with its release notes one click away. Check for Updates stays beside
+ * a release on offer or downloaded: a newer one may have shipped since.
  */
 export function updateMenuItems(state, { currentTag = '', automatic = true } = {}) {
   const tag = displayTag(state.version);
   const rows = [];
+  const checkAgain = () => {
+    rows.push({ ...CHECK_ROW });
+    if (state.checkError) rows.push({ label: `Last check failed: ${state.checkError}` });
+  };
   switch (state.phase) {
     case 'checking':
       rows.push({ label: 'Checking for updates…' });
       break;
     case 'available':
       rows.push({ label: `Update to ${tag}…`, action: 'download' });
+      checkAgain();
       break;
     case 'downloading':
       rows.push({ label: `Downloading ${tag}… ${Math.round(clampPercent(state.percent))}%` });
@@ -33,6 +41,7 @@ export function updateMenuItems(state, { currentTag = '', automatic = true } = {
     case 'ready':
       rows.push({ label: `Restart to Update (${tag})`, action: 'restart' });
       if (state.error) rows.push({ label: `Last attempt failed: ${state.error}` });
+      checkAgain();
       break;
     case 'installing':
       rows.push({ label: `Installing ${tag}…` });
@@ -47,11 +56,11 @@ export function updateMenuItems(state, { currentTag = '', automatic = true } = {
       rows.push({ label: state.error || 'unknown error' });
       break;
     case 'current':
-      rows.push({ label: 'Check for Updates…', action: 'check' });
+      rows.push({ ...CHECK_ROW });
       rows.push({ label: 'This is the latest release' });
       break;
     default:
-      rows.push({ label: 'Check for Updates…', action: 'check' });
+      rows.push({ ...CHECK_ROW });
   }
   if (currentTag) {
     rows.push({ label: `What's New in Nova ${currentTag}…`, action: 'whats-new' });
@@ -134,5 +143,18 @@ export function manualCheckResult(state, currentTag = '') {
       detail: `${state.error}\n\nNova keeps running on its current version. Try again from Help > Check for Updates.`,
     };
   }
+  const tag = displayTag(state.version);
+  const inHand = state.phase === 'ready'
+    ? `Nova ${tag} is downloaded and ready; Help > Restart to Update installs it.`
+    : `Nova ${tag} is still on offer; Help > Update to ${tag} downloads it.`;
+  if ((state.phase === 'available' || state.phase === 'ready') && state.checkError) {
+    return {
+      type: 'warning',
+      message: 'Nova could not check for updates.',
+      detail: `${state.checkError}\n\n${inHand}`,
+    };
+  }
+  // A release found by the check raises the notice instead; this is GitHub having nothing newer.
+  if (state.phase === 'ready') return { type: 'info', message: 'No newer release found.', detail: inHand };
   return null;
 }

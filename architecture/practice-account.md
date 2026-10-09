@@ -86,6 +86,15 @@ Sim feed tick (`sim/feed.py`) both expire due orders after matching prints;
 the row and its `placed` event carry `tif` and `expires_ts`. Rules:
 `practice/order_rules.py`.
 
+**An order's own expiry (#816).** A `place` or a bracket's entry sent with
+`good_for_sec` expires at its placement plus those seconds when that comes
+before its TIF's close (`expires_ts` is the earlier one; the row carries
+`good_for_sec`), the same way: an `expired` event stamped at that second,
+`reason_code: PRACTICE_GOOD_FOR_EXPIRED`. A cancel that reaches an order already
+past its own expiry records the expiry instead. Nova's bot sends it on a Sim
+replay's entry only (ADR 052 amendment); schema in
+`architecture/schema/execution.md`.
+
 **Shorts (ADR 048 step 2; until then none).** A short is never inferred: a
 SELL for more than the held quantity without `short_entry` is refused
 `PRACTICE_NO_SHORTS` ("A SELL never sells past what you hold: a short goes out

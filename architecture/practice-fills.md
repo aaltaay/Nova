@@ -172,7 +172,8 @@ the same shape:
   `parent_id` / `oca_group` / `leg_role`: the entry `null` / `null` /
   `parent`, each exit the entry's id / `oca-<entry id>` / `target` or `stop`,
   a plain order `null` all three. The exits copy the entry's quantity, TIF,
-  `expires_ts`, attribution and placement stamps.
+  TIF expiry, attribution and placement stamps -- never the entry's own
+  `good_for_sec` expiry (#816), which is the entry's alone.
 - **Admission is the entry's.** The entry passes a place's gates in the
   execution door's order: shape (`BRACKET_GEOMETRY`, `QTY_INVALID`), TIF
   (`TIF_INVALID`), the venue's admission (`SIM_*` / `PRACTICE_NO_LIVE_PRINT`),
@@ -213,6 +214,9 @@ the same shape:
 - **Expiry.** A `DAY` bracket's legs share the entry's session close. An entry
   that expires unfilled takes its waiting exits along; exits that are working
   (the entry filled) expire on their own at the same close. `GTC` never expires.
+  An entry sent with `good_for_sec` expires earlier, at its placement plus those
+  seconds, and takes its waiting exits along the same way ("its entry expired
+  unfilled"); once it has filled, its exits keep the TIF's close.
 - **Fill bases.** The entry fills like any `LMT` (`quote` / `last_print` /
   `live_quote` / `live_print` when marketable on arrival, `print_cross` when
   it rests); the target like a resting `LMT` (`print_cross`, at its limit); the

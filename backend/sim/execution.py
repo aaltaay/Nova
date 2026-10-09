@@ -160,6 +160,7 @@ async def send_practice_broker(
         tif=cmd.tif,
         short_entry=bool(cmd.short_entry),
         origin=cmd.origin,
+        good_for_sec=cmd.good_for_sec,
     )
     return await _receipt_from_raw(cmd, execution_id, timings, raw, mode)
 
@@ -194,7 +195,7 @@ async def _send_bracket(
         float(cmd.entry_price or 0), float(cmd.target_price) if cmd.target_price is not None else None,
         float(cmd.stop_price or 0),
         tif=cmd.tif, outside_rth=cmd.outside_rth, source=cmd.source, short_entry=bool(cmd.short_entry),
-        origin=cmd.origin,
+        origin=cmd.origin, good_for_sec=cmd.good_for_sec,
     )
     parent = raw.get("parent_order_id")
     if not raw.get("ok") or parent is None:

@@ -20,8 +20,9 @@ Live sends. This module holds the rules, pure over ledger rows:
   written before brackets loads unchanged.
 * **Closures are events.** One exit filling cancels the other (one-cancels-
   other, ``PRACTICE_OCO_CANCELLED``); an entry that closes unfilled -- cancelled
-  by the operator, refused by the venue at the fill, or expired -- cancels the
-  exits waiting on it (``PRACTICE_PARENT_CANCELLED``). Each is an ordinary
+  by the operator, refused by the venue at the fill, or expired (at its close, or
+  at its own good-for second, #816) -- cancels the exits waiting on it
+  (``PRACTICE_PARENT_CANCELLED``). Each is an ordinary
   ``cancelled`` event at the same moment, stamped with the venue as its source,
   so a rewind before it restores the order.
 """
@@ -33,6 +34,7 @@ from typing import Any, Iterable
 from constants_practice import (
     PRACTICE_BRACKET_GEOMETRY_CODE,
     PRACTICE_BRACKET_QTY_CODE,
+    PRACTICE_GOOD_FOR_EXPIRED_CODE,
     PRACTICE_LEG_PARENT,
     PRACTICE_LEG_STOP,
     PRACTICE_LEG_TARGET,
@@ -45,6 +47,7 @@ from constants_practice import (
     PRACTICE_PARENT_CANCELLED_CODE,
     PRACTICE_PARENT_CANCELLED_REASON,
     PRACTICE_PARENT_EXPIRED_REASON,
+    PRACTICE_PARENT_GOOD_FOR_EXPIRED_REASON,
 )
 
 # The ADR 007 source stamped on a close these rules make: the venue itself, never a caller.
@@ -167,8 +170,10 @@ def closures_after_close(rows: Iterable[dict[str, Any]], closed: dict[str, Any])
     """What an entry closing unfilled closes: the exits waiting on it."""
     if closed.get("status") == "Filled":
         return []
-    expired = closed.get("status") == PRACTICE_ORDER_STATUS_EXPIRED
-    reason = PRACTICE_PARENT_EXPIRED_REASON if expired else PRACTICE_PARENT_CANCELLED_REASON
+    reason = PRACTICE_PARENT_CANCELLED_REASON
+    if closed.get("status") == PRACTICE_ORDER_STATUS_EXPIRED:
+        ran_out = closed.get("reason_code") == PRACTICE_GOOD_FOR_EXPIRED_CODE   # its own good-for second (#816)
+        reason = PRACTICE_PARENT_GOOD_FOR_EXPIRED_REASON if ran_out else PRACTICE_PARENT_EXPIRED_REASON
     return [
         (int(row["order_id"]), reason, PRACTICE_PARENT_CANCELLED_CODE)
         for row in waiting_exits(rows, int(closed["order_id"]))

@@ -1,6 +1,6 @@
 # ADR 052 -- The bot trades a Sim replay, and the chart draws the Sim eyes
 
-**Status:** Accepted · **Date:** 2026-10-09 · **Amended:** 2026-10-09 (#815, below: Auto-entry, Approve, Nova's exit and the past setups on a replay)
+**Status:** Accepted · **Date:** 2026-10-09 · **Amended:** 2026-10-09 (#816: the bot's entry carries its own expiry -- Consequences; #815, below: Auto-entry, Approve, Nova's exit and the past setups on a replay)
 **Amends:** [[030-first-pullback-bot-on-paper]] ("not built here: the bot on a replayed Session Record") · [[029-setup-templates-eyes-journal]] (its 2026-09-24 amendment: a loaded download is re-read, no longer played back from the journal) · [[042-one-owner-for-novas-buys]] (Activate's `BOT_REPLAY_DESK` refusal; the day's count on a replay) · [[036-the-bots-read-on-one-stock]] (the read on a replay desk) · [[037-who-trades-the-stock]] (Bot on a replay)
 **Builds on:** [[019-practice-fills-on-replayed-sessions]] · [[020-three-venues-one-feed]] · [[046-sim-replays-the-massive-flat-files]]
 **Decided by:** the operator, 2026-10-09 (#814): "why bots dont work in simulator mode? we need to make them work like paper trading, just watch out of data leaks, cuz expect the user to unwind go backward in time and forward in time.. etc. i wanna see the eyes/strategy on the charts you know.." The design is the agent's, under the operator's standing grant: fake money, no Live path touched.
@@ -100,9 +100,19 @@ The Sim scratch account already filled on the replay's prints and unwound when t
 - A Massive window's tape gate reads the NBBO only; walls behind the inside and hidden sellers past the
   top of book are not seen, so a go there is weaker evidence than a recorded Level 2's. The board says
   which book it reads.
-- A jump forward over a working bot entry lets the scratch account match it on the prints the jump crossed
+- ~~A jump forward over a working bot entry lets the scratch account match it on the prints the jump crossed
   before the bot's working TTL cancels it (the matcher runs on the jump; the TTL on the next tick). At play
-  speed the TTL holds as on Paper. A per-order expiry on practice venues would close it (follow-up).
+  speed the TTL holds as on Paper. A per-order expiry on practice venues would close it (follow-up).~~
+  **Closed (amendment 2026-10-09, #816):** the bot's entry on a replay carries its own expiry --
+  `ExecutionCommand.good_for_sec` = the sleeve's `working_ttl_sec`, which the practice broker turns into
+  the row's `expires_ts` (the earlier of the TIF's close and placement plus the seconds). A jump past that
+  second never fills the entry on the prints it crossed: it ends `Expired` (`PRACTICE_GOOD_FOR_EXPIRED`)
+  at its own second and the trade `missed`, and a scrub back before it restores it working. A cancel that
+  reaches an order already past its expiry records the expiry, so the bot's own TTL cancel arriving first
+  ends the same way. Live refuses the field (`GOOD_FOR_LIVE`); IBKR's GTD would need its own ADR. Paper and
+  the live edge keep the bot's TTL cancel alone. Left as it was: when the bot's tick runs before the Sim
+  feed's match after a jump, a print inside the TTL that the match has not reached yet does not fill the
+  entry -- the same as before this amendment.
 - Auto-entry, Approve, "Nova takes the exit" and the past setups' aftermath on a replay were follow-ups; the
   amendment below builds them (#815).
 - Nothing here touches Live: the bot never trades Live, and `auto_live` remains NO-GO.

@@ -6,6 +6,7 @@ import math
 from typing import Any, get_args
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
+from constants_practice import GOOD_FOR_LIVE_CODE, GOOD_FOR_LIVE_REASON, PRACTICE_GOOD_FOR_INVALID_CODE
 from execution import flatten_intent as _flatten_intent
 from execution import inflight as _inflight  # noqa: F401 -- tests patch committed_qty through it
 from execution import position_checks as _positions
@@ -150,6 +151,16 @@ def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[b
     bad_tif = tif_error(cmd.tif)
     if bad_tif:
         return False, bad_tif, "TIF_INVALID"
+
+    # #816: a practice order's own expiry. Live has no such order (IBKR's GTD would need an ADR).
+    if cmd.good_for_sec is not None:
+        from practice.order_rules import good_for_error
+
+        bad_good_for = good_for_error(cmd.good_for_sec)
+        if bad_good_for:
+            return False, bad_good_for, PRACTICE_GOOD_FOR_INVALID_CODE
+        if not _practice(venue):
+            return False, GOOD_FOR_LIVE_REASON, GOOD_FOR_LIVE_CODE
 
     # The arm latch was checked above the operation branches, before the venue
     # is consulted: being on Paper or Sim decides *where* an allowed order is

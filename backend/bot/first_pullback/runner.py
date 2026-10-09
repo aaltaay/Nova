@@ -405,7 +405,7 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
         await _filled(trade, row or {}, now)
         return
     if state in ("dead", "gone"):
-        if trade.get("entry_cancel_ts"):
+        if trade.get("entry_cancel_ts") or orders.ran_out(row):     # the bot's cancel, or the entry's own expiry
             why = f"not filled in {trade['entry_ttl_sec']}s -- the price ran past {trade['entry_planned']}"
         elif state == "dead":
             why = "the entry was cancelled outside the bot"
