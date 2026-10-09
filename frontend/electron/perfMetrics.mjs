@@ -7,12 +7,16 @@
  * process burned line up in one report.
  *
  * `percentCPUUsage` covers the time since the previous getAppMetrics() call,
- * so each post is that interval's average. Measurement only: a failed post is
- * logged at debug level at most once a minute and never throws.
+ * so each post is that interval's average. Electron divides it by the logical
+ * CPUs, so on the 24-thread desk PC a renderer using 112% of one core read 5;
+ * the report multiplies it back and says by what (`logical_cpus`): `cpu_pct`
+ * is % of one core, as the backend's own samples are. Measurement only: a
+ * failed post is logged at debug level at most once a minute and never throws.
  *
  * Electron and the API are passed in (main.mjs) so this module stays testable
  * without an Electron runtime.
  */
+import { cpus } from 'node:os';
 import { perfWindowIdForUrl } from './perfWindowId.mjs';
 
 /** Mirrors frontend constantGroups/perf.ts PERF_ELECTRON_REPORT_MS (pinned by perfMetrics.test.ts). */
@@ -44,13 +48,28 @@ export function windowIdsByPid(windows) {
   return byPid;
 }
 
-export function buildElectronPerfReport({ metrics, windows, intervalSec, uiTag = null }) {
+/** The machine's logical CPUs (Electron's divisor); null when it cannot be read. */
+export function logicalCpuCount(read = cpus) {
+  try {
+    const n = read().length;
+    return Number.isInteger(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `logicalCpus` turns Electron's share of all CPUs into % of one core; without
+ * it the figure is sent as Electron gives it and `logical_cpus` says null.
+ */
+export function buildElectronPerfReport({ metrics, windows, intervalSec, uiTag = null, logicalCpus = null }) {
   const byPid = windowIdsByPid(windows);
+  const perCore = Number.isInteger(logicalCpus) && logicalCpus > 0 ? logicalCpus : null;
   const processes = metrics.slice(0, PERF_MAX_PROCESSES).map((m) => ({
     type: String(m.type ?? 'unknown'),
     window_id: byPid.get(m.pid) ?? null,
     pid: m.pid,
-    cpu_pct: round1(m.cpu?.percentCPUUsage ?? 0),
+    cpu_pct: round1((m.cpu?.percentCPUUsage ?? 0) * (perCore ?? 1)),
     working_set_mb: round1((m.memory?.workingSetSize ?? 0) / KB_PER_MB),
   }));
   return {
@@ -67,6 +86,7 @@ export function buildElectronPerfReport({ metrics, windows, intervalSec, uiTag =
     heap_mb: null,
     dom_nodes: null,
     processes,
+    logical_cpus: perCore,
   };
 }
 
@@ -83,6 +103,7 @@ export function startPerfMetrics({
   fetchImpl = globalThis.fetch,
   now = () => Date.now(),
   intervalMs = PERF_ELECTRON_REPORT_MS,
+  logicalCpus = logicalCpuCount(),
 }) {
   let lastTs = now();
   let lastFailLog = -Infinity;
@@ -116,6 +137,7 @@ export function startPerfMetrics({
         windows: BrowserWindow.getAllWindows(),
         intervalSec,
         uiTag: releaseTag,
+        logicalCpus,
       });
       const headers = { 'Content-Type': 'application/json' };
       const key = apiKey();

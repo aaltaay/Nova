@@ -3,7 +3,8 @@
 
 After a laggy stretch (the open, a hot runner), this answers: which minute was
 worst, which handlers used the time, where each loop stalled (with the stack),
-which queues dropped, and which window drew slowly and why.
+which queues dropped, which window drew slowly and why, and how its page grew
+(DOM elements at the first and last report).
 
 Usage:
 
@@ -82,15 +83,30 @@ def _worst_minutes(samples: list[dict[str, Any]], top: int) -> list[dict[str, An
     return rows[:top]
 
 
+def _window_key(c: dict[str, Any], seen: dict[str, set[tuple[Any, Any]]]) -> str:
+    """The window's id; when two windows reported under one id (a browser tab and the desk are
+    both ``main``, or two builds ran), its role and then its build tell them apart."""
+    wid, role, tag = c["window_id"], c.get("role"), c.get("ui_tag")
+    pairs = seen[wid]
+    if len(pairs) < 2:
+        return wid
+    key = f"{wid}/{role}" if len({r for r, _ in pairs}) > 1 else wid
+    return f"{key} {tag or '?'}" if len({t for r, t in pairs if r == role}) > 1 else key
+
+
 def _windows(clients: list[dict[str, Any]], top: int) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
+    seen: dict[str, set[tuple[Any, Any]]] = defaultdict(set)
     for c in clients:
+        seen[c["window_id"]].add((c.get("role"), c.get("ui_tag")))
+    for c in sorted(clients, key=lambda c: c.get("ts") or 0):
         if c.get("role") == "electron":
             continue
-        w = out.setdefault(c["window_id"], {
+        w = out.setdefault(_window_key(c, seen), {
             "role": c.get("role"), "reports": 0, "seconds": 0.0, "frames": 0, "slow": 0, "p95_max_ms": None,
             "long_frames": 0, "blocking_ms": 0.0, "scripts": defaultdict(float),
             "sockets": defaultdict(int), "renders": defaultdict(int), "heap_mb_max": None,
+            "dom_first": None, "dom_last": None, "dom_max": None,
         })
         w["reports"] += 1
         w["seconds"] += float(c.get("interval_sec") or 0)
@@ -109,6 +125,11 @@ def _windows(clients: list[dict[str, Any]], top: int) -> dict[str, dict[str, Any
             w["renders"][name] += n
         if c.get("heap_mb") is not None:
             w["heap_mb_max"] = max(w["heap_mb_max"] or 0, c["heap_mb"])
+        if c.get("dom_nodes") is not None:
+            if w["dom_first"] is None:
+                w["dom_first"] = c["dom_nodes"]
+            w["dom_last"] = c["dom_nodes"]
+            w["dom_max"] = max(w["dom_max"] or 0, c["dom_nodes"])
     for w in out.values():
         secs = w["seconds"] or 1.0
         w["slow_share"] = round(w["slow"] / w["frames"], 3) if w["frames"] else None
@@ -123,12 +144,16 @@ def _windows(clients: list[dict[str, Any]], top: int) -> dict[str, dict[str, Any
 
 
 def _processes(clients: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    peak: dict[tuple[str, str], dict[str, Any]] = {}
+    """Electron's processes. ``cpu_pct`` is % of one core on a report that names its
+    ``logical_cpus``; an older report's figure is Electron's own, a share of all the
+    logical CPUs, and is kept apart (``cpu_basis``) rather than guessed into cores."""
+    peak: dict[tuple[str, str, str], dict[str, Any]] = {}
     for c in clients:
+        basis = "core" if c.get("logical_cpus") else "all_cpus"
         for p in c.get("processes") or []:
-            key = (p.get("type") or "?", p.get("window_id") or f"pid {p.get('pid')}")
-            cur = peak.setdefault(key, {"type": key[0], "window": key[1], "cpu_max": 0.0, "cpu_sum": 0.0,
-                                        "n": 0, "working_set_mb_max": 0.0})
+            key = (p.get("type") or "?", p.get("window_id") or f"pid {p.get('pid')}", basis)
+            cur = peak.setdefault(key, {"type": key[0], "window": key[1], "cpu_basis": basis, "cpu_max": 0.0,
+                                        "cpu_sum": 0.0, "n": 0, "working_set_mb_max": 0.0})
             cur["cpu_max"] = max(cur["cpu_max"], p.get("cpu_pct") or 0)
             cur["cpu_sum"] += p.get("cpu_pct") or 0
             cur["n"] += 1
@@ -214,6 +239,8 @@ def render(report: dict[str, Any], title: str) -> str:
         share = f"{w['slow_share']:.1%}" if w["slow_share"] is not None else "n/a"
         out.append(f"  {wid} ({w['role']}): slow frames {share}, worst p95 {w['p95_max_ms']} ms, "
                    f"{w['long_frames']} long frames blocking {w['blocking_ms']:.0f} ms, heap max {w['heap_mb_max']} MB")
+        if w["dom_first"] is not None:
+            out.append(f"      DOM elements {w['dom_first']:,} -> {w['dom_last']:,} (max {w['dom_max']:,})")
         for s in w["scripts"][:3]:
             out.append(f"      {s['ms']:>8.0f} ms  {s['script']}")
         if w["sockets_per_sec"]:
@@ -221,10 +248,11 @@ def render(report: dict[str, Any], title: str) -> str:
         if w["renders_per_sec"]:
             out.append("      renders/s: " + ", ".join(f"{k} {v}" for k, v in w["renders_per_sec"].items()))
     if report["processes"]:
-        out.append("\nElectron processes (CPU % of one core):")
+        out.append("\nElectron processes (CPU % of one core; * = an older report: % of all logical CPUs):")
         for p in report["processes"]:
-            out.append(f"  {p['window']:<14} {p['type']:<10} mean {p['cpu_mean']:>5.1f}%  max {p['cpu_max']:>5.1f}%  "
-                       f"{p['working_set_mb_max']:.0f} MB")
+            mark = "" if p["cpu_basis"] == "core" else "*"
+            out.append(f"  {p['window']:<14} {p['type']:<10} mean {p['cpu_mean']:>5.1f}%{mark:<1}  "
+                       f"max {p['cpu_max']:>5.1f}%{mark:<1}  {p['working_set_mb_max']:.0f} MB")
     return "\n".join(out)
 
 

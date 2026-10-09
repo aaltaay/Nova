@@ -26,4 +26,5 @@ export { groupIsNew } from './hodMomoStripGroups';
 export { HOD_MOMO_STRIP_EMPTY_CONNECTING } from './hodMomoStripConstants';
 export { useHodStripView } from './useHodStripView';
 export type { HodStripView } from './useHodStripView';
+export { useStripRowWindow } from './useStripRowWindow';
 export type { AlertObject } from './types';

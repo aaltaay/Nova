@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from constants_perf import (
     PERF_CLIENT_MAX_BODY_BYTES,
     PERF_CLIENT_MAX_KEYS,
+    PERF_CLIENT_MAX_LOGICAL_CPUS,
     PERF_CLIENT_MAX_PROCESSES,
     PERF_CLIENT_TOP_SCRIPTS,
     PERF_HEAP_MIN_GAP_SEC,
@@ -80,6 +81,8 @@ class ClientReport(BaseModel):
     heap_mb: float | None = Field(default=None, ge=0)
     dom_nodes: int | None = Field(default=None, ge=0)
     processes: list[Process] | None = Field(default=None, max_length=PERF_CLIENT_MAX_PROCESSES)
+    # Electron only: its processes' cpu_pct is % of one core; absent (older desks), a share of all CPUs.
+    logical_cpus: int | None = Field(default=None, ge=1, le=PERF_CLIENT_MAX_LOGICAL_CPUS)
 
     @field_validator("window_id")
     @classmethod

@@ -53,6 +53,9 @@ def _day(tmp_path: Path) -> Path:
         {"kind": "client", "schema_version": 1, "ts": _ts(9, 30, 5), "window_id": "electron-main",
          "role": "electron", "interval_sec": 5.0,
          "processes": [{"type": "Tab", "window_id": "trader-1", "pid": 7, "cpu_pct": 88.0, "working_set_mb": 500}]},
+        {"kind": "client", "schema_version": 1, "ts": _ts(9, 30, 10), "window_id": "electron-main",
+         "role": "electron", "interval_sec": 5.0, "logical_cpus": 24,
+         "processes": [{"type": "Tab", "window_id": "trader-1", "pid": 7, "cpu_pct": 112.0, "working_set_mb": 600}]},
         {"kind": "sample", "schema_version": 99, "ts": _ts(9, 31)},
         "not json",
     ]
@@ -87,9 +90,30 @@ def test_analyze_names_the_worst_minute_handlers_stalls_and_windows(tmp_path):
     assert w["slow_share"] == 0.2 and w["scripts"][0]["script"] == "DepthLadder @ index.js <- WebSocket.onmessage"
     assert w["sockets_per_sec"] == {"depth": 400.0}
     assert "electron-main" not in report["windows"]
-    assert report["processes"][0]["window"] == "trader-1" and report["processes"][0]["cpu_mean"] == 88.0
+    # A report that names its logical CPUs is % of one core; an older one, a share of all CPUs, kept apart.
+    by_basis = {p["cpu_basis"]: p for p in report["processes"]}
+    assert by_basis["core"]["window"] == "trader-1" and by_basis["core"]["cpu_mean"] == 112.0
+    assert by_basis["all_cpus"]["cpu_mean"] == 88.0
     text = perf_report.render(report, "t")
     assert "volume_boost.observe" in text and "trader-1 (popout): slow frames 20.0%" in text
+    assert "mean 112.0%   max 112.0%" in text and "mean  88.0%*" in text
+
+
+def test_windows_show_dom_growth_and_tell_apart_windows_sharing_an_id():
+    def client(ts, role, tag, dom):
+        return {"kind": "client", "schema_version": 1, "ts": ts, "window_id": "main", "role": role, "ui_tag": tag,
+                "interval_sec": 5.0, "dom_nodes": dom}
+    lines = [client(_ts(9, 0), "main", "v1180", 3_000), client(_ts(9, 0, 5), "browser", "v1176", 2_000),
+             client(_ts(12, 0), "main", "v1180", 21_500), client(_ts(15, 0), "main", "v1180", 16_200),
+             client(_ts(15, 0, 5), "browser", "v1176", 2_100)]
+    windows = perf_report.analyze(lines)["windows"]
+    assert set(windows) == {"main/main", "main/browser"}
+    desk = windows["main/main"]
+    assert (desk["dom_first"], desk["dom_last"], desk["dom_max"]) == (3_000, 16_200, 21_500)
+    assert "DOM elements 3,000 -> 16,200 (max 21,500)" in perf_report.render(perf_report.analyze(lines), "t")
+    # Two builds of the desk under one id are told apart by their tag.
+    lines.append(client(_ts(16, 0), "main", "v1181", 2_600))
+    assert set(perf_report.analyze(lines)["windows"]) == {"main/main v1180", "main/main v1181", "main/browser"}
 
 
 def test_time_window_filters(tmp_path):
