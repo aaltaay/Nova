@@ -11,6 +11,7 @@ import {
   pastCounts,
   pastIconLabel,
   pastLabel,
+  pastNowOf,
   pastShortLabel,
   pastStory,
   shortReason,
@@ -84,6 +85,19 @@ describe('the past setups off the wire', () => {
     expect(junk.episodes[4].end).toBeNull();
     expect(junk.episodes[4].after?.first).toBe('unknown');
     expect(normalizePastSetups({ symbol: 'NCPL' })).toBeNull();
+  });
+
+  it('on a Sim replay draws only the replay\'s, never one read after the playhead (ADR 052 amendment, #815)', () => {
+    expect(past.replay).toBe(false);                             // a live read (an older backend sends no flag)
+    const replayed = normalizePastSetups({ ...wire, replay: true })!;
+    expect(replayed.replay).toBe(true);
+    expect(pastNowOf(past, 'NCPL', false, null)).toBe(past);
+    expect(pastNowOf(past, 'NCPL', true, at(9, 40))).toBeNull();       // the live day's on a replay desk: never
+    expect(pastNowOf(replayed, 'NCPL', false, null)).toBeNull();       // a replay's at the live edge: never
+    expect(pastNowOf(replayed, 'APUS', true, at(9, 40))).toBeNull();   // another stock's
+    expect(pastNowOf(replayed, 'NCPL', true, at(9, 41))).toBe(replayed);
+    expect(pastNowOf(replayed, 'NCPL', true, at(9, 30))).toBeNull();   // a rewind: read at 9:40, shown at 9:30
+    expect(pastNowOf(null, 'NCPL', true, at(9, 41))).toBeNull();
   });
 });
 

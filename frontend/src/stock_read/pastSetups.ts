@@ -77,6 +77,8 @@ export interface PastSetups {
   symbol: string;
   date: string;
   generated_at: number;
+  /** A Sim replay's (ADR 052 amendment, #815): the Sim eyes' setups up to the playhead, `generated_at` the playhead. */
+  replay: boolean;
   episodes: Episode[];
   journal: { ok: boolean; error: string | null };
   bars: { ok: boolean; error: string | null };
@@ -167,10 +169,20 @@ export function normalizePastSetups(raw: unknown): PastSetups | null {
     symbol: r.symbol,
     date: str(r.date) ?? '',
     generated_at: num(r.generated_at) ?? 0,
+    replay: r.replay === true,
     episodes: list(r.episodes, episode),
     journal: source(r.journal),
     bars: source(r.bars),
   };
+}
+
+/** The past setups a tab may draw (ADR 052 amendment, #815): this stock's and this desk's -- a replay's on a replay
+ * desk -- and on a replay never one read at a later playhead than `simNow` (a rewind draws nothing from later while
+ * the next read comes). Pure. */
+export function pastNowOf(past: PastSetups | null, symbol: string, replay: boolean,
+  simNow: number | null): PastSetups | null {
+  if (!past || past.symbol !== symbol || past.replay !== replay) return null;
+  return replay && simNow !== null && past.generated_at > simNow + 1 ? null : past;
 }
 
 /** How it ended; `failed` for one that failed while its lane still shows it (it is past from then). */

@@ -356,11 +356,13 @@ describe('the plan on the rail', () => {
   });
 
   it('says why there is no read: a replay desk, an older backend', async () => {
-    // A Sim replay (ADR 052): the charts draw the replay's read, so it is asked for; the whole days are not.
+    // A Sim replay (ADR 052): the charts draw the replay's read, so it is asked for, and the setups that ended up
+    // to the playhead (#815); the whole days are not.
     renderRail({ replay: true });
     expect(screen.getByTestId('stock-read-rail-note').textContent).toMatch(/Sim replay: the charts draw the Sim eyes/);
     await waitFor(() => expect(calls.some(u => /\/api\/stock-read\/[A-Z]+(\?|$)/.test(u))).toBe(true));
-    expect(calls.filter(u => /past-setups|decisions|\/history/.test(u))).toEqual([]);
+    await waitFor(() => expect(calls.some(u => /past-setups/.test(u))).toBe(true));
+    expect(calls.filter(u => /decisions|\/history/.test(u))).toEqual([]);
     cleanup();
     responses = [];
     renderRail();

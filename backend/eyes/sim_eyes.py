@@ -23,6 +23,8 @@ point already journalled. A journal playback reads the day's file as it grows an
 a rewind folds it again (at most every ``EYES_PLAYBACK_REBUILD_MIN_SEC``) and never raises what it
 passed.
 
+The lanes' lines are also folded as they are written into the setups that ended (``eyes.sim_past``, #815).
+
 Owner: this module (in memory only; invalidation: the loaded replay's key, the templates' version,
 and the played-back day). Nothing here places an order.
 """
@@ -44,6 +46,7 @@ from constants_eyes import (
     EYES_SIM_SYMBOL_VIEW_SEC,
 )
 from eyes import sim_board
+from eyes.sim_past import PastFold, past_view
 from eyes.sim_target import KIND_CAPTURE, KIND_HISTORY, KIND_JOURNAL, LANE_KINDS, default_target
 
 logger = logging.getLogger(__name__)
@@ -93,11 +96,12 @@ class SimEyes:
         self._journaled_through = 0.0
         self._last_rebuild = 0.0
         self._playback: Any = None             # eyes.playback.Playback of the played-back day
+        self._past: PastFold | None = None      # the replay's setups that ended, folded as its lanes write (#815)
         # Published for the loop (under the lock).
         self._view: dict[str, Any] = {"loading": False, "error": None, "rows": [], "proposals": [], "setups": [],
                                       "proposing": False, "template": None, "lanes": 0, "recording": None,
                                       "now": None, "universe": 0, "note": None, "gap": None, "journal": None,
-                                      "symbol": None}
+                                      "symbol": None, "past": None}
         self._alerts: list[dict] = []
 
     # -- wiring defaults (late imports keep this module light) -------------------------
@@ -259,12 +263,18 @@ class SimEyes:
 
         templates = [t for setup in BOT_SCANNER_SETUPS for t in store.templates(setup) if not t.error]
         playing = {setup: store.in_play(setup).id for setup in BOT_SCANNER_SETUPS}
+        past = PastFold()                      # a fold per rebuild: never a line from after the playhead
+
+        def journal(event: dict) -> None:
+            past.apply(event)
+            self._journal(event)
+
         replay = EyesReplay(self._recording, templates, source=EYES_REPLAY_SOURCE_SIM, playing=playing,
-                            journal=self._journal, levels=self._levels, sizing=self._sizer())
+                            journal=journal, levels=self._levels, sizing=self._sizer())
         replay.advance(playhead)
         replay.take_alerts()            # a rebuild never re-raises what it passed on the way
         replay.take_triggers()          # ... and never hands the bot a trigger it passed
-        self._replay = replay
+        self._replay, self._past = replay, past
         self._templates_version = store.version()
         self._last_rebuild = time.monotonic()
 
@@ -300,7 +310,7 @@ class SimEyes:
                               gap=gap, note=gap_note(gap, date), journal=pb.journal_view(), symbol=None)
 
     def _drop(self) -> None:
-        self._key = self._recording = self._replay = self._replay_key = None
+        self._key = self._recording = self._replay = self._replay_key = self._past = None
         self._templates_version = None
         self._journaled_through = 0.0
         self._publish(loading=False, error=None)
@@ -330,6 +340,8 @@ class SimEyes:
             "recording": self._recording.summary() if self._recording is not None else None,
             "now": replay.now if replay is not None else None,
             "symbol": self._symbol_view(replay),
+            "past": (self._past.view(replay.rec.symbol, replay.rec.bars, replay.now, replay.session)
+                     if replay is not None and self._past is not None else None),
         }
         with self._lock:
             self._view.update(view)
@@ -355,6 +367,12 @@ class SimEyes:
             target, view = self.target, dict(self._view)
         return sim_board.symbol_view(target, view, symbol)
 
+    def past(self, symbol: str) -> dict[str, Any] | None:
+        """The loaded symbol's setups that ended, as published (``eyes.sim_past.past_view``)."""
+        with self._lock:
+            target, view = self.target, dict(self._view)
+        return past_view(target, view, symbol)
+
     def board(self, now: float) -> dict[str, Any] | None:
         """The Setups board while the Sim desk shows a replay (``eyes.sim_board.board``); ``None`` keeps the live one."""
         with self._lock:
@@ -363,7 +381,7 @@ class SimEyes:
 
     def status(self) -> dict[str, Any]:
         with self._lock:
-            hidden = ("rows", "proposals", "setups", "proposing", "symbol")
+            hidden = ("rows", "proposals", "setups", "proposing", "symbol", "past")
             return {"target": self.target, **{k: v for k, v in self._view.items() if k not in hidden}}
 
 

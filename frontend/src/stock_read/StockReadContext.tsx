@@ -14,7 +14,7 @@ import { useTickerSelect } from '../hooks/useTickerStream';
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { readPref, writePref } from '../utils/prefStore';
 import { STOCK_READ_LAYERS_KEY } from './constants';
-import type { PastSetups } from './pastSetups';
+import { pastNowOf, type PastSetups } from './pastSetups';
 import type { LabelDetail } from './sceneLabels';
 import type { DecisionEvent, ReadGroupId, StockDecisions, StockHistory, StockRead } from './types';
 import {
@@ -64,8 +64,8 @@ export interface StockReadContextValue {
   symbol: string;
   active: boolean;
   /** The desk replays another moment (ADR 052): the read is the replay's at the playhead -- the Sim eyes'
-   * setups, the plan and the replay's levels -- and the reads of whole days (past setups, decisions, history)
-   * are not made. */
+   * setups, the plan, the replay's levels and the setups that ended up to the playhead (#815) -- and the reads of
+   * whole days (decisions, history) are not made. */
   replay: boolean;
   read: PolledState<StockRead>;
   /** The read the charts draw: this desk's (a replay's on a replay desk), and on a replay never one from after the
@@ -77,6 +77,10 @@ export interface StockReadContextValue {
   past: PolledState<PastSetups>;
   /** The 5-minute lanes' setups that ended (the 5-minute chart's); absent outside a live Trader tab. */
   past5?: PolledState<PastSetups>;
+  /** The past setups the charts draw and the legend counts: this desk's, and on a replay never read at a later
+   * playhead than the tab shows (`pastNowOf`). */
+  pastNow?: PastSetups | null;
+  past5Now?: PastSetups | null;
   /** The operator's own plan; `side` short is a hand short (ADR 048): its buy stop over the entry. */
   manual: ManualPlan;
   /** Sets the hand plan; without `side` it keeps the plan's side, and clearing it (`entry` null) is long again. */
@@ -238,11 +242,15 @@ export function StockReadProvider({
   const offKey = (lanes ?? []).filter(l => l.level === 0).map(l => l.setup_type).join('|');
   const drawn = useMemo(() => drawnLayers(layers, offKey ? offKey.split('|') : []), [layers, offKey]);
   const laneKey = useMemo(() => (lanes ?? []).map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes]);
-  const past = useStockReadPast(sym, live && drawn.setups && drawn.past, laneKey);
+  // On a replay the setups that ended are the Sim eyes' up to the playhead (#815): read again with the playhead too.
+  const pastNudge = nudge ? `@${nudge}` : '';
+  const past = useStockReadPast(sym, readable && drawn.setups && drawn.past, laneKey + pastNudge);
   const lanes5 = read.data?.setups_5m;
   const laneKey5 = useMemo(() => [...(lanes5 ?? []), ...(lanes ?? []).filter(l => l.timeframe === '5m')]
     .map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes5, lanes]);
-  const past5 = useStockReadPast(sym, live && drawn.setups && drawn.past, laneKey5, '5m');
+  const past5 = useStockReadPast(sym, readable && drawn.setups && drawn.past, laneKey5 + pastNudge, '5m');
+  const pastNow = pastNowOf(past.data, sym, replay, simNow);
+  const past5Now = pastNowOf(past5.data, sym, replay, simNow);
   const ownRead = readNowOf(read.data, replay, simNow);
   const who = useWhoTrades({
     symbol: sym, live: readable && !sample, read: ownRead, riskUsd, ttlSec: risk.ttlSec, position: pos,
@@ -304,6 +312,8 @@ export function StockReadProvider({
     decisions,
     past,
     past5,
+    pastNow,
+    past5Now,
     manual,
     setManualPlan,
     riskUsd,
@@ -325,7 +335,8 @@ export function StockReadProvider({
     flush: heldTrade.flush,
     exitSheet: { open: exitOpen, setOpen: setExitOpen },
     position: tabPosition,
-  }), [sym, active, replay, read, ownRead, history, decisions, past, past5, manual, setManualPlan, riskUsd, setRiskUsd, risk,
+  }), [sym, active, replay, read, ownRead, history, decisions, past, past5, pastNow, past5Now, manual, setManualPlan,
+    riskUsd, setRiskUsd, risk,
     layers, drawn, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who,
     heldTrade.track, heldTrade.setStop, heldTrade.flush, exitOpen, tabPosition]);
 

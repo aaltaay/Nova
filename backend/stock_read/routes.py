@@ -7,7 +7,8 @@
   GET /api/stock-read/{symbol}/flush                 trial T1's 30 s tape reading (sensor rings only)
   GET /api/stock-read/{symbol}/decisions?date=       one symbol's day as the bot saw it
   GET /api/stock-read/{symbol}/past-setups?date=&tf= the day's setups that ended, and what price did next
-                                                     (tf=5m: the 5-minute lanes')
+                                                     (tf=5m: the 5-minute lanes'; on a Sim replay the Sim
+                                                     eyes' up to the playhead)
   GET /api/stock-read/{symbol}/history               past runs and what Nova holds on it
 
 Sync routes: FastAPI runs them on its worker threads, off the event loop (the bar store and the
@@ -16,8 +17,9 @@ journal are files). One read per (symbol, entry, stop) serves every poll inside
 
 On a Sim replay desk (ADR 052) the read is the replay's at the playhead (``stock_read.replay_read``); a
 cached read is served only for a playhead at or after its own and inside the cache time, so a rewind never
-shows what came later. The day routes (past setups, decisions) read whole days and answer nothing there;
-the history reads the days before the replayed one; the flush reading is the live tape's and is blind.
+shows what came later. The past setups there are the Sim eyes' up to the playhead (``past_setups.replay``,
+#815); the decisions timeline reads whole days and answers nothing there; the history reads the days before
+the replayed one; the flush reading is the live tape's and is blind.
 """
 from __future__ import annotations
 
@@ -92,7 +94,7 @@ def stock_read_decisions(symbol: str, date: str | None = Query(None, description
         raise HTTPException(400, "date is YYYY-MM-DD")
     if _replay_desk():
         return wire_safe({"schema_version": STOCK_READ_SCHEMA_VERSION,
-                          **replay_read.empty_day(sym, date, replay_read.playhead(), kind="decisions")})
+                          **replay_read.empty_day(sym, date, replay_read.playhead())})
     return wire_safe({"schema_version": STOCK_READ_SCHEMA_VERSION, **decisions.timeline(sym, day, now)})
 
 
@@ -109,7 +111,7 @@ def stock_read_past_setups(symbol: str, date: str | None = Query(None, descripti
         raise HTTPException(400, "date is YYYY-MM-DD")
     if _replay_desk():
         return wire_safe({"schema_version": STOCK_READ_SCHEMA_VERSION,
-                          **replay_read.empty_day(sym, date, replay_read.playhead(), kind="past")})
+                          **past_setups.replay(sym, date, five=tf == "5m")})
     return wire_safe({"schema_version": STOCK_READ_SCHEMA_VERSION,
                       **past_setups.read(sym, day, now, today=day == today, five=tf == "5m")})
 

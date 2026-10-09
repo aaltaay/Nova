@@ -3,8 +3,12 @@ send, and manage what it sent.
 
 Every ``STOCK_MODE_POLL_SEC``, and at once when the scanner announces a trigger (``bot.wake``):
 
-1. **The venue.** A venue change clears every switch and approval (``store.sync_venue``).
-2. **Triggers** the scanner announced (``submit``, live feed only) on a stock whose switch is
+1. **The venue.** A venue change clears every switch and approval (``store.sync_venue``). On a Sim
+   replay (ADR 052 amendment, #815) the runner stays on the replay the desk shows and takes back
+   what a rewind undid (``stock_mode.replay``: the replay's trades, approvals and entries as they
+   stood at the new playhead; an order the restored trades do not know is cancelled).
+2. **Triggers** announced (``submit``) by the feed the desk shows -- the setup scanner's on Paper and
+   at Sim's live edge, the Sim eyes' for the replay loaded now -- on a stock whose switch is
    Auto-entry or Approve:
    - Auto-entry buys by **the bot's rules** with the exit handed to you (``bot.first_pullback.admit``):
      a go trigger of a setup at effective Strategy, the first of the day, inside that setup's bot
@@ -24,8 +28,11 @@ Every ``STOCK_MODE_POLL_SEC``, and at once when the scanner announces a trigger 
    until one fills; an Auto-entry position is the operator's, and Nova only notices when it is closed;
    the exit of a stock you bought that you handed Nova is ``exit_trade``'s.
 
-Owner: the trades (persisted) and the approvals in ``stock_mode.store``. The bot's own trade on a Bot
-stock is the bot's (``bot.first_pullback.runner``).
+The clock is the venue's (``bot.replay_desk.venue_now``): the playhead on Sim, which stands still
+while it is paused, so a trigger's age and an entry's TTL are replay time on a replay.
+
+Owner: the trades (persisted; a replay's in memory) and the approvals in ``stock_mode.store``. The
+bot's own trade on a Bot stock is the bot's (``bot.first_pullback.runner``).
 
 maintainer: one-concern the stock-mode trade state machine and the loop that drives it
 """
@@ -33,12 +40,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from collections import deque
 from datetime import datetime
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+from bot import replay_desk
 from bot.audit import record as audit
 from bot.wake import Wake
 from constants_bot import BOT_DEFAULT_WORKING_TTL_SEC, BOT_FP_TRIGGER_MAX_AGE_SEC, BOT_SKIP_VENUE_CHANGING
@@ -60,7 +67,7 @@ from constants_stock_mode import (
     STOCK_MODE_TRADE_HOLDING,
     STOCK_MODE_TRADE_MISSED,
 )
-from stock_mode import exit_trade, gates, model, orders, store
+from stock_mode import exit_trade, gates, model, orders, replay, store
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -70,7 +77,8 @@ LIVE_TRADE_STATES = (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING)
 _EPS = 1e-9
 _inbox: deque[dict[str, Any]] = deque(maxlen=100)
 _wake = Wake()
-_clock: Callable[[], float] = time.time
+# The venue's clock: the Sim playhead on Sim (ADR 052), else the wall clock.
+_clock: Callable[[], float] = replay_desk.venue_now
 _last_approval_check = 0.0
 _warned: set[str] = set()
 
@@ -80,6 +88,11 @@ def submit(event: dict[str, Any]) -> None:
     an Auto-entry or an approved bracket goes out now instead of at the next poll."""
     _inbox.append(event)
     _wake.set()
+
+
+def clock() -> float:
+    """The runner's clock (the venue's): every stamp Nova writes on a trade, an approval or a last event."""
+    return _clock()
 
 
 def venue_day(now: float | None = None) -> str:
@@ -107,12 +120,15 @@ def ttl_sec() -> int:
 
 
 async def run() -> None:
-    """Background task (``app_runtime_tasks``): listen to the setup scanner, tick forever."""
+    """Background task (``app_runtime_tasks``): listen to the setup scanner and the Sim eyes, tick forever."""
     from setup_scanner.engine import get_engine
 
     _wake.bind()
     engine = get_engine()
     engine.add_trigger_listener(submit)
+    sim_eyes = _sim_eyes()
+    if sim_eyes is not None:
+        sim_eyes.add_trigger_listener(submit)      # a Sim replay's go triggers (ADR 052 amendment, #815)
     try:
         while True:
             try:
@@ -124,6 +140,18 @@ async def run() -> None:
             await _wake.sleep(STOCK_MODE_POLL_SEC)
     finally:
         engine.remove_trigger_listener(submit)
+        if sim_eyes is not None:
+            sim_eyes.remove_trigger_listener(submit)
+
+
+def _sim_eyes() -> Any:
+    try:
+        from eyes.sim_eyes import get_sim_eyes
+
+        return get_sim_eyes()
+    except Exception:
+        logger.warning("stock mode: the Sim eyes could not be reached -- no replay triggers", exc_info=True)
+        return None
 
 
 async def tick(now: float | None = None) -> None:
@@ -133,27 +161,93 @@ async def tick(now: float | None = None) -> None:
     if store.sync_venue(venue):
         audit(action=STOCK_MODE_AUDIT_ACTION, outcome="withdrawn", reason=f"the desk moved to {venue}: every "
               "stock is back to Signal only", inputs={"venue": venue})
+    await _follow_replay(now)
     while _inbox:
         await _on_trigger(_inbox.popleft(), now)
-    if now - _last_approval_check >= STOCK_MODE_APPROVAL_CHECK_SEC:
+    # A rewind (the clock earlier than the last check) checks at once: the restored approvals meet the rebuilt lanes.
+    if now - _last_approval_check >= STOCK_MODE_APPROVAL_CHECK_SEC or now < _last_approval_check:
         _last_approval_check = now
         _check_approvals(now)
     for trade in store.trades():
         if trade.get("state") in LIVE_TRADE_STATES:
             await _manage(trade, now)
+    if gates.replay_key() is not None:
+        replay.checkpoint(_clock())
+
+
+async def _follow_replay(now: float) -> None:
+    """On a Sim replay (ADR 052 amendment, #815): stay on the replay the desk shows, and take back what a rewind
+    undid -- the replay's trades, approvals and entries as they stood at the new playhead."""
+    out = replay.follow(now)
+    for trade in out["retired"]:
+        why = (f"another replay was loaded: Nova's {trade['symbol']} trade on the "
+               f"{replay.label(trade.get('replay_key'))} replay went with its scratch account")
+        _say(trade["symbol"], now, "info", why[:1].upper() + why[1:])
+        audit(action=STOCK_MODE_AUDIT_ACTION, outcome="note", reason=why, inputs=_summary(trade))
+    low = out["restored_to"]
+    if low is None:
+        return
+    _inbox.clear()                              # triggers raised after the new playhead never happened
+    at = _hms(low)
+    key = gates.replay_key()
+    for sym in out["changed"]:
+        trade = store.trade("sim", sym, key)
+        if trade is not None and trade.get("state") in LIVE_TRADE_STATES:
+            said = f"the playhead went back to {at} ET: Nova's {sym} trade is as it stood then ({trade['state']})"
+        else:
+            said = f"the playhead went back to {at} ET: Nova holds no {sym} trade at that moment"
+        approval = store.approval(sym, key)
+        if approval and approval.get("state") == "waiting":
+            said += "; the approval waits for its trigger again"
+        _say(sym, low, "info", said[:1].upper() + said[1:])
+        audit(action=STOCK_MODE_AUDIT_ACTION, outcome="note", reason=f"{sym}: {said}",
+              inputs={"symbol": sym, "restored_to": low})
+    for oid, trade in out["orphans"]:
+        await _cancel_orphan(oid, trade)
+
+
+async def _cancel_orphan(order_id: int, trade: dict[str, Any]) -> None:
+    """An order of a replay trade the ledger still holds after a rewind but the restored trades do not know: it
+    was sent after the moment the playhead went back to, so it is cancelled -- nothing rests that Nova does not
+    manage."""
+    try:
+        state = orders.order_state(orders.order_row(order_id))
+    except orders.ReadError as exc:
+        _warn_once(f"orphan:{order_id}", "stock mode: order %s unreadable after a rewind -- %s", order_id, exc)
+        return
+    if state != "working":
+        return
+    receipt = await orders.cancel(trade, int(order_id))
+    said = "cancelled" if receipt.ok else f"could not be cancelled ({orders.receipt_error(receipt)})"
+    audit(action=STOCK_MODE_AUDIT_ACTION, outcome="note", order_id=int(order_id),
+          reason=f"order {order_id} was sent after the moment the playhead went back to: {said}",
+          inputs={"symbol": trade.get("symbol")})
+
+
+def _hms(ts: float) -> str:
+    return datetime.fromtimestamp(ts, ET).strftime("%H:%M:%S")
 
 
 # -- a trigger ------------------------------------------------------------------------
+def _this_desks(event: dict[str, Any]) -> bool:
+    """A trigger from the feed the desk shows: the live scanner's on Paper and at the live edge, the Sim eyes' on
+    the replay loaded now (ADR 052). Any other is not this desk's to trade."""
+    key = gates.replay_key()
+    if key is None:
+        return event.get("source") != "sim"
+    return event.get("source") == "sim" and list(event.get("replay_key") or []) == key
+
+
 async def _on_trigger(event: dict[str, Any], now: float) -> None:
     sym = str(event.get("symbol") or "").strip().upper()
     sw = store.switch(sym)
-    if not sym or not sw:
+    if not sym or not sw or not _this_desks(event):
         return
     mode = model.mode_of(sw["buy"], sw["sell"])
     if mode == STOCK_MODE_AUTO_ENTRY:
         await _auto_entry(sym, event, now)
     elif mode == STOCK_MODE_APPROVE:
-        approval = store.approval(sym)
+        approval = store.approval(sym, gates.replay_key())
         if approval and approval.get("state") == "waiting" and approval.get("setup_id") == event.get("setup_id"):
             await _send_approved(sym, approval, event, now)
 
@@ -194,7 +288,8 @@ async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
     from bot.persist import load_session
 
     venue, _replay = gates.venue_state()
-    current = store.trade(venue, sym)
+    key = gates.replay_key()
+    current = store.trade(venue, sym, key)
     working = bool(current and current.get("state") == STOCK_MODE_TRADE_ENTERING)
     found, sized = admit.for_auto_entry(event, load_session(), now=now, working=working)
     if found:
@@ -206,7 +301,8 @@ async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
     entry = (sized or {}).get("limit") if short and (sized or {}).get("limit") is not None else setup.get("entry")
     trade = _new_trade(STOCK_MODE_AUTO_ENTRY, sym, event, now, venue=venue, day=venue_day(now),
                        qty=int((sized or {})["qty"]), entry=entry, stop=setup.get("stop"),
-                       target=setup.get("target1"), attempt=str(event.get("setup_id")), exits=STOCK_MODE_SIDE_YOU)
+                       target=setup.get("target1"), attempt=str(event.get("setup_id")), exits=STOCK_MODE_SIDE_YOU,
+                       replay_key=key)
     trade["size_text"] = (sized or {}).get("text")
     receipt = await orders.place_entry(trade)
     if short:
@@ -219,6 +315,8 @@ async def _auto_entry(sym: str, event: dict[str, Any], now: float) -> None:
         return
     trade.update(entry_order_id=int(entry_id), stop_order_id=stop_id)
     store.set_trade(trade)
+    if key is not None:
+        replay.note_entry(trade, now)          # the replay's own day (ADR 052 amendment)
     if short:
         _say(sym, now, "info", f"Nova is shorting {trade['qty']:g} {sym} at {float(trade['entry']):.2f} (limit) with "
                                f"its buy stop {float(trade['stop']):.2f} -- {trade['size_text']}; the cover is yours")
@@ -268,7 +366,8 @@ async def send_bracket_now(sym: str, approval: dict[str, Any], now: float, *,
     trade = _new_trade(STOCK_MODE_APPROVE, sym, event, now, venue=venue, day=venue_day(now),
                        qty=int(approval["qty"]), entry=entry, stop=approval["stop"],
                        target=approval["target"], exits=STOCK_MODE_SIDE_NOVA,
-                       attempt=f"{approval.get('setup_id')}@{int(float(approval.get('approved_at') or now) * 1000)}")
+                       attempt=f"{approval.get('setup_id')}@{int(float(approval.get('approved_at') or now) * 1000)}",
+                       replay_key=approval.get("replay_key"))
     receipt = await orders.send_bracket(trade)
     entry_id, target_id, stop_id = orders.leg_ids(receipt)
     if not receipt.ok or entry_id is None:
@@ -279,6 +378,8 @@ async def send_bracket_now(sym: str, approval: dict[str, Any], now: float, *,
     trade.update(entry_order_id=entry_id, target_order_id=target_id, stop_order_id=stop_id)
     store.set_trade(trade)
     store.set_approval(sym, {**approval, "state": "sent", "reason": None})
+    if trade.get("replay_key"):
+        replay.note_entry(trade, now)          # counted on the replay's day, never capped
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="sent", order_id=entry_id,
           reason=(f"approved plan: {'SHORT' if orders.is_short(trade) else 'BUY'} {float(trade['qty']):g} {sym} LMT "
                   f"{float(trade['entry']):.2f}, target {float(trade['target']):.2f}, stop "
@@ -289,13 +390,15 @@ async def send_bracket_now(sym: str, approval: dict[str, Any], now: float, *,
 
 # -- approvals wait on their lane -------------------------------------------------------
 def _check_approvals(now: float) -> None:
-    for sym, approval in store.approvals().items():
+    """The desk's place's approvals only: one made at the live edge waits while the desk replays, and the reverse."""
+    for sym, approval in store.approvals(gates.replay_key()).items():
         if approval.get("state") != "waiting":
             continue
         try:
             lane = lane_of(sym, approval.get("setup_id"))
         except LanesUnreadable as exc:
-            _warn_once(f"lanes:{sym}", "stock mode: %s -- %s's approval waits, unchecked this tick", exc, sym)
+            if not exc.replay:
+                _warn_once(f"lanes:{sym}", "stock mode: %s -- %s's approval waits, unchecked this tick", exc, sym)
             continue
         why = None
         if lane is None:
@@ -320,7 +423,12 @@ def _check_approvals(now: float) -> None:
 
 
 class LanesUnreadable(Exception):
-    """The setup scanner's lanes could not be read: unknown, never "no setup"."""
+    """The setup scanner's lanes could not be read: unknown, never "no setup". ``replay``: the Sim eyes are
+    reading the replay or catching up to a rewind (a moment's wait, not a fault)."""
+
+    def __init__(self, message: str, *, replay: bool = False) -> None:
+        super().__init__(message)
+        self.replay = replay
 
 
 def lane_of(sym: str, setup_id: str | None) -> dict[str, Any] | None:
@@ -328,31 +436,44 @@ def lane_of(sym: str, setup_id: str | None) -> dict[str, Any] | None:
     Raises ``LanesUnreadable`` when the scanner cannot be read."""
     if not setup_id:
         return None
-    lanes = lanes_of(sym)
+    lanes, pending = _lanes(sym)
     if lanes is None:
-        raise LanesUnreadable(f"the setup scanner's lanes for {sym} could not be read")
+        raise LanesUnreadable(pending or f"the setup scanner's lanes for {sym} could not be read",
+                              replay=pending is not None)
     return next((lane for lane in lanes if lane.get("setup_id") == setup_id), None)
 
 
 def lanes_of(sym: str) -> list[dict[str, Any]] | None:
     """Every setup's lane on this stock (the scanner's symbol view, memory reads -- the Sim eyes' on a replay,
-    ADR 052); None when unreadable."""
+    ADR 052); None when unreadable, or while the Sim eyes catch up (their lanes are not yet the playhead's)."""
+    return _lanes(sym)[0]
+
+
+def _lanes(sym: str) -> tuple[list[dict[str, Any]] | None, str | None]:
     try:
         from setup_scanner.engine import get_engine
         from setup_scanner.symbol_view import symbol_view
 
-        return list(symbol_view(get_engine(), sym).get("setups") or [])
+        view = symbol_view(get_engine(), sym)
     except Exception:
         logger.warning("stock mode: the scanner's lanes for %s could not be read", sym, exc_info=True)
-        return None
+        return None, None
+    if view.get("replay") and view.get("seeding"):
+        return None, str(view.get("followed_note") or "the Sim eyes are reading the replay")
+    return list(view.get("setups") or []), None
 
 
 # -- a trade Nova sent -------------------------------------------------------------------
 async def _manage(trade: dict[str, Any], now: float) -> None:
-    venue, _replay = gates.venue_state()
+    venue, on_replay = gates.venue_state()
     if venue != trade.get("venue"):
         _warn_once(f"venue:{trade['venue']}:{trade['symbol']}", "stock mode: the desk left %s -- %s waits there",
                    trade.get("venue"), trade["symbol"])
+        return
+    waits = replay.waits(trade, on_replay) if venue == "sim" else None
+    if waits is not None:
+        _warn_once(f"replay:{trade['symbol']}:{trade.get('replay_key')}", "stock mode: %s -- %s", waits,
+                   trade["symbol"])
         return
     try:
         if trade["kind"] == STOCK_MODE_EXIT:
@@ -392,7 +513,7 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
     ttl = float(trade.get("ttl_sec") or ttl_sec())
     if state in ("dead", "gone"):
         why = (f"not filled in {ttl:g}s -- the price ran past {float(trade['entry']):.2f}"
-               if trade.get("cancel_sent_at") else
+               if trade.get("cancel_sent_at") or orders.ran_out(row) else     # Nova's cancel, or the entry's own expiry
                "the entry was cancelled outside Nova" if state == "dead" else
                "the entry is gone from the ledger (a Sim rewind or an account reset)")
         miss(trade, now, why)
@@ -414,8 +535,10 @@ def miss(trade: dict[str, Any], now: float, why: str) -> None:
     sym = trade["symbol"]
     trade.update(state=STOCK_MODE_TRADE_MISSED, closed_at=now, note=why)
     store.set_trade(trade)
+    if trade.get("replay_key"):
+        replay.note_missed(trade, now)          # a miss gives the replay's day back
     if trade["kind"] == STOCK_MODE_APPROVE:
-        approval = store.approval(sym)
+        approval = store.approval(sym, trade.get("replay_key"))
         if approval and approval.get("state") == "sent":
             store.set_approval(sym, {**approval, "state": "withdrawn", "reason": f"missed: {why}"})
     _say(sym, now, "warn", f"Missed: {why}")
@@ -477,13 +600,14 @@ def _close(trade: dict[str, Any], now: float, reason: str, price: float | None) 
     tone = "ok" if reason == "target" else ("bad" if reason == "stop" else "info")
     _say(sym, now, tone, f"Closed: {said}" + (f" at {price:.2f}" if price is not None else "") + money)
     if trade["kind"] == STOCK_MODE_APPROVE:
-        store.clear_approval(sym)
+        store.clear_approval(sym, trade.get("replay_key"))
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="closed", reason=f"{said}{money}", inputs=_summary(trade))
 
 
 # -- helpers ----------------------------------------------------------------------------
 def _new_trade(kind: str, sym: str, event: dict[str, Any], now: float, *, venue: str | None, day: str, qty: int,
-               entry: Any, stop: Any, target: Any, attempt: str, exits: str) -> dict[str, Any]:
+               entry: Any, stop: Any, target: Any, attempt: str, exits: str,
+               replay_key: list | None = None) -> dict[str, Any]:
     from bot.first_pullback.short_side import side_of
 
     return {"kind": kind, "state": STOCK_MODE_TRADE_ENTERING, "venue": venue, "venue_day": day, "symbol": sym,
@@ -493,7 +617,9 @@ def _new_trade(kind: str, sym: str, event: dict[str, Any], now: float, *, venue:
             "target": float(target) if target is not None else None,
             "entry_order_id": None, "target_order_id": None, "stop_order_id": None, "sent_at": now,
             "ttl_sec": ttl_sec(), "cancel_sent_at": None, "fill_price": None, "filled_at": None, "exit_price": None,
-            "exit_reason": None, "closed_at": None, "exits": exits, "note": None}
+            "exit_reason": None, "closed_at": None, "exits": exits, "note": None,
+            # The Sim replay it was made on (ADR 052 amendment): managed only while the desk shows that replay.
+            "replay_key": list(replay_key) if replay_key else None}
 
 
 def _skip(sym: str, event: dict[str, Any], now: float, refused: tuple[str, str], *, outcome: str = "skipped",
@@ -546,4 +672,5 @@ def reset_for_tests(clock: Callable[[], float] | None = None) -> None:
     _inbox.clear()
     _warned.clear()
     _last_approval_check = 0.0
-    _clock = clock or time.time
+    _clock = clock or replay_desk.venue_now
+    replay.reset_for_tests()

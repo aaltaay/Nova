@@ -45,14 +45,25 @@ def venue_state() -> tuple[str | None, bool]:
     return current, replay
 
 
-def venue_block(venue: str | None, replay: bool, mode: str | None = None) -> tuple[str, str] | None:
-    """Why Nova may not take a stock in ``mode`` on this venue (None: it may). On a Sim replay only Bot is Nova's
-    (ADR 052): the bot trades the replay like Paper; Auto-entry, Approve and Nova's exit wait for the live edge."""
+def replay_key() -> list | None:
+    """The loaded replay the Sim desk shows (``bot.replay_desk.desk``: its key); None at the live edge, on another
+    venue, or with nothing loaded. A replay's trades and approvals are kept under it (``store.place``)."""
+    from bot.replay_desk import desk
+
+    here = desk()
+    return list(here["key"]) if here is not None else None
+
+
+def venue_block(venue: str | None, replay: bool, mode: str | None = None,
+                loaded: bool | None = None) -> tuple[str, str] | None:
+    """Why Nova may not take a stock in ``mode`` on this venue (None: it may). A Sim replay is traded like Paper
+    once something is loaded (ADR 052 and its amendment, #815); with nothing loaded off the edge only Bot is
+    taken -- the bot's Activate says why it waits. ``loaded`` None reads the desk."""
     if venue is None:
         return STOCK_MODE_LIVE, STOCK_MODE_WHY_VENUE_UNKNOWN
     if venue not in DESK_PRACTICE_VENUES:
         return STOCK_MODE_LIVE, STOCK_MODE_WHY_LIVE_BUY
-    if replay and mode != STOCK_MODE_BOT:
+    if replay and mode != STOCK_MODE_BOT and not (replay_key() is not None if loaded is None else loaded):
         return STOCK_MODE_REPLAY, STOCK_MODE_WHY_REPLAY
     return None
 

@@ -77,7 +77,7 @@ def _bot_trade(sym: str, row: dict[str, Any]) -> dict[str, Any] | None:
         "fill_price": t.get("entry_fill_price"), "filled_at": t.get("entry_filled_ts"),
         "exit_price": t.get("exit_price"), "exit_reason": t.get("exit_reason"), "exits": exits,
         "sent_at": t.get("entry_sent_ts"), "closed_at": t.get("closed_ts"), "note": t.get("note"),
-        "exiting": t.get("state") == "exiting", "ttl_sec": t.get("entry_ttl_sec"),
+        "exiting": t.get("state") == "exiting", "ttl_sec": t.get("entry_ttl_sec"), "replay_key": t.get("replay_key"),
     }
 
 
@@ -86,7 +86,7 @@ def _public_trade(t: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     keys = ("kind", "state", "venue", "venue_day", "setup_id", "setup_type", "qty", "entry", "stop", "target",
             "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "filled_at", "exit_price",
-            "exit_reason", "exits", "sent_at", "closed_at", "note", "ttl_sec", "trail", "raised")
+            "exit_reason", "exits", "sent_at", "closed_at", "note", "ttl_sec", "trail", "raised", "replay_key")
     out = {k: t.get(k) for k in keys}
     out["side"] = "short" if t.get("side") == "short" else "long"   # a trade made before shorts was a long
     out["exiting"] = bool(t.get("exiting"))
@@ -185,7 +185,7 @@ def _sentence(text: str) -> str:
 
 
 def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, Any] | None,
-           lane: dict[str, Any] | None, daily: dict[str, Any] | None) -> list[dict[str, Any]]:
+           lane: dict[str, Any] | None, daily: dict[str, Any] | None, loaded: bool = True) -> list[dict[str, Any]]:
     """Every condition that keeps Nova from acting on this stock -- all of them, not the first."""
     from bot import entry_rules
     from bot.eligibility import holds_depth_line
@@ -195,7 +195,7 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
     out: list[dict[str, Any]] = []
     if mode == STOCK_MODE_SIGNAL:
         return out
-    blocked = gates.venue_block(venue, replay, mode)
+    blocked = gates.venue_block(venue, replay, mode, loaded=loaded)
     if blocked is not None:
         out.append(_note("replay" if blocked[0] == "STOCK_MODE_REPLAY" else "live", blocked[1]))
     for code, why in gates.desk_blocks():
@@ -251,16 +251,27 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
 
 
 def _sim_waits(sym: str, venue: str | None, replay: bool, row: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """A live Nova trade on Sim waits while the desk is not where it was made: Auto-entry's and Approve's at the
-    live edge, the bot's on its own replay or at the live edge (``bot.first_pullback.runner.waiting_text``)."""
+    """A live Nova trade on Sim waits while the desk is not where it was made: Auto-entry's, Approve's and Nova's
+    exit at the live edge or on their own replay (``stock_mode.replay.waits``), the bot's on its own replay or at
+    the live edge (``bot.first_pullback.runner.waiting_text``)."""
     from bot.first_pullback.runner import waiting_text
+    from stock_mode.replay import label, waits
 
     out: list[dict[str, Any]] = []
     live = [t for t in store.trades() if t.get("venue") == "sim" and t.get("symbol") == sym
             and t.get("state") in (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING)]
-    if live and not (venue == "sim" and not replay):
-        out.append(_note("sim_waits", f"Nova's {sym} trade on Sim waits: it moves again when the desk is back on Sim "
-                                      "following the wall clock.", "info"))
+    said: set[str] = set()
+    for t in live:
+        if venue != "sim":
+            where = (f"on the {label(t.get('replay_key'))} replay" if t.get("replay_key")
+                     else "following the wall clock")
+            text = f"Nova's {sym} trade on Sim waits: it moves again when the desk is back on Sim {where}."
+        else:
+            why = waits(t, replay)
+            text = f"Nova's {sym} trade waits: {why}." if why else ""
+        if text and text not in said:
+            said.add(text)
+            out.append(_note("sim_waits", text, "info"))
     bot = (row or {}).get("trade")
     if isinstance(bot, dict) and bot.get("venue") == "sim" and str(bot.get("symbol") or "").upper() == sym:
         why = waiting_text(bot, venue)
@@ -270,13 +281,16 @@ def _sim_waits(sym: str, venue: str | None, replay: bool, row: dict[str, Any] | 
 
 
 def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
+    """One stock's view. ``now`` is the venue's clock (the playhead on Sim: the day and the trade it shows);
+    ``generated_at`` is the wall's, so a write's view and a poll's order the same on a paused replay."""
     from bot import entry_rules
     from bot.sleeve import of
-    from stock_mode.runner import venue_day
+    from stock_mode.runner import clock, venue_day
 
-    now = time.time() if now is None else now
+    now = clock() if now is None else now
     sym = model.symbol(symbol)
     venue, replay = gates.venue_state()
+    key = gates.replay_key()                 # a Sim replay's own trades and approvals (ADR 052 amendment)
     store.sync_venue(venue)
     loaded = _bot_row()
     row = loaded or {}
@@ -287,7 +301,8 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     bot = _bot_part(sym, row, (lane or {}).get("setup_type")) if loaded is not None else \
         {"on_list": False, "playing": False, "reason": _BOT_UNREADABLE, "setup_at_strategy": None, "active": False}
     sw = store.switch(sym)
-    live_lock = model.locks(venue, replay)["buy"] is not None and not replay
+    locks = model.locks(venue, replay, key is not None)
+    live_lock = locks["buy"] is not None and not replay
     if live_lock:
         buy, sell = STOCK_MODE_SIDE_YOU, STOCK_MODE_SIDE_YOU      # on Live a stock is never Nova's
     elif bot["on_list"]:
@@ -298,7 +313,7 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         buy, sell = STOCK_MODE_SIDE_YOU, STOCK_MODE_SIDE_YOU
     mode = model.mode_of(buy, sell)
     day = venue_day(now)
-    exit_held = store.trade(venue, sym)
+    exit_held = store.trade(venue, sym, key)
     if exit_held and exit_held.get("kind") == STOCK_MODE_EXIT and exit_held.get("state") == STOCK_MODE_TRADE_HOLDING             and exit_held.get("exits") == STOCK_MODE_SIDE_NOVA:
         sell = STOCK_MODE_SIDE_NOVA          # Nova holds the exit of a stock you bought (the mode stays yours)
     caps = of(row) if loaded is not None else None
@@ -311,7 +326,7 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     bot_trade = _bot_trade(sym, row)
     if bot_trade and bot_trade.get("venue") not in (None, venue):
         bot_trade = None                    # the bot's trade on another venue is not this desk's
-    trade = _latest(_today(store.trade(venue, sym), day), _today(bot_trade, day))
+    trade = _latest(_today(store.trade(venue, sym, key), day), _today(bot_trade, day))
     notes = ([_note("bot_unreadable", f"The bot session could not be read, so whether Nova trades {sym} is "
                                       "unknown.")] if loaded is None else [])
     if store.load_error():
@@ -319,12 +334,13 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     if unread and mode != "signal":
         notes.append(_note("scanner_unreadable", f"The setup scanner's lanes for {sym} could not be read: Nova cannot "
                                                  "say which setup it would act on, or what size."))
-    notes += _notes(sym, mode, venue, replay, loaded, lane, daily) + _sim_waits(sym, venue, replay, loaded)
+    notes += _notes(sym, mode, venue, replay, loaded, lane, daily, key is not None) + \
+        _sim_waits(sym, venue, replay, loaded)
     mine = [e for e in (daily or {}).get("entries") or [] if e.get("symbol") == sym and e.get("outcome") != "missed"]
     return {
         "schema_version": STOCK_MODE_SCHEMA_VERSION,
         "symbol": sym,
-        "generated_at": now,
+        "generated_at": time.time(),
         "venue": venue,
         "mode": mode,
         # Entry · Exit (ADR 048): who enters and who exits; ``buy`` / ``sell`` are the same, one release.
@@ -335,10 +351,10 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         # The venue sleeve's risk per trade (ADR 042 E): read-only here, set on the Bots page / plan card.
         "risk_usd": (caps or {}).get("risk_usd"),
         "set_at": (sw or {}).get("set_at"),
-        "locks": model.locks(venue, replay),
+        "locks": locks,
         "notes": notes,
         "size": _size(mode, row, lane, venue) if loaded is not None else None,
-        "approval": store.approval(sym),
+        "approval": store.approval(sym, key),
         "trade": _public_trade(trade),
         "entries_today": {"count": (daily or {}).get("count"), "cap": (daily or {}).get("cap")},
         "nova_entries_today": len(mine),            # LEGACY (one release): Nova's entries of this stock today
@@ -352,6 +368,9 @@ def all_stocks(*, now: float | None = None) -> list[dict[str, Any]]:
     """Every stock that is not at Signal only: the switches in memory and this venue's bot list."""
     from bot.eligibility import normalize_symbols
 
-    now = time.time() if now is None else now
+    if now is None:
+        from stock_mode.runner import clock
+
+        now = clock()
     syms = set(store.switches()) | set(normalize_symbols((_bot_row() or {}).get("symbol_allowlist")))
     return [build(s, now=now) for s in sorted(syms)]

@@ -9,6 +9,8 @@ receipt, and the setup it trades (``setup=<setup_type>``, ADR 042 G); every send
 the trade's venue (``expected_venue``), so an order id is never sent to another venue.
 Reads reuse the first-pullback bot's (``bot.first_pullback.orders``): the venue's own order rows and
 long position, and a failed read raises ``ReadError`` -- unknown is never "filled" or "flat".
+On a Sim replay an entry carries the working TTL as its own expiry (``good_for``, #816 as the bot's): a
+jump of the playhead past it never fills the entry on the prints it crossed.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from bot.first_pullback.orders import (  # noqa: F401 (re-exported)
     last_price,
     order_row,
     order_state,
+    ran_out,
     short_held_qty,
 )
 from execution.models import ExecutionCommand
@@ -35,7 +38,25 @@ def _outside_rth() -> bool:
 
 
 def _key(trade: dict[str, Any], step: str) -> str:
-    return f"stock:{trade['kind']}:{trade['venue']}:{trade['symbol']}:{trade['attempt']}:{step}"
+    """On a Sim replay the key carries the replay's run (ADR 052 amendment, #815): an approved setup the playhead
+    plays across again after a rewind is sent again, never answered from the receipt the rewind took back."""
+    return f"stock:{trade['kind']}:{trade['venue']}:{run_tag(trade)}{trade['symbol']}:{trade['attempt']}:{step}"
+
+
+def run_tag(trade: dict[str, Any]) -> str:
+    """The replay run's part of a key (``stock_mode.replay.run_tag``); ``""`` for a trade not made on a replay."""
+    if not trade.get("replay_key"):
+        return ""
+    from stock_mode.replay import run_tag as tag
+
+    return tag()
+
+
+def good_for(trade: dict[str, Any]) -> float | None:
+    """The entry's own expiry on a Sim replay: its working TTL (ADR 052 amendment, #815; the bot's since #816).
+    Paper and the live edge send none: the runner's TTL cancel holds there, as it always has."""
+    ttl = trade.get("ttl_sec")
+    return float(ttl) if trade.get("replay_key") and ttl else None
 
 
 def is_short(trade: dict[str, Any]) -> bool:
@@ -71,6 +92,7 @@ async def place_entry(trade: dict[str, Any]) -> Any:
                 setup=trade.get("setup_type"),
                 skip_risk=True,
                 expected_venue=trade.get("venue"),
+                good_for_sec=good_for(trade),
             ),
             wait_ack=False,
         )
@@ -90,6 +112,7 @@ async def place_entry(trade: dict[str, Any]) -> Any:
             setup=trade.get("setup_type"),
             skip_risk=True,
             expected_venue=trade.get("venue"),
+            good_for_sec=good_for(trade),
         ),
         wait_ack=False,
     )
@@ -121,6 +144,7 @@ async def send_bracket(trade: dict[str, Any]) -> Any:
             setup=trade.get("setup_type"),
             skip_risk=True,
             expected_venue=trade.get("venue"),
+            good_for_sec=good_for(trade),
         ),
         wait_ack=False,
     )

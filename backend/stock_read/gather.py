@@ -115,12 +115,13 @@ def _bot(sym: str) -> dict[str, Any]:
 
 
 def _nova_exit(sym: str) -> dict[str, Any] | None:
-    """Nova's exit of a stock you bought (``stock_mode.exit_trade``) on the desk's venue, while it holds."""
+    """Nova's exit of a stock you bought (``stock_mode.exit_trade``) on the desk's venue -- on a Sim replay the one
+    taken on it (ADR 052 amendment) -- while it holds."""
     from sim.mode import venue
-    from stock_mode import store
+    from stock_mode import gates, store
     from stock_mode.exit_trade import KIND_EXIT
 
-    t = store.trade(venue(), sym)
+    t = store.trade(venue(), sym, gates.replay_key())
     if not t or t.get("kind") != KIND_EXIT or t.get("state") != "holding":
         return None
     return {"stop": t.get("stop"), "target": t.get("target"), "trail": bool(t.get("trail"))}

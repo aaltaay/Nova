@@ -11,8 +11,9 @@
  * ENTRY / STOP / TARGET and the position tag's room come to its one column with the levels' names instead of
  * being drawn over them, and the column starts under the corner chips.
  * On a Sim replay it draws the replay's read at the playhead (ADR 052): the Sim eyes' setups, the plan and
- * the day's levels from the replay's own candles. The day's setups that ended and the daily runs read whole
- * days, so they are not drawn there; a read from the other side of the live edge is never drawn.
+ * the day's levels from the replay's own candles, and the Sim eyes' setups that ended up to the playhead (#815).
+ * The daily runs read whole days, so they are not drawn there; a read from the other side of the live edge, or
+ * from after the playhead, is never drawn.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
@@ -214,9 +215,10 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   // Who trades (ADR 037): the levels with what stands behind them (a drag shows the plan's own), the pin.
   const levels = preview ? null : ctx?.who.levels ?? null;
   const call = ctx?.who.moment?.call ?? null;
-  // Whole days, read live only: a replay never draws them (nor one kept from before the desk went back).
-  const past = !ctx?.replay && ctx?.past.data?.symbol === ctx?.symbol ? ctx?.past.data?.episodes ?? null : null;
-  const past5 = !ctx?.replay && ctx?.past5?.data?.symbol === ctx?.symbol ? ctx?.past5?.data?.episodes ?? null : null;
+  // The setups that ended: this desk's, and on a replay the Sim eyes' up to the playhead -- never a read from after it
+  // (`pastNowOf`, #815), nor one kept from the other side of the live edge.
+  const past = ctx?.pastNow?.episodes ?? null;
+  const past5 = ctx?.past5Now?.episodes ?? null;
   const draw = useMemo(() => paneDraw(read, {
     pane: kind,
     layers: ctx?.layers ?? { eyes: false, setups: false, levels: false, past: false, labels: 'compact', hidden: [], plan: 'auto' },

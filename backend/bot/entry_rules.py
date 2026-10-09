@@ -16,7 +16,8 @@ are. The clock is the venue's (``execution.session_gate``: the replay playhead o
   shown, never capped. The day is the venue's ET date stamped on the line (``venue_day``),
   else the line's own ET date; a line written before the audit carried its venue counts on
   every venue. On a Sim replay the day is the replay's own run -- the entries sent before the
-  playhead on it (``bot.replay_desk.today``, ADR 052) -- and a line written on a replay
+  playhead on it (``bot.replay_desk.today`` and Auto-entry's ``stock_mode.replay.today``, ADR 052
+  and its amendment) -- and a line written on a replay
   (``replay`` stamped) never counts anywhere else.
 - **Extended hours**: with the sleeve's ``extended_hours`` off, entries wait for 09:30-16:00 ET.
 - **#564**: every entry also passes ``bot.day_pnl.commission_hold`` (Live only).
@@ -240,13 +241,23 @@ def today(venue: str | None = None, now: datetime | None = None, *, cap: int | N
     day = at.date().isoformat()
     here = current_venue() if venue is None else venue
     if rows is None and here == "sim" and replay_desk() is not None:
-        folded = {**replay_today(at.timestamp()), "approved": 0}      # the replay's own run (ADR 052)
+        folded = _replay_run(at.timestamp(), replay_today)              # the replay's own run (ADR 052)
     else:
         folded = fold(_audit_rows(day) if rows is None else rows, here, day)
     if cap is None:
         cap = _cap()
     return {"count": folded["count"], "cap": int(cap), "venue_day": day, "entries": folded["entries"],
             "approved": folded["approved"]}
+
+
+def _replay_run(ts: float, bot_today: Callable[[float], dict[str, Any]]) -> dict[str, Any]:
+    """The replay run's day: the bot's entries and Auto-entry's together (one cap), Approve's counted
+    (``stock_mode.replay.today``, ADR 052 amendment)."""
+    from stock_mode.replay import today as stock_today
+
+    bot, stock = bot_today(ts), stock_today(ts)
+    entries = sorted([*bot["entries"], *stock["entries"]], key=lambda e: float(e.get("ts") or 0))
+    return {"count": int(bot["count"]) + int(stock["count"]), "entries": entries, "approved": stock["approved"]}
 
 
 def entries_today(now: datetime | None = None, *, rows: list[dict[str, Any]] | None = None) -> int:
