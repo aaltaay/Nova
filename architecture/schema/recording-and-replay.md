@@ -91,7 +91,14 @@ migrated; unknown versions refuse loudly. Capture load diagnostics include
 `timestamp_regressions`, `last_stream_ts`, `tape_resubscribes` and
 `tape_losses: [{at, cause: "ib_error" | "stale", detail}]` (the recording's
 tape line lost while it ran, newest last, at most `CAPTURE_TAPE_LOSS_KEEP`;
-both carried across segments of the day, #525). Diagnostics are counts except
+both carried across segments of the day, #525). The manifest's `fidelity` is
+written when a segment starts, at once on every tape loss or re-ask, and every
+`CAPTURE_MANIFEST_CHECKPOINT_SEC` while it records, so a segment a restart ends
+keeps them (before #722 only a clean stop wrote it: VEEA on 2026-10-05 kept its
+07:00-07:13 segment's fidelity through two restarts, with none of its 09:37-09:45
+re-asks); the startup finalizer takes `last_stream_ts` from the newest row of
+each stream on disk. A checkpoint never touches `counts`, which the finalizer
+recounts against. Diagnostics are counts except
 `legacy_schema` / `l2_decimated` (booleans), `last_stream_ts` (per-stream event
 timestamps) and `tape_losses`.
 No automatic retention policy is selected by these additions.
