@@ -117,7 +117,8 @@ def place_bracket_order(
                 except Exception as exc:
                     if not sent:
                         raise
-                    cancelled, failed = _cancel_legs(ib, sent)
+                    # The leg that raised may have reached the Gateway before it did: cancel it too.
+                    cancelled, failed = _cancel_legs(ib, [*sent, order])
                     return None, nova_stamp, exc, cancelled, failed
                 sent.append(order)
                 remember_nova_placed(order.orderId, nova_stamp)
@@ -125,10 +126,7 @@ def place_bracket_order(
 
         bracket, nova_stamp, broke, cancelled, failed = _orders._ib_sync(_place_bracket, "placeOrder")
         if broke is not None:
-            error = (
-                f"the bracket broke after {len(cancelled) + len(failed)} of its 3 legs reached the Gateway "
-                f"({broke}); the stop never transmitted them"
-            )
+            error = f"the bracket broke while its legs went to the Gateway ({broke}); the stop never transmitted them"
             if failed:
                 error += f". Nova could NOT cancel order(s) {', '.join(map(str, failed))}: cancel them in TWS"
             else:

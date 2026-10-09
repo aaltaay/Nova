@@ -99,9 +99,10 @@ def test_a_stop_that_never_went_out_takes_back_the_legs_held_at_the_gateway(monk
     _arm(monkeypatch, gateway)
     out = _bracket()
     entry, target = (o.orderId for o in gateway.placed)
+    stop = target + 1                               # the leg that raised may have reached the Gateway
     assert out["ok"] is False
-    assert gateway.cancelled == [target, entry]    # exits first, then the entry
-    assert out["taken_back"] == [target, entry] and out["not_taken_back"] == []
+    assert gateway.cancelled == [stop, target, entry]   # exits first, then the entry
+    assert out["taken_back"] == [stop, target, entry] and out["not_taken_back"] == []
     assert "Nova cancelled them" in out["error"]
 
 

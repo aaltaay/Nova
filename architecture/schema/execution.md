@@ -215,7 +215,8 @@ ib_async's bracket helper), closed on Nova's Live path. Every reason code below 
   A cancel answered 10148 `state: Filled` is receipt `ok: true`, `reason_code: CANCEL_TOO_LATE`,
   `broker_status: "Filled"`, and the order's place row is never marked Cancelled.
 - **A bracket whole, or taken back** (owners `ibkr/order_bracket.py`, `execution/bracket_guard.py`). A leg's
-  `placeOrder` that raises after earlier legs went cancels them; the adapter's result adds `taken_back:
+  `placeOrder` that raises after earlier legs went cancels them and itself (it may have reached the
+  Gateway before it raised); the adapter's result adds `taken_back:
   number[]` and `not_taken_back: number[]`. A leg IBKR closes before any working status, within
   `IBKR_BRACKET_LEG_REFUSAL_WINDOW_SEC` (5) of the send, cancels the legs still open on Live: row `failed`,
   receipt `ok: false`, `reason_code: BRACKET_LEG_REFUSED`, the error in IBKR's words. If the entry has filled,
