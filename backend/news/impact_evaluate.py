@@ -161,7 +161,7 @@ def evaluate_news_impact(
             f"(score={sentiment_result['score']}) — informational only, does not change impact_class."
         )
     if lexicon_result["label"] == "unavailable":
-        reasons.append("Loughran-McDonald lexicon sentiment unavailable (dependency missing or no headline text).")
+        reasons.append("Loughran-McDonald lexicon sentiment unavailable (dependency missing, still loading, or no headline text).")
     else:
         reasons.append(
             f"Loughran-McDonald lexicon sentiment is '{lexicon_result['label']}' "
