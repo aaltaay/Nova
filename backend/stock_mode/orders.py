@@ -35,7 +35,18 @@ def _outside_rth() -> bool:
 
 
 def _key(trade: dict[str, Any], step: str) -> str:
-    return f"stock:{trade['kind']}:{trade['venue']}:{trade['symbol']}:{trade['attempt']}:{step}"
+    """On a Sim replay the key carries the replay's run (ADR 052 amendment, #815): an approved setup the playhead
+    plays across again after a rewind is sent again, never answered from the receipt the rewind took back."""
+    return f"stock:{trade['kind']}:{trade['venue']}:{run_tag(trade)}{trade['symbol']}:{trade['attempt']}:{step}"
+
+
+def run_tag(trade: dict[str, Any]) -> str:
+    """The replay run's part of a key (``stock_mode.replay.run_tag``); ``""`` for a trade not made on a replay."""
+    if not trade.get("replay_key"):
+        return ""
+    from stock_mode.replay import run_tag as tag
+
+    return tag()
 
 
 def is_short(trade: dict[str, Any]) -> bool:

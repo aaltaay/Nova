@@ -37,13 +37,16 @@ function PastChip({ ctx }: { ctx: StockReadContextValue }) {
       </button>
     );
   }
-  const drawn = past.data ? drawnPast(past.data.episodes, layers.hidden) : [];
+  // What the charts draw: this desk's read, never one from after a replay's playhead (#815).
+  const data = ctx.pastNow ?? null;
+  const drawn = data ? drawnPast(data.episodes, layers.hidden) : [];
   const n = pastCounts(drawn);
-  const words = past.data
-    ? `Setups that ended today on ${ctx.symbol}: ${n.failed} failed (✕), ${n.faded} faded (○), ${n.triggered} triggered (✓),`
+  const when = data?.replay ? 'by the playhead' : 'today';
+  const words = data
+    ? `Setups that ended ${when} on ${ctx.symbol}: ${n.failed} failed (✕), ${n.faded} faded (○), ${n.triggered} triggered (✓),`
       + ' drawn faint where they happened. Hover a box for why it ended and what price did next.'
     : 'The day\'s setups that ended, drawn faint where they happened.';
-  const trouble = [past.error, past.data?.journal.error, past.data?.bars.error].filter(Boolean).join(' ');
+  const trouble = [past.error, data?.journal.error, data?.bars.error].filter(Boolean).join(' ');
   return (
     <button
       type="button"
@@ -53,7 +56,7 @@ function PastChip({ ctx }: { ctx: StockReadContextValue }) {
       {...tipProps(`${words}${trouble ? ` ${trouble}` : ''} (click to ${layers.past ? 'hide' : 'show'} them)`, 'Past setups')}
       data-testid="stock-read-legend-past"
     >
-      ◌ Past{past.data ? ` ${drawn.length}` : ''}
+      ◌ Past{data ? ` ${drawn.length}` : ''}
     </button>
   );
 }

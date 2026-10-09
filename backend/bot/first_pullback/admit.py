@@ -241,13 +241,17 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
 # -- size ----------------------------------------------------------------------------------
 def exposure(row: dict[str, Any], venue: str | None) -> float:
     """Dollars Nova's automatic entries hold or have working on this venue, long or short: the bot's and
-    Auto-entry's."""
+    Auto-entry's -- on Sim, Auto-entry's at the place the desk shows (the live edge, or the loaded replay: a replay's
+    trades are on its own scratch account, ADR 052 amendment)."""
     from bot.risk import open_plus_working_usd
 
-    from stock_mode import store
+    from stock_mode import gates, store
 
     total = open_plus_working_usd(row)
+    here = store.place(gates.replay_key())
     for t in store.trades():
+        if store.place(t.get("replay_key")) != here:
+            continue
         if t.get("venue") == venue and t.get("kind") == "auto_entry" and t.get("state") in ("entering", "holding"):
             total += float(t.get("qty") or 0) * float(t.get("fill_price") or t.get("entry") or 0)
     return total

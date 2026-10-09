@@ -206,5 +206,5 @@ export const SHORT_CHIP_COOLOFF_TIP =
   'No short for 10 minutes after an up-halt resumes: a stock that halted on its way up can halt again on its way up.';
 
 /** The rail on a Sim replay (ADR 052): the chart draws the replay's read; the tiles are the live feed's. */
-export const REPLAY_RAIL_NOTE = 'Sim replay: the charts draw the Sim eyes\' setups, the plan and the day\'s levels at the '
-  + 'playhead. The tiles read the live feed, so they wait for the live edge.';
+export const REPLAY_RAIL_NOTE = 'Sim replay: the charts draw the Sim eyes\' setups, the ones that ended, the plan and the '
+  + 'day\'s levels at the playhead. The tiles read the live feed, so they wait for the live edge.';

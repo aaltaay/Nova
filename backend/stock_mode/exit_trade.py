@@ -1,4 +1,6 @@
-"""Nova takes the exit of a stock you bought (ADR 037 amendment 2026-10-01). Paper, and Sim at the live edge.
+"""Nova takes the exit of a stock you bought (ADR 037 amendment 2026-10-01). Paper, and Sim -- at the live edge, or
+on a loaded replay (ADR 052 amendment, #815: the trade is the replay's, its minutes the replay's candles at the
+playhead, and it goes back with a rewind like the runner's other trades).
 
 Operator ask: "I can instruct Nova to sell it for me when I have a trade"; mockup v4b, "1 go". You hand
 Nova the sell of the shares the venue holds: a SELL stop at your stop, through the execution door (source
@@ -26,7 +28,6 @@ for a position you already hold waits on an exit-only pair in the door (#681).
 from __future__ import annotations
 
 import logging
-import time
 import uuid
 from typing import Any
 
@@ -88,9 +89,19 @@ def _closed_bars(symbol: str, now: float) -> list[dict[str, Any]]:
     return session_of([b for b in bars if float(b["t"]) + MIN <= now])
 
 
+def _closed_replay_bars(symbol: str, now: float) -> list[dict[str, Any]]:
+    """On a Sim replay: the Sim chart's candles completed by the playhead (``stock_read.replay_read.bars``), never a
+    minute after it."""
+    from constants_stock_read import STOCK_READ_BARS_LIMIT
+    from stock_read.indicators import session_of
+    from stock_read.replay_read import bars as replay_bars
+
+    return session_of(replay_bars(symbol, "1Min", STOCK_READ_BARS_LIMIT, now))
+
+
 # -- sends -------------------------------------------------------------------------------
 def _key(trade: dict[str, Any], step: str) -> str:
-    return f"stock:exit:{trade['venue']}:{trade['symbol']}:{trade['attempt']}:{step}"
+    return f"stock:exit:{trade['venue']}:{orders.run_tag(trade)}{trade['symbol']}:{trade['attempt']}:{step}"
 
 
 def _short(trade: dict[str, Any]) -> bool:
@@ -156,16 +167,17 @@ async def take(symbol: str, *, stop: Any, trail: bool = True, now: float | None 
     ``STOCK_MODE_NOTHING_HELD``, ``STOCK_MODE_INVALID`` (a stop that would fill at once: at or over the last
     price under a long, at or under it over a short) and ``STOCK_MODE_SEND``."""
     from stock_mode import view
-    from stock_mode.runner import venue_day
+    from stock_mode.runner import clock, venue_day
 
-    now = time.time() if now is None else now
+    now = clock() if now is None else now
     sym = model.symbol(symbol)
     venue, replay = gates.venue_state()
-    blocked = gates.venue_block(venue, replay)
+    key = gates.replay_key()
+    blocked = gates.venue_block(venue, replay, loaded=key is not None)
     if blocked is not None:
         code, why = blocked
         raise StockModeError(code, STOCK_MODE_WHY_LIVE_EXIT if code == STOCK_MODE_LIVE else why, field="sell")
-    live = store.trade(venue, sym)
+    live = store.trade(venue, sym, key)
     if live and live.get("state") in (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING)             and live.get("exits") == STOCK_MODE_SIDE_NOVA:
         raise StockModeError(STOCK_MODE_HELD, f"Nova already holds an order on {sym}: take it back first", field="sell")
     try:
@@ -201,6 +213,7 @@ async def take(symbol: str, *, stop: Any, trail: bool = True, now: float | None 
         "trail_checked_at": None, "entry_order_id": None, "target_order_id": None, "stop_order_id": None,
         "sent_at": now, "ttl_sec": None, "cancel_sent_at": None, "fill_price": cost, "filled_at": now,
         "exit_price": None, "exit_reason": None, "closed_at": None, "exits": STOCK_MODE_SIDE_NOVA, "note": None,
+        "replay_key": key,     # the Sim replay it was taken on (ADR 052 amendment), else None
     }
     receipt = await _place_stop(trade, stop_px)
     if not getattr(receipt, "ok", False):
@@ -275,7 +288,7 @@ async def _trail(trade: dict[str, Any], now: float) -> None:
     sym = trade["symbol"]
     last = orders.last_price(sym)
     try:
-        bars = _closed_bars(sym, now)
+        bars = (_closed_replay_bars if trade.get("replay_key") else _closed_bars)(sym, now)
     except Exception:
         logger.warning("stock mode: %s's 1-minute bars could not be read -- no raise this minute", sym, exc_info=True)
         store.set_trade(trade)

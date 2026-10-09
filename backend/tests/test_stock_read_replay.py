@@ -52,12 +52,15 @@ def test_a_rewind_is_never_served_a_cached_later_read():
     assert client.get(f"/api/stock-read/{SYM}").json()["levels"]["hod"] is None
 
 
-def test_the_day_routes_answer_nothing_on_a_replay():
+def test_the_whole_day_routes_answer_nothing_on_a_replay():
+    """The decisions timeline reads whole days; the past setups are the Sim eyes' own (#815,
+    ``test_past_setups_replay``), and none until the Sim eyes have read the replay."""
     set_venue("sim", persist=False)
     load_window()
     go(75)
     past = client.get(f"/api/stock-read/{SYM}/past-setups").json()
-    assert past["replay"] is True and past["episodes"] == [] and "after the playhead" in past["note"]
+    assert past["replay"] is True and past["episodes"] == [] and past["pending"] is True
+    assert "reading the replay" in past["note"]
     decisions = client.get(f"/api/stock-read/{SYM}/decisions").json()
     assert decisions["replay"] is True and decisions["events"] == []
     flush = client.get(f"/api/stock-read/{SYM}/flush").json()

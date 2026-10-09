@@ -14,7 +14,8 @@ Either way the instruction is the same: re-read positions and working orders
 from the practice account (``/api/practice/account?venue=sim``,
 ``/api/ibkr/positions``) and never trust memory over the ledger. Nova's own
 bot is told directly too (``bot.replay_desk.rewound``, ADR 052): it takes back
-its trade as it stood at the new playhead on its next tick.
+its trade as it stood at the new playhead on its next tick -- and so is stock mode
+(``stock_mode.replay.rewound``: Auto-entry, Approve and Nova's exit, #815).
 
 Process-local on purpose: the scratch account itself does not survive a
 restart, so a stale notice would only mislead. Never raises -- a venue must
@@ -72,6 +73,12 @@ def publish(
         replay_desk.rewound(playhead_ts)      # Nova's own bot takes back what it remembered (ADR 052)
     except Exception:
         logger.warning("BOT: practice_rewind not handed to Nova's bot", exc_info=True)
+    try:
+        from stock_mode import replay as stock_replay
+
+        stock_replay.rewound(playhead_ts)     # and Auto-entry, Approve and Nova's exit (ADR 052 amendment)
+    except Exception:
+        logger.warning("BOT: practice_rewind not handed to stock mode", exc_info=True)
     try:
         from bot.audit import record as audit
 

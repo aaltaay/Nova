@@ -6,6 +6,10 @@ Today's file is read as it grows (``eyes.journal_day.JournalTail``: appended byt
 for every symbol, so a poll costs the lines written since the last one; another day is folded on each
 ask. A source that cannot be read is ``{ok: false, error}`` and the rest still answers.
 
+On a Sim replay desk (ADR 052 amendment, #815) the episodes are the Sim eyes' -- folded from the lines the
+replay's lanes wrote up to the playhead (``eyes.sim_past``) -- and what price did next reads the replay's
+one-minute bars completed by the playhead (``replay``): nothing after it.
+
 Owner: this module (in memory: today's fold; invalidation: a journal read again from the start folds
 again from nothing, and a new date starts a new fold).
 """
@@ -109,10 +113,64 @@ def read(symbol: str, date: str, now: float, *, today: bool, path: Path | None =
         except Exception as exc:
             logger.warning("past setups: the bars of %s on %s could not be read", sym, date, exc_info=True)
             state = {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200], "count": 0}
+    return _body(sym, date, now, eps, bars, state, journal, five, replay=False)
+
+
+def _body(sym: str, date: str | None, now: float, eps: list[dict], bars: list[Bar], state: dict[str, Any],
+          journal: dict[str, Any], five: bool, *, replay: bool, note: str | None = None) -> dict[str, Any]:
+    """The route's body: each failed or faded episode's ``after`` over ``bars`` at ``now``, and the counts."""
     window = SETUPS_5M_SCORE_WINDOW_MIN if five else aftermath.EYES_EPISODE_AFTER_MIN
     for e in eps:
         e["after"] = aftermath.after(e, bars, now=now, window_min=window) if state["ok"] else None
     counts = {k: sum(1 for e in eps if e["end"] == k) for k in (END_FAILED, END_FADED, END_TRIGGERED, END_CUT)}
     counts["open"] = sum(1 for e in eps if e["end"] is None)
-    return {"symbol": sym, "date": date, "generated_at": now, "timeframe": "5m" if five else "1m",
-            "episodes": eps, "counts": counts, "journal": journal, "bars": state}
+    out = {"symbol": sym, "date": date, "generated_at": now, "timeframe": "5m" if five else "1m",
+           "episodes": eps, "counts": counts, "journal": journal, "bars": state, "replay": replay}
+    if replay:
+        out["note"] = note
+    return out
+
+
+def _loaded_symbol() -> str | None:
+    from bot.replay_desk import desk
+
+    here = desk()
+    return here["symbol"] if here is not None else None
+
+
+def replay(symbol: str, date: str | None, *, five: bool = False, eyes: Any = None,
+           playhead: float | None = None) -> dict[str, Any]:
+    """The route's body on a Sim replay desk (ADR 052 amendment, #815): the Sim eyes' setups that ended on the
+    loaded replay, measured on its one-minute bars completed by the moment the lanes stand at -- never a minute
+    after the playhead. Nothing while the lanes read the replay or catch up to a rewind (``pending``), and nothing
+    for a symbol that is not the loaded replay's (``note`` says which)."""
+    from stock_read.replay_read import playhead as read_playhead
+
+    sym = symbol.upper()
+    if eyes is None:
+        from eyes.sim_eyes import get_sim_eyes
+
+        eyes = get_sim_eyes()
+    got = eyes.past(sym)
+    at = read_playhead() if playhead is None else playhead
+    if got is None and _loaded_symbol() == sym:
+        got = {"pending": "the Sim eyes are reading the replay"}      # loaded, not read yet
+    if got is None or "pending" in got:
+        note = (str(got["pending"]) if got is not None else
+                f"the Sim eyes read the loaded replay only, and nothing of {sym} is loaded")
+        empty = {"ok": False, "error": note, "lines": 0}
+        out = _body(sym, date, at, [], [], {"ok": False, "error": note, "count": 0}, empty, five, replay=True,
+                    note=note)
+        out["pending"] = got is not None
+        return out
+    if date and date != got["date"]:
+        note = f"the replay is {got['date']}: the Sim eyes read only the day the desk replays"
+        return {**_body(sym, date, at, [], [], {"ok": False, "error": note, "count": 0},
+                        {"ok": False, "error": note, "lines": 0}, five, replay=True, note=note), "pending": False}
+    at = float(got["at"])
+    bars = [b for b in got["bars"] if float(b.t) + 60 <= at + 1e-6]       # completed by the playhead
+    eps = [dict(e) for e in got["episodes"][five]]
+    out = _body(sym, got["date"], at, eps, bars, {"ok": True, "error": None, "count": len(bars)},
+                {"ok": True, "error": None, "lines": int(got["lines"])}, five, replay=True)
+    out["pending"] = False
+    return out

@@ -153,8 +153,8 @@ describe('the switch', () => {
     expect(switchLock(pfsaView('signal'), { buy: 'nova', sell: 'you' }, { ...o, pending: 'Saving…' })).toBe('Saving…');
   });
 
-  it('on a Sim replay only Bot is Nova\'s: the mode\'s own lock says so before the press (ADR 052)', () => {
-    const why = 'On a Sim replay Nova trades a stock only as Bot';
+  it('on a Sim replay with nothing loaded only Bot is open: the mode\'s own lock says so before the press (ADR 052)', () => {
+    const why = 'Nothing is loaded on the Sim replay, so Nova has nothing to trade';
     const raw = { symbol: 'PFSA', mode: 'signal', buy: 'you', sell: 'you', venue: 'sim',
       locks: { buy: null, sell: null, modes: { bot: null, auto_entry: why, approve: why } } };
     const replay = normalizeStockMode(raw);

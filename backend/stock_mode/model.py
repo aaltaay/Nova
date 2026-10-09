@@ -50,11 +50,12 @@ def side(raw: Any, field: str) -> str:
     return value
 
 
-def locks(venue: str | None, replay: bool) -> dict[str, Any]:
+def locks(venue: str | None, replay: bool, loaded: bool = True) -> dict[str, Any]:
     """Why Nova cannot take each side now (None: it can). A venue Nova cannot read counts as Live.
     ``entry`` / ``exit`` are the switch's names since shorts (ADR 048); ``buy`` / ``sell`` stay one release.
-    ``modes`` says it per mode: on a Sim replay Bot is open and the modes that split the sides are not (ADR 052),
-    so neither side is locked on its own there."""
+    ``modes`` says it per mode: on a Sim replay every mode is open once something is ``loaded`` (ADR 052
+    amendment, #815); with nothing loaded Bot is open and the modes that split the sides are not, so neither
+    side is locked on its own there."""
     if venue is None:
         entry, exit_ = STOCK_MODE_WHY_VENUE_UNKNOWN, STOCK_MODE_WHY_VENUE_UNKNOWN
     elif venue not in DESK_PRACTICE_VENUES:
@@ -62,8 +63,8 @@ def locks(venue: str | None, replay: bool) -> dict[str, Any]:
     else:
         entry, exit_ = None, None
     if replay and venue in DESK_PRACTICE_VENUES:
-        modes = {STOCK_MODE_BOT: None, STOCK_MODE_AUTO_ENTRY: STOCK_MODE_WHY_REPLAY,
-                 STOCK_MODE_APPROVE: STOCK_MODE_WHY_REPLAY}
+        why = None if loaded else STOCK_MODE_WHY_REPLAY
+        modes = {STOCK_MODE_BOT: None, STOCK_MODE_AUTO_ENTRY: why, STOCK_MODE_APPROVE: why}
     else:
         modes = {STOCK_MODE_BOT: entry or exit_, STOCK_MODE_AUTO_ENTRY: entry, STOCK_MODE_APPROVE: exit_}
     return {"entry": entry, "exit": exit_, "buy": entry, "sell": exit_, "modes": modes}

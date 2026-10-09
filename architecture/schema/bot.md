@@ -463,9 +463,24 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
   recorded Level 2, the window's NBBO, or a book Nova recorded that day -- beside the historical Level
   2's slot; the flush exit reads the Sim eyes' flow readings.
 - **Who trades** (`GET /api/stock-mode/{symbol}`): `locks` adds `modes: {bot, auto_entry, approve}` --
-  each mode's lock (null: open). On a replay `buy` / `sell` read null and `modes` locks Auto-entry and
-  Approve with `STOCK_MODE_WHY_REPLAY`; `PUT` refuses those modes `409 STOCK_MODE_REPLAY` and takes Bot.
-  "Nova takes the exit" stays refused on a replay.
+  each mode's lock (null: open). On a replay `buy` / `sell` read null. With a replay loaded every mode is
+  open (#815, below); with nothing loaded off the edge `modes` locks Auto-entry and Approve with
+  `STOCK_MODE_WHY_REPLAY`, and `PUT` refuses them -- and "Nova takes the exit" -- `409 STOCK_MODE_REPLAY`,
+  while Bot is taken.
+- **Auto-entry, Approve and "Nova takes the exit" on a replay** (ADR 052 amendment, #815; owner of the
+  replay side `backend/stock_mode/replay.py`). The stock-mode runner hears the Sim eyes' triggers as the bot
+  does (only the feed the desk shows) and runs on the venue clock: `sent_at`, `filled_at`, `closed_at`,
+  `cancel_sent_at`, an approval's `approved_at`, the exit's `trail_checked_at` and `raised[].at`, and the
+  stock's `last_event.ts` are replay time on a replay. A trade or approval made on a replay adds
+  `replay_key: list` (null or absent elsewhere); it lives in memory only, never in `stock-mode-trades.json`,
+  and is acted on only while the desk shows that replay -- one made at the live edge waits while the desk
+  replays. A rewind returns the replay's trades, approvals and entries to what they were at the new playhead
+  (checkpoints by playhead, also taken after each of the operator's acts), cancels an order of a replay
+  trade the restored trades do not know, and changes the run tag in the stock-mode idempotency keys
+  (`stock:<kind>:sim:<replay>.<run>:<SYMBOL>:<attempt>:<step>`); each is a `stock_mode` `note` line and the
+  stock's last event. Another replay drops the old replay's trades and approvals, said the same way. The
+  switch does not go back with a rewind. Auto-entry's entries on a replay share the bot's day count (sent
+  before the playhead, a miss given back); Approve's count as `approved`.
 - **The board** (`/ws/setups` on a replay desk): `replay.kind` is `capture` or `history` for a loaded
   replay (lanes over it) and `journal` with nothing loaded; `history` adds `source` (`massive` / `ibkr`)
   and `book` (`nbbo` / `none`), and `note` says what the tape gate reads. `recording` adds `book`
@@ -477,6 +492,7 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
 - **The stock read** (`GET /api/stock-read/{symbol}`) adds `replay: boolean`. On a replay desk it is the
   replay's at the playhead: `generated_at` and `session_date` are the playhead's, the setups and plan
   the Sim eyes', the levels from the Sim chart's completed candles up to the playhead, the daily map from
-  the days before the replayed one; the live feed's facts are unknown. `past-setups` and `decisions`
-  answer empty with `replay: true` and a `note`; `history` adds `replay` and reads only the days before;
-  `flush` reads `blind`.
+  the days before the replayed one; the live feed's facts are unknown. `nova_exit` is Nova's exit made on
+  this replay. `past-setups` answers the Sim eyes' setups that ended (#815, `stock-read.md` "Setups that
+  ended"); `decisions` answers empty with `replay: true` and a `note`; `history` adds `replay` and reads
+  only the days before; `flush` reads `blind`.

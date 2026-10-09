@@ -6,7 +6,7 @@ Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. 
 
 On a Sim replay desk the read is the replay's at the playhead (`replay: true`; ADR 052, bot.md "The bot
 trades a Sim replay"): the Sim eyes' setups, the replay's candles, the days before for the daily map; the
-day routes answer empty there.
+setups that ended are the Sim eyes' up to the playhead (#815), and the decisions timeline answers empty there.
 
 "Show me the bot's decisions specifically for that stock ... if something is forming, can we start
 highlighting it on the chart? ... all the tiny signals"; then "i want it to tell me my entry/exit
@@ -192,8 +192,8 @@ and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers`
 1, value: {setups, levels, past, labels: "compact" | "full", hidden: string[], plan: "auto" | "open" |
 "folded"}}` keeps the switches (`past`, added 2026-09-29, reads true when a stored value lacks it;
 `labels`, added 2026-09-30, reads `compact` when a stored value lacks it or holds anything else). A decision's "show
-on chart" frames its moment on the 1-minute chart with the levels it armed at. Nothing is drawn or
-read on a replay desk (the read is today's live stock) or on the sample desk.
+on chart" frames its moment on the 1-minute chart with the levels it armed at. On a replay desk the
+charts draw the replay's read at the playhead (ADR 052); nothing is drawn or read on the sample desk.
 
 ## Setups that ended stay on the chart, and what price did next (ADR 036 amendment, operator ask 2026-09-29)
 
@@ -264,7 +264,17 @@ never made into a path. Today's file is read as it grows (`eyes.journal_day.Jour
 bytes only, never a line the writer has not finished) and folded once for every symbol, in memory;
 another day is folded on each ask. A source that cannot be read is `ok: false` with its error (a day
 with no journal file: "no eyes' journal on file for DATE") and the rest still answers (`after: null`
-without bars).
+without bars). The body adds `replay: boolean`.
+
+**On a Sim replay desk** (ADR 052 amendment, #815) the route answers the Sim eyes' setups that ended on the
+loaded replay at the playhead (`eyes/sim_past.py`; `replay: true`): the episodes are folded from the lines the
+replay's lanes wrote up to the playhead -- a fold per rebuild, never the day's journal file -- and `after` reads
+the replay's one-minute bars completed by the playhead, so a window still open reads `pending`. `date` is the
+replayed day and `generated_at` the playhead; `journal.lines` counts the lanes' lines folded; `note` is null.
+While the Sim eyes read the replay or catch up to a rewind it answers no episodes with `pending: true` and
+`note` (also `journal.error`) saying which; for a symbol that is not the loaded replay's, or with nothing
+loaded, it answers none with `note` saying so. `tf=5m` folds the 5-minute strategies' lanes the Sim eyes run
+(the built-in chart-only 5-minute lanes do not run on a replay).
 
 **On the desk** (`frontend/src/stock_read/`: `pastSetups.ts` the wire and the words, `pastShapes.ts`
 the drawing, `ShapeTip.tsx` the hover):
@@ -289,8 +299,10 @@ the drawing, `ShapeTip.tsx` the hover):
 - The legend's "Past" chip switches the layer (`nova.stockRead.layers` `value.past`), counts what it
   draws, and says why when the backend has no such route. The read is fetched every
   `STOCK_READ_PAST_POLL_MS` while the Trader tab shows with the layer on, and at once when a lane's
-  drawn state changes, so a setup that fails or ends is drawn as past within one read. Nothing is drawn
-  on a replay desk or the sample desk.
+  drawn state changes, so a setup that fails or ends is drawn as past within one read. On a replay desk
+  (#815) it is read again the moment the playhead moves to another 5 s, and a read is drawn only when it
+  is the replay's and was made at or before the playhead the tab shows (`pastNowOf`), so a rewind draws
+  nothing from later while the next read comes. Nothing is drawn on the sample desk.
 - **Labels make room** (operator report, 2026-09-30: "i do really like seeing the details, but perhaps
   it is extremely too crowded"; LGHL that morning drew 15 past setups, their labels piled on each
   other; then "maybe the compact form should just show (x) and when we hover, it shows the full failed
@@ -474,8 +486,8 @@ stored shape changed.
 
 "When may Nova buy for you? I want a clear option next to level 2 ... if I selected the exit is on
 me, then I'm going to be the one who exits, not the bot." Owner `backend/stock_mode/`: the routes,
-the in-memory store and the runner. Nova places for a stock only on Paper, or on Sim at the live
-edge. On Live every Nova side is locked, and the lock says why: a Nova buy is `auto_live`, NO-GO,
+the in-memory store and the runner. Nova places for a stock only on Paper, or on Sim -- at the live
+edge, or on a loaded replay (ADR 052 and its amendment, #815; bot.md "The bot trades a Sim replay"). On Live every Nova side is locked, and the lock says why: a Nova buy is `auto_live`, NO-GO,
 and Approve on Live waits on #604.
 
 **The view.** `GET /api/stock-mode/{symbol}` answers `{schema_version: 1, symbol, generated_at,
@@ -536,7 +548,7 @@ routes.
 A refusal is `{detail: {reason, error, field}}`:
 - 400: `STOCK_MODE_INVALID`, `STOCK_MODE_RISK`.
 - 409 `STOCK_MODE_LIVE`: a Nova side on Live, or on a venue Nova cannot read.
-- 409 `STOCK_MODE_REPLAY`: Sim off the live edge.
+- 409 `STOCK_MODE_REPLAY`: Sim off the live edge with nothing loaded (Auto-entry, Approve, Nova's exit).
 - 409 `STOCK_MODE_HELD`: Sell to Nova while the stock is held.
 - 409 `STOCK_MODE_NOT_APPROVE`.
 - 409 `STOCK_MODE_FILTERED` / `STOCK_MODE_NOT_A_TRADE`: Approve on a setup the template's filter keeps
@@ -547,7 +559,9 @@ A refusal is `{detail: {reason, error, field}}`:
 - 409 `STOCK_MODE_SEND`: the execution door refused the send; `error` is the door's own reason.
 
 **What Nova does.** The runner (`stock_mode/runner.py`) hears the setup scanner's triggers
-(`SetupEngine.add_trigger_listener`, live feed only).
+(`SetupEngine.add_trigger_listener`) and the Sim eyes' (`SimEyes.add_trigger_listener`), each only on the desk
+it is for: the live scanner's on Paper and at the live edge, the Sim eyes' for the replay loaded now. Its clock
+is the venue's (the playhead on Sim).
 - **Auto-entry is the bot's rules with the exit handed to you** (ADR 042, `admit.for_auto_entry`):
   the first go trigger of a setup at effective Strategy (never one at Off or Eyes), the first of the
   day, inside that setup's bot window, with extended hours as the sleeve says, within the shared
@@ -608,8 +622,8 @@ Sell: You means Nova never sells the trade; the loss breakers and KILL still fla
   Nova would send in a Nova mode. The Bots page lists every stock not at Signal only (`GET
   /api/stock-mode`), so an Auto-entry stock is never invisible once its tab closes.
   - A trade Nova closed on the plan's setup reads "Closed · +$X" (gross, from the fill to the exit).
-- The Trader reads the view every `STOCK_MODE_POLL_MS` while the tab shows. Nothing is read on a
-  replay desk or on the sample desk.
+- The Trader reads the view every `STOCK_MODE_POLL_MS` while the tab shows, on a replay desk too (ADR
+  052). Nothing is read on the sample desk.
 
 ## Managing a trade you hold (ADR 036 / 037 amendment, operator ask 2026-10-01)
 
@@ -669,7 +683,7 @@ T1's reading (`tape_flow` with a 30 s window, every other number the default); t
   more after you held; description only on Live), BROKE $X · NEXT Y with the raise offered, TARGET HIT.
 - Level 2 marks NEXT on the ask side and STOP on the bid side.
 
-**Nova takes the exit** (Paper, and Sim at the live edge). `POST /api/stock-mode/{symbol}/take-exit` takes
+**Nova takes the exit** (Paper, and Sim -- at the live edge, or on a loaded replay, #815). `POST /api/stock-mode/{symbol}/take-exit` takes
 `{stop, trail: boolean}`: Nova places a SELL stop for every share the venue holds at `stop` through the
 execution door (source `manual`, origin `nova_exit`) and keeps a trade `{kind: "exit", state: "holding",
 exits: "nova", qty, entry (the average), fill_price, stop, target: null, trail, stop_order_id,
@@ -680,8 +694,9 @@ position waits on an exit-only pair in the door (#681). The runner (`exit_trade.
 `STOCK_MODE_POLL_SEC`): the stop that fills closes the trade; a position gone closes it `outside`; a stop
 cancelled outside Nova hands the exit back (`handed`); with `trail`, at each closed minute a broke round
 since the trade began raises the stop by a replace of the stop order (the rule above, up only), an audit
-line `raised` and the stock's last event. Refusals: `STOCK_MODE_LIVE` / `STOCK_MODE_REPLAY` (Live, a venue
-Nova cannot read, Sim off the edge), `STOCK_MODE_NOTHING_HELD` (no shares, or the position cannot be
+line `raised` and the stock's last event. On a replay the closed minutes are the replay's candles completed
+by the playhead. Refusals: `STOCK_MODE_LIVE` / `STOCK_MODE_REPLAY` (Live, a venue Nova cannot read, Sim off
+the edge with nothing loaded), `STOCK_MODE_NOTHING_HELD` (no shares, or the position cannot be
 read), `STOCK_MODE_INVALID` (a stop at or over the last price), `STOCK_MODE_HELD` (Nova already holds an
 exit or an entry on it), `STOCK_MODE_SEND` (the door refused). "Take it back" is `POST .../take-over`
 (the stop cancelled, the trade `handed`); Sell: You on the switch does the same. While it holds, the view's `sell` is `nova`. The Sell switch to Nova on a

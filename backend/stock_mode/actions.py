@@ -12,7 +12,6 @@ amended 2026-10-06): a star is watching, not permission to trade.
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 
 from bot.audit import record as audit
@@ -39,22 +38,31 @@ from constants_stock_mode import (
     STOCK_MODE_TRADE_HOLDING,
     STOCK_MODE_WHY_HELD,
 )
-from stock_mode import exit_trade, gates, model, orders, runner, store, view
+from stock_mode import exit_trade, gates, model, orders, replay, runner, store, view
 from stock_mode.errors import StockModeError
 
 logger = logging.getLogger(__name__)
 _EPS = 1e-9
 
 
+def _acted(now: float) -> None:
+    """On a Sim replay, remember the replay's rows as the operator's act left them, at the playhead (ADR 052
+    amendment): a rewind to before the act takes it back, one to after it keeps it."""
+    if gates.replay_key() is not None:
+        replay.checkpoint(now)
+
+
 def _venue_gate(buy: str, sell: str) -> None:
-    """A Nova side needs a practice venue -- at the live edge, or a Sim replay for Bot (decision 2, ADR 052)."""
+    """A Nova side needs a practice venue -- at the live edge, or a Sim replay with something loaded (Bot on any
+    replay; ADR 052 and its amendment, #815)."""
     if STOCK_MODE_SIDE_NOVA not in (buy, sell):
         return
     venue, replay = gates.venue_state()
-    blocked = gates.venue_block(venue, replay, model.mode_of(buy, sell))
+    loaded = gates.replay_key() is not None
+    blocked = gates.venue_block(venue, replay, model.mode_of(buy, sell), loaded=loaded)
     if blocked is None:
         return
-    lock = model.locks(venue, replay)
+    lock = model.locks(venue, replay, loaded)
     raise StockModeError(blocked[0], (lock["buy"] if buy == STOCK_MODE_SIDE_NOVA else lock["sell"]) or blocked[1],
                          field="buy" if buy == STOCK_MODE_SIDE_NOVA else "sell")
 
@@ -99,7 +107,7 @@ async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any = Non
                    now: float | None = None) -> dict[str, Any]:
     """Set the stock's switch. ``risk_raw`` is ignored (ADR 042: risk per trade is the venue sleeve's)."""
     del risk_raw
-    now = time.time() if now is None else now
+    now = runner.clock() if now is None else now
     sym = model.symbol(symbol)
     buy, sell = model.side(buy_raw, "buy"), model.side(sell_raw, "sell")
     mode = model.mode_of(buy, sell)
@@ -108,6 +116,7 @@ async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any = Non
     was_mode, was_sell = before["mode"], before["sell"]
     if sell == STOCK_MODE_SIDE_YOU and _exit_held(sym):
         await _take_exits(sym, now)          # Sell: You takes back the exit you handed Nova
+        _acted(now)
         return view.build(sym, now=now)
     if mode == was_mode:
         return before
@@ -136,6 +145,7 @@ async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any = Non
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="set",
           reason=f"{sym}: {STOCK_MODE_NAMES[was_mode]} -> {STOCK_MODE_NAMES[mode]}",
           inputs={"symbol": sym, "from": was_mode, "to": mode})
+    _acted(now)
     return view.build(sym, now=now)
 
 
@@ -152,14 +162,18 @@ def _mode_words(mode: str, sym: str) -> str:
 def _exit_held(sym: str) -> bool:
     """Nova holds the exit of a stock you bought (``exit_trade``) on the desk's venue."""
     venue, _replay = gates.venue_state()
-    trade = store.trade(venue, sym)
+    trade = store.trade(venue, sym, gates.replay_key())
     return bool(trade and trade.get("kind") == exit_trade.KIND_EXIT and trade.get("state") == STOCK_MODE_TRADE_HOLDING
                 and trade.get("exits") == STOCK_MODE_SIDE_NOVA)
 
 
 async def take_exit(symbol: str, body: dict[str, Any], *, now: float | None = None) -> dict[str, Any]:
-    """Nova takes the exit of the shares you hold (``exit_trade.take``): Paper, and Sim at the live edge."""
-    return await exit_trade.take(symbol, stop=body.get("stop"), trail=bool(body.get("trail", True)), now=now)
+    """Nova takes the exit of the shares you hold (``exit_trade.take``): Paper, and Sim at the live edge or on a
+    loaded replay."""
+    now = runner.clock() if now is None else now
+    out = await exit_trade.take(symbol, stop=body.get("stop"), trail=bool(body.get("trail", True)), now=now)
+    _acted(now)
+    return out
 
 
 def _nova_holds_exits(sym: str, before: dict[str, Any]) -> bool:
@@ -171,7 +185,7 @@ def _nova_holds_exits(sym: str, before: dict[str, Any]) -> bool:
 async def _cancel_working_entry(sym: str, now: float) -> None:
     """Auto-entry turned off: an entry Nova sent that has not filled is cancelled -- or the refusal is said."""
     venue, _replay = gates.venue_state()
-    trade = store.trade(venue, sym)
+    trade = store.trade(venue, sym, gates.replay_key())
     if not trade or trade.get("kind") != STOCK_MODE_AUTO_ENTRY or trade.get("state") != STOCK_MODE_TRADE_ENTERING \
             or not trade.get("entry_order_id"):
         return
@@ -185,7 +199,7 @@ async def _cancel_working_entry(sym: str, now: float) -> None:
 
 # -- approve ----------------------------------------------------------------------------
 async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None) -> dict[str, Any]:
-    now = time.time() if now is None else now
+    now = runner.clock() if now is None else now
     sym = model.symbol(symbol)
     current = view.build(sym, now=now)
     if current["mode"] != STOCK_MODE_APPROVE:
@@ -202,6 +216,9 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
     try:
         lane = runner.lane_of(sym, approved["setup_id"])
     except runner.LanesUnreadable as exc:
+        if exc.replay:                     # the Sim eyes read the replay, or catch up to a rewind
+            raise StockModeError(STOCK_MODE_PLAN_CHANGED, f"{exc}: Nova cannot check the plan yet, so it approves "
+                                 "nothing -- approve again in a moment") from exc
         logger.warning("stock mode: the scanner's lanes are unreadable -- nothing is approved", exc_info=True)
         raise StockModeError(STOCK_MODE_PLAN_CHANGED, "the setup scanner could not be read (the backend log has the error): Nova cannot "
                              "check the plan, so it approves nothing") from exc
@@ -228,7 +245,7 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
                              "those levels")
     state = lane.get("state")
     approval = {**approved, "setup_type": lane.get("setup_type"), "side": side, "approved_at": now,
-                "state": "waiting", "reason": None}
+                "state": "waiting", "reason": None, "replay_key": gates.replay_key()}
     if state in runner.WAITING_STATES:
         if body.get("now"):
             raise StockModeError(STOCK_MODE_PLAN_CHANGED, "the setup has not triggered: approve it and Nova sends "
@@ -239,6 +256,7 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
         audit(action=STOCK_MODE_AUDIT_ACTION, outcome="approved",
               reason=f"{sym}: {verb} {approved['qty']} at {approved['entry']:.2f}, stop {approved['stop']:.2f}, "
                      f"target {approved['target']:.2f} at the trigger", inputs={"symbol": sym, **approved, "side": side})
+        _acted(now)
         return view.build(sym, now=now)
     if state == SETUP_STATE_TRIGGERED and body.get("now"):
         blocked = gates.desk_block()
@@ -249,21 +267,23 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
               inputs={"symbol": sym, **approved, "side": side, "now": True})
         trade = await runner.send_bracket_now(sym, approval, now, setup_type=lane.get("setup_type"))
         if trade is None:
-            refused = store.approval(sym) or {}
+            refused = store.approval(sym, approval["replay_key"]) or {}
             raise StockModeError(STOCK_MODE_SEND, str(refused.get("reason") or "the execution door refused it"))
         store.note_event(sym, now, "info", f"Sent: {verb} {approved['qty']} {sym} at {float(trade['entry']):.2f} "
                                            "with its stop and target")
+        _acted(now)
         return view.build(sym, now=now)
     raise StockModeError(STOCK_MODE_PLAN_CHANGED, f"the setup is {state}: nothing to approve")
 
 
 async def withdraw(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     """Withdraw a waiting approval; a sent entry that has not filled is cancelled (its exits go with it)."""
-    now = time.time() if now is None else now
+    now = runner.clock() if now is None else now
     sym = model.symbol(symbol)
-    approval = store.approval(sym)
+    key = gates.replay_key()
+    approval = store.approval(sym, key)
     venue, _replay = gates.venue_state()
-    trade = store.trade(venue, sym)
+    trade = store.trade(venue, sym, key)
     if trade and trade.get("kind") == STOCK_MODE_APPROVE and trade.get("state") == STOCK_MODE_TRADE_ENTERING:
         receipt = await orders.cancel(trade, int(trade["entry_order_id"]), source="manual")
         if not receipt.ok:
@@ -273,10 +293,11 @@ async def withdraw(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         store.set_trade(trade)
     elif not approval or approval.get("state") != "waiting":
         raise StockModeError(STOCK_MODE_NOTHING_HELD, f"no approval of {sym} is waiting")
-    store.clear_approval(sym)
+    store.clear_approval(sym, key)
     store.note_event(sym, now, "info", "Approval cancelled")
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="withdrawn", reason=f"{sym}: you cancelled the approval",
           inputs={"symbol": sym, "setup_id": (approval or {}).get("setup_id")})
+    _acted(now)
     return view.build(sym, now=now)
 
 
@@ -285,24 +306,25 @@ async def take_over(symbol: str, *, now: float | None = None, **_ignored: Any) -
     """Cancel the exits Nova holds on the stock: Approve's bracket legs, or the bot's trade (``handed``).
     Buy goes to You as well -- a take-over never turns into Auto-entry -- so the stock is Signal only.
     A cancel the broker refuses keeps the trade and says the order still rests."""
-    now = time.time() if now is None else now
+    now = runner.clock() if now is None else now
     sym = model.symbol(symbol)
     before = view.build(sym, now=now)
     await _take_exits(sym, now)
     store.clear_switch(sym)
     if (before.get("bot") or {}).get("on_list"):
         _bot_list(sym, False)
-    store.clear_approval(sym)
+    store.clear_approval(sym, gates.replay_key())
     store.note_event(sym, now, "info", "You took over the exit: Nova no longer sells it, and buys nothing more here")
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="set", reason=f"{sym}: {STOCK_MODE_NAMES[before['mode']]} -> "
           f"{STOCK_MODE_NAMES[STOCK_MODE_SIGNAL]} (you took over the exit)",
           inputs={"symbol": sym, "from": before["mode"], "to": STOCK_MODE_SIGNAL})
+    _acted(now)
     return view.build(sym, now=now)
 
 
 async def _take_exits(sym: str, now: float) -> None:
     venue, _replay = gates.venue_state()
-    trade = store.trade(venue, sym)
+    trade = store.trade(venue, sym, gates.replay_key())
     before = view.build(sym, now=now)
     if trade and trade.get("kind") == exit_trade.KIND_EXIT and trade.get("exits") == STOCK_MODE_SIDE_NOVA \
             and trade.get("state") == STOCK_MODE_TRADE_HOLDING:

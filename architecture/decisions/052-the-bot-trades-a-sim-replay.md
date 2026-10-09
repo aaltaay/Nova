@@ -1,6 +1,6 @@
 # ADR 052 -- The bot trades a Sim replay, and the chart draws the Sim eyes
 
-**Status:** Accepted · **Date:** 2026-10-09
+**Status:** Accepted · **Date:** 2026-10-09 · **Amended:** 2026-10-09 (#815, below: Auto-entry, Approve, Nova's exit and the past setups on a replay)
 **Amends:** [[030-first-pullback-bot-on-paper]] ("not built here: the bot on a replayed Session Record") · [[029-setup-templates-eyes-journal]] (its 2026-09-24 amendment: a loaded download is re-read, no longer played back from the journal) · [[042-one-owner-for-novas-buys]] (Activate's `BOT_REPLAY_DESK` refusal; the day's count on a replay) · [[036-the-bots-read-on-one-stock]] (the read on a replay desk) · [[037-who-trades-the-stock]] (Bot on a replay)
 **Builds on:** [[019-practice-fills-on-replayed-sessions]] · [[020-three-venues-one-feed]] · [[046-sim-replays-the-massive-flat-files]]
 **Decided by:** the operator, 2026-10-09 (#814): "why bots dont work in simulator mode? we need to make them work like paper trading, just watch out of data leaks, cuz expect the user to unwind go backward in time and forward in time.. etc. i wanna see the eyes/strategy on the charts you know.." The design is the agent's, under the operator's standing grant: fake money, no Live path touched.
@@ -103,5 +103,47 @@ The Sim scratch account already filled on the replay's prints and unwound when t
 - A jump forward over a working bot entry lets the scratch account match it on the prints the jump crossed
   before the bot's working TTL cancels it (the matcher runs on the jump; the TTL on the next tick). At play
   speed the TTL holds as on Paper. A per-order expiry on practice venues would close it (follow-up).
-- Auto-entry, Approve, "Nova takes the exit" and the past setups' aftermath on a replay are follow-ups.
+- Auto-entry, Approve, "Nova takes the exit" and the past setups' aftermath on a replay were follow-ups; the
+  amendment below builds them (#815).
 - Nothing here touches Live: the bot never trades Live, and `auto_live` remains NO-GO.
+
+## Amendment 2026-10-09 -- every Nova mode on a replay, and the setups that ended (#815)
+
+**Decided by:** the operator's #814 ask ("make them work like paper trading ... watch out of data leaks") carried
+to the modes decision 5 left at Paper, under the same standing grant: fake money, no Live path touched.
+
+1. **Auto-entry, Approve and "Nova takes the exit" trade a loaded replay** (`stock_mode.replay`), as decisions 2-4
+   let the bot. The stock-mode runner hears the Sim eyes' triggers, takes one only from the feed the desk shows
+   (decision 2), and runs on the venue clock -- the playhead on Sim: a trigger's age, an entry's working TTL and
+   the exit's closed minutes run on it and stand still while it is paused. Its rules are unchanged.
+2. **A replay's trades and approvals are the replay's.** They carry its key (`replay_key`) and live in memory
+   beside the persisted trades, never in `stock-mode-trades.json`: the scratch account they trade on does not
+   survive a restart. One made on a replay acts only while the desk shows that replay; a trade or approval made
+   at the live edge waits while the desk replays -- it is never managed against the replay's ledger.
+3. **They go back with the playhead.** The runner checkpoints the replay's trades, approvals and entries whenever
+   they change (and after each act of the operator's on the switch), stamped with the playhead. When the playhead
+   goes back (`bot.rewind` tells stock mode too, or the runner sees it earlier than before) they return to what
+   they were at the new playhead: a trade sent later never happened, an approval made later was never made, a
+   fill later is not filled. An order of a replay trade the ledger still holds but the restored trades do not
+   know is cancelled. Each rewind changes the stock-mode idempotency keys' run tag, so an approved setup the
+   playhead plays across again is sent again. The switch itself is the operator's setting, like Activate: it
+   does not go back. Another replay starts the account over and the old replay's trades and approvals go with
+   it, on the timeline.
+4. **One daily count.** Auto-entry's entries on a replay are this run's -- sent before the playhead, a miss given
+   back -- and share the cap with the bot's (`entry_rules.today`); Approve's are counted, never capped.
+5. **Who trades on a replay.** With a replay loaded every mode is open (`locks.modes` all null). With nothing
+   loaded off the edge there is nothing to trade: Auto-entry, Approve and Nova's exit are refused
+   `STOCK_MODE_REPLAY` with that reason; Bot stays open (its Activate says why, decision 3).
+6. **The setups that ended, on a replay** (`eyes.sim_past`). The Sim eyes fold the lines their lanes write into
+   episodes as they are written (`eyes.episodes`, the live journal's fold), a fold per rebuild, so it holds only
+   the lanes' own lines up to the playhead -- never the day's journal file, which on a replay holds every play of
+   the day and journals nothing a rebuild passed. "What price did next" (`eyes.aftermath`) reads the replay's
+   one-minute bars completed by the playhead: a window still open reads `pending`, never the minutes after it.
+   `GET /api/stock-read/{symbol}/past-setups` answers them on a replay desk (`replay: true`); while a rewind waits
+   for its rebuild it answers none and says it is catching up. The Trader draws them on a replay only from a read
+   made at or before the playhead it shows, and reads them again the moment the playhead moves to another 5 s.
+
+**Rejected.** Persisting a replay's stock-mode trades with the others: they would outlive the account they trade
+on, and a restart would manage orders that no longer exist. Folding the day's journal up to the playhead for the
+past setups: a rewound play leaves lines of a later moment in it, and the replay's own rebuild journals nothing it
+passed, so the journal is neither complete nor free of what came later.

@@ -12,7 +12,8 @@ comes from after the playhead:
   only, so the day's levels -- the high of day, the premarket high, VWAP, tops and bottoms -- are
   the ones the chart shows by then;
 - **the daily map** is built from the days before the replayed one (``history.summary(replay=True)``);
-- **the bot** is its trade on this replay only (``bot.replay_desk``), as it stood at the playhead.
+- **the bot** is its trade on this replay only (``bot.replay_desk``), as it stood at the playhead, and Nova's exit
+  of a stock you hold is the one taken on this replay (``stock_mode.replay``, #815).
 
 Everything only the live feed knows -- the Level 2 and tape sensors, the flow score, book pulls,
 rvol, why it's moving, HOD Momo, borrow, halts, dilution, LULD, the boards -- is unknown on a replay,
@@ -43,8 +44,9 @@ def _ts(raw: Any) -> float:
     return datetime.fromisoformat(raw).timestamp() if isinstance(raw, str) else float(raw)
 
 
-def _bars(sym: str, timeframe: str, limit: int, now: float) -> list[dict[str, Any]]:
-    """The Sim chart's candles at the playhead, oldest first, completed ones only."""
+def bars(sym: str, timeframe: str, limit: int, now: float) -> list[dict[str, Any]]:
+    """The Sim chart's candles at the playhead, oldest first, completed ones only (Nova's exit reads its closed
+    minutes here on a replay)."""
     from sim.chart_replay import fetch_replay_bars
 
     step = _STEP[timeframe]
@@ -93,7 +95,7 @@ def _bot(sym: str) -> dict[str, Any]:
 
 def gather(symbol: str, now: float) -> dict[str, Any]:
     """The facts ``read.build`` reads, from the replay at ``now`` (the playhead)."""
-    from stock_read.gather import _setups, _try
+    from stock_read.gather import _nova_exit, _setups, _try
 
     sym = (symbol or "").strip().upper()
     errors: dict[str, str] = {k: REPLAY_UNKNOWN for k in ("l2", "flow", "pulls", "rvol", "prints", "shortable",
@@ -107,21 +109,18 @@ def gather(symbol: str, now: float) -> dict[str, Any]:
         "why": {"facts": price, "checks": [], "likely": None, "derived": {}},
         "setups": _try(errors, "setups", lambda: _setups(sym, now)),
         "hod_momo": None,
-        "bars": _try(errors, "bars", lambda: _bars(sym, "1Min", STOCK_READ_BARS_LIMIT, now)) or [],
-        "bars5": _try(errors, "bars5", lambda: _bars(sym, "5Min", STOCK_READ_BARS_5M_LIMIT, now)) or [],
+        "bars": _try(errors, "bars", lambda: bars(sym, "1Min", STOCK_READ_BARS_LIMIT, now)) or [],
+        "bars5": _try(errors, "bars5", lambda: bars(sym, "5Min", STOCK_READ_BARS_5M_LIMIT, now)) or [],
         "l2": None, "flow": None, "pulls": None, "rvol": None, "prints_per_min": None, "shortable": None,
-        "halted": None, "board": None, "nova_exit": None, "dilution": None, "luld": None,
+        "halted": None, "board": None, "dilution": None, "luld": None,
+        "nova_exit": _try(errors, "nova_exit", lambda: _nova_exit(sym)),     # Nova's exit made on this replay
         "bot": _try(errors, "bot", lambda: _bot(sym)),
     }
 
 
-def empty_day(symbol: str, date: str | None, now: float, *, kind: str) -> dict[str, Any]:
-    """A day route on a replay desk (past setups, the decisions timeline) reads whole days -- after the playhead
-    too -- so on a replay it answers nothing, and says why."""
-    base = {"symbol": symbol, "date": date, "generated_at": now, "replay": True,
-            "note": "a Sim replay: this reads the whole day, after the playhead too, so it is not shown on a replay"}
-    if kind == "past":
-        return {**base, "timeframe": "1m", "episodes": [], "counts": {}, "journal": {"ok": False, "error": base["note"],
-                                                                                    "lines": 0},
-                "bars": {"ok": False, "error": base["note"], "count": 0}}
-    return {**base, "summary": {"text": base["note"]}, "events": [], "sources": {}}
+def empty_day(symbol: str, date: str | None, now: float) -> dict[str, Any]:
+    """The decisions timeline on a replay desk reads whole days -- after the playhead too -- so on a replay it
+    answers nothing, and says why. (The past setups answer the Sim eyes' own, ``past_setups.replay``.)"""
+    note = "a Sim replay: this reads the whole day, after the playhead too, so it is not shown on a replay"
+    return {"symbol": symbol, "date": date, "generated_at": now, "replay": True, "note": note,
+            "summary": {"text": note}, "events": [], "sources": {}}
