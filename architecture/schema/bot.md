@@ -477,7 +477,9 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
   replay side `backend/stock_mode/replay.py`). The stock-mode runner hears the Sim eyes' triggers as the bot
   does (only the feed the desk shows) and runs on the venue clock: `sent_at`, `filled_at`, `closed_at`,
   `cancel_sent_at`, an approval's `approved_at`, the exit's `trail_checked_at` and `raised[].at`, and the
-  stock's `last_event.ts` are replay time on a replay. A trade or approval made on a replay adds
+  stock's `last_event.ts` are replay time on a replay; an Auto-entry or approved bracket entry on a replay
+  carries `good_for_sec` = its `ttl_sec` (the bot's own expiry, #816), never its exits. A trade or approval
+  made on a replay adds
   `replay_key: list` (null or absent elsewhere); it lives in memory only, never in `stock-mode-trades.json`,
   and is acted on only while the desk shows that replay -- one made at the live edge waits while the desk
   replays. A rewind returns the replay's trades, approvals and entries to what they were at the new playhead

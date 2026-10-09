@@ -125,7 +125,9 @@ to the modes decision 5 left at Paper, under the same standing grant: fake money
 1. **Auto-entry, Approve and "Nova takes the exit" trade a loaded replay** (`stock_mode.replay`), as decisions 2-4
    let the bot. The stock-mode runner hears the Sim eyes' triggers, takes one only from the feed the desk shows
    (decision 2), and runs on the venue clock -- the playhead on Sim: a trigger's age, an entry's working TTL and
-   the exit's closed minutes run on it and stand still while it is paused. Its rules are unchanged.
+   the exit's closed minutes run on it and stand still while it is paused. Its rules are unchanged. Its entries
+   on a replay carry their working TTL as their own expiry, as the bot's do (#816): a jump past it never fills
+   them on the prints it crossed.
 2. **A replay's trades and approvals are the replay's.** They carry its key (`replay_key`) and live in memory
    beside the persisted trades, never in `stock-mode-trades.json`: the scratch account they trade on does not
    survive a restart. One made on a replay acts only while the desk shows that replay; a trade or approval made

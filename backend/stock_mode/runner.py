@@ -513,7 +513,7 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
     ttl = float(trade.get("ttl_sec") or ttl_sec())
     if state in ("dead", "gone"):
         why = (f"not filled in {ttl:g}s -- the price ran past {float(trade['entry']):.2f}"
-               if trade.get("cancel_sent_at") else
+               if trade.get("cancel_sent_at") or orders.ran_out(row) else     # Nova's cancel, or the entry's own expiry
                "the entry was cancelled outside Nova" if state == "dead" else
                "the entry is gone from the ledger (a Sim rewind or an account reset)")
         miss(trade, now, why)

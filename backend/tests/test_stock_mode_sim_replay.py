@@ -4,7 +4,8 @@
 The tests load a real historical window into the Sim (the IBKR download path: prints, no quotes), drive the stock-mode
 runner one tick at a time on the Sim clock, and send its orders through the real execution door into the Sim scratch
 account. Resting orders fill on the replay's prints when the Sim feed matches them, and a backward scrub unwinds the
-account as the operator's does: 07:00:10 10.00 · 07:00:30 11.00 · 07:00:45 10.40 · 07:01:00 12.00 · 07:01:30 10.00.
+account as the operator's does: 07:00:10 10.00 · 07:00:30 11.00 · 07:00:32 10.40 (inside an entry's 3 s) ·
+07:01:00 12.00 · 07:01:30 10.00.
 """
 from __future__ import annotations
 
@@ -19,17 +20,30 @@ from bot.audit import list_entries
 from execution import inflight
 from ibkr import safety as _safety
 from practice.broker import for_venue
-from sim import practice
-from sim import session_clock as clock
+from sim import feed, practice
+from sim import history_playback as playback, history_store as hstore, session_clock as clock
 from sim.mode import set_venue
 from stock_mode import runner, store
 from tests.bot_helpers import headers, ready_l2
-from tests.test_bot_sim_replay import DAY, SYM, at, go, load_window
+from tests.test_bot_sim_replay import DAY, SYM, at, go
 from tests.test_bot_sim_replay import trigger as bot_trigger
 from tests.test_sim_practice import isolated  # noqa: F401 -- autouse: a private Sim store and clean replay
 from tests.test_stock_mode import api_key, client  # noqa: F401 -- fixture
 
 SETUP_ID = f"{SYM}-{DAY}-leg1"
+# This file's own tape: a 10.50 entry sent at :30 fills on the 10.40 at :32, inside its 3 s.
+TAPE = [(10, 10.00), (30, 11.00), (32, 10.40), (60, 12.00), (90, 10.00)]
+LOW = {"entry": 10.20, "trigger": 10.19, "stop": 9.90, "risk": 0.30, "target1": 10.80, "trigger_price": 10.20}
+
+
+def load_window() -> dict:
+    spec = hstore.window(SYM, DAY, "07:00", "10:00")
+    job = hstore.create(spec, "trades")
+    a = spec["start_ts"]
+    hstore.commit_page(job["id"], a, [dict(ts=a + sec, price=px, size=100) for sec, px in TAPE], spec["end_ts"], True)
+    playback.select(spec)
+    clock.set_paused(True)
+    return spec
 
 
 @pytest.fixture
@@ -129,7 +143,7 @@ def test_auto_entry_buys_a_trigger_the_playhead_plays_across_on_the_sim_account(
     [sent] = [r for r in list_entries(limit=50) if r["action"] == "stock_mode" and r["outcome"] == "sent"]
     assert sent["replay"]["key"] == key() and sent["replay"]["playhead_ts"] == at(desk.spec, 30)
     assert view()["trade"]["replay_key"] == key()
-    go(50)                                                             # the 10.40 print at :45 fills it
+    go(50)                                                             # the 10.40 print at :32 filled it
     trade = tick()
     assert trade["state"] == "holding" and trade["fill_price"] is not None and trade["exits"] == "you"
 
@@ -147,8 +161,7 @@ def test_the_entry_ttl_runs_on_the_playhead_and_stands_still_while_paused(desk):
     go(20)
     put(desk, "nova", "you")
     go(30)
-    runner.submit(trigger(desk, setup={"entry": 10.20, "trigger": 10.19, "stop": 9.90, "risk": 0.30,
-                                       "target1": 10.80, "trigger_price": 10.20}))     # 10.40 at :45 never fills it
+    runner.submit(trigger(desk, setup=LOW))                           # 10.40 at :32 never fills it
     assert tick()["state"] == "entering"
     for _ in range(3):                                                 # the wall clock runs, the playhead not
         assert tick()["cancel_sent_at"] is None
@@ -159,6 +172,22 @@ def test_the_entry_ttl_runs_on_the_playhead_and_stands_still_while_paused(desk):
     assert entry_rules.today("sim")["count"] == 0                      # a miss gives the replay's day back
 
 
+def test_a_jump_past_an_auto_entrys_ttl_never_fills_it_on_the_prints_it_crossed(desk):
+    """The entry carries its working TTL as its own expiry on a replay (the bot's since #816)."""
+    go(20)
+    put(desk, "nova", "you")
+    go(30)
+    runner.submit(trigger(desk, setup=LOW))
+    trade = tick()
+    row = for_venue("sim").ledger.order_row(trade["entry_order_id"])
+    assert (row["good_for_sec"], row["expires_ts"]) == (3.0, at(desk.spec, 33))
+    go(150)                                                            # 2 minutes forward, across the 10.00 at :90
+    feed.expire_practice_orders()
+    trade = tick()
+    assert trade["state"] == "missed" and "not filled in 3s" in trade["note"]
+    assert for_venue("sim").positions() == [] and working() == []
+
+
 def test_a_rewind_takes_the_auto_entry_back_as_it_stood_and_the_setup_trades_again(desk):
     go(20)
     put(desk, "nova", "you")
@@ -167,11 +196,11 @@ def test_a_rewind_takes_the_auto_entry_back_as_it_stood_and_the_setup_trades_aga
     first = tick()["entry_order_id"]
     go(50)
     assert tick()["state"] == "holding"
-    go(32)                                                             # back before the fill
+    go(31)                                                             # back before the fill
     trade = tick()
     assert trade["state"] == "entering" and trade["entry_order_id"] == first and trade["fill_price"] is None
-    assert any("the playhead went back to 07:00:32 ET" in n for n in notes())
-    assert "went back to 07:00:32" in view()["last_event"]["text"]
+    assert any("the playhead went back to 07:00:31 ET" in n for n in notes())
+    assert "went back to 07:00:31" in view()["last_event"]["text"]
     go(20)                                                             # back before the trigger
     assert tick() is None
     assert working() == [] and entry_rules.today("sim")["count"] == 0
@@ -193,10 +222,13 @@ def test_an_approved_plan_goes_out_at_the_trigger_and_a_rewind_takes_it_back(des
     assert trade["kind"] == "approve" and trade["state"] == "entering" and trade["replay_key"] == key()
     assert store.approval(SYM, key())["state"] == "sent"
     assert sorted(working()) == sorted([trade["entry_order_id"], trade["target_order_id"], trade["stop_order_id"]])
+    ledger = for_venue("sim").ledger
+    assert ledger.order_row(trade["entry_order_id"])["good_for_sec"] == 3.0       # the entry's own expiry
+    assert ledger.order_row(trade["stop_order_id"])["good_for_sec"] is None       # never the exits'
     assert entry_rules.today("sim")["approved"] == 1 and entry_rules.today("sim")["count"] == 0   # counted, not capped
     first = trade["entry_order_id"]
-    go(32)
-    tick()
+    go(33)
+    assert tick()["state"] == "holding"                                # 10.40 at :32 filled it
     go(31)                                                             # back, after the send: as it stood
     assert tick()["entry_order_id"] == first and store.approval(SYM, key())["state"] == "sent"
     go(25)                                                             # back before the trigger
@@ -216,7 +248,7 @@ def test_the_bracket_fills_and_closes_on_the_replay(desk, lanes):
     go(30)
     runner.submit(trigger(desk))
     tick()
-    go(50)                                                             # 10.40 at :45 fills the entry
+    go(50)                                                             # 10.40 at :32 filled the entry
     assert tick()["state"] == "holding"
     go(65)                                                             # 12.00 at :60: the target
     tick()
@@ -249,29 +281,30 @@ def test_an_approval_made_after_the_new_playhead_was_never_made(desk, lanes, mon
 
 # -- Nova takes the exit ----------------------------------------------------------------------------
 def test_nova_takes_the_exit_on_a_replay_its_stop_fills_there_and_a_rewind_takes_it_back(desk):
-    go(30)
-    for_venue("sim").place(SYM, "BUY", 100, "MKT")                     # bought by hand at 11.00
+    go(20)
+    for_venue("sim").place(SYM, "BUY", 100, "MKT")                     # bought by hand at 10.00
     tick()
-    go(35)
-    r = client.post(f"/api/stock-mode/{SYM}/take-exit", json={"stop": 10.50, "trail": False},
+    go(31)
+    r = client.post(f"/api/stock-mode/{SYM}/take-exit", json={"stop": 10.20, "trail": False},
                     headers=headers(desk.key))
     assert r.status_code == 200, r.text
     trade = r.json()["trade"]
-    assert trade["kind"] == "exit" and trade["replay_key"] == key() and trade["sent_at"] == at(desk.spec, 35)
+    assert trade["kind"] == "exit" and trade["replay_key"] == key() and trade["sent_at"] == at(desk.spec, 31)
     stop_id = trade["stop_order_id"]
     assert working() == [stop_id] and r.json()["sell"] == "nova"
     go(40)
-    assert tick()["state"] == "holding"
-    go(50)                                                             # 10.40 at :45 runs the stop
+    assert tick()["state"] == "holding"                                # 10.40 at :32 is over the stop
+    go(95)                                                             # 10.00 at :90 runs the stop
     tick()
     done = tick()
     assert done["state"] == "closed" and done["exit_reason"] == "stop"
-    go(38)                                                             # back before the stop filled: it holds again
+    go(85)                                                             # back before the stop filled: it holds again
     trade = tick()
     assert trade["state"] == "holding" and trade["stop_order_id"] == stop_id and working() == [stop_id]
-    go(32)                                                             # back before Nova took the exit
+    go(25)                                                             # back before Nova took the exit
     assert tick() is None
     assert working() == [] and view()["sell"] == "you"
+    assert for_venue("sim").positions()                                # your own buy at :20 still stands
 
 
 # -- the places stay apart --------------------------------------------------------------------------
@@ -291,8 +324,6 @@ def test_a_rewind_never_touches_a_live_edge_trade_and_the_runner_leaves_it_waiti
 
 
 def test_another_replay_drops_the_old_replays_trades_and_says_so(desk):
-    from sim import history_playback as playback, history_store as hstore
-
     go(20)
     put(desk, "nova", "you")
     go(30)
