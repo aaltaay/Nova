@@ -60,6 +60,10 @@ class ExecutionCommand:
     # default keeps callers that never set it on DAY; validate refuses values
     # outside IBKR_ORDER_TIFS. Replace ignores it (keeps the order's own TIF).
     tif: str = IBKR_ORDER_TIF_DEFAULT
+    # #816: a practice order's own expiry, in seconds -- the earlier of its TIF's close and its
+    # placement plus these, on Paper and Sim (``practice.order_rules.good_for_fields``); a bracket's
+    # entry only. Live refuses it (``GOOD_FOR_LIVE``). Replace and cancel ignore it.
+    good_for_sec: float | None = None
     # QA R32 / R42: the ticket's Flatten ("flatten"), sent as source flatten.
     # It cancels nothing first, so the door holds it to the position less the
     # closes already working (execution.flatten_intent), under the lock.

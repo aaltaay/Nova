@@ -20,6 +20,7 @@ from constants import (
     IBKR_SOFT_ORDER_WARNING_CODES,
 )
 from constants_practice import (
+    PRACTICE_GOOD_FOR_EXPIRED_CODE,
     PRACTICE_OCO_CANCELLED_CODE,
     PRACTICE_ORDER_STATUS_EXPIRED,
     PRACTICE_PARENT_CANCELLED_CODE,
@@ -284,10 +285,12 @@ def reduce_order_events(
 
 
 #: Closed unfilled, and not a refusal: a cancel (Nova's, the operator's, KILL's), a DAY
-#: order's expiry, or a bracket's own closures (one-cancels-other, an entry's exits).
+#: order's expiry or an order's own (#816), or a bracket's own closures (one-cancels-other,
+#: an entry's exits).
 _LEDGER_CANCELLED = _CANCELLED | {PRACTICE_ORDER_STATUS_EXPIRED}
 _NOT_A_REFUSAL = frozenset({
-    PRACTICE_TIF_EXPIRED_CODE, PRACTICE_OCO_CANCELLED_CODE, PRACTICE_PARENT_CANCELLED_CODE,
+    PRACTICE_TIF_EXPIRED_CODE, PRACTICE_GOOD_FOR_EXPIRED_CODE, PRACTICE_OCO_CANCELLED_CODE,
+    PRACTICE_PARENT_CANCELLED_CODE,
 })
 
 

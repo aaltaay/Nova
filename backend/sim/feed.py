@@ -134,11 +134,13 @@ def tick() -> dict:
 
 
 def expire_practice_orders() -> list[dict]:
-    """Expire DAY practice orders once the playhead reaches the replayed session's close.
+    """Expire practice orders once the playhead reaches their expiry: the replayed session's
+    close, or an order's own good-for second (#816: a bot entry's working TTL).
 
-    Runs after the fill match so a print at the close itself still fills and a
-    print past it never does (``practice.order_rules``). The expiry event is
-    stamped at the close, so a scrub back before it restores the order.
+    Runs after the fill match so a print at the expiry itself still fills and a
+    print past it never does (``practice.order_rules``), even inside one jump.
+    The expiry event is stamped at the expiry, so a scrub back before it
+    restores the order.
     """
     if practice.loaded() is None:
         return []

@@ -22,6 +22,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from constants_practice import PRACTICE_GOOD_FOR_EXPIRED_CODE
 from constants_bot import (
     BOT_DEFAULT_ASK_COVER_OFFSET_USD,
     BOT_DEFAULT_BID_EXIT_OFFSET_USD,
@@ -148,6 +149,19 @@ def _setup(trade: dict[str, Any]) -> str:
     return str(trade.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
 
 
+def good_for(trade: dict[str, Any]) -> float | None:
+    """The entry's own expiry on a Sim replay: the sleeve's working TTL (#816). A jump of the playhead
+    past it never fills the entry on the prints it crossed. Paper and the live edge send none: the
+    bot's own TTL cancel holds there, as it always has."""
+    ttl = trade.get("entry_ttl_sec")
+    return float(ttl) if trade.get("replay_key") and ttl else None
+
+
+def ran_out(row: dict[str, Any] | None) -> bool:
+    """The venue expired the entry at its own good-for second (#816): unfilled in its TTL."""
+    return (row or {}).get("reason_code") == PRACTICE_GOOD_FOR_EXPIRED_CODE
+
+
 async def _place(trade: dict[str, Any], step: str, *, side: str, qty: float, order_type: str,
                  limit_price: float | None = None, stop_price: float | None = None) -> Any:
     return await execute(
@@ -177,7 +191,7 @@ async def place_entry(trade: dict[str, Any]) -> Any:
     (it never chases), a SELL limit at target 1 and a SELL stop at the stop -- the exits rest at the
     broker, held until the entry fills, then one cancels the other. A short is the mirror: a short
     limit at its entry (at the ask under SSR, ``short_side.price``), a BUY stop over it and a BUY
-    limit at its cover."""
+    limit at its cover. On a Sim replay the entry carries the working TTL as its own expiry (``good_for``)."""
     entry = round(float(trade["entry_planned"]), 4)
     short = is_short(trade)
     return await execute(
@@ -200,6 +214,7 @@ async def place_entry(trade: dict[str, Any]) -> Any:
             setup=_setup(trade),
             skip_risk=True,
             expected_venue=trade.get("venue"),
+            good_for_sec=good_for(trade),
         ),
         wait_ack=False,
     )

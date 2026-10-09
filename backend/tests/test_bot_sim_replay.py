@@ -27,8 +27,9 @@ from tests.test_sim_practice import isolated  # noqa: F401 -- autouse: a private
 
 DAY = "2026-09-18"
 SYM = "IMCC"
-# 07:00:10 10.00 · 07:00:30 11.00 (the trigger) · 07:00:45 10.40 · 07:01:00 12.00 (target 1) · 07:01:30 10.00
-TAPE = [(10, 10.00), (30, 11.00), (45, 10.40), (60, 12.00), (90, 10.00)]
+# 07:00:10 10.00 · 07:00:30 11.00 (the trigger) · 07:00:32 10.40 (inside the entry's 3 s) · 07:01:00 12.00
+# (target 1) · 07:01:30 10.00
+TAPE = [(10, 10.00), (30, 11.00), (32, 10.40), (60, 12.00), (90, 10.00)]
 
 
 def load_window() -> dict:
@@ -69,7 +70,7 @@ def go(sec: float) -> None:
 
 def trigger(spec: dict, sec: float = 30, **over) -> dict:
     # The entry rests under the 11.00 last (an IBKR download has no quotes: a limit at the last fills at once)
-    # and fills on the 10.40 print at :45; target 1 is the 12.00 print at :60.
+    # and fills on the 10.40 print at :32, inside its 3 s; target 1 is the 12.00 print at :60.
     setup = {"kind": "first_pullback", "trigger": 10.49, "entry": 10.50, "stop": 10.30, "risk": 0.20,
              "target1": 12.00, "triggered_at": at(spec, sec), "trigger_price": 10.50, "nth": 1}
     setup.update(over.pop("setup", {}))
@@ -134,7 +135,7 @@ def test_a_trigger_from_another_feed_is_not_this_desks(replay):
 def test_the_entry_ttl_runs_on_the_sim_clock_and_stands_still_while_paused(replay):
     go(30)
     runner.submit(trigger(replay, setup={"entry": 10.20, "trigger": 10.19, "stop": 9.90, "risk": 0.30,
-                                         "target1": 10.80, "trigger_price": 10.20}))    # 10.40 at :45 never fills it
+                                         "target1": 10.80, "trigger_price": 10.20}))    # 10.40 at :32 never fills it
     assert tick()["state"] == "entering"
     for _ in range(3):                                                   # the wall clock runs, the playhead not
         assert tick()["state"] == "entering" and tick().get("entry_cancel_ts") is None
@@ -151,14 +152,14 @@ def test_a_rewind_takes_the_trade_back_as_it_stood_and_a_setup_can_trade_again(r
     runner.submit(trigger(replay))
     assert tick()["state"] == "entering"
     first_entry = load_session()["trade"]["entry_order_id"]
-    go(50)                                                               # the 10.40 print at :45 fills the buy
+    go(50)                                                               # the 10.40 print at :32 fills the buy
     assert tick()["state"] == "open"
     assert load_session()["trade"]["entry_fill_price"] is not None
-    go(36)                                                               # back before the fill
+    go(31)                                                               # back before the fill
     trade = tick()
     assert trade["state"] == "entering" and trade["entry_order_id"] == first_entry
     assert trade["entry_fill_price"] is None
-    assert any("the playhead went back to 07:00:36 ET" in (r["reason"] or "") for r in rows("note"))
+    assert any("the playhead went back to 07:00:31 ET" in (r["reason"] or "") for r in rows("note"))
     go(20)                                                               # back before the entry was sent
     assert tick() is None
     assert for_venue("sim").working_orders() == [] and entry_rules.today("sim")["count"] == 0
@@ -229,3 +230,64 @@ def test_a_restart_retires_a_replay_trade_the_scratch_account_lost(replay):
     trade = tick()
     assert trade["state"] == "rewound" and "does not survive a restart" in trade["note"]
     assert load_session().get("bot_qty", {}).get(SYM) is None
+
+
+# -- the entry carries its own TTL (#816) ----------------------------------------------------------------------------
+LOW_ENTRY = {"entry": 10.20, "trigger": 10.19, "stop": 9.90, "risk": 0.30, "target1": 10.80, "trigger_price": 10.20}
+
+
+def leap(sec: float, *, expire: bool = True) -> None:
+    """The operator jumps the playhead forward; the Sim feed's tick matches what rests, then expires what is due.
+    ``expire=False`` stops after the match: the bot's tick may come before the expiry pass."""
+    go(sec)
+    if expire:
+        feed.expire_practice_orders()
+
+
+def ledger_row(order_id: int) -> dict:
+    return for_venue("sim").ledger.order_row(order_id)
+
+
+@pytest.mark.parametrize("expire_first", [True, False], ids=["the-feed-expires-it", "the-bot-cancel-comes-first"])
+def test_a_jump_past_the_entrys_ttl_never_fills_it_and_a_scrub_back_restores_it(replay, expire_first):
+    from constants_practice import PRACTICE_GOOD_FOR_EXPIRED_CODE
+    from practice.ledger import EVENT_EXPIRED
+
+    go(30)
+    runner.submit(trigger(replay, setup=LOW_ENTRY))       # 10.40 at :32 never fills a 10.20 buy; 10.00 at :90 would
+    trade = tick()
+    entry = trade["entry_order_id"]
+    row = ledger_row(entry)
+    assert (row["good_for_sec"], row["expires_ts"]) == (3.0, at(replay, 33))         # sent + the sleeve's 3 s
+    assert all(ledger_row(oid)["good_for_sec"] is None for oid in (trade["target_order_id"], trade["stop_order_id"]))
+
+    leap(150, expire=expire_first)          # 2 minutes forward, across the 10.00 at :90
+    trade = tick()
+    if not expire_first:
+        assert trade["entry_cancel_ts"] == at(replay, 150)                          # the bot's own TTL cancel
+        trade = tick()
+    row = ledger_row(entry)
+    assert (row["status"], row["reason_code"], row["filled_qty"]) == ("Expired", PRACTICE_GOOD_FOR_EXPIRED_CODE, 0.0)
+    [expired] = [e for e in for_venue("sim").ledger.events if e["type"] == EVENT_EXPIRED]
+    assert (expired["order_id"], expired["ts"]) == (entry, at(replay, 33))           # at sent + TTL, not at the jump
+    assert {ledger_row(oid)["status"] for oid in (trade["target_order_id"], trade["stop_order_id"])} == {"Cancelled"}
+    assert for_venue("sim").positions() == [] and for_venue("sim").working_orders() == []
+    assert trade["state"] == "missed" and "not filled in 3s" in trade["note"]
+    assert entry_rules.today("sim")["count"] == 0
+
+    go(32)                                                               # back before the expiry
+    trade = tick()
+    assert trade["state"] == "entering" and trade["entry_order_id"] == entry
+    assert ledger_row(entry)["status"] == "Submitted"
+    assert [o["order_id"] for o in for_venue("sim").working_orders()][:1] == [entry]
+    assert entry_rules.today("sim")["count"] == 1
+
+
+def test_a_print_inside_the_ttl_still_fills_the_entry_on_a_jump(replay):
+    go(30)
+    runner.submit(trigger(replay))
+    trade = tick()
+    leap(150)                               # the 10.40 at :32 is inside the entry's 3 s: it fills there
+    assert tick()["state"] == "open"
+    row = ledger_row(trade["entry_order_id"])
+    assert (row["status"], row["fill_ts"]) == ("Filled", at(replay, 32))

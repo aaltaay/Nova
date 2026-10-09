@@ -122,7 +122,8 @@ def try_fill_working(symbol: str, prints: list[tuple[float, float]]) -> list[dic
 
 
 def expire_due(now: float | None = None) -> list[dict[str, Any]]:
-    """Expire DAY orders once the playhead reaches the replayed session's close (``PRACTICE_TIF_EXPIRED``)."""
+    """Expire the orders the playhead has carried past their expiry: the replayed session's close
+    (``PRACTICE_TIF_EXPIRED``), or an order's own good-for second (``PRACTICE_GOOD_FOR_EXPIRED``, #816)."""
     return _sim().expire_due(now)
 
 

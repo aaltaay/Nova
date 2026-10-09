@@ -386,7 +386,10 @@ you hold: a short goes out as a short entry, with its buy stop"),
 `PRACTICE_TIF_EXPIRED` (both: a `DAY` order expires at its session's close --
 20:00 ET on Paper, the replayed window's end on Sim -- as an `expired` ledger
 event with status `Expired`; `GTC` persists across days and restarts; the row
-and its `placed` event carry `tif` and `expires_ts`). Recorded prints carry
+and its `placed` event carry `tif` and `expires_ts`), and `PRACTICE_GOOD_FOR_EXPIRED`
+(both: an order sent with `good_for_sec` expires unfilled at its placement plus those
+seconds when that comes before its TIF's close -- "A practice order's own expiry" in
+`execution.md`). Recorded prints carry
 `ts_source` naming what their `ts` is, so an arrival time is never read as the
 exchange's own: every live print since #563 says `receive` and carries IBKR's
 own second in `exchange_ts`; rows recorded before #563 say `exchange` but hold
@@ -476,8 +479,8 @@ rule classifies a venue's close (`execution.order_outcome.ledger_close`):
 
 - `Filled` closes the row `filled`;
 - `Cancelled` / `ApiCancelled` / `Expired` with no code, or with
-  `PRACTICE_TIF_EXPIRED`, `PRACTICE_OCO_CANCELLED` or `PRACTICE_PARENT_CANCELLED`,
-  closes it `cancelled` with that code;
+  `PRACTICE_TIF_EXPIRED`, `PRACTICE_GOOD_FOR_EXPIRED`, `PRACTICE_OCO_CANCELLED` or
+  `PRACTICE_PARENT_CANCELLED`, closes it `cancelled` with that code;
 - any other close is `failed`, in the venue's own words. That covers a refusal at
   a later fill, such as `PRACTICE_BUYING_POWER`, and `Inactive`.
 
