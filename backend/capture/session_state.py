@@ -194,7 +194,7 @@ def _finalize_row(row: dict[str, Any], *, pid: Any) -> dict[str, Any] | None:
         )
         return None
 
-    counts, torn = recount_from_disk(session_dir)
+    counts, torn, last_stream_ts = recount_from_disk(session_dir)
     man_path = session_dir / CAPTURE_MANIFEST_NAME
     prior = read_json(man_path)
     # The dead segment's own rows: what is on disk now minus what the manifest
@@ -223,6 +223,12 @@ def _finalize_row(row: dict[str, Any], *, pid: Any) -> dict[str, Any] | None:
         reason=CAPTURE_STOP_RESTART,
     )
     man["started_et"] = prior.get("started_et") or row.get("started_et") or segment_started
+    # The dead process's tape losses and counters are its last checkpoint; its
+    # stream times are on disk, exact (#722).
+    fidelity = dict(man["fidelity"]) if isinstance(man.get("fidelity"), dict) else {}
+    saved_ts = fidelity.get("last_stream_ts")
+    fidelity["last_stream_ts"] = {**(saved_ts if isinstance(saved_ts, dict) else {}), **last_stream_ts}
+    man["fidelity"] = fidelity
     man["recovered_et"] = recovered_et
     man["recovered_from_pid"] = pid
     if torn:
