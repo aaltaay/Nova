@@ -119,8 +119,14 @@
 }
 
 .sv-shortability-chip--htb,
-.sv-shortability-chip--unknown {
+.sv-shortability-chip--nss {
   color: var(--ask-color, #e35d6a);
+  border-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+
+/* Nova does not know: grey, never the red of a known "nothing to borrow". */
+.sv-shortability-chip--unknown {
+  color: var(--nova-text-muted, var(--text-secondary));
 }
 
 .sv-shortability-chip--loading {

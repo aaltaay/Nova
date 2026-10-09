@@ -211,8 +211,11 @@ def _borrow(order: Order, facts: Facts, account: Account) -> Verdict:
             detail = (f"{sym}'s borrow read is {float(snap.get('age_sec') or 0):.0f} s old, past its "
                       f"{float(snap.get('ttl_sec') or 0):.0f} s limit. Nova asked IBKR again: place the short again "
                       "in a moment.")
-        return _bad("borrow", "Borrow", code or "SHORT_NOT_SHORTABLE", detail,
-                    state="unknown" if code == "SHORT_STALE_BORROW" else "bad")
+        terms = snap.get("borrow") or {}
+        value = None if code == "SHORT_STALE_BORROW" else terms.get("chip")
+        return _bad("borrow", "Borrow", code or "SHORT_NOT_SHORTABLE", detail, value,
+                    state="unknown" if code == "SHORT_STALE_BORROW" or terms.get("term") == "UNKNOWN" else "bad",
+                    **({"borrow": terms} if terms else {}))
     lendable = _num(snap.get("shortable_shares"))
     held = account.held_short or 0.0
     total = order.qty + held + account.flying_same
@@ -223,6 +226,10 @@ def _borrow(order: Order, facts: Facts, account: Account) -> Verdict:
                      f"order, {held:,.0f} already short and {account.flying_same:,.0f} on the way. Short fewer "
                      "shares."), f"shortable {shown}", shares=lendable)
     where = " (recorded)" if facts.replay else ""
+    terms = snap.get("borrow") or {}
+    if terms.get("term") in ("ETB", "HTB", "SHORTABLE") and not facts.replay:
+        return _ok("borrow", "Borrow", f"{terms['text']} Enough for {total:,.0f}.", terms.get("chip") or
+                   f"shortable {shown}", shares=lendable, age_sec=snap.get("age_sec"), borrow=terms)
     return _ok("borrow", "Borrow", f"IBKR lends {shown} {sym}{where}: enough for {total:,.0f}.",
                f"shortable {shown}", shares=lendable, age_sec=snap.get("age_sec"))
 

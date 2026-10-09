@@ -3,11 +3,22 @@
 IBC can type username/password into IB Gateway so Nova does not sit on an empty
 scanner after a reboot. **Credentials never belong in git.**
 
+**Where the desk stands (checked on the desk PC, 2026-10-09):** IBC **3.24.2**
+and Gateway **10.51** (`TWS_MAJOR_VRSN=1051`, build 10.51.1b). The launcher moved
+from 1045 to 1051 on 2026-10-06; Gateway 10.45 (build 10.45.1h) is still
+installed beside it for rollback. IBC is archived and frozen -- see "IBC is
+archived and frozen" below. The Gateway build switch, its checklist and the
+rollback are in `docs/live-desk-sync.md`, "5. Switching the Gateway build".
+
 ## Prerequisites
 
 1. Install [IBC](https://github.com/IbcAlpha/IBC/releases) somewhere local, e.g.
-   `C:\IBC\`.
-2. Install IB Gateway under `C:\Jts\ibgateway\<version>\` (Nova defaults to `1045`).
+   `C:\IBC\`. The desk runs **3.24.2**, the last release (the repository was
+   archived on 2026-09-01); see "IBC is archived and frozen" for where the zip is
+   kept.
+2. Install IB Gateway under `C:\Jts\ibgateway\<version>\`. The desk runs `1051`;
+   `1045` stays installed for rollback. Both builds share the settings and login
+   files in `C:\Jts` (`TWS_SETTINGS_PATH`), not their own folders.
 3. Create a secrets directory **outside the repo**:
 
 ```text
@@ -41,6 +52,37 @@ Never commit `config.ini`. Add to your global gitignore if needed:
 **/.nova/ibc/
 ```
 
+## IBC is archived and frozen
+
+`IbcAlpha/IBC` was archived on 2026-09-01. **3.24.2 (2026-08-21) is the last
+release and no 4.0 shipped**, so nobody will patch IBC if IBKR changes the
+Gateway login window again. Nova's own launcher
+(`%USERPROFILE%\.nova\ibc\StartGateway.bat` and `start_gateway.ps1`) is the only
+part of the login path that still gets maintained, and the phone approval stays
+manual either way -- never automate the second factor.
+
+- **If a Gateway build breaks IBC**, expect a Gateway that sits at the login form
+  while the IBC log shows the window opening and no `Login attempt` line after
+  it. The morning check and `py -3 tools\premarket_verify.py relogin` surface a
+  morning that needed you; the fallback is to log in by hand, which the phone
+  step needs anyway.
+- **The fork to watch is `XYUU/IBC` on GitHub.** No migration is decided. Look at
+  it when a Gateway change breaks 3.24.2, not before; nothing should be adopted
+  from it unreviewed, because IBC holds the account login.
+- **Where 3.24.2 is kept** (a copy exists so the desk does not depend on GitHub
+  still serving an archived repository's release):
+  - the zip: `%USERPROFILE%\.nova\ibc\releases\IBCWin-3.24.2.zip`, 289,800 bytes,
+    SHA-256 `ba8e95f61f3c7c252620baef41e550c6aab98f6034179156e11a9a1623fdd892`
+    (the hash of the copy on the desk PC, not compared with GitHub's);
+  - the unpacked install: `C:\IBC` (its `IBC.jar` is byte-identical to the zip's);
+  - the previous release: `C:\IBC-3.24.1-old`, for rolling IBC back;
+  - the first copy was downloaded to `%TEMP%\IBCWin-3.24.2.zip`, which Windows
+    may clear, so do not treat that one as the keeper.
+- **The stock `C:\IBC\StartGateway.bat` is not the desk's launcher.** It is the
+  unmodified file from the zip and still reads `TWS_MAJOR_VRSN=1045` and
+  `CONFIG=%USERPROFILE%\Documents\IBC\config.ini`. Nova runs the one in
+  `.nova\ibc\`; read the Gateway version from that file, not from `C:\IBC`.
+
 ## What the saved login survives
 
 The week-long token is not a file you can keep. Gateway writes an
@@ -55,6 +97,7 @@ inside the running process. So:
 | **PC restart or power-off** (Windows Update, the Start menu, the power button, a power cut) | **Yes** |
 | Gateway closed, crashed, or killed | Yes |
 | Nova's "Start fresh login" | Yes (on purpose) |
+| IBC `PAUSE`, then a restart before the Sunday reset | Not proven -- **untested on Windows**; see `docs/live-desk-sync.md`, "Planned restart: IBC PAUSE" |
 
 Every one of those shows `autorestart file not found: full authentication will
 be required` in the IBC log. Nova now says which it was:
@@ -93,14 +136,18 @@ Use the **local** `StartGateway.bat` in `.nova\ibc\` (not stock `C:\IBC\StartGat
 
 **IBC log names on Windows 11.** IBC names its log after the weekday it reads
 from `wmic` (`C:\IBC\scripts\getDayOfWeek.bat`), and Windows 11 no longer
-ships `wmic`. The name became `IBC-3.24.1_GATEWAY-1045_.txt`, and each cold
+ships `wmic`. The name became `IBC-<ibc version>_GATEWAY-<gateway>_.txt` (it was
+`IBC-3.24.1_GATEWAY-1045_.txt`), and each cold
 start deleted it, so no login history outlived the day. IBC keeps an inherited
 `DAYOFWEEK` when `wmic` prints nothing, so both Nova launchers
 (`Start-NovaDaily.ps1` and `POST /api/ibkr/launch-gateway`) set it; the logs
 are `..._MONDAY.txt` ... `..._SUNDAY.txt` again. A Gateway you start by hand
-outside Nova still writes `_.txt`.
+outside Nova still writes `_.txt`. The name carries both versions, so logs from
+before 2026-10-06 are `IBC-3.24.1_GATEWAY-1045_*` and the current ones
+`IBC-3.24.2_GATEWAY-1051_*`; Nova reads them by the `IBC-*.txt` pattern and the
+`Starting IBC version <any>` banner, so a version change needs no tool change.
 Stock IBC defaults to `Documents\IBC\config.ini` and an outdated `TWS_MAJOR_VRSN`.
-The Nova wrapper sets `CONFIG`, `TWS_MAJOR_VRSN=1045`, `TRADING_MODE=live` (match `.env`;
+The Nova wrapper sets `CONFIG`, `TWS_MAJOR_VRSN=1051`, `TRADING_MODE=live` (match `.env`;
 the paper Gateway on 4002 is legacy, by hand only -- ADR 020), and `TWOFA_TIMEOUT_ACTION=restart`.
 
 Optional template in-repo: `scripts/start_gateway_ibc.ps1.example`.
@@ -236,6 +283,7 @@ session would not help; and it would still need your phone after a restart.)
 
 ## Related
 
+- `docs/live-desk-sync.md` -- cold-restarting the Gateway, switching the Gateway build (checklist and rollback), IBC `PAUSE` for planned restarts
 - `scripts/start_gateway_ibc.ps1.example` -- template launcher (no secrets)
 - `scripts/Start-NovaDaily.ps1` / `Install-NovaDailyTask.ps1` -- morning auto-start
 - `scripts/Invoke-NovaMorningCheck.ps1` -- pre-open self-check + loud alert

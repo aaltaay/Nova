@@ -94,6 +94,8 @@ export interface IbkrListingFlags {
   stock_type?: string | null;
   exchange?: string | null;
   shortable_shares?: number | null;
+  /** IBKR's shortable level (tick 46): over 2.5 easy, 1.5-2.5 locate, 1.5 or under none. */
+  shortable_level?: number | null;
   short_type?: string | null;
   short_type_detail?: string | null;
   tradable_hint?: string | null;
@@ -105,6 +107,36 @@ export interface IbkrListingFlags {
   stale?: boolean | null;
   ttl_sec?: number | null;
   orderable?: boolean | null;
+  /** The borrow in a trader's words, from IBKR's live read and its short-stock list (ibkr/borrow_terms.py). */
+  borrow?: BorrowTerms | null;
+}
+
+export type BorrowTerm = 'ETB' | 'HTB' | 'LOCATE' | 'NSS' | 'SHORTABLE' | 'UNKNOWN';
+
+export interface BorrowList {
+  listed: boolean;
+  fee_rate: number | null;
+  available: number | null;
+  capped?: boolean;
+  as_of: number | null;
+  polled_at?: number | null;
+  changed_at: number | null;
+  was: { listed: boolean; fee_rate: number | null; available: number | null; since: number | null } | null;
+}
+
+export interface BorrowTerms {
+  schema_version: 1;
+  term: BorrowTerm;
+  chip: string;
+  tone: 'ok' | 'warn' | 'bad' | 'unknown';
+  text: string;
+  source: 'live' | 'list' | null;
+  shares: number | null;
+  level: number | null;
+  fee_rate: number | null;
+  list: BorrowList | null;
+  list_age_sec: number | null;
+  list_note: string | null;
 }
 
 export interface ListingCompare {
