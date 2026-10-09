@@ -231,7 +231,13 @@ def short_rows(f: dict[str, Any]) -> list[dict[str, Any]]:
     out = [_borrow_row(facts.get("borrow"))]
     snap = f.get("shortable")
     src = "IBKR shortable shares (tick 236)"
-    if not snap or snap.get("state") == "unknown":
+    terms = (snap or {}).get("borrow") or {}
+    if terms.get("term") and terms["term"] != "UNKNOWN":
+        # The trader's word for it (ETB / HTB / LOCATE / NSS). Scarce borrow is good for a long: fewer can short.
+        out.append(row("shortable", "Shortable (IBKR)", terms["chip"] + (" (stale)" if snap.get("stale") else ""),
+                       "info" if terms["term"] in ("ETB", "SHORTABLE") else "ok", src, terms.get("text"),
+                       snap.get("fetched_at")))
+    elif not snap or snap.get("state") == "unknown":
         out.append(row("shortable", "Shortable (IBKR)", "Unknown", "unknown", src,
                        "IBKR has not answered for it; the Trader's Level 2 asks again every minute."))
     else:

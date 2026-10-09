@@ -7,6 +7,7 @@ import {
   SHORTABILITY_LOADING_TOOLTIP,
   SHORTABILITY_STATE_LABELS,
 } from '../constantGroups/shortability';
+import { borrowChipClass, borrowTip } from './borrowTerms';
 
 interface Props {
   ibkr: IbkrListingFlags | null | undefined;
@@ -51,6 +52,22 @@ export function ShortabilityChip({ ibkr }: Props) {
 
   const state = resolveShortabilityState(ibkr);
   const stale = Boolean(ibkr.stale);
+  const borrow = ibkr.borrow;
+  if (borrow?.term) {
+    // The trader's word for it: ETB / HTB / LOCATE / NSS (backend/ibkr/borrow_terms.py).
+    return (
+      <span
+        className={`sv-shortability-chip ${stale ? 'sv-shortability-chip--unknown' : borrowChipClass(borrow)}`}
+        data-tip={borrowTip(borrow, ibkr.age_sec) + (stale ? '\nThis read is stale: Nova is asking IBKR again.' : '')}
+        data-tip-title="Borrow"
+        data-testid="shortability-chip"
+        data-state={stale ? 'stale' : state}
+        data-term={borrow.term}
+      >
+        <span className="sv-shortability-chip__value">{stale ? `${borrow.chip} · stale` : borrow.chip}</span>
+      </span>
+    );
+  }
   const shares = ibkr.shortable_shares;
   const label = stale
     ? 'Stale'

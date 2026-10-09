@@ -111,6 +111,14 @@ def changes_between(db: sqlite3.Connection, symbol: str, start: float, end: floa
     return [{"ts": ts, **_value(rest)} for ts, *rest in rows]
 
 
+def last_changes(db: sqlite3.Connection, symbol: str, n: int = 2) -> list[dict[str, Any]]:
+    """The symbol's newest ``n`` rows, newest first: when its value last changed, and what it was before."""
+    rows = db.execute(
+        f"SELECT ts, {', '.join(VALUE_COLUMNS)} FROM changes WHERE symbol = ? ORDER BY ts DESC LIMIT ?",
+        (symbol, int(n)))
+    return [{"ts": ts, **_value(rest)} for ts, *rest in rows]
+
+
 def prune(db: sqlite3.Connection, before: float) -> None:
     with db:
         db.execute(
