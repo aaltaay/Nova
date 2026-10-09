@@ -7,7 +7,9 @@ setup's card and its On lock read (``setup_scanner.short_tests``): ``running`` f
 verdict last, each through a temporary file and a rename. The verdict is gate 1's kill criteria on the trades the
 scanner's own detectors and scoring took (``short_sim``): at least 300 trades, still positive with the best year
 removed, a profit factor over 1 at twice the costs, a neighbourhood that is mostly positive, and a permutation p of
-0.05 or less. Nothing here places an order, touches a Nova account or changes a setting.
+0.05 or less. Beside it the file keeps ``fixed_size``, the same trades on a fixed account, so a trigger after a
+losing run is still scored; it is a readout and never decides (ADR 049 amendment, 2026-10-09). Nothing here places
+an order, touches a Nova account or changes a setting.
 
 Usage:
     py -3 research/shorts/test_shorts.py --setup bear_flag [--workers 16] [--template ID]
@@ -141,8 +143,8 @@ class Result:
             "finished_at": None, "harness": {"version": cfg.HARNESS_VERSION, "command": command},
             "rules": {"template_id": template.id, "template_rev": int(template.rev),
                       "rules_hash": template.fingerprint},
-            "data": None, "assumptions": list(cfg.ASSUMPTIONS), "progress": None, "main": None, "ssr_days": None,
-            "criteria": None, "passed": None, "error": None,
+            "data": None, "assumptions": list(cfg.ASSUMPTIONS), "progress": None, "main": None, "fixed_size": None,
+            "ssr_days": None, "criteria": None, "passed": None, "error": None,
         }
 
     def write(self, **fields: Any) -> None:
@@ -157,8 +159,9 @@ class Result:
 
 # -- the verdict -------------------------------------------------------------------------------------------
 def criteria(setup: str, by_variant: dict[str, list[sim.Trade]], days_of: Any, rules: list[tuple[str, Any]],
-             progress: Any) -> tuple[dict, dict | None, dict]:
-    """``(main, ssr_days, criteria)`` from every variant's trades."""
+             progress: Any) -> tuple[dict, dict, dict | None, dict]:
+    """``(main, fixed_size, ssr_days, criteria)`` from every variant's trades. ``fixed_size`` is ``main``'s trades
+    on the fixed account: a readout no criterion reads (ADR 049 amendment, 2026-10-09)."""
     from constants_bot import BOT_SHORT_BREAKDOWN_SETUPS
 
     apart = setup in BOT_SHORT_BREAKDOWN_SETUPS
@@ -169,6 +172,7 @@ def criteria(setup: str, by_variant: dict[str, list[sim.Trade]], days_of: Any, r
     base_trades = pool(by_variant["base"])
     costed = sim.account(base_trades)
     main = sim.stats(costed)
+    fixed_size = sim.stats(sim.account(base_trades, sim.FIXED))
     ssr_days = sim.stats(sim.account([t for t in by_variant["base"] if t.ssr != SSR_OFF])) if apart else None
     doubled = sim.stats(sim.account(base_trades, sim.DOUBLE))
     neighbours = []
@@ -188,7 +192,7 @@ def criteria(setup: str, by_variant: dict[str, list[sim.Trade]], days_of: Any, r
                           "ok": bool(neighbours) and positive > len(neighbours) / 2},
         "permutation": perm,
     }
-    return main, ssr_days, crit
+    return main, fixed_size, ssr_days, crit
 
 
 def main() -> int:
@@ -259,13 +263,14 @@ def main() -> int:
             if k % 50 == 0 or k == total:
                 result.write(progress={"done": k, "total": total, "unit": "shuffles"})
 
-        main_s, ssr_s, crit = criteria(a.setup, by_variant, days_of, rules, shuffled)
+        main_s, fixed_s, ssr_s, crit = criteria(a.setup, by_variant, days_of, rules, shuffled)
         passed = all(c.get("ok") for c in crit.values())
         result.write(state="passed" if passed else "failed", passed=passed, finished_at=time.time(), main=main_s,
-                     ssr_days=ssr_s, criteria=crit, progress=None,
+                     fixed_size=fixed_s, ssr_days=ssr_s, criteria=crit, progress=None,
                      data={"first_day": days[0][0] if days else None, "last_day": days[-1][0] if days else None,
                            "days": n_days, "symbol_days": n_symbol_days})
-        print(json.dumps({k: result.body[k] for k in ("state", "main", "criteria")}, indent=1, default=str))
+        print(json.dumps({k: result.body[k] for k in ("state", "main", "fixed_size", "criteria")}, indent=1,
+                         default=str))
         print("dry run: no result file written" if a.dry_run else f"written: {result.path}")
         return 0
     except Exception as exc:

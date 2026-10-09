@@ -272,7 +272,8 @@ bars), then `test_shorts.py --setup <setup>` once per setup. Each card says its 
   with costs on every fill. The harness reads no tape, so a template whose flush exit is on is refused: its result
   reads `error`, and On stays locked (PR #789 review).
 - **Costs and size** are gate 1's: $25,000, 1% risk a trade, at most 25% of equity a trade, IBKR's fixed commission,
-  and one cent of slippage on every fill.
+  and one cent of slippage on every fill. Since harness version 2 the same trades are also costed on a fixed
+  $25,000, a readout only (amendment of 2026-10-09, below).
 - **The neighbourhood** is a named list of variations per strategy: the risk cap, the target R, the window, the
   setup's own key numbers, and the MACD rule. "Mostly positive" means more than half of them have a positive net
   expectancy.
@@ -290,11 +291,13 @@ bars), then `test_shorts.py --setup <setup>` once per setup. Each card says its 
    rules: {template_id, template_rev, rules_hash},
    data: {first_day, last_day, days, symbol_days}, assumptions: string[],
    progress: {done, total, unit: "days" | "shuffles"} | null,
-   main, ssr_days, criteria: {trades, best_year_removed, costs_2x, neighbourhood, permutation} | null,
+   main, fixed_size, ssr_days,
+   criteria: {trades, best_year_removed, costs_2x, neighbourhood, permutation} | null,
    passed: boolean | null, error: string | null}
   ```
 
-  It is written through a temporary file and a rename. The harness writes `running` first and the verdict last. An
+  `fixed_size` came with harness version 2 (amendment of 2026-10-09, below); a version-1 result has none. The file
+  is written through a temporary file and a rename. The harness writes `running` first and the verdict last. An
   unreadable file, or one of an unknown version, reads `error` and keeps On locked.
 
 ## Step 5: the bot trades both sides (2026-10-07)
@@ -332,6 +335,35 @@ only (ADR 042: a bot never trades Live). What the build chose where §6.3 gives 
   holds at Eyes: it sits in Eyes and says so, because Nova trades it no more than an Eyes strategy.
 - **Not built here.** The Live short proof checklist on the Bot card, the Live margin-account check and Live's 15:55
   cover and alarm are step 6. Until the operator finishes it and sets `IBKR_SHORT_ENABLED`, Live refuses every short.
+
+## Amendment (2026-10-09): the fixed-size readout
+
+**Why.** Gate 1's account compounds: each trade risks 1% of the day's equity, at most 25% of it, and a trade under
+$500 is skipped as too small to survive the commission. On a setup that loses, the account shrinks until every later
+trigger is under that minimum, and the test stops scoring triggers partway through the window. Every criterion that
+reads that account then judges only the window's first months or years: `best_year_removed` may have one year left
+to remove, and the result cannot say how the setup did after the account ran down. The permutation does not have
+this problem: it already costs each trade on a fixed $25,000.
+
+**Decision (operator, 2026-10-09: "Readout only").** Gate 1's compounding account stays the verdict of record for
+every criterion, unchanged (§12): the trade count, the best year removed, twice the costs and the neighbourhood; the
+permutation keeps its fixed account. `fixed_size` is a readout: kept in the result file, it never passes or fails a
+setup, so no verdict moves because of it. If the readout ever gives a reason to change a criterion, that is a new
+amendment, decided before the next run.
+
+Rejected: judging `best_year_removed` on the fixed-size account. It would let the check see every year, but it
+changes a pre-registered criterion after a run, with the trade count, the costs and the neighbourhood still on the
+compounding account.
+
+**The readout.** The result file adds `fixed_size`: the main score's trades (the same pool as `main`, so the SSR-off
+triggers for the four breakdown shorts), each costed on a fixed $25,000 account -- 1% risk, at most 25% a trade, the
+$500 minimum, the same commission and slippage, and equity that never moves. No trigger is skipped because an earlier
+one lost; a trade is still skipped when it is too small at $25,000 or never closed. It carries `main`'s statistics:
+`trades, skipped, win_pct, pf, no_losses, exp_r, net_usd, by_year`.
+
+**Harness version 2.** `HARNESS_VERSION` is 2, so a version-1 result reads as a different test. A version-1 result
+has no `fixed_size` and stays readable: the result file's `schema_version` stays 1, because the field is added and no
+reader needs it.
 
 ## Consequences
 

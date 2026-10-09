@@ -6,8 +6,10 @@ at once (the seeder's 04:00 bars), then each minute's open and its extreme are f
 breakdown, the high for the SSR bounce) and the minute closes. A trigger opens a trade scored by
 ``setup_scanner.scoring.ScoreTracker`` on the bars that follow; one trade at a time on a stock.
 
-``account`` sizes and costs the trades in time order on a compounding account; ``stats`` reads them. ``shuffle``
-is the permutation: every trade moved to a random minute of its own stock-day, inside the window.
+``account`` sizes and costs the trades in time order on a compounding account; ``stats`` reads them. ``FIXED``
+is that account with equity that never moves: the fixed-size readout (ADR 049 amendment, 2026-10-09) and the
+permutation cost on it, so no trade is skipped because an earlier one lost. ``shuffle`` is the permutation: every
+trade moved to a random minute of its own stock-day, inside the window.
 """
 from __future__ import annotations
 
@@ -77,6 +79,7 @@ class Costs:
 
 BASE = Costs()
 DOUBLE = Costs(**cfg.COSTS_2X)
+FIXED = Costs(compound=False)           # every trade sized on the start equity: the readout and the permutation
 
 
 def _hm(text: str) -> int:
@@ -286,8 +289,7 @@ def shuffle(trades: list[Trade], days: dict[tuple[str, str], StockDay], params: 
             seed: int = cfg.SHUFFLE_SEED, progress: Any = None) -> dict[str, Any]:
     """p = (1 + shuffles whose mean net R is at least the strategy's) / (shuffles + 1), each trade costed on a fixed
     account (no compounding) so a trade's R never depends on the shuffle before it."""
-    fixed = Costs(compound=False)
-    actual = [cost_trade(t, fixed.start_equity, fixed) for t in trades]
+    actual = [cost_trade(t, FIXED.start_equity, FIXED) for t in trades]
     actual = [t for t in actual if t.net_r is not None]
     if not actual:
         return {"p": None, "shuffles": 0, "actual_exp_r": None, "seed": seed, "ok": False}
@@ -307,7 +309,7 @@ def shuffle(trades: list[Trade], days: dict[tuple[str, str], StockDay], params: 
             if not allowed:
                 continue
             moved = cost_trade(shuffled_trade(days[key], params, rng.choice(allowed), t.risk, closes_ema),
-                               fixed.start_equity, fixed)
+                               FIXED.start_equity, FIXED)
             if moved.net_r is not None:
                 total += moved.net_r
                 n += 1

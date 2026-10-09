@@ -196,10 +196,58 @@ def test_the_criteria_judge_the_ssr_off_trades_and_count_the_neighbourhood(monke
                           exit_px=5.56, exit_reason="stop", gross_r=-1.0)
     rules = [("base", None), ("n1", None), ("n2", None), ("n3", None)]
     by_variant = {"base": [*base, under_ssr], "n1": base, "n2": base, "n3": [under_ssr]}
-    main, ssr_days, crit = runner.criteria("backside_lower_high", by_variant, lambda keys: {}, rules, None)
-    assert main["trades"] == 4 and ssr_days["trades"] == 1
+    main, fixed, ssr_days, crit = runner.criteria("backside_lower_high", by_variant, lambda keys: {}, rules, None)
+    assert main["trades"] == 4 and ssr_days["trades"] == 1 and fixed["trades"] == 4
     assert crit["trades"] == {"value": 4, "need": cfg.MIN_TRADES, "ok": False}
     assert crit["neighbourhood"]["positive"] == 2 and crit["neighbourhood"]["total"] == 3
     assert crit["neighbourhood"]["ok"] is True and crit["costs_2x"]["ok"] is True
-    main, ssr_days, _ = runner.criteria("ssr_bounce", {**by_variant}, lambda keys: {}, rules, None)
+    main, fixed, ssr_days, _ = runner.criteria("ssr_bounce", {**by_variant}, lambda keys: {}, rules, None)
     assert main["trades"] == 5 and ssr_days is None                # the SSR bounce: one pool
+    assert fixed["trades"] == 5
+
+
+def _squeezed(d: str) -> sim.Trade:
+    """A short the stock ran straight through: covered far over its stop, as a gap through the stop would."""
+    return sim.Trade("POP", d, "backside_lower_high", "off", 1.0, 5.46, 5.56, 5.26, 0.10, exit_px=25.0,
+                     exit_reason="stop", gross_r=-195.4)
+
+
+def test_a_losing_run_that_ruins_the_compounding_account_is_still_scored_on_the_fixed_size_readout(monkeypatch):
+    # ADR 049 amendment (2026-10-09): two squeezes take the $25,000 under the $500 minimum, so the compounding
+    # account skips every later trigger and the test stops scoring in its first year. The fixed-size readout costs
+    # the same trades on $25,000 that never moves, so every year is scored -- and it never decides the verdict.
+    monkeypatch.setattr(sim, "shuffle", lambda trades, days, params, progress=None: {
+        "p": 1.0, "shuffles": 1000, "actual_exp_r": -1.0, "seed": 49, "ok": False})
+    trades = [_squeezed("2022-03-01"), _squeezed("2022-03-02"), _won("2024-03-01"), _won("2025-03-01"),
+              _won("2025-03-02")]
+    compounding = sim.account(trades)
+    assert compounding[1].shares < compounding[0].shares
+    assert [t.skipped for t in compounding[2:]] == ["too small to survive the commission"] * 3
+    fixed_costed = sim.account(trades, sim.FIXED)
+    assert {t.shares for t in fixed_costed} == {1144}               # every trade sized on the start equity
+
+    main, fixed, ssr_days, crit = runner.criteria("backside_lower_high", {"base": trades}, lambda keys: {},
+                                                  [("base", None)], None)
+    assert main["trades"] == 2 and main["skipped"] == 3 and set(main["by_year"]) == {"2022"}
+    assert fixed["trades"] == 5 and fixed["skipped"] == 0
+    assert set(fixed["by_year"]) == {"2022", "2024", "2025"}
+    assert fixed["by_year"]["2025"]["trades"] == 2 and fixed["by_year"]["2025"]["exp_r"] == pytest.approx(1.5)
+    assert fixed == sim.stats(fixed_costed) and ssr_days["trades"] == 0
+    # The verdict still reads the compounding account: the readout never counts toward a criterion.
+    assert crit["trades"]["value"] == 2
+    assert crit["best_year_removed"] == sim.best_year_removed(compounding) == {"year": "2022", "exp_r": None,
+                                                                               "ok": False}
+    assert sim.best_year_removed(fixed_costed)["year"] == "2025"    # what a fixed-size check would have judged
+
+
+def test_the_result_file_keeps_the_fixed_size_readout_beside_the_verdict():
+    template = default_template("bear_flag")
+    result = runner.Result("bear_flag", template, "py -3 research/shorts/test_shorts.py --setup bear_flag", False)
+    assert result.body["fixed_size"] is None and result.body["harness"]["version"] == cfg.HARNESS_VERSION == 2
+    result.write(state="failed", passed=False, progress=None, main={"trades": 12, "pf": 1.1, "exp_r": 0.02},
+                 fixed_size={"trades": 30, "pf": 1.05, "exp_r": 0.01, "by_year": {}},
+                 criteria={"trades": {"ok": False}, "permutation": {"p": 0.2, "ok": False}})
+    short_tests.reset_for_tests()
+    got = short_tests.test("bear_flag", template.fingerprint)
+    assert got["state"] == "failed" and got["summary"]["trades"] == 12      # the card reads main, never the readout
+    assert short_tests.lock("bear_flag", template.fingerprint)
