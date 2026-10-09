@@ -227,6 +227,11 @@ def _local_startup() -> None:
     except Exception:
         logger.exception("news.sentiment: FinBERT warm failed to start")
     took["finbert"] = (time.perf_counter() - t_d) * 1000
+    try:
+        from news.lexicon import warm_lexicon
+        warm_lexicon()
+    except Exception:
+        logger.exception("news.lexicon: Loughran-McDonald warm failed to start")
     logger.info(
         "lifespan: local startup sentry=%.0fms cache=%.0fms db=%.0fms (%s)",
         (t_s - t0) * 1000, (t_c - t_s) * 1000, (time.perf_counter() - t_c) * 1000,

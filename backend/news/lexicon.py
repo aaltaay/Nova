@@ -10,10 +10,18 @@ authoritative decision layer.
 
 Never raises into the request path: any failure (missing dependency, bad
 input) degrades to `{"label": "unavailable", "polarity": None}`.
+
+Classify never loads the word list (#797, as D-015 did for FinBERT): `import
+pysentiment2` pulls in nltk and scipy and `ps.LM()` reads its list with pandas,
+10.3 s on the desk on 2026-10-07, and the first ticker detail socket after a
+start ran it on the HTTP loop. Warmup is a daemon thread at process start
+(`warm_lexicon`). Until it finishes, classify returns unavailable and caches
+nothing, so a headline scored early is scored again once the list is loaded.
 """
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 from constants import NEWS_LEXICON_CACHE_MAX_ENTRIES, NEWS_LEXICON_ENABLED
@@ -24,14 +32,17 @@ _UNAVAILABLE: dict[str, Any] = {"label": "unavailable", "polarity": None}
 
 _lexicon: Any = None
 _load_attempted = False
+_warm_started = False
+_warm_lock = threading.Lock()
+_loaded = threading.Event()
 _cache: dict[str, dict[str, Any]] = {}
 
 
-def _get_lexicon() -> Any:
-    """Lazily construct the Loughran-McDonald word-list scorer once per process."""
+def _load_lexicon() -> None:
+    """Construct the Loughran-McDonald word-list scorer once per process. Warm thread only."""
     global _lexicon, _load_attempted
-    if _lexicon is not None or _load_attempted:
-        return _lexicon
+    if _load_attempted:
+        return
     _load_attempted = True
     try:
         import pysentiment2 as ps
@@ -40,7 +51,30 @@ def _get_lexicon() -> Any:
     except Exception as exc:  # pragma: no cover - depends on local env
         logger.warning("Loughran-McDonald lexicon unavailable: %s", exc)
         _lexicon = None
-    return _lexicon
+    finally:
+        _loaded.set()
+
+
+def warm_lexicon() -> None:
+    """Start the background load once when the lexicon is enabled. Never blocks the caller."""
+    global _warm_started
+    if not NEWS_LEXICON_ENABLED:
+        return
+    with _warm_lock:
+        if _warm_started:
+            return
+        _warm_started = True
+    try:
+        threading.Thread(target=_load_lexicon, daemon=True, name="lexicon-warm").start()
+    except Exception as exc:  # the OS refused a thread: read unavailable, let a later call retry
+        logger.warning("Loughran-McDonald lexicon warmup could not start: %s", exc)
+        with _warm_lock:
+            _warm_started = False
+
+
+def wait_loaded(timeout: float | None = None) -> bool:
+    """Block until the background load finished (loaded or failed). For tools and tests."""
+    return _loaded.wait(timeout)
 
 
 def classify_headline_lexicon(headline: str | None) -> dict[str, Any]:
@@ -50,8 +84,11 @@ def classify_headline_lexicon(headline: str | None) -> dict[str, Any]:
         return dict(_UNAVAILABLE)
     if text in _cache:
         return _cache[text]
+    if not _loaded.is_set():
+        warm_lexicon()  # a caller before the lifespan's warmup (a tool, a test) starts it
+        return dict(_UNAVAILABLE)
 
-    lm = _get_lexicon()
+    lm = _lexicon
     if lm is None:
         result = dict(_UNAVAILABLE)
     else:
