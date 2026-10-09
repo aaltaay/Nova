@@ -71,7 +71,10 @@ describe('update state', () => {
     expect(found.phase).toBe('available');
     expect(reduceUpdateState(found, { type: 'progress', percent: 10 })).toBe(found);
     expect(taskbarProgress(found)).toBe(-1);
-    expect(updateMenuItems(found)[0]).toEqual({ label: 'Update to v832…', action: 'download' });
+    expect(updateMenuItems(found).slice(0, 2)).toEqual([
+      { label: 'Update to v832…', action: 'download' },
+      { label: 'Check for Updates…', action: 'check' }, // a newer one may ship meanwhile
+    ]);
     const downloading = reduceUpdateState(found, { type: 'download' });
     expect(downloading).toMatchObject({ phase: 'downloading', consentVersion: '0.1.832' });
     // Picking Update shows its progress even after the notice was hidden with Later.
@@ -106,24 +109,66 @@ describe('update state', () => {
     expect(taskbarProgress(ready)).toBe(-1);
   });
 
-  it('keeps a downloaded installer when a later check fails or runs', () => {
+  it('keeps a downloaded installer when a later check fails, runs or finds it again', () => {
     const ready = readyAt('0.1.832');
-    expect(reduceUpdateState(ready, { type: 'checking' }).phase).toBe('ready');
-    expect(reduceUpdateState(ready, { type: 'not-available' }).phase).toBe('ready');
-    expect(reduceUpdateState(ready, { type: 'available', version: '0.1.833' })).toBe(ready);
+    expect(reduceUpdateState(ready, { type: 'checking' })).toBe(ready);
+    expect(reduceUpdateState(ready, { type: 'not-available' })).toBe(ready);
+    expect(reduceUpdateState(ready, { type: 'available', version: '0.1.832' })).toBe(ready);
     const failed = reduceUpdateState(ready, { type: 'error', message: 'offline' });
-    expect(failed.phase).toBe('ready');
-    expect(failed.error).toBe('offline');
+    expect(failed).toMatchObject({ phase: 'ready', checkError: 'offline', error: '' });
+    // A failed check is not an install failure: the notice and the Restart row stay clean.
+    expect(noticeFor(reduceUpdateState(failed, { type: 'offered', version: '0.1.832' }))?.error).toBe('');
+    expect(updateMenuItems(failed).slice(0, 3)).toEqual([
+      { label: 'Restart to Update (v832)', action: 'restart' },
+      { label: 'Check for Updates…', action: 'check' },
+      { label: 'Last check failed: offline' },
+    ]);
+    // The next check that answers clears it.
+    expect(reduceUpdateState(failed, { type: 'available', version: '0.1.832' }).checkError).toBe('');
+    expect(reduceUpdateState(failed, { type: 'not-available' }).checkError).toBe('');
+  });
+
+  it('lets Help > Check for Updates replace a downloaded installer with a newer release', () => {
+    const newer = reduceUpdateState(readyAt('0.1.1188'), { type: 'available', version: '0.1.1190' });
+    expect(newer).toMatchObject({ phase: 'available', version: '0.1.1190', percent: 0 });
+    expect(hasConsent(newer)).toBe(false); // nothing downloads before Update
+    expect(needsOffer(newer)).toBe(true);
+    expect(updateMenuItems(newer)[0]).toEqual({ label: 'Update to v1190…', action: 'download' });
   });
 
   it('keeps a release on offer while a re-check runs or fails', () => {
     const offered = offeredAt('0.1.832');
     expect(reduceUpdateState(offered, { type: 'checking' })).toBe(offered);
-    expect(reduceUpdateState(offered, { type: 'error', message: 'offline' }).phase).toBe('available');
-    expect(noticeFor(reduceUpdateState(offered, { type: 'error', message: 'offline' }))?.stage).toBe('available');
+    const failed = reduceUpdateState(offered, { type: 'error', message: 'offline' });
+    expect(failed).toMatchObject({ phase: 'available', checkError: 'offline' });
+    expect(noticeFor(failed)?.stage).toBe('available');
+    expect(updateMenuItems(failed).slice(0, 3).map((row) => row.label)).toEqual([
+      'Update to v832…',
+      'Check for Updates…',
+      'Last check failed: offline',
+    ]);
     // A newer release replaces it; the release pulled from GitHub ends it.
-    expect(reduceUpdateState(offered, { type: 'available', version: '0.1.833' }).version).toBe('0.1.833');
-    expect(reduceUpdateState(offered, { type: 'not-available' }).phase).toBe('current');
+    expect(reduceUpdateState(failed, { type: 'available', version: '0.1.833' })).toMatchObject({
+      version: '0.1.833',
+      checkError: '',
+    });
+    expect(reduceUpdateState(failed, { type: 'not-available' })).toMatchObject({ phase: 'current', checkError: '' });
+  });
+
+  it('answers a Help-menu check that failed beside a release in hand, naming what still stands', () => {
+    const offline = { type: 'error', message: 'net::ERR_INTERNET_DISCONNECTED' };
+    const onOffer = manualCheckResult(reduceUpdateState(offeredAt('0.1.1188'), offline));
+    expect(onOffer).toMatchObject({ type: 'warning', message: 'Nova could not check for updates.' });
+    expect(onOffer?.detail).toContain('Help > Update to v1188 downloads it');
+    const downloaded = manualCheckResult(reduceUpdateState(readyAt('0.1.1188'), offline));
+    expect(downloaded?.detail).toContain('Help > Restart to Update installs it');
+    // Nothing newer than the downloaded installer: the operator still hears back.
+    expect(manualCheckResult(reduceUpdateState(readyAt('0.1.1188'), { type: 'not-available' }))).toMatchObject({
+      type: 'info',
+      message: 'No newer release found.',
+    });
+    // A release on offer that a check found again answers with the notice, not a box.
+    expect(manualCheckResult(offeredAt('0.1.1188'))).toBeNull();
   });
 
   it('turns an offline check into a visible, retryable failure', () => {
@@ -196,8 +241,8 @@ describe('the notice', () => {
     expect(needsOffer(later)).toBe(false);
     // A newer release is news again.
     expect(needsOffer(reduceUpdateState(later, { type: 'available', version: '0.1.833' }))).toBe(true);
-    // An explicit Help-menu request raises it again.
-    expect(manualCheckAction(later, AUTO)).toBe('offer');
+    // An explicit Help-menu request asks GitHub, and what it finds raises the notice again.
+    expect(manualCheckAction(later, AUTO)).toBe('check');
     expect(needsOffer(reduceUpdateState(later, { type: 'reoffer' }))).toBe(true);
   });
 
@@ -208,7 +253,7 @@ describe('the notice', () => {
     });
     const ready = readyAt('0.1.832');
     expect(noticeFor(ready)?.stage).toBe('ready');
-    expect(manualCheckAction(ready, AUTO)).toBe('prompt');
+    expect(manualCheckAction(ready, AUTO)).toBe('check');
     const later = reduceUpdateState(ready, { type: 'dismissed', version: '0.1.832' });
     expect(noticeFor(later)).toBeNull();
     expect(noticeFor(reduceUpdateState(later, { type: 'installing' }))?.stage).toBe('installing');

@@ -83,6 +83,7 @@ let manualPending = false;
 // Which check is running ('launch' | 'manual' | 'recheck') and when the last one began.
 let checkOrigin = 'launch';
 let lastCheckAt = 0;
+let checkRunning = false;
 let currentTag = '';
 let bridge = null;
 let ask = null;
@@ -213,29 +214,40 @@ async function restartToUpdate() {
   await installer?.install();
 }
 
-/** @param {'launch' | 'manual' | 'recheck'} origin */
+/**
+ * One check at a time. Help > Check for Updates asks GitHub even with a release
+ * on offer or downloaded, and what it finds raises the notice again.
+ * @param {'launch' | 'manual' | 'recheck'} origin
+ */
 async function checkNow(origin) {
   if (!updater) return;
   const manual = origin === 'manual';
-  const action = manual ? manualCheckAction(state, gate) : shouldAutoCheck(state, gate) ? 'check' : 'skip';
-  if (action === 'prompt' || action === 'offer') {
-    // Asked from the menu: raise the notice again, even after Later.
-    dispatch({ type: 'reoffer' });
-    await offer();
+  if (checkRunning) {
+    // Asked while a check runs: that check's answer is the operator's.
+    if (manual) {
+      manualPending = true;
+      checkOrigin = origin;
+    }
     return;
   }
+  // Update's own check (newestRelease.mjs) is running: the download it leads to is the answer.
+  if (newest.isChecking()) return;
+  const action = manual ? manualCheckAction(state, gate) : shouldAutoCheck(state, gate) ? 'check' : 'skip';
   if (action !== 'check') return;
   manualPending = manual;
   checkOrigin = origin;
   lastCheckAt = Date.now();
   if (origin === 'recheck') logger.info('re-checking while the desk stays open');
   let result = null;
+  checkRunning = true;
   try {
     result = await updater.checkForUpdates();
   } catch (err) {
     // electron-updater also emits 'error', which is what the menu shows.
     logger.warn(`check failed: ${errorText(err)}`);
     return;
+  } finally {
+    checkRunning = false;
   }
   if (!result?.isUpdateAvailable) return;
   pendingInfo = result.updateInfo;
@@ -245,8 +257,9 @@ async function checkNow(origin) {
     await startDownload();
     return;
   }
-  if (manual) dispatch({ type: 'reoffer' });
-  if (shouldOfferNow(state, { origin, now: Date.now() })) await offer();
+  // Asked from the menu: raise the notice again, even after Later.
+  if (checkOrigin === 'manual') dispatch({ type: 'reoffer' });
+  if (shouldOfferNow(state, { origin: checkOrigin, now: Date.now() })) await offer();
   else if (needsOffer(state)) logger.info(`${displayTag(state.version)} found; the notice waits until trading hours end`);
 }
 
