@@ -320,12 +320,18 @@ nothing here places, stages or cancels an order; Nova's bot trades them at On ("
      updated_at, finished_at, harness: {version, command},
      rules: {template_id, template_rev, rules_hash},
      data: {first_day, last_day, days, symbol_days}, assumptions: string[],
-     progress: {done, total, unit: "days" | "shuffles"} | null, main, ssr_days,
+     progress: {done, total, unit: "days" | "shuffles"} | null, main, fixed_size, ssr_days,
      criteria: {trades, best_year_removed, costs_2x, neighbourhood, permutation} | null,
      passed: boolean | null, error: string | null}
     ```
 
     An unreadable file or an unknown version reads `error`.
+  - `main` and `ssr_days` are scored on gate 1's compounding account, and the verdict reads `main`. `fixed_size`
+    (harness version 2, ADR 049 amendment of 2026-10-09) costs the same trades as `main` on a fixed $25,000 that
+    never moves, so a trigger after a losing run is still scored: `{trades, skipped, win_pct, pf, no_losses,
+    exp_r, net_usd, by_year: {"<YYYY>": {trades, net_usd, exp_r}}} | null` (null until the verdict). It is a
+    readout only: no criterion reads it, and it never unlocks On. A version-1 result has no `fixed_size`; the
+    file's `schema_version` stays 1.
 - **Past setups** (`GET /api/stock-read/{symbol}/past-setups`). A short episode's `after` is read on the mirror:
   `level` is the low it was building over, `floor` the high it would have stopped over, `first` is `low` when it
   broke down under the level first (`high` over the floor), and `trade` is the short the rule refused (entry under

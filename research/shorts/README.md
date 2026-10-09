@@ -44,14 +44,18 @@ A look without a result file: `py -3 research/shorts/test_shorts.py --setup bear
   above the bid would have filled.
 - **The account**: gate 1's ($25,000 compounding daily, 1% risk a trade, at most 25% of equity, $500 minimum,
   IBKR's fixed commission, one cent of slippage on every fill).
+- **The fixed-size readout** (`fixed_size`, harness version 2): the same trades on a fixed $25,000 that never
+  moves. A losing run shrinks the compounding account until later triggers fall under the $500 minimum and are
+  skipped; on the fixed account every trigger in the window is scored, by year. It is a readout only: the verdict
+  reads the compounding account (ADR 049 amendment, 2026-10-09).
 - **The verdict**: at least 300 trades; positive with the best year removed; a profit factor over 1 at twice the
   costs; a neighbourhood more than half positive; and a permutation p of 0.05 or less (1,000 seeded shuffles of each
   trade's entry to a random minute of its own day, inside the window).
 
 The result file says `running` with its progress first and the verdict last, each written through a temporary file
-and a rename. Its shape is in AGENTS.md section 3 ("The five-year test and the On lock"). A result passes the lock
-only while its `rules.rules_hash` equals the template in play's `params_hash`: edit the template and the setup
-tests again.
+and a rename. Its shape is in `architecture/schema/short-selling.md` ("The five-year test and the On lock"). A
+result passes the lock only while its `rules.rules_hash` equals the template in play's `params_hash`: edit the
+template and the setup tests again.
 
 ## Files
 

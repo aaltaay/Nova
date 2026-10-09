@@ -19,7 +19,7 @@ for folder in (BACKEND_DIR, ORB_DIR):          # the scanner's own detectors and
     if str(folder) not in sys.path:
         sys.path.insert(0, str(folder))
 
-HARNESS_VERSION = 1
+HARNESS_VERSION = 2                           # 2: the fixed-size readout (ADR 049 amendment, 2026-10-09)
 
 # -- The store (research/orb/common.py's DuckDB file). --------------------------------------------------
 SELECTION_TABLE = "shorts_selection"
@@ -87,4 +87,6 @@ ASSUMPTIONS = (
     "reported apart, because minute bars cannot say whether a short above the bid would have filled.",
     "Costs are gate 1's: $25,000 compounding daily, 1% risk a trade, at most 25% of equity a trade, IBKR's fixed "
     "commission and one cent of slippage on every fill.",
+    "fixed_size costs the same trades on a fixed $25,000 that never moves, so a trigger after a losing run is still "
+    "scored; it is a readout only, and the verdict reads the compounding account.",
 )
