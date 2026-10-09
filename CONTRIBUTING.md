@@ -55,6 +55,10 @@ python3 tools/doc_invariants.py
 
 Desktop installer changes also need the **Desktop pack** GitHub Actions job (`Nova-Setup-vNNN.exe` plus the `latest.yml` update feed).
 
+## License of contributions
+
+Nova is licensed under [FSL-1.1-MIT](LICENSE.md). By opening a pull request you agree that your contribution is licensed under the same terms, including its conversion to MIT two years after the version that carries it is released.
+
 ## Security
 
 Report vulnerabilities through [GitHub Security Advisories](https://github.com/aaltaay/Nova/security/advisories/new). Do not open a public issue with exploit details or credentials. See [SECURITY.md](SECURITY.md).

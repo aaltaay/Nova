@@ -5,7 +5,7 @@
 <br />
 
 [![Latest release](https://img.shields.io/github/v/release/aaltaay/Nova?sort=date&display_name=tag&label=release&color=0a84ff)](https://github.com/aaltaay/Nova/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-38d2ff)](LICENSE)
+[![License: FSL-1.1-MIT](https://img.shields.io/badge/license-FSL--1.1--MIT-38d2ff)](LICENSE.md)
 ![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![React 19 + TypeScript](https://img.shields.io/badge/React%2019-TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Windows desktop](https://img.shields.io/badge/desktop-Windows-0078D6?logo=windows&logoColor=white)
@@ -55,7 +55,7 @@ Everything runs on your PC. The engine binds to `127.0.0.1`, your keys stay in y
     </td>
     <td valign="top">
       <b>Local-first and open</b><br />
-      Your machine, your data, your keys. MIT licensed, no subscription, no cloud account.
+      Your machine, your data, your keys. Source-available, free to run and trade with, no subscription, no cloud account.
     </td>
   </tr>
 </table>
@@ -308,6 +308,8 @@ Report vulnerabilities privately through [GitHub Security Advisories](https://gi
 
 ## License
 
-[MIT](LICENSE). Copyright (c) 2026 Ahmi Altaay.
+[Functional Source License 1.1, MIT Future License (FSL-1.1-MIT)](LICENSE.md). Copyright (c) 2026 Ahmi Altaay.
+
+You may read, run, change and share Nova, and trade with it, for any purpose except offering it, or something built from it, as a commercial product or service that competes with Nova. Each version becomes MIT licensed two years after it is released. Versions released before the license changed keep the MIT license they were published under.
 
 <sub>Nova is software, not a brokerage, and nothing here is investment advice. Trading involves risk of loss. You are responsible for your IBKR permissions, your keys and every order you send. Interactive Brokers and IBKR are trademarks of their owners; Nova is not affiliated with them.</sub>
