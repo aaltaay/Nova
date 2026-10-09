@@ -102,6 +102,24 @@ def test_a_failed_load_reads_unavailable(monkeypatch):
         _reset()
 
 
+def test_a_thread_that_cannot_start_reads_unavailable_and_is_retried(monkeypatch, fake_lm):
+    real_start = threading.Thread.start
+
+    def refuse(self):
+        if self.name == "lexicon-warm":
+            raise RuntimeError("can't start new thread")
+        real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", refuse)
+    assert classify_headline_lexicon("Shares surge") == UNAVAILABLE  # never raises into the caller
+    assert lexicon._warm_started is False
+    monkeypatch.setattr(threading.Thread, "start", real_start)
+    fake_lm.release.set()
+    assert classify_headline_lexicon("Shares surge") == UNAVAILABLE  # this call starts the retry
+    assert lexicon.wait_loaded(5)
+    assert fake_lm.built_on == ["lexicon-warm"]
+
+
 def test_disabled_starts_no_load(monkeypatch, fake_lm):
     monkeypatch.setattr(lexicon, "NEWS_LEXICON_ENABLED", False)
     assert classify_headline_lexicon("Shares surge") == UNAVAILABLE

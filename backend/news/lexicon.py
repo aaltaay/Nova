@@ -64,7 +64,12 @@ def warm_lexicon() -> None:
         if _warm_started:
             return
         _warm_started = True
-    threading.Thread(target=_load_lexicon, daemon=True, name="lexicon-warm").start()
+    try:
+        threading.Thread(target=_load_lexicon, daemon=True, name="lexicon-warm").start()
+    except Exception as exc:  # the OS refused a thread: read unavailable, let a later call retry
+        logger.warning("Loughran-McDonald lexicon warmup could not start: %s", exc)
+        with _warm_lock:
+            _warm_started = False
 
 
 def wait_loaded(timeout: float | None = None) -> bool:
