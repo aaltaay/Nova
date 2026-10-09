@@ -252,11 +252,11 @@ export interface SetupsRecordGap {
   until: number | null;
 }
 
-/** The Sim eyes' replay (ADR 029): what the board follows off the live edge -- a loaded Session
- *  Record re-read by today's templates (`capture`), or what Nova's live eyes recorded at the
- *  playhead (`journal`, operator ask 2026-09-24). */
+/** The Sim eyes' replay (ADR 029, ADR 052): what the board follows off the live edge -- a loaded Session
+ *  Record (`capture`) or historical window (`history`) re-read by today's templates, or what Nova's live
+ *  eyes recorded at the playhead (`journal`, operator ask 2026-09-24) when nothing is loaded. */
 export interface SetupsReplay {
-  kind: 'capture' | 'journal' | string;
+  kind: 'capture' | 'history' | 'journal' | string;
   date: string | null;
   symbol: string | null;
   playhead: number | null;
@@ -267,6 +267,9 @@ export interface SetupsReplay {
   note: string | null;
   /** `journal`: what the Sim desk has loaded beside it (`historical` / `capture`), null when nothing. */
   loaded?: string | null;
+  /** `history`: the window's source (`massive` / `ibkr`) and the book its tape gate reads (`nbbo` / `none`). */
+  source?: string | null;
+  book?: string | null;
   gap?: SetupsRecordGap | null;
   journal?: { path: string; exists: boolean; lines: number; folded: number; first_ts: number | null;
     last_ts: number | null; line_ts: number | null; skipped: number } | null;

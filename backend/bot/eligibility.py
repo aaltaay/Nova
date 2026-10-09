@@ -69,11 +69,18 @@ def holds_depth_line(symbol: str) -> bool:
     ``is_subscribed`` covers a Trader Level 2 tab (a real IBKR line, or the
     replay slot a Sim desk serves); ``is_live`` covers the real line Session
     Record holds even with no tab open. Anything else -- including a depth
-    module that cannot be read -- is "no line": the gate fails closed.
+    module that cannot be read -- is "no line": the gate fails closed. On a
+    Sim replay the replay's own book is a line too (``bot.replay_desk.holds_book``:
+    the loaded symbol's recorded Level 2, its window's NBBO, or a book Nova
+    recorded that day, ADR 052).
     """
     sym = (symbol or "").strip().upper()
     if not sym:
         return False
+    from bot.replay_desk import desk, holds_book
+
+    if desk() is not None and holds_book(sym):
+        return True                     # a Sim replay: the replay's own book is the line (ADR 052)
     try:
         from ibkr.depth import state as _depth
 
@@ -83,11 +90,19 @@ def holds_depth_line(symbol: str) -> bool:
         return False
 
 
+def no_line_text(symbol: str) -> str:
+    """Why ``symbol`` holds no depth line, in the words that unblock it."""
+    from bot.replay_desk import book_missing
+
+    sym = (symbol or "").strip().upper()
+    return f"{sym} holds no depth line -- {book_missing(sym) or BOT_NO_DEPTH_LINE_HINT}"
+
+
 def assert_depth_line(symbol: str) -> str:
     sym = _require_symbol(symbol)
     if not holds_depth_line(sym):
         raise BotError(
-            f"{sym} holds no depth line -- {BOT_NO_DEPTH_LINE_HINT}",
+            no_line_text(sym),
             409,
             BOT_REASON_NO_DEPTH_LINE,
         )

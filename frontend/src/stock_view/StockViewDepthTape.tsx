@@ -214,11 +214,11 @@ export function StockViewDepthTape({
     );
   }
 
-  // The bot's read on the live stock sits between the quote and Level 2 (ADR 036), and who trades
-  // the stock right above Level 2 (ADR 037); a Session Record replaying here is another moment, so
-  // both stay off.
-  const read = captureReplay ? null : <StockReadRail />;
-  const whoTrades = captureReplay ? null : <WhoTradesRow />;
+  // The bot's read on the stock sits between the quote and Level 2 (ADR 036), and who trades the stock
+  // right above Level 2 (ADR 037). On a Sim replay -- a Session Record too -- both are the replay's at the
+  // playhead (ADR 052): the bot trades a replay, so its stock can be set to Bot here.
+  const read = <StockReadRail />;
+  const whoTrades = <WhoTradesRow />;
 
   if (!showL2 && !showTape) {
     return (
@@ -255,7 +255,7 @@ export function StockViewDepthTape({
         )}
         level2={showL2 ? (gap ? <HistoricalDepth depth={null} />
           : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive}
-            markers={captureReplay ? undefined : markers} traderTab />) : null}
+            markers={markers} traderTab />) : null}
         tape={showTape ? (
           <TimeSalesModule
             key={feedKey}

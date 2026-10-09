@@ -86,12 +86,13 @@ from hod_momo_state import HodMomoState
 
 @pytest.fixture(autouse=True)
 def _reset_bot_persist():
-    from bot import day_pnl, entry_rules
+    from bot import day_pnl, entry_rules, replay_desk
     from bot.persist import reset_for_tests
     from setup_scanner import readout
     from tests.bot_helpers import open_entry_window, release_depth_lines
 
     reset_for_tests()
+    replay_desk.reset_for_tests()     # the bot's memory of a Sim replay is process-local (ADR 052)
     readout.reset_for_tests()
     day_pnl.reset_for_tests()   # #564: no commission hold carries between tests
     # The venue clock inside the entry window, so bot tests exercise their own

@@ -2,7 +2,7 @@
  * seven tiles -- or one line saying why there is no read. On `auto` the plan opens whole only while
  * the quote card has room for it and Level 2 both. */
 import { useEffect, useRef, useState } from 'react';
-import { STOCK_READ_PLAN_OPEN_MIN_PX } from './constants';
+import { REPLAY_RAIL_NOTE, STOCK_READ_PLAN_OPEN_MIN_PX } from './constants';
 import { PlanCard } from './PlanCard';
 import { ReadStrip } from './ReadStrip';
 import { useStockReadContext } from './StockReadContext';
@@ -32,7 +32,7 @@ export function StockReadRail() {
   if (!ctx) return null;
   const { read } = ctx;
   let note: string | null = null;
-  if (ctx.replay) note = 'The bot\'s read is today\'s live stock; this desk is replaying another moment.';
+  if (ctx.replay) note = REPLAY_RAIL_NOTE;
   else if (read.unavailable && !read.data) note = 'This backend has no stock read yet: reload the backend.';
   else if (!read.data) note = read.error ?? `Reading ${ctx.symbol}…`;
   if (note) {

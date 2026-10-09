@@ -111,6 +111,14 @@ def _latest(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any
 _UNREAD = {"unread": True}
 
 
+def _venue_clock() -> float:
+    """The plan's clock: the venue's -- the Sim playhead on a replay (ADR 052), where a lane triggered in replay
+    time -- else the wall clock."""
+    from bot.replay_desk import venue_now
+
+    return venue_now()
+
+
 def _plan_lane(sym: str, now: float) -> dict[str, Any] | None:
     """The scanner lane the stock's plan follows (``stock_read.plan.choose``), None without one, and
     ``_UNREAD`` when the scanner cannot be read (unknown, never "no plan")."""
@@ -187,7 +195,7 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
     out: list[dict[str, Any]] = []
     if mode == STOCK_MODE_SIGNAL:
         return out
-    blocked = gates.venue_block(venue, replay)
+    blocked = gates.venue_block(venue, replay, mode)
     if blocked is not None:
         out.append(_note("replay" if blocked[0] == "STOCK_MODE_REPLAY" else "live", blocked[1]))
     for code, why in gates.desk_blocks():
@@ -243,20 +251,22 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
 
 
 def _sim_waits(sym: str, venue: str | None, replay: bool, row: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """A live Nova trade on Sim waits while the desk is not on Sim at its live edge."""
-    on_sim = venue == "sim" and not replay
-    if on_sim:
-        return []
+    """A live Nova trade on Sim waits while the desk is not where it was made: Auto-entry's and Approve's at the
+    live edge, the bot's on its own replay or at the live edge (``bot.first_pullback.runner.waiting_text``)."""
+    from bot.first_pullback.runner import waiting_text
+
+    out: list[dict[str, Any]] = []
     live = [t for t in store.trades() if t.get("venue") == "sim" and t.get("symbol") == sym
             and t.get("state") in (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING)]
+    if live and not (venue == "sim" and not replay):
+        out.append(_note("sim_waits", f"Nova's {sym} trade on Sim waits: it moves again when the desk is back on Sim "
+                                      "following the wall clock.", "info"))
     bot = (row or {}).get("trade")
-    if isinstance(bot, dict) and bot.get("venue") == "sim" and str(bot.get("symbol") or "").upper() == sym \
-            and bot.get("state") in ("entering", "open", "exiting"):
-        live.append(bot)
-    if not live:
-        return []
-    return [_note("sim_waits", f"Nova's {sym} trade on Sim waits: Sim fills only at its live edge -- it moves again "
-                               "when the desk is back on Sim following the wall clock.", "info")]
+    if isinstance(bot, dict) and bot.get("venue") == "sim" and str(bot.get("symbol") or "").upper() == sym:
+        why = waiting_text(bot, venue)
+        if why:
+            out.append(_note("sim_waits", f"Nova's bot waits: {why}.", "info"))
+    return out
 
 
 def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
@@ -270,7 +280,7 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     store.sync_venue(venue)
     loaded = _bot_row()
     row = loaded or {}
-    lane = _plan_lane(sym, now)
+    lane = _plan_lane(sym, _venue_clock())
     unread = lane is _UNREAD
     if unread:
         lane = None

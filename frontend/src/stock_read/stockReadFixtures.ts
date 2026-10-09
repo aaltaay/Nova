@@ -31,6 +31,7 @@ export const apusReadWire = {
   change_pct: 1.345,
   followed: true,
   followed_note: null,
+  replay: false,
   setups: [
     {
       setup_type: 'first_pullback', state: 'watching', reason: 'no fresh leg', kind: null, chosen: false, level: 1,

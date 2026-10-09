@@ -65,6 +65,11 @@ def record(
         "advise_spend": advise_spend,
         "outcome": outcome,
     }
+    from bot.replay_desk import audit_stamp
+
+    stamp = audit_stamp()
+    if stamp is not None:
+        entry["replay"] = stamp       # a line written on a Sim replay (ADR 052): its replay and playhead
     append_audit_line(entry)
     _publish(entry)
     return entry

@@ -236,6 +236,9 @@ BOT_REASON_PADLOCK_LOCKED = "BOT_PADLOCK_LOCKED"
 BOT_REASON_TRIP_LATCHED = "BOT_TRIP_LATCHED"
 BOT_LIVE_NOT_BUILT_TEXT = ("Nova's bot trades Paper and Sim only. Live trading by a bot is not built; "
                            "it waits on its own operator decision (ADR 042).")
+# Sim off its live edge with nothing loaded (ADR 052): a replay is what the bot trades there.
+BOT_REPLAY_NOTHING_LOADED_TEXT = ("Sim is off its live edge with nothing loaded: load a Session Record or a download "
+                                  "for the bot to trade, or follow the wall clock back to the live edge")
 # The bot list is full (``bot.eligibility``): a refusal, never a change that did not happen.
 BOT_REASON_ALLOWLIST_FULL = "BOT_ALLOWLIST_FULL"
 # A sleeve value outside its bounds is refused with them, never clamped in silence.

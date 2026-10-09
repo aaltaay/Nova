@@ -76,7 +76,9 @@ class Recording:
     def summary(self) -> dict[str, Any]:
         return {"date": self.date, "symbol": self.symbol, "prints": len(self.prints), "books": len(self.books),
                 "bars": len(self.bars), "bars_source": self.bars_source, "spans": [list(s) for s in self.spans],
-                "first_ts": self.first_ts, "last_ts": self.last_ts, "prev_close": self.prev_close}
+                "first_ts": self.first_ts, "last_ts": self.last_ts, "prev_close": self.prev_close,
+                # What the tape gate's book is (ADR 052): recorded Level 2, a window's NBBO, or none.
+                "book": self.diagnostics.get("book") or ("l2" if self.books else "none")}
 
 
 def _ticks(prints: list[dict], step: float) -> list[tuple[float, float, float]]:

@@ -90,6 +90,7 @@ export function pfsaRead(state: StockPlan['state'], planOver: Partial<StockPlan>
     change_pct: 1.078,
     followed: true,
     followed_note: null,
+    replay: false,
     setups: [lane(state === 'manual' ? 'watching' : state, distance)],
     setups_5m: [],
     no_scanner: [],

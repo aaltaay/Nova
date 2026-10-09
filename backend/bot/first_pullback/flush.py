@@ -26,9 +26,16 @@ _warned = False
 
 
 def reading(setup_id: str) -> dict[str, Any] | None:
-    """The setup scanner's newest flow reading on this setup, with its template's rule."""
+    """The setup scanner's newest flow reading on this setup, with its template's rule -- on a Sim replay, the
+    Sim eyes' lanes over it (ADR 052)."""
     global _warned
     try:
+        from bot.replay_desk import desk
+
+        if desk() is not None:
+            from eyes.sim_eyes import get_sim_eyes
+
+            return get_sim_eyes().flow_reading(setup_id)
         from setup_scanner.engine import get_engine
 
         return get_engine().flow_reading(setup_id)

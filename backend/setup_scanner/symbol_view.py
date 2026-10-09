@@ -2,8 +2,9 @@
 the levels a forming setup would arm with, and the lane's own indicators.
 
 ``GET /api/setups/symbol/{symbol}`` answers this; ``stock_read`` reads it for the Trader's plan,
-tiles and drawings. Reads the engine's state (and, for a name no lane reads, today's hot list to say why):
-never writes, never arms.
+tiles and drawings. On a Sim replay it is the Sim eyes' lanes over the loaded replay, at the playhead
+(``eyes.sim_eyes.SimEyes.symbol_view``, ADR 052). Reads the engine's state (and, for a name no lane
+reads, today's hot list to say why): never writes, never arms.
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from setup_scanner.five_minute_lane import is_five_minute, pattern_bar_sec
 NOT_FOLLOWED = ("{sym} is not on today's hot list and not among the HOD Momo names the scanners follow, so no "
                 "lane reads it -- star it to follow it")
 REPLAY_DESK = ("a Sim replay desk: the live scanner's lanes are not the replay's -- the Sim eyes follow the "
-               "loaded recording")
+               "loaded replay's symbol only")
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +68,32 @@ def lane_entry(lane: Any, sym: str, levels: dict, now: float) -> dict[str, Any]:
             "rules": rules_of(lane.p.pattern)}
 
 
+def _replay_view(sym: str, got: dict[str, Any], now: float) -> dict[str, Any]:
+    """The loaded replay's symbol as the Sim eyes published it at the playhead (ADR 052): what was there then,
+    never later; ``pending`` while they are reading the replay or catching up to a rewind."""
+    pending = got.get("pending")
+    return wire_safe({
+        "schema_version": SETUPS_SCHEMA_VERSION_SYMBOL,
+        "generated_at": got.get("at") or now,
+        "session_date": got.get("session_date"),
+        "symbol": sym,
+        "followed": pending is None,
+        "followed_note": f"the Sim eyes on the replay: {pending}" if pending else None,
+        "seeding": pending is not None,
+        "setups": [] if pending else list(got.get("setups") or []),
+        "setups_5m": [],
+        "replay": True,
+    })
+
+
 def symbol_view(engine: Any, symbol: str, now: float | None = None) -> dict[str, Any]:
     now = engine._clock() if now is None else now
     sym = (symbol or "").strip().upper()
     replay = bool(engine._replay_fn())
+    sim = engine._sim_eyes_fn() if replay else None
+    got = sim.symbol_view(sym) if sim is not None else None
+    if got is not None:
+        return _replay_view(sym, got, now)
     followed = sym in engine.universe and not replay
     note = REPLAY_DESK if replay else (None if followed else not_followed_note(sym))
     setups: list[dict[str, Any]] = []

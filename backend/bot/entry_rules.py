@@ -15,7 +15,9 @@ are. The clock is the venue's (``execution.session_gate``: the replay playhead o
   the day back. Approve is the operator's own decision per trade: counted (``approved``) and
   shown, never capped. The day is the venue's ET date stamped on the line (``venue_day``),
   else the line's own ET date; a line written before the audit carried its venue counts on
-  every venue.
+  every venue. On a Sim replay the day is the replay's own run -- the entries sent before the
+  playhead on it (``bot.replay_desk.today``, ADR 052) -- and a line written on a replay
+  (``replay`` stamped) never counts anywhere else.
 - **Extended hours**: with the sleeve's ``extended_hours`` off, entries wait for 09:30-16:00 ET.
 - **#564**: every entry also passes ``bot.day_pnl.commission_hold`` (Live only).
 
@@ -197,8 +199,8 @@ def fold(rows: list[dict[str, Any]], venue: str | None, day: str) -> dict[str, A
     sent: list[dict[str, Any]] = []
     approved = 0
     for row in rows:
-        if _row_day(row) != day or _row_venue(row) not in (None, venue):
-            continue
+        if _row_day(row) != day or _row_venue(row) not in (None, venue) or row.get("replay"):
+            continue                # a replay's entries are its own run's (``bot.replay_desk.today``, ADR 052)
         entry = _entry_of(row)
         if entry is not None:
             if entry["by"] == "approve":
@@ -232,10 +234,15 @@ def today(venue: str | None = None, now: datetime | None = None, *, cap: int | N
           rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """``{count, cap, venue_day, entries, approved}`` -- the venue's Nova automatic entries today."""
     from bot.gates import current_venue
+    from bot.replay_desk import desk as replay_desk, today as replay_today
 
-    day = (now or venue_now()).date().isoformat()
+    at = now or venue_now()
+    day = at.date().isoformat()
     here = current_venue() if venue is None else venue
-    folded = fold(_audit_rows(day) if rows is None else rows, here, day)
+    if rows is None and here == "sim" and replay_desk() is not None:
+        folded = {**replay_today(at.timestamp()), "approved": 0}      # the replay's own run (ADR 052)
+    else:
+        folded = fold(_audit_rows(day) if rows is None else rows, here, day)
     if cap is None:
         cap = _cap()
     return {"count": folded["count"], "cap": int(cap), "venue_day": day, "entries": folded["entries"],

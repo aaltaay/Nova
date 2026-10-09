@@ -74,6 +74,9 @@ export function switchLock(
 ): string | null {
   if (o.pending) return o.pending;
   if (!view) return `Reading who trades ${o.symbol}…`;
+  const mode = modeOf(to.buy, to.sell);
+  const byMode = mode === 'signal' ? undefined : view.locks.modes?.[mode];
+  if (byMode) return byMode;                  // e.g. on a Sim replay only Bot is Nova's (ADR 052)
   if (to.buy === 'nova' && view.locks.buy) return view.locks.buy;
   if (to.sell === 'nova' && view.locks.sell) {
     return o.held > 0 ? (o.short ? HELD_LIVE_COVER_WHY : HELD_LIVE_EXIT_WHY) : view.locks.sell;

@@ -159,7 +159,7 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   const event = view?.last_event ?? null;
   const tip = [modeSentence(mode, sym), ...notes.map(n => n.text)].join('\n');
   const answer = whoAnswer(sym, view, short ? shortQty(who.inputs) : 0);
-  const sides = sideLine(view, ctx.read.data?.plan ?? null);
+  const sides = sideLine(view, ctx.readNow?.plan ?? null);
   return (
     <section className="sr-who" data-testid="who-trades" aria-label={`Who trades ${sym}`}>
       <div className="sr-who__row">
@@ -229,15 +229,16 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
   );
 }
 
-/** The plan's ENTRY / STOP / TARGET for this tab's Level 2; none on a replay desk or the sample desk. */
+/** The plan's ENTRY / STOP / TARGET for this tab's Level 2 -- a Sim replay's plan at the playhead on a replay
+ * (ADR 052); none on the sample desk. */
 export function useLevel2Markers(): readonly DepthMarker[] | undefined {
   const ctx = useStockReadContext();
-  return ctx && !ctx.replay ? ctx.who.markers : undefined;
+  return ctx ? ctx.who.markers : undefined;
 }
 
-/** The row; nothing on a replay desk or the sample desk (no stock read there). */
+/** The row, on a Sim replay too (ADR 052: the bot trades a replay); nothing on the sample desk (no stock read). */
 export function WhoTradesRow() {
   const ctx = useStockReadContext();
-  if (!ctx || ctx.replay) return null;
+  if (!ctx) return null;
   return <WhoTradesRowView ctx={ctx} />;
 }

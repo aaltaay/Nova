@@ -510,8 +510,9 @@ user_version = 2` here -- rows add `template_id`, `template_rev` (integer) and
 default's (ids stay `SYMBOL-DATE-LEG_T`; another template's rows end
 `~TEMPLATE_ID`) -- and is 3 since ADR 031 (`setup_type`, `detail`). The board payload adds `source: "live" | "sim"`, `template:
 {id, rev, name, params_hash} | null`, `templates_watched` and `replay: {kind:
-"capture" | "journal", date, symbol, playhead, at, loading, error, note,
-recording, loaded?, gap?, journal?} | null` (`journal`: "Recorded eyes in Sim"
+"capture" | "history" | "journal", date, symbol, playhead, at, loading, error, note,
+recording, loaded?, gap?, journal?, source?, book?} | null` (`history`: a loaded historical window re-read
+by today's templates, ADR 052 -- bot.md, "The bot trades a Sim replay") (`journal`: "Recorded eyes in Sim"
 below; its `setups[]` add `recorded: boolean`); a row's `state` may be `filtered` (the template's stock
 filter kept the name out, and the reason says which rule); a proposal adds
 `template_id`, `template_name` and `source`. The read-out's `rules` adds

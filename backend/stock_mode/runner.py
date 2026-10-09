@@ -335,7 +335,8 @@ def lane_of(sym: str, setup_id: str | None) -> dict[str, Any] | None:
 
 
 def lanes_of(sym: str) -> list[dict[str, Any]] | None:
-    """Every setup's lane on this stock (the scanner's symbol view, memory reads); None when unreadable."""
+    """Every setup's lane on this stock (the scanner's symbol view, memory reads -- the Sim eyes' on a replay,
+    ADR 052); None when unreadable."""
     try:
         from setup_scanner.engine import get_engine
         from setup_scanner.symbol_view import symbol_view

@@ -81,7 +81,8 @@ STOCK_MODE_WHY_LIVE_SELL = (
     "Paper and Sim first."
 )
 STOCK_MODE_WHY_VENUE_UNKNOWN = "Nova cannot read the desk's venue, so it counts as Live: Nova places nothing."
-STOCK_MODE_WHY_REPLAY = "Off the live edge the desk is a replay: Nova trades live triggers only."
+STOCK_MODE_WHY_REPLAY = ("On a Sim replay Nova trades a stock only as Bot (Entry and Exit both Nova, ADR 052): "
+                         "Auto-entry, Approve and Nova's exit run on Paper and at the live edge.")
 STOCK_MODE_WHY_HELD = (
     "You hold {sym}: hand Nova the exit with \"Nova takes the exit\" (\"Nova takes the cover\" on a short) on "
     "the plan box (Paper and Sim), or close it yourself."

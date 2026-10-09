@@ -47,11 +47,11 @@ _EPS = 1e-9
 
 
 def _venue_gate(buy: str, sell: str) -> None:
-    """A Nova side needs a practice venue at the live edge (decision 2)."""
+    """A Nova side needs a practice venue -- at the live edge, or a Sim replay for Bot (decision 2, ADR 052)."""
     if STOCK_MODE_SIDE_NOVA not in (buy, sell):
         return
     venue, replay = gates.venue_state()
-    blocked = gates.venue_block(venue, replay)
+    blocked = gates.venue_block(venue, replay, model.mode_of(buy, sell))
     if blocked is None:
         return
     lock = model.locks(venue, replay)

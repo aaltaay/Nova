@@ -179,7 +179,7 @@ export function stockRead(r: ScannerRow, nowS: number) {
   return {
     schema_version: 1, symbol: r.symbol, generated_at: nowS - 1, session_date: DAY,
     price: r.price, prev_close: r.prev_close, change_pct: (r.price - r.prev_close) / r.prev_close,
-    followed: true, followed_note: null,
+    followed: true, followed_note: null, replay: false,
     setups: smpl
       ? [
         lane('first_pullback', 'near', 'pulled back four candles; 0.05 under the trigger', {

@@ -29,6 +29,17 @@ def current_venue() -> str | None:
         return None
 
 
+def _venue_words(venue: str | None, edge: bool) -> str:
+    """Where the bot may trade now, in words: Paper, Sim at its live edge, or the Sim replay loaded (ADR 052)."""
+    if venue == "sim" and not edge:
+        from bot.replay_desk import desk, label
+
+        here = desk()
+        return (f"Sim replay of {label(here['key'])}: the bot trades its go triggers on the Sim account as the "
+                "playhead plays across them" if here else "Sim replay")
+    return "Paper, or Sim at its live edge: the bot may trade here"
+
+
 def _safe(fn: Callable[[], Any], default: Any, what: str) -> Any:
     try:
         return fn()
@@ -106,8 +117,7 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
                  "regular hours")
     hold = commission_hold(venue)     # #564: Live only; never raises
     return [
-        _gate("venue", blocked is None, "activate",
-              "Paper, or Sim at its live edge: the bot may trade here" if blocked is None else blocked[1],
+        _gate("venue", blocked is None, "activate", blocked[1] if blocked is not None else _venue_words(venue, edge),
               venue=venue, live_edge=edge),
         _gate("level", level >= BOT_LEVEL_STRATEGY, "activate",
               "the master level is at Strategy" if level >= BOT_LEVEL_STRATEGY
