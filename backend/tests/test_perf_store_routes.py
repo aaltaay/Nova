@@ -195,6 +195,16 @@ def test_client_report_is_validated(client, bad):
     assert client.get("/api/perf/live").json()["clients"] == {}
 
 
+def test_electron_report_keeps_its_logical_cpu_count(client):
+    body = _report(window_id="electron-main", role="electron", frames=None, long_frames=None, sockets={},
+                   renders={}, heap_mb=None, dom_nodes=None, logical_cpus=24,
+                   processes=[{"type": "Tab", "window_id": "main", "pid": 7, "cpu_pct": 112.1,
+                               "working_set_mb": 900.0}])
+    assert client.post("/api/perf/client", json=body).json() == {"ok": True}
+    assert client.get("/api/perf/live").json()["clients"]["electron-main"]["logical_cpus"] == 24
+    assert client.post("/api/perf/client", json={**body, "logical_cpus": 0}).status_code == 422
+
+
 def test_oversized_client_report_is_refused(client):
     body = json.dumps(_report(ui_tag=None)) + " " * cp.PERF_CLIENT_MAX_BODY_BYTES
     resp = client.post("/api/perf/client", content=body, headers={"content-type": "application/json"})

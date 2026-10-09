@@ -357,6 +357,36 @@ describe('FocusRail', () => {
     expect(alertOrder('focus-rail-lower')).toEqual(['GRML', 'ZZZX']);
   });
 
+  it('a HOD half mounts only the rows in view, however many alerts the day brings', () => {
+    // 2026-10-09: drawing every row held the hidden desk window at 21,000 elements and 3 fps once shown.
+    const day = (n: number) => Array.from({ length: n }, (_, i) => alert(`T${i}`, 3, 1_000 + i * 20));
+    mocks.hod!.alerts = day(200);
+    const { rerender } = render(<FocusRail />);
+    const box = screen.getByTestId('focus-rail-lower-rows');
+    const nodes = () => box.querySelectorAll('*').length;
+    const at200 = nodes();
+    expect(alertOrder('focus-rail-lower')).toHaveLength(36);
+    mocks.hod = { ...mocks.hod!, alerts: day(3_000), totalToday: 3_000 };
+    rerender(<FocusRail />);
+    expect(nodes()).toBe(at200);
+    expect(alertOrder('focus-rail-lower')[0]).toBe('T2999');
+    // Scrolled, the rows there mount and the top ones leave.
+    fireEvent.scroll(box, { target: { scrollTop: 22 * 1_500 } });
+    expect(alertOrder('focus-rail-lower')).toContain('T1499');
+    expect(alertOrder('focus-rail-lower')).not.toContain('T2999');
+    // 30 rows in view (the unmeasured fallback) and 6 of overscan on each side.
+    expect(alertOrder('focus-rail-lower')).toHaveLength(42);
+    expect(nodes()).toBeLessThan(at200 * 1.25);
+    // The keyboard cursor brings its row into view.
+    fireEvent.scroll(box, { target: { scrollTop: 0 } });
+    const pane = screen.getByTestId('focus-rail-pane-lower');
+    for (let i = 0; i < 60; i += 1) fireEvent.keyDown(pane, { key: 'ArrowDown' });
+    expect(box.scrollTop).toBe(60 * 22 - 30 * 22);
+    expect(box.querySelector('.is-cursor')?.getAttribute('data-symbol')).toBe('T2940');
+    fireEvent.keyDown(pane, { key: 'Enter' });
+    expect(mocks.open).toHaveBeenCalledWith('T2940');
+  });
+
   it("a HOD row shows the strip's price -- the alert's print -- whatever a board says now", () => {
     mocks.hod!.alerts = [alert('PFSA', 3, 100, { price: 4.38 })];
     mocks.feed = makeLiveScannerFeedStub({ gainers: [row('PFSA', 70.2, 3.48)] });

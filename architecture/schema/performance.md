@@ -33,10 +33,17 @@ boolean | null, interval_sec, ui_tag: string | null, frames: {count, slow,
 p95_ms} | null, long_frames: {count, blocking_ms, max_ms, top: [{source,
 invoker, ms}]} | null, sockets: {NAME: {messages, bytes}}, renders: {NAME:
 count}, heap_mb: number | null, dom_nodes: number | null, processes: [{type,
-window_id, pid, cpu_pct, working_set_mb}] | null}` -- `frames` counts
-animation frames while visible (`slow` > `PERF_SLOW_FRAME_MS`), `null` while
-hidden; `processes` only from the Electron main process. The server stamps
-`received_ts` and answers `{ok: true}`.
+window_id, pid, cpu_pct, working_set_mb}] | null, logical_cpus: number |
+null}` -- `frames` counts animation frames while visible (`slow` >
+`PERF_SLOW_FRAME_MS`), `null` while hidden; `dom_nodes` is the page's element
+count (`getElementsByTagName('*')`); `processes` and `logical_cpus` only from
+the Electron main process. A process's `cpu_pct` is % of one core (100 = one
+core, as in a sample): Electron's `percentCPUUsage` is a share of all logical
+CPUs, so the report multiplies it by `logical_cpus` (2026-10-09: a renderer at
+112% of one core read 5 on the 24-thread desk PC). A report without
+`logical_cpus` (desks before that change, or a machine whose count could not be
+read) carries Electron's share unchanged, and `tools/perf_report.py` marks it.
+The server stamps `received_ts` and answers `{ok: true}`.
 
 `GET /api/perf/live?seconds=N` (default 300) -> `{schema_version, generated_at,
 recorder: {running, since, dir, write_dropped, stall_files_skipped,

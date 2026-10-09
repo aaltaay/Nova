@@ -27,6 +27,10 @@ export const HOD_MOMO_STRIP_DEFAULT_ROWS = 4;
 export const HOD_MOMO_STRIP_DEFAULT_FOLDED = false;
 /** Fallback content-column height when nothing is measurable (tests, first paint). */
 export const HOD_MOMO_STRIP_FALLBACK_CONTENT_PX = 900;
+/** Rows mounted above and below the ones in view, in every windowed view of the strip's rows. */
+export const HOD_MOMO_STRIP_OVERSCAN_ROWS = 6;
+/** A windowed box not yet measured (first paint, tests) is taken to be this many rows tall. */
+export const HOD_MOMO_STRIP_WINDOW_FALLBACK_ROWS = 30;
 
 /** An alert first seen by this strip counts as NEW for this long. */
 export const HOD_MOMO_STRIP_NEW_MS = 60_000;

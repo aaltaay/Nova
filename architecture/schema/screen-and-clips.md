@@ -203,6 +203,7 @@ row `clips` (group `recorder`) is `off` with no desktop app reporting, `unknown`
 drive, and `fail` only when an open clip has no picture. The perf recorder (ADR 026) names the two
 hidden pages' processes `clip-recorder` (High quality) and `clip-export` in the Electron report's
 `processes`, beside `screen-recorder`, and the focus sensor (ADR 033) leaves all three out: they are
-never a window the operator sees. Their `cpu_pct` is Electron's, divided by the logical CPUs (24 on
-the desk PC), so 3.5 there is about 0.84 of a core.
+never a window the operator sees. Their `cpu_pct` is % of one core (performance.md); a report from
+before 2026-10-09 carries Electron's share of all logical CPUs, so 3.5 there was about 0.84 of a core
+on the 24-thread desk PC.
 

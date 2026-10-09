@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildElectronPerfReport,
+  logicalCpuCount,
   PERF_ELECTRON_REPORT_MS as ELECTRON_REPORT_MS,
   startPerfMetrics,
   windowIdsByPid,
@@ -56,6 +57,7 @@ describe('Electron perf metrics', () => {
       renders: {},
       heap_mb: null,
       dom_nodes: null,
+      logical_cpus: null,
     });
     expect(report.processes).toEqual([
       { type: 'Browser', window_id: null, pid: 100, cpu_pct: 3.1, working_set_mb: 200 },
@@ -63,6 +65,24 @@ describe('Electron perf metrics', () => {
       { type: 'Tab', window_id: 'trader:GRML', pid: 300, cpu_pct: 12, working_set_mb: 300 },
       { type: 'GPU', window_id: null, pid: 400, cpu_pct: 8, working_set_mb: 100 },
     ]);
+  });
+
+  it("turns Electron's share of all CPUs into % of one core, and says by what", () => {
+    // 2026-10-09: a renderer at 112% of one core read 5 on the 24-thread desk PC.
+    const metrics = [{ pid: 200, type: 'Tab', cpu: { percentCPUUsage: 4.67 }, memory: { workingSetSize: 1024 } }];
+    const report = buildElectronPerfReport({ metrics, windows: WINDOWS, intervalSec: 5, logicalCpus: 24 });
+    expect(report.processes[0].cpu_pct).toBe(112.1);
+    expect(report.logical_cpus).toBe(24);
+    // Without a count the figure goes as Electron gives it, and the report says so.
+    const bare = buildElectronPerfReport({ metrics, windows: WINDOWS, intervalSec: 5 });
+    expect(bare.processes[0].cpu_pct).toBe(4.7);
+    expect(bare.logical_cpus).toBeNull();
+  });
+
+  it('reads the logical CPU count, or null when it cannot', () => {
+    expect(logicalCpuCount(() => new Array(24).fill({}))).toBe(24);
+    expect(logicalCpuCount(() => [])).toBeNull();
+    expect(logicalCpuCount(() => { throw new Error('no os'); })).toBeNull();
   });
 
   it('posts every interval with the API key, and a failed post never throws', async () => {

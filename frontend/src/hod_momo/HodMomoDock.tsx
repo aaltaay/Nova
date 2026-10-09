@@ -26,6 +26,7 @@ import {
   HOD_MOMO_STRIP_EMPTY_WAITING,
   HOD_MOMO_STRIP_GRIP_LABEL,
   HOD_MOMO_STRIP_GRIP_TITLE,
+  HOD_MOMO_STRIP_OVERSCAN_ROWS,
   HOD_MOMO_STRIP_ROW_PX,
   hodMomoStripSinceLabel,
 } from './hodMomoStripConstants';
@@ -40,7 +41,6 @@ import { useHodStripView } from './useHodStripView';
 import { hodReplayEmptyText, hodReplayFeed } from './hodMomoReplayCopy';
 import type { AlertObject } from './types';
 
-const STRIP_OVERSCAN_ROWS = 6;
 const NO_ALERTS: AlertObject[] = [];
 const NO_GROUPS: StripAlertGroup[] = [];
 const NO_NEW_IDS: ReadonlySet<string> = new Set();
@@ -147,7 +147,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
 
   const onScroll = (e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop);
   const bodyPx = stripRowsToPx(rows);
-  const range = computeVisibleRowRange(scrollTop, groups.length, HOD_MOMO_STRIP_ROW_PX, bodyPx, STRIP_OVERSCAN_ROWS);
+  const range = computeVisibleRowRange(scrollTop, groups.length, HOD_MOMO_STRIP_ROW_PX, bodyPx, HOD_MOMO_STRIP_OVERSCAN_ROWS);
   const rendered = groups.slice(range.startIndex, range.endIndex);
 
   return (

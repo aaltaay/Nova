@@ -6,12 +6,14 @@
  * and folds to its header. Each half keeps its own cursor (↑ ↓, Enter) and
  * hover card. The rail (FocusRail.tsx) reads the feeds and hands each half its
  * rows, or what their absence says; this file only draws and listens. A HOD
- * Momo / Running Up half draws the HOD strip's own rows, compact.
+ * Momo / Running Up half draws the HOD strip's own rows, compact, and mounts
+ * only the ones in view (useStripRowWindow): the day's alerts never set the
+ * page's DOM size.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown } from 'lucide-react';
 import { openBotSymbolMenu } from '../bot';
-import { HodMomoStripRow, groupIsNew, type HodStripView } from '../hod_momo';
+import { HodMomoStripRow, groupIsNew, useStripRowWindow, type HodStripView } from '../hod_momo';
 import { NewsCell } from '../components/NewsCell';
 import { TICKER_OPEN_TRADER_TITLE } from '../constants';
 import { WatchMark } from '../watch_list';
@@ -68,6 +70,7 @@ export interface FocusPaneView {
 }
 
 const noop = () => {};
+const NO_GROUPS: HodStripView['groups'] = [];
 
 /** A HOD half's column labels, in the compact strip row's widths. */
 function AlertCols({ tid }: { tid: string }) {
@@ -130,6 +133,9 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
   const [cursor, setCursor] = useState(-1);
   const [hover, setHover] = useState<FocusRailHover | null>(null);
   const hideTimer = useRef<number | null>(null);
+  const groups = alerts?.groups ?? NO_GROUPS;
+  const rowWindow = useStripRowWindow(groups.length);
+  const { range, reveal } = rowWindow;
 
   const keepCard = useCallback(() => {
     if (hideTimer.current != null) window.clearTimeout(hideTimer.current);
@@ -148,6 +154,9 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
   };
 
   useEffect(() => { setCursor(-1); setHover(null); }, [list, sort?.key, sort?.dir, folded]);
+  // An alert half mounts only the rows in view: the cursor brings its row there.
+  const alertList = alerts != null;
+  useEffect(() => { if (alertList) reveal(cursor); }, [alertList, cursor, reveal]);
   const onSort = sortable ? (key: FocusSortKey) => setSort(nextFocusSort(sort, key)) : null;
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
@@ -196,27 +205,36 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
       )}
       {!folded && (
         <div className="focus-rail__rows" role="listbox" aria-label={listTitle} data-testid={`${tid}-rows`}
-          onScroll={() => setHover(null)}>
+          ref={rowWindow.boxRef} onScroll={event => { setHover(null); rowWindow.onScroll(event); }}>
           {replayDesk && !alerts && rows != null && rows.length > 0 && (
             <p className="focus-rail__absent" data-testid={`${tid}-replay-note`}>{SIM_FOCUS_RAIL_REPLAY_NOTE}</p>
           )}
           {rows == null || rows.length === 0 ? (
             <p className="focus-rail__absent" data-testid={`${tid}-absent`}>{absent}</p>
-          ) : alerts ? alerts.groups.map((group, index) => (
-            <HodMomoStripRow
-              key={group.key}
-              compact
-              group={group}
-              selected={group.ticker === active}
-              cursor={index === cursor}
-              isNew={groupIsNew(group, alerts.newIds)}
-              strategyColors={alerts.strategyColors}
-              onSelect={(symbol) => { setCursor(index); open(symbol); }}
-              onOpenTrading={noop}
-              testId={`${tid}-alert-${group.ticker}`}
-              rowTitle={TICKER_OPEN_TRADER_TITLE}
-            />
-          )) : rows.map((row, index) => {
+          ) : alerts ? (
+            <>
+              {range.topSpacerPx > 0 && <div style={{ height: range.topSpacerPx }} aria-hidden="true" />}
+              {groups.slice(range.startIndex, range.endIndex).map((group, offset) => {
+                const index = range.startIndex + offset;
+                return (
+                  <HodMomoStripRow
+                    key={group.key}
+                    compact
+                    group={group}
+                    selected={group.ticker === active}
+                    cursor={index === cursor}
+                    isNew={groupIsNew(group, alerts.newIds)}
+                    strategyColors={alerts.strategyColors}
+                    onSelect={(symbol) => { setCursor(index); open(symbol); }}
+                    onOpenTrading={noop}
+                    testId={`${tid}-alert-${group.ticker}`}
+                    rowTitle={TICKER_OPEN_TRADER_TITLE}
+                  />
+                );
+              })}
+              {range.bottomSpacerPx > 0 && <div style={{ height: range.bottomSpacerPx }} aria-hidden="true" />}
+            </>
+          ) : rows.map((row, index) => {
             const recording = isRecording(row.symbol);
             const allowed = isAllowed(row.symbol);
             const held = allowed && (recording || traderLiveTabs.includes(row.symbol));
