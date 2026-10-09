@@ -181,6 +181,26 @@ IBKR_SOFT_ORDER_WARNING_CODES = frozenset({
 })
 # Compliance / no-opening-trades (ZTG 2026-09-16). Hard reject.
 IBKR_ERROR_NO_OPENING_TRADES = 201
+# IBKR saying an order is already closed, never refusing it: 10148 answers a cancel of an order
+# that had filled or been cancelled ("... cannot be cancelled, state: Filled"), and 201 naming the
+# OCA group is a one-cancels-all sibling closed because another member filled. A cancel, not a reject.
+IBKR_ERROR_CANCEL_ALREADY_CLOSED = 10148
+IBKR_OCA_CLOSED_MARKERS = ("oca group",)
+
+# ── Live order-state hardening (orderRef, whyHeld, reconnects; 2026-10-09) ──
+# Nova's own reference on every Live order (IBKR's orderRef): prefix + the execution id's first hex.
+IBKR_ORDER_REF_PREFIX = "nova-"
+IBKR_ORDER_REF_ID_CHARS = 16
+# A bracket's exit legs carry the entry's reference plus their role.
+IBKR_ORDER_REF_LEG_SUFFIX = {"target": "-tp", "stop": "-sl"}
+# IBKR's whyHeld for a short sale waiting for shares to borrow (a locate hold).
+IBKR_WHY_HELD_LOCATE = "locate"
+# A bracket leg IBKR refuses this soon after the send, before it ever worked, takes the entry back.
+IBKR_BRACKET_LEG_REFUSAL_WINDOW_SEC = 5.0
+# IBKR order ids are signed 32-bit; the order-id floor never pushes the sequence past this.
+IBKR_ORDER_ID_MAX = 2_147_483_647
+# How many IBKR events no Nova order claims (liquidations, outside fills, order errors) are kept.
+IBKR_UNCLAIMED_KEEP = 50
 # Fill latency detective (#177). MKT during RTH only; LMT working is expected.
 FILL_AUDIT_MKT_RTH_WARN_MS = 2_000
 FILL_AUDIT_MKT_RTH_DANGER_MS = 10_000

@@ -16,10 +16,10 @@ from ibkr.order_build import (
     build_ib_order as _build_order,
     normalize_order_type,
     normalize_tif,
-    tif_error as _tif_error,
     validation_error as _validation_error,
 )
 from ibkr.order_rows import trade_to_order_row as _trade_to_order_row
+from ibkr.order_bracket import place_bracket_order  # its own module: a broken bracket is taken back
 from sim.account_hooks import practice_broker as _practice_broker, practice_refusal as _practice_refusal
 
 logger = logging.getLogger(__name__)
@@ -54,13 +54,6 @@ def _safety_check() -> tuple[bool, str]:
     )
 
 
-def _bracket_failure(error: str, mode: str) -> dict:
-    return {
-        "ok": False, "parent_order_id": None, "target_order_id": None,
-        "stop_order_id": None, "error": error, "mode": mode,
-    }
-
-
 def place_order(
     symbol: str,
     side: OrderSide,
@@ -72,11 +65,13 @@ def place_order(
     order_id: int | None = None,
     tif: str | None = None,
     targeted: bool = False,
+    order_ref: str | None = None,
 ) -> dict:
     """
     Place a market, limit, stop, stop-limit, or trailing-stop order
     (or price-modify when order_id set). ``targeted``: the execution door sent it to Live whatever
     the desk shows (Live's day cover, ADR 048 step 6), so the desk's practice guard does not apply.
+    ``order_ref`` is Nova's reference (IBKR's orderRef), written to the ledger before this send.
 
     Returns {"ok": bool, "order_id": int|None, "error": str|None, "mode": str}.
     Adapter only — callers must enter via execution.service.execute (ADR 007).
@@ -116,7 +111,7 @@ def place_order(
         from ib_async import Stock
         contract = Stock(symbol, "SMART", "USD")
         order = _build_order(
-            side, qty, order_type, limit_price, stop_price, outside_rth, tif,
+            side, qty, order_type, limit_price, stop_price, outside_rth, tif, order_ref=order_ref,
         )
         if order_id is not None:
             order.orderId = int(order_id)
@@ -142,7 +137,7 @@ def place_order(
         price = limit_price if order_type in ("LMT", "STP LMT") else stop_price
         action = "modified" if order_id is not None else "placed"
         logger.info(
-            "IBKR: %s %s %s %s %s @ %s outside_rth=%s tif=%s (id=%s)",
+            "IBKR: %s %s %s %s %s @ %s outside_rth=%s tif=%s ref=%s (id=%s)",
             action,
             _client.account_mode(),
             order_type,
@@ -151,6 +146,7 @@ def place_order(
             price,
             outside_rth,
             tif,
+            order_ref,
             oid,
         )
         if order_id is None:
@@ -176,80 +172,6 @@ def place_order(
     except Exception as exc:
         logger.exception("IBKR: order error for %s: %s", symbol, exc)
         return {"ok": False, "order_id": None, "error": str(exc), "mode": _client.account_mode()}
-
-
-def place_bracket_order(
-    symbol: str,
-    side: OrderSide,
-    qty: int,
-    entry_price: float,
-    stop_price: float,
-    target_price: float,
-    tif: str | None = None,
-    outside_rth: bool = False,
-) -> dict:
-    """
-    Place a bracket order: a LMT entry with a linked LMT profit target and a
-    linked STP loss. Uses ib_async's native IB.bracketOrder() helper.
-    ``tif`` / ``outside_rth`` apply to all three legs (None tif = DAY).
-    """
-    from sim.mode import is_practice_venue
-
-    if is_practice_venue():
-        from sim.guard import refuse_bracket
-
-        return _practice_refusal(refuse_bracket())
-
-    tif = normalize_tif(tif)
-    bad_tif = _tif_error(tif)
-    if bad_tif:
-        return _bracket_failure(bad_tif, _client.account_mode())
-
-    ok, reason = _safety_check()
-    if not ok:
-        logger.warning("IBKR bracket order blocked: %s", reason)
-        return _bracket_failure(reason, _client.account_mode())
-
-    ib = _client.get_ib()
-    if ib is None:
-        return _bracket_failure("Not connected", "disconnected")
-
-    try:
-        from ib_async import Stock
-        contract = Stock(symbol, "SMART", "USD")
-        from ibkr.order_times import remember_nova_placed, wall_utc_now_iso
-
-        def _place_bracket():
-            bracket = ib.bracketOrder(
-                side, qty, entry_price, target_price, stop_price,
-                tif=tif, outsideRth=bool(outside_rth),
-            )
-            nova_stamp = wall_utc_now_iso()
-            for order in bracket:
-                ib.placeOrder(contract, order)
-                remember_nova_placed(order.orderId, nova_stamp)
-            return bracket, nova_stamp
-
-        bracket, nova_stamp = _ib_sync(_place_bracket, "placeOrder")
-        logger.info(
-            "IBKR: placed %s bracket %s %s qty=%s entry=%s target=%s stop=%s "
-            "tif=%s outside_rth=%s (parent=%s nova_placed_at_utc=%s)",
-            _client.account_mode(), side, symbol, qty, entry_price, target_price, stop_price,
-            tif, bool(outside_rth), bracket.parent.orderId, nova_stamp,
-        )
-        return {
-            "ok": True,
-            "parent_order_id": bracket.parent.orderId,
-            "target_order_id": bracket.takeProfit.orderId,
-            "stop_order_id": bracket.stopLoss.orderId,
-            "error": None,
-            "mode": _client.account_mode(),
-            "submitted_at": nova_stamp,
-            "nova_placed_at": nova_stamp,
-        }
-    except Exception as exc:
-        logger.exception("IBKR: bracket order error for %s: %s", symbol, exc)
-        return _bracket_failure(str(exc), _client.account_mode())
 
 
 def cancel_order(order_id: int) -> dict:

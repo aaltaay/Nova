@@ -563,6 +563,8 @@ class TestNoBypassAst:
         offenders: list[str] = []
         allow = {
             root / "ibkr" / "orders.py",
+            # The adapter's bracket: its three legs, and the cancels that take a broken one back.
+            root / "ibkr" / "order_bracket.py",
             root / "execution" / "service.py",
             root / "execution" / "broker_send.py",
             root / "execution" / "telemetry.py",

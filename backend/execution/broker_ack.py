@@ -13,7 +13,7 @@ from execution import telemetry
 from execution import verification_gate
 from execution.models import ExecutionCommand, ExecutionReceipt
 from execution.fill_audit import audit_place_watch
-from execution.place_reject_guard import confirm_terminal_reject
+from execution.place_reject_guard import closed_not_refused, confirm_terminal_reject
 
 
 def _closed(execution_id: str) -> bool:
@@ -44,6 +44,15 @@ async def wait_broker_ack(
             watch, int(receipt.order_id),
         )
         receipt.broker_status = status
+        if is_reject and closed_not_refused(watch):
+            # 10148 / an OCA sibling's 201: the order closed unfilled, which is a cancel.
+            inflight.release_execution(receipt.execution_id)
+            store.update_stages(
+                receipt.execution_id, status="cancelled", broker_ack_ns=receipt.timings.broker_ack_ns,
+                broker_status=receipt.broker_status,
+            )
+            audit_place_watch(watch, cmd, receipt.mode or "", receipt.broker_status)
+            return receipt
         if is_reject:
             verification = verification_gate.classify_reject(
                 watch.error_code, watch.error_message, cmd.normalized_symbol(),

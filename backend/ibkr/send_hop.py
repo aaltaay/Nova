@@ -62,7 +62,15 @@ class SendTooLate(SendNotSent):
 
 
 class SendOutcomeUnknown(Exception):
-    """The IB loop started the send and did not finish it within the grace: nobody can tell."""
+    """The IB loop started the send and did not finish it within the grace: nobody can tell yet.
+
+    ``pending`` is the send itself, still running: when it ends, its result (or exception) says what
+    happened, and the caller can settle its record then.
+    """
+
+    def __init__(self, label: str, *, pending: asyncio.Future | None = None) -> None:
+        super().__init__(label)
+        self.pending = pending
 
 
 class _Hop:
@@ -161,7 +169,7 @@ async def send(
                 "send hop: the %s started on IBKR's thread and has not finished in %.0f s",
                 label, IBKR_SEND_RUNNING_GRACE_SEC,
             )
-            raise SendOutcomeUnknown(label) from exc
+            raise SendOutcomeUnknown(label, pending=future) from exc
     result = future.result()
     if result is hop:
         refusal = _not_started(hop, not_after, timeout, label, began)

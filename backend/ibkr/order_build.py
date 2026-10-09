@@ -82,21 +82,25 @@ def build_ib_order(
     stop_price: float | None,
     outside_rth: bool,
     tif: str | None = None,
+    order_ref: str | None = None,
 ):
+    """The ib_async order. ``order_ref`` is Nova's reference (IBKR's orderRef); a replace passes the
+    working order's own, since IBKR takes a modify's fields whole and a blank one would erase it."""
     from ib_async import LimitOrder, MarketOrder, Order, StopLimitOrder, StopOrder
 
     tif = normalize_tif(tif)
     typ = normalize_order_type(order_type)
     eh = bool(outside_rth)
+    ref = {"orderRef": order_ref} if order_ref else {}
     if typ == "MKT":
-        return MarketOrder(side, qty, outsideRth=eh, tif=tif)
+        return MarketOrder(side, qty, outsideRth=eh, tif=tif, **ref)
     if typ == "LMT":
-        return LimitOrder(side, qty, limit_price, outsideRth=eh, tif=tif)
+        return LimitOrder(side, qty, limit_price, outsideRth=eh, tif=tif, **ref)
     if typ == "STP":
-        return StopOrder(side, qty, stop_price, outsideRth=eh, tif=tif)
+        return StopOrder(side, qty, stop_price, outsideRth=eh, tif=tif, **ref)
     if typ == "STP LMT":
         return StopLimitOrder(
-            side, qty, limit_price, stop_price, outsideRth=eh, tif=tif,
+            side, qty, limit_price, stop_price, outsideRth=eh, tif=tif, **ref,
         )
     if typ == "TRAIL":
         return Order(
@@ -106,5 +110,6 @@ def build_ib_order(
             auxPrice=float(stop_price),
             outsideRth=eh,
             tif=tif,
+            **ref,
         )
     raise ValueError(f"unsupported order_type: {order_type}")

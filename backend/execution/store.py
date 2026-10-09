@@ -136,6 +136,7 @@ def update_stages(
     broker_ack_ns: int | None = None,
     filled_ns: int | None = None,
     payload: dict | None = None,
+    order_ref: str | None = None,
 ) -> None:
     fields: list[str] = ["updated_ts = ?"]
     values: list = [time.time()]
@@ -155,6 +156,7 @@ def update_stages(
         "broker_sent_ns": broker_sent_ns,
         "broker_ack_ns": broker_ack_ns,
         "filled_ns": filled_ns,
+        "order_ref": order_ref,
     }
     for col, val in mapping.items():
         if val is not None:

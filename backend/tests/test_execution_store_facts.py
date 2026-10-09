@@ -95,7 +95,9 @@ def test_init_db_migrates_pre_facts_schema(tmp_path, monkeypatch):
         "    perm_id INTEGER,\n"
         "    filled_qty REAL,\n"
         "    avg_fill_price REAL,\n"
-        "    commission REAL\n",
+        "    commission REAL,\n"
+        "    order_ref TEXT,\n"
+        "    why_held TEXT\n",
         "    payload_json TEXT NOT NULL DEFAULT '{}'\n",
     )
     with sqlite3.connect(db_path) as conn:
@@ -103,6 +105,7 @@ def test_init_db_migrates_pre_facts_schema(tmp_path, monkeypatch):
         columns = {row[1] for row in conn.execute("PRAGMA table_info(executions)")}
     assert "perm_id" not in columns
     assert "commission" not in columns
+    assert "order_ref" not in columns and "why_held" not in columns
     monkeypatch.setattr(store, "cache_dir", lambda: tmp_path)
     store.init_db()
     with sqlite3.connect(db_path) as conn:
@@ -114,7 +117,9 @@ def test_init_db_migrates_pre_facts_schema(tmp_path, monkeypatch):
     assert "filled_qty" in columns
     assert "avg_fill_price" in columns
     assert "commission" in columns
+    assert "order_ref" in columns and "why_held" in columns
     assert "idx_exec_perm_id" in indexes
+    assert "idx_exec_order_ref" in indexes
 
 
 def test_note_filled_writes_perm_id_and_qty():

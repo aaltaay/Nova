@@ -89,7 +89,7 @@ def ensure_handlers(ib) -> None:
     try:
         from execution.telemetry_handlers import make_handlers
 
-        on_err, on_status, on_exec, on_comm = make_handlers(_watches.get)
+        on_err, on_status, on_exec, on_comm = make_handlers(_watches.get, ib)
         ib.orderStatusEvent += on_status
         ib.execDetailsEvent += on_exec
         if hasattr(ib, "errorEvent"):

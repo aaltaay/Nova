@@ -228,6 +228,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Live readiness: the Live short proof and Live's day cover (ADR 048 step 6, #778 §7) | `architecture/schema/short-selling.md` |
 | Execution command (ADR 007 — sole broker mutation entry) | `architecture/schema/execution.md` |
 | Execution venue provenance (#713) | `architecture/schema/execution.md` |
+| Live order state: orderRef, whyHeld, reconnects, IBKR's own events (audit 2026-10-09) | `architecture/schema/execution.md` |
 
 ### CI scope output
 

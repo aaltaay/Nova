@@ -118,6 +118,20 @@ def _reset_kill_switch():
     kill_switch.reset_for_tests()
 
 
+@pytest.fixture(autouse=True)
+def _reset_order_state_memory():
+    # Fills seen, the position mirror, unclaimed IBKR events and "a READY happened" live for the
+    # process; each test starts with none of them.
+    from execution import reconnect_reconcile
+    from ibkr import session_fills, unclaimed
+
+    for module in (session_fills, unclaimed, reconnect_reconcile):
+        module.reset_for_tests()
+    yield
+    for module in (session_fills, unclaimed, reconnect_reconcile):
+        module.reset_for_tests()
+
+
 class _EveryVenue(str):
     """A venue stamp equal to every venue -- the suite's default arm only."""
 

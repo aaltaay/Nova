@@ -9,7 +9,27 @@ from constants import (
     IBKR_ERROR_TIF_PRESET,
 )
 from execution import telemetry
+from execution.order_outcome import closed_state, is_closure_notice
 from ibkr import orders as _orders
+
+
+def closed_not_refused(watch: telemetry.OrderWatch) -> bool:
+    """IBKR closed the order with a closure notice and no hard error: a cancel, never a reject.
+
+    10148 (the order was already closed) and 201 naming the OCA group (a one-cancels-all sibling
+    filled) say why the order closed; neither is IBKR refusing it.
+    """
+    return watch.error_code is None and any(is_closure_notice(c, m) for c, m in watch.error_events)
+
+
+def cancel_came_too_late(watch: telemetry.OrderWatch) -> bool:
+    """The order a cancel named had already filled: 10148 says ``state: Filled``, or the fill reached the watch.
+
+    The order left the working orders because it filled, so "gone" is not "cancelled".
+    """
+    if watch.has_fill() or watch.latest_status == "Filled":
+        return True
+    return (closed_state(watch.error_events) or "").lower() == "filled"
 
 
 def order_still_open(order_id: int) -> bool:
