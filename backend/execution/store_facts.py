@@ -151,7 +151,7 @@ def _sum_session_commissions(since_ts: float) -> dict[str, float]:
 
 _PLACE_OPS = ("place", "bracket")
 _CANCEL_STATUSES = frozenset({"Cancelled", "ApiCancelled"})
-_KEEP_CLOSED = frozenset({"Filled", "Cancelled", "ApiCancelled", "Inactive"})
+_KEEP_CLOSED = frozenset({"Filled", "Cancelled", "ApiCancelled", "Inactive", "Expired"})
 _OPEN_STATUSES = frozenset(EXECUTION_NON_TERMINAL_STATUSES)
 
 

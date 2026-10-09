@@ -47,6 +47,7 @@ def build_reserve_payload(
         "origin": getattr(cmd, "origin", None),   # who in Nova sent it ("Sent by")
         "target_venue": getattr(cmd, "target_venue", None),   # a kill switch cancel aimed at a venue
         "tif": cmd.tif if cmd.operation in ("place", "bracket") else None,
+        "good_for_sec": getattr(cmd, "good_for_sec", None) if cmd.operation in ("place", "bracket") else None,
         "requested_price": requested_price,
         "reference_price": (
             cmd.reference_price

@@ -10,9 +10,10 @@ always estimates (``fill_estimated`` + ``fill_basis``); buying power is enforced
 at admission and again when a resting order fills (cancelled
 ``PRACTICE_BUYING_POWER`` if power ran out); every row keeps ``source: "nova"``
 (the blotter's ownership key) and adds ``order_source`` (the ADR 007 command
-source) and ``bot_id``. Per-order rules -- DAY expires at the session close, a
-SELL is only ever risk-reducing -- live in ``practice.order_rules`` (operator
-decisions, 2026-09-21). ``place_bracket`` takes the bracket Live sends (#606):
+source) and ``bot_id``. Per-order rules -- DAY expires at the session close, an
+order sent with ``good_for_sec`` at its own second (#816), a SELL is only ever
+risk-reducing -- live in ``practice.order_rules`` (operator decisions,
+2026-09-21). ``place_bracket`` takes the bracket Live sends (#606):
 its exits wait on the entry and close as one-cancels-other (``practice.bracket``),
 and every order a fill or a cancel closes with it has its watch told.
 ``sim.broker`` is a facade over the Sim instance.
@@ -32,6 +33,7 @@ from constants_practice import (
     PRACTICE_ACCOUNT_TYPE_SIM,
     PRACTICE_BUYING_POWER_CODE,
     PRACTICE_BUYING_POWER_REASON,
+    PRACTICE_GOOD_FOR_INVALID_CODE,
     PRACTICE_LEG_PARENT,
     PRACTICE_NO_SHORTS_CODE,
     PRACTICE_NO_SHORTS_REASON,
@@ -105,13 +107,15 @@ class PracticeBroker:
         tif: str | None = None,
         short_entry: bool = False,
         origin: str | None = None,
+        good_for_sec: float | None = None,
     ) -> dict[str, Any]:
         """Place a practice order against the venue's reference.
 
         ``protective`` (flatten / kill) may close a held position whose
         reference is gone: a MKT order then fills at the last known mark, so
         the practice desk can always get flat (ADR 018). ``tif`` is DAY (the
-        default; expires at the session close) or GTC. An opening short --
+        default; expires at the session close) or GTC; ``good_for_sec`` expires
+        it earlier, at its placement plus those seconds (#816). An opening short --
         a SELL beyond the held quantity, or ``short_entry`` -- is refused on
         every source (``practice.order_rules``).
         """
@@ -127,6 +131,9 @@ class PracticeBroker:
         tif_u = order_rules.normalize_tif(tif)
         if tif_u is None:
             return self._refused(order_rules.TIF_REASON, PRACTICE_TIF_INVALID_CODE)
+        bad_good_for = order_rules.good_for_error(good_for_sec)
+        if bad_good_for is not None:
+            return self._refused(bad_good_for, PRACTICE_GOOD_FOR_INVALID_CODE)
         ok, reason, code = self.reference.admission(sym)
         at_mark = not ok and protective and typ == "MKT" and self._closes_position(sym, side_u, qty_f)
         if not ok and not at_mark:
@@ -154,6 +161,7 @@ class PracticeBroker:
         oid = int(order_id) if order_id is not None else self.ledger.alloc_id()
         row = self._row(oid, sym, side_u, qty_f, typ, limit_price, stop_price, now, source, bot_id, tif_u,
                         origin=origin, short_entry=short_entry)
+        row.update(order_rules.good_for_fields(row, good_for_sec))
         self.ledger.place(row, ts=now, source=source, bot_id=bot_id)
         if at_mark:
             mark = self.ledger.mark_of(sym, self.ledger.avg_cost(sym))
@@ -184,6 +192,7 @@ class PracticeBroker:
         bot_id: str | None = None,
         short_entry: bool = False,
         origin: str | None = None,
+        good_for_sec: float | None = None,
     ) -> dict[str, Any]:
         """Place the bracket Live sends: a LMT entry, then exits that wait on it (``practice.bracket``).
 
@@ -192,7 +201,8 @@ class PracticeBroker:
         048), margin at the entry limit. The exits (``bracket.exit_rows``) never pass
         ``place``; they rest ``PreSubmitted`` until the entry fills. Consecutive ids,
         entry first, as IBKR allocates them -- three, or two for a short with no
-        target. A marketable entry fills at once, which wakes the exits.
+        target. A marketable entry fills at once, which wakes the exits. ``good_for_sec`` is the
+        entry's own expiry (#816): the exits keep the TIF's close.
         """
         del outside_rth  # practice orders are always live; there is no session gate
         sym = (symbol or "").strip().upper()
@@ -211,6 +221,9 @@ class PracticeBroker:
         tif_u = order_rules.normalize_tif(tif)
         if tif_u is None:
             return self._bracket_refused(order_rules.TIF_REASON, PRACTICE_TIF_INVALID_CODE)
+        bad_good_for = order_rules.good_for_error(good_for_sec)
+        if bad_good_for is not None:
+            return self._bracket_refused(bad_good_for, PRACTICE_GOOD_FOR_INVALID_CODE)
         ok, reason, code = self.reference.admission(sym)
         if not ok:
             return self._bracket_refused(reason, code)
@@ -238,6 +251,7 @@ class PracticeBroker:
         exits = bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price)
         for leg in exits:
             leg.update(order_rules.exit_side_fields(parent))
+        parent.update(order_rules.good_for_fields(parent, good_for_sec))  # the entry's alone: exits keep the TIF's
         for leg in (parent, *exits):
             self.ledger.place(leg, ts=now, source=source, bot_id=bot_id)
         fill = fill_model.at_placement(entry_side, "LMT", self.reference.reference(sym), limit=parent["limit_price"])
@@ -252,9 +266,24 @@ class PracticeBroker:
         }
 
     def cancel(self, order_id: int, *, source: str = "manual", bot_id: str | None = None) -> dict[str, Any]:
-        """Cancel one working order; an entry takes the exits waiting on it along (``practice.bracket``)."""
+        """Cancel one working order; an entry takes the exits waiting on it along (``practice.bracket``).
+
+        An order already past its own expiry by the venue's clock -- a Sim jump the
+        expiry pass has not caught up with -- expired at that second, before the
+        cancel came: it is recorded expired there, and the cancel answers it gone (#816).
+        """
         mark = len(self.ledger.events)
-        row = self.ledger.cancel(int(order_id), ts=self.reference.now_ts(), source=source, bot_id=bot_id)
+        now = self.reference.now_ts()
+        working = self.ledger.working_row(int(order_id))
+        if working is not None and order_rules.due(working, now):
+            lapsed = order_rules.expire(self.ledger, working)
+            self._notify_closed(mark)
+            self._commit()
+            return {
+                "ok": True, "error": None, "verified_gone": True, "mode": self.venue,
+                "closed_by": (lapsed or {}).get("reason_code"),
+            }
+        row = self.ledger.cancel(int(order_id), ts=now, source=source, bot_id=bot_id)
         if row is None:
             gone = self.ledger.order_row(int(order_id))
             if gone is not None and bracket.closed_by_bracket(gone):
@@ -317,7 +346,8 @@ class PracticeBroker:
         return filled
 
     def expire_due(self, now: float | None = None) -> list[dict[str, Any]]:
-        """Expire every DAY order whose session has closed (``PRACTICE_TIF_EXPIRED``); returns the rows."""
+        """Expire every order past its expiry -- a DAY close (``PRACTICE_TIF_EXPIRED``) or its own
+        good-for second (``PRACTICE_GOOD_FOR_EXPIRED``); returns the rows."""
         now_ts = float(now) if now is not None else float(self.reference.now_ts())
         mark = len(self.ledger.events)
         expired = order_rules.expire_due(self.ledger, now_ts)
@@ -448,7 +478,7 @@ class PracticeBroker:
             "bot_id": bot_id, "mode": self.venue, "venue": self.venue,
             "account_id": self.account_id, "nova_placed_at": wall, "placed_ts": float(now),
             "fill_estimated": True, "fill_basis": None,
-            "tif": tif, "expires_ts": order_rules.expiry_ts(tif, self.reference, now),
+            "tif": tif, "expires_ts": order_rules.expiry_ts(tif, self.reference, now), "good_for_sec": None,
             # What it does to the position, as placed (ADR 048): the Side column and the fill rules.
             **order_rules.side_fields(side, self.ledger.held_qty(sym), short_entry),
             **bracket.plain_fields(),

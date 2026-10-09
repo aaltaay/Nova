@@ -11,6 +11,13 @@ Sim time travel back before the close restores the order like any other
 event, and a Paper pass after a restart records the truth: it expired at the
 close. ``GTC`` carries no expiry and persists across days and restarts.
 
+**An order's own expiry** (#816, ADR 052 amendment). ``ExecutionCommand.good_for_sec``
+moves ``expires_ts`` earlier: the earlier of the TIF's and the placement plus those
+seconds (``good_for_fields``), and the row keeps ``good_for_sec``. It expires the same
+way, ``PRACTICE_GOOD_FOR_EXPIRED`` (``expiry_reason``), so a Sim jump past it never fills
+it on the prints it crossed and a scrub back before it restores it. A cancel that reaches
+an order already past its expiry records the expiry instead (``PracticeBroker.cancel``).
+
 **No implicit shorts, and no flips** (ADR 048). A short is never inferred: a
 SELL for more than the held quantity without ``short_entry`` is refused
 ``PRACTICE_NO_SHORTS``, exactly as Invariant #7 keeps it on Live. A short entry
@@ -28,12 +35,16 @@ filled first, is cancelled ``PRACTICE_OVERCOVER``, as a SELL past the long is (Q
 """
 from __future__ import annotations
 
+import math
 from datetime import timedelta
 from typing import Any
 
 from constants_practice import (
     PRACTICE_BUYING_POWER_CODE,
     PRACTICE_BUYING_POWER_REASON,
+    PRACTICE_GOOD_FOR_EXPIRED_CODE,
+    PRACTICE_GOOD_FOR_EXPIRED_REASON,
+    PRACTICE_GOOD_FOR_INVALID_REASON,
     PRACTICE_NO_SHORTS_CODE,
     PRACTICE_NO_SHORTS_REASON,
     PRACTICE_OVERCOVER_CODE,
@@ -95,6 +106,30 @@ def expiry_ts(tif: str, reference: Any, placed_ts: float) -> float | None:
     if tif == PRACTICE_TIF_GTC:
         return None
     return session_close_ts(reference, placed_ts)
+
+
+def good_for_error(seconds: Any) -> str | None:
+    """The refusal for a ``good_for_sec`` that is not a number of seconds above zero; None when absent or fine."""
+    if seconds is None:
+        return None
+    if isinstance(seconds, bool):
+        return PRACTICE_GOOD_FOR_INVALID_REASON
+    try:
+        value = float(seconds)
+    except (TypeError, ValueError):
+        return PRACTICE_GOOD_FOR_INVALID_REASON
+    return None if math.isfinite(value) and value > 0 else PRACTICE_GOOD_FOR_INVALID_REASON
+
+
+def good_for_fields(row: dict[str, Any], seconds: float | None) -> dict[str, Any]:
+    """``{good_for_sec, expires_ts}`` for ``row`` as it is placed: the earlier of its TIF's expiry and
+    its placement plus ``seconds``. Without ``seconds`` the row keeps its TIF's expiry."""
+    if seconds is None:
+        return {"good_for_sec": None}
+    own = float(row["placed_ts"]) + float(seconds)
+    tif_expiry = row.get("expires_ts")
+    return {"good_for_sec": float(seconds),
+            "expires_ts": own if tif_expiry is None else min(own, float(tif_expiry))}
 
 
 def opening_short(held_qty: float, side: str, qty: float, short_entry: bool = False) -> bool:
@@ -218,34 +253,48 @@ mkt_outside_rth_unpatched = mkt_outside_rth
 
 
 def due(row: dict[str, Any], now_ts: float) -> bool:
-    """The working ``row`` has reached its session close at ``now_ts``."""
+    """The working ``row`` has reached its expiry at ``now_ts``: its session close, or its own good-for second."""
     expires = row.get("expires_ts")
     return expires is not None and float(now_ts) >= float(expires) - _EPS
 
 
 def print_after_expiry(row: dict[str, Any], print_ts: float) -> bool:
-    """A DAY order never fills on a print after its session closed."""
+    """An order never fills on a print after its expiry: its DAY close, or its own good-for second."""
     expires = row.get("expires_ts")
     return expires is not None and float(print_ts) > float(expires) + _EPS
 
 
-def expire_due(ledger: Any, now_ts: float) -> list[dict[str, Any]]:
-    """Expire every working order that is due at ``now_ts``; returns the closed rows.
+def expiry_reason(row: dict[str, Any]) -> tuple[str, str]:
+    """``(reason, code)`` of ``row``'s expiry: its own good-for seconds when they end first, else its DAY close."""
+    seconds, expires = row.get("good_for_sec"), row.get("expires_ts")
+    if seconds is not None and expires is not None and entered_ts(row) + float(seconds) <= float(expires) + _EPS:
+        return PRACTICE_GOOD_FOR_EXPIRED_REASON.format(seconds=float(seconds)), PRACTICE_GOOD_FOR_EXPIRED_CODE
+    return PRACTICE_TIF_EXPIRED_REASON, PRACTICE_TIF_EXPIRED_CODE
 
-    The event is stamped at the order's own close, not at ``now_ts``: on Paper
-    a pass after a restart records when it really expired, on Sim a scrub back
-    before the close drops the event and the order rests again.
+
+def expire(ledger: Any, row: dict[str, Any]) -> dict[str, Any] | None:
+    """Close the working ``row`` as expired, stamped at its own expiry; returns the closed row.
+
+    The event is stamped at the order's own expiry, not at the moment Nova
+    noticed: on Paper a pass after a restart records when it really expired,
+    on Sim a scrub back before it drops the event and the order rests again.
     """
     from practice.ledger import EVENT_EXPIRED
 
+    reason, code = expiry_reason(row)
+    return ledger.cancel(
+        int(row["order_id"]), ts=float(row["expires_ts"]), reason=reason, code=code,
+        source=EXPIRY_SOURCE, kind=EVENT_EXPIRED,
+    )
+
+
+def expire_due(ledger: Any, now_ts: float) -> list[dict[str, Any]]:
+    """Expire every working order that is due at ``now_ts``; returns the closed rows (``expire``)."""
     expired: list[dict[str, Any]] = []
     for row in ledger.working_orders():
         if not due(row, now_ts):
             continue
-        closed = ledger.cancel(
-            int(row["order_id"]), ts=float(row["expires_ts"]), reason=PRACTICE_TIF_EXPIRED_REASON,
-            code=PRACTICE_TIF_EXPIRED_CODE, source=EXPIRY_SOURCE, kind=EVENT_EXPIRED,
-        )
+        closed = expire(ledger, row)
         if closed is not None:
             expired.append(closed)
     return expired

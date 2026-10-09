@@ -441,6 +441,12 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
 - **The clock** of the bot's trade on Sim is the playhead: `entry_sent_ts`, `entry_cancel_ts`,
   `entry_filled_ts`, `exit_sent_ts`, `closed_ts` and the trigger's age are replay time, and stand still
   while it is paused.
+- **The entry carries its own TTL** (#816): on a replay the bracket goes out with `good_for_sec` = the
+  sleeve's `working_ttl_sec` ("A practice order's own expiry", `execution.md`), so the scratch account
+  expires it at `entry_sent_ts` + TTL by itself. A jump of the playhead past that second never fills it on
+  the prints the jump crossed: it ends `Expired` (`PRACTICE_GOOD_FOR_EXPIRED`) and the trade `missed`,
+  "not filled in 3s", whether the expiry or the bot's own TTL cancel reached it first; a scrub back before
+  that second restores it working. Paper and the live edge keep the bot's TTL cancel alone.
 - **The trade** (`GET /api/bot/session` `trade`, `bot-session.json`) adds `replay_key: list | null` -- the
   replay it was made on; null on Paper and at the live edge -- and the state `rewound`: a trade on a
   replay this process did not make (a restart; the scratch account does not survive one), with `note`

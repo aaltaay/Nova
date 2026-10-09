@@ -258,7 +258,7 @@ export const ACCOUNT_POS_FOOT =
   "Expired = a DAY order the session closed on at 20:00 ET; GTC orders persist. est = filled by Nova's practice broker (Paper: the live feed; Sim: the replay), never an IBKR fill.";
 /** On Sim a DAY order expires at the replayed window's end, not 20:00 ET (QA W25). */
 export const ACCOUNT_POS_FOOT_SIM =
-  "Expired = a DAY order the replayed window closed on at its end; GTC orders persist. est = filled by Nova's practice broker against the replay, never an IBKR fill.";
+  "Expired = a DAY order the replayed window closed on at its end, or a bot entry not filled in its time; GTC orders persist. est = filled by Nova's practice broker against the replay, never an IBKR fill.";
 export const ACCOUNT_POS_FOOT_LIVE = 'Working and closed orders as IBKR reports them for this session.';
 
 /* ---------- Live absence / states ---------- */
