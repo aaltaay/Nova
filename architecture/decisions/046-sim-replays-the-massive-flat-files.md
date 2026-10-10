@@ -37,3 +37,17 @@ The operator now keeps Massive Stocks Advanced flat files under `E:\Nova\massive
 - The first open of a ticker late in the alphabet waits for most of a 3 GB and a 9.6 GB file to be read; the desk shows the import's progress. A second open is instant.
 - The Massive store grows with each window imported; deleting it only means importing again.
 - Not built here: the scanner boards for those days (the leaderboard rebuild already reads the minute files), and a previous close from the Massive files (the replay's `prev_close` keeps #542's order and stays a stated absence when none answers).
+
+## Amendment -- the files first, and the rest of the Sim reads them (2026-10-09)
+
+**Decided by:** the operator, 2026-10-09, on a Sim tab of WFF that offered only an IBKR download: "why massive data isn't being loaded here? sholdn't we have prioritized it over ibkr data?", then "1 go yes + however i dont think the entire nova app recorgnize massive as data recap for the sim in the first place. please figure it out".
+
+**What was found.** That day (2026-10-09) was not in the files yet: Massive publishes a day once it has ended, and the downloader picks it up the next morning (2026-10-08's trades file landed 03:37 ET on the 9th). But the audit behind the second ask found the Sim used the files only for one ticker's window, loaded on a click: an IBKR download of the same hours won over them; the charts drew only the window's bars and nothing before it; Gap% fell back to the IBKR chart store; the prior close never read them, so a day no board or download covered had no change, no Gap% and no SSR reference.
+
+**Decided.**
+1. **The files win under `auto`.** A selection takes a Massive import holding the window, else the day's files on disk, even over an IBKR download of the same hours. The download plays only when the files' import of the window failed, or the day is not in them. Supersedes decision 2's "keeps what exists".
+2. **The day around the window.** An import keeps the ticker's whole day of 1-minute bars (at most 960 rows); the charts draw the day before the window from them, never past the window's end or the playhead. A window imported before is imported again on its next load, and keeps playing meanwhile. The session open comes from the window's own 09:30 bar, never the IBKR chart store (decision 8).
+3. **The prior close from the day bars.** `day_aggs_v1`'s close is the official close (GRML 2026-09-18 2.85 and WHLR 2026-09-22 1.87, both IBKR's tick 9). It answers after the recording, the leaderboard and an IBKR download -- it is not split-adjusted -- and only the prior session's own file answers. Supersedes the consequence that left "a previous close from the Massive files" unbuilt.
+4. **It loads by itself on an empty desk.** The Trader tab on screen, on a day in the files, with nothing loaded, imports and loads its window without a click, as the agent's `show` already did; never over a loaded replay, never an IBKR download, once per window. A day newer than the files says it is not out yet, and when the newest day landed.
+
+**Still not built** (tracked in one issue): the scanner boards, HOD Momo and the movers index rebuilt from the files as a day lands (built by hand today, or empty); the Full Day chart, daily levels and Rel Vol from the day bars (they read IBKR daily bars, about five years deep); the socket-fed engines -- LULD, the sensors, the `/api/ticker` snapshot -- on any historical window; Volume boost and Contenders on a past day; the replay's `replay_key` naming its source.

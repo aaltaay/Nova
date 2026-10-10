@@ -71,14 +71,25 @@ def reset_for_tests() -> None:
         _cache.update(at=0.0, root=None, days=None)
 
 
+def _landed(day: str | None) -> float | None:
+    """When ``day``'s trades file was finished on disk (its modified time), so the desk can say when a day
+    newer than the files usually lands -- read off the file, never assumed."""
+    path = massive_files.day_file(SIM_MASSIVE_TRADES, day) if day else None
+    try:
+        return path.stat().st_mtime if path is not None else None
+    except OSError:
+        return None
+
+
 def summary() -> dict:
     """The replay listing's ``massive`` block: is the folder there, and how much of it can replay."""
     reason = massive_files.unavailable_reason()
     days = _days()
     tape = sorted(day for day, have in days.items() if have["trades"])
+    last = tape[-1] if tape else None
     return dict(available=reason is None, reason=reason, root=str(massive_files.root()), store=str(massive_store.path()),
                 trade_days=len(tape), quote_days=sum(1 for have in days.values() if have["quotes"] and have["trades"]),
-                first=tape[0] if tape else None, last=tape[-1] if tape else None)
+                first=tape[0] if tape else None, last=last, last_landed=_landed(last))
 
 
 def listing() -> dict:

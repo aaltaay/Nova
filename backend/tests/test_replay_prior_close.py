@@ -140,6 +140,29 @@ def test_the_downloads_regular_hours_close_answers_when_the_leaderboard_cannot()
     assert prior_close.previous_close("IMCC", "2026-09-18") == 3.25
 
 
+def test_the_massive_day_bars_answer_when_nothing_else_does(tmp_path, monkeypatch):
+    """Operator, 2026-10-09: the Sim reads the Massive files. Their day bar closes on the official
+    close (GRML 2026-09-18 2.85 = IBKR's tick 9), so a day no recording, board or download covers
+    still has its prior close -- and the split-aware answers still come first."""
+    import gzip
+
+    from sim import massive_daily
+
+    monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(tmp_path / "massive"))
+    massive_daily.reset_for_tests()
+    path = tmp_path / "massive" / "day_aggs_v1" / "2026" / "09" / "2026-09-18.csv.gz"
+    path.parent.mkdir(parents=True)
+    with gzip.open(path, "wt", newline="") as fh:
+        fh.write("ticker,volume,open,close,high,low,window_start,transactions\n"
+                 "GRML,4971610.17,2.99,2.85,3.0595,2.82,1789704000000000000,44264\n")
+    assert prior_close.previous_close("GRML", "2026-09-21") == 2.85          # Friday's close for Monday
+    assert prior_close.previous_close("WHLR", "2026-09-21") is None           # not in the file: a stated absence
+    assert prior_close.previous_close("GRML", "2026-09-22") is None           # Monday's file is not there: none older
+    leaderboard_rows("GRML", "2026-09-21", "recorded", [2.86])
+    assert prior_close.previous_close("GRML", "2026-09-21") == 2.86          # the board answers first
+    massive_daily.reset_for_tests()
+
+
 def test_a_recorded_value_short_circuits_every_store(monkeypatch):
     def refuse(*_a, **_k):
         raise AssertionError("no store is read once the recording answers")

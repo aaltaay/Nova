@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  gatewayReachable, offerCopy, offerDateLabel, offerWindow, replayOffer, type ReplayOffer,
+  filesNotOut, gatewayReachable, landedLabel, offerCopy, offerDateLabel, offerWindow, replayOffer, windowJob,
+  type ReplayOffer,
 } from './simReplayOffer';
 import { simTabOfferNotAnswering, simTabOfferNotAnsweringGaveUp } from './simConstants';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
@@ -230,9 +231,22 @@ describe('replayOffer on a day in the Massive files (ADR 046)', () => {
       .toEqual({ text: 'import failed disk', action: 'import' });
   });
 
-  it('an unfinished IBKR download of the same hours gives way to the files; a finished one loads', () => {
+  it('any IBKR download of the same hours gives way to the files (operator, 2026-10-09)', () => {
     expect(replayOffer(W, [job({ status: 'failed', error: 'IB Gateway unreachable' })], true, files).kind).toBe('download');
-    expect(replayOffer(W, [job({ status: 'complete' })], true, files).kind).toBe('ready');
+    const finished = replayOffer(W, [job({ status: 'complete' })], true, files);
+    expect(finished).toEqual({ kind: 'download', window: W, fromFiles: files });
+    expect(offerCopy(finished, false, t).action).toBe('import');
+  });
+
+  it('a finished IBKR download plays when the files import of it failed, or off a day the files hold', () => {
+    const failedImport = imported({ status: 'failed', error: 'Replay exceeds 500,000 prints' });
+    expect(replayOffer(W, [failedImport, job({ status: 'complete' })], true, files).kind).toBe('ready');
+    expect(replayOffer(W, [job({ status: 'complete' })], true, null).kind).toBe('ready');
+  });
+
+  it('an import that holds the window plays, whatever an IBKR download of it says', () => {
+    const held = imported({ status: 'failed', coverage: [[1, 2]] });
+    expect(windowJob(W, [job({ status: 'complete' }), held], files)).toBe(held);
   });
 
   it('an IBKR download of another window does not hold the import slot, another import does', () => {
@@ -241,5 +255,27 @@ describe('replayOffer on a day in the Massive files (ADR 046)', () => {
     const busy = replayOffer(W, [imported({ ...otherWindow, status: 'running' })], true, files);
     expect(busy).toMatchObject({ kind: 'busy', fromFiles: files });
     expect(offerCopy(busy, false, t).action).toBe('stop-other');
+  });
+});
+
+describe('a day newer than the Massive files (operator, 2026-10-09)', () => {
+  const massive = {
+    available: true, reason: null, trade_days: 2707, quote_days: 2707, first: '2016-01-04', last: '2026-10-08',
+    last_landed: Date.UTC(2026, 9, 9, 7, 37) / 1000, store_error: null,
+  };
+  const day = (date: string): HistoricalWindow => ({ symbol: 'WFF', date, start: '17:45', end: '20:00' });
+
+  it('says the day is not out yet, and when the newest day landed', () => {
+    expect(filesNotOut(day('2026-10-09'), massive, false))
+      .toEqual({ date: '2026-10-09', last: '2026-10-08', landed: massive.last_landed });
+    expect(landedLabel(massive.last_landed)).toBe('Fri 03:37 ET');
+  });
+
+  it('says nothing for a day the files hold, an older day they skip, or no files', () => {
+    expect(filesNotOut(day('2026-10-08'), massive, true)).toBeNull();
+    expect(filesNotOut(day('2026-09-07'), massive, false)).toBeNull();
+    expect(filesNotOut(day('2026-10-09'), { ...massive, available: false }, false)).toBeNull();
+    expect(filesNotOut(day('2026-10-09'), null, false)).toBeNull();
+    expect(filesNotOut(null, massive, false)).toBeNull();
   });
 });

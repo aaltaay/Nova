@@ -191,6 +191,7 @@ function parseMassiveSummary(value: unknown): MassiveSummary | null | undefined 
     quote_days: finite(value.quote_days) ?? 0,
     first: textOrNull(value.first),
     last: textOrNull(value.last),
+    last_landed: finiteOrNull(value.last_landed),
     store_error: textOrNull(value.store_error),
   };
 }

@@ -58,8 +58,37 @@ policy: H.264 cost about half a core in the recorder process and a quarter core 
 (capture), 273 MB an hour on a quiet after-hours screen; VP9 cost a little less CPU but blurred small
 coloured text and took 626 MB an hour. H.264 kept the Focus list and the order grid legible. A busy
 trading day approaches the cap: up to about 2.9 GB an hour for the three monitors, so a 16-hour day is
-a few GB to tens of GB. With the hardware encoder (GPU on) the recorder was near-free, but Nova keeps
-the GPU off on Windows for its own paint problems (`gpuPolicy.mjs`).
+a few GB to tens of GB. With the hardware encoder (GPU on) the recorder was near-free; the desk drew in
+software on Windows when this was measured. Since 2026-10-05 (#707) it draws with the graphics card by
+default and falls back to software after a graphics-process crash, a blank window or the operator's
+choice (`graphicsChoice.mjs`, `graphicsWatch.mjs`; schema in `architecture/schema/screen-and-clips.md`).
+
+## Measured again with the graphics card (the desk PC, 2026-10-09)
+
+From the desk's own performance record (ADR 026, every 5 s), 2026-10-02 to 2026-10-09: software drawing
+on v1083-v1099, the graphics card from v1104 on (the safety net never turned it off). Both periods used the
+same three monitors, H.264 settings and Electron 41.10.6. The only recorder change between them is the
+safety net's `sample` command, which adds work. Only quarter hours in which all three monitors recorded a
+full file count. They are matched on market activity, which neither the encoder nor the drawing mode
+changes: the market events the backend took in from IBKR (`ib.tape` + `ib.depth` + `ib.l1`), cut into
+quartiles over both periods. Bytes written are not a fair match, since each mode has its own encoder and
+the same screen comes out a different size. In % of one core:
+
+| Market events per quarter hour | Quarter hours (software / card) | Recorder process, median | Main process, median | Graphics process, mean |
+|---|---|---|---|---|
+| top quartile, over 55,000 (a busy session) | 31 / 106 | 132 -> 2.4 | 50 -> 19 | 58 -> 35 |
+| third quartile, 12,900-55,000 | 5 / 131 | 58 -> 2.4 | 22 -> 25 | 16 -> 17 |
+
+2.4 is the record's smallest step before 2026-10-09; that day's finer readings put the recorder at 1.8%
+median. With the graphics card the recorder process sat at 0-3.3% median in every quartile, on this measure
+and on the market data sent to visible desk windows, which gives the same busy-quartile result (132 ->
+2.4). In the busy quartile the main and graphics processes used less as well, so no other process took
+the encoding over. That fits the graphics card's hardware encoder doing it.
+
+What this does not show: the software side's quieter quarter hours are nearly all ones in which the market
+sent nothing (overnight and the weekend of 2026-10-03/04, when the screen may have been locked), so quiet
+screens are not compared. The twelve builds between the periods also changed the main process (ADR 045's
+priority loop, for one), so its numbers are not the recorder's alone.
 
 The real module, run in Electron against the three monitors with a 20 s rotation: every monitor was
 recording within 1 s; files rotated with the new one started before the old one ended; a forced
@@ -68,9 +97,13 @@ files cut by the crash or the quit played up to their last timeslice, since shor
 
 ## Consequences
 
-- The recording costs roughly one CPU core of 24 on the desk PC, and disk space that grows without end
-  by the operator's choice (decision 7): at the caps a busy day can take tens of GB, so F:'s 846 GB free
-  on 2026-09-24 lasts weeks to months of full days, and the drive guard says when it runs low.
+- The recording cost roughly one CPU core of 24 on the desk PC while the desk drew in software, more in a
+  busy session. With the graphics card (the default since 2026-10-05) its own process takes about 2% of a
+  core at any market activity (2026-10-09 measurement above). What capture costs inside the main process
+  was not separated.
+- Disk space grows without end by the operator's choice (decision 7): at the caps a busy day can take
+  tens of GB, so F:'s 846 GB free on 2026-09-24 lasts weeks to months of full days, and the drive guard
+  says when it runs low.
 - A crash, power loss or quit can lose the last timeslice (1 s) of each open file, and a recorder
   crash leaves a gap of a few seconds while it is replaced; both are in the manifest.
 - The Windows lock screen and UAC's secure desktop may not be capturable; the desk shows the monitors

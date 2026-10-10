@@ -26,7 +26,9 @@ import threading
 import time
 from pathlib import Path
 
-from constants_sim import SIM_MASSIVE_MINUTES, SIM_MASSIVE_QUOTES, SIM_MASSIVE_SOURCE, SIM_MASSIVE_TRADES
+from constants_sim import (
+    SIM_MASSIVE_MINUTES, SIM_MASSIVE_MINUTES_SCOPE_DAY, SIM_MASSIVE_QUOTES, SIM_MASSIVE_SOURCE, SIM_MASSIVE_TRADES,
+)
 from sim import massive_files as files, massive_store as store
 from sim.massive_read import TooLarge, run  # noqa: F401  (``run`` is looked up here, so a test can stand in for it)
 
@@ -210,7 +212,7 @@ def begin(window: dict) -> dict:
                 return progress(store.get(job_id) or store.new_job(wanted))
             raise ValueError("Another Massive import is running; it finishes in seconds to minutes -- try again then")
         job = store.get(job_id)
-        if job and job["status"] == "complete" and not _quotes_arrived(job, found):
+        if job and job["status"] == "complete" and not _more_on_disk(job, found):
             return progress(job)
         job = dict(job or store.new_job(wanted), status="running", stage="reading", stages=None, scan_pct=0.0,
                    error=None, started=time.time(), updated=time.time(), files=found)
@@ -224,8 +226,18 @@ def _quotes_arrived(job: dict, found: dict) -> bool:
     return job.get("quote_status") == "not_downloaded" and found["quotes"]
 
 
+def _day_minutes_missing(job: dict, found: dict) -> bool:
+    """A window imported when an import kept only its own 1-minute bars, whose day's bars file is on disk."""
+    return job.get("minutes_scope") != SIM_MASSIVE_MINUTES_SCOPE_DAY and found["minute_aggs"]
+
+
+def _more_on_disk(job: dict, found: dict) -> bool:
+    return _quotes_arrived(job, found) or _day_minutes_missing(job, found)
+
+
 def wants_import(job: dict | None, found: dict) -> bool:
-    """Would ``begin`` start an import: the day is on disk and the window is not imported, or lacks quotes now on disk.
+    """Would ``begin`` start an import: the day is on disk and the window is not imported, or lacks something now
+    on disk -- its quotes, or the day's 1-minute bars around it.
 
     A running import, or a complete one with nothing new to read, is left alone.
     """
@@ -236,7 +248,7 @@ def wants_import(job: dict | None, found: dict) -> bool:
     status = effective_status(job)
     if status in store.ACTIVE:
         return False
-    return status != "complete" or _quotes_arrived(job, found)
+    return status != "complete" or _more_on_disk(job, found)
 
 
 def pause(job_id: str) -> dict:

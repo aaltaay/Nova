@@ -2,8 +2,8 @@
 
 ``run`` is the import itself, wherever it runs (the worker process in the desk, a
 thread in tests): it reads the day's trades, 1-minute bars and NBBO quotes for one
-ticker (``massive_files``), keeps the window's rows and writes them in one
-transaction (``massive_store.replace_window``) -- the window is whole or absent.
+ticker (``massive_files``), keeps the window's prints and quotes and the day's
+1-minute bars, and writes them in one transaction (``massive_store.replace_window``) -- the window is whole or absent.
 ``massive_import`` owns the job around it: starting, pausing, listing.
 
 The three files are read side by side (zlib inflates without the GIL), and the
@@ -23,7 +23,8 @@ import time
 
 from constants_sim import (
     SIM_HISTORY_MAX_SELECTION_PRINTS, SIM_MASSIVE_MAX_SELECTION_QUOTES, SIM_MASSIVE_MINUTES,
-    SIM_MASSIVE_PROGRESS_EVERY_SEC, SIM_MASSIVE_QUOTES, SIM_MASSIVE_TRADES,
+    SIM_MASSIVE_MINUTES_SCOPE_DAY as MINUTES_SCOPE_DAY, SIM_MASSIVE_PROGRESS_EVERY_SEC, SIM_MASSIVE_QUOTES,
+    SIM_MASSIVE_TRADES,
 )
 from sim import massive_files as files, massive_store as store
 
@@ -136,8 +137,9 @@ def run(job_id: str, stop: threading.Event | None = None) -> dict:
         readers[SIM_MASSIVE_QUOTES] = capped(quotes_file, kept_quote, SIM_MASSIVE_MAX_SELECTION_QUOTES, "quoted over")
     results = _read_side_by_side(readers, meter)
     prints = sorted(results[SIM_MASSIVE_TRADES], key=lambda p: (p["ns"], p["sequence"]))
-    bars = [bar for bar in results.get(SIM_MASSIVE_MINUTES, [])
-            if start <= files.minute_start(bar) and files.minute_start(bar) + 60 <= end]
+    # The ticker's whole day of 1-minute bars, not only the window's: the charts draw the day before the
+    # window from them (premarket, the open, the run that led in), never past the playhead (operator, 2026-10-09).
+    bars = sorted(results.get(SIM_MASSIVE_MINUTES, []), key=files.minute_start)
     quotes: list[tuple] = []
     if quotes_file is not None:
         # The window's first prints are judged against the quote standing at its open, never a later one.
@@ -150,5 +152,7 @@ def run(job_id: str, stop: threading.Event | None = None) -> dict:
                 job["end"], len(prints), len(bars), len(quotes), quote_status, time.time() - began)
     return store.update(job_id, status="complete", stage=None, stages=None, scan_pct=100.0, ranges=[[start, end]],
                         cursor=end, count=len(prints), volume=volume, bar_count=len(bars), quote_count=len(quotes),
-                        quote_status=quote_status, error=None, elapsed_sec=round(time.time() - began, 1),
+                        quote_status=quote_status, error=None,
+                        minutes_scope=MINUTES_SCOPE_DAY if minutes_file is not None else None,
+                        elapsed_sec=round(time.time() - began, 1),
                         files=dict(trades=True, quotes=quotes_file is not None, minute_aggs=minutes_file is not None))

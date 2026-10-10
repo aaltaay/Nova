@@ -3,17 +3,25 @@ import { act } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetSimReplayTargetDismissals, SimReplayTargetNotice } from './SimReplayTargetNotice';
+import { resetSimAutoLoads } from './useSimReplayOffer';
 import { historicalStatus } from './historicalStatusStore';
-import type { HistoricalJob } from './historicalTypes';
+import type { HistoricalJob, MassiveDay, MassiveSummary } from './historicalTypes';
 import type { SimClockState } from './simClockTypes';
 
 const mocks = vi.hoisted(() => ({
   openStockView: vi.fn(), fetch: vi.fn(), launch: vi.fn(), mode: 'sim' as string,
   // Honest Gateway transport; undefined = unknown (treated as reachable).
   gateway: {} as Record<string, boolean | undefined>,
+  // The Trader's tab on screen; null = none (no tab loads from the files by itself).
+  front: null as string | null,
+  // The listing's Massive block and the days on disk (ADR 046); null = an API without them.
+  massive: null as MassiveSummary | null,
+  massiveDays: [] as MassiveDay[],
 }));
 vi.mock('../api/novaFetch', () => ({ novaFetch: mocks.fetch }));
-vi.mock('../workspace', () => ({ useWorkspace: () => ({ openStockView: mocks.openStockView }) }));
+vi.mock('../workspace', () => ({
+  useWorkspace: () => ({ openStockView: mocks.openStockView, activeTraderSymbol: mocks.front, traderViewActive: true }),
+}));
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: mocks.mode, ...mocks.gateway }) }));
 vi.mock('../utils/launchIbGateway', () => ({ launchIbGateway: mocks.launch }));
 
@@ -45,17 +53,27 @@ beforeEach(() => {
   jobs = [];
   posts.length = 0;
   resetSimReplayTargetDismissals();
+  resetSimAutoLoads();
+  mocks.front = null;
+  mocks.massive = null;
+  mocks.massiveDays = [];
   setClock(null);
   mocks.fetch.mockReset().mockImplementation(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') {
       const body = JSON.parse(String(init.body));
       posts.push({ url, body });
       if (url.endsWith('/history/select')) return response({ ...body, coverage_through: 0, trade_count: 10 });
-      const started = job({ status: jobs.find(j => j.id === 'imcc')?.status === 'complete' ? 'complete' : 'running' });
+      const started = job({
+        status: jobs.find(j => j.id === 'imcc')?.status === 'complete' ? 'complete' : 'running',
+        ...(mocks.massive ? { source: 'massive' } : {}),
+      });
       jobs = [started, ...jobs.filter(j => j.id !== 'imcc')];
       return response(started);
     }
-    return response({ jobs, selection: null, default_date: '2026-09-18' });
+    if (url.includes('/history/massive/days')) {
+      return response({ schema_version: 1, available: true, reason: null, days: mocks.massiveDays });
+    }
+    return response({ jobs, selection: null, default_date: '2026-09-18', ...(mocks.massive ? { massive: mocks.massive } : {}) });
   });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -287,5 +305,64 @@ describe('SimReplayTargetNotice', () => {
     await mount('SPY');
     expect(notice()?.textContent).toContain('Capture is empty');
     expect(notice()?.className).toContain('sim-replay-target--failed');
+  });
+});
+
+describe('SimReplayTargetNotice on the Massive files (operator, 2026-10-09)', () => {
+  const FILES: MassiveSummary = {
+    available: true, reason: null, trade_days: 1, quote_days: 1, first: '2026-09-18', last: '2026-09-18',
+    last_landed: null, store_error: null,
+  };
+  const onDisk = () => {
+    mocks.massive = FILES;
+    mocks.massiveDays = [{ date: '2026-09-18', trades: true, quotes: true, minute_aggs: true }];
+  };
+  const pollFiles = async (next: HistoricalJob[]) => {
+    jobs = next;
+    await act(async () => { historicalStatus.invalidate({ jobs: next, selection: null, default_date: '2026-09-18', massive: FILES }); });
+  };
+
+  it('on an empty desk the tab in front loads its window from the files by itself, once', async () => {
+    onDisk();
+    mocks.front = 'IMCC';
+    setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
+    await mount();
+    await tick();
+    expect(posts).toEqual([{ url: expect.stringMatching(/\/api\/sim\/history$/), body: { ...WINDOW, kind: 'trades' } }]);
+    await pollFiles([job({ source: 'massive', status: 'complete', coverage: [[1, 2]] })]);
+    expect(posts.at(-1)).toEqual({ url: expect.stringMatching(/\/history\/select$/), body: WINDOW });
+    const count = posts.length;
+    await rerender();
+    await tick();
+    expect(posts).toHaveLength(count);
+  });
+
+  it('a tab in the background, or a desk with a replay loaded, never loads by itself', async () => {
+    onDisk();
+    mocks.front = 'SPY';
+    setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
+    await mount();
+    await tick();
+    expect(posts).toEqual([]);
+    expect(action()?.textContent).toBe('Load from files');
+    cleanup();
+    mocks.front = 'IMCC';
+    setClock({ sim: true, replay_source: 'historical', replay_symbol: 'SPY', session_date: '2026-09-18' });
+    await mount();
+    await tick();
+    expect(posts).toEqual([]);
+  });
+
+  it('says a day newer than the files is not out yet, and when the newest one landed', async () => {
+    vi.setSystemTime(new Date('2026-09-21T02:05:00Z'));       // past the day list's freshness: read again
+    mocks.massive = { ...FILES, last: '2026-09-17', last_landed: Date.UTC(2026, 8, 18, 7, 37) / 1000 };
+    mocks.massiveDays = [{ date: '2026-09-17', trades: true, quotes: true, minute_aggs: true }];
+    setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
+    await mount();
+    await tick();
+    expect(screen.getByTestId('sim-replay-files-not-out').textContent).toBe(
+      'Fri, Sep 18 is not in your Massive files yet: they end at Thu, Sep 17, which landed Fri 03:37 ET. '
+      + 'Until it lands, a download comes from IBKR -- trades only, no bid/ask.');
+    expect(action()?.textContent).toBe('Download');
   });
 });

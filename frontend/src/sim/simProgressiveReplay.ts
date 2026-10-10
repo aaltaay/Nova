@@ -17,15 +17,16 @@ const ACTIVE = new Set(['running', 'pause_requested']);
 /**
  * A window imported from the Massive files (ADR 046) is whole or absent, so it
  * is re-selected once, when an import of it finishes holding something the
- * loaded copy does not: its first import, or the bid/ask added once the day's
- * quotes file arrived.
+ * loaded copy does not: its first import, the bid/ask added once the day's
+ * quotes file arrived, or the day's 1-minute bars around it (2026-10-09).
  */
 function importChanged(selection: HistoricalSelection, job: HistoricalJob): boolean {
   if (job.status !== 'complete') return false;
   return (job.covered_seconds ?? 0) > (selection.covered_seconds ?? 0)
     || (job.quote_status ?? null) !== (selection.quote_status ?? null)
     || (job.count ?? 0) !== (selection.trade_count ?? 0)
-    || (job.quote_count ?? 0) !== (selection.quote_count ?? 0);
+    || (job.quote_count ?? 0) !== (selection.quote_count ?? 0)
+    || (job.bar_count ?? 0) !== (selection.bar_count ?? 0);
 }
 
 /**

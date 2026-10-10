@@ -257,8 +257,12 @@ IBKR's tick-9 close recorded with the Session Record (the most common positive
 `prev_close` for that symbol-day (recorded rows before reconstructed ones, the
 day's most common value; read read-only, so a read never creates the store);
 IBKR's regular-hours daily close of the prior session, stored with a
-historical download of that symbol-day; else `null` -- a stated absence, no
-change and no Gap%. Never the prior session's 15:59 one-minute close (the last
+historical download of that symbol-day; the prior session's close in the
+operator's Massive day bars (`sim/massive_daily.py`, `day_aggs_v1`: the
+official close, as traded -- after the split-aware answers -- and only that
+session's file, never an older one; operator 2026-10-09); else `null` -- a
+stated absence, no change and no Gap%. One unreadable source never hides the
+next. Never the prior session's 15:59 one-minute close (the last
 trade before the closing auction) and never a stored daily bar (fetched with
 extended hours, it closes on the last after-hours trade).
 
@@ -284,10 +288,12 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
 - **The files.** `NOVA_MARKET_DATA_DIR` (default `E:\Nova\massive`), laid out as Massive serves them:
   `<root>/<trades_v1 | quotes_v1 | minute_aggs_v1>/YYYY/MM/YYYY-MM-DD.csv.gz`, one gzip CSV per dataset per day,
   every ticker, sorted by ticker. A file counts only whole (a `.part` still arriving does not).
-- **Choosing the source.** `POST /api/sim/history` and `POST /api/sim/history/select` add `source: "auto" | "ibkr"
-  | "massive"` (default `auto`). A download takes the Massive files when the day's trades file is on disk, else
-  IBKR; `kind` does not matter for Massive (one import fills trades, bars and quotes). A selection keeps a
-  Massive import of the window, else an IBKR download of it, else takes the Massive files when on disk -- and
+- **Choosing the source -- the files first** (operator 2026-10-09: "shouldn't we have prioritized it over ibkr
+  data?"). `POST /api/sim/history` and `POST /api/sim/history/select` add `source: "auto" | "ibkr" | "massive"`
+  (default `auto`). A download takes the Massive files when the day's trades file is on disk, else IBKR; `kind`
+  does not matter for Massive (one import fills trades, bars and quotes). A selection takes a Massive import that
+  holds the window; else the Massive files when the day is on disk -- **even over an IBKR download of the same
+  hours**, which plays only when the files' import of the window failed or the day is not in them -- and
   **starts the import** when none is running or complete, loading the window empty until the desk's quiet
   re-select folds it in. `POST /{job_id}/pause` and `/resume` route by the job's store; a Massive resume
   imports the window again from the start.
@@ -295,25 +301,28 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   recently updated first. Every job carries `source` (`ibkr_historical` | `massive`). A Massive job is shaped
   like a download (`id`, `kind: "trades"`, `status`, `ranges`, `count`, `volume`, `progress_pct`, `eta_seconds`,
   `stale`, ...) with `precision: "nanoseconds"` and adds `stage: "reading" | "saving" | null`, `stages:
-  {trades_v1, quotes_v1, minute_aggs_v1: percent} | null`, `scan_pct`, `bar_count`, `quote_count`,
+  {trades_v1, quotes_v1, minute_aggs_v1: percent} | null`, `scan_pct`, `bar_count`, `minutes_scope: "day" |
+  null` (the import kept the ticker's whole day of 1-minute bars; null for an import before 2026-10-09, or with
+  no bars file), `quote_count`,
   `quote_status: "complete" | "none" | "not_downloaded" | null`, `files: {trades, quotes, minute_aggs}`,
   `elapsed_sec`. `status` is `queued | running | complete | failed | paused | interrupted` (a running job
   rewritten by no live import for 60 s). The listing adds `massive: {available, reason, root, store,
-  trade_days, quote_days, first, last, store_error}` -- `store_error` names why the import store could not be
-  read (its imports are then not listed), null when it could.
+  trade_days, quote_days, first, last, last_landed, store_error}` -- `last_landed` the epoch seconds `last`'s
+  trades file was finished on disk (its modified time; null when unknown), `store_error` names why the import
+  store could not be read (its imports are then not listed), null when it could.
 - **Days on disk.** `GET /api/sim/history/massive/days` -> `{schema_version: 1, available, reason, root, days:
   [{date, trades, quotes, minute_aggs}]}`, newest first, the folder walked at most once a minute;
   `GET /api/sim/history/massive/{date}` -> `{date, available, reason, trades, quotes, minute_aggs}` (422 for a
   bad date; `available` false with the reason when that day's trades file is not on disk).
 - **The import.** Its own process (`python -m sim.massive_worker --job-id ID`, frozen `nova-api.exe
   --massive-import --job-id ID`), below normal priority, one at a time; the three files are read side by side,
-  each to the end of the ticker's block, every row parsed with the csv module. The window's prints (typed),
-  1-minute bars that lie wholly inside it and NBBO rows -- plus the quote standing at the window's open -- are
-  written in one transaction. More than 500,000 prints (`SIM_HISTORY_MAX_SELECTION_PRINTS`) or 4,000,000 quotes
+  each to the end of the ticker's block, every row parsed with the csv module. The window's prints (typed), the
+  ticker's whole day of 1-minute bars (operator 2026-10-09; only the window's before) and the window's NBBO
+  rows -- plus the quote standing at the window's open -- are written in one transaction. More than 500,000 prints (`SIM_HISTORY_MAX_SELECTION_PRINTS`) or 4,000,000 quotes
   (`SIM_MASSIVE_MAX_SELECTION_QUOTES`) is refused with the reason before anything is written. A day without its
   quotes file imports trades and bars with `quote_status: "not_downloaded"`; a download or selection after
   that file arrives imports the window again, and the window imported before keeps playing until the new one
-  replaces it. Pause ends the process (`paused`); a process that ends otherwise leaves `failed` with its exit
+  replaces it; so does a window imported before `minutes_scope: "day"` once its day's bars file is on disk. Pause ends the process (`paused`); a process that ends otherwise leaves `failed` with its exit
   code.
 - **The store.** `<root>/sim/replay.sqlite3`, its own `PRAGMA user_version = 1` (unknown versions refuse):
   `jobs (id, payload)`, `prints (job_id, ordinal, ts, ns, price, size, exchange, exchange_id, conditions,
@@ -333,7 +342,10 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   true`, `source: "massive_nbbo"`. The selection adds `source`, `quote_status`, `quote_count`, `bar_count`.
 - **Fills and charts.** A Massive window's practice reference carries `bid` / `ask`: a marketable order fills at
   the far side (`fill_basis: "quote"`). Its candles come from its own prints and its own 1-minute bars only --
-  never the IBKR chart store, which a Massive import never writes.
+  never the IBKR chart store, which a Massive import never writes -- and the day before the window is drawn
+  from those bars (never past the window's end or the playhead); the replay bars answer `source: "massive"`
+  for the loaded symbol (it read `ibkr`). Its session open (Gap%) is the 09:30 print in the window, else its
+  own 09:30 bar -- never the IBKR chart store's.
 - **On the desk.** The Sim Day calendar marks a day whose trades are in the files (a bar under the number; the
   title says whether its bid/ask is there) and lets it be opened, whatever else is on file. A Sim tab on such a
   day offers **Load from files** with no Gateway gating; its import has its own slot (an IBKR download of
@@ -342,7 +354,15 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   `sets_price: false` and says its colours come from the NBBO, and the Level 2 note reads "Best bid / ask
   (NBBO) at HH:MM:SS ET · no depth in the files", or why there is no quote (not downloaded yet, on disk now --
   load again, none in the window). The quiet re-select keeps the loaded window's source and reloads a Massive
-  window once, when an import of it completes with something the loaded copy lacks.
+  window once, when an import of it completes with something the loaded copy lacks (its trades, bid/ask, or
+  `bar_count`).
+- **It loads by itself on an empty desk** (operator 2026-10-09: "i dont think the entire nova app recognize
+  massive as data recap for the sim"). With nothing loaded, the Trader tab on screen on a day in the files
+  imports and loads its window without a click, as the agent's `show` does; never over a loaded replay, never
+  an IBKR download, once per window (a failed or stopped one waits for the operator). A day newer than the
+  files says so on the tab -- "Fri, Oct 9 is not in your Massive files yet: they end at Thu, Oct 8, which
+  landed Fri 03:37 ET" (Massive publishes a day once it has ended) -- and that until it lands a download is
+  IBKR's.
 
 ## Practice venues and fills (ADR 019, ADR 020)
 

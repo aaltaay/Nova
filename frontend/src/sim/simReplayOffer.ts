@@ -8,6 +8,7 @@
 import { progressPercent, validateHistoricalWindow } from './historicalProgress';
 import { etTime } from './historicalReplayFormat';
 import {
+  SIM_ET_TIME_ZONE,
   SIM_HISTORY_GATEWAY_NOT_ANSWERING,
   SIM_HISTORY_GATEWAY_UNREACHABLE,
   SIM_HISTORY_RETRY_INTERVAL_SEC,
@@ -16,7 +17,7 @@ import {
   SIM_TAB_WINDOW_START,
 } from './simConstants';
 import type { IbkrStatus } from '../ibkr/types';
-import { isMassive, type HistoricalJob, type HistoricalStatus, type HistoricalWindow } from './historicalTypes';
+import { isMassive, type HistoricalJob, type HistoricalStatus, type HistoricalWindow, type MassiveSummary } from './historicalTypes';
 import type { SimClockState } from './simClockTypes';
 
 /**
@@ -131,17 +132,19 @@ export function offerWindow(
 
 /**
  * The job a window's Load or Download would act on, by the backend's `auto` rule
- * (ADR 046): its Massive import when there is one; else its IBKR download -- but
- * a day in the Massive files offers an import over an IBKR download that never
- * finished, since Download / Retry there would import from the files anyway.
+ * (ADR 046, files first since 2026-10-09): its Massive import when that holds the
+ * window; else, on a day in the Massive files, the import (none yet: an offer to
+ * load from the files) -- even over a finished IBKR download of the same hours,
+ * which plays only when the files' import of it failed or the day is not in them.
  */
 export function windowJob(window: HistoricalWindow, jobs: readonly HistoricalJob[], fromFiles: FromFiles | null): HistoricalJob | undefined {
   const key = windowKey(window);
   const matches = jobs.filter(row => row.kind === 'trades' && windowKey(row) === key);
   const imported = matches.find(isMassive);
-  if (imported) return imported;
+  if (imported && (imported.coverage?.length ?? 0) > 0) return imported;
   const downloaded = matches.find(row => !isMassive(row));
-  return downloaded && (downloaded.status === 'complete' || !fromFiles) ? downloaded : undefined;
+  if (downloaded && (imported?.status === 'failed' || !fromFiles)) return downloaded;
+  return imported;
 }
 
 export function replayOffer(
@@ -199,6 +202,28 @@ export function replayOffer(
   }
   if (job) return { kind: 'stopped', window, percent: progressPercent(job) };
   return { kind: 'download', window };
+}
+
+/** The window's day is newer than the operator's Massive files: not out yet, and when their newest day landed. */
+export interface FilesNotOut { date: string; last: string; landed: number | null }
+
+/**
+ * A day after the newest one in the Massive files (operator, 2026-10-09: "why massive data isn't being loaded
+ * here?"): Massive publishes a day once it has ended, so until it lands only an IBKR download has it. Null for a
+ * day the files hold, an older day they skip (a holiday, or before their first), or no files at all.
+ */
+export function filesNotOut(window: HistoricalWindow | null, massive: MassiveSummary | null | undefined,
+  dayInFiles: boolean): FilesNotOut | null {
+  if (!window || !massive?.available || !massive.last || dayInFiles || window.date <= massive.last) return null;
+  return { date: window.date, last: massive.last, landed: massive.last_landed ?? null };
+}
+
+/** "Fri 03:37 ET" -- when a file landed, on the exchange's clock. */
+export function landedLabel(epochSeconds: number): string {
+  const at = new Date(epochSeconds * 1000);
+  const day = at.toLocaleDateString('en-US', { timeZone: SIM_ET_TIME_ZONE, weekday: 'short' });
+  const time = at.toLocaleTimeString('en-US', { timeZone: SIM_ET_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return `${day} ${time} ET`;
 }
 
 /** "Fri, Sep 18" -- the same shape the Sim session bar prints. */

@@ -192,6 +192,13 @@ export const simTabOfferImportStopped = (label: string, progress: string): strin
 export const simTabOfferImportFailed = (label: string, error: string): string => `${label} import failed: ${error}`;
 export const simTabOfferImportBusy = (runningLabel: string): string =>
   `${runningLabel} is importing from your Massive files, and the desk reads one window at a time.`;
+/**
+ * A day newer than the Massive files (operator, 2026-10-09): Massive publishes a day once it has ended, so
+ * until it lands the tab's Download is IBKR's -- trades only, no bid/ask.
+ */
+export const simTabFilesNotOut = (day: string, last: string, landed: string | null): string =>
+  `${day} is not in your Massive files yet: they end at ${last}${landed ? `, which landed ${landed}` : ''}. `
+  + 'Until it lands, a download comes from IBKR -- trades only, no bid/ask.';
 export const SIM_TAB_ACTION_IMPORT = 'Load from files';
 export const SIM_TAB_ACTION_DOWNLOAD = 'Download';
 export const SIM_TAB_ACTION_LOAD = 'Load';
