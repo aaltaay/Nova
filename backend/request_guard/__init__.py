@@ -11,7 +11,9 @@ desk (file://). A socket with no Origin (Python, Node, bots, tests) passes:
 every browser sends one. HTTP Origins are left to CORS and the API key.
 
 constants_request_guard.py (names, texts, limits), policy.py (the pure rules),
-middleware.py (the ASGI middleware and its rate-limited refusal log).
+middleware.py (the ASGI middleware and its rate-limited refusal log),
+recent_refusals.py (every recent refusal in memory, which the desk diagnostics
+row ``api_refusals`` reads: a refused socket shows in a browser only as 1006).
 Schema: architecture/schema/desk-ops.md, "Who may reach the API".
 """
 from __future__ import annotations

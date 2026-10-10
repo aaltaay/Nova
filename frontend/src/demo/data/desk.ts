@@ -236,6 +236,7 @@ const DIAG_ROWS: Row[] = [
   ['process_identity', 'process', 'API process', 'ok', 'Demo: running in this page'],
   ['process_env_file', 'process', '.env file', 'ok', 'Demo: no keys needed'],
   ['data_folders', 'process', 'Data folders', 'ok', 'Every data folder is on the data drive'],
+  ['api_refusals', 'process', 'Pages and names the API refused', 'ok', 'Nothing refused since the API started'],
   ['ibkr_enabled', 'integrations', 'IBKR enabled', 'ok', 'IBKR_ENABLED=true'],
   ['alpaca_keys', 'integrations', 'Alpaca keys', 'ok', 'News and listing metadata'],
   ['finnhub_key', 'integrations', 'Finnhub key', 'off', 'FINNHUB_API_KEY not set (earnings calendar)'],

@@ -167,6 +167,35 @@ print(c.severities())
 
 ---
 
+## 8. Security alert inbox (GitHub alerts become backlog issues)
+
+In October 2026 the Security tab held 70 open alerts while the security ledger said clean: nothing moved an alert into the backlog, where work is picked up. `.github/workflows/security-alert-inbox.yml` runs `tools/security_alert_inbox.py` every hour (and on manual dispatch) and reconciles the two:
+
+- An open **critical** or **high** code scanning alert on `master`, or Dependabot alert, with no issue gets one: `Security alert needs triage: code scanning #N (high)`. Labels `deferred`, `bug`, `domain:security`, `P1` (critical) or `P2` (high), `security-alert`. Milestone `00 - Untriaged`. Medium, low and unrated alerts, and alerts that exist only on a pull request, get no issue.
+- When the alert is **fixed**, its issue closes as completed. When it is **dismissed**, the issue closes as not planned, and the comment names GitHub's dismissal reason (never the dismissal comment).
+- A closed issue whose alert is still open, or open again, is reopened with one comment. Closing the issue by hand does not dismiss the alert.
+
+To clear one: fix it in a pull request, or dismiss it on GitHub with a written reason, the way PR #829 handled 70 alerts. The issue follows on the next run. Keep the `security-alert` label and the hidden `<!-- nova-security-alert: ... -->` line on the issue: that is how the tool finds it again.
+
+**Public repository.** The issue, its comments and the Actions log carry the alert's link, kind, number, severity and state only. Never the rule, file, line, package or advisory. Do not paste them into the issue.
+
+```powershell
+# What would it do now? Reads GitHub, writes nothing.
+py -3 tools/security_alert_inbox.py --dry-run
+
+# Plan from a saved snapshot (REST alert shapes), no GitHub at all.
+py -3 tools/security_alert_inbox.py --dry-run --snapshot .tmp/alerts-snapshot.json
+```
+
+Notes:
+
+- **Why hourly, not on the alert itself:** GitHub sends `code_scanning_alert` and `dependabot_alert` to webhooks and apps only. Actions cannot be triggered by them.
+- **Tokens:** `GITHUB_TOKEN` with `security-events: read` (code scanning), `vulnerability-alerts: read` (Dependabot) and `issues: write`. An issue made with that token starts no other workflow, so the tool sets the inbox milestone itself and adds the issue to Nova Delivery with the `NOVA_PROJECT_TOKEN` secret. Without the secret it prints a notice and the run stays green.
+- **Failures:** a failed read fails the run and closes nothing. A missing `00 - Untriaged` milestone still files the issue, then fails the run so someone runs `py -3 tools/backlog_triage.py sync`.
+- A critical alert is `P1`, so `backlog_triage.py check` fails until someone routes it out of the inbox. That is intended.
+
+---
+
 ## Cursor agent roles
 
 | Agent | Trigger | Scope |

@@ -1,0 +1,75 @@
+# Turn every high or critical GitHub security alert into a backlog issue, and
+# close that issue when the alert is fixed or dismissed (#828 item 3).
+#
+# The problem this solves: in October 2026 the Security tab held 70 open
+# alerts while Nova's security ledger said clean. Alerts live on a tab nobody
+# opens; the backlog is what `backlog_triage.py next`, agents and the operator
+# read. Nothing routed one into the other, so the drift went unseen.
+#
+# So, every hour, tools/security_alert_inbox.py reconciles the two:
+#   - an open critical (P1) or high (P2) code scanning alert on the default
+#     branch, or Dependabot alert, with no issue gets one, in `00 - Untriaged`;
+#   - a closed issue whose alert is open again is reopened;
+#   - an alert that is fixed closes its issue as completed, a dismissed one
+#     as not planned. Fix it in a PR, or dismiss it on GitHub with a written
+#     reason (the way PR #829 handled 70 alerts); the issue follows.
+#
+# Why a schedule and not the alert events: GitHub sends code_scanning_alert
+# and dependabot_alert to webhooks and apps only. They are not workflow
+# triggers ("Events that trigger workflows" does not list them), and a
+# workflow that names them under `on:` is rejected. Polling also catches an
+# alert whose event would have been missed, which is the drift above.
+#
+# What this job deliberately does NOT do:
+#   - put an alert's details in the issue. This repository is public and
+#     SECURITY.md says never disclose a vulnerability in a public issue: the
+#     issue carries the alert's link, number and severity, never the rule,
+#     file, line, package or advisory. The Actions log is public too, so the
+#     tool prints the same few facts and nothing more.
+#   - guess the real package. The issue lands in the inbox like any other;
+#     routing it is a judgement call (backlog-inbox.yml says why).
+#   - close an issue on an unknown. A failed read fails the job; it is never
+#     taken to mean "fixed".
+#
+# Tokens: GITHUB_TOKEN reads the alerts (security-events: read for code
+# scanning, vulnerability-alerts: read for Dependabot) and writes the issues
+# (issues: write). An issue it creates triggers no other workflow, so
+# backlog-inbox.yml and nova-delivery-project.yml never see it: the tool sets
+# the inbox milestone itself, and adds the issue to Nova Delivery with the
+# NOVA_PROJECT_TOKEN secret when that exists. Without it the job prints a
+# notice and stays green.
+
+name: Security alert inbox
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: security-alert-inbox
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  security-events: read
+  vulnerability-alerts: read
+
+jobs:
+  inbox:
+    name: File and close security alert issues
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Reconcile security alerts with the backlog
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOVA_PROJECT_TOKEN: ${{ secrets.NOVA_PROJECT_TOKEN }}
+        run: python tools/security_alert_inbox.py

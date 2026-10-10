@@ -4,6 +4,9 @@ The repository is public, so most of this file checks what must never leave the 
 """
 from __future__ import annotations
 
+import io
+import json
+import logging
 import time
 
 import pytest
@@ -142,6 +145,62 @@ def test_dump_says_when_a_source_could_not_be_read():
     assert "(the focus sensor could not be read: RuntimeError: lock)" in dump.text
     assert "(the checklist could not be read: TimeoutError: probe)" in dump.text
     assert "(unreadable: OSError: gone)" in dump.text
+
+
+def _request_guard_log_lines(*notes: tuple[str, str, object]) -> str:
+    """What the request guard really writes to the engine log, in the engine log's own format."""
+    from logging_setup import _LOG_FORMAT
+    from request_guard.middleware import RefusalLog
+    from request_guard.middleware import logger as guard_logger
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter(_LOG_FORMAT))
+    guard_logger.addHandler(handler)
+    try:
+        log = RefusalLog()
+        for kind, path, refusal in notes:
+            log.note(kind, path, refusal)
+    finally:
+        guard_logger.removeHandler(handler)
+    return stream.getvalue()
+
+
+def test_a_refused_host_name_or_page_origin_never_reaches_the_dump_or_the_issue():
+    """#828: the values the request guard refused are a site the operator had open, or a name an
+    attacker chose -- the desk names them, the public dump and the written issue never do."""
+    from diagnostics.collect_request_guard import refusal_rows
+    from request_guard import recent_refusals
+    from request_guard.policy import Refusal
+
+    values = ("rebind.attacker.example:8000", "https://private-bank-portal.example")
+    host = Refusal("Host", values[0], "HOST_NOT_ALLOWED")
+    origin = Refusal("Origin", values[1], "ORIGIN_NOT_ALLOWED")
+    recent_refusals.reset_for_tests()
+    try:
+        recent_refusals.record("http", "/api/health", host, now=NOW - 60)
+        recent_refusals.record("websocket", "/ws/l2", origin, now=NOW - 30)
+        snapshot = recent_refusals.snapshot()
+    finally:
+        recent_refusals.reset_for_tests()
+    log_text = _request_guard_log_lines(("http", "/api/health", host), ("websocket", "/ws/l2", origin),
+                                        ("websocket", "/ws/setups", origin))
+    assert all(v in log_text for v in values)  # the engine log on the PC keeps them
+    records, clients = parse_log(LOG + log_text)
+    for now in (NOW, NOW + 3600):  # the row while yellow, and back to OK an hour later
+        rows = refusal_rows(snapshot=snapshot, now=now)
+        assert all(v in rows[0]["fix"] + json.dumps(rows[0]["evidence"]) for v in values)  # the desk names them
+        payload = diag_payload()
+        payload["rows"] = [*payload["rows"], *rows]
+        dump = make_dump(diag=payload, records=records, client_errors=clients, now=now)
+        issue = compose.compose_issue(kind="bug", title="", details="", context=CTX, filed_at=now,
+                                      scrubber=scrubber(), dump=dump)
+        for value in values:
+            host_part = value.split("//")[-1].split(":")[0]
+            for public in (dump.text, compose.auto_description(dump, None), issue.title, issue.body):
+                assert host_part not in public, (now, value)
+        assert "Pages and names the API refused" in dump.text
+    assert "request guard: refused a request or socket" in dump.text  # the log line is kept, its text is not
 
 
 # --- the written title and description -----------------------------------------------------------

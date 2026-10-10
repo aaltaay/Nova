@@ -8,7 +8,8 @@ carries the debugging facts and nothing about the PC (every line passes ``scrub.
     ## Desk checklist   every diagnostics row: state, detail, cause, evidence (not for the rows
                         about this PC -- process and integrations -- whose evidence is paths
                         and key names)
-    ## Engine log       the latest warnings and errors, repeats folded (x N)
+    ## Engine log       the latest warnings and errors, repeats folded (x N); a line that quotes
+                        what a sender chose (ISSUE_REPORT_SENDER_TEXT_LOGGERS) as a fixed line
     ## Desk windows     errors the desk windows reported; each window's page and symbol
 """
 from __future__ import annotations
@@ -29,6 +30,7 @@ from constants_issue_report import (
     ISSUE_REPORT_LOG_LINE_MAX,
     ISSUE_REPORT_LOG_RECORDS,
     ISSUE_REPORT_PRIVATE_EVIDENCE_GROUPS,
+    ISSUE_REPORT_SENDER_TEXT_LOGGERS,
 )
 from issue_report.scrub import Scrubber
 
@@ -98,11 +100,16 @@ def parse_log(text: str, *, keep: int = ISSUE_REPORT_LOG_RECORDS) -> tuple[list[
                                            fields.get("msg", "")[:ISSUE_REPORT_LOG_LINE_MAX],
                                            fields.get("url", "")[:200]))
             continue
+        sender_text = logger in ISSUE_REPORT_SENDER_TEXT_LOGGERS
+        if sender_text:
+            message = ISSUE_REPORT_SENDER_TEXT_LOGGERS[logger]
         key = _fold_key(logger, message)
         record = folded.pop(key, None)
         count = record.count + 1 if record else 1
         current = LogRecord(day, time_, level, logger, message[:ISSUE_REPORT_LOG_LINE_MAX], count)
         folded[key] = current
+        if sender_text:
+            current = None  # and no line after it either
     records = list(folded.values())[-keep:]
     return records, clients[-ISSUE_REPORT_CLIENT_ERRORS:]
 
