@@ -144,16 +144,19 @@ def load(date: str, symbol: str, *, root: Path | None = None,
          bars_fn: Callable[[str, str], list[Bar]] = archive_bars, with_bars: bool = True) -> Recording:
     """Read one Session Record. Raises ``ValueError`` with the reason when it is not usable.
 
+    A date or symbol that names no Session Record folder (a crafted path from a request) is
+    one of those reasons (``capture.storage.session_path``).
     ``with_bars=False`` skips the bars (the flow study reads only the tape and the book)."""
-    from capture.recorder import capture_root
     from capture.schema import read_manifest
     from capture.sessions import is_ibkr_source
+    from capture.storage import session_path
     from sim.capture_reader import new_diagnostics, read_jsonl, usable_rows
     from sim.capture_spans import load_spans, recording_here
     from sim.prior_close import previous_close, recorded_close
 
     sym = symbol.upper()
-    folder = (root or capture_root()) / date / sym
+    # The date and symbol are checked before the capture root is even looked up.
+    folder = session_path(date, sym, root=root)
     if not folder.is_dir():
         raise ValueError(f"no Session Record for {sym} on {date}")
     diagnostics = new_diagnostics()

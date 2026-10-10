@@ -143,7 +143,7 @@ docker run --rm --network host `
 
 **Before running ZAP:**
 
-1. Start Nova dev server (`scripts/windows/Run Nova.bat`)
+1. Start Nova dev server (`scripts/windows/Run Nova.bat`) with `NOVA_ALLOWED_HOSTS=host.docker.internal` in `.env`. The API refuses any Host it does not know (`backend/request_guard/`), so without it every ZAP request gets `400 HOST_NOT_ALLOWED` and the scan checks nothing but refusals. Remove the line after the scan.
 2. Confirm IB Gateway is **disconnected** (do not run ZAP against a live IBKR session)
 3. Run ZAP baseline only — no `-a` (active) flag
 4. Review `zap-baseline-report.html` in `.tmp/`

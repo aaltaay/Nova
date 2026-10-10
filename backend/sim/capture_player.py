@@ -11,6 +11,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from capture.recorder import capture_root
+from capture.storage import session_path
 from capture.constants_capture import CAPTURE_L2_LOAD_LIMIT, CAPTURE_NOT_IBKR_REASON
 from capture.schema import read_manifest
 from capture.sessions import is_ibkr_source
@@ -67,7 +68,8 @@ def _ts(row: dict[str, Any]) -> float:
 
 
 def session_dir(date: str, symbol: str) -> Path:
-    return capture_root() / date / symbol.upper()
+    """The Session Record's folder; ``ValueError`` for a date or symbol that names none (``session_path``)."""
+    return session_path(date, symbol, root=capture_root())
 
 
 def prepare_load() -> int:
@@ -82,13 +84,17 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
     global _state
     generation = prepare_load() if generation is None else generation
     key = f"{date}|{symbol.upper()}"
-    root = session_dir(date, symbol)
     def failure(error: str, diagnostics: dict | None = None) -> dict:
         global _state
         with _load_lock:
             if generation == _generation:
                 _state = None
         return {"ok": False, "error": error, "key": key, **(diagnostics or {})}
+    try:
+        root = session_dir(date, symbol)
+    except ValueError as exc:
+        # A crafted date or symbol: refused before the disk, and the reason is the replay's error.
+        return failure(str(exc))
     if not root.is_dir():
         return failure(f"missing {root}")
 

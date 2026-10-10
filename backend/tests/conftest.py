@@ -37,6 +37,9 @@ os.environ["NOVA_LOG_DIR"] = str(_SESSION_LOGS)
 # point -- importing main.py must not pull the operator's .env into os.environ.
 os.environ["NOVA_ENV_PATH"] = str(_SESSION_CACHE / "pytest-never-written.env")
 os.environ.pop("NOVA_API_KEY", None)
+# Starlette TestClient's Host ("testserver"): the request guard reads its allowed
+# names once, when main.py builds the app, and refuses any other name.
+os.environ["NOVA_ALLOWED_HOSTS"] = "testserver"
 # The operator's data archives default to F:\Nova\... when F: is mounted. A
 # test run on the desk machine resolved the live capture root there and its
 # startup finalizer stamped the desk's live recordings "restart" (2026-09-23).

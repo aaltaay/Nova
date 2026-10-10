@@ -61,7 +61,11 @@ export function useActivityLedger(): State {
 }
 
 export async function fetchActivityDetail(executionId: string): Promise<ActivityDetail> {
-  const res = await novaFetch(`${API_BASE_URL}${ACTIVITY_DETAIL_PATH}/${executionId}`);
+  // The id is one path segment: encode it so a '/', '?' or '..' in it can never
+  // reach a different endpoint. FastAPI decodes it back, so real ids are unchanged.
+  const res = await novaFetch(
+    `${API_BASE_URL}${ACTIVITY_DETAIL_PATH}/${encodeURIComponent(executionId)}`,
+  );
   if (!res.ok) {
     throw new Error(`execution detail HTTP ${res.status}`);
   }

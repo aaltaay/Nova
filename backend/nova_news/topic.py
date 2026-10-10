@@ -68,6 +68,8 @@ def topic_tags(
         tags.append("executes")
     if count_terms(body, NOVA_NEWS_FUND_KEYWORDS) > 0:
         tags.append("funds")
-    if count_terms(hay, NOVA_NEWS_RESEARCH_KEYWORDS) > 0 or "arxiv.org" in hay:
+    # A ranking hint only, never a trust or fetch decision. The keyword "arxiv" already
+    # covers an arxiv.org link, so no host is matched here.
+    if count_terms(hay, NOVA_NEWS_RESEARCH_KEYWORDS) > 0:
         tags.append("research")
     return tags
