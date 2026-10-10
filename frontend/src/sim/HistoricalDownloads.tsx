@@ -3,9 +3,11 @@ import {
   durationLabel, importContentsLabel, importStagesLabel, jobLabel, jobSummary, nothingDownloaded, progressPercent,
 } from './historicalProgress';
 import {
-  SIM_HISTORY_NOTHING_DOWNLOADED_LINE, SIM_MASSIVE_IMPORT_NOTHING_YET, SIM_WHY_JOB_PAUSING, simWhyJobBusy,
+  SIM_HISTORY_NOTHING_DOWNLOADED_LINE, SIM_MASSIVE_IMPORT_NOTHING_YET, SIM_WHY_JOB_PAUSING, simMassiveCapWords,
+  simMassiveCappedHolds, simWhyJobBusy,
 } from './simConstants';
 import { isMassive, type HistoricalJob } from './historicalTypes';
+import { heldWindow } from './simReplayOffer';
 
 /** "12,345" / "--": a job count the payload did not carry is unknown, never a crash (C7). */
 const countLabel = (value: number | null | undefined): string =>
@@ -25,9 +27,12 @@ function MassiveImport({ job, busy, onPick, onAction }: {
   const running = job.status === 'running' && !job.stale;
   const label = running ? 'Stop import' : 'Import again';
   const stages = running ? importStagesLabel(job) : null;
+  // A stock-day's import over a cap holds only its focus (ADR 046, 2026-10-09): that is the window to use.
+  const held = job.status === 'complete' ? heldWindow(job) : job;
   return <li aria-label={jobLabel(job)} className="sim-download" data-source="massive">
     <strong>{job.symbol}  -  {job.date}  -  {job.start} - {job.end}</strong>
     <div role="status" aria-live="polite">{jobSummary(job)}  -  Massive files{job.status === 'complete' ? `: ${importContentsLabel(job)}` : ''}</div>
+    {job.capped && <div className="sim-muted">{simMassiveCappedHolds(held.start, held.end, simMassiveCapWords(job.capped))}</div>}
     {running && percent != null && <progress aria-label={`Import progress: ${jobLabel(job)}`} value={percent} max={100} />}
     <div className="sim-muted">
       {stages && <>Reading {stages}. </>}
@@ -36,7 +41,8 @@ function MassiveImport({ job, busy, onPick, onAction }: {
       {running && job.eta_seconds != null && <>Estimated {durationLabel(job.eta_seconds)} remaining.</>}
     </div>
     <div className="sim-actions">
-      <button type="button" aria-label={`Use this window: ${jobLabel(job)}`} onClick={() => onPick(job)}>Use this window</button>
+      <button type="button" aria-label={`Use this window: ${jobLabel(job)}`}
+        onClick={() => onPick({ ...job, start: held.start, end: held.end })}>Use this window</button>
       {job.status !== 'complete' && <button type="button" disabled={busy.has(job.id)}
         data-why={busy.has(job.id) ? simWhyJobBusy(label) : undefined}
         aria-label={`${label}: ${jobLabel(job)}`}

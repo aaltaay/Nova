@@ -12,12 +12,16 @@ import {
   SIM_HISTORY_GATEWAY_NOT_ANSWERING,
   SIM_HISTORY_GATEWAY_UNREACHABLE,
   SIM_HISTORY_RETRY_INTERVAL_SEC,
+  SIM_MASSIVE_DAY_END,
+  SIM_MASSIVE_DAY_START,
   SIM_TAB_NOT_ANSWERING_RETRY_SEC,
   SIM_TAB_WINDOW_END,
   SIM_TAB_WINDOW_START,
 } from './simConstants';
 import type { IbkrStatus } from '../ibkr/types';
-import { isMassive, type HistoricalJob, type HistoricalStatus, type HistoricalWindow, type MassiveSummary } from './historicalTypes';
+import {
+  isMassive, type HistoricalJob, type HistoricalStatus, type HistoricalWindow, type MassiveCap, type MassiveSummary,
+} from './historicalTypes';
 import type { SimClockState } from './simClockTypes';
 
 /**
@@ -27,8 +31,11 @@ import type { SimClockState } from './simClockTypes';
 export interface FromFiles { quotes: boolean }
 
 export type ReplayOffer =
-  /** Nothing downloaded for this window yet. */
-  | { kind: 'download'; window: HistoricalWindow; fromFiles?: FromFiles }
+  /**
+   * Nothing downloaded for this window yet. `capped` + `held`: the stock-day's import is over a cap and
+   * holds another window (`held`), so the files are read again for the window around the playhead.
+   */
+  | { kind: 'download'; window: HistoricalWindow; fromFiles?: FromFiles; held?: HistoricalWindow; capped?: MassiveCap }
   /** This window's trades are downloading (or importing from the Massive files) now. */
   | { kind: 'downloading'; window: HistoricalWindow; percent: number | null;
       etaSeconds: number | null; jobId: string;
@@ -51,8 +58,11 @@ export type ReplayOffer =
       attempt?: number; maxAttempts?: number; gaveUp?: boolean }
   /** No Gateway port answers; `waiting` once the operator asked to start it. */
   | { kind: 'gateway-down'; window: HistoricalWindow; waiting?: boolean }
-  /** Downloaded and waiting to be loaded. */
-  | { kind: 'ready'; window: HistoricalWindow }
+  /**
+   * Downloaded and waiting to be loaded. A stock-day's import adds what it holds (`held`: the day, or a
+   * capped day's window) and, over a cap, why it is not the whole day.
+   */
+  | { kind: 'ready'; window: HistoricalWindow; held?: HistoricalWindow; capped?: MassiveCap }
   /**
    * Another window holds the one download slot the backend allows. A plain
    * Download would only be refused, so the offer is to stop that one and start
@@ -66,6 +76,33 @@ const ACTIVE = new Set(['running', 'pause_requested']);
 const isProgressing = (job: HistoricalJob) => ACTIVE.has(job.status) && !job.stale;
 
 export const windowKey = (w: HistoricalWindow) => `${w.symbol}|${w.date}|${w.start}|${w.end}`;
+/** One stock-day, whatever window around the playhead names it: what a Massive import reads (ADR 046, 2026-10-09). */
+export const dayKey = (w: HistoricalWindow) => `${w.symbol}|${w.date}`;
+
+const isWholeDay = (w: HistoricalWindow) => w.start === SIM_MASSIVE_DAY_START && w.end === SIM_MASSIVE_DAY_END;
+
+/**
+ * The import of the window's stock-day from the Massive files, running or done (ADR 046 amendment,
+ * 2026-10-09): one per symbol and day, its window the whole session.
+ */
+export function dayImport(window: HistoricalWindow, jobs: readonly HistoricalJob[]): HistoricalJob | undefined {
+  return jobs.find(row => row.kind === 'trades' && isMassive(row) && isWholeDay(row)
+    && row.symbol === window.symbol && row.date === window.date);
+}
+
+/** What a complete import holds: its kept span, else (an import made before stock-days) its own window. */
+export function heldWindow(job: HistoricalJob): HistoricalWindow {
+  return { symbol: job.symbol, date: job.date, start: job.kept_start ?? job.start, end: job.kept_end ?? job.end };
+}
+
+/** A complete import holds the window -- the whole day, or a capped day's window around it -- up to its own bounds. */
+export function holdsWindow(job: HistoricalJob, window: HistoricalWindow): boolean {
+  if (job.status !== 'complete') return false;
+  const held = heldWindow(job);
+  const start = window.start > job.start ? window.start : job.start;
+  const end = window.end < job.end ? window.end : job.end;
+  return held.start <= start && end <= held.end;
+}
 
 /**
  * Can a replay download reach IB Gateway right now?
@@ -132,16 +169,21 @@ export function offerWindow(
 
 /**
  * The job a window's Load or Download would act on, by the backend's `auto` rule
- * (ADR 046, files first since 2026-10-09): its Massive import when that holds the
- * window; else, on a day in the Massive files, the import (none yet: an offer to
- * load from the files) -- even over a finished IBKR download of the same hours,
- * which plays only when the files' import of it failed or the day is not in them.
+ * (ADR 046, files first since 2026-10-09): the stock-day's Massive import while it
+ * runs, whatever window started it, or once it holds the window -- so a scrub on the
+ * same day never asks for a second read; else an older import of exactly the window
+ * that holds it; else, on a day in the Massive files, the day's import (none yet: an
+ * offer to load from the files) -- even over a finished IBKR download of the same
+ * hours, which plays only when the files' import failed or the day is not in them.
  */
 export function windowJob(window: HistoricalWindow, jobs: readonly HistoricalJob[], fromFiles: FromFiles | null): HistoricalJob | undefined {
   const key = windowKey(window);
   const matches = jobs.filter(row => row.kind === 'trades' && windowKey(row) === key);
-  const imported = matches.find(isMassive);
-  if (imported && (imported.coverage?.length ?? 0) > 0) return imported;
+  const day = dayImport(window, jobs);
+  if (day && (isProgressing(day) || holdsWindow(day, window))) return day;
+  const older = matches.find(row => isMassive(row) && row !== day);
+  if (older && (older.coverage?.length ?? 0) > 0) return older;
+  const imported = day ?? older;
   const downloaded = matches.find(row => !isMassive(row));
   if (downloaded && (imported?.status === 'failed' || !fromFiles)) return downloaded;
   return imported;
@@ -156,8 +198,14 @@ export function replayOffer(
 ): ReplayOffer {
   const job = windowJob(window, jobs, fromFiles);
   const files = fromFiles ?? undefined;
+  // A capped stock-day whose import holds another window: the window around the playhead is read again.
+  const elsewhere = job && isMassive(job) && isWholeDay(job) && job.status === 'complete' && !holdsWindow(job, window)
+    ? job : null;
   // Loading never conflicts with a running download, so "ready" wins outright.
-  if (job?.status === 'complete') return { kind: 'ready', window };
+  if (job?.status === 'complete' && !elsewhere) {
+    if (!isMassive(job) || !isWholeDay(job)) return { kind: 'ready', window };
+    return { kind: 'ready', window, held: heldWindow(job), ...(job.capped ? { capped: job.capped } : {}) };
+  }
   if (job && isProgressing(job)) {
     return {
       kind: 'downloading', window, percent: progressPercent(job),
@@ -181,6 +229,10 @@ export function replayOffer(
     if (job?.status === 'failed') {
       return { kind: 'failed', window, error: job.error || 'Import failed', gatewayUnreachable: false, retryAt: null,
         failedAt: job.updated ?? null, fromFiles: files ?? { quotes: false } };
+    }
+    if (elsewhere) {
+      return { kind: 'download', window, fromFiles: files ?? { quotes: false }, held: heldWindow(elsewhere),
+        ...(elsewhere.capped ? { capped: elsewhere.capped } : {}) };
     }
     if (job) return { kind: 'stopped', window, percent: progressPercent(job), fromFiles: files ?? { quotes: false } };
     return { kind: 'download', window, fromFiles: files };
@@ -237,6 +289,12 @@ export function offerDateLabel(iso: string): string {
 export const offerWindowLabel = (w: HistoricalWindow) =>
   `${w.symbol} · ${offerDateLabel(w.date)} · ${w.start}–${w.end} ET`;
 
+/** "IMCC · Fri, Sep 18": what an import from the Massive files reads -- the stock-day, not a window. */
+export const offerDayLabel = (w: HistoricalWindow) => `${w.symbol} · ${offerDateLabel(w.date)}`;
+
+/** A running import named as it reads: the stock-day, or (an import made before stock-days) its window. */
+const importLabel = (w: HistoricalWindow) => (isWholeDay(w) ? offerDayLabel(w) : offerWindowLabel(w));
+
 /** `import`: read the window from the Massive files -- the same request as `download`, which picks the files. */
 export type OfferAction = 'download' | 'import' | 'load' | 'resume' | 'retry' | 'start-gateway' | 'stop' | 'stop-other' | 'reconnect';
 
@@ -249,6 +307,10 @@ type CopyText = {
   importStopped: (label: string, progress: string) => string;
   importFailed: (label: string, error: string) => string;
   importBusy: (runningLabel: string) => string;
+  /** A capped stock-day: what its import holds (`kept`), the window around the playhead, and why. */
+  importCapped: (day: string, kept: string, around: string, cap: string) => string;
+  readyCapped: (label: string, instead: boolean, cap: string) => string;
+  capWords: (cap: MassiveCap) => string;
   download: (label: string, instead: boolean) => string;
   ready: (label: string, instead: boolean) => string;
   downloading: (label: string, progress: string, hasCoverage: boolean) => string;
@@ -269,21 +331,33 @@ export function offerCopy(offer: ReplayOffer, instead: boolean, t: CopyText): Of
   const pct = (percent: number | null) => (percent == null ? '' : ` -- ${percent.toFixed(0)}%`);
   if ('fromFiles' in offer && offer.fromFiles) {
     const files = offer.fromFiles;
+    // The files are read once per stock-day (ADR 046, 2026-10-09): the day is named, not the playhead's window.
+    const day = offerDayLabel(offer.window);
     switch (offer.kind) {
-      case 'download': return { text: t.importOffer(label, instead, files.quotes), action: 'import' };
+      case 'download':
+        if (offer.held && offer.capped) {
+          const hours = (w: HistoricalWindow) => `${w.start}–${w.end}`;
+          return { text: t.importCapped(day, hours(offer.held), hours(offer.window), t.capWords(offer.capped)), action: 'import' };
+        }
+        return { text: t.importOffer(day, instead, files.quotes), action: 'import' };
       case 'downloading': {
         const eta = offer.etaSeconds == null ? '' : `, about ${t.duration(offer.etaSeconds)} left`;
-        return { text: t.importing(label, `${pct(offer.percent)}${eta}`), action: 'stop' };
+        return { text: t.importing(day, `${pct(offer.percent)}${eta}`), action: 'stop' };
       }
-      case 'stopped': return { text: t.importStopped(label, offer.percent ? ` at ${offer.percent.toFixed(0)}%` : ''), action: 'import' };
-      case 'failed': return { text: t.importFailed(label, offer.error), action: 'import' };
-      case 'busy': return { text: t.importBusy(offerWindowLabel(offer.running)), action: 'stop-other' };
+      case 'stopped': return { text: t.importStopped(day, offer.percent ? ` at ${offer.percent.toFixed(0)}%` : ''), action: 'import' };
+      case 'failed': return { text: t.importFailed(day, offer.error), action: 'import' };
+      case 'busy': return { text: t.importBusy(importLabel(offer.running)), action: 'stop-other' };
       default: break;
     }
   }
   switch (offer.kind) {
     case 'download': return { text: t.download(label, instead), action: 'download' };
-    case 'ready': return { text: t.ready(label, instead), action: 'load' };
+    case 'ready': {
+      const held = offer.held ? offerWindowLabel(offer.held) : label;
+      return offer.capped
+        ? { text: t.readyCapped(held, instead, t.capWords(offer.capped)), action: 'load' }
+        : { text: t.ready(held, instead), action: 'load' };
+    }
     case 'downloading': {
       const eta = offer.etaSeconds == null ? '' : `, about ${t.duration(offer.etaSeconds)} left`;
       const progress = `${pct(offer.percent)}${eta}`;

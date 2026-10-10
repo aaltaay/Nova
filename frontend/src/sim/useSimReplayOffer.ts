@@ -14,21 +14,25 @@
  * - A day in the operator's Massive files loads by itself on an empty desk, for
  *   the tab in front -- as the agent's `show` already did (operator, 2026-10-09:
  *   the Sim treats Massive as its data). Never over a loaded replay, never an
- *   IBKR download (paced, and the operator's to start), once per window.
+ *   IBKR download (paced, and the operator's to start), once per stock-day.
+ * - A day in the files is one import (ADR 046 amendment, 2026-10-09): a scrub on
+ *   that day while it runs, or after it, follows the same import -- no second read.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { launchIbGateway } from '../utils/launchIbGateway';
 import { historicalStatus } from './historicalStatusStore';
 import { selectHistoricalReplay } from './historicalReplayLoad';
-import { filesNotOut, gatewayReachable, offerWindow, replayOffer, windowKey, type ReplayOffer } from './simReplayOffer';
+import {
+  dayKey, filesNotOut, gatewayReachable, offerWindow, replayOffer, windowKey, type ReplayOffer,
+} from './simReplayOffer';
 import { useMassiveDay } from './massiveDaysStore';
 import { SIM_TAB_HEAL_MAX_ATTEMPTS, SIM_TAB_NOT_ANSWERING_MAX_ATTEMPTS } from './simConstants';
 import { useReplayActions } from './useReplayActions';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 import type { SimClockState } from './simClockTypes';
 
-/** Windows this desk already loaded from the files by itself: a failed or stopped one is never started again. */
+/** Stock-days this desk already loaded from the files by itself: a failed or stopped one is never started again. */
 const autoLoaded = new Set<string>();
 
 /** Test seam: the auto-loads are session-scoped module state. */
@@ -68,7 +72,11 @@ export function useSimReplayOffer(
   // Newer than the files: say Massive has not published it yet, so the IBKR offer is not read as the only source.
   const notOut = filesNotOut(window, status.data?.massive, Boolean(day?.trades));
   const base = window ? replayOffer(window, jobs, reachable, fromFiles) : null;
-  const key = window ? windowKey(window) : null;
+  // A day in the files is one import whatever window the playhead names (ADR 046, 2026-10-09): the ask, the
+  // auto-load and a queued start follow the stock-day, so a scrub on that day keeps them.
+  const filesDay = Boolean(fromFiles);
+  const keyOf = useCallback((spec: HistoricalWindow) => (filesDay ? dayKey(spec) : windowKey(spec)), [filesDay]);
+  const key = window ? keyOf(window) : null;
   const readsFiles = Boolean(base && 'fromFiles' in base && base.fromFiles);
 
   const load = useCallback(async (spec: HistoricalWindow) => {
@@ -81,14 +89,14 @@ export function useSimReplayOffer(
     const job = await request<HistoricalJob>('download', '/history', { ...spec, kind: 'trades' });
     if (!job) return;
     void historicalStatus.refresh();
-    if (job.status === 'complete' && intent.current === windowKey(spec)) await load(spec);
-  }, [request, load]);
+    if (job.status === 'complete' && intent.current === keyOf(spec)) await load(spec);
+  }, [request, load, keyOf]);
 
   const requestDownload = useCallback(async (spec: HistoricalWindow) => {
-    intent.current = windowKey(spec);
+    intent.current = keyOf(spec);
     setHealAttempts(0);
     await download(spec);
-  }, [download]);
+  }, [download, keyOf]);
 
   /**
    * Abandon a download whose cost the operator has now seen; it stays resumable.
@@ -96,14 +104,14 @@ export function useSimReplayOffer(
    * the queued-download effect below picks it up from `intent`.
    */
   const stop = useCallback(async (jobId: string, then?: HistoricalWindow) => {
-    intent.current = then ? windowKey(then) : null;
+    intent.current = then ? keyOf(then) : null;
     if (then) setHealAttempts(0);
     if (await request('download', `/history/${encodeURIComponent(jobId)}/pause`)) {
       void historicalStatus.refresh();
     } else if (then) {
       intent.current = null;
     }
-  }, [request]);
+  }, [request, keyOf]);
 
   const startGateway = useCallback(async (spec: HistoricalWindow) => {
     const launchKey = windowKey(spec);

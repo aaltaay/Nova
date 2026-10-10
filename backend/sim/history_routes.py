@@ -121,12 +121,20 @@ def _select_spec(body: Window) -> dict:
     window = body.spec()
     if body.source == "ibkr":
         return window
+    # One import per stock-day (amendment 2026-10-09): when it holds the window, load what it holds -- the
+    # whole day, or the window a capped day kept -- so a scrub anywhere in it needs no other import.
+    day = massive_import.day_job(window)
+    if massive_import.holds(day, window):
+        return massive_import.held_spec(day)
     massive = massive_import.spec(window)
+    older = massive_store.find(massive)                 # an import of exactly this window, from before stock-days
+    if older is not None and day is not None and older["id"] == day["id"]:
+        older = None                                    # the window asked for is the day itself
+    if massive_import.holds(older, window):
+        return massive
     if body.source == "massive":
         return massive
-    imported = massive_store.find(massive)
-    if imported is not None and imported.get("ranges"):
-        return massive
+    imported = day or older
     if store.find(window, "trades") is not None and (_import_failed(imported) or not _massive_available(window)):
         return window
     if imported is not None or _massive_available(window):
@@ -136,13 +144,12 @@ def _select_spec(body: Window) -> dict:
 
 def _select(body: Window):
     spec = _select_spec(body)
-    if playback.is_massive(spec) and massive_import.wants_import(massive_store.find(spec),
-                                                                 massive_import.availability(spec["date"])):
-        # Picked up on selection: the import starts (or starts again, once the day's
-        # quotes are on disk), and the desk's quiet re-select folds it in when it
-        # completes. A window imported before keeps playing meanwhile.
+    if playback.is_massive(spec) and massive_import.wants_import(body.spec(), massive_import.availability(spec["date"])):
+        # Picked up on selection: the stock-day's import starts (or starts again, once the
+        # day's quotes are on disk, or for a capped day's other window), and the desk's
+        # quiet re-select folds it in when it completes. What was imported before keeps playing.
         massive_import.begin(body.spec())
-    return playback.select(spec)
+    return playback.select(spec, request=body.spec())
 
 
 @router.post("/select")
@@ -195,8 +202,9 @@ def _massive_job(job_id: str) -> dict | None:
 def _resume(job_id: str):
     job = _massive_job(job_id)
     if job is not None:
-        # A Massive import does not resume mid-file: it reads the window again from the start.
-        return massive_import.begin(store.window(job["symbol"], job["date"], job["start"], job["end"]))
+        # A Massive import does not resume mid-file: it reads the day again from the start, for the same focus.
+        return massive_import.begin(store.window(job["symbol"], job["date"], job.get("focus_start") or job["start"],
+                                                 job.get("focus_end") or job["end"]))
     return download.start(job_id)
 
 

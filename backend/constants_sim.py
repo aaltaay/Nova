@@ -204,6 +204,11 @@ SIM_MASSIVE_DAY_CLOSE_CACHE = 8
 # An import's ``minutes_scope``: it kept the ticker's whole day of 1-minute bars. A window imported
 # before (only its own minutes) is imported again on its next load, and keeps playing meanwhile.
 SIM_MASSIVE_MINUTES_SCOPE_DAY = "day"
+# An import is a stock-day (ADR 046 amendment, 2026-10-09): one read of the day files per symbol and day,
+# its identity the whole session. It keeps all of it when the day fits a selection
+# (SIM_HISTORY_MAX_SELECTION_PRINTS, SIM_MASSIVE_MAX_SELECTION_QUOTES), else only the window asked for.
+SIM_MASSIVE_DAY_START = "04:00"
+SIM_MASSIVE_DAY_END = "20:00"
 # Imported windows live beside the files they came from (operator 2026-10-05:
 # everything from Massive stays on E:), in their own store and schema.
 SIM_MASSIVE_STORE_SUBDIR = "sim"

@@ -83,6 +83,21 @@ describe('landSim', () => {
     expect(scrubs).toHaveBeenCalled();
   });
 
+  it('parks inside what the Sim loaded: the stock-day an import from the files holds (ADR 046, 2026-10-09)', async () => {
+    script.jobs = n => [job(n < 2 ? 'running' : 'complete', n < 2 ? 40 : 100)];
+    const day = { start: '04:00', end: '20:00', start_ts: W.start_ts - 5 * 3600, end_ts: W.start_ts + 11 * 3600 };
+    const base = mocks.fetch.getMockImplementation()!;
+    mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      const answer = await base(url, init);
+      if (!url.endsWith('/history/select') || selects < 2) return answer;
+      const body = await answer.json();
+      return ok({ ...body, ...day });
+    });
+    const landed = await landSim(PLAN, hooks());
+    expect(landed.window).toEqual(day);
+    expect(posts.at(-1)?.body).toEqual({ second_from_open: 5 * 3600 + 1740, symbol: 'MSGY' });
+  });
+
   it('a window over the print cap is tried again narrower', async () => {
     script.firstSelect = () => refuse('Replay exceeds 500,000 prints; narrow the window');
     const h = hooks();

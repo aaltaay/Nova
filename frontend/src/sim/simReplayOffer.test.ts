@@ -258,6 +258,81 @@ describe('replayOffer on a day in the Massive files (ADR 046)', () => {
   });
 });
 
+describe('one import per stock-day (ADR 046 amendment, 2026-10-09)', () => {
+  const files = { quotes: true };
+  const CAP = { what: 'prints' as const, count: 812_345, limit: 500_000 };
+  const dayJob = (over: Partial<HistoricalJob> = {}) => job({
+    id: 'day', source: 'massive', start: '04:00', end: '20:00', focus_start: '06:45', focus_end: '09:00', ...over,
+  });
+  const t = {
+    importOffer: (l: string) => `import ${l}`,
+    importing: (l: string, p: string) => `importing ${l}${p}`,
+    importStopped: (l: string) => `import stopped ${l}`,
+    importFailed: (l: string, e: string) => `import failed ${l} ${e}`,
+    importBusy: (l: string) => `busy ${l}`,
+    importCapped: (d: string, kept: string, around: string, cap: string) => `capped ${d} kept ${kept} read ${around} (${cap})`,
+    readyCapped: (l: string, _i: boolean, cap: string) => `ready capped ${l} (${cap})`,
+    capWords: (cap: { count: number; limit: number }) => `${cap.count}/${cap.limit}`,
+    download: () => 'download', ready: (l: string) => `ready ${l}`, downloading: () => 'downloading',
+    stopped: () => 'stopped', failed: () => 'failed', busy: () => 'busy', gatewayDown: () => 'gateway down',
+    gatewayWaiting: () => 'waiting', retrying: () => 'retrying', notAnswering: () => 'not answering',
+    notAnsweringGaveUp: () => 'gave up', duration: (s: number) => `${s}s`,
+  };
+
+  it("a running import of the same stock-day is this tab's, whatever window started it: never busy", () => {
+    // WFF 2026-09-09: imported 06:45-09:00 while premarket, then the playhead moved to 10:05.
+    const running = dayJob({ progress_pct: 40, eta_seconds: 120 });
+    const offer = replayOffer(W, [running], true, files);
+    expect(offer).toMatchObject({ kind: 'downloading', jobId: 'day', fromFiles: files });
+    expect(offerCopy(offer, false, t)).toEqual({ text: 'importing IMCC · Fri, Sep 18 -- 40%, about 120s left', action: 'stop' });
+    expect(windowJob({ ...W, start: '17:45', end: '20:00' }, [running], files)).toBe(running);
+  });
+
+  it('a complete stock-day holds any playhead on that day, and says it is the whole day', () => {
+    const done = dayJob({ status: 'complete', kept_start: '04:00', kept_end: '20:00', coverage: [[1, 2]] });
+    for (const window of [W, { ...W, start: '04:00', end: '06:15' }, { ...W, start: '17:45', end: '20:00' }]) {
+      expect(replayOffer(window, [done], true, files)).toEqual({
+        kind: 'ready', window, held: { ...W, start: '04:00', end: '20:00' },
+      });
+    }
+    expect(offerCopy(replayOffer(W, [done], true, files), false, t).text).toBe('ready IMCC · Fri, Sep 18 · 04:00–20:00 ET');
+  });
+
+  it('the day wins over an older import of exactly the window, which still plays on its own', () => {
+    const older = job({ id: 'old', source: 'massive', status: 'complete', coverage: [[1, 2]] });
+    const done = dayJob({ status: 'complete', kept_start: '04:00', kept_end: '20:00' });
+    expect(windowJob(W, [older, done], files)).toBe(done);
+    expect(windowJob(W, [older], files)).toBe(older);
+    expect(replayOffer(W, [older], true, files)).toEqual({ kind: 'ready', window: W });
+  });
+
+  it('another stock-day still holds the one import slot, named by its day', () => {
+    const other = dayJob({ symbol: 'WFF' });
+    const busy = replayOffer(W, [other], true, files);
+    expect(busy).toMatchObject({ kind: 'busy', runningJobId: 'day', fromFiles: files });
+    expect(offerCopy(busy, false, t)).toEqual({ text: 'busy WFF · Fri, Sep 18', action: 'stop-other' });
+  });
+
+  it('a capped day plays the window it kept and says why; outside it, it offers the window around the playhead', () => {
+    const capped = dayJob({ status: 'complete', kept_start: '06:45', kept_end: '09:00', capped: CAP });
+    const inside = { ...W, start: '06:45', end: '09:00' };
+    const ready = replayOffer(inside, [capped], true, files);
+    expect(ready).toEqual({ kind: 'ready', window: inside, held: inside, capped: CAP });
+    expect(offerCopy(ready, false, t)).toEqual({
+      text: 'ready capped IMCC · Fri, Sep 18 · 06:45–09:00 ET (812345/500000)', action: 'load' });
+    const outside = replayOffer(W, [capped], true, files);
+    expect(outside).toEqual({ kind: 'download', window: W, fromFiles: files, held: inside, capped: CAP });
+    expect(offerCopy(outside, false, t)).toEqual({
+      text: 'capped IMCC · Fri, Sep 18 kept 06:45–09:00 read 09:15–11:30 (812345/500000)', action: 'import' });
+  });
+
+  it('names the stock-day on every files offer, not the playhead window', () => {
+    expect(offerCopy(replayOffer(W, [], true, files), false, t).text).toBe('import IMCC · Fri, Sep 18');
+    expect(offerCopy(replayOffer(W, [dayJob({ status: 'failed', error: 'disk' })], true, files), false, t).text)
+      .toBe('import failed IMCC · Fri, Sep 18 disk');
+  });
+});
+
 describe('a day newer than the Massive files (operator, 2026-10-09)', () => {
   const massive = {
     available: true, reason: null, trade_days: 2707, quote_days: 2707, first: '2016-01-04', last: '2026-10-08',

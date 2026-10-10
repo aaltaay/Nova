@@ -178,9 +178,10 @@ export const simTabOfferNotAnsweringGaveUp = (label: string, failedAt?: string |
   `IBKR didn't answer IB Gateway${failedAt ? ` (last try ${failedAt})` : ''}, so ${label} hasn't downloaded. `
   + 'Check the Gateway window for a login, 2FA prompt or maintenance notice, then Reconnect.';
 /**
- * A day in the operator's Massive files (ADR 046): the window is read from disk
+ * A day in the operator's Massive files (ADR 046): the stock-day is read from disk
  * -- trades, 1-minute bars and, once that file is down, the bid/ask -- with no
- * Gateway and no IBKR pacing. One import at a time, in its own process.
+ * Gateway and no IBKR pacing. One import at a time, in its own process, and one
+ * per stock-day (amendment 2026-10-09): the label names the day, not a window.
  */
 export const simTabOfferImport = (label: string, instead: boolean, quotes: boolean): string =>
   `${label} is in your Massive files (trades, 1-minute bars${quotes ? ', bid/ask' : '; bid/ask not downloaded yet'}) `
@@ -191,7 +192,24 @@ export const simTabOfferImportStopped = (label: string, progress: string): strin
   `${label} import stopped${progress}.`;
 export const simTabOfferImportFailed = (label: string, error: string): string => `${label} import failed: ${error}`;
 export const simTabOfferImportBusy = (runningLabel: string): string =>
-  `${runningLabel} is importing from your Massive files, and the desk reads one window at a time.`;
+  `${runningLabel} is importing from your Massive files, and the desk reads one stock-day at a time.`;
+/** An import's identity is the stock-day's whole session (backend constants_sim SIM_MASSIVE_DAY_START / _END). */
+export const SIM_MASSIVE_DAY_START = '04:00';
+export const SIM_MASSIVE_DAY_END = '20:00';
+/** Why a stock-day's import kept only a window: the day's count of one dataset, over what a replay holds. */
+export const simMassiveCapWords = (cap: { what: string; count: number; limit: number }): string =>
+  `${cap.count.toLocaleString()} ${cap.what === 'quotes' ? 'bid/ask changes' : 'prints'}; a replay holds `
+  + cap.limit.toLocaleString();
+/** A capped day whose import holds another window than the playhead's. */
+export const simTabOfferImportCapped = (day: string, kept: string, around: string, cap: string): string =>
+  `${day} is too busy to replay whole (${cap}), so it loads a window at a time: ${kept} ET is imported. `
+  + `Read ${around} ET, around the playhead?`;
+/** The Historical replay panel's line under a capped stock-day's import. */
+export const simMassiveCappedHolds = (start: string, end: string, cap: string): string =>
+  `Holds ${start} - ${end} only: the day is too busy to replay whole (${cap}).`;
+/** A capped day's import that holds the playhead's window: it loads, and says it is not the whole day. */
+export const simTabOfferReadyCapped = (label: string, instead: boolean, cap: string): string =>
+  `${label} is imported${instead ? ' -- load it instead?' : '.'} The day is too busy to replay whole (${cap}).`;
 /**
  * A day newer than the Massive files (operator, 2026-10-09): Massive publishes a day once it has ended, so
  * until it lands the tab's Download is IBKR's -- trades only, no bid/ask.

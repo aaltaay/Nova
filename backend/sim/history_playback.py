@@ -157,29 +157,31 @@ def _load(spec: dict) -> Selection:
 def _load_massive(spec: dict) -> Selection:
     """A window imported from the Massive flat files: whole or absent, never part of one.
 
-    Nothing plays before the first import completes. An import that runs again (the
-    day's quotes arrived after the first) leaves the stored window whole until it
-    replaces it in one transaction, so the window it imported before keeps playing.
+    Nothing plays before an import that holds the window completes. An import that runs again (the day's
+    quotes arrived after the first) leaves the stored rows whole until it replaces them in one transaction,
+    so what it imported before keeps playing. Under a wider import (the stock-day) only the window's rows load.
     """
     from sim import massive_import, massive_store
 
-    job = massive_store.find(spec)
+    holder, job = massive_import.holder(spec)
     status = massive_import.effective_status(job) if job else 'missing'
-    if not job or not job.get('ranges'):
+    if holder is None:
         return _build(spec, [], [], status, job['id'] if job else None, minutes=[],
                       extra=dict(quote_status=None, quote_count=0, bar_count=0))
-    rows = massive_store.read_prints(job['id'], spec['symbol'], limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1)
-    minutes = massive_store.read_candles(job['id'])
-    quote_status = job.get('quote_status')
+    between = (spec['start_ts'], spec['end_ts'])
+    rows = massive_store.read_prints(holder['id'], spec['symbol'], limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1,
+                                     between=between)
+    minutes = massive_store.read_candles(holder['id'])
+    quote_status = holder.get('quote_status')
     quotes = None
     if quote_status in ('complete', 'none'):
-        quote_rows = massive_store.read_quotes(job['id'], limit=SIM_MASSIVE_MAX_SELECTION_QUOTES + 1)
+        quote_rows = massive_store.read_quotes(holder['id'], limit=SIM_MASSIVE_MAX_SELECTION_QUOTES + 1, between=between)
         if len(quote_rows) > SIM_MASSIVE_MAX_SELECTION_QUOTES:
             raise ValueError(f'Replay exceeds {SIM_MASSIVE_MAX_SELECTION_QUOTES:,} quotes; narrow the window')
         quotes = history_quotes.QuoteSeries(quote_rows)
-    return _build(spec, rows, [[spec['start_ts'], spec['end_ts']]], status, job['id'], minutes=minutes, quotes=quotes,
-                  extra=dict(quote_status=quote_status, quote_count=job.get('quote_count', 0),
-                             bar_count=job.get('bar_count', 0)))
+    return _build(spec, rows, [list(between)], status, holder['id'], minutes=minutes, quotes=quotes,
+                  extra=dict(quote_status=quote_status, quote_count=len(quote_rows) if quotes else 0,
+                             bar_count=holder.get('bar_count', 0)))
 
 
 def _build(spec: dict, rows: list[dict], ranges: list, status: str, job_id: str | None, *,
@@ -206,8 +208,12 @@ def _build(spec: dict, rows: list[dict], ranges: list, status: str, job_id: str 
                      _session_open(selected, eligible, eligible_keys, ranges, minutes), quotes)
 
 
-def select(spec: dict):
-    """Publish after loading; a newer select/clear fences a superseded disk load."""
+def select(spec: dict, request: dict | None = None):
+    """Publish after loading; a newer select/clear fences a superseded disk load.
+
+    ``request`` is the window asked for when ``spec`` is wider -- the Massive stock-day that holds it -- and
+    decides where the playhead goes (``_place_massive_playhead``).
+    """
     global _selection, _generation
     from sim import replay, session_clock
     with _lock:
@@ -223,17 +229,43 @@ def select(spec: dict):
             # Another source for the same hours is another tape: the account starts over too.
             same_window = previous is not None and all(
                 previous.get(key) == spec.get(key) for key in ('symbol', 'date', 'start', 'end', 'source'))
+            # Where the operator put the playhead, before the window changes under it (None: the wall clock's).
+            placed = session_clock.now_et() if session_clock.placed() else None
             replay.clear_capture()
             history_depth.clear()
             history_sides.clear()
             _selection = loaded
             session_clock.set_session_date(spec['date'])
             session_clock.set_window(spec['start'], spec['end'])
-            if not same_window:
+            if is_massive(spec):
+                _place_massive_playhead(spec, request or spec, previous, same_window, placed)
+            elif not same_window:
                 session_clock.scrub_to_second(0)
                 # Another day (or window): the account starts over at its playhead.
                 _scratch_account_starts_over("another historical window selected")
             return dict(loaded.spec)
+
+
+def _place_massive_playhead(spec: dict, asked: dict, previous: dict | None, same_window: bool, placed) -> None:
+    """A load from the files keeps the playhead where the operator placed it on that day inside both the window
+    asked for and the one loaded (ADR 046 amendment 2026-10-09: a stock-day's import moved WFF's from 10:05 to
+    09:15); otherwise it goes to the start of the window asked for. Widening the same symbol-day under a playhead
+    that stays keeps the practice account; any other new window starts it over, as before."""
+    from sim import session_clock
+
+    stays = placed is not None and placed.date().isoformat() == spec['date'] and (
+        max(spec['start_ts'], asked['start_ts']) <= placed.timestamp() <= min(spec['end_ts'], asked['end_ts']))
+    same_day = previous is not None and all(previous.get(key) == spec.get(key) for key in ('symbol', 'date', 'source'))
+    if stays:
+        if not same_window:
+            session_clock.scrub_to_second(placed.timestamp() - spec['start_ts'])
+        if not same_day:
+            _scratch_account_starts_over("another historical window selected")
+    elif not same_window or placed is not None:
+        # A re-select of the loaded window under the wall clock's playhead moves nothing (the quiet fold-in).
+        session_clock.scrub_to_second(max(0.0, asked['start_ts'] - spec['start_ts']))
+        if not same_window:
+            _scratch_account_starts_over("another historical window selected")
 
 
 def bars(symbol: str, timeframe: str, limit: int, now: datetime):
