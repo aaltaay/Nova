@@ -169,7 +169,8 @@ def test_which_prints_set_a_price():
 def test_an_import_keeps_the_window_its_bars_and_the_opening_quote(root):
     spec, job = _imported()
     assert job["status"] == "complete" and job["quote_status"] == "complete"
-    assert job["count"] == 5 and job["bar_count"] == 2 and job["quote_count"] == 4
+    assert job["count"] == 5 and job["bar_count"] == 4 and job["quote_count"] == 4   # the day's bars, not the window's
+    assert job["minutes_scope"] == "day"
     assert job["ranges"] == [[spec["start_ts"], spec["end_ts"]]] and job["volume"] == 400
     prints = massive_store.read_prints(job["id"], "IMCC")
     assert [p["sequence"] for p in prints] == [2, 3, 4, 5, 7]
@@ -177,7 +178,7 @@ def test_an_import_keeps_the_window_its_bars_and_the_opening_quote(root):
     assert prints[0]["ts"] == _sec("09:30:00") + 0.1 and prints[0]["ns"] == _ns("09:30:00", 100)
     quotes = massive_store.read_quotes(job["id"])
     assert quotes[0][0] == _sec("09:29:59") and quotes[2][1] is None   # the opening quote; an empty bid side
-    assert [c["o"] for c in massive_store.read_candles(job["id"])] == [10.0, 10.01]
+    assert [c["o"] for c in massive_store.read_candles(job["id"])] == [9.9, 10.0, 10.01, 10.2]
 
 
 def test_a_day_whose_quotes_are_not_on_disk_imports_again_when_they_arrive(root):
@@ -335,7 +336,42 @@ def test_a_massive_window_draws_its_own_bars_never_the_ibkr_chart_store(root, mo
     spec, _job = _imported()
     playback.select(spec)
     archive = playback._selection.candles.archive("IMCC", "1Min")
-    assert [row["o"] for _ts, row in archive] == [10.0, 10.01]
+    # The day before the window is drawn from the files too; nothing past the window's end.
+    assert [row["o"] for _ts, row in archive] == [9.9, 10.0, 10.01]
+
+
+def test_the_day_before_the_window_is_drawn_never_past_the_playhead(root, monkeypatch):
+    from sim import chart_replay
+
+    spec, _job = _imported()
+    playback.select(spec)
+    early = playback.bars("IMCC", "1Min", 50, datetime.fromtimestamp(_sec("09:30:00") + 0.05, ET))
+    assert [bar["o"] for bar in early] == [9.9]                  # 09:29, before the window; 09:30 not reached
+    _at(monkeypatch, "09:30:00", 50)
+    labelled = chart_replay.fetch_replay_bars("IMCC", "1Min", 50)
+    assert labelled["source"] == "massive"
+
+
+def test_a_window_imported_with_only_its_own_bars_is_imported_again_for_the_day(root):
+    spec, job = _imported()
+    old = massive_store.update(job["id"], minutes_scope=None)
+    assert massive_import.wants_import(old, massive_import.availability(DAY)) is True
+    done = massive_store.update(job["id"], minutes_scope="day")
+    assert massive_import.wants_import(done, massive_import.availability(DAY)) is False
+
+
+def test_gap_reads_the_windows_own_0930_bar_never_the_ibkr_chart_store(root, monkeypatch):
+    import bars_store
+
+    def refused(*_a, **_k):
+        raise AssertionError("the IBKR chart store must not stand in under a Massive tape")
+    monkeypatch.setattr(bars_store, "read", refused)
+    window = history_store.window("IMCC", DAY, "09:45", "10:00")    # the window does not hold 09:30
+    spec = massive_import.spec(window)
+    job = massive_store.save(dict(massive_store.new_job(spec), status="running"))
+    massive_import.run(job["id"])
+    playback.select(spec)
+    assert playback._selection.session_open == (_sec("09:30:00"), 10.0)
 
 
 def test_a_window_before_its_import_completes_is_empty_not_ibkr(root):
@@ -406,13 +442,36 @@ def test_loading_again_once_the_quotes_arrive_adds_them_while_the_window_keeps_p
     assert massive_import.wants_import(massive_store.find(spec), massive_import.availability(DAY)) is False
 
 
-def test_auto_keeps_a_window_already_downloaded_from_ibkr(client):
+def test_auto_puts_the_massive_files_over_a_window_already_downloaded_from_ibkr(client):
+    """Operator, 2026-10-09: the files carry the whole tape and the bid and ask; an IBKR copy of the
+    same hours no longer wins just because it was downloaded first."""
     window = _window()
     history_store.create(window, "trades")
+    body = dict(symbol="IMCC", date=DAY, start="09:30", end="10:00")
+    selected = client.post("/api/sim/history/select", json=body).json()
+    assert selected["source"] == "massive"
+    assert _wait_complete(massive_import.spec(window))["status"] == "complete"
+    again = client.post("/api/sim/history/select", json=body).json()
+    assert again["source"] == "massive" and again["trade_count"] == 5 and again["quote_status"] == "complete"
+
+
+def test_auto_plays_the_ibkr_download_when_the_files_import_of_it_failed(client):
+    window = _window()
+    history_store.create(window, "trades")
+    spec = massive_import.spec(window)
+    massive_store.save(dict(massive_store.new_job(spec), status="failed", error="Replay exceeds 500,000 prints"))
     selected = client.post("/api/sim/history/select",
                            json=dict(symbol="IMCC", date=DAY, start="09:30", end="10:00")).json()
     assert selected["source"] == "ibkr_historical"
-    assert massive_store.find(massive_import.spec(window)) is None
+    assert massive_store.find(spec)["status"] == "failed"          # not started again behind the download
+
+
+def test_auto_keeps_an_ibkr_download_of_a_day_the_files_do_not_hold(client):
+    window = history_store.window("IMCC", "2026-09-17", "09:30", "10:00")
+    history_store.create(window, "trades")
+    selected = client.post("/api/sim/history/select",
+                           json=dict(symbol="IMCC", date="2026-09-17", start="09:30", end="10:00")).json()
+    assert selected["source"] == "ibkr_historical"
 
 
 def test_the_days_on_disk_are_listed_for_the_calendar(client):

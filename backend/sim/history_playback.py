@@ -203,7 +203,7 @@ def _build(spec: dict, rows: list[dict], ranges: list, status: str, job_id: str 
     return Selection(selected, prints, array('d', (row['ts'] for row in rows)), eligible,
                      eligible_keys, volumes, highs, lows, previous_close(spec['symbol'], spec['date']),
                      CandleCache(selected, prints, eligible, eligible_keys, minutes=minutes),
-                     _session_open(selected, eligible, eligible_keys, ranges), quotes)
+                     _session_open(selected, eligible, eligible_keys, ranges, minutes), quotes)
 
 
 def select(spec: dict):

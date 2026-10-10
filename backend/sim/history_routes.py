@@ -4,8 +4,8 @@ Two sources fill a historical window (ADR 046): an IBKR download (paced, trades 
 candles) and an import from the operator's Massive flat files (trades, 1-minute bars
 and the NBBO). ``source`` on a request is ``auto`` by default: a download or a
 selection takes the Massive files when the day's trades file is on disk, and an
-IBKR download otherwise; a selection keeps a window already downloaded from IBKR
-when no Massive import of it exists. ``ibkr`` / ``massive`` force one.
+IBKR download otherwise -- even over a window already downloaded from IBKR, which
+plays only when the files' import of it failed. ``ibkr`` / ``massive`` force one.
 """
 import json
 import logging
@@ -105,19 +105,33 @@ def begin(body: Window):
     return checked(lambda: _begin(body))
 
 
+def _import_failed(job: dict | None) -> bool:
+    return job is not None and massive_import.effective_status(job) == "failed"
+
+
 def _select_spec(body: Window) -> dict:
-    """The window to load, from the source the request names or ``auto`` picks."""
+    """The window to load, from the source the request names or ``auto`` picks.
+
+    ``auto`` puts the Massive files first (operator, 2026-10-09: "shouldn't we have
+    prioritized it over ibkr data?"): an import of the window, or the day's files on
+    disk, win over an IBKR download of the same hours -- the files carry the whole
+    tape and the bid and ask, the download neither. An IBKR download plays only when
+    the files hold neither the window nor the day, or their import of it failed.
+    """
     window = body.spec()
     if body.source == "ibkr":
         return window
     massive = massive_import.spec(window)
     if body.source == "massive":
         return massive
-    if massive_store.find(massive) is not None:
+    imported = massive_store.find(massive)
+    if imported is not None and imported.get("ranges"):
         return massive
-    if store.find(window, "trades") is not None:
+    if store.find(window, "trades") is not None and (_import_failed(imported) or not _massive_available(window)):
         return window
-    return massive if _massive_available(window) else window
+    if imported is not None or _massive_available(window):
+        return massive
+    return window
 
 
 def _select(body: Window):

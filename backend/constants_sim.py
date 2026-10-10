@@ -196,6 +196,14 @@ SIM_HISTORY_SOURCES = ("auto", "ibkr", SIM_MASSIVE_SOURCE)
 SIM_MASSIVE_TRADES = "trades_v1"
 SIM_MASSIVE_QUOTES = "quotes_v1"
 SIM_MASSIVE_MINUTES = "minute_aggs_v1"
+# One small file per day, every ticker's day bar (about 0.3 MB): the prior session's close for a
+# replay no recording, board or IBKR download answers (operator, 2026-10-09).
+SIM_MASSIVE_DAYS = "day_aggs_v1"
+# Day files whose closes are held in memory at once (each about 12,000 tickers).
+SIM_MASSIVE_DAY_CLOSE_CACHE = 8
+# An import's ``minutes_scope``: it kept the ticker's whole day of 1-minute bars. A window imported
+# before (only its own minutes) is imported again on its next load, and keeps playing meanwhile.
+SIM_MASSIVE_MINUTES_SCOPE_DAY = "day"
 # Imported windows live beside the files they came from (operator 2026-10-05:
 # everything from Massive stays on E:), in their own store and schema.
 SIM_MASSIVE_STORE_SUBDIR = "sim"

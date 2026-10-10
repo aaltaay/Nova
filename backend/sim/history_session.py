@@ -9,8 +9,10 @@ window's off as the day's.
 
 ``session_open`` is the regular session's opening print (09:30 ET): the first
 reported print at or after 09:30:00 inside the downloaded range that covers
-09:30:00 -- or, when that stretch was not downloaded, the stored 1-minute bar
-that starts at 09:30 (the bar store the charts fill). ``stats_scope`` is
+09:30:00 -- or, when that stretch was not downloaded, the 1-minute bar that
+starts at 09:30: a Massive window's own (it holds the day's bars, and the IBKR
+chart store never stands in under a Massive tape, ADR 046), else the stored one
+(the bar store the charts fill). ``stats_scope`` is
 ``"session"`` only when the figures really are the day's so far: the window
 starts at the session start (04:00 ET) and the playhead's trades are unbroken
 from there; otherwise ``"window"``.
@@ -55,13 +57,28 @@ def _stored_open_bar(symbol: str, open_ts: float) -> tuple[float, float] | None:
     return None
 
 
+def _own_open_bar(minutes: Sequence[dict[str, Any]], open_ts: float) -> tuple[float, float] | None:
+    """A Massive window's own 1-minute bar that starts at the open, as ``(ts, open price)``."""
+    for row in minutes:
+        try:
+            if abs(datetime.fromisoformat(str(row["t"]).replace("Z", "+00:00")).timestamp() - open_ts) < 1:
+                return float(open_ts), float(row["o"])
+        except (KeyError, TypeError, ValueError):
+            continue
+    return None
+
+
 def session_open(
     spec: dict[str, Any],
     eligible: Sequence[dict[str, Any]],
     eligible_keys: Sequence[int],
     ranges: Sequence[Sequence[int]],
+    minutes: Sequence[dict[str, Any]] | None = None,
 ) -> tuple[float, float] | None:
-    """``(ts, price)`` of the regular session's opening print, or None when it is not known."""
+    """``(ts, price)`` of the regular session's opening print, or None when it is not known.
+
+    ``minutes`` is a Massive window's own day of 1-minute bars: given, it is the only fallback.
+    """
     open_ts = et_ts(spec["date"], SIM_HISTORY_SESSION_OPEN_HHMM)
     covering = coverage.range_at(ranges or [], int(open_ts))
     if covering is not None:
@@ -70,6 +87,8 @@ def session_open(
         # later range's first print could follow trades nobody downloaded.
         if i < len(eligible) and eligible_keys[i] < covering[1]:
             return float(eligible_keys[i]), float(eligible[i]["price"])
+    if minutes is not None:
+        return _own_open_bar(minutes, open_ts)
     return _stored_open_bar(str(spec["symbol"]), open_ts)
 
 
