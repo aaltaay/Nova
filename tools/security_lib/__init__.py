@@ -1,1 +1,1 @@
-"""Nova security audit library — normalize, registry, redact, checks."""
+"""Nova security audit library — normalize, registry, redact, checks, alert inbox decisions."""

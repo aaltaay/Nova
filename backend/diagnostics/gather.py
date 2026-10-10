@@ -38,6 +38,7 @@ from diagnostics import (
     collect_order_events,
     collect_perf,
     collect_priority,
+    collect_request_guard,
     collect_screen_record,
     collect_tape_archive,
     process_info,
@@ -320,6 +321,12 @@ def _priority_view() -> dict[str, Any]:
     return trading_path.view()
 
 
+def _refusals_snapshot() -> dict[str, Any]:
+    from request_guard import recent_refusals
+
+    return recent_refusals.snapshot()
+
+
 def _freeze_status() -> dict[str, Any]:
     from perf import freeze_watch
 
@@ -336,6 +343,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
                   lambda: collect_data_root.data_folder_rows(**_data_folder_inputs()))
     rows += _safe(DIAG_GROUP_PROCESS, "process_priority", "Trading path priority",
                   lambda: collect_priority.priority_rows(view=_priority_view()))
+    rows += _safe(DIAG_GROUP_PROCESS, collect_request_guard.ROW_ID, collect_request_guard.ROW_TITLE,
+                  lambda: collect_request_guard.refusal_rows(snapshot=_refusals_snapshot(), now=ts))
     rows += collect.integration_rows(env_file=facts["env_file"])
     rows += _safe(DIAG_GROUP_GATEWAY, "gateway", "Gateway", lambda: collect_gateway.gateway_rows(**_gateway_inputs()))
     rows += _safe(DIAG_GROUP_GATEWAY, "ibkr_unclaimed", "IBKR events Nova did not send",

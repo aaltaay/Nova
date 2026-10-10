@@ -37,6 +37,12 @@ ISSUE_REPORT_LOG_LINE_MAX = 500                  # characters of one record kept
 ISSUE_REPORT_DUMP_MAX_CHARS = 200_000
 # The diagnostics groups whose evidence is about this PC (paths, key names), not the desk's state.
 ISSUE_REPORT_PRIVATE_EVIDENCE_GROUPS = ("process", "integrations")
+# Engine-log lines that quote what a sender chose -- the request guard's refused Host names and
+# page origins (#828), a site the operator had open: the dump keeps this line and the count, never the text.
+ISSUE_REPORT_SENDER_TEXT_LOGGERS: dict[str, str] = {
+    "request_guard.middleware": ("request guard: refused a request or socket (the refused value stays "
+                                 "on the desk: Pages and names the API refused)"),
+}
 ISSUE_REPORT_DRAFT_TTL_SEC = 1800.0              # a draft's dump stays filable this long
 ISSUE_REPORT_DRAFTS_KEEP = 8
 ISSUE_REPORT_DUMP_DIR = "issue_dumps"            # under the operator cache: a copy of every dump

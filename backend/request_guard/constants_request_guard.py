@@ -68,3 +68,25 @@ WS_CLOSE_REASON_ORIGIN = "Origin not allowed: add it to NOVA_CORS_ALLOWED_ORIGIN
 REFUSAL_LOG_WINDOW_SEC = 60.0
 REFUSAL_LOG_KEYS_MAX = 256
 LOGGED_VALUE_MAX_CHARS = 200
+
+# The recent refusals the desk diagnostics row reads (recent_refusals.py, #828 item 1):
+# one entry per refused (kind, header, value), the least recently seen dropped past
+# the cap, so values an attacker varies cannot grow memory. Values and paths are cut
+# to LOGGED_VALUE_MAX_CHARS, as in the log.
+RECENT_REFUSALS_MAX = 32
+
+# The diagnostics row (diagnostics/collect_request_guard.py): yellow while the latest
+# refusal is this recent, then back to OK with "last refused N min ago", so one probe
+# does not keep the desk yellow all day.
+REFUSAL_DIAG_RECENT_SEC = 15 * 60
+# The row names refused values only in its fix, never in its detail or cause, which
+# an issue filed from the desk copies into a public page. The fix names the latest
+# value of each kind of refusal, then at most this many others, most recent first;
+# the rest are counted.
+REFUSAL_DIAG_VALUES_SHOWN = 3
+# A refused value is attacker-controlled text: the fix shows this much of it,
+# its unprintable characters as "?". The evidence keeps the stored value.
+REFUSAL_DIAG_VALUE_SHOWN_MAX_CHARS = 60
+# Named in the row's fix for a Host refusal: a Host name opened to another machine
+# also needs the API on that interface and a key on its writes (auth.py reads it).
+API_KEY_ENV = "NOVA_API_KEY"

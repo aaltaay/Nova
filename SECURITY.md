@@ -49,4 +49,5 @@ No GitHub personal access tokens, OpenAI keys, Finnhub keys, R2 secrets, or IBKR
 - [`security/findings-registry.json`](security/findings-registry.json) -- SEC-001 through SEC-008
 - [`security/tooling.md`](security/tooling.md) -- pip-audit, Semgrep, Gitleaks, OSV-Scanner
 - [`tools/security_audit.py`](tools/security_audit.py) -- local audit helper
+- [`tools/security_alert_inbox.py`](tools/security_alert_inbox.py) -- every hour, each open high or critical code scanning or Dependabot alert gets a backlog issue (P1 for critical, P2 for high, in `00 - Untriaged`), and that issue closes itself when the alert is fixed or dismissed. The issue links the alert and never repeats its details, because this repository is public. Details: [`security/tooling.md`](security/tooling.md), section 8.
 - CI runs Gitleaks, OSV-Scanner, Semgrep, and the builtin audit on every pull request

@@ -29,6 +29,7 @@ from request_guard.constants_request_guard import (
     WS_POLICY_VIOLATION,
     WS_REFUSED_HTTP_STATUS,
 )
+from request_guard import recent_refusals
 from request_guard.policy import GuardPolicy, Refusal, check_request
 
 logger = logging.getLogger(__name__)
@@ -119,5 +120,8 @@ class RequestGuardMiddleware:
         if refusal is None:
             await self.app(scope, receive, send)
             return
-        self.refusals.note(kind, scope.get("path", ""), refusal)
+        path = scope.get("path", "")
+        self.refusals.note(kind, path, refusal)
+        # The desk's diagnostics row (#828): every refusal, not only the ones the log prints.
+        recent_refusals.record(kind, path, refusal)
         await _refuse(scope, receive, send, refusal)

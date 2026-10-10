@@ -15,11 +15,13 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 
 - **State:** `[x]` SEC-001–SEC-011 remediated (SEC-009–011 on 2026-10-09) — registry statuses `fixed`
 - **GitHub alerts:** CodeQL and Dependabot alerts live on the repo's Security tab, not here. 2026-10-09: all 70 open alerts triaged — 13 CodeQL and 2 Dependabot fixed in one PR, the rest dismissed on GitHub with a written reason (46 error-text alerts: the desk shows the reason on screen by design and the API is loopback-only)
+- **Alert inbox:** `.github/workflows/security-alert-inbox.yml` (hourly, `tools/security_alert_inbox.py`) files every open high/critical alert on `master` as an issue in `00 - Untriaged` (critical = P1, high = P2; link only, no details: the repo is public) and closes it when the alert is fixed or dismissed (#828 item 3)
+- **Refusals on the desk:** the diagnostics row `api_refusals` shows Host names and page origins the request guard refused; values are named only in its fix line, never in what an issue report copies (#828 item 1)
 - **CI:** `security-audit` + `gitleaks` + `osv-scanner` + `semgrep` jobs (warning-only; `continue-on-error: true`)
 - **Baseline:** first captured 2026-07-16; remediations 2026-07-18
 - **Blocking status:** no security gate blocks deploys yet (intentional; warning-first)
 - **`auto_live`:** **NO-GO** — unchanged; no security work affects this gate
-- **Last updated:** 2026-10-09
+- **Last updated:** 2026-10-10
 - **Visibility:** public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
 - **Master branch:** `[x]` Protected 2026-09-11 (issue #63 / D-041). Force-push and deletion blocked, including admins. Required checks: `Backend tests`, `Frontend build`, `Frontend E2E`, `Agent contract`. No required reviews. Cloud Agent `check` reads the public branch summary when GET `/protection` is 403.
 
@@ -110,6 +112,7 @@ See `security/tooling.md` for commands and Windows setup.
 
 | Date | Entry |
 |------|-------|
+| 2026-10-10 | #828 items 1 and 3: hourly security alert inbox into the backlog; request-guard refusals shown in desk diagnostics (`api_refusals`). |
 | 2026-10-09 | GitHub Security tab had 70 open alerts while this ledger said clean. Triaged all; fixed the real ones (SEC-009–011 + 13 CodeQL + 2 Dependabot), dismissed the rest with reasons. GitHub alerts are tracked on the Security tab from now on. |
 | 2026-09-11 | Master protection live. Owner applied via `gh api` as aaltaay. #63 / D-041 closed. `check` now uses the public branch summary so App tokens stop reporting `integration_forbidden`. |
 | 2026-09-11 | Source published as `aaltaay/Nova`. Historical Alpaca `.env` keys revoked. `Nova-public` archived private. Master protection still needs `apply` (#63). |

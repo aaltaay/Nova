@@ -42,6 +42,41 @@ old `Get-Process -Name ibgateway` never matched, so at 12:46 that day Nova start
 second Gateway beside the running one and it took over the IBKR login. `ibkr/session_errors.last_error()` is
 `{code, message, ts} | null` for the last IB errorEvent of any code.
 
+**Pages and names the API refused** (#828 item 1). A refused socket shows in a
+browser only as close code 1006, so the `process` group carries the
+`api_refusals` row, read from the request guard's memory
+(`request_guard/recent_refusals.py`). `ok` "Nothing refused since the API
+started"; `warn` while the latest refusal is under `REFUSAL_DIAG_RECENT_SEC`
+(15 min) old, its detail counting the refused values per header and kind, most
+recent first, as `N <page origin(s) | Host name(s) | missing Host name(s)>
+(<request | socket>, N times)` -- never naming one -- and its cause and fix one
+sentence per kind of refusal, the fix naming that kind's latest value: an
+`Origin` that is a page on this PC
+(`http://localhost`, `http://127.0.0.1` or `http://[::1]`, any port) -> add it
+to `NOVA_CORS_ALLOWED_ORIGINS` with the Vite origins, then Reload backend; a
+browser extension (`chrome-extension://`, `moz-extension://`, ...) -> remove it
+if unknown; `null` -> a sandboxed frame or an HTML file opened from disk; any
+other `Origin` -> a web page in a browser on this PC, close that tab; a `Host`
+-> add it to `NOVA_ALLOWED_HOSTS` (with `NOVA_API_HOST` and `NOVA_API_KEY`) if
+that is you from another machine, otherwise it was refused on purpose (DNS
+rebinding). The fix then names up to three more values the sentences did not
+(`Also refused: <Host | Origin> <value> (<request | socket>, N times), ..., and N
+more.`). After the window the row is `ok` again with "last refused N min ago:
+1 <noun> (...)" and the fix "Nothing to do. Last refused: <Host | Origin>
+<value> (...).", so one probe does not keep the desk yellow all day. `evidence` is the
+snapshot: `refusals: [{kind: "http" | "websocket", header: "Host" | "Origin",
+value, reason, count, first_at, last_at, last_path}]` newest first (wall-clock
+seconds; value and path cut to 200 characters), `refused_total`,
+`dropped_values`, `max_values` (32) and `recent_window_sec`. Refused values are
+the sender's text -- a site the operator had open, or a name an attacker chose --
+so only the fix names them, at most 60 characters of one, unprintable characters
+as `?`; the desk renders every field as text. An issue filed from the desk
+prints a row's detail and cause, never its fix or a `process` row's evidence
+(see "Public-safe by construction"), so a refused value never reaches GitHub. A `warn`
+row is listed under "Needs attention" at the top of the Trading prerequisites
+panel; the panel reads the checklist only while it is open, and a refusal does
+not open it.
+
 ## Which backend answers (operator report, 2026-09-24)
 
 `GET /api/health` adds `release_tag: string | null` -- the revision (`vNNN`)
@@ -350,7 +385,11 @@ drive, the cache, the logs and the home folder become `<repo>` / `<data>` /
 `<cache>` / `<logs>` / `<home>`, any other path `<path>`), the Windows user
 and machine names, e-mail and IP addresses (loopback stays). Evidence fields
 that name paths, files, folders, environment keys or monitor labels are
-dropped, and the process and integrations checks carry no evidence. The dump
+dropped, and the process and integrations checks carry no evidence. Engine-log
+lines that quote what a sender chose (`ISSUE_REPORT_SENDER_TEXT_LOGGERS`: the
+request guard's refusals, `request_guard.middleware`) keep their logger, time
+and count with a fixed message in place of the text, so a refused Host name or
+page origin stays on the desk (#828). The dump
 (`issue_report/dump.py`, schema 1, text): a summary, every diagnostics row with
 its state, detail, cause, since and evidence, the engine log's latest
 `ISSUE_REPORT_LOG_RECORDS` (50) distinct warnings and errors (repeats folded,
@@ -500,6 +539,13 @@ header and value per 60 s (`REFUSAL_LOG_WINDOW_SEC`); the next line for that
 value adds `; N more since HH:MM:SS`. Values are cut to 200 characters and
 printed escaped. At start one INFO line lists the allowed names and socket
 origins, and a WARNING names each setting that was ignored or is unsafe.
+
+**The desk shows them too** (#828 item 1): every refusal, not only the ones the
+log prints, is counted in memory per kind, header and value (the 32 most
+recently seen values; counts since the API started) and read by the
+diagnostics row `api_refusals`, "Pages and names the API refused" (see "Desk
+diagnostics" above). An issue filed from the desk keeps these log lines without
+their values (see "Public-safe by construction").
 
 The policy is read once, when `main.py` builds the app; a change to `.env`
 needs an API restart. The bot and agent routes keep their own loopback checks
