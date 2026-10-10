@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import bisect
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -84,5 +85,12 @@ def recording_here(root: Path) -> bool:
         logger.warning("CAPTURE PLAY: recorder status unavailable; an open segment ends at its last write",
                        exc_info=True)
         return False
-    return any(isinstance(row, dict) and row.get("recording") and row.get("dir") == str(root)
-               for row in sessions.values())
+    # The loaders name the folder through ``capture.storage.session_path`` (normalized); the
+    # recorder joins it from the root as configured. Compare the two the same way.
+    here = _path_key(root)
+    return any(isinstance(row, dict) and row.get("recording") and row.get("dir")
+               and _path_key(row["dir"]) == here for row in sessions.values())
+
+
+def _path_key(path: Path | str) -> str:
+    return os.path.normcase(os.path.normpath(str(path)))

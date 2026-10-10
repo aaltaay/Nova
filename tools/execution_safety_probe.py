@@ -34,6 +34,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 RULE = "-" * 74
+# The request guard (backend/request_guard/) answers only to the API's own Host
+# names. TestClient's default Host is "testserver", which it refuses with 400
+# HOST_NOT_ALLOWED, so the probe sends a loopback Host. TestClient stays
+# in-process: nothing is sent to a running API on this name.
+PROBE_BASE_URL = "http://127.0.0.1"
 
 
 def _pin_isolated_env() -> Path:
@@ -230,7 +235,7 @@ def main() -> int:
                 },
             ), \
             patch.object(account_mod, "get_positions", lambda: []), \
-            TestClient(app) as client:
+            TestClient(app, base_url=PROBE_BASE_URL) as client:
         client_mod._enabled = True
         kill_switch.reset_for_tests()
         # ADR 018: a process never starts armed; the operator's padlock arms it.

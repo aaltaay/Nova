@@ -164,10 +164,73 @@
       "acceptance_rationale": "alerts/webhook_url.py validates https + blocks private/link-local/metadata; enforced on create/send.",
       "review_by": "2026-07-18 remediation",
       "evidence_commit": ""
+    },
+    {
+      "id": "SEC-009",
+      "fingerprint": "28e973fd86eacf73b57579871e8189e242d182520bd4982394fd2918599663ae",
+      "status": "fixed",
+      "severity": "high",
+      "title": "API answers any Host header (DNS rebinding)",
+      "detail": "The API answered a request carrying Host: evil.example:8000 with 200. A web page that points its own name at 127.0.0.1 (DNS rebinding) becomes same-origin with the API and can read every GET route: positions, orders, account, bot state. Mutating routes already needed NOVA_API_KEY.",
+      "location": "backend/app_lifespan.py:configure_cors",
+      "source": "manual-triage",
+      "first_seen": "2026-10-09",
+      "last_seen": "2026-10-09",
+      "redacted_evidence": "curl -H \"Host: evil.example:8000\" http://127.0.0.1:8000/api/health -> 200",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:N/A:N",
+      "cvss_score": 5.3,
+      "cwe": "CWE-350",
+      "asvs": "V14.5.3",
+      "compensating_controls": "Loopback bind; NOVA_API_KEY set on the desk, so writes needed the key.",
+      "acceptance_rationale": "backend/request_guard/ refuses any Host outside 127.x, localhost, ::1, the bind host and NOVA_ALLOWED_HOSTS on HTTP (400 HOST_NOT_ALLOWED) and WebSocket (403).",
+      "review_by": "2026-10-09 remediation",
+      "evidence_commit": ""
+    },
+    {
+      "id": "SEC-010",
+      "fingerprint": "fab9226851480b1cad84e110c82dae8e2c16c64fb1ef7303f1b6c3eaca4c6922",
+      "status": "fixed",
+      "severity": "high",
+      "title": "WebSockets accept any Origin",
+      "detail": "No /ws/* route checked Origin, and CORS does not apply to WebSockets, so any web page open on the desk PC could stream /ws/bot/audit, /ws/ibkr/depth, /ws/scanner and the rest.",
+      "location": "backend/routes/bot_ws.py:24",
+      "source": "manual-triage",
+      "first_seen": "2026-10-09",
+      "last_seen": "2026-10-09",
+      "redacted_evidence": "grep: no Origin check on any @websocket route",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N",
+      "cvss_score": 4.3,
+      "cwe": "CWE-1385",
+      "asvs": "V13.5.2",
+      "compensating_controls": "Sockets stream data; no inbound socket message places orders.",
+      "acceptance_rationale": "backend/request_guard/ refuses a socket whose Origin is not in the CORS list or the packaged desk (file://, measured on Electron 41.10.6); null and * never pass; no Origin (tools) passes.",
+      "review_by": "2026-10-09 remediation",
+      "evidence_commit": ""
+    },
+    {
+      "id": "SEC-011",
+      "fingerprint": "45fa2d1f6c9d8cf67839743621e46055a68ec8ca5ebe75b52407aea7389827c5",
+      "status": "fixed",
+      "severity": "high",
+      "title": "Replay and backtest date/symbol reach file paths unchecked",
+      "detail": "POST /api/sim/replay and POST /api/eyes/backtests built a capture folder from the request date and symbol with no format check; on Windows a parent-folder symbol, a drive letter or a UNC share loaded a recording from outside the capture root (reproduced). CodeQL py/path-injection #12-#17, #23-#25, #108.",
+      "location": "backend/sim/capture_player.py:session_dir",
+      "source": "manual-triage",
+      "first_seen": "2026-10-09",
+      "last_seen": "2026-10-09",
+      "redacted_evidence": "a crafted parent-folder symbol resolved outside the capture root and read prints.jsonl",
+      "cvss_vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+      "cvss_score": 4.0,
+      "cwe": "CWE-22",
+      "asvs": "V12.3.1",
+      "compensating_controls": "Loopback bind; files read must parse as Session Record JSONL.",
+      "acceptance_rationale": "capture.storage.session_path checks the date and ticker format, normalizes and requires the path under the root; every caller reports the refusal reason.",
+      "review_by": "2026-10-09 remediation",
+      "evidence_commit": ""
     }
   ],
-  "next_id": 9,
-  "updated": "2026-07-18",
+  "next_id": 12,
+  "updated": "2026-10-09",
   "scan_runs": [
     {
       "run_id": "reaudit-verify-2026-07-18",
@@ -311,6 +374,23 @@
         "SEC-005"
       ],
       "summary": "1 new, 6 updated, 6 tool(s) blocked"
+    },
+    {
+      "run_id": "github-alerts-triage-2026-10-09",
+      "date": "2026-10-09",
+      "tools": [
+        "codeql",
+        "dependabot",
+        "manual-triage"
+      ],
+      "blocked_tools": [],
+      "new_findings": [
+        "SEC-009",
+        "SEC-010",
+        "SEC-011"
+      ],
+      "updated_findings": [],
+      "summary": "70 GitHub alerts triaged (67 CodeQL, 3 Dependabot): 13 CodeQL and 2 Dependabot fixed, the rest dismissed with reasons; 3 manual findings fixed"
     }
   ]
 }

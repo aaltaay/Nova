@@ -1,6 +1,6 @@
 # Data schema: Desk operations: diagnostics, data folders, updates, issues, small desk features
 
-Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: backend/diagnostics/, backend/issue_report/, frontend/electron/. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
+Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: backend/diagnostics/, backend/issue_report/, backend/request_guard/, frontend/electron/. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
 
 ## Desk diagnostics (ADR 021)
 
@@ -446,3 +446,61 @@ calendar on the client. `localStorage` `nova.closeReminder.fired` (a `prefStore`
 version is ignored. On Live the rows may be last-known (the Gateway dropped) and the card says so.
 Nothing here places, stages or cancels an order.
 
+
+## Who may reach the API: Host names and socket origins (security alerts, 2026-10-09)
+
+Owner `backend/request_guard/`, a pure ASGI middleware that sees every HTTP
+request and every WebSocket handshake. It sits inside CORS and the HTTP timing
+and outside the API key and the routes: CORS -> timing -> guard -> API key ->
+routes. A refused request reaches no route.
+
+**Host names (HTTP and WebSocket).** A request needs exactly one `Host`
+header, and its name -- port ignored, case folded, a trailing dot dropped,
+`[::1]` read as `::1` -- must be `127.0.0.1` (or any `127.x` address),
+`localhost`, `::1`, the bind host `NOVA_API_HOST` when it is a name or address
+(a wildcard such as `0.0.0.0` never is, and the API says so at start), or a
+name in `NOVA_ALLOWED_HOSTS` (comma-separated, a port ignored). This stops DNS
+rebinding: a web page that points its own name at 127.0.0.1 still sends its own
+name. `NOVA_ALLOWED_HOSTS=*` turns the check off, with a WARNING at every start;
+it is a way out, not a setting.
+
+**Socket origins (WebSocket only).** A handshake with no `Origin` passes: only
+non-browser clients (Python, Node, bot brains, tools, tests) send none. One
+`Origin` must be in the CORS list (`NOVA_CORS_ALLOWED_ORIGINS`, else
+`http://localhost:5173` and `http://127.0.0.1:5173`) or be `file://`, the
+packaged desk. Two `Origin` headers, `null` and `*` are always refused, even when
+the CORS list names them. A CORS list holding `*` lets every page's fetches
+through, so sockets take the two Vite origins in its place (with a WARNING at
+start): the browser desk keeps its feeds, and no other page gets them. Origins
+compare exactly, case folded. HTTP origins are
+left to CORS and the API key: the packaged desk sends none on its fetches.
+
+**What the desk sends (measured 2026-10-09, Electron 41.10.6 / Chromium 146,
+a sandboxed window loading its page with `loadFile`):** its sockets send
+`Origin: file://`; its fetches send no `Origin` and `Sec-Fetch-Site: cross-site`
+and read answers that carry no CORS header. Chrome sends `null` for a local file,
+so no web page can send `file://`. The browser desk on Vite sends
+`http://127.0.0.1:5173` or `http://localhost:5173`; every client addresses
+`127.0.0.1:8000` (or `localhost:8000`).
+
+**Refusals say why.** HTTP: status 400,
+`{"detail": "Nova's API does not answer to this Host name. ...add the name to
+NOVA_ALLOWED_HOSTS in .env and restart the API.", "reason": "HOST_NOT_ALLOWED"}`.
+The body never repeats the Host it refused. WebSocket, before accept: where the
+server can answer the handshake (the ASGI `websocket.http.response` extension;
+uvicorn 0.44 and TestClient), status 403 with the same JSON shape, `reason`
+`HOST_NOT_ALLOWED` or `ORIGIN_NOT_ALLOWED` (that detail names
+`NOVA_CORS_ALLOWED_ORIGINS`); otherwise close code 1008 with "Host not allowed:
+add it to NOVA_ALLOWED_HOSTS" or "Origin not allowed: add it to
+NOVA_CORS_ALLOWED_ORIGINS". A browser sees either as close code 1006.
+
+**The engine log** names every refusal: `request guard: refused <http |
+websocket> '<path>' -- <Host | Origin> '<value>' is not allowed`, once per kind,
+header and value per 60 s (`REFUSAL_LOG_WINDOW_SEC`); the next line for that
+value adds `; N more since HH:MM:SS`. Values are cut to 200 characters and
+printed escaped. At start one INFO line lists the allowed names and socket
+origins, and a WARNING names each setting that was ignored or is unsafe.
+
+The policy is read once, when `main.py` builds the app; a change to `.env`
+needs an API restart. The bot and agent routes keep their own loopback checks
+on the caller's address (`/bot/*`, `/api/bot/*`, `/ws/bot/*`, `/api/agent/*`).

@@ -11,6 +11,16 @@ CAPTURE_BOOK_BATCH_MAX = 100
 CAPTURE_BOOK_BATCH_SEC = 0.2
 # Outside-repo capture root (Windows trading bench). Override with NOVA_SIM_CAPTURE_DIR.
 DEFAULT_SIM_CAPTURE_ROOT_WIN = r"F:\Nova\sim_capture"
+# A Session Record's folder is <capture root>/<YYYY-MM-DD>/<SYMBOL>. Both names arrive
+# in requests (the Sim's replay pick, an eyes backtest), so ``capture.storage.session_path``
+# checks them before they reach the disk (CodeQL path-injection alerts, 2026-10-09). The
+# symbol is a ticker: a letter, then up to eleven letters, digits, dots or hyphens, ending
+# in a letter or digit (AAPL, BRK.B, BF-B). No slash, backslash, colon or space, so no
+# ``..``, drive letter or ``\\host\share`` path. Matched with re.ASCII and fullmatch.
+CAPTURE_DATE_RE = r"\d{4}-\d{2}-\d{2}"
+CAPTURE_SYMBOL_RE = r"[A-Z](?:[A-Z0-9.\-]{0,10}[A-Z0-9])?"
+# How much of a refused date or symbol the refusal repeats back.
+CAPTURE_REFUSED_ECHO_CHARS = 40
 
 # --- Durability / failure handling (D-067, D-068) -----------------------------
 # One jsonl stream per name is opened for the life of a recording session.

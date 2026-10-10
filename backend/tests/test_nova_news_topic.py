@@ -64,3 +64,28 @@ def test_search_feeds_aim_at_ai_trading_not_generic_tape():
     assert "ai+trading" in blobs or "ai+hedge" in blobs
     assert "algorithmic+trading" in blobs
     assert "stock+or+markets+or" not in blobs
+
+
+def test_research_tag_is_a_keyword_hint_never_a_host_check(monkeypatch):
+    """CodeQL alert 50: no "arxiv.org" substring check remains; the tag follows the research keywords.
+
+    The tag only ranks a headline (+6); it never trusts, fetches or redirects to a URL. A crafted
+    host that merely contains "arxiv" ranks like any other mention of the word, and without the
+    keyword no URL, real or crafted, earns the tag.
+    """
+    from nova_news import topic
+
+    crafted = [
+        "https://arxiv.org.evil.example/abs/1",
+        "https://evil.example/?next=arxiv.org",
+        "https://evil-arxiv.org/abs/1",
+        "https://arxiv.org@evil.example/",
+    ]
+    real = "https://arxiv.org/abs/2601.00001"
+    for url in [real, *crafted]:
+        assert "research" in topic.topic_tags("Quant fund note", url=url)
+    assert "research" not in topic.topic_tags("Quant fund note", url="https://example.com/abs/1")
+    monkeypatch.setattr(topic, "NOVA_NEWS_RESEARCH_KEYWORDS", ("preprint",))
+    for url in [real, *crafted]:
+        assert "research" not in topic.topic_tags("Quant fund note", url=url)
+    assert "research" in topic.topic_tags("A preprint on execution", url="https://example.com/")

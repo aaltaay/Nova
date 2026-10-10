@@ -31,7 +31,6 @@ from cache import (
     load_movers_snapshot,
 )
 from constants import (
-    CORS_ALLOWED_ORIGINS_DEFAULT,
     HISTORY_RETENTION_DAYS,
     IBKR_RECONNECT_DELAY_SEC,
 )
@@ -53,6 +52,7 @@ import instance_identity
 import loop_lag as _loop_lag
 from perf import runtime as _perf_runtime
 from metrics.http_middleware import HttpOperationMetricsMiddleware
+from request_guard import configure_request_guard, cors_origins
 
 logger = logging.getLogger(__name__)
 
@@ -69,23 +69,20 @@ def is_bootstrap_complete() -> bool:
 
 
 def configure_cors(app: FastAPI) -> None:
-    """Register the CORS middleware — extracted out of main.py's app factory
-    (see backend-modularity rule) so that file stays under the file-size limit.
+    """Register the edge middleware: CORS, HTTP timing and the request guard.
 
-    Origins default to localhost Vite ports (see CORS_ALLOWED_ORIGINS_DEFAULT);
-    set NOVA_CORS_ALLOWED_ORIGINS (comma-separated) for non-local deploys.
-    allow_credentials stays False (frontend does not send cookies).
+    The last one added runs first, so a request meets CORS, then the timing,
+    then the guard (Host names and socket origins), then the API key that
+    main.py added before this. Inside CORS, a refusal still carries the CORS
+    header and the desk can read why; inside the timing, the guard's cost counts.
+    Origins (request_guard.cors_origins) are NOVA_CORS_ALLOWED_ORIGINS, else the
+    local Vite origins; sockets read the same list. No cookies, so no credentials.
     """
-    origins_env = os.environ.get("NOVA_CORS_ALLOWED_ORIGINS", "").strip()
-    origins = (
-        [o.strip() for o in origins_env.split(",") if o.strip()]
-        if origins_env
-        else CORS_ALLOWED_ORIGINS_DEFAULT
-    )
+    configure_request_guard(app)
     app.add_middleware(HttpOperationMetricsMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=cors_origins(os.environ),
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],

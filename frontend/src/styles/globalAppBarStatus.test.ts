@@ -21,9 +21,12 @@ const css = read('./global-app-bar.css');
 const killCss = read('../components/emergencyKill.css');
 const responsive = read('./global-app-bar-responsive.css');
 
+/** `text` as a regex that matches it literally (every metacharacter escaped). */
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** The declaration block for exactly one selector (or selector list). */
 function block(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escaped = escapeRegExp(selector);
   const match = css.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, 'm'));
   if (!match) throw new Error(`no rule for ${selector}`);
   return match[1];
@@ -97,7 +100,7 @@ describe('global app bar primary row', () => {
       '__gear',
     ]) {
       expect(responsive, `${keep} must survive every breakpoint`).not.toMatch(
-        new RegExp(`${keep.replace(/[-]/g, '\\-')}[^{]*\\{[^}]*display:\\s*none`),
+        new RegExp(`${escapeRegExp(keep)}[^{]*\\{[^}]*display:\\s*none`),
       );
     }
   });

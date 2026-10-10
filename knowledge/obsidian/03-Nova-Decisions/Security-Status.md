@@ -13,12 +13,13 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 
 ## Current position
 
-- **State:** `[x]` SEC-001–SEC-008 remediated (2026-07-18) — builtin checks clean; registry statuses `fixed`
+- **State:** `[x]` SEC-001–SEC-011 remediated (SEC-009–011 on 2026-10-09) — registry statuses `fixed`
+- **GitHub alerts:** CodeQL and Dependabot alerts live on the repo's Security tab, not here. 2026-10-09: all 70 open alerts triaged — 13 CodeQL and 2 Dependabot fixed in one PR, the rest dismissed on GitHub with a written reason (46 error-text alerts: the desk shows the reason on screen by design and the API is loopback-only)
 - **CI:** `security-audit` + `gitleaks` + `osv-scanner` + `semgrep` jobs (warning-only; `continue-on-error: true`)
 - **Baseline:** first captured 2026-07-16; remediations 2026-07-18
 - **Blocking status:** no security gate blocks deploys yet (intentional; warning-first)
 - **`auto_live`:** **NO-GO** — unchanged; no security work affects this gate
-- **Last updated:** 2026-09-11
+- **Last updated:** 2026-10-09
 - **Visibility:** public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
 - **Master branch:** `[x]` Protected 2026-09-11 (issue #63 / D-041). Force-push and deletion blocked, including admins. Required checks: `Backend tests`, `Frontend build`, `Frontend E2E`, `Agent contract`. No required reviews. Cloud Agent `check` reads the public branch summary when GET `/protection` is 403.
 
@@ -41,6 +42,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 
 | Date | Action | Result | SHA / artifact |
 |------|--------|--------|----------------|
+| 2026-10-09 | Triage all 70 GitHub alerts; fix SEC-009–011 | Host allowlist + socket Origin check (`backend/request_guard/`); shared capture path guard (`capture.storage.session_path`); shell-quote 1.12.0, source-map-js 1.2.2; full backend suite 6254 passed; packaged-desk socket origin measured (`file://`, Electron 41.10.6) | registry scan_run `github-alerts-triage-2026-10-09` |
 | 2026-07-18 | Re-audit verify (security subagent) | `run_builtin_checks()=[]`; audit `open_finding_count: 0`; SEC-001–008 stay `fixed`; spot-checks pass; IBKR/`auto_live` gates intact | registry scan_run `reaudit-verify-2026-07-18` · tip `3287641` |
 | 2026-07-18 | Remediate SEC-001–SEC-008 | Builtin checks clean; API key middleware; config mask; webhook SSRF validator; torch optional; CORS localhost; Docker USER; CI scanners | `security/findings-registry.json` statuses → fixed |
 | 2026-07-16 | First baseline audit — `tools/security_audit.py --json --write-registry` | 6 open findings (SEC-001 critical, SEC-002 critical, SEC-003 high, SEC-004 high, SEC-005 medium, SEC-006 medium); compensating controls seeded; findings open intentionally | registry: `security/findings-registry.json` |
@@ -49,7 +51,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 
 ## Open findings
 
-> None open as of 2026-07-18 remediation. Historical rows kept for audit trail (status = fixed).
+> None open as of 2026-10-09. Historical rows kept for audit trail (status = fixed).
 
 | Finding ID | Severity | CVSS | Location | Status | Notes |
 |------------|----------|------|----------|--------|-------|
@@ -61,6 +63,9 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 | SEC-006 | medium | — | `Dockerfile` | fixed | `USER nova` (UID 10001) |
 | SEC-007 | medium | 5.3 | `backend/requirements.txt` | fixed | torch moved to optional `requirements-ml.txt` |
 | SEC-008 | high | 7.2 | `backend/alerts/webhook_url.py` | fixed | https + private-IP / metadata block |
+| SEC-009 | high | 5.3 | `backend/request_guard/` | fixed | Any Host answered (DNS rebinding); now 400 `HOST_NOT_ALLOWED` |
+| SEC-010 | high | 4.3 | `backend/request_guard/` | fixed | Sockets took any Origin; now CORS list + `file://` only |
+| SEC-011 | high | 4.0 | `backend/capture/storage.py` | fixed | Replay/backtest date+symbol reached file paths; format + root check |
 
 ---
 
@@ -105,6 +110,7 @@ See `security/tooling.md` for commands and Windows setup.
 
 | Date | Entry |
 |------|-------|
+| 2026-10-09 | GitHub Security tab had 70 open alerts while this ledger said clean. Triaged all; fixed the real ones (SEC-009–011 + 13 CodeQL + 2 Dependabot), dismissed the rest with reasons. GitHub alerts are tracked on the Security tab from now on. |
 | 2026-09-11 | Master protection live. Owner applied via `gh api` as aaltaay. #63 / D-041 closed. `check` now uses the public branch summary so App tokens stop reporting `integration_forbidden`. |
 | 2026-09-11 | Source published as `aaltaay/Nova`. Historical Alpaca `.env` keys revoked. `Nova-public` archived private. Master protection still needs `apply` (#63). |
 | 2026-09-11 | GitHub Security "master isn't protected." Live `protected: false`. Tool + policy shipped; apply blocked on Administration token + GitHub Pro. Issue #63. |
