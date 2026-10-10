@@ -58,8 +58,11 @@ policy: H.264 cost about half a core in the recorder process and a quarter core 
 (capture), 273 MB an hour on a quiet after-hours screen; VP9 cost a little less CPU but blurred small
 coloured text and took 626 MB an hour. H.264 kept the Focus list and the order grid legible. A busy
 trading day approaches the cap: up to about 2.9 GB an hour for the three monitors, so a 16-hour day is
-a few GB to tens of GB. With the hardware encoder (GPU on) the recorder was near-free, but Nova keeps
-the GPU off on Windows for its own paint problems (`gpuPolicy.mjs`).
+a few GB to tens of GB. With the hardware encoder (GPU on) the recorder was near-free; the desk drew in
+software on Windows when this was measured. Since 2026-10-05 (#707) it draws with the graphics card by
+default and falls back to software after a graphics-process crash, a blank window or the operator's
+choice (`graphicsChoice.mjs`, `graphicsWatch.mjs`; schema in `architecture/schema/screen-and-clips.md`).
+The recorder's cost has not been measured again under that default.
 
 The real module, run in Electron against the three monitors with a 20 s rotation: every monitor was
 recording within 1 s; files rotated with the new one started before the old one ended; a forced
