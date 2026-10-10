@@ -32,7 +32,7 @@ def journal_status() -> dict[str, Any]:
 @router.get("/api/eyes/at")
 def eyes_at(date: str, at: float) -> dict[str, Any]:
     """The live journal of ``date`` folded to ``at`` (``eyes/playback.py``): never a line after it."""
-    if not _DATE.match(date):
+    if not _DATE.fullmatch(date):
         raise HTTPException(400, {"reason": "EYES_DATE_INVALID", "error": "date is YYYY-MM-DD"})
     from eyes.playback import board_at, template_window
     from setup_scanner.hooks import default_levels
@@ -63,7 +63,7 @@ def start_backtest(payload: Annotated[dict[str, Any] | None, Body()] = None) -> 
     if payload.get("sessions") is not None:
         raw = payload["sessions"]
         if not isinstance(raw, list) or not all(
-                isinstance(s, dict) and _DATE.match(str(s.get("date") or "")) and str(s.get("symbol") or "").strip()
+                isinstance(s, dict) and _DATE.fullmatch(str(s.get("date") or "")) and str(s.get("symbol") or "").strip()
                 for s in raw):
             raise HTTPException(400, {"reason": "BACKTEST_INVALID",
                                       "error": "sessions is a list of {date: YYYY-MM-DD, symbol}"})

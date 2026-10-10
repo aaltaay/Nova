@@ -244,4 +244,6 @@ def test_the_at_route_folds_the_day_to_the_moment(tmp_path, monkeypatch):
     assert [s["id"] for s in got["setups"]] == list(BOT_SCANNER_SETUPS)
     assert all(s["recorded"] and s["window"]["start"] for s in got["setups"])
     assert c.get("/api/eyes/at", params={"date": "24-09-2026", "at": t}).status_code == 400
+    # '$' alone let a trailing newline through; fullmatch refuses it.
+    assert c.get("/api/eyes/at", params={"date": f"{DAY}\n", "at": t}).status_code == 400
     assert json.dumps(board_at(tmp_path / "none.jsonl", DAY, t, levels={}))    # no file: a stated absence
