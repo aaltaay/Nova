@@ -62,7 +62,25 @@ a few GB to tens of GB. With the hardware encoder (GPU on) the recorder was near
 software on Windows when this was measured. Since 2026-10-05 (#707) it draws with the graphics card by
 default and falls back to software after a graphics-process crash, a blank window or the operator's
 choice (`graphicsChoice.mjs`, `graphicsWatch.mjs`; schema in `architecture/schema/screen-and-clips.md`).
-The recorder's cost has not been measured again under that default.
+
+## Measured again with the graphics card (the desk PC, 2026-10-09)
+
+From the desk's own performance record (ADR 026, every 5 s), 2026-10-02 to 2026-10-09: software drawing
+on v1083-v1099, the graphics card from v1104 on (the safety net never turned it off). Both periods used the
+same three monitors, H.264 settings and Electron 41.10.6. The only recorder change between them is the
+safety net's `sample` command, which adds work. Quarter hours are compared at the same screen activity
+(what the recorder wrote across the three monitors), in % of one core:
+
+| Written per quarter hour | Quarter hours (software / card) | Recorder process | Main process | Graphics process (mean) |
+|---|---|---|---|---|
+| 30-90 MB (the 2026-09-24 probe's rate) | 41 / 130 | 70 -> 2.4 | 29 -> 29 | 29 -> 13 |
+| over 90 MB (a busy screen) | 11 / 158 | 154 -> 2.4 | 60 -> 31 | 72 -> 30 |
+
+Medians except where marked. 2.4 is the record's smallest step before 2026-10-09; that day's finer
+readings put the recorder at 1.8% median, 2.3% mean. The recorder's process is now near-free, and no other
+process took the work over: the main process held or fell, and the graphics process used less CPU, not
+more. That fits the graphics card's hardware encoder doing the encoding. The probe's quarter core of
+capture in the main process is the part left.
 
 The real module, run in Electron against the three monitors with a 20 s rotation: every monitor was
 recording within 1 s; files rotated with the new one started before the old one ended; a forced
@@ -71,9 +89,12 @@ files cut by the crash or the quit played up to their last timeslice, since shor
 
 ## Consequences
 
-- The recording costs roughly one CPU core of 24 on the desk PC, and disk space that grows without end
-  by the operator's choice (decision 7): at the caps a busy day can take tens of GB, so F:'s 846 GB free
-  on 2026-09-24 lasts weeks to months of full days, and the drive guard says when it runs low.
+- The recording cost roughly one CPU core of 24 on the desk PC while the desk drew in software; with the
+  graphics card (the default since 2026-10-05) its own process takes about 2% of a core, and the main
+  process's capture is the rest (2026-10-09 measurement above).
+- Disk space grows without end by the operator's choice (decision 7): at the caps a busy day can take
+  tens of GB, so F:'s 846 GB free on 2026-09-24 lasts weeks to months of full days, and the drive guard
+  says when it runs low.
 - A crash, power loss or quit can lose the last timeslice (1 s) of each open file, and a recorder
   crash leaves a gap of a few seconds while it is replaced; both are in the manifest.
 - The Windows lock screen and UAC's secure desktop may not be capturable; the desk shows the monitors
