@@ -76,6 +76,8 @@ export interface MassiveSummary {
   quote_days: number;
   first: string | null;
   last: string | null;
+  /** When `last`'s trades file was finished on disk (epoch seconds); null when unknown or an older API. */
+  last_landed?: number | null;
   /** The import store could not be read, so its imports are not listed (null when it was). */
   store_error: string | null;
 }

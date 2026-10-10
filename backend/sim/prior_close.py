@@ -10,7 +10,10 @@ the eyes' replays (``eyes.recording``). The first answer wins:
    recorded rows, the rebuilt prior close on the reconstructed ones;
 3. IBKR's regular-hours daily close of the prior session, stored with a
    historical download of that symbol-day (``history_download``);
-4. ``None``: a stated absence -- the quote head shows no change and no Gap%.
+4. the prior session's close in the operator's Massive day bars
+   (``massive_daily``; operator 2026-10-09: the Sim reads the Massive files) --
+   the official close, as traded, so it comes after the split-aware answers;
+5. ``None``: a stated absence -- the quote head shows no change and no Gap%.
 
 Never the prior session's 15:59 one-minute close, which is the last trade
 before the closing auction and not the close (WHLR 2026-09-23 read 1.97 against
@@ -84,13 +87,19 @@ def previous_close(symbol: str, day: str, *, recorded: float | None = None) -> f
     if value is not None:
         return value
     sym = symbol.strip().upper()
-    try:
-        from leaderboard import store as leaderboard_store
-        from sim import history_store
+    from leaderboard import store as leaderboard_store
+    from sim import history_store, massive_daily
 
-        value = leaderboard_store.day_prev_close(day, sym)
-        return value if value is not None else history_store.prior_close(sym, day)
-    except Exception:
-        # The replay still loads; its quote head states no change rather than guessing one.
-        logger.warning("REPLAY: prior close unread for %s %s; none shown", sym, day, exc_info=True)
-        return None
+    for name, answer in (("leaderboard", lambda: leaderboard_store.day_prev_close(day, sym)),
+                         ("IBKR download", lambda: history_store.prior_close(sym, day)),
+                         ("Massive day bars", lambda: massive_daily.prior_close(sym, day))):
+        try:
+            value = _positive(answer())
+        except Exception:
+            # One unreadable source never hides the next; the replay still loads, and with no
+            # answer at all its quote head states no change rather than guessing one.
+            logger.warning("REPLAY: prior close unread from the %s for %s %s", name, sym, day, exc_info=True)
+            continue
+        if value is not None:
+            return value
+    return None

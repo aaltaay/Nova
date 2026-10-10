@@ -65,6 +65,12 @@ describe('shouldRefreshSelection for a window from the Massive files (ADR 046)',
     expect(at({ ...loaded, quote_status: 'complete', quote_count: 4 }, [imported()])).toBe(false);
   });
 
+  it('reloads when an import added the day around the window, and not again once loaded', () => {
+    const loaded = massive({ covered_seconds: 8100, trade_count: 5, quote_status: 'complete', quote_count: 4, bar_count: 135 });
+    expect(at(loaded, [imported({ bar_count: 135 })])).toBe(false);
+    expect(at(loaded, [imported({ bar_count: 942 })])).toBe(true);
+  });
+
   it("reads only its own source's job for the same hours", () => {
     expect(at(massive(), [job({ status: 'complete', covered_seconds: 8100 })])).toBe(false);
     expect(at(selection(100), [imported()])).toBe(false);

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
+from constants_sim import SIM_MASSIVE_SOURCE
 from ibkr.historical_derive import unix_to_iso
 
 ET = ZoneInfo("America/New_York")
@@ -52,7 +53,10 @@ def fetch_replay_bars(symbol: str, timeframe: str, limit: int) -> dict:
     from sim import history_playback
     historical = history_playback.bars(symbol, timeframe, limit, now)
     if historical is not None:
-        return response(symbol, timeframe, historical, now, source="ibkr",
+        # Say which archive drew them: a Massive window's bars are Massive's, never labelled IBKR (ADR 046).
+        loaded = history_playback.status()
+        massive = history_playback.is_massive(loaded) and loaded.get("symbol") == symbol
+        return response(symbol, timeframe, historical, now, source=SIM_MASSIVE_SOURCE if massive else "ibkr",
                         replay_mode=history_playback.snapshot(symbol)["source"])
     selected = (replay.status_payload() or {}).get("replay_symbol")
     captured = replay.is_capture_replay() and symbol == selected

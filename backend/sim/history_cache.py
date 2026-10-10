@@ -29,7 +29,9 @@ class CandleCache:
 
     ``minutes``: a Massive window's own 1-minute bars (ADR 046). Given, they are the
     selected symbol's only archive -- the IBKR chart store and IBKR download candles
-    never stand in under a Massive tape.
+    never stand in under a Massive tape. They hold the ticker's whole day, so the
+    charts draw the day before the window from them (operator, 2026-10-09); past the
+    window's end nothing is drawn, as before, and never past the playhead.
     """
     def __init__(self, spec: dict, prints: tuple, eligible: tuple, keys, *, minutes: list[dict] | None = None):
         self.spec, self.prints, self.eligible, self.keys = spec, prints, eligible, keys
@@ -55,7 +57,8 @@ class CandleCache:
             from ibkr.historical_derive import derive_from_1min
             seconds = INTERVAL_SECONDS[timeframe]
             spec = self.spec
-            if self.minutes is not None and symbol == spec['symbol']:
+            day_minutes = self.minutes is not None and symbol == spec['symbol']
+            if day_minutes:
                 stored, retained = None, list(self.minutes)
             else:
                 limit = (spec['end_ts'] - spec['start_ts']) // seconds + 1
@@ -67,7 +70,7 @@ class CandleCache:
             merged = {timestamp(row): row for row in (stored or {}).get('bars', [])}
             for row in retained:
                 ts = timestamp(row)
-                if spec['start_ts'] <= ts and ts + seconds <= spec['end_ts']:
+                if (day_minutes or spec['start_ts'] <= ts) and ts + seconds <= spec['end_ts']:
                     merged[ts] = row
             value = tuple((ts, dict(row)) for ts, row in sorted(merged.items()))
             if symbol == self.spec['symbol']:

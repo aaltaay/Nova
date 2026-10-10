@@ -13,7 +13,7 @@ import { useCallback, useState, useSyncExternalStore } from 'react';
 import { useWorkspace } from '../workspace';
 import { durationLabel } from './historicalProgress';
 import { useSimReplayTarget } from './useSimReplayTarget';
-import { offerCopy, type OfferAction } from './simReplayOffer';
+import { landedLabel, offerCopy, offerDateLabel, type OfferAction } from './simReplayOffer';
 import { useSimReplayOffer } from './useSimReplayOffer';
 import { etDateToday, ownRecordingFor } from './ownRecording';
 import { capturesResource } from './useSimSessionController';
@@ -41,6 +41,7 @@ import {
   SIM_WHY_TAB_STOPPING_OTHER,
   SIM_WHY_WINDOW_LOADING,
   simTabGoToReplayLabel,
+  simTabFilesNotOut,
   simTabOfferBusy,
   simTabOfferDownload,
   simTabOfferDownloading,
@@ -98,11 +99,13 @@ const ACTION_LABEL: Record<OfferAction, string> = {
 const dismissed = new Set<string>();
 
 export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
-  const { openStockView } = useWorkspace();
+  const { openStockView, activeTraderSymbol, traderViewActive } = useWorkspace();
   const { clock, target } = useSimReplayTarget(symbol);
   const wantsReplay = target.kind === 'none' || target.kind === 'other-symbol';
-  const { offer, download, startGateway, reconnect, stop, load, starting, loading, error } = useSimReplayOffer(
-    symbol, clock, wantsReplay, target.kind === 'none',
+  // Background Trader tabs stay mounted (hidden): only the one on screen may load by itself.
+  const front = traderViewActive && activeTraderSymbol?.toUpperCase() === symbol.trim().toUpperCase();
+  const { offer, filesNotOut, download, startGateway, reconnect, stop, load, starting, loading, error } = useSimReplayOffer(
+    symbol, clock, wantsReplay, target.kind === 'none', front,
   );
   const [, setDismissTick] = useState(0);
   // Only a Sim tab with nothing loaded reads the capture archive -- a Paper or
@@ -158,6 +161,12 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
         {target.kind === 'other-symbol' && `${simTabOtherSymbolLead(tab, target.replaySymbol)} `}
         {wantsReplay && (copy ? copy.text : SIM_TAB_NO_WINDOW)}
       </span>
+      {wantsReplay && filesNotOut && (
+        <span className="sim-replay-target__body" data-testid="sim-replay-files-not-out">
+          {simTabFilesNotOut(offerDateLabel(filesNotOut.date), offerDateLabel(filesNotOut.last),
+            filesNotOut.landed == null ? null : landedLabel(filesNotOut.landed))}
+        </span>
+      )}
       {own && (
         <span className="sim-replay-target__body" data-testid="sim-replay-own-recording">
           {simTabOwnRecording(own.symbol, own.date, own.prints, own.recording)}

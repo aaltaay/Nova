@@ -11,18 +11,30 @@
  * - A download that failed only because Gateway was unreachable retries on its
  *   own once a port answers, honouring the backend's retry throttle, a bounded
  *   number of times before it hands the Retry button back.
+ * - A day in the operator's Massive files loads by itself on an empty desk, for
+ *   the tab in front -- as the agent's `show` already did (operator, 2026-10-09:
+ *   the Sim treats Massive as its data). Never over a loaded replay, never an
+ *   IBKR download (paced, and the operator's to start), once per window.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { launchIbGateway } from '../utils/launchIbGateway';
 import { historicalStatus } from './historicalStatusStore';
 import { selectHistoricalReplay } from './historicalReplayLoad';
-import { gatewayReachable, offerWindow, replayOffer, windowKey, type ReplayOffer } from './simReplayOffer';
+import { filesNotOut, gatewayReachable, offerWindow, replayOffer, windowKey, type ReplayOffer } from './simReplayOffer';
 import { useMassiveDay } from './massiveDaysStore';
 import { SIM_TAB_HEAL_MAX_ATTEMPTS, SIM_TAB_NOT_ANSWERING_MAX_ATTEMPTS } from './simConstants';
 import { useReplayActions } from './useReplayActions';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 import type { SimClockState } from './simClockTypes';
+
+/** Windows this desk already loaded from the files by itself: a failed or stopped one is never started again. */
+const autoLoaded = new Set<string>();
+
+/** Test seam: the auto-loads are session-scoped module state. */
+export function resetSimAutoLoads(): void {
+  autoLoaded.clear();
+}
 
 /** `key` = the window the launch was requested for; waiting belongs to that window only. */
 interface LaunchState { waiting: boolean; message: string | null; key: string | null }
@@ -33,6 +45,8 @@ export function useSimReplayOffer(
   enabled: boolean,
   /** Nothing is loaded: filling the empty desk disturbs nothing, so a healed retry may load. */
   deskEmpty: boolean,
+  /** The tab the operator is looking at (the Trader's active tab): only it loads from the files by itself. */
+  front = false,
 ) {
   // Conditional subscription: Paper/Live Stock Views must not poll the archive.
   const subscribe = useCallback(
@@ -51,6 +65,8 @@ export function useSimReplayOffer(
   // A day in the operator's Massive files reads from disk: no Gateway, no IBKR pacing (ADR 046).
   const day = useMassiveDay(window?.date, enabled && status.data?.massive?.available === true);
   const fromFiles = day?.trades ? { quotes: day.quotes } : null;
+  // Newer than the files: say Massive has not published it yet, so the IBKR offer is not read as the only source.
+  const notOut = filesNotOut(window, status.data?.massive, Boolean(day?.trades));
   const base = window ? replayOffer(window, jobs, reachable, fromFiles) : null;
   const key = window ? windowKey(window) : null;
   const readsFiles = Boolean(base && 'fromFiles' in base && base.fromFiles);
@@ -135,6 +151,15 @@ export function useSimReplayOffer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reachable, readsFiles, kind, key, download]);
 
+  // An empty desk on a day in the Massive files: the tab in front reads its window from disk by itself.
+  useEffect(() => {
+    if (!deskEmpty || !front || !window || !key || !readsFiles || kind !== 'download' || autoLoaded.has(key)) return;
+    autoLoaded.add(key);
+    void requestDownload(window);
+    // `window` is rebuilt every render; `key` is its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deskEmpty, front, key, readsFiles, kind, requestDownload]);
+
   // Heal: a Gateway-unreachable failure retries itself once a port answers.
   useEffect(() => {
     if (!window || !key || !healable) return undefined;
@@ -174,6 +199,7 @@ export function useSimReplayOffer(
 
   return {
     offer,
+    filesNotOut: notOut,
     download: requestDownload,
     startGateway,
     reconnect,
