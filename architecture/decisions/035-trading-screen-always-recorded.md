@@ -68,19 +68,27 @@ choice (`graphicsChoice.mjs`, `graphicsWatch.mjs`; schema in `architecture/schem
 From the desk's own performance record (ADR 026, every 5 s), 2026-10-02 to 2026-10-09: software drawing
 on v1083-v1099, the graphics card from v1104 on (the safety net never turned it off). Both periods used the
 same three monitors, H.264 settings and Electron 41.10.6. The only recorder change between them is the
-safety net's `sample` command, which adds work. Quarter hours are compared at the same screen activity
-(what the recorder wrote across the three monitors), in % of one core:
+safety net's `sample` command, which adds work. Only quarter hours in which all three monitors recorded a
+full file count. They are matched on market activity, which neither the encoder nor the drawing mode
+changes: the market events the backend took in from IBKR (`ib.tape` + `ib.depth` + `ib.l1`), cut into
+quartiles over both periods. Bytes written are not a fair match, since each mode has its own encoder and
+the same screen comes out a different size. In % of one core:
 
-| Written per quarter hour | Quarter hours (software / card) | Recorder process | Main process | Graphics process (mean) |
+| Market events per quarter hour | Quarter hours (software / card) | Recorder process, median | Main process, median | Graphics process, mean |
 |---|---|---|---|---|
-| 30-90 MB (the 2026-09-24 probe's rate) | 41 / 130 | 70 -> 2.4 | 29 -> 29 | 29 -> 13 |
-| over 90 MB (a busy screen) | 11 / 158 | 154 -> 2.4 | 60 -> 31 | 72 -> 30 |
+| top quartile, over 55,000 (a busy session) | 31 / 106 | 132 -> 2.4 | 50 -> 19 | 58 -> 35 |
+| third quartile, 12,900-55,000 | 5 / 131 | 58 -> 2.4 | 22 -> 25 | 16 -> 17 |
 
-Medians except where marked. 2.4 is the record's smallest step before 2026-10-09; that day's finer
-readings put the recorder at 1.8% median, 2.3% mean. The recorder's process is now near-free, and no other
-process took the work over: the main process held or fell, and the graphics process used less CPU, not
-more. That fits the graphics card's hardware encoder doing the encoding. The probe's quarter core of
-capture in the main process is the part left.
+2.4 is the record's smallest step before 2026-10-09; that day's finer readings put the recorder at 1.8%
+median. With the graphics card the recorder process sat at 0-3.3% median in every quartile, on this measure
+and on the market data sent to visible desk windows, which gives the same busy-quartile result (132 ->
+2.4). In the busy quartile the main and graphics processes used less as well, so no other process took
+the encoding over. That fits the graphics card's hardware encoder doing it.
+
+What this does not show: the software side's quieter quarter hours are nearly all ones in which the market
+sent nothing (overnight and the weekend of 2026-10-03/04, when the screen may have been locked), so quiet
+screens are not compared. The twelve builds between the periods also changed the main process (ADR 045's
+priority loop, for one), so its numbers are not the recorder's alone.
 
 The real module, run in Electron against the three monitors with a 20 s rotation: every monitor was
 recording within 1 s; files rotated with the new one started before the old one ended; a forced
@@ -89,9 +97,10 @@ files cut by the crash or the quit played up to their last timeslice, since shor
 
 ## Consequences
 
-- The recording cost roughly one CPU core of 24 on the desk PC while the desk drew in software; with the
-  graphics card (the default since 2026-10-05) its own process takes about 2% of a core, and the main
-  process's capture is the rest (2026-10-09 measurement above).
+- The recording cost roughly one CPU core of 24 on the desk PC while the desk drew in software, more in a
+  busy session. With the graphics card (the default since 2026-10-05) its own process takes about 2% of a
+  core at any market activity (2026-10-09 measurement above). What capture costs inside the main process
+  was not separated.
 - Disk space grows without end by the operator's choice (decision 7): at the caps a busy day can take
   tens of GB, so F:'s 846 GB free on 2026-09-24 lasts weeks to months of full days, and the drive guard
   says when it runs low.
