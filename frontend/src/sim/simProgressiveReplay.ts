@@ -10,7 +10,7 @@
  * back to candles, so folding new prints in is invisible except as more tape.
  */
 import { isMassive, type HistoricalJob, type HistoricalSelection } from './historicalTypes';
-import { windowKey } from './simReplayOffer';
+import { dayImport, holdsWindow, windowKey } from './simReplayOffer';
 
 const ACTIVE = new Set(['running', 'pause_requested']);
 
@@ -45,9 +45,16 @@ export function shouldRefreshSelection(
   const key = windowKey(selection);
   // The selection's own job: an import for a Massive window, a download for an IBKR one.
   const massive = isMassive(selection);
-  const job = jobs.find(row => row.kind === 'trades' && windowKey(row) === key && isMassive(row) === massive);
+  if (massive) {
+    // The stock-day's import once it holds the window (ADR 046, 2026-10-09): it moves a window loaded empty
+    // while it ran, or one imported before stock-days, onto what it holds -- then its own counts match.
+    const day = dayImport(selection, jobs);
+    const job = day && holdsWindow(day, selection) ? day
+      : jobs.find(row => row.kind === 'trades' && isMassive(row) && (row.id === selection.job_id || windowKey(row) === key));
+    return job ? importChanged(selection, job) : false;
+  }
+  const job = jobs.find(row => row.kind === 'trades' && windowKey(row) === key && !isMassive(row));
   if (!job) return false;
-  if (massive) return importChanged(selection, job);
   // Coverage can grow anywhere (jump ahead, backfill), so compare covered time,
   // not cursors; pre-range payloads fall back to the contiguous cursor.
   const gained = job.covered_seconds != null && selection.covered_seconds != null

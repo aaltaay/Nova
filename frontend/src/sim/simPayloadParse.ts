@@ -8,8 +8,8 @@
  */
 import type { DepthLevel } from '../ibkr/types';
 import type {
-  HistoricalDepthBook, HistoricalJob, HistoricalSelection, HistoricalStatus, MassiveDays, MassiveQuoteStatus,
-  MassiveSummary,
+  HistoricalDepthBook, HistoricalJob, HistoricalSelection, HistoricalStatus, MassiveCap, MassiveDays,
+  MassiveQuoteStatus, MassiveSummary,
 } from './historicalTypes';
 import type { CaptureSegment, ReplayQuoteWire, SimClockState } from './simClockTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
@@ -151,6 +151,19 @@ export function parseHistoricalSelection(value: Obj): HistoricalSelection {
   }) as HistoricalSelection;
 }
 
+const HHMM = /^\d{2}:\d{2}$/;
+const clockTime = (value: unknown): string | null | undefined =>
+  (value === null ? null : typeof value === 'string' && HHMM.test(value) ? value : undefined);
+
+/** A stock-day import's cap (ADR 046 amendment 2026-10-09); a malformed one reads as not stated. */
+function parseCap(value: unknown): MassiveCap | null | undefined {
+  if (value === null) return null;
+  if (!isObject(value) || (value.what !== 'prints' && value.what !== 'quotes')) return undefined;
+  const count = finite(value.count);
+  const limit = finite(value.limit);
+  return count == null || limit == null ? undefined : { what: value.what, count, limit };
+}
+
 function parseJob(value: Obj): HistoricalJob {
   return compact({
     ...value,
@@ -177,6 +190,11 @@ function parseJob(value: Obj): HistoricalJob {
     ...massiveFields(value),
     stage: nullableText(value.stage),
     stages: value.stages === null ? null : parseCounts(value.stages),
+    focus_start: clockTime(value.focus_start),
+    focus_end: clockTime(value.focus_end),
+    kept_start: clockTime(value.kept_start),
+    kept_end: clockTime(value.kept_end),
+    capped: parseCap(value.capped),
   }) as HistoricalJob;
 }
 

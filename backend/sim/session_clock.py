@@ -137,6 +137,11 @@ def now_et() -> datetime:
     return wall
 
 
+def placed() -> bool:
+    """The operator put the playhead where it is (a scrub, a day jump or a pause), not the wall clock."""
+    return _scrub_second is not None or _paused_at is not None
+
+
 def is_paused() -> bool:
     return _paused_at is not None
 

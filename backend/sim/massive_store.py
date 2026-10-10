@@ -4,16 +4,18 @@ One SQLite file beside the files it came from (``<root>/sim/replay.sqlite3``; th
 operator keeps everything from Massive on E:), with its own schema version, apart
 from the IBKR download store (``history_store``), which it never touches:
 
-- ``jobs``: one row per imported window, its payload shaped like an IBKR download's
+- ``jobs``: one row per import -- a stock-day since 2026-10-09 (``start`` 04:00,
+  ``end`` 20:00), one window before -- its payload shaped like an IBKR download's
   (``id``, ``symbol``, ``date``, ``start``/``end``, ``status``, ``ranges``, ``count``...)
   plus ``source: "massive"`` and the import's own fields, so the desk lists and
-  selects it the same way;
-- ``prints``: the window's trades, typed columns, in SIP time order;
-- ``candles``: the window's 1-minute bars;
-- ``quotes``: the window's NBBO rows.
+  selects it the same way; ``ranges`` is what it holds;
+- ``prints``: the trades it holds, typed columns, in SIP time order;
+- ``candles``: the day's 1-minute bars;
+- ``quotes``: the NBBO rows it holds, the one standing at their start first.
 
-An import writes a window's rows in one transaction after reading them all, so a
-window is either whole or absent; importing it again replaces it.
+An import writes its rows in one transaction after reading them all, so it is
+either whole or absent; importing it again replaces it, and the same transaction
+drops the older imports of that symbol-day it now holds (``drop_held``).
 """
 from __future__ import annotations
 
@@ -102,7 +104,9 @@ def new_job(spec: dict) -> dict:
     return dict(core, id=job_id_for(spec), kind="trades", status="queued", cursor=spec["start_ts"], ranges=[],
                 seek=None, count=0, volume=0, pages=0, error=None, contract=None, storage=str(path()),
                 precision="nanoseconds", updated=time.time(), started=None, stage=None, scan_pct=0.0,
-                bar_count=0, quote_count=0, quote_status=None, files=None, elapsed_sec=None)
+                bar_count=0, quote_count=0, quote_status=None, files=None, elapsed_sec=None,
+                focus_start=None, focus_end=None, focus_start_ts=None, focus_end_ts=None, kept_start=None,
+                kept_end=None, capped=None)
 
 
 def save(job: dict) -> dict:
@@ -144,12 +148,34 @@ def update(job_id: str, **fields) -> dict:
         return job
 
 
-def replace_window(job_id: str, prints: list[dict], candles: list[dict], quotes: Iterable[tuple]) -> None:
-    """The window's rows, all at once: whatever an earlier import stored for it goes first."""
+def _held_by(db: sqlite3.Connection, job_id: str, held: tuple[str, str, float, float]) -> list[str]:
+    """Other imports of the symbol-day, not running, whose every range (or window, none yet) lies in ``held``'s span."""
+    symbol, day, lo, hi = held
+    out = []
+    for other, payload in db.execute("SELECT id, payload FROM jobs WHERE id != ?", (job_id,)).fetchall():
+        job = json.loads(payload)
+        if job.get("symbol") != symbol or job.get("date") != day or job.get("status") in ACTIVE:
+            continue
+        ranges = job.get("ranges") or [[job["start_ts"], job["end_ts"]]]
+        if all(lo <= a and b <= hi for a, b in ranges):
+            out.append(other)
+    return out
+
+
+def replace_window(job_id: str, prints: list[dict], candles: list[dict], quotes: Iterable[tuple], *,
+                   drop_held: tuple[str, str, float, float] | None = None) -> list[str]:
+    """The import's rows, all at once: whatever an earlier import stored for it goes first.
+
+    ``drop_held`` ``(symbol, date, lo, hi)``: the span it now holds; the older imports of that symbol-day
+    inside it go in the same transaction (returned), so the desk lists and plays one copy of the day.
+    """
     with connect() as db:
         db.execute("BEGIN IMMEDIATE")
-        for table in ("prints", "candles", "quotes"):
-            db.execute(f"DELETE FROM {table} WHERE job_id=?", (job_id,))
+        dropped = _held_by(db, job_id, drop_held) if drop_held is not None else []
+        for gone in [job_id, *dropped]:
+            for table in ("prints", "candles", "quotes"):
+                db.execute(f"DELETE FROM {table} WHERE job_id=?", (gone,))
+        db.executemany("DELETE FROM jobs WHERE id=?", ((gone,) for gone in dropped))
         db.executemany(
             "INSERT INTO prints VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             ((job_id, i, p["ts"], p["ns"], p["price"], p["size"], p["exchange"], p["exchange_id"], p["conditions"],
@@ -159,17 +185,21 @@ def replace_window(job_id: str, prints: list[dict], candles: list[dict], quotes:
             ((job_id, int(massive_files.minute_start(c)), json.dumps(c)) for c in candles))
         db.executemany("INSERT INTO quotes VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                        ((job_id, i, *q) for i, q in enumerate(quotes)))
+    return dropped
 
 
 _PRINT_COLUMNS = ("ordinal", "ts", "ns", "price", "size", "exchange", "exchange_id", "conditions", "correction",
                   "trf_id", "sequence", "tape", "sets_price")
 
 
-def read_prints(job_id: str, symbol: str, *, limit: int = -1) -> list[dict]:
-    """The window's prints in SIP time order, as replay print dicts (``seq`` is the stored ordinal)."""
+_EVER = (float("-inf"), float("inf"))
+
+
+def read_prints(job_id: str, symbol: str, *, limit: int = -1, between: tuple[float, float] = _EVER) -> list[dict]:
+    """The prints in ``[lo, hi)`` in SIP time order, as replay print dicts (``seq`` is the stored ordinal)."""
     with connect() as db:
-        rows = db.execute(f"SELECT {', '.join(_PRINT_COLUMNS)} FROM prints WHERE job_id=? ORDER BY ordinal LIMIT ?",
-                          (job_id, limit)).fetchall()
+        rows = db.execute(f"SELECT {', '.join(_PRINT_COLUMNS)} FROM prints WHERE job_id=? AND ts >= ? AND ts < ? "
+                          "ORDER BY ordinal LIMIT ?", (job_id, *between, limit)).fetchall()
     out = []
     for row in rows:
         item = dict(zip(_PRINT_COLUMNS, row, strict=True))
@@ -185,8 +215,13 @@ def read_candles(job_id: str) -> list[dict]:
         return [json.loads(r[0]) for r in db.execute("SELECT payload FROM candles WHERE job_id=? ORDER BY ts", (job_id,))]
 
 
-def read_quotes(job_id: str, *, limit: int = -1) -> list[tuple]:
-    """``(ts, bid, bid_size, bid_x, ask, ask_size, ask_x)`` in time order."""
+def read_quotes(job_id: str, *, limit: int = -1, between: tuple[float, float] | None = None) -> list[tuple]:
+    """``(ts, bid, bid_size, bid_x, ask, ask_size, ask_x)`` in time order: all of them, or those in ``[lo, hi)``
+    after the one standing at ``lo``."""
+    columns = "SELECT ts, bid, bid_size, bid_x, ask, ask_size, ask_x FROM quotes WHERE job_id=?"
     with connect() as db:
-        return db.execute("SELECT ts, bid, bid_size, bid_x, ask, ask_size, ask_x FROM quotes WHERE job_id=? "
-                          "ORDER BY ordinal LIMIT ?", (job_id, limit)).fetchall()
+        if between is None:
+            return db.execute(f"{columns} ORDER BY ordinal LIMIT ?", (job_id, limit)).fetchall()
+        standing = db.execute(f"{columns} AND ts < ? ORDER BY ordinal DESC LIMIT 1", (job_id, between[0])).fetchall()
+        return standing + db.execute(f"{columns} AND ts >= ? AND ts < ? ORDER BY ordinal LIMIT ?",
+                                     (job_id, *between, limit)).fetchall()

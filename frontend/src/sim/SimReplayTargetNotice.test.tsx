@@ -337,6 +337,41 @@ describe('SimReplayTargetNotice on the Massive files (operator, 2026-10-09)', ()
     expect(posts).toHaveLength(count);
   });
 
+  it('a scrub on the same stock-day follows its one import: no Stop it & start this, no second read', async () => {
+    // WFF 2026-09-09 (2026-10-09): imported while premarket, the playhead moved to 10:05, a second read followed.
+    onDisk();
+    mocks.front = 'IMCC';
+    const dayJob = job({ id: 'day', source: 'massive', start: '04:00', end: '20:00', focus_start: '06:45',
+      focus_end: '09:00', progress_pct: 40 });
+    const base = mocks.fetch.getMockImplementation()!;
+    mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST' && /\/history$/.test(url)) {
+        posts.push({ url, body: JSON.parse(String(init.body)) });
+        jobs = [dayJob];
+        return response(dayJob);
+      }
+      return base(url, init);
+    });
+    const at = (time: string): SimClockState => ({ sim: true, replay_source: 'none', session_date: '2026-09-18',
+      live_edge: false, sim_time_et: `2026-09-18T${time}:00-04:00` });
+    setClock(at('07:00'));
+    await mount();
+    await tick();
+    expect(posts).toEqual([{ url: expect.stringMatching(/\/api\/sim\/history$/),
+      body: { ...WINDOW, start: '06:45', end: '09:00', kind: 'trades' } }]);
+    await pollFiles([dayJob]);
+    setClock(at('10:05'));
+    await rerender();
+    await tick();
+    expect(body()).toContain('Reading IMCC · Fri, Sep 18 from your Massive files -- 40%');
+    expect(action()?.textContent).toBe('Stop');
+    expect(posts).toHaveLength(1);
+    await pollFiles([{ ...dayJob, status: 'complete', progress_pct: 100, kept_start: '04:00', kept_end: '20:00',
+      coverage: [[1, 2]] }]);
+    // Loads the playhead's window; the backend answers with the day the import holds, the playhead where it is.
+    expect(posts.slice(1)).toEqual([{ url: expect.stringMatching(/\/history\/select$/), body: WINDOW }]);
+  });
+
   it('a tab in the background, or a desk with a replay loaded, never loads by itself', async () => {
     onDisk();
     mocks.front = 'SPY';

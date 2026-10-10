@@ -165,20 +165,62 @@ def test_which_prints_set_a_price():
     assert trade("")["exchange"] == "NASDAQ" and trade("")["unreported"] is False
 
 
-# ---- importing a window -----------------------------------------------------------------------------------------
-def test_an_import_keeps_the_window_its_bars_and_the_opening_quote(root):
-    spec, job = _imported()
-    assert job["status"] == "complete" and job["quote_status"] == "complete"
-    assert job["count"] == 5 and job["bar_count"] == 4 and job["quote_count"] == 4   # the day's bars, not the window's
+# ---- importing a stock-day --------------------------------------------------------------------------------------
+def test_an_import_of_a_window_keeps_the_whole_stock_day(root):
+    """Amendment 2026-10-09: the files are read once per stock-day, so an import keeps the whole session when
+    it fits a selection, whatever window asked; the window is only its focus."""
+    window = _window()
+    started = massive_import.begin(window)
+    assert (started["start"], started["end"]) == ("04:00", "20:00")
+    assert (started["focus_start"], started["focus_end"]) == ("09:30", "10:00")
+    job = _wait_day(window)
+    day = massive_import.day_spec(window)
+    assert job["status"] == "complete" and job["quote_status"] == "complete" and job["capped"] is None
+    assert (job["kept_start"], job["kept_end"]) == ("04:00", "20:00")
+    assert job["ranges"] == [[day["start_ts"], day["end_ts"]]]
+    assert job["count"] == 6 and job["bar_count"] == 4 and job["quote_count"] == 4 and job["volume"] == 500
     assert job["minutes_scope"] == "day"
-    assert job["ranges"] == [[spec["start_ts"], spec["end_ts"]]] and job["volume"] == 400
     prints = massive_store.read_prints(job["id"], "IMCC")
-    assert [p["sequence"] for p in prints] == [2, 3, 4, 5, 7]
-    assert [p["sets_price"] for p in prints] == [True, False, True, False, True]
-    assert prints[0]["ts"] == _sec("09:30:00") + 0.1 and prints[0]["ns"] == _ns("09:30:00", 100)
+    assert [p["sequence"] for p in prints] == [1, 2, 3, 4, 5, 7]                     # 09:29:59 too: the day
+    assert [p["sets_price"] for p in prints] == [True, True, False, True, False, True]
+    assert prints[1]["ts"] == _sec("09:30:00") + 0.1 and prints[1]["ns"] == _ns("09:30:00", 100)
     quotes = massive_store.read_quotes(job["id"])
-    assert quotes[0][0] == _sec("09:29:59") and quotes[2][1] is None   # the opening quote; an empty bid side
+    assert quotes[0][0] == _sec("09:29:59") and quotes[2][1] is None                  # an empty bid side
     assert [c["o"] for c in massive_store.read_candles(job["id"])] == [9.9, 10.0, 10.01, 10.2]
+    assert massive_store.find(massive_import.spec(window)) is None                     # no import of the window itself
+
+
+def _reads(monkeypatch) -> dict[str, int]:
+    """How many times each day file is streamed."""
+    real, seen = massive_files.rows, {}
+
+    def counted(path, *args, **kwargs):
+        seen[path.parts[-4]] = seen.get(path.parts[-4], 0) + 1
+        return real(path, *args, **kwargs)
+    monkeypatch.setattr(massive_files, "rows", counted)
+    return seen
+
+
+@pytest.mark.parametrize("cap, limit, count", [("prints", 5, 6), ("quotes", 3, 4)])
+def test_a_day_over_a_cap_keeps_the_focus_window_from_the_same_read(root, monkeypatch, cap, limit, count):
+    monkeypatch.setattr(massive_read, "SIM_HISTORY_MAX_SELECTION_PRINTS" if cap == "prints"
+                        else "SIM_MASSIVE_MAX_SELECTION_QUOTES", limit)
+    reads = _reads(monkeypatch)
+    window = _window()
+    massive_import.begin(window)
+    job = _wait_day(window)
+    assert reads == {"trades_v1": 1, "quotes_v1": 1, "minute_aggs_v1": 1}             # one read, never a second
+    assert job["status"] == "complete" and job["capped"] == dict(what=cap, count=count, limit=limit)
+    assert (job["kept_start"], job["kept_end"]) == ("09:30", "10:00")
+    assert job["ranges"] == [[window["start_ts"], window["end_ts"]]]
+    assert [p["sequence"] for p in massive_store.read_prints(job["id"], "IMCC")] == [2, 3, 4, 5, 7]
+    quotes = massive_store.read_quotes(job["id"])
+    assert quotes[0][0] == _sec("09:29:59") and len(quotes) == 4                     # the quote standing at 09:30 first
+    assert job["bar_count"] == 4                                                      # the day's bars, always whole
+    assert massive_import.held_spec(job)["start"] == "09:30"
+    later = history_store.window("IMCC", DAY, "10:00", "11:00")
+    assert massive_import.holds(job, window) and not massive_import.holds(job, later)
+    assert massive_import.wants_import(later, massive_import.availability(DAY)) is True
 
 
 def test_a_day_whose_quotes_are_not_on_disk_imports_again_when_they_arrive(root):
@@ -187,11 +229,15 @@ def test_a_day_whose_quotes_are_not_on_disk_imports_again_when_they_arrive(root)
     quotes.unlink()
     window = _window()
     massive_import.begin(window)
-    job = _wait_complete(massive_import.spec(window))
-    assert job["quote_status"] == "not_downloaded" and job["quote_count"] == 0 and job["count"] == 5
+    job = _wait_day(window)
+    assert job["quote_status"] == "not_downloaded" and job["quote_count"] == 0 and job["count"] == 6
     quotes.write_bytes(held)
     assert massive_import.begin(window)["status"] == "running"
-    assert _wait_complete(massive_import.spec(window))["quote_status"] == "complete"
+    assert _wait_day(window)["quote_status"] == "complete"
+
+
+def _wait_day(window, timeout=20.0):
+    return _wait_complete(massive_import.day_spec(window), timeout)
 
 
 def _wait_complete(spec, timeout=20.0):
@@ -208,7 +254,7 @@ def test_a_window_over_the_selection_cap_is_refused_before_anything_is_written(r
     monkeypatch.setattr(massive_read, "SIM_HISTORY_MAX_SELECTION_PRINTS", 2)
     window = _window()
     massive_import.begin(window)
-    job = _wait_complete(massive_import.spec(window))
+    job = _wait_day(window)                     # the day is over the cap, and so is the window asked for
     assert job["status"] == "failed" and job["error"] == "IMCC printed over 2 in this window, more than a replay holds; narrow the window"
     assert massive_store.read_prints(job["id"], "IMCC") == []
 
@@ -243,8 +289,8 @@ def test_the_desk_imports_in_its_own_process(root, monkeypatch):
     window = _window()
     started = massive_import.begin(window)
     assert started["status"] == "running" and massive_import.running_ids()
-    job = _wait_complete(massive_import.spec(window), timeout=60.0)
-    assert job["status"] == "complete" and job["count"] == 5 and job["quote_status"] == "complete"
+    job = _wait_day(window, timeout=60.0)
+    assert job["status"] == "complete" and job["count"] == 6 and job["quote_status"] == "complete"
     assert massive_import.worker_command("x")[1:3] == ["-m", "sim.massive_worker"]
 
 
@@ -352,12 +398,44 @@ def test_the_day_before_the_window_is_drawn_never_past_the_playhead(root, monkey
     assert labelled["source"] == "massive"
 
 
-def test_a_window_imported_with_only_its_own_bars_is_imported_again_for_the_day(root):
-    spec, job = _imported()
-    old = massive_store.update(job["id"], minutes_scope=None)
-    assert massive_import.wants_import(old, massive_import.availability(DAY)) is True
-    done = massive_store.update(job["id"], minutes_scope="day")
-    assert massive_import.wants_import(done, massive_import.availability(DAY)) is False
+def test_an_import_without_the_days_bars_is_imported_again_once_they_are_on_disk(root):
+    window = _window()
+    massive_import.begin(window)
+    job = _wait_day(window)
+    massive_store.update(job["id"], minutes_scope=None)
+    assert massive_import.wants_import(window, massive_import.availability(DAY)) is True
+    massive_store.update(job["id"], minutes_scope="day")
+    assert massive_import.wants_import(window, massive_import.availability(DAY)) is False
+    elsewhere = history_store.window("IMCC", DAY, "06:45", "09:00")
+    assert massive_import.wants_import(elsewhere, massive_import.availability(DAY)) is False   # the day holds it
+
+
+def test_an_older_window_import_is_upgraded_to_its_stock_day(root):
+    """An import of one window, made before stock-days: it keeps playing; the day's import, once it holds the
+    window, drops it in the same transaction."""
+    spec, older = _imported()
+    other = massive_import.spec(history_store.window("IMCD", DAY, "09:30", "10:00"))     # another stock-day
+    massive_store.save(dict(massive_store.new_job(other), status="failed"))
+    assert massive_import.day_job(_window()) is None
+    assert massive_import.wants_import(_window(), massive_import.availability(DAY)) is True
+    selected = playback.select(spec)
+    assert selected["trade_count"] == 5 and selected["job_id"] == older["id"]          # it still plays
+    massive_import.begin(_window())
+    day = _wait_day(_window())
+    assert day["count"] == 6 and massive_store.get(older["id"]) is None
+    assert massive_store.read_prints(older["id"], "IMCC") == []
+    assert massive_store.find(other) is not None
+
+
+def test_a_capped_day_keeps_an_older_import_of_the_window_asked_for(root, monkeypatch):
+    spec, older = _imported()
+    monkeypatch.setattr(massive_read, "SIM_HISTORY_MAX_SELECTION_PRINTS", 5)
+    elsewhere = history_store.window("IMCC", DAY, "09:00", "09:30")
+    massive_import.begin(elsewhere)
+    day = _wait_day(elsewhere)
+    assert day["capped"]["what"] == "prints" and (day["kept_start"], day["kept_end"]) == ("09:00", "09:30")
+    assert massive_store.get(older["id"]) is not None                                   # outside what the day kept
+    assert massive_import.wants_import(_window(), massive_import.availability(DAY)) is False
 
 
 def test_gap_reads_the_windows_own_0930_bar_never_the_ibkr_chart_store(root, monkeypatch):
@@ -395,12 +473,13 @@ def test_auto_downloads_and_selects_from_massive_when_the_day_is_on_disk(client)
     body = dict(symbol="IMCC", date=DAY, start="09:30", end="10:00")
     job = client.post("/api/sim/history", json=body).json()
     assert job["source"] == "massive" and job["status"] in ("running", "complete")
-    _wait_complete(massive_import.spec(_window()))
+    _wait_day(_window())
     listing = client.get("/api/sim/history").json()
     assert listing["massive"]["available"] is True and listing["massive"]["trade_days"] == 1
     assert [j["source"] for j in listing["jobs"]] == ["massive"] and listing["jobs"][0]["progress_pct"] == 100
     selected = client.post("/api/sim/history/select", json=body).json()
-    assert selected["source"] == "massive" and selected["trade_count"] == 5 and selected["quote_status"] == "complete"
+    assert selected["source"] == "massive" and selected["trade_count"] == 6 and selected["quote_status"] == "complete"
+    assert (selected["start"], selected["end"]) == ("04:00", "20:00")                # what the import holds: the day
     snap = client.get("/api/sim/history/snapshot/IMCC").json()
     assert "bid" in snap and snap["quote_source"] == "massive_nbbo"
 
@@ -409,9 +488,41 @@ def test_selecting_a_day_on_disk_starts_its_import(client):
     body = dict(symbol="IMCC", date=DAY, start="09:30", end="10:00")
     selected = client.post("/api/sim/history/select", json=body).json()
     assert selected["source"] == "massive" and selected["download_status"] in ("running", "complete")
-    assert _wait_complete(massive_import.spec(_window()))["status"] == "complete"
+    assert (selected["start"], selected["end"]) == ("09:30", "10:00")                # empty until it lands
+    assert selected["job_id"] == massive_store.job_id_for(massive_import.day_spec(_window()))
+    assert _wait_day(_window())["status"] == "complete"
     again = client.post("/api/sim/history/select", json=body).json()
-    assert again["trade_count"] == 5
+    assert again["trade_count"] == 6 and (again["start"], again["end"]) == ("04:00", "20:00")
+
+
+def test_a_scrub_elsewhere_on_the_stock_day_plays_with_no_new_import(client, monkeypatch):
+    """The WFF tab, 2026-10-09: a playhead moved from premarket to 10:05 started a second read of the same day."""
+    reads = _reads(monkeypatch)
+    early = dict(symbol="IMCC", date=DAY, start="06:45", end="09:00")
+    client.post("/api/sim/history/select", json=early)
+    first = _wait_day(_window())
+    late = dict(symbol="IMCC", date=DAY, start="09:15", end="11:30")
+    loaded = client.post("/api/sim/history/select", json=late).json()
+    assert loaded["trade_count"] == 6 and (loaded["start"], loaded["end"]) == ("04:00", "20:00")
+    assert client.post("/api/sim/history", json=late).json()["id"] == first["id"]       # a download answers the day
+    assert reads == {"trades_v1": 1, "quotes_v1": 1, "minute_aggs_v1": 1}
+    jobs = client.get("/api/sim/history").json()["jobs"]
+    assert [(j["id"], j["started"]) for j in jobs] == [(first["id"], first["started"])]
+
+
+def test_loading_from_the_files_keeps_the_playhead_where_it_was_placed(client):
+    """Loading WFF's day moved the playhead from 10:05 to the window's 09:15; a placed playhead now stays."""
+    clock.set_session_date(DAY)
+    clock.scrub_to_second(_sec("10:05:00") - _sec("04:00:00"))
+    body = dict(symbol="IMCC", date=DAY, start="09:15", end="11:30")
+    client.post("/api/sim/history/select", json=body)
+    _wait_day(_window())
+    client.post("/api/sim/history/select", json=body)
+    assert abs(clock.now_et().timestamp() - _sec("10:05:00")) < 5
+    assert clock.status_payload()["session_open_et"].startswith(f"{DAY}T04:00")
+    outside = dict(symbol="IMCC", date=DAY, start="12:00", end="13:00")                 # asked elsewhere: its start
+    client.post("/api/sim/history/select", json=outside)
+    assert abs(clock.now_et().timestamp() - _sec("12:00:00")) < 5
 
 
 def test_loading_again_once_the_quotes_arrive_adds_them_while_the_window_keeps_playing(client, monkeypatch):
@@ -419,11 +530,11 @@ def test_loading_again_once_the_quotes_arrive_adds_them_while_the_window_keeps_p
     held = quotes.read_bytes()
     quotes.unlink()
     body = dict(symbol="IMCC", date=DAY, start="09:30", end="10:00")
-    spec = massive_import.spec(_window())
+    spec = massive_import.day_spec(_window())
     client.post("/api/sim/history/select", json=body)
     _wait_complete(spec)
     first = client.post("/api/sim/history/select", json=body).json()
-    assert first["trade_count"] == 5 and first["quote_status"] == "not_downloaded"
+    assert first["trade_count"] == 6 and first["quote_status"] == "not_downloaded"
     quotes.write_bytes(held)
     gate = threading.Event()
     real_run = massive_import.run
@@ -433,13 +544,13 @@ def test_loading_again_once_the_quotes_arrive_adds_them_while_the_window_keeps_p
         return real_run(job_id, stop)
     monkeypatch.setattr(massive_import, "run", held_run)
     during = client.post("/api/sim/history/select", json=body).json()
-    assert during["download_status"] == "running" and during["trade_count"] == 5
+    assert during["download_status"] == "running" and during["trade_count"] == 6
     assert during["quote_status"] == "not_downloaded"
     gate.set()
     assert _wait_complete(spec)["quote_status"] == "complete"
     after = client.post("/api/sim/history/select", json=body).json()
     assert after["quote_status"] == "complete" and after["quote_count"] == 4 and after["download_status"] == "complete"
-    assert massive_import.wants_import(massive_store.find(spec), massive_import.availability(DAY)) is False
+    assert massive_import.wants_import(_window(), massive_import.availability(DAY)) is False
 
 
 def test_auto_puts_the_massive_files_over_a_window_already_downloaded_from_ibkr(client):
@@ -450,15 +561,15 @@ def test_auto_puts_the_massive_files_over_a_window_already_downloaded_from_ibkr(
     body = dict(symbol="IMCC", date=DAY, start="09:30", end="10:00")
     selected = client.post("/api/sim/history/select", json=body).json()
     assert selected["source"] == "massive"
-    assert _wait_complete(massive_import.spec(window))["status"] == "complete"
+    assert _wait_day(window)["status"] == "complete"
     again = client.post("/api/sim/history/select", json=body).json()
-    assert again["source"] == "massive" and again["trade_count"] == 5 and again["quote_status"] == "complete"
+    assert again["source"] == "massive" and again["trade_count"] == 6 and again["quote_status"] == "complete"
 
 
 def test_auto_plays_the_ibkr_download_when_the_files_import_of_it_failed(client):
     window = _window()
     history_store.create(window, "trades")
-    spec = massive_import.spec(window)
+    spec = massive_import.day_spec(window)
     massive_store.save(dict(massive_store.new_job(spec), status="failed", error="Replay exceeds 500,000 prints"))
     selected = client.post("/api/sim/history/select",
                            json=dict(symbol="IMCC", date=DAY, start="09:30", end="10:00")).json()

@@ -66,7 +66,20 @@ export interface HistoricalJob extends HistoricalWindow {
   quote_status?: MassiveQuoteStatus | null;
   quote_count?: number;
   bar_count?: number;
+  /**
+   * A stock-day's import (ADR 046 amendment, 2026-10-09; `start` 04:00, `end` 20:00): the window asked
+   * for (`HH:MM`), kept instead of the day only when the day is over a cap. Absent on an older import.
+   */
+  focus_start?: string | null;
+  focus_end?: string | null;
+  /** What a complete import holds (`HH:MM`): the whole day, or a capped day's focus. Null until it completes. */
+  kept_start?: string | null;
+  kept_end?: string | null;
+  /** The day was over a cap, so only the focus was kept. */
+  capped?: MassiveCap | null;
 }
+/** Which of a stock-day's datasets passed what a replay holds: the day's count of it, and the cap. */
+export interface MassiveCap { what: 'prints' | 'quotes'; count: number; limit: number }
 /** The listing's `massive` block: is the folder there, and how many days can replay. */
 export interface MassiveSummary {
   available: boolean;

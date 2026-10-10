@@ -76,3 +76,36 @@ describe('shouldRefreshSelection for a window from the Massive files (ADR 046)',
     expect(at(selection(100), [imported()])).toBe(false);
   });
 });
+
+describe('shouldRefreshSelection under a stock-day import (ADR 046 amendment, 2026-10-09)', () => {
+  const DAY = { id: 'day', start: '04:00', end: '20:00', kept_start: '04:00', kept_end: '20:00' };
+  const day = (over: Partial<HistoricalJob> = {}): HistoricalJob =>
+    job({ ...DAY, source: 'massive', status: 'complete', count: 6, covered_seconds: 57_600, quote_status: 'complete',
+      quote_count: 4, bar_count: 4, ...over });
+  const loaded = (over: Partial<HistoricalSelection> = {}): HistoricalSelection =>
+    ({ ...W, coverage_through: 0, source: 'massive', covered_seconds: 0, trade_count: 0, quote_status: null, ...over });
+
+  it('a window loaded empty while the day imported moves onto the day once it holds it', () => {
+    const empty = loaded({ job_id: 'day' });
+    expect(at(empty, [day({ status: 'running', covered_seconds: 0, count: 0, kept_start: null, kept_end: null })])).toBe(false);
+    expect(at(empty, [day()])).toBe(true);
+  });
+
+  it('an older import of the window moves onto the day, and the day loaded stays put', () => {
+    const older = loaded({ job_id: 'old', covered_seconds: 8100, trade_count: 5, quote_status: 'complete', quote_count: 4 });
+    const oldJob = job({ id: 'old', source: 'massive', status: 'complete', count: 5, covered_seconds: 8100,
+      quote_status: 'complete', quote_count: 4 });
+    expect(at(older, [oldJob])).toBe(false);
+    expect(at(older, [day(), oldJob])).toBe(true);
+    const whole = loaded({ ...DAY, job_id: 'day', covered_seconds: 57_600, trade_count: 6, quote_status: 'complete',
+      quote_count: 4, bar_count: 4 });
+    expect(at(whole, [day()])).toBe(false);
+  });
+
+  it('a capped day that kept another window does not move the loaded one', () => {
+    const older = loaded({ job_id: 'old', covered_seconds: 8100, trade_count: 5 });
+    const capped = day({ kept_start: '06:45', kept_end: '09:00', covered_seconds: 8100,
+      capped: { what: 'prints', count: 812_345, limit: 500_000 } });
+    expect(at(older, [capped])).toBe(false);
+  });
+});

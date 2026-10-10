@@ -123,6 +123,15 @@ async function selectWhenFree(plan: { symbol: string; date: string }, window: La
 
 type WindowResult = { ok: true; window: LandingWindow } | { ok: false; tooBig: boolean; error: string };
 
+/**
+ * The window the Sim loaded, which the playhead is placed in: a stock-day's import from the files loads what it
+ * holds -- the whole day, or a capped day's window -- not the window asked for (ADR 046 amendment, 2026-10-09).
+ */
+function loadedWindow(selected: HistoricalSelection, asked: LandingWindow): LandingWindow {
+  if (selected.start_ts == null || selected.end_ts == null) return asked;
+  return { start: selected.start, end: selected.end, start_ts: selected.start_ts, end_ts: selected.end_ts };
+}
+
 /** Load one window from the files and wait until its import is in; a window too busy to hold says so. */
 async function loadWindow(plan: { symbol: string; date: string }, window: LandingWindow, hooks: LandingHooks): Promise<WindowResult> {
   const sleep = hooks.sleep ?? defaultSleep;
@@ -137,13 +146,13 @@ async function loadWindow(plan: { symbol: string; date: string }, window: Landin
     const message = error instanceof Error ? error.message : String(error);
     return { ok: false, tooBig: TOO_BIG.test(message), error: message };
   }
-  if (selected.download_status === 'complete') return { ok: true, window };
+  if (selected.download_status === 'complete') return { ok: true, window: loadedWindow(selected, window) };
   const started = now();
   for (;;) {
     const job = jobFor(await readJobs(), plan.symbol, plan.date, window, selected.job_id);
     if (job?.status === 'complete') {
-      await simSelectWindow(plan.symbol, plan.date, window);   // the same window again: the playhead stays
-      return { ok: true, window };
+      // The same window again, now held: the playhead stays.
+      return { ok: true, window: loadedWindow(await simSelectWindow(plan.symbol, plan.date, window), window) };
     }
     if (job && ['failed', 'paused', 'interrupted'].includes(job.status)) {
       const message = job.error || `the import ${job.status}`;
