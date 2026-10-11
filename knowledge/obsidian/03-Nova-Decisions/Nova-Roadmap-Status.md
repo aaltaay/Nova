@@ -10,7 +10,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Current position
 
-- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[~]` S6 built -- the setup scanner (Watchlist > Setups, ADR 022) watches the first pullback with the live Level 2 / tape as the gate and scores every armed setup, and since 2026-09-24 the L2 first-pullback bot trades its go triggers itself on Paper (ADR 030; Live still waits on the read-out); next is its read-out on Paper sessions (§2g) beside the operator's ten-day hand run, and S5 the rolling-universe screen offline (decision 2026-09-22 night): seven bar-level readings of small-cap setups have now failed gate 1 on one honest harness (ORB, Gap and Go, the ORB on seconds, the first pullback, the flat-top breakout, red-to-green; A4 was large-cap). The private catalogue is done on F:; the chosen setup is the first pullback -- traded by hand on Paper as the operator's material prescribes, and watched by the bot with the live Level 2 / tape as the gate. Halts last, A5 parked. Plan, results and done-criteria in [[Bot-Trading-Plan]].
+- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[~]` S6 built -- the setup scanner (Watchlist > Setups, ADR 022) watches the first pullback with the live Level 2 / tape as the gate and scores every armed setup, and since 2026-09-24 the L2 first-pullback bot trades its go triggers itself on Paper (ADR 030; Live still waits on the read-out); next is its read-out on Paper sessions (§2g) beside the operator's ten-day hand run, and S5 the rolling-universe screen offline (decision 2026-09-22 night): seven bar-level readings of small-cap setups have now failed gate 1 on one honest harness (ORB, Gap and Go, the ORB on seconds, the first pullback, the flat-top breakout, red-to-green; A4 was large-cap). The private catalogue is done on F:; the chosen setup is the first pullback -- traded by hand on Paper as the operator's material prescribes, and watched by the bot with the live Level 2 / tape as the gate. S7 (pre-registered 2026-10-11, §2h): the author's own trades, read from the private video archive -- a 20-day pilot on the desk PC decides whether a verified ledger is possible. Halts last, A5 parked. Plan, results and done-criteria in [[Bot-Trading-Plan]].
 - **Phase K (short entry):** `[~]` **PARKED** 2026-09-22 by operator direction -- K0-K2/K4 code stays shipped; K3 paper days are stale (they name the legacy paper Gateway, ADR 020) and are not a next action.
 - **`auto_live`:** **NO-GO** -- rejected in `backend/nova_os/control_mode.py`. Do not enable or implement.
 - **Phase B (paper shadow ops):** **WAIVED** by user 2026-07-28 (0 evidence rows; not `[x]`). Do not block work on ≥5 shadow days.
@@ -19,7 +19,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Reliability track (WS0-WS7):** shipped 2026-08-18; only **WS1 proof** is open (first unattended 03:55 ET run).
 - **Closed:** Phases A, D, E, F, G, G2, G3, H, J · Nova OS P0-P10 · Maintenance Phases 0-13 -> [[Nova-Roadmap-Archive]]
 - **Last verified commit:** `aad9bf9` (architecture close remediation Phase 7). Tip SHA: `git rev-parse --short HEAD`.
-- **Last updated:** 2026-09-24 (Phase L: the L2 first-pullback bot trades Paper, ADR 030; its read-out + the ten-day hand run + S5 next)
+- **Last updated:** 2026-10-11 (Phase L: S7 pre-registered -- the author's own trades; its 20-day pilot runs on the desk PC beside the S6 read-out, the ten-day hand run and S5)
 
 ## Exact next action (human)
 
@@ -100,7 +100,7 @@ L is promoted above (strategy proof). Still parked: conversational scans, Holly-
 
 ## Crash or blocker
 
-- **Phase L:** nothing blocked; no bar-level rule is alive on the store (seven screens failed); the next evidence is live -- the setup scanner's scoreboard on Paper sessions and the operator's ten-day hand run -- plus S5 offline. Halts last (operator).
+- **Phase L:** nothing blocked; no bar-level rule is alive on the store (seven screens failed); the next evidence is live -- the setup scanner's scoreboard on Paper sessions and the operator's ten-day hand run -- plus S5 offline, and S7's 20-day ledger pilot on the desk PC (§2h). Halts last (operator).
 - **Phase K:** parked; K3 is stale against ADR 020 (see the Phase K entry).
 - **Phase B:** WAIVED (2026-07-28) -- not a blocker.
 - **Phase C remainder:** needs Cloudflare console work + a fresh session compact/walk (optional).
@@ -113,6 +113,7 @@ Newest first. Append here; do not rewrite prior rows. Rows before 2026-07-28 are
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-10-11 | S7 pre-registered (`Bot-Trading-Plan.md` §2h): every reading so far tested what the operator's material teaches, none what its author trades. A 20-day pilot on the desk PC checks whether the private video archive yields a verified ledger (80% of trades pinned to a print, 80% of days reconciled to the stated P&L) before any twelve-month extraction; the five questions are fixed first. Material and ledger stay on F:. `auto_live` NO-GO. | (this commit) |
 | 2026-09-23 | Nova OS retired (ADR 025, #481 option a): the verdict, the `signal` / `confirm` / `auto_paper` ladder, the staged queue, the Phase D executor and the decision replay are removed; Watchlist is Watchlist / Setups / Journal / Backtest. The kill switch moves to `backend/kill_switch/` with a card on the Bots page. The bot ladder (ADR 016) is the one automation path. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | S6 built: the setup scanner (ADR 022). One live first-pullback scanner on the HOD Momo names (Watching, Leg up, Armed, Near, Triggered, Failed; P1 rules, 94.9% parity with the research harness) replaces the old setups stream and the Signals sub-tab; its tape gate reads the Level 2 / time and sales the desk holds (go / wait / veto / blind, no new IBKR line); near + go raises an Eyes proposal -- ping, alert card, staged ticket, never a place; every armed setup is scored in `setups.db`. Read-out pre-registered in `Bot-Trading-Plan.md` §2g. The Phase D executor no longer receives signals. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | P1 / P2 / P3: the first pullback, the flat-top breakout and red-to-green as minute-bar rules on the Five Pillars universe after 09:30 -- not passed, negative in every ladder cell and at zero cost (`research/momentum/`). The private catalogue of the operator's material is done on F: (S4). Decision: master the first pullback -- by hand on Paper as prescribed (one trade a day, 20c / 20c, 07:00-10:00), and with the bot in Eyes mode gated by the live Level 2 / tape (S6); S5 rolling-universe screen offline. `auto_live` NO-GO. | (this commit) |

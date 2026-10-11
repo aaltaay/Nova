@@ -490,6 +490,71 @@ tabs (or record them) -- the scanner can only read what the desk holds. When the
 the card shows the setup, levels and tape; Stage ticket fills the ticket, you decide. Trade
 your ten-day hand run as prescribed; the scanner keeps score either way.
 
+## 2h. S7 -- the author's own trades (pre-registered 2026-10-11)
+
+Every reading so far tests what the operator's material *teaches*. Seven bar-level readings
+failed gate 1 (§2b-§2f), the catalyst split was negative, and the tape study found no state
+that buys (ADR 041). None of them measures what the material's author *trades*. If the
+author's P&L is real, it comes from something those rules leave out: which stocks, the exact
+minute, the size, or a few outsized days. S7 builds a ledger of the author's actual trades
+and asks which.
+
+**Source.** The operator's private video archive of the author's trading days, on F:: daily
+recaps and full live sessions. Course lessons are excluded, because they are chosen examples,
+not a record. The videos, transcripts, stills and the ledger stay on F: (operator
+instruction, 2026-09-22). This note holds only the rules and the readings. The schema is in
+`architecture/schema/trade-ledger.md`.
+
+**Extraction never reads the market.** Every field comes from the video (the transcript, or a
+still of the author's screen where the transcript is unclear) and cites the second it came
+from. A field the author does not give stays null. The flat files are used afterwards, and
+only to verify.
+
+**The pilot: 20 days, on the desk PC.**
+
+- *Days:* the 20 most recent trading days that have both a recap or live-session video and
+  the Massive `trades_v1` file on disk. If fewer than 20 qualify, the next most recent video
+  days with `minute_aggs_v1` fill the rest. Days the author sat out or lost money stay in. The
+  list is written before any video is transcribed.
+- *Pinned trade:* a price-setting print within max(2c, 0.5%) of the first stated entry price,
+  within 2 minutes of the stated entry time. On a minute-bar day, the price must fall inside a
+  bar's range, with the same tolerance and window. *Price only:* such a print exists that day
+  between 04:00 and 20:00 ET, but not in the window, or no time was given. *Unmatched:* no
+  such print that day.
+- *Reconciled day:* the day's trades, summed (as stated, else computed from stated shares and
+  prices), come within 20% of the day P&L the author states. When that figure is under $2,500
+  either way, the test is within $500 instead. A day with no stated P&L does not reconcile.
+- *Verdict:*
+  - **Full ledger:** at least 80% of trades pinned and at least 80% of days reconciled.
+    Extract twelve months (about 250 days) under the same rules.
+  - **Day-level only:** days reconcile but trades are not pinned. The ledger answers
+    questions 1-3 below (selection ranked at 09:30) but not 4 or 5.
+  - **Stop:** fewer than 80% of days reconcile. The videos do not account for the author's
+    P&L, and no ledger is built.
+
+**What the ledger answers.** The questions are fixed now and run only on a full or day-level
+ledger.
+
+1. **Concentration:** what share of the year's net P&L its 10 best days and its 10 best
+   trades carry.
+2. **Size:** every trade replayed at one fixed size. Does the year stay positive? If not, the
+   edge is in the sizing, not the entries.
+3. **Selection:** where the author's stock ranked among the day's gainers (the S5 rolling
+   universe, at the entry minute), and how often the author traded none of the top three.
+4. **Timing and tape:** on the stock-days the author traded, the author's entries against the
+   P1-P3 triggers the author skipped, and whether the tape flow score (ADR 034) separates
+   them.
+5. **Fills:** whether the stated price sat inside the NBBO at the stated time, and what
+   Nova's size would have paid.
+
+Any rule these readings suggest is pre-registered here before it runs. It is tested on days
+outside the ledger (the five years of flat files, and the days the author did not trade) and
+must pass gate 1's kill tests (§2b) before it can reach Paper. **Kill:** if no such rule
+passes gate 1 outside the ledger, the author's edge is not one Nova can copy (size, speed or
+discretion), and Phase L moves on without it.
+
+**Status (2026-10-11):** the pilot is running on the desk PC. Its reading goes here.
+
 ## 3. Reference numbers (from the 2026-09-22 research pass)
 
 - Good backtest: > 300 trades, profit factor 1.3-2.0 after costs, expectancy > 0.2R, max DD
@@ -528,3 +593,4 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-22 | **S6 built (ADR 022): the setup scanner.** One live first-pullback scanner on the HOD Momo names replaces the old setups stream; the tape gate reads the held Level 2 / time and sales at the trigger; near + go raises an Eyes proposal (ping, alert card, staged ticket -- never a place); every armed setup is scored in `setups.db`. Live detector parity with P1: 94.9%. Read-out criterion pre-registered in §2g (50 triggered go setups, net R above +0.2 and above blind / wait). The Phase D executor no longer receives signals. | Claude Opus 5.5 for the operator |
 | 2026-09-23 | **Templates and the eyes on the record (ADR 029).** Every setup shows every parameter it runs on (the Bots page draws them from the catalogue, never prose) and keeps a locked pre-registered default beside the operator's own templates. Every first-pullback template is watched and scored at once; only the one in play proposes; the read-out is per template revision, so an edited template starts its evidence over and Strategy still waits on its own read-out. The at-most-two-a-day cap ADR 022 stated is now enforced (second pullbacks only; the read-out excludes them). The eyes' journal keeps everything the lanes see on F:\Nova\eyes every day the backend runs, active or not (each line says which). Replayed eyes follow the Sim playhead over a Session Record and backtest templates on recordings; replayed results never count toward the read-out. Operator may veto any of it. | Claude Opus 5.5 for the operator |
 | 2026-09-24 | **The first-pullback bot trades Paper and Sim; the read-out gates Live (ADR 030, #514).** Operator: "When I'm on paper, I cannot activate the button for the bots" -- then, of three choices, "Paper/Sim skip it + build". The read-out stood at 0 of 50 go setups (a go needs Nova to hold the name's Level 2 at the trigger), so the L4 Paper run no longer waits for it: Nova's own bot trades the template in play's go triggers on Paper and Sim under every bot gate -- a limit at the scanner's entry, a resting target 1, the stop watched on the last print, a 15-minute time stop, one trade a day. Its trades are gate 2's evidence (100 trades, expectancy against the read-out, slippage measured); they never touch `setups.db`, so the pre-registered read-out is unchanged and still gates Live. | Operator + Claude Opus 5.5 |
+| 2026-10-11 | **S7 pre-registered: the author's own trades (§2h).** The operator asked whether the author's archive had been fully analysed: "if he makes money, we should be able to make money too." Every reading so far tested what the material teaches; none tested what its author trades. A 20-day pilot on the desk PC (`F:\Nova\ledger`) checks whether the private video archive yields a verified ledger (80% of trades pinned to a print, 80% of days reconciled to the stated P&L) before any twelve-month extraction. Its five questions (concentration, size, selection, timing and tape, fills) are fixed before any ledger exists. The material and the ledger stay on F:. | Claude for the operator |
