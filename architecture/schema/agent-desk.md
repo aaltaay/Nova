@@ -23,10 +23,14 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
       a split Massive lists or `confirm_splits.py` proved executing in between (`split_listed` 1); null when the
       stock did not trade that session, never an older close. `prev_volume` is that session's volume on today's
       share basis.
-    - `open` / `high` / `low` / `close` / `volume`: the day bar -- regular hours, the official close.
+    - `open` / `high` / `low` / `close`: the day bar's official prices -- regular hours (no extended-hours Form T
+      print sets them; the closing cross does), the official close. `volume`: the day bar's, the whole session
+      04:00-20:00 with odd lots, so `pm_volume` and `ah_volume` are inside it.
     - `pm_*` 04:00-09:30 ET, `ah_*` 16:00-20:00 and `day_high` / `day_low` 04:00-20:00 come from the minute bars,
-      with the start of the first minute that printed each (`*_ts`, epoch seconds); `dollar_volume` is the
-      minutes' close x volume; `first_ts` / `last_ts` the first and last minute that printed.
+      with the start of the first minute that printed each (`*_ts`, epoch seconds; null when the day bar's own
+      high or low is beyond every minute, as a thin name's closing cross can be); `dollar_volume` is the minutes'
+      close x volume, which leaves out the closing cross (the minute bars carry none); `first_ts` / `last_ts` the
+      first and last minute that printed.
     - `*_pct` are fractions against `prev_close` (`gap_pct` from the 09:30 open; null without a prior close);
       `upN_ts` / `downN_ts` the first minute whose high reached +N% (whose low reached -N%).
     - `split_suspect` 1 when the open is 1.8x or more (0.7x or less) the prior close and no split is listed.
