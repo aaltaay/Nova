@@ -37,7 +37,7 @@ Rules:
     time. The tolerance is max(0.02, 0.5% of that price) and `minutes` is 2. On a `minute_aggs_v1` day, the price
     must fall inside a bar's low-high, widened by the tolerance. `match` holds the print or the bar that pinned it.
   - **price_only:** such a print or bar exists that day between 04:00 and 20:00 ET, but not in the window, or no time
-    was given. `match` holds the one nearest in time.
+    was given. `match` holds the one nearest the stated time or, when no time was given, the earliest one that day.
   - **unmatched:** no such print or bar that day. `match` is null.
   - **unchecked:** the author gave no entry price, or the day has no Massive file. `match` is null.
   - Only pinned trades count toward the pilot's pinned rate; every other status counts against it.
