@@ -520,7 +520,8 @@ only to verify.
   within 2 minutes of the stated entry time. On a minute-bar day, the price must fall inside a
   bar's range, with the same tolerance and window. *Price only:* such a print exists that day
   between 04:00 and 20:00 ET, but not in the window, or no time was given. *Unmatched:* no
-  such print that day.
+  such print that day. *Unchecked:* the author gave no entry price, or the day has no Massive
+  file. Only pinned trades count toward the 80%; every other status counts against it.
 - *Reconciled day:* the day's trades, summed (as stated, else computed from stated shares and
   prices), come within 20% of the day P&L the author states. When that figure is under $2,500
   either way, the test is within $500 instead. A day with no stated P&L does not reconcile.
@@ -528,7 +529,8 @@ only to verify.
   - **Full ledger:** at least 80% of trades pinned and at least 80% of days reconciled.
     Extract twelve months (about 250 days) under the same rules.
   - **Day-level only:** days reconcile but trades are not pinned. The ledger answers
-    questions 1-3 below (selection ranked at 09:30) but not 4 or 5.
+    question 1, question 2 on the trades whose entry and exit prices the author states, and
+    question 3 by the day's ranking at 09:30. It cannot answer 4 or 5.
   - **Stop:** fewer than 80% of days reconcile. The videos do not account for the author's
     P&L, and no ledger is built.
 
@@ -537,8 +539,9 @@ ledger.
 
 1. **Concentration:** what share of the year's net P&L its 10 best days and its 10 best
    trades carry.
-2. **Size:** every trade replayed at one fixed size. Does the year stay positive? If not, the
-   edge is in the sizing, not the entries.
+2. **Size:** every trade whose entry and exit prices the author states, replayed at one fixed
+   size, reported beside the share of the year's stated P&L those trades carry. Does the year
+   stay positive? If not, the edge is in the sizing, not the entries.
 3. **Selection:** where the author's stock ranked among the day's gainers (the S5 rolling
    universe, at the entry minute), and how often the author traded none of the top three.
 4. **Timing and tape:** on the stock-days the author traded, the author's entries against the
