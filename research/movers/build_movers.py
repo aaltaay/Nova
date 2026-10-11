@@ -61,6 +61,7 @@ from constants_day_movers import (  # noqa: E402
     DAY_MOVERS_KEEP_HIGH_PCT,
     DAY_MOVERS_KEEP_LOW_PCT,
     DAY_MOVERS_KEEP_NO_PRIOR_RANGE,
+    DAY_MOVERS_LINE_EPS,
     DAY_MOVERS_REGULAR_CLOSE_MIN_ET,
     DAY_MOVERS_REGULAR_OPEN_MIN_ET,
     DAY_MOVERS_SESSION_END_MIN_ET,
@@ -102,8 +103,10 @@ def day_bars(con, path: Path | None) -> dict[str, tuple[float, float, float, flo
 
 
 def _mark_sql(marks: dict[str, float], column: str, op: str) -> str:
+    """The first minute on or past each line; a price exactly on it counts (``DAY_MOVERS_LINE_EPS``)."""
+    slack = 1 - DAY_MOVERS_LINE_EPS if op == ">=" else 1 + DAY_MOVERS_LINE_EPS
     return ", ".join(
-        f"min(m.ts) FILTER (WHERE p.pc > 0 AND m.{column} {op} p.pc * {mult!r}) AS {name}"
+        f"min(m.ts) FILTER (WHERE p.pc > 0 AND m.{column} {op} p.pc * {mult!r} * {slack!r}) AS {name}"
         for name, mult in marks.items()
     )
 
@@ -213,12 +216,13 @@ def keep(row: dict[str, Any]) -> bool:
         low, high = row["day_low"], row["day_high"]
         return bool(low and low > 0 and high / low - 1.0 >= DAY_MOVERS_KEEP_NO_PRIOR_RANGE)
     hp, lp, cp, gp = row["high_pct"], row["low_pct"], row["close_pct"], row["gap_pct"]
+    eps = DAY_MOVERS_LINE_EPS
     return bool(
         row["split_suspect"]
-        or (hp is not None and hp >= DAY_MOVERS_KEEP_HIGH_PCT)
-        or (lp is not None and lp <= DAY_MOVERS_KEEP_LOW_PCT)
-        or (cp is not None and abs(cp) >= DAY_MOVERS_KEEP_CLOSE_ABS)
-        or (gp is not None and abs(gp) >= DAY_MOVERS_KEEP_GAP_ABS)
+        or (hp is not None and hp >= DAY_MOVERS_KEEP_HIGH_PCT - eps)
+        or (lp is not None and lp <= DAY_MOVERS_KEEP_LOW_PCT + eps)
+        or (cp is not None and abs(cp) >= DAY_MOVERS_KEEP_CLOSE_ABS - eps)
+        or (gp is not None and abs(gp) >= DAY_MOVERS_KEEP_GAP_ABS - eps)
     )
 
 

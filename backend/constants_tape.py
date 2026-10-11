@@ -10,15 +10,22 @@ code is one character wherever it sits.
     Q official open          R seller                 U extended hours, out of sequence
     V contingent             W average price          4 derivatively priced
     7 qualified contingent   9 corrected consolidated close
+    Z sold out of sequence
 
 ``T`` (Form T, extended hours) is not here: extended-hours candles are drawn,
 as every chart draws them. ``P`` and ``4`` go beyond the SIP high / low matrix
 because IBKR's own TRADES bars leave them out (GRML 2026-09-22: a ``P`` print
 $2.31 and a ``4`` print $0.60 under the market were absent from IBKR's bars).
+``Z`` is a trade reported late: the SIP lets it widen the official high / low
+but never move the last, and it reaches the tape minutes to hours after it
+traded, so a candle would draw it at the wrong time. IBKR's bars leave it out
+(CPIX 2026-03-27: a 144-share ``Z`` print at $3.935, traded 09:30, reported
+16:39, against a day IBKR's daily bar tops at $3.23), and so do Massive's
+minute bars.
 """
 from __future__ import annotations
 
-TAPE_NO_PRICE_CONDITIONS: frozenset[str] = frozenset("CHIMNPQRUVW479")
+TAPE_NO_PRICE_CONDITIONS: frozenset[str] = frozenset("CHIMNPQRUVWZ479")
 
 # IBKR's Last (tick 4) and delayed Last (68) -- reportable trades only. RTVolume
 # (48) carries unreported trades too, and ib_async writes both, plus every

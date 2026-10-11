@@ -156,7 +156,8 @@ def test_which_prints_set_a_price():
         fields = next(csv.reader([_trade("X", "09:30:00", 0, 1.0, 1, conds, corr)]))
         return massive_files.trade(dict(zip(TRADES.split(","), fields, strict=True)), "X")
     assert trade("")["sets_price"] and trade("14,41")["sets_price"] and trade("12")["sets_price"]
-    for volume_only in ("37", "10,37,41", "10,2,41", "53,35,41", "7,12,37", "15", "16"):
+    # 32 / 33 sold out of sequence: CPIX 2026-03-27's "32" print at $3.935 traded 09:30, reported 16:39.
+    for volume_only in ("37", "10,37,41", "10,2,41", "53,35,41", "7,12,37", "15", "16", "32", "14,32,41", "33"):
         assert trade(volume_only)["sets_price"] is False, volume_only
     assert trade("", corr=12)["sets_price"] is True
     for busted in (1, 7, 8):

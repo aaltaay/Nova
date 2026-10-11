@@ -38,8 +38,17 @@ resumable; later runs build only the new days. A session built before its minute
 - **The minute bars carry no closing cross** (condition 8): none of the 158 crosses among 2026-10-08's movers was
   in its minute's volume, and 61 had no bar for that minute at all. So `dollar_volume` leaves the cross out, and on
   a thin name the cross can be the day's high above every minute; `day_high_ts` is then null.
+- **A late-reported trade can be the day bar's high** (condition 32 / 33, the SIP's `Z`, "sold out of
+  sequence"): the SIP lets it set the official high and low, never the last, and no minute bar carries it. CPIX
+  2026-03-27: a 144-share print at $3.935 traded at 09:30 and reached the tape at 16:39, so the day bar's high
+  is +21.5% while every other trade that day stayed at or under $3.23 (IBKR's daily high). Such a day has a
+  `high_pct` with no mark for it and a null `day_high_ts`. Across the index (Oct 2016 on) a high reached only on
+  the day bar is 1,440 of 627,043 days at +10%, 66 common-stock days at +20%, 6 at +50% and none at +100%.
 - **Marks**: `up10_ts` .. `up300_ts` the first minute whose high reached +10% .. +300% over the prior close
-  (`down10_ts` .. `down50_ts` for the low). A show parks five minutes before `up20_ts` (else `up10_ts`).
+  (`down10_ts` .. `down50_ts` for the low). A show parks five minutes before `up20_ts` (else `up10_ts`). A price
+  exactly on a line is on it (`DAY_MOVERS_LINE_EPS`): floating point stores $1.20 over $1.00 as +19.999999999999996%.
+  The keep rule and the search allow the same; sessions built before 2026-10-11 lack a mark when the minute's
+  high sat exactly on the line (233 rows), until rebuilt (`--rebuild --date`).
 - **Kind**: the Massive reference's type for the ticker (today's dump; delisted tickers included, a reused ticker
   reads today's owner's type). The search's `common` default is `CS` / `ADRC` and type-less 1-4 letter tickers.
 - **Splits**: an overnight open 1.8x or more (0.7x or less) the prior close with no split listed is a suspect,

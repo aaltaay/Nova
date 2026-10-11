@@ -192,3 +192,20 @@ def test_the_store_reads_none_before_it_is_built_and_refuses_another_version(tmp
     con.close()
     with pytest.raises(UnknownDayMoversSchema):
         store.read_only(target)
+
+
+def test_a_high_exactly_on_the_line_is_found(tmp_path):
+    """$1.00 -> $1.20 is stored as +19.999999999999996%; a +20% search finds it, and a +20% ceiling keeps it."""
+    target = tmp_path / "movers.sqlite3"
+    row = mover("2026-09-25", "EXCT", pc=1.0, o=1.0, hi=1.2, lo=1.0, c=1.1)
+    assert row["high_pct"] < 0.2
+    with store.connect(target) as conn:
+        store.replace_session(conn, {"session_date": "2026-09-25", "prev_date": None, "tickers": 1, "rows": 1,
+                                     "minute_bars": 1, "builder": 1, "built_ts": 0.0, "note": None}, [row])
+    conn = store.read_only(target)
+    try:
+        assert symbols(search(conn, high_min=20)) == ["EXCT"]
+        assert symbols(search(conn, high_max=20)) == ["EXCT"]
+        assert symbols(search(conn, high_min=20.01)) == []
+    finally:
+        conn.close()

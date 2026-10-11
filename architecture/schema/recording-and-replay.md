@@ -375,7 +375,8 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   touched.
 - **Prints.** `ts` is the SIP time in epoch seconds (float), `ns` the nanoseconds; each adds `exchange_id`,
   `correction`, `trf_id`, `sequence`, `tape`, `sets_price` and `unreported: false`. `sets_price` is true when the
-  conditions miss `SIM_MASSIVE_NO_PRICE_CONDITIONS` (2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 37, 38, 52, 53) and the
+  conditions miss `SIM_MASSIVE_NO_PRICE_CONDITIONS` (2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 32, 33, 37, 38, 52, 53;
+  32 / 33 are trades reported late, IBKR's `Z`, as in "Prints that set a price" in `market-data.md`) and the
   correction is 0 or 12; corrections 1, 7, 8 show and set nothing; 10 and 11 are dropped. Last, volume, high,
   low, candles and practice fills read only prints that set a price.
 - **The snapshot** adds, for every window, `bid_size`, `ask_size`, `bid_exchange`, `ask_exchange`, `quote_ts`,

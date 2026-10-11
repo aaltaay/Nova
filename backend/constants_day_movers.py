@@ -19,6 +19,11 @@ DAY_MOVERS_SESSION_END_MIN_ET = 20 * 60
 # First minute whose high reached +N% / whose low reached -N% over the prior close (column name -> multiple).
 DAY_MOVERS_UP_MARKS = {"up10_ts": 1.10, "up20_ts": 1.20, "up50_ts": 1.50, "up100_ts": 2.00, "up300_ts": 4.00}
 DAY_MOVERS_DOWN_MARKS = {"down10_ts": 0.90, "down20_ts": 0.80, "down50_ts": 0.50}
+# A price exactly on a +N% line is on it. In floating point a $1.20 high over a $1.00 close is +19.999999999999996%
+# and $1.26 x 1.5 is 1.8900000000000001, so a comparison with a line allows this much (a fraction). No real price
+# sits this close under a line: prices carry at most six decimals. Without it 2,364 stock-days exactly +20% were
+# missed by a +20% search (2026-10-11).
+DAY_MOVERS_LINE_EPS = 1e-9
 # An overnight open this far from the prior close with no split listed is a split suspect (#772's thresholds).
 DAY_MOVERS_SPLIT_SUSPECT_UP = 1.8
 DAY_MOVERS_SPLIT_SUSPECT_DOWN = 0.7

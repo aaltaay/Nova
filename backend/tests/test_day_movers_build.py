@@ -149,3 +149,19 @@ def test_a_session_built_before_its_minute_file_arrived_is_built_again(files, tm
         store.replace_session(db, meta, rows)
         done = bm.built(db)
     assert bm.wanted([D1], done, {D1: files["minutes"]}, rebuild=False) == [D1]
+
+
+def test_a_high_exactly_on_a_line_is_on_it(tmp_path):
+    """$3.00 -> $3.30 is +10% and $1.26 -> $1.89 is +50%, though floating point puts both a hair under the line
+    (3.3 / 3.0 - 1 = 0.09999999999999987; 1.26 * 1.5 = 1.8900000000000001): kept, and the marks are set."""
+    root = tmp_path / "massive"
+    prev = write_days(root, D0, {"TENP": (3.0, 3.0, 3.0, 3.0, 10_000), "HALF": (1.26, 1.26, 1.26, 1.26, 10_000)})
+    today = write_days(root, D1, {"TENP": (3.0, 3.3, 3.0, 3.0, 10_000), "HALF": (1.3, 1.89, 1.3, 1.4, 10_000)})
+    minutes = write_minutes(root, D1, [("TENP", 10, 0, 3.0, 3.3, 3.0, 3.0, 1000),
+                                       ("HALF", 11, 0, 1.3, 1.89, 1.3, 1.4, 1000)])
+    _meta, rows = bm.build_session(bm.work_db(1), D1, prev_date=D0, day_file=today, prev_file=prev,
+                                   minute_file=minutes, types={"TENP": "CS", "HALF": "CS"},
+                                   by_ticker=lb_io.splits_by_ticker([]))
+    by = {r["symbol"]: r for r in rows}
+    assert "TENP" in by and by["TENP"]["up10_ts"] == ts(D1, 10, 0)       # kept on its high alone
+    assert by["HALF"]["up50_ts"] == ts(D1, 11, 0)
