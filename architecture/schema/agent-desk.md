@@ -28,11 +28,12 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
       04:00-20:00 with odd lots, so `pm_volume` and `ah_volume` are inside it.
     - `pm_*` 04:00-09:30 ET, `ah_*` 16:00-20:00 and `day_high` / `day_low` 04:00-20:00 come from the minute bars,
       with the start of the first minute that printed each (`*_ts`, epoch seconds; null when the day bar's own
-      high or low is beyond every minute, as a thin name's closing cross can be); `dollar_volume` is the minutes'
+      high or low is beyond every minute, as a thin name's closing cross or a late-reported `Z` trade can be); `dollar_volume` is the minutes'
       close x volume, which leaves out the closing cross (the minute bars carry none); `first_ts` / `last_ts` the
       first and last minute that printed.
     - `*_pct` are fractions against `prev_close` (`gap_pct` from the 09:30 open; null without a prior close);
-      `upN_ts` / `downN_ts` the first minute whose high reached +N% (whose low reached -N%).
+      `upN_ts` / `downN_ts` the first minute whose high reached +N% (whose low reached -N%); a price exactly on
+      the line reaches it (`DAY_MOVERS_LINE_EPS`).
     - `split_suspect` 1 when the open is 1.8x or more (0.7x or less) the prior close and no split is listed.
     - A row is kept when the high is +10% or the low -10%, the close or the gap is 5% either way, or a split
       suspect; without a prior close, when the day's high is 20% over its low.
@@ -48,7 +49,8 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
   - `GET /api/agent/movers` -> `{schema_version: 1, query, units: "percent", count, rows[], summary, excluded,
     coverage, notes[]}`. Query: `from`, `to`, `symbol`, `kinds` (default `common`: `CS`, `ADRC`, and a ticker of
     1-4 letters the reference has no type for), `price_min` / `price_max` (the prior close), `high_min` /
-    `high_max`, `low_min` / `low_max`, `close_min` / `close_max`, `gap_min` / `gap_max` (percent), `close_pos_min`
+    `high_max`, `low_min` / `low_max`, `close_min` / `close_max`, `gap_min` / `gap_max` (percent; a stock exactly on
+    the limit passes it), `close_pos_min`
     / `close_pos_max` (0 = closed at the day's low, 1 = at its high), `giveback_min` / `giveback_max` (the share
     of the run over the prior close given back by the close, 0-1), `high_after` / `high_before` (`HH:MM` ET),
     `volume_min`, `dollar_volume_min`, `float_max` (shares), `float_unknown` (`exclude` | `include` | `only`),

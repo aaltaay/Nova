@@ -249,9 +249,11 @@ SIM_MASSIVE_DAYS_TTL_SEC = 60.0
 # set a price (the SIP's rules; IBKR names the same conditions with the letters in
 # constants_tape.TAPE_NO_PRICE_CONDITIONS): 2 average price, 7 cash, 10 derivatively
 # priced, 13 extended hours sold out of sequence, 15 / 16 official close / open,
-# 20 next day, 21 price variation, 22 prior reference, 29 seller, 37 odd lot,
-# 38 corrected consolidated close, 52 contingent, 53 qualified contingent.
-SIM_MASSIVE_NO_PRICE_CONDITIONS = frozenset({2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 37, 38, 52, 53})
+# 20 next day, 21 price variation, 22 prior reference, 29 seller, 32 / 33 sold out
+# of sequence (IBKR's ``Z``: reported late, never the last, absent from IBKR's and
+# Massive's own bars), 37 odd lot, 38 corrected consolidated close, 52 contingent,
+# 53 qualified contingent.
+SIM_MASSIVE_NO_PRICE_CONDITIONS = frozenset({2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 32, 33, 37, 38, 52, 53})
 # Trade correction codes: 0 regular and 12 a correction record set prices; 1, 7, 8
 # (an original trade later corrected, marked erroneous or cancelled) printed and are
 # shown but set nothing; 10, 11 are cancel / error records, not trades, and are dropped.

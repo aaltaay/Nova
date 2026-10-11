@@ -33,6 +33,8 @@ def test_regular_intermarket_sweep_and_extended_hours_prints_set_a_price(conditi
     "R T ",   # seller
     " 7 V",   # contingent
     "4 W",    # unpadded, as the archive stores it
+    "Z   ",   # sold out of sequence: reported late (CPIX 2026-03-27, $3.935 against a $3.23 day)
+    "ZI",     # ... and an odd lot, as LGHL 2026-09-30 and NXL 2026-10-01 recorded it
 ])
 def test_volume_only_prints_never_set_a_price(conditions):
     assert sets_price(conditions) is False

@@ -24,6 +24,7 @@ from constants_agent_desk import (
 from constants_day_movers import (
     DAY_MOVERS_DOWN_MARKS,
     DAY_MOVERS_LIKELY_SPLIT_MAX_VOLUME_RATIO,
+    DAY_MOVERS_LINE_EPS,
     DAY_MOVERS_REAL_JUMP_MIN_VOLUME_RATIO,
     DAY_MOVERS_UP_MARKS,
 )
@@ -198,7 +199,8 @@ def where(q: MoverQuery) -> tuple[str, list[Any]]:
         value = getattr(q, name)
         if value is not None:
             clauses.append(f"{column} {op} ?")
-            args.append(value / 100.0)
+            # a stock exactly on the line is on it: $1.20 over $1.00 is stored as +19.999999999999996%
+            args.append(value / 100.0 + (-DAY_MOVERS_LINE_EPS if op == ">=" else DAY_MOVERS_LINE_EPS))
     for name, expr, op in (("close_pos_min", _CLOSE_POS_SQL, ">="), ("close_pos_max", _CLOSE_POS_SQL, "<="),
                            ("giveback_min", _GIVEBACK_SQL, ">="), ("giveback_max", _GIVEBACK_SQL, "<=")):
         value = getattr(q, name)
