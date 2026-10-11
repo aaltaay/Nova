@@ -25,10 +25,19 @@ resumable; later runs build only the new days. A session built before its minute
 - **Prior close**: the official close (Massive's day bar, the 16:00 closing cross -- not the 15:59 minute) of the
   session before in the files, times the factor of any split Massive lists, or `research/leaderboard/confirm_splits.py`
   proved, executing in between. None when the stock did not trade that session; never an older close.
-- **The day bar** (`open`, `high`, `low`, `close`, `volume`): regular hours only. Checked: on 2026-09-09, 2,477 of
-  11,866 tickers had a premarket or after-hours high above it; so the day's high and low (`day_high`, `day_low`)
-  come from the minute bars 04:00-20:00 ET, with the first minute that printed each, beside `pm_*` (04:00-09:30)
-  and `ah_*` (16:00-20:00).
+- **The day bar's prices** (`open`, `high`, `low`, `close`): the official ones, regular hours only. The SIP's rule:
+  an extended-hours print (Form T, Massive condition 12) never sets them, and the closing cross does. Checked: on
+  2026-09-09, 2,477 of 11,866 tickers had a premarket or after-hours high above it; on 2026-10-08 the ticks, less
+  condition 12 and the prints that never set a price (`SIM_MASSIVE_NO_PRICE_CONDITIONS`), rebuilt the day bar's
+  high and low on all 173 movers. So the day's high and low (`day_high`, `day_low`) are the day bar's widened by
+  the minute bars 04:00-20:00 ET, with the first minute that printed each, beside `pm_*` (04:00-09:30) and `ah_*`
+  (16:00-20:00).
+- **The day bar's `volume`** is the whole session, 04:00-20:00 with odd lots -- not regular hours. On 2026-10-08 it
+  matched the whole session's ticks on 171 of 173 movers and regular hours' on 3 (XRTX: 10.68M shares, 15K of
+  them 09:30-16:00). `pm_volume` and `ah_volume` are already inside it; never add them to it.
+- **The minute bars carry no closing cross** (condition 8): none of the 158 crosses among 2026-10-08's movers was
+  in its minute's volume, and 61 had no bar for that minute at all. So `dollar_volume` leaves the cross out, and on
+  a thin name the cross can be the day's high above every minute; `day_high_ts` is then null.
 - **Marks**: `up10_ts` .. `up300_ts` the first minute whose high reached +10% .. +300% over the prior close
   (`down10_ts` .. `down50_ts` for the low). A show parks five minutes before `up20_ts` (else `up10_ts`).
 - **Kind**: the Massive reference's type for the ticker (today's dump; delisted tickers included, a reused ticker
