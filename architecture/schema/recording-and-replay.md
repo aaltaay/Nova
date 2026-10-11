@@ -361,7 +361,8 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   taken over after 120 s untouched). A read with a current index finds its ticker in `marks`, enters the file at
   the seek point before it and inflates the block and at most one spacing and one stretch before it. An index is
   read only while `size` and `mtime_ns` match the day file, `schema_version` is 1 and `marks` rise in offset and
-  ticker; otherwise it is logged and the next import of that day builds it again. A build never fails an import.
+  ticker; otherwise it is logged and the next import of that day builds it again. So is one whose seek points
+  indexed_gzip will not open (PR #836 review): the read streams the file instead. A build never fails an import.
   While a complete import's process builds indexes it holds no slot: `begin` lets it run beside an import of the
   same day and ends it for an import of another day; `running_ids()` leaves it out and `indexing_ids()` lists it.
   The engine log names the files an import read through an index (`read through an index: trades_v1, quotes_v1`

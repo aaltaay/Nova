@@ -149,7 +149,8 @@ class DayRead:
         ``stop`` set raises ``Cancelled``.
         """
         saved = massive_index.load(self.path, root()) if massive_index.available() else None
-        if saved is None:
+        entered = self._enter(saved) if saved is not None else None
+        if entered is None:
             if not massive_index.available() and not _said_no_index.is_set():
                 _said_no_index.set()
                 logger.warning("indexed_gzip is not installed: Massive day files are always streamed from the start "
@@ -158,14 +159,28 @@ class DayRead:
             self.stream = _Zlib(self.path)
             yield from self._scan(None, lambda: self.stream.consumed / size, progress, stop)
         else:
-            self.indexed = True
-            self.stream = massive_index.open_file(self.path, saved.seek_points)
-            start, end = massive_index.locate(saved.marks, self.key[:-1], saved.body, saved.length)
-            self.stream.seek(start)
+            start, end = entered
             span = max(end - start, 1)
             yield from self._scan(saved.header, lambda: (self.stream.tell() - start) / span, progress, stop)
         if progress:
             progress(1.0)
+
+    def _enter(self, saved: massive_index.Saved) -> tuple[int, int] | None:
+        """Open the file through its saved index at the ticker's stretch: ``(start, end)``, or ``None`` (logged) when the
+        index will not open -- the file is then streamed, and the import builds its index again over the bad one."""
+        stream = None
+        try:
+            stream = massive_index.open_file(self.path, saved.seek_points)
+            start, end = massive_index.locate(saved.marks, self.key[:-1], saved.body, saved.length)
+            stream.seek(start)
+        except Exception as exc:                        # a damaged or foreign index never fails the read
+            logger.warning("Massive index for %s could not be used (%s); the file is streamed and its index rebuilt",
+                           self.path, exc)
+            if stream is not None:
+                stream.close()
+            return None
+        self.stream, self.indexed = stream, True
+        return start, end
 
     def rows(self, convert: Callable[[dict[str, str]], object], *, progress: Callable[[float], None] | None = None,
              stop: threading.Event | None = None) -> Iterator[object]:
