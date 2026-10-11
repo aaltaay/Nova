@@ -8,7 +8,10 @@ the API process that work would share the GIL with the event loops that carry th
 desk's Level 2, tape and orders (ADR 045), so it runs here, below normal priority,
 and talks to the API only through the Massive store: the job's progress and its end.
 The API pauses an import by ending this process; nothing is written before the
-window's final transaction, so an ended import leaves no partial window.
+window's final transaction, so an ended import leaves no partial window. After the
+job is complete the process builds the indexes of the day files it read without
+one (``massive_index``); a new import of another day ends it then, losing only
+that build.
 """
 from __future__ import annotations
 

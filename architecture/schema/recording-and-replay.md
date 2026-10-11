@@ -334,7 +334,8 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   peaked at 940 MB, so past the cap the import fails with `error` "The import used its whole N MB memory cap
   and was stopped before writing anything (NOVA_MASSIVE_IMPORT_MEMORY_MB raises it)" instead of taking the
   PC's memory; a cap Windows refuses is logged and the import runs uncapped; the three files are read side by side,
-  each to the end of the ticker's block, every row parsed with the csv module, **once per import**. The
+  each to the end of the ticker's block (through its seek index when it has one, below), every row parsed with
+  the csv module, **once per import**. The
   kept span's prints (typed), the ticker's whole day of 1-minute bars (operator 2026-10-09; only the window's
   before) and the kept span's NBBO rows -- plus the quote standing at its start -- are written in one
   transaction, which also drops the older imports of that symbol-day (not running) whose ranges the new one
@@ -346,6 +347,26 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   that file arrives imports the window again, and the window imported before keeps playing until the new one
   replaces it; so does a window imported before `minutes_scope: "day"` once its day's bars file is on disk. Pause ends the process (`paused`); a process that ends otherwise leaves `failed` with its exit
   code.
+- **The day files' seek indexes** (amendment 2026-10-11; operator: "why do i need to wait for so long!?").
+  Owner `sim/massive_index.py`; read through `sim/massive_files.DayRead`. A day file with no index is streamed
+  from the start through zlib, as before. Once an import's job is `complete`, its process builds the index of each
+  day file it read without one (`massive_index.build`, side by side, under the same memory cap): indexed_gzip (zlib's zran) reads the file
+  start to end and the build writes `<root>/sim/index/<dataset>/YYYY/MM/YYYY-MM-DD.csv.gz.idx` -- one JSON line
+  `{schema_version: 1, size, mtime_ns, length, header, body, marks: [[offset, ticker], ...], format:
+  "indexed_gzip", packed: "zlib", built}` (the day file's size and modified time, its inflated length, its CSV
+  header, where its rows start, and the map: the offset and ticker of one line in every `SIM_MASSIVE_READ_CHUNK`,
+  16 MB, of text), then indexed_gzip's seek points (one every `SIM_MASSIVE_INDEX_SPACING`, 16 MB of text, each
+  with 32 KB of text), zlib packed. A build holds about 4.5 times the spacing in memory however large the file
+  (about 80 MB), and one build per file runs at a time across processes (`<index>.lock`, rewritten every 10 s,
+  taken over after 120 s untouched). A read with a current index finds its ticker in `marks`, enters the file at
+  the seek point before it and inflates the block and at most one spacing and one stretch before it. An index is
+  read only while `size` and `mtime_ns` match the day file, `schema_version` is 1 and `marks` rise in offset and
+  ticker; otherwise it is logged and the next import of that day builds it again. A build never fails an import.
+  While a complete import's process builds indexes it holds no slot: `begin` lets it run beside an import of the
+  same day and ends it for an import of another day; `running_ids()` leaves it out and `indexing_ids()` lists it.
+  The engine log names the files an import read through an index (`read through an index: trades_v1, quotes_v1`
+  or `none`) and each index saved (`Massive index saved for quotes_v1 2026-09-09.csv.gz in N s`). Without
+  indexed_gzip installed, nothing is indexed and the log says so once.
 - **The store.** `<root>/sim/replay.sqlite3`, its own `PRAGMA user_version = 1` (unknown versions refuse):
   `jobs (id, payload)`, `prints (job_id, ordinal, ts, ns, price, size, exchange, exchange_id, conditions,
   correction, trf_id, sequence, tape, sets_price)`, `candles (job_id, ts, payload)`, `quotes (job_id, ordinal,

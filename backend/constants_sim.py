@@ -214,8 +214,24 @@ SIM_MASSIVE_DAY_END = "20:00"
 SIM_MASSIVE_STORE_SUBDIR = "sim"
 SIM_MASSIVE_STORE_FILE = "replay.sqlite3"
 SIM_MASSIVE_SCHEMA_VERSION = 1
-# Compressed bytes per read while streaming a day file to one ticker's rows.
+# Inflated bytes per read while streaming a day file to one ticker's rows (one buffer, reused). An index build
+# notes the ticker of one line per stretch this long: the map a later read finds its ticker in.
 SIM_MASSIVE_READ_CHUNK = 16 * 2**20
+# Seek indexes of the day files (ADR 046 amendment, 2026-10-11): <root>/sim/index/<dataset>/YYYY/MM/<file>.idx,
+# built after an import that read the file without one; a later read inflates only its ticker's block.
+SIM_MASSIVE_INDEX_SUBDIR = "index"
+SIM_MASSIVE_INDEX_SCHEMA_VERSION = 1
+# indexed_gzip's spacing of seek points, in text. A build holds about 4.5 times this while it runs, whatever the
+# file's size (+57 MB at 8 MiB, +152 MB at 32 MiB, measured 2026-10-11); the index keeps a 32 KB window per point;
+# a read enters the file at most this far before its stretch.
+SIM_MASSIVE_INDEX_SPACING = 16 * 2**20
+SIM_MASSIVE_INDEX_WINDOW = 32 * 1024
+# Compressed bytes indexed_gzip reads at a time (sequential, like the zlib stream).
+SIM_MASSIVE_INDEX_READBUF = 4 * 2**20
+# A build rewrites its lock at least this often; a lock older than SIM_MASSIVE_INDEX_LOCK_STALE_SEC belongs to a
+# build that died and is taken over.
+SIM_MASSIVE_INDEX_LOCK_TOUCH_SEC = 10.0
+SIM_MASSIVE_INDEX_LOCK_STALE_SEC = 120.0
 # A running import rewrites its job at least this often: progress for the desk,
 # and the heartbeat that tells a live import from one a restart killed.
 SIM_MASSIVE_PROGRESS_EVERY_SEC = 1.0

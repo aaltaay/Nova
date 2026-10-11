@@ -18,6 +18,11 @@ A day whose quotes file was not on disk at the first import says so
 (``quote_status: "not_downloaded"``); asking again once that file is down imports
 the window again, now with its bid and ask, while the stored window keeps playing.
 
+Once its job is complete, an import's process builds the indexes of the day files
+it read without one (``massive_index``). It holds no slot then: an import of the
+same day runs beside it (and finds the index once it is saved), an import of another
+day ends it.
+
 A running import rewrites its job at least every ``SIM_MASSIVE_PROGRESS_EVERY_SEC``;
 a ``running`` job that stopped being rewritten belongs to an import a restart killed,
 and lists as ``interrupted``. Importing again starts it over.
@@ -44,6 +49,8 @@ logger = logging.getLogger(__name__)
 
 _lock = threading.RLock()
 _active: dict[str, "_Handle"] = {}
+# Imports whose job is complete and whose process still builds the day files' indexes; they hold no slot.
+_indexing: list["_Handle"] = []
 # Seconds without a rewrite before a running job counts as killed (a running import rewrites every second).
 STALE_AFTER_SEC = 60.0
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -123,7 +130,9 @@ def _watch(handle: _ProcessHandle, errors) -> None:
         if errors is not subprocess.DEVNULL and errors is not None:
             errors.close()
         try:
-            job = store.get(handle.job_id)
+            with _lock:                     # a newer import of this stock-day owns the job now: not this process's to end
+                superseded = _active.get(handle.job_id) not in (None, handle)
+            job = None if superseded else store.get(handle.job_id)
             if job is not None and job["status"] in store.ACTIVE:
                 if handle.pausing:
                     store.update(handle.job_id, status="paused", stage=None, stages=None, error=None)
@@ -213,9 +222,22 @@ def availability(day: str) -> dict:
                 quotes=have[SIM_MASSIVE_QUOTES], minute_aggs=have[SIM_MASSIVE_MINUTES])
 
 
+def _finishing(job_id: str) -> bool:
+    """A live import whose job is complete: it only builds the day files' indexes (``massive_read.run``)."""
+    job = store.get(job_id)
+    return job is not None and job["status"] == "complete"
+
+
 def running_ids() -> list[str]:
     with _lock:
-        return sorted(job_id for job_id, handle in _active.items() if handle.alive())
+        return sorted(job_id for job_id, handle in _active.items() if handle.alive() and not _finishing(job_id))
+
+
+def indexing_ids() -> list[str]:
+    """Imports whose job is complete and whose process still builds the day files' indexes."""
+    with _lock:
+        finishing = [job_id for job_id, handle in _active.items() if handle.alive() and _finishing(job_id)]
+        return sorted(set(finishing + [handle.job_id for handle in _indexing if handle.alive()]))
 
 
 def effective_status(job: dict, now: float | None = None) -> str:
@@ -268,6 +290,9 @@ def begin(window: dict) -> dict:
         for other, handle in list(_active.items()):
             if not handle.alive():
                 _active.pop(other, None)
+            elif _finishing(other):         # its job is done: it only builds the day files' indexes
+                _indexing.append(_active.pop(other))
+        _indexing[:] = [handle for handle in _indexing if handle.alive()]
         if _active:
             if job_id in _active:
                 return progress(store.get(job_id) or store.new_job(wanted))
@@ -275,6 +300,9 @@ def begin(window: dict) -> dict:
         job = store.get(job_id)
         if job and job["status"] == "complete" and holds(job, window) and not _more_on_disk(job, found):
             return progress(job)
+        for handle in [h for h in _indexing if (store.get(h.job_id) or {}).get("date") != window["date"]]:
+            handle.stop()                   # another day's index: the day asked for now comes first
+            _indexing.remove(handle)
         job = dict(job or store.new_job(wanted), status="running", stage="reading", stages=None, scan_pct=0.0,
                    error=None, started=time.time(), updated=time.time(), files=found,
                    focus_start=window["start"], focus_end=window["end"],

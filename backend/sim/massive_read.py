@@ -12,11 +12,13 @@ reader passes its cap, every reader keeps only the job's focus window and goes o
 counting, so a day over a cap is found out in the same read, never a second one. The
 day's 1-minute bars are always kept whole.
 
-The three files are read side by side (zlib inflates without the GIL), and the
-job's ``scan_pct`` is the share of their bytes read, rewritten at least every
-``SIM_MASSIVE_PROGRESS_EVERY_SEC`` -- the import's heartbeat. A day whose quotes
-file is not on disk yet imports trades and bars and says so (``quote_status:
-"not_downloaded"``).
+The three files are read side by side, each through its saved index when it has
+one (the ticker's block and little else), else from the start (``massive_files.DayRead``);
+the job's ``scan_pct`` is the share read, rewritten at least every
+``SIM_MASSIVE_PROGRESS_EVERY_SEC`` -- the import's heartbeat. Once the job is
+complete, each file read without an index gets one (amendment 2026-10-11). A day
+whose quotes file is not on disk yet imports trades and bars and says so
+(``quote_status: "not_downloaded"``).
 
 A focus window with more prints (or quotes) than a selection can hold is refused
 with the count as soon as a reader passes the cap, before anything is written.
@@ -27,6 +29,7 @@ import logging
 import threading
 import time
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from constants_sim import (
@@ -34,7 +37,7 @@ from constants_sim import (
     SIM_MASSIVE_MINUTES_SCOPE_DAY as MINUTES_SCOPE_DAY, SIM_MASSIVE_PROGRESS_EVERY_SEC, SIM_MASSIVE_QUOTES,
     SIM_MASSIVE_TRADES,
 )
-from sim import massive_files as files, massive_store as store
+from sim import massive_files as files, massive_index, massive_store as store
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -145,10 +148,47 @@ def _read_side_by_side(readers: dict, meter: _Progress) -> dict[str, list]:
 
 
 def run(job_id: str, stop: threading.Event | None = None) -> dict:
-    """Read the stock-day once, keep the whole span (or the focus, over a cap) and store it; returns the completed job."""
+    """Read the stock-day once, keep the whole span (or the focus, over a cap) and store it; returns the completed job.
+
+    Then each day file it read without an index gets one (``massive_index.build``), after the job is complete: the
+    desk loads the stock-day meanwhile, and the next read of that file is quick.
+    """
     job = store.get(job_id)
     if job is None:
         raise ValueError("Import not found")
+    reads: dict[str, files.DayRead] = {}
+    try:
+        done = _import(job, reads, stop)
+    finally:
+        for read in reads.values():
+            read.close()
+    _build_indexes({name: read.path for name, read in reads.items() if not read.indexed}, stop)
+    return done
+
+
+def _build_indexes(paths: dict[str, Path], stop: threading.Event | None) -> None:
+    """Build each file's index, side by side (indexed_gzip inflates without the GIL); a failure is logged, never
+    the import's."""
+    def build(name: str, path: Path) -> None:
+        began = time.time()
+        try:
+            if massive_index.build(path, files.root(), stop) is not None:
+                logger.info("Massive index saved for %s %s in %.0f s", name, path.name, time.time() - began)
+        except Exception:
+            logger.warning("Massive index for %s %s was not saved", name, path.name, exc_info=True)
+    if not massive_index.available():
+        return
+    threads = [threading.Thread(target=build, args=item, daemon=True, name=f"massive-index-{item[0]}")
+               for item in paths.items()]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+
+def _import(job: dict, reads: dict, stop: threading.Event | None) -> dict:
+    """The read and the store of ``run``; ``reads`` gets each day file's ``DayRead``, which ``run`` closes."""
+    job_id = job["id"]
     symbol, day, start, end = job["symbol"], job["date"], job["start_ts"], job["end_ts"]
     # The window asked for, inside the span: kept instead of the span when the day is over a cap.
     focus = (max(job.get("focus_start_ts") or start, start), min(job.get("focus_end_ts") or end, end))
@@ -159,6 +199,7 @@ def run(job_id: str, stop: threading.Event | None = None) -> dict:
     minutes_file = files.day_file(SIM_MASSIVE_MINUTES, day)
     paths = {name: path for name, path in ((SIM_MASSIVE_TRADES, trades_file), (SIM_MASSIVE_MINUTES, minutes_file),
                                            (SIM_MASSIVE_QUOTES, quotes_file)) if path is not None}
+    reads.update({name: files.DayRead(path, symbol) for name, path in paths.items()})
     meter = _Progress(job_id, {name: path.stat().st_size for name, path in paths.items()}, stop)
     store.update(job_id, stage="reading", scan_pct=0.0, stages=dict.fromkeys(paths, 0.0))
     began = time.time()
@@ -175,18 +216,18 @@ def run(job_id: str, stop: threading.Event | None = None) -> dict:
                 opening[name] = item
         return item
 
-    def keeping(path, convert, kept):
+    def keeping(name, convert, kept):
         def read(progress, halt):
-            for item in files.rows(path, symbol, convert, progress=progress, stop=halt):
+            for item in reads[name].rows(convert, progress=progress, stop=halt):
                 kept.add(item, symbol)
             return kept
         return read
-    readers = {SIM_MASSIVE_TRADES: keeping(trades_file, lambda row: files.trade(row, symbol), trades)}
+    readers = {SIM_MASSIVE_TRADES: keeping(SIM_MASSIVE_TRADES, lambda row: files.trade(row, symbol), trades)}
     if minutes_file is not None:
-        readers[SIM_MASSIVE_MINUTES] = lambda progress, halt: list(files.rows(minutes_file, symbol, files.minute,
-                                                                               progress=progress, stop=halt))
+        readers[SIM_MASSIVE_MINUTES] = lambda progress, halt: list(reads[SIM_MASSIVE_MINUTES].rows(
+            files.minute, progress=progress, stop=halt))
     if quotes_file is not None:
-        readers[SIM_MASSIVE_QUOTES] = keeping(quotes_file, quote, quoted)
+        readers[SIM_MASSIVE_QUOTES] = keeping(SIM_MASSIVE_QUOTES, quote, quoted)
     results = _read_side_by_side(readers, meter)
     capped = over.is_set()
     if capped:
@@ -209,9 +250,11 @@ def run(job_id: str, stop: threading.Event | None = None) -> dict:
     store.update(job_id, stage="saving", scan_pct=99.0)
     dropped = store.replace_window(job_id, prints, bars, quotes, drop_held=(symbol, day, lo, hi))
     volume = sum(p["size"] for p in prints if p["sets_price"])
-    logger.info("Massive import %s %s kept %s-%s%s: %d prints, %d bars, %d quotes (%s) in %.0f s; %d older imports "
-                "dropped", symbol, day, _hhmm(lo), _hhmm(hi), f" ({cap['what']} over {cap['limit']:,})" if cap else "",
-                len(prints), len(bars), len(quotes), quote_status, time.time() - began, len(dropped))
+    indexed = ", ".join(name for name, read in reads.items() if read.indexed) or "none"
+    logger.info("Massive import %s %s kept %s-%s%s: %d prints, %d bars, %d quotes (%s) in %.0f s (read through an "
+                "index: %s); %d older imports dropped", symbol, day, _hhmm(lo), _hhmm(hi),
+                f" ({cap['what']} over {cap['limit']:,})" if cap else "", len(prints), len(bars), len(quotes),
+                quote_status, time.time() - began, indexed, len(dropped))
     return store.update(job_id, status="complete", stage=None, stages=None, scan_pct=100.0, ranges=[[lo, hi]],
                         cursor=hi, count=len(prints), volume=volume, bar_count=len(bars), quote_count=len(quotes),
                         quote_status=quote_status, error=None, kept_start=_hhmm(lo), kept_end=_hhmm(hi), capped=cap,

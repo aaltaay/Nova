@@ -2,11 +2,12 @@
 
 Massive serves one gzip CSV per dataset per trading day with every US stock in it,
 sorted by ticker: ``<root>/trades_v1/YYYY/MM/YYYY-MM-DD.csv.gz`` (and ``quotes_v1``,
-``minute_aggs_v1``). There is no index, so one ticker's rows are read by streaming
-the file once, to the end of that ticker's block: a ticker early in the alphabet
-costs seconds, one near the end a pass over most of the file (a whole trades day
-reads in about a minute, a whole quotes day in about three and a half; measured on
-2026-10-02's 3.1 GB and 9.6 GB files).
+``minute_aggs_v1``). Massive ships no index. The first read of a day file streams it
+through zlib from the start to the end of the ticker's block (an early ticker costs
+seconds, one near the end most of the file: VEEA on 2026-09-09 sat 91% into a 7.3 GB
+quotes file), into one reused buffer. Once the import is done, ``massive_index``
+builds the file's index; every later read of that file (any ticker that day, any
+window) enters it at the ticker and inflates little else (``DayRead``).
 
 Nothing is filtered but the window asked for, and nothing is altered: a row keeps
 Massive's price, size, nanosecond SIP time, exchange, conditions and correction.
@@ -21,6 +22,7 @@ a day still arriving has no ``.csv.gz`` yet and reads as not on disk.
 from __future__ import annotations
 
 import csv
+import logging
 import math
 import os
 import threading
@@ -34,8 +36,11 @@ from constants_sim import (
     SIM_MASSIVE_MINUTES, SIM_MASSIVE_NO_PRICE_CONDITIONS, SIM_MASSIVE_PRICED_CORRECTIONS, SIM_MASSIVE_QUOTES,
     SIM_MASSIVE_READ_CHUNK, SIM_MASSIVE_TRADES,
 )
+from sim import massive_index
 
+logger = logging.getLogger(__name__)
 DATASETS = (SIM_MASSIVE_TRADES, SIM_MASSIVE_QUOTES, SIM_MASSIVE_MINUTES)
+_said_no_index = threading.Event()
 
 
 class Cancelled(Exception):
@@ -72,88 +77,179 @@ def files_for(day: str) -> dict[str, bool]:
     return {name: day_file(name, day) is not None for name in DATASETS}
 
 
-def ticker_batches(path: Path, ticker: str, *, progress: Callable[[float], None] | None = None,
-                   stop: threading.Event | None = None) -> Iterator[tuple[list[str], list[bytes]]]:
-    """``(header, lines)`` for each stretch of one ticker's block, in one pass that ends with the block.
+class _Zlib:
+    """A day file inflated by zlib behind ``readinto``: the read of a file that has no index yet."""
 
-    ``progress`` gets the share of the file read so far (0..1); ``stop`` set raises
-    ``Cancelled``. A ticker the file does not hold yields nothing.
+    def __init__(self, path: Path):
+        self._fh = open(path, "rb")
+        self._decomp = zlib.decompressobj(31)
+        self._pending = memoryview(b"")
+        self.consumed = 0                   # compressed bytes read: the progress
+
+    def readinto(self, out) -> int:
+        while not len(self._pending):
+            chunk = self._fh.read(SIM_MASSIVE_READ_CHUNK)
+            if not chunk:
+                return 0
+            self.consumed += len(chunk)
+            data = self._decomp.decompress(chunk)
+            while self._decomp.eof and self._decomp.unused_data:   # a multi-member file: the next member starts fresh
+                rest = self._decomp.unused_data
+                self._decomp = zlib.decompressobj(31)
+                data += self._decomp.decompress(rest)
+            self._pending = memoryview(data)
+        n = min(len(out), len(self._pending))
+        out[:n] = self._pending[:n]
+        self._pending = self._pending[n:]
+        return n
+
+    def close(self) -> None:
+        self._fh.close()
+
+
+def _carry(buf: bytearray, frm: int, filled: int) -> int:
+    """Move ``buf[frm:filled]`` (a partial last line) to the front; its length."""
+    n = filled - frm
+    if n > 0 and frm > 0:
+        buf[:n] = buf[frm:filled]
+    return max(n, 0)
+
+
+class DayRead:
+    """One day file read for one ticker: through the file's saved index when it has one, else streamed.
+
+    With the index (``massive_index``), the read finds the block in the index's map of the file, enters the file at
+    the seek point before it and inflates the block and little else. Without it, zlib streams the file from the
+    start to the end of the block, as it always did; the import then builds the index (``massive_index.build``),
+    so the next read of that file -- any ticker, any window -- is quick.
     """
-    key = ticker.strip().upper().encode() + b","
-    want = key[:-1]
-    size = max(path.stat().st_size, 1)
-    decomp = zlib.decompressobj(31)
-    header: list[str] | None = None
-    tail = b""
-    in_block = done = False
-    read = 0
-    with open(path, "rb") as fh:
-        while not done:
+
+    def __init__(self, path: Path, ticker: str):
+        self.path, self.ticker = path, ticker
+        self.key = ticker.strip().upper().encode() + b","
+        self.stream = None
+        self.indexed = False                # entered through a saved index
+
+    def __enter__(self) -> DayRead:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+    def close(self) -> None:
+        stream, self.stream = self.stream, None
+        if stream is not None:
+            stream.close()
+
+    def batches(self, progress: Callable[[float], None] | None = None,
+                stop: threading.Event | None = None) -> Iterator[tuple[list[str], list[bytes]]]:
+        """``(header, lines)`` for each stretch of the ticker's block; a ticker the file does not hold yields nothing.
+
+        ``progress`` gets the share read (0..1): of the file, or through an index of the stretch the block is in;
+        ``stop`` set raises ``Cancelled``.
+        """
+        saved = massive_index.load(self.path, root()) if massive_index.available() else None
+        if saved is None:
+            if not massive_index.available() and not _said_no_index.is_set():
+                _said_no_index.set()
+                logger.warning("indexed_gzip is not installed: Massive day files are always streamed from the start "
+                               "(pip install -r backend/requirements.txt)")
+            size = max(self.path.stat().st_size, 1)
+            self.stream = _Zlib(self.path)
+            yield from self._scan(None, lambda: self.stream.consumed / size, progress, stop)
+        else:
+            self.indexed = True
+            self.stream = massive_index.open_file(self.path, saved.seek_points)
+            start, end = massive_index.locate(saved.marks, self.key[:-1], saved.body, saved.length)
+            self.stream.seek(start)
+            span = max(end - start, 1)
+            yield from self._scan(saved.header, lambda: (self.stream.tell() - start) / span, progress, stop)
+        if progress:
+            progress(1.0)
+
+    def rows(self, convert: Callable[[dict[str, str]], object], *, progress: Callable[[float], None] | None = None,
+             stop: threading.Event | None = None) -> Iterator[object]:
+        """Every row of the ticker, parsed with the csv module and converted; ``None`` results are skipped.
+
+        A line whose field count differs from the header's raises (a damaged or reshaped file), never shifts a column.
+        """
+        for header, lines in self.batches(progress, stop):
+            for fields in csv.reader(line.decode("utf-8") for line in lines):
+                item = convert(dict(zip(header, fields, strict=True)))
+                if item is not None:
+                    yield item
+
+    def _scan(self, header: list[str] | None, fraction: Callable[[], float], progress, stop):
+        """The block's lines from the stream (at a line start), read into one reused buffer; ends with the block."""
+        key = self.key
+        want = key[:-1]
+        buf = bytearray(max(int(SIM_MASSIVE_READ_CHUNK), 1))
+        held = 0
+        in_block = False
+        while True:
             if stop is not None and stop.is_set():
                 raise Cancelled()
-            chunk = fh.read(SIM_MASSIVE_READ_CHUNK)
-            if not chunk:
+            if held == len(buf):                            # a line longer than the buffer: make room
+                buf.extend(bytes(len(buf)))
+            n = self.stream.readinto(memoryview(buf)[held:])
+            if not n:
                 break
-            read += len(chunk)
-            data = tail + decomp.decompress(chunk)
-            while decomp.eof and decomp.unused_data:       # a multi-member file: the next member starts fresh
-                rest = decomp.unused_data
-                decomp = zlib.decompressobj(31)
-                data += decomp.decompress(rest)
+            filled, lo = held + n, 0
             if header is None:
-                nl = data.find(b"\n")
+                nl = buf.find(b"\n", 0, filled)
                 if nl < 0:
-                    tail = data
+                    held = filled
                     continue
-                header = data[:nl].decode("utf-8").strip().split(",")
-                data = data[nl + 1:]
-            end = data.rfind(b"\n")
+                header = bytes(buf[:nl]).decode("utf-8").strip().split(",")
+                lo = nl + 1
+            end = buf.rfind(b"\n", lo, filled)
             if end < 0:
-                tail = data
+                held = _carry(buf, lo, filled)
                 continue
-            body, tail = data[:end], data[end + 1:]
             if not in_block:
-                if body.startswith(key):
-                    start = 0
+                if buf.startswith(key, lo):
+                    start = lo
                 else:
-                    at = body.find(b"\n" + key)
+                    at = buf.find(b"\n" + key, lo, end)
                     start = at + 1 if at >= 0 else -1
                 if start < 0:
-                    last = body[body.rfind(b"\n") + 1:]
-                    done = last[:last.find(b",")] > want    # sorted by ticker: past it, so the file does not hold it
+                    last = buf.rfind(b"\n", lo, end) + 1 or lo
+                    comma = buf.find(b",", last, end)
                     if progress:
-                        progress(read / size)
+                        progress(fraction())
+                    if bytes(buf[last:comma if comma >= 0 else end]) > want:
+                        return                              # sorted by ticker: past it, so the file does not hold it
+                    held = _carry(buf, end + 1, filled)
                     continue
-                in_block = True
-                body = body[start:]
-            lines = []
-            for line in body.split(b"\n"):
-                if not line.startswith(key):
-                    done = True
-                    break
-                lines.append(line)
+                in_block, lo = True, start
+            lines = memoryview(buf)[lo:end].tobytes().split(b"\n")
+            done = not lines[-1].startswith(key)            # sorted: the block ends in this stretch
+            if done:
+                lines = lines[:next(i for i, line in enumerate(lines) if not line.startswith(key))]
             if lines:
                 yield header, lines
             if progress:
-                progress(read / size)
-    if in_block and not done and tail.startswith(key):
-        yield header or [], [tail.rstrip(b"\r")]          # the file's last line, with no newline after it
-    if progress:
-        progress(1.0)
+                progress(fraction())
+            if done:
+                return
+            held = _carry(buf, end + 1, filled)
+        if held and buf.startswith(key, 0, held):
+            yield header or [], [bytes(buf[:held]).rstrip(b"\r")]   # the file's last line, with no newline after it
+
+
+def ticker_batches(path: Path, ticker: str, *, progress: Callable[[float], None] | None = None,
+                   stop: threading.Event | None = None) -> Iterator[tuple[list[str], list[bytes]]]:
+    """``(header, lines)`` for each stretch of one ticker's block (``DayRead.batches``; no index is written)."""
+    with DayRead(path, ticker) as read:
+        yield from read.batches(progress, stop)
 
 
 def rows(path: Path, ticker: str, convert: Callable[[dict[str, str]], object], *,
          progress: Callable[[float], None] | None = None,
          stop: threading.Event | None = None) -> Iterator[object]:
-    """Every row of one ticker, parsed with the csv module and converted; ``None`` results are skipped.
-
-    A line whose field count differs from the header's raises (a damaged or reshaped file), never shifts a column.
-    """
-    for header, lines in ticker_batches(path, ticker, progress=progress, stop=stop):
-        for fields in csv.reader(line.decode("utf-8") for line in lines):
-            item = convert(dict(zip(header, fields, strict=True)))
-            if item is not None:
-                yield item
+    """Every row of one ticker, parsed and converted (``DayRead.rows``; no index is written)."""
+    with DayRead(path, ticker) as read:
+        yield from read.rows(convert, progress=progress, stop=stop)
 
 
 def _int(value: str | None, default: int = 0) -> int:

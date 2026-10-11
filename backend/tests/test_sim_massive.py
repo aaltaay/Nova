@@ -192,12 +192,12 @@ def test_an_import_of_a_window_keeps_the_whole_stock_day(root):
 
 def _reads(monkeypatch) -> dict[str, int]:
     """How many times each day file is streamed."""
-    real, seen = massive_files.rows, {}
+    real, seen = massive_files.DayRead.rows, {}
 
-    def counted(path, *args, **kwargs):
-        seen[path.parts[-4]] = seen.get(path.parts[-4], 0) + 1
-        return real(path, *args, **kwargs)
-    monkeypatch.setattr(massive_files, "rows", counted)
+    def counted(read, *args, **kwargs):
+        seen[read.path.parts[-4]] = seen.get(read.path.parts[-4], 0) + 1
+        return real(read, *args, **kwargs)
+    monkeypatch.setattr(massive_files.DayRead, "rows", counted)
     return seen
 
 
