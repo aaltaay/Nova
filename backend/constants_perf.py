@@ -103,3 +103,20 @@ PERF_L1_TIMESTAMP_PRINTS_PER_SEC = 2000
 PERF_L1_TIMESTAMP_SYMBOLS = 256
 PERF_L1_TIMESTAMP_PRINTS_PER_SYMBOL = 64
 PERF_L1_TIMESTAMP_CANDIDATES = 4
+
+# The memory watch (``perf/memory_watch.py``; operator report 2026-10-11, "nova keeps driving the ram higher"):
+# once a minute, off the loops, the PC's memory and every process's private bytes -- Nova's share by pid, the
+# biggest other programs by name -- written to the day file (``kind: "memory"``) and the ``pc_memory`` row.
+PERF_MEMORY_SCHEMA_VERSION = 1
+PERF_MEMORY_EVERY_SEC = 60
+PERF_MEMORY_FIRST_AFTER_SEC = 20
+PERF_MEMORY_TOP = 5                     # the biggest other programs named
+PERF_MEMORY_PRESSURE_PCT = 90           # the PC's RAM in use, or its commit charge, at or above this: warn
+PERF_MEMORY_CRITICAL_PCT = 97           # commit this close to its limit: allocations start failing, anywhere
+PERF_MEMORY_REARM_PCT = 85              # an episode ends under this; the API log warns once per episode
+PERF_MEMORY_STALE_SEC = 300             # a reading older than this is not shown as the PC now
+PERF_MEMORY_CLIENT_FRESH_SEC = 30       # a desk window's process list counts while it is this young
+# Nova's leak lines, above the most each part held in the week to 2026-10-11 (the API 3,433 MB private, the
+# desk's processes 2,763 MB together): past one, that part holds memory it should not, and the row fails.
+PERF_MEMORY_API_LEAK_MB = 5000
+PERF_MEMORY_DESK_LEAK_MB = 4500
