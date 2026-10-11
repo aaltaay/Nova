@@ -187,6 +187,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | The 5-minute setups (operator decisions 2026-09-30) | `architecture/schema/setups.md` |
 | The tape flow score and the flush exit (ADR 034, operator ask 2026-09-24) | `architecture/schema/setups.md` |
 | Signal trials (ADR 041, operator decision 2026-09-30) | `architecture/schema/setups.md` |
+| The author's trade ledger (S7, operator ask 2026-10-11) | `architecture/schema/trade-ledger.md` |
 | The bot's read on one stock (ADR 036, operator ask 2026-09-24, #598) | `architecture/schema/stock-read.md` |
 | Setups that ended stay on the chart, and what price did next (ADR 036 amendment, operator ask 2026-09-29) | `architecture/schema/stock-read.md` |
 | The day's levels: support and resistance on the charts and in the plan (ADR 036 amendment, operator ask 2026-09-30) | `architecture/schema/stock-read.md` |
