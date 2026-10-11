@@ -221,6 +221,12 @@ SIM_MASSIVE_READ_CHUNK = 16 * 2**20
 SIM_MASSIVE_PROGRESS_EVERY_SEC = 1.0
 # Bid/ask rows a selection holds (compact arrays, about 44 bytes each).
 SIM_MASSIVE_MAX_SELECTION_QUOTES = 4_000_000
+# The import process's hard cap on committed memory (``winapi.job_limit``; operator report 2026-10-11).
+# Past it the import fails with the reason and nothing is written; the PC keeps its memory. Measured:
+# VEEA 2026-10-09 (768,836 prints, over the print cap) peaked at 940 MB; a kept print is ~608 B and a
+# quote ~240 B, so both caps full is ~1.2 GB before the sorted copies and the write. 6 GB is twice that.
+SIM_MASSIVE_WORKER_MEMORY_MB = 6144
+SIM_MASSIVE_WORKER_MEMORY_ENV = "NOVA_MASSIVE_IMPORT_MEMORY_MB"
 # The calendar's list of days on disk is a walk of the folder tree; at most once per this many seconds.
 SIM_MASSIVE_DAYS_TTL_SEC = 60.0
 # Massive's numeric sale conditions that report a trade for volume only and never

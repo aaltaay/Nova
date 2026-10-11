@@ -12,7 +12,7 @@ import time
 from typing import Any, Callable
 
 from constants_perf import PERF_ENV_SWITCH, PERF_HEAP_EVERY_SEC, PERF_HEAP_FIRST_AFTER_SEC, PERF_L1_TIMESTAMP_FLUSH_SEC
-from perf import freeze_watch, gc_watch, heap, loop_cpu, recorder, stall_watch
+from perf import freeze_watch, gc_watch, heap, loop_cpu, memory_watch, recorder, stall_watch
 from perf.store import PerfStore, default_dir
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,7 @@ def start(spawn_ib: Callable[[str, Callable[[], Any]], None] | None = None) -> l
         asyncio.create_task(recorder.run(), name="perf.recorder"),
         asyncio.create_task(_heap_loop(), name="perf.heap"),
         asyncio.create_task(_timestamp_loop(_store), name="perf.l1_timestamps"),
+        asyncio.create_task(memory_watch.run(), name="perf.memory"),
     ]
     if spawn_ib is not None:
         from ibkr.loop_supervisor import get_loop

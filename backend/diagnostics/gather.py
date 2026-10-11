@@ -35,6 +35,7 @@ from diagnostics import (
     collect_feed,
     collect_gateway,
     collect_leaderboard,
+    collect_memory,
     collect_order_events,
     collect_perf,
     collect_priority,
@@ -333,6 +334,12 @@ def _freeze_status() -> dict[str, Any]:
     return freeze_watch.status()
 
 
+def _memory_status() -> dict[str, Any]:
+    from perf import memory_watch
+
+    return memory_watch.status()
+
+
 def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, Any]:
     """The full ``GET /api/diagnostics`` payload."""
     ts = time.time() if now is None else float(now)
@@ -343,6 +350,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
                   lambda: collect_data_root.data_folder_rows(**_data_folder_inputs()))
     rows += _safe(DIAG_GROUP_PROCESS, "process_priority", "Trading path priority",
                   lambda: collect_priority.priority_rows(view=_priority_view()))
+    rows += _safe(DIAG_GROUP_PROCESS, collect_memory.ROW_ID, collect_memory.ROW_TITLE,
+                  lambda: collect_memory.memory_rows(status=_memory_status(), now=ts))
     rows += _safe(DIAG_GROUP_PROCESS, collect_request_guard.ROW_ID, collect_request_guard.ROW_TITLE,
                   lambda: collect_request_guard.refusal_rows(snapshot=_refusals_snapshot(), now=ts))
     rows += collect.integration_rows(env_file=facts["env_file"])

@@ -328,7 +328,12 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   `GET /api/sim/history/massive/{date}` -> `{date, available, reason, trades, quotes, minute_aggs}` (422 for a
   bad date; `available` false with the reason when that day's trades file is not on disk).
 - **The import.** Its own process (`python -m sim.massive_worker --job-id ID`, frozen `nova-api.exe
-  --massive-import --job-id ID`), below normal priority, one at a time; the three files are read side by side,
+  --massive-import --job-id ID`), below normal priority, one at a time, its committed memory capped at
+  `SIM_MASSIVE_WORKER_MEMORY_MB` (6,144; `NOVA_MASSIVE_IMPORT_MEMORY_MB`, 0 turns it off) by a Windows job
+  object (`winapi/job_limit.py`; operator report 2026-10-11) -- the day VEEA 2026-10-09 (768,836 prints)
+  peaked at 940 MB, so past the cap the import fails with `error` "The import used its whole N MB memory cap
+  and was stopped before writing anything (NOVA_MASSIVE_IMPORT_MEMORY_MB raises it)" instead of taking the
+  PC's memory; a cap Windows refuses is logged and the import runs uncapped; the three files are read side by side,
   each to the end of the ticker's block, every row parsed with the csv module, **once per import**. The
   kept span's prints (typed), the ticker's whole day of 1-minute bars (operator 2026-10-09; only the window's
   before) and the kept span's NBBO rows -- plus the quote standing at its start -- are written in one

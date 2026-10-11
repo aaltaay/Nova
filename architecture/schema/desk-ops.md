@@ -77,6 +77,30 @@ row is listed under "Needs attention" at the top of the Trading prerequisites
 panel; the panel reads the checklist only while it is open, and a refusal does
 not open it.
 
+**PC memory** (operator report 2026-10-11: "nova keeps driving the ram higher
+and higher"; the PC sat at 72 of 80 GB committed while Nova held 3.4 GB of it).
+The `process` group carries the `pc_memory` row, read from the memory watch's
+last reading (`perf.memory_watch.status()`; its shape is in `performance.md`,
+"Memory watch"). Its detail is always `PC memory <load>% in use, <used> of
+<limit> GB committed. Nova <total> GB (API a, Sim import b, desk c, Gateway d),
+<share>% of it; other programs <n> GB` (parts holding nothing left out); the
+other programs are named only in the fix -- `The biggest others: <image name>
+xN <GB> (largest pid P, <GB>); ...`, at most three -- because an issue filed
+from the desk prints a row's detail and cause, never its fix or a `process`
+row's evidence, and what else runs on the operator's PC is not Nova's to
+publish. States: `fail` when a Nova part holds past its leak line (the API
+`PERF_MEMORY_API_LEAK_MB` 5,000 MB, the desk's processes together
+`PERF_MEMORY_DESK_LEAK_MB` 4,500 MB; the week to 2026-10-11 peaked at 3,433 and
+2,763) -- "Nova's <part> holds X GB, past its Y GB line", cause a leak in Nova,
+fix the heap census and Report an issue -- or when the commit charge reaches
+`PERF_MEMORY_CRITICAL_PCT` (97%) of its limit, where any program's next
+allocation fails; `warn` at `PERF_MEMORY_PRESSURE_PCT` (90%) of RAM in use or
+of the commit limit, its cause "Nova holds most of it." when Nova's share of
+the commit charge is half or more, else that other programs do; `ok` below;
+`unknown` before the first reading (20 s after start) or when the last is older
+than `PERF_MEMORY_STALE_SEC` (300 s); `off` off Windows. `evidence` is the
+reading.
+
 ## Which backend answers (operator report, 2026-09-24)
 
 `GET /api/health` adds `release_tag: string | null` -- the revision (`vNNN`)

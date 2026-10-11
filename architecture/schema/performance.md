@@ -53,7 +53,7 @@ stalls: summary[], clients: {window_id: report}}`. `GET /api/perf/stalls` ->
 /api/perf/stalls/{id}` -> the report (404 unknown). Kept under
 `<cache_dir>/perf/`: `YYYY-MM-DD.jsonl` (Eastern date), one JSON object per
 line with `schema_version` and `kind: "sample" | "client" | "stall" | "heap" |
-"ib_notice" | "tape_silence"` -- a
+"ib_notice" | "tape_silence" | "memory"` -- a
 `sample` line aggregates `PERF_PERSIST_EVERY_SEC` (5) seconds (ops and gc
 summed, `cpu_pct` averaged, `delay_max_ms` maxed, gauges last); an `ib_notice`
 line is one IBKR farm or line notice and a `tape_silence` line one tape line
@@ -128,6 +128,35 @@ one full collection. Two things limit it:
   weekday.
 
 Every census taken, scheduled or asked for, is written to the day file as `kind: "heap"`.
+
+**Memory watch (operator report 2026-10-11).** "nova keeps driving the ram higher and higher": the PC sat
+at 72 of 80 GB committed, the API held 1.9 GB and the desk 1.3 GB, and nothing said whose the rest was (a
+day-file reader under test in another session, 8.3 GB and growing, and other programs).
+The sample's `working_set_mb` could not say either: Windows trims a working set under pressure, and the API's
+read 211 MB while it held 1.9 GB. Owner `perf/memory_watch.py`, started with the recorder: 20 s after start,
+then every `PERF_MEMORY_EVERY_SEC` (60 s), on a worker thread (a scan of ~500 processes takes ~100 ms), one
+reading, written to the day file and kept for the `pc_memory` diagnostics row (`desk-ops.md`, "PC memory"):
+
+`{kind: "memory", schema_version: 1, ts, pc: {load_pct, ram_total_mb, ram_free_mb, commit_limit_mb,
+commit_used_mb} | null, nova: {total_mb, parts: {api, children, desk, gateway}, processes: [{role, pid, name,
+private_mb}]}, others: [{name, count, private_mb, largest_pid, largest_mb}], others_total_mb, unreadable}`
+
+- Sizes are **private bytes** in MB, the memory a process committed for itself: what a leak grows, never
+  trimmed. `load_pct` is Windows' own RAM in use (Task Manager's Memory %); an allocation fails, in any
+  process, once `commit_used_mb` reaches `commit_limit_mb` (RAM plus the page file).
+- **Nova is counted by pid, never by a name.** One part per process, the first that claims it: `gateway`
+  (IB Gateway and IBC's loop, as the priority keeper found them), `api` (this process), `children` (what the
+  API started -- a Sim import), `desk` (the Electron processes in desk window reports younger than
+  `PERF_MEMORY_CLIENT_FRESH_SEC`, and what they started; the packaged desk starts the API, which stays
+  `api`). Windows reuses pids and keeps a child's parent pid after the parent exits, so a child counts only
+  when it was created after its parent.
+- `others` groups every other process by image name, the biggest `PERF_MEMORY_TOP` (5) kept;
+  `others_total_mb` is all of them. A process Windows will not open (a protected one) is counted in
+  `unreadable`, never as 0. No command line is read.
+- The API log warns once per episode when RAM in use or the commit charge reaches `PERF_MEMORY_PRESSURE_PCT`
+  (90%; the episode ends under `PERF_MEMORY_REARM_PCT`, 85%), with Nova's parts and the other programs' total
+  -- never their names, since an issue dump prints the log -- and once per run when a Nova part passes its
+  leak line (`PERF_MEMORY_API_LEAK_MB`, `PERF_MEMORY_DESK_LEAK_MB`). It measures and never acts.
 
 **GC policy (#619, owner `gc_policy/`).** The first census on the live backend (2026-09-29,
 minutes after a start) found 732,138 tracked objects in 7,037 modules; the objects were mostly
