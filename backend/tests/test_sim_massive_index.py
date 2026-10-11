@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import zlib
 
 import pytest
 
@@ -172,6 +173,22 @@ def test_an_unknown_or_damaged_index_is_never_read(root, caplog):
     where.write_bytes(json.dumps(shuffled).encode() + b"\n" + body)
     assert massive_index.load(path, root) is None
     assert _read(path, "IMCC", indexed=False) == _expected(path, "IMCC")     # the day file still reads, streamed
+
+
+def test_an_index_that_will_not_open_is_streamed_past_and_rebuilt_by_the_next_import(root, caplog):
+    """PR #836 review: a header that checks out over seek points indexed_gzip refuses must not fail the import, every
+    time; the read streams the file, and the import builds the index again over the bad one."""
+    path = _write(root, _trade_lines(["AAPL", "IMCC", "VEEA", "ZZZ"]), header=TRADES)
+    _built(path, root)
+    where = massive_index.path_for(path, root)
+    head = where.read_bytes().split(b"\n", 1)[0]
+    where.write_bytes(head + b"\n" + zlib.compress(b"GZIDX" + bytes(64)))  # zlib-valid, not an index
+    assert massive_index.load(path, root) is not None                         # the header passes every check
+    with caplog.at_level(logging.WARNING, logger="sim.massive_files"):
+        assert _read(path, "VEEA", indexed=False) == _expected(path, "VEEA")
+    assert "could not be used" in caplog.text
+    assert _import("IMCC")["status"] == "complete"
+    assert _read(path, "VEEA", indexed=True) == _expected(path, "VEEA")      # rebuilt over the bad one
 
 
 def test_without_indexed_gzip_the_files_stream_and_nothing_is_built(root, monkeypatch):
