@@ -88,4 +88,4 @@ The operator now keeps Massive Stocks Advanced flat files under `E:\Nova\massive
 - The first stock read from a day still waits for the files to be read up to it, a little faster than before. Every later stock that day, and every new window on a day over the cap, reads only its own block once the build is done.
 - An index takes about 15 MB for a quotes day and 5 MB for a trades day on E:. Deleting them only brings the slow reads back.
 - A research job reading the Massive files at the same time slows a first read and a build many times over; a read through an index is a seek or two and barely notices.
-- Not built here: indexing days before anyone opens them (as the downloader lands them, or overnight). Tracked as a follow-up.
+- Not built here: indexing days before anyone opens them (as the downloader lands them, or overnight), #833.
