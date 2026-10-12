@@ -1,8 +1,8 @@
 /**
  * Tickers today (ADR 044, amended 2026-10-06): today's hot list (★ yours, ☆ auto), the stocks set to bot entry,
  * and the squares, by ticker. Each has a "now" row -- would the bot trade it if one of its strategies triggered
- * this minute -- with its Entry / Exit switch, and under it every trigger of the day on it, judged by the same
- * checks; red is what stopped it. Tickers that only triggered fold at the end. Under the table, what each gate
+ * this minute -- with its Entry / Exit switch (and the group row's switch for all of them, `BotTickersAllSides`),
+ * and under it every trigger of the day on it, judged by the same checks; red is what stopped it. Tickers that only triggered fold at the end. Under the table, what each gate
  * did to the day's triggers. The star is watching only: it never sets Entry / Exit.
  *
  * One table for both sides (ADR 049, #778 step 5): long and short triggers mixed, each setup with its ▲ LONG /
@@ -17,6 +17,7 @@ import { putStockMode } from '../stock_read';
 import { fmtChangeAbs } from '../components/ScannerRowCells';
 import { fmtPct, fmtPrice, pctToneClass } from '../utils/quoteFormat';
 import { tipProps, whyProps } from '../ux';
+import { AllSides, SideSeg, useAllSides } from './BotTickersAllSides';
 import { setupName } from './botsPageFormat';
 import { etTime } from './botWhen';
 import type { StockModeRow } from './stockModesApi';
@@ -105,19 +106,6 @@ function SetupWithSide({ setup, side }: { setup: string; side: 'long' | 'short' 
   );
 }
 
-function SideSeg({ label, value, onPick, lock }: { label: string; value: Side; onPick: (s: Side) => void; lock: string | null }) {
-  return (
-    <span className="bots-tk__side"><span className="bots-tk__side-label">{label}</span>
-      <span className="bots-mini-seg" role="radiogroup" aria-label={label}>
-        {(['you', 'nova'] as const).map(s => (
-          <button key={s} type="button" role="radio" aria-checked={value === s} disabled={lock !== null}
-            {...(lock ? whyProps(true, lock) : {})} onClick={() => { if (value !== s) onPick(s); }}>{s === 'you' ? 'You' : 'Bot'}</button>
-        ))}
-      </span>
-    </span>
-  );
-}
-
 function boardWords(symbol: string, rows: readonly SetupRow[]): string {
   const mine = rows.filter(r => r.symbol === symbol && r.state !== 'watching');
   if (!mine.length) return 'nothing forming';
@@ -150,6 +138,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
   const { today: listed, others: unlisted } = orderTickers(view?.tickers ?? [], modes);
   const starred = hot.view?.entries.length ?? 0;
   const listLock = hot.busy ? 'Saving the hot list…' : hot.view ? null : (hot.error ?? 'Reading today\'s hot list…');
+  const all = useAllSides(modes, onModesChanged);
 
   const setSides = useCallback(async (symbol: string, buy: Side, sell: Side) => {
     try {
@@ -199,8 +188,8 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
         </td>
         <ChangeCell m={t.market} pastDay={date !== null} />
         <td className="bots-nowrap">
-          <SideSeg label="Entry" value={buy} lock={null} onPick={s => void setSides(t.symbol, s, sell)} />
-          <SideSeg label="Exit" value={sell} lock={null} onPick={s => void setSides(t.symbol, buy, s)} />
+          <SideSeg label="Entry" value={buy} lock={all.busy} onPick={s => void setSides(t.symbol, s, sell)} />
+          <SideSeg label="Exit" value={sell} lock={all.busy} onPick={s => void setSides(t.symbol, buy, s)} />
           <span className={`bots-tk__who bots-tk__who--${buy}-${sell}`}>{WHO_WORDS[`${buy}/${sell}`]}</span>
         </td>
         <td>{isToday ? <span className="bots-tk__nowtag">now</span> : (
@@ -301,7 +290,17 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
             </tr>
           </thead>
           <tbody>
-            <tr className="bots-tk__group"><td colSpan={cols}>On your hot list or set to bot entry · {listed.length} tickers · biggest change first</td></tr>
+            <tr className="bots-tk__group">
+              <td colSpan={2}>On your hot list or set to bot entry · {listed.length} tickers · biggest change first</td>
+              <td className="bots-nowrap">{listed.length ? (
+                <AllSides symbols={listed.map(t => t.symbol)} modes={modes} busy={all.busy}
+                  onSet={(which, to) => void all.setAll(listed.map(t => t.symbol), which, to)} />
+              ) : null}</td>
+              <td colSpan={cols - 3} className="bots-tk__all-note" data-testid="bots-tk-all-note">
+                {all.busy ? <span className="bots-muted">{all.busy}</span>
+                  : all.refused.map(line => <span key={line} className="is-bad">Refused for {line}</span>)}
+              </td>
+            </tr>
             {listed.length ? listed.flatMap(t => [nowRow(t, true), ...triggerRows(t)])
               : <tr><td colSpan={cols} className="bots-muted">Empty. Star a stock, set one to bot entry, or let the top of the Gainers board fill the hot list from {hot.view?.auto.start ?? '07:00'}.</td></tr>}
             {unlisted.length ? (

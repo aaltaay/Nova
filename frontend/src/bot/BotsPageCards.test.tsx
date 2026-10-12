@@ -20,6 +20,7 @@ import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { BotsPage } from './BotsPage';
 import {
   botsFetchRouter, breakers, caps, hotListView, linesView, refusal, session, setupRow, strategySession, templatesPayload,
+  triggersView,
   type BotsFetchOpts,
 } from './botsPageFixtures';
 
@@ -504,6 +505,39 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     await act(async () => { fireEvent.click(within(sell).getByText('Bot')); await flush(); });
     expect(screen.getByTestId('bots-tk-GRML').querySelector('.bots-tk__stop')?.textContent)
       .toMatch(/You hold GRML -- sell it or take over the exit first$/);
+  });
+
+  it('sets Entry or Exit on every hot-list ticker from the group row, and says what refused (operator ask 2026-10-12)', async () => {
+    const base = triggersView() as { tickers: Record<string, unknown>[] };
+    const aisp = { ...base.tickers[0], symbol: 'AISP', listed: { how: 'star', at: 1_790_000_100 }, triggers: [],
+      market: { price: 3, change_pct: 0.9, change_abs: 1.42, source: 'gainers', why: null } };
+    const fetchMock = mockFetch({
+      triggers: triggersView({ tickers: [...base.tickers, aisp] }),
+      hotList: hotListView({ entries: [
+        { symbol: 'GRML', how: 'auto', at: 1_790_000_000, board: 'gainers', rank: 2, change_pct: 0.42, followed: true },
+        { symbol: 'AISP', how: 'star', at: 1_790_000_100, board: null, rank: null, change_pct: null, followed: true },
+      ] }),
+      stockModes: [{ symbol: 'AISP', mode: 'bot', locks: { buy: null, sell: null } }],
+      onStockModePut: (symbol, body) => (symbol === 'AISP' && body.sell === 'you'
+        ? refusal(409, 'STOCK_MODE_HELD', 'Nova holds an AISP exit it cannot cancel') : undefined),
+    });
+    await renderPage();
+    const all = within(screen.getByTestId('bots-tk-all'));
+    expect(all.getByText('All 2')).toBeTruthy();
+    // AISP is Bot, GRML You: neither side lit, and the tickers differ.
+    const entry = all.getByRole('radiogroup', { name: 'Entry for all' });
+    expect(within(entry).getAllByRole('radio').map(b => b.getAttribute('aria-checked'))).toEqual(['false', 'false']);
+    expect(all.getByText('mixed')).toBeTruthy();
+    // Entry to Bot goes only to the ticker not there yet, through its own switch, its Exit kept.
+    await act(async () => { fireEvent.click(within(entry).getByText('Bot')); await flush(); });
+    expect(calls(fetchMock, '/stock-mode/', 'PUT').map(c => [c.url.split('/stock-mode/')[1], c.body]))
+      .toEqual([['GRML', '{"buy":"nova","sell":"you"}']]);
+    // Exit to You: biggest change first; AISP refuses in the backend's words, GRML has nothing to change.
+    const exit = all.getByRole('radiogroup', { name: 'Exit for all' });
+    await act(async () => { fireEvent.click(within(exit).getByText('You')); await flush(); await flush(); });
+    expect(calls(fetchMock, '/stock-mode/AISP', 'PUT').map(c => c.body)).toEqual(['{"buy":"nova","sell":"you"}']);
+    expect(screen.getByTestId('bots-tk-all-note').textContent)
+      .toBe('Refused for AISP: Nova holds an AISP exit it cannot cancel');
   });
 
   it('stars and unstars from the table, adds a typed ticker, and sets the auto top N', async () => {

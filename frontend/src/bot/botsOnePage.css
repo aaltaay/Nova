@@ -304,6 +304,14 @@ button.bots-switch--small .bots-switch__txt small { font-size: 11px; }
   color: var(--nova-text-muted);
   background: color-mix(in srgb, var(--nova-text-muted) 8%, transparent);
 }
+/* Who trades it, for all (operator ask 2026-10-12): the group row's switch reads like a row's, not in the row's caps. */
+.bots-tk__all { display: inline-flex; align-items: center; gap: 4px; }
+.bots-tk__all-label { color: var(--nova-text); margin-right: 4px; cursor: help; }
+.bots-tk__all .bots-tk__side,
+.bots-tk__all .bots-tk__who,
+.bots-tk__group .bots-tk__all-note { text-transform: none; letter-spacing: normal; font-weight: 400; font-size: 11.5px; }
+.bots-tk__all .bots-tk__who { margin-left: 2px; font-weight: 600; font-size: 11px; }
+.bots-tk__all-note > span + span::before { content: ' · '; color: var(--nova-text-muted); }
 .bots-tk__now td { border-top: 1px solid var(--nova-border); background: color-mix(in srgb, var(--bots-blue) 4%, transparent); }
 .bots-tk__past td { font-size: 11.5px; }
 .bots-tk__unlisted td { color: var(--nova-text-muted); }
