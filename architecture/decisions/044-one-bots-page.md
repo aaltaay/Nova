@@ -52,3 +52,17 @@ Decision 4 changes:
 Decision 5 changes: the squares are nine -- the Hot list square is gone -- and "Nova buys" is "Bot buys" (red also while today's reset has not run). Tickers today lists the hot list, then today's bot-buy stocks not on it, each with a "now" row, then the tickers that only triggered. Past days are judged by the nine squares too; a trigger the old Hot list square held back reads by the others.
 
 Consequences: a stock the operator sets to Bot is bought by its own switch, starred or not, and still never outlives the day. The star means one thing everywhere: Nova keeps watching it and tells you when it moves.
+
+## Amendment, 2026-10-12: Bot ON unlocks the padlock
+
+**Decided by:** the operator, 2026-10-12, after the switch refused with "the desk padlock is locked ... unlock it, then turn the bot on": "if the user want to check 'bot is on' then it should drive the locking mechanism to unlock.. of course i do really expect single layer of truth between paper/live/sim.. im not going to maintain 3 separate operations."
+
+Decision 1 changes: **ON unlocks the padlock.** Pressing ON is the operator's explicit act, so after every other rule passes (venue, a strategy On, the bot trip) the switch arms the desk through the padlock's own rule, `ibkr.safety.arm` (ADR 018), as the operator. There is no second arming path: the switch obeys the padlock's rule by venue. Where the padlock unlocks without the PIN (Paper, Sim) one press does both; where it needs the PIN (Live) ON still refuses until the operator unlocks with the PIN. Today the bot does not trade Live, so the venue refuses first there. When the bot reaches Live (#606), the same code path applies, with the PIN.
+
+- A refused ON never unlocks the padlock.
+- OFF leaves the padlock as it is, because the operator's own orders still need it.
+- Locking the padlock still turns the bot off (ADR 042 B).
+- A restart still lands with the bot off and the padlock locked, and one press of ON now restores both.
+
+Rejected: a bot-only arm (a second door that could drift from the padlock's rule); turning OFF also locking the padlock (it would lock the operator's hand trading too).
+

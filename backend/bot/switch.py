@@ -2,9 +2,16 @@
 
 - **ON** (``turn(True)``) puts the desk venue's master ``level`` at Strategy and activates, in one
   step. It is refused like Activate (``bot.activation.refusal``, with Activate's codes):
-  ``BOT_LIVE_NOT_BUILT``, ``BOT_REPLAY_DESK``, ``BOT_VENUE_UNKNOWN``, ``BOT_PADLOCK_LOCKED``,
-  ``BOT_NO_SETUP_AT_STRATEGY`` (no strategy is On) and ``BOT_TRIP_LATCHED`` unless ``reenable`` --
-  which clears the bot trip's latch, as Activate's re-enable does. A refusal changes nothing.
+  ``BOT_LIVE_NOT_BUILT``, ``BOT_REPLAY_DESK``, ``BOT_VENUE_UNKNOWN``, ``BOT_NO_SETUP_AT_STRATEGY``
+  (no strategy is On) and ``BOT_TRIP_LATCHED`` unless ``reenable`` -- which clears the bot trip's
+  latch, as Activate's re-enable does. A refusal changes nothing.
+- **ON unlocks the padlock** (operator ask 2026-10-12: "if the user want to check 'bot is on' then it
+  should drive the locking mechanism to unlock", with one truth across Paper, Sim and Live). After
+  every other rule passes, ON arms through the padlock's one door, ``ibkr.safety.arm`` (ADR 018), as
+  the operator -- so it obeys the same rule by venue: Paper and Sim unlock in the press, a venue whose
+  padlock needs the PIN still refuses ``BOT_PADLOCK_LOCKED`` until the operator unlocks it with the
+  PIN (``ibkr.safety.arm_requires_pin``). OFF leaves the padlock as it is: the operator's own orders
+  still need it.
 - **OFF** (``turn(False)``) deactivates (``deactivated.reason: "operator"``) and puts the master at
   Eyes, so the strategies at Eyes or On keep proposing. The bot trip leaves it the same way
   (``bot.autonomy.drop_to_eyes``).
@@ -47,11 +54,20 @@ def is_on(row: dict[str, Any]) -> bool:
     return is_desk_active(row) and master(row) >= BOT_LEVEL_STRATEGY
 
 
+def unlocks_padlock() -> bool:
+    """ON unlocks the padlock itself where the padlock unlocks without the PIN (Paper and Sim)."""
+    from ibkr.safety import arm_requires_pin
+
+    return not arm_requires_pin()
+
+
 def refusal(row: dict[str, Any], *, reenable: bool = False) -> BotError | None:
-    """Why ON is refused now -- Activate's rules with the master already at Strategy -- in the switch's words."""
+    """Why ON is refused now -- Activate's rules with the master already at Strategy -- in the switch's words.
+
+    The padlock refuses ON only where ON cannot unlock it (``unlocks_padlock``)."""
     trial = dict(row)
     trial["level"] = BOT_LEVEL_STRATEGY
-    refused = activation.refusal(trial, reenable=reenable)
+    refused = activation.refusal(trial, reenable=reenable, padlock_rule=not unlocks_padlock())
     if refused is None:
         return None
     message = refused.message
@@ -77,10 +93,11 @@ def turn(on: bool, *, reenable: bool = False) -> str | None:
         refused = refusal(row, reenable=reenable)
         if refused is not None:
             raise refused
+        unlocked = _unlock()
         row["level"] = BOT_LEVEL_STRATEGY
         save_session(row)
         token = issue_arm_token(reenable=reenable)
-        _audit(True, before, BOT_LEVEL_STRATEGY, reenable=reenable)
+        _audit(True, before, BOT_LEVEL_STRATEGY, reenable=reenable, unlocked=unlocked)
         return token
     if not is_desk_active(row) and before == BOT_LEVEL_EYES:
         return None
@@ -91,12 +108,32 @@ def turn(on: bool, *, reenable: bool = False) -> str | None:
     return None
 
 
-def _audit(on: bool, before: int, after: int, *, reenable: bool = False) -> None:
+def _unlock() -> bool:
+    """Unlock the padlock for ON through its one door (``ibkr.safety.arm``, ADR 018), then require the
+    desk to place. Returns whether this press unlocked it; raises ``BOT_PADLOCK_LOCKED`` otherwise."""
+    from ibkr import safety
+
+    unlocked = False
+    if not safety.armed():
+        code, why = safety.arm(True, actor="operator")
+        if code:
+            raise BotError(f"the desk padlock is locked ({why}) -- unlock it, then turn the bot on", 409,
+                           BOT_REASON_PADLOCK_LOCKED)
+        unlocked = True
+    ok, why = activation.padlock()
+    if not ok:
+        raise BotError(f"the desk padlock is unlocked but the desk cannot place ({why})", 409,
+                       BOT_REASON_PADLOCK_LOCKED)
+    return unlocked
+
+
+def _audit(on: bool, before: int, after: int, *, reenable: bool = False, unlocked: bool = False) -> None:
     from bot.audit import record
 
     if on:
         said = ("the bot is on: Nova may buy the go triggers of the strategies that are On"
-                + (" (the bot trip was re-enabled by you)" if reenable else ""))
+                + (" (the bot trip was re-enabled by you)" if reenable else "")
+                + (" (it unlocked the padlock)" if unlocked else ""))
     else:
         said = "the bot is off: Eyes keep proposing, Nova buys nothing by itself"
     try:
