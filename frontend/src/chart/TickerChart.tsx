@@ -32,6 +32,7 @@ import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { useVwapSourceBars } from './useVwapSourceBars';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { ChartPaneOverlays } from './ChartPaneOverlays';
+import { CandleHoverTip } from './CandleHoverTip';
 import { ChartFillingOverlay, chartFillingHint } from './ChartFillingStatus';
 import { findOpenPosition } from './positionOverlay';
 import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
@@ -348,6 +349,8 @@ function TickerChartInner({
           onIndicatorToggle={handleIndicatorToggle}
           renderOverlay={renderPaneOverlay}
         />
+        <CandleHoverTip chart={chartApi} candleSeriesRef={candleSeriesRef} volSeriesRef={volSeriesRef}
+          containerRef={containerRef} symbol={symbol} timeframe={timeframe} paneBars={indicatorBars} vwapSource={vwapSource} />
       </div>
       <TickerChartOverlays
         chart={chartApi}

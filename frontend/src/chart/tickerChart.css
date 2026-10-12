@@ -432,3 +432,123 @@ body.chart-maximized-open {
 
 /* ── Full ticker detail page (click symbol -> dedicated trading view) ───────── */
 
+
+/* ── Candle hover card (operator ask, 2026-10-12) ─────────────────────────────
+   Rest the pointer on a candle: its numbers in a card beside the pointer, its
+   column shaded. Neither takes pointer events, so the chart keeps every
+   gesture. The column sits above the canvases (z-index 2); the card floats
+   over the desk, portalled like the chart menu, and under that menu. */
+
+.candle-tip__column {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  background: rgba(59, 130, 246, 0.1);
+  border-left: 1px dashed rgba(59, 130, 246, 0.35);
+  border-right: 1px dashed rgba(59, 130, 246, 0.35);
+  pointer-events: none;
+}
+
+.candle-tip {
+  position: fixed;
+  z-index: 9000;
+  max-width: calc(100vw - 8px);
+  box-sizing: border-box;
+  padding: 7px 9px 8px;
+  border: 1px solid #2a2f3a;
+  border-radius: 4px;
+  background: rgba(12, 12, 14, 0.95);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  color: #e5e7eb;
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.candle-tip__top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.candle-tip__muted { color: #9ca3af; font-weight: 400; }
+.candle-tip__top .candle-tip__muted { color: #6b7280; font-size: 11px; font-weight: 600; }
+.candle-tip__up { color: #10b981; }
+.candle-tip__down { color: #ef4444; }
+
+.candle-tip__chip {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.candle-tip__chip--premarket { background: rgba(245, 158, 11, 0.14); color: #fbbf24; }
+.candle-tip__chip--rth { background: rgba(16, 185, 129, 0.14); color: #34d399; }
+.candle-tip__chip--afterhours { background: rgba(59, 130, 246, 0.16); color: #93c5fd; }
+.candle-tip__chip--closed { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+
+.candle-tip__hero {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 5px 0 6px;
+}
+.candle-tip__pct { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+
+.candle-tip__ohlc {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 5px;
+  border: 1px solid #23262f;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.candle-tip__ohlc > div { padding: 3px 6px; background: #14161c; }
+.candle-tip__ohlc > div + div { border-left: 1px solid #23262f; }
+.candle-tip__ohlc span,
+.candle-tip__head {
+  display: block;
+  color: #6b7280;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.candle-tip__ohlc b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.candle-tip__section { margin-top: 7px; }
+.candle-tip__head { margin-bottom: 1px; }
+
+.candle-tip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 1px 0;
+}
+.candle-tip__row > span:first-child { color: #9ca3af; }
+.candle-tip__row > span:last-child {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.candle-tip__meter {
+  position: relative;
+  height: 5px;
+  margin: 4px 0 1px;
+  border-radius: 3px;
+  background: #23262f;
+}
+.candle-tip__meter i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: #3b82f6; }
+.candle-tip__meter u { position: absolute; top: -2px; bottom: -2px; width: 1px; background: #e5e7eb; }
+.candle-tip__scale { position: relative; height: 11px; color: #6b7280; font-size: 9px; }
+.candle-tip__scale span { position: absolute; transform: translateX(-50%); }
+.candle-tip__scale span:last-child { transform: translateX(-100%); }

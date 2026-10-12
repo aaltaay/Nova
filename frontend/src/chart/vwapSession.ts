@@ -39,12 +39,12 @@ const SEC_PER_DAY = 86_400;
  * ``IndicatorBar.time`` is ET wall clock encoded as an epoch (``isoToEtTime``),
  * so UTC getters read ET directly and each bar's DST offset is already folded in.
  */
-function etDayKey(time: number): number {
+export function etDayKey(time: number): number {
   const d = new Date(time * 1000);
   return d.getUTCFullYear() * 10_000 + d.getUTCMonth() * 100 + d.getUTCDate();
 }
 
-function etSecondsOfDay(time: number): number {
+export function etSecondsOfDay(time: number): number {
   return ((time % SEC_PER_DAY) + SEC_PER_DAY) % SEC_PER_DAY;
 }
 
