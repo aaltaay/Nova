@@ -19,7 +19,7 @@ from constants_stock_read import (
     STOCK_READ_ROUND_CROSS_SEC,
     STOCK_READ_ROUND_FRESH_BARS,
 )
-from stock_read import rounds
+from stock_read import line_notes, rounds
 from stock_read.level_map import CENT, EPS, ROUND_KINDS, hhmm, px
 
 ROOM_TRIAL = "T7"
@@ -199,7 +199,8 @@ def between(plan: dict[str, Any], intraday: list[dict[str, Any]]) -> list[dict[s
 def notes(plan: dict[str, Any], level_map: dict[str, Any] | None, bars: list[dict[str, Any]], *,
           price: float | None, now: float) -> dict[str, Any] | None:
     """The plan's level rows: Room (T7 on half and whole dollars), the target's and the stop's round,
-    the next round and a round just broken or lost, and today's zones between the stop and the target."""
+    the next round and a round just broken or lost, today's zones between the stop and the target, and what
+    the charts' trend lines say (``line_notes``)."""
     if not level_map:
         return None
     intra, day = level_map.get("intraday") or [], level_map.get("daily") or []
@@ -211,7 +212,7 @@ def notes(plan: dict[str, Any], level_map: dict[str, Any] | None, bars: list[dic
         nxt, recent = short.round_notes(bars, price=price, entry=plan.get("entry"), now=now, rnd=rnd)
         return {"room": short.room(plan, intra, day, rnd), "target": short.target_note(plan.get("target"), rnd),
                 "stop": short.stop_note(plan.get("stop"), plan.get("entry"), rnd), "next": nxt, "recent": recent,
-                "between": between(plan, intra)}
+                "between": between(plan, intra), "lines": line_notes.notes(plan, level_map.get("lines"), price=price)}
     nxt, recent = round_notes(bars, price=price, entry=plan.get("entry"), now=now, rnd=rnd)
     return {
         "room": room(plan, intra, day, rnd),
@@ -220,4 +221,5 @@ def notes(plan: dict[str, Any], level_map: dict[str, Any] | None, bars: list[dic
         "next": nxt,
         "recent": recent,
         "between": between(plan, intra),
+        "lines": line_notes.notes(plan, level_map.get("lines"), price=price),
     }

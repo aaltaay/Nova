@@ -290,6 +290,9 @@ def test_the_read_answers_every_group_with_a_verdict_and_the_plan(monkeypatch):
     assert out["plan"]["entry"] == 5.44 and out["plan"]["provisional"] is True
     assert out["prev_close"] == round(5.37 / 2.345, 4)
     assert sum(out["counts"].values()) == sum(len(x["rows"]) for x in out["groups"])
+    # Each chart's trend lines ride on the level map, and the plan reads them (four candles make none).
+    assert out["level_map"]["lines"] == {"one_minute": [], "five_minute": []}
+    assert out["plan"]["levels"]["lines"] == []
 
 
 def test_a_hidden_seller_holding_is_the_tape_tile(monkeypatch):

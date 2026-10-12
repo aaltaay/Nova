@@ -1,6 +1,7 @@
 /**
  * Drawing a stock-read scene on a chart pane (ADR 036), once `SetupShapesPrimitive` has mapped it to pixels:
- * the fills behind the candles (the levels' bands, the boxes), and over them the lines, the boxes' outlines, the
+ * the fills behind the candles (the levels' bands, the boxes), and over them the lines (the trend lines too), the
+ * boxes' outlines, the
  * edge column (`edgeColumn.ts`: every word at the right edge), the +40% runs' arrows and every label --
  * the ones that stay put first, the boxes' and marks' taking the room around them (`sceneLabels.ts`).
  */
@@ -17,6 +18,7 @@ import type {
   SceneMark,
   ScenePin,
   SceneSegment,
+  SceneTrend,
   SceneVLine,
   SceneWord,
 } from './sceneTypes';
@@ -41,6 +43,9 @@ const MARK_HALF_W = 4;
 /** A flat top's touch: a ring this wide on the candle's high, its label this far over it. */
 export const RING_R_PX = 4;
 const RING_LABEL_GAP_PX = 9;
+/** A trend line's touch: a smaller ring on the line; its break, a cross this wide. */
+export const TREND_RING_R_PX = 3;
+const TREND_CROSS_PX = 4;
 
 export interface Px {
   boxes: { x1: number; x2: number | null; y1: number; y2: number; b: SceneBox }[];
@@ -56,6 +61,22 @@ export interface Px {
   topInset: number;
   marks: { x: number; y: number; m: SceneMark }[];
   dots: { x: number; y: number; d: SceneDot }[];
+  /** The trend lines: each one's first touch, its last, and where it runs on the pane's newest candle. */
+  trends: TrendPx[];
+}
+
+export interface TrendPx {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  xe: number;
+  ye: number;
+  /** Its price on the newest candle. */
+  pe: number;
+  rings: { x: number; y: number }[];
+  cross: { x: number; y: number } | null;
+  tr: SceneTrend;
 }
 
 /** A label the last draw put on the pane, with its box's story: a mark alone is hovered too. */
@@ -66,7 +87,7 @@ export interface LabelHit {
 
 export function emptyPx(): Px {
   return { boxes: [], segments: [], vlines: [], tags: [], pins: [], labels: 'compact', levels: [], ticks: [], words: [],
-    reserves: [], topInset: 0, marks: [], dots: [] };
+    reserves: [], topInset: 0, marks: [], dots: [], trends: [] };
 }
 
 /** A label that stays where it is: a level's, the focus line's, an edge tag, a flat top's touch count. */
@@ -79,12 +100,18 @@ interface FixedLabel {
 }
 
 /** The column's words: each level's name, each line's tag, and a tag for every price out of view. */
-export function columnItems(px: Pick<Px, 'levels' | 'words' | 'tags'>, height: number): ColumnItem[] {
+export function columnItems(px: Pick<Px, 'levels' | 'words' | 'tags'> & Partial<Pick<Px, 'trends'>>,
+  height: number): ColumnItem[] {
   const items: ColumnItem[] = [];
   for (const { y, l } of px.levels) {
     if (!l.label) continue;
     items.push({ y, text: l.label, color: l.color, style: 'plain', priority: l.priority ?? EDGE_PRIORITY.level,
       hoverId: l.hoverId, offText: null });
+  }
+  // A trend line's name where it runs on the newest candle; out of view, a tag with that price.
+  for (const { ye, pe, tr } of px.trends ?? []) {
+    items.push({ y: ye, text: tr.label, color: tr.labelColor, style: 'plain', priority: tr.priority, hoverId: tr.hoverId,
+      offText: `${tr.label} ${fmtPx(pe)}` });
   }
   for (const { y, value, w } of px.words) {
     items.push({ y, text: w.text, color: w.color, style: 'filled', priority: w.priority, hoverId: null,
@@ -111,6 +138,50 @@ function drawMarkArrow(ctx: CanvasRenderingContext2D, x: number, y: number, colo
   ctx.lineTo(x + MARK_HALF_W, dir === 'down' ? far : near);
   ctx.closePath();
   ctx.fill();
+}
+
+/** A trend line: solid from its first touch to its last (dashed when it broke), dashed on to the newest candle;
+ * a ring on each touch and a cross on the candle that closed through it. */
+function drawTrend(ctx: CanvasRenderingContext2D, t: TrendPx): void {
+  const { tr } = t;
+  ctx.strokeStyle = tr.color;
+  ctx.lineWidth = tr.faded ? 1 : 1.5;
+  ctx.setLineDash(tr.faded ? [4, 3] : []);
+  ctx.beginPath();
+  ctx.moveTo(t.x1, t.y1);
+  ctx.lineTo(t.x2, t.y2);
+  ctx.stroke();
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(t.x2, t.y2);
+  ctx.lineTo(t.xe, t.ye);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1.25;
+  for (const r of t.rings) {
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, TREND_RING_R_PX, 0, 2 * Math.PI);
+    ctx.stroke();
+  }
+  if (t.cross) {
+    const { x, y } = t.cross;
+    ctx.beginPath();
+    ctx.moveTo(x - TREND_CROSS_PX, y - TREND_CROSS_PX);
+    ctx.lineTo(x + TREND_CROSS_PX, y + TREND_CROSS_PX);
+    ctx.moveTo(x - TREND_CROSS_PX, y + TREND_CROSS_PX);
+    ctx.lineTo(x + TREND_CROSS_PX, y - TREND_CROSS_PX);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 1;
+}
+
+/** How far a point is from the segment (x1, y1)-(x2, y2), in pixels. */
+export function segmentDistance(x: number, y: number, x1: number, y1: number, x2: number, y2: number): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  const k = len2 > 0 ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len2)) : 0;
+  return Math.hypot(x - (x1 + k * dx), y - (y1 + k * dy));
 }
 
 /** A flat top's touch: a filled ring on the candle's high. */
@@ -164,6 +235,7 @@ export class LineRenderer implements IPrimitivePaneRenderer {
       const height = mediaSize.height;
       const measure = labelMeasure(ctx);
       const tickHits = drawLevels(ctx, this.px.levels, this.px.ticks, width, height);
+      for (const t of this.px.trends ?? []) drawTrend(ctx, t);
       ctx.lineWidth = 1;
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
         if (!b.stroke) continue;

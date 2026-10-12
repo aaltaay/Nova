@@ -83,6 +83,16 @@ STOCK_READ_LEVEL_STUDY = {
     "daily_past": (78, 78),      # ... an old daily high: no effect
 }
 
+# -- the trend lines on the 1- and 5-minute charts (ADR 036 amendment 2026-10-12) ----------------------
+STOCK_READ_LINE_TOUCH_PCT = 0.005           # a swing point within 0.5% of the line touched it (the flat top's) ...
+STOCK_READ_LINE_TOUCH_MIN = 0.01            # ... and within a cent always
+STOCK_READ_LINE_MIN_TOUCHES = 3             # two points make any line: the third is what makes it one
+STOCK_READ_LINE_MIN_RISE = 3.0              # it rises (falls) at least 3 bands from first touch to last, else it is flat
+STOCK_READ_LINE_MIN_SPAN_BARS = 10          # first touch to last at least this many candles
+STOCK_READ_LINE_KEEP_BARS = 10              # a broken line is said this many candles, then it goes
+STOCK_READ_LINE_MAX_SWINGS = 60             # the latest swing points a line may join, per kind
+STOCK_READ_LINE_NEAR_PCT = 0.15             # a holding line is in play while it runs within 15% of the price
+
 # -- the trade you hold (ADR 036 amendment 2026-10-01) -------------------------------------------------
 STOCK_READ_HELD_SCHEMA_VERSION = 1
 STOCK_READ_HELD_BROKE_ROWS = 2              # the ladder lists at most this many broke rounds under the price

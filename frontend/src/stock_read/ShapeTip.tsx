@@ -14,6 +14,7 @@ import { FLAT_TOP_5M } from './flatTopShapes';
 import { levelStory } from './levelPicks';
 import { laneStory, pastStory, type Episode } from './pastSetups';
 import { pastHoverId } from './pastShapes';
+import { trendStory } from './trendLines';
 import type { StockRead } from './types';
 
 export interface ShapeHover {
@@ -72,11 +73,13 @@ export function useShapeHover(
   return enabled ? hover : null;
 }
 
-/** The story of the box `id` names: a live lane's, a past setup's, or a level's (its label or axis tick) --
+/** The story of the box `id` names: a live lane's, a past setup's, a level's (its label or axis tick) or a trend
+ * line's --
  * a 5-minute lane's or setup's (`lane5:` / `past5:`) named as one. */
 export function shapeStory(id: string, read: StockRead, past: Episode[] | null,
   past5: Episode[] | null = null): ShapeStory | null {
   if (id.startsWith('level:')) return levelStory(id, read);
+  if (id.startsWith('trend:')) return trendStory(id, read);
   const five = (s: ShapeStory | null) => (s ? { ...s, title: `5-minute · ${s.title}` } : null);
   // The 5-minute flat top names itself; a built-in 5-minute lane's story is the 1-minute setup's, named so.
   const named = (type: string, s: ShapeStory | null) => (type === FLAT_TOP_5M ? s : five(s));

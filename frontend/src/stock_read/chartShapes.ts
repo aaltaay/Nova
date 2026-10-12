@@ -8,6 +8,7 @@
  * lines, the trade's levels (`levelPicks.minuteScene`: the high of day, the nearest top and bottom its
  * candles made, the nearest round number each side and the plan's levels between its stop and target),
  * and the moment's pin (ADR 037).
+ * The 1- and 5-minute panes each draw their own chart's trend lines with the levels (`trendLines.ts`).
  * The 5-minute pane carries its own level map and the 5-minute setups (`fiveMinuteShapes.ts`; on the
  * 1-minute pane a 5-minute setup in reach is a dashed trigger line); the 5-minute and 10-second panes
  * mirror the plan's levels as thin lines. While you hold the stock (`read.held`), the trade's levels --
@@ -31,6 +32,7 @@ import { laneHoverId, laneOnMinute, levelsOf } from './laneShapes';
 import { pastRings, pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, setupName } from './planMath';
 import { thinPlan } from './planVerdict';
+import { trendScene } from './trendLines';
 import type { Scene, SceneBox, SceneDot, SceneMark, SceneWord } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
@@ -237,6 +239,10 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   if (pin && o.call) {
     const t = o.toTime(pin.at ?? read.generated_at);
     if (t !== null) scene.pins.push({ t, price: pin.price, label: pin.label, color: CALL_COLORS[o.call.tone] });
+  }
+  if (o.layers.levels && (o.pane === 'map' || o.pane === 'full')) {
+    // Each chart's trend lines, read from its own candles (2026-10-12).
+    scene.trends = trendScene(read, o.pane, o.toTime);
   }
   if (o.layers.levels && o.pane === 'map') {
     const m = levelScene(read, 'map');

@@ -16,7 +16,10 @@ from constants_stock_read import (
 from scanner_wire import wire_safe
 from setup_scanner import five_minute
 from setup_scanner.bars import bar_from
-from stock_read import held as held_mod, held_short, history, indicators, level_map, plan as plan_mod, plan_liquidity, rows, rows_trade
+from stock_read import (
+    held as held_mod, held_short, history, indicators, level_map, plan as plan_mod, plan_liquidity, rows, rows_trade,
+    trend_lines,
+)
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -230,6 +233,8 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
                              prior_close=d["prev_close"], vwap=d["levels"].get("vwap"), now=now,
                              sma200=(hist or {}).get("sma200"),
                              daily_error=None if hist else "the daily history could not be read")
+    # Each chart's trend lines from its own candles (ADR 036 amendment 2026-10-12).
+    levels["lines"] = trend_lines.build(d["bars"], level_map.five_minute_bars(d["bars"], now), price=d["price"])
     ctx = {"price": d["price"], "levels": d["levels"], "macd_hist": (d["macd_1m"] or {}).get("macd_hist"),
            "ema9": d["ema9"], "median_range": d["median_range"], "asks": (f.get("l2") or {}).get("asks") or [],
            "bids": (f.get("l2") or {}).get("bids") or [], "ask_pulls": d["ask_pulls"],

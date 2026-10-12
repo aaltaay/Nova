@@ -286,5 +286,5 @@ def test_the_levels_between_the_stop_and_the_target_are_the_one_minute_charts():
 def test_the_plan_carries_its_level_notes_when_the_read_has_a_map():
     intra = level_map.zones([level_map.member("hod", 8.77)], price=8.62, home="intraday", merge_pct=0.006)
     out = level_notes.notes(PLAN, {"intraday": intra, "daily": []}, [], price=8.66, now=ts(7, 16))
-    assert set(out) == {"room", "target", "stop", "next", "recent", "between"}
+    assert set(out) == {"room", "target", "stop", "next", "recent", "between", "lines"}
     assert level_notes.notes(PLAN, None, [], price=8.66, now=ts(7, 16)) is None

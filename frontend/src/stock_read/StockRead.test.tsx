@@ -114,12 +114,20 @@ describe('the plan on the rail', () => {
             detail: 'A fresh approach to a half or whole dollar turned back 24% of the time (random price 16%).' },
           recent: null,
           between: [{ price: 5.5, lo: 5.5, hi: 5.5, tag: '$5.50', label: '$5.50', round: true, hod: false }],
+          lines: [
+            { role: 'way', state: 'warn', text: '↘ resistance (5-min) at 5.48 (0.4R) before the target', line: 'x', price: 5.48,
+              detail: "The 5-min chart's descending resistance runs at 5.48 now and falls 2c a 5-minute candle." },
+            { role: 'broke', state: 'bad', text: '↗ support (1-min) broke at 09:52', line: 'y', price: 5.41, detail: null },
+          ],
         },
       },
     });
     renderRail();
     const rows = await screen.findByTestId('stock-read-levels');
     expect(within(rows).getByTestId('stock-read-level-room').textContent).toContain('0.5R to $5.50');
+    // The trend lines' rows (2026-10-12), after the levels'.
+    expect(within(rows).getByTestId('stock-read-level-line-way').textContent).toBe('Line↘ resistance (5-min) at 5.48 (0.4R) before the target');
+    expect(within(rows).getByTestId('stock-read-level-line-broke').className).toContain('sr-levels__row--bad');
     expect(screen.getByTestId('stock-read-room-trial').textContent).toBe('in trial T7');
     expect(within(rows).getByTestId('stock-read-level-next').textContent).toContain('resistance until it prints through');
     expect(within(rows).queryByTestId('stock-read-level-target')).toBeNull();

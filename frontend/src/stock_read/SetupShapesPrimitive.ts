@@ -10,12 +10,14 @@
  * setup's says (`sceneLabels.ts`), and every word at the right edge in one column (`edgeColumn.ts`): the levels'
  * names, the lines' tags (`words`: the EMAs, VWAP, the plan's ENTRY / STOP / TARGET) and the tags for prices out
  * of view. The Full Day pane's +40% runs are marks: an arrow over the day's high and a label that makes room. A flat
- * top's touches are rings on their candles' highs, and its break a mark pointing up (2026-10-06).
+ * top's touches are rings on their candles' highs, and its break a mark pointing up (2026-10-06). A trend line
+ * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length.
  */
 import { MismatchDirection } from 'lightweight-charts';
 import type {
   AutoscaleInfo,
   IChartApi,
+  Logical,
   IPrimitivePaneRenderer,
   IPrimitivePaneView,
   ISeriesApi,
@@ -27,7 +29,16 @@ import type {
   Time,
 } from 'lightweight-charts';
 import { publishPaneWords } from '../chart';
-import { emptyPx, FillRenderer, LineRenderer, RING_R_PX, type LabelHit, type Px } from './sceneRender';
+import {
+  emptyPx,
+  FillRenderer,
+  LineRenderer,
+  RING_R_PX,
+  segmentDistance,
+  TREND_RING_R_PX,
+  type LabelHit,
+  type Px,
+} from './sceneRender';
 import type { LabelRect } from './sceneLabels';
 import { EMPTY_SCENE, type Scene } from './sceneTypes';
 
@@ -55,6 +66,12 @@ class View implements IPrimitivePaneView {
   zOrder(): PrimitivePaneViewZOrder {
     return this.layer === 'fill' ? 'bottom' : 'top';
   }
+}
+
+/** The time of the series' newest bar; null without bars. */
+function lastBarTime(series: ISeriesApi<SeriesType>): Time | null {
+  const d = series.dataByIndex(Number.MAX_SAFE_INTEGER, MismatchDirection.NearestLeft) as { time?: Time } | null;
+  return d && d.time !== undefined ? d.time : null;
 }
 
 /** A line series' value on logical bar `index`, else the nearest one before it. */
@@ -180,16 +197,46 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const yy = y(d.price);
       if (xx !== null && yy !== null) dots.push({ x: xx, y: yy, d });
     }
+    // A trend line runs on from the last closed candle to the newest one, `slope` a candle, counted in the pane's
+    // own candles as the backend read it.
+    const trends: Px['trends'] = [];
+    const newest = (this.scene.trends?.length ?? 0) > 0 ? lastBarTime(series) : null;
+    const newestIdx = newest === null ? null : ts.timeToIndex(newest, true);
+    for (const tr of this.scene.trends ?? []) {
+      const [x1, x2, xEnd] = [x(tr.t1), x(tr.t2), x(tr.tEnd)];
+      const [y1, y2] = [y(tr.p1), y(tr.p2)];
+      if (x1 === null || x2 === null || xEnd === null || y1 === null || y2 === null) continue;
+      let xe: number = xEnd;
+      let pe = tr.pEnd;
+      const endIdx = ts.timeToIndex(tr.tEnd, true);
+      if (endIdx !== null && newestIdx !== null && newestIdx > endIdx) {
+        const xx = ts.logicalToCoordinate(newestIdx as unknown as Logical);
+        if (xx !== null) {
+          xe = xx;
+          pe = tr.pEnd + tr.slope * (newestIdx - endIdx);
+        }
+      }
+      const ye = y(pe);
+      if (ye === null) continue;
+      const rings: Px['trends'][number]['rings'] = [];
+      for (const t of tr.touches) {
+        const [rx, ry] = [x(t.t), y(t.price)];
+        if (rx !== null && ry !== null) rings.push({ x: rx, y: ry });
+      }
+      const cx = tr.broke ? x(tr.broke.t) : null;
+      const cy = tr.broke ? y(tr.broke.price) : null;
+      trends.push({ x1, y1, x2, y2, xe, ye, pe, rings, cross: cx !== null && cy !== null ? { x: cx, y: cy } : null, tr });
+    }
     this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks, words, reserves,
-      topInset: this.scene.topInset ?? 0, marks, dots };
+      topInset: this.scene.topInset ?? 0, marks, dots, trends };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {
     return this.views;
   }
 
-  /** The story under the pointer: a label drawn for a box (labels sit on top), else a flat top's ring, else the
-   * top-most box (the last drawn wins: live lanes over past setups). */
+  /** The story under the pointer: a label drawn for a box (labels sit on top), else a flat top's ring, else a trend
+   * line, else the top-most box (the last drawn wins: live lanes over past setups). */
   hitTest(x: number, y: number): PrimitiveHoveredItem | null {
     for (let i = this.labelHits.length - 1; i >= 0; i -= 1) {
       const { rect, hoverId } = this.labelHits[i];
@@ -202,6 +249,12 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const { x: dx, y: dy, d } = dots[i];
       if (d.hoverId && Math.hypot(x - dx, y - dy) <= RING_R_PX + HIT_SLACK_PX) {
         return { externalId: d.hoverId, zOrder: 'top' };
+      }
+    }
+    for (const t of this.px.trends ?? []) {
+      const reach = TREND_RING_R_PX + HIT_SLACK_PX;
+      if (segmentDistance(x, y, t.x1, t.y1, t.x2, t.y2) <= reach || segmentDistance(x, y, t.x2, t.y2, t.xe, t.ye) <= reach) {
+        return { externalId: t.tr.hoverId, zOrder: 'top' };
       }
     }
     for (let i = this.px.boxes.length - 1; i >= 0; i -= 1) {
