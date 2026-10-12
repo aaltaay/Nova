@@ -474,7 +474,7 @@ export const SESSION_AFTERHOURS_END_MIN_ET = 20 * 60;
 
 /** Background tint behind candles for each session (intraday charts only). */
 export const CHART_SESSION_COLORS = {
-  premarket: 'rgba(245, 158, 11, 0.10)',
+  premarket: 'rgba(245, 158, 11, 0.06)',
   rth: 'rgba(16, 185, 129, 0.05)',
   afterhours: 'rgba(59, 130, 246, 0.10)',
   closed: 'rgba(0, 0, 0, 0.18)',
