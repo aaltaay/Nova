@@ -14,6 +14,7 @@ import { computeQuoteMetrics } from './quoteMetrics';
 import { makeDetail } from './quoteFixtures';
 import { TICKER_WATCHLIST_STRIP_EMPTY, QUOTE_CARD_TITLE } from '../constants';
 import type { CatalystPanelState } from '../hooks/useCatalystPanel';
+import { floatGuide } from '../utils/shareFacts';
 
 // The News panel reads the catalyst verdict when the API answers (ADR 024); these tests cover the
 // fallback an older API or the sample desk takes unless a test sets a panel.
@@ -371,7 +372,7 @@ describe('FundamentalsPanel', () => {
         (c) => c.querySelector('.cq-label')?.textContent === label,
       ) as HTMLElement;
     expect(cellOf('Float').querySelector('.cq-value')?.textContent).toBe('54.0K?');
-    expect(cellOf('Float').title).toBe(reason);
+    expect(cellOf('Float').title).toBe(`${reason}\n\n${floatGuide(54_000)}`);
     expect(cellOf('Short Interest').querySelector('.cq-value')?.textContent).toBe('566.0K (Aug 31)');
     expect(cellOf('Short Interest').title).toContain('FINRA settlement Aug 31, 2026');
     expect(cellOf('Short Ratio (Yahoo)').querySelector('.cq-value')?.textContent).toBe('6.9');

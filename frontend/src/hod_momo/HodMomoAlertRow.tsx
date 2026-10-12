@@ -7,6 +7,7 @@ import {
   HOD_MOMO_MAX_INLINE_STRATEGY_PILLS,
   STRATEGY_META_MAP,
 } from '../constants';
+import { floatHover } from '../utils/shareFacts';
 import { HOD_MOMO_COLUMNS } from './hodMomoColumns';
 import type { AlertObject } from './types';
 import { hodMomoAlertRowHeightPx, visibleStrategyTags } from './hodMomoRowLayout';
@@ -186,7 +187,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
             );
           case 'float':
             return (
-              <td key={key}>
+              <td key={key} title={floatHover(alert.float_shares)}>
                 {alert.float_shares != null ? fmtVolume(alert.float_shares) : <span className="na-muted">—</span>}
               </td>
             );
