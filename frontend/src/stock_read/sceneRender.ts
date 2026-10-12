@@ -319,9 +319,10 @@ export class LineRenderer implements IPrimitivePaneRenderer {
       }
       for (const { x, y, m } of this.px.marks) {
         if (x < 0 || x > width) continue;
-        asks.push({ forms: [m.label], x, y: y - MARK_GAP_PX - MARK_H - 2 - LABEL_H / 2, fixed: false, rank: m.rank,
-          center: true });
-        owners.push({ color: m.color });
+        const forms = labelForms(m.label, m.shrink, this.px.labels);
+        if (forms.length === 0) continue;
+        asks.push({ forms, x, y: y - MARK_GAP_PX - MARK_H - 2 - LABEL_H / 2, fixed: false, rank: m.rank, center: true });
+        owners.push({ color: m.color, hoverId: m.hoverId });
       }
       const hits: LabelHit[] = [];
       const words: LabelRect[] = [...obstacles];

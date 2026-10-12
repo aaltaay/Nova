@@ -3,8 +3,8 @@
  * 2026-10-12). The box runs to the pane's right edge, under the edge column, whose words name its prices (T1, entry,
  * stop: `strategyWords`). A forming setup's box stands on the setup's window -- from its start, never before the newest
  * candle -- when that leaves room for its name left of the column's words; else it waits at the right edge saying when
- * it starts. Faint and dashed while the setup is only forming; in full colour with a solid outline once it is near,
- * armed or triggered, the word for where it stands beside its name. Target 2 is a dotted dash across the box while it
+ * it starts. Faint and dashed while the setup is only forming; in full colour with a solid outline once it is near or
+ * armed, the word for where it stands beside its name. Target 2 is a dotted dash across the box while it
  * is in view, else a small arrow past target 1. Drawn before the column, so the column's words read over it.
  */
 import { STRATEGY_BOX as S, STRATEGY_BOX_LIVE as L } from './constants';

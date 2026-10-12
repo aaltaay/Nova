@@ -208,17 +208,24 @@ own), and target 2 a small arrow over it (under it for a short). While the setup
 stands on that window -- from Gap and Go's 09:30 -- when the window's start leaves room for its name left of the
 column's words, and otherwise waits at the right edge saying "from 09:30 →"; with the window open, or none, it starts
 after the newest candle. That chart's autoscale keeps the box in view (the stop to target
-1), never target 2. **Once the setup is near, armed or triggered** (operator ask 2026-10-12, on MNDR's Gap and Go armed
+1), never target 2. **Once the setup is near or armed** (operator ask 2026-10-12, on MNDR's Gap and Go armed
 at 09:30, its zones from the 09:30 candle and four lines across the pane: "its making the chart extremely big ... can
 we do that for the rest of them?") the same box stands in full colour with a solid outline, from the room right of the
 newest candle to the pane's edge, on every setup: its name and where it stands ("FLAT TOP BREAKOUT near", "FIRST
-PULLBACK triggered"; a word with no room beside the name leads the second line), and when ("since 09:34", "at 09:36",
-with "until 10:00" while it can still trigger in an open window, from the lead lane's `setup.armed_at` / `triggered_at`). The entry is dashed
+PULLBACK armed"; a word with no room beside the name leads the second line), and since when ("since 09:34", with
+"until 10:00" while its window is open, from the lead lane's `setup.armed_at`). The entry is dashed
 across the box only. Its levels keep their axis tags, price lines drawn without the line (`PriceLineSpec.line: false`,
 lightweight-charts' `lineVisible`), and the edge column's words name them ("T1", "entry" or "short", "stop"). Target 2
 in view is a dotted dash across the box ("T2 3.49"), and off the pane an arrow; either way the frame is the stop to
-target 1. A short's name is cut before its "▼ SHORT". A level an order or a position stands behind, and the operator's
-own plan, draw the zones, lines and frame above. It frames a forming setup once per setup, and again
+target 1. A short's name is cut before its "▼ SHORT". **Once it triggered** (operator ask 2026-10-12, option A of two
+mockups, on MNDR's Gap and Go box still beside the price at 09:55, 24 minutes after its 09:31 trigger and 22 after the
+eyes scored target 1 first) a plan with nothing behind it was taken or missed, and it leaves the 1-minute chart: no
+box, no axis tags, no frame (`strategyBox.triggeredPlan`). A mark over its trigger candle stands in its place
+(`triggerMark`, from the lead lane's `setup.triggered_at`; none without it): a triangle in the entry's blue, pointing
+up (down on a short), and "✓ GAP AND GO 09:31", which makes room as a past setup's label does -- "✓" alone while the
+labels are compact -- and tells the lane's story on hover. Where the lane already marks that candle (a flat top that
+entered on its break), its own mark says it. The 5-minute and 10-second panes keep its thin lines. A
+level an order or a position stands behind, and the operator's own plan, draw the zones, lines and frame above. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
 time scale's `rightOffset`, which is its scroll position, is never set). **A view the operator

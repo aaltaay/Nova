@@ -89,7 +89,7 @@ export const SETUP_COLORS = {
 
 /** A setup's plan on the 1-minute chart (operator asks 2026-10-12): one box in the room right of the newest candle,
  * never a line across the pane (`strategyBoxRender.ts`). These are the forming setup's faint colours and the layout of
- * both; `STRATEGY_BOX_LIVE` holds the colours once the setup is near, armed or triggered. */
+ * both; `STRATEGY_BOX_LIVE` holds the colours once the setup is near or armed. */
 export const STRATEGY_BOX = {
   riskFill: 'rgba(255, 69, 58, 0.07)',
   rewardFill: 'rgba(48, 209, 88, 0.07)',
@@ -119,7 +119,7 @@ export const STRATEGY_BOX = {
   target2Dash: [2, 3],
 } as const;
 
-/** The box in full colour: a setup near, armed or triggered (operator ask 2026-10-12, option A of the mockups: "the
+/** The box in full colour: a setup near or armed (operator ask 2026-10-12, option A of the mockups: "the
  * same box as before the open, in full colour"). Solid outline; the state word in its own colour. */
 export const STRATEGY_BOX_LIVE = {
   riskFill: 'rgba(255, 69, 58, 0.16)',
@@ -136,7 +136,7 @@ export const STRATEGY_BOX_LIVE = {
   entryWidth: 1.5,
   /** Behind its words: the entry line and the price's line run under them (the scene labels' backing). */
   wordBacking: 'rgba(12, 12, 14, 0.78)',
-  state: { near: '#ffd60a', armed: SETUP_COLORS.target, triggered: SETUP_COLORS.trigger },
+  state: { near: '#ffd60a', armed: SETUP_COLORS.target },
 } as const;
 
 /** The day's levels (ADR 036 amendment 2026-09-30): gold the half and whole dollars, coral a level over the
