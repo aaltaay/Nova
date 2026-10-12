@@ -510,20 +510,61 @@ describe('the legend on the 1-minute chart', () => {
     return ctx?.read.data ? <ChartLegend ctx={ctx} read={ctx.read.data} onFrame={() => undefined} /> : null;
   }
 
-  it("switches the past setups' labels between a few words and the whole label, and keeps it", async () => {
-    respond(/\/api\/stock-read\/APUS\/past-setups/, { schema_version: 1, symbol: 'APUS', date: '2026-09-30',
-      generated_at: 0, episodes: [], journal: { ok: true, error: null }, bars: { ok: true, error: null } });
+  function renderLegend() {
     render(
       <StockReadProvider symbol="APUS" active replay={false} topOfBook={null}>
         <Legend />
       </StockReadProvider>,
     );
-    const chip = await screen.findByTestId('stock-read-legend-labels');
-    expect(chip.textContent).toBe('¶ Compact');
-    expect(chip.getAttribute('data-tip')).toContain('Compact: a mark for each -- ✕ failed, ○ faded, ✓ triggered');
-    fireEvent.click(chip);
-    expect(chip.textContent).toBe('¶ Full');
-    expect(chip.getAttribute('aria-pressed')).toBe('true');
+  }
+
+  it('keeps a chip only for a setup doing something, and every setup in the Setups menu', async () => {
+    renderLegend();
+    const menu = await screen.findByTestId('stock-read-legend-menu');
+    // APUS: the bull flag is forming (the plan's), the first pullback is watching, flat top and red-to-green are Off.
+    expect(screen.getByTestId('stock-read-legend-bull_flag').textContent).toBe('Bull flag 1/2');
+    expect(screen.queryByTestId('stock-read-legend-first_pullback')).toBeNull();
+    expect(screen.queryByTestId('stock-read-legend-flat_top_breakout')).toBeNull();
+    expect(menu.textContent).toBe('Setups ▾+3');
+    expect(screen.queryByTestId('stock-read-legend-menu-card')).toBeNull();
+
+    expect(menu.getAttribute('data-tip')).toContain('3 not shown as a chip');
+    fireEvent.click(menu);
+    const card = screen.getByTestId('stock-read-legend-menu-card');
+    expect(menu.getAttribute('data-tip')).toBeNull();   // its tip would sit over the menu it opened
+    expect(within(card).getByTestId('stock-read-menu-first_pullback').getAttribute('aria-pressed')).toBe('true');
+    const off = within(card).getByTestId('stock-read-menu-flat_top_breakout') as HTMLButtonElement;
+    expect(off.disabled).toBe(true);
+    expect(off.textContent).toContain('Off');
+    expect(off.getAttribute('data-why')).toContain('Off on the Bots page');
+
+    // Hiding the forming bull flag moves it into the menu, which stays open; showing it brings its chip back.
+    fireEvent.click(within(card).getByTestId('stock-read-menu-bull_flag'));
+    expect(screen.queryByTestId('stock-read-legend-bull_flag')).toBeNull();
+    expect(menu.textContent).toBe('Setups ▾+4');
+    expect(within(card).getByTestId('stock-read-menu-bull_flag').getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(within(card).getByTestId('stock-read-menu-bull_flag'));
+    expect(screen.getByTestId('stock-read-legend-bull_flag')).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('stock-read-legend-menu-card')).toBeNull();
+    fireEvent.click(menu);
+    fireEvent.pointerDown(document.body);   // a press outside the menu closes it
+    expect(screen.queryByTestId('stock-read-legend-menu-card')).toBeNull();
+  });
+
+  it("switches the past setups' labels between a few words and the whole label, and keeps it", async () => {
+    respond(/\/api\/stock-read\/APUS\/past-setups/, { schema_version: 1, symbol: 'APUS', date: '2026-09-30',
+      generated_at: 0, episodes: [], journal: { ok: true, error: null }, bars: { ok: true, error: null } });
+    renderLegend();
+    fireEvent.click(await screen.findByTestId('stock-read-legend-menu'));
+    const compact = await screen.findByTestId('stock-read-legend-labels-compact');
+    const full = screen.getByTestId('stock-read-legend-labels-full');
+    expect(compact.getAttribute('aria-pressed')).toBe('true');
+    expect(compact.getAttribute('data-tip')).toContain('Compact: a mark for each -- ✕ failed, ○ faded, ✓ triggered');
+    fireEvent.click(full);
+    expect(full.getAttribute('aria-pressed')).toBe('true');
+    expect(compact.getAttribute('aria-pressed')).toBe('false');
     expect(localStorage.getItem('nova.stockRead.layers')).toContain('"labels":"full"');
     fireEvent.click(screen.getByTestId('stock-read-legend-past'));   // no past setups: nothing to label
     expect(screen.queryByTestId('stock-read-legend-labels')).toBeNull();
