@@ -10,6 +10,7 @@ export type {
   StockModeApproval,
   StockModeBot,
   StockModeEntries,
+  StockModeHalf,
   StockModeName,
   StockModeNote,
   StockModeSize,

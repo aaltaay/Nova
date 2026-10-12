@@ -78,22 +78,28 @@ def same_price(a: Any, b: Any, tolerance: float = STOCK_MODE_PRICE_TOLERANCE) ->
 
 
 def plan_matches(approved: dict[str, Any], levels: dict[str, Any] | None) -> bool:
-    """An approval binds to the lane's own entry, stop and target (within a cent)."""
+    """An approval binds to the lane's own entry, stop and both targets (within a cent): target 2 on both, or on
+    neither (#845 -- a lane without one sells every share at target 1)."""
     if not levels:
         return False
+    t2, lane_t2 = approved.get("target2"), levels.get("target2")
+    second = (t2 is None and lane_t2 is None) or (t2 is not None and lane_t2 is not None and same_price(t2, lane_t2))
     return (same_price(approved.get("entry"), levels.get("entry"))
             and same_price(approved.get("stop"), levels.get("stop"))
-            and same_price(approved.get("target"), levels.get("target1")))
+            and same_price(approved.get("target"), levels.get("target1"))
+            and second)
 
 
 def levels_text(levels: dict[str, Any]) -> str:
+    """``entry / stop / target 1``, and `` / target 2`` when the lane has one."""
     def fmt(v: Any) -> str:
         try:
             return f"{float(v):.2f}"
         except (TypeError, ValueError):
             return "?"
 
-    return f"{fmt(levels.get('entry'))} / {fmt(levels.get('stop'))} / {fmt(levels.get('target1', levels.get('target')))}"
+    out = f"{fmt(levels.get('entry'))} / {fmt(levels.get('stop'))} / {fmt(levels.get('target1', levels.get('target')))}"
+    return out + (f" / {fmt(levels['target2'])}" if levels.get("target2") is not None else "")
 
 
 def lane_side(lane: dict[str, Any]) -> str:

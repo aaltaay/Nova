@@ -52,7 +52,7 @@ from constants_stock_mode import (
     STOCK_MODE_WHY_LIVE_EXIT,
 )
 from bot.first_pullback import halves
-from stock_mode import exit_orders, exit_targets, gates, model, orders, store
+from stock_mode import exit_legs, exit_orders, exit_targets, gates, model, orders, store
 from stock_mode.errors import StockModeError
 
 logger = logging.getLogger(__name__)
@@ -103,8 +103,7 @@ def _closed_replay_bars(symbol: str, now: float) -> list[dict[str, Any]]:
 
 # -- reads of the trade --------------------------------------------------------------------
 _short = exit_orders.short
-_LEGS = (("target_order_id", "target", "target1"), ("target2_order_id", "target", "target2"),
-         ("stop_order_id", "stop", "stop"))
+_LEGS = exit_legs.LEGS
 
 
 def _held(trade: dict[str, Any]) -> float:
@@ -200,13 +199,12 @@ async def take_back(trade: dict[str, Any], now: float) -> None:
     """Cancel Nova's stop and targets; the exit is yours again (``handed``). A refused cancel keeps the trade."""
     sym = trade["symbol"]
     refused = []
-    for leg, _reason, _name in _LEGS:
-        if trade.get(leg) and not halves.booked(trade, trade[leg]):
-            receipt = await orders.cancel(trade, int(trade[leg]), source="manual")
-            if getattr(receipt, "ok", False):
-                trade[leg] = None
-            else:
-                refused.append(f"the {leg.split('_')[0]} ({orders.receipt_error(receipt)})")
+    for leg in exit_legs.resting(trade):
+        receipt = await orders.cancel(trade, int(trade[leg]), source="manual")
+        if getattr(receipt, "ok", False):
+            trade[leg] = None
+        else:
+            refused.append(f"the {leg.split('_')[0]} ({orders.receipt_error(receipt)})")
     if refused:
         store.set_trade(trade)
         raise StockModeError(STOCK_MODE_SEND, f"{', '.join(refused)} could not be cancelled and still rests: Nova "
@@ -224,21 +222,12 @@ async def manage(trade: dict[str, Any], now: float) -> None:
     """One tick: the stop's fill -- or the target that sold the last shares -- closes the trade, a first half
     that filled is booked (the stop rests on for the rest, shrunk at the broker), a gone position or stop
     hands it back, and ``trail`` moves the stop (up under a long, down over a short)."""
-    left = float(trade["qty"]) - halves.sold(trade)
-    for leg, reason, name in _LEGS:
-        if not trade.get(leg) or halves.booked(trade, trade[leg]):
-            continue
-        row = orders.order_row(trade[leg]) or {}
-        if orders.order_state(row) != "filled":
-            continue
-        price = _num(row.get("avg_fill_price")) or float(trade["target" if name == "target1" else name])
-        sold = float(row.get("filled_qty") or 0) or left
-        halves.book(trade, name, sold, price, now, trade[leg])
-        left -= sold
-        if reason == "stop" or left <= _EPS:
-            await _close(trade, now, reason, price)
-            return
+    sold_now, done = exit_legs.book_fills(trade, now)
+    for name, sold, price, left in sold_now:
         _half(trade, now, name, sold, price, left)
+    if done is not None:
+        await _close(trade, now, *done)
+        return
     if _held(trade) <= _EPS:
         await _close(trade, now, "outside", None)
         return
@@ -353,14 +342,6 @@ async def _hand_back(trade: dict[str, Any], now: float, why: str) -> None:
     store.set_trade(trade)
     store.note_event(trade["symbol"], now, "warn", why)
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="handed", reason=f"{trade['symbol']}: {why}", inputs=_summary(trade))
-
-
-def _num(value: Any) -> float | None:
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    return out if out > 0 else None
 
 
 def _summary(trade: dict[str, Any]) -> dict[str, Any]:

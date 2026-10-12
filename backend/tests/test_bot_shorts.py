@@ -401,6 +401,42 @@ def test_an_approved_short_goes_out_as_a_short_bracket_at_its_trigger(paper):
     assert sm_store.approval(SYM)["state"] == "sent"
 
 
+def test_an_approved_short_covers_in_two_halves_and_its_buy_stop_stays(paper):
+    """#845 mirrored: cover 1 buys back the first half, cover 2 the rest, the buy stop shrinks and never moves."""
+    from stock_mode import runner as sm_runner
+    from stock_mode import store as sm_store
+
+    sm_runner.reset_for_tests(lambda: paper.now)
+    _stock_mode(paper, "you", "nova")
+    sm_store.set_approval(SYM, {"setup_id": trigger(paper)["setup_id"], "setup_type": SETUP, "side": "short",
+                                "entry": 3.99, "stop": 4.13, "target": 3.71, "target2": 3.50, "target1_fraction": 0.5,
+                                "qty": 4, "approved_at": paper.now, "state": "waiting", "reason": None})
+    sm_runner.submit(trigger(paper))
+    trade = _stock_tick(paper)
+    t1, t2, stop = (leg(paper, trade[k]) for k in ("target_order_id", "target2_order_id", "stop_order_id"))
+    assert (t1["side"], t1["limit_price"], t1["qty"]) == ("BUY", 3.71, 2)
+    assert (t2["side"], t2["limit_price"], t2["qty"]) == ("BUY", 3.50, 2)
+    assert (stop["side"], stop["stop_price"], stop["qty"]) == ("BUY", 4.13, 4)
+    trade = _stock_tick(paper, paper.now + 1)
+    assert trade["state"] == "holding" and paper.broker.ledger.held_qty(SYM) == -4.0
+    fill = trade["fill_price"]
+
+    paper.broker.try_fill_working(SYM, [(paper.now + 5, 3.69)])          # through cover 1, short of cover 2
+    trade = _stock_tick(paper, paper.now + 6)
+    assert trade["state"] == "holding" and [(h["leg"], h["qty"]) for h in trade["halves"]] == [("target1", 2.0)]
+    stop = leg(paper, trade["stop_order_id"])
+    assert (stop["qty"], stop["stop_price"], stop["status"]) == (2, 4.13, "Submitted")
+    assert "Nova covered 2 at target 1 3.71; the buy stop 4.13 stays for the other 2" == sm_store.event(SYM)["text"]
+
+    paper.broker.try_fill_working(SYM, [(paper.now + 8, 3.45)])          # cover 2 buys back the rest
+    trade = _stock_tick(paper, paper.now + 9)
+    assert (trade["state"], trade["exit_reason"]) == ("closed", "target")
+    assert [(h["leg"], h["price"]) for h in trade["halves"]] == [("target1", 3.71), ("target2", 3.50)]
+    money = 2 * (fill - 3.71) + 2 * (fill - 3.50)                        # a short makes money as the price falls
+    assert f"+${money:.2f}" in sm_store.event(SYM)["text"]
+    assert paper.broker.ledger.held_qty(SYM) == 0.0 and leg(paper, trade["stop_order_id"])["status"] == "Cancelled"
+
+
 # -- the localhost bot API's short kinds -------------------------------------------------------------
 def test_the_bot_api_shorts_with_its_buy_stop_and_covers_never_past_flat(paper):
     from bot import actions

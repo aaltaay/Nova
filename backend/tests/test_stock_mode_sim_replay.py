@@ -257,6 +257,40 @@ def test_the_bracket_fills_and_closes_on_the_replay(desk, lanes):
     assert store.approval(SYM, key()) is None
 
 
+def test_an_approved_bracket_sells_its_first_half_on_the_replay_and_a_rewind_puts_it_back(desk, monkeypatch):
+    """#845: target 1 sells half on the 12.00 at :60; back before it every share is the stop's again; on again, the
+    first half sells and the 10.00 at :90 runs the stop for the rest."""
+    halves = {"target": 11.50, "target2": 12.50, "target1_fraction": 0.5}
+    lane = {"setup_id": SETUP_ID, "setup_type": "first_pullback", "state": "armed",
+            "setup": {"entry": 10.50, "stop": 10.30, "target1": 11.50, "target2": 12.50, "trigger": 10.49}}
+    monkeypatch.setattr(runner, "_lanes", lambda sym: ([dict(lane)], None))
+    go(20)
+    approve(desk, **halves)
+    tick()
+    go(30)
+    runner.submit(trigger(desk))
+    trade = tick()
+    ids = trade["target_order_id"], trade["target2_order_id"], trade["stop_order_id"]
+    assert all(ids) and (trade["target1_qty"], trade["target2_qty"]) == (5, 5)
+    ledger = for_venue("sim").ledger
+    go(50)                                                             # 10.40 at :32 filled the entry
+    assert tick()["state"] == "holding"
+    go(65)                                                             # 12.00 at :60: target 1, half
+    trade = tick()
+    assert trade["state"] == "holding" and [(h["leg"], h["qty"]) for h in trade["halves"]] == [("target1", 5.0)]
+    assert ledger.order_row(ids[2])["qty"] == 5 and ledger.order_row(ids[2])["stop_price"] == 10.30
+    go(55)                                                             # back before target 1 filled
+    trade = tick()
+    assert trade["state"] == "holding" and trade["halves"] == []
+    assert ledger.order_row(ids[2])["qty"] == 10 and sorted(working()) == sorted(ids)
+    go(95)                                                             # target 1 again, then 10.00 at :90
+    tick()
+    done = tick()
+    assert (done["state"], done["exit_reason"]) == ("closed", "stop")
+    assert [(h["leg"], h["qty"]) for h in done["halves"]] == [("target1", 5.0), ("stop", 5.0)]
+    assert ledger.held_qty(SYM) == 0 and store.approval(SYM, key()) is None
+
+
 def test_an_approval_made_after_the_new_playhead_was_never_made(desk, lanes, monkeypatch):
     from stock_mode import model
 

@@ -220,7 +220,8 @@ describe('the charts', () => {
     expect(pole.t2).toBe(apusAt(15, 1));
     const zones = scene.boxes.filter(b => b.t2 === null);
     expect(zones.map(z => [z.p1, z.p2])).toEqual([[5.33, 5.44], [5.44, 5.49]]);
-    expect(scene.keepInView).toEqual({ min: 5.33, max: 5.49 });
+    // The pane frames the stop to the furthest target (#845): target 2 at 5.99 is a line on the chart.
+    expect(scene.keepInView).toEqual({ min: 5.33, max: 5.99 });
     const byId = Object.fromEntries(lines.map(l => [l.id, l]));
     expect(byId.entry).toMatchObject({ price: 5.44, style: 'dashed', title: 'ENTRY (provisional)', axisLabel: true });
     // Only a plan: no order stands behind the stop or the target, so both are dashed and say so (ADR 037).

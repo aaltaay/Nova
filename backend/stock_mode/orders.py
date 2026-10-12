@@ -25,6 +25,7 @@ from bot.first_pullback.orders import (  # noqa: F401 (re-exported)
     order_state,
     ran_out,
     short_held_qty,
+    target2_id,
 )
 from execution.models import ExecutionCommand
 from execution.service import execute
@@ -121,9 +122,15 @@ async def place_entry(trade: dict[str, Any]) -> Any:
 async def send_bracket(trade: dict[str, Any]) -> Any:
     """Approve: the plan as one bracket -- a BUY limit at the entry, a SELL limit at the target and a
     SELL stop at the stop, the exits held until the entry fills and then one-cancels-other. A short plan's
-    is the mirror: a short limit, a BUY limit at its cover and a BUY stop over it."""
+    is the mirror: a short limit, a BUY limit at its cover and a BUY stop over it.
+
+    Two halves (#845, the bot's and Nova's exit's rule): with a ``target2`` the first target sells
+    ``target1_qty`` (``exit_targets.apply``, ``halves.split``) and a second limit the rest; the stop covers
+    every share and shrinks as the targets fill, never moved. No target 2 (or one share): every share at the
+    target, as before."""
     entry = round(float(trade["entry"]), 4)
     short = is_short(trade)
+    second = trade.get("target2") is not None and bool(trade.get("target2_qty"))
     return await execute(
         ExecutionCommand(
             operation="bracket",
@@ -138,6 +145,8 @@ async def send_bracket(trade: dict[str, Any]) -> Any:
             limit_price=entry,
             entry_price=entry,
             target_price=round(float(trade["target"]), 4),
+            target2_price=round(float(trade["target2"]), 4) if second else None,
+            target1_qty=float(trade["target1_qty"]) if second else None,
             stop_price=round(float(trade["stop"]), 4),
             reference_price=entry,
             outside_rth=_outside_rth(),

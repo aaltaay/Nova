@@ -17,7 +17,9 @@ import { usePolledRead } from './useStockRead';
 import { heldMarkers } from './heldView';
 import type { FlushReading } from './useHeldTrade';
 import type { BigWalls } from './bigSeller';
-import { approvePlan, putStockMode, takeExit as postTakeExit, takeOverExit, withdrawApproval } from './whoTradesApi';
+import {
+  approvePlan, approveRequest, putStockMode, takeExit as postTakeExit, takeOverExit, withdrawApproval,
+} from './whoTradesApi';
 import { level2Markers, orderLevels, type OrderLevels } from './whoTradesModel';
 import { normalizeStockMode } from './whoTradesNormalize';
 import { pingCall } from './whoTradesSound';
@@ -186,10 +188,7 @@ export function useWhoTrades({
       setWriteError('The plan has nothing to approve.');
       return Promise.resolve();
     }
-    return run(now ? 'Sending the buy…' : 'Approving…', () => approvePlan(sym, {
-      setup_id: plan.setup_id as string, entry: plan.entry as number, stop: plan.stop as number,
-      target: plan.target as number, qty, now,
-    }));
+    return run(now ? 'Sending the buy…' : 'Approving…', () => approvePlan(sym, approveRequest(plan, qty, now)));
   }, [run, sym, plan, view, riskUsd]);
   const withdraw = useCallback(() => run('Cancelling…', () => withdrawApproval(sym)), [run, sym]);
   const takeOver = useCallback(() => run('Taking over the exit…', () => takeOverExit(sym)), [run, sym]);

@@ -1,11 +1,14 @@
-"""The targets the exit sheet chose for Nova's exit (#681, #845): read, checked, split into halves, said.
+"""The targets Nova's exits rest at (#681, #845): read, checked, split into halves, said.
 
 ``exit_trade.take`` hands Nova the exit of the shares you hold; with a ``target`` -- and a ``target2`` for
 the second half -- Nova rests them beside its stop as one exit-only pair (``exit_orders.place_pair``).
-This module holds the rules over the sheet's numbers, pure but for the refusal it raises:
+Approve (``actions.approve``) sends the plan's two targets in its bracket the same way (``orders.send_bracket``).
+This module holds the rules over those numbers, pure but for the refusal it raises:
 
 - ``price``: a price the sheet sent, or None when it sent none;
 - ``refusal``: a target that would fill at once, sits past the stop, or a target 2 not beyond target 1;
+- ``approved``: an approval's target 2 and first half's share -- target 2 past target 1, the share a
+  fraction over 0 and at most 1;
 - ``apply``: the trade's target fields -- ``target1_qty`` / ``target2_qty`` from ``halves.split`` (the first
   half the smaller part of an odd count; one share, or no target 2, sells whole at target 1);
 - ``words``: the targets as the timeline says them.
@@ -54,6 +57,27 @@ def refusal(short: bool, stop: float, last: float | None, t1: float | None,
     return None
 
 
+def approved(body: dict[str, Any], *, short: bool, target: float) -> dict[str, Any]:
+    """An approval's second half: ``{target2, target1_fraction}``. Target 2 is past target 1 (over it on a long,
+    under it on a short -- so past the entry too); the first half's share is over 0 and at most 1 (absent: half
+    with a target 2, every share without one)."""
+    t2 = price(body.get("target2"), "target2")
+    raw = body.get("target1_fraction")
+    try:
+        fraction = None if raw is None else float(raw)
+    except (TypeError, ValueError) as exc:
+        raise StockModeError(STOCK_MODE_INVALID, "target1_fraction is the share sold at target 1", status=400,
+                             field="target1_fraction") from exc
+    if fraction is not None and not 0 < fraction <= 1:
+        raise StockModeError(STOCK_MODE_INVALID, "target1_fraction is over 0 and at most 1", status=400,
+                             field="target1_fraction")
+    if t2 is not None and ((t2 >= target - _EPS) if short else (t2 <= target + _EPS)):
+        side, what = ("under", "cover") if short else ("over", "target")
+        raise StockModeError(STOCK_MODE_INVALID, f"{what} 2 {t2:.2f} must be {side} {what} 1 {target:.2f}",
+                             status=400, field="target2")
+    return {"target2": t2, "target1_fraction": fraction}
+
+
 def apply(trade: dict[str, Any], t1: float | None, t2: float | None, fraction: Any) -> None:
     """Set the trade's targets: ``target``, ``target2`` (None when every share sells at target 1),
     ``target1_fraction`` and the shares each half sells."""
@@ -66,6 +90,13 @@ def apply(trade: dict[str, Any], t1: float | None, t2: float | None, fraction: A
     trade.update(target1_qty=first, target2_qty=second)
     if not second:
         trade["target2"] = None             # one share, or no target 2: every share at target 1
+
+
+def plan_words(row: dict[str, Any]) -> str:
+    """``target 10.28``, or ``target 1 10.28, target 2 10.50``: an approval's targets, said."""
+    if row.get("target2") is not None:
+        return f"target 1 {float(row['target']):.2f}, target 2 {float(row['target2']):.2f}"
+    return f"target {float(row['target']):.2f}"
 
 
 def words(trade: dict[str, Any]) -> str:

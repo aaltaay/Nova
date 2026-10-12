@@ -84,8 +84,8 @@ export const rdynShortWire = {
   through: [],
   levels: {
     room: { state: 'info', text: '0.9R to 5.35, from the price', detail: null, trial: null },
-    target: { state: 'ok', text: 'Target 1 5.57 traded at 10:31: you are past it', detail: 'your average -20c' },
-    target2: { state: 'info', text: 'Target 2 5.42 is 4c below', detail: '1c over LOD 5.41' },
+    target: { state: 'ok', text: 'Cover 1 5.57 traded at 10:31: you are past it', detail: 'your average -20c' },
+    target2: { state: 'info', text: 'Cover 2 5.42 is 4c below', detail: '1c over LOD 5.41' },
     stop: { state: 'ok', text: '5.89 is 9c over $5.80', detail: null },
     next: { state: 'info', text: '$5.00 is 46c below: support until it prints through, a trigger after', detail: null },
     recent: { state: 'ok', text: 'Lost $5.50: the 10:31 candle closed 5.44', detail: null },

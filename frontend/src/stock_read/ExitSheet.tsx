@@ -14,7 +14,7 @@
  */
 import { useState } from 'react';
 import { tipProps, whyProps } from '../ux';
-import { splitHalves, startTargets, targetProblem } from './exitTargets';
+import { limitWords, splitHalves, startTargets, targetProblem } from './exitTargets';
 import type { StockHeld } from './heldRead';
 import { PriceInput } from './PlanNumbers';
 import { fmtPx } from './planMath';
@@ -66,7 +66,7 @@ export function ExitSheet({ ctx, held, lock }: { ctx: StockReadContextValue; hel
     }
   };
   const aims = target1 === null ? ''
-    : `; LMT ${fmtPx(target1)} x ${first}${second && target2 !== null ? ` and LMT ${fmtPx(target2)} x ${second}` : ''}`
+    : `; ${limitWords(held.qty, target1, target2, fraction, short)}`
       + ' beside it, one-cancels-other (a target\'s fill shrinks the stop to the shares left)';
   return (
     <div className="sr-exit" role="dialog" aria-label={`${takes} on ${held.qty} ${ctx.symbol}`} data-testid="exit-sheet">

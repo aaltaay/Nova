@@ -5,6 +5,7 @@ import type {
   StockModeApproval,
   StockModeBot,
   StockModeEntries,
+  StockModeHalf,
   StockModeName,
   StockModeNote,
   StockModeSize,
@@ -39,6 +40,9 @@ function approval(raw: unknown): StockModeApproval | null {
     entry,
     stop,
     target,
+    // Two halves (#845): an approval from a backend before them has neither -- every share at target 1.
+    target2: num(a.target2),
+    target1_fraction: num(a.target1_fraction),
     qty,
     approved_at: num(a.approved_at) ?? 0,
     state: (typeof a.state === 'string' && APPROVAL_STATES.has(a.state) ? a.state : 'waiting') as StockModeApproval['state'],
@@ -51,6 +55,13 @@ function raisedRow(raw: unknown): StockModeTrade['raised'][number] | null {
   const to = num(r?.to);
   if (!r || to === null) return null;
   return { at: num(r.at) ?? 0, from: num(r.from) ?? to, to, round: num(r.round) ?? to };
+}
+
+function half(raw: unknown): StockModeHalf | null {
+  const h = obj(raw);
+  const qty = num(h?.qty);
+  if (!h || typeof h.leg !== 'string' || qty === null) return null;
+  return { leg: h.leg, qty, price: num(h.price) };
 }
 
 function trade(raw: unknown): StockModeTrade | null {
@@ -84,6 +95,11 @@ function trade(raw: unknown): StockModeTrade | null {
     exiting: t.exiting === true,
     trail: t.trail === true,
     raised: Array.isArray(t.raised) ? t.raised.map(raisedRow).filter((x): x is StockModeTrade['raised'][number] => x !== null) : [],
+    target2: num(t.target2),
+    target2_order_id: num(t.target2_order_id),
+    target1_qty: num(t.target1_qty),
+    target2_qty: num(t.target2_qty),
+    halves: list(t.halves, half),
   };
 }
 

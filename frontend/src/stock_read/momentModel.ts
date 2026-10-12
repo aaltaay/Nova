@@ -9,6 +9,7 @@
  */
 import type { BigWalls } from './bigSeller';
 import { ENTER_NOW_RISK_SHARE, ENTER_NOW_SEC, NOT_A_TRADE_NOVA, NOVA_CALL_SEC } from './constants';
+import { tradeLimits } from './exitTargets';
 import { heldCall } from './heldCalls';
 import { approveQty, capUsedText, novaBlockers, novaQty } from './novaPromise';
 import { fmtPx, fmtStep, planBadge, planLane, setupName, sizeFor } from './planMath';
@@ -245,10 +246,14 @@ function entering(t: StockModeTrade, ttl: number | null): Moment {
 function boughtCall(i: MomentInputs, t: StockModeTrade | null): MomentCall | null {
   if (!t || t.state !== 'holding' || !recent(t.filled_at, i.now)) return null;
   const fill = `${t.qty ?? '?'} @ ${fmtPx(t.fill_price)}`;
+  const limits = tradeLimits(t);           // Approve in two halves (#845)
   const words: Record<StockModeTrade['kind'], [string, string, string]> = {
     auto_entry: [`BOT BOUGHT ${fill}`, 'BOT BOUGHT', 'No stop or target is working. The exit is yours.'],
-    approve: [`BOUGHT ${fill}`, 'BOUGHT', `The stop ${fmtPx(t.stop)} and the target ${fmtPx(t.target)} are working at `
-      + 'the broker. The first one hit cancels the other.'],
+    approve: [`BOUGHT ${fill}`, 'BOUGHT', limits
+      ? `The stop ${fmtPx(t.stop)} and both targets are working at the broker: ${limits}. A target's fill shrinks `
+        + 'the stop to the shares left; the stop never moves.'
+      : `The stop ${fmtPx(t.stop)} and the target ${fmtPx(t.target)} are working at the broker. The first one hit `
+        + 'cancels the other.'],
     // The bot's entry is a bracket (spec I): both exits rest at the broker; an older bot watched its stop.
     bot: [`BOT BOUGHT ${fill}`, 'BOT BOUGHT', t.stop_order_id !== null
       ? `The stop ${fmtPx(t.stop)} and the target ${fmtPx(t.target)} rest at the broker; the first one hit cancels the `

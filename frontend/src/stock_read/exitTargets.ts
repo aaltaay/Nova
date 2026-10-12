@@ -9,6 +9,7 @@
  * one half empty of (a single share), or no target 2, sells whole at target 1.
  */
 import { fmtPx } from './planMath';
+import type { StockModeTrade } from './types';
 
 export const TARGET1_FRACTION_DEFAULT = 0.5;
 
@@ -30,6 +31,21 @@ export function splitHalves(qty: number, target1: number | null, target2: number
   const first = Math.floor(shares * part + 1e-9);
   if (first < 1 || first >= shares) return [shares, 0];
   return [first, shares - first];
+}
+
+/** What the targets rest as: `LMT 6.12 x 50 and LMT 6.96 x 50`, or `LMT 6.12 x 100` when every share sells at target
+ * 1 (no target 2, or one share). Nova's exit sheet and Approve's card say their halves in these words. */
+export function limitWords(qty: number, target1: number, target2: number | null, fraction: number | null | undefined,
+  short: boolean): string {
+  const [first, second] = splitHalves(qty, target1, target2, fraction, short);
+  return `LMT ${fmtPx(target1)} x ${first}${second && target2 !== null ? ` and LMT ${fmtPx(target2)} x ${second}` : ''}`;
+}
+
+/** A Nova trade's two limits as they rest (`LMT 4.52 x 76 and LMT 4.80 x 77`): the shares its backend split; null
+ * for a trade that sells every share at target 1. */
+export function tradeLimits(t: StockModeTrade): string | null {
+  if (t.target === null || t.target2 == null || !t.target1_qty || !t.target2_qty) return null;
+  return `LMT ${fmtPx(t.target)} x ${t.target1_qty} and LMT ${fmtPx(t.target2)} x ${t.target2_qty}`;
 }
 
 /** What is wrong with the sheet's targets, or null. */

@@ -38,7 +38,7 @@ from constants_stock_mode import (
     STOCK_MODE_TRADE_HOLDING,
     STOCK_MODE_WHY_HELD,
 )
-from stock_mode import exit_trade, gates, model, orders, replay, runner, store, view
+from stock_mode import exit_legs, exit_targets, exit_trade, gates, model, orders, replay, runner, store, view
 from stock_mode.errors import StockModeError
 
 logger = logging.getLogger(__name__)
@@ -152,7 +152,7 @@ async def set_mode(symbol: str, buy_raw: Any, sell_raw: Any, risk_raw: Any = Non
 def _mode_words(mode: str, sym: str) -> str:
     return {
         STOCK_MODE_SIGNAL: "Nova draws the plan and tells you when; it places nothing",
-        STOCK_MODE_APPROVE: "approve the plan, and Nova sends the buy with its stop and target",
+        STOCK_MODE_APPROVE: "approve the plan, and Nova sends the buy with its stop and targets",
         STOCK_MODE_AUTO_ENTRY: (f"Nova buys {sym} by the bot's rules (a setup at Strategy, while the bot is "
                                 "Active); every sell is yours"),
         STOCK_MODE_BOT: "the bot trades it in and out by its own rules",
@@ -233,6 +233,8 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
     if side != "short" and not approved["stop"] < approved["entry"] < approved["target"]:
         raise StockModeError(STOCK_MODE_INVALID, "a long plan has its stop under the entry and its target over it",
                              status=400)
+    # Two halves (#845): target 2 past target 1 -- the bracket sells the rest there.
+    approved.update(exit_targets.approved(body, short=side == "short", target=approved["target"]))
     verb = "short" if side == "short" else "buy"
     if lane.get("state") == "filtered":
         why = str(lane.get("reason") or "").removeprefix("filtered: ")
@@ -257,7 +259,8 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
                                            f"trigger if the tape says go")
         audit(action=STOCK_MODE_AUDIT_ACTION, outcome="approved",
               reason=f"{sym}: {verb} {approved['qty']} at {approved['entry']:.2f}, stop {approved['stop']:.2f}, "
-                     f"target {approved['target']:.2f} at the trigger", inputs={"symbol": sym, **approved, "side": side})
+                     f"{exit_targets.plan_words(approved)} at the trigger",
+              inputs={"symbol": sym, **approved, "side": side})
         _acted(now)
         return view.build(sym, now=now)
     if state == SETUP_STATE_TRIGGERED and body.get("now"):
@@ -272,7 +275,7 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
             refused = store.approval(sym, approval["replay_key"]) or {}
             raise StockModeError(STOCK_MODE_SEND, str(refused.get("reason") or "the execution door refused it"))
         store.note_event(sym, now, "info", f"Sent: {verb} {approved['qty']} {sym} at {float(trade['entry']):.2f} "
-                                           "with its stop and target")
+                                           f"with its stop and {exit_targets.plan_words(trade)}")
         _acted(now)
         return view.build(sym, now=now)
     raise StockModeError(STOCK_MODE_PLAN_CHANGED, f"the setup is {state}: nothing to approve")
@@ -350,13 +353,12 @@ async def _take_bracket(trade: dict[str, Any], now: float) -> None:
         trade["cancel_sent_at"] = now
     else:
         refused = []
-        for leg in ("target_order_id", "stop_order_id"):
-            if trade.get(leg):
-                receipt = await orders.cancel(trade, int(trade[leg]), source="manual")
-                if receipt.ok:
-                    trade[leg] = None
-                else:
-                    refused.append(f"the {leg.split('_')[0]} ({orders.receipt_error(receipt)})")
+        for leg in exit_legs.resting(trade):       # both targets and the stop; a half already sold is done
+            receipt = await orders.cancel(trade, int(trade[leg]), source="manual")
+            if receipt.ok:
+                trade[leg] = None
+            else:
+                refused.append(f"the {leg.split('_')[0]} ({orders.receipt_error(receipt)})")
         if refused:
             store.set_trade(trade)
             audit(action=STOCK_MODE_AUDIT_ACTION, outcome="refused",
@@ -368,7 +370,7 @@ async def _take_bracket(trade: dict[str, Any], now: float) -> None:
         trade["note"] = "you took over the exit"
     store.set_trade(trade)
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="handed", reason=f"{sym}: you took over the exit -- the bracket's "
-          "stop and target were cancelled", inputs={"symbol": sym, "setup_id": trade.get("setup_id")})
+          "stop and targets were cancelled", inputs={"symbol": sym, "setup_id": trade.get("setup_id")})
 
 
 async def _take_bot(sym: str, now: float) -> None:
