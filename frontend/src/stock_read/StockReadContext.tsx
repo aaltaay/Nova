@@ -24,6 +24,7 @@ import {
   useStockReadPast,
   type PolledState,
 } from './useStockRead';
+import type { BigWalls } from './bigSeller';
 import { useHeldTrade, type FlushReading, type HeldTrack } from './useHeldTrade';
 import { useWhoTrades, type WhoTradesState } from './useWhoTrades';
 
@@ -112,6 +113,9 @@ export interface StockReadContextValue {
   held: { track: HeldTrack; setStop: (stop: number | null) => void };
   /** Trial T1's tape reading while you hold, read every second. */
   flush: PolledState<FlushReading>;
+  /** The big sellers and buyers on the held Level 2 line while you hold (#846), read every second; absent outside
+   * a Trader tab's provider. */
+  big?: PolledState<BigWalls>;
   /** "Nova takes the exit": its sheet over the plan box. */
   exitSheet: { open: boolean; setOpen: (open: boolean) => void };
   /** The account's position in the stock on the desk's venue; null when none (Level 2's LIQ chip). */
@@ -225,7 +229,7 @@ export function StockReadProvider({
   // The held query needs the last read (its plan and stop); the read needs the query: the last answer drives it.
   const [lastRead, setLastRead] = useState<StockRead | null>(null);
   const heldTrade = useHeldTrade({ symbol: sym, live: live && !sample, position: pos, read: lastRead,
-    workingStop: posStop });
+    workingStop: posStop, readable: readable && !sample });
   // On a replay the read follows the playhead: a new 5 s of it -- forward, or back on a rewind -- reads at once.
   const nudge = replay && simNow !== null ? String(Math.floor(simNow / 5)) : undefined;
   const read = useStockRead(sym, { active: readable, entry: manual.entry, stop: manual.stop, side: manual.side,
@@ -256,6 +260,7 @@ export function StockReadProvider({
     symbol: sym, live: readable && !sample, read: ownRead, riskUsd, ttlSec: risk.ttlSec, position: pos,
     last: lastPrice, venue,
     flush: live ? heldTrade.flush.data : null,
+    big: heldTrade.big.data,
     clockNow: replay ? simNow : null,
   });
 
@@ -333,12 +338,13 @@ export function StockReadProvider({
     who,
     held: { track: heldTrade.track, setStop: heldTrade.setStop },
     flush: heldTrade.flush,
+    big: heldTrade.big,
     exitSheet: { open: exitOpen, setOpen: setExitOpen },
     position: tabPosition,
   }), [sym, active, replay, read, ownRead, history, decisions, past, past5, pastNow, past5Now, manual, setManualPlan,
     riskUsd, setRiskUsd, risk,
     layers, drawn, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who,
-    heldTrade.track, heldTrade.setStop, heldTrade.flush, exitOpen, tabPosition]);
+    heldTrade.track, heldTrade.setStop, heldTrade.flush, heldTrade.big, exitOpen, tabPosition]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.
   if (sample) return <>{children}</>;

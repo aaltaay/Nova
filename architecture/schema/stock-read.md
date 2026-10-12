@@ -745,6 +745,28 @@ at, score: number | null, label: "burst" | "flush" | "neutral" | "quiet" | "blin
 T1's reading (`tape_flow` with a 30 s window, every other number the default); the Trader reads it every
 `STOCK_READ_FLUSH_POLL_MS` while you hold. It is a call in trial, never an order.
 
+**A big seller over the price** (#846, operator ask 2026-10-12). While the tab's account holds shares -- long or
+short, live or on a Sim replay -- the Trader reads `GET /api/book-watch/{symbol}/big-sellers`
+(`book-watch-and-luld.md`) every `STOCK_READ_BIG_POLL_MS` (1 s; `useHeldTrade`, normalized by
+`frontend/src/stock_read/bigSeller.ts`, which ignores another `schema_version`). Shown, never acted on: no order,
+no stop move, no gate.
+- **The held card's line** (`BigSellerLine.tsx`, under the card's header, folded or not): for a long, the nearest
+  big seller still there -- "BIG SELLER 20,000 @ 4.50 · 3¢ over · held 42 s" (size now, its price, how far over
+  the price -- "at the price" at or under it -- and how long it has been big; "held 3 min+" when it was there
+  before the first book Nova read) in amber, the rest on hover (its multiple of the other asks, since when, the
+  size first seen, what traded there); "BIG SELLER @ 4.50 · LEFT THE BOOK" for the second it is judged; then
+  "BIG SELLER @ 4.50 TAKEN" (green: a print went through it, or N of the M that left traded there -- the seller
+  is gone), "BIG SELLER @ 4.50 PULLED" (it left with N traded there) or "BIG SELLER @ 4.50 · OUT OF VIEW" (whether
+  it traded is unknown) while the reading carries it. With a fresh line and none: "No big seller within 5¢ over
+  the price", or "Too few asks on Level 2 to tell a big seller (N shown)". With no read: "No read on big sellers",
+  the backend's `reason` on hover (no depth line, a stale line, the watcher off, nothing recorded on a replay);
+  a failed poll says so the same way. For a short the mirror: BIG BUYER on the bid, "under", "bids". Nothing
+  shows where the API has no such read (404) or on the sample desk.
+- **The 1-minute chart's call** (`heldCalls.bigCall`): the same words as a call (tone `wait` while it is there,
+  pinned at its price as BIG SELLER / BIG BUYER, one ping when it is called; `info` once it ended), keeping the
+  moment's badge. A flush comes first; between a big seller and BROKE $X (a long's raise, a short's lower) the
+  corner says the newer.
+
 **On the desk.** While the tab's account holds shares (the venue's position):
 - The plan box stays the box it is (#675): its header names the trade (THIS TRADE, shares @ average, the
   badge, open P&L and R); its five numbers become Average, Stop, Next, At the stop and Holding; its ruler runs

@@ -62,6 +62,13 @@ def render(result: dict, flags: int) -> str:
                      f"at most {h['shown_max']:,.0f} shown, held {h['last_print_ts'] - h['started_ts']:.0f} s -> {h['state']}")
     if len(hidden) > flags:
         lines.append(f"    ... {len(hidden) - flags} more (--flags N)")
+    big = result.get("big") or []
+    lines.append(f"  big sellers {sum(b['side'] == 'ask' for b in big):,}  big buyers {sum(b['side'] == 'bid' for b in big):,}")
+    for b in big[:flags]:
+        lines.append(f"    {_et(b['called_ts'])}  {b['kind']:<10} {b['price']:<8g} {b['size_first']:>9,.0f} first seen, "
+                     f"{b['traded']:,.0f} traded there, held {b['held_sec']:.0f} s -> {b['state']}")
+    if len(big) > flags:
+        lines.append(f"    ... {len(big) - flags} more (--flags N)")
     lines.append(f"  {BOOK_WATCH_NOTE}")
     lines += [f"  - {caveat}" for caveat in BOOK_WATCH_CAVEATS]
     return "\n".join(lines)

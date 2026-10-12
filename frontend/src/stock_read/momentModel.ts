@@ -7,6 +7,7 @@
  * maintainer: one-concern the moment ladder and its calls must be judged in one place, so the badge, the
  * track, the call and its ping can never disagree about where the trade stands.
  */
+import type { BigWalls } from './bigSeller';
 import { ENTER_NOW_RISK_SHARE, ENTER_NOW_SEC, NOT_A_TRADE_NOVA, NOVA_CALL_SEC } from './constants';
 import { heldCall } from './heldCalls';
 import { approveQty, capUsedText, novaBlockers, novaQty } from './novaPromise';
@@ -57,6 +58,8 @@ export interface MomentInputs {
   held: HeldMemory;
   /** Trial T1's 30 s tape reading while you hold (`/flush`); absent or null when unread. */
   flush?: { at: number; score: number | null; label: string } | null;
+  /** The big sellers and buyers on the held Level 2 line while you hold (#846); absent or null when unread. */
+  big?: BigWalls | null;
 }
 
 export type StepIndex = 0 | 1 | 2 | 3 | 4;
@@ -288,11 +291,12 @@ function holding(i: MomentInputs, live: StockModeTrade | null, qty: number): Mom
       };
     }
     if (live.kind === 'exit') {
-      // Nova holds the exit of the shares you bought: its raises are its own words; a flush is still called.
+      // Nova holds the exit of the shares you bought: its raises are its own words; a flush and a big seller
+      // are still called.
       const flushed = heldCall(i);
       return { step: 2, exitLabel: 'Target / stop', tone: 'holding', track,
         badge: flushed?.badge ?? `BOT HOLDS THE EXIT${pnl !== null ? ` · ${fmtPnl(pnl)}` : ''}`,
-        call: (flushed && flushed.call.id.startsWith('flush') ? flushed.call : null) ?? eventCall(i, live.sent_at)
+        call: (flushed && /^(flush|big)/.test(flushed.call.id) ? flushed.call : null) ?? eventCall(i, live.sent_at)
           ?? boughtCall(i, live) };
     }
     return { step: 2, exitLabel: 'Target / stop', tone: 'holding', badge: inTrade, track, call: boughtCall(i, live) };

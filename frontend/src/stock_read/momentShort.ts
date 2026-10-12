@@ -13,6 +13,7 @@
  * called here.
  */
 import { NOVA_CALL_SEC } from './constants';
+import { bigCall, newerCall, type HeldCall } from './heldCalls';
 import { rowOf } from './heldRead';
 import {
   fmtPnl,
@@ -164,7 +165,7 @@ function due(held: HeldMemory): 'target' | 'stop' | null {
 }
 
 /** BROKE $X · NEXT Y: a candle closed under a round, and the buy stop may come down over it. */
-function lowerCall(i: MomentInputs, qty: number): { badge: string; call: MomentCall } | null {
+function lowerCall(i: MomentInputs, qty: number): HeldCall | null {
   const h = i.read?.held ?? null;
   const down = h?.lower ?? null;
   if (!h || h.side !== 'short' || !down || h.stop?.source === 'nova') return null;   // Nova lowers its own and says so
@@ -173,7 +174,7 @@ function lowerCall(i: MomentInputs, qty: number): { badge: string; call: MomentC
   const nextWords = next ? ` · NEXT ${fmtPx(next.price)}` : '';
   const broke = `BROKE $${down.round.toFixed(2)}${nextWords}`;
   return {
-    badge: `SHORT ${qty} · ${broke}`,
+    badge: `SHORT ${qty} · ${broke}`, at: down.at,
     call: {
       id: `broke-short:${h.since ?? 0}:${down.round}`, tone: 'go', title: broke,
       detail: `${down.text}? A candle closed under $${down.round.toFixed(2)}; only a close moves a stop. Lower stop on `
@@ -230,7 +231,8 @@ export function holdingShort(i: MomentInputs, qty: number): Moment {
       },
     };
   }
-  const said = lowerCall(i, qty);
+  // The newer of a lowered stop's offer and a big buyer on the bid (#846: shown, never acted on).
+  const said = newerCall(lowerCall(i, qty), bigCall(i, true));
   return { step: 2, exitLabel: 'Your cover', side: 'short', tone: 'holding', badge: said?.badge ?? inTrade, track,
     call: said?.call ?? shortedCall(i, nova) };
 }

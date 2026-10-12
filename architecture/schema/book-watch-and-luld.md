@@ -5,7 +5,7 @@ Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. 
 ## The operator's focus and the book watcher (ADR 033, operator ask 2026-09-24)
 
 Sensors for agents and bots: ask the endpoint, never guess. Both are in the
-sensor catalogue (`GET /sensors`: 19 `focus`, 20 `book-pulls`) and answer the
+sensor catalogue (`GET /sensors`: 19 `focus`, 20 `book-pulls`, 21 `big-sellers` below) and answer the
 sensor envelope `{sensor, status: "live", as_of, data, symbol?, error?}`.
 
 **Focus.** Every desk window posts `POST /sensors/focus` (owner
@@ -245,6 +245,60 @@ Of the 12.1% of through-prints not shown smaller within 0.5 s, 4.2 points had ne
 level first (`grew_first`); 7.8% sat in the book untouched until it showed them smaller. The window
 stays 0.5 s: with the rule on, reaching 1 s before the earlier book still adds 2.0%, 0.3-0.4 points
 beyond chance.
+
+**A big seller on the ask, a big buyer on the bid** (ADR 033 amendment, operator ask 2026-10-12, #846: the
+operator's material lists "high selling pressure / big sellers on the ask" as a reason to get out, and nothing
+told the operator that a large seller sat just over the price of a stock they hold). Owner
+`book_watch/big_seller.py` (pure), fed by the same watch as the rest (`detector.SymbolWatch.big`): from the held
+Level 2 line only, never inferred from anything else. Read-only: nothing here places, gates, moves or cancels an
+order.
+- **Big.** A price on one side whose resting size (summed across venues, wholly in view) is at least
+  `BOOK_WATCH_BIG_MIN_SHARES` (10,000) shares and `BOOK_WATCH_BIG_MIN_DOLLARS` ($20,000), and at least
+  `BOOK_WATCH_BIG_MEDIAN_MULT` (5) x the median of the other levels in view on its side -- at least
+  `BOOK_WATCH_BIG_MIN_OTHER_LEVELS` (3) of them, else nothing is weighed -- at or just over the price for an ask
+  (just under it for a bid): no further than the larger of `BOOK_WATCH_BIG_WINDOW_DOLLARS` (5c) and
+  `BOOK_WATCH_BIG_WINDOW_PCT` (1%) of the price, capped at `BOOK_WATCH_BIG_WINDOW_MAX_PCT` (3%). The price is the
+  last print that sets one (`sale_conditions.sets_price`), else the middle of the inside. It is **called** a big
+  seller (big buyer) once it has stayed big for `BOOK_WATCH_BIG_MIN_HOLD_SEC` (3 s); one that drops out of the
+  rule during the hold starts over. Chosen, not measured: a description of the book.
+- **Its life.** `holding` while the book shows at least the floors there (whatever the other levels do since);
+  `left` when the book shows it under them -- judged `BOOK_WATCH_SETTLE_SEC` later, as every drop is
+  (`matching.py`); `eaten` (said "taken") when a lit, price-setting print goes through it (over a seller, under a
+  buyer: `how: "through"`, at once) or the lit prints at its price inside the matching window cover at least
+  `BOOK_WATCH_BIG_TAKEN_SHARE` (half) of the drop (`how: "traded"`); `pulled` when they do not (`how:
+  "no_prints"`); `lost` when the book stops showing the price (`how: "cut_off"`: past the rows shown;
+  `"collapsed"`; `"reset"`) -- unknown, never pulled. Off-exchange, cross, volume-only and odd-lot prints prove
+  nothing (`BOOK_WATCH_SWEEP_SKIP_CONDITIONS`). After a print goes through a price, no new candidate starts
+  there until the book shows it under the floors or `BOOK_WATCH_SWEEP_HOLD_SEC` passes (the book can trail its
+  tape). The tracker claims from its own copy of the lit prints, so the watcher's drop judgments are untouched.
+- **Events.** `{event: "big", symbol, ts, id: "<first_seen_ms>-<SYMBOL>-<side>-<price>", kind: "big_seller" |
+  "big_buyer", side: "ask" | "bid", price, state: "holding" | "left" | "eaten" | "pulled" | "lost", size_first
+  (when first seen big), size_now, size_peak, traded (lit prints at its price since first seen), median_level
+  and multiple (the other levels' median and size / median when it was called), first_seen_ts, seen_from_start
+  (big in the first book the tracker saw: it may have been there longer), called_ts, ended_ts, held_sec,
+  distance (signed: over the price for an ask, under it for a bid; 0 or less is at the price), distance_pct,
+  how, left: {before, after, filled} | null}` -- once when called and once when it ends; the journal keeps
+  them (`event: "big"`), and `book_watch/replay.py`'s result adds `big[]` (the last word on each).
+- **The reading.** `GET /api/book-watch/{symbol}/big-sellers` (owner `book_watch/routes.py` and `big_read.py`;
+  sync, memory reads only) and `GET /sensors/big-sellers?symbol=` (sensor 21, the reading as `data`, `reason`
+  as `error`) answer `{schema_version: 1, symbol, source: "live" | "replay", as_of, rule: {min_shares,
+  min_dollars, median_mult, min_other_levels, min_hold_sec, window_dollars, window_pct, window_max_pct,
+  taken_share, show_ended_sec}, note, watching, reason: string | null, sellers[], buyers[]}`, and while
+  watching also `since, last_book_ts, last_book_age_sec, last, last_ts, reference, reference_source: "last" |
+  "mid" | null, window, sides: {ask | bid: {levels, enough}}` (a replay adds `lookback_sec, books_per_sec`).
+  `sellers` / `buyers` are the called prices still there (`holding`, `left`), nearest the price first, then
+  those ended in the last `BOOK_WATCH_BIG_SHOW_ENDED_SEC` (30 s), newest first, each in the event's shape
+  without `event`, `symbol` and `ts`. Never a guess: the watcher off, no depth line for the symbol, a line with
+  no book for `BOOK_WATCH_IDLE_SEC`, or on a replay no Session Record of the symbol loaded, one with no book,
+  the playhead between recorded stretches or no book within `BOOK_WATCH_IDLE_SEC` before it -- each answers
+  `watching: false`, empty lists and the `reason` in plain words, never "no big seller".
+- **On a Sim replay** (`book_watch/big_replay.py`, the desk off the live edge): with a Session Record of the
+  symbol loaded (`sim.capture_player`), the same tracker over its recorded books and prints from
+  `BOOK_WATCH_BIG_REPLAY_LOOKBACK_SEC` (180 s) before the playhead up to it, never past it; fed forward as the
+  playhead moves, rebuilt when it moves back, jumps further than the lookback or another recording loads. A
+  book recorded as Level 1 only (`l1_fallback`) resets it. One state in memory, not persisted. A downloaded
+  (historical) replay keeps no book stream and says so.
+- The held-trade card reads it every second while you hold (`stock-read.md`, "Managing a trade you hold").
 
 ## LULD bands on Level 2 (ADR 047, operator ask 2026-10-06)
 

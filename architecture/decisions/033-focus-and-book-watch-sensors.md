@@ -214,3 +214,21 @@ Change it "only if the evidence is clear".
    posted, so the book shows no change): nothing on the tape or the book proves either. Prints are
    matched by price, not venue, so a venue's order cancelled just before the sweep reached it can take
    a hidden order's print at that price, up to the size shown.
+
+## Amendment 2026-10-12: a big seller on the ask, a big buyer on the bid (#846)
+
+**Decided by:** the operator's ask (2026-10-12): the operator's material lists "high selling pressure / big
+sellers on the ask" as a reason to get out of a trade, and nothing told the operator that a large seller sat
+just over the price of a stock they hold.
+
+1. **What it is.** A price whose resting size on the held Level 2 line is several times the book around it and
+   above a share and dollar floor, at or a few cents past the price, that has held a few seconds
+   (`book_watch/big_seller.py`; numbers in `constants_book_watch.py`, chosen, not measured). Followed until it
+   is taken (a print went through it, or the prints at its price cover what left), pulled or out of view.
+2. **Where it shows.** The trade you hold: one line on the held card and one call on the 1-minute chart, for a
+   short the mirror on the bid. An agent asks `/sensors/big-sellers`. On a Sim replay the reading is the loaded
+   Session Record's at the playhead, never past it.
+3. **What it is not.** Never an order, a stop move or a gate; a description of the book, with the same limits
+   as the rest of the watcher (no order ids, ten rows, batches). One order and several at one price look the
+   same. With no depth line, a stale one or nothing recorded, it says so instead of "no big seller".
+4. **Not built.** A mark on the Level 2 ladder (the hidden seller's ◆ has one); the chart's pin marks the price.

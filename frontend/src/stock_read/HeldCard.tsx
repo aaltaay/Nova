@@ -15,6 +15,7 @@
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
 import { targetShare } from '../setups';
 import { tipProps, whyProps } from '../ux';
+import { BigSellerLine } from './BigSellerLine';
 import { ExitSheet } from './ExitSheet';
 import { ROLE_WORDS, rowOf, stopWords, type HeldTarget, type StockHeld } from './heldRead';
 import { heldRuler } from './heldView';
@@ -173,6 +174,7 @@ export function HeldCard({ ctx, held, folded = false, onFold }: {
           {held.r !== null && <span className="sr-plan__rr-k"> {held.r >= 0 ? '+' : ''}{held.r.toFixed(1)}R open</span>}
         </span>
       </header>
+      <BigSellerLine big={ctx.big} short={short} />
       {folded ? null : (<>
       <div className="sr-plan__nums">
         <div className="sr-num sr-num--entry">
