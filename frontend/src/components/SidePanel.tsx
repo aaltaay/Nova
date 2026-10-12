@@ -1,7 +1,7 @@
 /** Scanner side panel — quote, panel chart, fundamentals for selectedSymbol.
  * It folds to a strip on the right edge (like the Trader's Focus list folds
  * left); folded, it streams nothing. */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   QUOTE_PANEL_STALE_LABEL,
@@ -17,6 +17,7 @@ import {
   QUOTE_PANEL_LOOKUP_PLACEHOLDER,
 } from '../constantGroups/scanner_board';
 import { useTickerStream } from '../hooks/useTickerStream';
+import { simEmptyQuoteDetail, simRailNote, useSimReplayTarget } from '../sim';
 import type { WatchlistEntry } from '../strategy/types';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { TickerDetailContent } from './TickerDetailContent';
@@ -31,6 +32,11 @@ interface Props {
   collapsed?: boolean;
   /** Fold / unfold; omitted, the panel has no collapse control. */
   onToggleCollapsed?: () => void;
+  /**
+   * The Sim tab notice for the symbol here (the page composes it: shared UI imports
+   * no feature internals). `select` loads a symbol in this panel.
+   */
+  simNotice?: (symbol: string, select: (symbol: string) => void) => ReactNode;
 }
 
 export function SidePanel({
@@ -38,6 +44,7 @@ export function SidePanel({
   widthPx,
   collapsed = false,
   onToggleCollapsed,
+  simNotice,
 }: Props) {
   const {
     selectedSymbol,
@@ -60,6 +67,13 @@ export function SidePanel({
   const awaitingPreEffectFrame =
     !!selectedSymbol && detail == null && !loading && !refreshing && !fetchFailed;
   const showFullSpinner = loading || awaitingPreEffectFrame;
+
+  // A Sim desk off the live edge replays one stock-day: any other symbol here is
+  // not the replay, so today's live price must not show over it, and the panel
+  // says so with the way to load it -- the Trader tab's own rule and notice.
+  const { sim, clock } = useSimReplayTarget(selectedSymbol ?? '');
+  const simNote = selectedSymbol ? simRailNote(selectedSymbol, clock, sim) : null;
+  const view = simNote && detail ? simEmptyQuoteDetail(detail, selectedSymbol ?? '') : detail;
 
   useEffect(() => {
     setInput(selectedSymbol ?? '');
@@ -125,6 +139,7 @@ export function SidePanel({
         <div className="quote-panel-title" title="Scanner sidebar quote — same data as Trader">
           {QUOTE_PANEL_TITLE}
         </div>
+        {selectedSymbol && sim && simNotice?.(selectedSymbol, setSelectedSymbol)}
         {showFullSpinner && (
           <div className="detail-loading">
             <div className="detail-loading-spinner" />
@@ -150,10 +165,10 @@ export function SidePanel({
               : ''}
           </div>
         )}
-        {!showFullSpinner && selectedSymbol && detail?.symbol === selectedSymbol && (
+        {!showFullSpinner && selectedSymbol && view && detail?.symbol === selectedSymbol && (
           <div className="detail-body">
             <TickerDetailContent
-              detail={detail}
+              detail={view}
               selectedSymbol={selectedSymbol}
               showChart
               layout="columns"

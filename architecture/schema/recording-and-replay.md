@@ -411,6 +411,13 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   the playhead's window, as its own: it states the day ("WFF · Wed, Sep 9"), not a window. It never offers
   "Stop it & start this" for that import and starts no second import after a scrub. A capped day says what
   it holds and why, and offers the window around a playhead outside it.
+- **The scanner's Quote Panel says the same** (operator report 2026-10-12: SUNE picked off the Sep 9 board while
+  LNKS was the loaded replay showed a dead chart reading "LNKS is the loaded replay", no way to load SUNE, and
+  SUNE's live $2.27 of Oct 12). Off the live edge, a symbol there that is not the loaded replay shows the Sim tab's
+  own prompt (Load from files, Download, and so on), its "Go to LNKS" selecting the replay in the panel, and its
+  quote is the Trader's empty Sim quote: no live price, change, volume or daily bar over a replay, only facts that
+  are not session prices (float, sector). An empty chart names both symbols: "No SUNE bars on this replay day --
+  the Sim has LNKS loaded. Load SUNE to chart it." Desk wording only: no wire or persisted shape changes.
 - **It loads by itself on an empty desk** (operator 2026-10-09: "i dont think the entire nova app recognize
   massive as data recap for the sim"). With nothing loaded, the Trader tab on screen on a day in the files
   imports and loads its window without a click, as the agent's `show` does; never over a loaded replay, never
