@@ -149,6 +149,10 @@ export const LEVEL_COLORS = {
   daily: '#b9a3e3',
   vwap: '#bf5af2',
 } as const;
+/** A round number and nothing else at its price is a faint solid hairline at this opacity, its label in full
+ * colour (operator report 2026-10-12: the gold dashed lines were "too strong, too much"). A round at a top,
+ * a bottom, VWAP or an old level takes that level's colour instead. */
+export const LEVEL_ROUND_LINE_ALPHA = 0.4;
 /** The trend lines (ADR 036 amendment 2026-10-12): brighter than the flat levels' colours so an angled line reads
  * apart from a horizontal one; a broken line is drawn at `brokenAlpha`, its name at `brokenLabelAlpha`. */
 export const TREND_COLORS = {

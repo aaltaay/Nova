@@ -18,12 +18,18 @@
  * Every other zone of a map is a short tick on the price axis. A label or a tick names its hover card
  * (`level:<zone id>`), whose story is `levelStory`. Nothing here is estimated: every price is the
  * backend's level map.
+ *
+ * A zone is coloured by its strongest reason, a round number the weakest (operator report 2026-10-12): coral
+ * over the price and teal under it, so a top the price climbs over turns support on the next read whether or
+ * not it sits on a round; one the price is on is coral while highs made it, so touching a top is not breaking
+ * it. A round number alone is a faint solid hairline (`LEVEL_ROUND_LINE_ALPHA`).
  */
 import {
   LEVEL_COLORS,
   LEVEL_DAILY_WINDOW_PCT,
   LEVEL_MAP_WINDOW_PCT,
   LEVEL_PER_SIDE,
+  LEVEL_ROUND_LINE_ALPHA,
 } from './constants';
 import { EDGE_PRIORITY } from '../chart';
 import type { SceneLevel, SceneTick } from './levelRender';
@@ -40,17 +46,29 @@ const ROUND = new Set(['whole', 'half']);
 const CANDLE = new Set(['top', 'bottom']);
 const YESTERDAY = new Set(['yday_high', 'yday_low', 'prior_close']);
 const DAILY = new Set(['daily_highs', 'daily_lows', 'daily_high', 'gap', 'sma200']);
+const VWAP = new Set(['vwap']);
+/** What the candles' highs and lows made: which side a zone the price is on holds. */
+const HIGHS = new Set(['top', 'hod', 'pmh', 'yday_high', 'daily_high', 'daily_highs']);
+const LOWS = new Set(['bottom', 'lod', 'yday_low', 'daily_lows']);
 /** A zone this strong gets the heavier line. */
 const STRONG = 8;
-const DASH = { round: [7, 4], yesterday: [1, 3], daily: [4, 3], solid: [] as number[] };
+const DASH = { yesterday: [1, 3], daily: [4, 3], solid: [] as number[] };
 
 export function levelHoverId(z: LevelZone): string {
   return `level:${z.id}`;
 }
 
 const isRound = (z: LevelZone) => z.members.some(m => ROUND.has(m.kind));
-const isYesterday = (z: LevelZone) => z.members.every(m => YESTERDAY.has(m.kind));
-const isDaily = (z: LevelZone) => z.members.every(m => DAILY.has(m.kind));
+/** Its reasons other than a round number: what colours and dashes a zone a round sits in. */
+const reasons = (z: LevelZone) => z.members.filter(m => !ROUND.has(m.kind));
+/** A round number and nothing else at its price. */
+const roundOnly = (z: LevelZone) => reasons(z).length === 0;
+const only = (z: LevelZone, kinds: Set<string>) => {
+  const r = reasons(z);
+  return r.length > 0 && r.every(m => kinds.has(m.kind));
+};
+const isYesterday = (z: LevelZone) => only(z, YESTERDAY);
+const isDaily = (z: LevelZone) => only(z, DAILY);
 const has = (z: LevelZone, kind: LevelMember['kind']) => z.members.some(m => m.kind === kind);
 
 function dist(z: LevelZone, price: number): number {
@@ -87,24 +105,35 @@ export function dailyPick(zones: LevelZone[], price: number): Set<LevelZone> {
   ]);
 }
 
+/** A zone the price is on has not been passed: it is resistance when highs made it more than lows (a top it
+ * is touching from under is not yet broken), else support. Each member counts its touches. */
+function atResistance(z: LevelZone): boolean {
+  let highs = 0;
+  let lows = 0;
+  for (const m of reasons(z)) {
+    if (HIGHS.has(m.kind)) highs += m.touches ?? 1;
+    else if (LOWS.has(m.kind)) lows += m.touches ?? 1;
+  }
+  return highs > lows;
+}
+
 export function zoneColor(z: LevelZone): string {
-  if (isRound(z)) return LEVEL_COLORS.round;
+  if (roundOnly(z)) return LEVEL_COLORS.round;
   if (isYesterday(z)) return LEVEL_COLORS.yesterday;
   if (isDaily(z)) return LEVEL_COLORS.daily;
-  if (z.members.every(m => m.kind === 'vwap')) return LEVEL_COLORS.vwap;
-  return z.side === 'above' ? LEVEL_COLORS.resistance : LEVEL_COLORS.support;
+  if (only(z, VWAP)) return LEVEL_COLORS.vwap;
+  const resistance = z.side === 'above' || (z.side === 'at' && atResistance(z));
+  return resistance ? LEVEL_COLORS.resistance : LEVEL_COLORS.support;
 }
 
 function dashOf(z: LevelZone): number[] {
-  if (isRound(z)) return DASH.round;
   if (isYesterday(z)) return DASH.yesterday;
   if (isDaily(z)) return DASH.daily;
   return DASH.solid;
 }
 
 function widthOf(z: LevelZone): number {
-  if (z.strength >= STRONG) return 2;
-  return has(z, 'whole') ? 1.5 : 1;
+  return z.strength >= STRONG && !roundOnly(z) ? 2 : 1;
 }
 
 export interface LevelScene {
@@ -130,6 +159,7 @@ function sceneOf(zones: LevelZone[], pick: Set<LevelZone>, ticks: boolean): Leve
     }
     out.levels.push({
       lo: z.lo, hi: z.hi, price: z.price, color, dash: dashOf(z), width: widthOf(z), label: shortLabel(z), hoverId,
+      ...(roundOnly(z) ? { lineAlpha: LEVEL_ROUND_LINE_ALPHA } : {}),
       priority: has(z, 'hod') ? EDGE_PRIORITY.highOfDay : EDGE_PRIORITY.level,
     });
     out.tags.push({ price: z.price, label: z.tag, color });
