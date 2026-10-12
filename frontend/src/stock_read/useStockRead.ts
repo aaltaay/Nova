@@ -1,14 +1,23 @@
 /**
  * The stock read's GETs (ADR 036): the read itself, polled while the Trader tab shows; the day's
  * decisions, polled while the sheet shows them; the day's setups that ended, polled while the chart
- * draws them and read at once when a lane's drawn state changes; the history, read once per symbol.
+ * draws them and read at once when a lane's drawn state changes; the history, read once per symbol; and
+ * Nova's LULD band step by step for the 1-minute chart, polled while Eyes is on (ADR 047 amendment).
  * The sample desk reads nothing live (`unavailable`), and neither does an API from before the routes
  * (404). A failed poll keeps the last good answer on screen and says so in `error`.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '../constants';
+import { readLuldTrail, type LuldTrail } from '../ibkr';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import { STOCK_READ_DECISIONS_POLL_MS, STOCK_READ_PAST_POLL_MS, STOCK_READ_PATH, STOCK_READ_POLL_MS } from './constants';
+import {
+  LULD_TRAIL_PATH,
+  LULD_TRAIL_POLL_MS,
+  STOCK_READ_DECISIONS_POLL_MS,
+  STOCK_READ_PAST_POLL_MS,
+  STOCK_READ_PATH,
+  STOCK_READ_POLL_MS,
+} from './constants';
 import { normalizeHistory } from './historyNormalize';
 import { normalizeDecisions, normalizeStockRead } from './normalize';
 import { normalizePastSetups, type PastSetups } from './pastSetups';
@@ -178,5 +187,19 @@ export function useStockReadHistory(symbol: string, active: boolean): PolledStat
     active,
     what: 'history read',
     accept: h => h.symbol === sym,
+  });
+}
+
+/** Nova's LULD band today, step by step (ADR 047 amendment 2026-10-12): the 1-minute chart's line. */
+export function useLuldTrail(symbol: string, active: boolean): PolledState<LuldTrail> {
+  const sym = symbol.trim().toUpperCase();
+  return usePolledRead({
+    url: sym ? `${LULD_TRAIL_PATH}/${encodeURIComponent(sym)}/trail` : null,
+    resetKey: sym,
+    normalize: readLuldTrail,
+    pollMs: LULD_TRAIL_POLL_MS,
+    active,
+    what: 'LULD band',
+    accept: t => t.symbol === sym,
   });
 }

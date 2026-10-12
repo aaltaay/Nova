@@ -6,7 +6,8 @@ view changes -- the bands, the state, a limit state starting or running out -- a
 limit state's 15 seconds down itself, from ``limit.pause_at``.
 
 Which view: the live feed's (``live.py``), or on a Sim desk off the live edge the loaded Session
-Record's at the playhead (``replay.py``).
+Record's at the playhead (``replay.py``) -- for the ladder, and for the 1-minute chart's steps
+(``source_trail``).
 
 Owner: each socket's own ``LuldPush`` (in memory, gone with the socket).
 """
@@ -28,6 +29,17 @@ def source_view(symbol: str, now: float | None = None) -> dict[str, Any]:
 
         return replay.view(symbol)
     return live.view(symbol, now)
+
+
+def source_trail(symbol: str, now: float | None = None) -> dict[str, Any]:
+    """The day's band, step by step, from the same source as ``source_view``."""
+    from sim.mode import is_replay_desk
+
+    if is_replay_desk():
+        from luld import replay
+
+        return replay.trail(symbol)
+    return live.trail(symbol, now)
 
 
 class LuldPush:

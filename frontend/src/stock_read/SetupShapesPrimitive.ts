@@ -13,6 +13,7 @@
  * top's touches are rings on their candles' highs, and its break a mark pointing up (2026-10-06). A trend line
  * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length. A setup that is
  * only forming is its strategy box (2026-10-12, `strategyBoxRender.ts`), its window counted in candles past the newest.
+ * Nova's LULD band (2026-10-12, `luldRender.ts`) steps inside the candle where it moved, at its share of the minute.
  */
 import { MismatchDirection } from 'lightweight-charts';
 import type {
@@ -41,6 +42,7 @@ import {
   type Px,
 } from './sceneRender';
 import type { LabelRect } from './sceneLabels';
+import type { LuldPx } from './luldRender';
 import { EMPTY_SCENE, type Scene } from './sceneTypes';
 import type { StrategyPx } from './strategyBoxRender';
 
@@ -246,8 +248,24 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
           yStop: ys, yTarget: yt, s: st };
       }
     }
+    // The LULD band: a step's ends inside their candles, at their share of the candle's width.
+    let luld: LuldPx | null = null;
+    const band = this.scene.luld ?? null;
+    if (band) {
+      const at = (t: Time, frac: number) => {
+        const xx = x(t);
+        return xx === null ? null : xx + (frac - 0.5) * 2 * half;
+      };
+      const steps: LuldPx['steps'] = [];
+      for (const s of band.steps) {
+        const [x1, x2] = [at(s.from.t, s.from.frac), at(s.to.t, s.to.frac)];
+        if (x1 === null || x2 === null) continue;
+        steps.push({ x1, x2, yLower: s.lower === null ? null : y(s.lower), yUpper: s.upper === null ? null : y(s.upper), s });
+      }
+      luld = { steps, color: band.color };
+    }
     this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks, words, reserves,
-      topInset: this.scene.topInset ?? 0, marks, dots, trends, strategy };
+      topInset: this.scene.topInset ?? 0, marks, dots, trends, strategy, luld };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {

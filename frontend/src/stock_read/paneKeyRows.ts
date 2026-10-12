@@ -3,10 +3,11 @@
  * you to add those cuz i get lost"). Pure: the rows the pane's Key chip lists, for what that pane draws --
  * the session tint behind the candles on every intraday pane; the levels each chart reads from its own
  * candles (5-minute, Full Day, and the 1-minute's nearest ones); the setup boxes and the plan's lines on
- * the 1-minute pane (the 10-second pane mirrors the plan's lines). Every colour is the one the drawing
- * uses, read from the same constants.
+ * the 1-minute pane (the 10-second pane mirrors the plan's lines), and Nova's LULD band on the 1-minute pane alone.
+ * Every colour is the one the drawing uses, read from the same constants.
  */
 import { CHART_SESSION_COLORS } from '../constants';
+import { LULD_APPROX_MARK, LULD_COLOR } from '../constantGroups/luld';
 import { SHORT_SETUP_COLORS } from '../constantGroups/short_setups';
 import type { PaneKind } from './chartShapes';
 import { DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS, STRATEGY_BOX, TREND_COLORS } from './constants';
@@ -33,6 +34,8 @@ export interface KeySection {
 export interface KeyLayers {
   setups: boolean;
   levels: boolean;
+  /** Eyes off draws nothing of Nova's, its LULD band included; absent reads as on. */
+  eyes?: boolean;
 }
 
 const GREY = '#8e8e93';
@@ -173,6 +176,17 @@ function fiveOnMinuteRows(): KeySection {
   };
 }
 
+/** Nova's LULD band (ADR 047 amendment 2026-10-12): the 1-minute pane's alone. */
+function luldRows(): KeySection {
+  return {
+    title: 'Halt line (LULD, 9:30 AM–4:00 PM)',
+    rows: [
+      { swatch: 'line', color: LULD_COLOR, label: 'LULD ▲ / ▼', text: "the limit up and limit down band: a quote resting on it for 15 s pauses the stock for 5 minutes. Nova's calculation from the published rules, stepping where the band moved" },
+      { swatch: 'dash', color: LULD_COLOR, label: `Dashed, ${LULD_APPROX_MARK}`, text: 'approximate: Nova did not see the stock open or reopen with its tape unbroken since, or guessed its tier' },
+    ],
+  };
+}
+
 function planRows(full: boolean): KeySection {
   const rows: KeyRow[] = [
     { swatch: 'line', color: SETUP_COLORS.trigger, label: 'Entry', text: 'where the plan buys (a short plan: where it shorts)' },
@@ -199,6 +213,7 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
     out.push(planRows(true));
     if (layers.levels) out.push(minuteRows(), trendRows('1-minute'));
     if (layers.setups) out.push(fiveOnMinuteRows());
+    if (layers.eyes !== false) out.push(luldRows());
   } else if (kind === 'thin') {
     out.push(planRows(false));
   } else {

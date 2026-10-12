@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chartKey } from './paneKeyRows';
 
 const ON = { setups: true, levels: true };
+const LULD = 'Halt line (LULD, 9:30 AM–4:00 PM)';
 const titles = (kind: Parameters<typeof chartKey>[0], layers = ON) => chartKey(kind, layers).map(s => s.title);
 
 describe("each chart pane's Key", () => {
@@ -30,9 +31,10 @@ describe("each chart pane's Key", () => {
     expect(titles('full')).toEqual([
       'Setups', 'Flat top', 'Pullback dip (watch only: never traded)', 'The plan',
       'Levels from 1-minute candles (hover a label for why)',
-      'Trend lines from 1-minute candles (hover one for why)', 'From the 5-minute chart', 'Background (time of day, ET)',
+      'Trend lines from 1-minute candles (hover one for why)', 'From the 5-minute chart', LULD,
+      'Background (time of day, ET)',
     ]);
-    expect(titles('full', { setups: false, levels: false })).toEqual(['The plan', 'Background (time of day, ET)']);
+    expect(titles('full', { setups: false, levels: false })).toEqual(['The plan', LULD, 'Background (time of day, ET)']);
     const levels = chartKey('full', ON)[4].rows.map(r => r.label);
     // #847: the watch-only pullback dip's marks, in its own pink.
     expect(chartKey('full', ON)[2].rows.map(r => r.label)).toEqual(['Dip', 'Bottom', 'Entry candle']);
@@ -72,5 +74,12 @@ describe("each chart pane's Key", () => {
     expect(chartKey('full', ON).find(s => s.title === 'From the 5-minute chart')?.rows.map(r => r.label))
       .toEqual(['5m trigger', '5m flat top']);
     expect(chartKey('none', ON)).toEqual([]);
+  });
+
+  it("lists Nova's LULD band on the 1-minute Key alone, and not with Eyes off (ADR 047 amendment 2026-10-12)", () => {
+    const luld = chartKey('full', ON).find(k => k.title === LULD);
+    expect(luld?.rows.map(r => [r.swatch, r.label])).toEqual([['line', 'LULD ▲ / ▼'], ['dash', 'Dashed, ≈']]);
+    expect(titles('full', { ...ON, eyes: false })).not.toContain(LULD);
+    for (const pane of ['map', 'thin', 'daily'] as const) expect(titles(pane)).not.toContain(LULD);
   });
 });

@@ -188,3 +188,32 @@ def test_the_route_answers_the_same_view(monkeypatch):
     body = TestClient(app).get("/api/luld/xyz").json()
     assert body["symbol"] == "XYZ" and body["state"] == "unknown"
     assert TestClient(app).get("/api/luld").json()["enabled"] is True
+
+
+def test_the_trail_reads_the_days_steps_beside_the_views_state(monkeypatch):
+    monkeypatch.setattr("sim.prior_close.previous_close", lambda symbol, day: None)   # only the L1 line's close
+    assert live.trail("XYZ", t("09:30:00"))["steps"] == []                    # no tape line: no steps, and why
+    opened()
+    monkeypatch.setattr(live, "_halted", lambda symbols, now: {s: True for s in symbols})
+    live.tick(t("09:40:00"))
+    body = live.trail("xyz", t("09:40:01"))
+    assert (body["schema_version"], body["symbol"], body["source"], body["state"]) == (1, "XYZ", "live", "paused")
+    assert body["steps"] == [
+        {"ts": t("09:30:01"), "lower": 9.0, "upper": 11.0, "exact": True},
+        {"ts": t("09:40:00"), "lower": None, "upper": None, "exact": False},
+    ]
+    assert body["tier_sure"] is True and body["watching_since"] == t("09:30:01") and body["as_of"] == t("09:40:01")
+
+
+def test_the_trail_route_follows_the_desks_source(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from main import app
+
+    monkeypatch.setattr("sim.mode.is_replay_desk", lambda: False)
+    body = TestClient(app).get("/api/luld/xyz/trail").json()
+    assert body["symbol"] == "XYZ" and body["source"] == "live" and body["steps"] == []
+    monkeypatch.setattr("sim.mode.is_replay_desk", lambda: True)
+    monkeypatch.setattr("luld.replay._capture", lambda: None)
+    body = ladder.source_trail("XYZ")
+    assert body["source"] == "replay" and body["steps"] == [] and "Session Record" in body["reason"]

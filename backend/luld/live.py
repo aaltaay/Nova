@@ -278,17 +278,29 @@ def _forget(symbol: str) -> None:
 
 def view(symbol: str, now: float | None = None) -> dict[str, Any]:
     """One stock's LULD view on the live feed: its tracker's, or why there is none."""
+    return _read(symbol, now)[0]
+
+
+def trail(symbol: str, now: float | None = None) -> dict[str, Any]:
+    """One stock's band today, step by step, for the 1-minute chart: from the tracker's first print."""
+    out, steps = _read(symbol, now)
+    return views.trail_view(out, steps)
+
+
+def _read(symbol: str, now: float | None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The view and the day's steps, read together under the lock."""
     now = time.time() if now is None else now
     sym = (symbol or "").strip().upper()
     if not enabled():
         return views.absent_view(sym, now=now, source="live", reason="Nova's LULD calculation is off (NOVA_LULD=0)",
-                                 state="off")
+                                 state="off"), []
     with _lock:
         tracker = _trackers.get(sym)
         if tracker is None:
             return views.absent_view(sym, now=now, source="live", reason=(
-                "Nova computes the band from this stock's Time & Sales: it holds no tape line for it now"))
+                "Nova computes the band from this stock's Time & Sales: it holds no tape line for it now")), []
         raw = tracker.view(now)
+        steps = tracker.trail()
         facts = tracker.facts
         held = _line.get(sym, {}).get("held", True)
     out = views.tracker_view(raw, facts, symbol=sym, now=now, source="live", track=TRACK_RECORD)
@@ -297,7 +309,7 @@ def view(symbol: str, now: float | None = None) -> dict[str, Any]:
         out["text"] = "Nova stopped holding this stock's tape: the band is as it last stood"
     else:
         out["watching"] = True
-    return out
+    return out, steps
 
 
 def halt_side(symbol: str) -> dict[str, Any] | None:
