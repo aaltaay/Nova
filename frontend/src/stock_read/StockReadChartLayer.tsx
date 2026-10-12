@@ -14,6 +14,8 @@
  * the day's levels from the replay's own candles, and the Sim eyes' setups that ended up to the playhead (#815).
  * The daily runs read whole days, so they are not drawn there; a read from the other side of the live edge, or
  * from after the playhead, is never drawn.
+ * The 1-minute pane alone draws Nova's LULD band (ADR 047 amendment 2026-10-12, `luldShapes.ts`): this desk's, a
+ * replay's up to its playhead on a replay desk, with Eyes on.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
@@ -42,10 +44,11 @@ import { laneStartSec, leadLane, paneDraw, paneKind, type PriceLineSpec } from '
 import { levelNote } from './levelPicks';
 import { SetupShapesPrimitive } from './SetupShapesPrimitive';
 import { EMPTY_SCENE, type Scene, type SceneWord } from './sceneTypes';
+import { luldScene, luldWords } from './luldShapes';
 import { lineWords, runMarks, usePriceScaleWidth } from './paneScene';
 import { ShapeTip, shapeStory, useShapeHover } from './ShapeTip';
 import { useStockReadContext } from './StockReadContext';
-import { STOCK_READ_FOCUS_AFTER_SEC, STOCK_READ_FOCUS_BEFORE_SEC } from './constants';
+import { STOCK_READ_FOCUS_AFTER_SEC, STOCK_READ_FOCUS_BEFORE_SEC, STRATEGY_BOX } from './constants';
 import type { SetupLeg } from './types';
 import { draggedPlan, usePlanDrag } from './usePlanDrag';
 
@@ -130,16 +133,19 @@ export function frameFrom(
   return true;
 }
 
-/** Slide a view that follows the live edge so the plan's zones have room past the last candle; a view
- * the operator zoomed or panned stays exactly where they put it, even at the live edge. */
-export function roomAtLiveEdge(chart: NonNullable<ChartPaneOverlayProps['chart']>, barCount: number): void {
+/** Slide a view that follows the live edge so the plan's zones have room past the last candle -- at least `minPx` of
+ * it (a setup's strategy box) -- a view the operator zoomed or panned stays exactly where they put it, even at the live
+ * edge. */
+export function roomAtLiveEdge(chart: NonNullable<ChartPaneOverlayProps['chart']>, barCount: number, minPx = 0): void {
   if (operatorOwnsView(chart)) return;
   const last = barCount - 1;
   try {
     const ts = chart.timeScale();
     const range = ts.getVisibleLogicalRange();
-    if (!range || !isFollowingRightEdge(range, barCount) || range.to >= last + PLAN_RIGHT_OFFSET_BARS) return;
-    const shift = last + PLAN_RIGHT_OFFSET_BARS - range.to;
+    const spacing = minPx > 0 ? ts.options().barSpacing : 0;
+    const room = spacing > 0 ? Math.max(PLAN_RIGHT_OFFSET_BARS, Math.ceil(minPx / spacing)) : PLAN_RIGHT_OFFSET_BARS;
+    if (!range || !isFollowingRightEdge(range, barCount) || range.to >= last + room) return;
+    const shift = last + room - range.to;
     ts.setVisibleLogicalRange({ from: range.from + shift, to: range.to + shift });
   } catch {
     /* the chart is gone */
@@ -169,6 +175,7 @@ function usePriceLines(series: ISeriesApi<'Candlestick'> | null, specs: PriceLin
         color: s.color,
         lineWidth: s.width,
         lineStyle: STYLE[s.style],
+        lineVisible: s.line ?? true,
         axisLabelVisible: s.axisLabel,
         title: s.title,
       } as const;
@@ -249,10 +256,16 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const scaleWidth = usePriceScaleWidth(chart, containerRef, barsRevision, kind === 'full' && enabled);
   const [cornerBottom, setCornerBottom] = useState(0);
   const runs = daily && enabled && !ctx?.replay ? ctx?.history.data?.runs ?? null : null;
+  // The LULD band: the 1-minute pane's, from this desk's source (the live feed, or a replay at its playhead).
+  const trail = ctx?.luld?.data ?? null;
+  const luldTrail = kind === 'full' && enabled && ctx?.layers.eyes && trail !== null
+    && (trail.source === 'replay') === ctx.replay ? trail : null;
+  const luld = useMemo(() => luldScene(luldTrail, index), [luldTrail, index]);
   const scene = useMemo<Scene>(() => {
     if (!enabled) return EMPTY_SCENE;
     const words: SceneWord[] = [
       ...(draw.scene.words ?? []),
+      ...luldWords(luldTrail),
       ...lineWords(draw.lines),
       ...edge.words.map(w => ({ id: w.id, text: w.text, color: w.color, priority: w.priority, price: null,
         series: w.series, valueWhenOff: w.valueWhenOff })),
@@ -263,8 +276,9 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
       reserves: edge.reserves.map(r => ({ price: r.price, height: r.height })),
       topInset: kind === 'full' && cornerBottom > 0 ? cornerBottom + CORNER_GAP_PX : 0,
       marks: [...(draw.scene.marks ?? []), ...(runs ? runMarks(runs, index) : [])],
+      luld,
     };
-  }, [enabled, draw, edge, kind, cornerBottom, runs, index]);
+  }, [enabled, draw, edge, kind, cornerBottom, runs, index, luld, luldTrail]);
 
   // The shapes: one primitive per pane, fed a new scene whenever the read or the bars change.
   const primitive = useRef<SetupShapesPrimitive | null>(null);
@@ -290,10 +304,11 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const lines = useMemo(() => (enabled ? draw.lines.map(l => ({ ...l, title: '' })) : []), [enabled, draw.lines]);
   usePriceLines(series, lines);
 
-  // Room for the plan's zones right of the last candle when they appear, and only for a view that
-  // follows the live edge. The time scale's rightOffset used to do this: it is the scroll position, so
+  // Room for the plan's zones (or a setup's strategy box) right of the last candle when they appear, and only
+  // for a view that follows the live edge. The time scale's rightOffset used to do this: it is the scroll position, so
   // the pane jumped to the live edge whenever the zones came or went -- a buy, a sale, a tab shown again.
-  const zones = kind === 'full' && draw.scene.boxes.some(b => b.t2 === null);
+  const boxed = kind === 'full' && !!draw.scene.strategy;
+  const zones = kind === 'full' && (boxed || draw.scene.boxes.some(b => b.t2 === null));
   const roomPending = useRef(true);
   useEffect(() => {
     if (!zones) {
@@ -303,8 +318,8 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     const n = series ? series.data().length : 0;
     if (!chart || n === 0 || !roomPending.current) return;
     roomPending.current = false;
-    roomAtLiveEdge(chart, n);
-  }, [chart, series, zones, barsRevision]);
+    roomAtLiveEdge(chart, n, boxed ? STRATEGY_BOX.roomPx : 0);
+  }, [chart, series, zones, boxed, barsRevision]);
 
   // "Show on chart" from the decisions: frame the moment on the 1-minute pane.
   const nonce = ctx?.focus?.nonce ?? 0;

@@ -19,6 +19,11 @@
  * estimated: every price is the scanner's, the read's or Nova's order's own.
  * A setup plan on a stock too thin to trade (2026-10-01) draws no plan: no zones, no plan-only lines, its
  * lane faded like the others -- an order that stands behind a level is still drawn.
+ * A setup plan with only the plan behind its levels (operator asks 2026-10-12) draws on the 1-minute pane its strategy
+ * box (`strategyBox.ts`), faint while forming and in full colour once near or armed: no zones, no line across the pane,
+ * and a frame from its stop to target 1, never to target 2. Once armed its prices keep their axis tags (price lines
+ * drawn without the line); a forming one's are the box's words alone. Once triggered it was taken or missed: no box, no
+ * axis tags, no frame, only a mark over its trigger candle.
  */
 import type { Time } from 'lightweight-charts';
 import { SHORT_SETUP_CHIPS } from '../constantGroups/short_setups';
@@ -32,6 +37,7 @@ import { laneHoverId, laneOnMinute, levelsOf } from './laneShapes';
 import { pastRings, pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, planFrame, setupName } from './planMath';
 import { thinPlan } from './planVerdict';
+import { boxedPlan, formingPlan, strategyOf, strategyWords, triggeredPlan, triggerMark } from './strategyBox';
 import { trendScene } from './trendLines';
 import type { Scene, SceneBox, SceneDot, SceneMark, SceneWord } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
@@ -51,6 +57,8 @@ export interface PriceLineSpec {
   style: 'solid' | 'dashed' | 'dotted';
   title: string;
   axisLabel: boolean;
+  /** False: the axis tag alone, no line across the pane (a boxed plan's levels, 2026-10-12). Absent: drawn. */
+  line?: boolean;
 }
 
 export interface PaneDraw {
@@ -144,7 +152,8 @@ function target2Of(plan: StockPlan | null, lv: OrderLevels): OrderLevel | null {
   return plan?.target2 != null ? planOnly(plan.target2) : null;
 }
 
-function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): PriceLineSpec[] {
+/** The plan's lines; `axisOnly` keeps only their axis tags (a boxed plan on the 1-minute pane: the box names them). */
+function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind, axisOnly = false): PriceLineSpec[] {
   const out: PriceLineSpec[] = [];
   const thin = pane !== 'full';
   const short = plan?.side === 'short';
@@ -157,8 +166,10 @@ function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): Pri
       color,
       width: thin || id === 'target2' ? 1 : 2,
       style: level.behind === 'plan' ? 'dashed' : 'solid',
-      title: thin ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)` : levelTitle(id, level.behind, short),
+      title: thin || axisOnly ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)`
+        : levelTitle(id, level.behind, short),
       axisLabel: !thin,
+      ...(axisOnly ? { line: false } : {}),
     });
   };
   add('entry', lv.entry, SETUP_COLORS.trigger);
@@ -206,9 +217,17 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   const lines: PriceLineSpec[] = [];
   const held = read.held;
   const lv = held ? null : drawnLevels(plan, o.levels);
+  // A setup's plan with only the plan behind it is its strategy box on the 1-minute pane, never zones and lines across
+  // it (2026-10-12): forming, the box alone; once armed, its prices keep their axis tags and lose their lines; once
+  // triggered, taken or missed, nothing of it but a mark on its trigger candle.
+  const boxed = lv !== null && boxedPlan(plan, lv);
+  const forming = lv !== null && formingPlan(plan, lv);
+  const triggered = lv !== null && triggeredPlan(plan, lv);
   if (o.layers.setups) {
     if (held && o.pane === 'thin') lines.push(...heldLines(held));
-    if (lv) lines.push(...planLines(plan, lv, o.pane));
+    const boxedHere = boxed && o.pane === 'full';
+    const offHere = (forming && boxedHere) || (triggered && o.pane === 'full');
+    if (lv && !offHere) lines.push(...planLines(plan, lv, o.pane, boxedHere));
     if (o.pane === 'full') {
       // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.
       const past = o.layers.past && o.past ? o.past : [];
@@ -226,12 +245,28 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
       }
       if (lv && (!lead || !o.layers.hidden.includes(lead.setup_type))) {
         const shape = lead ? levelsOf(lead) : null;
-        const start = shape?.end ?? lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
+        const newest = lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
           ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
-        scene.boxes.push(...planZones(lv, start, o));
-        // The stop to the furthest target (#845): target 2 is a line on the chart, and only where the operator's own
-        // scale leaves it off does its edge tag name it (``planFrame``; a short's range is the mirror, ADR 048).
-        scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, target2Of(plan, lv)?.price);
+        const start = shape?.end ?? newest;
+        const target2 = target2Of(plan, lv)?.price ?? null;
+        if (triggered && plan) {
+          // Where its lane already marks the candle (a flat top's break entry), that mark says it.
+          const mark = lead ? triggerMark(plan, lead.setup, o, laneHoverId(lead.setup_type)) : null;
+          if (mark && !(scene.marks ?? []).some(m => m.t === mark.t)) scene.marks = [...(scene.marks ?? []), mark];
+        } else if (boxed && plan) {
+          // Its box from the stop to target 1, after the newest candle, stays in view; target 2 is a dash over it or an
+          // arrow and never stretches the pane.
+          const after = newest === null ? null : o.toTime(newest);
+          scene.strategy = after === null || newest === null ? null
+            : strategyOf(plan, lv, target2, after, newest, lead?.setup ?? null);
+          if (scene.strategy) scene.words = [...(scene.words ?? []), ...strategyWords(scene.strategy)];
+          scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, null);
+        } else {
+          scene.boxes.push(...planZones(lv, start, o));
+          // The stop to the furthest target (#845): target 2 is a line on the chart, and only where the operator's own
+          // scale leaves it off does its edge tag name it (``planFrame``; a short's range is the mirror, ADR 048).
+          scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, target2);
+        }
       }
       // A 5-minute setup armed or near its trigger: one dashed line here (the chip is the legend's).
       lines.push(...fiveMinuteOnMinute(read).lines);
@@ -289,22 +324,24 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   return { scene, lines };
 }
 
-/** The legend chip for a lane: its short name and where it stands. */
-export function laneChip(lane: SetupLane): { text: string; state: 'forming' | 'live' | 'done' | 'idle' | 'failed' } {
+export type LaneChipState = 'forming' | 'live' | 'done' | 'idle' | 'failed';
+
+/** The legend chip for a lane: its short name and where it stands (`text` is both; the Setups menu shows
+ * `name` and `word` in their own columns). */
+export function laneChip(lane: SetupLane): { text: string; name: string; word: string; state: LaneChipState } {
   const short: Record<string, string> = {
     first_pullback: '1st pullback', bull_flag: 'Bull flag', flat_top_breakout: 'Flat top', flat_top_5m: '5m flat top',
     red_to_green: 'Red→green', gap_and_go: 'Gap & Go', pullback_dip: 'Dip (watch)', ...SHORT_SETUP_CHIPS,
   };
   const name = short[lane.setup_type] ?? setupName(lane.setup_type);
+  const chip = (word: string, state: LaneChipState) => ({ text: word ? `${name} ${word}` : name, name, word, state });
   const prog = formingProgress(lane);
-  if (lane.state === 'triggered') return { text: `${name} triggered`, state: 'done' };
-  if (lane.state === 'armed' || lane.state === 'near') return { text: `${name} ${lane.state}`, state: 'live' };
-  if (lane.state === 'failed') return { text: `${name} failed`, state: 'failed' };
-  if (lane.state === 'leg' || lane.state === 'pullback' || lane.forming) {
-    return { text: prog ? `${name} ${prog}` : `${name} forming`, state: 'forming' };
-  }
-  if (lane.window?.state === 'after') return { text: `${name} closed`, state: 'idle' };
-  return { text: name, state: 'idle' };
+  if (lane.state === 'triggered') return chip('triggered', 'done');
+  if (lane.state === 'armed' || lane.state === 'near') return chip(lane.state, 'live');
+  if (lane.state === 'failed') return chip('failed', 'failed');
+  if (lane.state === 'leg' || lane.state === 'pullback' || lane.forming) return chip(prog ?? 'forming', 'forming');
+  if (lane.window?.state === 'after') return chip('closed', 'idle');
+  return chip('', 'idle');
 }
 
 /** "BULL FLAG · FORMING 1 OF 2" for the pane's corner. */

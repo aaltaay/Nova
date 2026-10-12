@@ -200,6 +200,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Performance recorder (ADR 026) | `architecture/schema/performance.md` |
 | The operator's focus and the book watcher (ADR 033, operator ask 2026-09-24) | `architecture/schema/book-watch-and-luld.md` |
 | LULD bands on Level 2 (ADR 047, operator ask 2026-10-06) | `architecture/schema/book-watch-and-luld.md` |
+| The LULD band on the 1-minute chart (ADR 047 amendment, operator ask 2026-10-12) | `architecture/schema/book-watch-and-luld.md` |
 | The trading screen is always recorded (ADR 035, operator decision 2026-09-24) | `architecture/schema/screen-and-clips.md` |
 | The desk draws with the graphics card (operator decision 2026-10-05, #707) | `architecture/schema/screen-and-clips.md` |
 | Share clips (ADR 039, operator ask 2026-09-29) | `architecture/schema/screen-and-clips.md` |

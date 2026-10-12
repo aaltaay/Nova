@@ -3,13 +3,15 @@
  * the fills behind the candles (the levels' bands, the boxes), and over them the lines (the trend lines too), the
  * boxes' outlines, the
  * edge column (`edgeColumn.ts`: every word at the right edge), the +40% runs' arrows and every label --
- * the ones that stay put first, the boxes' and marks' taking the room around them (`sceneLabels.ts`).
+ * the ones that stay put first, the boxes' and marks' taking the room around them (`sceneLabels.ts`). Nova's LULD
+ * band on the 1-minute pane is `luldRender.ts`.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer } from 'lightweight-charts';
 import { EDGE_PRIORITY } from '../chart';
-import { drawColumn, layoutColumn, type ColumnItem, type ColumnReserve } from './edgeColumn';
+import { columnRects, drawColumn, layoutColumn, type ColumnItem, type ColumnReserve } from './edgeColumn';
 import { drawLevels, fillLevelBands, type LevelPx, type TickPx } from './levelRender';
+import { drawLuld, type LuldPx } from './luldRender';
 import { fmtPx } from './planMath';
 import type {
   SceneBox,
@@ -35,6 +37,7 @@ import {
   type LabelDetail,
   type LabelRect,
 } from './sceneLabels';
+import { drawStrategy, type StrategyPx } from './strategyBoxRender';
 
 /** A mark's arrow: its tip this far over the price, this tall and half this wide. */
 const MARK_GAP_PX = 3;
@@ -63,6 +66,10 @@ export interface Px {
   dots: { x: number; y: number; d: SceneDot }[];
   /** The trend lines: each one's first touch, its last, and where it runs on the pane's newest candle. */
   trends: TrendPx[];
+  /** A setup's strategy box (`strategyBoxRender.ts`). */
+  strategy?: StrategyPx | null;
+  /** Nova's LULD band (`luldRender.ts`). */
+  luld?: LuldPx | null;
 }
 
 export interface TrendPx {
@@ -114,7 +121,7 @@ export function columnItems(px: Pick<Px, 'levels' | 'words' | 'tags'> & Partial<
       offText: `${tr.label} ${fmtPx(pe)}` });
   }
   for (const { y, value, w } of px.words) {
-    items.push({ y, text: w.text, color: w.color, style: 'filled', priority: w.priority, hoverId: null,
+    items.push({ y, text: w.text, color: w.color, style: w.style ?? 'filled', priority: w.priority, hoverId: null,
       offText: w.valueWhenOff ? `${w.text} ${fmtPx(value)}` : w.text });
   }
   const named = new Set(px.words.map(w => w.w.id));
@@ -236,6 +243,7 @@ export class LineRenderer implements IPrimitivePaneRenderer {
       const measure = labelMeasure(ctx);
       const tickHits = drawLevels(ctx, this.px.levels, this.px.ticks, width, height);
       for (const t of this.px.trends ?? []) drawTrend(ctx, t);
+      if (this.px.luld) drawLuld(ctx, this.px.luld);
       ctx.lineWidth = 1;
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
         if (!b.stroke) continue;
@@ -278,12 +286,15 @@ export class LineRenderer implements IPrimitivePaneRenderer {
             align: 'center' });
         }
       }
-      // Every word at the right edge in one column; the boxes' labels take the room around it.
+      // Every word at the right edge in one column; the boxes' labels take the room around it. A setup's strategy box
+      // goes under the column, its own words clear of the column's.
       const items = columnItems(this.px, height);
-      const column = drawColumn(ctx, items, layoutColumn(items, height, this.px.topInset, this.px.reserves), width,
-        measure);
+      const layout = layoutColumn(items, height, this.px.topInset, this.px.reserves);
+      const boxWords = this.px.strategy
+        ? drawStrategy(ctx, this.px.strategy, width, columnRects(layout, width, measure), height) : [];
+      const column = drawColumn(ctx, items, layout, width, measure);
       const levelHits = [...tickHits, ...column.hits];
-      const obstacles: LabelRect[] = [...tickHits.map(h => h.rect), ...column.rects];
+      const obstacles: LabelRect[] = [...tickHits.map(h => h.rect), ...column.rects, ...boxWords];
       const fixedDrawn = fixed.map(f => {
         const w = measure(f.text);
         const r = labelRect(f.x, f.y, w, f.align, width);
@@ -308,9 +319,10 @@ export class LineRenderer implements IPrimitivePaneRenderer {
       }
       for (const { x, y, m } of this.px.marks) {
         if (x < 0 || x > width) continue;
-        asks.push({ forms: [m.label], x, y: y - MARK_GAP_PX - MARK_H - 2 - LABEL_H / 2, fixed: false, rank: m.rank,
-          center: true });
-        owners.push({ color: m.color });
+        const forms = labelForms(m.label, m.shrink, this.px.labels);
+        if (forms.length === 0) continue;
+        asks.push({ forms, x, y: y - MARK_GAP_PX - MARK_H - 2 - LABEL_H / 2, fixed: false, rank: m.rank, center: true });
+        owners.push({ color: m.color, hoverId: m.hoverId });
       }
       const hits: LabelHit[] = [];
       const words: LabelRect[] = [...obstacles];

@@ -3,13 +3,16 @@
  * you to add those cuz i get lost"). Pure: the rows the pane's Key chip lists, for what that pane draws --
  * the session tint behind the candles on every intraday pane; the levels each chart reads from its own
  * candles (5-minute, Full Day, and the 1-minute's nearest ones); the setup boxes and the plan's lines on
- * the 1-minute pane (the 10-second pane mirrors the plan's lines). Every colour is the one the drawing
- * uses, read from the same constants.
+ * the 1-minute pane (the 10-second pane mirrors the plan's lines), and Nova's LULD band on the 1-minute pane alone.
+ * Every colour is the one the drawing uses, read from the same constants.
  */
 import { CHART_SESSION_COLORS } from '../constants';
+import { LULD_APPROX_MARK, LULD_COLOR } from '../constantGroups/luld';
 import { SHORT_SETUP_COLORS } from '../constantGroups/short_setups';
 import type { PaneKind } from './chartShapes';
-import { DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, LEVEL_ROUND_LINE_ALPHA, SETUP_COLORS, TREND_COLORS } from './constants';
+import {
+  DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, LEVEL_ROUND_LINE_ALPHA, SETUP_COLORS, STRATEGY_BOX, STRATEGY_BOX_LIVE, TREND_COLORS,
+} from './constants';
 import { alpha } from './levelRender';
 
 /** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, a box, a ring (a flat top's
@@ -34,6 +37,8 @@ export interface KeySection {
 export interface KeyLayers {
   setups: boolean;
   levels: boolean;
+  /** Eyes off draws nothing of Nova's, its LULD band included; absent reads as on. */
+  eyes?: boolean;
 }
 
 const GREY = '#8e8e93';
@@ -173,6 +178,17 @@ function fiveOnMinuteRows(): KeySection {
   };
 }
 
+/** Nova's LULD band (ADR 047 amendment 2026-10-12): the 1-minute pane's alone. */
+function luldRows(): KeySection {
+  return {
+    title: 'Halt line (LULD, 9:30 AM–4:00 PM)',
+    rows: [
+      { swatch: 'line', color: LULD_COLOR, label: 'LULD ▲ / ▼', text: "the limit up and limit down band: a quote resting on it for 15 s pauses the stock for 5 minutes. Nova's calculation from the published rules, stepping where the band moved" },
+      { swatch: 'dash', color: LULD_COLOR, label: `Dashed, ${LULD_APPROX_MARK}`, text: 'approximate: Nova did not see the stock open or reopen with its tape unbroken since, or guessed its tier' },
+    ],
+  };
+}
+
 function planRows(full: boolean): KeySection {
   const rows: KeyRow[] = [
     { swatch: 'line', color: SETUP_COLORS.trigger, label: 'Entry', text: 'where the plan buys (a short plan: where it shorts)' },
@@ -183,6 +199,9 @@ function planRows(full: boolean): KeySection {
     rows.push(
       { swatch: 'band', color: SETUP_COLORS.risk, label: 'Red zone', text: 'the risk: from the entry to the stop (over the entry on a short)' },
       { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: from the entry to target 1 (under it on a short)' },
+      { swatch: 'band', color: STRATEGY_BOX_LIVE.outline, label: 'Strategy box', text: "a setup's plan: its stop to target 1 right of the newest candle, with its name and where it stands (near · armed); its prices on the axis, T2 a dash over it or an arrow" },
+      { swatch: 'up', color: SETUP_COLORS.trigger, label: '✓ Triggered', text: "a setup's plan that triggered with no order or position behind it: off the chart, a ✓ over its trigger candle (point at it for the setup)" },
+      { swatch: 'band', color: STRATEGY_BOX.outline, label: 'Faint box', text: "a setup still forming: the same box, faint, on its window (Gap and Go's 09:30–10:00) or waiting at the edge" },
     );
   }
   rows.push({ swatch: 'dash', color: GREY, label: 'Dashed vs solid', text: 'dashed: only a plan · solid: an order is working' });
@@ -198,6 +217,7 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
     out.push(planRows(true));
     if (layers.levels) out.push(minuteRows(), trendRows('1-minute'));
     if (layers.setups) out.push(fiveOnMinuteRows());
+    if (layers.eyes !== false) out.push(luldRows());
   } else if (kind === 'thin') {
     out.push(planRows(false));
   } else {

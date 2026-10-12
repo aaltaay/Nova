@@ -60,6 +60,8 @@ export interface SceneWord {
   series: ISeriesApi<SeriesType> | null;
   /** Out of view its tag adds the value; false when the text already says it. */
   valueWhenOff: boolean;
+  /** `plain`: coloured words on dark, with no line of their own (a forming setup's prices); else the line's own tag. */
+  style?: 'filled' | 'plain';
 }
 
 /** Room at the right edge something else holds (the position tag): the column keeps clear of it. */
@@ -68,8 +70,8 @@ export interface SceneReserve {
   height: number;
 }
 
-/** A candle marked over `price`: a day's +40% run (an arrow pointing down at the high) or a flat top's break (`up`:
- * a triangle pointing up over the breaking candle), and its label, which makes room. */
+/** A candle marked over `price`: a day's +40% run (an arrow pointing down at the high), a flat top's break (`up`:
+ * a triangle pointing up over the breaking candle) or a triggered plan's trigger, and its label, which makes room. */
 export interface SceneMark {
   t: Time;
   price: number;
@@ -79,6 +81,11 @@ export interface SceneMark {
   rank: number;
   /** Which way the triangle points; down by default. */
   dir?: 'up' | 'down';
+  /** Its label's shorter forms, taken as the operator's label setting says (a past setup's way); without it the label
+   * comes whole. */
+  shrink?: LabelShrink;
+  /** What the pane reports as hovered over its label: its setup's story. */
+  hoverId?: string;
 }
 
 /** A ring on one candle at a price -- a flat top's touch (2026-10-06) -- and a label over it, which stays put. */
@@ -125,6 +132,59 @@ export interface ScenePin {
   color: string;
 }
 
+/** Where a boxed plan's setup stands: forming draws the faint box, the rest the box in full colour. A triggered plan has
+ * no box. */
+export type StrategyState = 'forming' | 'near' | 'armed';
+
+/** A setup's plan as one box from its stop to target 1, right of the newest candle to the pane's edge (operator asks
+ * 2026-10-12): faint while the setup is only forming -- from its window while that is ahead and on the pane, else
+ * waiting at the right edge -- and in full colour once it is near or armed. Its name and where it stands
+ * are in it, its prices the edge column's words (and, once armed, the axis's), target 2 a dash over it in view, else a
+ * small arrow past target 1. */
+export interface SceneStrategy {
+  /** The newest candle: the box starts after it. */
+  after: Time;
+  /** Candles from `after` to the window's start while the window is ahead, else null; and to its end, null without one. */
+  startBars: number | null;
+  endBars: number | null;
+  entry: number;
+  stop: number;
+  target: number;
+  target2: number | null;
+  side: 'long' | 'short';
+  state: StrategyState;
+  /** "GAP AND GO", then "strategy" (forming) or where it stands ("armed") after it where the room allows. */
+  name: string;
+  word: string;
+  /** Its window where the box stands on it ("09:30–10:00", "until 11:30"; empty without one), and where it waits at
+   * the edge ("from 09:30 →"); once armed, since when ("since 09:34", with "until 10:00" while a window is open). */
+  when: string;
+  whenWaiting: string;
+}
+
+/** Where in a candle a moment falls: the candle, and how far through it (0 its left edge, 1 its right). */
+export interface SceneAt {
+  t: Time;
+  frac: number;
+}
+
+/** One stretch of Nova's LULD band (ADR 047 amendment 2026-10-12): from the moment it began to the next one. */
+export interface SceneLuldStep {
+  from: SceneAt;
+  to: SceneAt;
+  lower: number | null;
+  upper: number | null;
+  /** Approximate (Nova did not see the stock open or reopen, or guessed its tier): dashed. */
+  approx: boolean;
+}
+
+/** Nova's LULD band on the 1-minute chart (`luldShapes.ts`): a line above and below the candles that steps where the
+ * band moved. */
+export interface SceneLuld {
+  steps: SceneLuldStep[];
+  color: string;
+}
+
 export interface Scene {
   boxes: SceneBox[];
   segments: SceneSegment[];
@@ -148,6 +208,10 @@ export interface Scene {
   dots?: SceneDot[];
   /** The chart's trend lines. */
   trends?: SceneTrend[];
+  /** A setup's plan with only the plan behind it, in place of zones and lines across the pane (1-minute pane). */
+  strategy?: SceneStrategy | null;
+  /** Nova's LULD band (1-minute pane). */
+  luld?: SceneLuld | null;
 }
 
 export const EMPTY_SCENE: Scene = {

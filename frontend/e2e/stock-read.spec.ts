@@ -12,7 +12,7 @@ import {
 /**
  * The bot's read on one stock (ADR 036) on the live Trader route with a mocked API: APUS at 15:03
  * ET on 2026-09-24, the bull flag's pole up and one flag candle closed. The rail carries the plan
- * and the tiles; the 1-minute chart the flag, the plan's zones and the legend; the sheet every
+ * and the tiles; the 1-minute chart the flag, the plan's strategy box and the legend; the sheet every
  * signal, the day and the history. `NOVA_E2E_SHOTS=<dir>` saves screenshots for a visual check.
  */
 
@@ -146,7 +146,7 @@ test.describe("The bot's read on one stock", () => {
     await expect(plan).toBeVisible({ timeout: 20_000 });
     // At 1080 the quote card has no room for the whole plan and Level 2 both: one line first.
     await expect(plan).toContainText('FLAG 1/2');
-    await expect(page.getByTestId('stock-read-plan-line')).toHaveText('5.44/5.33/5.66 · 181 sh');
+    await expect(page.getByTestId('stock-read-plan-line')).toHaveText('5.44/5.33/5.49/5.99 · 181 sh');
     await expect(page.getByTestId('stock-read-stage-line')).toBeVisible();
     await expect(page.getByTestId('stock-read-tile-setups')).toContainText('Flag 1/2');
     const l2 = await page.getByTestId('stock-view-depth-side-by-side').boundingBox();
@@ -157,7 +157,7 @@ test.describe("The bot's read on one stock", () => {
     await expect(plan).toContainText('FORMING 1/2');
     await expect(page.getByTestId('stock-read-entry')).toHaveText('5.44');
     await expect(page.getByTestId('stock-read-stop')).toHaveText('5.33');
-    await expect(page.getByTestId('stock-read-target')).toHaveText('5.66');
+    await expect(page.getByTestId('stock-read-target')).toHaveText('5.49');
     await expect(page.getByTestId('stock-read-size')).toHaveText('181 sh');
     await expect(page.getByTestId('stock-read-strip').locator('.sr-tile')).toHaveCount(8);
 
@@ -176,10 +176,16 @@ test.describe("The bot's read on one stock", () => {
     await expect(legend).toBeVisible();
     await expect(page.getByTestId('stock-read-legend-bull_flag')).toContainText('Bull flag 1/2');
     await expect(page.getByTestId('stock-read-badge')).toHaveText('BULL FLAG · FORMING 1 OF 2');
-    const offLane = page.getByTestId('stock-read-legend-flat_top_breakout');
+    // Only a lane doing something has a chip; the Setups menu holds the rest, a strategy at Off locked with why.
+    await expect(page.getByTestId('stock-read-legend-flat_top_breakout')).toHaveCount(0);
+    await shot(page, 'desk');
+    await page.getByTestId('stock-read-legend-menu').click();
+    const offLane = page.getByTestId('stock-read-menu-flat_top_breakout');
     await expect(offLane).toBeDisabled();
     await expect(offLane).toHaveAttribute('data-why', /strategy is Off on the Bots page/);
-    await shot(page, 'desk');
+    await shot(page, 'setups-menu');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('stock-read-legend-menu-card')).toHaveCount(0);
 
     await page.getByTestId('stock-read-tile-front').hover();
     await expect(page.getByTestId('stock-read-popover')).toContainText('MACD 1-minute');

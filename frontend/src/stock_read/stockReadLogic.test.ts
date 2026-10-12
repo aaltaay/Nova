@@ -210,7 +210,7 @@ describe('the charts', () => {
     expect(paneKind('15Min')).toBe('none');
   });
 
-  it('draws the forming flag, its pole, the plan and the levels on the 1-minute pane', () => {
+  it('draws the forming flag, its pole, its strategy box and the levels on the 1-minute pane', () => {
     const { scene, lines } = paneDraw(read, { pane: 'full', layers: LAYERS, toTime: identity });
     const labels = scene.boxes.map(b => b.label);
     expect(labels).toContain('POLE +7.1%');
@@ -218,22 +218,62 @@ describe('the charts', () => {
     const pole = scene.boxes.find(b => b.label === 'POLE +7.1%')!;
     expect(pole.t1).toBe(apusAt(14, 59)); // 3 pole candles ending 15:01
     expect(pole.t2).toBe(apusAt(15, 1));
-    const zones = scene.boxes.filter(b => b.t2 === null);
-    expect(zones.map(z => [z.p1, z.p2])).toEqual([[5.33, 5.44], [5.44, 5.49]]);
+    // Only forming (2026-10-12): its strategy box, never zones or plan lines across the pane.
+    expect(scene.boxes.filter(b => b.t2 === null)).toEqual([]);
+    expect(scene.strategy).toMatchObject({ entry: 5.44, stop: 5.33, target: 5.49, target2: 5.99, side: 'long',
+      name: 'BULL FLAG', word: 'strategy', startBars: null, endBars: null, when: '' });  // its window closed at 11:30
+    // Its prices are the edge column's words, faint, with no line of their own.
+    expect((scene.words ?? []).filter(w => w.id.startsWith('strategy:')).map(w => [w.text, w.style]))
+      .toEqual([['T1 5.49', 'plain'], ['entry 5.44', 'plain'], ['stop 5.33', 'plain']]);
+    // The box stays in view, stop to target 1; target 2 never stretches the pane.
+    expect(scene.keepInView).toEqual({ min: 5.33, max: 5.49 });
+    expect(lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
+    expect(scene.edgeTags.map(t => t.label)).toEqual(expect.arrayContaining(['VWAP 6.09']));
+    // The premarket high is the 5-minute pane's (the day's structure), never a 1-minute line or tag.
+    expect(scene.edgeTags.some(t => t.label.startsWith('PMH'))).toBe(false);
+  });
+
+  it('draws an armed plan as its box in full colour: its prices on the axis, no line across the pane', () => {
+    // Operator ask 2026-10-12, on an armed plan's zones and full-width lines: "its making the chart extremely big".
+    const armed: StockRead = { ...read, plan: { ...read.plan!, state: 'armed', provisional: false } };
+    const { scene, lines } = paneDraw(armed, { pane: 'full', layers: LAYERS, toTime: identity });
+    expect(scene.boxes.filter(b => b.t2 === null)).toEqual([]);
+    expect(scene.strategy).toMatchObject({ entry: 5.44, stop: 5.33, target: 5.49, target2: 5.99, side: 'long',
+      state: 'armed', name: 'BULL FLAG', word: 'armed', startBars: null, endBars: null });
+    // Each level keeps its axis tag, dashed while only a plan (ADR 037), with no line and no title: the box and the
+    // column's words name them.
+    const byId = Object.fromEntries(lines.map(l => [l.id, l]));
+    expect(Object.keys(byId).sort()).toEqual(['entry', 'stop', 'target', 'target2']);
+    for (const l of Object.values(byId)) {
+      expect(l).toMatchObject({ line: false, title: '', axisLabel: true, style: 'dashed' });
+    }
+    expect(byId.entry.price).toBe(5.44);
+    expect((scene.words ?? []).filter(w => w.id.startsWith('strategy:')).map(w => [w.text, w.price]))
+      .toEqual([['T1', 5.49], ['entry', 5.44], ['stop', 5.33]]);
+    // The box stays in view, stop to target 1; target 2 at 5.99 never stretches the pane.
+    expect(scene.keepInView).toEqual({ min: 5.33, max: 5.49 });
+  });
+
+  it("keeps an armed plan's zones and lines, framed to target 2, where an order stands behind a level", () => {
+    const armed: StockRead = { ...read, plan: { ...read.plan!, state: 'armed', provisional: false } };
+    const levels = {
+      entry: { price: 5.44, behind: 'order' as const }, stop: { price: 5.33, behind: 'plan' as const },
+      target: { price: 5.49, behind: 'plan' as const }, target2: { price: 5.99, behind: 'plan' as const },
+    };
+    const { scene, lines } = paneDraw(armed, { pane: 'full', layers: LAYERS, toTime: identity, levels });
+    expect(scene.strategy ?? null).toBeNull();
+    expect(scene.boxes.filter(b => b.t2 === null).map(z => [z.p1, z.p2])).toEqual([[5.33, 5.44], [5.44, 5.49]]);
     // The pane frames the stop to the furthest target (#845): target 2 at 5.99 is a line on the chart.
     expect(scene.keepInView).toEqual({ min: 5.33, max: 5.99 });
     const byId = Object.fromEntries(lines.map(l => [l.id, l]));
-    expect(byId.entry).toMatchObject({ price: 5.44, style: 'dashed', title: 'ENTRY (provisional)', axisLabel: true });
-    // Only a plan: no order stands behind the stop or the target, so both are dashed and say so (ADR 037).
+    expect(byId.entry).toMatchObject({ price: 5.44, style: 'solid', title: 'ENTRY · working', axisLabel: true });
+    expect(byId.entry.line).toBeUndefined();
+    // Only a plan behind the stop and the targets: dashed, and they say so (ADR 037).
     expect(byId.target).toMatchObject({ title: 'TARGET 1 · plan', style: 'dashed' });
-    // Target 2 (#845): only ever a plan's, thinner and dashed; target 1 is the reward zone's end.
     expect(byId.target2).toMatchObject({ price: 5.99, title: 'TARGET 2 · plan', style: 'dashed', width: 1 });
     expect(byId.stop).toMatchObject({ title: 'STOP · plan', style: 'dashed' });
     // The day's levels come from the read's level map (none in this read): no bare lines in their place.
     expect(Object.keys(byId).sort()).toEqual(['entry', 'stop', 'target', 'target2']);
-    expect(scene.edgeTags.map(t => t.label)).toEqual(expect.arrayContaining(['VWAP 6.09']));
-    // The premarket high is the 5-minute pane's (the day's structure), never a 1-minute line or tag.
-    expect(scene.edgeTags.some(t => t.label.startsWith('PMH'))).toBe(false);
   });
 
   it('mirrors only thin lines on the 5-minute and 10-second panes', () => {

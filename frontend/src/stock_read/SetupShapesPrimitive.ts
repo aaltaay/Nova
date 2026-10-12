@@ -11,7 +11,10 @@
  * names, the lines' tags (`words`: the EMAs, VWAP, the plan's ENTRY / STOP / TARGET) and the tags for prices out
  * of view. The Full Day pane's +40% runs are marks: an arrow over the day's high and a label that makes room. A flat
  * top's touches are rings on their candles' highs, and its break a mark pointing up (2026-10-06). A trend line
- * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length.
+ * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length. A setup's plan with
+ * only the plan behind it is its strategy box (2026-10-12, `strategyBoxRender.ts`), past the newest candle (a forming
+ * one's window counted in candles from it); once it triggered, a mark over its trigger candle.
+ * Nova's LULD band (2026-10-12, `luldRender.ts`) steps inside the candle where it moved, at its share of the minute.
  */
 import { MismatchDirection } from 'lightweight-charts';
 import type {
@@ -40,7 +43,9 @@ import {
   type Px,
 } from './sceneRender';
 import type { LabelRect } from './sceneLabels';
+import type { LuldPx } from './luldRender';
 import { EMPTY_SCENE, type Scene } from './sceneTypes';
+import type { StrategyPx } from './strategyBoxRender';
 
 /** A pointer this close to a box's edge still hovers it. */
 const HIT_SLACK_PX = 2;
@@ -227,8 +232,41 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const cy = tr.broke ? y(tr.broke.price) : null;
       trends.push({ x1, y1, x2, y2, xe, ye, pe, rings, cross: cx !== null && cy !== null ? { x: cx, y: cy } : null, tr });
     }
+    // A setup's box: after the newest candle, a forming one's window counted in candles from it (`strategyBox.ts`).
+    let strategy: StrategyPx | null = null;
+    const st = this.scene.strategy ?? null;
+    if (st) {
+      const xa = x(st.after);
+      const idx = ts.timeToIndex(st.after, true);
+      const at = (bars: number | null) => {
+        if (bars === null || idx === null) return null;
+        const xx = ts.logicalToCoordinate((idx + bars) as unknown as Logical);
+        return xx === null ? null : xx - half;
+      };
+      const [ye, ys, yt] = [y(st.entry), y(st.stop), y(st.target)];
+      if (xa !== null && ye !== null && ys !== null && yt !== null) {
+        strategy = { xAfter: xa + half, xStart: at(st.startBars), xEnd: at(st.endBars), bar: 2 * half, yEntry: ye,
+          yStop: ys, yTarget: yt, yTarget2: st.target2 === null ? null : y(st.target2), s: st };
+      }
+    }
+    // The LULD band: a step's ends inside their candles, at their share of the candle's width.
+    let luld: LuldPx | null = null;
+    const band = this.scene.luld ?? null;
+    if (band) {
+      const at = (t: Time, frac: number) => {
+        const xx = x(t);
+        return xx === null ? null : xx + (frac - 0.5) * 2 * half;
+      };
+      const steps: LuldPx['steps'] = [];
+      for (const s of band.steps) {
+        const [x1, x2] = [at(s.from.t, s.from.frac), at(s.to.t, s.to.frac)];
+        if (x1 === null || x2 === null) continue;
+        steps.push({ x1, x2, yLower: s.lower === null ? null : y(s.lower), yUpper: s.upper === null ? null : y(s.upper), s });
+      }
+      luld = { steps, color: band.color };
+    }
     this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks, words, reserves,
-      topInset: this.scene.topInset ?? 0, marks, dots, trends };
+      topInset: this.scene.topInset ?? 0, marks, dots, trends, strategy, luld };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {

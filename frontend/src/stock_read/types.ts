@@ -152,6 +152,7 @@ export interface SetupLevels extends TargetFields {
   leg_low?: number;
   pullback_bars?: number;
   armed_bar_t?: number;
+  armed_at?: number;
   triggered_at?: number;
   trigger_price?: number;
   detail?: Record<string, unknown> | null;

@@ -53,22 +53,32 @@ def _playhead() -> float:
 
 def view(symbol: str) -> dict[str, Any]:
     """The bands at the playhead for the loaded Session Record, or why there are none."""
+    return _answer(symbol)[0]
+
+
+def trail(symbol: str) -> dict[str, Any]:
+    """The recording's band step by step up to the playhead, for the 1-minute chart."""
+    out, steps = _answer(symbol)
+    return views.trail_view(out, steps)
+
+
+def _answer(symbol: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     sym = (symbol or "").strip().upper()
     now = time.time()
     data = _capture()
     if data is None or data.symbol != sym:
         return views.absent_view(sym, now=now, source="replay", reason=(
-            "On a Sim replay, Nova draws the band from a Session Record of this stock; none is loaded"))
+            "On a Sim replay, Nova draws the band from a Session Record of this stock; none is loaded")), []
     asof = _playhead()
     _ask(data.key, asof)
     with _lock:
         res = _result
     if res is None or res["key"] != data.key:
         return views.absent_view(sym, now=now, source="replay", reason="Reading the recording's tape for the band",
-                                 state="warming")
+                                 state="warming"), []
     out = dict(res["view"])
     out["as_of"] = round(res["asof"], 3)
-    return out
+    return out, res["trail"]
 
 
 def _ask(key: str, asof: float) -> None:
@@ -227,7 +237,7 @@ def _serve(key: str, asof: float) -> None:
     out = views.tracker_view(tracker.view(asof), tracker.facts, symbol=data.symbol, now=asof, source="replay",
                              track=TRACK_RECORD)
     with _lock:
-        _result = {"key": key, "asof": asof, "view": out}
+        _result = {"key": key, "asof": asof, "view": out, "trail": tracker.trail()}
 
 
 def reset_for_tests() -> None:

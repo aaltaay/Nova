@@ -183,3 +183,79 @@ def test_unknown_previous_close_or_tier_draws_no_band_but_keeps_the_reference():
     assert v["reference"] == 10.0 and v["upper"] is None
     tr = opened(prev=5.0, tier=None)
     assert tr.view(t("09:31:00"))["upper"] is None
+
+
+# -- the band's steps, the 1-minute chart's line (ADR 047 amendment 2026-10-12) ---------------------------------------
+
+def steps(tr: Tracker, at: str) -> list[tuple]:
+    tr.view(t(at))
+    return [(s["ts"], s["lower"], s["upper"], s["exact"]) for s in tr.trail()]
+
+
+def test_the_trail_starts_with_the_open_and_steps_with_each_new_reference():
+    tr = make()
+    pr(tr, "09:15:00", 8.0)                       # premarket: no band, no step
+    pr(tr, "09:30:01", 10.0, "O X")
+    pr(tr, "09:30:10", 10.30)                     # the mean moves 1.5%: a new reference once the floor runs out
+    assert steps(tr, "09:31:00") == [
+        (t("09:30:01"), 9.0, 11.0, True),
+        (t("09:30:31"), 9.14, 11.17, True),       # at the moment the 30 s floor ran out, mid-minute
+    ]
+
+
+def test_an_opening_print_a_moment_before_0930_starts_the_trail():
+    tr = make()
+    pr(tr, "09:29:59.8", 10.0, "O X")
+    assert steps(tr, "09:30:05") == [(t("09:29:59.8"), 9.0, 11.0, True)]
+
+
+def test_a_halt_ends_the_line_and_the_reopening_print_starts_it_again():
+    tr = opened()
+    tr.on_halt(t("09:40:00"), True)
+    tr.on_halt(t("09:44:59"), False)              # the halt ended: still no band until the reopening print
+    pr(tr, "09:45:00", 12.0, "5 X")
+    assert steps(tr, "09:46:00") == [
+        (t("09:30:01"), 9.0, 11.0, True),
+        (t("09:40:00"), None, None, False),
+        (t("09:45:00"), 10.8, 13.2, True),
+    ]
+
+
+def test_a_tape_gap_keeps_the_band_but_marks_it_approximate():
+    tr = opened()
+    tr.on_gap(t("09:40:00"), "the line was down")
+    tr.on_gap(t("09:41:00"), "again")             # nothing changed: no step
+    assert steps(tr, "09:42:00")[1:] == [(t("09:40:00"), 9.0, 11.0, False)]
+
+
+def test_the_closing_doubling_and_the_close_are_steps():
+    tr = make(prev=2.0, tier=None)
+    pr(tr, "09:30:01", 2.0, "O")
+    assert steps(tr, "16:00:01") == [
+        (t("09:30:01"), 1.6, 2.4, True),
+        (t("15:35:00"), 1.2, 2.8, True),
+        (t("16:00:00"), None, None, False),
+    ]
+
+
+def test_no_previous_close_draws_nothing_until_it_arrives():
+    tr = opened(prev=None)
+    assert steps(tr, "09:31:00") == []
+    tr.set_facts(Facts(prev_close=9.0, tier=2))
+    assert steps(tr, "09:31:30") == [(t("09:31:00"), 9.0, 11.0, True)]
+
+
+def test_two_changes_at_one_moment_keep_the_last():
+    tr = opened()
+    tr.on_halt(t("09:40:00"), True)
+    tr.on_halt(t("09:40:00"), False)
+    pr(tr, "09:40:00", 10.0, "5")                 # halted and reopened in the same instant: the reopen stands
+    out = steps(tr, "09:41:00")
+    assert out == [(t("09:30:01"), 9.0, 11.0, True)]   # the same band as before: no step at all
+
+
+def test_a_new_day_starts_the_trail_over():
+    tr = opened()
+    assert steps(tr, "09:31:00") == [(t("09:30:01"), 9.0, 11.0, True)]
+    tr.view(t("09:00:00", "2026-09-23"))
+    assert tr.trail() == []

@@ -189,9 +189,43 @@ setup forming, the operator's own plan starts from a typed entry or the ask. Its
 dragged on the 1-minute chart with the entry; while it drags the targets keep their distance from the entry,
 and on release the read answers the menu's targets for the new entry. The 1-minute chart draws
 each lane's shapes (the plan's lane in colour, the rest faded), the plan's zones and lines, the
-day's levels, a legend and the plan's badge. Its autoscale keeps the stop to the furthest target in view
+day's levels, a legend and the plan's badge. **The legend keeps a chip only for a lane doing something**
+(operator 2026-10-12, of fifteen chips over the candles: "this is too much"): forming, near, armed,
+triggered or failed, or the plan's, and not hidden or at Off (`LegendSetupsMenu.onLegendRow`). Its last
+chip, Setups, counts the lanes without one and opens a menu: every lane's switch and where it stands,
+longs and shorts side by side, a strategy at Off locked with why, then the past setups' switch and their
+labels' Compact / Full. Hiding a lane moves it into the menu; a lane that starts forming gets its chip
+back. Nothing persisted changes: the switches are `nova.stockRead.layers` as before. Its autoscale keeps the stop to the furthest target in view
 (#845: target 2 when the plan has one, `planMath.planFrame`), so target 2 is a line on the chart; its edge
-tag names it only where the operator's own price scale leaves it off. It frames a forming setup once per setup, and again
+tag names it only where the operator's own price scale leaves it off. **A setup plan that is only forming** (operator
+ask 2026-10-12, on a Gap and Go plan 30% over the price that squeezed MNDR's candles into a third of the pane: "square
+it up like the original but show it more faded ... say gap and go strategy, but doesn't have to be entire horizontal
+line from end to end ... more minimalist") draws neither zones nor plan lines on the 1-minute chart, only its strategy
+box (`strategyBox.ts`, drawn by `strategyBoxRender.ts`): one faint box from its stop to target 1, from the room right
+of the newest candle to the pane's edge, the setup's name and "strategy" with its window inside, the entry a dashed
+line across it, its prices faint words in the edge column ("T1 2.99", "entry 2.91", "stop 2.79", no line of their
+own), and target 2 a small arrow over it (under it for a short). While the setup's window is still ahead the box
+stands on that window -- from Gap and Go's 09:30 -- when the window's start leaves room for its name left of the
+column's words, and otherwise waits at the right edge saying "from 09:30 →"; with the window open, or none, it starts
+after the newest candle. That chart's autoscale keeps the box in view (the stop to target
+1), never target 2. **Once the setup is near or armed** (operator ask 2026-10-12, on MNDR's Gap and Go armed
+at 09:30, its zones from the 09:30 candle and four lines across the pane: "its making the chart extremely big ... can
+we do that for the rest of them?") the same box stands in full colour with a solid outline, from the room right of the
+newest candle to the pane's edge, on every setup: its name and where it stands ("FLAT TOP BREAKOUT near", "FIRST
+PULLBACK armed"; a word with no room beside the name leads the second line), and since when ("since 09:34", with
+"until 10:00" while its window is open, from the lead lane's `setup.armed_at`). The entry is dashed
+across the box only. Its levels keep their axis tags, price lines drawn without the line (`PriceLineSpec.line: false`,
+lightweight-charts' `lineVisible`), and the edge column's words name them ("T1", "entry" or "short", "stop"). Target 2
+in view is a dotted dash across the box ("T2 3.49"), and off the pane an arrow; either way the frame is the stop to
+target 1. A short's name is cut before its "▼ SHORT". **Once it triggered** (operator ask 2026-10-12, option A of two
+mockups, on MNDR's Gap and Go box still beside the price at 09:55, 24 minutes after its 09:31 trigger and 22 after the
+eyes scored target 1 first) a plan with nothing behind it was taken or missed, and it leaves the 1-minute chart: no
+box, no axis tags, no frame (`strategyBox.triggeredPlan`). A mark over its trigger candle stands in its place
+(`triggerMark`, from the lead lane's `setup.triggered_at`; none without it): a triangle in the entry's blue, pointing
+up (down on a short), and "✓ GAP AND GO 09:31", which makes room as a past setup's label does -- "✓" alone while the
+labels are compact -- and tells the lane's story on hover. Where the lane already marks that candle (a flat top that
+entered on its break), its own mark says it. The 5-minute and 10-second panes keep its thin lines. A
+level an order or a position stands behind, and the operator's own plan, draw the zones, lines and frame above. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
 time scale's `rightOffset`, which is its scroll position, is never set). **A view the operator
@@ -310,7 +344,7 @@ the drawing, `ShapeTip.tsx` the hover):
 - Hovering a setup's box -- live or past -- shows its whole story (`SetupShapesPrimitive.hitTest`
   names the box): the state or end with the full reason, the times, the level, the floor, what price
   did next and the refused trade's outcome.
-- The legend's "Past" chip switches the layer (`nova.stockRead.layers` `value.past`), counts what it
+- The "Past setups" switch in the legend's Setups menu switches the layer (`nova.stockRead.layers` `value.past`), counts what it
   draws, and says why when the backend has no such route. The read is fetched every
   `STOCK_READ_PAST_POLL_MS` while the Trader tab shows with the layer on, and at once when a lane's
   drawn state changes, so a setup that fails or ends is drawn as past within one read. On a replay desk
@@ -320,7 +354,7 @@ the drawing, `ShapeTip.tsx` the hover):
 - **Labels make room** (operator report, 2026-09-30: "i do really like seeing the details, but perhaps
   it is extremely too crowded"; LGHL that morning drew 15 past setups, their labels piled on each
   other; then "maybe the compact form should just show (x) and when we hover, it shows the full failed
-  setup"). The legend's labels chip beside "Past" (`value.labels`) sets how much a past setup's label
+  setup"). The Compact / Full switch beside "Past setups" in the Setups menu (`value.labels`) sets how much a past setup's label
   says: `compact` (the default) its mark alone -- `✕` failed, `○` faded, `✓` triggered -- and no leg
   or pole label; `full` the whole label. Pointing at a label shows the story its box's hover tells
   (`SetupShapesPrimitive.hitTest` names the labels the last draw placed, then the boxes). Either way

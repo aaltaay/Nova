@@ -17,6 +17,10 @@ export const STOCK_READ_FLUSH_AFTER_SEC = 10;
 /** The day's setups that ended (ADR 036 amendment): read this often while the 1-minute pane shows, and
  * at once when a lane's drawn state changes. */
 export const STOCK_READ_PAST_POLL_MS = 15_000;
+/** Nova's LULD band step by step for the 1-minute chart (ADR 047 amendment 2026-10-12): `GET {path}/{symbol}/trail`,
+ * read this often while Eyes is on. The band moves at most every 30 s; a halt ends it at once. */
+export const LULD_TRAIL_PATH = '/api/luld';
+export const LULD_TRAIL_POLL_MS = 2_000;
 
 /* Risk per trade is the venue sleeve's (ADR 042 draft): read and saved by `setups/sleeveRisk.ts`, whose
  * numbers live in `constantGroups/setups.ts` (SLEEVE_*), since every proposal's Stage sizes by it too. */
@@ -82,6 +86,58 @@ export const SETUP_COLORS = {
   level: '#8b92a5',
   round: '#f59e0b',
 };
+
+/** A setup's plan on the 1-minute chart (operator asks 2026-10-12): one box in the room right of the newest candle,
+ * never a line across the pane (`strategyBoxRender.ts`). These are the forming setup's faint colours and the layout of
+ * both; `STRATEGY_BOX_LIVE` holds the colours once the setup is near or armed. */
+export const STRATEGY_BOX = {
+  riskFill: 'rgba(255, 69, 58, 0.07)',
+  rewardFill: 'rgba(48, 209, 88, 0.07)',
+  outline: 'rgba(154, 160, 174, 0.35)',
+  entryLine: 'rgba(10, 132, 255, 0.7)',
+  name: 'rgba(214, 217, 224, 0.8)',
+  when: 'rgba(154, 160, 174, 0.8)',
+  entryInk: 'rgba(10, 132, 255, 0.9)',
+  stopInk: 'rgba(255, 69, 58, 0.85)',
+  targetInk: 'rgba(48, 209, 88, 0.85)',
+  target2Ink: 'rgba(48, 209, 88, 0.65)',
+  nameFont: '700 10px ui-sans-serif, system-ui, sans-serif',
+  font: '500 10px ui-sans-serif, system-ui, sans-serif',
+  /** It stands on its window when this much of it is left of the edge column's words, else it waits at the right
+   * edge with `waitPx` of it clear of them. */
+  minTextPx: 80,
+  waitPx: 140,
+  /** Room between the newest candle and the box, in candles. */
+  gapBars: 1.5,
+  /** Room inside the box around its words, and between them and the edge column's. */
+  padPx: 6,
+  /** The line height of its words. */
+  lineH: 13,
+  /** A view following the live edge slides to leave at least this much room right of the newest candle. */
+  roomPx: 260,
+  /** Target 2 in view: a dotted dash across the box at its price. */
+  target2Dash: [2, 3],
+} as const;
+
+/** The box in full colour: a setup near or armed (operator ask 2026-10-12, option A of the mockups: "the
+ * same box as before the open, in full colour"). Solid outline; the state word in its own colour. */
+export const STRATEGY_BOX_LIVE = {
+  riskFill: 'rgba(255, 69, 58, 0.16)',
+  rewardFill: 'rgba(48, 209, 88, 0.16)',
+  outline: 'rgba(201, 206, 216, 0.55)',
+  entryLine: SETUP_COLORS.trigger,
+  name: '#d6d9e0',
+  when: '#9aa0ae',
+  entryInk: SETUP_COLORS.trigger,
+  stopInk: SETUP_COLORS.stop,
+  targetInk: SETUP_COLORS.target,
+  target2Ink: 'rgba(48, 209, 88, 0.8)',
+  entryDash: [4, 3],
+  entryWidth: 1.5,
+  /** Behind its words: the entry line and the price's line run under them (the scene labels' backing). */
+  wordBacking: 'rgba(12, 12, 14, 0.78)',
+  state: { near: '#ffd60a', armed: SETUP_COLORS.target },
+} as const;
 
 /** The day's levels (ADR 036 amendment 2026-09-30): gold the half and whole dollars, coral a level over the
  * price, teal one under it, blue yesterday's, violet the daily chart's, purple VWAP. */

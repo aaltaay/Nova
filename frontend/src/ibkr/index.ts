@@ -43,3 +43,7 @@ export type {
   DepthLine, DepthLineHolder, DepthLinesView, DepthLoan, DepthLoanEnded, LoanTapeState,
 } from './depthLines';
 export { depthLentText, tapeLentText } from './lentWords';
+// ADR 047 amendment (2026-10-12): the day's LULD band, step by step, for the 1-minute chart.
+export { fmtBand } from './luld';
+export { readLuldTrail } from './luldTrail';
+export type { LuldStep, LuldTrail } from './luldTrail';

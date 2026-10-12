@@ -20,7 +20,8 @@ incomplete healthy Trader fixture hiding the real results behind layout failures
   with a reason, the card states the sample absence, and its link opens the Bots
   page. It carries no retired master dial, Activate control or allowlist. The
   app bar remains desk chrome and contains no Bot arm controls.
-- A strategy at Off has a disabled legend chip explaining where to turn it on.
+- A strategy at Off has no legend chip; its row in the legend's Setups menu is
+  disabled and explains where to turn it on.
   Assert the lanes actually present in the stock-read fixture; a retired
   no-scanner entry is not a current lane contract.
 - The stock's Buy/Sell switch sends only its sides. Risk per trade belongs to
