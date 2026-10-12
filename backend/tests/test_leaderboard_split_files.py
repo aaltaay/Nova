@@ -45,6 +45,20 @@ def test_load_splits_adds_the_confirmed_ones_and_massive_wins_a_tie(tmp_path):
     assert lb_io.load_splits(None, ref, tmp_path / "absent.json")[0].ticker == "AAA"
 
 
+def test_the_archive_file_fills_the_years_before_the_research_store(tmp_path):
+    """The research store's splits start in June 2021; the archive's file goes back to 2016 (2026-10-12)."""
+    duckdb = pytest.importorskip("duckdb")
+    ref = tmp_path / "reference"
+    ref.mkdir()
+    (ref / "splits.json").write_text(json.dumps([entry("OLD", "2018-03-05", 20, 1), entry("NEW", "2022-01-10", 5, 1)]),
+                                     encoding="utf-8")
+    research = duckdb.connect()
+    research.execute("CREATE TABLE splits (ticker VARCHAR, execution_date DATE, split_from DOUBLE, split_to DOUBLE)")
+    research.execute("INSERT INTO splits VALUES ('NEW', DATE '2022-01-10', 4, 1)")
+    got = {(s.ticker, s.execution_date): (s.split_from, s.split_to) for s in lb_io.load_splits(research, ref, None)}
+    assert got == {("OLD", date(2018, 3, 5)): (20.0, 1.0), ("NEW", date(2022, 1, 10)): (4.0, 1.0)}   # the store wins
+
+
 def test_an_unknown_version_refuses(tmp_path):
     path = confirmed_file(tmp_path / "splits_confirmed.json", [], version=2)
     with pytest.raises(ValueError, match="schema_version"):

@@ -30,13 +30,15 @@ def test_only_a_day_covering_every_minute_on_every_board_counts_as_complete(tmp_
         return [{"session_date": day, "minute_ts": base + 60 * i, "source": "reconstructed", "board": board,
                  "state": "rebuilt", "row_count": 0, "run_id": None} for i in range(minutes)]
 
-    def whole(day: str, minutes: int = 960) -> list[dict]:
-        return coverage(day, minutes) + coverage(day, minutes, "losers") + coverage(day, minutes, "gappers")
+    def whole(day: str, minutes: int = 960, after_hours: int = 240) -> list[dict]:
+        return (coverage(day, minutes) + coverage(day, minutes, "losers") + coverage(day, minutes, "gappers")
+                + coverage(day, after_hours, "afterhours"))                  # After Hours: 16:01-20:00 only
 
     with store.connect(db_path) as db:
         store.write_batch(db, coverage=(
             whole("2026-09-17")
             + whole("2026-09-18", 420)                                       # cut off mid-way
+            + whole("2026-09-14", after_hours=0)                             # rebuilt before After Hours
             + coverage("2026-09-16", 960)                                    # rebuilt before Losers / Gappers
             + coverage("2026-09-15", 960) + coverage("2026-09-15", 960, "losers") + coverage("2026-09-15", 300, "gappers")
         ))

@@ -88,12 +88,76 @@ def test_an_indexed_read_returns_exactly_what_the_file_holds(root, monkeypatch, 
 def test_an_indexed_read_finds_blocks_across_many_seek_points(root, monkeypatch):
     monkeypatch.setattr(massive_index, "SIM_MASSIVE_INDEX_SPACING", 64 * 1024)
     monkeypatch.setattr(massive_index, "SIM_MASSIVE_READ_CHUNK", 16 * 1024)
-    names = sorted(f"T{i:05d}" for i in range(4000))
-    path = _write(root, _lines(names, lambda t: 1 + int(t[1:]) % 37))
+    def name(i):                    # letters only: a mark is taken on a plain (A-Z) ticker
+        return "T" + "".join(chr(65 + i // 26**k % 26) for k in (3, 2, 1, 0))
+
+    names = [name(i) for i in range(4000)]
+    rows = {ticker: 1 + i % 37 for i, ticker in enumerate(names)}
+    path = _write(root, _lines(names, rows.__getitem__))
     saved = _built(path, root)
     assert len(saved.marks) > 100 and saved.marks == sorted(saved.marks)
     assert saved.header == HEADER.split(",") and saved.body == len(HEADER) + 1
-    for ticker in (names[0], names[1], names[1999], names[2000], names[-2], names[-1], "T00000X", "T99999"):
+    for ticker in (names[0], names[1], names[1999], names[2000], names[-2], names[-1], names[0] + "X", "TZZZZ"):
+        assert _read(path, ticker, indexed=True) == _expected(path, ticker), ticker
+
+
+# Real orders (2026-10-12): the trades files of 2016-2025 put a preferred or warrant right after its stock (AA, AApB,
+# AAAP; ASB, ASBpC, ASB.WS, ASBA); the 2026-09-09 quotes file sorts them by byte (FRTY, FRTpC, FRUT). One file holds both.
+ORDERS = ["AA", "AApB", "AAAP", "AAL", "ASB", "ASBpC", "ASB.WS", "ASBA", "FRT", "FRTT", "FRTY", "FRTpC", "FRUT", "Z"]
+# A read asks for an upper-case symbol (DayRead upper-cases it), so a lower-case preferred is never asked for; a
+# dotted one (ASB.WS) is, and it is no more plain than a preferred.
+ORDER_WANTED = [t for t in ORDERS if t == t.upper()] + ["AAA", "ASBB", "ASB.U", "FRTZ", "ZZ"]
+
+
+def _order_file(root):
+    return _write(root, _lines(ORDERS, lambda t: 3 if massive_index.plain(t.encode()) else 40))
+
+
+@pytest.mark.parametrize("chunk", [7, 64, 150, 333, 1 << 20])
+def test_a_preferred_or_warrant_in_either_sort_order_never_hides_a_stock(root, monkeypatch, chunk):
+    """A read that stops at the first ticker sorting after the one it wants missed AAAP behind a stretch ending on
+    AApB (2026-10-12). Streamed and through the index, every block is found whole, with only plain marks."""
+    monkeypatch.setattr(massive_index, "SIM_MASSIVE_READ_CHUNK", chunk)
+    monkeypatch.setattr(massive_files, "SIM_MASSIVE_READ_CHUNK", chunk)
+    path = _order_file(root)
+    for ticker in ORDER_WANTED:
+        assert _read(path, ticker, indexed=False) == _expected(path, ticker), ticker
+    saved = _built(path, root)
+    assert saved.marks and all(massive_index.plain(ticker) for _offset, ticker in saved.marks)
+    for ticker in ORDER_WANTED:
+        assert _read(path, ticker, indexed=True) == _expected(path, ticker), ticker
+
+
+def test_an_index_with_marks_on_preferreds_is_still_read(root, monkeypatch):
+    """An index built before 2026-10-12 took a mark on any line; its preferreds' marks are dropped on load."""
+    monkeypatch.setattr(massive_index, "SIM_MASSIVE_READ_CHUNK", 64)
+    real_plain = massive_index.plain
+    monkeypatch.setattr(massive_index, "plain", lambda ticker: bool(ticker))
+    path = _order_file(root)
+    massive_index.build(path, root)
+    monkeypatch.setattr(massive_index, "plain", real_plain)
+    raw = json.loads(massive_index.path_for(path, root).read_bytes().split(b"\n", 1)[0])["marks"]
+    assert any(not real_plain(ticker.encode()) for _offset, ticker in raw)
+    saved = massive_index.load(path, root)
+    assert saved is not None and all(real_plain(ticker) for _offset, ticker in saved.marks)
+    for ticker in ORDER_WANTED:
+        assert _read(path, ticker, indexed=True) == _expected(path, ticker), ticker
+
+
+def test_a_bulk_build_reading_big_stretches_saves_the_same_index(root, monkeypatch):
+    """``tools/market_data.py index`` reads each file through a buffered file object (one hard drive, several builds
+    at once); the index it saves is the one indexed_gzip's own reads give."""
+    monkeypatch.setattr(massive_index, "SIM_MASSIVE_INDEX_SPACING", 64 * 1024)
+    monkeypatch.setattr(massive_index, "SIM_MASSIVE_READ_CHUNK", 16 * 1024)
+    path = _write(root, _lines(TICKERS, lambda t: 400))
+    plain = _built(path, root)
+    massive_index.path_for(path, root).unlink()
+    assert massive_index.build(path, root, bulk_read=1 << 20) == massive_index.path_for(path, root)
+    bulk = massive_index.load(path, root)
+    assert (bulk.seek_points, bulk.marks, bulk.length, bulk.header, bulk.body) == (
+        plain.seek_points, plain.marks, plain.length, plain.header, plain.body)
+    assert massive_index.is_current(path, root)
+    for ticker in TICKERS:
         assert _read(path, ticker, indexed=True) == _expected(path, ticker), ticker
 
 

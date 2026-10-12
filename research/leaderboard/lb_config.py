@@ -41,6 +41,14 @@ REGULAR_OPEN_J = 9 * 60 + 30 - SESSION_START_MIN_ET   # the 09:30 bar
 # at 09:30 ET, so the rebuilt Gappers take their membership and order from this board.
 GAPPERS_FREEZE_K = REGULAR_OPEN_J
 PRIOR_CLOSE_HOUR_ET = 16               # news counts from the prior session's 16:00 ET close
+# The After Hours board (2026-10-12): the 16:00 bar (j 720) is the first after-hours bar -- the minute
+# files carry no closing cross -- and it has closed by the 16:01 boundary, when the day's official close
+# (the day_aggs file of the session itself) is known. Nothing earlier reads that file.
+REGULAR_CLOSE_J = 16 * 60 - SESSION_START_MIN_ET
+AFTERHOURS_FIRST_K = REGULAR_CLOSE_J + 1
+# IBKR's TOP_AFTER_HOURS_PERC_GAIN scan answers this many rows: the after-hours gainers, by the move
+# since the regular close, before the live list's own filter and order (ranking.AFTERHOURS_RULES).
+AFTERHOURS_SCAN_ROWS = 50
 
 # ── Universe ────────────────────────────────────────────────────────────────
 # Reference ``type``: common stock and ADR common. A ticker missing from the
@@ -88,6 +96,9 @@ WRITE_CHUNK_MINUTES = 60
 # --- Unattended five-year rebuild (build_leaderboard.py --all) ---
 # A complete rebuilt session covers every minute boundary 04:01-20:00 ET.
 EXPECTED_MINUTES = 960
+# ... per board: After Hours covers 16:01-20:00 (240 boundaries).
+REBUILT_BOARD_MINUTES = {"market": EXPECTED_MINUTES, "losers": EXPECTED_MINUTES, "gappers": EXPECTED_MINUTES,
+                         "afterhours": SESSION_MINUTES - REGULAR_CLOSE_J}
 # Sessions per reference / news load: bounds memory over five years.
 CHUNK_DAYS_DEFAULT = 20
 # --avoid-session: never build 03:45-20:05 ET on a weekday -- the live recorder

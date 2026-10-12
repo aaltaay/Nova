@@ -6,9 +6,12 @@
  * stays null -- the tables render it as their dash, never 0. A row's catalyst
  * verdict (as known at the playhead, #498) rides along for the News column.
  */
+import { SESSION_RTH_CLOSE_MIN_ET } from '../constants';
 import { etTime } from '../sim/historicalReplayFormat';
 import type { ScannerRow } from '../types/scanner';
 import {
+  LEADERBOARD_AFTERHOURS_FROM_CLOSE,
+  LEADERBOARD_BOARD_AFTERHOURS,
   LEADERBOARD_BOARD_GAPPERS,
   LEADERBOARD_BOARD_LOSERS,
   LEADERBOARD_BOARD_MARKET,
@@ -87,8 +90,8 @@ function rowsOf(answer: LeaderboardAt, board: string): ScannerRow[] {
 }
 
 /**
- * The five Scanner lists from one answer. A rebuilt day's `market` board is the Gainers list and
- * its `losers` / `gappers` boards the Losers and Gappers lists; it has no After Hours or Large Cap.
+ * The five Scanner lists from one answer. A rebuilt day's `market` board is the Gainers list, its
+ * `losers` / `gappers` / `afterhours` boards those lists (After Hours from 16:01); it has no Large Cap.
  */
 export function replayTables(answer: LeaderboardAt): ScannerReplayTables {
   if (answer.gap || !answer.covered) return EMPTY_REPLAY_TABLES;
@@ -98,6 +101,7 @@ export function replayTables(answer: LeaderboardAt): ScannerReplayTables {
       gainers: rowsOf(answer, LEADERBOARD_BOARD_MARKET),
       losers: rowsOf(answer, LEADERBOARD_BOARD_LOSERS),
       gappers: rowsOf(answer, LEADERBOARD_BOARD_GAPPERS),
+      afterhours: rowsOf(answer, LEADERBOARD_BOARD_AFTERHOURS),
     };
   }
   return {
@@ -189,7 +193,12 @@ export function replayListAbsence(replay: ScannerReplay, list: string): string {
   const key = (list in LIST_BOARD ? list : 'gainers') as ReplayListKey;
   const label = LIST_LABEL[key];
   if (replay.source === 'reconstructed') {
-    if (key === 'afterhours') return LEADERBOARD_NOT_REBUILT_AFTERHOURS;
+    if (key === 'afterhours') {
+      const [hh, mm] = clock.split(':').map(Number);
+      if (hh * 60 + mm <= SESSION_RTH_CLOSE_MIN_ET) return LEADERBOARD_AFTERHOURS_FROM_CLOSE;
+      return LEADERBOARD_BOARD_AFTERHOURS in replay.boardStates
+        ? leaderboardListEmpty(label, clock) : LEADERBOARD_NOT_REBUILT_AFTERHOURS;
+    }
     if (key === 'large_cap') return LEADERBOARD_NOT_REBUILT_LARGE_CAP;
     // A day rebuilt before its Losers and Gappers boards has only the market board.
     if (key !== 'gainers' && !(REBUILT_BOARD[key] in replay.boardStates)) return LEADERBOARD_NOT_REBUILT_OLDER;

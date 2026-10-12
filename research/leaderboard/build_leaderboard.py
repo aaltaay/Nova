@@ -42,6 +42,7 @@ from lb_config import (  # noqa: E402
     AVOID_UNTIL_MIN_ET,
     CHUNK_DAYS_DEFAULT,
     EXPECTED_MINUTES,
+    REBUILT_BOARD_MINUTES,
     DATA_ROOT,
     DAY_SUBDIR,
     MINUTE_SUBDIR,
@@ -119,6 +120,10 @@ def assemble(
         if (f := split_factor(by_ticker[s], p, session_date, prices=False)) != 1.0
     }
     prior_volume, prior_sessions = read_prior_profile(con, [(p, minute[p]) for p in priors], symbols, factors)
+    # The session's own official close, for the After Hours board from 16:01 only (lb_core.day_boards).
+    today_closes = read_day_closes(con, daily[session_date]) if session_date in daily else None
+    close_today = None if today_closes is None else np.array(
+        [today_closes.get(s, np.nan) for s in symbols], dtype=np.float64)
     window = news_window(prev, session_date)
     news = news_for(window)
     first = news_first_seen(news.articles, *window) if news.known and window else {}
@@ -135,6 +140,7 @@ def assemble(
         exchange=[reference.exchange(s) for s in symbols],
         news_first_ts=np.array([first.get(s, np.nan) for s in symbols], dtype=np.float64),
         news_known=news.known,
+        close_today=close_today,
     )
     info = {
         "prev": prev.isoformat() if prev else None,
@@ -144,6 +150,7 @@ def assemble(
         "prev_close_known": int(np.isfinite(prev_close).sum()),
         "splits_in_lookback": sorted({s for s, _ in factors}),
         "news": news.note,
+        "close_today": "on disk" if close_today is not None else "not on disk: no After Hours board",
         "floats": sum(1 for s in symbols if s in floats),
     }
     return inputs, info
@@ -214,10 +221,11 @@ def _dates(args, minute: dict[date, Path]) -> list[date]:
 
 
 def complete_days(database: Path | None) -> set[str]:
-    """Days whose every rebuilt board covers every minute.
+    """Days whose every rebuilt board covers all its minutes (``REBUILT_BOARD_MINUTES``).
 
     A day cut off mid-way is not complete, nor one rebuilt before a board existed
-    (its Losers and Gappers, ADR 023 amendment 2026-10-06): both are rebuilt again.
+    (its Losers and Gappers, ADR 023 amendment 2026-10-06; its After Hours, 2026-10-12):
+    each is rebuilt again.
     """
     with store.connect(database) as db:
         rows = db.execute(
@@ -230,7 +238,8 @@ def complete_days(database: Path | None) -> set[str]:
         minutes.setdefault(day, {})[board] = count
     return {
         day for day, boards in minutes.items()
-        if all(boards.get(name, 0) >= EXPECTED_MINUTES for name in LEADERBOARD_REBUILT_BOARDS)
+        if all(boards.get(name, 0) >= REBUILT_BOARD_MINUTES.get(name, EXPECTED_MINUTES)
+               for name in LEADERBOARD_REBUILT_BOARDS)
     }
 
 

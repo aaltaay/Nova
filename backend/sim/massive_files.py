@@ -107,6 +107,24 @@ class _Zlib:
         self._fh.close()
 
 
+def _past(buf: bytearray, lo: int, end: int, want: bytes) -> bool:
+    """Whether the stretch's lines ``[lo, end)`` have passed ``want``'s block: its last PLAIN ticker sorts after it.
+
+    Only a plain ticker can say so (``massive_index.plain``): a trades file puts ``AApB`` right after ``AA`` and
+    before ``AAAP``, so a stretch ending on ``AApB`` is not past ``AAAP``. Every block, plain or not, lies before
+    each plain ticker that sorts after it, in either order the files use. A stretch with no plain line says nothing.
+    """
+    stop = end
+    while stop > lo:
+        last = buf.rfind(b"\n", lo, stop) + 1 or lo
+        comma = buf.find(b",", last, stop)
+        ticker = bytes(buf[last:comma if comma >= 0 else stop])
+        if massive_index.plain(ticker):
+            return ticker > want
+        stop = last - 1
+    return False
+
+
 def _carry(buf: bytearray, frm: int, filled: int) -> int:
     """Move ``buf[frm:filled]`` (a partial last line) to the front; its length."""
     n = filled - frm
@@ -228,11 +246,9 @@ class DayRead:
                     at = buf.find(b"\n" + key, lo, end)
                     start = at + 1 if at >= 0 else -1
                 if start < 0:
-                    last = buf.rfind(b"\n", lo, end) + 1 or lo
-                    comma = buf.find(b",", last, end)
                     if progress:
                         progress(fraction())
-                    if bytes(buf[last:comma if comma >= 0 else end]) > want:
+                    if _past(buf, lo, end, want):
                         return                              # sorted by ticker: past it, so the file does not hold it
                     held = _carry(buf, end + 1, filled)
                     continue

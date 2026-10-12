@@ -360,8 +360,8 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   start to end and the build writes `<root>/sim/index/<dataset>/YYYY/MM/YYYY-MM-DD.csv.gz.idx` -- one JSON line
   `{schema_version: 1, size, mtime_ns, length, header, body, marks: [[offset, ticker], ...], format:
   "indexed_gzip", packed: "zlib", built}` (the day file's size and modified time, its inflated length, its CSV
-  header, where its rows start, and the map: the offset and ticker of one line in every `SIM_MASSIVE_READ_CHUNK`,
-  16 MB, of text), then indexed_gzip's seek points (one every `SIM_MASSIVE_INDEX_SPACING`, 16 MB of text, each
+  header, where its rows start, and the map: the offset and ticker of the first line with a plain A-Z ticker in
+  every `SIM_MASSIVE_READ_CHUNK`, 16 MB, of text), then indexed_gzip's seek points (one every `SIM_MASSIVE_INDEX_SPACING`, 16 MB of text, each
   with 32 KB of text), zlib packed. A build holds about 4.5 times the spacing in memory however large the file
   (about 80 MB), and one build per file runs at a time across processes (`<index>.lock`, rewritten every 10 s,
   taken over after 120 s untouched). A read with a current index finds its ticker in `marks`, enters the file at
@@ -374,6 +374,19 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   The engine log names the files an import read through an index (`read through an index: trades_v1, quotes_v1`
   or `none`) and each index saved (`Massive index saved for quotes_v1 2026-09-09.csv.gz in N s`). Without
   indexed_gzip installed, nothing is indexed and the log says so once.
+- **Sort order: only plain tickers are compared** (2026-10-12). The files are sorted by ticker, but not all in
+  byte order: the trades files of 2016-2025 put a preferred or a warrant right after its stock (`AA`, `AApB`,
+  `AAAP`; `ASB`, `ASBpC`, `ASB.WS`, `ASBA`), the 2026-09-09 quotes file by byte (`FRTY`, `FRTpC`, `FRUT`); plain
+  A-Z tickers are in byte order in every file checked. So a read that is still looking for its block stops only
+  when the last plain ticker of a stretch sorts after it (before, a stretch ending on `AApB` made `AAAP` look
+  absent), a build takes each mark on the first plain line of its stretch, a read enters the file at the mark
+  before its ticker's leading A-Z run (`AApB` -> `AA`), and a mark on any other ticker in an index built before is
+  dropped on load. Same `schema_version`: an older index stays readable.
+- **A bulk build** (`tools/market_data.py index`, 2026-10-12) builds the missing indexes of every day file,
+  newest day first, several files at a time below normal priority, logging to `<root>/sim/index/index-build.log`;
+  `<root>/sim/index/STOP` stops it after the files in progress. It reads each file through a buffered file object
+  in big stretches (`massive_index.build(bulk_read=...)`) -- indexed_gzip's own reads are under 1 MB, which holds
+  several builds on one hard drive to its ~110 reads a second. The index is the same byte for byte.
 - **The store.** `<root>/sim/replay.sqlite3`, its own `PRAGMA user_version = 1` (unknown versions refuse):
   `jobs (id, payload)`, `prints (job_id, ordinal, ts, ns, price, size, exchange, exchange_id, conditions,
   correction, trf_id, sequence, tape, sets_price)`, `candles (job_id, ts, payload)`, `quotes (job_id, ordinal,
