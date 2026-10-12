@@ -66,6 +66,27 @@ async def force_reconnect() -> dict:
     }
 
 
+def _starting_reply(target: str) -> dict:
+    """IBKR_ENABLED is on but the dialer has not read it yet. Its first pass
+    dials the saved door; touching the Gateway now would race that dial."""
+    if target == _safety.gateway_mode():
+        return {
+            "ok": True,
+            "error": None,
+            "requested_mode": target,
+            "starting": True,
+            "connected": False,
+            "launch_action": "noop",
+            "message": f"IBKR is still starting -- it connects to the {target} Gateway on its own.",
+        }
+    return {
+        "ok": False,
+        "error": f"IBKR is still starting -- switch to {target} again in a few seconds.",
+        "requested_mode": target,
+        "starting": True,
+    }
+
+
 async def request_gateway_mode(mode: str) -> dict:
     """User-initiated Paper↔Live door change (ADR 013). Never unlocks spend.
 
@@ -86,10 +107,12 @@ async def request_gateway_mode(mode: str) -> dict:
     if str(mode).strip().lower() not in ("paper", "live"):
         return {"ok": False, "error": f"invalid mode {mode!r} (must be paper or live)"}
 
-    if not c._enabled:
+    if c.is_starting():
+        return _starting_reply(target)
+    if not c.is_enabled():
         return {
             "ok": False,
-            "error": "IBKR_ENABLED is not set -- cannot connect to any Gateway",
+            "error": "IBKR_ENABLED is not set in .env -- cannot connect to any Gateway",
             "requested_mode": target,
         }
 

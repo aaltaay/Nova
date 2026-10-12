@@ -28,6 +28,17 @@ are empty while disconnected. They name *what Nova is logged into*, next to
 never exposes the login username, so the account id is the identity Nova can
 state truthfully.
 
+`enabled: bool` is `IBKR_ENABLED` as this process has it. In the seconds after
+an API start, before the IBKR dialer's first pass has read it, the `.env` value
+answers -- a client that has not started yet is not a disabled one (operator
+report, 2026-10-11: a Live click 16 s after a restart answered "IBKR_ENABLED is
+not set" on a desk whose `.env` had it on). In that window
+`POST /api/ibkr/gateway-mode` adds `starting: true` and touches no Gateway,
+because the dialer's first pass is about to dial the saved door: asking for that
+door answers `ok: true`, `launch_action: "noop"`; asking for the other door
+answers `ok: false` with "IBKR is still starting -- switch to <door> again in a
+few seconds."
+
 ## Orders refuse a stale view; the market path stays real time (ADR 045, operator report 2026-10-05)
 
 "If it lags, then we cannot place an order." At 08:30:25 ET the operator sold APUS at a 6.58 bid their Level 2

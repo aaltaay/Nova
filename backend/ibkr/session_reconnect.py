@@ -179,6 +179,7 @@ async def _reconnect_once(client_mod: object) -> None:
     _last_iteration_ts = time.monotonic()
     enabled, host, port, mode_label, client_id = client_mod._resolve_config()  # type: ignore[attr-defined]
     client_mod._enabled = enabled  # type: ignore[attr-defined]
+    client_mod._config_loaded = True  # type: ignore[attr-defined]
 
     if not client_mod._enabled:  # type: ignore[attr-defined]
         client_mod._set_session(  # type: ignore[attr-defined]
