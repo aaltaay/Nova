@@ -1,10 +1,16 @@
 /**
  * A strategy's own Off · Eyes · On (ADR 042, ADR 044): one switch, drawn on its card and on its row in the
  * buckets above the cards. Every setup with a scanner may be at any level; a short's On waits on its five-year
- * test (ADR 049) and says so -- the lock and its reason ride on the On button (`data-why`). Owner of the switch
+ * test (ADR 049), and a watch-only setup's (#847, the pullback dip) never comes, and each says so -- the lock and
+ * its reason ride on the On button (`data-why`). Owner of the switch
  * only; the levels and their words are `constantGroups/bot.ts`'s.
  */
-import { BOT_STRATEGY_LEVEL_LABELS as BOT_LEVEL_LABELS, BOT_SETUP_LEVEL_TIPS } from '../constantGroups/bot';
+import {
+  BOT_STRATEGY_LEVEL_LABELS as BOT_LEVEL_LABELS,
+  BOT_SETUP_LEVEL_TIPS,
+  BOT_WATCH_ONLY_LEVEL_TIP,
+  isWatchOnlySetup,
+} from '../constantGroups/bot';
 import { tipProps } from '../ux/hoverTip';
 
 const LEVELS = [0, 1, 2] as const;
@@ -15,11 +21,16 @@ interface Props {
   own: 0 | 1 | 2;
   /** Why every level is locked now (saving, an older API); null when it is not. */
   why: string | null;
-  /** Why On is locked (a short whose test has not passed); null when it is not. */
+  /** Why On is locked (a short whose test has not passed, a watch-only setup); null when it is not. */
   onLock: string | null;
   onLevel: (id: string, level: number) => void;
   /** The test id's prefix: the card's switch and the bucket row's are two controls. */
   testPrefix?: string;
+}
+
+/** What a level means for this strategy: a watch-only one's (#847) Eyes draws and never alerts. */
+function levelTip(id: string, n: 0 | 1 | 2): string {
+  return n === 1 && isWatchOnlySetup(id) ? BOT_WATCH_ONLY_LEVEL_TIP : BOT_SETUP_LEVEL_TIPS[n];
 }
 
 export function BotLevelSwitch({ id, label, own, why, onLock, onLevel, testPrefix = 'bots-setup-level' }: Props) {
@@ -38,7 +49,7 @@ export function BotLevelSwitch({ id, label, own, why, onLock, onLevel, testPrefi
             data-testid={`${testPrefix}-${id}-${n}`}
             disabled={lock != null}
             data-why={lock ?? undefined}
-            {...(lock ? {} : tipProps(BOT_SETUP_LEVEL_TIPS[n], `${BOT_LEVEL_LABELS[n]} · ${label}`))}
+            {...(lock ? {} : tipProps(levelTip(id, n), `${BOT_LEVEL_LABELS[n]} · ${label}`))}
             onClick={() => { if (own !== n) onLevel(id, n); }}
           >
             {n === 2 && onLock ? '🔒 ' : ''}{BOT_LEVEL_LABELS[n]}

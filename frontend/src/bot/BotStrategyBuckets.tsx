@@ -13,6 +13,7 @@ import {
 } from '../constantGroups/bots_page';
 import { SETUP_SIDE_TAG, SETUP_SIDE_TAG_TIPS } from '../constantGroups/short_setups';
 import { tipProps } from '../ux/hoverTip';
+import { onLockOf } from './botLevels';
 import { BotLevelSwitch } from './BotLevelSwitch';
 import { bucketsOf, statusOf, type BucketRow } from './strategyBuckets';
 import './botStrategyBuckets.css';
@@ -36,7 +37,7 @@ function Line({ row, why, onLevel }: { row: BucketRow; why: string | null; onLev
       <span className={`bots-bucket__status bots-bucket__status--${status.tone}`} data-testid={`bots-bucket-status-${row.id}`}
         {...tipProps(status.tip, status.text)}>{status.text}</span>
       <BotLevelSwitch id={row.id} label={row.label} own={row.own} why={why}
-        onLock={row.side === 'short' ? row.locked : null} onLevel={onLevel} testPrefix="bots-bucket-level" />
+        onLock={onLockOf(row.id, row.side, row.locked)} onLevel={onLevel} testPrefix="bots-bucket-level" />
     </div>
   );
 }

@@ -18,8 +18,11 @@ export type BotSetupInfo = {
   side?: 'long' | 'short';
   /** A short setup's five-year test; null on a long one. */
   test?: ShortTest | null;
-  /** Why On is locked (a short whose five-year test has not passed on the rules in play); null when it is not. */
+  /** Why On is locked (a short whose five-year test has not passed on the rules in play, a watch-only setup);
+   *  null when it is not. */
   locked?: string | null;
+  /** #847: the eyes watch, score and draw it; Nova never trades it (present only on such a setup). */
+  watch_only?: boolean;
 };
 
 /** One venue's loss breakers (ADR 032): negative dollars, the bot trip above the all-stop. */

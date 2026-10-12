@@ -37,6 +37,9 @@ BOT_SETUP_FLAT_TOP = "flat_top_breakout"
 BOT_SETUP_FLAT_TOP_5M = "flat_top_5m"
 BOT_SETUP_RED_TO_GREEN = "red_to_green"
 BOT_SETUP_MICRO_PULLBACK = "micro_pullback"
+# #847 (operator ask 2026-10-12): the pullback bought at its bottom -- the candle that bottoms it, a bottoming wick
+# or the first candle to close green: the material's pullback-bottom entries. WATCH ONLY (below).
+BOT_SETUP_PULLBACK_DIP = "pullback_dip"
 # ADR 049 (#778 step 4): the five short setups, the long ones mirrored, plus the SSR bounce. A short setup sells
 # at its entry and covers under it. Since step 5 the strategy that triggers decides the side: one bot, one list.
 BOT_SETUP_BACKSIDE = "backside_lower_high"
@@ -62,6 +65,7 @@ BOT_SETUPS = (
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
+    BOT_SETUP_PULLBACK_DIP,
     *BOT_SHORT_SETUPS,
     BOT_SETUP_MICRO_PULLBACK,
 )
@@ -73,9 +77,15 @@ BOT_SCANNER_SETUPS = (
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
+    BOT_SETUP_PULLBACK_DIP,
     *BOT_SHORT_SETUPS,
 )
 BOT_SETUPS_WITH_SCANNER = frozenset(BOT_SCANNER_SETUPS)
+# Watch only (#847): a scanner, templates, rows, scores and drawings -- never a proposal, a trigger to Nova's bot or
+# Auto-entry, an Approve, or On. ``setup_scanner.trade_verdict`` reads NOT A TRADE on it everywhere it is asked.
+BOT_WATCH_ONLY_SETUPS = frozenset({BOT_SETUP_PULLBACK_DIP})
+BOT_WATCH_ONLY_TEXT = ("watch only: Nova's eyes draw and score the {name}, and Nova never trades it -- no proposal, "
+                       "no bot, no Auto-entry, no Approve (#847)")
 SIDE_LONG = "long"
 SIDE_SHORT = "short"
 
@@ -83,6 +93,16 @@ SIDE_SHORT = "short"
 def setup_side(setup: str | None) -> str:
     """``short`` for a short setup (ADR 049), else ``long``: the side a setup's trigger enters."""
     return SIDE_SHORT if setup in BOT_SHORT_SETUP_SET else SIDE_LONG
+
+
+def watch_only(setup: str | None) -> bool:
+    """A setup the eyes watch, score and draw, and Nova never trades (#847)."""
+    return setup in BOT_WATCH_ONLY_SETUPS
+
+
+def watch_only_text(setup: str | None) -> str:
+    """Why a watch-only setup is not a trade, in the operator's words."""
+    return BOT_WATCH_ONLY_TEXT.format(name=str(setup or "setup").replace("_", " "))
 # The setup a schema 4 session called "chosen" when it named none (the v5 migration).
 BOT_SETUP_DEFAULT = BOT_SETUP_FIRST_PULLBACK
 # The material's trading window: entries (buy_* kinds) at Strategy only, the venue's
@@ -223,6 +243,8 @@ BOT_REASON_DAY_TRADE_CAP = "BOT_DAY_TRADE_CAP"
 BOT_REASON_SETUP_NO_SCANNER = "BOT_SETUP_NO_SCANNER"
 # ADR 031 / 042: a level per setup with a scanner, 0 (Off) to 2 (Strategy), under the master.
 BOT_REASON_SETUP_LEVEL = "BOT_SETUP_LEVEL"
+# #847: a watch-only setup's On is refused (409) with the reason.
+BOT_REASON_SETUP_WATCH_ONLY = "BOT_SETUP_WATCH_ONLY"
 # ADR 042: there is no chosen setup any more (``PATCH {setup}``).
 BOT_REASON_SETUP_RETIRED = "BOT_SETUP_RETIRED"
 BOT_SETUP_RETIRED_TEXT = "There is no chosen setup any more: set each setup's own level (ADR 042)"

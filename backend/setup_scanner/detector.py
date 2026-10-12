@@ -95,6 +95,8 @@ class TriggerDetector:
     SECOND_KIND: ClassVar[str | None] = None
     SIDE: ClassVar[str] = SIDE_LONG
     TRIGGER_UP: ClassVar[bool] = True     # a price over the trigger triggers; a breakdown short reads it down (ADR 049)
+    # The tape feed keeps this setup's prints while it waits in ``pullback`` (its entry a candle's close, #847).
+    TAPE_WHILE_FORMING: ClassVar[bool] = False
 
     def __post_init__(self) -> None:
         self.series = Series(ema_period=self.p.ema_period, macd_fast=self.p.macd_fast,

@@ -148,3 +148,16 @@ design is the agent's, under the operator's standing grant.
 - The parameter type moved to `setup_templates/spec.py` so the tables and the menu share it without importing each
   other.
 - The eyes' journal stays schema 1 and adds one line, `target_scores`, when every target choice of a trigger closed.
+
+## Amendment 2026-10-12 -- the pullback dip's template (#847)
+
+- The watch-only pullback dip (ADR 022 amendment) has a template like every setup with a scanner
+  (`setup_templates/params_dip.py`, built-in revision 1): the first pullback's own run and pullback parameters (the
+  pullback counted through its entry candle, 2-4 candles), the entry (`dip_entry`: `wick` or `green`;
+  `dip_wick_min_pct` 50, `dip_wick_min_dollars` 0.02, `dip_close_min_pct` 60, `dip_min_red_bars` 1, `entry_offset`
+  0.01), the stop (`stop_cap`, `min_stop`, `dip_stop_offset` 0.01) and the menu with `target1_kind`
+  `pullback_high`. It has no bot group, no near band and no slippage in the risk: nothing buys it, nothing
+  triggers on a live price, and the entry's cent over the close stands for the slippage. Every template is
+  watched at once, so a `wick` and a `green` template score side by side.
+- Its lane's journal lines are every lane's (`setup_type: "pullback_dip"`, `playing` true for its template in play),
+  so the journal, the Sim eyes, a backtest and the past setups carry it with no new line.

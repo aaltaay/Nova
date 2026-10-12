@@ -45,15 +45,14 @@ from setup_templates.params import (
     TemplateError,
     minutes,
 )
+from setup_templates.params_dip import DIP_CATALOGUE, DIP_SOURCES
 from setup_templates.params_short import SHORT_CATALOGUE, SHORT_GROUP_LABELS, SHORT_SOURCES
 
-# Every setup's table: the long ones (``params.py``), then the short ones (``params_short.py``, ADR 049) --
-# in the playbook's order (``constants_bot.BOT_SETUPS``).
-CATALOGUE: dict[str, tuple[ParamSpec, ...]] = {
-    sid: (LONG_CATALOGUE.get(sid) if sid in LONG_CATALOGUE else SHORT_CATALOGUE[sid])
-    for sid in BOT_SETUPS if sid in LONG_CATALOGUE or sid in SHORT_CATALOGUE
-}
-SOURCES: dict[str, str] = {**LONG_SOURCES, **SHORT_SOURCES}
+# Every setup's table: the long ones (``params.py``), the pullback dip's (``params_dip.py``, #847), then the short
+# ones (``params_short.py``, ADR 049) -- in the playbook's order (``constants_bot.BOT_SETUPS``).
+_TABLES: dict[str, tuple[ParamSpec, ...]] = {**LONG_CATALOGUE, **DIP_CATALOGUE, **SHORT_CATALOGUE}
+CATALOGUE: dict[str, tuple[ParamSpec, ...]] = {sid: _TABLES[sid] for sid in BOT_SETUPS if sid in _TABLES}
+SOURCES: dict[str, str] = {**LONG_SOURCES, **DIP_SOURCES, **SHORT_SOURCES}
 GROUP_LABELS: dict[str, tuple[str, str]] = {**LONG_GROUP_LABELS, **SHORT_GROUP_LABELS}
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")

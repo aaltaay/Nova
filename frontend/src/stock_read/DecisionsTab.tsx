@@ -16,6 +16,7 @@ const LANES: { id: string; label: string }[] = [
   { id: 'flat_top_5m', label: '5m flat top' },
   { id: 'red_to_green', label: 'Red to green' },
   { id: 'gap_and_go', label: 'Gap and Go' },
+  { id: 'pullback_dip', label: 'Pullback dip (watch only)' },
   { id: 'backside_lower_high', label: '▼ Backside lower high' },
   { id: 'bear_flag', label: '▼ Bear flag' },
   { id: 'failed_breakout', label: '▼ Failed breakout' },

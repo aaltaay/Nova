@@ -93,7 +93,8 @@ def _grade(sym: str, desk: Desk, lanes: list[dict[str, Any]] | None) -> dict[str
     whys = []
     for lane in armed:
         name = strategy_rules.name(lane.get("setup_type"))
-        reasons = list(verdict(grade=lane.get("grade"), liquidity=lane.get("liquidity"))["reasons"])
+        reasons = list(verdict(grade=lane.get("grade"), liquidity=lane.get("liquidity"),
+                               setup_type=lane.get("setup_type"))["reasons"])
         if lane.get("state") == "filtered":
             reasons.append("the template's stock filter keeps it out")
         grades = desk.rules.get(lane["setup_type"], {}).get("grades", BOT_GRADES_A)   # unread: the strictest

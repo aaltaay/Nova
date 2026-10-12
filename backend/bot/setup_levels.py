@@ -15,6 +15,9 @@ ADR 049: a short setup is On (Strategy) only once its five-year test passed on t
 (``setup_scanner.short_tests``): ``apply`` refuses On before that (409 ``BOT_SHORT_TEST``), and a short at On
 whose test stops matching -- its template edited, the result replaced -- reads as Eyes.
 
+#847: a watch-only setup (the pullback dip) is never On: ``apply`` refuses it (409 ``BOT_SETUP_WATCH_ONLY``) and
+an On read from an older file reads as Eyes. Its Eyes draws it; it never proposes (``setup_scanner.lane_announce``).
+
 Owner: this module (the rules; the session file is ``bot.persist``'s).
 """
 from __future__ import annotations
@@ -28,11 +31,14 @@ from constants_bot import (
     BOT_LEVEL_OFF,
     BOT_LEVEL_STRATEGY,
     BOT_REASON_SETUP_LEVEL,
+    BOT_REASON_SETUP_WATCH_ONLY,
     BOT_REASON_SHORT_TEST,
     BOT_SCANNER_SETUPS,
     BOT_SETUPS_WITH_SCANNER,
     SIDE_SHORT,
     setup_side,
+    watch_only,
+    watch_only_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,13 +80,20 @@ def short_lock(setup: str) -> str | None:
         return f"On waits on the {name(setup)} five-year test, which could not be read ({exc})"
 
 
+def on_lock(setup: str) -> str | None:
+    """Why a setup may not be On, else None: watch only (#847), or a short whose test has not passed (ADR 049)."""
+    if watch_only(setup):
+        return f"On is locked: {watch_only_text(setup)}"
+    return short_lock(setup)
+
+
 def effective(row: dict[str, Any]) -> dict[str, int]:
     """``{SETUP: min(master, own)}``: what each setup does on this venue now. A short setup at On whose test no
-    longer passes on the rules in play reads as Eyes (ADR 049)."""
+    longer passes on the rules in play reads as Eyes (ADR 049), and a watch-only setup never reads On (#847)."""
     top = master(row)
     out = {sid: min(top, lvl) for sid, lvl in own_levels(row).items()}
     for sid, lvl in out.items():
-        if lvl >= BOT_LEVEL_STRATEGY and short_lock(sid):
+        if lvl >= BOT_LEVEL_STRATEGY and on_lock(sid):
             out[sid] = BOT_LEVEL_EYES
     return out
 
@@ -121,6 +134,8 @@ def apply(row: dict[str, Any], patch: Any) -> dict[str, tuple[int, int]]:
         if level is None:
             raise BotError(f"the level of {name(sid)} is 0 (Off), 1 (Eyes) or 2 (Strategy)", 400,
                            BOT_REASON_SETUP_LEVEL)
+        if level >= BOT_LEVEL_STRATEGY and watch_only(sid):
+            raise BotError(str(on_lock(sid)), 409, BOT_REASON_SETUP_WATCH_ONLY)
         if level >= BOT_LEVEL_STRATEGY and before.get(sid, BOT_LEVEL_OFF) < BOT_LEVEL_STRATEGY:
             locked = short_lock(sid)
             if locked:

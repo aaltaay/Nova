@@ -19,6 +19,7 @@ from constants_bot import (
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_LOST_VWAP,
+    BOT_SETUP_PULLBACK_DIP,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_SSR_BOUNCE,
 )
@@ -203,6 +204,26 @@ SETUPS_GNG_STOP_CENTS = 0.20            # stop min(this, the percent below) unde
 SETUPS_GNG_STOP_PCT = 0.04              # GParams.stop_pct
 SETUPS_GNG_MACD_POSITIVE = False        # the research has no MACD rule
 
+# -- Pullback dip (#847, operator ask 2026-10-12): the pullback bought at its bottom. The operator's material lists
+# three entries for a pullback -- the first candle to make a new high (the first pullback buys that break), the first
+# candle to close green, and the bottoming wick ("buying the dip") -- and pairs a dip entry with the high of the
+# pullback as the first target. One setup with an entry choice. The run and the pullback are the first pullback's
+# rules and numbers (leg, new high, high of day, gives back less than, EMA, MACD). WATCH ONLY: the eyes watch, score
+# and draw it, Nova never trades it (``constants_bot.BOT_WATCH_ONLY_SETUPS``). What the material leaves open is CHOSEN.
+SETUPS_DIP_ENTRY_WICK = "wick"          # a bottoming wick: a long lower wick, the close high in the candle
+SETUPS_DIP_ENTRY_GREEN = "green"        # the first pullback candle to close green, after a red one
+SETUPS_DIP_ENTRIES = (SETUPS_DIP_ENTRY_WICK, SETUPS_DIP_ENTRY_GREEN)
+SETUPS_DIP_ENTRY = SETUPS_DIP_ENTRY_WICK   # the material's "buying the dip"
+# The pullback is counted from the first candle after the leg high through the candle that bottoms it (the entry
+# candle): the first pullback's 1-3 pullback candles, then that one.
+SETUPS_DIP_MIN_PULLBACK_BARS = 2
+SETUPS_DIP_MAX_PULLBACK_BARS = 4
+SETUPS_DIP_WICK_MIN = 0.5               # a bottoming wick: the lower wick at least half the candle's range. CHOSEN
+SETUPS_DIP_CLOSE_MIN = 0.6              # ... the close in the top 40% of the range: the dip was bought. CHOSEN
+SETUPS_DIP_WICK_MIN_DOLLARS = 0.02      # ... and at least 2 cents of lower wick: a 1-cent tail is the spread. CHOSEN
+SETUPS_DIP_MIN_RED_BARS = 1             # the green entry comes after at least this many red pullback candles
+SETUPS_DIP_STOP_OFFSET_DOLLARS = 0.01   # the stop sits this far under the pullback's low. CHOSEN
+
 # -- "Near": price this close to the trigger is the moment to read the tape. CHOSEN.
 SETUPS_NEAR_DOLLARS = 0.03
 SETUPS_NEAR_PCT = 0.003
@@ -314,6 +335,8 @@ SETUP_KIND_FLAT_TOP_5M = "flat_top_5m"
 SETUP_KIND_SECOND_FLAT_TOP_5M = "second_flat_top_5m"
 SETUP_KIND_RED_TO_GREEN = "red_to_green"
 SETUP_KIND_GAP_AND_GO = "gap_and_go"
+SETUP_KIND_PULLBACK_DIP = "pullback_dip"
+SETUP_KIND_SECOND_PULLBACK_DIP = "second_pullback_dip"
 # The read-out counts each setup's first-of-the-day kind (ADR 027, ADR 031).
 SETUPS_READOUT_KINDS = {
     BOT_SETUP_FIRST_PULLBACK: SETUP_KIND_FIRST_PULLBACK,
@@ -322,6 +345,7 @@ SETUPS_READOUT_KINDS = {
     BOT_SETUP_FLAT_TOP_5M: SETUP_KIND_FLAT_TOP_5M,
     BOT_SETUP_RED_TO_GREEN: SETUP_KIND_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO: SETUP_KIND_GAP_AND_GO,
+    BOT_SETUP_PULLBACK_DIP: SETUP_KIND_PULLBACK_DIP,
     BOT_SETUP_BACKSIDE: SETUP_KIND_BACKSIDE,
     BOT_SETUP_BEAR_FLAG: SETUP_KIND_BEAR_FLAG,
     BOT_SETUP_FAILED_BREAKOUT: SETUP_KIND_FAILED_BREAKOUT,
@@ -372,6 +396,7 @@ SETUP_TEMPLATE_DEFAULT_NAME = "Default (pre-registered)"
 SETUP_TEMPLATE_DEFAULT_REV = 2
 SETUP_TEMPLATE_DEFAULT_REVS: dict[str, int] = {
     BOT_SETUP_FLAT_TOP: 3,      # 2: the flat top counts its touches (ADR 031 amendment 2026-10-06); 3: #845
+    BOT_SETUP_PULLBACK_DIP: 1,  # #847: a new setup, on the menu's targets from its first rows
 }
 
 

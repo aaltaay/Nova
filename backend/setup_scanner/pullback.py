@@ -135,31 +135,12 @@ class PullbackDetector(TriggerDetector):
             return []
         if self.nth >= self.p.max_per_symbol_day:
             return []                     # the day's setups on this symbol are used (or were, before a restart)
-        h, lows, c = self.series.h, self.series.lo, self.series.c
-        e9, hist = self.series.e, self.series.hist
+        h, lows = self.series.h, self.series.lo
+        hist = self.series.hist
         last = n - 1
         prev = self.armed if self.state in (SETUP_STATE_ARMED, SETUP_STATE_NEAR) else None
 
-        cand, first_fail = None, None
-        for m in range(self.p.min_pullback_bars, self.p.max_pullback_bars + 1):
-            H = last - m
-            leg = self._qualify_leg(bars, h, lows, H)
-            if leg is None:
-                continue
-            pb = range(H + 1, last + 1)
-            pb_low = min(lows[i] for i in pb)
-            why = None
-            if max(h[i] for i in pb) > leg["high"]:
-                why = "made a new high without a fresh 5% leg"
-            elif (leg["high"] - pb_low) / max(leg["high"] - leg["low"], 1e-9) >= self.p.max_retrace:
-                why = "gave back half the leg"
-            elif any(c[i] < e9[i] * (1 - self.p.ema_tol) for i in pb):
-                why = "a pullback candle closed under the 9 EMA"
-            if why:
-                first_fail = first_fail or (leg, why)
-                continue
-            cand = (m, leg, pb_low)
-            break
+        cand, first_fail = self.find_pullback(bars, last, self.p.min_pullback_bars, self.p.max_pullback_bars)
 
         if self.state == SETUP_STATE_TRIGGERED:
             fresh = self._qualify_leg(bars, h, lows, last)
@@ -235,6 +216,34 @@ class PullbackDetector(TriggerDetector):
         return events + self.arm_events(prev)
 
     # -- helpers ------------------------------------------------------------
+    def find_pullback(self, bars: list[Bar], last: int, lo: int, hi: int) -> tuple[tuple | None, tuple | None]:
+        """``(cand, first_fail)``: the first ``m`` in ``lo``..``hi`` whose candle ``m`` back is a leg with a clean
+        pullback after it -- ``(m, leg, pullback low)`` -- and the first leg whose pullback broke a rule,
+        ``(leg, why)``. The pullback is the candles after the leg high through ``last``: no new high, less than
+        ``max_retrace`` of the leg given back, every close on the EMA (the pullback dip reads the same, #847)."""
+        h, lows, c, e9 = self.series.h, self.series.lo, self.series.c, self.series.e
+        cand, first_fail = None, None
+        for m in range(lo, hi + 1):
+            H = last - m
+            leg = self._qualify_leg(bars, h, lows, H)
+            if leg is None:
+                continue
+            pb = range(H + 1, last + 1)
+            pb_low = min(lows[i] for i in pb)
+            why = None
+            if max(h[i] for i in pb) > leg["high"]:
+                why = "made a new high without a fresh 5% leg"
+            elif (leg["high"] - pb_low) / max(leg["high"] - leg["low"], 1e-9) >= self.p.max_retrace:
+                why = "gave back half the leg"
+            elif any(c[i] < e9[i] * (1 - self.p.ema_tol) for i in pb):
+                why = "a pullback candle closed under the 9 EMA"
+            if why:
+                first_fail = first_fail or (leg, why)
+                continue
+            cand = (m, leg, pb_low)
+            break
+        return cand, first_fail
+
     def _qualify_leg(self, bars: list[Bar], h: list[float], lows: list[float], H: int) -> dict | None:
         p = self.p
         if H < p.leg_lookback:

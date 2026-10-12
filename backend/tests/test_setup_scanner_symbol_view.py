@@ -98,8 +98,8 @@ def test_symbol_view_answers_every_lane_for_a_followed_symbol(tmp_path):
     assert view["followed"] is True and view["followed_note"] is None and view["symbol"] == SYM
     lanes = {s["setup_type"]: s for s in view["setups"]}
     assert list(lanes) == ["first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green",
-                           "gap_and_go", "backside_lower_high", "bear_flag", "failed_breakout", "lost_vwap",
-                           "ssr_bounce"]   # ADR 049: the short setups' lanes too
+                           "gap_and_go", "pullback_dip", "backside_lower_high", "bear_flag", "failed_breakout",
+                           "lost_vwap", "ssr_bounce"]   # ADR 049: the short setups' lanes too; #847: the dip
     assert {s for s, lane in lanes.items() if lane["side"] == "short"} == {
         "backside_lower_high", "bear_flag", "failed_breakout", "lost_vwap", "ssr_bounce"}
     assert lanes["flat_top_5m"]["timeframe"] == "5m" and lanes["flat_top_5m"]["rules"]["hold_bar_sec"] == 60
@@ -141,6 +141,6 @@ def test_the_symbol_route(tmp_path, monkeypatch):
     assert body["schema_version"] == 1 and body["followed"] is True
     assert {s["setup_type"] for s in body["setups"]} == {"first_pullback", "bull_flag", "flat_top_breakout",
                                                           "flat_top_5m", "red_to_green", "gap_and_go",
-                                                          "backside_lower_high", "bear_flag", "failed_breakout",
-                                                          "lost_vwap", "ssr_bounce"}   # ADR 049
+                                                          "pullback_dip", "backside_lower_high", "bear_flag",
+                                                          "failed_breakout", "lost_vwap", "ssr_bounce"}   # ADR 049
     assert et_ts(9, 0) > 0

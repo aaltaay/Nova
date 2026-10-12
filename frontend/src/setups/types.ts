@@ -5,7 +5,8 @@ import type { TargetFields } from './targets';
 
 /** A setup with a scanner (ADR 031): every row, proposal and card names one. */
 export type SetupType =
-  'first_pullback' | 'bull_flag' | 'flat_top_breakout' | 'flat_top_5m' | 'red_to_green' | 'gap_and_go' | string;
+  'first_pullback' | 'bull_flag' | 'flat_top_breakout' | 'flat_top_5m' | 'red_to_green' | 'gap_and_go'
+  | 'pullback_dip' | string;
 
 /** ADR 049: which way a setup trades. A short setup sells at its entry and covers under it. */
 export type SetupSide = 'long' | 'short';
@@ -87,6 +88,16 @@ export interface SetupDetail {
   level_kind?: string;
   drop_low?: number;
   cancel_at?: number;
+  /** Pullback dip (#847, watch only): its entry candle (`entry_mode` "wick" | "green"), the candle's shape, the
+   *  pullback's low and the high it came off. */
+  entry_bar_t?: number;
+  range?: number;
+  lower_wick?: number;
+  wick_pct?: number;
+  close_pct?: number;
+  pullback_low?: number;
+  pullback_high?: number;
+  stop_offset?: number;
 }
 
 /** The tape flow score riding on a tape read (ADR 034): -1 sellers .. +1 buyers. */
@@ -247,6 +258,8 @@ export interface SetupSummary {
   side?: SetupSide;
   /** A short setup's five-year test; null on a long one (absent on an older API). */
   test?: ShortTest | null;
+  /** #847: the eyes watch, score and draw it; it never proposes and Nova never trades it (absent on an older API). */
+  watch_only?: boolean;
 }
 
 /** Why a recorded moment has no board (backend `eyes/playback.py`). */

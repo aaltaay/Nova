@@ -23,7 +23,11 @@ import {
   BOT_STALE_BACKEND_STATUS,
   BOT_STALE_BACKEND_TEMPLATE,
   BOT_STALE_BACKEND_WHY,
+  BOT_WATCH_ONLY_CHIP,
+  BOT_WATCH_ONLY_LEVEL_TIP,
+  BOT_WATCH_ONLY_TAG,
   botSetupCapped,
+  isWatchOnlySetup,
 } from '../constantGroups/bot';
 import {
   BOTS_BUSY_WHY,
@@ -58,7 +62,7 @@ import {
 import { SETUP_SIDE_TAG, SETUP_SIDE_TAG_TIPS, SHORT_SETUP_TEST_HELD_CHIP } from '../constantGroups/short_setups';
 import { funnelSteps, windowWords, type SetupRow, type ShortTest, type SetupSummary } from '../setups';
 import { tipProps } from '../ux/hoverTip';
-import { clampLevel } from './botLevels';
+import { clampLevel, onLockOf } from './botLevels';
 import { BotLevelSwitch } from './BotLevelSwitch';
 import { BotReadoutLine, BotResearchLine } from './BotReadout';
 import { BotTargetChoices } from './BotTargetChoices';
@@ -130,7 +134,7 @@ function levelWhy(p: Pick<Props, 'busy' | 'levelsKnown' | 'stale'>): string | nu
   return p.levelsKnown ? null : BOTS_SETUP_NO_LEVELS_WHY;
 }
 
-function StatusLine({ effective, own, masterName, botActive, summary, connected, seeding, short, locked }: {
+function StatusLine({ effective, own, masterName, botActive, summary, connected, seeding, short, locked, watch }: {
   effective: 0 | 1 | 2;
   own: 0 | 1 | 2;
   masterName: string;
@@ -140,8 +144,10 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
   seeding: number;
   short: boolean;
   locked: string | null;
+  /** Watch only (#847): its Eyes draws and scores, never proposes. */
+  watch: boolean;
 }) {
-  const silent = effective >= 1 && summary != null && !summary.proposing;
+  const silent = !watch && effective >= 1 && summary != null && !summary.proposing;
   const unrecorded = connected && summary?.recorded === false;
   const win = unrecorded ? '' : windowWords(summary);
   // ADR 044: On while the Bot is off alerts like Eyes until the Bot is on; only a legacy master below Eyes caps.
@@ -154,8 +160,9 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
     : unrecorded
       ? [BOTS_STATUS_NOT_RECORDED, BOTS_STATUS_NOT_RECORDED_TIP]
       : [BOTS_STATUS_WATCHING(summary?.counts.watching ?? 0), SETUP_STATUS_TIPS.watching];
+  const watchEyes = watch && own >= 1;
   const chipTip = [
-    held ? locked : waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
+    held ? locked : watchEyes ? BOT_WATCH_ONLY_LEVEL_TIP : waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
     capped ? BOT_SETUP_CAPPED_TIP : '',
     silent ? 'This desk is a replay: nothing proposes live from it.' : '',
   ].filter(Boolean).join('\n');
@@ -167,7 +174,7 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
       {connected && seeding > 0 ? <span {...tipProps(SETUP_STATUS_TIPS.seeding)}>{` · ${BOTS_STATUS_SEEDING(seeding)}`}</span> : null}
       <span className={`bots-lvlchip bots-lvlchip--${effective}`} data-testid="bots-setup-level-chip"
         {...tipProps(chipTip, BOT_LEVEL_LABELS[own])}>
-        {held ? SHORT_SETUP_TEST_HELD_CHIP
+        {held ? SHORT_SETUP_TEST_HELD_CHIP : watchEyes ? BOT_WATCH_ONLY_CHIP
           : capped ? botSetupCapped(BOT_LEVEL_LABELS[own], masterName) : waiting ? BOT_SETUP_LEVEL_CHIP_WAITING
             : BOT_SETUP_LEVEL_CHIPS[own]}
       </span>
@@ -225,6 +232,7 @@ export function BotSetupCard(props: Props) {
     onOpenBoard, onOpenSymbol, emptyText, children, side = 'long', test = null, locked = null,
   } = props;
   const short = side === 'short';
+  const watch = isWatchOnlySetup(id);
   const label = BOT_SETUP_LABELS[id] ?? id;
   const blurb = BOT_SETUP_BLURBS[id] ?? '';
   if (!playable && !stale) {
@@ -255,13 +263,17 @@ export function BotSetupCard(props: Props) {
         <b className="bots-strat__name" {...tipProps(stale ? `${blurb}\n\n${BOT_STALE_BACKEND_STATUS}.` : blurb, label)}>{label}</b>
         <span className={`bots-sidetag bots-sidetag--${side}`} data-testid={`bots-setup-side-${id}`}
           {...tipProps(SETUP_SIDE_TAG_TIPS[side], SETUP_SIDE_TAG[side])}>{SETUP_SIDE_TAG[side]}</span>
-        <BotLevelSwitch id={id} label={label} own={ownLevel} why={levelWhy(props)} onLock={short ? locked : null}
+        {watch ? (
+          <span className="bots-sidetag bots-sidetag--watch" data-testid={`bots-setup-watch-only-${id}`}
+            {...tipProps(BOT_WATCH_ONLY_LEVEL_TIP, BOT_WATCH_ONLY_TAG)}>{BOT_WATCH_ONLY_TAG}</span>
+        ) : null}
+        <BotLevelSwitch id={id} label={label} own={ownLevel} why={levelWhy(props)} onLock={onLockOf(id, side, locked)}
           onLevel={onLevel} />
       </div>
 
       {stale ? <StaleStatus /> : (
         <StatusLine effective={shown} own={ownLevel} masterName={masterName} botActive={botActive}
-          summary={summary} connected={connected} seeding={seeding} short={short} locked={locked} />
+          summary={summary} connected={connected} seeding={seeding} short={short} locked={locked} watch={watch} />
       )}
 
       <div className="bots-strat__tpl">
@@ -291,7 +303,8 @@ export function BotSetupCard(props: Props) {
         </button>
       </div>
 
-      {stale ? null : <BotStrategyRules setup={id} templates={templates} onApply={t => onApplyTemplates?.(t)} />}
+      {/* A watch-only strategy (#847) has no bot rules: nothing ever buys it. */}
+      {stale || watch ? null : <BotStrategyRules setup={id} templates={templates} onApply={t => onApplyTemplates?.(t)} />}
 
       {stale ? null : (
         <>
