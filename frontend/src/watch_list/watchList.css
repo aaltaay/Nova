@@ -346,3 +346,56 @@ body:has(.recording-stopped) .watch-toasts {
   cursor: pointer;
 }
 .watch-list__saved button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* The toast panel (ADR 044 amendment, 2026-10-12): the window toasts come in, and today's toasts scored. */
+.watch-list__toasts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 24px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.watch-list__toast-label { font-weight: 600; color: var(--text-primary); }
+.watch-list__toast-window {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+/* The label, then the table, then what was held back. */
+.watch-list__toast-scores {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.watch-list__toast-window input {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+.watch-list__toast-window input[aria-invalid='true'] { border-color: var(--danger, #ef4444); }
+.watch-list__toast-window button {
+  font: inherit;
+  font-size: 12px;
+  padding: 1px 8px;
+  border: 1px solid var(--nova-border, #2a2f3a);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.watch-list__toast-table { border-collapse: collapse; }
+.watch-list__toast-table th,
+.watch-list__toast-table td { padding: 1px 8px; text-align: left; white-space: nowrap; }
+.watch-list__toast-table th { color: var(--text-secondary); font-weight: 500; }
+.watch-list__toast-table .num { text-align: right; font-variant-numeric: tabular-nums; }

@@ -23,7 +23,10 @@ export interface HotEntry {
 export interface HotListView {
   schema_version: number;
   date: string;
+  /** The stars' cap: auto stars never count against it (ADR 044 amendment, 2026-10-12). */
   cap: number;
+  /** The auto stars' own daily cap; null from an API before it had one. */
+  auto_cap: number | null;
   /** `rule` is the leaders rule in words; `error` why the auto feed could not read the board. */
   auto: { n: number; start: string; end: string; rule: string | null; error: string | null };
   entries: HotEntry[];

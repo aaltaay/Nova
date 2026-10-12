@@ -452,46 +452,71 @@ ignored) is only read now: the Hot list tab offers once to star what fits, or to
 forget it, and then removes the key. The sample desk keeps its own list in memory
 and sends nothing.
 
-A live `/ws/hod-momo` `alert` frame for a watched symbol -- any strategy,
-Running Up (12) included (operator ask, same day); never the `initial`
-snapshot, a reconnect's replay or the Sim playhead's history -- raises a toast
-in the main desk window: "XYZ hit HOD Momo" once a HOD Momo strategy fired,
-"XYZ is running up" while only Running Up has, with the alert's time (ET),
-strategy, price, change, volume and RVOL, each left out when unknown. One toast
-per symbol: a burst folds into it (count and strategies); it leaves
-`WATCH_TOAST_TTL_MS` (20 s) after its newest alert unless hovered. Open goes to
-the symbol, Take off the hot list removes it, × dismisses. It places nothing. HOD
-Momo's tradeable floor still applies: a listed symbol the master gate refuses
-raises no alert, so no toast.
+**Which toasts come** (operator, 2026-10-12: "i get alot of stupid toast notifications ... the way we have it
+codded is no good"; ADR 044 amendment of that day). A toast is something to act on in the next minute, about
+a stock the operator chose. Every candidate event for a listed name passes one gate (owner
+`watch_list/toastGate.ts`, pure), which raises a toast, folds it into the toast already on screen, or holds it
+back with its reason:
 
-**A setup forming on a watched symbol** (operator ask, 2026-09-24: "shouldn't
-these toast notifications be watching if a strategy is forming?"). The same
-toast follows the setup scanner's live board (`/ws/setups`, ADR 022 / 031;
-owner `watch_list/setupClimbs.ts`, pure). A watched symbol's setup raises it
-when it climbs its ladder: forming (`leg` or `pullback`), `armed`, `near`,
-`triggered` -- each at most once per setup (its `setup.leg_t`: a near that
-drops back to armed and returns is one toast), forming at most once per
-`WATCH_SETUP_FORMING_REPEAT_MS` (5 min) per symbol and setup. `failed`,
-`filtered` and `watching` never raise one. A triggered setup, or an armed or
-near one a newer leg replaced, ends its ladder, so the next one forming is
-news again. Only a climb between two live frames counts: the first frame after
-a page load, a reconnect or a return from Sim is read silently (nothing old is
-announced as new), the Sim eyes' board (`source: "sim"`) never toasts, and a
-symbol's ladder before it was watched is already known, so watching a symbol
-mid-setup announces only what comes next. It fires at every bot level: the
-watch list is the operator's own ask, not a proposal. Still one toast per
-symbol: HOD Momo alerts and setup lines fold together (one line per setup,
-newest first), and the title names the newest event -- "PFSA: bull flag
-armed", "PFSA: first pullback near the trigger" (the open for red to green,
-the high for a flat-top), "PFSA: bull flag triggered". A setup line reads the
-scanner's own words (state chip and reason, the tape verdict when near; the
-full explanation on hover) and follows the board while the toast is up -- a
-setup that fails or drops off the board says so -- without restarting the
-toast's timer. The setup scanner follows the HOD Momo names only, so the Watch
-list tab adds a **Setup** column: the symbol's most advanced setup on the
-board, "Nothing forming" for a symbol the scanner follows with no row, and
-"Not followed" for one outside `universe_symbols` (an API without the field
-says it cannot tell).
+- **Stars toast; auto stars toast once.** A star (★, `how: "star"`) toasts on its HOD Momo alerts and its
+  setups. An auto star (☆) toasts only when it joins the list -- "GIXI joined the top 3 Gainers", its rank
+  and change on the board -- once a trading day, and only when it joined within
+  `WATCH_TOAST_JOIN_FRESH_MS` (2 min), so a page load never announces an old join. The join toast's
+  **★ Star it** makes it a star (`POST /api/hot-list/star`), so it toasts like one from then on.
+- **Running Up never toasts.** A live `/ws/hod-momo` `alert` frame for a star -- never the `initial`
+  snapshot, a reconnect's replay or the Sim playhead's history -- raises "XYZ hit HOD Momo" for any
+  strategy except Running Up (12), with the alert's time (ET), strategy, price, change, volume and RVOL,
+  each left out when unknown. Running Up stays on the HOD Momo feed and the Hot list tab.
+- **Setups from armed up, with their numbers.** A star's setup toasts when it arms, comes near its trigger
+  or triggers (forming is the Hot list tab's Setup column, never a toast), and the toast carries the
+  setup's trigger and stop (`setup.trigger`, `setup.stop`) beside the last price.
+- **A trading window.** No toast outside it: `localStorage` `nova.watch.toastWindow` =
+  `{schema_version: 1, start: "HH:MM", end: "HH:MM"}` in ET, set on the Hot list tab, 07:00-16:00 by default
+  (`WATCH_TOAST_WINDOW_DEFAULT`; owner `watch_list/toastWindow.ts`). An unknown version or a malformed
+  window reads as the default with a console warning; the tab refuses an end at or before the start.
+- **One quiet period per stock.** After a toast, the stock's HOD Momo alerts stay quiet for
+  `WATCH_TOAST_QUIET_MS` (15 min): one that comes while its toast is still on screen folds into it (strategy
+  and count) without restarting its timer; otherwise it is held back. A setup moving up a stage always
+  comes through and starts the quiet period again. The gate's memory is the trading day's (04:00 ET).
+
+One toast per symbol, as before: HOD Momo alerts and setup lines fold together (one line per setup, newest
+first), the title names the newest event, and a toast leaves `WATCH_TOAST_TTL_MS` (20 s) after its newest
+raised event unless hovered. Open goes to the symbol, Take off the hot list removes it, × dismisses. It places
+nothing. HOD Momo's tradeable floor still applies: a listed symbol the master gate refuses raises no alert,
+so no toast.
+
+**Nova scores its own toasts** (owner `watch_list/toastScores.ts`). Every raised toast is kept for the trading
+day with its kind (`join` | `hod` | `armed` | `near` | `triggered`), time and the price it showed (null when
+it showed none). Once its five minutes have passed, the main desk window reads the symbol's live 1-minute
+bars (`GET /api/ticker/{symbol}/bars?timeframe=1Min`): the reference is the toast's price, else the close of
+the last minute before it; the outcome is the close of the fifth minute after the toast's own. A replay
+answer (`coverage.replay`, a Sim desk) or a failed read is tried again later; after
+`WATCH_TOAST_SCORE_GIVE_UP_MS` (30 min) the toast reads "no bars", never a guess. Held-back events are
+counted by reason (`running_up`, `auto_star`, `forming`, `quiet`, `outside_window`). The day's record is
+`localStorage` `nova.watch.toastScores` = `{schema_version: 1, day: "YYYY-MM-DD", toasts: [{id, symbol,
+kind, at, price, score: null | {ref, after, move} | {none}}], held: {reason: count}}` (`at` epoch ms, `move`
+a fraction), at most `WATCH_TOAST_SCORES_MAX` toasts, replaced at the next trading day; an unknown version
+is dropped with a console warning. The Hot list tab shows it per kind: toasts, scored, higher five minutes
+later, the median move, and what was held back.
+
+**A setup's ladder** (operator ask, 2026-09-24: "shouldn't these toast notifications be watching if a
+strategy is forming?"; owner `watch_list/setupClimbs.ts`, pure). The toasts follow the setup scanner's live
+board (`/ws/setups`, ADR 022 / 031). A setup climbs its ladder: forming (`leg` or `pullback`), `armed`,
+`near`, `triggered` -- each at most once per setup (its `setup.leg_t`: a near that drops back to armed and
+returns is one climb), forming at most once per `WATCH_SETUP_FORMING_REPEAT_MS` (5 min) per symbol and
+setup. `failed`, `filtered` and `watching` are off the ladder. A triggered setup, or an armed or near one a
+newer leg replaced, ends its ladder, so the next one is news again. Only a climb between two live frames
+counts: the first frame after a page load, a reconnect or a return from Sim is read silently (nothing old is
+announced as new), the Sim eyes' board (`source: "sim"`) never toasts, and a symbol's ladder before it was
+watched is already known. It fires at every bot level: the watch list is the operator's own ask, not a
+proposal. The title names the climb -- "PFSA: bull flag armed", "PFSA: first pullback near the trigger" (the
+open for red to green, the high for a flat-top), "PFSA: bull flag triggered". A setup line reads the
+scanner's own words (state chip and reason, the tape verdict when near; the full explanation on hover) and
+follows the board while the toast is up -- a setup that fails or drops off the board says so -- without
+restarting the toast's timer. The setup scanner follows the HOD Momo names only, so the Hot list tab has a
+**Setup** column: the symbol's most advanced setup on the board, "Nothing forming" for a symbol the scanner
+follows with no row, and "Not followed" for one outside `universe_symbols` (an API without the field says it
+cannot tell).
 
 The ranked Five Pillars list (tab id `watchlist`, `GET /api/strategy/watchlist`)
 is labelled **Contenders** in the UI, and the scanner's pillars column

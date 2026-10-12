@@ -1,37 +1,46 @@
 /**
- * The watch list's toasts (operator asks, 2026-09-23 and 2026-09-24): "XYZ hit
- * HOD Momo", "XYZ is running up", and a watched symbol's setup climbing its
- * ladder -- "XYZ: bull flag armed". Mounted once with the app bar (the main
- * desk window, like the setup alert card, so two windows never announce the
- * same event twice). A toast leaves on its own after WATCH_TOAST_TTL_MS from
- * its newest event; hovering or focusing it holds it. Nothing here places or
+ * The hot list's toasts (operator asks, 2026-09-23 and 2026-09-24; which ones come, 2026-10-12): "XYZ hit HOD
+ * Momo", a star's setup arming, coming near or triggering -- "XYZ: bull flag armed", with its trigger and stop --
+ * and "XYZ joined the top 3 Gainers" when an auto star comes on. The gate (toastGate.ts) decides which events
+ * raise one. Mounted once with the app bar (the main desk window, like the setup alert card, so two windows never
+ * announce the same event twice); that window also scores the toasts (toastScores.ts). A toast leaves on its own
+ * after WATCH_TOAST_TTL_MS from its newest raised event; hovering or focusing it holds it. Nothing here places or
  * stages an order.
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { SETUP_KIND_LABELS, SETUP_TRIGGER_LEVEL_WORDS, TAPE_VERDICT_LABELS } from '../constants';
 import { fmtStripClock, subscribeHodMomoLiveAlerts } from '../hod_momo';
+import { getHotListState } from '../hot_list';
 import { setupLabel, setupShort, stateWords, useSetupsBoard, type SetupsBoard } from '../setups';
 import { fmtPct, fmtPrice, fmtRvol, fmtVolume } from '../utils/quoteFormat';
 import { tipProps } from '../ux/hoverTip';
 import { setupClimbs, type SetupClimbMemory } from './setupClimbs';
+import { scorePendingToasts } from './toastScores';
 import { WatchEyeIcon } from './WatchEyeIcon';
 import {
   WATCH_SETUP_UNLISTED,
   WATCH_SETUP_UNLISTED_DETAIL,
   WATCH_TOAST_DISMISS,
   WATCH_TOAST_REGION,
+  WATCH_TOAST_SCORE_POLL_MS,
+  WATCH_TOAST_STAR,
   WATCH_TOAST_TTL_MS,
   WATCH_TOAST_UNWATCH,
+  watchJoinRank,
+  watchJoinTitle,
   watchSetupLast,
+  watchSetupNumbers,
   watchSetupTitle,
   watchToastCount,
   watchToastOpen,
+  watchToastStarTitle,
   watchToastTitle,
 } from './watchListConstants';
-import { removeFromWatchList } from './watchListStore';
+import { removeFromWatchList, starOnWatchList, subscribeWatchList, useWatchHow } from './watchListStore';
 import {
   dismissWatchToast,
   getWatchToasts,
+  noteHotListJoins,
   noteWatchedHodAlert,
   noteWatchedSetupClimb,
   refreshWatchSetupLines,
@@ -41,16 +50,9 @@ import {
 } from './watchToasts';
 import './watchList.css';
 
-/**
- * Price · change · volume · RVOL of the newest alert; with no alert, the setup's
- * last price. An unknown fact is left out, never invented.
- */
-export function watchToastFacts(toast: WatchToast): string {
+function alertFacts(toast: WatchToast): string[] {
   const { alert } = toast;
-  if (!alert) {
-    const last = toast.setups[0]?.row.last_price;
-    return last != null && Number.isFinite(last) ? watchSetupLast(fmtPrice(last)) : '';
-  }
+  if (!alert) return [];
   const facts: string[] = [];
   if (alert.price != null && Number.isFinite(alert.price)) facts.push(fmtPrice(alert.price));
   // Alerts carry percent points; fmtPct takes a fraction.
@@ -58,13 +60,46 @@ export function watchToastFacts(toast: WatchToast): string {
   if (alert.volume != null && Number.isFinite(alert.volume)) facts.push(`Vol ${fmtVolume(alert.volume)}`);
   const rvol = fmtRvol(alert.rvol);
   if (rvol) facts.push(`RVOL ${rvol}`);
-  return facts.join(' · ');
+  return facts;
 }
 
-/** The title: the toast's newest event, a HOD Momo alert or a setup's climb. */
+/** The setup's trigger and stop, then its last price, as the board lists it now. */
+function setupFacts(line: WatchSetupLine): string[] {
+  const facts: string[] = [];
+  const levels = line.row.setup;
+  if (levels && Number.isFinite(levels.trigger) && Number.isFinite(levels.stop)) {
+    facts.push(watchSetupNumbers(fmtPrice(levels.trigger), fmtPrice(levels.stop)));
+  }
+  const last = line.row.last_price;
+  if (last != null && Number.isFinite(last)) facts.push(watchSetupLast(fmtPrice(last)));
+  return facts;
+}
+
+/**
+ * The facts of the toast's newest event: a HOD Momo alert's price · change · volume · RVOL, a setup's trigger,
+ * stop and last price, or a join's rank and change. An unknown fact is left out, never invented.
+ */
+export function watchToastFacts(toast: WatchToast): string {
+  const { head } = toast;
+  if (head.kind === 'setup') {
+    const line = toast.setups.find(l => l.setupType === head.setupType) ?? toast.setups[0];
+    return (line ? setupFacts(line) : []).join(' · ');
+  }
+  if (head.kind === 'join' && toast.join) {
+    const { rank, changePct } = toast.join;
+    const facts: string[] = [];
+    if (rank != null) facts.push(watchJoinRank(rank));
+    if (changePct != null && Number.isFinite(changePct)) facts.push(fmtPct(changePct));
+    return facts.join(' · ');
+  }
+  return alertFacts(toast).join(' · ');
+}
+
+/** The title: the toast's newest event -- a HOD Momo alert, a setup's climb, or an auto star joining. */
 export function watchToastHeadline(toast: WatchToast): string {
   const { head, symbol } = toast;
-  if (head.kind === 'hod') return watchToastTitle(symbol, toast.hod);
+  if (head.kind === 'hod') return watchToastTitle(symbol);
+  if (head.kind === 'join') return watchJoinTitle(symbol, toast.join?.n ?? null);
   const name = SETUP_KIND_LABELS[head.setupKind ?? ''] ?? setupLabel(head.setupType);
   return watchSetupTitle(symbol, name.toLowerCase(), head.stage, SETUP_TRIGGER_LEVEL_WORDS[head.setupType] ?? 'trigger');
 }
@@ -72,6 +107,7 @@ export function watchToastHeadline(toast: WatchToast): string {
 /** HH:MM:SS ET of the newest event: the desk's one clock. */
 function headClock(toast: WatchToast): string {
   if (toast.head.kind === 'setup') return fmtStripClock({ timestamp: '', created_ts: toast.head.at });
+  if (toast.head.kind === 'join') return toast.join ? fmtStripClock({ timestamp: '', created_ts: toast.join.at }) : '';
   return toast.alert ? fmtStripClock(toast.alert) : '';
 }
 
@@ -105,6 +141,7 @@ function SetupLine({ line }: { line: WatchSetupLine }) {
 function WatchToastCard({ toast, onOpenSymbol }: { toast: WatchToast; onOpenSymbol?: (symbol: string) => void }) {
   const [held, setHeld] = useState(false);
   const { symbol } = toast;
+  const how = useWatchHow(symbol);
 
   useEffect(() => {
     if (held) return undefined;
@@ -130,6 +167,7 @@ function WatchToastCard({ toast, onOpenSymbol }: { toast: WatchToast; onOpenSymb
       aria-live="polite"
       data-testid="watch-toast"
       data-symbol={symbol}
+      data-head={toast.head.kind}
       onMouseEnter={() => setHeld(true)}
       onMouseLeave={() => setHeld(false)}
       onFocus={() => setHeld(true)}
@@ -156,6 +194,20 @@ function WatchToastCard({ toast, onOpenSymbol }: { toast: WatchToast; onOpenSymb
               }}
             >
               {watchToastOpen(symbol)}
+            </button>
+          ) : null}
+          {how === 'auto' ? (
+            <button
+              type="button"
+              className="watch-toast__action"
+              data-testid="watch-toast-star"
+              {...tipProps(watchToastStarTitle(symbol))}
+              onClick={() => {
+                starOnWatchList(symbol);
+                dismissWatchToast(symbol);
+              }}
+            >
+              {WATCH_TOAST_STAR}
             </button>
           ) : null}
           <button
@@ -186,7 +238,7 @@ function WatchToastCard({ toast, onOpenSymbol }: { toast: WatchToast; onOpenSymb
 }
 
 /**
- * The setup scanner's live frames into the toasts: a watched symbol's climb, and
+ * The setup scanner's live frames into the toasts: a listed symbol's climb, and
  * the setup lines on screen. A dropped socket or the Sim eyes' board forgets the
  * ladder; the next live frame is then read silently, so nothing old is announced.
  */
@@ -212,12 +264,33 @@ function useWatchedSetupClimbs(): void {
   }, [board, connected]);
 }
 
+/** Each read of the hot list (polled while the desk shows it): an auto star that just joined toasts once. */
+function useHotListJoins(): void {
+  useEffect(() => {
+    const look = () => { noteHotListJoins(getHotListState().view); };
+    look();
+    return subscribeWatchList(look);
+  }, []);
+}
+
+/** The toasts' scores: every WATCH_TOAST_SCORE_POLL_MS, any toast whose five minutes have passed is scored. */
+function useToastScoring(): void {
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      scorePendingToasts().catch(err => console.warn('[nova] toast scores: a pass failed', err));
+    }, WATCH_TOAST_SCORE_POLL_MS);
+    return () => window.clearInterval(id);
+  }, []);
+}
+
 export function WatchListToasts({ onOpenSymbol }: { onOpenSymbol?: (symbol: string) => void }) {
   const toasts = useSyncExternalStore(subscribeWatchToasts, getWatchToasts, getWatchToasts);
   useEffect(() => subscribeHodMomoLiveAlerts(alert => {
     noteWatchedHodAlert(alert);
   }), []);
   useWatchedSetupClimbs();
+  useHotListJoins();
+  useToastScoring();
 
   if (toasts.length === 0) return null;
   return (

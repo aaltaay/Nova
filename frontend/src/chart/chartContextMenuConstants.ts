@@ -10,7 +10,7 @@ export const CHART_CONTEXT_MENU_CLOSE_POSITION = 'Close Position';
 export const CHART_CONTEXT_MENU_DRAWINGS = 'Drawings';
 export const CHART_CONTEXT_MENU_SHOW_LAYERS = 'Show Layers';
 export const CHART_CONTEXT_MENU_CREATE_ALERT = 'Create Alert';
-/** The operator's watch list (watch_list/): a toast whenever the symbol hits HOD Momo or a setup forms on it. */
+/** The operator's watch list (watch_list/): a toast when the symbol hits HOD Momo or a setup on it arms. */
 export const CHART_CONTEXT_MENU_WATCH_ADD = 'Add to watch list';
 export const CHART_CONTEXT_MENU_WATCH_REMOVE = 'Remove from watch list';
 export const CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD = 'Let the bot trade this stock (bot buys and sells)';

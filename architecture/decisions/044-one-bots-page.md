@@ -66,3 +66,25 @@ Decision 1 changes: **ON unlocks the padlock.** Pressing ON is the operator's ex
 
 Rejected: a bot-only arm (a second door that could drift from the padlock's rule); turning OFF also locking the padlock (it would lock the operator's hand trading too).
 
+
+## Amendment, 2026-10-12: toasts are for your stars, and only stars fill the list
+
+**Decided by:** the operator, 2026-10-12: "i get alot of stupid toast notifications for stock that are supposd to be running up but so uselss, like i like the fact its showing me stuff, but the way we have it codded is no good"; then "1 go" on six changes: toast your stars and not the leaders, setups with their numbers, Running Up out of the toasts, a trading window, one quiet period per stock, and Nova scoring its own toasts.
+
+Over three sessions the list held 15 to 20 names, every one an auto star, and the operator starred none. Running Up (up 5% in 5 minutes, no new high needed) raised almost every toast, many times a session on the same few names, and after the close as well. Once the auto feed filled the list, the operator's own star was refused as full.
+
+Decision 4 changes:
+
+- **The cap is the operator's.** `HOT_LIST_CAP` (20) counts stars only. Auto stars have their own daily cap, `HOT_LIST_AUTO_CAP` (20), so the leaders rule can never refuse a star. Bring-back counts stars only too.
+- **Stars are watched first.** HOD Momo's reserved block takes the bot's stocks, then stars, then auto stars, each in list order (`hot_list.listed_symbols`). An auto star past the block still competes for a mover's slot on its own move, as before.
+- **Starring an auto ☆ makes it your ★.** `POST /api/hot-list/star` on an auto star turns it into a star (counted against the cap, audited as a star with `was: "auto"`) instead of answering "listed already".
+
+The toasts (`architecture/schema/desk-ops.md`, "Which toasts come"):
+
+- A star toasts on a HOD Momo strategy (never Running Up) and on its setups once they arm, come near the trigger and trigger, with the trigger and the stop on the toast. A setup forming no longer toasts.
+- An auto star toasts once, when it joins the list, and stays quiet after that.
+- No toast outside the trading window, a Hot list tab setting (07:00-16:00 ET by default).
+- After a toast, the stock's HOD Momo alerts stay quiet for 15 minutes. A setup moving up a stage always comes through.
+- Each toast is scored: what the price did five minutes later, by 1-minute bars, shown on the Hot list tab with what was held back and why.
+
+Rejected: removing auto stars (they keep the leaders followed, and their join toast is still news); a time-only quiet period with no way through (a setup's next stage is the thing worth knowing); scoring with the toast's own later alerts (they are not a price series).

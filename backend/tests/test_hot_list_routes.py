@@ -78,6 +78,7 @@ def test_the_view_answers_the_contract(key):
     finally:
         engine.universe = saved
     assert body["schema_version"] == 1 and body["date"] == store.trading_day() and body["cap"] == HOT_LIST_CAP
+    assert body["auto_cap"] == 20
     assert set(body["auto"]) == {"n", "start", "end", "rule", "error"} and body["auto"]["n"] == 5
     assert body["auto"]["start"] == "07:00" and body["auto"]["end"] == "16:00"
     assert "default" not in body and body["yesterday"] == [] and body["error"] is None

@@ -270,8 +270,13 @@ def day_reset_block(now: float | None = None) -> str | None:
 
 
 def listed_symbols(now: float | None = None) -> list[str]:
+    """Today's names, stars first, then auto stars, each in list order: the order HOD Momo's reserved block
+    admits them, so the leaders rule never takes a star's slot (ADR 044, 2026-10-12)."""
     doc, _error = current(now)
-    return [str(e.get("symbol") or "").upper() for e in doc.get("entries") or [] if e.get("symbol")]
+    entries = [e for e in doc.get("entries") or [] if e.get("symbol")]
+    ordered = [e for e in entries if e.get("how") == HOT_LIST_HOW_STAR]
+    ordered += [e for e in entries if e.get("how") != HOT_LIST_HOW_STAR]
+    return [str(e["symbol"]).upper() for e in ordered]
 
 
 def is_listed(symbol: str, now: float | None = None) -> bool:

@@ -5,12 +5,15 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishHodMomoLiveAlert } from '../hod_momo/hodMomoLiveAlerts';
 import type { AlertObject } from '../hod_momo/types';
+import { fakeHotList } from '../hot_list/hotListFake';
 import type { SetupRow, SetupsBoard } from '../setups';
 import { FIXTURE_LEG_B, setupBoard, setupRow } from './setupFixtures';
+import { resetToastScoresForTests } from './toastScores';
+import { resetToastWindowForTests } from './toastWindow';
 import { WATCH_SETUP_UNLISTED, WATCH_TOAST_TTL_MS } from './watchListConstants';
 import { WatchListToasts } from './WatchListToasts';
-import { addToWatchList, getWatchList, resetWatchListForTests } from './watchListStore';
-import { resetWatchToastsForTests } from './watchToasts';
+import { getWatchList, resetWatchListForTests, watchHow } from './watchListStore';
+import { noteHotListJoins, resetWatchToastsForTests } from './watchToasts';
 
 // The desk's one /ws/setups board, as the provider would hand it over.
 const setups = vi.hoisted(() => ({ value: null as { board: SetupsBoard | null; connected: boolean } | null }));
@@ -21,11 +24,14 @@ vi.mock('../setups', async importOriginal => ({
   useSetupsBoard: () => setups.value,
 }));
 
+/** 2026-09-23 10:14:05 ET: inside the default 07:00-16:00 toast window. */
+const IN_HOURS = Date.UTC(2026, 8, 23, 14, 14, 5);
+
 function hodAlert(ticker: string, strategy_id = 1, strategy_name = 'New High of Day'): AlertObject {
   return {
     id: `${ticker}-${strategy_id}-${strategy_name}`,
     timestamp: '2026-09-23T14:14:05Z',
-    created_ts: Date.UTC(2026, 8, 23, 14, 14, 5) / 1000,
+    created_ts: IN_HOURS / 1000,
     ticker,
     strategy_id,
     strategy_name,
@@ -51,24 +57,26 @@ function frame(rows: SetupRow[], patch: Partial<SetupsBoard> = {}, connected = t
 
 const titles = () => screen.queryAllByTestId('watch-toast-title').map(t => t.textContent);
 
+function reset(): void {
+  cleanup();
+  vi.useRealTimers();
+  localStorage.clear();
+  resetWatchListForTests();
+  resetWatchToastsForTests();
+  resetToastScoresForTests();
+  resetToastWindowForTests();
+  setups.value = null;
+}
+
 describe('WatchListToasts', () => {
   beforeEach(() => {
-    localStorage.clear();
-    resetWatchListForTests();
-    resetWatchToastsForTests();
-    setups.value = null;
+    reset();
+    vi.useFakeTimers({ now: IN_HOURS, toFake: ['Date'] });
   });
-  afterEach(() => {
-    cleanup();
-    vi.useRealTimers();
-    localStorage.clear();
-    resetWatchListForTests();
-    resetWatchToastsForTests();
-    setups.value = null;
-  });
+  afterEach(reset);
 
-  it('toasts a watched symbol that hits HOD Momo, with its facts, and nothing for the rest', () => {
-    addToWatchList('GRML');
+  it('toasts a star that hits HOD Momo, with its facts, and nothing for the rest', () => {
+    fakeHotList.set(['GRML']);
     render(<WatchListToasts onOpenSymbol={vi.fn()} />);
     act(() => publishHodMomoLiveAlert(hodAlert('ONCO')));
     expect(screen.queryByTestId('watch-toast')).toBeNull();
@@ -80,20 +88,11 @@ describe('WatchListToasts', () => {
     expect(screen.getByTestId('watch-toast-facts').textContent).toBe('$4.52 · +38.20% · Vol 2.1M · RVOL 5.2x');
   });
 
-  it('toasts Running Up as "is running up" until a HOD Momo strategy joins it', () => {
-    addToWatchList('GRML');
+  it('never toasts Running Up, and a stock it toasted folds the next alert in', () => {
+    fakeHotList.set(['GRML']);
     render(<WatchListToasts />);
     act(() => publishHodMomoLiveAlert(hodAlert('GRML', 12, 'Running Up Alert')));
-    expect(screen.getByTestId('watch-toast').textContent).toContain('GRML is running up');
-    act(() => publishHodMomoLiveAlert(hodAlert('GRML', 1, 'New High of Day')));
-    expect(screen.getAllByTestId('watch-toast')).toHaveLength(1);
-    expect(screen.getByTestId('watch-toast').textContent).toContain('GRML hit HOD Momo');
-    expect(screen.getByTestId('watch-toast-body').textContent).toBe('New High of Day · Running Up Alert · 2 alerts');
-  });
-
-  it('folds a burst into one toast with a count', () => {
-    addToWatchList('GRML');
-    render(<WatchListToasts />);
+    expect(screen.queryByTestId('watch-toast')).toBeNull();
     act(() => {
       publishHodMomoLiveAlert(hodAlert('GRML', 1, 'New High of Day'));
       publishHodMomoLiveAlert(hodAlert('GRML', 3, 'Squeeze'));
@@ -102,12 +101,19 @@ describe('WatchListToasts', () => {
     expect(screen.getByTestId('watch-toast-body').textContent).toBe('Squeeze · New High of Day · 2 alerts');
   });
 
-  it('Open goes to the symbol, Stop watching takes it off the list, and × dismisses', () => {
-    addToWatchList('GRML');
-    addToWatchList('ONCO');
+  it('an auto star does not toast on HOD Momo', () => {
+    fakeHotList.set([{ symbol: 'AUTO', how: 'auto' }]);
+    render(<WatchListToasts />);
+    act(() => publishHodMomoLiveAlert(hodAlert('AUTO')));
+    expect(screen.queryByTestId('watch-toast')).toBeNull();
+  });
+
+  it('Open goes to the symbol, Take off the hot list removes it, and × dismisses', () => {
+    fakeHotList.set(['GRML', 'ONCO']);
     const onOpen = vi.fn();
     render(<WatchListToasts onOpenSymbol={onOpen} />);
     act(() => publishHodMomoLiveAlert(hodAlert('GRML')));
+    expect(screen.queryByTestId('watch-toast-star')).toBeNull();          // a star already
     fireEvent.click(screen.getByTestId('watch-toast-open'));
     expect(onOpen).toHaveBeenCalledWith('GRML');
     expect(screen.queryByTestId('watch-toast')).toBeNull();
@@ -116,15 +122,11 @@ describe('WatchListToasts', () => {
     fireEvent.click(screen.getByTestId('watch-toast-unwatch'));
     expect(getWatchList()).toEqual(['GRML']);
     expect(screen.queryByTestId('watch-toast')).toBeNull();
-
-    act(() => publishHodMomoLiveAlert(hodAlert('GRML', 2, 'Squeeze')));
-    fireEvent.click(screen.getByTestId('watch-toast-dismiss'));
-    expect(screen.queryByTestId('watch-toast')).toBeNull();
   });
 
   it('leaves on its own after the TTL, but not while hovered', () => {
-    vi.useFakeTimers();
-    addToWatchList('GRML');
+    vi.useFakeTimers({ now: IN_HOURS });
+    fakeHotList.set(['GRML']);
     render(<WatchListToasts />);
     act(() => publishHodMomoLiveAlert(hodAlert('GRML')));
     fireEvent.mouseEnter(screen.getByTestId('watch-toast'));
@@ -134,26 +136,36 @@ describe('WatchListToasts', () => {
     act(() => { vi.advanceTimersByTime(WATCH_TOAST_TTL_MS + 1); });
     expect(screen.queryByTestId('watch-toast')).toBeNull();
   });
+
+  it('toasts an auto star once, when it joins, and ★ Star it makes it yours', () => {
+    fakeHotList.set([{ symbol: 'GIXI', how: 'auto' }]);
+    render(<WatchListToasts />);
+    act(() => {
+      noteHotListJoins({
+        schema_version: 1, date: '2026-09-23', cap: 20, auto_cap: 20,
+        auto: { n: 3, start: '07:00', end: '16:00', rule: null, error: null },
+        entries: [{ symbol: 'GIXI', how: 'auto', at: IN_HOURS / 1000 - 30, board: 'gainers', rank: 1, change_pct: 0.725,
+          followed: true, why_not_followed: null }],
+        yesterday: [], error: null,
+      });
+    });
+    expect(titles()).toEqual(['GIXI joined the top 3 Gainers']);
+    expect(screen.getByTestId('watch-toast-facts').textContent).toBe('#1 on the board · +72.50%');
+    fireEvent.click(screen.getByTestId('watch-toast-star'));
+    expect(watchHow('GIXI')).toBe('star');
+    expect(screen.queryByTestId('watch-toast')).toBeNull();
+  });
 });
 
 describe('WatchListToasts on the setup scanner', () => {
   beforeEach(() => {
-    localStorage.clear();
-    resetWatchListForTests();
-    resetWatchToastsForTests();
-    setups.value = null;
+    reset();
+    vi.useFakeTimers({ now: IN_HOURS, toFake: ['Date'] });
   });
-  afterEach(() => {
-    cleanup();
-    vi.useRealTimers();
-    localStorage.clear();
-    resetWatchListForTests();
-    resetWatchToastsForTests();
-    setups.value = null;
-  });
+  afterEach(reset);
 
-  it("toasts a watched symbol's setup as it climbs -- never what the first frame already showed", () => {
-    addToWatchList('GRML');
+  it("toasts a star's setup from armed up with its trigger and stop -- never forming, never the first frame", () => {
+    fakeHotList.set(['GRML']);
     frame([setupRow('GRML', 'armed'), setupRow('ONCO', 'leg')]);
     const { rerender } = render(<WatchListToasts />);
     expect(screen.queryByTestId('watch-toast')).toBeNull();
@@ -169,31 +181,30 @@ describe('WatchListToasts on the setup scanner', () => {
     expect(line.textContent).toContain('Near');
     expect(line.textContent).toContain('0.02 under the 4.37 trigger — read the tape · Tape: go');
     expect(line.getAttribute('data-tip')).toContain('Price is a few cents under the trigger');
-    expect(screen.getByTestId('watch-toast-facts').textContent).toBe('Last $4.35');
+    expect(screen.getByTestId('watch-toast-facts').textContent).toBe('Trigger $4.37 · Stop $4.30 · Last $4.35');
   });
 
   it('names what the trigger is, and folds a HOD alert and the setup into one toast', () => {
-    addToWatchList('PFSA');
+    fakeHotList.set(['PFSA']);
     const r2g = (state: 'leg' | 'near') => setupRow('PFSA', state, { setup_type: 'red_to_green', kind: 'red_to_green' });
     frame([]);
     const { rerender } = render(<WatchListToasts />);
-    act(() => publishHodMomoLiveAlert(hodAlert('PFSA', 12, 'Running Up Alert')));
-    expect(titles()).toEqual(['PFSA is running up']);
+    act(() => publishHodMomoLiveAlert(hodAlert('PFSA')));
+    expect(titles()).toEqual(['PFSA hit HOD Momo']);
 
     frame([r2g('leg')]);
     rerender(<WatchListToasts />);
-    expect(titles()).toEqual(['PFSA: red to green forming']);
+    expect(titles()).toEqual(['PFSA hit HOD Momo']);                     // forming never toasts
     frame([r2g('near')]);
     rerender(<WatchListToasts />);
     expect(titles()).toEqual(['PFSA: red to green near the open']);
-    // The running-up line and its facts stay on the one toast.
-    expect(screen.getByTestId('watch-toast-body').textContent).toBe('Running Up Alert');
-    expect(screen.getByTestId('watch-toast-facts').textContent).toContain('$4.52');
+    // The HOD line stays on the one toast.
+    expect(screen.getByTestId('watch-toast-body').textContent).toBe('New High of Day');
     expect(screen.getAllByTestId('watch-toast-setup')).toHaveLength(1);
   });
 
   it('never toasts from the Sim board, and reads the first frame after a reconnect silently', () => {
-    addToWatchList('GRML');
+    fakeHotList.set(['GRML']);
     frame([]);
     const { rerender } = render(<WatchListToasts />);
     frame([setupRow('GRML', 'armed')], { source: 'sim' });
@@ -218,8 +229,8 @@ describe('WatchListToasts on the setup scanner', () => {
   });
 
   it('keeps each setup line on the board while the toast is up, without restarting its timer', () => {
-    vi.useFakeTimers();
-    addToWatchList('GRML');
+    vi.useFakeTimers({ now: IN_HOURS });
+    fakeHotList.set(['GRML']);
     frame([]);
     const { rerender } = render(<WatchListToasts />);
     frame([setupRow('GRML', 'armed')]);

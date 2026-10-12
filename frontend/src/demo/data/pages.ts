@@ -325,7 +325,7 @@ export function hotList() {
     why_not_followed: null,
   });
   return {
-    schema_version: 1, date: DAY, cap: 20,
+    schema_version: 1, date: DAY, cap: 20, auto_cap: 20,
     auto: { n: 5, start: '07:00', end: '16:00', rule: 'the leaders rule: $3-10, float 10M or less, 100K shares or more', error: null },
     entries: [entry('SMPL', 'star', at(6, 58), null, null), entry('GAPX', 'auto', at(7, 12), 2, 0.42)],
     yesterday: [], error: null,

@@ -5,7 +5,8 @@ Every ``HOT_LIST_AUTO_TICK_SEC``, all day, the loop first makes today's list tod
 ``HOT_LIST_AUTO_END_ET`` on exchange days, it reads the live Gainers board as auto-record does
 (``scanner_surface.surface_rows``, each row as a leaderboard row, ``leaderboard.ranking.rank_rows`` with
 ``LEADERS_RULES``) and takes its top ``auto_n`` (``pick``, pure): each name not listed yet is added, sticky
-for the day, never past ``HOT_LIST_CAP`` -- an auto star, which never changes who trades it. The feed
+for the day, never past ``HOT_LIST_AUTO_CAP`` auto stars (stars have their own cap, 2026-10-12) -- an auto
+star, which never changes who trades it. The feed
 adds a name once a day: one the operator took off is not added back while it still leads (``_added_on``:
 memory, seeded after a restart from the day's ``hot_list`` auto lines on the audit stream).
 
@@ -23,12 +24,12 @@ from typing import Any
 
 from constants_hot_list import (
     HOT_LIST_AUDIT_ACTION,
+    HOT_LIST_AUTO_CAP,
     HOT_LIST_AUTO_END_ET,
     HOT_LIST_AUTO_SEED_BYTES,
     HOT_LIST_AUTO_START_ET,
     HOT_LIST_AUTO_TICK_SEC,
     HOT_LIST_BOARD_GAINERS,
-    HOT_LIST_CAP,
     HOT_LIST_EVENT_AUTO,
     HOT_LIST_HOW_AUTO,
 )
@@ -165,7 +166,8 @@ async def tick(now: float | None = None) -> list[str]:
     from practice.clock import day_start_ts
 
     done = _added_on(str(doc["date"]), day_start_ts(ts))
-    picked = pick(rows, now=ts, n=n, listed=set(service.listed(doc)) | done, room=HOT_LIST_CAP - len(doc["entries"]))
+    room = HOT_LIST_AUTO_CAP - service.count(doc, HOT_LIST_HOW_AUTO)
+    picked = pick(rows, now=ts, n=n, listed=set(service.listed(doc)) | done, room=room)
     try:
         added = service.add_auto(picked, now=ts) if picked else []
     except HotListError as exc:
