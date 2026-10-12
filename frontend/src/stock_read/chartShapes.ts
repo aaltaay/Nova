@@ -289,22 +289,24 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   return { scene, lines };
 }
 
-/** The legend chip for a lane: its short name and where it stands. */
-export function laneChip(lane: SetupLane): { text: string; state: 'forming' | 'live' | 'done' | 'idle' | 'failed' } {
+export type LaneChipState = 'forming' | 'live' | 'done' | 'idle' | 'failed';
+
+/** The legend chip for a lane: its short name and where it stands (`text` is both; the Setups menu shows
+ * `name` and `word` in their own columns). */
+export function laneChip(lane: SetupLane): { text: string; name: string; word: string; state: LaneChipState } {
   const short: Record<string, string> = {
     first_pullback: '1st pullback', bull_flag: 'Bull flag', flat_top_breakout: 'Flat top', flat_top_5m: '5m flat top',
     red_to_green: 'Red→green', gap_and_go: 'Gap & Go', pullback_dip: 'Dip (watch)', ...SHORT_SETUP_CHIPS,
   };
   const name = short[lane.setup_type] ?? setupName(lane.setup_type);
+  const chip = (word: string, state: LaneChipState) => ({ text: word ? `${name} ${word}` : name, name, word, state });
   const prog = formingProgress(lane);
-  if (lane.state === 'triggered') return { text: `${name} triggered`, state: 'done' };
-  if (lane.state === 'armed' || lane.state === 'near') return { text: `${name} ${lane.state}`, state: 'live' };
-  if (lane.state === 'failed') return { text: `${name} failed`, state: 'failed' };
-  if (lane.state === 'leg' || lane.state === 'pullback' || lane.forming) {
-    return { text: prog ? `${name} ${prog}` : `${name} forming`, state: 'forming' };
-  }
-  if (lane.window?.state === 'after') return { text: `${name} closed`, state: 'idle' };
-  return { text: name, state: 'idle' };
+  if (lane.state === 'triggered') return chip('triggered', 'done');
+  if (lane.state === 'armed' || lane.state === 'near') return chip(lane.state, 'live');
+  if (lane.state === 'failed') return chip('failed', 'failed');
+  if (lane.state === 'leg' || lane.state === 'pullback' || lane.forming) return chip(prog ?? 'forming', 'forming');
+  if (lane.window?.state === 'after') return chip('closed', 'idle');
+  return chip('', 'idle');
 }
 
 /** "BULL FLAG · FORMING 1 OF 2" for the pane's corner. */

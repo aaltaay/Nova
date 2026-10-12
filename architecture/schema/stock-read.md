@@ -189,7 +189,13 @@ setup forming, the operator's own plan starts from a typed entry or the ask. Its
 dragged on the 1-minute chart with the entry; while it drags the targets keep their distance from the entry,
 and on release the read answers the menu's targets for the new entry. The 1-minute chart draws
 each lane's shapes (the plan's lane in colour, the rest faded), the plan's zones and lines, the
-day's levels, a legend and the plan's badge. Its autoscale keeps the stop to the furthest target in view
+day's levels, a legend and the plan's badge. **The legend keeps a chip only for a lane doing something**
+(operator 2026-10-12, of fifteen chips over the candles: "this is too much"): forming, near, armed,
+triggered or failed, or the plan's, and not hidden or at Off (`LegendSetupsMenu.onLegendRow`). Its last
+chip, Setups, counts the lanes without one and opens a menu: every lane's switch and where it stands,
+longs and shorts side by side, a strategy at Off locked with why, then the past setups' switch and their
+labels' Compact / Full. Hiding a lane moves it into the menu; a lane that starts forming gets its chip
+back. Nothing persisted changes: the switches are `nova.stockRead.layers` as before. Its autoscale keeps the stop to the furthest target in view
 (#845: target 2 when the plan has one, `planMath.planFrame`), so target 2 is a line on the chart; its edge
 tag names it only where the operator's own price scale leaves it off. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
@@ -310,7 +316,7 @@ the drawing, `ShapeTip.tsx` the hover):
 - Hovering a setup's box -- live or past -- shows its whole story (`SetupShapesPrimitive.hitTest`
   names the box): the state or end with the full reason, the times, the level, the floor, what price
   did next and the refused trade's outcome.
-- The legend's "Past" chip switches the layer (`nova.stockRead.layers` `value.past`), counts what it
+- The "Past setups" switch in the legend's Setups menu switches the layer (`nova.stockRead.layers` `value.past`), counts what it
   draws, and says why when the backend has no such route. The read is fetched every
   `STOCK_READ_PAST_POLL_MS` while the Trader tab shows with the layer on, and at once when a lane's
   drawn state changes, so a setup that fails or ends is drawn as past within one read. On a replay desk
@@ -320,7 +326,7 @@ the drawing, `ShapeTip.tsx` the hover):
 - **Labels make room** (operator report, 2026-09-30: "i do really like seeing the details, but perhaps
   it is extremely too crowded"; LGHL that morning drew 15 past setups, their labels piled on each
   other; then "maybe the compact form should just show (x) and when we hover, it shows the full failed
-  setup"). The legend's labels chip beside "Past" (`value.labels`) sets how much a past setup's label
+  setup"). The Compact / Full switch beside "Past setups" in the Setups menu (`value.labels`) sets how much a past setup's label
   says: `compact` (the default) its mark alone -- `✕` failed, `○` faded, `✓` triggered -- and no leg
   or pole label; `full` the whole label. Pointing at a label shows the story its box's hover tells
   (`SetupShapesPrimitive.hitTest` names the labels the last draw placed, then the boxes). Either way

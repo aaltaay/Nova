@@ -190,6 +190,7 @@
   pointer-events: none;
 }
 .sr-legend__chips {
+  position: relative; /* the Setups menu opens under the chips, from their left edge */
   display: flex;
   /* The row's full share, so the call below always wraps under the chips: on a wide pane it once
      fit beside them and slid under the badge in the corner. */
@@ -215,7 +216,6 @@
   cursor: pointer;
 }
 .sr-legend__chip:disabled { opacity: 0.55; cursor: not-allowed; }
-.sr-legend__chip--off { opacity: 0.45; text-decoration: line-through; }
 .sr-legend__dot {
   width: 7px;
   height: 7px;
@@ -227,10 +227,81 @@
 .sr-legend__chip--done .sr-legend__dot { background: var(--sr-ok); }
 .sr-legend__chip--failed .sr-legend__dot { background: var(--sr-bad); }
 .sr-legend__chip--none .sr-legend__dot { border: 1px solid var(--sr-unknown); background: none; }
-/* The day's setups that ended (ADR 036 amendment): a dashed chip, like the faint dashed boxes it draws. */
-.sr-legend__chip--past { border-style: dashed; color: var(--sr-secondary); }
 /* A 5-minute setup in reach, on the 1-minute chart: information, not a switch. */
 .sr-legend__chip--five { border-color: var(--sr-blue); cursor: default; }
+/* The Setups menu (operator 2026-10-12): every lane's switch, the past setups and their labels. */
+.sr-legend__chip--menu { border-color: rgba(255, 255, 255, 0.3); color: var(--sr-secondary); }
+.sr-legend__chip--menu[aria-expanded='true'] { border-color: var(--sr-blue); color: var(--sr-text); }
+.sr-legend__chip--menu b { color: var(--sr-text); font-weight: 600; }
+.sr-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 8;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  padding: 8px 10px;
+  border: 1px solid var(--sr-border);
+  border-radius: 6px;
+  background: rgba(12, 12, 14, 0.97);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  color: var(--sr-text);
+  font-size: 11px;
+  pointer-events: auto;
+}
+.sr-menu__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.sr-menu__cols--one { grid-template-columns: 1fr; }
+.sr-menu__title { margin-bottom: 3px; color: var(--sr-muted); font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; }
+.sr-menu__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 19px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--sr-text);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sr-menu__row:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+.sr-menu__row:disabled { cursor: not-allowed; }
+.sr-menu__row--off .sr-menu__name { color: var(--sr-muted); text-decoration: line-through; }
+.sr-menu__tick {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 11px;
+  height: 11px;
+  border: 1px solid #555a66;
+  border-radius: 2px;
+  color: #fff;
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1;
+}
+.sr-menu__row[aria-pressed='true'] .sr-menu__tick { border-color: var(--sr-blue); background: var(--sr-blue); }
+.sr-menu__name { overflow: hidden; text-overflow: ellipsis; }
+.sr-menu__word { margin-left: auto; color: var(--sr-secondary); font-size: 10px; }
+.sr-menu__sep { margin: 7px 0 6px; border-top: 1px solid var(--sr-border); }
+.sr-menu__past { display: flex; align-items: center; gap: 8px; }
+.sr-menu__past .sr-menu__row { width: auto; }
+.sr-menu__seg { display: inline-flex; margin-left: auto; overflow: hidden; border: 1px solid #3a3f4a; border-radius: 4px; }
+.sr-menu__seg button {
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--sr-secondary);
+  font: inherit;
+  font-size: 10px;
+  line-height: 15px;
+  cursor: pointer;
+}
+.sr-menu__seg button[aria-pressed='true'] { background: #2a3140; color: var(--sr-text); }
 /* A setup's story under the pointer: beside it, never in the way of a chart gesture. */
 .sr-shape-tip {
   position: absolute;
