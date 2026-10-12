@@ -401,7 +401,7 @@ useEffect(() => {
     };
   }, [symbol, timeframe, chartActive, filling, indicatorBars.length, fetchBars]);
 
-  const emptyText = empty ? chartEmptyText(sim, replay.target, discoveryProvider) : null;
+  const emptyText = empty ? chartEmptyText(sim, replay.target, discoveryProvider, symbol) : null;
   return {
     loading, error, emptyText, usingMock, indicatorBars, filling, coverageAsOf,
     historyError, historyErrorTs,

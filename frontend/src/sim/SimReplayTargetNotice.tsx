@@ -105,8 +105,13 @@ const ACTION_LABEL: Record<OfferAction, string> = {
 /** Per tab + situation, for the session: a new situation earns a new prompt. */
 const dismissed = new Set<string>();
 
-export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
+export function SimReplayTargetNotice({ symbol, onGoToReplay }: {
+  symbol: string;
+  /** Where "Go to LNKS" takes the operator; default the replay's Trader tab. */
+  onGoToReplay?: (replaySymbol: string) => void;
+}) {
   const { openStockView, activeTraderSymbol, traderViewActive } = useWorkspace();
+  const goToReplay = onGoToReplay ?? openStockView;
   const { clock, target } = useSimReplayTarget(symbol);
   const wantsReplay = target.kind === 'none' || target.kind === 'other-symbol';
   // Background Trader tabs stay mounted (hidden): only the one on screen may load by itself.
@@ -208,7 +213,7 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
             type="button"
             className="sim-replay-target__action sim-replay-target__action--secondary"
             data-testid="sim-replay-target-goto"
-            onClick={() => openStockView(target.replaySymbol)}
+            onClick={() => goToReplay(target.replaySymbol)}
           >
             {simTabGoToReplayLabel(target.replaySymbol)}
           </button>
