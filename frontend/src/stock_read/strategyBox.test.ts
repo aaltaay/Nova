@@ -1,9 +1,10 @@
 /**
  * A setup's plan is its strategy box on the 1-minute pane (operator asks 2026-10-12). Forming, on MNDR's Gap and Go plan
  * at 09:01 (entry 2.91 with the price at 2.24, its zones and lines stretching the pane to target 2 at 3.49): one faint
- * box from the stop to target 1, on the setup's window while that is ahead, else waiting at the right edge. Near, armed
- * or triggered, on the same plan at 09:55 ("its making the chart extremely big ... can we do that for the rest of
- * them?"): the same box in full colour after the newest candle, saying where it stands, its prices on the axis.
+ * box from the stop to target 1, on the setup's window while that is ahead, else waiting at the right edge. Near or
+ * armed, on the same plan at 09:55 ("its making the chart extremely big ... can we do that for the rest of them?"): the
+ * same box in full colour after the newest candle, saying where it stands, its prices on the axis. A triggered plan has
+ * no box (`triggeredPlan.test.ts`).
  */
 import type { Time } from 'lightweight-charts';
 import { describe, expect, it } from 'vitest';
@@ -46,10 +47,11 @@ describe('which plans are only forming', () => {
     expect(formingPlan(null, planLevels(gapAndGo))).toBe(false);
   });
 
-  it('boxes every setup plan with only the plan behind it: forming, near, armed and triggered', () => {
-    for (const state of ['forming', 'near', 'armed', 'triggered'] as const) {
+  it('boxes every setup plan with only the plan behind it while forming, near or armed', () => {
+    for (const state of ['forming', 'near', 'armed'] as const) {
       expect(boxedPlan({ ...gapAndGo, state }, planLevels(gapAndGo))).toBe(true);
     }
+    expect(boxedPlan({ ...gapAndGo, state: 'triggered' }, planLevels(gapAndGo))).toBe(false);
     expect(boxedPlan({ ...gapAndGo, source: 'manual', state: 'manual' }, planLevels(gapAndGo))).toBe(false);
     // An order at the entry, or Nova watching the stop: the zones and lines say what stands there.
     expect(boxedPlan({ ...gapAndGo, state: 'armed' },
@@ -60,11 +62,11 @@ describe('which plans are only forming', () => {
   });
 });
 
-/** MNDR's Gap and Go lane once armed: armed at the 09:30 open, triggered at 09:31:47. */
-const mndrSetup = { armed_at: apusAt(9, 30), triggered_at: apusAt(9, 31) + 47 } as SetupLevels;
+/** MNDR's Gap and Go lane once armed: armed at the 09:30 open. */
+const mndrSetup = { armed_at: apusAt(9, 30) } as SetupLevels;
 const at955 = apusAt(9, 55);
 
-describe('the box once the setup is near, armed or triggered', () => {
+describe('the box once the setup is near or armed', () => {
   it('starts after the newest candle and says since when it armed, and until when while its window is open', () => {
     const armed = { ...gapAndGo, state: 'armed' as const, window: { start: '09:30', end: '10:00', state: 'open' } };
     const s = strategyOf(armed, planLevels(armed), 3.49, at955 as Time, at955, mndrSetup)!;
@@ -75,13 +77,9 @@ describe('the box once the setup is near, armed or triggered', () => {
     expect(near).toMatchObject({ word: 'near', when: 'since 09:30' });
   });
 
-  it('says when it triggered', () => {
-    // Its window no longer matters once it triggered: no "until 10:00".
-    const triggered = { ...gapAndGo, state: 'triggered' as const, window: { start: '09:30', end: '10:00', state: 'open' } };
-    const s = strategyOf(triggered, planLevels(triggered), 3.49, at955 as Time, at955, mndrSetup)!;
-    expect(s).toMatchObject({ word: 'triggered', when: 'at 09:31' });
-    // Without the lane's times it says nothing it does not know.
-    expect(strategyOf(triggered, planLevels(triggered), 3.49, at955 as Time, at955)!.when).toBe('');
+  it("says nothing it does not know without the lane's times", () => {
+    const armed = { ...gapAndGo, state: 'armed' as const, window: null };
+    expect(strategyOf(armed, planLevels(armed), 3.49, at955 as Time, at955)!.when).toBe('');
   });
 
   it("names its prices' edge-column words only: the axis carries the prices", () => {
@@ -96,9 +94,9 @@ describe('the box once the setup is near, armed or triggered', () => {
 
   it('draws the box in place of the zones and lines, its levels kept as axis tags with no line', () => {
     const setups = base.setups.map(l => (l.series ? { ...l, series: { ...l.series, bars_as_of: at955 } } : l));
-    const read: StockRead = { ...base, plan: { ...gapAndGo, state: 'triggered', provisional: false }, setups };
+    const read: StockRead = { ...base, plan: { ...gapAndGo, state: 'armed', provisional: false }, setups };
     const { scene, lines } = paneDraw(read, { pane: 'full', layers: LAYERS, toTime: identity });
-    expect(scene.strategy).toMatchObject({ after: at955, state: 'triggered', startBars: null, endBars: null });
+    expect(scene.strategy).toMatchObject({ after: at955, state: 'armed', startBars: null, endBars: null });
     expect(scene.boxes.filter(b => b.t2 === null)).toEqual([]);
     expect(lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))
       .map(l => [l.id, l.line, l.title, l.axisLabel])).toEqual([

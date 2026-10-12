@@ -197,7 +197,8 @@ function planRows(full: boolean): KeySection {
     rows.push(
       { swatch: 'band', color: SETUP_COLORS.risk, label: 'Red zone', text: 'the risk: from the entry to the stop (over the entry on a short)' },
       { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: from the entry to target 1 (under it on a short)' },
-      { swatch: 'band', color: STRATEGY_BOX_LIVE.outline, label: 'Strategy box', text: "a setup's plan: its stop to target 1 right of the newest candle, with its name and where it stands (near · armed · triggered); its prices on the axis, T2 a dash over it or an arrow" },
+      { swatch: 'band', color: STRATEGY_BOX_LIVE.outline, label: 'Strategy box', text: "a setup's plan: its stop to target 1 right of the newest candle, with its name and where it stands (near · armed); its prices on the axis, T2 a dash over it or an arrow" },
+      { swatch: 'up', color: SETUP_COLORS.trigger, label: '✓ Triggered', text: "a setup's plan that triggered with no order or position behind it: off the chart, a ✓ over its trigger candle (point at it for the setup)" },
       { swatch: 'band', color: STRATEGY_BOX.outline, label: 'Faint box', text: "a setup still forming: the same box, faint, on its window (Gap and Go's 09:30–10:00) or waiting at the edge" },
     );
   }
