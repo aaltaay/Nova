@@ -14,12 +14,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { SETUP_SIDE_TAG } from '../constantGroups/short_setups';
 import { HOT_LIST_AUTO_CHOICES, hotListActions, listedOn, useHotList } from '../hot_list';
 import { putStockMode } from '../stock_read';
+import { fmtChangeAbs } from '../components/ScannerRowCells';
+import { fmtPct, fmtPrice, pctToneClass } from '../utils/quoteFormat';
 import { tipProps, whyProps } from '../ux';
 import { setupName } from './botsPageFormat';
 import { etTime } from './botWhen';
 import type { StockModeRow } from './stockModesApi';
-import { allStops, daySummary, GATE_TIPS, orderTickers, resultWords, sidesOf, splitReasons, WHO_WORDS, type Side, type Stop } from './tickerTable';
-import { fetchTriggers, type Cells, type TickerRow, type TriggersView } from './triggersApi';
+import { allStops, changeSource, daySummary, GATE_TIPS, orderTickers, resultWords, sidesOf, splitReasons, WHO_WORDS, type Side, type Stop } from './tickerTable';
+import { fetchTriggers, type Cells, type TickerMarket, type TickerRow, type TriggersView } from './triggersApi';
 import type { SetupRow } from '../setups';
 
 const TRIGGERS_POLL_MS = 15_000;
@@ -76,6 +78,23 @@ function Stops({ stops, muted = false }: { stops: readonly Stop[]; muted?: boole
   ))}</>;
 }
 
+/** Where the ticker stands on the day, as the Gainers board shows it: the change, its dollars under it. */
+function ChangeCell({ m, pastDay }: { m: TickerMarket | null; pastDay: boolean }) {
+  if (!m || m.changePct === null) {
+    const why = m?.why ?? (pastDay ? 'A past day: the change is said for today only.'
+      : 'This backend sends no change yet: restart it after the update.');
+    return <td className="bots-num bots-muted" {...tipProps(why, 'Change')}>–</td>;
+  }
+  const tone = pctToneClass(m.changePct);
+  return (
+    <td className="bots-num bots-nowrap bots-tk__chg"
+      {...tipProps(`${fmtPct(m.changePct)} on the day at ${fmtPrice(m.price)}, read from ${changeSource(m.source)}.`, 'Change')}>
+      <span className={`bots-tk__chg-pct${tone ? ` bots-tk__chg-pct--${tone}` : ''}`}>{fmtPct(m.changePct)}</span>
+      <span className="bots-tk__chg-abs">{fmtChangeAbs(m.changeAbs)}</span>
+    </td>
+  );
+}
+
 /** The setup's name with its side, in words beside the arrow (ADR 049). */
 function SetupWithSide({ setup, side }: { setup: string; side: 'long' | 'short' }) {
   return (
@@ -127,7 +146,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
   const order = (view?.gates ?? []).map(g => g.id);
   const shortOrder = (view?.shortGates ?? []).map(g => g.id);
   const every = [...order, ...shortOrder];
-  const cols = 8 + every.length;
+  const cols = 9 + every.length;
   const { today: listed, others: unlisted } = orderTickers(view?.tickers ?? [], modes);
   const starred = hot.view?.entries.length ?? 0;
   const listLock = hot.busy ? 'Saving the hot list…' : hot.view ? null : (hot.error ?? 'Reading today\'s hot list…');
@@ -178,6 +197,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
             </span>
           ) : null}
         </td>
+        <ChangeCell m={t.market} pastDay={date !== null} />
         <td className="bots-nowrap">
           <SideSeg label="Entry" value={buy} lock={null} onPick={s => void setSides(t.symbol, s, sell)} />
           <SideSeg label="Exit" value={sell} lock={null} onPick={s => void setSides(t.symbol, buy, s)} />
@@ -209,7 +229,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
     const reds = allStops(x.cells, every, x);
     return (
       <tr key={`${t.symbol}-${x.ts}-${x.setup_type}`} className="bots-tk__past">
-        <td /><td />
+        <td /><td /><td />
         <td className="bots-num bots-nowrap">{etTime(x.ts)}</td>
         <td className="bots-nowrap"><SetupWithSide setup={x.setup_type} side={x.side} />{x.nth && x.nth > 1 ? <span className="bots-tag bots-tag--tiny">{x.nth === 2 ? '2nd' : `${x.nth}th`}</span> : null}</td>
         <td className="bots-num">{x.grade ?? '–'}</td>
@@ -258,7 +278,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
           <thead>
             {shortOrder.length ? (
               <tr className="bots-tk__grouphead">
-                <th colSpan={7 + order.length} />
+                <th colSpan={8 + order.length} />
                 <th colSpan={shortOrder.length} className="bots-tk__shorthead" data-testid="bots-tk-short-head"
                   {...tipProps('The short check\'s own squares. A long trigger leaves them empty.', 'Shorts only')}>
                   {SETUP_SIDE_TAG.short} only
@@ -267,7 +287,9 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
               </tr>
             ) : null}
             <tr>
-              <th>Ticker</th><th>Who trades it</th><th>When</th><th>Setup</th><th>Gr</th><th>Tape</th><th>Result</th>
+              <th>Ticker</th>
+              <th {...tipProps('Its change on the day, as the Gainers board shows it: from the board that holds it, else its Level 1 line.', 'Change')}>Change</th>
+              <th>Who trades it</th><th>When</th><th>Setup</th><th>Gr</th><th>Tape</th><th>Result</th>
               {(view?.gates ?? []).map(g => (
                 <th key={g.id} className="bots-tk__g bots-tk__gh" {...tipProps(GATE_TIPS[g.id] ?? g.label, g.label)}><span>{g.label}</span></th>
               ))}

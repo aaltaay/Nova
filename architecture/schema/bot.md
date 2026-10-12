@@ -361,6 +361,7 @@ answers:
  gates: [{id, label}],
  tickers: [{symbol, listed: {how, at} | null,
             now: {cells, answer: "yes" | "no", reasons} | null,
+            market: {price, change_pct, change_abs, source, why} | null,
             triggers: [{ts, setup_id, setup_type, kind, nth, grade, tape, outcome, r, cells, reasons}]}],
  impact: [{gate, blocked, target_first, stop_first, r}],
  judged_now: string[],
@@ -384,6 +385,14 @@ answers:
 - **BLIND** is the Level 2 line's red, never the tape's.
 - **`now`** (today only, the trading day: the rows stay from midnight to the 04:00 rollover) is each
   listed or bot-buy ticker this minute; its `nova_buys` square is red while today's reset has not run.
+- **`market`** (today only, every ticker; operator ask 2026-10-12: "a column that shows % change just like
+  how the gainers does it"; owner `bot/trigger_market.py`) is where the ticker stands on the day, read as the
+  quote panel reads it: its scanner row when a board holds it (gappers, gainers, losers, after hours, large
+  cap, in that order), priced by its Level 1 line's last trade, else that line alone -- lines already held,
+  nothing subscribes. `change_pct` is a fraction as the boards send it (0.25 = +25%), `change_abs` dollars
+  against the prior close, `source` the board's name or `quote`. No change is `change_pct: null` with `why`:
+  no trade yet (IBKR's prior close is not one, #541), no board and no line, a read that failed, or a Sim
+  replay desk (its quotes are the replay's, the boards live). `null` on a past day.
 
 **A hidden Trader tab lends its Level 2 and Time & Sales lines** (owner `backend/line_lending/`). IBKR
 caps tick-by-tick lines too (ADR 044 took it for the depth lines' 3; on 2026-10-02 it carried 4 at once and

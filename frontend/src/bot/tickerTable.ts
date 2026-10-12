@@ -102,6 +102,16 @@ export function splitReasons(cells: Cells, order: readonly string[], t?: { grade
   return { own, shared };
 }
 
+const BOARD_WORDS: Record<string, string> = {
+  gappers: 'the Gappers board', gainers: 'the Gainers board', losers: 'the Losers board',
+  afterhours: 'the After Hours board', large_cap: 'the Large Cap board', quote: 'its Level 1 line',
+};
+
+/** Where a ticker's change was read: the board that holds it, or its Level 1 line. */
+export function changeSource(source: string | null): string {
+  return source ? (BOARD_WORDS[source] ?? source.replace(/_/g, ' ')) : 'nowhere';
+}
+
 export function resultWords(t: TickerTrigger): { text: string; tone: 'win' | 'loss' | 'open' } {
   const r = t.r === null ? '' : ` ${t.r >= 0 ? '+' : ''}${t.r.toFixed(2)}R`;
   if (t.outcome === 'target_first') return { text: `target${r}`, tone: 'win' };

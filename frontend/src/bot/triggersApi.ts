@@ -2,8 +2,9 @@
  * The squares, by ticker (ADR 044): `GET /api/bot/triggers`. Every listed ticker's answer now, and every
  * trigger of the day on it, judged by the same checks in Nova's order. Both sides (ADR 049, #778 step 5):
  * every trade's squares end with "not against you", and behind them the shorts-only block (`short_gates`),
- * which a long trigger leaves empty; an amber square (`warn`) passes and says what it changed. Checked on
- * arrival: an unknown shape is an error, never an empty table.
+ * which a long trigger leaves empty; an amber square (`warn`) passes and says what it changed. Each of today's
+ * tickers says where it stands (`market`): its price and change on the day, from its scanner row or its Level 1
+ * line, or why not. Checked on arrival: an unknown shape is an error, never an empty table.
  */
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
@@ -32,10 +33,22 @@ export interface TickerTrigger {
   ssr: string | null;
 }
 
+/** Where a ticker stands now: `changePct` a fraction (0.25 = +25%), `source` the board's name or `quote`, `why`
+ * set when there is no change. */
+export interface TickerMarket {
+  price: number | null;
+  changePct: number | null;
+  changeAbs: number | null;
+  source: string | null;
+  why: string | null;
+}
+
 export interface TickerRow {
   symbol: string;
   listed: { how: 'auto' | 'star'; at: number } | null;
   now: { cells: Cells; answer: 'yes' | 'no'; reasons: string[] } | null;
+  /** Today only; null on a past day and on a backend older than the column. */
+  market: TickerMarket | null;
   triggers: TickerTrigger[];
 }
 
@@ -86,10 +99,13 @@ export function parseTriggers(raw: unknown): TriggersView | null {
     if (!o || !symbol) continue;
     const listed = obj(o.listed);
     const now = obj(o.now);
+    const market = obj(o.market);
     tickers.push({
       symbol,
       listed: listed ? { how: listed.how === 'auto' ? 'auto' : 'star', at: num(listed.at) ?? 0 } : null,
       now: now ? { cells: cells(now.cells), answer: now.answer === 'yes' ? 'yes' : 'no', reasons: strs(now.reasons) } : null,
+      market: market ? { price: num(market.price), changePct: num(market.change_pct), changeAbs: num(market.change_abs),
+        source: str(market.source), why: str(market.why) } : null,
       triggers: (Array.isArray(o.triggers) ? o.triggers : []).map(obj).filter(Boolean).map(x => ({
         ts: num(x!.ts) ?? 0, setup_id: str(x!.setup_id), setup_type: str(x!.setup_type) ?? '', kind: str(x!.kind),
         nth: num(x!.nth), grade: str(x!.grade), tape: str(x!.tape), outcome: str(x!.outcome), r: num(x!.r),

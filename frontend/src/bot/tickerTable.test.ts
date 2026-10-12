@@ -13,7 +13,7 @@ const trigger = (partial: Partial<TickerTrigger> = {}): TickerTrigger => ({
   cells: {}, reasons: [], ...partial,
 });
 const row = (symbol: string, at: number | null, triggers: TickerTrigger[] = []): TickerRow => ({
-  symbol, listed: at === null ? null : { how: 'star', at }, now: null, triggers,
+  symbol, listed: at === null ? null : { how: 'star', at }, now: null, market: null, triggers,
 });
 
 describe('tickers today', () => {

@@ -338,6 +338,11 @@ button.bots-switch--small .bots-switch__txt small { font-size: 11px; }
 .bots-tk__res--win { color: var(--bots-green); }
 .bots-tk__res--loss { color: var(--bots-red); }
 .bots-tk__res--open { color: var(--nova-text-muted); }
+.bots-tk__chg > span { display: block; line-height: 1.25; }
+.bots-tk__chg-pct { font-weight: 700; color: var(--nova-text); }
+.bots-tk__chg-pct--positive { color: var(--bots-green); }
+.bots-tk__chg-pct--negative { color: var(--bots-red); }
+.bots-tk__chg-abs { font-size: 11px; color: var(--nova-text-muted); }
 .bots-tk__stop { min-width: 240px; line-height: 1.4; }
 .bots-tk__stopword { color: var(--bots-red); cursor: help; }
 .bots-tk__fold { font-size: inherit; font-weight: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
