@@ -138,8 +138,11 @@ describe('the This trade card while you hold RDYN short', () => {
     fireEvent.click(btn);
     const sheet = await screen.findByTestId('exit-sheet');
     expect(sheet.querySelector('.sr-exit__title')?.textContent).toBe('Nova takes the cover on 416 RDYN short');
-    // The read's 5.53 cover target is over the 5.46 price (already passed): the buy stop goes alone (#681).
-    expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('');
+    // A cover target the read gives under the 5.46 price starts filled (#681); emptied, the buy stop goes alone.
+    const t1 = within(sheet).getByTestId('exit-target1') as HTMLInputElement;
+    fireEvent.change(t1, { target: { value: '' } });
+    fireEvent.blur(t1);
+    await waitFor(() => expect(t1.value).toBe(''));
     expect(within(sheet).getByTestId('exit-target').textContent).toMatch(/Under the price · empty: the stop alone/);
     expect(within(sheet).queryByTestId('exit-flush')).toBeNull();
     expect(within(sheet).getByTestId('exit-sends').textContent)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitHalves, targetProblem, usableTarget } from './exitTargets';
+import { splitHalves, startTargets, targetProblem, usableTarget } from './exitTargets';
 
 describe('the exit sheet splits a position into its halves (#681)', () => {
   it('half at target 1, the rest at target 2; an odd count gives the first half the smaller part', () => {
@@ -40,5 +40,13 @@ describe('what is wrong with a target', () => {
     expect(usableTarget(false, 7.0, 6.64)).toBe(7.0);
     expect(usableTarget(false, 7.5, 6.64, 7.0)).toBe(7.5);
     expect(usableTarget(true, 5.53, 5.46)).toBeNull();
+  });
+
+  it('a read target already passed gives its place to the next one ahead, which sells every share', () => {
+    expect(startTargets(false, 7.0, 7.5, 6.64)).toEqual([7.0, 7.5]);
+    expect(startTargets(false, 5.275, 6.96, 6.64)).toEqual([6.96, null]);
+    expect(startTargets(false, 5.275, 6.5, 6.64)).toEqual([null, null]);
+    expect(startTargets(false, 5.965, null, 6.64)).toEqual([null, null]);
+    expect(startTargets(true, 5.57, 5.42, 5.46)).toEqual([5.42, null]);
   });
 });

@@ -115,10 +115,11 @@ describe('the plan box while you hold APUS', () => {
   });
 
   it('hands Nova the exit from the sheet: a stop, raised as levels break', async () => {
+    heldWire = { ...apusHeldWire, target2: null };
     renderTab();
     fireEvent.click(await screen.findByTestId('held-nova-exit'));
     const sheet = await screen.findByTestId('exit-sheet');
-    // The read's 2R target (5.965) is behind the 6.64 price: no target starts filled, the stop goes alone.
+    // The read's target is behind the 6.64 price and none follows it: no target starts filled, the stop goes alone.
     expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('');
     expect(within(sheet).getByTestId('exit-target').getAttribute('aria-disabled')).toBeNull();
     expect(within(sheet).getByTestId('exit-flush').getAttribute('data-why')).toMatch(/trial T1/);
