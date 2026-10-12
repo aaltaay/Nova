@@ -130,6 +130,9 @@ export default defineConfig(({ command, mode }) => {
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (/lightweight-charts/.test(id)) return 'vendor-charts'
+            // Its react/ folder (253 flags) would match the rule below; it stays in the chunk
+            // that imports it (stock_view/CountryFlagSvg), loaded the first time a quote names a country.
+            if (/country-flag-icons/.test(id)) return undefined
             if (/[\\/]react(-dom)?[\\/]|\/react\/jsx-runtime/.test(id)) return 'vendor-react'
           }
         },

@@ -170,6 +170,13 @@ export interface SharesIssuedFiling {
 }
 
 export interface FundamentalsData {
+  /**
+   * Yahoo's headquarters country as Yahoo writes it ("Hong Kong"), and its ISO 3166-1 alpha-2 code ("HK") for the
+   * flag beside the symbol. Where the company is run from, not where it is incorporated; null when Yahoo gives none.
+   * Absent until the fundamentals arrive (and from an older API).
+   */
+  country?: string | null;
+  country_code?: string | null;
   market_cap: number | null;
   shares_outstanding: number | null;
   float_shares: number | null;

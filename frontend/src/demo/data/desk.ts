@@ -188,6 +188,7 @@ export function tickerDetail(symbol: string) {
       prev_close: prev, session_close: null, session_prev_close: null,
     },
     fundamentals: {
+      country: 'United States', country_code: 'US',
       market_cap: row.market_cap, shares_outstanding: row.shares_outstanding, float_shares: row.float,
       short_interest: row.short_interest, short_ratio: row.short_ratio, short_percent_of_float: row.short_interest / row.float,
       pe_ratio: null, forward_pe: null, eps: -0.42, sector: 'Healthcare', industry: 'Biotechnology',

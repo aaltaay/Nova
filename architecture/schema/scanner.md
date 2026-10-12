@@ -175,6 +175,28 @@ float checks read unknown (below). The figure is still Yahoo's: `float_contradic
 setup grade, `LEADERS_RULES` and every max-float gate are unchanged, and nothing parses a share count out of a
 filing (PIPE shares may not trade until a resale registration, so the tradable float is not known either way).
 
+## The company's country (operator ask, 2026-10-12)
+
+The operator: "i want to see if tickers are USA/Israeli/hongkong/chinese.. etc, elaborated by their own flag
+icons". Yahoo's fundamentals read (`fundamentals.fetch_fundamentals`; the ticker detail's `fundamentals`, REST
+and the socket's `detail_update`) adds `country: string | null`, Yahoo's `country` as Yahoo writes it ("United
+States", "Hong Kong", "China", "Israel"), and `country_code: string | null`, its ISO 3166-1 alpha-2 code ("US",
+"HK", "CN", "IL"). The code comes from `fundamentals.country_code` (pure): the name is matched, case, accents and
+punctuation aside, against CLDR's English name of each code the desk has a flag for, or a listed other spelling
+(`constants_countries.py`: "Hong Kong" for "Hong Kong SAR China", "Czech Republic" for "Czechia"). Both are
+`null` when Yahoo gives no country or the read failed; the code alone is `null` for a name that matches none. A
+code is never guessed from the exchange, the ticker or the company's name.
+
+It is where the company is run from, Yahoo's headquarters address, not where it is incorporated: a company run
+from Shanghai through a Cayman Islands holding company reads China (NIO, JFIN), and PDD reads Ireland, where
+Yahoo puts its headquarters.
+
+On the desk the Trader's Stock Quote head shows the country's flag beside the symbol, "Headquarters: Hong Kong
+(Yahoo)" on hover. The flags are `country-flag-icons` (MIT) SVGs in their own chunk, loaded on first use:
+Windows draws no emoji flags. A country with no code shows a globe that names it; a read with no country shows
+a dim globe that says so ("Country not known: Yahoo gives no headquarters country"); nothing shows until the
+fundamentals arrive. Display only: no gate, score or bot reads it, and scanner rows do not carry it.
+
 ## Scanner leaderboard: recorded, reconstructed, played back (ADR 023, operator decision 2026-09-22)
 
 Owner `backend/leaderboard/`; store `leaderboard.sqlite3` (`PRAGMA

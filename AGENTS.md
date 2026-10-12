@@ -177,6 +177,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Why the Gateway needed a phone login; premarket evidence (#14) | `architecture/schema/desk-ops.md` |
 | Scanner rows and HOD Momo alerts on the wire (QA batch, 2026-09-22) | `architecture/schema/scanner.md` |
 | Float credibility and short-interest dates (#532) | `architecture/schema/scanner.md` |
+| The company's country (operator ask, 2026-10-12) | `architecture/schema/scanner.md` |
 | Scanner leaderboard: recorded, reconstructed, played back (ADR 023, operator decision 2026-09-22) | `architecture/schema/scanner.md` |
 | Setup scanner and tape gate (ADR 022) | `architecture/schema/setups.md` |
 | The flat top counts its touches (ADR 031 amendment, operator ask 2026-10-06) | `architecture/schema/setups.md` |
