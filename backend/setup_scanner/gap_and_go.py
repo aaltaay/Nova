@@ -9,7 +9,8 @@ on the names the scanner follows:
              or over the pre-market high is a gap through it: the rule skips the day
   armed      from the open until ``entry_cutoff`` (10:00): trigger = the pre-market
              high, entry one cent over it, stop ``min(stop_cents, stop_pct x entry)``
-             under the entry, target 1 = entry + R x risk
+             under the entry (or the template's round-number stop), the targets
+             the menu's (``targets.py``, #845; Gap and Go has no pullback high)
   triggered  a live price over the pre-market high (entry at the bar's open when it
              gapped over; the stop moves with the entry, as the research's did)
 
@@ -47,10 +48,10 @@ from constants_setups import (
     SETUPS_NEAR_DOLLARS,
     SETUPS_NEAR_PCT,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
-    SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import ET, EPS, TriggerDetector, et_time, forming_levels, hhmm
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,7 @@ class GapAndGoParams:
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_r: float = SETUPS_TARGET_R
+    targets: TargetSpec = DEFAULT_TARGETS               # the target menu's choice (#845)
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     max_per_symbol_day: int = 1
@@ -79,9 +80,6 @@ class GapAndGoParams:
 
     def stop_distance(self, entry: float) -> float:
         return round(min(self.stop_cents, self.stop_pct * entry), 4)
-
-    def target1(self, entry: float, risk: float) -> float:
-        return round(entry + self.target_r * risk, 4)
 
 
 def _open_ts(times: list[float], at: str) -> float | None:
@@ -97,6 +95,11 @@ def _hm(ts: float) -> str:
     return datetime.fromtimestamp(ts, ET).strftime("%H:%M")
 
 
+def _aim(levels: dict[str, Any]) -> dict[str, Any]:
+    """The target fields of a levels dict (``TriggerDetector.aim``'s)."""
+    return {k: levels.get(k) for k in ("target1", "target2", "target1_fraction", "targets")}
+
+
 @dataclass
 class GapAndGoDetector(TriggerDetector):
     p: GapAndGoParams = field(default_factory=GapAndGoParams)
@@ -110,11 +113,15 @@ class GapAndGoDetector(TriggerDetector):
     SECOND_KIND: ClassVar[str | None] = None
 
     # -- levels -------------------------------------------------------------
-    def _levels(self, pmh: float) -> dict[str, float]:
+    def _stop(self, entry: float) -> tuple[float, dict[str, Any]]:
+        """The rule's stop under ``entry``, or the template's round-number one (``stop_at``)."""
+        return self.stop_at(entry, round(entry - self.p.stop_distance(entry), 4))
+
+    def _levels(self, pmh: float) -> dict[str, Any]:
         entry = round(pmh + self.p.entry_offset, 4)
-        risk = self.p.stop_distance(entry)
-        return {"trigger": round(pmh, 4), "entry": entry, "stop": round(entry - risk, 4), "risk": risk,
-                "target1": self.p.target1(entry, risk)}
+        stop, stop_why = self._stop(entry)
+        return {"trigger": round(pmh, 4), "entry": entry, "stop": stop, "risk": round(entry - stop, 4),
+                **self.aim(entry, stop=stop_why)}
 
     def _leg(self) -> dict[str, Any] | None:
         if self.pm_high is None:
@@ -153,7 +160,7 @@ class GapAndGoDetector(TriggerDetector):
         last = len(bars) - 1
         if k0 > last:                     # before the open: draw the levels it would arm with
             lv = self._levels(float(self.pm_high))
-            self.forming = forming_levels(lv["trigger"], lv["entry"], lv["stop"], lv["target1"], bars=0,
+            self.forming = forming_levels(lv["trigger"], lv["entry"], lv["stop"], _aim(lv), bars=0,
                                           waiting=f"waits for the {p.session_start} open")
             self._set(SETUP_STATE_WATCHING, f"pre-market high {self.pm_high:.2f} -- from the {p.session_start} "
                                             f"open, a price over it until {p.entry_cutoff}")
@@ -190,7 +197,7 @@ class GapAndGoDetector(TriggerDetector):
         if setup["risk"] + p.risk_slippage < p.min_stop - EPS:
             return self._spend(f"risk {setup['risk']:.2f} is under {p.min_stop:.2f}")
         if p.macd_positive and s.hist and s.hist[-1] <= 0:
-            self.forming = forming_levels(setup["trigger"], setup["entry"], setup["stop"], setup["target1"], bars=0,
+            self.forming = forming_levels(setup["trigger"], setup["entry"], setup["stop"], _aim(setup), bars=0,
                                           blocked="MACD below zero -- waits for it to turn up")
             self._set(SETUP_STATE_PULLBACK, f"opened {self.open_px:.2f} under the {self.pm_high:.2f} pre-market "
                                             "high; MACD below zero -- waits for it to turn up")
@@ -225,10 +232,10 @@ class GapAndGoDetector(TriggerDetector):
         if et_time(ts) >= hhmm(self.cutoff()):
             return events + self._spend(f"the window closed at {self.p.entry_cutoff} before the break")
         entry = round(max(self.armed["entry"], bar_open if bar_open is not None else price), 4)
-        risk = self.p.stop_distance(entry)
+        stop, stop_why = self._stop(entry)
         self.nth += 1
-        self.triggered = {**self.armed, "entry": entry, "stop": round(entry - risk, 4), "risk": risk,
-                          "target1": self.p.target1(entry, risk), "triggered_at": ts, "nth": self.nth,
+        self.triggered = {**self.armed, "entry": entry, "stop": stop, "risk": round(entry - stop, 4),
+                          **self.aim(entry, stop=stop_why), "triggered_at": ts, "nth": self.nth,
                           "trigger_price": price}
         self._set(SETUP_STATE_TRIGGERED, f"traded {price:.2f} over the {trig:.2f} pre-market high")
         return events + [("triggered", self.view())]

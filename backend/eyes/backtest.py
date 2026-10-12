@@ -22,7 +22,8 @@ ADR 034: a run may add **variants** -- templates made for this run only, a base
 template's values with some parameters changed, never stored -- so a sweep can
 try many numbers on the same recordings. A variant's manifest entry adds
 ``variant: true``, ``base`` and ``overrides``; every template's summary adds
-``exits`` (scoring exits by reason), ``flush`` (what a flush did) and
+``exits`` (scoring exits by reason), ``flush`` (what a flush did), ``targets`` (every target choice
+ranked on the run's triggers, ``eyes.target_readout``, #845) and
 ``vs_base``: the same setups (same symbol, day and leg) paired with the run's
 first template -- ``{base, paired, avg_r_delta, better, worse, same}``.
 """
@@ -141,6 +142,7 @@ def _counts(rows: list[dict], key: str) -> dict[str, int]:
 
 
 def summarize_run(rows: list[dict], templates: list[Any], sessions_ok: int) -> dict[str, Any]:
+    from eyes.target_readout import rank as rank_targets
     from setup_scanner.readout import evaluate
     from setup_scanner.summary import summarize
 
@@ -155,6 +157,7 @@ def summarize_run(rows: list[dict], templates: list[Any], sessions_ok: int) -> d
         out[t.id] = {"name": t.name, "rev": t.rev, "sessions": sessions_ok, "summary": summarize(mine),
                      "readout": evaluate(mine, {"id": t.id, "rev": t.rev, "name": t.name}, kind),
                      "exits": _counts(mine, "bar_exit_reason"), "flush": _counts(mine, "flush_action"),
+                     "targets": rank_targets(mine),
                      "vs_base": _vs_base(mine, base_rows, first) if t.id != first else None}
     return out
 

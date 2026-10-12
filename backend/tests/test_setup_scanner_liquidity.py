@@ -187,7 +187,7 @@ def test_a_schema_4_scoreboard_is_migrated_and_its_rows_carry_no_reading(tmp_pat
     store.upsert({"id": "NEW", "session_date": "2026-10-01", "symbol": "LPA", "armed_at": 2.0,
                   "liquidity": {"state": "thin", "reasons": ["traded $999K today, under $2.00M"]}})
     assert next(r for r in store.rows() if r["id"] == "NEW")["liquidity"]["state"] == "thin"
-    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == SETUPS_DB_SCHEMA_VERSION == 6
+    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == SETUPS_DB_SCHEMA_VERSION == 7
 
 
 def test_the_traders_plan_reads_a_thin_stock_as_not_a_trade_and_the_in_play_tile_says_so():

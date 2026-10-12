@@ -2,7 +2,7 @@
 downward"). Pure; ``level_notes`` is the long side and dispatches here.
 
 A short sells at its entry and covers under it, so its Room is the distance down to the first zone of
-today's map under the entry, its target is judged against the round just under it (a cover over the
+today's map under the entry, read against its cover targets (#845), its target is judged against the round just under it (a cover over the
 round fills before the round; one on or under it needs the round to break), its buy stop against the
 round just over it, its next round is the one under the entry, and a round the price just lost is the
 short's trigger while one it just broke is against it.
@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants_stock_read import STOCK_READ_ROOM_MIN_R, STOCK_READ_ROUND_CROSS_SEC
+from constants_stock_read import STOCK_READ_ROUND_CROSS_SEC
 from stock_read import rounds
 from stock_read.level_map import EPS, hhmm, px
-from stock_read.level_notes import _cents, _pair, _study, cross_events
+from stock_read.level_notes import _cents, _pair, _study, against_targets, cross_events
 
 NO_TRIAL = "Trial T7 was registered on long entries: a short's Room describes and is in no trial."
 
@@ -31,9 +31,10 @@ def _lost_words(rnd: rounds.Rounds) -> str:
 
 def room(plan: dict[str, Any], intraday: list[dict[str, Any]], daily: list[dict[str, Any]],
          rnd: rounds.Rounds | None = None) -> dict[str, Any]:
-    """The first zone of today's map under the entry, in R; under ``STOCK_READ_ROOM_MIN_R`` it reads amber."""
-    entry, risk, target = plan.get("entry"), plan.get("risk"), plan.get("target")
-    base = {"trial": None, "r": None, "price": None, "label": None}
+    """The first zone of today's map under the entry, read against the cover targets: amber when it stands
+    before target 1."""
+    entry, risk, target = plan.get("entry"), plan.get("risk"), plan.get("target2") or plan.get("target")
+    base = {"trial": None, "r": None, "t7": None, "price": None, "label": None}
     if entry is None or not risk or risk <= EPS:
         return base | {"state": "unknown", "text": "Room is not known: no buy stop over the entry", "detail": None}
     below = sorted((z for z in intraday if z["hi"] < entry - EPS), key=lambda z: -z["hi"])
@@ -44,13 +45,12 @@ def room(plan: dict[str, Any], intraday: list[dict[str, Any]], daily: list[dict[
         return base | {"state": "ok", "text": "No level of today's map under the entry",
                        "detail": " ".join(x for x in (daily_note, NO_TRIAL) if x)}
     first = below[0]
-    r = (entry - first["hi"]) / risk
-    then = f"Then {below[1]['tag']} at {(entry - below[1]['hi']) / risk:.1f}R. " if len(below) > 1 else ""
-    warn = r < STOCK_READ_ROOM_MIN_R - EPS
-    note = f"Under {STOCK_READ_ROOM_MIN_R:g}R it is a warning; it blocks nothing. " if warn else ""
-    detail = " ".join(x for x in (then + note, daily_note or "", NO_TRIAL) if x).strip()
-    return {"trial": None, "r": round(r, 2), "price": first["hi"], "label": first["label"],
-            "state": "warn" if warn else "ok", "text": f"{r:.1f}R to {first['tag']}", "detail": detail}
+    gap = entry - first["hi"]
+    state, text, why = against_targets(gap, first, plan, short=True)
+    then = f"Then {below[1]['tag']}, {_cents(entry - below[1]['hi'])} under the entry." if len(below) > 1 else ""
+    detail = " ".join(x for x in (why, then, daily_note or "", NO_TRIAL) if x).strip()
+    return {"trial": None, "r": round(gap / risk, 2), "t7": None, "price": first["hi"], "label": first["label"],
+            "state": state, "text": text, "detail": detail}
 
 
 def target_note(target: float | None, rnd: rounds.Rounds | None) -> dict[str, Any] | None:

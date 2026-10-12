@@ -8,7 +8,7 @@
  * +40% run.
  * The pane's right edge is the scene's (operator report 2026-09-30: "everything is getting on top of each
  * other in the charts!"): it claims the edge (`claimEdge`), so the EMAs' and VWAP's tags, the plan's
- * ENTRY / STOP / TARGET and the position tag's room come to its one column with the levels' names instead of
+ * ENTRY / STOP / TARGET 1 / TARGET 2 and the position tag's room come to its one column with the levels' names instead of
  * being drawn over them, and the column starts under the corner chips.
  * On a Sim replay it draws the replay's read at the playhead (ADR 052): the Sim eyes' setups, the plan and
  * the day's levels from the replay's own candles, and the Sim eyes' setups that ended up to the playhead (#815).
@@ -197,7 +197,8 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   // The read must be this desk's -- a replay's on a replay desk, never from after its playhead (`readNow`).
   const enabled = !!ctx && kind !== 'none' && !!ctx.readNow;
   const live = enabled ? ctx?.readNow ?? null : null;
-  // The operator's own plan moves under the pointer on the 1-minute pane; the target follows at 2R.
+  // The operator's own plan moves under the pointer on the 1-minute pane; its targets keep their distance from the
+  // entry until the backend reads them afresh on release (#845).
   const setManualPlan = ctx?.setManualPlan;
   const preview = usePlanDrag({
     containerRef,

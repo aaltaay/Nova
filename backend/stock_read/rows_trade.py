@@ -210,14 +210,14 @@ def _seller_row(l2: dict[str, Any] | None, price: float | None, plan: dict[str, 
     if not l2:
         return row("seller", "Seller ahead", "Not known", "unknown", src, no_line)
     lo = (plan or {}).get("entry") or price
-    hi = (plan or {}).get("target")
+    hi = (plan or {}).get("target2") or (plan or {}).get("target")       # the furthest target (#845)
     asks = [a for a in l2.get("asks") or [] if lo is not None and float(a["price"]) >= lo - 1e-9
             and (hi is None or float(a["price"]) <= hi + 1e-9)]
     if not asks:
         return row("seller", "Seller ahead", "No asks in view", "info", src)
     big = max(asks, key=lambda a: float(a.get("size") or 0))
     size = float(big.get("size") or 0)
-    where = "between entry and target" if hi is not None else "over the price"
+    where = "between the entry and the targets" if hi is not None else "over the price"
     if size >= TAPE_GATE_WALL_SHARES:
         return row("seller", "Seller ahead", f"{int(size):,} at {float(big['price']):.2f}",
                    "bad" if size >= TAPE_GATE_BIG_SELLER_SHARES else "warn", src, f"The largest ask {where}.")

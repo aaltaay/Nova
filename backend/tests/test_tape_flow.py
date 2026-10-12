@@ -209,7 +209,7 @@ def test_the_scoring_exit_follows_the_flush_and_names_it():
 
 def test_a_tightened_stop_that_is_hit_is_named_for_the_flush_and_the_half_never_lowers_it():
     tr = ScoreTracker(entry=4.38, stop=4.30, target1=4.54, risk=0.08, triggered_at=NOW, entry_bar_t=NOW - 20,
-                      flush=FlushPolicy(mode="tighten", hold_sec=0, trail_r=0.5))
+                      target2=4.70, target1_fraction=0.5, flush=FlushPolicy(mode="tighten", hold_sec=0, trail_r=0.5))
     tr.on_bar(_bar(NOW - 20, 4.37, 4.40, 4.36, 4.39), 4.3)                           # the entry bar
     assert tr.on_flow(label="flush", price=4.52, bid=4.51, ts=NOW + 45) == "tighten"
     assert tr.bar_stop == pytest.approx(4.48)

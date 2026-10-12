@@ -56,6 +56,7 @@ from setup_scanner.pullback import PullbackParams
 from setup_scanner.red_to_green import RedToGreenParams
 from setup_scanner.tape_flow import DEFAULT_FLOW, FlowParams, FlushPolicy
 from setup_scanner.tape_gate import GateParams
+from setup_scanner.targets import spec_of as target_spec
 from strategy.float_gate import float_for_gate
 
 _GRADE_RANK = {SETUPS_GRADE_A: 3, SETUPS_GRADE_B: 2, SETUPS_GRADE_C: 1}
@@ -166,8 +167,8 @@ def pullback_params(v: dict[str, Any]) -> PullbackParams:
         ema_period=int(v["ema_period"]), ema_tol=_pct(v["ema_tol"]), macd_positive=bool(v["macd_positive"]),
         macd_fast=int(v["macd_fast"]), macd_slow=int(v["macd_slow"]), macd_signal=int(v["macd_signal"]),
         stop_cap=float(v["stop_cap"]), min_stop=float(v["min_stop"]), entry_offset=float(v["entry_offset"]),
-        risk_slippage=float(v["risk_slippage"]), target_mode=str(v["target_mode"]), target_r=float(v["target_r"]),
-        target_fixed=float(v["target_fixed"]), near_dollars=float(v["near_dollars"]), near_pct=_pct(v["near_pct"]),
+        risk_slippage=float(v["risk_slippage"]), targets=target_spec(v),
+        near_dollars=float(v["near_dollars"]), near_pct=_pct(v["near_pct"]),
         session_start=str(v["session_start"]), entry_cutoff=str(v["entry_cutoff"]),
         max_per_symbol_day=int(v["max_per_symbol_day"]),
     )
@@ -181,8 +182,7 @@ def bull_flag_params(v: dict[str, Any]) -> BullFlagParams:
         flag_volume_lighter=bool(v["flag_volume_lighter"]), ema_hold=bool(v["ema_hold"]),
         ema_touch_pct=_opt_pct(v.get("ema_touch_pct")), reject_red_volume_high=bool(v["reject_red_volume_high"]),
         max_pole_wick=_opt_pct(v.get("max_pole_wick")), require_hod=bool(v["require_hod"]),
-        ema_period=int(v["ema_period"]), ema_tol=_pct(v["ema_tol"]), **_macd(v), **_risk(v),
-        target_mode=str(v["target_mode"]), target_r=float(v["target_r"]), target_fixed=float(v["target_fixed"]),
+        ema_period=int(v["ema_period"]), ema_tol=_pct(v["ema_tol"]), **_macd(v), **_risk(v), targets=target_spec(v),
         session_start=str(v["session_start"]), entry_cutoff=str(v["entry_cutoff"]),
         max_per_symbol_day=int(v["max_per_symbol_day"]),
     )
@@ -195,8 +195,7 @@ def flat_top_params(v: dict[str, Any]) -> FlatTopParams:
         touch_pct=_pct(v["ft_touch_pct"]), touch_dollars=float(v["ft_touch_dollars"]),
         base_start=str(v["ft_base_start"]), entry_mode=str(v["ft_entry"]),
         hold_bars=int(v["ft_hold_bars"]), ema_period=int(v["ema_period"]), ema_tol=_pct(v["ema_tol"]), **_macd(v),
-        **_risk(v), target_mode=str(v["target_mode"]), target_r=float(v["target_r"]),
-        target_fixed=float(v["target_fixed"]), session_start=str(v["session_start"]),
+        **_risk(v), targets=target_spec(v), session_start=str(v["session_start"]),
         entry_cutoff=str(v["entry_cutoff"]), max_per_symbol_day=int(v["max_per_symbol_day"]),
     )
 
@@ -210,8 +209,8 @@ def flat_top_5m_params(v: dict[str, Any]) -> FlatTopParams:
 def red_to_green_params(v: dict[str, Any]) -> RedToGreenParams:
     return RedToGreenParams(
         session_start=str(v["session_start"]), r2g_cutoff=str(v["r2g_cutoff"]),
-        min_red_bars=int(v["r2g_min_red_bars"]), target_hod=bool(v["r2g_target_hod"]),
-        ema_period=int(v["ema_period"]), **_macd(v), **_risk(v), target_r=float(v["target_r"]),
+        min_red_bars=int(v["r2g_min_red_bars"]),
+        ema_period=int(v["ema_period"]), **_macd(v), **_risk(v), targets=target_spec(v),
     )
 
 
@@ -220,7 +219,7 @@ def gap_and_go_params(v: dict[str, Any]) -> GapAndGoParams:
         session_start=str(v["session_start"]), entry_cutoff=str(v["entry_cutoff"]),
         stop_cents=float(v["stop_cents"]), stop_pct=_pct(v["stop_pct"]), ema_period=int(v["ema_period"]), **_macd(v),
         min_stop=float(v["min_stop"]), entry_offset=float(v["entry_offset"]), risk_slippage=float(v["risk_slippage"]),
-        target_r=float(v["target_r"]), near_dollars=float(v["near_dollars"]), near_pct=_pct(v["near_pct"]),
+        targets=target_spec(v), near_dollars=float(v["near_dollars"]), near_pct=_pct(v["near_pct"]),
     )
 
 

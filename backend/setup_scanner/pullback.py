@@ -24,9 +24,9 @@ the window blocks it), ``failed`` (the pullback broke a rule), ``watching``.
 
 Every number above is a ``PullbackParams`` field, which a template sets (ADR
 029); the defaults are the pre-registered rules. At most ``max_per_symbol_day``
-setups trigger on one symbol a day (the research's cap, ADR 022). Target 1 is
-max(leg high, entry + R x risk), or entry plus a fixed amount when the template
-asks for one.
+setups trigger on one symbol a day (the research's cap, ADR 022). The targets are the
+menu's (``setup_scanner/targets.py``, #845): the pullback's high is the leg high, and the
+stop may be the template's round-number choice instead of the pullback low.
 
 The trigger on a live price, the near band and the view are the shared
 ``setup_scanner/detector.TriggerDetector`` (ADR 031), moved there unchanged.
@@ -73,13 +73,11 @@ from constants_setups import (
     SETUPS_SESSION_START_ET,
     SETUPS_STOP_CAP_DOLLARS,
     SETUPS_STOP_CAP_PCT,
-    SETUPS_TARGET_FIXED_DOLLARS,
-    SETUPS_TARGET_MODE,
-    SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import TriggerDetector, et_time, forming_levels, hhmm, risk_blocked
 from setup_scanner.series import Series, ema, macd_hist  # noqa: F401 -- callers import them from here
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 ET = ZoneInfo("America/New_York")
 STALE_LEG_BARS = 10       # how far back a leg can still explain a "failed" row
@@ -107,19 +105,12 @@ class PullbackParams:
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_mode: str = SETUPS_TARGET_MODE
-    target_r: float = SETUPS_TARGET_R
-    target_fixed: float = SETUPS_TARGET_FIXED_DOLLARS
+    targets: TargetSpec = DEFAULT_TARGETS                 # the target menu's choice (#845)
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SETUPS_SESSION_START_ET
     entry_cutoff: str = SETUPS_ENTRY_CUTOFF_ET
     max_per_symbol_day: int = SETUPS_MAX_PER_SYMBOL_DAY
-
-    def target1(self, leg_high: float, entry: float, risk: float) -> float:
-        if self.target_mode == "fixed":
-            return round(entry + self.target_fixed, 4)
-        return round(max(leg_high, entry + self.target_r * risk), 4)
 
 
 @dataclass
@@ -212,7 +203,8 @@ class PullbackDetector(TriggerDetector):
         self.leg = leg
         trig = h[last]
         entry = round(trig + self.p.entry_offset, 4)
-        risk = round(entry - pb_low, 4)
+        stop, stop_why = self.stop_at(entry, pb_low)
+        risk = round(entry - stop, 4)
         next_t = et_time(bars[last].t + self.p.bar_sec)
         blocked = None
         if not (_hhmm(self.p.session_start) <= next_t < _hhmm(self.p.entry_cutoff)):
@@ -223,8 +215,8 @@ class PullbackDetector(TriggerDetector):
             blocked = risk_blocked(self.p, risk, entry=entry)
         if blocked:
             self.armed = None
-            self.forming = forming_levels(trig, entry, pb_low, self.p.target1(leg["high"], entry, risk), bars=m,
-                                          blocked=blocked)
+            self.forming = forming_levels(trig, entry, stop, self.aim(entry, pullback_high=leg["high"], stop=stop_why),
+                                          bars=m, blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, blocked)
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason=blocked)))
@@ -233,13 +225,13 @@ class PullbackDetector(TriggerDetector):
             events.append(("disarmed", self._key_view(prev, reason="a newer leg took over")))
             prev = None
         self.armed = {
-            "leg_t": leg["t"], "trigger": round(trig, 4), "entry": entry, "stop": round(pb_low, 4),
-            "risk": risk, "target1": self.p.target1(leg["high"], entry, risk),
+            "leg_t": leg["t"], "trigger": round(trig, 4), "entry": entry, "stop": round(stop, 4),
+            "risk": risk, **self.aim(entry, pullback_high=leg["high"], stop=stop_why),
             "pullback_bars": m, "leg_high": leg["high"], "leg_low": leg["low"], "leg_pct": leg["pct"],
             "armed_bar_t": bars[last].t, "armed_at": (prev or {}).get("armed_at") or bars[last].t + self.p.bar_sec,
             "kind": self.kind_now(), "detail": None,
         }
-        self._set(SETUP_STATE_ARMED, f"trigger {trig:.2f}, stop {pb_low:.2f}, risk {risk:.2f}")
+        self._set(SETUP_STATE_ARMED, f"trigger {trig:.2f}, stop {stop:.2f}, risk {risk:.2f}")
         return events + self.arm_events(prev)
 
     # -- helpers ------------------------------------------------------------

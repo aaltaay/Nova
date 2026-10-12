@@ -3,8 +3,11 @@
 Owner: this module -- the only reader and writer of ``setup-templates.json``.
 File: ``paths.cache_dir() / SETUP_TEMPLATES_FILENAME`` -- the operator cache,
 never git: the operator's variations are their edge.
-Schema: ``{schema_version: 1, setups: {SETUP: {in_play: ID | null, templates:
-[{id, name, note, rev, values, created_at, updated_at}], default_bot?: {KEY: value}}}}``.
+Schema: ``{schema_version: 2, setups: {SETUP: {in_play: ID | null, templates:
+[{id, name, note, rev, values, created_at, updated_at, migrated?}], default_bot?: {KEY: value}}}}``.
+A schema-1 file (the R-multiple target, before #845) migrates on read (``setup_templates.migrate``):
+its templates' old target parameters become the menu's, each moves one ``rev`` and says so in
+``migrated`` until the operator saves its values; the file is written as schema 2 at the next save.
 The built-in ``default`` is not stored: it is the catalogue's defaults at
 the setup's default revision (``setup_default_rev``), with the operator's own bot rules over them
 (``default_bot``, ADR 044: ``setup_templates.default_bot``; a file without it reads as
@@ -52,7 +55,7 @@ from constants_setups import (
     SETUP_TEMPLATES_SCHEMA_VERSION,
     setup_default_rev,
 )
-from setup_templates import catalogue, default_bot, windows
+from setup_templates import catalogue, default_bot, migrate, windows
 from setup_templates.catalogue import TemplateError
 
 logger = logging.getLogger(__name__)
@@ -73,6 +76,7 @@ class Template:
     # Saved values a read does not use, written back as they were: the bot window as saved
     # (before ``windows.clip``) and retired parameters. Empty once the operator saves the values.
     kept: dict[str, Any] = field(default_factory=dict)
+    migrated: str | None = None         # what a migration did to it (``setup_templates.migrate``), until a save
     fingerprint: str = field(init=False)
     bot_window: dict[str, Any] | None = field(init=False)
     retired: dict[str, Any] = field(init=False)
@@ -88,13 +92,14 @@ class Template:
 
     def stored(self) -> dict[str, Any]:
         return {"id": self.id, "name": self.name, "note": self.note, "rev": self.rev, "values": self.saved_values(),
-                "created_at": self.created_at, "updated_at": self.updated_at}
+                "created_at": self.created_at, "updated_at": self.updated_at,
+                **({"migrated": self.migrated} if self.migrated else {})}
 
     def wire(self, *, in_play: bool) -> dict[str, Any]:
         return {"id": self.id, "name": self.name, "note": self.note, "rev": self.rev, "values": self.values,
                 "created_at": self.created_at, "updated_at": self.updated_at, "setup": self.setup,
                 "builtin": self.builtin, "in_play": in_play, "fingerprint": self.fingerprint, "error": self.error,
-                "bot_window": self.bot_window,
+                "bot_window": self.bot_window, "migrated": self.migrated,
                 "retired": [{"key": k, "value": v, "text": catalogue.RETIRED[k]} for k, v in self.retired.items()]}
 
 
@@ -135,6 +140,11 @@ class TemplateStore:
                            "says which); every setup runs its default until it is moved aside")
             logger.exception("setup templates: %s", self._error)
             return
+        if isinstance(raw, dict):
+            raw, moved = migrate.to_current(raw)
+            if moved:
+                logger.info("setup templates: %s is schema 1 -- %d template(s) moved to the target menu (#845); "
+                            "each says so on the Bots page", path.name, moved)
         version = raw.get("schema_version") if isinstance(raw, dict) else None
         if version != SETUP_TEMPLATES_SCHEMA_VERSION:
             self._error = (f"{path.name} has schema version {version!r}; this build reads "
@@ -164,7 +174,8 @@ class TemplateStore:
         kept = {k: v for k, v in stored.items() if k in catalogue.BOT_KEYS or k in catalogue.RETIRED}
         return Template(setup=setup_id, id=tid, name=str(row.get("name") or tid), rev=int(row.get("rev") or 1),
                         values=values, note=str(row.get("note") or ""), created_at=row.get("created_at"),
-                        updated_at=row.get("updated_at"), error=error, kept=kept)
+                        updated_at=row.get("updated_at"), error=error, kept=kept,
+                        migrated=str(row["migrated"]) if row.get("migrated") else None)
 
     def _save(self) -> None:
         payload = {"schema_version": SETUP_TEMPLATES_SCHEMA_VERSION,
@@ -314,7 +325,8 @@ class TemplateStore:
                 return current, False
             t = Template(setup=setup_id, id=current.id, name=new_name, rev=current.rev + (1 if rules else 0),
                          values=new_values, note=new_note, created_at=current.created_at,
-                         updated_at=time.time() if now is None else now, kept=kept)
+                         updated_at=time.time() if now is None else now, kept=kept,
+                         migrated=None if saved else current.migrated)
             items = self._entry(setup_id)["templates"]
             items[[x.id for x in items].index(template_id)] = t
             self._save()

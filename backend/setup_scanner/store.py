@@ -17,7 +17,11 @@ Version 5 (operator decision 2026-10-01) adds whether the stock was too thin to 
 ``setup_scanner.liquidity``) -- at the trigger once it triggered, else as last read; a version-4 file is
 migrated in place and its rows read as unknown (never thin). Version 6 (ADR 049, #778 step 4) adds the side a
 setup enters (``side``: ``long`` / ``short``) and a short's SSR at its trigger, else at its arm (``ssr``); a
-version-5 file is migrated in place and its rows are long.
+version-5 file is migrated in place and its rows are long. Version 7 (#845) adds the second target
+(``target2``), the share sold at target 1 (``target1_fraction``), the menu's reasons (``targets``, JSON) and
+every target choice scored side by side (``target_scores``, JSON, its own ``schema_version``:
+``setup_scanner/target_choices.py``); a version-6 file is migrated in place and its rows carry none -- their
+one target sold the whole position, so they read ``target1_fraction`` 1.0.
 
 One row per trigger (2026-10-02): a setup armed again on a key whose row holds a trigger is its own row,
 ``KEY#2`` (``setup_scanner/lane_ids.py``); no column changed. ``triggered_on`` tells a lane made after a
@@ -38,7 +42,6 @@ from zoneinfo import ZoneInfo
 from constants_bot import BOT_SETUP_FIRST_PULLBACK
 from constants_setups import (
     SETUP_TEMPLATE_DEFAULT_ID,
-    SETUP_TEMPLATE_DEFAULT_REV,
     SETUPS_DB_FILENAME,
     SETUPS_DB_SCHEMA_VERSION,
 )
@@ -55,8 +58,10 @@ COLUMNS: tuple[str, ...] = (
     "outcome", "outcome_at", "mfe", "mae", "bar_r", "bar_exit_reason", "closed_at",
     "proposal_id", "updated_at", "template_id", "template_rev", "params_hash",
     "setup_type", "detail", "tf5_armed", "tf5_trigger", "liquidity", "side", "ssr",
+    "target2", "target1_fraction", "targets", "target_scores",
 )
-JSON_COLUMNS = frozenset({"pillars", "near_tape", "trigger_tape", "detail", "tf5_armed", "tf5_trigger", "liquidity"})
+JSON_COLUMNS = frozenset({"pillars", "near_tape", "trigger_tape", "detail", "tf5_armed", "tf5_trigger", "liquidity",
+                          "targets", "target_scores"})
 TEXT_COLUMNS = JSON_COLUMNS | {"kind", "state", "reason", "grade", "fail_reason", "outcome", "bar_exit_reason",
                                "proposal_id", "template_id", "params_hash", "setup_type", "side", "ssr"}
 INT_COLUMNS = frozenset({"template_rev"})
@@ -82,6 +87,8 @@ _V3_COLUMNS = ("setup_type", "detail")
 _V4_COLUMNS = ("tf5_armed", "tf5_trigger")
 _V5_COLUMNS = ("liquidity",)
 _V6_COLUMNS = ("side", "ssr")
+_V7_COLUMNS = ("target2", "target1_fraction", "targets", "target_scores")
+_V1_DEFAULT_REV = 1                        # the default's revision when a v1 file was written
 
 
 class StoreVersionError(RuntimeError):
@@ -109,7 +116,7 @@ class SetupStore:
             ver = self._conn.execute("PRAGMA user_version").fetchone()[0]
             tables = self._conn.execute(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='setups'").fetchone()[0]
-            if ver not in (0, 1, 2, 3, 4, 5, SETUPS_DB_SCHEMA_VERSION) or (ver == 0 and tables):
+            if ver not in (0, 1, 2, 3, 4, 5, 6, SETUPS_DB_SCHEMA_VERSION) or (ver == 0 and tables):
                 raise StoreVersionError(
                     f"{self.path.name} has schema version {ver}; this build reads {SETUPS_DB_SCHEMA_VERSION}. "
                     "Move the file aside to start a new scoreboard.")
@@ -123,6 +130,8 @@ class SetupStore:
                 self._migrate_v4()
             if ver in (1, 2, 3, 4, 5):
                 self._migrate_v5()
+            if ver in (1, 2, 3, 4, 5, 6):
+                self._migrate_v6()
             self._conn.executescript(_SCHEMA)
             self._conn.execute(f"PRAGMA user_version = {SETUPS_DB_SCHEMA_VERSION}")
             self._conn.commit()
@@ -138,8 +147,7 @@ class SetupStore:
                 self._conn.execute(f"ALTER TABLE setups ADD COLUMN {col} {_type(col)}")
         self._conn.execute(
             "UPDATE setups SET template_id = ?, template_rev = ?, params_hash = ? WHERE template_id IS NULL",
-            (SETUP_TEMPLATE_DEFAULT_ID, SETUP_TEMPLATE_DEFAULT_REV,
-             fingerprint(defaults(BOT_SETUP_FIRST_PULLBACK))))
+            (SETUP_TEMPLATE_DEFAULT_ID, _V1_DEFAULT_REV, fingerprint(defaults(BOT_SETUP_FIRST_PULLBACK))))
         logger.info("setups.db migrated to schema 2: earlier rows are the default template's")
 
     def _migrate_v2(self) -> None:
@@ -175,6 +183,17 @@ class SetupStore:
                 self._conn.execute(f"ALTER TABLE setups ADD COLUMN {col} {_type(col)}")
         self._conn.execute("UPDATE setups SET side = 'long' WHERE side IS NULL")
         logger.info("setups.db migrated to schema 6: earlier rows are long setups'")
+
+    def _migrate_v6(self) -> None:
+        """v6 -> v7: the second target and the side-by-side scores (#845); older rows sold whole at target 1."""
+        have = {r[1] for r in self._conn.execute("PRAGMA table_info(setups)").fetchall()}
+        for col in _V7_COLUMNS:
+            if col not in have:
+                self._conn.execute(f"ALTER TABLE setups ADD COLUMN {col} {_type(col)}")
+        if "target1" in have:
+            self._conn.execute("UPDATE setups SET target1_fraction = 1.0 WHERE target1_fraction IS NULL "
+                               "AND target1 IS NOT NULL")
+        logger.info("setups.db migrated to schema 7: earlier rows have one target, sold whole")
 
     def upsert(self, row: dict[str, Any]) -> None:
         data = {k: row.get(k) for k in COLUMNS if k in row}

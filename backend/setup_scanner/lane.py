@@ -38,6 +38,9 @@ triggers on its symbol (``lane_ids.py``).
 
 ADR 049: a short setup's lane reads every rule mirrored (``LaneParams.side``; its rows, tape, score and flush
 read the short side, ``lane_rows.prime`` hands its detector the prior close and yesterday's SSR).
+
+#845: a trigger (``lane_trigger.py``) is scored by the bot's exit -- half at target 1, the rest at target 2 --
+and every target choice beside it (``target_choices.py``), fed each completed bar until each closes.
 """
 from __future__ import annotations
 
@@ -46,15 +49,14 @@ from typing import Any
 from constants_bot import BOT_SETUP_FIRST_PULLBACK
 from constants_setups import (
     SETUP_STATE_NEAR,
-    SETUP_STATE_TRIGGERED,
     SETUP_TEMPLATE_DEFAULT_ID,
     SETUPS_BAR_SEC,
     TAPE_VERDICT_BLIND,
     TAPE_VERDICT_GO,
 )
-from setup_scanner import lane_ids, lane_liquidity, lane_rows, lane_view
+from setup_scanner import lane_ids, lane_liquidity, lane_rows, lane_trigger, lane_view, target_choices
 from setup_scanner.bars import Bar
-from setup_scanner.detector import TriggerDetector, candle_start
+from setup_scanner.detector import TriggerDetector
 from setup_scanner.detectors import make_detector
 from setup_scanner.lane_params import LaneParams
 from setup_scanner import five_minute, lane_announce, lane_flow, lane_journal, tape_flow
@@ -82,6 +84,7 @@ class Lane:
         self.rows: dict[str, dict] = {}
         self.active_id: dict[str, str] = {}
         self.trackers: dict[str, ScoreTracker] = {}
+        self.choices: dict[str, target_choices.ChoiceBook] = {}   # setup id -> every target choice, scored (#845)
         self.tape_view: dict[str, dict] = {}
         self.proposals: dict[str, dict] = {}
         self.filtered: dict[str, str] = {}
@@ -125,7 +128,7 @@ class Lane:
 
     # -- symbols ----------------------------------------------------------------
     def clear(self) -> None:
-        for store in (self.det, self.rows, self.active_id, self.trackers, self.tape_view,
+        for store in (self.det, self.rows, self.active_id, self.trackers, self.choices, self.tape_view,
                       self.proposals, self.filtered, self.forming, self.tf5, self.candles, self._tape_said,
                       self._said, self._priced, self.flow_last, self._flow_said, self._flow_next, self.bars,
                       self.attempts, self.stored_triggered):
@@ -151,8 +154,9 @@ class Lane:
                 if d.state in WATCH_STATES and self.active_id.get(s) not in self.filtered}
 
     def busy(self) -> set[str]:
-        """Symbols this lane still needs: a watched setup or a trade being scored."""
-        return self.watching() | {self.rows[sid]["symbol"] for sid in self.trackers if sid in self.rows}
+        """Symbols this lane still needs: a watched setup or a trade (or a target choice) being scored."""
+        return self.watching() | {self.rows[sid]["symbol"] for sid in (*self.trackers, *self.choices)
+                                  if sid in self.rows}
 
     def trades(self, now: float) -> list[str]:
         """Setup ids whose trade is inside its scoring window: their flow is read (ADR 034)."""
@@ -181,8 +185,9 @@ class Lane:
         lane_liquidity.refresh(self, sym, now)
         if new_bar is not None:
             for sid in self._tracker_ids(sym):
-                if self.trackers[sid].on_bar(new_bar, det.ema_now):
+                if self.trackers[sid].on_bar(new_bar):
                     self._score(sid)
+            target_choices.feed_bar(self, sym, new_bar)
 
     def on_price(self, sym: str, price: float, ts: float, bar_open: float | None) -> None:
         det = self.det.get(sym)
@@ -258,27 +263,7 @@ class Lane:
                 self.journal("near", sym, setup_id=sid, last=view.get("last_price"), reason=view.get("reason"),
                              tape=tape, **({"liquidity": liq} if liq else {}))
             elif kind == "triggered":
-                setup = view.get("setup") or {}
-                ts = float(setup.get("triggered_at") or now)
-                tape = self.evaluate(sym, self.read_at(ts))
-                row.update({"state": SETUP_STATE_TRIGGERED, "reason": view["reason"], "triggered_at": ts,
-                            "entry": setup.get("entry"), "nth": setup.get("nth"), "trigger_tape": tape,
-                            "outcome": "open", "stop": setup.get("stop"), "risk": setup.get("risk"),
-                            "target1": setup.get("target1"), "detail": setup.get("detail"),
-                            "tf5_trigger": self.tf5.get(sym), **lane_rows.at_trigger(self, sym)})
-                lane_liquidity.stamp(self, sym, row, self.read_at(ts))
-                # A flat-top hold enters at a candle's close: it is scored from that candle,
-                # which takes no half at target 1 (the research's half_on_entry_bar=False).
-                self.trackers[sid] = ScoreTracker(
-                    entry=float(setup["entry"]), stop=float(setup["stop"]), target1=float(setup["target1"]),
-                    risk=float(setup["risk"]), triggered_at=ts,
-                    entry_bar_t=float(setup.get("score_bar_t") or candle_start(self.p, ts)),
-                    bailout_bars=self.p.bailout_bars, window_min=self.p.score_window_min, bar_sec=self.p.bar_sec,
-                    half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)), flush=self.p.flush, side=self.p.side)
-                self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
-                             tape=tape, reason=view["reason"], tf5=row["tf5_trigger"], liquidity=row["liquidity"])
-                self._close_proposal(sid, "triggered")
-                self._announce_trigger(sym, sid, setup, tape, ts)
+                lane_trigger.on_trigger(self, sym, sid, row, view, now)
             elif kind in ("failed", "disarmed") and not row.get("triggered_at"):
                 row.update({"state": view["state"], "reason": view["reason"]})
                 row["failed_at" if kind == "failed" else "disarmed_at"] = now

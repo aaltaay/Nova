@@ -54,8 +54,8 @@ Both answer 503 with the reason while the store is not open. Rows live in
 unknown version, or an unversioned file that already holds the table, refuses
 to open and the board reports `scoreboard_error`), one per armed setup: levels,
 grade and pillars at arm time, `near_tape` / `trigger_tape`, the first touch,
-MFE / MAE over 15 minutes and `bar_r` under the research exit rules --
-scores, never fills.
+MFE / MAE over 15 minutes and `bar_r` under the bot's exit (since #845: "Targets replace 2R"
+below; the research exit rules before) -- scores, never fills.
 
 **A symbol followed mid-session is seeded from 04:00** (2026-10-02: AMOD, followed at 07:51:22
 after trading since 04:00, wrote its first first-pullback line at 08:23, 32 bars later). Owner
@@ -163,6 +163,85 @@ the snapshot has none (`null` when neither knows). Board rows and `GET
   trigger (`null` before one, and on a filtered setup).
 - `outcome_at: number | null` -- when the scoring's first touch (target 1 or
   the stop) printed; `scored` journal lines carry it.
+
+## Targets replace 2R: the menu, two halves, and every choice scored (operator decisions 2026-10-09 and 2026-10-12, #845)
+
+"Our exits should not just be on random 2R even for our 'eyes' ... we need to follow more dynamic ranges, includes
+resistance and half/whole dollar ... these 2:1 ratio is too simple and should be completely removed" (2026-10-09);
+then: build the four targets the operator's material lists, sell in two halves, and have the eyes score every
+target choice side by side (2026-10-12). R stays the unit results are measured in (1R = the risk a share); no
+target is an R multiple anywhere. Owners: `setup_scanner/targets.py` (the menu, pure), `setup_scanner/target_choices.py`
+(the side-by-side scores), `setup_scanner/scoring.py` (the exit), `setup_templates/params_targets.py` (the
+template parameters), `setup_templates/migrate.py` (old templates), `eyes/target_readout.py` (the ranking).
+
+- **The menu.** A strategy picks a kind for each half, read point in time from what its lane knows:
+  - `fixed` -- an amount over the entry (`target_fixed`, the material's 10-30c, 20c by default);
+  - `next_level` -- 1c under the next zone of today's map over the entry (`stock_read.level_map`'s intraday
+    members read from the lane's own candles: the high and low of day, the premarket high, the 09:30 open, tops and
+    bottoms tested twice or more, the session VWAP, and the round numbers of the stock's scale, `stock_read.rounds`;
+    yesterday's levels are not the scanner's to know);
+  - `pullback_high` -- the high the pullback came from: the leg high (first pullback), the pole high (bull flag), the
+    high since the break (a flat-top hold; a break has none), the high since the open (red to green); Gap and Go and
+    the failed breakout have none;
+  - `hod` -- 1c under the high of day (the completed candles' and the last price);
+  - the defaults: target 1 `round_or_fixed` -- the fixed amount, or 1c under the next half / whole dollar when that is
+    closer; target 2 `hod_or_level` -- 1c under the high of day when that is at least `SETUPS_TARGET2_MIN_GAP` (5c)
+    past target 1, else 1c under the next level of today's map past target 1, else none; `none` (target 2 only).
+  A target nearer the entry than `SETUPS_TARGET_MIN_GAIN` (5c) is none: its level does not count, and the next one
+  does. A target 1 a kind cannot give falls back to the fixed amount and says so ("+20c (no level of today's map 5c+
+  over the entry)"). A target 2 is any kind's price at least 5c past target 1, else none. With a target 2,
+  `target_split_pct` (50%) of the shares sell at target 1. A short mirrors every kind under its entry: 1c over a level,
+  1c over the low of day, the low the bounce came from (the fade's low, the pole's low, the retest's low, the drop's
+  low).
+- **The stop choice.** `stop_kind`: `pattern` (the setup's own stop, the default) or `round` --
+  `SETUPS_STOP_ROUND_CENTS` (3c) under the nearest half / whole dollar under the entry (over it for a short) when that
+  risk, slippage counted, is inside the strategy's cap and over its floor; otherwise the pattern's stop, with why.
+- **On the wire.** Every setup and forming-levels dict (the board's `setup` / `forming`, the symbol view, a trigger
+  handed to the bot), every `setups.db` row and every proposal keeps `target1` (the first part's sell price) and adds
+  `target2: number | null` and `target1_fraction` (0.5 with a target 2, 1.0 without) -- the keys the bot's order side
+  (#681) reads -- and `targets: {first: {kind, price, why}, second: {kind, price, why} | null, hod, pullback_high,
+  stop: {kind: "pattern" | "round", why, round?} | null, rule: {first, second, fixed, split, stop}}` (a `first.kind`
+  of `round` is a `round_or_fixed` target that took the half / whole dollar). A lane's `rules` replace `target_r` /
+  `target_mode` with `targets` (the rule). A trigger aims again at the fill's entry with the high of day then.
+- **The exit the eyes score is the bot's.** `bar_r` is now: `target1_fraction` of the shares at target 1, the rest at
+  target 2 -- everything at target 1 without one -- and the stop stays where it is after the first part (it no longer
+  moves to the entry, and the 9 EMA exits nothing); the bailout as before (before the first part); flat by 15:55; a
+  bar that reached a target and the stop takes the stop. `bar_exit_reason` adds `target`, `target2`, `stop_runner` and
+  `close_runner` (rows scored before say `ema` / `breakeven`); a net R counts three fills once part sold at target 1.
+  The refused trade of a setup that died (`eyes/aftermath.py`) takes its armed setup's targets, else the menu's
+  defaults from the entry, the high of day before the cross and the leg's high.
+- **Every choice side by side.** At each trigger the lane also scores, on the same entry, stop, bailout, flush exit and
+  close: `fixed_10c`, `fixed_20c`, `fixed_30c`, `next_level`, `pullback_high`, `hod` -- each selling everything at its
+  one target -- and `default` (the menu's default pair at the template's fixed amount and split). A choice the trigger
+  has no price for is scored as the menu would trade it (the fixed amount) with `fell_back: true`, so every choice
+  is scored on the same triggers. Each is fed every completed candle (and flow reading) until it closes. A backtest
+  run (`eyes/backtest.py`) and the Sim eyes replay the same lanes on recorded sessions, so their rows carry the same
+  scores.
+- **Stored.** `setups.db` is `PRAGMA user_version = 7`: rows add `target2`, `target1_fraction`, `targets` (JSON) and
+  `target_scores` (JSON: `{schema_version: 1, entry, stop, risk, choices: {NAME: {kind, target1, target2,
+  target1_fraction, why, fell_back, bar_r, exit_reason, closed_at}}}`); a version-6 file migrates in place and its rows
+  read `target1_fraction` 1.0 (their one target sold the whole position) and no scores. The eyes' journal (schema 1,
+  unchanged) adds a `target_scores` line (`setup_id`, `scores`) once every choice of a trigger has closed.
+- **The read-out.** `GET /api/setups/target-choices?from=YYYY-MM-DD&setup=&template=&cost=&min_n=` (`setup=all` pools
+  every setup's template in play; the template filter is the scoreboard's) and `py -3 tools/target_readout.py --from
+  YYYY-MM-DD [--setup] [--template] [--cost] [--min-n] [--db] [--json]` (or `--run RUN_ID` for a backtest's
+  `setups.jsonl`) answer `{schema_version: 1, cost, min_n, triggers, scored, choices: [{name, n, wins, win_pct, mean_r,
+  sum_r, mean_net_r, sum_net_r, fell_back, open}], leader: string | null, note}` (the route adds `from`, `setup_type`,
+  `template`; a backtest's `summary.json` adds it per template as `targets`): the choices ranked by mean R net of `cost` a share a fill (`SETUPS_TARGET_READOUT_COST`, one cent), with
+  the counts. It names no `leader` while any choice has fewer than `min_n` (`SETUPS_TARGET_READOUT_MIN_N`, 30) scored
+  triggers, and `note` says how many it has. A leader is a description: nothing changes a template on it.
+- **Templates.** The "Risk and targets" group drops `target_mode`, `target_r` and `r2g_target_hod` (named in
+  `catalogue.RETIRED`: a write that sends one is refused with where it went) and adds `target1_kind`, `target2_kind`,
+  `target_fixed` (0.10-0.30), `target_split_pct` (10-90) and `stop_kind`, on every setup, long and short.
+  `setup-templates.json` is `schema_version: 2`: a schema-1 file migrates on read (`setup_templates/migrate.py`) -- a
+  template that sold at a fixed amount keeps it (clamped into 10-30c), every other (`r`, `leg_or_r`, `leg`, or an R
+  multiple alone) takes the menu's defaults; each moves one `rev` (its read-out starts over) and carries `migrated`
+  (the words, on the template's wire) until the operator saves its values; the file is written as schema 2 at the
+  next save. Every built-in default's revision moved on (`SETUP_TEMPLATE_DEFAULT_REV` 2, the flat top 3, the 5-minute
+  chart lanes' 2): every read-out starts over on the new targets and exit.
+- **Trials.** Trial T7 is registered on "Room under 2R" (`knowledge/signal-trials-2.json`, frozen by hash). Its
+  measurement is kept under its registered rule in its own reading, `room.t7` (stock-read.md, "The day's levels");
+  the plan's Room itself is read against the targets.
 
 ## The flat top counts its touches (ADR 031 amendment, operator ask 2026-10-06)
 
@@ -465,7 +544,8 @@ keys, no whitespace) to the SHA-256 it was registered with, so a change is a new
 never an edit. Trials registered after it go in a new registry version, `knowledge/signal-trials-2.json`
 (the same shape plus `version: 2` and `follows`; its own hash in `test_signal_trials_registry_2.py`): T7
 Room under 2R to the first level of today's map, as a warning, on setups armed from 2026-10-01 ("The day's
-levels" below). Then `knowledge/signal-trials-3.json` (`version: 3`, follows the second; its hash in
+levels" in stock-read.md; since #845 the plan reads Room against its targets, and T7's own reading stays its
+registered rule in `room.t7`). Then `knowledge/signal-trials-3.json` (`version: 3`, follows the second; its hash in
 `test_signal_trials_registry_3.py`): T8 the 5-minute chart against a 1-minute setup at its trigger, as a
 warning, on triggers recorded from 2026-10-01 ("The 5-minute chart on a 1-minute setup" above). No trial lets
 Nova buy or sell on Live by itself. Recorded with it (built later):

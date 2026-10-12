@@ -42,14 +42,49 @@ def test_first_touch_stop():
     assert t.outcome == "stop_first"
 
 
-def test_bar_rules_half_at_target_then_ema_exit():
-    t = tracker()
-    assert t.on_bar(bar(0, 4.33, 4.45, 4.33, 4.44), ema9=4.20) is False      # entry bar
-    assert t.on_bar(bar(1, 4.44, 4.56, 4.42, 4.55), ema9=4.25) is False      # target 1: half at 4.54
-    assert t.half_done and t.half_px == 4.54 and t.bar_stop == 4.38
-    assert t.on_bar(bar(2, 4.55, 4.56, 4.40, 4.41), ema9=4.45) is True       # close under the 9 EMA
-    assert t.exit_reason == "ema"
-    assert t.bar_r() == pytest.approx((0.5 * 0.16 + 0.5 * 0.03) / 0.08, abs=1e-3)
+def test_the_bots_exit_half_at_target_1_the_rest_at_target_2_and_the_stop_stays():
+    """#845: the scoring exit is the bot's -- half at target 1, the rest at target 2; the stop does not move to
+    the entry after the first half, and the 9 EMA exits nothing."""
+    t = tracker(target2=4.70, target1_fraction=0.5)
+    assert t.on_bar(bar(0, 4.33, 4.45, 4.33, 4.44)) is False                 # entry bar
+    assert t.on_bar(bar(1, 4.44, 4.56, 4.42, 4.55)) is False                 # target 1: half at 4.54
+    assert t.half_done and t.half_px == 4.54 and t.bar_stop == 4.30          # the stop stays where it was
+    assert t.on_bar(bar(2, 4.55, 4.56, 4.40, 4.41), ema9=4.45) is False      # a close under the 9 EMA: still in
+    assert t.on_bar(bar(3, 4.42, 4.72, 4.41, 4.69)) is True                  # target 2
+    assert t.exit_reason == "target2" and t.exit_px == 4.70
+    assert t.bar_r() == pytest.approx((0.5 * 0.16 + 0.5 * 0.32) / 0.08, abs=1e-3)
+
+
+def test_after_target_1_the_rest_stops_at_the_original_stop():
+    t = tracker(target2=4.70, target1_fraction=0.5)
+    t.on_bar(bar(0, 4.33, 4.45, 4.33, 4.44))
+    t.on_bar(bar(1, 4.44, 4.56, 4.42, 4.55))                                  # half at 4.54
+    assert t.on_bar(bar(2, 4.50, 4.51, 4.36, 4.37)) is False                  # under the entry, over the stop
+    assert t.on_bar(bar(3, 4.37, 4.38, 4.28, 4.29)) is True
+    assert t.exit_reason == "stop_runner" and t.exit_px == 4.30
+    assert t.bar_r() == pytest.approx((0.5 * 0.16 - 0.5 * 0.08) / 0.08, abs=1e-3)
+
+
+def test_without_a_target_2_everything_sells_at_target_1():
+    t = tracker()                                                            # target2 None: fraction 1.0
+    assert t.target2 is None and t.target1_fraction == 1.0
+    t.on_bar(bar(0, 4.33, 4.45, 4.33, 4.44))
+    assert t.on_bar(bar(1, 4.44, 4.56, 4.42, 4.55)) is True
+    assert t.exit_reason == "target" and t.exit_px == 4.54 and t.bar_r() == pytest.approx(2.0)
+
+
+def test_a_bar_that_reaches_both_targets_sells_both():
+    t = tracker(target2=4.70, target1_fraction=0.25)
+    t.on_bar(bar(0, 4.33, 4.45, 4.33, 4.44))
+    assert t.on_bar(bar(1, 4.44, 4.75, 4.42, 4.72)) is True
+    assert (t.half_px, t.exit_px, t.exit_reason) == (4.54, 4.70, "target2")
+    assert t.bar_r() == pytest.approx((0.25 * 0.16 + 0.75 * 0.32) / 0.08, abs=1e-3)
+
+
+def test_net_r_counts_three_fills_once_part_sold_at_target_1():
+    assert net_r({"bar_r": 1.0, "risk": 0.10, "bar_exit_reason": "target2"}) == pytest.approx(0.7)
+    assert net_r({"bar_r": 1.0, "risk": 0.10, "bar_exit_reason": "target"}) == pytest.approx(0.8)
+    assert net_r({"bar_r": 1.0, "risk": 0.10, "bar_exit_reason": "stop_runner"}, 0.02) == pytest.approx(0.4)
 
 
 def test_bar_rules_entry_bar_stop_only_on_a_close_below():

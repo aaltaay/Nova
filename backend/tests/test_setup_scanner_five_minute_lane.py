@@ -43,7 +43,7 @@ def engine(tmp_path, bars: list[Bar]) -> tuple[SetupEngine, dict]:
 
 def test_the_built_in_rules_are_the_defaults_on_five_minute_candles_with_the_operators_window():
     p = five_minute_params("first_pullback")
-    assert (p.template_id, p.template_rev, p.name) == ("5m", 1, "5-minute")
+    assert (p.template_id, p.template_rev, p.name) == ("5m", 2, "5-minute")    # 2: the target menu (#845)
     assert p.bar_sec == SETUPS_5M_BAR_SEC == p.pattern.bar_sec and p.score_window_min == 60
     assert p.pattern.entry_cutoff == SETUPS_5M_ENTRY_CUTOFF_ET == "15:30" and p.pattern.session_start == "07:00"
     assert p.pattern.stop_cap_pct == SETUPS_5M_STOP_CAP_PCT and stop_cap(p.pattern, 17.0) == 1.02

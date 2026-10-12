@@ -135,3 +135,16 @@ design is the agent's, under the operator's standing grant.
 - Rejected: snapshotting the board every few seconds (hundreds of MB a day, and
   still blind between snapshots); recomputing the day from the bar archive (it
   would show today's rules, not what was seen, and has no tape to gate on).
+
+## Amendment 2026-10-12 -- the target menu in every template (#845)
+
+- `target_mode`, `target_r` and `r2g_target_hod` leave every template (`catalogue.RETIRED` says where they went). The
+  "Risk and targets" group adds the menu (`setup_templates/params_targets.py`): `target1_kind`, `target2_kind`,
+  `target_fixed` (10-30c), `target_split_pct` and `stop_kind` (the pattern's stop, or 3c under the nearest half /
+  whole dollar inside the strategy's cap), the same on every setup, long and short.
+- `setup-templates.json` is schema 2. A schema-1 file migrates on read (`setup_templates/migrate.py`): a template
+  that sold at a fixed amount keeps it, clamped into 10-30c; any other takes the menu's defaults. Each moves one
+  `rev` (its read-out starts over) and says what was done in `migrated` until its values are saved. Never silent.
+- The parameter type moved to `setup_templates/spec.py` so the tables and the menu share it without importing each
+  other.
+- The eyes' journal stays schema 1 and adds one line, `target_scores`, when every target choice of a trigger closed.

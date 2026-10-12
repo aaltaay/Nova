@@ -75,6 +75,7 @@ def test_the_walk_takes_the_detectors_trigger_and_scores_it_the_scanners_way():
     [trade] = sim.walk(day, params)
     assert (trade.entry, trade.stop, trade.risk) == (5.46, 5.56, pytest.approx(0.10))
     assert trade.target1 == pytest.approx(5.26) and trade.ssr == "off" and trade.kind == "backside_lower_high"
+    assert trade.target2 == pytest.approx(5.00) and trade.fraction == 0.5        # 1c over the 4.99 low of day (#845)
     assert trade.half_px == pytest.approx(5.26) and trade.exit_px == 5.20 and trade.exit_reason == "close"
     assert trade.gross_r == pytest.approx(0.5 * 2.0 + 0.5 * 2.6)
     later = sim.StockDay("FADE", TODAY, 4.0, bars[-3].t, False, tuple(bars))   # followed from 10:24
@@ -144,14 +145,15 @@ def test_the_permutation_moves_each_trade_to_a_random_minute_of_its_own_day():
 
 # -- the rules under test and the result file -----------------------------------------------------------------
 def test_neighbours_resolve_from_the_template_and_say_what_a_setup_lacks():
-    assert runner.resolve({"stop_cap": "x0.75", "entry_cutoff": "-30", "target_r": 1.5},
-                          {"stop_cap": 0.20, "entry_cutoff": "11:30", "target_r": 2.0}) == {
-        "stop_cap": 0.15, "entry_cutoff": "11:00", "target_r": 1.5}
+    assert runner.resolve({"stop_cap": "x0.75", "entry_cutoff": "-30", "target_fixed": 0.10},
+                          {"stop_cap": 0.20, "entry_cutoff": "11:30", "target_fixed": 0.20}) == {
+        "stop_cap": 0.15, "entry_cutoff": "11:00", "target_fixed": 0.10}
     rules, left_out = runner.variants(default_template("backside_lower_high"))
     names = [n for n, _ in rules]
-    assert names[0] == "base" and "target 1.5R" in names and "fade 6%" in names and "no MACD rule" in names
+    assert names[0] == "base" and "cover 10c" in names and "fade 6%" in names and "no MACD rule" in names
     by = dict(rules)
-    assert by["target 1.5R"].pattern.target_r == 1.5 and by["base"].pattern.target_r == 2.0
+    assert (by["cover 10c"].pattern.targets.first, by["cover 10c"].pattern.targets.fixed) == ("fixed", 0.10)
+    assert by["base"].pattern.targets.first == "round_or_fixed"
     assert by["window 30 min shorter"].pattern.entry_cutoff == "11:00"
     assert all("has no" in x for x in left_out)
     assert len(names) + len(left_out) == 1 + len(cfg.COMMON_NEIGHBOURS) + len(cfg.NEIGHBOURS["backside_lower_high"])

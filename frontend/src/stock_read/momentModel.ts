@@ -150,7 +150,7 @@ export function judgedLevels(i: MomentInputs, held: HeldMemory = i.held): Judged
   const live = liveTrade(i.who);
   if (live) return { entry: live.fill_price ?? live.entry, stop: live.stop, target: live.target };
   // The read's own view of the position (ADR 036 amendment 2026-10-01): your stop (or the one Nova proposes)
-  // and your 2:1 from the average.
+  // and target 1 off your average (the target menu's, #845).
   const h = i.read?.held ?? null;
   if (h) return { entry: h.avg, stop: h.stop?.price ?? null, target: h.target?.price ?? null };
   const plan = i.read?.plan ?? null;

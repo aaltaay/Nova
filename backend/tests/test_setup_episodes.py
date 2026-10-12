@@ -181,7 +181,8 @@ def test_after_a_failed_pole_price_went_over_its_high_first_and_the_refused_trad
     assert (a["level"], a["entry"], a["floor"], a["price"]) == (1.35, 1.36, 1.31, 1.33)
     assert a["first"] == "high" and a["crossed_at"] == at(9, 20) and not a["complete"]
     t = a["trade"]
-    assert (t["entry"], t["stop"], t["risk"], t["target"]) == (1.36, 1.31, 0.05, 1.46)
+    # #845: the refused trade takes the menu's targets -- 1c under $1.50, 13c over the entry, beats +20c
+    assert (t["entry"], t["stop"], t["risk"], t["target"]) == (1.36, 1.31, 0.05, 1.49)
     assert t["outcome"] == "open" and t["mfe_r"] == 1.4 and t["mae_r"] == 0.0
 
 
@@ -197,7 +198,7 @@ def test_a_candle_that_broke_both_ways_counts_the_low_and_a_quiet_window_is_neit
 def test_a_gap_over_the_level_buys_the_open_and_the_first_touch_is_the_target_or_the_stop():
     gap = NCPL_BARS[:5] + bars((9, 20, 1.38, 1.40, 1.37, 1.39), (9, 21, 1.39, 1.52, 1.39, 1.50))
     t = aftermath.after(ncpl_episode(), gap, now=at(10, 0))["trade"]
-    assert t["entry"] == 1.38 and t["target"] == 1.52 and t["outcome"] == "target_first"
+    assert t["entry"] == 1.38 and t["target"] == 1.49 and t["outcome"] == "target_first"   # 1c under $1.50
     # The crossing candle counts its stop only on a close under it (the scoreboard's entry bar) ...
     dip = NCPL_BARS[:5] + bars((9, 20, 1.33, 1.37, 1.33, 1.36), (9, 21, 1.36, 1.36, 1.30, 1.31))
     assert aftermath.after(ncpl_episode(), dip, now=at(10, 0))["trade"]["outcome"] == "stop_first"

@@ -16,10 +16,11 @@ from setup_scanner.engine import SetupEngine
 from setup_scanner.pullback import PullbackDetector, PullbackParams
 from setup_scanner.series import Series, ema, macd_hist
 from setup_scanner.store import SetupStore
+from setup_scanner.targets import TargetSpec
 from setup_templates.store import TemplateStore
 from tests.setup_scanner_fixtures import add, base_morning, leg_up
 from tests.test_setup_scanner_engine import EYES, FP_ONLY, SYM, FakeTape, bar_msg
-from constants_setups import SETUPS_DB_SCHEMA_VERSION
+from constants_setups import SETUP_TEMPLATE_DEFAULT_REV, SETUPS_DB_SCHEMA_VERSION
 
 FP = "first_pullback"
 ET = ZoneInfo("America/New_York")
@@ -60,7 +61,7 @@ def test_every_template_scores_but_only_the_one_in_play_proposes(tmp_path):
     assert len(eng.proposals) == 1 and other.proposals == {}
     assert other.det[SYM].state == "near" and other.tape_view[SYM]["verdict"] == "go"
     rows = eng.store.rows()
-    assert {(r["template_id"], r["template_rev"]) for r in rows} == {("default", 1), (wide.id, 1)}
+    assert {(r["template_id"], r["template_rev"]) for r in rows} == {("default", SETUP_TEMPLATE_DEFAULT_REV), (wide.id, 1)}
     key = f"{SYM}-{eng.session}-{int(rows[0]['leg_t'])}"
     assert {r["id"] for r in rows} == {key, f"{key}~{wide.id}"}   # the default's ids are unchanged
     assert all(r["params_hash"] for r in rows)
@@ -96,7 +97,7 @@ def test_editing_a_template_starts_a_new_lane_for_its_new_rules(tmp_path):
     templates.update(FP, t.id, values={"leg_pct": 6})
     run(eng, clock["t"] + 1)
     assert [(lane.p.template_id, lane.p.template_rev) for lane in eng.lanes if lane.p.template_id != "5m"] == [
-        ("default", 1), (t.id, 2)]
+        ("default", SETUP_TEMPLATE_DEFAULT_REV), (t.id, 2)]
     lanes_events = [e for e in journal if e["event"] == "lanes"]
     assert len(lanes_events) == 2 and lanes_events[-1]["lanes"][1]["rev"] == 2
 
@@ -145,7 +146,7 @@ def test_the_read_out_counts_only_its_own_template_rows(tmp_path, monkeypatch):
     for i in range(3):
         store.upsert({"id": f"A{i}", "session_date": "2026-09-23", "symbol": "X", "kind": "first_pullback",
                       "triggered_at": t0 + i, "trigger_tape": {"verdict": "go"}, "bar_r": 1.0, "risk": 0.2,
-                      "template_id": "default", "template_rev": 1})
+                      "template_id": "default", "template_rev": SETUP_TEMPLATE_DEFAULT_REV})
     store.upsert({"id": "B0", "session_date": "2026-09-23", "symbol": "X", "kind": "first_pullback",
                   "triggered_at": t0, "trigger_tape": {"verdict": "go"}, "bar_r": 1.0, "risk": 0.2,
                   "template_id": "t-other", "template_rev": 2})
@@ -157,7 +158,7 @@ def test_the_read_out_counts_only_its_own_template_rows(tmp_path, monkeypatch):
     monkeypatch.setattr("setup_scanner.engine.get_engine", lambda: Eng())
     readout.reset_for_tests()
     out = readout.current(now=t0)
-    assert out["go"]["triggered"] == 3 and out["rules"]["template"] == {"id": "default", "rev": 1,
+    assert out["go"]["triggered"] == 3 and out["rules"]["template"] == {"id": "default", "rev": SETUP_TEMPLATE_DEFAULT_REV,
                                                                        "name": "Default (pre-registered)"}
 
 
@@ -208,9 +209,10 @@ def test_at_most_the_days_setups_trigger_on_one_symbol():
 
 
 def test_a_fixed_target_is_entry_plus_the_amount():
-    det = PullbackDetector("ABCD", p=PullbackParams(target_mode="fixed", target_fixed=0.20))
+    det = PullbackDetector("ABCD", p=PullbackParams(targets=TargetSpec(first="fixed", second="none", fixed=0.20)))
     det.on_bars(armed_bars())
     assert det.armed["target1"] == round(det.armed["entry"] + 0.20, 4)
+    assert det.armed["target2"] is None and det.armed["target1_fraction"] == 1.0
 
 
 def test_the_bot_window_comes_from_each_setups_template_in_play(tmp_path):
@@ -254,7 +256,8 @@ def test_the_scoreboard_answers_for_the_template_in_play_unless_asked(tmp_path, 
     app.include_router(routes.router)
     c = TestClient(app)
     mine = c.get("/api/setups/scoreboard", params={"days": 0}).json()
-    assert mine["row_count"] == 1 and mine["template"] == {"id": "default", "rev": 1, "name": "Default (pre-registered)"}
+    assert mine["row_count"] == 1 and mine["template"] == {"id": "default", "rev": SETUP_TEMPLATE_DEFAULT_REV,
+                                                          "name": "Default (pre-registered)"}
     assert c.get("/api/setups/scoreboard", params={"days": 0, "template": "all"}).json()["row_count"] == 2
     other = c.get("/api/setups/scoreboard", params={"days": 0, "template": wide.id}).json()
     assert other["row_count"] == 1 and other["rows"][0]["template_id"] == wide.id

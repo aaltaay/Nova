@@ -4,14 +4,17 @@ import { distanceLabel } from './setupsFormat';
 import { stateWords, tapeWords, toGoWords, triggerWords } from './setupWords';
 import type { SetupRow } from './types';
 
-/** A bear flag armed under 5.40, its buy stop 5.53 over the flag, its cover 5.13 (2R under the entry). */
+/** A bear flag armed under 5.40, its buy stop 5.53 over the flag; the menu's covers (#845): half at 5.19 (20c under the
+ * entry), the rest at 5.01 (1c over $5.00). */
 function short(partial: Partial<SetupRow> = {}): SetupRow {
   return {
     symbol: 'FADE', setup_type: 'bear_flag', side: 'short', ssr: 'off', state: 'armed',
     reason: 'flag of 2 over the 5.20 pole: short under 5.40, buy stop 5.53, risk 0.14', kind: 'bear_flag', nth: 0,
     setup_id: 'f1',
-    setup: { trigger: 5.40, entry: 5.39, stop: 5.53, risk: 0.14, target1: 5.11, pullback_bars: 2, leg_high: 5.6,
-      leg_low: 5.2, leg_pct: 0.071, detail: { flag_bars: 2, pole_bars: 3 } },
+    setup: { trigger: 5.40, entry: 5.39, stop: 5.53, risk: 0.14, target1: 5.19, pullback_bars: 2, leg_high: 5.6,
+      leg_low: 5.2, leg_pct: 0.071, detail: { flag_bars: 2, pole_bars: 3 }, target2: 5.01, target1_fraction: 0.5,
+      targets: { first: { kind: 'fixed', price: 5.19, why: '-20c' }, second: { kind: 'next_level', price: 5.01, why: '1c over $5.00' },
+        hod: 4.98, pullback_high: null, stop: { kind: 'pattern', why: "the pattern's stop", round: null }, rule: null } },
     leg: { t: 0, high: 5.6, low: 5.2, pct: 0.071, bars: 3 }, last_price: 5.44, distance: 0.04, grade: 'B', pillars: null,
     tape: null, proposal: null, outcome: null, bar_r: null, mfe: null, mae: null,
     ...partial,
@@ -26,7 +29,7 @@ describe('a short setup in its own words (ADR 049)', () => {
       leg: { t: 0, high: 6.01, low: 5.46, pct: 0.092 } });
     expect(stateWords(fade).text).toBe('Fading −9.2%');
     expect(stateWords(fade).tip).toMatch(/Fade −9\.2% off the 6\.01 high of day, to 5\.46\./);
-    expect(stateWords(short()).tip).toMatch(/Trigger 5\.40 · short 5\.39 · buy stop 5\.53 · risk 14¢ a share · cover 1 5\.11/);
+    expect(stateWords(short()).tip).toMatch(/Trigger 5\.40 · short 5\.39 · buy stop 5\.53 · risk 14¢ a share · cover 1 5\.19/);
   });
 
   it('puts its trigger under the price: trading under it starts the short, the buy stop over it', () => {
@@ -34,7 +37,9 @@ describe('a short setup in its own words (ADR 049)', () => {
     expect(tip).toMatch(/Trigger 5\.40: the last flag candle's low\. Trading under it starts the short\./);
     expect(tip).toMatch(/Entry 5\.39 \(the trigger −1c, the short's limit\)\./);
     expect(tip).toMatch(/Buy stop 5\.53: 1c over the flag\./);
-    expect(tip).toMatch(/Cover 1 5\.11: R x the risk under the entry\./);
+    expect(tip).toMatch(/Cover 1 5\.19 \(-20c\): half is covered there, the rest at cover 2 5\.01 \(1c over \$5\.00\)\. The buy stop stays where it is\./);
+    // No cover is a multiple of the risk any more (#845).
+    expect(tip).not.toMatch(/R x the risk|2R/);
   });
 
   it('counts the distance over the trigger; the SSR bounce rests over the price, so its distance is under', () => {

@@ -44,7 +44,6 @@ from constants_setups import (
     SETUPS_NEAR_PCT,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_STOP_CAP_DOLLARS,
-    SETUPS_TARGET_R,
 )
 from constants_short_setups import (
     SETUP_KIND_BEAR_FLAG,
@@ -68,7 +67,8 @@ from constants_short_setups import (
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import EPS, window_blocked
-from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked, short_target
+from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -95,7 +95,7 @@ class BearFlagParams:
     entry_offset: float = SHORT_ENTRY_OFFSET_DOLLARS
     stop_offset: float = SHORT_STOP_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_r: float = SETUPS_TARGET_R
+    targets: TargetSpec = DEFAULT_TARGETS               # the target menu's choice (#845), mirrored
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SHORT_WINDOW_START_ET
@@ -181,25 +181,25 @@ class BearFlagDetector(ShortTriggerDetector):
             return self._fail_or_watch(prev, pole, fault, failed=True)
         return self._arm(bars, last, pole, run, prev)
 
-    def _levels(self, last: int, run: int) -> tuple[float, float, float, float, float]:
+    def _levels(self, last: int, run: int, pole: dict) -> tuple[float, float, float, float, dict]:
         s, p = self.series, self.p
         flag_high = max(s.h[last - run + 1:last + 1])
         trig = s.lo[last]
         entry = round(trig - p.entry_offset, 4)
-        stop = round(flag_high + p.stop_offset, 4)
+        stop, stop_why = self.stop_at(entry, round(flag_high + p.stop_offset, 4))
         risk = round(stop - entry, 4)
-        return trig, entry, stop, risk, short_target(entry, risk, p.target_r)
+        return trig, entry, stop, risk, self.aim(entry, pullback_high=pole["low"], stop=stop_why)
 
     def _arm(self, bars: list[Bar], last: int, pole: dict, run: int, prev: dict | None) -> list[tuple[str, dict]]:
         s, p = self.series, self.p
         events: list[tuple[str, dict]] = []
         self.leg = pole
         first = last - run + 1
-        trig, entry, stop, risk, target = self._levels(last, run)
+        trig, entry, stop, risk, aim = self._levels(last, run, pole)
         blocked = self._blocked(bars, last, risk, entry)
         if blocked:
             self.armed = None
-            self.forming = short_levels(trig, entry, stop, target, bars=run, blocked=blocked)
+            self.forming = short_levels(trig, entry, stop, aim, bars=run, blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, f"flag of {run} candles, but {blocked}")
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason=blocked)))
@@ -209,7 +209,7 @@ class BearFlagDetector(ShortTriggerDetector):
             prev = None
         self.armed = {
             "leg_t": pole["t"], "trigger": round(trig, 4), "entry": entry, "stop": stop, "risk": risk,
-            "target1": target, "pullback_bars": run, "leg_high": pole["high"], "leg_low": pole["low"],
+            **aim, "pullback_bars": run, "leg_high": pole["high"], "leg_low": pole["low"],
             "leg_pct": pole["pct"], "armed_bar_t": bars[last].t,
             "armed_at": (prev or {}).get("armed_at") or bars[last].t + p.bar_sec, "kind": self.kind_now(),
             "detail": {"pole_bars": pole["bars"], "flag_bars": run, "pole_volume": pole["volume"],
@@ -228,10 +228,10 @@ class BearFlagDetector(ShortTriggerDetector):
 
     def _partial_flag(self, bars: list[Bar], last: int, pole: dict, run: int) -> dict[str, Any]:
         """A flag shorter than the rule asks: the levels it would arm with now (ADR 036)."""
-        trig, entry, stop, risk, target = self._levels(last, run)
+        trig, entry, stop, risk, aim = self._levels(last, run, pole)
         need = self.p.min_flag_bars - run
         blocked = self._flag_fault(pole, last - run + 1, last) or self._blocked(bars, last, risk, entry)
-        return short_levels(trig, entry, stop, target, bars=run, blocked=blocked,
+        return short_levels(trig, entry, stop, aim, bars=run, blocked=blocked,
                             waiting=f"{need} more green or doji candle{'' if need == 1 else 's'}")
 
     # -- the pattern ----------------------------------------------------------

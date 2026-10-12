@@ -100,13 +100,22 @@ describe('the level map off the wire', () => {
   });
 
   it("reads the plan's level notes and needs a Room", () => {
+    // Room against the targets (#845): HOD stands before target 1; trial T7's own reading rides beside it.
     const notes = normalizePlanLevels({
-      room: { state: 'warn', text: '0.9R to HOD 8.77', detail: 'Then $9.00 at 2.2R.', r: 0.88, price: 8.77, trial: 'T7' },
-      target: { state: 'ok', text: '8.96 is 4c under $9.00', detail: null }, stop: null, next: null, recent: null,
+      room: { state: 'warn', text: '15c to HOD 8.77, before target 1', r: 0.88, price: 8.77, trial: 'T7',
+        t7: { id: 'T7', r: 0.88, under: true },
+        detail: 'Target 1 (8.82) is past it: HOD 8.77 has to break for target 1 to fill. It is a warning; it blocks nothing.' },
+      target: { state: 'ok', text: '8.82 is 18c under $9.00', detail: null },
+      target2: { state: 'ok', text: '8.99 is 1c under $9.00', detail: null }, stop: null, next: null, recent: null,
       between: [{ price: 8.5, lo: 8.5, hi: 8.5, tag: '$8.50', label: '$8.50', round: true, hod: false }],
     });
-    expect(notes?.room).toMatchObject({ state: 'warn', r: 0.88, trial: 'T7' });
+    expect(notes?.room).toMatchObject({ state: 'warn', r: 0.88, trial: 'T7', t7: { id: 'T7', r: 0.88, under: true } });
+    expect(notes?.target2?.text).toBe('8.99 is 1c under $9.00');
     expect(notes?.between[0]).toMatchObject({ price: 8.5, round: true });
+    // An older backend's Room has no trial reading and no target 2.
+    const older = normalizePlanLevels({ room: { state: 'ok', text: 'No level of today\'s map above the entry' } });
+    expect(older?.room.t7).toBeNull();
+    expect(older?.target2).toBeNull();
     expect(normalizePlanLevels({ target: {} })).toBeNull();
   });
 });

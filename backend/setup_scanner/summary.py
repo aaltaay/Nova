@@ -25,8 +25,10 @@ from setup_scanner.five_minute import verdict as tf5_verdict
 ET = ZoneInfo("America/New_York")
 SLIPPAGE_PER_FILL = 0.01   # the research ladder's base cost, per fill
 RTH_OPEN = dtime(9, 30)
-# Exits after half came off at target 1: three fills (in, half, the rest), not two.
-THREE_FILL_EXITS = frozenset({"ema", "breakeven", "flush_runner", "flush_stop_runner"})
+# Exits after the first part sold at target 1: three fills (in, target 1, the rest), not two (#845's names, and
+# ``ema`` / ``breakeven`` on rows scored before it).
+THREE_FILL_EXITS = frozenset({"target2", "stop_runner", "close_runner", "flush_runner", "flush_stop_runner",
+                              "ema", "breakeven"})
 
 
 def _session(row: dict) -> str:
@@ -52,12 +54,13 @@ def _liquidity(row: dict) -> str:
     return str(reading.get("state") or "unknown") if isinstance(reading, dict) else "unknown"
 
 
-def net_r(row: dict) -> float | None:
+def net_r(row: dict, cost: float = SLIPPAGE_PER_FILL) -> float | None:
+    """``bar_r`` less ``cost`` a share for each fill (two, or three once part sold at target 1), in R."""
     r, risk = row.get("bar_r"), row.get("risk")
     if r is None or not risk:
         return None
-    fills = 3 if row.get("bar_exit_reason") in THREE_FILL_EXITS else 2
-    return round(float(r) - fills * SLIPPAGE_PER_FILL / float(risk), 3)
+    fills = 3 if (row.get("bar_exit_reason") or row.get("exit_reason")) in THREE_FILL_EXITS else 2
+    return round(float(r) - fills * cost / float(risk), 3)
 
 
 def _stats(rows: list[dict]) -> dict[str, Any]:

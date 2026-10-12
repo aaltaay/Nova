@@ -41,8 +41,8 @@ export const apusReadWire = {
     {
       setup_type: 'bull_flag', state: 'leg', reason: 'pole +7.1%: wait for the flag', kind: 'bull_flag', chosen: true,
       level: 1, setup: null,
-      forming: { trigger: 5.43, entry: 5.44, stop: 5.33, risk: 0.11, target1: 5.66, bars: 1, blocked: null,
-        waiting: '1 more red or doji candle' },
+      forming: { trigger: 5.43, entry: 5.44, stop: 5.33, risk: 0.11, target1: 5.49, target2: 5.99, target1_fraction: 0.5,
+        bars: 1, blocked: null, waiting: '1 more red or doji candle' },
       leg: { t: apusAt(15, 1), high: 5.45, low: 5.09, pct: 0.0707, bars: 3 },
       last_price: 5.37, distance: null, grade: null, tape: null, window: botWindow, series,
     },
@@ -62,8 +62,18 @@ export const apusReadWire = {
   ],
   plan: {
     source: 'setup', setup_type: 'bull_flag', kind: 'bull_flag', state: 'forming', provisional: true, trigger: 5.43,
-    entry: 5.44, stop: 5.33, target: 5.66, risk: 0.11, reward: 0.22, rr: 2.0,
-    target_rule: 'the higher of entry + 2 x risk and the pole high', entry_rule: "1 cent over the last flag candle's high",
+    // The template's target menu (#845): target 1 1c under $5.50 (nearer than 20c), target 2 1c under $6.00.
+    entry: 5.44, stop: 5.33, target: 5.49, target2: 5.99, target1_fraction: 0.5,
+    targets: {
+      first: { kind: 'round', price: 5.49, why: '1c under $5.50' },
+      second: { kind: 'next_level', price: 5.99, why: '1c under $6.00' },
+      hod: 8.74, pullback_high: 5.45, stop: { kind: 'pattern', why: "the pattern's stop" },
+      rule: { first: 'round_or_fixed', second: 'next_level', fixed: 0.2, split: 0.5, stop: 'pattern' },
+    },
+    risk: 0.11, reward: 0.05, rr: 0.45, reward2: 0.55, rr2: 5.0,
+    target_rule: "target 1: 20c, or 1c before a half / whole dollar when that is closer; target 2: 1c before the next "
+      + "level of today's map past target 1; 50% at target 1",
+    entry_rule: "1 cent over the last flag candle's high",
     stop_rule: "the flag's low", grade: null,
     reason: 'pole +7.1%: wait for the flag -- arms after 1 more red or doji candle', tape: null, flow: null,
     window: botWindow,
@@ -72,11 +82,11 @@ export const apusReadWire = {
       { id: 'macd', state: 'ok', text: '1-min MACD histogram +0.018' },
       { id: 'ema9', state: 'ok', text: 'above the 9 EMA 5.29' },
       { id: 'vwap', state: 'bad', text: 'under VWAP 6.09' },
-      { id: 'in_way_round', state: 'warn', text: '$5.50 before the target' },
+      { id: 'in_way_round', state: 'warn', text: '$5.50 before target 2' },
       { id: 'pulls', state: 'warn', text: 'bids being pulled (3 flags in the last minute)' },
       { id: 'window', state: 'warn', text: "outside the bot's 07:00-11:30 window: a hand trade" },
     ],
-    marks: [{ price: 5.5, label: '$5.50', kind: 'round', size: null }],
+    marks: [{ price: 5.5, label: '$5.50', kind: 'round', size: null, before: 2 }],
   },
   levels: {
     hod: { price: 8.74, ts: apusAt(9, 32) }, pmh: 7.31, open: 6.99, prev_close: 2.29, vwap: 6.09,

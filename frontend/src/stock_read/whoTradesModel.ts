@@ -202,12 +202,14 @@ export function level2Markers(levels: OrderLevels | null, side: 'long' | 'short'
   return out;
 }
 
-/** A price line's title for the level and what stands behind it; a short's SHORT, STOP ↑ and TARGET ↓ (ADR 048). */
-export function levelTitle(id: 'entry' | 'stop' | 'target', behind: Behind, targetR = '', short = false): string {
+/** A price line's title for the level and what stands behind it; a short's SHORT, STOP ↑ and TARGET ↓ (ADR 048).
+ * The plan's two targets (#845) are TARGET 1 and TARGET 2; an order's sell limit is the order's TARGET. */
+export function levelTitle(id: 'entry' | 'stop' | 'target' | 'target2', behind: Behind, short = false): string {
   const entry = short ? 'SHORT' : 'ENTRY';
   const stop = short ? 'STOP ↑' : 'STOP';
-  const target = short ? 'TARGET ↓' : 'TARGET';
+  const arrow = short ? ' ↓' : '';
   if (id === 'entry') return behind === 'held' ? `${entry} · held` : behind === 'order' ? `${entry} · working` : entry;
   if (id === 'stop') return behind === 'order' ? `${stop} · order` : behind === 'watched' ? `${stop} · Nova watches` : `${stop} · plan`;
-  return behind === 'order' ? `${target} · order` : `${target}${targetR} · plan`;
+  if (behind === 'order') return `TARGET${arrow} · order`;
+  return `TARGET ${id === 'target2' ? 2 : 1}${arrow} · plan`;
 }

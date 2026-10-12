@@ -197,7 +197,7 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
       .toBe('19 triggered inside the bot window 07:00–10:00 (10 at GO)');
     expect(screen.getByTestId('bots-readout-what-first_pullback').textContent).toBe('Measures whether the tape gate turns this '
       + 'setup into a winner. Nova\'s bot trades Paper and Sim only; Live trading by a bot is not built, so passing it unlocks nothing yet.');
-    expect(readout.textContent).toMatch(/scores the backtest's exit \(half at target 1, the stop to break-even, a 9 EMA trail\); the bot sells everything at target 1, with a 15-minute time stop/);
+    expect(readout.textContent).toMatch(/scores the strategy's exit \(its share at target 1, the rest at target 2, the stop where it is\); the bot sells everything at target 1, with a 15-minute time stop/);
     const words = readout.getAttribute('data-tip') ?? '';
     expect(words).toMatch(/^Measures whether the tape gate turns this setup into a winner\./);
     expect(words).toMatch(/It counts every first pullback this template armed that triggered/);

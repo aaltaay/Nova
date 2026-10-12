@@ -10,7 +10,8 @@
   over it; *through* when the price stands under it and a candle's low crossed it but no close has.
 - **Lower**: the lowest broke round whose ``round + near`` is under the stop and over the price ("Lower
   stop to 5.55, 5c over $5.50"). Down only.
-- **The cover target**: the average less ``STOCK_READ_TARGET_R`` x the risk you measure R in.
+- **The cover targets** (#845): the menu's defaults under your average, from today's map and the low of day
+  (``held_targets``): ``target``, ``target2`` (or None) and ``target1_fraction``, as the long's.
 - **The ladder**: the stop and the average over the price, the broke and through rounds, a resistance, the
   price, and the next two zones under it -- highest price first, as the long ladder.
 
@@ -27,9 +28,8 @@ from constants_stock_read import (
     STOCK_READ_MANUAL_STOP_BARS,
     STOCK_READ_ROUND_CROSS_SEC,
     STOCK_READ_ROUND_FRESH_BARS,
-    STOCK_READ_TARGET_R,
 )
-from stock_read import level_notes_short, rounds
+from stock_read import held_targets, level_notes_short, rounds
 from stock_read.indicators import manual_stop_short
 from stock_read.level_map import CENT, EPS, hhmm, px
 from stock_read.level_notes import _cents
@@ -135,7 +135,8 @@ def _row(role: str, p: float, text: str, avg: float, qty: float, risk: float | N
             "r": round((avg - p) / risk, 2) if risk else None, "usd": round((avg - p) * qty, 2)}
 
 
-def _levels(price: float | None, risk: float | None, stop: dict[str, Any] | None, target: dict[str, Any] | None,
+def _levels(price: float | None, risk: float | None, stop: dict[str, Any] | None,
+            targets: tuple[dict[str, Any] | None, dict[str, Any] | None],
             below: list[dict[str, Any]], broke: list[dict[str, Any]], through: list[dict[str, Any]],
             bars: list[dict[str, Any]], rnd: rounds.Rounds | None, now: float) -> dict[str, Any]:
     """The card's rows, measured from the price, downward."""
@@ -151,14 +152,8 @@ def _levels(price: float | None, risk: float | None, stop: dict[str, Any] | None
         room = {"state": "info", "text": f"{r:.1f}R to {below[0]['tag']}, from the price",
                 "detail": f"R is your {px(risk)} risk a share, measured from the price.", "trial": None,
                 "r": round(r, 2)}
-    tnote = None
-    if target is not None:
-        if target.get("traded_at"):
-            tnote = {"state": "ok", "text": f"{px(target['price'])} ({STOCK_READ_TARGET_R:g}R) traded at "
-                                            f"{hhmm(target['traded_at'])}: you are past it", "detail": target["rule"]}
-        elif price is not None:
-            tnote = {"state": "info", "text": f"{px(target['price'])} ({STOCK_READ_TARGET_R:g}R) is "
-                                              f"{_cents(price - target['price'])} below", "detail": target["rule"]}
+    tnote = held_targets.note(targets[0], price, short=True, name="Target 1")
+    t2note = held_targets.note(targets[1], price, short=True, name="Target 2")
     snote = level_notes_short.stop_note(stop["price"], price, rnd) if stop and price is not None else None
     nxt = level_notes_short.round_notes(bars, price=price, entry=None, now=now, rnd=rnd)[0] if price is not None else None
     recent = None
@@ -174,7 +169,7 @@ def _levels(price: float | None, risk: float | None, stop: dict[str, Any] | None
         recent = {"state": "warn", "round": t["round"], "at": t.get("at"),
                   "text": f"${t['round']:.2f} traded through{when}, no candle closed under it yet",
                   "detail": "A print under a round is not a break: only a close moves a stop."}
-    return {"room": room, "target": tnote, "stop": snote, "next": nxt, "recent": recent}
+    return {"room": room, "target": tnote, "target2": t2note, "stop": snote, "next": nxt, "recent": recent}
 
 
 def build(*, bars: list[dict[str, Any]], price: float | None, level_map: dict[str, Any] | None, avg: float,
@@ -193,12 +188,8 @@ def build(*, bars: list[dict[str, Any]], price: float | None, level_map: dict[st
         risk_v = round(stop_px - avg, 4)
     broke, through = crosses(bars, rnd, since, price)
     down = lower_for(broke, rnd, stop_px, price)
-    target = None
-    if risk_v and avg - STOCK_READ_TARGET_R * risk_v > 0:
-        t_px = round(avg - STOCK_READ_TARGET_R * risk_v, 4)
-        after = [b for b in bars if since is not None and float(b["t"]) + MIN > since]
-        hit = next((float(b["t"]) for b in after if float(b["l"]) <= t_px + EPS), None)
-        target = {"price": t_px, "rule": f"your average - {STOCK_READ_TARGET_R:g} x {px(risk_v)}", "traded_at": hit}
+    target, target2, fraction = held_targets.build(side="short", avg=avg, bars=bars, intraday=intraday,
+                                                   since=since, price=price)
     below = sorted((z for z in intraday if price is not None and float(z["hi"]) < price - EPS),
                    key=lambda z: -float(z["hi"]))
     above = sorted((z for z in intraday if price is not None and float(z["lo"]) > price + EPS
@@ -235,10 +226,13 @@ def build(*, bars: list[dict[str, Any]], price: float | None, level_map: dict[st
         "raise": None,
         "lower": down,
         "target": target,
+        "target2": target2,
+        "target1_fraction": fraction,
         "ladder": ladder,
         "broke": broke,
         "through": through,
-        "levels": _levels(price, risk_v, st, target, [{"price": float(z["hi"]), "tag": z["tag"]} for z in below],
+        "levels": _levels(price, risk_v, st, (target, target2),
+                          [{"price": float(z["hi"]), "tag": z["tag"]} for z in below],
                           broke, through, bars, rnd, now),
         "checks": checks or [],
     }

@@ -4,7 +4,8 @@ minute bars, then gate 1's account. Pure: bars and rules in, trades and numbers 
 ``walk`` runs one stock-day the way a lane would have: the bars before the stock was followed seed the detector
 at once (the seeder's 04:00 bars), then each minute's open and its extreme are fed as live prices (the low for a
 breakdown, the high for the SSR bounce) and the minute closes. A trigger opens a trade scored by
-``setup_scanner.scoring.ScoreTracker`` on the bars that follow; one trade at a time on a stock.
+``setup_scanner.scoring.ScoreTracker`` on the bars that follow -- the bot's exit since #845: the setup's two
+targets (part at target 1, the rest at target 2), the stop staying put; one trade at a time on a stock.
 
 ``account`` sizes and costs the trades in time order on a compounding account; ``stats`` reads them. ``FIXED``
 is that account with equity that never moves: the fixed-size readout (ADR 049 amendment, 2026-10-09) and the
@@ -22,12 +23,11 @@ from zoneinfo import ZoneInfo
 
 import shorts_config as cfg
 
-from constants_setups import SETUPS_EMA_PERIOD
 from setup_scanner.bars import Bar
 from setup_scanner.detector import candle_start
 from setup_scanner.detectors import make_detector, trigger_up
 from setup_scanner.scoring import ScoreTracker
-from setup_scanner.series import ema
+from setup_scanner.targets import plan as target_plan
 
 ET = ZoneInfo("America/New_York")
 
@@ -53,6 +53,8 @@ class Trade:
     stop: float
     target1: float
     risk: float
+    target2: float | None = None        # #845: the rest's cover; None: everything covers at target 1
+    fraction: float = 0.5               # the share covered at target 1 once part covered there (half_px)
     half_px: float | None = None
     exit_px: float | None = None
     exit_reason: str | None = None
@@ -93,9 +95,10 @@ def et_minute(ts: float) -> int:
 
 
 def _tracker(params: Any, *, entry: float, stop: float, target1: float, risk: float, ts: float, bar_t: float,
-             half_on_entry_bar: bool = True) -> ScoreTracker:
+             half_on_entry_bar: bool = True, target2: float | None = None, fraction: float = 1.0) -> ScoreTracker:
     return ScoreTracker(entry=entry, stop=stop, target1=target1, risk=risk, triggered_at=ts, entry_bar_t=bar_t,
-                        bailout_bars=params.bailout_bars, window_min=params.score_window_min, bar_sec=params.bar_sec,
+                        target2=target2, target1_fraction=fraction, bailout_bars=params.bailout_bars,
+                        window_min=params.score_window_min, bar_sec=params.bar_sec,
                         half_on_entry_bar=half_on_entry_bar, side=params.side)
 
 
@@ -154,18 +157,21 @@ def walk(day: StockDay, params: Any) -> list[Trade]:
                     continue
                 if on is not None:
                     continue                            # one trade at a time on a stock
+                t2 = setup.get("target2")
                 trade = Trade(day.ticker, day.d, setup.get("kind"), det.ssr(), float(setup.get("triggered_at") or ts),
-                              float(setup["entry"]), float(setup["stop"]), float(setup["target1"]), float(setup["risk"]))
+                              float(setup["entry"]), float(setup["stop"]), float(setup["target1"]), float(setup["risk"]),
+                              target2=float(t2) if t2 is not None else None,
+                              fraction=float(setup.get("target1_fraction") or 1.0))
                 bar_t = float(setup.get("score_bar_t") or candle_start(params, trade.triggered_at))
                 on = (_tracker(params, entry=trade.entry, stop=trade.stop, target1=trade.target1, risk=trade.risk,
-                               ts=trade.triggered_at, bar_t=bar_t,
+                               ts=trade.triggered_at, bar_t=bar_t, target2=trade.target2, fraction=trade.fraction,
                                half_on_entry_bar=bool(setup.get("half_on_entry_bar", True))), trade)
         for kind, view in det.on_bars(bars[: i + 1]):
             if kind == "armed":
                 ssr_now = det.ssr()
                 if (skip_ssr and ssr_now != "off") or not _stock_ok(params, b.c, day.prior_close):
                     kept_out.add(view.get("setup_key"))
-        if on is not None and on[0].on_bar(b, det.ema_now):
+        if on is not None and on[0].on_bar(b):
             trades.append(_close(on[1], on[0]))
             on = None
     if on is not None:                                  # the bars ran out before an exit: out at the last close
@@ -202,7 +208,7 @@ def cost_trade(t: Trade, equity: float, c: Costs) -> Trade:
     if shares < 1 or shares * t.entry < c.min_notional:
         out.skipped = "too small to survive the commission"
         return out
-    half = shares // 2 if t.half_px is not None else 0
+    half = int(shares * t.fraction) if t.half_px is not None else 0
     rest = shares - half
     gross = half * (t.entry - (t.half_px or 0.0)) + rest * (t.entry - t.exit_px)
     slip = c.slippage * 2 * shares
@@ -269,16 +275,20 @@ def window_minutes(day: StockDay, params: Any) -> list[int]:
             if b.t >= day.follow_from and start <= et_minute(b.t) < end]
 
 
-def shuffled_trade(day: StockDay, params: Any, i: int, risk: float, closes_ema: list[float]) -> Trade:
+def shuffled_trade(day: StockDay, params: Any, i: int, risk: float) -> Trade:
     """A short at the open of bar ``i`` with the trade's own risk a share, out by the same rules."""
     bars = day.bars
     b = bars[i]
     entry = float(b.o)
-    target_r = float(getattr(params.pattern, "target_r", 2.0))
-    t = Trade(day.ticker, day.d, "shuffle", "off", b.t + 1.0, entry, entry + risk, entry - target_r * risk, risk)
-    tr = _tracker(params, entry=entry, stop=t.stop, target1=t.target1, risk=risk, ts=t.triggered_at, bar_t=b.t)
+    # The template's targets at the moved entry (#845), from the low of day before it (no map: a bar file has none).
+    aim = target_plan(getattr(params.pattern, "targets", None), side="short", entry=entry,
+                      hod=min((x.lo for x in bars[:i]), default=None))
+    t = Trade(day.ticker, day.d, "shuffle", "off", b.t + 1.0, entry, entry + risk, aim.target1, risk,
+              target2=aim.target2, fraction=aim.fraction)
+    tr = _tracker(params, entry=entry, stop=t.stop, target1=t.target1, risk=risk, ts=t.triggered_at, bar_t=b.t,
+                  target2=t.target2, fraction=t.fraction)
     for j in range(i, len(bars)):
-        if tr.on_bar(bars[j], closes_ema[j]):
+        if tr.on_bar(bars[j]):
             break
     if tr.exit_px is None:
         tr.exit_px, tr.exit_reason = bars[-1].c, "close"
@@ -295,20 +305,18 @@ def shuffle(trades: list[Trade], days: dict[tuple[str, str], StockDay], params: 
         return {"p": None, "shuffles": 0, "actual_exp_r": None, "seed": seed, "ok": False}
     mean = sum(t.net_r for t in actual) / len(actual)
     rng = random.Random(seed)
-    cache: dict[tuple[str, str], tuple[list[int], list[float]]] = {}
+    cache: dict[tuple[str, str], list[int]] = {}
     at_least = 0
     for k in range(shuffles):
         total, n = 0.0, 0
         for t in actual:
             key = (t.ticker, t.d)
             if key not in cache:
-                day = days[key]
-                period = int(getattr(params.pattern, "ema_period", SETUPS_EMA_PERIOD))
-                cache[key] = (window_minutes(day, params), ema([b.c for b in day.bars], period))
-            allowed, closes_ema = cache[key]
+                cache[key] = window_minutes(days[key], params)
+            allowed = cache[key]
             if not allowed:
                 continue
-            moved = cost_trade(shuffled_trade(days[key], params, rng.choice(allowed), t.risk, closes_ema),
+            moved = cost_trade(shuffled_trade(days[key], params, rng.choice(allowed), t.risk),
                                FIXED.start_equity, FIXED)
             if moved.net_r is not None:
                 total += moved.net_r

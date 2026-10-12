@@ -24,13 +24,19 @@ def bar(hh, mm, o, h, lo, c, v=10_000):
     return {"t": ts(hh, mm), "o": o, "h": h, "l": lo, "c": c, "v": v}
 
 
+RULE = {"first": "round_or_fixed", "second": "hod_or_level", "fixed": 0.2, "split": 0.5, "stop": "pattern"}
 PFSA_ARMED = {
     "setup_type": "first_pullback", "state": "near", "reason": "0.03 under the 4.26 trigger -- read the tape",
     "chosen": True, "grade": "B", "kind": "first_pullback", "distance": 0.03,
-    "setup": {"trigger": 4.26, "entry": 4.27, "stop": 4.1446, "risk": 0.1254, "target1": 4.5208, "leg_high": 4.44},
+    "setup": {"trigger": 4.26, "entry": 4.27, "stop": 4.1446, "risk": 0.1254, "target1": 4.47, "target2": 4.73,
+              "target1_fraction": 0.5, "leg_high": 4.74,
+              "targets": {"first": {"kind": "fixed", "price": 4.47, "why": "+20c"},
+                          "second": {"kind": "hod", "price": 4.73, "why": "1c under HOD 4.74"},
+                          "hod": 4.74, "pullback_high": 4.74, "stop": {"kind": "pattern", "why": "the pattern's stop"},
+                          "rule": RULE}},
     "forming": None, "tape": {"verdict": "wait", "reasons": ["no green on the tape yet"]},
     "window": {"start": "07:00", "end": "11:30", "state": "open"},
-    "rules": {"stop_cap": 0.20, "min_stop": 0.03, "target_r": 2.0, "target_mode": "leg_or_r"},
+    "rules": {"stop_cap": 0.20, "min_stop": 0.03, "targets": RULE},
 }
 APUS_FLAG = {
     "setup_type": "bull_flag", "state": "leg", "chosen": False, "grade": None, "kind": "bull_flag",
@@ -38,20 +44,23 @@ APUS_FLAG = {
     "setup": None, "tape": None, "window": {"start": "07:00", "end": "11:30", "state": "after"},
     "forming": {"trigger": 5.43, "entry": 5.44, "stop": 5.33, "risk": 0.11, "target1": 5.66, "bars": 1,
                 "blocked": None, "waiting": "1 more red or doji candle"},
-    "rules": {"stop_cap": 0.20, "min_stop": 0.03, "target_r": 2.0, "target_mode": "leg_or_r"},
+    "rules": {"stop_cap": 0.20, "min_stop": 0.03, "targets": RULE},
     "leg": {"t": ts(15, 1), "high": 5.45, "low": 5.09, "pct": 0.0707},
     "series": {"macd_hist": 0.0179, "macd_line": -0.0149, "macd_signal": -0.0328, "ema": 5.2851, "hod": 8.74},
 }
 
 
 # -- the plan -------------------------------------------------------------------------------------
-def test_the_plan_follows_the_most_advanced_lane_and_says_it_is_at_least_two_to_one():
+def test_the_plan_follows_the_most_advanced_lane_and_names_both_its_targets():
     watching = {"setup_type": "flat_top_breakout", "state": "watching", "forming": None, "setup": None}
     p = plan.build([watching, APUS_FLAG, PFSA_ARMED], {"price": 4.23, "levels": {}}, now=ts(8, 7))
     assert p["setup_type"] == "first_pullback" and p["state"] == "near" and p["provisional"] is False
-    assert (p["entry"], p["stop"], p["target"]) == (4.27, 4.1446, 4.5208)
-    assert p["risk"] == 0.1254 and p["rr"] == 2.0
-    assert p["target_rule"] == "the higher of entry + 2 x risk and the leg high"
+    assert (p["entry"], p["stop"], p["target"], p["target2"], p["target1_fraction"]) == (4.27, 4.1446, 4.47, 4.73, 0.5)
+    assert p["risk"] == 0.1254 and p["rr"] == 1.59 and p["rr2"] == 3.67      # R: the unit, never the target
+    assert p["targets"]["first"]["why"] == "+20c" and p["targets"]["second"]["why"] == "1c under HOD 4.74"
+    assert p["target_rule"] == ("target 1: 20c, or 1c before a half / whole dollar when that is closer; target 2: "
+                                "1c before the high of day, else 1c before the next level past target 1; "
+                                "50% at target 1")
     assert {"id": "tape", "state": "warn", "text": "tape WAIT: no green on the tape yet"} in p["checks"]
 
 
@@ -65,19 +74,23 @@ def test_a_forming_setup_is_provisional_and_says_what_it_waits_for():
     assert texts["vwap"] == {"id": "vwap", "state": "bad", "text": "under VWAP 6.09"}
     assert texts["window"]["text"] == "outside the bot's 07:00-11:30 window: a hand trade"
     assert [m["price"] for m in p["marks"]] == [5.5]            # the half dollar sits before the 5.66 target
-    assert texts["in_way_round"]["text"] == "$5.50 before the target"   # a round number says its price once
+    assert texts["in_way_round"]["text"] == "$5.50 before target 1"   # a round number says its price once
 
 
 def test_a_plan_on_a_225_dollar_stock_lists_its_rounds_on_one_line_on_its_own_scale():
-    # ACN 2026-10-01: a 217.53 stop and a 236.61 target listed 26 half dollars, one check each.
-    p = plan.build([], {"price": 225.27, "levels": {"hod": {"price": 226.5, "ts": ts(9, 41)}}},
+    # ACN 2026-10-01: a 217.53 stop and a 236.61 target listed 26 half dollars, one check each. Since #845 the
+    # hand plan's target 1 is +20c and its target 2 1c under the high of day its candles made (236.62 here).
+    high = [bar(9, 40, 230.0, 236.62, 229.0, 230.0)]
+    p = plan.build([], {"price": 225.27, "levels": {"hod": {"price": 226.5, "ts": ts(9, 41)}}, "bars": high},
                    now=ts(9, 45), entry=223.89, stop=217.53)
+    assert (p["target"], p["target2"]) == (224.09, 236.61)
     assert [m["label"] for m in p["marks"]] == ["$225.00", "high of day", "$230.00", "$235.00"]
     in_way = [c["text"] for c in p["checks"] if c["id"].startswith("in_way")]
-    assert in_way == ["$225.00, $230.00 and $235.00 before the target", "high of day at 226.50 before the target"]
-    wide = plan.build([], {"price": 15.2, "levels": {}}, now=ts(9, 45), entry=15.2, stop=14.2)
+    assert in_way == ["$225.00, $230.00 and $235.00 before target 2", "high of day at 226.50 before target 2"]
+    wide = plan.build([], {"price": 15.2, "levels": {}, "bars": [bar(9, 40, 15.0, 17.10, 14.9, 15.1)]},
+                      now=ts(9, 45), entry=15.2, stop=14.2)
     assert [c["text"] for c in wide["checks"] if c["id"] == "in_way_round"] == [
-        "4 round numbers ($15.50 to $17.00) before the target"]
+        "4 round numbers ($15.50 to $17.00) before target 2"]
 
 
 def test_a_risk_over_the_cap_and_a_stop_inside_one_candle_are_named():
@@ -88,12 +101,14 @@ def test_a_risk_over_the_cap_and_a_stop_inside_one_candle_are_named():
     assert any(c["id"] == "candle" and c["state"] == "warn" for c in tight["checks"])
 
 
-def test_a_hand_plan_stops_at_the_last_candles_low_and_aims_for_two_r():
+def test_a_hand_plan_stops_at_the_last_candles_low_and_takes_the_menus_targets():
     bars = [bar(15, 44, 4.70, 4.75, 4.61, 4.66), bar(15, 45, 4.66, 4.72, 4.63, 4.70), bar(15, 46, 4.70, 4.74, 4.65, 4.69)]
     p = plan.build([], {"price": 4.67, "levels": {}, "bars": bars}, now=ts(15, 47), entry=4.71)
-    assert p["source"] == "manual" and p["stop"] == 4.61 and p["target"] == 4.91 and p["rr"] == 2.0
+    # +20c ($5.00 is 29c over); no target 2: the 4.75 high of day is not past target 1 and no map is known
+    assert p["source"] == "manual" and p["stop"] == 4.61 and p["target"] == 4.91 and p["target2"] is None
+    assert p["target1_fraction"] == 1.0 and p["targets"]["first"]["why"] == "+20c"
     own = plan.build([], {"price": 4.67, "levels": {}, "bars": bars}, now=ts(15, 47), entry=4.71, stop=4.66)
-    assert own["stop"] == 4.66 and own["stop_rule"] == "your stop" and own["target"] == 4.81
+    assert own["stop"] == 4.66 and own["stop_rule"] == "your stop" and own["target"] == 4.91 and own["rr"] == 4.0
 
 
 def test_a_hand_plan_with_no_low_under_the_entry_asks_for_a_stop():

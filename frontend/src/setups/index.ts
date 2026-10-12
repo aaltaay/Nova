@@ -76,6 +76,18 @@ export {
   type SleeveVenue,
 } from './sleeveRisk';
 export { TF5_TRIAL_NOTE, tf5Words, type Tf5Tone } from './tf5Words';
+/** The target menu (#845): target 1, target 2 and the share sold at target 1, with the words each came from. */
+export {
+  normalizeTargetFields,
+  normalizeTargets,
+  targetSentence,
+  targetShare,
+  type SetupTargets,
+  type TargetFields,
+  type TargetLeg,
+  type TargetRule,
+  type TargetStop,
+} from './targets';
 export type {
   Scoreboard,
   SetupCounts,

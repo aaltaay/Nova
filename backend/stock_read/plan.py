@@ -1,13 +1,16 @@
-"""The plan on top of Level 2 (ADR 036): entry, stop and a target of at least 2R, and what stands in
-the way. Pure.
+"""The plan on top of Level 2 (ADR 036): entry, stop, two targets, and what stands in the way. Pure.
 
 A setup plan is the most advanced lane's own levels -- its armed (or triggered) setup, else the
 levels it would arm with while it forms (provisional). A hand plan starts from the operator's entry:
-the stop is theirs or the low of the last few closed one-minute candles, the target entry + 2R.
-A plan has a ``side`` (ADR 048): a short plan -- a short setup's lane (``lane["side"]``), or the
-operator's own plan with ``side="short"`` -- sells at its entry, protects with a buy stop over it
-(theirs, or the high of the last few candles) and covers at entry - 2R; its checks, marks, level notes
-and liquidity are the mirror (``plan_checks``, ``level_notes``, ``plan_liquidity``).
+the stop is theirs or the low of the last few closed one-minute candles. The targets are the menu's
+(#845, ``setup_scanner/targets.py``): a setup plan's are its lane's, each with its reason ("+20c",
+"1c under $5.50", "1c under HOD 6.12"); a hand plan's are the menu's defaults from today's map and the
+high of day. ``target`` is target 1 (the first part's sell), ``target2`` the rest's or None, and
+``target1_fraction`` the share sold at target 1. A plan has a ``side`` (ADR 048): a short plan -- a short
+setup's lane (``lane["side"]``), or the operator's own plan with ``side="short"`` -- sells at its entry,
+protects with a buy stop over it (theirs, or the high of the last few candles) and covers at its targets
+under it; its checks, marks, level notes and liquidity are the mirror (``plan_checks``, ``level_notes``,
+``plan_liquidity``).
 The checks and marks describe; they never block anything. ``trade`` says when a setup plan is not a
 trade and why (operator report, 2026-09-29: a grade C that triggered with the tape at WAIT read
 TRIGGERED for twenty minutes after its stop printed); it too only describes -- the runners and the
@@ -29,9 +32,9 @@ from constants_setups import (
 )
 from constants_stock_read import (
     STOCK_READ_MANUAL_STOP_BARS,
-    STOCK_READ_TARGET_R,
     STOCK_READ_TRIGGERED_PLAN_SEC,
 )
+from setup_scanner import targets as target_menu
 from setup_scanner.grade import pillar_count
 from stock_read import plan_liquidity
 from stock_read.indicators import manual_stop, manual_stop_short
@@ -108,21 +111,20 @@ def choose(setups: list[dict[str, Any]], now: float) -> dict[str, Any] | None:
     return pick
 
 
-def target_rule(setup_type: str, rules: dict[str, Any], side: str = "long") -> str:
-    r = rules.get("target_r") or STOCK_READ_TARGET_R
-    mode = rules.get("target_mode") or "r"
-    if side == "short":     # a short covers under its entry (ADR 049: entry - 2 x risk)
-        return "a fixed amount under the entry (the template's)" if mode == "fixed" else f"entry - {r:g} x risk"
-    if mode == "fixed":
-        return "a fixed amount over the entry (the template's)"
-    if setup_type == "flat_top_breakout" or mode == "r":
-        return f"entry + {r:g} x risk"
-    if setup_type == "red_to_green":
-        return f"the higher of entry + {r:g} x risk and the high of day"
-    high = "pole" if setup_type == "bull_flag" else "leg"
-    if mode == "leg":
-        return f"the {high} high (entry + {r:g} x risk when the {high} high is not above the entry)"
-    return f"the higher of entry + {r:g} x risk and the {high} high"
+def target_rule(rule: dict[str, Any] | None) -> str:
+    """The strategy's choice from the menu in words: "target 1: ...; target 2: ...; half at target 1"."""
+    spec = target_menu.TargetSpec(**{k: v for k, v in (rule or {}).items()
+                                     if k in ("first", "second", "fixed", "split", "stop")})
+    one = target_menu.words(spec.first, fixed=spec.fixed)
+    two = target_menu.words(spec.second, second=True, fixed=spec.fixed)
+    split = f"{round(spec.split * 100):d}% at target 1" if spec.second != "none" else "everything at target 1"
+    return f"target 1: {one}; target 2: {two}; {split}"
+
+
+def _targets_of(lv: dict[str, Any]) -> dict[str, Any]:
+    """A levels dict's target fields (``targets.Targets.wire``), None where it carries none."""
+    return {"target2": lv.get("target2"), "target1_fraction": lv.get("target1_fraction"),
+            "targets": lv.get("targets")}
 
 
 def from_setup(lane: dict[str, Any]) -> dict[str, Any]:
@@ -146,25 +148,29 @@ def from_setup(lane: dict[str, Any]) -> dict[str, Any]:
             bits.append(f"blocked: {lv['blocked']}")
         reason = " -- ".join(b for b in bits if b)
     side = "short" if lane.get("side") == "short" else "long"
+    stop_choice = (lv.get("targets") or {}).get("stop") or {}      # the template's round-number stop (#845)
     return _levels({
         "source": "setup", "side": side, "setup_type": lane.get("setup_type"),
         "setup_id": lane.get("setup_id") if live else None, "kind": lane.get("kind"), "state": shown,
         "provisional": not live, "trigger": lv.get("trigger"), "grade": lane.get("grade"),
         "pillars": pillar_count((lane.get("pillars") or {}).get("checks")), "reason": reason,
-        "target_rule": target_rule(lane.get("setup_type") or "", lane.get("rules") or {}, side),
+        "target_rule": target_rule((lv.get("targets") or {}).get("rule") or (lane.get("rules") or {}).get("targets")),
         "entry_rule": _ENTRY_RULES.get(lane.get("setup_type") or "",
                                        "the setup's trigger - 1 cent" if side == "short"
                                        else "the setup's trigger + 1 cent"),
-        "stop_rule": _STOP_RULES.get(lane.get("setup_type") or "", "the setup's stop"),
+        "stop_rule": (stop_choice.get("why") if stop_choice.get("kind") == "round"
+                      else _STOP_RULES.get(lane.get("setup_type") or "", "the setup's stop")),
         "tape": ({"verdict": tape.get("verdict"), "reasons": tape.get("reasons") or []}
                  if live and tape else None),
         "window": lane.get("window"),
-    }, entry, stop, target)
+    }, entry, stop, target, **_targets_of(lv))
 
 
-def manual(entry: float, stop: float | None, bars: list[dict[str, Any]], side: str = "long") -> dict[str, Any]:
-    """The operator's own plan: their entry, their stop or the last candles' low, a 2R target. A short
-    (``side="short"``): their buy stop over the entry or the last candles' high, a cover at entry - 2R."""
+def manual(entry: float, stop: float | None, bars: list[dict[str, Any]], side: str = "long", *,
+           level_map: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The operator's own plan: their entry, their stop or the last candles' low, and the menu's default
+    targets from today's map (``level_map``) and the high of day. A short (``side="short"``): their buy stop
+    over the entry or the last candles' high, the targets under the entry."""
     short = side == "short"
     own = stop is not None and (stop > entry + EPS if short else stop < entry - EPS)
     if own:
@@ -177,9 +183,9 @@ def manual(entry: float, stop: float | None, bars: list[dict[str, Any]], side: s
     base = {"source": "manual", "side": "short" if short else "long", "setup_type": None, "setup_id": None,
             "kind": None, "state": "manual", "provisional": True,
             "trigger": None, "grade": None, "pillars": None,
-            "reason": ("no setup is forming: your short, a 2:1 cover" if short
-                       else "no setup is forming: your entry, a 2:1 target"),
-            "target_rule": f"entry {'-' if short else '+'} {STOCK_READ_TARGET_R:g} x risk",
+            "reason": ("no setup is forming: your short, the menu's cover targets" if short
+                       else "no setup is forming: your entry, the menu's targets"),
+            "target_rule": target_rule(None),
             "entry_rule": "your entry",
             "stop_rule": (("your buy stop" if short else "your stop") if own
                           else f"the {extreme} of the last {STOCK_READ_MANUAL_STOP_BARS} closed 1-min candles"),
@@ -187,18 +193,29 @@ def manual(entry: float, stop: float | None, bars: list[dict[str, Any]], side: s
     if stop_px is None:
         missing = ("no candle high over your entry to stop at -- name a buy stop" if short
                    else "no candle low under your entry to stop at -- name a stop")
-        return {**base, "entry": round(entry, 4), "stop": None, "target": None, "risk": None, "reward": None,
-                "rr": None, "reason": missing}
-    risk = abs(entry - stop_px)
-    return _levels(base, entry, stop_px, entry - STOCK_READ_TARGET_R * risk if short
-                   else entry + STOCK_READ_TARGET_R * risk)
+        return {**base, "entry": round(entry, 4), "stop": None, "target": None, "target2": None,
+                "target1_fraction": None, "targets": None, "risk": None, "reward": None, "rr": None,
+                "reward2": None, "rr2": None, "reason": missing}
+    highs = [float(b["l"] if short else b["h"]) for b in bars]
+    extreme = (min(highs) if short else max(highs)) if highs else None
+    got = target_menu.plan(None, side=side if short else "long", entry=entry,
+                           levels=(level_map or {}).get("intraday"), hod=extreme)
+    aim = got.wire()
+    return _levels(base, entry, stop_px, aim["target1"], target2=aim["target2"],
+                   target1_fraction=aim["target1_fraction"], targets=aim["targets"])
 
 
-def _levels(plan: dict[str, Any], entry: float, stop: float, target: float) -> dict[str, Any]:
-    """Risk and reward a share, either side: the distance to the stop and to the target."""
+def _levels(plan: dict[str, Any], entry: float, stop: float, target: float, *, target2: float | None = None,
+            target1_fraction: float | None = None, targets: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Risk and reward a share, either side: the distance to the stop and to each target; ``rr`` / ``rr2`` are
+    the targets in R (the unit results are measured in, never a target)."""
     risk, reward = round(abs(entry - stop), 4), round(abs(target - entry), 4)
-    return {**plan, "entry": round(entry, 4), "stop": round(stop, 4), "target": round(target, 4), "risk": risk,
-            "reward": reward, "rr": round(reward / risk, 2) if risk > EPS else None}
+    reward2 = round(abs(target2 - entry), 4) if target2 is not None else None
+    return {**plan, "entry": round(entry, 4), "stop": round(stop, 4), "target": round(target, 4),
+            "target2": round(target2, 4) if target2 is not None else None,
+            "target1_fraction": target1_fraction if target1_fraction is not None else 1.0, "targets": targets,
+            "risk": risk, "reward": reward, "rr": round(reward / risk, 2) if risk > EPS else None,
+            "reward2": reward2, "rr2": round(reward2 / risk, 2) if reward2 is not None and risk > EPS else None}
 
 
 def _hhmm(ts: Any) -> str:
@@ -246,7 +263,7 @@ def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entr
     """The plan for the read: the operator's when they named an entry (``side``: theirs), else the leading lane's."""
     lane = None
     if entry is not None and entry > 0:
-        plan = manual(float(entry), stop, ctx.get("bars") or [], side)
+        plan = manual(float(entry), stop, ctx.get("bars") or [], side, level_map=ctx.get("level_map"))
     else:
         lane = choose(setups, now)
         if lane is None:

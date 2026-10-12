@@ -108,11 +108,16 @@ def test_a_proposed_stop_falls_back_to_the_zone_under_the_price():
     assert out["stop"]["source"] == "proposed" and out["stop"]["price"] == 6.49 and "1c under $6.50" in out["stop"]["rule"]
 
 
-def test_the_target_is_your_two_to_one_and_says_when_it_traded():
+def test_the_targets_are_the_menus_from_your_average_and_say_when_they_traded():
+    """#845: target 1 is +20c over the average ($5.50 is 42c over it), target 2 1c under the 6.97 high of day;
+    half at each. The keys door-exits builds against: target, target2, target1_fraction."""
     out = build()
-    assert out["target"]["price"] == pytest.approx(5.965)
-    assert out["target"]["traded_at"] == t("08:56")               # the sweep reached it
-    assert "you are past it" in out["levels"]["target"]["text"]
+    assert out["target"]["price"] == pytest.approx(5.275) and out["target"]["rule"] == "your average +20c"
+    assert out["target2"]["price"] == pytest.approx(6.96) and out["target2"]["rule"] == "1c under HOD 6.97"
+    assert out["target1_fraction"] == 0.5
+    assert out["target"]["traded_at"] == t("08:44") and out["target2"]["traded_at"] == t("08:58")
+    assert out["levels"]["target"]["text"] == "Target 1 5.28 traded at 08:44: you are past it"
+    assert out["levels"]["target2"]["text"] == "Target 2 6.96 traded at 08:58: you are past it"
 
 
 def test_the_ladder_runs_from_the_levels_ahead_to_your_cost():
@@ -133,7 +138,8 @@ def test_the_rows_measure_from_the_price_not_the_entry():
 
 def test_r_is_unknown_without_a_risk_and_a_stop_over_the_average():
     out = build(risk=None, stop=5.45)                             # a stop over the average locks in, R unknown
-    assert out["risk"] is None and out["r"] is None and out["target"] is None
+    assert out["risk"] is None and out["r"] is None
+    assert out["target"]["price"] == pytest.approx(5.275)          # the targets never needed R (#845)
     assert "R is not known" in out["levels"]["room"]["detail"]
 
 

@@ -103,13 +103,17 @@ def test_a_shorts_first_touch_is_its_target_under_or_its_stop_over():
     assert tr.on_price(5.56, t0 + 30) is True and tr.outcome == "stop_first"
 
 
-def test_a_short_covers_half_at_target_then_the_rest_on_a_close_over_the_9_ema():
-    tr, t0 = tracker()
+def test_a_short_covers_half_at_target_1_and_the_rest_at_target_2_its_buy_stop_staying_put():
+    """#845: the bot's exit mirrored -- half covers at target 1, the rest at target 2; the buy stop does not
+    move down to the entry, and a close over the 9 EMA covers nothing."""
+    tr, t0 = tracker(target2=5.10, target1_fraction=0.5)
     assert tr.on_bar(bar(t0, 5.47, 5.48, 5.44, 5.45), 5.50) is False           # the entry bar
-    assert tr.on_bar(bar(t0 + 60, 5.40, 5.41, 5.25, 5.30), 5.45) is False      # half at 5.26, stop to 5.46
-    assert tr.half_done and tr.half_px == 5.26 and tr.bar_stop == 5.46
-    assert tr.on_bar(bar(t0 + 120, 5.30, 5.36, 5.28, 5.35), 5.33) is True      # closed over the EMA
-    assert tr.exit_reason == "ema" and tr.bar_r() == pytest.approx((0.5 * 0.20 + 0.5 * 0.11) / 0.10)
+    assert tr.on_bar(bar(t0 + 60, 5.40, 5.41, 5.25, 5.30), 5.45) is False      # half at 5.26
+    assert tr.half_done and tr.half_px == 5.26 and tr.bar_stop == 5.56
+    assert tr.on_bar(bar(t0 + 120, 5.30, 5.36, 5.28, 5.35), 5.33) is False     # over the EMA: still short
+    assert tr.on_bar(bar(t0 + 180, 5.30, 5.31, 5.08, 5.12), 5.30) is True      # target 2
+    assert tr.exit_reason == "target2" and tr.exit_px == 5.10
+    assert tr.bar_r() == pytest.approx((0.5 * 0.20 + 0.5 * 0.36) / 0.10)
 
 
 def test_a_short_is_stopped_over_its_stop_and_the_bailout_reads_closes_at_or_over_the_entry():

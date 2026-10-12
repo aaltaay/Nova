@@ -237,7 +237,16 @@ export const BOTS_TODAY_PNL_LIVE_TITLE =
   'Live keeps no practice ledger here, and Nova\'s bot does not trade Live: your own fills show on the Account page';
 export const BOTS_TODAY_SCOREBOARD_TITLE = (setup: string): string => `${setup} scoreboard`;
 export const BOTS_TODAY_SETUP_PICK = 'Setup the counts and the scoreboard read';
-export const BOTS_TODAY_SCORES_NOTE = 'Scores, not fills — the research exit rules on every armed setup of the template in play.';
+/** Which target would have paid (#845): the read-out's first day -- the first session every target choice was scored
+ * side by side on the same triggers. */
+export const BOTS_TARGET_CHOICES_FROM = '2026-10-13';
+export const BOTS_TARGET_CHOICES_LABEL = 'Which target pays';
+export const BOTS_TARGET_CHOICES_TIP = 'Every trigger of this setup since the date, scored once for each target choice: '
+  + 'a fixed 10c, 20c or 30c, 1c before the next level of today\'s map, the pullback\'s high, 1c before the high of day '
+  + '(each selling everything there) and the template\'s own two targets. Best first by mean R net of the stated cost '
+  + 'a share a fill. R is the risk a share: the unit the scores are measured in. No choice leads below the minimum '
+  + 'count, and a lead changes nothing on its own: the template is yours to change.';
+export const BOTS_TODAY_SCORES_NOTE ='Scores, not fills — the strategy\'s exit (its target 1 and target 2, the stop where it is) on every armed setup of the template in play.';
 export const botsTodayArmedTip = (setup: string): string =>
   `${setup} setups the scanner armed today (its template in play): the pattern was in place with a trigger and a stop. Scores, not trades.`;
 export const botsTodayTriggeredTip = (setup: string): string =>

@@ -62,11 +62,14 @@ def test_a_close_under_a_round_breaks_it_and_the_stop_may_come_down_to_5c_over_i
     assert build(price=5.56, stop=5.89)["lower"] is None        # 5.55 would be under the price
 
 
-def test_the_cover_target_is_2r_under_the_average_and_says_when_it_traded():
+def test_the_cover_targets_are_the_menus_under_the_average_and_say_when_they_traded():
+    """#845: cover 20c under the average ($5.50 is 27c under it), the rest 1c over the 5.43 low of day."""
     out = build()
-    assert out["risk"] == pytest.approx(0.12) and out["target"]["price"] == pytest.approx(5.53)
-    assert out["target"]["traded_at"] == t("09:45")             # the 09:45 low 5.52
+    assert out["risk"] == pytest.approx(0.12) and out["target"]["price"] == pytest.approx(5.57)
+    assert out["target2"]["price"] == pytest.approx(5.44) and out["target1_fraction"] == 0.5
+    assert out["target"]["traded_at"] == t("09:45") and out["target2"]["traded_at"] == t("09:46")
     assert out["levels"]["target"]["text"].endswith("you are past it")
+    assert out["levels"]["target2"]["detail"] == "1c over LOD 5.43"
     assert out["open_usd"] == pytest.approx((5.77 - 5.45) * 416) and out["r"] == pytest.approx(2.67, abs=0.01)
 
 
@@ -111,23 +114,25 @@ CTX = {"price": 5.79, "levels": {"vwap": 5.93}, "macd_hist": -0.026, "ema9": 5.8
        "bids": [{"price": 5.79, "size": 2100}, {"price": 5.60, "size": 30_000}], "asks": []}
 
 
-def test_your_short_plan_covers_at_entry_less_2r_and_its_checks_read_its_way():
+def test_your_short_plan_covers_at_the_menus_targets_and_its_checks_read_its_way():
     plan = plan_mod.build([], CTX, now=t("09:42") + 30, entry=5.77, stop=5.89, side="short")
-    assert (plan["side"], plan["stop"], plan["target"], plan["risk"], plan["rr"]) == ("short", 5.89, 5.53, 0.12, 2.0)
-    assert plan["target_rule"] == "entry - 2 x risk" and plan["stop_rule"] == "your buy stop"
+    assert (plan["side"], plan["stop"], plan["target"], plan["risk"], plan["rr"]) == ("short", 5.89, 5.57, 0.12, 1.67)
+    assert plan["targets"]["first"]["why"] == "-20c" and plan["target2"] is None   # the 5.62 low is not past it
+    assert plan["target_rule"].startswith("target 1: 20c") and plan["stop_rule"] == "your buy stop"
     checks = {c["id"]: c for c in plan["checks"]}
     assert checks["macd"]["state"] == "ok" and checks["vwap"]["text"] == "under VWAP 5.93"
-    assert checks["in_way_wall"]["text"] == "a buyer of 30,000 at 5.60 before the target"
+    assert checks["in_way_wall"]["text"] == "a buyer of 30,000 at 5.60 before target 1"
     assert [m["kind"] for m in plan["marks"]] == ["wall"]
-    assert plan["levels"]["room"]["text"] == "1.2R to 5.62" and plan["levels"]["room"]["trial"] is None
-    assert plan["levels"]["target"]["text"] == "5.53 covers 3c over $5.50"
+    room = plan["levels"]["room"]
+    assert (room["state"], room["text"], room["trial"], room["t7"]) == ("warn", "15c to 5.62, before target 1", None, None)
+    assert plan["levels"]["target"] is None                     # 5.57 is 7c over $5.50: no round at the cover
 
 
 def test_your_short_plan_takes_the_last_candles_high_when_your_stop_is_not_over_the_entry():
     plan = plan_mod.build([], CTX, now=t("09:42") + 30, entry=5.77, stop=5.70, side="short")
     assert plan["stop"] == 6.20 and plan["stop_rule"] == "the highest high of the last 3 closed 1-min candles"
     long_plan = plan_mod.build([], CTX, now=t("09:42") + 30, entry=5.77, stop=5.70)
-    assert long_plan["side"] == "long" and long_plan["target"] == pytest.approx(5.91)
+    assert long_plan["side"] == "long" and long_plan["target"] == pytest.approx(5.97)     # +20c
 
 
 def test_a_short_plan_walks_the_bids_for_its_size():

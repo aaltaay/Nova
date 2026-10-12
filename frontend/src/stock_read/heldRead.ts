@@ -38,9 +38,22 @@ export interface HeldRaise {
   text: string;
 }
 
+/** One of the trade's targets (#845): the menu's default off your average, today's map and the high of day (a
+ * short's: the low of day), with its rule ("your average +20c", "1c under HOD 6.97") and when a 1-minute candle
+ * since you held reached it. */
+export interface HeldTarget {
+  price: number;
+  /** What it came from: `fixed`, `round`, `next_level`, `hod` ... (empty from an older backend). */
+  kind: string;
+  rule: string;
+  traded_at: number | null;
+}
+
 export interface HeldLevels {
   room: PlanLevelNote | null;
+  /** Target 1's line ("Target 1 5.28 is 20c above"); `target2` target 2's, null without one. */
   target: PlanLevelNote | null;
+  target2?: PlanLevelNote | null;
   stop: PlanLevelNote | null;
   next: PlanLevelNote | null;
   recent: PlanLevelNote | null;
@@ -61,7 +74,12 @@ export interface StockHeld {
   raise: HeldRaise | null;
   /** A short's: the broke round its buy stop may come down to (`to` the stop, `round` the round). */
   lower?: HeldRaise | null;
-  target: { price: number; rule: string; traded_at: number | null } | null;
+  /** Target 1: the first part's sell. */
+  target: HeldTarget | null;
+  /** Target 2: the rest's sell; null when everything sells at target 1 (absent from an older backend). */
+  target2?: HeldTarget | null;
+  /** The share sold at target 1 (0.5 with a target 2, 1 without); null when the wire does not state it. */
+  target1_fraction?: number | null;
   ladder: HeldRow[];
   broke: { round: number; at: number; close: number }[];
   through: { round: number; at: number | null; high: number | null }[];
@@ -96,15 +114,22 @@ function raiseOf(raw: unknown): HeldRaise | null {
   return { to, round, at: num(r.at) ?? 0, text: str(r.text) ?? '' };
 }
 
+function target(raw: unknown): HeldTarget | null {
+  const t = obj(raw);
+  const price = num(t?.price);
+  if (!t || price === null) return null;
+  return { price, kind: str(t.kind) ?? '', rule: str(t.rule) ?? '', traded_at: num(t.traded_at) };
+}
+
 /** `held` off the wire; null when the read carries none (nothing held, or an older backend). */
 export function normalizeHeld(raw: unknown): StockHeld | null {
   const h = obj(raw);
   const qty = num(h?.qty);
   const avg = num(h?.avg);
   if (!h || qty === null || avg === null || qty <= 0) return null;
-  const t = obj(h.target);
-  const tPrice = num(t?.price);
   const lv = obj(h.levels) ?? {};
+  const target2 = target(h.target2);
+  const fraction = num(h.target1_fraction);
   return {
     side: h.side === 'short' ? 'short' : 'long',
     qty,
@@ -117,7 +142,10 @@ export function normalizeHeld(raw: unknown): StockHeld | null {
     stop: stop(h.stop),
     raise: raiseOf(h.raise),
     lower: raiseOf(h.lower),
-    target: t && tPrice !== null ? { price: tPrice, rule: str(t.rule) ?? '', traded_at: num(t.traded_at) } : null,
+    target: target(h.target),
+    target2,
+    // Without a target 2 everything sells at target 1; with one, the share is the wire's or unknown.
+    target1_fraction: target2 === null ? 1 : fraction !== null && fraction > 0 && fraction <= 1 ? fraction : null,
     ladder: list(h.ladder, row),
     broke: list(h.broke, x => {
       const b = obj(x);
@@ -133,6 +161,7 @@ export function normalizeHeld(raw: unknown): StockHeld | null {
     levels: {
       room: normalizeLevelNote(lv.room),
       target: normalizeLevelNote(lv.target),
+      target2: normalizeLevelNote(lv.target2),
       stop: normalizeLevelNote(lv.stop),
       next: normalizeLevelNote(lv.next),
       recent: normalizeLevelNote(lv.recent),

@@ -1,11 +1,13 @@
-/** The plan's five numbers -- entry, stop, target, risk a share, size -- each with the rule it came
- * from (a short plan's Short at, Buy stop and Cover, ADR 048). On the operator's own plan the entry and the stop are theirs to type; the risk per trade that
+/** The plan's six numbers -- entry, stop, target 1, target 2, risk a share, size -- each with the rule it came
+ * from (a short plan's Short at, Buy stop, Cover 1 and Cover 2, ADR 048). The targets are the strategy's menu
+ * (#845): each says the share it sells and the words it came from ("1c under $4.50"); no target is a multiple of the
+ * risk. On the operator's own plan the entry and the stop are theirs to type; the risk per trade that
  * sizes every plan is the venue sleeve's (ADR 042 draft): typed here, it is saved there, and Nova's
  * automatic buys size by it too. */
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { parseRiskUsd, VENUE_NAMES, type SleeveRisk } from '../setups';
 import { tipProps } from '../ux';
-import { fmtPx, fmtStep, fmtUsd, planSubLines, sizeFor } from './planMath';
+import { fmtPx, fmtStep, fmtUsd, planSubLines, planTargetWords, sizeFor } from './planMath';
 import type { StockPlan } from './types';
 
 function parsePrice(raw: string): number | null {
@@ -143,12 +145,12 @@ export function PlanNumbers({
   const riskUsd = risk.riskUsd;
   const size = sizeFor(riskUsd, plan.risk);
   const sub = planSubLines(plan, riskUsd, size);
-  const targetR = plan.rr === null ? '' : ` ${plan.rr.toFixed(plan.rr % 1 ? 1 : 0)}R`;
-  // A short plan (ADR 048): Short at, Buy stop (over the entry) and Cover 2R (entry - 2 x risk).
+  // The menu's two targets (#845), each with the words it came from; a short plan (ADR 048) covers at them.
+  const targets = planTargetWords(plan);
   const short = plan.side === 'short';
   const words = short
-    ? { entry: 'Short at', stop: 'Buy stop', target: 'Cover', yourEntry: 'Your short entry', yourStop: 'Your buy stop' }
-    : { entry: 'Entry', stop: 'Stop', target: 'Target', yourEntry: 'Your entry', yourStop: 'Your stop' };
+    ? { entry: 'Short at', stop: 'Buy stop', yourEntry: 'Your short entry', yourStop: 'Your buy stop' }
+    : { entry: 'Entry', stop: 'Stop', yourEntry: 'Your entry', yourStop: 'Your stop' };
   return (
     <div className="sr-plan__nums">
       <div className="sr-num sr-num--entry" {...tipProps(plan.entry_rule, words.entry)}>
@@ -171,10 +173,15 @@ export function PlanNumbers({
         )}
         <span className="sr-num__s">{sub.stop}</span>
       </div>
-      <div className="sr-num sr-num--target" {...tipProps(plan.target_rule, words.target)}>
-        <span className="sr-num__k">{words.target}{targetR}</span>
+      <div className="sr-num sr-num--target" {...tipProps(targets.first.tip, targets.first.key)}>
+        <span className="sr-num__k">{targets.first.key}</span>
         <span className="sr-num__v" data-testid="stock-read-target">{fmtPx(plan.target)}</span>
-        <span className="sr-num__s">{sub.target}</span>
+        <span className="sr-num__s" data-testid="stock-read-target-why">{sub.target}</span>
+      </div>
+      <div className="sr-num sr-num--target2" {...tipProps(targets.second.tip, targets.second.key)}>
+        <span className="sr-num__k">{targets.second.key}</span>
+        <span className="sr-num__v" data-testid="stock-read-target2">{fmtPx(plan.target2 ?? null)}</span>
+        <span className="sr-num__s" data-testid="stock-read-target2-why">{sub.target2}</span>
       </div>
       <div className="sr-num sr-num--risk">
         <span className="sr-num__k">Risk / sh</span>

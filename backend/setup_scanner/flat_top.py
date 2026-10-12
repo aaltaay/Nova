@@ -21,8 +21,8 @@ their lows on the 9 EMA. Read after every completed bar the way the first pullba
              gapped over), stop the base low
 
 The research's pre-registered P2 rule is one setting away (``flat_top_shape.P2_RULE``: the base right after the
-last candle at the high, no touch count, no tolerance). Target 1 is entry + R x risk (the research's), or a fixed
-amount over the entry. At most ``max_per_symbol_day`` setups trigger on one symbol a day. A hold entry is scored
+last candle at the high, no touch count, no tolerance). The targets are the menu's (``setup_scanner/targets.py``,
+#845): a hold's pullback high is the high since the break, and a break has none. At most ``max_per_symbol_day`` setups trigger on one symbol a day. A hold entry is scored
 from the hold candle, which takes no half at target 1 (the research's ``half_on_entry_bar=False``). Pure: no I/O,
 no clock.
 """
@@ -74,8 +74,6 @@ from constants_setups import (
     SETUPS_SESSION_START_ET,
     SETUPS_STOP_CAP_DOLLARS,
     SETUPS_STOP_CAP_PCT,
-    SETUPS_TARGET_FIXED_DOLLARS,
-    SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import (
@@ -88,6 +86,7 @@ from setup_scanner.detector import (
     window_blocked,
 )
 from setup_scanner.flat_top_shape import Shape, find, leg, miss_leg, new_high, pct_words, stale_base, tolerance
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -117,9 +116,7 @@ class FlatTopParams:
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_mode: str = "r"
-    target_r: float = SETUPS_TARGET_R
-    target_fixed: float = SETUPS_TARGET_FIXED_DOLLARS
+    targets: TargetSpec = DEFAULT_TARGETS                 # the target menu's choice (#845)
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SETUPS_SESSION_START_ET
@@ -150,11 +147,6 @@ class FlatTopParams:
         if plural:
             return "minutes" if minutes else "candles"
         return "1-minute candle" if minutes else "candle"
-
-    def target1(self, entry: float, risk: float) -> float:
-        if self.target_mode == "fixed":
-            return round(entry + self.target_fixed, 4)
-        return round(entry + self.target_r * risk, 4)
 
 
 def touch_words(n: int) -> str:
@@ -241,7 +233,7 @@ class FlatTopDetector(TriggerDetector):
         self.leg, self.armed, self.broke = leg(self.series, shape), None, None
         if n >= SETUPS_FT_FORMING_TOUCHES:
             entry = round(level + p.entry_offset, 4)
-            risk = round(entry - shape.base_low, 4)
+            stop, stop_why = self.stop_at(entry, shape.base_low)
             more = p.min_touches - n
             if more > 0:
                 have, waiting = n, f"{more} more touch{'' if more == 1 else 'es'}"
@@ -251,7 +243,7 @@ class FlatTopDetector(TriggerDetector):
                 more = p.min_consol - shape.bars
                 have, waiting = shape.bars, f"{more} more candle{'' if more == 1 else 's'}"
                 why = f"flat top {level:.2f}: {touch_words(n)} -- the base needs {p.min_consol} candles"
-            self.forming = forming_levels(level, entry, shape.base_low, p.target1(entry, risk), bars=have,
+            self.forming = forming_levels(level, entry, stop, self.aim(entry, stop=stop_why), bars=have,
                                           waiting=waiting)
         else:
             why = f"the {level:.2f} high of day, touched once -- a flat top needs {touch_words(p.min_touches)}"
@@ -271,7 +263,9 @@ class FlatTopDetector(TriggerDetector):
         self.leg = leg(s, shape)
         key = self.leg["t"]
         entry = round(level + p.entry_offset, 4)
-        risk = round(entry - base_low, 4)
+        stop, stop_why = self.stop_at(entry, base_low)
+        risk = round(entry - stop, 4)
+        aim = self.aim(entry, stop=stop_why)
         blocked = window_blocked(p, bars[last].t + p.bar_sec)
         if blocked is None and p.macd_positive and s.hist[last] <= 0:
             blocked = "MACD negative -- not on the front side"
@@ -279,7 +273,7 @@ class FlatTopDetector(TriggerDetector):
             blocked = risk_blocked(p, risk, entry=entry)
         if blocked:
             self.armed, self.broke = None, None
-            self.forming = forming_levels(level, entry, base_low, p.target1(entry, risk), bars=m, blocked=blocked)
+            self.forming = forming_levels(level, entry, stop, aim, bars=m, blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, f"flat top {level:.2f}: {touch_words(n)}, a base of {m} candles, "
                                             f"but {blocked}")
             if prev is not None:
@@ -290,15 +284,15 @@ class FlatTopDetector(TriggerDetector):
             prev = None
         self.broke = None
         self.armed = {
-            "leg_t": key, "trigger": round(level, 4), "entry": entry, "stop": round(base_low, 4),
-            "risk": risk, "target1": p.target1(entry, risk), "pullback_bars": m, "leg_high": level,
+            "leg_t": key, "trigger": round(level, 4), "entry": entry, "stop": round(stop, 4),
+            "risk": risk, **aim, "pullback_bars": m, "leg_high": level,
             "leg_low": shape.impulse_low, "leg_pct": shape.pct, "armed_bar_t": bars[last].t,
             "armed_at": (prev or {}).get("armed_at") or bars[last].t + p.bar_sec, "kind": self.kind_now(),
             "detail": {"entry_mode": p.entry_mode, "base_low": round(base_low, 4), "broke_at": None,
                        "broke_bar_t": None, "hold_bars": p.hold_bars, "touches": self.leg["touches"],
                        "zone": shape.zone, "min_touches": p.min_touches},
         }
-        how = (f"stop {base_low:.2f}, risk {risk:.2f}" if p.breaks
+        how = (f"stop {stop:.2f}, risk {risk:.2f}" if p.breaks
                else f"then a green {p.hold_words(plural=False)} holding over it (up to {p.hold_bars})")
         self._set(SETUP_STATE_ARMED, f"flat top {level:.2f}: {touch_words(n)}, a base of {m} candles -- "
                                      f"trigger {level:.2f}, {how}")
@@ -348,13 +342,18 @@ class FlatTopDetector(TriggerDetector):
             stop = round(b.lo, 4)
             if self.p.hold_stop == SETUPS_FT_HOLD_STOP_PULLBACK:   # the pullback's low: every candle since the break's
                 stop = round(min(x.lo for x in bars if broke_bar < x.t <= b.t), 4)
+            stop, stop_why = self.stop_at(entry, stop, slippage=False)
             risk = round(entry - stop, 4)
             why = risk_blocked(self.p, risk, entry=entry, slippage=False)
             if why:
                 return self._disarm(prev, f"the hold candle's {why}")
+            # The pullback the hold bought came from the high since the break (the break's candle on).
+            since = [x.h for x in bars if broke_bar <= x.t < b.t]
+            hod = max([x.h for x in bars] + [self.extreme() or 0.0])
             self.nth += 1
             self.triggered = {
-                **prev, "entry": entry, "stop": stop, "risk": risk, "target1": self.p.target1(entry, risk),
+                **prev, "entry": entry, "stop": stop, "risk": risk,
+                **self.aim(entry, pullback_high=max(since) if since else None, stop=stop_why, hod=hod),
                 "triggered_at": b.t + self.p.hold_sec, "nth": self.nth, "trigger_price": b.c, "score_bar_t": b.t,
                 "half_on_entry_bar": False,
                 "detail": {**(prev.get("detail") or {}), "hold_bar_t": b.t, "hold_high": b.h},

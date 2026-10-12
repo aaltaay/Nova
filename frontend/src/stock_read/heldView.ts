@@ -116,7 +116,9 @@ export function heldRuler(held: StockHeld, widthPx: number | null = null): HeldR
     ...held.broke.map(b => ({ pct: at(b.round), label: `$${b.round.toFixed(2)} ✓`, kind: 'broke' })),
     ...held.through.map(b => ({ pct: at(b.round), label: `$${b.round.toFixed(2)}`, kind: 'through' })),
     ...(next !== null && then !== null ? [{ pct: at(next), label: fmtPx(next), kind: 'next' }] : []),
-    ...(held.target && between(held.target.price) ? [{ pct: at(held.target.price), label: '2R', kind: 'target' }] : []),
+    // The menu's two targets off your average (#845): T1 sells the first part, T2 the rest.
+    ...(held.target && between(held.target.price) ? [{ pct: at(held.target.price), label: 'T1', kind: 'target' }] : []),
+    ...(held.target2 && between(held.target2.price) ? [{ pct: at(held.target2.price), label: 'T2', kind: 'target' }] : []),
     ...held.ladder.filter(r => r.role === shelf).map(r => ({ pct: at(r.price), label: fmtPx(r.price), kind: 'support' })),
   ];
   // The placer ranks by the plan's kinds: each held kind takes the rank of one (NEXT first, like a seller).

@@ -5,7 +5,7 @@
  * Pure.
  */
 import { shortRuleLines, shortRuleSummary } from './templateFormatShort';
-import { bars, ema, money, num, stockLine, tradeLine, trim, type Values } from './templateParts';
+import { bars, ema, exitsLine, money, num, stockLine, tradeLine, trim, type Values } from './templateParts';
 import type { ParamSpec, ParamValue, SetupTemplate, TemplateBotWindow } from './templateTypes';
 
 export { money };
@@ -18,7 +18,8 @@ export function formatValue(spec: ParamSpec, value: ParamValue | undefined): str
   if (spec.kind === 'choice') return spec.choices.find(c => c.value === value)?.label ?? String(value);
   const n = num(value);
   if (n == null) return String(value);
-  if (spec.unit === '$') return money(n);
+  // "$ past the entry" (the target menu's fixed amount, #845) reads "$0.20 past the entry".
+  if (spec.unit.startsWith('$')) return `${money(n)}${spec.unit.slice(1)}`;
   if (spec.unit.startsWith('%')) return `${trim(n, 2)}${spec.unit}`;
   if (spec.unit === 'x' || spec.unit === 'R') return `${trim(n, 2)}${spec.unit}`;
   if (spec.unit.startsWith('M shares')) return `${trim(n, 1)}M`;
@@ -51,20 +52,15 @@ function entryLine(what: string, v: Values, window = true): string {
   return `${what} +${money(num(v.entry_offset) ?? 0)}${arms} · only when the tape says GO`;
 }
 
-function fixedTarget(v: Values): string {
-  return `target 1 entry + ${money(num(v.target_fixed) ?? 0)}`;
-}
-
 function firstPullbackLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
   const setup = `Leg ≥ ${trim(num(v.leg_pct) ?? 0)}% to a new high${v.require_hod ? ' of day' : ''} · `
     + `${bars(num(v.min_pullback_bars), num(v.max_pullback_bars))} candles hold the ${ema(v)} and give back `
     + `< ${trim(num(v.max_retrace) ?? 0)}% of the leg` + (v.macd_positive ? ' · MACD above zero' : '');
-  const target = v.target_mode === 'fixed' ? fixedTarget(v) : `target 1 the leg high or ${trim(num(v.target_r) ?? 0)}R`;
   return [
     ['Stock', stockLine(v)],
     ['Setup', setup],
     ['Entry', entryLine('Over the last pullback candle\'s high', v)],
-    ['Trade', tradeLine(v, target, w)],
+    ['Trade', tradeLine(v, exitsLine(v), w)],
   ];
 }
 
@@ -82,14 +78,11 @@ function bullFlagLines(v: Values, w?: TemplateBotWindow | null): [string, string
   if (v.macd_positive) checks.push('MACD above zero');
   if (v.reject_red_volume_high) checks.push('the day\'s biggest candle not red');
   if (num(v.max_pole_wick) != null) checks.push(`pole-top wick ≤ ${trim(num(v.max_pole_wick)!)}%`);
-  const target = v.target_mode === 'fixed' ? fixedTarget(v)
-    : v.target_mode === 'leg' ? 'target 1 the pole high'
-      : `target 1 the pole high or ${trim(num(v.target_r) ?? 0)}R`;
   return [
     ['Stock', stockLine(v)],
     ['Setup', [pole, flag, ...checks].join(' · ')],
     ['Entry', entryLine('Over the last flag candle\'s high', v)],
-    ['Trade', tradeLine(v, target, w)],
+    ['Trade', tradeLine(v, exitsLine(v), w)],
   ];
 }
 
@@ -122,20 +115,18 @@ function flatTopLines(v: Values, w?: TemplateBotWindow | null, five = false): [s
   const entry = v.ft_entry === 'break'
     ? entryLine('The break of the high', v)
     : `${hold} · arms ${v.session_start}–${v.entry_cutoff} · only when the tape says GO`;
-  const target = v.target_mode === 'fixed' ? fixedTarget(v) : `target 1 ${trim(num(v.target_r) ?? 0)}R`;
-  return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', tradeLine(v, target, w)]];
+  return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', tradeLine(v, exitsLine(v), w)]];
 }
 
 function redToGreenLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
   const red = num(v.r2g_min_red_bars) ?? 1;
   const setup = `${red}+ close${red === 1 ? '' : 's'} under the ${v.session_start} open, then back through it by `
     + `${v.r2g_cutoff} · one try a day` + (v.macd_positive ? ' · MACD above zero' : '');
-  const target = `target 1 ${trim(num(v.target_r) ?? 0)}R${v.r2g_target_hod ? ' or the high of day, whichever is higher' : ''}`;
   return [
     ['Stock', stockLine(v)],
     ['Setup', setup],
     ['Entry', entryLine('Over the open', v, false)],
-    ['Trade', tradeLine(v, target, w)],
+    ['Trade', tradeLine(v, exitsLine(v), w)],
   ];
 }
 
@@ -145,7 +136,7 @@ function gapAndGoLines(v: Values, w?: TemplateBotWindow | null): [string, string
   const stop = `stop ${money(num(v.stop_cents) ?? 0)} or ${trim(num(v.stop_pct) ?? 0)}% under the entry, whichever is smaller`;
   const start = w?.start ?? v.bot_window_start;
   const end = w?.end ?? v.bot_window_end;
-  const trade = `${stop} · target 1 ${trim(num(v.target_r) ?? 0)}R · bot ${start}–${end}`
+  const trade = `${stop} · ${exitsLine(v)} · bot ${start}–${end}`
     + `${w?.clipped ? ' (clipped to the arming window)' : ''}`;
   return [
     ['Stock', stockLine(v)],

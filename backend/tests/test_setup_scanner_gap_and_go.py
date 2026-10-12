@@ -39,7 +39,7 @@ def test_before_the_open_it_draws_the_levels_it_would_arm_with():
     assert d.state == "watching" and "pre-market high 4.50" in d.reason and d.armed is None
     f = d.forming
     assert (f["trigger"], f["entry"], f["stop"], f["risk"]) == (4.50, 4.51, 4.3296, 0.1804)   # 4% of 4.51 < 20c
-    assert f["target1"] == round(4.51 + 2 * 0.1804, 4) and f["waiting"] == "waits for the 09:30 open"
+    assert f["target1"] == 4.71 and f["waiting"] == "waits for the 09:30 open"     # +20c (#845)
     assert d.on_price(4.60, et_ts(9, 29) + 30, bar_open=4.20) == []                      # no break before the open
 
 

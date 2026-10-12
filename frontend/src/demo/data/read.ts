@@ -12,8 +12,18 @@ const row = (id: string, label: string, value: string, state: State, source: str
 );
 
 const series = { bars_as_of: at(9, 40), close: 4.31, ema: 4.26, macd_line: 0.021, macd_signal: 0.012, macd_hist: 0.009, hod: 4.38 };
+/** The target menu's defaults (#845): target 1 1c under $4.50 (nearer than 20c), target 2 1c under $5.00, half at each. */
+const TARGETS = {
+  target2: 4.99, target1_fraction: 0.5,
+  targets: {
+    first: { kind: 'round', price: 4.49, why: '1c under $4.50' },
+    second: { kind: 'next_level', price: 4.99, why: '1c under $5.00' },
+    hod: 4.38, pullback_high: 4.38, stop: { kind: 'pattern', why: "the pattern's stop" },
+    rule: { first: 'round_or_fixed', second: 'hod_or_level', fixed: 0.2, split: 0.5, stop: 'pattern' },
+  },
+};
 const SETUP = {
-  trigger: 4.38, entry: 4.39, stop: 4.12, risk: 0.27, target1: 4.93,
+  trigger: 4.38, entry: 4.39, stop: 4.12, risk: 0.27, target1: 4.49, ...TARGETS,
   leg_t: at(9, 32), leg_high: 4.38, leg_low: 4.06, pullback_bars: 4, armed_bar_t: at(9, 37),
 };
 const LEG = { t: at(9, 32), high: 4.38, low: 4.06, pct: 0.0788, bars: 3 };
@@ -51,6 +61,8 @@ const LEVEL_MAP = {
   price: 4.33,
   rounds: { minor: 0.5, major: 1, measured: true, words: 'half and whole dollars' },
   intraday: [
+    // The whole dollar target 2 sells 1c under (#845).
+    zone('5.00', 'intraday', 5.0, 5.0, 'above', 2, '$5.00 · whole dollar', '$5.00', [{ kind: 'whole', price: 5.0, label: '$5.00', note: 'whole dollar' }]),
     zone('4.50', 'intraday', 4.5, 4.5, 'above', 2, '$4.50 · half dollar', '$4.50', [{ kind: 'half', price: 4.5, label: '$4.50', note: 'half dollar' }]),
     zone('4.38', 'intraday', 4.37, 4.38, 'above', 4, '4.38 · HOD · double top', '4.38', [
       { kind: 'hod', price: 4.38, label: 'HOD', times: [at(9, 32)] },
@@ -81,8 +93,11 @@ const LEVEL_MAP = {
 
 const PLAN = {
   source: 'setup', setup_type: 'first_pullback', setup_id: 'SMPL-2026-09-30-0932', kind: 'first_pullback', state: 'near',
-  provisional: false, trigger: 4.38, entry: 4.39, stop: 4.12, target: 4.93, risk: 0.27, reward: 0.54, rr: 2.0,
-  target_rule: 'entry + 2 x risk', entry_rule: 'the break of the leg high', stop_rule: "under the pullback's low",
+  provisional: false, trigger: 4.38, entry: 4.39, stop: 4.12, target: 4.49, ...TARGETS, risk: 0.27, reward: 0.1, rr: 0.37,
+  reward2: 0.6, rr2: 2.22,
+  target_rule: 'target 1: 20c, or 1c before a half / whole dollar when that is closer; target 2: 1c before the high of '
+    + 'day, else 1c before the next level past target 1; 50% at target 1',
+  entry_rule: 'the break of the leg high', stop_rule: "under the pullback's low",
   grade: 'A', pillars: { passed: 5, known: 5, total: 5 }, trade: { ok: true, reasons: [] }, result: null,
   reason: 'pulled back four candles, holding over VWAP; 0.05 under the trigger',
   tape: { verdict: 'go', reasons: ['buyers lifting the offer', 'no seller stacked at the trigger'] },
@@ -93,13 +108,16 @@ const PLAN = {
     { id: 'ema9', state: 'ok', text: 'above the 9 EMA 4.26' },
     { id: 'vwap', state: 'ok', text: 'above VWAP 3.79' },
     { id: 'spread', state: 'ok', text: 'spread 0.01 · tight' },
-    { id: 'in_way_round', state: 'warn', text: '$4.50 before the target' },
+    { id: 'in_way_round', state: 'warn', text: '$4.50 before target 2' },
     { id: 'tf5', state: 'info', text: '5m agrees: over its 9 EMA, MACD up' },
   ],
-  marks: [{ price: 4.5, label: '$4.50', kind: 'round', size: null }],
+  marks: [{ price: 4.5, label: '$4.50', kind: 'round', size: null, before: 2 }],
   levels: {
-    room: { state: 'warn', text: 'Room 0.4R to $4.50', detail: 'The first level over the entry is the half dollar.', r: 0.41, price: 4.5, trial: 'T7' },
-    target: { state: 'ok', text: 'Target 4.93 sells before $5.00', detail: null },
+    room: { state: 'ok', text: '11c to $4.50', r: 0.41, price: 4.5, trial: 'T7', t7: { id: 'T7', r: 0.41, under: true },
+      detail: 'Target 1 (4.49) sells 1c under it. Target 2 (4.99) is past it: the rest needs it to break. '
+        + 'Trial T7 records this room as 0.4R of the risk, under its registered rule.' },
+    target: { state: 'ok', text: '4.49 is 1c under $4.50', detail: 'You sell before the round.' },
+    target2: { state: 'ok', text: '4.99 is 1c under $5.00', detail: 'You sell before the round.' },
     stop: { state: 'ok', text: 'Stop under the 4.12 premarket high', detail: null },
     next: { state: 'info', text: '$4.50 next: resistance until it prints through', detail: null },
     recent: { state: 'ok', text: 'Broke $4.00 at 09:18', detail: null },
@@ -238,7 +256,7 @@ export function decisions(symbol: string) {
   return {
     schema_version: 1, symbol, date: DAY, generated_at: NOW_S,
     summary: smpl
-      ? { text: 'The scanners saw 4 legs, armed 2 setups and triggered 1. The 08:52 trigger reached its 2R target first.', legs: 4, armed: 2, near: 2, triggered: 1, trades: 0, refusals: [] }
+      ? { text: 'The scanners saw 4 legs, armed 2 setups and triggered 1. The 08:52 trigger reached its target 1 first.', legs: 4, armed: 2, near: 2, triggered: 1, trades: 0, refusals: [] }
       : { text: `Nothing armed on ${symbol} today.`, legs: 0, armed: 0, near: 0, triggered: 0, trades: 0, refusals: [] },
     events: smpl ? [
       { ts: at(7, 1, 4), lane: 'market', event: 'catalyst', title: 'FDA Fast Track headline (GlobeNewswire)', detail: 'Catalyst · strong', count: 1, last_ts: null, levels: null },
@@ -247,7 +265,7 @@ export function decisions(symbol: string) {
       { ts: at(8, 38), lane: 'first_pullback', event: 'armed', title: 'First pullback armed: 3.80 / 3.69 / 4.02', detail: 'Grade A', count: 1, last_ts: null, levels: null },
       { ts: at(8, 52), lane: 'first_pullback', event: 'triggered', title: 'Triggered at 3.80 · tape GO', detail: 'Target first · +2.0R', count: 1, last_ts: null, levels: null },
       { ts: at(9, 32), lane: 'first_pullback', event: 'leg', title: 'New high 4.38 on a 7.9% leg', detail: null, count: 1, last_ts: null, levels: { leg: LEG, setup: null } },
-      { ts: at(9, 37), lane: 'first_pullback', event: 'armed', title: 'First pullback armed: 4.39 / 4.12 / 4.93', detail: 'Grade A', count: 1, last_ts: null, levels: { leg: LEG, setup: SETUP } },
+      { ts: at(9, 37), lane: 'first_pullback', event: 'armed', title: 'First pullback armed: 4.39 / 4.12 / 4.49', detail: 'Grade A', count: 1, last_ts: null, levels: { leg: LEG, setup: SETUP } },
       { ts: at(9, 41, 2), lane: 'first_pullback', event: 'near', title: 'Near the trigger · tape GO', detail: 'buyers lifting the offer', count: 1, last_ts: null, levels: null },
     ] : [],
     sources: { journal: { ok: true, error: null }, hod_momo: { ok: true, error: null }, borrow: { ok: true, error: null }, catalysts: { ok: true, error: null }, bot: { ok: true, error: null } },
@@ -299,5 +317,19 @@ export function bookWatch(nowS: number) {
       hidden: [],
       note: 'A hint consistent with spoofing, never a detection.',
     },
+  };
+}
+
+/** Which target would have paid (#845) on the sample desk: a stated absence -- no sample trigger is scored, so no
+ * choice has a number and none leads. */
+export function targetChoices(from: string | null, setup: string | null) {
+  const names = ['fixed_10c', 'fixed_20c', 'fixed_30c', 'next_level', 'pullback_high', 'hod', 'default'];
+  return {
+    schema_version: 1, from: from ?? DAY, setup_type: setup ?? 'first_pullback', template: null, cost: 0.01, min_n: 30,
+    triggers: 0, scored: 0,
+    choices: names.map(name => ({ name, n: 0, wins: 0, win_pct: null, mean_r: null, sum_r: 0, mean_net_r: null,
+      sum_net_r: 0, fell_back: 0, open: 0 })),
+    leader: null,
+    note: 'No leader: the fewest scored triggers of a choice is 0; the read-out names one from 30. The sample desk scores no triggers.',
   };
 }

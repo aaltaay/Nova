@@ -5,6 +5,7 @@
  */
 import { isShortSetup, SHORT_TAPE_VERDICT_TIPS } from '../constantGroups/short_setups';
 import { fmtCents, fmtPx } from './setupsFormat';
+import { targetSentence } from './targets';
 import type { SetupLevels, SetupRow } from './types';
 
 /** The row's side: the wire's word, else its setup's. */
@@ -92,8 +93,8 @@ export function shortTriggerLines(row: SetupRow, s: SetupLevels): string[] {
     : [`Trigger ${fmtPx(s.trigger)}: ${TRIGGER[type] ?? 'the level'}. Trading under it starts the short.`,
       `Entry ${fmtPx(s.entry)} (the trigger −1c, the short's limit).`];
   lines.push(`Buy stop ${fmtPx(s.stop)}: ${STOP[type] ?? 'over the pattern'}. Risk ${fmtCents(s.risk)} a share.`);
-  lines.push(`Cover 1 ${fmtPx(s.target1)}: R x the risk under the entry. Half is covered there and the buy stop moves `
-    + 'to the entry.');
+  // The menu's cover targets (#845): each with the words it came from (a round, a level, the low of day).
+  lines.push(targetSentence(s, true));
   return lines;
 }
 

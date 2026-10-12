@@ -290,3 +290,27 @@ The case does not rest on the score, though. The score assumes a fill one cent o
 **Not changed.** HOD Momo's floor and the scanner's universe stay as they are. The eyes still watch
 thin names, and their records show what the rule kept out. The watch list's toasts are the operator's
 own list and are untouched.
+
+## Amendment 2026-10-12 -- targets replace 2R, and the score is the bot's exit (#845)
+
+**Context.** Operator decision 2026-10-09: "our exits should not just be on random 2R even for our 'eyes' ... we
+need to follow more dynamic ranges, includes resistance and half/whole dollar ... these 2:1 ratio is too simple and
+should be completely removed." Operator ask 2026-10-12: build the four targets the operator's material lists, sell
+in two halves, and have the eyes score every target choice side by side.
+
+**Decision.**
+- Every scanner's targets come from one menu (`setup_scanner/targets.py`), read point in time from what its lane
+  knows: a fixed amount (20c), 1c under the next level of today's map, the pullback's high, 1c under the high of day;
+  by default target 1 is 20c or 1c under a closer half / whole dollar, and target 2 1c under the high of day, else
+  the next level past target 1, else none. A short mirrors it. The `max(leg high, entry + 2R)` and `entry + 2R`
+  targets are gone; R stays the unit results are measured in.
+- Section 4's scoring exit becomes the bot's: part at target 1 (half by default), the rest at target 2, the stop
+  unchanged after the first part (no break-even move, no 9 EMA trail), the bailout and the 15:55 close as before.
+- Every trigger also scores each target choice -- a fixed 10c / 20c / 30c, the next level, the pullback's high, the
+  high of day, the default pair -- on the same stop and bailout, stored with the trigger (`setups.db` schema 7,
+  `target_scores`) and ranked by `GET /api/setups/target-choices` / `tools/target_readout.py`, which never names a
+  leader under 30 scored triggers a choice.
+- The built-in defaults' revisions move on: every read-out starts over on the new targets and exit.
+
+**Not changed.** What arms, triggers and proposes; the tape gate; the stop (a template may pick a round-number stop
+beside the pattern's, ADR 029 amendment). The bot's order side of the two halves is #681's.

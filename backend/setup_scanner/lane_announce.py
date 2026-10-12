@@ -56,7 +56,8 @@ def propose(lane: Any, sym: str, sid: str, res: dict, now: float) -> dict:
     not_a_trade = None if judged["ok"] else {"reasons": judged["reasons"]}
     prop = {"id": str(uuid.uuid4()), "setup_id": sid, "symbol": sym, "kind": row.get("kind"),
             "trigger": row.get("trigger"), "entry": row.get("entry_planned"), "stop": row.get("stop"),
-            "target1": row.get("target1"), "risk": row.get("risk"), "grade": row.get("grade"),
+            "target1": row.get("target1"), "target2": row.get("target2"),
+            "target1_fraction": row.get("target1_fraction"), "risk": row.get("risk"), "grade": row.get("grade"),
             "pillars": _count(row), "spread": spread, "reasons": res.get("reasons"), "created_at": now,
             "status": "open", "tape_now": res["verdict"], "template_id": lane.p.template_id,
             "template_name": lane.p.name, "source": lane.host.source, "setup_type": lane.p.setup,

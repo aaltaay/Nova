@@ -4,8 +4,8 @@ A long setup's trigger is a high: a live price over it buys at the entry one cen
 short's is a low, and its entry is one cent under it: a live price at or under the entry sells -- at the
 minute's open when it gapped under, and the setup is disarmed when that gap pushes the risk over the cap (the
 long rule mirrored). A print under the trigger but over the entry (a sub-penny trade) is still near: the sell
-entry never traded (PR #789 review). Its stop is over the entry, its target 1 under it (entry - target R x risk), and its near
-band over the trigger. The SSR bounce short reads the long way up -- its entry rests at the level and a price
+entry never traded (PR #789 review). Its stop is over the entry, its targets under it (the menu mirrored,
+``setup_scanner/targets.py``, #845), and its near band over the trigger. The SSR bounce short reads the long way up -- its entry rests at the level and a price
 over it fills it -- so it keeps the long trigger (``ssr_bounce.py``).
 
 A short detector also reads the host's ``context`` (``{prior_close, ssr_yesterday}``, set by the lane before
@@ -23,12 +23,12 @@ from constants_shorts import SSR_TRIGGER_FRACTION
 from setup_scanner.detector import EPS, TriggerDetector, et_time, hhmm, stop_cap
 
 
-def short_levels(trigger: float, entry: float, stop: float, target1: float, *, bars: int,
+def short_levels(trigger: float, entry: float, stop: float, aim: dict[str, Any], *, bars: int,
                  blocked: str | None = None, waiting: str | None = None) -> dict[str, Any]:
-    """The levels a forming short would arm with (ADR 036): its risk is the stop over the entry."""
+    """The levels a forming short would arm with (ADR 036): its risk is the stop over the entry; ``aim`` is
+    ``TriggerDetector.aim``'s targets."""
     return {"trigger": round(trigger, 4), "entry": round(entry, 4), "stop": round(stop, 4),
-            "risk": round(stop - entry, 4), "target1": round(target1, 4), "bars": int(bars),
-            "blocked": blocked, "waiting": waiting}
+            "risk": round(stop - entry, 4), **aim, "bars": int(bars), "blocked": blocked, "waiting": waiting}
 
 
 def short_risk_blocked(p: Any, risk: float, *, entry: float | None = None) -> str | None:
@@ -41,11 +41,6 @@ def short_risk_blocked(p: Any, risk: float, *, entry: float | None = None) -> st
     if risk + extra < p.min_stop - EPS:
         return f"risk {risk:.2f}{shown} is under {p.min_stop:.2f}"
     return None
-
-
-def short_target(entry: float, risk: float, target_r: float) -> float:
-    """Cover at target R: entry - R x risk (ADR 049: no leg-or-R variant)."""
-    return round(entry - target_r * risk, 4)
 
 
 def ssr_today(lows: list[float], context: dict[str, Any] | None) -> str:
@@ -93,7 +88,8 @@ class ShortTriggerDetector(TriggerDetector):
         if prev["stop"] - entry + self.p.risk_slippage > cap + EPS:
             return self._disarm(prev, f"gapped under the trigger to {entry:.2f}: risk over {cap:.2f}")
         self.nth += 1
-        self.triggered = {**prev, "entry": entry, "triggered_at": ts, "nth": self.nth, "trigger_price": price}
+        self.triggered = {**prev, "entry": entry, **self.reaim(prev, entry), "triggered_at": ts, "nth": self.nth,
+                          "trigger_price": price}
         self._set(SETUP_STATE_TRIGGERED, f"traded {price:.2f} under the {trig:.2f} trigger")
         return [("triggered", self.view())]
 

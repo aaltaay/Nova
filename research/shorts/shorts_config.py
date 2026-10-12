@@ -50,13 +50,14 @@ SHUFFLES = 1000
 SHUFFLE_SEED = 49                             # ADR 049
 MAX_P = 0.05
 
-# -- Each strategy's named neighbourhood (ADR 049 step 4: the risk cap, the target R, the window, the
-# setup's own key numbers and the MACD rule). Values are the template's units (percent as 6, not 0.06).
+# -- Each strategy's named neighbourhood (ADR 049 step 4: the risk cap, the targets, the window, the setup's own
+# key numbers and the MACD rule). Values are the template's units (percent as 6, not 0.06). The target neighbours
+# are the menu's since #845 (the R-multiple target left the templates): one cover at a fixed 10c or 30c.
 COMMON_NEIGHBOURS: tuple[tuple[str, dict], ...] = (
     ("risk cap -25%", {"stop_cap": "x0.75"}),
     ("risk cap +50%", {"stop_cap": "x1.5"}),
-    ("target 1.5R", {"target_r": 1.5}),
-    ("target 2.5R", {"target_r": 2.5}),
+    ("cover 10c", {"target1_kind": "fixed", "target_fixed": 0.10, "target2_kind": "none"}),
+    ("cover 30c", {"target1_kind": "fixed", "target_fixed": 0.30, "target2_kind": "none"}),
     ("window 30 min shorter", {"entry_cutoff": "-30"}),
 )
 NEIGHBOURS: dict[str, tuple[tuple[str, dict], ...]] = {

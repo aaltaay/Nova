@@ -1,6 +1,8 @@
 """The pre-registered read-out that unlocks Strategy (Bot-Trading-Plan §2g, ADR 027)."""
 from __future__ import annotations
 
+from constants_setups import SETUP_TEMPLATE_DEFAULT_REV
+
 import pytest
 
 from setup_scanner import readout
@@ -166,6 +168,7 @@ def test_current_reads_every_day_and_caches(monkeypatch):
     assert readout.current(now=_T0)["go"]["triggered"] == 3
     readout.current(now=_T0 + 5)
     # every day of the template in play's rows (ADR 029), read once inside the cache window
-    assert calls == [{"setup_type": "first_pullback", "template_id": "default", "template_rev": 1}]
+    assert calls == [{"setup_type": "first_pullback", "template_id": "default",
+                      "template_rev": SETUP_TEMPLATE_DEFAULT_REV}]
     readout.current(now=_T0 + 60)
     assert len(calls) == 2

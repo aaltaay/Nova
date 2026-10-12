@@ -37,6 +37,11 @@ arm with now, computed by the rule that arms it, with what blocks it or what it
 still waits for -- and ``symbol_view()`` shows them with the lane's own
 indicators. Shown to the desk only: ``forming`` never arms, triggers or scores,
 and ``view()`` (the board, the rows, the journal) does not carry it.
+
+#845: every setup's targets come from the menu (``setup_scanner/targets.py``) through ``aim``: both halves'
+prices from today's map, the high of day and the pullback's high the setup names, the strategy's choice in
+``p.targets``. A setup carries ``target1``, ``target2``, ``target1_fraction`` and ``targets``; the trigger
+aims again at the fill's entry, point in time. ``stop_at`` is the stop choice beside the pattern's own.
 """
 from __future__ import annotations
 
@@ -45,7 +50,7 @@ from datetime import datetime, time as dtime
 from typing import Any, ClassVar
 from zoneinfo import ZoneInfo
 
-from constants_bot import SIDE_LONG
+from constants_bot import SIDE_LONG, SIDE_SHORT
 from constants_setups import (
     SETUP_STATE_ARMED,
     SETUP_STATE_LEG,
@@ -54,6 +59,7 @@ from constants_setups import (
     SETUP_STATE_TRIGGERED,
     SETUP_STATE_WATCHING,
 )
+from setup_scanner import targets as _targets
 from setup_scanner.series import Series
 
 ET = ZoneInfo("America/New_York")
@@ -94,11 +100,6 @@ class TriggerDetector:
         self.series = Series(ema_period=self.p.ema_period, macd_fast=self.p.macd_fast,
                              macd_slow=self.p.macd_slow, macd_signal=self.p.macd_signal)
 
-    @property
-    def ema_now(self) -> float | None:
-        """The EMA at the last completed bar: the scoring exit reads the lane's own."""
-        return self.series.e[-1] if self.series.e else None
-
     def kind_now(self) -> str:
         """The kind a setup armed now would have: the first of the day, then the second."""
         return self.FIRST_KIND if self.nth == 0 or not self.SECOND_KIND else self.SECOND_KIND
@@ -117,6 +118,46 @@ class TriggerDetector:
     def cutoff(self) -> str:
         """No setup arms, and none triggers, at or after this time (ET)."""
         return str(self.p.entry_cutoff)
+
+    # -- targets (#845) ----------------------------------------------------
+    def target_spec(self) -> _targets.TargetSpec:
+        return getattr(self.p, "targets", None) or _targets.DEFAULT
+
+    def map_series(self) -> Series:
+        """The candles today's map and the high of day are read from: the lane's own (the 5-minute flat top's
+        minutes, its trade being a 1-minute one)."""
+        return self.series
+
+    def extreme(self) -> float | None:
+        """The high of day (a short: the low of day): the completed candles' and the last live price."""
+        s = self.map_series()
+        short = self.SIDE == SIDE_SHORT
+        vals = [x for x in ((s.lod[-1] if s.lod else None) if short else (s.hod[-1] if s.hod else None),
+                            self.last_price) if x is not None]
+        if not vals:
+            return None
+        return min(vals) if short else max(vals)
+
+    def stop_at(self, entry: float, pattern_stop: float, *, slippage: bool = True) -> tuple[float, dict[str, Any]]:
+        """The stop the strategy picks: its pattern's, or under the nearest half / whole dollar (``targets.stop_for``)."""
+        p = self.p
+        return _targets.stop_for(self.target_spec(), side=self.SIDE, entry=entry, pattern_stop=pattern_stop,
+                                 cap=stop_cap(p, entry), min_stop=getattr(p, "min_stop", None),
+                                 slippage=float(getattr(p, "risk_slippage", 0.0) or 0.0) if slippage else 0.0)
+
+    def aim(self, entry: float, *, pullback_high: float | None = None, stop: dict[str, Any] | None = None,
+            hod: float | None = None) -> dict[str, Any]:
+        """Both halves' targets for an entry, from what this lane knows now (``targets.plan``):
+        ``{target1, target2, target1_fraction, targets}``."""
+        got = _targets.plan(self.target_spec(), side=self.SIDE, entry=entry,
+                            levels=_targets.day_map(self.map_series(), entry),
+                            hod=hod if hod is not None else self.extreme(), pullback_high=pullback_high, stop=stop)
+        return got.wire()
+
+    def reaim(self, setup: dict[str, Any], entry: float) -> dict[str, Any]:
+        """The targets again at the fill's entry, with the pullback's high and the stop choice the setup armed with."""
+        t = setup.get("targets") or {}
+        return self.aim(entry, pullback_high=t.get("pullback_high"), stop=t.get("stop"))
 
     def on_bars(self, bars: list[Any]) -> list[tuple[str, dict]]:   # pragma: no cover - abstract
         raise NotImplementedError
@@ -137,7 +178,8 @@ class TriggerDetector:
         if entry + self.p.risk_slippage - prev["stop"] > cap + EPS:
             return self._disarm(prev, f"gapped over the trigger to {entry:.2f}: risk over {cap:.2f}")
         self.nth += 1
-        self.triggered = {**prev, "entry": entry, "triggered_at": ts, "nth": self.nth, "trigger_price": price}
+        self.triggered = {**prev, "entry": entry, **self.reaim(prev, entry), "triggered_at": ts, "nth": self.nth,
+                          "trigger_price": price}
         self._set(SETUP_STATE_TRIGGERED, f"traded {price:.2f} over the {trig:.2f} trigger")
         return [("triggered", self.view())]
 
@@ -232,12 +274,12 @@ def distance(trigger: float, last: float, *, up: bool = True) -> float:
     return round(float(trigger) - float(last), 4) if up else round(float(last) - float(trigger), 4)
 
 
-def forming_levels(trigger: float, entry: float, stop: float, target1: float, *, bars: int,
+def forming_levels(trigger: float, entry: float, stop: float, aim: dict[str, Any], *, bars: int,
                    blocked: str | None = None, waiting: str | None = None) -> dict[str, Any]:
-    """The levels a forming setup would arm with (ADR 036): drawn and planned, never armed."""
+    """The levels a forming setup would arm with (ADR 036): drawn and planned, never armed. ``aim`` is
+    ``TriggerDetector.aim``'s targets."""
     return {"trigger": round(trigger, 4), "entry": round(entry, 4), "stop": round(stop, 4),
-            "risk": round(entry - stop, 4), "target1": round(target1, 4), "bars": int(bars),
-            "blocked": blocked, "waiting": waiting}
+            "risk": round(entry - stop, 4), **aim, "bars": int(bars), "blocked": blocked, "waiting": waiting}
 
 
 def window_blocked(p: Any, next_bar_t: float, *, start: str | None = None, cutoff: str | None = None) -> str | None:

@@ -76,12 +76,10 @@ from constants_setups import (
     SETUPS_SESSION_START_ET,
     SETUPS_STOP_CAP_DOLLARS,
     SETUPS_STOP_CAP_PCT,
-    SETUPS_TARGET_FIXED_DOLLARS,
-    SETUPS_TARGET_MODE,
-    SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import EPS, TriggerDetector, forming_levels, risk_blocked, window_blocked
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -111,25 +109,12 @@ class BullFlagParams:
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_mode: str = SETUPS_TARGET_MODE
-    target_r: float = SETUPS_TARGET_R
-    target_fixed: float = SETUPS_TARGET_FIXED_DOLLARS
+    targets: TargetSpec = DEFAULT_TARGETS                 # the target menu's choice (#845); the pullback's high is the pole's
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SETUPS_SESSION_START_ET
     entry_cutoff: str = SETUPS_ENTRY_CUTOFF_ET
     max_per_symbol_day: int = SETUPS_BF_MAX_PER_SYMBOL_DAY
-
-    def target1(self, pole_high: float, entry: float, risk: float) -> float:
-        """``leg_or_r``: the pole high or R x risk, whichever is higher; ``leg``: the pole
-        high (the material's first target) -- R x risk when the pole high is not above the
-        entry; ``fixed``: a fixed amount over the entry."""
-        if self.target_mode == "fixed":
-            return round(entry + self.target_fixed, 4)
-        by_r = entry + self.target_r * risk
-        if self.target_mode == "leg":
-            return round(pole_high if pole_high > entry + EPS else by_r, 4)
-        return round(max(pole_high, by_r), 4)
 
 
 def _green(o: float, c: float) -> bool:
@@ -219,12 +204,13 @@ class BullFlagDetector(TriggerDetector):
         flag_low = min(s.lo[first:last + 1])
         trig = s.h[last]
         entry = round(trig + p.entry_offset, 4)
-        risk = round(entry - flag_low, 4)
+        stop, stop_why = self.stop_at(entry, flag_low)
+        risk = round(entry - stop, 4)
+        aim = self.aim(entry, pullback_high=pole["high"], stop=stop_why)
         blocked = self._blocked(bars, last, risk, entry)
         if blocked:
             self.armed = None
-            self.forming = forming_levels(trig, entry, flag_low, p.target1(pole["high"], entry, risk), bars=run,
-                                          blocked=blocked)
+            self.forming = forming_levels(trig, entry, stop, aim, bars=run, blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, f"flag of {run} candles, but {blocked}")
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason=blocked)))
@@ -233,8 +219,8 @@ class BullFlagDetector(TriggerDetector):
             events.append(("disarmed", self._key_view(prev, reason="a newer pole took over")))
             prev = None
         self.armed = {
-            "leg_t": pole["t"], "trigger": round(trig, 4), "entry": entry, "stop": round(flag_low, 4),
-            "risk": risk, "target1": p.target1(pole["high"], entry, risk),
+            "leg_t": pole["t"], "trigger": round(trig, 4), "entry": entry, "stop": round(stop, 4),
+            "risk": risk, **aim,
             "pullback_bars": run, "leg_high": pole["high"], "leg_low": pole["low"], "leg_pct": pole["pct"],
             "armed_bar_t": bars[last].t, "armed_at": (prev or {}).get("armed_at") or bars[last].t + p.bar_sec,
             "kind": self.kind_now(),
@@ -242,7 +228,7 @@ class BullFlagDetector(TriggerDetector):
                        "flag_volume": round(_avg(s.v[first:last + 1]), 1), "volume_known": pole["volume"] > 0},
         }
         self._set(SETUP_STATE_ARMED, f"flag of {run} under the {pole['high']:.2f} pole: trigger {trig:.2f}, "
-                                     f"stop {flag_low:.2f}, risk {risk:.2f}")
+                                     f"stop {stop:.2f}, risk {risk:.2f}")
         return events + self.arm_events(prev)
 
     def _blocked(self, bars: list[Bar], last: int, risk: float, entry: float) -> str | None:
@@ -261,10 +247,12 @@ class BullFlagDetector(TriggerDetector):
         flag_low = min(s.lo[first:last + 1])
         trig = s.h[last]
         entry = round(trig + p.entry_offset, 4)
-        risk = round(entry - flag_low, 4)
+        stop, stop_why = self.stop_at(entry, flag_low)
+        risk = round(entry - stop, 4)
         need = p.min_flag_bars - run
         blocked = self._flag_fault(bars, pole, first, last) or self._blocked(bars, last, risk, entry)
-        return forming_levels(trig, entry, flag_low, p.target1(pole["high"], entry, risk), bars=run, blocked=blocked,
+        return forming_levels(trig, entry, stop, self.aim(entry, pullback_high=pole["high"], stop=stop_why),
+                              bars=run, blocked=blocked,
                               waiting=f"{need} more red or doji candle{'' if need == 1 else 's'}")
 
     # -- the pattern ----------------------------------------------------------

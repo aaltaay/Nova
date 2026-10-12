@@ -9,8 +9,8 @@ backtest_setups.py ``find_red_to_green``, Bot-Trading-Plan section 2f):
   armed      the last candle closed under the open, at least ``min_red_bars``
              have, its MACD histogram is above zero and the next minute starts
              before ``r2g_cutoff`` (10:30): trigger = the open, entry one cent
-             over, stop = the lowest low since the open, target 1 = entry + R x
-             risk or the high of day, whichever is higher
+             over, stop = the lowest low since the open, the targets the menu's
+             (``targets.py``, #845; the pullback's high is the high since the open)
   triggered  a live price over the open (entry at the bar's open when it gapped
              over)
 
@@ -48,13 +48,12 @@ from constants_setups import (
     SETUPS_R2G_CUTOFF_ET,
     SETUPS_R2G_MIN_RED_BARS,
     SETUPS_R2G_OPEN_ET,
-    SETUPS_R2G_TARGET_HOD,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_STOP_CAP_DOLLARS,
-    SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import ET, EPS, TriggerDetector, et_time, forming_levels, hhmm, risk_blocked
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -62,7 +61,6 @@ class RedToGreenParams:
     session_start: str = SETUPS_R2G_OPEN_ET
     r2g_cutoff: str = SETUPS_R2G_CUTOFF_ET
     min_red_bars: int = SETUPS_R2G_MIN_RED_BARS
-    target_hod: bool = SETUPS_R2G_TARGET_HOD
     ema_period: int = SETUPS_EMA_PERIOD
     ema_tol: float = SETUPS_EMA_TOLERANCE
     macd_positive: bool = SETUPS_MACD_POSITIVE
@@ -73,7 +71,7 @@ class RedToGreenParams:
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_r: float = SETUPS_TARGET_R
+    targets: TargetSpec = DEFAULT_TARGETS               # the target menu's choice (#845)
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     max_per_symbol_day: int = 1
@@ -82,10 +80,6 @@ class RedToGreenParams:
     def entry_cutoff(self) -> str:
         """The reclaim window's end: the base class's cutoff for a trigger."""
         return self.r2g_cutoff
-
-    def target1(self, entry: float, risk: float, hod: float) -> float:
-        t1 = entry + self.target_r * risk
-        return round(max(hod, t1) if self.target_hod else t1, 4)
 
 
 def _under(close: float, level: float) -> str:
@@ -158,10 +152,12 @@ class RedToGreenDetector(TriggerDetector):
                 events.append(("disarmed", self._key_view(prev, reason="not enough red closes")))
             return events
         entry = round(level + p.entry_offset, 4)
-        risk = round(entry - low, 4)
+        stop, stop_why = self.stop_at(entry, low)
+        risk = round(entry - stop, 4)
+        aim = self.aim(entry, pullback_high=max(s.h[k0:last + 1]), stop=stop_why)
         setup = {
-            "leg_t": bars[k0].t, "trigger": round(level, 4), "entry": entry, "stop": round(low, 4), "risk": risk,
-            "target1": p.target1(entry, risk, s.hod[last]), "pullback_bars": red, "leg_high": level,
+            "leg_t": bars[k0].t, "trigger": round(level, 4), "entry": entry, "stop": round(stop, 4), "risk": risk,
+            **aim, "pullback_bars": red, "leg_high": level,
             "leg_low": low, "leg_pct": self.leg["pct"], "armed_bar_t": bars[last].t,
             "armed_at": (prev or {}).get("armed_at") or bars[last].t + 60, "kind": self.kind_now(),
             "detail": {"open": round(level, 4), "open_t": bars[k0].t, "red_bars": red, "hod": s.hod[last]},
@@ -169,31 +165,35 @@ class RedToGreenDetector(TriggerDetector):
         under = _under(s.c[last], level)
         if p.macd_positive and s.hist[last] <= 0:
             self.shadow = None
-            self.forming = forming_levels(level, entry, low, setup["target1"], bars=red,
+            self.forming = forming_levels(level, entry, stop, aim, bars=red,
                                           blocked="MACD below zero -- a reclaim now is not a try")
             return self._block(prev, f"red, {under}% under the {level:.2f} open; MACD below zero -- "
                                      "a reclaim now is not a try")
         why = risk_blocked(p, risk)
         if why:
             self.shadow = setup
-            self.forming = forming_levels(level, entry, low, setup["target1"], bars=red, blocked=why)
+            self.forming = forming_levels(level, entry, stop, aim, bars=red, blocked=why)
             return self._block(prev, f"red, {under}% under the {level:.2f} open; {why} -- a reclaim now "
                                      "spends the day's one try")
         self.shadow = None
         self.armed = setup
         self._set(SETUP_STATE_ARMED, f"red, {under}% under the {level:.2f} open: trigger {level:.2f}, "
-                                     f"stop {low:.2f}, risk {risk:.2f}")
+                                     f"stop {stop:.2f}, risk {risk:.2f}")
         return events + self.arm_events(prev)
 
     def _provisional(self, level: float, low: float, red: int, last: int) -> dict[str, Any]:
         """Fewer red closes than the rule asks: the reclaim's levels if it counted now (ADR 036)."""
         s, p = self.series, self.p
         entry = round(level + p.entry_offset, 4)
-        risk = round(entry - low, 4)
+        stop, stop_why = self.stop_at(entry, low)
+        risk = round(entry - stop, 4)
         need = p.min_red_bars - red
         blocked = ("MACD below zero -- a reclaim now is not a try" if p.macd_positive and s.hist[last] <= 0
                    else risk_blocked(p, risk))
-        return forming_levels(level, entry, low, p.target1(entry, risk, s.hod[last]), bars=red, blocked=blocked,
+        k0 = _open_index(s.t, p.session_start)
+        high = max(s.h[k0:last + 1]) if k0 is not None and k0 <= last else None
+        return forming_levels(level, entry, stop, self.aim(entry, pullback_high=high, stop=stop_why), bars=red,
+                              blocked=blocked,
                               waiting=f"{need} more close{'' if need == 1 else 's'} under the open")
 
     def _watch(self, prev: dict | None, why: str) -> list[tuple[str, dict]]:
@@ -238,8 +238,7 @@ class RedToGreenDetector(TriggerDetector):
             self._set(SETUP_STATE_WATCHING, f"reclaimed the {setup['trigger']:.2f} open with {why} -- "
                                             "the day's one try is spent")
             return []
-        hod = float((setup.get("detail") or {}).get("hod") or 0)
-        self.armed = {**setup, "entry": entry, "risk": risk, "target1": self.p.target1(entry, risk, hod)}
+        self.armed = {**setup, "entry": entry, "risk": risk, **self.reaim(setup, entry)}
         self._set(SETUP_STATE_ARMED, self.armed_reason())
         armed = [("armed", self.view())]
         self.nth += 1

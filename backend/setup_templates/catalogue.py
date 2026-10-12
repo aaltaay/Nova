@@ -69,9 +69,15 @@ LEGACY: dict[str, dict[str, Any]] = {
 # Parameters that left the catalogue, and where each went. A stored template that carries
 # one loads without it (``Template.retired`` keeps what it said, for the Bots page); a
 # write that sends one is refused with these words.
+_NO_R_TARGET = ("The R-multiple target left the templates (#845): Target 1, Target 2, the fixed amount, the share "
+                "sold at target 1 and the stop (target1_kind, target2_kind, target_fixed, target_split_pct, "
+                "stop_kind) replaced it.")
 RETIRED: dict[str, str] = {
     "bot_entries_per_day": ("Bot entries a day left the template: one daily cap now covers every Nova automatic "
                             "entry on a venue -- the sleeve's entries a day (entries_per_day) on the Bots page."),
+    "target_mode": _NO_R_TARGET,
+    "target_r": _NO_R_TARGET,
+    "r2g_target_hod": _NO_R_TARGET,
 }
 # The bot's parameters (its entry window): not the scanner's rules, so not in the fingerprint.
 BOT_KEYS: frozenset[str] = frozenset(s.key for table in CATALOGUE.values() for s in table if s.group == BOT_GROUP)

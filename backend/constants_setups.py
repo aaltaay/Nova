@@ -37,8 +37,9 @@ SETUPS_SCHEMA_VERSION_SYMBOL = 1           # GET /api/setups/symbol/{symbol} (AD
 # setups.db: 2 adds template_id / template_rev / params_hash (ADR 029); a v1
 # file is migrated in place, its rows becoming the default template's. 3 (ADR
 # 031) adds setup_type and detail; a v2 file's rows are the first pullback's.
-# 6 (ADR 049, #778 step 4) adds side and ssr; a v5 file's rows are long.
-SETUPS_DB_SCHEMA_VERSION = 6
+# 6 (ADR 049, #778 step 4) adds side and ssr; a v5 file's rows are long. 7 (#845) adds target2,
+# target1_fraction, targets and target_scores; a v6 file's rows carry none (their one target, sold whole).
+SETUPS_DB_SCHEMA_VERSION = 7
 
 # -- Session window (America/New_York). The material's window is 07:00-10:00;
 # the research screen ran 09:30-11:30. Covering 07:00-11:30 lets the
@@ -108,11 +109,45 @@ SETUPS_STOP_CAP_PCT = None              # ... or, when set, larger than this sha
 SETUPS_MIN_STOP_DOLLARS = 0.03          # ... or smaller than this
 SETUPS_ENTRY_OFFSET_DOLLARS = 0.01      # buy one cent over the last pullback bar's high
 SETUPS_RISK_SLIPPAGE_DOLLARS = 0.01     # the risk caps are checked with one cent of slippage, as the research did
-SETUPS_TARGET_R = 2.0                   # target 1 = max(leg high, entry + 2R)
-SETUPS_TARGET_MODE = "leg_or_r"         # ADR 029: "fixed" makes target 1 entry + SETUPS_TARGET_FIXED_DOLLARS
-SETUPS_TARGET_FIXED_DOLLARS = 0.20      # the material's 20c target, for a template that asks for it
 SETUPS_BAILOUT_BARS = 5                 # scoring: 5 bars without a close above entry -> out
 SETUPS_MAX_PER_SYMBOL_DAY = 2           # first and second pullback
+
+# -- Targets (operator decisions 2026-10-09 and 2026-10-12, #845): the material's four targets, sold in two
+# halves -- no R-multiple target anywhere (R stays the unit results are measured in). A strategy picks a kind
+# for each half (``setup_scanner/targets.py``); a short mirrors every one under its entry. CHOSEN where marked.
+SETUPS_TARGET_FIXED = "fixed"                   # an amount over the entry
+SETUPS_TARGET_NEXT_LEVEL = "next_level"         # 1c under the next level of today's map
+SETUPS_TARGET_PULLBACK_HIGH = "pullback_high"   # the high the pullback came from (a short: the low the bounce did)
+SETUPS_TARGET_HOD = "hod"                       # 1c under the high of day (a short: 1c over the low of day)
+SETUPS_TARGET_ROUND_OR_FIXED = "round_or_fixed"  # the fixed amount, or 1c under a half / whole dollar when closer
+SETUPS_TARGET_HOD_OR_LEVEL = "hod_or_level"     # 1c under the high of day, else the next level past target 1
+SETUPS_TARGET_NONE = "none"                     # no second target: everything sells at target 1
+SETUPS_TARGET1_KINDS = (SETUPS_TARGET_ROUND_OR_FIXED, SETUPS_TARGET_FIXED, SETUPS_TARGET_NEXT_LEVEL,
+                        SETUPS_TARGET_PULLBACK_HIGH, SETUPS_TARGET_HOD)
+SETUPS_TARGET2_KINDS = (SETUPS_TARGET_HOD_OR_LEVEL, SETUPS_TARGET_FIXED, SETUPS_TARGET_NEXT_LEVEL,
+                        SETUPS_TARGET_PULLBACK_HIGH, SETUPS_TARGET_HOD, SETUPS_TARGET_NONE)
+SETUPS_TARGET1_DEFAULT = SETUPS_TARGET_ROUND_OR_FIXED
+SETUPS_TARGET2_DEFAULT = SETUPS_TARGET_HOD_OR_LEVEL
+SETUPS_TARGET_FIXED_DOLLARS = 0.20      # the material's 20c
+SETUPS_TARGET_FIXED_MIN = 0.10          # ... in the material's 10-30c range
+SETUPS_TARGET_FIXED_MAX = 0.30
+SETUPS_TARGET_SPLIT = 0.5               # the first half's share of the shares when a second target exists
+SETUPS_TARGET_LEVEL_CENT = 0.01         # a target sits 1c under a level (1c over it for a short)
+SETUPS_TARGET_MIN_GAIN = 0.05           # a target nearer the entry than 5c is none: its level does not count. CHOSEN
+SETUPS_TARGET2_MIN_GAP = 0.05           # target 2 at least 5c past target 1, else everything sells at target 1. CHOSEN
+# The stop a strategy picks: its pattern's (the pullback low, the flag low ...), or a few cents under the
+# nearest half / whole dollar under the entry when that risk is inside the strategy's own cap.
+SETUPS_STOP_PATTERN = "pattern"
+SETUPS_STOP_ROUND = "round"
+SETUPS_STOP_KINDS = (SETUPS_STOP_PATTERN, SETUPS_STOP_ROUND)
+SETUPS_STOP_ROUND_CENTS = 0.03          # the round stop sits 3c under the half / whole dollar (over it, short). CHOSEN
+# Every target choice the eyes score side by side on each trigger, the same stop and bailout for all
+# (``setup_scanner/target_choices.py``): stored with the trigger in ``setups.db`` (``target_scores``).
+SETUPS_TARGET_CHOICES_SCHEMA_VERSION = 1
+SETUPS_TARGET_CHOICE_FIXED = (0.10, 0.20, 0.30)
+SETUPS_TARGET_CHOICE_DEFAULT = "default"
+SETUPS_TARGET_READOUT_MIN_N = 30        # the read-out names no leader with fewer scored triggers a choice. CHOSEN
+SETUPS_TARGET_READOUT_COST = 0.01       # its stated cost a share a fill (the research ladder's base)
 
 # -- Bull flag (ADR 031): pre-registered from the operator's material, never tested
 # on bars. The material's rules: 3+ green candles, then 2-3 red candles none of which
@@ -133,7 +168,6 @@ SETUPS_BF_REJECT_RED_VOLUME_HIGH = True  # the day's highest-volume candle is re
 SETUPS_BF_MAX_POLE_WICK = 0.40          # the pole-top candle's upper wick over its range. CHOSEN
 SETUPS_BF_REQUIRE_HOD = False           # the material asks no new high of day
 SETUPS_BF_MAX_PER_SYMBOL_DAY = 2        # the first and second flag, skip the third
-SETUPS_BF_TARGET_MODES = ("leg_or_r", "leg", "fixed")
 
 # -- Flat-top breakout (ADR 031; amended 2026-10-06: the flat top the operator's material draws -- the high of
 # day tapped again and again). The research's P2 rule (research/momentum/backtest_setups.py find_flat_top) is
@@ -155,13 +189,11 @@ SETUPS_FT_ENTRY_BREAK = "break"         # the variant: the break itself
 SETUPS_FT_ENTRY = SETUPS_FT_ENTRY_HOLD
 SETUPS_FT_HOLD_BARS = 3                 # the hold must come within this many candles after the break
 SETUPS_FT_MAX_PER_SYMBOL_DAY = 2
-SETUPS_FT_TARGET_MODES = ("r", "fixed")
 
 # -- Red to green (P3, find_red_to_green): the open, then back through it.
 SETUPS_R2G_OPEN_ET = "09:30"            # the level is the open of the first candle at or after this
 SETUPS_R2G_CUTOFF_ET = "10:30"          # reclaim by
 SETUPS_R2G_MIN_RED_BARS = 1             # closes under the open, counted from the opening candle
-SETUPS_R2G_TARGET_HOD = True            # target 1 is at least the high of day
 
 # -- Gap and Go (A2, research/orb/backtest_gng.py GParams, rules of 2026-09-22): the
 # pre-market high, broken after the open. ADR 031 amendment 2026-10-02.
@@ -327,16 +359,19 @@ SETUPS_BOARD_PUSH_SEC = 1.0             # socket push cadence
 # in the operator cache. Every template of every setup with a scanner is watched at
 # once, one lane each (the per-setup cap bounds the lanes); only each setup's template
 # in play proposes (ADR 031).
-SETUP_TEMPLATES_SCHEMA_VERSION = 1
+# 2 (#845): the target menu replaces target_mode / target_r; a v1 file migrates on read (``setup_templates.store``).
+SETUP_TEMPLATES_SCHEMA_VERSION = 2
 SETUP_TEMPLATES_FILENAME = "setup-templates.json"   # under paths.cache_dir(), not git-tracked
 SETUP_TEMPLATE_DEFAULT_ID = "default"
 SETUP_TEMPLATE_DEFAULT_NAME = "Default (pre-registered)"
 # The default's rules revision. Bump it when the defaults above change what the
 # scanner arms or scores, so the read-out starts over for the new rules -- per setup,
 # so one setup's new rules never restart another's evidence.
-SETUP_TEMPLATE_DEFAULT_REV = 1
+# 2 (2026-10-12, #845): every setup's targets became the menu's and its scoring exit the bot's -- every
+# read-out starts over.
+SETUP_TEMPLATE_DEFAULT_REV = 2
 SETUP_TEMPLATE_DEFAULT_REVS: dict[str, int] = {
-    BOT_SETUP_FLAT_TOP: 2,      # 2026-10-06: the flat top counts its touches (ADR 031 amendment)
+    BOT_SETUP_FLAT_TOP: 3,      # 2: the flat top counts its touches (ADR 031 amendment 2026-10-06); 3: #845
 }
 
 

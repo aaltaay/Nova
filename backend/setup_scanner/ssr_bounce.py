@@ -44,7 +44,6 @@ from constants_setups import (
     SETUPS_NEAR_PCT,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_STOP_CAP_DOLLARS,
-    SETUPS_TARGET_R,
 )
 from constants_short_setups import (
     SETUP_KIND_SECOND_SSR_BOUNCE,
@@ -66,7 +65,8 @@ from constants_short_setups import (
 from constants_shorts import SSR_TRIGGER_FRACTION
 from setup_scanner.bars import Bar
 from setup_scanner.detector import EPS, TriggerDetector, et_time, hhmm, window_blocked
-from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked, short_target
+from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -88,7 +88,7 @@ class SsrBounceParams:
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SHORT_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_r: float = SETUPS_TARGET_R
+    targets: TargetSpec = DEFAULT_TARGETS               # the target menu's choice (#845), mirrored
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SHORT_WINDOW_START_ET
@@ -209,20 +209,20 @@ class SsrBounceDetector(ShortTriggerDetector):
     def _arm(self, bars: list[Bar], last: int, drop: dict, level: float, kind: str) -> list[tuple[str, dict]]:
         p = self.p
         entry = round(level - p.entry_offset, 4)
-        stop = round(entry + max(p.stop_pct * entry, p.stop_min), 4)
+        stop, stop_why = self.stop_at(entry, round(entry + max(p.stop_pct * entry, p.stop_min), 4))
         risk = round(stop - entry, 4)
-        target = short_target(entry, risk, p.target_r)
+        aim = self.aim(entry, pullback_high=drop["low"], stop=stop_why)
         self.leg = drop
         blocked = window_blocked(p, bars[last].t + p.bar_sec) or short_risk_blocked(p, risk, entry=entry)
         if blocked:
             self.armed = None
-            self.forming = short_levels(entry, entry, stop, target, bars=last - (self.series.lod_i[last]),
+            self.forming = short_levels(entry, entry, stop, aim, bars=last - (self.series.lod_i[last]),
                                         blocked=blocked)
             self._set(SETUP_STATE_LEG, f"a short at {entry:.2f} under the {level:.2f} level, but {blocked}")
             return []
         armed_at = bars[last].t + p.bar_sec
         self.armed = {
-            "leg_t": drop["t"], "trigger": entry, "entry": entry, "stop": stop, "risk": risk, "target1": target,
+            "leg_t": drop["t"], "trigger": entry, "entry": entry, "stop": stop, "risk": risk, **aim,
             "pullback_bars": last - self.series.lod_i[last], "leg_high": drop["high"], "leg_low": drop["low"],
             "leg_pct": drop["pct"], "armed_bar_t": bars[last].t, "armed_at": armed_at, "kind": self.kind_now(),
             "detail": {"level": level, "level_kind": kind, "drop_low": drop["low"], "ssr": self.ssr(),

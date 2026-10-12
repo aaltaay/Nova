@@ -262,7 +262,7 @@ export const BOT_READOUT_WHAT =
   + 'Live trading by a bot is not built, so passing it unlocks nothing yet.';
 /** How it scores, against how the bot trades (ADR 042 G). */
 export const BOT_READOUT_EXITS =
-  'It scores the backtest\'s exit (half at target 1, the stop to break-even, a 9 EMA trail); '
+  'It scores the strategy\'s exit (its share at target 1, the rest at target 2, the stop where it is); '
   + 'the bot sells everything at target 1, with a 15-minute time stop.';
 /** The read-out's hover: what it measures, what it does not unlock, and how it scores. */
 export const BOT_READOUT_TIP = (setup: string): string =>
@@ -271,7 +271,7 @@ export const BOT_READOUT_TIP = (setup: string): string =>
   + 'GO: the tape said go. Blind / wait: Nova held no Level 2 line, or the tape said wait — the control group.\n'
   + 'It passes at 50 go setups whose average net R (after a cent of slippage each way) is above +0.2 and above the control\'s, '
   + 'judged on the first 100 go setups; 100 without a pass is failed.\n'
-  + 'It scores the backtest\'s exit — half at target 1, the stop to break-even, the rest on a 9 EMA trail — '
+  + 'It scores the strategy\'s exit — its share at target 1, the rest at target 2, the stop staying where it is — '
   + 'while Nova\'s bot sells everything at target 1, with a 15-minute time stop. Its triggers outside the bot\'s window count here, '
   + 'though the bot would never have bought them.';
 export const botReadoutInside = (triggered: number, go: number, start: string, end: string): string =>

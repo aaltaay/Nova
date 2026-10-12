@@ -14,7 +14,7 @@ import {
 import { cryptoBoard } from './data/crypto';
 import { DAY, NOW_S } from './data/market';
 import { botAudit, botSession, hotList, practiceHistory, setupRows, setupsBoard, shortProof, stockModes } from './data/pages';
-import { decisions, history, pastSetups, stockMode, stockRead } from './data/read';
+import { decisions, history, pastSetups, stockMode, stockRead, targetChoices } from './data/read';
 import { hodHistory, leaderboardBoard, leaderboardCoverage, leaderboardDays, simClock, simStatus } from './data/sim';
 import { CATALYSTS, GAINERS, GAPPERS, HOD_CONFIG, LOSERS, WATCHLIST } from './data/universe';
 
@@ -113,6 +113,7 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/setups\/templates$/, () => setupTemplates],
     [/^\/api\/setups\/rows$/, () => ({ date: DAY, setup_type: 'all', template: null, rows: setupRows() })],
     [/^\/api\/setups\/scoreboard$/, () => ({ ...SAMPLE_SETUPS_SCOREBOARD, date_from: '2026-09-24' })],
+    [/^\/api\/setups\/target-choices$/, (_m, q) => targetChoices(q.get('from'), q.get('setup'))],
     [/^\/api\/setups\/board$/, () => setupsBoard(nowS)],
     [/^\/api\/chart-drawings\/([^/]+)$/, () => ({ drawings: [] })],
     [/^\/api\/ticker\/([^/]+)\/bars$/, (m, q) => ({ bars: barsFor(sym(m), q.get('timeframe') ?? '1Min', venue), coverage: venue === 'sim' ? REPLAY_COVERAGE : null })],

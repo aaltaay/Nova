@@ -134,7 +134,7 @@ def lines_of(*ls):
 def test_a_descending_line_between_a_longs_entry_and_target_is_in_the_way():
     [n] = line_notes.notes(LONG, lines_of(line("resistance", 5.24, home="five_minute")), price=4.98)
     assert (n["role"], n["state"], n["r"]) == ("way", "warn", 1.2)
-    assert n["text"] == "↘ resistance (5-min) at 5.24 (1.2R) before the target"
+    assert n["text"] == "↘ resistance (5-min) at 5.24 (1.2R) before target 1"
     assert "falls 2c a 5-minute candle" in n["detail"] and "It blocks nothing." in n["detail"]
 
 
@@ -170,7 +170,7 @@ def test_a_broken_support_is_against_a_long_and_a_broken_resistance_with_it():
 def test_a_shorts_notes_are_the_mirror():
     found_ = line_notes.notes(SHORT, lines_of(line("support", 4.76), line("resistance", 5.30)), price=5.02)
     way, stop = found_
-    assert (way["role"], way["state"], way["text"]) == ("way", "warn", "↗ support (1-min) at 4.76 (1.2R) before the target")
+    assert (way["role"], way["state"], way["text"]) == ("way", "warn", "↗ support (1-min) at 4.76 (1.2R) before target 1")
     assert (stop["role"], stop["state"], stop["text"]) == (
         "stop", "warn", "Stop 5.20 is under the ↘ resistance (1-min) at 5.30: a test of the line can take it")
     broke = {"t": datetime(2026, 10, 12, 9, 52, tzinfo=ET).timestamp(), "p": 5.0, "close": 5.05}

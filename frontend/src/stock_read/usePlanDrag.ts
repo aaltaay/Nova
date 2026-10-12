@@ -1,8 +1,9 @@
 /**
  * Drag the operator's own entry or stop on the 1-minute chart (ADR 036; a short's entry and buy stop, ADR 048).
  * Only a hand plan moves -- a setup's levels are the scanner's. The pointer grabs a line within a few pixels of it; while it
- * drags, `preview` holds the moving levels (the target follows at 2R); on release the plan is the
- * operator's new entry and stop. A press anywhere else is the chart's, untouched.
+ * drags, `preview` holds the moving levels (each target keeps its distance from the entry); on release the plan is
+ * the operator's new entry and stop, and the backend reads the menu's targets afresh from the new entry (#845).
+ * A press anywhere else is the chart's, untouched.
  */
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ISeriesApi } from 'lightweight-charts';
@@ -20,11 +21,21 @@ function roundPx(p: number): number {
   return Math.round(p / step) * step;
 }
 
-/** The plan with a dragged entry and stop, its target back at 2R (a short's cover under its entry). */
+/** The plan with a dragged entry and stop while it moves: each target keeps its distance from the entry (target 2
+ * too; a short's covers under it), and the R each is measured in follows the new risk. The targets' prices and
+ * reasons are the backend's once the drag is let go -- a preview never invents a level. */
 export function draggedPlan(plan: StockPlan, d: DragPreview): StockPlan {
   const risk = Math.abs(d.entry - d.stop);
-  const target = plan.side === 'short' ? d.entry - 2 * risk : d.entry + 2 * risk;
-  return { ...plan, entry: d.entry, stop: d.stop, target, risk, reward: 2 * risk, rr: 2 };
+  const shift = plan.entry !== null ? d.entry - plan.entry : 0;
+  const moved = (p: number | null | undefined) => (p == null ? null : p + shift);
+  const target = moved(plan.target);
+  const target2 = moved(plan.target2);
+  const reward = target === null ? null : Math.abs(target - d.entry);
+  const reward2 = target2 === null ? null : Math.abs(target2 - d.entry);
+  const inR = (r: number | null) => (r === null || !(risk > 0) ? null : r / risk);
+  return {
+    ...plan, entry: d.entry, stop: d.stop, target, target2, risk, reward, rr: inR(reward), reward2, rr2: inR(reward2),
+  };
 }
 
 export function usePlanDrag({

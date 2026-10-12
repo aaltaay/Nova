@@ -261,6 +261,6 @@ describe('the plan in Level 2', () => {
   it('draws ENTRY, STOP and TARGET dashed while they are only a plan', async () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId('markers').textContent)
-      .toBe('ENTRY 5.44:dashed|STOP 5.33:dashed|TARGET 5.66:dashed'));
+      .toBe('ENTRY 5.44:dashed|STOP 5.33:dashed|TARGET 5.49:dashed'));
   });
 });
