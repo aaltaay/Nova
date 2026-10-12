@@ -5,7 +5,7 @@
  * (`useReplayQuote`): the ticker stream is not re-seeded on a seek, so reading
  * it froze the head at the price the tab opened on (QA 2026-09-22, R10). In a
  * gap in the recording, or with nothing loaded for this tab, the head says so
- * instead of showing a price.
+ * instead of showing a price. The company's country rides beside the symbol as its flag (`CountryFlag`).
  */
 import type { TickerDetail } from '../types/ticker';
 import { fmtPct } from '../utils/quoteFormat';
@@ -14,6 +14,7 @@ import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { useReplayQuote } from '../sim/useReplayQuote';
 import { LiveText } from '../ux/LiveText';
 import { WatchMark } from '../watch_list';
+import { CountryFlag } from './CountryFlag';
 import { StockViewQuoteRank } from './StockViewQuoteRank';
 
 interface Props {
@@ -32,6 +33,7 @@ export function StockViewQuotePrice({ detail }: Props) {
   return (
     <div className="sv-quote-card__price" data-testid="stock-view-quote-price">
       <span className="sv-quote-card__symbol" data-testid="stock-view-quote-symbol">{detail.symbol}</span>
+      <CountryFlag fundamentals={detail.fundamentals} />
       <WatchMark symbol={detail.symbol} className="sv-quote-card__star" />
       <StockViewQuoteRank symbol={detail.symbol} />
       {price != null ? (

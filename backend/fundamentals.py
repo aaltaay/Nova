@@ -11,11 +11,15 @@ own share counts contradict; every max-float gate reads the flag through
 ``strategy.float_gate`` (a contradicted float passes only on shares outstanding).
 ``short_above_float`` is a warning only: more shares short than the float holds
 is what a stale float looks like, and also what a squeeze looks like.
+``country_code`` turns Yahoo's headquarters country into the ISO code the desk's
+flag is drawn from (operator ask, 2026-10-12).
 """
 from __future__ import annotations
 
 import logging
+import re
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -27,6 +31,7 @@ from constants import (
     FUNDAMENTALS_NEGATIVE_CACHE_TTL,
     YFINANCE_TIMEOUT_S,
 )
+from constants_countries import COUNTRY_NAME_ALIASES, COUNTRY_NAMES
 from constants_scanner import FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE
 from ibkr.errors import describe_exc
 
@@ -39,6 +44,8 @@ _YF_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="yf-fundamentals
 
 _EMPTY: dict = {
     "company_name": None,
+    "country": None,
+    "country_code": None,
     "market_cap": None,
     "shares_outstanding": None,
     "float_shares": None,
@@ -187,6 +194,28 @@ def short_above_float(float_shares, short_interest) -> tuple[bool | None, str | 
     )
 
 
+def _country_key(name: str) -> str:
+    """A country name with case, accents and punctuation set aside: "St. Kitts & Nevis" -> "saint kitts and nevis"."""
+    s = unicodedata.normalize("NFKD", name)
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower().replace("&", " and ")
+    s = re.sub(r"[^a-z0-9 ]+", " ", re.sub("[.'’]", "", s))   # U.S. -> us, d'Ivoire -> divoire
+    return " ".join("saint" if w == "st" else w for w in s.split())
+
+
+_COUNTRY_CODES: dict[str, str] = {
+    **{_country_key(name): code for code, name in COUNTRY_NAMES.items()},
+    **{_country_key(name): code for name, code in COUNTRY_NAME_ALIASES.items()},
+}
+
+
+def country_code(name) -> str | None:
+    """Yahoo's country name -> its ISO 3166-1 alpha-2 code ("Hong Kong" -> "HK"); ``None`` when it names no
+    country the desk has a flag for. Never guessed from anything but the name. Pure."""
+    if not isinstance(name, str) or not name.strip():
+        return None
+    return _COUNTRY_CODES.get(_country_key(name))
+
+
 def _cache_ttl(symbol: str) -> float:
     return _fundamentals_cache_ttl.get(symbol, FUNDAMENTALS_CACHE_TTL)
 
@@ -285,6 +314,9 @@ def fetch_fundamentals(symbol: str) -> dict:
         short_above, short_above_reason = short_above_float(info.get("floatShares"), info.get("sharesShort"))
         fundamentals = {
             "company_name": info.get("longName") or info.get("shortName"),
+            # Where the company is run from (Yahoo's headquarters address), not where it is incorporated.
+            "country": info.get("country") or None,
+            "country_code": country_code(info.get("country")),
             "market_cap": info.get("marketCap"),
             "shares_outstanding": info.get("sharesOutstanding"),
             "float_shares": info.get("floatShares"),
