@@ -5,6 +5,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import type { IChartApi, ISeriesApi, MouseEventParams, Time } from 'lightweight-charts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CANDLE_HOVER_DWELL_MS } from './candleHoverConstants';
+import { areaHoverId, hoverTarget, useCandleCardOpen } from './hoverTarget';
 import { useCandleHover } from './useCandleHover';
 
 type Move = (p: MouseEventParams<Time>) => void;
@@ -34,8 +35,11 @@ function setup() {
       ...extra,
     } as MouseEventParams<Time>));
   const wait = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
-  return { hook, at, wait, box, leave: () => act(() => move({ seriesData: new Map() } as never)) };
+  return { hook, at, wait, box, chart, leave: () => act(() => move({ seriesData: new Map() } as never)) };
 }
+
+/** The pointer over a failed setup's red box, which spans far above and below the candle. */
+const IN_BOX = { hoveredObjectId: areaHoverId('past:flat_top_breakout:1') };
 
 describe('useCandleHover', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -96,11 +100,62 @@ describe('useCandleHover', () => {
     expect(hook.result.current).not.toBeNull();
   });
 
-  it('gives way to a drawing that tells its own story', () => {
+  it('gives way to a drawing that tells its own story at a point', () => {
     const { hook, at, wait } = setup();
     at(10, 150);
     wait(CANDLE_HOVER_DWELL_MS);
     at(10, 150, { hoveredObjectId: 'lane:first_pullback' });
     expect(hook.result.current).toBeNull();
+    at(10, 150, { hoveredObjectId: 'lane:first_pullback' });
+    wait(CANDLE_HOVER_DWELL_MS * 2);
+    expect(hook.result.current).toBeNull();
+  });
+
+  it('opens on a candle inside a setup box (operator report 2026-10-12)', () => {
+    const { hook, at, wait } = setup();
+    at(10, 150, IN_BOX);
+    wait(CANDLE_HOVER_DWELL_MS);
+    expect(hook.result.current).toMatchObject({ logical: 10 });
+    at(11, 160, IN_BOX);   // on the next candle, still in the box: follows it
+    expect(hook.result.current).toMatchObject({ logical: 11 });
+  });
+
+  it('never opens in the box off the candles, and closes there so the box tells its story', () => {
+    const { hook, at, wait } = setup();
+    at(10, 40, IN_BOX);
+    wait(CANDLE_HOVER_DWELL_MS * 2);
+    expect(hook.result.current).toBeNull();
+    at(10, 150, IN_BOX);
+    wait(CANDLE_HOVER_DWELL_MS);
+    expect(hook.result.current).not.toBeNull();
+    at(10, 40, IN_BOX);
+    expect(hook.result.current).toBeNull();
+  });
+
+  it('still follows the pointer off the candles where no drawing is', () => {
+    const { hook, at, wait } = setup();
+    at(10, 150, IN_BOX);
+    wait(CANDLE_HOVER_DWELL_MS);
+    at(12, 40);
+    expect(hook.result.current).toMatchObject({ logical: 12 });
+  });
+
+  it('says on the chart while its card is open, for a box card to step aside', () => {
+    const { at, wait, leave, chart } = setup();
+    const open = renderHook(() => useCandleCardOpen(chart));
+    at(10, 150, IN_BOX);
+    expect(open.result.current).toBe(false);
+    wait(CANDLE_HOVER_DWELL_MS);
+    expect(open.result.current).toBe(true);
+    leave();
+    expect(open.result.current).toBe(false);
+  });
+});
+
+describe('hoverTarget', () => {
+  it('tells a box area from a drawing hit at a point', () => {
+    expect(hoverTarget(undefined)).toBeNull();
+    expect(hoverTarget('level:7.00')).toEqual({ id: 'level:7.00', area: false });
+    expect(hoverTarget(areaHoverId('past:a'))).toEqual({ id: 'past:a', area: true });
   });
 });

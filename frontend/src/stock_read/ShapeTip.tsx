@@ -4,10 +4,12 @@
  * tick the pointer is over (`SetupShapesPrimitive.hitTest`); this names it -- a live lane's state and
  * reason, a past setup's end, the rule it broke and what price did next, or what holds a level and what the
  * level study measured -- in a card beside the pointer. The card takes no pointer events, so the chart
- * keeps every gesture.
+ * keeps every gesture. Over a setup's box, a candle the pointer rests on wins (operator report 2026-10-12):
+ * the box's card steps aside while the candle's card is open, and shows again once it closes.
  */
 import { useEffect, useState, type RefObject } from 'react';
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts';
+import { hoverTarget, useCandleCardOpen } from '../chart';
 import { laneHoverId } from './chartShapes';
 import { fiveMinuteLanes, lane5HoverId, past5HoverId } from './fiveMinuteShapes';
 import { FLAT_TOP_5M } from './flatTopShapes';
@@ -19,6 +21,8 @@ import type { StockRead } from './types';
 
 export interface ShapeHover {
   id: string;
+  /** Over the drawing's area (a setup's box), where a candle the pointer rests on wins. */
+  area: boolean;
   x: number;
   y: number;
   /** The pane's size when the pointer got there, so the card stays inside it; 0 when unknown. */
@@ -41,23 +45,26 @@ export interface ShapeStory {
 const TIP_W = 300;
 const TIP_GAP = 14;
 
-/** The box under the pointer on `chart`, with the pointer's place; null over anything else. */
+/** The box under the pointer on `chart`, with the pointer's place; null over anything else, and over a box's
+ * area while the candle card is open there. */
 export function useShapeHover(
   chart: IChartApi | null,
   enabled: boolean,
   containerRef: RefObject<HTMLElement | null>,
 ): ShapeHover | null {
   const [hover, setHover] = useState<ShapeHover | null>(null);
+  const candleCardOpen = useCandleCardOpen(enabled ? chart : null);
   useEffect(() => {
     if (!chart || !enabled) return;
     const onMove = (p: MouseEventParams<Time>) => {
-      const id = typeof p.hoveredObjectId === 'string' ? p.hoveredObjectId : null;
+      const target = hoverTarget(p.hoveredObjectId);
       const point = p.point;
       const box = containerRef.current;
       setHover(prev => {
-        if (!id || !point) return prev === null ? prev : null;
-        if (prev && prev.id === id && prev.x === point.x && prev.y === point.y) return prev;
-        return { id, x: point.x, y: point.y, width: box?.clientWidth ?? 0, height: box?.clientHeight ?? 0 };
+        if (!target?.id || !point) return prev === null ? prev : null;
+        const { id, area } = target;
+        if (prev && prev.id === id && prev.area === area && prev.x === point.x && prev.y === point.y) return prev;
+        return { id, area, x: point.x, y: point.y, width: box?.clientWidth ?? 0, height: box?.clientHeight ?? 0 };
       });
     };
     chart.subscribeCrosshairMove(onMove);
@@ -70,7 +77,8 @@ export function useShapeHover(
       setHover(null);
     };
   }, [chart, enabled, containerRef]);
-  return enabled ? hover : null;
+  if (!enabled || !hover) return null;
+  return hover.area && candleCardOpen ? null : hover;
 }
 
 /** The story of the box `id` names: a live lane's, a past setup's, a level's (its label or axis tick) or a trend

@@ -5,7 +5,8 @@
  * prices, and the moment's pin (ENTER NOW, SELL NOW, what Nova did: ADR 037) on its candle. It draws a scene it is given; `chartShapes.ts` decides what the scene holds and
  * `StockReadChartLayer` maps its times onto this pane's bars. A box with a `hoverId` is reported to the
  * chart as hovered (`hitTest`) -- over the box, or over the label it drew for the box -- so the pane can
- * tell that setup's story under the pointer; a level's label or axis tick names the level's card. The scene's
+ * tell that setup's story under the pointer (the box's area marked as one, `areaHoverId`, so a candle in it wins
+ * the pointer once it rests there); a level's label or axis tick names the level's card. The scene's
  * shapes are `sceneTypes.ts`; drawing them is `sceneRender.ts` -- where each label goes, and how much a past
  * setup's says (`sceneLabels.ts`), and every word at the right edge in one column (`edgeColumn.ts`): the levels'
  * names, the lines' tags (`words`: the EMAs, VWAP, the plan's ENTRY / STOP / TARGET) and the tags for prices out
@@ -31,7 +32,7 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts';
-import { publishPaneWords } from '../chart';
+import { areaHoverId, publishPaneWords } from '../chart';
 import {
   emptyPx,
   FillRenderer,
@@ -301,7 +302,8 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const top = Math.min(y1, y2) - HIT_SLACK_PX;
       const bottom = Math.max(y1, y2) + HIT_SLACK_PX;
       if (x >= x1 - HIT_SLACK_PX && x <= x2 + HIT_SLACK_PX && y >= top && y <= bottom) {
-        return { externalId: b.hoverId, zOrder: 'top' };
+        // A box covers candles: over its area, a candle the pointer rests on opens the candle's card instead.
+        return { externalId: areaHoverId(b.hoverId), zOrder: 'top' };
       }
     }
     return null;

@@ -343,7 +343,12 @@ the drawing, `ShapeTip.tsx` the hover):
   on 2026-09-29).
 - Hovering a setup's box -- live or past -- shows its whole story (`SetupShapesPrimitive.hitTest`
   names the box): the state or end with the full reason, the times, the level, the floor, what price
-  did next and the refused trade's outcome.
+  did next and the refused trade's outcome. A candle inside the box wins the pointer (operator report
+  2026-10-12: "if I'm specifically highlighting a candle, I do care about the candle information more
+  than anything else"): the box's area is reported as an area (`chart/hoverTarget.ts`), so resting on a
+  candle in it opens the candle's card as anywhere on the chart, and the box's story steps aside while
+  that card is open. Off the candles the card closes and the story shows again; a label, a ring or a
+  trend line keeps its own story over a candle.
 - The "Past setups" switch in the legend's Setups menu switches the layer (`nova.stockRead.layers` `value.past`), counts what it
   draws, and says why when the backend has no such route. The read is fetched every
   `STOCK_READ_PAST_POLL_MS` while the Trader tab shows with the layer on, and at once when a lane's

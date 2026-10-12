@@ -3,11 +3,16 @@
  * on one candle -- between its high and its low, give or take a few pixels -- for `CANDLE_HOVER_DWELL_MS`, so
  * a sweep across the chart never opens it. Once open it follows the pointer from candle to candle at once.
  * It closes when the pointer leaves the chart, a button goes down (a click, a pan, a drawing), or the pointer
- * reaches a drawing that tells its own story (a setup box, a level: `hoveredObjectId`).
+ * reaches a drawing that tells its own story at a point (a label, a ring, a trend line, a level's tick).
+ * A setup's box covers candles, so over its area the candle wins (operator report 2026-10-12, `hoverTarget.ts`):
+ * the card opens on a candle in the box as it does anywhere, and the box's own card steps aside while it is
+ * open. In a box the open card follows the pointer only while it stays on a candle; off them it closes and the
+ * box's story shows again.
  */
 import { useEffect, useState, type RefObject } from 'react';
 import type { IChartApi, ISeriesApi, MouseEventParams, Time } from 'lightweight-charts';
 import { CANDLE_HOVER_DWELL_MS, CANDLE_HOVER_HIT_SLACK_PX } from './candleHoverConstants';
+import { hoverTarget, setCandleCardOpen } from './hoverTarget';
 
 export interface CandleHover {
   /** The candle's place on the time scale, for reading it again from the series. */
@@ -51,13 +56,15 @@ export function useCandleHover(
       timer = null;
       pending = null;
       open = false;
+      setCandleCardOpen(chart, false);
       setHover(null);
     };
 
     const onMove = (p: MouseEventParams<Time>) => {
       const series = candleSeriesRef.current;
       const point = p.point;
-      if (pressed || !series || !point || p.time == null || p.logical == null || p.hoveredObjectId != null) {
+      const drawing = hoverTarget(p.hoveredObjectId);
+      if (pressed || !series || !point || p.time == null || p.logical == null || (drawing && !drawing.area)) {
         close();
         return;
       }
@@ -74,14 +81,14 @@ export function useCandleHover(
         width: box?.clientWidth ?? 0,
         height: box?.clientHeight ?? 0,
       };
-      if (open) {
-        setHover(next);
-        return;
-      }
       const top = series.priceToCoordinate(candle.high);
       const bottom = series.priceToCoordinate(candle.low);
       const onCandle = top != null && bottom != null
         && point.y >= top - CANDLE_HOVER_HIT_SLACK_PX && point.y <= bottom + CANDLE_HOVER_HIT_SLACK_PX;
+      if (open && (onCandle || !drawing)) {
+        setHover(next);
+        return;
+      }
       if (!onCandle) {
         close();
         return;
@@ -94,6 +101,7 @@ export function useCandleHover(
         timer = null;
         if (!pending) return;
         open = true;
+        setCandleCardOpen(chart, true);
         setHover(pending);
       }, CANDLE_HOVER_DWELL_MS);
     };
