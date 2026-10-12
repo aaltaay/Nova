@@ -1,5 +1,6 @@
 /**
- * The words and order of Tickers today (ADR 044), pure: which ticker comes first, which of a row's reasons
+ * The words and order of Tickers today (ADR 044), pure: which ticker comes first (the biggest change on the day,
+ * as the Gainers board sorts; operator ask 2026-10-12), which of a row's reasons
  * every ticker shares (said once, in grey) and which are its own, the stock's Entry / Exit from its mode, and
  * a trigger's result in words. Both sides (ADR 049, #778 step 5): the squares of every trade end with "not
  * against you"; the shorts-only block follows.
@@ -49,13 +50,23 @@ export function sidesOf(symbol: string, modes: readonly StockModeRow[]): [Side, 
 /** A row with a "now" (or a ★ / ☆): today's tickers -- listed, or set to bot buy. */
 const isToday = (t: TickerRow) => t.listed !== null || t.now !== null;
 
-/** Today's tickers first -- the stocks the bot buys first, then by when they joined the hot list (bot-buy stocks
- * off the list before the listed ones) -- then the rest (triggered only) by symbol. */
+/** Biggest change on the day first, as the Gainers board sorts; a ticker with no change to say goes after every
+ * one with a change (0 when both have one or neither). */
+function byChange(a: TickerRow, b: TickerRow): number {
+  const x = a.market?.changePct ?? null;
+  const y = b.market?.changePct ?? null;
+  if (x === null || y === null) return (x === null ? 1 : 0) - (y === null ? 1 : 0);
+  return y - x;
+}
+
+/** Today's tickers first, then the rest (triggered only), each by its change on the day, biggest first. Ties and
+ * the tickers with no change keep the old order: today's, the stocks the bot buys first, then by when they joined
+ * the hot list (bot-buy stocks off the list before the listed ones); the rest by symbol. */
 export function orderTickers(rows: readonly TickerRow[], modes: readonly StockModeRow[]): { today: TickerRow[]; others: TickerRow[] } {
   const botBuys = (t: TickerRow) => (sidesOf(t.symbol, modes)[0] === 'nova' ? 0 : 1);
   const joined = (t: TickerRow) => t.listed?.at ?? 0;
-  const today = rows.filter(isToday).sort((a, b) => botBuys(a) - botBuys(b) || joined(a) - joined(b));
-  const others = rows.filter(t => !isToday(t)).sort((a, b) => a.symbol.localeCompare(b.symbol));
+  const today = rows.filter(isToday).sort((a, b) => byChange(a, b) || botBuys(a) - botBuys(b) || joined(a) - joined(b));
+  const others = rows.filter(t => !isToday(t)).sort((a, b) => byChange(a, b) || a.symbol.localeCompare(b.symbol));
   return { today, others };
 }
 

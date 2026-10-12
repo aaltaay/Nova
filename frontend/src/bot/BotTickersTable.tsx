@@ -288,7 +288,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
             ) : null}
             <tr>
               <th>Ticker</th>
-              <th {...tipProps('Its change on the day, as the Gainers board shows it: from the board that holds it, else its Level 1 line.', 'Change')}>Change</th>
+              <th {...tipProps('Its change on the day, as the Gainers board shows it: from the board that holds it, else its Level 1 line. The table is sorted by it, biggest first, as the Gainers board is; a ticker with no change goes last.', 'Change')}>Change</th>
               <th>Who trades it</th><th>When</th><th>Setup</th><th>Gr</th><th>Tape</th><th>Result</th>
               {(view?.gates ?? []).map(g => (
                 <th key={g.id} className="bots-tk__g bots-tk__gh" {...tipProps(GATE_TIPS[g.id] ?? g.label, g.label)}><span>{g.label}</span></th>
@@ -301,7 +301,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
             </tr>
           </thead>
           <tbody>
-            <tr className="bots-tk__group"><td colSpan={cols}>On your hot list or set to bot entry · {listed.length} tickers</td></tr>
+            <tr className="bots-tk__group"><td colSpan={cols}>On your hot list or set to bot entry · {listed.length} tickers · biggest change first</td></tr>
             {listed.length ? listed.flatMap(t => [nowRow(t, true), ...triggerRows(t)])
               : <tr><td colSpan={cols} className="bots-muted">Empty. Star a stock, set one to bot entry, or let the top of the Gainers board fill the hot list from {hot.view?.auto.start ?? '07:00'}.</td></tr>}
             {unlisted.length ? (
