@@ -17,7 +17,7 @@ import hod_momo_active as active
 import hot_list
 from bot.audit import list_entries
 from bot.persist import load_session, save_session
-from constants_hot_list import HOT_LIST_CAP, HOT_LIST_UNREADABLE
+from constants_hot_list import HOT_LIST_AUTO_CAP, HOT_LIST_CAP, HOT_LIST_FULL, HOT_LIST_UNREADABLE
 from hot_list import auto, service, store
 from hot_list.errors import HotListError
 from stock_mode import store as stock_store
@@ -343,12 +343,64 @@ def test_a_leader_you_took_off_is_not_added_back_that_day_even_after_a_restart(m
     assert service.star("AAA", by="operator", now=WED_1000 + 90)               # a star still brings it back
 
 
-def test_the_feed_never_passes_the_cap(monkeypatch):
-    store.save(doc_for("2026-09-30", *[f"S{i:02d}" for i in range(HOT_LIST_CAP - 2)]))
+def test_the_feed_never_passes_its_own_cap(monkeypatch):
+    doc = store.empty("2026-09-30")
+    doc["entries"] = [entry(f"S{i:02d}", how="auto") for i in range(HOT_LIST_AUTO_CAP - 2)]
+    store.save(doc)
     monkeypatch.setattr(auto, "live_gainers", lambda: (list(BOARD), None))
     assert asyncio.run(auto.tick(WED_1000)) == ["AAA", "BBB"]
-    assert len(hot_list.listed_symbols(WED_1000)) == HOT_LIST_CAP
+    assert len(hot_list.listed_symbols(WED_1000)) == HOT_LIST_AUTO_CAP
     assert asyncio.run(auto.tick(WED_1000 + 30)) == []
+
+
+def test_stars_never_take_the_feeds_room(monkeypatch):
+    """Twenty stars of the operator's own leave the leaders rule its whole cap (ADR 044, 2026-10-12)."""
+    store.save(doc_for("2026-09-30", *[f"S{i:02d}" for i in range(HOT_LIST_CAP)]))
+    monkeypatch.setattr(auto, "live_gainers", lambda: (list(BOARD), None))
+    assert asyncio.run(auto.tick(WED_1000)) == ["AAA", "BBB", "CCC", "DDD", "EEE"]
+
+
+def test_auto_stars_never_refuse_a_star_and_only_stars_fill_the_cap():
+    """The operator's report (2026-10-12): twenty auto stars made today's list 'full' for a star."""
+    doc = store.empty("2026-09-30")
+    doc["entries"] = [entry(f"A{i:02d}", how="auto") for i in range(HOT_LIST_AUTO_CAP)]
+    store.save(doc)
+    for i in range(HOT_LIST_CAP):
+        assert service.star(f"S{i:02d}", by="operator", now=WED_1000)
+    with pytest.raises(HotListError) as refused:
+        service.star("ONEMORE", by="operator", now=WED_1000)
+    assert refused.value.reason == HOT_LIST_FULL and f"starred {HOT_LIST_CAP} stocks" in refused.value.message
+
+
+def test_starring_an_auto_star_makes_it_yours_in_its_place():
+    doc = store.empty("2026-09-30")
+    doc["entries"] = [entry("AAA", how="auto", board="gainers", rank=1, change_pct=0.6), entry("BBB")]
+    store.save(doc)
+    assert service.star("aaa", by="operator", now=WED_1000)
+    assert not service.star("AAA", by="operator", now=WED_1000 + 1)              # a star already: no change
+    saved, _ = store.read_raw()
+    first = saved["entries"][0]
+    assert first["symbol"] == "AAA" and first["how"] == "star" and first["at"] == WED_1000
+    assert first["board"] == "gainers" and first["rank"] == 1                    # how it first came is kept
+    star_lines = [r["inputs"] for r in list_entries(limit=20) if r["action"] == "hot_list"
+                  and r["inputs"].get("event") == "star"]
+    assert star_lines[-1] == {"event": "star", "symbol": "AAA", "by": "operator", "was": "auto"}
+
+
+def test_a_promotion_counts_against_the_stars_cap():
+    doc = store.empty("2026-09-30")
+    doc["entries"] = [entry(f"S{i:02d}") for i in range(HOT_LIST_CAP)] + [entry("AUTO", how="auto")]
+    store.save(doc)
+    with pytest.raises(HotListError):
+        service.star("AUTO", by="operator", now=WED_1000)
+    assert store.read_raw()[0]["entries"][-1]["how"] == "auto"
+
+
+def test_stars_are_listed_ahead_of_auto_stars_for_the_reserved_slots():
+    doc = store.empty("2026-09-30")
+    doc["entries"] = [entry("A1", how="auto"), entry("S1"), entry("A2", how="auto"), entry("S2")]
+    store.save(doc)
+    assert hot_list.listed_symbols(WED_1000) == ["S1", "S2", "A1", "A2"]
 
 
 def test_the_feed_waits_for_its_window_and_stays_off_at_zero(monkeypatch):

@@ -144,6 +144,14 @@ export function removeFromWatchList(symbol: string): void {
   if (current().includes(s)) void send(s, 'remove');
 }
 
+/** Makes an auto ☆ your ★ (the backend turns it into a star, 2026-10-12); false when it is not an auto star. */
+export function starOnWatchList(symbol: string): boolean {
+  const s = normalizeWatchSymbol(symbol);
+  if (s === null || isSampleView() || watchHow(s) !== 'auto') return false;
+  void send(s, 'add');
+  return true;
+}
+
 /** Flips `symbol` on or off the list; returns whether it is listed afterwards. */
 export function toggleWatchList(symbol: string): boolean {
   if (isWatched(symbol)) {

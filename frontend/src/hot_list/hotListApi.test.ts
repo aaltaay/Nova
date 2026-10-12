@@ -22,6 +22,9 @@ describe('the hot list on the wire (ADR 044)', () => {
     expect(v?.entries[0].how).toBe('auto');
     expect(v?.yesterday).toEqual(['IMCC']);
     expect(v?.auto.n).toBe(5);
+    expect(v?.cap).toBe(20);
+    expect(v?.auto_cap).toBeNull();                       // an API before 2026-10-12: not guessed
+    expect(normalizeHotList({ ...wire, auto_cap: 20 })?.auto_cap).toBe(20);
   });
 
   it('refuses a shape it does not know instead of guessing an empty list', () => {

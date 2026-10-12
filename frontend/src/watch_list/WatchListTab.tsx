@@ -24,6 +24,7 @@ import type { ScannerRow } from '../types/scanner';
 import { fmtPct, fmtPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import { tipProps } from '../ux/hoverTip';
 import { whyProps } from '../ux/whyTip';
+import { ToastPanel } from './ToastPanel';
 import { WatchEyeIcon } from './WatchEyeIcon';
 import {
   WATCH_LIST_ADD_BUTTON,
@@ -205,7 +206,9 @@ function SavedListOffer({ listed }: { listed: readonly string[] }) {
   const hot = useHotList();
   const todo = saved.filter(s => !listed.includes(s));
   if (!todo.length) return said ? <p className="watch-list__saved" role="status">{said}</p> : null;
-  const room = Math.max(0, (hot.view?.cap ?? 20) - listed.length);
+  // Only stars count against the cap (ADR 044, 2026-10-12): auto stars never take a star's room.
+  const stars = hot.view ? hot.view.entries.filter(e => e.how === 'star').length : listed.length;
+  const room = Math.max(0, (hot.view?.cap ?? 20) - stars);
   const lock = busy ? 'Starring them…' : hot.view ? (room ? null : 'Today\'s hot list is full.') : 'Reading today\'s hot list…';
   const star = async () => {
     setBusy(true);
@@ -286,6 +289,7 @@ export function WatchListTab({ boards, selectedSymbol, onSelectSymbol, onOpenTra
         </p>
         <AddSymbolForm />
       </div>
+      <ToastPanel />
       <SavedListOffer listed={symbols} />
       {symbols.length === 0 ? (
         <div className="empty-state" data-testid="watch-list-empty">{WATCH_LIST_EMPTY}</div>

@@ -313,13 +313,14 @@ decides who trades a stock, and taking one off never changes it -- that is the s
   - Written through a temp file and a rename. An unknown version or an unreadable file reads as an
     empty list with the error stated, and writes are refused 409 `HOT_LIST_UNREADABLE` (also when the
     file cannot be written).
-  - `HOT_LIST_CAP` is 20. Each day is also kept read-only as `hot-list/YYYY-MM-DD.json` for the
-    triggers audit.
+  - `HOT_LIST_CAP` is 20 and counts **stars only** (ADR 044 amendment, 2026-10-12): the auto feed can never
+    refuse the operator's star. Auto stars have their own daily cap, `HOT_LIST_AUTO_CAP` (20). Each day is
+    also kept read-only as `hot-list/YYYY-MM-DD.json` for the triggers audit.
 - **Auto** (`hot_list/auto.py`), every `HOT_LIST_AUTO_TICK_SEC` from `HOT_LIST_AUTO_START_ET` (07:00) to
   `HOT_LIST_AUTO_END_ET` (16:00): the live Gainers board through `scanner_surface.surface_rows` and
-  `leaderboard.ranking.rank_rows` with `LEADERS_RULES`, its top `auto_n`. A name is added once a day and
-  stays: one the operator takes off is not added again that day (remembered in memory, and re-read from
-  the audit stream after a restart).
+  `leaderboard.ranking.rank_rows` with `LEADERS_RULES`, its top `auto_n`, never past `HOT_LIST_AUTO_CAP`
+  auto stars. A name is added once a day and stays: one the operator takes off is not added again that
+  day (remembered in memory, and re-read from the audit stream after a restart).
 - **At 04:00 ET** (the day's reset of the bot's buys, run by the rollover):
   - `entries` move to `yesterday`;
   - every venue's bot list (`symbol_allowlist`) and every Auto-entry / Approve switch are cleared,
@@ -331,7 +332,8 @@ decides who trades a stock, and taking one off never changes it -- that is the s
     still buys nothing, and every later pass retries the lists (not the switches: one set since is today's);
     the retry that works writes a `rollover` line with `inputs.retry: true`.
 - **Followed by the scanners.** The stocks the bot buys (Buy set to Bot on the desk's venue: its bot list,
-  then each Auto-entry switch; `hot_list.following.bot_buy_symbols`), then listed names, share HOD Momo's 20
+  then each Auto-entry switch; `hot_list.following.bot_buy_symbols`), then listed names -- stars first, then
+  auto stars, each in list order (`hot_list.listed_symbols`, 2026-10-12) -- share HOD Momo's 20
   reserved slots (`HOD_MOMO_FORMER_MOMO_MAX_SLOTS`) with Former Momo (`hod_momo_active.build_active_set`,
   `bot_symbols` then `hot_symbols`), then Former Momo fills what is left, so live movers keep at least 20 of
   the 40. A name on two lists counts once, as the first's. Past the 20 a name's admission reason is
@@ -348,16 +350,17 @@ decides who trades a stock, and taking one off never changes it -- that is the s
   of `rollover` | `auto` | `star` | `remove` | `settings`, with the symbol where there is one (lines before
   2026-10-06 may also read `default`).
 - **Routes** (writes need the API key):
-  - `GET /api/hot-list` -> `{schema_version: 1, date, cap, auto: {n, start, end, rule, error},
+  - `GET /api/hot-list` -> `{schema_version: 1, date, cap, auto_cap, auto: {n, start, end, rule, error},
     entries: [{symbol, how, at, board, rank, change_pct, followed: boolean | null, why_not_followed:
     string | null}], yesterday, error}` -- `why_not_followed` is null while `followed` is true: "HOD Momo's
     20 reserved slots are full", IBKR could not open the name's line, the scanner has not picked it up
     yet, or the active set has not been rebuilt since it was listed; `followed` is null when the scanner
-    could not be read;
-  - `POST /api/hot-list/star {symbol}`;
+    could not be read; `cap` is the stars' cap and `auto_cap` the auto stars' (2026-10-12);
+  - `POST /api/hot-list/star {symbol}` -- on an auto star it makes it a star (counted against `cap`; the
+    audit's star line carries `was: "auto"`); `409 HOT_LIST_FULL` once 20 stars are listed;
   - `DELETE /api/hot-list/{symbol}` (who trades it is unchanged; `HOT_LIST_NOVA_TRADE` is retired);
   - `PATCH /api/hot-list {auto_n?}`;
-  - `POST /api/hot-list/bring-back` (yesterday's names as stars, up to the cap).
+  - `POST /api/hot-list/bring-back` (yesterday's names as stars, up to the stars' cap).
 
   Every write answers the view.
 

@@ -40,6 +40,7 @@ export function normalizeHotList(raw: unknown): HotListView | null {
     schema_version: 1,
     date: str(r.date) ?? '',
     cap: num(r.cap) ?? 20,
+    auto_cap: num(r.auto_cap),
     auto: {
       n: num(auto.n) ?? 0, start: str(auto.start) ?? '07:00', end: str(auto.end) ?? '16:00',
       rule: str(auto.rule),
