@@ -62,6 +62,10 @@ export interface StockHeld {
   /** A short's: the broke round its buy stop may come down to (`to` the stop, `round` the round). */
   lower?: HeldRaise | null;
   target: { price: number; rule: string; traded_at: number | null } | null;
+  /** The second half's target (#681, #845); absent or null: every share sells at `target`. */
+  target2?: { price: number; rule: string; traded_at: number | null } | null;
+  /** The first half's share of the shares when `target2` is set (half when absent). */
+  target1_fraction?: number | null;
   ladder: HeldRow[];
   broke: { round: number; at: number; close: number }[];
   through: { round: number; at: number | null; high: number | null }[];
@@ -96,6 +100,15 @@ function raiseOf(raw: unknown): HeldRaise | null {
   return { to, round, at: num(r.at) ?? 0, text: str(r.text) ?? '' };
 }
 
+/** A target off the wire -- `{price, rule, traded_at}`, or a bare price -- else null. */
+function targetOf(raw: unknown): { price: number; rule: string; traded_at: number | null } | null {
+  const bare = num(raw);
+  if (bare !== null) return { price: bare, rule: '', traded_at: null };
+  const t = obj(raw);
+  const price = num(t?.price);
+  return t && price !== null ? { price, rule: str(t.rule) ?? '', traded_at: num(t.traded_at) } : null;
+}
+
 /** `held` off the wire; null when the read carries none (nothing held, or an older backend). */
 export function normalizeHeld(raw: unknown): StockHeld | null {
   const h = obj(raw);
@@ -118,6 +131,8 @@ export function normalizeHeld(raw: unknown): StockHeld | null {
     raise: raiseOf(h.raise),
     lower: raiseOf(h.lower),
     target: t && tPrice !== null ? { price: tPrice, rule: str(t.rule) ?? '', traded_at: num(t.traded_at) } : null,
+    target2: targetOf(h.target2),
+    target1_fraction: num(h.target1_fraction),
     ladder: list(h.ladder, row),
     broke: list(h.broke, x => {
       const b = obj(x);

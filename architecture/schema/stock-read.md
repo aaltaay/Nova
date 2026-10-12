@@ -760,9 +760,20 @@ no stop move, no gate.
 execution door (source `manual`, origin `nova_exit`) and keeps a trade `{kind: "exit", state: "holding",
 exits: "nova", qty, entry (the average), fill_price, stop, target: null, trail, stop_order_id,
 raised: [{at, from, to, round}], ...}` (`stock-mode-trades.json`; the trade shape adds `trail` and
-`raised`, and `kind` adds `exit`). No target rests beside it: the door lets one order sell the same shares,
-and a one-cancels-other exit pair is built only as a bracket's legs, with an entry -- a target for a held
-position waits on an exit-only pair in the door (#681). The runner (`exit_trade.manage`, every
+`raised`, and `kind` adds `exit`). **Targets beside the stop** (#681, operator ask 2026-10-12): the body
+adds `target`, `target2` and `target1_fraction` (all optional). With a target, Nova sends the stop and the
+target(s) as one exit-only pair through the door (`operation: "exit_oco"`, `execution.md`, "The exit-only
+pair and two halves"), committed once: target 1 sells `target1_qty` (half by default, the smaller part of
+an odd count), target 2 the rest; one share, or no `target2`, sells every share at target 1. The trade adds
+`target2, target1_fraction, target1_qty, target2_qty, target_order_id, target2_order_id, halves: [{leg,
+qty, price, ts, order_id}]`. A target's fill shrinks the stop to the shares left at the broker and the stop
+stays where it is (never moved to the average); the trade stays `holding`, a `stock_mode` audit line
+`half` and the stock's last event say "Nova sold 50 at target 1 10.30; the stop 9.80 stays for the other
+50". The stop's fill, or the target that sells the last shares, closes it; `exit_price` is the
+shares-weighted price of every sale and the event's money counts every share. Refusals add
+`STOCK_MODE_INVALID` with `field: "target"` / `"target2"` (a target at or through the last price, past the
+stop, a target 2 not beyond target 1, a target 2 alone). No target: the stop alone, as before. The view's
+trade (and the bot's) carries `target2`, `target2_order_id` and `halves`. The runner (`exit_trade.manage`, every
 `STOCK_MODE_POLL_SEC`): the stop that fills closes the trade; a position gone closes it `outside`; a stop
 cancelled outside Nova hands the exit back (`handed`); with `trail`, at each closed minute a broke round
 since the trade began raises the stop by a replace of the stop order (the rule above, up only), an audit
@@ -771,7 +782,7 @@ by the playhead. Refusals: `STOCK_MODE_LIVE` / `STOCK_MODE_REPLAY` (Live, a venu
 the edge with nothing loaded), `STOCK_MODE_NOTHING_HELD` (no shares, or the position cannot be
 read), `STOCK_MODE_INVALID` (a stop at or over the last price), `STOCK_MODE_HELD` (Nova already holds an
 exit or an entry on it), `STOCK_MODE_SEND` (the door refused). "Take it back" is `POST .../take-over`
-(the stop cancelled, the trade `handed`); Sell: You on the switch does the same. While it holds, the view's `sell` is `nova`. The Sell switch to Nova on a
+(the stop and any target cancelled, the trade `handed`); Sell: You on the switch does the same. While it holds, the view's `sell` is `nova`. The Sell switch to Nova on a
 held stock opens the sheet instead of `PUT` (which still answers `STOCK_MODE_HELD`). On Live the sheet is
 locked and says why: Nova never moves a Live order by itself, and a Live stop does not trigger before
 09:30 (#604).

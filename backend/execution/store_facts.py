@@ -179,8 +179,8 @@ def close_venue_order(
     expires closes its rows at that moment instead of reading ``acked`` until the
     next restart's sweep calls it ``failed`` (TNMG, 2026-10-02). Practice ids
     restart per venue and per process: the venue and this boot scope the id. The
-    place, bracket (its entry's id) and replace rows close; a cancel row is its
-    own send path's.
+    place, bracket (its entry's id), exit pair (its stop's id, #681) and replace rows
+    close; a cancel row is its own send path's.
     """
     oid = _as_int(order_id)
     if oid <= 0 or not mode:
@@ -193,7 +193,7 @@ def close_venue_order(
             f"""
             SELECT id FROM executions
             WHERE order_id = ? AND mode = ? AND boot_id = ?
-              AND operation IN ('place', 'bracket', 'replace')
+              AND operation IN ('place', 'bracket', 'replace', 'exit_oco')
               AND status IN ({open_marks})
             """,
             (oid, str(mode), store.current_boot_id(), *EXECUTION_NON_TERMINAL_STATUSES),
@@ -245,7 +245,7 @@ def mark_place_cancelled(
     conn = store.get_connection()
     try:
         clauses = [
-            "operation IN ('place', 'bracket')",
+            "operation IN ('place', 'bracket', 'exit_oco')",
             "IFNULL(source, '') != 'benchmark'",
         ]
         values: list = []

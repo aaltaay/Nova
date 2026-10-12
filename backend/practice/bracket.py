@@ -18,13 +18,23 @@ Live sends. This module holds the rules, pure over ledger rows:
   the print that filled the entry never fills an exit, and a Sim rewind before
   that fill puts the exits back to waiting. No new event type: a Paper file
   written before brackets loads unchanged.
-* **Closures are events.** One exit filling cancels the other (one-cancels-
+* **Closures are events.** The stop filling cancels the targets (one-cancels-
   other, ``PRACTICE_OCO_CANCELLED``); an entry that closes unfilled -- cancelled
   by the operator, refused by the venue at the fill, or expired (at its close, or
   at its own good-for second, #816) -- cancels the exits waiting on it
   (``PRACTICE_PARENT_CANCELLED``). Each is an ordinary
   ``cancelled`` event at the same moment, stamped with the venue as its source,
   so a rewind before it restores the order.
+* **Two halves shrink the stop** (#681, #845). A group may hold a stop for every
+  share and two targets, one per half (``leg_role`` ``target`` / ``target2``). A
+  target's fill shrinks the group's stop by the shares it sold (``shrink_stops``,
+  applied with the fill event, so a rewind before the fill puts the stop back)
+  and leaves the other target working; a stop the targets have spent is
+  cancelled (``PRACTICE_OCO_CANCELLED``). One target for every share -- every
+  bracket before #681 -- reads exactly as before: its fill spends the stop. The
+  stop never moves: its price is the caller's (a replace) alone.
+* **The exit-only pair** (``exit_pair_rows``, #681): the same group for shares
+  already held -- no entry, nothing waits -- placed by ``PracticeBroker.place_exit_oco``.
 """
 from __future__ import annotations
 
@@ -38,6 +48,7 @@ from constants_practice import (
     PRACTICE_LEG_PARENT,
     PRACTICE_LEG_STOP,
     PRACTICE_LEG_TARGET,
+    PRACTICE_LEG_TARGET2,
     PRACTICE_OCA_GROUP_PREFIX,
     PRACTICE_OCO_CANCELLED_CODE,
     PRACTICE_OCO_CANCELLED_REASON_DEFAULT,
@@ -52,7 +63,9 @@ from constants_practice import (
 
 # The ADR 007 source stamped on a close these rules make: the venue itself, never a caller.
 CLOSURE_SOURCE = "venue"
-EXIT_ROLES = (PRACTICE_LEG_TARGET, PRACTICE_LEG_STOP)
+TARGET_ROLES = (PRACTICE_LEG_TARGET, PRACTICE_LEG_TARGET2)
+EXIT_ROLES = (*TARGET_ROLES, PRACTICE_LEG_STOP)
+_EPS = 1e-9
 
 Closure = tuple[int, str, str]  # (order id, reason, code)
 
@@ -78,27 +91,58 @@ def leg_fields(parent_id: int, role: str) -> dict[str, Any]:
     }
 
 
+def _legs(stop_id: int, stop: float, target_id: int | None, target: float | None, target2_id: int | None,
+          target2: float | None, qty: float, target1_qty: float | None) -> list[tuple[int, str, str, Any, Any, float]]:
+    """``(id, role, type, limit, trigger, qty)`` for a group: the targets first, then the stop for every share."""
+    wanted = []
+    second = target2 is not None and target2_id is not None and target1_qty is not None
+    if target is not None and target_id is not None:
+        first = float(target1_qty) if second else float(qty)
+        wanted.append((int(target_id), PRACTICE_LEG_TARGET, "LMT", float(target), None, first))
+        if second:
+            wanted.append((int(target2_id), PRACTICE_LEG_TARGET2, "LMT", float(target2), None,
+                           float(qty) - first))
+    wanted.append((int(stop_id), PRACTICE_LEG_STOP, "STP", None, float(stop), float(qty)))
+    return wanted
+
+
 def exit_rows(entry: dict[str, Any], target_id: int | None, stop_id: int, target: float | None,
-              stop: float) -> list[dict[str, Any]]:
+              stop: float, *, target2_id: int | None = None, target2: float | None = None,
+              target1_qty: float | None = None) -> list[dict[str, Any]]:
     """The exits of the bracket whose entry row is ``entry``, as Live's ``bracketOrder`` builds them.
 
-    Each is the entry's row on the reverse side -- the same symbol, quantity,
-    TIF, expiry, attribution and placement stamps -- at its own price: the
-    take-profit a LMT at ``target``, the stop-loss a STP at ``stop``. Both wait.
-    A short's bracket may leave out its target (ADR 048 1.6): then the stop alone.
+    Each is the entry's row on the reverse side -- the same symbol, TIF, expiry,
+    attribution and placement stamps -- at its own price: the take-profit a LMT at
+    ``target``, the stop-loss a STP at ``stop``. All wait. A short's bracket may
+    leave out its target (ADR 048 1.6): then the stop alone. Two halves (#681): the
+    first target sells ``target1_qty``, the second (``target2``) the rest, and the
+    stop covers every share.
     """
     parent_id = int(entry["order_id"])
     reverse = "SELL" if str(entry["side"]).upper() == "BUY" else "BUY"
-    legs = []
-    wanted = [(stop_id, PRACTICE_LEG_STOP, "STP", None, float(stop))]
-    if target is not None and target_id is not None:
-        wanted.insert(0, (target_id, PRACTICE_LEG_TARGET, "LMT", float(target), None))
-    for oid, role, typ, limit, trigger in wanted:
-        legs.append({
-            **entry, "order_id": int(oid), "perm_id": int(oid), "side": reverse, "order_type": typ,
-            "limit_price": limit, "stop_price": trigger, **leg_fields(parent_id, role),
-        })
-    return legs
+    qty = float(entry["qty"])
+    return [
+        {**entry, "order_id": oid, "perm_id": oid, "side": reverse, "order_type": typ, "limit_price": limit,
+         "stop_price": trigger, "qty": share, "remaining_qty": share, **leg_fields(parent_id, role)}
+        for oid, role, typ, limit, trigger, share in _legs(stop_id, stop, target_id, target, target2_id, target2,
+                                                            qty, target1_qty)
+    ]
+
+
+def exit_pair_rows(stop_row: dict[str, Any], target_id: int, target: float, *, target2_id: int | None = None,
+                   target2: float | None = None, target1_qty: float | None = None) -> list[dict[str, Any]]:
+    """An exit-only pair's rows (#681), from its stop's row: one group -- ``oca-<stop id>`` -- with the stop for
+    every share and a LMT per half on the same side. Nothing waits: the shares are already held."""
+    stop_id = int(stop_row["order_id"])
+    group = oca_group(stop_id)
+    return [
+        {**stop_row, "order_id": oid, "perm_id": oid, "order_type": typ, "limit_price": limit,
+         "stop_price": trigger, "qty": share, "remaining_qty": share, "parent_id": None, "oca_group": group,
+         "leg_role": role}
+        for oid, role, typ, limit, trigger, share in _legs(stop_id, float(stop_row["stop_price"]), target_id,
+                                                            target, target2_id, target2, float(stop_row["qty"]),
+                                                            target1_qty)
+    ]
 
 
 def _id(value: Any) -> int | None:
@@ -120,6 +164,7 @@ def waiting_exits(rows: Iterable[dict[str, Any]], parent_id: int) -> list[dict[s
 
 def shape_error(
     qty: float, entry: float, target: float | None, stop: float, *, short: bool = False,
+    target2: float | None = None, target1_qty: float | None = None,
 ) -> tuple[str, str] | None:
     """``(reason, code)`` when a bracket's numbers do not hang together, else ``None``.
 
@@ -149,21 +194,60 @@ def shape_error(
             f"{'short' if short else 'long'} bracket needs {need} (entry {e}, stop {s}, target {t})",
             PRACTICE_BRACKET_GEOMETRY_CODE,
         )
+    from execution.exit_oco import halves_error
+
+    halves = halves_error(q, t, target2, target1_qty, short=short)   # the execution door's words (#681)
+    if halves is not None:
+        return halves[0], PRACTICE_BRACKET_GEOMETRY_CODE
     return None
 
 
+def open_qty(row: dict[str, Any]) -> float:
+    """The shares an order still has to fill."""
+    remaining = row.get("remaining_qty")
+    if remaining is not None:
+        return float(remaining)
+    return float(row.get("qty") or 0) - float(row.get("filled_qty") or 0)
+
+
+def shrink_stops(rows: Iterable[dict[str, Any]], filled: dict[str, Any]) -> None:
+    """A target's fill shrinks its group's working stop by the shares it sold (the rows themselves change).
+
+    The stop keeps its price and covers the shares still held. A stop the fill spends -- it held no more than
+    the target sold -- is left as it was with nothing open, for ``closures_after_fill`` to cancel at once: a
+    one-target bracket's stop reads exactly as before two halves existed.
+    """
+    group = filled.get("oca_group")
+    if not group or filled.get("leg_role") not in TARGET_ROLES:
+        return
+    sold = float(filled.get("filled_qty") or filled.get("qty") or 0)
+    for row in rows:
+        if row.get("oca_group") != group or row.get("leg_role") != PRACTICE_LEG_STOP or is_waiting(row):
+            continue
+        left = open_qty(row) - sold
+        if left > _EPS:
+            row.update(qty=left, remaining_qty=left)
+        else:
+            row["remaining_qty"] = 0.0          # spent: cancelled with the fill (one-cancels-other)
+
+
 def closures_after_fill(rows: Iterable[dict[str, Any]], filled: dict[str, Any]) -> list[Closure]:
-    """What a fill closes: the other exit of its one-cancels-other group."""
+    """What a fill closes in its group: the stop's fill, every target; a target's fill, a stop it spent
+    (``shrink_stops``) -- never the other target, which still sells its half."""
     group = filled.get("oca_group")
     if not group:
         return []
     oid = int(filled["order_id"])
-    reason = PRACTICE_OCO_CANCELLED_REASONS.get(str(filled.get("leg_role")), PRACTICE_OCO_CANCELLED_REASON_DEFAULT)
-    return [
-        (int(row["order_id"]), reason, PRACTICE_OCO_CANCELLED_CODE)
-        for row in rows
-        if row.get("oca_group") == group and int(row["order_id"]) != oid
-    ]
+    role = str(filled.get("leg_role"))
+    reason = PRACTICE_OCO_CANCELLED_REASONS.get(role, PRACTICE_OCO_CANCELLED_REASON_DEFAULT)
+    out = []
+    for row in rows:
+        if row.get("oca_group") != group or int(row["order_id"]) == oid:
+            continue
+        if role in TARGET_ROLES and (row.get("leg_role") in TARGET_ROLES or open_qty(row) > _EPS):
+            continue
+        out.append((int(row["order_id"]), reason, PRACTICE_OCO_CANCELLED_CODE))
+    return out
 
 
 def closures_after_close(rows: Iterable[dict[str, Any]], closed: dict[str, Any]) -> list[Closure]:

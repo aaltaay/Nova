@@ -19,9 +19,11 @@ the equity at the boundary: ``day_pnl`` is net liquidation less that equity.
 Persistence lives in ``practice.persist``.
 
 A bracket (#606) adds no event type (``practice.bracket``): applying an entry's
-``filled`` event wakes the exits waiting on it, and ``fill`` / ``cancel`` record
-what the bracket rules close with an order -- the other exit, or the exits of
-an entry that closed unfilled -- as ordinary ``cancelled`` events.
+``filled`` event wakes the exits waiting on it, applying a target's shrinks its
+group's stop to the shares left (#681), and ``fill`` / ``cancel`` record what the
+bracket rules close with an order -- the targets of a stop that filled, a stop
+its targets spent, or the exits of an entry that closed unfilled -- as ordinary
+``cancelled`` events.
 """
 from __future__ import annotations
 
@@ -187,6 +189,9 @@ class Ledger:
         # only a later print can fill them, and a rewind before it puts them back.
         for exit_row in bracket.waiting_exits(self._working.values(), int(row["order_id"])):
             exit_row.update(status=PRACTICE_ORDER_STATUS_WORKING, placed_ts=float(event["ts"]), updated_at=stamp)
+        # A target's fill shrinks its group's stop to the shares left (#681): derived from this event, so a
+        # rewind before it puts the stop back.
+        bracket.shrink_stops(self._working.values(), row)
 
     def _apply_position(self, symbol: str, side: str, qty: float, price: float, fee_total: float) -> None:
         pos = self._positions.setdefault(symbol, {"qty": 0.0, "avg_cost": 0.0, "realized": 0.0})

@@ -500,3 +500,32 @@ def test_a_ledger_written_before_brackets_loads_and_trades() -> None:
     reloaded = persist.from_dict(persist.to_dict(bracketed))
     assert reloaded.working_orders() == bracketed.working_orders()
     assert reloaded.snapshot("paper") == bracketed.snapshot("paper")
+
+
+def test_a_bracket_in_two_halves_shrinks_its_stop_and_survives_a_restart(paper) -> None:
+    """#681: target 1 sells 40, target 2 the other 60; target 1's fill shrinks the stop, and the Paper file
+    reloads to the same shrunk stop -- the shrink is the fill event's own effect, no new event type."""
+    raw = paper.broker.place_bracket("IMCC", "BUY", 100, 10.05, 10.50, 9.50, target2_price=10.80, target1_qty=40)
+    p, t1, t2, stop = raw["parent_order_id"], raw["target_order_id"], raw["target2_order_id"], raw["stop_order_id"]
+    assert (t1, t2, stop) == (p + 1, p + 2, p + 3)
+    rows = _working(paper.broker)
+    assert [(rows[i]["leg_role"], rows[i]["qty"]) for i in (t1, t2, stop)] == [("target", 40), ("target2", 60),
+                                                                               ("stop", 100)]
+    paper.broker.try_fill_working("IMCC", [(NOW + 1, 10.55)])
+    assert paper.broker.ledger.held_qty("IMCC") == 60
+    assert (_working(paper.broker)[stop]["qty"], _working(paper.broker)[stop]["stop_price"]) == (60, 9.50)
+    reset_for_tests()                                     # the next process reloads practice-paper.json
+    again = for_venue("paper")
+    assert _working(again)[stop]["qty"] == 60 and _working(again)[t2]["status"] == "Submitted"
+    again.try_fill_working("IMCC", [(NOW + 2, 10.85)])
+    closed = {int(r["order_id"]): r for r in again.closed_orders()}
+    assert (closed[stop]["status"], closed[stop]["reason_code"]) == ("Cancelled", PRACTICE_OCO_CANCELLED_CODE)
+    assert again.ledger.held_qty("IMCC") == 0 and again.working_orders() == []
+
+
+def test_a_bracket_in_halves_the_broker_refuses_in_the_doors_words(paper) -> None:
+    bad = paper.broker.place_bracket("IMCC", "BUY", 100, 10.05, 10.50, 9.50, target2_price=10.40, target1_qty=40)
+    assert bad["ok"] is False and bad["reason_code"] == "BRACKET_GEOMETRY"
+    whole = paper.broker.place_bracket("IMCC", "BUY", 100, 10.05, 10.50, 9.50, target2_price=10.80,
+                                       target1_qty=100)
+    assert whole["ok"] is False and "target1_qty" in whole["error"]

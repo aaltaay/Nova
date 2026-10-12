@@ -8,8 +8,9 @@
   POST   /api/stock-mode/{symbol}/approve      {setup_id, entry, stop, target, qty, now?}
   DELETE /api/stock-mode/{symbol}/approve      withdraw the approval (or cancel its unfilled entry)
   POST   /api/stock-mode/{symbol}/take-over    cancel the exits Nova holds on the stock; Buy goes to You
-  POST   /api/stock-mode/{symbol}/take-exit    {stop, trail}: Nova takes the exit of the shares you hold --
-                                               the cover of a short (Paper, and Sim at the live edge)
+  POST   /api/stock-mode/{symbol}/take-exit    {stop, trail, target?, target2?, target1_fraction?}: Nova takes
+                                               the exit of the shares you hold -- the cover of a short (Paper,
+                                               and Sim) -- its targets resting beside the stop (#681)
 
 Writes place and cancel orders, so they need the desk's API key even on loopback, like the bot's routes
 (``auth.is_stock_mode_mutate``).
@@ -65,6 +66,11 @@ class ApproveBody(BaseModel):
 class TakeExitBody(BaseModel):
     stop: float
     trail: bool = True
+    # Targets beside the stop (#681): target 1 sells ``target1_fraction`` of the shares (half by default),
+    # ``target2`` the rest; none sends the stop alone.
+    target: float | None = None
+    target2: float | None = None
+    target1_fraction: float | None = None
 
 
 class TakeOverBody(BaseModel):

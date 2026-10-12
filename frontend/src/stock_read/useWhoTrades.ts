@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DepthMarker } from '../ibkr';
 import { STOCK_MODE_PATH, STOCK_MODE_POLL_MS } from './constants';
+import type { ExitTargets } from './exitTargets';
 import { NO_HELD, type HeldMemory, type Moment, type MomentInputs } from './momentModel';
 import { momentOfSides, nextHeldSides } from './momentShort';
 import { approveQty } from './novaPromise';
@@ -45,7 +46,8 @@ export interface WhoTradesState {
   withdraw: () => Promise<void>;
   takeOver: () => Promise<void>;
   /** Nova takes the exit of the shares you hold; throws the backend's refusal so the sheet can say it. */
-  takeExit: (stop: number, trail: boolean) => Promise<void>;
+  /** `targets` null: the stop alone; else target 1 (and target 2) beside it as one exit pair (#681). */
+  takeExit: (stop: number, trail: boolean, targets?: ExitTargets | null) => Promise<void>;
 }
 
 interface Options {
@@ -191,11 +193,11 @@ export function useWhoTrades({
   }, [run, sym, plan, view, riskUsd]);
   const withdraw = useCallback(() => run('Cancelling…', () => withdrawApproval(sym)), [run, sym]);
   const takeOver = useCallback(() => run('Taking over the exit…', () => takeOverExit(sym)), [run, sym]);
-  const takeExit = useCallback(async (stop: number, trail: boolean) => {
+  const takeExit = useCallback(async (stop: number, trail: boolean, targets?: ExitTargets | null) => {
     setBusy('Handing Nova the exit…');
     setWriteError(null);
     try {
-      setWritten(await postTakeExit(sym, { stop, trail }));
+      setWritten(await postTakeExit(sym, targets ? { stop, trail, ...targets } : { stop, trail }));
     } finally {
       setBusy(null);
     }

@@ -46,7 +46,10 @@ def build_reserve_payload(
         "intent": getattr(cmd, "intent", None),
         "origin": getattr(cmd, "origin", None),   # who in Nova sent it ("Sent by")
         "target_venue": getattr(cmd, "target_venue", None),   # a kill switch cancel aimed at a venue
-        "tif": cmd.tif if cmd.operation in ("place", "bracket") else None,
+        "tif": cmd.tif if cmd.operation in ("place", "bracket", "exit_oco") else None,
+        # Two halves (#681): the second target and the first half's shares; None sells all at the target.
+        "target2_price": getattr(cmd, "target2_price", None),
+        "target1_qty": getattr(cmd, "target1_qty", None),
         "good_for_sec": getattr(cmd, "good_for_sec", None) if cmd.operation in ("place", "bracket") else None,
         "requested_price": requested_price,
         "reference_price": (

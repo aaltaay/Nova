@@ -307,6 +307,34 @@ def test_nova_takes_the_exit_on_a_replay_its_stop_fills_there_and_a_rewind_takes
     assert for_venue("sim").positions()                                # your own buy at :20 still stands
 
 
+def test_nova_rests_its_targets_on_a_replay_and_a_rewind_takes_the_first_half_back(desk):
+    """#681: half at target 1 on the 12.00 at :60; back before it, every share is the stop's again."""
+    go(20)
+    for_venue("sim").place(SYM, "BUY", 100, "MKT")
+    tick()
+    go(31)
+    r = client.post(f"/api/stock-mode/{SYM}/take-exit", json={"stop": 10.20, "trail": False, "target": 11.50,
+                                                              "target2": 12.50}, headers=headers(desk.key))
+    assert r.status_code == 200, r.text
+    trade = r.json()["trade"]
+    ids = trade["stop_order_id"], trade["target_order_id"], trade["target2_order_id"]
+    assert sorted(working()) == sorted(ids)
+    go(65)                                                             # 12.00 at :60: target 1, half
+    trade = tick()
+    assert trade["state"] == "holding" and [h["leg"] for h in trade["halves"]] == ["target1"]
+    assert for_venue("sim").ledger.order_row(ids[0])["qty"] == 50
+    go(55)                                                             # back before target 1 filled
+    trade = tick()
+    assert trade["state"] == "holding" and trade["halves"] == []
+    assert for_venue("sim").ledger.order_row(ids[0])["qty"] == 100 and sorted(working()) == sorted(ids)
+    go(95)                                                             # target 1 again, then 10.00 at :90
+    tick()
+    done = tick()
+    assert (done["state"], done["exit_reason"]) == ("closed", "stop")
+    assert [(h["leg"], h["qty"]) for h in done["halves"]] == [("target1", 50.0), ("stop", 50.0)]
+    assert for_venue("sim").ledger.held_qty(SYM) == 0
+
+
 # -- the places stay apart --------------------------------------------------------------------------
 def test_a_rewind_never_touches_a_live_edge_trade_and_the_runner_leaves_it_waiting(desk):
     go(20)

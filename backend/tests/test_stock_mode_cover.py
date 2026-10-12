@@ -59,6 +59,29 @@ def test_the_buy_stop_that_fills_closes_the_trade_with_the_shorts_loss(shorting)
     assert "Nova's buy stop 10.20 filled" in store.event(SYM)["text"] and "-$23.00" in store.event(SYM)["text"]
 
 
+def test_nova_covers_in_two_halves_beside_its_buy_stop(shorting):
+    """#681 mirrored: BUY limits under the price beside the buy stop; the first shrinks the stop, never moves it."""
+    trade = take(shorting, stop=10.20, target=9.70, target2=9.40).json()["trade"]
+    rows = legs(shorting)
+    stop, t1, t2 = (rows[trade[k]] for k in ("stop_order_id", "target_order_id", "target2_order_id"))
+    assert (stop["side"], stop["qty"], t1["side"], t1["limit_price"], t1["qty"]) == ("BUY", 100.0, "BUY", 9.70, 50.0)
+    assert (t2["limit_price"], t2["qty"]) == (9.40, 50.0)
+    shorting.broker.try_fill_working(SYM, [(NOW + 5, 9.65)])
+    done = tick(shorting, NOW + 6)
+    assert done["state"] == "holding" and legs(shorting)[trade["stop_order_id"]]["qty"] == 50.0
+    assert "covered 50 at target 1 9.70" in store.event(SYM)["text"]
+    shorting.broker.try_fill_working(SYM, [(NOW + 9, 9.35)])
+    done = tick(shorting, NOW + 10)
+    assert (done["state"], done["exit_reason"]) == ("closed", "target")
+    assert "+$43.00" in store.event(SYM)["text"]                       # 50 x 0.28 + 50 x 0.58
+    assert shorting.broker.ledger.held_qty(SYM) == 0.0 and shorting.broker.ledger.working_orders() == []
+
+
+def test_a_cover_target_over_the_price_is_refused(shorting):
+    r = take(shorting, stop=10.20, target=9.95)
+    assert r.status_code == 409 and r.json()["detail"]["field"] == "target"
+
+
 def test_covering_outside_nova_closes_it(shorting):
     trade = take(shorting, stop=10.20).json()["trade"]
     shorting.broker.cancel(trade["stop_order_id"])
