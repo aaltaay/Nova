@@ -1,6 +1,6 @@
 """``GET /api/hot-list`` (ADR 044): today's list as the Bots page reads it. Memory and one small file; no wait.
 
-``{schema_version: 1, date, cap, auto: {n, start, end, rule, error}, entries: [{symbol, how, at,
+``{schema_version: 1, date, cap, auto_cap, auto: {n, start, end, rule, error}, entries: [{symbol, how, at,
 board, rank, change_pct, followed, why_not_followed}], yesterday, error}`` -- ``followed`` is whether the
 setup scanner reads the stock now (its universe), ``null`` when the scanner cannot be read, and
 ``why_not_followed`` says why whenever it is not ``true`` ("HOD Momo's 20 reserved slots are full" for a
@@ -12,7 +12,13 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from constants_hot_list import HOT_LIST_AUTO_END_ET, HOT_LIST_AUTO_START_ET, HOT_LIST_CAP, HOT_LIST_SCHEMA_VERSION
+from constants_hot_list import (
+    HOT_LIST_AUTO_CAP,
+    HOT_LIST_AUTO_END_ET,
+    HOT_LIST_AUTO_START_ET,
+    HOT_LIST_CAP,
+    HOT_LIST_SCHEMA_VERSION,
+)
 from hot_list import auto, following, service
 
 
@@ -30,7 +36,8 @@ def build(now: float | None = None) -> dict[str, Any]:
     return {
         "schema_version": HOT_LIST_SCHEMA_VERSION,
         "date": doc["date"],
-        "cap": HOT_LIST_CAP,
+        "cap": HOT_LIST_CAP,                # the stars' cap; auto stars have their own (2026-10-12)
+        "auto_cap": HOT_LIST_AUTO_CAP,
         "auto": {"n": n, "start": HOT_LIST_AUTO_START_ET, "end": HOT_LIST_AUTO_END_ET, "rule": auto.rule_text(n),
                  "error": auto.status()["error"]},
         "entries": entries,

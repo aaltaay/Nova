@@ -109,8 +109,14 @@ def _build_one(path_str: str, bulk_read: int) -> tuple[str, str, float, int]:
     t0 = time.monotonic()
     if massive_index.is_current(path, root):
         return path_str, "current", 0.0, path.stat().st_size
-    where = massive_index.build(path, root, bulk_read=bulk_read)
-    state = "built" if where is not None else "skipped (another build holds it, or it could not be saved)"
+    if massive_index.build(path, root, bulk_read=bulk_read) is not None:
+        state = "built"
+    elif massive_index.is_current(path, root):
+        state = "current (another build finished it)"
+    elif massive_index.path_for(path, root).with_name(f"{massive_index.path_for(path, root).name}.lock").exists():
+        state = "skipped (another build holds it)"
+    else:   # build() logs why and returns None when the index cannot be written (a full disk, a read-only folder)
+        raise RuntimeError(f"{path_str}: the index was not saved, so this day still reads the slow way")
     return path_str, state, time.monotonic() - t0, path.stat().st_size
 
 

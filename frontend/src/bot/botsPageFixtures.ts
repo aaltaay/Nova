@@ -256,7 +256,7 @@ export function triggersView(partial: Record<string, unknown> = {}): Record<stri
 /** Today's hot list: GRML put on by the auto top 5 at 07:12. */
 export function hotListView(partial: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: 1, date: '2026-10-01', cap: 20,
+    schema_version: 1, date: '2026-10-01', cap: 20, auto_cap: 20,
     auto: { n: 5, start: '07:00', end: '16:00', rule: 'leaders', error: null },
     entries: [{ symbol: 'GRML', how: 'auto', at: 1_790_000_000, board: 'gainers', rank: 1, change_pct: 0.42, followed: true }],
     yesterday: [], error: null,

@@ -20,6 +20,7 @@ from typing import Any
 
 from constants_hot_list import (
     HOT_LIST_AUDIT_ACTION,
+    HOT_LIST_AUTO_CAP,
     HOT_LIST_AUTO_N_CHOICES,
     HOT_LIST_BY_BRING_BACK,
     HOT_LIST_CAP,
@@ -29,6 +30,7 @@ from constants_hot_list import (
     HOT_LIST_EVENT_SETTINGS,
     HOT_LIST_EVENT_STAR,
     HOT_LIST_FULL,
+    HOT_LIST_HOW_AUTO,
     HOT_LIST_HOW_STAR,
     HOT_LIST_INVALID,
     HOT_LIST_UNREADABLE,
@@ -44,6 +46,11 @@ _cleared_for: str | None = None      # the day whose rollover already reset yest
 
 def listed(doc: dict[str, Any]) -> list[str]:
     return [str(e["symbol"]) for e in doc.get("entries") or []]
+
+
+def count(doc: dict[str, Any], how: str) -> int:
+    """How many names came on ``how`` (a star or an auto star): each has its own cap (ADR 044, 2026-10-12)."""
+    return sum(1 for e in doc.get("entries") or [] if e.get("how") == how)
 
 
 def peek(now: float | None = None) -> tuple[dict[str, Any], str | None]:
@@ -148,8 +155,8 @@ def _entry(sym: str, how: str, now: float, *, board: str | None = None, rank: in
 
 
 def _full(sym: str) -> HotListError:
-    return HotListError(HOT_LIST_FULL, f"today's hot list is full ({HOT_LIST_CAP} stocks): take one off before adding "
-                                       f"{sym}", field="symbol")
+    return HotListError(HOT_LIST_FULL, f"you have starred {HOT_LIST_CAP} stocks today, the most a day holds: take "
+                                       f"one off before starring {sym}", field="symbol")
 
 
 def symbol(raw: Any) -> str:
@@ -161,37 +168,50 @@ def symbol(raw: Any) -> str:
 
 
 def star(raw: Any, *, by: str, now: float | None = None) -> bool:
-    """Star a stock onto today's list. True when it was added; False when it was listed already."""
+    """Star a stock onto today's list, or make an auto star a star (2026-10-12). True when the list changed;
+    False when it was starred already. Only stars count against ``HOT_LIST_CAP``."""
     ts = time.time() if now is None else float(now)
     sym = symbol(raw)
     with _lock:
         doc = today(ts)
-        if sym in listed(doc):
+        was = next((e for e in doc["entries"] if e["symbol"] == sym), None)
+        if was is not None and was.get("how") != HOT_LIST_HOW_AUTO:
             return False
-        if len(doc["entries"]) >= HOT_LIST_CAP:
+        if count(doc, HOT_LIST_HOW_STAR) >= HOT_LIST_CAP:
             raise _full(sym)
-        doc["entries"].append(_entry(sym, HOT_LIST_HOW_STAR, ts))
+        if was is not None:
+            # Kept in its place and with how it first came (board, rank, change); starred from now.
+            was.update(how=HOT_LIST_HOW_STAR, at=round(ts, 3))
+        else:
+            doc["entries"].append(_entry(sym, HOT_LIST_HOW_STAR, ts))
         _save(doc)
     _wake()
-    _audit(HOT_LIST_EVENT_STAR, f"{sym} starred onto today's hot list", {"symbol": sym, "by": by})
+    if was is not None:
+        _audit(HOT_LIST_EVENT_STAR, f"{sym} starred: an auto star on today's hot list is now yours",
+               {"symbol": sym, "by": by, "was": HOT_LIST_HOW_AUTO})
+    else:
+        _audit(HOT_LIST_EVENT_STAR, f"{sym} starred onto today's hot list", {"symbol": sym, "by": by})
     return True
 
 
 def add_auto(entries: list[dict[str, Any]], *, now: float | None = None) -> list[str]:
-    """The auto feed's picks (``auto.pick``): each name not listed yet, never past the cap. The names added."""
+    """The auto feed's picks (``auto.pick``): each name not listed yet, never past ``HOT_LIST_AUTO_CAP`` auto
+    stars (stars have their own cap, so the feed never takes a star's room). The names added."""
     ts = time.time() if now is None else float(now)
     added: list[dict[str, Any]] = []
     with _lock:
         doc = today(ts)
         have = set(listed(doc))
+        autos = count(doc, HOT_LIST_HOW_AUTO)
         for entry in entries:
-            if len(doc["entries"]) >= HOT_LIST_CAP:
+            if autos >= HOT_LIST_AUTO_CAP:
                 break
             if entry["symbol"] in have:
                 continue
             doc["entries"].append(entry)
             have.add(entry["symbol"])
             added.append(entry)
+            autos += 1
         if added:
             _save(doc)
     if added:
@@ -233,14 +253,14 @@ def settings(*, auto_n: Any = None, now: float | None = None) -> dict[str, Any]:
 
 
 def bring_back(*, now: float | None = None) -> list[str]:
-    """Star yesterday's names again -- those not listed, up to the cap. The names added; a list with no room
-    for any of them refuses (``HOT_LIST_FULL``)."""
+    """Star yesterday's names again -- those not listed, up to the stars' cap. The names added; a list with no
+    room for any of them refuses (``HOT_LIST_FULL``)."""
     ts = time.time() if now is None else float(now)
     with _lock:
         doc = today(ts)
         have = set(listed(doc))
         wanted = [s for s in doc.get("yesterday") or [] if s not in have]
-        room = HOT_LIST_CAP - len(doc["entries"])
+        room = HOT_LIST_CAP - count(doc, HOT_LIST_HOW_STAR)
         if wanted and room <= 0:
             raise _full(wanted[0])
         added = wanted[:max(0, room)]

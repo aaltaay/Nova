@@ -15,7 +15,7 @@ export type FakeEntry = string | { symbol: string; how: HotHow };
 
 function viewOf(names: readonly FakeEntry[]): HotListView {
   return {
-    schema_version: 1, date: '2026-10-01', cap: 20,
+    schema_version: 1, date: '2026-10-01', cap: 20, auto_cap: 20,
     auto: { n: 5, start: '07:00', end: '16:00', rule: null, error: null },
     entries: names.map(n => ({ symbol: typeof n === 'string' ? n : n.symbol, how: typeof n === 'string' ? 'star' : n.how,
       at: 0, board: null, rank: null, change_pct: null, followed: true, why_not_followed: null })),
