@@ -10,7 +10,7 @@ user explicitly flips the "Show demo data" toggle in the Journal panel.
 
 The 12 trades below are a fixed, hand-written dataset (not randomly
 generated) so a reviewer can read every row and know exactly what is being
-tested: a ~58% win rate, a ~2.6:1 profit/loss ratio (clears the 2:1 target),
+tested: a ~58% win rate, a ~2.6:1 profit/loss ratio (clears the go/no-go ratio bar),
 and one intentionally non-adherent trade so the adherence criterion fails --
 this exercises the pass/fail/pending states of all three go/no-go criteria
 in one seed instead of only the all-empty state.

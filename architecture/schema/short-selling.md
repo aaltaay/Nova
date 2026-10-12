@@ -220,7 +220,7 @@ one until it is complete ("Live readiness" below) -- and a bot never trades Live
   short STOP ↑ and NEXT ↓.
 - **A short plan** (the stock read, ADR 036). `GET /api/stock-read/{symbol}` takes `side=short` for your own
   plan (a hand short: your buy stop over the entry, else the highest high of the last 3 closed 1-minute
-  candles; the cover at entry - 2R), and every plan adds `side: "long" | "short"`. Its checks, levels, room and
+  candles; its cover targets the menu's under the entry since #845), and every plan adds `side: "long" | "short"`. Its checks, levels, room and
   round numbers are measured downward, and "Too thin to trade" walks the bids. The plan box carries a SHORT
   tag, reads Short at / Buy stop / Cover, lists the short check's rules in its check list, and "Stage short
   in ticket" fills the ticket's Short side with the plan's buy stop. "Short at the bid" starts a hand short.
@@ -228,7 +228,7 @@ one until it is complete ("Live readiness" below) -- and a bot never trades Live
 - **Holding a short.** The read takes `held_side=short` (with `held_qty`, a positive count) and answers
   `held` with `side: "short"`, `lower: {to, round, at, text} | null` (`raise` null) and ladder roles adding
   `resistance` (`stock_read/held_short.py`). The "This trade" card is the mirror: Shorted at, Buy stop, Next
-  (under the price), At the stop and Cover 2R; a round a 1-minute candle closed under offers "Lower stop to
+  (under the price), At the stop, Cover 1 and Cover 2 (the menu's cover targets, #845); a round a 1-minute candle closed under offers "Lower stop to
   X"; Stage cover fills a buy limit at the ask. The card's stop is the one you set for the tab, else the stop
   order resting at the broker (`stock_read/protectiveStop.ts`: a short's lowest working BUY stop, a long's
   highest SELL stop; "is working at the broker"), else the one proposed. **Nova takes the cover** is `POST
@@ -264,7 +264,8 @@ nothing here places, stages or cancels an order; Nova's bot trades them at On ("
 - **A short reads downward.**
   - The trigger is a low, and the entry is one cent under it. A live price at or under the entry triggers it,
     entering at the minute's open when it gapped under.
-  - The stop is over the entry. Target 1 is entry - target R x risk, and the near band is over the trigger.
+  - The stop is over the entry. The cover targets are the menu's mirrored under the entry (setups.md, "Targets
+    replace 2R", #845), and the near band is over the trigger.
   - The SSR bounce's entry rests one cent under its level. A live price over the entry fills it at the entry.
 - **On the wire.** Every board row, `GET /api/setups/symbol/{symbol}` lane, proposal, trigger event and stored
   row adds:

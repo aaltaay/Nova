@@ -64,15 +64,16 @@ def test_research_setups_mirror_the_harness_defaults():
     assert ft["ft_impulse_pct"] == p["ft_impulse_pct"] * 100 and ft["ft_band"] == p["ft_band"] * 100
     assert (ft["ft_min_consol"], ft["ft_max_consol"], ft["ft_entry"], ft["ft_hold_bars"]) == (
         p["ft_min_consol"], p["ft_max_consol"], p["ft_entry"], p["ft_hold_bars"])
-    assert (r2g["r2g_min_red_bars"], r2g["r2g_cutoff"], r2g["r2g_target_hod"]) == (
-        p["r2g_min_red_bars"], p["r2g_cutoff"], p["r2g_target_hod"])
-    for key in ("stop_cap", "min_stop", "target_r", "bailout_bars"):
+    assert (r2g["r2g_min_red_bars"], r2g["r2g_cutoff"]) == (p["r2g_min_red_bars"], p["r2g_cutoff"])
+    for key in ("stop_cap", "min_stop", "bailout_bars"):
         assert ft[key] == r2g[key] == p[key]
+    # The targets left the research's R multiples (#845): every setup takes the menu's.
+    assert "target_r" not in ft and "r2g_target_hod" not in r2g and ft["target1_kind"] == "round_or_fixed"
     g = _research_defaults(REPO / "research/orb/backtest_gng.py", "GParams")
     gng = catalogue.defaults("gap_and_go")
-    # the live scanner (ADR 031 amendment 2026-10-02) arms on the research's entry window, stop and target 1;
-    # target 2 and the 11:30 time stop are the research's own exits (the scanner scores with the shared bar rules)
-    assert (gng["entry_cutoff"], gng["stop_cents"], gng["target_r"]) == (g["entry_end"], g["stop_cents"], g["t1_r"])
+    # the live scanner (ADR 031 amendment 2026-10-02) arms on the research's entry window and stop; its targets
+    # are the menu's (#845), and the 11:30 time stop is the research's own exit
+    assert (gng["entry_cutoff"], gng["stop_cents"]) == (g["entry_end"], g["stop_cents"])
     assert gng["stop_pct"] == g["stop_pct"] * 100
 
 
@@ -144,7 +145,7 @@ def test_create_edit_play_delete_round_trip_on_disk(store, tmp_path):
     store.play(FP, t.id)
     assert store.in_play(FP).id == t.id
     raw = json.loads((tmp_path / "setup-templates.json").read_text(encoding="utf-8"))
-    assert raw["schema_version"] == 1 and raw["setups"][FP]["in_play"] == t.id
+    assert raw["schema_version"] == cs.SETUP_TEMPLATES_SCHEMA_VERSION and raw["setups"][FP]["in_play"] == t.id
     fresh = TemplateStore(tmp_path / "setup-templates.json")
     assert fresh.in_play(FP).values == edited.values and fresh.in_play(FP).rev == 2
     store.delete(FP, t.id)
@@ -214,7 +215,7 @@ def client(store, monkeypatch):
 
 def test_routes_list_create_edit_play_delete(client):
     body = client.get("/api/setups/templates").json()
-    assert body["schema_version"] == 1 and body["error"] is None
+    assert body["schema_version"] == cs.SETUP_TEMPLATES_SCHEMA_VERSION and body["error"] is None
     fp = next(s for s in body["setups"] if s["id"] == FP)
     assert fp["in_play"] == "default" and fp["templates"][0]["builtin"] is True
     assert fp["templates"][0]["readout"]["state"] == "collecting"

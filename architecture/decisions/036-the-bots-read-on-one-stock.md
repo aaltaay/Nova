@@ -273,3 +273,18 @@ Operator ask: show the dilution filings on file -- an S-3 / F-3 shelf, a 424B pr
   a short's resistance). Nothing blocks, sizes or places on a line.
 - **Not decided here.** No setup, scanner, trigger or bot rule trades a trend line. How often these lines hold is
   not measured; a rule that trades one needs that evidence first, as every setup did.
+
+## Amendment 2026-10-12 -- two targets from the menu, and Room against them (#845)
+
+- **Decision: the plan's targets are the menu's.** A setup plan shows its lane's two targets, each with its reason
+  ("+20c", "1c under $5.50", "1c under HOD 6.12"); a hand plan takes the menu's defaults from its entry, today's
+  map and the high of day, never from its risk. `target` stays target 1 and the plan adds `target2`,
+  `target1_fraction` and `targets`. No "2R" or "2:1" anywhere: R stays a unit (`rr`, `rr2`).
+- **Decision: Room is read against the targets.** It was "the first level of today's map in R, amber under 2R". It
+  is now that level in cents, amber when it stands before target 1 (target 1 then needs it to break). Trial T7 was
+  registered on the old reading and its registry is frozen: its measurement stays, under its registered rule, in
+  its own reading (`room.t7`: the room in R and whether it is under 2R), which nothing on the plan reads.
+- **Decision: the held card's targets come from the position.** `target` / `target2` / `target1_fraction` are the
+  menu's defaults from the average cost, today's map and the high of day (`stock_read/held_targets.py`), each saying
+  when a candle since you held reached it; the keys Nova's exits read.
+- What stands in the way runs to the furthest target and names the target it comes before.

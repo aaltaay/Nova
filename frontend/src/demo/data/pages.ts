@@ -249,7 +249,7 @@ const BOARD_ROWS = [
   boardRow({
     symbol: 'SMPL', setup_type: 'first_pullback', state: 'near', reason: '0.05 under the 4.38 trigger -- read the tape', kind: 'first_pullback',
     setup_id: 'SMPL-2026-09-30-0932', last_price: 4.33, distance: 0.05, grade: 'A', graded: 'armed',
-    setup: { trigger: 4.38, entry: 4.39, stop: 4.12, risk: 0.27, target1: 4.93, pullback_bars: 4, leg_high: 4.38, leg_low: 4.06, leg_pct: 0.0788, kind: 'first_pullback', leg_t: at(9, 32), armed_bar_t: at(9, 37), armed_at: at(9, 37) },
+    setup: { trigger: 4.38, entry: 4.39, stop: 4.12, risk: 0.27, target1: 4.49, target2: 4.99, target1_fraction: 0.5, pullback_bars: 4, leg_high: 4.38, leg_low: 4.06, leg_pct: 0.0788, kind: 'first_pullback', leg_t: at(9, 32), armed_bar_t: at(9, 37), armed_at: at(9, 37) },
     leg: leg(9, 32, 4.38, 4.06), pillars: pillars(4.33, 54.6, 24.8, 4_200_000, true, 'Sample Pharma receives FDA Fast Track designation'),
     tape: { verdict: 'go', reasons: ['buyers lifting the offer (2.4k at the ask in 10 s)', 'no seller stacked at the trigger'], line: { depth: true, tape: true }, metrics: {} },
     tf5: { agrees: true, above_ema9: true, macd_up: true, close: 4.31, ema9: 4.19, macd_hist: 0.031, candles: 69, as_of: at(9, 35) }, tf5_at: 'armed',

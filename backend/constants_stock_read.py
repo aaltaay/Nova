@@ -8,7 +8,6 @@ from __future__ import annotations
 STOCK_READ_SCHEMA_VERSION = 1
 
 # -- the plan -------------------------------------------------------------------------------------
-STOCK_READ_TARGET_R = 2.0                   # the operator's 2:1 -- a hand plan's target is entry + 2 x risk
 STOCK_READ_MANUAL_STOP_BARS = 3             # a hand plan's stop: the lowest low of the last N closed 1-min bars
 STOCK_READ_TRIGGERED_PLAN_SEC = 30 * 60     # a triggered setup stays the plan this long after its trigger
 STOCK_READ_STOP_CAP_DEFAULT = 0.20          # a hand plan's cap when no lane names one (the scanners' default)
@@ -49,7 +48,9 @@ STOCK_READ_DAILY_LEVEL_TOUCH_PCT = 0.02     # daily highs (lows) within 2% of ea
 STOCK_READ_DAILY_MERGE_PCT = 0.015          # daily levels within 1.5% are one zone
 STOCK_READ_DAILY_STAIR_MAX = 3              # the older daily highs above the price kept ("look left and up")
 STOCK_READ_DAILY_SMA_DAYS = 200             # the 200-day average (stored daily bars close after hours)
-STOCK_READ_ROOM_MIN_R = 2.0                 # Room under this many R reads amber: trial T7 decides more
+# Trial T7's registered threshold (knowledge/signal-trials-2.json, frozen): it records each Room in R against this.
+# Only T7's own reading uses it (``level_notes.t7``); Room itself is read against the plan's targets (#845).
+STOCK_READ_T7_ROOM_R = 2.0
 STOCK_READ_ROUND_NEAR_SHARE = 0.1           # a target or stop within a tenth of a step of a round (5c at a half dollar)
 STOCK_READ_ROUND_FRESH_BARS = 15            # a cross is fresh when the 15 candles before it stayed on the other side
 STOCK_READ_ROUND_CROSS_SEC = 10 * 60        # "broke $X" / "lost $X" is said this long after the cross

@@ -13,7 +13,10 @@ For a failed (its lane may still show it) or faded episode (``eyes/episodes.py``
   is unknown, and the study never credits a run it cannot prove;
 - after ``high``, ``trade`` scores the trade the rule refused the way the
   scoreboard scores an armed setup (``setup_scanner/scoring.py``): the first touch
-  of the target or the stop, the move for and against it, and the bar exit rules.
+  of target 1 or the stop, the move for and against it, and the bot's exit (#845) --
+  the armed setup's two targets, else the menu's defaults from the entry, the high of
+  day before the cross and the leg's high (``setup_scanner/targets.py``; an episode
+  keeps no level map, so its target 2 is the high of day or none).
 
 A short setup (ADR 049) is read on the mirror: the same rules on prices turned upside down (``_flip``), so
 ``level`` is the low it was building over, ``floor`` the high it would have stopped over, ``first`` reads
@@ -33,14 +36,12 @@ from constants_setups import (
     SETUP_OUTCOME_OPEN,
     SETUP_OUTCOME_STOP_FIRST,
     SETUP_OUTCOME_TARGET_FIRST,
-    SETUPS_EMA_PERIOD,
     SETUPS_ENTRY_OFFSET_DOLLARS,
     SETUPS_SCORE_WINDOW_MIN,
-    SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar, minute_start
 from setup_scanner.scoring import ScoreTracker
-from setup_scanner.series import ema
+from setup_scanner.targets import plan as target_plan
 
 EPS = 1e-9
 FIRST_HIGH = "high"
@@ -61,7 +62,7 @@ def _num(v: Any) -> float | None:
 def levels(ep: dict[str, Any], bars: list[Bar]) -> tuple[float | None, float | None, float | None, float | None]:
     """``(level, entry, floor, target)`` the episode was working with: its armed setup's, else its leg's
     high, one cent over it, the lowest low from the candle after the leg's high through the candle it
-    died on, and no target (the trade sets it from its risk)."""
+    died on, and no target (the trade takes the menu's from its entry)."""
     setup = ep.get("setup") or {}
     leg = ep.get("leg") or {}
     trigger, stop = _num(setup.get("trigger")), _num(setup.get("stop"))
@@ -92,7 +93,7 @@ def after(ep: dict[str, Any], bars: list[Bar], *, now: float,
     if setup_side(ep.get("setup_type")) == SIDE_SHORT:
         if ep.get("setup_type") == BOT_SETUP_SSR_BOUNCE:
             return None
-        got = _after(_flip_episode(ep), [_flip(b) for b in bars], now=now, window_min=window_min)
+        got = _after(_flip_episode(ep), [_flip(b) for b in bars], now=now, window_min=window_min, sign=-1)
         return _unflip(got) if got is not None else None
     return _after(ep, bars, now=now, window_min=window_min)
 
@@ -109,7 +110,7 @@ def _flip(b: Bar) -> Bar:
 
 def _flip_episode(ep: dict[str, Any]) -> dict[str, Any]:
     setup = dict(ep.get("setup") or {})
-    for key in ("trigger", "entry", "stop", "target1"):
+    for key in ("trigger", "entry", "stop", "target1", "target2"):
         if setup.get(key) is not None:
             setup[key] = _neg(setup[key])
     leg = dict(ep.get("leg") or {})
@@ -126,11 +127,11 @@ def _unflip(got: dict[str, Any]) -> dict[str, Any]:
     trade = got.get("trade")
     if trade is not None:
         out["trade"] = {**trade, "entry": _neg(trade["entry"]), "stop": _neg(trade["stop"]),
-                        "target": _neg(trade["target"])}
+                        "target": _neg(trade["target"]), "target2": _neg(trade.get("target2"))}
     return out
 
 
-def _after(ep: dict[str, Any], bars: list[Bar], *, now: float, window_min: int) -> dict[str, Any] | None:
+def _after(ep: dict[str, Any], bars: list[Bar], *, now: float, window_min: int, sign: int = 1) -> dict[str, Any] | None:
     died_at = _num(ep.get("died_at"))
     if not died(ep) or died_at is None:
         return None
@@ -156,7 +157,11 @@ def _after(ep: dict[str, Any], bars: list[Bar], *, now: float, window_min: int) 
         first = (FIRST_NEITHER if window else FIRST_UNKNOWN) if complete else FIRST_PENDING
     trade = None
     if first == FIRST_HIGH and floor is not None:
-        trade = refused_trade(bars, first_i + k, level=level, entry=entry, floor=floor, target=target)
+        setup = ep.get("setup") or {}
+        trade = refused_trade(bars, first_i + k, level=level, entry=entry, floor=floor, target=target,
+                              target2=_num(setup.get("target2")) if target is not None else None,
+                              fraction=_num(setup.get("target1_fraction")) if target is not None else None,
+                              leg_high=_num((ep.get("leg") or {}).get("high")), sign=sign)
     return {
         "from_ts": died_at, "price": death.c if death else None, "level": level, "entry": entry, "floor": floor,
         "window_min": window_min, "complete": complete, "bars": len(window),
@@ -165,10 +170,23 @@ def _after(ep: dict[str, Any], bars: list[Bar], *, now: float, window_min: int) 
     }
 
 
-def refused_trade(bars: list[Bar], i: int, *, level: float, entry: float, floor: float,
-                  target: float | None) -> dict[str, Any] | None:
+def _menu(entry: float, *, hod: float | None, leg_high: float | None, sign: int) -> tuple[float, float | None, float]:
+    """The menu's default targets for a refused trade, read on real prices (``sign`` -1: a short read on the
+    mirror): ``(target 1, target 2, the share sold at target 1)`` in the mirror's prices."""
+    def real(x: float | None) -> float | None:
+        return None if x is None else sign * x
+
+    got = target_plan(None, side="short" if sign < 0 else "long", entry=float(real(entry)), hod=real(hod),
+                      pullback_high=real(leg_high))
+    return sign * got.target1, real(got.target2), got.fraction
+
+
+def refused_trade(bars: list[Bar], i: int, *, level: float, entry: float, floor: float, target: float | None,
+                  target2: float | None = None, fraction: float | None = None, leg_high: float | None = None,
+                  sign: int = 1) -> dict[str, Any] | None:
     """The trade the rule refused, bought as price crossed ``level`` on ``bars[i]``: one cent over it (the
-    candle's open when it gapped over), stop ``floor``, target ``target`` or entry + 2R."""
+    candle's open when it gapped over), stop ``floor``, the armed setup's targets -- else, or when the entry
+    gapped past target 1, the menu's defaults from the entry -- scored by the bot's exit."""
     cross = bars[i]
     if cross.o > level + EPS:
         entry = max(entry, cross.o)
@@ -176,7 +194,8 @@ def refused_trade(bars: list[Bar], i: int, *, level: float, entry: float, floor:
     if risk <= EPS:
         return None
     if target is None or target <= entry + EPS:
-        target = round(entry + SETUPS_TARGET_R * risk, 4)
+        hod = max((b.h for b in bars[:i]), default=None)
+        target, target2, fraction = _menu(entry, hod=hod, leg_high=leg_high, sign=sign)
     until = cross.t + SETUPS_SCORE_WINDOW_MIN * 60
     outcome, outcome_at = SETUP_OUTCOME_OPEN, None
     best, worst = cross.h, cross.c
@@ -190,12 +209,12 @@ def refused_trade(bars: list[Bar], i: int, *, level: float, entry: float, floor:
             outcome, outcome_at = SETUP_OUTCOME_STOP_FIRST, b.t
         elif outcome == SETUP_OUTCOME_OPEN and b.h >= target - EPS:
             outcome, outcome_at = SETUP_OUTCOME_TARGET_FIRST, b.t
-    ema9 = ema([b.c for b in bars], SETUPS_EMA_PERIOD)
     tracker = ScoreTracker(entry=entry, stop=floor, target1=target, risk=risk, triggered_at=cross.t,
-                           entry_bar_t=cross.t)
-    for b, e in zip(bars[i:], ema9[i:], strict=True):
-        if tracker.on_bar(b, e):
+                           entry_bar_t=cross.t, target2=target2, target1_fraction=fraction or 1.0)
+    for b in bars[i:]:
+        if tracker.on_bar(b):
             break
-    return {"entry": round(entry, 4), "stop": round(floor, 4), "risk": risk, "target": target, "outcome": outcome,
+    return {"entry": round(entry, 4), "stop": round(floor, 4), "risk": risk, "target": target,
+            "target2": tracker.target2, "target1_fraction": tracker.target1_fraction, "outcome": outcome,
             "outcome_at": outcome_at, "bar_r": tracker.bar_r(), "exit_reason": tracker.exit_reason,
             "mfe_r": round((best - entry) / risk, 2), "mae_r": round(min(0.0, worst - entry) / risk, 2)}

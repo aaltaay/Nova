@@ -52,7 +52,8 @@ def test_a_pole_then_a_two_candle_flag_arms_over_the_last_flag_high():
     assert names(events) == ["armed"] and d.state == "armed"
     a = d.armed
     assert (a["trigger"], a["entry"], a["stop"]) == (4.30, 4.31, 4.26)
-    assert a["risk"] == 0.05 and a["target1"] == 4.41               # the pole high 4.35 or 2R: 2R is higher
+    assert a["risk"] == 0.05 and a["target1"] == 4.49               # #845: 1c under $4.50, 18c over the entry
+    assert a["targets"]["pullback_high"] == 4.35                   # the pole's high
     assert a["kind"] == "bull_flag" and a["pullback_bars"] == 2 and a["detail"]["pole_bars"] == 3
     assert a["leg_high"] == 4.35
 
@@ -192,7 +193,7 @@ def test_hold_entry_breaks_then_the_first_green_candle_holding_the_level_trigger
     assert names(events) == ["triggered"]
     t = d.triggered
     assert (t["entry"], t["stop"], t["risk"]) == (4.27, 4.21, 0.06)
-    assert t["target1"] == 4.39 and t["triggered_at"] == bars[-1].t + 60
+    assert t["target1"] == 4.47 and t["triggered_at"] == bars[-1].t + 60   # +20c: $4.50 is 22c over the entry
     assert t["score_bar_t"] == bars[-1].t and t["half_on_entry_bar"] is False
 
 
@@ -226,7 +227,7 @@ def test_break_entry_triggers_on_the_price_with_the_base_low_as_the_stop():
     bars = base_under_high()
     feed(d, bars)
     a = d.armed
-    assert (a["entry"], a["stop"]) == (4.22, 4.17) and a["target1"] == 4.32
+    assert (a["entry"], a["stop"]) == (4.22, 4.17) and a["target1"] == 4.42    # +20c (#845)
     events = d.on_price(4.22, bars[-1].t + 70, bar_open=4.19)
     assert names(events) == ["triggered"] and d.triggered["entry"] == 4.22
 
@@ -274,7 +275,8 @@ def test_before_the_open_it_waits_and_a_red_close_under_the_open_arms_at_the_ope
     a = d.armed
     assert a["trigger"] == round(open_px, 4) and a["entry"] == round(open_px + 0.01, 4)
     assert a["stop"] == round(open_px - 0.06, 4) and a["kind"] == "red_to_green" and a["risk"] == 0.07
-    assert a["detail"]["red_bars"] == 1 and a["target1"] >= a["entry"] + 2 * a["risk"] - 1e-9
+    assert a["detail"]["red_bars"] == 1 and a["target1"] > a["entry"] and a["targets"]["first"]["kind"] in (
+        "fixed", "round")
 
 
 def test_a_red_close_with_the_macd_under_zero_is_not_a_try():

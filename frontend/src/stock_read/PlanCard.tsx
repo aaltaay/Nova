@@ -1,6 +1,8 @@
 /**
- * The plan on top of Level 2 (ADR 036): the leading setup's entry, stop and 2:1 target -- or the
- * operator's own when nothing is forming -- with the risk, the size the venue sleeve's risk per trade
+ * The plan on top of Level 2 (ADR 036): the leading setup's entry, stop and two targets from the strategy's target
+ * menu (#845: target 1 at a half / whole dollar or a fixed amount, target 2 at the high of day or the next level, each
+ * with its share) -- or the operator's own when nothing is forming, with the menu's default targets -- with the risk,
+ * the size the venue sleeve's risk per trade
  * buys, a ruler of what stands between and the checks. Its buttons follow who trades the stock (ADR 037):
  * Signal only stages the ticket (a BUY limit at the entry, or a sell once shares are held) and never
  * places; Approve approves the plan, or buys now after the trigger; Auto-entry and Bot turn off; and
@@ -44,8 +46,9 @@ import './shortRead.css';
 
 const STAGED_NOTE_MS = 8_000;
 
-const SHORT_PLAN_TIP = 'A short plan (ADR 048): sell at the entry, a buy stop over it, cover at entry - 2R. Shorts '
-  + 'go out with their buy stop on Paper and Sim; Nova covers what is left at 15:55 ET.';
+const SHORT_PLAN_TIP = 'A short plan (ADR 048): sell at the entry, a buy stop over it, cover at its targets under it '
+  + '(cover 1, then cover 2 for the rest). Shorts go out with their buy stop on Paper and Sim; Nova covers what is left '
+  + 'at 15:55 ET.';
 
 /** The folded line's word for an action. */
 const SHORT: Record<PlanAction['id'], string> = {
@@ -79,6 +82,13 @@ function NovaSizeLine({ ctx }: { ctx: StockReadContextValue }) {
       {words.text}
     </p>
   );
+}
+
+/** The header's R hover: how far each target is in R, the unit results are measured in, and the strategy's rule. */
+function rrTip(plan: StockPlan | null): string {
+  if (!plan) return 'No plan yet.';
+  return 'How far each target is from the entry, in R: R is the risk a share, the unit results are measured in -- '
+    + `not a target.${plan.target_rule ? `\nThe strategy's targets: ${plan.target_rule}.` : ''}`;
 }
 
 /** The risk per trade's trouble: not saved, not moved, not the sleeve's, or the sleeve's last read failed
@@ -141,11 +151,13 @@ export function PlanCard({ ctx, roomy = true }: {
     // Where the size came from, said with it: the sleeve's risk per trade (or the stated fallback).
     const sized = `$${ctx.riskUsd} of risk (${riskSourceWords(ctx.risk)} risk per trade) over `
       + `${fmtStep(plan.risk, plan.entry)} a share.`;
+    const two = plan.target2 != null;
+    const aims = two ? `${fmtPx(plan.target)} and ${fmtPx(plan.target2)}` : fmtPx(plan.target);
     setStaged(short
-      ? `Staged SHORT ${size} LMT ${fmtPx(plan.entry)} with its buy stop ${fmtPx(plan.stop)}: ${sized} The cover `
-        + `${fmtPx(plan.target)} is yours to set.`
-      : `Staged BUY ${size} LMT ${fmtPx(plan.entry)}: ${sized} Set the stop ${fmtPx(plan.stop)} and the target `
-        + `${fmtPx(plan.target)} yourself: the ticket takes no bracket from the plan.`);
+      ? `Staged SHORT ${size} LMT ${fmtPx(plan.entry)} with its buy stop ${fmtPx(plan.stop)}: ${sized} The `
+        + `cover${two ? 's' : ''} ${aims} ${two ? 'are' : 'is'} yours to set.`
+      : `Staged BUY ${size} LMT ${fmtPx(plan.entry)}: ${sized} Set the stop ${fmtPx(plan.stop)} and the `
+        + `target${two ? 's' : ''} ${aims} yourself: the ticket takes no bracket from the plan.`);
   };
   const who = ctx.who;
   const whoMode = who.view?.mode ?? 'signal';
@@ -264,9 +276,10 @@ export function PlanCard({ ctx, roomy = true }: {
         )}
         {folded && plan && (
           <span className="sr-plan__folded" data-testid="stock-read-plan-line"
-            {...tipProps(`${short ? 'Short at / buy stop / cover' : 'Entry / stop / target'} · your size${
+            {...tipProps(`${short ? 'Short at / buy stop / cover 1' : 'Entry / stop / target 1'}${
+              plan.target2 != null ? (short ? ' / cover 2' : ' / target 2') : ''} · your size${
               novaFolded ? ' · the size Nova sends' : ''}`, 'The plan')}>
-            {fmtPx(plan.entry)}/{fmtPx(plan.stop)}/{fmtPx(plan.target)}
+            {fmtPx(plan.entry)}/{fmtPx(plan.stop)}/{fmtPx(plan.target)}{plan.target2 != null ? `/${fmtPx(plan.target2)}` : ''}
             {size !== null ? ` · ${size.toLocaleString('en-US')} sh` : ''}
             {novaFolded ? ` · Nova ${novaFolded}` : ''}
           </span>
@@ -277,9 +290,10 @@ export function PlanCard({ ctx, roomy = true }: {
           </span>
         )}
         {(plan || !folded) && !noTrade && (
-          <span className="sr-plan__rr" {...tipProps(plan?.target_rule, 'Reward to risk')}>
-            <b>{rrText(plan?.rr ?? null)}</b>
-            {!folded && <span className="sr-plan__rr-k"> reward : risk</span>}
+          // The targets in R (#845): R is the risk a share, the unit results are measured in -- never a target.
+          <span className="sr-plan__rr" {...tipProps(rrTip(plan), 'The targets in R')} data-testid="stock-read-plan-rr">
+            <b>{rrText(plan?.rr ?? null, plan?.rr2 ?? null)}</b>
+            {!folded && <span className="sr-plan__rr-k"> {plan?.rr2 != null ? 'to targets 1 · 2' : 'to target 1'}</span>}
           </span>
         )}
         {folded && (plan || actions[0]?.id !== 'stage') && actions[0] && actionButton(actions[0], true)}
@@ -326,7 +340,7 @@ export function PlanCard({ ctx, roomy = true }: {
               className="sr-btn"
               aria-pressed={ctx.layers.setups}
               onClick={() => ctx.setLayers(ctx.layers.setups ? { setups: false } : { eyes: true, setups: true })}
-              {...tipProps('Draw the setups and the plan\'s entry, stop and target on the charts.')}
+              {...tipProps('Draw the setups and the plan\'s entry, stop and targets on the charts.')}
               data-testid="stock-read-show-on-chart"
             >
               Show on chart {ctx.layers.setups ? '✓' : ''}

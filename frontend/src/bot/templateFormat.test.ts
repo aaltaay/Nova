@@ -7,6 +7,8 @@ const payload = templatesPayload();
 const fp = payload.setups.find(s => s.id === 'first_pullback')!;
 const spec = (key: string): ParamSpec => fp.catalogue.groups.flatMap(g => g.params).find(p => p.key === key)!;
 const defaults = fp.templates[0].values;
+/** The menu's default targets (#845), as every built-in template's Trade line says them. */
+const MENU = 'target 1 20c or 1c under a half / whole dollar · target 2 1c under HOD or the next level · half at each';
 
 describe('templateFormat', () => {
   it('formats each value in its own unit', () => {
@@ -18,7 +20,17 @@ describe('templateFormat', () => {
     expect(formatValue(spec('max_float_m'), 10)).toBe('10M');
     expect(formatValue(spec('wall'), 25000)).toBe('25,000 shares');
     expect(formatValue(spec('require_hod'), true)).toBe('on');
-    expect(formatValue(spec('target_mode'), 'fixed')).toBe('a fixed amount over the entry');
+    // The target menu (#845): each choice in the catalogue's own words, the fixed amount past the entry, the split.
+    expect(formatValue(spec('target1_kind'), 'round_or_fixed'))
+      .toBe('the fixed amount, or 1c under a half / whole dollar when that is closer');
+    expect(formatValue(spec('target2_kind'), 'none')).toBe('none: everything sells at target 1');
+    expect(formatValue(spec('target_fixed'), 0.2)).toBe('$0.20 past the entry');
+    expect(formatValue(spec('target_split_pct'), 50)).toBe('50% of the shares');
+    expect(formatValue(spec('stop_kind'), 'pattern')).toBe("the pattern's own");
+    // No 2R target is left in the catalogue: R is the unit results are measured in, never a target.
+    const keys = fp.catalogue.groups.flatMap(g => g.params.map(p => p.key));
+    expect(keys).not.toContain('target_r');
+    expect(keys).not.toContain('target_mode');
   });
 
   it('parses typed text against the parameter, and an empty filter turns it off', () => {
@@ -35,7 +47,8 @@ describe('templateFormat', () => {
       Stock: 'HOD Momo names · any price · any float',
       Setup: 'Leg ≥ 5% to a new high of day · 1–3 candles hold the 9 EMA and give back < 50% of the leg · MACD above zero',
       Entry: "Over the last pullback candle's high +$0.01 · arms 07:00–11:30 · only when the tape says GO",
-      Trade: 'Risk $0.03–0.20 · target 1 the leg high or 2R · bot 07:00–10:00',
+      Trade: 'Risk $0.03–0.20 · target 1 20c or 1c under a half / whole dollar · target 2 1c under HOD or the next level'
+        + ' · half at each · bot 07:00–10:00',
     });
   });
 
@@ -44,11 +57,11 @@ describe('templateFormat', () => {
     // Red to green's built-in sits inside its arming window (09:30-10:30) from the start: nothing clipped.
     expect(r2g.bot_window).toMatchObject({ start: '09:30', end: '10:00', clipped: false });
     expect(Object.fromEntries(ruleLines('red_to_green', r2g.values, r2g.bot_window)).Trade)
-      .toBe('Risk $0.03–0.20 · target 1 2R or the high of day, whichever is higher · bot 09:30–10:00');
+      .toBe(`Risk $0.03–0.20 · ${MENU} · bot 09:30–10:00`);
     // A saved window that reached outside is read clipped, and the line says so.
     const clipped = { ...r2g.bot_window!, clipped: true, stored: { start: '07:00', end: '10:00' } };
     expect(Object.fromEntries(ruleLines('red_to_green', { ...r2g.values, bot_window_start: '07:00' }, clipped)).Trade)
-      .toBe('Risk $0.03–0.20 · target 1 2R or the high of day, whichever is higher · bot 09:30–10:00 (clipped to the arming window)');
+      .toBe(`Risk $0.03–0.20 · ${MENU} · bot 09:30–10:00 (clipped to the arming window)`);
     // How many a day is the sleeve's now, never a template's.
     expect(Object.keys(defaults)).not.toContain('bot_entries_per_day');
     const bot = fp.catalogue.groups.find(g => g.id === 'bot')!;
@@ -64,14 +77,14 @@ describe('templateFormat', () => {
         + ' on lighter volume, closes hold the 9 EMA · MACD above zero · the day\'s biggest candle not red'
         + ' · pole-top wick ≤ 40%',
       Entry: "Over the last flag candle's high +$0.01 · arms 07:00–11:30 · only when the tape says GO",
-      Trade: 'Risk $0.03–0.20 · target 1 the pole high or 2R · bot 07:00–10:00',
+      Trade: `Risk $0.03–0.20 · ${MENU} · bot 07:00–10:00`,
     });
     expect(Object.fromEntries(ruleLines('flat_top_breakout', values('flat_top_breakout')))).toMatchObject({
       Setup: 'Impulse ≥ 3% into the high of day · tapped 3+ times, a high within 0.5% or $0.01 under it'
         + ' · from the first touch, 2–20 candles close within 2% under it, lows over the 9 EMA · MACD above zero',
       Entry: 'A green candle that holds it and closes over the high within 3 candles, at its close +$0.01'
         + ' · arms 07:00–11:30 · only when the tape says GO',
-      Trade: 'Risk $0.03–0.20 · target 1 2R · bot 07:00–10:00',
+      Trade: `Risk $0.03–0.20 · ${MENU} · bot 07:00–10:00`,
     });
     // The research's P2, one setting away: no touches counted, the base after the last candle at the high.
     const p2 = { ...values('flat_top_breakout'), ft_base_start: 'last_high', ft_min_touches: 1, ft_touch_pct: 0,
@@ -83,7 +96,7 @@ describe('templateFormat', () => {
     expect(Object.fromEntries(ruleLines('red_to_green', values('red_to_green')))).toMatchObject({
       Setup: '1+ close under the 09:30 open, then back through it by 10:30 · one try a day · MACD above zero',
       Entry: 'Over the open +$0.01 · only when the tape says GO',
-      Trade: 'Risk $0.03–0.20 · target 1 2R or the high of day, whichever is higher · bot 09:30–10:00',
+      Trade: `Risk $0.03–0.20 · ${MENU} · bot 09:30–10:00`,
     });
     expect(ruleSummary('first_pullback', defaults)).toBe('Leg ≥ 5% · 1–3 bar pullback · stop at the pullback low');
     expect(ruleSummary('bull_flag', values('bull_flag'))).toBe('Pole 3+ green, ≥ 5% · 2–3 bar flag · stop at the flag low');
@@ -98,10 +111,14 @@ describe('templateFormat', () => {
   it('says what a variation changed', () => {
     const lines = Object.fromEntries(ruleLines('first_pullback', {
       ...defaults, min_price: 3, max_price: 10, max_float_m: 10, min_grade: 'B', require_catalyst: true,
-      target_mode: 'fixed', target_fixed: 0.2,
+      target1_kind: 'fixed', target_fixed: 0.15, target2_kind: 'hod', target_split_pct: 30, stop_kind: 'round',
     }));
     expect(lines.Stock).toBe('HOD Momo names · $3–10 · float ≤ 10M · a catalyst · grade B+');
-    expect(lines.Trade).toContain('target 1 entry + $0.20');
+    expect(lines.Trade).toBe('Risk $0.03–0.20 · stop just under the nearest half / whole dollar when the risk fits'
+      + ' · target 1 15c · target 2 1c under HOD · 30% at target 1, the rest at target 2 · bot 07:00–10:00');
+    // Target 2 none: everything sells at target 1.
+    expect(Object.fromEntries(ruleLines('first_pullback', { ...defaults, target1_kind: 'next_level', target2_kind: 'none' })).Trade)
+      .toBe('Risk $0.03–0.20 · target 1 1c under the next level · everything at target 1 · bot 07:00–10:00');
     expect(changedKeys(defaults, { ...defaults, leg_pct: 6 })).toEqual(['leg_pct']);
   });
 
@@ -117,7 +134,9 @@ describe('templateFormat', () => {
     expect(back.Setup).toMatch(/^Fade ≥ 8% off the high of day to a new 30-candle low · 1–3 candle bounce under the high/);
     expect(back.Entry).toBe('Under the last bounce candle\'s low −$0.01 · buy stop $0.01 over the bounce · arms '
       + '09:35–11:30 · only when the tape says GO');
-    expect(back.Trade).toMatch(/cover at 2R under the entry · bot 09:35–11:30$/);
+    expect(back.Trade).toMatch(/· cover 1 20c or 1c over a half \/ whole dollar · cover 2 1c over LOD or the next level · half at each · bot 09:35–11:30$/);
+    expect(Object.fromEntries(ruleLines('bear_flag', { ...short('bear_flag'), stop_kind: 'round', target2_kind: 'none' })).Trade)
+      .toMatch(/buy stop just over the nearest half \/ whole dollar when the risk fits · cover 1 20c or 1c over a half \/ whole dollar · everything at cover 1 ·/);
     expect(Object.fromEntries(ruleLines('ssr_bounce', short('ssr_bounce'))).Entry)
       .toMatch(/^Rests \$0\.01 under the level once the bounce is within 2% of it, so a buyer fills it above the bid · buy stop 2% over the entry \(≥ \$0\.05\) · cancelled after 10 min/);
     for (const id of ['backside_lower_high', 'bear_flag', 'failed_breakout', 'lost_vwap', 'ssr_bounce']) {
@@ -135,7 +154,7 @@ describe('templateFormat', () => {
     ]);
     const gng = payload.setups.find(s => s.id === 'gap_and_go')!.templates[0].values;
     const gngLines = Object.fromEntries(ruleLines('gap_and_go', gng));
-    expect(gngLines.Trade).toBe('stop $0.20 or 4% under the entry, whichever is smaller · target 1 2R · bot 09:30–10:00');
+    expect(gngLines.Trade).toBe(`stop $0.20 or 4% under the entry, whichever is smaller · ${MENU} · bot 09:30–10:00`);
     expect(gngLines.Setup).toMatch(/^The pre-market high \(candles before 09:30\) · the open under it, then a price over it by 10:00/);
     expect(ruleLines('micro_pullback', {})).toEqual([]);
     expect(readoutText(fp.templates[0])).toBe('collecting 12 / 50');

@@ -40,7 +40,6 @@ from constants_setups import (
     SETUPS_NEAR_PCT,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_STOP_CAP_DOLLARS,
-    SETUPS_TARGET_R,
 )
 from constants_short_setups import (
     SETUP_KIND_LOST_VWAP,
@@ -55,7 +54,8 @@ from constants_short_setups import (
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import EPS, et_time, hhmm, window_blocked
-from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked, short_target
+from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,7 @@ class LostVwapParams:
     entry_offset: float = SHORT_ENTRY_OFFSET_DOLLARS
     stop_offset: float = SHORT_STOP_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_r: float = SETUPS_TARGET_R
+    targets: TargetSpec = DEFAULT_TARGETS               # the target menu's choice (#845), mirrored
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SHORT_WINDOW_START_ET
@@ -151,9 +151,9 @@ class LostVwapDetector(ShortTriggerDetector):
                 return self._end(prev, leg, "closed back over VWAP after the retest")
         trig = s.lo[r_i]
         entry = round(trig - p.entry_offset, 4)
-        stop = round(max(vw, s.h[r_i]) + p.stop_offset, 4)
+        stop, stop_why = self.stop_at(entry, round(max(vw, s.h[r_i]) + p.stop_offset, 4))
         risk = round(stop - entry, 4)
-        target = short_target(entry, risk, p.target_r)
+        aim = self.aim(entry, pullback_high=min(s.lo[leg_index(bars, leg):r_i + 1]), stop=stop_why)   # the retest's low
         self.leg = leg
         blocked = window_blocked(p, bars[r_i].t + p.bar_sec)
         if blocked is None and p.macd_negative and s.hist[r_i] >= 0:
@@ -161,11 +161,11 @@ class LostVwapDetector(ShortTriggerDetector):
         if blocked is None:
             blocked = short_risk_blocked(p, risk, entry=entry)
         if blocked:
-            self.forming = short_levels(trig, entry, stop, target, bars=r_i - leg_index(bars, leg), blocked=blocked)
+            self.forming = short_levels(trig, entry, stop, aim, bars=r_i - leg_index(bars, leg), blocked=blocked)
             return self._end(prev, leg, f"the retest {blocked} -- the day's one try is spent")
         self.armed = {
             "leg_t": leg["t"], "trigger": round(trig, 4), "entry": entry, "stop": stop, "risk": risk,
-            "target1": target, "pullback_bars": r_i - leg_index(bars, leg), "leg_high": round(vw, 4),
+            **aim, "pullback_bars": r_i - leg_index(bars, leg), "leg_high": round(vw, 4),
             "leg_low": leg["low"], "leg_pct": 0.0, "armed_bar_t": bars[r_i].t,
             "armed_at": (prev or {}).get("armed_at") or bars[r_i].t + p.bar_sec, "kind": self.kind_now(),
             "detail": {"vwap": round(vw, 4), "loss_t": leg["t"], "retest_t": bars[r_i].t},

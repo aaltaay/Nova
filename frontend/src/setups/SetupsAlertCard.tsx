@@ -55,7 +55,8 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
       <div className="setups-alert-body">
         <strong>{top.symbol}</strong> {short ? <span className="setups-short-tag">▼ SHORT</span> : null}{short ? ' ' : ''}
         {kind.toLowerCase()} near the {fmtPx(top.trigger)} {level}.
-        {' '}{short ? 'Buy stop' : 'Stop'} {fmtPx(top.stop)}, risk {fmtCents(top.risk)}, {short ? 'cover' : 'target'} {fmtPx(top.target1)}.
+        {' '}{short ? 'Buy stop' : 'Stop'} {fmtPx(top.stop)}, risk {fmtCents(top.risk)}, {short ? 'cover' : 'target'} {fmtPx(top.target1)}
+        {top.target2 != null ? ` then ${fmtPx(top.target2)}` : ''}.
         {' '}<span className={`setups-tape--${tapeNow}`} {...tipProps(TAPE_VERDICT_TIPS[tapeNow] ?? tapeNow, 'The tape now')}>
           {TAPE_VERDICT_LABELS[tapeNow] ?? tapeNow}
         </span>

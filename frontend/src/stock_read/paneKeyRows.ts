@@ -164,12 +164,12 @@ function planRows(full: boolean): KeySection {
   const rows: KeyRow[] = [
     { swatch: 'line', color: SETUP_COLORS.trigger, label: 'Entry', text: 'where the plan buys (a short plan: where it shorts)' },
     { swatch: 'line', color: SETUP_COLORS.stop, label: 'Stop', text: 'where the plan gets out at a loss' },
-    { swatch: 'line', color: SETUP_COLORS.target, label: 'Target', text: 'where the plan takes profit' },
+    { swatch: 'line', color: SETUP_COLORS.target, label: 'Target 1 / 2', text: 'where the plan takes profit: its first part at target 1, the rest at target 2' },
   ];
   if (full) {
     rows.push(
       { swatch: 'band', color: SETUP_COLORS.risk, label: 'Red zone', text: 'the risk: from the entry to the stop (over the entry on a short)' },
-      { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: from the entry to the target (under it on a short)' },
+      { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: from the entry to target 1 (under it on a short)' },
     );
   }
   rows.push({ swatch: 'dash', color: GREY, label: 'Dashed vs solid', text: 'dashed: only a plan · solid: an order is working' });

@@ -7,6 +7,8 @@ cancels an order.
                                       template in play, oldest armed first)
   GET /api/setups/symbol/{symbol}     one symbol in every setup's template in play, whatever its state,
                                       with the forming levels and the lane's own indicators (ADR 036)
+  GET /api/setups/target-choices?from=YYYY-MM-DD   every target choice ranked on the triggers since
+                                      ``from`` (#845, ``eyes.target_readout``); ``setup=all`` pools every setup
 
 Both scoreboard reads answer for one setup (``setup=``, the first pullback by
 default; ADR 031) and its template in play -- its id and current revision, the
@@ -32,6 +34,7 @@ from setup_scanner.engine import get_engine
 from setup_scanner.store import session_date
 from setup_scanner.summary import summarize
 from setup_scanner.symbol_view import symbol_view
+from eyes.target_readout import rank as rank_targets
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["setups"])
@@ -98,6 +101,26 @@ def rows(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"), symbol: str | N
     where, named = _template_filter(template, setup)
     return {"date": date, "setup_type": setup, "template": named,
             "rows": store.rows(date_from=date, date_to=date, symbol=symbol, **where)}
+
+
+@router.get("/api/setups/target-choices")
+def target_choices(date_from: str = Query(..., alias="from", pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                   template: str | None = Query(None, description="a template id, 'all', or empty for the one in play"),
+                   setup: str = Query(BOT_SETUP_FIRST_PULLBACK, description="a setup with a scanner, or 'all'"),
+                   cost: float | None = Query(None, ge=0, le=1, description="dollars a share a fill"),
+                   min_n: int | None = Query(None, ge=1, le=100_000)) -> dict:
+    """Every target choice ranked on the triggers from ``from`` on (#845): counts, win share, mean and sum R
+    before and after a stated cost -- never a leader below the minimum count it states."""
+    store = _store_or_503()
+    setups = list(BOT_SCANNER_SETUPS) if setup == "all" else [setup]
+    rows: list[dict] = []
+    named = None
+    for sid in setups:
+        where, named = _template_filter(template if setup != "all" or template == "all" else None, sid)
+        rows += store.rows(date_from=date_from, **where)
+    kw = {k: v for k, v in (("cost", cost), ("min_n", min_n)) if v is not None}
+    return {"from": date_from, "setup_type": setup, "template": named if setup != "all" else None,
+            **rank_targets(rows, **kw)}
 
 
 @router.get("/api/setups/symbol/{symbol:path}")

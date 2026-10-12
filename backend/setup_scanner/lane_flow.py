@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from constants_setups import TAPE_FLOW_BURST, TAPE_FLOW_EVAL_SEC, TAPE_FLOW_FLUSH
-from setup_scanner import tape_flow
+from setup_scanner import tape_flow, target_choices
 
 LOUD = (TAPE_FLOW_BURST, TAPE_FLOW_FLUSH)
 
@@ -58,6 +58,7 @@ def read_trades(lane: Any, now: float) -> None:
                          since_trigger=round(now - tr.triggered_at, 1))
         lane._flow_said[sid] = label
         act = tr.on_flow(label=label, price=price, bid=bid, ts=now, ask=ask)
+        target_choices.feed_flow(lane, sid, label=label, price=price, bid=bid, ts=now, ask=ask)
         if act is not None:
             lane.journal("flush", sym, setup_id=sid, action=act, score=score, price=price, bid=bid,
                          stop=tr.bar_stop, exit_px=tr.exit_px, mode=lane.p.flush.mode,

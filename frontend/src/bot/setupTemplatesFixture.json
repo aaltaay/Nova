@@ -481,8 +481,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -533,59 +533,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_mode",
+        "key": "target1_kind",
         "group": "risk",
         "label": "Target 1",
         "kind": "choice",
-        "default": "leg_or_r",
+        "default": "round_or_fixed",
         "unit": "",
         "min": null,
         "max": null,
         "step": null,
         "choices": [
          {
-          "value": "leg_or_r",
-          "label": "the leg high or R x risk, whichever is higher"
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c under a half / whole dollar when that is closer"
          },
          {
           "value": "fixed",
-          "label": "a fixed amount over the entry"
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
          }
         ],
         "nullable": false,
-        "help": "Half comes off at target 1 and the stop moves to the entry (the scoring exit).",
+        "help": "Where the first part sells. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
         "live": true,
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target2_kind",
         "group": "risk",
-        "label": "R multiple",
-        "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
-        "choices": [],
+        "label": "Target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c under the high of day, else 1c under the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything sells at target 1"
+         }
+        ],
         "nullable": false,
-        "help": "Used when target 1 is the leg high or R x risk.",
+        "help": "Where the rest sells, at least 5c past target 1 -- else everything sells at target 1. The stop stays where it is after target 1.",
         "live": true,
         "affects_readout": true
        },
        {
         "key": "target_fixed",
         "group": "risk",
-        "label": "Fixed target",
+        "label": "Fixed amount",
         "kind": "number",
         "default": 0.2,
-        "unit": "$",
-        "min": 0.01,
-        "max": 10,
+        "unit": "$ past the entry",
+        "min": 0.1,
+        "max": 0.3,
         "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Used when target 1 is a fixed amount over the entry.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Sold at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share sells at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c under the nearest half / whole dollar under the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c under the nearest half / whole dollar under the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's stop.",
         "live": true,
         "affects_readout": true
        },
@@ -1334,9 +1412,11 @@
       "stop_cap": 0.2,
       "min_stop": 0.03,
       "risk_slippage": 0.01,
-      "target_mode": "leg_or_r",
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
       "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -1383,7 +1463,7 @@
      "setup": "first_pullback",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "77299ffad70d",
+     "fingerprint": "2efe984c6780",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -1991,8 +2071,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -2043,63 +2123,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_mode",
+        "key": "target1_kind",
         "group": "risk",
         "label": "Target 1",
         "kind": "choice",
-        "default": "leg_or_r",
+        "default": "round_or_fixed",
         "unit": "",
         "min": null,
         "max": null,
         "step": null,
         "choices": [
          {
-          "value": "leg_or_r",
-          "label": "the pole high or R x risk, whichever is higher"
-         },
-         {
-          "value": "leg",
-          "label": "the pole high (the material's first target)"
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c under a half / whole dollar when that is closer"
          },
          {
           "value": "fixed",
-          "label": "a fixed amount over the entry"
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
          }
         ],
         "nullable": false,
-        "help": "Half comes off at target 1 and the stop moves to the entry (the scoring exit).",
+        "help": "Where the first part sells. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
         "live": true,
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target2_kind",
         "group": "risk",
-        "label": "R multiple",
-        "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
-        "choices": [],
+        "label": "Target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c under the high of day, else 1c under the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything sells at target 1"
+         }
+        ],
         "nullable": false,
-        "help": "Used when target 1 is the pole high or R x risk (and when the pole high is not above the entry).",
+        "help": "Where the rest sells, at least 5c past target 1 -- else everything sells at target 1. The stop stays where it is after target 1.",
         "live": true,
         "affects_readout": true
        },
        {
         "key": "target_fixed",
         "group": "risk",
-        "label": "Fixed target",
+        "label": "Fixed amount",
         "kind": "number",
         "default": 0.2,
-        "unit": "$",
-        "min": 0.01,
-        "max": 10,
+        "unit": "$ past the entry",
+        "min": 0.1,
+        "max": 0.3,
         "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Used when target 1 is a fixed amount over the entry.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Sold at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share sells at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c under the nearest half / whole dollar under the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c under the nearest half / whole dollar under the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's stop.",
         "live": true,
         "affects_readout": true
        },
@@ -2854,9 +3008,11 @@
       "stop_cap": 0.2,
       "min_stop": 0.03,
       "risk_slippage": 0.01,
-      "target_mode": "leg_or_r",
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
       "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -2903,7 +3059,7 @@
      "setup": "bull_flag",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "f9144d9296a4",
+     "fingerprint": "d1023af533e6",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -3497,8 +3653,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -3549,59 +3705,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_mode",
+        "key": "target1_kind",
         "group": "risk",
         "label": "Target 1",
         "kind": "choice",
-        "default": "r",
+        "default": "round_or_fixed",
         "unit": "",
         "min": null,
         "max": null,
         "step": null,
         "choices": [
          {
-          "value": "r",
-          "label": "R x risk over the entry (the research's)"
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c under a half / whole dollar when that is closer"
          },
          {
           "value": "fixed",
-          "label": "a fixed amount over the entry"
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
          }
         ],
         "nullable": false,
-        "help": "Half comes off at target 1 and the stop moves to the entry (the scoring exit).",
+        "help": "Where the first part sells. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
         "live": true,
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target2_kind",
         "group": "risk",
-        "label": "R multiple",
-        "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
-        "choices": [],
+        "label": "Target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c under the high of day, else 1c under the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything sells at target 1"
+         }
+        ],
         "nullable": false,
-        "help": "Target 1 at R x the risk over the entry.",
+        "help": "Where the rest sells, at least 5c past target 1 -- else everything sells at target 1. The stop stays where it is after target 1.",
         "live": true,
         "affects_readout": true
        },
        {
         "key": "target_fixed",
         "group": "risk",
-        "label": "Fixed target",
+        "label": "Fixed amount",
         "kind": "number",
         "default": 0.2,
-        "unit": "$",
-        "min": 0.01,
-        "max": 10,
+        "unit": "$ past the entry",
+        "min": 0.1,
+        "max": 0.3,
         "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Used when target 1 is a fixed amount over the entry.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Sold at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share sells at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c under the nearest half / whole dollar under the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c under the nearest half / whole dollar under the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's stop.",
         "live": true,
         "affects_readout": true
        },
@@ -4354,9 +4588,11 @@
       "stop_cap": 0.2,
       "min_stop": 0.03,
       "risk_slippage": 0.01,
-      "target_mode": "r",
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
       "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -4403,7 +4639,7 @@
      "setup": "flat_top_breakout",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "3aa53a1e8d99",
+     "fingerprint": "fb795fa9091c",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -4765,7 +5001,7 @@
         "step": 1,
         "choices": [],
         "nullable": false,
-        "help": "Every 5-minute base candle's low is at or above this EMA of the 5-minute closes (the scoring exit reads the 1-minute EMA: the trade is a 1-minute one).",
+        "help": "Every 5-minute base candle's low is at or above this EMA of the 5-minute closes.",
         "live": true,
         "affects_readout": true
        },
@@ -5022,8 +5258,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -5074,59 +5310,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_mode",
+        "key": "target1_kind",
         "group": "risk",
         "label": "Target 1",
         "kind": "choice",
-        "default": "r",
+        "default": "round_or_fixed",
         "unit": "",
         "min": null,
         "max": null,
         "step": null,
         "choices": [
          {
-          "value": "r",
-          "label": "R x risk over the entry (the research's)"
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c under a half / whole dollar when that is closer"
          },
          {
           "value": "fixed",
-          "label": "a fixed amount over the entry"
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
          }
         ],
         "nullable": false,
-        "help": "Half comes off at target 1 and the stop moves to the entry (the scoring exit).",
+        "help": "Where the first part sells. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
         "live": true,
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target2_kind",
         "group": "risk",
-        "label": "R multiple",
-        "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
-        "choices": [],
+        "label": "Target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c under the high of day, else 1c under the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything sells at target 1"
+         }
+        ],
         "nullable": false,
-        "help": "Target 1 at R x the risk over the entry.",
+        "help": "Where the rest sells, at least 5c past target 1 -- else everything sells at target 1. The stop stays where it is after target 1.",
         "live": true,
         "affects_readout": true
        },
        {
         "key": "target_fixed",
         "group": "risk",
-        "label": "Fixed target",
+        "label": "Fixed amount",
         "kind": "number",
         "default": 0.2,
-        "unit": "$",
-        "min": 0.01,
-        "max": 10,
+        "unit": "$ past the entry",
+        "min": 0.1,
+        "max": 0.3,
         "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Used when target 1 is a fixed amount over the entry.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Sold at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share sells at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c under the nearest half / whole dollar under the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c under the nearest half / whole dollar under the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's stop.",
         "live": true,
         "affects_readout": true
        },
@@ -5880,9 +6194,11 @@
       "stop_cap": 0.2,
       "min_stop": 0.03,
       "risk_slippage": 0.01,
-      "target_mode": "r",
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
       "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -5929,7 +6245,7 @@
      "setup": "flat_top_5m",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "4efc53e05782",
+     "fingerprint": "8b0883b08a91",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -6313,8 +6629,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -6365,34 +6681,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target1_kind",
         "group": "risk",
-        "label": "R multiple",
-        "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
-        "choices": [],
-        "nullable": false,
-        "help": "Target 1 at R x the risk over the entry.",
-        "live": true,
-        "affects_readout": true
-       },
-       {
-        "key": "r2g_target_hod",
-        "group": "risk",
-        "label": "Target is at least the high of day",
-        "kind": "bool",
-        "default": true,
+        "label": "Target 1",
+        "kind": "choice",
+        "default": "round_or_fixed",
         "unit": "",
         "min": null,
         "max": null,
         "step": null,
+        "choices": [
+         {
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c under a half / whole dollar when that is closer"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the first part sells. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target2_kind",
+        "group": "risk",
+        "label": "Target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c under the high of day, else 1c under the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything sells at target 1"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the rest sells, at least 5c past target 1 -- else everything sells at target 1. The stop stays where it is after target 1.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_fixed",
+        "group": "risk",
+        "label": "Fixed amount",
+        "kind": "number",
+        "default": 0.2,
+        "unit": "$ past the entry",
+        "min": 0.1,
+        "max": 0.3,
+        "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "On: target 1 is the high of day when that is higher than R x risk.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Sold at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share sells at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c under the nearest half / whole dollar under the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c under the nearest half / whole dollar under the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's stop.",
         "live": true,
         "affects_readout": true
        },
@@ -7133,8 +7552,11 @@
       "stop_cap": 0.2,
       "min_stop": 0.03,
       "risk_slippage": 0.01,
-      "target_r": 2.0,
-      "r2g_target_hod": true,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
+      "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -7181,7 +7603,7 @@
      "setup": "red_to_green",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "066f55628281",
+     "fingerprint": "60f85d680944",
      "error": null,
      "readout": {
       "state": "collecting",
@@ -7549,8 +7971,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cents",
@@ -7617,18 +8039,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target1_kind",
         "group": "risk",
-        "label": "R multiple",
+        "label": "Target 1",
+        "kind": "choice",
+        "default": "round_or_fixed",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c under a half / whole dollar when that is closer"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the first part sells. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target2_kind",
+        "group": "risk",
+        "label": "Target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c under the high of day, else 1c under the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount over the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c under the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the high the pullback came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c under the high of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything sells at target 1"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the rest sells, at least 5c past target 1 -- else everything sells at target 1. The stop stays where it is after target 1.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_fixed",
+        "group": "risk",
+        "label": "Fixed amount",
         "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
+        "default": 0.2,
+        "unit": "$ past the entry",
+        "min": 0.1,
+        "max": 0.3,
+        "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Target 1 at R x the risk over the entry.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Sold at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share sells at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c under the nearest half / whole dollar under the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c under the nearest half / whole dollar under the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's stop.",
         "live": true,
         "affects_readout": true
        },
@@ -8369,7 +8910,11 @@
       "stop_pct": 4.0,
       "min_stop": 0.03,
       "risk_slippage": 0.01,
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
+      "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -8416,7 +8961,7 @@
      "setup": "gap_and_go",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "c21c31a6904c",
+     "fingerprint": "ddf18740221a",
      "error": null,
      "bot_window": {
       "start": "09:30",
@@ -8898,8 +9443,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -8966,18 +9511,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target1_kind",
         "group": "risk",
-        "label": "R multiple",
+        "label": "Cover target 1",
+        "kind": "choice",
+        "default": "round_or_fixed",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c over a half / whole dollar when that is closer"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map under the entry"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the first part covers. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target2_kind",
+        "group": "risk",
+        "label": "Cover target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c over the low of day, else 1c over the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything covers at target 1"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the rest covers, at least 5c past target 1 -- else everything covers at target 1. The buy stop stays where it is after target 1.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_fixed",
+        "group": "risk",
+        "label": "Fixed amount",
         "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
+        "default": 0.2,
+        "unit": "$ under the entry",
+        "min": 0.1,
+        "max": 0.3,
+        "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Target 1 at R x the risk under the entry: cover at 2R.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Covered at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share covers at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Buy stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c over the nearest half / whole dollar over the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c over the nearest half / whole dollar over the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's buy stop.",
         "live": true,
         "affects_readout": true
        },
@@ -9693,7 +10357,11 @@
       "min_stop": 0.03,
       "risk_slippage": 0.01,
       "stop_offset": 0.01,
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
+      "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -9738,7 +10406,7 @@
      "setup": "backside_lower_high",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "c2c0b72ee0fe",
+     "fingerprint": "d4bb14cc8f47",
      "error": null,
      "bot_window": {
       "start": "09:35",
@@ -10301,8 +10969,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -10369,18 +11037,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target1_kind",
         "group": "risk",
-        "label": "R multiple",
+        "label": "Cover target 1",
+        "kind": "choice",
+        "default": "round_or_fixed",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c over a half / whole dollar when that is closer"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map under the entry"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the first part covers. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target2_kind",
+        "group": "risk",
+        "label": "Cover target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c over the low of day, else 1c over the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything covers at target 1"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the rest covers, at least 5c past target 1 -- else everything covers at target 1. The buy stop stays where it is after target 1.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_fixed",
+        "group": "risk",
+        "label": "Fixed amount",
         "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
+        "default": 0.2,
+        "unit": "$ under the entry",
+        "min": 0.1,
+        "max": 0.3,
+        "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Target 1 at R x the risk under the entry: cover at 2R.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Covered at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share covers at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Buy stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c over the nearest half / whole dollar over the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c over the nearest half / whole dollar over the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's buy stop.",
         "live": true,
         "affects_readout": true
        },
@@ -11101,7 +11888,11 @@
       "min_stop": 0.03,
       "risk_slippage": 0.01,
       "stop_offset": 0.01,
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
+      "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -11146,7 +11937,7 @@
      "setup": "bear_flag",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "ecf795a7cf92",
+     "fingerprint": "844714c434d7",
      "error": null,
      "bot_window": {
       "start": "09:35",
@@ -11645,8 +12436,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -11713,18 +12504,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target1_kind",
         "group": "risk",
-        "label": "R multiple",
+        "label": "Cover target 1",
+        "kind": "choice",
+        "default": "round_or_fixed",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c over a half / whole dollar when that is closer"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map under the entry"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the first part covers. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target2_kind",
+        "group": "risk",
+        "label": "Cover target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c over the low of day, else 1c over the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything covers at target 1"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the rest covers, at least 5c past target 1 -- else everything covers at target 1. The buy stop stays where it is after target 1.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_fixed",
+        "group": "risk",
+        "label": "Fixed amount",
         "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
+        "default": 0.2,
+        "unit": "$ under the entry",
+        "min": 0.1,
+        "max": 0.3,
+        "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Target 1 at R x the risk under the entry: cover at 2R.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Covered at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share covers at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Buy stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c over the nearest half / whole dollar over the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c over the nearest half / whole dollar over the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's buy stop.",
         "live": true,
         "affects_readout": true
        },
@@ -12441,7 +13351,11 @@
       "min_stop": 0.03,
       "risk_slippage": 0.01,
       "stop_offset": 0.01,
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
+      "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -12486,7 +13400,7 @@
      "setup": "failed_breakout",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "6f58398ceab7",
+     "fingerprint": "4ecc01947c62",
      "error": null,
      "bot_window": {
       "start": "09:35",
@@ -12905,8 +13819,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_cap",
@@ -12973,18 +13887,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target1_kind",
         "group": "risk",
-        "label": "R multiple",
+        "label": "Cover target 1",
+        "kind": "choice",
+        "default": "round_or_fixed",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c over a half / whole dollar when that is closer"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map under the entry"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the first part covers. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target2_kind",
+        "group": "risk",
+        "label": "Cover target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c over the low of day, else 1c over the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything covers at target 1"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the rest covers, at least 5c past target 1 -- else everything covers at target 1. The buy stop stays where it is after target 1.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_fixed",
+        "group": "risk",
+        "label": "Fixed amount",
         "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
+        "default": 0.2,
+        "unit": "$ under the entry",
+        "min": 0.1,
+        "max": 0.3,
+        "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Target 1 at R x the risk under the entry: cover at 2R.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Covered at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share covers at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Buy stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c over the nearest half / whole dollar over the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c over the nearest half / whole dollar over the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's buy stop.",
         "live": true,
         "affects_readout": true
        },
@@ -13696,7 +14729,11 @@
       "min_stop": 0.03,
       "risk_slippage": 0.01,
       "stop_offset": 0.01,
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
+      "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -13741,7 +14778,7 @@
      "setup": "lost_vwap",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "c1337f0293f6",
+     "fingerprint": "2eaf212eebfd",
      "error": null,
      "bot_window": {
       "start": "09:35",
@@ -14135,8 +15172,8 @@
      },
      {
       "id": "risk",
-      "label": "Risk and target",
-      "blurb": "The stop, the risk it allows, the target, and the scoring exit.",
+      "label": "Risk and targets",
+      "blurb": "The stop, the risk it allows, the two targets and how the shares split between them, and the scoring exit (the bot's: the stop stays put after target 1).",
       "params": [
        {
         "key": "stop_pct",
@@ -14219,18 +15256,137 @@
         "affects_readout": true
        },
        {
-        "key": "target_r",
+        "key": "target1_kind",
         "group": "risk",
-        "label": "R multiple",
+        "label": "Cover target 1",
+        "kind": "choice",
+        "default": "round_or_fixed",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "round_or_fixed",
+          "label": "the fixed amount, or 1c over a half / whole dollar when that is closer"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map under the entry"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the first part covers. A target nearer the entry than 5c is none, and a kind that has none falls back to the fixed amount.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target2_kind",
+        "group": "risk",
+        "label": "Cover target 2",
+        "kind": "choice",
+        "default": "hod_or_level",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "hod_or_level",
+          "label": "1c over the low of day, else 1c over the next level past target 1"
+         },
+         {
+          "value": "fixed",
+          "label": "the fixed amount under the entry"
+         },
+         {
+          "value": "next_level",
+          "label": "1c over the next level of today's map past target 1"
+         },
+         {
+          "value": "pullback_high",
+          "label": "the low the bounce came from"
+         },
+         {
+          "value": "hod",
+          "label": "1c over the low of day"
+         },
+         {
+          "value": "none",
+          "label": "none: everything covers at target 1"
+         }
+        ],
+        "nullable": false,
+        "help": "Where the rest covers, at least 5c past target 1 -- else everything covers at target 1. The buy stop stays where it is after target 1.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_fixed",
+        "group": "risk",
+        "label": "Fixed amount",
         "kind": "number",
-        "default": 2.0,
-        "unit": "R",
-        "min": 0.25,
-        "max": 20,
-        "step": 0.25,
+        "default": 0.2,
+        "unit": "$ under the entry",
+        "min": 0.1,
+        "max": 0.3,
+        "step": 0.01,
         "choices": [],
         "nullable": false,
-        "help": "Target 1 at R x the risk under the entry: cover at 2R.",
+        "help": "The material's 10-30c: a target of a fixed amount, and target 1's fall-back.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "target_split_pct",
+        "group": "risk",
+        "label": "Covered at target 1",
+        "kind": "number",
+        "default": 50,
+        "unit": "% of the shares",
+        "min": 10,
+        "max": 90,
+        "step": 5,
+        "choices": [],
+        "nullable": false,
+        "help": "With a target 2: this share covers at target 1, the rest at target 2.",
+        "live": true,
+        "affects_readout": true
+       },
+       {
+        "key": "stop_kind",
+        "group": "risk",
+        "label": "Buy stop",
+        "kind": "choice",
+        "default": "pattern",
+        "unit": "",
+        "min": null,
+        "max": null,
+        "step": null,
+        "choices": [
+         {
+          "value": "pattern",
+          "label": "the pattern's own"
+         },
+         {
+          "value": "round",
+          "label": "3c over the nearest half / whole dollar over the entry"
+         }
+        ],
+        "nullable": false,
+        "help": "Round: 3c over the nearest half / whole dollar over the entry, when that risk is inside the largest risk and over the smallest; otherwise the pattern's buy stop.",
         "live": true,
         "affects_readout": true
        },
@@ -14942,7 +16098,11 @@
       "stop_cap": 0.2,
       "min_stop": 0.03,
       "risk_slippage": 0.01,
-      "target_r": 2.0,
+      "target1_kind": "round_or_fixed",
+      "target2_kind": "hod_or_level",
+      "target_fixed": 0.2,
+      "target_split_pct": 50,
+      "stop_kind": "pattern",
       "bailout_bars": 5,
       "tape_window_sec": 10.0,
       "tape_stale_book_sec": 3.0,
@@ -14987,7 +16147,7 @@
      "setup": "ssr_bounce",
      "builtin": true,
      "in_play": true,
-     "fingerprint": "d91ebb3724b8",
+     "fingerprint": "57412386693b",
      "error": null,
      "bot_window": {
       "start": "09:35",

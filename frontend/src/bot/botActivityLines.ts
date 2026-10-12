@@ -309,8 +309,8 @@ export function setupActivityLines(rows: readonly SetupStoreRow[]): ActivityLine
     }
     if (r.outcome_at && (r.outcome === 'target_first' || r.outcome === 'stop_first')) {
       out.push({ key: k('scored'), ts: r.outcome_at, tag: 'Scored', tone: r.outcome === 'target_first' ? 'good' : 'bad',
-        category: 'scanner', text: `${r.symbol} ${r.outcome === 'target_first' ? 'target first' : 'stop first'}`,
-        note: r.bar_r != null ? `${r.bar_r > 0 ? '+' : ''}${r.bar_r.toFixed(2)}R under the research exits` : '' });
+        category: 'scanner', text: `${r.symbol} ${r.outcome === 'target_first' ? 'target 1 first' : 'stop first'}`,
+        note: r.bar_r != null ? `${r.bar_r > 0 ? '+' : ''}${r.bar_r.toFixed(2)}R under the strategy's exit` : '' });
     }
   }
   return out;

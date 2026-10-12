@@ -49,7 +49,7 @@ describe("each chart pane's Key", () => {
   });
 
   it('lists only the plan lines on the 10-second', () => {
-    expect(chartKey('thin', ON)[0].rows.map(r => r.label)).toEqual(['Entry', 'Stop', 'Target', 'Dashed vs solid']);
+    expect(chartKey('thin', ON)[0].rows.map(r => r.label)).toEqual(['Entry', 'Stop', 'Target 1 / 2', 'Dashed vs solid']);
   });
 
   it('lists nothing for levels that are switched off, and nothing on a pane Nova does not draw on', () => {

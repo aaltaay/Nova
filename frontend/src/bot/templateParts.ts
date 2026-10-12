@@ -55,8 +55,60 @@ export function ema(v: Values): string {
   return `${num(v.ema_period)} EMA${tol}`;
 }
 
+/** A fixed amount as the material says it: "20c" under a dollar, "$1.20" from one. */
+function cents(n: number): string {
+  return n < 1 ? `${Math.round(n * 100)}c` : money(n);
+}
+
 /**
- * Risk band, target 1 and the bot's own window: the same on every setup with a scanner.
+ * The template's targets from its menu choice (#845, operator decisions 2026-10-09 and 2026-10-12): "target 1 20c or
+ * 1c under a half / whole dollar · target 2 1c under HOD or the next level · half at each". A short's covers mirror
+ * it (1c over, the low of day). A key a template saved before the menu reads the menu's default, as the scanner does.
+ */
+export function targetsLine(v: Values, short = false): string {
+  const c = cents(num(v.target_fixed) ?? 0.2);
+  const under = short ? '1c over' : '1c under';
+  const day = short ? 'LOD' : 'HOD';
+  const name = short ? 'cover' : 'target';
+  const kind = (k: ParamValue | undefined, first: boolean): string => {
+    switch (k ?? (first ? 'round_or_fixed' : 'hod_or_level')) {
+      case 'round_or_fixed':
+        return `${c} or ${under} a half / whole dollar`;
+      case 'hod_or_level':
+        return `${under} ${day} or the next level`;
+      case 'fixed':
+        return c;
+      case 'next_level':
+        return `${under} the next level`;
+      case 'pullback_high':
+        return short ? 'the bounce low' : 'the pullback high';
+      case 'hod':
+        return `${under} ${day}`;
+      default:
+        return String(k).replace(/_/g, ' ');
+    }
+  };
+  const t1 = `${name} 1 ${kind(v.target1_kind, true)}`;
+  if (v.target2_kind === 'none') return `${t1} · everything at ${name} 1`;
+  const pct = num(v.target_split_pct) ?? 50;
+  const split = pct === 50 ? 'half at each' : `${trim(pct, 1)}% at ${name} 1, the rest at ${name} 2`;
+  return `${t1} · ${name} 2 ${kind(v.target2_kind, false)} · ${split}`;
+}
+
+/** The stop the template picked when it is not the pattern's own: just past the nearest half / whole dollar. */
+export function stopChoice(v: Values, short = false): string | null {
+  if (v.stop_kind !== 'round') return null;
+  return short ? 'buy stop just over the nearest half / whole dollar when the risk fits'
+    : 'stop just under the nearest half / whole dollar when the risk fits';
+}
+
+/** The trade's exits: the stop the template picked (when not the pattern's) and its targets. */
+export function exitsLine(v: Values, short = false): string {
+  return [stopChoice(v, short), targetsLine(v, short)].filter(Boolean).join(' · ');
+}
+
+/**
+ * Risk band, the exits and the bot's own window: the same on every setup with a scanner.
  * The window is the template's `bot_window` when the API sends it (inside the arming
  * window, ADR 042 G), else its raw values. How many a day is the sleeve's, not the template's.
  */

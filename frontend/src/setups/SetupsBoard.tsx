@@ -28,6 +28,7 @@ import {
   triggerWords,
 } from './setupWords';
 import { shortStageOf, stageSetupTicket, stageVenueLock } from './stageSetupTicket';
+import { targetSentence } from './targets';
 import { isShortRow } from './shortWords';
 import { tf5Words } from './tf5Words';
 import type { SetupRow } from './types';
@@ -181,7 +182,10 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading, risk }: {
       <td className="num">{fmtPx(s?.stop)}</td>
       <td className="num" {...tipProps(isShortRow(row) ? 'The buy stop minus the entry, per share: what one share short risks.'
         : 'Entry minus the stop, per share: what one share risks.', 'Risk')}>{fmtCents(s?.risk)}</td>
-      <td className="num">{fmtPx(s?.target1)}</td>
+      {/* Target 1, and target 2 beside it when the template's menu has one (#845); the hover says each one's words. */}
+      <td className="num" {...(s ? tipProps(targetSentence(s, isShortRow(row)), 'Targets') : {})}>
+        {fmtPx(s?.target1)}{s?.target2 != null ? <small className="setups-target2"> · {fmtPx(s.target2)}</small> : null}
+      </td>
       <td className="num setups-distance" {...tipProps(toGo.tip, toGo.title)}>
         {row.state === 'triggered' ? outcomeLabel(row) : toGo.text === '·' ? '—' : toGo.text}
       </td>
@@ -223,12 +227,12 @@ export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTradin
             {head('trigger', 'Trigger', true)}
             {head('stop', 'Stop', true, 'Where the setup is wrong: the pullback, flag or base low, or the low since the open.')}
             {head('risk', 'Risk', true, 'Entry minus the stop, per share.')}
-            {head('target', 'Target', true, 'Target 1: half comes off there and the stop moves to the entry.')}
+            {head('target', 'Target', true, 'Target 1: the first part sells there, the rest at target 2 (each from the strategy\'s target menu); the stop stays where it is. A short covers at its targets.')}
             {head('to_go', 'To go', true)}
             {head('tape', 'Tape')}
             {head('grade', 'Grade')}
             {head('tf5', '5m')}
-            {head('r', 'R', true, 'What the research exit rules made of a triggered setup, in R (gross) -- a score, not a fill.')}
+            {head('r', 'R', true, 'What the strategy\'s exit made of a triggered setup, in R (gross: 1R is the risk) -- a score, not a fill.')}
             {head('why', 'Why', false, 'The scanner\'s own words for where the setup is now.')}
             <th />
           </tr>

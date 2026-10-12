@@ -1,7 +1,8 @@
 """What the plan says about the day's levels (ADR 036 amendment 2026-09-30). Pure.
 
-Room (the first zone of today's map above the entry, in R: a warning under 2R while trial T7 runs),
-the round number at the target and at the stop, the next one over the entry, a round the price just
+Room (the first zone of today's map above the entry, read against the plan's targets, #845: amber when
+it stands before target 1 -- the target then needs the level to break), trial T7's own reading of that
+Room (``t7``: in R of the risk, under its registered rule), the round number at the target and at the stop, the next one over the entry, a round the price just
 broke or lost, and today's zones between the stop and the target (the 1-minute chart's lines and the
 ruler's marks). The rounds are the stock's own scale (``rounds``: half and whole dollars up to $25).
 A sentence quotes the level study's in-sample figures only where the study looked -- half and whole
@@ -15,9 +16,9 @@ from typing import Any
 
 from constants_stock_read import (
     STOCK_READ_LEVEL_STUDY,
-    STOCK_READ_ROOM_MIN_R,
     STOCK_READ_ROUND_CROSS_SEC,
     STOCK_READ_ROUND_FRESH_BARS,
+    STOCK_READ_T7_ROOM_R,
 )
 from stock_read import line_notes, rounds
 from stock_read.level_map import CENT, EPS, ROUND_KINDS, hhmm, px
@@ -40,20 +41,50 @@ def _study(rnd: rounds.Rounds, measured: str) -> str:
     return measured if rnd.measured else rnd.unmeasured()
 
 
+def t7(gap: float | None, risk: float | None, in_trial: bool) -> dict[str, Any] | None:
+    """Trial T7's reading of a Room, under its registered rule (``knowledge/signal-trials-2.json``, frozen):
+    the room in R of the risk, and whether it is under the trial's threshold (``STOCK_READ_T7_ROOM_R``).
+    Recorded for the trial's read-out; nothing on the plan is decided by it. None off the trial."""
+    if not in_trial or gap is None or not risk or risk <= EPS:
+        return None
+    r = gap / risk
+    return {"id": ROOM_TRIAL, "r": round(r, 2), "under": r < STOCK_READ_T7_ROOM_R - EPS}
+
+
+def against_targets(gap: float, first: dict[str, Any], plan: dict[str, Any], *, short: bool) -> tuple[str, str, str]:
+    """``(state, text, why)``: a Room read against the plan's targets (#845). The first level stands before
+    target 1 -- price must break it for the target to fill -- or target 1 sells before it."""
+    entry, t1, t2 = plan.get("entry"), plan.get("target"), plan.get("target2")
+    edge = first["hi"] if short else first["lo"]
+    text = f"{_cents(gap)} to {first['tag']}"
+    if t1 is None or entry is None:
+        return "ok", text, ""
+    before = (edge > t1 + EPS) if short else (edge < t1 - EPS)
+    if before:
+        return "warn", text + ", before target 1", (
+            f"Target 1 ({px(t1)}) is past it: {first['tag']} has to break for target 1 to fill. It is a warning; it "
+            "blocks nothing.")
+    word = "over" if short else "under"
+    why = f"Target 1 ({px(t1)}) sells {_cents(abs(edge - t1))} {word} it."
+    if t2 is not None and ((edge > t2 + EPS) if short else (edge < t2 - EPS)):
+        why += f" Target 2 ({px(t2)}) is past it: the rest needs it to break."
+    return "ok", text, why
+
+
 def room(plan: dict[str, Any], intraday: list[dict[str, Any]], daily: list[dict[str, Any]],
          rnd: rounds.Rounds | None = None) -> dict[str, Any]:
-    """The first zone of today's map above the entry, in R. Under ``STOCK_READ_ROOM_MIN_R`` it reads
-    amber; it blocks nothing (trial T7 decides whether it ever does). Daily levels never count here:
-    they are named, faint, for the Full Day chart. T7's map counts half and whole dollars, so on a stock
-    whose rounds are coarser (over $25) this Room is not the trial's: ``trial`` is None and the detail
-    says why."""
-    entry, risk, target = plan.get("entry"), plan.get("risk"), plan.get("target")
+    """The first zone of today's map above the entry, read against the plan's targets (``against_targets``):
+    amber when it stands before target 1. It blocks nothing. Daily levels never count here: they are named,
+    faint, for the Full Day chart. ``t7`` is trial T7's own reading (in R, its registered rule); T7's map counts
+    half and whole dollars, so on a stock whose rounds are coarser (over $25) this Room is not the trial's:
+    ``trial`` and ``t7`` are None and the detail says why."""
+    entry, risk, target = plan.get("entry"), plan.get("risk"), plan.get("target2") or plan.get("target")
     in_trial = rnd is None or rnd.half_and_whole
     trial_id = ROOM_TRIAL if in_trial else None
     off_trial = None if in_trial or rnd is None else (
         f"Trial {ROOM_TRIAL} counts half and whole dollars; this stock's map counts {rnd.words}, so this Room "
         f"is not the trial's.")
-    base = {"trial": trial_id, "r": None, "price": None, "label": None}
+    base = {"trial": trial_id, "r": None, "t7": None, "price": None, "label": None}
     if entry is None or not risk or risk <= EPS:
         return base | {"state": "unknown", "text": "Room is not known: no stop under the entry", "detail": None}
     above = sorted((z for z in intraday if z["lo"] > entry + EPS), key=lambda z: z["lo"])
@@ -66,16 +97,15 @@ def room(plan: dict[str, Any], intraday: list[dict[str, Any]], daily: list[dict[
         return base | {"state": "ok", "text": "No level of today's map above the entry",
                        "detail": " ".join(x for x in (daily_note, off_trial) if x) or None}
     first = above[0]
-    r = (first["lo"] - entry) / risk
-    then = f"Then {above[1]['tag']} at {(above[1]['lo'] - entry) / risk:.1f}R. " if len(above) > 1 else ""
-    warn = r < STOCK_READ_ROOM_MIN_R - EPS
-    trial = ""
-    if warn:
-        trial = (f"Under {STOCK_READ_ROOM_MIN_R:g}R it is a warning while trial {ROOM_TRIAL} runs; it blocks nothing."
-                 if in_trial else f"Under {STOCK_READ_ROOM_MIN_R:g}R it is a warning; it blocks nothing.")
-    detail = " ".join(x for x in (then + trial, daily_note or "", off_trial or "") if x).strip() or None
-    return {"trial": trial_id, "r": round(r, 2), "price": first["lo"], "label": first["label"],
-            "state": "warn" if warn else "ok", "text": f"{r:.1f}R to {first['tag']}", "detail": detail}
+    gap = first["lo"] - entry
+    state, text, why = against_targets(gap, first, plan, short=False)
+    then = f"Then {above[1]['tag']}, {_cents(above[1]['lo'] - entry)} over the entry." if len(above) > 1 else ""
+    reading = t7(gap, risk, in_trial)
+    trial = (f"Trial {ROOM_TRIAL} records this room as {reading['r']:.1f}R of the risk, under its registered rule."
+             if reading else "")
+    detail = " ".join(x for x in (why, then, trial, daily_note or "", off_trial or "") if x).strip() or None
+    return {"trial": trial_id, "r": round(gap / risk, 2), "t7": reading, "price": first["lo"],
+            "label": first["label"], "state": state, "text": text, "detail": detail}
 
 
 def target_note(target: float | None, rnd: rounds.Rounds | None) -> dict[str, Any] | None:
@@ -181,9 +211,9 @@ def round_notes(bars: list[dict[str, Any]], *, price: float | None, entry: float
 
 
 def between(plan: dict[str, Any], intraday: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Today's zones strictly between the stop and the target: the 1-minute chart's lines and the
-    ruler's marks."""
-    stop, target = plan.get("stop"), plan.get("target")
+    """Today's zones strictly between the stop and the furthest target (target 2 when the plan has one): the
+    1-minute chart's lines and the ruler's marks."""
+    stop, target = plan.get("stop"), plan.get("target2") or plan.get("target")
     if stop is None or target is None:
         return []
     lo, hi = min(stop, target), max(stop, target)       # a short's stop is over its target
@@ -198,7 +228,8 @@ def between(plan: dict[str, Any], intraday: list[dict[str, Any]]) -> list[dict[s
 
 def notes(plan: dict[str, Any], level_map: dict[str, Any] | None, bars: list[dict[str, Any]], *,
           price: float | None, now: float) -> dict[str, Any] | None:
-    """The plan's level rows: Room (T7 on half and whole dollars), the target's and the stop's round,
+    """The plan's level rows: Room (against the targets; T7's own reading on half and whole dollars), each
+    target's and the stop's round,
     the next round and a round just broken or lost, today's zones between the stop and the target, and what
     the charts' trend lines say (``line_notes``)."""
     if not level_map:
@@ -211,12 +242,14 @@ def notes(plan: dict[str, Any], level_map: dict[str, Any] | None, bars: list[dic
 
         nxt, recent = short.round_notes(bars, price=price, entry=plan.get("entry"), now=now, rnd=rnd)
         return {"room": short.room(plan, intra, day, rnd), "target": short.target_note(plan.get("target"), rnd),
+                "target2": short.target_note(plan.get("target2"), rnd),
                 "stop": short.stop_note(plan.get("stop"), plan.get("entry"), rnd), "next": nxt, "recent": recent,
                 "between": between(plan, intra), "lines": line_notes.notes(plan, level_map.get("lines"), price=price)}
     nxt, recent = round_notes(bars, price=price, entry=plan.get("entry"), now=now, rnd=rnd)
     return {
         "room": room(plan, intra, day, rnd),
         "target": target_note(plan.get("target"), rnd),
+        "target2": target_note(plan.get("target2"), rnd),
         "stop": stop_note(plan.get("stop"), plan.get("entry"), rnd),
         "next": nxt,
         "recent": recent,

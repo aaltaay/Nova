@@ -133,27 +133,32 @@ export function drawnLevels(plan: StockPlan | null, levels: OrderLevels | null |
   return { entry: planOnly(plan.entry), stop: planOnly(plan.stop), target: planOnly(plan.target) };
 }
 
+/** The plan's target 2 (#845): only ever a plan's -- no order stands behind it -- drawn while target 1 is. */
+function target2Of(plan: StockPlan | null, lv: OrderLevels): OrderLevel | null {
+  return lv.target && plan?.target2 != null ? planOnly(plan.target2) : null;
+}
+
 function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): PriceLineSpec[] {
   const out: PriceLineSpec[] = [];
   const thin = pane !== 'full';
-  const r = plan?.rr == null ? '' : ` ${plan.rr.toFixed(plan.rr % 1 ? 1 : 0)}R`;
   const short = plan?.side === 'short';
-  const add = (id: 'entry' | 'stop' | 'target', level: OrderLevel | null, color: string) => {
+  const add = (id: 'entry' | 'stop' | 'target' | 'target2', level: OrderLevel | null, color: string) => {
     if (!level) return;
     const provisional = id === 'entry' && level.behind === 'plan' && plan?.provisional && plan.source === 'setup';
     out.push({
       id,
       price: level.price,
       color,
-      width: thin ? 1 : 2,
+      width: thin || id === 'target2' ? 1 : 2,
       style: level.behind === 'plan' ? 'dashed' : 'solid',
-      title: thin ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)` : levelTitle(id, level.behind, r, short),
+      title: thin ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)` : levelTitle(id, level.behind, short),
       axisLabel: !thin,
     });
   };
   add('entry', lv.entry, SETUP_COLORS.trigger);
   add('stop', lv.stop, SETUP_COLORS.stop);
   add('target', lv.target, SETUP_COLORS.target);
+  add('target2', target2Of(plan, lv), SETUP_COLORS.target);
   return out;
 }
 
@@ -218,7 +223,8 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
         const start = shape?.end ?? lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
           ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
         scene.boxes.push(...planZones(lv, start, o));
-        // A short's stop is over its target (ADR 048): the range is the two, whichever is lower first.
+        // A short's stop is over its target (ADR 048): the range is the two, whichever is lower first. Target 2 can
+        // sit far off at the high of day (#845): its line is drawn and tagged at the edge, never forced into view.
         if (lv.stop && lv.target) {
           scene.keepInView = { min: Math.min(lv.stop.price, lv.target.price), max: Math.max(lv.stop.price, lv.target.price) };
         }

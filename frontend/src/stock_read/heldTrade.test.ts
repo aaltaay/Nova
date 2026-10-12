@@ -29,6 +29,15 @@ describe('the wire', () => {
     expect(HELD.raise?.to).toBe(5.95);
     expect(HELD.ladder.map(r => r.role)).toEqual(['then', 'next', 'now', 'through', 'broke', 'broke', 'stop', 'cost']);
     expect(HELD.levels.room?.text).toBe('0.7R to HOD 6.97, from the price');
+    // The target menu's two targets off the average (#845): target 1 traded, target 2 the rest's, half at each.
+    expect(HELD.target).toEqual({ price: 5.275, kind: 'fixed', rule: 'your average +20c', traded_at: expect.any(Number) });
+    expect(HELD.target2).toEqual({ price: 6.96, kind: 'hod', rule: '1c under HOD 6.97', traded_at: null });
+    expect(HELD.target1_fraction).toBe(0.5);
+    expect(HELD.levels.target2?.text).toBe('Target 2 6.96 is 32c above');
+    // An older backend's held block: one target, everything at it.
+    const older = normalizeHeld({ ...apusHeldWire, target2: undefined, target1_fraction: undefined })!;
+    expect(older.target2).toBeNull();
+    expect(older.target1_fraction).toBe(1);
     expect(normalizeHeld(null)).toBeNull();
     expect(normalizeHeld({ ...apusHeldWire, qty: 0 })).toBeNull();
     expect(normalizeHeld({ ...apusHeldWire, ladder: [{ role: 'invented', price: 1 }] })?.ladder).toEqual([]);
@@ -55,7 +64,9 @@ describe('the ruler while you hold', () => {
     expect(lay.risk![1]).toBe(lay.nowPct);
     expect(lay.reward![0]).toBe(lay.nowPct);                         // green: to the next level, then dotted
     expect(lay.ahead).not.toBeNull();
-    expect(lay.marks.map(m => m.kind).sort()).toEqual(['broke', 'broke', 'next', 'target', 'through']);
+    expect(lay.marks.map(m => m.kind).sort()).toEqual(['broke', 'broke', 'next', 'target', 'target', 'through']);
+    // The menu's two targets off your average (#845), named T1 and T2 -- never 2R.
+    expect(lay.marks.filter(m => m.kind === 'target').map(m => m.label)).toEqual(['T1', 'T2']);
     expect(lay.marks.find(m => m.kind === 'next')!.showLabel).toBe(true);
   });
 
@@ -113,7 +124,7 @@ describe('the calls while you hold', () => {
 
   it('judges the stop and target from the read, and a moved stop starts its watch again', () => {
     const printed = momentOf(inputs({ read: read(), ...holding, last: 5.4, now: APUS_HELD_NOW },
-      { ...NO_HELD, since: APUS_HELD_SINCE, stopAt: APUS_HELD_NOW - 1, stopFor: 5.45, targetFor: 5.965 }));
+      { ...NO_HELD, since: APUS_HELD_SINCE, stopAt: APUS_HELD_NOW - 1, stopFor: 5.45, targetFor: 5.275 }));
     expect(printed?.call?.title).toBe('SELL NOW · STOP 5.45');
   });
 

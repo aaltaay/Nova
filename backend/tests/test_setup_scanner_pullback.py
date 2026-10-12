@@ -36,7 +36,11 @@ def test_leg_then_armed_on_one_red_candle():
     s = d.armed
     assert s["trigger"] == 4.37 and s["entry"] == 4.38 and s["stop"] == 4.30
     assert s["risk"] == 0.08
-    assert s["target1"] == 4.54            # max(leg high 4.39, 4.38 + 2 x 0.08)
+    # #845: 1c under the $4.50 half dollar (11c) beats +20c; the rest at 1c under the next level past it, $5.00
+    # (the high of day, 4.39, is not past target 1).
+    assert s["target1"] == 4.49 and s["targets"]["first"]["why"] == "1c under $4.50"
+    assert s["target2"] == 4.99 and s["target1_fraction"] == 0.5 and s["targets"]["second"]["why"] == "1c under $5.00"
+    assert s["targets"]["pullback_high"] == 4.39
     assert s["kind"] == "first_pullback"
 
 

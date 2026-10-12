@@ -50,7 +50,7 @@ describe('the trend lines on the wire', () => {
   it("carries the plan's line rows", () => {
     const lv = normalizePlanLevels({
       room: { state: 'ok', text: 'No level of today\'s map above the entry' },
-      lines: [{ role: 'way', state: 'warn', text: '↘ resistance (5-min) at 5.24 (1.2R) before the target', detail: 'x', line: 'a', price: 5.24 },
+      lines: [{ role: 'way', state: 'warn', text: '↘ resistance (5-min) at 5.24 (1.2R) before target 1', detail: 'x', line: 'a', price: 5.24 },
         { role: 'elsewhere', state: 'warn', text: 'dropped' }],
     });
     expect(lv?.lines.map(n => [n.role, n.state, n.price])).toEqual([['way', 'warn', 5.24]]);

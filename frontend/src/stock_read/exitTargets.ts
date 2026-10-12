@@ -58,3 +58,12 @@ export function usableTarget(short: boolean, value: number | null | undefined, p
   if (after !== null && (short ? value >= after : value <= after)) return null;
   return value;
 }
+
+/** `[target 1, target 2]` the sheet starts from: the read's targets still ahead of the price, in order. A target
+ * the price already passed gives its place to the next one, which then sells every share. */
+export function startTargets(short: boolean, target1: number | null | undefined, target2: number | null | undefined,
+  price: number | null): [number | null, number | null] {
+  const first = usableTarget(short, target1, price);
+  const second = usableTarget(short, target2, price, first);
+  return first === null ? [second, null] : [first, second];
+}

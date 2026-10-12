@@ -40,12 +40,13 @@ def not_followed_note(sym: str) -> str:
 
 
 def rules_of(params: Any) -> dict[str, Any]:
-    """The numbers a plan names: the stop cap (dollars, or a share of the entry) and floor, the target rule,
-    the entry cent, and the candle's length."""
+    """The numbers a plan names: the stop cap (dollars, or a share of the entry) and floor, the target menu's
+    choice (#845: ``{first, second, fixed, split, stop}``), the entry cent, and the candle's length."""
+    spec = getattr(params, "targets", None)
     return {"stop_cap": getattr(params, "stop_cap", None), "stop_cap_pct": getattr(params, "stop_cap_pct", None),
             "bar_sec": getattr(params, "bar_sec", 60), "hold_bar_sec": getattr(params, "hold_bar_sec", None),
             "min_stop": getattr(params, "min_stop", None),
-            "target_r": getattr(params, "target_r", None), "target_mode": getattr(params, "target_mode", "r"),
+            "targets": spec.rule() if spec is not None else None,
             "entry_offset": getattr(params, "entry_offset", None),
             "risk_slippage": getattr(params, "risk_slippage", None)}
 

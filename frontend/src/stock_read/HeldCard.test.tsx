@@ -91,6 +91,17 @@ describe('the plan box while you hold APUS', () => {
     expect(within(ladder).getAllByRole('listitem').map(li => li.querySelector('.sr-ladder__c')?.textContent))
       .toEqual(['THEN', 'NEXT', 'NOW', 'THROUGH', 'BROKE', 'BROKE', 'STOP', 'COST']);
     expect(card.querySelector('.sr-levels')?.textContent).toContain('0.7R to HOD 6.97, from the price');
+    // The target menu's two targets off your average (#845), each with its share and rule -- never "Target 2R".
+    expect([...card.querySelectorAll('.sr-num__k')].map(k => k.textContent))
+      .toEqual(['Average', 'Stop', 'Next', 'At the stop', 'Target 1 · 50%', 'Target 2 · 50%']);
+    expect(within(card).getByTestId('held-target').textContent).toBe('5.28');
+    expect(within(card).getByTestId('held-target2').textContent).toBe('6.96');
+    expect(card.querySelector('.sr-plan__nums')?.textContent).toContain('traded: you are past it');
+    expect(card.querySelector('.sr-plan__nums')?.textContent).toContain('1c under HOD 6.97');
+    // The level rows say each target once, under its own name.
+    expect(within(card).getByTestId('stock-read-level-target').textContent).toBe('Target 1' + '5.28 traded at 08:56: you are past it');
+    expect(within(card).getByTestId('stock-read-level-target2').textContent).toBe('Target 2' + '6.96 is 32c above');
+    expect(card.textContent).not.toMatch(/(?<![\d.])2R\b/);
     expect(card.querySelector('.sr-checks')?.textContent).toContain('1-min MACD histogram +0.062');
     // The read is asked about the position.
     expect(reads().some(u => /held_qty=100&held_avg=5.075/.test(u))).toBe(true);
@@ -104,10 +115,11 @@ describe('the plan box while you hold APUS', () => {
   });
 
   it('hands Nova the exit from the sheet: a stop, raised as levels break', async () => {
+    heldWire = { ...apusHeldWire, target2: null };
     renderTab();
     fireEvent.click(await screen.findByTestId('held-nova-exit'));
     const sheet = await screen.findByTestId('exit-sheet');
-    // The read's 2R target (5.965) is behind the 6.64 price: no target starts filled, the stop goes alone.
+    // The read's target is behind the 6.64 price and none follows it: no target starts filled, the stop goes alone.
     expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('');
     expect(within(sheet).getByTestId('exit-target').getAttribute('aria-disabled')).toBeNull();
     expect(within(sheet).getByTestId('exit-flush').getAttribute('data-why')).toMatch(/trial T1/);

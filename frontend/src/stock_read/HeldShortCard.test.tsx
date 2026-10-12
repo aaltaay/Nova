@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  *
  * Holding a short (ADR 048, #778 step 3), against a fake backend: the "This trade" card, mirrored -- Shorted at,
- * Buy stop, Next, At the stop and Cover 2R, the ladder running downward, "Lower stop to X", Stage cover (a buy at
+ * Buy stop, Next, At the stop, Cover 1 and Cover 2, the ladder running downward, "Lower stop to X", Stage cover (a buy at
  * the ask) and "Nova takes the cover" (a buy stop that only moves down) -- the buy stop resting at the broker as
  * the card's stop, and Who trades saying the bot enters nothing while you hold it short.
  */
@@ -83,19 +83,24 @@ function renderTab(venue = 'paper', workingStop: number | null = null) {
 const reads = () => calls.filter(c => /\/api\/stock-read\/RDYN\?/.test(c.url)).map(c => c.url);
 
 describe('the This trade card while you hold RDYN short', () => {
-  it('is the card mirrored: SHORT, Shorted at, Buy stop, Cover 2R, and the ladder running downward', async () => {
+  it('is the card mirrored: SHORT, Shorted at, Buy stop, Cover 1 and Cover 2, and the ladder running downward', async () => {
     renderTab();
     const card = await screen.findByTestId('held-card');
     expect(within(card).getByTestId('held-short-tag').textContent).toBe('SHORT');
     expect(within(card).getByTestId('held-badge').textContent).toBe('BROKE $5.50');
+    // The menu's two covers under the average (#845), half at each -- no cover is a multiple of the risk.
     expect([...card.querySelectorAll('.sr-num__k')].map(k => k.textContent))
-      .toEqual(['Shorted at', 'Buy stop', 'Next', 'At the stop', 'Cover 2R']);
+      .toEqual(['Shorted at', 'Buy stop', 'Next', 'At the stop', 'Cover 1 · 50%', 'Cover 2 · 50%']);
+    expect(within(card).getByTestId('held-target').textContent).toBe('5.57');
+    expect(within(card).getByTestId('held-target2').textContent).toBe('5.42');
+    expect(card.textContent).toContain('1c over LOD 5.41');
+    expect(card.textContent).not.toMatch(/(?<![\d.])2R\b/);
     // At the stop: the short loses (5.89 - 5.77) x 416.
     expect(card.querySelector('.sr-num--risk .sr-num__v')?.textContent).toBe('-$49.92');
     const ladder = within(card).getByTestId('held-ladder');
     expect(within(ladder).getAllByRole('listitem').map(li => li.querySelector('.sr-ladder__c')?.textContent))
       .toEqual(['STOP', 'COST', 'BROKE', 'NOW', 'NEXT', 'THEN']);
-    expect(within(card).getByTestId('held-note').textContent).toBe('your buy stop and cover: no order is working');
+    expect(within(card).getByTestId('held-note').textContent).toBe('your buy stop and covers: no order is working');
     // The read is asked about the short.
     expect(reads().some(u => /held_qty=416&held_avg=5.77/.test(u) && /held_side=short/.test(u))).toBe(true);
   });
@@ -133,8 +138,11 @@ describe('the This trade card while you hold RDYN short', () => {
     fireEvent.click(btn);
     const sheet = await screen.findByTestId('exit-sheet');
     expect(sheet.querySelector('.sr-exit__title')?.textContent).toBe('Nova takes the cover on 416 RDYN short');
-    // The read's 5.53 cover target is over the 5.46 price (already passed): the buy stop goes alone (#681).
-    expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('');
+    // A cover target the read gives under the 5.46 price starts filled (#681); emptied, the buy stop goes alone.
+    const t1 = within(sheet).getByTestId('exit-target1') as HTMLInputElement;
+    fireEvent.change(t1, { target: { value: '' } });
+    fireEvent.blur(t1);
+    await waitFor(() => expect(t1.value).toBe(''));
     expect(within(sheet).getByTestId('exit-target').textContent).toMatch(/Under the price · empty: the stop alone/);
     expect(within(sheet).queryByTestId('exit-flush')).toBeNull();
     expect(within(sheet).getByTestId('exit-sends').textContent)

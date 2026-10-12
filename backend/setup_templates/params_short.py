@@ -80,12 +80,12 @@ from constants_short_setups import (
     SHORT_STOP_OFFSET_DOLLARS,
     SHORT_WINDOW_START_ET,
 )
+from setup_templates.params_targets import SHORT as TARGETS_SHORT
 from setup_templates.params import (
     _BAILOUT,
     _FLOW,
     _STOCK,
     _TAPE,
-    _TARGET_R,
     BOOL,
     CHOICE,
     INT,
@@ -194,7 +194,6 @@ def _risk_short(stop_help: str) -> tuple[ParamSpec, ...]:
     )
 
 
-_TARGET_R_SHORT = dataclasses.replace(_TARGET_R, help="Target 1 at R x the risk under the entry: cover at 2R.")
 _BAILOUT_SHORT = dataclasses.replace(_BAILOUT, help="Scoring exit: this many candles without a close under the "
                                                     "entry -> covered at the close.")
 _SSR_CHOICE = _p("ssr", "stock", "Under SSR", CHOICE, SETUPS_SSR_TRADE,
@@ -251,7 +250,7 @@ _BACKSIDE: tuple[ParamSpec, ...] = _STOCK_SHORT + (_SSR_CHOICE,) + (
 ) + _OFFSETS[:1] + _window(SHORT_BACKSIDE_CUTOFF_ET, "No setup arms before this time (shorts start at 09:35).",
                            "No setup arms, and none triggers, at or after this time.") + _near() + _risk_short(
     "The buy stop minus the entry. A bigger risk skips the setup.") + _OFFSETS[1:] + (
-    _TARGET_R_SHORT, _BAILOUT_SHORT) + _tail(SHORT_BACKSIDE_CUTOFF_ET)
+    *TARGETS_SHORT, _BAILOUT_SHORT) + _tail(SHORT_BACKSIDE_CUTOFF_ET)
 
 # -- Bear flag (ADR 049 section 6). -------------------------------------------------------------
 _BEAR_FLAG: tuple[ParamSpec, ...] = _STOCK_SHORT + (_SSR_CHOICE,) + (
@@ -285,7 +284,7 @@ _BEAR_FLAG: tuple[ParamSpec, ...] = _STOCK_SHORT + (_SSR_CHOICE,) + (
 ) + _OFFSETS[:1] + _window(SHORT_BEAR_FLAG_CUTOFF_ET, "No flag arms before this time (shorts start at 09:35).",
                            "No flag arms, and none triggers, at or after this time.") + _near() + _risk_short(
     "The buy stop minus the entry. A bigger risk skips the setup.") + _OFFSETS[1:] + (
-    _TARGET_R_SHORT, _BAILOUT_SHORT) + _tail(SHORT_BEAR_FLAG_CUTOFF_ET)
+    *TARGETS_SHORT, _BAILOUT_SHORT) + _tail(SHORT_BEAR_FLAG_CUTOFF_ET)
 
 # -- Failed breakout (ADR 049 section 7). ---------------------------------------------------------
 _FAILED_BREAKOUT: tuple[ParamSpec, ...] = _STOCK_SHORT + (_SSR_CHOICE,) + (
@@ -312,7 +311,7 @@ _FAILED_BREAKOUT: tuple[ParamSpec, ...] = _STOCK_SHORT + (_SSR_CHOICE,) + (
 ) + _OFFSETS[:1] + _window(SHORT_FAILED_BREAKOUT_CUTOFF_ET, "No setup arms before this time (shorts start at 09:35).",
                            "No setup arms, and none triggers, at or after this time.") + _near() + _risk_short(
     "The buy stop minus the entry. A bigger risk skips the setup.") + _OFFSETS[1:] + (
-    _TARGET_R_SHORT, _BAILOUT_SHORT) + _tail(SHORT_FAILED_BREAKOUT_CUTOFF_ET)
+    *TARGETS_SHORT, _BAILOUT_SHORT) + _tail(SHORT_FAILED_BREAKOUT_CUTOFF_ET)
 
 # -- Lost VWAP (ADR 049 section 8). ---------------------------------------------------------------
 _LOST_VWAP: tuple[ParamSpec, ...] = _STOCK_SHORT + (_SSR_CHOICE,) + (
@@ -328,7 +327,7 @@ _LOST_VWAP: tuple[ParamSpec, ...] = _STOCK_SHORT + (_SSR_CHOICE,) + (
     SHORT_LOST_VWAP_CUTOFF_ET, "No retest is the try before this time (shorts start at 09:35).",
     "Nothing arms, and nothing triggers, at or after this time. One try a day.") + _near() + _risk_short(
     "The buy stop (over the higher of VWAP and the retest's high) minus the entry. A bigger risk spends the day's "
-    "try.") + _OFFSETS[1:] + (_TARGET_R_SHORT, _BAILOUT_SHORT) + _tail(SHORT_LOST_VWAP_CUTOFF_ET)
+    "try.") + _OFFSETS[1:] + (*TARGETS_SHORT, _BAILOUT_SHORT) + _tail(SHORT_LOST_VWAP_CUTOFF_ET)
 
 # -- SSR bounce short (ADR 049 section 9). ---------------------------------------------------------
 _SSR_BOUNCE: tuple[ParamSpec, ...] = _STOCK_SHORT + (
@@ -356,7 +355,7 @@ _SSR_BOUNCE: tuple[ParamSpec, ...] = _STOCK_SHORT + (
        step=0.1, help="The buy stop sits this far over the entry, or the dollars below, whichever is more."),
     _p("stop_min", "risk", "... at least", NUMBER, SHORT_SSR_STOP_MIN_DOLLARS, unit="$", min=0.01, max=5, step=0.01),
 ) + _risk_short("The buy stop minus the entry. A bigger risk skips the setup.") + (
-    _TARGET_R_SHORT, _BAILOUT_SHORT) + _tail(SHORT_SSR_BOUNCE_CUTOFF_ET)
+    *TARGETS_SHORT, _BAILOUT_SHORT) + _tail(SHORT_SSR_BOUNCE_CUTOFF_ET)
 
 SHORT_CATALOGUE: dict[str, tuple[ParamSpec, ...]] = {
     BOT_SETUP_BACKSIDE: _BACKSIDE,

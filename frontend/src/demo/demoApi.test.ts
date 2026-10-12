@@ -31,7 +31,7 @@ describe('demo backend reads', () => {
     expect(read.plan).toBeNull();
     expect(read.groups.find((g) => g.id === 'float')?.value).toBe('1.8M');
     const smpl = bodyOf<{ plan: { entry: number; stop: number; target: number } }>(get('/api/stock-read/SMPL'));
-    expect(smpl.plan).toMatchObject({ entry: 4.39, stop: 4.12, target: 4.93 });
+    expect(smpl.plan).toMatchObject({ entry: 4.39, stop: 4.12, target: 4.49, target2: 4.99, target1_fraction: 0.5 });
   });
 
   it('answers the Live short proof in the shape the Bots page reads, never complete (ADR 048 step 6)', () => {

@@ -8,6 +8,8 @@ at Eyes, tells the bot at its trigger, and the bot takes it at On like any setup
 """
 from __future__ import annotations
 
+from constants_setups import SETUP_TEMPLATE_DEFAULT_REV
+
 import asyncio
 from types import SimpleNamespace
 
@@ -149,9 +151,9 @@ def test_a_minute_closing_under_the_zone_fails_it_and_five_without_a_hold_disarm
     assert name == "disarmed" and view["reason"] == "no 1-minute candle held over 4.50 and closed green within 5"
 
 
-def test_the_scoring_exit_reads_the_minutes_ema():
+def test_its_targets_read_the_minutes():
     det, bars = armed()
-    assert det.ema_now == det.minutes.e[-1] and det.ema_now != det.series.e[-1]
+    assert det.map_series() is det.minutes and det.extreme() == max(det.minutes.hod[-1], det.last_price or 0)
     assert len(det.minutes.t) == len(bars) and len(det.series.t) == len(bars) // 5
 
 
@@ -164,7 +166,7 @@ def test_its_catalogue_is_the_flat_tops_on_5_minute_candles_with_the_hold_on_the
     assert [v for v, _ in specs["ft_hold_stop"].choices] == ["pullback", "candle"]
     with pytest.raises(catalogue.TemplateError):
         catalogue.validate(FT5, {**values, "ft_hold_stop": "the moon"})
-    assert default_template(FT5).rev == 1
+    assert default_template(FT5).rev == SETUP_TEMPLATE_DEFAULT_REV
     p = params()
     assert (p.bar_sec, p.hold_bar_sec, p.hold_stop, p.stop_cap_pct) == (300, 60, "pullback", None)
 

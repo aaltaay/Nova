@@ -87,6 +87,8 @@ export interface SetupTemplate {
   updated_at: number | null;
   readout?: TemplateReadout | null;
   bot_window?: TemplateBotWindow | null;
+  /** What the schema-2 migration did to a template saved before the target menu (#845); null or absent otherwise. */
+  migrated?: string | null;
 }
 
 export interface SetupTemplates {

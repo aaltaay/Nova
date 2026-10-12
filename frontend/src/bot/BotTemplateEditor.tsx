@@ -171,6 +171,9 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
                         {readoutText(t) ? ` · ${readoutText(t)}` : ''}
                       </span>
                       {t.error ? <small className="bots-tpl__bad">{t.error}</small> : null}
+                      {t.migrated ? (
+                        <small className="bots-tpl__migrated" data-testid={`bots-template-migrated-${t.id}`}>{t.migrated}</small>
+                      ) : null}
                     </button>
                   </li>
                 ))}

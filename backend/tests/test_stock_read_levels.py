@@ -218,15 +218,25 @@ def _zone(price, *members, side="above"):
     return next(z for z in zs if z["lo"] <= price <= z["hi"])
 
 
-def test_room_is_the_first_level_of_today_over_the_entry_in_r_and_reads_amber_under_two_r():
+def test_room_is_the_first_level_of_today_over_the_entry_read_against_the_targets():
+    """#845: Room reads amber when the first level of today's map stands before target 1 (the target then needs
+    it to break) -- no R multiple. Trial T7's own reading stays its registered rule, in R (``t7``)."""
     intra = [_zone(8.77, level_map.member("hod", 8.77)), _zone(9.0, level_map.member("whole", 9.0)),
              _zone(8.5, level_map.member("half", 8.5))]
     daily = level_map.zones([level_map.member("daily_highs", 8.84, touches=5)], price=8.62, home="daily",
                             merge_pct=0.015)
-    room = level_notes.room(PLAN, intra, daily)
-    assert (room["state"], room["text"], room["r"], room["trial"]) == ("warn", "0.9R to HOD 8.77", 0.88, "T7")
-    assert room["detail"].startswith("Then $9.00 at 2.2R. Under 2R it is a warning while trial T7 runs")
+    past = {**PLAN, "target": 8.82, "target2": 8.99}             # +20c, then 1c under $9.00
+    room = level_notes.room(past, intra, daily)
+    assert (room["state"], room["text"], room["r"], room["trial"]) == ("warn", "15c to HOD 8.77, before target 1",
+                                                                      0.88, "T7")
+    assert room["t7"] == {"id": "T7", "r": 0.88, "under": True}
+    assert room["detail"].startswith("Target 1 (8.82) is past it: HOD 8.77 has to break for target 1 to fill.")
+    assert "Then $9.00, 38c over the entry." in room["detail"] and "Trial T7 records this room as 0.9R" in room["detail"]
     assert "8.84 · daily highs ×5" in room["detail"] and "never count here" in room["detail"]
+    assert "2R" not in room["text"] + room["detail"]
+    before = level_notes.room({**past, "target": 8.76}, intra, daily)   # 1c under the high of day
+    assert (before["state"], before["text"]) == ("ok", "15c to HOD 8.77")
+    assert before["detail"].startswith("Target 1 (8.76) sells 1c under it. Target 2 (8.99) is past it")
 
 
 def test_room_is_fine_with_nothing_over_the_entry_and_unknown_without_a_stop():
@@ -286,5 +296,5 @@ def test_the_levels_between_the_stop_and_the_target_are_the_one_minute_charts():
 def test_the_plan_carries_its_level_notes_when_the_read_has_a_map():
     intra = level_map.zones([level_map.member("hod", 8.77)], price=8.62, home="intraday", merge_pct=0.006)
     out = level_notes.notes(PLAN, {"intraday": intra, "daily": []}, [], price=8.66, now=ts(7, 16))
-    assert set(out) == {"room", "target", "stop", "next", "recent", "between", "lines"}
+    assert set(out) == {"room", "target", "target2", "stop", "next", "recent", "between", "lines"}
     assert level_notes.notes(PLAN, None, [], price=8.66, now=ts(7, 16)) is None

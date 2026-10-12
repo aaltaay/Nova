@@ -1,6 +1,7 @@
 /**
  * PFSA's first pullback on 2026-09-24 as the approved v2 mockup drew it (ADR 037): the trigger printed
- * 4.26 at 08:07:02 ET with the tape at go; entry 4.27, stop 4.14, target 4.52 (2R on a 0.13 risk).
+ * 4.26 at 08:07:02 ET with the tape at go; entry 4.27, stop 4.14, target 1 4.52 (a template whose target menu takes
+ * 1c under the 4.53 high of day, with no target 2: everything sells at target 1; #845).
  * Typed shapes for the Who trades tests; the desk never reads this.
  */
 import { NO_HELD, type HeldMemory, type MomentInputs } from './momentModel';
@@ -33,10 +34,17 @@ export function pfsaPlan(state: StockPlan['state'], over: Partial<StockPlan> = {
     entry: 4.27,
     stop: 4.14,
     target: 4.52,
+    target2: null,
+    target1_fraction: 1,
+    targets: {
+      first: { kind: 'hod', price: 4.52, why: '1c under HOD 4.53' }, second: null, hod: 4.53, pullback_high: 4.53,
+      stop: { kind: 'pattern', why: "the pattern's stop", round: null },
+      rule: { first: 'hod', second: 'none', fixed: 0.2, split: 0.5, stop: 'pattern' },
+    },
     risk: 0.13,
     reward: 0.25,
-    rr: 2,
-    target_rule: 'entry + 2 x risk',
+    rr: 1.92,
+    target_rule: 'target 1: 1c before the high of day; target 2: none: everything sells at target 1; everything at target 1',
     entry_rule: '1 cent over the trigger',
     stop_rule: 'the pullback low',
     grade: 'B',

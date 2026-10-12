@@ -19,7 +19,6 @@ parameters took it past the size ceiling).
 from __future__ import annotations
 
 import dataclasses
-from dataclasses import dataclass
 from typing import Any
 
 from constants_bot import (
@@ -109,14 +108,10 @@ from constants_setups import (
     SETUPS_R2G_CUTOFF_ET,
     SETUPS_R2G_MIN_RED_BARS,
     SETUPS_R2G_OPEN_ET,
-    SETUPS_R2G_TARGET_HOD,
     SETUPS_REQUIRE_HOD,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_SESSION_START_ET,
     SETUPS_STOP_CAP_DOLLARS,
-    SETUPS_TARGET_FIXED_DOLLARS,
-    SETUPS_TARGET_MODE,
-    SETUPS_TARGET_R,
     TAPE_GATE_BAND_DOLLARS,
     TAPE_GATE_BIG_SELLER_SHARES,
     TAPE_GATE_HIDDEN_SELLER_MULT,
@@ -147,47 +142,20 @@ from constants_setups import (
     TAPE_FLOW_WINDOW_SEC,
 )
 
-NUMBER, INT, BOOL, TIME, CHOICE = "number", "int", "bool", "time", "choice"
-DECIMALS = 6                      # a value's places, as the operator types it
-
-
-class TemplateError(ValueError):
-    """A value the catalogue refuses; ``field`` names the parameter (or None).
-
-    ``message`` is written for the operator (it is what the API answers);
-    nothing else about the error ever leaves the backend."""
-
-    def __init__(self, message: str, field: str | None = None, code: str = "TEMPLATE_INVALID"):
-        super().__init__(message)
-        self.message = message
-        self.field = field
-        self.code = code
-
-
-@dataclass(frozen=True)
-class ParamSpec:
-    key: str
-    group: str
-    label: str
-    kind: str
-    default: Any
-    unit: str = ""
-    min: float | str | None = None
-    max: float | str | None = None
-    step: float | None = None
-    choices: tuple[tuple[str, str], ...] = ()
-    nullable: bool = False
-    help: str = ""
-    live: bool = True
-
-    def wire(self, *, affects_readout: bool = True) -> dict[str, Any]:
-        return {
-            "key": self.key, "group": self.group, "label": self.label, "kind": self.kind,
-            "default": self.default, "unit": self.unit, "min": self.min, "max": self.max,
-            "step": self.step, "choices": [{"value": v, "label": lbl} for v, lbl in self.choices],
-            "nullable": self.nullable, "help": self.help, "live": self.live, "affects_readout": affects_readout,
-        }
-
+from setup_templates.params_targets import TARGETS
+from setup_templates.spec import (  # noqa: F401 -- callers import the parameter type from here
+    BOOL,
+    CHOICE,
+    DECIMALS,
+    INT,
+    NUMBER,
+    TIME,
+    ParamSpec,
+    TemplateError,
+    _p,
+    _pct,
+    minutes,
+)
 
 BOT_GROUP = "bot"
 GROUP_LABELS: dict[str, tuple[str, str]] = {
@@ -195,7 +163,8 @@ GROUP_LABELS: dict[str, tuple[str, str]] = {
     "universe": ("Universe", "The symbol-days the research tested."),
     "setup": ("The pattern", "What the bars must show before a setup arms."),
     "entry": ("Entry", "Where the buy goes and when."),
-    "risk": ("Risk and target", "The stop, the risk it allows, the target, and the scoring exit."),
+    "risk": ("Risk and targets", "The stop, the risk it allows, the two targets and how the shares split between "
+                                 "them, and the scoring exit (the bot's: the stop stays put after target 1)."),
     "tape": ("Tape gate", "Read from the Level 2 and time and sales when price is near the trigger."),
     "flow": ("Tape flow", "One score from -1 (sellers) to +1 (buyers): prints at the ask against the bid, how fast "
                           "they come, where price went, and the book. Read at the trigger and while a trade is on; "
@@ -205,19 +174,6 @@ GROUP_LABELS: dict[str, tuple[str, str]] = {
                            "inside the setup's arming window, the grades and the setups a stock a day. Changing them "
                            "never starts the read-out over: the read-out scores the setup, not the bot."),
 }
-
-
-def minutes(text: str) -> int:
-    hour, minute = text.split(":")
-    return int(hour) * 60 + int(minute)
-
-
-def _pct(fraction: float | None) -> float | None:
-    return None if fraction is None else round(fraction * 100, DECIMALS)
-
-
-def _p(key: str, group: str, label: str, kind: str, default: Any, **kw: Any) -> ParamSpec:
-    return ParamSpec(key=key, group=group, label=label, kind=kind, default=default, **kw)
 
 
 # -- Shared by every setup with a scanner: the stock filter, the tape gate, the grade,
@@ -397,10 +353,6 @@ def _risk(stop_help: str) -> tuple[ParamSpec, ...]:
     )
 
 
-_TARGET_R = _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
-               help="Target 1 at R x the risk over the entry.")
-_TARGET_FIXED = _p("target_fixed", "risk", "Fixed target", NUMBER, SETUPS_TARGET_FIXED_DOLLARS, unit="$", min=0.01,
-                   max=10, step=0.01, help="Used when target 1 is a fixed amount over the entry.")
 _BAILOUT = _p("bailout_bars", "risk", "Out after", INT, SETUPS_BAILOUT_BARS, unit="bars", min=1, max=120, step=1,
               help="Scoring exit: this many candles without a close over the entry -> out at the close.")
 
@@ -431,12 +383,7 @@ _FIRST_PULLBACK: tuple[ParamSpec, ...] = _STOCK + (
 ) + _window("Arms from", "No setup arms before this time.",
             "No setup arms, and none triggers, at or after this time.") + _near() + _risk(
     "Entry minus the pullback low. A bigger risk skips the setup.") + (
-    _p("target_mode", "risk", "Target 1", CHOICE, SETUPS_TARGET_MODE,
-       choices=(("leg_or_r", "the leg high or R x risk, whichever is higher"), ("fixed", "a fixed amount over the entry")),
-       help="Half comes off at target 1 and the stop moves to the entry (the scoring exit)."),
-    _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
-       help="Used when target 1 is the leg high or R x risk."),
-    _TARGET_FIXED, _BAILOUT,
+    *TARGETS, _BAILOUT,
 ) + _TAPE + _FLOW + _GRADE + _BOT
 
 # -- Bull flag (ADR 031): pre-registered from the operator's material. ------------------
@@ -479,13 +426,7 @@ _BULL_FLAG: tuple[ParamSpec, ...] = _STOCK + (
 ) + _window("Arms from", "No flag arms before this time.",
             "No flag arms, and none triggers, at or after this time.") + _near() + _risk(
     "Entry minus the flag low. A bigger risk skips the setup.") + (
-    _p("target_mode", "risk", "Target 1", CHOICE, SETUPS_TARGET_MODE,
-       choices=(("leg_or_r", "the pole high or R x risk, whichever is higher"),
-                ("leg", "the pole high (the material's first target)"), ("fixed", "a fixed amount over the entry")),
-       help="Half comes off at target 1 and the stop moves to the entry (the scoring exit)."),
-    _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
-       help="Used when target 1 is the pole high or R x risk (and when the pole high is not above the entry)."),
-    _TARGET_FIXED, _BAILOUT,
+    *TARGETS, _BAILOUT,
 ) + _TAPE + _FLOW + _GRADE + _BOT
 
 # -- Flat-top breakout (ADR 031; amended 2026-10-06: the high of day tapped again and again, as the operator's
@@ -531,10 +472,7 @@ _FLAT_TOP: tuple[ParamSpec, ...] = _STOCK + (
 ) + _window("Arms from", "No base arms before this time (the research began at 09:30).",
             "No base arms, and no break triggers, at or after this time.") + _near() + _risk(
     "Break: entry minus the base low. Hold: entry minus the hold candle's low. A bigger risk skips the setup.") + (
-    _p("target_mode", "risk", "Target 1", CHOICE, "r",
-       choices=(("r", "R x risk over the entry (the research's)"), ("fixed", "a fixed amount over the entry")),
-       help="Half comes off at target 1 and the stop moves to the entry (the scoring exit)."),
-    _TARGET_R, _TARGET_FIXED, _BAILOUT,
+    *TARGETS, _BAILOUT,
 ) + _TAPE + _FLOW + _GRADE + _BOT
 
 # -- The 5-minute flat top (ADR 031 amendment 2026-10-06): the flat top's parameters read on 5-minute
@@ -553,8 +491,7 @@ _FLAT_TOP_5M_CHANGES: dict[str, dict[str, Any]] = {
     "ft_max_consol": {"unit": _FIVE},
     "ft_band": {"help": "Every 5-minute base close sits within this of the high of day: a flat top, not a pullback."},
     "ema_period": {"unit": _FIVE, "help": "Every 5-minute base candle's low is at or above this EMA of the 5-minute "
-                                          "closes (the scoring exit reads the 1-minute EMA: the trade is a 1-minute "
-                                          "one)."},
+                                          "closes."},
     "macd_positive": {"help": "The last 5-minute base candle's MACD histogram is above zero (the front side of the "
                               "move)."},
     "macd_fast": {"unit": _FIVE},
@@ -610,10 +547,7 @@ _RED_TO_GREEN: tuple[ParamSpec, ...] = _STOCK + (
     _p("entry_offset", "entry", "Buy over the open by", NUMBER, SETUPS_ENTRY_OFFSET_DOLLARS, unit="$", min=0, max=1,
        step=0.01, help="The entry is the open plus this (the bar's open when it gapped over)."),
 ) + _near() + _risk("Entry minus the lowest low since the open. A reclaim with a bigger risk spends the day's try.") + (
-    _TARGET_R,
-    _p("r2g_target_hod", "risk", "Target is at least the high of day", BOOL, SETUPS_R2G_TARGET_HOD,
-       help="On: target 1 is the high of day when that is higher than R x risk."),
-    _BAILOUT,
+    *TARGETS, _BAILOUT,
 ) + _TAPE + _FLOW + _GRADE + _bot(SETUPS_R2G_OPEN_ET, SETUPS_R2G_CUTOFF_ET)
 
 # -- Gap and Go (A2, research/orb/backtest_gng.py ``GParams``, rules of 2026-09-22): the
@@ -643,7 +577,7 @@ _GAP_AND_GO: tuple[ParamSpec, ...] = _STOCK + _ema("The scoring exit's EMA (Gap 
        help="A smaller risk skips the day: the stop would sit in the spread."),
     _p("risk_slippage", "risk", "Slippage counted in the risk", NUMBER, SETUPS_RISK_SLIPPAGE_DOLLARS, unit="$", min=0,
        max=1, step=0.01, help="Added to the risk before the check above, as the research did."),
-    _TARGET_R, _BAILOUT,
+    *TARGETS, _BAILOUT,
 ) + _TAPE + _FLOW + _GRADE + _bot(SETUPS_GNG_OPEN_ET, SETUPS_GNG_CUTOFF_ET)
 
 CATALOGUE: dict[str, tuple[ParamSpec, ...]] = {

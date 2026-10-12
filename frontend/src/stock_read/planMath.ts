@@ -8,6 +8,7 @@ import {
 } from './constants';
 import { resultBadge, resultBadgeShort } from './planVerdict';
 import { SHORT_SETUP_LABELS, SHORT_SETUP_TAGS } from '../constantGroups/short_setups';
+import { targetShare } from '../setups';
 import type { ReadState, SetupLane, StockPlan } from './types';
 
 const SETUP_NAMES: Record<string, string> = {
@@ -53,8 +54,14 @@ export function fmtUsd(usd: number | null | undefined): string {
   return `$${Math.round(usd).toLocaleString('en-US')}`;
 }
 
-export function rrText(rr: number | null): string {
-  return rr === null ? '— : 1' : `${rr.toFixed(1)} : 1`;
+/** A distance in R ("+1.6R"): R is the risk a share, the unit results are measured in -- never a target. */
+export function rText(r: number | null | undefined): string {
+  return r == null || !Number.isFinite(r) ? '—' : `${r >= 0 ? '+' : ''}${r.toFixed(1)}R`;
+}
+
+/** The targets in R for the plan's header: "+0.4R" to target 1, "+0.4R · +3.1R" with a target 2 (#845). */
+export function rrText(rr: number | null, rr2: number | null = null): string {
+  return rr2 === null ? rText(rr) : `${rText(rr)} · ${rText(rr2)}`;
 }
 
 /** Whole shares the risk per trade buys at this risk per share; null when it buys none. */
@@ -113,22 +120,50 @@ export function checkGlyph(state: ReadState): string {
   return state === 'ok' ? '✓' : state === 'bad' ? '✗' : state === 'warn' ? '!' : state === 'info' ? '·' : '?';
 }
 
-/** The sub-line under each of the five numbers. */
-export function planSubLines(plan: StockPlan, riskUsd: number, size: number | null): Record<string, string> {
-  const risk = plan.risk;
-  // A short covers under its entry (ADR 048): entry - 2 x risk.
+/** Each target's words for the plan box (#845): its name ("Target 1", a short's "Cover 1"), the share it sells, the
+ * words it came from ("1c under $4.50") and its hover. A plan from a backend before the menu has target 1 alone. */
+export interface TargetWords {
+  key: string;
+  why: string;
+  tip: string;
+}
+
+export function planTargetWords(plan: StockPlan): { first: TargetWords; second: TargetWords } {
   const short = plan.side === 'short';
-  const at2 = plan.entry !== null && risk !== null ? plan.entry + (short ? -2 : 2) * risk : null;
-  let target = plan.target_rule;
-  if (plan.target !== null && at2 !== null && Math.abs(plan.target - at2) < 0.005) {
-    target = `entry ${short ? '-' : '+'} 2 × ${fmtStep(risk, plan.entry)}`;
-  } else if (/pole high/.test(plan.target_rule)) {
-    target = 'the pole high';
-  } else if (/leg high/.test(plan.target_rule)) {
-    target = 'the leg high';
-  } else if (/high of day/.test(plan.target_rule)) {
-    target = 'the high of day';
-  }
+  const name = short ? 'Cover' : 'Target';
+  const t = plan.targets ?? null;
+  const two = plan.target2 ?? null;
+  const share = (which: 1 | 2) => {
+    const pct = targetShare(plan.target1_fraction, which);
+    return pct ? ` · ${pct}` : '';
+  };
+  const inR = (r: number | null | undefined) => (r == null ? '' : ` It is ${rText(r)} from the entry (R is the risk a `
+    + 'share: the unit results are measured in, not a target).');
+  const rule = plan.target_rule ? `\nThe strategy's targets: ${plan.target_rule}.` : '';
+  const verb = short ? 'covers' : 'sells';
+  const because = (why: string | undefined) => (why ? ` · ${why}` : '');
+  const firstPart = two === null ? 'everything' : targetShare(plan.target1_fraction, 1) ?? 'the first part';
+  const first: TargetWords = {
+    key: `${name} 1${share(1)}`,
+    // A backend before the menu sends no reasons: its rule says where target 1 came from.
+    why: t?.first.why || plan.target_rule,
+    tip: `${name} 1 ${fmtPx(plan.target)}${because(t?.first.why)}: ${firstPart} ${verb} here.${inR(plan.rr)}${rule}`,
+  };
+  const all = `everything at ${name.toLowerCase()} 1`;
+  const second: TargetWords = two === null
+    ? { key: `${name} 2`, why: all, tip: `No ${name.toLowerCase()} 2: ${all}.${rule}` }
+    : {
+      key: `${name} 2${share(2)}`,
+      why: t?.second?.why ?? '',
+      tip: `${name} 2 ${fmtPx(two)}${because(t?.second?.why)}: the rest ${verb} here.${inR(plan.rr2)}${rule}`,
+    };
+  return { first, second };
+}
+
+/** The sub-line under each of the plan's numbers. */
+export function planSubLines(plan: StockPlan, riskUsd: number, size: number | null): Record<string, string> {
+  const short = plan.side === 'short';
+  const targets = planTargetWords(plan);
   const cap = stopCap(plan);
   const riskCheck = plan.checks.find(x => x.id === 'risk');
   const capLine = cap === null
@@ -144,7 +179,8 @@ export function planSubLines(plan: StockPlan, riskUsd: number, size: number | nu
   return {
     entry,
     stop: plan.stop_rule.replace(/^the /, ''),
-    target,
+    target: targets.first.why,
+    target2: targets.second.why,
     risk: capLine,
     size: size === null
       ? `at ${fmtUsd(riskUsd)} risk`
@@ -166,7 +202,10 @@ export interface RulerMark {
 export interface RulerLayout {
   entryPct: number;
   stopPct: number;
+  /** The right end: the furthest target (target 2 when the plan has one, #845). */
   targetPct: number;
+  /** Target 1, when a target 2 lies past it; null when target 1 is the end. */
+  target1Pct: number | null;
   marks: RulerMark[];
   /** The last price on the ruler; `edge` when it sits past either end. */
   now: { pct: number; edge: 'low' | 'high' | null } | null;
@@ -190,14 +229,18 @@ export function placeRulerLabels(marks: Omit<RulerMark, 'showLabel'>[], widthPx:
   return marks.map((m, i) => ({ ...m, showLabel: shown.has(i) }));
 }
 
-/** Stop at the left end, the target at the right, everything between placed by price; `widthPx` is the
- * ruler's measured width (labels that would touch are left off). */
+/** Stop at the left end, the furthest target at the right (target 2, else target 1; #845), everything between
+ * placed by price, each target ticked T1 / T2; `widthPx` is the ruler's measured width (labels that would touch are
+ * left off). */
 export function rulerLayout(plan: StockPlan, price: number | null,
   widthPx: number | null = null): RulerLayout | null {
-  const { stop, entry, target } = plan;
-  // A short's ruler is the mirror (ADR 048): its buy stop over the entry at the left, the cover target under it at
-  // the right. `edge` names the end a price sits past: `low` the stop's, `high` the target's.
+  const { stop, entry, target: t1 } = plan;
+  // A short's ruler is the mirror (ADR 048): its buy stop over the entry at the left, the cover targets under it at
+  // the right. `edge` names the end a price sits past: `low` the stop's, `high` the furthest target's.
   const short = plan.side === 'short';
+  const t2 = plan.target2 ?? null;
+  const past = (a: number, b: number) => (short ? a < b : a > b);
+  const target = t1 !== null && t2 !== null && past(t2, t1) ? t2 : t1;
   if (stop === null || entry === null || target === null || !(short ? stop > target : target > stop)) return null;
   const span = Math.abs(target - stop);
   const pad = span * 0.06;
@@ -210,9 +253,12 @@ export function rulerLayout(plan: StockPlan, price: number | null,
     const pastTarget = short ? price < to : price > to;
     now = { pct: at(price), edge: pastStop ? 'low' : pastTarget ? 'high' : null };
   }
+  const two = t1 !== null && target !== t1;
   const marks = [
+    // Both targets named when there are two: the reward runs on past target 1 to target 2.
+    ...(two && t1 !== null ? [{ pct: at(t1), label: 'T1', kind: 'target' }, { pct: at(target), label: 'T2', kind: 'target' }] : []),
     ...plan.marks.map(m => ({ pct: at(m.price), label: fmtPx(m.price), kind: m.kind })),
-    // Today's levels between the stop and the target the marks above do not already name.
+    // Today's levels between the stop and the furthest target the marks above do not already name.
     ...(plan.levels?.between ?? [])
       .filter(x => !plan.marks.some(m => Math.abs(m.price - x.price) < SAME_PRICE))
       .map(x => ({ pct: at(x.price), label: x.tag, kind: x.round ? 'round' : 'level' })),
@@ -222,6 +268,7 @@ export function rulerLayout(plan: StockPlan, price: number | null,
     stopPct: at(stop),
     entryPct,
     targetPct: at(target),
+    target1Pct: two && t1 !== null ? at(t1) : null,
     marks: placeRulerLabels(marks, widthPx && widthPx > 0 ? widthPx : RULER_DEFAULT_WIDTH_PX, entryPct),
     now,
   };
@@ -232,12 +279,12 @@ export function planFootnote(plan: StockPlan, lane: SetupLane | null): string {
   if (plan.source === 'manual' && plan.side === 'short') {
     return plan.stop === null
       ? 'name a buy stop over your short'
-      : 'drag the short or its buy stop on the 1-minute chart; the cover stays 2R';
+      : 'drag the short or its buy stop on the 1-minute chart; the covers follow the entry';
   }
   if (plan.source === 'manual') {
     return plan.stop === null
       ? 'name a stop under your entry'
-      : 'drag the entry or stop on the 1-minute chart; the target stays 2R';
+      : 'drag the entry or stop on the 1-minute chart; the targets follow the entry';
   }
   if (plan.state === 'forming') {
     const f = lane?.forming;

@@ -84,38 +84,49 @@ function renderRail(opts: { replay?: boolean; ask?: number | null } = {}) {
 }
 
 describe('the plan on the rail', () => {
-  it("shows the forming bull flag's plan: entry, stop, 2R target, risk and the size $20 buys", async () => {
+  it("shows the forming bull flag's plan: entry, stop, the menu's two targets, risk and the size $20 buys", async () => {
     renderRail();
     const plan = await screen.findByTestId('stock-read-plan');
     expect(within(plan).getByText('Bull flag')).toBeTruthy();
     expect(within(plan).getByText('FORMING 1/2')).toBeTruthy();
     expect(screen.getByTestId('stock-read-entry').textContent).toBe('5.44');
     expect(screen.getByTestId('stock-read-stop').textContent).toBe('5.33');
-    expect(screen.getByTestId('stock-read-target').textContent).toBe('5.66');
     expect(screen.getByTestId('stock-read-risk').textContent).toBe('0.11');
     expect(screen.getByTestId('stock-read-size').textContent).toBe('181 sh');
-    expect(within(plan).getByText('Target 2R')).toBeTruthy();
+    // The target menu (#845): each target with its share and the words it came from -- no "Target 2R".
+    expect([...plan.querySelectorAll('.sr-num__k')].map(k => k.textContent))
+      .toEqual(['Entry', 'Stop', 'Target 1 · 50%', 'Target 2 · 50%', 'Risk / sh', 'Size']);
+    expect(screen.getByTestId('stock-read-target').textContent).toBe('5.49');
+    expect(screen.getByTestId('stock-read-target-why').textContent).toBe('1c under $5.50');
+    expect(screen.getByTestId('stock-read-target2').textContent).toBe('5.99');
+    expect(screen.getByTestId('stock-read-target2-why').textContent).toBe('1c under $6.00');
+    // R stays the unit: each target's distance in R, never a ratio rule.
+    expect(screen.getByTestId('stock-read-plan-rr').textContent).toBe('+0.5R · +5.0R to targets 1 · 2');
+    expect(plan.textContent).not.toMatch(/(?<![\d.])2R\b|2:1| : 1/);
     expect(screen.getByTestId('stock-read-checks').textContent).toContain('under VWAP 6.09');
     expect(screen.getByTestId('stock-read-plan-note').textContent).toBe('provisional: arms after 1 more red or doji candle');
     expect(calls.filter(u => u.includes('/api/stock-read/'))[0]).toMatch(/\/api\/stock-read\/APUS$/);
   });
 
-  it("names the levels in the plan's way: Room in trial, the next round, and nothing where no round is near", async () => {
+  it("names the levels in the plan's way: Room against the targets, the next round, and nothing where no round is near", async () => {
     respond(/\/api\/stock-read\/APUS(\?|$)/, {
       ...apusReadWire,
       plan: {
         ...apusReadWire.plan,
         levels: {
-          room: { state: 'warn', text: '0.5R to $5.50', r: 0.55, price: 5.5, trial: 'T7',
-            detail: 'Under 2R it is a warning while trial T7 runs; it blocks nothing.' },
-          target: null,
+          // Room is read against the targets (#845); trial T7's own reading rides in its hover only.
+          room: { state: 'ok', text: '6c to $5.50', r: 0.55, price: 5.5, trial: 'T7', t7: { id: 'T7', r: 0.55, under: true },
+            detail: 'Target 1 (5.49) sells 1c under it. Target 2 (5.99) is past it: the rest needs it to break. '
+              + 'Trial T7 records this room as 0.5R of the risk, under its registered rule.' },
+          target: { state: 'ok', text: '5.49 is 1c under $5.50', detail: 'You sell before the round.' },
+          target2: { state: 'ok', text: '5.99 is 1c under $6.00', detail: 'You sell before the round.' },
           stop: null,
           next: { state: 'info', text: '$5.50 is 6c above: resistance until it prints through, a trigger after',
             detail: 'A fresh approach to a half or whole dollar turned back 24% of the time (random price 16%).' },
           recent: null,
           between: [{ price: 5.5, lo: 5.5, hi: 5.5, tag: '$5.50', label: '$5.50', round: true, hod: false }],
           lines: [
-            { role: 'way', state: 'warn', text: '↘ resistance (5-min) at 5.48 (0.4R) before the target', line: 'x', price: 5.48,
+            { role: 'way', state: 'warn', text: '↘ resistance (5-min) at 5.48 (0.4R) before target 1', line: 'x', price: 5.48,
               detail: "The 5-min chart's descending resistance runs at 5.48 now and falls 2c a 5-minute candle." },
             { role: 'broke', state: 'bad', text: '↗ support (1-min) broke at 09:52', line: 'y', price: 5.41, detail: null },
           ],
@@ -124,13 +135,18 @@ describe('the plan on the rail', () => {
     });
     renderRail();
     const rows = await screen.findByTestId('stock-read-levels');
-    expect(within(rows).getByTestId('stock-read-level-room').textContent).toContain('0.5R to $5.50');
+    const room = within(rows).getByTestId('stock-read-level-room');
+    expect(room.textContent).toBe('Room6c to $5.50');
+    // Trial T7 is said in the hover only, never as a label on the row.
+    expect(screen.queryByTestId('stock-read-room-trial')).toBeNull();
+    expect(room.getAttribute('data-tip')).toMatch(/Trial T7 records this room as 0\.5R of the risk/);
+    // Each target's round, under its own name.
+    expect(within(rows).getByTestId('stock-read-level-target').textContent).toBe('Target 15.49 is 1c under $5.50');
+    expect(within(rows).getByTestId('stock-read-level-target2').textContent).toBe('Target 25.99 is 1c under $6.00');
     // The trend lines' rows (2026-10-12), after the levels'.
-    expect(within(rows).getByTestId('stock-read-level-line-way').textContent).toBe('Line↘ resistance (5-min) at 5.48 (0.4R) before the target');
+    expect(within(rows).getByTestId('stock-read-level-line-way').textContent).toBe('Line↘ resistance (5-min) at 5.48 (0.4R) before target 1');
     expect(within(rows).getByTestId('stock-read-level-line-broke').className).toContain('sr-levels__row--bad');
-    expect(screen.getByTestId('stock-read-room-trial').textContent).toBe('in trial T7');
     expect(within(rows).getByTestId('stock-read-level-next').textContent).toContain('resistance until it prints through');
-    expect(within(rows).queryByTestId('stock-read-level-target')).toBeNull();
     expect(within(rows).queryByTestId('stock-read-level-stop')).toBeNull();
   });
 
@@ -165,7 +181,7 @@ describe('the plan on the rail', () => {
     expect(within(plan).getByText('Bull flag')).toBeTruthy();
     expect(screen.getByTestId('stock-read-plan-grade').textContent).toBe('C 1/5');
     expect(screen.getByTestId('stock-read-plan-verdict').textContent).toBe('NOT A TRADE');
-    expect(within(plan).queryByText(/reward : risk/)).toBeNull();          // moot on a plan that is not a trade
+    expect(screen.queryByTestId('stock-read-plan-rr')).toBeNull();          // moot on a plan that is not a trade
     // One rule (ADR 042 draft): the plan says it blocks Nova's buys as well as its own Stage.
     expect(screen.getByTestId('stock-read-plan-notrade').textContent).toBe('Not a trade: grade C: 1 of 5 pillars. '
       + "It blocks Nova's buys too: the bot, Auto-entry and Approve do not take it.");
@@ -253,7 +269,7 @@ describe('the plan on the rail', () => {
       JSON.stringify({ schema_version: 1, value: { setups: true, levels: true, hidden: [], plan: 'folded' } }));
     renderRail();
     const line = await screen.findByTestId('stock-read-plan-line');
-    expect(line.textContent).toBe('5.44/5.33/5.66 · 181 sh');
+    expect(line.textContent).toBe('5.44/5.33/5.49/5.99 · 181 sh');      // entry / stop / target 1 / target 2
     expect(screen.getByText('FLAG 1/2')).toBeTruthy();
     expect(screen.queryByTestId('stock-read-entry')).toBeNull();
     expect(screen.getByTestId('stock-read-stage-line').getAttribute('data-why')).toMatch(/no order ticket open/);
@@ -295,9 +311,16 @@ describe('the plan on the rail', () => {
     respond(/\/api\/stock-read\/APUS\?entry=/, {
       ...apusReadWire,
       plan: { ...apusReadWire.plan, source: 'manual', setup_type: null, kind: null, state: 'manual', trigger: null,
-        entry: 5.39, stop: 5.31, target: 5.55, risk: 0.08, reward: 0.16, rr: 2,
+        // The menu's defaults from the entry (#845): 1c under $5.50 (nearer than 20c), then 1c under HOD.
+        entry: 5.39, stop: 5.31, target: 5.49, target2: 8.73, target1_fraction: 0.5, risk: 0.08, reward: 0.1, rr: 1.25,
+        reward2: 3.34, rr2: 41.75,
+        targets: { first: { kind: 'round', price: 5.49, why: '1c under $5.50' },
+          second: { kind: 'hod', price: 8.73, why: '1c under HOD 8.74' }, hod: 8.74, pullback_high: null, stop: null,
+          rule: { first: 'round_or_fixed', second: 'hod_or_level', fixed: 0.2, split: 0.5, stop: 'pattern' } },
         stop_rule: 'the lowest low of the last 3 closed 1-min candles', entry_rule: 'your entry',
-        target_rule: 'entry + 2 x risk', reason: 'no setup is forming: your entry, a 2:1 target' },
+        target_rule: 'target 1: 20c, or 1c before a half / whole dollar when that is closer; target 2: 1c before the '
+          + 'high of day, else 1c before the next level past target 1; 50% at target 1',
+        reason: "no setup is forming: your entry, the menu's targets" },
     });
     renderRail({ ask: 5.39 });
     fireEvent.click(await screen.findByTestId('stock-read-entry-ask'));
@@ -306,6 +329,13 @@ describe('the plan on the rail', () => {
     await waitFor(() => expect((entry as HTMLInputElement).value).toBe('5.39'));
     expect(screen.getByText('NO SETUP')).toBeTruthy();
     expect(screen.getByTestId('stock-read-size').textContent).toBe('250 sh');
+    // The hand plan's targets are the menu's, each with its reason; the drag note says they follow the entry.
+    expect(screen.getByTestId('stock-read-target').textContent).toBe('5.49');
+    expect(screen.getByTestId('stock-read-target-why').textContent).toBe('1c under $5.50');
+    expect(screen.getByTestId('stock-read-target2').textContent).toBe('8.73');
+    expect(screen.getByTestId('stock-read-target2-why').textContent).toBe('1c under HOD 8.74');
+    expect(screen.getByTestId('stock-read-plan-note').textContent)
+      .toBe('drag the entry or stop on the 1-minute chart; the targets follow the entry');
     const stopInput = screen.getByTestId('stock-read-stop-input');
     fireEvent.change(stopInput, { target: { value: '5.30' } });
     fireEvent.blur(stopInput);
@@ -319,9 +349,16 @@ describe('the plan on the rail', () => {
     respond(/\/api\/stock-read\/APUS\?entry=5\.36(&stop=[\d.]+)?&side=short$/, {
       ...apusReadWire,
       plan: { ...apusReadWire.plan, source: 'manual', side: 'short', setup_type: null, kind: null, state: 'manual',
-        trigger: null, entry: 5.36, stop: 5.44, target: 5.2, risk: 0.08, reward: 0.16, rr: 2,
+        // The menu's covers under the entry (#845): 20c under it, then 1c over $5.00.
+        trigger: null, entry: 5.36, stop: 5.44, target: 5.16, target2: 5.01, target1_fraction: 0.5, risk: 0.08,
+        reward: 0.2, rr: 2.5, reward2: 0.35, rr2: 4.38,
+        targets: { first: { kind: 'fixed', price: 5.16, why: '-20c' },
+          second: { kind: 'next_level', price: 5.01, why: '1c over $5.00' }, hod: null, pullback_high: null, stop: null,
+          rule: null },
         stop_rule: 'the highest high of the last 3 closed 1-min candles', entry_rule: 'your entry',
-        target_rule: 'entry - 2 x risk', reason: 'no setup is forming: your short, a 2:1 cover' },
+        target_rule: 'target 1: 20c, or 1c before a half / whole dollar when that is closer; target 2: 1c before the '
+          + 'high of day, else 1c before the next level past target 1; 50% at target 1',
+        reason: "no setup is forming: your short, the menu's cover targets" },
     });
     respond(/\/api\/short-check\/APUS\?/, {
       schema_version: 1, symbol: 'APUS', venue: 'paper', ok: true, first: null,
@@ -339,10 +376,11 @@ describe('the plan on the rail', () => {
     // The short checks sit in its check list: the door's own rules, asked for the plan's size, entry and stop.
     const checks = await screen.findByTestId('stock-read-short-checks');
     expect(within(checks).getAllByRole('listitem').map(li => li.textContent)).toEqual(['✓Borrow · ~30,000', '✓SSR · off']);
-    expect(calls.some(u => /\/api\/short-check\/APUS\?qty=250&price=5\.36&stop=5\.44&target=5\.2$/.test(u))).toBe(true);
+    expect(calls.some(u => /\/api\/short-check\/APUS\?qty=250&price=5\.36&stop=5\.44&target=5\.16$/.test(u))).toBe(true);
     const plan = screen.getByTestId('stock-read-plan');
-    expect([...plan.querySelectorAll('.sr-num__k')].slice(0, 3).map(k => k.textContent))
-      .toEqual(['Short at', 'Buy stop', 'Cover 2R']);
+    expect([...plan.querySelectorAll('.sr-num__k')].slice(0, 4).map(k => k.textContent))
+      .toEqual(['Short at', 'Buy stop', 'Cover 1 · 50%', 'Cover 2 · 50%']);
+    expect(screen.getByTestId('stock-read-target2-why').textContent).toBe('1c over $5.00');
     const got: OrderTicketPrefill[] = [];
     let off = () => {};
     act(() => {

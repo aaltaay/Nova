@@ -20,6 +20,7 @@ import {
 } from '../constantGroups/setups';
 import { fmtCents, fmtPx, fmtR, isActionable, prose } from './setupsFormat';
 import { isShortRow, shortContextLine, shortOutcome, shortStateText, shortToGoTip, shortTriggerLines } from './shortWords';
+import { targetSentence } from './targets';
 import type { SetupCounts, SetupRow, SetupSummary } from './types';
 
 export { tapeWords } from './tapeChip';
@@ -79,15 +80,6 @@ const STOP_WORDS: Record<string, string> = {
   flat_top_5m: 'the 1-minute pullback\'s low',
   red_to_green: 'the lowest low since the open',
   gap_and_go: '20c or 4% under the entry, whichever is smaller',
-};
-
-const TARGET_WORDS: Record<string, string> = {
-  first_pullback: 'the leg high or 2R, whichever is higher',
-  bull_flag: 'the pole high or 2R, whichever is higher',
-  flat_top_breakout: 'R x the risk over the entry',
-  flat_top_5m: 'R x the risk over the entry',
-  red_to_green: 'R x the risk (or the high of day)',
-  gap_and_go: 'R x the risk over the entry',
 };
 
 /** A flat top: the 1-minute one, or the 5-minute one whose hold is a 1-minute candle (ADR 031, 2026-10-06). */
@@ -248,7 +240,8 @@ export function triggerWords(row: SetupRow): Words {
   } else {
     const stopIs = holdMode(row) ? 'the hold candle\'s low' : STOP_WORDS[type] ?? 'the stop';
     lines.push(`Stop ${fmtPx(s.stop)}: ${stopIs}. Risk ${fmtCents(s.risk)} a share.`);
-    lines.push(`Target 1 ${fmtPx(s.target1)}: ${TARGET_WORDS[type] ?? 'target 1'}. Half comes off there and the stop moves to the entry.`);
+    // The menu's targets (#845), each with the words it came from: a half / whole dollar, a level, the high of day.
+    lines.push(targetSentence(s));
   }
   return { text: fmtPx(s.trigger), title: `Trigger · ${setupLabel(type)}`, tip: lines.join('\n') };
 }
@@ -271,7 +264,7 @@ export function toGoWords(row: SetupRow): Words {
     return {
       text,
       title: 'How it went',
-      tip: `Since the trigger: ${outcomeWords(row)}. Scored with the research exit rules (half at target 1, the stop to the entry) — a score, not a fill.`,
+      tip: `Since the trigger: ${outcomeWords(row)}. Scored with the strategy's exit (its share at target 1, the rest at target 2, the stop where it is) — a score, not a fill.`,
     };
   }
   const reach = isActionable(row) || (row.state === 'filtered' && (row.phase === 'armed' || row.phase === 'near'));

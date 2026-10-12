@@ -41,9 +41,11 @@ control's; it is judged on the first 100 go setups, and 100 without a pass is
 gate nothing** (ADR 042, amending ADR 027 / 030): Nova's bot trades Paper and
 Sim only, and Live trading by a bot is not built -- it waits on its own operator
 decision -- so passing a read-out unlocks nothing yet. Each setup's card shows
-its own read-out (`GET /api/setups/templates`), which says it scores the
-backtest's exit (half at target 1, break-even, a 9 EMA trail) while the bot
-sells everything at target 1 with a 15-minute time stop. The session's
+its own read-out (`GET /api/setups/templates`). Since #845 (operator decisions 2026-10-09 and 2026-10-12;
+setups.md, "Targets replace 2R") the read-out scores the bot's exit -- `target1_fraction` of the shares at
+target 1, the rest at target 2, the stop staying where it is after the first part, the bailout -- no longer the
+backtest's (half at target 1, break-even, a 9 EMA trail). A trigger hands the bot `target1`, `target2` (or
+null) and `target1_fraction` on its setup; the bot's two-half bracket that sells them is the order side (#681). The session's
 `readout`, `readout_required` and the `readout` gate are gone. **The localhost
 bot API refuses Live**: every `POST /api/bot/action` on Live or on a replay desk
 is refused `409 BOT_LIVE_NOT_BUILT`, exits and cancels included (a bot never

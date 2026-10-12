@@ -87,7 +87,7 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
     pullback: 'A pullback is there, but one rule holds it back (MACD under zero, a risk outside the band, or the time of day). It arms as soon as the rule clears.',
     armed: 'The pullback is in place. The trigger is the last pullback candle\'s high; the stop is the pullback low. Waiting for price to come back up.',
     near: 'Price is a few cents under the trigger. The tape is read now: GO at the level is what makes a proposal.',
-    triggered: 'Price traded over the trigger. The scoreboard follows it from here with the research exit rules — target first, stop first, or still open.',
+    triggered: 'Price traded over the trigger. The scoreboard follows it from here with the strategy\'s exit — target 1 first, stop first, or still open.',
     failed: 'The pullback broke a rule: a close under the 9 EMA, half the leg given back, or it ran too long.',
   },
   bull_flag: {
@@ -95,7 +95,7 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
     pullback: 'A flag is there, but one rule holds it back (MACD under zero, a risk outside the band, or the time of day).',
     armed: 'The flag is in. The trigger is the last flag candle\'s high — the first candle to make a new high trades through it. The stop is the flag low.',
     near: 'Price is a few cents under the flag\'s high. The tape is read now: GO at the level is what makes a proposal.',
-    triggered: 'Price broke over the flag. The scoreboard follows it from here — target first (the pole high or 2R), stop first, or still open.',
+    triggered: 'Price broke over the flag. The scoreboard follows it from here — target 1 first, stop first, or still open.',
     failed: 'The flag broke a rule: too many red candles, too deep, heavy volume on the way down, a close under the 9 EMA, or the day\'s biggest candle was red.',
   },
   flat_top_breakout: {

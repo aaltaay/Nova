@@ -14,6 +14,7 @@ from bot.persist import load_session
 from bot.session import get_session
 from bot.setup_levels import effective, short_lock
 from constants_bot import BOT_REASON_SHORT_TEST
+from constants_setups import SETUPS_DB_SCHEMA_VERSION
 from setup_scanner import readout, short_tests
 from setup_scanner.store import COLUMNS, SetupStore, _type
 from setup_templates.store import get_store
@@ -164,7 +165,7 @@ def test_a_schema_5_scoreboard_migrates_and_its_rows_are_long(tmp_path):
     store.upsert({"id": "NEW", "session_date": "2026-10-07", "symbol": "FADE", "armed_at": 2.0, "side": "short",
                   "ssr": "off", "setup_type": SETUP})
     assert next(r for r in store.rows() if r["id"] == "NEW")["ssr"] == "off"
-    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 6
+    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == SETUPS_DB_SCHEMA_VERSION
 
 
 # -- what price did after a short setup died (the past setups on the chart) ------------------------------
@@ -186,5 +187,7 @@ def test_a_short_episodes_aftermath_reads_the_breakdown_the_short_way():
     assert got["high"] == 5.58 and got["low"] == 5.00 and got["price"] == 5.56
     trade = got["trade"]
     assert trade["entry"] == 5.39 and trade["stop"] == 5.58 and trade["risk"] == pytest.approx(0.19)
-    assert trade["target"] == pytest.approx(5.01) and trade["outcome"] == "target_first"
+    # #845: the menu's cover, 20c under the entry ($5.00 is 39c under it); no target 2 past it (the low of day
+    # before the cross is 5.40, and an episode keeps no map)
+    assert trade["target"] == pytest.approx(5.19) and trade["target2"] is None and trade["outcome"] == "target_first"
     assert after({**ep, "setup_type": "ssr_bounce"}, bars, now=t + 3600) is None

@@ -61,6 +61,7 @@ import { tipProps } from '../ux/hoverTip';
 import { clampLevel } from './botLevels';
 import { BotLevelSwitch } from './BotLevelSwitch';
 import { BotReadoutLine, BotResearchLine } from './BotReadout';
+import { BotTargetChoices } from './BotTargetChoices';
 import { BotSetupScanner } from './BotSetupScanner';
 import { BotShortTestLine } from './BotShortTestLine';
 import { BotStrategyRules } from './BotStrategyRules';
@@ -309,6 +310,7 @@ export function BotSetupCard(props: Props) {
           {children}
           {short ? <BotShortTestLine setup={id} test={test} /> : null}
           <BotReadoutLine setup={id} readout={inPlay?.readout} />
+          <BotTargetChoices setup={id} short={short} />
         </>
       )}
       <BotResearchLine setup={id} />

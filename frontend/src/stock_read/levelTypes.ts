@@ -133,11 +133,24 @@ export interface PlanLineNote extends PlanLevelNote {
   price: number | null;
 }
 
-/** What the plan says about the day's levels: Room (a warning while trial T7 runs), the round at the
- * target and at the stop, the next round, a round just broken or lost, and the levels in between. */
+/** Trial T7's own reading of a Room (frozen, pre-registered): the room in R of the risk, and whether it is under the
+ * trial's threshold. Recorded for the trial's read-out; nothing on the plan is decided by it. */
+export interface RoomT7 {
+  id: string;
+  r: number | null;
+  under: boolean;
+}
+
+/** What the plan says about the day's levels: Room (the first level read against the targets, #845: amber when it
+ * stands before target 1), the round at each target and at the stop, the next round, a round just broken or lost,
+ * and the levels in between. */
 export interface PlanLevels {
-  room: PlanLevelNote & { r: number | null; price: number | null; trial: string };
+  /** `t7`: absent or null off the trial and from an older backend. */
+  room: PlanLevelNote & { r: number | null; price: number | null; trial: string; t7?: RoomT7 | null };
+  /** Target 1's round number. */
   target: PlanLevelNote | null;
+  /** Target 2's round number; null without a target 2, absent from an older backend. */
+  target2?: PlanLevelNote | null;
   stop: PlanLevelNote | null;
   next: PlanLevelNote | null;
   recent: PlanLevelNote | null;

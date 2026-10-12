@@ -55,7 +55,8 @@ def _all(lines: dict[str, Any] | None) -> list[dict[str, Any]]:
 def way_note(plan: dict[str, Any], holding: list[dict[str, Any]], price: float | None) -> dict[str, Any] | None:
     short = plan.get("side") == "short"
     sgn = -1.0 if short else 1.0
-    entry, target, risk = plan.get("entry"), plan.get("target"), plan.get("risk")
+    entry, t1, risk = plan.get("entry"), plan.get("target"), plan.get("risk")
+    target = plan.get("target2") or t1                         # the furthest target (#845)
     kind = SUPPORT if short else RESISTANCE
     if entry is None:
         return None
@@ -66,10 +67,11 @@ def way_note(plan: dict[str, Any], holding: list[dict[str, Any]], price: float |
         gap, ln = min(ahead, key=lambda x: x[0])
         r = gap / risk if risk and risk > EPS else None
         in_r = f" ({r:.1f}R)" if r is not None else ""
+        which = 1 if t1 is None or sgn * (t1 - ln["now_p"]) > EPS else 2
         side_word = "Selling over" if short else "Buying under"
         role = "support" if short else "resistance"
         return {"role": "way", "state": "warn", "line": ln["id"], "price": ln["now_p"], "r": round(r, 2) if r else None,
-                "text": f"{_name(ln)} at {px(ln['now_p'])}{in_r} before the target",
+                "text": f"{_name(ln)} at {px(ln['now_p'])}{in_r} before target {which}",
                 "detail": f"{_story(ln)} {side_word} a line everyone can see trades into its {role}. It blocks nothing."}
     if price is None:
         return None

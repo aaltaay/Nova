@@ -1,0 +1,25 @@
+/* Which target would have paid (#845): a small read-only table under a setup's read-out. */
+.bots-tchoices { margin-top: 6px; font-size: 12px; }
+.bots-tchoices__toggle { font-weight: 600; }
+.bots-tchoices__body { display: grid; gap: 4px; margin-top: 4px; }
+.bots-tchoices__from { display: inline-flex; align-items: center; gap: 6px; color: var(--nova-text-muted); }
+.bots-tchoices__from input {
+  padding: 1px 4px;
+  border: 1px solid var(--nova-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nova-text);
+  font: inherit;
+}
+.bots-tchoices__note { margin: 0; color: var(--nova-text-muted); }
+.bots-tchoices__error { margin: 0; color: var(--bots-red); }
+.bots-tchoices__table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.bots-tchoices__table th,
+.bots-tchoices__table td { padding: 2px 6px; border-bottom: 1px solid var(--bots-hair); text-align: right; white-space: nowrap; }
+.bots-tchoices__table th:first-child,
+.bots-tchoices__table td:first-child { text-align: left; }
+.bots-tchoices__table th { color: var(--nova-text-muted); font-weight: 600; }
+.bots-tchoices__table small { color: var(--nova-text-muted); }
+.bots-tchoices__table tr.is-leader td { font-weight: 700; }
+.bots-tchoices__table .is-up { color: var(--bots-green); }
+.bots-tchoices__table .is-down { color: var(--bots-red); }

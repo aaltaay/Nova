@@ -181,9 +181,11 @@
 }
 .sr-plan__rr-k { white-space: nowrap; }
 
+/* One equal column a number: six with two targets (#845), on the plan and on the trade you hold. */
 .sr-plan__nums {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 0 6px;
   margin-top: 3px;
 }
@@ -210,6 +212,7 @@
 .sr-num--entry .sr-num__v, .sr-num--entry .sr-num__input { color: #5ac8fa; }
 .sr-num--stop .sr-num__v, .sr-num--stop .sr-num__input { color: var(--sr-bad); }
 .sr-num--target .sr-num__v { color: var(--sr-ok); }
+.sr-num--target2 .sr-num__v { color: var(--sr-ok); opacity: 0.8; }
 .sr-num__input {
   width: 100%;
   min-width: 0;
@@ -272,6 +275,10 @@
 }
 .sr-ruler__risk { background: var(--sr-bad); }
 .sr-ruler__reward { background: var(--sr-ok); }
+/* Past target 1 to target 2 (#845): the rest's part, fainter. */
+.sr-ruler__reward--rest { opacity: 0.45; }
+.sr-ruler:not(.sr-ruler--held) .sr-ruler__mark--target { background: var(--sr-ok); }
+.sr-ruler:not(.sr-ruler--held) .sr-ruler__mark--target .sr-ruler__mark-label { color: var(--sr-ok); font-weight: 700; }
 .sr-ruler__end {
   position: absolute;
   top: 9px;
@@ -354,14 +361,6 @@
 .sr-levels__row--warn .sr-levels__t { color: var(--sr-warn); }
 .sr-levels__row--bad .sr-levels__t { color: var(--sr-bad); }
 .sr-levels__row--ok .sr-levels__k { color: var(--sr-ok); }
-.sr-levels__pill {
-  flex: 0 0 auto;
-  padding: 0 5px;
-  border: 1px solid rgba(10, 132, 255, 0.45);
-  border-radius: 8px;
-  font-size: 0.5rem;
-  color: #9ccaff;
-}
 
 .sr-checks {
   display: flex;

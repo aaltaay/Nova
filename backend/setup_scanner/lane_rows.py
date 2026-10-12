@@ -85,10 +85,17 @@ def new_row(lane: Any, sym: str, sid: str, view: dict, now: float) -> dict:
     return row
 
 
+def target_fields(setup: dict) -> dict:
+    """The targets a row carries (#845): target 1 (the first part's price), target 2 (or None), the share sold
+    at target 1 and the menu's reasons."""
+    return {"target1": setup.get("target1"), "target2": setup.get("target2"),
+            "target1_fraction": setup.get("target1_fraction"), "targets": setup.get("targets")}
+
+
 def copy_setup(row: dict, view: dict) -> None:
     s = view.get("setup") or {}
     row.update({"state": view["state"], "reason": view["reason"], "kind": s.get("kind"),
                 "trigger": s.get("trigger"), "entry_planned": s.get("entry"), "stop": s.get("stop"),
-                "risk": s.get("risk"), "target1": s.get("target1"), "leg_high": s.get("leg_high"),
+                "risk": s.get("risk"), **target_fields(s), "leg_high": s.get("leg_high"),
                 "leg_low": s.get("leg_low"), "leg_pct": s.get("leg_pct"),
                 "pullback_bars": s.get("pullback_bars"), "detail": s.get("detail")})

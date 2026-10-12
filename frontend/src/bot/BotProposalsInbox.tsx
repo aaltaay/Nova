@@ -157,6 +157,7 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
               {short ? <span className="bots-side bots-side--short">▼ SHORT</span> : <span className="bots-side bots-side--buy">BUY</span>}
               <span className="bots-prop__lv">
                 trigger <b>{fmtPx(p.trigger)}</b> · {short ? 'buy stop' : 'stop'} {fmtPx(p.stop)} · {short ? 'cover' : 'target'} {fmtPx(p.target1)}
+                {p.target2 != null ? ` then ${fmtPx(p.target2)}` : ''}
               </span>
               <span className={`bots-vbadge bots-vbadge--${tape}`} {...tipProps(TAPE_VERDICT_TIPS[tape] ?? tape, 'The tape now')}>tape {tape.toUpperCase()}</span>
               {p.grade ? <span className="bots-grade">{p.grade}</span> : null}

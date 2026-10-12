@@ -12,7 +12,9 @@ import {
   planFootnote,
   planLane,
   planSubLines,
+  planTargetWords,
   placeRulerLabels,
+  rrText,
   rulerLayout,
   sizeFor,
   stopCap,
@@ -24,6 +26,7 @@ import { readSummary } from './SignalsTab';
 import { eventTone } from './DecisionsTab';
 import { apusAt, apusDecisionsWire, apusHistoryWire, apusReadWire } from './stockReadFixtures';
 import type { StockRead } from './types';
+import { draggedPlan } from './usePlanDrag';
 
 const LAYERS = {
   setups: true, levels: true, past: true, labels: 'compact' as const, hidden: [] as string[], plan: 'auto' as const,
@@ -108,20 +111,61 @@ describe('the plan box', () => {
     const sub = planSubLines(plan, 20, 181);
     expect(sub.entry).toBe('5.43 + 0.01');
     expect(sub.stop).toBe("flag's low");
-    expect(sub.target).toBe('entry + 2 × 0.11');
+    // Each target says the words it came from (#845), never a multiple of the risk.
+    expect(sub.target).toBe('1c under $5.50');
+    expect(sub.target2).toBe('1c under $6.00');
     expect(sub.risk).toBe('≤ 0.20 cap ✓');
     expect(stopCap(plan)).toBe(0.2);
   });
 
-  it('lays the ruler out from the stop to the target, the price and what stands between', () => {
+  it("names the menu's two targets with their shares, and says when everything sells at target 1 (#845)", () => {
+    const words = planTargetWords(plan);
+    expect(words.first).toMatchObject({ key: 'Target 1 · 50%', why: '1c under $5.50' });
+    expect(words.first.tip).toMatch(/^Target 1 5\.49 · 1c under \$5\.50: 50% sells here\. It is \+0\.5R from the entry \(R is the risk a share/);
+    expect(words.second).toMatchObject({ key: 'Target 2 · 50%', why: '1c under $6.00' });
+    expect(words.second.tip).toMatch(/^Target 2 5\.99 · 1c under \$6\.00: the rest sells here\./);
+    const one = planTargetWords({ ...plan, target2: null, target1_fraction: 1,
+      targets: { ...plan.targets!, first: { kind: 'fixed', price: 5.64, why: '+20c' }, second: null } });
+    expect(one.first).toMatchObject({ key: 'Target 1', why: '+20c' });
+    expect(one.second).toMatchObject({ key: 'Target 2', why: 'everything at target 1' });
+    // A plan from a backend before the menu: target 1 alone, its rule under it.
+    const older = planTargetWords({ ...plan, target2: null, target1_fraction: 1, targets: null, target_rule: 'the pole high' });
+    expect(older.first).toMatchObject({ key: 'Target 1', why: 'the pole high' });
+    // The header's R: the targets' distance in the unit results are measured in.
+    expect(rrText(plan.rr, plan.rr2 ?? null)).toBe('+0.5R · +5.0R');
+    expect(rrText(1.25)).toBe('+1.3R');
+    expect(rrText(null)).toBe('—');
+  });
+
+  it('drags a hand plan with each target keeping its distance from the entry, R following the new risk (#845)', () => {
+    const hand = { ...plan, source: 'manual' as const };
+    const d = draggedPlan(hand, { entry: 5.5, stop: 5.4 });
+    expect(d).toMatchObject({ entry: 5.5, stop: 5.4 });
+    expect(d.target).toBeCloseTo(5.55, 6);       // 5c over the entry, as before the drag
+    expect(d.target2).toBeCloseTo(6.05, 6);      // 55c over it
+    expect(d.risk).toBeCloseTo(0.1, 6);
+    expect(d.rr).toBeCloseTo(0.5, 6);
+    expect(d.rr2).toBeCloseTo(5.5, 6);
+    // One target: target 2 stays none.
+    const one = draggedPlan({ ...hand, target2: null }, { entry: 5.5, stop: 5.4 });
+    expect(one.target2).toBeNull();
+    expect(one.rr2).toBeNull();
+  });
+
+  it('lays the ruler out from the stop to target 2, target 1 ticked between, the price and what stands between', () => {
     const lay = rulerLayout(plan, 5.37)!;
     expect(lay.stopPct).toBeLessThan(lay.entryPct);
-    expect(lay.entryPct).toBeLessThan(lay.targetPct);
-    expect(lay.marks).toHaveLength(1);
-    expect(lay.marks[0].pct).toBeGreaterThan(lay.entryPct);
+    expect(lay.entryPct).toBeLessThan(lay.target1Pct!);
+    expect(lay.target1Pct!).toBeLessThan(lay.targetPct);
+    expect(lay.marks.map(m => m.label)).toEqual(['T1', 'T2', '5.50']);
+    expect(lay.marks.find(m => m.label === '5.50')!.pct).toBeGreaterThan(lay.entryPct);
     expect(lay.now?.edge).toBeNull();
     expect(rulerLayout(plan, 9)!.now?.edge).toBe('high');
     expect(rulerLayout({ ...plan, stop: null }, 5.37)).toBeNull();
+    // One target: target 1 is the end, nothing ticked between.
+    const one = rulerLayout({ ...plan, target2: null }, 5.37)!;
+    expect(one.target1Pct).toBeNull();
+    expect(one.marks.map(m => m.label)).toEqual(['5.50']);
   });
 
   it('leaves off a ruler label that would touch a stronger one, and keeps its tick', () => {
@@ -138,7 +182,10 @@ describe('the plan box', () => {
     ]);
     // A wide ruler has room for all of them.
     expect(placeRulerLabels(marks, 6000, 30).every(m => m.showLabel)).toBe(true);
-    expect(rulerLayout(plan, 5.37, 900)!.marks.every(m => m.showLabel)).toBe(true);
+    expect(rulerLayout({ ...plan, target2: null }, 5.37, 900)!.marks.every(m => m.showLabel)).toBe(true);
+    // T1 sits 1c under $5.50: the target keeps its label, the round keeps its tick.
+    expect(rulerLayout(plan, 5.37, 900)!.marks.map(m => [m.label, m.showLabel]))
+      .toEqual([['T1', true], ['T2', true], ['5.50', false]]);
   });
 
   it('prints prices the way the desk does, and takes a sane risk per trade', () => {
@@ -172,15 +219,17 @@ describe('the charts', () => {
     expect(pole.t1).toBe(apusAt(14, 59)); // 3 pole candles ending 15:01
     expect(pole.t2).toBe(apusAt(15, 1));
     const zones = scene.boxes.filter(b => b.t2 === null);
-    expect(zones.map(z => [z.p1, z.p2])).toEqual([[5.33, 5.44], [5.44, 5.66]]);
-    expect(scene.keepInView).toEqual({ min: 5.33, max: 5.66 });
+    expect(zones.map(z => [z.p1, z.p2])).toEqual([[5.33, 5.44], [5.44, 5.49]]);
+    expect(scene.keepInView).toEqual({ min: 5.33, max: 5.49 });
     const byId = Object.fromEntries(lines.map(l => [l.id, l]));
     expect(byId.entry).toMatchObject({ price: 5.44, style: 'dashed', title: 'ENTRY (provisional)', axisLabel: true });
     // Only a plan: no order stands behind the stop or the target, so both are dashed and say so (ADR 037).
-    expect(byId.target).toMatchObject({ title: 'TARGET 2R · plan', style: 'dashed' });
+    expect(byId.target).toMatchObject({ title: 'TARGET 1 · plan', style: 'dashed' });
+    // Target 2 (#845): only ever a plan's, thinner and dashed; target 1 is the reward zone's end.
+    expect(byId.target2).toMatchObject({ price: 5.99, title: 'TARGET 2 · plan', style: 'dashed', width: 1 });
     expect(byId.stop).toMatchObject({ title: 'STOP · plan', style: 'dashed' });
     // The day's levels come from the read's level map (none in this read): no bare lines in their place.
-    expect(Object.keys(byId).sort()).toEqual(['entry', 'stop', 'target']);
+    expect(Object.keys(byId).sort()).toEqual(['entry', 'stop', 'target', 'target2']);
     expect(scene.edgeTags.map(t => t.label)).toEqual(expect.arrayContaining(['VWAP 6.09']));
     // The premarket high is the 5-minute pane's (the day's structure), never a 1-minute line or tag.
     expect(scene.edgeTags.some(t => t.label.startsWith('PMH'))).toBe(false);
@@ -189,8 +238,8 @@ describe('the charts', () => {
   it('mirrors only thin lines on the 5-minute and 10-second panes', () => {
     const { scene, lines } = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity });
     expect(scene.boxes).toEqual([]);
-    expect(lines.filter(l => ['entry', 'stop', 'target'].includes(l.id)).every(l => l.width === 1 && l.title === '')).toBe(true);
-    expect(lines.map(l => l.id)).toEqual(['entry', 'stop', 'target']);
+    expect(lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id)).every(l => l.width === 1 && l.title === '')).toBe(true);
+    expect(lines.map(l => l.id)).toEqual(['entry', 'stop', 'target', 'target2']);
   });
 
   it('honours the switches: a hidden lane, setups off, levels off', () => {
@@ -247,7 +296,7 @@ describe('the sheet', () => {
   it('summarizes the read in one line', () => {
     const text = readSummary(read);
     expect(text).toMatch(/^APUS at 15:03 ET: In play Yes · Setups Flag forming · Front Mixed/);
-    expect(text).toContain('entry 5.44, stop 5.33, target 5.66, 2.0 : 1');
+    expect(text).toContain('entry 5.44, stop 5.33, target 1 5.49 (+0.5R), target 2 5.99 (+5.0R)');
   });
 
   it('summarizes the history without inventing a close', () => {

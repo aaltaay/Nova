@@ -82,6 +82,8 @@
 .bots-tpl__item em { font-style: normal; }
 .bots-tpl__item.is-on { border-color: var(--bots-blue); box-shadow: 0 0 0 1px color-mix(in srgb, var(--bots-blue) 55%, transparent) inset; }
 .bots-tpl__bad { color: var(--bots-red); font-size: 11px; }
+/* What the target menu's migration did to an older template (#845). */
+.bots-tpl__migrated { color: var(--nova-text-muted); font-size: 11px; }
 .bots-tpl__listacts { display: flex; flex-wrap: wrap; gap: 6px; }
 .bots-tpl__params { overflow-y: auto; min-height: 0; padding-right: 4px; display: grid; gap: 12px; align-content: start; }
 .bots-tpl__meta { margin: 0; color: var(--nova-text-muted); font-size: 12px; }

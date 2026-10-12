@@ -5,8 +5,8 @@
  *
  * Targets beside the stop (#681, ADR 037 amendment 2026-10-12): target 1 sells the first half, target 2 the
  * rest, as one exit pair with the stop -- a target's fill shrinks the stop to the shares left, and the stop
- * stays where it is. They start from the read's targets (#845) when those are still ahead of the price;
- * empty, the stop goes alone. The flush sell is shown, locked, with why it is not Nova's yet.
+ * stays where it is. They start from the read's targets (#845) still ahead of the price -- one the price
+ * already passed gives its place to the next, which then sells every share; empty, the stop goes alone. The flush sell is shown, locked, with why it is not Nova's yet.
  *
  * A short you hold (ADR 048) gets "Nova takes the cover", the mirror: a resting BUY stop over the price,
  * lowered as candles close under round numbers, never raised, and its cover targets under the price. No
@@ -14,7 +14,7 @@
  */
 import { useState } from 'react';
 import { tipProps, whyProps } from '../ux';
-import { splitHalves, targetProblem, usableTarget } from './exitTargets';
+import { splitHalves, startTargets, targetProblem } from './exitTargets';
 import type { StockHeld } from './heldRead';
 import { PriceInput } from './PlanNumbers';
 import { fmtPx } from './planMath';
@@ -31,9 +31,10 @@ export function ExitSheet({ ctx, held, lock }: { ctx: StockReadContextValue; hel
   const start = move?.to ?? held.stop?.price ?? null;
   const last = held.price;
   const [stop, setStop] = useState<number | null>(start);
-  const [target1, setTarget1] = useState<number | null>(() => usableTarget(short, held.target?.price, last));
+  const [target1, setTarget1] = useState<number | null>(
+    () => startTargets(short, held.target?.price, held.target2?.price, last)[0]);
   const [target2, setTarget2] = useState<number | null>(
-    () => usableTarget(short, held.target2?.price, last, usableTarget(short, held.target?.price, last)));
+    () => startTargets(short, held.target?.price, held.target2?.price, last)[1]);
   const [trail, setTrail] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);

@@ -91,7 +91,7 @@ def test_the_default_takes_its_bot_rules_and_nothing_else(store, tmp_path):
     assert t.values["bot_grades"] == "A" and t.values["bot_window_end"] == "09:30"
     assert store.in_play(FP).values["bot_grades"] == "A"
     saved = json.loads((tmp_path / "setup-templates.json").read_text(encoding="utf-8"))
-    assert saved["schema_version"] == 1
+    assert saved["schema_version"] == cs.SETUP_TEMPLATES_SCHEMA_VERSION
     assert saved["setups"][FP]["default_bot"] == {"bot_window_end": "09:30", "bot_grades": "A"}
     reread = TemplateStore(tmp_path / "setup-templates.json")
     assert reread.in_play(FP).values["bot_grades"] == "A"

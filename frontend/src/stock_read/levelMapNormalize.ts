@@ -211,9 +211,15 @@ export function normalizePlanLevels(raw: unknown): PlanLevels | null {
   const room = obj(l?.room);
   const roomNote = normalizeLevelNote(room);
   if (!l || !room || !roomNote) return null;
+  const t7 = obj(room.t7);
   return {
-    room: { ...roomNote, r: num(room.r), price: num(room.price), trial: str(room.trial) ?? '' },
+    room: {
+      ...roomNote, r: num(room.r), price: num(room.price), trial: str(room.trial) ?? '',
+      // Trial T7's own reading (#845): kept for its hover, never a label.
+      t7: t7 ? { id: str(t7.id) ?? 'T7', r: num(t7.r), under: t7.under === true } : null,
+    },
     target: normalizeLevelNote(l.target),
+    target2: normalizeLevelNote(l.target2),
     stop: normalizeLevelNote(l.stop),
     next: normalizeLevelNote(l.next),
     recent: normalizeLevelNote(l.recent),

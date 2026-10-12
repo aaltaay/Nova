@@ -108,7 +108,8 @@ def test_symbol_view_answers_every_lane_for_a_followed_symbol(tmp_path):
     flag = lanes["bull_flag"]
     assert flag["state"] == "leg" and flag["forming"]["waiting"] == "1 more red or doji candle"
     assert flag["series"]["macd_hist"] is not None and flag["template"]["id"] == "default"
-    assert flag["rules"]["stop_cap"] == 0.20 and flag["rules"]["target_r"] == 2.0
+    assert flag["rules"]["stop_cap"] == 0.20 and flag["rules"]["targets"] == {
+        "first": "round_or_fixed", "second": "hod_or_level", "fixed": 0.2, "split": 0.5, "stop": "pattern"}
     assert flag["window"]["start"] == "07:00" and flag["level"] == 1 and flag["chosen"] is False
     assert lanes["first_pullback"]["chosen"] is True
     assert lanes["red_to_green"]["state"] == "watching"   # before the open: the lane says so

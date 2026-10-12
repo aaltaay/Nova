@@ -121,7 +121,7 @@ function MetricsSummary({ metrics }: { metrics: JournalMetrics }) {
       <div className="journal-metric" title="Average dollar loss across only the losing trades (shown as a positive number).">
         <span className="journal-metric-label">Avg loss</span><span>{fmtPrice(metrics.avg_loss_dollars)}</span>
       </div>
-      <div className="journal-metric" title="Average win divided by average loss. The plan targets 2:1 or better — bigger winners than losers.">
+      <div className="journal-metric" title="Average win divided by average loss. Over 1, the winners are bigger than the losers — what selling at the levels' targets aims for.">
         <span className="journal-metric-label">P/L ratio</span><span>{fmtRatio(metrics.profit_loss_ratio)}</span>
       </div>
       <div className="journal-metric" title="Sum of every closed trade's P&L.">

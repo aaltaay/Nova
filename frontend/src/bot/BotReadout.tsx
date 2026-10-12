@@ -3,7 +3,8 @@
  * 042 G), from its template in play: the same pre-registered rule for each setup, on
  * its own rows. It measures whether the tape gate turns the setup into a winner. Nova's
  * bot trades Paper and Sim only and Live trading by a bot is not built, so passing it
- * unlocks nothing yet -- the card says so, and that it scores the backtest's exit while
+ * unlocks nothing yet -- the card says so, and that it scores the strategy's exit (#845: its
+ * share at target 1, the rest at target 2) while
  * the bot sells everything at target 1 with a 15-minute time stop, and how many of its
  * triggers fell inside the bot's window.
  */

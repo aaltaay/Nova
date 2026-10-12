@@ -13,8 +13,8 @@ candle is over.
 After a live price over the flat top, the hold is read on the minutes (``hold_bar_sec`` 60): the first of the
 next ``hold_bars`` minutes after the break's own that holds the touch zone and closes green over the high
 triggers at its close, entry one cent over it, the stop at the pullback's low -- the lowest low of those minutes
-(``hold_stop``); a minute closing under the zone first fails it. The scoring exit's 9 EMA is the minutes' too:
-the trade is a 1-minute trade. Pure: no I/O, no clock.
+(``hold_stop``); a minute closing under the zone first fails it. Today's map and the high of day its targets read
+are the minutes' too (#845): the trade is a 1-minute trade. Pure: no I/O, no clock.
 """
 from __future__ import annotations
 
@@ -49,10 +49,9 @@ class FlatTop5mDetector(FlatTopDetector):
         self.minutes = Series(ema_period=self.p.ema_period, macd_fast=self.p.macd_fast,
                               macd_slow=self.p.macd_slow, macd_signal=self.p.macd_signal)
 
-    @property
-    def ema_now(self) -> float | None:
-        """The scoring exit's EMA: the minutes', the trade being a 1-minute one."""
-        return self.minutes.e[-1] if self.minutes.e else None
+    def map_series(self) -> Series:
+        """Today's map and the high of day from the minutes (#845): the trade is a 1-minute one."""
+        return self.minutes
 
     def on_bars(self, bars: list[Bar]) -> list[tuple[str, dict]]:
         """The scanner's minutes: the pattern reads a 5-minute candle once it is over, the hold every minute."""

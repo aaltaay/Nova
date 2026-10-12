@@ -1,7 +1,7 @@
 """What stands in a plan's way, either side (ADR 036; shorts ADR 048). Pure.
 
-A long plan runs up from its entry to its target: the levels over the entry and a large seller on Nova's
-book are in its way, and a rising 1-minute MACD, a price over the 9 EMA and an entry over VWAP are on its
+A long plan runs up from its entry to its targets (#845: target 1, then target 2 for the rest): the levels over
+the entry and a large seller on Nova's book are in its way, each named for the target it comes before, and a rising 1-minute MACD, a price over the 9 EMA and an entry over VWAP are on its
 side. A short plan (``plan["side"] == "short"``) is the mirror: it runs down from its entry to its cover
 target, so the levels under the entry and a large buyer on the bids are in its way, and a falling MACD, a
 price under the 9 EMA and an entry under VWAP are on its side; a flush on the tape is for it, a burst
@@ -25,13 +25,15 @@ def is_short(plan: dict[str, Any]) -> bool:
 
 
 def obstacles(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
-    """Levels strictly between the entry and the target: the high of day, VWAP, the premarket
+    """Levels strictly between the entry and the furthest target: the high of day, VWAP, the premarket
     high, the open, each round number of the stock's scale (``rounds``: the half and whole dollars up
     to $25, the $5 numbers on ACN at $223), and a large seller on Nova's book -- for a short, a large
-    buyer on its bids. Ordered as the price meets them: up for a long, down for a short."""
-    entry, target = plan.get("entry"), plan.get("target")
-    if entry is None or target is None:
+    buyer on its bids. Ordered as the price meets them: up for a long, down for a short; each says the
+    target it comes before (``before``: 1 or 2)."""
+    entry, t1 = plan.get("entry"), plan.get("target")
+    if entry is None or t1 is None:
         return []
+    target = plan.get("target2") or t1
     short = is_short(plan)
     lo, hi = (target, entry) if short else (entry, target)
     rnd = (rounds.of((ctx.get("level_map") or {}).get("price")) or rounds.of(ctx.get("price"))
@@ -41,8 +43,10 @@ def obstacles(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]
 
     def add(price: float | None, label: str, kind: str, size: float | None = None) -> None:
         if price is not None and lo + EPS < float(price) < hi - EPS:
-            out.append({"price": round(float(price), 4), "label": label, "kind": kind,
-                        "size": int(size) if size is not None else None})
+            p = float(price)
+            first = p > t1 + EPS if short else p < t1 - EPS
+            out.append({"price": round(p, 4), "label": label, "kind": kind,
+                        "size": int(size) if size is not None else None, "before": 1 if first else 2})
 
     add((lv.get("hod") or {}).get("price"), "high of day", "hod")
     add(lv.get("vwap"), "VWAP", "vwap")
@@ -148,17 +152,19 @@ def checks(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
                     "text": f"the {risk:.2f} stop is inside one normal 1-min candle ({med:.2f})"})
     out += _trend_checks(plan, ctx)
     in_way = obstacles(plan, ctx)
-    round_words = _listing([m["label"] for m in in_way if m["kind"] == "round"])
+    rounds_before = {n: _listing([m["label"] for m in in_way if m["kind"] == "round" and m["before"] == n])
+                     for n in (1, 2)}
     for m in in_way:
         if m["kind"] == "round":
-            # The rounds are one line, where the first of them sits: a wide plan crosses several.
-            if round_words:
-                out.append({"id": "in_way_round", "state": "warn", "text": f"{round_words} before the target"})
-                round_words = ""
+            # The rounds before each target are one line, where the first of them sits: a wide plan crosses several.
+            words = rounds_before[m["before"]]
+            if words:
+                out.append({"id": "in_way_round", "state": "warn", "text": f"{words} before target {m['before']}"})
+                rounds_before[m["before"]] = ""
             continue
         big = m["kind"] == "wall" and (m.get("size") or 0) >= TAPE_GATE_BIG_SELLER_SHARES
         out.append({"id": f"in_way_{m['kind']}", "state": "bad" if big else "warn",
-                    "text": f"{m['label']} at {m['price']:.2f} before the target"})
+                    "text": f"{m['label']} at {m['price']:.2f} before target {m['before']}"})
     out += _tape_checks(plan, ctx)
     if ctx.get("halted") is True:
         out.append({"id": "halted", "state": "bad", "text": "halted now"})

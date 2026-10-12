@@ -18,12 +18,13 @@ here places, stages or cancels an order.
 boolean, followed_note: string | null, seeding: boolean, setups: SetupLane[]}` -- `followed` false
 (with the note: the scanner follows the HOD Momo names) leaves `setups` empty. A **SetupLane** is
 each setup's template in play: `{setup_type, template: {id, rev, name, params_hash}, level, chosen,
-window: {start, end, state}, rules: {stop_cap, min_stop, target_r, target_mode, entry_offset,
-risk_slippage}, state, reason, kind, nth, setup_id: string | null, leg, setup, forming, last_price,
+window: {start, end, state}, rules: {stop_cap, min_stop, targets: {first, second, fixed, split, stop} |
+null, entry_offset, risk_slippage}, state, reason, kind, nth, setup_id: string | null, leg, setup, forming, last_price,
 distance, grade, pillars, tape: {verdict, reasons, line, metrics, flow} | null, proposal, outcome,
 bar_r, mfe, mae, failed_at, series}` -- the board row's fields for that symbol whatever its state
 (`watching` included), plus `forming` and `series`. `forming` is `{trigger, entry, stop, risk,
-target1, bars, blocked: string | null, waiting: string | null}` or `null`: the levels the setup
+target1, target2, target1_fraction, targets, bars, blocked: string | null, waiting: string | null}` or `null`
+(the targets as setups.md, "Targets replace 2R"): the levels the setup
 would arm with, computed at the last bar close by the same rule that arms it -- a first pullback or
 bull flag blocked by its risk, MACD or window, a bull flag with fewer flag candles than it needs
 (`waiting` says how many more), a flat top's base blocked, red to green before its red closes or
@@ -46,18 +47,26 @@ the high of day, the premarket high (today's bars 04:00-09:30 ET only), the 09:3
 it), the chart's session VWAP (from 04:00 ET, restarted at 16:00 for after hours), and the nearest
 round number of the price's scale above and below (the stock's own round numbers, below). `price` (and the read's change) is `/api/why`'s `facts.price`.
 A **Plan** is `{source: "setup" | "manual", setup_type, kind, state: "forming" | "armed" | "near" |
-"triggered" | "manual", provisional: boolean, trigger, entry, stop, target, risk, reward, rr,
-target_rule, entry_rule, stop_rule, grade, reason, tape: {verdict, reasons} | null, flow: {score,
+"triggered" | "manual", provisional: boolean, trigger, entry, stop, target, target2, target1_fraction,
+targets, risk, reward, rr, reward2, rr2, target_rule, entry_rule, stop_rule, grade, reason, tape: {verdict, reasons} | null, flow: {score,
 label} | null, window: {start, end, state} | null, checks: [{id, state, text}], marks: [{price,
-label, kind: "hod" | "vwap" | "pmh" | "round" | "wall" | "open"}]}`. The setup plan is the most
+label, kind: "hod" | "vwap" | "pmh" | "round" | "wall" | "open", before: 1 | 2}]}`. The setup plan is the most
 advanced lane (near, armed, triggered within 30 minutes, then forming; the bot's chosen setup
-first on a tie): entry, stop and target are the lane's own (`setup`, else `forming`, then
-`provisional`), the target the scanner's target 1 (entry + `target_r` x risk, or the leg high when
-higher), `rr` = (target - entry) / risk. With `entry` given the plan is the operator's (`manual`):
-the stop is `stop`, else the lowest low of the last `STOCK_READ_MANUAL_STOP_BARS` closed one-minute
-bars under the entry; the target entry + `STOCK_READ_TARGET_R` x risk. `checks` name what stands in
-the way; `marks` are the obstacles between entry and target (a seller of the tape gate's wait size
-or more on Nova's book). Size is the desk's (the Trader's risk per trade, a desk setting).
+first on a tie): entry, stop and targets are the lane's own (`setup`, else `forming`, then
+`provisional`). Since #845 (operator decisions 2026-10-09 and 2026-10-12) a plan has two targets from the
+menu (`setup_scanner/targets.py`; setups.md, "Targets replace 2R"): `target` is target 1 (the first part's
+sell), `target2` the rest's or `null` (everything at target 1), `target1_fraction` the share sold at target 1
+(1.0 without a target 2), and `targets` their reasons (`{first: {kind, price, why}, second, hod, pullback_high,
+stop, rule}`; `why` like "+20c", "1c under $5.50", "1c under HOD 6.12"). `rr` / `rr2` are the targets in R and
+`reward` / `reward2` in dollars -- R is the unit, never a target. `target_rule` names the strategy's choice
+("target 1: 20c, or 1c before a half / whole dollar when that is closer; target 2: ...; 50% at target 1"), and
+`stop_rule` the template's round-number stop when it picked one ("3c under $4.00"). With `entry` given the plan
+is the operator's (`manual`): the stop is `stop`, else the lowest low of the last
+`STOCK_READ_MANUAL_STOP_BARS` closed one-minute bars under the entry; the targets are the menu's defaults from
+the entry, today's map and the high of day of its candles -- they never depend on the stop. `checks` name what
+stands in the way; `marks` are the obstacles between the entry and the furthest target (a seller of the tape
+gate's wait size or more on Nova's book), each `before` the target it comes before; a check says it ("$5.50
+before target 1"). Size is the desk's (the Trader's risk per trade, a desk setting).
 
 **Not a trade (operator report, 2026-09-29).** The plan adds `pillars: {passed, known, total} |
 null` (the lane's pillar checks: how many pass and how many are known, of five), `trade: {ok:
@@ -74,7 +83,8 @@ Nova's bot, Auto-entry, Approve and proposals all read it, so a plan that reads
 NOT A TRADE is never bought by Nova either -- the bot and Auto-entry skip the
 trigger with the reasons, and Approve refuses it (`STOCK_MODE_NOT_A_TRADE`). On the desk the plan's header carries the grade with its count in a chip that
 never shrinks ("C 1/5"); a plan that is not a trade reads NOT A TRADE with its reasons, on the plan
-and on the 1-minute chart's badge, drops its reward : risk from the header, locks Stage in ticket
+and on the 1-minute chart's badge, drops its targets in R ("+0.5R · +5.0R to targets 1 · 2"; a reward : risk
+before #845) from the header, locks Stage in ticket
 and Approve with the reasons (`data-why`), and ENTER NOW is never called on it; a setup that played
 out reads its result ("STOP FIRST 08:08 · -1.00R") instead of TRIGGERED.
 The setup cards and Watchlist › Setups show every grade with its count ("C 1/5"), forming rows
@@ -165,7 +175,7 @@ by the desk only through the decisions route and, since 2026-09-29, the past-set
 `STOCK_READ_POLL_MS` while it shows. The plan box and seven tiles sit between the quote and Level 2
 (hover a tile for its rows, click it or "All" for the sheet over the charts: Signals, Decisions,
 History). The plan opens whole while the quote card is at least `STOCK_READ_PLAN_OPEN_MIN_PX` tall
-and is otherwise one line (the setup, entry / stop / target, the size, reward : risk, Stage), so
+and is otherwise one line (the setup, entry / stop / target 1 / target 2, the size, the targets in R, Stage), so
 Level 2 keeps its room; the operator's own open or fold is kept. The size is whole shares of the
 operator's risk per trade over the risk a share. The risk per trade is the desk venue's bot sleeve
 `caps.risk_usd` (ADR 042: one number sizes every Nova buy and the operator's Stage, per venue),
@@ -176,7 +186,8 @@ shows the size Nova would send (the stock-mode view's `size`). "Stage in ticket"
 limit at the entry for that size through the ticket prefill channel. It never places, and the
 plan's stop and target stay the operator's to set: the ticket takes no bracket from it. With no
 setup forming, the operator's own plan starts from a typed entry or the ask. Its stop is typed, or
-dragged on the 1-minute chart with the entry, and the target stays 2R. The 1-minute chart draws
+dragged on the 1-minute chart with the entry; while it drags the targets keep their distance from the entry,
+and on release the read answers the menu's targets for the new entry. The 1-minute chart draws
 each lane's shapes (the plan's lane in colour, the rest faded), the plan's zones and lines, the
 day's levels, a legend and the plan's badge. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
@@ -245,9 +256,10 @@ minutes). `{from_ts, price, level, entry, floor, window_min, complete, bars, hig
   candle after it died. `crossed_at` is that candle's start.
 - After `high`, `trade` is the trade the rule refused, scored the way an armed setup is: entry one cent
   over the level (the candle's open when it gapped over; the setup's own entry when it armed), stop the
-  floor, target entry + `SETUPS_TARGET_R` x risk (the setup's own target 1 when it armed and over the
-  entry) -- `{entry, stop, risk, target, outcome: "target_first" | "stop_first" | "open", outcome_at,
-  bar_r, exit_reason, mfe_r, mae_r}`. The crossing candle counts its stop only on a close under it (the
+  floor, the setup's own targets when it armed and they are over the entry, else the menu's defaults from
+  the entry, the high of day before the cross and the leg's high (#845) -- `{entry, stop, risk, target,
+  target2, target1_fraction, outcome: "target_first" | "stop_first" | "open", outcome_at, bar_r, exit_reason,
+  mfe_r, mae_r}`. The crossing candle counts its stop only on a close under it (the
   scoreboard's entry-bar rule), a later candle touching both counts the stop, `mfe_r` / `mae_r` read
   `SETUPS_SCORE_WINDOW_MIN` from the cross, and `bar_r` / `exit_reason` are `ScoreTracker`'s exit rules
   on the bars (a 9 EMA over the day's bars). `null` when the floor is unknown or not under the entry.
@@ -336,7 +348,9 @@ first (`F:\Nova\eyes\studies\levels-2026-09-30`, in sample): half and whole doll
 they break (76% of fresh approaches printed through within 10 minutes, against 84% at a random price) and
 are a trigger once through (+1.5% before -1.5% in 77% of breaks, against 70%; a break under 68% against
 63%); the high of day and tested tops slow price a little; old daily highs do not; capping the target at
-a level costs. So the target stays 2R, and the levels describe. Nothing here places, stages or blocks.
+a level costs. So the target stayed 2R, and the levels described -- until the operator removed the 2:1 on
+2026-10-09 (#845): the targets are now the menu's, at the levels ("Targets replace 2R", setups.md). Nothing here
+places, stages or blocks.
 
 **The level map** (owner `stock_read/level_map.py`, pure). `GET /api/stock-read/{symbol}` adds
 `level_map: {schema_version: 1, price, rounds: {minor, major, measured, words} | null, intraday: Zone[],
@@ -399,13 +413,18 @@ morning: checks 32 to 7, ruler marks 27 to 4, and the map names "217.99 · tripl
 bottom ×5 · VWAP · open" and "$220.00 · double top · PMH".
 
 **What the plan says** (owner `stock_read/level_notes.py`, pure). The Plan adds `levels: {room, target,
-stop, next, recent, between} | null` (null without a map). Each note is `{state, text, detail}` (`detail`
+target2, stop, next, recent, between} | null` (null without a map; `target2` is target 2's round note, #845). Each note is `{state, text, detail}` (`detail`
 quotes the study):
-- `room` adds `{r, price, label, trial: "T7" | null}`: the first zone of today's map over the entry, in R
-  (`trial` null on a stock whose rounds are not half and whole dollars: T7's map counts those);
-  `warn` under `STOCK_READ_ROOM_MIN_R` (2R), `ok` at or over it or with none, `unknown` without a stop. The
-  daily zones between the entry and the target are named in its detail and never counted. It blocks
-  nothing: trial T7 (`knowledge/signal-trials-2.json`) decides whether it ever becomes a NOT A TRADE reason.
+- `room` adds `{r, t7, price, label, trial: "T7" | null}`: the first zone of today's map over the entry, read
+  against the plan's targets (#845): `warn` when it stands before target 1 (target 1 needs it to break: "15c to
+  HOD 8.77, before target 1"), `ok` when target 1 sells before it or with none (its detail says whether target 2
+  is past it), `unknown` without a stop; the text is in cents, never an R threshold. `r` is the room in R of the
+  risk. `t7` is trial T7's own reading under its registered rule (`knowledge/signal-trials-2.json`, frozen):
+  `{id: "T7", r, under: boolean}` -- `under` when the room is under `STOCK_READ_T7_ROOM_R` (2) R of the risk, the
+  measurement T7 was registered on; nothing on the plan reads it, and the trial decides whether it ever becomes
+  a NOT A TRADE reason. `trial` and `t7` are null on a stock whose rounds are not half and whole dollars (T7's
+  map counts those). The daily zones between the entry and the furthest target are named in its detail and
+  never counted. It blocks nothing.
 - `target` / `stop`: a round number within a tenth of its step (5c at a half dollar) of the target or the stop
   -- a target under the round sells before it (`ok`), one on or over it needs the break (`warn`); a stop
   under a round the entry is over survives its test (`ok`), one on or just over it does not (`warn`).
@@ -416,8 +435,8 @@ quotes the study):
 - `recent`: a round the price broke (`ok`) or lost (`bad`) within `STOCK_READ_ROUND_CROSS_SEC` (10 min)
   while it still stands on that side; a cross is fresh when the 15 candles before it stayed on the other
   side. `null` otherwise.
-- `between`: today's zones strictly between the stop and the target, `{price, lo, hi, tag, label, round,
-  hod}`.
+- `between`: today's zones strictly between the stop and the furthest target (target 2 when there is one),
+  `{price, lo, hi, tag, label, round, hod}`.
 
 **On the desk** (owner `frontend/src/stock_read/`: `levelPicks.ts` which zones a chart draws and each
 card, `levelRender.ts` the drawing, `levelTypes.ts` and `levelMapNormalize.ts` the wire, `PlanLevels.tsx` the
@@ -440,7 +459,7 @@ pane's level lines never showed their names.) The **10-second** pane draws the p
 pane's corner carries a **Key** chip: pointed at, focused or pressed, it lists what each colour on that
 pane means -- the time-of-day background on the intraday panes, the levels, and on the 1-minute the
 setup boxes and the plan's lines. The plan
-card lists Room (with "in trial T7" while amber), Target, Stop, "$ next" and "$ now", each one line with
+card lists Room (T7's reading only in its hover since #845), Target 1, Target 2, Stop, "$ next" and "$ now", each one line with
 its detail on hover, and the ruler marks the `between` levels. The toolbar's Levels switch
 (`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. Nothing is drawn on a replay
 desk or the sample desk.
@@ -513,8 +532,9 @@ at that candle.
 **What the plan says** (owner `stock_read/line_notes.py`, pure). The Plan's `levels` adds `lines: LineNote[]`, at
 most one per role in the order `way`, `stop`, `broke`; each `{role, state, text, detail, line (its id), price}`,
 measured on the plan's side (a short's are the mirror), from both charts' lines:
-- `way` -- the nearest holding descending resistance over a long's entry (past its band) and under its target, or
-  ascending support under a short's entry and over its target: `warn`, with `r` (its distance in R). Else, a line
+- `way` -- the nearest holding descending resistance over a long's entry (past its band) and under its furthest
+  target, or ascending support under a short's entry and over its furthest target: `warn`, with `r` (its distance in
+  R), its text naming the target it comes before ("before target 1", #845). Else, a line
   between the price and the entry: `info`, "it trades the break".
 - `stop` -- the nearest holding ascending support under a long's entry (descending resistance over a short's),
   within 2R of the entry: `ok` when the stop is beyond its band, `warn` when on it or between it and the entry;
@@ -688,10 +708,11 @@ measured in; absent, the average less the stop while the stop is under it, else 
 `held_since` (epoch seconds you have held since). `held` is `null` without them.
 `held: {schema_version: 1, qty, avg, price, open_usd, r: number | null, risk: number | null,
 stop: {price, source: "yours" | "proposed" | "nova", rule, printed: boolean} | null,
-raise: {to, round, at, text} | null, target: {price, rule, traded_at: number | null} | null,
+raise: {to, round, at, text} | null, target: {price, kind, rule, traded_at: number | null} | null,
+target2: {price, kind, rule, traded_at: number | null} | null, target1_fraction: number,
 ladder: [{role: "then" | "next" | "now" | "through" | "broke" | "support" | "stop" | "cost", price, text,
 r: number | null, usd: number | null}], broke: [{round, at, close}], through: [{round, at, high}],
-levels: {room, target, stop, next, recent}, checks: Check[]}`:
+levels: {room, target, target2, stop, next, recent}, checks: Check[]}`:
 - **The stop**: Nova's when Nova holds the exit (`nova`, "Nova takes the exit" below), else `held_stop`
   (`yours`), else proposed: the lowest low of the last `STOCK_READ_MANUAL_STOP_BARS` closed 1-minute
   candles when it is under the price, else 1c under the nearest zone of today's map under the price
@@ -704,14 +725,18 @@ levels: {room, target, stop, next, recent}, checks: Check[]}`:
 - **Raise**: the highest broke round whose `round - near` (the stock's own `rounds.near`: 5c under a half
   dollar) is over the stop and under the price -- `to` is that price ("raise the stop to 5.95, 5c under
   $6.00"); `null` otherwise. Up only.
-- **The target**: the average plus `STOCK_READ_TARGET_R` x the risk (your 2:1); `traded_at` when a candle
-  since `held_since` reached it.
+- **The targets** (#845; `stock_read/held_targets.py`): the menu's defaults read from the position -- target 1
+  (`target`) 20c over your average or 1c under a closer half / whole dollar, target 2 (`target2`) 1c under the
+  high of day past it, else 1c under the next zone of today's map past it, else `null`; `target1_fraction` 0.5
+  with a target 2, 1.0 without. A short's are under the average (1c over the low of day). `rule` says it ("your
+  average +20c", "1c under HOD 6.97"); they never depend on R. `traded_at` when a candle since `held_since`
+  reached each. These are the keys Nova's exits read (`target`, `target2`, `target1_fraction`).
 - **The ladder**, highest price first: the first two zones of today's map over the price (`next`, `then`),
   the price (`now`), the through and broke rounds under it, the nearest zone under the price over the stop
   (`support`, when no broke round is there), the stop and the average (`cost`). `r` is in the held risk.
 - **The rows** (`levels`, the plan's note shape) are measured from the price, never the entry: Room to the
-  first zone over the price in R (`info`; trial T7 reads entries, not positions), the target behind or
-  ahead, the stop's round (`level_notes.stop_note`), the next round over the price and a round just
+  first zone over the price in R (`info`; trial T7 reads entries, not positions), each target behind or
+  ahead ("Target 1 5.28 is 20c above", "Target 2 6.96 traded at 08:58: you are past it"), the stop's round (`level_notes.stop_note`), the next round over the price and a round just
   broken or lost. `checks` are the plan's checks that hold for a position: the spread against what the stop
   gives back, the 1-minute MACD, the 9 EMA, VWAP, the tape's flow, bids pulled and a halt.
 

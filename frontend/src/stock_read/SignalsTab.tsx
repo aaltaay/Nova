@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { hhmmEt } from './timeWords';
 import { STATE_WORDS, TILE_NAMES, sourceLabel } from './constants';
-import { fmtPx, rrText, setupName } from './planMath';
+import { fmtPx, rText, setupName } from './planMath';
 import { GroupHead, ReadRowList } from './ReadRows';
 import type { ReadGroupId, ReadRow, ReadState, StockRead } from './types';
 
@@ -24,8 +24,10 @@ export function readSummary(read: StockRead): string {
   let plan = 'No plan: nothing is forming.';
   if (p) {
     const what = p.source === 'manual' ? 'your plan' : `${setupName(p.setup_type).toLowerCase()} ${p.state}`;
-    plan = `The plan (${what}): entry ${fmtPx(p.entry)}, stop ${fmtPx(p.stop)}, target ${fmtPx(p.target)}, `
-      + `${rrText(p.rr)}.`;
+    // The menu's targets (#845), each in R -- the unit, never the rule.
+    const t2 = p.target2 != null ? `, target 2 ${fmtPx(p.target2)} (${rText(p.rr2)})` : '';
+    plan = `The plan (${what}): entry ${fmtPx(p.entry)}, stop ${fmtPx(p.stop)}, target 1 ${fmtPx(p.target)} `
+      + `(${rText(p.rr)})${t2}.`;
   }
   return `${read.symbol} at ${hhmmEt(read.generated_at)} ET: ${tiles}. ${plan}`;
 }

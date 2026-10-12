@@ -16,7 +16,10 @@ export const apusHeldWire = {
   since: APUS_HELD_SINCE,
   stop: { price: 5.45, source: 'yours', rule: 'your stop', printed: false },
   raise: { to: 5.95, round: 6.0, at: T0859, text: 'Raise the stop to 5.95, 5c under $6.00' },
-  target: { price: 5.965, rule: 'your average + 2 x 0.445', traded_at: T0859 - 180 },
+  // The target menu's defaults off the average (#845): 20c over it (no half / whole dollar nearer), then 1c under HOD.
+  target: { price: 5.275, kind: 'fixed', rule: 'your average +20c', traded_at: T0859 - 180 },
+  target2: { price: 6.96, kind: 'hod', rule: '1c under HOD 6.97', traded_at: null },
+  target1_fraction: 0.5,
   ladder: [
     { role: 'then', price: 7.5, text: '$7.50', r: 5.45, usd: 242.5 },
     { role: 'next', price: 6.97, text: 'HOD 6.97 · $7.00', r: 4.26, usd: 189.5 },
@@ -31,7 +34,8 @@ export const apusHeldWire = {
   through: [{ round: 6.5, at: T0859 - 120, high: 6.66 }],
   levels: {
     room: { state: 'info', text: '0.7R to HOD 6.97, from the price', detail: null, trial: null },
-    target: { state: 'ok', text: '5.97 (2R) traded at 08:56: you are past it', detail: null },
+    target: { state: 'ok', text: 'Target 1 5.28 traded at 08:56: you are past it', detail: 'your average +20c' },
+    target2: { state: 'info', text: 'Target 2 6.96 is 32c above', detail: '1c under HOD 6.97' },
     stop: { state: 'ok', text: '5.45 is 5c under $5.50', detail: null },
     next: { state: 'info', text: '$7.00 is 36c above: resistance until it prints through, a trigger after', detail: null },
     recent: { state: 'ok', text: 'Broke $6.00: the 08:58 candle closed 6.46', detail: null },
@@ -64,7 +68,10 @@ export const rdynShortWire = {
   stop: { price: 5.89, source: 'yours', rule: 'your buy stop', printed: false },
   raise: null,
   lower: { to: 5.55, round: 5.5, at: T1032, text: 'Lower the stop to 5.55, 5c over $5.50' },
-  target: { price: 5.53, rule: 'your average - 2 x 0.12', traded_at: T1032 - 60 },
+  // The menu's covers under the average (#845): 20c under it (nearer than 1c over $5.50), then 1c over the low of day.
+  target: { price: 5.57, kind: 'fixed', rule: 'your average -20c', traded_at: T1032 - 60 },
+  target2: { price: 5.42, kind: 'hod', rule: '1c over LOD 5.41', traded_at: null },
+  target1_fraction: 0.5,
   ladder: [
     { role: 'stop', price: 5.89, text: 'your buy stop', r: -1, usd: -49.92 },
     { role: 'cost', price: 5.77, text: 'your average, 416 sh short', r: 0, usd: 0 },
@@ -77,7 +84,8 @@ export const rdynShortWire = {
   through: [],
   levels: {
     room: { state: 'info', text: '0.9R to 5.35, from the price', detail: null, trial: null },
-    target: { state: 'ok', text: '5.53 (2R) traded at 10:31: you are past it', detail: null },
+    target: { state: 'ok', text: 'Target 1 5.57 traded at 10:31: you are past it', detail: 'your average -20c' },
+    target2: { state: 'info', text: 'Target 2 5.42 is 4c below', detail: '1c over LOD 5.41' },
     stop: { state: 'ok', text: '5.89 is 9c over $5.80', detail: null },
     next: { state: 'info', text: '$5.00 is 46c below: support until it prints through, a trigger after', detail: null },
     recent: { state: 'ok', text: 'Lost $5.50: the 10:31 candle closed 5.44', detail: null },

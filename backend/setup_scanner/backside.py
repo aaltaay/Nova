@@ -16,7 +16,8 @@ bounce; the first m that qualifies is the setup.
 
 The board's other states are for the eye: ``leg`` (a fresh low -- wait for the bounce), ``pullback`` (a setup
 exists but MACD, risk or the window blocks it), ``failed`` (the bounce broke a rule), ``watching``. A bounce
-bar that makes a new low is the next fade. Target 1 is entry - target R x risk. Every number is a
+bar that makes a new low is the next fade. The targets are the menu's mirrored (``targets.py``, #845; the
+bounce came from the fade's low). Every number is a
 ``BacksideParams`` field a template sets (ADR 029). Pure: no I/O, no clock.
 """
 from __future__ import annotations
@@ -43,7 +44,6 @@ from constants_setups import (
     SETUPS_NEAR_PCT,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_STOP_CAP_DOLLARS,
-    SETUPS_TARGET_R,
 )
 from constants_short_setups import (
     SETUP_KIND_BACKSIDE,
@@ -63,7 +63,8 @@ from constants_short_setups import (
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import EPS, window_blocked
-from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked, short_target
+from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -85,7 +86,7 @@ class BacksideParams:
     entry_offset: float = SHORT_ENTRY_OFFSET_DOLLARS
     stop_offset: float = SHORT_STOP_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_r: float = SETUPS_TARGET_R
+    targets: TargetSpec = DEFAULT_TARGETS               # the target menu's choice (#845), mirrored
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SHORT_WINDOW_START_ET
@@ -186,9 +187,9 @@ class BacksideDetector(ShortTriggerDetector):
         self.leg = fade
         trig = s.lo[last]
         entry = round(trig - p.entry_offset, 4)
-        stop = round(bounce_high + p.stop_offset, 4)
+        stop, stop_why = self.stop_at(entry, round(bounce_high + p.stop_offset, 4))
         risk = round(stop - entry, 4)
-        target = short_target(entry, risk, p.target_r)
+        aim = self.aim(entry, pullback_high=fade["low"], stop=stop_why)
         blocked = window_blocked(p, bars[last].t + p.bar_sec)
         if blocked is None and p.macd_negative and s.hist[last] >= 0:
             blocked = "MACD positive -- not on the back side"
@@ -196,7 +197,7 @@ class BacksideDetector(ShortTriggerDetector):
             blocked = short_risk_blocked(p, risk, entry=entry)
         if blocked:
             self.armed = None
-            self.forming = short_levels(trig, entry, stop, target, bars=m, blocked=blocked)
+            self.forming = short_levels(trig, entry, stop, aim, bars=m, blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, blocked)
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason=blocked)))
@@ -206,7 +207,7 @@ class BacksideDetector(ShortTriggerDetector):
             prev = None
         self.armed = {
             "leg_t": fade["t"], "trigger": round(trig, 4), "entry": entry, "stop": stop, "risk": risk,
-            "target1": target, "pullback_bars": m, "leg_high": fade["high"], "leg_low": fade["low"],
+            **aim, "pullback_bars": m, "leg_high": fade["high"], "leg_low": fade["low"],
             "leg_pct": fade["pct"], "armed_bar_t": bars[last].t,
             "armed_at": (prev or {}).get("armed_at") or bars[last].t + p.bar_sec, "kind": self.kind_now(),
             "detail": {"bounce_bars": m, "bounce_high": round(bounce_high, 4)},

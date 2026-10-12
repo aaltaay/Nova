@@ -1,5 +1,6 @@
-/** The plan's ruler (stop -> entry -> target, what stands between, where the price is now; a short's runs
- * from its buy stop down, ADR 048) and its checks, one glyph each: ✓ for it, ✗ against it, ! caution, ? unknown. */
+/** The plan's ruler (stop -> entry -> target 1 -> target 2 (#845), what stands between, where the price is now; a
+ * short's runs from its buy stop down, ADR 048) and its checks, one glyph each: ✓ for it, ✗ against it, ! caution,
+ * ? unknown. */
 import { useLayoutEffect, useState } from 'react';
 import { tipProps } from '../ux';
 import { STATE_WORDS } from './constants';
@@ -29,14 +30,21 @@ export function PlanRuler({ plan, price }: { plan: StockPlan; price: number | nu
   const lay = rulerLayout(plan, price, width);
   if (!lay) return null;
   const short = plan.side === 'short';
+  const last = plan.target2 != null ? (short ? 'cover 2' : 'target 2') : (short ? 'the cover target' : 'the target');
   const nowTip = price === null ? null : lay.now?.edge === 'low'
     ? `Last ${fmtPx(price)}: ${short ? 'over the buy stop' : 'under the stop'}`
-    : lay.now?.edge === 'high' ? `Last ${fmtPx(price)}: ${short ? 'under the cover target' : 'over the target'}`
+    : lay.now?.edge === 'high' ? `Last ${fmtPx(price)}: ${short ? 'under' : 'over'} ${last}`
       : `Last ${fmtPx(price)}`;
+  // Target 1's part solid; with a target 2, the rest's part runs on, fainter (#845).
+  const t1 = lay.target1Pct ?? lay.targetPct;
   return (
     <div ref={ref} className="sr-ruler" data-testid="stock-read-ruler" aria-hidden="true">
       <span className="sr-ruler__risk" style={{ left: `${lay.stopPct}%`, width: `${lay.entryPct - lay.stopPct}%` }} />
-      <span className="sr-ruler__reward" style={{ left: `${lay.entryPct}%`, width: `${lay.targetPct - lay.entryPct}%` }} />
+      <span className="sr-ruler__reward" style={{ left: `${lay.entryPct}%`, width: `${t1 - lay.entryPct}%` }} />
+      {lay.target1Pct !== null && (
+        <span className="sr-ruler__reward sr-ruler__reward--rest" data-testid="stock-read-ruler-rest"
+          style={{ left: `${t1}%`, width: `${lay.targetPct - t1}%` }} />
+      )}
       {lay.marks.map(m => (
         <span
           key={`${m.kind}-${m.label}`}
@@ -47,6 +55,7 @@ export function PlanRuler({ plan, price }: { plan: StockPlan; price: number | nu
         </span>
       ))}
       <span className="sr-ruler__end sr-ruler__end--stop" style={{ left: `${lay.stopPct}%` }} />
+      {lay.target1Pct !== null && <span className="sr-ruler__end sr-ruler__end--target" style={{ left: `${lay.target1Pct}%` }} />}
       <span className="sr-ruler__end sr-ruler__end--target" style={{ left: `${lay.targetPct}%` }} />
       <span className="sr-ruler__entry" style={{ left: `${lay.entryPct}%` }} />
       {lay.now && (

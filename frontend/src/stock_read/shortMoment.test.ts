@@ -28,7 +28,13 @@ const at = (over: Partial<MomentInputs> = {}, wire = rdynShortWire) => inputs({
 
 const SHORT_PLAN = pfsaPlan('manual', {
   source: 'manual', side: 'short', setup_type: null, setup_id: null, kind: null, trigger: null,
-  entry: 5.77, stop: 5.89, target: 5.53, risk: 0.12, reward: 0.24, rr: 2, target_rule: 'entry - 2 x risk',
+  // The menu's covers under the entry (#845): 20c under it, then 1c over $5.50 for the rest.
+  entry: 5.77, stop: 5.89, target: 5.57, target2: 5.51, target1_fraction: 0.5, risk: 0.12, reward: 0.2, rr: 1.67,
+  reward2: 0.26, rr2: 2.17,
+  targets: { first: { kind: 'fixed', price: 5.57, why: '-20c' }, second: { kind: 'next_level', price: 5.51, why: '1c over $5.50' },
+    hod: null, pullback_high: null, stop: null, rule: null },
+  target_rule: 'target 1: 20c, or 1c before a half / whole dollar when that is closer; target 2: 1c before the high of '
+    + 'day, else 1c before the next level past target 1; 50% at target 1',
   entry_rule: 'your entry', stop_rule: 'your buy stop', tape: null, grade: null, pillars: null, trade: null,
 });
 
@@ -67,7 +73,7 @@ describe('the moment while you hold a short', () => {
     expect(m?.call).toMatchObject({ title: 'COVER NOW · STOP ↑ 5.89', tone: 'stop', ping: true });
     expect(m?.call?.detail).toMatch(/the cover is yours\. At the stop the short is about -\$49\.92\./);
     const targetHit = nextHeldSides(first.held, { ...first, last: 5.52 });
-    expect(momentOfSides({ ...first, last: 5.52, held: targetHit })?.badge).toBe('TARGET ↓ 5.53 HIT · COVER');
+    expect(momentOfSides({ ...first, last: 5.52, held: targetHit })?.badge).toBe('TARGET ↓ 5.57 HIT · COVER');
   });
 
   it('says Nova\'s own short the short\'s way: sent, shorted, covering, covered, missed (#778 step 5)', () => {
@@ -144,24 +150,32 @@ describe('the held query and the stop resting at the broker', () => {
     expect(lay.costPct).toBeLessThan(lay.nowPct!);
     expect(lay.nowPct!).toBeLessThan(lay.endPct);
     expect(lay.risk).toEqual([lay.stopPct, lay.costPct]);        // the stop is over your average: your risk
-    expect(lay.marks.map(m => m.kind).sort()).toEqual(['broke', 'next', 'target']);
+    expect(lay.marks.map(m => m.kind).sort()).toEqual(['broke', 'next', 'target', 'target']);
+    expect(lay.marks.filter(m => m.kind === 'target').map(m => m.label)).toEqual(['T1', 'T2']);
   });
 });
 
 describe('a short plan', () => {
-  it('reads Short at / Buy stop / Cover in its words, and its ruler runs from the buy stop down', () => {
-    expect(planSubLines(SHORT_PLAN, 20, 166)).toMatchObject({ entry: 'your short', target: 'entry - 2 × 0.12' });
-    expect(planFootnote(SHORT_PLAN, null)).toBe('drag the short or its buy stop on the 1-minute chart; the cover stays 2R');
+  it('reads Short at / Buy stop / Cover 1 / Cover 2 in its words, and its ruler runs from the buy stop down', () => {
+    expect(planSubLines(SHORT_PLAN, 20, 166)).toMatchObject({ entry: 'your short', target: '-20c', target2: '1c over $5.50' });
+    expect(planFootnote(SHORT_PLAN, null)).toBe('drag the short or its buy stop on the 1-minute chart; the covers follow the entry');
     const lay = rulerLayout(SHORT_PLAN, 5.75)!;
     expect(lay.stopPct).toBeLessThan(lay.entryPct);
-    expect(lay.entryPct).toBeLessThan(lay.targetPct);
+    // Cover 1 between the entry and cover 2, the right end.
+    expect(lay.entryPct).toBeLessThan(lay.target1Pct!);
+    expect(lay.target1Pct!).toBeLessThan(lay.targetPct);
     expect(lay.now).toMatchObject({ edge: null });
     expect(rulerLayout(SHORT_PLAN, 6.5)?.now?.edge).toBe('low');       // over the buy stop
-    expect(rulerLayout(SHORT_PLAN, 5.0)?.now?.edge).toBe('high');      // under the cover target
+    expect(rulerLayout(SHORT_PLAN, 5.0)?.now?.edge).toBe('high');      // under cover 2
   });
 
-  it('drags its entry under the buy stop, the cover following at 2R under it', () => {
-    expect(draggedPlan(SHORT_PLAN, { entry: 5.7, stop: 5.9 })).toMatchObject({ entry: 5.7, stop: 5.9, target: 5.3, rr: 2 });
+  it('drags its entry under the buy stop, each cover keeping its distance under it', () => {
+    const d = draggedPlan(SHORT_PLAN, { entry: 5.7, stop: 5.9 });
+    expect(d).toMatchObject({ entry: 5.7, stop: 5.9 });
+    expect(d.target).toBeCloseTo(5.5, 6);
+    expect(d.target2).toBeCloseTo(5.44, 6);
+    expect(d.rr).toBeCloseTo(1, 6);                // 20c on the new 20c risk: R follows the risk, the cover does not
+    expect(d.rr2).toBeCloseTo(1.3, 6);
   });
 
   it('asks the read for a hand short with side=short', () => {
@@ -170,11 +184,14 @@ describe('a short plan', () => {
     expect(planQuery(5.77, null)).toBe('?entry=5.77');
   });
 
-  it('names its chart lines SHORT, STOP ↑ and TARGET ↓', () => {
-    expect(levelTitle('entry', 'plan', '', true)).toBe('SHORT');
-    expect(levelTitle('stop', 'order', '', true)).toBe('STOP ↑ · order');
-    expect(levelTitle('target', 'plan', ' 2R', true)).toBe('TARGET ↓ 2R · plan');
+  it('names its chart lines SHORT, STOP ↑ and TARGET 1 ↓ / TARGET 2 ↓', () => {
+    expect(levelTitle('entry', 'plan', true)).toBe('SHORT');
+    expect(levelTitle('stop', 'order', true)).toBe('STOP ↑ · order');
+    expect(levelTitle('target', 'plan', true)).toBe('TARGET 1 ↓ · plan');
+    expect(levelTitle('target2', 'plan', true)).toBe('TARGET 2 ↓ · plan');
+    expect(levelTitle('target', 'order', true)).toBe('TARGET ↓ · order');
     expect(levelTitle('entry', 'plan')).toBe('ENTRY');
+    expect(levelTitle('target', 'plan')).toBe('TARGET 1 · plan');
   });
 
   it('stages a short in the ticket, and Approve sends it with its buy stop and cover (#778 step 5)', () => {

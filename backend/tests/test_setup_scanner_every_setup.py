@@ -14,7 +14,7 @@ from setup_scanner.store import SetupStore
 from setup_templates.store import TemplateStore
 from tests.setup_scanner_fixtures import add, base_morning
 from tests.test_setup_scanner_engine import SYM, FakeTape, bar_msg
-from constants_setups import SETUPS_DB_SCHEMA_VERSION
+from constants_setups import SETUPS_DB_SCHEMA_VERSION, setup_default_rev
 
 LEVELS = {"chosen": "first_pullback", "levels": {"first_pullback": 0, "bull_flag": 1, "flat_top_breakout": 0,
                                                   "red_to_green": 0}}
@@ -123,7 +123,8 @@ def test_each_setup_has_its_own_readout(tmp_path, monkeypatch):
     t0 = 1_790_000_000.0
     for i in range(3):
         store.upsert({"id": f"X-{i}@bull_flag", "session_date": "2026-09-24", "symbol": "X", "kind": "bull_flag",
-                      "setup_type": "bull_flag", "template_id": "default", "template_rev": 1, "risk": 0.1,
+                      "setup_type": "bull_flag", "template_id": "default",
+                      "template_rev": setup_default_rev("bull_flag"), "risk": 0.1,
                       "triggered_at": t0 + i, "bar_r": 1.0, "trigger_tape": {"verdict": "go"}})
 
     class Eng:

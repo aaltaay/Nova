@@ -1,6 +1,7 @@
 /** Wire shapes of `/ws/setups` and `/api/setups/*` (backend `setup_scanner/`, ADR 022, ADR 031). */
 import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { LiquidityRead } from './liquidity';
+import type { TargetFields } from './targets';
 
 /** A setup with a scanner (ADR 031): every row, proposal and card names one. */
 export type SetupType =
@@ -32,7 +33,8 @@ export interface ShortTest {
 export type SetupState = 'near' | 'armed' | 'triggered' | 'pullback' | 'leg' | 'failed' | 'watching' | 'filtered';
 export type TapeVerdict = 'go' | 'wait' | 'veto' | 'blind';
 
-export interface SetupLevels {
+/** Target 1 (`target1`) and, from the menu (#845), target 2 and the share sold at target 1 (`TargetFields`). */
+export interface SetupLevels extends TargetFields {
   leg_t?: number;
   trigger: number;
   entry: number;
@@ -114,6 +116,8 @@ export interface SetupProposal {
   entry: number | null;
   stop: number | null;
   target1: number | null;
+  /** Target 2 (#845): the rest's sell, null when everything sells at target 1 (absent on an older API). */
+  target2?: number | null;
   risk: number | null;
   grade: string | null;
   reasons: string[] | null;

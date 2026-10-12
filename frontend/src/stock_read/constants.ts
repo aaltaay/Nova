@@ -189,10 +189,10 @@ export const ENTER_NOW_RISK_SHARE = 0.5;
 export const RULER_LABEL_CHAR_PX = 4.6;
 export const RULER_LABEL_GAP_PX = 6;
 export const RULER_DEFAULT_WIDTH_PX = 600;
-/** Which label keeps its room first: a seller on the book, then the high of day and the levels the day
- * made, then a round number. */
+/** Which label keeps its room first: a seller on the book, then the targets (T1 / T2, #845) and the high of day,
+ * then the levels the day made, then a round number. */
 export const RULER_LABEL_RANK: Readonly<Record<string, number>> = {
-  wall: 0, hod: 1, level: 2, vwap: 2, pmh: 2, open: 2, round: 3,
+  wall: 0, target: 1, hod: 1, level: 2, vwap: 2, pmh: 2, open: 2, round: 3,
 };
 /** What Nova just did (bought, sold, missed) stays in the chart's corner this long. */
 export const NOVA_CALL_SEC = 30;

@@ -19,7 +19,7 @@ import type {
   StockRead,
   TapeVerdict,
 } from './types';
-import { normalizeLiquidity } from '../setups';
+import { normalizeLiquidity, normalizeTargetFields } from '../setups';
 import { normalizeLevelMap, normalizePlanLevels } from './levelMapNormalize';
 import { normalizeHeld } from './heldRead';
 import { normalizePlanVerdict } from './planVerdict';
@@ -92,7 +92,9 @@ function mark(raw: unknown): PlanMark | null {
   const price = num(m?.price);
   if (!m || price === null || typeof m.label !== 'string') return null;
   const kind = typeof m.kind === 'string' && MARK_KINDS.has(m.kind) ? m.kind : 'round';
-  return { price, label: m.label, kind: kind as PlanMark['kind'], size: num(m.size) };
+  const out: PlanMark = { price, label: m.label, kind: kind as PlanMark['kind'], size: num(m.size) };
+  if (m.before === 1 || m.before === 2) out.before = m.before;   // the target it stands before (#845)
+  return out;
 }
 
 function tape(v: unknown): TapeVerdict | null {
@@ -124,9 +126,13 @@ export function normalizePlan(raw: unknown): StockPlan | null {
     entry: num(p.entry),
     stop: num(p.stop),
     target: num(p.target),
+    // The menu's target 2 and split (#845): an older backend's plan reads as one target, everything at target 1.
+    ...normalizeTargetFields(p),
     risk: num(p.risk),
     reward: num(p.reward),
     rr: num(p.rr),
+    reward2: num(p.reward2),
+    rr2: num(p.rr2),
     target_rule: str(p.target_rule) ?? '',
     entry_rule: str(p.entry_rule) ?? '',
     stop_rule: str(p.stop_rule) ?? '',
@@ -157,6 +163,7 @@ export function normalizeSetupLevels(raw: unknown): SetupLevels | null {
     stop,
     risk: num(s.risk) ?? Math.abs(entry - stop),     // a short's buy stop is over its entry
     target1,
+    ...normalizeTargetFields(s),
     leg_t: num(s.leg_t) ?? undefined,
     leg_high: num(s.leg_high) ?? undefined,
     leg_low: num(s.leg_low) ?? undefined,
@@ -181,6 +188,7 @@ function forming(raw: unknown): FormingLevels | null {
     stop,
     risk: num(f.risk) ?? Math.abs(entry - stop),
     target1,
+    ...normalizeTargetFields(f),
     bars: num(f.bars) ?? 0,
     blocked: str(f.blocked),
     waiting: str(f.waiting),

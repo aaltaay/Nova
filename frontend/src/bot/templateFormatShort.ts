@@ -1,9 +1,10 @@
 /**
  * The five short setups' rule lines (ADR 049), from the template in play: the card says the rules the scanner runs,
  * never words written by hand. A short sells at its entry under the trigger, with a buy stop over the pattern, and
- * covers at R x the risk under the entry. Pure.
+ * covers at the targets its template picked from the menu (#845: 1c over a half / whole dollar, a level, the low of
+ * day). Pure.
  */
-import { bars, ema, money, num, stockLine, tradeLine, trim, type Values } from './templateParts';
+import { bars, ema, exitsLine, money, num, stockLine, tradeLine, trim, type Values } from './templateParts';
 import type { TemplateBotWindow } from './templateTypes';
 
 /** The stock filter, and what the template does under SSR (a breakdown short's own choice). */
@@ -26,10 +27,6 @@ function stopOver(what: string, v: Values): string {
   return `${money(num(v.stop_offset) ?? 0)} over ${what}`;
 }
 
-function cover(v: Values): string {
-  return `cover at ${trim(num(v.target_r) ?? 0)}R under the entry`;
-}
-
 function backsideLines(v: Values, w?: TemplateBotWindow | null): [string, string][] {
   const setup = `Fade ≥ ${trim(num(v.fade_pct) ?? 0)}% off the high of day to a new ${num(v.fade_lookback)}-candle low · `
     + `${bars(num(v.min_bounce_bars), num(v.max_bounce_bars))} candle bounce under the high, closes under the `
@@ -38,7 +35,7 @@ function backsideLines(v: Values, w?: TemplateBotWindow | null): [string, string
     ['Stock', stockShort(v)],
     ['Setup', setup],
     ['Entry', entryShort('the last bounce candle\'s low', stopOver('the bounce', v), v)],
-    ['Trade', tradeLine(v, cover(v), w)],
+    ['Trade', tradeLine(v, exitsLine(v, true), w)],
   ];
 }
 
@@ -56,7 +53,7 @@ function bearFlagLines(v: Values, w?: TemplateBotWindow | null): [string, string
     ['Stock', stockShort(v)],
     ['Setup', [pole, flag, ...checks].join(' · ')],
     ['Entry', entryShort('the last flag candle\'s low', stopOver('the flag', v), v)],
-    ['Trade', tradeLine(v, cover(v), w)],
+    ['Trade', tradeLine(v, exitsLine(v, true), w)],
   ];
 }
 
@@ -74,7 +71,7 @@ function failedBreakoutLines(v: Values, w?: TemplateBotWindow | null): [string, 
     ['Stock', stockShort(v)],
     ['Setup', setup],
     ['Entry', entryShort('the low of the candle that closed back under', stopOver('the poke', v), v)],
-    ['Trade', tradeLine(v, cover(v), w)],
+    ['Trade', tradeLine(v, exitsLine(v, true), w)],
   ];
 }
 
@@ -86,7 +83,7 @@ function lostVwapLines(v: Values, w?: TemplateBotWindow | null): [string, string
     ['Stock', stockShort(v)],
     ['Setup', setup],
     ['Entry', entryShort('the retest\'s low', `${stopOver('the retest', v)}, or over VWAP when higher`, v)],
-    ['Trade', tradeLine(v, cover(v), w)],
+    ['Trade', tradeLine(v, exitsLine(v, true), w)],
   ];
 }
 
@@ -102,7 +99,7 @@ function ssrBounceLines(v: Values, w?: TemplateBotWindow | null): [string, strin
     ['Stock', stockLine(v)],
     ['Setup', setup],
     ['Entry', entry],
-    ['Trade', tradeLine(v, cover(v), w)],
+    ['Trade', tradeLine(v, exitsLine(v, true), w)],
   ];
 }
 

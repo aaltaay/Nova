@@ -14,6 +14,7 @@ from setup_scanner.bear_flag import BearFlagParams
 from setup_scanner.failed_breakout import FailedBreakoutParams
 from setup_scanner.lost_vwap import LostVwapParams
 from setup_scanner.ssr_bounce import SsrBounceParams
+from setup_scanner.targets import spec_of as target_spec
 
 
 def _pct(value: Any) -> float:
@@ -42,7 +43,7 @@ def _macd(v: dict[str, Any]) -> dict[str, Any]:
 
 def _window(v: dict[str, Any]) -> dict[str, Any]:
     out = {"session_start": str(v["session_start"]), "entry_cutoff": str(v["entry_cutoff"]),
-           "target_r": float(v["target_r"])}
+           "targets": target_spec(v)}
     if "max_per_symbol_day" in v:
         out["max_per_symbol_day"] = int(v["max_per_symbol_day"])
     return out

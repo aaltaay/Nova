@@ -112,7 +112,7 @@ export const SHORT_TYPE_STATE_LABELS: Record<string, Partial<Record<string, stri
 const NEAR_SHORT = 'Price is a few cents over the trigger. The tape is read now: GO at the level (red prints at the '
   + 'bid, no buyer holding it) is what makes a proposal.';
 const TRIGGERED_SHORT = 'Price traded under the trigger. The scoreboard follows it from here with the short\'s exits: '
-  + 'its cover at 2R first, its buy stop first, or still open.';
+  + 'its cover target 1 first, its buy stop first, or still open.';
 
 /** What each state means for each short setup: the first paragraph of its hover. */
 export const SHORT_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string>>> = {

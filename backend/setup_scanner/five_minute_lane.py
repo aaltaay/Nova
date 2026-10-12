@@ -40,7 +40,7 @@ from setup_scanner.bars import Bar
 from setup_scanner.five_minute import candles
 
 SETUPS_5M_SETUPS: tuple[str, ...] = (BOT_SETUP_FIRST_PULLBACK, BOT_SETUP_BULL_FLAG)
-FIVE_MIN_REV = 1
+FIVE_MIN_REV = 2                  # 2 (#845): the target menu and the bot's exit score its setups
 
 
 def is_five_minute(lane: Any) -> bool:

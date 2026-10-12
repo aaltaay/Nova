@@ -1,20 +1,23 @@
 /**
  * The plan box while you hold the stock (ADR 036 amendment 2026-10-01; operator on mockup v4b: keep the
  * plan box, "i like that bar ... but i also really like the 'then' 'next' 'now' 'broke'"). The same box --
- * header, five numbers, ruler, level rows, checks, buttons -- about your position and measured from the
+ * header, six numbers, ruler, level rows, checks, buttons -- about your position and measured from the
  * price, with the ladder under the ruler. Its stop is yours to set (never an order); "Nova takes the exit"
  * hands Nova the sell (Paper and Sim; `ExitSheet`).
  *
- * A short (ADR 048) is the mirror: Shorted at, Buy stop, Next (under the price), At the stop and Cover 2R; a
+ * Its targets are the target menu's defaults off your average (#845): Target 1 and Target 2, each with the share it
+ * sells and its rule; there is no R-multiple target (R stays the unit your open trade is measured in).
+ * A short (ADR 048) is the mirror: Shorted at, Buy stop, Next (under the price), At the stop, Cover 1 and Cover 2; a
  * round a 1-minute candle closed under offers "Lower stop to X"; Stage cover fills a buy at the ask, and "Nova
  * takes the cover" hands Nova a buy stop that only moves down. The stop order resting at the broker is the
  * card's stop until you set one for the tab.
  */
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
+import { targetShare } from '../setups';
 import { tipProps, whyProps } from '../ux';
 import { BigSellerLine } from './BigSellerLine';
 import { ExitSheet } from './ExitSheet';
-import { ROLE_WORDS, rowOf, stopWords, type StockHeld } from './heldRead';
+import { ROLE_WORDS, rowOf, stopWords, type HeldTarget, type StockHeld } from './heldRead';
 import { heldRuler } from './heldView';
 import { fmtPnl } from './momentModel';
 import { LevelRowList } from './PlanLevels';
@@ -28,21 +31,23 @@ import './shortRead.css';
 
 /** The card's words for a long and, mirrored, for a short (ADR 048). */
 const LONG_WORDS = {
-  avg: 'Average', stop: 'Stop', yourStop: 'Your stop', stopWord: 'stop', target: 'Target 2R', noNext: 'no level above',
+  avg: 'Average', stop: 'Stop', yourStop: 'Your stop', stopWord: 'stop', target: 'Target', partVerb: 'sell',
+  noNext: 'no level above',
   noR: 'no stop under your average', stopHit: 'STOP', novaHolds: 'NOVA HOLDS THE EXIT',
   novaStatus: 'Nova holds the exit · stop', trail: ' · raised as levels break', stage: 'Stage sell',
   stageTip: 'Fills this tab\'s ticket with a sell limit at the bid. It never sends.', novaTakes: 'Nova takes the exit',
   novaTip: 'Hand Nova the sell: a resting stop, raised as round numbers break.',
-  novaRests: 'Nova\'s stop rests at the broker', noOrder: 'your stop and target: no order is working',
+  novaRests: 'Nova\'s stop rests at the broker', noOrder: 'your stop and targets: no order is working',
 };
 const SHORT_WORDS: typeof LONG_WORDS = {
-  avg: 'Shorted at', stop: 'Buy stop', yourStop: 'Your buy stop', stopWord: 'buy stop', target: 'Cover 2R',
+  avg: 'Shorted at', stop: 'Buy stop', yourStop: 'Your buy stop', stopWord: 'buy stop', target: 'Cover',
+  partVerb: 'are covered',
   noNext: 'no level below', noR: 'no buy stop over your average', stopHit: 'STOP ↑', novaHolds: 'NOVA HOLDS THE COVER',
   novaStatus: 'Nova holds the cover · buy stop', trail: ' · lowered as levels break', stage: 'Stage cover',
   stageTip: 'Fills this tab\'s ticket with a buy limit at the ask: the cover. It never sends.',
   novaTakes: 'Nova takes the cover',
   novaTip: 'Hand Nova the cover: a resting buy stop, lowered as round numbers break. Paper and Sim only.',
-  novaRests: 'Nova\'s buy stop rests at the broker', noOrder: 'your buy stop and cover: no order is working',
+  novaRests: 'Nova\'s buy stop rests at the broker', noOrder: 'your buy stop and covers: no order is working',
 };
 
 const SHORT_TAG_TIP = 'You hold it short: borrowed through IBKR and sold. You make money as it falls; the buy stop '
@@ -70,6 +75,32 @@ function HeldRuler({ held }: { held: StockHeld }) {
       <span className="sr-ruler__end sr-ruler__end--target" style={{ left: `${lay.endPct}%` }} />
       <span className="sr-ruler__entry" style={{ left: `${lay.costPct}%` }} {...tipProps(`Your average ${fmtPx(held.avg)}`)} />
       {lay.nowPct !== null && <span className="sr-ruler__now" style={{ left: `${lay.nowPct}%` }} />}
+    </div>
+  );
+}
+
+/** One of the trade's targets (#845): its price, the share it sells and its rule ("your average +20c", "1c under HOD
+ * 6.97"), or that a candle since you held reached it. Target 2 absent: everything sells at target 1. */
+function HeldTargetNum({ which, target, held, words: w }: {
+  which: 1 | 2;
+  target: HeldTarget | null;
+  held: StockHeld;
+  words: typeof LONG_WORDS;
+}) {
+  const name = `${w.target} ${which}`;
+  const pct = targetShare(held.target1_fraction, which);
+  const sub = target?.traded_at ? 'traded: you are past it'
+    : target?.rule ?? (which === 2 ? `everything at ${w.target.toLowerCase()} 1` : 'not known');
+  const tip = target
+    ? `${name} ${fmtPx(target.price)}: ${target.rule}.${pct ? ` ${pct} of the shares ${w.partVerb} here.` : ''}`
+    : which === 2 ? `No ${name.toLowerCase()}: everything at ${w.target.toLowerCase()} 1.` : `No ${name.toLowerCase()} yet.`;
+  return (
+    <div className="sr-num sr-num--size" {...tipProps(tip, name)}>
+      <span className="sr-num__k">{name}{pct ? ` · ${pct}` : ''}</span>
+      <span className="sr-num__v" data-testid={which === 1 ? 'held-target' : 'held-target2'}>
+        {target ? fmtPx(target.price) : '—'}
+      </span>
+      <span className="sr-num__s">{sub}</span>
     </div>
   );
 }
@@ -171,11 +202,8 @@ export function HeldCard({ ctx, held, folded = false, onFold }: {
           <span className="sr-num__v">{fmtPnl(atStop)}</span>
           <span className="sr-num__s">{atStop !== null && atStop >= 0 ? 'locked in' : 'your risk'}</span>
         </div>
-        <div className="sr-num sr-num--size">
-          <span className="sr-num__k">{w.target}</span>
-          <span className="sr-num__v">{held.target ? fmtPx(held.target.price) : '—'}</span>
-          <span className="sr-num__s">{held.target?.traded_at ? 'traded: you are past it' : held.target?.rule ?? 'R not known'}</span>
-        </div>
+        <HeldTargetNum which={1} target={held.target} held={held} words={w} />
+        <HeldTargetNum which={2} target={held.target2 ?? null} held={held} words={w} />
       </div>
       <HeldRuler held={held} />
       <HeldLadder held={held} />

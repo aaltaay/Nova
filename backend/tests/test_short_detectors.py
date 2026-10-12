@@ -368,7 +368,8 @@ def test_ssr_bounce_rests_under_the_ssr_trigger_level():
     assert a["detail"]["level"] == pytest.approx(5.40) and a["detail"]["level_kind"] == "ssr_trigger"
     assert a["entry"] == 5.39 and a["trigger"] == 5.39
     assert a["stop"] == pytest.approx(round(5.39 + 0.02 * 5.39, 4))
-    assert a["target1"] == pytest.approx(round(5.39 - 2 * a["risk"], 4))
+    assert a["target1"] == pytest.approx(5.19)                   # #845: 20c under ($5.00 is 39c under)
+    assert a["targets"]["pullback_high"] == a["detail"]["drop_low"]  # the low the bounce came from
 
 
 def test_ssr_bounce_fills_when_a_buyer_lifts_its_entry_and_cancels_on_its_rules():

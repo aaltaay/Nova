@@ -43,7 +43,6 @@ from constants_setups import (
     SETUPS_NEAR_PCT,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_STOP_CAP_DOLLARS,
-    SETUPS_TARGET_R,
 )
 from constants_short_setups import (
     SETUP_KIND_FAILED_BREAKOUT,
@@ -64,7 +63,8 @@ from constants_short_setups import (
 )
 from setup_scanner.bars import Bar
 from setup_scanner.detector import EPS, window_blocked
-from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked, short_target
+from setup_scanner.detector_short import ShortTriggerDetector, short_levels, short_risk_blocked
+from setup_scanner.targets import DEFAULT as DEFAULT_TARGETS, TargetSpec
 
 
 @dataclass(frozen=True)
@@ -87,7 +87,7 @@ class FailedBreakoutParams:
     entry_offset: float = SHORT_ENTRY_OFFSET_DOLLARS
     stop_offset: float = SHORT_STOP_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
-    target_r: float = SETUPS_TARGET_R
+    targets: TargetSpec = DEFAULT_TARGETS               # the target menu's choice (#845), mirrored
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SHORT_WINDOW_START_ET
@@ -264,9 +264,9 @@ class FailedBreakoutDetector(ShortTriggerDetector):
         trig = s.lo[f_i]
         high = max(s.h[found.p_i:f_i + 1])
         entry = round(trig - p.entry_offset, 4)
-        stop = round(high + p.stop_offset, 4)
+        stop, stop_why = self.stop_at(entry, round(high + p.stop_offset, 4))
         risk = round(stop - entry, 4)
-        target = short_target(entry, risk, p.target_r)
+        aim = self.aim(entry, stop=stop_why)
         blocked = window_blocked(p, bars[f_i].t + p.bar_sec)
         if blocked is None and p.macd_negative and s.hist[f_i] >= 0:
             blocked = "MACD positive -- not on the back side"
@@ -274,7 +274,7 @@ class FailedBreakoutDetector(ShortTriggerDetector):
             blocked = short_risk_blocked(p, risk, entry=entry)
         if blocked:
             self.armed = None
-            self.forming = short_levels(trig, entry, stop, target, bars=len(found.touches), blocked=blocked)
+            self.forming = short_levels(trig, entry, stop, aim, bars=len(found.touches), blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, blocked)
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason=blocked)))
@@ -284,7 +284,7 @@ class FailedBreakoutDetector(ShortTriggerDetector):
             events.append(("disarmed", self._key_view(prev, reason="a newer poke took over")))
             prev = None
         self.armed = {
-            "leg_t": key, "trigger": round(trig, 4), "entry": entry, "stop": stop, "risk": risk, "target1": target,
+            "leg_t": key, "trigger": round(trig, 4), "entry": entry, "stop": stop, "risk": risk, **aim,
             "pullback_bars": f_i - found.p_i + 1, "leg_high": high, "leg_low": found.level,
             "leg_pct": self.leg["pct"], "armed_bar_t": bars[f_i].t,
             "armed_at": (prev or {}).get("armed_at") or bars[f_i].t + p.bar_sec, "kind": self.kind_now(),

@@ -81,6 +81,23 @@ describe('every setup in its own words (ADR 031)', () => {
     expect(triggerWords(row({ setup_type: 'red_to_green' })).tip).toMatch(/^Trigger 4\.86: the open\./);
   });
 
+  it("says the menu's two targets with the words each came from, never a multiple of the risk (#845)", () => {
+    const menu = row({ setup: { ...row().setup!, target1: 4.99, target2: 5.49, target1_fraction: 0.5,
+      targets: { first: { kind: 'round', price: 4.99, why: '1c under $5.00' },
+        second: { kind: 'next_level', price: 5.49, why: '1c under $5.50' }, hod: 5.2, pullback_high: 4.9, stop: null,
+        rule: null } } });
+    const tip = triggerWords(menu).tip;
+    expect(tip).toMatch(/Target 1 4\.99 \(1c under \$5\.00\): half sells there, the rest at target 2 5\.49 \(1c under \$5\.50\)\. The stop stays where it is\./);
+    expect(tip).not.toMatch(/2R|R x the risk|the stop moves to the entry/);
+    // No target 2: everything sells at target 1, and the hover says so.
+    const one = row({ setup: { ...row().setup!, target1: 5.07, target2: null, target1_fraction: 1,
+      targets: { first: { kind: 'fixed', price: 5.07, why: '+20c' }, second: null, hod: null, pullback_high: null,
+        stop: null, rule: null } } });
+    expect(triggerWords(one).tip).toMatch(/Target 1 5\.07 \(\+20c\): everything sells there\./);
+    // An older API's row names its price alone.
+    expect(triggerWords(row()).tip).toMatch(/Target 1 5\.37\.$/);
+  });
+
   it('says how far to go in cents, and how a triggered setup went', () => {
     expect(toGoWords(row()).text).toBe('4¢');
     expect(toGoWords(row({ distance: 0 })).text).toBe('at');
