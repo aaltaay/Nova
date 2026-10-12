@@ -94,6 +94,29 @@ export interface SceneDot {
   hoverId?: string;
 }
 
+/** A trend line (ADR 036 amendment 2026-10-12): straight from its first touch to its last, dashed on to the pane's
+ * newest candle; a ring on each touch and a cross on the candle that closed through it. */
+export interface SceneTrend {
+  t1: Time;
+  p1: number;
+  t2: Time;
+  p2: number;
+  /** Where it runs at the last closed candle; `slope` a candle carries it on to the pane's newest candle. */
+  tEnd: Time;
+  pEnd: number;
+  slope: number;
+  color: string;
+  /** A broken line: faint and dashed. */
+  faded: boolean;
+  touches: { t: Time; price: number }[];
+  broke: { t: Time; price: number } | null;
+  /** Its name in the edge column, at its price on the newest candle, in `labelColor` (a broken line's stays readable). */
+  label: string;
+  labelColor: string;
+  hoverId: string;
+  priority: number;
+}
+
 /** A filled tag over a price on one candle, on a stem down to the price. */
 export interface ScenePin {
   t: Time;
@@ -123,6 +146,8 @@ export interface Scene {
   marks?: SceneMark[];
   /** The flat tops' touches. */
   dots?: SceneDot[];
+  /** The chart's trend lines. */
+  trends?: SceneTrend[];
 }
 
 export const EMPTY_SCENE: Scene = {

@@ -482,6 +482,56 @@ after the paint (a microtask), and costs one more paint; a chip that painted aft
 setups' labels still place as they did (a live lane's whole where it is); only the chip yields. No wire or
 stored shape changed.
 
+## Trend lines on the 1- and 5-minute charts (ADR 036 amendment, operator ask 2026-10-12)
+
+"When we see an obvious ascending line and descending line, can we have them part of the strategy? Like it show in the chart obvious line for the long and short positions?"; "Maybe it's gonna end up like the breakout setup with some tolerance because I doubt there will just be perfect ascending or descending trend lines"; "It's like what visually make sense, and I think we r gonna need that on the 1min and 5min charts". The rule and why are in ADR 036's 2026-10-12 amendment; nothing here blocks, sizes or places.
+
+**On the wire** (owner `stock_read/trend_lines.py`, pure). The level map adds `lines: {one_minute: TrendLine[],
+five_minute: TrendLine[]}` (`level_map.schema_version` stays 1: a backend older than it sends no `lines`, and the
+desk draws none). `one_minute` reads the session's closed one-minute bars, `five_minute` the 5-minute candles made
+of them (`level_map.five_minute_bars`). A **TrendLine** is `{id: "<home>:<kind>:<first touch t>", home:
+"one_minute" | "five_minute", kind: "support" | "resistance", dir: "up" | "down", state: "holding" | "broken",
+touches: [{t, p, x}] (each touch's candle, where the line runs there, the candle's low or high), t1, p1 (first
+touch), t2, p2 (last touch), now_t, now_p (the last closed candle), slope (price a candle), band (at the last
+candle), side: "above" | "below" | "at" | null (against the price, within the band "at"), broke: {t, p, close} |
+null, retest_t: number | null, label ("ascending support · 4 touches"), tag ("↗ support"), note ("4 touches: 09:14,
+09:17, 09:46, 09:54; a candle closed under it at 09:59")}`. Times are epoch seconds, prices where the line runs
+at that candle.
+- Support rises through swing lows, resistance falls through swing highs (a swing: past the two candles before it,
+  at least even with the two after). A line joins two of the latest 60 swing points of its kind. Its band is
+  `max(0.5% x the line, $0.01)` (`STOCK_READ_LINE_TOUCH_PCT` / `_MIN`). A swing low touches a support line when its
+  low reaches the band's top and its body stays over the band's floor; resistance is the mirror.
+- A line has three touches or more (`STOCK_READ_LINE_MIN_TOUCHES`), ten candles or more from the first to the last
+  (`_MIN_SPAN_BARS`), no candle closing through the band between them, and rises (falls) three bands or more
+  (`_MIN_RISE`). `broke` is the first candle after the last touch to close through the band; a broken line is sent
+  for ten candles (`_KEEP_BARS`). `retest_t`: the first later candle that reached the band from the other side and
+  closed back away.
+- Per kind and chart at most two: the holding line within 15% of the price (`_NEAR_PCT`) with the most touches,
+  then the longest, then the latest last touch; and the latest broken one, unless the holding line was touched
+  after that break.
+
+**What the plan says** (owner `stock_read/line_notes.py`, pure). The Plan's `levels` adds `lines: LineNote[]`, at
+most one per role in the order `way`, `stop`, `broke`; each `{role, state, text, detail, line (its id), price}`,
+measured on the plan's side (a short's are the mirror), from both charts' lines:
+- `way` -- the nearest holding descending resistance over a long's entry (past its band) and under its target, or
+  ascending support under a short's entry and over its target: `warn`, with `r` (its distance in R). Else, a line
+  between the price and the entry: `info`, "it trades the break".
+- `stop` -- the nearest holding ascending support under a long's entry (descending resistance over a short's),
+  within 2R of the entry: `ok` when the stop is beyond its band, `warn` when on it or between it and the entry;
+  `info` without a stop.
+- `broke` -- a broken line the price still stands through: `bad` against the plan (a long's support, a short's
+  resistance), `info` with it.
+
+**On the desk** (owner `frontend/src/stock_read/trendLines.ts`; drawing `sceneRender.ts` / `SetupShapesPrimitive.ts`).
+The 1-minute pane draws `one_minute`, the 5-minute pane `five_minute`, under the Levels switch; the 10-second and
+Full Day panes draw none. A line runs solid from its first touch to its last and dashed on to the pane's newest
+candle (`slope` a candle, counted in the pane's candles), with a ring on each touch; a broken line is faint, dashed,
+with a cross on the candle that closed through it. Its name ("↗ support · 4", "↘ resistance broke 09:52") sits in
+the edge column where it runs on the newest candle (out of view, a tag with that price); the line and its name open
+a card: where it runs against the price, the touches and the band, its slope, what a break means, and that how
+often these lines hold is not measured. Each minute pane's Key lists them. The plan card adds a "Line" row per
+note.
+
 ## Who trades the stock (ADR 037, operator ask 2026-09-24, #604, #606)
 
 "When may Nova buy for you? I want a clear option next to level 2 ... if I selected the exit is on

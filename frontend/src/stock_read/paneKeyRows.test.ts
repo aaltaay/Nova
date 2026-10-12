@@ -8,7 +8,7 @@ describe("each chart pane's Key", () => {
   it('names the levels the 5-minute candles show and the time-of-day background', () => {
     expect(titles('map')).toEqual([
       '5-minute setups (labels start "5m")', '5-minute flat top (a strategy: it can trade)', 'Levels from 5-minute candles (hover a label for why)',
-      'Background (time of day, ET)',
+      'Trend lines from 5-minute candles (hover one for why)', 'Background (time of day, ET)',
     ]);
     expect(chartKey('map', ON)[0].rows.map(r => r.label)).toEqual(
       ['Forming', 'Armed / near', 'Ended (faint)', '5m trigger', 'Scored only']);
@@ -17,7 +17,7 @@ describe("each chart pane's Key", () => {
     // Yesterday's and old daily levels belong to the Full Day pane only.
     expect(rows).not.toContain("Yesterday's");
     expect(rows).not.toContain('Old daily level');
-    expect(chartKey('map', ON)[3].rows.map(r => r.label)).toEqual(['Premarket', 'Regular hours', 'After hours', 'Closed']);
+    expect(chartKey('map', ON)[4].rows.map(r => r.label)).toEqual(['Premarket', 'Regular hours', 'After hours', 'Closed']);
   });
 
   it("names past days' levels on the Full Day pane, which has no session background", () => {
@@ -28,12 +28,24 @@ describe("each chart pane's Key", () => {
 
   it("names the setups, the plan and the 1-minute candles' levels on the 1-minute", () => {
     expect(titles('full')).toEqual([
-      'Setups', 'Flat top', 'The plan', 'Levels from 1-minute candles (hover a label for why)', 'From the 5-minute chart',
-      'Background (time of day, ET)',
+      'Setups', 'Flat top', 'The plan', 'Levels from 1-minute candles (hover a label for why)',
+      'Trend lines from 1-minute candles (hover one for why)', 'From the 5-minute chart', 'Background (time of day, ET)',
     ]);
     expect(titles('full', { setups: false, levels: false })).toEqual(['The plan', 'Background (time of day, ET)']);
     const levels = chartKey('full', ON)[3].rows.map(r => r.label);
     expect(levels).toEqual(['Resistance', 'Support', 'Round number', 'Shaded band', 'Thick line']);
+  });
+
+  it('names the trend lines each minute pane reads from its own candles, with their rising and falling swatches', () => {
+    for (const pane of ['full', 'map'] as const) {
+      const trend = chartKey(pane, ON).find(s => s.title.startsWith('Trend lines'));
+      expect(trend?.rows.map(r => [r.swatch, r.label])).toEqual([
+        ['rise', 'Ascending support'], ['fall', 'Descending resistance'], ['ring', 'Touch'], ['dash', 'Dashed'],
+        ['dots', 'Faint, ✕'],
+      ]);
+    }
+    expect(chartKey('daily', ON).some(s => s.title.startsWith('Trend lines'))).toBe(false);
+    expect(chartKey('full', { ...ON, levels: false }).some(s => s.title.startsWith('Trend lines'))).toBe(false);
   });
 
   it('lists only the plan lines on the 10-second', () => {

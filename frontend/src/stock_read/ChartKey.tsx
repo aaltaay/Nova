@@ -23,6 +23,15 @@ function Swatch({ row }: { row: KeyRow }) {
   if (row.swatch === 'up') {
     return <i className="sr-key__swatch sr-key__swatch--up" style={{ borderBottomColor: row.color }} aria-hidden="true" />;
   }
+  if (row.swatch === 'rise' || row.swatch === 'fall') {
+    return (
+      <i
+        className={`sr-key__swatch sr-key__swatch--line sr-key__swatch--${row.swatch}`}
+        style={{ borderTop: `2px solid ${row.color}` }}
+        aria-hidden="true"
+      />
+    );
+  }
   const style = row.swatch === 'line' ? 'solid' : row.swatch === 'dash' ? 'dashed' : 'dotted';
   return <i className="sr-key__swatch sr-key__swatch--line" style={{ borderTop: `2px ${style} ${row.color}` }} aria-hidden="true" />;
 }

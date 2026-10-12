@@ -243,3 +243,33 @@ Operator ask: show the dilution filings on file -- an S-3 / F-3 shelf, a 424B pr
   on file); a symbol SEC's ticker list does not hold, and an EDGAR that did not answer, say so.
 - **Not decided here.** Nothing gates, scores or sizes on the row, the plan's checks do not read it, and
   the Float tile's verdict stays the float's.
+
+## Amendment 2026-10-12 -- trend lines on the 1- and 5-minute charts
+
+**Asked by:** the operator, 2026-10-12: "When we see an obvious ascending line and descending line, can we have them part of the strategy? Like it show in the chart obvious line for the long and short positions?"; "Maybe it's gonna end up like the breakout setup with some tolerance because I doubt there will just be perfect ascending or descending trend lines"; "It's like what visually make sense, and I think we r gonna need that on the 1min and 5min charts".
+
+- **Context.** The 2026-09-30 amendment left ascending and descending trend lines out: there was no rule for
+  which two points to join. The operator's trading material (off-repo) joins two lows for a support line or two
+  highs for a resistance line, keeps the one that touches the most, and drops one that price closes back through;
+  it gives a line no entry, stop or target of its own.
+- **Decision: the rule** (`stock_read/trend_lines.py`, pure, on each chart's own candles). Support rises through
+  swing lows and resistance falls through swing highs (the level map's swing rule). A line joins two swing points;
+  a touch may miss it by its band -- the flat top's tolerance, 0.5% of the price and a cent at least -- and a wick
+  through it still touches when the candle's body holds. It is a line with three touches or more over ten candles
+  or more, no candle closing through its band from the first touch to the last, and a rise (fall) of three bands
+  or more (a flatter one is a horizontal level, which the map draws already). The first close through the band
+  after the last touch breaks it; a broken line stays ten candles, then goes. Per kind and chart: the holding line
+  in play (within 15% of the price) with the most touches, then the longest, then the latest, and the latest broken
+  one unless the holding line was touched after that break (redrawn). Read one step per candle, as the chart draws
+  it.
+- **Decision: the charts.** The 1-minute pane draws the 1-minute lines and the 5-minute pane the 5-minute ones,
+  with the levels (the toolbar's Levels switch): solid from the first touch to the last, dashed on to the newest
+  candle, a ring on each touch, faint with a cross on the closing candle once broken. The name sits in the pane's
+  edge column and opens a card: how it was drawn and what it means. The Key lists them.
+- **Decision: the plan, both sides.** A plan reads both charts' lines (`stock_read/line_notes.py`): a line in the
+  way between the entry and the target (a descending resistance over a long's entry, an ascending support under a
+  short's) reads amber; an entry already through such a line says it trades the break; the line behind the entry
+  says whether the stop sits beyond its band; a line that just broke against the plan reads red (a long's support,
+  a short's resistance). Nothing blocks, sizes or places on a line.
+- **Not decided here.** No setup, scanner, trigger or bot rule trades a trend line. How often these lines hold is
+  not measured; a rule that trades one needs that evidence first, as every setup did.

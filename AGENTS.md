@@ -191,6 +191,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | The bot's read on one stock (ADR 036, operator ask 2026-09-24, #598) | `architecture/schema/stock-read.md` |
 | Setups that ended stay on the chart, and what price did next (ADR 036 amendment, operator ask 2026-09-29) | `architecture/schema/stock-read.md` |
 | The day's levels: support and resistance on the charts and in the plan (ADR 036 amendment, operator ask 2026-09-30) | `architecture/schema/stock-read.md` |
+| Trend lines on the 1- and 5-minute charts (ADR 036 amendment, operator ask 2026-10-12) | `architecture/schema/stock-read.md` |
 | Who trades the stock (ADR 037, operator ask 2026-09-24, #604, #606) | `architecture/schema/stock-read.md` |
 | Managing a trade you hold (ADR 036 / 037 amendment, operator ask 2026-10-01) | `architecture/schema/stock-read.md` |
 | Catalysts (ADR 024) | `architecture/schema/catalysts.md` |

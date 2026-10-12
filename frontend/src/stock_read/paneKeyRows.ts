@@ -9,11 +9,11 @@
 import { CHART_SESSION_COLORS } from '../constants';
 import { SHORT_SETUP_COLORS } from '../constantGroups/short_setups';
 import type { PaneKind } from './chartShapes';
-import { FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS } from './constants';
+import { FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS, TREND_COLORS } from './constants';
 
 /** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, a box, a ring (a flat top's
- * touch) or a triangle pointing up (its break). */
-export type KeySwatch = 'line' | 'dash' | 'dots' | 'band' | 'box' | 'ring' | 'up';
+ * touch), a triangle pointing up (its break), or a line rising or falling (a trend line). */
+export type KeySwatch = 'line' | 'dash' | 'dots' | 'band' | 'box' | 'ring' | 'up' | 'rise' | 'fall';
 
 export interface KeyRow {
   swatch: KeySwatch;
@@ -87,6 +87,20 @@ function minuteRows(): KeySection {
       { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: the nearest bottom (or old top)' },
       { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round number', text: 'the nearest round price each side ($X.00 / $X.50 up to $25, coarser above)' },
       ...ZONE_ROWS,
+    ],
+  };
+}
+
+/** The trend lines a pane reads from its own candles (2026-10-12). */
+function trendRows(candles: string): KeySection {
+  return {
+    title: `Trend lines from ${candles} candles (hover one for why)`,
+    rows: [
+      { swatch: 'rise', color: TREND_COLORS.support, label: 'Ascending support', text: 'a rising line the swing lows touched 3 times or more (within 0.5% or a cent)' },
+      { swatch: 'fall', color: TREND_COLORS.resistance, label: 'Descending resistance', text: 'a falling line the swing highs touched 3 times or more' },
+      { swatch: 'ring', color: TREND_COLORS.support, fill: 'transparent', label: 'Touch', text: 'a candle that touched the line' },
+      { swatch: 'dash', color: GREY, label: 'Dashed', text: 'where the line runs now, past its last touch' },
+      { swatch: 'dots', color: GREY, label: 'Faint, ✕', text: 'it broke: the ✕ is the candle that closed through it (said for a few candles)' },
     ],
   };
 }
@@ -169,13 +183,13 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
   if (kind === 'full') {
     if (layers.setups) out.push(setupRows(), flatTopRows());
     out.push(planRows(true));
-    if (layers.levels) out.push(minuteRows());
+    if (layers.levels) out.push(minuteRows(), trendRows('1-minute'));
     if (layers.setups) out.push(fiveOnMinuteRows());
   } else if (kind === 'thin') {
     out.push(planRows(false));
   } else {
     if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows(true));
-    if (layers.levels) out.push(kind === 'daily' ? dailyRows() : fiveMinuteLevelRows());
+    if (layers.levels) out.push(...(kind === 'daily' ? [dailyRows()] : [fiveMinuteLevelRows(), trendRows('5-minute')]));
   }
   if (kind !== 'daily') out.push(sessionRows());
   return out;

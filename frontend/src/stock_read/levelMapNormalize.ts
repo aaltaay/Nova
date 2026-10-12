@@ -11,6 +11,9 @@ import type {
   PlanBetween,
   PlanLevelNote,
   PlanLevels,
+  PlanLineNote,
+  TrendLine,
+  TrendLines,
 } from './levelTypes';
 import type { ReadState } from './types';
 
@@ -107,6 +110,50 @@ function roundScale(raw: unknown): LevelRounds | null {
   return { minor, major, measured: r.measured, words: str(r.words) ?? 'round numbers' };
 }
 
+function touch(raw: unknown): TrendLine['touches'][number] | null {
+  const t = obj(raw);
+  const at = num(t?.t);
+  const p = num(t?.p);
+  return t && at !== null && p !== null ? { t: at, p, x: num(t.x) ?? p } : null;
+}
+
+/** One trend line; null when a field a drawing needs is missing -- a line is never guessed. */
+export function normalizeTrendLine(raw: unknown): TrendLine | null {
+  const l = obj(raw);
+  if (!l || typeof l.id !== 'string') return null;
+  const [t1, p1, t2, p2, nowT, nowP, slope] = [l.t1, l.p1, l.t2, l.p2, l.now_t, l.now_p, l.slope].map(num);
+  if (t1 === null || p1 === null || t2 === null || p2 === null || nowT === null || nowP === null || slope === null) return null;
+  if (l.kind !== 'support' && l.kind !== 'resistance') return null;
+  if (l.home !== 'one_minute' && l.home !== 'five_minute') return null;
+  const touches = list(l.touches, touch);
+  if (touches.length === 0) return null;
+  const b = obj(l.broke);
+  const bt = num(b?.t);
+  const bp = num(b?.p);
+  return {
+    id: l.id,
+    home: l.home,
+    kind: l.kind,
+    dir: l.dir === 'down' ? 'down' : 'up',
+    state: l.state === 'broken' ? 'broken' : 'holding',
+    touches,
+    t1, p1, t2, p2, now_t: nowT, now_p: nowP, slope,
+    band: num(l.band) ?? 0,
+    side: (typeof l.side === 'string' && SIDES.has(l.side) && l.side !== 'unknown' ? l.side : null) as TrendLine['side'],
+    broke: b && bt !== null && bp !== null ? { t: bt, p: bp, close: num(b.close) ?? bp } : null,
+    retest_t: num(l.retest_t),
+    label: str(l.label) ?? l.kind,
+    tag: str(l.tag) ?? l.kind,
+    note: str(l.note) ?? '',
+  };
+}
+
+function trendLines(raw: unknown): TrendLines | null {
+  const l = obj(raw);
+  if (!l) return null;
+  return { one_minute: list(l.one_minute, normalizeTrendLine), five_minute: list(l.five_minute, normalizeTrendLine) };
+}
+
 /** The read's level map; null when absent or of another schema version. */
 export function normalizeLevelMap(raw: unknown): LevelMap | null {
   const m = obj(raw);
@@ -121,6 +168,7 @@ export function normalizeLevelMap(raw: unknown): LevelMap | null {
     daily_sessions: num(m.daily_sessions) ?? 0,
     daily_error: str(m.daily_error),
     study: study(m.study),
+    lines: trendLines(m.lines),
   };
 }
 
@@ -150,6 +198,13 @@ function between(raw: unknown): PlanBetween | null {
   };
 }
 
+function lineNote(raw: unknown): PlanLineNote | null {
+  const n = obj(raw);
+  const note = normalizeLevelNote(n);
+  if (!n || !note || (n.role !== 'way' && n.role !== 'stop' && n.role !== 'broke')) return null;
+  return { ...note, role: n.role, line: str(n.line) ?? '', price: num(n.price) };
+}
+
 /** The plan's level notes; null when the plan carries none. */
 export function normalizePlanLevels(raw: unknown): PlanLevels | null {
   const l = obj(raw);
@@ -163,5 +218,6 @@ export function normalizePlanLevels(raw: unknown): PlanLevels | null {
     next: normalizeLevelNote(l.next),
     recent: normalizeLevelNote(l.recent),
     between: list(l.between, between),
+    lines: list(l.lines, lineNote),
   };
 }

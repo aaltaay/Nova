@@ -4,11 +4,12 @@
  * Room -- the first level of today's map over the entry, in R, amber under 2R (in trial T7 on a stock
  * whose rounds are half and whole dollars) -- the round number at the target and at the stop (the stock's
  * own scale: $5 and $10 on a $225 stock), the next round over the entry and a round the
- * price just broke or lost. The target stays 2R (the operator's call); nothing here blocks or places.
- * Each row says it in a line; its hover gives what the level study measured.
+ * price just broke or lost, and what the charts' trend lines say (2026-10-12: one in the way, the one behind the
+ * stop, one that just broke). The target stays 2R (the operator's call); nothing here blocks or places.
+ * Each row says it in a line; its hover gives what the level study measured, or how the line was drawn.
  */
 import { tipProps } from '../ux';
-import type { PlanLevelNote } from './levelTypes';
+import type { PlanLevelNote, PlanLineNote } from './levelTypes';
 import type { StockPlan } from './types';
 
 const ROWS = [
@@ -22,19 +23,22 @@ const ROWS = [
 export function PlanLevels({ plan }: { plan: StockPlan }) {
   const lv = plan.levels;
   if (!lv) return null;
-  return <LevelRowList levels={lv} trial={lv.room.state === 'warn' ? lv.room.trial : null} />;
+  return <LevelRowList levels={lv} trial={lv.room.state === 'warn' ? lv.room.trial : null} lines={lv.lines} />;
 }
 
 /** The rows themselves, for the plan's notes and for the trade you hold (whose Room is never a trial's). */
-export function LevelRowList({ levels: lv, trial = null }: {
+export function LevelRowList({ levels: lv, trial = null, lines = [] }: {
   levels: Partial<Record<(typeof ROWS)[number][0], PlanLevelNote | null>>;
   trial?: string | null;
+  /** The trend lines' rows, after the levels'. */
+  lines?: PlanLineNote[];
 }) {
-  const rows: { key: (typeof ROWS)[number][0]; label: string; note: PlanLevelNote }[] = [];
+  const rows: { key: string; label: string; note: PlanLevelNote }[] = [];
   for (const [key, label] of ROWS) {
     const note = lv[key];
     if (note) rows.push({ key, label, note });
   }
+  for (const note of lines) rows.push({ key: `line-${note.role}`, label: 'Line', note });
   if (rows.length === 0) return null;
   return (
     <ul className="sr-levels" data-testid="stock-read-levels" aria-label="The levels">

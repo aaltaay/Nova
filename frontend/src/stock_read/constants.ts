@@ -90,6 +90,15 @@ export const LEVEL_COLORS = {
   daily: '#b9a3e3',
   vwap: '#bf5af2',
 } as const;
+/** The trend lines (ADR 036 amendment 2026-10-12): brighter than the flat levels' colours so an angled line reads
+ * apart from a horizontal one; a broken line is drawn at `brokenAlpha`, its name at `brokenLabelAlpha`. */
+export const TREND_COLORS = {
+  support: '#34d399',
+  resistance: '#ff9f43',
+  brokenAlpha: 0.45,
+  brokenLabelAlpha: 0.8,
+} as const;
+
 /** Which zones a pane draws with a line and a label (the rest are ticks on the price axis): per side the
  * nearest and the strongest others within this share of the price, this many in all. */
 export const LEVEL_MAP_WINDOW_PCT = 0.12;

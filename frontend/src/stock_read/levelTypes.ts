@@ -1,5 +1,5 @@
 /** The day's support and resistance on the wire (ADR 036 amendment 2026-09-30): the read's `level_map`
- * and the plan's `levels` (AGENTS.md §3, "The day's levels"). */
+ * and the plan's `levels` (AGENTS.md §3, "The day's levels"), with the charts' trend lines (2026-10-12). */
 import type { ReadState } from './types';
 
 /** One reason a price holds (ADR 036 amendment 2026-09-30): a high of day, a top tested N times, a
@@ -57,6 +57,41 @@ export interface LevelRounds {
   words: string;
 }
 
+/** A trend line (ADR 036 amendment 2026-10-12): an ascending support through swing lows or a descending resistance
+ * through swing highs, read from its chart's own candles, three touches or more inside its band. Prices are where the
+ * line runs at that candle; `now_p` at the chart's last closed candle, moving `slope` a candle. */
+export interface TrendLine {
+  id: string;
+  home: 'one_minute' | 'five_minute';
+  kind: 'support' | 'resistance';
+  dir: 'up' | 'down';
+  /** `broken`: a candle closed through it after its last touch (it stays a few candles, then goes). */
+  state: 'holding' | 'broken';
+  /** Each touch: its candle, where the line runs there (`p`) and the candle's low or high (`x`). */
+  touches: { t: number; p: number; x: number }[];
+  t1: number;
+  p1: number;
+  t2: number;
+  p2: number;
+  now_t: number;
+  now_p: number;
+  slope: number;
+  /** How far a touch may miss it, at the last candle. */
+  band: number;
+  side: 'above' | 'below' | 'at' | null;
+  broke: { t: number; p: number; close: number } | null;
+  retest_t: number | null;
+  label: string;
+  tag: string;
+  note: string;
+}
+
+/** Each intraday chart's trend lines: null from a backend older than them. */
+export interface TrendLines {
+  one_minute: TrendLine[];
+  five_minute: TrendLine[];
+}
+
 /** Today's map from 1-minute candles (the plan's, and the 1-minute pane's nearest tops and bottoms),
  * the day from 5-minute candles (the 5-minute pane; null from a backend older than it) and the daily
  * map (Full Day). */
@@ -71,6 +106,7 @@ export interface LevelMap {
   daily_sessions: number;
   daily_error: string | null;
   study: LevelStudy | null;
+  lines: TrendLines | null;
 }
 
 export interface PlanLevelNote {
@@ -90,6 +126,13 @@ export interface PlanBetween {
   hod: boolean;
 }
 
+/** What the plan has against a trend line: one in the way, one behind the stop, one that just broke. */
+export interface PlanLineNote extends PlanLevelNote {
+  role: 'way' | 'stop' | 'broke';
+  line: string;
+  price: number | null;
+}
+
 /** What the plan says about the day's levels: Room (a warning while trial T7 runs), the round at the
  * target and at the stop, the next round, a round just broken or lost, and the levels in between. */
 export interface PlanLevels {
@@ -99,4 +142,6 @@ export interface PlanLevels {
   next: PlanLevelNote | null;
   recent: PlanLevelNote | null;
   between: PlanBetween[];
+  /** The trend lines' notes, `way` then `stop` then `broke`. */
+  lines: PlanLineNote[];
 }
