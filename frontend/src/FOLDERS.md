@@ -28,7 +28,7 @@ the backend packages.
 | `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling. |
 | `capture/` | feature | Session Record state on screen: the recording chip, top-edge hairline, stop toast and hold-to-stop button. |
 | `clips/` | feature | Share clips (ADR 039): the red ● Record button and Record menu on a Trader tab, the header's CLIP chips, the clip's frame, toasts, the export dialog and its trim timeline, Records › Video clips, the tab reporter, and the hidden export page (`export_page/`) the desktop app runs. |
-| `chart/` | feature | The ticker chart: chart instance, bars store, drawings, context menu, position overlay, VWAP and session shading. |
+| `chart/` | feature | The ticker chart: chart instance, bars store, drawings, context menu, position overlay, VWAP and session shading, and the candle hover card. |
 | `cryptos/` | feature | The Cryptos page (ADR 040): the 24/7 crypto market's tiles, coins table, Coinbase chart, 24/7 clock, the stocks crypto moves (IBKR), leverage, money flows, what comes next and news, the sample desk's figures, and the hover card (`tips/`) that explains every number with a small drawing. |
 | `close_reminder/` | feature | The close-of-day reminder (operator ask, 2026-10-01): a loud card at 15:50 ET for each Paper or Live position still open, escalated at 15:55, gone at 16:00, once per position per day per stage -- so the desk is flat by the close. |
 | `closed_orders/` | feature | The Closed Orders module: today's closed orders table, filters, recency and the close-position button. |
