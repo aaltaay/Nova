@@ -64,7 +64,7 @@ function fiveMinuteLevelRows(): KeySection {
   return {
     title: 'Levels from 5-minute candles (hover a label for why)',
     rows: [
-      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: tops 5-minute candles made, the high of day (a round price at one leads its label)' },
+      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price, or a top it is on: tops 5-minute candles made, the high of day (a round price at one leads its label)' },
       { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: bottoms, the premarket high, the open, the low, a top the price climbed over' },
       ...ZONE_ROWS,
     ],
@@ -88,7 +88,7 @@ function minuteRows(): KeySection {
   return {
     title: 'Levels from 1-minute candles (hover a label for why)',
     rows: [
-      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: the nearest top 1-minute candles made, the high of day' },
+      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price, or a top it is on: the nearest top 1-minute candles made, the high of day' },
       { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: the nearest bottom, or a top the price climbed over' },
       { swatch: 'line', color: alpha(LEVEL_COLORS.round, LEVEL_ROUND_LINE_ALPHA), label: 'Round number', text: "a faint line: the nearest round price each side ($X.00 / $X.50 up to $25, coarser above); at a top, a bottom or VWAP it takes that level's colour" },
       ...ZONE_ROWS,

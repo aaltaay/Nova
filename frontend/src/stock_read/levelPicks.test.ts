@@ -223,6 +223,12 @@ describe("a level's colour and line (operator report 2026-10-12)", () => {
     expect(zoneColor({ ...CEILING, side: 'below', price: CEILING.hi })).toBe('#45c7b8');
     // The zone the price is on, a whole dollar with a bottom tested 6 times: support.
     expect(zoneColor(FLOOR)).toBe('#45c7b8');
+    // A round top the price has only reached is not broken yet: still resistance (Codex review, PR #857).
+    expect(zoneColor({ ...CEILING, side: 'at' })).toBe('#ff8a70');
+    expect(zoneColor(zone('3.00', 3, 3, 'at', 5, '$3.00 · double top', [['whole', 3], ['top', 3, 2]]))).toBe('#ff8a70');
+    // On it with more lows than highs behind it (a bottom tested 3 times, one top): support.
+    expect(zoneColor(zone('3.00', 2.99, 3, 'at', 7, '$3.00 · triple bottom',
+      [['whole', 3], ['bottom', 2.99, 3], ['top', 3, 1]]))).toBe('#45c7b8');
     // A round at VWAP alone is VWAP's; a round at yesterday's high is yesterday's.
     expect(zoneColor(zone('7.20', 7.2, 7.2, 'above', 3, '$7.20 · VWAP', [['half', 7.2], ['vwap', 7.2]]))).toBe('#bf5af2');
     expect(zoneColor(zone('6.00', 5.95, 6, 'below', 4, '$6.00 · Yest. high', [['whole', 6], ['yday_high', 5.95]])))

@@ -491,8 +491,15 @@ price is on, the nearest zone over and under it that its candles made (a top or 
 more), the nearest round dollar each side and the plan's `between` levels, with no ticks; the premarket
 high and the open are the 5-minute pane's. (Until 2026-09-30 these were price lines without an axis
 label, and lightweight-charts 5.1 shows a price line's title only beside its axis label: the 1-minute
-pane's level lines never showed their names.) The **10-second** pane draws the plan's lines only. Every
-pane's corner carries a **Key** chip: pointed at, focused or pressed, it lists what each colour on that
+pane's level lines never showed their names.) The **10-second** pane draws the plan's lines only. A
+level's colour and line come from its strongest reason, a round number the weakest (`levelPicks.zoneColor`;
+operator report 2026-10-12, the gold dashed lines were "too strong, too much"): coral over the price and teal
+under it, so a top the price climbs over turns support on the next read whether or not it sits on a round; a
+zone the price is on (`at`) is coral when highs made it more than lows (tops by their touches, the high of day,
+the premarket high), else teal, so touching a top is not breaking it; VWAP alone purple, yesterday's levels
+blue dots, old daily levels violet dashes; a round number alone a faint solid gold line
+(`LEVEL_ROUND_LINE_ALPHA`, 0.4) whose label keeps the full colour. A strong zone's line is 2 px, any other 1.
+Every pane's corner carries a **Key** chip: pointed at, focused or pressed, it lists what each colour on that
 pane means -- the time-of-day background on the intraday panes, the levels, and on the 1-minute the
 setup boxes and the plan's lines. The plan
 card lists Room (T7's reading only in its hover since #845), Target 1, Target 2, Stop, "$ next" and "$ now", each one line with

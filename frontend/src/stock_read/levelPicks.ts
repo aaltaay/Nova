@@ -21,7 +21,8 @@
  *
  * A zone is coloured by its strongest reason, a round number the weakest (operator report 2026-10-12): coral
  * over the price and teal under it, so a top the price climbs over turns support on the next read whether or
- * not it sits on a round. A round number alone is a faint solid hairline (`LEVEL_ROUND_LINE_ALPHA`).
+ * not it sits on a round; one the price is on is coral while highs made it, so touching a top is not breaking
+ * it. A round number alone is a faint solid hairline (`LEVEL_ROUND_LINE_ALPHA`).
  */
 import {
   LEVEL_COLORS,
@@ -46,6 +47,9 @@ const CANDLE = new Set(['top', 'bottom']);
 const YESTERDAY = new Set(['yday_high', 'yday_low', 'prior_close']);
 const DAILY = new Set(['daily_highs', 'daily_lows', 'daily_high', 'gap', 'sma200']);
 const VWAP = new Set(['vwap']);
+/** What the candles' highs and lows made: which side a zone the price is on holds. */
+const HIGHS = new Set(['top', 'hod', 'pmh', 'yday_high', 'daily_high', 'daily_highs']);
+const LOWS = new Set(['bottom', 'lod', 'yday_low', 'daily_lows']);
 /** A zone this strong gets the heavier line. */
 const STRONG = 8;
 const DASH = { yesterday: [1, 3], daily: [4, 3], solid: [] as number[] };
@@ -101,12 +105,25 @@ export function dailyPick(zones: LevelZone[], price: number): Set<LevelZone> {
   ]);
 }
 
+/** A zone the price is on has not been passed: it is resistance when highs made it more than lows (a top it
+ * is touching from under is not yet broken), else support. Each member counts its touches. */
+function atResistance(z: LevelZone): boolean {
+  let highs = 0;
+  let lows = 0;
+  for (const m of reasons(z)) {
+    if (HIGHS.has(m.kind)) highs += m.touches ?? 1;
+    else if (LOWS.has(m.kind)) lows += m.touches ?? 1;
+  }
+  return highs > lows;
+}
+
 export function zoneColor(z: LevelZone): string {
   if (roundOnly(z)) return LEVEL_COLORS.round;
   if (isYesterday(z)) return LEVEL_COLORS.yesterday;
   if (isDaily(z)) return LEVEL_COLORS.daily;
   if (only(z, VWAP)) return LEVEL_COLORS.vwap;
-  return z.side === 'above' ? LEVEL_COLORS.resistance : LEVEL_COLORS.support;
+  const resistance = z.side === 'above' || (z.side === 'at' && atResistance(z));
+  return resistance ? LEVEL_COLORS.resistance : LEVEL_COLORS.support;
 }
 
 function dashOf(z: LevelZone): number[] {
