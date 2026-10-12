@@ -5,7 +5,9 @@
   PUT    /api/stock-mode/{symbol}              {entry, exit} (or {buy, sell}, one release): set the switch
                                                (a ``risk_usd`` sent is ignored: risk per trade is the venue
                                                sleeve's, PATCH /api/bot/session)
-  POST   /api/stock-mode/{symbol}/approve      {setup_id, entry, stop, target, qty, now?}
+  POST   /api/stock-mode/{symbol}/approve      {setup_id, entry, stop, target, qty, now?, target2?,
+                                               target1_fraction?}: the plan's bracket sells in two halves
+                                               when it has a target 2 (#845)
   DELETE /api/stock-mode/{symbol}/approve      withdraw the approval (or cancel its unfilled entry)
   POST   /api/stock-mode/{symbol}/take-over    cancel the exits Nova holds on the stock; Buy goes to You
   POST   /api/stock-mode/{symbol}/take-exit    {stop, trail, target?, target2?, target1_fraction?}: Nova takes
@@ -61,6 +63,9 @@ class ApproveBody(BaseModel):
     target: float
     qty: int
     now: bool = False
+    # Two halves (#845): the plan's target 2 (null: every share at target 1) and the share sold at target 1.
+    target2: float | None = None
+    target1_fraction: float | None = None
 
 
 class TakeExitBody(BaseModel):

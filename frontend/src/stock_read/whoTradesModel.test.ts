@@ -289,6 +289,7 @@ describe('what stands behind each level', () => {
     const lv = orderLevels(inputs({ read: pfsaRead('armed') }));
     expect(lv).toEqual({
       entry: { price: 4.27, behind: 'plan' }, stop: { price: 4.14, behind: 'plan' }, target: { price: 4.52, behind: 'plan' },
+      target2: null,                                                  // this plan sells every share at target 1
     });
     expect(level2Markers(lv).map(m => [m.label, m.working])).toEqual([
       ['ENTRY 4.27', false], ['STOP 4.14', false], ['TARGET 4.52', false],

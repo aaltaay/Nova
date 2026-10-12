@@ -189,6 +189,17 @@ export function planSubLines(plan: StockPlan, riskUsd: number, size: number | nu
   };
 }
 
+/** The prices the 1-minute pane keeps in view for the plan (#845): the stop to the furthest target -- target 2 when
+ * the plan has one -- so both targets are lines on the chart. A short's stop is over its targets (ADR 048): the range
+ * is whichever is lower first. Null without a stop and a target 1. Where the operator's own scale leaves a target
+ * off the pane, its line's edge tag names it. */
+export function planFrame(stop: number | null | undefined, target: number | null | undefined,
+  target2: number | null | undefined): { min: number; max: number } | null {
+  if (stop == null || target == null) return null;
+  const prices = target2 == null ? [stop, target] : [stop, target, target2];
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
 /** Two prices this close are one mark. */
 const SAME_PRICE = 1e-6;
 

@@ -11,7 +11,8 @@
 - **Lower**: the lowest broke round whose ``round + near`` is under the stop and over the price ("Lower
   stop to 5.55, 5c over $5.50"). Down only.
 - **The cover targets** (#845): the menu's defaults under your average, from today's map and the low of day
-  (``held_targets``): ``target``, ``target2`` (or None) and ``target1_fraction``, as the long's.
+  (``held_targets``): ``target``, ``target2`` (or None) and ``target1_fraction``, as the long's. The card's
+  rows name them Cover 1 and Cover 2, as its tiles do ("Cover 1 5.19 is 12c below").
 - **The ladder**: the stop and the average over the price, the broke and through rounds, a resistance, the
   price, and the next two zones under it -- highest price first, as the long ladder.
 
@@ -152,8 +153,8 @@ def _levels(price: float | None, risk: float | None, stop: dict[str, Any] | None
         room = {"state": "info", "text": f"{r:.1f}R to {below[0]['tag']}, from the price",
                 "detail": f"R is your {px(risk)} risk a share, measured from the price.", "trial": None,
                 "r": round(r, 2)}
-    tnote = held_targets.note(targets[0], price, short=True, name="Target 1")
-    t2note = held_targets.note(targets[1], price, short=True, name="Target 2")
+    tnote = held_targets.note(targets[0], price, short=True, name="Cover 1")
+    t2note = held_targets.note(targets[1], price, short=True, name="Cover 2")
     snote = level_notes_short.stop_note(stop["price"], price, rnd) if stop and price is not None else None
     nxt = level_notes_short.round_notes(bars, price=price, entry=None, now=now, rnd=rnd)[0] if price is not None else None
     recent = None

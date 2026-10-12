@@ -1,8 +1,8 @@
 /**
  * Who trades the stock on the desk (ADR 037), pure: the four modes in words, why a side of the switch
  * is locked, and the plan's levels with what stands behind each -- drawn dashed on the charts while only a
- * plan, solid while an order stands there, and as ENTRY / STOP / TARGET rows in the Level 2 book. The plan
- * card's buttons for the mode are `planActions.ts`.
+ * plan, solid while an order stands there, and as ENTRY / STOP / TARGET / T2 rows in the Level 2 book (T2: the
+ * second half's target, #845). The plan card's buttons for the mode are `planActions.ts`.
  */
 import type { DepthMarker } from '../ibkr';
 import { SETUP_COLORS } from './constants';
@@ -97,6 +97,8 @@ export interface OrderLevels {
   entry: OrderLevel | null;
   stop: OrderLevel | null;
   target: OrderLevel | null;
+  /** The second half's target (#845); null (or absent) when every share sells at target 1. */
+  target2?: OrderLevel | null;
 }
 
 function level(price: number | null, behind: Behind): OrderLevel | null {
@@ -121,10 +123,16 @@ export function orderLevels(i: MomentInputs): OrderLevels | null {
     const nova = live.exits === 'nova';
     const bot = live.kind === 'bot';
     const botStop: Behind = live.stop_order_id !== null ? 'order' : holding ? 'watched' : 'plan';
+    // Two halves (#845): a target whose half sold, or with no order behind it, is only the plan's now.
+    const sold = new Set((live.halves ?? []).map(h => h.leg));
+    const rests = (id: number | null | undefined, leg: string): Behind => (
+      nova && id != null && !sold.has(leg) ? 'order' : 'plan');
     return {
       entry: level(live.fill_price ?? live.entry, holding ? 'held' : 'order'),
       stop: level(live.stop, !nova ? 'plan' : bot ? botStop : 'order'),
-      target: level(live.target, !nova ? 'plan' : bot ? (live.target_order_id !== null ? 'order' : 'plan') : 'order'),
+      target: level(live.target, !nova ? 'plan' : bot || sold.has('target1') ? rests(live.target_order_id, 'target1')
+        : 'order'),
+      target2: live.target2 != null ? level(live.target2, rests(live.target2_order_id, 'target2')) : null,
     };
   }
   const plan = i.read?.plan ?? null;
@@ -139,10 +147,15 @@ export function orderLevels(i: MomentInputs): OrderLevels | null {
   }
   // A setup plan too thin to trade is no plan (2026-10-01): nothing drawn, nothing marked in Level 2.
   if (!plan || thinPlan(plan)) return null;
-  return { entry: level(plan.entry, 'plan'), stop: level(plan.stop, 'plan'), target: level(plan.target, 'plan') };
+  return {
+    entry: level(plan.entry, 'plan'), stop: level(plan.stop, 'plan'), target: level(plan.target, 'plan'),
+    target2: level(plan.target2 ?? null, 'plan'),
+  };
 }
 
-const TIPS: Record<'entry' | 'stop' | 'target', Partial<Record<Behind, string>>> = {
+type MarkId = 'entry' | 'stop' | 'target' | 'target2';
+
+const TIPS: Record<MarkId, Partial<Record<Behind, string>>> = {
   entry: {
     plan: "The plan's entry, a buy limit here. Only a plan: no order stands behind it.",
     order: "Nova's buy is working here.",
@@ -157,9 +170,13 @@ const TIPS: Record<'entry' | 'stop' | 'target', Partial<Record<Behind, string>>>
     plan: "The plan's target. Only a plan: no order stands behind it.",
     order: 'A sell limit rests here.',
   },
+  target2: {
+    plan: "The plan's target 2: the rest sells here after the first half. Only a plan: no order stands behind it.",
+    order: 'A sell limit for the second half rests here.',
+  },
 };
 
-const TIPS_SHORT: Record<'entry' | 'stop' | 'target', Partial<Record<Behind, string>>> = {
+const TIPS_SHORT: Record<MarkId, Partial<Record<Behind, string>>> = {
   entry: {
     plan: "The plan's short entry, a sell limit here that goes out with its buy stop. Only a plan: no order stands behind it.",
     order: 'A short entry is working here.',
@@ -174,17 +191,24 @@ const TIPS_SHORT: Record<'entry' | 'stop' | 'target', Partial<Record<Behind, str
     plan: "The plan's cover target. Only a plan: no order stands behind it.",
     order: 'A buy limit (the cover) rests here.',
   },
+  target2: {
+    plan: "The plan's cover 2: the rest covers here after the first half. Only a plan: no order stands behind it.",
+    order: 'A buy limit covering the second half rests here.',
+  },
 };
 
-/** ENTRY / STOP / TARGET for the Level 2 book; a short plan's SHORT, STOP ↑ and TARGET ↓ (ADR 048): its entry
- * sells and its buy stop sits over the price with the asks, its cover target under it with the bids. */
+/** ENTRY / STOP / TARGET / T2 for the Level 2 book (T2: target 2, the second half's, #845); a short plan's SHORT,
+ * STOP ↑, TARGET ↓ and T2 ↓ (ADR 048): its entry sells and its buy stop sits over the price with the asks, its
+ * cover targets under it with the bids. */
 export function level2Markers(levels: OrderLevels | null, side: 'long' | 'short' = 'long'): DepthMarker[] {
   if (!levels) return [];
   const short = side === 'short';
-  const words = short ? { entry: 'SHORT', stop: 'STOP ↑', target: 'TARGET ↓' } : { entry: 'ENTRY', stop: 'STOP', target: 'TARGET' };
+  const words: Record<MarkId, string> = short
+    ? { entry: 'SHORT', stop: 'STOP ↑', target: 'TARGET ↓', target2: 'T2 ↓' }
+    : { entry: 'ENTRY', stop: 'STOP', target: 'TARGET', target2: 'T2' };
   const tips = short ? TIPS_SHORT : TIPS;
   const out: DepthMarker[] = [];
-  const add = (id: 'entry' | 'stop' | 'target', lv: OrderLevel | null, color: string, rests: 'bid' | 'ask') => {
+  const add = (id: MarkId, lv: OrderLevel | null | undefined, color: string, rests: 'bid' | 'ask') => {
     if (!lv) return;
     out.push({
       id,
@@ -199,6 +223,7 @@ export function level2Markers(levels: OrderLevels | null, side: 'long' | 'short'
   add('entry', levels.entry, SETUP_COLORS.trigger, short ? 'ask' : 'bid');
   add('stop', levels.stop, SETUP_COLORS.stop, short ? 'ask' : 'bid');
   add('target', levels.target, SETUP_COLORS.target, short ? 'bid' : 'ask');
+  add('target2', levels.target2, SETUP_COLORS.target, short ? 'bid' : 'ask');
   return out;
 }
 
@@ -210,6 +235,6 @@ export function levelTitle(id: 'entry' | 'stop' | 'target' | 'target2', behind: 
   const arrow = short ? ' ↓' : '';
   if (id === 'entry') return behind === 'held' ? `${entry} · held` : behind === 'order' ? `${entry} · working` : entry;
   if (id === 'stop') return behind === 'order' ? `${stop} · order` : behind === 'watched' ? `${stop} · Nova watches` : `${stop} · plan`;
-  if (behind === 'order') return `TARGET${arrow} · order`;
+  if (behind === 'order') return `TARGET${id === 'target2' ? ' 2' : ''}${arrow} · order`;
   return `TARGET ${id === 'target2' ? 2 : 1}${arrow} · plan`;
 }

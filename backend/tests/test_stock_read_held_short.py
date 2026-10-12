@@ -73,6 +73,16 @@ def test_the_cover_targets_are_the_menus_under_the_average_and_say_when_they_tra
     assert out["open_usd"] == pytest.approx((5.77 - 5.45) * 416) and out["r"] == pytest.approx(2.67, abs=0.01)
 
 
+def test_the_short_cards_rows_say_cover_1_and_cover_2_as_its_tiles_do():
+    """The held short card's tiles read Cover 1 / Cover 2; its level rows say the same words, never Target."""
+    out = build()
+    assert out["levels"]["target"]["text"] == "Cover 1 5.57 traded at 09:45: you are past it"
+    assert out["levels"]["target2"]["text"] == "Cover 2 5.44 traded at 09:46: you are past it"
+    ahead = build(bars=BARS[:-3], price=5.66)                  # before the fade reached either cover
+    assert ahead["levels"]["target"]["text"] == "Cover 1 5.57 is 9c below"
+    assert "Target" not in ahead["levels"]["target"]["text"] + ahead["levels"]["target2"]["text"]
+
+
 def test_the_ladder_runs_down_from_the_stop_through_the_price_to_the_next_levels():
     rows = [(r["role"], r["price"]) for r in build()["ladder"]]
     assert rows == [("stop", 5.89), ("cost", 5.77), ("broke", 5.5), ("now", 5.45), ("next", 5.35), ("then", 5.0)]

@@ -189,7 +189,9 @@ setup forming, the operator's own plan starts from a typed entry or the ask. Its
 dragged on the 1-minute chart with the entry; while it drags the targets keep their distance from the entry,
 and on release the read answers the menu's targets for the new entry. The 1-minute chart draws
 each lane's shapes (the plan's lane in colour, the rest faded), the plan's zones and lines, the
-day's levels, a legend and the plan's badge. It frames a forming setup once per setup, and again
+day's levels, a legend and the plan's badge. Its autoscale keeps the stop to the furthest target in view
+(#845: target 2 when the plan has one, `planMath.planFrame`), so target 2 is a line on the chart; its edge
+tag names it only where the operator's own price scale leaves it off. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
 time scale's `rightOffset`, which is its scroll position, is never set). **A view the operator
@@ -576,14 +578,17 @@ release), size: {qty, by_risk, capped_by, text} | null, last_event: {ts, tone: "
   bot not active, the plan's setup not at Strategy, its window, extended hours, no depth line, NOT A
   TRADE, a stock the scanner does not follow, the day's Nova entries used, and what could not be
   read (`bot_unreadable`, `trades_unreadable`, `scanner_unreadable`).
-- An **Approval** is `{setup_id, setup_type, entry, stop, target, qty, approved_at, state:
-  "waiting" | "sent" | "withdrawn", reason}`.
+- An **Approval** is `{setup_id, setup_type, entry, stop, target, target2, target1_fraction, qty, approved_at,
+  state: "waiting" | "sent" | "withdrawn", reason}` -- `target2` the plan's target 2 (null: every share at
+  target 1) and `target1_fraction` the share sold at target 1 (null when the approval names none), #845.
 - A **Trade** is `{kind: "auto_entry" | "approve" | "bot", state: "entering" | "holding" | "closed"
   | "missed" | "handed", venue, venue_day, setup_id, setup_type, qty, entry, stop, target,
   entry_order_id, target_order_id, stop_order_id, fill_price, filled_at, exit_price, exit_reason:
   "target" | "stop" | "time" | "flush" | "outside" | "handed" | null, exits: "nova" | "you", sent_at, closed_at:
-  number | null, note, exiting: boolean}` -- `closed_at` when it closed, missed or was handed;
-  `exiting` true while the bot is selling it. The bot's own trade is mapped from `bot-session.json`
+  number | null, note, exiting: boolean, target2, target2_order_id, target1_qty, target2_qty, halves: [{leg,
+  qty, price, ts, order_id}]}` -- `closed_at` when it closed, missed or was handed; `exiting` true while the bot
+  is selling it. The two halves' fields (#681, #845) are null (`halves` empty) on a trade that sells every share
+  at target 1; `exit_price` is the shares-weighted price of every sale. The bot's own trade is mapped from `bot-session.json`
   (`entry_sent_ts` is its `sent_at`, `closed_ts` its `closed_at`; `open` and `exiting` read `holding`).
 
 `GET /api/stock-mode` answers `{schema_version, generated_at, venue, stocks: [view]}` for every
@@ -602,13 +607,17 @@ routes.
     sets Signal only.
   - Moving Sell from Nova to You takes over the exit (below). Moving Buy from Nova to You cancels a
     Nova entry that is still working.
-- `POST /api/stock-mode/{symbol}/approve` takes `{setup_id, entry, stop, target, qty, now?}` and
-  answers the view. The stock must be in Approve, and the plan must be the lane's own: the setup id,
-  with its levels within a cent. `now: true` on a triggered setup sends the bracket at once.
+- `POST /api/stock-mode/{symbol}/approve` takes `{setup_id, entry, stop, target, qty, now?, target2?,
+  target1_fraction?}` and answers the view. The stock must be in Approve, and the plan must be the lane's own:
+  the setup id, with its levels within a cent -- target 2 too (#845): on both or on neither, so an approval that
+  leaves out the lane's target 2, or a lane that re-arms with another, is `STOCK_MODE_PLAN_CHANGED` and its
+  error names the lane's levels ("10.02 / 9.89 / 10.28 / 10.50"). `target2` must be past target 1 (over it on a
+  long, under it on a short) and `target1_fraction` over 0 and at most 1, else 400 `STOCK_MODE_INVALID` with
+  `field: "target2"` / `"target1_fraction"`. `now: true` on a triggered setup sends the bracket at once.
 - `DELETE /api/stock-mode/{symbol}/approve` withdraws a waiting approval, or cancels a sent entry
   that has not filled; its exits go with it.
 - `POST /api/stock-mode/{symbol}/take-over` cancels the exits Nova holds on the stock:
-  - Approve's two bracket legs;
+  - Approve's bracket legs still resting (both targets and the stop; a half already sold is done);
   - or the bot's trade. The bot cancels its target and stop legs, stops watching, and ends the
     trade `handed`, releasing its shares from the sleeve.
   - Buy always stays on You after a take-over (ADR 042: it could turn into Auto-entry and buy the
@@ -644,6 +653,18 @@ is the venue's (the playhead on Sim).
   - After the fill the trade is `holding` with `exits: "you"`: Nova places no exit.
 - **Approve.** The approved setup's go trigger (fresh) sends one bracket: `operation: "bracket"`,
   `source: "manual"`, an entry limit, a target limit and a stop.
+  - **Two halves** (#845, operator decision 2026-10-12): with the approval's target 2 the bracket adds
+    `target2_price` and `target1_qty` (`execution.md`, "A bracket in two halves"): target 1 sells
+    `target1_fraction` of the shares (half by default, the smaller part of an odd count), target 2 the rest,
+    the stop every share -- split by the bot's and Nova's exit's one rule (`exit_targets.apply`,
+    `halves.split`); one share, or no target 2, sells every share at target 1 as before. The runner books a
+    first half that fills (`stock_mode.exit_legs`): a `stock_mode` audit line `half` and the stock's last
+    event ("Nova sold 76 at target 1 10.28; the stop 9.89 stays for the other 77"); the broker shrinks the
+    stop to the shares left and it never moves. The stop, or the target that sells the last shares, closes
+    the trade, its money over every share ("Closed: the target 2 10.50 filled at 10.50 (target 1 10.28 x 76,
+    target 2 10.5 x 77) · +$56.72"). A short plan's is the mirror: covers under the entry, a buy stop over it.
+    A Sim rewind puts a first half back with the trade (bot.md, "Auto-entry, Approve and Nova takes the exit
+    on a replay").
   - It is cancelled unfilled after the sleeve's `working_ttl_sec`. Its size is the operator's
     approved quantity (no sleeve caps); it is counted, never capped, by the daily count.
   - A re-arm at other levels, or a failed or disarmed setup, withdraws the approval with the reason.
@@ -678,13 +699,18 @@ Sell: You means Nova never sells the trade; the loss breakers and KILL still fla
   1, value: boolean}` mutes the ping.
 - The plan's stop and target are dashed while they are only a plan, and solid while an order stands
   behind them.
-- Level 2 draws ENTRY, STOP and TARGET as separator rows where they sit in the book (the
-  `MontageSide` `markers`).
+- Level 2 draws ENTRY, STOP, TARGET and T2 (target 2, #845; a short's TARGET ↓ and T2 ↓ with the bids) as
+  separator rows where they sit in the book (the `MontageSide` `markers`), dashed while only a plan and solid
+  while an order stands behind them -- Approve's second limit marks T2 solid, and a target whose half sold
+  reads as the plan's again.
 - The plan card's buttons follow the mode:
   - Signal only: Stage in ticket; Stage sell (at the target, or at the bid once an exit is due)
     while shares are held.
   - Approve: Approve (an armed plan), Approve: buy N now (after its trigger), Approved · cancel,
-    Cancel stop and target (take over the exit).
+    Cancel stop and target (take over the exit; "Cancel stop and targets" while both targets rest). With a
+    target 2 the request carries `target2` and `target1_fraction` from the plan, and Approve's hover and the
+    APPROVED card name both limits as they will rest: "Nova sends buy 100 @ 6.00 with stop 5.89, LMT 6.12 x 50
+    and LMT 6.96 x 50 when 5.99 prints with the tape at go" (`exitTargets.limitWords`, the exit sheet's words).
   - Auto-entry: Auto-entry on · turn off; Stage sell once Nova bought.
   - Bot: Bot on SYMBOL · stop it; Take over the exit while the bot holds it.
 - The badge promises a Nova buy ("THE BOT TRADES THIS", "NOVA BUYS AT ...") only when nothing
@@ -736,7 +762,8 @@ levels: {room, target, target2, stop, next, recent}, checks: Check[]}`:
   (`support`, when no broke round is there), the stop and the average (`cost`). `r` is in the held risk.
 - **The rows** (`levels`, the plan's note shape) are measured from the price, never the entry: Room to the
   first zone over the price in R (`info`; trial T7 reads entries, not positions), each target behind or
-  ahead ("Target 1 5.28 is 20c above", "Target 2 6.96 traded at 08:58: you are past it"), the stop's round (`level_notes.stop_note`), the next round over the price and a round just
+  ahead ("Target 1 5.28 is 20c above", "Target 2 6.96 traded at 08:58: you are past it"; a short's rows say
+  Cover 1 and Cover 2, as its tiles do: "Cover 1 5.57 is 9c below"), the stop's round (`level_notes.stop_note`), the next round over the price and a round just
   broken or lost. `checks` are the plan's checks that hold for a position: the spread against what the stop
   gives back, the 1-minute MACD, the 9 EMA, VWAP, the tape's flow, bids pulled and a halt.
 

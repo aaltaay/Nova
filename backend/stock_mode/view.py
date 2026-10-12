@@ -88,8 +88,9 @@ def _public_trade(t: dict[str, Any] | None) -> dict[str, Any] | None:
     keys = ("kind", "state", "venue", "venue_day", "setup_id", "setup_type", "qty", "entry", "stop", "target",
             "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "filled_at", "exit_price",
             "exit_reason", "exits", "sent_at", "closed_at", "note", "ttl_sec", "trail", "raised", "replay_key",
-            # Two halves (#681): the second target, its order and where each part sold.
-            "target2", "target2_order_id", "halves")
+            # Two halves (#681, #845): the second target, its order, the shares each half sells and where each
+            # part sold.
+            "target2", "target2_order_id", "target1_qty", "target2_qty", "halves")
     out = {k: t.get(k) for k in keys}
     out["side"] = "short" if t.get("side") == "short" else "long"   # a trade made before shorts was a long
     out["exiting"] = bool(t.get("exiting"))

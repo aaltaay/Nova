@@ -30,7 +30,7 @@ import { drawnPast, failingNow, type Episode } from './pastSetups';
 import { fiveMinuteOnMinute, fiveMinuteScene } from './fiveMinuteShapes';
 import { laneHoverId, laneOnMinute, levelsOf } from './laneShapes';
 import { pastRings, pastShapes } from './pastShapes';
-import { formingProgress, fmtPx, setupName } from './planMath';
+import { formingProgress, fmtPx, planFrame, setupName } from './planMath';
 import { thinPlan } from './planVerdict';
 import { trendScene } from './trendLines';
 import type { Scene, SceneBox, SceneDot, SceneMark, SceneWord } from './sceneTypes';
@@ -130,12 +130,18 @@ function planOnly(price: number | null): OrderLevel | null {
 export function drawnLevels(plan: StockPlan | null, levels: OrderLevels | null | undefined): OrderLevels | null {
   if (levels) return levels;
   if (!plan || thinPlan(plan)) return null;
-  return { entry: planOnly(plan.entry), stop: planOnly(plan.stop), target: planOnly(plan.target) };
+  return {
+    entry: planOnly(plan.entry), stop: planOnly(plan.stop), target: planOnly(plan.target),
+    target2: planOnly(plan.target2 ?? null),
+  };
 }
 
-/** The plan's target 2 (#845): only ever a plan's -- no order stands behind it -- drawn while target 1 is. */
+/** Target 2 (#845), drawn while target 1 is: the levels' own -- an approved bracket's second limit stands behind
+ * it -- else the plan's, only a plan. */
 function target2Of(plan: StockPlan | null, lv: OrderLevels): OrderLevel | null {
-  return lv.target && plan?.target2 != null ? planOnly(plan.target2) : null;
+  if (!lv.target) return null;
+  if (lv.target2 !== undefined) return lv.target2;
+  return plan?.target2 != null ? planOnly(plan.target2) : null;
 }
 
 function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): PriceLineSpec[] {
@@ -223,11 +229,9 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
         const start = shape?.end ?? lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
           ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
         scene.boxes.push(...planZones(lv, start, o));
-        // A short's stop is over its target (ADR 048): the range is the two, whichever is lower first. Target 2 can
-        // sit far off at the high of day (#845): its line is drawn and tagged at the edge, never forced into view.
-        if (lv.stop && lv.target) {
-          scene.keepInView = { min: Math.min(lv.stop.price, lv.target.price), max: Math.max(lv.stop.price, lv.target.price) };
-        }
+        // The stop to the furthest target (#845): target 2 is a line on the chart, and only where the operator's own
+        // scale leaves it off does its edge tag name it (``planFrame``; a short's range is the mirror, ADR 048).
+        scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, target2Of(plan, lv)?.price);
       }
       // A 5-minute setup armed or near its trigger: one dashed line here (the chip is the legend's).
       lines.push(...fiveMinuteOnMinute(read).lines);

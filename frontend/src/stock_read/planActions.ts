@@ -7,6 +7,7 @@
 import { NOT_A_TRADE_NOVA } from './constants';
 import { fmtPnl, heldQty, judgedLevels, type Moment, type MomentInputs } from './momentModel';
 import { approveQty } from './novaPromise';
+import { limitWords } from './exitTargets';
 import { fmtPx, fmtStep } from './planMath';
 import type { StockModeTrade, StockModeView, StockPlan } from './types';
 import { liveTrade } from './whoTradesModel';
@@ -80,8 +81,15 @@ function approveAction(a: PlanActionsInput, plan: StockPlan | null, view: StockM
   // A short plan is approved like a long one (#778 step 5): its buy stop over the entry, its cover under it.
   const short = plan?.side === 'short';
   const verb = short ? 'short' : 'buy';
-  const legs = (p: StockPlan) => (short
-    ? `its buy stop ${fmtPx(p.stop)} and cover ${fmtPx(p.target)}` : `its stop ${fmtPx(p.stop)} and target ${fmtPx(p.target)}`);
+  // Two halves (#845): both targets as they will rest, "its stop 5.89, LMT 6.12 x 50 and LMT 6.96 x 50".
+  const legs = (p: StockPlan) => {
+    const two = p.target2 ?? null;
+    if (two !== null && p.target !== null && size !== null) {
+      return `its ${short ? 'buy stop' : 'stop'} ${fmtPx(p.stop)}, ${limitWords(size, p.target, two, p.target1_fraction, short)}`;
+    }
+    return short ? `its buy stop ${fmtPx(p.stop)} and cover ${fmtPx(p.target)}`
+      : `its stop ${fmtPx(p.stop)} and target ${fmtPx(p.target)}`;
+  };
   const ssr = short ? ' Under SSR it sells at the ask, never under the plan.' : '';
   const noSize = view.size?.text
     ? `Nova sends nothing: ${view.size.text}`
@@ -134,14 +142,19 @@ export function planActions(a: PlanActionsInput): { actions: PlanAction[]; statu
   if (qty > 0) {
     if (live?.exits === 'nova') {
       const approve = live.kind === 'approve';
+      // A bracket with both targets still resting cancels both (#845); a half already sold is done.
+      const sold = new Set((live.halves ?? []).map(h => h.leg));
+      const resting = Number(live.target_order_id != null && !sold.has('target1'))
+        + Number(live.target2_order_id != null && !sold.has('target2'));
+      const targets = resting > 1 ? 'targets' : 'target';
       return {
         actions: [{
           id: 'take-over',
-          label: approve ? 'Cancel stop and target' : 'Take over the exit',
+          label: approve ? `Cancel stop and ${targets}` : 'Take over the exit',
           tone: 'plain',
           locked: live.exiting ? 'The bot is already selling.' : null,
           tip: approve
-            ? `Nova cancels the bracket's stop and target at the broker, and the exit is yours. ${buyStays}`
+            ? `Nova cancels the bracket's stop and ${targets} at the broker, and the exit is yours. ${buyStays}`
             : `Nova cancels the bot's target and stop on ${a.symbol} and stops its 15-minute clock, and the exit is `
               + `yours. The stock leaves the bot's list (Signal only): ${buyStays}`,
         }],

@@ -505,7 +505,9 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
   `replay_key: list` (null or absent elsewhere); it lives in memory only, never in `stock-mode-trades.json`,
   and is acted on only while the desk shows that replay -- one made at the live edge waits while the desk
   replays. A rewind returns the replay's trades, approvals and entries to what they were at the new playhead
-  (checkpoints by playhead, also taken after each of the operator's acts), cancels an order of a replay
+  (checkpoints by playhead, also taken after each of the operator's acts; an approved bracket's first half too,
+  #845: back before target 1's fill the trade's `halves` are empty and the scratch account's stop covers every
+  share again), cancels an order of a replay
   trade the restored trades do not know, and changes the run tag in the stock-mode idempotency keys
   (`stock:<kind>:sim:<replay>.<run>:<SYMBOL>:<attempt>:<step>`); each is a `stock_mode` `note` line and the
   stock's last event. Another replay drops the old replay's trades and approvals, said the same way. The

@@ -15,7 +15,7 @@ Every ``STOCK_MODE_POLL_SEC``, and at once when the scanner announces a trigger 
      window, within the venue's shared daily cap, extended hours as the sleeve says, sized by the
      sleeve, only while the bot is Active, never a NOT A TRADE -- and never a stock on the bot list.
    - Approve sends the approved plan as one bracket at its setup's go trigger, unless the trigger is
-     not a trade.
+     not a trade -- with a target 2, in two halves (#845): target 1 sells the first half, target 2 the rest.
    - The strategy decides the side (ADR 049, #778 step 5): a short setup's Auto-entry sells short with
      its buy stop resting (the cover is yours), and an approved short plan goes out as a short bracket;
      under SSR either sells at the ask (``bot.first_pullback.short_side.price``).
@@ -25,7 +25,8 @@ Every ``STOCK_MODE_POLL_SEC``, and at once when the scanner announces a trigger 
    or disarmed setup withdraws them.
 4. **Trades** Nova sent are managed: the entry fills, or is cancelled after the venue sleeve's
    ``working_ttl_sec`` (a miss, which gives the day's count back); Approve's exits rest at the broker
-   until one fills; an Auto-entry position is the operator's, and Nova only notices when it is closed;
+   -- a first half that fills is booked and the stop, shrunk at the broker, stays where it is -- until the
+   stop or the last target fills; an Auto-entry position is the operator's, and Nova only notices when it is closed;
    the exit of a stock you bought that you handed Nova is ``exit_trade``'s.
 
 The clock is the venue's (``bot.replay_desk.venue_now``): the playhead on Sim, which stands still
@@ -47,6 +48,7 @@ from zoneinfo import ZoneInfo
 
 from bot import replay_desk
 from bot.audit import record as audit
+from bot.first_pullback import halves
 from bot.wake import Wake
 from constants_bot import BOT_DEFAULT_WORKING_TTL_SEC, BOT_FP_TRIGGER_MAX_AGE_SEC, BOT_SKIP_VENUE_CHANGING
 from constants_setups import SETUP_STATE_ARMED, SETUP_STATE_NEAR, TAPE_VERDICT_GO
@@ -67,7 +69,7 @@ from constants_stock_mode import (
     STOCK_MODE_TRADE_HOLDING,
     STOCK_MODE_TRADE_MISSED,
 )
-from stock_mode import exit_trade, gates, model, orders, replay, store
+from stock_mode import exit_legs, exit_targets, exit_trade, gates, model, orders, replay, store
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -341,7 +343,7 @@ async def _send_approved(sym: str, approval: dict[str, Any], event: dict[str, An
         return
     verb = "short" if orders.is_short(trade) else "buy"
     _say(sym, now, "info", f"Sent: {verb} {float(trade['qty']):g} {sym} at {float(trade['entry']):.2f} with stop "
-                           f"{float(trade['stop']):.2f} and target {float(trade['target']):.2f}")
+                           f"{float(trade['stop']):.2f} and {_aims(trade)}")
 
 
 async def send_bracket_now(sym: str, approval: dict[str, Any], now: float, *,
@@ -368,6 +370,8 @@ async def send_bracket_now(sym: str, approval: dict[str, Any], now: float, *,
                        target=approval["target"], exits=STOCK_MODE_SIDE_NOVA,
                        attempt=f"{approval.get('setup_id')}@{int(float(approval.get('approved_at') or now) * 1000)}",
                        replay_key=approval.get("replay_key"))
+    # Two halves (#845): the approved target 2 and share, split by the one rule the bot and Nova's exit use.
+    exit_targets.apply(trade, float(approval["target"]), approval.get("target2"), approval.get("target1_fraction"))
     receipt = await orders.send_bracket(trade)
     entry_id, target_id, stop_id = orders.leg_ids(receipt)
     if not receipt.ok or entry_id is None:
@@ -375,17 +379,24 @@ async def send_bracket_now(sym: str, approval: dict[str, Any], now: float, *,
         store.set_approval(sym, {**approval, "state": "withdrawn", "reason": f"the bracket was refused: {why}"})
         _skip(sym, event, now, (getattr(receipt, "reason_code", None) or "REFUSED", why), outcome="refused")
         return None
-    trade.update(entry_order_id=entry_id, target_order_id=target_id, stop_order_id=stop_id)
+    trade.update(entry_order_id=entry_id, target_order_id=target_id, stop_order_id=stop_id,
+                 target2_order_id=orders.target2_id(receipt))
     store.set_trade(trade)
     store.set_approval(sym, {**approval, "state": "sent", "reason": None})
     if trade.get("replay_key"):
         replay.note_entry(trade, now)          # counted on the replay's day, never capped
     audit(action=STOCK_MODE_AUDIT_ACTION, outcome="sent", order_id=entry_id,
           reason=(f"approved plan: {'SHORT' if orders.is_short(trade) else 'BUY'} {float(trade['qty']):g} {sym} LMT "
-                  f"{float(trade['entry']):.2f}, target {float(trade['target']):.2f}, stop "
-                  f"{float(trade['stop']):.2f} (one bracket)"),
+                  f"{float(trade['entry']):.2f}, {_aims(trade)}, stop {float(trade['stop']):.2f} (one bracket)"),
           inputs=_summary(trade))
     return trade
+
+
+def _aims(trade: dict[str, Any]) -> str:
+    """``target 10.28``, or ``target 1 10.28 for 76, target 2 10.50 for 77`` (``exit_targets.words``)."""
+    if trade.get("target2"):
+        return exit_targets.words(trade)
+    return f"target {float(trade['target']):.2f}"
 
 
 # -- approvals wait on their lane -------------------------------------------------------
@@ -501,7 +512,8 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
         store.set_trade(trade)
         short = orders.is_short(trade)
         if trade["exits"] == STOCK_MODE_SIDE_NOVA:
-            exits = "the stop and the target rest at the broker"
+            exits = (f"the stop and both targets rest at the broker ({_aims(trade)})" if trade.get("target2_order_id")
+                     else "the stop and the target rest at the broker")
         else:
             exits = "the buy stop rests at the broker and the cover is yours" if short else "the exit is yours"
         did = "shorted" if short else "bought"
@@ -547,15 +559,28 @@ def miss(trade: dict[str, Any], now: float, why: str) -> None:
 
 
 def _manage_exits(trade: dict[str, Any], now: float) -> None:
-    """Approve: the bracket's exits rest at the broker; the first to fill closes the trade."""
-    for leg, reason in (("target_order_id", "target"), ("stop_order_id", "stop")):
-        row = orders.order_row(trade.get(leg))
-        if orders.order_state(row) == "filled":
-            price = _num((row or {}).get("avg_fill_price")) or float(trade[reason])
-            _close(trade, now, reason, price)
-            return
+    """Approve: the bracket's exits rest at the broker. With two halves (#845) a first half that filled is booked
+    (``exit_legs``): the broker shrinks the stop to the shares left and the stop stays where it is. The stop, or
+    the target that sold the last shares, closes the trade."""
+    sold_now, done = exit_legs.book_fills(trade, now)
+    for name, sold, price, left in sold_now:
+        _half(trade, now, name, sold, price, left)
+    if done is not None:
+        _close(trade, now, *done)
+        return
     if orders.held(trade) <= _EPS:
         _close(trade, now, "outside", None)
+
+
+def _half(trade: dict[str, Any], now: float, name: str, sold: float, price: float, left: float) -> None:
+    """Approve's first half sold (a short: covered) at target 1; the stop stays where it is for the rest."""
+    sym = trade["symbol"]
+    store.set_trade(trade)
+    verb, stop_word = ("covered", "buy stop") if orders.is_short(trade) else ("sold", "stop")
+    said = (f"Nova {verb} {sold:g} at {name.replace('target', 'target ')} {price:.2f}; the {stop_word} "
+            f"{float(trade['stop']):.2f} stays for the other {left:g}")
+    _say(sym, now, "ok", said)
+    audit(action=STOCK_MODE_AUDIT_ACTION, outcome="half", reason=f"{sym}: {said}", inputs=_summary(trade))
 
 
 async def _manage_yours(trade: dict[str, Any], now: float) -> None:
@@ -585,23 +610,27 @@ async def _manage_yours(trade: dict[str, Any], now: float) -> None:
 
 
 def _close(trade: dict[str, Any], now: float, reason: str, price: float | None) -> None:
+    """The trade is done. The money counts every share sold (``halves.result``): a first half at target 1 and the
+    rest at the stop or target 2; a position closed outside Nova sold its rest at a price Nova does not know."""
     sym = trade["symbol"]
-    fill = trade.get("fill_price")
-    pnl = None
-    if price is not None and fill is not None:
-        move = float(fill) - price if orders.is_short(trade) else price - float(fill)
-        pnl = round(move * float(trade["qty"]), 2)
-    trade.update(state=STOCK_MODE_TRADE_CLOSED, exit_reason=reason, exit_price=price, closed_at=now)
+    left = float(trade["qty"]) - halves.sold(trade)
+    if reason not in ("stop", "target") and left > _EPS:
+        halves.book(trade, reason, left, price, now)
+    exit_price, _r, pnl = halves.result(trade, trade.get("fill_price"))
+    trade.update(state=STOCK_MODE_TRADE_CLOSED, exit_reason=reason, exit_price=exit_price, closed_at=now)
     store.set_trade(trade)
-    said = {"target": f"the target {float(trade['target']):.2f} filled",
+    last = (halves.rows(trade) or [{}])[-1].get("leg")
+    target = trade.get("target2") if last == "target2" else trade.get("target")
+    said = {"target": f"the target {'2 ' if last == 'target2' else ''}{float(target or 0):.2f} filled",
             "stop": f"the stop {float(trade['stop']):.2f} filled",
             "outside": "the position was closed"}.get(reason, reason)
+    parts = f" ({halves.words(trade)})" if len(halves.rows(trade)) > 1 else ""
     money = f" · {'+' if pnl >= 0 else '-'}${abs(pnl):.2f}" if pnl is not None else ""
     tone = "ok" if reason == "target" else ("bad" if reason == "stop" else "info")
-    _say(sym, now, tone, f"Closed: {said}" + (f" at {price:.2f}" if price is not None else "") + money)
+    _say(sym, now, tone, f"Closed: {said}" + (f" at {price:.2f}" if price is not None else "") + parts + money)
     if trade["kind"] == STOCK_MODE_APPROVE:
         store.clear_approval(sym, trade.get("replay_key"))
-    audit(action=STOCK_MODE_AUDIT_ACTION, outcome="closed", reason=f"{said}{money}", inputs=_summary(trade))
+    audit(action=STOCK_MODE_AUDIT_ACTION, outcome="closed", reason=f"{said}{parts}{money}", inputs=_summary(trade))
 
 
 # -- helpers ----------------------------------------------------------------------------
@@ -616,6 +645,9 @@ def _new_trade(kind: str, sym: str, event: dict[str, Any], now: float, *, venue:
             "qty": int(qty), "entry": float(entry), "stop": float(stop),
             "target": float(target) if target is not None else None,
             "entry_order_id": None, "target_order_id": None, "stop_order_id": None, "sent_at": now,
+            # Two halves (#845, ``exit_targets.apply``): Approve's second target, its share and where each part sold.
+            "target2": None, "target1_fraction": None, "target1_qty": None, "target2_qty": None,
+            "target2_order_id": None, "halves": [],
             "ttl_sec": ttl_sec(), "cancel_sent_at": None, "fill_price": None, "filled_at": None, "exit_price": None,
             "exit_reason": None, "closed_at": None, "exits": exits, "note": None,
             # The Sim replay it was made on (ADR 052 amendment): managed only while the desk shows that replay.
@@ -644,7 +676,8 @@ def _say(sym: str, now: float, tone: str, text: str) -> None:
 def _summary(trade: dict[str, Any]) -> dict[str, Any]:
     keys = ("symbol", "kind", "setup_id", "setup_type", "side", "venue", "venue_day", "qty", "entry", "stop", "target",
             "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "exit_price", "exit_reason", "exits",
-            "ttl_sec", "size_text")
+            "ttl_sec", "size_text", "target2", "target1_fraction", "target1_qty", "target2_qty", "target2_order_id",
+            "halves")
     return {k: trade.get(k) for k in keys}
 
 

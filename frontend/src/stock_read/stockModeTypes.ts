@@ -9,10 +9,21 @@ export interface StockModeApproval {
   entry: number;
   stop: number;
   target: number;
+  /** Two halves (#845): the plan's target 2 the bracket sells the rest at; null or absent: every share at target 1. */
+  target2?: number | null;
+  /** The share sold at target 1 (0.5 with a target 2); null or absent when the approval does not say. */
+  target1_fraction?: number | null;
   qty: number;
   approved_at: number;
   state: 'waiting' | 'sent' | 'withdrawn';
   reason: string | null;
+}
+
+/** One sale of a trade that sells in two halves (#681, #845): which leg sold, how many, where. */
+export interface StockModeHalf {
+  leg: string;
+  qty: number;
+  price: number | null;
 }
 
 export interface StockModeTrade {
@@ -48,6 +59,13 @@ export interface StockModeTrade {
   trail: boolean;
   /** Nova's exit: each raise of its stop. */
   raised: { at: number; from: number; to: number; round: number }[];
+  /** Two halves (#681, #845): target 2 and its order (null: every share at target 1), the shares each half sells
+   * and where each part sold. Absent from a fixture or an older backend. */
+  target2?: number | null;
+  target2_order_id?: number | null;
+  target1_qty?: number | null;
+  target2_qty?: number | null;
+  halves?: StockModeHalf[];
 }
 
 /** Something that keeps Nova from acting on the stock (`warn` / `bad`), or a fact beside it (`info`). The

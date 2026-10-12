@@ -27,6 +27,7 @@ import {
   type MomentCall,
   type MomentInputs,
 } from './momentModel';
+import { tradeLimits } from './exitTargets';
 import { fmtPx } from './planMath';
 import { hhmmssEt } from './timeWords';
 import type { StockModeTrade } from './types';
@@ -71,10 +72,14 @@ function shortedCall(i: MomentInputs, t: StockModeTrade | null): MomentCall | nu
   if (!t || t.state !== 'holding' || !recent(t.filled_at, i.now)) return null;
   const fill = `${t.qty ?? '?'} @ ${fmtPx(t.fill_price)}`;
   const stop = fmtPx(t.stop);
+  const limits = tradeLimits(t);           // Approve in two halves (#845): cover 1, then cover 2
   const words: Record<StockModeTrade['kind'], [string, string, string]> = {
     auto_entry: [`BOT SHORTED ${fill}`, 'BOT SHORTED', `Its buy stop ${stop} rests at the broker. The cover is yours.`],
-    approve: [`SHORTED ${fill}`, 'SHORTED', `The buy stop ${stop} and the cover ${fmtPx(t.target)} are working at the `
-      + 'broker. The first one hit cancels the other.'],
+    approve: [`SHORTED ${fill}`, 'SHORTED', limits
+      ? `The buy stop ${stop} and both covers are working at the broker: ${limits}. A cover's fill shrinks the buy `
+        + 'stop to the shares left; the buy stop never moves.'
+      : `The buy stop ${stop} and the cover ${fmtPx(t.target)} are working at the broker. The first one hit cancels `
+        + 'the other.'],
     bot: [`BOT SHORTED ${fill}`, 'BOT SHORTED', `The buy stop ${stop} and the cover ${fmtPx(t.target)} rest at the `
       + 'broker; the first one hit cancels the other. The bot covers after 15 minutes if neither fills.'],
     exit: ['BOT TOOK THE COVER', 'BOT COVER', `Nova's buy stop ${stop} rests at the broker. Take it back any time.`],

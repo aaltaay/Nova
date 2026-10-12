@@ -32,6 +32,7 @@ let view: Json;
 let clock = 1_790_000_000;
 let refuse: { status: number; body: Json } | null = null;
 let modeFound = true;
+let readWire: Json = apusReadWire;
 
 const SIDES: Record<StockModeName, [string, string]> = {
   signal: ['you', 'you'],
@@ -67,14 +68,20 @@ beforeEach(() => {
   calls = [];
   refuse = null;
   modeFound = true;
+  readWire = apusReadWire;
   view = modeWire('signal');
   vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
     const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Json) : null;
     calls.push({ url, method, body, key: new Headers(init?.headers).get(NOVA_API_KEY_HEADER) });
-    if (/\/api\/stock-read\/APUS(\?|$)/.test(url)) return answer(apusReadWire);
+    if (/\/api\/stock-read\/APUS(\?|$)/.test(url)) return answer(readWire);
     if (/\/api\/bot\/session$/.test(url)) return answer(sleeveSessionWire(20));
+    if (/\/api\/stock-mode\/APUS\/approve$/.test(url) && method === 'POST') {
+      view = modeWire('approve', { approval: { ...body, setup_type: 'bull_flag', approved_at: clock, state: 'waiting',
+        reason: null } });
+      return answer(view);
+    }
     if (/\/api\/stock-mode\/APUS(\/take-over)?$/.test(url)) {
       if (!modeFound) return answer({ detail: 'Not Found' }, 404);
       if (method === 'PUT') {
@@ -257,10 +264,34 @@ describe('on the 1-minute chart', () => {
   });
 });
 
-describe('the plan in Level 2', () => {
-  it('draws ENTRY, STOP and TARGET dashed while they are only a plan', async () => {
+describe('Approve sends the plan in two halves (#845)', () => {
+  it("sends the plan's target 2 and its share, and the APPROVED card says both halves", async () => {
+    const plan = (apusReadWire as unknown as { plan: Json }).plan;
+    readWire = { ...apusReadWire, plan: { ...plan, state: 'armed', provisional: false, setup_id: 'APUS-bull_flag-1' } };
+    view = modeWire('approve');
     renderTab();
+    const approve = await screen.findByTestId('stock-read-action-approve');
+    await waitFor(() => expect(approve.hasAttribute('disabled')).toBe(false));
+    // The button's hover names both limits: 181 shares ($20 / 0.11), 90 at target 1 and 91 at target 2.
+    expect(approve.getAttribute('data-tip') ?? approve.getAttribute('title') ?? '')
+      .toMatch(/its stop 5\.33, LMT 5\.49 x 90 and LMT 5\.99 x 91/);
+    fireEvent.click(approve);
+    await waitFor(() => expect(calls.some(c => c.url.endsWith('/approve'))).toBe(true));
+    const sent = calls.find(c => c.url.endsWith('/approve'));
+    expect(sent?.method).toBe('POST');
+    expect(sent?.body).toEqual({ setup_id: 'APUS-bull_flag-1', entry: 5.44, stop: 5.33, target: 5.49, target2: 5.99,
+      target1_fraction: 0.5, qty: 181, now: false });
+    await waitFor(() => expect(screen.getByTestId('moment-call').textContent).toContain('APPROVED'));
+    expect(screen.getByTestId('moment-call').textContent)
+      .toContain('Nova sends buy 181 @ 5.44 with stop 5.33, LMT 5.49 x 90 and LMT 5.99 x 91 when 5.43 prints');
+  });
+});
+
+describe('the plan in Level 2', () => {
+  it('draws ENTRY, STOP, TARGET and T2 dashed while they are only a plan', async () => {
+    renderTab();
+    // Target 2 (#845) is marked the same way, labelled T2.
     await waitFor(() => expect(screen.getByTestId('markers').textContent)
-      .toBe('ENTRY 5.44:dashed|STOP 5.33:dashed|TARGET 5.49:dashed'));
+      .toBe('ENTRY 5.44:dashed|STOP 5.33:dashed|TARGET 5.49:dashed|T2 5.99:dashed'));
   });
 });

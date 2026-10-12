@@ -5,6 +5,7 @@
  * it with its buy stop and cover, Auto-entry and the bot short it at the trigger with its buy stop. Pure:
  * `momentModel.ts` reads these.
  */
+import { limitWords } from './exitTargets';
 import { fmtPx } from './planMath';
 import type { StockModeApproval, StockModeName, StockPlan } from './types';
 
@@ -54,10 +55,18 @@ export function shortWaitingWords(plan: StockPlan, mode: StockModeName, near: st
   return words[mode];
 }
 
-/** What an approval waiting for its trigger will send, for its side. */
+/** What an approval waiting for its trigger will send, for its side -- with a target 2 (#845) both halves as they
+ * rest: "with stop 5.89, LMT 6.12 x 50 and LMT 6.96 x 50". */
 export function approvedWords(plan: StockPlan, a: StockModeApproval): string {
   const when = `when ${fmtPx(plan.trigger)} prints with the tape at go.`;
-  return isShortPlan(plan)
+  const short = isShortPlan(plan);
+  const two = a.target2 ?? null;
+  if (two !== null) {
+    const stop = `${short ? 'buy stop' : 'stop'} ${fmtPx(a.stop)}`;
+    return `Nova sends ${short ? 'short' : 'buy'} ${a.qty} @ ${fmtPx(a.entry)} with ${stop}, `
+      + `${limitWords(a.qty, a.target, two, a.target1_fraction, short)} ${when}`;
+  }
+  return short
     ? `Nova sends short ${a.qty} @ ${fmtPx(a.entry)} with buy stop ${fmtPx(a.stop)} and cover ${fmtPx(a.target)} ${when}`
     : `Nova sends buy ${a.qty} @ ${fmtPx(a.entry)} with stop ${fmtPx(a.stop)} and target ${fmtPx(a.target)} ${when}`;
 }

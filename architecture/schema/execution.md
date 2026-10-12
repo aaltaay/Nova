@@ -200,7 +200,7 @@ Target 1 sells `target1_qty`, target 2 the rest; with no `target2_price`, `targe
 
 **Live waits on its proof** (#606). The exit pair and a bracket in two halves are refused on Live, `EXIT_OCO_LIVE`, in the door's checks and again at the Live send. Live's shape, when the proof is in: IBKR orders on the reverse side, one OCA group per half with `ocaType` 3 (reduce on fill, no block) -- that half's STP and its LMT for the same shares, so a fill of either reduces the other by the shares filled (a partial target fill shrinks its stop by exactly those shares). The halves' stops sit at one price and move together (a raise replaces each); their sum is the stop the desk shows, always the shares still held. Not one group of every leg: IBKR's reduce-on-fill reduces every other member, so target 1's fill would also cancel target 2. A one-target pair is one such group; a bracket's halves are the same groups with the entry as their parent. Paper and Sim keep the halves' stops as one stop row -- the same fills at the same prices, since both Live stops trigger together.
 
-Who sends it: Nova's exit (`stock-read.md`, "Nova takes the exit") and Nova's bot (`bot.md`, the bracket in two halves).
+Who sends it: Nova's exit (`stock-read.md`, "Nova takes the exit"), Nova's bot (`bot.md`, the bracket in two halves) and Approve (`stock-read.md`, "Who trades the stock": the approved plan's bracket, origin `approve`, carries the plan's `target2_price` and `target1_qty` since 2026-10-12, #845). All three split a position by the one rule above (`execution.exit_oco.split`, through `bot.first_pullback.halves.split`).
 
 ## Execution venue provenance (#713)
 
