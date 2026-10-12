@@ -9,7 +9,8 @@
 import { CHART_SESSION_COLORS } from '../constants';
 import { SHORT_SETUP_COLORS } from '../constantGroups/short_setups';
 import type { PaneKind } from './chartShapes';
-import { DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS, TREND_COLORS } from './constants';
+import { DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, LEVEL_ROUND_LINE_ALPHA, SETUP_COLORS, TREND_COLORS } from './constants';
+import { alpha } from './levelRender';
 
 /** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, a box, a ring (a flat top's
  * touch), a triangle pointing up (its break), or a line rising or falling (a trend line). */
@@ -58,9 +59,8 @@ function fiveMinuteLevelRows(): KeySection {
   return {
     title: 'Levels from 5-minute candles (hover a label for why)',
     rows: [
-      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: tops 5-minute candles made, the high of day' },
-      { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: bottoms, the premarket high, the open, the low' },
-      { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round number', text: 'a round price the day tested ($X.00 / $X.50 up to $25, coarser above: $5 / $10 on a $225 stock)' },
+      { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: tops 5-minute candles made, the high of day (a round price at one leads its label)' },
+      { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: bottoms, the premarket high, the open, the low, a top the price climbed over' },
       ...ZONE_ROWS,
     ],
   };
@@ -84,8 +84,8 @@ function minuteRows(): KeySection {
     title: 'Levels from 1-minute candles (hover a label for why)',
     rows: [
       { swatch: 'line', color: LEVEL_COLORS.resistance, label: 'Resistance', text: 'above the price: the nearest top 1-minute candles made, the high of day' },
-      { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: the nearest bottom (or old top)' },
-      { swatch: 'dash', color: LEVEL_COLORS.round, label: 'Round number', text: 'the nearest round price each side ($X.00 / $X.50 up to $25, coarser above)' },
+      { swatch: 'line', color: LEVEL_COLORS.support, label: 'Support', text: 'below the price: the nearest bottom, or a top the price climbed over' },
+      { swatch: 'line', color: alpha(LEVEL_COLORS.round, LEVEL_ROUND_LINE_ALPHA), label: 'Round number', text: "a faint line: the nearest round price each side ($X.00 / $X.50 up to $25, coarser above); at a top, a bottom or VWAP it takes that level's colour" },
       ...ZONE_ROWS,
     ],
   };

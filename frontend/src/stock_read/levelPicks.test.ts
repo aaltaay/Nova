@@ -3,9 +3,9 @@ import type { Time } from 'lightweight-charts';
 import { paneDraw } from './chartShapes';
 import { normalizeLevelMap, normalizePlanLevels } from './levelMapNormalize';
 import {
-  dailyPick, levelHoverId, levelNote, levelScene, levelStory, mapPick, minuteScene,
+  dailyPick, levelHoverId, levelNote, levelScene, levelStory, mapPick, minuteScene, zoneColor,
 } from './levelPicks';
-import { fitText } from './levelRender';
+import { drawLevels, fitText } from './levelRender';
 import type { StockReadLayers } from './StockReadContext';
 import type { LevelMap, LevelZone } from './levelTypes';
 import { pfsaRead } from './whoTradesFixtures';
@@ -142,7 +142,9 @@ describe('which levels each chart draws', () => {
     expect(map.levels).toHaveLength(9);
     expect(map.ticks.map(t => t.hoverId)).toEqual([levelHoverId(F_800), levelHoverId(F_PMH)]);
     const ceiling = map.levels.find(l => l.hoverId === levelHoverId(F_CEIL));
-    expect(ceiling).toMatchObject({ lo: 7.48, hi: 7.5, label: '$7.50 · double top', width: 2, dash: [7, 4] });
+    // A double top on a half dollar is resistance, solid: the round is its weakest reason.
+    expect(ceiling).toMatchObject({ lo: 7.48, hi: 7.5, label: '$7.50 · double top', width: 2, dash: [], color: '#ff8a70' });
+    expect(ceiling?.lineAlpha).toBeUndefined();
     expect(map.levels.find(l => l.hoverId === levelHoverId(F_730))?.label).toBe('7.30 · double top');
     expect(map.levels.find(l => l.hoverId === levelHoverId(F_PMH))).toBeUndefined();
     // Nothing of the 1-minute map reaches the 5-minute pane.
@@ -208,12 +210,44 @@ describe('which levels each chart draws', () => {
   });
 });
 
+describe("a level's colour and line (operator report 2026-10-12)", () => {
+  it('draws a round number alone as a faint solid hairline, its label in full gold', () => {
+    const half = minuteScene(lghl()).levels.find(l => l.hoverId === levelHoverId(HALF));
+    expect(half).toMatchObject({ label: '$6.50', color: '#f59e0b', dash: [], width: 1, lineAlpha: 0.4 });
+  });
+
+  it('colours a round that sits at a level by that level, and turns a passed top into support', () => {
+    // $7.50 with a top tested 8 times and VWAP, over the price: resistance, not round-number gold.
+    expect(zoneColor(CEILING)).toBe('#ff8a70');
+    // The price climbs over it: the next read puts it under the price, and it is support.
+    expect(zoneColor({ ...CEILING, side: 'below', price: CEILING.hi })).toBe('#45c7b8');
+    // The zone the price is on, a whole dollar with a bottom tested 6 times: support.
+    expect(zoneColor(FLOOR)).toBe('#45c7b8');
+    // A round at VWAP alone is VWAP's; a round at yesterday's high is yesterday's.
+    expect(zoneColor(zone('7.20', 7.2, 7.2, 'above', 3, '$7.20 · VWAP', [['half', 7.2], ['vwap', 7.2]]))).toBe('#bf5af2');
+    expect(zoneColor(zone('6.00', 5.95, 6, 'below', 4, '$6.00 · Yest. high', [['whole', 6], ['yday_high', 5.95]])))
+      .toBe('#8aa4d6');
+  });
+
+  it('strokes a faint line at its own opacity and keeps the band in the full colour', () => {
+    const strokes: string[] = [];
+    const ctx = {
+      set strokeStyle(v: string) { strokes.push(v); }, lineWidth: 1, setLineDash: () => {}, beginPath: () => {},
+      moveTo: () => {}, lineTo: () => {}, stroke: () => {},
+    } as unknown as CanvasRenderingContext2D;
+    const line = (lineAlpha?: number) => ({ y: 10, y1: 10, y2: 10, l: { lo: 6.5, hi: 6.5, price: 6.5, color: '#f59e0b', dash: [],
+      width: 1, label: '$6.50', hoverId: null, ...(lineAlpha === undefined ? {} : { lineAlpha }) } });
+    drawLevels(ctx, [line(0.4), line()], [], 100, 100);
+    expect(strokes).toEqual(['rgba(245, 158, 11, 0.4)', '#f59e0b']);
+  });
+});
+
 describe("a level's card", () => {
   it('says in plain words what it is, how far, why it is there and what usually happens', () => {
     const story = levelStory(levelHoverId(CEILING), lghl());
     expect(story?.title).toBe('$7.50  7.44–7.50');
     expect(story?.subtitle).toBe('Resistance · $0.45 above the price (6.4%)');
-    expect(story?.color).toBe('#f59e0b');
+    expect(story?.color).toBe('#ff8a70');
     expect(story?.sections?.[0]).toEqual({ head: 'Why it is here', items: [
       'Half dollar: a round price traders watch', 'Price turned down here 8 times on 1-minute candles',
       "VWAP: the day's average price",

@@ -16,6 +16,8 @@ export interface SceneLevel {
   /** Canvas dash pattern; empty is solid. */
   dash: number[];
   width: number;
+  /** The line's opacity (a round number alone is faint); its band and label keep `color`. Full when absent. */
+  lineAlpha?: number;
   /** The label at the right edge; null draws the line alone. */
   label: string | null;
   hoverId: string | null;
@@ -93,7 +95,7 @@ export function drawLevels(
 ): LevelHit[] {
   const hits: LevelHit[] = [];
   for (const { y, l } of levels) {
-    ctx.strokeStyle = l.color;
+    ctx.strokeStyle = l.lineAlpha === undefined ? l.color : alpha(l.color, l.lineAlpha);
     ctx.lineWidth = l.width;
     ctx.setLineDash(l.dash);
     ctx.beginPath();
