@@ -2,7 +2,8 @@
 
 ``tracker_view`` turns a ``Tracker.view`` and its facts into the shape the Level 2 socket and
 ``GET /api/luld/{symbol}`` send: the bands, the state, how Nova knows, and the words the
-desk shows. ``absent_view`` is a stock Nova has no tracker for.
+desk shows. ``absent_view`` is a stock Nova has no tracker for. ``trail_view`` is the day's
+band, step by step, for the 1-minute chart (``GET /api/luld/{symbol}/trail``).
 """
 from __future__ import annotations
 
@@ -176,6 +177,21 @@ def absent_view(symbol: str, *, now: float, source: str, reason: str, state: str
         "halted_since": None, "watching_since": None, "warm_until": None, "gap": None, "last": None,
         "distance": None, "near": None, "reason": reason, "history": [], "note": LULD_NOTE,
         "rules": LULD_RULES_TEXT, "track": None, "as_of": round(now, 3), "text": reason,
+    }
+
+
+def trail_view(view: dict[str, Any], steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """The 1-minute chart's band line: the day's steps (``Tracker.trail``) beside the view's state."""
+    return {
+        "schema_version": LULD_SCHEMA_VERSION,
+        "symbol": view["symbol"],
+        "source": view["source"],
+        "state": view["state"],
+        "reason": view["reason"],
+        "tier_sure": view["tier_sure"],
+        "watching_since": view["watching_since"],
+        "steps": steps,
+        "as_of": view["as_of"],
     }
 
 

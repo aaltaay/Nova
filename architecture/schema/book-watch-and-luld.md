@@ -356,3 +356,35 @@ Plan rules (owner `backend/luld/`). Read-only: nothing places, stages, gates or 
   the SIP's own flagged bands; `records` checks Nova's Session Records against the price the quote sat at for the
   15 s before each logged pause.
 
+### The band on the 1-minute chart (ADR 047 amendment, operator ask 2026-10-12)
+
+"i want to see luld lines on the charts.. should we only put it in the 1min or 5min or both?" -- the 1-minute only.
+The band can move every 30 s, so one 5-minute candle can span several bands. A band drawn once per 5-minute candle
+would show candles poking through it with no halt, and halt candles that never touch it. The 1-minute chart is where
+the operator enters, and Level 2 already shows the band now. Read-only, like the rest.
+
+- **The steps** (`luld/tracker.py`). The tracker records the drawn band each time it changes, from that moment:
+  - a new reference, the 15:35 doubling, a halt, the reopening, exactness lost, the previous close or tier arriving,
+    and the 16:00 close.
+  - `lower` / `upper` null mean no band from then on (a halt, the close, no previous close).
+  - At most `LULD_TRAIL_KEEP` (2,000) steps a day; the oldest go first. A new trading day starts empty.
+  - Live, the steps begin when the tracker does: with Nova's first print of the stock (`watching_since`). Nova
+    cannot know a band from tape it did not hold. On a replay they come from the recording, never past the playhead.
+- **The wire.** `GET /api/luld/{symbol}/trail` reads memory only, from the live feed or the replay at its playhead,
+  as `GET /api/luld/{symbol}` does: `{schema_version: 1, symbol, source: "live" | "replay", state, reason,
+  tier_sure, watching_since, steps: [{ts, lower, upper, exact}], as_of}`.
+  - The steps are in time order. Each holds from its `ts` until the next one's; the last holds until `as_of`.
+  - `state` and `reason` are the view's. `tier_sure` false means every step's percentage rests on Nova's guess
+    of the tier.
+  - A stock with no tracker answers `steps: []` with the view's reason.
+  - The depth socket's frames are unchanged: `history` still keeps 8 reference changes for the hover.
+- **On the 1-minute chart** (`ibkr/luldTrail.ts` reads the wire; `stock_read/useStockRead.ts` `useLuldTrail` polls;
+  `stock_read/luldShapes.ts` and `stock_read/luldRender.ts` draw):
+  - Read every 2 s while the Trader tab shows and Eyes is on.
+  - Drawn as a rose line above and below the candles that steps where the band moved. A step that came mid-minute
+    sits inside its candle, at its share of the minute; a minute with no candle puts it between the candles around it.
+  - The line is solid where the band was exact, and dashed where it was approximate or the tier is a guess (`≈`).
+  - The band in force is named in the right-edge column: `LULD ▲ 6.60` and `LULD ▼ 4.40` (`≈` when approximate). Out
+    of view, each becomes an arrow tag at the top or bottom edge, so the distance to the halt line always shows.
+  - The 1-minute Key has a LULD row. The 5-minute, 10-second and Full Day charts draw no band, and Eyes off draws none.
+

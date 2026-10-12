@@ -93,3 +93,19 @@ def test_the_study_compares_each_band_the_sip_flagged():
     assert out["pauses"][0]["pinned_ask"] == 14.18
     summary = study.summarize([out])
     assert summary["variants"]["no_exit"]["exact"] == 1
+
+
+def test_the_trail_runs_to_the_playhead_and_a_scrub_back_cuts_it():
+    served(t("09:36:12"))
+    assert replay._result["trail"] == [{"ts": t("09:36:06"), "lower": 14.18, "upper": 17.33, "exact": True}]
+    served(t("09:36:05"))                                        # before the reopening print: nothing yet
+    assert replay._result["trail"] == []
+
+
+def test_the_trail_answers_from_the_last_result(monkeypatch):
+    monkeypatch.setattr(replay, "_playhead", lambda: t("09:36:12"))
+    monkeypatch.setattr(replay, "_ask", lambda key, asof: None)  # the worker thread is not started here
+    assert replay.trail("GRML")["state"] == "warming"
+    served(t("09:36:12"))
+    body = replay.trail("GRML")
+    assert body["source"] == "replay" and body["steps"][0]["upper"] == 17.33 and body["as_of"] == t("09:36:12")

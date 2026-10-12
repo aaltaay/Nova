@@ -14,6 +14,8 @@
  * the day's levels from the replay's own candles, and the Sim eyes' setups that ended up to the playhead (#815).
  * The daily runs read whole days, so they are not drawn there; a read from the other side of the live edge, or
  * from after the playhead, is never drawn.
+ * The 1-minute pane alone draws Nova's LULD band (ADR 047 amendment 2026-10-12, `luldShapes.ts`): this desk's, a
+ * replay's up to its playhead on a replay desk, with Eyes on.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
@@ -42,6 +44,7 @@ import { laneStartSec, leadLane, paneDraw, paneKind, type PriceLineSpec } from '
 import { levelNote } from './levelPicks';
 import { SetupShapesPrimitive } from './SetupShapesPrimitive';
 import { EMPTY_SCENE, type Scene, type SceneWord } from './sceneTypes';
+import { luldScene, luldWords } from './luldShapes';
 import { lineWords, runMarks, usePriceScaleWidth } from './paneScene';
 import { ShapeTip, shapeStory, useShapeHover } from './ShapeTip';
 import { useStockReadContext } from './StockReadContext';
@@ -253,10 +256,16 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const scaleWidth = usePriceScaleWidth(chart, containerRef, barsRevision, kind === 'full' && enabled);
   const [cornerBottom, setCornerBottom] = useState(0);
   const runs = daily && enabled && !ctx?.replay ? ctx?.history.data?.runs ?? null : null;
+  // The LULD band: the 1-minute pane's, from this desk's source (the live feed, or a replay at its playhead).
+  const trail = ctx?.luld?.data ?? null;
+  const luldTrail = kind === 'full' && enabled && ctx?.layers.eyes && trail !== null
+    && (trail.source === 'replay') === ctx.replay ? trail : null;
+  const luld = useMemo(() => luldScene(luldTrail, index), [luldTrail, index]);
   const scene = useMemo<Scene>(() => {
     if (!enabled) return EMPTY_SCENE;
     const words: SceneWord[] = [
       ...(draw.scene.words ?? []),
+      ...luldWords(luldTrail),
       ...lineWords(draw.lines),
       ...edge.words.map(w => ({ id: w.id, text: w.text, color: w.color, priority: w.priority, price: null,
         series: w.series, valueWhenOff: w.valueWhenOff })),
@@ -267,8 +276,9 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
       reserves: edge.reserves.map(r => ({ price: r.price, height: r.height })),
       topInset: kind === 'full' && cornerBottom > 0 ? cornerBottom + CORNER_GAP_PX : 0,
       marks: [...(draw.scene.marks ?? []), ...(runs ? runMarks(runs, index) : [])],
+      luld,
     };
-  }, [enabled, draw, edge, kind, cornerBottom, runs, index]);
+  }, [enabled, draw, edge, kind, cornerBottom, runs, index, luld, luldTrail]);
 
   // The shapes: one primitive per pane, fed a new scene whenever the read or the bars change.
   const primitive = useRef<SetupShapesPrimitive | null>(null);

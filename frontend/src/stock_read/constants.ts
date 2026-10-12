@@ -17,6 +17,10 @@ export const STOCK_READ_FLUSH_AFTER_SEC = 10;
 /** The day's setups that ended (ADR 036 amendment): read this often while the 1-minute pane shows, and
  * at once when a lane's drawn state changes. */
 export const STOCK_READ_PAST_POLL_MS = 15_000;
+/** Nova's LULD band step by step for the 1-minute chart (ADR 047 amendment 2026-10-12): `GET {path}/{symbol}/trail`,
+ * read this often while Eyes is on. The band moves at most every 30 s; a halt ends it at once. */
+export const LULD_TRAIL_PATH = '/api/luld';
+export const LULD_TRAIL_POLL_MS = 2_000;
 
 /* Risk per trade is the venue sleeve's (ADR 042 draft): read and saved by `setups/sleeveRisk.ts`, whose
  * numbers live in `constantGroups/setups.ts` (SLEEVE_*), since every proposal's Stage sizes by it too. */

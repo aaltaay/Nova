@@ -39,3 +39,18 @@ A stock that stays on a Limit Up-Limit Down band for 15 seconds is paused for fi
 - About one band in five is off by a cent or more where the SIP's own flags could check it, mostly by 1-3c. The cause is not known yet: the SIP's exact moment of re-evaluation, or which trades it counts. The track record is quoted beside the line, never hidden.
 - A stock first opened mid-session shows an approximate band for the rest of the session, or until it halts and reopens. Seeding it exactly from IBKR's historical ticks is not built.
 - Re-measure with `py -3 tools/luld_check.py massive` after a change to `luld/tracker.py`, and update `luld/track_record.py`.
+
+## Amendment 2026-10-12: the band on the 1-minute chart
+
+The operator asked: "i want to see luld lines on the charts.. should we only put it in the 1min or 5min or both?" The answer is the 1-minute chart only.
+
+- **Why not the 5-minute.** The reference can move every 30 s, so one 5-minute candle spans several bands. A band drawn once per 5-minute candle shows candles poking through it with no halt, and halt candles that never touch it.
+- **Why the 1-minute.** It is the chart the operator enters on. Level 2 already shows the band now, and the operator's rule is no line on two charts unless it earns it.
+- **Steps.** The tracker records the drawn band each time it changes, a day at a time (`Tracker.trail`). The reference state machine is untouched: nothing in it reads the steps, so the measured track record stands.
+- **Wire.** `GET /api/luld/{symbol}/trail` serves the steps, from the live feed or the replay at its playhead. The schema is in `architecture/schema/book-watch-and-luld.md`, "The band on the 1-minute chart".
+- **Drawing.** The chart draws a line that steps inside the candle where the band moved, at its share of the minute. It is dashed where approximate. The band in force is named at the right edge, and as an arrow tag when it is off the price scale.
+- **Checked on GRML 2026-09-22's Session Record.** Each of its three recorded pauses fell in a candle whose extreme equals the band in force, to the cent:
+  - 09:36 low 14.18;
+  - 10:50 high 17.18, a band that began 13 s into that minute;
+  - 10:56 low 15.87.
+- **Live limit.** The steps begin when Nova began holding the stock's tape. A stock first watched mid-session has no line before that.

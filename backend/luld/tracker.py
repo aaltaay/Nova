@@ -58,6 +58,7 @@ from luld.constants_luld import (
     LULD_REF_MIN_SEC,
     LULD_REOPEN_CONDITION,
     LULD_REPORT_VENUES,
+    LULD_TRAIL_KEEP,
     LULD_WARM_SEC,
     LULD_WINDOW_SEC,
 )
@@ -162,6 +163,8 @@ class Tracker:
         self._tape_since = ts
         self._gap: dict[str, Any] | None = None   # the last tape gap that broke exactness
         self._history: deque[dict[str, Any]] = deque(maxlen=LULD_HISTORY_KEEP)
+        # The band as drawn, a step each time it changes (the 1-minute chart's line): (ts, lower, upper, exact).
+        self._trail: deque[tuple[float, float | None, float | None, bool]] = deque(maxlen=LULD_TRAIL_KEEP)
         self._straddle: str | None = None
         self._band_key: tuple | None = None
         self._band_val: tuple[float | None, float | None, rules.Parameter | None] = (None, None, None)
@@ -214,6 +217,7 @@ class Tracker:
         elif not halted and self._halted_since is not None:
             self._halted_since = None
             self._await_reopen = True
+        self._mark(ts)
 
     def on_gap(self, ts: float, reason: str) -> None:
         """Nova lost some of this stock's tape (a line ended, the feed went quiet): its five-minute
@@ -224,9 +228,11 @@ class Tracker:
             self._gap = {"ts": ts, "reason": reason}
         self._limit = None
         self._tape_since = ts
+        self._mark(ts)
 
     def set_facts(self, facts: Facts) -> None:
         self.facts = facts
+        self._mark(self._clock)
 
     def advance(self, ts: float) -> None:
         self._advance(ts)
@@ -289,12 +295,14 @@ class Tracker:
             return
         if t >= day.close_ts:
             self._ref, self._limit, self._straddle = None, None, None
+            self._mark(t)
             return
         if self._limit is not None and t >= self._limit.since + LULD_LIMIT_STATE_SEC:
             self._limit.overdue = True
         if self.options.reference_on == "continuous" or self._ref is None:
             self._check_reference(t)
         self._check_limit(t)
+        self._mark(t)   # the 15:35 doubling
 
     # -- the rules ---------------------------------------------------------------------------------
     def _set_floor(self, ts: float) -> None:
@@ -324,6 +332,7 @@ class Tracker:
         if exact is not None:
             self._exact = exact
         self._history.append({"ts": round(ts, 3), "reference": round(float(value), 4), "source": source})
+        self._mark(ts)
 
     def _mean(self) -> Fraction | None:
         """The pro-forma reference: the window's mean, rounded as the options say."""
@@ -388,6 +397,31 @@ class Tracker:
                 self._band_val = (float(lo) if lo is not None else None, float(up), param)
             self._band_key = key
         return self._band_val
+
+    def _drawn(self, t: float) -> tuple[float | None, float | None]:
+        """The band a chart draws at ``t``: none outside 09:30-16:00, while halted or waiting for the reopen,
+        for a security LULD does not cover, or without a band (``views.state_of`` says why). The session starts
+        with the opening print the tracker accepts, which may arrive a moment before 09:30 on Nova's clock."""
+        day = self._day
+        if (day is None or not (day.open_ts - LULD_OPEN_EARLY_SEC <= t < day.close_ts)
+                or self._halted_since is not None or self._await_reopen or not self.facts.covered):
+            return None, None
+        lo, up, _param = self._bands_now(t)
+        return lo, up
+
+    def _mark(self, t: float) -> None:
+        """A step in the drawn band at ``t`` when it moved, appeared, went or changed exactness; a later change
+        at the same moment replaces that moment's step."""
+        lo, up = self._drawn(t)
+        step = (lo, up, self._exact and up is not None)
+        ts = round(t, 3)
+        trail = self._trail
+        if trail and trail[-1][0] == ts:
+            trail.pop()
+        last = trail[-1][1:] if trail else None
+        if (last is None and up is None) or last == step:
+            return
+        trail.append((ts, *step))
 
     def _check_limit(self, t: float) -> None:
         day = self._day
@@ -470,6 +504,10 @@ class Tracker:
             "history": list(self._history),
             "clock": self._clock,
         }
+
+    def trail(self) -> list[dict[str, Any]]:
+        """Today's drawn band, a step each time it changed, oldest first: each holds until the next."""
+        return [{"ts": ts, "lower": lo, "upper": up, "exact": exact} for ts, lo, up, exact in self._trail]
 
 
 def _approx_spread(ref: Fraction, param: rules.Parameter) -> float:

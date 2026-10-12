@@ -58,6 +58,9 @@ LULD_FORGET_SEC = 30 * 60
 LULD_TAPE_GAP_SEC = 20.0
 # Reference changes kept for the hover.
 LULD_HISTORY_KEEP = 8
+# The band's steps kept for the 1-minute chart, per trading day: the band moves at most every 30 s
+# (780 in a session), plus the halts, reopens, gaps and the close.
+LULD_TRAIL_KEEP = 2_000
 # The worker's queue (enqueue only on the IB loop, ADR 010).
 LULD_QUEUE_MAX = 200_000
 LULD_TICK_SEC = 0.25

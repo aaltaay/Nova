@@ -157,6 +157,29 @@ export interface SceneStrategy {
   whenWaiting: string;
 }
 
+/** Where in a candle a moment falls: the candle, and how far through it (0 its left edge, 1 its right). */
+export interface SceneAt {
+  t: Time;
+  frac: number;
+}
+
+/** One stretch of Nova's LULD band (ADR 047 amendment 2026-10-12): from the moment it began to the next one. */
+export interface SceneLuldStep {
+  from: SceneAt;
+  to: SceneAt;
+  lower: number | null;
+  upper: number | null;
+  /** Approximate (Nova did not see the stock open or reopen, or guessed its tier): dashed. */
+  approx: boolean;
+}
+
+/** Nova's LULD band on the 1-minute chart (`luldShapes.ts`): a line above and below the candles that steps where the
+ * band moved. */
+export interface SceneLuld {
+  steps: SceneLuldStep[];
+  color: string;
+}
+
 export interface Scene {
   boxes: SceneBox[];
   segments: SceneSegment[];
@@ -182,6 +205,8 @@ export interface Scene {
   trends?: SceneTrend[];
   /** A setup's plan with only the plan behind it, in place of zones and lines across the pane (1-minute pane). */
   strategy?: SceneStrategy | null;
+  /** Nova's LULD band (1-minute pane). */
+  luld?: SceneLuld | null;
 }
 
 export const EMPTY_SCENE: Scene = {

@@ -3,13 +3,15 @@
  * the fills behind the candles (the levels' bands, the boxes), and over them the lines (the trend lines too), the
  * boxes' outlines, the
  * edge column (`edgeColumn.ts`: every word at the right edge), the +40% runs' arrows and every label --
- * the ones that stay put first, the boxes' and marks' taking the room around them (`sceneLabels.ts`).
+ * the ones that stay put first, the boxes' and marks' taking the room around them (`sceneLabels.ts`). Nova's LULD
+ * band on the 1-minute pane is `luldRender.ts`.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer } from 'lightweight-charts';
 import { EDGE_PRIORITY } from '../chart';
 import { columnRects, drawColumn, layoutColumn, type ColumnItem, type ColumnReserve } from './edgeColumn';
 import { drawLevels, fillLevelBands, type LevelPx, type TickPx } from './levelRender';
+import { drawLuld, type LuldPx } from './luldRender';
 import { fmtPx } from './planMath';
 import type {
   SceneBox,
@@ -66,6 +68,8 @@ export interface Px {
   trends: TrendPx[];
   /** A setup's strategy box (`strategyBoxRender.ts`). */
   strategy?: StrategyPx | null;
+  /** Nova's LULD band (`luldRender.ts`). */
+  luld?: LuldPx | null;
 }
 
 export interface TrendPx {
@@ -239,6 +243,7 @@ export class LineRenderer implements IPrimitivePaneRenderer {
       const measure = labelMeasure(ctx);
       const tickHits = drawLevels(ctx, this.px.levels, this.px.ticks, width, height);
       for (const t of this.px.trends ?? []) drawTrend(ctx, t);
+      if (this.px.luld) drawLuld(ctx, this.px.luld);
       ctx.lineWidth = 1;
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
         if (!b.stroke) continue;

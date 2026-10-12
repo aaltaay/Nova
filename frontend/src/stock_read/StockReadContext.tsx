@@ -6,6 +6,7 @@
  * the switch's view and writes, the moment on the chart and the plan's rows in Level 2.
  */
 import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { LuldTrail } from '../ibkr';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { parseRiskUsd, saveSleeveRisk, useSleeveRisk, venueOrNull, type SleeveRisk } from '../setups';
 import { tickerLastTrade } from '../hooks/tickerStore';
@@ -18,6 +19,7 @@ import { pastNowOf, type PastSetups } from './pastSetups';
 import type { LabelDetail } from './sceneLabels';
 import type { DecisionEvent, ReadGroupId, StockDecisions, StockHistory, StockRead } from './types';
 import {
+  useLuldTrail,
   useStockRead,
   useStockReadDecisions,
   useStockReadHistory,
@@ -82,6 +84,8 @@ export interface StockReadContextValue {
    * playhead than the tab shows (`pastNowOf`). */
   pastNow?: PastSetups | null;
   past5Now?: PastSetups | null;
+  /** Nova's LULD band step by step (ADR 047 amendment 2026-10-12), read while Eyes is on: the 1-minute chart's line. */
+  luld?: PolledState<LuldTrail>;
   /** The operator's own plan; `side` short is a hand short (ADR 048): its buy stop over the entry. */
   manual: ManualPlan;
   /** Sets the hand plan; without `side` it keeps the plan's side, and clearing it (`entry` null) is long again. */
@@ -255,6 +259,7 @@ export function StockReadProvider({
   const past5 = useStockReadPast(sym, readable && drawn.setups && drawn.past, laneKey5 + pastNudge, '5m');
   const pastNow = pastNowOf(past.data, sym, replay, simNow);
   const past5Now = pastNowOf(past5.data, sym, replay, simNow);
+  const luld = useLuldTrail(sym, readable && drawn.eyes);
   const ownRead = readNowOf(read.data, replay, simNow);
   const who = useWhoTrades({
     symbol: sym, live: readable && !sample, read: ownRead, riskUsd, ttlSec: risk.ttlSec, position: pos,
@@ -319,6 +324,7 @@ export function StockReadProvider({
     past5,
     pastNow,
     past5Now,
+    luld,
     manual,
     setManualPlan,
     riskUsd,
@@ -341,7 +347,7 @@ export function StockReadProvider({
     big: heldTrade.big,
     exitSheet: { open: exitOpen, setOpen: setExitOpen },
     position: tabPosition,
-  }), [sym, active, replay, read, ownRead, history, decisions, past, past5, pastNow, past5Now, manual, setManualPlan,
+  }), [sym, active, replay, read, ownRead, history, decisions, past, past5, pastNow, past5Now, luld, manual, setManualPlan,
     riskUsd, setRiskUsd, risk,
     layers, drawn, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who,
     heldTrade.track, heldTrade.setStop, heldTrade.flush, heldTrade.big, exitOpen, tabPosition]);
