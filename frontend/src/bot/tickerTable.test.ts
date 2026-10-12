@@ -1,7 +1,9 @@
 /** Tickers today's words and order (ADR 044), pure. */
 import { describe, expect, it } from 'vitest';
 import type { StockModeRow } from './stockModesApi';
-import { allStops, daySummary, orderTickers, resultWords, sidesOf, splitReasons, stopWord } from './tickerTable';
+import {
+  allSidesPairs, allStops, commonSide, daySummary, orderTickers, refusalLines, resultWords, sidesOf, splitReasons, stopWord,
+} from './tickerTable';
 import type { Cells, TickerRow, TickerTrigger } from './triggersApi';
 
 const ORDER = ['bot_on', 'strategy_on', 'grade', 'setups_a_day', 'bot_window', 'hot_list', 'nova_buys', 'level2_line',
@@ -26,6 +28,30 @@ describe('tickers today', () => {
     expect(sidesOf('LPA', modes)).toEqual(['nova', 'you']);
     expect(sidesOf('MEDS', modes)).toEqual(['you', 'nova']);
     expect(sidesOf('JAGU', modes)).toEqual(['you', 'you']);
+  });
+
+  it('says the side every row shares, and none when they differ', () => {
+    expect(commonSide(['nova', 'nova'])).toBe('nova');
+    expect(commonSide(['you', 'nova'])).toBeNull();
+    expect(commonSide([])).toBeNull();
+  });
+
+  it('sends the switch for all only to the rows not there yet, each keeping its other side', () => {
+    const modes = [mode('AISP', 'bot'), mode('LPA', 'approve')];
+    expect(allSidesPairs(['AISP', 'LPA', 'JAGU'], modes, 'entry', 'nova')).toEqual([
+      { symbol: 'LPA', buy: 'nova', sell: 'nova' }, { symbol: 'JAGU', buy: 'nova', sell: 'you' },
+    ]);
+    expect(allSidesPairs(['AISP', 'LPA', 'JAGU'], modes, 'exit', 'you')).toEqual([
+      { symbol: 'AISP', buy: 'nova', sell: 'you' }, { symbol: 'LPA', buy: 'you', sell: 'you' },
+    ]);
+    expect(allSidesPairs(['JAGU'], modes, 'entry', 'you')).toEqual([]);
+  });
+
+  it('says the refusals of a change for all once per reason, with its tickers', () => {
+    const lockLive = 'the bot never trades Live';
+    expect(refusalLines([{ symbol: 'AISP', text: 'You hold AISP' }, { symbol: 'LPA', text: lockLive },
+      { symbol: 'JAGU', text: lockLive }])).toEqual(['AISP: You hold AISP', `2 tickers (LPA, JAGU): ${lockLive}`]);
+    expect(refusalLines([])).toEqual([]);
   });
 
   it('lists the stocks the bot buys first, then by when they joined; the rest by symbol', () => {

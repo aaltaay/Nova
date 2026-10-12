@@ -1,8 +1,8 @@
 /**
  * The words and order of Tickers today (ADR 044), pure: which ticker comes first (the biggest change on the day,
  * as the Gainers board sorts; operator ask 2026-10-12), which of a row's reasons
- * every ticker shares (said once, in grey) and which are its own, the stock's Entry / Exit from its mode, and
- * a trigger's result in words. Both sides (ADR 049, #778 step 5): the squares of every trade end with "not
+ * every ticker shares (said once, in grey) and which are its own, the stock's Entry / Exit from its mode (and what
+ * the switch for all sends), and a trigger's result in words. Both sides (ADR 049, #778 step 5): the squares of every trade end with "not
  * against you"; the shorts-only block follows.
  */
 import type { StockModeName, StockModeRow } from './stockModesApi';
@@ -45,6 +45,31 @@ export const GATE_TIPS: Record<string, string> = {
 export function sidesOf(symbol: string, modes: readonly StockModeRow[]): [Side, Side] {
   const row = modes.find(m => m.symbol === symbol);
   return row ? SIDES[row.mode] : ['you', 'you'];
+}
+
+/** One side across rows: the side they all share, null when they differ or there are none (the switch for all
+ * then shows neither lit). */
+export function commonSide(sides: readonly Side[]): Side | null {
+  return sides.length && sides.every(s => s === sides[0]) ? sides[0] : null;
+}
+
+/** What the switch for all sends: every row whose Entry (or Exit) is not `to` yet, its other side kept as it is --
+ * the same pair the row's own switch would send. */
+export function allSidesPairs(symbols: readonly string[], modes: readonly StockModeRow[], which: 'entry' | 'exit',
+  to: Side): { symbol: string; buy: Side; sell: Side }[] {
+  return symbols.flatMap(symbol => {
+    const [buy, sell] = sidesOf(symbol, modes);
+    if ((which === 'entry' ? buy : sell) === to) return [];
+    return [{ symbol, buy: which === 'entry' ? to : buy, sell: which === 'exit' ? to : sell }];
+  });
+}
+
+/** The refusals of a change for all, one line per reason with the tickers it refused. */
+export function refusalLines(refused: readonly { symbol: string; text: string }[]): string[] {
+  const byText = new Map<string, string[]>();
+  for (const r of refused) byText.set(r.text, [...(byText.get(r.text) ?? []), r.symbol]);
+  return [...byText].map(([text, symbols]) =>
+    `${symbols.length > 1 ? `${symbols.length} tickers (${symbols.join(', ')})` : symbols[0]}: ${text}`);
 }
 
 /** A row with a "now" (or a ★ / ☆): today's tickers -- listed, or set to bot buy. */
