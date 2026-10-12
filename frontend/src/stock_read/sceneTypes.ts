@@ -60,6 +60,8 @@ export interface SceneWord {
   series: ISeriesApi<SeriesType> | null;
   /** Out of view its tag adds the value; false when the text already says it. */
   valueWhenOff: boolean;
+  /** `plain`: coloured words on dark, with no line of their own (a forming setup's prices); else the line's own tag. */
+  style?: 'filled' | 'plain';
 }
 
 /** Room at the right edge something else holds (the position tag): the column keeps clear of it. */
@@ -125,6 +127,29 @@ export interface ScenePin {
   color: string;
 }
 
+/** A setup plan that is only forming (operator ask 2026-10-12): one faint box from its stop to target 1, right of the
+ * newest candle to the pane's edge -- from the setup's window while that is ahead and on the pane, else waiting at the
+ * right edge -- its name and window in it, its prices the edge column's words, target 2 a small arrow past target 1. */
+export interface SceneStrategy {
+  /** The newest candle: the box starts after it. */
+  after: Time;
+  /** Candles from `after` to the window's start while the window is ahead, else null; and to its end, null without one. */
+  startBars: number | null;
+  endBars: number | null;
+  entry: number;
+  stop: number;
+  target: number;
+  target2: number | null;
+  side: 'long' | 'short';
+  /** "GAP AND GO", then "strategy" after it where the room allows. */
+  name: string;
+  word: string;
+  /** Its window where the box stands on it ("09:30–10:00", "until 11:30"; empty without one), and where it waits at
+   * the edge ("from 09:30 →"). */
+  when: string;
+  whenWaiting: string;
+}
+
 export interface Scene {
   boxes: SceneBox[];
   segments: SceneSegment[];
@@ -148,6 +173,8 @@ export interface Scene {
   dots?: SceneDot[];
   /** The chart's trend lines. */
   trends?: SceneTrend[];
+  /** A forming setup's plan, in place of its zones and lines (1-minute pane). */
+  strategy?: SceneStrategy | null;
 }
 
 export const EMPTY_SCENE: Scene = {

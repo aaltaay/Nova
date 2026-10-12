@@ -19,6 +19,8 @@
  * estimated: every price is the scanner's, the read's or Nova's order's own.
  * A setup plan on a stock too thin to trade (2026-10-01) draws no plan: no zones, no plan-only lines, its
  * lane faded like the others -- an order that stands behind a level is still drawn.
+ * A setup plan that is only forming (operator ask 2026-10-12) draws on the 1-minute pane its strategy box alone
+ * (`strategyBox.ts`): no zones, no plan lines, and a frame from its stop to target 1, never to target 2.
  */
 import type { Time } from 'lightweight-charts';
 import { SHORT_SETUP_CHIPS } from '../constantGroups/short_setups';
@@ -32,6 +34,7 @@ import { laneHoverId, laneOnMinute, levelsOf } from './laneShapes';
 import { pastRings, pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, planFrame, setupName } from './planMath';
 import { thinPlan } from './planVerdict';
+import { formingPlan, strategyOf, strategyWords } from './strategyBox';
 import { trendScene } from './trendLines';
 import type { Scene, SceneBox, SceneDot, SceneMark, SceneWord } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
@@ -206,9 +209,11 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   const lines: PriceLineSpec[] = [];
   const held = read.held;
   const lv = held ? null : drawnLevels(plan, o.levels);
+  // A plan no setup armed yet is its strategy box on the 1-minute pane, never zones and lines across it (2026-10-12).
+  const forming = lv !== null && formingPlan(plan, lv);
   if (o.layers.setups) {
     if (held && o.pane === 'thin') lines.push(...heldLines(held));
-    if (lv) lines.push(...planLines(plan, lv, o.pane));
+    if (lv && !(forming && o.pane === 'full')) lines.push(...planLines(plan, lv, o.pane));
     if (o.pane === 'full') {
       // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.
       const past = o.layers.past && o.past ? o.past : [];
@@ -228,10 +233,19 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
         const shape = lead ? levelsOf(lead) : null;
         const start = shape?.end ?? lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
           ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
-        scene.boxes.push(...planZones(lv, start, o));
-        // The stop to the furthest target (#845): target 2 is a line on the chart, and only where the operator's own
-        // scale leaves it off does its edge tag name it (``planFrame``; a short's range is the mirror, ADR 048).
-        scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, target2Of(plan, lv)?.price);
+        const target2 = target2Of(plan, lv)?.price ?? null;
+        if (forming && plan) {
+          // Its box from the stop to target 1 stays in view; target 2 is an arrow over it and never stretches the pane.
+          const after = start === null ? null : o.toTime(start);
+          scene.strategy = after === null || start === null ? null : strategyOf(plan, lv, target2, after, start);
+          if (scene.strategy) scene.words = [...(scene.words ?? []), ...strategyWords(scene.strategy)];
+          scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, null);
+        } else {
+          scene.boxes.push(...planZones(lv, start, o));
+          // The stop to the furthest target (#845): target 2 is a line on the chart, and only where the operator's own
+          // scale leaves it off does its edge tag name it (``planFrame``; a short's range is the mirror, ADR 048).
+          scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, target2);
+        }
       }
       // A 5-minute setup armed or near its trigger: one dashed line here (the chip is the legend's).
       lines.push(...fiveMinuteOnMinute(read).lines);

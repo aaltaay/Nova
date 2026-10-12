@@ -220,6 +220,20 @@ function drawFilled(ctx: CanvasRenderingContext2D, text: string, left: number, y
   ctx.fillText(text, left + 4, y + 0.5);
 }
 
+/** Where a slot's word goes: its text cut to the column's share of the pane, right-aligned at the column's edge. */
+function slotWord(s: ColumnSlot, width: number, measure: (text: string) => number): { text: string; w: number;
+  left: number; rect: LabelRect } {
+  const text = fitText(s.text, width * COLUMN_MAX_SHARE, measure);
+  const w = measure(text);
+  const left = width - COLUMN_RIGHT_PX - w;
+  return { text, w, left, rect: { left, right: left + w, top: s.y - LABEL_H / 2, bottom: s.y + LABEL_H / 2 } };
+}
+
+/** The rectangles the column's words will hold, before it is drawn: what goes under it keeps its words clear. */
+export function columnRects(layout: ColumnLayout, width: number, measure: (text: string) => number): LabelRect[] {
+  return layout.slots.map(s => slotWord(s, width, measure).rect);
+}
+
 /** The column drawn: hairlines, words, and an axis tick for a level that lost its label. Returns the words'
  * and ticks' hover targets, and the rectangles they hold (for the other labels to keep clear of). */
 export function drawColumn(
@@ -235,9 +249,7 @@ export function drawColumn(
   ctx.setLineDash([]);
   for (const s of layout.slots) {
     const it = items[s.item];
-    const text = fitText(s.text, width * COLUMN_MAX_SHARE, measure);
-    const w = measure(text);
-    const left = width - COLUMN_RIGHT_PX - w;
+    const { text, w, left, rect } = slotWord(s, width, measure);
     if (s.lineY !== null && Math.abs(s.y - s.lineY) >= LEADER_MIN_PX) {
       ctx.strokeStyle = alpha(it.color, 0.8);
       ctx.beginPath();
@@ -247,7 +259,6 @@ export function drawColumn(
     }
     if (it.style === 'filled' && s.lineY !== null) drawFilled(ctx, text, left, s.y, w, it.color);
     else drawLabel(ctx, text, left, s.y, w, it.color);
-    const rect = { left, right: left + w, top: s.y - LABEL_H / 2, bottom: s.y + LABEL_H / 2 };
     rects.push(rect);
     if (it.hoverId) hits.push({ rect, hoverId: it.hoverId });
   }

@@ -191,7 +191,19 @@ and on release the read answers the menu's targets for the new entry. The 1-minu
 each lane's shapes (the plan's lane in colour, the rest faded), the plan's zones and lines, the
 day's levels, a legend and the plan's badge. Its autoscale keeps the stop to the furthest target in view
 (#845: target 2 when the plan has one, `planMath.planFrame`), so target 2 is a line on the chart; its edge
-tag names it only where the operator's own price scale leaves it off. It frames a forming setup once per setup, and again
+tag names it only where the operator's own price scale leaves it off. **A setup plan that is only forming** (operator
+ask 2026-10-12, on a Gap and Go plan 30% over the price that squeezed MNDR's candles into a third of the pane: "square
+it up like the original but show it more faded ... say gap and go strategy, but doesn't have to be entire horizontal
+line from end to end ... more minimalist") draws neither zones nor plan lines on the 1-minute chart, only its strategy
+box (`strategyBox.ts`, drawn by `strategyBoxRender.ts`): one faint box from its stop to target 1, from the room right
+of the newest candle to the pane's edge, the setup's name and "strategy" with its window inside, the entry a dashed
+line across it, its prices faint words in the edge column ("T1 2.99", "entry 2.91", "stop 2.79", no line of their
+own), and target 2 a small arrow over it (under it for a short). While the setup's window is still ahead the box
+stands on that window -- from Gap and Go's 09:30 -- when the window's start leaves room for its name left of the
+column's words, and otherwise waits at the right edge saying "from 09:30 →"; with the window open, or none, it starts
+after the newest candle. That chart's autoscale keeps the box in view (the stop to target
+1), never target 2. A plan the setup armed (near, armed, triggered), a level an order stands behind, and the
+operator's own plan draw the zones, lines and frame above. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
 time scale's `rightOffset`, which is its scroll position, is never set). **A view the operator
