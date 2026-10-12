@@ -20,6 +20,7 @@ import { WhoTradesRow } from './WhoTradesRow';
 type Json = Record<string, unknown>;
 let calls: { url: string; method: string; body: Json | null }[] = [];
 let view: Json;
+let heldWire: Json = apusHeldWire;
 let clock = 1_790_000_000;
 
 function modeWire(over: Json = {}): Json {
@@ -39,6 +40,7 @@ beforeEach(() => {
   _resetSleeveForTests();
   calls = [];
   view = modeWire();
+  heldWire = apusHeldWire;
   vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
@@ -46,7 +48,7 @@ beforeEach(() => {
     calls.push({ url, method, body });
     if (/\/api\/stock-read\/APUS\/flush$/.test(url)) return answer({ schema_version: 1, symbol: 'APUS', at: 1, score: 0.1, label: 'neutral', window_sec: 30 });
     if (/\/api\/stock-read\/APUS(\?|$)/.test(url)) {
-      return answer({ ...apusReadWire, price: 6.64, held: /held_qty=/.test(url) ? apusHeldWire : null });
+      return answer({ ...apusReadWire, price: 6.64, held: /held_qty=/.test(url) ? heldWire : null });
     }
     if (/\/api\/bot\/session$/.test(url)) return answer(sleeveSessionWire(20));
     if (/\/api\/stock-mode\/APUS\/take-exit$/.test(url)) {
@@ -116,15 +118,52 @@ describe('the plan box while you hold APUS', () => {
     renderTab();
     fireEvent.click(await screen.findByTestId('held-nova-exit'));
     const sheet = await screen.findByTestId('exit-sheet');
-    expect(within(sheet).getByTestId('exit-target').getAttribute('data-why')).toMatch(/#681/);
+    // The read's 2R target (5.965) is behind the 6.64 price: no target starts filled, the stop goes alone.
+    expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('');
+    expect(within(sheet).getByTestId('exit-target').getAttribute('aria-disabled')).toBeNull();
     expect(within(sheet).getByTestId('exit-flush').getAttribute('data-why')).toMatch(/trial T1/);
-    expect(within(sheet).getByTestId('exit-sends').textContent).toMatch(/SELL 100 APUS STP 5.95, replaced at each broken level/);
+    expect(within(sheet).getByTestId('exit-sends').textContent).toMatch(/SELL 100 APUS STP 5.95, replaced at each broken level\. Nothing else/);
     fireEvent.click(within(sheet).getByTestId('exit-send'));
     await waitFor(() => expect(calls.find(c => c.method === 'POST')).toMatchObject({
       body: { stop: 5.95, trail: true },
     }));
+    expect(calls.find(c => c.method === 'POST')?.body).not.toHaveProperty('target');
     expect(calls.find(c => c.method === 'POST')?.url).toMatch(/\/api\/stock-mode\/APUS\/take-exit$/);
     await waitFor(() => expect(screen.queryByTestId('exit-sheet')).toBeNull());
+  });
+
+  it('rests two targets beside the stop from the read: half at target 1, the rest at target 2 (#681)', async () => {
+    heldWire = { ...apusHeldWire, target: { price: 7.0, rule: '1c under $7.00', traded_at: null },
+      target2: { price: 7.5, rule: '1c under the high of day', traded_at: null }, target1_fraction: 0.5 };
+    renderTab();
+    fireEvent.click(await screen.findByTestId('held-nova-exit'));
+    const sheet = await screen.findByTestId('exit-sheet');
+    expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('7.00');
+    expect((within(sheet).getByTestId('exit-target2') as HTMLInputElement).value).toBe('7.50');
+    expect(within(sheet).getByTestId('exit-target2-row').textContent).toMatch(/the rest, 50 shares; the stop stays/);
+    expect(within(sheet).getByTestId('exit-sends').textContent)
+      .toMatch(/STP 5.95, replaced at each broken level; LMT 7.00 x 50 and LMT 7.50 x 50 beside it, one-cancels-other/);
+    fireEvent.click(within(sheet).getByTestId('exit-send'));
+    await waitFor(() => expect(calls.find(c => c.method === 'POST')).toMatchObject({
+      body: { stop: 5.95, trail: true, target: 7, target2: 7.5, target1_fraction: 0.5 },
+    }));
+  });
+
+  it('a target you type behind the price is said on the sheet and never sent', async () => {
+    renderTab();
+    fireEvent.click(await screen.findByTestId('held-nova-exit'));
+    const sheet = await screen.findByTestId('exit-sheet');
+    const t1 = within(sheet).getByTestId('exit-target1');
+    fireEvent.change(t1, { target: { value: '6.50' } });
+    fireEvent.blur(t1);
+    const send = within(sheet).getByTestId('exit-send') as HTMLButtonElement;
+    await waitFor(() => expect(send.disabled).toBe(true));
+    expect(send.getAttribute('data-why')).toMatch(/would sell at once/);
+    fireEvent.change(t1, { target: { value: '7.10' } });
+    fireEvent.blur(t1);
+    await waitFor(() => expect(send.disabled).toBe(false));
+    expect(within(sheet).getByTestId('exit-sends').textContent).toMatch(/LMT 7.10 x 100 beside it/);
+    expect(calls.filter(c => c.method === 'POST')).toEqual([]);
   });
 
   it('Sell: Nova on the switch opens the sheet instead of a refused switch', async () => {

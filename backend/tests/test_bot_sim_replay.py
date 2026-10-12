@@ -181,6 +181,34 @@ def test_the_target_fills_on_the_replay_and_the_trade_closes(replay):
     assert trade["state"] == "closed" and trade["exit_reason"] == "target" and trade["r"] > 0
 
 
+def test_two_halves_on_the_replay_and_a_rewind_takes_the_first_half_back(replay):
+    """#681: half at target 1, the rest by the stop; a scrub back before target 1 puts every share back."""
+    from bot.autonomy import apply_patch
+
+    apply_patch({"caps": {"max_shares": 4}}, desk=True)
+    go(30)
+    runner.submit(trigger(replay, setup={"target1": 11.50, "target2": 12.50, "target1_fraction": 0.5}))
+    tick()
+    go(50)                                                               # the entry fills on 10.40 at :32
+    trade = tick()
+    assert trade["state"] == "open" and trade["qty"] == 4
+    stop_id = trade["stop_order_id"]
+    go(65)                                                               # 12.00 at :60: target 1, half
+    trade = tick()
+    assert trade["state"] == "open" and trade["qty"] == 2 and [h["leg"] for h in trade["halves"]] == ["target1"]
+    assert for_venue("sim").ledger.order_row(stop_id)["qty"] == 2
+    go(55)                                                               # back before target 1 filled
+    trade = tick()
+    assert trade["state"] == "open" and trade["qty"] == 4 and trade["halves"] == []
+    assert for_venue("sim").ledger.order_row(stop_id)["qty"] == 4
+    assert load_session()["bot_qty"] == {SYM: 4.0}
+    go(95)                                                               # forward: target 1, then 10.00 at :90
+    trade = tick()
+    assert (trade["state"], trade["exit_reason"]) == ("closed", "stop")
+    assert [(h["leg"], h["qty"]) for h in trade["halves"]] == [("target1", 2.0), ("stop", 2.0)]
+    assert for_venue("sim").ledger.held_qty(SYM) == 0 and load_session()["bot_qty"] == {}
+
+
 def test_another_replay_retires_the_trade_made_on_the_old_one(replay):
     go(30)
     runner.submit(trigger(replay))

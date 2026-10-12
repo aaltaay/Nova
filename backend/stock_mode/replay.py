@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 _EPS = 1e-6
 _BACK_SEC = 0.5                  # the playhead earlier than this is a rewind the runner saw itself
-_ORDER_KEYS = ("entry_order_id", "target_order_id", "stop_order_id")
+_ORDER_KEYS = ("entry_order_id", "target_order_id", "target2_order_id", "stop_order_id")
 
 
 class _Run:

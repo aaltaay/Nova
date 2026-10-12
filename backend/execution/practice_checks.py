@@ -39,7 +39,7 @@ def held_qty(broker: Any, symbol: str) -> float:
 
 def practice_refusal(cmd: ExecutionCommand, venue: str | None = None) -> tuple[str, str] | None:
     """``(detail, reason_code)`` when a practice venue refuses ``cmd``; ``None`` to admit it."""
-    if cmd.operation not in ("place", "bracket"):
+    if cmd.operation not in ("place", "bracket", "exit_oco"):
         return None
     broker = venue_broker(venue)
     symbol = cmd.normalized_symbol() or ""
@@ -54,8 +54,10 @@ def practice_refusal(cmd: ExecutionCommand, venue: str | None = None) -> tuple[s
         # a flat position (2026-09-23 test run). The practice broker still
         # cancels, at the fill, any SELL past what is held.
         return None
-    if getattr(cmd, "short_entry", False):
-        return None  # the short check judges it, under the lock (short_sale.door)
+    if getattr(cmd, "short_entry", False) or cmd.operation == "exit_oco":
+        # The short check judges a short, under the lock (short_sale.door); an exit pair's shares, the account
+        # check (execution.exit_oco).
+        return None
     side = cmd.side or ""
     qty = float(cmd.qty or cmd.shares or 0)
     if cmd.operation == "place" and order_rules.opening_short(held_qty(broker, symbol), side, qty):

@@ -213,7 +213,19 @@ is a `bot_trade` `skipped` line with every reason (`inputs.codes` /
 **practice bracket** (`operation: "bracket"`, source `bot`: a BUY limit at the
 scanner's entry, a SELL limit at target 1 and a SELL stop, the exits held until
 the entry fills, then one-cancels-other), so its stop and target rest at the
-broker and Paper's fill while the desk shows another venue (a Sim trade waits while the desk is
+broker and Paper's fill while the desk shows another venue. **Two halves** (#681,
+operator ask 2026-10-12): a setup row with a `target2` (#845) adds a SELL limit at
+target 2 -- target 1 sells `target1_fraction` of the shares (half by default, the
+smaller part of an odd count; `target1_qty` on the command), target 2 the rest --
+and the stop covers every share, shrinking at the broker as the targets fill and
+never moved to the entry (`execution.md`, "The exit-only pair and two halves").
+A null `target2`, or one share, sells everything at target 1 as before. A first
+half that fills is a `bot_trade` `half` line ("sold 2 at target 1 10.3; the stop
+9.89 stays for the other 2") and the stock's last event; the trade's `qty` is then
+the shares it still holds. The time stop, the flush exit, a take-over and a stop
+leg that is gone close whatever is left. A short is the mirror (BUY limits under
+its entry). Each leg has its own order id; the entry's idempotency key (with the
+replay's run tag on a Sim replay, ADR 052) covers the one bracket (a Sim trade waits while the desk is
 elsewhere -- a replay's while the desk is not on the replay it was made on -- and says so). Unfilled after the sleeve's `working_ttl_sec` the entry is cancelled with
 its exits (a miss). The time stop (`BOT_FP_TIME_STOP_MIN`, 15 minutes), the
 flush exit (a tightened stop is a replace of the stop leg) and a stop leg that is
@@ -225,10 +237,14 @@ the bid, then the protective flatten. Every order carries its real setup
 current or last trade, `{setup_id, setup_type, symbol, venue, venue_day,
 template_id, template_rev, state: "entering" | "open" | "exiting" | "closed" |
 "missed" | "handed" | "rewound", replay_key, qty, trigger, entry_planned, stop, target1, risk,
-entry_order_id, entry_fill_price, entry_filled_ts, target_order_id,
-stop_order_id, stop_leg_at, exit_order_id, exit_price, exit_reason: "target" |
-"stop" | "time" | "flush" | "outside" | "handed" | null, closed_ts, slippage, r,
-size_text, waiting, note}` (`r` gross in the setup's risk), kept in
+target2, target1_fraction, entry_qty, entry_order_id, entry_fill_price, entry_filled_ts, target_order_id,
+target2_order_id, stop_order_id, stop_leg_at, exit_order_id, exit_price, exit_reason: "target" |
+"stop" | "time" | "flush" | "outside" | "handed" | null, halves: [{leg: "target1" | "target2" | "stop" |
+"time" | "flush" | "outside" | "handed", qty, price, ts, order_id}], closed_ts, slippage, r,
+size_text, waiting, note}` (`r` gross in the setup's risk; with two halves `exit_price` is the
+shares-weighted price of every sale in `halves` and `r` counts every share -- the `closed` line's
+`inputs.halves` carries the sales, so the day's readout counts both halves; a sale whose price is unknown
+leaves both null, as `outside` always did; the day P&L is the venue ledger's and counts every fill), kept in
 `bot-session.json` so a restart resumes it; a take-over whose cancel is refused
 keeps the trade and says the order still rests. Every step is on the bot audit stream as `bot_trade` (`skipped` |
 `missed` | `filled` | `closing` | `closed` | `note` | `error`, `inputs` with

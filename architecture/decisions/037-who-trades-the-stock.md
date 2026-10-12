@@ -184,10 +184,28 @@ v4b ("1 go"), on Paper and on Sim at the live edge only.
 - **No target beside it, yet.** The execution door lets one order sell the same shares (found building
   it: a second SELL was refused "100 already sent"), and a one-cancels-other exit pair exists only as a
   bracket's legs, with an entry. That rule protects against selling twice; a target for a held position
-  waits on an exit-only pair in the door (#681).
+  waits on an exit-only pair in the door (#681). *(Amended 2026-10-12, below: built.)*
 - The Sell switch to Nova on a held stock opens the sheet; `PUT` keeps refusing `STOCK_MODE_HELD`, so a
   switch never sends orders by itself. Take it back is the existing take-over.
 - **Live stays locked.** Nova never moves a Live order by itself (that would be an automated sell on real
   money, not decided), and a plain IBKR stop does not trigger before 09:30 (#604) -- most of the operator's
   trades are premarket. The sheet says so.
 - The flush sell is not one of Nova's exits: trial T1 has not read.
+
+## Amendment 2026-10-12 -- Nova's exit rests its targets beside the stop (#681)
+
+Operator ask: follow the material's exits -- two halves, the stop where it is after the first -- and let Nova
+rest a target beside its exit stop. The execution door now has the exit-only pair (ADR 007 amendment
+2026-10-12, `operation: "exit_oco"`), so:
+
+- `take-exit` adds `target`, `target2` and `target1_fraction` (all optional). With a target, the stop and
+  the target(s) go out as one pair, committed once: target 1 sells the first half (half by default, the
+  smaller part of an odd count), target 2 the rest; one share, or no target 2, sells whole at target 1.
+  No target: the stop alone, as before. A target at or through the last price, past the stop, or a target 2
+  not beyond target 1 is refused `STOCK_MODE_INVALID`.
+- A target's fill shrinks the stop to the shares left at the broker; the stop stays where it is (never
+  moved to the average). The trail still moves only the stop, a replace that keeps the pair whole. The
+  trade books each sale (`halves`: which half sold where) and its money counts every share.
+- Take it back, a stop cancelled outside Nova and a position closed outside Nova cancel both targets too.
+- The sheet's target row is unlocked, prefilled from the held read's targets (#845); still Paper and Sim
+  only.

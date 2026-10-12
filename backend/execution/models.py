@@ -6,7 +6,8 @@ from typing import Any, Literal
 
 from constants_ibkr import IBKR_ORDER_TIF_DEFAULT
 
-Operation = Literal["place", "bracket", "cancel", "replace"]
+# ``exit_oco``: the exit-only pair -- a stop and one or two targets for shares already held (#681).
+Operation = Literal["place", "bracket", "cancel", "replace", "exit_oco"]
 Source = Literal[
     "manual",
     "kill",
@@ -45,6 +46,10 @@ class ExecutionCommand:
     limit_price: float | None = None
     stop_price: float | None = None
     target_price: float | None = None
+    # Two halves (#681, #845): a bracket's or an exit pair's second target, and the shares the first
+    # sells (``target1_qty``); the rest sell at ``target2_price``. None: every share at ``target_price``.
+    target2_price: float | None = None
+    target1_qty: float | None = None
     entry_price: float | None = None
     outside_rth: bool = False
     order_id: int | None = None
@@ -134,6 +139,8 @@ class ExecutionReceipt:
     parent_order_id: int | None = None
     target_order_id: int | None = None
     stop_order_id: int | None = None
+    # The second half's target (#681): a bracket's or an exit pair's; kept in the execution row's payload.
+    target2_order_id: int | None = None
     broker_status: str | None = None
     duplicate: bool = False
     timings: StageTimings | None = None
@@ -168,5 +175,6 @@ class ExecutionReceipt:
             "parent_order_id": self.parent_order_id,
             "target_order_id": self.target_order_id,
             "stop_order_id": self.stop_order_id,
+            "target2_order_id": self.target2_order_id,
             "measurement": self.payload.get("measurement"),
         }

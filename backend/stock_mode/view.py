@@ -78,6 +78,7 @@ def _bot_trade(sym: str, row: dict[str, Any]) -> dict[str, Any] | None:
         "exit_price": t.get("exit_price"), "exit_reason": t.get("exit_reason"), "exits": exits,
         "sent_at": t.get("entry_sent_ts"), "closed_at": t.get("closed_ts"), "note": t.get("note"),
         "exiting": t.get("state") == "exiting", "ttl_sec": t.get("entry_ttl_sec"), "replay_key": t.get("replay_key"),
+        "target2": t.get("target2"), "target2_order_id": t.get("target2_order_id"), "halves": t.get("halves"),
     }
 
 
@@ -86,7 +87,9 @@ def _public_trade(t: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     keys = ("kind", "state", "venue", "venue_day", "setup_id", "setup_type", "qty", "entry", "stop", "target",
             "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "filled_at", "exit_price",
-            "exit_reason", "exits", "sent_at", "closed_at", "note", "ttl_sec", "trail", "raised", "replay_key")
+            "exit_reason", "exits", "sent_at", "closed_at", "note", "ttl_sec", "trail", "raised", "replay_key",
+            # Two halves (#681): the second target, its order and where each part sold.
+            "target2", "target2_order_id", "halves")
     out = {k: t.get(k) for k in keys}
     out["side"] = "short" if t.get("side") == "short" else "long"   # a trade made before shorts was a long
     out["exiting"] = bool(t.get("exiting"))

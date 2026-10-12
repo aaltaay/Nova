@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 _EPS = 1e-6
 _BACK_SEC = 0.5                 # the playhead earlier than this is a rewind the bot saw itself
 _ROW_KEYS = ("trade", "working", "bot_qty")
-_TRADE_ORDER_KEYS = ("entry_order_id", "target_order_id", "stop_order_id", "exit_order_id")
+_TRADE_ORDER_KEYS = ("entry_order_id", "target_order_id", "target2_order_id", "stop_order_id", "exit_order_id")
 LIVE_STATES = frozenset({"entering", "open", "exiting"})
 STATE_REWOUND = "rewound"
 

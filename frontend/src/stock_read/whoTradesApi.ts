@@ -72,7 +72,10 @@ export function takeOverExit(symbol: string): Promise<StockModeView> {
 }
 
 /** Nova takes the exit of the shares you hold (ADR 037 amendment 2026-10-01): a resting stop, raised as
- * round numbers break when `trail`. Paper, and Sim at the live edge; the backend refuses Live. */
-export function takeExit(symbol: string, body: { stop: number; trail: boolean }): Promise<StockModeView> {
+ * round numbers break when `trail`, and its targets beside it when the sheet chose them (#681: target 1 the
+ * first half, target 2 the rest). Paper and Sim; the backend refuses Live. */
+export function takeExit(symbol: string, body: {
+  stop: number; trail: boolean; target?: number | null; target2?: number | null; target1_fraction?: number | null;
+}): Promise<StockModeView> {
   return send(symbol, 'POST', '/take-exit', body);
 }

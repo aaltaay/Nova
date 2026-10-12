@@ -6,7 +6,15 @@ import math
 from typing import Any, get_args
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
-from constants_practice import GOOD_FOR_LIVE_CODE, GOOD_FOR_LIVE_REASON, PRACTICE_GOOD_FOR_INVALID_CODE
+from constants_practice import (
+    EXIT_OCO_GEOMETRY_CODE,
+    EXIT_OCO_LIVE_CODE,
+    EXIT_OCO_LIVE_REASON,
+    GOOD_FOR_LIVE_CODE,
+    GOOD_FOR_LIVE_REASON,
+    PRACTICE_GOOD_FOR_INVALID_CODE,
+)
+from execution import exit_oco as _exit_oco
 from execution import flatten_intent as _flatten_intent
 from execution import inflight as _inflight  # noqa: F401 -- tests patch committed_qty through it
 from execution import position_checks as _positions
@@ -144,6 +152,11 @@ def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[b
         refusal = _bracket_refusal(cmd)
         if refusal is not None:
             return False, refusal[0], refusal[1]
+    elif cmd.operation == "exit_oco":
+        # The exit-only pair (#681): a stop and one or two targets for shares already held.
+        refusal = _exit_oco.command_error(cmd)
+        if refusal is not None:
+            return False, refusal[0], refusal[1]
     else:
         return False, f"unknown operation: {cmd.operation}", "OP_INVALID"
 
@@ -176,6 +189,9 @@ def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[b
         if refusal is not None:
             return False, refusal[0], refusal[1]
         return True, "OK", None
+    if cmd.operation == "exit_oco" or (cmd.operation == "bracket" and cmd.target2_price is not None):
+        # Live's shape is written (execution.md, "The exit-only pair"); it is sent only after its proof (#606).
+        return False, EXIT_OCO_LIVE_REASON, EXIT_OCO_LIVE_CODE
     ok, reason = _safety.assert_orders_allowed(
         client_enabled=_client.is_enabled(),
         connected=_client.is_connected(),
@@ -231,6 +247,10 @@ def _bracket_refusal(cmd: ExecutionCommand) -> tuple[str, str] | None:
             f"(entry {entry}, stop {stop}, target {target})",
             "BRACKET_GEOMETRY",
         )
+    # Two halves (#681): target 2 beyond target 1, the first half short of every share.
+    halves = _exit_oco.halves_error(cmd.shares or cmd.qty, target, cmd.target2_price, cmd.target1_qty, short=short)
+    if halves is not None:
+        return halves[0], "BRACKET_GEOMETRY" if halves[1] == EXIT_OCO_GEOMETRY_CODE else "BRACKET_FIELDS"
     return None
 
 
@@ -258,6 +278,10 @@ def check_account_and_position(
         refused = _flatten_intent.refusal(cmd)  # QA R42: never a second close of the same shares
         if refused:
             return False, refused, _flatten_intent.REASON_CODE
+
+    if cmd.operation == "exit_oco":
+        # Its shares are held and not already committed to another close (#681): committed once, at the send.
+        return _exit_oco.account_refusal(cmd)
 
     summary: dict | None = None
     summary_error: IbkrAccountError | None = None

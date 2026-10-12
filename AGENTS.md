@@ -234,6 +234,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Execution command (ADR 007 — sole broker mutation entry) | `architecture/schema/execution.md` |
 | Execution venue provenance (#713) | `architecture/schema/execution.md` |
 | Live order state: orderRef, whyHeld, reconnects, IBKR's own events (audit 2026-10-09) | `architecture/schema/execution.md` |
+| The exit-only pair and two halves (#681, operator ask 2026-10-12) | `architecture/schema/execution.md` |
 
 ### CI scope output
 

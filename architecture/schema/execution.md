@@ -136,7 +136,7 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
 
 ```json
 {
-  "operation": "place | bracket | cancel | replace",
+  "operation": "place | bracket | cancel | replace | exit_oco",
   "idempotency_key": "stable-client-or-ticket-key",
   "source": "manual | kill | cancel_working | flatten | benchmark | bot",
   "symbol": "AAPL",
@@ -146,6 +146,8 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
  "limit_price": null,
  "stop_price": null,
  "target_price": null,
+ "target2_price": null,
+ "target1_qty": null,
  "entry_price": null,
  "order_id": null,
  "short_entry": false,
@@ -176,6 +178,29 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 **Kill switch** (D-037, ADR 025; owner `backend/kill_switch/`): a persisted latch (`kill_switch_state.json` under the operator cache, `schema_version: 1`; unreadable or unknown version reads tripped) that `execution.service.execute` checks before every `place` / `bracket` from a non-protective source, manual and bot included -- refused `KILL_SWITCH`; `kill`, `flatten`, `cancel_working` and every cancel still reach the broker. `GET /api/kill-switch` -> `{tripped, reason, ts}`; `POST /api/kill-switch` trips it (latch first, then the working orders of every venue that has any are cancelled through the `kill` source -- Live while IBKR is connected, else a stated error "Gateway disconnected: Live orders were not swept"; Paper always, even with the Gateway down (#656); Sim while its scratch account is open -- each cancel through the execution door with `ExecutionCommand.target_venue`, which only a `kill` cancel may carry (anything else is refused `TARGET_VENUE_REFUSED`), and a failed read is a stated failure, never "nothing to cancel"; the stops that protect a held position stay resting, ADR 048, "Short selling" above) and answers the status plus `sweep: [{venue, cancelled, failed, kept, error, note}]`, `persisted`, `receipt_error` and the legacy summed `cancelled_order_ids` / `failed_cancel_order_ids` / `kept_order_ids` (the route is async, on the app's loop: #656's lock from a second loop is gone); `POST /api/kill-switch/reset` clears it and is the only thing that does. A trip writes a `kill_switch` receipt to the event log. The control is a card on the Bots page. The header's Emergency KILL (bot to L0, desk lock, cancel, flatten) is a separate composite. The Nova OS verdict, the `signal | confirm | auto_paper` ladder, the staged approval queue and `/api/strategy/executor/*` were removed (ADR 025).
 
 ---
+
+## The exit-only pair and two halves (#681, ADR 007 amendment, operator ask 2026-10-12)
+
+The operator asked Nova to follow their material's exits instead of the retired 2:1 target: sell in two halves (target 1, target 2), keep the stop where it is after the first half, and let Nova rest a target beside its exit stop on a stock you already hold. The target prices come from the setup scanners and the held read (#845, `setups.md` / `stock-read.md`); this is the order side. Owner `execution/exit_oco.py` (the rules), `practice/bracket.py` (the group on Paper and Sim), `sim/exit_oco_send.py` (the send).
+
+**The command.** `operation: "exit_oco"` places, for shares the venue already holds, a stop for every share and one or two limits on the same side. `side: "SELL"` closes a long (stop under, targets over); `side: "BUY"` covers a short (stop over, targets under) -- a cover is a close, never locked by the day lock (Invariant #7).
+
+```json
+{"operation": "exit_oco", "side": "SELL", "qty": 100, "stop_price": 9.80, "target_price": 10.30,
+ "target2_price": 10.60, "target1_qty": 50, "tif": "DAY", "source": "manual", "origin": "nova_exit"}
+```
+
+Target 1 sells `target1_qty`, target 2 the rest; with no `target2_price`, `target1_qty` is absent (or every share) and target 1 sells everything. Refused before any send: `SIDE_INVALID`, `QTY_INVALID`, `QTY_FRACTIONAL_API`; `EXIT_OCO_FIELDS` (a price missing, a `target1_qty` that leaves no second half or stands without a target 2, a protective source, `short_entry`, `good_for_sec`); `EXIT_OCO_GEOMETRY` (the stop not past target 1, target 2 not beyond target 1); then, under the execution lock, the account: `NO_POSITION` (nothing held on that side), `OVERSELL` / `OVERCOVER` (more than held less the closes already in flight), `POSITION_UNAVAILABLE`. The kill switch refuses it like any non-protective order; Paper and Sim admit it by the venue's market, like a place.
+
+**Committed once.** The door commits `qty` once, on the pair's side (`execution.inflight`), attached to the stop's order id: any other close of those shares -- a SELL, a second pair -- is refused until the stop resolves (it fills, is cancelled, or the targets spend it); a Sim rewind before the pair frees it, as any order's. The receipt's `order_id` is the stop's, beside `stop_order_id`, `target_order_id` and `target2_order_id`; the execution row keeps the second target's id in its payload (no column of its own), and the reserve payload adds `target2_price` and `target1_qty`. The ticket's Flatten counts the group once (`execution.flatten_intent`: the most any member of a group still closes).
+
+**The first fill cancels or reduces the others.** The legs share one group: `oca_group: "oca-<stop id>"`, `leg_role` `stop` / `target` / `target2`, `parent_id: null`, ids stop then each target. The stop's fill cancels every target (`PRACTICE_OCO_CANCELLED`). A target's fill shrinks the stop by the shares it sold -- the same price, its `qty` and `remaining_qty` the shares left -- and leaves the other target working; a stop the targets spend is cancelled at once (`PRACTICE_OCO_CANCELLED`). The stop's quantity is always the shares still held, so nothing sells twice or past flat. The shrink is derived from the target's own `filled` event -- no new ledger event type, no `schema_version` change -- so a Sim rewind before the fill puts the stop back to every share, and a Paper file written before #681 reads exactly as it did (a one-target group's fill spends its stop, as one-cancels-other always did). A `replace` moves the stop's price alone and keeps the group.
+
+**A bracket in two halves.** `operation: "bracket"` takes the same `target2_price` + `target1_qty`: one more exit (`leg_role: "target2"`; ids entry, target 1, target 2, stop), the stop for every share, shrinking as the targets fill and never moved to the entry. Refused `BRACKET_GEOMETRY` / `BRACKET_FIELDS` in the same words. With no `target2_price` every share sells at target 1, exactly as before. How a position splits (`execution.exit_oco.split`): the first half is `floor(qty x target1_fraction)` (0.5 unless the setup names another fraction strictly between 0 and 1), so an odd count gives the first half the smaller part; a position the rounding leaves one half empty of (a single share), or a target 2 not beyond target 1, sells whole at target 1.
+
+**Live waits on its proof** (#606). The exit pair and a bracket in two halves are refused on Live, `EXIT_OCO_LIVE`, in the door's checks and again at the Live send. Live's shape, when the proof is in: IBKR orders on the reverse side, one OCA group per half with `ocaType` 3 (reduce on fill, no block) -- that half's STP and its LMT for the same shares, so a fill of either reduces the other by the shares filled (a partial target fill shrinks its stop by exactly those shares). The halves' stops sit at one price and move together (a raise replaces each); their sum is the stop the desk shows, always the shares still held. Not one group of every leg: IBKR's reduce-on-fill reduces every other member, so target 1's fill would also cancel target 2. A one-target pair is one such group; a bracket's halves are the same groups with the entry as their parent. Paper and Sim keep the halves' stops as one stop row -- the same fills at the same prices, since both Live stops trigger together.
+
+Who sends it: Nova's exit (`stock-read.md`, "Nova takes the exit") and Nova's bot (`bot.md`, the bracket in two halves).
 
 ## Execution venue provenance (#713)
 

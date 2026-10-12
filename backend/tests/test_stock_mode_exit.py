@@ -55,10 +55,96 @@ def test_nova_takes_the_exit_with_a_resting_stop(holding):
 
 
 def test_a_second_sell_of_the_same_shares_is_the_doors_to_refuse(holding):
-    """Why no target rests beside the stop: the door lets one order sell the same shares."""
-    take(holding, stop=9.80)
-    second = holding.broker.ledger.held_qty(SYM)
-    assert second == 100.0 and len(holding.broker.ledger.working_orders()) == 1
+    """The targets rest beside the stop as one exit pair, committed once (#681); any other SELL of the same
+    shares is still the door's to refuse."""
+    from execution.models import ExecutionCommand
+    from execution.service import execute
+
+    trade = take(holding, stop=9.80, target=10.30, target2=10.60).json()["trade"]
+    assert len(holding.broker.ledger.working_orders()) == 3 and holding.broker.ledger.held_qty(SYM) == 100.0
+    second = asyncio.run(execute(ExecutionCommand(
+        operation="place", idempotency_key="second-sell", source="manual", symbol=SYM, side="SELL", qty=10,
+        order_type="LMT", limit_price=10.50, skip_risk=True)))
+    assert second.ok is False and second.reason_code == "OVERSELL"
+    assert legs(holding)[trade["stop_order_id"]]["qty"] == 100.0       # one stop for every share
+
+
+def test_nova_rests_two_targets_beside_its_stop(holding):
+    r = take(holding, stop=9.80, target=10.30, target2=10.60)
+    assert r.status_code == 200, r.text
+    trade = r.json()["trade"]
+    assert (trade["target"], trade["target2"]) == (10.30, 10.60)
+    rows = legs(holding)
+    stop, t1, t2 = (rows[trade[k]] for k in ("stop_order_id", "target_order_id", "target2_order_id"))
+    assert (stop["order_type"], stop["stop_price"], stop["qty"]) == ("STP", 9.80, 100.0)
+    assert (t1["order_type"], t1["limit_price"], t1["qty"]) == ("LMT", 10.30, 50.0)
+    assert (t2["order_type"], t2["limit_price"], t2["qty"]) == ("LMT", 10.60, 50.0)
+    assert {stop["order_origin"], t1["order_origin"], t2["order_origin"]} == {"nova_exit"}
+    assert "target 1 10.30 for 50, target 2 10.60 for 50" in store.event(SYM)["text"]
+
+
+def test_target_one_sells_half_and_the_stop_stays_where_it_is(holding):
+    trade = take(holding, stop=9.80, target=10.30, target2=10.60).json()["trade"]
+    holding.broker.try_fill_working(SYM, [(NOW + 5, 10.35)])
+    done = tick(holding, NOW + 6)
+    assert done["state"] == "holding" and [(h["leg"], h["qty"]) for h in done["halves"]] == [("target1", 50.0)]
+    stop = legs(holding)[trade["stop_order_id"]]
+    assert (stop["status"], stop["qty"], stop["stop_price"]) == ("Submitted", 50.0, 9.80)
+    assert done["stop"] == 9.80 and "stays for the other 50" in store.event(SYM)["text"] and exit_rows("half")
+    holding.broker.try_fill_working(SYM, [(NOW + 9, 9.79)])
+    done = tick(holding, NOW + 10)
+    assert (done["state"], done["exit_reason"]) == ("closed", "stop")
+    assert done["exit_price"] == pytest.approx((10.30 + 9.79) / 2)
+    assert "+$2.50" in store.event(SYM)["text"]                            # 50 x 0.28 - 50 x 0.23, both halves
+    assert legs(holding)[trade["target2_order_id"]]["status"] == "Cancelled"
+    assert holding.broker.ledger.held_qty(SYM) == 0.0
+
+
+def test_one_target_sells_every_share_and_closes_it(holding):
+    trade = take(holding, stop=9.80, target=10.30).json()["trade"]
+    assert trade["target2"] is None and trade["target2_order_id"] is None
+    assert legs(holding)[trade["target_order_id"]]["qty"] == 100.0
+    holding.broker.try_fill_working(SYM, [(NOW + 5, 10.35)])
+    done = tick(holding, NOW + 6)
+    assert (done["state"], done["exit_reason"], done["exit_price"]) == ("closed", "target", 10.30)
+    assert legs(holding)[trade["stop_order_id"]]["status"] == "Cancelled" and "+$28.00" in store.event(SYM)["text"]
+
+
+def test_a_trail_raise_moves_the_stop_and_keeps_the_targets(holding, monkeypatch):
+    trade = take(holding, stop=9.80, target=10.70, target2=11.00).json()["trade"]
+    start = int(trade["sent_at"] // 60) * 60
+    bars = [{"t": start - 60 * (16 - i), "o": 10.0, "h": 10.1, "l": 9.95, "c": 10.0, "v": 100} for i in range(16)]
+    bars.append({"t": start, "o": 10.1, "h": 10.6, "l": 10.05, "c": 10.56, "v": 500})
+    monkeypatch.setattr(exit_trade, "_closed_bars", lambda sym, now: bars)
+    monkeypatch.setattr(orders, "last_price", lambda sym: 10.58)
+    holding.ref.last, holding.ref.bid, holding.ref.ask = 10.58, 10.57, 10.59   # the venue's market moved up too
+    done = tick(holding, start + 61)
+    assert done["stop"] == 10.45
+    rows = legs(holding)
+    assert rows[trade["stop_order_id"]]["status"] == "Submitted"
+    assert rows[trade["stop_order_id"]]["stop_price"] == 10.45
+    assert rows[trade["target_order_id"]]["status"] == rows[trade["target2_order_id"]]["status"] == "Submitted"
+
+
+@pytest.mark.parametrize("body, field", [
+    ({"target": 9.99}, "target"),                     # at or under the last price: it would sell at once
+    ({"target": 9.70}, "target"),                     # under the stop
+    ({"target": 10.30, "target2": 10.20}, "target2"),  # target 2 not beyond target 1
+    ({"target2": 10.60}, "target"),                   # target 2 alone
+])
+def test_a_target_that_does_not_hang_together_is_refused(holding, body, field):
+    r = take(holding, stop=9.80, **body)
+    assert r.status_code == 409 and r.json()["detail"]["reason"] == "STOCK_MODE_INVALID"
+    assert r.json()["detail"]["field"] == field and holding.broker.ledger.working_orders() == []
+
+
+def test_take_it_back_cancels_the_stop_and_both_targets(holding):
+    trade = take(holding, stop=9.80, target=10.30, target2=10.60).json()["trade"]
+    body = client.post(f"/api/stock-mode/{SYM}/take-over", headers=headers(holding.key)).json()
+    assert body["trade"]["state"] == "handed"
+    rows = legs(holding)
+    assert {rows[trade[k]]["status"] for k in ("stop_order_id", "target_order_id", "target2_order_id")} == {"Cancelled"}
+    assert holding.broker.ledger.held_qty(SYM) == 100.0
 
 
 def test_on_live_it_is_locked_and_says_why(holding):

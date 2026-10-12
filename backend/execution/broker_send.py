@@ -61,6 +61,12 @@ async def send_broker(
     symbol = cmd.normalized_symbol()
     mode = _client.account_mode()
 
+    if cmd.operation == "exit_oco" or (cmd.operation == "bracket" and cmd.target2_price is not None):
+        # The door refuses these first (``execution.validate``); never sent to IBKR before Live's proof (#606).
+        from constants_practice import EXIT_OCO_LIVE_CODE, EXIT_OCO_LIVE_REASON
+
+        return reject(execution_id, cmd, timings, EXIT_OCO_LIVE_REASON, EXIT_OCO_LIVE_CODE)
+
     if cmd.operation == "cancel":
         timings.broker_sent_ns = time.perf_counter_ns()
         store.update_stages(

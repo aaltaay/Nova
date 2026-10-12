@@ -4,7 +4,8 @@ Every order enters ``execution.service.execute`` with source ``bot`` -- the one
 door (ADR 007) -- under an idempotency key made of the venue, the setup id and
 the step, so a repeated send replays its receipt instead of placing twice, and
 stamped with the setup it trades (``setup=<setup_type>``). The entry is a
-practice bracket -- a BUY limit at the entry, a SELL limit at target 1 and a
+practice bracket -- a BUY limit at the entry, a SELL limit at target 1 (and,
+with a second target, a SELL limit at target 2 for the second half, #681) and a
 SELL stop at the stop -- so the exits rest at the broker and Paper's fill while
 the desk shows another venue. A short (ADR 049, #778 step 5) is the same bracket
 mirrored: a short limit (``short_entry``), a BUY stop over it and a BUY limit at
@@ -191,9 +192,16 @@ async def place_entry(trade: dict[str, Any]) -> Any:
     (it never chases), a SELL limit at target 1 and a SELL stop at the stop -- the exits rest at the
     broker, held until the entry fills, then one cancels the other. A short is the mirror: a short
     limit at its entry (at the ask under SSR, ``short_side.price``), a BUY stop over it and a BUY
-    limit at its cover. On a Sim replay the entry carries the working TTL as its own expiry (``good_for``)."""
+    limit at its cover. On a Sim replay the entry carries the working TTL as its own expiry (``good_for``).
+
+    Two halves (#681, #845): with a ``target2`` the first target sells ``target1_fraction`` of the shares and
+    a second limit the rest, the stop covering every share and shrinking as the targets fill -- never moved
+    to the entry. No ``target2`` (or a position too small to split): every share at target 1, as before."""
+    from bot.first_pullback.halves import split
+
     entry = round(float(trade["entry_planned"]), 4)
     short = is_short(trade)
+    first, second = split(trade)
     return await execute(
         ExecutionCommand(
             operation="bracket",
@@ -208,6 +216,8 @@ async def place_entry(trade: dict[str, Any]) -> Any:
             limit_price=entry,
             entry_price=entry,
             target_price=round(float(trade["target1"]), 4),
+            target2_price=round(float(trade["target2"]), 4) if second else None,
+            target1_qty=float(first) if second else None,
             stop_price=round(float(trade["stop"]), 4),
             reference_price=entry,
             outside_rth=_outside_rth(),
@@ -218,6 +228,15 @@ async def place_entry(trade: dict[str, Any]) -> Any:
         ),
         wait_ack=False,
     )
+
+
+def target2_id(receipt: Any) -> int | None:
+    """The second half's target from a bracket or exit pair receipt (#681); None with one target."""
+    try:
+        value = getattr(receipt, "target2_order_id", None)
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def leg_ids(receipt: Any) -> tuple[int | None, int | None, int | None]:

@@ -6,7 +6,8 @@ and the receipt's ``mode`` is that broker's venue label (``paper`` or ``sim``).
 Admission comes from the broker's own market reference -- the loaded replay on
 Sim, the live feed on Paper -- so the desk never guesses a price. A bracket
 goes out as Live sends it (#606): one entry and two exits, three watches, and
-the three ids on the execution row (``_send_bracket``).
+the three ids on the execution row (``_send_bracket``) -- a second target's in
+the row's payload (#681). The exit-only pair's send is ``sim.exit_oco_send``.
 ``send_sim_broker`` keeps the Sim-only entry point every existing caller uses.
 """
 from __future__ import annotations
@@ -66,6 +67,10 @@ async def send_practice_broker(
 
     if cmd.operation == "bracket":
         return await _send_bracket(cmd, execution_id, timings, broker=broker, reject=reject)
+    if cmd.operation == "exit_oco":
+        from sim.exit_oco_send import send_exit_oco
+
+        return await send_exit_oco(cmd, execution_id, timings, broker=broker, reject=reject)
 
     if cmd.operation == "cancel":
         timings.broker_sent_ns = time.perf_counter_ns()
@@ -196,6 +201,7 @@ async def _send_bracket(
         float(cmd.stop_price or 0),
         tif=cmd.tif, outside_rth=cmd.outside_rth, source=cmd.source, short_entry=bool(cmd.short_entry),
         origin=cmd.origin, good_for_sec=cmd.good_for_sec,
+        target2_price=cmd.target2_price, target1_qty=cmd.target1_qty,
     )
     parent = raw.get("parent_order_id")
     if not raw.get("ok") or parent is None:
@@ -215,10 +221,11 @@ async def _send_bracket(
     )
     for role, child, reference in (
         ("target", raw.get("target_order_id"), cmd.target_price),
+        ("target2", raw.get("target2_order_id"), cmd.target2_price),
         ("stop", raw.get("stop_order_id"), cmd.stop_price),
     ):
         if child is None:
-            continue  # a short's bracket with no target (ADR 048 1.6)
+            continue  # a short's bracket with no target (ADR 048 1.6), or one target for every share
         telemetry.watch_order(
             int(child), execution_id, venue=venue, fresh=True, leg_role=role, side=exit_side,
             reference_price=reference, reference_source=f"bracket_{role}", aggregate_eligible=False,
@@ -227,6 +234,11 @@ async def _send_bracket(
     timings.broker_ack_ns = watch.ack_ns
     timings.filled_ns = watch.filled_ns or timings.filled_ns
     persist_nova_placed_at(execution_id, raw.get("nova_placed_at"))
+    target2_id = raw.get("target2_order_id")
+    if target2_id is not None:
+        from execution.evidence_store import merge_execution_payload
+
+        merge_execution_payload(execution_id, {"target2_order_id": int(target2_id)})   # no column of its own
     ids = {
         "order_id": int(parent), "parent_order_id": int(parent),
         "target_order_id": raw.get("target_order_id"), "stop_order_id": raw.get("stop_order_id"),
@@ -244,7 +256,7 @@ async def _send_bracket(
         return ExecutionReceipt(
             ok=False, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
             idempotency_key=cmd.idempotency_key, error=error, reason_code=code, mode=mode,
-            symbol=symbol, broker_status=status, timings=timings, **ids,
+            symbol=symbol, broker_status=status, timings=timings, target2_order_id=target2_id, **ids,
         )
     if status == "Filled" and timings.filled_ns is None:
         timings.filled_ns = time.perf_counter_ns()
@@ -255,7 +267,7 @@ async def _send_bracket(
     return ExecutionReceipt(
         ok=True, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
         idempotency_key=cmd.idempotency_key, mode=mode, symbol=symbol, broker_status=status,
-        timings=timings, **ids,
+        timings=timings, target2_order_id=target2_id, **ids,
     )
 
 

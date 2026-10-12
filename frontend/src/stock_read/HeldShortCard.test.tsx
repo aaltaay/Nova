@@ -138,7 +138,9 @@ describe('the This trade card while you hold RDYN short', () => {
     fireEvent.click(btn);
     const sheet = await screen.findByTestId('exit-sheet');
     expect(sheet.querySelector('.sr-exit__title')?.textContent).toBe('Nova takes the cover on 416 RDYN short');
-    expect(within(sheet).getByTestId('exit-target').getAttribute('data-why')).toMatch(/#681/);
+    // The read's 5.53 cover target is over the 5.46 price (already passed): the buy stop goes alone (#681).
+    expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('');
+    expect(within(sheet).getByTestId('exit-target').textContent).toMatch(/Under the price · empty: the stop alone/);
     expect(within(sheet).queryByTestId('exit-flush')).toBeNull();
     expect(within(sheet).getByTestId('exit-sends').textContent)
       .toMatch(/BUY 416 RDYN STP 5.55, replaced at each broken level/);
