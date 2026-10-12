@@ -29,10 +29,55 @@ def test_request_gateway_mode_rejects_invalid_mode():
 
 
 def test_request_gateway_mode_requires_enabled(monkeypatch):
+    monkeypatch.delenv("IBKR_ENABLED", raising=False)
     monkeypatch.setattr(ibkr_client, "_enabled", False)
+    monkeypatch.setattr(ibkr_client, "_config_loaded", True)
     result = _run(ibkr_client.request_gateway_mode("live"))
     assert result["ok"] is False
     assert "IBKR_ENABLED" in result["error"]
+    assert "starting" not in result
+
+
+def _starting(monkeypatch, saved_door: str) -> None:
+    """API just started: .env has IBKR on, the dialer has not read it yet."""
+    monkeypatch.setenv("IBKR_ENABLED", "true")
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", saved_door)
+    monkeypatch.setattr(ibkr_client, "_enabled", False)
+    monkeypatch.setattr(ibkr_client, "_config_loaded", False)
+
+
+def test_enabled_reads_env_until_the_dialer_has_read_it(monkeypatch):
+    """Operator report 2026-10-11: a Live click 16 s after an API restart said
+    "IBKR_ENABLED is not set" on a desk whose .env had it on."""
+    _starting(monkeypatch, "live")
+    assert ibkr_client.is_enabled() is True
+    assert ibkr_client.is_starting() is True
+    assert ibkr_client.session_snapshot()["enabled"] is True
+
+    monkeypatch.setattr(ibkr_client, "_config_loaded", True)
+    monkeypatch.setattr(ibkr_client, "_enabled", False)
+    assert ibkr_client.is_enabled() is False  # the dialer's read wins once made
+    assert ibkr_client.is_starting() is False
+
+
+def test_request_gateway_mode_while_starting_never_blames_env_or_touches_gateway(monkeypatch):
+    _starting(monkeypatch, "live")
+    with patch(
+        "ibkr.launch_gateway.launch_or_focus_gateway",
+        side_effect=AssertionError("must not touch the Gateway while starting"),
+    ):
+        same_door = _run(ibkr_client.request_gateway_mode("live"))
+        other_door = _run(ibkr_client.request_gateway_mode("paper"))
+
+    assert same_door["ok"] is True
+    assert same_door["starting"] is True
+    assert same_door["launch_action"] == "noop"
+    assert "IBKR_ENABLED" not in (same_door["message"] or "")
+
+    assert other_door["ok"] is False
+    assert other_door["starting"] is True
+    assert "still starting" in other_door["error"]
+    assert "IBKR_ENABLED" not in other_door["error"]
 
 
 def test_request_gateway_mode_success_persists_and_sets_sticky_intent(monkeypatch):

@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -41,16 +40,13 @@ except ImportError:
 
 from constants import (
     IBKR_AUTH_BACKOFF_SEC_INITIAL,
-    IBKR_HOST,
-    IBKR_PAPER_PORT,
-    IBKR_LIVE_PORT,
-    IBKR_CLIENT_ID,
     IBKR_MARKET_DATA_TYPE_DELAYED,
     IBKR_MARKET_DATA_TYPE_LIVE,
 )
 from ibkr import account_kind as _account_kind
 from ibkr import client_connect as _connect
-from ibkr import safety as _safety
+from ibkr.client_config import _resolve_config as _resolve_config  # noqa: F401 -- re-export
+from ibkr.client_config import reload_env_from_dotenv as reload_env_from_dotenv  # noqa: F401 -- re-export
 from ibkr import session_errors as _session_errors
 from ibkr import session_state as _session
 from ibkr.client_bridge import run_coro as run_coro  # noqa: F401 -- public re-export
@@ -65,6 +61,8 @@ _accept_connected_session = _account_kind.accept_connected_session
 _ib: "IB | None" = None
 _mode: str = "disconnected"
 _enabled: bool = False
+# False until the dialer's first pass has read IBKR_ENABLED (session_reconnect).
+_config_loaded: bool = False
 _broker_account_kind: str = "unknown"
 # IB managedAccounts() of the connected session: what Nova is logged into.
 _managed_account_ids: list[str] = []
@@ -227,24 +225,17 @@ async def _sleep_reconnect(delay: float) -> None:
         pass
 
 
-def _resolve_config() -> tuple[bool, str, int, str, int]:
-    """Return (enabled, host, port, mode_label, client_id) from env, never raises."""
-    enabled = os.environ.get("IBKR_ENABLED", "false").lower() in ("1", "true", "yes")
-    host = os.environ.get("IBKR_HOST", IBKR_HOST)
-    mode_label = _safety.gateway_mode()
-    if mode_label == "live":
-        port = int(os.environ.get("IBKR_LIVE_PORT", str(IBKR_LIVE_PORT)))
-    else:
-        port = int(os.environ.get("IBKR_PAPER_PORT", str(IBKR_PAPER_PORT)))
-    try:
-        client_id = int(os.environ.get("IBKR_CLIENT_ID", str(IBKR_CLIENT_ID)))
-    except (TypeError, ValueError):
-        client_id = int(IBKR_CLIENT_ID)
-    return enabled, host, port, mode_label, client_id
-
-
 def is_enabled() -> bool:
-    return _enabled
+    """IBKR_ENABLED as this process has it. Until the dialer's first pass has
+    read it, the env answers: a client that has not started is not disabled."""
+    if _enabled or _config_loaded:
+        return _enabled
+    return _resolve_config()[0]
+
+
+def is_starting() -> bool:
+    """IBKR_ENABLED is on, but the dialer has not read it yet (API start)."""
+    return not _config_loaded and not _enabled and _resolve_config()[0]
 
 
 def is_connected() -> bool:
@@ -286,7 +277,7 @@ def session_snapshot() -> dict[str, Any]:
         "unusable_since": _session_errors.unusable_since(),
         "last_connectivity_code": _session_errors.last_connectivity_code(),
         "mode": account_mode(),
-        "enabled": _enabled,
+        "enabled": is_enabled(),
         # Diagnostics for the exact freeze this instrumentation was added
         # for (PROBLEM_LOG 2026-08-31) -- one query instead of an hour of
         # log archaeology next time.
@@ -396,22 +387,6 @@ async def reconnect_loop() -> None:
     from ibkr.session_reconnect import reconnect_loop as _loop
 
     await _loop()
-
-
-def reload_env_from_dotenv() -> dict[str, str]:
-    """Reload root .env into os.environ (override=True). Returns resolved config."""
-    from dotenv import load_dotenv
-    from paths import env_file_path
-
-    load_dotenv(env_file_path(), override=True)
-    enabled, host, port, mode_label, client_id = _resolve_config()
-    return {
-        "enabled": str(enabled),
-        "host": host,
-        "port": str(port),
-        "gateway_mode": mode_label,
-        "client_id": str(client_id),
-    }
 
 
 async def force_reconnect() -> dict:
