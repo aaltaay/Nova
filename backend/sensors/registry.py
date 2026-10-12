@@ -44,6 +44,8 @@ SPECS: tuple[SensorSpec, ...] = (
                focus.read_focus),
     SensorSpec(20, "book-pulls", "Level 2 size filled vs pulled, pull patterns", "/sensors/book-pulls", "live",
                True, pulls.read_book_pulls),
+    SensorSpec(21, "big-sellers", "Big sellers on the ask, big buyers on the bid, just past the price",
+               "/sensors/big-sellers", "live", True, pulls.read_big_sellers),
 )
 
 SENSOR_IDS = tuple(spec.key for spec in SPECS)

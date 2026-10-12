@@ -1,0 +1,31 @@
+/* The held card's big-seller line (#846): one line under the header. Amber while a big seller (buyer) rests just
+   past the price, green when it was taken, muted when there is none, and the reason in plain words when there is
+   no read. */
+
+.sr-big {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 2px 0 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  color: var(--sr-secondary);
+  white-space: nowrap;
+}
+.sr-big__k {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #2c2f38;
+  color: #aab0c0;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.sr-big__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.sr-big--warn { background: rgba(245, 158, 11, 0.14); color: var(--sr-warn); font-weight: 700; }
+.sr-big--warn .sr-big__k { background: rgba(245, 158, 11, 0.25); color: var(--sr-warn); }
+.sr-big--good { background: rgba(48, 209, 88, 0.12); color: var(--sr-ok); font-weight: 700; }
+.sr-big--info { color: var(--sr-text); }
+.sr-big--quiet { color: var(--sr-muted); }
+.sr-big--absent { color: var(--sr-secondary); font-style: italic; }

@@ -15,6 +15,7 @@ import type { StockModeView, StockRead, StockSide } from './types';
 import { usePolledRead } from './useStockRead';
 import { heldMarkers } from './heldView';
 import type { FlushReading } from './useHeldTrade';
+import type { BigWalls } from './bigSeller';
 import { approvePlan, putStockMode, takeExit as postTakeExit, takeOverExit, withdrawApproval } from './whoTradesApi';
 import { level2Markers, orderLevels, type OrderLevels } from './whoTradesModel';
 import { normalizeStockMode } from './whoTradesNormalize';
@@ -61,6 +62,8 @@ interface Options {
   venue?: string | null;
   /** Trial T1's tape reading while you hold. */
   flush?: FlushReading | null;
+  /** The big sellers and buyers on the held Level 2 line (#846); null when unread. */
+  big?: BigWalls | null;
   /** The clock the moment reads instead of the wall's: the Sim playhead on a replay (epoch seconds). */
   clockNow?: number | null;
 }
@@ -89,7 +92,7 @@ function useStable<T>(value: T): T {
 }
 
 export function useWhoTrades({
-  symbol, live, read, riskUsd, ttlSec = null, position, last, venue: deskVenue = null, flush = null, clockNow
+  symbol, live, read, riskUsd, ttlSec = null, position, last, venue: deskVenue = null, flush = null, big = null, clockNow
 }: Options): WhoTradesState {
   const sym = symbol.trim().toUpperCase();
   // The view is the venue's own (ADR 037: a venue change clears every switch), so the old
@@ -136,7 +139,8 @@ export function useWhoTrades({
     ttlSec,
     held,
     flush: flush ? { at: flush.at, score: flush.score, label: flush.label } : null,
-  }), [live, read, view, position, riskUsd, ttlSec, held, flush]);
+    big,
+  }), [live, read, view, position, riskUsd, ttlSec, held, flush, big]);
   const inputs = useMemo<MomentInputs>(() => ({ ...base, last }), [base, last]);
   const clocked = useMemo<MomentInputs>(() => ({ ...inputs, now }), [inputs, now]);
 

@@ -216,6 +216,20 @@ def ladder_view(symbol: str, after_seq: int | None, now: float | None = None,
         }
 
 
+def big_reading(symbol: str, now: float | None = None) -> dict[str, Any] | None:
+    """The big sellers and buyers on one line (``big_seller.py``) with how fresh its book is; None when the
+    watcher has not seen a book for the symbol."""
+    now = time.time() if now is None else now
+    with _lock:
+        watch = _watches.get((symbol or "").upper())
+        if watch is None:
+            return None
+        age = None if watch.last_book_ts is None else now - watch.last_book_ts
+        return {"since": watch.since, "last_book_ts": watch.last_book_ts,
+                "last_book_age_sec": None if age is None else round(age, 3),
+                "watching": age is not None and age <= BOOK_WATCH_IDLE_SEC, **watch.big.reading(now)}
+
+
 def flags_since(since: float, symbol: str | None = None) -> list[dict[str, Any]]:
     """Every kept flag newer than ``since``, oldest first, for a poller."""
     sym = (symbol or "").upper() or None

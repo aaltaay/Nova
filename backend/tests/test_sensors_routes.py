@@ -26,6 +26,7 @@ SYMBOL_PATHS = (
     "/sensors/memory",
     "/sensors/regime",
     "/sensors/book-pulls",
+    "/sensors/big-sellers",
 )
 
 DESK_PATHS = (
@@ -50,14 +51,14 @@ def _assert_envelope(body: dict, sensor: str, *, symbol: str | None = None) -> N
         assert body.get("symbol") == symbol
 
 
-def test_catalog_lists_all_twenty():
+def test_catalog_lists_all_twenty_one():
     res = client.get("/sensors")
     assert res.status_code == 200
     body = res.json()
-    assert body["count"] == 20
+    assert body["count"] == 21
     keys = [row["sensor"] for row in body["sensors"]]
     assert keys == list(SENSOR_IDS)
-    assert len(list_catalog()) == 20
+    assert len(list_catalog()) == 21
 
 
 def test_each_symbol_sensor_is_callable():
@@ -75,12 +76,12 @@ def test_desk_sensors_are_callable():
         _assert_envelope(res.json(), path.rsplit("/", 1)[-1])
 
 
-def test_snapshot_returns_twenty():
+def test_snapshot_returns_twenty_one():
     res = client.get("/sensors/snapshot", params={"symbol": "AAPL"})
     assert res.status_code == 200
     body = res.json()
-    assert body["count"] == 20
-    assert len(body["sensors"]) == 20
+    assert body["count"] == 21
+    assert len(body["sensors"]) == 21
     keys = [row["sensor"] for row in body["sensors"]]
     assert keys == list(SENSOR_IDS)
 
