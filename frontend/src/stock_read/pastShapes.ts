@@ -5,9 +5,11 @@
  * it was building under -- fainter than the live lane, dashed, and labelled with how it ended and what
  * came next (`pastSetups.ts` has the words). Pure: episodes in, boxes out; every box carries its hover id.
  * Every label makes room (`sceneLabels.ts`): a trigger's result first, then the newest setup's, and how
- * one ended before any leg. A past flat top keeps its touches as faint rings (`pastRings`).
+ * one ended before any leg. A past flat top keeps its touches as faint rings (`pastRings`); a past pullback dip
+ * (#847, watch only) that bought keeps its pullback in faint pink.
  */
-import { FLAT_TOP_PAST_RING, PAST_COLORS, PAST_SHORT } from './constants';
+import { DIP_PAST, FLAT_TOP_PAST_RING, PAST_COLORS, PAST_SHORT } from './constants';
+import { isDipLane } from './dipShapes';
 import { flatTopTouches, isFlatTop } from './flatTopShapes';
 import type { SceneBox, SceneDot } from './sceneTypes';
 import { endOf, pastIconLabel, pastLabel, pastShortLabel, type Episode } from './pastSetups';
@@ -117,6 +119,11 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
       const openT = ep.setup?.detail?.open_t;
       box(typeof openT === 'number' ? openT : ep.started_at, end, low ?? leg.low, high, tone.fill, tone.stroke,
         `PMH · ${label}`, tone.ink, outcome, true);
+    } else if (isDipLane(type) && ep.setup) {
+      // A dip it bought (#847, watch only): its pullback in faint pink, from the leg high to the candle that bottomed
+      // it. A dip that died bought nothing and has no levels: the first pullback's past box shows that leg.
+      const pbLow = ep.setup.detail?.pullback_low;
+      box(leg.t + bar, end, typeof pbLow === 'number' ? pbLow : ep.setup.stop, leg.high, DIP_PAST.fill, DIP_PAST.stroke, `DIP · ${label}`, tone.ink, outcome, true);
     }
   }
   return boxes;

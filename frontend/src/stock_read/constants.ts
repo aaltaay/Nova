@@ -142,6 +142,32 @@ export const FLAT_TOP_FADED = {
 /** A past flat top's touches: rings as faint as its box. */
 export const FLAT_TOP_PAST_RING = { stroke: 'rgba(168, 85, 247, 0.45)', fill: 'rgba(216, 180, 254, 0.30)' } as const;
 
+/** The pullback dip (#847, watch only): pink, a colour no trade, level or other setup uses -- the pullback it
+ * waits in, and the candle that bottomed it (`dipShapes.ts`). Dimmed when it is not the plan's; a failed one grey. */
+export const DIP_COLORS = {
+  line: '#f472b6',
+  fill: 'rgba(244, 114, 182, 0.10)',
+  ring: '#fbcfe8',
+  candle: 'rgba(244, 114, 182, 0.16)',
+  text: '#f9a8d4',
+} as const;
+export const DIP_DIM = {
+  line: 'rgba(244, 114, 182, 0.5)',
+  fill: 'rgba(244, 114, 182, 0.05)',
+  ring: 'rgba(251, 207, 232, 0.5)',
+  candle: 'rgba(244, 114, 182, 0.08)',
+  text: 'rgba(249, 168, 212, 0.75)',
+} as const;
+export const DIP_FADED = {
+  line: '#8e8e93',
+  fill: 'rgba(142, 142, 147, 0.08)',
+  ring: 'rgba(142, 142, 147, 0.45)',
+  candle: 'rgba(142, 142, 147, 0.06)',
+  text: '#aeaeb2',
+} as const;
+/** A past dip that triggered: its pullback faint and dashed, pink. */
+export const DIP_PAST = { stroke: 'rgba(244, 114, 182, 0.5)', fill: 'rgba(244, 114, 182, 0.04)' } as const;
+
 /** A short setup that ended (ADR 049): its box orange and faint, its label ▼ SHORT in the outcome's ink. */
 export const PAST_SHORT = {
   stroke: 'rgba(249, 115, 22, 0.55)', fill: 'rgba(249, 115, 22, 0.05)',
@@ -163,6 +189,7 @@ export const LANE_LABELS: Record<string, string> = {
   flat_top_5m: 'FLAT 5M',
   red_to_green: 'R→G',
   gap_and_go: 'G&G',
+  pullback_dip: 'DIP',
   backside_lower_high: '▼ BACKSIDE',
   bear_flag: '▼ BEAR FLAG',
   failed_breakout: '▼ FAILED BO',

@@ -24,6 +24,7 @@ from constants_bot import (
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_LOST_VWAP,
+    BOT_SETUP_PULLBACK_DIP,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_SSR_BOUNCE,
     SIDE_LONG,
@@ -53,6 +54,7 @@ from setup_scanner.lane_params_short import (
 from setup_scanner.flat_top import FlatTopParams
 from setup_scanner.gap_and_go import GapAndGoParams
 from setup_scanner.pullback import PullbackParams
+from setup_scanner.pullback_dip import DipParams
 from setup_scanner.red_to_green import RedToGreenParams
 from setup_scanner.tape_flow import DEFAULT_FLOW, FlowParams, FlushPolicy
 from setup_scanner.tape_gate import GateParams
@@ -223,6 +225,23 @@ def gap_and_go_params(v: dict[str, Any]) -> GapAndGoParams:
     )
 
 
+def pullback_dip_params(v: dict[str, Any]) -> DipParams:
+    """The pullback dip (#847): the first pullback's run and pullback, its own entry candle and stop. No near band
+    and no slippage: nothing triggers on a live price, and the entry's cent over the close stands for the slippage."""
+    return DipParams(
+        leg_pct=_pct(v["leg_pct"]), leg_window=int(v["leg_window"]), leg_lookback=int(v["leg_lookback"]),
+        require_hod=bool(v["require_hod"]), min_pullback_bars=int(v["min_pullback_bars"]),
+        max_pullback_bars=int(v["max_pullback_bars"]), max_retrace=_pct(v["max_retrace"]),
+        ema_period=int(v["ema_period"]), ema_tol=_pct(v["ema_tol"]), **_macd(v),
+        stop_cap=float(v["stop_cap"]), min_stop=float(v["min_stop"]), entry_offset=float(v["entry_offset"]),
+        targets=target_spec(v), session_start=str(v["session_start"]), entry_cutoff=str(v["entry_cutoff"]),
+        max_per_symbol_day=int(v["max_per_symbol_day"]), entry_mode=str(v["dip_entry"]),
+        wick_min=_pct(v["dip_wick_min_pct"]), close_min=_pct(v["dip_close_min_pct"]),
+        wick_min_dollars=float(v["dip_wick_min_dollars"]), min_red=int(v["dip_min_red_bars"]),
+        stop_offset=float(v["dip_stop_offset"]),
+    )
+
+
 # Which builder reads which setup's values (the setups with a scanner).
 PATTERNS = {
     BOT_SETUP_FIRST_PULLBACK: pullback_params,
@@ -231,6 +250,7 @@ PATTERNS = {
     BOT_SETUP_FLAT_TOP_5M: flat_top_5m_params,
     BOT_SETUP_RED_TO_GREEN: red_to_green_params,
     BOT_SETUP_GAP_AND_GO: gap_and_go_params,
+    BOT_SETUP_PULLBACK_DIP: pullback_dip_params,
     BOT_SETUP_BACKSIDE: backside_params,
     BOT_SETUP_BEAR_FLAG: bear_flag_params,
     BOT_SETUP_FAILED_BREAKOUT: failed_breakout_params,

@@ -119,7 +119,8 @@ def lane_verdict(lane: dict[str, Any], spread: Any = None) -> dict[str, Any]:
     return verdict(grade=lane.get("grade"), pillars=pillar_count((lane.get("pillars") or {}).get("checks")),
                    filtered=(str(lane.get("reason") or "") or True) if state == "filtered" else None,
                    triggered=phase == "triggered", tape=lane.get("trigger_tape"), played_out=played,
-                   spread=spread, risk=setup.get("risk"), liquidity=lane.get("liquidity"))
+                   spread=spread, risk=setup.get("risk"), liquidity=lane.get("liquidity"),
+                   setup_type=lane.get("setup_type"))
 
 
 __all__ = ["STOCK_MODE_APPROVE", "STOCK_MODE_AUTO_ENTRY", "STOCK_MODE_BOT", "STOCK_MODE_SIGNAL", "lane_side",

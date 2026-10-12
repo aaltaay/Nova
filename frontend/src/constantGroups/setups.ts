@@ -46,6 +46,7 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
 /** What a setup's trigger is, where "the trigger" would say less: the alert card and the watch toasts. */
 export const SETUP_TRIGGER_LEVEL_WORDS: Record<string, string> = {
   red_to_green: 'open', flat_top_breakout: 'high', flat_top_5m: 'high', gap_and_go: 'pre-market high',
+  pullback_dip: 'dip candle\'s close',
   ...SHORT_TRIGGER_LEVEL_WORDS,
 };
 
@@ -60,6 +61,8 @@ export const SETUP_KIND_LABELS: Record<string, string> = {
   second_flat_top_5m: 'Second 5-minute flat top',
   red_to_green: 'Red to green',
   gap_and_go: 'Gap and Go',
+  pullback_dip: 'Pullback dip',
+  second_pullback_dip: 'Second pullback dip',
   ...SHORT_KIND_LABELS,
 };
 
@@ -77,6 +80,7 @@ export const SETUP_TYPE_STATE_LABELS: Record<string, Partial<Record<string, stri
   flat_top_5m: { leg: 'Pushing HOD', pullback: 'Base · held back', armed: '5m base', triggered: 'Held' },
   red_to_green: { leg: 'Red', pullback: 'Red · held back', armed: 'Red', near: 'Near the open', triggered: 'Reclaimed' },
   gap_and_go: { pullback: 'Open · held back', armed: 'Under the PMH', near: 'Near the PMH', triggered: 'Broke the PMH' },
+  pullback_dip: { leg: 'Leg up', pullback: 'Dipping', armed: 'Bottomed', triggered: 'Bought the dip' },
   ...SHORT_TYPE_STATE_LABELS,
 };
 
@@ -129,6 +133,13 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
     near: 'Price is a few cents under the pre-market high. The tape is read now: GO at the level is what makes a proposal.',
     triggered: 'Price traded over the pre-market high: Gap and Go. The scoreboard follows it from here. That was the day\'s one try.',
     failed: 'No break by the cutoff, a gap through the high at the open, or the try was spent.',
+  },
+  pullback_dip: {
+    leg: 'Watch only. A fresh high on a strong leg (the first pullback\'s run). The scanner now waits for the pullback, then the candle that bottoms it.',
+    pullback: 'Watch only. Pulling back by the first pullback\'s rules, waiting for the candle that bottoms it: a bottoming wick (a long lower wick, closing high in the candle) or the first green close after a red one — or that candle came and one rule holds it back (MACD, risk or the time of day). The reason says which.',
+    armed: 'Watch only. The candle that bottoms the pullback closed: bought a cent over its close, the stop a cent under the pullback\'s low, target 1 the pullback\'s high.',
+    triggered: 'Watch only: bought the dip at the close of the candle that bottomed the pullback. Nova never trades it — the scoreboard follows it with the strategy\'s exit and scores every target choice beside it.',
+    failed: 'The pullback broke a rule (a new high, half the leg given back, a close under the 9 EMA), ran too long without the entry candle, or its first green close came and went.',
   },
   ...SHORT_TYPE_STATE_TIPS,
 };
@@ -191,6 +202,7 @@ export const SETUP_FUNNEL_WORDS: Record<string, { forming: string; armed: string
   flat_top_5m: { forming: 'pushing HOD', armed: '5m bases', near: 'near', triggered: 'held' },
   red_to_green: { forming: 'red', armed: 'armed', near: 'near', triggered: 'reclaimed' },
   gap_and_go: { forming: 'held back', armed: 'under the PMH', near: 'near', triggered: 'broke out' },
+  pullback_dip: { forming: 'dipping', armed: 'bottomed', near: 'near', triggered: 'bought the dip' },
   ...SHORT_FUNNEL_WORDS,
 };
 export const SETUP_FUNNEL_TIPS = {

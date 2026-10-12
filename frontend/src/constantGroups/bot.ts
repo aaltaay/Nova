@@ -70,8 +70,10 @@ export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn it on on the Bots pa
 /* ---------- The playbook (ADR 027): the operator's setups ---------- */
 /** Mirrors backend/constants_bot.py BOT_SETUPS. */
 export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
-/** In the backend's order (constants_bot.BOT_SETUPS): the six long setups with a scanner, the five shorts
- * (ADR 049), then the one without a scanner. */
+/** The pullback dip (#847): watch only -- drawn and scored, never traded. */
+export const BOT_SETUP_PULLBACK_DIP = 'pullback_dip';
+/** In the backend's order (constants_bot.BOT_SETUPS): the six long setups with a scanner, the watch-only pullback
+ * dip (#847), the five shorts (ADR 049), then the one without a scanner. */
 export const BOT_SETUP_IDS = [
   'first_pullback',
   'bull_flag',
@@ -79,10 +81,26 @@ export const BOT_SETUP_IDS = [
   'flat_top_5m',
   'red_to_green',
   'gap_and_go',
+  'pullback_dip',
   ...SHORT_SETUP_IDS,
   'micro_pullback',
 ] as const;
 export type BotSetupId = (typeof BOT_SETUP_IDS)[number];
+
+/** Mirrors backend constants_bot.BOT_WATCH_ONLY_SETUPS (#847): the eyes watch, score and draw them; Nova never
+ * trades them -- no proposal, no bot, no Auto-entry, no Approve, and On is locked. */
+export const BOT_WATCH_ONLY_SETUP_IDS: readonly string[] = [BOT_SETUP_PULLBACK_DIP];
+export const isWatchOnlySetup = (id: string | null | undefined): boolean =>
+  id != null && BOT_WATCH_ONLY_SETUP_IDS.includes(id);
+/** A watch-only strategy's Eyes: it draws and scores, and never alerts. */
+export const BOT_WATCH_ONLY_LEVEL_TIP =
+  'Watch only: at Eyes Nova draws it on your charts, lists it under Setups and scores every trigger -- it never alerts you, and Nova never trades it. On is locked.';
+export const BOT_WATCH_ONLY_CHIP = 'Eyes · watch only';
+export const BOT_WATCH_ONLY_TAG = 'WATCH ONLY';
+export const BOT_WATCH_ONLY_STATUS = 'Watch only';
+/** On's lock when an older backend does not say it (the backend's words win). */
+export const BOT_WATCH_ONLY_ON_LOCK =
+  'On is locked: this strategy is watch only -- Nova draws and scores it, and never trades it (#847).';
 
 export const BOT_SETUP_LABELS: Record<string, string> = {
   first_pullback: 'First pullback',
@@ -91,6 +109,7 @@ export const BOT_SETUP_LABELS: Record<string, string> = {
   flat_top_breakout: 'Flat-top breakout',
   flat_top_5m: '5-minute flat top',
   red_to_green: 'Red to green',
+  pullback_dip: 'Pullback dip',
   micro_pullback: 'Micro pullback',
   ...SHORT_SETUP_LABELS,
 };
@@ -103,6 +122,7 @@ export const BOT_SETUP_SHORT: Record<string, string> = {
   flat_top_breakout: 'Flat-top',
   flat_top_5m: '5m flat top',
   red_to_green: 'Red to green',
+  pullback_dip: 'Dip',
   micro_pullback: 'Micro pullback',
   ...SHORT_SETUP_TAGS,
 };
@@ -115,6 +135,7 @@ export const BOT_SETUP_BLURBS: Record<string, string> = {
   flat_top_breakout: 'The high of day tapped 3+ times by tight candles under it, then the first green candle that holds the break.',
   flat_top_5m: 'The same flat top on the 5-minute chart, bought the way the material trades it: the first 1-minute candle that holds the break.',
   red_to_green: 'Trades below the 09:30 open, then back through it — buy the reclaim, one try a day.',
+  pullback_dip: 'Watch only: the first pullback\'s run and pullback, bought at the candle that bottoms it — a bottoming wick or the first green close — with the pullback\'s high as target 1.',
   micro_pullback: 'A 1-2 candle dip inside a fast move, read on seconds.',
   ...SHORT_SETUP_BLURBS,
 };
@@ -150,6 +171,11 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
   red_to_green: {
     verdict: 'failed', text: 'Bars alone: failed, -0.22R on 398 trades (P3).', detail: '−0.22R on 398 trades (P3)',
   },
+  pullback_dip: {
+    verdict: 'not_tested',
+    text: 'Never tested: watch only. Its rows and side-by-side target scores are its first evidence (#847).',
+    detail: 'watch only: its rows and target scores are its first evidence (#847)',
+  },
   micro_pullback: {
     verdict: 'not_tested', text: 'Not tested -- planned on one-second bars (S5).', detail: 'planned on one-second bars (S5)',
   },
@@ -172,7 +198,8 @@ export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot watch, propose 
 
 /** The setups this build has a scanner for -- mirrors backend constants_bot.BOT_SCANNER_SETUPS (ADR 031). */
 export const BOT_SCANNER_SETUP_IDS: readonly string[] = [
-  'first_pullback', 'bull_flag', 'flat_top_breakout', 'flat_top_5m', 'red_to_green', 'gap_and_go', ...SHORT_SETUP_IDS,
+  'first_pullback', 'bull_flag', 'flat_top_breakout', 'flat_top_5m', 'red_to_green', 'gap_and_go', 'pullback_dip',
+  ...SHORT_SETUP_IDS,
 ];
 /* A backend older than ADR 031 runs the first pullback only. The page says the backend needs a
    reload -- never "No scanner yet", which would say the feature is missing when it is not loaded. */

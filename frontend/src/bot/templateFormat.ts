@@ -146,6 +146,27 @@ function gapAndGoLines(v: Values, w?: TemplateBotWindow | null): [string, string
   ];
 }
 
+/** The pullback dip's entry candle (#847): a bottoming wick, or the first green close after the red. */
+function dipCandle(v: Values): string {
+  if (v.dip_entry === 'green') return `The first green close after ${num(v.dip_min_red_bars) ?? 1}+ red`;
+  return `A bottoming wick (lower wick ≥ ${trim(num(v.dip_wick_min_pct) ?? 0)}% of the candle and `
+    + `${money(num(v.dip_wick_min_dollars) ?? 0)}, closing ≥ ${trim(num(v.dip_close_min_pct) ?? 0)}% up it)`;
+}
+
+/** The pullback dip (#847): the first pullback's run, bought at the candle that bottoms it. Watch only: no bot. */
+function pullbackDipLines(v: Values): [string, string][] {
+  const setup = `Leg ≥ ${trim(num(v.leg_pct) ?? 0)}% to a new high${v.require_hod ? ' of day' : ''} · a `
+    + `${bars(num(v.min_pullback_bars), num(v.max_pullback_bars))} candle pullback (the entry candle included) that `
+    + `holds the ${ema(v)} and gives back < ${trim(num(v.max_retrace) ?? 0)}% of the leg`
+    + (v.macd_positive ? ' · MACD above zero' : '');
+  const entry = `${dipCandle(v)}, at its close +${money(num(v.entry_offset) ?? 0)} · arms ${v.session_start}–`
+    + `${v.entry_cutoff}`;
+  const trade = `Stop ${money(num(v.dip_stop_offset) ?? 0)} under the pullback's low · risk `
+    + `${money(num(v.min_stop) ?? 0)}–${money(num(v.stop_cap) ?? 0).replace('$', '')} · ${exitsLine(v)} · watch only: `
+    + 'scored, never traded';
+  return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', trade]];
+}
+
 /** The setup card's rule lines, from the template in play (and its bot window, when the API sends it). */
 export function ruleLines(setup: string, v: Values, botWindow?: TemplateBotWindow | null): [string, string][] {
   switch (setup) {
@@ -161,6 +182,8 @@ export function ruleLines(setup: string, v: Values, botWindow?: TemplateBotWindo
       return redToGreenLines(v, botWindow);
     case 'gap_and_go':
       return gapAndGoLines(v, botWindow);
+    case 'pullback_dip':
+      return pullbackDipLines(v);
     default:
       return shortRuleLines(setup, v, botWindow) ?? [];
   }
@@ -187,6 +210,10 @@ export function ruleSummary(setup: string, v: Values): string {
     case 'gap_and_go':
       return `Open under the pre-market high · break it by ${v.entry_cutoff} · stop ${money(num(v.stop_cents) ?? 0)} / `
         + `${trim(num(v.stop_pct) ?? 0)}%`;
+    case 'pullback_dip':
+      return `${v.dip_entry === 'green' ? 'First green close' : 'Bottoming wick'} in a `
+        + `${bars(num(v.min_pullback_bars), num(v.max_pullback_bars))} candle pullback off a ${trim(num(v.leg_pct) ?? 0)}%+ `
+        + 'leg · stop under the pullback low · watch only';
     default:
       return shortRuleSummary(setup, v) ?? '';
   }

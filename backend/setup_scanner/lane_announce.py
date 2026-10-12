@@ -16,6 +16,7 @@ import logging
 import uuid
 from typing import Any
 
+from constants_bot import watch_only
 from setup_scanner.grade import pillar_count
 from setup_scanner.lane_view import PROPOSAL_CLOSE_REASONS
 from setup_scanner.trade_verdict import verdict
@@ -47,12 +48,20 @@ def _taker(lane: Any, sym: str) -> str | None:
         return None
 
 
-def propose(lane: Any, sym: str, sid: str, res: dict, now: float) -> dict:
-    """Raise a proposal: the setup is near its trigger and the tape says go."""
+def silent(lane: Any) -> bool:
+    """A watch-only setup's lane (#847) proposes nothing and tells no one its triggers: its rows, scores, journal
+    lines and drawings are all it has."""
+    return watch_only(lane.p.setup)
+
+
+def propose(lane: Any, sym: str, sid: str, res: dict, now: float) -> dict | None:
+    """Raise a proposal: the setup is near its trigger and the tape says go (never on a watch-only setup)."""
+    if silent(lane):
+        return None
     row = lane.rows.get(sid) or {}
     spread = _spread(res)
     judged = verdict(grade=row.get("grade"), pillars=_count(row), spread=spread, risk=row.get("risk"),
-                     liquidity=row.get("liquidity"))
+                     liquidity=row.get("liquidity"), setup_type=lane.p.setup)
     not_a_trade = None if judged["ok"] else {"reasons": judged["reasons"]}
     prop = {"id": str(uuid.uuid4()), "setup_id": sid, "symbol": sym, "kind": row.get("kind"),
             "trigger": row.get("trigger"), "entry": row.get("entry_planned"), "stop": row.get("stop"),
@@ -95,9 +104,10 @@ def trigger(lane: Any, sym: str, sid: str, setup: dict, tape: dict | None, ts: f
     """The playing lane tells its host a setup triggered (ADR 030); a replay host has no ear for it.
 
     A setup the template's filter kept out is announced too, marked ``filtered``: Nova's bot
-    and Auto-entry say they skipped it, and why, instead of saying nothing."""
+    and Auto-entry say they skipped it, and why, instead of saying nothing. A watch-only setup's
+    (#847) is never announced: no bot, no Auto-entry and no Sim replay's bot ever hears it."""
     notify = getattr(lane.host, "on_trigger", None)
-    if not lane.playing or notify is None:
+    if not lane.playing or notify is None or silent(lane):
         return
     from setup_scanner.lane import slim
 

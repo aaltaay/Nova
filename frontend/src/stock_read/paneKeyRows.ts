@@ -9,7 +9,7 @@
 import { CHART_SESSION_COLORS } from '../constants';
 import { SHORT_SETUP_COLORS } from '../constantGroups/short_setups';
 import type { PaneKind } from './chartShapes';
-import { FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS, TREND_COLORS } from './constants';
+import { DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS, TREND_COLORS } from './constants';
 
 /** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, a box, a ring (a flat top's
  * touch), a triangle pointing up (its break), or a line rising or falling (a trend line). */
@@ -136,6 +136,19 @@ function flatTopRows(five = false): KeySection {
   };
 }
 
+/** The pullback dip's drawing (#847): watch only -- drawn and scored, never traded. */
+function dipRows(): KeySection {
+  const c = DIP_COLORS;
+  return {
+    title: 'Pullback dip (watch only: never traded)',
+    rows: [
+      { swatch: 'box', color: c.line, fill: c.fill, label: 'Dip', text: 'the pullback, from the leg high to the candle that bottoms it (dashed while it waits)' },
+      { swatch: 'ring', color: c.line, fill: c.ring, label: 'Bottom', text: 'a bottoming wick: the low the dip was bought from' },
+      { swatch: 'box', color: c.line, fill: c.candle, label: 'Entry candle', text: 'the bottoming wick or the first green close: bought at its close +1c' },
+    ],
+  };
+}
+
 function fiveMinuteRows(): KeySection {
   return {
     title: '5-minute setups (labels start "5m")',
@@ -181,7 +194,7 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
   if (kind === 'none') return [];
   const out: KeySection[] = [];
   if (kind === 'full') {
-    if (layers.setups) out.push(setupRows(), flatTopRows());
+    if (layers.setups) out.push(setupRows(), flatTopRows(), dipRows());
     out.push(planRows(true));
     if (layers.levels) out.push(minuteRows(), trendRows('1-minute'));
     if (layers.setups) out.push(fiveOnMinuteRows());

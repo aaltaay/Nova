@@ -5,15 +5,16 @@ state, writes nothing.
 
 Row: ``{symbol, setup_type, side, ssr, state, reason, kind, nth, setup_id, setup, leg,
 last_price, distance, grade, pillars, tape, proposal, outcome, bar_r, mfe, mae,
-failed_at}``; ``setups[]``: ``{id, side, test, level, chosen, proposing, template,
+failed_at}``; ``setups[]``: ``{id, side, test, level, chosen, proposing, watch_only, template,
 templates_watched, window: {start, end, state}, counts}`` (``test``: a short setup's five-year test, ADR 049;
-null on a long); the payload names its ``source`` (``live``) and the symbols it follows (``universe_symbols``).
+null on a long; ``watch_only``: the pullback dip, #847, which never proposes); the payload names its ``source``
+(``live``) and the symbols it follows (``universe_symbols``).
 """
 from __future__ import annotations
 
 from typing import Any
 
-from constants_bot import BOT_LEVEL_EYES
+from constants_bot import BOT_LEVEL_EYES, watch_only
 from constants_setups import SETUPS_SCHEMA_VERSION
 from scanner_wire import wire_safe
 from setup_scanner import short_tests
@@ -36,7 +37,8 @@ def setup_summary(lane: Any, lanes: list[Any], levels: dict, now: float, *, can_
     return {
         "id": setup, "side": lane.p.side, "test": short_tests.test(setup, lane.p.params_hash),
         "level": level, "chosen": levels.get("chosen") == setup,
-        "proposing": can_propose and level >= BOT_LEVEL_EYES,
+        "proposing": can_propose and level >= BOT_LEVEL_EYES and not watch_only(setup),
+        "watch_only": watch_only(setup),
         "template": template_view(lane),
         "templates_watched": sum(1 for other in lanes if other.setup == setup and not is_five_minute(other)),
         "window": {"start": start, "end": end, "state": window_state(now, start, end)},

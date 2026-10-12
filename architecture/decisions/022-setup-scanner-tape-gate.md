@@ -314,3 +314,29 @@ in two halves, and have the eyes score every target choice side by side.
 
 **Not changed.** What arms, triggers and proposes; the tape gate; the stop (a template may pick a round-number stop
 beside the pattern's, ADR 029 amendment). The bot's order side of the two halves is #681's.
+
+## Amendment 2026-10-12 -- the pullback dip, a watch-only setup (#847)
+
+**Context.** Operator ask 2026-10-12. The operator's material lists three entries for a pullback: the first candle
+to make a new high (section 1's first pullback buys that break), the first candle to close green, and the bottoming
+wick -- buying the dip -- and pairs a dip entry with the high of the pullback as the first target. Nova had no setup
+for the last two.
+
+**Decision.**
+- A new setup, `pullback_dip` (`setup_scanner/pullback_dip.py`, the entry candle `dip_candle.py`), on section 1's
+  lanes: the first pullback's run and pullback -- its leg, new high, high of day, gives back less than, 9 EMA and
+  MACD rules and numbers -- bought at the close of the candle that bottoms the pullback. A template picks the
+  entry: `wick` (the candle makes the pullback's low, its lower wick at least half its range and 2c, its close at
+  least 60% up it) or `green` (the first pullback candle to close over its open after a red one). Entry one cent
+  over that close, stop a cent under the pullback's low inside the first pullback's caps, target 1 the pullback's
+  high by default (the menu's `pullback_high`), target 2 the menu's default. It arms and triggers at that close, is
+  scored from that candle (no half on it, as a flat-top hold), and every target choice is scored beside it.
+- **Watch only** (`constants_bot.BOT_WATCH_ONLY_SETUPS`). Section 3 changes for it alone: it never proposes, its
+  trigger is told to no one (Nova's bot, Auto-entry and a Sim replay's bot never hear it), NOT A TRADE reads "watch
+  only" on it everywhere that rule is asked (the plan, Approve, the bot, Auto-entry), its On is refused (409
+  `BOT_SETUP_WATCH_ONLY`) and an older On reads as Eyes. At Eyes it is drawn; at Off it watches and scores in
+  silence, as every setup. The plan follows it only when no tradeable lane has something to show.
+
+**Not changed.** Every other setup; the tape gate (it reads the tape at the dip's close, for the record); the
+scoring and the side-by-side target scores, which it gets like every setup. Schema: `architecture/schema/setups.md`,
+"The pullback dip: a watch-only setup".

@@ -18,6 +18,7 @@ import {
   SETUP_TYPE_STATE_TIPS,
   SETUP_WINDOW_WORDS,
 } from '../constantGroups/setups';
+import { dipContextLine, dipLevelsLine, dipTriggerLines, isDip } from './dipWords';
 import { fmtCents, fmtPx, fmtR, isActionable, prose } from './setupsFormat';
 import { isShortRow, shortContextLine, shortOutcome, shortStateText, shortToGoTip, shortTriggerLines } from './shortWords';
 import { targetSentence } from './targets';
@@ -105,6 +106,7 @@ function contextLine(row: SetupRow): string {
   const leg = row.leg;
   if (!leg) return '';
   if (isShortRow(row)) return shortContextLine(row);
+  if (isDip(row)) return dipContextLine(leg, row.setup?.pullback_bars);
   const type = setupTypeOf(row);
   if (type === 'bull_flag') {
     const bars = leg.bars ? `${leg.bars} green candle${leg.bars === 1 ? '' : 's'}, ` : '';
@@ -129,6 +131,7 @@ function contextLine(row: SetupRow): string {
 function levelsLine(row: SetupRow): string {
   const s = row.setup;
   if (!s) return '';
+  if (isDip(row)) return dipLevelsLine(s);
   const waitingHold = holdMode(row) && row.state !== 'triggered';
   const minutes = holdOnMinutes(row);
   const short = isShortRow(row);
@@ -228,6 +231,7 @@ export function triggerWords(row: SetupRow): Words {
     };
   }
   if (isShortRow(row)) return { text: fmtPx(s.trigger), title: `Trigger · ${setupLabel(type)}`, tip: shortTriggerLines(row, s).join('\n') };
+  if (isDip(row)) return { text: fmtPx(s.trigger), title: `Dip close · ${setupLabel(type)}`, tip: dipTriggerLines(s).join('\n') };
   const what = TRIGGER_WORDS[type] ?? 'the level';
   const lines = [`Trigger ${fmtPx(s.trigger)}: ${what}. Trading over it starts the trade.`];
   if (holdMode(row)) {

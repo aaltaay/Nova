@@ -178,7 +178,7 @@ def _grade(t: dict[str, Any], rules: dict[str, Any]) -> dict[str, Any]:
     setup, tape = t.get("setup") or {}, t.get("tape") or {}
     spread = (tape.get("metrics") or {}).get("spread") if isinstance(tape.get("metrics"), dict) else None
     reasons = list(verdict(grade=t.get("grade"), spread=spread, risk=setup.get("risk"),
-                           liquidity=t.get("liquidity"))["reasons"])
+                           liquidity=t.get("liquidity"), setup_type=t.get("setup_type"))["reasons"])
     if t.get("grade"):
         block = strategy_rules.grade_block(t["grade"], rules["grades"])
         if block:

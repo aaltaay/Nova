@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 import constants_setups as cs
 from bot import strategy_rules
+from constants_bot import watch_only
 from setup_templates import catalogue
 from setup_templates.catalogue import TemplateError
 from setup_templates.store import TemplateStore, set_store_for_tests
@@ -57,6 +58,9 @@ def test_a_setups_number_is_its_nth_else_its_kind():
 def test_every_setup_with_a_scanner_has_the_two_bot_rules_at_their_defaults():
     for sid in cs.SETUPS_READOUT_KINDS:
         defaults = catalogue.defaults(sid)
+        if watch_only(sid):                        # #847: never traded, no bot rules
+            assert "bot_grades" not in defaults and "bot_setups_a_day" not in defaults, sid
+            continue
         assert defaults["bot_grades"] == "AB" and defaults["bot_setups_a_day"] == 1, sid
         specs = {s.key: s for s in catalogue.specs(sid)}
         assert specs["bot_grades"].group == specs["bot_setups_a_day"].group == catalogue.BOT_GROUP

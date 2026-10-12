@@ -28,11 +28,14 @@ describe("each chart pane's Key", () => {
 
   it("names the setups, the plan and the 1-minute candles' levels on the 1-minute", () => {
     expect(titles('full')).toEqual([
-      'Setups', 'Flat top', 'The plan', 'Levels from 1-minute candles (hover a label for why)',
+      'Setups', 'Flat top', 'Pullback dip (watch only: never traded)', 'The plan',
+      'Levels from 1-minute candles (hover a label for why)',
       'Trend lines from 1-minute candles (hover one for why)', 'From the 5-minute chart', 'Background (time of day, ET)',
     ]);
     expect(titles('full', { setups: false, levels: false })).toEqual(['The plan', 'Background (time of day, ET)']);
-    const levels = chartKey('full', ON)[3].rows.map(r => r.label);
+    const levels = chartKey('full', ON)[4].rows.map(r => r.label);
+    // #847: the watch-only pullback dip's marks, in its own pink.
+    expect(chartKey('full', ON)[2].rows.map(r => r.label)).toEqual(['Dip', 'Bottom', 'Entry candle']);
     expect(levels).toEqual(['Resistance', 'Support', 'Round number', 'Shaded band', 'Thick line']);
   });
 
