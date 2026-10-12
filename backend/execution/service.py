@@ -78,6 +78,7 @@ def _receipt_from_row(row: dict, *, duplicate: bool = False) -> ExecutionReceipt
         parent_order_id=row.get("parent_order_id"),
         target_order_id=row.get("target_order_id"),
         stop_order_id=row.get("stop_order_id"),
+        target2_order_id=payload.get("target2_order_id"),     # a second target's, in the payload (#681)
         broker_status=row.get("broker_status"),
         duplicate=duplicate,
         timings=timings,
@@ -239,7 +240,7 @@ async def execute(
         # no Nova-originated spend of any source, so manual ticket places and
         # Nova Action hotkeys (which pass skip_risk=True) are refused too.
         # Only protective sources may still reach the broker.
-        if cmd.operation in ("place", "bracket") and cmd.source not in (
+        if cmd.operation in ("place", "bracket", "exit_oco") and cmd.source not in (
             "kill", "flatten", "cancel_working",
         ):
             import kill_switch as _kill_switch
@@ -255,9 +256,9 @@ async def execute(
             from bot.buy_lock import buy_refusal
 
             # This venue's all-stop (spec D): its own line, its own lock, until 04:00 ET. A cover is a
-            # close and is never locked (ADR 048 gap 3).
+            # close and is never locked (ADR 048 gap 3) -- an exit pair's BUYs only ever cover (#681).
             locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry),
-                                 covers=_validate.covers_short(cmd))
+                                 covers=cmd.operation == "exit_oco" or _validate.covers_short(cmd))
             if locked is not None:
                 timings.validation_completed_ns = time.perf_counter_ns()
                 return _reject(execution_id, cmd, timings, locked["text"], locked["code"])

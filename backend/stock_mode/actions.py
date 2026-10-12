@@ -171,7 +171,9 @@ async def take_exit(symbol: str, body: dict[str, Any], *, now: float | None = No
     """Nova takes the exit of the shares you hold (``exit_trade.take``): Paper, and Sim at the live edge or on a
     loaded replay."""
     now = runner.clock() if now is None else now
-    out = await exit_trade.take(symbol, stop=body.get("stop"), trail=bool(body.get("trail", True)), now=now)
+    out = await exit_trade.take(symbol, stop=body.get("stop"), trail=bool(body.get("trail", True)), now=now,
+                                target=body.get("target"), target2=body.get("target2"),
+                                target1_fraction=body.get("target1_fraction"))
     _acted(now)
     return out
 

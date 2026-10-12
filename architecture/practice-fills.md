@@ -196,6 +196,17 @@ the same shape:
 - **One-cancels-other.** One exit filling cancels the other, at the same
   moment: `Cancelled`, `PRACTICE_OCO_CANCELLED`, "One-cancels-other: the
   target filled" (or "the stop filled").
+- **Two halves** (#681). A bracket sent with `target2_price` + `target1_qty`
+  has a second target (`leg_role: "target2"`; ids entry, target 1, target 2,
+  stop), each target its half, the stop every share. The stop's fill cancels
+  both targets; a target's fill shrinks the stop to the shares left at the
+  same price and leaves the other target working; the target that sells the
+  last shares spends the stop, which is cancelled (`PRACTICE_OCO_CANCELLED`).
+  The shrink is derived from the target's `filled` event (no new event type),
+  so a rewind before it restores the whole stop. The exit-only pair
+  (`PracticeBroker.place_exit_oco`) is the same group for shares already held:
+  no entry, nothing waits, group `oca-<stop id>`. Live's shape: one IBKR OCA
+  group per half, reduce on fill (`architecture/schema/execution.md`).
 - **The entry takes its exits.** An entry that closes unfilled -- cancelled by
   the operator, refused by the venue at the fill (`order_rules.fill_refusal`),
   or expired -- cancels the exits waiting on it: `Cancelled`,

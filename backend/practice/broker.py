@@ -193,6 +193,8 @@ class PracticeBroker:
         short_entry: bool = False,
         origin: str | None = None,
         good_for_sec: float | None = None,
+        target2_price: float | None = None,
+        target1_qty: float | None = None,
     ) -> dict[str, Any]:
         """Place the bracket Live sends: a LMT entry, then exits that wait on it (``practice.bracket``).
 
@@ -202,7 +204,9 @@ class PracticeBroker:
         ``place``; they rest ``PreSubmitted`` until the entry fills. Consecutive ids,
         entry first, as IBKR allocates them -- three, or two for a short with no
         target. A marketable entry fills at once, which wakes the exits. ``good_for_sec`` is the
-        entry's own expiry (#816): the exits keep the TIF's close.
+        entry's own expiry (#816): the exits keep the TIF's close. Two halves (#681): ``target2_price``
+        sells all but ``target1_qty`` -- one more exit, after the first target's id -- and a target's fill
+        shrinks the stop to the shares left.
         """
         del outside_rth  # practice orders are always live; there is no session gate
         sym = (symbol or "").strip().upper()
@@ -214,7 +218,8 @@ class PracticeBroker:
                 "short_entry requires side=SELL" if short_entry else f"side must be BUY or SELL, not {side!r}",
                 "SIDE_INVALID")
         short = side_u == "SELL"
-        shape = bracket.shape_error(qty, entry_price, target_price, stop_price, short=short)
+        shape = bracket.shape_error(qty, entry_price, target_price, stop_price, short=short,
+                                    target2=target2_price, target1_qty=target1_qty)
         if shape is not None:
             return self._bracket_refused(*shape)
         qty_f = float(qty)
@@ -243,12 +248,14 @@ class PracticeBroker:
             )
         parent_id = self.ledger.alloc_id()
         target_id = self.ledger.alloc_id() if target_price is not None else None
+        target2_id = self.ledger.alloc_id() if target2_price is not None else None
         stop_id = self.ledger.alloc_id()
         entry_side = side_u
         parent = self._row(parent_id, sym, entry_side, qty_f, "LMT", entry_price, None, now, source, bot_id, tif_u,
                            origin=origin, short_entry=short)
         parent.update(bracket.leg_fields(parent_id, PRACTICE_LEG_PARENT))
-        exits = bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price)
+        exits = bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price, target2_id=target2_id,
+                                  target2=target2_price, target1_qty=target1_qty)
         for leg in exits:
             leg.update(order_rules.exit_side_fields(parent))
         parent.update(order_rules.good_for_fields(parent, good_for_sec))  # the entry's alone: exits keep the TIF's
@@ -261,8 +268,82 @@ class PracticeBroker:
         current = self.ledger.order_row(parent_id) or parent
         return {
             "ok": True, "order_id": parent_id, "parent_order_id": parent_id,
-            "target_order_id": target_id, "stop_order_id": stop_id, "error": None,
+            "target_order_id": target_id, "target2_order_id": target2_id, "stop_order_id": stop_id, "error": None,
             "mode": self.venue, "nova_placed_at": parent["nova_placed_at"], **answer_facts(current),
+        }
+
+    def place_exit_oco(
+        self,
+        symbol: str,
+        side: str,
+        qty: float,
+        stop_price: float,
+        target_price: float,
+        *,
+        target2_price: float | None = None,
+        target1_qty: float | None = None,
+        tif: str | None = None,
+        source: str = "manual",
+        bot_id: str | None = None,
+        origin: str | None = None,
+    ) -> dict[str, Any]:
+        """The exit-only pair (#681): for shares the ledger already holds, a STP for every share and a LMT per
+        half on the same side, one group (``bracket.exit_pair_rows``) -- the stop's fill cancels the targets, a
+        target's shrinks the stop to the shares left.
+
+        A SELL pair closes a long, a BUY pair covers a short; a pair past what is held -- or a BUY pair with
+        nothing short -- is refused, as the execution door refuses it (``execution.exit_oco``). Ids: the stop,
+        then each target. A leg already through the market fills at once, the stop first.
+        """
+        from constants_practice import EXIT_OCO_NOT_A_CLOSE_CODE, PRACTICE_OVERCOVER_CODE, PRACTICE_OVERCOVER_REASON
+        from execution.exit_oco import shape_error
+
+        sym = (symbol or "").strip().upper()
+        side_u = (side or "").strip().upper()
+        shape = shape_error(side=side_u, qty=qty, stop=stop_price, target1=target_price, target2=target2_price,
+                            target1_qty=target1_qty)
+        if shape is not None:
+            return self._bracket_refused(*shape)
+        tif_u = order_rules.normalize_tif(tif)
+        if tif_u is None:
+            return self._bracket_refused(order_rules.TIF_REASON, PRACTICE_TIF_INVALID_CODE)
+        ok, reason, code = self.reference.admission(sym)
+        if not ok:
+            return self._bracket_refused(reason, code)
+        qty_f, held = float(qty), self.ledger.held_qty(sym)
+        if side_u == "SELL" and order_rules.opening_short(held, side_u, qty_f):
+            return self._bracket_refused(PRACTICE_NO_SHORTS_REASON, PRACTICE_NO_SHORTS_CODE)
+        if side_u == "BUY" and held > -_EPS:
+            return self._bracket_refused(f"an exit pair's BUYs cover a short: no {sym} short",
+                                         EXIT_OCO_NOT_A_CLOSE_CODE)
+        if side_u == "BUY" and qty_f > -held + _EPS:
+            return self._bracket_refused(PRACTICE_OVERCOVER_REASON, PRACTICE_OVERCOVER_CODE)
+        now = self.reference.now_ts()
+        self.ledger.rollover(now)
+        stop_id = self.ledger.alloc_id()
+        target_id = self.ledger.alloc_id()
+        target2_id = self.ledger.alloc_id() if target2_price is not None else None
+        stop_row = self._row(stop_id, sym, side_u, qty_f, "STP", None, stop_price, now, source, bot_id, tif_u,
+                             origin=origin)
+        legs = bracket.exit_pair_rows(stop_row, target_id, target_price, target2_id=target2_id,
+                                      target2=target2_price, target1_qty=target1_qty)
+        for leg in legs:
+            self.ledger.place(leg, ts=now, source=source, bot_id=bot_id)
+        ref = self.reference.reference(sym)
+        for oid in (stop_id, target_id, target2_id):
+            row = self.ledger.working_row(oid) if oid is not None else None
+            if row is None:
+                continue      # filled or closed by a leg before it
+            fill = fill_model.at_placement(side_u, row["order_type"], ref, limit=row["limit_price"],
+                                           stop=row["stop_price"])
+            if fill is not None:
+                self._settle(oid, now, fill)
+        self._commit()
+        current = self.ledger.order_row(stop_id) or stop_row
+        return {
+            "ok": True, "order_id": stop_id, "stop_order_id": stop_id, "target_order_id": target_id,
+            "target2_order_id": target2_id, "parent_order_id": None, "error": None, "mode": self.venue,
+            "nova_placed_at": stop_row["nova_placed_at"], **answer_facts(current),
         }
 
     def cancel(self, order_id: int, *, source: str = "manual", bot_id: str | None = None) -> dict[str, Any]:

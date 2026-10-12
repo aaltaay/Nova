@@ -177,6 +177,31 @@ def test_a_short_trigger_enters_a_short_bracket_and_covers_at_the_target(paper):
     assert load_session()["bot_qty"] == {} and paper.broker.ledger.held_qty(SYM) == 0.0
 
 
+def test_a_short_covers_in_two_halves_its_buy_stop_left_where_it_is(paper):
+    """#681: half covered at target 1, the rest at target 2 under it; the buy stop shrinks, never moves."""
+    from bot.autonomy import apply_patch
+
+    apply_patch({"caps": {"max_shares": 4}}, desk=True)
+    runner.submit(trigger(paper, setup={"target2": 3.50, "target1_fraction": 0.5}))
+    trade = tick(paper)
+    assert trade["state"] == "open" and trade["qty"] == 4.0
+    t1, t2, stop = (leg(paper, trade[k]) for k in ("target_order_id", "target2_order_id", "stop_order_id"))
+    assert (t1["side"], t1["limit_price"], t1["qty"]) == ("BUY", 3.71, 2)
+    assert (t2["side"], t2["limit_price"], t2["qty"]) == ("BUY", 3.50, 2)
+    assert (stop["side"], stop["stop_price"], stop["qty"]) == ("BUY", 4.13, 4)
+    paper.broker.try_fill_working(SYM, [(paper.now + 10, 3.70)])
+    trade = tick(paper, paper.now + 11)
+    assert trade["state"] == "open" and trade["qty"] == 2.0 and load_session()["bot_qty"] == {SYM: -2.0}
+    assert (leg(paper, trade["stop_order_id"])["qty"], leg(paper, trade["stop_order_id"])["stop_price"]) == (2, 4.13)
+    paper.broker.try_fill_working(SYM, [(paper.now + 20, 3.49)])
+    trade = tick(paper, paper.now + 21)
+    assert (trade["state"], trade["exit_reason"]) == ("closed", "target")
+    assert [(h["leg"], h["qty"], h["price"]) for h in trade["halves"]] == [("target1", 2.0, 3.71),
+                                                                            ("target2", 2.0, 3.50)]
+    assert trade["exit_price"] == pytest.approx(3.605) and trade["r"] == pytest.approx(2.75)
+    assert paper.broker.ledger.held_qty(SYM) == 0.0 and load_session()["bot_qty"] == {}
+
+
 def test_a_short_whose_buy_stop_prints_is_covered_at_the_ask(paper):
     runner.submit(trigger(paper))
     trade = tick(paper)

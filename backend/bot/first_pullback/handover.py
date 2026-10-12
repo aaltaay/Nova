@@ -71,10 +71,11 @@ async def hand_over(symbol: str, now: float | None = None) -> dict[str, Any]:
     for leg, _receipt in refused:
         row = orders.order_row(trade[leg])
         if orders.order_state(row) == "filled":      # it filled as the operator reached for it
-            reason = "target" if leg == "target_order_id" else "stop"
-            run._close(trade, now, reason, run._num((row or {}).get("avg_fill_price"))
-                       or float(trade["target1" if reason == "target" else "stop"]))
-            return dict(load_session().get("trade") or trade)
+            done = run._leg_fill(trade, now)         # the last shares -- or a first half, the rest still handed
+            if done is not None:
+                run._close(trade, now, done[0], done[1], leg=done[2])
+                return dict(load_session().get("trade") or trade)
+    refused = [(leg, r) for leg, r in refused if orders.order_state(orders.order_row(trade[leg])) != "filled"]
     if refused:
         still = ", ".join(f"the {leg.split('_')[0]} ({orders.receipt_error(r)})" for leg, r in refused)
         audit(action=BOT_AUDIT_ACTION_TRADE, outcome="note", inputs=run._summary(trade),
@@ -82,8 +83,11 @@ async def hand_over(symbol: str, now: float | None = None) -> dict[str, Any]:
                      "the bot keeps the trade")
         raise BotError(f"{still} could not be cancelled and still rests: the bot keeps {sym}'s trade -- try again, "
                        "or flatten", 409, STOCK_MODE_SEND)
-    trade.update(state="handed", target_order_id=None, stop_order_id=None, exit_reason="handed", closed_ts=now,
-                 note="you took over the exit: the bot no longer sells it")
+    from bot.first_pullback import halves
+
+    halves.book(trade, "handed", float(trade["qty"]), None, now)   # where the rest went (#681): to you
+    trade.update(state="handed", target_order_id=None, target2_order_id=None, stop_order_id=None,
+                 exit_reason="handed", closed_ts=now, note="you took over the exit: the bot no longer sells it")
     adjust_bot_qty(trade["symbol"], -float(trade["qty"]))
     run._save(trade)
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="handed", reason=f"you took over the exit of {sym}: the bot "

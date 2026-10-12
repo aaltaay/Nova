@@ -227,6 +227,8 @@ PRACTICE_OVERCOVER_REASON = "A cover never buys past flat: Nova never turns a sh
 PRACTICE_LEG_PARENT = "parent"
 PRACTICE_LEG_TARGET = "target"
 PRACTICE_LEG_STOP = "stop"
+# The second half's target (#681, #845): a bracket or an exit pair that sells in two halves.
+PRACTICE_LEG_TARGET2 = "target2"
 # An exit waits for its entry in IBKR's own word for an order that is held,
 # not yet working; the entry's fill makes it "Submitted".
 PRACTICE_ORDER_STATUS_WAITING = "PreSubmitted"
@@ -237,9 +239,28 @@ PRACTICE_OCA_GROUP_PREFIX = "oca-"
 PRACTICE_OCO_CANCELLED_CODE = "PRACTICE_OCO_CANCELLED"
 PRACTICE_OCO_CANCELLED_REASONS = {
     PRACTICE_LEG_TARGET: "One-cancels-other: the target filled",
+    PRACTICE_LEG_TARGET2: "One-cancels-other: the second target filled",
     PRACTICE_LEG_STOP: "One-cancels-other: the stop filled",
 }
 PRACTICE_OCO_CANCELLED_REASON_DEFAULT = "One-cancels-other: the other exit filled"
+
+# ---------------------------------------------------------------------------
+# The exit-only pair (#681): a stop and one or two targets for shares already held
+# ---------------------------------------------------------------------------
+# ``operation: "exit_oco"`` sells (a cover: buys) shares the venue already holds: a STP for every
+# share and a LMT per half, one group, committed once. A target's fill shrinks the stop to the shares
+# left (it stays where it is); the stop's fill cancels the targets. Paper and Sim only until Live's
+# proof (#606): Live -- and a bracket that sells in two halves -- is refused with this code.
+EXIT_OCO_LIVE_CODE = "EXIT_OCO_LIVE"
+EXIT_OCO_LIVE_REASON = ("Live's exit pair -- a stop with targets beside it, or a bracket that sells in two "
+                        "halves -- waits on its Live proof (#606): nothing was sent")
+EXIT_OCO_FIELDS_CODE = "EXIT_OCO_FIELDS"
+EXIT_OCO_GEOMETRY_CODE = "EXIT_OCO_GEOMETRY"
+# A pair that would open a position instead of closing one (a BUY pair with nothing short).
+EXIT_OCO_NOT_A_CLOSE_CODE = "EXIT_OCO_NOT_A_CLOSE"
+# The first half's share of the position when a second target is set and the caller names none
+# (the operator's material: half at target 1, the rest at target 2).
+EXIT_TARGET1_FRACTION_DEFAULT = 0.5
 # The entry closed unfilled -- cancelled by the operator, refused by the venue at
 # the fill, or expired -- so the venue cancelled the exits that waited on it.
 PRACTICE_PARENT_CANCELLED_CODE = "PRACTICE_PARENT_CANCELLED"

@@ -53,6 +53,17 @@ Operator decision on #91: GTC persists from Settings and the manual ticket may a
 - **A bracket no longer skips the place gates.** Whole-share qty, `side` consistent with `short_entry`, leg prices on the correct side of the entry, BuyingPower for a long entry (the same check a Limit BUY place gets), and no long bracket while the account is short that symbol (its exit legs would re-open the short). This also applies to strategy-executor brackets, which previously reached the broker without the BuyingPower check. Protective sources may not send a bracket, and a spend command with a `source` outside the ADR's list (for example `auto_live`) is refused `SOURCE_INVALID`.
 - **Known limitation, unchanged by this change:** bracket child legs are not in-flight commitments (`execution/inflight.py` tracks the parent only), and `replace` on a child resends it without `parentId`. Both predate #91 for executor brackets.
 
+## The exit-only pair and two halves (2026-10-12, #681)
+
+Operator ask (2026-10-12): follow the material's exits -- sell in two halves, the stop where it is after the first half -- and let Nova rest a target beside its exit stop on a stock you already hold. Until now the in-flight commitments refused a second SELL of shares already committed, and a one-cancels-other group existed only as a bracket's exits, built with an entry. Decided:
+
+- **One more operation on the one door**, `exit_oco`: for shares the venue already holds, a stop for every share and one or two limits on the same side (`target_price`, and `target2_price` with `target1_qty` for two halves), checked and committed once under the lock -- not two places, not a carve-out from the commitment rule. Any other close of the same shares is still refused (`OVERSELL` / `OVERCOVER`). A short's pair is the mirror (BUYs that cover; a cover is a close, never locked).
+- **The first fill cancels or reduces the others**: the stop's fill cancels the targets; a target's fill shrinks the stop to the shares left, at the same price. The stop's quantity is always the shares still held; it is never moved to the entry by the venue.
+- **A bracket takes the same two halves** (`target2_price` + `target1_qty`), the bot's entry. No second target: every share at target 1, as before.
+- **Paper and Sim only** until Live's proof (#606): Live refuses both `EXIT_OCO_LIVE`. Live's shape is written down (`architecture/schema/execution.md`, "The exit-only pair and two halves"): one IBKR OCA group per half, reduce on fill, never one group of every leg.
+
+Rejected: a second SELL allowed past the commitment for "Nova's own" orders (the rule exists so nothing sells twice; a label must never open it); one IBKR OCA group of all legs (reduce-on-fill would cancel target 2 at target 1's fill); a new practice ledger event for the shrink (it would need a `schema_version` bump that archives the running Paper account -- the shrink is derived from the target's own fill event instead).
+
 ## Rejected alternatives
 
 - Separate paper vs live code paths
