@@ -12,7 +12,7 @@ import {
 /**
  * The bot's read on one stock (ADR 036) on the live Trader route with a mocked API: APUS at 15:03
  * ET on 2026-09-24, the bull flag's pole up and one flag candle closed. The rail carries the plan
- * and the tiles; the 1-minute chart the flag, the plan's zones and the legend; the sheet every
+ * and the tiles; the 1-minute chart the flag, the plan's strategy box and the legend; the sheet every
  * signal, the day and the history. `NOVA_E2E_SHOTS=<dir>` saves screenshots for a visual check.
  */
 

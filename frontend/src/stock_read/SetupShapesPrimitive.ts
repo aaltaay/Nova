@@ -11,8 +11,9 @@
  * names, the lines' tags (`words`: the EMAs, VWAP, the plan's ENTRY / STOP / TARGET) and the tags for prices out
  * of view. The Full Day pane's +40% runs are marks: an arrow over the day's high and a label that makes room. A flat
  * top's touches are rings on their candles' highs, and its break a mark pointing up (2026-10-06). A trend line
- * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length. A setup that is
- * only forming is its strategy box (2026-10-12, `strategyBoxRender.ts`), its window counted in candles past the newest.
+ * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length. A setup's plan with
+ * only the plan behind it is its strategy box (2026-10-12, `strategyBoxRender.ts`), past the newest candle (a forming
+ * one's window counted in candles from it).
  * Nova's LULD band (2026-10-12, `luldRender.ts`) steps inside the candle where it moved, at its share of the minute.
  */
 import { MismatchDirection } from 'lightweight-charts';
@@ -231,7 +232,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const cy = tr.broke ? y(tr.broke.price) : null;
       trends.push({ x1, y1, x2, y2, xe, ye, pe, rings, cross: cx !== null && cy !== null ? { x: cx, y: cy } : null, tr });
     }
-    // A forming setup's box: after the newest candle, its window counted in candles from it (`strategyBox.ts`).
+    // A setup's box: after the newest candle, a forming one's window counted in candles from it (`strategyBox.ts`).
     let strategy: StrategyPx | null = null;
     const st = this.scene.strategy ?? null;
     if (st) {
@@ -245,7 +246,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const [ye, ys, yt] = [y(st.entry), y(st.stop), y(st.target)];
       if (xa !== null && ye !== null && ys !== null && yt !== null) {
         strategy = { xAfter: xa + half, xStart: at(st.startBars), xEnd: at(st.endBars), bar: 2 * half, yEntry: ye,
-          yStop: ys, yTarget: yt, s: st };
+          yStop: ys, yTarget: yt, yTarget2: st.target2 === null ? null : y(st.target2), s: st };
       }
     }
     // The LULD band: a step's ends inside their candles, at their share of the candle's width.

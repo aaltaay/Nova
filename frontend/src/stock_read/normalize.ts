@@ -169,6 +169,7 @@ export function normalizeSetupLevels(raw: unknown): SetupLevels | null {
     leg_low: num(s.leg_low) ?? undefined,
     pullback_bars: num(s.pullback_bars) ?? undefined,
     armed_bar_t: num(s.armed_bar_t) ?? undefined,
+    armed_at: num(s.armed_at) ?? undefined,
     triggered_at: num(s.triggered_at) ?? undefined,
     trigger_price: num(s.trigger_price) ?? undefined,
     detail: obj(s.detail),

@@ -129,12 +129,14 @@ describe('the 1-minute pane frames both targets', () => {
     expect(planFrame(null, 4.52, 4.80)).toBeNull();
   });
 
-  it('keeps target 2 in view, so it is a line on the chart with its own title', () => {
+  it("frames a plan alone to target 1: its box shows target 2, and the axis keeps target 2's tag", () => {
+    // Operator ask 2026-10-12: a setup's plan with nothing behind it is its strategy box, never a frame to target 2.
     const read = pfsaRead('armed', HALVES);
     const draw = paneDraw(read, { pane: 'full', layers: LAYERS, toTime: t => t as never });
-    expect(draw.scene.keepInView).toEqual({ min: 4.14, max: 4.80 });
+    expect(draw.scene.keepInView).toEqual({ min: 4.14, max: 4.52 });
+    expect(draw.scene.strategy).toMatchObject({ target: 4.52, target2: 4.80 });
     const t2 = draw.lines.find(l => l.id === 'target2');
-    expect(t2).toMatchObject({ price: 4.80, title: 'TARGET 2 · plan', axisLabel: true });
+    expect(t2).toMatchObject({ price: 4.80, title: '', axisLabel: true, line: false });
     const one = paneDraw(pfsaRead('armed'), { pane: 'full', layers: LAYERS, toTime: t => t as never });
     expect(one.scene.keepInView).toEqual({ min: 4.14, max: 4.52 });
   });

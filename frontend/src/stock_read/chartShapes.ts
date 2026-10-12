@@ -19,8 +19,10 @@
  * estimated: every price is the scanner's, the read's or Nova's order's own.
  * A setup plan on a stock too thin to trade (2026-10-01) draws no plan: no zones, no plan-only lines, its
  * lane faded like the others -- an order that stands behind a level is still drawn.
- * A setup plan that is only forming (operator ask 2026-10-12) draws on the 1-minute pane its strategy box alone
- * (`strategyBox.ts`): no zones, no plan lines, and a frame from its stop to target 1, never to target 2.
+ * A setup plan with only the plan behind its levels (operator asks 2026-10-12) draws on the 1-minute pane its strategy
+ * box (`strategyBox.ts`), faint while forming and in full colour once near, armed or triggered: no zones, no line across
+ * the pane, and a frame from its stop to target 1, never to target 2. Once armed its prices keep their axis tags (price
+ * lines drawn without the line); a forming one's are the box's words alone.
  */
 import type { Time } from 'lightweight-charts';
 import { SHORT_SETUP_CHIPS } from '../constantGroups/short_setups';
@@ -34,7 +36,7 @@ import { laneHoverId, laneOnMinute, levelsOf } from './laneShapes';
 import { pastRings, pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, planFrame, setupName } from './planMath';
 import { thinPlan } from './planVerdict';
-import { formingPlan, strategyOf, strategyWords } from './strategyBox';
+import { boxedPlan, formingPlan, strategyOf, strategyWords } from './strategyBox';
 import { trendScene } from './trendLines';
 import type { Scene, SceneBox, SceneDot, SceneMark, SceneWord } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
@@ -54,6 +56,8 @@ export interface PriceLineSpec {
   style: 'solid' | 'dashed' | 'dotted';
   title: string;
   axisLabel: boolean;
+  /** False: the axis tag alone, no line across the pane (a boxed plan's levels, 2026-10-12). Absent: drawn. */
+  line?: boolean;
 }
 
 export interface PaneDraw {
@@ -147,7 +151,8 @@ function target2Of(plan: StockPlan | null, lv: OrderLevels): OrderLevel | null {
   return plan?.target2 != null ? planOnly(plan.target2) : null;
 }
 
-function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): PriceLineSpec[] {
+/** The plan's lines; `axisOnly` keeps only their axis tags (a boxed plan on the 1-minute pane: the box names them). */
+function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind, axisOnly = false): PriceLineSpec[] {
   const out: PriceLineSpec[] = [];
   const thin = pane !== 'full';
   const short = plan?.side === 'short';
@@ -160,8 +165,10 @@ function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): Pri
       color,
       width: thin || id === 'target2' ? 1 : 2,
       style: level.behind === 'plan' ? 'dashed' : 'solid',
-      title: thin ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)` : levelTitle(id, level.behind, short),
+      title: thin || axisOnly ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)`
+        : levelTitle(id, level.behind, short),
       axisLabel: !thin,
+      ...(axisOnly ? { line: false } : {}),
     });
   };
   add('entry', lv.entry, SETUP_COLORS.trigger);
@@ -209,11 +216,14 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   const lines: PriceLineSpec[] = [];
   const held = read.held;
   const lv = held ? null : drawnLevels(plan, o.levels);
-  // A plan no setup armed yet is its strategy box on the 1-minute pane, never zones and lines across it (2026-10-12).
+  // A setup's plan with only the plan behind it is its strategy box on the 1-minute pane, never zones and lines across
+  // it (2026-10-12): forming, the box alone; once armed, its prices keep their axis tags and lose their lines.
+  const boxed = lv !== null && boxedPlan(plan, lv);
   const forming = lv !== null && formingPlan(plan, lv);
   if (o.layers.setups) {
     if (held && o.pane === 'thin') lines.push(...heldLines(held));
-    if (lv && !(forming && o.pane === 'full')) lines.push(...planLines(plan, lv, o.pane));
+    const boxedHere = boxed && o.pane === 'full';
+    if (lv && !(forming && boxedHere)) lines.push(...planLines(plan, lv, o.pane, boxedHere));
     if (o.pane === 'full') {
       // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.
       const past = o.layers.past && o.past ? o.past : [];
@@ -231,13 +241,16 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
       }
       if (lv && (!lead || !o.layers.hidden.includes(lead.setup_type))) {
         const shape = lead ? levelsOf(lead) : null;
-        const start = shape?.end ?? lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
+        const newest = lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
           ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
+        const start = shape?.end ?? newest;
         const target2 = target2Of(plan, lv)?.price ?? null;
-        if (forming && plan) {
-          // Its box from the stop to target 1 stays in view; target 2 is an arrow over it and never stretches the pane.
-          const after = start === null ? null : o.toTime(start);
-          scene.strategy = after === null || start === null ? null : strategyOf(plan, lv, target2, after, start);
+        if (boxed && plan) {
+          // Its box from the stop to target 1, after the newest candle, stays in view; target 2 is a dash over it or an
+          // arrow and never stretches the pane.
+          const after = newest === null ? null : o.toTime(newest);
+          scene.strategy = after === null || newest === null ? null
+            : strategyOf(plan, lv, target2, after, newest, lead?.setup ?? null);
           if (scene.strategy) scene.words = [...(scene.words ?? []), ...strategyWords(scene.strategy)];
           scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, null);
         } else {

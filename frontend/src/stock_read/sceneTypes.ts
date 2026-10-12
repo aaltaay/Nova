@@ -127,9 +127,14 @@ export interface ScenePin {
   color: string;
 }
 
-/** A setup plan that is only forming (operator ask 2026-10-12): one faint box from its stop to target 1, right of the
- * newest candle to the pane's edge -- from the setup's window while that is ahead and on the pane, else waiting at the
- * right edge -- its name and window in it, its prices the edge column's words, target 2 a small arrow past target 1. */
+/** Where a boxed plan's setup stands: forming draws the faint box, the rest the box in full colour. */
+export type StrategyState = 'forming' | 'near' | 'armed' | 'triggered';
+
+/** A setup's plan as one box from its stop to target 1, right of the newest candle to the pane's edge (operator asks
+ * 2026-10-12): faint while the setup is only forming -- from its window while that is ahead and on the pane, else
+ * waiting at the right edge -- and in full colour once it is near, armed or triggered. Its name and where it stands
+ * are in it, its prices the edge column's words (and, once armed, the axis's), target 2 a dash over it in view, else a
+ * small arrow past target 1. */
 export interface SceneStrategy {
   /** The newest candle: the box starts after it. */
   after: Time;
@@ -141,11 +146,13 @@ export interface SceneStrategy {
   target: number;
   target2: number | null;
   side: 'long' | 'short';
-  /** "GAP AND GO", then "strategy" after it where the room allows. */
+  state: StrategyState;
+  /** "GAP AND GO", then "strategy" (forming) or where it stands ("armed") after it where the room allows. */
   name: string;
   word: string;
   /** Its window where the box stands on it ("09:30–10:00", "until 11:30"; empty without one), and where it waits at
-   * the edge ("from 09:30 →"). */
+   * the edge ("from 09:30 →"); once armed, when ("since 09:34", "at 09:36", with "until 10:00" while a window is
+   * open). */
   when: string;
   whenWaiting: string;
 }
@@ -196,7 +203,7 @@ export interface Scene {
   dots?: SceneDot[];
   /** The chart's trend lines. */
   trends?: SceneTrend[];
-  /** A forming setup's plan, in place of its zones and lines (1-minute pane). */
+  /** A setup's plan with only the plan behind it, in place of zones and lines across the pane (1-minute pane). */
   strategy?: SceneStrategy | null;
   /** Nova's LULD band (1-minute pane). */
   luld?: SceneLuld | null;

@@ -10,7 +10,7 @@ import { CHART_SESSION_COLORS } from '../constants';
 import { LULD_APPROX_MARK, LULD_COLOR } from '../constantGroups/luld';
 import { SHORT_SETUP_COLORS } from '../constantGroups/short_setups';
 import type { PaneKind } from './chartShapes';
-import { DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS, STRATEGY_BOX, TREND_COLORS } from './constants';
+import { DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, SETUP_COLORS, STRATEGY_BOX, STRATEGY_BOX_LIVE, TREND_COLORS } from './constants';
 
 /** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, a box, a ring (a flat top's
  * touch), a triangle pointing up (its break), or a line rising or falling (a trend line). */
@@ -197,7 +197,8 @@ function planRows(full: boolean): KeySection {
     rows.push(
       { swatch: 'band', color: SETUP_COLORS.risk, label: 'Red zone', text: 'the risk: from the entry to the stop (over the entry on a short)' },
       { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: from the entry to target 1 (under it on a short)' },
-      { swatch: 'band', color: STRATEGY_BOX.outline, label: 'Faint box', text: "a setup still forming: its stop to target 1 with its name, on its window (Gap and Go's 09:30–10:00) or waiting at the edge; the zones and lines come once it arms" },
+      { swatch: 'band', color: STRATEGY_BOX_LIVE.outline, label: 'Strategy box', text: "a setup's plan: its stop to target 1 right of the newest candle, with its name and where it stands (near · armed · triggered); its prices on the axis, T2 a dash over it or an arrow" },
+      { swatch: 'band', color: STRATEGY_BOX.outline, label: 'Faint box', text: "a setup still forming: the same box, faint, on its window (Gap and Go's 09:30–10:00) or waiting at the edge" },
     );
   }
   rows.push({ swatch: 'dash', color: GREY, label: 'Dashed vs solid', text: 'dashed: only a plan · solid: an order is working' });
