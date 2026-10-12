@@ -9,5 +9,5 @@ export type { Landed, LandingHooks, LandingWindow, SimLandingPlan, SimMovePlan }
 // The scanner's quote panel on a Sim desk: the same rule and empty quote as a Trader tab. The notice
 // component itself is not exported here -- it pulls the workspace, and the chart imports this barrel.
 export { useSimReplayTarget } from './useSimReplayTarget';
-export { simRailNote } from './simReplayTarget';
-export { simEmptyQuoteDetail } from './historicalQuoteDetail';
+export { simDeskQuoteDetail } from './historicalQuoteDetail';
+export { useHistoricalSnapshot } from './useHistoricalSnapshot';

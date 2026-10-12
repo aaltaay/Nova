@@ -12,6 +12,7 @@
  */
 import type { SimClockState } from './simClockTypes';
 import type { TickerDetail } from '../types/ticker';
+import { simRailNote } from './simReplayTarget';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
 export function historicalQuoteDetail(
@@ -135,4 +136,26 @@ export function simEmptyQuoteDetail(detail: TickerDetail | null, symbol: string)
       session_prev_close: null,
     },
   };
+}
+
+/**
+ * The quote a Sim desk may show for `symbol`, by the Trader tab's own order
+ * (`StockViewDepthTape`): the historical replay's snapshot at the playhead when
+ * this is the loaded window's symbol; the empty quote when the desk has nothing
+ * for it; a Session Record's quote when it is the recording's symbol; else the
+ * stream as it is. Off Sim and at the live edge the stream is the market.
+ */
+export function simDeskQuoteDetail(
+  detail: TickerDetail | null,
+  symbol: string,
+  sim: boolean,
+  clock: SimClockState | null | undefined,
+  historical: HistoricalSnapshot | null,
+): TickerDetail | null {
+  if (!sim || clock?.live_edge) return detail;
+  if (historical?.active) return historicalQuoteDetail(detail, historical);
+  if (simRailNote(symbol, clock, sim)) return simEmptyQuoteDetail(detail, symbol);
+  const recorded = clock?.replay_source === 'capture'
+    && (clock.replay_symbol ?? '').trim().toUpperCase() === symbol.trim().toUpperCase();
+  return recorded && clock ? captureQuoteDetail(detail, clock, symbol) : detail;
 }

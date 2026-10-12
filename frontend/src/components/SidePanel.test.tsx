@@ -47,7 +47,7 @@ const shown = vi.hoisted(() => [] as Array<{ detail: { snapshot?: { latest_trade
 vi.mock('./TickerDetailContent', () => ({
   TickerDetailContent: (props: { detail: { snapshot?: { latest_trade?: unknown } } }) => (shown.push(props), null),
 }));
-const simDesk = vi.hoisted(() => ({ sim: false, clock: null as unknown }));
+const simDesk = vi.hoisted(() => ({ sim: false, clock: null as unknown, historical: null as unknown }));
 const notices = vi.hoisted(() => [] as Array<{ symbol: string; select: (s: string) => void }>);
 const simNotice = (symbol: string, select: (s: string) => void) => (notices.push({ symbol, select }), null);
 vi.mock('../sim', async (importOriginal) => {
@@ -55,6 +55,7 @@ vi.mock('../sim', async (importOriginal) => {
   return {
     ...real,
     useSimReplayTarget: () => ({ sim: simDesk.sim, clock: simDesk.clock, target: { kind: 'ok' } }),
+    useHistoricalSnapshot: () => simDesk.historical,
   };
 });
 
@@ -67,6 +68,7 @@ afterEach(() => {
   stream.detail = null;
   simDesk.sim = false;
   simDesk.clock = null;
+  simDesk.historical = null;
   workspace.selectedSymbol = null;
 });
 
@@ -161,6 +163,22 @@ describe('SidePanel on a Sim replay (operator report, 2026-10-12)', () => {
     expect(detail.snapshot.daily_bar).toBeNull();
     // Float is not a session price: it stays.
     expect(detail.fundamentals).toEqual(sune.fundamentals);
+  });
+
+  it('shows the loaded replay its own quote at the playhead, never the live one (PR #868 review)', () => {
+    workspace.selectedSymbol = 'LNKS';
+    stream.detail = { ...sune, symbol: 'LNKS' };
+    simDesk.sim = true;
+    simDesk.clock = lnksLoaded;
+    simDesk.historical = {
+      active: true, symbol: 'LNKS', last: 1.42, as_of: '2026-09-09T12:03:02Z',
+      session_open: null, high: 1.5, low: 1.3, volume: 9000, stats_scope: 'session', prev_close: 1.2,
+    };
+    render(<SidePanel simNotice={simNotice} />);
+
+    const detail = shown.at(-1)?.detail as { snapshot: { latest_trade: { price: number }; prev_close: number } };
+    expect(detail.snapshot.latest_trade.price).toBe(1.42);
+    expect(detail.snapshot.prev_close).toBe(1.2);
   });
 
   it('shows the live quote untouched off Sim, with no notice', () => {

@@ -416,7 +416,8 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   SUNE's live $2.27 of Oct 12). Off the live edge, a symbol there that is not the loaded replay shows the Sim tab's
   own prompt (Load from files, Download, and so on), its "Go to LNKS" selecting the replay in the panel, and its
   quote is the Trader's empty Sim quote: no live price, change, volume or daily bar over a replay, only facts that
-  are not session prices (float, sector). An empty chart names both symbols: "No SUNE bars on this replay day --
+  are not session prices (float, sector). The loaded replay's own symbol shows the replay's quote at the playhead,
+  by the Trader tab's order (`simDeskQuoteDetail`). An empty chart names both symbols: "No SUNE bars on this replay day --
   the Sim has LNKS loaded. Load SUNE to chart it." Desk wording only: no wire or persisted shape changes.
 - **It loads by itself on an empty desk** (operator 2026-10-09: "i dont think the entire nova app recognize
   massive as data recap for the sim"). With nothing loaded, the Trader tab on screen on a day in the files

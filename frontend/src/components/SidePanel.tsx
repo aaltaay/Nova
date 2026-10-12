@@ -17,7 +17,7 @@ import {
   QUOTE_PANEL_LOOKUP_PLACEHOLDER,
 } from '../constantGroups/scanner_board';
 import { useTickerStream } from '../hooks/useTickerStream';
-import { simEmptyQuoteDetail, simRailNote, useSimReplayTarget } from '../sim';
+import { simDeskQuoteDetail, useHistoricalSnapshot, useSimReplayTarget } from '../sim';
 import type { WatchlistEntry } from '../strategy/types';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { TickerDetailContent } from './TickerDetailContent';
@@ -68,12 +68,17 @@ export function SidePanel({
     !!selectedSymbol && detail == null && !loading && !refreshing && !fetchFailed;
   const showFullSpinner = loading || awaitingPreEffectFrame;
 
-  // A Sim desk off the live edge replays one stock-day: any other symbol here is
-  // not the replay, so today's live price must not show over it, and the panel
-  // says so with the way to load it -- the Trader tab's own rule and notice.
+  // A Sim desk off the live edge replays one stock-day: the loaded symbol shows
+  // the replay's quote at the playhead, any other symbol no quote (never today's
+  // live price over a past day) and the notice with the way to load it -- the
+  // Trader tab's own rule and notice.
   const { sim, clock } = useSimReplayTarget(selectedSymbol ?? '');
-  const simNote = selectedSymbol ? simRailNote(selectedSymbol, clock, sim) : null;
-  const view = simNote && detail ? simEmptyQuoteDetail(detail, selectedSymbol ?? '') : detail;
+  const panelSymbol = (selectedSymbol ?? '').trim().toUpperCase();
+  // Only the loaded window's own symbol has a snapshot to poll.
+  const loadedHere = sim && clock?.replay_source === 'historical'
+    && (clock.replay_symbol ?? '').trim().toUpperCase() === panelSymbol;
+  const historical = useHistoricalSnapshot(panelSymbol, !collapsed && Boolean(panelSymbol) && loadedHere);
+  const view = selectedSymbol ? simDeskQuoteDetail(detail, selectedSymbol, sim, clock, historical) : detail;
 
   useEffect(() => {
     setInput(selectedSymbol ?? '');
