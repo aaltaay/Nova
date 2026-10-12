@@ -20,15 +20,16 @@ describe('chartBarsPolicy', () => {
   });
 
   it('states why a pane is empty, and never blames a replay time with nothing loaded (QA V9)', () => {
-    expect(chartEmptyText(true, { kind: 'none' }, 'ibkr')).toBe(CHART_EMPTY_NO_REPLAY);
-    expect(chartEmptyText(true, { kind: 'none' }, 'ibkr')).not.toMatch(/replay time/);
-    expect(chartEmptyText(true, { kind: 'ok' }, 'ibkr')).toBe(CHART_EMPTY_REPLAY_TIME);
-    expect(chartEmptyText(true, { kind: 'other-symbol', replaySymbol: 'GRML' }, 'ibkr')).toMatch(/^GRML is the loaded replay/);
-    expect(chartEmptyText(true, { kind: 'failed', error: 'x' }, 'ibkr')).toMatch(/did not load/);
+    expect(chartEmptyText(true, { kind: 'none' }, 'ibkr', 'SUNE')).toBe(CHART_EMPTY_NO_REPLAY);
+    expect(chartEmptyText(true, { kind: 'none' }, 'ibkr', 'SUNE')).not.toMatch(/replay time/);
+    expect(chartEmptyText(true, { kind: 'ok' }, 'ibkr', 'SUNE')).toBe(CHART_EMPTY_REPLAY_TIME);
+    expect(chartEmptyText(true, { kind: 'other-symbol', replaySymbol: 'GRML' }, 'ibkr', 'sune'))
+      .toBe('No SUNE bars on this replay day -- the Sim has GRML loaded. Load SUNE to chart it.');
+    expect(chartEmptyText(true, { kind: 'failed', error: 'x' }, 'ibkr', 'SUNE')).toMatch(/did not load/);
     // A capture still being read from disk is neither loaded nor failed (#450's `loading`).
-    expect(chartEmptyText(true, { kind: 'loading' }, 'ibkr')).toBe(CHART_EMPTY_REPLAY_LOADING);
+    expect(chartEmptyText(true, { kind: 'loading' }, 'ibkr', 'SUNE')).toBe(CHART_EMPTY_REPLAY_LOADING);
     // At the live edge and off Sim the pane is live: the feed's own words.
-    expect(chartEmptyText(true, { kind: 'live-edge' }, 'ibkr')).toBe(emptyBarsMessage('ibkr'));
-    expect(chartEmptyText(false, { kind: 'ok' }, 'ibkr')).toBe(emptyBarsMessage('ibkr'));
+    expect(chartEmptyText(true, { kind: 'live-edge' }, 'ibkr', 'SUNE')).toBe(emptyBarsMessage('ibkr'));
+    expect(chartEmptyText(false, { kind: 'ok' }, 'ibkr', 'SUNE')).toBe(emptyBarsMessage('ibkr'));
   });
 });

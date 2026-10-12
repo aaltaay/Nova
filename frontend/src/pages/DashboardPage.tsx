@@ -24,6 +24,7 @@ import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
 import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useScannerBoard } from '../scanner/useScannerBoard';
 import { useSettings } from '../settings/SettingsContext';
+import { SimReplayTargetNotice } from '../sim/SimReplayTargetNotice';
 import { requestFocusList } from '../workspace';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
@@ -325,6 +326,7 @@ export function DashboardPage() {
         widthPx={sidePanel.widthPx}
         collapsed={quotePanel.collapsed}
         onToggleCollapsed={quotePanel.toggle}
+        simNotice={(symbol, select) => <SimReplayTargetNotice symbol={symbol} onGoToReplay={select} />}
       />
     </div>
   );
