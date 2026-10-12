@@ -8,7 +8,7 @@
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer } from 'lightweight-charts';
 import { EDGE_PRIORITY } from '../chart';
-import { drawColumn, layoutColumn, type ColumnItem, type ColumnReserve } from './edgeColumn';
+import { columnRects, drawColumn, layoutColumn, type ColumnItem, type ColumnReserve } from './edgeColumn';
 import { drawLevels, fillLevelBands, type LevelPx, type TickPx } from './levelRender';
 import { fmtPx } from './planMath';
 import type {
@@ -35,6 +35,7 @@ import {
   type LabelDetail,
   type LabelRect,
 } from './sceneLabels';
+import { drawStrategy, type StrategyPx } from './strategyBoxRender';
 
 /** A mark's arrow: its tip this far over the price, this tall and half this wide. */
 const MARK_GAP_PX = 3;
@@ -63,6 +64,8 @@ export interface Px {
   dots: { x: number; y: number; d: SceneDot }[];
   /** The trend lines: each one's first touch, its last, and where it runs on the pane's newest candle. */
   trends: TrendPx[];
+  /** A forming setup's strategy box (`strategyBoxRender.ts`). */
+  strategy?: StrategyPx | null;
 }
 
 export interface TrendPx {
@@ -114,7 +117,7 @@ export function columnItems(px: Pick<Px, 'levels' | 'words' | 'tags'> & Partial<
       offText: `${tr.label} ${fmtPx(pe)}` });
   }
   for (const { y, value, w } of px.words) {
-    items.push({ y, text: w.text, color: w.color, style: 'filled', priority: w.priority, hoverId: null,
+    items.push({ y, text: w.text, color: w.color, style: w.style ?? 'filled', priority: w.priority, hoverId: null,
       offText: w.valueWhenOff ? `${w.text} ${fmtPx(value)}` : w.text });
   }
   const named = new Set(px.words.map(w => w.w.id));
@@ -278,12 +281,15 @@ export class LineRenderer implements IPrimitivePaneRenderer {
             align: 'center' });
         }
       }
-      // Every word at the right edge in one column; the boxes' labels take the room around it.
+      // Every word at the right edge in one column; the boxes' labels take the room around it. A forming setup's box
+      // goes under the column, its own words clear of the column's.
       const items = columnItems(this.px, height);
-      const column = drawColumn(ctx, items, layoutColumn(items, height, this.px.topInset, this.px.reserves), width,
-        measure);
+      const layout = layoutColumn(items, height, this.px.topInset, this.px.reserves);
+      const boxWords = this.px.strategy
+        ? drawStrategy(ctx, this.px.strategy, width, columnRects(layout, width, measure)) : [];
+      const column = drawColumn(ctx, items, layout, width, measure);
       const levelHits = [...tickHits, ...column.hits];
-      const obstacles: LabelRect[] = [...tickHits.map(h => h.rect), ...column.rects];
+      const obstacles: LabelRect[] = [...tickHits.map(h => h.rect), ...column.rects, ...boxWords];
       const fixedDrawn = fixed.map(f => {
         const w = measure(f.text);
         const r = labelRect(f.x, f.y, w, f.align, width);

@@ -11,7 +11,8 @@
  * names, the lines' tags (`words`: the EMAs, VWAP, the plan's ENTRY / STOP / TARGET) and the tags for prices out
  * of view. The Full Day pane's +40% runs are marks: an arrow over the day's high and a label that makes room. A flat
  * top's touches are rings on their candles' highs, and its break a mark pointing up (2026-10-06). A trend line
- * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length.
+ * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length. A setup that is
+ * only forming is its strategy box (2026-10-12, `strategyBoxRender.ts`), its window counted in candles past the newest.
  */
 import { MismatchDirection } from 'lightweight-charts';
 import type {
@@ -41,6 +42,7 @@ import {
 } from './sceneRender';
 import type { LabelRect } from './sceneLabels';
 import { EMPTY_SCENE, type Scene } from './sceneTypes';
+import type { StrategyPx } from './strategyBoxRender';
 
 /** A pointer this close to a box's edge still hovers it. */
 const HIT_SLACK_PX = 2;
@@ -227,8 +229,25 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const cy = tr.broke ? y(tr.broke.price) : null;
       trends.push({ x1, y1, x2, y2, xe, ye, pe, rings, cross: cx !== null && cy !== null ? { x: cx, y: cy } : null, tr });
     }
+    // A forming setup's box: after the newest candle, its window counted in candles from it (`strategyBox.ts`).
+    let strategy: StrategyPx | null = null;
+    const st = this.scene.strategy ?? null;
+    if (st) {
+      const xa = x(st.after);
+      const idx = ts.timeToIndex(st.after, true);
+      const at = (bars: number | null) => {
+        if (bars === null || idx === null) return null;
+        const xx = ts.logicalToCoordinate((idx + bars) as unknown as Logical);
+        return xx === null ? null : xx - half;
+      };
+      const [ye, ys, yt] = [y(st.entry), y(st.stop), y(st.target)];
+      if (xa !== null && ye !== null && ys !== null && yt !== null) {
+        strategy = { xAfter: xa + half, xStart: at(st.startBars), xEnd: at(st.endBars), bar: 2 * half, yEntry: ye,
+          yStop: ys, yTarget: yt, s: st };
+      }
+    }
     this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks, words, reserves,
-      topInset: this.scene.topInset ?? 0, marks, dots, trends };
+      topInset: this.scene.topInset ?? 0, marks, dots, trends, strategy };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {
