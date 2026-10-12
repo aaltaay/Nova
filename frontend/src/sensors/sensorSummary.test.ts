@@ -53,6 +53,8 @@ describe('sensorSummary', () => {
       ['macro', { count: 3 }, '3 stub events'],
       ['focus', { symbol: 'GCTK', page: 'trader', nova_in_front: false }, 'GCTK · trader (Nova behind)'],
       ['book-pulls', { pulled_shares: 5000, filled_shares: 300, flags: [{}] }, 'pulled 5000 · filled 300 · 1 flag'],
+      ['big-sellers', { watching: true, sellers: [{ state: 'holding' }, { state: 'eaten' }], buyers: [] },
+        '1 big seller · 0 big buyers'],
     ];
     for (const [sensor, data, needle] of samples) {
       const text = sensorSummary(row(sensor, data));

@@ -5,7 +5,8 @@ arrival order (a book row's ``ts`` is its receipt; a print's ``receive_ts``,
 else ``ts``). Recordings made before ADR 033 kept at most 8 books a second, so
 their drops span longer gaps: the replay says how many books it read per second.
 A print's sale conditions ride along, so a cross print is never counted hidden
-(hidden.py).
+(hidden.py). The big sellers and buyers (big_seller.py) come out of the same watch; the
+Sim desk's reading at the playhead is big_replay.py's.
 """
 from __future__ import annotations
 
@@ -54,7 +55,7 @@ def feed(watch: SymbolWatch, kind: str, ts: float, row: dict[str, Any]) -> list[
 
 
 def replay(directory: Path, *, num_rows: int = 10, symbol: str | None = None) -> dict[str, Any]:
-    """Every pull, flag, hidden stretch and minute the watcher would have raised, plus totals."""
+    """Every pull, flag, hidden stretch, big seller or buyer and minute the watcher would have raised, plus totals."""
     directory = Path(directory)
     sym = (symbol or directory.name).upper()
     watch = SymbolWatch(sym, num_rows=num_rows)
@@ -79,5 +80,7 @@ def replay(directory: Path, *, num_rows: int = 10, symbol: str | None = None) ->
         "flags": [e for e in events if e["event"] == "flag"],
         # The last word on each hidden seller or buyer (every update is an event; the newest wins).
         "hidden": list({e["id"]: e for e in events if e["event"] == "hidden"}.values()),
+        # The last word on each big seller or buyer (big_seller.py): called, then how it ended.
+        "big": list({e["id"]: e for e in events if e["event"] == "big"}.values()),
         "minutes": minutes,
     }

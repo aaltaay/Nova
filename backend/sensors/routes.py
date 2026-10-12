@@ -155,6 +155,12 @@ def sensor_book_pulls(symbol: str | None = Query(default=None)) -> dict:
     return read_one("book-pulls", _symbol(symbol, required=True))
 
 
+@router.get("/sensors/big-sellers")
+def sensor_big_sellers(symbol: str | None = Query(default=None)) -> dict:
+    """Big sellers on the ask and big buyers on the bid of the held Level 2 line (#846)."""
+    return read_one("big-sellers", _symbol(symbol, required=True))
+
+
 @router.get("/sensors/book-pulls/events")
 def sensor_book_pull_events(
     since: float | None = Query(default=None, ge=0),

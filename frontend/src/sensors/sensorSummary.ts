@@ -80,6 +80,11 @@ export function sensorSummary(row: SensorEnvelope): string {
       const flags = Array.isArray(data.flags) ? data.flags.length : 0;
       return `pulled ${num(data.pulled_shares, 0) ?? '-'} · filled ${num(data.filled_shares, 0) ?? '-'} · ${flags} flag${flags === 1 ? '' : 's'}`;
     }
+    case 'big-sellers': {
+      if (data.watching !== true) return SENSORS_NO_VALUE;
+      const held = (rows: unknown) => (Array.isArray(rows) ? rows.filter((r) => r && r.state === 'holding').length : 0);
+      return `${held(data.sellers)} big seller${held(data.sellers) === 1 ? '' : 's'} · ${held(data.buyers)} big buyer${held(data.buyers) === 1 ? '' : 's'}`;
+    }
     default:
       return SENSORS_NO_VALUE;
   }

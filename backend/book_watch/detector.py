@@ -11,8 +11,9 @@ side inside ``BOOK_WATCH_REPEAT_WINDOW_SEC``). Hints consistent with spoofing,
 never a detection. Every **large drop** -- the size that left, traded or not, by
 the same rule -- is also a ``drop`` event with its split, for the Level 2 ladder.
 The mirror of a pull -- size that traded at a price beyond the most the book ever
-showed there -- is ``hidden.py``'s (``hidden`` events: a hidden seller or buyer).
-Events carry ``event``: ``drop`` | ``pull`` | ``flag`` | ``hidden`` | ``minute``.
+showed there -- is ``hidden.py``'s (``hidden`` events: a hidden seller or buyer); a
+big seller or buyer resting just past the price is ``big_seller.py``'s (``big``).
+Events carry ``event``: ``drop`` | ``pull`` | ``flag`` | ``hidden`` | ``big`` | ``minute``.
 """
 from __future__ import annotations
 
@@ -42,6 +43,7 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_REPEAT_WINDOW_SEC,
     BOOK_WATCH_STATS_WINDOW_SEC,
 )
+from book_watch.big_seller import BigWallTracker
 from book_watch.hidden import DEFAULT_HIDDEN, HiddenParams, HiddenTracker, Stretch
 from book_watch.matching import DEFAULT_MATCH, MatchParams, Sweeps, claim
 
@@ -99,6 +101,8 @@ class SymbolWatch:
         self.bucket: dict[str, Any] | None = None
         # Size that traded at a price beyond the most the book showed there (hidden.py).
         self.hidden = HiddenTracker(symbol, params=hidden, history=hidden_history)
+        # Size much larger than the book around it, resting just past the price (big_seller.py).
+        self.big = BigWallTracker(symbol, match=match)
 
     # -- input ---------------------------------------------------------------
 
@@ -116,6 +120,7 @@ class SymbolWatch:
             prev = self.prev[side] if self.prev is not None else None
             self._compare(side, prev, cur[side], ts)
         self.hidden.on_book(ts, cur, self.prev)
+        out += self.big.on_book(ts, cur, self.prev)
         self.prev, self.prev_ts = cur, ts
         return out
 
@@ -142,6 +147,7 @@ class SymbolWatch:
             self.sweeps.note(ts, key, conditions, self.prev, self.last_book_ts)
         while self.prints and self.prints[0][0] < ts - BOOK_WATCH_PRINT_KEEP_SEC:
             self.prints.popleft()
+        out += self.big.on_print(ts, key, shares, lit=lit, conditions=conditions)
         return out + self.hidden.on_print(ts, key, shares, lit=lit, conditions=conditions, views=self.prev,
                                           book_ts=self.last_book_ts)
 
@@ -151,7 +157,7 @@ class SymbolWatch:
         self.prev_ts = None
         self.tracked.clear()
         self.sweeps.clear()
-        return self.hidden.reset(self.last_book_ts)
+        return self.hidden.reset(self.last_book_ts) + self.big.reset(self.last_book_ts)
 
     def tick(self, now: float) -> list[dict[str, Any]]:
         """Judge every drop whose settle time has passed; end the hidden stretches gone quiet."""
@@ -161,7 +167,7 @@ class SymbolWatch:
             self.pending = [p for p in self.pending if p["deadline"] > now]
             for drop in due:
                 out += self._judge(drop)
-        return out + self.hidden.tick(now)
+        return out + self.hidden.tick(now) + self.big.tick(now)
 
     def flush(self) -> list[dict[str, Any]]:
         """End of input (a replay): judge everything and close the minute."""
