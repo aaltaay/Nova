@@ -7,6 +7,7 @@ import {
 } from '../constants';
 import type { TickerDetail } from '../types/ticker';
 import { fmtSessionPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
+import { floatHover } from '../utils/shareFacts';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { QUOTE_GAP_OPEN_TITLE } from '../constantGroups/trader_view';
@@ -26,7 +27,11 @@ export function StockViewQuoteStats({ detail }: Props) {
       data-module="stock-view-quote"
       data-testid="stock-view-quote-stats"
     >
-      <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
+      <CompactGridCell
+        label="Float"
+        value={fmtVolume(detail.fundamentals?.float_shares)}
+        title={floatHover(detail.fundamentals?.float_shares)}
+      />
       <CompactGridCell label="Vol" value={fmtVolume(daily?.volume)} />
       <CompactGridCell
         label={QUOTE_RVOL_DAILY_LABEL}

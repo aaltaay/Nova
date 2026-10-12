@@ -2,11 +2,15 @@
  * Float and short-interest text for the scanner, the quote panel and the Trader side column (#532):
  * a contradicted float reads "54.0K?" with its reason, short interest carries its FINRA settlement
  * date, and short interest above the float reads "9.0M!" in amber -- a warning, never a gate.
- * Pure; strings live in constantGroups/share_facts.ts.
+ * Every float figure also carries the float key on hover. Pure; strings live in constantGroups/share_facts.ts.
  */
 import {
   FLOAT_CONTRADICTED_FALLBACK,
   FLOAT_CONTRADICTED_MARK,
+  FLOAT_GUIDE_BANDS,
+  FLOAT_GUIDE_BETWEEN,
+  FLOAT_GUIDE_IN,
+  FLOAT_GUIDE_OUT,
   SHARES_ISSUED_FALLBACK,
   SHORT_ABOVE_FLOAT_CLASS,
   SHORT_ABOVE_FLOAT_FALLBACK,
@@ -95,6 +99,24 @@ export function floatTitle(
 ): string | undefined {
   const parts = [issuedWarning, contradicted === true ? reason || FLOAT_CONTRADICTED_FALLBACK : undefined, shortWarning];
   const text = parts.filter(Boolean).join('. ');
+  return text || undefined;
+}
+
+/**
+ * The float key for a float figure's hover: "Float 3.2M", then every line of the key with this float's
+ * lines marked. Undefined for an unknown float. A reminder only: no gate reads it.
+ */
+export function floatGuide(float: number | null | undefined): string | undefined {
+  if (float == null || !Number.isFinite(float)) return undefined;
+  const lines = FLOAT_GUIDE_BANDS.map(b => `${b.holds(float) ? FLOAT_GUIDE_IN : FLOAT_GUIDE_OUT}${b.text}`);
+  const placed = FLOAT_GUIDE_BANDS.some(b => b.holds(float));
+  const head = `Float ${fmtVolume(float)}${placed ? '' : `: ${FLOAT_GUIDE_BETWEEN}`}`;
+  return [head, ...lines].join('\n');
+}
+
+/** A float figure's whole hover: its warnings first (floatTitle), then the float key. */
+export function floatHover(float: number | null | undefined, warnings?: string): string | undefined {
+  const text = [warnings, floatGuide(float)].filter(Boolean).join('\n\n');
   return text || undefined;
 }
 

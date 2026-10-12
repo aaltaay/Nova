@@ -15,6 +15,7 @@ import {
   WATCHLIST_FOOTNOTE,
 } from '../constants';
 import { fmtPct, fmtRvol, fmtVolume, pctToneClass } from '../utils/quoteFormat';
+import { floatHover } from '../utils/shareFacts';
 import {
   applyFilter,
   newsCell,
@@ -89,7 +90,7 @@ function WatchlistRow({ entry, index, setup, following, allowed, onToggleBot, se
       <td className="num" title={entry.rvol_source ? `RVOL over the ${entry.rvol_source} average daily volume` : undefined}>
         {rvol ?? '—'}
       </td>
-      <td className="num">{fmtVolume(entry.float_shares)}</td>
+      <td className="num" title={floatHover(entry.float_shares)}>{fmtVolume(entry.float_shares)}</td>
       <td><ToneCell cell={newsCell(entry)} /></td>
       <td className="wl-score-cell" title="Weighted 0-100 composite of % change, RVOL, float and news freshness">
         <span className="wl-score-bar"><i style={{ width: `${Math.max(0, Math.min(100, entry.composite_score))}%` }} /></span>

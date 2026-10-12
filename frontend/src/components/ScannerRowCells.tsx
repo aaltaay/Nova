@@ -11,6 +11,7 @@ import { SHORT_ABOVE_FLOAT_MARK, SHORT_RATIO_CELL_SUFFIX } from '../constantGrou
 import {
   fmtFloat,
   fmtSettlementDateShort,
+  floatHover,
   floatTitle,
   shortAboveFloatClass,
   shortAboveFloatWarning,
@@ -21,7 +22,8 @@ import type { ScannerRow } from '../types/scanner';
 
 /**
  * Yahoo's float; "54.0K?" with the reason on hover when Yahoo's own counts contradict it (#532) or an SEC
- * filing says shares were issued since (#700). The hover also carries the short-above-float warning. None of
+ * filing says shares were issued since (#700). The hover also carries the short-above-float warning, then the
+ * float key. None of
  * these changes the figure or a gate.
  */
 export function FloatCell({ row }: { row: ScannerRow }) {
@@ -30,7 +32,7 @@ export function FloatCell({ row }: { row: ScannerRow }) {
   const warning = shortAboveFloatWarning(row.short_above_float, row.short_above_float_reason);
   const issued = sharesIssuedWarning(row.shares_issued, row.shares_issued_reason);
   return (
-    <span title={floatTitle(row.float_contradicted, row.float_contradicted_reason, warning, issued)}
+    <span title={floatHover(row.float, floatTitle(row.float_contradicted, row.float_contradicted_reason, warning, issued))}
       data-float-contradicted={flagged ? 'true' : undefined}
       data-float-shares-issued={issued ? 'true' : undefined}>
       {fmtFloat(row.float, row.float_contradicted, row.shares_issued)}

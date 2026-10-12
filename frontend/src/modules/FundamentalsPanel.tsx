@@ -18,6 +18,7 @@ import {
 import {
   fmtFloat,
   fmtShortInterest,
+  floatHover,
   floatTitle,
   sharesIssuedWarning,
   shortAboveFloatClass,
@@ -59,8 +60,8 @@ export function FundamentalsPanel({
       <CompactGridCell
         label="Float"
         value={fmtFloat(fund?.float_shares, fund?.float_contradicted, fund?.shares_issued)}
-        title={floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason, shortWarning,
-            sharesIssuedWarning(fund?.shares_issued, fund?.shares_issued_reason))}
+        title={floatHover(fund?.float_shares, floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason,
+            shortWarning, sharesIssuedWarning(fund?.shares_issued, fund?.shares_issued_reason)))}
       />
       <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
       <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />

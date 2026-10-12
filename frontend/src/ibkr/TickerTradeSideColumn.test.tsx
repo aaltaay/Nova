@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeDetail } from '../modules/quoteFixtures';
+import { floatGuide } from '../utils/shareFacts';
 import { TickerTradeSideColumn } from './TickerTradeSideColumn';
 
 // Level 2 mounts only while IBKR is connected; these tests render it disconnected.
@@ -53,7 +54,7 @@ describe('TickerTradeSideColumn float and short interest (#532)', () => {
       root.render(<TickerTradeSideColumn detail={detail} position={null} ibkrConnected={false} mode="paper" />);
     });
     expect(stat('Float').querySelector('.trade-side-stat-value')?.textContent).toBe('8.4M?');
-    expect(stat('Float').title).toBe(REASON);
+    expect(stat('Float').title).toBe(`${REASON}\n\n${floatGuide(8_450_000)}`);
     expect(stat('Short int').querySelector('.trade-side-stat-value')?.textContent).toBe('3.8M (Aug 31)');
     expect(stat('Short int').title).toContain('FINRA settlement Aug 31, 2026');
     expect(stat('Short int').title).toContain("Short ratio 1.4 is Yahoo's own");
@@ -64,7 +65,8 @@ describe('TickerTradeSideColumn float and short interest (#532)', () => {
       root.render(<TickerTradeSideColumn detail={makeDetail()} position={null} ibkrConnected={false} mode="paper" />);
     });
     expect(stat('Float').querySelector('.trade-side-stat-value')?.textContent).toBe('15.00B');
-    expect(stat('Float').title).toBe('');
+    // No warning: the hover is the float key alone.
+    expect(stat('Float').title).toBe(floatGuide(15_000_000_000));
     expect(stat('Short int').querySelector('.trade-side-stat-value')?.textContent).toBe('100.0M');
   });
 });

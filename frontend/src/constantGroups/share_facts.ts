@@ -37,3 +37,22 @@ export const SHORT_RATIO_CELL_SUFFIX = ' ratio';
 export const SHORT_RATIO_YAHOO_LABEL = 'Short Ratio (Yahoo)';
 export const shortRatioTitle = (ratio: string): string =>
   `Short ratio ${ratio} is Yahoo's own: short interest over Yahoo's average daily volume, not FINRA's days to cover.`;
+
+/**
+ * The float key under every float figure on hover (operator ask, 2026-10-11: "I don't have it
+ * memorized yet"). Each line is marked when this float is in it. A reminder only: no gate reads it.
+ */
+export const FLOAT_GUIDE_BANDS: readonly { text: string; holds: (float: number) => boolean }[] = [
+  { text: 'Under 10M: low float', holds: f => f < 10_000_000 },
+  { text: 'Under 5M: where the biggest movers come from', holds: f => f < 5_000_000 },
+  { text: '10-20M: workable if the catalyst is strong', holds: f => f >= 10_000_000 && f <= 20_000_000 },
+  {
+    text: "Over 50M: usually can't move 50-100% in a morning, whatever the news",
+    holds: f => f > 50_000_000,
+  },
+];
+/** Marks the key's lines this float is in, and the ones it is not. */
+export const FLOAT_GUIDE_IN = '▸ ';
+export const FLOAT_GUIDE_OUT = '· ';
+/** The key has no line for 20-50M, so the hover says where the float sits. */
+export const FLOAT_GUIDE_BETWEEN = 'between 20M and 50M';

@@ -32,6 +32,7 @@ import {
 } from '../constantGroups/desk';
 import { formatSignedPct, pctTone } from '../stock_view/tabContext';
 import { fmtVolume } from '../utils/quoteFormat';
+import { floatHover } from '../utils/shareFacts';
 import {
   toggleWatchList,
   useIsWatched,
@@ -147,7 +148,7 @@ function DeskBoardRowImpl({
       </td>
       <td className={scannerColClass('volume')}>{fmtVolume(row.volume)}</td>
       <td className={scannerColClass('rel_volume')}>{fmtRelVol(row.relVolume)}</td>
-      <td className={scannerColClass('float')}>{fmtVolume(row.float)}</td>
+      <td className={scannerColClass('float')} title={floatHover(row.float)}>{fmtVolume(row.float)}</td>
       <td className={scannerColClass('catalyst')}>
         {row.catalyst ? (
           <>

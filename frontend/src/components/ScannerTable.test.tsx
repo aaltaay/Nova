@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LARGE_CAP_COLUMNS, SCANNER_ROW_NUM_LABEL } from '../constants';
 import type { ScannerRow } from '../types/scanner';
+import { floatGuide } from '../utils/shareFacts';
 import { ScannerTable } from './ScannerTable';
 
 // Row marks / hover actions read the recording + bot stores, whose
@@ -264,11 +265,11 @@ describe('ScannerTable float and short interest (#532)', () => {
     ]);
     const whlr = cell(0, 'float').firstElementChild as HTMLElement;
     expect(whlr.textContent).toBe('54.0K?');
-    expect(whlr.title).toBe(REASON);
+    expect(whlr.title).toBe(`${REASON}\n\n${floatGuide(54_000)}`);
     expect(whlr.dataset.floatContradicted).toBe('true');
     const aapl = cell(1, 'float').firstElementChild as HTMLElement;
     expect(aapl.textContent).toBe('14.80B');
-    expect(aapl.title).toBe('');
+    expect(aapl.title).toBe(floatGuide(14_800_000_000));
     expect(cell(2, 'float').textContent).toBe('54.0K');
   });
 
@@ -308,7 +309,7 @@ describe('ScannerTable float and short interest (#532)', () => {
     // The float keeps its figure (no "?": nothing contradicts it) and carries the warning on hover.
     const float = cell(0, 'float').firstElementChild as HTMLElement;
     expect(float.textContent).toBe('8.0M');
-    expect(float.title).toBe(reason);
+    expect(float.title).toBe(`${reason}\n\n${floatGuide(8_000_000)}`);
     const plain = cell(1, 'short_interest').firstElementChild as HTMLElement;
     expect(plain.querySelector('.cell-stack-primary')?.textContent).toBe('319.0K');
     expect(plain.dataset.shortAboveFloat).toBeUndefined();

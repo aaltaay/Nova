@@ -21,6 +21,7 @@ import {
 import {
   fmtFloat,
   fmtShortInterest,
+  floatHover,
   floatTitle,
   sharesIssuedWarning,
   shortAboveFloatClass,
@@ -97,8 +98,8 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
         <Stat
           label="Float"
           value={fmtFloat(fund?.float_shares, fund?.float_contradicted, fund?.shares_issued)}
-          title={floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason, shortWarning,
-            sharesIssuedWarning(fund?.shares_issued, fund?.shares_issued_reason))}
+          title={floatHover(fund?.float_shares, floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason,
+            shortWarning, sharesIssuedWarning(fund?.shares_issued, fund?.shares_issued_reason)))}
         />
         <Stat label="Volume" value={fmtVolume(daily?.volume)} />
         <Stat

@@ -4,6 +4,8 @@ import {
   fmtSettlementDate,
   fmtSettlementDateShort,
   fmtShortInterest,
+  floatGuide,
+  floatHover,
   floatTitle,
   normalizeSharesIssued,
   sharesIssuedWarning,
@@ -122,5 +124,41 @@ describe('a filed share issuance: a warning, never a gate (#700)', () => {
     expect(normalizeSharesIssued({ form: '8-K' })).toBeNull();
     expect(normalizeSharesIssued('8-K')).toBeNull();
     expect(normalizeSharesIssued(null)).toBeNull();
+  });
+});
+
+describe('the float key on hover (operator ask, 2026-10-11)', () => {
+  const lines = (float: number) => floatGuide(float)!.split('\n');
+  const marked = (float: number) => lines(float).filter(l => l.startsWith('▸ ')).map(l => l.slice(2));
+
+  it('marks both low-float lines under 5M', () => {
+    expect(lines(3_200_000)).toEqual([
+      'Float 3.2M',
+      '▸ Under 10M: low float',
+      '▸ Under 5M: where the biggest movers come from',
+      '· 10-20M: workable if the catalyst is strong',
+      "· Over 50M: usually can't move 50-100% in a morning, whatever the news",
+    ]);
+  });
+
+  it('marks one line for each band, 10M and 20M inclusive in 10-20M', () => {
+    expect(marked(7_000_000)).toEqual(['Under 10M: low float']);
+    expect(marked(10_000_000)).toEqual(['10-20M: workable if the catalyst is strong']);
+    expect(marked(20_000_000)).toEqual(['10-20M: workable if the catalyst is strong']);
+    expect(marked(80_000_000)).toEqual(["Over 50M: usually can't move 50-100% in a morning, whatever the news"]);
+  });
+
+  it('says where a 20-50M float sits, since the key has no line for it', () => {
+    expect(lines(32_000_000)[0]).toBe('Float 32.0M: between 20M and 50M');
+    expect(lines(50_000_000)[0]).toBe('Float 50.0M: between 20M and 50M');
+    expect(marked(32_000_000)).toEqual([]);
+  });
+
+  it('shows nothing for an unknown float, and puts any warnings first', () => {
+    expect(floatGuide(null)).toBeUndefined();
+    expect(floatGuide(Number.NaN)).toBeUndefined();
+    expect(floatHover(null)).toBeUndefined();
+    expect(floatHover(null, WHLR_REASON)).toBe(WHLR_REASON);
+    expect(floatHover(3_200_000, WHLR_REASON)).toBe(`${WHLR_REASON}\n\n${floatGuide(3_200_000)}`);
   });
 });
