@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 _TEXT = {
     "restart": "Nova restarted: the bot never stays on across a restart -- turn the Bot switch on again",
-    "padlock": "the padlock was locked: the bot needs it unlocked -- unlock it, then turn the Bot switch on again",
+    "padlock": "the padlock was locked, so the bot went off -- turn the Bot switch on again (it unlocks the padlock)",
     "venue": "the desk moved to another venue: the bot never carries into another venue",
     "level": "the master level left Strategy",
     "no_setup": "no setup is at Strategy any more",
@@ -137,8 +137,10 @@ def trip_text(row: dict[str, Any], act: str = "Activate") -> str:
 
 
 # -- Activate ------------------------------------------------------------------------
-def refusal(row: dict[str, Any], *, reenable: bool = False) -> BotError | None:
-    """Why Activate refuses now (the first rule that fails), else None."""
+def refusal(row: dict[str, Any], *, reenable: bool = False, padlock_rule: bool = True) -> BotError | None:
+    """Why Activate refuses now (the first rule that fails), else None.
+
+    ``padlock_rule=False`` leaves the padlock out, for a control that unlocks it itself (the Bot switch)."""
     from bot.clock import soft_latched
     from bot.setup_levels import at_strategy, master
 
@@ -152,7 +154,7 @@ def refusal(row: dict[str, Any], *, reenable: bool = False) -> BotError | None:
     if not at_strategy(row):
         return BotError("no setup is at Strategy -- set at least one setup to Strategy, then Activate", 409,
                         BOT_REASON_NO_SETUP_AT_STRATEGY)
-    ok, why = padlock()
+    ok, why = padlock() if padlock_rule else (True, None)
     if not ok:
         return BotError(f"the desk padlock is locked ({why}) -- unlock it, then Activate", 409,
                         BOT_REASON_PADLOCK_LOCKED)
@@ -218,7 +220,8 @@ def on_disarm(reason: str = "") -> None:
         row = load_session()
         if row.get("level_venue") not in (None, venue()):
             return
-        deactivate_now("padlock", f"the padlock was locked ({reason or 'disarmed'}): Activate needs it unlocked",
+        deactivate_now("padlock", f"the padlock was locked ({reason or 'disarmed'}), so the bot went off -- "
+                                  "turn the Bot switch on again (it unlocks the padlock)",
                        disarm=reason or None)
     except Exception:
         # The padlock is locked whatever happens here; the bot reads the padlock before every

@@ -264,9 +264,18 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
 **The Bot switch.** One per venue, on the desk in place of the master dial and Activate. `POST
 /api/bot/session/switch {on: boolean, reenable?: boolean}` (API key) answers the session view.
 - **ON** puts the venue's master `level` at Strategy (2) and activates. It is refused like Activate:
-  409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN`, `BOT_PADLOCK_LOCKED`,
-  `BOT_NO_SETUP_AT_STRATEGY` (no strategy is On), and `BOT_TRIP_LATCHED` unless `reenable`. A
-  successful ON returns `desk_arm_token`, as `/arm` does.
+  409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN`, `BOT_NO_SETUP_AT_STRATEGY` (no
+  strategy is On), and `BOT_TRIP_LATCHED` unless `reenable`. A successful ON returns `desk_arm_token`,
+  as `/arm` does.
+- **ON unlocks the padlock** (ADR 044 amendment, 2026-10-12). Once every other rule passes, ON arms the
+  desk through the padlock's one rule, `ibkr.safety.arm(True, actor="operator")` (ADR 018), so it
+  follows the padlock's rule by venue: where the padlock unlocks without the PIN (Paper, Sim) the press
+  unlocks it; where it needs the PIN (`arm_requires_pin`, Live) ON is refused `BOT_PADLOCK_LOCKED`
+  until the operator unlocks it with the PIN, and `why_off` names the padlock only there. A refused ON
+  never unlocks. An unlocked desk that still cannot place (`places_allowed`) refuses
+  `BOT_PADLOCK_LOCKED` with its reason. The `bot_switch` line's `reason` adds "(it unlocked the
+  padlock)" when this press unlocked it. OFF leaves the padlock as it is; locking the padlock still
+  turns the bot off (`activation.on_disarm`).
 - **OFF** deactivates (`deactivated.reason: "operator"`) and puts the master at Eyes (1), so setups
   at Eyes or On still propose.
 - **The bot trip** (`bot/autonomy.drop_to_eyes`, `drop_to_l0` kept as its alias) also leaves the master at

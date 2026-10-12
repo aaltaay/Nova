@@ -94,13 +94,63 @@ def test_on_is_refused_with_activates_codes_and_changes_nothing(api_key, setup, 
     assert row["level"] == 0 and not row.get("armed") and _lines() == []
 
 
-def test_on_with_the_padlock_locked_is_refused_in_the_switchs_words(api_key, monkeypatch):
+# -- ON unlocks the padlock (operator ask 2026-10-12) ---------------------------------------
+@pytest.mark.parametrize("venue", ["paper", "sim"])
+def test_on_unlocks_a_locked_padlock_through_its_one_door(api_key, monkeypatch, venue):
+    from ibkr import safety
+
+    monkeypatch.setattr("sim.mode.is_replay_desk", lambda: False)   # Sim at its live edge
+    on_practice(venue)
+    _a_strategy_on()
+    safety.arm(False, actor="operator")                 # a restart, or the operator locked it
+    assert "padlock" not in (get_session()["switch"]["why_off"] or "")   # ON is not locked by it
+    res = _switch(api_key, True)
+    assert res.status_code == 200 and res.json()["bot_on"] is True
+    assert safety.armed() and safety.armed_by() == "operator"
+    [line] = _lines()
+    assert "it unlocked the padlock" in line["reason"]
+
+
+def test_on_with_the_padlock_already_unlocked_says_nothing_of_it(api_key):
     on_practice()
     _a_strategy_on()
-    monkeypatch.setattr("ibkr.trading_allowed.places_allowed", lambda: (False, "desk disarmed"))
+    assert _switch(api_key, True).status_code == 200
+    [line] = _lines()
+    assert "padlock" not in line["reason"]
+
+
+def test_a_refused_on_leaves_the_padlock_locked(api_key):
+    from ibkr import safety
+
+    on_practice()                                       # no strategy is On
+    safety.arm(False, actor="operator")
+    res = _switch(api_key, True)
+    assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_NO_SETUP_AT_STRATEGY
+    assert not safety.armed()
+
+
+def test_where_the_padlock_needs_the_pin_on_never_unlocks_it(api_key, monkeypatch):
+    from ibkr import safety
+
+    on_practice()
+    _a_strategy_on()
+    safety.arm(False, actor="operator")
+    monkeypatch.setattr("ibkr.safety.arm_requires_pin", lambda: True)
+    monkeypatch.setattr("ibkr.trading_allowed.places_allowed",        # the suite pins it True
+                        lambda: (safety.armed(), "" if safety.armed() else "Desk is disarmed"))
     res = _switch(api_key, True)
     assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_PADLOCK_LOCKED
     assert "unlock it, then turn the bot on" in res.json()["detail"]["error"]
+    assert not safety.armed() and _lines() == []
+
+
+def test_an_unlocked_desk_that_cannot_place_refuses_on(api_key, monkeypatch):
+    on_practice()
+    _a_strategy_on()
+    monkeypatch.setattr("ibkr.trading_allowed.places_allowed", lambda: (False, "Gateway not ready"))
+    res = _switch(api_key, True)
+    assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_PADLOCK_LOCKED
+    assert "Gateway not ready" in res.json()["detail"]["error"] and _lines() == []
 
 
 def test_a_bot_trip_needs_reenable_which_clears_the_latch(api_key):
