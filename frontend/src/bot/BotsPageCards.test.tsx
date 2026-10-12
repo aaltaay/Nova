@@ -434,6 +434,11 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     const stop = grml.querySelector('.bots-tk__stop') as HTMLElement;
     expect(stop.textContent).toBe('No · outside its bot window');
     expect(stop.querySelector('.bots-muted [data-tip]')?.getAttribute('data-tip')).toBe('the bot window 07:00–10:00 closed');
+    // Where it stands on the day, as the Gainers board shows it: the change, its dollars under it, the source on hover.
+    const chg = grml.querySelector('.bots-tk__chg') as HTMLElement;
+    expect(chg.querySelector('.bots-tk__chg-pct--positive')?.textContent).toBe('+45.23%');
+    expect(chg.querySelector('.bots-tk__chg-abs')?.textContent).toBe('+$1.59');
+    expect(chg.getAttribute('data-tip')).toBe('+45.23% on the day at $5.12, read from the Gainers board.');
     // Its trigger today sits under it, judged by the same squares: BLIND is the Level 2 line.
     const past = grml.nextElementSibling as HTMLElement;
     expect(past.className).toBe('bots-tk__past');
@@ -453,6 +458,10 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     await act(async () => { fireEvent.click(screen.getByTestId('bots-tk-unlisted-toggle')); await flush(); });
     const imcc = screen.getByTestId('bots-tk-IMCC');
     expect(imcc.className).toBe('bots-tk__unlisted');
+    // No change to say: a dash, and why on hover.
+    const none = imcc.querySelectorAll('td')[1];
+    expect(none.textContent).toBe('–');
+    expect(none.getAttribute('data-tip')).toBe('no scanner board holds IMCC and Nova holds no Level 1 line on it');
     expect(imcc.nextElementSibling).toBeNull();
     await act(async () => { fireEvent.click(within(imcc).getByText(/▸ 1/)); await flush(); });
     expect((screen.getByTestId('bots-tk-IMCC').nextElementSibling as HTMLElement).textContent).toMatch(/Bull flag.*stop -1\.00R/);

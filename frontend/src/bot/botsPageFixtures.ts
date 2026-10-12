@@ -199,8 +199,9 @@ export function stockModeView(symbol: string, buy: string, sell: string, partial
   };
 }
 
-/** Today's squares by ticker: GRML on the hot list (an auto ☆), one trigger stopped by its tape, then a bear flag
- * short under SSR (amber, never red) stopped by its borrow; IMCC only triggered. */
+/** Today's squares by ticker: GRML on the hot list (an auto ☆, +45.23% on the Gainers board), one trigger stopped by
+ * its tape, then a bear flag short under SSR (amber, never red) stopped by its borrow; IMCC only triggered, with no
+ * change to say. */
 export function triggersView(partial: Record<string, unknown> = {}): Record<string, unknown> {
   const gate = (id: string, label: string) => ({ id, label });
   const cell = (ok: boolean | null, why = '') => ({ ok, why });
@@ -225,6 +226,7 @@ export function triggersView(partial: Record<string, unknown> = {}): Record<stri
       { symbol: 'GRML', listed: { how: 'auto', at: 1_790_000_000 },
         now: { cells: { ...allOk, bot_window: cell(false, 'the bot window 07:00–10:00 closed') }, answer: 'no',
           reasons: ['the bot window 07:00–10:00 closed'] },
+        market: { price: 5.12, change_pct: 0.4523, change_abs: 1.5944, source: 'gainers', why: null },
         triggers: [{ ts: 1_790_000_600, setup_id: 'g1', setup_type: 'first_pullback', kind: 'first_pullback', nth: 1,
           grade: 'A', tape: 'blind', outcome: 'target_first', r: 1.6, side: 'long', ssr: null,
           cells: { ...allOk, level2_line: cell(false, 'no Level 2 line: the tape was BLIND'), tape_go: cell(null, 'no tape to read') },
@@ -237,6 +239,8 @@ export function triggersView(partial: Record<string, unknown> = {}): Record<stri
             short_hours: cell(true, '10:30 ET, before the 15:50 last short') },
           reasons: ['Borrow: IBKR lists 200 GRML shares to borrow, under the order'] }] },
       { symbol: 'IMCC', listed: null, now: null,
+        market: { price: null, change_pct: null, change_abs: null, source: null,
+          why: 'no scanner board holds IMCC and Nova holds no Level 1 line on it' },
         triggers: [{ ts: 1_790_001_200, setup_id: 'i1', setup_type: 'bull_flag', kind: 'bull_flag', nth: 1, grade: 'B',
           tape: 'wait', outcome: 'stop_first', r: -1, side: 'long', ssr: null,
           cells: { ...allOk, nova_buys: cell(false, 'Entry was You (Signal only): the bot enters only stocks whose Entry is Bot') },

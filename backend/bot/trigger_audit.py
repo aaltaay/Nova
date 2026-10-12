@@ -3,19 +3,21 @@
 One row per ticker -- every name on the day's hot list (the ★, ``listed``), then today's bot-buy stocks
 not on it, then every name that triggered (``listed: null`` off the list) -- saying now whether the bot
 would trade it if its setup triggered this minute (``now``: today, listed and bot-buy names, ``bot.trigger_now``),
+where it stands on the day (``market``: today, every ticker, ``bot.trigger_market``),
 and under it every trigger of the day on it, judged by the gates in the order Nova runs them
 (``bot.trigger_cells``), then a short's own block (ADR 049, #778 step 5: ``bot.trigger_short``). Being listed is no gate (ADR 044, amended 2026-10-06). Under the table, what
 each gate did (``impact``). ``judged_now`` names the gates judged with today's settings because
 nothing recorded them at a trigger; ``sources`` says what could not be read.
 
 Shape (schema 1): ``{schema_version, date, generated_at, gates: [{id, label}], short_gates: [{id, label}],
-tickers: [{symbol, listed: {how, at} | null, now: {cells, answer, reasons} | null, triggers: [{ts, setup_id,
+tickers: [{symbol, listed: {how, at} | null, now: {cells, answer, reasons} | null,
+market: {price, change_pct, change_abs, source, why} | null, triggers: [{ts, setup_id,
 setup_type, side, ssr, kind, nth, grade, tape, outcome, r, cells, reasons}]}], impact: [{gate, blocked,
 target_first, stop_first, r}], judged_now, sources: {journal, audit, hot_list: {ok, error}}}``. A cell is
 ``{ok, why}``, plus ``warn: true`` on an amber pass (SSR); a long trigger's cells hold no short gate.
 
 Owner: this module (the answer; the reads are ``bot.trigger_inputs``', the cells ``bot.trigger_cells``'
-and ``bot.trigger_now``'s; no state).
+and ``bot.trigger_now``'s, the move ``bot.trigger_market``'s; no state).
 """
 from __future__ import annotations
 
@@ -34,12 +36,14 @@ from constants_bot import (
 
 logger = logging.getLogger(__name__)
 NowRow = Callable[[str, list[dict[str, Any]]], dict[str, Any]]
+Markets = Callable[[list[str]], dict[str, dict[str, Any]]]
 
 
 def build(day: str, *, lines: list[dict[str, Any]], ctx: trigger_cells.Context, sources: dict[str, Any],
-          generated_at: float, now_row: NowRow | None = None, bot_buys: list[str] | None = None) -> dict[str, Any]:
-    """The answer from what was read (pure but for ``now_row``, which reads the desk). ``bot_buys``: the
-    stocks whose Buy is the bot's now (today only)."""
+          generated_at: float, now_row: NowRow | None = None, bot_buys: list[str] | None = None,
+          markets: Markets | None = None) -> dict[str, Any]:
+    """The answer from what was read (pure but for ``now_row`` and ``markets``, which read the desk).
+    ``bot_buys``: the stocks whose Buy is the bot's now (today only)."""
     found = trigger_cells.triggers(lines)
     for t in found:
         t["cells"] = trigger_cells.judge(t, ctx)
@@ -51,6 +55,7 @@ def build(day: str, *, lines: list[dict[str, Any]], ctx: trigger_cells.Context, 
     order = list(ctx.listed) + mine_now
     order += [s for s in dict.fromkeys(t["symbol"] for t in found) if s not in set(order)]
     now_for = set(ctx.listed) | set(mine_now)
+    moves = markets(order) if markets is not None else {}
     tickers = []
     for sym in order:
         entry = ctx.listed.get(sym)
@@ -59,6 +64,7 @@ def build(day: str, *, lines: list[dict[str, Any]], ctx: trigger_cells.Context, 
             "symbol": sym,
             "listed": {"how": entry.get("how"), "at": entry.get("at")} if entry is not None else None,
             "now": now_row(sym, found) if now_row is not None and sym in now_for else None,
+            "market": moves.get(sym),
             "triggers": [trigger_cells.wire(t) for t in mine],
         })
     return {"schema_version": BOT_TRIGGERS_SCHEMA_VERSION, "date": day, "generated_at": generated_at,
@@ -71,7 +77,7 @@ def build(day: str, *, lines: list[dict[str, Any]], ctx: trigger_cells.Context, 
 def answer(day: str, now: float, *, today: bool) -> dict[str, Any]:
     """Read the day's inputs and answer (``GET /api/bot/triggers``)."""
     from bot import trigger_inputs as inputs
-    from bot import trigger_now, trigger_short
+    from bot import trigger_market, trigger_now, trigger_short
 
     lines, journal_src = inputs.journal(day, today=today)
     rows, audit_src = inputs.audit(day)
@@ -101,4 +107,5 @@ def answer(day: str, now: float, *, today: bool) -> dict[str, Any]:
             logger.warning("triggers audit: the bot's stocks could not be read -- only listed ones get a row",
                            exc_info=True)
     return build(day, lines=lines, ctx=ctx, sources={"journal": journal_src, "audit": audit_src, "hot_list": hot_src},
-                 generated_at=now, now_row=now_row, bot_buys=bot_buys)
+                 generated_at=now, now_row=now_row, bot_buys=bot_buys,
+                 markets=trigger_market.moves if today else None)
