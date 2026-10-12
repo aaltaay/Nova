@@ -1,6 +1,7 @@
 /**
  * The trade you hold, for one Trader tab (ADR 036 amendment 2026-10-01): what the read is asked about it
- * (`held_*`), the stop you set for it, and trial T1's tape reading, read every second while you hold.
+ * (`held_*`), the stop you set for it, trial T1's tape reading, and the big sellers on the ask (big buyers on
+ * the bid, for a short; #846) of the held Level 2 line, each read every second while you hold.
  *
  * The tab remembers, for the holding episode only (never persisted): when it first saw the shares, the
  * stop you set (or the triggered setup's, when you entered at its trigger), and the risk a share your R is
@@ -8,7 +9,8 @@
  * all, and so does a long turned short.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { STOCK_READ_FLUSH_POLL_MS, STOCK_READ_PATH } from './constants';
+import { normalizeBigWalls, type BigWalls } from './bigSeller';
+import { BOOK_WATCH_PATH, STOCK_READ_BIG_POLL_MS, STOCK_READ_FLUSH_POLL_MS, STOCK_READ_PATH } from './constants';
 import { num, obj, str } from './normalize';
 import { usePolledRead, type PolledState } from './useStockRead';
 import type { StockPlan, StockRead } from './types';
@@ -66,11 +68,15 @@ export function useHeldTrade(opts: {
   read: StockRead | null;
   /** The stop order resting at the broker that protects the position (`protectiveStop`). */
   workingStop?: number | null;
+  /** The tab reads the desk's market: the live line, or on a Sim replay the replay at the playhead (the big
+   * seller read answers on both; trial T1's tape reading only live). Defaults to `live`. */
+  readable?: boolean;
 }): {
   track: HeldTrack;
   query: string;
   setStop: (stop: number | null) => void;
   flush: PolledState<FlushReading>;
+  big: PolledState<BigWalls>;
 } {
   const { symbol, live, position, read } = opts;
   const workingStop = opts.workingStop ?? null;
@@ -111,5 +117,14 @@ export function useHeldTrade(opts: {
     active: live && long,
     what: 'tape reading',
   });
-  return { track, query, setStop, flush };
+  const big = usePolledRead({
+    url: sym && side !== null ? `${BOOK_WATCH_PATH}/${encodeURIComponent(sym)}/big-sellers` : null,
+    resetKey: sym,
+    normalize: normalizeBigWalls,
+    pollMs: STOCK_READ_BIG_POLL_MS,
+    active: (opts.readable ?? live) && side !== null,
+    what: 'big-seller read',
+    accept: b => b.symbol === sym,
+  });
+  return { track, query, setStop, flush, big };
 }

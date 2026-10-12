@@ -97,6 +97,45 @@ BOOK_WATCH_SWEEP_MIN_LEVEL = 100
 # Prints that prove nothing about the book: crosses, volume-only prints and odd lots.
 BOOK_WATCH_SWEEP_SKIP_CONDITIONS = BOOK_WATCH_HIDDEN_SKIP_CONDITIONS | BOOK_WATCH_AUCTION_CONDITIONS | frozenset("I")
 
+# A big seller on the ask, a big buyer on the bid (big_seller.py, #846; operator ask 2026-10-12: the
+# operator's material lists "high selling pressure / big sellers on the ask" as a reason to get out).
+# CHOSEN, not measured: a description of the book for the trade you hold, never an order or a gate.
+# A price is big when its resting size is at least the share floor AND the dollar floor -- a quiet
+# book's ordinary 1,000-share order is not a seller anyone waits behind, and on a sub-$2 stock the
+# dollars set the floor (20,000 / $1.25 = 16,000 shares) -- AND this many times the median of the other
+# levels in view on its side: the book around it, so a busy book's ordinary size is never "big". The
+# watcher's large pull is 4x; a size that sits in the way has to stand out more than one that leaves.
+BOOK_WATCH_BIG_MIN_SHARES = 10_000
+BOOK_WATCH_BIG_MIN_DOLLARS = 20_000.0
+BOOK_WATCH_BIG_MEDIAN_MULT = 5.0
+# Fewer other levels in view than this and there is no book around it to weigh it against: no call.
+BOOK_WATCH_BIG_MIN_OTHER_LEVELS = 3
+# At or just over the price (just under, for a bid): no further than the larger of 5 cents and 1% of the
+# price, and never more than 3% -- a few cents on a $3 stock, a dime on a $10 one, 3 cents on a $1 one.
+# The price is the last print that sets one, else the middle of the inside.
+BOOK_WATCH_BIG_WINDOW_DOLLARS = 0.05
+BOOK_WATCH_BIG_WINDOW_PCT = 0.01
+BOOK_WATCH_BIG_WINDOW_MAX_PCT = 0.03
+# Called once it has stayed that big this long: an order posted and pulled within a second or two is
+# no seller anyone could count on (IBKR's book arrives in batches a fraction of a second apart).
+BOOK_WATCH_BIG_MIN_HOLD_SEC = 3.0
+# A called price whose size the book shows fall under the floors left: lit prints at its price inside the
+# watcher's matching window (matching.py) covering at least this share of the drop read "taken", else
+# "pulled". A lit print through it (over a seller, under a buyer) reads taken at once: a displayed price
+# cannot be traded through (the sweep rule, matching.py).
+BOOK_WATCH_BIG_TAKEN_SHARE = 0.5
+# Ended ones stay in the reading this long, so the held card can say "taken" or "pulled".
+BOOK_WATCH_BIG_SHOW_ENDED_SEC = 30.0
+# Ended ones kept per line (the journal keeps them all).
+BOOK_WATCH_BIG_KEEP = 100
+# On a Sim replay (a Session Record at the playhead) the reading runs the same tracker over this much of the
+# recorded book and tape before the playhead: a price there longer reads "held 3 min+".
+BOOK_WATCH_BIG_REPLAY_LOOKBACK_SEC = 180.0
+BOOK_WATCH_BIG_NOTE = (
+    "Resting size much larger than the book around it, at or just past the price: one order or several at "
+    "one price look the same here. A description of the book, shown, never acted on."
+)
+
 # Readings.
 BOOK_WATCH_STATS_WINDOW_SEC = 60.0
 BOOK_WATCH_RATE_WINDOW_SEC = 10.0
