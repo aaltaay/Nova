@@ -1,7 +1,9 @@
 /**
- * A forming setup's plan is its strategy box on the 1-minute pane (operator ask 2026-10-12, on MNDR's Gap and Go plan at
- * 09:01: entry 2.91 with the price at 2.24, its zones and lines stretching the pane to target 2 at 3.49): one faint box
- * from the stop to target 1, on the setup's window while that is ahead, else waiting at the right edge.
+ * A setup's plan is its strategy box on the 1-minute pane (operator asks 2026-10-12). Forming, on MNDR's Gap and Go plan
+ * at 09:01 (entry 2.91 with the price at 2.24, its zones and lines stretching the pane to target 2 at 3.49): one faint
+ * box from the stop to target 1, on the setup's window while that is ahead, else waiting at the right edge. Near, armed
+ * or triggered, on the same plan at 09:55 ("its making the chart extremely big ... can we do that for the rest of
+ * them?"): the same box in full colour after the newest candle, saying where it stands, its prices on the axis.
  */
 import type { Time } from 'lightweight-charts';
 import { describe, expect, it } from 'vitest';
@@ -11,9 +13,9 @@ import { emptyPx, LineRenderer, type Px } from './sceneRender';
 import type { LabelRect } from './sceneLabels';
 import type { SceneStrategy } from './sceneTypes';
 import { apusAt, apusReadWire } from './stockReadFixtures';
-import { formingPlan, strategyOf, strategyWords } from './strategyBox';
-import { columnLeft, drawStrategy, strategySpan, type StrategyPx } from './strategyBoxRender';
-import type { StockPlan, StockRead } from './types';
+import { boxedPlan, formingPlan, strategyOf, strategyWords } from './strategyBox';
+import { columnLeft, drawStrategy, fitName, strategySpan, type StrategyPx } from './strategyBoxRender';
+import type { SetupLevels, StockPlan, StockRead } from './types';
 import type { OrderLevels } from './whoTradesModel';
 
 const LAYERS = {
@@ -42,6 +44,74 @@ describe('which plans are only forming', () => {
     const working = { ...planLevels(gapAndGo), entry: { price: 2.91, behind: 'order' as const } };
     expect(formingPlan(gapAndGo, working)).toBe(false);
     expect(formingPlan(null, planLevels(gapAndGo))).toBe(false);
+  });
+
+  it('boxes every setup plan with only the plan behind it: forming, near, armed and triggered', () => {
+    for (const state of ['forming', 'near', 'armed', 'triggered'] as const) {
+      expect(boxedPlan({ ...gapAndGo, state }, planLevels(gapAndGo))).toBe(true);
+    }
+    expect(boxedPlan({ ...gapAndGo, source: 'manual', state: 'manual' }, planLevels(gapAndGo))).toBe(false);
+    // An order at the entry, or Nova watching the stop: the zones and lines say what stands there.
+    expect(boxedPlan({ ...gapAndGo, state: 'armed' },
+      { ...planLevels(gapAndGo), entry: { price: 2.91, behind: 'order' } })).toBe(false);
+    expect(boxedPlan({ ...gapAndGo, state: 'triggered' },
+      { ...planLevels(gapAndGo), stop: { price: 2.79, behind: 'watched' } })).toBe(false);
+    expect(formingPlan({ ...gapAndGo, state: 'armed' }, planLevels(gapAndGo))).toBe(false);
+  });
+});
+
+/** MNDR's Gap and Go lane once armed: armed at the 09:30 open, triggered at 09:31:47. */
+const mndrSetup = { armed_at: apusAt(9, 30), triggered_at: apusAt(9, 31) + 47 } as SetupLevels;
+const at955 = apusAt(9, 55);
+
+describe('the box once the setup is near, armed or triggered', () => {
+  it('starts after the newest candle and says since when it armed, and until when while its window is open', () => {
+    const armed = { ...gapAndGo, state: 'armed' as const, window: { start: '09:30', end: '10:00', state: 'open' } };
+    const s = strategyOf(armed, planLevels(armed), 3.49, at955 as Time, at955, mndrSetup)!;
+    expect(s).toMatchObject({ state: 'armed', name: 'GAP AND GO', word: 'armed', startBars: null, endBars: null,
+      when: 'since 09:30 · until 10:00', whenWaiting: 'since 09:30 · until 10:00', target2: 3.49 });
+    const near = strategyOf({ ...armed, state: 'near', window: null }, planLevels(armed), null, at955 as Time, at955,
+      mndrSetup)!;
+    expect(near).toMatchObject({ word: 'near', when: 'since 09:30' });
+  });
+
+  it('says when it triggered', () => {
+    // Its window no longer matters once it triggered: no "until 10:00".
+    const triggered = { ...gapAndGo, state: 'triggered' as const, window: { start: '09:30', end: '10:00', state: 'open' } };
+    const s = strategyOf(triggered, planLevels(triggered), 3.49, at955 as Time, at955, mndrSetup)!;
+    expect(s).toMatchObject({ word: 'triggered', when: 'at 09:31' });
+    // Without the lane's times it says nothing it does not know.
+    expect(strategyOf(triggered, planLevels(triggered), 3.49, at955 as Time, at955)!.when).toBe('');
+  });
+
+  it("names its prices' edge-column words only: the axis carries the prices", () => {
+    const s = strategyOf({ ...gapAndGo, state: 'armed' }, planLevels(gapAndGo), 3.49, at955 as Time, at955)!;
+    expect(strategyWords(s).map(w => [w.text, w.price, w.style])).toEqual([
+      ['T1', 2.99, 'plain'], ['entry', 2.91, 'plain'], ['stop', 2.7936, 'plain'],
+    ]);
+    const short = strategyOf({ ...gapAndGo, state: 'armed', side: 'short' }, planLevels(gapAndGo), null,
+      at955 as Time, at955)!;
+    expect(strategyWords(short).map(w => w.text)).toEqual(['T1', 'short', 'stop']);
+  });
+
+  it('draws the box in place of the zones and lines, its levels kept as axis tags with no line', () => {
+    const setups = base.setups.map(l => (l.series ? { ...l, series: { ...l.series, bars_as_of: at955 } } : l));
+    const read: StockRead = { ...base, plan: { ...gapAndGo, state: 'triggered', provisional: false }, setups };
+    const { scene, lines } = paneDraw(read, { pane: 'full', layers: LAYERS, toTime: identity });
+    expect(scene.strategy).toMatchObject({ after: at955, state: 'triggered', startBars: null, endBars: null });
+    expect(scene.boxes.filter(b => b.t2 === null)).toEqual([]);
+    expect(lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))
+      .map(l => [l.id, l.line, l.title, l.axisLabel])).toEqual([
+      ['entry', false, '', true], ['stop', false, '', true], ['target', false, '', true], ['target2', false, '', true],
+    ]);
+    expect(scene.keepInView).toEqual({ min: 2.7936, max: 2.99 });
+    // The 5-minute and 10-second panes still mirror the plan's levels as thin lines.
+    for (const pane of ['map', 'thin'] as const) {
+      const other = paneDraw(read, { pane, layers: LAYERS, toTime: identity });
+      expect(other.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))
+        .every(l => l.line === undefined && l.width === 1)).toBe(true);
+      expect(other.scene.strategy ?? null).toBeNull();
+    }
   });
 });
 
@@ -145,7 +215,11 @@ function fakeCtx() {
 
 const SCENE: SceneStrategy = {
   after: 1 as Time, startBars: 29, endBars: 59, entry: 2.91, stop: 2.79, target: 2.99, target2: 3.49, side: 'long',
-  name: 'GAP AND GO', word: 'strategy', when: '09:30–10:00', whenWaiting: 'from 09:30 →',
+  state: 'forming', name: 'GAP AND GO', word: 'strategy', when: '09:30–10:00', whenWaiting: 'from 09:30 →',
+};
+const ARMED: SceneStrategy = {
+  ...SCENE, startBars: null, endBars: null, state: 'armed', word: 'armed', when: 'since 09:30 · until 10:00',
+  whenWaiting: 'since 09:30 · until 10:00',
 };
 const px = (o: Partial<StrategyPx> = {}): StrategyPx => ({
   xAfter: 400, xStart: 1100, xEnd: 1500, bar: 10, yEntry: 150, yStop: 210, yTarget: 110, s: SCENE, ...o,
@@ -180,6 +254,42 @@ describe('drawing the box', () => {
     drawStrategy(ctx, px({ s: short, yStop: 100, yTarget: 200 }), 800, []);
     const t2 = texts.find(t => t.text.startsWith('↓ T2'))!;
     expect(t2.y).toBeGreaterThan(200);
+  });
+
+  it('says where an armed setup stands beside its name, and when under it', () => {
+    const { ctx, texts } = fakeCtx();
+    drawStrategy(ctx, px({ s: ARMED, xStart: null, xEnd: null }), 800, []);
+    expect(texts.map(t => t.text)).toEqual(['GAP AND GO', ' armed', 'since 09:30 · until 10:00', '↑ T2 3.49']);
+    expect(texts[0].x).toBe(400 + 10 * 1.5 + 6);                         // after the newest candle
+  });
+
+  it('leads the second line with the word for where it stands when the name leaves it no room', () => {
+    const { ctx, texts } = fakeCtx();
+    // 87 px of room: the name (60) and " armed" (36) do not fit on one line.
+    const word: LabelRect = { left: 520, top: 112, right: 790, bottom: 126 };
+    drawStrategy(ctx, px({ s: ARMED, xStart: null, xEnd: null }), 800, [word]);
+    expect(texts.slice(0, 2).map(t => t.text)).toEqual(['GAP AND GO', 'armed']);
+    expect(texts[2].text.startsWith('since')).toBe(true);
+    expect(texts[1].y).toBe(texts[2].y);
+    expect(texts[2].x).toBeGreaterThan(texts[1].x);
+  });
+
+  it('draws target 2 as a dash across the box while it is in view, an arrow once it is off the pane', () => {
+    const inView = fakeCtx();
+    drawStrategy(inView.ctx, px({ s: ARMED, xStart: null, xEnd: null, yTarget2: 40 }), 800, [], 400);
+    const t2 = inView.texts.find(t => t.text.includes('T2'))!;
+    expect(t2.text).toBe('T2 3.49');
+    expect(t2.y).toBeLessThan(40);                                         // over its dash
+    const off = fakeCtx();
+    drawStrategy(off.ctx, px({ s: ARMED, xStart: null, xEnd: null, yTarget2: -30 }), 800, [], 400);
+    expect(off.texts.find(t => t.text.includes('T2'))!.text).toBe('↑ T2 3.49');
+  });
+
+  it("cuts a short's name before its ▼ SHORT, so the box always says it is a short", () => {
+    const six = (t: string) => t.length * 6;
+    expect(fitName('BACKSIDE LOWER HIGH ▼ SHORT', 120, six)).toBe('BACKSIDE LO… ▼ SHORT');
+    expect(fitName('BACKSIDE LOWER HIGH ▼ SHORT', 200, six)).toBe('BACKSIDE LOWER HIGH ▼ SHORT');
+    expect(fitName('FIRST PULLBACK', 120, six)).toBe('FIRST PULLBACK');
   });
 
   it('is drawn by the pane under the column, and the labels after it keep clear of its words', () => {

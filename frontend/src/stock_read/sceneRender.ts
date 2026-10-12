@@ -64,7 +64,7 @@ export interface Px {
   dots: { x: number; y: number; d: SceneDot }[];
   /** The trend lines: each one's first touch, its last, and where it runs on the pane's newest candle. */
   trends: TrendPx[];
-  /** A forming setup's strategy box (`strategyBoxRender.ts`). */
+  /** A setup's strategy box (`strategyBoxRender.ts`). */
   strategy?: StrategyPx | null;
 }
 
@@ -281,12 +281,12 @@ export class LineRenderer implements IPrimitivePaneRenderer {
             align: 'center' });
         }
       }
-      // Every word at the right edge in one column; the boxes' labels take the room around it. A forming setup's box
+      // Every word at the right edge in one column; the boxes' labels take the room around it. A setup's strategy box
       // goes under the column, its own words clear of the column's.
       const items = columnItems(this.px, height);
       const layout = layoutColumn(items, height, this.px.topInset, this.px.reserves);
       const boxWords = this.px.strategy
-        ? drawStrategy(ctx, this.px.strategy, width, columnRects(layout, width, measure)) : [];
+        ? drawStrategy(ctx, this.px.strategy, width, columnRects(layout, width, measure), height) : [];
       const column = drawColumn(ctx, items, layout, width, measure);
       const levelHits = [...tickHits, ...column.hits];
       const obstacles: LabelRect[] = [...tickHits.map(h => h.rect), ...column.rects, ...boxWords];

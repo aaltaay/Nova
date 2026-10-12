@@ -131,8 +131,8 @@ export function frameFrom(
 }
 
 /** Slide a view that follows the live edge so the plan's zones have room past the last candle -- at least `minPx` of
- * it (a forming setup's strategy box) -- a view the operator zoomed or panned stays exactly where they put it, even at
- * the live edge. */
+ * it (a setup's strategy box) -- a view the operator zoomed or panned stays exactly where they put it, even at the live
+ * edge. */
 export function roomAtLiveEdge(chart: NonNullable<ChartPaneOverlayProps['chart']>, barCount: number, minPx = 0): void {
   if (operatorOwnsView(chart)) return;
   const last = barCount - 1;
@@ -172,6 +172,7 @@ function usePriceLines(series: ISeriesApi<'Candlestick'> | null, specs: PriceLin
         color: s.color,
         lineWidth: s.width,
         lineStyle: STYLE[s.style],
+        lineVisible: s.line ?? true,
         axisLabelVisible: s.axisLabel,
         title: s.title,
       } as const;
@@ -293,7 +294,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const lines = useMemo(() => (enabled ? draw.lines.map(l => ({ ...l, title: '' })) : []), [enabled, draw.lines]);
   usePriceLines(series, lines);
 
-  // Room for the plan's zones (or a forming setup's strategy box) right of the last candle when they appear, and only
+  // Room for the plan's zones (or a setup's strategy box) right of the last candle when they appear, and only
   // for a view that follows the live edge. The time scale's rightOffset used to do this: it is the scroll position, so
   // the pane jumped to the live edge whenever the zones came or went -- a buy, a sale, a tab shown again.
   const boxed = kind === 'full' && !!draw.scene.strategy;

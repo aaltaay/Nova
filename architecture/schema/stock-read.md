@@ -208,8 +208,17 @@ own), and target 2 a small arrow over it (under it for a short). While the setup
 stands on that window -- from Gap and Go's 09:30 -- when the window's start leaves room for its name left of the
 column's words, and otherwise waits at the right edge saying "from 09:30 →"; with the window open, or none, it starts
 after the newest candle. That chart's autoscale keeps the box in view (the stop to target
-1), never target 2. A plan the setup armed (near, armed, triggered), a level an order stands behind, and the
-operator's own plan draw the zones, lines and frame above. It frames a forming setup once per setup, and again
+1), never target 2. **Once the setup is near, armed or triggered** (operator ask 2026-10-12, on MNDR's Gap and Go armed
+at 09:30, its zones from the 09:30 candle and four lines across the pane: "its making the chart extremely big ... can
+we do that for the rest of them?") the same box stands in full colour with a solid outline, from the room right of the
+newest candle to the pane's edge, on every setup: its name and where it stands ("FLAT TOP BREAKOUT near", "FIRST
+PULLBACK triggered"; a word with no room beside the name leads the second line), and when ("since 09:34", "at 09:36",
+with "until 10:00" while it can still trigger in an open window, from the lead lane's `setup.armed_at` / `triggered_at`). The entry is dashed
+across the box only. Its levels keep their axis tags, price lines drawn without the line (`PriceLineSpec.line: false`,
+lightweight-charts' `lineVisible`), and the edge column's words name them ("T1", "entry" or "short", "stop"). Target 2
+in view is a dotted dash across the box ("T2 3.49"), and off the pane an arrow; either way the frame is the stop to
+target 1. A short's name is cut before its "▼ SHORT". A level an order or a position stands behind, and the operator's
+own plan, draw the zones, lines and frame above. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
 time scale's `rightOffset`, which is its scroll position, is never set). **A view the operator
