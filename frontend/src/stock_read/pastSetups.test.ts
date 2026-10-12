@@ -1,5 +1,6 @@
 import type { Time } from 'lightweight-charts';
 import { describe, expect, it } from 'vitest';
+import { areaHoverId, hoverTarget } from '../chart';
 import { laneHoverId, paneDraw } from './chartShapes';
 import { normalizeStockRead } from './normalize';
 import {
@@ -236,16 +237,17 @@ describe('the pointer over a box', () => {
     return p;
   }
 
-  it('names the top-most box with a story under it', () => {
+  it('names the top-most box with a story under it, as an area a candle in it wins', () => {
     const p = primitive([
       { x1: 10, x2: 100, y1: 50, y2: 150, hoverId: 'past:a' },
       { x1: 40, x2: 60, y1: 80, y2: 120, hoverId: 'lane:bull_flag' },
       { x1: 0, x2: null, y1: 0, y2: 400 },                       // a plan zone: no story
     ]);
-    expect(p.hitTest(50, 100)).toEqual({ externalId: 'lane:bull_flag', zOrder: 'top' });
-    expect(p.hitTest(20, 60)).toEqual({ externalId: 'past:a', zOrder: 'top' });
-    expect(p.hitTest(101, 151)).toEqual({ externalId: 'past:a', zOrder: 'top' });   // two pixels of slack
+    expect(p.hitTest(50, 100)).toEqual({ externalId: areaHoverId('lane:bull_flag'), zOrder: 'top' });
+    expect(p.hitTest(20, 60)).toEqual({ externalId: areaHoverId('past:a'), zOrder: 'top' });
+    expect(p.hitTest(101, 151)).toEqual({ externalId: areaHoverId('past:a'), zOrder: 'top' });   // two pixels of slack
     expect(p.hitTest(300, 300)).toBeNull();
+    expect(hoverTarget(p.hitTest(20, 60)?.externalId)).toEqual({ id: 'past:a', area: true });
   });
 
   it('names the setup a mark was drawn for, also outside its box, and over any box under it', () => {
@@ -254,8 +256,8 @@ describe('the pointer over a box', () => {
       { x1: 10, x2: 100, y1: 50, y2: 150, hoverId: 'past:a' },
       { x1: 0, x2: 40, y1: 140, y2: 200, hoverId: 'past:b' },
     ], [mark]);
-    expect(p.hitTest(20, 160)).toEqual({ externalId: 'past:a', zOrder: 'top' });
-    expect(p.hitTest(35, 160)).toEqual({ externalId: 'past:b', zOrder: 'top' });
+    expect(p.hitTest(20, 160)).toEqual({ externalId: 'past:a', zOrder: 'top' });   // the mark: its own story
+    expect(p.hitTest(35, 160)).toEqual({ externalId: areaHoverId('past:b'), zOrder: 'top' });
     p.updateAllViews();   // rebuilt without a draw: the marks on screen still count
     expect(p.labelHits).toEqual([mark]);
   });
