@@ -15,6 +15,9 @@ const trigger = (partial: Partial<TickerTrigger> = {}): TickerTrigger => ({
 const row = (symbol: string, at: number | null, triggers: TickerTrigger[] = []): TickerRow => ({
   symbol, listed: at === null ? null : { how: 'star', at }, now: null, market: null, triggers,
 });
+const moved = (t: TickerRow, changePct: number): TickerRow => ({
+  ...t, market: { price: 1, changePct, changeAbs: null, source: 'gainers', why: null },
+});
 
 describe('tickers today', () => {
   it('reads Buy and Sell from the stock\'s mode, You and You when it has none', () => {
@@ -30,6 +33,15 @@ describe('tickers today', () => {
       row('ABC', null)], [mode('AISP', 'bot')]);
     expect(today.map(t => t.symbol)).toEqual(['AISP', 'MEDS', 'LPA']);
     expect(others.map(t => t.symbol)).toEqual(['ABC', 'ZZZ']);
+  });
+
+  it('puts the biggest change on the day first, as the Gainers board does; no change goes last', () => {
+    const { today, others } = orderTickers([
+      moved(row('MEDS', 10), 0.17), moved(row('YMAT', 30), 1.1), row('NOCH', 5), moved(row('DCX', 20), -0.11),
+      moved(row('GIXI', 40), 0.45), moved(row('ZZZ', null), 0.02), moved(row('ABC', null), 0.3), row('QQQ', null),
+    ], [mode('MEDS', 'bot')]);
+    expect(today.map(t => t.symbol)).toEqual(['YMAT', 'GIXI', 'MEDS', 'DCX', 'NOCH']);
+    expect(others.map(t => t.symbol)).toEqual(['ABC', 'ZZZ', 'QQQ']);
   });
 
   it('keeps a stock set to bot buy off the hot list with today\'s tickers: it has a now row', () => {
