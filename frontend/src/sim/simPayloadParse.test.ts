@@ -157,11 +157,14 @@ describe('the Massive fields (ADR 046)', () => {
       jobs: [{ id: 'm', kind: 'trades', status: 'running', symbol: 'IMCC', date: '2026-09-18', start: '09:30', end: '10:00',
         source: 'massive', stage: 'reading', stages: { trades_v1: 50, quotes_v1: 'x' }, quote_status: null }],
       massive: { available: true, reason: null, trade_days: 2600, quote_days: 300, first: '2016-01-04', last: '2026-10-02',
-        last_landed: 1791509820 },
+        last_landed: 1791509820, seek_index: { available: false, reason: 'indexed_gzip is not installed' } },
     });
     expect(status.jobs[0]).toMatchObject({ source: 'massive', stage: 'reading', stages: { trades_v1: 50 }, quote_status: null });
     expect(status.massive).toEqual({ available: true, reason: null, trade_days: 2600, quote_days: 300,
-      first: '2016-01-04', last: '2026-10-02', last_landed: 1791509820, store_error: null });
+      first: '2016-01-04', last: '2026-10-02', last_landed: 1791509820, store_error: null,
+      seek_index: { available: false, reason: 'indexed_gzip is not installed' } });
+    // An API before the seek index says nothing about it: never read as missing.
+    expect(parseHistoricalStatus({ jobs: [], massive: { available: true } }).massive?.seek_index).toBeNull();
     expect(parseHistoricalStatus({ jobs: [] }).massive).toBeUndefined();
   });
 

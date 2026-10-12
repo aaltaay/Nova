@@ -199,6 +199,35 @@ def test_without_indexed_gzip_the_files_stream_and_nothing_is_built(root, monkey
     assert not massive_index.path_for(path, root).exists()
 
 
+def test_the_listing_says_when_the_index_cannot_run_and_sees_an_install_without_a_restart(monkeypatch):
+    """Operator 2026-10-11 ("i thought we already done something like this"): the desk's Python never got
+    indexed_gzip, so every read streamed and only the import log said why. The listing says it; an install while
+    the API runs (it imported nothing at its start) reaches the listing once the check runs again."""
+    from sim import massive_days
+
+    found = {"spec": None}
+    monkeypatch.setattr(massive_index, "indexed_gzip", None)
+    monkeypatch.setattr(massive_index.importlib.util, "find_spec",
+                        lambda name: found["spec"] if name == "indexed_gzip" else None)
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(massive_index.time, "monotonic", lambda: clock["now"])
+    massive_index.reset_status_for_tests()
+    massive_days.reset_for_tests()
+
+    assert massive_days.summary()["seek_index"] == {"available": False, "reason": massive_index.NOT_INSTALLED}
+    found["spec"] = object()                              # pip install, the API still running
+    assert massive_index.status()["available"] is False   # not looked for again before the check is due
+    clock["now"] += massive_index.SIM_MASSIVE_INDEX_CHECK_SEC
+    assert massive_index.status() == {"available": True, "reason": None}
+    massive_index.reset_status_for_tests()
+
+
+def test_the_listing_says_the_index_runs_when_this_process_loaded_it(monkeypatch):
+    monkeypatch.setattr(massive_index, "indexed_gzip", object())
+    monkeypatch.setattr(massive_index.importlib.util, "find_spec", lambda name: pytest.fail("looked on disk"))
+    assert massive_index.status() == {"available": True, "reason": None}
+
+
 def test_a_build_keeps_its_memory_flat(root, monkeypatch):
     """A build holds a fixed amount, whatever the file's size -- never the text it reads (a library that kept its
     text filled the desk PC's memory in testing, 2026-10-11). With 1 MB seek-point spacing and reads the fixed part

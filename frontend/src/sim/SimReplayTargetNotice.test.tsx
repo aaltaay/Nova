@@ -400,4 +400,27 @@ describe('SimReplayTargetNotice on the Massive files (operator, 2026-10-09)', ()
       + 'Until it lands, a download comes from IBKR -- trades only, no bid/ask.');
     expect(action()?.textContent).toBe('Download');
   });
+
+  it('says why a read from the files is slow when the seek index cannot run, and not when it can', async () => {
+    // 2026-10-11: the desk's Python never got indexed_gzip; SPY took 168 s and only the import log said why.
+    vi.setSystemTime(new Date('2026-09-22T02:05:00Z'));       // past the day list's freshness: read again
+    const reason = "indexed_gzip is not installed in the engine's Python";
+    mocks.massive = { ...FILES, seek_index: { available: false, reason } };
+    mocks.massiveDays = [{ date: '2026-09-18', trades: true, quotes: true, minute_aggs: true }];
+    mocks.front = 'SPY';                    // a tab in the background: offered, never loaded by itself
+    setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
+    await mount();
+    await tick();
+    expect(action()?.textContent).toBe('Load from files');
+    expect(screen.getByTestId('sim-replay-files-no-index').textContent).toBe(
+      `Slow read: ${reason}, so every stock streams its day file from the start instead of jumping to its own rows. `
+      + 'Install it with: pip install -r backend/requirements.txt -- the next import uses it, no restart needed, '
+      + 'and from the second stock of a day on it loads in seconds.');
+    cleanup();
+    mocks.massive = { ...FILES, seek_index: { available: true, reason: null } };
+    await mount();
+    await tick();
+    expect(action()?.textContent).toBe('Load from files');
+    expect(screen.queryByTestId('sim-replay-files-no-index')).toBeNull();
+  });
 });

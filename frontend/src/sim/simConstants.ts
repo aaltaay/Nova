@@ -217,6 +217,15 @@ export const simTabOfferReadyCapped = (label: string, instead: boolean, cap: str
 export const simTabFilesNotOut = (day: string, last: string, landed: string | null): string =>
   `${day} is not in your Massive files yet: they end at ${last}${landed ? `, which landed ${landed}` : ''}. `
   + 'Until it lands, a download comes from IBKR -- trades only, no bid/ask.';
+/**
+ * The import cannot use the day files' seek indexes (ADR 046, 2026-10-11): every stock streams its day file from
+ * the start, the first and the hundredth of a day alike. Said on the tab, not only in the import log (operator
+ * 2026-10-11: "i thought we already done something like this already, no?").
+ */
+export const simTabFilesNoIndex = (reason: string | null): string =>
+  `Slow read: ${reason ?? 'the seek index is off'}, so every stock streams its day file from the start instead of `
+  + 'jumping to its own rows. Install it with: pip install -r backend/requirements.txt -- the next import uses it, '
+  + 'no restart needed, and from the second stock of a day on it loads in seconds.';
 export const SIM_TAB_ACTION_IMPORT = 'Load from files';
 export const SIM_TAB_ACTION_DOWNLOAD = 'Download';
 export const SIM_TAB_ACTION_LOAD = 'Load';

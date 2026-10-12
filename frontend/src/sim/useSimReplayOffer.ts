@@ -78,6 +78,9 @@ export function useSimReplayOffer(
   const keyOf = useCallback((spec: HistoricalWindow) => (filesDay ? dayKey(spec) : windowKey(spec)), [filesDay]);
   const key = window ? keyOf(window) : null;
   const readsFiles = Boolean(base && 'fromFiles' in base && base.fromFiles);
+  // A read from the files without the seek index streams the whole day file: say why it is slow (ADR 046).
+  const seekIndex = status.data?.massive?.seek_index;
+  const noIndex = readsFiles && seekIndex?.available === false ? { reason: seekIndex.reason } : null;
 
   const load = useCallback(async (spec: HistoricalWindow) => {
     intent.current = null;
@@ -208,6 +211,7 @@ export function useSimReplayOffer(
   return {
     offer,
     filesNotOut: notOut,
+    noIndex,
     download: requestDownload,
     startGateway,
     reconnect,
