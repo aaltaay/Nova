@@ -48,8 +48,9 @@ LEADERBOARD_RECORDED_BOARDS = (
     LEADERBOARD_BOARD_LARGE_CAP,
 )
 LEADERBOARD_BOARDS = LEADERBOARD_RECORDED_BOARDS + (LEADERBOARD_BOARD_MARKET,)
-# What one rebuilt minute writes; a day is rebuilt whole only when each covers every minute.
-LEADERBOARD_REBUILT_BOARDS = (LEADERBOARD_BOARD_MARKET, LEADERBOARD_BOARD_LOSERS, LEADERBOARD_BOARD_GAPPERS)
+# What a rebuilt day writes; it is whole only when each covers its minutes (After Hours: 16:01-20:00).
+LEADERBOARD_REBUILT_BOARDS = (LEADERBOARD_BOARD_MARKET, LEADERBOARD_BOARD_LOSERS, LEADERBOARD_BOARD_GAPPERS,
+                              LEADERBOARD_BOARD_AFTERHOURS)
 
 # Per-minute coverage state of one board. A minute with no coverage row was not recorded.
 LEADERBOARD_STATE_LIVE = "live"

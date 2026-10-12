@@ -322,13 +322,46 @@ universe symbol with a closed bar by the minute):
   (`state: frozen`).
 
 Each board writes a coverage row every minute, so an empty list reads as empty,
-never as not rebuilt. A day counts complete for `--skip-complete` only when all
-three boards cover its 960 minutes. On the desk a rebuilt day fills Gainers,
-Losers and Gappers; Losers and Gappers on a day rebuilt before say so. After
-Hours and Large Cap are not rebuilt, and each says why: the live After Hours
-list is IBKR's after-hours gainers, ranked on the move since the regular close,
-which the rebuild does not measure; Large Cap needs a market cap as of the day,
-which the files do not carry.
+never as not rebuilt. On the desk a rebuilt day fills Gainers, Losers and
+Gappers; Losers and Gappers on a day rebuilt before say so. Large Cap is not
+rebuilt, and says why: it needs a market cap as of the day, which the files do
+not carry.
+
+**A rebuilt day's After Hours** (operator ask 2026-10-12: "check the
+gappers/gainers/after hours in the sim"). From the 16:01 boundary -- the 16:00
+bar, the first after-hours bar (the minute files carry no closing cross), has
+closed -- a fourth board, `afterhours`, rebuilds what the live list is made of:
+- IBKR's after-hours scan (`TOP_AFTER_HOURS_PERC_GAIN`): the 50
+  (`AFTERHOURS_SCAN_ROWS`) biggest moves since the regular close among the
+  symbols whose latest closed bar is an after-hours bar, measured against the
+  session's own official close (its `day_aggs` file -- read for these minutes
+  only; nothing before 16:01 reads it);
+- then the live list's rule and order on those (`AFTERHOURS_RULES`, as
+  `afterhours_discovery.build_afterhours_rows_from_ibkr_gainers` filters and
+  `ibkr/discovery._get_movers` sorts): $0.50 or more, up `GAPPER_MIN_GAP_PCT` on
+  the day against the prior close, the biggest move on the day first.
+
+A row is shaped like every rebuilt row (`prev_close` the prior session's close,
+`change_pct` against it). It rebuilds the scan, not the live table's history: a
+recorded After Hours list keeps a symbol that qualified earlier and reprices it,
+so the two can differ. A day whose own `day_aggs` file is not on disk writes no
+`afterhours` board. A day counts complete for `--skip-complete` only when
+`market`, `losers` and `gappers` cover its 960 minutes and `afterhours` its 240
+(16:01-20:00, `REBUILT_BOARD_MINUTES`), so a day rebuilt before (or before its
+day file landed) is rebuilt again. Before 16:01 the desk's After Hours tab on a
+rebuilt day says the list starts at 16:00 ET; on a day rebuilt before After
+Hours existed it says so.
+
+**Many days at once** (2026-10-12). The live recorder gives up on a write after
+`LEADERBOARD_SQLITE_TIMEOUT_SEC` and loses that batch (`leaderboard/queue.py`),
+so a many-day rebuild never writes the store directly while the desk records:
+`build_leaderboard.py --db <staging>` builds into its own store (several in
+parallel), and `research/leaderboard/merge_rebuilt.py` copies each day whole in
+one staging store and not whole in the store, 10 minutes of the day (rows and
+coverage, after deleting an older rebuild's rows of those minutes) per
+transaction with a pause between them. Massive's split list is the research
+store's table (from June 2021) and the reference archive's `splits.json` (from
+2016) together, the store's row winning a tie (`lb_io.load_splits`).
 
 **Splits a rebuild confirms from SEC filings** (#772). A rebuilt day adjusts its
 prior close and RVOL lookback for the splits in Massive's split list, so a split

@@ -8,6 +8,7 @@ import {
   gapText, replayFromAnswer, replayLabel, replayListAbsence, replayNotice, replayPending, scannerRowFromLeaderboard,
 } from './leaderboardRows';
 import {
+  LEADERBOARD_AFTERHOURS_FROM_CLOSE,
   LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN,
   LEADERBOARD_CATALYSTS_NOT_RECORDED,
   LEADERBOARD_NOT_REBUILT_AFTERHOURS,
@@ -153,8 +154,32 @@ describe('the played-back board', () => {
     expect(replay.tables.afterhours).toEqual([]);
     expect(replay.tables.largeCap).toEqual([]);
     expect(replayLabel(replay)).toBe('Sim · 2026-09-09 07:42 ET · rebuilt');
-    expect(replayListAbsence(replay, 'afterhours')).toBe(LEADERBOARD_NOT_REBUILT_AFTERHOURS);
+    expect(replayListAbsence(replay, 'afterhours')).toBe(LEADERBOARD_AFTERHOURS_FROM_CLOSE);
     expect(replayListAbsence(replay, 'large_cap')).toBe(LEADERBOARD_NOT_REBUILT_LARGE_CAP);
+  });
+
+  it('a rebuilt day fills After Hours from 16:01, and one rebuilt before After Hours says so (2026-10-12)', () => {
+    const m1730 = at('17:30');
+    const replay = replayFromAnswer('2026-09-21', m1730, answer({
+      source: 'reconstructed', minute_ts: m1730, at: m1730 + 5,
+      boards: {
+        market: { state: 'rebuilt', rows: [] }, losers: { state: 'rebuilt', rows: [] }, gappers: { state: 'frozen', rows: [] },
+        afterhours: { state: 'rebuilt', rows: [row({ symbol: 'AH2', rank: 2, board: 'afterhours' }),
+          row({ symbol: 'AH1', rank: 1, board: 'afterhours' })] },
+      },
+    }));
+    expect(replay.tables.afterhours.map(r => r.symbol)).toEqual(['AH1', 'AH2']);
+
+    const quiet = replayFromAnswer('2026-09-21', m1730, answer({
+      source: 'reconstructed', minute_ts: m1730, at: m1730 + 5,
+      boards: { market: { state: 'rebuilt', rows: [] }, afterhours: { state: 'rebuilt', rows: [] } },
+    }));
+    expect(replayListAbsence(quiet, 'afterhours')).toBe('No after-hours movers on the board at 17:30 ET');
+
+    const older = replayFromAnswer('2026-09-21', m1730, answer({
+      source: 'reconstructed', minute_ts: m1730, at: m1730 + 5, boards: { market: { state: 'rebuilt', rows: [] } },
+    }));
+    expect(replayListAbsence(older, 'afterhours')).toBe(LEADERBOARD_NOT_REBUILT_AFTERHOURS);
   });
 
   it('an empty rebuilt list is empty, and a day rebuilt before Losers and Gappers says so', () => {

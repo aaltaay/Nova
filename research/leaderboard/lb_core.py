@@ -5,7 +5,8 @@ the per-minute boards. No I/O and no clock -- ``lb_io`` reads the flat files int
 Every row is built by ``leaderboard.rows.make_row`` and every rank comes from
 ``leaderboard.ranking.rank_rows``, the function playback, the S5 universe and
 live auto-record share: ``BOARD_RULES`` on the ``market`` board, ``LOSERS_RULES``
-on ``losers``, ``GAPPERS_RULES`` on ``gappers`` (ADR 023 amendment 2026-10-06).
+on ``losers``, ``GAPPERS_RULES`` on ``gappers`` (ADR 023 amendment 2026-10-06),
+``AFTERHOURS_RULES`` on ``afterhours`` from 16:01 (2026-10-12).
 Gappers freeze at 09:30 as the live list does: the 09:30 board's members, in its
 order, repriced each later minute.
 
@@ -22,12 +23,22 @@ from typing import Any
 
 import numpy as np
 
-from lb_config import BACKEND_DIR, GAPPERS_FREEZE_K, REGULAR_OPEN_J, RVOL_MIN_PRIOR_SESSIONS, SESSION_MINUTES
+from lb_config import (
+    AFTERHOURS_FIRST_K,
+    AFTERHOURS_SCAN_ROWS,
+    BACKEND_DIR,
+    GAPPERS_FREEZE_K,
+    REGULAR_CLOSE_J,
+    REGULAR_OPEN_J,
+    RVOL_MIN_PRIOR_SESSIONS,
+    SESSION_MINUTES,
+)
 
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from constants_leaderboard import (  # noqa: E402
+    LEADERBOARD_BOARD_AFTERHOURS,
     LEADERBOARD_BOARD_GAPPERS,
     LEADERBOARD_BOARD_LOSERS,
     LEADERBOARD_BOARD_MARKET,
@@ -37,6 +48,7 @@ from constants_leaderboard import (  # noqa: E402
     LEADERBOARD_STATE_REBUILT,
 )
 from leaderboard.ranking import (  # noqa: E402
+    AFTERHOURS_RULES,
     BOARD_RULES,
     GAPPERS_RULES,
     LEADERS_RULES,
@@ -67,6 +79,9 @@ class DayInputs:
     exchange: list[str | None]
     news_first_ts: np.ndarray       # float64 per sid: earliest article in the news window; nan = none
     news_known: bool                # False -> has_news is unknown (None), never False
+    # float64 per sid: the session's own official close (its day_aggs file), read only from the 16:01
+    # boundary for the After Hours board; nan = unknown. None: the file is not on disk, no After Hours.
+    close_today: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -211,12 +226,31 @@ def frozen_gapper_rows(rows: Sequence[Mapping[str, Any]], frozen: Sequence[tuple
     return [_as_gapper({**by_symbol[symbol], "rank": rank}) for symbol, rank in frozen if symbol in by_symbol]
 
 
+def afterhours_rows(rows: Sequence[Mapping[str, Any]], since_close: Sequence[float | None],
+                    scan_rows: int = AFTERHOURS_SCAN_ROWS) -> list[dict[str, Any]]:
+    """The live After Hours list at one minute, rebuilt from the minute bars.
+
+    First IBKR's after-hours scan: the ``scan_rows`` biggest moves since the regular close among stocks
+    that traded after 16:00 (``since_close`` per row; None = no after-hours print or no official close).
+    Then the live list's own rule and order on those (``AFTERHOURS_RULES``: $0.50 or more, up
+    GAPPER_MIN_GAP_PCT on the day, the biggest move on the day first).
+    """
+    scanned = sorted(
+        ((move, row) for row, move in zip(rows, since_close, strict=True) if move is not None and move > 0),
+        key=lambda item: (-item[0], -float(item[1].get("volume") or 0.0), str(item[1].get("symbol") or "")),
+    )[: max(0, int(scan_rows))]
+    return [{**row, "board": LEADERBOARD_BOARD_AFTERHOURS}
+            for row in rank_rows([row for _move, row in scanned], AFTERHOURS_RULES)]
+
+
 def _none_if_nan(values: np.ndarray) -> list[float | None]:
     return [None if v != v else v for v in values.tolist()]
 
 
 def day_boards(inp: DayInputs, top_n: int) -> Iterator[tuple[int, list[Board]]]:
-    """(minute_ts, [market, losers, gappers]) for every boundary 04:01..20:00 ET, in order."""
+    """(minute_ts, [market, losers, gappers(, afterhours)]) for every boundary 04:01..20:00 ET, in order.
+
+    The After Hours board joins from the 16:01 boundary when the session's official close is on disk."""
     n_sym = len(inp.symbols)
     cumvol = cumulative_by_symbol(inp.sid, inp.volume)
     bar, k = expand_asof(inp.sid, inp.j)
@@ -231,6 +265,10 @@ def day_boards(inp: DayInputs, top_n: int) -> Iterator[tuple[int, list[Board]]]:
         )
     price, volume = inp.close[bar], cumvol[bar]
     prev = inp.prev_close[sid]
+    if inp.close_today is not None:
+        today = inp.close_today[sid]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            since_close = np.where((inp.j[bar] >= REGULAR_CLOSE_J) & (today > 0), price / today - 1.0, np.nan)
     news = inp.news_first_ts[sid]
     bounds = np.searchsorted(k, np.arange(1, SESSION_MINUTES + 2))
     frozen: list[tuple[str, int]] = []
@@ -253,11 +291,15 @@ def day_boards(inp: DayInputs, top_n: int) -> Iterator[tuple[int, list[Board]]]:
             gappers = Board(LEADERBOARD_BOARD_GAPPERS, LEADERBOARD_STATE_FROZEN, at_freeze)
         else:
             gappers = Board(LEADERBOARD_BOARD_GAPPERS, LEADERBOARD_STATE_FROZEN, frozen_gapper_rows(rows, frozen))
-        yield minute_ts, [
+        boards = [
             Board(LEADERBOARD_BOARD_MARKET, LEADERBOARD_STATE_REBUILT, select_rows(rows, top_n)),
             Board(LEADERBOARD_BOARD_LOSERS, LEADERBOARD_STATE_REBUILT, loser_rows(rows, top_n)),
             gappers,
         ]
+        if inp.close_today is not None and step >= AFTERHOURS_FIRST_K:
+            boards.append(Board(LEADERBOARD_BOARD_AFTERHOURS, LEADERBOARD_STATE_REBUILT,
+                                afterhours_rows(rows, _none_if_nan(since_close[lo:hi]))))
+        yield minute_ts, boards
 
 
 def _row(inp: DayInputs, minute_ts: int, s: int, price, prev_close, volume, rvol, gap, news_ts) -> dict[str, Any]:

@@ -122,15 +122,45 @@ def _source(day_file: Path) -> tuple[int, int]:
     return st.st_size, st.st_mtime_ns
 
 
+def plain(ticker: bytes) -> bool:
+    """A-Z only. The day files keep these in byte order, and nothing else is: a preferred or a warrant sorts right
+    after its stock in the trades files (``AA``, ``AApB``, ``AAAP``) and in plain byte order in others (``FRTY``,
+    ``FRTpC``, ``FRUT``), so only a plain ticker can say where a read is in the file."""
+    return bool(ticker) and ticker.isalpha() and ticker.isupper() and ticker.isascii()
+
+
+def lead(ticker: bytes) -> bytes:
+    """The ticker's leading A-Z run (``AApB`` -> ``AA``): its block sits after every plain ticker below this one,
+    in either order the files use."""
+    n = 0
+    while n < len(ticker) and 65 <= ticker[n] <= 90:
+        n += 1
+    return ticker[:n]
+
+
 def _marks(raw: list, length: int) -> list[tuple[int, bytes]]:
-    """The saved map, checked: offsets rising within the file, tickers in the file's order."""
+    """The saved map, checked: offsets rising within the file, plain tickers in byte order. A mark on a ticker that
+    is not plain (indexes built before 2026-10-12 took one) is dropped: it cannot be compared."""
     marks = [(int(offset), str(ticker).encode("latin-1")) for offset, ticker in raw]
+    marks = [mark for mark in marks if plain(mark[1])]
     for (a, ta), (b, tb) in zip(marks, marks[1:], strict=False):     # each mark with the one after it
         if not (a < b and ta <= tb):
             raise ValueError(f"the map is out of order at offset {b}")
     if marks and not 0 <= marks[0][0] <= marks[-1][0] <= length:
         raise ValueError("the map runs past the file")
     return marks
+
+
+def is_current(day_file: Path, root: Path) -> bool:
+    """Whether ``day_file`` has an index a read would trust, judged from the index's header line alone (a status
+    count or a bulk build skips it; ``load`` still checks the rest when a read opens it)."""
+    try:
+        with path_for(day_file, root).open("rb") as fh:
+            head = json.loads(fh.readline())
+        return (head.get("schema_version") == SIM_MASSIVE_INDEX_SCHEMA_VERSION
+                and (head["size"], head["mtime_ns"]) == _source(day_file))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return False
 
 
 def load(day_file: Path, root: Path) -> Saved | None:
@@ -185,8 +215,10 @@ def _save(day_file: Path, root: Path, seek_points: bytes, length: int, marks: li
         return None
 
 
-def _open(day_file: Path):
-    return indexed_gzip.IndexedGzipFile(str(day_file), spacing=SIM_MASSIVE_INDEX_SPACING,
+def _open(day_file: Path, source=None):
+    """indexed_gzip on the day file, read by its own small reads -- or from ``source``, an open file object."""
+    where = dict(fileobj=source) if source is not None else dict(filename=str(day_file))
+    return indexed_gzip.IndexedGzipFile(**where, spacing=SIM_MASSIVE_INDEX_SPACING,
                                         window_size=SIM_MASSIVE_INDEX_WINDOW, readbuf_size=SIM_MASSIVE_INDEX_READBUF,
                                         buffer_size=SIM_MASSIVE_INDEX_READBUF, drop_handles=False)
 
@@ -204,9 +236,10 @@ def open_file(day_file: Path, seek_points: bytes):
 
 def locate(marks: list[tuple[int, bytes]], ticker: bytes, body: int, length: int) -> tuple[int, int]:
     """``(start, end)`` in the inflated file: streaming from ``start`` (a line start) meets ``ticker``'s block, which
-    is over by ``end`` (for progress). Found in the map, so it costs no read at all."""
+    is over by ``end`` (for progress). Found in the map, so it costs no read at all. The marks are plain tickers;
+    the start is a mark below the ticker's lead, so a preferred or warrant is met in either sort order."""
     keys = [mark[1] for mark in marks]
-    first = bisect.bisect_left(keys, ticker)        # the first mark at the ticker or past it
+    first = bisect.bisect_left(keys, lead(ticker)) if lead(ticker) else 0   # the first mark at the lead or past it
     start = marks[first - 1][0] if first > 0 else body
     after = bisect.bisect_right(keys, ticker)       # the first mark past it
     return start, (marks[after][0] if after < len(marks) else length)
@@ -252,14 +285,38 @@ class _Lock:
             self.path.unlink(missing_ok=True)
 
 
-def build(day_file: Path, root: Path, stop: threading.Event | None = None) -> Path | None:
-    """Read ``day_file`` start to end and save its index; ``None`` when stopped, already being built, or not saved."""
+def _first_plain(buf: bytearray, lo: int, n: int) -> tuple[int, bytes] | None:
+    """``(offset in buf, ticker)`` of the first line starting after ``lo`` whose ticker is plain, or ``None``."""
+    nl = buf.find(b"\n", lo, n)
+    while nl >= 0:
+        comma = buf.find(b",", nl + 1, n)
+        if comma < 0:
+            return None
+        ticker = bytes(buf[nl + 1:comma])
+        if plain(ticker):
+            return nl + 1, ticker
+        nl = buf.find(b"\n", comma, n)
+    return None
+
+
+def build(day_file: Path, root: Path, stop: threading.Event | None = None, bulk_read: int = 0) -> Path | None:
+    """Read ``day_file`` start to end and save its index; ``None`` when stopped, already being built, or not saved.
+
+    ``bulk_read``: read the file in stretches of this many bytes (0: indexed_gzip's own reads, under 1 MB). Several
+    builds at once on one hard drive (``tools/market_data.py index``) are held to its ~110 reads a second by small
+    reads; 64 MB reads let it stream (2026-10-12: 4 readers 156 MB/s at 1 MB, 241 MB/s at 64 MB). Same index."""
     if indexed_gzip is None:
         return None
     with _Lock(path_for(day_file, root)) as lock:
         if not lock.held:
             return None
-        handle = _open(day_file)
+        source = open(day_file, "rb", buffering=bulk_read) if bulk_read > 0 else None
+        try:
+            handle = _open(day_file, source)
+        except BaseException:
+            if source is not None:
+                source.close()
+            raise
         try:
             buf = bytearray(max(int(SIM_MASSIVE_READ_CHUNK), 1))
             head = bytearray()
@@ -278,10 +335,9 @@ def build(day_file: Path, root: Path, stop: threading.Event | None = None) -> Pa
                         at += n
                         continue
                     header, body, lo = bytes(head).decode("utf-8").strip().split(","), at + nl + 1, nl
-                nl = buf.find(b"\n", lo, n)             # the first line that starts in this stretch: the map's mark
-                comma = buf.find(b",", nl + 1, n) if nl >= 0 else -1
-                if comma > nl >= 0:
-                    marks.append((at + nl + 1, bytes(buf[nl + 1:comma])))
+                mark = _first_plain(buf, lo, n)         # the first plain line that starts in this stretch
+                if mark is not None:
+                    marks.append((at + mark[0], mark[1]))
                 at += n
             if header is None:
                 return None
@@ -290,3 +346,5 @@ def build(day_file: Path, root: Path, stop: threading.Event | None = None) -> Pa
             return _save(day_file, root, out.getvalue(), at, marks, header, body)
         finally:
             handle.close()
+            if source is not None:
+                source.close()

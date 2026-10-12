@@ -42,6 +42,7 @@ export const LEADERBOARD_COVERAGE_TODAY_REFRESH_MS = 60_000;
 export const LEADERBOARD_BOARD_MARKET = 'market';
 export const LEADERBOARD_BOARD_LOSERS = 'losers';
 export const LEADERBOARD_BOARD_GAPPERS = 'gappers';
+export const LEADERBOARD_BOARD_AFTERHOURS = 'afterhours';
 export const LEADERBOARD_SOURCE_RECORDED = 'recorded';
 export const LEADERBOARD_SOURCE_RECONSTRUCTED = 'reconstructed';
 export const LEADERBOARD_SOURCE_WORD: Record<string, string> = {
@@ -92,7 +93,9 @@ export const leaderboardErrorText = (clock: string, error: string): string =>
 export const LEADERBOARD_NOT_REBUILT_OLDER =
   'Not rebuilt for this day: it was rebuilt before Losers and Gappers were. Its board is under Gainers.';
 export const LEADERBOARD_NOT_REBUILT_AFTERHOURS =
-  'Not rebuilt: the After Hours list ranks the move since the 16:00 close, which a rebuilt day does not measure.';
+  'Not rebuilt for this day yet: it was rebuilt before After Hours was.';
+/** A rebuilt day's After Hours list begins once the 16:00 bar has closed. */
+export const LEADERBOARD_AFTERHOURS_FROM_CLOSE = 'The After Hours list starts at 16:00 ET.';
 export const LEADERBOARD_NOT_REBUILT_LARGE_CAP =
   'Not rebuilt: the minute files carry no market cap as of this day.';
 export const leaderboardListNotRecorded = (label: string, clock: string): string =>

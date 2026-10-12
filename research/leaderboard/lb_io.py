@@ -123,15 +123,22 @@ def load_splits(
 ) -> list[Split]:
     """Massive's split list, plus the splits SEC filings proved that it misses (#772).
 
+    Massive's list is the research store's ``splits`` table and the reference archive's ``splits.json``
+    together: the store's table starts in June 2021, the archive's file in 2016 (2026-10-12), so a rebuild
+    of an older session needs the file. On the same ticker and day the store's row wins.
     ``confirmed`` is ``confirm_splits.py``'s file (none read when ``None`` or absent); on the same
     ticker and day Massive's own entry wins.
     """
+    rows = []
     if research is not None:
         rows = research.execute("SELECT ticker, execution_date, split_from, split_to FROM splits").fetchall()
-    else:
-        raw = json.loads((ref_dir / "splits.json").read_text(encoding="utf-8"))
-        rows = [(r.get("ticker"), date.fromisoformat(r["execution_date"]), r.get("split_from"), r.get("split_to"))
-                for r in raw if r.get("execution_date")]
+    dump = ref_dir / "splits.json"
+    if research is None or dump.is_file():
+        raw = json.loads(dump.read_text(encoding="utf-8"))
+        have = {(t, d) for t, d, _f, _to in rows}
+        rows += [row for row in ((r.get("ticker"), date.fromisoformat(r["execution_date"]), r.get("split_from"),
+                                  r.get("split_to")) for r in raw if r.get("execution_date"))
+                 if (row[0], row[1]) not in have]
     splits = [Split(t, d, float(f), float(to)) for t, d, f, to in rows if t and d and f and to]
     if confirmed is not None:
         have = {(s.ticker, s.execution_date) for s in splits}

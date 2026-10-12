@@ -85,6 +85,10 @@ S5_RULES = RankingRules(
 LOSERS_RULES = RankingRules(max_change_pct=0.0, worst_first=True)
 # A rebuilt day's premarket Gappers: the live projection's own rule (ibkr/gapper_view.row_qualifies).
 GAPPERS_RULES = RankingRules(min_price=SCANNER_MIN_PRICE, gap_floor_pct=GAPPER_MIN_GAP_PCT)
+# A rebuilt day's After Hours: the live list keeps the after-hours scan's rows at $0.50 or more and up
+# GAPPER_MIN_GAP_PCT on the day (afterhours_discovery.build_afterhours_rows_from_ibkr_gainers),
+# biggest move on the day first, as ibkr/discovery._get_movers sorts them.
+AFTERHOURS_RULES = RankingRules(min_price=SCANNER_MIN_PRICE, gap_floor_pct=GAPPER_MIN_GAP_PCT)
 
 
 def _num(value: Any) -> float | None:

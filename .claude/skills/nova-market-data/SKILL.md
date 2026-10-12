@@ -1,0 +1,31 @@
+---
+name: nova-market-data
+description: "Use when a task needs past market data -- a stock's trades, NBBO quotes or bars on a past day (2016 on), seconds-scale moves, spreads, the day movers index, or a past day's Gainers / Losers / Gappers / After Hours board -- or asks how fast or how complete that data is. Reads the operator's Massive files and Nova's stores through tools/market_data.py; never write a new reader for them."
+---
+
+# Nova market data
+
+Every US stock's trades, NBBO quotes and minute / daily bars from 2016-01-04 are on the operator's E: drive, plus
+Nova's day movers index and past-day Scanner boards. Read them through the front door, never with your own parser:
+
+```text
+py -3 tools/market_data.py status                          # what is on disk and how much is indexed (fast reads)
+py -3 tools/market_data.py trades SYMBOL YYYY-MM-DD --from 09:30 --to 09:35 [--out file.parquet]
+py -3 tools/market_data.py quotes SYMBOL YYYY-MM-DD --from 09:30 --to 09:31
+py -3 tools/market_data.py bars SYMBOL YYYY-MM-DD --tf 10s|1m|5m [--from --to]
+py -3 tools/market_data.py movers high_min=100 price_max=20 date_from=2021-01-01 [limit=200]
+py -3 tools/market_data.py board YYYY-MM-DD --at 09:45 --list gainers|losers|gappers|afterhours
+py -3 tools/market_data.py bench
+```
+
+In Python: `sys.path.insert(0, "research"); from market_reads import reads` -- `reads.trades / quotes / bars /
+movers / board` return pandas DataFrames (movers: the agent endpoint's answer).
+
+Before you trust a number, read `docs/market-data.md` ("The traps"): unadjusted prices, which prints set a price,
+the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 history.
+
+- A read on a day without its seek index takes minutes; `status` shows the indexed share. Don't start a bulk
+  `index` run without checking one is not already running (`E:\Nova\massive\sim\index\index-build.log`).
+- Large scans (hundreds of stock-days) go in the background at below-normal priority; the desk shares the PC.
+- To show a stock-day to the operator on the desk, use the `nova-sim-navigator` skill.
+- Never place orders from this data, and never call it live: it is history.
