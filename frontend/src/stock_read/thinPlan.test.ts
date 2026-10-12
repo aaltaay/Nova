@@ -50,8 +50,9 @@ describe('a setup plan too thin to trade', () => {
     expect(scene.boxes.filter(b => b.t2 === null)).toEqual([]);          // the plan's zones
     expect(lines.filter(l => ['entry', 'stop', 'target'].includes(l.id))).toEqual([]);
     expect(scene.keepInView).toBeNull();
+    expect(scene.strategy ?? null).toBeNull();                            // nor a forming setup's box
     const liquid = paneDraw(base, { pane: 'full', layers: LAYERS, toTime: identity });
-    expect(liquid.scene.boxes.filter(b => b.t2 === null)).toHaveLength(2);
+    expect(liquid.scene.strategy).toMatchObject({ entry: 5.44, stop: 5.33, target: 5.49 });
     // The lane is drawn either way -- faded when thin -- so the setup itself stays visible.
     expect(scene.boxes.map(b => b.label)).toContain('POLE +7.1%');
   });

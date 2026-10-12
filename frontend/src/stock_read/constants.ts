@@ -83,6 +83,35 @@ export const SETUP_COLORS = {
   round: '#f59e0b',
 };
 
+/** A forming setup's plan on the 1-minute chart (operator ask 2026-10-12): one faint box in the room right of the
+ * newest candle, never a line across the pane (`strategyBoxRender.ts`). */
+export const STRATEGY_BOX = {
+  riskFill: 'rgba(255, 69, 58, 0.07)',
+  rewardFill: 'rgba(48, 209, 88, 0.07)',
+  outline: 'rgba(154, 160, 174, 0.35)',
+  entryLine: 'rgba(10, 132, 255, 0.7)',
+  name: 'rgba(214, 217, 224, 0.8)',
+  when: 'rgba(154, 160, 174, 0.8)',
+  entryInk: 'rgba(10, 132, 255, 0.9)',
+  stopInk: 'rgba(255, 69, 58, 0.85)',
+  targetInk: 'rgba(48, 209, 88, 0.85)',
+  target2Ink: 'rgba(48, 209, 88, 0.65)',
+  nameFont: '700 10px ui-sans-serif, system-ui, sans-serif',
+  font: '500 10px ui-sans-serif, system-ui, sans-serif',
+  /** It stands on its window when this much of it is left of the edge column's words, else it waits at the right
+   * edge with `waitPx` of it clear of them. */
+  minTextPx: 80,
+  waitPx: 140,
+  /** Room between the newest candle and the box, in candles. */
+  gapBars: 1.5,
+  /** Room inside the box around its words, and between them and the edge column's. */
+  padPx: 6,
+  /** The line height of its words. */
+  lineH: 13,
+  /** A view following the live edge slides to leave at least this much room right of the newest candle. */
+  roomPx: 260,
+} as const;
+
 /** The day's levels (ADR 036 amendment 2026-09-30): gold the half and whole dollars, coral a level over the
  * price, teal one under it, blue yesterday's, violet the daily chart's, purple VWAP. */
 export const LEVEL_COLORS = {

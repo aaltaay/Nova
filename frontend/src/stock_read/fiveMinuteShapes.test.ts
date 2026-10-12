@@ -106,7 +106,8 @@ describe('the 5-minute setups on the 5-minute chart', () => {
     const hold = one.scene.boxes.find(b => b.label === 'hold');
     expect(hold && [hold.t1, hold.t2, hold.p1, hold.p2]).toEqual([at(63), at(63), 13.74, 13.92]);
     expect(one.scene.marks?.map(m => [m.t, m.label])).toEqual([[at(61), 'break']]);
-    expect(one.scene.words?.map(w => w.text)).toEqual(['5m FLAT TOP 13.80']);
+    // The flat top's own word (the forming plan's prices are its strategy box's, `strategyBox.test.ts`).
+    expect(one.scene.words?.filter(w => !w.id.startsWith('strategy:')).map(w => w.text)).toEqual(['5m FLAT TOP 13.80']);
     // On the 5-minute pane both fell in the 07:00 candle: one label over the break's triangle says both, and the
     // hold's box, on that candle, goes unlabelled (its label would cover the triangle).
     const map = paneDraw(r, { pane: 'map', layers: LAYERS, toTime: identity, highAt: () => 13.86 });
