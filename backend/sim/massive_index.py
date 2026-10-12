@@ -34,6 +34,8 @@ the files stream through zlib as before, and the log says so once.
 from __future__ import annotations
 
 import bisect
+import importlib
+import importlib.util
 import io
 import json
 import logging
@@ -45,7 +47,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from constants_sim import (
-    SIM_MASSIVE_INDEX_LOCK_STALE_SEC, SIM_MASSIVE_INDEX_LOCK_TOUCH_SEC, SIM_MASSIVE_INDEX_READBUF,
+    SIM_MASSIVE_INDEX_CHECK_SEC, SIM_MASSIVE_INDEX_LOCK_STALE_SEC, SIM_MASSIVE_INDEX_LOCK_TOUCH_SEC,
+    SIM_MASSIVE_INDEX_READBUF,
     SIM_MASSIVE_INDEX_SCHEMA_VERSION, SIM_MASSIVE_INDEX_SPACING, SIM_MASSIVE_INDEX_SUBDIR, SIM_MASSIVE_INDEX_WINDOW,
     SIM_MASSIVE_READ_CHUNK, SIM_MASSIVE_STORE_SUBDIR,
 )
@@ -72,6 +75,37 @@ class Saved:
 
 def available() -> bool:
     return indexed_gzip is not None
+
+
+_installed = {"at": float("-inf"), "found": False}
+_installed_lock = threading.Lock()
+NOT_INSTALLED = "indexed_gzip is not installed in the engine's Python"
+
+
+def installed() -> bool:
+    """Whether an import's own process would load indexed_gzip. True when this one did; otherwise looked for on
+    disk (at most every SIM_MASSIVE_INDEX_CHECK_SEC), because a package installed while the API runs is used by
+    the next import with no restart, and this process's import at its start would go on saying it is missing."""
+    if indexed_gzip is not None:
+        return True
+    now = time.monotonic()
+    with _installed_lock:
+        if now - _installed["at"] < SIM_MASSIVE_INDEX_CHECK_SEC:
+            return _installed["found"]
+        importlib.invalidate_caches()
+        _installed.update(at=now, found=importlib.util.find_spec("indexed_gzip") is not None)
+        return _installed["found"]
+
+
+def status() -> dict:
+    """The replay listing's ``massive.seek_index``: can an import read a day file through its index (and build one)."""
+    ok = installed()
+    return dict(available=ok, reason=None if ok else NOT_INSTALLED)
+
+
+def reset_status_for_tests() -> None:
+    with _installed_lock:
+        _installed.update(at=float("-inf"), found=False)
 
 
 def path_for(day_file: Path, root: Path) -> Path:

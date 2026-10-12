@@ -320,9 +320,15 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   completes) and `capped: {what: "prints" | "quotes", count, limit} | null` (the day's count of that dataset,
   over `limit`, so only the focus was kept). An older import has none of these, and holds its own window. `status` is `queued | running | complete | failed | paused | interrupted` (a running job
   rewritten by no live import for 60 s). The listing adds `massive: {available, reason, root, store,
-  trade_days, quote_days, first, last, last_landed, store_error}` -- `last_landed` the epoch seconds `last`'s
+  trade_days, quote_days, first, last, last_landed, store_error, seek_index}` -- `last_landed` the epoch seconds `last`'s
   trades file was finished on disk (its modified time; null when unknown), `store_error` names why the import
-  store could not be read (its imports are then not listed), null when it could.
+  store could not be read (its imports are then not listed), null when it could, and `seek_index: {available,
+  reason}` whether an import can read and build the day files' seek indexes (below): `available` false with
+  `reason` "indexed_gzip is not installed in the engine's Python" when it cannot. The API that started without the
+  package looks for it on disk again at most every `SIM_MASSIVE_INDEX_CHECK_SEC` (60 s), because an install while
+  it runs reaches the next import's own process with no restart (operator 2026-10-11: the desk's Python never got
+  it, so every read streamed and only the import log said why). A Sim tab whose offer reads from the files says
+  so beside the offer while it is false.
 - **Days on disk.** `GET /api/sim/history/massive/days` -> `{schema_version: 1, available, reason, root, days:
   [{date, trades, quotes, minute_aggs}]}`, newest first, the folder walked at most once a minute;
   `GET /api/sim/history/massive/{date}` -> `{date, available, reason, trades, quotes, minute_aggs}` (422 for a

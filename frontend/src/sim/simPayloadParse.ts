@@ -211,6 +211,9 @@ function parseMassiveSummary(value: unknown): MassiveSummary | null | undefined 
     last: textOrNull(value.last),
     last_landed: finiteOrNull(value.last_landed),
     store_error: textOrNull(value.store_error),
+    seek_index: isObject(value.seek_index)
+      ? { available: value.seek_index.available === true, reason: textOrNull(value.seek_index.reason) }
+      : null,
   };
 }
 

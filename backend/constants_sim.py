@@ -232,6 +232,9 @@ SIM_MASSIVE_INDEX_READBUF = 4 * 2**20
 # build that died and is taken over.
 SIM_MASSIVE_INDEX_LOCK_TOUCH_SEC = 10.0
 SIM_MASSIVE_INDEX_LOCK_STALE_SEC = 120.0
+# How often the replay listing looks on disk for indexed_gzip when the API started without it: an install while
+# the desk runs reaches the next import (its own process) with no restart, and the desk stops saying it is missing.
+SIM_MASSIVE_INDEX_CHECK_SEC = 60.0
 # A running import rewrites its job at least this often: progress for the desk,
 # and the heartbeat that tells a live import from one a restart killed.
 SIM_MASSIVE_PROGRESS_EVERY_SEC = 1.0

@@ -93,6 +93,11 @@ export interface MassiveSummary {
   last_landed?: number | null;
   /** The import store could not be read, so its imports are not listed (null when it was). */
   store_error: string | null;
+  /**
+   * Can a read go through a day file's seek index (ADR 046, 2026-10-11)? Unavailable: every stock streams its
+   * day file from the start, `reason` says why. Absent from an older API.
+   */
+  seek_index?: { available: boolean; reason: string | null } | null;
 }
 /** One day of `GET /api/sim/history/massive/days`: which of its files are whole on disk. */
 export interface MassiveDay { date: string; trades: boolean; quotes: boolean; minute_aggs: boolean }

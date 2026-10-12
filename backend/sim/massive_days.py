@@ -13,7 +13,7 @@ import time
 from datetime import date as date_cls
 
 from constants_sim import SIM_MASSIVE_DAYS_TTL_SEC, SIM_MASSIVE_MINUTES, SIM_MASSIVE_QUOTES, SIM_MASSIVE_TRADES
-from sim import massive_files, massive_store
+from sim import massive_files, massive_index, massive_store
 
 SCHEMA_VERSION = 1
 _NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})\.csv\.gz$")
@@ -82,14 +82,16 @@ def _landed(day: str | None) -> float | None:
 
 
 def summary() -> dict:
-    """The replay listing's ``massive`` block: is the folder there, and how much of it can replay."""
+    """The replay listing's ``massive`` block: is the folder there, how much of it can replay, and whether a read
+    can go through a day file's seek index (``seek_index``; without it every stock streams its file from the start)."""
     reason = massive_files.unavailable_reason()
     days = _days()
     tape = sorted(day for day, have in days.items() if have["trades"])
     last = tape[-1] if tape else None
     return dict(available=reason is None, reason=reason, root=str(massive_files.root()), store=str(massive_store.path()),
                 trade_days=len(tape), quote_days=sum(1 for have in days.values() if have["quotes"] and have["trades"]),
-                first=tape[0] if tape else None, last=last, last_landed=_landed(last))
+                first=tape[0] if tape else None, last=last, last_landed=_landed(last),
+                seek_index=massive_index.status())
 
 
 def listing() -> dict:

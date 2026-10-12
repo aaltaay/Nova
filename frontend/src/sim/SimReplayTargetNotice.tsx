@@ -42,6 +42,7 @@ import {
   SIM_WHY_WINDOW_LOADING,
   simMassiveCapWords,
   simTabGoToReplayLabel,
+  simTabFilesNoIndex,
   simTabFilesNotOut,
   simTabOfferBusy,
   simTabOfferDownload,
@@ -110,7 +111,7 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
   const wantsReplay = target.kind === 'none' || target.kind === 'other-symbol';
   // Background Trader tabs stay mounted (hidden): only the one on screen may load by itself.
   const front = traderViewActive && activeTraderSymbol?.toUpperCase() === symbol.trim().toUpperCase();
-  const { offer, filesNotOut, download, startGateway, reconnect, stop, load, starting, loading, error } = useSimReplayOffer(
+  const { offer, filesNotOut, noIndex, download, startGateway, reconnect, stop, load, starting, loading, error } = useSimReplayOffer(
     symbol, clock, wantsReplay, target.kind === 'none', front,
   );
   const [, setDismissTick] = useState(0);
@@ -171,6 +172,11 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
         <span className="sim-replay-target__body" data-testid="sim-replay-files-not-out">
           {simTabFilesNotOut(offerDateLabel(filesNotOut.date), offerDateLabel(filesNotOut.last),
             filesNotOut.landed == null ? null : landedLabel(filesNotOut.landed))}
+        </span>
+      )}
+      {wantsReplay && noIndex && (
+        <span className="sim-replay-target__body" data-testid="sim-replay-files-no-index">
+          {simTabFilesNoIndex(noIndex.reason)}
         </span>
       )}
       {own && (
