@@ -22,7 +22,8 @@ A short setup (ADR 049) is read on the mirror: the same rules on prices turned u
 ``level`` is the low it was building over, ``floor`` the high it would have stopped over, ``first`` reads
 ``low`` when it broke down under the level first and ``high`` when it went over the floor, and ``trade`` is the
 short the rule refused. The SSR bounce has none: its entry rests over the price, so there is no breakdown to
-wait for.
+wait for. Nor has the pullback dip (#847): its entry is a candle's close inside the pullback, not a level crossed,
+so a dip that died refused no trade this could score.
 
 Scores, never fills: no tape, no slippage. Pure: an episode and bars in, a dict out.
 """
@@ -30,7 +31,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants_bot import BOT_SETUP_GAP_AND_GO, BOT_SETUP_RED_TO_GREEN, BOT_SETUP_SSR_BOUNCE, SIDE_SHORT, setup_side
+from constants_bot import (
+    BOT_SETUP_GAP_AND_GO,
+    BOT_SETUP_PULLBACK_DIP,
+    BOT_SETUP_RED_TO_GREEN,
+    BOT_SETUP_SSR_BOUNCE,
+    SIDE_SHORT,
+    setup_side,
+)
 from constants_eyes import EYES_EPISODE_AFTER_MIN
 from constants_setups import (
     SETUP_OUTCOME_OPEN,
@@ -89,7 +97,9 @@ def died(ep: dict[str, Any]) -> bool:
 def after(ep: dict[str, Any], bars: list[Bar], *, now: float,
           window_min: int = EYES_EPISODE_AFTER_MIN) -> dict[str, Any] | None:
     """What price did after a setup failed or faded, over ``window_min`` (a 5-minute setup's is longer);
-    ``None`` for any other episode, and for the SSR bounce."""
+    ``None`` for any other episode, and for the SSR bounce and the pullback dip."""
+    if ep.get("setup_type") == BOT_SETUP_PULLBACK_DIP:
+        return None
     if setup_side(ep.get("setup_type")) == SIDE_SHORT:
         if ep.get("setup_type") == BOT_SETUP_SSR_BOUNCE:
             return None

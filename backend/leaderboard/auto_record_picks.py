@@ -6,7 +6,9 @@ a setup in a trade, then near its trigger, then armed, then a leader of the Gain
 
 A short setup (ADR 049) wants a line only while its strategy is On on the desk's venue (#778 step 5): the
 bot then trades it, and a trigger without a line reads BLIND. At Eyes or Off it wants none -- the lines serve
-the trials that read long setups (ADR 041), and a short's On is decided by its five-year test.
+the trials that read long setups (ADR 041), and a short's On is decided by its five-year test. A watch-only
+setup (#847, the pullback dip) wants none at all: Nova never trades it, and its tape is read from whatever line
+another reason holds.
 """
 from __future__ import annotations
 
@@ -56,10 +58,14 @@ def shorts_on() -> set[str]:
 def pick_setups(lanes: list[Any], now: float) -> list[tuple[str, str]]:
     """``(symbol, why)`` for every setup of the templates in play: in a trade, near, then armed. A short
     setup counts only while its strategy is On (``shorts_on``)."""
+    from constants_bot import watch_only
+
     best: dict[str, str] = {}
     on: set[str] | None = None
     for lane in lanes:
         params = getattr(lane, "p", None)
+        if watch_only(getattr(params, "setup", None)):
+            continue                           # a watch-only setup (#847) never trades: it takes no line
         if getattr(params, "short", False):
             on = shorts_on() if on is None else on
             if getattr(params, "setup", None) not in on:

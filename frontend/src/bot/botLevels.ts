@@ -4,13 +4,20 @@
  * own Off / Eyes / Strategy. What a setup may do now is the lower of the two
  * (`effective`). There is no chosen setup.
  */
-import { BOT_LEVEL_LABELS, BOT_SETUP_LABELS } from '../constantGroups/bot';
+import { BOT_LEVEL_LABELS, BOT_SETUP_LABELS, BOT_WATCH_ONLY_ON_LOCK, isWatchOnlySetup } from '../constantGroups/bot';
 import type { BotLevel, BotSession, BotSetupInfo } from './types';
 
 export function clampLevel(n: unknown): BotLevel {
   const v = Number(n);
   if (!Number.isFinite(v) || v <= 0) return 0;
   return v >= 2 ? 2 : 1;
+}
+
+/** Why a strategy's On is locked, null when it is not: a watch-only strategy's always (#847), a short's while its
+ * five-year test has not passed (ADR 049). The backend's words when it sends them. */
+export function onLockOf(id: string, side: string | null | undefined, locked: string | null | undefined): string | null {
+  if (isWatchOnlySetup(id)) return locked || BOT_WATCH_ONLY_ON_LOCK;
+  return side === 'short' ? locked ?? null : null;
 }
 
 export function levelName(n: unknown): string {

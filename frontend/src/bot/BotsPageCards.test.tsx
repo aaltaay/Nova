@@ -228,6 +228,28 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
     expect(screen.getByTestId('bots-setup-rules-bear_flag').getAttribute('data-tip')).toMatch(/buy stop \$0\.01 over the flag/);
   });
 
+  it('the pullback dip is watch only: On locked for good, its Eyes never alerts, and no bot rules (#847)', async () => {
+    const base = session();
+    const setupsAtEyes = (base.setups ?? []).map(s => (s.id === 'pullback_dip' ? { ...s, level: 1, effective: 1 } : s));
+    mockFetch({ session: session({ setups: setupsAtEyes, setup_levels: { ...base.setup_levels, pullback_dip: 1 } }) });
+    setups.board = board({ setups: [...board().setups, summary('pullback_dip', { level: 1, watch_only: true })] });
+    await renderPage();
+    const card = screen.getByTestId('bots-setup-pullback_dip');
+    expect(within(card).getByTestId('bots-setup-watch-only-pullback_dip').textContent).toBe('WATCH ONLY');
+    const on = within(card).getByTestId('bots-setup-level-pullback_dip-2') as HTMLButtonElement;
+    expect(on.disabled).toBe(true);
+    expect(on.textContent).toBe('🔒 On');
+    expect(on.getAttribute('data-why')).toMatch(/watch only/);
+    expect((within(card).getByTestId('bots-setup-level-pullback_dip-1') as HTMLButtonElement).disabled).toBe(false);
+    const chip = within(card).getByTestId('bots-setup-level-chip');
+    expect(chip.textContent).toBe('Eyes · watch only');
+    expect(chip.getAttribute('data-tip')).toMatch(/never alerts you, and Nova never trades it/);
+    expect(chip.getAttribute('data-tip')).not.toMatch(/replay/);
+    expect(within(card).queryAllByTestId(/^bots-rules-pullback_dip-/)).toHaveLength(0);
+    expect(screen.getByTestId('bots-setup-rules-pullback_dip').textContent)
+      .toBe('Bottoming wick in a 2–4 candle pullback off a 5%+ leg · stop under the pullback low · watch only');
+  });
+
   it('sorts the strategies into On, Eyes and Off, each with its side, its evidence and its switch (#778 step 5)', async () => {
     const fetchMock = mockFetch({ onPatch: () => undefined });
     await renderPage();

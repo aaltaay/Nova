@@ -46,9 +46,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants_bot import BOT_SETUP_FIRST_PULLBACK
+from constants_bot import BOT_SETUP_FIRST_PULLBACK, watch_only
 from constants_setups import (
     SETUP_STATE_NEAR,
+    SETUP_STATE_PULLBACK,
     SETUP_TEMPLATE_DEFAULT_ID,
     SETUPS_BAR_SEC,
     TAPE_VERDICT_BLIND,
@@ -153,6 +154,13 @@ class Lane:
         return {s for s, d in self.det.items()
                 if d.state in WATCH_STATES and self.active_id.get(s) not in self.filtered}
 
+    def tape_symbols(self, now: float) -> set[str]:
+        """Symbols whose prints the live tape feed keeps for this lane: the watched setups, the trades on, and a
+        setup whose entry is a candle's close (the pullback dip, #847) while it waits for that candle -- its trigger
+        reads the tape that printed into it."""
+        waiting = {s for s, d in self.det.items() if d.TAPE_WHILE_FORMING and d.state == SETUP_STATE_PULLBACK}
+        return self.watching() | self.trade_symbols(now) | waiting
+
     def busy(self) -> set[str]:
         """Symbols this lane still needs: a watched setup or a trade (or a target choice) being scored."""
         return self.watching() | {self.rows[sid]["symbol"] for sid in (*self.trackers, *self.choices)
@@ -177,9 +185,11 @@ class Lane:
         new_bar = bars[-1] if five and bars else new_bar
         det = lane_rows.prime(self, sym, self.ensure(sym), now)
         # The 5-minute chart's read on a 1-minute setup (trial T8). A pattern read on 5-minute candles -- the
-        # 5-minute flat top's -- is that chart itself, and T8 reads long setups: such rows carry none.
+        # 5-minute flat top's -- is that chart itself, T8 reads long setups, and a watch-only setup (#847, registered
+        # after T8 and never traded) is not in its population: such rows carry none.
         pattern_five = int(getattr(self.p.pattern, "bar_sec", SETUPS_BAR_SEC)) != SETUPS_BAR_SEC
-        self.tf5[sym] = None if five or pattern_five or self.p.short else five_minute.context(bars, now)
+        outside_t8 = five or pattern_five or self.p.short or watch_only(self.p.setup)
+        self.tf5[sym] = None if outside_t8 else five_minute.context(bars, now)
         self.handle(sym, det.on_bars(bars), now)
         lane_journal.say_state(self, sym, det)
         lane_liquidity.refresh(self, sym, now)

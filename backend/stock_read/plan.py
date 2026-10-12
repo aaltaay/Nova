@@ -16,6 +16,8 @@ trade and why (operator report, 2026-09-29: a grade C that triggered with the ta
 TRIGGERED for twenty minutes after its stop printed); it too only describes -- the runners and the
 bot keep their own rules. ``liquidity`` (operator decision 2026-10-01, ``plan_liquidity.py``) says
 whether the stock is too thin to trade: it leads the checks and a thin setup plan is not a trade.
+A watch-only setup (#847, the pullback dip) leads the plan only when no tradeable lane has anything to show,
+and its plan is never a trade.
 """
 from __future__ import annotations
 
@@ -23,6 +25,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from constants_bot import watch_only
 from constants_setups import (
     SETUP_OUTCOME_STOP_FIRST,
     SETUP_OUTCOME_TARGET_FIRST,
@@ -49,6 +52,7 @@ LIVE_STATES = (SETUP_STATE_NEAR, SETUP_STATE_ARMED, FILTERED)
 EPS = 1e-9
 _NAMES = {"first_pullback": "first pullback", "bull_flag": "bull flag", "flat_top_breakout": "flat-top breakout",
           "flat_top_5m": "5-minute flat top", "red_to_green": "red to green", "gap_and_go": "Gap and Go",
+          "pullback_dip": "pullback dip",
           # ADR 049: the short setups.
           "backside_lower_high": "backside lower high", "bear_flag": "bear flag", "failed_breakout": "failed breakout",
           "lost_vwap": "lost VWAP", "ssr_bounce": "SSR bounce short"}
@@ -59,6 +63,8 @@ _ENTRY_RULES = {
     "flat_top_5m": "1 cent over the close of the first 1-minute candle that holds the 5-minute flat top after the break",
     "red_to_green": "1 cent over the open",
     "gap_and_go": "1 cent over the pre-market high, from the open",
+    "pullback_dip": "1 cent over the close of the candle that bottoms the pullback (a bottoming wick, or the first "
+                    "green close)",
     "backside_lower_high": "1 cent under the last bounce candle's low",
     "bear_flag": "1 cent under the last flag candle's low",
     "failed_breakout": "1 cent under the low of the candle that closed back under the flat top",
@@ -72,6 +78,7 @@ _STOP_RULES = {
     "flat_top_5m": "the 1-minute pullback's low, once a candle holds (the 5-minute base's low until then)",
     "red_to_green": "the lowest low since the open",
     "gap_and_go": "20 cents or 4% under the entry, whichever is smaller",
+    "pullback_dip": "1 cent under the pullback's low",
     "backside_lower_high": "1 cent over the bounce's high",
     "bear_flag": "1 cent over the flag's high",
     "failed_breakout": "1 cent over the poke's high",
@@ -98,14 +105,15 @@ def _rank(lane: dict[str, Any], now: float) -> int | None:
 
 def choose(setups: list[dict[str, Any]], now: float) -> dict[str, Any] | None:
     """The lane the plan follows: near, armed, triggered in the last 30 minutes, then forming; a setup
-    at Strategy (the one Nova's bot would trade, ADR 042) first on a tie, then the playbook's order."""
-    best: tuple[int, int, int] | None = None
+    at Strategy (the one Nova's bot would trade, ADR 042) first on a tie, then the playbook's order. A
+    watch-only setup (#847) follows every tradeable lane that has something to show."""
+    best: tuple[int, int, int, int] | None = None
     pick = None
     for i, lane in enumerate(setups):
         r = _rank(lane, now)
         if r is None:
             continue
-        key = (r, 0 if lane.get("level") == 2 else 1, i)
+        key = (1 if watch_only(lane.get("setup_type")) else 0, r, 0 if lane.get("level") == 2 else 1, i)
         if best is None or key < best:
             best, pick = key, lane
     return pick
@@ -255,7 +263,7 @@ def trade_verdict(plan: dict[str, Any], lane: dict[str, Any] | None,
     return verdict(grade=plan.get("grade"), pillars=plan.get("pillars"), filtered=filtered,
                    triggered=plan.get("state") == "triggered", tape=plan.get("tape"),
                    played_out=(plan.get("result") or {}).get("text"), spread=spread, risk=plan.get("risk"),
-                   liquidity=liquidity)
+                   liquidity=liquidity, setup_type=plan.get("setup_type"))
 
 
 def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entry: float | None = None,

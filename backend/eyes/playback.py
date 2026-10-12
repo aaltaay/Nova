@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
-from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK, setup_side
+from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK, setup_side, watch_only
 from constants_eyes import EYES_PLAYBACK_GAP_SEC, EYES_SCHEMA_VERSION
 from constants_setups import SETUP_TEMPLATE_DEFAULT_ID, SETUPS_5M_TEMPLATE_ID
 from eyes.journal_day import JournalDay
@@ -168,6 +168,7 @@ class Playback:
             setups.append({
                 "id": setup, "side": setup_side(setup), "test": short_tests.test_in_play(setup),   # today's, a control
                 "level": level, "chosen": levels.get("chosen") == setup, "proposing": False,
+                "watch_only": watch_only(setup),
                 "template": self.meta.get((setup, template)) if template else None,
                 "templates_watched": self._running(setup),
                 "window": ({"start": win[0], "end": win[1], "state": window_state(at, win[0], win[1])} if win

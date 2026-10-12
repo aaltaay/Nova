@@ -5,7 +5,13 @@
  * (backend `bot/setup_levels.effective`), so it sits there and says so. Each row says how far its evidence has
  * come -- a short's five-year test, a long's read-out. Pure.
  */
-import { BOT_READOUT_STATE_LABELS, BOT_READOUT_WHAT } from '../constantGroups/bot';
+import {
+  BOT_READOUT_STATE_LABELS,
+  BOT_READOUT_WHAT,
+  BOT_WATCH_ONLY_LEVEL_TIP,
+  BOT_WATCH_ONLY_STATUS,
+  isWatchOnlySetup,
+} from '../constantGroups/bot';
 import {
   BOTS_BUCKET_HELD,
   BOTS_BUCKET_LOADING_READOUT,
@@ -76,8 +82,14 @@ function readoutStatus(readout: TemplateReadout | null | undefined): BucketStatu
   };
 }
 
-/** How far a strategy's evidence has come: a short's five-year test, a long's read-out. */
+/** How far a strategy's evidence has come: a short's five-year test, a long's read-out; a watch-only one (#847)
+ * says it first. */
 export function statusOf(row: BucketRow): BucketStatus {
+  if (isWatchOnlySetup(row.id)) {
+    const r = readoutStatus(row.readout);
+    return { text: `${BOT_WATCH_ONLY_STATUS} · ${r.text.toLowerCase()}`, tone: r.tone,
+      tip: [BOT_WATCH_ONLY_LEVEL_TIP, r.tip].filter(Boolean).join('\n') };
+  }
   if (row.side === 'short') {
     const test = testStatus(row);
     return heldAtEyes(row) ? { text: `${BOTS_BUCKET_HELD} · ${test.text.toLowerCase()}`, tone: 'held',

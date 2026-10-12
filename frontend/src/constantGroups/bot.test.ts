@@ -16,7 +16,8 @@ describe('bot playbook copy (ADR 027)', () => {
     // Mirrors backend/constants_bot.py BOT_SETUPS.
     expect([...BOT_SETUP_IDS]).toEqual(
       ['first_pullback', 'bull_flag', 'flat_top_breakout', 'flat_top_5m', 'red_to_green', 'gap_and_go',
-        'backside_lower_high', 'bear_flag', 'failed_breakout', 'lost_vwap', 'ssr_bounce', 'micro_pullback']);
+        'pullback_dip', 'backside_lower_high', 'bear_flag', 'failed_breakout', 'lost_vwap', 'ssr_bounce',
+        'micro_pullback']);
     for (const id of BOT_SETUP_IDS) {
       expect(BOT_SETUP_LABELS[id].length).toBeGreaterThan(3);
       expect(BOT_SETUP_BLURBS[id].length).toBeGreaterThan(20);

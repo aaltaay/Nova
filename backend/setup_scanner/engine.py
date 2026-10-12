@@ -313,7 +313,7 @@ class SetupEngine(LaneHost):
         windows = [lane.p.gate.window_sec for lane in self.lanes]
         history = [lane.p.flow.history_sec for lane in self.lanes]
         for lane in self.lanes:
-            wanted |= lane.watching() | lane.trade_symbols(now)   # a trade on keeps its tape (ADR 034)
+            wanted |= lane.tape_symbols(now)   # a trade on keeps its tape (ADR 034); a waiting dip too (#847)
         if self.tape is not None:
             if windows and hasattr(self.tape, "keep_window"):
                 self.tape.keep_window(max(windows), max(history))

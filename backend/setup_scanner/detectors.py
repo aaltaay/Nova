@@ -14,6 +14,7 @@ from constants_bot import (
     BOT_SETUP_FLAT_TOP_5M,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_LOST_VWAP,
+    BOT_SETUP_PULLBACK_DIP,
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_SSR_BOUNCE,
 )
@@ -27,6 +28,7 @@ from setup_scanner.flat_top_5m import FlatTop5mDetector
 from setup_scanner.gap_and_go import GapAndGoDetector
 from setup_scanner.lost_vwap import LostVwapDetector
 from setup_scanner.pullback import PullbackDetector
+from setup_scanner.pullback_dip import PullbackDipDetector
 from setup_scanner.red_to_green import RedToGreenDetector
 from setup_scanner.ssr_bounce import SsrBounceDetector
 
@@ -37,6 +39,7 @@ DETECTORS: dict[str, type[TriggerDetector]] = {
     BOT_SETUP_FLAT_TOP_5M: FlatTop5mDetector,
     BOT_SETUP_RED_TO_GREEN: RedToGreenDetector,
     BOT_SETUP_GAP_AND_GO: GapAndGoDetector,
+    BOT_SETUP_PULLBACK_DIP: PullbackDipDetector,    # #847: watch only (constants_bot.BOT_WATCH_ONLY_SETUPS)
     # ADR 049: the short setups, the trigger read downward (``detector_short``).
     BOT_SETUP_BACKSIDE: BacksideDetector,
     BOT_SETUP_BEAR_FLAG: BearFlagDetector,

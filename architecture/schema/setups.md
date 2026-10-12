@@ -98,22 +98,23 @@ gate and the same scoring; since 2026-10-02 Gap and Go too (`gap_and_go.py`, the
 research's A2 rule, ADR 031 amendment: the pre-market high, armed at the 09:30
 open when the open is under it, broken by 10:00, stop `min(20c, 4%)` under the
 entry, one try a day; a new setup starts Off on every venue); since 2026-10-06 the 5-minute flat top
-(`flat_top_5m.py`, "The 5-minute flat top" below). The board is `schema_version: 2`: every row and
+(`flat_top_5m.py`, "The 5-minute flat top" below); since 2026-10-12 the watch-only pullback dip
+(`pullback_dip.py`, "The pullback dip: a watch-only setup" below). The board is `schema_version: 2`: every row and
 proposal adds `setup_type: "first_pullback" | "bull_flag" | "flat_top_breakout"
-| "flat_top_5m" | "red_to_green" | "gap_and_go"`; a row adds `failed_at: number | null` and its `setup` adds
+| "flat_top_5m" | "red_to_green" | "gap_and_go" | "pullback_dip"`; a row adds `failed_at: number | null` and its `setup` adds
 `detail: object | null` (the setup's own facts: `entry_mode`, `broke_at` and the touches for
 the flat-top breakout ("The flat top counts its touches" below), `open` and `red_bars` for red to green, `pole_bars` for the
 bull flag, `pm_high`, `pm_high_t`, `open`, `open_t` and `stop_rule` for Gap and Go);
 `kind` is one of `first_pullback | second_pullback | bull_flag |
 second_bull_flag | flat_top_breakout | second_flat_top_breakout | flat_top_5m |
-second_flat_top_5m | red_to_green | gap_and_go`
+second_flat_top_5m | red_to_green | gap_and_go | pullback_dip | second_pullback_dip`
 (the kind without `second_` is the first of that setup on that symbol that day);
 `leg` is the setup's context (`{t, high, low, pct, bars?}`: the leg, the pole, the
 impulse into the high of day, the open and the red phase, or Gap and Go's
 pre-market high with `low` its stop); rows are capped
 per setup (`SETUPS_BOARD_MAX_ROWS` each). The top-level `template` /
 `templates_watched` move into `setups[]`, one entry per setup with a scanner:
-`{id, level: 0 | 1 | 2, chosen: boolean, proposing: boolean, template: {id, rev,
+`{id, level: 0 | 1 | 2, chosen: boolean, proposing: boolean, watch_only: boolean (#847), template: {id, rev,
 name, params_hash} | null, templates_watched, window: {start, end, state:
 "before" | "open" | "after"}, counts: {watching, forming, armed, near,
 triggered, failed, filtered, proposed}}` -- `forming` counts the symbols now in
@@ -242,6 +243,66 @@ template parameters), `setup_templates/migrate.py` (old templates), `eyes/target
 - **Trials.** Trial T7 is registered on "Room under 2R" (`knowledge/signal-trials-2.json`, frozen by hash). Its
   measurement is kept under its registered rule in its own reading, `room.t7` (stock-read.md, "The day's levels");
   the plan's Room itself is read against the targets.
+
+## The pullback dip: a watch-only setup (ADR 022 / 029 amendments, operator ask 2026-10-12, #847)
+
+The operator's material lists three entries for a pullback: the first candle to make a new high (the first pullback
+buys that break), the first candle to close green, and the bottoming wick -- buying the dip -- and pairs a dip
+entry with the high of the pullback as the first target. Owners `setup_scanner/pullback_dip.py` (the states),
+`setup_scanner/dip_candle.py` (the entry candle, pure), `setup_templates/params_dip.py` (the template); on the desk
+`frontend/src/stock_read/dipShapes.ts` and `frontend/src/setups/dipWords.ts`.
+
+- **The setup.** `pullback_dip` (kinds `pullback_dip` / `second_pullback_dip`, two a symbol a day), on the same
+  lanes, journal, scoring and Sim eyes as every setup. The run and the pullback are the first pullback's rules and
+  numbers: a leg high over the prior 30 candles, the high of day, 5%+ over the leg window's low; the candles after
+  it make no new high, give back less than half the leg, and close on the 9 EMA. The pullback counts its entry
+  candle: 2-4 candles by default (the first pullback's 1-3, then the one that bottoms it).
+- **The entry** is the close of the pullback's newest candle, a template's choice (`dip_entry`):
+  - `wick` (the default) -- a bottoming wick: the candle makes the pullback's low (or ties it), its lower wick (from
+    the lower of open and close to the low) is at least `dip_wick_min_pct` (50%) of its range and
+    `dip_wick_min_dollars` (2c), and it closes at least `dip_close_min_pct` (60%) up its range. Red or green.
+  - `green` -- the first pullback candle that closes over its open after at least `dip_min_red_bars` (1) red ones.
+    Only the first: once it has come and was not the entry, the dip off that leg has failed.
+
+  Its MACD histogram above zero and its close inside 07:00-11:30 (`session_start` / `entry_cutoff`), entry
+  `entry_offset` (1c) over the close -- a limit over the close for scoring, never the ask chased -- stop
+  `dip_stop_offset` (1c) under the pullback's low (the menu's round stop may replace it), the risk inside `stop_cap`
+  (0.20) and over `min_stop` (0.03) with no slippage added: the entry's cent stands for it, as a flat-top hold's.
+- **The states.** `leg` (a fresh high: wait for the pullback); `pullback` -- the candles pull back and the entry
+  candle has not come (`forming` carries the levels a close now would take and `waiting`: "a bottoming wick" / "the
+  first green close"), or it came and MACD, the window or the risk holds it back (`forming.blocked`, the reason says
+  which); at the entry candle's close it arms and triggers in one step (`armed` makes the row, then `triggered`:
+  `triggered_at` the candle's close, `score_bar_t` the candle, `half_on_entry_bar: false`); `failed` (a broken
+  pullback rule, no entry in 4 candles, or a first green that came and went). No live price moves it: it is never
+  `near`. After a trigger the next dip needs a new leg.
+- **On the wire.** Its `setup` is every setup's (`trigger` the entry candle's close, `entry`, `stop`, `risk`, the
+  targets, `pullback_bars`, `leg_*`, `armed_bar_t`) and its `detail` is `{entry_mode: "wick" | "green", entry_bar_t,
+  range, lower_wick, wick_pct, close_pct, red_bars, pullback_low, pullback_high, stop_offset}`. The template's
+  `targets` default the first half to `pullback_high` (the menu's: the leg high itself) and the second to the menu's
+  default; every target choice is scored beside its exit like every setup's (`target_scores`). A dip that died
+  refused no trade a level could score: its `after` is null (`eyes/aftermath.py`).
+- **Watch only** (`constants_bot.BOT_WATCH_ONLY_SETUPS`). It never proposes (`setups[].proposing` false,
+  `watch_only: true`), its trigger is told to no one (`lane_announce`: Nova's bot, Auto-entry and a Sim replay's bot
+  never hear it), and NOT A TRADE (`setup_scanner.trade_verdict`, now with `setup_type`) reads "watch only: ..." on
+  it first, wherever that one rule is asked -- the Trader's plan, Approve, the bot and Auto-entry. Its On is refused
+  (`PATCH setup_levels` -> 409 `BOT_SETUP_WATCH_ONLY`) and an On in an older file reads as Eyes; the session view's
+  `setups[]` entry adds `watch_only: true` and `locked` (the reason). At Eyes it is drawn on the charts and listed
+  under Setups; at Off it watches and scores in silence, like every setup. The Trader's plan follows it only when no
+  tradeable lane has anything to show, and then reads NOT A TRADE. It takes no auto-record line
+  (`auto_record_picks`) and no lent line; while it waits in `pullback` the tape feed keeps its symbol's prints from
+  a line held for another reason (`Lane.tape_symbols`), so its trigger reads the tape that printed into the entry
+  candle. Registered after the signal trials (T5-T8) and never traded, its rows are not theirs: they carry no
+  5-minute read (`tf5_armed` / `tf5_trigger` null), and a trial reader leaves `setup_type: "pullback_dip"` out.
+- **Its template** (`params_dip.py`, built-in revision 1): the stock filter, the first pullback's run and pullback
+  parameters (`min_pullback_bars` 2, `max_pullback_bars` 4), the entry and window above, `stop_cap`, `min_stop`,
+  `dip_stop_offset`, the target menu (`target1_kind` `pullback_high`), `bailout_bars`, the tape gate, the flow and
+  the grade. No bot group, no near band, no `risk_slippage`.
+- **On the desk.** The 1-minute pane draws it in pink: the leg (only while it is the plan's -- the first pullback's
+  lane draws the same leg), the pullback from the candle after the leg high to the candle that bottomed it, dashed
+  while it waits ("DIP 2 · wants a wick"), solid once it bought ("DIP · WICK", "DIP · 1ST GREEN"), the entry candle
+  boxed from the pullback's low to its close, and a bottoming wick's low ringed. Not the plan's: dimmed, unlabelled.
+  A past dip that bought keeps its pullback in faint pink. Its hover, the Key's "Pullback dip" rows, the legend chip
+  ("Dip (watch)"), the Setups rows and the Bots page card (WATCH ONLY, On locked, no bot rules) all say watch only.
 
 ## The flat top counts its touches (ADR 031 amendment, operator ask 2026-10-06)
 

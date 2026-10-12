@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import constants_setups as cs
+from constants_bot import watch_only
 from setup_scanner.detectors import window as scanner_window
 from setup_scanner.lane_params import PATTERNS, lane_params
 from setup_templates import catalogue, windows
@@ -51,7 +52,8 @@ def test_the_bot_window_is_not_in_the_fingerprint_or_the_params_hash():
 def test_the_wire_says_which_parameters_restart_the_read_out():
     for sid in cs.SETUPS_READOUT_KINDS:          # every setup with a scanner
         params = [p for g in catalogue.wire(sid)["groups"] for p in g["params"]]
-        assert {p["key"] for p in params if p["affects_readout"] is False} == BOT_KEYS
+        # A watch-only setup (#847) has no bot group: nothing it reads is the bot's.
+        assert {p["key"] for p in params if p["affects_readout"] is False} == (set() if watch_only(sid) else BOT_KEYS)
         assert all(p["affects_readout"] is True for p in params if p["group"] != "bot")
     assert "gap_and_go" in cs.SETUPS_READOUT_KINDS              # a scanner since 2026-10-02
     assert catalogue.wire("micro_pullback")["groups"] == []      # no scanner, no parameters, no read-out
@@ -118,6 +120,9 @@ def test_a_saved_template_with_the_daily_cap_loads_without_it_and_says_so(tmp_pa
 def test_every_default_bot_window_sits_inside_its_arming_window_and_red_to_green_opens_at_the_open():
     for sid in cs.SETUPS_READOUT_KINDS:
         t = default_template(sid)
+        if watch_only(sid):                      # #847: never traded, so no bot window to sit anywhere
+            assert t.bot_window is None and "bot_window_start" not in t.values
+            continue
         assert t.bot_window["clipped"] is False and t.bot_window["empty"] is False
         assert windows.problem(sid, t.values) is None
     r2g = default_template(R2G)

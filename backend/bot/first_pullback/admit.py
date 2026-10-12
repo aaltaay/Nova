@@ -99,7 +99,10 @@ def triggered_at(event: dict[str, Any]) -> float:
 # -- the rules every taker shares --------------------------------------------------------
 def _level_block(row: dict[str, Any], setup_type: str) -> Blocker | None:
     from bot.setup_levels import LEVEL_NAMES, effective, master, own_levels
+    from constants_bot import watch_only, watch_only_text
 
+    if watch_only(setup_type):                 # #847: never a trade, whatever any level says
+        return BOT_SKIP_SETUP_NOT_STRATEGY, watch_only_text(setup_type)
     if effective(row).get(setup_type, 0) >= BOT_LEVEL_STRATEGY:
         return None
     top, own = master(row), own_levels(row).get(setup_type, 0)
