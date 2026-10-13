@@ -19,6 +19,8 @@ from constants import (
     HOD_RAW_MODE,
 )
 import hod_momo_approach as _approach
+import hod_momo_decision_journal as _journal
+from hod_momo_alert_queue import queue_alert
 import hod_momo_former as _former
 import hod_momo_high as _high
 from hod_momo_filters import evaluate_strategy
@@ -158,6 +160,7 @@ def on_trade_update(
     now_ts = time.time()
     strategy_decisions: list[dict] = []
     any_fired = False
+    due: float | None = None  # this evaluation's alerts go out together (queue_alert)
     for strategy_id, config in state.configs.items():
         if not config.enabled:
             strategy_decisions.append(
@@ -267,9 +270,9 @@ def on_trade_update(
                 )
         if passed and HOD_MOMO_SUPPRESS_ALERTS_ON_INTEGRITY_FAIL:
             try:
-                from integrity_live import hod_integrity_is_failing
+                from integrity_live import hod_alerts_suppressed
 
-                if hod_integrity_is_failing():
+                if hod_alerts_suppressed():
                     passed = False
                     blocked_by = "integrity_fail_suppress"
                     state.gate_counters["integrity_fail_suppress"] = (
@@ -309,13 +312,7 @@ def on_trade_update(
         )
         if cooldown_sec > 0:
             state.cooldown[(symbol, strategy_id)] = now_ts + cooldown_sec
-        bucket = state.pending_consolidation.setdefault(symbol, [])
-        emit_after = (
-            bucket[0][0]
-            if bucket
-            else now_ts + state.master.consolidation_sec
-        )
-        bucket.append((emit_after, alert))
+        due = queue_alert(state, symbol, alert, now_ts, due)
         logger.debug(
             "HOD Momo: queued alert %s / strategy %d",
             symbol,
@@ -386,6 +383,7 @@ def _record_decision(
         would_fire=would_fire,
     )
     state.recent_decisions.append(record)
+    _journal.note(ts, symbol, price, record.snap, gate_blocked, strategies)
     state.per_symbol_decisions.setdefault(
         symbol,
         deque(maxlen=20),

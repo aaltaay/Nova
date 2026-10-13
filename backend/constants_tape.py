@@ -46,6 +46,10 @@ TAPE_DEAD_L1_LEAD_SEC = 3.0
 # Lines whose last prints arrived this close together and that are all still silent went
 # silent together: one pipeline event (SAIQ and VEEA stopped at the same 09:35:42.388 arrival).
 TAPE_PIPELINE_SAME_SEC = 1.0
+# With another line in the same silence, the Level 1 proof reads a line dead after this, not
+# TAPE_SILENT_SEC: two lines missing trades together is IBKR's tape, not a quiet name. On
+# 2026-10-13 every line stopped at 07:59:22 ET and SCNI's Trader read LIVE over an empty tape for 30 s.
+TAPE_PIPELINE_DEAD_SEC = 10.0
 
 # A tape-built 10-second candle is keyed by IBKR's own second (``exchange_ts``) and closes
 # this long after its ten seconds on the desk's clock, so a print that arrives late still

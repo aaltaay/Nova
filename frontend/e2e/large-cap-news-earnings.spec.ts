@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
 
-test.describe('Large Cap shared News and Earnings columns', () => {
-  test('sample Large Cap shows Gainers News flame and Earnings dots', async ({ page }) => {
+test.describe('Large Cap shared Catalyst and Earnings columns', () => {
+  test('sample Large Cap shows the Gainers Catalyst flame and Earnings dots', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample');
     await expect(page.getByTestId('sample-dashboard')).toBeVisible();
@@ -11,7 +11,8 @@ test.describe('Large Cap shared News and Earnings columns', () => {
     const table = page.locator('main.panel table');
     await expect(table).toBeVisible();
     const headers = table.locator('thead th');
-    await expect(headers.filter({ hasText: /^News/ })).toHaveCount(1);
+    // News became Catalyst on every board (PR #886).
+    await expect(headers.filter({ hasText: /^Catalyst/ })).toHaveCount(1);
     // A narrow icon column keeps a short label and names itself in the title
     // (SCANNER_HEADER_SHORT_LABEL, constantGroups/scanner_board.ts).
     const earnings = headers.filter({ hasText: /^Earn/ });

@@ -358,7 +358,12 @@ def test_full_day_alert_shape_is_pinned(full_day_result):
     # Tradeable floor (2026-09-22): 309 -> 242. CNF, KLRS and VEEE never clear
     # 100k shares on this day, and every first alert moves to the minute the
     # symbol's cumulative volume crosses the floor (SDOT 16:09:04 -> 16:10:43).
-    assert len(full_day_result.alerts) == 242
+    # A burst's first fire goes out at once (2026-10-13): 242 -> 382 rows, as each
+    # burst now sends its first fire alone and folds only the repeats, and every
+    # first alert is 7-11 s earlier. The fires themselves are the same 18,836.
+    # The measured volume curve moves nothing on this midday tape.
+    assert len(full_day_result.alerts) == 382
+    assert sum(a.get("consolidation_count") or 1 for a in full_day_result.alerts) == 18_836
     assert full_day_result.alerts_by_symbol_strategy() == {
         "BIYA": [5, 7, 11, 12, 13],
         "CJMB": [5, 7, 11, 12, 13],
@@ -369,10 +374,10 @@ def test_full_day_alert_shape_is_pinned(full_day_result):
     for alert in sorted(full_day_result.alerts, key=lambda a: a["timestamp"]):
         first.setdefault(alert["ticker"], (alert["strategy_id"], alert["timestamp"]))
     assert first == {
-        "BIYA": (5, "2026-07-17T16:22:11.000Z"),
-        "CJMB": (5, "2026-07-17T16:11:06.000Z"),
-        "SDOT": (13, "2026-07-17T16:10:43.000Z"),
-        "SLND": (6, "2026-07-17T17:10:19.000Z"),
+        "BIYA": (5, "2026-07-17T16:22:02.000Z"),
+        "CJMB": (5, "2026-07-17T16:10:57.000Z"),
+        "SDOT": (13, "2026-07-17T16:10:36.000Z"),
+        "SLND": (6, "2026-07-17T17:10:08.000Z"),
     }
 
 

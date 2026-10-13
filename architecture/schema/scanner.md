@@ -92,6 +92,63 @@ history desk ignores live halt patches. The Scanner's Halted chip filters live a
 played-back boards alike -- it keeps `true` and `null` and drops `false` -- and
 a row stated halted shows the HALTED mark.
 
+## When HOD Momo alerts, and why it did not (PFAI, operator report 2026-10-13)
+
+PFAI ran $2.55 -> $8.81 from 08:15 to 08:23 ET and HOD Momo's first alert reached
+the desk at about 08:20:48, at the top of its first leg. Five causes, each fixed:
+
+- **Pace RVOL reads a measured volume curve.** `rvol` with `rvol_source:
+  "ibkr_pace" | "yfinance_pace"` (HOD Momo), the after-hours rows' `rel_volume`
+  and the large-cap metric are today's volume over the average daily volume times
+  the share of a day's volume normally traded by now (`market.volume_day_elapsed_fraction`),
+  read off `RVOL_VOLUME_CURVE_CUM_FRAC` (`constants_hod_momo.py`): measured from
+  the Massive minute bars, 492 ordinary stock-days of 93 small caps, volume-weighted
+  (8.1% by 08:00, 10.0% by 08:20, 13.9% by 09:30, 54.3% by 12:00, 94.9% by 16:00
+  of the 04:00-20:00 day). It replaced a straight line over 04:00-16:00 (36% by
+  08:20), which read a premarket mover's RVOL ~3.5x low: the master gate's
+  `min_rvol` 1.5 held PFAI's 08:20:28 break of its $3.65 high until it had traded
+  275k shares (08:20:37). The 5-minute RVOL's typical bar reads the same curve.
+- **A burst's first alert is not held.** The first trigger of a symbol's burst
+  is due at once and reaches `/ws/hod-momo` within `HOD_MOMO_FLUSH_TICK_SEC`
+  (0.25 s); the triggers inside the next `master.consolidation_sec` (10 s) fold
+  into one row per strategy at the burst's end, its `consolidation_count` the
+  repeats only (`hod_momo_alert_queue`). The desk adds the two rows of a symbol
+  (`collapseAlertsBySymbol`), so the counts it shows are unchanged; the first
+  used to wait the whole 10 s.
+- **One late name never mutes the rest.** An `age_gate` check in the HOD
+  integrity report (`GET /api/hod-momo/debug/integrity`, `/api/integrity`) that
+  fails carries `breadth: "one_symbol" | "feed"`: `one_symbol` when only the max
+  age is over its line, `feed` when the p95 is. The banner still fails either way;
+  alerts are suppressed (`integrity_fail_suppress`) only for a failing HOD check
+  without `breadth: "one_symbol"` -- dead ticks, a starved active set, a late
+  feed (`integrity_live.hod_alerts_suppressed`). One name's quote 0.23 s past
+  3 s had muted every alert for 20-50% of the premarket and ~90% of 09:30-09:40.
+- **Change and gap.** HOD Momo's `change_pct` is measured from the IBKR quote's
+  previous close, else from the Gappers / Gainers / After Hours row's
+  `prev_close` (`hod_momo_day_moves.day_moves`); `gap_pct` from today's open
+  (`ibkr.open_tick.todays_open`, so null before 09:30) -- both null when no close
+  is known. At the 04:00 ET roll each snapshot forgets `change_pct`, `gap_pct`,
+  `volume`, `rvol` and `rvol_5min` (`hod_momo_session.clear_day_fields`): a
+  carried value alerted DCX at "+58.6%" while it fell.
+- **Why it did not alert is kept.** `GET /api/hod-momo/debug/why/{symbol}?date=YYYY-MM-DD&start=&end=`
+  answers `{symbol, day, changes: [...]}` from the decision journal,
+  `<log dir>/hod-decisions-YYYY-MM-DD.jsonl` (the 04:00 ET session day, kept
+  `HOD_MOMO_DECISION_JOURNAL_KEEP_DAYS` = 10; owner `hod_momo_decision_journal`).
+  A line is written when a symbol's verdict changes kind, never per tick:
+  `{schema_version: 1, ts, day, symbol, price, volume, rvol, change_pct,
+  float_shares, session_high, gate: string | null, fired: [strategy_id],
+  blocked: {strategy_id: reason}}` (a disabled strategy is left out). A replay
+  writes none. The per-trade `hod_momo.log` rotates every ~10 minutes at a busy
+  open, so it could not say why PFAI waited.
+
+Two line bugs found with it, no wire change: HOD's owner stays on a quote line
+it shares with a table (`plan_stream_symbols` -> `hod_owned`), so a row leaving
+its table no longer cancels and reopens the line (204 flaps on 52 names that
+premarket); and a surge seed that found no stored bars is asked again every
+`HOD_MOMO_SURGE_SEED_RETRY_SEC` for `HOD_MOMO_SURGE_SEED_RETRY_WINDOW_SEC`, so
+the setup scanner's IBKR history seeds the buffer and the session high once it
+lands (181 names stayed live-only all day).
+
 ## Float credibility and short-interest dates (#532)
 
 Every float and short-interest figure is Yahoo's (`fundamentals.py`). The

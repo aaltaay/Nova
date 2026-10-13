@@ -290,6 +290,18 @@ def facts(**over):
     return base
 
 
+def test_a_halt_carried_from_last_night_warns_in_the_halts_group(monkeypatch):
+    """FMFC 2026-10-13 at 07:00: halted for news since Oct 12 19:50 ET, so not "No halts" (operator report)."""
+    monkeypatch.setattr(history, "summary", lambda sym, now: {"daily": [], "daily_days": 250, "runs": []})
+    since = datetime(2026, 10, 12, 19, 50, tzinfo=ET).timestamp()
+    f = facts()
+    f["why"]["facts"]["halts"] = {"news": 0, "luld": 0, "volatility": 0, "other": 0, "source": None,
+                                  "carried": {"kind": "news", "code": "T1", "source": "nasdaq_trade_halt_rss",
+                                              "since": since, "resumed": None, "still_halted": True}}
+    g = {x["id"]: x for x in read.build(f)["groups"]}["halts"]
+    assert (g["verdict"], g["value"]) == ("warn", "Halted for news (T1) since Oct 12 19:50 ET, still halted")
+
+
 def test_the_read_answers_every_group_with_a_verdict_and_the_plan(monkeypatch):
     monkeypatch.setattr(history, "summary", lambda sym, now: {"daily": [], "daily_days": 250, "runs": []})
     out = read.build(facts())

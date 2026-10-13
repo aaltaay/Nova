@@ -49,6 +49,7 @@ import hod_momo_market as _market
 import hod_momo_metrics as _metrics
 import market as _clock_market
 from constants import ARCHIVE_BAR_1M_INTERVAL_SEC
+from hod_momo_alert_queue import take_due
 from hod_momo_models import alert_to_dict
 from hod_momo_state import HodMomoState
 from hod_momo_surge_seed import bars_to_surge_points
@@ -70,6 +71,7 @@ def reset_engine_state() -> None:
     state = hm.get_state()
     state.today_alerts = []
     state.pending_consolidation = {}
+    state.consolidation_bursts = {}
     state.cooldown = {}
     state.session_highs = {}
     state.session_high_seeded = set()
@@ -144,13 +146,16 @@ def _pinned_clock(clock: _ReplayClock) -> Iterator[None]:
 
 @contextlib.contextmanager
 def _quiet_trade_log() -> Iterator[None]:
-    trade_log = logging.getLogger("hod_momo.trades")
-    orig = trade_log.level
-    trade_log.setLevel(logging.CRITICAL)
+    # The decision journal is the live desk's record: a replay writes neither log.
+    logs = [logging.getLogger("hod_momo.trades"), logging.getLogger("hod_momo.decisions")]
+    origs = [log.level for log in logs]
+    for log in logs:
+        log.setLevel(logging.CRITICAL)
     try:
         yield
     finally:
-        trade_log.setLevel(orig)
+        for log, orig in zip(logs, origs, strict=True):
+            log.setLevel(orig)
 
 
 def _production_enrichment(fixture: ReplayFixture) -> dict[str, dict]:
@@ -228,29 +233,10 @@ def prime_symbol(
 
 
 def _flush_due(state, now_ts: float, sink: list[dict]) -> None:
-    """Mirror of flush_consolidated_loop's emit path (no disk/WS/notify)."""
-    for symbol in list(state.pending_consolidation.keys()):
-        bucket = state.pending_consolidation[symbol]
-        ready = [alert for emit_ts, alert in bucket if now_ts >= emit_ts]
-        state.pending_consolidation[symbol] = [
-            (emit_ts, alert) for emit_ts, alert in bucket if now_ts < emit_ts
-        ]
-        if not ready:
-            continue
-        by_strategy: dict[int, list] = {}
-        for alert in ready:
-            by_strategy.setdefault(int(alert.strategy_id), []).append(alert)
-        for group in by_strategy.values():
-            primary = group[-1]
-            if len(group) > 1:
-                primary.consolidation_count = len(group)
-                primary.consolidated_ids = [a.id for a in group[:-1]]
-                first_ts = min((a.created_ts or 0.0) for a in group) or now_ts
-                last_ts = max((a.created_ts or 0.0) for a in group) or now_ts
-                span = int(round(max(0.0, last_ts - first_ts)))
-                primary.consolidation_span_sec = max(1, span) if span > 0 else 1
-            state.today_alerts.insert(0, primary)
-            sink.append(alert_to_dict(primary))
+    """flush_consolidated_loop's emit path, shared through ``take_due`` (no disk/WS/notify)."""
+    for primary in take_due(state, now_ts):
+        state.today_alerts.insert(0, primary)
+        sink.append(alert_to_dict(primary))
 
 
 @dataclass

@@ -129,3 +129,9 @@ IBKR_ATTACH_LEDGER_MAX = 20
 # connected. They are the Gateway saying "OK", never an error to warn about.
 IBKR_INFORMATIONAL_NOTICE_CODES = frozenset({2104, 2106, 2107, 2108, 2119, 2158})
 
+# The desk's planned stop (POST /api/diagnostics/stop): the API logs why and exits through
+# its own shutdown, so recordings close and the leaderboard records a planned stop instead
+# of the "unexpected" gap a force-kill left (2026-10-13: both update restarts read as crashes).
+DIAG_STOP_PATH = "/api/diagnostics/stop"
+DIAG_STOP_REASON_MAX_CHARS = 200
+DIAG_STOP_DELAY_SEC = 0.25      # answer the request before shutdown begins

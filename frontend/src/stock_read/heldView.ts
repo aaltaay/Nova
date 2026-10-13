@@ -1,12 +1,13 @@
 /**
  * What the desk draws for the trade you hold (ADR 036 amendment 2026-10-01), pure: Level 2's NEXT and STOP,
- * the 10-second chart's lines (operator: "lets move these targets ... to the 10 seconds chart"), and the
- * plan box's ruler while you hold -- from your average past the stop to the level after next.
+ * the 10-second chart's lines (operator: "lets move these targets ... to the 10 seconds chart"), the
+ * plan box's ruler while you hold -- from your average past the stop to the level after next -- and the trade at
+ * the tape's price between reads.
  */
 import type { DepthMarker } from '../ibkr';
 import type { PriceLineSpec } from './chartShapes';
 import { RULER_DEFAULT_WIDTH_PX, SETUP_COLORS } from './constants';
-import { CHART_ROLES, ROLE_WORDS, rowOf, type HeldRole, type StockHeld } from './heldRead';
+import { CHART_ROLES, ROLE_WORDS, rowOf, type HeldRole, type HeldRow, type StockHeld } from './heldRead';
 import { fmtPx, placeRulerLabels, type RulerMark } from './planMath';
 
 const ROLE_COLORS: Record<HeldRole, string> = {
@@ -20,6 +21,35 @@ const ROLE_COLORS: Record<HeldRole, string> = {
   stop: SETUP_COLORS.stop,
   cost: SETUP_COLORS.trigger,
 };
+
+/** The ladder's order at one price, as the read sorts it (`held.py` / `held_short.py` `_ORDER`). */
+const LADDER_ORDER: Record<'long' | 'short', Partial<Record<HeldRole, number>>> = {
+  long: { then: 0, next: 1, now: 2, through: 3, broke: 4, support: 5, stop: 6, cost: 7 },
+  short: { stop: 0, cost: 1, resistance: 2, broke: 3, through: 4, now: 5, next: 6, then: 7 },
+};
+
+const cents = (v: number) => Math.round(v * 100) / 100;
+
+/** "+1,234.50", "-26.00": the read's open P&L words. */
+function signedUsd(v: number): string {
+  return `${v < 0 ? '-' : '+'}${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** The trade you hold at the tape's price between reads (operator report 2026-10-13: the box moved once a read,
+ * every 5 s): the price, open P&L, R and the NOW row, reckoned as the read reckons them, and the ladder sorted
+ * again by price; everything else is the read's. The read itself when the price is unknown or unchanged. */
+export function heldAtPrice(held: StockHeld, price: number | null): StockHeld {
+  if (price === null || !Number.isFinite(price) || price === held.price) return held;
+  const side = held.side === 'short' ? 'short' : 'long';
+  const per = side === 'short' ? held.avg - price : price - held.avg;
+  const usd = cents(per * held.qty);
+  const r = held.risk ? cents(per / held.risk) : null;
+  const now: HeldRow = { role: 'now', price, text: `${signedUsd(per * held.qty)} open`, r, usd };
+  const order = LADDER_ORDER[side];
+  const ladder = [...held.ladder.filter(row => row.role !== 'now'), now]
+    .sort((a, b) => b.price - a.price || (order[a.role] ?? 0) - (order[b.role] ?? 0));
+  return { ...held, price, open_usd: usd, r, ladder };
+}
 
 /** NEXT with the asks and the STOP with the bids, on Level 2; a short's mirror: STOP ↑ with the asks (its buy
  * stop over the price) and NEXT ↓ with the bids (ADR 048). */
@@ -87,19 +117,24 @@ const RANK_AS: Readonly<Record<string, string>> = { next: 'wall', broke: 'hod', 
 
 /** The held ruler: your average (●) at the left unless the stop is under it, the level after next at the
  * right; labels that would touch a stronger one are left off (their ticks stay). A short's runs the other way
- * (ADR 048): the higher prices -- its buy stop -- at the left, the levels under the price at the right. */
-export function heldRuler(held: StockHeld, widthPx: number | null = null): HeldRulerLayout | null {
+ * (ADR 048): the higher prices -- its buy stop -- at the left, the levels under the price at the right.
+ * `live` is the tape's price between reads: the price tick and the bars that end at the price follow it, while
+ * the ends and labels stay the read's (a price past an end sits on it until the next read). */
+export function heldRuler(held: StockHeld, widthPx: number | null = null,
+  live: number | null = held.price): HeldRulerLayout | null {
   const short = held.side === 'short';
-  const price = held.price;
+  // The ends and labels are the read's; the tick and the bars that end at the price are the tape's.
+  const base = held.price ?? live;
+  const price = live ?? held.price;
   const stop = held.stop?.price ?? null;
   const next = rowOf(held, 'next')?.price ?? null;
   const then = rowOf(held, 'then')?.price ?? null;
-  const fallback = price !== null
-    ? (short ? Math.min(price, held.avg) * 0.98 : Math.max(price, held.avg) * 1.02) : null;
+  const fallback = base !== null
+    ? (short ? Math.min(base, held.avg) * 0.98 : Math.max(base, held.avg) * 1.02) : null;
   const end = then ?? next ?? fallback;
   const left = short
-    ? Math.max(held.avg, stop ?? held.avg, price ?? held.avg)
-    : Math.min(held.avg, stop ?? held.avg, price ?? held.avg);
+    ? Math.max(held.avg, stop ?? held.avg, base ?? held.avg)
+    : Math.min(held.avg, stop ?? held.avg, base ?? held.avg);
   if (end === null || !(short ? end < left : end > left)) return null;
   const pad = Math.abs(end - left) * 0.06;
   const lo = Math.min(left, end) - pad;
@@ -125,7 +160,7 @@ export function heldRuler(held: StockHeld, widthPx: number | null = null): HeldR
   const placed = placeRulerLabels(
     marks.map(m => ({ ...m, kind: RANK_AS[m.kind] ?? 'round' })),
     widthPx && widthPx > 0 ? widthPx : RULER_DEFAULT_WIDTH_PX,
-    at(price ?? held.avg),
+    at(base ?? held.avg),
   ).map((m, i) => ({ ...m, kind: marks[i].kind }));
   const best = (a: number | null, b: number | null) =>
     a === null ? b : b === null ? a : (short ? Math.min(a, b) : Math.max(a, b));

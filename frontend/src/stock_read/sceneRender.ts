@@ -10,6 +10,7 @@ import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer } from 'lightweight-charts';
 import { EDGE_PRIORITY } from '../chart';
 import { columnRects, drawColumn, layoutColumn, type ColumnItem, type ColumnReserve } from './edgeColumn';
+import { foldColumnAt } from './levelFold';
 import { drawLevels, fillLevelBands, type LevelPx, type TickPx } from './levelRender';
 import { drawLuld, type LuldPx } from './luldRender';
 import { fmtPx } from './planMath';
@@ -106,23 +107,41 @@ interface FixedLabel {
   align: 'left' | 'right' | 'center';
 }
 
-/** The column's words: each level's name, each line's tag, and a tag for every price out of view. */
-export function columnItems(px: Pick<Px, 'levels' | 'words' | 'tags'> & Partial<Pick<Px, 'trends'>>,
-  height: number): ColumnItem[] {
+type ColumnPx = Pick<Px, 'levels' | 'words' | 'tags'> & Partial<Pick<Px, 'trends'>>;
+
+/** The column's words: each level's name, each line's tag, and a tag for every price out of view -- one word per price
+ * (`levelFold.foldColumn`, 2026-10-13). */
+export function columnItems(px: ColumnPx, height: number): ColumnItem[] {
+  return columnOf(px, height).items;
+}
+
+/** The levels whose lines and bands the pane draws: every one but those folded into another line's word (operator
+ * report 2026-10-13, "way too many lines": the $4.50 line a cent over target 2, VWAP's level under VWAP's own line). */
+export function shownLevels(px: ColumnPx, height: number): LevelPx[] {
+  const { folded } = columnOf(px, height);
+  return folded.size === 0 ? px.levels : px.levels.filter(l => !folded.has(l));
+}
+
+function columnOf(px: ColumnPx, height: number): { items: ColumnItem[]; folded: Set<LevelPx> } {
   const items: ColumnItem[] = [];
-  for (const { y, l } of px.levels) {
+  const from: (LevelPx | null)[] = [];
+  for (const lp of px.levels) {
+    const { y, l } = lp;
     if (!l.label) continue;
+    from.push(lp);
     items.push({ y, text: l.label, color: l.color, style: 'plain', priority: l.priority ?? EDGE_PRIORITY.level,
-      hoverId: l.hoverId, offText: null });
+      hoverId: l.hoverId, offText: null, price: l.price, span: { lo: l.lo, hi: l.hi }, foldName: l.foldName ?? null,
+      absorbs: true });
   }
   // A trend line's name where it runs on the newest candle; out of view, a tag with that price.
   for (const { ye, pe, tr } of px.trends ?? []) {
+    if (!tr.label) continue;
     items.push({ y: ye, text: tr.label, color: tr.labelColor, style: 'plain', priority: tr.priority, hoverId: tr.hoverId,
-      offText: `${tr.label} ${fmtPx(pe)}` });
+      offText: tr.offTag === false ? null : `${tr.label} ${fmtPx(pe)}`, price: pe, foldName: tr.foldName });
   }
   for (const { y, value, w } of px.words) {
     items.push({ y, text: w.text, color: w.color, style: w.style ?? 'filled', priority: w.priority, hoverId: null,
-      offText: w.valueWhenOff ? `${w.text} ${fmtPx(value)}` : w.text });
+      offText: w.valueWhenOff ? `${w.text} ${fmtPx(value)}` : w.text, price: value, absorbs: w.absorbs ?? false });
   }
   const named = new Set(px.words.map(w => w.w.id));
   for (const { y, t } of px.tags) {
@@ -131,7 +150,14 @@ export function columnItems(px: Pick<Px, 'levels' | 'words' | 'tags'> & Partial<
     items.push({ y, text: t.label, color: t.color, style: 'plain', priority: EDGE_PRIORITY.offView, hoverId: null,
       offText: t.label });
   }
-  return items;
+  while (from.length < items.length) from.push(null);
+  const { items: out, gone } = foldColumnAt(items, height);
+  const folded = new Set<LevelPx>();
+  for (const i of gone) {
+    const lp = from[i];
+    if (lp) folded.add(lp);
+  }
+  return { items: out, folded };
 }
 
 /** A mark's arrow over its candle's high: pointing down at it (a run), or up from it (a flat top's break). */
@@ -213,7 +239,7 @@ export class FillRenderer implements IPrimitivePaneRenderer {
 
   draw(target: CanvasRenderingTarget2D): void {
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
-      fillLevelBands(ctx, this.px.levels, mediaSize.width);
+      fillLevelBands(ctx, shownLevels(this.px, mediaSize.height), mediaSize.width);
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
         const right = x2 ?? mediaSize.width;
         const top = Math.min(y1, y2);
@@ -241,7 +267,7 @@ export class LineRenderer implements IPrimitivePaneRenderer {
       const width = mediaSize.width;
       const height = mediaSize.height;
       const measure = labelMeasure(ctx);
-      const tickHits = drawLevels(ctx, this.px.levels, this.px.ticks, width, height);
+      const tickHits = drawLevels(ctx, shownLevels(this.px, height), this.px.ticks, width, height);
       for (const t of this.px.trends ?? []) drawTrend(ctx, t);
       if (this.px.luld) drawLuld(ctx, this.px.luld);
       ctx.lineWidth = 1;

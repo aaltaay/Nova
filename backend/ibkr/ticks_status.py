@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from constants import IBKR_L1_STREAM_BUDGET
+from ibkr.open_tick import todays_open
 
 
 def _as_float(value: Any) -> float | None:
@@ -84,6 +85,9 @@ def last_quotes(
         prev_close = _as_float(getattr(sub.get("ticker"), "close", None))
         if prev_close is not None and prev_close > 0:
             row["prev_close"] = prev_close
+        opened = todays_open(_as_float(getattr(sub.get("ticker"), "open", None)))
+        if opened is not None:
+            row["open"] = opened
         cum = sub.get("last_cum_volume")
         if cum is not None:
             try:

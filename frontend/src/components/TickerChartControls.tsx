@@ -9,7 +9,9 @@ import {
   CHART_TIMEFRAMES,
   type ChartIndicatorId,
 } from '../constants';
+import { useContext } from 'react';
 import { ChartDrawTools } from './ChartDrawTools';
+import { ChartToolbarExtra } from './chartToolbarExtra';
 import { ChartDrawingColorPicker } from './ChartDrawingColorPicker';
 import type { DrawingSelectionState } from '../chart/useChartDrawingManager';
 
@@ -170,6 +172,8 @@ export function TickerChartControls({
   // Viewport maximize covers the desk toolbar, so a compact pane grows one.
   // Grid-local maximize keeps that toolbar, so chrome stays one header line.
   const showToolbar = !compact || (maximized && !keepCompactWhenMaximized);
+  // In full screen the desk toolbar is covered: its extra (the Eyes switch) comes along into this one.
+  const extra = useContext(ChartToolbarExtra);
   const useFullscreenCopy = useFullscreenExpand;
   const maxTitle =
     maximizeTitle ?? (useFullscreenCopy ? CHART_FULLSCREEN_TITLE : 'Maximize');
@@ -225,6 +229,7 @@ export function TickerChartControls({
             onIndicatorToggle={onIndicatorToggle}
             onToolClick={onToolClick}
           />
+          {extra}
           <div className="chart-toolbar-spacer" />
           {maxBtn}
         </div>

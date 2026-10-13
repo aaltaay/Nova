@@ -23,6 +23,7 @@ a key set their own (see ``test_auth.py``).
 """
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 import time
@@ -160,6 +161,11 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     # earlier test wrote os.environ directly.
     monkeypatch.setenv("NOVA_LOG_DIR", str(log_root))
     monkeypatch.setenv("NOVA_ENV_PATH", str(tmp_path / "nova.env"))
+    # The HOD decision journal is the live desk's record and holds its day file open: tests write none,
+    # except its own (test_hod_momo_decision_journal turns it back on).
+    journal_log = logging.getLogger("hod_momo.decisions")
+    journal_level = journal_log.level
+    journal_log.setLevel(logging.CRITICAL)
     # The leaderboard store, the capture root, the historical downloads and the
     # catalyst stores default to F:\Nova\... when F: is mounted; a test must
     # never read or write the operator's archives (ADR 023, 2026-09-23).
@@ -300,6 +306,7 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     import hod_momo_writer as _hod_writer
 
     _hod_writer.drain()
+    journal_log.setLevel(journal_level)
     assert _persist_queue.flush(), "execution persistence did not drain before test paths were restored"
     _ledger_conn.close_all()  # let pytest remove this test's ledger file
 
@@ -310,6 +317,7 @@ def reset_hod_engine_state() -> None:
     state = hm.get_state()
     state.today_alerts = []
     state.pending_consolidation = {}
+    state.consolidation_bursts = {}
     state.cooldown = {}
     state.session_highs = {}
     state.session_high_seeded = set()
@@ -318,6 +326,8 @@ def reset_hod_engine_state() -> None:
     state.session_high_raised_ts = {}
     state.price_buffer = {}
     state.surge_seeded = set()
+    state.surge_seed_live_since = {}
+    state.surge_seed_retry_at = {}
     state.pending_surge_seed = set()
     state.ticker_snaps = {}
     state.gate_counters = defaultdict(int)

@@ -297,7 +297,9 @@ describe('useIbkrTape lifecycle', () => {
     expect(latest?.silence ?? null).toBeNull();
     const silence = { schema_version: 1, state: 'silent', since: 1791207342, text: 'No prints since 09:35:42 ET ...' };
     send({ type: 'ping', symbol: 'SAIQ', silence });
-    expect(latest?.silence).toEqual({ state: 'silent', since: 1791207342, text: 'No prints since 09:35:42 ET ...' });
+    expect(latest?.silence).toEqual({
+      state: 'silent', since: 1791207342, text: 'No prints since 09:35:42 ET ...', pipeline: [],
+    });
     send({ type: 'print', symbol: 'SAIQ', time: '2026-10-05T13:42:01.000Z', price: 9.1, size: 100 });
     flushTapeFrame();
     expect(latest?.silence).toBeNull();

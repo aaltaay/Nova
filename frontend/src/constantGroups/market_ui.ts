@@ -207,6 +207,10 @@ export const TAPE_STATUS_HALTED = 'HALTED';
 export const TAPE_SILENCE_DEAD_NOTICE = "No prints since {since} while Level 1 trades: IBKR's tape line is down";
 export const TAPE_SILENCE_SILENT_NOTICE = 'Silent since {since} while Level 2 moves: the line may be down';
 export const TAPE_SILENCE_HALTED_NOTICE = 'Halted: no prints until it reopens';
+/** A dead or silent line beside others in the same silence: IBKR's tape, not this stock (#722, 2026-10-13). */
+export const TAPE_SILENCE_PIPELINE_NOTICE = "No prints here or on {peers} since {since}: IBKR's tape is down";
+/** How many of the other lines the short notice names before "+N". */
+export const TAPE_SILENCE_PIPELINE_NAMES_MAX = 2;
 
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)

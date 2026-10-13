@@ -1,6 +1,9 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  ENGINE_GRACEFUL_STOP_MS,
+  ENGINE_STOP_PATH,
+  askEngineToStop,
   engineCheckout,
   engineHome,
   engineIdentity,
@@ -145,6 +148,46 @@ describe('engineRestart', () => {
     const d = deps({ run: runFake(1), exists: (p: string) => p === STOP, fetchJson: engineFake([OLD]) });
     await expect(restartCheckoutEngine(OLD, d)).rejects.toThrow(/Stopped backend v991, but Start-NovaApi.ps1 is missing/);
     expect(d.spawnFn).not.toHaveBeenCalled();
+  });
+
+  it('asks the engine to stop itself first, and runs no stop script when it does', async () => {
+    // 2026-10-13: both update restarts were force-kills, so the API logged nothing and its recordings read
+    // the gaps as crashes.
+    const run = runFake(1);
+    const post = vi.fn(async () => true);
+    const waits: Array<number | undefined> = [];
+    const d = deps({
+      run, post, apiKey: () => 'k3y', reason: 'the desk updated the backend to v1252',
+      waitForPortFree: async (ms?: number) => { waits.push(ms); return true; },
+      fetchJson: engineFake([OLD, null, { status: 'ok', instance_id: 'new', pid: 300, release_tag: 'v1252' }]),
+    });
+    await expect(restartCheckoutEngine(OLD, d)).resolves.toEqual({ from: 'v991', to: 'v1252' });
+    expect(post).toHaveBeenCalledWith(`${API}${ENGINE_STOP_PATH}`, { reason: 'the desk updated the backend to v1252' },
+      expect.objectContaining({ headers: { 'X-Nova-Api-Key': 'k3y' } }));
+    expect(waits).toEqual([ENGINE_GRACEFUL_STOP_MS]);
+    expect(run.mock.calls.some(([, args]) => args.includes('-File'))).toBe(false);
+    expect(d.spawnFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('force-stops when the engine refuses, or does not stop in time', async () => {
+    for (const [answer, freedGracefully] of [[false, false], [true, false]] as const) {
+      const run = runFake(1);
+      const d = deps({
+        run,
+        post: vi.fn(async () => answer),
+        // The engine's own stop waits ENGINE_GRACEFUL_STOP_MS; the stop script's wait always frees the port.
+        waitForPortFree: async (ms?: number) => (ms === ENGINE_GRACEFUL_STOP_MS ? freedGracefully : true),
+        fetchJson: engineFake([OLD, null, { status: 'ok', instance_id: 'new', pid: 300, release_tag: 'v1252' }]),
+      });
+      await expect(restartCheckoutEngine(OLD, d)).resolves.toEqual({ from: 'v991', to: 'v1252' });
+      expect(run.mock.calls.some(([, args]) => args.includes('-File'))).toBe(true);
+    }
+  });
+
+  it('sends no key it does not have', async () => {
+    const post = vi.fn(async () => true);
+    await askEngineToStop(API, { apiKey: () => '', reason: null, post });
+    expect(post).toHaveBeenCalledWith(`${API}${ENGINE_STOP_PATH}`, { reason: null }, expect.objectContaining({ headers: {} }));
   });
 
   it('off Windows it says so instead of guessing', async () => {

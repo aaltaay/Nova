@@ -6,24 +6,24 @@ import time
 import fundamentals as fund
 import process_maps
 from constants import FUNDAMENTALS_CACHE_MAX_ENTRIES, IBKR_QUALIFIED_CONTRACTS_MAX
-from ibkr import discovery
+from ibkr import qualified_contracts
 from ibkr import tape_stream as tape
 
 
 def test_qualified_contracts_clear_and_lru():
-    discovery._qualified_contracts.clear()
-    discovery.remember_qualified_contract("AAA", object())
-    assert discovery.qualified_contract_count() == 1
-    n = discovery.clear_qualified_contracts(reason="test")
+    qualified_contracts._qualified_contracts.clear()
+    qualified_contracts.remember_qualified_contract("AAA", object())
+    assert qualified_contracts.qualified_contract_count() == 1
+    n = qualified_contracts.clear_qualified_contracts(reason="test")
     assert n == 1
-    assert discovery.qualified_contract_count() == 0
+    assert qualified_contracts.qualified_contract_count() == 0
 
     for i in range(IBKR_QUALIFIED_CONTRACTS_MAX + 5):
-        discovery.remember_qualified_contract(f"S{i}", object())
-    assert discovery.qualified_contract_count() == IBKR_QUALIFIED_CONTRACTS_MAX
-    assert "S0" not in discovery._qualified_contracts
-    assert f"S{IBKR_QUALIFIED_CONTRACTS_MAX + 4}" in discovery._qualified_contracts
-    discovery._qualified_contracts.clear()
+        qualified_contracts.remember_qualified_contract(f"S{i}", object())
+    assert qualified_contracts.qualified_contract_count() == IBKR_QUALIFIED_CONTRACTS_MAX
+    assert "S0" not in qualified_contracts._qualified_contracts
+    assert f"S{IBKR_QUALIFIED_CONTRACTS_MAX + 4}" in qualified_contracts._qualified_contracts
+    qualified_contracts._qualified_contracts.clear()
 
 
 def test_tape_idle_maps_prune_after_guard():

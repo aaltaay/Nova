@@ -1,13 +1,16 @@
 /**
- * Pure builders for the open-position overlay on a ticker chart.
+ * Pure builders for the position overlay on a ticker chart.
  *
- * IBKR `positions()` is the qty / avg-cost SSOT. Fill arrows use session
- * working + closed orders that already have a fill price and time -- never
- * invent a fill candle from avg cost alone.
+ * IBKR `positions()` is the qty / avg-cost SSOT for the cost line, drawn only
+ * while a position is open. Fill arrows use the desk day's working + closed
+ * orders that already have a fill price and time, open position or not (a
+ * flattened round trip keeps its arrows) -- never invent a fill candle from
+ * avg cost alone.
  */
 import { LineStyle, type SeriesMarker, type Time } from 'lightweight-charts';
 import type { IbkrOrder, IbkrPosition } from '../ibkr/types';
 import { formatSignedMoney } from '../components/globalBarMoney';
+import { SESSION_PREMARKET_START_MIN_ET } from '../constants';
 import { isoToEtTime, isDailyTimeframe } from '../tickerChartData';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
@@ -143,6 +146,36 @@ export function mergeFills(
   return [...byId.values()];
 }
 
+const ET_DAY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
+/** The desk's trading day of an instant, `YYYY-MM-DD`: it starts at the 04:00 ET premarket open. */
+export function deskTradingDay(ms: number): string {
+  return ET_DAY.format(new Date(ms - SESSION_PREMARKET_START_MIN_ET * 60_000));
+}
+
+/**
+ * The fills the charts draw: the desk day's, whether or not a position is still open (operator ask,
+ * 2026-10-13: a flattened round trip lost its arrows). The day is the replay playhead's on a Sim
+ * replay and the wall clock's otherwise, so the Paper ledger's earlier days never draw. On a replay
+ * a fill after the playhead is never drawn: a rewind takes it off at the next clock read, before
+ * the orders poll brings the unwound ledger.
+ */
+export function deskDayFills(
+  fills: readonly ChartFill[],
+  wallMs: number,
+  playheadSec: number | null,
+): ChartFill[] {
+  const nowMs = playheadSec != null ? playheadSec * 1000 : wallMs;
+  const day = deskTradingDay(nowMs);
+  return fills.filter((fill) => {
+    const ms = Date.parse(fill.timeIso);
+    if (!Number.isFinite(ms) || deskTradingDay(ms) !== day) return false;
+    return playheadSec == null || ms <= nowMs;
+  });
+}
+
 export function seriesMarkersForFills(
   fills: readonly ChartFill[],
   index: SeriesTimeIndex,
@@ -152,10 +185,10 @@ export function seriesMarkersForFills(
   const daily = isDailyTimeframe(timeframe);
   const out: SeriesMarker<Time>[] = [];
   for (const fill of fills) {
-    const snapped = nearestSeriesTime(
-      index,
-      toCanonicalTime(isoToEtTime(fill.timeIso, daily)),
-    );
+    const at = toCanonicalTime(isoToEtTime(fill.timeIso, daily));
+    // Before the pane's first candle it has no bar: snapping it onto that candle would draw it in the wrong place.
+    if (!(at >= index.canonical[0])) continue;
+    const snapped = nearestSeriesTime(index, at);
     if (snapped == null) continue;
     const buy = fill.side === 'BUY';
     out.push({

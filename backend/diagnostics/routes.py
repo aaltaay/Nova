@@ -1,6 +1,6 @@
-"""``GET /api/diagnostics``, ``/bundle`` (ADR 021) and ``/restart-check`` (ADR 038).
+"""``GET /api/diagnostics``, ``/bundle`` (ADR 021), ``/restart-check`` (ADR 038) and the desk's ``POST /stop``.
 
-Read-only. Thin handlers -- the shell is ``diagnostics.gather``, which runs on
+Read-only except ``/stop``, which ends the process (``diagnostics.stop``). Thin handlers -- the shell is ``diagnostics.gather``, which runs on
 a worker thread: it probes both Gateway ports over TCP, and a dark port costs
 the whole probe timeout (Windows retries the refused connect). On the HTTP
 loop that froze every desk socket and REST reply for each 5 s poll of the open
@@ -12,11 +12,13 @@ import asyncio
 
 from fastapi import APIRouter, Query
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 
 from constants_diagnostics import DIAG_UI_TAG_PARAM
 from diagnostics.bundle import render_bundle
 from diagnostics.gather import gather
 from diagnostics.restart_check import restart_check
+from diagnostics.stop import request_stop
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
 
@@ -37,3 +39,13 @@ async def diagnostics_restart_check() -> dict:
 async def diagnostics_bundle(ui: str | None = Query(default=None, alias=DIAG_UI_TAG_PARAM)) -> str:
     """The same checklist as plain text for copy/paste into an issue."""
     return render_bundle(await asyncio.to_thread(gather, ui_tag=ui))
+
+
+class StopBody(BaseModel):
+    reason: str | None = None
+
+
+@router.post("/stop")
+async def diagnostics_stop(body: StopBody) -> dict:
+    """The desk's planned stop (keyed): log why, then exit through the shutdown (``diagnostics.stop``)."""
+    return request_stop(body.reason)

@@ -455,7 +455,9 @@ Elsewhere:
   header's red KILL is the one that flattens.
 - **The Trader's chart toolbar has one Eyes switch** for every pane of the tab. `nova.stockRead.layers`
   `value` adds `eyes: boolean` (true when a stored value lacks it); off hides every Nova drawing, while
-  `setups` / `levels` keep their own values for when it is on.
+  `setups` / `levels` keep their own values for when it is on. A pane in full screen covers that toolbar and shows its
+  own, and the Eyes switch is in it too (operator report 2026-10-13: "i also do not see the 'eyes' button";
+  `components/chartToolbarExtra.ts`).
 - **The Who trades row adds the ★** (on today's hot list; ☆ outlined for an auto star) and the stock's own
   answer ("Bot may buy AISP: no -- the bot is off").
 - **Bot buy, bot sell** (operator, 2026-10-06: "Let's not have Nova buy and sell terminology"): every switch

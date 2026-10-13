@@ -15,16 +15,18 @@
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
 import { targetShare } from '../setups';
 import { tipProps, whyProps } from '../ux';
+import { LiveText } from '../ux/LiveText';
 import { BigSellerLine } from './BigSellerLine';
 import { ExitSheet } from './ExitSheet';
 import { ROLE_WORDS, rowOf, stopWords, type HeldTarget, type StockHeld } from './heldRead';
-import { heldRuler } from './heldView';
+import { heldAtPrice, heldRuler } from './heldView';
 import { fmtPnl } from './momentModel';
 import { LevelRowList } from './PlanLevels';
 import { PriceInput } from './PlanNumbers';
-import { CheckList, useWidth } from './PlanRuler';
+import { CheckList, rulerGlide, rulerTrack, useWidth } from './PlanRuler';
 import { fmtPx } from './planMath';
 import type { StockReadContextValue } from './StockReadContext';
+import { useTapePrice } from './useTapePrice';
 import { HELD_LIVE_COVER_WHY, HELD_LIVE_EXIT_WHY } from './whoTradesModel';
 import './heldTrade.css';
 import './shortRead.css';
@@ -53,18 +55,24 @@ const SHORT_WORDS: typeof LONG_WORDS = {
 const SHORT_TAG_TIP = 'You hold it short: borrowed through IBKR and sold. You make money as it falls; the buy stop '
   + 'over the price is your risk. Nova covers what is left at 15:55 ET.';
 
-function HeldRuler({ held }: { held: StockHeld }) {
+/** The ruler, its price tick on the tape (operator report 2026-10-13): the tick and the bars that end at the price
+ * glide to each new price on the compositor (`rulerGlide`); the ends and labels are the read's. */
+function HeldRuler({ held, symbol }: { held: StockHeld; symbol: string }) {
   const [ref, width] = useWidth();
-  const lay = heldRuler(held, width);
+  const price = useTapePrice(symbol, held.price);
+  const lay = heldRuler(held, width, price);
   if (!lay) return null;
   const seg = (cls: string, s: [number, number] | null) => s && (
     <span className={cls} style={{ left: `${s[0]}%`, width: `${s[1] - s[0]}%` }} />
   );
+  const glide = (cls: string, s: [number, number] | null) => s && (
+    <span className={`${cls} sr-ruler__glide`} style={rulerGlide(s)} />
+  );
   return (
     <div ref={ref} className="sr-ruler sr-ruler--held" data-testid="held-ruler" aria-hidden="true">
       {seg('sr-ruler__locked', lay.locked)}
-      {seg('sr-ruler__risk', lay.risk)}
-      {seg('sr-ruler__reward', lay.reward)}
+      {glide('sr-ruler__risk', lay.risk)}
+      {glide('sr-ruler__reward', lay.reward)}
       {seg('sr-ruler__ahead', lay.ahead)}
       {lay.marks.map(m => (
         <span key={`${m.kind}-${m.label}`} className={`sr-ruler__mark sr-ruler__mark--${m.kind}`} style={{ left: `${m.pct}%` }}>
@@ -74,8 +82,24 @@ function HeldRuler({ held }: { held: StockHeld }) {
       {lay.stopPct !== null && <span className="sr-ruler__end sr-ruler__end--stop" style={{ left: `${lay.stopPct}%` }} />}
       <span className="sr-ruler__end sr-ruler__end--target" style={{ left: `${lay.endPct}%` }} />
       <span className="sr-ruler__entry" style={{ left: `${lay.costPct}%` }} {...tipProps(`Your average ${fmtPx(held.avg)}`)} />
-      {lay.nowPct !== null && <span className="sr-ruler__now" style={{ left: `${lay.nowPct}%` }} />}
+      {lay.nowPct !== null && (
+        <span className="sr-ruler__track" style={rulerTrack(lay.nowPct)}><span className="sr-ruler__now" /></span>
+      )}
     </div>
+  );
+}
+
+/** Open P&L and R in the header, at the tape's price. */
+function HeldOpenPnl({ held, symbol, noR }: { held: StockHeld; symbol: string; noR: string }) {
+  const now = heldAtPrice(held, useTapePrice(symbol, held.price));
+  return (
+    <span className="sr-plan__rr" {...tipProps(held.risk !== null
+      ? `Open P&L, and in R: your ${fmtPx(held.risk)} risk a share.` : `Open P&L. R is not known: ${noR}.`)}>
+      <b className={now.open_usd !== null && now.open_usd < 0 ? 'sr-neg' : ''}><LiveText text={fmtPnl(now.open_usd)} /></b>
+      {now.r !== null && (
+        <span className="sr-plan__rr-k"> <LiveText text={`${now.r >= 0 ? '+' : ''}${now.r.toFixed(1)}R open`} /></span>
+      )}
+    </span>
   );
 }
 
@@ -105,21 +129,27 @@ function HeldTargetNum({ which, target, held, words: w }: {
   );
 }
 
-function HeldLadder({ held }: { held: StockHeld }) {
+/** The ladder, its NOW row at the tape's price: the NOW row's numbers are `LiveText`, so a tick lays out only them. */
+function HeldLadder({ held, symbol }: { held: StockHeld; symbol: string }) {
+  const ladder = heldAtPrice(held, useTapePrice(symbol, held.price)).ladder;
   return (
     <ul className="sr-ladder" data-testid="held-ladder" aria-label="The levels over and under the price">
-      {held.ladder.map((r, i) => (
-        <li key={`${r.role}-${r.price}-${i}`} className={`sr-ladder__row sr-ladder__row--${r.role}`}
-          {...tipProps(r.text, `${ROLE_WORDS[r.role]} ${fmtPx(r.price)}`)}>
-          <span className="sr-ladder__p">{fmtPx(r.price)}</span>
-          <span className="sr-ladder__c">{ROLE_WORDS[r.role]}</span>
-          <span className="sr-ladder__t">{r.text}</span>
-          <span className="sr-ladder__r">
-            {r.role === 'stop' || r.role === 'now' ? fmtPnl(r.usd) : ''}
-            {r.r !== null && r.role !== 'cost' ? `${r.role === 'stop' || r.role === 'now' ? ' · ' : ''}${r.r >= 0 ? '+' : ''}${r.r.toFixed(1)}R` : ''}
-          </span>
-        </li>
-      ))}
+      {ladder.map((r, i) => {
+        const usd = r.role === 'stop' || r.role === 'now';
+        const money = usd ? fmtPnl(r.usd) : '';
+        const rs = r.r !== null && r.role !== 'cost' ? `${usd ? ' · ' : ''}${r.r >= 0 ? '+' : ''}${r.r.toFixed(1)}R` : '';
+        const now = r.role === 'now';
+        return (
+          // The NOW row keeps its key as the price moves: only its numbers change.
+          <li key={now ? 'now' : `${r.role}-${r.price}-${i}`} className={`sr-ladder__row sr-ladder__row--${r.role}`}
+            {...tipProps(r.text, `${ROLE_WORDS[r.role]} ${fmtPx(r.price)}`)}>
+            <span className="sr-ladder__p">{now ? <LiveText text={fmtPx(r.price)} /> : fmtPx(r.price)}</span>
+            <span className="sr-ladder__c">{ROLE_WORDS[r.role]}</span>
+            <span className="sr-ladder__t">{now ? <LiveText text={r.text} /> : r.text}</span>
+            <span className="sr-ladder__r">{now ? <LiveText text={money + rs} /> : money + rs}</span>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -168,11 +198,7 @@ export function HeldCard({ ctx, held, folded = false, onFold }: {
         {short && <span className="sr-plan__side" {...tipProps(SHORT_TAG_TIP, 'Short')} data-testid="held-short-tag">SHORT</span>}
         <span className="sr-plan__name">{held.qty.toLocaleString('en-US')} {ctx.symbol} @ {fmtPx(held.avg)}</span>
         <span className={`sr-plan__badge sr-plan__badge--${badgeCls}`} data-testid="held-badge">{badge}</span>
-        <span className="sr-plan__rr" {...tipProps(held.risk !== null
-          ? `Open P&L, and in R: your ${fmtPx(held.risk)} risk a share.` : `Open P&L. R is not known: ${w.noR}.`)}>
-          <b className={held.open_usd !== null && held.open_usd < 0 ? 'sr-neg' : ''}>{fmtPnl(held.open_usd)}</b>
-          {held.r !== null && <span className="sr-plan__rr-k"> {held.r >= 0 ? '+' : ''}{held.r.toFixed(1)}R open</span>}
-        </span>
+        <HeldOpenPnl held={held} symbol={ctx.symbol} noR={w.noR} />
       </header>
       <BigSellerLine big={ctx.big} short={short} />
       {folded ? null : (<>
@@ -205,8 +231,8 @@ export function HeldCard({ ctx, held, folded = false, onFold }: {
         <HeldTargetNum which={1} target={held.target} held={held} words={w} />
         <HeldTargetNum which={2} target={held.target2 ?? null} held={held} words={w} />
       </div>
-      <HeldRuler held={held} />
-      <HeldLadder held={held} />
+      <HeldRuler held={held} symbol={ctx.symbol} />
+      <HeldLadder held={held} symbol={ctx.symbol} />
       <LevelRowList levels={held.levels} />
       <CheckList checks={held.checks} />
       <footer className="sr-plan__foot">

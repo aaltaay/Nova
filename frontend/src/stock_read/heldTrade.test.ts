@@ -6,9 +6,9 @@
 import type { Time } from 'lightweight-charts';
 import { describe, expect, it } from 'vitest';
 import { paneDraw } from './chartShapes';
-import { APUS_HELD_NOW, APUS_HELD_SINCE, apusHeldWire } from './heldFixtures';
-import { normalizeHeld } from './heldRead';
-import { heldLines, heldMarkers, heldRuler } from './heldView';
+import { APUS_HELD_NOW, APUS_HELD_SINCE, apusHeldWire, rdynShortWire } from './heldFixtures';
+import { normalizeHeld, rowOf } from './heldRead';
+import { heldAtPrice, heldLines, heldMarkers, heldRuler } from './heldView';
 import { momentOf, NO_HELD } from './momentModel';
 import type { StockReadLayers } from './StockReadContext';
 import type { StockRead } from './types';
@@ -75,6 +75,44 @@ describe('the ruler while you hold', () => {
     const lay = heldRuler(under, 600)!;
     expect(lay.locked).toBeNull();
     expect(lay.risk).toEqual([lay.stopPct, lay.costPct]);
+  });
+
+  // Operator report 2026-10-13: the tick moved once a read, every 5 s -- "way too delayed".
+  it('moves the price tick and the bars at the price with the tape, the ends and labels the read\'s', () => {
+    const read = heldRuler(HELD, 600)!;
+    const tape = heldRuler(HELD, 600, 6.8)!;
+    expect(tape.nowPct!).toBeGreaterThan(read.nowPct!);
+    expect(tape.risk).toEqual([read.stopPct, tape.nowPct]);
+    expect(tape.reward![0]).toBe(tape.nowPct);
+    expect({ ...tape, nowPct: 0, risk: null, reward: null }).toEqual({ ...read, nowPct: 0, risk: null, reward: null });
+    // A tape price past an end sits on it until the next read draws the ruler again.
+    expect(heldRuler(HELD, 600, 1)!.nowPct).toBe(0);
+    expect(heldRuler(HELD, 600, null)).toEqual(read);
+  });
+});
+
+describe('the trade at the tape\'s price', () => {
+  it('reckons the open P&L, R and the NOW row as the read does', () => {
+    const earlier = normalizeHeld({ ...apusHeldWire, price: 6.0, open_usd: 92.5, r: 2.08 })!;
+    const now = heldAtPrice(earlier, 6.64);
+    expect(now.price).toBe(6.64);
+    expect(now.open_usd).toBe(HELD.open_usd);
+    expect(now.r).toBe(HELD.r);
+    expect(now.ladder).toEqual(HELD.ladder);
+    // Over NEXT 6.97 the NOW row sits over it, the rest as they were.
+    expect(heldAtPrice(HELD, 7.02).ladder.map(r => r.role))
+      .toEqual(['then', 'now', 'next', 'through', 'broke', 'broke', 'stop', 'cost']);
+    expect(rowOf(heldAtPrice(HELD, 4.9), 'now')).toEqual({ role: 'now', price: 4.9, text: '-17.50 open', r: -0.39, usd: -17.5 });
+    expect(heldAtPrice(HELD, 6.64)).toBe(HELD);
+    expect(heldAtPrice(HELD, null)).toBe(HELD);
+  });
+
+  it('a short makes money as the price falls', () => {
+    const short = normalizeHeld(rdynShortWire)!;
+    const at = heldAtPrice(normalizeHeld({ ...rdynShortWire, price: 5.6 })!, 5.46);
+    expect([at.open_usd, at.r]).toEqual([short.open_usd, short.r]);
+    expect(at.ladder).toEqual(short.ladder);
+    expect(heldAtPrice(short, 5.7).open_usd).toBe(29.12);
   });
 });
 

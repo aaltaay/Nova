@@ -25,6 +25,14 @@ HOD_MOMO_BLOCKLIST_FILE = _os.path.join(_hod_momo_cache_root(), "hod-momo-blockl
 # momentum "(N in Xs)" badge. Burst/consolidation alone rate-limits emits.
 HOD_MOMO_COOLDOWN_SEC = 0.0          # 0 = mute off; do not raise without revisiting burst
 HOD_MOMO_CONSOLIDATION_SEC = 10.0    # batch same-ticker alerts (momentum "N in Xs")
+# A burst's first trigger is sent at the next flush tick; only the repeats inside the
+# window wait for its end. Holding the first 10 s showed PFAI's 2026-10-13 first alert
+# after the $5.94 top it was raised under. The tick bounds that first alert's wait.
+HOD_MOMO_FLUSH_TICK_SEC = 0.25
+# The decision journal (hod_momo_decision_journal): a line per change of a symbol's verdict,
+# a file per session day, kept this many days. Bump the version when a line's shape changes.
+HOD_MOMO_DECISION_JOURNAL_KEEP_DAYS = 10
+HOD_MOMO_DECISION_JOURNAL_SCHEMA_VERSION = 1
 # HOD truth: last must be within this of session high (abs $ or relative).
 HOD_MOMO_HOD_EPSILON_ABS = 0.01
 HOD_MOMO_HOD_EPSILON_PCT = 0.001     # 0.1%
@@ -71,6 +79,11 @@ HOD_MOMO_SURGE_SEED_BARS = 15          # last ~15 minutes of 1-min OHLCV (surge 
 # the local store already has them (no IB fill from this path).
 HOD_MOMO_FULL_SESSION_BAR_LIMIT = 1000
 HOD_MOMO_SURGE_SEED_POLL_SEC = 1.0     # drain pending seed queue
+# A seed that found no stored bars asks again every RETRY_SEC for RETRY_WINDOW_SEC: the setup
+# scanner's IBKR history usually lands seconds later (median 3.4 s on 2026-10-13), and a seed
+# marked done at once kept 181 names live-only all day, PFAI among them.
+HOD_MOMO_SURGE_SEED_RETRY_SEC = 10.0
+HOD_MOMO_SURGE_SEED_RETRY_WINDOW_SEC = 600.0
 # If tick-6 never arrives, seed the HOD floor from max observed print after
 # this many seconds of watching -- without opening the new-HOD alert window.
 HOD_MOMO_OBSERVED_SEED_WARMUP_SEC = 60.0
@@ -159,6 +172,13 @@ HOD_MOMO_SESSION_FOCUS_STRATEGY_IDS = frozenset({2, 10, 11})
 
 # Enrichment loop intervals
 HOD_MOMO_ENRICH_INTERVAL_SEC = 30.0          # batch snapshot enrichment cadence
+# discovery=ibkr: the most one enrichment pass spends snapshotting the names with no live Level 1 line,
+# under IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC (25) so the bridge never cancels it and loses what answered.
+# Off hours IBKR takes up to ~11 s per 5-symbol snapshot; 40 names timed out at 25 s every pass (#891).
+HOD_MOMO_ENRICH_SNAPSHOT_BUDGET_SEC = 18.0
+# ...and at most this many of those names per pass, the longest since their last try first, so a name
+# IBKR never answers cannot hold the same place in front of the rest every pass.
+HOD_MOMO_ENRICH_SNAPSHOT_MAX = 10
 HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC = 2.0  # fundamentals per-symbol drain cadence
 HOD_MOMO_FUNDAMENTALS_BATCH_SIZE = 10            # symbols per fundamentals tick (warm up faster)
 # mark_needs_fundamentals() only fires once (when float/52wk-high are unknown), so
@@ -204,27 +224,43 @@ HOD_MOMO_MASTER_MIN_RVOL = 1.5         # relative volume floor; 0 = off
 HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 0.0   # session overrides retired -- strategy-level only
 HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 0.0
 
-# Pace RVOL (momentum "Relative Volume (Daily Rate)"): today_vol / (avg * elapsed_frac).
-# Floor = ~14 min of the 04:00–16:00 ET volume day — avoids insane RVOL at 4:01.
+# Pace RVOL (momentum "Relative Volume (Daily Rate)"): today_vol / (avg * expected share of
+# the day's volume by now), the share read off RVOL_VOLUME_CURVE_CUM_FRAC below.
+# Floor -- avoids insane RVOL in the first minutes after 04:00.
 HOD_MOMO_RVOL_PACE_FLOOR = 0.02
 HOD_MOMO_RVOL_USE_PACE = True
 # momentum "Relative Volume (5 min %)": last-5m vol ÷ (avg_daily / bars_in_session).
-# Session = 04:00–16:00 ET (720 min → 144 five-minute bars), matching pace RVOL day.
+# Session = 04:00–16:00 ET (720 min → 144 five-minute bars), the flat fallback.
 HOD_MOMO_RVOL_5MIN_WINDOW_SEC = 300
 HOD_MOMO_RVOL_5MIN_SESSION_MINUTES = 720.0
-# When True, typical 5-min volume uses a coarse ET time-of-day curve (open/close heavy).
+# When True, typical 5-min volume uses the time-of-day curve below (open/close heavy).
 HOD_MOMO_RVOL_5MIN_USE_TOD = True
-# Cumulative fraction of daily volume by ET minute-of-day (midnight=0). Coarse U-shape.
-# Interpolated between knots; last knot should be ~1.0 at end of extended session.
-HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC: tuple[tuple[int, float], ...] = (
-    (4 * 60, 0.00),       # 04:00 premarket open
-    (9 * 60 + 30, 0.12),  # 09:30 RTH open
-    (10 * 60, 0.28),      # open spike
-    (12 * 60, 0.45),      # midday
-    (15 * 60, 0.65),      # afternoon
-    (16 * 60, 0.88),      # RTH close
-    (20 * 60, 1.00),      # 20:00 AH end
+# Cumulative share of a stock-day's 04:00-20:00 volume traded by each ET minute-of-day
+# (midnight=0), interpolated between knots. Measured 2026-10-13 from the Massive minute
+# bars: 492 ordinary stock-days of 93 small caps ($1-$20, Gappers 2026-06/09, read on
+# ordinary later days, spike days > 3x the stock's median left out), volume-weighted.
+# It replaced a straight line over 04:00-16:00 that expected 36% of the day by 08:20
+# (measured: 10%), so a premarket mover read ~3.5x too little RVOL and the tradeable
+# floor held PFAI's 2026-10-13 breakout back until it had traded 275k shares.
+RVOL_VOLUME_CURVE_CUM_FRAC: tuple[tuple[int, float], ...] = (
+    (4 * 60, 0.000),        # 04:00 premarket open
+    (4 * 60 + 30, 0.027),
+    (6 * 60, 0.044),
+    (7 * 60, 0.054),
+    (8 * 60, 0.081),
+    (8 * 60 + 30, 0.109),
+    (9 * 60, 0.123),
+    (9 * 60 + 30, 0.139),   # 09:30 RTH open
+    (10 * 60, 0.286),       # the open's first half hour
+    (11 * 60, 0.441),
+    (12 * 60, 0.543),
+    (14 * 60, 0.701),
+    (15 * 60, 0.786),
+    (16 * 60, 0.949),       # RTH close
+    (18 * 60, 0.979),
+    (20 * 60, 1.000),       # 20:00 AH end
 )
+HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC = RVOL_VOLUME_CURVE_CUM_FRAC
 
 # RVOL fallback: when on IEX free tier, Alpaca historical bars are mostly empty.
 # During warmup (first N seconds after startup), skip the RVOL master gate entirely

@@ -5,8 +5,9 @@
  * 1min and 5min charts"). Pure. Each pane draws its own chart's lines (`level_map.lines`, read by the backend from
  * the same candles): an ascending support in green, a descending resistance in orange, a ring on each touch; a line
  * that broke stays faint for a few candles, a cross on the candle that closed through it. Its name sits in the
- * pane's edge column where the line runs now and opens its card (`trendStory`). Nothing here is estimated: every
- * point is the backend's.
+ * pane's edge column where the line runs now and opens its card (`trendStory`); a broken line has no name there, and
+ * a level or a plan line at its price takes it ("4.09–4.12 · top ×8 · ↘", 2026-10-13). Nothing here is estimated:
+ * every point is the backend's.
  */
 import type { Time } from 'lightweight-charts';
 import { EDGE_PRIORITY } from '../chart';
@@ -64,10 +65,13 @@ export function trendScene(read: StockRead, pane: TrendPane, toTime: (epochSec: 
       faded: l.state === 'broken',
       touches,
       broke: l.broke && bt !== null ? { t: bt, price: l.broke.p } : null,
-      label: trendLabel(l),
-      labelColor: trendColor(l, TREND_COLORS.brokenLabelAlpha),
+      // A broken line says so with its faint line and the cross on the candle that closed through it; its name at the
+      // edge read like a live one's (operator report 2026-10-13). Its card stays on the line.
+      label: l.state === 'broken' ? '' : trendLabel(l),
+      labelColor: trendColor(l),
       hoverId: trendHoverId(l),
-      priority: EDGE_PRIORITY.level,
+      priority: EDGE_PRIORITY.trendLine,
+      foldName: l.dir === 'up' ? '↗' : '↘',
     });
   }
   return out;

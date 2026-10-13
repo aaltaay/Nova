@@ -117,11 +117,18 @@ describe('tapePrintSetsPrice', () => {
 describe('parseTapeSilence (#722)', () => {
   it("reads the backend's word and refuses anything else", () => {
     expect(parseTapeSilence({ schema_version: 1, state: 'silent', since: 5, text: 'x', book_at: 9 }))
-      .toEqual({ state: 'silent', since: 5, text: 'x' });
+      .toEqual({ state: 'silent', since: 5, text: 'x', pipeline: [] });
     expect(parseTapeSilence(null)).toBeNull();
     expect(parseTapeSilence({ state: 'stale', since: 5, text: 'x' })).toBeNull();
     expect(parseTapeSilence({ state: 'quiet', since: 'now', text: 'x' })).toBeNull();
     expect(parseTapeSilence({ schema_version: 2, state: 'dead', since: 5, text: 'y', pipeline: ['VEEA'] }))
-      .toEqual({ state: 'dead', since: 5, text: 'y' });
+      .toEqual({ state: 'dead', since: 5, text: 'y', pipeline: ['VEEA'] });
+  });
+
+  it('keeps the other lines in the silence and drops anything that is not a symbol (2026-10-13)', () => {
+    expect(parseTapeSilence({ schema_version: 3, state: 'dead', since: 5, text: 'y', pipeline: ['AIXI', 7, null] }))
+      .toEqual({ state: 'dead', since: 5, text: 'y', pipeline: ['AIXI'] });
+    expect(parseTapeSilence({ schema_version: 3, state: 'silent', since: 5, text: 'y', pipeline: 'AIXI' }))
+      .toEqual({ state: 'silent', since: 5, text: 'y', pipeline: [] });
   });
 });

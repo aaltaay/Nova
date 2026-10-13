@@ -318,6 +318,18 @@ describe('TimeSalesPanel -- a line that stopped printing says so (#722)', () => 
     expect(notice()?.textContent?.trim()).toBe("No prints since 09:35:42 while Level 1 trades: IBKR's tape line is down");
   });
 
+  it('names the other lines in the same silence: IBKR stopped its tape, not this stock (2026-10-13)', () => {
+    tapeMock.silence = { state: 'dead', since: SINCE, text: 'x', pipeline: ['AIXI'] };
+    render();
+    expect(status().textContent).toBe('LINE DOWN 360s');
+    expect(notice()?.textContent?.trim()).toBe("No prints here or on AIXI since 09:35:42: IBKR's tape is down");
+    act(() => {
+      tapeMock.silence = { state: 'silent', since: SINCE, text: 'x', pipeline: ['AIXI', 'SOXS', 'WBUY', 'FCHL'] };
+      root.render(<TimeSalesPanel symbol="SAIQ" />);
+    });
+    expect(notice()?.textContent?.trim()).toBe("No prints here or on AIXI, SOXS +2 since 09:35:42: IBKR's tape is down");
+  });
+
   it('says HALTED for a halt, never that the line may be down', () => {
     tapeMock.silence = { state: 'halted', since: SINCE, text: 'Halted: no prints until it reopens. No prints since 09:35:42 ET.' };
     render();
