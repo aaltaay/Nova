@@ -176,13 +176,16 @@ def test_quote_extraction_and_tiles():
     assert spread["change_pct"] == pytest.approx(0.69) and spread["line"] == [[0, pytest.approx(0.69)]]
 
 
-def test_a_tile_without_a_snapshot_reads_its_bars_labelled_and_never_stale():
+def test_a_tile_without_a_snapshot_reads_its_bars_labelled_and_says_when_stale():
     now = clock.at(DAY, 10 * 60 + 2)
     line = [[clock.at(DAY, 9 * 60 + 55), 6840.0], [clock.at(DAY, 10 * 60), 6842.5]]
     got = board._from_bars(None, line, {"date": "2026-10-12", "close": 6800.25}, now)
     assert got["last"] == 6842.5 and got["prev_close"] == 6800.25 and got["data_type"] == "bars"
+    assert got["stale"] is False
     assert board._from_bars({"last": 6843.0}, line, None, now)["last"] == 6843.0        # a snapshot wins
-    assert board._from_bars(None, line, None, now + 3600) is None                          # an hour-old bar: unknown
+    # An hour-old bar (ADR 053 amendment 2026-10-13 evening): its price with its time, flagged stale -- not "--".
+    old = board._from_bars(None, line, None, now + 3600)
+    assert old["last"] == 6842.5 and old["stale"] is True and old["at"] == line[-1][0]
 
 
 def test_board_route_validates_and_answers(monkeypatch):

@@ -7,6 +7,8 @@ export const MARKET_BOARD_PATH = '/api/market/board';
 export const MARKET_POLL_MS = 5_000;
 /** While a read has not answered yet, ask again sooner. */
 export const MARKET_LOADING_POLL_MS = 2_000;
+/** Answers the page keeps in memory (one per switch combination) to open on at once when it shows again. */
+export const MARKET_KEPT_BOARDS = 12;
 
 export const MARKET_PERIODS: readonly Period[] = ['1D', '7D', '30D'];
 export const MARKET_TOP_KINDS: readonly TopKind[] = ['movers', 'biggest', 'runners'];
@@ -28,6 +30,9 @@ export const THEME_COLORS = ['#30d158', '#64d2ff', '#bf5af2', '#ff9f0a', '#5e5ce
 export const THEME_OTHER_COLOR = '#8e8e93';
 /** The climate bar shows this many themes by name, then "Other". */
 export const THEME_BAR_MAX = 5;
+/** The runners chart's hover card lists this many themes, then "+ N more". */
+export const RUNNERS_TIP_THEMES = 8;
+export const RUNNERS_NOT_RECORDED = 'not recorded -- Nova holds no Gainers board for this session';
 
 export const MARKET_TITLE = 'Market';
 export const MARKET_OFF = 'The Market page is turned off on this desk (NOVA_MARKET_BOARD=0).';

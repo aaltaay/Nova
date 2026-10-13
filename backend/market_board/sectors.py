@@ -2,8 +2,10 @@
 
 An ETF's move: 1 D its IBKR snapshot against its prior close; 7 D / 30 D its price (else its last regular-hours
 close) against the regular-hours close 5 / 21 sessions back. A sector's members are its State Street holdings
-file; its 1 D leader is its best member in IBKR's large-cap gainers scan, its 7 D / 30 D leader the best of its
-top ``MARKET_LEADER_POOL`` holdings by daily closes. Pure over the inputs given.
+file; its 1 D leader is its best member among IBKR's large-cap gainers scan and its top ``MARKET_LEADER_POOL``
+holdings, its 7 D / 30 D leader the best of those holdings by daily closes. Every sector gets a top-stocks card,
+ranked from the same stocks (ADR 053 amendment 2026-10-13 evening: a sector with no stock in the gainers scan had an
+empty card). Pure over the inputs given.
 """
 from __future__ import annotations
 
@@ -60,21 +62,28 @@ def members(etf: str, holdings: Holdings) -> list[str]:
     return [r["symbol"] for r in (holdings(etf) or {}).get("rows") or []]
 
 
+def candidates(syms: list[str], period: str, ctx: dict[str, Any]) -> tuple[list[str], Quotes]:
+    """The stocks a sector's leader and top-stocks card rank, and the quotes that price them.
+
+    1 D: its members in the large-cap gainers scan, then its top ``MARKET_LEADER_POOL`` holdings; 7 D / 30 D: those
+    holdings, whose daily closes are read.
+    """
+    if period != "1D":
+        return syms[:MARKET_LEADER_POOL], ctx["pool_quotes"]
+    movers = ctx["movers"]
+    picked = [s for s in syms if s in movers] + syms[:MARKET_LEADER_POOL]
+    return list(dict.fromkeys(picked)), {**ctx["pool_quotes"], **movers}
+
+
 def _leader(etf: str, period: str, ctx: dict[str, Any]) -> tuple[dict | None, str | None]:
     h = ctx["holdings"](etf)
     if h is None:
         return None, "State Street's holdings file has not been read"
-    syms = [r["symbol"] for r in h.get("rows") or []]
-    if period == "1D":
-        movers = ctx["movers"]
-        moved = [(s, _pct(movers[s].get("price"), movers[s].get("prev_close"))) for s in syms if s in movers]
-        if ctx["movers_read"] is False:
-            return None, "IBKR's large-cap gainers scan has not answered yet"
-    else:
-        moved = [(s, change(s, period, ctx["pool_quotes"], ctx["closes"], ctx["today"])) for s in syms[:MARKET_LEADER_POOL]]
+    pool, quotes = candidates([r["symbol"] for r in h.get("rows") or []], period, ctx)
+    moved = [(s, change(s, period, quotes, ctx["closes"], ctx["today"])) for s in pool]
     moved = [(s, c) for s, c in moved if c is not None]
     if not moved:
-        return None, "none in the movers" if period == "1D" else "no member's closes yet"
+        return None, "IBKR has not priced its stocks yet" if period == "1D" else "no member's closes yet"
     sym, pct = max(moved, key=lambda x: x[1])
     return {"symbol": sym, "change_pct": pct}, None
 
@@ -106,10 +115,11 @@ def board(kind: str, period: str, ctx: dict[str, Any]) -> dict[str, Any]:
 
 
 def _cards_order(sectors_rows: list[dict]) -> list[dict]:
+    """Strength order (an unquoted sector last); past ``MARKET_TOP_CARDS``, the strongest and the weakest."""
+    if len(sectors_rows) <= MARKET_TOP_CARDS:
+        return sectors_rows
     known = [r for r in sectors_rows if r["change_pct"] is not None]
-    if len(known) <= MARKET_TOP_CARDS:
-        return known
-    return known[:MARKET_TOP_CARDS - 1] + [known[-1]]   # the strongest, and the weakest for contrast
+    return known[:MARKET_TOP_CARDS - 1] + known[-1:]
 
 
 def top(kind: str, period: str, ctx: dict[str, Any], runners: list[tuple[str, list[dict]]] | None) -> dict[str, Any]:
@@ -126,14 +136,9 @@ def top(kind: str, period: str, ctx: dict[str, Any], runners: list[tuple[str, li
         etf = row["etf"]
         syms = members(etf, ctx["holdings"])
         if kind == "biggest":
-            pool = syms[:MARKET_TOP_ROWS]
-            quotes = ctx["pool_quotes"]
-        elif period == "1D":
-            pool = [s for s in syms if s in ctx["movers"]]
-            quotes = ctx["movers"]
+            pool, quotes = syms[:MARKET_TOP_ROWS], ctx["pool_quotes"]
         else:
-            pool = syms[:MARKET_LEADER_POOL]
-            quotes = ctx["pool_quotes"]
+            pool, quotes = candidates(syms, period, ctx)
         items = []
         for sym in pool:
             q = quotes.get(sym) or {}
@@ -143,5 +148,8 @@ def top(kind: str, period: str, ctx: dict[str, Any], runners: list[tuple[str, li
         if kind == "movers":
             items = sorted((i for i in items if i["change_pct"] is not None), key=lambda i: -i["change_pct"])
         cards.append({"name": row["name"], "etf": etf, "change_pct": row["change_pct"], "rows": items[:MARKET_TOP_ROWS]})
-    why = None if cards else "the sector ETFs have not been quoted yet"
+    why = None if any(c["rows"] for c in cards) else (
+        "State Street's holdings files have not been read" if not any(members(r["etf"], ctx["holdings"])
+                                                                      for r in sector_rows)
+        else "IBKR has not priced the sectors' stocks yet")
     return {"kind": kind, "period": period, "cards": cards, "why": why}

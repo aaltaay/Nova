@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import constants_market_board as cmb
 from ibkr import brief_lines
-from market_board import ibkr_reads, refresh
+from market_board import ibkr_reads, jobs, refresh
 from market_board.state import store
 from metrics import op_metrics
 from tests.fakes.brief_line_ib import FakeIB, stock_qualifier
@@ -67,25 +67,25 @@ def test_bars_run_on_their_own_lane_while_quotes_are_due(monkeypatch):
     assert calls[-1].startswith("prior:")
     assert refresh.run_once("ibkr", now)
     assert calls[-1] == "quotes"
-    assert "quotes" not in [j.key for j in refresh.history_jobs(now)]
-    assert not any(j.key.startswith(("prior:", "line:", "closes:")) for j in refresh.ibkr_jobs(now))
+    assert "quotes" not in [j.key for j in jobs.history_jobs(now)]
+    assert not any(j.key.startswith(("prior:", "line:", "closes:")) for j in jobs.ibkr_jobs(now))
 
 
 def test_tiles_without_a_price_read_their_bars_first(monkeypatch):
     calls: list[str] = []
     _wire_lanes(monkeypatch, calls)
     now = time.time()
-    priced = {s["id"]: {"last": 1.0} for s in refresh.QUOTE_SPECS if s["id"] not in ("vix", "tnx")}
+    priced = {s["id"]: {"last": 1.0} for s in jobs.QUOTE_SPECS if s["id"] not in ("vix", "tnx")}
     store().put("quotes", "ibkr", priced, now)
-    keys = [j.key for j in refresh.history_jobs(now)]
+    keys = [j.key for j in jobs.history_jobs(now)]
     assert keys[:4] == ["prior:vix", "line:vix", "prior:tnx", "line:tnx"]
 
 
 def test_without_a_spare_line_the_ibkr_lane_opens_nothing_and_bars_price(monkeypatch):
     monkeypatch.setattr(ibkr_reads, "headroom_ok", lambda: False)
     now = time.time()
-    assert refresh.ibkr_jobs(now) == []
-    assert {"etf_bars", "movers_bars"} <= {j.key for j in refresh.history_jobs(now)}
+    assert jobs.ibkr_jobs(now) == []
+    assert {"etf_bars", "movers_bars"} <= {j.key for j in jobs.history_jobs(now)}
 
 
 def test_every_read_is_timed_and_the_first_answer_after_the_page_opened(monkeypatch):

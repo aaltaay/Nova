@@ -1,4 +1,7 @@
-/** The sector and industry boards (ADR 053): strongest first, a green / red bar, the period's leader. */
+/**
+ * The sector and industry boards (ADR 053): strongest first, a green / red bar, the period's leader. The ETF and the
+ * leader open in the Trader, and so does a click anywhere on the row (its ETF).
+ */
 import { BAR_SCALE_PCT, PERIOD_LABEL } from './constants';
 import { shortDate, signedPct, tone } from './format';
 import { Card, PeriodSwitch, Sym } from './parts';
@@ -27,32 +30,33 @@ export function SectorBoardCard({ kind, board, onPeriod, onOpen }: {
         <span className="mk-r">{PERIOD_LABEL[board.rows[0]?.context_period ?? '7D']}</span>
         <span>{board.period === '1D' ? 'Leader' : "Period's leader"}</span>
       </div>
-      {board.rows.map((r) => {
-        const w = r.change_pct == null ? 0 : Math.min(Math.abs(r.change_pct) / scale, 1) * 50;
-        return (
-          <div key={r.etf} className="mk-board__row">
-            <span className="mk-b">{r.name}</span>
-            <span className="mk-muted">{r.etf}</span>
-            <span className="mk-bar" aria-hidden="true">
-              {r.change_pct == null ? null : (
-                <i className={r.change_pct >= 0 ? 'is-up' : 'is-down'}
-                  style={r.change_pct >= 0 ? { left: '50%', width: `${w}%` } : { right: '50%', width: `${w}%` }} />
-              )}
-            </span>
-            <span className={`mk-r mk-b is-${tone(r.change_pct)}`}>{signedPct(r.change_pct)}</span>
-            <span className={`mk-r mk-small is-${tone(r.context_pct)}`}>{signedPct(r.context_pct)}</span>
-            <span className="mk-chip">
-              {r.leader ? (
-                <><Sym symbol={r.leader.symbol} onOpen={onOpen} /> <em className={`is-${tone(r.leader.change_pct)}`}>{signedPct(r.leader.change_pct, 1)}</em></>
-              ) : (
-                <span className="mk-muted" title={r.leader_why ?? undefined}>
-                  {'—'} {r.leader_why === 'none in the movers' ? r.leader_why : ''}
-                </span>
-              )}
-            </span>
-          </div>
-        );
-      })}
+      <div className="mk-board__rows">
+        {board.rows.map((r) => {
+          const w = r.change_pct == null ? 0 : Math.min(Math.abs(r.change_pct) / scale, 1) * 50;
+          return (
+            <div key={r.etf} className={`mk-board__row${onOpen ? ' is-link' : ''}`} data-testid={`market-row-${r.etf}`}
+              onClick={onOpen ? () => onOpen(r.etf) : undefined}>
+              <span className="mk-b">{r.name}</span>
+              <Sym symbol={r.etf} onOpen={onOpen} muted />
+              <span className="mk-bar" aria-hidden="true">
+                {r.change_pct == null ? null : (
+                  <i className={r.change_pct >= 0 ? 'is-up' : 'is-down'}
+                    style={r.change_pct >= 0 ? { left: '50%', width: `${w}%` } : { right: '50%', width: `${w}%` }} />
+                )}
+              </span>
+              <span className={`mk-r mk-b is-${tone(r.change_pct)}`}>{signedPct(r.change_pct)}</span>
+              <span className={`mk-r mk-small is-${tone(r.context_pct)}`}>{signedPct(r.context_pct)}</span>
+              <span className="mk-chip">
+                {r.leader ? (
+                  <><Sym symbol={r.leader.symbol} onOpen={onOpen} /> <em className={`is-${tone(r.leader.change_pct)}`}>{signedPct(r.leader.change_pct, 1)}</em></>
+                ) : (
+                  <span className="mk-muted" title={r.leader_why ?? undefined}>{'—'}</span>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
       {kind === 'sectors' ? <Rotation board={board} /> : null}
     </Card>
   );

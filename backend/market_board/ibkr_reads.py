@@ -26,6 +26,7 @@ from constants_market_board import (
     MARKET_INDUSTRY_GAP_SEC,
     MARKET_LINE_BAR,
     MARKET_LINE_DURATION,
+    MARKET_LINE_DURATION_CRYPTO,
     MARKET_MOVERS_ROWS,
     MARKET_MOVERS_SCAN,
 )
@@ -205,7 +206,11 @@ def prior_close(spec: dict, trading_date: str) -> dict:
 
 
 def line_bars(spec: dict, trading_date: str) -> list[list[float]]:
-    """``[[t, close]]`` of today's 5-minute bars for a tile (oldest first, all hours)."""
+    """``[[t, close]]`` of today's 5-minute bars for a tile (oldest first, all hours).
+
+    A coin asks ``MARKET_LINE_DURATION_CRYPTO``: IBKR's "1 D" of crypto bars starts at 16:00 ET, so the line from
+    04:00 had nothing before the close (2026-10-13). The board keeps the points from 04:00 ET.
+    """
     from ibkr import historical_service
 
     async def _ask() -> list[dict]:
@@ -219,7 +224,8 @@ def line_bars(spec: dict, trading_date: str) -> list[list[float]]:
             raise SourceError("IBKR does not know this contract")
         what = "AGGTRADES" if spec["sec_type"] == "CRYPTO" else "TRADES"
         return await historical_service.request_reference_bars(
-            f"{spec['sec_type']}:{spec['symbol']}", contract, duration=MARKET_LINE_DURATION,
+            f"{spec['sec_type']}:{spec['symbol']}", contract,
+            duration=MARKET_LINE_DURATION_CRYPTO if spec["sec_type"] == "CRYPTO" else MARKET_LINE_DURATION,
             bar_size=MARKET_LINE_BAR, what_to_show=what, use_rth=False)
 
     rows = _run(_ask(), MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.line_bars") or []

@@ -11,6 +11,7 @@ import { MARKET_OFF, MARKET_OLD_API, MARKET_PERIODS_STORAGE_KEY } from './consta
 import { MarketPage } from './MarketPage';
 import { DEFAULT_PERIODS, parsePeriods } from './periods';
 import { sampleMarketBoard } from './sampleMarket';
+import { resetKeptBoardsForTests } from './useMarketBoard';
 
 const route = vi.hoisted(() => ({ sample: true }));
 vi.mock('../sample_data/useSampleRoute', () => ({ useSampleRoute: () => route.sample }));
@@ -66,6 +67,7 @@ describe('Market page on the live desk', () => {
   beforeEach(() => {
     route.sample = false;
     window.localStorage.clear();
+    resetKeptBoardsForTests();
   });
   afterEach(() => {
     cleanup();
@@ -120,5 +122,104 @@ describe('Market page on the live desk', () => {
     render(<MarketPage onOpenTrader={() => {}} />);
     await act(async () => {});
     expect(screen.getByTestId('market-page').textContent).toContain('not one this desk can read');
+  });
+});
+
+describe('Market page: every symbol opens the Trader (ADR 053 amendment 2026-10-13 evening)', () => {
+  beforeEach(() => {
+    route.sample = true;
+    window.localStorage.clear();
+  });
+  afterEach(cleanup);
+
+  it('opens a sector ETF and an industry ETF', () => {
+    const open = vi.fn();
+    render(<MarketPage onOpenTrader={open} />);
+    fireEvent.click(within(screen.getByTestId('market-sectors')).getByRole('button', { name: 'XLK' }));
+    fireEvent.click(within(screen.getByTestId('market-industries')).getByRole('button', { name: 'XOP' }));
+    expect(open.mock.calls).toEqual([['XLK'], ['XOP']]);
+  });
+
+  it('opens a row’s ETF on a click anywhere on it, and only the leader on the leader', () => {
+    const open = vi.fn();
+    render(<MarketPage onOpenTrader={open} />);
+    fireEvent.click(screen.getByTestId('market-row-XLV'));
+    expect(open).toHaveBeenLastCalledWith('XLV');
+    open.mockClear();
+    fireEvent.click(within(screen.getByTestId('market-row-XLK')).getByRole('button', { name: 'NVDA' }));
+    expect(open.mock.calls).toEqual([['NVDA']]);
+  });
+
+  it('gives every sector a top-stocks card, each stock and ETF a way into the Trader', () => {
+    const open = vi.fn();
+    render(<MarketPage onOpenTrader={open} />);
+    const top = screen.getByTestId('market-top');
+    expect(top.querySelectorAll('.mk-top__card')).toHaveLength(11);
+    const health = screen.getByTestId('market-top-card-XLV');
+    expect(health.querySelectorAll('.mk-top__row').length).toBeGreaterThan(0);
+    fireEvent.click(within(health).getByRole('button', { name: 'XLV' }));
+    fireEvent.click(health.querySelector('.mk-top__row') as Element);
+    fireEvent.click(within(screen.getByTestId('market-top-card-XLU')).getByRole('button', { name: 'VST' }));
+    expect(open.mock.calls).toEqual([['XLV'], ['LLY'], ['VST']]);
+  });
+
+  it('opens a top runner from the climate card', () => {
+    const open = vi.fn();
+    render(<MarketPage onOpenTrader={open} />);
+    fireEvent.click(within(screen.getByTestId('market-climate')).getByRole('button', { name: 'RUNR' }));
+    expect(open).toHaveBeenCalledWith('RUNR');
+  });
+
+  it('draws the runners chart across the climate card, with its unrecorded sessions hatched', () => {
+    render(<MarketPage onOpenTrader={() => {}} />);
+    const chart = within(screen.getByTestId('market-climate')).getByTestId('market-runners');
+    expect(chart.querySelectorAll('rect.mk-runners__none')).toHaveLength(2);
+    fireEvent.click(within(chart).getByRole('button', { name: 'Open the runners chart large' }));
+    expect(screen.getByTestId('market-runners-large').textContent).toContain('21 sessions, 19 recorded');
+  });
+
+  it('shows plain text, not a dead button, where nothing can open the Trader', () => {
+    render(<MarketPage />);
+    expect(within(screen.getByTestId('market-sectors')).queryByRole('button', { name: 'XLK' })).toBeNull();
+    expect(within(screen.getByTestId('market-sectors')).getByText('XLK')).toBeTruthy();
+  });
+});
+
+describe('Market page: closing and opening again', () => {
+  beforeEach(() => {
+    route.sample = false;
+    window.localStorage.clear();
+    resetKeptBoardsForTests();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('opens again on the last board at once, never "Reading the market"', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => respond(sampleMarketBoard(DEFAULT_PERIODS))));
+    const first = render(<MarketPage onOpenTrader={() => {}} />);
+    await act(async () => {});
+    expect(screen.getByTestId('market-day-read')).toBeTruthy();
+    first.unmount();
+
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));    // the backend has not answered yet
+    render(<MarketPage onOpenTrader={() => {}} />);
+    expect(screen.getByTestId('market-page').textContent).not.toContain('Reading the market');
+    expect(screen.getByTestId('market-day-read').textContent).toContain('BULLISH');
+    expect(screen.getAllByTestId(/^market-tile-/)).toHaveLength(10);
+  });
+
+  it('dims a future in CME’s daily pause and says when it last traded', async () => {
+    const board = sampleMarketBoard(DEFAULT_PERIODS);
+    const es = board.quotes[0];
+    const stale = { ...es, stale: true, data_type: 'bars' as const, price_basis: 'bars' as const, at: es.at };
+    vi.stubGlobal('fetch', vi.fn(() => respond({ ...board, quotes: [stale, ...board.quotes.slice(1)] })));
+    render(<MarketPage onOpenTrader={() => {}} />);
+    await act(async () => {});
+    const tile = screen.getByTestId('market-tile-es');
+    expect(tile.className).toContain('is-stale');
+    expect(tile.textContent).toContain('6,842.50');
+    expect(tile.textContent).toContain('as of 09:52');
   });
 });

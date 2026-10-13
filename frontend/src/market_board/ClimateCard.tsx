@@ -1,10 +1,12 @@
 /**
  * The small-cap climate (ADR 053): Nova's own Gainers board by day, week or month -- runners against their
- * average, the theme of the period, a 21-session chart coloured by theme, gappers holding, halts, top runners.
+ * average, the theme of the period, a 21-session chart coloured by theme (RunnersChart: full width, hover, a large
+ * view), gappers holding, halts, top runners.
  */
 import { THEME_BAR_MAX, THEME_COLORS, THEME_OTHER_COLOR } from './constants';
 import { count, etTime, shares, shortDate, signedPct } from './format';
 import { PeriodSwitch, Sym } from './parts';
+import { RunnersChart } from './RunnersChart';
 import type { Climate, Period } from './types';
 
 const WORD: Record<Period, string> = { '1D': 'day', '7D': 'week', '30D': 'month' };
@@ -20,42 +22,6 @@ function palette(c: Climate): Map<string, string> {
 
 function color(colors: Map<string, string>, name: string): string {
   return colors.get(name) ?? THEME_OTHER_COLOR;
-}
-
-function Chart({ c, colors }: { c: Climate; colors: Map<string, string> }) {
-  const W = 252;
-  const H = 46;
-  const n = c.days.length || 1;
-  const gap = 2;
-  const bw = (W - gap * (n - 1)) / n;
-  const max = Math.max(1, ...c.days.map((d) => d.total ?? 0));
-  const lit = c.sessions;
-  return (
-    <svg className="mk-climate__chart" viewBox={`0 0 ${W} ${H + 11}`} role="img"
-      aria-label={`Runners per session by theme, last ${n} sessions`}>
-      {c.days.map((d, i) => {
-        const x = i * (bw + gap);
-        const on = i >= n - lit;
-        let y = H;
-        const parts = Object.entries(d.themes).sort((a, b) => b[1] - a[1]);
-        return (
-          <g key={d.date} opacity={on ? 1 : 0.38}>
-            <title>{`${shortDate(d.date)}: ${d.source ? `${d.total} runners` : 'not recorded'}`}</title>
-            {d.source ? parts.map(([name, v]) => {
-              const h = (v / max) * (H - 2);
-              y -= h;
-              return <rect key={name} x={x} y={y} width={bw} height={h} fill={color(colors, name)} />;
-            }) : <rect x={x} y={H - 2} width={bw} height={2} className="mk-climate__gap" />}
-            {i % 5 === 0 || i === n - 1 ? (
-              <text x={x + bw / 2} y={H + 10} textAnchor="middle" className="mk-climate__tick">{d.date.slice(8)}</text>
-            ) : null}
-          </g>
-        );
-      })}
-      <rect x={(n - lit) * (bw + gap) - 1} y={0.5} width={lit * (bw + gap) - gap + 2} height={H - 0.5}
-        className="mk-climate__lit" />
-    </svg>
-  );
 }
 
 function ThemeBar({ c, colors }: { c: Climate; colors: Map<string, string> }) {
@@ -114,8 +80,8 @@ export function ClimateCard({ c, onPeriod, onOpen }: { c: Climate | null; onPeri
             <div className="mk-s">{k === 'up20' && many && c.per_day != null ? `${c.per_day}/day · ` : ''}{avgLine(base?.[k] ?? null)}</div>
           </div>
         ))}
-        <div className="mk-box"><div className="mk-t">Runners per session, by theme · {c.days.length} sessions</div><Chart c={c} colors={colors} /></div>
       </div>
+      <RunnersChart c={c} color={(name) => color(colors, name)} period={word} />
       <div className="mk-climate__theme">
         <span className="mk-t">Theme of the {word}</span>
         {c.theme ? (

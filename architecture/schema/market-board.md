@@ -13,11 +13,12 @@ so far, the last 5 sessions, the last 21 sessions, today included).
 
 `GET /api/market/board?sectors=1D&industries=1D&climate=1D&top=movers&top_period=1D` (`top`: `movers` | `biggest`
 | `runners`; an unknown value is 400 `MARKET_BAD_PARAM` with `field`) answers from memory and never waits on IBKR or
-the network; asking marks the board wanted for `MARKET_WANTED_SEC`:
+the network; asking marks the board wanted for `MARKET_WANTED_SEC` (the page's cadence; the board is kept warm at
+a background cadence otherwise, below):
 
 `{schema_version: 1, generated_at, enabled, loading, replay_desk, session, day_read, events, quotes[], breadth,
 sectors, industries, climate, top, sources[]}` -- `enabled` false with `NOVA_MARKET_BOARD=0`; `loading` true until
-every read the page shows has answered (or failed) once since it was wanted; `replay_desk` true on a Sim replay
+every read the page waits on (the climate) has answered or failed once in this process; `replay_desk` true on a Sim replay
 desk (the page reads today's live market and says so).
 
 - `session`: `{date (the ET trading date, 04:00 rollover), phase: "premarket" | "regular" | "after_hours" | "closed",
@@ -45,8 +46,9 @@ desk (the page reads today's live market and says so).
   "crypto" | "spread", exchange, contract: string | null (the front month's local symbol, e.g. "ESZ6"), last,
   prev_close, change, change_pct, price_basis: "last" | "mid" | "bars" | null (a coin with no print in the read
   shows its quoted midpoint; "bars" below), data_type: "live" | "frozen" | "delayed" | "delayed_frozen" | "bars" | null (IBKR's own
-  market-data type for the read), at, line: [[t, value]] (5-minute bars from 04:00 ET today, oldest first),
-  error: string | null}`. `prev_close` is IBKR's prior close from the read (a future's prior settlement), else the
+  market-data type for the read), at, stale: boolean, line: [[t, value]] (5-minute bars from 04:00 ET today, oldest first),
+  error: string | null}`. `stale` is true when `last` came from a bar older than `MARKET_BARS_FRESH_SEC` (the
+  market is not trading: CME's 17:00-18:00 ET pause, a weekend); the page dims the price and says "as of HH:MM". `prev_close` is IBKR's prior close from the read (a future's prior settlement), else the
   last daily bar before today (`prior:<id>`, read once a session: IBKR's Cboe index snapshots -- VIX, TNX -- came
   back with no last and no close on 2026-10-13 while their bars answered, so those tiles price from bars). The `small_caps`
   spread tile is RTY's `change_pct` minus ES's (`last` / `change` null, `change_pct` the points) and its line the
@@ -60,15 +62,16 @@ desk (the page reads today's live market and says so).
   Nova started sampling). `waiting` before 09:30 with `prior` the last session's last sample Nova kept;
   `unavailable` with IBKR's reason when it refuses the indicators, and in the session when the newest sample is
   older than `MARKET_BREADTH_STALE_SEC` ("no NYSE breadth sample since HH:MM ET"; the line is kept). After the
-  close the day's last sample is the day's breadth.
+  close the day's last sample is the day's breadth, its volume and TRIN from `breadth-last.json` when that file is
+  the same day's.
 - `sectors` / `industries`: `{period, from, to, rows: [{name, etf, change_pct, context_pct, context_period,
   leader: {symbol, change_pct} | null, leader_why: string | null}]}` strongest first; `sectors` adds
   `offense_pct` and `defense_pct` (the mean of XLK, XLY, XLC and of XLP, XLU, XLV for the period). `change_pct` is
   the ETF's move over the period (1 D: last against the prior close; 7 D / 30 D: last against the regular-hours
   close 5 / 21 sessions back); `context_pct` is the 7 D move when the period is 1 D, else the 1 D move. The 1 D
-  leader is the best member of the ETF (its State Street holdings file) in IBKR's large-cap gainers scan
-  (`MARKET_MOVERS_SCAN`); 7 D / 30 D, the best of its top `MARKET_LEADER_POOL` holdings by daily closes. `leader:
-  null` with `leader_why` when no member list exists (the theme ETFs of ADR 053) or no member moved.
+  leader is the best member of the ETF (its State Street holdings file) among IBKR's large-cap gainers scan
+  (`MARKET_MOVERS_SCAN`) and its top `MARKET_LEADER_POOL` holdings; 7 D / 30 D, the best of its top `MARKET_LEADER_POOL` holdings by daily closes. `leader:
+  null` with `leader_why` when no member list exists (the theme ETFs of ADR 053) or no member has a price yet.
 - `climate`: `{period, from, to, sessions, covered, lens, counts: {up20, up50, up100}, per_day: number | null,
   baseline: {up20, up50, up100, per_day, days, basis: "same_minute" | "per_session"} | null, temperature: "hot" |
   "normal" | "cold" | null, days: [{date, source: "recorded" | "reconstructed" | null, total, themes: {name:
@@ -90,17 +93,22 @@ desk (the page reads today's live market and says so).
   last minute; `gone` counts gappers no longer on the board (unknown, left out of `rate_pct`). Halts are the Nasdaq
   halt feed's `start` events; their up / down side is not recorded (`by_side: null`).
 - `top`: `{kind, period, cards: [{name, etf, change_pct, rows: [{symbol, last, change_pct, spark: number[] |
-  null}]}], why: string | null}` -- sectors in strength order, at most `MARKET_TOP_CARDS`, `MARKET_TOP_ROWS` rows
-  each. `movers`: 1 D the large-cap gainers scan grouped by sector membership; 7 D / 30 D the best of each sector's
-  top `MARKET_LEADER_POOL` holdings. `biggest`: each sector's top holdings by weight. `runners`: the climate's
+  null}]}], why: string | null}` -- sectors in strength order, every sector (`MARKET_TOP_CARDS`), `MARKET_TOP_ROWS` rows
+  each. `movers`: each sector's members in the large-cap gainers scan together with its top `MARKET_LEADER_POOL`
+  holdings, ranked by the period's move (1 D a snapshot against the prior close; 7 D / 30 D daily closes). `biggest`: each sector's top holdings by weight. `runners`: the climate's
   runners of the period grouped by theme. `spark` is the period's daily closes (7 D / 30 D); `null` for 1 D.
 - `sources[]`: `{id: "ibkr" | "ssga" | "bea" | "finnhub" | "leaderboard", label, ok: boolean | null, at,
   error}` -- `ok: null` until asked. A failed read keeps its last good answer for at most `MARKET_STALE_MAX_SEC`.
 
-Refresh (`backend/market_board/refresh.py`, daemon threads `ibkr`, `history` and `files`, only while wanted unless
-noted). `ibkr` reads lines: the NYSE breadth sample once a minute 09:30-16:00 ET whether or not the page is open;
+Refresh (`backend/market_board/refresh.py` runs, `backend/market_board/jobs.py` lists what each thread reads; daemon
+threads `ibkr`, `history` and `files`, started with the process).
+**Warm** (ADR 053 amendment 2026-10-13 evening): every read runs whenever IBKR is connected, at the cadence below
+while the page asked within `MARKET_WANTED_SEC`, else at its background cadence (`MARKET_IDLE_QUOTES_TTL_SEC`,
+`MARKET_IDLE_ETF_TTL_SEC`, `MARKET_IDLE_MOVERS_TTL_SEC`, `MARKET_IDLE_POOL_TTL_SEC`, `MARKET_IDLE_LINES_TTL_SEC`,
+`MARKET_IDLE_CLIMATE_TTL_SEC`); `NOVA_MARKET_BOARD_WARM=0` runs them only while the page is wanted. `ibkr` reads lines: the NYSE breadth sample once a minute 09:30-16:00 ET whether or not the page is open;
 quotes every `MARKET_QUOTES_TTL_SEC`; ETF quotes every `MARKET_ETF_TTL_SEC`; the movers scan every
-`MARKET_MOVERS_TTL_SEC`. `history` reads bars and contract details, so it never waits behind a quote (ADR 053
+`MARKET_MOVERS_TTL_SEC`; the biggest names (`pool_quotes:<n>`, `MARKET_POOL_CHUNK` stocks a read, so tile quotes
+run between them) every `MARKET_HOLDINGS_QUOTES_TTL_SEC`. `history` reads bars and contract details, so it never waits behind a quote (ADR 053
 amendment 2026-10-13): each tile's prior close (once a session) and bar line (every `MARKET_LINES_TTL_SEC`), read
 together and tiles without a price first; the ETFs' and leaders' daily closes once per session; the bar prices
 below; a runner's industry once, then from the file below. `files` reads State Street, BLS and BEA once a day and
@@ -123,8 +131,8 @@ opening (`wanted_since`) to that read's first answer `market_board.first.<read>`
 
 **Without a spare line.** IBKR shares an account's lines with every platform its login uses (2026-10-13: Nova
 could hold 45 of 100, HOD Momo 40 of them). Then the page opens no line and reads prices from bars, which hold
-no line: a tile's `last` is its last 5-minute bar's close (`data_type: "bars"`, `at` the bar's start; not shown
-when older than `MARKET_BARS_FRESH_SEC`) and its `prev_close` the last daily bar before today (`prior:<id>`, once a
+no line: a tile's `last` is its last 5-minute bar's close (`data_type: "bars"`, `at` the bar's start, `stale` past
+`MARKET_BARS_FRESH_SEC`; the same when a line gets no trade, e.g. CME's daily pause) and its `prev_close` the last daily bar before today (`prior:<id>`, once a
 day); ETFs and movers read their regular-session daily bars (`bar_quotes`: today's bar's close against the bar
 before, no price before 09:30), the movers ranked by IBKR's scan (a scan holds no line) and at most
 `MARKET_BARS_MOVERS_MAX` priced. Breadth has no bar fallback: it reads `unavailable` with "waiting for spare
@@ -135,6 +143,13 @@ is recorded on that tile (`market_board.ibkr_reads.note_error`) and never sets t
 (Error 10089 / 10167), the max-tickers note (101) or a farm notice (`ibkr/session_errors.py`).
 
 **Persisted.**
+- `<cache_dir>/market-board/board-store.json` `{schema_version: 1, saved_at, entries: {key: {at, value}}}` -- the
+  store's IBKR answers (`quotes`, `etf_quotes`, `etf_bars`, `movers`, `movers_bars`, `pool_quotes:<n>`,
+  `line:<id>`, `prior:<id>`, `closes:<SYM>`), written by the `files` thread at most every `MARKET_KEEP_SAVE_SEC`
+  when one changed, read once at process start; owner `market_board/keep.py`. An entry keeps its own answer time,
+  so the store's age rules (`MARKET_STALE_MAX_SEC`, each read's TTL and freshness check) decide what is shown and
+  what is read again; an entry older than `MARKET_KEEP_MAX_AGE_SEC`, a key not listed above or an unknown
+  `schema_version` is ignored, and an answer already newer in memory is kept.
 - `<cache_dir>/market-board/breadth-last.json` `{schema_version: 1, date, advancing, declining, unchanged, up_volume,
   down_volume, tick, trin, at}` -- the last regular-session breadth sample, overwritten each sample; owner
   `market_board/breadth.py`; an unknown `schema_version` is ignored (no prior shown).
@@ -147,6 +162,8 @@ is recorded on that tile (`market_board.ibkr_reads.note_error`) and never sets t
 - `<cache_dir>/market-board/holdings-<ETF>.json` `{schema_version: 1, etf, as_of, fetched_at, rows: [{symbol, name,
   weight_pct}]}` -- State Street's file parsed; refetched when older than `MARKET_HOLDINGS_TTL_SEC`; when State Street
   cannot be read, a kept file is used only while younger than `MARKET_HOLDINGS_MAX_AGE_SEC`, else its members are unknown.
+- Desk memory (not stored): the page's hook keeps its last answer for the life of the window, so the page opens on
+  it at once and asks again (`useMarketBoard`).
 - Desk: `localStorage nova.marketBoard.periods.v1` `{schema_version: 1, sectors, industries, climate, top: {kind,
   period}}` (owner `frontend/src/market_board/periods.ts`; an unknown version or value falls back to `1D` /
   `movers`).

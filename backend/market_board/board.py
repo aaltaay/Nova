@@ -14,6 +14,7 @@ from constants_market_board import (
     MARKET_BIGGEST_PER_SECTOR,
     MARKET_CLOSES_RETRY_SEC,
     MARKET_ETF_TTL_SEC,
+    MARKET_HOLDINGS_QUOTES_TTL_SEC,
     MARKET_HOLDINGS_TTL_SEC,
     MARKET_LINE_START_MIN_ET,
     MARKET_LINES_TTL_SEC,
@@ -46,28 +47,36 @@ def _tile(spec: dict, q: dict | None, line: list | None, day: date, now: float) 
     prev = prev / scale if prev is not None else None
     start = clock.at(day, MARKET_LINE_START_MIN_ET)
     points = [[t, v / scale] for t, v in (line or []) if t >= start and v is not None]
-    if last is not None and points and now > points[-1][0]:
-        points.append([now, last])
+    stale = bool(q.get("stale"))
+    if last is not None and points and now > points[-1][0] and not stale:
+        points.append([now, last])   # the line ends at the price now; a stale price ends where its bar did
     return {
         "id": spec["id"], "label": spec["label"], "symbol": spec["symbol"],
         "kind": {"CONTFUT": "future", "IND": "index", "CRYPTO": "crypto"}.get(spec["sec_type"], "spread"),
         "exchange": spec["exchange"], "contract": q.get("contract"), "last": last, "prev_close": prev,
         "change": round(last - prev, 4) if last is not None and prev is not None else None,
         "change_pct": _pct(last, prev), "price_basis": q.get("price_basis"), "data_type": q.get("data_type"),
-        "at": q.get("at"), "line": points, "error": q.get("error"),
+        "at": q.get("at"), "stale": stale, "line": points, "error": q.get("error"),
     }
 
 
 def _from_bars(q: dict | None, line: list | None, prior: dict | None, now: float) -> dict | None:
-    """A tile's quote from its bars when IBKR gave no snapshot: the last 5-minute close, the prior daily close."""
+    """A tile's quote from its bars when IBKR gave no trade: the last 5-minute close, the prior daily close.
+
+    At any age (ADR 053 amendment 2026-10-13 evening): from 17:00 to 18:00 ET CME trades nothing, and the tiles read
+    "--" while their lines were drawn. A bar older than ``MARKET_BARS_FRESH_SEC`` is ``stale``: the page dims it and
+    says when it traded. Never another source's number.
+    """
     if q and q.get("last") is not None:
         if q.get("prev_close") is None and prior:
             return {**q, "prev_close": prior.get("close")}   # a snapshot with a print but no close
         return q
-    if not line or now - line[-1][0] > MARKET_BARS_FRESH_SEC:
+    if not line:
         return q
-    return {**(q or {}), "last": line[-1][1], "price_basis": "bars", "data_type": "bars", "at": line[-1][0],
-            "prev_close": (q or {}).get("prev_close") or (prior or {}).get("close"), "error": None}
+    t, close = line[-1]
+    return {**(q or {}), "last": close, "price_basis": "bars", "data_type": "bars", "at": t,
+            "prev_close": (q or {}).get("prev_close") or (prior or {}).get("close"), "error": None,
+            "stale": now - t > MARKET_BARS_FRESH_SEC}
 
 
 def _spread(tiles: dict[str, dict], spec: dict) -> dict[str, Any]:
@@ -83,7 +92,8 @@ def _spread(tiles: dict[str, dict], spec: dict) -> dict[str, Any]:
                 line.append([t, round(100.0 * (v / a["prev_close"] - bv / b["prev_close"]), 3)])
     return {"id": spec["id"], "label": spec["label"], "symbol": spec["symbol"], "kind": "spread", "exchange": "",
             "contract": None, "last": None, "prev_close": None, "change": None, "change_pct": pct,
-            "price_basis": None, "data_type": a.get("data_type"), "at": a.get("at"), "line": line,
+            "price_basis": None, "data_type": a.get("data_type"), "at": a.get("at"),
+            "stale": bool(a.get("stale") or b.get("stale")), "line": line,
             "error": None if pct is not None else (a.get("error") or b.get("error"))}
 
 
@@ -121,8 +131,7 @@ def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, params: 
         "closes": lambda s: st.get(f"closes:{s}", now, MARKET_CLOSES_RETRY_SEC * 96),
         "holdings": _holdings(st, now),
         "movers": (movers or {}).get("quotes") or {},
-        "movers_read": movers is not None,
-        "pool_quotes": st.get("pool_quotes", now, MARKET_ETF_TTL_SEC * 3) or {},
+        "pool_quotes": st.merged("pool_quotes:", now, MARKET_HOLDINGS_QUOTES_TTL_SEC),
         "period_from": {p: clock.sessions_back(day, MARKET_PERIOD_SESSIONS[p])[0].isoformat() for p in MARKET_PERIODS},
     }
     climate_ready = st.get("climate", now, 600.0) is not None
@@ -139,8 +148,8 @@ def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, params: 
     ]
     biggest = {s for _, etf in MARKET_SECTORS for s in sectors.members(etf, ctx["holdings"])[:MARKET_BIGGEST_PER_SECTOR]}
     runners = climate.runners_by_theme(params["top_period"], now) if climate_ready else None
-    since = st.wanted_since()
-    loading = enabled and not all(st.tried_since(k, since) for k in _FIRST_READS)
+    # Until the first answer of this process: the page then asks sooner. A warm board has answered long before.
+    loading = enabled and not all(st.tried(k) for k in _FIRST_READS)
     return {
         "schema_version": MARKET_SCHEMA_VERSION, "generated_at": now, "enabled": enabled, "loading": loading,
         "replay_desk": replay_desk, "session": sess, "day_read": day_read.verdict(checks),
