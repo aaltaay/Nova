@@ -43,3 +43,33 @@ def test_a_file_another_build_holds_is_skipped(day_file, monkeypatch):
     lock.parent.mkdir(parents=True, exist_ok=True)
     lock.write_text("1")
     assert inventory._build_one(str(day_file), 1 << 20)[1].startswith("skipped")
+
+
+def test_a_task_after_stop_returns_at_once(day_file):
+    stop = day_file.parents[3] / "sim" / "index" / inventory.INDEX_STOP
+    stop.parent.mkdir(parents=True, exist_ok=True)
+    stop.write_text("")
+    assert inventory._build_one(str(day_file), 1 << 20)[1] == inventory.STOPPED
+    assert not massive_index.is_current(day_file, day_file.parents[3])
+
+
+def test_a_bulk_build_stopped_part_way_ends(tmp_path, monkeypatch):
+    """2026-10-12: cancelling the pool's queue on STOP left a task already handed out unrun, and the run waited on it
+    forever (with no workers). Each task now checks STOP itself, so the run always ends."""
+    import threading
+
+    monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(tmp_path))
+    for i in range(1, 21):
+        path = tmp_path / "trades_v1" / "2026" / "09" / f"2026-09-{i:02d}.csv.gz"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(path, "wt", newline="") as fh:
+            fh.write("ticker,price\nAA,1\nAAPL,2\n")
+    stop = tmp_path / "sim" / "index" / inventory.INDEX_STOP
+    threading.Timer(0.5, lambda: (stop.parent.mkdir(parents=True, exist_ok=True), stop.write_text(""))).start()
+    done = []
+    runner = threading.Thread(target=lambda: done.append(inventory.build_indexes(["trades_v1"], workers=2, read_mb=1)))
+    runner.start()
+    runner.join(120)
+    assert done == [0]                                  # it ended, and nothing failed
+    log = (tmp_path / "sim" / "index" / inventory.INDEX_LOG).read_text(encoding="utf-8")
+    assert "index: stopped with" in log or "index: finished" in log
