@@ -157,9 +157,13 @@ runs a newer release than it:
   bell (09:25-09:45 ET), or a backend that cannot say. The backend notice then
   lists what holds it, beside **Update backend now** for an operator who wants
   it anyway (confirmed with the list), and Nova goes as soon as it clears.
-- It restarts only onto the desk's exact release. A checkout already past it
-  (master pulled ahead) would put the backend ahead of the desk, so that is
-  left to the operator.
+- It restarts only onto the desk's exact release, read again right before the
+  restart. A checkout already past it (master pulled ahead, here or from an
+  IDE) would put the backend ahead of the desk, so that is left to the
+  operator.
+- One pull or restart at a time: the operator's button, Restart to update's
+  pull and the restart by itself wait for each other, so a click during the
+  automatic one never pulls beside it or restarts the backend twice.
 - Each pair of releases (backend, desk) is tried once. A pull it may not make
   (not a clean master, `backend/requirements.txt` changed), a checkout past the
   desk, or a restart that comes back on the same code leaves **Update backend
