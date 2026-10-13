@@ -376,6 +376,41 @@ def test_a_date_to_come_in_an_exhibit_is_not_results_even_in_its_link():
     assert release_text.read_exhibit(profit_alert)["kind"] == "other"
 
 
+def test_a_results_title_that_also_names_its_call_is_results():
+    exhibit = ("<p>EX-99.1 2 ea024649101ex99-1_nano.htm PRESS RELEASE, DATED AUGUST 12, 2025 Exhibit 99.1 Nanox "
+               "Announces Second Quarter of 2025 Financial Results and Provides Business Update Management to host "
+               "conference call and webcast Tuesday, August 12, 2025 at 8:30 AM ET</p>")
+    assert release_text.read_exhibit(exhibit)["kind"] == "results"
+    mara = _eight_k("On February 26, 2026, MARA Holdings, Inc. issued a shareholder letter announcing its "
+                    "preliminary, unaudited financial results for the fiscal quarter and full year ended December 31, "
+                    "2025.")
+    assert release_text.read_8k(mara, "2.02,9.01")["kind"] == "results"
+
+
+def test_a_notice_that_refers_back_to_results_is_not_a_release():
+    notice = ("<p>Exhibit 99.1 Hong Kong Exchanges and Clearing Limited take no responsibility for the contents of "
+              "this announcement.</p><p>ADJUSTMENT TO THE CONVERSION RATE OF THE CONVERTIBLE SENIOR NOTES DUE "
+              "2031.</p><p>Reference is made to the announcement of our March quarter 2025 and fiscal year 2025 "
+              "results dated May 15, 2025.</p>")
+    assert release_text.read_exhibit(notice)["kind"] != "results"
+    cover = _cover("EXHIBITS Exhibit 99.1 - Announcement - Adjustment to the Conversion Rate of the Convertible "
+                   "Senior Notes Due 2031. Further reference is made to the announcement of our March quarter 2026 "
+                   "and fiscal year 2026 results dated May 13, 2026.")
+    reading = release_text.read_6k(cover)
+    assert reading is None or reading["kind"] == "unknown"
+
+
+def test_a_later_filing_for_a_period_already_marked_is_listed_on_that_mark():
+    subs = _subs([
+        ("X-interim", "6-K", "2026-09-28", "2026-09-28", "", "ir.htm"),
+        ("X-q2", "6-K", "2026-08-24", "2026-08-24", "", "pr.htm"),
+    ])
+    readings = {"X-q2": _read("results", months=3, end="2026-06-30", named="2026 Q2"),
+                "X-interim": _read("results", months=6, end="2026-06-30")}
+    [ev] = earnings.events(subs, {}, readings=readings)
+    assert ev["day"] == "2026-08-24" and [r["accession"] for r in ev["other_releases"]] == ["X-interim"]
+
+
 def test_an_exhibit_about_deliveries_is_not_results():
     title = "<p>Tesla Vehicle Production &amp; Deliveries and Date for Financial Results &amp; Webcast for Third Quarter 2026</p>"
     assert release_text.read_exhibit(title)["kind"] == "other"

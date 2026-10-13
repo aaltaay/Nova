@@ -16,8 +16,12 @@ A filing **reports results** when one of its opening sentences says results were
 released or published with a word that makes them financial, or a press release on its results, or
 furnishes interim financial statements -- and that sentence does not announce a date to come ("to Report ...
 on September 1"), speak of a meeting's votes, restate, warn of results still being prepared (NIO's "Profit
-Alert"), or give deliveries ("XPENG Announces Vehicle Delivery Results for July 2026"). It is
-**preliminary** when that sentence says preliminary, estimated, certain or selected results. A cover that
+Alert"), give deliveries ("XPENG Announces Vehicle Delivery Results for July 2026"), or refer back to results
+already out ("the announcement of our March quarter 2025 ... results dated May 15", in BABA's notice of a
+convertible's new rate). A call to be hosted is no veto: Nano-X titles its results "Nanox Announces Second
+Quarter of 2025 Financial Results ... Management to host conference call". It is **preliminary** when that
+sentence says certain or selected results (LUNR's partial figures with an acquisition); a quarter's
+"preliminary, unaudited financial results" before the audit are its results (MARA, Q4 2025). A cover that
 only says a press release is attached (TSLA's "published the press release which is attached hereto as
 Exhibit 99.1", or a 6-K's non-GAAP note) is **unknown** until its Exhibit 99.1's opening is read
 (``read_exhibit``); an 8-K still unknown then is a weak release (``earnings.py``), since the Item 2.02 8-Ks
@@ -54,18 +58,28 @@ _VERB = (r"(?:reports?|reported|reporting|announc(?:es|ed|ing|ement(?:\s+of)?)|a
          r"releasing|publish(?:es|ed|ing)?|posts?|posted|presents?|presented)")
 _KIND = (r"(?:financial|operating|operational|earnings|interim|quarterly|annual|half[- ]year(?:ly)?|"
          r"semi[- ]annual|unaudited|audited|year[- ]end|full[- ]year|fiscal|first[- ]half|second[- ]half|quarter)")
+# Results said with a verb that brings them out ("Nanox Announces Second Quarter of 2025 Financial Results"),
+# or interim financial statements furnished.
 _RESULTS = (
     re.compile(rf"\b{_VERB}\b[^.;]{{0,150}}?\b{_KIND}\b[^.;]{{0,60}}?\bresults\b", re.I),
+    re.compile(r"\b(?:unaudited|interim)\b[^.;]{0,30}?\b(?:condensed\s+)?(?:consolidated\s+)?financial\s+"
+               r"(?:statements|information)\b", re.I),
+)
+# Results named without such a verb ("a press release regarding Apple's financial results for its third fiscal
+# quarter") count only in a sentence that is not about a call to come: "will host a conference call to discuss
+# its second quarter 2026 financial results" brings nothing out.
+_RESULTS_NAMED = (
     re.compile(rf"\b{_KIND}\b[^.;]{{0,40}}?\bfinancial results\b", re.I),
     re.compile(r"\b(?:press release|shareholder letter|letter to shareholders)\b[^.;]{0,80}?\b(?:financial\s+|"
                r"operating\s+)?results\b", re.I),
     re.compile(r"\bfinancial results\s+(?:of operations\s+)?for\b", re.I),
-    re.compile(r"\b(?:unaudited|interim)\b[^.;]{0,30}?\b(?:condensed\s+)?(?:consolidated\s+)?financial\s+"
-               r"(?:statements|information)\b", re.I),
 )
+_CALL = re.compile(r"\bconference call\b|\bwebcast\b|\bto discuss\b|\bwill host\b", re.I)
 _NOT = (
     re.compile(r"\b(?:will|to|plans? to|expects? to|intends? to|scheduled to|shall|to be)\s+(?:report|announce|"
-               r"release|publish|host|hold|held|discuss)\b", re.I),
+               r"release|publish)\b", re.I),
+    re.compile(r"\breference is made\b|\bpreviously (?:announced|reported|disclosed|published)\b"
+               r"|\bresults\s+(?:announcement\s+)?dated\b", re.I),
     re.compile(r"\b(?:date|dates|schedule)\b[^.;]{0,40}\b(?:of|for)\b[^.;]{0,60}\bresults\b", re.I),
     re.compile(r"\b(?:general|shareholders'?|annual|extraordinary|special)\s+meeting\b", re.I),
     re.compile(r"\bvoting results\b|\bboard meeting\b|\brestate|\bnon-reliance\b", re.I),
@@ -73,7 +87,7 @@ _NOT = (
     re.compile(r"\bdeliver(?:y|ies)\s+(?:results|update|totals?|figures|numbers)\b|\bproduction\s+and\s+deliver\w*"
                r"|\bproduction,\s+deliveries\b", re.I),
 )
-_PRELIMINARY = re.compile(r"\b(?:preliminary|estimated)\b|\b(?:certain|selected)\s+(?:\w+\s+){0,2}results\b", re.I)
+_PRELIMINARY = re.compile(r"\b(?:certain|selected)\s+(?:\w+\s+){0,2}results\b", re.I)
 # An 8-K Item 2.02 that is about something else than the period's results.
 _OTHER_202 = re.compile(r"\b(?:production|deliver(?:y|ies)|restate\w*|non-reliance|offering|investor presentation)\b",
                         re.I)
@@ -166,7 +180,9 @@ def _reading(kind: str, text: str, said: str | None) -> dict[str, Any]:
 def _results(text: str, sentences: list[str] | None = None) -> dict[str, Any] | None:
     """``results`` or ``preliminary`` with the sentence that says so; None when no sentence does."""
     for sentence in _sentences(text) if sentences is None else sentences:
-        if any(p.search(sentence) for p in _RESULTS) and not any(p.search(sentence) for p in _NOT):
+        said = any(p.search(sentence) for p in _RESULTS) or (
+            any(p.search(sentence) for p in _RESULTS_NAMED) and not _CALL.search(sentence))
+        if said and not any(p.search(sentence) for p in _NOT):
             return _reading("preliminary" if _PRELIMINARY.search(sentence) else "results", text, sentence)
     return None
 
@@ -211,16 +227,16 @@ def read_8k(document: bytes | str, items: str = "") -> dict[str, Any]:
 
 
 def read_exhibit(document: bytes | str) -> dict[str, Any]:
-    """An Exhibit 99.1's title and opening: ``results`` / ``preliminary``, ``other`` when its title is about
-    deliveries or a date to come, else ``unknown``."""
+    """An Exhibit 99.1's title area: ``results`` / ``preliminary``, ``other`` when its title is about deliveries
+    or a date to come, else ``unknown``. Only the title area counts: deeper in, an announcement on something else
+    refers back to results already out."""
     text = text_of(document)[:_BODY_CHARS]
     found, other = _headed(text)
     if found is not None:
         return found
     if other or any(_OTHER_202.search(s) for s in _sentences(text)[:_HEAD_SENTENCES]):
         return _reading("other", text, None)
-    found = _results(text)
-    return found if found is not None else _reading("unknown", text, None)
+    return _reading("unknown", text, None)
 
 
 def merge(cover: dict[str, Any] | None, exhibit: dict[str, Any]) -> dict[str, Any]:
