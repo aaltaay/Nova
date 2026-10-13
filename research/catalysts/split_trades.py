@@ -94,7 +94,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--tag", default="fp_all")
     a = ap.parse_args()
-    trades = pd.read_csv(MASSIVE_ROOT / "store" / f"orb_{a.tag}_trades.csv")
+    # Only an empty field is missing: the ticker NA (or NULL, N/A) must stay a ticker to find its checks.
+    trades = pd.read_csv(MASSIVE_ROOT / "store" / f"orb_{a.tag}_trades.csv", keep_default_na=False, na_values=[""])
     trades["day"] = trades["d"].str[:10]
     con = connect()
     answered = defaultdict(list)

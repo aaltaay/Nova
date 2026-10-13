@@ -31,6 +31,9 @@ DATA_ROOT = Path(os.environ.get("NOVA_MARKET_DATA_DIR") or r"E:\Nova\massive")
 CONFIRMED_SPLITS = Path(os.environ.get("NOVA_LEADERBOARD_DIR") or r"F:\Nova\leaderboard") / "splits_confirmed.json"
 CHANGE_TOL = 1e-12
 VOLUME_REL_TOL = 1e-9
+# Only an empty field is missing: pandas' default NA strings ("NA", "NULL", "N/A", ...) are real tickers here,
+# and the builder's DuckDB reads keep them. Without this the ticker NA drops off the independent board.
+CSV_NA = {"keep_default_na": False, "na_values": [""]}
 
 
 def day_file(root: Path, kind: str, d: date) -> Path:
@@ -45,7 +48,7 @@ def prior_session(root: Path, d: date) -> date | None:
 
 def load_minutes(path: Path, universe: set[str]) -> pd.DataFrame:
     df = pd.read_csv(path, usecols=["ticker", "volume", "close", "window_start"],
-                     dtype={"ticker": str, "volume": float, "close": float, "window_start": "int64"})
+                     dtype={"ticker": str, "volume": float, "close": float, "window_start": "int64"}, **CSV_NA)
     df = df[df["ticker"].isin(universe)].copy()
     df["start_s"] = df["window_start"] // 1_000_000_000
     return df.sort_values(["ticker", "window_start"], kind="mergesort")
@@ -61,7 +64,7 @@ def with_confirmed(splits: list[dict], confirmed: Path) -> list[dict]:
 
 
 def prior_closes(path: Path, splits: list[dict], prev: date, d: date) -> pd.Series:
-    closes = pd.read_csv(path, usecols=["ticker", "close"], dtype={"ticker": str, "close": float})
+    closes = pd.read_csv(path, usecols=["ticker", "close"], dtype={"ticker": str, "close": float}, **CSV_NA)
     closes = closes[closes["close"] > 0].set_index("ticker")["close"].copy()
     for s in splits:
         ex = date.fromisoformat(s["execution_date"])

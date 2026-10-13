@@ -27,6 +27,8 @@ from sim import massive_files
 
 ET = ZoneInfo("America/New_York")
 TEXT_COLUMNS = {"ticker": str, "conditions": str, "indicators": str, "id": str}
+# Only an empty field is missing: pandas' default NA strings ("NA", "NULL", "N/A", ...) are real tickers.
+CSV_NA = {"keep_default_na": False, "na_values": [""]}
 TIME_COLUMN = {SIM_MASSIVE_TRADES: "sip_timestamp", SIM_MASSIVE_QUOTES: "sip_timestamp",
                SIM_MASSIVE_MINUTES: "window_start"}
 # The board each list reads on a recorded day and on a rebuilt one (a rebuilt day's Gainers is its market board).
@@ -63,7 +65,8 @@ def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end
         frame = pd.DataFrame(columns=header or [])
     else:
         text = (",".join(header or []) + "\n").encode() + b"\n".join(lines) + b"\n"
-        frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in (header or [])})
+        frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in (header or [])},
+                            **CSV_NA)
     column = TIME_COLUMN[dataset]
     if len(frame):
         if start:
