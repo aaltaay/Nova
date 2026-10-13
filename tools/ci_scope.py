@@ -26,6 +26,10 @@ DEPENDENCY_NAMES = {
 # are documentation like the Markdown beside them; a script there is still unknown.
 DOC_MEDIA = (".png", ".webp", ".jpg", ".jpeg", ".gif", ".svg")
 SHA_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
+# Set by ci-scope.yml's `full` input. A release verifies everything on the commit it
+# ships, whatever that commit's own diff: a frontend-only commit still carries the
+# backend its parent left (operator decision 2026-10-13, green builds only).
+FULL_ENV = "CI_SCOPE_FULL"
 
 
 def full_scope() -> dict[str, bool]:
@@ -84,7 +88,9 @@ def changed_paths(event_name: str, event: dict, repo: Path) -> list[str] | None:
     return [path.decode("utf-8", errors="surrogateescape") for path in output.split(b"\0") if path]
 
 
-def select_scope(event_name: str, event: dict, repo: Path) -> dict[str, bool]:
+def select_scope(event_name: str, event: dict, repo: Path, *, full: bool = False) -> dict[str, bool]:
+    if full:
+        return full_scope()
     try:
         paths = changed_paths(event_name, event, repo)
     except (KeyError, TypeError, ValueError, OSError, subprocess.CalledProcessError):
@@ -100,7 +106,8 @@ def main() -> None:
     except (KeyError, OSError, ValueError):
         LOG.warning("CI event unavailable; selecting all checks", exc_info=True)
         event = {}
-    scope = select_scope(os.environ.get("GITHUB_EVENT_NAME", ""), event, Path.cwd())
+    full = os.environ.get(FULL_ENV, "").strip().lower() == "true"
+    scope = select_scope(os.environ.get("GITHUB_EVENT_NAME", ""), event, Path.cwd(), full=full)
     print(json.dumps(scope, sort_keys=True))
     if output := os.environ.get("GITHUB_OUTPUT"):
         with Path(output).open("a", encoding="utf-8") as stream:

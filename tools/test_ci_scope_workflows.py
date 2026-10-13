@@ -1,4 +1,4 @@
-"""Ensure advisory CI still runs real tests and delivery has no verification wait."""
+"""Ensure change-aware CI still runs real tests and delivery merges only green PRs."""
 
 from pathlib import Path
 
@@ -46,11 +46,28 @@ def test_advisory_jobs_keep_full_test_commands_and_scope_guards():
     assert ci["concurrency"]["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
 
 
-def test_auto_merge_has_no_ci_dependency_or_desktop_wait():
-    job = workflow("deploy.yml")["jobs"]["auto-merge"]
-    assert "needs" not in job
+def test_auto_merge_decides_only_once_the_four_checks_finished():
+    """Green only (operator decision 2026-10-13, "Merge only green PRs too").
+
+    Auto-merge `needs` exactly the four jobs the gate reads, so it decides with
+    their results in hand and a re-run of a failed one re-runs it; it never
+    judges a PR with the PR's own copy of the gate. Branch protection keeps no
+    required status checks: the merge job is the gate, and status-only master
+    pushes stay possible.
+    """
+    from tools.release_gate import REQUIRED_CHECKS
+
+    ci = workflow("deploy.yml")
+    job = ci["jobs"]["auto-merge"]
+    assert job["needs"] == ["backend-test", "frontend-build", "frontend-e2e", "agent-contract"]
+    assert {ci["jobs"][need]["name"] for need in job["needs"]} == set(REQUIRED_CHECKS)
+    # Scope never skips one at GitHub's level: each runs and reports "Unaffected" as success.
+    assert all(ci["jobs"][need]["if"] == "always()" for need in job["needs"])
+    assert job["if"].strip().startswith("!cancelled() &&"), "a superseded run must decide nothing"
+    assert "always()" not in job["if"]
+    assert job["steps"][0]["with"]["ref"] == "${{ github.event.repository.default_branch }}"
     assert "--wait-desktop-minutes" not in str(job)
-    assert pr_delivery.REQUIRED_CHECKS == pr_delivery.WAIT_IF_PRESENT == ()
+    assert pr_delivery.REQUIRED_CHECKS == REQUIRED_CHECKS
     assert apply_payload()["required_status_checks"] is None
 
 
@@ -66,7 +83,9 @@ def test_desktop_only_uses_windows_for_application_changes():
     assert "tools/test_windows_maintenance.py" in maintenance["run"]
     assert any(step.get("id") == "python" for step in steps)
     assert maintenance["if"] == reports_alone("desktop", setup="python")
-    assert "needs.desktop-pack.result == 'success'" in jobs["publish-release"]["if"]
+    # The release gate holds a Release whose pack (or any required check) is not green.
+    gate = next(s for s in jobs["publish-release"]["steps"] if s.get("name") == "Release only a green build")
+    assert gate["env"]["PACK_RESULT"] == "${{ needs.desktop-pack.result }}"
     assert "needs.changes.outputs.desktop == 'true'" in jobs["publish-release"]["if"]
     assert any(step.get("run") == "npm run electron:pack" for step in pack["steps"])
 

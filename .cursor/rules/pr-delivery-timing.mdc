@@ -6,9 +6,9 @@ alwaysApply: false
 
 # PR delivery timing
 
-Actions merges ready PRs without waiting for CI (`github-delivery.mdc` item
-10; AGENTS.md §5). That policy is about **checks**: a slow test suite never
-gates delivery, and findings of any kind stay advisory. This rule is about
+Actions merges a ready PR once its four required checks are green
+(`github-delivery.mdc` item 10; AGENTS.md §5; `tools/pr_checks.py`). That policy
+is about **checks**; review findings of any kind stay advisory. This rule is about
 **timing**, and it exists because of one session in which six of nine merged
 PRs were repairs to bugs an automated review had reported minutes *after* the
 auto-merge landed. Each fix needed a whole follow-up PR instead of a push to
@@ -89,5 +89,5 @@ changes those tests first.
 
 ## Related
 
-`github-delivery.mdc` (the agent's finish line) · `AGENTS.md` §5 (advisory
-verification) · `#346` (why an Actions merge dispatches Desktop pack itself)
+`github-delivery.mdc` (the agent's finish line) · `AGENTS.md` §5 (green
+only) · `#346` (why an Actions merge dispatches Desktop pack itself)
