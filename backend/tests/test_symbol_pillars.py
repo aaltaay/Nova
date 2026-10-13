@@ -31,6 +31,7 @@ def desk(monkeypatch):
     monkeypatch.setattr("catalysts.live.request", lambda symbols: None)
     monkeypatch.setattr("catalysts.live.verdict_for", lambda symbol, now=None: None)
     monkeypatch.setattr(strategy_routes, "live_quote", lambda symbol: None)
+    monkeypatch.setattr(strategy_routes, "_replay_playhead", lambda: None)  # a live desk (replays: test_quote_panel_replay)
     snb.reset_for_testing()
     state = get_runtime_state()
     prev = {name: getattr(state, name) for name in BOARDS}
@@ -58,6 +59,7 @@ def test_a_ranked_gainer_answers_with_its_rank(desk, monkeypatch):
     assert body["symbol"] == "GRML"
     assert body["source"] == "gainers"
     assert body["rank"] == 1
+    assert body["replay"] is None
     assert _pillars(body)["relative_volume"]["passed"] is True  # 18.2x, decorated as the board shows it
     assert body["entry"]["float_shares"] == 3_100_000
 

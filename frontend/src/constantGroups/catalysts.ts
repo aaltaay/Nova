@@ -86,3 +86,7 @@ export const CATALYST_PANEL_POLL_MS = 60_000;
 export const CATALYST_PANEL_UNREAD = 'Checking news since the prior close ...';
 export const CATALYST_PANEL_HIDDEN_NOISE = 'movers lists / market wraps hidden';
 export const CATALYST_PANEL_NO_COMPANY_ITEMS = 'No company items since the prior close';
+/** The News panel on a Sim replay desk (operator report, 2026-10-12): the replayed day's news, never today's. */
+export const catalystReplayAsOf = (moment: string): string => `As known at ${moment} -- the catalyst backfill's items`;
+export const catalystReplayNotOnFile = (symbol: string, day: string): string =>
+  `No news on file for ${symbol} on ${day}: unknown, not "no news". Today's news is not shown on a replay.`;

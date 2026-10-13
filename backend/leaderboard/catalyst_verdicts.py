@@ -12,7 +12,8 @@ the playhead -- never one after it -- in the live desk's wire shape (``catalysts
 looked and nothing had been published by then (the live desk's rule). A checked symbol with
 nothing published by the playhead is ``none_found``. ``news_pending`` / ``halt_code`` come from the
 leaderboard's own halt log: a Nasdaq halt that started inside the window, T1 / T12 with no
-resumption logged by the playhead.
+resumption logged by the playhead. ``panel_at`` answers the quote panel's News on a replay desk the
+same way: the symbol-day's verdict and items as known at the playhead.
 
 Owner: this module (read-only; no state). The store reads are ``leaderboard.store``'s.
 """
@@ -24,7 +25,8 @@ from typing import Any
 
 from catalysts.classify import verdict_from_labels
 from catalysts.live import compact
-from constants_catalysts import CATALYST_NEWS_PENDING_CODES
+from catalysts.windows import window_start
+from constants_catalysts import CATALYST_NEWS_PENDING_CODES, CATALYST_PANEL_MAX_ITEMS, CATALYST_PANEL_SCHEMA_VERSION
 from constants_leaderboard import (
     LEADERBOARD_HALT_EVENT_END,
     LEADERBOARD_HALT_EVENT_START,
@@ -112,3 +114,35 @@ def for_board(
     for prior in sorted({session_date_for(float(c["window_start"])) for c in checks} - {day}):
         events.extend(store.halt_events(db, prior, until=at))
     return verdicts_at(checks, items, events, at=at, symbols=symbols)
+
+
+def panel_at(symbol: str, day: str, at: float) -> dict[str, Any]:
+    """The News panel on a Sim replay desk (operator report 2026-10-12): what was known at ``at``.
+
+    The live panel's shape (``catalysts.live.panel``) from the symbol-day's export: its verdict at
+    ``at`` and every exported item published inside its window by then, newest first, with the labels
+    the export gave them. ``generated_at`` is the playhead, so an item's age reads against it.
+    ``replay.on_file`` is False when the day's export does not hold the symbol: the verdict is then
+    ``None`` (unknown, never "no news") and there are no items -- today's news never stands in.
+    """
+    sym = (symbol or "").strip().upper()
+    with store.connect() as db:
+        checks = [c for c in store.catalyst_checks(db, day) if str(c.get("symbol") or "").upper() == sym]
+        if checks:
+            verdict = for_board(db, day, at, checks, store.halt_events(db, day, until=at), [sym]).get(sym)
+            items = [it for it in store.catalyst_items(db, day, until=at)
+                     if str(it.get("symbol") or "").upper() == sym]
+        else:
+            verdict, items = None, []
+    start = float(checks[0]["window_start"]) if checks else window_start(at)
+    rows = [
+        {"item_id": it.get("item_id"), "source": it.get("source"), "publisher": it.get("publisher"),
+         "published_ts": float(it["published_ts"]), "title": it.get("title"), "url": it.get("url"),
+         "kind": it.get("kind"), "category": it.get("category"), "strength": it.get("strength"),
+         "dilution": bool(it.get("dilution"))}
+        for it in items if start < float(it.get("published_ts") or 0.0) <= at
+    ]
+    rows.sort(key=lambda r: r["published_ts"], reverse=True)
+    return {"schema_version": CATALYST_PANEL_SCHEMA_VERSION, "symbol": sym, "generated_at": float(at),
+            "window_start": start, "verdict": verdict, "items": rows[:CATALYST_PANEL_MAX_ITEMS],
+            "items_total": len(rows), "replay": {"session_date": day, "at": float(at), "on_file": bool(checks)}}

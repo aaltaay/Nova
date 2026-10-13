@@ -37,12 +37,15 @@ interface Props {
    */
   variant?: 'key' | 'full' | 'fundamentals';
   showTitle?: boolean;
+  /** Leave out the broker listing flags (a Sim replay desk: they are today's, not the replayed day's). */
+  hideBroker?: boolean;
 }
 
 export function FundamentalsPanel({
   detail,
   variant = 'full',
   showTitle = false,
+  hideBroker = false,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
   const { gapPct, prevClose } = computeQuoteMetrics(detail, discoveryProvider);
@@ -50,7 +53,7 @@ export function FundamentalsPanel({
   const asset = detail.asset;
   const includeKey = variant === 'key' || variant === 'full';
   const includeFund = variant === 'full' || variant === 'fundamentals';
-  const includeBroker = includeFund;
+  const includeBroker = includeFund && !hideBroker;
 
   const fund = detail.fundamentals;
   // More short than the float: a warning on screen only, never a gate (#532).

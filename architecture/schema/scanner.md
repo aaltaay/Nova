@@ -535,5 +535,40 @@ the line's tick-9 prior close from `ibkr.ticks.last_quotes`, whose rows add
 catalyst verdict read before grading). `rank` is its 1-based place on the
 ranked watchlist, else `null`. A fact nobody holds stays `null` and its pillar
 fails with that reason. The quote panel's Watchlist strip uses the ranked entry
-when there is one and this route for every other symbol.
+when there is one and this route for every other symbol. Live answers add
+`replay: null`.
+
+**On a Sim replay desk** (operator report 2026-10-12: Sim on 2026-07-15 at 07:20
+ET, GRML loaded, the strip graded today's GRML -- "$6.02", "16.4%", "1.5x",
+"#22 of the Contenders" -- where the rebuilt board had it at $0.1875, #98) the
+route grades the replayed day's own board row at the playhead
+(`strategy/replay_pillars.py` over `leaderboard.playback.board_at` for the Sim
+clock's day and playhead, `sim/replay_playhead.py`) and reads nothing of
+today's -- no scanner cache, fundamentals, live catalyst verdict or Contenders
+rank: `source: "replay"`, `rank: null`, `entry` graded from the row's price,
+change and float (a rebuilt row's float is `null`, so its pillar fails "float
+unknown"), its `catalyst` the row's verdict at the playhead (#498), and
+`replay: {session_date, at, minute_ts, board_source: "recorded" |
+"reconstructed", board, board_rank, rvol, rvol_basis, absent}`. Only a
+`daily_avg` RVOL is graded as `rel_volume`; a `time_of_day_20` RVOL is another
+measure (never compared across bases), so the RVOL pillar fails "daily RVOL
+unknown -- 1.3x the same minute's 20-day average is another measure, not
+graded" and its sub-score is 0. No row at the playhead is `entry: null` with
+`absent` -- the board's gap reason (`not_recorded`, `not_running`,
+`feed_down`, `outside_session`) or `not_on_board` -- never a grade from today.
+The board search order is the live one with a rebuilt day's `market` board in
+the Gainers place. On the Sim venue the quote panel uses the ranked live entry
+only at the live edge, names the replayed moment and board ("Jul 15 07:20 ET ·
+graded from its rebuilt Gainers row (#98)") or says why there is no grade.
+
+**The rest of that quote panel off the live edge** (desk only, same report):
+the loaded replay's own symbol shows the replay's quote at the playhead (the
+Trader's `historicalQuoteDetail` / `captureQuoteDetail`), any other symbol the
+empty Sim quote; float, short interest, market cap, the 52-week range, earnings
+and the broker flags are Nova's figures for today only, so they are left out and
+the panel says so ("Replay of Jul 15: ... not shown -- Nova holds today's figures
+only, not that day's"), naming a split after the day; sector, industry, country
+and a split on or before the day stay (`sim/replayPanelDetail.ts`). "Why it's
+moving" already reads `not_read` there (`stock-read.md`); News is the replayed
+day's (`catalysts.md`).
 

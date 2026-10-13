@@ -11,3 +11,6 @@ export type { Landed, LandingHooks, LandingWindow, SimLandingPlan, SimMovePlan }
 export { useSimReplayTarget } from './useSimReplayTarget';
 export { simRailNote } from './simReplayTarget';
 export { simEmptyQuoteDetail } from './historicalQuoteDetail';
+// Its replay quote and company facts off the live edge (operator report, 2026-10-12).
+export { replayPanelDetail } from './replayPanelDetail';
+export { useHistoricalSnapshot } from './useHistoricalSnapshot';

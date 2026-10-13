@@ -67,6 +67,58 @@ describe('TickerWatchlistStrip', () => {
     expect(screen.getByText('price detail')).toBeTruthy();
   });
 
+  // 2026-07-15 07:20 ET: Sim replaying a Massive-rebuilt day, GRML loaded (operator report, 2026-10-12).
+  const minute = Date.UTC(2026, 6, 15, 11, 20) / 1000;
+  const replay = {
+    session_date: '2026-07-15', at: minute + 26, minute_ts: minute, board_source: 'reconstructed',
+    board: 'market', board_rank: 98, rvol: 1.31, rvol_basis: 'time_of_day_20', absent: null,
+  };
+
+  it("names the replayed day's board row a replay desk graded, never a Contenders rank", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ symbol: 'GRML', source: 'replay', rank: null, entry: entry('GRML', false), replay }),
+    })));
+    render(<TickerWatchlistStrip entry={null} symbol="GRML" />);
+    await flush();
+    expect(screen.getByTestId('watchlist-strip-source').textContent)
+      .toBe('Jul 15 07:20 ET · graded from its rebuilt Gainers row (#98)');
+    expect(screen.queryByText(/of the Contenders/)).toBeNull();
+  });
+
+  it('says why a replayed symbol has no grade instead of grading today', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        symbol: 'GRML', source: 'replay', rank: null, entry: null,
+        replay: { ...replay, board: null, board_rank: null, absent: 'not_on_board' },
+      }),
+    })));
+    render(<TickerWatchlistStrip entry={null} symbol="GRML" />);
+    await flush();
+    expect(screen.getByTestId('watchlist-strip-empty').textContent).toBe(
+      "GRML is not on the Jul 15 07:20 ET board: nothing of that day to grade. Today's pillars are not shown on a replay.",
+    );
+    expect(screen.queryByTestId('watchlist-strip-source')).toBeNull();
+  });
+
+  it('names the gap when the replayed minute has no board', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        symbol: 'GRML', source: 'replay', rank: null, entry: null,
+        replay: { ...replay, minute_ts: null, at: minute, board: null, board_rank: null, absent: 'not_recorded' },
+      }),
+    })));
+    render(<TickerWatchlistStrip entry={null} symbol="GRML" />);
+    await flush();
+    expect(screen.getByTestId('watchlist-strip-empty').textContent)
+      .toBe('No board at Jul 15 07:20 ET (not recorded): nothing of that day to grade.');
+  });
+
   it('states a failed grade instead of an empty strip', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503, json: async () => ({}) })));
     render(<TickerWatchlistStrip entry={null} symbol="NOPE" />);

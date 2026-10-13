@@ -17,14 +17,14 @@ import {
   QUOTE_PANEL_LOOKUP_PLACEHOLDER,
 } from '../constantGroups/scanner_board';
 import { useTickerStream } from '../hooks/useTickerStream';
-import { simEmptyQuoteDetail, simRailNote, useSimReplayTarget } from '../sim';
+import { replayPanelDetail, useHistoricalSnapshot, useSimReplayTarget } from '../sim';
 import type { WatchlistEntry } from '../strategy/types';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { TickerDetailContent } from './TickerDetailContent';
 import './sidePanelCollapse.css';
 
 interface Props {
-  /** Live watchlist ranks from App's useWatchlist poll — used for the side-panel strip. */
+  /** Live watchlist ranks from App's useWatchlist poll — used for the side-panel strip (never off the Sim live edge). */
   watchlistEntries?: WatchlistEntry[];
   /** User-resized width from the drag splitter (ignored when stacked on narrow viewports). */
   widthPx?: number;
@@ -56,9 +56,26 @@ export function SidePanel({
   const { detail, loading, refreshing, fetchFailed, stale, disconnectedSince } =
     useTickerStream(collapsed ? null : selectedSymbol);
 
+  // A Sim desk off the live edge replays one stock-day: any other symbol here is
+  // not the replay, so today's live price must not show over it, and the panel
+  // says so with the way to load it -- the Trader tab's own rule and notice. The
+  // replay's own symbol shows the replay's quote at the playhead, and the company
+  // figures Nova holds only for today are left out, saying so (operator report, 2026-10-12).
+  const { sim, clock } = useSimReplayTarget(selectedSymbol ?? '');
+  const symbolUpper = (selectedSymbol ?? '').toUpperCase();
+  const historical = useHistoricalSnapshot(
+    symbolUpper,
+    !collapsed && sim && clock?.replay_source === 'historical' && (clock.replay_symbol ?? '').toUpperCase() === symbolUpper,
+  );
+  const replay = replayPanelDetail(detail, symbolUpper, clock, sim, historical);
+  const view = replay.detail;
+
+  // Today's Contenders rank is live: on the Sim venue it holds only at the live edge.
+  // Off it the strip asks the backend, which grades the replayed day's own row.
+  const liveRanks = !sim || clock?.live_edge === true;
   const watchlistIndex = useMemo(
-    () => (selectedSymbol ? watchlistEntries.findIndex(e => e.symbol === selectedSymbol) : -1),
-    [selectedSymbol, watchlistEntries],
+    () => (selectedSymbol && liveRanks ? watchlistEntries.findIndex(e => e.symbol === selectedSymbol) : -1),
+    [selectedSymbol, watchlistEntries, liveRanks],
   );
   const watchlistEntry = watchlistIndex >= 0 ? watchlistEntries[watchlistIndex] : null;
 
@@ -67,13 +84,6 @@ export function SidePanel({
   const awaitingPreEffectFrame =
     !!selectedSymbol && detail == null && !loading && !refreshing && !fetchFailed;
   const showFullSpinner = loading || awaitingPreEffectFrame;
-
-  // A Sim desk off the live edge replays one stock-day: any other symbol here is
-  // not the replay, so today's live price must not show over it, and the panel
-  // says so with the way to load it -- the Trader tab's own rule and notice.
-  const { sim, clock } = useSimReplayTarget(selectedSymbol ?? '');
-  const simNote = selectedSymbol ? simRailNote(selectedSymbol, clock, sim) : null;
-  const view = simNote && detail ? simEmptyQuoteDetail(detail, selectedSymbol ?? '') : detail;
 
   useEffect(() => {
     setInput(selectedSymbol ?? '');
@@ -175,6 +185,7 @@ export function SidePanel({
               layoutSlot="side_panel"
               watchlistEntry={watchlistEntry}
               watchlistRank={watchlistIndex >= 0 ? watchlistIndex + 1 : null}
+              replayNote={replay.note}
             />
           </div>
         )}

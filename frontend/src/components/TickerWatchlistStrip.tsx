@@ -2,7 +2,9 @@
  * reasons, where the setup scanners have it (its most advanced setup, ADR 031), and
  * the toggle that lets the bot trade it (ADR 042 F: a refusal is a notice).
  * Any symbol gets its pillars (operator ask, 2026-09-23): a ranked one from the
- * watchlist poll, any other graded by the backend from its board row or live quote. */
+ * watchlist poll, any other graded by the backend from its board row or live quote.
+ * On a Sim replay desk the grade is the replayed day's own board row at the playhead, named
+ * with its moment and board, or the card says why there is none (operator report, 2026-10-12). */
 import {
   TAPE_VERDICT_LABELS,
   TICKER_WATCHLIST_STRIP_EMPTY,
@@ -26,11 +28,14 @@ import { tipProps } from '../ux/hoverTip';
 import {
   WATCHLIST_STRIP_GRADING,
   WATCHLIST_STRIP_SOURCES,
+  replayPillarsAbsent,
+  replayPillarsSource,
   watchlistStripRank,
 } from '../constantGroups/watchlist_strip';
 import type { WatchlistEntry } from '../strategy/types';
-import { useSymbolPillars } from '../strategy/useSymbolPillars';
+import { useSymbolPillars, type PillarsReplay } from '../strategy/useSymbolPillars';
 import { newsCell } from '../strategy/watchlistFormat';
+import { replayMomentLabel } from '../utils/replayMoment';
 
 interface Props {
   /** The symbol's ranked watchlist entry, when the watchlist holds it. */
@@ -75,9 +80,21 @@ function SetupBlock({ row }: { row: SetupRow }) {
   );
 }
 
-function emptyText(loading: boolean, error: string | null): string {
+function emptyText(loading: boolean, error: string | null, symbol: string, replay: PillarsReplay | null): string {
   if (error) return `${TICKER_WATCHLIST_STRIP_EMPTY} ${error}`;
+  if (replay?.absent) return replayPillarsAbsent(symbol, replayMoment(replay), replay.absent);
   return loading ? WATCHLIST_STRIP_GRADING : TICKER_WATCHLIST_STRIP_EMPTY;
+}
+
+/** The board minute the grade read, else the playhead. */
+function replayMoment(replay: PillarsReplay): string {
+  return replayMomentLabel(replay.session_date, replay.minute_ts ?? replay.at);
+}
+
+function sourceText(source: string | null, rank: number | null, replay: PillarsReplay | null): string {
+  if (replay) return replayPillarsSource(replayMoment(replay), replay.board, replay.board_source, replay.board_rank);
+  if (source === 'watchlist' && rank) return watchlistStripRank(rank);
+  return source ? WATCHLIST_STRIP_SOURCES[source] ?? '' : '';
 }
 
 export function TickerWatchlistStrip({ entry: ranked, symbol, rank = null }: Props) {
@@ -88,9 +105,7 @@ export function TickerWatchlistStrip({ entry: ranked, symbol, rank = null }: Pro
   const setup = entry ? rowsBySymbol(stream?.board?.rows).get(entry.symbol)?.[0] : undefined;
   const allowed = entry ? isAllowed(entry.symbol) : false;
   const p = entry?.five_pillars;
-  const source = graded.source === 'watchlist' && graded.rank
-    ? watchlistStripRank(graded.rank)
-    : graded.source ? WATCHLIST_STRIP_SOURCES[graded.source] ?? '' : '';
+  const source = sourceText(graded.source, graded.rank, graded.replay);
   return (
     <section className="cq-watchlist-strip" aria-label={TICKER_WATCHLIST_STRIP_TITLE} data-testid="watchlist-strip">
       <div className="cq-section-title">
@@ -99,7 +114,9 @@ export function TickerWatchlistStrip({ entry: ranked, symbol, rank = null }: Pro
       </div>
       {p && source ? <div className="cq-wl-source" data-testid="watchlist-strip-source">{source}</div> : null}
       {!entry || !p ? (
-        <div className="cq-watchlist-strip-empty">{emptyText(graded.loading, graded.error)}</div>
+        <div className="cq-watchlist-strip-empty" data-testid="watchlist-strip-empty">
+          {emptyText(graded.loading, graded.error, (symbol ?? ranked?.symbol ?? '').toUpperCase(), graded.replay)}
+        </div>
       ) : (
         <>
           <ul className="cq-wl-pillars">

@@ -3,6 +3,8 @@
  * close actually is -- the catalyst, its source and age -- then the company items read, each
  * labelled, with movers lists and market wraps folded away. Replaces the rules-v1 impact read,
  * which judged whichever article was newest (a Dow market wrap scored "moved price 90%").
+ * On a Sim replay desk the panel is the replayed day's as known at the playhead, its ages read against
+ * the playhead, or says the day holds no news on file -- never today's (operator report, 2026-10-12).
  */
 import { useState } from 'react';
 import {
@@ -18,9 +20,12 @@ import {
   CATALYST_VERDICT_TITLES,
   NEWS_SECTION_DEFAULT_EXPANDED,
   NEWS_SECTION_TITLE,
+  catalystReplayAsOf,
+  catalystReplayNotOnFile,
 } from '../constants';
 import type { CatalystItem, CatalystPanel, CatalystVerdict } from '../types/catalystVerdict';
 import { agoLabel, catalystHeadline, categoryLabel, priorSessionLine, sourceLabel } from '../utils/catalystVerdict';
+import { replayDayLabel, replayMomentLabel } from '../utils/replayMoment';
 import './catalystNews.css';
 
 interface Props {
@@ -110,12 +115,19 @@ export function VerdictBlock({ v, nowMs }: { v: CatalystVerdict | null; nowMs: n
 export function CatalystNewsSection({ panel, loading = false, error = null }: Props) {
   const [expanded, setExpanded] = useState(NEWS_SECTION_DEFAULT_EXPANDED);
   const [showNoise, setShowNoise] = useState(false);
-  const nowMs = Date.now();
+  const replay = panel?.replay ?? null;
+  // A replayed day's items age against its playhead, not the wall clock.
+  const nowMs = replay ? replay.at * 1000 : Date.now();
+  const offFile = replay != null && !replay.on_file;
+  const replayLine = replay
+    ? (offFile ? catalystReplayNotOnFile(panel?.symbol ?? '', replayDayLabel(replay.session_date))
+      : catalystReplayAsOf(replayMomentLabel(replay.session_date, replay.at)))
+    : null;
   const v = panel?.verdict ?? null;
   const items = panel?.items ?? [];
   const company = items.filter((i) => i.kind !== 'noise');
   const noise = items.filter((i) => i.kind === 'noise');
-  const preview = !panel && error ? error : verdictHeadline(v);
+  const preview = !panel && error ? error : offFile && replayLine ? replayLine : verdictHeadline(v);
   const tone = v ? `cn-tone--${v.verdict}` : 'cn-tone--unread';
 
   return (
@@ -136,7 +148,7 @@ export function CatalystNewsSection({ panel, loading = false, error = null }: Pr
           <span className="cq-news-chevron" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
           <span className="cq-news-title">{NEWS_SECTION_TITLE}</span>
           {!expanded && (
-            <span className="cq-news-preview cn-preview" title={preview}>
+            <span className="cq-news-preview cn-preview" title={replayLine && !offFile ? `${preview} · ${replayLine}` : preview}>
               {loading && !panel ? CATALYST_PANEL_UNREAD : preview}
             </span>
           )}
@@ -147,8 +159,9 @@ export function CatalystNewsSection({ panel, loading = false, error = null }: Pr
       {expanded && (
         <div className="cq-news-body cn-body" id="cq-news-body">
           {error && <div className="cn-error" role="status">{error}</div>}
-          <VerdictBlock v={v} nowMs={nowMs} />
-          {panel && (company.length > 0 ? (
+          {replayLine && <div className="cn-replay" data-testid="cn-replay">{replayLine}</div>}
+          {!offFile && <VerdictBlock v={v} nowMs={nowMs} />}
+          {panel && !offFile && (company.length > 0 ? (
             <ul className="cn-items">
               {company.map((item, i) => <ItemRow key={item.item_id ?? i} item={item} nowMs={nowMs} />)}
             </ul>
