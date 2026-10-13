@@ -150,16 +150,20 @@ runs a newer release than it:
   the checkout fast-forwards to the **desk's own `vNNN` tag** (never master's
   newest commit, never past the desk), then the backend restarts onto it --
   without a button.
-- It reads the restart check first. A recording does not hold it (it resumes
+- It reads the restart check first, and again after the pull, right before
+  the restart (a fetch can take two minutes). A recording does not hold it (it resumes
   by itself after a few seconds' gap). Anything else does: a position, a
   working order, a bot trade, a stock mode, a history download, the opening
   bell (09:25-09:45 ET), or a backend that cannot say. The backend notice then
   lists what holds it, beside **Update backend now** for an operator who wants
   it anyway (confirmed with the list), and Nova goes as soon as it clears.
+- It restarts only onto the desk's exact release. A checkout already past it
+  (master pulled ahead) would put the backend ahead of the desk, so that is
+  left to the operator.
 - Each pair of releases (backend, desk) is tried once. A pull it may not make
-  (not a clean master, `backend/requirements.txt` changed) or a restart that
-  comes back on the same code leaves **Update backend to vNNN** to the
-  operator, with the reason, so it can never loop.
+  (not a clean master, `backend/requirements.txt` changed), a checkout past the
+  desk, or a restart that comes back on the same code leaves **Update backend
+  to vNNN** to the operator, with the reason, so it can never loop.
 - A backend from another checkout, or a bundled engine, is left as before.
 - The unattended nightly pull of master (#616) is still **not built**: this
   only ever brings the backend to a release the operator already installed.
