@@ -36,7 +36,6 @@ type Snapshot = {
   traderPinnedTabs: string[];
   activeTraderSymbol: string | null;
   traderViewActive: boolean;
-  openTraderTab: (sym: string) => void;
   openStockView: (sym: string) => void;
   pinTraderTab: (sym: string) => void;
 };
@@ -57,7 +56,6 @@ function Probe() {
     traderPinnedTabs: ws.traderPinnedTabs,
     activeTraderSymbol: ws.activeTraderSymbol,
     traderViewActive: ws.traderViewActive,
-    openTraderTab: ws.openTraderTab,
     openStockView: ws.openStockView,
     pinTraderTab: ws.pinTraderTab,
   };
@@ -150,7 +148,7 @@ describe('WorkspaceProvider', () => {
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/config$/));
   });
 
-  it('openTraderTab opens into the preview tab (or activates) and selects the symbol without switching the view; openStockView switches', async () => {
+  it('openStockView opens into the preview tab (or activates), selects the symbol and switches to the Trader', async () => {
     localStorage.clear();
     act(() => {
       root.render(
@@ -166,15 +164,15 @@ describe('WorkspaceProvider', () => {
     expect(latest?.traderTabs).toEqual([]);
     expect(latest?.traderViewActive).toBe(false);
     await act(async () => {
-      latest?.openTraderTab('grml');
+      latest?.openStockView('grml');
     });
     expect(latest?.traderTabs).toEqual(['GRML']);
     expect(latest?.activeTraderSymbol).toBe('GRML');
     expect(latest?.selectedSymbol).toBe('GRML');
-    expect(latest?.traderViewActive).toBe(false);
+    expect(latest?.traderViewActive).toBe(true);
     // Preview tabs (ADR 011, 2026-09-22): the unpinned GRML is replaced by the next click.
     await act(async () => {
-      latest?.openTraderTab('vxtl');
+      latest?.openStockView('vxtl');
     });
     expect(latest?.traderTabs).toEqual(['VXTL']);
     expect(latest?.activeTraderSymbol).toBe('VXTL');
@@ -182,15 +180,11 @@ describe('WorkspaceProvider', () => {
       latest?.pinTraderTab('VXTL');
     });
     await act(async () => {
-      latest?.openTraderTab('GRML');
+      latest?.openStockView('GRML');
     });
     expect(latest?.traderTabs).toEqual(['VXTL', 'GRML']);
     expect(latest?.traderPinnedTabs).toEqual(['VXTL']);
     expect(latest?.activeTraderSymbol).toBe('GRML');
-    expect(latest?.traderViewActive).toBe(false);
-    await act(async () => {
-      latest?.openStockView('GRML');
-    });
     expect(latest?.traderViewActive).toBe(true);
     localStorage.clear();
   });

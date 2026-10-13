@@ -16,7 +16,6 @@ const ACCOUNT_TABS = new Set(['trading', 'reports']);
 export interface FocusViewParts {
   detached: boolean;
   traderUp: boolean;
-  deskUp: boolean;
   navPage: NavPage;
   scannerTab: string;
   activeTraderSymbol: string | null;
@@ -32,31 +31,21 @@ export function focusViewOf(parts: FocusViewParts): FocusView {
   if (parts.detached || parts.traderUp) {
     return { page: 'trader', tab: null, symbol: active, symbolSource: active ? 'trader_tab' : null, traderTabs: tabs };
   }
-  if (parts.deskUp) {
-    const symbol = active ?? parts.selectedSymbol;
-    return {
-      page: 'desk',
-      tab: null,
-      symbol,
-      symbolSource: active ? 'trader_tab' : symbol ? 'desk_board' : null,
-      traderTabs: tabs,
-    };
-  }
   if (parts.navPage === 'dashboard' && !ACCOUNT_TABS.has(parts.scannerTab)) {
     const symbol = parts.selectedSymbol;
     return { page: 'scanner', tab: parts.scannerTab, symbol, symbolSource: symbol ? 'scanner_row' : null, traderTabs: tabs };
   }
+  // Market, Cryptos, Account, Bots and Records are shell pages with no symbol of their own.
   const page = parts.navPage === 'dashboard' ? 'account' : parts.navPage;
   return { page, tab: null, symbol: null, symbolSource: null, traderTabs: tabs };
 }
 
-export function useFocusReport(sampleMode: boolean, traderUp: boolean, deskUp: boolean): void {
+export function useFocusReport(sampleMode: boolean, traderUp: boolean): void {
   const { traderTabs, activeTraderSymbol, selectedSymbol } = useWorkspace();
   const { page, scanner } = useNavRailSnapshot();
   const view = focusViewOf({
     detached: traderTabs.length > 0 && parseStockViewSymbol() != null,
     traderUp,
-    deskUp,
     navPage: page,
     scannerTab: scanner.activeTab,
     activeTraderSymbol,

@@ -172,18 +172,6 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     if (tryAddTab(symbol, Boolean(opts?.pin))) requestFocusList(opts?.from);
   }, [tryAddTab]);
 
-  /** Desk board row click: the symbol becomes the workspace's active tab
-   * (added when missing) and the selected symbol, without leaving the Desk
-   * for the full Trader view -- `openStockView` does that on double-click. */
-  const openTraderTab = useCallback((symbol: string, from?: string) => {
-    const sym = symbol.trim().toUpperCase();
-    if (!sym) return;
-    const { state } = addTab(traderStateRef.current, sym, TRADER_MAX_LIVE_TABS);
-    setSelectedSymbol(sym);
-    applyTraderState(state);
-    requestFocusList(from);
-  }, [applyTraderState, setSelectedSymbol]);
-
   /** Row-body click (not the ticker) on tables that also render a
    * `SymbolSelectButton`. On Scanner, a row only loads the Quote Panel --
    * it must not steal focus into Trader. Once Trader is already showing
@@ -333,7 +321,6 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     traderBlockNotice,
     desk,
     openStockView,
-    openTraderTab,
     selectRowSymbol,
     extractTraderTab,
     acceptTraderTabDrop,

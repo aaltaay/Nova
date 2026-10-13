@@ -93,13 +93,6 @@ export function useSampleTraderDesk(setSelectedSymbol: (sym: string | null) => v
     setBlockNotice(null);
   }, [apply, setSelectedSymbol]);
 
-  const openTraderTab = useCallback((symbol: string) => {
-    const sym = symbol.trim().toUpperCase();
-    if (!sym) return;
-    apply(addTab(stateRef.current, sym, TRADER_MAX_LIVE_TABS).state);
-    setSelectedSymbol(sym);
-  }, [apply, setSelectedSymbol]);
-
   const selectRowSymbol = useCallback((symbol: string) => {
     if (viewActive) openStockView(symbol);
     else setSelectedSymbol(symbol.trim().toUpperCase());
@@ -207,7 +200,6 @@ export function useSampleTraderDesk(setSelectedSymbol: (sym: string | null) => v
     traderBlockNotice: blockNotice,
     moveLocks,
     openStockView,
-    openTraderTab,
     selectRowSymbol,
     extractTraderTab,
     acceptTraderTabDrop,

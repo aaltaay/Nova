@@ -118,16 +118,16 @@ describe('NavRail', () => {
   const testIds = (scope: Element) =>
     Array.from(scope.querySelectorAll('[data-testid]')).map((el) => el.getAttribute('data-testid'));
 
-  it('lists Desk, Trader, Scanner, Cryptos, Account, Bots, Records top to bottom and pins Settings + collapse at the foot', () => {
+  it('lists Market, Trader, Scanner, Cryptos, Account, Bots, Records top to bottom and pins Settings + collapse at the foot', () => {
     render();
     const rail = q('nav-rail')!;
     expect(rail.tagName).toBe('NAV');
     expect(rail.getAttribute('aria-label')).toBe('Navigation');
     const top = testIds(rail.querySelector('.nav-rail__list')!).filter((id) =>
-      ['nav-rail-desk', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
+      ['nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
     );
     expect(top).toEqual([
-      'nav-rail-desk',
+      'nav-rail-market',
       'nav-rail-trader',
       'nav-rail-scanner',
       'nav-rail-cryptos',
@@ -255,7 +255,7 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('dashboard');
   });
 
-  it('Cryptos, Account, Bots, Desk and Records each switch the shell page', () => {
+  it('Cryptos, Account, Bots, Market and Records each switch the shell page', () => {
     render();
     click('nav-rail-cryptos');
     expect(getNavPage()).toBe('cryptos');
@@ -269,14 +269,14 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('bots');
     expect(consumeScannerTabRequest()).toBeNull();
     expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
-    click('nav-rail-desk');
-    expect(getNavPage()).toBe('desk');
-    expect(q('nav-rail-desk')!.classList.contains('is-active')).toBe(true);
+    click('nav-rail-market');
+    expect(getNavPage()).toBe('market');
+    expect(q('nav-rail-market')!.classList.contains('is-active')).toBe(true);
     expect(onLeaveTrader).not.toHaveBeenCalled();
     click('nav-rail-records');
     expect(getNavPage()).toBe('records');
     expect(q('nav-rail-records')!.classList.contains('is-active')).toBe(true);
-    expect(q('nav-rail-desk')!.classList.contains('is-active')).toBe(false);
+    expect(q('nav-rail-market')!.classList.contains('is-active')).toBe(false);
     // The tree stays open off the Scanner view; a child returns the shell to the dashboard.
     click('nav-rail-tab-losers');
     expect(getNavPage()).toBe('dashboard');
@@ -307,7 +307,7 @@ describe('NavRail', () => {
     expect(q('nav-rail-scanner')!.hasAttribute('aria-expanded')).toBe(false);
     expect(q('nav-rail-scanner-chevron')).toBeNull();
     act(() => {
-      setNavPage('desk');
+      setNavPage('market');
     });
     expect(q('nav-rail-scanner-tree')).toBeTruthy();
     expect(localStorage.getItem(NAV_RAIL_STORAGE_KEY)).toBeNull();
@@ -336,7 +336,7 @@ describe('NavRail', () => {
     expect(q('nav-rail-scanner-tree')).toBeTruthy();
     expect(q('nav-rail-tab-gappers')!.getAttribute('title')).toMatch(/Gappers/);
     expect(q('nav-rail-scanner-chevron')).toBeNull();
-    expect(q('nav-rail-desk')!.getAttribute('title')).toMatch(/Desk/);
+    expect(q('nav-rail-market')!.getAttribute('title')).toMatch(/Market/);
     expect(q('nav-rail-collapse')!.getAttribute('aria-pressed')).toBe('true');
     expect(JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!).collapsed).toBe(true);
 
@@ -354,7 +354,7 @@ describe('NavRail', () => {
     render();
     expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
     act(() => {
-      setNavPage('desk');
+      setNavPage('market');
     });
     expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(false);
     expect(q('nav-rail-collapse')!.getAttribute('aria-pressed')).toBe('false');
@@ -382,7 +382,7 @@ describe('NavRail', () => {
   it('migrates a v1 payload: collapsed true stays a choice, false becomes "not chosen" so the default (labels) applies', () => {
     localStorage.setItem(NAV_RAIL_STORAGE_KEY, JSON.stringify({ schema_version: 1, collapsed: false, scannerFolded: true }));
     act(() => {
-      setNavPage('desk');
+      setNavPage('market');
     });
     render();
     // v1 `collapsed: false` is "not chosen": the default (labels) applies; its fold is ignored.

@@ -21,8 +21,8 @@ import {
 import { perfWindowIdentity, type PerfRole, type PerfWindow } from '../perf/perfReporter';
 import { isSampleView } from '../sample_data/sampleNav';
 
-export type FocusPage = 'trader' | 'desk' | 'scanner' | 'account' | 'bots' | 'records' | 'cryptos';
-export type FocusSymbolSource = 'trader_tab' | 'desk_board' | 'scanner_row';
+export type FocusPage = 'trader' | 'market' | 'scanner' | 'account' | 'bots' | 'records' | 'cryptos';
+export type FocusSymbolSource = 'trader_tab' | 'scanner_row';
 export type FocusReason = 'start' | 'focus' | 'blur' | 'visibility' | 'page' | 'symbol' | 'input' | 'heartbeat';
 
 export interface FocusView {

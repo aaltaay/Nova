@@ -1,0 +1,122 @@
+# Data schema: The Market page
+
+Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: backend/market_board/, frontend/src/market_board/. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
+
+## The Market page (ADR 053, operator decisions 2026-10-12 and 2026-10-13)
+
+"i want overall dashboard of the market ... identify the overall health of the market for the day in one glimpse",
+mockups v1-v5 approved, then "go!". Owners `backend/market_board/` (read-only; constants in
+`constants_market_board.py`) and `frontend/src/market_board/`. Nothing here places, stages or cancels an order, and
+nothing here feeds a scanner row, a chart, HOD Momo, a setup lane or a bot. Percentages on this wire are percent
+points (`2.84` = +2.84%), never fractions; times are epoch seconds; a period is `"1D" | "7D" | "30D"` (the session
+so far, the last 5 sessions, the last 21 sessions, today included).
+
+`GET /api/market/board?sectors=1D&industries=1D&climate=1D&top=movers&top_period=1D` (`top`: `movers` | `biggest`
+| `runners`; an unknown value is 400 `MARKET_BAD_PARAM` with `field`) answers from memory and never waits on IBKR or
+the network; asking marks the board wanted for `MARKET_WANTED_SEC`:
+
+`{schema_version: 1, generated_at, enabled, loading, replay_desk, session, day_read, events, quotes[], breadth,
+sectors, industries, climate, top, sources[]}` -- `enabled` false with `NOVA_MARKET_BOARD=0`; `loading` true until
+every read the page shows has answered (or failed) once since it was wanted; `replay_desk` true on a Sim replay
+desk (the page reads today's live market and says so).
+
+- `session`: `{date (the ET trading date, 04:00 rollover), phase: "premarket" | "regular" | "after_hours" | "closed",
+  open_at, close_at, next: {kind: "premarket" | "open" | "close" | "after_hours_end", at} | null, holiday: string |
+  null}` -- the NYSE calendar (`constants_nova_os` holidays, early closes); the clock's own facts.
+- `day_read`: `{verdict: "bullish" | "mixed" | "bearish" | null, green, red, known, total, checks: [{id, label,
+  state: "green" | "amber" | "red" | "waiting" | "unknown", value: number | null, text, starts_at: number | null,
+  why}]}` --
+  `id` one of `futures` (how many of ES, NQ, RTY, YM are up), `breadth` (NYSE advancing over declining), `vix`
+  (VIX's change, green when falling), `small_caps` (RTY's change minus ES's, points), `runners` (today's 20%+
+  runners against the same-minute average), `gappers` (gappers of 20%+ holding their 09:30 open). `waiting` with
+  `starts_at` before the data can exist (breadth and gappers before 09:30); `unknown` with `why` when the source has
+  not answered; `amber` when the check is neither green nor red. `known` counts the checks with data (green,
+  amber, red); the verdict counts only green and red: `bullish` when `green - red >=
+  MARKET_DAY_READ_BULLISH_NET` and `bearish` when `red - green >= MARKET_DAY_READ_BEARISH_NET`, else `mixed`;
+  `null` under `MARKET_DAY_READ_MIN_KNOWN` known checks. Each check's rule and thresholds are constants.
+- `events`: `{items: [{at, kind: "econ" | "fomc" | "earnings" | "holiday", title, detail: string | null, source:
+  "bls" | "bea" | "fed" | "finnhub" | "sifma" | "nyse"}], bond_market: {closed: boolean, early_close_at: number |
+  null, why: string | null}}` -- today and the next `MARKET_EVENTS_DAYS_AHEAD` days, soonest first, at most
+  `MARKET_EVENTS_MAX`. BLS releases from its ICS calendar, BEA's from its release-dates JSON, FOMC decision days
+  and SIFMA bond-market closes from constants copied from the published calendars (each with its URL), earnings
+  from Nova's Finnhub calendar for the biggest names only (a member of a sector's top `MARKET_BIGGEST_PER_SECTOR`
+  holdings).
+- `quotes[]`: the futures and macro tiles, `MARKET_QUOTES` order: `{id, label, symbol, kind: "future" | "index" |
+  "crypto" | "spread", exchange, contract: string | null (the front month's local symbol, e.g. "ESZ6"), last,
+  prev_close, change, change_pct, price_basis: "last" | "mid" | null (a coin with no print in the snapshot shows
+  its quoted midpoint), data_type: "live" | "frozen" | "delayed" | "delayed_frozen" | null (IBKR's own
+  market-data type for the snapshot), at, line: [[t, value]] (5-minute bars from 04:00 ET today, oldest first),
+  error: string | null}`. `prev_close` is IBKR's prior close (a future's prior settlement). The `small_caps`
+  spread tile is RTY's `change_pct` minus ES's (`last` / `change` null, `change_pct` the points) and its line the
+  difference of the two bar lines in percent from each prior close. A refused symbol carries IBKR's code and words
+  in `error` ("10089: requires an additional subscription"), its numbers `null`.
+- `breadth`: `{state: "ok" | "waiting" | "unavailable", why: string | null, at, data_type, advancing, declining,
+  unchanged, up_volume, down_volume, tick, trin, ad_line: [[t, advancing - declining]], line_since, prior: {date,
+  advancing, declining, up_volume, down_volume, tick, trin} | null}` -- IBKR's NYSE indicators: AD-NYSE (bid =
+  advancing, ask = declining, bid size = unchanged), VOL-NYSE (bid = up volume, ask = down volume), TICK-NYSE and
+  TRIN-NYSE (last). `ad_line` is Nova's own one-a-minute samples since `line_since` (the later of 09:30 and when
+  Nova started sampling). `waiting` before 09:30 with `prior` the last session's last sample Nova kept;
+  `unavailable` with IBKR's reason when it refuses the indicators.
+- `sectors` / `industries`: `{period, from, to, rows: [{name, etf, change_pct, context_pct, context_period,
+  leader: {symbol, change_pct} | null, leader_why: string | null}]}` strongest first; `sectors` adds
+  `offense_pct` and `defense_pct` (the mean of XLK, XLY, XLC and of XLP, XLU, XLV for the period). `change_pct` is
+  the ETF's move over the period (1 D: last against the prior close; 7 D / 30 D: last against the regular-hours
+  close 5 / 21 sessions back); `context_pct` is the 7 D move when the period is 1 D, else the 1 D move. The 1 D
+  leader is the best member of the ETF (its State Street holdings file) in IBKR's large-cap gainers scan
+  (`MARKET_MOVERS_SCAN`); 7 D / 30 D, the best of its top `MARKET_LEADER_POOL` holdings by daily closes. `leader:
+  null` with `leader_why` when no member list exists (the theme ETFs of ADR 053) or no member moved.
+- `climate`: `{period, from, to, sessions, covered, lens, counts: {up20, up50, up100}, per_day: number | null,
+  baseline: {up20, up50, up100, per_day, days, basis: "same_minute" | "per_session"} | null, temperature: "hot" |
+  "normal" | "cold" | null, days: [{date, source: "recorded" | "reconstructed" | null, total, themes: {name:
+  count}}] (the last 21 sessions, oldest first; `source: null` = Nova holds no board that day), theme: {name, count,
+  total, share_pct, prev_share_pct} | null, themes: [{name, count, prev_count}], gappers: {held, total, rate_pct,
+  gone, baseline_rate_pct}, halts: {count, last: {symbol, at} | null, by_side: null, by_side_why}, top: [{symbol,
+  change_pct, date, price, float_shares, theme, news_at}]}` -- from the leaderboard store (ADR 023) through one
+  `lens` (`{board: "gainers", rank_max: MARKET_CLIMATE_RANK_MAX, price_min: SCANNER_MIN_PRICE}`): the recorded
+  Gainers board only. A rebuilt day's `market` board ranks every listed stock's minute bars rather than IBKR's
+  scan and counted about 40% more runners a session, so it is left out (`MARKET_CLIMATE_USE_REBUILT`) and that
+  day reads `source: null`. A runner is a symbol whose `change_pct` reached 20 / 50 / 100% that session by the
+  close (by now, today). `covered` counts the period's sessions Nova recorded. 1 D's `baseline` is the same
+  minute-of-day average over the prior `MARKET_CLIMATE_BASELINE_DAYS_1D` recorded sessions; 7 D / 30 D's is the
+  per-session average over the prior `MARKET_CLIMATE_BASELINE_DAYS` (`null` when Nova recorded none). `temperature` is `hot` at `per_day >=
+  MARKET_CLIMATE_HOT_X x baseline`, `cold` at `<= MARKET_CLIMATE_COLD_X x baseline`. A theme is IBKR's industry
+  category for the symbol (contract details), `"Unclassified"` until IBKR answers; `prev_*` is the period before.
+  A gapper is a symbol whose open gap (`gap_pct` after 09:30) was 20%+; it held when its last price that session
+  (by now, today) is at or above its open (`prev_close x (1 + gap_pct)`) while still on the board at the period's
+  last minute; `gone` counts gappers no longer on the board (unknown, left out of `rate_pct`). Halts are the Nasdaq
+  halt feed's `start` events; their up / down side is not recorded (`by_side: null`).
+- `top`: `{kind, period, cards: [{name, etf, change_pct, rows: [{symbol, last, change_pct, spark: number[] |
+  null}]}], why: string | null}` -- sectors in strength order, at most `MARKET_TOP_CARDS`, `MARKET_TOP_ROWS` rows
+  each. `movers`: 1 D the large-cap gainers scan grouped by sector membership; 7 D / 30 D the best of each sector's
+  top `MARKET_LEADER_POOL` holdings. `biggest`: each sector's top holdings by weight. `runners`: the climate's
+  runners of the period grouped by theme. `spark` is the period's daily closes (7 D / 30 D); `null` for 1 D.
+- `sources[]`: `{id: "ibkr" | "ssga" | "bea" | "finnhub" | "leaderboard", label, ok: boolean | null, at,
+  error}` -- `ok: null` until asked. A failed read keeps its last good answer for at most `MARKET_STALE_MAX_SEC`.
+
+Refresh (`backend/market_board/refresh.py`, daemon threads `ibkr` and `files`, only while wanted unless noted):
+quotes every `MARKET_QUOTES_TTL_SEC`; their bar lines every `MARKET_LINES_TTL_SEC`; the NYSE breadth sample once a
+minute 09:30-16:00 ET whether or not the page is open; ETF snapshots every `MARKET_ETF_TTL_SEC` and their daily
+closes once per session; the movers scan every `MARKET_MOVERS_TTL_SEC`; State Street files, BLS and BEA once a day;
+the leaderboard climate every `MARKET_CLIMATE_TTL_SEC` (a past session's summary once per process); a runner's
+industry once, then from the file below. No IBKR read runs while fewer than `MARKET_MIN_FREE_LINES` market-data
+lines are free.
+
+**Fenced errors.** An IBKR error on a `FUT`, `CONTFUT`, `IND`, `CASH` or `CRYPTO` contract is the Market page's: it
+is recorded on that tile (`market_board.ibkr_reads.note_error`) and never sets the session's delayed-data fallback
+(Error 10089 / 10167), the max-tickers note (101) or a farm notice (`ibkr/session_errors.py`).
+
+**Persisted.**
+- `<cache_dir>/market-board/breadth-last.json` `{schema_version: 1, date, advancing, declining, unchanged, up_volume,
+  down_volume, tick, trin, at}` -- the last regular-session breadth sample, overwritten each sample; owner
+  `market_board/breadth.py`; an unknown `schema_version` is ignored (no prior shown).
+- `<cache_dir>/market-board/breadth-<date>.json` `{schema_version: 1, date, line_since, samples: [[t, advancing,
+  declining, tick]]}` -- the day's samples so a restart keeps the line; files older than
+  `MARKET_BREADTH_KEEP_DAYS` are deleted.
+- `<cache_dir>/market-board/industries.json` `{schema_version: 1, symbols: {SYM: {industry, category, subcategory,
+  at}}}` -- IBKR contract details per symbol; an entry older than `MARKET_INDUSTRY_MAX_AGE_DAYS` is asked again;
+  unknown `schema_version` starts empty.
+- `<cache_dir>/market-board/holdings-<ETF>.json` `{schema_version: 1, etf, as_of, fetched_at, rows: [{symbol, name,
+  weight_pct}]}` -- State Street's file parsed; refetched when older than `MARKET_HOLDINGS_TTL_SEC`.
+- Desk: `localStorage nova.marketBoard.periods.v1` `{schema_version: 1, sectors, industries, climate, top: {kind,
+  period}}` (owner `frontend/src/market_board/periods.ts`; an unknown version or value falls back to `1D` /
+  `movers`).

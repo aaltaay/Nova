@@ -9,7 +9,7 @@ export const NAV_RAIL_COLLAPSED_WIDTH_PX = 56;
 /** Accessible name of the rail landmark. */
 export const NAV_RAIL_ARIA_LABEL = 'Navigation';
 
-export const NAV_RAIL_LABEL_DESK = 'Desk';
+export const NAV_RAIL_LABEL_MARKET = 'Market';
 export const NAV_RAIL_LABEL_TRADER = 'Trader';
 export const NAV_RAIL_LABEL_SCANNER = 'Scanner';
 export const NAV_RAIL_LABEL_ACCOUNT = 'Account';
@@ -18,7 +18,8 @@ export const NAV_RAIL_LABEL_RECORDS = 'Records';
 export const NAV_RAIL_LABEL_CRYPTOS = 'Cryptos';
 export const NAV_RAIL_LABEL_SETTINGS = 'Settings';
 
-export const NAV_RAIL_TITLE_DESK = 'Desk -- the Scanner + Trader hybrid';
+export const NAV_RAIL_TITLE_MARKET =
+  'Market -- the day at a glance: futures, sectors, breadth and the small-cap climate';
 export const NAV_RAIL_TITLE_TRADER =
   'Open Trader for the selected symbol, or SPY if none is selected';
 export const NAV_RAIL_TITLE_SCANNER = 'Scanner lists and signals';
@@ -50,8 +51,8 @@ export const navRailRecordingTitle = (count: number, max: number): string =>
  * Persisted rail chrome (collapse + Scanner fold). Owner: components/navRailPersist.ts.
  * Invalidation: schema bump -- an unknown schema_version is ignored, never migrated
  * by guesswork (persisted-state.mdc). v2 makes `collapsed` tri-state (null = the
- * operator has not chosen, so the rail follows the view: icons on the Desk,
- * labels elsewhere); v1 is migrated by a known rule, see readNavRailPrefs.
+ * operator has not chosen, so the rail follows the view -- labels on every view
+ * today); v1 is migrated by a known rule, see readNavRailPrefs.
  */
 export const NAV_RAIL_STORAGE_KEY = 'nova.navRail.v1';
 export const NAV_RAIL_SCHEMA_VERSION = 2;
@@ -59,8 +60,6 @@ export const NAV_RAIL_SCHEMA_VERSION_LEGACY = 1;
 
 /** CustomEvent name -- the rail asks the mounted dashboard to select a tab. */
 export const NAV_RAIL_SELECT_TAB_EVENT = 'nova:nav-rail-select-tab';
-
-/** Desk labels live in constantGroups/desk.ts (the hybrid shipped). */
 
 /** Records placeholder page. */
 export const RECORDS_PAGE_TITLE = 'Records';

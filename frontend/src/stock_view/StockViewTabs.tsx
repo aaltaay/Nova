@@ -33,16 +33,14 @@ import './stockViewTabs.css';
 
 interface Props {
   detached: boolean;
-  /** Desk hybrid: the board is the focus, so the Focus rail stays hidden. */
-  hideFocusRail?: boolean;
   /** Where the Focus rail keeps its list, sort and fold; the operator's saved one by default. */
   focusRailStore?: FocusRailStore;
   /** The workspace is on screen. Defaults to the Trader view being active;
-   * the Desk passes true while it shows this workspace beside its board. */
+   * the shells pass whether their Trader slot is up (a sample pop-out always is). */
   active?: boolean;
 }
 
-export function StockViewTabs({ detached, hideFocusRail = false, focusRailStore, active }: Props) {
+export function StockViewTabs({ detached, focusRailStore, active }: Props) {
   const {
     traderTabs,
     traderLiveTabs,
@@ -169,8 +167,8 @@ export function StockViewTabs({ detached, hideFocusRail = false, focusRailStore,
       )}
       {headerSlot && traderViewActive && !detached ? createPortal(tabStrip, headerSlot) : tabStrip}
       <div className="sv-tabs-body">
-      {/* One Focus rail for the whole Trader view, not one per tab; none beside the Desk board. */}
-      {!hideFocusRail && <FocusRail active={onScreen} store={focusRailStore} />}
+      {/* One Focus rail for the whole Trader view, not one per tab. */}
+      <FocusRail active={onScreen} store={focusRailStore} />
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {

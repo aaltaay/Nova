@@ -66,8 +66,8 @@ describe('navRailStore', () => {
   });
 
   it('never collapses the rail by default -- labels on every view (operator ask, 2026-09-22)', () => {
-    expect(navRailCollapsedDefault('desk', false)).toBe(false);
-    expect(navRailCollapsedDefault('desk', true)).toBe(false);
+    expect(navRailCollapsedDefault('market', false)).toBe(false);
+    expect(navRailCollapsedDefault('market', true)).toBe(false);
     expect(navRailCollapsedDefault('dashboard', false)).toBe(false);
     expect(navRailCollapsedDefault('records', false)).toBe(false);
   });

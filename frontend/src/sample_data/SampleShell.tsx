@@ -4,10 +4,10 @@
  * ?view=sample&symbol=X&popout=1 → a sample Trader tab popped out.
  *
  * The sample desk has its own workspace (#449, SampleWorkspaceProvider): its
- * Trader tabs, Focus rail, Desk and pop-out live in memory and never touch the
+ * Trader tabs, Focus rail and pop-out live in memory and never touch the
  * operator's saved workspace. It is laid out like the live shell (App.tsx):
- * the nav rail and header, the Trader slot -- shown full, or beside the Desk
- * board -- and the dashboard slot. A pop-out has neither rail nor header.
+ * the nav rail and header, the Trader slot and the dashboard slot. A pop-out
+ * has neither rail nor header.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
@@ -32,7 +32,6 @@ import { SampleModeBadge } from './SampleModeBadge';
 import { sampleScannerFeed } from './sampleScannerFeed';
 import { SampleWorkspaceProvider } from './SampleWorkspaceProvider';
 import { SetupsStreamProvider } from '../setups/SetupsStreamContext';
-import { useNavPage } from '../workspace/navRailStore';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
 /** A pop-out's Exit closes its own window; the main sample desk stays where it is. */
@@ -51,7 +50,6 @@ function SampleShellInner() {
     openStockView,
     showScannerView,
   } = useWorkspace();
-  const navPage = useNavPage();
   // The sample rail opens on the sample Gappers and keeps its list in memory.
   const [focusRailStore] = useState(() => memoryFocusRailStore());
   const feed = useMemo(() => sampleScannerFeed(sample), [sample]);
@@ -68,12 +66,6 @@ function SampleShellInner() {
   const float = traderDeskRole === 'float';
   const hasTraderDesk = traderTabs.length > 0;
   const traderUp = hasTraderDesk && (traderViewActive || float);
-  const deskUp = !traderUp && navPage === 'desk';
-  // The workspace slot is on screen for the full Trader and beside the Desk board.
-  const showTrader = traderUp || (deskUp && hasTraderDesk);
-  const branchClass = `nova-app-branch${deskUp ? ' nova-app-branch--desk' : ''}${
-    deskUp && !hasTraderDesk ? ' nova-app-branch--desk-empty' : ''
-  }`;
 
   const sampleScannerBar = {
     mode: 'market' as const,
@@ -100,19 +92,18 @@ function SampleShellInner() {
   const traderSlot = hasTraderDesk && (
     <div
       className="nova-trader-desk-slot"
-      hidden={!showTrader}
-      aria-hidden={!showTrader}
-      inert={!showTrader}
+      hidden={!traderUp}
+      aria-hidden={!traderUp}
+      inert={!traderUp}
     >
       <AppErrorBoundary source="sample-trader">
         <ScannerDataContextProvider value={feed}>
-          <div className={showTrader ? 'nova-shell nova-shell--ticker-detail' : 'nova-shell'}>
+          <div className={traderUp ? 'nova-shell nova-shell--ticker-detail' : 'nova-shell'}>
             <div className="main-col main-col--full main-col--trader-stack">
               <main className="ticker-detail-main">
                 <StockViewTabs
                   detached={float}
-                  hideFocusRail={deskUp}
-                  active={showTrader}
+                  active={traderUp}
                   focusRailStore={focusRailStore}
                 />
               </main>
@@ -147,7 +138,7 @@ function SampleShellInner() {
       <div className="nova-app-main">
         <GlobalAppBar scanner={sampleScannerBar} />
         <SampleModeBadge onExit={leaveSampleView} />
-        <div className={branchClass}>
+        <div className="nova-app-branch">
           {traderSlot}
           {!traderUp && (
             <div className="nova-scanner-desk-slot">

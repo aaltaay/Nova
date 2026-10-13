@@ -4,8 +4,8 @@
  * Owner: this module (read + write). Invalidation: schema bump -- a payload
  * with an unknown `schema_version` is ignored and reported, never guessed at
  * (persisted-state.mdc). `collapsed` is tri-state: `null` means the operator
- * has not chosen, so the rail follows the view (icons on the Desk, labels
- * elsewhere -- see workspace/navRailStore.navRailCollapsedDefault).
+ * has not chosen, so the rail follows the view (labels on every view today --
+ * see workspace/navRailStore.navRailCollapsedDefault).
  *
  * The Scanner tree no longer folds (operator ask, 2026-09-23): a stored
  * `scannerFolded` from an earlier build is read past and dropped on the next

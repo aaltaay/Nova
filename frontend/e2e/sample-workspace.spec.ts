@@ -2,12 +2,12 @@ import { test, expect } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
 
 /**
- * #449: the sample desk has its own workspace -- Trader tabs, the Focus rail,
- * the Desk and pop-out -- held in memory. It demos all four and saves none of
- * it: the browser's localStorage for the origin stays empty.
+ * #449: the sample desk has its own workspace -- Trader tabs, the Focus rail
+ * and pop-out -- held in memory. It demos them, opens the Market page, and
+ * saves none of it: the browser's localStorage for the origin stays empty.
  */
 test.describe('Sample desk workspace', () => {
-  test('Trader tabs, Focus rail, pop-out and Desk work on the sample desk and save nothing', async ({ page, baseURL }) => {
+  test('Trader tabs, Focus rail, pop-out and the Market page work on the sample desk and save nothing', async ({ page, baseURL }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample&symbol=SMPL');
     await expect(page.getByTestId('sample-data-badge')).toBeVisible();
@@ -43,14 +43,11 @@ test.describe('Sample desk workspace', () => {
     await popup.close();
     await expect(page.getByTestId('sv-tab-GAPX')).toHaveCount(0);
 
-    // The Desk: the sample board beside the workspace, never "not available".
-    await page.getByTestId('nav-rail-desk').click();
-    const desk = page.getByTestId('desk-page');
-    await expect(desk.getByTestId('desk-board')).toBeVisible();
-    await expect(desk).not.toContainText('not available');
-    await desk.getByTestId('desk-board-row-CATZ').click();
-    await expect(page.getByTestId('sv-tab-CATZ')).toHaveAttribute('aria-selected', 'true');
-    await expect(desk.getByTestId('desk-board-record-CATZ')).toHaveAttribute('data-why', /Session Record/);
+    // The Market page (ADR 053) opens on the sample desk too, never "not available".
+    await page.getByTestId('nav-rail-market').click();
+    const market = page.getByTestId('market-page');
+    await expect(market).toBeVisible();
+    await expect(market).not.toContainText('not available');
 
     // Nothing the sample desk did reached the browser's storage. storageState
     // reads it from an isolated world, past the page's storage gate.
