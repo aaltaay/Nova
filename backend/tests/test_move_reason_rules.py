@@ -238,3 +238,67 @@ def test_amod_with_v8_reads_the_treasury_raise_as_its_news():
     assert out["likely"]["kind"] == "news"
     assert out["likely"]["label"] == "Company news: crypto treasury raise (weak)"
     assert by_id(out)["news"]["detail"].startswith("Before the prior close, not counted today")
+
+
+# -- shares short against the float (rules v3, 2026-10-12) -------------------------------------------------
+# FINRA's Sep 15 settlement; each float is the day's recorded Gainers row (Yahoo's). Days to cover is over the
+# volume from before the run, so on its own it flagged dormant stocks whose few shares short meant nothing.
+SEP_15 = datetime(2026, 9, 15, tzinfo=ZoneInfo("UTC")).timestamp()
+
+
+def test_days_to_cover_alone_never_makes_shorts_heavy():
+    # PFAI 2026-10-07, +131% on 27.4M shares: 9,077 shares short on a 3.57M float read 9.1 days to cover over its
+    # ~1,000-share usual volume, and nothing was left to lend. v2 called it a short squeeze.
+    out = read(facts(change_pct=1.31, volume=27_444_147, float_shares=3_566_629, rel_volume=4148.8,
+                     short_interest=9_077, days_to_cover=9.11, short_interest_ts=SEP_15, borrow=NOT_LISTED,
+                     catalyst=NONE), NOW)
+    check = by_id(out)["short_interest"]
+    assert check["state"] == "no"
+    assert check["value"] == "0.3% of float · 9.1 days to cover (Yahoo ratio)"
+    assert check["detail"] == ("9K shares short, FINRA settlement Sep 15. "
+                               "Days to cover counts only with 10% of the float short")
+    assert out["likely"]["kind"] == "low_float_momentum"
+    assert out["likely"]["label"] == "Low-float momentum -- no company news; borrow is tight"
+
+
+@pytest.mark.parametrize("name,short,float_shares,dtc", [
+    ("TGE 2026-09-30", 64_568, 7_450_890, 6.0),
+    ("FLUX 2026-10-02", 529_266, 15_586_177, 4.06),
+    ("SDEV 2026-10-02 on Yahoo's float", 1_212_152, 22_550_189, 4.4),
+])
+def test_the_flags_of_late_september_were_not_heavy_shorts(name, short, float_shares, dtc):
+    # Each read "yes" in v2 on days to cover alone; under a tenth of the float was short.
+    check = by_id(read(facts(float_shares=float_shares, short_interest=short, days_to_cover=dtc), NOW))["short_interest"]
+    assert check["state"] == "no", name
+
+
+def test_sdev_still_reads_a_squeeze_when_its_float_share_passes():
+    # SDEV 2026-10-02, +104% on 153M shares, nothing to lend: 1.21M shares short, 4.4 days to cover. Yahoo's
+    # 22.6M float makes that 5% (not heavy, above); a 6.36M free float makes it 19% -- days to cover then counts.
+    out = read(facts(change_pct=1.04, volume=153_000_000, float_shares=6_360_000, rel_volume=16.2,
+                     short_interest=1_212_152, days_to_cover=4.4, short_interest_ts=SEP_15, borrow=NOT_LISTED,
+                     catalyst=NOISE), NOW)
+    check = by_id(out)["short_interest"]
+    assert (check["state"], check["value"]) == ("yes", "19% of float · 4.4 days to cover (Yahoo ratio)")
+    assert check["detail"] == "1.2M shares short, FINRA settlement Sep 15"
+    assert out["likely"]["kind"] == "short_squeeze"
+
+
+def test_a_fifth_of_the_float_short_is_heavy_on_any_days_to_cover_and_a_tenth_needs_three():
+    assert by_id(read(facts(float_shares=1_000_000, short_interest=200_000, days_to_cover=0.5), NOW))[
+        "short_interest"]["state"] == "yes"
+    assert by_id(read(facts(float_shares=1_000_000, short_interest=150_000, days_to_cover=2.9), NOW))[
+        "short_interest"]["state"] == "no"
+    assert by_id(read(facts(float_shares=1_000_000, short_interest=100_000, days_to_cover=3.0), NOW))[
+        "short_interest"]["state"] == "yes"
+
+
+@pytest.mark.parametrize("dtc", [0.5, 9.1])
+def test_without_the_float_share_the_shorts_are_unknown_never_guessed(dtc):
+    # Shares short or the float unknown: a fifth of the float can be short on any days to cover.
+    out = read(facts(change_pct=1.0, volume=50_000_000, rel_volume=50.0, days_to_cover=dtc, borrow=NOT_LISTED), NOW)
+    check = by_id(out)["short_interest"]
+    assert check["state"] == "unknown"
+    assert check["value"] == f"{dtc:.1f} days to cover (Yahoo ratio)"
+    assert check["detail"] == "The share of the float short is unknown"
+    assert out["likely"]["kind"] != "short_squeeze"

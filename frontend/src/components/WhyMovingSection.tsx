@@ -1,8 +1,8 @@
 /**
  * "Why it's moving" (ADR 028): the rules read of what drove the move, at the top of the Trader's News panel.
  * The likely cause shows in the header, open or folded; the body lists every check -- yes, no or unknown --
- * with the value that decided it, and each row's source and age on hover. Nothing here is a control
- * except the fold.
+ * with the value that decided it, and each row's source and age on hover. A read with no checks (a Sim
+ * replay desk: `not_read`) shows its reason and no rules note. Nothing here is a control except the fold.
  */
 import { useState } from 'react';
 import {
@@ -87,7 +87,7 @@ export function WhyMovingSection({ read, loading = false, error = null }: Props)
           ) : (
             <div className="wm-reading">{WHY_MOVING_READING}</div>
           )}
-          {read && <div className="wm-note">{WHY_MOVING_RULES_NOTE}</div>}
+          {read && read.checks.length > 0 && <div className="wm-note">{WHY_MOVING_RULES_NOTE}</div>}
         </div>
       )}
     </div>
