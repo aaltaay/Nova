@@ -890,8 +890,8 @@ locked and says why: Nova never moves a Live order by itself, and a Live stop do
 `GET /api/why/{symbol}` (owner `backend/move_reason/`, read-only, no network wait; rules
 `move_reason/rules.py`, pure, thresholds in `constants_move_reason.py`) answers the Trader tab's
 "Why it's moving" section: `{schema_version: 1, symbol, generated_at, session_date, rules_version,
-likely: {kind: "not_moving" | "news_pending" | "news" | "short_squeeze" | "routine_news" |
-"split_squeeze" | "low_float_momentum" | "thin_trading" | "unexplained", label, detail,
+replay: boolean, likely: {kind: "not_moving" | "news_pending" | "news" | "short_squeeze" | "routine_news" |
+"split_squeeze" | "low_float_momentum" | "thin_trading" | "unexplained" | "not_read", label, detail,
 confidence: "likely" | "possible"}, checks: [{id: "news" | "halts" | "float" | "float_rotation" |
 "reverse_split" | "short_interest" | "borrow" | "volume", label, state: "yes" | "no" | "unknown",
 value: string | null, detail: string | null, source, as_of: number | null}], facts: {price,
@@ -916,12 +916,31 @@ with the reason as its `detail` and keeps its state, and the short-interest chec
 FINRA settlement date. `short_above_float` is judged on the float and short interest shown here; when
 it is `true` the short-interest check's `detail` adds its reason and its state is unchanged (a
 warning, never a gate). `days_to_cover` is Yahoo's short ratio and its value says "(Yahoo ratio)".
+The short-interest check is `yes` when the shares short are a fifth of the float, or three days to cover
+with at least a tenth of the float short (`MOVE_SHORT_PCT_HIGH`, `MOVE_DAYS_TO_COVER_HIGH`,
+`MOVE_SHORT_PCT_WITH_DTC`; rules v3, 2026-10-12): Yahoo's ratio divides by the volume from before a run,
+so on its own it called a dormant stock's few shares short heavy (PFAI 2026-10-07: 9,077 shares, 0.25% of
+its float, read 9.1 days to cover on a day it traded 27M shares). Days to cover under the floor adds
+"Days to cover counts only with 10% of the float short" to the `detail`; without the share of the float
+(no float or no shares short) the check is `unknown` on any days to cover. A share under 10% keeps a
+decimal ("0.3% of float"), under 0.1% reads "under 0.1%".
 `fee_rate` / `rebate_rate` are IBKR's annual percent; `open` / `prior` are `{listed, fee_rate,
 available, as_of}` at the day's first poll at or after 04:00 ET and the last poll before it (null
 when not recorded); `since` is the first poll the store holds. A symbol IBKR's file does not list is
 `listed: false` (nothing to lend). Every unknown is `null` and its check `unknown`, never guessed;
 `confidence` is `possible` when a deciding input is unknown. Descriptive only: nothing places or
 gates on it.
+
+On a Sim replay desk (`sim.mode.is_replay_desk`: the Sim off its live edge, a past day or today's
+recording scrubbed back) nothing is read: `{..., generated_at: the playhead, session_date: the playhead's
+day, replay: true, likely: {kind: "not_read", label: "Not read on a Sim replay of Oct 2", detail: why,
+confidence: "likely"}, checks: [], facts: {}}` (`move_reason.routes.not_read_on_replay`). Every fact the
+read holds -- the news verdict, Yahoo's float and short interest, IBKR's borrow as of the latest poll --
+is today's, and the card had shown them on a past day's desk (SDEV 2026-10-02 replayed on 2026-10-12 read
+"Not a big move today (-3.9%)", Oct 12's change). A live edge that cannot be read counts as a replay. Off
+the replay (Live, Paper, the Sim at its live edge) `replay` is `false`. The Trader shows the label and its
+reason, without the rules note. Reading a replayed day from recorded sources -- the borrow store's 14
+days, FINRA's point-in-time short interest, the replay's own price and volume -- is not built.
 
 The borrow feed (`move_reason/borrow_feed.py`, always on; `NOVA_BORROW_FEED=0` off) polls IBKR's
 public short-stock file (`ftp://ftp2.interactivebrokers.com/usa.txt`, USD rows) every

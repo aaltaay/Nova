@@ -42,3 +42,18 @@ at 105% a year and none of WHLR, VSA, ARTL or BENF, while TLSA borrowed at 1.3%.
 Rejected: an LLM explanation now (costs tokens per look, and the operator deferred it); inferring a
 squeeze from price action alone (no positioning data behind it); polling the borrow file per symbol (it
 is one 1.8 MB file for all 20,000 symbols).
+
+## Amendment 2026-10-12 -- shares short must matter; a Sim replay is not read
+
+Of 48 small caps up 100%+ between 2026-09-29 and 2026-10-08 the read called five a short squeeze (SDEV
+twice, TGE, FLUX, PFAI), each on days to cover alone: Yahoo's ratio divides the shares short by the volume
+from before the run, so a stock that traded about 1,000 shares a day read 9.1 days on 9,077 shares short
+(PFAI, 0.25% of its float). Shorts are now heavy at a fifth of the float, or at three days to cover with a
+tenth of the float short; without the share of the float the check is unknown (rules v3). The numbers are
+proposed rules of thumb for the operator to tune. Days to cover over today's volume was rejected as the
+gate: on a 100%+ day today's volume dwarfs any short position (MSS's hand-checked squeeze had its shorts at
+0.09% of the day's volume), so it would never fire.
+
+On a Sim replay desk the read had shown today's facts on a past day's desk. It now names the replayed day
+and reads nothing (`likely.kind` `not_read`), the stated absence, until a replayed day can be read from
+recorded sources. Schema: `architecture/schema/stock-read.md`, "Why it's moving".
