@@ -1,5 +1,5 @@
 ---
-description: Change-aware advisory CI; ready PRs merge without waiting for verification
+description: Change-aware CI; ready PRs merge without waiting for verification; a Release waits for green
 globs: .github/workflows/**,tools/ci_scope.py,tools/test_ci_scope*.py
 alwaysApply: false
 ---
@@ -18,21 +18,29 @@ alwaysApply: false
   idempotency and live opt-in gates), Chromium E2E and desktop packaging.
 - Electron, build scripts, dependency manifests, CI, tools and unknown paths run
   all application checks. Never infer a safe skip from a missing/failed diff.
-- All verification is advisory by explicit owner decision (2026-09-20). Pending,
-  failed, cancelled, skipped and missing checks never prevent ready PRs from merging.
+- Merging is advisory by explicit owner decision (2026-09-20). Pending, failed,
+  cancelled, skipped and missing checks never prevent ready PRs from merging.
   Branch protection has no required status checks. Keep force-push/deletion blocked.
+- Releasing is not (owner decision 2026-10-13, green builds only). Desktop pack's
+  `verify` job (`Release checks`) calls `deploy.yml` with `full: true` on the commit
+  it packed, so nothing is scope-skipped; `Publish vNNN installer` runs
+  `tools/release_gate.py` first and publishes only when the pack and Backend tests,
+  Frontend build, Frontend E2E and Agent contract concluded success at their latest
+  attempt. Anything else -- skipped included -- fails it with "vNNN not published:
+  <check> ...". The security scanners stay warning-only and never hold a Release.
 - Check names remain stable for visibility. Jobs report classification failures;
   inapplicable heavy steps are skipped with a reason. Red stays visible, not disguised.
 - Windows packaging runs only for application-affecting changes, a release tag, or
   manual dispatch. PRs affecting packaging attempt the installer without delaying
-  merge. Every master commit is tagged `vNNN`; an application-affecting one also
-  publishes its GitHub Release (operator decision 2026-09-23, supersedes #347's
+  merge. Every master commit is tagged `vNNN`; a green application-affecting one
+  also publishes its GitHub Release (operator decision 2026-09-23, supersedes #347's
   tag-only publishing). Docs/site-only pushes pack nothing and get the tag only.
 - Keep secret scanning on every PR. Advisory source scanners run on source changes;
   dependency scanning runs on manifest changes; all run daily and on manual dispatch.
 - Repository branch cleanup/protection audits belong in scheduled maintenance,
   never the PR Agent contract gate. Tests of those tools remain in that gate.
-- Cancel superseded PR CI; do not cancel master runs. Bound every job with a timeout.
+- Cancel superseded PR CI; do not cancel master runs (CI groups non-PR runs by commit,
+  so a release's call never waits on or cancels another's). Bound every job with a timeout.
 - No production trading configuration or test assertion may be weakened to speed CI.
 - Security discovery follows the explicitly called local security workflow so moving
   scanners does not create false missing-scanner findings.

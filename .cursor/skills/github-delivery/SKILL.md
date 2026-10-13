@@ -85,7 +85,7 @@ Fill `.github/pull_request_template.md` completely.
 
 The PR is the task narrative. Do not also create a task-log file for the same work. It joins any linked branch already in the issue's Development panel rather than replacing it.
 
-## 5. Advisory verification
+## 5. Verification: advisory for merge, required for a Release
 
 Run relevant checks for feedback; do not delay merge for pending or failed results:
 
@@ -103,9 +103,9 @@ Also run `py -3 tools/doc_invariants.py`, the agent contract for rules/skills, a
 
 Application-affecting PRs run advisory Desktop pack to attempt the Windows installer. Do not wait for it before merging; report actual results truthfully.
 
-Every commit that lands on master is tagged `vNNN` (commit count from the first commit) by `Desktop pack`, and an application-affecting one is published as that GitHub Release with `Nova-Setup-vNNN.exe`, its `.blockmap` and `latest.yml` (operator decision 2026-09-23, superseding #347's tag-only publishing). Docs/site-only commits get the tag and no Release. GitHub's Source code zip/tar is automatic and is not the app.
+Every commit that lands on master is tagged `vNNN` (commit count from the first commit) by `Desktop pack`, and an application-affecting one is published as that GitHub Release with `Nova-Setup-vNNN.exe`, its `.blockmap` and `latest.yml` (operator decision 2026-09-23, superseding #347's tag-only publishing) -- **only from a green build** (operator decision 2026-10-13: "Things should only be shipped with green builds"). The same Desktop pack run calls CI on that commit with every check selected (`Release checks`), and `Publish vNNN installer` publishes only when the pack and Backend tests, Frontend build, Frontend E2E and Agent contract all passed; otherwise it fails with "vNNN not published: <check> failed" (`tools/release_gate.py`), the desk's update feed never sees that build, and a green re-run of the failed jobs publishes it. Docs/site-only commits get the tag and no Release. GitHub's Source code zip/tar is automatic and is not the app.
 
-Do not claim a check passed without evidence. Failed checks remain visible but do not block merge.
+Do not claim a check passed without evidence. Failed checks remain visible but do not block merge; they do hold the commit's Release.
 
 ## 6. Close decision
 
@@ -172,7 +172,7 @@ GitHub `delete_branch_on_merge` is on. That is a backup sweep, not a skip. If Gi
 Required policy (SSOT: `tools/master_branch_protection.py`):
 
 - Block force-push and deletion, including for admins (`enforce_admins`).
-- Require no status checks before merge; all verification is advisory.
+- Require no status checks before merge; merging is advisory (a Release still needs green, section 5).
 - Do **not** require pull-request reviews (solo repo -- that deadlocks merges).
 - Do **not** require a pull request to push. Status-only `master` commits stay allowed. The AI news digest must not push `master` -- it opens a ready PR from `chore/ai-news-digest`.
 
@@ -201,4 +201,4 @@ Do not end a coding session with only local commits, unpushed commits, or "I'll 
 Current-tip preservation overrides mandatory head deletion: follow `branch-cleanup.mdc`. Never delete a recreated/unmerged or squash-only tip automatically; the guarded command rechecks ancestry and uses a SHA lease.
 
 
-Owner policy (2026-09-20): all verification is advisory. Ready PRs merge while checks run or fail. Do not wait for Desktop pack. No required status checks; retain force-push/deletion protection. This supersedes older verification-before-merge wording below.
+Owner policy (2026-09-20): merging is advisory. Ready PRs merge while checks run or fail. Do not wait for Desktop pack. No required status checks; retain force-push/deletion protection. This supersedes older verification-before-merge wording below. Releases are the exception (2026-10-13): a `vNNN` Release publishes only from a green build (section 5).

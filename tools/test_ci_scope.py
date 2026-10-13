@@ -1,9 +1,11 @@
 """Exercise skipped coverage boundaries and complete git diffs, including renames."""
 
+import json
 import subprocess
 
 import pytest
 
+from tools import ci_scope
 from tools.ci_scope import FIELDS, changed_paths, classify, full_scope, select_scope
 
 
@@ -89,3 +91,41 @@ def test_rename_from_runtime_to_docs_cannot_hide_deleted_source(tmp_path):
 
 def test_diff_endpoints_cannot_be_git_options(tmp_path):
     assert select_scope("push", {"before": "--output=bad", "after": "HEAD"}, tmp_path) == full_scope()
+
+
+def test_a_release_run_verifies_everything_whatever_its_diff(tmp_path, monkeypatch):
+    """A docs- or frontend-only commit still ships the backend its parent left (green builds
+    only, operator decision 2026-10-13): a release run selects every check."""
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=tmp_path, text=True).strip()
+
+    git("init")
+    git("config", "user.name", "CI test")
+    git("config", "user.email", "ci@example.invalid")
+    readme = tmp_path / "README.md"
+    readme.write_text("base\n", encoding="utf-8")
+    git("add", "README.md")
+    git("commit", "-m", "base")
+    base = git("rev-parse", "HEAD")
+    readme.write_text("docs only\n", encoding="utf-8")
+    git("add", "README.md")
+    git("commit", "-m", "docs")
+    event = {"before": base, "after": git("rev-parse", "HEAD")}
+    assert select_scope("push", event, tmp_path)["backend"] is False
+    assert select_scope("push", event, tmp_path, full=True) == full_scope()
+
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    output = tmp_path / "out.txt"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.setenv(ci_scope.FULL_ENV, "false")
+    ci_scope.main()
+    assert "backend=false" in output.read_text(encoding="utf-8")
+    output.write_text("", encoding="utf-8")
+    monkeypatch.setenv(ci_scope.FULL_ENV, "true")
+    ci_scope.main()
+    assert set(output.read_text(encoding="utf-8").split()) == {f"{field}=true" for field in FIELDS}

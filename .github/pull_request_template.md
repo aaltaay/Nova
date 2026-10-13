@@ -61,4 +61,4 @@ Parked something new instead of fixing it? Open a `deferred` issue and link it h
 - [ ] Tree clean at finish: no stash, no leftover scratch worktree, `py -3 tools/repo_hygiene.py status` OK for what I own (`workspace-hygiene.mdc`)
 - [ ] This PR is ready (not draft) so GitHub Actions can merge it; I did not leave it parked waiting for a human merge ask; CI still running is not a draft reason
 - [ ] After merge/close the head is gone (`pr-delivery.yml` + `delete_branch_on_merge`; `stale_pr_branches.py` if a leftover remains)
-- [ ] Advisory verification status reported truthfully, including Desktop pack when applicable; pending/failed checks do not block merge
+- [ ] Verification status reported truthfully, including Desktop pack when applicable; pending/failed checks do not block merge (they do hold the Release)

@@ -2,6 +2,11 @@ name: CI scope
 
 on:
   workflow_call:
+    inputs:
+      full:
+        description: Select every check whatever the diff -- a release verifies everything it ships
+        type: boolean
+        default: false
     outputs:
       backend:
         value: ${{ jobs.select.outputs.backend }}
@@ -39,4 +44,6 @@ jobs:
         with:
           python-version: "3.13"
       - id: scope
+        env:
+          CI_SCOPE_FULL: ${{ inputs.full }}
         run: python tools/ci_scope.py

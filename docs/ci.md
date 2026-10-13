@@ -1,9 +1,13 @@
-# Advisory, change-aware CI
+# Change-aware CI: advisory for merge, required for a Release
 
 Owner decision, 2026-09-20: **no verification check is required for merge**.
 Ready PRs merge while checks are pending or running, or after failures. Red checks
 remain visible as feedback. Drafts, `do-not-merge`, forks and real conflicts retain
 their holds. Master still blocks force-push and deletion, including for admins.
+
+Owner decision, 2026-10-13: **"Things should only be shipped with green builds."**
+The desk's update feed offers whatever `vNNN` GitHub Release is newest, so a Release
+is a shipment, and it waits for green (see "Releases wait for a green build" below).
 
 | Changed files | Backend suite | Frontend lint/unit/build | Chromium E2E | Windows pack |
 |---|---|---|---|---|
@@ -53,5 +57,34 @@ the constitution/rules and the live branch setting together.
 Packaging attempts the Windows installer for relevant changes without delaying
 merge, and verifies its `latest.yml` update feed. Every master commit is tagged
 `vNNN`, and an application-affecting one is published as that GitHub Release
-(operator decision 2026-09-23, superseding #347's tag-only publishing). Broader
-CI audit follow-ups remain in #342.
+(operator decision 2026-09-23, superseding #347's tag-only publishing) once its
+build is green. Broader CI audit follow-ups remain in #342.
+
+## Releases wait for a green build
+
+A master run of `Desktop pack` (a human push, or PR delivery's dispatch after an
+Actions merge) packs the installer and, beside it, calls this CI workflow on the
+same commit as its `verify` job, `Release checks`, with `full: true`: every check
+runs whatever the diff, because a frontend-only commit still ships the backend its
+parent left. An Actions merge starts no CI run on master (#346), so this is the
+only CI the shipped commit itself gets.
+
+`Publish vNNN installer` then runs `tools/release_gate.py` before anything else. It
+reads the run's jobs at their latest attempt and publishes only when:
+
+| Must be green | Why |
+|---|---|
+| Desktop pack | the installer and its `latest.yml` exist and agree; the Windows maintenance tests pass |
+| Release checks / Backend tests | Ruff and the complete backend suite, order and risk safeguards included |
+| Release checks / Frontend build | lint, unit tests and the build |
+| Release checks / Frontend E2E | Chromium Playwright |
+| Release checks / Agent contract | tool tests, doc invariants, skills audit, the maintainer gate |
+
+Failed, cancelled, timed out, skipped, still running or missing all hold the
+Release: the job fails with "vNNN not published: <check> failed" in its summary and
+as an error annotation, and the desk is never offered that build. Gitleaks and the
+security scans stay warning-only and never hold one. **Re-run failed jobs** on that
+run (or `gh workflow run desktop-pack.yml --ref vNNN`); a green re-run publishes it,
+and it becomes latest only if no higher `vNNN` Release exists. Docs/site-only
+pushes pack nothing, so they get the tag and no Release, as before. The desk's
+update code is unchanged: it simply never sees a red build.

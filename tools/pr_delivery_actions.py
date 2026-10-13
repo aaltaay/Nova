@@ -185,8 +185,10 @@ def dispatch_desktop_pack(gh: GhFn, repo: str, ref: str = RELEASE_BRANCH) -> boo
     one of the two documented exceptions to that rule, so the same token can
     start the pack on purpose. Keeping `GITHUB_TOKEN` here means no release PAT.
 
-    This dispatch tags the merged commit `vNNN` and, when the installer packs,
-    publishes it as that GitHub Release (operator decision 2026-09-23).
+    This dispatch tags the merged commit `vNNN`, runs CI on it in full (an
+    Actions merge starts no CI run of its own) and, only when the installer
+    packed and those checks are green, publishes it as that GitHub Release
+    (operator decisions 2026-09-23 and 2026-10-13, `tools/release_gate.py`).
     """
     proc = gh(
         [

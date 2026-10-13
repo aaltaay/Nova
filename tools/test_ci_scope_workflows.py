@@ -66,7 +66,9 @@ def test_desktop_only_uses_windows_for_application_changes():
     assert "tools/test_windows_maintenance.py" in maintenance["run"]
     assert any(step.get("id") == "python" for step in steps)
     assert maintenance["if"] == reports_alone("desktop", setup="python")
-    assert "needs.desktop-pack.result == 'success'" in jobs["publish-release"]["if"]
+    # The release gate holds a Release whose pack (or any required check) is not green.
+    gate = next(s for s in jobs["publish-release"]["steps"] if s.get("name") == "Release only a green build")
+    assert gate["env"]["PACK_RESULT"] == "${{ needs.desktop-pack.result }}"
     assert "needs.changes.outputs.desktop == 'true'" in jobs["publish-release"]["if"]
     assert any(step.get("run") == "npm run electron:pack" for step in pack["steps"])
 
