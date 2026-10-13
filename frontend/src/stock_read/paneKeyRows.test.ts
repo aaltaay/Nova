@@ -16,7 +16,7 @@ describe("each chart pane's Key", () => {
       ['Forming', 'Armed / near', 'Ended (faint)', '5m trigger', 'Scored only']);
     const rows = chartKey('map', ON)[2].rows.map(r => r.label);
     // The 5-minute map keeps a round only where its candles made a level, which takes that level's colour.
-    expect(rows).toEqual(['Resistance', 'Support', 'Shaded band', 'Thick line']);
+    expect(rows).toEqual(['Resistance', 'Support', 'Shaded band', 'Thick line', 'One label a price']);
     // Yesterday's and old daily levels belong to the Full Day pane only.
     expect(rows).not.toContain("Yesterday's");
     expect(rows).not.toContain('Old daily level');
@@ -40,7 +40,7 @@ describe("each chart pane's Key", () => {
     const levels = chartKey('full', ON)[4].rows.map(r => r.label);
     // #847: the watch-only pullback dip's marks, in its own pink.
     expect(chartKey('full', ON)[2].rows.map(r => r.label)).toEqual(['Dip', 'Bottom', 'Entry candle']);
-    expect(levels).toEqual(['Resistance', 'Support', 'Round number', 'Shaded band', 'Thick line']);
+    expect(levels).toEqual(['Resistance', 'Support', 'Round number', 'Shaded band', 'Thick line', 'One label a price']);
   });
 
   it('names the trend lines each minute pane reads from its own candles, with their rising and falling swatches', () => {

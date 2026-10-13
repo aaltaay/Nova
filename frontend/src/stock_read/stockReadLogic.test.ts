@@ -223,9 +223,9 @@ describe('the charts', () => {
     expect(scene.boxes.filter(b => b.t2 === null)).toEqual([]);
     expect(scene.strategy).toMatchObject({ entry: 5.44, stop: 5.33, target: 5.49, target2: 5.99, side: 'long',
       name: 'BULL FLAG', word: 'strategy', startBars: null, endBars: null, when: '' });  // its window closed at 11:30
-    // Its prices are the edge column's words, faint, with no line of their own.
+    // Its prices are the edge column's words, faint, with no line of their own; target 2's too (2026-10-13).
     expect((scene.words ?? []).filter(w => w.id.startsWith('strategy:')).map(w => [w.text, w.style]))
-      .toEqual([['T1 5.49', 'plain'], ['entry 5.44', 'plain'], ['stop 5.33', 'plain']]);
+      .toEqual([['T2 5.99', 'plain'], ['T1 5.49', 'plain'], ['entry 5.44', 'plain'], ['stop 5.33', 'plain']]);
     // The box stays in view, stop to target 1; target 2 never stretches the pane.
     expect(scene.keepInView).toEqual({ min: 5.33, max: 5.49 });
     expect(lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
@@ -250,7 +250,7 @@ describe('the charts', () => {
     }
     expect(byId.entry.price).toBe(5.44);
     expect((scene.words ?? []).filter(w => w.id.startsWith('strategy:')).map(w => [w.text, w.price]))
-      .toEqual([['T1', 5.49], ['entry', 5.44], ['stop', 5.33]]);
+      .toEqual([['T2', 5.99], ['T1', 5.49], ['entry', 5.44], ['stop', 5.33]]);
     // The box stays in view, stop to target 1; target 2 at 5.99 never stretches the pane.
     expect(scene.keepInView).toEqual({ min: 5.33, max: 5.49 });
   });

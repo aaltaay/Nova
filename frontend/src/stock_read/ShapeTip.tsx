@@ -13,7 +13,8 @@ import { hoverTarget, useCandleCardOpen } from '../chart';
 import { laneHoverId } from './chartShapes';
 import { fiveMinuteLanes, lane5HoverId, past5HoverId } from './fiveMinuteShapes';
 import { FLAT_TOP_5M } from './flatTopShapes';
-import { levelStory } from './levelPicks';
+import { foldedStory } from './levelFold';
+import { levelStory } from './levelZone';
 import { laneStory, pastStory, type Episode } from './pastSetups';
 import { pastHoverId } from './pastShapes';
 import { trendStory } from './trendLines';
@@ -83,9 +84,12 @@ export function useShapeHover(
 
 /** The story of the box `id` names: a live lane's, a past setup's, a level's (its label or axis tick) or a trend
  * line's --
- * a 5-minute lane's or setup's (`lane5:` / `past5:`) named as one. */
+ * a 5-minute lane's or setup's (`lane5:` / `past5:`) named as one; a label that took others' names, each of theirs
+ * (`levelFold.foldedStory`). */
 export function shapeStory(id: string, read: StockRead, past: Episode[] | null,
   past5: Episode[] | null = null): ShapeStory | null {
+  const folded = foldedStory(id, part => shapeStory(part, read, past, past5));
+  if (folded) return folded;
   if (id.startsWith('level:')) return levelStory(id, read);
   if (id.startsWith('trend:')) return trendStory(id, read);
   const five = (s: ShapeStory | null) => (s ? { ...s, title: `5-minute · ${s.title}` } : null);
@@ -122,8 +126,8 @@ export function ShapeTip({ story, hover }: { story: ShapeStory; hover: ShapeHove
       {story.lines.map((line, i) => (
         <div key={i} className="sr-shape-tip__line">{line}</div>
       ))}
-      {story.sections?.map(sec => (
-        <div key={sec.head} className="sr-shape-tip__section">
+      {story.sections?.map((sec, i) => (
+        <div key={`${i}:${sec.head}`} className="sr-shape-tip__section">
           <div className="sr-shape-tip__head">{sec.head}</div>
           <ul className="sr-shape-tip__list">
             {sec.items.map((item, i) => <li key={i}>{item}</li>)}

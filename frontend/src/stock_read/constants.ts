@@ -154,12 +154,11 @@ export const LEVEL_COLORS = {
  * a bottom, VWAP or an old level takes that level's colour instead. */
 export const LEVEL_ROUND_LINE_ALPHA = 0.4;
 /** The trend lines (ADR 036 amendment 2026-10-12): brighter than the flat levels' colours so an angled line reads
- * apart from a horizontal one; a broken line is drawn at `brokenAlpha`, its name at `brokenLabelAlpha`. */
+ * apart from a horizontal one; a broken line is drawn at `brokenAlpha`, with no name at the edge (2026-10-13). */
 export const TREND_COLORS = {
   support: '#34d399',
   resistance: '#ff9f43',
   brokenAlpha: 0.45,
-  brokenLabelAlpha: 0.8,
 } as const;
 
 /** Which zones a pane draws with a line and a label (the rest are ticks on the price axis): per side the
@@ -167,6 +166,9 @@ export const TREND_COLORS = {
 export const LEVEL_MAP_WINDOW_PCT = 0.12;
 export const LEVEL_DAILY_WINDOW_PCT = 0.4;
 export const LEVEL_PER_SIDE = 3;
+/** One label per price (operator report 2026-10-13: "there are way too many lines here"): what sits within this share
+ * of a stronger line folds into it -- its name joins that line's label, its card that line's card (`levelFold.ts`). */
+export const LEVEL_FOLD_PCT = 0.01;
 
 /** The flat top's own look (operator's sketch, 2026-10-06): the violet level the candles tap, each touch ringed
  * lavender, the base boxed violet, and the break and the hold candle green. Faded for a lane that is not the plan's. */
