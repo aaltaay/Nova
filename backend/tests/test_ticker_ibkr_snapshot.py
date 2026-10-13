@@ -228,3 +228,55 @@ def test_without_tick9_todays_leaderboard_answers_and_else_none(monkeypatch):
         lb_store.write_batch(db, rows=[make_row(symbol="WHLR", minute_ts=minute, board="gainers",
                                                 source="recorded", rank=1, price=2.1, prev_close=1.87)])
     assert ticker_ibkr._prev_close_recorded("WHLR") == 1.87
+
+
+# --- ADR 054: the quote head's own read is a line held for a moment, timed ---
+
+
+def _cold_symbol(monkeypatch):
+    monkeypatch.setattr(ticker_ibkr, "find_ibkr_cache_row", lambda _s: None)
+    monkeypatch.setattr(ticker_ibkr, "_price_from_l1_stream", lambda _s: (None, None))
+    monkeypatch.setattr(ticker_ibkr, "_price_from_chart_bars", lambda _s: (None, None))
+    monkeypatch.setattr(ticker_ibkr, "_prev_close_recorded", lambda _s: None)
+
+
+def test_a_cold_symbol_is_read_from_a_brief_line_and_timed(monkeypatch):
+    """A 4 s snapshot never answered outside the session (IBKR's snapshot end is ~11 s): the head read nothing."""
+    import asyncio
+
+    from ibkr import brief_lines, client, qualified_contracts
+    from metrics import op_metrics
+    from tests.fakes.brief_line_ib import FakeIB, stock_qualifier
+
+    _cold_symbol(monkeypatch)
+    op_metrics.reset_for_tests()
+    qualified_contracts.clear_qualified_contracts(reason="test")
+    monkeypatch.setattr(brief_lines, "spare_lines", lambda: None)
+    ib = FakeIB({1: {"last": 1.47, "close": 1.30, "volume": 900.0}})
+    ib.qualifyContractsAsync = stock_qualifier()
+    monkeypatch.setattr(client, "get_ib", lambda: ib)
+    monkeypatch.setattr("ibkr.client.run_coro", lambda coro, timeout=None: asyncio.run(coro))
+    try:
+        snap = ticker_ibkr.fetch_ticker_snapshot_ibkr("CJMB")
+    finally:
+        qualified_contracts.clear_qualified_contracts(reason="test")
+    assert snap["latest_trade"]["price"] == 1.47 and snap["prev_close"] == 1.30
+    assert ib.cancelled == [1]                     # the line was the read's own: closed again
+    assert op_metrics.totals()["ticker.cold_quote"][0] == 1 and op_metrics.is_wall("ticker.cold_quote")
+    op_metrics.reset_for_tests()
+
+
+def test_no_spare_line_leaves_the_head_to_the_desks_own_line_untimed(monkeypatch):
+    from ibkr import brief_lines
+    from metrics import op_metrics
+
+    _cold_symbol(monkeypatch)
+    op_metrics.reset_for_tests()
+
+    def no_headroom(coro, timeout=None):
+        coro.close()
+        raise brief_lines.NoHeadroom("0 market-data lines spare")
+
+    monkeypatch.setattr("ibkr.client.run_coro", no_headroom)
+    assert ticker_ibkr.fetch_ticker_snapshot_ibkr("CJMB") == {}
+    assert "ticker.cold_quote" not in op_metrics.totals()

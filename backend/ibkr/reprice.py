@@ -2,7 +2,9 @@
 
 Extracted out of main.py (see PROBLEM_LOG 2026-07-14).
 
-- ``detail_reprice_loop``: 0–2 open ticker-detail symbols (panel backstop).
+- ``detail_reprice_loop``: 0–2 open ticker-detail symbols (panel backstop), each read from a line held for a
+  moment (``ibkr.brief_lines``, ADR 054) -- the desk's own line when it has one -- and timed as
+  ``ibkr.detail_reprice``. Its snapshot waited ~11 s outside the session.
 - ``table_reprice_loop``: retired compatibility/test helper. App lifespan does
   not start it; active-table freshness is owned by scanner_l1 ``reqMktData``.
 """
@@ -20,8 +22,10 @@ from constants import (
     IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC,
     IBKR_TABLE_REPRICE_INTERVAL_SEC,
 )
+from ibkr import brief_lines as _brief_lines
 from ibkr import discovery as _ibkr_discovery
 from ibkr import quote_rows as _quote_rows
+from metrics.op_metrics import record_since
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +62,10 @@ def reprice_detail_symbols(
     with snapshot_quotes and made trade_update feel 10–14s apart.
 
     ``is_stream_fresh`` (optional): when a symbol already has a live
-    ``reqMktData`` stream (``ibkr/ticks.py``) that ticked recently, this
-    reqTickersAsync snapshot is redundant and only adds IBKR-request-queue
-    contention with ``table_reprice_loop`` — skip both the snapshot and the
-    broadcast for that symbol entirely (ticks.py already owns its broadcasts).
-    Symbols with no fresh stream keep the exact prior snapshot-backstop
-    behavior, unchanged.
+    ``reqMktData`` stream (``ibkr/ticks.py``) that ticked recently, this read
+    is redundant -- skip both the read and the broadcast for that symbol
+    entirely (ticks.py already owns its broadcasts). A quiet stream is read
+    from its own line (no request); a symbol with no line gets one for a moment.
     """
     if not detail_symbols:
         return
@@ -76,7 +78,7 @@ def reprice_detail_symbols(
         return
     # Injected run_ibkr must accept a single coro (tests); production bridge
     # defaults on_error="none" so failures are None, not [].
-    quotes = run_ibkr(_ibkr_discovery.snapshot_quotes(backstop_symbols))
+    quotes = run_ibkr(_backstop_quotes(backstop_symbols))
     if not isinstance(quotes, dict):
         return
     for sym in backstop_symbols:
@@ -97,6 +99,22 @@ def reprice_detail_symbols(
         schedule_broadcast(
             sym, price, None, datetime.now(timezone.utc).isoformat(), volume, prev_close, "snapshot",
         )
+
+
+async def _backstop_quotes(symbols: list[str]) -> dict[str, dict]:
+    """The backstop's quotes from brief lines, timed as ``ibkr.detail_reprice``; ``{}`` while too few lines are spare
+    (the next pass asks again)."""
+    started_ns = time.perf_counter_ns()
+    try:
+        quotes = await _brief_lines.stock_quotes(symbols)
+    except _brief_lines.NoHeadroom as exc:  # maintainer: allow-swallow no spare line: nothing was asked, the next pass asks again
+        logger.debug("Detail reprice skipped: %s", exc)
+        return {}
+    except BaseException:
+        record_since("ibkr.detail_reprice", started_ns, ok=False, wall=True)
+        raise
+    record_since("ibkr.detail_reprice", started_ns, ok=True, wall=True)
+    return quotes
 
 
 def _patch_row(row: dict) -> dict:

@@ -8,7 +8,8 @@
 - ``industries``: each symbol's IBKR industry / category / subcategory (contract details).
 
 None of these keeps a line between reads (ADR 053 amendment 2026-10-13): every quote read refuses (``NoHeadroom``)
-while fewer than ``MARKET_MIN_FREE_LINES`` of the account's market-data lines are free, and none places anything.
+while fewer than ``IBKR_BRIEF_MIN_FREE_LINES`` of the account's market-data lines are spare (``ibkr.brief_lines``,
+ADR 054), and none places anything.
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import math
 import time
 from typing import Any
 
+from constants_ibkr import IBKR_BRIEF_LINE_BATCH, IBKR_BRIEF_LINE_WAIT_SEC, IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 from constants_market_board import (
     MARKET_CLOSES_DURATION,
     MARKET_HISTORY_TIMEOUT_SEC,
@@ -24,21 +26,16 @@ from constants_market_board import (
     MARKET_INDUSTRY_GAP_SEC,
     MARKET_LINE_BAR,
     MARKET_LINE_DURATION,
-    MARKET_MIN_FREE_LINES,
     MARKET_MOVERS_ROWS,
     MARKET_MOVERS_SCAN,
-    MARKET_STREAM_BATCH,
-    MARKET_STREAM_WAIT_SEC,
 )
-from market_board import brief_lines, contracts
+from ibkr import brief_lines
+from ibkr.brief_lines import NoHeadroom  # noqa: F401 -- refresh.py defers a read on it
+from market_board import contracts
 from market_board.state import Stated
 
 SOURCE = "ibkr"
 DATA_TYPES = {1: "live", 2: "frozen", 3: "delayed", 4: "delayed_frozen"}
-
-
-class NoHeadroom(Exception):
-    """Too few market-data lines are free: the page waits rather than compete with the desk."""
 
 
 class SourceError(Stated):
@@ -51,32 +48,9 @@ def ready() -> bool:
     return client.is_ready()
 
 
-def free_lines() -> int | None:
-    try:
-        from ibkr import ticks
-
-        return int(ticks.ticker_budget_status()["reqMktData_remaining"])
-    except Exception:  # noqa: BLE001 -- unknown budget: the guard below lets the read run as the desk's own reads do
-        return None
-
-
-def spare_lines() -> int | None:
-    """Lines free beyond Nova's own reserve for an opening Trader tab; ``None`` when unknown."""
-    from constants_ibkr import IBKR_L1_STREAM_RESERVE
-
-    free = free_lines()
-    return None if free is None else free - int(IBKR_L1_STREAM_RESERVE)
-
-
 def headroom_ok() -> bool:
-    spare = spare_lines()
-    return spare is None or spare >= MARKET_MIN_FREE_LINES
-
-
-def _guard() -> None:
-    spare = spare_lines()
-    if spare is not None and spare < MARKET_MIN_FREE_LINES:
-        raise NoHeadroom(f"{max(spare, 0)} market-data lines spare (the page needs {MARKET_MIN_FREE_LINES} to read)")
+    """Lines are spare for a brief read (``ibkr.brief_lines``); else the page reads prices from bars."""
+    return brief_lines.headroom_ok()
 
 
 def _run(coro, timeout: float, label: str):
@@ -111,13 +85,13 @@ def _quote(ticker: Any, spec: dict, contract: Any, error: str | None) -> dict:
 
 def _budget(contract_count: int) -> float:
     """The bridge's limit for a read of ``contract_count`` lines: every batch's wait, plus the qualify."""
-    batches = max(1, -(-contract_count // MARKET_STREAM_BATCH))
-    return MARKET_IBKR_TIMEOUT_SEC + batches * (MARKET_STREAM_WAIT_SEC + 1.0) + 5.0
+    batches = max(1, -(-contract_count // IBKR_BRIEF_LINE_BATCH))
+    return MARKET_IBKR_TIMEOUT_SEC + batches * (IBKR_BRIEF_LINE_WAIT_SEC + 1.0) + 5.0
 
 
 def reference_quotes(specs: list[dict], trading_date: str) -> dict[str, dict]:
     """``{spec id: quote}`` for every spec IBKR resolved; a refused one carries ``error`` and no numbers."""
-    _guard()
+    brief_lines.guard()
 
     async def _ask() -> dict[str, dict]:
         from ibkr import client, reference_errors
@@ -148,25 +122,6 @@ def reference_quotes(specs: list[dict], trading_date: str) -> dict[str, dict]:
     return _run(_ask(), budget, "market_board.reference_quotes") or {}
 
 
-async def _stock_contracts(ib: Any, symbols: list[str]) -> dict[str, Any]:
-    """``{SYM: qualified Stock}``, from Nova's qualified-contract cache first."""
-    from ib_async import Stock
-
-    from ibkr.qualified_contracts import remember_qualified_contract, take_qualified_contract
-
-    have = {sym: take_qualified_contract(sym) for sym in symbols}
-    missing = [sym for sym, c in have.items() if c is None]
-    if missing:
-        got = await asyncio.wait_for(ib.qualifyContractsAsync(*[Stock(sym, "SMART", "USD") for sym in missing]),
-                                     timeout=MARKET_IBKR_TIMEOUT_SEC)
-        for c in got or []:
-            sym = str(getattr(c, "symbol", "") or "").upper() if c is not None else ""
-            if sym and getattr(c, "conId", 0):
-                remember_qualified_contract(sym, c)
-                have[sym] = c
-    return {sym: c for sym, c in have.items() if c is not None}
-
-
 def stock_quotes(symbols: list[str]) -> dict[str, dict]:
     """``{SYM: {price, prev_close, no_trade}}`` for ETFs and stocks, each from a line held for a moment.
 
@@ -175,24 +130,20 @@ def stock_quotes(symbols: list[str]) -> dict[str, dict]:
     """
     if not symbols:
         return {}
-    _guard()
+    brief_lines.guard()
     wanted = [str(s).upper() for s in symbols]
 
     async def _ask() -> dict[str, dict]:
         from ibkr import client
 
-        ib = client.get_ib()
-        if ib is None:
+        if client.get_ib() is None:
             raise SourceError("IBKR is not connected")
-        by_sym = await _stock_contracts(ib, wanted)
-        tickers = await brief_lines.read(ib, list(by_sym.values()))
+        quotes = await brief_lines.stock_quotes(wanted, qualify_timeout=MARKET_IBKR_TIMEOUT_SEC)
         out: dict[str, dict] = {}
-        for sym, contract in by_sym.items():
-            ticker = tickers.get(contract.conId)
-            last, close = _num(getattr(ticker, "last", None)), _num(getattr(ticker, "close", None))
-            if last is None and close is None:
-                continue
-            out[sym] = {"price": last, "prev_close": close, "no_trade": last is None}
+        for sym, q in quotes.items():
+            no_trade = q["quote_quality"] == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
+            out[sym] = {"price": None if no_trade else q["price"], "prev_close": q["prev_close"],
+                        "no_trade": no_trade}
         return out
 
     return _run(_ask(), _budget(len(wanted)), "market_board.stock_quotes") or {}
@@ -286,7 +237,7 @@ def rth_closes(symbol: str) -> list[list]:
 
 def movers() -> list[str]:
     """IBKR's large-cap gainers scan (``MARKET_MOVERS_SCAN``), ranked symbols; the subscription is always cancelled."""
-    _guard()
+    brief_lines.guard()
     return movers_ranked()
 
 

@@ -120,9 +120,9 @@ Every production touch. Tests omitted. Kind: await / sync / `ib.client.*` / even
 | `ibkr/scanner_hydrate.py` | via snapshot_quotes | COLD | Roster commit after HTTP hop + re-fence. |
 | `hod_momo_enrichment.py` `run_ibkr(snapshot_quotes)` | bridge | COLD | |
 | `hod_momo_surge_seed.py` / `chart_bars.py` `run_coro` historicals | bridge | COLD | |
-| `ibkr/reprice.py` `run_ibkr(snapshot_quotes)` / `run_in_executor` | bridge | COLD | |
+| `ibkr/reprice.py` `run_ibkr(brief_lines.stock_quotes)` / `run_in_executor` | bridge | -- | A line held for a moment, no cold slot (ADR 054). |
 | `ibkr/listing_flags.py` `qualify` / `reqContractDetailsAsync` / `reqMktData` tick 236 | await / sync | COLD qualify + HOT mkt data | Shortability line is a dedicated `reqMktData`; keep on IB loop. |
-| `ticker_ibkr.py` `run_coro(snapshot_quotes)` | bridge | COLD | |
+| `ticker_ibkr.py` `run_coro(brief_lines.stock_quotes)` | bridge | -- | A line held for a moment, no cold slot (ADR 054). |
 | `journal/ibkr_import.py` `ib.fills()` | sync | HOT | IB-loop read. |
 | `strategy/executor.py` `ib.fills()` | sync | HOT | IB-loop read. |
 | `scanner_runners/afterhours.py` `run_ibkr` | bridge | COLD | |
