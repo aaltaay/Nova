@@ -224,7 +224,9 @@ box, no axis tags, no frame (`strategyBox.triggeredPlan`). A mark over its trigg
 (`triggerMark`, from the lead lane's `setup.triggered_at`; none without it): a triangle in the entry's blue, pointing
 up (down on a short), and "✓ GAP AND GO 09:31", which makes room as a past setup's label does -- "✓" alone while the
 labels are compact -- and tells the lane's story on hover. Where the lane already marks that candle (a flat top that
-entered on its break), its own mark says it. The 5-minute and 10-second panes keep its thin lines. A
+entered on its break), its own mark says it. It leaves the 5-minute and 10-second panes' thin lines too (operator
+report 2026-10-12, OFAL's first pullback in the Sim at 07:15: triggered at 07:05, its stop printed first at 07:10, and
+its four unnamed lines still crossed both charts -- "whatr these lines supposed to be?"). A
 level an order or a position stands behind, and the operator's own plan, draw the zones, lines and frame above. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
@@ -234,8 +236,8 @@ chart, all of a sudden it resized itself randomly"; owner `chart/operatorView.ts
 chart): once they move a pane with the wheel, a drag or a pinch, no newly leading setup frames it and
 no plan zones slide it, until a first paint (another symbol or timeframe, a Sim seek) or Reset chart
 hands it back; the badge and "show on chart" still frame on request. A setup is framed at most once
-per symbol, so a lead that goes back and forth between setups never reframes the pane. The 5-minute and 10-second charts mirror the plan's levels as thin lines,
-and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
+per symbol, so a lead that goes back and forth between setups never reframes the pane. The 5-minute and 10-second charts mirror the plan's levels as thin lines
+until a plan with nothing behind it triggers, and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
 1, value: {setups, levels, past, labels: "compact" | "full", hidden: string[], plan: "auto" | "open" |
 "folded"}}` keeps the switches (`past`, added 2026-09-29, reads true when a stored value lacks it;
 `labels`, added 2026-09-30, reads `compact` when a stored value lacks it or holds anything else). A decision's "show
@@ -505,12 +507,13 @@ the premarket high), else teal, so touching a top is not breaking it; VWAP alone
 blue dots, old daily levels violet dashes; a round number alone a faint solid gold line
 (`LEVEL_ROUND_LINE_ALPHA`, 0.4) whose label keeps the full colour. A strong zone's line is 2 px, any other 1.
 Every pane's corner carries a **Key** chip: pointed at, focused or pressed, it lists what each colour on that
-pane means -- the time-of-day background on the intraday panes, the levels, and on the 1-minute the
-setup boxes and the plan's lines. The plan
+pane means -- the time-of-day background on the intraday panes, the levels, on the 1-minute the
+setup boxes, and the plan's lines on every pane that draws them (the 5-minute Key lacked them until 2026-10-12, and its
+"5m trigger" row read like them). The plan
 card lists Room (T7's reading only in its hover since #845), Target 1, Target 2, Stop, "$ next" and "$ now", each one line with
 its detail on hover, and the ruler marks the `between` levels. The toolbar's Levels switch
-(`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. Nothing is drawn on a replay
-desk or the sample desk.
+(`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. On a replay desk they are the replay's
+at the playhead (ADR 052); nothing is drawn on the sample desk.
 
 **One column at a pane's right edge** (operator report 2026-09-30: "everything is getting on top of each
 other in the charts!"). The right edge had three owners -- the levels' labels stacked among themselves,

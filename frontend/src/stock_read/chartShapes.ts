@@ -23,7 +23,9 @@
  * box (`strategyBox.ts`), faint while forming and in full colour once near or armed: no zones, no line across the pane,
  * and a frame from its stop to target 1, never to target 2. Once armed its prices keep their axis tags (price lines
  * drawn without the line); a forming one's are the box's words alone. Once triggered it was taken or missed: no box, no
- * axis tags, no frame, only a mark over its trigger candle.
+ * axis tags, no frame, only a mark over its trigger candle -- and no thin lines on the 5-minute and 10-second panes
+ * either (operator report 2026-10-12, OFAL in the Sim at 07:15: a first pullback stopped at 07:10 still drew its four
+ * lines there, unnamed).
  */
 import type { Time } from 'lightweight-charts';
 import { SHORT_SETUP_CHIPS } from '../constantGroups/short_setups';
@@ -219,14 +221,14 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   const lv = held ? null : drawnLevels(plan, o.levels);
   // A setup's plan with only the plan behind it is its strategy box on the 1-minute pane, never zones and lines across
   // it (2026-10-12): forming, the box alone; once armed, its prices keep their axis tags and lose their lines; once
-  // triggered, taken or missed, nothing of it but a mark on its trigger candle.
+  // triggered, taken or missed, nothing of it on any pane but a mark on the 1-minute trigger candle.
   const boxed = lv !== null && boxedPlan(plan, lv);
   const forming = lv !== null && formingPlan(plan, lv);
   const triggered = lv !== null && triggeredPlan(plan, lv);
   if (o.layers.setups) {
     if (held && o.pane === 'thin') lines.push(...heldLines(held));
     const boxedHere = boxed && o.pane === 'full';
-    const offHere = (forming && boxedHere) || (triggered && o.pane === 'full');
+    const offHere = (forming && boxedHere) || triggered;
     if (lv && !offHere) lines.push(...planLines(plan, lv, o.pane, boxedHere));
     if (o.pane === 'full') {
       // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.

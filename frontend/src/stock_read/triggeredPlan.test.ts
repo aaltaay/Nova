@@ -1,7 +1,9 @@
 /**
  * A setup's plan that triggered with nothing behind it leaves the 1-minute chart (operator ask 2026-10-12, option A of
  * the mockups, on MNDR's Gap and Go box still beside the price at 09:55, 24 minutes after it triggered and 22 after the
- * eyes scored target 1 first): no box, no axis tags, no frame, only a mark over its trigger candle.
+ * eyes scored target 1 first): no box, no axis tags, no frame, only a mark over its trigger candle. It leaves the 5-minute
+ * and 10-second charts' thin lines too (operator report 2026-10-12, OFAL's first pullback in the Sim at 07:15, stopped
+ * at 07:10, its four lines still there with no names: "whatr these lines supposed to be?").
  */
 import type { Time } from 'lightweight-charts';
 import { describe, expect, it } from 'vitest';
@@ -67,12 +69,10 @@ describe('a triggered plan on the panes', () => {
     });
   });
 
-  it('keeps its thin lines on the 5-minute and 10-second panes', () => {
+  it('leaves the 5-minute and 10-second panes too: no thin lines (operator report 2026-10-12, OFAL in the Sim)', () => {
     for (const pane of ['map', 'thin'] as const) {
       const { lines } = paneDraw(read, { pane, layers: LAYERS, toTime: identity, highAt });
-      expect(lines.filter(l => PLAN_IDS.includes(l.id)).map(l => [l.id, l.width, l.line])).toEqual([
-        ['entry', 1, undefined], ['stop', 1, undefined], ['target', 1, undefined], ['target2', 1, undefined],
-      ]);
+      expect(lines.filter(l => PLAN_IDS.includes(l.id))).toEqual([]);
     }
   });
 
@@ -82,6 +82,13 @@ describe('a triggered plan on the panes', () => {
     expect(scene.boxes.filter(b => b.t2 === null)).toHaveLength(2);
     expect(lines.find(l => l.id === 'entry')).toMatchObject({ style: 'solid', width: 2 });
     expect((scene.marks ?? []).filter(m => m.hoverId === 'lane:bull_flag')).toEqual([]);
+    // The 5-minute and 10-second panes keep a trade's thin lines, the entry solid.
+    for (const pane of ['map', 'thin'] as const) {
+      const thin = paneDraw(read, { pane, layers: LAYERS, toTime: identity, highAt, levels });
+      expect(thin.lines.filter(l => PLAN_IDS.includes(l.id)).map(l => [l.id, l.width, l.style])).toEqual([
+        ['entry', 1, 'solid'], ['stop', 1, 'dashed'], ['target', 1, 'dashed'], ['target2', 1, 'dashed'],
+      ]);
+    }
   });
 
   it("leaves the candle to the flat top's own break mark when it entered on the break", () => {
