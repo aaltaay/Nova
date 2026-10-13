@@ -8,6 +8,8 @@ import {
   CHART_POSITION_SHORT_COLOR,
 } from './positionOverlayConstants';
 import {
+  deskDayFills,
+  deskTradingDay,
   fillsFromOrders,
   findOpenPosition,
   mergeFills,
@@ -177,6 +179,39 @@ describe('fillsFromOrders / mergeFills', () => {
   });
 });
 
+describe('deskTradingDay / deskDayFills', () => {
+  // A round trip on 2026-10-13 at 09:43 ET, flat again a minute later.
+  const buy = { orderId: 1, timeIso: '2026-10-13T13:43:15.000Z', price: 4.1, side: 'BUY' as const, qty: 100 };
+  const sell = { orderId: 2, timeIso: '2026-10-13T13:44:38.000Z', price: 4.25, side: 'SELL' as const, qty: 100 };
+  const yesterday = { orderId: 0, timeIso: '2026-10-12T14:00:00.000Z', price: 3.9, side: 'BUY' as const, qty: 100 };
+
+  it('starts the day at 04:00 ET, not midnight', () => {
+    expect(deskTradingDay(Date.parse('2026-10-13T07:59:00.000Z'))).toBe('2026-10-12'); // 03:59 ET
+    expect(deskTradingDay(Date.parse('2026-10-13T08:00:00.000Z'))).toBe('2026-10-13'); // 04:00 ET
+    expect(deskTradingDay(Date.parse('2026-10-14T00:30:00.000Z'))).toBe('2026-10-13'); // 20:30 ET
+  });
+
+  it("keeps today's round trip and drops the ledger's earlier days", () => {
+    const wall = Date.parse('2026-10-13T15:00:00.000Z');
+    expect(deskDayFills([yesterday, buy, sell], wall, null)).toEqual([buy, sell]);
+  });
+
+  it("draws nothing from today's wall clock on a replay of another day", () => {
+    const wall = Date.parse('2026-10-14T15:00:00.000Z');
+    expect(deskDayFills([buy, sell], wall, null)).toEqual([]);
+    const playhead = Date.parse('2026-10-13T14:00:00.000Z') / 1000;
+    expect(deskDayFills([buy, sell], wall, playhead)).toEqual([buy, sell]);
+  });
+
+  it('never draws a fill after the replay playhead (a rewind takes it off)', () => {
+    const wall = Date.parse('2026-10-14T15:00:00.000Z');
+    const between = Date.parse('2026-10-13T13:44:00.000Z') / 1000;
+    expect(deskDayFills([buy, sell], wall, between)).toEqual([buy]);
+    const before = Date.parse('2026-10-13T13:40:00.000Z') / 1000;
+    expect(deskDayFills([buy, sell], wall, before)).toEqual([]);
+  });
+});
+
 describe('seriesMarkersForFills', () => {
   const t0 = isoToEtTime('2026-09-11T13:30:00.000Z', false);
   const t1 = isoToEtTime('2026-09-11T13:31:00.000Z', false);
@@ -219,5 +254,14 @@ describe('seriesMarkersForFills', () => {
     expect(markers[0]?.position).toBe('aboveBar');
     expect(markers[0]?.color).toBe(CHART_POSITION_SHORT_COLOR);
     expect(markers[0]?.time).toBe(t1);
+  });
+
+  it("skips a fill before the pane's first candle instead of snapping it onto that candle", () => {
+    const markers = seriesMarkersForFills(
+      [{ orderId: 3, timeIso: '2026-09-11T13:29:50.000Z', price: 2.7, side: 'BUY', qty: 1 }],
+      index,
+      '1Min',
+    );
+    expect(markers).toEqual([]);
   });
 });
