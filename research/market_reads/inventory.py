@@ -4,8 +4,10 @@ from __future__ import annotations
 import ctypes
 import logging
 import os
+import queue
+import threading
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, as_completed, wait
 from pathlib import Path
 from typing import Any
 
@@ -104,25 +106,126 @@ def _desc(day: str) -> str:
 
 
 STOPPED = "stopped"
+STAGE_DIR = "nova-index-stage"  # inside --stage: the copies, ours alone, cleared at the start of a run
+STAGE_READ = 64 << 20           # the copy's reads off the hard drive
 
 
-def _build_one(path_str: str, bulk_read: int) -> tuple[str, str, float, int]:
+def _build_one(path_str: str, bulk_read: int, staged_str: str | None = None) -> tuple[str, str, float, int]:
     below_normal()
     path, root = Path(path_str), massive_files.root()
+    staged = Path(staged_str) if staged_str else None
     t0 = time.monotonic()
-    if (root / "sim" / "index" / INDEX_STOP).exists():       # each task checks: no task is ever left unrun
-        return path_str, STOPPED, 0.0, 0
-    if massive_index.is_current(path, root):
-        return path_str, "current", 0.0, path.stat().st_size
-    if massive_index.build(path, root, bulk_read=bulk_read) is not None:
-        state = "built"
-    elif massive_index.is_current(path, root):
-        state = "current (another build finished it)"
-    elif massive_index.path_for(path, root).with_name(f"{massive_index.path_for(path, root).name}.lock").exists():
-        state = "skipped (another build holds it)"
-    else:   # build() logs why and returns None when the index cannot be written (a full disk, a read-only folder)
-        raise RuntimeError(f"{path_str}: the index was not saved, so this day still reads the slow way")
-    return path_str, state, time.monotonic() - t0, path.stat().st_size
+    try:
+        if (root / "sim" / "index" / INDEX_STOP).exists():       # each task checks: no task is ever left unrun
+            return path_str, STOPPED, 0.0, 0
+        if massive_index.is_current(path, root):
+            return path_str, "current", 0.0, path.stat().st_size
+        if massive_index.build(path, root, bulk_read=bulk_read, read_from=staged) is not None:
+            state = "built"
+        elif massive_index.is_current(path, root):
+            state = "current (another build finished it)"
+        elif massive_index.path_for(path, root).with_name(f"{massive_index.path_for(path, root).name}.lock").exists():
+            state = "skipped (another build holds it)"
+        else:   # build() logs why and returns None when the index cannot be written (a full disk, a read-only folder)
+            raise RuntimeError(f"{path_str}: the index was not saved, so this day still reads the slow way")
+        return path_str, state, time.monotonic() - t0, path.stat().st_size
+    finally:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
+
+
+def _copy(path: Path, stage: Path) -> Path:
+    """``path`` copied to ``stage`` in one stream of big reads; the copy appears only once it is whole."""
+    dst = stage / f"{path.parents[2].name}__{path.name}"
+    part = dst.with_name(f"{dst.name}.part")
+    buf = bytearray(STAGE_READ)
+    view = memoryview(buf)
+    with open(path, "rb", buffering=0) as src, open(part, "wb", buffering=0) as out:
+        while n := src.readinto(buf):
+            written = 0
+            while written < n:
+                written += out.write(view[written:n])
+    os.replace(part, dst)
+    return dst
+
+
+class _Stager(threading.Thread):
+    """Copies the files, in order and one at a time, off the hard drive to the stage folder and hands each copy to
+    the pool, so the drive serves a single stream (6 builds reading it at once, 2026-10-12: 121 MB/s with the head
+    busy; one stream: 213 MB/s). At most ``budget`` bytes of copies wait or build at once; a copy that cannot be
+    made (a full stage) stops the copying, and the builds in progress finish."""
+
+    def __init__(self, pool: ProcessPoolExecutor, files: list[Path], stage: Path, budget: int, stop_file: Path):
+        super().__init__(name="index-stager", daemon=True)
+        self.pool, self.files, self.stage, self.budget, self.stop_file = pool, files, stage, budget, stop_file
+        self.futures: queue.Queue = queue.Queue()
+        self.room = threading.Condition()
+        self.held = 0
+        self.stopped = self.broke = False
+        self.skipped = 0
+
+    def _release(self, size: int) -> None:
+        with self.room:
+            self.held -= size
+            self.room.notify_all()
+
+    def run(self) -> None:
+        root = massive_files.root()
+        try:
+            for path in self.files:
+                if self.stop_file.exists():
+                    self.stopped = True
+                    return
+                if massive_index.is_current(path, root):     # built since the run started (an import, another run)
+                    self.skipped += 1
+                    continue
+                size = path.stat().st_size
+                with self.room:
+                    self.room.wait_for(lambda: self.held == 0 or self.held + size <= self.budget)  # noqa: B023
+                    self.held += size
+                try:
+                    copy = _copy(path, self.stage)
+                except OSError as exc:
+                    self._release(size)
+                    self.broke = True
+                    log.warning("index: could not copy %s to %s (%s); no more files start", path, self.stage, exc)
+                    return
+                try:
+                    future = self.pool.submit(_build_one, str(path), 0, str(copy))
+                except RuntimeError as exc:   # a broken pool (a worker died): nothing more can build
+                    copy.unlink(missing_ok=True)
+                    self._release(size)
+                    self.broke = True
+                    log.warning("index: the builds stopped (%s); no more files start", exc)
+                    return
+                future.add_done_callback(lambda _f, size=size: self._release(size))
+                self.futures.put(future)
+        finally:
+            self.futures.put(None)
+
+    def completed(self):
+        """Each build as it finishes, until the copying is over and every build it handed out has finished."""
+        pending: set = set()
+        feeding = True
+        while feeding or pending:
+            try:
+                while feeding:
+                    item = self.futures.get(timeout=0 if pending else 0.5)
+                    if item is None:
+                        feeding = False
+                    else:
+                        pending.add(item)
+            except queue.Empty:
+                pass
+            if pending:
+                done, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
+                yield from done
+
+
+def _clear_stage(stage: Path) -> None:
+    """The copies a run that ended without cleaning up left behind (only ours: the stage folder is ours)."""
+    for left in [*stage.glob("*__*.csv.gz"), *stage.glob("*__*.csv.gz.part")]:
+        left.unlink(missing_ok=True)
 
 
 def todo(datasets: list[str], start: str | None, end: str | None, oldest_first: bool) -> list[Path]:
@@ -135,12 +238,17 @@ def todo(datasets: list[str], start: str | None, end: str | None, oldest_first: 
 
 
 def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str | None = None,
-                  end: str | None = None, oldest_first: bool = False) -> int:
+                  end: str | None = None, oldest_first: bool = False, stage: Path | None = None,
+                  stage_gb: float = 40.0) -> int:
     """Build every missing index, ``workers`` files at a time; the number that failed. Logged to the index folder.
 
     Stops after the files in progress when ``<root>/sim/index/STOP`` appears: every task left checks the file and
     returns at once, so the run ends. (Cancelling the pool's queue instead left a task it had already handed out
     unrun, and the run waited on it forever, 2026-10-12.) Resumable: a rerun skips what is built.
+
+    ``stage``: a folder on another drive (an SSD). Each file is copied there in one stream, at most ``stage_gb`` of
+    copies at a time, and built from the copy, which is deleted after (``_Stager``); without it the builds read the
+    day files where they are.
     """
     below_normal()
     root = massive_files.root()
@@ -154,13 +262,24 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
     total = sum(path.stat().st_size for path in files)
     stop_file = log_path.parent / INDEX_STOP
     stop_file.unlink(missing_ok=True)
-    log.info("index: %d day files to index (%.1f GB of gzip) in %s, %d workers, %d MB reads", len(files),
-             total / 1e9, ",".join(datasets), workers, read_mb)
+    if stage is not None:
+        stage = stage / STAGE_DIR
+        stage.mkdir(parents=True, exist_ok=True)
+        _clear_stage(stage)
+    log.info("index: %d day files to index (%.1f GB of gzip) in %s, %d workers, %s", len(files), total / 1e9,
+             ",".join(datasets), workers,
+             f"copied one at a time to {stage} ({stage_gb:g} GB at most)" if stage else f"{read_mb} MB reads")
     log.info("index: pid %d; to stop after the files in progress, create %s", os.getpid(), stop_file)
-    done_bytes, t0, failed, stopped = 0, time.monotonic(), 0, 0
+    done_bytes, t0, failed, stopped, finished = 0, time.monotonic(), 0, 0, 0
+    stager = None
     with ProcessPoolExecutor(workers) as pool:
-        futures = [pool.submit(_build_one, str(path), read_mb << 20) for path in files]
-        for future in as_completed(futures):
+        if stage is None:
+            results = as_completed([pool.submit(_build_one, str(path), read_mb << 20) for path in files])
+        else:
+            stager = _Stager(pool, files, stage, int(stage_gb * 1e9), stop_file)
+            stager.start()
+            results = stager.completed()
+        for future in results:
             try:
                 path_str, state, secs, size = future.result()
             except Exception as exc:  # noqa: BLE001 -- one bad file is logged; the rest go on
@@ -172,10 +291,17 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
                     log.info("index: %s found; finishing the files in progress, starting no more", stop_file)
                 stopped += 1
                 continue
+            finished += 1
             done_bytes += size
             rate = done_bytes / max(time.monotonic() - t0, 1e-6)
             left = (total - done_bytes) / rate if rate else 0
             log.info("index: %s %s in %.0f s; %.1f of %.1f GB, %.0f MB/s, about %.1f h left", path_str, state,
                      secs, done_bytes / 1e9, total / 1e9, rate / 1e6, left / 3600)
+    if stager is not None:
+        stager.join()
+        if stager.broke:
+            failed += 1
+        unstarted = len(files) - finished - failed - stager.skipped
+        stopped = unstarted if (stager.stopped or stager.broke or stopped) else 0
     log.info("index: %s, %d failed", f"stopped with {stopped} files left" if stopped else "finished", failed)
     return failed

@@ -12,6 +12,7 @@ import {
   ibkrStatus, practiceAccount, rowFor, tickerDetail, whyBatch, whyFor, type Venue, SMPL,
 } from './data/desk';
 import { cryptoBoard } from './data/crypto';
+import { chartEvents } from './data/events';
 import { DAY, NOW_S } from './data/market';
 import { botAudit, botSession, hotList, practiceHistory, setupRows, setupsBoard, shortProof, stockModes } from './data/pages';
 import { decisions, history, pastSetups, stockMode, stockRead, targetChoices } from './data/read';
@@ -118,6 +119,7 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/chart-drawings\/([^/]+)$/, () => ({ drawings: [] })],
     [/^\/api\/ticker\/([^/]+)\/bars$/, (m, q) => ({ bars: barsFor(sym(m), q.get('timeframe') ?? '1Min', venue), coverage: venue === 'sim' ? REPLAY_COVERAGE : null })],
     [/^\/api\/ticker\/([^/]+)$/, (m) => tickerDetail(sym(m))],
+    [/^\/api\/chart-events\/([^/]+)$/, (m) => chartEvents(sym(m))],
     [/^\/api\/stock-read\/([^/]+)\/history$/, (m) => history(sym(m), SMPL.daily)],
     [/^\/api\/stock-read\/([^/]+)\/past-setups$/, (m, q) => pastSetups(sym(m), q.get('tf'))],
     [/^\/api\/stock-read\/([^/]+)\/decisions$/, (m) => decisions(sym(m))],

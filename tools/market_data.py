@@ -21,6 +21,7 @@ Usage (from the repo root):
 
   py -3 tools/market_data.py status
   py -3 tools/market_data.py index --workers 3
+  py -3 tools/market_data.py index --workers 6 --stage C:\\Nova-stage   (each file copied to an SSD, then built)
   py -3 tools/market_data.py trades GME 2021-01-27 --from 09:30 --to 09:35 --out gme.parquet
   py -3 tools/market_data.py quotes GME 2021-01-27 --from 09:30 --to 09:31
   py -3 tools/market_data.py bars GME 2021-01-27 --tf 10s --from 09:30 --to 10:00
@@ -84,8 +85,10 @@ def cmd_index(args) -> int:
         print("indexed_gzip is not installed: py -3 -m pip install -r backend/requirements.txt", file=sys.stderr)
         return 2
     datasets = args.datasets.split(",") if args.datasets else list(inventory.DATASETS)
+    stage = Path(args.stage) if args.stage else None
     return 1 if inventory.build_indexes(datasets, workers=args.workers, read_mb=args.read_mb, start=args.start,
-                                        end=args.end, oldest_first=args.oldest_first) else 0
+                                        end=args.end, oldest_first=args.oldest_first, stage=stage,
+                                        stage_gb=args.stage_gb) else 0
 
 
 def _adjusted(frame, args):
@@ -150,7 +153,12 @@ def main(argv: list[str] | None = None) -> int:
     index = sub.add_parser("index", help="build the missing seek indexes")
     index.add_argument("--workers", type=int, default=3)
     index.add_argument("--read-mb", type=int, default=16,
-                       help="MB read from a file at a time: bigger streams faster, smaller leaves the drive to others")
+                       help="buffer of the file object a build is handed; kept for older command lines, it changes "
+                            "nothing (indexed_gzip reads through the file's descriptor)")
+    index.add_argument("--stage", help="a folder on an SSD: copy each day file there in one stream and build from "
+                                       "the copy, so the hard drive serves one reader; the copies are deleted as "
+                                       "their builds finish")
+    index.add_argument("--stage-gb", type=float, default=40.0, help="at most this many GB of copies at once")
     index.add_argument("--datasets", help=f"comma list, default {','.join(inventory.DATASETS)}")
     index.add_argument("--start", help="first day (YYYY-MM-DD)")
     index.add_argument("--end", help="last day (YYYY-MM-DD)")
