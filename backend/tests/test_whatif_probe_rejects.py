@@ -150,6 +150,19 @@ def test_a_what_if_reqid_is_the_probes_only_for_a_while():
     assert margin_whatif.probe_line(f"Error 201, reqId 78: {CASH_SHORT}") is None
 
 
+def test_a_what_if_reqid_is_the_probes_only_in_the_session_that_sent_it(monkeypatch):
+    """PR #918 review: a reconnect builds a new IBKR session, and the Live and paper Gateways number their
+    ids apart. A real order there that reuses the probe's reqId must keep its ERROR."""
+    from ibkr import client
+
+    monkeypatch.setattr(client, "current_generation", lambda: 7)
+    margin_whatif._note(77, "SELL 10 ABC @ 3", "ABC")
+    line = f"Error 201, reqId 77: {CASH_SHORT}"
+    assert margin_whatif.probe_line(line) is not None
+    monkeypatch.setattr(client, "current_generation", lambda: 8)     # reconnected: READY bumped it
+    assert margin_whatif.probe_line(line) is None
+
+
 def test_a_refused_stock_is_not_asked_again_before_the_retry_gap(monkeypatch):
     from ibkr import client
 

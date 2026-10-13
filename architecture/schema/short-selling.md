@@ -70,7 +70,8 @@ one until it is complete ("Live readiness" below) -- and a bot never trades Live
   again for that stock and side no sooner than `SHORT_WHATIF_RETRY_SEC` (60 s; also after no answer),
   though the ticket and the plan poll every 3-5 s. ib_async logs the refusal as an ERROR. Nova's log
   filter (`ibkr/log_filters.py`) rewrites a 201 on a what-if's reqId -- one `margin_whatif` sent within
-  `SHORT_WHATIF_REQID_TTL_SEC` -- as a WARNING with the plain reason. Any other code on a what-if's reqId
+  `SHORT_WHATIF_REQID_TTL_SEC` on the same IBKR session (`ibkr.client.current_generation`; a reconnect
+  or a Gateway switch numbers ids anew) -- as a WARNING with the plain reason. Any other code on a what-if's reqId
   (110 included) stays an ERROR with the probe named, and a reject on an order's reqId is untouched. The
   margin rule's text says why IBKR's figure is missing, and its `numbers.whatif_error` carries the
   reason.
