@@ -1,5 +1,5 @@
 ---
-description: Change-aware CI; ready PRs merge without waiting for verification; a Release waits for green
+description: Change-aware CI; a PR merges and a Release ships only when the four required checks are green
 globs: .github/workflows/**,tools/ci_scope.py,tools/test_ci_scope*.py
 alwaysApply: false
 ---
@@ -18,10 +18,14 @@ alwaysApply: false
   idempotency and live opt-in gates), Chromium E2E and desktop packaging.
 - Electron, build scripts, dependency manifests, CI, tools and unknown paths run
   all application checks. Never infer a safe skip from a missing/failed diff.
-- Merging is advisory by explicit owner decision (2026-09-20). Pending, failed,
-  cancelled, skipped and missing checks never prevent ready PRs from merging.
-  Branch protection has no required status checks. Keep force-push/deletion blocked.
-- Releasing is not (owner decision 2026-10-13, green builds only). Desktop pack's
+- Merging is green only (owner decision 2026-10-13, "Merge only green PRs too").
+  `Auto-merge` `needs` Backend tests, Frontend build, Frontend E2E and Agent contract
+  and `decide()` (`tools/pr_checks.py`) merges only when each concluded success at
+  its newest run on the head; a red one holds with a PR comment, a running one waits.
+  Scope never skips one of the four at GitHub's level: an inapplicable job concludes
+  success after "Unaffected", so docs-only PRs merge. Branch protection has no
+  required status checks (the merge job is the gate). Keep force-push/deletion blocked.
+- Releasing is green only too (owner decision 2026-10-13). Desktop pack's
   `verify` job (`Release checks`) calls `deploy.yml` with `full: true` on the commit
   it packed, so nothing is scope-skipped; `Publish vNNN installer` runs
   `tools/release_gate.py` first and publishes only when the pack and Backend tests,
@@ -34,7 +38,9 @@ alwaysApply: false
   manual dispatch. PRs affecting packaging attempt the installer without delaying
   merge. Every master commit is tagged `vNNN`; a green application-affecting one
   also publishes its GitHub Release (operator decision 2026-09-23, supersedes #347's
-  tag-only publishing). Docs/site-only pushes pack nothing and get the tag only.
+  tag-only publishing). Docs/site-only pushes pack nothing and get the tag only; a
+  PR merged by Actions is dispatched, which selects everything, so it packs and is
+  released once green even when it only changed docs.
 - Keep secret scanning on every PR. Advisory source scanners run on source changes;
   dependency scanning runs on manifest changes; all run daily and on manual dispatch.
 - Repository branch cleanup/protection audits belong in scheduled maintenance,
@@ -45,4 +51,4 @@ alwaysApply: false
 - Security discovery follows the explicitly called local security workflow so moving
   scanners does not create false missing-scanner findings.
 - Drafts, do-not-merge, forks and actual merge conflicts retain their existing holds.
-  Auto-merge has no dependency on verification jobs and does not poll their statuses.
+  Auto-merge runs master's merge tool, never the PR's own copy of the gate.

@@ -85,9 +85,9 @@ Fill `.github/pull_request_template.md` completely.
 
 The PR is the task narrative. Do not also create a task-log file for the same work. It joins any linked branch already in the issue's Development panel rather than replacing it.
 
-## 5. Verification: advisory for merge, required for a Release
+## 5. Verification: green before a merge and before a Release
 
-Run relevant checks for feedback; do not delay merge for pending or failed results:
+Run relevant checks before you push. Actions merges a PR only when Backend tests, Frontend build, Frontend E2E and Agent contract pass on its head (operator decision 2026-10-13, "Merge only green PRs too"); a red one is held with a comment naming the check, and a green re-run or a fix merges it with no one acting:
 
 ```text
 py -3 -m pytest backend/tests -q
@@ -103,9 +103,9 @@ Also run `py -3 tools/doc_invariants.py`, the agent contract for rules/skills, a
 
 Application-affecting PRs run advisory Desktop pack to attempt the Windows installer. Do not wait for it before merging; report actual results truthfully.
 
-Every commit that lands on master is tagged `vNNN` (commit count from the first commit) by `Desktop pack`, and an application-affecting one is published as that GitHub Release with `Nova-Setup-vNNN.exe`, its `.blockmap` and `latest.yml` (operator decision 2026-09-23, superseding #347's tag-only publishing) -- **only from a green build** (operator decision 2026-10-13: "Things should only be shipped with green builds"). The same Desktop pack run calls CI on that commit with every check selected (`Release checks`), and `Publish vNNN installer` publishes only when the pack and Backend tests, Frontend build, Frontend E2E and Agent contract all passed; otherwise it fails with "vNNN not published: <check> failed" (`tools/release_gate.py`), the desk's update feed never sees that build, and a green re-run of the failed jobs publishes it. Docs/site-only commits get the tag and no Release. GitHub's Source code zip/tar is automatic and is not the app.
+Every commit that lands on master is tagged `vNNN` (commit count from the first commit) by `Desktop pack`, and an application-affecting one is published as that GitHub Release with `Nova-Setup-vNNN.exe`, its `.blockmap` and `latest.yml` (operator decision 2026-09-23, superseding #347's tag-only publishing) -- **only from a green build** (operator decision 2026-10-13: "Things should only be shipped with green builds"). The same Desktop pack run calls CI on that commit with every check selected (`Release checks`), and `Publish vNNN installer` publishes only when the pack and Backend tests, Frontend build, Frontend E2E and Agent contract all passed; otherwise it fails with "vNNN not published: <check> failed" (`tools/release_gate.py`), the desk's update feed never sees that build, and a green re-run of the failed jobs publishes it. A docs/site-only human push gets the tag and no Release; a PR merged by Actions is dispatched with every check selected, so it packs and, when green, is released even if it only changed docs. GitHub's Source code zip/tar is automatic and is not the app.
 
-Do not claim a check passed without evidence. Failed checks remain visible but do not block merge; they do hold the commit's Release.
+Do not claim a check passed without evidence. A red check holds both the merge and the commit's Release; fix it or re-run it.
 
 ## 6. Close decision
 
@@ -172,7 +172,7 @@ GitHub `delete_branch_on_merge` is on. That is a backup sweep, not a skip. If Gi
 Required policy (SSOT: `tools/master_branch_protection.py`):
 
 - Block force-push and deletion, including for admins (`enforce_admins`).
-- Require no status checks before merge; merging is advisory (a Release still needs green, section 5).
+- Require no status checks in branch protection: the merge job is the gate (green only, section 5), and status-only pushes stay possible.
 - Do **not** require pull-request reviews (solo repo -- that deadlocks merges).
 - Do **not** require a pull request to push. Status-only `master` commits stay allowed. The AI news digest must not push `master` -- it opens a ready PR from `chore/ai-news-digest`.
 
@@ -194,11 +194,11 @@ A verified, non-draft PR targeting `master` is finished work. GitHub Actions mer
 - Hourly / `workflow_run` sweep in `.github/workflows/pr-delivery.yml` catches leftovers.
 - Closed PR heads are deleted by that same workflow plus `delete_branch_on_merge`.
 - Hold a PR with draft or label `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker is documented in the PR.
-- Dirty (conflict) PRs stay open; failed checks do not block merge -- rebase or fix, do not leave them for the human to babysit if you can rebase in-session.
+- Dirty (conflict) and red PRs stay open -- rebase, fix or re-run; do not leave them for the human to babysit if you can do it in-session.
 
 Do not end a coding session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line. The pile of idle PRs is a delivery bug.
 
 Current-tip preservation overrides mandatory head deletion: follow `branch-cleanup.mdc`. Never delete a recreated/unmerged or squash-only tip automatically; the guarded command rechecks ancestry and uses a SHA lease.
 
 
-Owner policy (2026-09-20): merging is advisory. Ready PRs merge while checks run or fail. Do not wait for Desktop pack. No required status checks; retain force-push/deletion protection. This supersedes older verification-before-merge wording below. Releases are the exception (2026-10-13): a `vNNN` Release publishes only from a green build (section 5).
+Owner policy (2026-10-13): green only. A ready PR merges once the four checks pass on its head, and a `vNNN` Release publishes only from a green build (section 5). Desktop pack on a PR is not one of the four. No required status checks in branch protection (the merge job is the gate); retain force-push/deletion protection. This supersedes the 2026-09-20 advisory-merge wording.

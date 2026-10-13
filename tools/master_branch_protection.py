@@ -5,7 +5,8 @@ Closes the Security Overview hole: "Your master branch isn't protected."
 
 Policy (solo public repo):
 - Block force-push and deletion, including for admins.
-- All CI checks are advisory; ready PRs can merge while checks run or fail.
+- No required status checks: Actions' merge job is the gate (green only,
+  tools/pr_checks.py), and status-only master pushes must keep working.
 - Do not require pull-request reviews (would deadlock a solo merge).
 - Do not require a PR to push (status-only master commits).
 - The AI news digest must not push master -- it opens a ready PR from
@@ -190,7 +191,7 @@ def evaluate(
 
     have = required_contexts(protection)
     if have:
-        reasons.append("CI must be advisory; remove required status checks: " + ", ".join(sorted(have)))
+        reasons.append("The merge job is the gate; remove required status checks: " + ", ".join(sorted(have)))
     if (protection.get("required_status_checks") or {}).get("strict"):
         reasons.append("Up-to-date CI requirement must be disabled.")
 

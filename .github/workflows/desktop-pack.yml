@@ -12,8 +12,10 @@
 # "Things should only be shipped with green builds"). A master run -- a human
 # push, or PR delivery's dispatch after an Actions merge (#346) -- does three things:
 #   - `tag-commit` tags the commit vNNN through the API, for every commit,
-#     docs/site-only included (those get the tag and no Release: a Release
-#     without latest.yml would break the in-app update feed);
+#     docs/site-only included. A docs/site-only human push gets the tag and no
+#     Release (a Release without latest.yml would break the in-app update feed);
+#     PR delivery's dispatch selects every check, so a docs-only merge packs and,
+#     when green, is released like any other;
 #   - `verify` (Release checks) calls the CI workflow on this exact commit with
 #     every check selected, beside the pack. An Actions merge starts no CI run
 #     on master, so this is the only verification the shipped commit gets;

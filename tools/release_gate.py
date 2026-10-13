@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Publish a vNNN Release only from a green build (operator decision 2026-10-13).
 
+Also the one home of "the build": ``REQUIRED_CHECKS`` and ``check_states`` are
+what Actions' merge decision reads on a PR's head too (``tools/pr_checks.py``,
+operator decision 2026-10-13: "Merge only green PRs too").
+
 "Things should only be shipped with green builds." The desk's update feed
 offers whatever GitHub Release is newest, so the Release is the shipment. The
 Desktop pack run that packs a commit also calls the CI workflow on that same
@@ -12,8 +16,8 @@ Release, and the gate says which check held it -- in the job summary and as an
 error annotation -- so the operator can see why no update arrived.
 
 The required checks are the verification jobs CI runs on every PR: the four
-that were master's required status checks until the 2026-09-20 advisory-merge
-decision. The security scanners stay warning-only, as their own workflow says.
+that were master's required status checks until the 2026-09-20 decision to merge
+without them. The security scanners stay warning-only, as their own workflow says.
 
 Usage (the Desktop pack workflow's `Publish vNNN installer` job):
   gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs?filter=latest&per_page=100" > jobs.json
@@ -56,7 +60,7 @@ _WORDS = {
 }
 
 
-def _documents(text: str) -> list[Any]:
+def documents(text: str) -> list[Any]:
     """`gh api --paginate` prints one JSON document per page, back to back."""
     decoder = json.JSONDecoder()
     docs: list[Any] = []
@@ -70,20 +74,24 @@ def _documents(text: str) -> list[Any]:
         docs.append(doc)
 
 
-def load_jobs(text: str) -> list[dict[str, Any]]:
-    """Every job in the pages (or a `--slurp` array of pages, or a bare job list)."""
+def load_jobs(text: str, key: str = "jobs") -> list[dict[str, Any]]:
+    """Every job in the pages (or a `--slurp` array of pages, or a bare list).
+
+    ``key`` is the listing's array: ``jobs`` for a run's jobs, ``check_runs``
+    for a commit's check runs (a job's id is its check run's id).
+    """
     jobs: list[dict[str, Any]] = []
-    pending: list[Any] = list(_documents(text))
+    pending: list[Any] = list(documents(text))
     while pending:
         doc = pending.pop(0)
         if isinstance(doc, list):
             pending[:0] = doc
-        elif isinstance(doc, dict) and isinstance(doc.get("jobs"), list):
-            jobs.extend(job for job in doc["jobs"] if isinstance(job, dict))
+        elif isinstance(doc, dict) and isinstance(doc.get(key), list):
+            jobs.extend(job for job in doc[key] if isinstance(job, dict))
         elif isinstance(doc, dict) and "name" in doc:
             jobs.append(doc)
         else:
-            raise ValueError("not a jobs listing")
+            raise ValueError(f"not a {key} listing")
     return jobs
 
 
@@ -104,6 +112,28 @@ def _state(result: str | None) -> str:
     return _WORDS.get(result, result)
 
 
+def check_states(
+    runs: list[dict[str, Any]], aliases: dict[str, list[str]],
+) -> list[tuple[str, str, bool]]:
+    """``(check, what happened, finished)`` for each check not green; empty means green.
+
+    ``aliases`` maps each required check to the job names it may appear under.
+    Only its newest run counts. ``finished`` is False while the result can still
+    turn green with no one acting (not reported yet, queued, running), True for a
+    result that needs a re-run or a fix (failed, cancelled, timed out, skipped).
+    """
+    states: list[tuple[str, str, bool]] = []
+    for check, names in aliases.items():
+        run = _latest(runs, names)
+        if run is None:
+            states.append((check, "has not reported", False))
+        elif str(run.get("status") or "").lower() != "completed":
+            states.append((check, f"is still {run.get('status') or 'pending'}", False))
+        elif str(run.get("conclusion") or "").lower() != "success":
+            states.append((check, _state(run.get("conclusion")), True))
+    return states
+
+
 def verdict(
     jobs: list[dict[str, Any]],
     pack_result: str,
@@ -115,14 +145,8 @@ def verdict(
     held: list[tuple[str, str]] = []
     if (pack_result or "").strip().lower() != "success":
         held.append((PACK_CHECK, _state(pack_result)))
-    for check in required:
-        job = _latest(jobs, [f"{caller} / {check}" for caller in callers])
-        if job is None:
-            held.append((check, "did not run"))
-        elif str(job.get("status") or "").lower() != "completed":
-            held.append((check, f"is still {job.get('status') or 'pending'}"))
-        elif str(job.get("conclusion") or "").lower() != "success":
-            held.append((check, _state(job.get("conclusion"))))
+    aliases = {check: [f"{caller} / {check}" for caller in callers] for check in required}
+    held += [(check, state) for check, state, _finished in check_states(jobs, aliases)]
     return held
 
 

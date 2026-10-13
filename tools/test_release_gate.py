@@ -67,7 +67,7 @@ def test_a_skipped_check_is_not_a_green_one():
 
 def test_a_missing_or_unfinished_check_holds_the_release():
     jobs = [j for j in green_run() if j["name"] != f"{CHECKS_PREFIX} / Agent contract"]
-    assert verdict(jobs, "success") == [("Agent contract", "did not run")]
+    assert verdict(jobs, "success") == [("Agent contract", "has not reported")]
     jobs.append(job("Agent contract", None, status="in_progress"))
     assert verdict(jobs, "success") == [("Agent contract", "is still in_progress")]
 
@@ -76,7 +76,7 @@ def test_only_the_release_checks_count_not_a_same_named_job_elsewhere():
     """A PR run's bare `Backend tests` is another commit's verdict, not this one's."""
     jobs = [j for j in green_run() if j["name"] != f"{CHECKS_PREFIX} / Backend tests"]
     jobs.append({"id": 7, "name": "Backend tests", "status": "completed", "conclusion": "success"})
-    assert verdict(jobs, "success") == [("Backend tests", "did not run")]
+    assert verdict(jobs, "success") == [("Backend tests", "has not reported")]
 
 
 def test_the_call_counts_under_its_job_id_as_well_as_its_name():
