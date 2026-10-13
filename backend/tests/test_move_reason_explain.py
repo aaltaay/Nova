@@ -34,6 +34,9 @@ def test_mndr_reads_low_float_momentum_and_says_why_it_is_not_a_squeeze():
     assert out["likely"]["kind"] == "low_float_momentum"
     steps = ladder(out)
     assert steps["move"]["fits"] is True and steps["move"]["why"] == "+204.7% today"
+    # A news halt, never an LULD pause (operator report 2026-10-13: "Not halted for news" read as one).
+    assert steps["news_pending"] == {"kind": "news_pending", "name": "Halted for news", "fits": False,
+                                     "why": "No news halt open (T1 / T12)"}
     assert steps["news"] == {"kind": "news", "name": "Company news", "fits": False,
                              "why": "Only movers lists and market wraps"}
     squeeze = steps["short_squeeze"]
