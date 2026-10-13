@@ -47,7 +47,7 @@ async def get_day(date: str | None = None):
     try:
         day = await asyncio.to_thread(feed.fetch_day, base, date)
     except feed.FeedError as exc:
-        return view.feed_down(exc.state, str(exc), date, now)
+        return view.feed_down(exc.state, exc.message, date, now)
     prices = prices_state(day)
     open_trades = sorted((t for t in day["trades"] if t["status"] == "open"), key=lambda t: t["entry_ts"],
                          reverse=True)
@@ -89,7 +89,7 @@ async def get_record(range: str = "week", date: str | None = None):  # noqa: A00
     try:
         got = await asyncio.to_thread(feed.fetch_trades, base, start, end)
     except feed.FeedError as exc:
-        return view.records_down(exc.state, str(exc), range, now)
+        return view.records_down(exc.state, exc.message, range, now)
     ready = _ibkr_ready()
     body = view.records(got, span=range, now=now, exit_for=_exit_for(now, ready))
     exits.pump(now, ibkr_ready=ready)
@@ -113,7 +113,7 @@ async def get_evidence(date: str, name: str):
     try:
         body = await asyncio.to_thread(feed.fetch_evidence, base, date, name)
     except feed.FeedError as exc:
-        return _error(502, FOLLOWED_ERR_FEED_UNREACHABLE, str(exc))
+        return _error(502, FOLLOWED_ERR_FEED_UNREACHABLE, exc.message)
     # An event's image never changes once written.
     return Response(body, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 

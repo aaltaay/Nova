@@ -8,6 +8,7 @@ are ignored. The feed's format: architecture/schema/followed-traders.md.
 """
 from __future__ import annotations
 
+import logging
 import math
 import re
 from datetime import datetime
@@ -22,6 +23,7 @@ from followed_traders.constants_followed import (
     FOLLOWED_USER_AGENT,
 )
 
+logger = logging.getLogger(__name__)
 POOL = "followed_traders"
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 EVIDENCE_RE = re.compile(r"^frames/([0-9a-f]{32})\.jpg$")
@@ -35,6 +37,7 @@ class FeedError(RuntimeError):
     def __init__(self, state: str, message: str) -> None:
         super().__init__(message)
         self.state = state
+        self.message = message  # Nova's own words, the only text a route sends (never str(exc))
 
 
 def fetch_day(base: str, date: str | None, *, timeout: float = FOLLOWED_FEED_TIMEOUT_SEC) -> dict[str, Any]:
@@ -78,7 +81,8 @@ def _get(url: str, *, params: dict | None, timeout: float, accept: str, stream: 
     except requests.Timeout as exc:
         raise FeedError("unreachable", f"timed out after {timeout:.0f} s") from exc
     except requests.RequestException as exc:
-        raise FeedError("unreachable", f"could not connect ({type(exc).__name__})") from exc
+        logger.info("followed traders: the feed at %s did not answer: %s", url, type(exc).__name__)
+        raise FeedError("unreachable", "could not connect") from exc
     if resp.status_code != 200:
         resp.close()
         raise FeedError("unreachable", f"HTTP {resp.status_code}")
