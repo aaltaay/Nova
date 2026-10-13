@@ -34,22 +34,6 @@ _FACT_KEYS = ("price", "change_pct", "volume", "rel_volume", "float_shares", "fl
               "short_interest_ts", "short_above_float", "days_to_cover", "split", "halts", "borrow", "catalyst")
 
 
-def _replay_desk() -> bool:
-    from sim.mode import is_replay_desk
-
-    try:
-        return bool(is_replay_desk())
-    except Exception:
-        logger.warning("why it's moving: the Sim live edge is unreadable -- the desk counts as a replay", exc_info=True)
-        return True
-
-
-def _playhead() -> float:
-    from sim import session_clock
-
-    return session_clock.now_et().timestamp()
-
-
 def not_read_on_replay(symbol: str, playhead: float) -> dict:
     """The answer on a Sim replay desk no record reaches: the replayed day named, no checks, no facts. The
     absence is certain, so its confidence is ``likely``."""
@@ -69,8 +53,12 @@ def not_read_on_replay(symbol: str, playhead: float) -> dict:
 
 
 def why(symbol: str, now: float | None = None) -> dict:
-    if _replay_desk():
-        return replay_read(symbol, _playhead())
+    # The playhead off the live edge (``sim.replay_playhead``; an unreadable edge counts as a replay), else None.
+    from sim.replay_playhead import replay_playhead
+
+    playhead = replay_playhead()
+    if playhead is not None:
+        return replay_read(symbol, playhead)
     now = time.time() if now is None else now
     return _answer(facts_mod.gather(symbol, now), now, replay=False)
 
