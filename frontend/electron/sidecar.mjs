@@ -15,7 +15,7 @@ import {
   pickNovaEnvPath,
   readEnvValue,
 } from './envMerge.mjs';
-import { engineIdentity, isNewEngine, restartCheckoutEngine, startOwnerEngine } from './engineRestart.mjs';
+import { engineIdentity, isNewEngine, postJson, restartCheckoutEngine, startOwnerEngine } from './engineRestart.mjs';
 import { SIDECAR_PORT_FREE_TIMEOUT_MS, waitForPortFree } from './portWait.mjs';
 import { createSerialQueue, createSharedRun } from './serialQueue.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
@@ -394,10 +394,14 @@ export function restartApiSidecar() {
  * fresh v1030 engine the watchdog had started -- three minutes down at the open).
  * @returns {Promise<{from: string | null, to: string | null}>}
  */
-export function reloadEngine() {
+export function reloadEngine(reason = 'the operator reloaded the backend') {
   if (sharedReload.running()) console.log('[nova-api] reload already running -- joining it');
+  else reloadReason = reason;
   return sharedReload.run();
 }
+
+/** Why the running reload stops the engine; the engine logs it (POST /api/diagnostics/stop). */
+let reloadReason = null;
 
 const sharedReload = createSharedRun(() => sidecarQueue.enqueue(async () => {
   const before = await engineIdentity(API_BASE);
@@ -406,7 +410,10 @@ const sharedReload = createSharedRun(() => sidecarQueue.enqueue(async () => {
       apiBase: API_BASE,
       port: API_PORT,
       ownRoot: repoRootFromElectron(),
-      waitForPortFree: () => waitForPortFree(API_HOST, API_PORT),
+      waitForPortFree: (timeoutMs) => waitForPortFree(API_HOST, API_PORT, timeoutMs),
+      apiKey: getDesktopApiKey,
+      reason: reloadReason,
+      post: postJson,
     });
   }
   await restartOwnUnlocked();

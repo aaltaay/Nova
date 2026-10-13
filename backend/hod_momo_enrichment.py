@@ -33,6 +33,7 @@ from constants import (
     HOD_MOMO_RVOL_USE_PACE,
     IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
 )
+from hod_momo_day_moves import day_moves
 from market import pace_relative_volume
 from runtime_state import get_runtime_state
 
@@ -116,15 +117,7 @@ async def universe_enrichment_loop() -> None:
                             continue
                         price_f = float(price)
                         vol = int(q["volume"]) if q.get("volume") is not None else 0
-                        prev = q.get("prev_close")
-                        change_pct = None
-                        if prev:
-                            try:
-                                prev_f = float(prev)
-                                if prev_f > 0:
-                                    change_pct = (price_f - prev_f) / prev_f * 100.0
-                            except (TypeError, ValueError):
-                                change_pct = None
+                        change_pct, gap_pct = day_moves(sym, price_f, q)
 
                         avg_for_5min = ibkr_avg_volume(sym)
                         rvol = None
@@ -143,6 +136,7 @@ async def universe_enrichment_loop() -> None:
                             rvol=rvol,
                             volume=vol if vol else None,
                             change_pct=change_pct,
+                            gap_pct=gap_pct,
                             rvol_source=rvol_source,
                             avg_volume=avg_for_5min,
                         )

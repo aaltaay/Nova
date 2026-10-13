@@ -253,3 +253,32 @@ def test_flush_broadcast_failure_is_recorded(monkeypatch):
     stats = op_metrics.snapshot()["operations"]["ws.scanner.price_patch_buffer_to_broadcast"]
     assert stats["count"] == 1
     assert stats["error_count"] == 1
+
+
+def test_hod_keeps_its_owner_on_a_line_it_shares_with_a_table():
+    """2026-10-13: a table row HOD also wanted lost HOD's owner, so leaving the table cancelled its line and
+    HOD opened it again a beat later -- 204 flaps on 52 names, PFAI's among them."""
+    plan = plan_stream_symbols(["PFAI", "AIXI"], ["PFAI", "YJ"], budget=10, tab_max=5)
+    assert plan["tab"] == ["PFAI", "AIXI"]
+    assert plan["hod"] == ["YJ"]  # the budget counts PFAI once, as a table line
+    assert plan["hod_owned"] == ["PFAI", "YJ"]
+
+
+def test_hod_owns_only_what_streams():
+    plan = plan_stream_symbols(["T1"], ["H1", "H2", "H3"], budget=2, tab_max=1)
+    assert plan["hod"] == ["H1"]
+    assert plan["hod_owned"] == ["H1"]  # H2 / H3 were rejected for the budget: no line to own
+
+
+def test_reconcile_gives_hod_the_rows_it_shares_with_a_table(monkeypatch):
+    """The reconcile pass hands HOD's owner every HOD-wanted row, a table's included."""
+    calls = _stub_owner_symbols(monkeypatch)
+    _reset_reconcile_state()
+    asyncio.run(scanner_l1._reconcile_once(
+        lambda: "ibkr",
+        lambda: ["gappers"],
+        lambda table: ["PFAI", "AIXI"],
+        lambda: ["PFAI", "YJ"],
+    ))
+    assert calls[_ticks.OWNER_SCANNER] == ["PFAI", "AIXI"]
+    assert calls[_ticks.OWNER_HOD] == ["PFAI", "YJ"]

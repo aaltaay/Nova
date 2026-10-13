@@ -50,7 +50,13 @@ def plan_stream_symbols(
     budget: int | None = None,
     tab_max: int = IBKR_L1_ACTIVE_TAB_MAX,
 ) -> dict[str, Any]:
-    """Pure planner: reserve tab slots first, then HOD, dedupe, reject overflow."""
+    """Pure planner: reserve tab slots first, then HOD, dedupe, reject overflow.
+
+    ``hod`` is the HOD-only slots (the budget's count). ``hod_owned`` is every HOD-wanted symbol that streams,
+    a table row's included: HOD's owner must stay on a line it shares with a table, or the line is cancelled
+    when the row leaves its table and opened again a beat later. That was 204 cancel-and-reopen flaps on 52
+    names in the 2026-10-13 premarket, PFAI's among them while it ran.
+    """
     cap = int(budget if budget is not None else budget_for_streams())
     tab_cap = max(0, min(int(tab_max), cap))
     tab: list[str] = []
@@ -81,9 +87,15 @@ def plan_stream_symbols(
         seen.add(sym)
         hod.append(sym)
 
+    tab_set = set(tab)
+    hod_owned = list(dict.fromkeys(
+        sym for sym in ((raw or "").strip().upper() for raw in hod_symbols)
+        if sym and (sym in tab_set or sym in hod)
+    ))
     return {
         "tab": tab,
         "hod": hod,
+        "hod_owned": hod_owned,
         "combined": tab + [s for s in hod if s not in tab],
         "rejected": rejected,
         "budget": cap,

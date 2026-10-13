@@ -22,7 +22,6 @@ from zoneinfo import ZoneInfo
 
 from constants import (
     HOD_MOMO_RVOL_5MIN_SESSION_MINUTES,
-    HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC,
     HOD_MOMO_RVOL_5MIN_USE_TOD,
     HOD_MOMO_RVOL_5MIN_WINDOW_SEC,
 )
@@ -147,23 +146,10 @@ def _et_minute_of_day(ts: float | None) -> int:
 
 
 def tod_cum_frac(et_minute: int) -> float:
-    """Interpolate cumulative daily volume fraction at ET minute-of-day."""
-    knots = HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC
-    if not knots:
-        return 0.0
-    if et_minute <= knots[0][0]:
-        return float(knots[0][1])
-    if et_minute >= knots[-1][0]:
-        return float(knots[-1][1])
-    for i in range(1, len(knots)):
-        m0, f0 = knots[i - 1]
-        m1, f1 = knots[i]
-        if et_minute <= m1:
-            if m1 == m0:
-                return float(f1)
-            t = (et_minute - m0) / (m1 - m0)
-            return float(f0 + t * (f1 - f0))
-    return float(knots[-1][1])
+    """Interpolate cumulative daily volume fraction at ET minute-of-day (``market.volume_curve_fraction``)."""
+    from market import volume_curve_fraction
+
+    return volume_curve_fraction(et_minute)
 
 
 def tod_5min_session_fraction(et_minute: int | None = None, ts: float | None = None) -> float:

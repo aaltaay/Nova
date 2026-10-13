@@ -47,12 +47,16 @@ def age_gate(
     p95 = round(float(p95), 2)
     mx = round(float(mx), 2)
     if mx > max_limit or p95 > p95_limit:
-        return check(
+        failed = check(
             cid,
             "fail",
             f"{label}: p95={p95:.2f}s max={mx:.2f}s "
             f"(need p95<={p95_limit:g}s max<={max_limit:g}s)",
         )
+        # Only the max over: one name is late, the feed is not -- the banner
+        # still fails, but it never mutes the alerts of every other name.
+        failed["breadth"] = "feed" if p95 > p95_limit else "one_symbol"
+        return failed
     if p95 > p95_limit * 0.75:
         return check(
             cid,
