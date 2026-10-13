@@ -5,11 +5,11 @@ from __future__ import annotations
 def snapshot() -> dict[str, int]:
     from archive import bar_builder
     from fundamentals import cache_size as fundamentals_size
-    from ibkr import discovery, tape_stream
+    from ibkr import qualified_contracts, tape_stream
 
     tape_stream.prune_idle_maps()
     return {
-        "discovery_qualified_contracts": discovery.qualified_contract_count(),
+        "discovery_qualified_contracts": qualified_contracts.qualified_contract_count(),
         "tape_subscribe_locks": len(tape_stream._subscribe_locks),
         "tape_cancelled_at": len(tape_stream._cancelled_at),
         "fundamentals_cache": fundamentals_size(),

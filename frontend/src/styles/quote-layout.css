@@ -933,6 +933,12 @@
   margin-bottom: 0.5rem;
 }
 
+/* This list's News Time column is still the flame alone; the boards' Catalyst column is 11rem (scanner-table-cols.css). */
+.catalysts-table.table-wrapper--scanner .scanner-col--newest_headline_at {
+  width: 3.3rem;
+  max-width: 3.3rem;
+}
+
 .catalyst-headline-cell {
   max-width: 360px;
 }

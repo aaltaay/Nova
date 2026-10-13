@@ -159,6 +159,13 @@ HOD_MOMO_SESSION_FOCUS_STRATEGY_IDS = frozenset({2, 10, 11})
 
 # Enrichment loop intervals
 HOD_MOMO_ENRICH_INTERVAL_SEC = 30.0          # batch snapshot enrichment cadence
+# discovery=ibkr: the most one enrichment pass spends snapshotting the names with no live Level 1 line,
+# under IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC (25) so the bridge never cancels it and loses what answered.
+# Off hours IBKR takes up to ~11 s per 5-symbol snapshot; 40 names timed out at 25 s every pass (#891).
+HOD_MOMO_ENRICH_SNAPSHOT_BUDGET_SEC = 18.0
+# ...and at most this many of those names per pass, the longest since their last try first, so a name
+# IBKR never answers cannot hold the same place in front of the rest every pass.
+HOD_MOMO_ENRICH_SNAPSHOT_MAX = 10
 HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC = 2.0  # fundamentals per-symbol drain cadence
 HOD_MOMO_FUNDAMENTALS_BATCH_SIZE = 10            # symbols per fundamentals tick (warm up faster)
 # mark_needs_fundamentals() only fires once (when float/52wk-high are unknown), so
