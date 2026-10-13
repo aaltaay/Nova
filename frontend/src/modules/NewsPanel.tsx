@@ -4,6 +4,7 @@ import { NewsHeadlineSection } from '../components/NewsHeadlineSection';
 import { WhyMovingSection } from '../components/WhyMovingSection';
 import { useCatalystPanel } from '../hooks/useCatalystPanel';
 import { useWhyMoving } from '../hooks/useWhyMoving';
+import { useSimReplayPlayhead } from '../sim';
 import type { TickerDetail } from '../types/ticker';
 import { timeAgo } from '../utils/quoteFormat';
 
@@ -19,8 +20,9 @@ export function NewsPanel({ detail, wrapped = false, includeImpact = true }: Pro
   // The catalyst verdict (ADR 024) when this desk can read it; the sample desk and an API from
   // before the route keep the headline strip and its rules-v1 impact read.
   const catalyst = useCatalystPanel(detail.symbol);
-  // Why it's moving (ADR 028): the rules read of the move, above the news that may or may not explain it.
-  const why = useWhyMoving(detail.symbol);
+  // Why it's moving (ADR 028): the rules read of the move, above the news that may or may not explain it. On a
+  // Sim replay it reads as of the playhead, and a rewind reads it again.
+  const why = useWhyMoving(detail.symbol, useSimReplayPlayhead());
   const news = detail.news ?? [];
   const impact = includeImpact ? detail.news_impact : null;
   const useVerdict = !catalyst.unavailable;

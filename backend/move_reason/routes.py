@@ -3,9 +3,10 @@
   GET /api/why/{symbol}   the checks and the likely cause for one symbol (the Trader tab's News panel)
 
 Read-only; no network wait (``move_reason/facts.py`` reads caches, the halt log and the borrow record).
-On a Sim replay desk (the Sim off its live edge) nothing is read: the news verdict, Yahoo's float and short
-interest and IBKR's borrow are all today's, so the answer says the replayed day is not read rather than
-show today's facts on a past day's desk (``not_read_on_replay``).
+On a Sim replay desk (the Sim off its live edge) the read is the replayed day's as of the playhead, never
+today's: ``move_reason/replay_facts.py`` reads each fact from a record that reaches the playhead, and a fact
+none reaches is unknown with the reason. Only when no record reaches it at all does the answer say the
+moment is not read (``not_read_on_replay``).
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from constants_move_reason import (
     MOVE_SCHEMA_VERSION,
 )
 from move_reason import facts as facts_mod
-from move_reason import rules
+from move_reason import replay_facts, rules
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["move_reason"])
@@ -33,25 +34,9 @@ _FACT_KEYS = ("price", "change_pct", "volume", "rel_volume", "float_shares", "fl
               "short_interest_ts", "short_above_float", "days_to_cover", "split", "halts", "borrow", "catalyst")
 
 
-def _replay_desk() -> bool:
-    from sim.mode import is_replay_desk
-
-    try:
-        return bool(is_replay_desk())
-    except Exception:
-        logger.warning("why it's moving: the Sim live edge is unreadable -- the desk counts as a replay", exc_info=True)
-        return True
-
-
-def _playhead() -> float:
-    from sim import session_clock
-
-    return session_clock.now_et().timestamp()
-
-
 def not_read_on_replay(symbol: str, playhead: float) -> dict:
-    """The answer on a Sim replay desk: the replayed day named, no checks, no facts. The absence is certain,
-    so its confidence is ``likely``."""
+    """The answer on a Sim replay desk no record reaches: the replayed day named, no checks, no facts. The
+    absence is certain, so its confidence is ``likely``."""
     day = datetime.fromtimestamp(playhead, ET)
     return {
         "schema_version": MOVE_SCHEMA_VERSION,
@@ -68,10 +53,25 @@ def not_read_on_replay(symbol: str, playhead: float) -> dict:
 
 
 def why(symbol: str, now: float | None = None) -> dict:
-    if _replay_desk():
-        return not_read_on_replay(symbol, _playhead())
+    # The playhead off the live edge (``sim.replay_playhead``; an unreadable edge counts as a replay), else None.
+    from sim.replay_playhead import replay_playhead
+
+    playhead = replay_playhead()
+    if playhead is not None:
+        return replay_read(symbol, playhead)
     now = time.time() if now is None else now
-    facts = facts_mod.gather(symbol, now)
+    return _answer(facts_mod.gather(symbol, now), now, replay=False)
+
+
+def replay_read(symbol: str, playhead: float) -> dict:
+    """The replayed day's read as of ``playhead``: every fact from a record that reaches it, nothing after it."""
+    facts = replay_facts.gather(symbol, playhead)
+    if not replay_facts.readable(facts):
+        return not_read_on_replay(symbol, playhead)
+    return _answer(facts, playhead, replay=True)
+
+
+def _answer(facts: dict, now: float, *, replay: bool) -> dict:
     read = rules.read(facts, now)
     return {
         "schema_version": MOVE_SCHEMA_VERSION,
@@ -79,7 +79,7 @@ def why(symbol: str, now: float | None = None) -> dict:
         "generated_at": now,
         "session_date": datetime.fromtimestamp(now, ET).date().isoformat(),
         "rules_version": MOVE_RULES_VERSION,
-        "replay": False,
+        "replay": replay,
         "likely": read["likely"],
         "checks": read["checks"],
         "facts": {**{k: facts.get(k) for k in _FACT_KEYS}, **read["derived"]},

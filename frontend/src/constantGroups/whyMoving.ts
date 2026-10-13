@@ -2,12 +2,17 @@
 
 export const WHY_MOVING_PATH = '/api/why';
 export const WHY_MOVING_POLL_MS = 60_000;
+/** On a Sim replay, read again once the playhead is this far (seconds of replay time) past the last read. */
+export const WHY_MOVING_REPLAY_REFRESH_SEC = 60;
 export const WHY_MOVING_TITLE = "Why it's moving";
 export const WHY_MOVING_DEFAULT_EXPANDED = false;
 export const WHY_MOVING_READING = 'Reading the move ...';
 export const WHY_MOVING_RULES_NOTE =
   'A rules read of the facts below, not advice. Short interest is reported twice a month about two weeks late; borrow is IBKR\'s, every 15 minutes.';
 export const WHY_MOVING_POSSIBLE_TITLE = 'A deciding fact is unknown (see the ? rows)';
+/** A Sim replay's read: "Sim replay, read as of Oct 2 10:31 ET" then the suffix. */
+export const WHY_MOVING_REPLAY_PREFIX = 'Sim replay, read as of';
+export const WHY_MOVING_REPLAY_SUFFIX = '-- every fact is from then or before, never after.';
 
 /** Likely causes (backend `MOVE_KIND_*`) by tone: a squeeze loud, news green, the rest quiet. */
 export const WHY_MOVING_TONES: Record<string, string> = {

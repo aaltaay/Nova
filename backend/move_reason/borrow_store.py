@@ -92,6 +92,12 @@ def last_poll(db: sqlite3.Connection, before: float | None = None) -> tuple[floa
     return (row[0], row[1]) if row else None
 
 
+def poll_at(db: sqlite3.Connection, ts: float) -> tuple[float, float | None] | None:
+    """The last complete poll at or before ``ts`` -- ``(ts, file_ts)`` -- or None before the first one kept."""
+    row = db.execute("SELECT ts, file_ts FROM polls WHERE ts <= ? ORDER BY ts DESC LIMIT 1", (ts,)).fetchone()
+    return (row[0], row[1]) if row else None
+
+
 def value_at(db: sqlite3.Connection, symbol: str, ts: float) -> dict[str, Any] | None:
     """The symbol's value at ``ts``: None before the first poll; ``listed: False`` if never listed."""
     known = db.execute("SELECT 1 FROM polls WHERE ts <= ? LIMIT 1", (ts,)).fetchone()
