@@ -15,6 +15,7 @@ import { ArrowDown, ArrowUp, ChevronDown } from 'lucide-react';
 import { openBotSymbolMenu } from '../bot';
 import { HodMomoStripRow, groupIsNew, useStripRowWindow, type HodStripView } from '../hod_momo';
 import { CatalystCell } from '../components/CatalystCell';
+import { CatalystPlayheadSync } from '../hooks/useCatalystRead';
 import { NewsCell } from '../components/NewsCell';
 import { TICKER_OPEN_TRADER_TITLE } from '../constants';
 import { WatchMark } from '../watch_list';
@@ -299,6 +300,9 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
         </div>
       )}
       {hover && <FocusRailHoverCard hover={hover} onEnter={keepCard} onLeave={hideCard} />}
+      {/* The Catalyst reads are shared with every table: a move between a replay and the live desk must drop them
+          here too, or the Trader alone could show a replay's cause until the next read (PR #886 review). */}
+      <CatalystPlayheadSync />
     </section>
   );
 }

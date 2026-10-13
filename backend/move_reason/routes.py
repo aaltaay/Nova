@@ -69,18 +69,21 @@ def why(symbol: str, now: float | None = None) -> dict:
 
 def why_many(symbols: list[str], board: str | None = None, now: float | None = None) -> dict:
     """Each symbol's read, as ``why`` answers it; with ``board``, each read at that board's row and price. One
-    symbol's failure is that symbol's (``errors``), never the batch's. The halt log is read once for all."""
+    symbol's failure is that symbol's (``errors``), never the batch's. The halt log is read once for all, and on a
+    Sim replay so is the board at the playhead."""
     from sim.replay_playhead import replay_playhead
 
     playhead = replay_playhead()
     at = playhead if playhead is not None else (time.time() if now is None else now)
-    halts = facts_mod.halts_many(symbols, at) if playhead is None else None
+    halts = facts_mod.halts_many(symbols, at)
+    # On a replay the board at the playhead is read once for the batch, not once per symbol.
+    snapshot = replay_facts.board_snapshot(playhead) if playhead is not None else None
     reads: dict[str, dict | None] = {}
     errors: dict[str, str] = {}
     for sym in symbols:
         try:
             if playhead is not None:
-                reads[sym] = replay_read(sym, playhead, board)
+                reads[sym] = replay_read(sym, playhead, board, snapshot, (halts or {}).get(sym))
             else:
                 facts = facts_mod.gather(sym, at, board=board, halts=(halts or {}).get(sym))
                 reads[sym] = _answer(facts, at, replay=False)
@@ -91,9 +94,10 @@ def why_many(symbols: list[str], board: str | None = None, now: float | None = N
             "replay": playhead is not None, "generated_at": at, "reads": reads, "errors": errors}
 
 
-def replay_read(symbol: str, playhead: float, board: str | None = None) -> dict:
+def replay_read(symbol: str, playhead: float, board: str | None = None, snapshot: dict | None = None,
+                halts: dict | None = None) -> dict:
     """The replayed day's read as of ``playhead``: every fact from a record that reaches it, nothing after it."""
-    facts = replay_facts.gather(symbol, playhead, board)
+    facts = replay_facts.gather(symbol, playhead, board, snapshot, halts)
     if not replay_facts.readable(facts):
         return not_read_on_replay(symbol, playhead)
     return _answer(facts, playhead, replay=True)

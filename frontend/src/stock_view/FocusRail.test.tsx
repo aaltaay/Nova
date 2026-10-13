@@ -39,7 +39,7 @@ vi.mock('../hooks/useCatalystPanel', () => ({
   useCatalystPanel: () => ({ panel: mocks.panel, loading: mocks.panel == null, unavailable: false, error: null }),
 }));
 
-vi.mock('../sim/useSimReplayDesk', () => ({ useSimReplayDesk: () => mocks.replayDesk }));
+vi.mock('../sim/useSimReplayDesk', () => ({ useSimReplayDesk: () => mocks.replayDesk, useSimReplayPlayhead: () => null }));
 
 vi.mock('../scanner/ScannerDataContext', async importOriginal => {
   const actual = await importOriginal<typeof import('../scanner/ScannerDataContext')>();
