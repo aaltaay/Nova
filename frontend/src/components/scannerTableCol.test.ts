@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -91,6 +91,28 @@ describe('scanner table column width contract', () => {
         `${component} must not hand-roll a table-wrapper class -- use the constant`,
       ).toBe(false);
     }
+  });
+
+  it('sizes the Catalyst column in one place, so no later sheet shrinks it back to the flame', () => {
+    // scannerDesk.css loads after scanner-table-cols.css; its old News-flame 3.3rem
+    // rule cut the boards' Catalyst word to two letters (operator report, 2026-10-13).
+    // Only the Catalysts list, still a flame alone, sets its own width.
+    const srcRoot = resolve(here, '..');
+    const cssFiles = (readdirSync(srcRoot, { recursive: true }) as string[])
+      .filter(f => f.endsWith('.css') && !f.includes('node_modules'));
+    const widthRules: string[] = [];
+    for (const file of cssFiles) {
+      const text = readFileSync(resolve(srcRoot, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const [, selector, body] of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!selector.includes('.scanner-col--newest_headline_at')) continue;
+        if (!/(^|[;\s])(max-)?width\s*:/.test(body)) continue;
+        if (selector.includes('.catalysts-table')) continue;
+        widthRules.push(`${file.replace(/\\/g, '/')}: ${selector.trim()}`);
+      }
+    }
+    expect(widthRules).toEqual([
+      'styles/scanner-table-cols.css: .table-wrapper--scanner .scanner-col--newest_headline_at',
+    ]);
   });
 
   it('gives every live scanner column an explicit role', () => {
