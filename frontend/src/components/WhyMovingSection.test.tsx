@@ -61,20 +61,34 @@ describe('WhyMovingSection', () => {
     expect(screen.getByText("Reading the move ...")).toBeTruthy();
   });
 
-  it('a Sim replay desk names the replayed day and shows no rules note over no checks', () => {
+  it('a Sim replay names the moment it is read at and ages its facts from the playhead', () => {
+    const playhead = Date.UTC(2026, 9, 2, 14, 31) / 1000;   // Oct 2 10:31 ET
     const replay: WhyMovingRead = {
-      ...mss,
+      ...mss, generated_at: playhead, replay: true,
+      checks: mss.checks.map((c) => ({ ...c, as_of: c.as_of == null ? null : playhead - 18 * 60 })),
+    };
+    render(<WhyMovingSection read={replay} />);
+    fireEvent.click(screen.getByRole('button', { name: /Why it's moving/ }));
+    expect(screen.getByText(/^Sim replay, read as of Oct 2 10:31 ET -- every fact is from then or before/)).toBeTruthy();
+    expect((document.querySelector('[data-check="borrow"]') as HTMLElement).title).toMatch(/as of 18m ago$/);
+    expect(screen.getByText(/rules read of the facts below/)).toBeTruthy();
+  });
+
+  it('a Sim replay no record reaches names the replayed day and shows no rules note over no checks', () => {
+    const replay: WhyMovingRead = {
+      ...mss, replay: true,
       likely: { kind: 'not_read', label: 'Not read on a Sim replay of Oct 2', confidence: 'likely',
-        detail: "Its facts are today's -- the news verdict, Yahoo's float and short interest, IBKR's borrow -- so a past moment is not read. Back at the live edge it reads again." },
+        detail: 'Nothing Nova recorded reaches this moment -- no board row, replay price, short interest, borrow, news, split or halt log -- so it is not read.' },
       checks: [],
     };
     render(<WhyMovingSection read={replay} />);
     expect(screen.getByText('Not read on a Sim replay of Oct 2')).toBeTruthy();
     expect(screen.queryByText('possible')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Why it's moving/ }));
-    expect(screen.getByText(/Back at the live edge it reads again/)).toBeTruthy();
+    expect(screen.getByText(/Nothing Nova recorded reaches this moment/)).toBeTruthy();
     expect(document.querySelectorAll('.wm-check')).toHaveLength(0);
     expect(screen.queryByText(/rules read of the facts below/)).toBeNull();
+    expect(screen.queryByText(/Sim replay, read as of/)).toBeNull();
   });
 
   it('keeps the last read on screen when a poll fails', () => {
@@ -90,6 +104,8 @@ describe('normalizeWhyMoving', () => {
     const raw = { ...mss, checks: [...mss.checks, { id: 'x', label: 'Bad', state: 'maybe' }, null] };
     const out = normalizeWhyMoving(raw);
     expect(out?.checks.map((c) => c.id)).toEqual(['news', 'short_interest', 'borrow', 'reverse_split']);
+    expect(out?.replay).toBe(false);
+    expect(normalizeWhyMoving({ ...mss, replay: true })?.replay).toBe(true);
   });
 
   it('refuses a payload without a likely cause, and reads an unknown confidence as possible', () => {

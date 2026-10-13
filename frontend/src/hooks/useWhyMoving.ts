@@ -63,6 +63,7 @@ export function normalizeWhyMoving(raw: unknown): WhyMovingRead | null {
     symbol: r.symbol,
     generated_at: num(r.generated_at) ?? 0,
     rules_version: str(r.rules_version) ?? '',
+    replay: r.replay === true,
     likely,
     checks: r.checks.map(normalizeCheck).filter((c): c is WhyCheck => c !== null),
   };

@@ -7,8 +7,9 @@ download never reads as "nothing to lend". Each complete poll writes only the sy
 or availability changed (``move_reason/borrow_store.py``), so a restart keeps the day.
 
 ``view`` answers one symbol for the "Why it's moving" read: now, at the day's first poll (04:00 ET on),
-at the last poll before it, and the day's highest fee and lowest availability. Always on;
-``NOVA_BORROW_FEED=0`` turns it off.
+at the last poll before it, and the day's highest fee and lowest availability. ``view_at`` answers the same
+for a past moment (a Sim replay's playhead) from the store alone: the last poll at or before it, never a later
+one, and a reason instead when the record does not reach it. Always on; ``NOVA_BORROW_FEED=0`` turns it off.
 """
 from __future__ import annotations
 
@@ -147,31 +148,52 @@ class BorrowFeed:
                 return None
             cur = self._last.get(sym) or {"listed": False, "fee_rate": None, "rebate_rate": None,
                                           "available": None, "capped": False}
-            start = day_start(now)
-            open_ts = prior = opened = before = None
-            today: list[dict[str, Any]] = []
-            if self._db is not None:  # without the store only the latest poll is known (diagnostics says why)
-                try:
-                    open_ts = borrow_store.first_poll(self._db, at_or_after=start)
-                    prior = borrow_store.last_poll(self._db, before=start)
-                    opened = borrow_store.value_at(self._db, sym, open_ts) if open_ts is not None else None
-                    before = borrow_store.value_at(self._db, sym, prior[0]) if prior else None
-                    today = ([opened] if opened else []) + (
-                        borrow_store.changes_between(self._db, sym, open_ts, now) if open_ts is not None else [])
-                except Exception:  # noqa: BLE001 -- the history is unknown; the latest poll still answers
-                    logger.warning("borrow feed: history read failed for %s", sym, exc_info=True)
-                    open_ts = prior = opened = before = None
-                    today = []
-        fees = [r["fee_rate"] for r in today if r.get("listed") and r.get("fee_rate") is not None]
-        avail = [0 if not r.get("listed") else r.get("available") for r in today]
-        avail = [a for a in avail if a is not None]
-        return {
-            "listed": bool(cur.get("listed")), "fee_rate": cur.get("fee_rate"), "rebate_rate": cur.get("rebate_rate"),
-            "available": cur.get("available"), "available_capped": bool(cur.get("capped")),
-            "as_of": self.last_file_ts or self.last_poll, "since": self.since,
-            "open": _snapshot(opened, open_ts), "prior": _snapshot(before, prior[0] if prior else None),
-            "max_fee_today": max(fees) if fees else None, "min_available_today": min(avail) if avail else None,
-        }
+            # Without the store only the latest poll is known (diagnostics says why).
+            day = self._day(sym, now) if self._db is not None else _NO_DAY
+            as_of = self.last_file_ts or self.last_poll
+        return _shape(cur, as_of, self.since, day)
+
+    def view_at(self, symbol: str, at: float) -> tuple[dict[str, Any] | None, str | None]:
+        """The symbol's borrow facts as the store stood at ``at`` -- ``(view, None)`` -- or ``(None, why)`` when
+        the record does not reach ``at``: no store open, nothing kept from before ``at`` (it keeps
+        ``MOVE_BORROW_RETENTION_DAYS``). Only polls at or before ``at`` are read."""
+        sym = (symbol or "").strip().upper()
+        when = datetime.fromtimestamp(at, ET)
+        with self._lock:
+            if self._db is None:
+                return None, "Nova's borrow record is not open on this desk"
+            try:
+                poll = borrow_store.poll_at(self._db, at)
+                first = borrow_store.first_poll(self._db)
+                if poll is None:
+                    if first is None:
+                        return None, "Nova's borrow record is empty"
+                    start = datetime.fromtimestamp(first, ET)
+                    return None, (f"Nova's borrow record starts {start:%b} {start.day} {start:%H:%M} ET (it keeps "
+                                  f"{MOVE_BORROW_RETENTION_DAYS:g} days); {when:%b} {when.day} {when:%H:%M} is before it")
+                cur = borrow_store.value_at(self._db, sym, at)
+                day = self._day(sym, at)
+            except Exception:  # noqa: BLE001 -- the past view is unknown; the reason says so
+                logger.warning("borrow feed: the record at %s is unreadable for %s", at, sym, exc_info=True)
+                return None, "Nova's borrow record could not be read"
+        return _shape(cur or {}, poll[1] or poll[0], first, day), None
+
+    def _day(self, sym: str, now: float) -> dict[str, Any]:
+        """Caller holds ``_lock`` and a store. The day's first reading at or before ``now``, the reading before
+        the day, and every change from the first to ``now``."""
+        try:
+            open_ts = borrow_store.first_poll(self._db, at_or_after=day_start(now))
+            open_ts = open_ts if open_ts is not None and open_ts <= now else None
+            prior = borrow_store.last_poll(self._db, before=day_start(now))
+            opened = borrow_store.value_at(self._db, sym, open_ts) if open_ts is not None else None
+            before = borrow_store.value_at(self._db, sym, prior[0]) if prior else None
+            today = ([opened] if opened else []) + (
+                borrow_store.changes_between(self._db, sym, open_ts, now) if open_ts is not None else [])
+        except Exception:  # noqa: BLE001 -- the history is unknown; the latest poll still answers
+            logger.warning("borrow feed: history read failed for %s", sym, exc_info=True)
+            return _NO_DAY
+        return {"open_ts": open_ts, "opened": opened, "prior_ts": prior[0] if prior else None, "before": before,
+                "today": today}
 
     def list_read(self, symbol: str) -> dict[str, Any] | None:
         """The symbol on IBKR's short-stock list now, for the desk's borrow terms (ibkr/borrow_terms.py).
@@ -208,6 +230,22 @@ class BorrowFeed:
                     "last_poll": self.last_poll, "file_ts": self.last_file_ts, "last_ok": self.last_ok,
                     "last_error": self.last_error, "polls": self.polls, "symbols": len(self._last),
                     "store": str(borrow_store.path())}
+
+
+_NO_DAY: dict[str, Any] = {"open_ts": None, "opened": None, "prior_ts": None, "before": None, "today": []}
+
+
+def _shape(cur: dict[str, Any], as_of: float | None, since: float | None, day: dict[str, Any]) -> dict[str, Any]:
+    fees = [r["fee_rate"] for r in day["today"] if r.get("listed") and r.get("fee_rate") is not None]
+    avail = [0 if not r.get("listed") else r.get("available") for r in day["today"]]
+    avail = [a for a in avail if a is not None]
+    return {
+        "listed": bool(cur.get("listed")), "fee_rate": cur.get("fee_rate"), "rebate_rate": cur.get("rebate_rate"),
+        "available": cur.get("available"), "available_capped": bool(cur.get("capped")),
+        "as_of": as_of, "since": since,
+        "open": _snapshot(day["opened"], day["open_ts"]), "prior": _snapshot(day["before"], day["prior_ts"]),
+        "max_fee_today": max(fees) if fees else None, "min_available_today": min(avail) if avail else None,
+    }
 
 
 def _snapshot(value: dict[str, Any] | None, ts: float | None) -> dict[str, Any] | None:

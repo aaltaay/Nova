@@ -39,7 +39,7 @@ def sources_of(joined: str | None) -> list[str]:
     return [s for s in (joined or "").split(",") if s]
 
 
-def _halt_view(events: Iterable[Mapping[str, Any]], start: float, cutoff: float) -> dict[str, Any]:
+def halt_view(events: Iterable[Mapping[str, Any]], start: float, cutoff: float) -> dict[str, Any]:
     """The newest Nasdaq halt that started in (start, cutoff]: its code, and whether it still waits on news."""
     starts = [e for e in events if e.get("event") == LEADERBOARD_HALT_EVENT_START
               and start < float(e.get("ts") or 0) <= cutoff]
@@ -87,7 +87,7 @@ def verdicts_at(
             continue
         verdict = verdict_from_labels(mine, window_start=start, cutoff=cutoff, sources_answered=answered,
                                       rules_version=str(check.get("rules_version") or ""))
-        verdict.update(_halt_view(halts.get(sym, []), start, cutoff))
+        verdict.update(halt_view(halts.get(sym, []), start, cutoff))
         out[sym] = compact(verdict)
     return out
 

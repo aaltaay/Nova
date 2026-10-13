@@ -109,6 +109,30 @@ def items_since(db: sqlite3.Connection, since_ts: float) -> list[dict[str, Any]]
     return out
 
 
+def read_only(database: Path | None = None) -> sqlite3.Connection | None:
+    """The store opened read-only for a past moment's reads (``catalysts/recorded.py``), or None when there is
+    none: never created, never migrated; a store of another version refuses, as ``connect`` does."""
+    target = database or path()
+    if not target.is_file():
+        return None
+    db = sqlite3.connect(f"{target.resolve().as_uri()}?mode=ro", uri=True,
+                         timeout=CATALYST_FEED_SQLITE_TIMEOUT_SEC, check_same_thread=False)
+    version = db.execute("PRAGMA user_version").fetchone()[0]
+    if version != CATALYST_FEED_SCHEMA_VERSION:
+        db.close()
+        raise FeedStoreVersionError(f"{target}: schema version {version} is not {CATALYST_FEED_SCHEMA_VERSION}")
+    return db
+
+
+def items_for(db: sqlite3.Connection, ticker: str, start_ts: float, end_ts: float) -> list[dict[str, Any]]:
+    """The items naming ``ticker`` published in (start_ts, end_ts], oldest first (the ticker index)."""
+    rows = db.execute(
+        f"SELECT {', '.join('i.' + c for c in ITEM_COLUMNS)} FROM item_tickers t JOIN items i USING (item_id) "
+        "WHERE t.ticker = ? AND t.published_ts > ? AND t.published_ts <= ? ORDER BY t.published_ts",
+        [ticker, start_ts, end_ts]).fetchall()
+    return [dict(zip(ITEM_COLUMNS, r, strict=True)) for r in rows]
+
+
 def issuance_candidates(db: sqlite3.Connection, since_ts: float) -> list[dict[str, Any]]:
     """The SEC 8-Ks published after ``since_ts`` that may say shares were issued (Item 3.02 or 2.01), with their
     tickers -- ``catalysts/issuance.py`` keeps the ones the rules confirm."""

@@ -932,15 +932,48 @@ when not recorded); `since` is the first poll the store holds. A symbol IBKR's f
 gates on it.
 
 On a Sim replay desk (`sim.mode.is_replay_desk`: the Sim off its live edge, a past day or today's
-recording scrubbed back) nothing is read: `{..., generated_at: the playhead, session_date: the playhead's
-day, replay: true, likely: {kind: "not_read", label: "Not read on a Sim replay of Oct 2", detail: why,
-confidence: "likely"}, checks: [], facts: {}}` (`move_reason.routes.not_read_on_replay`). Every fact the
-read holds -- the news verdict, Yahoo's float and short interest, IBKR's borrow as of the latest poll --
-is today's, and the card had shown them on a past day's desk (SDEV 2026-10-02 replayed on 2026-10-12 read
-"Not a big move today (-3.9%)", Oct 12's change). A live edge that cannot be read counts as a replay. Off
-the replay (Live, Paper, the Sim at its live edge) `replay` is `false`. The Trader shows the label and its
-reason, without the rules note. Reading a replayed day from recorded sources -- the borrow store's 14
-days, FINRA's point-in-time short interest, the replay's own price and volume -- is not built.
+recording scrubbed back) the read is the replayed day's as of the playhead, never today's
+(`move_reason/replay_facts.py`, ADR 028 amendment (2) 2026-10-12, rules v4): `generated_at` is the playhead,
+`session_date` its day, `replay: true`, the payload's shape unchanged, and every fact comes from a record
+that reaches the playhead and nothing after it:
+
+- **Board row.** The recorded scanner board at the playhead (`leaderboard.playback.board_at`, ADR 023: a
+  recorded minute counts from its stamp plus the settle) gives the price, change, volume, RVOL, the float
+  Nova held that minute with its #532 check, and the day's exported news verdict (#498). A rebuilt board
+  carries the session's enrichment-snapshot float, which may be later than the playhead, so there the float
+  is the newest snapshot taken at or before it.
+- **The loaded replay**, when it is this symbol: its last price-setting print, its previous close (#542) and
+  its volume so far when it holds the day from 04:00 (`stats_scope: "session"`). It wins over the board row
+  for price, change and volume.
+- **News.** The board row's verdict, else the recorded catalyst feed's (`catalysts/recorded.py`): items
+  published after the prior close and at or before the playhead, from the sources whose coverage spans,
+  joined where they overlap, read the whole window. Alpaca and Finnhub are read live only and never answer
+  here. A news halt comes from the day's halt log.
+- **Short interest.** FINRA's newest settlement published by the replayed day, from Massive's archive
+  (`<NOVA_MARKET_DATA_DIR>/store/reference/short_interest/<YYYY-MM>.jsonl`, `move_reason/short_interest.py`).
+  FINRA publishes about seven business days after a settlement, after the close, so a settlement counts from
+  the 8th exchange day after it (`MOVE_FINRA_PUBLISH_BUSINESS_DAYS`; a conservative rule, not FINRA's
+  calendar): SDEV on 2026-10-02 reads Sep 15's 1,212,152 shares, not Sep 30's 3,436,239, which counts from
+  Oct 12. Days to cover is FINRA's and says "(FINRA)"; `as_of` is the settlement date, and the `detail` names
+  the day it counts from and a later settlement not out yet.
+- **Borrow.** The borrow record at the playhead (`borrow_feed.view_at`): the last poll at or before it, the
+  day's first poll by then and the changes up to it, never a later poll. Before the record's reach (it keeps
+  `MOVE_BORROW_RETENTION_DAYS`) the check is `unknown`, value "Not recorded", with the reason ("Nova's borrow
+  record starts Sep 28 20:21 ET (it keeps 14 days); Sep 18 10:00 is before it").
+- **Split** from Massive's split list (the movers store, ADR 050): the last split executed on or before the
+  replayed day. **Halts** from the day's halt log up to the playhead. **Shares issued** from the recorded
+  feed's 8-Ks of the look-back up to the playhead.
+
+Each check's `source` names the record it was read from and its `as_of` when; an unknown check's `detail`
+says why no record reaches the playhead. Yahoo's fundamentals, the live boards, IBKR's latest borrow poll and
+the live news memory are never read on a replay. When no record of the stock reaches the playhead (the halt
+log alone, read for every day, does not count) the answer is `{..., replay: true, likely: {kind: "not_read",
+label: "Not read on a Sim replay of Oct 2", detail: why, confidence: "likely"}, checks: [], facts: {}}`
+(`move_reason.routes.not_read_on_replay`). A live edge that cannot be read counts as a replay. Off the replay
+(Live, Paper, the Sim at its live edge) `replay` is `false`. The Trader card counts the checks' ages back from
+the playhead and names the moment ("Sim replay, read as of Oct 2 10:31 ET"). Before this the card showed
+today's facts on a past day's desk: SDEV 2026-10-02 replayed on 2026-10-12 read "Not a big move today
+(-3.9%)", Oct 12's change.
 
 The borrow feed (`move_reason/borrow_feed.py`, always on; `NOVA_BORROW_FEED=0` off) polls IBKR's
 public short-stock file (`ftp://ftp2.interactivebrokers.com/usa.txt`, USD rows) every

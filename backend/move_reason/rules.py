@@ -19,6 +19,8 @@ A squeeze is never called from price alone: without short interest and borrow da
 An 8-K since the prior session's open that says shares were issued (``shares_issued``) makes Yahoo's float
 unknown here, so low-float momentum is never called on a float the filings say is out of date. The prior
 session's own release (the verdict's ``prior_session``) is named, never counted as today's news.
+On a Sim replay the facts are the replayed day's as of the playhead (``replay_facts``): their ``check_notes``
+name each check's source and as-of and say why a fact is unknown; the rules are the same.
 
 maintainer: one-concern every check and the cause they decide read one facts dict, and an unknown stays unknown in both
 """
@@ -71,7 +73,7 @@ _CATEGORY_WORDS = {
     "delisting_split": "delisting / reverse split", "crypto_treasury": "crypto treasury raise",
 }
 _SOURCE_WORDS = {"edgar": "SEC", "globenewswire": "GlobeNewswire", "prnewswire": "PR Newswire", "newsfile": "Newsfile",
-                 "fda": "FDA", "alpaca": "Alpaca", "finnhub": "Finnhub"}
+                 "fda": "FDA", "alpaca": "Alpaca", "finnhub": "Finnhub", "massive": "Massive"}
 
 
 def shares(n: float | None) -> str:
@@ -239,9 +241,10 @@ def _split_words(factor: str) -> str:
 
 
 def _short(pct: float | None, dtc: float | None, si: float | None, as_of: float | None = None,
-           above_float: str | None = None) -> dict[str, Any]:
+           above_float: str | None = None, dtc_by: str | None = None) -> dict[str, Any]:
     """``as_of`` is the FINRA settlement date Yahoo's short interest is from (#532). Days to cover is
-    Yahoo's short ratio -- short interest over Yahoo's average volume, not FINRA's figure -- and says so.
+    Yahoo's short ratio -- short interest over Yahoo's average volume, not FINRA's figure -- and says so;
+    ``dtc_by`` names another (a Sim replay reads FINRA's own).
     ``above_float`` is the short-above-float warning's reason: added to the detail, never a state.
 
     Heavy is a fifth of the float short, or three days to cover with a tenth of the float short. Days to
@@ -266,7 +269,8 @@ def _short(pct: float | None, dtc: float | None, si: float | None, as_of: float 
     if pct is not None:
         parts.append(f"{_share(pct)} of float")
     if dtc is not None:
-        parts.append(("under 0.1 days to cover" if dtc < 0.1 else f"{dtc:.1f} days to cover") + " (Yahoo ratio)")
+        parts.append(("under 0.1 days to cover" if dtc < 0.1 else f"{dtc:.1f} days to cover")
+                     + f" ({dtc_by or 'Yahoo ratio'})")
     detail = None
     if si is not None:
         detail = f"{shares(si)} shares short" + (f", FINRA settlement {_day(as_of)}" if as_of is not None else "")
@@ -353,11 +357,29 @@ def read(facts: dict[str, Any], now: float | None = None) -> dict[str, Any]:
     checks = [_news(facts.get("catalyst"), now), _halts(facts.get("halts"), now), _float(f, contradicted, issued),
               _rotation(rot, volume, f, issued), _volume(rvol), _split(facts.get("split"), now),
               _short(pct, dtc, si, _num(facts.get("short_interest_ts")),
-                     facts.get("short_above_float_reason") if facts.get("short_above_float") is True else None),
+                     facts.get("short_above_float_reason") if facts.get("short_above_float") is True else None,
+                     facts.get("days_to_cover_by")),
               _borrow(facts.get("borrow"))]
+    notes = facts.get("check_notes") if isinstance(facts.get("check_notes"), dict) else {}
+    for c in checks:
+        _annotate(c, notes.get(c["id"]))
     by = {c["id"]: c for c in checks}
     return {"likely": _likely(change, by, rot, rvol, facts.get("catalyst")), "checks": checks,
             "derived": {"float_rotation": rot, "short_pct_float": pct}}
+
+
+def _annotate(c: dict[str, Any], note: Any) -> None:
+    """A Sim replay's word on one check (``replay_facts.check_notes``): the source it was read from, its as-of
+    when the check has none, the value of an unknown, and a note added to the detail (why it is unknown)."""
+    if not isinstance(note, dict):
+        return
+    c["source"] = note.get("source") or c["source"]
+    if c["as_of"] is None and _num(note.get("as_of")) is not None:
+        c["as_of"] = _num(note["as_of"])
+    if c["state"] == MOVE_STATE_UNKNOWN and note.get("unknown_value"):
+        c["value"] = note["unknown_value"]
+    if note.get("note"):
+        c["detail"] = ". ".join(d for d in (c["detail"], note["note"]) if d)
 
 
 def _is(by: dict, cid: str, state: str = MOVE_STATE_YES) -> bool:

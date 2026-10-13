@@ -6,8 +6,9 @@ to cover with at least a tenth of the float short -- and a borrow fee of 50% a y
 """
 from __future__ import annotations
 
-MOVE_RULES_VERSION = "move-rules-v3-2026-10-12"  # v3: days to cover counts only with a tenth of the float short;
-# a Sim replay desk is not read
+MOVE_RULES_VERSION = "move-rules-v4-2026-10-12"  # v4: a Sim replay reads its own day as of the playhead; a
+# check names the record it was read from and why a fact is unknown (``check_notes``)
+# v3 (2026-10-12): days to cover counts only with a tenth of the float short; a Sim replay desk is not read
 # v2 (2026-10-02): a filed share issuance makes the float unknown
 MOVE_SCHEMA_VERSION = 1
 
@@ -21,10 +22,10 @@ MOVE_KIND_SPLIT_SQUEEZE = "split_squeeze"
 MOVE_KIND_LOW_FLOAT_MOMENTUM = "low_float_momentum"
 MOVE_KIND_THIN_TRADING = "thin_trading"
 MOVE_KIND_UNEXPLAINED = "unexplained"
-# Not a cause: a Sim replay desk, where every fact the read holds is today's (``routes.not_read_on_replay``).
+# Not a cause: a Sim replay where no record reaches the playhead (``routes.not_read_on_replay``).
 MOVE_KIND_NOT_READ = "not_read"
-MOVE_NOT_READ_REPLAY_DETAIL = ("Its facts are today's -- the news verdict, Yahoo's float and short interest, IBKR's "
-                               "borrow -- so a past moment is not read. Back at the live edge it reads again.")
+MOVE_NOT_READ_REPLAY_DETAIL = ("Nothing Nova recorded reaches this moment -- no board row, replay price, short "
+                               "interest, borrow, news, split or halt log -- so it is not read.")
 
 MOVE_STATE_YES = "yes"
 MOVE_STATE_NO = "no"
@@ -67,3 +68,10 @@ MOVE_BORROW_SCHEMA_VERSION = 1
 MOVE_BORROW_SQLITE_TIMEOUT_SEC = 30.0
 MOVE_BORROW_RETENTION_DAYS = 14
 MOVE_DAY_START_HOUR_ET = 4                            # the "open" snapshot: first poll at or after 04:00 ET
+
+# -- a Sim replay (move_reason/replay_facts.py): every fact as of the playhead, never after it ------------
+MOVE_REPLAY_SHORT_SUBDIR = ("store", "reference", "short_interest")  # under the Massive root (ADR 046)
+MOVE_FINRA_PUBLISH_BUSINESS_DAYS = 8   # FINRA publishes about 7 business days after settlement, after the
+#                                        close: a settlement counts from the 8th business day on (conservative)
+MOVE_REPLAY_SHORT_MONTHS_BACK = 2      # settlement months read before the replayed one
+MOVE_REPLAY_SHORT_CACHE = 64           # (month file, symbol) reads kept in memory
