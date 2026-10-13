@@ -97,7 +97,8 @@ _ATTACHED = re.compile(r"\b(?:press release|exhibit 99)\b|not prepared in accord
 
 _WORDS = {"three": 3, "six": 6, "nine": 9, "twelve": 12}
 _ORDINAL = {"first": 1, "second": 2, "third": 3, "fourth": 4}
-_DATE = r"([A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4})"
+# "September 30, 2023 and 2024" (a comparison's years) reads as its latest year (``_date``).
+_DATE = r"([A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}(?:\s+and\s+\d{4})?)"
 _QUARTER_ENDED = re.compile(rf"\bquarter\s+(?:and\s+(?:six|nine|twelve)\s+months\s+)?ended\s+{_DATE}", re.I)
 # "the three and six months ended June 30": the quarter is the period the results are for.
 _MONTHS_ENDED = re.compile(rf"\b(three|six|nine|twelve)(?:\s+and\s+(three|six|nine|twelve))?[- ]months?\s+"
@@ -132,6 +133,9 @@ def item_202_body(text: str) -> str:
 
 
 def _date(raw: str) -> date | None:
+    years = re.findall(r"\b\d{4}\b", raw)
+    if len(years) > 1:
+        raw = raw[: raw.index(years[0])] + max(years)
     cleaned = re.sub(r"\s+", " ", raw.replace(".", "").replace(",", ""))
     for fmt in ("%B %d %Y", "%b %d %Y"):
         try:

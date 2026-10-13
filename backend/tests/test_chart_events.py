@@ -434,6 +434,23 @@ def test_a_later_results_release_keeps_its_own_mark():
     assert [e["day"] for e in earnings.events(subs, {}, readings=readings)] == ["2026-08-06", "2026-09-09"]
 
 
+def test_a_period_filing_days_after_its_results_is_listed_on_their_mark():
+    # BABA: September-quarter results 2024-11-15, interim statements "for the six months Ended September 30,
+    # 2023 and 2024" on 11-18.
+    statements = release_text.read_6k(_cover(
+        "EXHIBITS Exhibit 99.1 - Operating and Financial Review and Prospects for the six months Ended September "
+        "30, 2024 Exhibit 99.2 - Unaudited Condensed Consolidated Financial Statements for the six months Ended "
+        "September 30, 2023 and 2024"))
+    assert statements["kind"] == "results" and statements["end"] == "2024-09-30"
+    subs = _subs([
+        ("B-statements", "6-K", "2024-11-18", "2024-11-18", "", "s.htm"),
+        ("B-results", "6-K", "2024-11-15", "2024-11-15", "", "r.htm"),
+    ])
+    readings = {"B-results": _read("results", months=6, end="2024-09-30"), "B-statements": statements}
+    [ev] = earnings.events(subs, {}, readings=readings)
+    assert ev["day"] == "2024-11-15" and [r["accession"] for r in ev["other_releases"]] == ["B-statements"]
+
+
 def test_an_offering_6k_with_a_caveat_on_estimates_is_not_results():
     cover = _cover("CONTENTS Registered Direct Offering On August 5, 2026, NANO-X IMAGING LTD entered into a "
                    "securities purchase agreement with a single long-term institutional investor. The preliminary "

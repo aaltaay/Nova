@@ -30,12 +30,14 @@ since what comes earlier in a quarter is what is not the results: deliveries (TS
 preliminary, a date to come, an acquisition with "certain financial results" (LUNR); a restatement after
 the results is not a release at all (Item 4.02, BBAI 2025-03-18). Every other release in the window is
 listed on the event (``other_releases``), never marked. A strong release no report claims yet is an event
-of its own: a 6-K's period comes from its words, an 8-K's is unknown -- unless it publishes the interim or
-annual report of a period a mark already stands for, when it is listed there instead (XPEV's Hong Kong
-interim report a month after its second-quarter results). Revenue, net income and basic EPS are the report's own facts for its current period (the
-quarter for a 10-Q, the year for an annual report, the period a 6-K covers); for a release no report claims,
-the first filing that tagged that period, which the figure names. A figure nobody tagged is null, never
-estimated.
+of its own: a 6-K's period comes from its words, an 8-K's is unknown -- unless a mark already stands for its
+period and it comes within ``CHART_EVENTS_RELEASE_CLUSTER_DAYS`` of that mark (BABA's interim statements
+three days after its September-quarter results) or publishes that period's interim or annual report (XPEV's
+Hong Kong interim report a month after its second-quarter results); it is then listed on that mark.
+
+Revenue, net income and basic EPS are the report's own facts for its current period (the quarter for a 10-Q,
+the year for an annual report, the period a 6-K covers); for a release no report claims, the first filing
+that tagged that period, which the figure names. A figure nobody tagged is null, never estimated.
 
 Only the day is kept, SEC's ``filingDate``. The submissions file's ``acceptanceDateTime`` is not a time to
 read: against each filing's index page it is true UTC for some filers (NIO's 20-F accepted 2026-04-10
@@ -70,9 +72,10 @@ from chart_events.fiscal import naming_offset as _naming_offset
 
 _COLUMNS = ("accessionNumber", "form", "filingDate", "reportDate", "items", "primaryDocument")
 # A filing that publishes the interim or annual report of a period whose results are already out (XPEV's Hong
-# Kong "Interim Report" a month after its Q2 results). Only such a filing is folded into the period's mark: any
-# other later release keeps its own, so an earlier false mark never hides the real one (NNOX 2026: an
-# offering's caveat on "preliminary estimates" in August, its Q2 results on September 9).
+# Kong "Interim Report" a month after its Q2 results). Only such a filing, or one within days of the period's
+# mark, is folded into that mark: any other later release keeps its own, so an earlier false mark never hides
+# the real one (NNOX 2026: an offering's caveat on "preliminary estimates" in August, its Q2 results on
+# September 9).
 _REPORT_PUBLISHED = re.compile(r"\b(?:interim|annual) report\b", re.I)
 
 
@@ -306,7 +309,9 @@ def events(submissions: Mapping[str, Any] | None, facts: Mapping[str, Any] | Non
         end, months = _day(said.get("end")), said.get("months")
         republished = bool(_REPORT_PUBLISHED.search(said.get("said") or ""))
         before = next((e for at, e in marked if _near(at, end) and e["day"] <= rel["day"].isoformat()), None)
-        if before is not None and republished:
+        close = before is not None and (rel["day"] - date.fromisoformat(before["day"])).days \
+            <= CHART_EVENTS_RELEASE_CLUSTER_DAYS
+        if before is not None and (republished or close):
             before["other_releases"].append(_stamp(rel))
             continue
         label = said.get("named") or (fiscal_label(end, months, fye, offset) if end and months else None)
