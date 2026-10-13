@@ -117,7 +117,7 @@ describe('the box once the setup is near or armed', () => {
       ['target2', false, 1, true, ''],
     ]);
     expect((thin.scene.words ?? []).filter(w => w.id.startsWith('strategy:')).map(w => w.text))
-      .toEqual(['T1', 'entry', 'stop']);
+      .toEqual(['T2', 'T1', 'entry', 'stop']);
     expect(thin.scene.keepInView).toEqual({ min: 2.7936, max: 2.99 });
     const map = paneDraw(read, { pane: 'map', layers: LAYERS, toTime: identity });
     expect(map.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
