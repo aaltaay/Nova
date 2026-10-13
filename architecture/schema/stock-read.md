@@ -861,6 +861,13 @@ no stop move, no gate.
   average; red: what the stop gives back from here; green to the next level; dotted to the one after); the
   ladder sits under the ruler; the rows and checks are `held`'s. The stop is yours to set: "Use stop",
   "Raise stop to X" and typing it set it for the tab (never an order); Stage sell fills the ticket.
+- **The price follows the tape between reads** (operator report 2026-10-13: the ruler's tick moved once a read,
+  every 5 s, "way too delayed"). The ruler's price tick and the bars that end at the price, the header's open P&L
+  and R, and the ladder's NOW row (re-sorted by price) take the tab's price: the line's last trade, or off the live
+  edge the replay's at the playhead (`useVenuePrice`), the read's `held.price` until there is one. It is drawn at
+  most once a frame, and the tick and bars glide to each new price in 0.1 s on the compositor
+  (`stock_read/useTapePrice.ts`, `heldView.heldAtPrice`). The ruler's ends and labels, the level rows and the
+  badge stay the read's. The plan's ruler before you hold reads the same price. No wire change.
 - The 10-second chart draws the trade's levels -- THEN, NEXT, SUPPORT, STOP, the average (COST) and the
   broke rounds -- each a line with its name in the edge column. The 1-minute chart keeps its setups, levels,
   the badge and one call: SELL NOW · STOP (the stop printed), SELL NOW · FLUSH "in trial T1" (a flush 10 s or

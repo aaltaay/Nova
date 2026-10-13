@@ -14,3 +14,5 @@ export { simEmptyQuoteDetail } from './historicalQuoteDetail';
 // Its replay quote and company facts off the live edge (operator report, 2026-10-12).
 export { replayPanelDetail } from './replayPanelDetail';
 export { useHistoricalSnapshot } from './useHistoricalSnapshot';
+// A tab's price off the live edge is the replay's at the playhead: the plan box's price tick reads it too.
+export { useVenuePrice } from './useReplayQuote';
