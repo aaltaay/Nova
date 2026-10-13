@@ -552,3 +552,45 @@ body.chart-maximized-open {
 .candle-tip__scale { position: relative; height: 11px; color: #6b7280; font-size: 9px; }
 .candle-tip__scale span { position: absolute; transform: translateX(-50%); }
 .candle-tip__scale span:last-child { transform: translateX(-100%); }
+
+/* Earnings and split marks on the daily panes (operator ask, 2026-10-12): the mark's card is the candle
+   card's, with the mark's letter in its title, a figure's source under it, and the 6-K's own words. */
+.chart-event-tip__dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+}
+.chart-event-tip__dot--earnings { color: #60a5fa; }
+.chart-event-tip__dot--split { color: #a78bfa; }
+.chart-event-tip .candle-tip__row > span:last-child { white-space: normal; }
+.chart-event-tip__note {
+  display: block;
+  color: #6b7280;
+  font-family: inherit;
+  font-size: 10px;
+  font-style: normal;
+}
+.chart-event-tip__warn > span:last-child { color: #fbbf24; }
+.chart-event-tip__quote { margin-top: 6px; color: #9ca3af; font-style: italic; }
+.chart-event-tip__source { margin-top: 5px; color: #6b7280; font-size: 10px; }
+
+/* A source the marks could not read, said on the pane instead of an empty bottom row. */
+.chart-events-note {
+  position: absolute;
+  left: 6px;
+  bottom: 30px;
+  z-index: 3;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  font-size: 10px;
+  pointer-events: auto;
+}

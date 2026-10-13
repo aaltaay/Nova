@@ -1,12 +1,14 @@
 /**
- * Position tag + right-click menu hosted on one pane's `.chart-body`, and
- * whatever the page draws there (`renderOverlay`: the Trader tab's stock read).
+ * Position tag + right-click menu hosted on one pane's `.chart-body`, the
+ * earnings and split marks on a daily pane, and whatever the page draws there
+ * (`renderOverlay`: the Trader tab's stock read).
  * Extracted from TickerChart so that file can stay under the component limit.
  */
 import type { RefObject } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import type { ChartIndicatorId } from '../constants';
 import { ChartContextMenuHost } from './ChartContextMenuHost';
+import { ChartEventMarkers } from './ChartEventMarkers';
 import { ChartPositionTagHost } from './ChartPositionTag';
 import type { RenderPaneOverlay } from './types';
 
@@ -44,6 +46,14 @@ export function ChartPaneOverlays(props: {
         onToolClick={props.onToolClick}
         enabledIndicators={props.enabledIndicators}
         onIndicatorToggle={props.onIndicatorToggle}
+      />
+      <ChartEventMarkers
+        symbol={props.symbol}
+        timeframe={props.timeframe}
+        chart={props.chart}
+        candleSeriesRef={props.candleSeriesRef}
+        containerRef={props.containerRef}
+        barsRevision={props.barsRevision}
       />
       {props.renderOverlay?.({
         symbol: props.symbol,

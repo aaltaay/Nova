@@ -1,6 +1,6 @@
 # Data schema: Market data: prints, tape, feed gaps, L1 lines, session end, chart bars
 
-Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: backend/ibkr/, backend/sale_conditions.py, backend/chart_bars.py. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
+Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: backend/ibkr/, backend/sale_conditions.py, backend/chart_bars.py, backend/chart_events/. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
 
 ## Prints that set a price (operator report, 2026-09-23)
 
@@ -256,3 +256,94 @@ changed. A store refresh no longer rebuilds the forming candle from the last
 trade (which flattened its open, high and low to one price every 30 s): the
 live tip is put back on top, merged with the store's bar for the same minute.
 
+## Earnings and splits on the daily charts (operator ask, 2026-10-12)
+
+"i want the earnings to show on the daily charts and same thing for reverse splits or splits", then "make
+sure its accurate please!". The daily, weekly and monthly panes draw an **E** ring on the day a company's
+results came out and an **M** ring on the day a split took effect (Webull's letters), in a row along the
+bottom of the price pane that the candles keep clear of; the pointer on one opens its card. Owner
+`backend/chart_events/`; desk `frontend/src/chart/ChartEventMarkers.tsx`. Display only: nothing places, sizes
+or gates on an event.
+
+`GET /api/chart-events/{symbol}` answers from memory at once and reads in the background (`reader.py`), the
+symbol asked last first:
+
+```json
+{
+  "symbol": "MNDR", "status": "read | reading | error | off", "stale": false, "fetched_at": 1791850000.0,
+  "error": null, "retry_at": null, "replay": false, "through": null,
+  "earnings": {
+    "status": "read | no_cik | error", "source": "sec", "cik": 1976695, "name": "Mobile-health Network Solutions",
+    "error": null, "releases_known_since": "2024-09-12", "foreign_6k": true,
+    "scan": {"since": "2024-09-12", "listed": 38, "pending": 0, "failed": 0},
+    "events": [{
+      "id": "earnings:0001493152-26-009765", "kind": "earnings", "day": "2026-03-12",
+      "release": {"form": "6-K", "accession": "0001493152-26-009765", "day": "2026-03-12", "filed": "2026-03-12"},
+      "other_releases": [], "report": null, "report_pending": true,
+      "said": "Mobile-health Network Solutions Announces Unaudited Interim 2026 Financial Results ...",
+      "fiscal_year": null, "fiscal_period": null, "period_label": "2026 H1",
+      "period_start": null, "period_end": "2025-12-31", "period_months": 6,
+      "revenue": {"value": 3948768.0, "unit": "USD", "form": "F-1/A", "filed": "2026-04-17", "period_end": "2025-12-31"},
+      "net_income": null,
+      "eps": {"value": -0.51, "unit": "USD/shares", "form": "F-1/A", "filed": "2026-04-17", "period_end": "2025-12-31"},
+      "source": "sec"
+    }]
+  },
+  "splits": {
+    "status": "read | error", "error": null,
+    "lists": {"massive": {"status": "read | absent | error", "path": "..."}, "sec_confirmed": {"status": "..."},
+              "yahoo": {"status": "read | error"}},
+    "events": [{"id": "split:2026-06-29", "kind": "split", "day": "2026-06-29", "ratio": 0.1666667,
+                "new_shares": 1, "old_shares": 6, "reverse": true, "sources": ["massive", "yahoo"],
+                "disagreement": null}]
+  }
+}
+```
+
+**Earnings come from SEC EDGAR** (`earnings.py`, `release_text.py`): the submissions file and its older pages
+back ten years, the registrant's financial facts (companyfacts), and the words of each 6-K and Item 2.02 8-K
+of the last 760 days (one request each; its Exhibit 99.1 too when the cover only says a press release is
+attached). A *report* is a 10-Q, 10-K, 20-F, 40-F or a 6-K that carries financial facts; an amendment is none,
+and two reports of one period are one. A *release* is an Item 2.02 8-K whose words do not show it to be
+deliveries, a restatement (Item 4.02) or an offering, or a 6-K whose words report results. An event is one
+report, marked on the day its results came out: the first full release (not a preliminary) from its period's
+end to five days after it -- the last one for an older year whose 8-Ks were not read -- else the report's own
+day. A full release that no report has followed yet is an event of its own (`report_pending`). A release's
+day is the one it gives (the company's "On August 12, 2025", an 8-K's date of event) when that is within six
+days before its filing, else its filing day. Figures are the report's own tagged facts for its current
+period (the quarter for a 10-Q, the year for an annual report): total revenue (`Revenues`) before revenue
+from contracts, net income, basic EPS, USD first; for a release with no report, the first filing that
+tagged that period, which the card names ("as tagged in the F-1/A of Apr 17, 2026"). A figure nobody tagged
+is null. `period_label` is SEC's fiscal year and period, or for a 6-K the company's named quarter or its
+period against `fiscalYearEnd` (MNDR: six months to Dec 31, 2025 with a June year end is "2026 H1", as Webull
+shows it). For a registrant that files 6-Ks, a report from before its 6-Ks were read (`releases_known_since`)
+is left out rather than marked weeks late on its filing day. Whether results came before the open or after
+the close is not said: the submissions file's `acceptanceDateTime` is true UTC for some filers and the
+Eastern time shifted twice for others.
+
+**Splits merge three lists** (`splits.py`): the Massive reference archive's `splits.json` (2016 on, under
+`NOVA_MARKET_DATA_DIR`), the SEC-confirmed splits beside the leaderboard store (`splits_confirmed.json`,
+`schema_version` 1), and Yahoo's split history. Lists that give one split within three days and 1% of ratio
+are one event on Massive's day, naming every list; a day or ratio a list disagrees on is said in
+`disagreement`, never dropped. On 150 tickers with Massive splits since 2024, Yahoo listed 114 of 159 on the
+same day with the same ratio, none on another day, and missed 43 -- OTC names, funds and stock dividends
+mostly, but also LAZR 1-for-15 and SING 1-for-100 -- so Yahoo alone is not enough. A list that cannot be read
+is named in `lists`, never read as "no splits".
+
+**On a Sim replay** (`replay: true`, `through` the playhead) each part's events are cut to what was known
+before the replayed day, plus a split that takes effect on it (`routes.known_by`); live answers carry every
+event. The pane draws a mark only on a candle that holds its day, so nothing past the newest candle shows.
+
+**Freshness and failure.** A read is kept in memory for its session day (until 04:00 ET); a part that fails
+keeps its reason (and the last good events) and is read again after 30 s, 2 min, then every 10 min. SEC
+requests carry the desk's `SEC_USER_AGENT`, one second apart (the catalyst feed, the dilution read and this
+read stay under SEC's 10 a second); Yahoo gives up after 15 s. Nothing is persisted. `NOVA_CHART_EVENTS=0`
+turns it off, and the pane says so.
+
+**On the desk.** The pane asks when it shows a daily+ timeframe, again every 3 s while `status` is `reading`
+or `scan.pending` is above 0, every 10 minutes after, and at once when its newest candle changes. A mark sits
+on the first candle on or after its day (within a week) on a daily pane, on the candle whose week or month
+holds it otherwise; two on one candle stack. The card shows Date, Period, Revenue, Net income, EPS, the
+release and report filings, the 6-K's own sentence and the sources; a split's card its ratio in shares
+("1 for 6") and the lists that have it. A source that could not be read is a chip on the pane, not an empty
+row. The demo answers SMPL with Nova Marketing Sample Data (`demo/data/events.ts`).
