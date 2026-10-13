@@ -29,6 +29,8 @@ def test_movers_lists_are_noise(title):
     "NNOX SHAREHOLDER ALERT: Securities Fraud Lawsuit Filed on Behalf of Nano-X Imaging Ltd. Investors",
     "Bragar Eagel & Squire, P.C Urgently Reminds Verra Mobility Corporation Investors They Have Until August 4th",
     "Fervo Energy Company (FRVO) Faces Investor Scrutiny Amid Post-IPO Transmission Curtailment Revelation - HBSS",
+    # v9: NCPL 2026-10-12, the day it ran +29%, read this as company news.
+    "Netcapital Inc. Sued for Securities Law Violations - Contact the DJS Law Group to Discuss Your Rights",
 ])
 def test_law_firm_adverts_are_noise(title):
     assert label(title)[0] == "noise"
@@ -385,3 +387,24 @@ def test_labels_are_cached():
     title = "Acme Therapeutics Receives FDA Approval for Lead Candidate"
     first = classify_item(title, source="alpaca")
     assert classify_item(title, source="alpaca") is first
+
+
+@pytest.mark.parametrize("title,source,expected", [
+    # v9, read on 2026-10-12's boards: a prospectus to sell shares is dilution, never "company news".
+    ("iPower Files Prospectus Related To The Offer And Sale Of Securities Up To $50M Aggregate Offering Price", "alpaca",
+     ("negative", "offering_dilution")),
+    ("Processa Pharmaceuticals Files Prospectus For Offering 306.574M Common Shares On Behalf Of Selling Shareholders",
+     "alpaca", ("negative", "offering_dilution")),
+    # A prospectus that sells no shares of the company is not.
+    ("Workhorse Files Prospectus Supplement in Connection with Special Meeting", "alpaca", None),
+    # Revenue with its figure between: earnings, not "company news" (ENVX).
+    ("Q3\u201926 Revenue $11.0 Million Up 38% Year/Year", "globenewswire", ("catalyst", "earnings_guidance")),
+    # A 6-K's incorporation line is the form's cover, not a headline (YMAT).
+    ("6-K | in the Cayman Islands with limited liability) Notice", "edgar", ("routine", "filing_other")),
+])
+def test_v9_reads_of_the_2026_10_12_boards(title, source, expected):
+    got = label(title, source=source)[:2]
+    if expected is None:
+        assert got[1] != "offering_dilution"
+    else:
+        assert got == expected

@@ -6,7 +6,7 @@ routine announcements, then dilution, then the positive classes strongest first.
 """
 from __future__ import annotations
 
-CATALYST_RULES_VERSION = "catalyst-rules-v8-2026-10-02"
+CATALYST_RULES_VERSION = "catalyst-rules-v9-2026-10-12"
 
 # Verdicts for one symbol-day.
 CATALYST_VERDICT_CATALYST = "catalyst"      # a real, company-specific positive catalyst
@@ -78,7 +78,12 @@ CATALYST_LAW_FIRM_RE = (
     r"reminds? (investors|shareholders)|(lead plaintiff|filing|class action) deadline|deadline to (file|join|contact)|"
     r"rosen law|pomerantz|levi & korsinsky|bragar|hagens berman|faruqi|kessler topaz|glancy|bronstein|"
     r"schall law|gross law|kirby mcinerney|robbins llp|halper sadeh|block & leviton|johnson fistel|"
-    r"encouraged to contact|secure counsel|losses? in (excess|of)|investor scrutiny|\bhbss\b"
+    r"encouraged to contact|secure counsel|losses? in (excess|of)|investor scrutiny|\bhbss\b|"
+    # v9 (NCPL 2026-10-12): "Netcapital Inc. Sued for Securities Law Violations - Contact the DJS Law Group to
+    # Discuss Your Rights" read as company news. A company's own release naming its law firm ("Mullen Automotive
+    # Retains ... Law Group ... to Combat Naked Short Selling") is not an advert: only "contact the ... law group".
+    r"sued for securities|securities law violations|contact (the )?[\w&.,' ]{0,30}law (group|firm)|"
+    r"discuss your (legal )?rights"
 )
 CATALYST_MOVERS_RE = (
     # v6: "Why Did SOC, HTZ, COSM Stocks Tumble", "These stocks are moving in today's after hours session".
@@ -184,7 +189,9 @@ CATALYST_SEC_COVER_RE = (
     r"^\(?address|principal executive offices|\d+(st|nd|rd|th) floor|office park|take no responsibility|"
     r"exchanges and clearing|"
     # v6: a street address ("Room 1207-08, No. 2488 Huandao East Road Huli District, Xiamen City" -- CPOP's 6-K).
-    r"^(room|suite|unit|flat|floor|no\.)\s*[\d-]+|\b(road|street|avenue|boulevard)\b.{0,60}\b(district|city|province)\b"
+    r"^(room|suite|unit|flat|floor|no\.)\s*[\d-]+|\b(road|street|avenue|boulevard)\b.{0,60}\b(district|city|province)\b|"
+    # v9: the form's incorporation line ("in the Cayman Islands with limited liability) Notice" -- YMAT's 6-K).
+    r"with limited liability\)|^\(?incorporated in\b"
 )
 # A rebrand or ticker change is routine unless it names a theme pivot (AI, crypto ...).
 CATALYST_REBRAND_RE = r"rebrand\w*|name change|chang\w+ (its )?(trading )?symbol|ticker change"
@@ -196,6 +203,12 @@ CATALYST_OFFERING_RE = (
     r"securities purchase agreement|shelf registration|convertible (notes?|preferred|debentures?)|"
     r"placement agent|underwriting agreement|announces? (an? |its )?offering|offering of [\d.,]+ ?(m|k|million)?\b|"
     r"shares and warrants|\bwarrants? to purchase|"
+    # v9: a prospectus to sell shares (IPW "Files Prospectus Related To The Offer And Sale Of Securities Up To $50M";
+    # PCSA "Files Prospectus For Offering 306.574M Common Shares On Behalf Of Selling Shareholders"), only with a
+    # sale in it: "Files Prospectus Supplement in Connection with Special Meeting" and an issuer's ETF prospectus
+    # sell no shares of the company.
+    r"\bprospectus( supplement)?\b.{0,60}\b(offer\w*|sale|sell|resale|issuance|register|shares|securities|shelf)\b|"
+    r"offer(ing)? and sale of|on behalf of (the )?selling (share|stock)holders|"
     # v8: a private investment in public equity ("Closes PIPE Deal"), never "pipe" or "pipeline"; a headline about
     # the PIPE's investors or shares ("Lock-Up Extension Of Its PIPE Investors") is not a new raise.
     r"(?-i:\bPIPEs?\b)(?!\s+(investors?|shares|holders|shareholders)\b)"
@@ -257,6 +270,8 @@ CATALYST_CONTRACT_WEAK_RE = (
 CATALYST_PRODUCT_RE = r"launch(es|ed)?\b|unveil|introduc(es|ed)|patent|commercial(ly)? (launch|availability)|expands? .{0,30}(into|to)"
 CATALYST_EARNINGS_STRONG_RE = (
     r"record (revenue|quarter|results|sales|year)|raises (full[- ]year )?(guidance|outlook)|"
+    # v9: the figure between ("Q3'26 Revenue $11.0 Million Up 38% Year/Year" -- ENVX).
+    r"(revenue|sales) \$[\d.,]+ ?(million|billion|[mb])?,? (up|increased?|grew) \d{2,}(\.\d)?%|"
     r"(revenue|sales) (up|increase[sd]?|grew|growth of) \d{2,}|\d{2,}(\.\d)?% (yoy |year-over-year )?"
     r"(revenue|sales) (growth|increase)|beats? (estimates|expectations)|turns? profitable|first profitable"
 )

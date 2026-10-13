@@ -9,11 +9,15 @@ import { useSetupsBoard } from '../setups/SetupsStreamContext';
 import { rowRank } from '../setups';
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import {
+  CATALYST_COLUMN_LABEL,
+  CATALYST_COLUMN_TITLE,
   WATCHLIST_BOT_OFF_TITLE,
   WATCHLIST_BOT_ON_TITLE,
   WATCHLIST_FILTER_LABELS,
   WATCHLIST_FOOTNOTE,
 } from '../constants';
+import { CatalystCell } from '../components/CatalystCell';
+import { CatalystPlayheadSync } from '../hooks/useCatalystRead';
 import { fmtPct, fmtRvol, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import { floatHover } from '../utils/shareFacts';
 import {
@@ -91,7 +95,7 @@ function WatchlistRow({ entry, index, setup, following, allowed, onToggleBot, se
         {rvol ?? '—'}
       </td>
       <td className="num" title={floatHover(entry.float_shares)}>{fmtVolume(entry.float_shares)}</td>
-      <td><ToneCell cell={newsCell(entry)} /></td>
+      <td className="wl-catalyst-cell"><CatalystCell symbol={entry.symbol} board={null} fallback={<ToneCell cell={newsCell(entry)} />} /></td>
       <td className="wl-score-cell" title="Weighted 0-100 composite of % change, RVOL, float and news freshness">
         <span className="wl-score-bar"><i style={{ width: `${Math.max(0, Math.min(100, entry.composite_score))}%` }} /></span>
         <span className="wl-score-num">{entry.composite_score.toFixed(0)}</span>
@@ -189,6 +193,7 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
         </div>
       ) : (
         <div className="table-wrapper">
+          <CatalystPlayheadSync />
           <table className="wl-grid">
             <thead>
               <tr>
@@ -199,7 +204,7 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
                 <SortTh col="change" sort={sort} onSort={onSort} className="num" title="Change against the prior close">% Chg</SortTh>
                 <SortTh col="rvol" sort={sort} onSort={onSort} className="num" title="Volume today over the average daily volume">RVOL</SortTh>
                 <SortTh col="float" sort={sort} onSort={onSort} className="num">Float</SortTh>
-                <SortTh col="news" sort={sort} onSort={onSort} title="Today's catalyst since the prior close, by the same rules as the setup grade">News</SortTh>
+                <SortTh col="news" sort={sort} onSort={onSort} title={CATALYST_COLUMN_TITLE}>{CATALYST_COLUMN_LABEL}</SortTh>
                 <SortTh col="score" sort={sort} onSort={onSort} title="0-100 composite: breaks ties among symbols with the same pillar count">Score</SortTh>
                 <SortTh col="setup" sort={sort} onSort={onSort} title="Its most advanced setup on the setup scanners (first pullback, bull flag, flat-top, red to green); hover a cell for what it means">Setup</SortTh>
                 <SortTh col="bot" sort={sort} onSort={onSort} className="wl-bot-cell" title="The bot trades it (bot buys and sells)">Bot</SortTh>

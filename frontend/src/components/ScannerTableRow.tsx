@@ -6,6 +6,7 @@ import { SelectableTableRow } from './SelectableTableRow';
 import { ScannerPriceCell } from './ScannerPriceCell';
 import { ScannerRowActions } from './ScannerRowActions';
 import { ScannerRowMarks } from './ScannerRowMarks';
+import { CatalystCell } from './CatalystCell';
 import { NewsCell } from './NewsCell';
 import { EarningsDots } from './EarningsDots';
 import { ScannerRowNumCell } from './ScannerTableChrome';
@@ -51,6 +52,9 @@ export type ScannerTableRowProps = {
   stale: boolean;
   /** Largest |gap_percent| on the list -- the gap bar scales to the top row. Null: no bar. */
   gapScaleMax?: number | null;
+  /** The board this table shows (gappers | gainers | losers | afterhours | large_cap): the Catalyst cell reads
+   * this row, at its price. */
+  board?: string | null;
 };
 
 /** True when this row can skip React reconciliation after a price_patch. */
@@ -67,6 +71,7 @@ export function scannerTableRowPropsEqual(
     prev.columns === next.columns &&
     prev.onSelect === next.onSelect &&
     prev.onOpenTrading === next.onOpenTrading &&
+    (prev.board ?? null) === (next.board ?? null) &&
     (prev.gapScaleMax ?? null) === (next.gapScaleMax ?? null)
   );
 }
@@ -77,6 +82,7 @@ function renderCell(
   flash: 'up' | 'down' | undefined,
   stale: boolean,
   gapScaleMax: number | null,
+  board: string | null,
 ): ReactNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyRow = row as any;
@@ -143,10 +149,17 @@ function renderCell(
     }
     case 'newest_headline_at':
       return (
-        <NewsCell
-          newest_headline_at={row.newest_headline_at}
-          catalyst={row.catalyst}
-          asOfMs={row.catalyst_as_of != null ? row.catalyst_as_of * 1000 : null}
+        <CatalystCell
+          symbol={row.symbol}
+          board={board}
+          verdict={row.catalyst}
+          fallback={(
+            <NewsCell
+              newest_headline_at={row.newest_headline_at}
+              catalyst={row.catalyst}
+              asOfMs={row.catalyst_as_of != null ? row.catalyst_as_of * 1000 : null}
+            />
+          )}
         />
       );
     case 'earnings_day_offset':
@@ -223,6 +236,7 @@ function ScannerTableRowView({
   flash,
   stale,
   gapScaleMax = null,
+  board = null,
 }: ScannerTableRowProps) {
   const last = columns.length - 1;
   return (
@@ -260,7 +274,7 @@ function ScannerTableRowView({
             data-col={key}
             className={`${scannerColClass(key)}${i === last ? ' scanner-row-actions-host' : ''}`}
           >
-            {renderCell(key, row, flash, stale, gapScaleMax)}
+            {renderCell(key, row, flash, stale, gapScaleMax, board)}
             {/* The last cell hosts the hover actions so no column is added
                 (the width roles are locked, #276). */}
             {i === last ? <ScannerRowActions symbol={row.symbol} onOpenTrading={onOpenTrading} /> : null}

@@ -1,7 +1,10 @@
 """One symbol's facts for the "Why it's moving" read (ADR 028). No network wait.
 
 The symbol's scanner row when a board holds it (surfaced as the Scanner shows it: float, RVOL, the
-catalyst verdict), else its live L1 quote; Yahoo fundamentals from the cache (a symbol not cached yet is
+catalyst verdict), else its live L1 quote. Asked for one board's row (``board``, the Catalyst column) the read
+takes that row at the price the board shows -- a frozen Gappers row reads its own +56%, not the trade an hour
+later -- and names the L1 line's last trade beside it (``last_trade``); otherwise a row is repriced by that
+trade (``with_live_trade``, the Trader card). ``priced_by`` says which; Yahoo fundamentals from the cache (a symbol not cached yet is
 read in the background, and its split / short facts stay unknown meanwhile); an 8-K of the last 30 days that
 says shares were issued (``catalysts/issuance.py``); today's halts from the
 leaderboard's halt log (ADR 023); borrow from the recorded IBKR file (``borrow_feed``). A fact nobody
@@ -21,6 +24,10 @@ from zoneinfo import ZoneInfo
 from constants_move_reason import (
     MOVE_LULD_HALT_KINDS,
     MOVE_NEWS_HALT_CODES,
+    MOVE_PRICED_BY_BOARD_ROW,
+    MOVE_PRICED_BY_LAST_TRADE,
+    MOVE_PRICED_BY_QUOTE,
+    MOVE_PRICED_BY_ROW,
     MOVE_VOLATILITY_HALT_CODES,
 )
 
@@ -37,10 +44,15 @@ def _num(v: Any) -> float | None:
     return float(v) if v == v else None
 
 
-def gather(symbol: str, now: float | None = None) -> dict[str, Any]:
+def gather(symbol: str, now: float | None = None, board: str | None = None,
+           halts: dict[str, Any] | None = None) -> dict[str, Any]:
+    """``board`` reads that board's row at its own price (the Catalyst column); ``halts`` is the halt count when
+    the caller read the log for many symbols at once (``halts_many``)."""
     now = time.time() if now is None else now
     sym = (symbol or "").strip().upper()
-    row, source = _row(sym)
+    from strategy.symbol_pillars import SOURCE_QUOTE
+
+    row, source, priced_by, last_trade = _row(sym, board)
     fund = _fundamentals(sym)
     float_shares = _num(row.get("float")) or _num((fund or {}).get("float_shares"))
     si_from = row if row.get("short_interest") is not None else (fund or {})
@@ -55,6 +67,9 @@ def gather(symbol: str, now: float | None = None) -> dict[str, Any]:
     return {
         "symbol": sym,
         "source": source,
+        "board": source if source != SOURCE_QUOTE else None,
+        "priced_by": priced_by,
+        "last_trade": last_trade,
         "price": _num(row.get("price")),
         "change_pct": _num(row.get("change_pct")),
         "volume": _num(row.get("volume")),
@@ -71,7 +86,7 @@ def gather(symbol: str, now: float | None = None) -> dict[str, Any]:
         "short_pct_float": None if si is not None and float_shares else _num((fund or {}).get("short_percent_of_float")),
         "days_to_cover": _num(row.get("short_ratio")) if row.get("short_ratio") is not None else _num((fund or {}).get("short_ratio")),
         "split": _split(fund, now),
-        "halts": halts_today(sym, now),
+        "halts": halts if halts is not None else halts_today(sym, now),
         "borrow": _borrow(sym, now),
         "catalyst": row.get("catalyst") if isinstance(row.get("catalyst"), dict) else None,
         "shares_issued": _shares_issued(sym),
@@ -86,22 +101,45 @@ def _shares_issued(sym: str) -> dict[str, Any] | None:
     return issuance.for_symbol(sym)
 
 
-def _row(sym: str) -> tuple[dict[str, Any], str]:
+def _row(sym: str, board: str | None = None) -> tuple[dict[str, Any], str, str, dict[str, Any] | None]:
+    """The row, where it came from, which price it carries, and the L1 line's last trade when that is not it."""
     from scanner_surface import surface_rows
     from strategy.symbol_pillars import SOURCE_QUOTE, find_board_row, live_quote, quote_row, raw_boards, with_catalyst
 
-    raw, source = find_board_row(sym, raw_boards())
+    boards = raw_boards()
     quote = live_quote(sym)
-    if raw is None:
-        raw, source = quote_row(sym, quote), SOURCE_QUOTE
+    raw, source, last_trade = None, None, None
+    if board:
+        raw = next((r for r in boards.get(board) or () if str(r.get("symbol") or "").upper() == sym), None)
+        source = board if raw is not None else None
+    if raw is not None:
+        priced_by = MOVE_PRICED_BY_BOARD_ROW
+        last_trade = trade_of(raw, quote)
     else:
-        raw = with_live_trade(raw, quote)
+        raw, source = find_board_row(sym, boards)
+        if raw is None:
+            raw, source, priced_by = quote_row(sym, quote), SOURCE_QUOTE, MOVE_PRICED_BY_QUOTE
+        else:
+            repriced = with_live_trade(raw, quote)
+            priced_by = MOVE_PRICED_BY_LAST_TRADE if repriced is not raw else MOVE_PRICED_BY_ROW
+            raw = repriced
     try:
         surfaced = surface_rows([raw]) or [dict(raw)]
     except Exception:
         logger.warning("move_reason: surfacing %s failed; reading its raw row", sym, exc_info=True)
         surfaced = [dict(raw)]
-    return with_catalyst(surfaced[0]), source or SOURCE_QUOTE
+    return with_catalyst(surfaced[0]), source or SOURCE_QUOTE, priced_by, last_trade
+
+
+def trade_of(row: dict[str, Any], quote: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The L1 line's last trade against the row's previous close: ``{price, change_pct, ts}``, or None when the
+    line holds no trade (IBKR's prior close before the first trade is not one, #541). Pure."""
+    q = quote or {}
+    price, ts = _num(q.get("price")), _num(q.get("last_trade_ts"))
+    if price is None or price <= 0 or q.get("quote_quality") == "close_fallback" or ts is None:
+        return None
+    prev = _num(row.get("prev_close")) or _num(q.get("prev_close"))
+    return {"price": price, "change_pct": price / prev - 1.0 if prev else None, "ts": ts}
 
 
 def with_live_trade(row: dict[str, Any], quote: dict[str, Any] | None) -> dict[str, Any]:
@@ -191,6 +229,23 @@ def count_halts(events: list[dict[str, Any]]) -> dict[str, Any]:
         else:
             out["other"] += 1
     return out
+
+
+def halts_many(symbols: list[str], now: float) -> dict[str, dict[str, Any]] | None:
+    """Today's halt counts for many symbols from one read of the log (the batch read); None when unreadable."""
+    try:
+        from leaderboard import store
+
+        day = datetime.fromtimestamp(now, ET).date().isoformat()
+        with store.connect() as db:
+            events = store.halt_events(db, day, until=now, symbols=list(symbols))
+    except Exception:
+        logger.warning("move_reason: halt log unreadable for %d symbols", len(symbols), exc_info=True)
+        return None
+    by_sym: dict[str, list[dict[str, Any]]] = {s: [] for s in symbols}
+    for e in events:
+        by_sym.setdefault(str(e.get("symbol") or "").upper(), []).append(e)
+    return {s: count_halts(by_sym.get(s) or []) for s in symbols}
 
 
 def halts_today(sym: str, now: float) -> dict[str, Any] | None:

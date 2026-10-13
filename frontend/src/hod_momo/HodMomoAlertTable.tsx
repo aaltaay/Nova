@@ -15,6 +15,7 @@ import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { HOD_MOMO_COLUMNS, HOD_MOMO_COLUMN_TOOLTIPS } from './hodMomoColumns';
 import type { AlertObject } from './types';
 import { HodMomoAlertRow } from './HodMomoAlertRow';
+import { CatalystPlayheadSync } from '../hooks/useCatalystRead';
 import { StrategyFilterDropdown } from './HodMomoStrategyFilter';
 import {
   buildHodMomoRowOffsets,
@@ -181,6 +182,7 @@ export function HodMomoAlertTable({
         maxHeight: viewportHeight + HOD_MOMO_HEADER_HEIGHT_PX,
       }}
     >
+      <CatalystPlayheadSync />
       <table>
         <thead>
           <tr>

@@ -185,7 +185,10 @@ def test_a_contradicted_float_is_marked_and_says_why_without_changing_the_read()
     assert check["value"] == "54K? shares -- low float"
     assert check["detail"] == reason
     assert check["state"] == by_id(plain)["float"]["state"] == "yes"
-    assert flagged["likely"] == plain["likely"]
+    # The same cause and the same ladder; only the ladder's words quote the "54K?" value.
+    assert {k: v for k, v in flagged["likely"].items() if k != "steps"} == \
+        {k: v for k, v in plain["likely"].items() if k != "steps"}
+    assert [s["fits"] for s in flagged["likely"]["steps"]] == [s["fits"] for s in plain["likely"]["steps"]]
     assert by_id(read(facts(**base, float_contradicted=False), NOW))["float"]["value"] == "54K shares -- low float"
 
 

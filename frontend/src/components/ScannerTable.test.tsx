@@ -105,7 +105,8 @@ describe('ScannerTable row numbers', () => {
     const headers = [...container.querySelectorAll('thead th')].map(
       th => th.getAttribute('title') || (th.textContent?.replace(/[↑↓↕]/g, '').trim() ?? ''),
     );
-    expect(headers).toContain('News');
+    // Catalyst (was News, 2026-10-12): its title says what the column reads.
+    expect(headers.filter(h => h.startsWith('Catalyst:'))).toHaveLength(1);
     expect(headers).toContain('Earnings');
     expect(headers).toContain('Days');
     expect(headers.filter(h => h === 'Earnings')).toHaveLength(1);

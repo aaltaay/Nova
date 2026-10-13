@@ -232,3 +232,28 @@ def test_the_live_desk_still_reads(monkeypatch):
 
     assert seen == [SYM] and body["replay"] is False
     assert body["likely"]["label"] == "Not a big move today (+3.2%)"
+
+
+def test_a_batch_on_a_replay_reads_the_board_once_and_matches_the_single_read(stores, monkeypatch):
+    """The Catalyst column's batch (`GET /api/why?symbols=...&board=...`) on a replay: one board read and one halt-log
+    read for every symbol (PR #886 review), and each symbol's read is the single route's."""
+    from leaderboard import playback
+
+    _board(et(7, 1), float_shares=480_216, price=11.5)
+    _halt(et(7, 0, 30))
+    _poll(et(7, 0), 5_000)
+    single = _replay()
+    calls = []
+    real = playback.board_at
+    monkeypatch.setattr(playback, "board_at", lambda *a, **k: calls.append(a) or real(*a, **k))
+
+    res = client.get(f"/api/why?symbols={SYM},ZZZZ&board=gainers")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert (body["replay"], body["errors"], len(calls)) == (True, {}, 1)
+    read = body["reads"][SYM]
+    assert (read["facts"]["priced_by"], read["facts"]["board"]) == ("replay", "gainers")
+    assert read["likely"] == single["likely"] and read["checks"] == single["checks"]
+    alone = client.get("/api/why/ZZZZ").json()
+    assert body["reads"]["ZZZZ"]["likely"] == alone["likely"]

@@ -4,7 +4,7 @@
  */
 
 export const HOD_MOMO_COLUMNS: [string, string][] = [
-  ['news', 'News'],
+  ['news', 'Catalyst'],
   ['time', 'Time'],
   ['symbol', 'Symbol'],
   ['price', 'Price'],
@@ -20,8 +20,9 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
 /** One hover bubble per column header explaining the math / row model. */
 export const HOD_MOMO_COLUMN_TOOLTIPS: Record<string, string> = {
   news:
-    'Newest headline age for this symbol, joined from the scanner news feed. '
-    + 'Flame: hot <=2h, warm <=12h, cool <=24h; older or none shows a dash.',
+    'Catalyst (was News): what is moving it. News keeps its flame (hot <=2h, warm <=12h, cool <=24h); '
+    + 'with no news, the cause the rules read from the facts -- squeeze, split squeeze, low float, thin, '
+    + 'unexplained. Hover a cell for every fact behind it.',
   time:
     'Clock time this symbol FIRST fired a HOD Momo alert today. '
     + 'The row stays pinned to that first catch (position and stamp do not move). '

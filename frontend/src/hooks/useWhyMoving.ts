@@ -12,7 +12,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, WHY_MOVING_PATH, WHY_MOVING_POLL_MS, WHY_MOVING_REPLAY_REFRESH_SEC } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import type { WhyCheck, WhyCheckState, WhyLikely, WhyMovingRead } from '../types/whyMoving';
+import type { WhyCheck, WhyCheckState, WhyLikely, WhyMovingRead, WhyPricedBy, WhyReadFacts, WhyStep } from '../types/whyMoving';
+import { normalizeCatalystVerdict } from '../utils/catalystVerdict';
 
 export interface WhyMovingState {
   read: WhyMovingRead | null;
@@ -55,7 +56,39 @@ function normalizeLikely(raw: unknown): WhyLikely | null {
   const kind = str(r.kind);
   const label = str(r.label);
   if (!kind || !label) return null;
-  return { kind, label, detail: str(r.detail), confidence: r.confidence === 'likely' ? 'likely' : 'possible' };
+  return {
+    kind,
+    label,
+    detail: str(r.detail),
+    confidence: r.confidence === 'likely' ? 'likely' : 'possible',
+    steps: Array.isArray(r.steps) ? r.steps.map(normalizeStep).filter((s): s is WhyStep => s !== null) : [],
+  };
+}
+
+function normalizeStep(raw: unknown): WhyStep | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const kind = str(r.kind);
+  const name = str(r.name);
+  if (!kind || !name) return null;
+  return { kind, name, fits: typeof r.fits === 'boolean' ? r.fits : null, why: str(r.why) ?? '' };
+}
+
+const PRICED_BY: ReadonlySet<string> = new Set<WhyPricedBy>(['board_row', 'last_trade', 'row', 'quote', 'replay']);
+
+function normalizeFacts(raw: unknown): WhyReadFacts {
+  const r = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  const t = r.last_trade && typeof r.last_trade === 'object' ? r.last_trade as Record<string, unknown> : null;
+  const tradePrice = num(t?.price);
+  const tradeTs = num(t?.ts);
+  return {
+    board: str(r.board),
+    priced_by: typeof r.priced_by === 'string' && PRICED_BY.has(r.priced_by) ? r.priced_by as WhyPricedBy : null,
+    price: num(r.price),
+    change_pct: num(r.change_pct),
+    last_trade: tradePrice != null && tradeTs != null ? { price: tradePrice, change_pct: num(t?.change_pct), ts: tradeTs } : null,
+    catalyst: normalizeCatalystVerdict(r.catalyst),
+  };
 }
 
 /** The read off the wire; null when it is not one. */
@@ -72,6 +105,7 @@ export function normalizeWhyMoving(raw: unknown): WhyMovingRead | null {
     replay: r.replay === true,
     likely,
     checks: r.checks.map(normalizeCheck).filter((c): c is WhyCheck => c !== null),
+    facts: normalizeFacts(r.facts),
   };
 }
 

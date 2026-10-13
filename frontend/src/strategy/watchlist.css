@@ -99,3 +99,6 @@
 .wl-bot-dot:hover { opacity: 1; }
 
 .wl-footnote { padding: 0.5rem 1rem; font-size: 0.74rem; color: var(--text-secondary); }
+
+/* Catalyst (was News, 2026-10-12): the word and its line, clipped to the column. */
+.wl-catalyst-cell { max-width: 11rem; overflow: hidden; }

@@ -22,7 +22,15 @@ private placement, a `PIPE`) whose money or consideration is a digital-asset tre
 across its whole stored item text); `PIPE` (case-sensitive) is a raise word, except a headline about a PIPE's
 investors or shares; an item's `n_tickers` counts names, not symbols (`classify.ticker_count`: `IONQ.WS`
 names IONQ again, and one crypto pair on a company's story names the coin it is about -- AMOD + BTCUSD is
-one -- while several pairs each count). A **verdict** for a symbol-day reads only
+one -- while several pairs each count). Rules v9 (2026-10-12, NCPL): a law-firm advert also reads
+"Sued for Securities (Law) Violations", "Contact the ... Law Group / Law Firm" or "Discuss Your (Legal)
+Rights" (NCPL's "... Sued for Securities Law Violations - Contact the DJS Law Group to Discuss Your Rights"
+was company news); a company's own release that names its law firm without "contact" stays news. Also v9,
+from the same day's boards: a prospectus with a sale in it ("Files Prospectus Related To The Offer And Sale Of
+Securities", "... On Behalf Of Selling Shareholders") is `offering_dilution` (IPW, PCSA had read as company news;
+"Prospectus Supplement in Connection with Special Meeting" sells nothing and is not); revenue with its figure
+between ("Revenue $11.0 Million Up 38%", ENVX) is strong `earnings_guidance`; and a 6-K whose extracted headline
+is its incorporation line ("in the Cayman Islands with limited liability) Notice", YMAT) is the form's cover. A **verdict** for a symbol-day reads only
 items published after the prior
 session's 16:00 ET close and at or before its cutoff: `{verdict: "catalyst" | "negative" |
 "routine_only" | "noise_only" | "none_found" | "not_checked", category, strength, title,

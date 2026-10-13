@@ -232,6 +232,13 @@ export function whyFor(symbol: string) {
   };
 }
 
+/** The Catalyst column's batch read (`GET /api/why?symbols=...&board=...`): each symbol's read above. */
+export function whyBatch(symbols: string | null, board: string | null) {
+  const syms = (symbols ?? '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  return { schema_version: 1, rules_version: 1, board, replay: false, generated_at: NOW_MS / 1000,
+    reads: Object.fromEntries(syms.map(s => [s, whyFor(s)])), errors: {} };
+}
+
 type Row = [string, string, string, string, string];
 const DIAG_ROWS: Row[] = [
   ['process_identity', 'process', 'API process', 'ok', 'Demo: running in this page'],

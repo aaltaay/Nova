@@ -6,8 +6,10 @@ to cover with at least a tenth of the float short -- and a borrow fee of 50% a y
 """
 from __future__ import annotations
 
-MOVE_RULES_VERSION = "move-rules-v4-2026-10-12"  # v4: a Sim replay reads its own day as of the playhead; a
-# check names the record it was read from and why a fact is unknown (``check_notes``)
+MOVE_RULES_VERSION = "move-rules-v5-2026-10-12"  # v5: the ladder (``likely.steps``); a board's row is read at its
+# own price (``GET /api/why?board=``, the Catalyst column)
+# v4 (2026-10-12): a Sim replay reads its own day as of the playhead; a check names the record it was read from
+# and why a fact is unknown (``check_notes``)
 # v3 (2026-10-12): days to cover counts only with a tenth of the float short; a Sim replay desk is not read
 # v2 (2026-10-02): a filed share issuance makes the float unknown
 MOVE_SCHEMA_VERSION = 1
@@ -22,10 +24,22 @@ MOVE_KIND_SPLIT_SQUEEZE = "split_squeeze"
 MOVE_KIND_LOW_FLOAT_MOMENTUM = "low_float_momentum"
 MOVE_KIND_THIN_TRADING = "thin_trading"
 MOVE_KIND_UNEXPLAINED = "unexplained"
+# The ladder's first step (``move_reason/explain.py``): the move itself, before any cause.
+MOVE_STEP_MOVE = "move"
 # Not a cause: a Sim replay where no record reaches the playhead (``routes.not_read_on_replay``).
 MOVE_KIND_NOT_READ = "not_read"
 MOVE_NOT_READ_REPLAY_DETAIL = ("Nothing Nova recorded reaches this moment -- no board row, replay price, short "
                                "interest, borrow, news, split or halt log -- so it is not read.")
+
+# The batch read (``GET /api/why?symbols=...&board=...``, the Catalyst column).
+MOVE_BATCH_MAX_SYMBOLS = 80            # a board holds 50 rows; more symbols than this are refused (400)
+MOVE_BATCH_BOARDS = ("gappers", "gainers", "losers", "afterhours", "large_cap")  # strategy.symbol_pillars.raw_boards
+# Which price a read used (``facts.priced_by``).
+MOVE_PRICED_BY_BOARD_ROW = "board_row"   # the named board's row as it shows it (a frozen board's own price)
+MOVE_PRICED_BY_LAST_TRADE = "last_trade"  # the row repriced by the L1 line's last trade (the Trader card)
+MOVE_PRICED_BY_ROW = "row"               # a board row the L1 line holds no trade for
+MOVE_PRICED_BY_QUOTE = "quote"           # on no board: the L1 quote
+MOVE_PRICED_BY_REPLAY = "replay"         # a Sim replay: the loaded replay's print, else the recorded board row
 
 MOVE_STATE_YES = "yes"
 MOVE_STATE_NO = "no"

@@ -9,7 +9,7 @@ import { sampleCandles } from '../cryptos/sampleCryptos';
 import { SAMPLE_SETUPS_SCOREBOARD } from '../sample_data/sampleSetups';
 import {
   CLOSED, WORKING, barsFor, captureSessions, catalystsFor, diagnostics, envelope, health, ibkrAccount, ibkrPositions,
-  ibkrStatus, practiceAccount, rowFor, tickerDetail, whyFor, type Venue, SMPL,
+  ibkrStatus, practiceAccount, rowFor, tickerDetail, whyBatch, whyFor, type Venue, SMPL,
 } from './data/desk';
 import { cryptoBoard } from './data/crypto';
 import { chartEvents } from './data/events';
@@ -127,6 +127,7 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/stock-read\/([^/]+)$/, (m) => stockRead(rowFor(sym(m)), nowS)],
     [/^\/api\/catalysts\/([^/]+)$/, (m) => catalystsFor(sym(m))],
     [/^\/api\/why\/([^/]+)$/, (m) => whyFor(sym(m))],
+    [/^\/api\/why$/, (_m, q) => whyBatch(q.get('symbols'), q.get('board'))],
     [/^\/api\/crypto\/board$/, () => cryptoBoard(nowS)],
     [/^\/api\/crypto\/candles$/, (_m, q) => sampleCandles(q.get('symbol') ?? 'BTC', (q.get('tf') ?? '15m') as Parameters<typeof sampleCandles>[1])],
     [/^\/api\/capture\/sessions$/, () => captureSessions()],

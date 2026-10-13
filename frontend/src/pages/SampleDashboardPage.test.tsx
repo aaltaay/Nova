@@ -119,7 +119,8 @@ describe('SampleDashboardPage', () => {
     const headers = [...container.querySelectorAll('thead th')].map(
       th => th.getAttribute('title') || (th.textContent?.replace(/[↑↓↕]/g, '').trim() ?? ''),
     );
-    expect(headers).toContain('News');
+    // Catalyst (was News, 2026-10-12); the sample desk reads no live move, so the cell keeps the news flame.
+    expect(headers.some(h => h.startsWith('Catalyst:'))).toBe(true);
     expect(headers).toContain('Earnings');
     expect(headers).toContain('Days');
     expect(container.textContent).toMatch(/GOOGL|NVDA|ORCL/);
