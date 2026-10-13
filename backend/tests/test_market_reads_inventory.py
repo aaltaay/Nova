@@ -71,9 +71,9 @@ def test_a_bulk_build_stopped_part_way_ends(tmp_path):
     forever (with no workers). Each task now checks STOP itself, so the run always ends. Run in its own process,
     killed with its pool at the deadline, so a hang fails this test instead of hanging the suite."""
     import os
+    import signal
     import subprocess
 
-    psutil = pytest.importorskip("psutil")
     root = tmp_path / "massive"
     for i in range(1, 21):
         path = root / "trades_v1" / "2026" / "09" / f"2026-09-{i:02d}.csv.gz"
@@ -84,14 +84,17 @@ def test_a_bulk_build_stopped_part_way_ends(tmp_path):
     script = tmp_path / "run_stopped_build.py"
     script.write_text(RUN_STOPPED_BUILD.format(research=str(here / "research"), backend=str(here / "backend"),
                                                root=str(root)), encoding="utf-8")
+    # Its own process group, so the deadline kills the build and its pool with the OS's own tools (CI has no psutil).
+    group = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
     proc = subprocess.Popen([sys.executable, str(script)], stdout=subprocess.PIPE, text=True,
-                            env={**os.environ, "NOVA_MARKET_DATA_DIR": str(root)})
+                            env={**os.environ, "NOVA_MARKET_DATA_DIR": str(root)}, **group)
     try:
         out, _ = proc.communicate(timeout=120)
     except subprocess.TimeoutExpired:
-        for child in psutil.Process(proc.pid).children(recursive=True):
-            child.kill()
-        proc.kill()
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False)
+        else:
+            os.killpg(proc.pid, signal.SIGKILL)
         proc.communicate()
         pytest.fail("the stopped bulk build did not end within 120 s")
     assert proc.returncode == 0 and "failed 0" in out
