@@ -138,6 +138,9 @@ def drop_line(symbol: str, why: str) -> bool:
             or line_session.fate(ib, contract, IBKR_TAPE_TICK_TYPE, ticker) != line_session.GONE)
     if held:
         if ib and contract is not None:
+            from ibkr import stray_lines
+
+            stray_lines.note_cancelled(stray_lines.TAPE, _request_id(ib, contract), symbol)
             try:
                 ib.cancelTickByTickData(contract, IBKR_TAPE_TICK_TYPE)
             except Exception as exc:
