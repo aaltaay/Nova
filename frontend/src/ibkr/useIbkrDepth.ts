@@ -9,7 +9,7 @@ import { readLuldFrame, type LuldView } from './luld';
 import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
-import { forgetBook, noteBeat, noteBookFrame, noteSubscribed } from '../market_view';
+import { forgetBook, noteBeat, noteBookFrame, noteRefused, noteSubscribed } from '../market_view';
 
 interface DepthState {
   book: DepthBook | null;
@@ -156,9 +156,11 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/depth/${symKey}${params}`);
       wsRef.current = ws;
 
-      // The backoff resets on a line ('subscribed'), never on the socket opening: a refused
-      // subscribe opens first and closes after, so resetting there retried every second.
+      // The backoff resets when a socket that said 'subscribed' closes without an error -- never on
+      // 'subscribed' itself: the backend sends it before IBKR answers, and IBKR's refusal (309) comes
+      // after. Resetting there asked every 1.2 s (BKYI 232 refusals in 275 s, VLO 102, 2026-10-13).
       let refused = false;
+      let subscribed = false;
 
       ws.onmessage = (e) => {
         countSocketMessage('depth', frameBytes(e.data));
@@ -176,7 +178,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
           }
           if (msg.type === 'subscribed') {
             noteSubscribed(symKey!, msg.instance);
-            backoffRef.current = 1000;
+            subscribed = true;
             connectedRef.current = true;
             errorRef.current = null;
             if (uiActiveRef.current) commitUi();
@@ -213,7 +215,10 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
           } else if (msg.type === 'error') {
             refused = true;
             connectedRef.current = false;
-            errorRef.current = typeof msg.message === 'string' ? msg.message : 'Depth error';
+            const why = typeof msg.message === 'string' ? msg.message : 'Depth error';
+            errorRef.current = why;
+            // No Level 2: orders on this symbol lock with IBKR's reason until a book arrives (#913).
+            noteRefused(symKey!, why);
             if (uiActiveRef.current) commitUi();
           }
         } catch {
@@ -231,6 +236,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
         const lent = line.closed();
         if (uiActiveRef.current) commitUi();
         if (lent) return;
+        if (subscribed && !refused) backoffRef.current = 1000;   // a line that worked dropped: ask again soon
         const ceiling = refused ? IBKR_DEPTH_REFUSED_RETRY_MAX_MS : IBKR_DEPTH_RETRY_MAX_MS;
         const delay = Math.min(backoffRef.current, ceiling);
         backoffRef.current = Math.min(delay * 2, ceiling);

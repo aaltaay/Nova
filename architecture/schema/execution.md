@@ -94,6 +94,16 @@ the order reached the backend 2-3 s after the click and rested above the market.
   from `sent` to arrival, or a received book has not been drawn for `VIEW_UNDRAWN_LOCK_MS` (500). Then Place,
   the quick bar's and the hotkeys' priced actions and Fill now are locked with the reason (`data-why`); Flatten
   and cancels never are. No age readout: locked or live.
+  - **No Level 2 is not "behind"** (operator decision 2026-10-13, #913: lock, with the true reason). A Level 2
+    IBKR refused or ended (the socket's `error`) locks the symbol's orders at once and steadily, until a book
+    arrives: "No Level 2 for VLO: <IBKR's reason> Orders are locked until a Level 2 is live. Flatten and
+    cancels still work.", on a button reading "No Level 2 · locked". A retry's `subscribed` does not open it.
+    On 2026-10-13 a refused line read "Market view behind · locked" and flipped open and locked every 1.2 s.
+  - **Every flip is in the backend log** (owner `routes/market_view_lock.py`; desk `market_view/lockReport.ts`).
+    `POST /api/market-view/lock` `{schema_version: 1, symbol, locked: boolean, reason: string | null (at most
+    600 characters), locked_for_ms: integer | null}` -> `{ok: true}`, one log line per flip (`nova.order_lock`:
+    `order lock ON  VLO -- <reason>` / `order lock OFF VLO -- open again after 3.2 s`). Log only: nothing is
+    stored and the gate above is unchanged. The sample desk sends none.
 - **The Live send awaits the IB loop, and goes out once or never** (#725; owners `ibkr/send_hop.py`,
   `execution/live_send.py`). A Live place, replace or bracket runs its whole `ibkr.orders` call on the IB loop
   while the socket loop keeps serving every socket (`call_on_ib` blocked it for as long as the IB loop was busy,
