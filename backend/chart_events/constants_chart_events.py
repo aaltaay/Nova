@@ -30,6 +30,9 @@ CHART_EVENTS_RELEASE_ITEM = "2.02"
 # A release came out on the day it gives (its own words, an 8-K's date of event) when that is this many days
 # or fewer before its filing: an Item 2.02 8-K is due within four business days of the announcement.
 CHART_EVENTS_RELEASE_STATED_DAYS = 6
+# Releases this many days apart are one release (XPEV's press release and its Hong Kong results a day later):
+# the mark sits on the first of them.
+CHART_EVENTS_RELEASE_CLUSTER_DAYS = 3
 # A release filed this many days after its report still brought it out (a 10-Q filed the day before the
 # press release); the mark then sits on the report's day, the first public one.
 CHART_EVENTS_RELEASE_AFTER_REPORT_DAYS = 5

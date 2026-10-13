@@ -19,13 +19,18 @@ report results (``release_text.read_6k``). It came out on the day the company sa
 ..."), else the 8-K's date of event, when either is within ``CHART_EVENTS_RELEASE_STATED_DAYS`` before the
 filing; else on its filing day.
 
-An event is one report, marked on the day its results came out: the full release (not a preliminary) in the
-window from its period's end to ``CHART_EVENTS_RELEASE_AFTER_REPORT_DAYS`` after the report -- the first one by
-the report's filing when the releases' words were read (BBAI's results of 2025-03-06, not its restatement of
-03-18), the last one when they were not (an older year: Tesla's deliveries 8-K comes before its earnings
-8-K) -- else the first one after the report, and never later than the report itself. Every other release
-in the window is listed on the event (``other_releases``), never marked. A full release no report claims is
-an event of its own: a 6-K's period comes from its words, an 8-K's is unknown; a preliminary one is not. Revenue, net income and basic EPS are the report's own facts for its current period (the
+A release is **strong** when its words say results, **weak** when they were not read or say only that a
+press release is attached (an Item 2.02 8-K only: TSLA's deliveries, PLUG's asset sale, SNAP's layoffs read
+so), **preliminary** when they say preliminary results. An event is one report, marked on the day its results
+came out: in the window from its period's end to ``CHART_EVENTS_RELEASE_AFTER_REPORT_DAYS`` after the report,
+the strongest kind of release there is -- of those by the report's filing, the last one, or the first of a
+cluster within ``CHART_EVENTS_RELEASE_CLUSTER_DAYS`` of it (XPEV's press release, then its Hong Kong results
+a day later); else the first one after the report -- and never later than the report itself. The last one,
+since what comes earlier in a quarter is what is not the results: deliveries (TSLA on the 2nd), a
+preliminary, a date to come, an acquisition with "certain financial results" (LUNR); a restatement after
+the results is not a release at all (Item 4.02, BBAI 2025-03-18). Every other release in the window is
+listed on the event (``other_releases``), never marked. A strong release no report claims yet is an event
+of its own: a 6-K's period comes from its words, an 8-K's is unknown. Revenue, net income and basic EPS are the report's own facts for its current period (the
 quarter for a 10-Q, the year for an annual report, the period a 6-K covers); for a release no report claims,
 the first filing that tagged that period, which the figure names. A figure nobody tagged is null, never
 estimated.
@@ -45,6 +50,7 @@ from chart_events.constants_chart_events import (
     CHART_EVENTS_INTERIM_FORMS,
     CHART_EVENTS_PERIODIC_FORMS,
     CHART_EVENTS_RELEASE_AFTER_REPORT_DAYS,
+    CHART_EVENTS_RELEASE_CLUSTER_DAYS,
     CHART_EVENTS_RELEASE_FORM,
     CHART_EVENTS_RELEASE_ITEM,
     CHART_EVENTS_RELEASE_STATED_DAYS,
@@ -105,9 +111,24 @@ def release_filings(rows: list[dict[str, Any]], since: date) -> list[dict[str, A
     return sorted(found, key=lambda r: str(r.get("filingDate")), reverse=True)
 
 
-def _rank(rel: Mapping[str, Any]) -> tuple[bool, bool, bool, bool]:
+_STRENGTH = {"strong": 2, "weak": 1, "preliminary": 0}
+
+
+def _rank(rel: Mapping[str, Any]) -> tuple[int, bool, bool, bool]:
     said = rel["said"] or {}
-    return not rel["preliminary"], rel["read"], bool(said.get("named")), bool(said.get("end"))
+    return _STRENGTH[rel["strength"]], rel["read"], bool(said.get("named")), bool(said.get("end"))
+
+
+def _strength(row: Mapping[str, Any], reading: Mapping[str, Any] | None) -> str | None:
+    """How a filing counts as a release (``strong`` / ``weak`` / ``preliminary``), or None for no release."""
+    kind = (reading or {}).get("kind")
+    if is_release_8k(row):
+        if kind == "other":
+            return None
+        return {"results": "strong", "preliminary": "preliminary"}.get(kind, "weak")
+    if row.get("form") in CHART_EVENTS_INTERIM_FORMS and kind in ("results", "preliminary"):
+        return "strong" if kind == "results" else "preliminary"
+    return None
 
 
 def _release_day(filed: date, *said_days: Any) -> date:
@@ -122,29 +143,24 @@ def _release_day(filed: date, *said_days: Any) -> date:
 
 def _releases(rows: list[dict], readings: Mapping[str, Any], fye: tuple[int, int] | None,
               offset: int) -> list[dict[str, Any]]:
-    """Item 2.02 8-Ks that are not something else and 6-Ks that report results, one a day: a full release
-    over a preliminary, one whose words were read, one that names its quarter in the company's words (NIO's
-    press release over its Hong Kong interim report the same day), then one that names its period's end. A
-    named quarter without an end gets its nominal end (``end_nominal``)."""
+    """Item 2.02 8-Ks that are not something else and 6-Ks that report results, one a day: the stronger
+    release, one whose words were read, one that names its quarter in the company's words (NIO's press
+    release over its Hong Kong interim report the same day), then one that names its period's end. A named
+    quarter without an end gets its nominal end (``end_nominal``)."""
     by_day: dict[date, dict[str, Any]] = {}
     for row in rows:
         accn, form, filed = row.get("accessionNumber"), row.get("form"), _day(row.get("filingDate"))
         reading = readings.get(accn) if accn else None
-        if not accn or not filed:
-            continue
-        if is_release_8k(row):
-            if reading is not None and reading.get("kind") == "other":
-                continue
-        elif not (form in CHART_EVENTS_INTERIM_FORMS and reading and reading.get("kind") in ("results",
-                                                                                            "preliminary")):
+        strength = _strength(row, reading) if accn and filed else None
+        if strength is None:
             continue
         said = dict(reading) if reading else {}
         nominal = quarter_end(said["named"], fye, offset) if said.get("named") else None
         if said.get("named") and not _near(_day(said.get("end")), nominal):
             said.update(end=nominal.isoformat() if nominal else None, months=3, end_nominal=True)
         day = _release_day(filed, said.get("stated"), row.get("reportDate") if is_release_8k(row) else None)
-        rel = {"accn": accn, "form": form, "day": day, "filed": filed, "said": said or None, "read": reading is not None,
-               "preliminary": said.get("kind") == "preliminary"}
+        rel = {"accn": accn, "form": form, "day": day, "filed": filed, "said": said or None,
+               "read": reading is not None, "strength": strength}
         held = by_day.get(day)
         if held is None or _rank(rel) > _rank(held):
             by_day[day] = rel
@@ -184,19 +200,27 @@ def _reports(rows: list[dict], groups: list[Group]) -> list[dict[str, Any]]:
 
 
 def _claim(rep: dict[str, Any], releases: list[dict[str, Any]], claimed: set[str]) -> tuple[dict | None, list]:
-    """The full release that brought ``rep``'s results out, and every other release in its window."""
+    """The release that brought ``rep``'s results out, and every other release in its window."""
     end = rep["end"]
     if end is None:
         return None, []
     last = rep["day"] + timedelta(days=CHART_EVENTS_RELEASE_AFTER_REPORT_DAYS)
     window = [r for r in releases if r["accn"] not in claimed and end < r["day"] <= last
               and not ((r["said"] or {}).get("end") and not _near(_day(r["said"]["end"]), end))]
-    full = [r for r in window if not r["preliminary"]]
-    before = [r for r in full if r["day"] <= rep["day"]]
-    if before:
-        chosen = before[0] if all(r["read"] for r in before) else before[-1]
-    else:
-        chosen = full[0] if full else None
+    chosen = None
+    for strength in ("strong", "weak"):
+        found = [r for r in window if r["strength"] == strength]
+        before = [r for r in found if r["day"] <= rep["day"]]
+        if before:
+            chosen = before[-1]
+            for r in reversed(before[:-1]):
+                if (chosen["day"] - r["day"]).days > CHART_EVENTS_RELEASE_CLUSTER_DAYS:
+                    break
+                chosen = r
+        elif found:
+            chosen = found[0]
+        if chosen is not None:
+            break
     claimed.update(r["accn"] for r in window)
     return chosen, [r for r in window if r is not chosen]
 
@@ -267,7 +291,7 @@ def events(submissions: Mapping[str, Any] | None, facts: Mapping[str, Any] | Non
             pending=False))
     newest_report = max((r["day"] for r in reports), default=None)
     for rel in releases:
-        if rel["accn"] in claimed or rel["preliminary"]:
+        if rel["accn"] in claimed or rel["strength"] != "strong":
             continue
         said = rel["said"] or {}
         end, months = _day(said.get("end")), said.get("months")

@@ -15,10 +15,16 @@ Item 4.02), an offering's preliminary figures (ASTS 2025-01-22) and an acquisiti
 A filing **reports results** when one of its opening sentences says results were reported, announced,
 released or published with a word that makes them financial, or a press release on its results, or
 furnishes interim financial statements -- and that sentence does not announce a date to come ("to Report ...
-on September 1"), speak of a meeting's votes, or restate. It is **preliminary** when that sentence says
-preliminary, estimated, certain or selected results. A cover that only says a press release is attached
-(TSLA's "published the press release which is attached hereto as Exhibit 99.1", or a 6-K's non-GAAP note) is
-**unknown** until its Exhibit 99.1's opening is read (``read_exhibit``).
+on September 1"), speak of a meeting's votes, restate, warn of results still being prepared (NIO's "Profit
+Alert"), or give deliveries ("XPENG Announces Vehicle Delivery Results for July 2026"). It is
+**preliminary** when that sentence says preliminary, estimated, certain or selected results. A cover that
+only says a press release is attached (TSLA's "published the press release which is attached hereto as
+Exhibit 99.1", or a 6-K's non-GAAP note) is **unknown** until its Exhibit 99.1's opening is read
+(``read_exhibit``); an 8-K still unknown then is a weak release (``earnings.py``), since the Item 2.02 8-Ks
+that only attach a press release were deliveries, an asset sale, layoffs, a financing, an acquisition and a
+restructuring as often as results (TSLA, PLUG, SNAP, LCID, IONQ, FCEL, 2024-2026). Links are dropped before
+reading: SNDL's "to Announce ... Financial Results on July 31" release ends in a URL that spells it out
+without the "to".
 
 The period is read from the same words ("three / six / nine / twelve months ended <date>", "quarter ended
 <date>", "year ended <date>", a "second quarter 2026"), and the day the company says it happened ("On August
@@ -36,6 +42,7 @@ _ITEM_202 = re.compile(r"\bitem\s*2\.02\.?\s*(?:results\s+of\s+operations\s+and\
 _COVER_SPAN = 20000          # the cover sits in the document's opening characters
 _BODY_CHARS = 2500           # the subject is stated in the opening of the body
 _SENTENCES = 12
+_HEAD_SENTENCES = 3          # a document's title area: its opening sentences
 # A sentence ends at . ; ! ? -- not after a company's "Inc." or "Ltd." -- before an exhibit number, or at an
 # item heading or the signatures.
 _SPLIT = re.compile(r"(?<=[.;!?])(?<!\bInc\.)(?<!\bCorp\.)(?<!\bLtd\.)(?<!\bCo\.)(?<!\bNo\.)(?<!\bU\.S\.)\s+"
@@ -62,6 +69,9 @@ _NOT = (
     re.compile(r"\b(?:date|dates|schedule)\b[^.;]{0,40}\b(?:of|for)\b[^.;]{0,60}\bresults\b", re.I),
     re.compile(r"\b(?:general|shareholders'?|annual|extraordinary|special)\s+meeting\b", re.I),
     re.compile(r"\bvoting results\b|\bboard meeting\b|\brestate|\bnon-reliance\b", re.I),
+    re.compile(r"\bprofit (?:alert|warning)\b|\bpreparing\b|\bfinaliz\w*", re.I),
+    re.compile(r"\bdeliver(?:y|ies)\s+(?:results|update|totals?|figures|numbers)\b|\bproduction\s+and\s+deliver\w*"
+               r"|\bproduction,\s+deliveries\b", re.I),
 )
 _PRELIMINARY = re.compile(r"\b(?:preliminary|estimated)\b|\b(?:certain|selected)\s+(?:\w+\s+){0,2}results\b", re.I)
 # An 8-K Item 2.02 that is about something else than the period's results.
@@ -89,7 +99,9 @@ def text_of(document: bytes | str) -> str:
     """A document's words: scripts and styles dropped, tags removed, entities read, spaces collapsed."""
     raw = document.decode("utf-8", "replace") if isinstance(document, bytes) else document
     raw = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", raw)
-    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", raw))).strip()
+    words = html.unescape(re.sub(r"<[^>]+>", " ", raw))
+    words = re.sub(r"\bhttps?://\S+|\bwww\.\S+", " ", words)
+    return re.sub(r"\s+", " ", words).strip()
 
 
 def cover_body(text: str) -> str:
@@ -151,18 +163,32 @@ def _reading(kind: str, text: str, said: str | None) -> dict[str, Any]:
             "stated": day.isoformat() if day else None}
 
 
-def _results(text: str) -> dict[str, Any] | None:
+def _results(text: str, sentences: list[str] | None = None) -> dict[str, Any] | None:
     """``results`` or ``preliminary`` with the sentence that says so; None when no sentence does."""
-    for sentence in _sentences(text):
+    for sentence in _sentences(text) if sentences is None else sentences:
         if any(p.search(sentence) for p in _RESULTS) and not any(p.search(sentence) for p in _NOT):
             return _reading("preliminary" if _PRELIMINARY.search(sentence) else "results", text, sentence)
     return None
+
+
+def _headed(text: str) -> tuple[dict[str, Any] | None, bool]:
+    """What a document's title area says: a results sentence in it, else whether it says something else
+    (a date to come, deliveries, a profit alert). An exhibit's file header pushes its title past the first
+    split, so the area is its opening ``_HEAD_SENTENCES`` sentences."""
+    head = _sentences(text)[:_HEAD_SENTENCES]
+    found = _results(text, head)
+    return found, found is None and any(p.search(s) for s in head for p in _NOT)
 
 
 def read_6k(document: bytes | str) -> dict[str, Any] | None:
     """A 6-K's cover: ``results`` / ``preliminary``, ``unknown`` when it only says a press release is attached
     (its exhibit decides), or None for any other 6-K."""
     text = cover_body(text_of(document))
+    found, other = _headed(text)
+    if found is not None:
+        return found
+    if other:
+        return None
     found = _results(text)
     if found is not None:
         return found
@@ -188,13 +214,13 @@ def read_exhibit(document: bytes | str) -> dict[str, Any]:
     """An Exhibit 99.1's title and opening: ``results`` / ``preliminary``, ``other`` when its title is about
     deliveries or a date to come, else ``unknown``."""
     text = text_of(document)[:_BODY_CHARS]
-    found = _results(text)
+    found, other = _headed(text)
     if found is not None:
         return found
-    first = next(iter(_sentences(text)), "")
-    if _OTHER_202.search(first) or any(p.search(first) for p in _NOT):
+    if other or any(_OTHER_202.search(s) for s in _sentences(text)[:_HEAD_SENTENCES]):
         return _reading("other", text, None)
-    return _reading("unknown", text, None)
+    found = _results(text)
+    return found if found is not None else _reading("unknown", text, None)
 
 
 def merge(cover: dict[str, Any] | None, exhibit: dict[str, Any]) -> dict[str, Any]:
