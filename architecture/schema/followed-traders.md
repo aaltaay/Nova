@@ -50,13 +50,33 @@ Nova reads two routes of the feed and one folder of images, and nothing else:
   dates[], trades[]}`: the same trades as above from every day in the range, oldest first, each with its `date`.
 - `GET {url}/files/<date>/<evidence>` answers the evidence image (JPEG).
 
+Four more pieces are optional: a feed that does not have them is read as before, and the page says what is missing
+(amendment, 2026-10-13, for the approved page):
+
+- `status.positions`: `{<trader>: {"<side>:<symbol>": price}}`, each trader's bar as the feed last confirmed it (the
+  same read on consecutive frames). Absent: Nova shows no "on their bar right now" read.
+- `status.slots`: `{<trader>: "live/<NAME>.jpg"}`, each trader's slot as last seen, a path under the feed's data
+  folder, so `GET {url}/files/live/<NAME>.jpg`. Absent, or a trader missing: the newest evidence image of that
+  trader stands in, labelled with its time.
+- `faces` on `/api/day`: `{<trader>: "faces/<NAME>.jpg"}`, the trader's photo from the stream that day, under the
+  day's folder, so `GET {url}/files/<date>/faces/<NAME>.jpg`. Absent: the page draws the name's first letter.
+- `GET {url}/files/<date>/reads.jsonl`, the feed's read log: one JSON object per line, `{clock: "HH:MM:SS" (ET),
+  traders: {<name>: {positions: {"<side>:<symbol>": price}, unparsed: string[]}}}`, written each time a read differs
+  from the one before, confirmed or not. A name read wrong (`TJOE`) is its own key. A line whose `clock` is null (a
+  frame the feed could not read at all) is skipped: it has no time to be placed at. A 404 means the feed keeps no
+  read log for that day.
+
+`<NAME>` in those paths is 1 to 16 of `A-Z0-9`; anything else is never asked for.
+
 A field Nova reads that is missing or of another type makes the whole answer `feed.state: "bad_answer"` with the
 field named; Nova never fills one in. Fields Nova does not read may come and go.
 
 ### `GET /api/followed-traders/day?date=YYYY-MM-DD`
 
 `date` optional (default: the feed's own default, its today); anything but `YYYY-MM-DD` is 400
-`FOLLOWED_BAD_DATE`. Answers in about the feed's own time (the feed is asked with a
+`FOLLOWED_BAD_DATE`. `quotes=0` asks for the feed only: no IBKR line is opened or kept for it, `prices.state` is
+`not_asked` and every open trade's `now` is `off` (the desk's trade toasts read this way, so a closed page holds no
+line). Answers in about the feed's own time (the feed is asked with a
 `FOLLOWED_FEED_TIMEOUT_SEC` timeout); IBKR is never waited on:
 
 `{schema_version: 1, generated_at, feed, date, today, dates[], capture, prices, overall, traders[]}`
@@ -69,16 +89,20 @@ field named; Nova never fills one in. Fields Nova does not read may come and go.
   an empty list.
 - `date`, `today`, `dates[]`: the feed's.
 - `capture`: the feed's own status, `{live, clock, updated_at, age_sec, bar_visible, title, traders: string[],
-  problem, problem_at} | null`. `age_sec` is now minus `updated_at`; past `FOLLOWED_CAPTURE_STALE_SEC` (60) the
+  problem, problem_at, bar} | null`. `age_sec` is now minus `updated_at`; past `FOLLOWED_CAPTURE_STALE_SEC` (60) the
   page says the capture stopped, with `problem` as the reason when the feed gave one. `title` is the feed's
   `status.video.title` and `problem` its own words, both shown as they are. `null` when the feed has no status.
-- `prices`: how open positions are priced right now, `{state: "live" | "past_day" | "replay_desk" | "ibkr_down",
-  why: string | null}`. `past_day`: the day shown is not the feed's today, so nothing is priced now. `replay_desk`:
-  the desk is on a Sim replay, whose quotes are the recording's, never today's. `ibkr_down`: IBKR is not ready.
-  Exits are priced whatever this says.
+  `bar` is each trader's bar as the feed last confirmed it, `[{trader, positions: [{side, symbol, price}],
+  image: url | null}]` in the feed's order, `image` this API's `live` path when the feed names a slot image; `null`
+  when the feed reports no `status.positions`. It is the feed's now, whatever day is asked.
+- `prices`: how open positions are priced right now, `{state: "live" | "past_day" | "replay_desk" | "ibkr_down" |
+  "not_asked", why: string | null}`. `past_day`: the day shown is not the feed's today, so nothing is priced now.
+  `replay_desk`: the desk is on a Sim replay, whose quotes are the recording's, never today's. `ibkr_down`: IBKR is
+  not ready. `not_asked`: the request said `quotes=0`. Exits are priced whatever this says.
 - `overall`: everyone's record that day (below).
-- `traders[]`: one per trader with a trade that day, in the order of their first trade: `{name, record, open[],
-  closed[]}`; `record` is that trader's record that day.
+- `traders[]`: one per trader with a trade that day, in the order of their first trade: `{name, face, record, open[],
+  closed[]}`; `record` is that trader's record that day; `face` this API's `faces` path for the trader's photo that
+  day, or `null` when the feed has none.
   `open[]` holds `status: "open"` trades, newest entry first; `closed[]` holds `closed` and `unknown`, newest exit
   first (`unknown` by entry).
 
@@ -165,6 +189,31 @@ The feed's evidence image, passed through (`image/jpeg`, at most `FOLLOWED_EVIDE
 `YYYY-MM-DD` and `name` 32 hex characters; anything else is 404 without asking the feed. A feed that does not
 answer is 502 `FOLLOWED_FEED_UNREACHABLE`.
 
+### `GET /api/followed-traders/live/{name}.jpg` and `/faces/{date}/{name}.jpg`
+
+A trader's slot as the feed last saw it (`live/<NAME>.jpg`, `Cache-Control: no-store`, it changes every few
+seconds) and their photo that day (`<date>/faces/<NAME>.jpg`, kept a day), passed through like evidence. `name` must
+be 1 to 16 of `A-Z0-9` and `date` `YYYY-MM-DD`; anything else is 404 without asking the feed. The feed's own 404
+is passed on as 404 (it has no such image); a feed that does not answer is 502 `FOLLOWED_FEED_UNREACHABLE`.
+
+### `GET /api/followed-traders/reads?date=YYYY-MM-DD&trader=NAME&from_ts=&to_ts=`
+
+What the feed read off one trader's slot between two times (epoch seconds), so a trade can be checked against the
+screenshots: read from the feed's `reads.jsonl` for `date` (at most `FOLLOWED_READS_MAX_BYTES`). All four are
+required; a bad one is 400 (`FOLLOWED_BAD_DATE`, `FOLLOWED_BAD_READS`). Answers:
+
+`{schema_version: 1, generated_at, feed, date, trader, available, why, reads[], truncated}`
+
+- `feed` as on the day route; off `ok` there is nothing else.
+- `available`: false when the feed keeps no read log for that day (its 404), with `why`.
+- `reads[]`: the trader's reads, oldest first, `{ts, until_ts, seen, positions: [{side, symbol, price}],
+  unparsed: string[]}`. The first is the read in force at `from_ts` (it may start before it); a line identical to
+  the one before for this trader is folded into it. `seen: false` is a line where this name was not read at all
+  (the bar was off screen, or the name read as another); `until_ts` is when the next read began (`null` for the
+  last). A read is only what the vision saw on the frame; the feed logs a change only once the same read holds on
+  consecutive frames, so a read that differs from the trade and is not followed by an event was ignored.
+- `truncated`: more than `FOLLOWED_READS_MAX` reads fell in the window; the first `FOLLOWED_READS_MAX` are sent.
+
 ### The lines it holds
 
 Open positions on the feed's today are priced from IBKR Level 1 lines owned by `followed`
@@ -176,10 +225,31 @@ day or an IBKR that is not ready asks for none.
 
 ### On the desk
 
-The page's design is held for the operator's approval (2026-10-13). Until it lands, the Followed traders tab is a
-placeholder that proves the data flows: every state above said in words (not configured, the feed down or
-unreadable, the capture stopped with the feed's own reason, how open positions are priced), each trader's record,
-and each trade as one line -- entry ("by HH:MM:SS" when the entry was not seen, a window when it was seen late), the
-price now or the exit (a low-high range marked estimated for a window), P/L per share and %, the result, held. It
-asks every `FOLLOWED_REFRESH_MS` while the page is open. The tab is placed after Cryptos on the rail, and the focus
-report names it `followed` (`book-watch-and-luld.md`).
+The **Following** page, as the design canvas of 2026-10-13 drew it (held as a draft for the operator's approval). It
+asks `/day` every `FOLLOWED_REFRESH_MS` while it shows; images are fetched with the desk's API key into blob URLs
+(an `<img src>` cannot carry the key) and the live slot images again with each answer.
+
+- **Head:** the capture pill (live with how far behind the stream and the bar's last read; positions off screen,
+  showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not answering
+  or not readable), the day (previous / a calendar / next; next and future days are disabled with why), and Alerts.
+  When open positions cannot be priced, one line says why (`prices.why`).
+- **On their bar right now** (the feed's today only): one card per trader in `capture.bar` -- the slot image (or the
+  newest evidence stand-in with its time) beside what was confirmed, `LONG JZ 1.55` / `SHORT none`.
+- **One section per trader** with a trade that day: photo (or first letter), name, on air when the feed's capture
+  lists them now, counts, and the record for the span picked once above the sections (Day from `/day`, Week and All
+  from `/record`), with the scratches and unscored beside it. **Holding now**: time in, ticker, side, entry, now,
+  unrealised P/L per share and %, held, proof. **Closed**: time in, time out, ticker, side, entry (the average with
+  the first price when the trader added), exit (a low-high range marked est. for a window), P/L, result, held,
+  proof. A time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored.
+- **Activity**, newest first, built from the day's trades: opened (or holding, already open when capture started),
+  added to (the average before and after), closed (held), each with its evidence image when the feed has one.
+- **Proof** of one trade: the entry and exit images, what was read at each (`/reads`), and every read in between
+  that differed from the trade and was ignored. Nova never edits the feed: no button drops or confirms a trade.
+- **Calendar**: a month with a dot on each of the feed's `dates`, weekends dimmed, future days disabled; picking a
+  day shows its traders, tickers and counts from that day's `/day` before opening it.
+- **Toasts**: while the feed is configured and Alerts are on (a per-window setting kept in local storage, on by
+  default), the main desk window asks `/day?quotes=0` every `FOLLOWED_TOAST_POLL_MS` and raises "CHERIF opened LONG JZ
+  @ 1.55" / "added to" / "closed" for a change since its last answer (none for what it found on its first); a toast
+  opens the page on that trade's proof.
+
+The tab is placed after Cryptos on the rail, and the focus report names it `followed` (`book-watch-and-luld.md`).

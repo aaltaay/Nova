@@ -16,7 +16,7 @@ export const NAV_RAIL_LABEL_ACCOUNT = 'Account';
 export const NAV_RAIL_LABEL_BOTS = 'Bots';
 export const NAV_RAIL_LABEL_RECORDS = 'Records';
 export const NAV_RAIL_LABEL_CRYPTOS = 'Cryptos';
-export const NAV_RAIL_LABEL_FOLLOWED = 'Followed traders';
+export const NAV_RAIL_LABEL_FOLLOWED = 'Following';
 export const NAV_RAIL_LABEL_SETTINGS = 'Settings';
 
 export const NAV_RAIL_TITLE_MARKET =
@@ -30,7 +30,7 @@ export const NAV_RAIL_TITLE_BOTS = 'Bots -- strategy and bot autonomy';
 export const NAV_RAIL_TITLE_RECORDS = 'Records -- Session Records';
 export const NAV_RAIL_TITLE_CRYPTOS = 'Cryptos -- the 24/7 crypto market, and the stocks it moves';
 export const NAV_RAIL_TITLE_FOLLOWED =
-  'Followed traders -- their open positions and closed trades from your feed, priced with IBKR';
+  'Following -- the traders your feed follows: what they hold now, their entries and exits, priced with IBKR';
 export const NAV_RAIL_TITLE_SETTINGS = 'Open Settings';
 
 export const NAV_RAIL_COLLAPSE_TITLE = 'Collapse to icons';

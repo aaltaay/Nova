@@ -1,108 +1,133 @@
 /**
- * The Followed traders page -- a placeholder. The operator is approving the page's design (2026-10-13); until then
- * this proves the data flows: every state said (not configured, the feed down or unreadable, its own problem, the
- * capture stale, how open positions are priced) and each trade as one line of text, never an empty list. The rail
- * shows it only when the backend has a feed configured (enabledStore). Schema: architecture/schema/followed-traders.md.
+ * The Following page (operator ask 2026-10-13; the design canvas "Followed Traders UX", four boards): what each
+ * followed trader holds now, their entries and exits, priced with Nova's IBKR data, the proof behind every trade,
+ * and any past day the feed has. Every state is said, never an empty list. The rail shows it only when the backend
+ * has a feed configured (enabledStore). Schema: architecture/schema/followed-traders.md. Nothing here places,
+ * stages or cancels an order.
  */
+import { useEffect, useState } from 'react';
+import { ActivityFeed } from './ActivityFeed';
+import { BarNow } from './BarNow';
+import { captureStopped } from './capture';
 import {
-  FOLLOWED_CAPTURE_STALE_SEC,
-  FT_BAD_ANSWER,
+  FT_EVERYONE,
   FT_LOADING,
-  FT_NO_STATUS,
   FT_NO_TRADES,
   FT_OFF,
-  FT_PLACEHOLDER_NOTE,
   FT_READ_FAILED,
-  FT_TITLE,
-  FT_UNREACHABLE,
+  FT_RECORD_PENDING,
+  FT_RECORD_RANGES,
+  FT_RECORDS,
 } from './constants';
-import { duration, entered, etTime, exitPrice, exited, held, plPct, plPerShare, price } from './format';
-import type { FollowedCapture, FollowedRecord, FollowedTrade } from './types';
+import { clearFollowedProofRequest, useFollowedProofRequest } from './followedStores';
+import { PageHead } from './PageHead';
+import { RecordChips } from './parts';
+import { ProofView } from './ProofView';
+import { TraderSection } from './TraderSection';
+import type { FollowedDay, FollowedRecord, RecordRange } from './types';
 import { useFollowedDay } from './useFollowedDay';
+import { useFollowedRecord } from './useFollowedFetch';
+import './followed.css';
 
 interface Props {
   onOpenTrader?: (symbol: string) => void;
 }
 
 export function FollowedTradersPage(_props: Props) {
-  const { data, error, off } = useFollowedDay(null);
-  let body;
-  if (off) body = <p data-testid="ft-state">{FT_OFF}</p>;
-  else if (!data) body = <p data-testid="ft-state">{error ? `${FT_READ_FAILED} ${error}` : FT_LOADING}</p>;
-  else if (data.feed.state !== 'ok') {
-    body = (
-      <p data-testid="ft-state">
-        {data.feed.state === 'unreachable' ? FT_UNREACHABLE : FT_BAD_ANSWER} {data.feed.error}
-      </p>
-    );
-  } else {
-    body = (
-      <>
-        <p data-testid="ft-capture">{captureLine(data.capture)}</p>
-        <p data-testid="ft-prices">
-          Prices: {data.prices?.state}
-          {data.prices?.why ? ` (${data.prices.why})` : ''}
-          {data.overall ? ` · everyone: ${recordLine(data.overall)}` : ''}
-          {error ? ` · last read failed: ${error}` : ''}
-        </p>
-        {data.traders.length === 0 && <p data-testid="ft-state">{FT_NO_TRADES}</p>}
-        {data.traders.map((t) => (
-          <section key={t.name} data-testid={`ft-trader-${t.name}`} className="mt-3">
-            <h3 className="font-semibold">
-              {t.name} · {recordLine(t.record)}
-            </h3>
-            <ul>
-              {[...t.open, ...t.closed].map((trade) => (
-                <li key={trade.id} data-testid={`ft-row-${trade.id}`}>
-                  {tradeLine(trade)}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </>
-    );
-  }
+  // null: the feed's own today. Each day mounts its own reader, so two days' answers never mix.
+  const [date, setDate] = useState<string | null>(null);
+  const [proofId, setProofId] = useState<string | null>(null);
+  const [range, setRange] = useState<RecordRange>('day');
+  const request = useFollowedProofRequest();
+
+  useEffect(() => {
+    if (!request) return;
+    setDate(request.date);
+    setProofId(request.tradeId);
+    clearFollowedProofRequest();
+  }, [request]);
+
+  const pick = (next: string | null) => {
+    setProofId(null);
+    setDate(next);
+  };
   return (
-    <div className="flex-1 min-h-0 overflow-auto p-4 text-sm" data-testid="followed-traders-page">
-      <h2 className="text-base font-bold">{FT_TITLE}</h2>
-      <p className="opacity-70">{FT_PLACEHOLDER_NOTE}</p>
-      {body}
+    <div className="ft-page" data-testid="followed-traders-page">
+      <DayView key={date ?? 'today'} date={date} proofId={proofId} range={range} onRange={setRange}
+        onPickDate={pick} onProof={setProofId} />
     </div>
   );
 }
 
-export function captureLine(c: FollowedCapture | null): string {
-  if (!c) return FT_NO_STATUS;
-  const stale = c.age_sec !== null && c.age_sec > FOLLOWED_CAPTURE_STALE_SEC;
-  if (stale || (c.updated_at === null && c.problem)) {
-    const why = c.problem ? `: ${c.problem}` : '';
-    return c.age_sec !== null ? `Capture stopped ${duration(c.age_sec)} ago${why}` : `Capture stopped${why}`;
-  }
-  const parts = [c.live ? 'Live' : 'Not live'];
-  if (c.age_sec !== null) parts.push(`read ${duration(c.age_sec)} ago`);
-  if (c.clock) parts.push(`${c.clock} ET`);
-  if (!c.bar_visible) parts.push('positions hidden on the feed right now');
-  return parts.join(' · ');
+interface DayViewProps {
+  date: string | null;
+  proofId: string | null;
+  range: RecordRange;
+  onRange: (r: RecordRange) => void;
+  onPickDate: (date: string | null) => void;
+  onProof: (id: string | null) => void;
 }
 
-export function recordLine(r: FollowedRecord): string {
-  const rate = r.win_rate === null ? 'win rate —' : `win rate ${r.win_rate}%`;
-  return `${r.wins}W / ${r.losses}L / ${r.open} open (${r.scratches} scratch, ${r.unscored} unscored) · ${rate}`;
+function DayView({ date, proofId, range, onRange, onPickDate, onProof }: DayViewProps) {
+  const { data, error, off } = useFollowedDay(date);
+  if (off) return <p className="ft-state" data-testid="ft-state">{FT_OFF}</p>;
+  if (!data) return <p className="ft-state" data-testid="ft-state">{error ? `${FT_READ_FAILED} ${error}` : FT_LOADING}</p>;
+  return (
+    <>
+      <PageHead day={data} onPickDate={onPickDate} />
+      {error && <p className="ft-state ft-state--warn">{FT_READ_FAILED} {error} · showing the last answer</p>}
+      {data.feed.state === 'ok' && <DayBody day={data} proofId={proofId} range={range} onRange={onRange} onProof={onProof} />}
+    </>
+  );
 }
 
-export function tradeLine(t: FollowedTrade): string {
-  const parts = [`${t.side.toUpperCase()} ${t.symbol}`, `in ${entered(t.entry)}`, `entry ${price(t.entry.avg_price)}`];
-  if (t.entry.first_price !== t.entry.avg_price) parts.push(`first ${price(t.entry.first_price)}`);
-  if (t.status === 'open') {
-    parts.push(t.now?.state === 'live' ? `now ${price(t.now.price)}` : `now: ${t.now?.state ?? '—'}`);
-  } else if (t.exit) {
-    const when = t.status === 'unknown' ? 'close not seen' : exited(t.exit);
-    parts.push(`exit ${exitPrice(t.exit)} (${when}${t.exit.state === 'range' ? ', estimated' : ''})`);
-    if (t.exit.trade_ts) parts.push(`IBKR print ${etTime(t.exit.trade_ts)}`);
+function DayBody({ day, proofId, range, onRange, onProof }: { day: FollowedDay; proofId: string | null;
+  range: RecordRange; onRange: (r: RecordRange) => void; onProof: (id: string | null) => void }) {
+  const isToday = day.date !== null && day.date === day.today;
+  const records = useFollowedRecord(range, day.date);
+  const proofOwner = proofId ? day.traders.find((t) => [...t.open, ...t.closed].some((x) => x.id === proofId)) : null;
+  const proofTrade = proofOwner ? [...proofOwner.open, ...proofOwner.closed].find((x) => x.id === proofId) ?? null : null;
+  if (proofTrade && proofOwner && day.date) {
+    return <ProofView trade={proofTrade} face={proofOwner.face} date={day.date} generatedAt={day.generated_at}
+      onBack={() => onProof(null)} />;
   }
-  parts.push(`P/L ${plPerShare(t.pl, t.entry.avg_price)} / sh (${plPct(t.pl)})`);
-  if (t.result) parts.push(t.result);
-  parts.push(`held ${held(t.held)}`);
-  return parts.join(' · ');
+  const c = day.capture;
+  const live = c !== null && c.live && !captureStopped(c);
+  const hasOpen = day.traders.some((t) => t.open.length > 0);
+  const recordFor = (name: string, own: FollowedRecord): FollowedRecord | null =>
+    range === 'day' ? own : records.data?.traders.find((t) => t.name === name)?.record ?? null;
+  const overall = range === 'day' ? day.overall : records.data?.overall ?? null;
+  return (
+    <>
+      {isToday && c && <BarNow capture={c} traders={day.traders} />}
+      {isToday && hasOpen && day.prices && day.prices.state !== 'live' && (
+        <p className="ft-state ft-state--warn" data-testid="ft-prices">Prices now: {day.prices.why}</p>
+      )}
+      <div className="ft-records" data-testid="ft-records">
+        <span className="ft-eyebrow">{FT_RECORDS}</span>
+        <div className="ft-segmented" role="group" aria-label={FT_RECORDS}>
+          {(Object.keys(FT_RECORD_RANGES) as RecordRange[]).map((r) => (
+            <button key={r} type="button" aria-pressed={range === r} className={range === r ? 'is-on' : undefined}
+              onClick={() => onRange(r)} data-testid={`ft-range-${r}`}>{FT_RECORD_RANGES[r]}</button>
+          ))}
+        </div>
+        <span className="ft-muted ft-small">{FT_EVERYONE}</span>
+        <RecordChips record={overall} testId="ft-record-everyone" />
+        {range !== 'day' && records.error && <span className="ft-small ft-warn-text">{records.error}</span>}
+        {range !== 'day' && (records.data?.pending ?? 0) > 0 && (
+          <span className="ft-small ft-muted">{records.data?.pending} {FT_RECORD_PENDING}</span>
+        )}
+      </div>
+      <div className="ft-columns">
+        <div className="ft-traders">
+          {day.traders.length === 0 && <div className="ft-empty">{FT_NO_TRADES}</div>}
+          {day.traders.map((t) => (
+            <TraderSection key={t.name} trader={t} record={recordFor(t.name, t.record)} isToday={isToday}
+              onAir={isToday && live && (c?.traders.includes(t.name) ?? false)} onProof={onProof} />
+          ))}
+        </div>
+        <ActivityFeed traders={day.traders} onProof={onProof} />
+      </div>
+    </>
+  );
 }

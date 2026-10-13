@@ -11,6 +11,9 @@ FOLLOWED_FEED_URL_ENV = "NOVA_FOLLOW_FEED_URL"
 # -- the feed ------------------------------------------------------------------------------------
 FOLLOWED_FEED_TIMEOUT_SEC = 3.0
 FOLLOWED_EVIDENCE_MAX_BYTES = 2 * 1024 * 1024
+# The feed's read log for a day (one line per changed read), and the reads one answer carries.
+FOLLOWED_READS_MAX_BYTES = 16 * 1024 * 1024
+FOLLOWED_READS_MAX = 2000
 FOLLOWED_USER_AGENT = "Nova followed-traders"
 # The page calls the feed's capture stopped when its status is older than this.
 FOLLOWED_CAPTURE_STALE_SEC = 60
@@ -47,3 +50,4 @@ FOLLOWED_RECORD_WEEK_DAYS = 7        # "week": the seven calendar days ending on
 FOLLOWED_ERR_BAD_DATE = "FOLLOWED_BAD_DATE"
 FOLLOWED_ERR_BAD_RANGE = "FOLLOWED_BAD_RANGE"
 FOLLOWED_ERR_FEED_UNREACHABLE = "FOLLOWED_FEED_UNREACHABLE"
+FOLLOWED_ERR_BAD_READS = "FOLLOWED_BAD_READS"

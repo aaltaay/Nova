@@ -16,6 +16,8 @@ from followed_traders.lines import now_state
 NowFor = Callable[[dict[str, Any]], dict[str, Any]]
 ExitFor = Callable[[dict[str, Any]], dict[str, Any]]
 EVIDENCE_PATH = "/api/followed-traders/evidence/{date}/frames/{name}.jpg"
+LIVE_PATH = "/api/followed-traders/live/{name}.jpg"
+FACE_PATH = "/api/followed-traders/faces/{date}/{name}.jpg"
 
 
 def feed_down(state: str, error: str, date: str | None, now: float) -> dict[str, Any]:
@@ -36,7 +38,8 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
     for name, group in traders.items():
         group["open"].sort(key=lambda r: r["entry"]["ts"], reverse=True)
         group["closed"].sort(key=_closed_order, reverse=True)
-        out.append({"name": name, "record": scoring.record(group["open"] + group["closed"]),
+        face = FACE_PATH.format(date=day["date"], name=name) if name in day.get("faces", ()) else None
+        out.append({"name": name, "face": face, "record": scoring.record(group["open"] + group["closed"]),
                     "open": group["open"], "closed": group["closed"]})
     every = [r for t in out for r in t["open"] + t["closed"]]
     return {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3),
@@ -75,7 +78,17 @@ def capture(status: dict[str, Any] | None, now: float) -> dict[str, Any] | None:
     return {"live": status["live"], "clock": status["clock"], "updated_at": updated,
             "age_sec": None if updated is None else round(max(0.0, now - updated), 1),
             "bar_visible": status["bar_visible"], "title": status["title"], "traders": list(status["traders"]),
-            "problem": status.get("problem"), "problem_at": status.get("problem_at")}
+            "problem": status.get("problem"), "problem_at": status.get("problem_at"), "bar": bar(status)}
+
+
+def bar(status: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Each trader's bar as the feed last confirmed it, with this API's path to their slot image when it has one."""
+    held = status.get("positions")
+    if held is None:
+        return None
+    slots = status.get("slots", ())
+    return [{"trader": t["trader"], "positions": [dict(p) for p in t["positions"]],
+             "image": LIVE_PATH.format(name=t["trader"]) if t["trader"] in slots else None} for t in held]
 
 
 def trade_row(t: dict[str, Any], date: str, *, now: float, prices: dict[str, Any], now_for: NowFor,

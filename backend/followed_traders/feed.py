@@ -1,13 +1,14 @@
 """The feed's day, its trades across days and its evidence images, read over HTTP and checked field by field.
 
-``fetch_day`` answers the day as Nova reads it (``parse_day``) and ``fetch_trades`` a span of days
-(``parse_range``), with every time as epoch seconds, or raises
+``fetch_day`` answers the day as Nova reads it (``parse_day``), ``fetch_trades`` a span of days
+(``parse_range``) and ``fetch_reads`` a day's read log (``parse_reads``), with every time as epoch seconds, or raises
 ``FeedError`` with the state the page shows: ``unreachable`` (no answer, an HTTP error) or ``bad_answer`` (a field
 Nova reads is missing or of another type, named in the message). Nothing is filled in; fields Nova does not read
 are ignored. The feed's format: architecture/schema/followed-traders.md.
 """
 from __future__ import annotations
 
+import json
 import logging
 import math
 import re
@@ -20,6 +21,7 @@ import http_pool
 from followed_traders.constants_followed import (
     FOLLOWED_EVIDENCE_MAX_BYTES,
     FOLLOWED_FEED_TIMEOUT_SEC,
+    FOLLOWED_READS_MAX_BYTES,
     FOLLOWED_USER_AGENT,
 )
 
@@ -27,12 +29,17 @@ logger = logging.getLogger(__name__)
 POOL = "followed_traders"
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 EVIDENCE_RE = re.compile(r"^frames/([0-9a-f]{32})\.jpg$")
+NAME_RE = re.compile(r"^[A-Z0-9]{1,16}$")  # a trader's name as a file name in the feed's images
+SLOT_RE = re.compile(r"^live/([A-Z0-9]{1,16})\.jpg$")
+FACE_RE = re.compile(r"^faces/([A-Z0-9]{1,16})\.jpg$")
+CLOCK_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 SIDES = ("long", "short")
 STATUSES = ("open", "closed", "unknown")
 
 
 class FeedError(RuntimeError):
-    """The feed did not answer (``unreachable``) or answered something Nova cannot read (``bad_answer``)."""
+    """The feed did not answer (``unreachable``), answered something Nova cannot read (``bad_answer``), or has no
+    such file (``missing``: its 404, only where the caller allows one)."""
 
     def __init__(self, state: str, message: str) -> None:
         super().__init__(message)
@@ -63,18 +70,46 @@ def fetch_trades(base: str, start: str | None, end: str, *, timeout: float = FOL
 
 def fetch_evidence(base: str, date: str, name: str, *, timeout: float = FOLLOWED_FEED_TIMEOUT_SEC) -> bytes:
     """The evidence JPEG ``frames/<name>.jpg`` of ``date``. The caller has checked both against the schema."""
-    resp = _get(f"{base}/files/{date}/frames/{name}.jpg", params=None, timeout=timeout, accept="image/jpeg",
-                stream=True)
+    return _fetch_bytes(f"{base}/files/{date}/frames/{name}.jpg", timeout=timeout, accept="image/jpeg",
+                        cap=FOLLOWED_EVIDENCE_MAX_BYTES, what="the image")
+
+
+def fetch_live(base: str, name: str, *, timeout: float = FOLLOWED_FEED_TIMEOUT_SEC) -> bytes:
+    """A trader's slot as the feed last saw it, ``live/<name>.jpg``; ``missing`` when the feed has none."""
+    return _fetch_bytes(f"{base}/files/live/{name}.jpg", timeout=timeout, accept="image/jpeg",
+                        cap=FOLLOWED_EVIDENCE_MAX_BYTES, what="the image", missing_ok=True)
+
+
+def fetch_face(base: str, date: str, name: str, *, timeout: float = FOLLOWED_FEED_TIMEOUT_SEC) -> bytes:
+    """A trader's photo that day, ``<date>/faces/<name>.jpg``; ``missing`` when the feed has none."""
+    return _fetch_bytes(f"{base}/files/{date}/faces/{name}.jpg", timeout=timeout, accept="image/jpeg",
+                        cap=FOLLOWED_EVIDENCE_MAX_BYTES, what="the image", missing_ok=True)
+
+
+def fetch_reads(base: str, date: str, *, timeout: float = FOLLOWED_FEED_TIMEOUT_SEC) -> list[dict[str, Any]]:
+    """The day's read log (``parse_reads``); ``missing`` when the feed keeps none for that day."""
+    body = _fetch_bytes(f"{base}/files/{date}/reads.jsonl", timeout=timeout, accept="application/json",
+                        cap=FOLLOWED_READS_MAX_BYTES, what="the read log", missing_ok=True)
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise FeedError("bad_answer", "the read log is not UTF-8") from exc
+    return parse_reads(text)
+
+
+def _fetch_bytes(url: str, *, timeout: float, accept: str, cap: int, what: str, missing_ok: bool = False) -> bytes:
+    resp = _get(url, params=None, timeout=timeout, accept=accept, stream=True, missing_ok=missing_ok)
     body = bytearray()
     for chunk in resp.iter_content(64 * 1024):
         body += chunk
-        if len(body) > FOLLOWED_EVIDENCE_MAX_BYTES:
+        if len(body) > cap:
             resp.close()
-            raise FeedError("bad_answer", f"the image is over {FOLLOWED_EVIDENCE_MAX_BYTES} bytes")
+            raise FeedError("bad_answer", f"{what} is over {cap} bytes")
     return bytes(body)
 
 
-def _get(url: str, *, params: dict | None, timeout: float, accept: str, stream: bool = False) -> requests.Response:
+def _get(url: str, *, params: dict | None, timeout: float, accept: str, stream: bool = False,
+         missing_ok: bool = False) -> requests.Response:
     try:
         resp = http_pool.get(POOL, url, params=params, timeout=timeout, stream=stream,
                              headers={"User-Agent": FOLLOWED_USER_AGENT, "Accept": accept})
@@ -83,6 +118,9 @@ def _get(url: str, *, params: dict | None, timeout: float, accept: str, stream: 
     except requests.RequestException as exc:
         logger.info("followed traders: the feed at %s did not answer: %s", url, type(exc).__name__)
         raise FeedError("unreachable", "could not connect") from exc
+    if resp.status_code == 404 and missing_ok:
+        resp.close()
+        raise FeedError("missing", "HTTP 404")
     if resp.status_code != 200:
         resp.close()
         raise FeedError("unreachable", f"HTTP {resp.status_code}")
@@ -103,6 +141,7 @@ def parse_day(raw: Any) -> dict[str, Any]:
         "dates": [_date_value(d, f"dates[{i}]") for i, d in enumerate(_list(day, "dates", "the answer"))],
         "status": None if status is None else _status(_obj(status, "status")),
         "trades": [_trade(_obj(t, f"trades[{i}]"), f"trades[{i}]") for i, t in enumerate(trades)],
+        "faces": _image_names(day, "faces", "the answer", FACE_RE),
     }
 
 
@@ -126,7 +165,7 @@ def _status(st: dict) -> dict[str, Any]:
     if "video" not in st and problem["problem"] is not None:
         # The feed stalled before it ever read a frame: its status holds only why.
         return {"title": None, "live": False, "clock": None, "updated_at": None, "bar_visible": False,
-                "traders": [], **problem}
+                "traders": [], "positions": None, "slots": set(), **problem}
     video = _obj(st.get("video"), "status.video")
     traders = _list(st, "traders", "status")
     return {
@@ -136,8 +175,77 @@ def _status(st: dict) -> dict[str, Any]:
         "updated_at": _ts(st, "updated_at", "status", optional=True),
         "bar_visible": _bool(st, "bar_visible", "status"),
         "traders": [_str_value(n, f"status.traders[{i}]") for i, n in enumerate(traders)],
+        "positions": _bar(st),
+        "slots": _image_names(st, "slots", "status", SLOT_RE),
         **problem,
     }
+
+
+def _bar(st: dict) -> list[dict[str, Any]] | None:
+    """``status.positions``: each trader's bar as the feed last confirmed it, in the feed's order; None without."""
+    raw = st.get("positions")
+    if raw is None:
+        return None
+    return [{"trader": trader, "positions": _positions(held, f"status.positions.{trader}")}
+            for trader, held in _obj(raw, "status.positions").items()]
+
+
+def _positions(raw: Any, where: str) -> list[dict[str, Any]]:
+    """``{"<side>:<symbol>": price}`` as ``[{side, symbol, price}]``, in the feed's order."""
+    out = []
+    for key, price in _obj(raw, where).items():
+        side, _, symbol = key.partition(":")
+        if side not in SIDES or not symbol:
+            raise _bad(where, f"keyed {key!r}, not side:symbol")
+        if isinstance(price, bool) or not isinstance(price, (int, float)) or not math.isfinite(price):
+            raise _bad(f"{where}.{key}", "not a number")
+        out.append({"side": side, "symbol": symbol, "price": float(price)})
+    return out
+
+
+def _image_names(obj: dict, key: str, where: str, path_re: re.Pattern) -> set[str]:
+    """An optional ``{<trader>: "<path>"}`` map: the traders whose image is at the one path Nova may ask for."""
+    raw = obj.get(key)
+    if raw is None:
+        return set()
+    out = set()
+    for trader, path in _obj(raw, key if where == "the answer" else f"{where}.{key}").items():
+        m = path_re.match(_str_value(path, f"{key}.{trader}"))
+        if m and m.group(1) == trader:
+            out.add(trader)
+    return out
+
+
+# -- the read log ------------------------------------------------------------------------------------
+
+
+def parse_reads(text: str) -> list[dict[str, Any]]:
+    """``reads.jsonl`` as ``[{clock, traders: {name: {positions: [...], unparsed: [...]}}}]``, in the file's order;
+    a line whose ``clock`` is null is skipped."""
+    out = []
+    for n, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        where = f"reads.jsonl line {n}"
+        try:
+            raw = json.loads(line)
+        except ValueError as exc:
+            raise FeedError("bad_answer", f"{where} is not JSON") from exc
+        rec = _obj(raw, where)
+        clock = _str(rec, "clock", where, optional=True)
+        if clock is None:
+            continue  # a frame the feed could not read at all: no time to place it at
+        if not CLOCK_RE.match(clock):
+            raise _bad(f"{where}.clock", f"{clock!r}, not HH:MM:SS")
+        traders = {}
+        for name, read in _obj(rec.get("traders"), f"{where}.traders").items():
+            read = _obj(read, f"{where}.traders.{name}")
+            unparsed = [_str_value(u, f"{where}.traders.{name}.unparsed[{i}]")
+                        for i, u in enumerate(_list(read, "unparsed", f"{where}.traders.{name}"))]
+            traders[name] = {"positions": _positions(read.get("positions"), f"{where}.traders.{name}.positions"),
+                             "unparsed": unparsed}
+        out.append({"clock": clock, "traders": traders})
+    return out
 
 
 def _trade(t: dict, where: str) -> dict[str, Any]:

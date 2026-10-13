@@ -1,7 +1,7 @@
 /** `GET /api/followed-traders/day` (architecture/schema/followed-traders.md). Times are epoch seconds. */
 
 export type FeedState = 'ok' | 'unreachable' | 'bad_answer';
-export type PricesState = 'live' | 'past_day' | 'replay_desk' | 'ibkr_down';
+export type PricesState = 'live' | 'past_day' | 'replay_desk' | 'ibkr_down' | 'not_asked';
 export type NowState = 'live' | 'waiting' | 'no_trade' | 'no_line' | 'off';
 export type ExitState = 'pending' | 'at' | 'range' | 'unavailable';
 
@@ -67,6 +67,8 @@ export interface FollowedTrade {
 
 export interface FollowedTrader {
   name: string;
+  /** This API's path to the trader's photo that day; null when the feed has none. */
+  face: string | null;
   record: FollowedRecord;
   open: FollowedTrade[];
   closed: FollowedTrade[];
@@ -83,6 +85,21 @@ export interface FollowedCapture {
   /** The feed's own reason it cannot read, shown as it is. */
   problem: string | null;
   problem_at: number | null;
+  /** Each trader's bar as the feed last confirmed it; null when the feed does not report it. */
+  bar: FollowedBarSlot[] | null;
+}
+
+export interface BarPosition {
+  side: 'long' | 'short';
+  symbol: string;
+  price: number;
+}
+
+export interface FollowedBarSlot {
+  trader: string;
+  positions: BarPosition[];
+  /** This API's path to the trader's slot as last seen; null when the feed names none. */
+  image: string | null;
 }
 
 export interface FollowedDay {
@@ -96,4 +113,42 @@ export interface FollowedDay {
   prices: { state: PricesState; why: string | null } | null;
   overall: FollowedRecord | null;
   traders: FollowedTrader[];
+}
+
+export type RecordRange = 'day' | 'week' | 'all';
+
+/** `GET /api/followed-traders/record`. */
+export interface FollowedRecords {
+  schema_version: number;
+  generated_at: number;
+  feed: { state: FeedState; error: string | null };
+  range: RecordRange;
+  from: string | null;
+  to: string | null;
+  dates: string[];
+  pending: number;
+  overall: FollowedRecord | null;
+  traders: { name: string; record: FollowedRecord }[];
+}
+
+export interface FollowedRead {
+  ts: number;
+  until_ts: number | null;
+  /** False: the name was not read on that frame (the bar off screen, or the tag read as another name). */
+  seen: boolean;
+  positions: BarPosition[];
+  unparsed: string[];
+}
+
+/** `GET /api/followed-traders/reads`. */
+export interface FollowedReads {
+  schema_version: number;
+  generated_at: number;
+  feed: { state: FeedState; error: string | null };
+  date: string;
+  trader: string;
+  available: boolean;
+  why: string | null;
+  reads: FollowedRead[];
+  truncated: boolean;
 }

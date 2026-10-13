@@ -1,4 +1,5 @@
-"""Followed traders' routes: the gate, the day, an evidence image. Read-only; none waits on IBKR.
+"""Followed traders' routes: the gate, the day, records, the feed's images and reads. Read-only; none waits on
+IBKR.
 
 ``app_routers`` includes this router only when ``NOVA_FOLLOW_FEED_URL`` is set (``config.enabled``); unset, none of
 these routes exists and nothing asks the feed. Shapes: architecture/schema/followed-traders.md.
@@ -14,12 +15,14 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, Response
 
-from followed_traders import config, exits, feed, lines, pricing, view
+from followed_traders import config, exits, feed, lines, pricing, reads, view
 from followed_traders.constants_followed import (
     FOLLOWED_ERR_BAD_DATE,
     FOLLOWED_ERR_BAD_RANGE,
+    FOLLOWED_ERR_BAD_READS,
     FOLLOWED_ERR_FEED_UNREACHABLE,
     FOLLOWED_MAX_LINES,
+    FOLLOWED_READS_MAX,
     FOLLOWED_RECORD_RANGES,
     FOLLOWED_RECORD_WEEK_DAYS,
     FOLLOWED_SCHEMA_VERSION,
@@ -37,7 +40,8 @@ def get_config():
 
 
 @router.get("/api/followed-traders/day")
-async def get_day(date: str | None = None):
+async def get_day(date: str | None = None, quotes: int = 1):
+    """The day; ``quotes=0`` reads the feed only and opens no IBKR line (the desk's trade toasts)."""
     if date is not None and not feed.DATE_RE.match(date):
         return _error(400, FOLLOWED_ERR_BAD_DATE, "date must be YYYY-MM-DD", field="date")
     base = config.feed_url()
@@ -48,7 +52,7 @@ async def get_day(date: str | None = None):
         day = await asyncio.to_thread(feed.fetch_day, base, date)
     except feed.FeedError as exc:
         return view.feed_down(exc.state, exc.message, date, now)
-    prices = prices_state(day)
+    prices = prices_state(day) if quotes else {"state": "not_asked", "why": "asked without prices"}
     open_trades = sorted((t for t in day["trades"] if t["status"] == "open"), key=lambda t: t["entry_ts"],
                          reverse=True)
     line_syms, over_cap = lines.plan([t["symbol"] for t in open_trades])
@@ -116,6 +120,58 @@ async def get_evidence(date: str, name: str):
         return _error(502, FOLLOWED_ERR_FEED_UNREACHABLE, exc.message)
     # An event's image never changes once written.
     return Response(body, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.get("/api/followed-traders/live/{name}.jpg")
+async def get_live(name: str):
+    """A trader's slot as the feed last saw it; it changes every few seconds, so it is never cached."""
+    return await _image(lambda base: feed.fetch_live(base, name), name, cache="no-store")
+
+
+@router.get("/api/followed-traders/faces/{date}/{name}.jpg")
+async def get_face(date: str, name: str):
+    if not feed.DATE_RE.match(date):
+        return Response(status_code=404)
+    return await _image(lambda base: feed.fetch_face(base, date, name), name, cache="private, max-age=86400")
+
+
+async def _image(fetch, name: str, *, cache: str):
+    base = config.feed_url()
+    if base is None or not feed.NAME_RE.match(name):
+        return Response(status_code=404)
+    try:
+        body = await asyncio.to_thread(fetch, base)
+    except feed.FeedError as exc:
+        if exc.state == "missing":
+            return Response(status_code=404)
+        return _error(502, FOLLOWED_ERR_FEED_UNREACHABLE, exc.message)
+    return Response(body, media_type="image/jpeg", headers={"Cache-Control": cache})
+
+
+@router.get("/api/followed-traders/reads")
+async def get_reads(date: str, trader: str, from_ts: float, to_ts: float):
+    """What the feed read off one trader's slot between two times, so a trade can be checked against its images."""
+    if not feed.DATE_RE.match(date):
+        return _error(400, FOLLOWED_ERR_BAD_DATE, "date must be YYYY-MM-DD", field="date")
+    if not trader or len(trader) > 32 or not (from_ts <= to_ts):
+        return _error(400, FOLLOWED_ERR_BAD_READS, "trader is required and from_ts must not be after to_ts")
+    base = config.feed_url()
+    if base is None:
+        return Response(status_code=404)
+    now = time.time()
+    head = {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3), "date": date,
+            "trader": trader}
+    try:
+        log = await asyncio.to_thread(feed.fetch_reads, base, date)
+    except feed.FeedError as exc:
+        if exc.state == "missing":
+            return {**head, "feed": {"state": "ok", "error": None}, "available": False,
+                    "why": "the feed keeps no read log for that day", "reads": [], "truncated": False}
+        return {**head, "feed": {"state": exc.state, "error": exc.message}, "available": False, "why": None,
+                "reads": [], "truncated": False}
+    got = reads.trader_reads(log, date=date, trader=trader, from_ts=from_ts, to_ts=to_ts,
+                             max_reads=FOLLOWED_READS_MAX)
+    return {**head, "feed": {"state": "ok", "error": None}, "available": True, "why": None, **got}
 
 
 def _exit_for(now: float, ready: bool):
