@@ -27,6 +27,7 @@ from constants import (
     IBKR_HISTORICAL_WHAT_TO_SHOW,
 )
 from ibkr import client as _client
+from ibkr import history_answers
 from ibkr.errors import describe_exc, is_transient_historical_failure
 from metrics.op_metrics import timed
 
@@ -209,6 +210,9 @@ async def _fetch_bars_uncached(
         # ib_async cancels the request and hands back an empty list. Treating
         # that as "IBKR has no bars" cached it (15 min for 1Day), stored it and
         # pushed an empty bars_patch that wiped a painted pane (2026-09-23).
+        # It is also the tape's second witness: history that stops answering
+        # beside a silent tape is IBKR's stall, not a quiet line (#722).
+        history_answers.note_timed_out(time.time() - hist_s)
         logger.warning(
             "IBKR: historical bars timed out for %s %s after %.1fs",
             symbol.upper(), timeframe, hist_s,
@@ -218,6 +222,7 @@ async def _fetch_bars_uncached(
             detail=f"IBKR historical data did not answer within {timeout:.0f}s",
         )
 
+    history_answers.note_answered(time.time())
     bars = _normalize_bars(raw or [], limit)
     logger.info(
         "IBKR bars timing %s %s fetch=%.1fs bars=%d",

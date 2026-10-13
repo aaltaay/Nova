@@ -39,6 +39,11 @@ export interface TapeSilence {
   /** Epoch seconds the silence counts from: the last print, the line's opening or the reopening. */
   since: number;
   text: string;
+  /**
+   * The other live lines in the same silence (dead or silent only): IBKR's tape stopped, not this line
+   * (2026-10-13 07:59:22 ET, every line at once). Empty or absent when none, or from an older backend.
+   */
+  pipeline?: string[];
 }
 
 const SILENCE_STATES = new Set(['halted', 'dead', 'silent', 'quiet']);
@@ -49,7 +54,8 @@ export function parseTapeSilence(raw: unknown): TapeSilence | null {
   const r = raw as Record<string, unknown>;
   if (typeof r.state !== 'string' || !SILENCE_STATES.has(r.state)) return null;
   if (typeof r.since !== 'number' || !Number.isFinite(r.since) || typeof r.text !== 'string') return null;
-  return { state: r.state as TapeSilence['state'], since: r.since, text: r.text };
+  const pipeline = Array.isArray(r.pipeline) ? r.pipeline.filter((s): s is string => typeof s === 'string') : [];
+  return { state: r.state as TapeSilence['state'], since: r.since, text: r.text, pipeline };
 }
 
 export interface TapeState {

@@ -150,10 +150,10 @@ async def _on_session_ready(ib: Any, *, reason: str) -> None:
     except Exception:
         logger.exception("IBKR: clear_all_subscriptions failed on READY (%s)", reason)
     try:
-        from ibkr import discovery as _discovery
+        from ibkr import discovery as _discovery, qualified_contracts as _qualified
 
         _discovery.clear_inflight_scan_reqids(reason=reason)
-        _discovery.clear_qualified_contracts(reason=reason)
+        _qualified.clear_qualified_contracts(reason=reason)
     except Exception:
         logger.exception("IBKR: clear_inflight_scan_reqids failed on READY (%s)", reason)
     try:

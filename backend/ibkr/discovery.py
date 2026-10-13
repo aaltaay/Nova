@@ -20,7 +20,6 @@ import time
 
 from constants import (
     IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC,
-    IBKR_QUALIFIED_CONTRACTS_MAX,
     IBKR_ERROR_SCANNER_SLOT_EXHAUSTED,
     IBKR_COLD_SNAPSHOT_BATCH,
     IBKR_QUOTE_BATCH_TIMEOUT_SEC,
@@ -40,6 +39,11 @@ from ibkr import client as _client
 from ibkr import quote_rows as _quote_rows
 from ibkr.errors import IbkrDiscoveryError, IbkrScannerSlotExhaustedError, describe_exc
 from ibkr.open_tick import todays_open
+from ibkr.qualified_contracts import (  # the cache snapshot_quotes reuses
+    _qualified_contracts,
+    remember_qualified_contract,
+    take_qualified_contract,
+)
 from metrics.op_metrics import timed, timed_async
 
 logger = logging.getLogger(__name__)
@@ -49,8 +53,6 @@ _ScannerSubscription = None
 _ScanDataList = None
 _ScannerSub = None
 _ReqIdKey = None
-# Qualified Stock contracts reused across cold snapshot calls.
-_qualified_contracts: dict[str, object] = {}
 # Short-TTL result cache keyed by (scan_code, num_rows, below_price) — see
 # IBKR_SCAN_RESULT_TTL_SEC. Coalesces duplicate one-shot scanner calls
 # fired from independent loops (movers refresh, gapper fallback, HOD seed).
@@ -86,44 +88,6 @@ def clear_inflight_scan_reqids(*, reason: str = "") -> int:
             reason or "unspecified",
         )
     return n
-
-
-def qualified_contract_count() -> int:
-    return len(_qualified_contracts)
-
-
-def clear_qualified_contracts(*, reason: str = "") -> int:
-    """Drop cached Stock contracts after a full reconnect (D-024)."""
-    n = len(_qualified_contracts)
-    _qualified_contracts.clear()
-    if n:
-        logger.info(
-            "IBKR discovery: cleared %d qualified contracts (%s)",
-            n,
-            reason or "unspecified",
-        )
-    return n
-
-
-def remember_qualified_contract(symbol: str, contract: object) -> None:
-    """LRU-insert a qualified contract. Oldest keys drop past the cap."""
-    sym = (symbol or "").strip().upper()
-    if not sym or contract is None:
-        return
-    _qualified_contracts.pop(sym, None)
-    _qualified_contracts[sym] = contract
-    max_n = max(1, int(IBKR_QUALIFIED_CONTRACTS_MAX))
-    while len(_qualified_contracts) > max_n:
-        _qualified_contracts.pop(next(iter(_qualified_contracts)))
-
-
-def take_qualified_contract(symbol: str):
-    """Return a cached contract and mark it most-recently used."""
-    contract = _qualified_contracts.pop(symbol, None)
-    if contract is None:
-        return None
-    _qualified_contracts[symbol] = contract
-    return contract
 
 
 def _get_scan_lock() -> asyncio.Lock:
@@ -462,17 +426,32 @@ async def scan_symbols(
     return symbols
 
 
+def _log_budget_spent(budget_sec: float | None, answered: int, asked: int) -> None:
+    logger.info(
+        "IBKR: snapshot budget %.0fs spent -- %d of %d symbol(s) answered; the rest wait for the next call",
+        float(budget_sec or 0.0), answered, asked,
+    )
+
+
 async def snapshot_quotes(
     symbols: list[str],
     *,
     timeout_sec: float = IBKR_QUOTE_BATCH_TIMEOUT_SEC,
     require_success: bool = False,
+    budget_sec: float | None = None,
 ) -> dict[str, dict]:
     """Qualify + snapshot each symbol. Returns {symbol: {price, prev_close, open, volume}}.
 
     Reuses qualified contracts across ticks so the 1Hz table reprice loop does not
     pay qualifyContractsAsync on every second for the same universe.
-    ``timeout_sec`` bounds a hung reqTickersAsync so table chunks stay responsive.
+    ``timeout_sec`` bounds a hung reqTickersAsync so table chunks stay responsive --
+    each chunk of IBKR_COLD_SNAPSHOT_BATCH, not the call.
+
+    ``budget_sec`` bounds the whole call: the qualify and each chunk wait at most
+    what is left, no chunk starts after it, and what answered by then is returned
+    (said in the log). Off hours IBKR takes up to ~11 s a chunk, so HOD Momo's
+    40-symbol snapshot ran past the 25 s thread bridge every time and its answers
+    were thrown away with the cancelled call (#891).
 
     When ``require_success`` is True (discovery/movers paths), disconnect /
     timeout / API failure raises ``IbkrDiscoveryError`` instead of returning ``{}``
@@ -484,8 +463,9 @@ async def snapshot_quotes(
         return await on_ib(
             snapshot_quotes(
                 symbols, timeout_sec=timeout_sec, require_success=require_success,
+                budget_sec=budget_sec,
             ),
-            max(1.0, float(timeout_sec) + 5.0),
+            max(1.0, float(timeout_sec if budget_sec is None else budget_sec) + 5.0),
             label="snapshot_quotes",
         )
     if not symbols:
@@ -498,13 +478,22 @@ async def snapshot_quotes(
         return {}
 
     symbols = [s.upper() for s in symbols]
+    clock = asyncio.get_running_loop()
+    budget_end = None if budget_sec is None else clock.time() + max(0.5, float(budget_sec))
+
+    def _wait(cap: float) -> float:
+        """``cap``, or what is left of the budget when that is less (never under half a second)."""
+        if budget_end is None:
+            return max(0.5, float(cap))
+        return max(0.5, min(float(cap), budget_end - clock.time()))
+
     missing = [s for s in symbols if s not in _qualified_contracts]
     if missing:
         contracts = [_Stock(sym, "SMART", "USD") for sym in missing]
         try:
             qualified = await asyncio.wait_for(
                 ib.qualifyContractsAsync(*contracts),
-                timeout=IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC,
+                timeout=_wait(IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC),
             )
         except asyncio.TimeoutError as exc:
             detail = f"qualify batch timed out after {IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC:.0f}s"
@@ -540,13 +529,16 @@ async def snapshot_quotes(
     try:
         async with timed("ibkr.snapshot_quotes"):
             for i in range(0, len(qualified), batch_n):
+                if budget_end is not None and clock.time() >= budget_end:
+                    _log_budget_spent(budget_sec, len(tickers), len(qualified))
+                    break
                 chunk = qualified[i : i + batch_n]
                 try:
                     async with cold_slot(label="snapshot_quotes", droppable=True):
                         try:
                             got = await asyncio.wait_for(
                                 ib.reqTickersAsync(*chunk),
-                                timeout=max(0.5, float(timeout_sec)),
+                                timeout=_wait(timeout_sec),
                             )
                             if got:
                                 tickers.extend(got)
@@ -557,6 +549,12 @@ async def snapshot_quotes(
                         "IBKR: snapshot_quotes dropped (%d remaining) -- interactive preempt",
                         len(qualified) - i,
                     )
+                    break
+                except asyncio.TimeoutError:
+                    if budget_end is None:
+                        raise
+                    # A budgeted call keeps what answered; the chunk that ran out is asked next time.
+                    _log_budget_spent(budget_sec, len(tickers), len(qualified))
                     break
     except asyncio.TimeoutError as exc:
         logger.warning(

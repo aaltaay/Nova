@@ -26,6 +26,8 @@ from alpaca import _get_discovery_provider, _alpaca_headers, _get_feed
 import hod_momo as _hod_momo
 from constants import (
     HOD_MOMO_ENRICH_INTERVAL_SEC,
+    HOD_MOMO_ENRICH_SNAPSHOT_BUDGET_SEC,
+    HOD_MOMO_ENRICH_SNAPSHOT_MAX,
     HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC,
     HOD_MOMO_FUNDAMENTALS_BATCH_SIZE,
     HOD_MOMO_RVOL_USE_PACE,
@@ -82,17 +84,20 @@ async def universe_enrichment_loop() -> None:
 
             # discovery=ibkr: never snapshot the full 200+ universe (starves L1).
             # Enrich only the reserved HOD active pool (≤40); live prices come from
-            # scanner_l1 reqMktData. Cold snapshot is a low-priority RVOL backfill.
+            # scanner_l1 reqMktData. Names with a live Level 1 line are read from it;
+            # the rest are a budgeted cold snapshot in turns, a low-priority RVOL backfill
+            # that answered nothing off hours when it asked for all 40 at once (#891).
             if provider == "ibkr":
-                from ibkr import discovery as _ibkr_discovery
+                from ibkr import background_quotes
                 from ibkr_bridge import refresh_hod_active_set
 
                 symbols = refresh_hod_active_set() or symbols[:40]
                 quotes: dict = await loop.run_in_executor(
                     None,
-                    lambda syms=symbols: run_ibkr(
-                        _ibkr_discovery.snapshot_quotes(syms, timeout_sec=15.0)
-                    ) or {},
+                    lambda syms=symbols: background_quotes.gather(
+                        syms, run_ibkr=run_ibkr, budget_sec=HOD_MOMO_ENRICH_SNAPSHOT_BUDGET_SEC,
+                        max_names=HOD_MOMO_ENRICH_SNAPSHOT_MAX,
+                    ),
                 )
                 if not quotes:
                     logger.debug(
