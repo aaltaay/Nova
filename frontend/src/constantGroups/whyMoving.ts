@@ -2,6 +2,8 @@
 
 export const WHY_MOVING_PATH = '/api/why';
 export const WHY_MOVING_POLL_MS = 60_000;
+/** On a Sim replay, read again once the playhead is this far (seconds of replay time) past the last read. */
+export const WHY_MOVING_REPLAY_REFRESH_SEC = 60;
 export const WHY_MOVING_TITLE = "Why it's moving";
 export const WHY_MOVING_DEFAULT_EXPANDED = false;
 export const WHY_MOVING_READING = 'Reading the move ...';

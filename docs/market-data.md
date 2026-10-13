@@ -47,7 +47,7 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | Seek indexes (one per day file) | `...\sim\index\<dataset>\...\<file>.idx` | see `status` | used by every read |
 | Day movers index | `...\movers\day_movers.sqlite3` | see `status` | `movers`, `/api/agent/movers` |
 | Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | see `status` | `board`, the Sim |
-| Reference (splits, news, IPOs, dividends, short interest, financials) | `...\store\reference\` | month files from 2016 | `research/leaderboard/lb_io.py`; FINRA short interest as published by a past moment, for the Sim's "Why it's moving": `backend/move_reason/short_interest.py` |
+| Reference (splits, news, IPOs, dividends, short interest, financials) | `...\store\reference\` | month files from 2016 | `research/leaderboard/lb_io.py`; FINRA short interest as published by a past moment, for the Sim's "Why it's moving": `backend/move_reason/short_interest.py`, from `short_interest/YYYY-MM.jsonl` (`research/orb/short_interest_months.py` splits the dump) |
 
 `NOVA_MARKET_DATA_DIR` moves the Massive root; `NOVA_LEADERBOARD_DIR` the boards.
 

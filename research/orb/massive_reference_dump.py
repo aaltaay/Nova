@@ -10,6 +10,8 @@ Writes under ``E:\\Nova\\massive\\store\\reference`` (the store beside ``NOVA_MA
     news/YYYY-MM.jsonl    the news archive since the window start (tickers, title, publisher,
                           published time, description, keywords, per-ticker insights)
     short_interest.jsonl, short_volume.jsonl   best effort (skipped with a note if the plan refuses)
+    short_interest/YYYY-MM.jsonl   the short interest split by settlement month for the backend's
+                          point-in-time read (``short_interest_months.py``), redone when the dump is newer
     manifest.json         counts, sizes and any endpoint the plan refused
 
 Resumable: a file that exists with content is skipped; news is resumed from the last
@@ -32,6 +34,7 @@ from pathlib import Path
 
 import requests
 
+import short_interest_months
 from common import STORE_DIR, load_env
 
 REF_DIR = STORE_DIR / "reference"
@@ -216,6 +219,9 @@ def main() -> int:
                                               {"settlement_date.gte": WINDOW_START, "limit": 50000})
         counts["short_volume"] = dump_jsonl(api, "short_volume", "/stocks/v1/short-volume",
                                             {"date.gte": WINDOW_START, "limit": 50000})
+        if short_interest_months.needs_split(REF_DIR):
+            split = short_interest_months.split_by_month(REF_DIR)
+            print(f"short_interest: split into {len(split) - 1} settlement months", flush=True)
     if "details" not in a.skip:
         counts["ticker_details"] = dump_details(api)
     if "news" not in a.skip:

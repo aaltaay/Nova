@@ -950,7 +950,9 @@ that reaches the playhead and nothing after it:
   joined where they overlap, read the whole window. Alpaca and Finnhub are read live only and never answer
   here. A news halt comes from the day's halt log.
 - **Short interest.** FINRA's newest settlement published by the replayed day, from Massive's archive
-  (`<NOVA_MARKET_DATA_DIR>/store/reference/short_interest/<YYYY-MM>.jsonl`, `move_reason/short_interest.py`).
+  (`<NOVA_MARKET_DATA_DIR>/store/reference/short_interest/<YYYY-MM>.jsonl`, `move_reason/short_interest.py`), the
+  dump's one `short_interest.jsonl` split by settlement month by `research/orb/short_interest_months.py` (the
+  reference dump runs it; a desk with only the dump reads `unknown` and names the command).
   FINRA publishes about seven business days after a settlement, after the close, so a settlement counts from
   the 8th exchange day after it (`MOVE_FINRA_PUBLISH_BUSINESS_DAYS`; a conservative rule, not FINRA's
   calendar): SDEV on 2026-10-02 reads Sep 15's 1,212,152 shares, not Sep 30's 3,436,239, which counts from
@@ -971,7 +973,11 @@ log alone, read for every day, does not count) the answer is `{..., replay: true
 label: "Not read on a Sim replay of Oct 2", detail: why, confidence: "likely"}, checks: [], facts: {}}`
 (`move_reason.routes.not_read_on_replay`). A live edge that cannot be read counts as a replay. Off the replay
 (Live, Paper, the Sim at its live edge) `replay` is `false`. The Trader card counts the checks' ages back from
-the playhead and names the moment ("Sim replay, read as of Oct 2 10:31 ET"). Before this the card showed
+the playhead and names the moment ("Sim replay, read as of Oct 2 10:31 ET"). It reads again when the Sim clock's
+playhead goes back, when the desk moves between a replay and the live edge (the read on screen is dropped at
+once, and an answer in flight across the rewind is thrown away), and when the playhead plays
+`WHY_MOVING_REPLAY_REFRESH_SEC` past the last read -- a read from a later moment is never shown over an
+earlier playhead. Before this the card showed
 today's facts on a past day's desk: SDEV 2026-10-02 replayed on 2026-10-12 read "Not a big move today
 (-3.9%)", Oct 12's change.
 

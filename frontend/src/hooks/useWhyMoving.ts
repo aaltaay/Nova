@@ -2,9 +2,15 @@
  * Polls `GET /api/why/{symbol}` (ADR 028) for the Trader's News panel: the rules read of what drove the
  * move -- news, halts, float turnover, a reverse split, short interest and IBKR's borrow market. The
  * sample desk reads nothing live (`unavailable`), and neither does an API from before the route.
+ *
+ * On a Sim replay the read is as of the playhead, so the caller passes the playhead (epoch seconds; null off a
+ * replay). A rewind, or a move between a replay and the live desk, drops the read on screen at once and reads
+ * again -- a read from a later moment is never shown over an earlier playhead, and an answer that was in
+ * flight across the rewind is thrown away. Playing forward reads again once the playhead is
+ * `WHY_MOVING_REPLAY_REFRESH_SEC` past the last read.
  */
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE_URL, WHY_MOVING_PATH, WHY_MOVING_POLL_MS } from '../constants';
+import { API_BASE_URL, WHY_MOVING_PATH, WHY_MOVING_POLL_MS, WHY_MOVING_REPLAY_REFRESH_SEC } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { WhyCheck, WhyCheckState, WhyLikely, WhyMovingRead } from '../types/whyMoving';
 
@@ -69,14 +75,20 @@ export function normalizeWhyMoving(raw: unknown): WhyMovingRead | null {
   };
 }
 
-export function useWhyMoving(symbol: string | null | undefined): WhyMovingState {
+export function useWhyMoving(symbol: string | null | undefined, playheadSec: number | null = null): WhyMovingState {
   const sample = useSampleDataOptional();
   const [read, setRead] = useState<WhyMovingRead | null>(null);
   const [loading, setLoading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const pending = useRef(false);                // a read asked for while one was in flight
+  const generation = useRef(0);                 // bumped by a rewind: an older answer is thrown away
+  const askedAt = useRef<number | null>(null);  // the playhead the last read was asked at
+  const playhead = useRef(playheadSec);
+  const pollNow = useRef<() => void>(() => {});
   const sym = (symbol ?? '').trim().toUpperCase();
+  playhead.current = playheadSec;
 
   useEffect(() => {
     setRead(null);
@@ -87,8 +99,13 @@ export function useWhyMoving(symbol: string | null | undefined): WhyMovingState 
     setLoading(true);
 
     async function poll() {
-      if (inFlight.current) return;
+      if (inFlight.current) {
+        pending.current = true;
+        return;
+      }
       inFlight.current = true;
+      const mine = generation.current;
+      askedAt.current = playhead.current;
       try {
         const res = await fetch(`${API_BASE_URL}${WHY_MOVING_PATH}/${encodeURIComponent(sym)}`);
         if (res.status === 404) {
@@ -98,7 +115,7 @@ export function useWhyMoving(symbol: string | null | undefined): WhyMovingState 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = normalizeWhyMoving(await res.json());
         if (!body) throw new Error('not a move read');
-        if (!cancelled && body.symbol === sym) {
+        if (!cancelled && body.symbol === sym && mine === generation.current) {
           setRead(body);
           setError(null);
         }
@@ -107,9 +124,14 @@ export function useWhyMoving(symbol: string | null | undefined): WhyMovingState 
       } finally {
         inFlight.current = false;
         if (!cancelled) setLoading(false);
+        if (!cancelled && pending.current) {
+          pending.current = false;
+          void poll();
+        }
       }
     }
 
+    pollNow.current = () => void poll();
     void poll();
     const id = window.setInterval(() => void poll(), WHY_MOVING_POLL_MS);
     return () => {
@@ -117,6 +139,25 @@ export function useWhyMoving(symbol: string | null | undefined): WhyMovingState 
       window.clearInterval(id);
     };
   }, [sample, sym]);
+
+  // The replay's playhead: a rewind or a move between replay and live drops the read and reads again; a
+  // playhead a minute past the last read reads again.
+  const lastPlayhead = useRef(playheadSec);
+  useEffect(() => {
+    const prev = lastPlayhead.current;
+    lastPlayhead.current = playheadSec;
+    if (sample || !sym) return;
+    const switched = (prev == null) !== (playheadSec == null);
+    if (switched || (playheadSec != null && prev != null && playheadSec < prev)) {
+      generation.current += 1;
+      setRead(null);
+      setLoading(true);
+      pollNow.current();
+    } else if (playheadSec != null && askedAt.current != null
+      && playheadSec - askedAt.current >= WHY_MOVING_REPLAY_REFRESH_SEC) {
+      pollNow.current();
+    }
+  }, [playheadSec, sample, sym]);
 
   if (sample) return { read: null, loading: false, unavailable: true, error: null };
   return { read, loading, unavailable, error };

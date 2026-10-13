@@ -3,7 +3,9 @@
 
 Massive's reference archive keeps FINRA's twice-monthly settlements, one file per settlement month
 (``<NOVA_MARKET_DATA_DIR>/store/reference/short_interest/<YYYY-MM>.jsonl``, rows ``{settlement_date, ticker,
-short_interest, avg_daily_volume, days_to_cover}``). FINRA publishes a settlement about seven business days after
+short_interest, avg_daily_volume, days_to_cover}``), split from ``massive_reference_dump.py``'s one
+``short_interest.jsonl`` by ``research/orb/short_interest_months.py`` (the dump runs it) so a read opens a few
+MB, never the whole dump. A desk with only the dump reads unknown and names that command. FINRA publishes a settlement about seven business days after
 it, after the close, so here a settlement counts only from the ``MOVE_FINRA_PUBLISH_BUSINESS_DAYS``th business
 day after its date -- never earlier. SDEV on 2026-10-02 reads Sep 15's 1,212,152 shares, not Sep 30's 3,436,239,
 which came out about Oct 9. The lag is a conservative rule, not FINRA's own calendar, and the read says so.
@@ -91,6 +93,9 @@ def published_at(symbol: str, at: float) -> dict[str, Any]:
     """
     sym = (symbol or "").strip().upper()
     if not directory().is_dir():
+        if (directory().parent / "short_interest.jsonl").is_file():
+            return {"reason": ("Massive's FINRA short interest is not split by month on this desk "
+                               "(py -3 research/orb/short_interest_months.py)")}
         return {"reason": "Massive's FINRA short-interest archive is not on this desk"}
     day = datetime.fromtimestamp(at, ET).date()
     best = pending = None
