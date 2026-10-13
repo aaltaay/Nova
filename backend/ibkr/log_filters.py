@@ -22,6 +22,13 @@ exceptions for the historical-bars code path (a broader, intentionally lax
 match used only to decide log level / retry copy for one call site). This
 module instead does narrow, precise matching on a third party's log text, so
 it does not reuse that classifier's needle list.
+
+One more case is scoped by reqId, not by code: IBKR's refusal of Nova's margin
+what-if (``ibkr.margin_whatif``; nothing is placed). A cash account answers
+Error 201 to every one, the same code as a real order's reject. A line whose
+reqId is a what-if Nova sent is rewritten in plain words, and downgraded when
+the code is the probe's expected answer; a 201 on any other reqId -- an
+order's -- keeps its ERROR.
 """
 from __future__ import annotations
 
@@ -29,6 +36,7 @@ import logging
 import re
 
 from constants import IBKR_BENIGN_LOG_ERROR_CODES, IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS
+from ibkr import margin_whatif
 
 # Loggers ib_async creates internally — see ib_async/wrapper.py, ib.py, client.py.
 NOISY_IB_ASYNC_LOGGERS = ("ib_async.wrapper", "ib_async.ib", "ib_async.client")
@@ -45,13 +53,30 @@ def is_benign_ibkr_log_message(message: str) -> bool:
     return any(needle in text for needle in IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS)
 
 
+def _downgrade(record: logging.LogRecord) -> None:
+    record.levelno = logging.WARNING
+    record.levelname = logging.getLevelName(logging.WARNING)
+
+
 class BenignIbkrErrorFilter(logging.Filter):
-    """Downgrades matching ERROR records to WARNING; never drops a record."""
+    """Downgrades matching ERROR records to WARNING; never drops a record.
+
+    A reject on a reqId Nova's margin what-if sent is said in plain words
+    (``margin_whatif.probe_line``) and downgraded only when IBKR's code is the
+    probe's expected answer.
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if record.levelno >= logging.ERROR and is_benign_ibkr_log_message(record.getMessage()):
-            record.levelno = logging.WARNING
-            record.levelname = logging.getLevelName(logging.WARNING)
+        if record.levelno < logging.ERROR:
+            return True
+        message = record.getMessage()
+        probe = margin_whatif.probe_line(message)
+        if probe is not None:
+            record.msg, record.args, expected = probe
+            if expected:
+                _downgrade(record)
+        elif is_benign_ibkr_log_message(message):
+            _downgrade(record)
         return True
 
 

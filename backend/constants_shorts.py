@@ -72,6 +72,21 @@ SHORT_WHATIF_TIMEOUT_SEC = 2.0
 SHORT_WHATIF_BOT_WAIT_SEC = 1.5
 SHORT_WHATIF_WORKERS = 1
 SHORT_MARGIN_SOURCE_WHATIF = "IBKR what-if"
+# After IBKR refuses a stock's what-if (a cash account refuses every one) or does not answer, ask
+# again for that stock and side no sooner than this: the ticket and the plan poll every 3-5 s.
+SHORT_WHATIF_RETRY_SEC = 60.0
+# A reqId is the what-if's for this long after it is sent (its answer comes within the timeout), and
+# at most this many are kept: a reject on one is IBKR's answer to the probe, not an order's.
+SHORT_WHATIF_REQID_TTL_SEC = 60.0
+SHORT_WHATIF_REQID_MAX = 256
+# IBKR's codes that answer the probe rather than fault it: 201 "Order rejected" (a cash account
+# holds no short; a buy over the settled cash). They log as a WARNING; any other code stays an ERROR.
+SHORT_WHATIF_EXPECTED_CODES = frozenset({201})
+# The listed tick (Reg NMS Rule 612): a cent at $1.00 and over, a hundredth of a cent under. IBKR
+# refuses a limit off it (Error 110).
+STOCK_TICK = 0.01
+STOCK_SUBPENNY_TICK = 0.0001
+STOCK_SUBPENNY_UNDER = 1.00
 
 # -- Borrow, recorded (ADR 048 decision 4): every tick-236 read, kept for good, so a past-day Sim
 # replay knows what IBKR said then. NOVA_BORROW_DIR; else F:\Nova\borrow while F: is mounted; else

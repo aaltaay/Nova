@@ -8,10 +8,15 @@ practice margin figure -- buying power, the short check, the liquidation price -
 stock's published maintenance by its ratio, and says which source it came from.
 
 A ratio is read as current for ``SHORT_WHATIF_FRESH_SEC`` and kept as the stock's figure for
-``SHORT_WHATIF_KEEP_SEC`` (IBKR's extra charge rarely moves within a day). Nothing waits on IBKR
-under the execution lock: ``ask`` is awaited before it (a bot's short), ``request`` asks on a
-worker thread (the ticket, the Trader tab) so the next order finds an answer. With no answer, or
-on a past-day Sim replay that IBKR cannot speak for, the figure is the published rules'.
+``SHORT_WHATIF_KEEP_SEC`` (IBKR's extra charge rarely moves within a day). A refusal (a cash account
+refuses every what-if) or no answer is kept as the stock's ``last_error``, in plain words, and the
+stock is asked again no sooner than ``SHORT_WHATIF_RETRY_SEC`` (``due``): the ticket and the plan
+poll every few seconds.
+
+Nothing waits on IBKR under the execution lock: ``ask`` is awaited before it (a bot's short),
+``request`` asks on a worker thread (the ticket, the Trader tab) so the next order finds an answer.
+With no answer, or on a past-day Sim replay that IBKR cannot speak for, the figure is the published
+rules'.
 
 In memory only: a restart starts with the published rules until IBKR answers again.
 """
@@ -30,6 +35,7 @@ from constants_shorts import (
     SHORT_MARGIN_SOURCE_WHATIF,
     SHORT_WHATIF_FRESH_SEC,
     SHORT_WHATIF_KEEP_SEC,
+    SHORT_WHATIF_RETRY_SEC,
     SHORT_WHATIF_TIMEOUT_SEC,
     SHORT_WHATIF_WORKERS,
 )
@@ -118,6 +124,17 @@ def fresh(symbol: str, side: str, *, now: float | None = None) -> bool:
     return answer is not None and answer.age(now) <= SHORT_WHATIF_FRESH_SEC
 
 
+def due(symbol: str, side: str, *, now: float | None = None) -> bool:
+    """Whether to ask IBKR now: no fresh answer, and no refusal or silence in the last
+    ``SHORT_WHATIF_RETRY_SEC``."""
+    if fresh(symbol, side, now=now):
+        return False
+    with _lock:
+        got = _errors.get(_key(symbol, side))
+    t = time.time() if now is None else float(now)
+    return got is None or t - got[0] >= SHORT_WHATIF_RETRY_SEC
+
+
 def last_error(symbol: str, side: str) -> str | None:
     with _lock:
         got = _errors.get(_key(symbol, side))
@@ -166,11 +183,11 @@ def _ask_in_background(key: tuple[str, str], qty: float, price: float) -> None:
 
 
 def request(symbol: str, side: str, qty: float, price: float) -> bool:
-    """Ask IBKR on a worker thread unless an answer is fresh or a question is on its way."""
+    """Ask IBKR on a worker thread unless it is not ``due`` or a question is on its way."""
     key = _key(symbol, side)
     if not key[0] or key[1] not in ("BUY", "SELL") or not (qty > 0 and price > 0):
         return False
-    if fresh(*key):
+    if not due(*key):
         return False
     from ibkr import client as _client
 

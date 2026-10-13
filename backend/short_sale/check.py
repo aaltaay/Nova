@@ -290,6 +290,8 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
     answer = None if facts.replay else facts.whatif
     ratio = answer.ratio if answer is not None else 1.0
     source = SHORT_MARGIN_SOURCE_WHATIF if answer is not None else SHORT_MARGIN_SOURCE_PUBLISHED
+    refused = None if answer is not None or facts.replay else facts.whatif_error
+    why = f" IBKR's what-if gave none: {refused}." if refused else ""
     held = account.held_short or 0.0
     held_mark = _held_mark(account, order.symbol) if held > 0 else None
     if held > 0 and held_mark is None:
@@ -316,15 +318,16 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
     left = max(0.0, equity - other)
     numbers = {"source": source, "ratio": round(ratio, 4), "requirement": round(need, 2), "excess": round(left, 2),
                "liquidation_price": liq, "cushion_price": verdict["cushion_price"], "fill_price": fill,
-               "held_short": held, "held_mark": held_mark}
+               "held_short": held, "held_mark": held_mark, "whatif_error": refused}
     held_note = f" (the {held:g} already short counted from its mark {held_mark:.2f})" if held_mark is not None else ""
     at += held_note
     if not verdict["fits"]:
         return [_bad("margin", "Margin", SHORT_MARGIN,
                      (f"Margin ({source}): {qty:,.0f} {order.symbol} short {at} needs {_money(need)}, and "
                       f"the account's {_money(equity)} of equity has {_money(left)} left after its other positions. "
-                      "Short fewer shares."), _money(need), **numbers)]
-    fits = _ok("margin", "Margin", f"Margin ({source}): {_money(need)} of {_money(left)}.", _money(need), **numbers)
+                      f"Short fewer shares.{why}"), _money(need), **numbers)]
+    fits = _ok("margin", "Margin", f"Margin ({source}): {_money(need)} of {_money(left)}.{why}", _money(need),
+               **numbers)
     if not verdict["ok"]:
         where = f"IBKR would liquidate near {liq:.2f}" if isinstance(liq, float) else "IBKR would liquidate at once"
         return [fits, _bad("cushion", "25% cushion", SHORT_CUSHION,
