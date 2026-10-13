@@ -202,6 +202,11 @@ def load_hod_momo_snapshot_for_date(date_str: str) -> dict:
     return _cache._read_dated_json(_cache.HOD_MOMO_ALERTS_PREFIX, date_str)
 
 
+def hod_momo_snapshot_on_file(date_str: str) -> bool:
+    """Whether HOD Momo saved an alert snapshot for the day (an empty one counts)."""
+    return os.path.isfile(_cache._dated_path(_cache.HOD_MOMO_ALERTS_PREFIX, date_str))
+
+
 def save_hod_momo_highs(data: dict) -> None:
     save_hod_momo_highs_for_date(_cache._today_et(), data)
 

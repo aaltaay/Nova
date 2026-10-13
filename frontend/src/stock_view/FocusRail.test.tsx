@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FOCUS_RAIL_STORAGE_KEY } from '../constantGroups/trader_chrome';
 import type { AlertObject } from '../hod_momo/types';
+import type { HodMomoReplayState } from '../hod_momo/useHodMomoReplay';
 import { makeLiveScannerFeedStub, type LiveScannerFeed } from '../scanner/ScannerDataContext';
 import type { ScannerRow } from '../types/scanner';
 import { consumeFocusListRequest, requestFocusList } from '../workspace/focusListRequest';
@@ -25,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   scanner: vi.fn(),
   replayDesk: false,
   hod: null as { alerts: AlertObject[]; connected: boolean; feedError: string | null; totalToday: number } | null,
+  /** The HOD stream's Sim playhead read; null on Live / Paper. */
+  hodReplay: null as HodMomoReplayState | null,
   /** The strip menu's strategy picks, shared through the HOD context; null = the default set. */
   visible: null as ReadonlySet<number> | null,
   panel: null as unknown,
@@ -58,6 +61,7 @@ vi.mock('../hod_momo/HodMomoContext', async () => {
         hodCount: collapseAlertsBySymbol(hodMomentum.filter(a => visible.has(a.strategy_id))).length,
         runningUpCount: collapseAlertsBySymbol(runningUp).length,
         visibleStrategies: mocks.visible ?? undefined,
+        replay: mocks.hodReplay,
       };
     },
   };
@@ -111,6 +115,7 @@ beforeEach(() => {
   localStorage.clear();
   mocks.hod = { alerts: [], connected: true, feedError: null, totalToday: 0 };
   mocks.visible = null;
+  mocks.hodReplay = null;
   mocks.feed = makeLiveScannerFeedStub({ gappers: [row('GRML', 131.2, 8.9, ago(30)), row('VXTL', 38.2, 3.42), row('CBRX', -5.4, 4.56)] });
   mocks.allow = ['GRML', 'VXTL'];
   mocks.recording = ['GRML'];
@@ -251,6 +256,18 @@ describe('FocusRail', () => {
     mocks.hod = { alerts: [alert('GRML', 2, 100, { price: 8.9 })], connected: true, feedError: null, totalToday: 1 };
     view.rerender(<FocusRail />);
     expect(screen.getByTestId('focus-rail-alert-GRML').querySelector('.hod-strip__price')?.textContent).toBe('8.90');
+  });
+
+  it('a Sim day with no HOD Momo history says so, in the strip words, not "no rows right now"', () => {
+    const replay: HodMomoReplayState = { date: '2026-07-15', minute: 0, loading: false, error: null, recorded: false };
+    mocks.hodReplay = replay;
+    const view = render(<FocusRail />);
+    fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'hod_momo' } });
+    expect(screen.getByTestId('focus-rail-absent').textContent)
+      .toBe('No HOD Momo alert history for 2026-07-15 -- Nova kept no HOD Momo record that day');
+    mocks.hodReplay = { ...replay, date: '2026-09-21', recorded: true };
+    view.rerender(<FocusRail />);
+    expect(screen.getByTestId('focus-rail-absent').textContent).toBe('HOD Momo: no rows right now');
   });
 
   it('persists collapsed state and the mirrored list under the versioned key', async () => {

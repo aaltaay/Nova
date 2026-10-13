@@ -80,19 +80,21 @@ def hod_momo_history_dates():
 
 @router.get("/api/hod-momo/history/{date}")
 def hod_momo_history_snapshot(date: str, until: float | None = None):
-    """HOD Momo alerts for a date (YYYY-MM-DD); ``until`` keeps those raised at or before it.
+    """HOD Momo alerts for a date (YYYY-MM-DD): ``{date, recorded, alerts, error}``.
 
-    ``until`` is the Sim playhead (ADR 023): the strip never shows an alert
-    Nova had not raised yet. An alert with no time of its own is left out.
+    ``recorded`` is False when Nova kept no HOD Momo record that day -- an
+    absence, never "no alerts raised". ``until`` is the Sim playhead (ADR 023):
+    it keeps the alerts raised at or before it, so the strip never shows an
+    alert Nova had not raised yet. An alert with no time of its own is left out.
     """
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         return {}
-    alerts = _hod_momo.get_history_alerts(date)
-    if until is None:
-        return alerts
-    from hod_momo_history_filter import raised_by
+    day = _hod_momo.get_history_day(date)
+    if until is not None:
+        from hod_momo_history_filter import raised_by
 
-    return raised_by(alerts, float(until))
+        day["alerts"] = raised_by(day["alerts"], float(until))
+    return {"date": date, **day}
 
 
 @router.get("/api/hod-momo/config")

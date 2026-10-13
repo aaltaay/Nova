@@ -170,6 +170,16 @@ export const HOD_REPLAY_FEED_TITLE = 'Alerts raised by the Sim playhead, from th
 export const hodReplayFeedLabel = (clock: string): string => `replay ${clock}`;
 export const hodReplayLoading = (clock: string): string => `Loading alerts raised by ${clock} ET…`;
 export const hodReplayEmpty = (date: string, clock: string): string => `No alerts raised by ${clock} ET on ${date}`;
+/**
+ * A day Nova kept no HOD Momo record of (the history route's `recorded: false`): an absence, never
+ * "No alerts raised" or "0 alerts" (operator rule, 2026-10-12 -- a Massive-rebuilt day has its boards, not its alerts).
+ */
+export const hodReplayNoHistory = (date: string): string =>
+  `No HOD Momo alert history for ${date} -- Nova kept no HOD Momo record that day`;
+export const HOD_REPLAY_NO_HISTORY_COUNT = 'no alert history';
+export const HOD_REPLAY_NO_HISTORY_TITLE = 'Nova keeps HOD Momo alerts only for days it ran HOD Momo. '
+  + 'A day rebuilt from downloaded market data has its Scanner boards, not its alerts, '
+  + 'so this strip cannot say which alerts would have fired.';
 export const hodReplayError = (error: string): string => `Alert history did not load: ${error}`;
 export const HOD_REPLAY_CLEAR_TITLE = 'Past alerts are history -- nothing to clear while Sim replays.';
 

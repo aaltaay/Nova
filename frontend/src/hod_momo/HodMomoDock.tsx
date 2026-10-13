@@ -28,7 +28,6 @@ import {
   HOD_MOMO_STRIP_GRIP_TITLE,
   HOD_MOMO_STRIP_OVERSCAN_ROWS,
   HOD_MOMO_STRIP_ROW_PX,
-  hodMomoStripSinceLabel,
 } from './hodMomoStripConstants';
 import { groupIsNew, type StripAlertGroup } from './hodMomoStripGroups';
 import { stripRowsToPx } from './hodMomoStripPersist';
@@ -38,7 +37,7 @@ import { defaultHodMomentumVisibleStrategies } from './scannerPartition';
 import { useHodMomoIntegrity } from './useHodMomoIntegrity';
 import { useHodMomoStripResize } from './useHodMomoStripResize';
 import { useHodStripView } from './useHodStripView';
-import { hodReplayEmptyText, hodReplayFeed } from './hodMomoReplayCopy';
+import { hodReplayEmptyText, hodReplayEmptyTitle, hodReplayFeed, hodStripCountLabel } from './hodMomoReplayCopy';
 import type { AlertObject } from './types';
 
 const NO_ALERTS: AlertObject[] = [];
@@ -160,7 +159,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
       aria-label="HOD Momo strip"
     >
       <HodMomoStripHeader
-        sinceLabel={hodMomoStripSinceLabel(alerts.length, since)}
+        sinceLabel={hodStripCountLabel(replay, alerts.length, since)}
         integrity={integrity}
         connected={stream.connected}
         feedLabel={replay ? hodReplayFeed(replay) : null}
@@ -215,6 +214,8 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
                 className={`hod-strip__empty${stream.feedError ? ' hod-strip__empty--error' : ''}`}
                 data-testid="hod-momo-strip-empty"
                 data-replay={replay ? '1' : undefined}
+                data-recorded={replay?.recorded === false ? '0' : undefined}
+                title={replay ? hodReplayEmptyTitle(replay) : undefined}
                 role={stream.feedError ? 'alert' : undefined}
               >
                 {replay

@@ -60,10 +60,10 @@ from hod_momo_models import (
     build_default_config as _build_default_config,
     config_to_dict as _config_to_dict,
 )
+from hod_momo_history import get_history_alerts, get_history_day
 from hod_momo_persist import (
     flush_pending_alert_save,
     flush_pending_highs_save,
-    get_history_alerts,
     save_alerts as _save_alerts,
 )
 from hod_momo_session import (
@@ -95,6 +95,7 @@ __all__ = [
     "get_flow_stats",
     "get_fundamentals_queue",
     "get_history_alerts",
+    "get_history_day",
     "get_master",
     "get_state",
     "get_ticker_snapshot",

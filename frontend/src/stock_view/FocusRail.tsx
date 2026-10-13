@@ -42,7 +42,8 @@ import {
 } from '../constantGroups/trader_chrome';
 import { listFeedFailed } from '../constantGroups/scanner_board';
 import {
-  HOD_MOMO_STRIP_EMPTY_CONNECTING, useHodMomoOptional, useHodStripView, type HodMomoContextValue, type HodStripView,
+  HOD_MOMO_STRIP_EMPTY_CONNECTING, hodReplayNoHistoryText, useHodMomoOptional, useHodStripView,
+  type HodMomoContextValue, type HodMomoReplayState, type HodStripView,
 } from '../hod_momo';
 import { useLiveScannerFeedOptional, type LiveScannerFeed } from '../scanner/ScannerDataContext';
 import { listAbsenceText } from '../scanner/listAbsence';
@@ -69,6 +70,8 @@ type HodStream = HodMomoContextValue['stream'];
 interface FocusSources {
   feed: LiveScannerFeed | null;
   hodStream: HodStream | null;
+  /** The HOD stream's Sim playhead read (ADR 023); null on Live, Paper and at the live edge. */
+  hodReplay: HodMomoReplayState | null;
   filterRows?: <T extends ScannerRow>(rows: T[]) => T[];
   watchList: readonly string[];
 }
@@ -89,10 +92,13 @@ function listRows(list: string, src: FocusSources, hod: HodStripView | null): Fo
 /** What an empty or missing list says. The HOD lists answer from their own
  * stream (failed / connecting / empty), the rest from the scanner feed. */
 function absenceText(title: string, list: string, rows: FocusRow[] | null, src: FocusSources): string {
-  const { feed, hodStream } = src;
+  const { feed, hodStream, hodReplay } = src;
   if (isHodFocusList(list)) {
     if (!hodStream) return focusRailNotMirrored(title);
     if (hodStream.feedError) return listFeedFailed(title, hodStream.feedError);
+    // The strip's own words for a day with no HOD Momo history (one rule for both views).
+    const absent = hodReplay ? hodReplayNoHistoryText(hodReplay) : null;
+    if (absent) return absent;
     return hodStream.connected ? focusRailEmpty(title) : HOD_MOMO_STRIP_EMPTY_CONNECTING;
   }
   // The watch list is the operator's own: empty means nothing picked, whatever the feed says.
@@ -132,6 +138,7 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
   const feed = useLiveScannerFeedOptional();
   const hod = useHodMomoOptional();
   const hodStream = hod?.stream ?? null;
+  const hodReplay = hod?.replay ?? null;
   const settings = useSettingsOptional();
   const { activeTraderSymbol, traderLiveTabs, openStockView } = useWorkspace();
   const { isAllowed } = useBotAllowlist();
@@ -194,8 +201,8 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
   useEffect(() => () => setL1FocusTabs?.([]), [setL1FocusTabs]);
 
   const filterRows = settings?.exchangeFilter?.filterRows;
-  const src = useMemo<FocusSources>(() => ({ feed, hodStream, filterRows, watchList }),
-    [feed, hodStream, filterRows, watchList]);
+  const src = useMemo<FocusSources>(() => ({ feed, hodStream, hodReplay, filterRows, watchList }),
+    [feed, hodStream, hodReplay, filterRows, watchList]);
   const upperPane = useMemo<FocusPaneState>(() => ({ list: state.list, sort: state.sort }), [state.list, state.sort]);
   // The HOD halves read the strip's own rows (one selector for both views).
   const upperHod = useHodStripView(hod, isHodFocusList(state.list) ? state.list : null);
