@@ -305,10 +305,15 @@ back ten years, the registrant's financial facts (companyfacts), and the words o
 of the last 760 days (one request each; its Exhibit 99.1 too when the cover only says a press release is
 attached). A *report* is a 10-Q, 10-K, 20-F, 40-F or a 6-K that carries financial facts; an amendment is none,
 and two reports of one period are one. A *release* is an Item 2.02 8-K whose words do not show it to be
-deliveries, a restatement (Item 4.02) or an offering, or a 6-K whose words report results. An event is one
-report, marked on the day its results came out: the first full release (not a preliminary) from its period's
-end to five days after it -- the last one for an older year whose 8-Ks were not read -- else the report's own
-day. A full release that no report has followed yet is an event of its own (`report_pending`). A release's
+deliveries, a restatement (Item 4.02) or an offering, or a 6-K whose words report results -- never delivery
+results, a profit alert or a date to come. It is *strong* when its words say results, *weak* when it is an 8-K
+that was not read or only attaches a press release, *preliminary* when it says preliminary results. An event is
+one report, marked on the day its results came out: from its period's end to five days after it, the strongest
+kind of release there is -- of those by the report's filing the last one, or the first of a cluster within
+three days of it (a press release and the Hong Kong results a day later); else the first after the report --
+else the report's own day. The last, since what comes earlier in a quarter is not the results: TSLA's
+deliveries on the 2nd, a preliminary, an acquisition with "certain financial results". A strong release that
+no report has followed yet is an event of its own (`report_pending`). A release's
 day is the one it gives (the company's "On August 12, 2025", an 8-K's date of event) when that is within six
 days before its filing, else its filing day. Figures are the report's own tagged facts for its current
 period (the quarter for a 10-Q, the year for an annual report): total revenue (`Revenues`) before revenue

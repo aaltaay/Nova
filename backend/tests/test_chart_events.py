@@ -4,7 +4,8 @@ The cases are the filings read while building it: Apple's 8-K Item 2.02 the day 
 first-half results on a 6-K with no financial facts (Webull: 03/12/2026, "2026 H1", revenue 3.95M USD) and a
 20-F/A that companyfacts calls a 20-F, NIO's quarterly results 6-Ks beside its XBRL interim report, and the
 Item 2.02 8-Ks that are not earnings (LCID's deliveries, BBAI's restatement, LUNR's acquisition, ASTS's
-offering) -- each against Yahoo's earnings dates (2026-10-12: 328 of 355 on the same day before these rules).
+offering, TSLA's deliveries, XPEV's monthly delivery results, NIO's profit alert, SNDL's date to come) -- each
+found by comparing the marks with Yahoo's earnings dates on 49 stocks (2026-10-12).
 """
 from __future__ import annotations
 
@@ -94,7 +95,8 @@ def test_a_release_with_no_report_yet_says_so_and_has_no_figures():
         ("O-10Q", "10-Q", "2026-08-12", "2026-06-30"),
     ])
     facts = _facts(Revenues=[_fact("O-10Q", "10-Q", "2026-08-12", "2026-04-01", "2026-06-30", 5.0, 2026, "Q2")])
-    out = earnings.events(subs, facts)
+    assert [e["day"] for e in earnings.events(subs, facts)] == ["2026-08-12"]     # unread: no mark of its own
+    out = earnings.events(subs, facts, readings={"N-8K": _read("results")})
     pending = out[-1]
     assert pending["day"] == "2026-10-08" and pending["report"] is None and pending["report_pending"] is True
     assert pending["revenue"] is None and pending["period_label"] is None
@@ -113,11 +115,27 @@ def test_unread_releases_mark_the_last_one_before_the_report():
     assert [r["day"] for r in ev["other_releases"]] == ["2026-01-12"]
 
 
+def test_results_beat_an_8k_that_only_attaches_a_press_release():
+    # TSLA: deliveries on the 2nd ("published the press release ... attached"), results on the 22nd.
+    subs = _subs([
+        ("T-10Q", "10-Q", "2026-07-23", "2026-06-30"),
+        ("T-results", "8-K", "2026-07-22", "2026-07-22", "2.02,9.01"),
+        ("T-deliveries", "8-K", "2026-07-02", "2026-07-02", "2.02,9.01"),
+    ])
+    facts = _facts(Revenues=[_fact("T-10Q", "10-Q", "2026-07-23", "2026-04-01", "2026-06-30", 1.0, 2026, "Q2")])
+    readings = {"T-results": _read("results"), "T-deliveries": _read("unknown")}
+    [ev] = earnings.events(subs, facts, readings=readings)
+    assert ev["day"] == "2026-07-22" and [r["day"] for r in ev["other_releases"]] == ["2026-07-02"]
+    # Read or not, a deliveries 8-K before the results never wins: the last release does.
+    [unread] = earnings.events(subs, facts)
+    assert unread["day"] == "2026-07-22"
+
+
 def _read(kind, **more):
     return {"kind": kind, "said": None, "months": None, "end": None, "named": None, "stated": None, **more}
 
 
-def test_read_releases_mark_the_first_full_one_and_never_a_restatement():
+def test_the_results_release_is_marked_and_never_a_restatement():
     # BBAI: results 2025-03-06 (Items 2.02, 8.01), then a restatement 03-18 (Items 2.02, 4.02); 10-K 03-31.
     subs = _subs([
         ("B-10K", "10-K", "2025-03-31", "2024-12-31"),
@@ -143,7 +161,7 @@ def test_a_preliminary_release_is_listed_and_the_report_marks_the_results():
     assert [r["accession"] for r in ev["other_releases"]] == ["L-8K"]
 
 
-def test_two_results_6ks_mark_the_first():
+def test_two_results_6ks_days_apart_mark_the_first():
     subs = _subs([
         ("X-20F", "20-F", "2026-04-20", "2025-12-31"),
         ("X-hk", "6-K", "2026-03-18", "2026-03-18", "", "hk.htm"),
@@ -334,6 +352,28 @@ def _eight_k(section: str) -> str:
 ])
 def test_item_202_8ks_say_what_they_are(section, items, kind):
     assert release_text.read_8k(_eight_k(section), items)["kind"] == kind
+
+
+@pytest.mark.parametrize("body", [
+    "TABLE OF CONTENTS Exhibit 99.1 Press release: XPENG Announces Vehicle Delivery Results for July 2026",
+    "EXHIBIT INDEX Exhibit No. Description 99.1 Press Release \u2014 NIO Inc. Announces Profit Alert for the Fourth "
+    "Quarter of 2025 99.2 Announcement with The Stock Exchange of Hong Kong Limited",
+])
+def test_deliveries_and_profit_alerts_are_not_results(body):
+    reading = release_text.read_6k(_cover(body))
+    assert reading is None or reading["kind"] == "unknown"
+
+
+def test_a_date_to_come_in_an_exhibit_is_not_results_even_in_its_link():
+    exhibit = ("<p>EX-99.1 2 ex991.htm NEWS RELEASE DATED JULY 10, 2025 Exhibit 99.1 SNDL to Announce Second Quarter "
+               "2025 Financial Results on July 31, 2025</p><p>SNDL Inc. announced today that it will release its "
+               "second quarter 2025 financial results before market open.</p><p>View original content: "
+               "https://www.prnewswire.com/news-releases/sndl-to-announce-second-quarter-2025-financial-results.html</p>")
+    assert release_text.read_exhibit(exhibit)["kind"] == "other"
+    profit_alert = ("<p>Exhibit 99.1 NIO Inc. Announces Profit Alert for the Fourth Quarter of 2025</p><p>As of the "
+                    "date of this press release, the Company is in the process of preparing and finalizing the "
+                    "financial results for the three months ended December 31, 2025.</p>")
+    assert release_text.read_exhibit(profit_alert)["kind"] == "other"
 
 
 def test_an_exhibit_about_deliveries_is_not_results():
