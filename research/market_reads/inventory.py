@@ -103,10 +103,15 @@ def _desc(day: str) -> str:
     return "".join(chr(ord("9") - ord(c) + ord("0")) if c.isdigit() else c for c in day)
 
 
+STOPPED = "stopped"
+
+
 def _build_one(path_str: str, bulk_read: int) -> tuple[str, str, float, int]:
     below_normal()
     path, root = Path(path_str), massive_files.root()
     t0 = time.monotonic()
+    if (root / "sim" / "index" / INDEX_STOP).exists():       # each task checks: no task is ever left unrun
+        return path_str, STOPPED, 0.0, 0
     if massive_index.is_current(path, root):
         return path_str, "current", 0.0, path.stat().st_size
     if massive_index.build(path, root, bulk_read=bulk_read) is not None:
@@ -133,7 +138,9 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
                   end: str | None = None, oldest_first: bool = False) -> int:
     """Build every missing index, ``workers`` files at a time; the number that failed. Logged to the index folder.
 
-    Stops after the files in progress when ``<root>/sim/index/STOP`` appears. Resumable: a rerun skips what is built.
+    Stops after the files in progress when ``<root>/sim/index/STOP`` appears: every task left checks the file and
+    returns at once, so the run ends. (Cancelling the pool's queue instead left a task it had already handed out
+    unrun, and the run waited on it forever, 2026-10-12.) Resumable: a rerun skips what is built.
     """
     below_normal()
     root = massive_files.root()
@@ -150,26 +157,25 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
     log.info("index: %d day files to index (%.1f GB of gzip) in %s, %d workers, %d MB reads", len(files),
              total / 1e9, ",".join(datasets), workers, read_mb)
     log.info("index: pid %d; to stop after the files in progress, create %s", os.getpid(), stop_file)
-    done_bytes, t0, failed, stopping = 0, time.monotonic(), 0, False
+    done_bytes, t0, failed, stopped = 0, time.monotonic(), 0, 0
     with ProcessPoolExecutor(workers) as pool:
         futures = [pool.submit(_build_one, str(path), read_mb << 20) for path in files]
         for future in as_completed(futures):
-            if not stopping and stop_file.exists():
-                log.info("index: %s found; finishing the files in progress, starting no more", stop_file)
-                pool.shutdown(wait=False, cancel_futures=True)
-                stopping = True
-            if future.cancelled():
-                continue
             try:
                 path_str, state, secs, size = future.result()
             except Exception as exc:  # noqa: BLE001 -- one bad file is logged; the rest go on
                 failed += 1
                 log.warning("index: a build failed: %s: %s", type(exc).__name__, exc)
                 continue
+            if state == STOPPED:
+                if not stopped:
+                    log.info("index: %s found; finishing the files in progress, starting no more", stop_file)
+                stopped += 1
+                continue
             done_bytes += size
             rate = done_bytes / max(time.monotonic() - t0, 1e-6)
             left = (total - done_bytes) / rate if rate else 0
             log.info("index: %s %s in %.0f s; %.1f of %.1f GB, %.0f MB/s, about %.1f h left", path_str, state,
                      secs, done_bytes / 1e9, total / 1e9, rate / 1e6, left / 3600)
-    log.info("index: finished, %d failed", failed)
+    log.info("index: %s, %d failed", f"stopped with {stopped} files left" if stopped else "finished", failed)
     return failed
