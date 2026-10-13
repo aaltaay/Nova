@@ -111,10 +111,13 @@ opened while fewer than `MARKET_MIN_FREE_LINES` market-data lines are free beyon
 **A line held for a moment** (`market_board/brief_lines.py`). A quote -- a tile, a breadth indicator, an ETF, a
 mover -- is read by opening at most `MARKET_STREAM_BATCH` lines at once, waiting for IBKR's first ticks (a price
 and the prior close; a price alone after `MARKET_STREAM_SETTLE_SEC`) and cancelling them, at most
-`MARKET_STREAM_WAIT_SEC` after they opened. A contract that already has a line (the desk's) is read from it and
-never cancelled; a line the desk subscribes to during the read, or that anything else now listens to, is left open
-for it. A line this read opens starts from a cleared ticker, so a quote with no price by the deadline reads `null`,
-never the last read's value. Brief lines do not take the cold snapshot slot (`ib_scheduler.cold_slot`).
+`MARKET_STREAM_WAIT_SEC` after they opened. A read holds the cold snapshot slot (`ib_scheduler.cold_slot`), so its
+lines and a snapshot's are never open together (neither is in the Level 1 count); a batch with a stock in it holds
+`ibkr.ticks.get_subscribe_lock()`, so a desk subscribe waits for the batch and opens its own line with its generic
+ticks, never landing on a brief one. A contract that already has a line (the desk's) is read from it and never
+cancelled; a line that still gained a listener (a path outside `ibkr.ticks`) is left open for it. A line this read
+opens starts from a cleared ticker, so a quote with no price by the deadline reads `null`, never the last read's
+value. A read dropped for interactive work (`ColdDropped`) is asked again after `MARKET_SHED_RETRY_SEC`, not failed.
 
 **Measured** (the perf record, ADR 026). Every read's wall time is an op `market_board.<read>` (`quotes`,
 `etf_quotes`, `movers`, `breadth_latest`, `prior`, `line`, `closes`, `industries`, ...), and the time from the page

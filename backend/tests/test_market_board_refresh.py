@@ -26,8 +26,13 @@ from metrics import op_metrics
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
+    from ibkr import ib_scheduler, ticks
+
     refresh.reset_for_tests()
     op_metrics.reset_for_tests()
+    # asyncio locks bind to the loop that first waits on them; each test runs its own loop.
+    monkeypatch.setattr(ticks, "_subscribe_lock", None)
+    monkeypatch.setattr(ib_scheduler, "_lock", None)
     monkeypatch.setattr(brief_lines, "MARKET_STREAM_WAIT_SEC", 0.3)
     monkeypatch.setattr(brief_lines, "MARKET_STREAM_SETTLE_SEC", 0.05)
     monkeypatch.setattr(brief_lines, "MARKET_STREAM_POLL_SEC", 0.01)
@@ -140,8 +145,8 @@ class FakeIB:
         self.open_now -= 1
 
 
-def _contracts(n: int) -> list[Contract]:
-    return [Contract(conId=i + 1, symbol=f"S{i + 1}") for i in range(n)]
+def _contracts(n: int, sec_type: str = "FUT") -> list[Contract]:
+    return [Contract(conId=i + 1, symbol=f"S{i + 1}", secType=sec_type) for i in range(n)]
 
 
 def test_a_brief_line_answers_with_its_first_ticks_and_closes():
@@ -217,3 +222,54 @@ def test_stock_quotes_read_prints_and_say_no_trade(monkeypatch):
     assert got["XLK"] == {"price": 30.0, "prev_close": 29.0, "no_trade": False}
     assert got["XLU"] == {"price": None, "prev_close": 50.0, "no_trade": True}
     assert "XLE" not in got                          # neither a print nor a close
+
+
+def test_a_desk_subscribe_waits_for_a_stock_batch_and_never_lands_on_its_line():
+    """Review on PR #912: a ticks.subscribe landing on a brief line would get none of its generic ticks (236)."""
+    from ibkr import ticks
+
+    ib = FakeIB()
+    seen: dict[str, object] = {}
+
+    async def desk_subscribe():
+        await asyncio.sleep(0.02)                       # the brief stock line is open by now
+        async with ticks.get_subscribe_lock():          # what ticks.subscribe holds across its reqMktData
+            seen["line_open_when_desk_got_in"] = 1 in ib.live
+
+    async def go():
+        desk = asyncio.ensure_future(desk_subscribe())
+        await brief_lines.read(ib, _contracts(1, "STK"))
+        await desk
+
+    asyncio.run(go())
+    assert seen["line_open_when_desk_got_in"] is False   # the brief line was already cancelled
+    assert ib.cancelled == [1]
+
+
+def test_a_read_holds_the_cold_slot_so_snapshots_and_brief_lines_never_overlap():
+    """Review on PR #912: snapshots' lines are not in the Level 1 count, so the two must not run together."""
+    from ibkr import ib_scheduler
+
+    ib = FakeIB()
+    seen: dict[str, bool] = {}
+
+    async def go():
+        task = asyncio.ensure_future(brief_lines.read(ib, _contracts(2)))
+        await asyncio.sleep(0.02)
+        seen["slot_held"] = ib_scheduler._get_lock().locked()
+        await task
+
+    asyncio.run(go())
+    assert seen["slot_held"] is True
+
+
+def test_a_read_dropped_for_interactive_work_is_asked_again_not_failed(monkeypatch):
+    from ibkr.ib_scheduler import ColdDropped
+
+    def dropped():
+        raise ColdDropped("interactive chart has priority")
+
+    now = time.time()
+    refresh._run(refresh.Job("quotes", "ibkr", 10.0, dropped), now)
+    assert store().error("quotes") is None
+    assert not store().due("quotes", now + 1.0, 10.0)

@@ -107,9 +107,14 @@ So decision 4 now reads: **the page holds a market-data line only for a moment.*
 `MARKET_STREAM_BATCH` lines (5, as many as a stock snapshot holds), taking IBKR's first ticks (a price and the prior
 close) and cancelling the lines at most `MARKET_STREAM_WAIT_SEC` later. A snapshot held the same lines for up to
 11 s, so the page's peak is unchanged and its line-time falls. As before, it opens nothing with fewer than
-`MARKET_MIN_FREE_LINES` spare and keeps no line between reads. It no longer queues in the cold snapshot slot
-(`ib_scheduler.cold_slot`) behind HOD Momo's and discovery's snapshots: a brief line is not a snapshot. It never cancels a line someone else holds: a contract the desk already streams is read from that line, and one the
-desk subscribes during the read is left open for the desk.
+`MARKET_MIN_FREE_LINES` spare, keeps no line between reads, and takes the cold snapshot slot (`ib_scheduler.cold_slot`)
+for the read, so it never has lines open beside a snapshot's: neither is in the Level 1 count the budget reads.
+A brief line never becomes the desk's. ib_async answers a second request on a contract with the first line's ticker
+and sends nothing, so a desk subscribe landing on a brief line would get none of its generic ticks (233, and 236, the
+shortable shares the short-entry check reads). A batch with a stock in it therefore holds `ibkr.ticks`' subscribe
+lock, which every desk stock line opens under: a desk subscribe waits for the batch (a few hundred ms, at most
+`MARKET_STREAM_WAIT_SEC`) and opens its own line. A contract the desk already streams is read from that line and
+never cancelled (review on PR #912).
 
 Bar reads get their own thread, `history`: the tiles' prior closes and lines, the ETFs' and leaders' daily closes,
 the bar prices when no line is spare, and runners' industries. Each tile's prior close and line are read together,

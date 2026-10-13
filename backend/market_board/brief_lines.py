@@ -5,17 +5,25 @@ indicators, and for stocks outside the session (measured 2026-10-13) -- so the M
 takes IBKR's first ticks and cancels it. At most ``MARKET_STREAM_BATCH`` lines are open at once, each for at most
 ``MARKET_STREAM_WAIT_SEC``.
 
-A line someone else holds is never cancelled. A contract that already has a subscription is read from its ticker;
-a line that gained a listener while it was open (the desk subscribed the same contract, and ib_async answered with
-this line's ticker) is left open for that listener. ib_async keeps one ticker per contract for the life of the
-connection, prices included, so a line this read opens starts from a cleared ticker: a price it returns came from
-this line, never from the last read of the same contract. Must run on the IB loop.
+A read takes the cold snapshot slot (``ibkr.ib_scheduler.cold_slot``), as a snapshot does, so Nova never has more
+than one batch of lines open outside the Level 1 count (``ibkr.ticks``); the line budget only counts those.
+
+A line someone else holds is never cancelled, and a brief line never becomes the desk's. ib_async answers a second
+``reqMktData`` on a contract with the first line's ticker and sends nothing, so a desk subscribe landing on a brief
+line would get none of its generic ticks (233 RTVolume, 236 shortable shares). Every desk stock line opens through
+``ibkr.ticks`` under its subscribe lock, so a batch with a stock in it holds that lock: a desk subscribe waits for
+the batch (a few hundred ms, at most ``MARKET_STREAM_WAIT_SEC``) and then opens its own line. A contract that already
+has a line is read from its ticker. A line that still gained a listener (a path outside ``ibkr.ticks``) is left
+open for it. ib_async keeps one ticker per contract for the life of the connection, prices included, so a line this
+read opens starts from a cleared ticker: a price it returns came from this line, never from the last read of the
+same contract. Must run on the IB loop.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import math
+from contextlib import nullcontext
 from typing import Any
 
 from constants_market_board import (
@@ -119,13 +127,28 @@ async def _batch(ib: Any, contracts: list[Any]) -> dict[int, Any]:
     return tickers
 
 
+def _stock_lock(contracts: list[Any]):
+    """``ibkr.ticks``' subscribe lock when the batch holds a stock (the desk only streams stocks), else nothing."""
+    if not any(str(getattr(c, "secType", "")) == "STK" for c in contracts):
+        return nullcontext()
+    from ibkr import ticks
+
+    return ticks.get_subscribe_lock()
+
+
 async def read(ib: Any, contracts: list[Any]) -> dict[int, Any]:
     """``{conId: ticker}`` for every contract, ``MARKET_STREAM_BATCH`` lines at a time.
 
     A ticker may hold no price: IBKR sent none before ``MARKET_STREAM_WAIT_SEC``. Read its fields at once -- a
-    cancelled line's ticker is not updated again, and a borrowed one keeps moving.
+    cancelled line's ticker is not updated again, and a borrowed one keeps moving. Raises ``ColdDropped`` when
+    interactive work has the cold slot; the caller asks again later.
     """
+    from ibkr.ib_scheduler import cold_slot
+
     out: dict[int, Any] = {}
-    for i in range(0, len(contracts), MARKET_STREAM_BATCH):
-        out.update(await _batch(ib, contracts[i:i + MARKET_STREAM_BATCH]))
+    async with cold_slot(label="market_board.brief_lines", droppable=True):
+        for i in range(0, len(contracts), MARKET_STREAM_BATCH):
+            chunk = contracts[i:i + MARKET_STREAM_BATCH]
+            async with _stock_lock(chunk):
+                out.update(await _batch(ib, chunk))
     return out

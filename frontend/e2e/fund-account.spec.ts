@@ -20,6 +20,10 @@ test.describe('Fund account', () => {
     await expect(fund).toHaveAttribute('title', /Client Portal/);
     await expect(fund).toHaveAttribute('title', /does not deposit/i);
 
+    // Answer the Client Portal in the page: IBKR's live site sends CI runners abroad to
+    // interactivebrokers.co.uk, so the test checked IBKR's geo redirect, not Nova's link.
+    await page.context().route(/interactivebrokers\.com\/sso\/Login/, (route) =>
+      route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Client Portal</title>' }));
     const popupPromise = page.waitForEvent('popup');
     await fund.click();
     const popup = await popupPromise;

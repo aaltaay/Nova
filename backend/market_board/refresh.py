@@ -308,7 +308,7 @@ def _run(job: Job, now: float, error_key: str | None = None) -> None:
         return
     except Exception as exc:  # noqa: BLE001 -- any failure is stated on the page, never raised into the loop
         at = now + (time.monotonic() - started)
-        if type(exc).__name__ == "HistoricalShed":
+        if type(exc).__name__ in ("HistoricalShed", "ColdDropped"):   # "later", from IBKR or interactive work
             st.defer(job.key, at + MARKET_SHED_RETRY_SEC)
             return
         logger.warning("market_board: %s failed: %s", job.key, exc, exc_info=not isinstance(exc, Stated))

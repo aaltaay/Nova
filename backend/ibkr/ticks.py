@@ -71,7 +71,8 @@ def remove_quote_listener(listener: QuoteListenerFn) -> None:
         pass
 
 
-def _get_lock() -> asyncio.Lock:
+def get_subscribe_lock() -> asyncio.Lock:
+    """Held across every line ticks opens; a reader opening its own stock line holds it too (ADR 053)."""
     global _subscribe_lock
     if _subscribe_lock is None:
         _subscribe_lock = asyncio.Lock()
@@ -133,7 +134,7 @@ async def subscribe(
     requested = _generic.merge(IBKR_L1_GENERIC_TICKS, generic_ticks)
     if not symbol:
         return False
-    async with _get_lock():
+    async with get_subscribe_lock():
         existing = _subs.get(symbol)
         if existing is not None:
             existing["owners"].add(owner)
@@ -219,7 +220,7 @@ async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:
     owner = (owner or OWNER_DETAIL).strip().lower()
     if not symbol:
         return
-    async with _get_lock():
+    async with get_subscribe_lock():
         _release_owner(symbol, owner)
 
 
@@ -315,7 +316,7 @@ async def retry_refused() -> list[str]:
     ib = _client.get_ib()
     if ib is None:
         return []
-    async with _get_lock():
+    async with get_subscribe_lock():
         return [sym for sym in _refused.due(_subs) if sym in _subs and _refused.rerequest(ib, sym, _subs[sym])]
 
 
@@ -393,5 +394,5 @@ async def clear_all_subscriptions(*, reason: str = "", ib: Any = None) -> int:
     """
     from ibkr import ticks_session
 
-    async with _get_lock():
+    async with get_subscribe_lock():
         return ticks_session.settle(_subs, ib if ib is not None else _client.get_ib(), reason=reason)
