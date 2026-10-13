@@ -10,6 +10,8 @@ entry's facts (``short_sale.facts``), and asks IBKR's what-if margin:
   by the answer Nova kept for the stock today, else the published rules;
 - a practice buy (longs use margin too) asks in the background for the next order.
 
+None of them asks again within ``SHORT_WHATIF_RETRY_SEC`` of IBKR refusing the stock (``whatif.due``).
+
 A Live short while ``IBKR_SHORT_ENABLED`` is off gathers nothing: the door refuses it at once.
 """
 from __future__ import annotations
@@ -54,7 +56,7 @@ async def facts_for(cmd: ExecutionCommand) -> Facts | None:
 
     if venue == "live" and not _safety.short_enabled():
         return None
-    if ready and not whatif.fresh(symbol, "SELL"):
+    if ready and whatif.due(symbol, "SELL"):
         if cmd.client_timing is None:
             await whatif.ask(symbol, "SELL", qty, float(price), timeout=SHORT_WHATIF_BOT_WAIT_SEC)
         else:

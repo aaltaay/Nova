@@ -41,6 +41,7 @@ class Facts:
     bid: float | None
     ask: float | None
     last: float | None
+    whatif_error: str | None = None  # why IBKR gave no what-if for the short (a cash account refuses it)
 
 
 def is_replay(venue: str) -> bool:
@@ -126,6 +127,7 @@ def gather(symbol: str, venue: str, *, borrow: dict[str, Any] | None = None, now
                      bid=bid, ask=ask, last=last)
     snap = borrow if borrow is not None else shortability.for_order(sym)
     ssr.request_history(sym, at)
+    answer = whatif.answer_for(sym, "SELL", now=time.time())
     return Facts(venue=venue, symbol=sym, now=at, replay=False, borrow=snap, borrow_why=None,
-                 whatif=whatif.answer_for(sym, "SELL", now=time.time()), ssr=ssr.live(sym, at),
-                 halt=halts.live(sym, at), bid=bid, ask=ask, last=last)
+                 whatif=answer, ssr=ssr.live(sym, at), halt=halts.live(sym, at), bid=bid, ask=ask, last=last,
+                 whatif_error=None if answer is not None else whatif.last_error(sym, "SELL"))

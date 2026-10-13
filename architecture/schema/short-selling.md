@@ -61,7 +61,19 @@ one until it is complete ("Live readiness" below) -- and a bot never trades Live
   as current for 60 s and kept 8 hours, in memory. Every practice margin figure scales that stock's
   published maintenance by its ratio and names its source ("IBKR what-if" or "published rules"); a
   past-day Sim replay uses the published rules. Before a Paper or Sim buy, the door asks in the background
-  for the next order.
+  for the next order. The what-if's limit sits on the listed tick (`margin_whatif.on_tick`: a cent at $1
+  and over, a hundredth of a cent under, Reg NMS Rule 612): a setup's entry can carry a sub-penny print's
+  price (JBDI 2026-10-13: 5.4701) and IBKR refuses an off-tick price (Error 110). **A refusal is the
+  probe's answer, never an order's** (Sentry review, 2026-10-13). A cash account gets Error 201 on every
+  what-if: a short "can only be held in a margin account", a buy costs more than the settled cash. Nova
+  keeps the refusal in plain words as the stock's `whatif_error` and the published rules stand; it asks
+  again for that stock and side no sooner than `SHORT_WHATIF_RETRY_SEC` (60 s; also after no answer),
+  though the ticket and the plan poll every 3-5 s. ib_async logs the refusal as an ERROR. Nova's log
+  filter (`ibkr/log_filters.py`) rewrites a 201 on a what-if's reqId -- one `margin_whatif` sent within
+  `SHORT_WHATIF_REQID_TTL_SEC` -- as a WARNING with the plain reason. Any other code on a what-if's reqId
+  (110 included) stays an ERROR with the probe named, and a reject on an order's reqId is untouched. The
+  margin rule's text says why IBKR's figure is missing, and its `numbers.whatif_error` carries the
+  reason.
 - **The practice account's margin** (`practice/margin.py`, `practice/ledger.py`). Buying power is (equity
   - maintenance) x 4 at $2,000 of equity or more, else the cash; a long is held to buying power, a short to
   its maintenance against the equity left over it (none under $2,000). The account summary adds IBKR's own

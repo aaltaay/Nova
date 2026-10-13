@@ -46,7 +46,7 @@ async def get_short_check(
     if not sym or not sym.replace(".", "").replace("/", "").isalnum():
         raise HTTPException(status_code=400, detail=f"not a symbol: {symbol!r}")
     venue = desk_venue()
-    if price and _client.is_ready() and not is_replay(venue) and not whatif.fresh(sym, "SELL"):
+    if price and _client.is_ready() and not is_replay(venue) and whatif.due(sym, "SELL"):
         await whatif.ask(sym, "SELL", qty, price, timeout=SHORT_WHATIF_TIMEOUT_SEC)
     facts = await asyncio.to_thread(gather, sym, venue)
     order = check.Order(symbol=sym, qty=qty, entry=price, stop=stop, target=target)

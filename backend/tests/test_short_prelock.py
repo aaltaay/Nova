@@ -32,7 +32,7 @@ def ibkr(monkeypatch):
         calls["asked"].append((symbol, side, qty, price, timeout))
 
     monkeypatch.setattr("ibkr.client.is_ready", lambda: True)
-    monkeypatch.setattr(whatif, "fresh", lambda symbol, side: False)
+    monkeypatch.setattr(whatif, "due", lambda symbol, side: True)
     monkeypatch.setattr(whatif, "ask", ask)
     monkeypatch.setattr(whatif, "request", lambda *a: calls["requested"].append(a))
     monkeypatch.setattr(prelock, "gather", lambda symbol, venue: calls["gathered"].append((symbol, venue)) or "facts")
