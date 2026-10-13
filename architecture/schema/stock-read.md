@@ -224,7 +224,7 @@ box, no axis tags, no frame (`strategyBox.triggeredPlan`). A mark over its trigg
 (`triggerMark`, from the lead lane's `setup.triggered_at`; none without it): a triangle in the entry's blue, pointing
 up (down on a short), and "✓ GAP AND GO 09:31", which makes room as a past setup's label does -- "✓" alone while the
 labels are compact -- and tells the lane's story on hover. Where the lane already marks that candle (a flat top that
-entered on its break), its own mark says it. It leaves the 5-minute and 10-second panes' thin lines too (operator
+entered on its break), its own mark says it. It leaves the 10-second pane too (operator
 report 2026-10-12, OFAL's first pullback in the Sim at 07:15: triggered at 07:05, its stop printed first at 07:10, and
 its four unnamed lines still crossed both charts -- "whatr these lines supposed to be?"). A
 level an order or a position stands behind, and the operator's own plan, draw the zones, lines and frame above. It frames a forming setup once per setup, and again
@@ -236,8 +236,20 @@ chart, all of a sudden it resized itself randomly"; owner `chart/operatorView.ts
 chart): once they move a pane with the wheel, a drag or a pinch, no newly leading setup frames it and
 no plan zones slide it, until a first paint (another symbol or timeframe, a Sim seek) or Reset chart
 hands it back; the badge and "show on chart" still frame on request. A setup is framed at most once
-per symbol, so a lead that goes back and forth between setups never reframes the pane. The 5-minute and 10-second charts mirror the plan's levels as thin lines
-until a plan with nothing behind it triggers, and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
+per symbol, so a lead that goes back and forth between setups never reframes the pane. **The 10-second chart draws
+the plan as the 1-minute chart does** (operator report 2026-10-13, AIXI's Gap and Go still forming: its entry 3.74,
+stop 3.59, T1 3.94 and T2 3.99 crossed the 5-minute and 10-second charts as four dotted lines with no name and no axis
+tag -- "whats the points of these dotted lines??", "we cant keep them like this", then "for which strategy is this
+specifically?"; of three mockups -- the plan on the 1-minute chart only, the strategy's name on each line, the 1-minute
+chart's box -- the box): a setup's plan with nothing behind it is its strategy box, named, after the 10-second chart's
+own newest candle, its window counted in 10-second candles (`strategyBox.strategyOnBars`), faint while forming, in full
+colour once near or armed with its prices as axis tags, gone once it triggers; a view that follows the live edge
+slides over to give it the same room as on the 1-minute chart. A lane hidden, or a strategy at Off, draws neither its
+box nor its axis tags on either chart. A level an order or a position stands behind is a thin
+line named as the 1-minute chart names it ("ENTRY · working", "STOP · plan", "TARGET 1 · plan"), with its axis tag. The
+**5-minute chart never draws the 1-minute plan**: it draws its own 5-minute setups' trigger, stop and target, each
+named, and two sets of the same blue, red and green dashes read as one; its Key lists no plan. The daily chart marks
+every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
 1, value: {setups, levels, past, labels: "compact" | "full", hidden: string[], plan: "auto" | "open" |
 "folded"}}` keeps the switches (`past`, added 2026-09-29, reads true when a stored value lacks it;
 `labels`, added 2026-09-30, reads `compact` when a stored value lacks it or holds anything else). A decision's "show
@@ -498,7 +510,7 @@ price is on, the nearest zone over and under it that its candles made (a top or 
 more), the nearest round dollar each side and the plan's `between` levels, with no ticks; the premarket
 high and the open are the 5-minute pane's. (Until 2026-09-30 these were price lines without an axis
 label, and lightweight-charts 5.1 shows a price line's title only beside its axis label: the 1-minute
-pane's level lines never showed their names.) The **10-second** pane draws the plan's lines only. A
+pane's level lines never showed their names.) The **10-second** pane draws the plan only (its box, or an order's named lines). A
 level's colour and line come from its strongest reason, a round number the weakest (`levelPicks.zoneColor`;
 operator report 2026-10-12, the gold dashed lines were "too strong, too much"): coral over the price and teal
 under it, so a top the price climbs over turns support on the next read whether or not it sits on a round; a
@@ -909,7 +921,8 @@ priced_by: "board_row" | "last_trade" | "row" | "quote" | "replay", last_trade: 
 change_pct, volume, rel_volume, float_shares, float_contradicted, float_rotation, short_interest,
 short_interest_ts, short_above_float, short_pct_float, days_to_cover, split: {factor, ts, reverse,
 days_ago} | null,
-halts: {news, luld, volatility, other, source} | null, borrow: {listed, fee_rate, rebate_rate,
+halts: {news, luld, volatility, other, source, carried: {kind, code, source, since, resumed, still_halted} | null} | null,
+borrow: {listed, fee_rate, rebate_rate,
 available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
 catalyst: verdict | null, shares_issued: {published_ts, source, form, items, title, url} | null}}`.
 `shares_issued` is the filed share issuance of "Float credibility and short-interest dates" (#700); while
@@ -935,6 +948,18 @@ its float, read 9.1 days to cover on a day it traded 27M shares). Days to cover 
 "Days to cover counts only with 10% of the float short" to the `detail`; without the share of the float
 (no float or no shares short) the check is `unknown` on any days to cover. A share under 10% keeps a
 decimal ("0.3% of float"), under 0.1% reads "under 0.1%".
+`halts` counts the halt log's starts today by kind (one source: Nasdaq's list when it has rows for the
+symbol, else IBKR's tick 49), and `carried` is the prior exchange day's last halt when nothing on that day
+ended it -- a halt in force when today began (rules v6, operator report 2026-10-13): Nasdaq halts a stock for
+news at 19:50 ET and resumes it at 09:00 the next morning about fifty times a month, so it is halted the
+whole premarket (FMFC, halted Oct 12 19:50, resumed Oct 13 09:00). `kind` is `news` | `luld` | `volatility`
+| `other`, `code` the halt's code, `since` its start, `resumed` the first end the same source logged today
+(`null` while none has), `still_halted` true while that source logged nothing today. The check reads "Halted for news (T1) since Oct 12 19:50 ET, still halted", then
+"Halted for news (T1) from Oct 12 19:50 ET to 09:00 ET"; a later halt today with no end logged before it
+reads "... since Oct 12 19:50 ET; its resumption is not in the log". Only the prior exchange day's log is
+read, so a halt older than that is not named. The stock read's "Halts today" row (the `halts` group) names it
+the same way and reads `warn`. Before rules v6 both read "None today" / "None" all premarket while the ladder
+read "Halted for news (T1)".
 `fee_rate` / `rebate_rate` are IBKR's annual percent; `open` / `prior` are `{listed, fee_rate,
 available, as_of}` at the day's first poll at or after 04:00 ET and the last poll before it (null
 when not recorded); `since` is the first poll the store holds. A symbol IBKR's file does not list is
@@ -959,7 +984,7 @@ that reaches the playhead and nothing after it:
 - **News.** The board row's verdict, else the recorded catalyst feed's (`catalysts/recorded.py`): items
   published after the prior close and at or before the playhead, from the sources whose coverage spans,
   joined where they overlap, read the whole window. Alpaca and Finnhub are read live only and never answer
-  here. A news halt comes from the day's halt log.
+  here. A news halt comes from the halt log since the prior close.
 - **Short interest.** FINRA's newest settlement published by the replayed day, from Massive's archive
   (`<NOVA_MARKET_DATA_DIR>/store/reference/short_interest/<YYYY-MM>.jsonl`, `move_reason/short_interest.py`), the
   dump's one `short_interest.jsonl` split by settlement month by `research/orb/short_interest_months.py` (the
@@ -974,7 +999,7 @@ that reaches the playhead and nothing after it:
   `MOVE_BORROW_RETENTION_DAYS`) the check is `unknown`, value "Not recorded", with the reason ("Nova's borrow
   record starts Sep 28 20:21 ET (it keeps 14 days); Sep 18 10:00 is before it").
 - **Split** from Massive's split list (the movers store, ADR 050): the last split executed on or before the
-  replayed day. **Halts** from the day's halt log up to the playhead. **Shares issued** from the recorded
+  replayed day. **Halts** from the day's halt log up to the playhead, and the prior exchange day's for a halt `carried` into it. **Shares issued** from the recorded
   feed's 8-Ks of the look-back up to the playhead.
 
 Each check's `source` names the record it was read from and its `as_of` when; an unknown check's `detail`
@@ -1000,7 +1025,10 @@ today's facts on a past day's desk: SDEV 2026-10-02 replayed on 2026-10-12 read 
 missed ("Shorts 10% of float · 0.3 days to cover (Yahoo ratio) -- heavy is 20% of the float short, or 3+ days to
 cover with 10%+ short"). It reads the same checks and thresholds as the cause: the first rung after the move that
 fits is `likely.kind` (`tests/test_move_reason_explain.py` runs every combination of the deciding facts). Empty
-on `not_read`.
+on `not_read`. The `news_pending` rung's `why` is the news check's value when it fits ("Halted for news (T1)"),
+else "No news halt open (T1 / T12)" (rules v6; it read "Not halted for news", which an operator took for an
+LULD pause: those never happen before 09:30, but news halts do -- 16 started 04:00-09:30 ET from Sep 14 to
+Oct 13, against 9 in regular hours).
 
 **The Catalyst column** (operator ask 2026-10-12, ADR 028 amendment (3)): `GET /api/why?symbols=A,B,...&board=...`
 answers `{schema_version: 1, rules_version, board, replay, generated_at, reads: {SYMBOL: <the read above> | null},

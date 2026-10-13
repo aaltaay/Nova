@@ -371,10 +371,14 @@ def halts_rows(f: dict[str, Any], d: dict[str, Any]) -> list[dict[str, Any]]:
         out.append(row("halts_today", "Halts today", "Not known", "unknown", "The halt log",
                        "The halt log could not be read"))
     else:
-        n = sum(int(h.get(k) or 0) for k in ("news", "luld", "volatility", "other"))
-        parts = [f"{k} {h[k]}" for k in ("news", "luld", "volatility", "other") if h.get(k)]
-        out.append(row("halts_today", "Halts today", "None" if not n else ", ".join(parts),
-                       "ok" if not n else "warn", "The halt log (Nasdaq halts and IBKR)"))
+        from move_reason.rules import carried_words
+
+        # A halt from the prior exchange day still in force when today began (a 19:50 news halt resumed at 09:00).
+        carried = carried_words(h["carried"]) if isinstance(h.get("carried"), dict) else None
+        counts = ", ".join(f"{k} {h[k]}" for k in ("news", "luld", "volatility", "other") if h.get(k))
+        text = "; ".join(t for t in ((carried[:1].upper() + carried[1:]) if carried else None, counts) if t)
+        out.append(row("halts_today", "Halts today", text or "None", "warn" if text else "ok",
+                       "The halt log (Nasdaq halts and IBKR)"))
     from luld.views import stock_read_row
 
     out.append(stock_read_row(f.get("luld")))

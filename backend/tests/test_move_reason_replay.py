@@ -145,7 +145,7 @@ def test_a_replay_reads_its_own_day_as_of_the_playhead(stores):
     # Only the conference item was out by 07:01; the FDA approval at 07:30 is not read.
     assert by["news"]["state"] == "no" and by["news"]["value"] == "Routine company item only"
     assert by["halts"]["value"] == "LULD pause 1x"
-    assert "Nova's halt log for Sep 18, up to 07:01 ET" == by["halts"]["source"]
+    assert "Nova's halt log for Sep 18 up to 07:01 ET, and the exchange day before it" == by["halts"]["source"]
 
 
 def test_a_replay_older_than_the_borrow_record_reads_borrow_unknown_with_the_reason(stores):

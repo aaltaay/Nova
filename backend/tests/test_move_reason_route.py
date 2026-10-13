@@ -10,7 +10,7 @@ import scanner_news_badge as snb
 import scanner_surface
 from fundamentals import _fundamentals_cache
 from leaderboard import store as lb_store
-from move_reason import borrow_feed, borrow_store, facts as facts_mod, routes
+from move_reason import borrow_feed, borrow_store, facts as facts_mod, routes, rules
 from runtime_state import get_runtime_state
 
 ET = ZoneInfo("America/New_York")
@@ -126,8 +126,66 @@ def test_halts_count_one_source():
     events = [{"source": "ibkr_ticker_halted", "event": "start", "kind": "luld", "code": "2"},
               {"source": "ibkr_ticker_halted", "event": "start", "kind": "halt", "code": "T1"}]
     assert facts_mod.count_halts(events) == {"news": 1, "luld": 1, "volatility": 0, "other": 0,
-                                             "source": "ibkr_ticker_halted"}
-    assert facts_mod.count_halts([]) == {"news": 0, "luld": 0, "volatility": 0, "other": 0, "source": None}
+                                             "source": "ibkr_ticker_halted", "carried": None}
+    assert facts_mod.count_halts([]) == {"news": 0, "luld": 0, "volatility": 0, "other": 0, "source": None,
+                                         "carried": None}
+
+
+# -- a halt carried over from the prior exchange day (operator report 2026-10-13) ------------------------------
+RSS = "nasdaq_trade_halt_rss"
+FMFC_HALT = datetime(2026, 10, 12, 19, 50, tzinfo=ET).timestamp()
+FMFC_RESUME = datetime(2026, 10, 13, 9, 0, tzinfo=ET).timestamp()
+
+
+def _halts_check(h, now):
+    return {c["id"]: c for c in rules.read({"symbol": "FMFC", "halts": h}, now)["checks"]}["halts"]
+
+
+def test_a_news_halt_from_last_night_holds_the_premarket(tmp_path, monkeypatch):
+    """FMFC as Nasdaq's list logged it: T1 at Oct 12 19:50, its 09:00 resumption logged at 06:19 on Oct 13. "Halts
+    today" read "None today" all premarket, while the ladder read "Halted for news (T1)"."""
+    monkeypatch.setenv("NOVA_LEADERBOARD_DIR", str(tmp_path / "lb"))
+    with lb_store.connect() as db:
+        lb_store.write_batch(db, halts=[
+            {"symbol": "FMFC", "ts": FMFC_HALT, "event": "start", "kind": "T1", "code": "T1", "source": RSS,
+             "session_date": "2026-10-12", "recorded_ts": FMFC_HALT + 101},
+            {"symbol": "FMFC", "ts": FMFC_RESUME, "event": "end", "kind": "T3", "code": "T3", "source": RSS,
+             "session_date": "2026-10-13", "recorded_ts": datetime(2026, 10, 13, 6, 19, tzinfo=ET).timestamp()}])
+
+    seven = datetime(2026, 10, 13, 7, 0, tzinfo=ET).timestamp()
+    h = facts_mod.halts_today("FMFC", seven)
+    assert h["news"] == 0
+    assert h["carried"] == {"kind": "news", "code": "T1", "source": RSS, "since": FMFC_HALT, "resumed": None,
+                            "still_halted": True}
+    assert facts_mod.halts_many(["FMFC"], seven)["FMFC"] == h
+    check = _halts_check(h, seven)
+    assert (check["state"], check["value"]) == ("yes", "Halted for news (T1) since Oct 12 19:50 ET, still halted")
+
+    after = datetime(2026, 10, 13, 9, 5, tzinfo=ET).timestamp()
+    h = facts_mod.halts_today("FMFC", after)
+    assert h["carried"]["resumed"] == FMFC_RESUME and h["carried"]["still_halted"] is False
+    assert _halts_check(h, after)["value"] == "Halted for news (T1) from Oct 12 19:50 ET to 09:00 ET"
+
+
+def test_a_monday_reads_fridays_log_for_a_carried_halt():
+    """MDCX: T1 at Fri Oct 9 19:50, resumed Mon Oct 12 09:00 -- the prior exchange day, not the calendar's."""
+    monday = datetime(2026, 10, 12, 7, 0, tzinfo=ET).timestamp()
+    assert facts_mod._halt_days(monday) == ("2026-10-12", "2026-10-09")
+
+
+def test_a_halt_ended_the_prior_day_is_not_carried_and_a_missed_end_is_said():
+    prior_close = datetime(2026, 10, 12, 15, 0, tzinfo=ET).timestamp()
+    ended = [{"source": RSS, "event": "start", "ts": prior_close, "kind": "LUDP", "code": "LUDP"},
+             {"source": RSS, "event": "end", "ts": prior_close + 300, "kind": "LUDP", "code": "LUDP"}]
+    assert facts_mod.count_halts([], ended)["carried"] is None
+
+    open_halt = [{"source": RSS, "event": "start", "ts": prior_close + 3000, "kind": "T12", "code": "T12"}]
+    pause = datetime(2026, 10, 13, 9, 45, tzinfo=ET).timestamp()
+    today = [{"source": RSS, "event": "start", "ts": pause, "kind": "LUDP", "code": "LUDP"}]
+    h = facts_mod.count_halts(today, open_halt)
+    assert (h["luld"], h["carried"]["resumed"], h["carried"]["still_halted"]) == (1, None, False)
+    assert _halts_check(h, pause)["value"] == ("Halted for news (T12) since Oct 12 15:50 ET; its resumption is not "
+                                               "in the log; LULD pause 1x")
 
 
 # -- GET /api/why?symbols=...&board=... (the Catalyst column) ------------------------------------------------
