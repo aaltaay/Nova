@@ -4,8 +4,8 @@
  * zones and lines, the day's levels, a legend of the lanes and the plan's badge -- with the trade's
  * track, the Who trades chip and the call's pin (ADR 037); the 5-minute pane carries today's level map and
  * the Full Day pane the daily one, each level's card under the pointer (ADR 036 amendment 2026-09-30);
- * the 5-minute and 10-second panes mirror the plan's levels as thin lines until a plan with nothing behind it
- * triggers; the daily pane marks every +40% run.
+ * the 10-second pane mirrors the plan's levels as thin named lines, except while a plan with nothing behind it forms
+ * or once it triggers -- the 5-minute pane never draws the plan (2026-10-13); the daily pane marks every +40% run.
  * The pane's right edge is the scene's (operator report 2026-09-30: "everything is getting on top of each
  * other in the charts!"): it claims the edge (`claimEdge`), so the EMAs' and VWAP's tags, the plan's
  * ENTRY / STOP / TARGET 1 / TARGET 2 and the position tag's room come to its one column with the levels' names instead of

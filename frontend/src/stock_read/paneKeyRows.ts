@@ -3,9 +3,9 @@
  * you to add those cuz i get lost"). Pure: the rows the pane's Key chip lists, for what that pane draws --
  * the session tint behind the candles on every intraday pane; the levels each chart reads from its own
  * candles (5-minute, Full Day, and the 1-minute's nearest ones); the setup boxes and the plan's lines on
- * the 1-minute pane (the 5-minute and 10-second panes mirror the plan's lines, so their Keys list them too -- the
- * 5-minute's had not, and its "5m trigger" row read like them, operator report 2026-10-12), and Nova's LULD band on
- * the 1-minute pane alone.
+ * the 1-minute pane (the 10-second pane mirrors the plan's lines, named, so its Key lists them too; the 5-minute pane
+ * draws its own setups' lines and never the plan's, operator report 2026-10-13), and Nova's LULD band on the 1-minute
+ * pane alone.
  * Every colour is the one the drawing uses, read from the same constants.
  */
 import { CHART_SESSION_COLORS } from '../constants';
@@ -207,7 +207,8 @@ function planRows(full: boolean): KeySection {
     );
   }
   rows.push({ swatch: 'dash', color: GREY, label: 'Dashed vs solid', text: 'dashed: only a plan · solid: an order is working' });
-  return { title: 'The plan', rows };
+  // The 10-second pane's lines are the 1-minute plan's, named at the right edge, and only once there is one to act on.
+  return { title: full ? 'The plan' : 'The plan (from near or armed, or while an order works)', rows };
 }
 
 /** The Key's sections for one pane; empty for a pane Nova draws nothing on. */
@@ -223,7 +224,7 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
   } else if (kind === 'thin') {
     out.push(planRows(false));
   } else {
-    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows(true), planRows(false));
+    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows(true));
     if (layers.levels) out.push(...(kind === 'daily' ? [dailyRows()] : [fiveMinuteLevelRows(), trendRows('5-minute')]));
   }
   if (kind !== 'daily') out.push(sessionRows());

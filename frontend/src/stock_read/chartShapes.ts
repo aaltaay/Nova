@@ -10,8 +10,11 @@
  * and the moment's pin (ADR 037).
  * The 1- and 5-minute panes each draw their own chart's trend lines with the levels (`trendLines.ts`).
  * The 5-minute pane carries its own level map and the 5-minute setups (`fiveMinuteShapes.ts`; on the
- * 1-minute pane a 5-minute setup in reach is a dashed trigger line); the 5-minute and 10-second panes
- * mirror the plan's levels as thin lines. While you hold the stock (`read.held`), the trade's levels --
+ * 1-minute pane a 5-minute setup in reach is a dashed trigger line). The 10-second pane mirrors the plan's levels
+ * as thin lines, each named in the edge column as the 1-minute pane names it, with its axis tag; the 5-minute pane
+ * draws its own setups and never the 1-minute plan (operator report 2026-10-13, AIXI's forming Gap and Go: four
+ * unnamed dotted lines across both charts -- "whats the points of these dotted lines??", "we cant keep them like
+ * this"). While you hold the stock (`read.held`), the trade's levels --
  * THEN, NEXT, SUPPORT, STOP, the average and the rounds broken or traded through -- are the 10-second
  * pane's, with their names (operator, 2026-10-01: "lets move these targets ... to the 10 seconds chart");
  * no other pane draws the plan's lines or zones then. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
@@ -23,9 +26,9 @@
  * box (`strategyBox.ts`), faint while forming and in full colour once near or armed: no zones, no line across the pane,
  * and a frame from its stop to target 1, never to target 2. Once armed its prices keep their axis tags (price lines
  * drawn without the line); a forming one's are the box's words alone. Once triggered it was taken or missed: no box, no
- * axis tags, no frame, only a mark over its trigger candle -- and no thin lines on the 5-minute and 10-second panes
- * either (operator report 2026-10-12, OFAL in the Sim at 07:15: a first pullback stopped at 07:10 still drew its four
- * lines there, unnamed).
+ * axis tags, no frame, only a mark over its trigger candle -- and no thin lines on the 10-second pane either (operator
+ * report 2026-10-12, OFAL in the Sim at 07:15: a first pullback stopped at 07:10 still drew its four lines there,
+ * unnamed). A forming one draws none there either: the 1-minute pane shows it as a faint box, never as lines.
  */
 import type { Time } from 'lightweight-charts';
 import { SHORT_SETUP_CHIPS } from '../constantGroups/short_setups';
@@ -154,10 +157,11 @@ function target2Of(plan: StockPlan | null, lv: OrderLevels): OrderLevel | null {
   return plan?.target2 != null ? planOnly(plan.target2) : null;
 }
 
-/** The plan's lines; `axisOnly` keeps only their axis tags (a boxed plan on the 1-minute pane: the box names them). */
+/** The plan's lines; `axisOnly` keeps only their axis tags (a boxed plan on the 1-minute pane: the box names them).
+ * The 10-second pane's are thin and named as the 1-minute pane names them: a line nobody can read is noise. */
 function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind, axisOnly = false): PriceLineSpec[] {
   const out: PriceLineSpec[] = [];
-  const thin = pane !== 'full';
+  const thin = pane === 'thin';
   const short = plan?.side === 'short';
   const add = (id: 'entry' | 'stop' | 'target' | 'target2', level: OrderLevel | null, color: string) => {
     if (!level) return;
@@ -168,9 +172,9 @@ function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind, axis
       color,
       width: thin || id === 'target2' ? 1 : 2,
       style: level.behind === 'plan' ? 'dashed' : 'solid',
-      title: thin || axisOnly ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)`
+      title: axisOnly ? '' : provisional ? `${short ? 'SHORT' : 'ENTRY'} (provisional)`
         : levelTitle(id, level.behind, short),
-      axisLabel: !thin,
+      axisLabel: true,
       ...(axisOnly ? { line: false } : {}),
     });
   };
@@ -220,15 +224,16 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   const held = read.held;
   const lv = held ? null : drawnLevels(plan, o.levels);
   // A setup's plan with only the plan behind it is its strategy box on the 1-minute pane, never zones and lines across
-  // it (2026-10-12): forming, the box alone; once armed, its prices keep their axis tags and lose their lines; once
-  // triggered, taken or missed, nothing of it on any pane but a mark on the 1-minute trigger candle.
+  // it (2026-10-12): forming, the box alone and no lines on any pane; once armed, its prices keep their axis tags and
+  // lose their lines there while the 10-second pane draws them named; once triggered, taken or missed, nothing of it
+  // on any pane but a mark on the 1-minute trigger candle. The 5-minute pane never draws the plan (2026-10-13).
   const boxed = lv !== null && boxedPlan(plan, lv);
   const forming = lv !== null && formingPlan(plan, lv);
   const triggered = lv !== null && triggeredPlan(plan, lv);
   if (o.layers.setups) {
     if (held && o.pane === 'thin') lines.push(...heldLines(held));
     const boxedHere = boxed && o.pane === 'full';
-    const offHere = (forming && boxedHere) || triggered;
+    const offHere = forming || triggered || o.pane === 'map';
     if (lv && !offHere) lines.push(...planLines(plan, lv, o.pane, boxedHere));
     if (o.pane === 'full') {
       // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.

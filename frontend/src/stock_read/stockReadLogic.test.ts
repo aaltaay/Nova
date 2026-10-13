@@ -24,6 +24,7 @@ import { historySummary } from './HistoryTab';
 import { tileValue } from './ReadStrip';
 import { readSummary } from './SignalsTab';
 import { eventTone } from './DecisionsTab';
+import { lineWords } from './paneScene';
 import { apusAt, apusDecisionsWire, apusHistoryWire, apusReadWire } from './stockReadFixtures';
 import type { StockRead } from './types';
 import { draggedPlan } from './usePlanDrag';
@@ -276,11 +277,24 @@ describe('the charts', () => {
     expect(Object.keys(byId).sort()).toEqual(['entry', 'stop', 'target', 'target2']);
   });
 
-  it('mirrors only thin lines on the 5-minute and 10-second panes', () => {
-    const { scene, lines } = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity });
+  it('mirrors the plan on the 10-second pane as thin named lines, and never on the 5-minute (operator report 2026-10-13)', () => {
+    // AIXI's forming Gap and Go drew four unnamed dotted lines on both charts: "we cant keep them like this".
+    for (const pane of ['map', 'thin'] as const) {
+      const forming = paneDraw(read, { pane, layers: LAYERS, toTime: identity });
+      expect(forming.scene.boxes).toEqual([]);
+      expect(forming.lines).toEqual([]);
+    }
+    const armed: StockRead = { ...read, plan: { ...read.plan!, state: 'armed', provisional: false } };
+    const { scene, lines } = paneDraw(armed, { pane: 'thin', layers: LAYERS, toTime: identity });
     expect(scene.boxes).toEqual([]);
-    expect(lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id)).every(l => l.width === 1 && l.title === '')).toBe(true);
-    expect(lines.map(l => l.id)).toEqual(['entry', 'stop', 'target', 'target2']);
+    expect(lines.map(l => [l.id, l.title, l.width, l.axisLabel, l.line])).toEqual([
+      ['entry', 'ENTRY', 1, true, undefined], ['stop', 'STOP · plan', 1, true, undefined],
+      ['target', 'TARGET 1 · plan', 1, true, undefined], ['target2', 'TARGET 2 · plan', 1, true, undefined],
+    ]);
+    // Named lines put their names in the edge column: none is left unnamed.
+    expect(lineWords(lines).map(w => w.text)).toEqual(['ENTRY', 'STOP · plan', 'TARGET 1 · plan', 'TARGET 2 · plan']);
+    expect(paneDraw(armed, { pane: 'map', layers: LAYERS, toTime: identity }).lines
+      .filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
   });
 
   it('honours the switches: a hidden lane, setups off, levels off', () => {

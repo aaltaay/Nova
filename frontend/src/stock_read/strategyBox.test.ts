@@ -103,13 +103,17 @@ describe('the box once the setup is near or armed', () => {
       ['entry', false, '', true], ['stop', false, '', true], ['target', false, '', true], ['target2', false, '', true],
     ]);
     expect(scene.keepInView).toEqual({ min: 2.7936, max: 2.99 });
-    // The 5-minute and 10-second panes still mirror the plan's levels as thin lines.
-    for (const pane of ['map', 'thin'] as const) {
-      const other = paneDraw(read, { pane, layers: LAYERS, toTime: identity });
-      expect(other.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))
-        .every(l => l.line === undefined && l.width === 1)).toBe(true);
-      expect(other.scene.strategy ?? null).toBeNull();
-    }
+    // The 10-second pane mirrors the armed plan's levels as thin lines across it, each named with its axis tag; the
+    // 5-minute pane draws none of the plan (operator report 2026-10-13).
+    const thin = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity });
+    expect(thin.lines.map(l => [l.id, l.line, l.width, l.axisLabel, l.title])).toEqual([
+      ['entry', undefined, 1, true, 'ENTRY'], ['stop', undefined, 1, true, 'STOP · plan'],
+      ['target', undefined, 1, true, 'TARGET 1 · plan'], ['target2', undefined, 1, true, 'TARGET 2 · plan'],
+    ]);
+    expect(thin.scene.strategy ?? null).toBeNull();
+    const map = paneDraw(read, { pane: 'map', layers: LAYERS, toTime: identity });
+    expect(map.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
+    expect(map.scene.strategy ?? null).toBeNull();
   });
 });
 
@@ -157,10 +161,13 @@ describe("the strategy box's scene", () => {
     expect(scene.keepInView).toEqual({ min: 2.7936, max: 2.99 });
     expect((scene.words ?? []).map(w => w.id)).toEqual(expect.arrayContaining(['strategy:target', 'strategy:entry',
       'strategy:stop']));
-    // The 10-second pane still mirrors the plan's levels as thin lines.
-    const thin = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity });
-    expect(thin.lines.map(l => l.id)).toEqual(['entry', 'stop', 'target', 'target2']);
-    expect(thin.scene.strategy ?? null).toBeNull();
+    // Forming, it is the faint box alone: no lines on the 5-minute or 10-second pane either (operator report 2026-10-13,
+    // AIXI's forming Gap and Go drew four unnamed dotted lines on both).
+    for (const pane of ['map', 'thin'] as const) {
+      const other = paneDraw(read, { pane, layers: LAYERS, toTime: identity });
+      expect(other.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
+      expect(other.scene.strategy ?? null).toBeNull();
+    }
   });
 });
 
