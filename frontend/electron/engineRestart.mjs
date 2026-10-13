@@ -27,6 +27,12 @@ const HEALTH_TIMEOUT_MS = 3_000;
 /** The checklist probes the Gateway ports on a worker thread; a dark port costs seconds. */
 const DIAGNOSTICS_TIMEOUT_MS = 20_000;
 const STOP_TIMEOUT_MS = 30_000;
+/** The engine's planned stop (backend `diagnostics/stop.py`): it logs why and leaves through its shutdown. */
+export const ENGINE_STOP_PATH = '/api/diagnostics/stop';
+/** Mirrors constantGroups/api_auth.ts NOVA_API_KEY_HEADER. */
+const NOVA_API_KEY_HEADER = 'X-Nova-Api-Key';
+/** Its shutdown closes the recordings and IBKR; a port still held after this is force-stopped. */
+export const ENGINE_GRACEFUL_STOP_MS = 25_000;
 const WATCHDOG_QUERY_TIMEOUT_MS = 15_000;
 const POLL_MS = 1_000;
 const WATCHDOG_QUERY =
@@ -64,6 +70,43 @@ export function getJson(url, timeoutMs) {
       done(null);
     });
   });
+}
+
+/** POST a JSON body; true on a 2xx answer, false on anything else (refused, timed out, no engine). */
+export function postJson(url, body, { headers = {}, timeoutMs = HEALTH_TIMEOUT_MS } = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const payload = JSON.stringify(body ?? {});
+    const req = http.request(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...headers },
+    }, (res) => {
+      res.resume();
+      res.on('end', () => done(res.statusCode >= 200 && res.statusCode < 300));
+      res.on('error', () => done(false));
+    });
+    req.on('error', () => done(false));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      done(false);
+    });
+    req.end(payload);
+  });
+}
+
+/**
+ * Ask the engine to stop itself (2026-10-13: both update restarts were force-kills, so the API logged
+ * nothing and its recordings read the gaps as crashes). True when it said it is stopping.
+ */
+export async function askEngineToStop(apiBase, { apiKey = null, reason = null, post = postJson } = {}) {
+  const key = typeof apiKey === 'function' ? apiKey() : apiKey;
+  const headers = key ? { [NOVA_API_KEY_HEADER]: key } : {};
+  return post(`${apiBase}${ENGINE_STOP_PATH}`, { reason }, { headers, timeoutMs: HEALTH_TIMEOUT_MS });
 }
 
 function text(value) {
@@ -231,6 +274,10 @@ export async function restartCheckoutEngine(before, deps) {
     sleep = delay,
     now = Date.now,
     timeoutMs = ENGINE_NEW_TIMEOUT_MS,
+    apiKey = null,
+    reason = null,
+    // No planned stop unless the caller wires one (sidecar.mjs passes postJson): tests never reach a live engine.
+    post = async () => false,
   } = deps;
   if (platform !== 'win32') {
     throw new Error(`Not restarted: ${label(before.release_tag)} was started outside Nova; restart it where it runs`);
@@ -242,14 +289,20 @@ export async function restartCheckoutEngine(before, deps) {
     throw new Error(`Not restarted: ${label(from)} was started outside Nova, and its stop script was not found`);
   }
   console.log(`[nova-api] reload: stopping ${label(from)} from ${scripts.root}`);
-  const stopped = run(windowsPowerShell(env), ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scripts.stop, '-Ports', String(port)], {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: STOP_TIMEOUT_MS,
-  });
-  if (!(await waitForPortFree())) {
-    const said = lastLine(stopped?.stdout);
-    throw new Error(`Not restarted: ${label(from)} is still running${said ? ` -- ${said}` : ''}`);
+  // First the engine's own stop, so it says why and closes its recordings; the stop script is the fallback.
+  const asked = await askEngineToStop(apiBase, { apiKey, reason, post });
+  const stoppedItself = asked && (await waitForPortFree(ENGINE_GRACEFUL_STOP_MS));
+  if (asked && !stoppedItself) console.warn(`[nova-api] reload: ${label(from)} did not stop itself in time -- force-stopping`);
+  if (!stoppedItself) {
+    const stopped = run(windowsPowerShell(env), ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scripts.stop, '-Ports', String(port)], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: STOP_TIMEOUT_MS,
+    });
+    if (!(await waitForPortFree())) {
+      const said = lastLine(stopped?.stdout);
+      throw new Error(`Not restarted: ${label(from)} is still running${said ? ` -- ${said}` : ''}`);
+    }
   }
   try {
     startCheckoutEngine(scripts, { env, spawnFn });

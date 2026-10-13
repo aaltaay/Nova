@@ -244,8 +244,9 @@ async def _reconcile_once(
         _prev_tab_symbols = desired_tab
         _tab_grace_until = 0.0
 
-    # Scanner owner = displayed table rows; HOD owner = reserved HOD pool
-    # (overlap keeps both owners so leaving the tab does not drop HOD eval).
+    # Scanner owner = displayed table rows; HOD owner = every HOD-wanted symbol
+    # that streams, a table row's included (``plan["hod_owned"]``), so leaving
+    # the table never cancels a line HOD still evaluates.
     # ADR 008: this map gates flush_loop's price_patch forwarding — a symbol
     # only reaches the WS as a table's row when it is actually subscribed
     # here, and it is tagged with the table that requested it.
@@ -260,7 +261,7 @@ async def _reconcile_once(
     tab_result = await _ticks.set_owner_symbols(_ticks.OWNER_SCANNER, plan["tab"])
     if IBKR_L1_SUBSCRIBE_PACE_SEC > 0:
         await asyncio.sleep(float(IBKR_L1_SUBSCRIBE_PACE_SEC))
-    hod_result = await _ticks.set_owner_symbols(_ticks.OWNER_HOD, plan["hod"])
+    hod_result = await _ticks.set_owner_symbols(_ticks.OWNER_HOD, plan["hod_owned"])
 
     failed = list(tab_result.get("failed") or []) + list(hod_result.get("failed") or [])
     if failed:

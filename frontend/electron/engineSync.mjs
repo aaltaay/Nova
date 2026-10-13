@@ -193,7 +193,7 @@ export function createEngineSync({
       return;
     }
     try {
-      const out = await step('restart', () => reloadEngine());
+      const out = await step('restart', () => reloadEngine(`the desk updated the backend to ${checkout ?? tag}`));
       record('restarted', `Restarted the backend: ${out.from ?? home.release_tag ?? '?'} -> ${out.to ?? '?'}`);
     } catch (err) {
       record('failed', `The checkout is at ${checkout ?? tag}, but the restart failed: ${message(err)}`);

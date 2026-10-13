@@ -57,6 +57,28 @@ def hod_integrity_is_failing() -> bool:
     return (hod.get("status") or "pass").strip().lower() == "fail"
 
 
+def hod_alerts_suppressed() -> bool:
+    """Mute HOD alerts only when the HOD feed itself fails, not when one name is late.
+
+    ``hod_integrity_is_failing`` stays the banner's verdict. A check that failed
+    on one symbol's quote or evaluation age alone (``breadth == "one_symbol"``:
+    its max over the SLO, the p95 within it) is left out here: the alert being
+    judged comes from a fresh update of its own symbol, and muting every other
+    name for it silenced HOD for 20-50% of the 2026-10-13 premarket and ~90% of
+    its first ten minutes after the open.
+    """
+    if _last_report is None:
+        return False
+    hod = _last_report.get("hod") or {}
+    for item in hod.get("checks") or []:
+        if (item.get("status") or "pass").strip().lower() != "fail":
+            continue
+        if item.get("breadth") == "one_symbol":
+            continue
+        return True
+    return False
+
+
 def _cache_age(ts: float | None) -> float | None:
     if not ts:
         return None

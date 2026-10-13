@@ -18,11 +18,11 @@ from datetime import timedelta
 from constants import (
     HOD_MOMO_RVOL_PACE_FLOOR,
     NOVA_OS_NYSE_HOLIDAYS,
+    RVOL_VOLUME_CURVE_CUM_FRAC,
     SESSION_AFTERHOURS_END_MIN_ET,
     SESSION_PREMARKET_START_MIN_ET,
     SESSION_RTH_CLOSE_MIN_ET,
     SESSION_RTH_OPEN_MIN_ET,
-    SESSION_VOLUME_DAY_END_MIN_ET,
 )
 
 ET = ZoneInfo("America/New_York")
@@ -145,25 +145,35 @@ def in_trading_session(ts: float) -> bool:
     return bounds is not None and bounds[0] <= ts < bounds[1]
 
 
+def volume_curve_fraction(et_minute: float) -> float:
+    """Share of a stock-day's 04:00-20:00 volume normally traded by ``et_minute`` (minutes after ET
+    midnight, fractions allowed), interpolated on ``RVOL_VOLUME_CURVE_CUM_FRAC``."""
+    knots = RVOL_VOLUME_CURVE_CUM_FRAC
+    if not knots:
+        return 0.0
+    if et_minute <= knots[0][0]:
+        return float(knots[0][1])
+    if et_minute >= knots[-1][0]:
+        return float(knots[-1][1])
+    for (m0, f0), (m1, f1) in zip(knots, knots[1:], strict=False):
+        if et_minute <= m1:
+            return float(f1) if m1 == m0 else float(f0 + (et_minute - m0) / (m1 - m0) * (f1 - f0))
+    return float(knots[-1][1])
+
+
 def volume_day_elapsed_fraction(now: datetime | None = None) -> float:
-    """Fraction of the volume day (04:00–16:00 ET) elapsed, for pace RVOL.
+    """Share of the day's volume expected by now, for pace RVOL.
 
     momentum / Trade-Ideas "Relative Volume (Daily Rate)" compares cumulative
-    volume to *expected* volume by this clock time, not raw daily/avg.
+    volume to *expected* volume by this clock time, not raw daily/avg. The
+    expectation is the measured small-cap volume curve, not a straight line
+    over 04:00-16:00: the line expected 36% of the day by 08:20 where small
+    caps trade about 10%, so premarket RVOL read ~3.5x low.
     Floor avoids divide-by-near-zero in the first minutes after 4:00.
     """
     now = now or now_et()
-    start = _et_at_minutes(now, SESSION_PREMARKET_START_MIN_ET)
-    end = _et_at_minutes(now, SESSION_VOLUME_DAY_END_MIN_ET)
-    if now < start:
-        return HOD_MOMO_RVOL_PACE_FLOOR
-    if now >= end:
-        return 1.0
-    total = (end - start).total_seconds()
-    if total <= 0:
-        return 1.0
-    frac = (now - start).total_seconds() / total
-    return max(HOD_MOMO_RVOL_PACE_FLOOR, min(1.0, frac))
+    minute = now.hour * 60 + now.minute + now.second / 60.0
+    return max(HOD_MOMO_RVOL_PACE_FLOOR, min(1.0, volume_curve_fraction(minute)))
 
 
 def pace_relative_volume(

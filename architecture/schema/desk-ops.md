@@ -187,6 +187,18 @@ app's own folder, so it is a different Paper account, bot session and history.
   without MNDR's lines through its flush into VWAP). `safe` is true
   only when every reader answered and nothing is open, false when anything is
   open, and null when a reader failed (never read as "nothing open").
+- **`POST /api/diagnostics/stop`** `{reason?: string}` (owner
+  `diagnostics/stop.py`; keyed even on a loopback desk, like `/api/config`)
+  answers `{ok: true, stopping: true, reason}`, logs `API: stopping at the
+  desk's request -- <reason>` and leaves through uvicorn's own shutdown a
+  quarter second later, so the Session Records close and the leaderboard run
+  ends `shutdown`. A desk reload asks for it first (`engineRestart.askEngineToStop`,
+  reason "the desk updated the backend to vNNN" or "the operator reloaded the
+  backend") and runs `Stop-NovaPorts.ps1` only when the engine refuses or the
+  port is still held after `ENGINE_GRACEFUL_STOP_MS` (25 s). Until 2026-10-13
+  every reload was that force-kill: both of that morning's update restarts
+  (07:51, 08:45 ET) left no log line and read on the leaderboard as
+  `unexpected` gaps, i.e. as crashes.
 - **One version** (operator ask, 2026-09-30: "i need them to be treated as
   ONE"). The desk and the owner's backend run the same release. The backend's
   checkout is only ever brought to the desk's own `vNNN` tag, never past it

@@ -135,7 +135,7 @@ def seed_symbol(symbol: str, provider: str) -> str:
         session_key_et(),
     )
     if not full_session_bars:
-        hm.mark_surge_seed_attempted(sym)
+        hm.mark_surge_seed_live(sym)
         logger.info(
             "HOD Momo surge seed: %s live-only (no local %s bars)",
             sym, HOD_MOMO_SURGE_SEED_TIMEFRAME,
@@ -160,6 +160,7 @@ def seed_symbol(symbol: str, provider: str) -> str:
     bars = recent[-HOD_MOMO_SURGE_SEED_BARS:]
     points = bars_to_surge_points(bars)
     if not points:
+        hm.mark_surge_seed_stored(sym)
         hm.mark_surge_seed_attempted(sym)
         logger.info(
             "HOD Momo surge seed: %s live-only (store bars older than %ds)",
@@ -167,6 +168,7 @@ def seed_symbol(symbol: str, provider: str) -> str:
         )
         return "live"
 
+    hm.mark_surge_seed_stored(sym)
     n = hm.seed_price_buffer(sym, points)
     logger.info(
         "HOD Momo surge seed: %s +%d buffer pts from %d store %s bars",

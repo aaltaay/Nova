@@ -23,6 +23,10 @@ from hod_momo_models import (
 class HodMomoState:
     price_buffer: dict[str, deque[tuple[float, float]]] = field(default_factory=dict)
     surge_seeded: set[str] = field(default_factory=set)
+    # A seed that found no stored bars: when it was first tried, and when it is asked again
+    # (hod_momo_market.mark_surge_seed_live).
+    surge_seed_live_since: dict[str, float] = field(default_factory=dict)
+    surge_seed_retry_at: dict[str, float] = field(default_factory=dict)
     pending_surge_seed: set[str] = field(default_factory=set)
     last_trade_ts: float | None = None
     session_highs: dict[str, float] = field(default_factory=dict)
@@ -45,6 +49,9 @@ class HodMomoState:
     pending_consolidation: dict[str, list[tuple[float, AlertObject]]] = field(
         default_factory=dict
     )
+    # symbol -> (burst start, burst end): the start's alerts go out at once,
+    # the rest wait for the end (hod_momo_alerts.queue_alert).
+    consolidation_bursts: dict[str, tuple[float, float]] = field(default_factory=dict)
     configs: dict[int, StrategyConfig] = field(default_factory=dict)
     master: MasterGateConfig = field(default_factory=MasterGateConfig)
     blocklist: set[str] = field(default_factory=set)

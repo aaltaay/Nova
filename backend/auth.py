@@ -24,6 +24,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
 
 from constants import (
+    DIAG_STOP_PATH,
     NOVA_API_KEY_HEADER,
     NOVA_API_LOOPBACK_HOSTS,
     NOVA_CONFIG_MUTATE_PATH,
@@ -53,7 +54,8 @@ def _is_loopback_bind() -> bool:
 
 
 def is_config_mutate(method: str, path: str) -> bool:
-    return method in _MUTATING and path.rstrip("/") == NOVA_CONFIG_MUTATE_PATH
+    """Routes that need a configured key even on a loopback desk: ``/api/config`` and the planned stop."""
+    return method in _MUTATING and path.rstrip("/") in (NOVA_CONFIG_MUTATE_PATH, DIAG_STOP_PATH)
 
 
 def is_bot_http_path(path: str) -> bool:

@@ -250,7 +250,10 @@ def test_medium_float_fires_without_master_surge(monkeypatch):
 
 
 def test_same_ticker_shares_consolidation_emit_deadline(monkeypatch):
-    """momentum batches same-ticker fires into one window (not per-alert deadlines)."""
+    """A burst's first fire is due at once; the repeats in its window share the window's end.
+
+    Holding the first one 10 s showed PFAI's 2026-10-13 first alert after the top it was raised under.
+    """
     _reset_engine(monkeypatch)
     state = hm.get_state()
     for sid, cfg in state.configs.items():
@@ -280,7 +283,10 @@ def test_same_ticker_shares_consolidation_emit_deadline(monkeypatch):
     hm.on_trade_update(sym, 12.2, now + 1.0, volume=1_100_000, day_high=12.2)
     bucket = state.pending_consolidation[sym]
     assert len(bucket) >= 2
-    assert all(et == first_deadline for et, _ in bucket)
+    burst_start, burst_end = state.consolidation_bursts[sym]
+    assert first_deadline == burst_start <= time.time()
+    assert burst_end == burst_start + state.master.consolidation_sec
+    assert all(et == burst_end for et, _ in bucket[1:])
 
 
 def test_effective_min_rvol_uses_afterhours_setting(monkeypatch):
@@ -417,7 +423,7 @@ def _fire_squeeze_setup(monkeypatch) -> tuple[object, str, float]:
 def test_integrity_fail_suppress_blocks_on_hod_scope_fail(monkeypatch):
     """REQ-HOD-004: a genuine hod-scope integrity fail still suppresses fires."""
     state, sym, now = _fire_squeeze_setup(monkeypatch)
-    monkeypatch.setattr("integrity_live.hod_integrity_is_failing", lambda: True)
+    monkeypatch.setattr("integrity_live.hod_alerts_suppressed", lambda: True)
 
     hm.on_trade_update(sym, 10.65, now, volume=110_000, day_high=10.65)
 
@@ -427,10 +433,10 @@ def test_integrity_fail_suppress_blocks_on_hod_scope_fail(monkeypatch):
 
 def test_integrity_fail_suppress_ignores_scanner_only_fail(monkeypatch):
     """REQ-HOD-004: an unrelated scanner-tab failure must NOT suppress HOD fires
-    once suppression is scoped to hod_integrity_is_failing() only."""
+    once suppression is scoped to the HOD partition (hod_alerts_suppressed)."""
     state, sym, now = _fire_squeeze_setup(monkeypatch)
     # Simulate: scanner scope failing, hod scope healthy — scoped check returns False.
-    monkeypatch.setattr("integrity_live.hod_integrity_is_failing", lambda: False)
+    monkeypatch.setattr("integrity_live.hod_alerts_suppressed", lambda: False)
 
     hm.on_trade_update(sym, 10.65, now, volume=110_000, day_high=10.65)
 
