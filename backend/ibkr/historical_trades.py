@@ -8,7 +8,8 @@ Nova's own tape (``luld/backfill.py``).
 
 Each page is a historical request in the one budget ``historical_service`` keeps (60 in 10 minutes, five a
 contract in 2 s, no identical request in 15 s): no page is sent while an open chart loads, while pacing asks for a
-wait, or when it would leave fewer than ``headroom`` requests of the 10 minutes. Before the first page that raises
+wait, or when it would leave fewer than ``headroom`` requests of the 10 minutes -- checked again once a request holds
+its slot, since a chart may open, or other requests spend the budget, while it waits for one. Before the first page that raises
 ``HistoricalShed`` and the caller asks again later; after it, the pages stop and what was read comes back marked
 incomplete. Nothing waits on the connect-loop (ADR 010), nothing is stored.
 
@@ -82,9 +83,12 @@ async def recent_trades(symbol: str, end: float, back_sec: float, *, max_pages: 
     rows: list[dict[str, Any]] = []
     page_end, pages, complete = end, 0, False
     while pages < max_pages:
-        if pages and _blocked(sym, page_end, headroom):
-            break
         async with slots:
+            why = _blocked(sym, page_end, headroom)     # again, in the slot: a chart may have opened meanwhile
+            if why:
+                if not pages:
+                    raise HistoricalShed(why)
+                break                               # keep the pages read; the rest is unread, so incomplete
             pacing.record(sym, PACING_KEY, f"{page_end:.0f}")
             try:
                 ticks = await asyncio.wait_for(ib.reqHistoricalTicksAsync(
@@ -114,7 +118,9 @@ async def recent_trades(symbol: str, end: float, back_sec: float, *, max_pages: 
         note = _blocked(sym, since, headroom, BARS_KEY)
         if note is None:
             try:
-                minutes = await _minutes(ib, contract, sym, start, since, end, timeout)
+                minutes = await _minutes(ib, contract, sym, start, since, end, headroom, timeout)
+            except HistoricalShed as exc:
+                note = str(exc)
             except Exception as exc:  # the trades stand without them; the note says why
                 note = f"IBKR's 1-minute bars were not read ({type(exc).__name__}: {exc})"
                 logger.info("LULD backfill: %s for %s", note, sym)
@@ -122,11 +128,15 @@ async def recent_trades(symbol: str, end: float, back_sec: float, *, max_pages: 
             "minutes_note": note}
 
 
-async def _minutes(ib: Any, contract: Any, sym: str, start: float, since: float, end: float,
+async def _minutes(ib: Any, contract: Any, sym: str, start: float, since: float, end: float, headroom: int,
                    timeout: float) -> list[dict[str, Any]]:
-    """IBKR's 1-minute TRADES bars that overlap ``start`` to ``since``, up to ``end``: ``[{ts, average, count}]``."""
+    """IBKR's 1-minute TRADES bars that overlap ``start`` to ``since``, up to ``end``: ``[{ts, average, count}]``.
+    ``HistoricalShed`` when, once it holds its slot, an open chart or the budget says not now."""
     pacing, slots = budget()
     async with slots:
+        why = _blocked(sym, since, headroom, BARS_KEY)
+        if why:
+            raise HistoricalShed(why)
         pacing.record(sym, BARS_KEY, f"{since:.0f}")
         bars = await ib.reqHistoricalDataAsync(
             contract, endDateTime=datetime.fromtimestamp(end, timezone.utc), durationStr=f"{int(end - start) + 60} S",
