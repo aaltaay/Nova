@@ -22,7 +22,8 @@ stock that happens from midnight until the regular session opens. The perf recor
 | 10-12 | 11.1 s, 0% | 11.1 s, 0% | 4.6 s, 33% | 1.3 s, 96% |
 | 10-13 | 0.0 s, 81% | 11.4 s, 2% | 1.5 s, 86% | -- |
 
-Premarket, even the quickest tenth of the calls took 11.0 s. The operator trades 07:00-10:00 ET. A median of 0.0 s
+Premarket, even the quickest tenth of the calls took 11.0 s or more (8.1 s on 10-09). The operator trades
+07:00-10:00 ET. A median of 0.0 s
 is calls that gave way to a chart load in the cold slot (`ib_scheduler.cold_slot`) and asked IBKR nothing. That slot
 is single-flight: a snapshot also queued there behind HOD Momo's own 11 s batches.
 
@@ -86,8 +87,8 @@ read both ways, alternating which went first.
 | 14:28 (session): ES, NQ, CL, GC | 0.43-0.59 s | 0.45-0.98 s |
 
 In the session the two answer alike. Premarket a brief line ends within 2.5 s by construction, answered or not. The
-snapshot it replaced held the head 4 s for nothing and the other two ~11 s a batch. The same probe at 04:10 and 07:30 ET on
-2026-10-14 is recorded on the pull request that made this ADR. From the desk's next start the four ops above give
+snapshot it replaced held the head 4 s for nothing and the other two ~11 s a batch. The same probe at 04:10 and
+07:30 ET on 2026-10-14 is recorded on the pull request that made this ADR. From the desk's next start the four ops above give
 the numbers directly.
 
 ## Consequences
@@ -95,6 +96,10 @@ the numbers directly.
 - At most 5 lines for 2.5 s, where a snapshot held up to 5 for ~11 s premarket: line-time falls. The peak is unchanged.
 - A line IBKR refuses (another platform on the login took the lines between the headroom check and the request) is
   a quote with no price, as a refused snapshot was.
+- A line IBKR has not answered by the deadline is cancelled unanswered. A cancel that reaches IBKR before its answer
+  can leave the line held (shown for Level 2 and Time & Sales the same day, `ibkr/stray_lines.py`, which re-cancels
+  only those two kinds). A Level 1 line held that way would not be re-cancelled. In the probe an answered brief
+  line's ticks stopped within a second of its cancel (none in the next 15 s, ES and SOFI).
 - Rejected:
   - a longer cap on the quote head's snapshot (a person would wait 11 s);
   - waiting on the desk's own Level 1 line alone (the REST path and the detail backstop have no line of their own,
