@@ -4,6 +4,8 @@ One underlying subscription per symbol. Owners (detail / scanner / hod) share
 the stream via owner sets — tab switches must never cancel a selected ticker's
 detail owner. Quote listeners receive every price change for scanner/HOD paths;
 detail broadcasts keep the open quote panel on trade_update.
+
+maintainer: one-concern every owner joins and leaves a line under one lock, on the IB loop, so no line is held for an owner that left
 """
 from __future__ import annotations
 
@@ -215,12 +217,45 @@ def _seed_existing_ticker(symbol: str) -> None:
 
 
 async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:
+    """Let ``owner`` go of ``symbol``'s line; the last owner out cancels it on IBKR.
+
+    Runs on the IB loop, like ``subscribe``: the subscribe lock is bound to that
+    loop, and ``cancelMktData`` writes to the IB socket (ADR 010). The Trader's
+    ticker socket and the scanner's reconcile call this from the HTTP loop; run
+    there, a subscribe holding the lock made it raise "bound to a different event
+    loop" and the owner kept the line open until the backend restarted.
+    """
+    from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
+
+    if is_started() and not is_ib_loop():
+        return await on_ib(
+            _unsubscribe_to_the_end(symbol, owner),
+            float(IBKR_L1_QUALIFY_TIMEOUT_SEC) + 5.0,
+            label="cancelMktData",
+        )
     symbol = (symbol or "").strip().upper()
     owner = (owner or OWNER_DETAIL).strip().lower()
     if not symbol:
         return
     async with _get_lock():
         _release_owner(symbol, owner)
+
+
+async def _unsubscribe_to_the_end(symbol: str, owner: str) -> None:
+    """``unsubscribe`` on the IB loop, finished even when its caller stops waiting.
+
+    A caller that times out or is cancelled cancels this wait, never the release
+    queued behind the lock: an abandoned release leaves the line open just as the
+    cross-loop error did.
+    """
+    release = asyncio.ensure_future(unsubscribe(symbol, owner))
+    release.add_done_callback(_log_failed_release)
+    await asyncio.shield(release)
+
+
+def _log_failed_release(release: asyncio.Future) -> None:
+    if not release.cancelled() and release.exception() is not None:
+        logger.error("IBKR ticks: letting go of a Level 1 owner failed", exc_info=release.exception())
 
 
 def drop_owner(symbol: str, owner: str) -> None:
