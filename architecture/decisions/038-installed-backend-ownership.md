@@ -75,7 +75,9 @@ a second engine on top of it. That was fixed before the push.
    interrupt (`GET /api/diagnostics/restart-check`). If nothing is open, one
    click restarts. If anything is open, or the backend is too old to say, the
    desk lists it and restarts only once confirmed. A pull is always confirmed.
-5. **Nothing pulls or restarts on a timer.** An unattended nightly pull and
+5. **Nothing pulls or restarts on a timer** -- except a backend behind the
+   desk's own release, which follows it by itself (amendment 2026-10-13,
+   below). An unattended nightly pull and
    restart was proposed and is **not built**: it installs recurring automation
    that changes the operator's checkout and restarts the trading backend
    without a per-action approval. It waits for the operator's explicit say-so.
@@ -133,3 +135,39 @@ occupied API bind under the shared guard even if this cache has no diagnostic
 record. It never kills an unidentified listener. A still-unbound old process
 cannot participate in the new exclusion protocol; both startup origins need
 the shared-guard version before simultaneous starts are protected.
+
+## A backend behind the desk follows by itself (amendment, 2026-10-13)
+
+Operator: "its okay to say 'restart to update' so the user is able to finish their work, my complaint is about manually restarting the backend after an update", then "instead of saying 'restart backend' after an update, it should already know we need to restart the backend and restart it without us having to click on it".
+
+The desk restart stays the operator's (Restart to update, so they can finish
+what they are doing). The backend no longer waits for a click once the desk
+runs a newer release than it:
+
+- The installed desk looks every 15 s (`engineSync.follow`,
+  `ENGINE_FOLLOW_TICK_MS`) whether the owner's backend runs a release older
+  than the desk. If it does, Nova does what "Update backend to vNNN" did --
+  the checkout fast-forwards to the **desk's own `vNNN` tag** (never master's
+  newest commit, never past the desk), then the backend restarts onto it --
+  without a button.
+- It reads the restart check first, and again after the pull, right before
+  the restart (a fetch can take two minutes). A recording does not hold it (it resumes
+  by itself after a few seconds' gap). Anything else does: a position, a
+  working order, a bot trade, a stock mode, a history download, the opening
+  bell (09:25-09:45 ET), or a backend that cannot say. The backend notice then
+  lists what holds it, beside **Update backend now** for an operator who wants
+  it anyway (confirmed with the list), and Nova goes as soon as it clears.
+- It restarts only onto the desk's exact release, read again right before the
+  restart. A checkout already past it (master pulled ahead, here or from an
+  IDE) would put the backend ahead of the desk, so that is left to the
+  operator.
+- One pull or restart at a time: the operator's button, Restart to update's
+  pull and the restart by itself wait for each other, so a click during the
+  automatic one never pulls beside it or restarts the backend twice.
+- Each pair of releases (backend, desk) is tried once. A pull it may not make
+  (not a clean master, `backend/requirements.txt` changed), a checkout past the
+  desk, or a restart that comes back on the same code leaves **Update backend
+  to vNNN** to the operator, with the reason, so it can never loop.
+- A backend from another checkout, or a bundled engine, is left as before.
+- The unattended nightly pull of master (#616) is still **not built**: this
+  only ever brings the backend to a release the operator already installed.

@@ -55,6 +55,13 @@ export type WhatsNew = {
 /** The backend following the desk's release (electron/engineSync.mjs, ADR 038 amendment). */
 export type EngineSyncOutcome = 'pulled' | 'restarted' | 'current' | 'failed';
 
+/**
+ * The desk bringing a behind backend to its release by itself (electron/engineSync.mjs `follow`):
+ * `waiting` -- something open holds it (`holds`, the restart check's words); `left` -- Nova tried
+ * once and the backend is still behind, so the button is the operator's (`reason` when it failed).
+ */
+export type EngineAuto = { state: 'waiting' | 'left'; holds: string[]; reason: string };
+
 export type EngineSync = {
   /** The checkout the desk starts the backend from (its remembered owner), null when none is known. */
   owner: string | null;
@@ -62,6 +69,8 @@ export type EngineSync = {
   attachedToOwner: boolean;
   running: 'pull' | 'restart' | null;
   last: { at: number; outcome: EngineSyncOutcome; text: string } | null;
+  /** Null: nothing holds the backend's restart by itself (it runs, or is about to). */
+  auto: EngineAuto | null;
 };
 
 export type UpdateView = {
@@ -169,6 +178,14 @@ function readWhatsNew(value: unknown): WhatsNew | null {
 
 const ENGINE_OUTCOMES: readonly EngineSyncOutcome[] = ['pulled', 'restarted', 'current', 'failed'];
 
+function readEngineAuto(value: unknown): EngineAuto | null {
+  const raw = obj(value);
+  const state = str(raw?.state);
+  if (!raw || (state !== 'waiting' && state !== 'left')) return null;
+  const holds = Array.isArray(raw.holds) ? raw.holds.filter((h): h is string => typeof h === 'string' && h !== '') : [];
+  return { state, holds, reason: str(raw.reason) };
+}
+
 function readEngine(value: unknown): EngineSync | null {
   const raw = obj(value);
   if (!raw) return null;
@@ -179,6 +196,7 @@ function readEngine(value: unknown): EngineSync | null {
     attachedToOwner: raw.attached_to_owner === true,
     running: raw.running === 'pull' || raw.running === 'restart' ? raw.running : null,
     last: last && ENGINE_OUTCOMES.includes(outcome) ? { at: count(last.at), outcome, text: str(last.text) } : null,
+    auto: readEngineAuto(raw.auto),
   };
 }
 

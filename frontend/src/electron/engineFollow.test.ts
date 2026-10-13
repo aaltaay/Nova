@@ -3,8 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  AUTO_RESTART_NO_ANSWER,
   ENGINE_FOLLOW_FILE,
   ENGINE_FOLLOW_MAX_AGE_MS,
+  autoRestartHolds,
   restartCheckLines,
   takeEngineFollow,
   writeEngineFollow,
@@ -55,5 +57,52 @@ describe('restartCheckLines', () => {
     });
     expect(open).toEqual({ safe: false, lines: ['Paper: 100 MSGY', 'Could not read ibkr: timeout'] });
     expect(restartCheckLines(null).safe).toBeNull();
+  });
+});
+
+describe('autoRestartHolds (what keeps the desk from restarting by itself)', () => {
+  const check = (open: unknown[], extra: Record<string, unknown> = {}) => ({
+    schema_version: 1,
+    safe: open.length ? false : true,
+    open,
+    unknown: [],
+    ...extra,
+  });
+
+  it('a recording does not hold it: it resumes by itself after a few seconds', () => {
+    expect(autoRestartHolds(check([]))).toEqual([]);
+    expect(autoRestartHolds(check([{ kind: 'recording', text: 'Recording MNDR: a few seconds gap' }]))).toEqual([]);
+  });
+
+  it("everything else holds it, in the backend's words -- a kind this desk does not know too", () => {
+    const open = [
+      { kind: 'recording', text: 'Recording MNDR' },
+      { kind: 'position', text: 'Paper position MNDR 100' },
+      { kind: 'working_order', text: 'IBKR working order SELL 100 MNDR LMT 3.1' },
+      { kind: 'bell', text: 'The opening bell (09:25-09:45 ET)' },
+      { kind: 'bot_trade', text: 'Bot trade MNDR (holding)' },
+      { kind: 'stock_mode', text: 'MNDR is set to Buy Nova' },
+      { kind: 'download', text: '1 history download running' },
+      { kind: 'something_new' },
+    ];
+    expect(autoRestartHolds(check(open))).toEqual([
+      'Paper position MNDR 100',
+      'IBKR working order SELL 100 MNDR LMT 3.1',
+      'The opening bell (09:25-09:45 ET)',
+      'Bot trade MNDR (holding)',
+      'MNDR is set to Buy Nova',
+      '1 history download running',
+      'Something open (something_new)',
+    ]);
+  });
+
+  it('a backend that cannot say holds it: never read as nothing open', () => {
+    expect(autoRestartHolds(null)).toEqual([AUTO_RESTART_NO_ANSWER]);
+    expect(autoRestartHolds({ schema_version: 2, safe: true, open: [], unknown: [] })).toEqual([AUTO_RESTART_NO_ANSWER]);
+    expect(autoRestartHolds({ schema_version: 1, safe: true, unknown: [] })).toEqual([AUTO_RESTART_NO_ANSWER]);
+    expect(autoRestartHolds(check([], { safe: null, unknown: [{ kind: 'ibkr', error: 'timeout' }] }))).toEqual([
+      'Could not read ibkr: timeout',
+    ]);
+    expect(autoRestartHolds(check([], { safe: null }))).toEqual([AUTO_RESTART_NO_ANSWER]);
   });
 });
