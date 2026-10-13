@@ -8,19 +8,19 @@ const titles = (kind: Parameters<typeof chartKey>[0], layers = ON) => chartKey(k
 describe("each chart pane's Key", () => {
   it('names the levels the 5-minute candles show and the time-of-day background', () => {
     expect(titles('map')).toEqual([
-      '5-minute setups (labels start "5m")', '5-minute flat top (a strategy: it can trade)', 'The plan',
+      '5-minute setups (labels start "5m")', '5-minute flat top (a strategy: it can trade)',
       'Levels from 5-minute candles (hover a label for why)', 'Trend lines from 5-minute candles (hover one for why)',
       'Background (time of day, ET)',
     ]);
     expect(chartKey('map', ON)[0].rows.map(r => r.label)).toEqual(
       ['Forming', 'Armed / near', 'Ended (faint)', '5m trigger', 'Scored only']);
-    const rows = chartKey('map', ON)[3].rows.map(r => r.label);
+    const rows = chartKey('map', ON)[2].rows.map(r => r.label);
     // The 5-minute map keeps a round only where its candles made a level, which takes that level's colour.
     expect(rows).toEqual(['Resistance', 'Support', 'Shaded band', 'Thick line']);
     // Yesterday's and old daily levels belong to the Full Day pane only.
     expect(rows).not.toContain("Yesterday's");
     expect(rows).not.toContain('Old daily level');
-    expect(chartKey('map', ON)[5].rows.map(r => r.label)).toEqual(['Premarket', 'Regular hours', 'After hours', 'Closed']);
+    expect(chartKey('map', ON)[4].rows.map(r => r.label)).toEqual(['Premarket', 'Regular hours', 'After hours', 'Closed']);
   });
 
   it("names past days' levels on the Full Day pane, which has no session background", () => {
@@ -55,20 +55,20 @@ describe("each chart pane's Key", () => {
     expect(chartKey('full', { ...ON, levels: false }).some(s => s.title.startsWith('Trend lines'))).toBe(false);
   });
 
-  it('lists only the plan lines on the 10-second', () => {
-    expect(chartKey('thin', ON)[0].rows.map(r => r.label)).toEqual(['Entry', 'Stop', 'Target 1 / 2', 'Dashed vs solid']);
+  it("lists only the plan on the 10-second: an order's lines and the setup's box (operator choice 2026-10-13)", () => {
+    expect(chartKey('thin', ON)[0]).toMatchObject({ title: 'The plan' });
+    expect(chartKey('thin', ON)[0].rows.map(r => r.label)).toEqual(
+      ['Entry', 'Stop', 'Target 1 / 2', 'Strategy box', 'Faint box', 'Dashed vs solid']);
   });
 
-  it("lists the plan's thin lines on the 5-minute too, which mirrors them (operator report 2026-10-12)", () => {
-    const plan = chartKey('map', ON).find(s => s.title === 'The plan');
-    expect(plan?.rows.map(r => r.label)).toEqual(['Entry', 'Stop', 'Target 1 / 2', 'Dashed vs solid']);
-    expect(titles('map', { setups: false, levels: true })).not.toContain('The plan');
+  it("lists no plan on the 5-minute, which draws its own setups' lines and never the plan's (operator report 2026-10-13)", () => {
+    expect(titles('map').some(t => t.startsWith('The plan'))).toBe(false);
   });
 
   it('lists nothing for levels that are switched off, and nothing on a pane Nova does not draw on', () => {
     expect(titles('map', { setups: false, levels: false })).toEqual(['Background (time of day, ET)']);
     expect(titles('map', { ...ON, levels: false })).toEqual(
-      ['5-minute setups (labels start "5m")', '5-minute flat top (a strategy: it can trade)', 'The plan',
+      ['5-minute setups (labels start "5m")', '5-minute flat top (a strategy: it can trade)',
         'Background (time of day, ET)']);
   });
 

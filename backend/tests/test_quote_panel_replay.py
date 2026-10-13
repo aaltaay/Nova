@@ -230,8 +230,11 @@ def test_replay_playhead_is_none_on_a_live_desk_and_the_playhead_off_the_edge(mo
     monkeypatch.setattr(mode, "is_replay_desk", lambda: False)
     assert rp.replay_playhead() is None
 
+    # The Sim clock is held still: two reads of a running clock differ by microseconds (CI on PR #894).
+    playhead = datetime(2026, 7, 15, 7, 20, tzinfo=ET)
+    monkeypatch.setattr(session_clock, "now_et", lambda: playhead)
     monkeypatch.setattr(mode, "is_replay_desk", lambda: True)
-    assert rp.replay_playhead() == session_clock.now_et().timestamp()
+    assert rp.replay_playhead() == playhead.timestamp()
 
 
 def test_an_unreadable_live_edge_counts_as_a_replay(monkeypatch):
