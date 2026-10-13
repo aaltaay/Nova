@@ -161,6 +161,31 @@ def test_a_bulk_build_reading_big_stretches_saves_the_same_index(root, monkeypat
         assert _read(path, ticker, indexed=True) == _expected(path, ticker), ticker
 
 
+def test_a_build_from_a_copy_saves_the_day_files_own_index(root, monkeypatch, tmp_path):
+    """``tools/market_data.py index --stage`` builds from a copy on an SSD; the index is the day file's: the same
+    seek points and map, kept beside it, stamped with its size and modified time, and every read through it exact.
+    A copy of another size is never read."""
+    monkeypatch.setattr(massive_index, "SIM_MASSIVE_INDEX_SPACING", 64 * 1024)
+    monkeypatch.setattr(massive_index, "SIM_MASSIVE_READ_CHUNK", 16 * 1024)
+    path = _write(root, _lines(TICKERS, lambda t: 400))
+    plain = _built(path, root)
+    massive_index.path_for(path, root).unlink()
+    copy = tmp_path / "elsewhere" / "trades_v1__copy.csv.gz"
+    copy.parent.mkdir()
+    copy.write_bytes(path.read_bytes())
+    assert massive_index.build(path, root, read_from=copy) == massive_index.path_for(path, root)
+    staged = massive_index.load(path, root)
+    assert (staged.seek_points, staged.marks, staged.length, staged.header, staged.body) == (
+        plain.seek_points, plain.marks, plain.length, plain.header, plain.body)
+    assert massive_index.is_current(path, root)
+    for ticker in TICKERS:
+        assert _read(path, ticker, indexed=True) == _expected(path, ticker), ticker
+    massive_index.path_for(path, root).unlink()
+    copy.write_bytes(path.read_bytes()[:-1])
+    assert massive_index.build(path, root, read_from=copy) is None
+    assert not massive_index.path_for(path, root).exists()
+
+
 def test_the_last_line_without_a_newline_is_read_through_the_index(root):
     path = _write(root, _lines(["IMCC", "ZZZ"], lambda t: 3), newline_at_end=False)
     _built(path, root)

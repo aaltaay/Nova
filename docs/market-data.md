@@ -58,6 +58,9 @@ second (TSLA's 400,000 quotes on 2026-09-09: 1.1 s). Without one, the read infla
 minutes for a late ticker (the same read on 2026-09-10: 152 s). `status` says how many days are indexed;
 `index` builds the rest (`--workers`, newest day first; `E:\Nova\massive\sim\index\STOP` stops it after the
 files in progress; resumable). The drive is one hard disk: a bulk index build slows every other reader on it.
+Several builds reading it at once make its head jump between files (6 builds: 121 MB/s, against 213 MB/s for one
+stream), so on the desk PC run it with `--workers 6 --stage <a folder on an SSD>`: each file is copied off the
+hard drive in one stream and built from the copy, which is deleted after. `--read-mb` does nothing.
 
 Sizes, measured 2026-10-12: 15.6 TB of gzip (quotes 12.1, trades 3.5, minute bars 0.05). Uncompressed text would
 be about 81 TB; Parquet about 11 TB. The index is about 0.2% of a file.
