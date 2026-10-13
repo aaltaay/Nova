@@ -7,8 +7,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
-import pandas as pd
 import pytest
+
+# The split list is the board rebuild's (research/leaderboard/lb_io), which needs the research harness's packages;
+# CI's backend job does not install them (test_leaderboard_reconstruct_helpers.py skips the same way).
+pytest.importorskip("duckdb")
+pd = pytest.importorskip("pandas")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "research"))
 
