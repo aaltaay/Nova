@@ -83,7 +83,7 @@ _NOT = (
     re.compile(r"\b(?:date|dates|schedule)\b[^.;]{0,40}\b(?:of|for)\b[^.;]{0,60}\bresults\b", re.I),
     re.compile(r"\b(?:general|shareholders'?|annual|extraordinary|special)\s+meeting\b", re.I),
     re.compile(r"\bvoting results\b|\bboard meeting\b|\brestate|\bnon-reliance\b", re.I),
-    re.compile(r"\bprofit (?:alert|warning)\b|\bpreparing\b|\bfinaliz\w*", re.I),
+    re.compile(r"\bprofit (?:alert|warning)\b|\bpreparing\b|\bfinaliz\w*|\b(?:may|could|might) differ\b", re.I),
     re.compile(r"\bdeliver(?:y|ies)\s+(?:results|update|totals?|figures|numbers)\b|\bproduction\s+and\s+deliver\w*"
                r"|\bproduction,\s+deliveries\b", re.I),
 )
@@ -97,7 +97,8 @@ _ATTACHED = re.compile(r"\b(?:press release|exhibit 99)\b|not prepared in accord
 
 _WORDS = {"three": 3, "six": 6, "nine": 9, "twelve": 12}
 _ORDINAL = {"first": 1, "second": 2, "third": 3, "fourth": 4}
-_DATE = r"([A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4})"
+# "September 30, 2023 and 2024" (a comparison's years) reads as its latest year (``_date``).
+_DATE = r"([A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}(?:\s+and\s+\d{4})?)"
 _QUARTER_ENDED = re.compile(rf"\bquarter\s+(?:and\s+(?:six|nine|twelve)\s+months\s+)?ended\s+{_DATE}", re.I)
 # "the three and six months ended June 30": the quarter is the period the results are for.
 _MONTHS_ENDED = re.compile(rf"\b(three|six|nine|twelve)(?:\s+and\s+(three|six|nine|twelve))?[- ]months?\s+"
@@ -132,6 +133,9 @@ def item_202_body(text: str) -> str:
 
 
 def _date(raw: str) -> date | None:
+    years = re.findall(r"\b\d{4}\b", raw)
+    if len(years) > 1:
+        raw = raw[: raw.index(years[0])] + max(years)
     cleaned = re.sub(r"\s+", " ", raw.replace(".", "").replace(",", ""))
     for fmt in ("%B %d %Y", "%b %d %Y"):
         try:
@@ -188,12 +192,18 @@ def _results(text: str, sentences: list[str] | None = None) -> dict[str, Any] | 
 
 
 def _headed(text: str) -> tuple[dict[str, Any] | None, bool]:
-    """What a document's title area says: a results sentence in it, else whether it says something else
-    (a date to come, deliveries, a profit alert). An exhibit's file header pushes its title past the first
-    split, so the area is its opening ``_HEAD_SENTENCES`` sentences."""
-    head = _sentences(text)[:_HEAD_SENTENCES]
-    found = _results(text, head)
-    return found, found is None and any(p.search(s) for s in head for p in _NOT)
+    """What a document's title area says, decided by its first sentence that says either: results, or something
+    else (a date to come, deliveries, a profit alert). An exhibit's file header pushes its title past the first
+    split, so the area is its opening ``_HEAD_SENTENCES`` sentences. The first one decides because a notice
+    titled "SNDL to Announce First Quarter 2025 Financial Results on May 1, 2025" goes on to say "Following
+    the release of its first quarter results, SNDL will host a conference call"."""
+    for sentence in _sentences(text)[:_HEAD_SENTENCES]:
+        if any(p.search(sentence) for p in _NOT):
+            return None, True
+        found = _results(text, [sentence])
+        if found is not None:
+            return found, False
+    return None, False
 
 
 def read_6k(document: bytes | str) -> dict[str, Any] | None:
@@ -203,7 +213,9 @@ def read_6k(document: bytes | str) -> dict[str, Any] | None:
     found, other = _headed(text)
     if found is not None:
         return found
-    if other:
+    # A 6-K titled for something else -- NNOX's "Registered Direct Offering" of 2026-08-06, whose caveat on
+    # "preliminary estimates" names results -- is not results, whatever its later lines say.
+    if other or any(_OTHER_202.search(s) for s in _sentences(text)[:_HEAD_SENTENCES]):
         return None
     found = _results(text)
     if found is not None:

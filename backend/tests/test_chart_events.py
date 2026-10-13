@@ -376,6 +376,16 @@ def test_a_date_to_come_in_an_exhibit_is_not_results_even_in_its_link():
     assert release_text.read_exhibit(profit_alert)["kind"] == "other"
 
 
+def test_a_date_to_come_in_the_title_rules_out_the_lines_below_it():
+    # SNDL 2025-04-15: the title says a date to come; its third line reads like results.
+    exhibit = ("<p>EX-99.1 2 ex991.htm NEWS RELEASE DATED APRIL 14, 2025 Exhibit 99.1 SNDL to Announce First "
+               "Quarter 2025 Financial Results on May 1, 2025 EDMONTON, AB, April 14, 2025 /CNW/ - SNDL Inc. "
+               "(Nasdaq: SNDL) announced today that it will release its first quarter 2025 financial results before "
+               "market open on May 1, 2025.</p><p>Following the release of its first quarter results, SNDL will "
+               "host a conference call and webcast at 10:00 a.m. ET.</p>")
+    assert release_text.read_exhibit(exhibit)["kind"] == "other"
+
+
 def test_a_results_title_that_also_names_its_call_is_results():
     exhibit = ("<p>EX-99.1 2 ea024649101ex99-1_nano.htm PRESS RELEASE, DATED AUGUST 12, 2025 Exhibit 99.1 Nanox "
                "Announces Second Quarter of 2025 Financial Results and Provides Business Update Management to host "
@@ -406,9 +416,47 @@ def test_a_later_filing_for_a_period_already_marked_is_listed_on_that_mark():
         ("X-q2", "6-K", "2026-08-24", "2026-08-24", "", "pr.htm"),
     ])
     readings = {"X-q2": _read("results", months=3, end="2026-06-30", named="2026 Q2"),
-                "X-interim": _read("results", months=6, end="2026-06-30")}
+                "X-interim": _read("results", months=6, end="2026-06-30",
+                                   said="Exhibit 99.1 Interim Report for the six months ended June 30, 2026")}
     [ev] = earnings.events(subs, {}, readings=readings)
     assert ev["day"] == "2026-08-24" and [r["accession"] for r in ev["other_releases"]] == ["X-interim"]
+
+
+def test_a_later_results_release_keeps_its_own_mark():
+    # NNOX 2026: an earlier filing read as results must never hide the quarter's real release.
+    subs = _subs([
+        ("N-results", "6-K", "2026-09-09", "2026-06-30", "", "r.htm"),
+        ("N-early", "6-K", "2026-08-06", "2026-08-06", "", "e.htm"),
+    ])
+    readings = {"N-early": _read("results", months=3, end="2026-06-30"),
+                "N-results": _read("results", months=3, end="2026-06-30",
+                                   said="announced its financial results for the second quarter ended June 30, 2026")}
+    assert [e["day"] for e in earnings.events(subs, {}, readings=readings)] == ["2026-08-06", "2026-09-09"]
+
+
+def test_a_period_filing_days_after_its_results_is_listed_on_their_mark():
+    # BABA: September-quarter results 2024-11-15, interim statements "for the six months Ended September 30,
+    # 2023 and 2024" on 11-18.
+    statements = release_text.read_6k(_cover(
+        "EXHIBITS Exhibit 99.1 - Operating and Financial Review and Prospects for the six months Ended September "
+        "30, 2024 Exhibit 99.2 - Unaudited Condensed Consolidated Financial Statements for the six months Ended "
+        "September 30, 2023 and 2024"))
+    assert statements["kind"] == "results" and statements["end"] == "2024-09-30"
+    subs = _subs([
+        ("B-statements", "6-K", "2024-11-18", "2024-11-18", "", "s.htm"),
+        ("B-results", "6-K", "2024-11-15", "2024-11-15", "", "r.htm"),
+    ])
+    readings = {"B-results": _read("results", months=6, end="2024-09-30"), "B-statements": statements}
+    [ev] = earnings.events(subs, {}, readings=readings)
+    assert ev["day"] == "2024-11-15" and [r["accession"] for r in ev["other_releases"]] == ["B-statements"]
+
+
+def test_an_offering_6k_with_a_caveat_on_estimates_is_not_results():
+    cover = _cover("CONTENTS Registered Direct Offering On August 5, 2026, NANO-X IMAGING LTD entered into a "
+                   "securities purchase agreement with a single long-term institutional investor. The preliminary "
+                   "estimates are unaudited. Accordingly, the Company's final reported financial results for the "
+                   "period may differ, potentially materially, from the preliminary estimates.")
+    assert release_text.read_6k(cover) is None
 
 
 def test_an_exhibit_about_deliveries_is_not_results():
