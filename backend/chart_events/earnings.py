@@ -30,9 +30,9 @@ since what comes earlier in a quarter is what is not the results: deliveries (TS
 preliminary, a date to come, an acquisition with "certain financial results" (LUNR); a restatement after
 the results is not a release at all (Item 4.02, BBAI 2025-03-18). Every other release in the window is
 listed on the event (``other_releases``), never marked. A strong release no report claims yet is an event
-of its own: a 6-K's period comes from its words, an 8-K's is unknown -- unless a mark already stands for a
-period ending the same day, when it is listed there instead (XPEV's Hong Kong interim report a month after
-its second-quarter results). Revenue, net income and basic EPS are the report's own facts for its current period (the
+of its own: a 6-K's period comes from its words, an 8-K's is unknown -- unless it publishes the interim or
+annual report of a period a mark already stands for, when it is listed there instead (XPEV's Hong Kong
+interim report a month after its second-quarter results). Revenue, net income and basic EPS are the report's own facts for its current period (the
 quarter for a 10-Q, the year for an annual report, the period a 6-K covers); for a release no report claims,
 the first filing that tagged that period, which the figure names. A figure nobody tagged is null, never
 estimated.
@@ -45,6 +45,7 @@ open or after the close is not said.
 """
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from typing import Any, Mapping
 
@@ -68,6 +69,11 @@ from chart_events.fiscal import fiscal_label, fiscal_year_end, period_label, qua
 from chart_events.fiscal import naming_offset as _naming_offset
 
 _COLUMNS = ("accessionNumber", "form", "filingDate", "reportDate", "items", "primaryDocument")
+# A filing that publishes the interim or annual report of a period whose results are already out (XPEV's Hong
+# Kong "Interim Report" a month after its Q2 results). Only such a filing is folded into the period's mark: any
+# other later release keeps its own, so an earlier false mark never hides the real one (NNOX 2026: an
+# offering's caveat on "preliminary estimates" in August, its Q2 results on September 9).
+_REPORT_PUBLISHED = re.compile(r"\b(?:interim|annual) report\b", re.I)
 
 
 def _block(block: Mapping[str, Any] | None) -> list[dict[str, Any]]:
@@ -298,8 +304,9 @@ def events(submissions: Mapping[str, Any] | None, facts: Mapping[str, Any] | Non
             continue
         said = rel["said"] or {}
         end, months = _day(said.get("end")), said.get("months")
+        republished = bool(_REPORT_PUBLISHED.search(said.get("said") or ""))
         before = next((e for at, e in marked if _near(at, end) and e["day"] <= rel["day"].isoformat()), None)
-        if before is not None:
+        if before is not None and republished:
             before["other_releases"].append(_stamp(rel))
             continue
         label = said.get("named") or (fiscal_label(end, months, fye, offset) if end and months else None)

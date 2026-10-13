@@ -416,9 +416,30 @@ def test_a_later_filing_for_a_period_already_marked_is_listed_on_that_mark():
         ("X-q2", "6-K", "2026-08-24", "2026-08-24", "", "pr.htm"),
     ])
     readings = {"X-q2": _read("results", months=3, end="2026-06-30", named="2026 Q2"),
-                "X-interim": _read("results", months=6, end="2026-06-30")}
+                "X-interim": _read("results", months=6, end="2026-06-30",
+                                   said="Exhibit 99.1 Interim Report for the six months ended June 30, 2026")}
     [ev] = earnings.events(subs, {}, readings=readings)
     assert ev["day"] == "2026-08-24" and [r["accession"] for r in ev["other_releases"]] == ["X-interim"]
+
+
+def test_a_later_results_release_keeps_its_own_mark():
+    # NNOX 2026: an earlier filing read as results must never hide the quarter's real release.
+    subs = _subs([
+        ("N-results", "6-K", "2026-09-09", "2026-06-30", "", "r.htm"),
+        ("N-early", "6-K", "2026-08-06", "2026-08-06", "", "e.htm"),
+    ])
+    readings = {"N-early": _read("results", months=3, end="2026-06-30"),
+                "N-results": _read("results", months=3, end="2026-06-30",
+                                   said="announced its financial results for the second quarter ended June 30, 2026")}
+    assert [e["day"] for e in earnings.events(subs, {}, readings=readings)] == ["2026-08-06", "2026-09-09"]
+
+
+def test_an_offering_6k_with_a_caveat_on_estimates_is_not_results():
+    cover = _cover("CONTENTS Registered Direct Offering On August 5, 2026, NANO-X IMAGING LTD entered into a "
+                   "securities purchase agreement with a single long-term institutional investor. The preliminary "
+                   "estimates are unaudited. Accordingly, the Company's final reported financial results for the "
+                   "period may differ, potentially materially, from the preliminary estimates.")
+    assert release_text.read_6k(cover) is None
 
 
 def test_an_exhibit_about_deliveries_is_not_results():

@@ -83,7 +83,7 @@ _NOT = (
     re.compile(r"\b(?:date|dates|schedule)\b[^.;]{0,40}\b(?:of|for)\b[^.;]{0,60}\bresults\b", re.I),
     re.compile(r"\b(?:general|shareholders'?|annual|extraordinary|special)\s+meeting\b", re.I),
     re.compile(r"\bvoting results\b|\bboard meeting\b|\brestate|\bnon-reliance\b", re.I),
-    re.compile(r"\bprofit (?:alert|warning)\b|\bpreparing\b|\bfinaliz\w*", re.I),
+    re.compile(r"\bprofit (?:alert|warning)\b|\bpreparing\b|\bfinaliz\w*|\b(?:may|could|might) differ\b", re.I),
     re.compile(r"\bdeliver(?:y|ies)\s+(?:results|update|totals?|figures|numbers)\b|\bproduction\s+and\s+deliver\w*"
                r"|\bproduction,\s+deliveries\b", re.I),
 )
@@ -209,7 +209,9 @@ def read_6k(document: bytes | str) -> dict[str, Any] | None:
     found, other = _headed(text)
     if found is not None:
         return found
-    if other:
+    # A 6-K titled for something else -- NNOX's "Registered Direct Offering" of 2026-08-06, whose caveat on
+    # "preliminary estimates" names results -- is not results, whatever its later lines say.
+    if other or any(_OTHER_202.search(s) for s in _sentences(text)[:_HEAD_SENTENCES]):
         return None
     found = _results(text)
     if found is not None:
