@@ -9,6 +9,8 @@ from datetime import date
 from typing import Any
 
 from constants_market_board import (
+    MARKET_BARS_FRESH_SEC,
+    MARKET_BARS_QUOTES_TTL_SEC,
     MARKET_BIGGEST_PER_SECTOR,
     MARKET_CLOSES_RETRY_SEC,
     MARKET_ETF_TTL_SEC,
@@ -29,7 +31,7 @@ from constants_scanner import SESSION_RTH_OPEN_MIN_ET
 from market_board import breadth, climate, clock, day_read, events, holdings, sectors
 from market_board.state import Store
 
-_FIRST_READS = ("quotes", "etf_quotes", "climate")
+_FIRST_READS = ("climate",)
 
 
 def _pct(a: float | None, b: float | None) -> float | None:
@@ -54,6 +56,16 @@ def _tile(spec: dict, q: dict | None, line: list | None, day: date, now: float) 
         "change_pct": _pct(last, prev), "price_basis": q.get("price_basis"), "data_type": q.get("data_type"),
         "at": q.get("at"), "line": points, "error": q.get("error"),
     }
+
+
+def _from_bars(q: dict | None, line: list | None, prior: dict | None, now: float) -> dict | None:
+    """A tile's quote from its bars when IBKR gave no snapshot: the last 5-minute close, the prior daily close."""
+    if q and q.get("last") is not None:
+        return q
+    if not line or now - line[-1][0] > MARKET_BARS_FRESH_SEC:
+        return q
+    return {**(q or {}), "last": line[-1][1], "price_basis": "bars", "data_type": "bars", "at": line[-1][0],
+            "prev_close": (q or {}).get("prev_close") or (prior or {}).get("close"), "error": None}
 
 
 def _spread(tiles: dict[str, dict], spec: dict) -> dict[str, Any]:
@@ -88,8 +100,9 @@ def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, params: 
     for spec in MARKET_QUOTES:
         if spec["sec_type"] == "SPREAD":
             continue
-        tiles[spec["id"]] = _tile(spec, quotes.get(spec["id"]),
-                                  st.get(f"line:{spec['id']}", now, MARKET_LINES_TTL_SEC), day, now)
+        line = st.get(f"line:{spec['id']}", now, MARKET_LINES_TTL_SEC)
+        q = _from_bars(quotes.get(spec["id"]), line, st.get(f"prior:{spec['id']}", now, 86400.0 * 4), now)
+        tiles[spec["id"]] = _tile(spec, q, line, day, now)
         if spec["id"] not in quotes and st.error("quotes"):
             tiles[spec["id"]]["error"] = st.error("quotes")
     for spec in MARKET_QUOTES:
@@ -98,10 +111,11 @@ def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, params: 
     open_at = clock.at(day, SESSION_RTH_OPEN_MIN_ET)
     breadth_block = breadth.compose(now, day, sess["phase"], st.get("breadth_latest", now, 180.0),
                                     st.error("breadth"))
-    movers = st.get("movers", now, MARKET_MOVERS_TTL_SEC)
+    movers = st.get("movers", now, MARKET_MOVERS_TTL_SEC) or st.get("movers_bars", now, MARKET_BARS_QUOTES_TTL_SEC)
     ctx = {
         "today": today,
-        "etf_quotes": st.get("etf_quotes", now, MARKET_ETF_TTL_SEC) or {},
+        "etf_quotes": (st.get("etf_quotes", now, MARKET_ETF_TTL_SEC)
+                       or st.get("etf_bars", now, MARKET_BARS_QUOTES_TTL_SEC) or {}),
         "closes": lambda s: st.get(f"closes:{s}", now, MARKET_CLOSES_RETRY_SEC * 96),
         "holdings": _holdings(st, now),
         "movers": (movers or {}).get("quotes") or {},

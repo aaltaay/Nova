@@ -1,6 +1,6 @@
 /** The futures and macro tiles (ADR 053): every price IBKR's, each line from 04:00 ET to now. */
 import { setNavPage } from '../workspace';
-import { price, signedNum, signedPct, signedPts, tone } from './format';
+import { etTime, price, signedNum, signedPct, signedPts, tone } from './format';
 import { Spark } from './parts';
 import type { QuoteTile, Session } from './types';
 
@@ -12,7 +12,9 @@ function Tile({ t, session }: { t: QuoteTile; session: Session }) {
   const from = session.open_at - 5.5 * 3600;   // 04:00 ET
   const isSpread = t.kind === 'spread';
   const delayed = t.data_type === 'delayed' || t.data_type === 'delayed_frozen';
+  const fromBars = t.data_type === 'bars';
   const title = [t.error, t.price_basis === 'mid' ? 'No trade in the snapshot: the quoted midpoint' : null,
+    fromBars ? 'No spare market-data line: the last 5-minute bar’s close, not a live quote' : null,
     `${t.exchange || 'computed'} via IBKR`].filter(Boolean).join(' · ');
   return (
     <div className={`mk-tile${t.error && t.last == null && !isSpread ? ' is-error' : ''}`} title={title}
@@ -22,7 +24,7 @@ function Tile({ t, session }: { t: QuoteTile; session: Session }) {
         {t.id === 'btc' ? (
           <button type="button" className="mk-link" onClick={() => setNavPage('cryptos')}>Cryptos &rarr;</button>
         ) : (
-          <span>{code(t)}{delayed ? <em className="mk-delayed"> delayed</em> : null}</span>
+          <span>{code(t)}{delayed ? <em className="mk-delayed"> delayed</em> : null}{fromBars ? <em className="mk-delayed"> bars {etTime(t.at)}</em> : null}</span>
         )}
       </div>
       <div className="mk-tile__px">{isSpread ? signedPts(t.change_pct) : price(t.last)}</div>

@@ -56,8 +56,8 @@ export interface QuoteTile {
   prev_close: number | null;
   change: number | null;
   change_pct: number | null;
-  price_basis: 'last' | 'mid' | null;
-  data_type: 'live' | 'frozen' | 'delayed' | 'delayed_frozen' | null;
+  price_basis: 'last' | 'mid' | 'bars' | null;
+  data_type: 'live' | 'frozen' | 'delayed' | 'delayed_frozen' | 'bars' | null;
   at: number | null;
   line: [number, number][];
   error: string | null;

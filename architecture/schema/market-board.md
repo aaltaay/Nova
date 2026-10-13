@@ -43,8 +43,8 @@ desk (the page reads today's live market and says so).
   holdings).
 - `quotes[]`: the futures and macro tiles, `MARKET_QUOTES` order: `{id, label, symbol, kind: "future" | "index" |
   "crypto" | "spread", exchange, contract: string | null (the front month's local symbol, e.g. "ESZ6"), last,
-  prev_close, change, change_pct, price_basis: "last" | "mid" | null (a coin with no print in the snapshot shows
-  its quoted midpoint), data_type: "live" | "frozen" | "delayed" | "delayed_frozen" | null (IBKR's own
+  prev_close, change, change_pct, price_basis: "last" | "mid" | "bars" | null (a coin with no print in the snapshot
+  shows its quoted midpoint; "bars" below), data_type: "live" | "frozen" | "delayed" | "delayed_frozen" | "bars" | null (IBKR's own
   market-data type for the snapshot), at, line: [[t, value]] (5-minute bars from 04:00 ET today, oldest first),
   error: string | null}`. `prev_close` is IBKR's prior close (a future's prior settlement). The `small_caps`
   spread tile is RTY's `change_pct` minus ES's (`last` / `change` null, `change_pct` the points) and its line the
@@ -99,7 +99,16 @@ minute 09:30-16:00 ET whether or not the page is open; ETF snapshots every `MARK
 closes once per session; the movers scan every `MARKET_MOVERS_TTL_SEC`; State Street files, BLS and BEA once a day;
 the leaderboard climate every `MARKET_CLIMATE_TTL_SEC` (a past session's summary once per process); a runner's
 industry once, then from the file below. No IBKR read runs while fewer than `MARKET_MIN_FREE_LINES` market-data
-lines are free.
+lines are free beyond Nova's own reserve (`IBKR_L1_STREAM_RESERVE`, kept for an opening Trader tab).
+
+**Without a spare line.** IBKR shares an account's lines with every platform its login uses (2026-10-13: Nova
+could hold 45 of 100, HOD Momo 40 of them). Then the page snapshots nothing and reads prices from bars, which hold
+no line: a tile's `last` is its last 5-minute bar's close (`data_type: "bars"`, `at` the bar's start; not shown
+when older than `MARKET_BARS_FRESH_SEC`) and its `prev_close` the last daily bar before today (`prior:<id>`, once a
+day); ETFs and movers read their regular-session daily bars (`bar_quotes`: today's bar's close against the bar
+before, no price before 09:30), the movers ranked by IBKR's scan (a scan holds no line) and at most
+`MARKET_BARS_MOVERS_MAX` priced. Breadth has no bar fallback: it reads `unavailable` with "waiting for spare
+market-data lines".
 
 **Fenced errors.** An IBKR error on a `FUT`, `CONTFUT`, `IND`, `CASH` or `CRYPTO` contract is the Market page's: it
 is recorded on that tile (`market_board.ibkr_reads.note_error`) and never sets the session's delayed-data fallback

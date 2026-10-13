@@ -59,10 +59,23 @@ def free_lines() -> int | None:
         return None
 
 
-def _guard() -> None:
+def spare_lines() -> int | None:
+    """Lines free beyond Nova's own reserve for an opening Trader tab; ``None`` when unknown."""
+    from constants_ibkr import IBKR_L1_STREAM_RESERVE
+
     free = free_lines()
-    if free is not None and free < MARKET_MIN_FREE_LINES:
-        raise NoHeadroom(f"only {free} market-data lines free (the page waits for {MARKET_MIN_FREE_LINES})")
+    return None if free is None else free - int(IBKR_L1_STREAM_RESERVE)
+
+
+def headroom_ok() -> bool:
+    spare = spare_lines()
+    return spare is None or spare >= MARKET_MIN_FREE_LINES
+
+
+def _guard() -> None:
+    spare = spare_lines()
+    if spare is not None and spare < MARKET_MIN_FREE_LINES:
+        raise NoHeadroom(f"{max(spare, 0)} market-data lines spare (the page needs {MARKET_MIN_FREE_LINES} to snapshot)")
 
 
 def _run(coro, timeout: float, label: str):
@@ -163,6 +176,61 @@ def stock_quotes(symbols: list[str]) -> dict[str, dict]:
     return out
 
 
+def bar_quotes(symbols: list[str], today: str) -> dict[str, dict]:
+    """``{SYM: {price, prev_close, no_trade, at}}`` from regular-session daily bars -- no market-data line.
+
+    Today's bar (once it exists, from 09:30) closes at the latest regular-session trade; the bar before it is the
+    prior close. Before the open a symbol reads no price. ``HistoricalShed`` on one symbol ends the read early
+    with what it has.
+    """
+    from ibkr import historical_service
+
+    out: dict[str, dict] = {}
+    for sym in symbols:
+        try:
+            rows = _run(historical_service.request_daily_bars(sym, "3 D", use_rth=True),
+                        MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.bar_quotes")
+        except Exception as exc:  # noqa: BLE001 -- a shed or a refusal ends this pass; the rest wait for the next
+            if out:
+                break
+            raise exc
+        today_bar = next((r for r in rows or [] if r["date"] == today), None)
+        prior = [r for r in rows or [] if r["date"] < today]
+        out[sym.upper()] = {"price": today_bar["close"] if today_bar else None,
+                            "prev_close": prior[-1]["close"] if prior else None,
+                            "no_trade": today_bar is None, "at": time.time()}
+    return out
+
+
+def prior_close(spec: dict, trading_date: str) -> dict:
+    """``{date, close}`` of a tile's last daily bar before ``trading_date`` (its prior close without a snapshot)."""
+    from constants_market_board import MARKET_PRIOR_DURATION
+    from ibkr import historical_service
+
+    async def _ask() -> list[dict]:
+        from ibkr import client
+
+        ib = client.get_ib()
+        if ib is None:
+            raise SourceError("IBKR is not connected")
+        contract = await contracts.resolve(ib, spec, trading_date)
+        if contract is None:
+            raise SourceError("IBKR does not know this contract")
+        what = "AGGTRADES" if spec["sec_type"] == "CRYPTO" else "TRADES"
+        return await historical_service.request_reference_bars(
+            f"{spec['sec_type']}:{spec['symbol']}", contract, duration=MARKET_PRIOR_DURATION, bar_size="1 day",
+            what_to_show=what, use_rth=spec["sec_type"] == "IND")
+
+    rows = _run(_ask(), MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.prior_close") or []
+    from datetime import datetime, timezone
+
+    prior = [r for r in rows if datetime.fromtimestamp(r["t"], timezone.utc).date().isoformat() < trading_date]
+    if not prior:
+        raise SourceError("IBKR gave no daily bar before today")
+    last = prior[-1]
+    return {"date": datetime.fromtimestamp(last["t"], timezone.utc).date().isoformat(), "close": last["close"]}
+
+
 def line_bars(spec: dict, trading_date: str) -> list[list[float]]:
     """``[[t, close]]`` of today's 5-minute bars for a tile (oldest first, all hours)."""
     from ibkr import historical_service
@@ -197,6 +265,11 @@ def rth_closes(symbol: str) -> list[list]:
 def movers() -> list[str]:
     """IBKR's large-cap gainers scan (``MARKET_MOVERS_SCAN``), ranked symbols; the subscription is always cancelled."""
     _guard()
+    return movers_ranked()
+
+
+def movers_ranked() -> list[str]:
+    """The scan alone (a scanner subscription holds no market-data line)."""
 
     async def _ask() -> list[str]:
         from ib_async import ScannerSubscription

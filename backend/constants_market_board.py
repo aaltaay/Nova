@@ -36,8 +36,17 @@ MARKET_INDUSTRY_MAX_AGE_DAYS = 90                # a cached industry older than 
 MARKET_INDUSTRY_BATCH = 40                       # industries asked per refresher turn
 
 # -- IBKR budget: the page never holds a line ------------------------------------------------------------------------
-MARKET_MIN_FREE_LINES = 15                       # no snapshot while fewer market-data lines than this are free
-MARKET_SNAPSHOT_BATCH = 4                        # contracts snapshotted together (cold, droppable)
+# Lines free beyond Nova's own reserve (IBKR_L1_STREAM_RESERVE, kept for an opening Trader tab) before the page
+# snapshots anything. IBKR shares the account's lines with every other platform the login uses; on 2026-10-13
+# Nova could hold only 45 of its 100, all but the reserve taken by HOD Momo.
+MARKET_MIN_FREE_LINES = 6
+MARKET_SNAPSHOT_BATCH = 2                        # contracts snapshotted together (cold, droppable)
+# Without free lines the page reads prices from bars (historical requests hold no line).
+MARKET_BARS_LINE_TTL_SEC = 120.0                 # a tile's 5-minute bars, when its snapshot is missing
+MARKET_BARS_QUOTES_TTL_SEC = 300.0               # ETFs' / movers' regular-session daily bars
+MARKET_BARS_MOVERS_MAX = 20                      # movers read from bars at most this many
+MARKET_BARS_FRESH_SEC = 900.0                    # a bar-read price older than this is not shown
+MARKET_PRIOR_DURATION = "5 D"                    # a tile's daily bars, for its prior close without a snapshot
 MARKET_IBKR_TIMEOUT_SEC = 12.0                   # one snapshot batch / qualify / contract-details read
 MARKET_HISTORY_TIMEOUT_SEC = 25.0                # one paced historical request
 MARKET_LINE_BAR = "5 mins"                       # the tiles' intraday line

@@ -17,6 +17,9 @@ from functools import partial
 from typing import Any, Callable
 
 from constants_market_board import (
+    MARKET_BARS_LINE_TTL_SEC,
+    MARKET_BARS_MOVERS_MAX,
+    MARKET_BARS_QUOTES_TTL_SEC,
     MARKET_BREADTH_SAMPLE_SEC,
     MARKET_CLIMATE_BASELINE_DAYS,
     MARKET_CLIMATE_CHART_SESSIONS,
@@ -102,6 +105,14 @@ def _movers() -> dict[str, Any]:
     return {"symbols": picked, "quotes": ibkr_reads.stock_quotes(picked)}
 
 
+def _movers_bars(today: str) -> dict[str, Any]:
+    """The movers without a market-data line: IBKR's scan ranks them (a scan holds no line), bars price them."""
+    ranked = ibkr_reads.movers_ranked()
+    universe = set(_members(SECTOR_ETFS) + _members(tuple(e for _, e, has in MARKET_INDUSTRIES if has)))
+    picked = [s for s in ranked if s in universe][:MARKET_BARS_MOVERS_MAX]
+    return {"symbols": picked, "quotes": ibkr_reads.bar_quotes(picked, today)}
+
+
 def _breadth_sample(day_iso: str) -> dict | None:
     from datetime import date
 
@@ -126,13 +137,29 @@ def ibkr_jobs(now: float) -> list[Job]:
     iso = day.isoformat()
     prior_session = clock.prior_open_day(day).isoformat()
     st = store()
-    jobs = [Job("quotes", ibkr_reads.SOURCE, MARKET_QUOTES_TTL_SEC,
-                partial(ibkr_reads.reference_quotes, list(QUOTE_SPECS), iso))]
-    jobs.append(Job("etf_quotes", ibkr_reads.SOURCE, MARKET_ETF_TTL_SEC,
-                    partial(ibkr_reads.stock_quotes, list(SECTOR_ETFS + INDUSTRY_ETFS))))
-    jobs.append(Job("movers", ibkr_reads.SOURCE, MARKET_MOVERS_TTL_SEC, _movers))
+    lines_free = ibkr_reads.headroom_ok()
+    jobs: list[Job] = []
+    if lines_free:
+        jobs.append(Job("quotes", ibkr_reads.SOURCE, MARKET_QUOTES_TTL_SEC,
+                        partial(ibkr_reads.reference_quotes, list(QUOTE_SPECS), iso)))
+        jobs.append(Job("etf_quotes", ibkr_reads.SOURCE, MARKET_ETF_TTL_SEC,
+                        partial(ibkr_reads.stock_quotes, list(SECTOR_ETFS + INDUSTRY_ETFS))))
+        jobs.append(Job("movers", ibkr_reads.SOURCE, MARKET_MOVERS_TTL_SEC, _movers))
+    else:
+        # No spare line: prices from bars, which hold none (the tiles' lines, ETFs' and movers' daily bars).
+        jobs.append(Job("etf_bars", ibkr_reads.SOURCE, MARKET_BARS_QUOTES_TTL_SEC,
+                        partial(ibkr_reads.bar_quotes, list(SECTOR_ETFS + INDUSTRY_ETFS), iso),
+                        gap_group="history", gap=MARKET_HISTORY_GAP_SEC, retry=MARKET_SHED_RETRY_SEC))
+        jobs.append(Job("movers_bars", ibkr_reads.SOURCE, MARKET_BARS_QUOTES_TTL_SEC, partial(_movers_bars, iso),
+                        gap_group="history", gap=MARKET_HISTORY_GAP_SEC, retry=MARKET_SHED_RETRY_SEC))
+        for spec in QUOTE_SPECS:
+            jobs.append(Job(f"prior:{spec['id']}", ibkr_reads.SOURCE, FOREVER,
+                            partial(ibkr_reads.prior_close, spec, iso), gap_group="history",
+                            gap=MARKET_HISTORY_GAP_SEC, fresh=partial(_prior_fresh, prior_session),
+                            retry=MARKET_SHED_RETRY_SEC))
+    line_ttl = MARKET_LINES_TTL_SEC if lines_free else MARKET_BARS_LINE_TTL_SEC
     for spec in QUOTE_SPECS:
-        jobs.append(Job(f"line:{spec['id']}", ibkr_reads.SOURCE, MARKET_LINES_TTL_SEC,
+        jobs.append(Job(f"line:{spec['id']}", ibkr_reads.SOURCE, line_ttl,
                         partial(ibkr_reads.line_bars, spec, iso), gap_group="history", gap=MARKET_HISTORY_GAP_SEC,
                         retry=MARKET_SHED_RETRY_SEC))
     pool = _members(SECTOR_ETFS, MARKET_LEADER_POOL) + _members(
@@ -149,6 +176,11 @@ def ibkr_jobs(now: float) -> list[Job]:
     if todo:
         jobs.append(Job(f"industries:{todo[0]}", ibkr_reads.SOURCE, 0.0, partial(_industries, todo)))
     return jobs
+
+
+def _prior_fresh(prior_session: str, value: Any) -> bool:
+    """A tile's prior daily close that is already the last session's (a future's may be the evening before)."""
+    return isinstance(value, dict) and str(value.get("date") or "") >= prior_session
 
 
 def _industries(symbols: list[str]) -> int:
@@ -229,7 +261,8 @@ def _run(job: Job, now: float, error_key: str | None = None) -> None:
         value = job.fetch()
     except ibkr_reads.NoHeadroom as exc:
         st.defer(job.key, now + MARKET_SHED_RETRY_SEC)   # the desk's lines come first; not a failure
-        st.source_down(ibkr_reads.SOURCE, str(exc))
+        if error_key:
+            st.fail(error_key, job.source, f"waiting for spare market-data lines: {exc}", now, MARKET_SHED_RETRY_SEC)
         return
     except Exception as exc:  # noqa: BLE001 -- any failure is stated on the page, never raised into the loop
         at = now + (time.monotonic() - started)
