@@ -118,6 +118,37 @@ def test_a_caller_that_stops_waiting_never_abandons_the_release(ib_loop) -> None
     assert ib_loop.cancels == [(contract, True)]
 
 
+def test_a_reopened_trader_socket_keeps_its_owner_when_the_old_socket_let_go_first(ib_loop) -> None:
+    """The old socket's release and the new socket's subscribe reach a busy IB loop in that order.
+
+    The release must run first; run after the subscribe, it would take the reopened Trader's owner away.
+    """
+    _open_line("SUNE", ticks.OWNER_SCANNER)
+    ticks._subs["SUNE"]["owners"].add(ticks.OWNER_DETAIL)
+    ticks._subs["SUNE"]["generic_ticks"] = ticks.IBKR_L1_GENERIC_TICKS
+    busy, free = threading.Event(), threading.Event()
+
+    def _ib_loop_busy() -> None:
+        busy.set()
+        free.wait(2.0)
+
+    loop_supervisor.get_loop().call_soon_threadsafe(_ib_loop_busy)
+    assert busy.wait(2.0)
+
+    async def _close_then_reopen() -> None:
+        old_socket = asyncio.create_task(ticks.unsubscribe("SUNE"))
+        new_socket = asyncio.create_task(ticks.subscribe("SUNE"))
+        await asyncio.sleep(0.05)
+        free.set()
+        await old_socket
+        assert await new_socket is True
+
+    asyncio.run(_close_then_reopen())
+
+    assert ticks._subs["SUNE"]["owners"] == {ticks.OWNER_SCANNER, ticks.OWNER_DETAIL}
+    assert ib_loop.cancels == []
+
+
 def test_an_owner_still_on_the_line_keeps_it_open(ib_loop) -> None:
     _open_line("GRML", ticks.OWNER_SCANNER)
     ticks._subs["GRML"]["owners"].add(ticks.OWNER_DETAIL)

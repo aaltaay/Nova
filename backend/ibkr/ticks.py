@@ -10,6 +10,7 @@ maintainer: one-concern every owner joins and leaves a line under one lock, on t
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import logging
 from typing import Any, Awaitable, Callable, Optional
 
@@ -225,14 +226,11 @@ async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:
     there, a subscribe holding the lock made it raise "bound to a different event
     loop" and the owner kept the line open until the backend restarted.
     """
-    from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
+    from ibkr.loop_supervisor import get_loop, is_ib_loop, is_started
 
-    if is_started() and not is_ib_loop():
-        return await on_ib(
-            _unsubscribe_to_the_end(symbol, owner),
-            float(IBKR_L1_QUALIFY_TIMEOUT_SEC) + 5.0,
-            label="cancelMktData",
-        )
+    loop = get_loop()
+    if is_started() and not is_ib_loop() and loop is not None:
+        return await _release_on_ib(loop, symbol, owner)
     symbol = (symbol or "").strip().upper()
     owner = (owner or OWNER_DETAIL).strip().lower()
     if not symbol:
@@ -241,19 +239,30 @@ async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:
         _release_owner(symbol, owner)
 
 
-async def _unsubscribe_to_the_end(symbol: str, owner: str) -> None:
-    """``unsubscribe`` on the IB loop, finished even when its caller stops waiting.
+async def _release_on_ib(loop: asyncio.AbstractEventLoop, symbol: str, owner: str) -> None:
+    """Hand ``unsubscribe`` to the IB loop as its own coroutine, and never cancel it there.
 
-    A caller that times out or is cancelled cancels this wait, never the release
-    queued behind the lock: an abandoned release leaves the line open just as the
-    cross-loop error did.
+    It is the coroutine ``run_coroutine_threadsafe`` starts, so it reaches the lock
+    ahead of a subscribe submitted after it (a reopened Trader socket); a task it
+    spawned would run after that subscribe and take its owner away. The wait is
+    shielded: a caller that times out or is cancelled stops waiting, but the release
+    still runs when the lock frees -- an abandoned release leaves the line open just
+    as the cross-loop error did.
     """
-    release = asyncio.ensure_future(unsubscribe(symbol, owner))
+    timeout = float(IBKR_L1_QUALIFY_TIMEOUT_SEC) + 5.0
+    release = asyncio.run_coroutine_threadsafe(unsubscribe(symbol, owner), loop)
     release.add_done_callback(_log_failed_release)
-    await asyncio.shield(release)
+    try:
+        await asyncio.wait_for(asyncio.shield(asyncio.wrap_future(release)), timeout=timeout)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "IBKR ticks: %s's release still waits for the lock on the IB loop after %.1fs; it runs when the lock frees",
+            symbol, timeout,
+        )
+        raise
 
 
-def _log_failed_release(release: asyncio.Future) -> None:
+def _log_failed_release(release: concurrent.futures.Future) -> None:
     if not release.cancelled() and release.exception() is not None:
         logger.error("IBKR ticks: letting go of a Level 1 owner failed", exc_info=release.exception())
 
