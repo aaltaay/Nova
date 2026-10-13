@@ -172,6 +172,20 @@ def hod_momo_debug_symbol(sym: str):
     return _hod_momo.get_debug_symbol(sym.upper())
 
 
+@router.get("/api/hod-momo/debug/why/{sym:path}")
+def hod_momo_debug_why(sym: str, date: str | None = None, start: float | None = None, end: float | None = None):
+    """Each change of ``sym``'s verdict on a session day, from the decision journal (oldest first).
+
+    ``date`` is the 04:00 ET session day (default today); ``start`` / ``end`` bound the epoch seconds.
+    """
+    import hod_momo_decision_journal as journal
+    from market import session_key_et
+
+    day = date or session_key_et()
+    return {"symbol": sym.upper(), "day": day,
+            "changes": journal.read(sym.upper(), day, start=start, end=end)}
+
+
 @router.get("/api/hod-momo/debug/recent")
 def hod_momo_debug_recent(limit: int = 100):
     """Last N decisions across all symbols."""

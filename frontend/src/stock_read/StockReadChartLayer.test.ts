@@ -4,7 +4,7 @@ import { buildSeriesTimeIndex, watchOperatorView } from '../chart';
 import { etChartSeconds } from '../tickerChartData';
 import type { PriceLineSpec } from './chartShapes';
 import { lineWords, runMarks } from './paneScene';
-import { frameFrom, roomAtLiveEdge } from './StockReadChartLayer';
+import { frameFrom, roomAtLiveEdge } from './paneView';
 import type { RunDay } from './types';
 
 const OPEN = Date.parse('2026-09-25T08:00:00Z') / 1000; // 04:00 ET

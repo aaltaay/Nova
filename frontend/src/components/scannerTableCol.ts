@@ -1,4 +1,4 @@
-/** Shared scanner/desk column roles for stable live widths.
+/** Shared scanner column roles for stable live widths.
  *
  * Auto-layout tables reflow when PRICE / CHANGE / GAP % digit counts change.
  * Role classes + reserved widths (scanner-table-cols.css) lock those columns
@@ -50,11 +50,6 @@ export const SCANNER_COL_ROLE: Record<string, ScannerColRole> = {
   large_cap_score: 'compact',
   days_to_earnings: 'compact',
   age_sec: 'compact',
-  // Desk board (desk/DeskBoard.tsx): a lone Rel vol number, the catalyst chip
-  // + time, and the halt-state remainder. Widths are pinned in desk/deskBoard.css.
-  rel_volume: 'num',
-  catalyst: 'chrome',
-  state: 'flex',
 };
 
 const NUMERIC_ROLES = new Set<ScannerColRole>(['num', 'pct', 'price', 'compact']);

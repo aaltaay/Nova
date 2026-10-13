@@ -12,6 +12,8 @@ backoff passes (``historical_failures``, #555); the pane's retry asks again.
 Nothing here may occupy the IB connect-loop: every pacing wait reschedules via
 ``call_later`` (never ``sleep``-then-send) and every ``bars_store`` call is a
 SQLite round trip handed to a worker thread (ADR 010).
+
+maintainer: one-concern the one place reqHistoricalData is paced and sent (ADR 012), so every caller shares one budget
 """
 from __future__ import annotations
 
@@ -285,6 +287,47 @@ async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool) -> li
         bar = {k: _bar_price(getattr(r, k, None)) for k in ("open", "high", "low", "close")}
         if bar["close"] is not None:  # a bar without a close is no session; a missing low reads unknown
             out.append({"date": when.isoformat(), **bar})
+    return out
+
+
+async def request_reference_bars(
+    key: str, contract: Any, *, duration: str, bar_size: str, what_to_show: str, use_rth: bool,
+) -> list[dict[str, Any]]:
+    """A reference contract's bars, ``[{t, open, high, low, close}]`` oldest first (ADR 053).
+
+    The Market page's futures, indexes and crypto, already qualified by the caller. ``key`` names the contract
+    in the pacing book ("CONTFUT:ES"). Background priority, paced like every other request: ``HistoricalShed``
+    while an open chart is loading or pacing asks for a wait. ``t`` is the bar's start, epoch seconds (a daily
+    bar's is its date's midnight UTC). Nothing is stored or pushed. Must run on the IB connect-loop.
+    """
+    assert_ib_loop()
+    from constants import IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC
+    from ibkr import client as _client
+
+    pace_key = f"ref:{bar_size}:{what_to_show}:{'rth' if use_rth else 'all'}"
+    if open_chart_busy():
+        raise HistoricalShed("open chart has priority")
+    if _pacing.wait_seconds(key, pace_key, duration) > 0:
+        raise HistoricalShed("pacing asks for a wait")
+    ib = _client.get_ib()
+    if ib is None:
+        raise ConnectionError("IBKR is not connected")
+    async with _semaphore():
+        if _pacing.wait_seconds(key, pace_key, duration) > 0:
+            raise HistoricalShed("pacing asks for a wait")
+        _pacing.record(key, pace_key, duration)
+        rows = await ib.reqHistoricalDataAsync(
+            contract, endDateTime="", durationStr=duration, barSizeSetting=bar_size, whatToShow=what_to_show,
+            useRTH=use_rth, formatDate=2, keepUpToDate=False, timeout=IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC,
+        )
+    out: list[dict[str, Any]] = []
+    for r in rows or []:
+        when = r.date if isinstance(r.date, datetime) else datetime(r.date.year, r.date.month, r.date.day)
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=ZoneInfo("UTC"))  # formatDate=2 is UTC; a bare date is that day
+        bar = {k: _bar_price(getattr(r, k, None)) for k in ("open", "high", "low", "close")}
+        if bar["close"] is not None:
+            out.append({"t": when.timestamp(), **bar})
     return out
 
 

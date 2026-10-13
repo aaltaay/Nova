@@ -1,5 +1,11 @@
 # Bound live-desk style invalidation (#707)
 
+> **Partly retired 2026-10-13:** the Desk page was removed (ADR 053), and with
+> it the Desk board's Catalyst presentation and its e2e check. The AlertDialog
+> title rule, the tape restyle bound (point 4) and their checks in
+> `frontend/e2e/desk-style-invalidation.spec.ts` stand. The Desk text below is
+> kept as history.
+
 Owner: Desk Catalyst presentation and the shared AlertDialog primitive. Follows
 [ADR 006](decisions/006-css-itcss-cascade-layers.md): reusable primitive styles
 belong in the components layer; Desk composition stays in its feature sheet.

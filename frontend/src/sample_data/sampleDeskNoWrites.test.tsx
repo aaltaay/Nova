@@ -8,14 +8,14 @@
  * live desk. This fails if any of that reaches the network again.
  *
  * #449: the same for the operator's saved browser state, now that the sample
- * desk has its own Trader tabs, Focus rail, Desk and pop-out -- `setItem` /
- * `removeItem` underneath are spies too.
+ * desk has its own Trader tabs, Focus rail and pop-out -- `setItem` /
+ * `removeItem` underneath are spies too. The Market page (ADR 053) is walked
+ * to as well, so it never writes or reaches the backend from the sample desk.
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
-import { DESK_BOARD_STORAGE_KEY } from '../constantGroups/desk';
 import { GLOBAL_BAR_SEARCH_RECENTS_STORAGE_KEY } from '../constantGroups/global_bar';
 import { LAYOUT_STORAGE_KEY, MODULE_VISIBILITY_STORAGE_KEY } from '../constantGroups/market_ui';
 import { FOCUS_RAIL_STORAGE_KEY } from '../constantGroups/trader_chrome';
@@ -161,8 +161,8 @@ describe('the sample desk reaches no backend', () => {
 });
 
 /*
- * #449: the sample desk's own workspace -- Trader tabs, the Focus rail, the
- * Desk and pop-out. Its doors keep the live workspace's keys untouched even
+ * #449: the sample desk's own workspace -- Trader tabs, the Focus rail and
+ * pop-out -- then the Market page. Its doors keep the live workspace's keys untouched even
  * without the storage gate; with both gates installed as main.tsx installs
  * them, nothing at all reaches the browser's storage but the shell's one-shot
  * reload guard.
@@ -170,7 +170,7 @@ describe('the sample desk reaches no backend', () => {
 const WORKSPACE_KEYS = [
   TRADER_TABS_STORAGE_KEY, TRADER_BLOCK_NOTICE_STORAGE_KEY, TRADER_WINDOW_ID_KEY, TRADER_FLOAT_ID_READY_KEY,
   TRADER_LAST_HOST_KEY, TRADER_DOCK_CLAIM_KEY, TRADER_DESK_STORAGE_KEY, FOCUS_RAIL_STORAGE_KEY,
-  DESK_BOARD_STORAGE_KEY, WATCH_LIST_STORAGE_KEY, LAYOUT_STORAGE_KEY, MODULE_VISIBILITY_STORAGE_KEY,
+  WATCH_LIST_STORAGE_KEY, LAYOUT_STORAGE_KEY, MODULE_VISIBILITY_STORAGE_KEY,
   GLOBAL_BAR_SEARCH_RECENTS_STORAGE_KEY, TRADE_DEFAULTS_STORAGE_KEY,
 ];
 
@@ -192,7 +192,7 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     await settle();
   }
 
-  /** Tabs (open, preview, pin, switch), the Focus rail, pop-out, then the Desk. */
+  /** Tabs (open, preview, pin, switch), the Focus rail, pop-out, then the Market page. */
   async function workTheSampleWorkspace(): Promise<void> {
     await renderSampleDesk();
     q('focus-rail');
@@ -207,10 +207,12 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     expect(opened, 'the pop-out opened on the sample route').toHaveLength(1);
     expect(new URL(opened[0]).searchParams.get('view')).toBe('sample');
     expect(container.querySelector('[data-testid="sv-tab-NWSR"]'), 'popped out, so gone here').toBeNull();
-    await press('nav-rail-desk');
-    q('desk-board');
-    await press('desk-board-row-CATZ');
-    q('sv-tab-CATZ');
+    await press('nav-rail-market');
+    // The page is a lazy chunk; wait for it to mount.
+    for (let i = 0; i < 50 && !container.querySelector('[data-testid="market-page"]'); i += 1) {
+      await settle(100);
+    }
+    q('market-page');
     expect(container.textContent).not.toMatch(/not available in Sample Data mode/);
   }
 
@@ -233,7 +235,7 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     vi.restoreAllMocks();
   });
 
-  it('without the storage gate: tabs, Focus rail, Desk and pop-out leave the workspace keys alone', async () => {
+  it('without the storage gate: tabs, Focus rail, pop-out and the Market page leave the workspace keys alone', async () => {
     mount('/?view=sample&symbol=SMPL', true);
     await workTheSampleWorkspace();
     expect(stored.filter((key) => WORKSPACE_KEYS.includes(key))).toEqual([]);

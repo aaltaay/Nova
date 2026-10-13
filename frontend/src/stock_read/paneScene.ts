@@ -36,11 +36,12 @@ export function runMarks(runs: RunDay[], index: SeriesTimeIndex): SceneMark[] {
   return out;
 }
 
-/** The plan's price lines' names go to the edge column; the lines keep their axis labels (the prices). */
+/** The plan's price lines' names go to the edge column; the lines keep their axis labels (the prices). Each takes the
+ * name of a level at its price (`levelFold.ts`). */
 export function lineWords(lines: PriceLineSpec[]): SceneWord[] {
   return lines.filter(l => l.axisLabel && l.title).map(l => ({
     id: `line:${l.id}`, text: l.title, color: l.color, priority: EDGE_PRIORITY.planLine, price: l.price, series: null,
-    valueWhenOff: true,
+    valueWhenOff: true, absorbs: true,
   }));
 }
 

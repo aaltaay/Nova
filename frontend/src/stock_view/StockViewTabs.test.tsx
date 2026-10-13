@@ -58,7 +58,6 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     ibkrSessionReason: 'ok',
     ibkrPortsDark: false,
     openStockView: () => {},
-    openTraderTab: () => {},
     selectRowSymbol: () => {},
     traderTabs: ['AAPL', 'MSFT'],
     traderLiveTabs: ['AAPL', 'MSFT'],
@@ -188,15 +187,15 @@ describe('StockViewTabs tab-strip placement', () => {
     );
   });
 
-  it('beside the Desk board: no Focus rail, strip inline, charts active although the Trader view is not', () => {
+  it('active on screen: Focus rail, strip inline, charts active although the Trader view is not', () => {
     workspace = baseWorkspace({ traderViewActive: false });
     act(() => {
       setGlobalBarTraderSlot(headerSlot);
     });
     act(() => {
-      root.render(<StockViewTabs detached={false} hideFocusRail active />);
+      root.render(<StockViewTabs detached={false} active />);
     });
-    expect(container.querySelector('[data-testid="focus-rail"]')).toBeNull();
+    expect(container.querySelector('[data-testid="focus-rail"]')).toBeTruthy();
     expect(container.querySelector('.sv-tab-strip')).toBeTruthy();
     expect(headerSlot.querySelector('.sv-tab-strip')).toBeNull();
     expect(
@@ -207,7 +206,7 @@ describe('StockViewTabs tab-strip placement', () => {
     ).toBe('0');
   });
 
-  it('without the Desk props, a hidden Trader keeps its Focus rail and pauses every chart', () => {
+  it('without the active prop, a hidden Trader keeps its Focus rail and pauses every chart', () => {
     workspace = baseWorkspace({ traderViewActive: false });
     act(() => {
       root.render(<StockViewTabs detached={false} />);

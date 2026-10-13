@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { deskBoardEmpty } from '../constantGroups/desk';
 import { focusRailEmpty } from '../constantGroups/trader_chrome';
 import { depthUnavailableHint } from '../stock_view/depthUnavailableHint';
 import { listAbsenceText } from './listAbsence';
 
 describe('a mirrored list states why it is empty (QA D10)', () => {
   it('names a failing feed first', () => {
-    const text = listAbsenceText('Gappers', { restError: 'Scanner feed failed: the scanner routes could not be reached', healthStatus: 'error' }, deskBoardEmpty);
+    const text = listAbsenceText('Gappers', { restError: 'Scanner feed failed: the scanner routes could not be reached', healthStatus: 'error' }, focusRailEmpty);
     expect(text).toBe('Gappers: Scanner feed failed: the scanner routes could not be reached');
   });
 
@@ -15,7 +14,7 @@ describe('a mirrored list states why it is empty (QA D10)', () => {
   });
 
   it('says "no rows right now" only for a loaded, empty list', () => {
-    expect(listAbsenceText('Gappers', { restError: null, healthStatus: 'connected' }, deskBoardEmpty)).toBe('Gappers: no rows right now');
+    expect(listAbsenceText('Gappers', { restError: null, healthStatus: 'connected' }, focusRailEmpty)).toBe('Gappers: no rows right now');
   });
 });
 

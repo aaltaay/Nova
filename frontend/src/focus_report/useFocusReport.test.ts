@@ -4,7 +4,6 @@ import { focusViewOf, type FocusViewParts } from './useFocusReport';
 const BASE: FocusViewParts = {
   detached: false,
   traderUp: false,
-  deskUp: false,
   navPage: 'dashboard',
   scannerTab: 'gappers',
   activeTraderSymbol: 'GCTK',
@@ -28,12 +27,16 @@ describe('what a window shows', () => {
     expect(focusViewOf({ ...BASE, detached: true }).page).toBe('trader');
   });
 
-  it('Desk: the active Trader tab, else the board selection', () => {
-    expect(focusViewOf({ ...BASE, deskUp: true })).toMatchObject({ page: 'desk', symbol: 'GCTK', symbolSource: 'trader_tab' });
-    expect(focusViewOf({ ...BASE, deskUp: true, activeTraderSymbol: null })).toMatchObject({
-      symbol: 'VBIO',
-      symbolSource: 'desk_board',
+  it('Market: the page, with no symbol of its own', () => {
+    expect(focusViewOf({ ...BASE, navPage: 'market' })).toEqual({
+      page: 'market',
+      tab: null,
+      symbol: null,
+      symbolSource: null,
+      traderTabs: ['GCTK', 'PFSA'],
     });
+    // The Trader up wins over the page under it.
+    expect(focusViewOf({ ...BASE, navPage: 'market', traderUp: true }).page).toBe('trader');
   });
 
   it('Scanner: the tab and the selected row', () => {
@@ -45,5 +48,6 @@ describe('what a window shows', () => {
     expect(focusViewOf({ ...BASE, scannerTab: 'trading' })).toMatchObject({ page: 'account', symbol: null });
     expect(focusViewOf({ ...BASE, navPage: 'bots' })).toMatchObject({ page: 'bots', symbol: null });
     expect(focusViewOf({ ...BASE, navPage: 'records' }).page).toBe('records');
+    expect(focusViewOf({ ...BASE, navPage: 'cryptos' }).page).toBe('cryptos');
   });
 });

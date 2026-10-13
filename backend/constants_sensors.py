@@ -77,8 +77,8 @@ FOCUS_RECENT_KEEP = 20
 FOCUS_REPORT_MAX_BODY_BYTES = 16384
 FOCUS_MAX_TABS = 40
 FOCUS_MAX_WINDOWS = 16
-FOCUS_PAGES = ("trader", "desk", "scanner", "account", "bots", "records", "cryptos")
-FOCUS_SYMBOL_SOURCES = ("trader_tab", "desk_board", "scanner_row")
+FOCUS_PAGES = ("trader", "market", "scanner", "account", "bots", "records", "cryptos")
+FOCUS_SYMBOL_SOURCES = ("trader_tab", "scanner_row")
 FOCUS_REASONS = ("start", "focus", "blur", "visibility", "page", "symbol", "input", "heartbeat", "display")
 FOCUS_NOTE = (
     "Which Nova window Windows has in front, and the page and symbol it shows. Where your eyes are cannot be "

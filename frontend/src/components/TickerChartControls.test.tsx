@@ -4,6 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ChartToolbarExtra } from './chartToolbarExtra';
 import { TickerChartControls } from './TickerChartControls';
 
 const noop = vi.fn();
@@ -223,5 +224,54 @@ describe('TickerChartControls filling hint', () => {
     expect(container.textContent).not.toContain('Premarket');
     expect(container.textContent).not.toContain('RTH');
     expect(container.textContent).not.toContain('After-hours');
+  });
+});
+
+describe("TickerChartControls in full screen (operator report 2026-10-13: \"i also do not see the 'eyes' button\")", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  const pane = (maximized: boolean) => (
+    <ChartToolbarExtra.Provider value={<button type="button" data-testid="eyes">Eyes on</button>}>
+      <TickerChartControls
+        activeTool={null}
+        enabledIndicators={['vwap']}
+        lockTimeframe
+        maximized={maximized}
+        timeframe="1Min"
+        compact
+        keepCompactWhenMaximized={false}
+        useFullscreenExpand
+        onClearAll={noop}
+        onIndicatorToggle={noop}
+        onMaximize={noop}
+        onTimeframeChange={noop}
+        onToolClick={noop}
+      />
+    </ChartToolbarExtra.Provider>
+  );
+
+  it("shows the desk toolbar's Eyes switch in a full-screen pane's own toolbar, and nowhere in the grid", async () => {
+    await act(async () => {
+      root.render(pane(true));
+    });
+    expect(container.querySelector('.chart-toolbar [data-testid="eyes"]')).not.toBeNull();
+    await act(async () => {
+      root.render(pane(false));
+    });
+    expect(container.querySelector('[data-testid="eyes"]')).toBeNull();
   });
 });

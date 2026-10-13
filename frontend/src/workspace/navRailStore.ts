@@ -3,8 +3,8 @@
  * and the "select this scanner tab" latch.
  *
  * The rail lives in the app shell while the scanner tab state lives in
- * DashboardPage / SampleDashboardPage, which unmount on Trader, Desk and
- * Records. So the dashboard publishes here (like ScannerBarBridge does for the
+ * DashboardPage / SampleDashboardPage, which unmount on Trader and on the
+ * shell pages (Market, Records, Account, Bots, Cryptos). So the dashboard publishes here (like ScannerBarBridge does for the
  * header) and the rail asks for a tab through a latch that survives a remount
  * -- the same shape as the old openTradingTabNav, generalised to any tab.
  */
@@ -16,7 +16,7 @@ import { DEFAULT_ACTIVE_TAB } from './defaultTab';
 import { getModule, isTabModuleId, type ActiveTab, type ModuleCountKey } from './registry';
 
 /** What the dashboard slot shows while Trader is not up. */
-export type NavPage = 'dashboard' | 'desk' | 'records' | 'account' | 'bots' | 'cryptos';
+export type NavPage = 'dashboard' | 'market' | 'records' | 'account' | 'bots' | 'cryptos';
 
 /** The registry id the Bots page kept from when it was a dashboard tab (persisted state, visibility). */
 export const BOTS_MODULE_ID = 'strategy';

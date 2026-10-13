@@ -10,7 +10,11 @@ import hod_momo_flow as _flow
 import hod_momo_metrics as _metrics
 import hod_momo_state as _state
 import market as _market
-from constants import HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC
+from constants import (
+    HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC,
+    HOD_MOMO_SURGE_SEED_RETRY_SEC,
+    HOD_MOMO_SURGE_SEED_RETRY_WINDOW_SEC,
+)
 from hod_momo_filters import price_surge as _price_surge
 from hod_momo_models import TickerSnap
 
@@ -57,12 +61,15 @@ def update_price_buffer(symbol: str, price: float, ts: float) -> None:
 def request_surge_seed(symbol: str) -> None:
     state = _state.get_state()
     sym = (symbol or "").strip().upper()
-    if (
-        not sym
-        or sym in state.surge_seeded
-        or sym in state.pending_surge_seed
-    ):
+    if not sym or sym in state.pending_surge_seed:
         return
+    if sym in state.surge_seeded:
+        due = state.surge_seed_retry_at.get(sym)
+        if due is None or time.time() < due:
+            return
+        # Seeded live for want of stored bars: look in the store again (mark_surge_seed_live).
+        state.surge_seed_retry_at.pop(sym, None)
+        state.surge_seeded.discard(sym)
     state.pending_surge_seed.add(sym)
 
 
@@ -84,6 +91,33 @@ def mark_surge_seed_attempted(symbol: str) -> None:
         return
     state.pending_surge_seed.discard(sym)
     state.surge_seeded.add(sym)
+
+
+def mark_surge_seed_live(symbol: str, now: float | None = None) -> None:
+    """No stored bars yet: run live, and look again every retry period within the retry window.
+
+    The setup scanner's IBKR history usually reaches the store seconds after HOD first sees a fresh mover;
+    a seed tried once at admission kept PFAI live-only on 2026-10-13 until the 08:45 restart.
+    """
+    state = _state.get_state()
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return
+    mark_surge_seed_attempted(sym)
+    t = float(now if now is not None else time.time())
+    first = state.surge_seed_live_since.setdefault(sym, t)
+    if t - first < HOD_MOMO_SURGE_SEED_RETRY_WINDOW_SEC:
+        state.surge_seed_retry_at[sym] = t + HOD_MOMO_SURGE_SEED_RETRY_SEC
+    else:
+        state.surge_seed_retry_at.pop(sym, None)
+
+
+def mark_surge_seed_stored(symbol: str) -> None:
+    """Seeded from stored bars: no more retries."""
+    state = _state.get_state()
+    sym = (symbol or "").strip().upper()
+    state.surge_seed_live_since.pop(sym, None)
+    state.surge_seed_retry_at.pop(sym, None)
 
 
 def seed_price_buffer(symbol: str, points: list[tuple[float, float]]) -> int:

@@ -44,6 +44,14 @@ export interface ColumnItem {
   hoverId: string | null;
   /** Out of view: its tag at the top or bottom ("↑ HOD 9.79"); null leaves it out. */
   offText: string | null;
+  /** Its line's price on the pane, for folding (`levelFold.foldColumn`); absent never folds. */
+  price?: number | null;
+  /** A band's prices (a level's zone): reach is measured from its nearest edge. */
+  span?: { lo: number; hi: number };
+  /** What it says in a stronger word's label when it folds into it ("$4.00", "top ×5", "↘"); absent never folds. */
+  foldName?: string | null;
+  /** It takes the names of the weaker words at its price (the plan's lines, VWAP, a level). */
+  absorbs?: boolean;
 }
 
 /** Room the column leaves alone, as a band of the pane's height. */

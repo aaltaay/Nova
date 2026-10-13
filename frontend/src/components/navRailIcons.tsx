@@ -22,7 +22,7 @@ function Icon({ children }: { children: ReactNode }) {
 }
 
 export type NavRailIconId =
-  | 'desk'
+  | 'market'
   | 'trader'
   | 'scanner'
   | 'account'
@@ -32,12 +32,9 @@ export type NavRailIconId =
   | 'settings';
 
 const ICONS: Record<NavRailIconId, ReactNode> = {
-  desk: (
+  market: (
     <Icon>
-      <rect x="3" y="3" width="8" height="8" rx="1.5" />
-      <rect x="13" y="3" width="8" height="8" rx="1.5" />
-      <rect x="3" y="13" width="8" height="8" rx="1.5" />
-      <rect x="13" y="13" width="8" height="8" rx="1.5" />
+      <path d="M3 12h4l3-8 4 16 3-8h4" />
     </Icon>
   ),
   trader: (

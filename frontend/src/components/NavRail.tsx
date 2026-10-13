@@ -3,12 +3,12 @@
  * labelled, 56 px icon-only. The Scanner tree is always open in both widths --
  * collapsed it is a tray of child icons with a hairline between groups
  * (operator ask, 2026-09-22); it no longer folds (operator ask, 2026-09-23).
- * Shared by every view -- Desk, Trader, Scanner (the registry's grouped tab
+ * Shared by every view -- Market, Trader, Scanner (the registry's grouped tab
  * modules), Cryptos, Account, Bots,
  * Records, then Advise + Settings + collapse pinned at the foot.
  *
- * Routing: Trader is the workspace's Stock View; Desk / Records / Account / Bots
- * are shell pages (navRailStore); Scanner children are dashboard tabs asked for
+ * Routing: Trader is the workspace's Stock View; Market / Cryptos / Records /
+ * Account / Bots are shell pages (navRailStore); Scanner children are dashboard tabs asked for
  * through the store's latch so the request survives a remount.
  */
 import { useCallback, useMemo, useState } from 'react';
@@ -22,7 +22,7 @@ import {
   NAV_RAIL_GROUP_LABELS,
   NAV_RAIL_LABEL_BOTS,
   NAV_RAIL_LABEL_CRYPTOS,
-  NAV_RAIL_LABEL_DESK,
+  NAV_RAIL_LABEL_MARKET,
   NAV_RAIL_LABEL_RECORDS,
   NAV_RAIL_LABEL_SCANNER,
   NAV_RAIL_LABEL_SETTINGS,
@@ -30,7 +30,7 @@ import {
   NAV_RAIL_RECORDING_MAX,
   NAV_RAIL_TITLE_BOTS,
   NAV_RAIL_TITLE_CRYPTOS,
-  NAV_RAIL_TITLE_DESK,
+  NAV_RAIL_TITLE_MARKET,
   NAV_RAIL_TITLE_RECORDS,
   NAV_RAIL_TITLE_SCANNER,
   NAV_RAIL_TITLE_SETTINGS,
@@ -95,8 +95,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const childHighlight = dashboardUp ? scanner.activeTab : null;
   const stripFocus = dashboardUp && isDockTab(scanner.railHighlight) ? scanner.railHighlight : null;
 
-  // Operator choice wins; otherwise the chrome follows the view (icons on the
-  // Desk so the board gets the width, tree open on the Scanner).
+  // Operator choice wins; otherwise the chrome follows the view (labels on every view).
   const collapsed = prefs.collapsed ?? navRailCollapsedDefault(page, traderActive);
 
   const persist = useCallback((next: NavRailPrefs) => {
@@ -109,7 +108,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const leaveTrader = () => {
     if (traderActive) onLeaveTrader();
   };
-  const goPage = (next: 'desk' | 'records' | 'account' | 'bots' | 'cryptos') => {
+  const goPage = (next: 'market' | 'records' | 'account' | 'bots' | 'cryptos') => {
     leaveTrader();
     setNavPage(next);
   };
@@ -137,12 +136,12 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
     >
       <div className="nav-rail__list">
         <NavRailItem
-          testId="nav-rail-desk"
-          icon={navRailIcon('desk')}
-          label={NAV_RAIL_LABEL_DESK}
-          title={NAV_RAIL_TITLE_DESK}
-          active={!traderActive && page === 'desk'}
-          onClick={() => goPage('desk')}
+          testId="nav-rail-market"
+          icon={navRailIcon('market')}
+          label={NAV_RAIL_LABEL_MARKET}
+          title={NAV_RAIL_TITLE_MARKET}
+          active={!traderActive && page === 'market'}
+          onClick={() => goPage('market')}
         />
         <NavRailItem
           testId="nav-rail-trader"

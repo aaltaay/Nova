@@ -82,13 +82,14 @@ describe('a triggered plan on the panes', () => {
     expect(scene.boxes.filter(b => b.t2 === null)).toHaveLength(2);
     expect(lines.find(l => l.id === 'entry')).toMatchObject({ style: 'solid', width: 2 });
     expect((scene.marks ?? []).filter(m => m.hoverId === 'lane:bull_flag')).toEqual([]);
-    // The 5-minute and 10-second panes keep a trade's thin lines, the entry solid.
-    for (const pane of ['map', 'thin'] as const) {
-      const thin = paneDraw(read, { pane, layers: LAYERS, toTime: identity, highAt, levels });
-      expect(thin.lines.filter(l => PLAN_IDS.includes(l.id)).map(l => [l.id, l.width, l.style])).toEqual([
-        ['entry', 1, 'solid'], ['stop', 1, 'dashed'], ['target', 1, 'dashed'], ['target2', 1, 'dashed'],
-      ]);
-    }
+    // The 10-second pane keeps a trade's thin lines, named, the entry solid; the 5-minute pane never draws the plan.
+    const thin = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity, highAt, levels });
+    expect(thin.lines.filter(l => PLAN_IDS.includes(l.id)).map(l => [l.id, l.width, l.style, l.title])).toEqual([
+      ['entry', 1, 'solid', 'ENTRY · working'], ['stop', 1, 'dashed', 'STOP · plan'],
+      ['target', 1, 'dashed', 'TARGET 1 · plan'], ['target2', 1, 'dashed', 'TARGET 2 · plan'],
+    ]);
+    const map = paneDraw(read, { pane: 'map', layers: LAYERS, toTime: identity, highAt, levels });
+    expect(map.lines.filter(l => PLAN_IDS.includes(l.id))).toEqual([]);
   });
 
   it("leaves the candle to the flat top's own break mark when it entered on the break", () => {

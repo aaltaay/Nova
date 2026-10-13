@@ -6,9 +6,7 @@
  * Trader stays mounted (hidden + inert) on Scanner so L2/tape stay up.
  * Dashboard unmounts on Trader. Each live pane owns a trader Orders dock.
  * The nav rail (NavRailHost) is the one navigation, beside the header and
- * the views; the dashboard slot hosts Desk / Records / Dashboard via NavPageHost.
- * The Desk shows the one Trader workspace beside its board (same slot, no
- * second mount), so its tabs, sockets and charts are the Trader's own.
+ * the views; the dashboard slot hosts Market / Records / Dashboard via NavPageHost.
  */
 import { Suspense, useEffect, useState } from 'react';
 import { LazyDemoStrip, LazySampleShell, LazyStockViewTabs } from './appLazy';
@@ -44,7 +42,6 @@ import { AppDialogHost } from './ux';
 import { DesktopUpdateHost } from './desktop_update';
 import { IssueReportHost } from './issue_report';
 import { useFocusReport } from './focus_report/useFocusReport';
-import { useNavPage } from './workspace/navRailStore';
 import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
 import { LayoutStoreProvider } from './workspace/useLayoutStore';
@@ -53,14 +50,10 @@ import { ModuleVisibilityProvider } from './workspace/useModuleVisibility';
 function AppShell() {
   const { traderTabs, traderViewActive, activeTraderSymbol, openStockView } = useWorkspace();
   const [sampleMode, setSampleMode] = useState(() => isSampleView());
-  const navPage = useNavPage();
   const hasTraderDesk = traderTabs.length > 0;
   const traderUp = hasTraderDesk && traderViewActive;
-  const deskUp = !traderUp && navPage === 'desk';
-  // The workspace slot is on screen for the full Trader and beside the Desk board.
-  const showTrader = traderUp || (deskUp && hasTraderDesk);
   useNovaDeskWindowTitle(sampleMode, traderUp, activeTraderSymbol);
-  useFocusReport(sampleMode, traderUp, deskUp); // what this window shows, for GET /sensors/focus (ADR 033)
+  useFocusReport(sampleMode, traderUp); // what this window shows, for GET /sensors/focus (ADR 033)
 
   useEffect(() => {
     const sync = () => setSampleMode(isSampleView());
@@ -83,9 +76,6 @@ function AppShell() {
   }
 
   const detached = hasTraderDesk && parseStockViewSymbol() != null;
-  const branchClass = `nova-app-branch${deskUp ? ' nova-app-branch--desk' : ''}${
-    deskUp && !hasTraderDesk ? ' nova-app-branch--desk-empty' : ''
-  }`;
 
   return (
     <IbkrAccountProvider>
@@ -113,7 +103,7 @@ function AppShell() {
             {!detached && <AgentDeskHost />}
             <MwcbBannerHost />
             <NovaOsAttentionStrip global />
-            <div className={branchClass}>
+            <div className="nova-app-branch">
               {/* No boundary here: its .app-shell-host wrapper takes a flex share of
                   .nova-app-branch and blanked half the Trader (QA R39, regression
                   from #451). The layer renders nothing in the branch's flow. */}
@@ -121,14 +111,14 @@ function AppShell() {
               {hasTraderDesk && (
                 <div
                   className="nova-trader-desk-slot"
-                  hidden={!showTrader}
-                  aria-hidden={!showTrader}
-                  inert={!showTrader}
+                  hidden={!traderUp}
+                  aria-hidden={!traderUp}
+                  inert={!traderUp}
                 >
                   <AppErrorBoundary source="stock-view">
                     <div
                       className={
-                        showTrader
+                        traderUp
                           ? 'nova-shell nova-shell--ticker-detail'
                           : 'nova-shell'
                       }
@@ -136,11 +126,7 @@ function AppShell() {
                       <div className="main-col main-col--full main-col--trader-stack">
                         <main className="ticker-detail-main">
                           <Suspense fallback={<TabLazyFallback />}>
-                            <LazyStockViewTabs
-                              detached={detached}
-                              hideFocusRail={deskUp}
-                              active={showTrader}
-                            />
+                            <LazyStockViewTabs detached={detached} active={traderUp} />
                           </Suspense>
                         </main>
                       </div>

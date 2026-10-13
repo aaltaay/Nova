@@ -282,7 +282,9 @@ async def _bootstrap_runtime() -> None:
     from startup_reconciliation import run_startup_reconciliation
 
     run_startup_reconciliation()
+    from market_board.refresh import start_breadth_sampler
 
+    start_breadth_sampler()  # ADR 053: NYSE breadth once a minute in the regular session, page open or not
     _runtime_tasks = _spawn_runtime_tasks() + perf_tasks
     global _bootstrap_complete
     _bootstrap_complete = True

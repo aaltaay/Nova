@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * QA V33: after the last Trader tab popped out, the main window showed the Desk
- * with "No symbol open" while the rail still highlighted Trader.
+ * QA V33: after the last Trader tab popped out, the main window showed the
+ * page under the Trader (then the Desk, "No symbol open") while the rail still
+ * highlighted Trader.
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

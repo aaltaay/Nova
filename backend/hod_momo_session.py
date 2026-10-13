@@ -75,6 +75,22 @@ def reconcile_loaded_alerts_to_session() -> bool:
     return True
 
 
+def clear_day_fields(snaps: dict) -> None:
+    """Forget each snapshot's figures of the day that ended: change, gap, volume and RVOL.
+
+    The float, average volume and 52-week high outlive a day; these do not. Kept across the 04:00 roll they
+    fed the next premarket's alerts -- DCX alerted "+58.6%" on 2026-10-13 while it fell from 3.85 to 3.03,
+    and Strategy 5 fired on such carried values (``hod_momo_enrichment`` leaves a field it has no new value
+    for as it was).
+    """
+    for snap in snaps.values():
+        snap.change_pct = None
+        snap.gap_pct = None
+        snap.volume = None
+        snap.rvol = None
+        snap.rvol_5min = None
+
+
 def check_and_reset_session() -> bool:
     """Reset per-session state when the 04:00 ET-anchored session key rolls."""
     state = _state.get_state()
@@ -112,12 +128,16 @@ def check_and_reset_session() -> bool:
     state.approach_armed = {}
     state.cooldown = {}
     state.pending_consolidation = {}
+    state.consolidation_bursts = {}
     state.price_buffer = {}
     state.surge_seeded = set()
+    state.surge_seed_live_since = {}
+    state.surge_seed_retry_at = {}
     state.pending_surge_seed = set()
     state.first_observed_ts = {}
     state.observed_max = {}
     state.last_trade_ts = None
+    clear_day_fields(state.ticker_snaps)
     _metrics.clear_volume_buffers()
     try:
         import hod_momo_active as _active

@@ -4,8 +4,9 @@
  * zones and lines, the day's levels, a legend of the lanes and the plan's badge -- with the trade's
  * track, the Who trades chip and the call's pin (ADR 037); the 5-minute pane carries today's level map and
  * the Full Day pane the daily one, each level's card under the pointer (ADR 036 amendment 2026-09-30);
- * the 5-minute and 10-second panes mirror the plan's levels as thin lines until a plan with nothing behind it
- * triggers; the daily pane marks every +40% run.
+ * the 10-second pane draws the plan as the 1-minute pane does, a setup's plan its strategy box on its own candles and a
+ * level an order stands behind a thin named line -- the 5-minute pane never draws the plan (2026-10-13); the daily pane
+ * marks every +40% run.
  * The pane's right edge is the scene's (operator report 2026-09-30: "everything is getting on top of each
  * other in the charts!"): it claims the edge (`claimEdge`), so the EMAs' and VWAP's tags, the plan's
  * ENTRY / STOP / TARGET 1 / TARGET 2 and the position tag's room come to its one column with the levels' names instead of
@@ -25,10 +26,9 @@ import {
   type Time,
 } from 'lightweight-charts';
 import {
-  buildSeriesTimeIndex,
+  afterPaintSettles,
   claimEdge,
   edgeContents,
-  isFollowingRightEdge,
   nearestSeriesTime,
   operatorOwnsView,
   subscribeEdge,
@@ -46,6 +46,7 @@ import { SetupShapesPrimitive } from './SetupShapesPrimitive';
 import { EMPTY_SCENE, type Scene, type SceneWord } from './sceneTypes';
 import { luldScene, luldWords } from './luldShapes';
 import { lineWords, runMarks, usePriceScaleWidth } from './paneScene';
+import { frameFrom, seriesIndex, useRoomAtLiveEdge } from './paneView';
 import { ShapeTip, shapeStory, useShapeHover } from './ShapeTip';
 import { useStockReadContext } from './StockReadContext';
 import { STOCK_READ_FOCUS_AFTER_SEC, STOCK_READ_FOCUS_BEFORE_SEC, STRATEGY_BOX } from './constants';
@@ -58,18 +59,9 @@ const LULD_BAR_SEC: Partial<Record<ReturnType<typeof paneKind>, number>> = { ful
 /** A time further than this from any bar of the pane is not on it. */
 const SNAP_SLACK_SEC = 15 * MIN;
 const LEG_LOOKBACK_SEC = 20 * MIN;
-/** Room right of the last candle for the plan's zones on the 1-minute pane. */
-const PLAN_RIGHT_OFFSET_BARS = 12;
-/** Candles shown before a setup begins when the pane frames it, and the fewest it shows. */
-const FRAME_PAD_BARS = 12;
-const FRAME_MIN_BARS = 40;
 /** Room kept between the corner chips and the first word under them, and between the legend and the axis. */
 const CORNER_GAP_PX = 3;
 const STYLE: Record<PriceLineSpec['style'], LineStyle> = { solid: 0, dotted: 1, dashed: 2 };
-
-function seriesIndex(series: ISeriesApi<'Candlestick'> | null): SeriesTimeIndex {
-  return buildSeriesTimeIndex(series ? series.data().map(d => d.time) : []);
-}
 
 /** Epoch seconds -> this pane's nearest bar time, or null when no bar is near. */
 export function snapper(index: SeriesTimeIndex): (epochSec: number) => Time | null {
@@ -112,46 +104,6 @@ function highAtOf(series: ISeriesApi<'Candlestick'> | null): (epochSec: number) 
     }
     return null;
   };
-}
-
-/**
- * Show the pane's candles from a little before `fromSec` to its last one and the plan's room after it.
- * The range is bar positions, so they are read from the candles the pane holds now: an index kept from
- * an earlier render counts other bars once the series has changed under it.
- */
-export function frameFrom(
-  chart: ChartPaneOverlayProps['chart'],
-  series: ISeriesApi<'Candlestick'> | null,
-  fromSec: number,
-): boolean {
-  const index = seriesIndex(series);
-  const n = index.canonical.length;
-  if (!chart || n === 0) return false;
-  const target = etChartSeconds(fromSec * 1000);
-  let i = index.canonical.findIndex(t => t >= target);
-  if (i < 0) i = n - 1;
-  const from = Math.max(0, Math.min(i - FRAME_PAD_BARS, n - 1 - FRAME_MIN_BARS));
-  chart.timeScale().setVisibleLogicalRange({ from, to: n - 1 + PLAN_RIGHT_OFFSET_BARS });
-  return true;
-}
-
-/** Slide a view that follows the live edge so the plan's zones have room past the last candle -- at least `minPx` of
- * it (a setup's strategy box) -- a view the operator zoomed or panned stays exactly where they put it, even at the live
- * edge. */
-export function roomAtLiveEdge(chart: NonNullable<ChartPaneOverlayProps['chart']>, barCount: number, minPx = 0): void {
-  if (operatorOwnsView(chart)) return;
-  const last = barCount - 1;
-  try {
-    const ts = chart.timeScale();
-    const range = ts.getVisibleLogicalRange();
-    const spacing = minPx > 0 ? ts.options().barSpacing : 0;
-    const room = spacing > 0 ? Math.max(PLAN_RIGHT_OFFSET_BARS, Math.ceil(minPx / spacing)) : PLAN_RIGHT_OFFSET_BARS;
-    if (!range || !isFollowingRightEdge(range, barCount) || range.to >= last + room) return;
-    const shift = last + room - range.to;
-    ts.setVisibleLogicalRange({ from: range.from + shift, to: range.to + shift });
-  } catch {
-    /* the chart is gone */
-  }
 }
 
 function usePriceLines(series: ISeriesApi<'Candlestick'> | null, specs: PriceLineSpec[]): void {
@@ -244,6 +196,8 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     call,
     past,
     past5,
+    lastBar: index.times.length > 0
+      ? { t: index.times[index.times.length - 1], sec: index.canonical[index.canonical.length - 1] } : null,
   }), [read, kind, ctx?.layers, index, series, ctx?.focus, focusEvent, levels, call, past, past5]);
   const hover = useShapeHover(chart, (kind === 'full' || kind === 'map' || kind === 'daily') && enabled, containerRef);
   const story = hover && read ? shapeStory(hover.id, read, past, past5) : null;
@@ -272,7 +226,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
       ...luldWords(luldTrail),
       ...lineWords(draw.lines),
       ...edge.words.map(w => ({ id: w.id, text: w.text, color: w.color, priority: w.priority, price: null,
-        series: w.series, valueWhenOff: w.valueWhenOff })),
+        series: w.series, valueWhenOff: w.valueWhenOff, absorbs: w.absorbs })),
     ];
     return {
       ...draw.scene,
@@ -308,22 +262,10 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const lines = useMemo(() => (enabled ? draw.lines.map(l => ({ ...l, title: '' })) : []), [enabled, draw.lines]);
   usePriceLines(series, lines);
 
-  // Room for the plan's zones (or a setup's strategy box) right of the last candle when they appear, and only
-  // for a view that follows the live edge. The time scale's rightOffset used to do this: it is the scroll position, so
-  // the pane jumped to the live edge whenever the zones came or went -- a buy, a sale, a tab shown again.
-  const boxed = kind === 'full' && !!draw.scene.strategy;
-  const zones = kind === 'full' && (boxed || draw.scene.boxes.some(b => b.t2 === null));
-  const roomPending = useRef(true);
-  useEffect(() => {
-    if (!zones) {
-      roomPending.current = true;
-      return;
-    }
-    const n = series ? series.data().length : 0;
-    if (!chart || n === 0 || !roomPending.current) return;
-    roomPending.current = false;
-    roomAtLiveEdge(chart, n, boxed ? STRATEGY_BOX.roomPx : 0);
-  }, [chart, series, zones, boxed, barsRevision]);
+  // Room for the plan's zones, or a setup's strategy box on the 1-minute and 10-second panes, at the live edge.
+  const boxed = (kind === 'full' || kind === 'thin') && !!draw.scene.strategy;
+  const zones = boxed || (kind === 'full' && draw.scene.boxes.some(b => b.t2 === null));
+  useRoomAtLiveEdge(chart, series, zones, boxed ? STRATEGY_BOX.roomPx : 0, barsRevision);
 
   // "Show on chart" from the decisions: frame the moment on the 1-minute pane.
   const nonce = ctx?.focus?.nonce ?? 0;
@@ -362,10 +304,14 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   }, [chart, series, startSec, kind, ctx]);
   const framed = useRef(new Set<string>());
   useEffect(() => {
-    if (kind !== 'full' || !enabled || !frameKey || framed.current.has(frameKey) || focusTs !== null) return;
-    // The operator's view: this setup is seen, and never framed later (after a Reset chart, say).
-    if (operatorOwnsView(chart)) framed.current.add(frameKey);
-    else if (startSec !== null && frameFrom(chart, series, startSec)) framed.current.add(frameKey);
+    if (kind !== 'full' || !enabled || !frameKey || framed.current.has(frameKey) || focusTs !== null) return undefined;
+    // After the pane's own paint applied its view again (`afterPaintSettles`): before it, the frame was put back.
+    return afterPaintSettles(() => {
+      if (framed.current.has(frameKey)) return;
+      // The operator's view: this setup is seen, and never framed later (after a Reset chart, say).
+      if (operatorOwnsView(chart)) framed.current.add(frameKey);
+      else if (startSec !== null && frameFrom(chart, series, startSec)) framed.current.add(frameKey);
+    });
   }, [chart, series, index, kind, enabled, frameKey, startSec, focusTs]);
 
   if (!ctx || !enabled || !read) return null;

@@ -6,6 +6,8 @@
  */
 import setupTemplates from '../bot/setupTemplatesFixture.json';
 import { sampleCandles } from '../cryptos/sampleCryptos';
+import { parsePeriods } from '../market_board/periods';
+import { sampleMarketBoard } from '../market_board/sampleMarket';
 import { SAMPLE_SETUPS_SCOREBOARD } from '../sample_data/sampleSetups';
 import {
   CLOSED, WORKING, barsFor, captureSessions, catalystsFor, diagnostics, envelope, health, ibkrAccount, ibkrPositions,
@@ -129,6 +131,10 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/why\/([^/]+)$/, (m) => whyFor(sym(m))],
     [/^\/api\/why$/, (_m, q) => whyBatch(q.get('symbols'), q.get('board'))],
     [/^\/api\/crypto\/board$/, () => cryptoBoard(nowS)],
+    [/^\/api\/market\/board$/, (_m, q) => sampleMarketBoard(parsePeriods({
+      schema_version: 1, sectors: q.get('sectors'), industries: q.get('industries'), climate: q.get('climate'),
+      top: { kind: q.get('top'), period: q.get('top_period') },
+    }))],
     [/^\/api\/crypto\/candles$/, (_m, q) => sampleCandles(q.get('symbol') ?? 'BTC', (q.get('tf') ?? '15m') as Parameters<typeof sampleCandles>[1])],
     [/^\/api\/capture\/sessions$/, () => captureSessions()],
   ];

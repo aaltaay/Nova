@@ -3,9 +3,9 @@
  * you to add those cuz i get lost"). Pure: the rows the pane's Key chip lists, for what that pane draws --
  * the session tint behind the candles on every intraday pane; the levels each chart reads from its own
  * candles (5-minute, Full Day, and the 1-minute's nearest ones); the setup boxes and the plan's lines on
- * the 1-minute pane (the 5-minute and 10-second panes mirror the plan's lines, so their Keys list them too -- the
- * 5-minute's had not, and its "5m trigger" row read like them, operator report 2026-10-12), and Nova's LULD band on
- * the 1-minute and 10-second panes.
+ * the 1-minute pane (the 10-second pane draws the plan's strategy box and an order's lines too, so its Key lists them;
+ * the 5-minute pane draws its own setups' lines and never the plan's, operator report 2026-10-13), and Nova's LULD band
+ * on the 1-minute and 10-second panes.
  * Every colour is the one the drawing uses, read from the same constants.
  */
 import { CHART_SESSION_COLORS } from '../constants';
@@ -60,6 +60,7 @@ function sessionRows(): KeySection {
 const ZONE_ROWS: KeyRow[] = [
   { swatch: 'band', color: LEVEL_COLORS.support, label: 'Shaded band', text: 'how deep the zone goes; its line is the edge nearest the price' },
   { swatch: 'line', color: GREY, label: 'Thick line', text: 'a strong level (tested many times)' },
+  { swatch: 'line', color: GREY, label: 'One label a price', text: 'levels within 1% are one band ("4.09–4.12 · top ×8"); a level by the plan, VWAP or a stronger level is a name after its label ("stop 4.03 · $4.00"): hover for each' },
 ];
 
 function fiveMinuteLevelRows(): KeySection {
@@ -197,14 +198,19 @@ function planRows(full: boolean): KeySection {
     { swatch: 'line', color: SETUP_COLORS.stop, label: 'Stop', text: 'where the plan gets out at a loss' },
     { swatch: 'line', color: SETUP_COLORS.target, label: 'Target 1 / 2', text: 'where the plan takes profit: its first part at target 1, the rest at target 2' },
   ];
+  const box: KeyRow = { swatch: 'band', color: STRATEGY_BOX_LIVE.outline, label: 'Strategy box', text: "a setup's plan: its stop to target 1 right of the newest candle, with its name and where it stands (near · armed); its prices on the axis, T2 a dash over it or an arrow" };
+  const faint: KeyRow = { swatch: 'band', color: STRATEGY_BOX.outline, label: 'Faint box', text: "a setup still forming: the same box, faint, on its window (Gap and Go's 09:30–10:00) or waiting at the edge" };
   if (full) {
     rows.push(
       { swatch: 'band', color: SETUP_COLORS.risk, label: 'Red zone', text: 'the risk: from the entry to the stop (over the entry on a short)' },
       { swatch: 'band', color: SETUP_COLORS.reward, label: 'Green zone', text: 'the reward: from the entry to target 1 (under it on a short)' },
-      { swatch: 'band', color: STRATEGY_BOX_LIVE.outline, label: 'Strategy box', text: "a setup's plan: its stop to target 1 right of the newest candle, with its name and where it stands (near · armed); its prices on the axis, T2 a dash over it or an arrow" },
+      box,
       { swatch: 'up', color: SETUP_COLORS.trigger, label: '✓ Triggered', text: "a setup's plan that triggered with no order or position behind it: off the chart, a ✓ over its trigger candle (point at it for the setup)" },
-      { swatch: 'band', color: STRATEGY_BOX.outline, label: 'Faint box', text: "a setup still forming: the same box, faint, on its window (Gap and Go's 09:30–10:00) or waiting at the edge" },
+      faint,
     );
+  } else {
+    // The 10-second pane draws the 1-minute pane's box on its own candles, and the lines only where an order stands.
+    rows.push(box, faint);
   }
   rows.push({ swatch: 'dash', color: GREY, label: 'Dashed vs solid', text: 'dashed: only a plan · solid: an order is working' });
   return { title: 'The plan', rows };
@@ -224,7 +230,7 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
     out.push(planRows(false));
     if (layers.eyes !== false) out.push(luldRows());
   } else {
-    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows(true), planRows(false));
+    if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows(true));
     if (layers.levels) out.push(...(kind === 'daily' ? [dailyRows()] : [fiveMinuteLevelRows(), trendRows('5-minute')]));
   }
   if (kind !== 'daily') out.push(sessionRows());

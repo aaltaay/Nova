@@ -35,7 +35,7 @@ export function NavRailHost() {
   );
 
   // Same rule as the shell's `traderUp`: a Trader view with no tab left (the
-  // last tab popped out) shows the Scanner / Desk, so the rail must not keep
+  // last tab popped out) shows the page under it, so the rail must not keep
   // highlighting Trader over it (QA V33). The workspace keeps the view flag so
   // a tab docked back restores the Trader.
   const traderUp = traderViewActive && traderTabs.length > 0;

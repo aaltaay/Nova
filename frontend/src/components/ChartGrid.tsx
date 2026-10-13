@@ -1,11 +1,13 @@
 /**
  * Multi-timeframe chart grid for Trader / Stock View (batch-warmed bars).
  * One desk toolbar above the 2x2 grid owns draw tools (shared) and indicator
- * toggles (focused pane). Panes render a one-line header only.
+ * toggles (focused pane). Panes render a one-line header only; a pane in full screen shows its own toolbar, with the
+ * desk toolbar's extra (the Eyes switch) in it too (`chartToolbarExtra.ts`).
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { TickerChart } from '../TickerChart';
 import { ChartGridToolbar } from './ChartGridToolbar';
+import { ChartToolbarExtra } from './chartToolbarExtra';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import {
@@ -207,22 +209,24 @@ export const ChartGrid = memo(function ChartGrid({
         onRestore={restore}
         extra={toolbarExtra}
       />
-      <div className="chart-grid__row chart-grid__row--top">
-        {topPanels.map(renderPane)}
-      </div>
-      <ResizeHandle
-        orientation="horizontal"
-        onPointerDown={onDragStart}
-        onDoubleClick={reset}
-        label="Resize chart rows"
-      />
-      <div
-        className={`chart-grid__row chart-grid__row--bottom${
-          bottomPanels.length === 1 ? ' chart-grid__row--single' : ''
-        }`}
-      >
-        {bottomPanels.map(renderPane)}
-      </div>
+      <ChartToolbarExtra.Provider value={toolbarExtra ?? null}>
+        <div className="chart-grid__row chart-grid__row--top">
+          {topPanels.map(renderPane)}
+        </div>
+        <ResizeHandle
+          orientation="horizontal"
+          onPointerDown={onDragStart}
+          onDoubleClick={reset}
+          label="Resize chart rows"
+        />
+        <div
+          className={`chart-grid__row chart-grid__row--bottom${
+            bottomPanels.length === 1 ? ' chart-grid__row--single' : ''
+          }`}
+        >
+          {bottomPanels.map(renderPane)}
+        </div>
+      </ChartToolbarExtra.Provider>
     </div>
   );
 });
