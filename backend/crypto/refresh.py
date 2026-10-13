@@ -3,8 +3,10 @@
 Two daemon threads start on the first ask: ``web`` (the public sources; a chart the page asked for goes first)
 and ``ibkr`` (the bridge stocks' quotes and closes, the coins' listing check -- all through ``run_coro`` on the
 IB loop, cold or background priority). Each takes the first due read, runs it, and records the answer or the
-failure in ``crypto.state``. Nothing runs while the page has not asked within ``CRYPTO_WANTED_SEC`` or with
-``NOVA_CRYPTO=0``. ``run_once`` is the whole step, so tests drive it without threads.
+failure in ``crypto.state``. Every read's wall time goes into the perf record (ADR 026) as ``crypto.<read>``, and
+the time from the page opening to that read's first answer as ``crypto.first.<read>``. Nothing runs while the page
+has not asked within ``CRYPTO_WANTED_SEC`` or with ``NOVA_CRYPTO=0``. ``run_once`` is the whole step, so tests drive
+it without threads.
 """
 from __future__ import annotations
 
@@ -177,15 +179,31 @@ def _due(job: Job, now: float) -> bool:
     return value is None or not job.fresh(value)
 
 
+def _measure(job: Job, started_ns: int, ok: bool, answered: float | None, first: bool) -> None:
+    """The read's wall time and, on its first answer since the page opened, how long the page waited for it."""
+    from metrics.op_metrics import mark_wall, record, record_since
+
+    kind = job.key.split(":", 1)[0]
+    record_since(f"crypto.{kind}", started_ns, ok, wall=True)
+    since = store().wanted_since()
+    if first and answered is not None and since is not None:
+        mark_wall(f"crypto.first.{kind}")
+        record(f"crypto.first.{kind}", max(0, int((answered - since) * 1e9)))
+
+
 def _run(job: Job, now: float) -> None:
     """Run one read; stamp its answer or failure on the tick's clock plus the time the read took."""
     st = store()
     if job.gap_group:
         _group_last[job.gap_group] = now
     started = time.monotonic()
+    started_ns = time.perf_counter_ns()
+    since = st.wanted_since()
+    before = st.answered_at(job.key)
     try:
         value = job.fetch()
     except SourceError as exc:
+        _measure(job, started_ns, False, None, False)
         st.fail(job.key, job.source, str(exc), now + (time.monotonic() - started), job.retry)
     except Exception as exc:  # noqa: BLE001 -- any failure is stated on the page, never raised into the loop
         at = now + (time.monotonic() - started)
@@ -193,10 +211,12 @@ def _run(job: Job, now: float) -> None:
             st.defer(job.key, at + CRYPTO_BRIDGE_SHED_RETRY_SEC)  # IBKR's budget said later
             return
         logger.warning("crypto: %s failed", job.key, exc_info=True)
+        _measure(job, started_ns, False, None, False)
         st.fail(job.key, job.source, f"{type(exc).__name__}: {exc}"[:160], at, job.retry)
     else:
         at = now + (time.monotonic() - started)
         st.put(job.key, job.source, value, at)
+        _measure(job, started_ns, True, at, since is not None and (before is None or before < since))
         if job.fresh is not None and not job.fresh(value):
             st.defer(job.key, at + job.retry)
 

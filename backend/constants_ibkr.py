@@ -602,6 +602,17 @@ IBKR_SHORTABLE_TICK_WAIT_SEC = 1.8              # max wait for the first 236 tic
 # (#178). Legal STK generic-tick set lives in ibkr.ticks_generic.
 IBKR_HALT_TICK_TYPE = 49
 IBKR_L1_GENERIC_TICKS = "233"
+# A quote a person waits on is read from a line held for a moment (ibkr/brief_lines.py, ADR 054): opened, read
+# and cancelled -- not a snapshot, which answers only at IBKR's snapshot end (~11 s a batch for futures, indexes
+# and stocks outside the session, measured 2026-10-13). A stock's line asks IBKR_L1_GENERIC_TICKS, so a desk
+# subscribe that joins it mid-read gets the line it would have opened.
+IBKR_BRIEF_LINE_BATCH = 5                       # lines open at once: as many as a stock snapshot held
+IBKR_BRIEF_LINE_WAIT_SEC = 2.5                  # a batch's lines are cancelled by then, answered or not
+IBKR_BRIEF_LINE_SETTLE_SEC = 0.4                # every line has a price: wait this much more for prior closes
+IBKR_BRIEF_LINE_POLL_SEC = 0.05                 # how often a batch looks at its tickers
+# No brief line opens with fewer lines free beyond IBKR_L1_STREAM_RESERVE (kept for an opening Trader tab).
+# On 2026-10-13 Nova could hold only 45 of the account's 100, all but the reserve taken by HOD Momo.
+IBKR_BRIEF_MIN_FREE_LINES = 6
 # LULD / volatility pause clock (issue #173). First 5m pause, next 5m auction.
 # After 10m still halted: no confident forever countdown.
 LULD_PAUSE_SEC = 5 * 60

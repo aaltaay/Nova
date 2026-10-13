@@ -1,18 +1,23 @@
 """IBKR ticker snapshot helpers — scanner cache reuse + live fallback.
 
+The live fallback is a line held for a moment (``ibkr.brief_lines``, ADR 054), timed as ``ticker.cold_quote``:
+IBKR's snapshot answers only at its snapshot end, ~11 s outside the session, so the 4 s snapshot it replaced
+gave the quote head nothing after 4 s there.
+
 ``TickerSnapshotPort`` lives in ``ports.ticker``; the adapter is
 ``adapters.ibkr_ticker.IbkrTickerSnapshotAdapter``.
 """
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from constants import (
     IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
     TICKER_IBKR_BRIDGE_TIMEOUT_SEC,
-    TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC,
+    TICKER_IBKR_QUALIFY_TIMEOUT_SEC,
 )
 from ports.ticker import TickerSnapshotPort  # noqa: F401 — re-export for callers
 from runtime_state import get_runtime_state
@@ -77,7 +82,7 @@ def _price_from_chart_bars(symbol: str) -> Traded:
     ``fetch_chart_bars(interactive=True)`` on an empty store only schedules a
     fill and returns ``bars=[]``. That made ticker REST miss a last print the
     chart already had (or was about to persist) and fall through to a cold
-    ``snapshot_quotes`` that often times out with a blank ``TimeoutError``.
+    snapshot that often timed out with a blank ``TimeoutError``.
     A bar from an earlier day (last night's 19:59 before today's first trade),
     or one with no time, is not today's last (#541).
     """
@@ -127,6 +132,31 @@ def _prev_close_recorded(symbol: str) -> float | None:
     return leaderboard_store.day_prev_close(datetime.now(ET).date().isoformat(), sym)
 
 
+def _cold_quote(symbol: str) -> dict[str, dict]:
+    """``{SYM: quote}`` from a line held for a moment (the desk's own line when it already has one); ``{}`` when
+    IBKR gave nothing, too few lines are spare, or the read failed. Timed as ``ticker.cold_quote``."""
+    from ibkr import brief_lines
+    from ibkr import client as _ibkr_client
+    from ibkr.errors import describe_exc
+    from metrics.op_metrics import record_since
+
+    started_ns = time.perf_counter_ns()
+    try:
+        quotes = _ibkr_client.run_coro(
+            brief_lines.stock_quotes([symbol], qualify_timeout=TICKER_IBKR_QUALIFY_TIMEOUT_SEC),
+            timeout=TICKER_IBKR_BRIDGE_TIMEOUT_SEC,
+        ) or {}
+    except brief_lines.NoHeadroom as exc:  # maintainer: allow-swallow no spare line: nothing asked, nothing timed
+        logger.info("ticker IBKR quote for %s waits for the desk's line: %s", symbol, exc)
+        return {}
+    except Exception as exc:
+        logger.warning("ticker IBKR quote failed for %s: %s", symbol, describe_exc(exc))
+        record_since("ticker.cold_quote", started_ns, ok=False, wall=True)
+        return {}
+    record_since("ticker.cold_quote", started_ns, ok=True, wall=True)
+    return quotes
+
+
 def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
     """IBKR counterpart to Alpaca snapshot fetch.
 
@@ -163,33 +193,16 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
             price = cached_row.get("current_price") or cached_row.get("price")
             traded_at = cached_row.get("quote_ts")
 
-    # Fast path before slow reqTickersAsync -- Stock View charts already prove
+    # Fast path before IBKR's own read -- Stock View charts already prove
     # bars work when the cold snapshot path returns nothing (e.g. CJMB / XAIR).
     if price is None:
         price, traded_at = _price_from_l1_stream(symbol)
     if price is None:
         price, traded_at = _price_from_chart_bars(symbol)
 
-    # Slow cold snapshot only when we still have no last print.
+    # IBKR's own read only when we still have no last print.
     if price is None:
-        from ibkr import client as _ibkr_client
-        from ibkr import discovery as _ibkr_discovery
-        from ibkr.errors import describe_exc
-
-        try:
-            quotes = _ibkr_client.run_coro(
-                _ibkr_discovery.snapshot_quotes(
-                    [symbol], timeout_sec=TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC
-                ),
-                timeout=TICKER_IBKR_BRIDGE_TIMEOUT_SEC,
-            ) or {}
-        except Exception as exc:
-            logger.warning(
-                "ticker IBKR snapshot failed for %s: %s",
-                symbol,
-                describe_exc(exc),
-            )
-            quotes = {}
+        quotes = _cold_quote(symbol)
         q = quotes.get(symbol) or quotes.get((symbol or "").strip().upper())
         if q:
             prev_close = q.get("prev_close") or prev_close
@@ -199,7 +212,7 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
             if q.get("quote_quality") != IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
                 price = q.get("price")  # traded_at stays unknown: the snapshot carries no trade time
 
-    # Chart fill can land while snapshot_quotes is dying -- read the store again.
+    # Chart fill can land while IBKR's read runs -- read the store again.
     if price is None:
         price, traded_at = _price_from_chart_bars(symbol)
 

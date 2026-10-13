@@ -105,13 +105,14 @@ amendment 2026-10-13): each tile's prior close (once a session) and bar line (ev
 together and tiles without a price first; the ETFs' and leaders' daily closes once per session; the bar prices
 below; a runner's industry once, then from the file below. `files` reads State Street, BLS and BEA once a day and
 the leaderboard climate every `MARKET_CLIMATE_TTL_SEC` (a past session's summary once per process). No line is
-opened while fewer than `MARKET_MIN_FREE_LINES` market-data lines are free beyond Nova's own reserve
+opened while fewer than `IBKR_BRIEF_MIN_FREE_LINES` market-data lines are free beyond Nova's own reserve
 (`IBKR_L1_STREAM_RESERVE`, kept for an opening Trader tab).
 
-**A line held for a moment** (`market_board/brief_lines.py`). A quote -- a tile, a breadth indicator, an ETF, a
-mover -- is read by opening at most `MARKET_STREAM_BATCH` lines at once, waiting for IBKR's first ticks (a price
-and the prior close; a price alone after `MARKET_STREAM_SETTLE_SEC`) and cancelling them, at most
-`MARKET_STREAM_WAIT_SEC` after they opened. A contract that already has a line (the desk's) is read from it and
+**A line held for a moment** (`ibkr/brief_lines.py`, shared since ADR 054). A quote -- a tile, a breadth
+indicator, an ETF, a mover -- is read by opening at most `IBKR_BRIEF_LINE_BATCH` lines at once, waiting for IBKR's
+first ticks (a price and the prior close; a price alone after `IBKR_BRIEF_LINE_SETTLE_SEC`) and cancelling them, at
+most `IBKR_BRIEF_LINE_WAIT_SEC` after they opened. An ETF's or a stock's price is its last trade, never a quote that
+arrived first, and its line asks the desk's generic ticks (`IBKR_L1_GENERIC_TICKS`). A contract that already has a line (the desk's) is read from it and
 never cancelled; a line the desk subscribes to during the read, or that anything else now listens to, is left open
 for it. A line this read opens starts from a cleared ticker, so a quote with no price by the deadline reads `null`,
 never the last read's value. Brief lines do not take the cold snapshot slot (`ib_scheduler.cold_slot`).

@@ -51,8 +51,8 @@ answered (or failed) once since it was wanted; `enabled` is false with `NOVA_CRY
   "ETH", beta, close, last, since_close_pct, implied_pct, read: "ahead" | "behind" | "in_line" | null,
   gap_pt}], error: string | null}` for `CRYPTO_BRIDGE` (IBIT, ETHA, MSTR, COIN, MARA, RIOT, CLSK, HOOD).
   `close` is IBKR's regular-hours daily close of that session (`historical_service.request_rth_daily_closes`,
-  background priority), `last` IBKR's snapshot (`snapshot_quotes`, cold), `null` when IBKR has not answered
-  (a snapshot with no trade since that close is `null`, never the close). `beta` is the least-squares slope of
+  background priority), `last` IBKR's last trade from a line held for a moment (`ibkr/brief_lines.py`, ADR 054),
+  `null` when IBKR has not answered (a quote with no trade by the line's deadline is `null`, never the close). `beta` is the least-squares slope of
   the stock's close-to-close returns on the driver's 16:00 ET-to-16:00 ET returns over the last
   `CRYPTO_BETA_DAYS` shared sessions (`null` under `CRYPTO_BETA_MIN_DAYS`); `implied_pct` is the driver's
   move since the close x beta; `read` is `ahead` / `behind` when `since_close_pct - implied_pct` (`gap_pt`)
@@ -81,7 +81,9 @@ it answers the cache (`loading` while the first read runs) and asks the refreshe
 Refresh while wanted (`backend/crypto/refresh.py`, two daemon threads, web and IBKR): CoinGecko markets
 every `CRYPTO_MARKETS_TTL_SEC`, global every `CRYPTO_GLOBAL_TTL_SEC`, volume history one coin at a time;
 Hyperliquid every `CRYPTO_PERPS_TTL_SEC`; Alpaca news every `CRYPTO_NEWS_TTL_SEC`; Fear & Greed,
-DefiLlama and Deribit every `CRYPTO_SLOW_TTL_SEC`; IBKR snapshots every `CRYPTO_BRIDGE_QUOTE_TTL_SEC`, daily
+DefiLlama and Deribit every `CRYPTO_SLOW_TTL_SEC`; IBKR's bridge quotes every `CRYPTO_BRIDGE_QUOTE_TTL_SEC` (no
+read while fewer than `IBKR_BRIEF_MIN_FREE_LINES` lines are spare: the IBKR source says "waiting for spare
+market-data lines"), daily
 closes once per session (again after 16:00 until that session's bar lands), the crypto listing once per
 process. Nothing polls when the page has not asked within `CRYPTO_WANTED_SEC`. `COINGECKO_DEMO_API_KEY`
 (optional) is sent as CoinGecko's demo key. On the desk every number, chip, level and lane opens a hover

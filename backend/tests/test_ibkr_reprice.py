@@ -256,3 +256,56 @@ def test_table_reprice_loop_pushes_one_chunk_per_tick(monkeypatch):
     assert len(snapped[0]) == IBKR_TABLE_REPRICE_CHUNK_SIZE
     assert snapped[0] != snapped[1]
     assert all(p.get("type") == "price_patch" for p in pushes[:2])
+
+
+# --- ADR 054: the backstop reads a line held for a moment, the desk's own when it has one ---
+
+
+def test_a_quiet_desk_line_is_read_from_itself_and_the_read_is_timed(monkeypatch):
+    """Off hours a quiet stream fell to a snapshot every 3 s that took ~11 s. Its own line answers at once."""
+    from ib_async import Contract
+
+    from ibkr import brief_lines, client, qualified_contracts
+    from metrics import op_metrics
+    from tests.fakes.brief_line_ib import FakeIB, stock_qualifier
+
+    op_metrics.reset_for_tests()
+    qualified_contracts.clear_qualified_contracts(reason="test")
+    monkeypatch.setattr(brief_lines, "spare_lines", lambda: 0)          # no spare line: the desk's needs none
+    ib = FakeIB()
+    ib.hold(Contract(conId=1, symbol="SHPH", secType="STK"), last=4.1, close=2.96, volume=500.0)
+    ib.qualifyContractsAsync = stock_qualifier()
+    monkeypatch.setattr(client, "get_ib", lambda: ib)
+    broadcasts = []
+    try:
+        reprice.reprice_detail_symbols(
+            ["SHPH"], lambda coro: asyncio.run(coro),
+            lambda sym, price, size, ts, volume, prev_close, source: broadcasts.append((sym, price, source)),
+            lambda s: None, is_stream_fresh=lambda s: False)
+    finally:
+        qualified_contracts.clear_qualified_contracts(reason="test")
+    assert broadcasts == [("SHPH", 4.1, "snapshot")]
+    assert ib.cancelled == [] and ib.open_max == 0                       # no line opened, the desk's kept
+    assert op_metrics.totals()["ibkr.detail_reprice"][0] == 1
+    op_metrics.reset_for_tests()
+
+
+def test_no_spare_line_skips_the_pass_untimed(monkeypatch):
+    from ibkr import brief_lines, client, qualified_contracts
+    from metrics import op_metrics
+    from tests.fakes.brief_line_ib import FakeIB, stock_qualifier
+
+    op_metrics.reset_for_tests()
+    qualified_contracts.clear_qualified_contracts(reason="test")
+    monkeypatch.setattr(brief_lines, "spare_lines", lambda: 0)
+    ib = FakeIB({1: {"last": 4.1, "close": 2.96}})
+    ib.qualifyContractsAsync = stock_qualifier()
+    monkeypatch.setattr(client, "get_ib", lambda: ib)
+    broadcasts = []
+    try:
+        reprice.reprice_detail_symbols(["SHPH"], lambda coro: asyncio.run(coro), lambda *a: broadcasts.append(a),
+                                       lambda s: None)
+    finally:
+        qualified_contracts.clear_qualified_contracts(reason="test")
+    assert broadcasts == [] and ib.open_max == 0
+    assert "ibkr.detail_reprice" not in op_metrics.totals()

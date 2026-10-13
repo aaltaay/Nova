@@ -121,3 +121,8 @@ opening to each read's first answer as `market_board.first.<read>`.
 Rejected: one batch of nine snapshots (still an 11 s wait each pass, with nine lines held for it); holding lines for
 as long as the page is open (the rejection above stands: they would compete with HOD Momo for the 45 lines Nova could
 hold on 2026-10-13).
+
+Later the same day the line held for a moment became shared (ADR 054): `ibkr/brief_lines.py`, its constants
+`IBKR_BRIEF_LINE_*` and `IBKR_BRIEF_MIN_FREE_LINES` (were `MARKET_STREAM_*` and `MARKET_MIN_FREE_LINES`, same
+values). An ETF or a stock is now priced by its last trade, never by a quote that arrived first, and its line asks
+the desk's generic ticks.
