@@ -176,10 +176,11 @@ test.describe('Who trades the stock', () => {
     expect(rowBox && l2Box && rowBox.y + rowBox.height <= l2Box.y + 1).toBe(true);
     expect(l2Box && l2Box.height).toBeGreaterThan(250);
     // The plan in the book, dashed while it is only a plan: the entry with the asks it would take,
-    // the stop among the bids, the target past the rows shown.
+    // the stop among the bids, target 1 at the plan's own 5.49 (#845: targets replace 2R, so it is no
+    // longer the 5.66 past the rows shown).
     await expect(page.getByTestId('l2-marker-entry')).toHaveClass(/das-l2-marker--plan/);
     await expect(page.getByTestId('l2-marker-stop')).toBeVisible();
-    await expect(page.getByTestId('l2-marker-target')).toContainText('TARGET 5.66 ↓');
+    await expect(page.getByTestId('l2-marker-target')).toContainText('TARGET 5.49');
     await expect(page.getByTestId('who-trades-chip')).toContainText('Signal only');
     await shot(page, 'who-signal');
 
