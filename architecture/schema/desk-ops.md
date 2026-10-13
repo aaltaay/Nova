@@ -172,13 +172,19 @@ app's own folder, so it is a different Paper account, bot session and history.
 - **`GET /api/diagnostics/restart-check`** (owner
   `diagnostics/restart_check.py`) answers what a restart of this process would
   interrupt, from memory only (no IBKR request): `{schema_version: 1,
-  generated_at, safe: boolean | null, open: [{kind: "recording" | "position" |
+  generated_at, safe: boolean | null, open: [{kind: "bell" | "recording" | "position" |
   "working_order" | "bot_trade" | "stock_mode" | "download", venue: "paper" |
   "sim" | "ibkr" | null, symbol: string | null, text}], unknown: [{kind,
   error}]}`. It covers the Session Records, the practice ledgers this process
   has loaded, IBKR's cached positions and open orders (with no ready session,
   Nova watches nothing there), the bot's open trade, ADR 037's in-memory stock
-  modes, approvals and trades, and running history downloads. `safe` is true
+  modes, approvals and trades, and running history downloads. It also reads
+  the clock: from 09:25 to 09:45 ET on an exchange day it lists the opening
+  bell (`kind: "bell"`, `venue` and `symbol` null), because a restart then
+  drops every Level 2 and Time & Sales line as the bell rings. So Restart to
+  update and the backend notice ask first, with "Not now" the default
+  (operator report, 2026-10-12: Restart to update at 09:30:25 left the desk
+  without MNDR's lines through its flush into VWAP). `safe` is true
   only when every reader answered and nothing is open, false when anything is
   open, and null when a reader failed (never read as "nothing open").
 - **One version** (operator ask, 2026-09-30: "i need them to be treated as
