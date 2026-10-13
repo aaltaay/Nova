@@ -376,6 +376,16 @@ def test_a_date_to_come_in_an_exhibit_is_not_results_even_in_its_link():
     assert release_text.read_exhibit(profit_alert)["kind"] == "other"
 
 
+def test_a_date_to_come_in_the_title_rules_out_the_lines_below_it():
+    # SNDL 2025-04-15: the title says a date to come; its third line reads like results.
+    exhibit = ("<p>EX-99.1 2 ex991.htm NEWS RELEASE DATED APRIL 14, 2025 Exhibit 99.1 SNDL to Announce First "
+               "Quarter 2025 Financial Results on May 1, 2025 EDMONTON, AB, April 14, 2025 /CNW/ - SNDL Inc. "
+               "(Nasdaq: SNDL) announced today that it will release its first quarter 2025 financial results before "
+               "market open on May 1, 2025.</p><p>Following the release of its first quarter results, SNDL will "
+               "host a conference call and webcast at 10:00 a.m. ET.</p>")
+    assert release_text.read_exhibit(exhibit)["kind"] == "other"
+
+
 def test_a_results_title_that_also_names_its_call_is_results():
     exhibit = ("<p>EX-99.1 2 ea024649101ex99-1_nano.htm PRESS RELEASE, DATED AUGUST 12, 2025 Exhibit 99.1 Nanox "
                "Announces Second Quarter of 2025 Financial Results and Provides Business Update Management to host "

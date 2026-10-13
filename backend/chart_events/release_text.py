@@ -188,12 +188,18 @@ def _results(text: str, sentences: list[str] | None = None) -> dict[str, Any] | 
 
 
 def _headed(text: str) -> tuple[dict[str, Any] | None, bool]:
-    """What a document's title area says: a results sentence in it, else whether it says something else
-    (a date to come, deliveries, a profit alert). An exhibit's file header pushes its title past the first
-    split, so the area is its opening ``_HEAD_SENTENCES`` sentences."""
-    head = _sentences(text)[:_HEAD_SENTENCES]
-    found = _results(text, head)
-    return found, found is None and any(p.search(s) for s in head for p in _NOT)
+    """What a document's title area says, decided by its first sentence that says either: results, or something
+    else (a date to come, deliveries, a profit alert). An exhibit's file header pushes its title past the first
+    split, so the area is its opening ``_HEAD_SENTENCES`` sentences. The first one decides because a notice
+    titled "SNDL to Announce First Quarter 2025 Financial Results on May 1, 2025" goes on to say "Following
+    the release of its first quarter results, SNDL will host a conference call"."""
+    for sentence in _sentences(text)[:_HEAD_SENTENCES]:
+        if any(p.search(sentence) for p in _NOT):
+            return None, True
+        found = _results(text, [sentence])
+        if found is not None:
+            return found, False
+    return None, False
 
 
 def read_6k(document: bytes | str) -> dict[str, Any] | None:
