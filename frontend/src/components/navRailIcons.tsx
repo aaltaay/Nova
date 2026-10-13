@@ -29,9 +29,17 @@ export type NavRailIconId =
   | 'bots'
   | 'records'
   | 'cryptos'
+  | 'followed'
   | 'settings';
 
 const ICONS: Record<NavRailIconId, ReactNode> = {
+  followed: (
+    <Icon>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+      <path d="M15 11.5 17.5 9l3 3M17.5 9v8" />
+    </Icon>
+  ),
   market: (
     <Icon>
       <path d="M3 12h4l3-8 4 16 3-8h4" />

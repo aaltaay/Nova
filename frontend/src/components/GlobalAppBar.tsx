@@ -47,6 +47,7 @@ import { useScannerBarProps } from './scannerBarStore';
 import type { GlobalAppBarScanner } from './globalAppBarScanner';
 import { useRenderCount } from '../perf/useRenderCount';
 import { WatchListToasts } from '../watch_list/WatchListToasts';
+import { FollowedToasts } from '../followed_traders';
 
 export type { GlobalAppBarScanner };
 
@@ -107,6 +108,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     <header className="global-app-bar" data-testid="global-app-bar" data-venue={deskVenue ?? undefined}>
       <RecordingSignals onOpenSymbol={openStockView} />
       <WatchListToasts onOpenSymbol={openStockView} />
+      <FollowedToasts onOpenPage={leaveTraderToScanner} />
       {!isSampleView() && (
         <CloseReminders positions={positions} venue={deskVenue} stale={accountStale} liveCover={liveShortCover}
           onOpenSymbol={openStockView} />

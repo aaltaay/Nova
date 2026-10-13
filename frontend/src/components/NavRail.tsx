@@ -4,11 +4,11 @@
  * collapsed it is a tray of child icons with a hairline between groups
  * (operator ask, 2026-09-22); it no longer folds (operator ask, 2026-09-23).
  * Shared by every view -- Market, Trader, Scanner (the registry's grouped tab
- * modules), Cryptos, Account, Bots,
+ * modules), Cryptos, Followed traders (only with a feed configured), Account, Bots,
  * Records, then Advise + Settings + collapse pinned at the foot.
  *
- * Routing: Trader is the workspace's Stock View; Market / Cryptos / Records /
- * Account / Bots are shell pages (navRailStore); Scanner children are dashboard tabs asked for
+ * Routing: Trader is the workspace's Stock View; Market / Cryptos / Followed traders /
+ * Records / Account / Bots are shell pages (navRailStore); Scanner children are dashboard tabs asked for
  * through the store's latch so the request survives a remount.
  */
 import { useCallback, useMemo, useState } from 'react';
@@ -22,6 +22,7 @@ import {
   NAV_RAIL_GROUP_LABELS,
   NAV_RAIL_LABEL_BOTS,
   NAV_RAIL_LABEL_CRYPTOS,
+  NAV_RAIL_LABEL_FOLLOWED,
   NAV_RAIL_LABEL_MARKET,
   NAV_RAIL_LABEL_RECORDS,
   NAV_RAIL_LABEL_SCANNER,
@@ -30,6 +31,7 @@ import {
   NAV_RAIL_RECORDING_MAX,
   NAV_RAIL_TITLE_BOTS,
   NAV_RAIL_TITLE_CRYPTOS,
+  NAV_RAIL_TITLE_FOLLOWED,
   NAV_RAIL_TITLE_MARKET,
   NAV_RAIL_TITLE_RECORDS,
   NAV_RAIL_TITLE_SCANNER,
@@ -40,6 +42,7 @@ import {
   navRailRecordingTitle,
 } from '../constantGroups/nav_rail';
 import { TRADER_DEFAULT_SYMBOL } from '../constants';
+import { useFollowedTradersEnabled } from '../followed_traders';
 import { formatScannerNavCount, scannerNavIcon } from '../scanner/scannerNavIcons';
 import {
   navRailCollapsedDefault,
@@ -81,6 +84,8 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const groups = useMemo(() => listScannerNavGroups(), []);
   // The guarded list: strings only, a stale status records nothing (QA C14 / C23).
   const recordingSymbols = useRecordingSymbols();
+  // Only a desk whose backend has a followed traders feed shows the item (NOVA_FOLLOW_FEED_URL).
+  const followedOn = useFollowedTradersEnabled();
 
   const dashboardUp = !traderActive && page === 'dashboard';
   // The Account page is a shell page; the legacy Account / Reports dashboard
@@ -108,7 +113,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const leaveTrader = () => {
     if (traderActive) onLeaveTrader();
   };
-  const goPage = (next: 'market' | 'records' | 'account' | 'bots' | 'cryptos') => {
+  const goPage = (next: 'market' | 'records' | 'account' | 'bots' | 'cryptos' | 'followed') => {
     leaveTrader();
     setNavPage(next);
   };
@@ -205,6 +210,16 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
           active={!traderActive && page === 'cryptos'}
           onClick={() => goPage('cryptos')}
         />
+        {followedOn && (
+          <NavRailItem
+            testId="nav-rail-followed"
+            icon={navRailIcon('followed')}
+            label={NAV_RAIL_LABEL_FOLLOWED}
+            title={NAV_RAIL_TITLE_FOLLOWED}
+            active={!traderActive && page === 'followed'}
+            onClick={() => goPage('followed')}
+          />
+        )}
         {visibility.trading !== false && (
           <NavRailAccountItem active={accountActive} onOpen={() => goPage('account')} />
         )}

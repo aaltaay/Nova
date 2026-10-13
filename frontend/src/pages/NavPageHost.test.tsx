@@ -19,6 +19,9 @@ vi.mock('./AccountPage', () => ({
 vi.mock('../cryptos', () => ({
   CryptosPage: () => <div data-testid="cryptos-page-stub" />,
 }));
+vi.mock('../followed_traders', () => ({
+  FollowedTradersPage: () => <div data-testid="followed-page-stub" />,
+}));
 
 describe('NavPageHost', () => {
   let container: HTMLDivElement;
@@ -73,6 +76,24 @@ describe('NavPageHost', () => {
       await Promise.resolve();
     });
     expect(container.querySelector('[data-testid="account-page"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
+  });
+
+  it('routes the Followed traders page (lazy) from the store', async () => {
+    await act(async () => {
+      root.render(
+        <NavPageHost onOpenTrader={() => {}}>
+          <div data-testid="dashboard-stub" />
+        </NavPageHost>,
+      );
+    });
+    await act(async () => {
+      setNavPage('followed');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="followed-page-stub"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
   });
 
