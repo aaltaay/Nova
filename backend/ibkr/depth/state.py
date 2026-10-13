@@ -11,7 +11,7 @@ import logging
 import time
 from typing import Any
 
-from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_RELEASE_GRACE_SEC
+from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_REFUSAL_KEEP_SEC, IBKR_DEPTH_RELEASE_GRACE_SEC
 from ibkr import line_session
 from ibkr.depth.book import DepthBook
 from market_view import versions
@@ -54,6 +54,10 @@ _book_at: dict[str, float] = {}
 # more than one place at once). Only the LAST viewer closing should release.
 _ws_viewers: dict[str, int] = {}
 
+# symbol -> (when, what the ladder shows) for the line IBKR last refused (309); cleared by the
+# next request. A socket that subscribed in the same instant reads it instead of streaming beats.
+_refused: dict[str, tuple[float, str]] = {}
+
 # Tracks which `ib` connections already have the depth-rejection error hook.
 _error_hooked_ib_ids: set[int] = set()
 
@@ -76,6 +80,7 @@ def reset_all() -> None:
     _update_handlers.clear()
     _books.clear()
     _ws_viewers.clear()
+    _refused.clear()
     _error_hooked_ib_ids.clear()
     _shared_l1.clear()
     _subscribe_lock = None
@@ -110,6 +115,24 @@ def load_ib_types() -> bool:
 def stamp_line(symbol: str) -> None:
     """The symbol's live line is requested on the current IBKR session."""
     _generations[symbol] = line_session.generation()
+    _refused.pop(symbol, None)
+
+
+def note_refused(symbol: str, message: str, now: float | None = None) -> None:
+    """IBKR refused the symbol's line (309); ``message`` is what its ladder shows."""
+    _refused[symbol] = (time.time() if now is None else float(now), message)
+
+
+def refusal(symbol: str, now: float | None = None) -> str | None:
+    """The refusal of the symbol's last request, while fresh and no newer request was made."""
+    hit = _refused.get(symbol)
+    if hit is None:
+        return None
+    at, message = hit
+    if (time.time() if now is None else float(now)) - at > IBKR_DEPTH_REFUSAL_KEEP_SEC:
+        _refused.pop(symbol, None)
+        return None
+    return message
 
 
 def is_stale(symbol: str) -> bool:

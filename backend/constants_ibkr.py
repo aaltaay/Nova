@@ -111,6 +111,16 @@ IBKR_CONNECT_TIMEOUT_SEC = 8.0
 # try/except around the call — see ibkr/depth.py._on_ib_error.
 IBKR_ERROR_DEPTH_NOT_SUPPORTED = 10092
 IBKR_ERROR_DEPTH_RESET = 317       # IBKR: market depth reset -- the book is resent from row 0
+IBKR_ERROR_DEPTH_MAX_LINES = 309   # IBKR: every Level 2 line of the login is in use -- the NEW request is refused
+IBKR_NOTICE_DEPTH_EXCHANGES = 2152  # IBKR: the exchanges a granted Level 2 line carries -- IBKR's answer to it
+# A Level 2 / tick-by-tick line IBKR answers after Nova cancelled it is cancelled again
+# (ibkr/stray_lines.py, operator report 2026-10-13): at most once per request id this often.
+# A print this soon after Nova's own cancel is one already on its way, not a kept line.
+IBKR_STRAY_LINE_RECANCEL_SEC = 5.0
+# Cancelled request ids remembered, so a late answer still names its line.
+IBKR_STRAY_LINE_KEEP = 512
+# How long a Level 2 refusal (309) answers a socket that subscribed in the same instant.
+IBKR_DEPTH_REFUSAL_KEEP_SEC = 10.0
 # Tick-by-tick Time & Sales subscription failures (async via errorEvent).
 # 10089/10189: requires additional market-data subscription; 354: not subscribed;
 # 10190: IB's tick-by-tick cap reached (the NEW request is refused). Only used to

@@ -71,6 +71,7 @@ async def ibkr_status() -> dict:
     from ibkr import ib_scheduler as _ib_scheduler
     from ibkr import session_reconnect as _reconnect
     from ibkr import session_usable as _session_usable
+    from ibkr import stray_lines as _stray_lines
     from ibkr import ticks as _ticks
 
     usable = _client.is_ready()
@@ -119,6 +120,8 @@ async def ibkr_status() -> dict:
         # archaeology the next time the session freezes with the port open.
         "earn_in_flight": _session_usable.earn_in_flight(),
         "ib_cold_inflight": _ib_scheduler.inflight_label() or None,
+        # Lines IBKR answered after Nova cancelled them, cancelled again (operator report 2026-10-13).
+        "stray_lines": _stray_lines.view(),
         "dialer_heartbeat_age_sec": _reconnect.dialer_heartbeat_age_sec(),
         # D-058: READY but the Gateway is not answering reqCompletedOrders.
         # Only while usable, so no consumer can show a replaced session's verdict.

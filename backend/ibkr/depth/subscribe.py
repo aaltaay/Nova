@@ -3,6 +3,11 @@
 A line of an ended IBKR session is let go here (``drop_stale``, #562): cancelled
 only where the IB in hand still holds it, and asked for again by
 ``ibkr/line_session.py`` while a viewer, a hold or the L2 recorder wants it.
+
+A line IBKR refused (309) is let go without a cancel (``refuse_line``): IBKR never
+opened it, and its viewers are told why and ask again on their own backoff. Every
+cancel keeps its request id first (``ibkr/stray_lines.py``), so a grant IBKR sends
+after it is cancelled again instead of holding one of the login's 3 lines.
 """
 from __future__ import annotations
 
@@ -16,7 +21,7 @@ from constants import (
     IBKR_MAX_DEPTH_SYMBOLS,
 )
 from ibkr import client as _client
-from ibkr import line_session
+from ibkr import line_session, stray_lines
 from ibkr.depth import handlers, state
 from metrics.op_metrics import timed_sync
 
@@ -230,14 +235,18 @@ def subscribe(symbol: str) -> dict:
     return asyncio.run(subscribe_async(symbol))
 
 
-def unsubscribe(symbol: str) -> None:
+def unsubscribe(symbol: str, *, refused: bool = False) -> None:
+    """Let go of the symbol's line: cancelled where IB holds it; ``refused`` lines are never cancelled."""
     ib = _client.get_ib()
     held = _held_by(ib, symbol)
     contract = state.pop_contract(symbol)
     shared = state.is_shared_l1(symbol)
     handlers.detach_update_handler(symbol)
     state.clear_symbol(symbol)
-    if held and ib and contract is not None:
+    if refused and ib and contract is not None:
+        _forget_request(ib, contract)
+    elif held and ib and contract is not None:
+        stray_lines.note_depth_cancel(ib, contract, symbol, IBKR_DEPTH_SMART)
         try:
             ib.cancelMktDepth(contract, isSmartDepth=IBKR_DEPTH_SMART)
         except Exception as exc:
@@ -252,6 +261,53 @@ def unsubscribe(symbol: str) -> None:
         from ibkr import ticks as _ticks
 
         _ticks.drop_owner(symbol, _ticks.OWNER_DEPTH)
+
+
+def _forget_request(ib, contract) -> None:
+    """Drop a refused request from ib_async's registry without a cancel, so the next ask is a real one.
+
+    ib_async keeps a refused request registered, and its ``reqMktDepth`` hands it back
+    instead of asking IBKR again.
+    """
+    registry = getattr(getattr(ib, "wrapper", None), "subscriptions", None)
+    try:
+        sub = registry.find_market_data(contract.conId, "mktDepth") if registry is not None else None
+        if sub is not None:
+            sub.close(send_cancel=False)
+    except Exception:
+        logger.warning("IBKR depth: could not drop the refused request for conId %s",
+                       getattr(contract, "conId", None), exc_info=True)
+
+
+def refusal_message(symbol: str) -> str:
+    """What the ladder shows for a 309: whose lines are in use, and how to free one."""
+    held = [s for s in state.subscribed_symbols() if s != symbol and state.is_live(s)]
+    cap = IBKR_MAX_DEPTH_SYMBOLS
+    if len(held) >= cap:
+        return (f"IBKR refused this Level 2: all {cap} of its Level 2 lines are in use "
+                f"({', '.join(held)}). Close one to free a line. Asking again shortly.")
+    holds = f"only {len(held)} ({', '.join(held)})" if held else "none of them"
+    return (f"IBKR refused this Level 2 (IB error 309): all {cap} of its Level 2 lines are in use, "
+            f"and Nova holds {holds}. The others are held inside IB Gateway; if this stays, "
+            "restarting IB Gateway frees them. Asking again shortly.")
+
+
+def refuse_line(symbol: str, req_id: int) -> bool:
+    """IBKR refused the symbol's line (309): it is not open. Its viewers are told and close; True when ended.
+
+    Only while the line is still that request: a newer request for the symbol is left alone.
+    """
+    ib = _client.get_ib()
+    contract = state._contracts.get(symbol)
+    if contract is None or state.is_stale(symbol):
+        return False
+    if ib is not None and stray_lines.request_id(ib, contract, "mktDepth") != req_id:
+        return False
+    message = refusal_message(symbol)
+    state.note_refused(symbol, message)
+    state.push_error(symbol, message, evicted=True)
+    unsubscribe(symbol, refused=True)
+    return True
 
 
 def _fate(ib, symbol: str) -> str:
