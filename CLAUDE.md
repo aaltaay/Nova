@@ -100,7 +100,8 @@ with no id returns this session's id.
 ## PR auto-fix
 
 Right after opening a PR in the Claude desktop app, bind it (`ccd_pr`
-`get_status`, then `bind_pr` if it is not bound) and turn on **Auto-fix CI &
-address comments**: `set_monitor` with `auto_fix: true`, `address_comments:
+`get_status`; unless it reports this PR's URL -- a session that opened an
+earlier PR is still bound to that one -- `bind_pr` with the new URL) and turn
+on **Auto-fix CI & address comments**: `set_monitor` with `auto_fix: true`, `address_comments:
 true` and the PR URL (operator ask, 2026-10-13). No `ccd_pr` tools (CLI,
 Cursor, Codex)? Skip it -- it never blocks delivery.
