@@ -76,4 +76,16 @@ export interface CatalystPanel {
   verdict: CatalystVerdict | null;
   items: CatalystItem[];
   items_total: number;
+  /**
+   * Set on a Sim replay desk (operator report, 2026-10-12): the replayed symbol-day's news as known at the
+   * playhead (`at`, also `generated_at`), from the catalyst backfill. `on_file` false: the day's backfill does
+   * not hold the symbol, so the verdict is unknown -- never today's news. Null on the live desk.
+   */
+  replay?: CatalystReplay | null;
+}
+
+export interface CatalystReplay {
+  session_date: string;
+  at: number;
+  on_file: boolean;
 }

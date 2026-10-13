@@ -89,8 +89,15 @@ def _check_change_pct(change_pct: float | None) -> PillarCheck:
     )
 
 
-def _check_relative_volume(rel_volume: float | None) -> PillarCheck:
+def _check_relative_volume(rel_volume: float | None, time_of_day: float | None = None) -> PillarCheck:
     if rel_volume is None:
+        if time_of_day is not None:
+            # Volume so far over the same minute's 20-session average (a rebuilt Sim day's RVOL) is another
+            # measure than the daily-average RVOL this pillar grades: named, never compared to its threshold.
+            return PillarCheck(
+                "relative_volume", False,
+                f"daily RVOL unknown -- {time_of_day:.1f}x the same minute's 20-day average is another measure, not graded",
+            )
         return PillarCheck("relative_volume", False, "no relative volume data")
     passed = rel_volume >= FIVE_PILLARS_MIN_REL_VOLUME
     return PillarCheck(
@@ -173,7 +180,7 @@ def evaluate_five_pillars(candidate: dict, technical_breakout: bool = False) -> 
     checks = (
         _check_price(price),
         _check_change_pct(change_pct),
-        _check_relative_volume(rel_volume),
+        _check_relative_volume(rel_volume, candidate.get("rvol_time_of_day")),
         _check_catalyst_verdict(catalyst, technical_breakout) if catalyst_read(catalyst)
         else _check_catalyst(has_news, technical_breakout),
         _check_float(float_shares, candidate.get("float_contradicted"), candidate.get("shares_outstanding")),

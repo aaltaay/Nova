@@ -7,7 +7,10 @@
  *
  * On a Sim desk replaying one stock-day it is honest about any other symbol
  * (operator report 2026-10-12: SUNE picked off the Sep 9 board, LNKS loaded,
- * a dead chart and today's live $2.27 over the replay).
+ * a dead chart and today's live $2.27 over the replay). The replay's own symbol
+ * shows the replay's quote, today's company figures and Contenders rank are left
+ * out, and the panel says so (operator report 2026-10-12: GRML on Jul 15 showed
+ * today's $6.02, float and "#22 of the Contenders").
  */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -43,11 +46,17 @@ vi.mock('../hooks/useTickerStream', () => ({
     disconnectedSince: null,
   }),
 }));
-const shown = vi.hoisted(() => [] as Array<{ detail: { snapshot?: { latest_trade?: unknown } } }>);
+interface Shown {
+  detail: { snapshot?: { latest_trade?: unknown } };
+  watchlistEntry?: unknown;
+  watchlistRank?: number | null;
+  replayNote?: string | null;
+}
+const shown = vi.hoisted(() => [] as Shown[]);
 vi.mock('./TickerDetailContent', () => ({
-  TickerDetailContent: (props: { detail: { snapshot?: { latest_trade?: unknown } } }) => (shown.push(props), null),
+  TickerDetailContent: (props: Shown) => (shown.push(props), null),
 }));
-const simDesk = vi.hoisted(() => ({ sim: false, clock: null as unknown }));
+const simDesk = vi.hoisted(() => ({ sim: false, clock: null as unknown, snapshot: null as unknown }));
 const notices = vi.hoisted(() => [] as Array<{ symbol: string; select: (s: string) => void }>);
 const simNotice = (symbol: string, select: (s: string) => void) => (notices.push({ symbol, select }), null);
 vi.mock('../sim', async (importOriginal) => {
@@ -55,6 +64,7 @@ vi.mock('../sim', async (importOriginal) => {
   return {
     ...real,
     useSimReplayTarget: () => ({ sim: simDesk.sim, clock: simDesk.clock, target: { kind: 'ok' } }),
+    useHistoricalSnapshot: () => simDesk.snapshot,
   };
 });
 
@@ -67,6 +77,7 @@ afterEach(() => {
   stream.detail = null;
   simDesk.sim = false;
   simDesk.clock = null;
+  simDesk.snapshot = null;
   workspace.selectedSymbol = null;
 });
 
@@ -159,8 +170,53 @@ describe('SidePanel on a Sim replay (operator report, 2026-10-12)', () => {
     const detail = shown.at(-1)?.detail as typeof sune;
     expect(detail.snapshot.latest_trade).toBeNull();
     expect(detail.snapshot.daily_bar).toBeNull();
-    // Float is not a session price: it stays.
-    expect(detail.fundamentals).toEqual(sune.fundamentals);
+    // Today's float is not Sep 9's: left out, and the panel says so.
+    expect(detail.fundamentals.float_shares).toBeNull();
+    expect(shown.at(-1)?.replayNote).toMatch(/^Replay of Sep 9: float, short interest, market cap/);
+  });
+
+  it("shows the loaded replay's own quote at the playhead, not an empty one", () => {
+    workspace.selectedSymbol = 'GRML';
+    stream.detail = { ...sune, symbol: 'GRML', fundamentals: { float_shares: 3075412, sector: 'Basic Materials',
+      recent_split: '1:50 (2026-08-24)' } };
+    simDesk.sim = true;
+    simDesk.clock = { ...lnksLoaded, replay_symbol: 'GRML', session_date: '2026-07-15' };
+    simDesk.snapshot = {
+      active: true, symbol: 'GRML', last: 0.1875, volume: 27524, source: 'massive', as_of: '2026-07-15T11:20:26Z',
+      session_open: null, stats_scope: 'session', high: 0.19, low: 0.18, prev_close: 0.1801, covered: true,
+    };
+    render(<SidePanel simNotice={simNotice} />);
+
+    const detail = shown.at(-1)?.detail as unknown as {
+      snapshot: { latest_trade: { price: number }; prev_close: number };
+      fundamentals: { float_shares: number | null; sector: string | null; recent_split: string | null };
+    };
+    expect(detail.snapshot.latest_trade.price).toBe(0.1875);
+    expect(detail.snapshot.prev_close).toBe(0.1801);
+    expect(detail.fundamentals).toMatchObject({ float_shares: null, sector: 'Basic Materials', recent_split: null });
+    expect(shown.at(-1)?.replayNote).toBe(
+      "Replay of Jul 15: float, short interest, market cap, the 52-week range and broker flags are not shown -- "
+      + "Nova holds today's figures only, not that day's. GRML split 1:50 (2026-08-24), after this day.",
+    );
+  });
+
+  it("never hands today's Contenders rank to the strip off the live edge", () => {
+    const ranked = { symbol: 'GRML', composite_score: 19.2, sub_scores: {}, five_pillars: { pillars: [] } };
+    workspace.selectedSymbol = 'GRML';
+    stream.detail = { ...sune, symbol: 'GRML' };
+    const entries = [ranked] as unknown as Parameters<typeof SidePanel>[0]['watchlistEntries'];
+    simDesk.sim = true;
+    simDesk.clock = { ...lnksLoaded, replay_symbol: 'GRML' };
+    render(<SidePanel watchlistEntries={entries} simNotice={simNotice} />);
+    expect(shown.at(-1)?.watchlistEntry).toBeNull();
+    expect(shown.at(-1)?.watchlistRank).toBeNull();
+
+    cleanup();
+    simDesk.clock = { ...lnksLoaded, live_edge: true };
+    render(<SidePanel watchlistEntries={entries} simNotice={simNotice} />);
+    expect(shown.at(-1)?.watchlistEntry).toBe(ranked);
+    expect(shown.at(-1)?.watchlistRank).toBe(1);
+    expect(shown.at(-1)?.replayNote).toBeNull();
   });
 
   it('shows the live quote untouched off Sim, with no notice', () => {
@@ -170,5 +226,6 @@ describe('SidePanel on a Sim replay (operator report, 2026-10-12)', () => {
 
     expect(notices).toHaveLength(0);
     expect(shown.at(-1)?.detail).toBe(sune);
+    expect(shown.at(-1)?.replayNote).toBeNull();
   });
 });

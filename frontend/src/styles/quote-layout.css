@@ -161,6 +161,15 @@
 .cq-wl-count { font-weight: 400; color: var(--text-secondary); text-transform: none; letter-spacing: 0; }
 .cq-wl-source { font-size: 0.72rem; color: var(--text-secondary); margin: -0.15rem 0 0.3rem; }
 
+/* A Sim replay desk: what the quote panel leaves out of the replayed day, and why. */
+.cq-replay-note {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  margin: 0 0 0.4rem;
+}
+
 .cq-wl-pillars { list-style: none; margin: 0; padding: 0; font-size: 0.78rem; }
 .cq-wl-pillars li { display: flex; gap: 0.5rem; padding: 0.15rem 0; min-width: 0; }
 .cq-wl-pillars .cq-wl-mark { width: 0.8rem; flex: none; }

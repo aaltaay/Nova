@@ -1,4 +1,6 @@
 /** SIM session + historical replay tunables (mirror backend/constants_sim.py). */
+import { replayDayLabel } from '../utils/replayMoment';
+
 export const SIM_SESSION_OPEN_LABEL = '04:00';
 export const SIM_SESSION_CLOSE_LABEL = '20:00';
 export const SIM_SESSION_MINUTES = 16 * 60;
@@ -251,6 +253,15 @@ export const simRailOtherSymbolNote = (tab: string, replaySymbol: string): strin
   `${replaySymbol} is the loaded replay -- no ${tab} quote, Level 2 or Time & Sales.`;
 export const SIM_RAIL_FAILED_NOTE = 'Replay failed to load -- nothing to show.';
 export const SIM_RAIL_LOADING_NOTE = 'Loading replay...';
+
+/**
+ * The scanner quote panel off the live edge (operator report, 2026-10-12): Nova holds only today's
+ * company figures, so a replayed day shows none of them and says so -- `later` names a split after it.
+ */
+export const simReplayFactsNote = (sessionDate: string, later: string | null): string =>
+  `Replay of ${replayDayLabel(sessionDate)}: float, short interest, market cap, the 52-week range and broker `
+  + "flags are not shown -- Nova holds today's figures only, not that day's."
+  + (later ? ` ${later}, after this day.` : '');
 
 /** The thin lane under the scrubber band: where Nova itself recorded the band's symbol. */
 export const simRecordedLaneTitle = (symbol: string, ranges: string) => `Recorded by Nova: ${symbol} ${ranges} ET`;
