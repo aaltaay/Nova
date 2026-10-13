@@ -45,10 +45,18 @@ COMPLETED = RUNNING.replace(
     "\U0001f504 **Running** since", "✅ **Completed** ")
 
 
+def _green() -> list[dict]:
+    """The four required checks passed: these tests are about timing, not checks."""
+    from tools.release_gate import REQUIRED_CHECKS
+
+    return [{"id": i, "name": name, "status": "completed", "conclusion": "success"}
+            for i, name in enumerate(REQUIRED_CHECKS, start=1)]
+
+
 def _decide(**over):
     args = {
         "draft": False, "state": "OPEN", "mergeable_state": "clean",
-        "labels": [], "head_ref": "claude/x", "same_repo": True, "checks": [],
+        "labels": [], "head_ref": "claude/x", "same_repo": True, "checks": _green(),
     }
     args.update(over)
     return decide(**args)
@@ -213,7 +221,7 @@ def fresh():
 
 def wire(monkeypatch, payload):
     merged = []
-    monkeypatch.setattr(pr_delivery, "_fetch_pr", lambda n: (payload, []))
+    monkeypatch.setattr(pr_delivery, "_fetch_pr", lambda n: (payload, _green()))
     monkeypatch.setattr(pr_delivery, "_merge_pr", lambda pr: merged.append(pr) or 0)
     monkeypatch.setattr(pr_delivery, "_signal_conflict", lambda n: None)
     monkeypatch.setattr(pr_delivery, "_gh", lambda *a, **k: subprocess.CompletedProcess(

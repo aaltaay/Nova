@@ -1,13 +1,15 @@
 /**
  * The Market page's read (ADR 053): the board for the blocks' current switches, polled while the page shows and
- * the window is visible -- the backend refreshes its reads only while someone asks, so a hidden page costs
- * nothing. A switch change asks at once and keeps the last answer on screen until the new one lands. A failed read
- * keeps the last good answer and says so in `error`. The sample desk reads nothing live.
+ * the window is visible. The backend keeps the board warm whether or not anyone looks (ADR 053 amendment 2026-10-13
+ * evening), and this hook keeps its last answers for the life of the window, so the page opens again on the board
+ * it last showed -- at once, not after "Reading the market" -- and the next poll replaces it. A switch change shows
+ * that switch's last answer when there is one, else keeps the current one on screen until the new one lands. A
+ * failed read keeps the last good answer and says so in `error`. The sample desk reads nothing live.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
-import { MARKET_BOARD_PATH, MARKET_LOADING_POLL_MS, MARKET_POLL_MS, MARKET_SCHEMA_VERSION } from './constants';
+import { MARKET_BOARD_PATH, MARKET_KEPT_BOARDS, MARKET_LOADING_POLL_MS, MARKET_POLL_MS, MARKET_SCHEMA_VERSION } from './constants';
 import { sampleMarketBoard } from './sampleMarket';
 import type { BlockPeriods, MarketBoard } from './types';
 
@@ -39,16 +41,46 @@ export function boardUrl(p: BlockPeriods): string {
   return `${MARKET_BOARD_PATH}?${q.toString()}`;
 }
 
+/** The window's last answers, per board URL (newest last), and the newest of any. Memory only, never storage. */
+const kept = { byUrl: new Map<string, MarketBoard>(), newest: null as MarketBoard | null };
+
+function keep(url: string, board: MarketBoard): void {
+  kept.byUrl.delete(url);
+  kept.byUrl.set(url, board);
+  while (kept.byUrl.size > MARKET_KEPT_BOARDS) {
+    const oldest = kept.byUrl.keys().next().value;
+    if (oldest === undefined) break;
+    kept.byUrl.delete(oldest);
+  }
+  kept.newest = board;
+}
+
+/** The answer the page last had for `url`, else its newest answer for any switches; `null` before the first. */
+export function keptBoard(url: string | null): MarketBoard | null {
+  if (!url) return null;
+  return kept.byUrl.get(url) ?? kept.newest;
+}
+
+export function resetKeptBoardsForTests(): void {
+  kept.byUrl.clear();
+  kept.newest = null;
+}
+
 export function useMarketBoard(periods: BlockPeriods): MarketRead {
   const sample = useSampleRoute();
   const url = sample ? null : boardUrl(periods);
-  const [state, setState] = useState<MarketRead>({ data: null, error: null, unavailable: false });
-  const lastRef = useRef<MarketBoard | null>(null);
+  const [state, setState] = useState<MarketRead>(() => ({ data: keptBoard(url), error: null, unavailable: false }));
+  const lastRef = useRef<MarketBoard | null>(state.data);
 
   useEffect(() => {
     if (!url) return undefined;
     let cancelled = false;
     let timer: number | undefined;
+    const same = kept.byUrl.get(url);
+    if (same && same !== lastRef.current) {
+      lastRef.current = same;
+      setState((s) => ({ ...s, data: same }));
+    }
     const schedule = (ms: number) => {
       if (cancelled) return;
       window.clearTimeout(timer);
@@ -74,6 +106,7 @@ export function useMarketBoard(periods: BlockPeriods): MarketRead {
         if (cancelled) return;
         if (!body) throw new Error('the answer is not one this desk can read');
         lastRef.current = body;
+        keep(url as string, body);
         setState({ data: body, error: null, unavailable: false });
       } catch (e) {
         if (!cancelled) {

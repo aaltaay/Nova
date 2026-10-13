@@ -6,8 +6,9 @@ only where the IB in hand still holds it, and asked for again by
 
 A line IBKR refused (309) is let go without a cancel (``refuse_line``): IBKR never
 opened it, and its viewers are told why and ask again on their own backoff. Every
-cancel keeps its request id first (``ibkr/stray_lines.py``), so a grant IBKR sends
-after it is cancelled again instead of holding one of the login's 3 lines.
+other line is let go through ``ibkr/depth/release.py``, which cancels a request only
+once IBKR has answered it: a cancel that beats IBKR's grant leaves the line held
+inside IB Gateway until it restarts (tested on the live Gateway, 2026-10-13).
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from constants import (
 )
 from ibkr import client as _client
 from ibkr import line_session, stray_lines
-from ibkr.depth import handlers, state
+from ibkr.depth import handlers, release, state
 from metrics.op_metrics import timed_sync
 
 logger = logging.getLogger(__name__)
@@ -140,12 +141,15 @@ async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
 
         try:
             state.reset_book(symbol)  # IBKR sends this request's book from row 0 (#540)
+            # A request let go but held for IBKR's answer carries on as this line (ib_async reuses it).
+            release.take_back(ib, contract)
             with timed_sync("ibkr.depth.subscribe"):
                 ticker = ib.reqMktDepth(
                     contract,
                     numRows=IBKR_DEPTH_NUM_ROWS,
                     isSmartDepth=IBKR_DEPTH_SMART,
                 )
+            state.note_line_ib(symbol, ib)
             handlers.attach_update_handler(
                 symbol, ticker, lambda t: handlers.on_update_book(t, symbol),
             )
@@ -236,24 +240,22 @@ def subscribe(symbol: str) -> dict:
 
 
 def unsubscribe(symbol: str, *, refused: bool = False) -> None:
-    """Let go of the symbol's line: cancelled where IB holds it; ``refused`` lines are never cancelled."""
-    ib = _client.get_ib()
-    held = _held_by(ib, symbol)
+    """Let go of the symbol's line through ``release``: cancelled once IBKR has answered; ``refused`` never.
+
+    The IB is the one the request was made on: while the session is not READY ``get_ib`` is None, and a line
+    let go then must be held for READY, never dropped from the books with its request still open at IBKR.
+    """
+    ib = state.pop_line_ib(symbol) or _client.get_ib()
+    fate = _fate(ib, symbol) if state.is_stale(symbol) else None
     contract = state.pop_contract(symbol)
     shared = state.is_shared_l1(symbol)
     handlers.detach_update_handler(symbol)
     state.clear_symbol(symbol)
-    if refused and ib and contract is not None:
-        _forget_request(ib, contract)
-    elif held and ib and contract is not None:
-        stray_lines.note_depth_cancel(ib, contract, symbol, IBKR_DEPTH_SMART)
-        try:
-            ib.cancelMktDepth(contract, isSmartDepth=IBKR_DEPTH_SMART)
-        except Exception as exc:
-            logger.debug(
-                "IBKR: cancelMktDepth on unsubscribe for %s ignored: %s",
-                symbol, exc,
-            )
+    if ib is not None and contract is not None:
+        if refused:
+            release.forget(ib, contract)
+        elif fate != line_session.GONE:
+            release.release(ib, contract, symbol, IBKR_DEPTH_SMART, lost=fate == line_session.LOST)
         # Depth-only lines use reqMktDepth. cancelMktData here steals the
         # shared ticks L1 (or logs "No subscription") and drops halt observe
         # for the focused symbol (#237). L1 fallback is ticks-owned.
@@ -263,30 +265,30 @@ def unsubscribe(symbol: str, *, refused: bool = False) -> None:
         _ticks.drop_owner(symbol, _ticks.OWNER_DEPTH)
 
 
-def _forget_request(ib, contract) -> None:
-    """Drop a refused request from ib_async's registry without a cancel, so the next ask is a real one.
-
-    ib_async keeps a refused request registered, and its ``reqMktDepth`` hands it back
-    instead of asking IBKR again.
-    """
-    registry = getattr(getattr(ib, "wrapper", None), "subscriptions", None)
-    try:
-        sub = registry.find_market_data(contract.conId, "mktDepth") if registry is not None else None
-        if sub is not None:
-            sub.close(send_cancel=False)
-    except Exception:
-        logger.warning("IBKR depth: could not drop the refused request for conId %s",
-                       getattr(contract, "conId", None), exc_info=True)
-
-
 def refusal_message(symbol: str) -> str:
-    """What the ladder shows for a 309: whose lines are in use, and how to free one."""
+    """What the ladder shows for a 309: whose lines are in use, and how to free one.
+
+    Requests Nova let go but holds for IBKR's answer count as Nova's: they free the moment IBKR answers.
+    Fewer than the cap between them means lines held outside Nova -- logged as an ERROR, with the evidence.
+    """
     held = [s for s in state.subscribed_symbols() if s != symbol and state.is_live(s)]
+    waiting = [h for h in release.held_lines() if h["symbol"] != symbol.upper()]
     cap = IBKR_MAX_DEPTH_SYMBOLS
     if len(held) >= cap:
         return (f"IBKR refused this Level 2: all {cap} of its Level 2 lines are in use "
                 f"({', '.join(held)}). Close one to free a line. Asking again shortly.")
+    if len(held) + len(waiting) >= cap:
+        names = ", ".join(f"{h['symbol']} ({h['age_sec']:.0f} s)" for h in waiting)
+        mine = f"{', '.join(held)} and " if held else ""
+        return (f"IBKR refused this Level 2: all {cap} of its Level 2 lines are in use -- {mine}"
+                f"{names}, which Nova let go and cancels the moment IBKR answers its request. "
+                "Asking again shortly.")
     holds = f"only {len(held)} ({', '.join(held)})" if held else "none of them"
+    if waiting:
+        holds += f" and waits on IBKR's answer for {', '.join(h['symbol'] for h in waiting)}"
+    logger.error("IBKR depth: IBKR refused %s's Level 2 with all %s lines in use, but Nova holds %s -- %s "
+                 "line(s) are held outside Nova (inside IB Gateway, or by another session of this login)",
+                 symbol, cap, holds, cap - len(held) - len(waiting))
     return (f"IBKR refused this Level 2 (IB error 309): all {cap} of its Level 2 lines are in use, "
             f"and Nova holds {holds}. The others are held inside IB Gateway; if this stays, "
             "restarting IB Gateway frees them. Asking again shortly.")
@@ -313,11 +315,6 @@ def refuse_line(symbol: str, req_id: int) -> bool:
 def _fate(ib, symbol: str) -> str:
     return line_session.fate(ib, state._contracts.get(symbol), IBKR_DEPTH_REGISTRY_KIND,
                              state._tickers.get(symbol))
-
-
-def _held_by(ib, symbol: str) -> bool:
-    """Whether ``ib`` still holds the line: always this session's; an ended one's only on its socket."""
-    return not state.is_stale(symbol) or _fate(ib, symbol) != line_session.GONE
 
 
 def is_watched(symbol: str) -> bool:

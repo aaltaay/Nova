@@ -79,6 +79,8 @@ class _IB:
         sub = self.wrapper.subscriptions.subs.get(key)
         if sub is None:  # a registered line is handed back and nothing is sent
             sub = SimpleNamespace(reqId=self.next_req, ticker=_Ticker())
+            # ib_async's request: close(send_cancel=False) drops it with nothing sent to IBKR.
+            sub.close = lambda send_cancel=True, k=key, c=contract: self._close(k, c, send_cancel)
             self.next_req += 1
             self.wrapper.subscriptions.subs[key] = sub
             self.requests.append((kind, contract.symbol))
@@ -87,6 +89,11 @@ class _IB:
     def _cancel(self, contract, kind):
         self.cancels.append((kind, contract.symbol))
         self.wrapper.subscriptions.subs.pop((contract.conId, kind), None)
+
+    def _close(self, key, contract, send_cancel):
+        if send_cancel:
+            self.cancels.append((key[1], contract.symbol))
+        self.wrapper.subscriptions.subs.pop(key, None)
 
     def reqTickByTickData(self, contract, tick_type, **_kwargs):
         return self._request(contract, tick_type)
@@ -272,7 +279,11 @@ def test_a_restore_that_kept_its_data_keeps_the_lines(sess):
 
 
 def test_a_restore_that_lost_its_data_cancels_on_this_session_and_asks_again(sess, monkeypatch):
-    """1101: IBKR forgot the lines but ib_async still holds them, so a plain ask would send nothing."""
+    """1101: IBKR forgot the lines but ib_async still holds them, so a plain ask would send nothing.
+
+    The tape line is cancelled. The Level 2 request IBKR never answered is dropped from ib_async with no
+    cancel (``ibkr/depth/release.py``: a cancel before IBKR's answer can hold the line inside IB Gateway).
+    """
     monkeypatch.setattr(tape, "IBKR_TAPE_RESUBSCRIBE_GUARD_SEC", 0.0)
 
     async def run():
@@ -280,7 +291,7 @@ def test_a_restore_that_lost_its_data_cancels_on_this_session_and_asks_again(ses
         await _depth_viewer("WHLR")
         sess.restore(IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_LOST)
         await _settle()
-        assert sess.ib.cancels == [(ALL_LAST, "IPDN"), (DEPTH, "WHLR")]
+        assert sess.ib.cancels == [(ALL_LAST, "IPDN")]
         assert sess.ib.requests == [(ALL_LAST, "IPDN"), (DEPTH, "WHLR")] * 2
         assert tape.is_subscribed("IPDN") is True and depth.is_live("WHLR") is True
 

@@ -83,8 +83,14 @@ def test_fetch_one_429_does_not_cache_a_miss(monkeypatch):
 
 
 def test_warm_noop_without_api_key(monkeypatch):
+    # ``requests.get`` is patched for the whole process, so count only the logo endpoint: other tests leave
+    # background readers running (the Market page's lanes, `market_board/refresh.py`), and their own
+    # requests are not this cache's (PR #924 CI, 2026-10-13: `holdings:XLRE` reads filled the list).
     calls = []
-    monkeypatch.setattr(el.requests, "get", lambda *a, **k: calls.append(1) or _FakeResponse(200, {}))
+    monkeypatch.setattr(
+        el.requests, "get",
+        lambda url, *a, **k: (calls.append(url) if url == el.FINNHUB_PROFILE2_URL else None) or _FakeResponse(200, {}),
+    )
     el.warm(["AAPL"])
     time.sleep(0.1)
     assert calls == []

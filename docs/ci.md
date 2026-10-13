@@ -1,9 +1,11 @@
-# Advisory, change-aware CI
+# Change-aware CI: green before a merge and before a Release
 
-Owner decision, 2026-09-20: **no verification check is required for merge**.
-Ready PRs merge while checks are pending or running, or after failures. Red checks
-remain visible as feedback. Drafts, `do-not-merge`, forks and real conflicts retain
-their holds. Master still blocks force-push and deletion, including for admins.
+Owner decisions, 2026-10-13: **"Things should only be shipped with green builds"**
+and **"Merge only green PRs too"** (they supersede the 2026-09-20 advisory merge).
+Actions merges a ready PR only when Backend tests, Frontend build, Frontend E2E and Agent contract concluded `success` on its head; a
+Release waits for the same four on the commit it ships (see "Releases wait for a
+green build" below). Drafts, `do-not-merge`, forks and real conflicts retain their
+holds. Master still blocks force-push and deletion, including for admins.
 
 | Changed files | Backend suite | Frontend lint/unit/build | Chromium E2E | Windows pack |
 |---|---|---|---|---|
@@ -45,13 +47,62 @@ changes. Both also run daily and on manual dispatch. Branch housekeeping and
 protection audits run in Repository maintenance instead of affecting PR results.
 Superseded PR runs are cancelled; master runs are allowed to finish.
 
-`Auto-merge` has no dependency on verification jobs. `pr_delivery.py` never polls
-check status, and `master_branch_protection.py` requires zero status-check contexts.
-To reverse this policy, update those two policy tools, the workflow dependency,
-the constitution/rules and the live branch setting together.
+## Merges wait for a green PR
+
+`Auto-merge` `needs` the four jobs and runs once they finish (never on a cancelled,
+superseded run). It checks out master's `tools/pr_delivery.py`, never the PR's own,
+and `decide()` reads the head's check runs (`tools/pr_checks.py`): each of Backend tests, Frontend build, Frontend E2E and Agent contract
+must have concluded `success` at its newest run. The sweeps (CI completion through
+`pr-delivery.yml`, hourly at :12, manual dispatch) call the same `decide()`.
+
+| The four on the head | Decision |
+|---|---|
+| all `success` | merge (after the five-minute floor and any running review) |
+| one not reported yet, queued or running | wait; Auto-merge or a sweep decides again |
+| one failed, cancelled, timed out or skipped | hold: a comment on the PR names it, once per head, and the job summary says it |
+
+A check the diff does not need is not skipped at GitHub's level: its job runs, says
+"Unaffected" and concludes `success`, so a docs-only PR merges. Re-running a failed
+check re-runs `Auto-merge` (it depends on the check), so a green re-run merges with
+no one acting; a push starts a new run. `master_branch_protection.py` still requires
+zero status-check contexts: the merge job is the gate, and status-only master pushes
+stay possible. Gitleaks and the security scans stay warning-only.
 
 Packaging attempts the Windows installer for relevant changes without delaying
-merge, and verifies its `latest.yml` update feed. Every master commit is tagged
-`vNNN`, and an application-affecting one is published as that GitHub Release
-(operator decision 2026-09-23, superseding #347's tag-only publishing). Broader
-CI audit follow-ups remain in #342.
+merge (Desktop pack on a PR is not one of the four), and verifies its `latest.yml`
+update feed. Every master commit is tagged `vNNN`, and an application-affecting one
+is published as that GitHub Release (operator decision 2026-09-23, superseding
+#347's tag-only publishing) once its build is green. A commit PR delivery merged is
+dispatched to Desktop pack, which selects every check: it packs and, when green,
+publishes even a docs-only change; only a docs-only human push skips the pack.
+Broader CI audit follow-ups remain in #342.
+
+## Releases wait for a green build
+
+A master run of `Desktop pack` (a human push, or PR delivery's dispatch after an
+Actions merge) packs the installer and, beside it, calls this CI workflow on the
+same commit as its `verify` job, `Release checks`, with `full: true`: every check
+runs whatever the diff, because a frontend-only commit still ships the backend its
+parent left. An Actions merge starts no CI run on master (#346), so this is the
+only CI the shipped commit itself gets.
+
+`Publish vNNN installer` then runs `tools/release_gate.py` before anything else. It
+reads the run's jobs at their latest attempt and publishes only when:
+
+| Must be green | Why |
+|---|---|
+| Desktop pack | the installer and its `latest.yml` exist and agree; the Windows maintenance tests pass |
+| Release checks / Backend tests | Ruff and the complete backend suite, order and risk safeguards included |
+| Release checks / Frontend build | lint, unit tests and the build |
+| Release checks / Frontend E2E | Chromium Playwright |
+| Release checks / Agent contract | tool tests, doc invariants, skills audit, the maintainer gate |
+
+Failed, cancelled, timed out, skipped, still running or missing all hold the
+Release: the job fails with "vNNN not published: <check> failed" in its summary and
+as an error annotation, and the desk is never offered that build. Gitleaks and the
+security scans stay warning-only and never hold one. **Re-run failed jobs** on that
+run (or `gh workflow run desktop-pack.yml --ref vNNN`); a green re-run publishes it,
+and it becomes latest only if no higher `vNNN` Release exists. Docs/site-only
+pushes pack nothing, so they get the tag and no Release, as before; a docs-only PR
+merged by Actions is dispatched, packs and is released once green. The desk's update
+code is unchanged: it simply never sees a red build.

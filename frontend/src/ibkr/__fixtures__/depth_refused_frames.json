@@ -1,0 +1,18 @@
+{
+  "captured_from": "backend/tests/test_depth_wire_fixture.py",
+  "frames": [
+    {
+      "type": "subscribed",
+      "symbol": "VLO",
+      "instance": "backend-instance"
+    },
+    {
+      "type": "error",
+      "symbol": "VLO",
+      "message": "IBKR refused this Level 2 (IB error 309): all 3 of its Level 2 lines are in use, and Nova holds none of them. The others are held inside IB Gateway; if this stays, restarting IB Gateway frees them. Asking again shortly."
+    },
+    {
+      "closed": true
+    }
+  ]
+}

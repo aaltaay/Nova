@@ -38,7 +38,7 @@ Applied in the same change, with the text moved verbatim and nothing deleted:
 ## Consequences
 
 - A new chat on this tip loads 139,179 bytes of always-on context: 18% under the morning's 170,606, 81% under the 743,348 the old `AGENTS.md` made it. The number is in the session brief, so a climb is seen the day it happens.
-- The gate fails before the merge button does. Nova merges ready PRs while checks are red (owner policy 2026-09-20), so `always_on_budget` is a visible red check, not a hold; the fix is to move text, and the ratchet makes the next move cheaper.
+- The gate fails before the merge button does. Nova merges ready PRs while checks are red (owner policy 2026-09-20), so `always_on_budget` is a visible red check, not a hold; the fix is to move text, and the ratchet makes the next move cheaper. *Amended 2026-10-13: merges are now green only, so a red `always_on_budget` (it fails Agent contract) holds the PR until the text moves.*
 - A rule behind `globs` is read by the agents who edit its files and not by the others. That is the point, and it is also the cost: an agent that changes a route from a docs-only session will not have the catalog in its head. `schema-docs.mdc` and the headlines both say to read it first.
 - `always_on_total_at` reads the base commit through `git show` per file; `--base` adds about 25 subprocess calls to a run.
 

@@ -19,7 +19,7 @@ import {
 import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
 import { writeSkipPlaceConfirm } from './placeConfirmPrefs';
 import { placeActionLabel, type TicketSide } from './ticketSide';
-import { TICKET_VIEW_LOCKED_LABEL } from '../constantGroups/market_view';
+import { viewLockLabel } from '../market_view';
 
 interface Props {
   isPaper: boolean;
@@ -99,7 +99,7 @@ export function ManualOrderFooter({
     : needsPinUnlock
       ? TICKER_TRADE_UNLOCK_LABEL
       : viewLockWhy && !submitting
-        ? TICKET_VIEW_LOCKED_LABEL
+        ? viewLockLabel(viewLockWhy)
         : placeBlockedBySpend
         ? spendDisarmed
           ? TICKER_TRADE_DISARMED_LABEL

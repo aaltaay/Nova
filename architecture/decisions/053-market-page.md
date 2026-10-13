@@ -126,3 +126,60 @@ Later the same day the line held for a moment became shared (ADR 054): `ibkr/bri
 `IBKR_BRIEF_LINE_*` and `IBKR_BRIEF_MIN_FREE_LINES` (were `MARKET_STREAM_*` and `MARKET_MIN_FREE_LINES`, same
 values). An ETF or a stock is now priced by its last trade, never by a quote that arrived first, and its line asks
 the desk's generic ticks.
+
+## Amendment 2026-10-13 (evening): the page is ready before it opens, and no block is left empty
+
+The operator at 17:38 ET, with the page on screen: "i see lots of issues here.. empty widgets, the symbols are not
+clickable.. and the runners per session is so tiny no hover, no maximizing.. i just feel like its half ass done",
+then "this need to load while all other items in this app need to run, dedicated worker/process ... this need to be
+very efficient, and when you close, it's pretty slow to load ... Shower it with tests."
+
+Measured on the desk that evening (the perf record, ADR 026, and `GET /api/market/board`):
+
+- **The slow open.** `market_board.first.closes` was 509-632 s: the 7 D / 30 D moves, the top-stock lines and the
+  period leaders reached the page 8½ to 10½ minutes after it opened. About 105 daily-close reads queue one at a time,
+  2 s apart, on the `history` thread, run only while the page asks, and start over in every new backend process.
+  The desk app's backend restarts when the app is closed and after every update.
+- **The empty futures.** From 17:00 to 18:00 ET CME pauses trading every day, so a brief line gets no trade. The bar
+  fallback dropped any bar older than `MARKET_BARS_FRESH_SEC`, so ES, NQ, RTY, YM, CL, GC and the small-caps tile
+  read "--" while their lines were drawn.
+- **The squashed lines.** Each tile's line was drawn on a 04:00-16:00 axis, so every point after 16:00 piled up
+  at the right edge. Bitcoin's line also started at 16:00 ET, because IBKR's "1 D" of crypto bars starts there.
+- **Breadth after the close.** The card lost up / down volume and TRIN. The day's samples keep only the counts
+  and TICK, and after the close the last sample stood in for the day.
+- **Empty top-stock cards.** A sector with no stock in IBKR's large-cap gainers scan had no rows (Utilities and
+  Health care on 10-13), and only 6 of the 11 sectors had a card.
+- **A biggest-names read that never finished.** It asked for about 75 stocks in one read, which timed out
+  ("pool_quotes: TimeoutError") and held the quote thread for most of a minute.
+
+So:
+
+1. **The refreshers keep the board warm.** They run whenever IBKR is connected, not only while the page asks. While
+   the page asked within `MARKET_WANTED_SEC` each read keeps its page cadence; otherwise it runs at a slower
+   background cadence (`MARKET_IDLE_*_TTL_SEC`). The once-a-session reads (daily closes, prior closes, holdings,
+   industries) run in the background as before. The line budget does not change: no line opens with fewer than
+   `IBKR_BRIEF_MIN_FREE_LINES` spare, and bars stay at background priority on the paced service.
+   `NOVA_MARKET_BOARD_WARM=0` brings back reads only while the page is open. This replaces decision 4's "Its reads
+   run only while the page asked within `MARKET_WANTED_SEC`".
+2. **IBKR's answers are kept across restarts.** The quotes, ETF and stock quotes, movers, tile lines, prior closes
+   and daily closes are written to `board-store.json` at most once every `MARKET_KEEP_SAVE_SEC`, and read back when
+   the process starts. Each read's own age rules decide what the page shows and what is read again.
+3. **The biggest names are read in chunks** of `MARKET_POOL_CHUNK` stocks, always, not only on the Biggest names
+   tab. Each chunk is a short read, so the tile quotes get their turn in between.
+4. **A tile with no trade shows its last 5-minute bar's close at any age, with its time.** It is flagged
+   `stale: true` once the bar is older than `MARKET_BARS_FRESH_SEC`, and the page dims it with "as of HH:MM". A
+   tile's line runs from 04:00 ET to the later of the close and its last point. Crypto lines ask
+   `MARKET_LINE_DURATION_CRYPTO`.
+5. **Breadth after the close** shows the day's last full sample (volume and TRIN included) from
+   `breadth-last.json`.
+6. **Every sector has a top-stocks card.** All 11 cards show, and each ranks the sector's scan movers together with
+   its biggest names by the period's move. The 1 D leader is the best of the same set. A sector reads "none" only
+   when none of those stocks has a price.
+7. **The page:** the browser keeps the page's last answer while the page is closed and shows it at once when the
+   page opens again. Every stock or ETF symbol opens the Trader. The runners-per-session chart runs the card's full
+   width, says each session's runners by theme on hover, and opens a large view.
+
+Rejected: a separate process for the board. It would need its own IBKR client id, would read the same 100 lines
+the desk shares, and its bars would queue behind the same pacing. The threads already run off the IB loop and the
+socket loop; what made the page slow was when the reads ran and how they were queued, not which process ran them.
+Also rejected: holding lines while the page is closed, for the same line budget reason as before.

@@ -36,5 +36,5 @@ def get_board(sectors: str = "1D", industries: str = "1D", climate: str = "1D", 
     now = time.time()
     on = refresh.enabled()
     if on:
-        refresh.want(now, top_kind=top)
+        refresh.want(now)
     return board.compose(store(), now, enabled=on, replay_desk=_replay_desk(), params=params)

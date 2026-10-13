@@ -7,18 +7,28 @@
 #   3. Prove Nova-Setup-vNNN.exe, its .blockmap and latest.yml exist and agree on
 #      the version, then upload the three as one workflow artifact.
 #
-# Every commit that lands on master is released (operator decision 2026-09-23,
-# superseding #347's operator-tag-only publishing). A master run -- a human
-# push, or PR delivery's dispatch after an Actions merge (#346) -- does two things:
+# Every green commit that lands on master is released (operator decisions
+# 2026-09-23, superseding #347's operator-tag-only publishing, and 2026-10-13:
+# "Things should only be shipped with green builds"). A master run -- a human
+# push, or PR delivery's dispatch after an Actions merge (#346) -- does three things:
 #   - `tag-commit` tags the commit vNNN through the API, for every commit,
-#     docs/site-only included (those get the tag and no Release: a Release
-#     without latest.yml would break the in-app update feed);
+#     docs/site-only included. A docs/site-only human push gets the tag and no
+#     Release (a Release without latest.yml would break the in-app update feed);
+#     PR delivery's dispatch selects every check, so a docs-only merge packs and,
+#     when green, is released like any other;
+#   - `verify` (Release checks) calls the CI workflow on this exact commit with
+#     every check selected, beside the pack. An Actions merge starts no CI run
+#     on master, so this is the only verification the shipped commit gets;
 #   - `publish-release` creates the vNNN GitHub Release with
 #     Nova-Setup-vNNN.exe + .blockmap + latest.yml -- the feed electron-updater
-#     reads -- whenever the installer was packed. Its notes are the commit's own
-#     (tools/release_notes.py: the PR title and the first paragraph of its
-#     `## What`), which the installed desk shows in its update notice and in
-#     What's new after the update.
+#     reads -- only when the installer packed AND Backend tests, Frontend build,
+#     Frontend E2E and Agent contract all passed in `verify`
+#     (tools/release_gate.py). Otherwise that job fails with
+#     "vNNN not published: <check> failed" in its summary, and the desk is never
+#     offered the build; a green re-run of the failed jobs publishes it. Its
+#     notes are the commit's own (tools/release_notes.py: the PR title and the
+#     first paragraph of its `## What`), which the installed desk shows in its
+#     update notice and in What's new after the update.
 # A Release is marked latest only when no higher vNNN Release exists, so an
 # older run that finishes late never rolls the update feed back.
 # The tag is pushed with GITHUB_TOKEN, which by design starts no second run.
@@ -196,6 +206,31 @@ jobs:
           python -m pip install pytest
           python -m pytest tools/test_windows_maintenance.py tools/test_repo_hygiene_finish.py -q
 
+  verify:
+    # The build a Release waits for (operator decision 2026-10-13): the CI
+    # workflow itself, every check selected whatever the diff, on the exact
+    # commit this run packed -- a frontend-only commit still ships the backend
+    # its parent left. Only on a run that can publish; PRs run CI on their own.
+    name: Release checks
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.desktop == 'true' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master')
+    uses: ./.github/workflows/deploy.yml
+    with:
+      full: true
+    # A called workflow can only narrow the caller's token, and GitHub checks
+    # every nested job's request when the run starts -- CI's Auto-merge
+    # included, which runs only on pull_request and so never here. Every other
+    # CI job reads (deploy.yml's own `permissions: contents: read`).
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      checks: read
+      actions: write
+
   tag-commit:
     name: Tag vNNN on master
     timeout-minutes: 10
@@ -240,21 +275,42 @@ jobs:
     name: Publish vNNN installer
     timeout-minutes: 10
     # A packed master commit (tagged by tag-commit above), or a pushed release
-    # tag. `workflow_dispatch` on a tag ref re-runs a publish.
+    # tag. `workflow_dispatch` on a tag ref re-runs a publish. It runs after a
+    # failed pack or check too -- never after a cancel -- so that its gate can
+    # say which check held the Release.
     if: >-
-      always() && needs.desktop-pack.result == 'success' && needs.changes.outputs.desktop == 'true' &&
+      !cancelled() && needs.changes.outputs.desktop == 'true' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/master' && needs.tag-commit.result == 'success'))
-    needs: [changes, desktop-pack, tag-commit]
+    needs: [changes, desktop-pack, tag-commit, verify]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Reads this run's jobs: the gate names the check that held the Release.
+      actions: read
     steps:
       - name: Check out the released commit (its message is the release notes)
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
+
+      # Green builds only (operator decision 2026-10-13): the installer packed
+      # and every required check passed on this commit, at its latest attempt,
+      # or nothing below runs and the desk's update feed never sees this build.
+      - name: Release only a green build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || needs.tag-commit.outputs.tag }}
+          PACK_RESULT: ${{ needs.desktop-pack.result }}
+        run: |
+          set -uo pipefail
+          JOBS="$RUNNER_TEMP/jobs.json"
+          # A listing that cannot be read leaves no file, and the gate fails closed.
+          gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?filter=latest&per_page=100" > "$JOBS" || rm -f "$JOBS"
+          python3 tools/release_gate.py --tag "$TAG" --pack "$PACK_RESULT" --jobs-file "$JOBS"
 
       - name: Download the installer and update feed
         uses: actions/download-artifact@v4

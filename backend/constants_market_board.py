@@ -9,6 +9,7 @@ from __future__ import annotations
 from types import MappingProxyType
 
 MARKET_ENV = "NOVA_MARKET_BOARD"                 # "0" turns every refresher off
+MARKET_WARM_ENV = "NOVA_MARKET_BOARD_WARM"       # "0": reads only while the page is open (no background cadence)
 MARKET_SCHEMA_VERSION = 1
 MARKET_PERIODS = ("1D", "7D", "30D")
 MARKET_PERIOD_SESSIONS = MappingProxyType({"1D": 1, "7D": 5, "30D": 21})
@@ -35,6 +36,22 @@ MARKET_INDUSTRY_GAP_SEC = 0.35                   # between two IBKR contract-det
 MARKET_INDUSTRY_MAX_AGE_DAYS = 90                # a cached industry older than this is asked again
 MARKET_INDUSTRY_BATCH = 40                       # industries asked per refresher turn
 
+# -- warm: while nobody looks, every read keeps a slower cadence (ADR 053 amendment 2026-10-13 evening) --------------
+# The page then opens on a board at most this old instead of waiting minutes for its first answers.
+MARKET_IDLE_QUOTES_TTL_SEC = 60.0                # futures / indexes / crypto
+MARKET_IDLE_ETF_TTL_SEC = 180.0                  # sector and industry ETFs
+MARKET_IDLE_MOVERS_TTL_SEC = 300.0               # the large-cap gainers scan
+MARKET_IDLE_POOL_TTL_SEC = 300.0                 # the biggest names
+MARKET_IDLE_LINES_TTL_SEC = 600.0                # the tiles' 5-minute lines (300 s when no line is spare)
+MARKET_IDLE_BARS_TTL_SEC = 600.0                 # ETFs' / movers' daily bars when no line is spare
+MARKET_IDLE_CLIMATE_TTL_SEC = 300.0              # today's climate from the leaderboard store
+MARKET_IDLE_WAIT_SEC = 5.0                       # a refresher's sleep when nothing was due and nobody looks
+MARKET_POOL_CHUNK = 10                           # biggest names per quote read, so tile quotes run in between
+# IBKR's answers kept across restarts (market_board/keep.py, board-store.json).
+MARKET_KEEP_FILE = "board-store.json"
+MARKET_KEEP_SAVE_SEC = 60.0                      # written at most this often, and only when an answer changed
+MARKET_KEEP_MAX_AGE_SEC = 4 * 86400.0            # an entry older than this is not read back (a long weekend)
+
 # -- IBKR budget: the page holds a line only for a moment (ADR 053 amendment 2026-10-13) -----------------------------
 # Its quotes are brief lines (ibkr/brief_lines.py, ADR 054): IBKR_BRIEF_LINE_BATCH open at once, none opened with
 # fewer than IBKR_BRIEF_MIN_FREE_LINES spare (constants_ibkr.py).
@@ -48,6 +65,7 @@ MARKET_IBKR_TIMEOUT_SEC = 12.0                   # one qualify / contract-detail
 MARKET_HISTORY_TIMEOUT_SEC = 25.0                # one paced historical request
 MARKET_LINE_BAR = "5 mins"                       # the tiles' intraday line
 MARKET_LINE_DURATION = "1 D"
+MARKET_LINE_DURATION_CRYPTO = "2 D"              # IBKR's "1 D" of crypto bars starts at 16:00 ET (2026-10-13)
 MARKET_LINE_START_MIN_ET = 4 * 60                # the line starts at 04:00 ET
 MARKET_CLOSES_DURATION = "45 D"                  # daily closes for the 7 D / 30 D moves (21 sessions + margin)
 
@@ -105,7 +123,7 @@ MARKET_HOLDINGS_MAX_BYTES = 4_000_000
 MARKET_HOLDINGS_MAX_AGE_SEC = 5 * 86400.0
 MARKET_BIGGEST_PER_SECTOR = 5                    # the "Biggest names" rows and the 7 D / 30 D leader pool
 MARKET_LEADER_POOL = 5
-MARKET_TOP_CARDS = 6
+MARKET_TOP_CARDS = 11                            # every sector (operator, 2026-10-13: no empty widgets)
 MARKET_TOP_ROWS = 5
 # IBKR's large-cap gainers scan (marketCapAbove is in millions of USD, IB wire units).
 MARKET_MOVERS_SCAN = MappingProxyType({

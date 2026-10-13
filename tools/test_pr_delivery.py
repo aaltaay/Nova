@@ -18,9 +18,9 @@ from tools.pr_delivery import (
     ACTION_BLOCK,
     ACTION_MERGE,
     ACTION_SKIP,
+    ACTION_WAIT,
     can_delete_closed_head,
     decide,
-    normalize_check,
 )
 from tools.pr_delivery_text import (
     CONFLICT_COMMENT_MARKER,
@@ -28,6 +28,12 @@ from tools.pr_delivery_text import (
     should_post_conflict_comment,
     squash_merge_fields,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_job_summary(monkeypatch):
+    """Merge decisions write the job summary; a test run inside CI must not."""
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
 
 
 def _ok_checks() -> list[dict]:
@@ -138,7 +144,7 @@ def test_conflict_comment_dedupes():
     )
 
 
-def test_missing_checks_allow_merge():
+def test_a_missing_check_waits_for_it():
     result = decide(
         draft=False,
         state="OPEN",
@@ -148,11 +154,11 @@ def test_missing_checks_allow_merge():
         same_repo=True,
         checks=_ok_checks()[:-1],
     )
-    assert result.action == ACTION_MERGE
-    assert result.reason == "ready"
+    assert result.action == ACTION_WAIT
+    assert result.reason == "checks_pending: Agent contract has not reported"
 
 
-def test_failed_checks_allow_merge():
+def test_a_failed_check_holds_the_merge():
     checks = _ok_checks()
     checks[0] = {
         "name": "Backend tests",
@@ -168,8 +174,8 @@ def test_failed_checks_allow_merge():
         same_repo=True,
         checks=checks,
     )
-    assert result.action == ACTION_MERGE
-    assert result.reason == "ready"
+    assert result.action == ACTION_BLOCK
+    assert result.reason == "checks_red: Backend tests failed"
 
 
 def test_desktop_pack_pending_allows_merge():
@@ -216,9 +222,11 @@ def test_fork_is_skipped():
     assert result.reason == "fork"
 
 
-def test_gh_check_state_normalizes():
-    item = normalize_check({"name": "Backend tests", "state": "pass"})
-    assert item["conclusion"] == "success"
+def test_required_checks_are_the_release_gates_list():
+    """One definition of the build: the merge waits for exactly what a Release waits for."""
+    from tools.release_gate import REQUIRED_CHECKS
+
+    assert pr_delivery.REQUIRED_CHECKS is REQUIRED_CHECKS
 
 
 def test_delete_refuses_master():
@@ -490,7 +498,7 @@ def test_cmd_merge_re_decides_the_new_head_instead_of_erroring(monkeypatch):
 
     def fake_fetch(number):
         seen.append(next(heads, "second"))
-        return _ok_pr(headRefOid=seen[-1]), []
+        return _ok_pr(headRefOid=seen[-1]), _ok_checks()
 
     def fake_merge(pr):
         attempts.append(str(pr["headRefOid"]))
@@ -513,7 +521,7 @@ def test_cmd_sweep_skips_a_moved_head_without_reporting_an_error(monkeypatch):
     monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
     monkeypatch.setattr(
         pr_delivery, "_fetch_pr",
-        lambda n: (_ok_pr(headRefOid="moved"), []))
+        lambda n: (_ok_pr(headRefOid="moved"), _ok_checks()))
     monkeypatch.setattr(pr_delivery, "_merge_pr", lambda pr: pr_delivery.MERGE_HEAD_MOVED)
     assert pr_delivery.cmd_sweep(min_age_seconds=0) == 0
 
@@ -581,7 +589,8 @@ def _race_delivery(monkeypatch, observations, *, command="merge", error=_RACE_ER
     monkeypatch.setattr(pr_delivery, "cmd_delete_closed", cleanup)
     monkeypatch.setattr(pr_delivery.time, "sleep", sleeps.append)
     monkeypatch.setattr(pr_delivery, "_fetch_pr", lambda _number: (
-        _ok_pr(762, headRefOid=expected_sha, headRefName="fix/merge-race", body="Closes #762"), [],
+        _ok_pr(762, headRefOid=expected_sha, headRefName="fix/merge-race", body="Closes #762"),
+        _ok_checks(),
     ))
     if command == "merge":
         result = pr_delivery.cmd_merge(762, wait_desktop_minutes=0, min_age_seconds=0)

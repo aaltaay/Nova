@@ -1,4 +1,9 @@
-# Change-aware advisory CI. Policy: docs/ci.md and .cursor/rules/ci-scope.mdc.
+# Change-aware CI. Policy: docs/ci.md and .cursor/rules/ci-scope.mdc.
+# Green only (operator decisions 2026-10-13): Auto-merge merges a PR only once
+# Backend tests, Frontend build, Frontend E2E and Agent contract passed on its
+# head (tools/pr_checks.py), and Desktop pack calls this workflow, in full, on
+# the commit it packed and publishes the vNNN Release only when they are green
+# there too (tools/release_gate.py).
 
 name: CI
 
@@ -13,9 +18,20 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   # Lets you run CI from Actions → CI → “Run workflow” when nothing has triggered yet
   workflow_dispatch:
+  # Desktop pack's `Release checks`: CI on the exact commit a Release would ship.
+  workflow_call:
+    inputs:
+      full:
+        description: Run every check whatever the diff (a release verifies everything)
+        type: boolean
+        default: false
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # A PR's newest push cancels its older run. Everything else groups by commit:
+  # grouping master by ref let a burst of merges cancel a pending run, and a
+  # release's call (where github.workflow names the caller) must never wait on,
+  # or cancel, another commit's checks.
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -24,6 +40,8 @@ permissions:
 jobs:
   changes:
     uses: ./.github/workflows/ci-scope.yml
+    with:
+      full: ${{ inputs.full == true }}
 
   backend-test:
     name: Backend tests
@@ -246,7 +264,7 @@ jobs:
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py tools/test_master_branch_protection.py tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py tools/test_branch_cleanup_merged.py tools/test_pr_review_status.py tools/test_nova_delivery_project.py tools/test_repo_hygiene.py tools/test_repo_hygiene_finish.py tools/test_session_brief_hook.py tools/test_backlog_triage.py tools/test_backlog_footprints.py tools/test_backlog_claims_table.py tools/test_backlog_branches.py tools/test_retired_ledgers.py tools/test_next_moves.py tools/test_premarket_verify.py tools/test_data_root.py tools/test_ci_scope.py tools/test_ci_scope_workflows.py tools/test_maintainer_checks.py tools/test_maintainer_policy.py tools/test_deploy_workflow_maintainer.py tools/test_security_alert_inbox.py -q --tb=short
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py tools/test_release_gate.py tools/test_pr_checks.py tools/test_master_branch_protection.py tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py tools/test_branch_cleanup_merged.py tools/test_pr_review_status.py tools/test_nova_delivery_project.py tools/test_repo_hygiene.py tools/test_repo_hygiene_finish.py tools/test_session_brief_hook.py tools/test_backlog_triage.py tools/test_backlog_footprints.py tools/test_backlog_claims_table.py tools/test_backlog_branches.py tools/test_retired_ledgers.py tools/test_next_moves.py tools/test_premarket_verify.py tools/test_data_root.py tools/test_ci_scope.py tools/test_ci_scope_workflows.py tools/test_maintainer_checks.py tools/test_maintainer_policy.py tools/test_deploy_workflow_maintainer.py tools/test_security_alert_inbox.py -q --tb=short
 
       - name: Structural validation (CI mode)
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
@@ -278,7 +296,13 @@ jobs:
     # twice-the-floor cap (pr-delivery-timing.mdc); a shorter timeout would
     # kill the job mid-wait and read as a red check.
     timeout-minutes: 13
+    # Green only (operator decision 2026-10-13, "Merge only green PRs too"): it
+    # decides once the four required checks have finished, and holds a red one
+    # with a comment naming it. Re-running a failed check re-runs this job, so a
+    # green re-run merges with no one acting. A cancelled run decides nothing.
+    needs: [backend-test, frontend-build, frontend-e2e, agent-contract]
     if: >
+      !cancelled() &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -290,17 +314,21 @@ jobs:
       checks: read
       # Merging with GITHUB_TOKEN starts no `push:` run, so the merge
       # dispatches `Desktop pack` itself (#346). Without this the dispatch
-      # 403s and the merged commit is silently never packed. Publishing is
-      # separate: an operator pushes the vNNN release tag (#347).
+      # 403s and the merged commit is silently never packed, tested or
+      # released.
       actions: write
     steps:
+      # Master's merge tool, never the PR's own: a PR cannot rewrite the gate
+      # that judges it.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Merge ready PR without waiting for verification
+      - name: Merge the PR once its checks are green
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOVA_GITHUB_REPO: ${{ github.repository }}

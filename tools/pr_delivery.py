@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Merge ready Nova PRs (squash) and delete closed heads.
 
-Agents open a verified, non-draft PR and stop. Draft or `do-not-merge` holds.
+Agents open a verified, non-draft PR and stop. Draft or `do-not-merge` holds,
+and so does any of the four required checks that is not green on the PR's head
+(operator decision 2026-10-13, "Merge only green PRs too"; tools/pr_checks.py).
 Closed heads are deleted here and by GitHub `delete_branch_on_merge`.
 
 Usage:
@@ -23,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
+    from tools import pr_checks
     from tools.branch_cleanup import delete_closed_head
     from tools.pr_delivery_actions import (
         MERGE_HEAD_MOVED, merge_now, merge_pr, signal_conflict,
@@ -34,6 +37,7 @@ try:
         too_young,
     )
 except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
+    import pr_checks
     from branch_cleanup import delete_closed_head
     from pr_delivery_actions import (
         MERGE_HEAD_MOVED, merge_now, merge_pr, signal_conflict,
@@ -46,9 +50,8 @@ except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
     )
 
 DEFAULT_REPO = "aaltaay/Nova"
-# Owner policy: verification is feedback, never a merge prerequisite.
-REQUIRED_CHECKS: tuple[str, ...] = ()
-WAIT_IF_PRESENT: tuple[str, ...] = ()
+# Green only (operator decision 2026-10-13): the four a Release waits for, one list.
+REQUIRED_CHECKS: tuple[str, ...] = pr_checks.REQUIRED_CHECKS
 SKIP_LABELS = frozenset({"do-not-merge"})
 PROTECTED_HEADS = frozenset({"master", "main", "HEAD"})
 
@@ -81,64 +84,6 @@ def label_names(labels: Any) -> set[str]:
             if name:
                 names.add(name.lower())
     return names
-
-
-def normalize_check(raw: dict[str, Any]) -> dict[str, Any]:
-    name = str(raw.get("name") or raw.get("context") or "").strip()
-    if "conclusion" in raw or raw.get("status") in {
-        "queued",
-        "in_progress",
-        "completed",
-        "waiting",
-        "requested",
-        "pending",
-    }:
-        return {
-            "name": name,
-            "status": str(raw.get("status") or "completed"),
-            "conclusion": raw.get("conclusion"),
-        }
-    state = str(raw.get("state") or raw.get("bucket") or "").lower()
-    if state in {"pending", "queued"}:
-        return {"name": name, "status": "in_progress", "conclusion": None}
-    if state in {"pass", "success"}:
-        return {"name": name, "status": "completed", "conclusion": "success"}
-    if state in {"fail", "failure", "cancelled", "timed_out"}:
-        return {"name": name, "status": "completed", "conclusion": "failure"}
-    if state in {"skipping", "skipped", "neutral"}:
-        return {"name": name, "status": "completed", "conclusion": "skipped"}
-    return {"name": name, "status": "in_progress", "conclusion": None}
-
-
-def check_map(checks: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    out: dict[str, dict[str, Any]] = {}
-    for raw in checks:
-        item = normalize_check(raw)
-        if item["name"]:
-            out[item["name"]] = item
-    return out
-
-
-def _failed(item: dict[str, Any] | None) -> bool:
-    if item is None:
-        return False
-    conclusion = str(item.get("conclusion") or "").lower()
-    return conclusion in {"failure", "cancelled", "timed_out", "startup_failure"}
-
-
-def _pending(item: dict[str, Any] | None) -> bool:
-    if item is None:
-        return True
-    status = str(item.get("status") or "").lower()
-    if status in {"queued", "in_progress", "waiting", "requested", "pending"}:
-        return True
-    return item.get("conclusion") in (None, "")
-
-
-def _required_ok(item: dict[str, Any] | None) -> bool:
-    if item is None:
-        return False
-    return str(item.get("conclusion") or "").lower() == "success"
 
 
 def decide(
@@ -180,21 +125,12 @@ def decide(
         return Decision(ACTION_WAIT, "settling")
     if review_in_flight:
         return Decision(ACTION_WAIT, "review_running")
-    by_name = check_map(checks)
-    for name in REQUIRED_CHECKS:
-        item = by_name.get(name)
-        if _failed(item):
-            return Decision(ACTION_BLOCK, f"failed:{name}")
-        if not _required_ok(item):
-            return Decision(ACTION_WAIT, f"pending:{name}")
-    for name in WAIT_IF_PRESENT:
-        item = by_name.get(name)
-        if item is None:
-            continue
-        if _failed(item):
-            return Decision(ACTION_BLOCK, f"failed:{name}")
-        if _pending(item):
-            return Decision(ACTION_WAIT, f"pending:{name}")
+    # Green only: a red check needs a re-run or a fix; one still running may pass.
+    red, pending = pr_checks.merge_verdict(checks)
+    if red:
+        return Decision(ACTION_BLOCK, f"{pr_checks.CHECKS_RED}: {pr_checks.describe(red)}")
+    if pending:
+        return Decision(ACTION_WAIT, f"{pr_checks.CHECKS_PENDING}: {pr_checks.describe(pending)}")
     return Decision(ACTION_MERGE, "ready")
 
 
@@ -254,8 +190,13 @@ def _fetch_pr(number: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         ]
     ).stdout
     pr = json.loads(raw)
-    # Pending, failing, missing and malformed check results cannot delay delivery.
-    return pr, []
+    try:
+        checks = pr_checks.fetch_head_checks(_gh, repo_slug(), str(pr.get("headRefOid") or ""))
+    except ValueError as exc:
+        # Unreadable is not green: every required check reads "has not reported" and waits.
+        print(f"#{number} checks unreadable: {exc}", file=sys.stderr)
+        checks = []
+    return pr, checks
 
 
 def _decision_from_pr(
@@ -292,6 +233,15 @@ def _signal_conflict(number: int) -> None:
     signal_conflict(_gh, repo_slug(), number)
 
 
+def _report(pr: dict[str, Any], checks: list[dict[str, Any]], decision: Decision) -> None:
+    """Say why on the job summary; a red check also gets one comment on the PR."""
+    number, sha = int(pr.get("number") or 0), str(pr.get("headRefOid") or "")
+    pr_checks.write_summary(pr_checks.summary_line(number, decision.action, decision.reason, sha))
+    if decision.action == ACTION_BLOCK and decision.reason.startswith(pr_checks.CHECKS_RED):
+        red, _pending = pr_checks.merge_verdict(checks)
+        pr_checks.signal_checks_held(_gh, repo_slug(), number, sha, red)
+
+
 def _merge_pr(pr: dict[str, Any]) -> int:
     return merge_pr(_gh, repo_slug(), pr, cmd_delete_closed)
 
@@ -317,6 +267,7 @@ def cmd_merge(
         decision = _decision_from_pr(pr, checks, min_age_seconds=min_age_seconds)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
+            _report(pr, checks, decision)
             result = _merge_pr(pr)
             if result != MERGE_HEAD_MOVED:
                 return result
@@ -331,6 +282,7 @@ def cmd_merge(
         if decision.action == ACTION_WAIT and time.time() < deadline:
             time.sleep(20)
             continue
+        _report(pr, checks, decision)
         return 0 if decision.action in {ACTION_SKIP, ACTION_WAIT} else 1
 
 
@@ -355,6 +307,7 @@ def cmd_sweep(*, min_age_seconds: int = MIN_PR_AGE_SECONDS) -> int:
         pr, checks = _fetch_pr(number)
         decision = _decision_from_pr(pr, checks, min_age_seconds=min_age_seconds)
         print(f"#{number} {decision.action} {decision.reason}")
+        _report(pr, checks, decision)
         if decision.action == ACTION_MERGE:
             result = _merge_pr(pr)
             # head_moved is not an error: the next pass decides the new head.

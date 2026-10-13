@@ -5,6 +5,8 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+import yaml
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "desktop-pack.yml"
 PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
@@ -165,9 +167,74 @@ def test_every_master_commit_is_tagged_and_released():
     publish = text[text.index("publish-release:"):]
     assert "startsWith(github.ref, 'refs/tags/v')" in publish
     assert "needs.tag-commit.result == 'success'" in publish
-    assert "needs.desktop-pack.result == 'success'" in publish, (
+    assert "PACK_RESULT: ${{ needs.desktop-pack.result }}" in publish, (
         "a Release could publish without a verified installer"
     )
+
+
+def _jobs() -> dict:
+    return yaml.load(WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)["jobs"]
+
+
+def test_a_release_ships_only_from_a_green_build():
+    """Operator decision 2026-10-13: "Things should only be shipped with green builds."
+
+    The desk's update feed offers whatever Release is newest, so the Release is
+    the shipment. It must wait for CI, run in full on the very commit it ships
+    -- an Actions merge starts no CI run on master (#346) -- and its gate runs
+    before anything is downloaded or published.
+    """
+    jobs = _jobs()
+    verify = jobs["verify"]
+    assert verify["uses"] == "./.github/workflows/deploy.yml", "the release must run CI itself"
+    assert verify["name"] == "Release checks"
+    assert verify["with"]["full"] == "true", "scope-skipped tests would ship a commit unverified"
+    assert verify["needs"] == ["changes"]
+    for part in ("needs.changes.outputs.desktop == 'true'", "refs/heads/master", "refs/tags/v"):
+        assert part in verify["if"]
+    assert "pull_request" not in verify["if"], "PRs run CI on their own"
+
+    publish = jobs["publish-release"]
+    assert "verify" in publish["needs"] and "desktop-pack" in publish["needs"]
+    # The gate must run after a red check so it can say why; a cancelled run says nothing.
+    assert publish["if"].startswith("!cancelled() &&")
+    assert "always()" not in publish["if"]
+    assert publish["permissions"]["actions"] == "read", "the gate reads this run's jobs"
+    names = [step.get("name", "") for step in publish["steps"]]
+    gate = names.index("Release only a green build")
+    assert names.index("Download the installer and update feed") > gate
+    assert names.index("Attach the installer and update feed to the GitHub Release") > gate
+    run = publish["steps"][gate]["run"]
+    assert "python3 tools/release_gate.py" in run
+    assert "--pack \"$PACK_RESULT\"" in run
+    assert "actions/runs/$RUN_ID/jobs?filter=latest" in run, "a green re-run must count"
+    assert "continue-on-error" not in publish["steps"][gate]
+
+
+def test_the_release_checks_are_the_ci_workflow_verbatim():
+    """One definition of the build: the jobs PRs see, not a copy that can drift."""
+    ci = yaml.load((WORKFLOW.parent / "deploy.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    assert "workflow_call" in ci["on"]
+    assert ci["on"]["workflow_call"]["inputs"]["full"]["default"] == "false"
+    assert ci["jobs"]["changes"]["with"]["full"] == "${{ inputs.full == true }}"
+    scope = yaml.load((WORKFLOW.parent / "ci-scope.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    step = scope["jobs"]["select"]["steps"][-1]
+    assert step["env"]["CI_SCOPE_FULL"] == "${{ inputs.full }}"
+    from tools.release_gate import REQUIRED_CHECKS
+
+    names = {job.get("name") for job in ci["jobs"].values()}
+    assert set(REQUIRED_CHECKS) <= names, "the gate waits on a check CI no longer runs"
+    # A release's call must never wait on, or cancel, another commit's checks.
+    assert "github.sha" in ci["concurrency"]["group"]
+    assert "github.ref }}" not in ci["concurrency"]["group"]
+    # GitHub refuses the whole run when a nested job asks for more than the caller grants.
+    granted = _jobs()["verify"]["permissions"]
+    order = {"none": 0, "read": 1, "write": 2}
+    for scope_name, level in ci["permissions"].items():
+        assert order[granted.get(scope_name, "none")] >= order[level], ("workflow", scope_name)
+    for job_id, job in ci["jobs"].items():
+        for scope_name, level in (job.get("permissions") or {}).items():
+            assert order[granted.get(scope_name, "none")] >= order[level], (job_id, scope_name)
 
 
 def test_master_runs_are_not_collapsed_into_one():

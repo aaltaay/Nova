@@ -148,31 +148,63 @@ rest of the Gateway's login, through Nova restarts. Four Time & Sales lines Nova
 47,749 prints on request ids Nova no longer knew. IBKR refused Time & Sales 74 times (10190), against once
 the day before. Meanwhile the ladder read "Waiting for book data…" for good, because Nova ignored the 309.
 
-- **A late answer is cancelled again** (owner `ibkr/stray_lines.py`). Nova keeps the request id of every
-  Level 2 and Time & Sales line it cancels (`IBKR_STRAY_LINE_KEEP`). A 2152 on a kept Level 2 id that ib_async
-  no longer holds is IBKR granting the line after the cancel, so Nova sends the cancel again: IBKR holds the
-  line now, and a held line takes a cancel. A tick-by-tick print on an id ib_async does not hold, later than
-  `IBKR_STRAY_LINE_RECANCEL_SEC` after Nova's own cancel, is a line IBKR kept: cancelled again, and the print
-  is dropped. At most once per id per `IBKR_STRAY_LINE_RECANCEL_SEC`; the first time is a WARNING that names
-  the symbol. A Level 2 grant that brings no 2152 is not caught (ib_async drops depth for an unknown id without
-  a word); every late grant on 2026-10-13 brought one.
+- **Nova never cancels a Level 2 request IBKR has not answered** (owner `ibkr/depth/release.py`; operator
+  ask 2026-10-13: "create software where it's impossible for this to happen again"). Tested that evening on
+  the live Gateway from a read-only client of its own (depth requests only): AMD's request, cancelled in the
+  same instant, was granted 302 ms after the cancel and its line stayed held. A second cancel on the same
+  connection and a disconnect both left it held; only a Gateway restart freed it. Every line cancelled after
+  its grant was freed (MSFT, NVDA, TSLA, GOOGL, NFLX; AMD at 515 ms after a grant at 288 ms). Healthy grants
+  took 232-1654 ms, past the 0.75 s release grace. Every `cancelMktDepth` goes through this module, and a test
+  fails any other module that sends one (`test_only_the_release_module_sends_a_level_2_cancel`).
+  - Granted (IBKR's 2152, a 317 reset, or depth rows on the request): cancelled now.
+  - Refused (309, 10092): dropped from ib_async without a cancel.
+  - Not answered yet: held, and cancelled the moment IBKR answers. Asking for the stock again takes the held
+    request back (ib_async reuses a registered request).
+  - While the session is not READY (IBKR's connection lost): nothing is cancelled. At READY, a held request
+    whose socket dropped is forgotten, one IBKR lost with its data (1101) is cancelled only if it had been
+    answered, and one IBKR kept (1102) waits on.
+  - Request ids restart with every connection (291481 at 17:33, 291175 after the 17:49 Gateway restart), so an
+    answer counts only while its ib_async request object is the request, and a cancel is remembered with its
+    connection.
+  - A 2152 on a request Nova cancelled on the same connection would be the rule failing: an ERROR that names
+    the stock, counted in `late_grants`. Nothing is sent, since a second cancel frees nothing.
+  - A cancel counts only once it was sent: Nova sends it first and lets ib_async drop the request after (its
+    `Subscription.close` drops it even when the send raises); a send that fails stays held for READY. Each
+    decision (read the request, cancel or hold, take back) runs under one lock, so a viewer asking again never
+    reuses a request whose cancel is going out (PR #924 review).
+- **Time & Sales lines IBKR keeps printing are cancelled again** (owner `ibkr/stray_lines.py`). Tick-by-tick
+  has no grant message. A print on an id ib_async does not hold, later than `IBKR_STRAY_LINE_RECANCEL_SEC`
+  after Nova's own cancel, is a line IBKR kept: cancelled again, and the print is dropped. At most once per id
+  per `IBKR_STRAY_LINE_RECANCEL_SEC`; the first time is a WARNING that names the symbol. Whether that frees the
+  line at IBKR is not proven (for Level 2 it does not).
 - **A refused Level 2 line is not open** (owner `ibkr/depth/handlers.py`). Error 309 on a line's own request
   ends the line without a cancel, since IBKR never opened it. Every viewer gets the socket's `error` frame
   with `evicted: true`, and the socket closes. The ladder shows the message and asks again on its refused
-  backoff (`IBKR_DEPTH_REFUSED_RETRY_MAX_MS`). The message counts Nova's own lines. With fewer than 3, it says
-  the rest are held in IB Gateway and that a Gateway restart frees them. A socket that subscribed in the
-  same instant reads the refusal (kept `IBKR_DEPTH_REFUSAL_KEEP_SEC`) instead of streaming beats.
+  backoff (`IBKR_DEPTH_REFUSED_RETRY_MAX_MS`), which grows 1, 2, 4, 5, 5 s: the socket's `subscribed` comes
+  before IBKR's refusal, so it never resets the backoff; only a socket that subscribed and closed without an
+  error does (on 2026-10-13 it did, and the desk asked every 1.2 s: BKYI 232 refusals in 275 s). The message
+  counts Nova's own lines, and requests Nova let go but holds for IBKR's answer count as Nova's. With fewer
+  than 3 between them, it says the rest are held in IB Gateway and that a Gateway restart frees them, and the
+  backend logs that as an ERROR with the count. A socket that subscribed in the same instant reads the
+  refusal (kept `IBKR_DEPTH_REFUSAL_KEEP_SEC`) instead of streaming beats. The frames a refused socket sends
+  are kept in `frontend/src/ibkr/__fixtures__/depth_refused_frames.json`, written by the backend's own route
+  test, and the desk's tests replay that file.
 - **Auto-record stops asking while IBKR is full** (owner `leaderboard/auto_record.py`). A start that fails
   ends the tick and pauses new starts for `LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC`. Each try opens and
   lets go of a Time & Sales and a Level 2 line, and the next stock would be refused the same way.
 - **On the wire.**
-  - `/api/ibkr/status` adds `stray_lines`: `{recancelled: {depth: integer, tape: integer}, last: {kind:
-    "depth" | "tape", symbol: string | null, req_id: integer, at: number} | null}`.
+  - `/api/ibkr/status` adds `stray_lines`: `{recancelled: {tape: integer}, last: {kind: "tape", symbol:
+    string | null, req_id: integer, at: number} | null}`.
+  - `/api/ibkr/status` adds `depth_release`: `{held: [{symbol, req_id, since, age_sec, answered: boolean}],
+    counts: {cancelled, held, cancelled_on_answer, forgotten, taken_back}, late_grants: {count, last:
+    {symbol, req_id, at, cancelled_at} | null}}` (memory only; every count an integer since the process
+    started).
   - `auto_record` adds `paused_until` (`number | null`, epoch seconds).
   - The depth socket's `error` frame is unchanged: `{type, symbol, message, evicted}`.
 
 Lines stuck before this change stay stuck until IB Gateway logs in again (an IBC restart, or the 23:45
-nightly restart).
+nightly restart). On 2026-10-13 at 17:48 ET an IBC restart freed all 3: VLO, AAPL and SPY were each granted
+a book within 1.5 s afterwards.
 
 ## When one tape line goes silent (#722, operator report 2026-10-05)
 

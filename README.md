@@ -292,7 +292,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for your first change in ten minutes.
 
 The public revision is **`vNNN`**: `v` plus the git commit count. Git history is the source of truth; `VERSION` and the packaged version are build artifacts that CI regenerates.
 
-Every commit that lands on `master` is tagged `vNNN`, and an application-affecting one is published as a GitHub Release with the installer, its `.blockmap` and `latest.yml`. The automatic Source code zip is not the app.
+Every commit that lands on `master` is tagged `vNNN`, and an application-affecting one is published as a GitHub Release with the installer, its `.blockmap` and `latest.yml`, but only from a green build: the release run tests that exact commit in full and holds the Release if any check fails. The automatic Source code zip is not the app.
 
 The installed desk checks for a newer release shortly after launch, then re-checks every two hours while open (never 07:00 to 16:00 ET on a weekday). A newer release shows a notice with its release notes, **Update** or **Later**. Nothing downloads before Update and nothing installs before **Restart to update**. Set `NOVA_UPDATE_CHECK=0` to stop the automatic checks. Builds are unsigned, so SmartScreen warns on a fresh download.
 

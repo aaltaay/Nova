@@ -33,7 +33,7 @@ function tile(
   const pts = walk(seed, 72, prev + (last - prev) * 0.5, last, Math.abs(last - prev) * 0.25 + prev * 0.0004);
   return {
     id, label, symbol, kind, exchange, contract, last, prev_close: prev, change: last - prev,
-    change_pct: Math.round(10000 * (last / prev - 1)) / 100, price_basis: 'last', data_type: 'live', at: NOW,
+    change_pct: Math.round(10000 * (last / prev - 1)) / 100, price_basis: 'last', data_type: 'live', at: NOW, stale: false,
     line: pts.map((v, i) => [DAY_0400 + i * 300, v] as [number, number]), error: null,
   };
 }
@@ -80,6 +80,11 @@ const TOP: [string, string, number, [string, number, number][]][] = [
   ['Consumer disc.', 'XLY', 0.94, [['TSLA', 438.2, 4.1], ['RIVN', 14.62, 3.6], ['CVNA', 362.1, 2.9], ['AMZN', 231.45, 1.2], ['NKE', 71.8, 1.0]]],
   ['Industrials', 'XLI', 0.61, [['GE', 301.2, 2.2], ['UBER', 98.4, 1.8], ['CAT', 512.3, 1.1], ['RTX', 158.9, 0.7], ['HON', 214.6, 0.4]]],
   ['Financials', 'XLF', 0.44, [['COIN', 352.15, 3.9], ['HOOD', 138.7, 3.8], ['SCHW', 96.4, 1.6], ['JPM', 309.25, 1.3], ['GS', 791.6, 1.1]]],
+  ['Materials', 'XLB', 0.21, [['FCX', 48.2, 1.9], ['NEM', 92.4, 1.2], ['LIN', 468.1, 0.4], ['SHW', 341.7, 0.1], ['APD', 288.3, -0.3]]],
+  ['Health care', 'XLV', 0.08, [['LLY', 812.5, 1.7], ['ISRG', 548.2, 0.9], ['ABBV', 221.4, 0.2], ['JNJ', 189.6, -0.4], ['UNH', 352.8, -1.2]]],
+  ['Real estate', 'XLRE', -0.18, [['WELL', 171.3, 0.6], ['PLD', 118.9, 0.1], ['AMT', 196.2, -0.3], ['EQIX', 812.4, -0.5], ['SPG', 178.5, -0.9]]],
+  ['Staples', 'XLP', -0.36, [['WMT', 101.8, 0.6], ['COST', 921.4, 0.2], ['PG', 152.3, -0.4], ['KO', 68.9, -0.7], ['PEP', 141.2, -1.1]]],
+  ['Utilities', 'XLU', -0.52, [['VST', 196.7, 1.2], ['CEG', 344.1, 0.8], ['NEE', 81.2, -0.6], ['SO', 92.5, -0.9], ['DUK', 121.4, -1.3]]],
   ['Energy', 'XLE', -1.38, [['KMI', 27.45, 0.4], ['WMB', 58.1, 0.1], ['XOM', 112.3, -1.1], ['CVX', 154.85, -1.5], ['OXY', 42.15, -2.8]]],
 ];
 
@@ -107,7 +112,8 @@ function climateDays(): Climate['days'] {
   const dates = ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-21', '2026-09-22',
     '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02',
     '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12'];
-  return totals.map((total, i) => {
+  return totals.map((total, i): Climate['days'][number] => {
+    if (i === 3 || i === 4) return { date: dates[i], source: null, total: null, themes: {} };   // not recorded
     const bio = Math.round(total * (0.15 + 0.3 * (i / 20)));
     const crypto = Math.round(total * (0.35 - 0.2 * (i / 20)));
     const soft = Math.round(total * 0.15);
@@ -165,7 +171,7 @@ export function sampleMarketBoard(p: BlockPeriods): MarketBoard {
       offense_pct: 1.18, defense_pct: -0.27 },
     industries: { period: p.industries, from: '2026-10-06', to: '2026-10-12', rows: boardRows(p.industries, true) },
     climate: {
-      period: climatePeriod, from: inPeriod[0].date, to: '2026-10-12', sessions: n, covered: n,
+      period: climatePeriod, from: inPeriod[0].date, to: '2026-10-12', sessions: n, covered: inPeriod.filter((d) => d.source).length,
       lens: { board: 'gainers', rank_max: 50, price_min: 0.5 },
       counts: { up20: total, up50: Math.round(total * 0.33), up100: Math.round(total * 0.11) },
       per_day: Math.round((10 * total) / n) / 10,

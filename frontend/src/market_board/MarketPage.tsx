@@ -91,7 +91,7 @@ export function MarketPage({ onOpenTrader }: MarketPageProps) {
       {error ? <p className="mk-stale" role="status">{error} -- showing the last good answer.</p> : null}
       <div className="mk-row1">
         <DayReadCard read={board.day_read} events={board.events} now={board.generated_at} />
-        <QuoteTiles quotes={board.quotes} session={board.session} />
+        <QuoteTiles quotes={board.quotes} session={board.session} now={board.generated_at} />
       </div>
       <div className="mk-row2">
         <SectorBoardCard kind="sectors" board={board.sectors} onOpen={onOpenTrader}

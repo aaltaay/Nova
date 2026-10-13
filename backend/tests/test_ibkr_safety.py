@@ -526,9 +526,10 @@ class TestSmartDepthFlag:
         assert fake_ib.depth_calls[0]["isSmartDepth"] is IBKR_DEPTH_SMART
         assert fake_ib.depth_calls[0]["numRows"] == IBKR_DEPTH_NUM_ROWS
 
-    def test_fallback_cancels_with_matching_smart_flag(self, monkeypatch):
+    def test_fallback_sends_no_depth_cancel(self, monkeypatch):
+        """10092 is IBKR refusing depth: it holds no line, so nothing is cancelled (ibkr/depth/release.py)."""
         import asyncio
-        from constants import IBKR_DEPTH_SMART, IBKR_ERROR_DEPTH_NOT_SUPPORTED
+        from constants import IBKR_ERROR_DEPTH_NOT_SUPPORTED
         import ibkr.client as client_mod
 
         fake_ib = _FakeIbForErrors()
@@ -539,7 +540,7 @@ class TestSmartDepthFlag:
         self.depth._viewer_queues["AAPL"] = [asyncio.Queue(maxsize=100)]
 
         self.depth._on_ib_error(1, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "not supported", contract)
-        assert fake_ib.cancel_depth_calls == [(contract, IBKR_DEPTH_SMART)]
+        assert fake_ib.cancel_depth_calls == []
 
 
 class TestDepthAsyncErrorFallback:
@@ -562,7 +563,7 @@ class TestDepthAsyncErrorFallback:
 
     def test_matching_conid_falls_back_to_l1(self, monkeypatch):
         import asyncio
-        from constants import IBKR_DEPTH_SMART, IBKR_ERROR_DEPTH_NOT_SUPPORTED
+        from constants import IBKR_ERROR_DEPTH_NOT_SUPPORTED
         import ibkr.client as client_mod
         fake_ib = _FakeIbForErrors()
         monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
@@ -576,7 +577,7 @@ class TestDepthAsyncErrorFallback:
         self.depth._on_ib_error(6, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "Deep market data is not supported", contract)
 
         assert self.depth._subscriptions["SHPH"]["l1_fallback"] is True
-        assert fake_ib.cancel_depth_calls == [(contract, IBKR_DEPTH_SMART)]
+        assert fake_ib.cancel_depth_calls == []  # IBKR refused depth: no line to cancel
         assert fake_ib.l1_calls == [contract]
         # A viewer already connected before the async rejection arrived must
         # learn about the fallback via the queue — it won't re-poll
