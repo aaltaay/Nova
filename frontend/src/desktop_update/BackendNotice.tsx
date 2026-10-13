@@ -1,11 +1,13 @@
 /**
  * The backend notice (ADR 038 amendment, operator ask 2026-09-29; one version, 2026-09-30): a strip
  * under the header, beside the update notice, while the backend runs another release than this desk.
- * One action closes the gap -- "Update backend to vNNN", "Update desk to vNNN" or, for a backend from
- * another checkout, "Restart backend now" -- after the desk asked the backend what a restart would
- * interrupt; nothing open goes at once, anything open is listed first. Later hides it until a
- * revision changes. It never takes keyboard focus, like the update notice. Words and decisions:
- * backendNoticeModel.ts.
+ * A backend behind the desk that runs from the operator's checkout is brought along by Nova itself
+ * (electron/engineSync.mjs `follow`): the strip says so, with no button -- or lists what open
+ * position, order or bell holds it, beside "Update backend now". Otherwise one action closes the gap
+ * -- "Update backend to vNNN", "Update desk to vNNN" or, for a backend from another checkout,
+ * "Restart backend now" -- after the desk asked the backend what a restart would interrupt; nothing
+ * open goes at once, anything open is listed first. Later hides it until a revision changes. It
+ * never takes keyboard focus, like the update notice. Words and decisions: backendNoticeModel.ts.
  */
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../constants';
@@ -101,7 +103,7 @@ export function BackendNotice({ engine, act }: Props) {
         </span>
         <span className="nova-update-notice__text">
           {model.text}
-          <span className="nova-update-notice__hint"> {error ?? outcome ?? model.hint}</span>
+          <span className="nova-update-notice__hint"> {error ?? (model.byItself ? null : outcome) ?? model.hint}</span>
         </span>
         <span className="nova-update-notice__actions">
           {model.action && (
@@ -115,12 +117,22 @@ export function BackendNotice({ engine, act }: Props) {
               {label}
             </button>
           )}
-          <button type="button" className="nova-update-notice__btn" onClick={() => setLater(model.key)} disabled={working}
-            data-why={working ? 'Wait for the restart to finish' : undefined}>
-            Later
-          </button>
+          {!model.byItself && (
+            <button type="button" className="nova-update-notice__btn" onClick={() => setLater(model.key)} disabled={working}
+              data-why={working ? 'Wait for the restart to finish' : undefined}>
+              Later
+            </button>
+          )}
         </span>
       </div>
+      {model.holds.length > 0 && (
+        <ul className="nova-update-notice__holds" data-testid="backend-holds">
+          {model.holds.map((line, i) => (
+            // Two working orders can read the same: the index keeps their keys apart.
+            <li key={`${i}:${line}`}>{line}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * The desk and its backend update as one (operator ask 2026-09-30: "i need them to be treated as
- * ONE"). Owns the promise the old desk leaves for the new one, and the words of the two questions
- * Restart to update can ask.
+ * ONE"). Owns the promise the old desk leaves for the new one, the words of the two questions
+ * Restart to update can ask, and what holds the backend restart the desk makes by itself.
  *
  * At Restart to update the old desk brings the backend's checkout to the release it installs
  * (engineSync.mjs) and writes `engine-follow.json` = `{schema_version: 1, tag, repo_root, asked_at}`
@@ -80,6 +80,37 @@ export function restartCheckLines(body) {
     ? body.unknown.map((row) => `Could not read ${String(row?.kind ?? 'something')}: ${String(row?.error ?? 'unknown error')}`)
     : [];
   return { safe: body.safe === true ? true : body.safe === false ? false : null, lines: [...open, ...unknown] };
+}
+
+/** Why the backend's automatic restart waits when the backend gave no answer it can read. */
+export const AUTO_RESTART_NO_ANSWER = 'The backend did not say what is open';
+/**
+ * What the restart check lists that does not hold the backend's automatic restart
+ * (engineSync.follow): a recording resumes by itself after a few seconds' gap. Every other kind --
+ * a position, a working order, a bot trade, a stock mode, a history download, the opening bell, and
+ * any kind this desk does not know -- holds it.
+ */
+export const AUTO_RESTART_PASSES = Object.freeze(['recording']);
+
+/**
+ * What holds the backend's automatic restart now, from GET /api/diagnostics/restart-check: [] when
+ * nothing does. A reader that failed holds it, and so does a backend that did not answer: never
+ * read as nothing open.
+ */
+export function autoRestartHolds(body) {
+  if (!body || typeof body !== 'object' || body.schema_version !== 1 || !Array.isArray(body.open)) {
+    return [AUTO_RESTART_NO_ANSWER];
+  }
+  const open = body.open
+    .filter((row) => !AUTO_RESTART_PASSES.includes(row?.kind))
+    .map((row) => (row && typeof row.text === 'string' && row.text ? row.text : `Something open (${String(row?.kind ?? '?')})`));
+  const unknown = Array.isArray(body.unknown)
+    ? body.unknown.map((row) => `Could not read ${String(row?.kind ?? 'something')}: ${String(row?.error ?? 'unknown error')}`)
+    : [];
+  const lines = [...open, ...unknown];
+  // `safe: null` with nothing listed is a backend that could not say.
+  if (!lines.length && body.safe !== true && body.safe !== false) return [AUTO_RESTART_NO_ANSWER];
+  return lines;
 }
 
 /** Restart to update, with something open on the backend: button 0 updates both, 1 (the default) waits. */
