@@ -71,6 +71,21 @@ export function paintFull(
   });
 }
 
+/**
+ * Runs a move an overlay makes in the pane's view -- framing a setup, room for the plan -- on the next frame, after
+ * the frame in which `paintFull` applies its view again. An overlay hears of new bars when React re-renders after the
+ * paint, which can come before that frame: a move made then is put back, and it is never made again (the 1-minute
+ * strategy box squeezed against the right edge on some loads, operator ask 2026-10-13). Returns the cancel.
+ */
+export function afterPaintSettles(move: () => void): () => void {
+  if (typeof requestAnimationFrame !== 'function') {
+    move();
+    return () => {};
+  }
+  const frame = requestAnimationFrame(move);
+  return () => cancelAnimationFrame(frame);
+}
+
 export function paintBars(
   bars: RawBar[],
   tf: string,
