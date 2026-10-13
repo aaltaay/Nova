@@ -96,6 +96,31 @@ def test_breadth_samples_persist_and_compose():
     assert breadth.sample_from({"ad": _q()}) is None
 
 
+def test_breadth_that_stopped_mid_session_is_unavailable_but_keeps_its_line():
+    t0 = clock.at(DAY, 10 * 60)
+    sample = breadth.sample_from({"ad": _q(bid=2012.0, ask=838.0, at=t0), "tick": _q(last=412.0, at=t0)})
+    breadth.record(sample, DAY, t0)
+    later = breadth.compose(clock.at(DAY, 13 * 60), DAY, "regular", None, "waiting for spare market-data lines")
+    assert later["state"] == "unavailable" and later["advancing"] is None
+    assert later["why"].startswith("no NYSE breadth sample since 10:00 ET") and len(later["ad_line"]) == 1
+    after_close = breadth.compose(clock.at(DAY, 17 * 60), DAY, "after_hours", None, None)
+    assert after_close["state"] == "ok" and after_close["advancing"] == 2012.0   # the day's last sample
+
+
+def test_an_old_holdings_file_is_not_used(monkeypatch):
+    import time as _time
+
+    from market_board import disk
+
+    disk.write("holdings-XLK.json", {"etf": "XLK", "as_of": "2026-09-01", "fetched_at": _time.time() - 30 * 86400,
+                                      "rows": [{"symbol": "NVDA", "name": None, "weight_pct": 15.0}]})
+    assert holdings.cached("XLK") is not None
+    assert holdings.usable("XLK", _time.time()) is None
+    disk.write("holdings-XLK.json", {"etf": "XLK", "as_of": "2026-10-12", "fetched_at": _time.time() - 3600,
+                                      "rows": [{"symbol": "NVDA", "name": None, "weight_pct": 15.0}]})
+    assert holdings.usable("XLK", _time.time())["as_of"] == "2026-10-12"
+
+
 def _seed_leaderboard(tmp_path: Path) -> None:
     from leaderboard import store
 

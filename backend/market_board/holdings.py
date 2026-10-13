@@ -130,3 +130,13 @@ def fetch(etf: str) -> dict[str, Any]:
 
 def cached(etf: str) -> dict[str, Any] | None:
     return disk.read(f"holdings-{etf}.json")
+
+
+def usable(etf: str, now: float) -> dict[str, Any] | None:
+    """The kept file while it is younger than ``MARKET_HOLDINGS_MAX_AGE_SEC``; older is unknown, never stale members."""
+    from constants_market_board import MARKET_HOLDINGS_MAX_AGE_SEC
+
+    got = cached(etf)
+    if got is None or now - float(got.get("fetched_at") or 0) > MARKET_HOLDINGS_MAX_AGE_SEC:
+        return None
+    return got

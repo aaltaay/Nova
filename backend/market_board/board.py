@@ -89,7 +89,7 @@ def _spread(tiles: dict[str, dict], spec: dict) -> dict[str, Any]:
 
 def _holdings(st: Store, now: float):
     def get(etf: str) -> dict | None:
-        return st.get(f"holdings:{etf}", now, MARKET_HOLDINGS_TTL_SEC) or holdings.cached(etf)
+        return st.get(f"holdings:{etf}", now, MARKET_HOLDINGS_TTL_SEC) or holdings.usable(etf, now)
     return get
 
 

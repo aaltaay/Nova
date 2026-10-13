@@ -11,10 +11,10 @@ import threading
 from datetime import date, timedelta
 from typing import Any
 
-from constants_market_board import MARKET_BREADTH_KEEP_DAYS
+from constants_market_board import MARKET_BREADTH_KEEP_DAYS, MARKET_BREADTH_STALE_SEC
 from constants_scanner import SESSION_RTH_OPEN_MIN_ET
 from market_board import disk
-from market_board.clock import at, close_minute
+from market_board.clock import at, close_minute, et
 
 LAST_FILE = "breadth-last.json"
 _lock = threading.Lock()
@@ -91,12 +91,18 @@ def compose(now: float, day: date, phase: str, latest: dict[str, Any] | None, er
     if not opened and phase in ("premarket", "closed") and not samples:
         return {"state": "waiting", "why": "NYSE publishes breadth from 09:30 ET", **base, "ad_line": [],
                 "line_since": None, "prior": prior}
-    shown = latest if latest is not None and now - float(latest.get("at") or 0) < 180 else None
+    shown = latest if latest is not None and now - float(latest.get("at") or 0) < MARKET_BREADTH_STALE_SEC else None
+    session_over = now >= at(day, close_minute(day))
     if shown is None and samples:
         s = samples[-1]
-        shown = {"advancing": s[1], "declining": s[2], "tick": s[3], "at": s[0]}
+        # After the close the last sample is the day's breadth; in the session an old one is not current breadth.
+        if session_over or now - s[0] < MARKET_BREADTH_STALE_SEC:
+            shown = {"advancing": s[1], "declining": s[2], "tick": s[3], "at": s[0]}
     if shown is None:
-        why = error or ("waiting for the first sample" if now < at(day, close_minute(day)) else "no sample today")
+        if samples:
+            why = f"no NYSE breadth sample since {et(samples[-1][0]).strftime('%H:%M')} ET" + (f" ({error})" if error else "")
+        else:
+            why = error or ("waiting for the first sample" if not session_over else "no sample today")
         return {"state": "unavailable", "why": why, **base, "ad_line": line, "line_since": line_since,
                 "prior": prior}
     return {"state": "ok", "why": None, **{**base, **{k: shown.get(k) for k in base}}, "ad_line": line,

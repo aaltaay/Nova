@@ -58,7 +58,9 @@ desk (the page reads today's live market and says so).
   advancing, ask = declining, bid size = unchanged), VOL-NYSE (bid = up volume, ask = down volume), TICK-NYSE and
   TRIN-NYSE (last). `ad_line` is Nova's own one-a-minute samples since `line_since` (the later of 09:30 and when
   Nova started sampling). `waiting` before 09:30 with `prior` the last session's last sample Nova kept;
-  `unavailable` with IBKR's reason when it refuses the indicators.
+  `unavailable` with IBKR's reason when it refuses the indicators, and in the session when the newest sample is
+  older than `MARKET_BREADTH_STALE_SEC` ("no NYSE breadth sample since HH:MM ET"; the line is kept). After the
+  close the day's last sample is the day's breadth.
 - `sectors` / `industries`: `{period, from, to, rows: [{name, etf, change_pct, context_pct, context_period,
   leader: {symbol, change_pct} | null, leader_why: string | null}]}` strongest first; `sectors` adds
   `offense_pct` and `defense_pct` (the mean of XLK, XLY, XLC and of XLP, XLU, XLV for the period). `change_pct` is
@@ -127,7 +129,8 @@ is recorded on that tile (`market_board.ibkr_reads.note_error`) and never sets t
   at}}}` -- IBKR contract details per symbol; an entry older than `MARKET_INDUSTRY_MAX_AGE_DAYS` is asked again;
   unknown `schema_version` starts empty.
 - `<cache_dir>/market-board/holdings-<ETF>.json` `{schema_version: 1, etf, as_of, fetched_at, rows: [{symbol, name,
-  weight_pct}]}` -- State Street's file parsed; refetched when older than `MARKET_HOLDINGS_TTL_SEC`.
+  weight_pct}]}` -- State Street's file parsed; refetched when older than `MARKET_HOLDINGS_TTL_SEC`; when State Street
+  cannot be read, a kept file is used only while younger than `MARKET_HOLDINGS_MAX_AGE_SEC`, else its members are unknown.
 - Desk: `localStorage nova.marketBoard.periods.v1` `{schema_version: 1, sectors, industries, climate, top: {kind,
   period}}` (owner `frontend/src/market_board/periods.ts`; an unknown version or value falls back to `1D` /
   `movers`).

@@ -82,6 +82,7 @@ MARKET_BREADTH = MappingProxyType({
 })
 MARKET_BREADTH_SAMPLE_SEC = 60.0                 # one breadth snapshot a minute, 09:30-16:00 ET
 MARKET_BREADTH_KEEP_DAYS = 10                    # breadth-<date>.json files kept
+MARKET_BREADTH_STALE_SEC = 180.0                 # in the session, a sample older than this is not current breadth
 
 # -- sectors and industries ------------------------------------------------------------------------------------------
 MARKET_SECTORS = (
@@ -103,6 +104,8 @@ MARKET_NO_MEMBER_FILE_WHY = "no member list for this ETF"
 MARKET_HOLDINGS_URL = ("https://www.ssga.com/library-content/products/fund-data/etfs/us/"
                        "holdings-daily-us-en-{ticker}.xlsx")
 MARKET_HOLDINGS_MAX_BYTES = 4_000_000
+# A kept holdings file older than this is not used when State Street cannot be read (a weekend and a failed day).
+MARKET_HOLDINGS_MAX_AGE_SEC = 5 * 86400.0
 MARKET_BIGGEST_PER_SECTOR = 5                    # the "Biggest names" rows and the 7 D / 30 D leader pool
 MARKET_LEADER_POOL = 5
 MARKET_TOP_CARDS = 6

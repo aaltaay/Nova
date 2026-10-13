@@ -86,7 +86,8 @@ def want(now: float | None = None, top_kind: str | None = None) -> None:
 def _members(etfs: tuple[str, ...], limit: int | None = None) -> list[str]:
     out: list[str] = []
     for etf in etfs:
-        h = store().get(f"holdings:{etf}", time.time(), MARKET_HOLDINGS_TTL_SEC) or holdings.cached(etf)
+        now = time.time()
+        h = store().get(f"holdings:{etf}", now, MARKET_HOLDINGS_TTL_SEC) or holdings.usable(etf, now)
         for row in ((h or {}).get("rows") or [])[:limit]:
             if row["symbol"] not in out:
                 out.append(row["symbol"])
