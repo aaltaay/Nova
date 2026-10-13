@@ -224,6 +224,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Orders refuse a stale view; the market path stays real time (ADR 045, operator report 2026-10-05) | `architecture/schema/execution.md` |
 | The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33) | `architecture/schema/market-data.md` |
 | Chart bars say when IBKR history stopped answering (ADR 012, #555) | `architecture/schema/market-data.md` |
+| Earnings and splits on the daily charts (operator ask 2026-10-12) | `architecture/schema/market-data.md` |
 | The forming candle's volume (operator report, 2026-09-24) | `architecture/schema/market-data.md` |
 | Why it's moving (ADR 028, operator ask 2026-09-23) | `architecture/schema/stock-read.md` |
 | The Cryptos page (ADR 040, operator ask 2026-09-30) | `architecture/schema/cryptos.md` |
