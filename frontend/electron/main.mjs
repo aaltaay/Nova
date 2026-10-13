@@ -5,7 +5,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, powerMonitor, screen, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, powerMonitor, screen, session, shell } from 'electron';
 import { shouldOpenDetachedDevTools } from './devtoolsGate.mjs';
 import {
   API_BASE,
@@ -37,6 +37,7 @@ import { skipApiSidecar } from './sidecarSkip.mjs';
 import { engineStep, openStartupSplash, STARTUP_STEPS } from './startupSplash.mjs';
 import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
+import { attachYouTubeReferer, isYouTubeSignInUrl, openStreamWindow, openYouTubeSignIn } from './streamPlayer.mjs';
 import {
   WINDOW_ID_MAIN,
   applyStoredPlacement,
@@ -50,7 +51,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** How this start draws (graphicsChoice.mjs): the graphics card unless the operator or the safety net said software. */
 const graphics = applyGpuPolicy(app, process.env, process.platform, app.getPath('userData'));
 const isDev = !app.isPackaged;
-const ALLOWED_EXTERNAL_HOSTS = new Set(['www.interactivebrokers.com']);
+// IBKR's Client Portal; YouTube for the followed traders' stream (Open on YouTube).
+const ALLOWED_EXTERNAL_HOSTS = new Set(['www.interactivebrokers.com', 'www.youtube.com']);
 // Title bar and taskbar; the packed exe carries the same icon (electron-builder).
 const APP_ICON = path.join(__dirname, 'build', 'icon.ico');
 
@@ -152,8 +154,25 @@ function windowOptions() {
 }
 
 /** Stock View double-click opens ?view=stock&symbol=… in a real child window. */
+/** YouTube sign-in for the Following page's stream; every desk window's players reload once it is done. */
+function signInToYouTube() {
+  return openYouTubeSignIn(BrowserWindow, {
+    icon: APP_ICON,
+    onDone: (signedIn) => {
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed()) w.webContents.send('nova:youtube:signedIn', signedIn);
+      }
+    },
+  });
+}
+
 function attachStockViewWindowOpen(win) {
   win.webContents.setWindowOpenHandler(({ url }) => {
+    // The stream player's own Sign in button (followed_traders/StreamPlayer.tsx).
+    if (isYouTubeSignInUrl(url)) {
+      signInToYouTube();
+      return { action: 'deny' };
+    }
     if (!isAllowedRendererUrl(url, { requireStockView: true })) {
       return { action: 'deny' };
     }
@@ -243,6 +262,9 @@ ipcMain.handle('nova:openStockView', (_event, url) => {
   return openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
 });
 
+ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, { icon: APP_ICON }));
+ipcMain.handle('nova:youtubeSignIn', () => signInToYouTube());
+
 ipcMain.handle('nova:openExternal', async (_event, url) => {
   const parsed = new URL(String(url));
   if (
@@ -269,6 +291,8 @@ if (
   app.quit();
 } else {
   app.whenReady().then(async () => {
+    // The Following page's stream: YouTube refuses an embed from a page that sends no Referer (streamPlayer.mjs).
+    attachYouTubeReferer(session.defaultSession);
     // Nothing else of Nova is on screen until the engine answers and the desk loads.
     startup = openStartupSplash({
       BrowserWindow,

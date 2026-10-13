@@ -79,12 +79,39 @@ def test_the_bar_as_last_confirmed_with_its_slot_images():
                    slots={"ALPHA": "live/ALPHA.jpg", "BRAVO": "../etc/passwd"})
     status = feed.parse_day(raw)["status"]
     assert view.bar(status) == [
-        {"trader": "ALPHA", "image": "/api/followed-traders/live/ALPHA.jpg",
+        {"trader": "ALPHA", "image": "/api/followed-traders/live/ALPHA.jpg", "face": None,
          "positions": [{"side": "long", "symbol": "ABCD", "price": 2.0},
                        {"side": "short", "symbol": "WXYZ", "price": 0.5512}]},
         # A path Nova may not ask for is no image, never a request.
-        {"trader": "BRAVO", "image": None, "positions": []},
+        {"trader": "BRAVO", "image": None, "face": None, "positions": []},
     ]
+
+
+@pytest.mark.parametrize("video, expected", [
+    ({"id": "R5YIugCJar0", "title": "Morning show"}, "R5YIugCJar0"),
+    ({"id": "x", "title": "Morning show"}, None),  # not a YouTube id: no player, no link, never a bad answer
+    ({"id": "../../evil?x", "title": "Morning show"}, None),
+    ({"id": 7, "title": "Morning show"}, None),
+    ({"title": "Morning show"}, None),  # an older feed without the id
+])
+def test_the_stream_the_feed_reads_is_named_only_by_a_youtube_id(video, expected):
+    status = feed.parse_day(_raw_day(video=video))["status"]
+    assert status["video_id"] == expected
+    assert view.capture(status, _epoch("10:30:06"))["video_id"] == expected
+
+
+def test_the_bar_carries_each_traders_photo_on_the_feeds_today_only():
+    raw = _raw_day(positions={"ALPHA": {"long:ABCD": 2.0}, "BRAVO": {}})
+    raw["faces"] = {"BRAVO": "faces/BRAVO.jpg"}  # on the bar with no trade that day: the page still shows them
+    day = feed.parse_day(raw)
+    body = view.compose(day, now=_epoch("10:31:00"), prices={"state": "not_asked", "why": "x"},
+                        now_for=lambda t: {}, exit_for=lambda t: {})
+    assert [(s["trader"], s["face"]) for s in body["capture"]["bar"]] == [
+        ("ALPHA", None), ("BRAVO", f"/api/followed-traders/faces/{DATE}/BRAVO.jpg")]
+    day["today"] = "2026-10-14"  # a past day asked: its photos never stand in for the bar now
+    body = view.compose(day, now=_epoch("10:31:00"), prices={"state": "past_day", "why": "x"},
+                        now_for=lambda t: {}, exit_for=lambda t: {})
+    assert [s["face"] for s in body["capture"]["bar"]] == [None, None]
 
 
 @pytest.mark.parametrize("positions, field", [

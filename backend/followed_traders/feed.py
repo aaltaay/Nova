@@ -32,6 +32,8 @@ EVIDENCE_RE = re.compile(r"^frames/([0-9a-f]{32})\.jpg$")
 NAME_RE = re.compile(r"^[A-Z0-9]{1,16}$")  # a trader's name as a file name in the feed's images
 SLOT_RE = re.compile(r"^live/([A-Z0-9]{1,16})\.jpg$")
 FACE_RE = re.compile(r"^faces/([A-Z0-9]{1,16})\.jpg$")
+# A YouTube video id: the only shape the desk builds a player or a link from.
+VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 CLOCK_RE = re.compile(r"^\d{2}:\d{2}:\d{2}$")
 SIDES = ("long", "short")
 STATUSES = ("open", "closed", "unknown")
@@ -164,12 +166,13 @@ def _status(st: dict) -> dict[str, Any]:
                "problem_at": _ts(st, "problem_at", "status", optional=True)}
     if "video" not in st and problem["problem"] is not None:
         # The feed stalled before it ever read a frame: its status holds only why.
-        return {"title": None, "live": False, "clock": None, "updated_at": None, "bar_visible": False,
-                "traders": [], "positions": None, "slots": set(), **problem}
+        return {"title": None, "video_id": None, "live": False, "clock": None, "updated_at": None,
+                "bar_visible": False, "traders": [], "positions": None, "slots": set(), **problem}
     video = _obj(st.get("video"), "status.video")
     traders = _list(st, "traders", "status")
     return {
         "title": _str(video, "title", "status.video", optional=True),
+        "video_id": _video_id(video),
         "live": _bool(st, "live", "status"),
         "clock": _str(st, "clock", "status", optional=True),
         "updated_at": _ts(st, "updated_at", "status", optional=True),
@@ -179,6 +182,13 @@ def _status(st: dict) -> dict[str, Any]:
         "slots": _image_names(st, "slots", "status", SLOT_RE),
         **problem,
     }
+
+
+def _video_id(video: dict) -> str | None:
+    """``status.video.id``, the stream the feed reads, when it is a YouTube video id; anything else is none, never a
+    bad answer (the id is optional), so the desk never builds a player or a link from it."""
+    vid = video.get("id")
+    return vid if isinstance(vid, str) and VIDEO_ID_RE.fullmatch(vid) else None
 
 
 def _bar(st: dict) -> list[dict[str, Any]] | None:

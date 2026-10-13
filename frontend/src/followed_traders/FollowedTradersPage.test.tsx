@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetFeedImagesForTests } from './FeedImage';
 import { resetFollowedStoresForTests } from './followedStores';
+import { resetStreamForTests } from './stream';
 import { day, T } from './followedTestData';
 import { FollowedTradersPage } from './FollowedTradersPage';
 import type { FollowedDay } from './types';
@@ -23,6 +24,7 @@ describe('FollowedTradersPage', () => {
     root = createRoot(container);
     asked = [];
     resetFollowedStoresForTests();
+    resetStreamForTests();
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} }));
   });
 
@@ -71,23 +73,71 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-trader-ALPHA')).toBeNull();
   });
 
-  it('draws the bar now, each trader, their tables and the activity', async () => {
-    await show(day());
+  it('draws each trader: their card, an OPEN tile per position, closed rows by result, and the activity', async () => {
+    await show(day({ capture: { ...day().capture!, traders: ['ALPHA'] } }));
     expect(q('ft-capture-pill')!.textContent).toBe('Live · 6s behind the stream · bar read 10:09:54 ET');
-    expect(q('ft-slot-ALPHA')!.textContent).toContain('LONG ABCD 2.00');
-    expect(q('ft-slot-ALPHA')!.textContent).toContain('SHORT none');
+    // The bar's read is on the slot; the slot is the live one while capture reads the bar.
+    expect(q('ft-slot-ALPHA')!.getAttribute('title')).toBe('Read as: LONG ABCD 2.00');
+    expect(q('ft-slot-ALPHA')!.textContent).toBe('Their slot now');
     // No live image for BRAVO: their newest evidence stands in, with its time.
     expect(q('ft-slot-BRAVO')!.textContent).toContain('Their slot at their last change · 09:59:00 ET');
     expect(q('ft-trader-ALPHA')!.textContent).toContain('On air');
+    expect(q('ft-trader-BRAVO')!.textContent).toContain('Off air');
     expect(q('ft-record-ALPHA')!.textContent).toContain('1W / 0L · 1 open · Win rate 100%');
-    expect(q('ft-row-o1')!.textContent).toContain('2.50');
-    expect(q('ft-row-o1')!.textContent).toContain('+0.50');
-    expect(q('ft-row-c2')!.textContent).toContain('by 09:40:00');
-    expect(q('ft-row-c2')!.textContent).toContain('77.10–77.90 est.');
-    expect(q('ft-row-c2')!.textContent).toContain('unscored');
+    const tile = q('ft-row-o1')!;
+    expect(tile.classList.contains('ft-tile')).toBe(true);
+    expect(tile.textContent).toContain('OPEN');
+    expect(tile.textContent).toContain('2.00 → 2.50');
+    expect(tile.textContent).toContain('+0.50');
+    const win = q('ft-row-c1')!;
+    expect(win.className).toContain('ft-closed--win');
+    expect(win.textContent).toContain('WIN');
+    expect(win.textContent).toContain('2.00 → 2.20');
+    const range = q('ft-row-c2')!;
+    expect(range.className).toContain('ft-closed--unscored');
+    expect(range.textContent).toContain('by 09:40:00');
+    expect(range.textContent).toContain('77.10–77.90 est.');
+    expect(range.textContent).toContain('UNSCORED');
+    expect(q('ft-trader-BRAVO')!.textContent).toContain('No open positions');
+    // The Activity is one line per event: no screenshots.
     expect(q('ft-activity')!.textContent).toContain('ALPHA closed');
+    expect(q('ft-activity')!.querySelector('img[alt*="position bar"]')).toBeNull();
     expect(asked).toContain('/api/followed-traders/live/ALPHA.jpg');
     expect(asked).toContain('/api/followed-traders/faces/2026-10-13/ALPHA.jpg');
+  });
+
+  it('opens an Activity event on its trade’s proof', async () => {
+    await show(day());
+    await click(container.querySelector('[data-testid="ft-activity-c1|out"]'));
+    expect(q('ft-proof')).not.toBeNull();
+  });
+
+  it('gives a trader on the bar with no trade that day their card, with the bar slot’s photo', async () => {
+    const d = day();
+    d.capture!.bar = [...d.capture!.bar!, { trader: 'CHARLIE', positions: [], image: null,
+      face: '/api/followed-traders/faces/2026-10-13/CHARLIE.jpg' }];
+    await show(d);
+    expect(q('ft-record-CHARLIE')!.textContent).toBe('no trades today');
+    expect(asked).toContain('/api/followed-traders/faces/2026-10-13/CHARLIE.jpg');
+  });
+
+  it('plays the stream the feed reads, closes it, and Watch live brings it back', async () => {
+    await show(day({ capture: { ...day().capture!, video_id: 'R5YIugCJar0' } }));
+    const frame = q('ft-stream-frame') as HTMLIFrameElement;
+    expect(frame.src).toBe('https://www.youtube-nocookie.com/embed/R5YIugCJar0?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1');
+    expect(q('ft-stream')!.textContent).toContain('LIVE');
+    await click(q('ft-stream-close'));
+    expect(q('ft-stream')).toBeNull();
+    await click(q('ft-watch-live'));
+    expect(q('ft-stream')).not.toBeNull();
+  });
+
+  it('says why Watch live is off when the feed names no stream', async () => {
+    await show(day());
+    const watch = q('ft-watch-live') as HTMLButtonElement;
+    expect(watch.disabled).toBe(true);
+    expect(watch.getAttribute('data-why')).toBe('The feed has not named a stream it reads yet');
+    expect(q('ft-stream')).toBeNull();
   });
 
   it('says why open positions are not priced', async () => {

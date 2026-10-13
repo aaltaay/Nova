@@ -1,9 +1,13 @@
-/** The Activity column: every entry, add and exit of the day, newest first, with the screenshot behind it. */
-import { activity, type ActivityVerb } from './activity';
-import { FT_ACTIVITY, FT_NEWEST_FIRST, FT_NO_ACTIVITY } from './constants';
-import { FeedImage } from './FeedImage';
+/**
+ * The Activity column: every entry, add and exit of the day, newest first, one line each with the trader's photo. No
+ * screenshots (operator, 2026-10-13): an event opens its trade's Proof, which has them. Only the newest events that
+ * fit are drawn; the rest fold into "+N earlier", which opens the whole day's list over the column.
+ */
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { activity, type ActivityItem, type ActivityVerb } from './activity';
+import { FT_ACTIVITY, FT_ACTIVITY_HINT, FT_ALL_ACTIVITY, FT_CLOSE_LIST, FT_FOLD_LINE_PX, FT_NO_ACTIVITY } from './constants';
 import { etTime, price } from './format';
-import { SideChip } from './parts';
+import { Face, SideChip } from './parts';
 import type { FollowedTrader } from './types';
 
 const VERB_CLASS: Record<ActivityVerb, string> = {
@@ -13,30 +17,80 @@ const VERB_CLASS: Record<ActivityVerb, string> = {
   closed: 'ft-verb--close',
 };
 
+function Event({ e, face, onProof }: { e: ActivityItem; face: string | null; onProof: (id: string) => void }) {
+  return (
+    <button type="button" className="ft-event" onClick={() => onProof(e.tradeId)} data-testid={`ft-activity-${e.key}`}>
+      <span className="ft-mono ft-muted ft-event__time">{etTime(e.ts)}</span>
+      <Face path={face} name={e.trader} size="xs" />
+      <span className={`ft-verb ${VERB_CLASS[e.verb]}`}>{e.trader} {e.verb}</span>
+      <SideChip side={e.side} />
+      <span className="ft-ticker">{e.symbol}</span>
+      {e.verb !== 'closed' && e.price !== null && <span className="ft-mono">{price(e.price)}</span>}
+      {e.note && <span className="ft-event__note ft-muted ft-small">{e.note}</span>}
+    </button>
+  );
+}
+
+/**
+ * How many of the newest events fit the list's height, leaving room for the "+N earlier" line when some do not. While
+ * the events or the height are new, every event is drawn and measured once; then only those that fit.
+ */
+function useFitCount(ref: RefObject<HTMLDivElement | null>, total: number, shape: string): number {
+  const [height, setHeight] = useState(0);
+  const [fit, setFit] = useState({ key: '', count: total });
+  const key = `${shape}|${height}`;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => setHeight(el.clientHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || fit.key === key) return;
+    const bottoms = [...el.querySelectorAll<HTMLElement>('.ft-event')].map((r) => r.offsetTop + r.offsetHeight);
+    const fitsAll = bottoms.every((b) => b <= el.clientHeight + 1);
+    const room = el.clientHeight - FT_FOLD_LINE_PX;
+    setFit({ key, count: fitsAll ? total : bottoms.filter((b) => b <= room).length });
+  }, [ref, key, fit.key, total]);
+  return fit.key === key ? fit.count : total;
+}
+
 export function ActivityFeed({ traders, onProof }: { traders: FollowedTrader[]; onProof: (id: string) => void }) {
   const items = activity(traders);
+  const faces = new Map(traders.map((t) => [t.name, t.face]));
+  const list = useRef<HTMLDivElement>(null);
+  const [all, setAll] = useState(false);
+  const shape = items.map((e) => e.key).join(',');
+  const count = useFitCount(list, items.length, shape);
+  const folded = items.length - count;
   return (
-    <aside className="ft-card ft-activity" aria-labelledby="ft-activity" data-testid="ft-activity">
+    <section className="ft-card ft-activity" aria-labelledby="ft-activity" data-testid="ft-activity">
       <div className="ft-activity__head">
         <h2 id="ft-activity" className="ft-eyebrow">{FT_ACTIVITY}</h2>
-        <span className="ft-muted ft-small">{FT_NEWEST_FIRST}</span>
+        <span className="ft-muted ft-xs">{FT_ACTIVITY_HINT}</span>
       </div>
-      {items.length === 0 && <div className="ft-activity__item ft-muted">{FT_NO_ACTIVITY}</div>}
-      {items.map((e) => (
-        <div key={e.key} className="ft-activity__item" data-testid={`ft-activity-${e.key}`}>
-          <div className="ft-activity__line">
-            <span className="ft-mono ft-muted ft-activity__time">{etTime(e.ts)}</span>
-            <button type="button" className={`ft-link ft-verb ${VERB_CLASS[e.verb]}`} onClick={() => onProof(e.tradeId)}>
-              {e.trader} {e.verb}
-            </button>
-            <SideChip side={e.side} />
-            <span className="ft-ticker">{e.symbol}</span>
-            {e.price !== null && <span className="ft-mono">{price(e.price)}</span>}
+      <div className="ft-activity__list" ref={list}>
+        {items.length === 0 && <div className="ft-activity__empty ft-muted">{FT_NO_ACTIVITY}</div>}
+        {items.slice(0, count).map((e) => <Event key={e.key} e={e} face={faces.get(e.trader) ?? null} onProof={onProof} />)}
+        {folded > 0 && (
+          <button type="button" className="ft-link ft-fold" onClick={() => setAll(true)} data-testid="ft-activity-earlier">
+            +{folded} earlier
+          </button>
+        )}
+      </div>
+      {all && (
+        <div className="ft-overlay" role="dialog" aria-label={FT_ALL_ACTIVITY} data-testid="ft-activity-all">
+          <div className="ft-overlay__head">
+            <h2 className="ft-eyebrow">{FT_ALL_ACTIVITY}</h2>
+            <button type="button" className="ft-btn" onClick={() => setAll(false)}>{FT_CLOSE_LIST}</button>
           </div>
-          {e.note && <span className="ft-small ft-muted ft-activity__note">{e.note}</span>}
-          {e.image && <FeedImage path={e.image} className="ft-activity__img" alt={`${e.trader}'s position bar at ${etTime(e.ts)}`} />}
+          <div className="ft-overlay__body">
+            {items.map((e) => <Event key={e.key} e={e} face={faces.get(e.trader) ?? null} onProof={onProof} />)}
+          </div>
         </div>
-      ))}
-    </aside>
+      )}
+    </section>
   );
 }

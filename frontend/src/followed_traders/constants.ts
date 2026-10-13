@@ -27,9 +27,15 @@ export const FOLLOWED_CAPTURE_STALE_SEC = 60;
 export const FOLLOWED_IMAGE_CACHE = 80;
 /** Local storage key of the Alerts switch (a per-window convenience; on by default). */
 export const FOLLOWED_ALERTS_KEY = 'nova.followed.alerts';
+/** Local storage key of the stream player's open / closed (a per-window convenience; open by default). */
+export const FOLLOWED_STREAM_KEY = 'nova.followed.stream';
+/** The stream plays from YouTube's privacy-enhanced host, muted to start; Open on YouTube opens its watch page. */
+export const YOUTUBE_EMBED_BASE = 'https://www.youtube-nocookie.com/embed/';
+export const YOUTUBE_WATCH_BASE = 'https://www.youtube.com/watch?v=';
+/** The room kept under the newest Activity events for the "+N earlier" line, in px. */
+export const FT_FOLD_LINE_PX = 34;
 
 export const FT_TITLE = 'Following';
-export const FT_SUBTITLE = 'Positions read off the followed traders’ on-screen bar';
 export const FT_LOADING = 'Asking the feed…';
 export const FT_OFF = 'The followed traders feed is not configured on this desk (NOVA_FOLLOW_FEED_URL in the backend’s .env).';
 export const FT_UNREACHABLE = 'The feed is not answering';
@@ -42,23 +48,45 @@ export const FT_PILL_WAITING = 'Waiting for the stream';
 export const FT_PILL_HIDDEN = 'Positions off screen · showing the last read';
 export const FT_PILL_STOPPED = 'Capture stopped';
 
-export const FT_BAR_NOW = 'On their bar right now';
-export const FT_BAR_NOW_SUB = 'What the vision confirmed off the stream';
-export const FT_BAR_LAST_READ = 'As last read: capture is not reading the bar now';
-export const FT_BAR_LAST_SEEN = 'As last seen: their positions are off screen';
-export const FT_BAR_CONFIRMED = 'Same read on several frames in a row';
 export const FT_BAR_NO_IMAGE = 'The feed sends no picture of this slot';
 export const FT_BAR_STAND_IN = 'Their slot at their last change';
-export const FT_BAR_NONE = 'The feed does not report what is on the bar now.';
+export const FT_SLOT_NOW = 'Their slot now';
+export const FT_SLOT_LAST_READ = 'Their slot as last read';
 
 export const FT_HOLDING = 'Holding now';
+export const FT_HOLDING_END = 'Open at the day’s end';
+export const FT_OFF_AIR = 'Off air';
+export const FT_NO_TRADES_TODAY = 'no trades today';
+export const FT_NO_TRADES_THAT_DAY = 'no trades that day';
+export const FT_EXIT_IS_IBKR = 'exit = IBKR’s last trade when it left their bar';
+export const FT_NEWEST_FIRST_SHORT = 'newest first';
+export const FT_ALL_CLOSED = 'All closed trades';
+export const FT_CLOSE_LIST = 'Close';
+export const FT_RESULT_WORDS = { win: 'WIN', loss: 'LOSS', scratch: 'SCRATCH', unscored: 'UNSCORED' } as const;
+export const FT_OPEN_CHIP = 'OPEN';
+export const FT_NOW = 'now';
+export const FT_WATCH_LIVE = 'Watch live';
+export const FT_NO_STREAM = 'The feed has not named a stream it reads yet';
+export const FT_STREAM_SHOWING = 'The stream is showing beside the Activity';
+export const FT_STREAM_LIVE = 'LIVE';
+export const FT_STREAM_MUTE = 'Mute';
+export const FT_STREAM_UNMUTE = 'Unmute';
+export const FT_STREAM_MUTED = 'Muted';
+export const FT_STREAM_SOUND_ON = 'Sound on';
+export const FT_STREAM_POP_OUT = 'Pop out';
+export const FT_STREAM_POP_OUT_TIP = 'Watch it in a small window of its own';
+export const FT_STREAM_CLOSE = 'Close the stream';
+export const FT_STREAM_YOUTUBE = 'Open on YouTube';
+export const FT_STREAM_TITLE = 'The followed traders’ live stream';
+export const FT_STREAM_SIGN_IN = 'Sign in to YouTube';
+export const FT_STREAM_SIGN_IN_TIP = 'YouTube asks this network to sign in before it plays ("confirm you’re not a bot"). Sign in once in Google’s own page; Nova keeps it and never sees your password.';
+export const FT_STREAM_RELOAD = 'Reload the player';
 export const FT_CLOSED_TODAY = 'Closed today';
 export const FT_CLOSED = 'Closed';
 export const FT_NO_OPEN = 'No open positions';
 export const FT_NO_CLOSED_TODAY = 'No closed trades yet today';
 export const FT_NO_CLOSED = 'No closed trades that day';
 export const FT_ON_AIR = 'On air';
-export const FT_NAME_FROM_TAG = 'Name read off the tag under the photo';
 export const FT_PROOF = 'Proof';
 export const FT_EST = 'est.';
 export const FT_EST_TIP = 'The exit happened while the feed could not see the bar, so this is the low–high of IBKR’s trades in that window, never one invented fill.';
@@ -69,7 +97,8 @@ export const FT_EVERYONE = 'Everyone';
 export const FT_RECORD_PENDING = 'exits still being read from IBKR';
 
 export const FT_ACTIVITY = 'Activity';
-export const FT_NEWEST_FIRST = 'Newest first';
+export const FT_ACTIVITY_HINT = 'Newest first · click an event for its Proof';
+export const FT_ALL_ACTIVITY = 'The whole day’s Activity';
 export const FT_NO_ACTIVITY = 'Nothing happened on the bar this day.';
 export const FT_ALREADY_OPEN = 'Already open when capture started';
 
@@ -111,6 +140,5 @@ export const FT_EXIT_WAITING = 'waiting for IBKR';
 export const FT_EXIT_UNAVAILABLE = 'no price';
 export const FT_UNSCORED = 'unscored';
 export const FT_UNSCORED_TIP = 'Not scored: the exit is not one known price (a window, not read yet, or a close the feed never saw).';
-export const FT_RESULT_LABELS = { win: 'Win', loss: 'Loss', scratch: 'Scratch', unscored: 'unscored' } as const;
 export const FT_TOAST_REGION = 'Followed traders';
 export const FT_TOAST_DISMISS = 'Dismiss';
