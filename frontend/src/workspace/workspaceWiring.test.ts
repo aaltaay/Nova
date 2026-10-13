@@ -15,12 +15,12 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     expect(app).toMatch(/LayoutStoreProvider/);
     expect(app).toMatch(/<DashboardPage\s*\/>/);
     expect(app).toMatch(/nova-scanner-desk-slot/);
-    // The dashboard slot stays up beside the Desk board; only the full Trader replaces it.
+    // Only the full Trader replaces the dashboard slot; the Trader slot is inert while it is down.
     expect(app).toMatch(/\{!traderUp && \(/);
-    expect(app).toMatch(/inert=\{!showTrader\}/);
-    // One Trader workspace: the Desk shows the same slot (no second StockViewTabs mount).
-    expect(app).toMatch(/hideFocusRail=\{deskUp\}/);
-    expect(app).toMatch(/active=\{showTrader\}/);
+    expect(app).toMatch(/inert=\{!traderUp\}/);
+    // One Trader workspace: one StockViewTabs mount, active only while the Trader is up.
+    expect(app).toMatch(/active=\{traderUp\}/);
+    expect(app).not.toMatch(/hideFocusRail/);
     expect(app.match(/<LazyStockViewTabs\b/g) ?? []).toHaveLength(1);
     expect(dash).toMatch(/useWorkspace\(/);
     expect(dash).not.toMatch(/interface Props/);
@@ -77,7 +77,7 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     expect(app).toMatch(/HodMomoProvider/);
     expect(app).not.toMatch(/HodMomoDock/);
     // The sample shell (#449) keeps the HOD provider above its Trader slot and
-    // leaves the dock to the sample dashboard and the sample Desk.
+    // leaves the dock to the sample dashboard.
     expect(sample).toMatch(/HodMomoFixtureProvider/);
     expect(sample).not.toMatch(/<HodMomoDock\b/);
   });

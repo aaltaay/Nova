@@ -39,7 +39,6 @@ function liveWorkspace(): WorkspaceValue {
     ibkrAccountKind: null,
     ibkrIntentionalMode: null,
     openStockView: fn(),
-    openTraderTab: fn(),
     selectRowSymbol: fn(),
     extractTraderTab: fn(),
     acceptTraderTabDrop: vi.fn(() => true),
@@ -156,14 +155,6 @@ describe('SampleWorkspaceProvider', () => {
     expect(window.location.search).toBe('?view=sample');
     expect(writes).toEqual([]);
     expect(liveCalls()).toEqual([]);
-  });
-
-  it('a Desk open adds the tab beside the board without switching to the full Trader', () => {
-    mount('/?view=sample');
-    act(() => ws.openTraderTab('GAPX'));
-    expect(ws.traderTabs).toEqual(['GAPX']);
-    expect(ws.selectedSymbol).toBe('GAPX');
-    expect(ws.traderViewActive).toBe(false);
   });
 
   it('pops a tab out to a sample window and closes it here', () => {

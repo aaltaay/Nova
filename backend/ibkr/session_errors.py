@@ -34,6 +34,7 @@ from constants import (
     IBKR_ERROR_READ_ONLY_API,
     IBKR_READ_ONLY_API_MARKERS,
 )
+from ibkr import reference_errors as _reference
 from ibkr import session_state as _session
 
 logger = logging.getLogger(__name__)
@@ -243,6 +244,11 @@ def _on_ib_error(
     now = time.time()
     if code == IBKR_ERROR_NO_SECURITY_DEFINITION and getattr(contract, "secType", "") == "CRYPTO":
         # The Cryptos page asked whether IBKR lists a coin (ADR 040): "no definition" is the answer "no".
+        return
+    if _reference.is_reference(contract):
+        # A future / index / forex / crypto read is a reference page's tile (ADR 053), never the stock session's:
+        # its 10089 must not switch the desk to delayed data, nor its 101 teach the line planner a cap.
+        _reference.note(reqId, code, msg, contract, now=now)
         return
     _last_error = {"code": code, "message": msg, "ts": now}
 

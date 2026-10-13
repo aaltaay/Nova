@@ -1,5 +1,7 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
+// The Desk Catalyst hover check left with the Desk page (ADR 053); the tape,
+// AlertDialog and order-confirmation guards here are shared and stand.
 const FIXTURE = '/e2e/fixtures/desk-style-invalidation.html';
 
 test.beforeEach(async ({ page }) => {
@@ -42,50 +44,10 @@ test('live tape updates do not restyle unrelated desk elements', async ({ page, 
   });
   expect(counts.length, 'the trace must actually capture style recalculation').toBeGreaterThan(0);
   // A full-document restyle necessarily includes all 500 unrelated canaries.
-  // Leave generous room for real tape/Desk styles without a CPU timing threshold.
+  // Leave generous room for real tape styles without a CPU timing threshold.
   expect(Math.max(...counts), `affected element counts: ${counts.join(', ')}`).toBeLessThan(canaries / 2);
   await expect(page.locator('.ts-row').first()).toContainText('6.08');
   expect(await page.getByTestId('style-canary').allTextContents()).toEqual(before);
-});
-
-async function catalystVisibility(row: Locator, visible: boolean) {
-  const values = await row.locator('.scanner-col--catalyst > *').evaluateAll(nodes => nodes.map(el => getComputedStyle(el).visibility));
-  expect(values.length).toBeGreaterThan(0);
-  expect(values).toEqual(values.map(() => visible ? 'visible' : 'hidden'));
-}
-
-test('Desk Catalyst text yields only to hover or visible keyboard focus', async ({ page }) => {
-  await page.goto(FIXTURE);
-  const row = page.getByTestId('desk-board-row-FIX');
-  const absent = page.getByTestId('desk-board-row-VOID');
-  const text = await row.locator('.scanner-col--catalyst').textContent();
-  await page.mouse.move(0, 0);
-  await catalystVisibility(row, true);
-  await catalystVisibility(absent, true);
-  await row.hover();
-  await catalystVisibility(row, false);
-  await absent.hover();
-  await catalystVisibility(absent, false);
-  await page.mouse.move(0, 0);
-  await page.getByTestId('focus-start').focus();
-  await page.keyboard.press('Tab');
-  await expect(row).toBeFocused();
-  await catalystVisibility(row, false);
-  await page.keyboard.press('Tab');
-  await expect(page.getByTestId('desk-board-watch-FIX')).toBeFocused();
-  await catalystVisibility(row, false);
-  // A mouse-focused action must release the Catalyst after the pointer leaves.
-  await page.getByTestId('desk-board-watch-FIX').evaluate(el => (el as HTMLElement).blur());
-  await row.hover();
-  await page.getByTestId('desk-board-record-FIX').click();
-  await page.mouse.move(0, 0);
-  await catalystVisibility(row, true);
-  expect(await row.locator('.scanner-col--catalyst').textContent()).toBe(text);
-  await expect(page.getByTestId('opened-symbol')).toHaveText('');
-  await page.getByTestId('focus-start').focus();
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Enter');
-  await expect(page.getByTestId('opened-symbol')).toHaveText('FIX');
 });
 
 test('AlertDialog media keeps its responsive title column', async ({ page }) => {

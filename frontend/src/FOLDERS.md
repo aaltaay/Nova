@@ -33,9 +33,8 @@ the backend packages.
 | `close_reminder/` | feature | The close-of-day reminder (operator ask, 2026-10-01): a loud card at 15:50 ET for each Paper or Live position still open, escalated at 15:55, gone at 16:00, once per position per day per stage -- so the desk is flat by the close. |
 | `closed_orders/` | feature | The Closed Orders module: today's closed orders table, filters, recency and the close-position button. |
 | `components/` | shared | Shared UI: shadcn `ui/` primitives plus app chrome (GlobalAppBar, NavRail), the scanner table, news / catalyst and settings parts. Mixed -- prefer a feature folder for new feature UI. |
-| `constantGroups/` | shared | UI constants grouped by domain (API URLs, desk, scanner columns, bot, practice, theme), re-exported by `constants.ts`. |
+| `constantGroups/` | shared | UI constants grouped by domain (API URLs, desk venue, scanner columns, bot, practice, theme), re-exported by `constants.ts`. |
 | `demo/` | app | The public demo build (ADR 043, `npm run build:demo`): the desk's backend inside the page on Nova Marketing Sample Data -- the transport that answers every API call and socket and never sends one, the demo clock, the sample market that ticks, and the strip that says it is a demo. A normal build compiles it away. |
-| `desk/` | feature | The Desk board: the Scanner condensed to one column beside the Trader workspace. |
 | `desktop_update/` | feature | The desktop app's update notice (a newer Nova is out: Update / Later, then Restart to update) and the What's new card of release notes, fed by the Electron main process. |
 | `earnings/` | feature | The Earnings tab: the earnings calendar with day bands and before-open / after-close lanes. |
 | `electron/` | app | Tests only: Vitest suites for the Electron main-process modules in `frontend/electron/*.mjs`. |
@@ -49,15 +48,16 @@ the backend packages.
 | `issue_report/` | feature | File an issue from the desk: the form (Bug / Feature, optional title and description, the desk details and a scrubbed diagnostics dump), opened from the What's new card and Help > File an Issue…; the backend files it on GitHub. |
 | `leaderboard/` | feature | The Scanner board replayed at the Sim playhead: per-minute leaderboard fetch, coverage, lanes, recorder toast. |
 | `lib/` | shared | The shadcn `cn()` class-merge helper only. |
+| `market_board/` | feature | Owns the Market page (ADR 053): the day's market health at a glance -- day read, futures and macro, sectors and industries, NYSE breadth, the small-cap climate and the top stocks by sector. Read-only. |
 | `market_view/` | shared | How fresh the market on screen is (ADR 045): each symbol's Level 2 frames, beats and drawn book, its quote version, the lock while the view lags, and the view every order carries. |
 | `modules/` | feature | Trader modules the registry mounts: Level 2, time & sales, charts, news, quote header, fundamentals, data sources, watchlist strip. |
 | `nova_news/` | feature | The Nova News page: headline desk with masthead, lead story, columns and story filtering. |
 | `orders_today/` | feature | The Orders (Today) view: Working / Filled / Canceled / Partial segments in the Stock View footer dock. |
-| `pages/` | app | Page composition: Dashboard, Desk, Account, Records, Stock View and sample pages, plus the nav-rail page host. |
+| `pages/` | app | Page composition: Dashboard, Account, Records, Stock View and sample pages, plus the nav-rail page host. |
 | `perf/` | shared | The performance recorder's client side (ADR 026): frame meter, long frames, counters, render counts, the `/api/perf/client` reporter. |
 | `practice/` | feature | The practice account (ADR 020): Paper / Sim account model, buying power, reset, fixtures, the Sim account clock. |
 | `reports/` | feature | The Reports tab: P&L calendar, month detail, drawdown, R-multiples, tag performance, journal import. |
-| `sample_data/` | app | The sample desk (`?view=sample`): sample shell and context, fixtures, mode badge, network gate and order guard, and its own in-memory workspace -- Trader tabs, Focus rail, Desk and pop-out -- behind a storage gate that keeps it off the operator's saved state. |
+| `sample_data/` | app | The sample desk (`?view=sample`): sample shell and context, fixtures, mode badge, network gate and order guard, and its own in-memory workspace -- Trader tabs, Focus rail and pop-out -- behind a storage gate that keeps it off the operator's saved state. |
 | `scanner/` | feature | The Scanner page board: row shape gate, REST envelope, filters, pinned rows, replay label, header / footer, desk stack. |
 | `screen_record/` | feature | The trading screen recording's header chip (ADR 035): quiet while every monitor records, loud when one does not, fed by the Electron main process. |
 | `sensors/` | feature | The sensor board: backend sensor readings, freshness and status chips, shown in the Settings workspace. |

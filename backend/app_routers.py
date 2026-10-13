@@ -53,6 +53,7 @@ from clips.routes import router as clips_router
 from stock_mode.routes import router as stock_mode_router
 from hot_list.routes import router as hot_list_router
 from crypto.routes import router as crypto_router
+from market_board.routes import router as market_board_router
 from luld.routes import router as luld_router
 from book_watch.routes import router as book_watch_router
 from short_sale.routes import router as short_check_router
@@ -112,6 +113,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(stock_mode_router)
     app.include_router(hot_list_router)
     app.include_router(crypto_router)
+    app.include_router(market_board_router)
     app.include_router(luld_router)
     app.include_router(book_watch_router)
     app.include_router(short_check_router)

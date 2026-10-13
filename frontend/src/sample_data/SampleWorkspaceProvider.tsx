@@ -4,7 +4,7 @@
  * tabs for when the sample desk is left. This provider shadows it for
  * everything under the sample shell: the selected symbol and the Trader tabs
  * are the sample desk's own, in memory (useSampleTraderDesk), so the Trader,
- * the Focus rail, the Desk and pop-out work there without touching the
+ * the Focus rail and pop-out work there without touching the
  * operator's saved tabs, the dock bus or the bot's focus list.
  *
  * The rest -- the IB Gateway fields and the discovery defaults -- is the live
@@ -18,7 +18,7 @@ import { useSampleTraderDesk } from './useSampleTraderDesk';
 
 /** The workspace fields the sample desk owns; every one is replaced, none read from the live desk. */
 export const SAMPLE_OWNED_WORKSPACE_KEYS = [
-  'selectedSymbol', 'setSelectedSymbol', 'openStockView', 'openTraderTab', 'selectRowSymbol',
+  'selectedSymbol', 'setSelectedSymbol', 'openStockView', 'selectRowSymbol',
   'extractTraderTab', 'acceptTraderTabDrop', 'requestDockTraderTab', 'traderWindowId', 'traderDeskRole',
   'traderDockOffer', 'publishTraderTabOffer', 'publishTraderTabOfferEnd', 'traderTabs', 'traderLiveTabs',
   'traderPinnedTabs', 'activeTraderSymbol', 'traderBlockNotice', 'dismissTraderBlockNotice',
@@ -37,7 +37,6 @@ export function SampleWorkspaceProvider({ children }: { children: ReactNode }) {
     selectedSymbol,
     setSelectedSymbol,
     openStockView: trader.openStockView,
-    openTraderTab: trader.openTraderTab,
     selectRowSymbol: trader.selectRowSymbol,
     extractTraderTab: trader.extractTraderTab,
     acceptTraderTabDrop: trader.acceptTraderTabDrop,

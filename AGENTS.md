@@ -228,6 +228,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | The forming candle's volume (operator report, 2026-09-24) | `architecture/schema/market-data.md` |
 | Why it's moving (ADR 028, operator ask 2026-09-23) | `architecture/schema/stock-read.md` |
 | The Cryptos page (ADR 040, operator ask 2026-09-30) | `architecture/schema/cryptos.md` |
+| The Market page (ADR 053, operator decisions 2026-10-12/13) | `architecture/schema/market-board.md` |
 | Symbol directory for the header search (operator ask, 2026-09-23) | `architecture/schema/desk-ops.md` |
 | The operator's watch list and its toasts (operator asks, 2026-09-23 and 2026-09-24) | `architecture/schema/desk-ops.md` |
 | The close-of-day reminder (operator ask, 2026-10-01) | `architecture/schema/desk-ops.md` |
@@ -298,6 +299,7 @@ instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.
 | Web UI (Localhost / Desktop) | Delivery dashboard for gappers | ✅ Verified |
 | yfinance | Fundamental data (float, short interest, etc.) | ✅ Verified |
 | CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit (public, keyless) | The Cryptos page's crypto reference data (ADR 040): read-only, each labelled on the page, never a stock or order source | 🧪 Fixture-tested |
+| State Street SPDR holdings files, BEA release dates (public, keyless) | The Market page's sector membership and calendar (ADR 053): never a price source | 🧪 Fixture-tested |
 
 ---
 

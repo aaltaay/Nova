@@ -10,8 +10,8 @@ import { NavPageHost } from './NavPageHost';
 vi.mock('./RecordsPage', () => ({
   RecordsPage: () => <div data-testid="records-page" />,
 }));
-vi.mock('./DeskPage', () => ({
-  DeskPage: () => <div data-testid="desk-page" />,
+vi.mock('../market_board', () => ({
+  MarketPage: () => <div data-testid="market-page-stub" />,
 }));
 vi.mock('./AccountPage', () => ({
   AccountPage: () => <div data-testid="account-page" />,
@@ -38,7 +38,7 @@ describe('NavPageHost', () => {
     container.remove();
   });
 
-  it('shows the dashboard by default and swaps in Desk / Records from the store', () => {
+  it('shows the dashboard by default and swaps in Records from the store', () => {
     act(() => {
       root.render(
         <NavPageHost onOpenTrader={() => {}}>
@@ -48,14 +48,10 @@ describe('NavPageHost', () => {
     });
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeTruthy();
     act(() => {
-      setNavPage('desk');
-    });
-    expect(container.querySelector('[data-testid="desk-page"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
-    act(() => {
       setNavPage('records');
     });
     expect(container.querySelector('[data-testid="records-page"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
     act(() => {
       setNavPage('dashboard');
     });
@@ -95,6 +91,24 @@ describe('NavPageHost', () => {
       await Promise.resolve();
     });
     expect(container.querySelector('[data-testid="cryptos-page-stub"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
+  });
+
+  it('routes the Market page (lazy) from the store', async () => {
+    await act(async () => {
+      root.render(
+        <NavPageHost onOpenTrader={() => {}}>
+          <div data-testid="dashboard-stub" />
+        </NavPageHost>,
+      );
+    });
+    await act(async () => {
+      setNavPage('market');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="market-page-stub"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
   });
 });

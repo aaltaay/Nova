@@ -49,9 +49,8 @@ const NON_SCANNER_TABS: ReadonlySet<ActiveTab> = new Set<ActiveTab>(['trading', 
 /**
  * The Scanner's Sim session bar -- the Scanner only (PR #426; QA 2026-09-22,
  * V41: every other page carried it, stale download summary and all). On the
- * Trader view, and on the Desk while it shows the Trader workspace beside its
- * board, the scrubber rides on the context strip instead (`SimSessionStrip`);
- * Records, Account and Bots carry neither. Off the Scanner this renders
+ * Trader view the scrubber rides on the context strip instead
+ * (`SimSessionStrip`); Market, Records, Account and Bots carry neither. Off the Scanner this renders
  * nothing and leaves the clock resource to the strip's controller. The
  * slider, its bound labels and every band on it share one scale: the clock's
  * own session window (V10).

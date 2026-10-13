@@ -431,10 +431,10 @@ describe('the live edge (ADR 020 live-edge amendment)', () => {
 describe('QA 2026-09-22 batch (fix/qa-sim-replay)', () => {
   afterEach(() => resetNavRailStoreForTests());
 
-  it('rides on the Scanner only -- Records, Account, the Desk and Bots carry no SIM SESSION bar (V41)', async () => {
+  it('rides on the Scanner only -- Records, Account, Market and Bots carry no SIM SESSION bar (V41)', async () => {
     await mount();
     expect(screen.getByTestId('sim-session-header')).toBeTruthy();
-    for (const page of ['records', 'account', 'desk'] as const) {
+    for (const page of ['records', 'account', 'market'] as const) {
       act(() => setNavPage(page));
       expect(screen.queryByTestId('sim-session-header')).toBeNull();
     }
