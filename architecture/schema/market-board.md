@@ -46,7 +46,9 @@ desk (the page reads today's live market and says so).
   prev_close, change, change_pct, price_basis: "last" | "mid" | "bars" | null (a coin with no print in the snapshot
   shows its quoted midpoint; "bars" below), data_type: "live" | "frozen" | "delayed" | "delayed_frozen" | "bars" | null (IBKR's own
   market-data type for the snapshot), at, line: [[t, value]] (5-minute bars from 04:00 ET today, oldest first),
-  error: string | null}`. `prev_close` is IBKR's prior close (a future's prior settlement). The `small_caps`
+  error: string | null}`. `prev_close` is IBKR's prior close from the snapshot (a future's prior settlement), else the
+  last daily bar before today (`prior:<id>`, read once a session: IBKR's Cboe index snapshots -- VIX, TNX -- came
+  back with no last and no close on 2026-10-13 while their bars answered, so those tiles price from bars). The `small_caps`
   spread tile is RTY's `change_pct` minus ES's (`last` / `change` null, `change_pct` the points) and its line the
   difference of the two bar lines in percent from each prior close. A refused symbol carries IBKR's code and words
   in `error` ("10089: requires an additional subscription"), its numbers `null`.

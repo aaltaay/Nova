@@ -61,6 +61,8 @@ def _tile(spec: dict, q: dict | None, line: list | None, day: date, now: float) 
 def _from_bars(q: dict | None, line: list | None, prior: dict | None, now: float) -> dict | None:
     """A tile's quote from its bars when IBKR gave no snapshot: the last 5-minute close, the prior daily close."""
     if q and q.get("last") is not None:
+        if q.get("prev_close") is None and prior:
+            return {**q, "prev_close": prior.get("close")}   # a snapshot with a print but no close
         return q
     if not line or now - line[-1][0] > MARKET_BARS_FRESH_SEC:
         return q

@@ -152,11 +152,13 @@ def ibkr_jobs(now: float) -> list[Job]:
                         gap_group="history", gap=MARKET_HISTORY_GAP_SEC, retry=MARKET_SHED_RETRY_SEC))
         jobs.append(Job("movers_bars", ibkr_reads.SOURCE, MARKET_BARS_QUOTES_TTL_SEC, partial(_movers_bars, iso),
                         gap_group="history", gap=MARKET_HISTORY_GAP_SEC, retry=MARKET_SHED_RETRY_SEC))
-        for spec in QUOTE_SPECS:
-            jobs.append(Job(f"prior:{spec['id']}", ibkr_reads.SOURCE, FOREVER,
-                            partial(ibkr_reads.prior_close, spec, iso), gap_group="history",
-                            gap=MARKET_HISTORY_GAP_SEC, fresh=partial(_prior_fresh, prior_session),
-                            retry=MARKET_SHED_RETRY_SEC))
+    # Every tile's prior daily close, once a session, lines or not: IBKR's Cboe index snapshots (VIX, TNX) came back
+    # with no last and no close on 2026-10-13 while their bars answered.
+    for spec in QUOTE_SPECS:
+        jobs.append(Job(f"prior:{spec['id']}", ibkr_reads.SOURCE, FOREVER,
+                        partial(ibkr_reads.prior_close, spec, iso), gap_group="history",
+                        gap=MARKET_HISTORY_GAP_SEC, fresh=partial(_prior_fresh, prior_session),
+                        retry=MARKET_SHED_RETRY_SEC))
     line_ttl = MARKET_LINES_TTL_SEC if lines_free else MARKET_BARS_LINE_TTL_SEC
     for spec in QUOTE_SPECS:
         jobs.append(Job(f"line:{spec['id']}", ibkr_reads.SOURCE, line_ttl,
