@@ -6,8 +6,9 @@ to cover with at least a tenth of the float short -- and a borrow fee of 50% a y
 """
 from __future__ import annotations
 
-MOVE_RULES_VERSION = "move-rules-v5-2026-10-12"  # v5: the ladder (``likely.steps``); a board's row is read at its
-# own price (``GET /api/why?board=``, the Catalyst column)
+MOVE_RULES_VERSION = "move-rules-v6-2026-10-13"  # v6: "Halts today" names a halt carried over from the prior
+# exchange day (``halts.carried``); the news-halt rung reads "No news halt open (T1 / T12)"
+# v5 (2026-10-12): the ladder (``likely.steps``); a board's row is read at its own price (``GET /api/why?board=``)
 # v4 (2026-10-12): a Sim replay reads its own day as of the playhead; a check names the record it was read from
 # and why a fact is unknown (``check_notes``)
 # v3 (2026-10-12): days to cover counts only with a tenth of the float short; a Sim replay desk is not read

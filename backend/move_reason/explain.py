@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from constants_catalysts import CATALYST_NEWS_PENDING_CODES
 from constants_move_reason import (
     MOVE_BORROW_FEE_HIGH,
     MOVE_BORROW_SCARCE_SHARES,
@@ -57,6 +58,8 @@ _SHORT_RULE = (f"heavy is {MOVE_SHORT_PCT_HIGH * 100:.0f}% of the float short, o
 _BORROW_RULE = (f"tight is a {MOVE_BORROW_FEE_HIGH:.0f}%+ fee, a fee doubled since the open, three quarters of the "
                 f"lendable shares gone, or under {MOVE_BORROW_SCARCE_SHARES / 1000:.0f}K to lend")
 _LOW_FLOAT = f"under {MOVE_LOW_FLOAT_SHARES / 1e6:.0f}M"
+# A news halt, never an LULD pause: news halts happen before the open and after the close too.
+_NO_NEWS_HALT = f"No news halt open ({' / '.join(CATALYST_NEWS_PENDING_CODES)})"
 
 
 def _times(x: float) -> str:
@@ -105,7 +108,7 @@ def steps(change: float | None, by: dict[str, dict[str, Any]], rot: float | None
     news_unknown = news["state"] == MOVE_STATE_UNKNOWN
 
     pending = bool(v.get("news_pending"))
-    out.append(_step(MOVE_KIND_NEWS_PENDING, pending, _value(news) if pending else "Not halted for news"))
+    out.append(_step(MOVE_KIND_NEWS_PENDING, pending, _value(news) if pending else _NO_NEWS_HALT))
 
     if v.get("verdict") in ("catalyst", "negative"):
         out.append(_step(MOVE_KIND_NEWS, True, _value(news) + (f": {_short(headline)}" if headline else "")))

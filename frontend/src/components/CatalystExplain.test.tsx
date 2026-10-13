@@ -10,7 +10,7 @@ const MNDR: WhyMovingRead = {
   schema_version: 1,
   symbol: 'MNDR',
   generated_at: Date.parse('2026-10-12T20:49:00-04:00') / 1000,
-  rules_version: 'move-rules-v5-2026-10-12',
+  rules_version: 'move-rules-v6-2026-10-13',
   replay: false,
   likely: {
     kind: 'low_float_momentum',
@@ -19,7 +19,7 @@ const MNDR: WhyMovingRead = {
     confidence: 'likely',
     steps: [
       { kind: 'move', name: 'A real move', fits: true, why: '+204.7% today' },
-      { kind: 'news_pending', name: 'Halted for news', fits: false, why: 'Not halted for news' },
+      { kind: 'news_pending', name: 'Halted for news', fits: false, why: 'No news halt open (T1 / T12)' },
       { kind: 'news', name: 'Company news', fits: false, why: 'Only movers lists and market wraps' },
       { kind: 'short_squeeze', name: 'Short squeeze', fits: false,
         why: 'Shorts 10% of float · 0.3 days to cover (Yahoo ratio) -- heavy is 20% of the float short, or 3+ days to cover with 10%+ short' },
