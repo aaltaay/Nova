@@ -5,7 +5,7 @@
  * candles (5-minute, Full Day, and the 1-minute's nearest ones); the setup boxes and the plan's lines on
  * the 1-minute pane (the 10-second pane draws the plan's strategy box and an order's lines too, so its Key lists them;
  * the 5-minute pane draws its own setups' lines and never the plan's, operator report 2026-10-13), and Nova's LULD band
- * on the 1-minute pane alone.
+ * on the 1-minute and 10-second panes.
  * Every colour is the one the drawing uses, read from the same constants.
  */
 import { CHART_SESSION_COLORS } from '../constants';
@@ -181,7 +181,7 @@ function fiveOnMinuteRows(): KeySection {
   };
 }
 
-/** Nova's LULD band (ADR 047 amendment 2026-10-12): the 1-minute pane's alone. */
+/** Nova's LULD band (ADR 047 amendments 2026-10-12 and 2026-10-13): the 1-minute and 10-second panes'. */
 function luldRows(): KeySection {
   return {
     title: 'Halt line (LULD, 9:30 AM–4:00 PM)',
@@ -228,6 +228,7 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
     if (layers.eyes !== false) out.push(luldRows());
   } else if (kind === 'thin') {
     out.push(planRows(false));
+    if (layers.eyes !== false) out.push(luldRows());
   } else {
     if (kind === 'map' && layers.setups) out.push(fiveMinuteRows(), flatTopRows(true));
     if (layers.levels) out.push(...(kind === 'daily' ? [dailyRows()] : [fiveMinuteLevelRows(), trendRows('5-minute')]));

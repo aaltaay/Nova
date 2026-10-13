@@ -15,8 +15,8 @@
  * the day's levels from the replay's own candles, and the Sim eyes' setups that ended up to the playhead (#815).
  * The daily runs read whole days, so they are not drawn there; a read from the other side of the live edge, or
  * from after the playhead, is never drawn.
- * The 1-minute pane alone draws Nova's LULD band (ADR 047 amendment 2026-10-12, `luldShapes.ts`): this desk's, a
- * replay's up to its playhead on a replay desk, with Eyes on.
+ * The 1-minute and 10-second panes draw Nova's LULD band (ADR 047 amendments 2026-10-12 and 2026-10-13,
+ * `luldShapes.ts`): this desk's, a replay's up to its playhead on a replay desk, with Eyes on.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
@@ -54,6 +54,8 @@ import type { SetupLeg } from './types';
 import { draggedPlan, usePlanDrag } from './usePlanDrag';
 
 const MIN = 60;
+/** The LULD band's panes, and the width of each one's candle in seconds. */
+const LULD_BAR_SEC: Partial<Record<ReturnType<typeof paneKind>, number>> = { full: MIN, thin: 10 };
 /** A time further than this from any bar of the pane is not on it. */
 const SNAP_SLACK_SEC = 15 * MIN;
 const LEG_LOOKBACK_SEC = 20 * MIN;
@@ -210,11 +212,13 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const scaleWidth = usePriceScaleWidth(chart, containerRef, barsRevision, kind === 'full' && enabled);
   const [cornerBottom, setCornerBottom] = useState(0);
   const runs = daily && enabled && !ctx?.replay ? ctx?.history.data?.runs ?? null : null;
-  // The LULD band: the 1-minute pane's, from this desk's source (the live feed, or a replay at its playhead).
+  // The LULD band: the 1-minute and 10-second panes', from this desk's source (the live feed, or a replay at its
+  // playhead).
   const trail = ctx?.luld?.data ?? null;
-  const luldTrail = kind === 'full' && enabled && ctx?.layers.eyes && trail !== null
+  const luldBarSec = LULD_BAR_SEC[kind];
+  const luldTrail = luldBarSec !== undefined && enabled && ctx?.layers.eyes && trail !== null
     && (trail.source === 'replay') === ctx.replay ? trail : null;
-  const luld = useMemo(() => luldScene(luldTrail, index), [luldTrail, index]);
+  const luld = useMemo(() => luldScene(luldTrail, index, luldBarSec), [luldTrail, index, luldBarSec]);
   const scene = useMemo<Scene>(() => {
     if (!enabled) return EMPTY_SCENE;
     const words: SceneWord[] = [

@@ -63,6 +63,26 @@ describe('luldScene', () => {
   });
 });
 
+describe('on the 10-second chart (ADR 047 amendment, operator ask 2026-10-13)', () => {
+  // 10-second candles 09:43:00, :10, :20, then none at :30, then :40.
+  const TEN = buildSeriesTimeIndex(['09:43:00', '09:43:10', '09:43:20', '09:43:40'].map(h => chartSec(h) as Time));
+
+  it('puts a moment inside its 10-second candle at its share of the ten seconds', () => {
+    expect(luldAt(TEN, epoch('09:43:15'), 10)).toEqual({ t: chartSec('09:43:10'), frac: 0.5 });
+    expect(luldAt(TEN, epoch('09:43:35'), 10)).toEqual({ t: chartSec('09:43:20'), frac: 1 });
+  });
+
+  it('steps where the band moved, a backfilled band dashed from the moment it came', () => {
+    const scene = luldScene(trail([
+      { ts: epoch('09:43:08'), lower: 3.15, upper: 4.83, exact: false },
+      { ts: epoch('09:43:25'), lower: null, upper: null, exact: false },
+    ], { as_of: epoch('09:43:45') }), TEN, 10);
+    expect(scene?.steps.map(s => [s.from, s.to, s.upper, s.approx])).toEqual([
+      [{ t: chartSec('09:43:00'), frac: 0.8 }, { t: chartSec('09:43:20'), frac: 0.5 }, 4.83, true],
+    ]);
+  });
+});
+
 describe('luldWords', () => {
   it('names the band in force at its price, ≈ when approximate', () => {
     const words = luldWords(trail([{ ts: epoch('09:30:01'), lower: 4.4, upper: 6.6, exact: true }]));

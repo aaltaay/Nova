@@ -37,7 +37,7 @@ A stock that stays on a Limit Up-Limit Down band for 15 seconds is paused for fi
 
 - The operator sees the halt line before the stock reaches it, and the 15 seconds when it does.
 - About one band in five is off by a cent or more where the SIP's own flags could check it, mostly by 1-3c. The cause is not known yet: the SIP's exact moment of re-evaluation, or which trades it counts. The track record is quoted beside the line, never hidden.
-- A stock first opened mid-session shows an approximate band for the rest of the session, or until it halts and reopens. Seeding it exactly from IBKR's historical ticks is not built.
+- A stock first opened mid-session shows an approximate band for the rest of the session, or until it halts and reopens. Since the 2026-10-13 amendment it shows at once, rebuilt on IBKR's historical trades; before it, only after five minutes of Nova's own tape.
 - Re-measure with `py -3 tools/luld_check.py massive` after a change to `luld/tracker.py`, and update `luld/track_record.py`.
 
 ## Amendment 2026-10-12: the band on the 1-minute chart
@@ -54,3 +54,16 @@ The operator asked: "i want to see luld lines on the charts.. should we only put
   - 10:50 high 17.18, a band that began 13 s into that minute;
   - 10:56 low 15.87.
 - **Live limit.** The steps begin when Nova began holding the stock's tape. A stock first watched mid-session has no line before that.
+
+## Amendment 2026-10-13: a stock opened mid-session, and the 10-second chart
+
+**The band at once, from IBKR's trades.** FLYE, 2026-10-13: Nova's first print came at 09:43:06 ET when the operator opened it, and it halted at 09:46:37. Its band waited for five minutes of Nova's own tape, so the chart showed none before the halt.
+
+- **Decision.** A tracker that starts after 09:30 with no reference asks once for IBKR's trades of the ten minutes before its first print (`reqHistoricalTicks`, at most four 1,000-trade pages, and when they stop short one request of 1-minute bars for the minutes they missed: five requests, IBKR's most for one stock in 2 s; in the one pacing budget of ADR 012, never waiting on the connect-loop). Until they land the tracker keeps its own inputs, and then a new tracker hears IBKR's trades and those inputs and replaces it (`Tracker.rebuilt`). The reference runs the Plan's rules over IBKR's trades, so it has a history like the exchanges'. Never exact: exactness still waits for a reopening print on Nova's tape.
+- **Why ten minutes and the rules, not a five-minute mean.** The exchanges' reference moves by the 1% / 30 s rule, so it trails the mean. A mean taken at once sits up to 1% off it: measured, it matched to the cent on only 18-39% of the touches it served. Five minutes to seed and five more under the rule matched far more often (`tools/luld_check.py backfill`, below).
+- **Rejected.** Nova's own tape archive holds the same prints the tracker hears (nothing before the first, except across a restart). IBKR's 1-minute bars as the source average by volume, not by trade, and their minutes do not end where the window does; even at their best (each minute's own mean of trades) they matched to the cent far less often than the trades. They only fill the minutes a busy stock's four pages cannot reach, where they measurably help.
+- **Measured** (`tools/luld_check.py backfill`, the same 10 days): a tracker started 30 s to 4 minutes before each SIP-flagged touch where waiting for Nova's own tape showed no band (1,995). The shipped backfill drew a band on 1,803: to the cent on 48%, within 1c on 64%, within its stated spread on 88%. A five-minute mean taken at once: 36% / 50% / 72%; every trade of the ten minutes (no page limit): 60% / 74% / 90%; 1-minute bars alone at their best: 33% / 54% / 84%. The bars that fill a busy stock's missing minutes were measured at their best; IBKR's are volume-weighted, so live may be a little lower.
+- **Also fixed.** A reopening print that a trade beat to Nova's tape after a halt was ignored for five minutes, leaving the band approximate on that trade; it is now the exact reference.
+- **Tests.** The live worker's own thread is off for the test session (`conftest.py`, as for the other workers); a test that fed a print started it, and its wall-clock tick forgot other tests' trackers.
+
+**The 10-second chart too.** The operator: "i want the luld lines show in the 10second charts too not just the one min, im almost thinking of just keeping it at the 10 seconds only, but lets keep it at the 1min too for now". The 10-second chart draws the same steps, each at its share of a 10-second candle; the band moves at most every 30 s, so a step spans at least three candles. The 1-minute chart keeps it, and the 5-minute still draws none.

@@ -104,6 +104,16 @@ describe('luldStrip', () => {
     expect(luldStrip(view({ state: 'warming', warm_until: NOW + 192 }), NOW * 1000)!.center).toBe('LULD in 3:12');
   });
 
+  it("says it is reading IBKR's trades while a stock opened mid-session waits for them (ADR 047 amendment 2026-10-13)", () => {
+    const asking = { state: 'asking' as const, asked_at: NOW - 1, at: null, since: null, trades: null, minutes: null, pages: null,
+      complete: null, reason: null };
+    expect(luldStrip(view({ state: 'warming', warm_until: NOW + 298, backfill: asking }), NOW * 1000)!.center)
+      .toBe("LULD · reading IBKR's trades");
+    const failed = { ...asking, state: 'failed' as const, reason: 'TimeoutError' };
+    expect(luldStrip(view({ state: 'warming', warm_until: NOW + 240, backfill: failed }), NOW * 1000)!.center)
+      .toBe('LULD in 4:00');
+  });
+
   it('is gone outside the bands\' hours', () => {
     expect(luldStrip(view({ state: 'off' }), NOW * 1000)).toBeNull();
     expect(luldStrip(null, NOW * 1000)).toBeNull();
@@ -121,5 +131,15 @@ describe('luldTip', () => {
 
   it('explains an approximate band', () => {
     expect(luldTip(view({ exact: false, spread: 0.17 }))).toContain('within 0.17 of theirs');
+  });
+
+  it("says a band rebuilt from IBKR's trades is one, and quotes its own record (ADR 047 amendment 2026-10-13)", () => {
+    const track = { ...view().track!, backfill: { touches: 400, exact: 200, within_1c: 250, inside_spread: 330,
+      text: "a band rebuilt from IBKR's trades matched to the cent on 50%" } };
+    const tip = luldTip(view({ exact: false, spread: 0.17, reference_source: 'backfill', track }));
+    expect(tip).toContain("rebuilt the reference from IBKR's trades of the 10 minutes before");
+    expect(tip).toContain('a rebuilt band sat within 0.17 of theirs seven times in eight');
+    expect(tip).toContain("Measured: a band rebuilt from IBKR's trades matched to the cent on 50%");
+    expect(tip).not.toContain('five times in six');
   });
 });

@@ -85,10 +85,13 @@ describe("each chart pane's Key", () => {
     expect(chartKey('none', ON)).toEqual([]);
   });
 
-  it("lists Nova's LULD band on the 1-minute Key alone, and not with Eyes off (ADR 047 amendment 2026-10-12)", () => {
-    const luld = chartKey('full', ON).find(k => k.title === LULD);
-    expect(luld?.rows.map(r => [r.swatch, r.label])).toEqual([['line', 'LULD ▲ / ▼'], ['dash', 'Dashed, ≈']]);
-    expect(titles('full', { ...ON, eyes: false })).not.toContain(LULD);
-    for (const pane of ['map', 'thin', 'daily'] as const) expect(titles(pane)).not.toContain(LULD);
+  it("lists Nova's LULD band on the 1-minute and 10-second Keys, and not with Eyes off (ADR 047 amendments)", () => {
+    for (const pane of ['full', 'thin'] as const) {
+      const luld = chartKey(pane, ON).find(k => k.title === LULD);
+      expect(luld?.rows.map(r => [r.swatch, r.label])).toEqual([['line', 'LULD ▲ / ▼'], ['dash', 'Dashed, ≈']]);
+      expect(titles(pane, { ...ON, eyes: false })).not.toContain(LULD);
+    }
+    expect(titles('thin')).toEqual(['The plan', LULD, 'Background (time of day, ET)']);
+    for (const pane of ['map', 'daily'] as const) expect(titles(pane)).not.toContain(LULD);
   });
 });

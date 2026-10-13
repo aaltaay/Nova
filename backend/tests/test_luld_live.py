@@ -20,6 +20,7 @@ def t(hms: str) -> float:
 
 @pytest.fixture(autouse=True)
 def _fresh(monkeypatch):
+    monkeypatch.setenv("NOVA_LULD", "1")
     live.reset_for_tests()
     # The worker thread is the process's; tests step it by hand.
     monkeypatch.setattr(live, "_ensure_thread", lambda: None)

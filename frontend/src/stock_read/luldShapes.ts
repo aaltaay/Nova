@@ -1,14 +1,15 @@
 /**
- * Nova's LULD band on the 1-minute chart (ADR 047 amendment, operator ask 2026-10-12: "i want to see luld lines on the
- * charts"). Pure: the day's steps (`GET /api/luld/{symbol}/trail`) and the pane's candles in; the scene's band line and
- * the band's names at the right edge out.
+ * Nova's LULD band on the 1-minute and 10-second charts (ADR 047 amendments, operator asks 2026-10-12: "i want to see
+ * luld lines on the charts", and 2026-10-13: "i want the luld lines show in the 10second charts too"). Pure: the day's
+ * steps (`GET /api/luld/{symbol}/trail`) and the pane's candles in; the scene's band line and the band's names at the
+ * right edge out.
  *
- * Only the 1-minute chart draws it. The band can move every 30 s, so one 5-minute candle can span several bands. Drawn
- * once per 5-minute candle, candles would poke through the line with no halt, and halt candles would never touch it.
- * Each step starts where its band began: inside its candle, at its share of the minute. So a candle that ran into the
- * band meets the band it ran into. A minute with no candle puts the step between the candles around it. A step with no
- * band (a halt, the close) draws nothing. An approximate step is dashed and its name carries `≈`, so an estimate
- * never looks official.
+ * The 5-minute chart does not draw it. The band can move every 30 s, so one 5-minute candle can span several bands.
+ * Drawn once per 5-minute candle, candles would poke through the line with no halt, and halt candles would never touch
+ * it. Each step starts where its band began: inside its candle, at its share of the candle (`barSec`: 60 on the
+ * 1-minute chart, 10 on the 10-second). So a candle that ran into the band meets the band it ran into. A stretch with
+ * no candle puts the step between the candles around it. A step with no band (a halt, the close) draws nothing. An
+ * approximate step is dashed and its name carries `≈`, so an estimate never looks official.
  */
 import { EDGE_PRIORITY, type SeriesTimeIndex } from '../chart';
 import { LULD_APPROX_MARK, LULD_COLOR, LULD_LABEL } from '../constantGroups/luld';
