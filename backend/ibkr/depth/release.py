@@ -39,9 +39,15 @@ is remembered. IBKR granting one of those requests afterwards would mean the rul
 inside IB Gateway: logged as an ERROR that names the stock, and counted (``late_grants``). Nothing more is
 sent, since a second cancel does not free the line (tested above).
 
+A cancel is recorded only once it was sent. ib_async's ``Subscription.close`` drops a request from its
+registry even when the send raises, so Nova sends the cancel itself first and lets ib_async drop the request
+only after the send went out; a send that fails leaves the request held, and READY tries again.
+
 Threads: ``release`` and ``take_back`` run where a viewer lets go or asks (the HTTP loop). The answer hooks
-run on the IB loop, inside ib_async's callback (ADR 010): dict work and at most one cancel, never a wait.
-One lock guards the maps.
+run on the IB loop, inside ib_async's callback (ADR 010): dict work and at most one send, never a wait. One
+lock covers each whole decision -- read the request, decide, cancel or hold -- so a viewer asking again
+either takes a held request back before its cancel, or finds it gone and makes a new request; it never
+reuses a request whose cancel is going out (PR #924 review).
 """
 from __future__ import annotations
 
@@ -182,14 +188,32 @@ def _note(sub: Any, req_id: int, answer: str) -> None:
         _bounded(_answers, req_id, (sub, answer))
 
 
-def _cancel(ib: Any, req_id: int, contract: Any, symbol: str, smart: bool) -> None:
-    """The only ``cancelMktDepth`` Nova sends. Only for a request IBKR has answered."""
+def _close(sub: Any) -> None:
+    """ib_async lets the request go without sending anything, and its book on the Ticker is cleared."""
+    ticker = getattr(sub, "ticker", None)
+    try:
+        sub.close(send_cancel=False)
+    except Exception:
+        logger.warning("IBKR depth: ib_async could not drop request %s", getattr(sub, "reqId", None), exc_info=True)
+    for name in ("domBids", "domAsks", "domBidsDict", "domAsksDict"):
+        book = getattr(ticker, name, None)
+        if book is not None:
+            book.clear()  # as ib_async's own cancelMktDepth does: a book no longer updated is not shown
+
+
+def _cancel(ib: Any, req_id: int, sub: Any, symbol: str, smart: bool) -> bool:
+    """The only Level 2 cancel Nova sends, for a request IBKR has answered. False when it could not be sent."""
+    client = getattr(ib, "client", None)
+    try:
+        client.cancelMktDepth(req_id, smart)
+    except Exception:
+        logger.warning("IBKR depth: the cancel of %s's Level 2 line (reqId %s) could not be sent -- held, to be "
+                       "sent again at READY", symbol, req_id, exc_info=True)
+        return False
     with _lock:
         _bounded(_sent, req_id, (_connection(ib), symbol.upper(), time.time()))
-    try:
-        ib.cancelMktDepth(contract, isSmartDepth=smart)
-    except Exception:
-        logger.warning("IBKR depth: the cancel of %s's Level 2 line could not be sent", symbol, exc_info=True)
+    _close(sub)
+    return True
 
 
 def _late_grant(ib: Any, req_id: int, now: float) -> bool:
@@ -228,16 +252,15 @@ def _forget(ib: Any, contract: Any) -> None:
 
 def forget(ib: Any, contract: Any) -> None:
     """IBKR refused the request (309, 10092): it holds nothing, so ib_async lets it go and no cancel is sent."""
-    sub = _registered(ib, contract)
-    req_id = getattr(sub, "reqId", None)
-    if isinstance(req_id, int):
-        _note(sub, req_id, REFUSED)
-        with _lock:
-            held = _held.pop(req_id, None)
-        if held is not None:
-            _unwatch(held)
-    _forget(ib, contract)
     with _lock:
+        sub = _registered(ib, contract)
+        req_id = getattr(sub, "reqId", None)
+        if isinstance(req_id, int):
+            _note(sub, req_id, REFUSED)
+            held = _held.pop(req_id, None)
+            if held is not None:
+                _unwatch(held)
+        _forget(ib, contract)
         _counts["forgotten"] += 1
 
 
@@ -251,6 +274,7 @@ def _unwatch(held: _Held) -> None:
 
 
 def _hold(ib: Any, req_id: int, sub: Any, contract: Any, symbol: str, smart: bool, now: float) -> None:
+    """Keep the request until IBKR answers it (or READY); watch its Ticker for rows, which are an answer too."""
     ticker = getattr(sub, "ticker", None)
     held = _Held(symbol=symbol.upper(), contract=contract, smart=smart, since=now, sub=sub, ticker=ticker)
     if ticker is not None:
@@ -274,39 +298,37 @@ def release(ib: Any, contract: Any, symbol: str, smart: bool, *, lost: bool = Fa
     ``lost``: the line belongs to a session IBKR restored with its data lost (1101). An unanswered request is
     then gone at IBKR and is forgotten. An answered one is cancelled, which is the safe order.
     """
-    sub = _registered(ib, contract)
-    req_id = getattr(sub, "reqId", None)
-    if sub is None or not isinstance(req_id, int):
-        return NOTHING
-    answer = answer_of(req_id, sub)
-    if answer == REFUSED or (answer is None and lost):
-        _forget(ib, contract)
-        with _lock:
+    with _lock:
+        sub = _registered(ib, contract)
+        req_id = getattr(sub, "reqId", None)
+        if sub is None or not isinstance(req_id, int):
+            return NOTHING
+        answer = answer_of(req_id, sub)
+        if answer == REFUSED or (answer is None and lost):
+            _forget(ib, contract)
             _counts["forgotten"] += 1
-        return FORGOTTEN
-    if answer == GRANTED and _client.is_ready():
-        _cancel(ib, req_id, contract, symbol, smart)
-        with _lock:
+            return FORGOTTEN
+        if answer == GRANTED and _client.is_ready() and _cancel(ib, req_id, sub, symbol, smart):
             _counts["cancelled"] += 1
-        return CANCELLED
-    _hold(ib, req_id, sub, contract, symbol, smart, time.time() if now is None else now)
-    why = "IBKR's connection is lost" if answer == GRANTED else "IBKR has not answered it yet"
-    logger.info("IBKR depth: holding %s's Level 2 request (reqId %s) -- %s; the cancel goes out when it does",
-                symbol, req_id, why)
-    return HELD
+            return CANCELLED
+        _hold(ib, req_id, sub, contract, symbol, smart, time.time() if now is None else now)
+        why = "IBKR has not answered it yet" if answer is None else "the cancel cannot go out while IBKR is unreachable"
+        logger.info("IBKR depth: holding %s's Level 2 request (reqId %s) -- %s", symbol, req_id, why)
+        return HELD
 
 
 def _resolve(ib: Any, req_id: int, held: _Held, answer: str, now: float) -> None:
+    """IBKR answered a held request, which is already out of ``_held``: cancel or forget it (under the lock)."""
     if _registered(ib, held.contract) is not held.sub:
         return  # ib_async no longer holds this request (its socket dropped): nothing of ours to cancel
     if answer == REFUSED:
         _forget(ib, held.contract)
-        with _lock:
-            _counts["forgotten"] += 1
+        _counts["forgotten"] += 1
         return
-    _cancel(ib, req_id, held.contract, held.symbol, held.smart)
-    with _lock:
-        _counts["cancelled_on_answer"] += 1
+    if not _cancel(ib, req_id, held.sub, held.symbol, held.smart):
+        _hold(ib, req_id, held.sub, held.contract, held.symbol, held.smart, held.since)
+        return
+    _counts["cancelled_on_answer"] += 1
     logger.info("IBKR depth: IBKR answered %s's Level 2 request (reqId %s) %.1f s after Nova let it go -- "
                 "cancelled it now", held.symbol, req_id, now - held.since)
 
@@ -314,77 +336,72 @@ def _resolve(ib: Any, req_id: int, held: _Held, answer: str, now: float) -> None
 def on_answer(ib: Any, req_id: int, answer: str, now: float | None = None) -> None:
     """IBKR answered a Level 2 request (IB loop). A held one is cancelled or forgotten now, if IBKR is reachable."""
     ts = time.time() if now is None else now
-    sub = _request_of(ib, req_id)
-    if sub is None:
-        if answer == GRANTED:
-            _late_grant(ib, req_id, ts)  # no live request has this id: a grant after Nova's cancel?
-        return
-    _note(sub, req_id, answer)
-    if not _client.is_ready():
-        return  # READY settles it
     with _lock:
+        sub = _request_of(ib, req_id)
+        if sub is None:
+            if answer == GRANTED:
+                _late_grant(ib, req_id, ts)  # no live request has this id: a grant after Nova's cancel?
+            return
+        _note(sub, req_id, answer)
+        if not _client.is_ready():
+            return  # READY settles it
         held = _held.get(req_id)
         if held is None or held.sub is not sub:
             return
         _held.pop(req_id, None)
-    _unwatch(held)
-    _resolve(ib, req_id, held, answer, ts)
+        _unwatch(held)
+        _resolve(ib, req_id, held, answer, ts)
 
 
 def take_back(ib: Any, contract: Any) -> bool:
     """The stock is asked for again: a held request carries on as the line. False if there was none to take.
 
-    A held request IBKR refused is forgotten instead, so the new ask is a real one.
+    A held request IBKR refused is forgotten instead, so the new ask is a real one. Under the lock, so a
+    request whose cancel is going out is never taken back: it is gone from ib_async by the time this reads.
     """
-    sub = _registered(ib, contract)
-    req_id = getattr(sub, "reqId", None)
-    if not isinstance(req_id, int):
-        return False
     with _lock:
+        sub = _registered(ib, contract)
+        req_id = getattr(sub, "reqId", None)
+        if not isinstance(req_id, int):
+            return False
         held = _held.get(req_id)
         if held is None or held.sub is not sub:
             return False
         _held.pop(req_id, None)
-    _unwatch(held)
-    if answer_of(req_id, sub) == REFUSED:
-        _forget(ib, contract)
-        with _lock:
+        _unwatch(held)
+        if answer_of(req_id, sub) == REFUSED:
+            _forget(ib, contract)
             _counts["forgotten"] += 1
-        return False
-    with _lock:
+            return False
         _counts["taken_back"] += 1
-    logger.info("IBKR depth: %s asked for again while its last request (reqId %s) was held -- it carries on as "
-                "the line", held.symbol, req_id)
-    return True
+        logger.info("IBKR depth: %s asked for again while its last request (reqId %s) was held -- it carries on "
+                    "as the line", held.symbol, req_id)
+        return True
 
 
 def on_session_ready(ib: Any, now: float | None = None) -> None:
     """Every READY (IB loop): settle the requests held while IBKR was unreachable (module docstring)."""
     ts = time.time() if now is None else now
     with _lock:
-        pending = list(_held.items())
-    for req_id, held in pending:
-        fate = line_session.fate(ib, held.contract, IBKR_DEPTH_REGISTRY_KIND, held.ticker)
-        if fate == line_session.GONE or _registered(ib, held.contract) is not held.sub:
-            with _lock:
+        for req_id, held in list(_held.items()):
+            fate = line_session.fate(ib, held.contract, IBKR_DEPTH_REGISTRY_KIND, held.ticker)
+            if fate == line_session.GONE or _registered(ib, held.contract) is not held.sub:
                 _held.pop(req_id, None)
-            _unwatch(held)
-            logger.info("IBKR depth: %s's held Level 2 request (reqId %s) ended with its socket", held.symbol, req_id)
-            continue
-        answer = answer_of(req_id, held.sub)
-        if answer is None and fate == line_session.LOST:
-            with _lock:
+                _unwatch(held)
+                logger.info("IBKR depth: %s's held Level 2 request (reqId %s) ended with its socket",
+                            held.symbol, req_id)
+                continue
+            answer = answer_of(req_id, held.sub)
+            if answer is None and fate == line_session.LOST:
                 _held.pop(req_id, None)
-            _unwatch(held)
-            _forget(ib, held.contract)
-            with _lock:
+                _unwatch(held)
+                _forget(ib, held.contract)
                 _counts["forgotten"] += 1
-            continue
-        if answer is not None:
-            with _lock:
+                continue
+            if answer is not None:
                 _held.pop(req_id, None)
-            _unwatch(held)
-            _resolve(ib, req_id, held, answer, ts)
+                _unwatch(held)
+                _resolve(ib, req_id, held, answer, ts)
 
 
 def install(ib: Any) -> bool:

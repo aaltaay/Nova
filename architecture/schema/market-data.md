@@ -168,6 +168,10 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
     connection.
   - A 2152 on a request Nova cancelled on the same connection would be the rule failing: an ERROR that names
     the stock, counted in `late_grants`. Nothing is sent, since a second cancel frees nothing.
+  - A cancel counts only once it was sent: Nova sends it first and lets ib_async drop the request after (its
+    `Subscription.close` drops it even when the send raises); a send that fails stays held for READY. Each
+    decision (read the request, cancel or hold, take back) runs under one lock, so a viewer asking again never
+    reuses a request whose cancel is going out (PR #924 review).
 - **Time & Sales lines IBKR keeps printing are cancelled again** (owner `ibkr/stray_lines.py`). Tick-by-tick
   has no grant message. A print on an id ib_async does not hold, later than `IBKR_STRAY_LINE_RECANCEL_SEC`
   after Nova's own cancel, is a line IBKR kept: cancelled again, and the print is dropped. At most once per id

@@ -229,6 +229,60 @@ def test_an_answer_from_an_earlier_connection_never_releases_a_new_request_with_
     assert desk.sent["depth_cancel"] == [(new_id, IBKR_DEPTH_SMART)]
 
 
+# ── review of PR #924 ─────────────────────────────────────────────────────────
+
+
+def test_a_cancel_that_cannot_be_sent_stays_held_and_ready_sends_it(desk):
+    """ib_async drops a request even when its cancel send raises: Nova sends first and drops only after."""
+    req_id = desk.subscribe("MSFT")
+    desk.grant(req_id)
+    recorded = desk.ib.client.cancelMktDepth
+
+    def broken(reqId, smart):
+        raise ConnectionError("Not connected")
+
+    desk.ib.client.cancelMktDepth = broken
+    desk.depth.unsubscribe("MSFT")
+    held = release.view()["held"]
+    assert [h["symbol"] for h in held] == ["MSFT"] and held[0]["answered"] is True
+    assert desk.ib.wrapper.subscriptions.get_sub(req_id) is not None  # still ib_async's, so it can be sent again
+    desk.ib.client.cancelMktDepth = recorded
+    release.on_session_ready(desk.ib)
+    assert desk.sent["depth_cancel"] == [(req_id, IBKR_DEPTH_SMART)]
+    assert desk.ib.wrapper.subscriptions.get_sub(req_id) is None
+    assert release.view()["late_grants"]["count"] == 0
+
+
+def test_a_viewer_asking_again_while_a_held_request_is_cancelled_gets_a_new_request(desk):
+    """The answer's cancel and a reconnecting viewer cannot interleave: the viewer never reuses a cancelled request."""
+    import threading
+
+    from ib_async import Stock
+
+    req_id = desk.subscribe("AMD")
+    desk.depth.unsubscribe("AMD")
+    contract = Stock("AMD", "SMART", "USD")
+    contract.conId = CON_IDS["AMD"]
+    recorded = desk.ib.client.cancelMktDepth
+    seen: dict = {}
+
+    def slow_send(reqId, smart):
+        viewer = threading.Thread(target=lambda: seen.update(took=release.take_back(desk.ib, contract)))
+        viewer.start()
+        viewer.join(0.2)
+        seen["waited"] = viewer.is_alive()  # the viewer is held off while the cancel goes out
+        seen["thread"] = viewer
+        recorded(reqId, smart)
+
+    desk.ib.client.cancelMktDepth = slow_send
+    desk.grant(req_id)                   # IB loop: the held request is answered and cancelled
+    seen["thread"].join(2)
+    assert seen["waited"] is True
+    assert seen["took"] is False         # by then it was gone from ib_async: nothing to take back
+    desk.ib.client.cancelMktDepth = recorded
+    assert desk.subscribe("AMD") != req_id  # a real new request, never the cancelled one
+
+
 # ── what the operator sees ────────────────────────────────────────────────────
 
 
