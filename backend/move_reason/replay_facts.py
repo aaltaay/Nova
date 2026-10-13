@@ -15,7 +15,8 @@ instead, every fact from a record that reaches the playhead and nothing after it
   short interest FINRA's newest settlement published by the replayed day (``move_reason/short_interest.py``)
   borrow         the borrow record at the playhead (``borrow_feed.view_at``)
   split          Massive's split list, splits executed on or before the replayed day (the movers store, ADR 050)
-  halts          the day's halt log up to the playhead (``facts.halts_today``)
+  halts          the day's halt log up to the playhead, and the prior exchange day's for a halt still in force
+                 when the day began (``facts.halts_today``)
   shares issued  the recorded feed's 8-Ks of the look-back up to the playhead
 
 A fact no record reaches is ``None``, and ``check_notes`` gives its check the reason, the source it was read from
@@ -144,7 +145,7 @@ def gather(symbol: str, at: float, board_name: str | None = None, snapshot: dict
     from move_reason.facts import halts_today
 
     halts = halts if halts is not None else halts_today(sym, at)
-    notes["halts"] = {"source": f"Nova's halt log for {_day(day)}, up to {_clock(at)}",
+    notes["halts"] = {"source": f"Nova's halt log for {_day(day)} up to {_clock(at)}, and the exchange day before it",
                       "note": None if halts is not None else "The halt log could not be read"}
     contradicted = row.get("float_contradicted") if row is not None else None
     from catalysts.recorded import shares_issued_at

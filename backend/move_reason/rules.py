@@ -16,6 +16,7 @@ that decided it and where it came from; an unknown fact stays unknown. The likel
 
 and says ``possible`` rather than ``likely`` when the news was not read or a deciding fact is unknown.
 A squeeze is never called from price alone: without short interest and borrow data it is not a candidate.
+"Halts today" names a halt from the prior exchange day still in force when today began (``carried``).
 An 8-K since the prior session's open that says shares were issued (``shares_issued``) makes Yahoo's float
 unknown here, so low-float momentum is never called on a float the filings say is out of date. The prior
 session's own release (the verdict's ``prior_session``) is named, never counted as today's news.
@@ -162,24 +163,30 @@ def _headline(v: dict) -> str | None:
     return title or None
 
 
+_HALT_WORDS = {"news": "halted for news", "luld": "LULD pause", "volatility": "volatility pause", "other": "other halt"}
+
+
 def _halts(h: dict | None, now: float | None) -> dict[str, Any]:
     src = "Halt log: Nasdaq halts and IBKR"
     if not isinstance(h, dict):
         return _check("halts", "Halts today", MOVE_STATE_UNKNOWN, "Halt log unavailable", None, src)
-    news, luld, vol, other = (int(h.get(k) or 0) for k in ("news", "luld", "volatility", "other"))
-    parts = []
-    if news:
-        parts.append(f"halted for news {news}x")
-    if luld:
-        parts.append(f"LULD pause {luld}x")
-    if vol:
-        parts.append(f"volatility pause {vol}x")
-    if other:
-        parts.append(f"other halt {other}x")
-    if not parts:
+    counts = ", ".join(f"{word} {n}x" for k, word in _HALT_WORDS.items() if (n := int(h.get(k) or 0)))
+    carried = carried_words(h["carried"]) if isinstance(h.get("carried"), dict) else None
+    text = "; ".join(t for t in (carried, counts) if t)
+    if not text:
         return _check("halts", "Halts today", MOVE_STATE_NO, "None today", None, src, now)
-    text = ", ".join(parts)
     return _check("halts", "Halts today", MOVE_STATE_YES, text[:1].upper() + text[1:], None, src, now)
+
+
+def carried_words(c: dict) -> str:
+    """The prior day's halt still in force when today began: "halted for news (T1) since Oct 12 19:50 ET, still
+    halted", then "... from Oct 12 19:50 ET to 09:00 ET" once the log has its end."""
+    word = _HALT_WORDS.get(c.get("kind") or "", "other halt") + (f" ({c['code']})" if c.get("code") else "")
+    if _num(c.get("resumed")) is not None:
+        return f"{word} from {_when(c.get('since'))} to {_clock(c['resumed'])}"
+    if c.get("still_halted"):
+        return f"{word} since {_when(c.get('since'))}, still halted"
+    return f"{word} since {_when(c.get('since'))}; its resumption is not in the log"
 
 
 def _float(f: float | None, contradicted: str | None = None, issued: str | None = None) -> dict[str, Any]:

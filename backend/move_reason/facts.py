@@ -7,7 +7,8 @@ later -- and names the L1 line's last trade beside it (``last_trade``); otherwis
 trade (``with_live_trade``, the Trader card). ``priced_by`` says which; Yahoo fundamentals from the cache (a symbol not cached yet is
 read in the background, and its split / short facts stay unknown meanwhile); an 8-K of the last 30 days that
 says shares were issued (``catalysts/issuance.py``); today's halts from the
-leaderboard's halt log (ADR 023); borrow from the recorded IBKR file (``borrow_feed``). A fact nobody
+leaderboard's halt log (ADR 023), with a halt from the prior exchange day still in force when today began
+(``carried``: a 19:50 news halt that resumes at 09:00 holds the whole premarket); borrow from the recorded IBKR file (``borrow_feed``). A fact nobody
 holds is ``None`` -- unknown, never zero.
 
 Owner: this module (no state of its own apart from the set of background reads in flight).
@@ -17,7 +18,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -209,26 +210,62 @@ def _split(fund: dict[str, Any] | None, now: float) -> dict[str, Any] | None:
             "days_ago": (now - ts) / 86400 if ts is not None else None}
 
 
-def count_halts(events: list[dict[str, Any]]) -> dict[str, Any]:
-    """Halt starts by kind. Nasdaq's list and IBKR's tick 49 see the same halts: count one source,
-    Nasdaq's when it has any rows for the symbol."""
-    rss = [e for e in events if e.get("source") == _RSS_SOURCE]
-    rows = rss or events
-    out = {"news": 0, "luld": 0, "volatility": 0, "other": 0, "source": _RSS_SOURCE if rss else (
-        rows[0].get("source") if rows else None)}
+def _one_source(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Nasdaq's list and IBKR's tick 49 see the same halts: one source, Nasdaq's when it has rows."""
+    return [e for e in events if e.get("source") == _RSS_SOURCE] or list(events)
+
+
+def _kind(e: dict[str, Any]) -> str:
+    code, kind = str(e.get("code") or "").upper(), str(e.get("kind") or "")
+    if code in MOVE_NEWS_HALT_CODES:
+        return "news"
+    if kind in MOVE_LULD_HALT_KINDS or code in MOVE_LULD_HALT_KINDS:
+        return "luld"
+    if code in MOVE_VOLATILITY_HALT_CODES:
+        return "volatility"
+    return "other"
+
+
+def _ts(e: dict[str, Any]) -> float:
+    return float(e.get("ts") or 0)
+
+
+def count_halts(events: list[dict[str, Any]], prior: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Today's halt starts by kind, from one source, and ``carried``: the prior exchange day's halt still in
+    force when today began (``prior`` is that day's log)."""
+    rows = _one_source(events)
+    out: dict[str, Any] = {"news": 0, "luld": 0, "volatility": 0, "other": 0,
+                           "source": rows[0].get("source") if rows else None}
     for e in rows:
-        if e.get("event") != "start":
-            continue
-        code, kind = str(e.get("code") or "").upper(), str(e.get("kind") or "")
-        if code in MOVE_NEWS_HALT_CODES:
-            out["news"] += 1
-        elif kind in MOVE_LULD_HALT_KINDS or code in MOVE_LULD_HALT_KINDS:
-            out["luld"] += 1
-        elif code in MOVE_VOLATILITY_HALT_CODES:
-            out["volatility"] += 1
-        else:
-            out["other"] += 1
+        if e.get("event") == "start":
+            out[_kind(e)] += 1
+    out["carried"] = _carried(_one_source(prior or []), events)
     return out
+
+
+def _carried(before: list[dict[str, Any]], today: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The prior day's last halt when nothing that day ended it (FMFC: T1 at Oct 12 19:50, resumed Oct 13 09:00).
+    ``resumed`` is the same source's first event today when that is an end; a start first means the log
+    missed the end, and ``resumed`` stays None with ``still_halted`` false."""
+    starts = [e for e in before if e.get("event") == "start"]
+    if not starts:
+        return None
+    last = max(starts, key=_ts)
+    if any(e.get("event") == "end" and _ts(e) >= _ts(last) for e in before):
+        return None
+    same = sorted((e for e in today if e.get("source") == last.get("source")), key=_ts)
+    first = same[0] if same else None
+    resumed = _ts(first) if first is not None and first.get("event") == "end" else None
+    return {"kind": _kind(last), "code": str(last.get("code") or "").upper() or None, "source": last.get("source"),
+            "since": _ts(last), "resumed": resumed, "still_halted": first is None}
+
+
+def _halt_days(now: float) -> tuple[str, str]:
+    """Today's date and the prior exchange day's, as the halt log keys them."""
+    from sim.trading_day import last_open_day
+
+    today = datetime.fromtimestamp(now, ET).date()
+    return today.isoformat(), last_open_day(today - timedelta(days=1)).isoformat()
 
 
 def halts_many(symbols: list[str], now: float) -> dict[str, dict[str, Any]] | None:
@@ -236,29 +273,33 @@ def halts_many(symbols: list[str], now: float) -> dict[str, dict[str, Any]] | No
     try:
         from leaderboard import store
 
-        day = datetime.fromtimestamp(now, ET).date().isoformat()
+        day, prior_day = _halt_days(now)
         with store.connect() as db:
             events = store.halt_events(db, day, until=now, symbols=list(symbols))
+            prior = store.halt_events(db, prior_day, until=now, symbols=list(symbols))
     except Exception:
         logger.warning("move_reason: halt log unreadable for %d symbols", len(symbols), exc_info=True)
         return None
     by_sym: dict[str, list[dict[str, Any]]] = {s: [] for s in symbols}
-    for e in events:
-        by_sym.setdefault(str(e.get("symbol") or "").upper(), []).append(e)
-    return {s: count_halts(by_sym.get(s) or []) for s in symbols}
+    before: dict[str, list[dict[str, Any]]] = {s: [] for s in symbols}
+    for rows, into in ((events, by_sym), (prior, before)):
+        for e in rows:
+            into.setdefault(str(e.get("symbol") or "").upper(), []).append(e)
+    return {s: count_halts(by_sym.get(s) or [], before.get(s) or []) for s in symbols}
 
 
 def halts_today(sym: str, now: float) -> dict[str, Any] | None:
     try:
         from leaderboard import store
 
-        day = datetime.fromtimestamp(now, ET).date().isoformat()
+        day, prior_day = _halt_days(now)
         with store.connect() as db:
             events = store.halt_events(db, day, until=now, symbols=[sym])
+            prior = store.halt_events(db, prior_day, until=now, symbols=[sym])
     except Exception:
         logger.warning("move_reason: halt log unreadable for %s", sym, exc_info=True)
         return None
-    return count_halts(events)
+    return count_halts(events, prior)
 
 
 def _borrow(sym: str, now: float) -> dict[str, Any] | None:
