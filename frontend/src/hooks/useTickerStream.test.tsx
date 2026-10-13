@@ -5,8 +5,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TICKER_WS_RECONNECT_MS } from '../constants';
-import { useTickerStream, type TickerStreamState } from './useTickerStream';
-import { resetTickerStreamsForTests } from './tickerStore';
+import { useTickerFrameSelect, useTickerStream, type TickerStreamState } from './useTickerStream';
+import { resetTickerStreamsForTests, tickerLastTrade } from './tickerStore';
 
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
@@ -194,5 +194,69 @@ describe('useTickerStream reconnect', () => {
       vi.advanceTimersByTime(TICKER_WS_RECONNECT_MS * 4);
     });
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+});
+
+// The plan box's price tick (operator report 2026-10-13): a burst of prints draws once, on the next frame.
+describe('useTickerFrameSelect', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let frames: FrameRequestCallback[];
+  const seen: (number | null)[] = [];
+
+  function Price() {
+    seen.push(useTickerFrameSelect('AAPL', (s) => tickerLastTrade(s, 'AAPL')?.price ?? null));
+    return null;
+  }
+
+  const runFrame = () => act(() => {
+    for (const f of frames.splice(0)) f(0);
+  });
+  const print = (price: number) => FakeWebSocket.instances[0].onmessage?.({
+    data: JSON.stringify({ type: 'trade_update', symbol: 'AAPL', price }),
+  });
+
+  beforeEach(() => {
+    FakeWebSocket.instances = [];
+    frames = [];
+    seen.length = 0;
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    vi.stubGlobal('requestAnimationFrame', (f: FrameRequestCallback) => frames.push(f));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    resetTickerStreamsForTests();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders a burst of prints once, on the next frame, with the newest', () => {
+    act(() => root.render(<Price />));
+    act(() => sendInitial(FakeWebSocket.instances[0], 'AAPL'));
+    runFrame();
+    expect(seen.at(-1)).toBe(10);
+    const before = seen.length;
+    act(() => {
+      print(10.01);
+      print(10.02);
+      print(10.03);
+    });
+    expect(seen).toHaveLength(before);
+    expect(frames).toHaveLength(1);
+    runFrame();
+    expect(seen.slice(before)).toEqual([10.03]);
+  });
+
+  it('drops a frame it asked for when the reader goes', () => {
+    act(() => root.render(<Price />));
+    act(() => sendInitial(FakeWebSocket.instances[0], 'AAPL'));
+    act(() => root.render(<></>));
+    expect(cancelAnimationFrame).toHaveBeenCalledTimes(1);
   });
 });

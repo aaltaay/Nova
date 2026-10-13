@@ -300,10 +300,35 @@
 .sr-ruler__now {
   position: absolute;
   top: 7px;
+  left: 0;
   width: 2px;
   height: 13px;
   margin-left: -1px;
   background: #ffd60a;
+  pointer-events: auto;
+}
+/* The price tick rides a track the ruler's width, slid to the price (`rulerTrack`), and a bar that ends at the price
+   is a full-width bar scaled into place (`rulerGlide`): each new tape price glides there in a tenth of a second on
+   the compositor, with no layout (#707). */
+.sr-ruler__track,
+.sr-ruler__glide {
+  pointer-events: none;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
+}
+.sr-ruler__track {
+  position: absolute;
+  inset: 0;
+}
+.sr-ruler .sr-ruler__glide {
+  left: 0;
+  width: 100%;
+  border-radius: 0;
+  transform-origin: 0 50%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sr-ruler__track,
+  .sr-ruler__glide { transition: none; }
 }
 .sr-ruler__mark {
   position: absolute;
