@@ -150,6 +150,23 @@ export function createEngineSync({
   // `backend|desk` pairs already brought along once by itself: never a second time, so a restart that
   // comes back on the same code cannot loop.
   const tried = new Set();
+  // One checkout change at a time: the button, Restart to update's pull and the restart by itself
+  // never pull or restart side by side (review on PR #909). `locked` while one runs.
+  let lock = Promise.resolve();
+  let locked = false;
+
+  function exclusive(fn) {
+    const run = lock.then(async () => {
+      locked = true;
+      try {
+        return await fn();
+      } finally {
+        locked = false;
+      }
+    });
+    lock = run.catch(() => undefined);
+    return run;
+  }
 
   const view = () => ({ owner, attached_to_owner: attached, running, last, auto });
   const emit = () => publish(view());
@@ -184,8 +201,15 @@ export function createEngineSync({
     }
   }
 
-  /** Bring the backend to the desk's release: its checkout, then a restart onto it when it runs other code. */
-  async function syncNow() {
+  /**
+   * Bring the backend to the desk's release: its checkout, then a restart onto it when it runs other
+   * code. Waits for a pull or restart already under way, then looks again.
+   */
+  function syncNow() {
+    return exclusive(syncNowUnlocked);
+  }
+
+  async function syncNowUnlocked() {
     if (running) return;
     const tag = deskTag();
     const home = await look();
@@ -240,7 +264,7 @@ export function createEngineSync({
         return false;
       }
     }
-    const pulled = await step('pull', () => syncToRelease(owner, tag, git));
+    const pulled = await exclusive(() => step('pull', () => syncToRelease(owner, tag, git)));
     if (!pulled.ok) {
       record('failed', `Not updated to ${tag}: ${pulled.reason}`);
       return (await box(cannotFollowPrompt(tag, pulled.reason)))?.response === 1;
@@ -282,63 +306,77 @@ export function createEngineSync({
    * master) would put the backend ahead of the desk, so that is left to the operator.
    */
   async function follow() {
-    if (running || following) return;
+    // A pull or restart under way (the operator's, or an earlier look): the next tick looks again.
+    if (running || following || locked) return;
     following = true;
     try {
-      const tag = deskTag();
-      const home = await look();
-      if (!home || !attached || !isOlderTag(home.release_tag, tag)) {
-        setAuto(null);
-        return;
-      }
-      const key = `${home.release_tag}|${tag}`;
-      if (tried.has(key)) {
-        // Brought along once and still behind: the button and its reason are the operator's.
-        if (auto?.state !== 'left') setAuto({ state: 'left', holds: [], reason: last?.outcome === 'failed' ? last.text : '' });
-        return;
-      }
-      const holds = await autoHolds();
-      if (holds.length) {
-        if (JSON.stringify(holds) !== JSON.stringify(auto?.holds)) {
-          logger.info(`backend sync: ${home.release_tag} -> ${tag} waits: ${holds.join('; ')}`);
-        }
-        setAuto({ state: 'waiting', holds, reason: '' });
-        return;
-      }
-      setAuto(null);
-      logger.info(`backend sync: updating the backend to ${tag} by itself (it ran ${home.release_tag}, nothing open)`);
-      const left = (reason) => {
-        tried.add(key);
-        record('failed', reason);
-        setAuto({ state: 'left', holds: [], reason });
-      };
-      const pulled = await step('pull', () => syncToRelease(owner, tag, git));
-      if (!pulled.ok) {
-        left(`Not updated: ${pulled.reason}`);
-        return;
-      }
-      if (pulled.pulled) record('pulled', `Brought ${owner} to ${pulled.to ?? tag} (was ${pulled.from ?? '?'})`);
-      const checkout = await checkoutRevision(owner, git);
-      if (checkout !== tag) {
-        left(`Not restarted by itself: the checkout holds ${checkout ?? 'a revision git cannot name'}, not ${tag}, `
-          + 'and a restart loads the checkout');
-        return;
-      }
-      // The pull took a while: a trade placed meanwhile holds it, and it goes once that clears.
-      const late = await autoHolds();
-      if (late.length) {
-        logger.info(`backend sync: ${home.release_tag} -> ${tag} waits: ${late.join('; ')}`);
-        setAuto({ state: 'waiting', holds: late, reason: '' });
-        return;
-      }
-      tried.add(key);
-      await restartOnto(tag, home);
-      const after = await look();
-      if (after && attached && isOlderTag(after.release_tag, tag)) {
-        setAuto({ state: 'left', holds: [], reason: last?.outcome === 'failed' ? last.text : '' });
-      }
+      await exclusive(followUnlocked);
     } finally {
       following = false;
+    }
+  }
+
+  /** The checkout must hold the desk's exact release when the restart starts; else it is the operator's. */
+  const pastDesk = (checkout, tag) => `Not restarted by itself: the checkout holds ${checkout ?? 'a revision git cannot name'}, `
+    + `not ${tag}, and a restart loads the checkout`;
+
+  async function followUnlocked() {
+    const tag = deskTag();
+    const home = await look();
+    if (!home || !attached || !isOlderTag(home.release_tag, tag)) {
+      setAuto(null);
+      return;
+    }
+    const key = `${home.release_tag}|${tag}`;
+    if (tried.has(key)) {
+      // Brought along once and still behind: the button and its reason are the operator's.
+      if (auto?.state !== 'left') setAuto({ state: 'left', holds: [], reason: last?.outcome === 'failed' ? last.text : '' });
+      return;
+    }
+    const holds = await autoHolds();
+    if (holds.length) {
+      if (JSON.stringify(holds) !== JSON.stringify(auto?.holds)) {
+        logger.info(`backend sync: ${home.release_tag} -> ${tag} waits: ${holds.join('; ')}`);
+      }
+      setAuto({ state: 'waiting', holds, reason: '' });
+      return;
+    }
+    setAuto(null);
+    logger.info(`backend sync: updating the backend to ${tag} by itself (it ran ${home.release_tag}, nothing open)`);
+    const left = (reason) => {
+      tried.add(key);
+      record('failed', reason);
+      setAuto({ state: 'left', holds: [], reason });
+    };
+    const pulled = await step('pull', () => syncToRelease(owner, tag, git));
+    if (!pulled.ok) {
+      left(`Not updated: ${pulled.reason}`);
+      return;
+    }
+    if (pulled.pulled) record('pulled', `Brought ${owner} to ${pulled.to ?? tag} (was ${pulled.from ?? '?'})`);
+    const checkout = await checkoutRevision(owner, git);
+    if (checkout !== tag) {
+      left(pastDesk(checkout, tag));
+      return;
+    }
+    // The pull took a while: a trade placed meanwhile holds it, and it goes once that clears.
+    const late = await autoHolds();
+    if (late.length) {
+      logger.info(`backend sync: ${home.release_tag} -> ${tag} waits: ${late.join('; ')}`);
+      setAuto({ state: 'waiting', holds: late, reason: '' });
+      return;
+    }
+    // That check can take seconds, and a pull from elsewhere (an IDE, a terminal) changes what loads.
+    const atRestart = await checkoutRevision(owner, git);
+    if (atRestart !== tag) {
+      left(pastDesk(atRestart, tag));
+      return;
+    }
+    tried.add(key);
+    await restartOnto(tag, home);
+    const after = await look();
+    if (after && attached && isOlderTag(after.release_tag, tag)) {
+      setAuto({ state: 'left', holds: [], reason: last?.outcome === 'failed' ? last.text : '' });
     }
   }
 

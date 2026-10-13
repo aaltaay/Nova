@@ -279,6 +279,54 @@ describe('createEngineSync', () => {
       expect(autoOf(views)).toBeNull();
     });
 
+    it('a checkout pulled elsewhere during the last check is not restarted onto', async () => {
+      // An IDE pulls master to v1031 while the final restart check is answering.
+      let checks = 0;
+      let moved = false;
+      const base = releaseGit();
+      const git = vi.fn(async (root: string, args: string[]) =>
+        moved && args.join(' ') === 'rev-list --count HEAD' ? { code: 0, stdout: '1031\n', stderr: '' } : base.git(root, args));
+      const l = live(() => {
+        checks += 1;
+        if (checks === 2) moved = true;
+        return nothingOpen;
+      });
+      const { s, views } = sync({ git, fetchJson: l.fetchJson, reloadEngine: l.reloadEngine });
+      await s.follow();
+      expect(l.reloadEngine).not.toHaveBeenCalled();
+      expect(autoOf(views)).toMatchObject({ state: 'left', reason: expect.stringContaining('the checkout holds v1031, not v1029') });
+    });
+
+    it('a click on Update backend now while it looks waits its turn: one pull at a time, one restart', async () => {
+      const order: string[] = [];
+      const base = releaseGit();
+      const git = vi.fn(async (root: string, args: string[]) => {
+        if (args[0] === 'merge' && args[1] === '--ff-only') order.push('merge');
+        return base.git(root, args);
+      });
+      let answer: (body: unknown) => void = () => {};
+      let first = true;
+      const l = live(() => {
+        if (!first) return nothingOpen;
+        first = false;
+        return new Promise((resolve) => { answer = resolve; });
+      });
+      l.reloadEngine.mockImplementation(async () => {
+        order.push('reload');
+        l.state.tag = 'v1029';
+        return { from: 'v1025', to: 'v1029' };
+      });
+      const { s } = sync({ git, fetchJson: l.fetchJson, reloadEngine: l.reloadEngine });
+      const auto = s.follow();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const click = s.syncNow(); // the operator's click lands while the first restart check is pending
+      answer(nothingOpen);
+      await Promise.all([auto, click]);
+      expect(l.reloadEngine).toHaveBeenCalledTimes(1);
+      // The automatic pull and restart finish before the click's pull starts.
+      expect(order.slice(0, 2)).toEqual(['merge', 'reload']);
+    });
+
     it("leaves a backend from another checkout, and one at the desk's release, alone", async () => {
       const packaged = { status: 'ok', frozen: true, release_tag: 'v1025' };
       const reloadEngine = vi.fn();
