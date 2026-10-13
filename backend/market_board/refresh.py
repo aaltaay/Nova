@@ -1,8 +1,11 @@
 """The Market page's refreshers (ADR 053): every read on its own cadence, and only while someone is looking.
 
-Two daemon threads start on the first ask: ``ibkr`` (snapshots, paced bars, the movers scan, industries -- all on
-the IB loop through ``run_coro``) and ``files`` (State Street, BEA, Finnhub earnings, the leaderboard store). Each
-takes the first due read, runs it, and records the answer or the failure in ``market_board.state``. Nothing runs
+Three daemon threads start on the first ask: ``ibkr`` (quotes from lines held for a moment, and the movers scan),
+``history`` (paced bars and contract details) -- both on the IB loop through ``run_coro`` -- and ``files`` (State
+Street, BEA, Finnhub earnings, the leaderboard store). Bars have their own thread because a quote pass that took a
+minute once kept every bar read from ever running (ADR 053 amendment 2026-10-13). Each takes the first due read,
+runs it, records the answer or the failure in ``market_board.state`` and its time in the perf record
+(``market_board.<read>``; ``market_board.first.<read>`` from the page opening to its first answer). Nothing runs
 while the page has not asked within ``MARKET_WANTED_SEC`` -- except the NYSE breadth sample, once a minute in the
 regular session -- and nothing runs with ``NOVA_MARKET_BOARD=0``. ``run_once`` is the whole step for tests.
 """
@@ -71,7 +74,9 @@ class Job:
 _group_last: dict[str, float] = {}
 _threads: dict[str, threading.Thread] = {}
 _threads_lock = threading.Lock()
-_wake = {"ibkr": threading.Event(), "files": threading.Event()}
+LANES = ("ibkr", "history", "files")
+IBKR_LANES = ("ibkr", "history")
+_wake = {lane: threading.Event() for lane in LANES}
 
 
 def enabled() -> bool:
@@ -134,19 +139,42 @@ def breadth_due(now: float) -> bool:
 
 
 def ibkr_jobs(now: float) -> list[Job]:
+    """Reads that open a line for a moment, or a scan: nothing here waits on the historical service."""
+    if not ibkr_reads.headroom_ok():
+        return []   # no spare line: ``history_jobs`` prices from bars
+    iso = clock.trading_date(now).isoformat()
+    jobs = [
+        Job("quotes", ibkr_reads.SOURCE, MARKET_QUOTES_TTL_SEC,
+            partial(ibkr_reads.reference_quotes, list(QUOTE_SPECS), iso)),
+        Job("etf_quotes", ibkr_reads.SOURCE, MARKET_ETF_TTL_SEC,
+            partial(ibkr_reads.stock_quotes, list(SECTOR_ETFS + INDUSTRY_ETFS))),
+        Job("movers", ibkr_reads.SOURCE, MARKET_MOVERS_TTL_SEC, _movers),
+    ]
+    if store().top_kind_wanted("biggest", now):
+        jobs.append(Job("pool_quotes", ibkr_reads.SOURCE, MARKET_HOLDINGS_QUOTES_TTL_SEC,
+                        partial(ibkr_reads.stock_quotes, _leader_pool())))
+    return jobs
+
+
+def _leader_pool() -> list[str]:
+    return _members(SECTOR_ETFS, MARKET_LEADER_POOL) + _members(
+        tuple(e for _, e, has in MARKET_INDUSTRIES if has), MARKET_LEADER_POOL)
+
+
+def _tiles_first(now: float) -> list[dict]:
+    """The tiles, those the last quote read left without a price first (VIX and TNX price only from bars)."""
+    quotes = store().get("quotes", now, MARKET_QUOTES_TTL_SEC) or {}
+    return sorted(QUOTE_SPECS, key=lambda spec: (quotes.get(spec["id"]) or {}).get("last") is not None)
+
+
+def history_jobs(now: float) -> list[Job]:
+    """Paced bars and contract details: each tile's prior close and line together, then daily closes, industries."""
     day = clock.trading_date(now)
     iso = day.isoformat()
     prior_session = clock.prior_open_day(day).isoformat()
-    st = store()
     lines_free = ibkr_reads.headroom_ok()
     jobs: list[Job] = []
-    if lines_free:
-        jobs.append(Job("quotes", ibkr_reads.SOURCE, MARKET_QUOTES_TTL_SEC,
-                        partial(ibkr_reads.reference_quotes, list(QUOTE_SPECS), iso)))
-        jobs.append(Job("etf_quotes", ibkr_reads.SOURCE, MARKET_ETF_TTL_SEC,
-                        partial(ibkr_reads.stock_quotes, list(SECTOR_ETFS + INDUSTRY_ETFS))))
-        jobs.append(Job("movers", ibkr_reads.SOURCE, MARKET_MOVERS_TTL_SEC, _movers))
-    else:
+    if not lines_free:
         # No spare line: prices from bars, which hold none (the tiles' lines, ETFs' and movers' daily bars).
         jobs.append(Job("etf_bars", ibkr_reads.SOURCE, MARKET_BARS_QUOTES_TTL_SEC,
                         partial(ibkr_reads.bar_quotes, list(SECTOR_ETFS + INDUSTRY_ETFS), iso),
@@ -155,26 +183,20 @@ def ibkr_jobs(now: float) -> list[Job]:
                         gap_group="history", gap=MARKET_HISTORY_GAP_SEC, retry=MARKET_SHED_RETRY_SEC))
     # Every tile's prior daily close, once a session, lines or not: IBKR's Cboe index snapshots (VIX, TNX) came back
     # with no last and no close on 2026-10-13 while their bars answered.
-    for spec in QUOTE_SPECS:
+    line_ttl = MARKET_LINES_TTL_SEC if lines_free else MARKET_BARS_LINE_TTL_SEC
+    for spec in _tiles_first(now):
         jobs.append(Job(f"prior:{spec['id']}", ibkr_reads.SOURCE, FOREVER,
                         partial(ibkr_reads.prior_close, spec, iso), gap_group="history",
                         gap=MARKET_HISTORY_GAP_SEC, fresh=partial(_prior_fresh, prior_session),
                         retry=MARKET_SHED_RETRY_SEC))
-    line_ttl = MARKET_LINES_TTL_SEC if lines_free else MARKET_BARS_LINE_TTL_SEC
-    for spec in QUOTE_SPECS:
         jobs.append(Job(f"line:{spec['id']}", ibkr_reads.SOURCE, line_ttl,
                         partial(ibkr_reads.line_bars, spec, iso), gap_group="history", gap=MARKET_HISTORY_GAP_SEC,
                         retry=MARKET_SHED_RETRY_SEC))
-    pool = _members(SECTOR_ETFS, MARKET_LEADER_POOL) + _members(
-        tuple(e for _, e, has in MARKET_INDUSTRIES if has), MARKET_LEADER_POOL)
-    if st.top_kind_wanted("biggest", now):
-        jobs.append(Job("pool_quotes", ibkr_reads.SOURCE, MARKET_HOLDINGS_QUOTES_TTL_SEC,
-                        partial(ibkr_reads.stock_quotes, pool)))
-    for sym in SECTOR_ETFS + INDUSTRY_ETFS + tuple(pool):
+    for sym in SECTOR_ETFS + INDUSTRY_ETFS + tuple(_leader_pool()):
         jobs.append(Job(f"closes:{sym}", ibkr_reads.SOURCE, FOREVER, partial(ibkr_reads.rth_closes, sym),
                         gap_group="history", gap=MARKET_HISTORY_GAP_SEC, fresh=partial(_has_session, prior_session),
                         retry=MARKET_CLOSES_RETRY_SEC))
-    runners = st.get("climate", now, 3600.0) or []
+    runners = store().get("climate", now, 3600.0) or []
     todo = industries.missing(runners, now)[:MARKET_INDUSTRY_BATCH]
     if todo:
         jobs.append(Job(f"industries:{todo[0]}", ibkr_reads.SOURCE, 0.0, partial(_industries, todo)))
@@ -219,24 +241,26 @@ def _earnings() -> list[dict]:
     return rows
 
 
+def _jobs(lane: str, now: float) -> list[Job]:
+    return {"ibkr": ibkr_jobs, "history": history_jobs, "files": files_jobs}[lane](now)
+
+
 def run_once(lane: str, now: float | None = None) -> bool:
-    """Run the first due read of ``lane`` (``ibkr`` | ``files``); False when none was due."""
+    """Run the first due read of ``lane`` (``ibkr`` | ``history`` | ``files``); False when none was due."""
     now = time.time() if now is None else now
     st = store()
-    if lane == "ibkr":
+    if lane in IBKR_LANES:
         if not ibkr_reads.ready():
             st.source_down(ibkr_reads.SOURCE, "IBKR is not connected")
             return False
         st.source_down(ibkr_reads.SOURCE, None)
-        if breadth_due(now):
+        if lane == "ibkr" and breadth_due(now):
             _run(Job("breadth_latest", ibkr_reads.SOURCE, MARKET_BREADTH_SAMPLE_SEC,
                      partial(_breadth_sample, clock.trading_date(now).isoformat())), now, error_key="breadth")
             return True
-        if not st.wanted(now):
-            return False
-    elif not st.wanted(now):
+    if not st.wanted(now):
         return False
-    for job in ibkr_jobs(now) if lane == "ibkr" else files_jobs(now):
+    for job in _jobs(lane, now):
         if _due(job, now):
             _run(job, now)
             return True
@@ -255,11 +279,26 @@ def _due(job: Job, now: float) -> bool:
     return value is None or not job.fresh(value)
 
 
+def _measure(job: Job, started_ns: int, ok: bool, answered: float | None, first: bool) -> None:
+    """The read's wall time and, on its first answer since the page opened, how long the page waited for it."""
+    from metrics.op_metrics import mark_wall, record, record_since
+
+    kind = job.key.split(":", 1)[0]
+    record_since(f"market_board.{kind}", started_ns, ok, wall=True)
+    since = store().wanted_since()
+    if first and answered is not None and since is not None:
+        mark_wall(f"market_board.first.{kind}")
+        record(f"market_board.first.{kind}", max(0, int((answered - since) * 1e9)))
+
+
 def _run(job: Job, now: float, error_key: str | None = None) -> None:
     st = store()
     if job.gap_group:
         _group_last[job.gap_group] = now
     started = time.monotonic()
+    started_ns = time.perf_counter_ns()
+    since = st.wanted_since()
+    before = st.answered_at(job.key)
     try:
         value = job.fetch()
     except ibkr_reads.NoHeadroom as exc:
@@ -273,6 +312,7 @@ def _run(job: Job, now: float, error_key: str | None = None) -> None:
             st.defer(job.key, at + MARKET_SHED_RETRY_SEC)
             return
         logger.warning("market_board: %s failed: %s", job.key, exc, exc_info=not isinstance(exc, Stated))
+        _measure(job, started_ns, False, None, False)
         message = f"{exc}"[:200] or type(exc).__name__
         st.fail(job.key, job.source, message, at, job.retry)
         if error_key:
@@ -280,6 +320,7 @@ def _run(job: Job, now: float, error_key: str | None = None) -> None:
         return
     at = now + (time.monotonic() - started)
     st.put(job.key, job.source, value, at)
+    _measure(job, started_ns, True, at, since is not None and (before is None or before < since))
     if error_key:
         st.put(error_key, job.source, None, at)
     if job.fresh is not None and not job.fresh(value):
@@ -290,7 +331,7 @@ def _start() -> None:
     if not enabled():
         return
     with _threads_lock:
-        for lane in ("ibkr", "files"):
+        for lane in LANES:
             thread = _threads.get(lane)
             if thread is None or not thread.is_alive():
                 thread = threading.Thread(target=_loop, args=(lane,), daemon=True, name=f"market_board_{lane}")
