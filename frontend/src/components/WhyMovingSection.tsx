@@ -1,14 +1,17 @@
 /**
  * "Why it's moving" (ADR 028): the rules read of what drove the move, at the top of the Trader's News panel.
  * The likely cause shows in the header, open or folded; the body lists every check -- yes, no or unknown --
- * with the value that decided it, and each row's source and age on hover. A read with no checks (a Sim
- * replay desk: `not_read`) shows its reason and no rules note. Nothing here is a control except the fold.
+ * with the value that decided it, and each row's source and age on hover. On a Sim replay the read is as of
+ * the playhead: the ages count back from it, and a line names the moment. A read with no checks (a replay no
+ * record reaches: `not_read`) shows its reason and no rules note. Nothing here is a control except the fold.
  */
 import { useState } from 'react';
 import {
   WHY_MOVING_DEFAULT_EXPANDED,
   WHY_MOVING_POSSIBLE_TITLE,
   WHY_MOVING_READING,
+  WHY_MOVING_REPLAY_PREFIX,
+  WHY_MOVING_REPLAY_SUFFIX,
   WHY_MOVING_RULES_NOTE,
   WHY_MOVING_STATE_MARKS,
   WHY_MOVING_STATE_TITLES,
@@ -23,6 +26,16 @@ interface Props {
   read: WhyMovingRead | null;
   loading?: boolean;
   error?: string | null;
+}
+
+const ET = 'America/New_York';
+
+/** "Oct 2 10:31 ET": the moment a replay's read is as of. */
+function etMoment(sec: number): string {
+  const d = new Date(sec * 1000);
+  const day = d.toLocaleDateString('en-US', { timeZone: ET, month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString('en-US', { timeZone: ET, hour12: false, hour: '2-digit', minute: '2-digit' });
+  return `${day} ${time} ET`;
 }
 
 function rowTitle(c: WhyCheck, nowMs: number): string {
@@ -45,7 +58,8 @@ function CheckRow({ c, nowMs }: { c: WhyCheck; nowMs: number }) {
 
 export function WhyMovingSection({ read, loading = false, error = null }: Props) {
   const [expanded, setExpanded] = useState(WHY_MOVING_DEFAULT_EXPANDED);
-  const nowMs = Date.now();
+  // A replay's facts are as of the playhead, so their ages count back from it, not from the wall clock.
+  const nowMs = read?.replay ? read.generated_at * 1000 : Date.now();
   const likely = read?.likely ?? null;
   const tone = likely ? WHY_MOVING_TONES[likely.kind] ?? 'muted' : 'muted';
   // "--" as two non-breaking hyphens, so a wrapped header never splits it across lines.
@@ -86,6 +100,11 @@ export function WhyMovingSection({ read, loading = false, error = null }: Props)
             </ul>
           ) : (
             <div className="wm-reading">{WHY_MOVING_READING}</div>
+          )}
+          {read?.replay && read.checks.length > 0 && (
+            <div className="wm-note wm-replay">
+              {`${WHY_MOVING_REPLAY_PREFIX} ${etMoment(read.generated_at)} ${WHY_MOVING_REPLAY_SUFFIX}`}
+            </div>
           )}
           {read && read.checks.length > 0 && <div className="wm-note">{WHY_MOVING_RULES_NOTE}</div>}
         </div>

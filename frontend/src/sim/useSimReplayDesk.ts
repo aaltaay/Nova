@@ -21,6 +21,24 @@ export function isReplayDesk(sim: boolean, clock: SimClockState | null | undefin
 
 const noSubscription = () => () => {};
 
+/** Pure: the playhead in epoch seconds on a replay desk, else null (the live edge, no clock, an unreadable time). */
+export function replayPlayheadSec(sim: boolean, clock: SimClockState | null | undefined): number | null {
+  if (!isReplayDesk(sim, clock) || !clock?.sim_time_et) return null;
+  const ms = Date.parse(clock.sim_time_et);
+  return Number.isFinite(ms) ? ms / 1000 : null;
+}
+
+/** The replay's playhead (epoch seconds) while this desk is a replay desk; null at the live edge or off the Sim. */
+export function useSimReplayPlayhead(): number | null {
+  const sim = useIbkrStatus().mode === 'sim';
+  const subscribe = useCallback(
+    (listener: () => void) => (sim ? simClockResource.subscribe(listener) : noSubscription()),
+    [sim],
+  );
+  const clock = useSyncExternalStore(subscribe, simClockResource.getSnapshot).data;
+  return replayPlayheadSec(sim, clock);
+}
+
 export function useSimReplayDesk(): boolean {
   const sim = useIbkrStatus().mode === 'sim';
   const subscribe = useCallback(

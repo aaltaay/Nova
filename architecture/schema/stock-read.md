@@ -224,7 +224,9 @@ box, no axis tags, no frame (`strategyBox.triggeredPlan`). A mark over its trigg
 (`triggerMark`, from the lead lane's `setup.triggered_at`; none without it): a triangle in the entry's blue, pointing
 up (down on a short), and "✓ GAP AND GO 09:31", which makes room as a past setup's label does -- "✓" alone while the
 labels are compact -- and tells the lane's story on hover. Where the lane already marks that candle (a flat top that
-entered on its break), its own mark says it. The 5-minute and 10-second panes keep its thin lines. A
+entered on its break), its own mark says it. It leaves the 5-minute and 10-second panes' thin lines too (operator
+report 2026-10-12, OFAL's first pullback in the Sim at 07:15: triggered at 07:05, its stop printed first at 07:10, and
+its four unnamed lines still crossed both charts -- "whatr these lines supposed to be?"). A
 level an order or a position stands behind, and the operator's own plan, draw the zones, lines and frame above. It frames a forming setup once per setup, and again
 when the badge is pressed. Nothing else moves the view: when the plan's zones appear, a view that
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
@@ -234,8 +236,8 @@ chart, all of a sudden it resized itself randomly"; owner `chart/operatorView.ts
 chart): once they move a pane with the wheel, a drag or a pinch, no newly leading setup frames it and
 no plan zones slide it, until a first paint (another symbol or timeframe, a Sim seek) or Reset chart
 hands it back; the badge and "show on chart" still frame on request. A setup is framed at most once
-per symbol, so a lead that goes back and forth between setups never reframes the pane. The 5-minute and 10-second charts mirror the plan's levels as thin lines,
-and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
+per symbol, so a lead that goes back and forth between setups never reframes the pane. The 5-minute and 10-second charts mirror the plan's levels as thin lines
+until a plan with nothing behind it triggers, and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
 1, value: {setups, levels, past, labels: "compact" | "full", hidden: string[], plan: "auto" | "open" |
 "folded"}}` keeps the switches (`past`, added 2026-09-29, reads true when a stored value lacks it;
 `labels`, added 2026-09-30, reads `compact` when a stored value lacks it or holds anything else). A decision's "show
@@ -505,12 +507,13 @@ the premarket high), else teal, so touching a top is not breaking it; VWAP alone
 blue dots, old daily levels violet dashes; a round number alone a faint solid gold line
 (`LEVEL_ROUND_LINE_ALPHA`, 0.4) whose label keeps the full colour. A strong zone's line is 2 px, any other 1.
 Every pane's corner carries a **Key** chip: pointed at, focused or pressed, it lists what each colour on that
-pane means -- the time-of-day background on the intraday panes, the levels, and on the 1-minute the
-setup boxes and the plan's lines. The plan
+pane means -- the time-of-day background on the intraday panes, the levels, on the 1-minute the
+setup boxes, and the plan's lines on every pane that draws them (the 5-minute Key lacked them until 2026-10-12, and its
+"5m trigger" row read like them). The plan
 card lists Room (T7's reading only in its hover since #845), Target 1, Target 2, Stop, "$ next" and "$ now", each one line with
 its detail on hover, and the ruler marks the `between` levels. The toolbar's Levels switch
-(`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. Nothing is drawn on a replay
-desk or the sample desk.
+(`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. On a replay desk they are the replay's
+at the playhead (ADR 052); nothing is drawn on the sample desk.
 
 **One column at a pane's right edge** (operator report 2026-09-30: "everything is getting on top of each
 other in the charts!"). The right edge had three owners -- the levels' labels stacked among themselves,
@@ -932,15 +935,54 @@ when not recorded); `since` is the first poll the store holds. A symbol IBKR's f
 gates on it.
 
 On a Sim replay desk (`sim.mode.is_replay_desk`: the Sim off its live edge, a past day or today's
-recording scrubbed back) nothing is read: `{..., generated_at: the playhead, session_date: the playhead's
-day, replay: true, likely: {kind: "not_read", label: "Not read on a Sim replay of Oct 2", detail: why,
-confidence: "likely"}, checks: [], facts: {}}` (`move_reason.routes.not_read_on_replay`). Every fact the
-read holds -- the news verdict, Yahoo's float and short interest, IBKR's borrow as of the latest poll --
-is today's, and the card had shown them on a past day's desk (SDEV 2026-10-02 replayed on 2026-10-12 read
-"Not a big move today (-3.9%)", Oct 12's change). A live edge that cannot be read counts as a replay. Off
-the replay (Live, Paper, the Sim at its live edge) `replay` is `false`. The Trader shows the label and its
-reason, without the rules note. Reading a replayed day from recorded sources -- the borrow store's 14
-days, FINRA's point-in-time short interest, the replay's own price and volume -- is not built.
+recording scrubbed back) the read is the replayed day's as of the playhead, never today's
+(`move_reason/replay_facts.py`, ADR 028 amendment (2) 2026-10-12, rules v4): `generated_at` is the playhead,
+`session_date` its day, `replay: true`, the payload's shape unchanged, and every fact comes from a record
+that reaches the playhead and nothing after it:
+
+- **Board row.** The recorded scanner board at the playhead (`leaderboard.playback.board_at`, ADR 023: a
+  recorded minute counts from its stamp plus the settle) gives the price, change, volume, RVOL, the float
+  Nova held that minute with its #532 check, and the day's exported news verdict (#498). A rebuilt board
+  carries the session's enrichment-snapshot float, which may be later than the playhead, so there the float
+  is the newest snapshot taken at or before it.
+- **The loaded replay**, when it is this symbol: its last price-setting print, its previous close (#542) and
+  its volume so far when it holds the day from 04:00 (`stats_scope: "session"`). It wins over the board row
+  for price, change and volume.
+- **News.** The board row's verdict, else the recorded catalyst feed's (`catalysts/recorded.py`): items
+  published after the prior close and at or before the playhead, from the sources whose coverage spans,
+  joined where they overlap, read the whole window. Alpaca and Finnhub are read live only and never answer
+  here. A news halt comes from the day's halt log.
+- **Short interest.** FINRA's newest settlement published by the replayed day, from Massive's archive
+  (`<NOVA_MARKET_DATA_DIR>/store/reference/short_interest/<YYYY-MM>.jsonl`, `move_reason/short_interest.py`), the
+  dump's one `short_interest.jsonl` split by settlement month by `research/orb/short_interest_months.py` (the
+  reference dump runs it; a desk with only the dump reads `unknown` and names the command).
+  FINRA publishes about seven business days after a settlement, after the close, so a settlement counts from
+  the 8th exchange day after it (`MOVE_FINRA_PUBLISH_BUSINESS_DAYS`; a conservative rule, not FINRA's
+  calendar): SDEV on 2026-10-02 reads Sep 15's 1,212,152 shares, not Sep 30's 3,436,239, which counts from
+  Oct 12. Days to cover is FINRA's and says "(FINRA)"; `as_of` is the settlement date, and the `detail` names
+  the day it counts from and a later settlement not out yet.
+- **Borrow.** The borrow record at the playhead (`borrow_feed.view_at`): the last poll at or before it, the
+  day's first poll by then and the changes up to it, never a later poll. Before the record's reach (it keeps
+  `MOVE_BORROW_RETENTION_DAYS`) the check is `unknown`, value "Not recorded", with the reason ("Nova's borrow
+  record starts Sep 28 20:21 ET (it keeps 14 days); Sep 18 10:00 is before it").
+- **Split** from Massive's split list (the movers store, ADR 050): the last split executed on or before the
+  replayed day. **Halts** from the day's halt log up to the playhead. **Shares issued** from the recorded
+  feed's 8-Ks of the look-back up to the playhead.
+
+Each check's `source` names the record it was read from and its `as_of` when; an unknown check's `detail`
+says why no record reaches the playhead. Yahoo's fundamentals, the live boards, IBKR's latest borrow poll and
+the live news memory are never read on a replay. When no record of the stock reaches the playhead (the halt
+log alone, read for every day, does not count) the answer is `{..., replay: true, likely: {kind: "not_read",
+label: "Not read on a Sim replay of Oct 2", detail: why, confidence: "likely"}, checks: [], facts: {}}`
+(`move_reason.routes.not_read_on_replay`). A live edge that cannot be read counts as a replay. Off the replay
+(Live, Paper, the Sim at its live edge) `replay` is `false`. The Trader card counts the checks' ages back from
+the playhead and names the moment ("Sim replay, read as of Oct 2 10:31 ET"). It reads again when the Sim clock's
+playhead goes back, when the desk moves between a replay and the live edge (the read on screen is dropped at
+once, and an answer in flight across the rewind is thrown away), and when the playhead plays
+`WHY_MOVING_REPLAY_REFRESH_SEC` past the last read -- a read from a later moment is never shown over an
+earlier playhead. Before this the card showed
+today's facts on a past day's desk: SDEV 2026-10-02 replayed on 2026-10-12 read "Not a big move today
+(-3.9%)", Oct 12's change.
 
 The borrow feed (`move_reason/borrow_feed.py`, always on; `NOVA_BORROW_FEED=0` off) polls IBKR's
 public short-stock file (`ftp://ftp2.interactivebrokers.com/usa.txt`, USD rows) every

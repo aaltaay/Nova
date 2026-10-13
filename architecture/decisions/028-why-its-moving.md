@@ -57,3 +57,31 @@ gate: on a 100%+ day today's volume dwarfs any short position (MSS's hand-checke
 On a Sim replay desk the read had shown today's facts on a past day's desk. It now names the replayed day
 and reads nothing (`likely.kind` `not_read`), the stated absence, until a replayed day can be read from
 recorded sources. Schema: `architecture/schema/stock-read.md`, "Why it's moving".
+
+## Amendment 2026-10-12 (2) -- a Sim replay reads its own day as of the playhead
+
+The stated absence above is replaced: a Sim replay desk reads the replayed day as of the playhead
+(operator decision 2026-10-12), with one law: no lookahead. Every fact comes from a record
+that reaches the playhead and nothing after it -- the recorded board row at the playhead (price, volume,
+RVOL, the float Nova held then, the exported news verdict), the loaded replay's own price and volume, the
+recorded catalyst feed's items published by then, FINRA's newest settlement already published, the borrow
+record's last poll at or before it, Massive's splits executed by the day, and the halt log up to it. A fact
+no record reaches is unknown, its check names why ("borrow record starts Sep 28"), and the rules are the
+same. Only a replay no record of the stock reaches says it is not read (`likely.kind` `not_read`).
+
+Decisions inside it:
+
+- **FINRA's publication lag is a rule, not a calendar.** FINRA publishes about seven business days after a
+  settlement, after the close; a settlement counts from the 8th exchange day after it. A day late is safe; a
+  day early is lookahead.
+- **The float is the one Nova held then.** The recorded board row's float is what the live desk showed that
+  minute, so the replay reads what the desk read, with its #532 check. A rebuilt board carries the session's
+  enrichment-snapshot float, which may be later than the playhead, so there it is the newest snapshot taken
+  at or before the playhead. Massive's free float was not used: it
+  keeps only the latest value per ticker, so most past days predate its effective date, and a second float
+  definition would make the same day read differently by which source answered (SDEV: Yahoo 22.55M against a
+  6.36M free float).
+- **Coverage spans join where they overlap.** Each recorded span is unbroken reading, so two that overlap
+  leave no gap, and the feed's restarts do not make every past window "not read".
+
+Schema: `architecture/schema/stock-read.md`, "Why it's moving".

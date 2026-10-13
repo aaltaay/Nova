@@ -16,7 +16,7 @@ export interface WhyCheck {
 
 export interface WhyLikely {
   /** not_moving | news_pending | news | short_squeeze | routine_news | split_squeeze | low_float_momentum | thin_trading | unexplained,
-   * or not_read (a Sim replay desk: no checks, the reason in `detail`) */
+   * or not_read (a Sim replay no record reaches: no checks, the reason in `detail`) */
   kind: string;
   label: string;
   detail: string | null;
@@ -27,8 +27,11 @@ export interface WhyLikely {
 export interface WhyMovingRead {
   schema_version: number;
   symbol: string;
+  /** Epoch seconds the read is as of: now, or on a Sim replay the playhead. */
   generated_at: number;
   rules_version: string;
+  /** A Sim replay desk: the replayed day's facts as of the playhead (`generated_at`), none after it. */
+  replay?: boolean;
   likely: WhyLikely;
   checks: WhyCheck[];
 }
