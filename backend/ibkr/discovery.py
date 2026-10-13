@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 import time
 
 from constants import (
@@ -23,7 +22,6 @@ from constants import (
     IBKR_ERROR_SCANNER_SLOT_EXHAUSTED,
     IBKR_COLD_SNAPSHOT_BATCH,
     IBKR_QUOTE_BATCH_TIMEOUT_SEC,
-    IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
     IBKR_SCAN_ABOVE_PRICE,
     IBKR_SCAN_CODE_AH_GAINERS,
     IBKR_SCAN_CODE_GAINERS,
@@ -38,7 +36,6 @@ from constants import (
 from ibkr import client as _client
 from ibkr import quote_rows as _quote_rows
 from ibkr.errors import IbkrDiscoveryError, IbkrScannerSlotExhaustedError, describe_exc
-from ibkr.open_tick import todays_open
 from ibkr.qualified_contracts import (  # the cache snapshot_quotes reuses
     _qualified_contracts,
     remember_qualified_contract,
@@ -183,16 +180,6 @@ def _open_scan_future(ib, data_list) -> asyncio.Future:
         "ib_async Wrapper exposes neither requests.open nor startReq -- "
         "scanner API surface changed; update ibkr/discovery.py._open_scan_future"
     )
-
-
-def _clean(x: float | None) -> float | None:
-    """IB leaves un-populated Ticker fields as NaN, not None."""
-    if x is None:
-        return None
-    try:
-        return None if math.isnan(x) else float(x)
-    except TypeError:
-        return None
 
 
 @timed_async("ibkr.scanner.oneshot")
@@ -578,28 +565,11 @@ async def snapshot_quotes(
     out: dict[str, dict] = {}
     for t in tickers:
         sym = getattr(t.contract, "symbol", None)
-        if not sym:
-            continue
-        # Last preferred; close is a fallback print AND the usual prior close.
-        # Do not require both — missing close used to drop the symbol entirely,
-        # which blanked Stock View header price/change (symbol-only chip).
-        last = _clean(t.last)
-        price = last or _clean(t.close)
-        prev_close = _clean(t.close)
-        if price is None:
-            continue
-        out[sym] = {
-            "price": price,
-            # No trade yet: ``price`` is IBKR's prior close, never a print (#541).
-            "quote_quality": None if last is not None else IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
-            "prev_close": prev_close,
-            # IBKR's open tick is the previous session's until today opens.
-            "open": todays_open(_clean(t.open)),
-            "high": _clean(getattr(t, "high", None)),
-            "volume": int(_clean(t.volume) or 0),
-            "exchange": getattr(t.contract, "primaryExchange", None) or None,
-        }
+        quote = _quote_rows.quote_from_ticker(t) if sym else None
+        if quote is not None:
+            out[sym] = quote
     return out
+
 
 
 def chunk_symbols(symbols: list[str], chunk_size: int) -> list[list[str]]:

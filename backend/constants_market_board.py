@@ -36,16 +36,8 @@ MARKET_INDUSTRY_MAX_AGE_DAYS = 90                # a cached industry older than 
 MARKET_INDUSTRY_BATCH = 40                       # industries asked per refresher turn
 
 # -- IBKR budget: the page holds a line only for a moment (ADR 053 amendment 2026-10-13) -----------------------------
-# Lines free beyond Nova's own reserve (IBKR_L1_STREAM_RESERVE, kept for an opening Trader tab) before the page
-# opens any. IBKR shares the account's lines with every other platform the login uses; on 2026-10-13
-# Nova could hold only 45 of its 100, all but the reserve taken by HOD Momo.
-MARKET_MIN_FREE_LINES = 6
-# A quote is read from a line opened, read and cancelled at once -- not a snapshot, which waits for IBKR's
-# snapshot end (~11 s a batch for futures, indexes and stocks outside the session, measured 2026-10-13).
-MARKET_STREAM_BATCH = 5                          # lines open at once: as many as a stock snapshot held, < MIN_FREE
-MARKET_STREAM_WAIT_SEC = 2.5                     # a batch's lines are cancelled by then, answered or not
-MARKET_STREAM_SETTLE_SEC = 0.4                   # every line has a price: wait this much more for prior closes
-MARKET_STREAM_POLL_SEC = 0.05                    # how often a batch looks at its tickers
+# Its quotes are brief lines (ibkr/brief_lines.py, ADR 054): IBKR_BRIEF_LINE_BATCH open at once, none opened with
+# fewer than IBKR_BRIEF_MIN_FREE_LINES spare (constants_ibkr.py).
 # Without free lines the page reads prices from bars (historical requests hold no line).
 MARKET_BARS_LINE_TTL_SEC = 120.0                 # a tile's 5-minute bars, when its snapshot is missing
 MARKET_BARS_QUOTES_TTL_SEC = 300.0               # ETFs' / movers' regular-session daily bars

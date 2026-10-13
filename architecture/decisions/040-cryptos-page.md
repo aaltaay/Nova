@@ -32,7 +32,8 @@ funding rates, open interest, ETF flows or sentiment, and the operator's account
    A source that fails says why on the page, and its numbers read unknown -- never another source's numbers in their
    place.
 3. **Stock numbers on the page are IBKR's.** The "Crypto -> stocks you can trade" panel reads the bridge stocks (IBIT,
-   ETHA, MSTR, COIN, MARA, RIOT, CLSK, HOOD) through the existing cold `snapshot_quotes` path and their regular-hours
+   ETHA, MSTR, COIN, MARA, RIOT, CLSK, HOOD) through the existing cold `snapshot_quotes` path (since 2026-10-13 a
+   line held for a moment, `ibkr/brief_lines.py`, ADR 054: the snapshot took ~23 s premarket) and their regular-hours
    daily closes through the paced historical service (`historical_service.request_rth_daily_closes`, background
    priority: shed while a chart is loading or the pacing budget is tight). The "Spot" chip asks IBKR whether it lists
    the coin (`Crypto(sym, 'PAXOS' | 'ZEROHASH', 'USD')`, once per process). Nova still cannot place a crypto order; the

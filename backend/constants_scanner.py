@@ -266,8 +266,10 @@ TICKER_SLOW_CACHE_TTL = 90.0        # 90 seconds
 TICKER_HTTP_TIMEOUT_SEC = 4.0
 # Cache-only avg volume on ticker path — do not block REST on Alpaca bars.
 TICKER_AVG_VOLUME_CACHE_ONLY = True
-# Single-symbol IBKR snapshot budget (table discovery keeps the longer 15s/25s).
-TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC = 4.0
+# The quote head's own read when nothing else has a price: a line held for a moment (ADR 054). A 4 s snapshot
+# never answered outside the session (IBKR's snapshot end is ~11 s). The bridge ceiling covers the qualify plus
+# IBKR_BRIEF_LINE_WAIT_SEC.
+TICKER_IBKR_QUALIFY_TIMEOUT_SEC = 3.0
 TICKER_IBKR_BRIDGE_TIMEOUT_SEC = 6.0
 
 

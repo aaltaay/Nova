@@ -127,6 +127,50 @@ def test_daily_closes_are_asked_again_until_the_session_lands_and_a_shed_is_not_
     assert store().due("closes:IBIT", "ibkr", NOW + 601, 0.0)
 
 
+def test_every_read_is_timed_and_the_page_waits_for_its_first_answer_once(fresh, monkeypatch):
+    from metrics import op_metrics
+
+    op_metrics.reset_for_tests()
+    monkeypatch.setattr(ibkr_reads, "ready", lambda: True)
+    monkeypatch.setattr(ibkr_reads, "quotes", lambda symbols: {s: 1.0 for s in symbols})
+    refresh.want(NOW - 3.0)
+    assert refresh.run_once("ibkr", NOW) and store().answered_at("bridge_quotes") is not None
+    totals = op_metrics.totals()
+    assert totals["crypto.bridge_quotes"][0] == 1 and op_metrics.is_wall("crypto.bridge_quotes")
+    assert totals["crypto.first.bridge_quotes"][0] == 1
+    assert totals["crypto.first.bridge_quotes"][1] >= 3e9          # from the page opening, not from the read
+    refresh.run_once("ibkr", NOW + 61)                               # the next answer in the same visit
+    assert op_metrics.totals()["crypto.bridge_quotes"][0] == 2
+    assert op_metrics.totals()["crypto.first.bridge_quotes"][0] == 1
+    op_metrics.reset_for_tests()
+
+
+def test_the_bridge_quotes_come_from_lines_held_for_a_moment(monkeypatch):
+    """IBKR's snapshot waited ~11 s a batch outside the session (ADR 054): the bridge stocks are read from brief
+    lines, a stock with no trade yet reads None (never its prior close), and no spare line is a stated failure."""
+    import asyncio
+
+    from ibkr import brief_lines, client, qualified_contracts
+    from tests.fakes.brief_line_ib import FakeIB, stock_qualifier
+
+    qualified_contracts.clear_qualified_contracts(reason="test")
+    monkeypatch.setattr(brief_lines, "IBKR_BRIEF_LINE_WAIT_SEC", 0.2)
+    monkeypatch.setattr(brief_lines, "IBKR_BRIEF_LINE_POLL_SEC", 0.01)
+    monkeypatch.setattr(brief_lines, "spare_lines", lambda: None)
+    ib = FakeIB({1: {"last": 61.2, "close": 60.0}, 2: {"close": 300.0}})
+    ib.qualifyContractsAsync = stock_qualifier()
+    monkeypatch.setattr(client, "get_ib", lambda: ib)
+    monkeypatch.setattr(ibkr_reads, "_run", lambda coro, timeout, label: asyncio.run(coro))
+    try:
+        assert ibkr_reads.quotes(["IBIT", "MSTR"]) == {"IBIT": 61.2, "MSTR": None}
+        assert sorted(ib.cancelled) == [1, 2]
+        monkeypatch.setattr(brief_lines, "spare_lines", lambda: 0)
+        with pytest.raises(SourceError, match="spare market-data lines"):
+            ibkr_reads.quotes(["IBIT"])
+    finally:
+        qualified_contracts.clear_qualified_contracts(reason="test")
+
+
 def test_the_switch_turns_the_refreshers_off(monkeypatch):
     monkeypatch.setenv("NOVA_CRYPTO", "0")
     assert refresh.enabled() is False

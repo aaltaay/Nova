@@ -1,13 +1,55 @@
-"""Scanner rows repriced from a quote -- pure (split from ``ibkr/discovery.py``).
+"""A quote, and scanner rows repriced from it (split from ``ibkr/discovery.py``).
 
-A quote (a ``discovery.snapshot_quotes`` entry, or an L1 tick in ``ibkr/l1_apply``)
-carries ``price`` and, when known, ``prev_close`` / ``open`` / ``volume``. These
-functions rebuild a gapper or gainer/loser row's price and change fields from it,
+A quote (a ``discovery.snapshot_quotes`` entry, a ``brief_lines.stock_quotes`` one, or
+an L1 tick in ``ibkr/l1_apply``) carries ``price`` and, when known, ``prev_close`` /
+``open`` / ``volume``. ``quote_from_ticker`` builds one from an IBKR ticker (the
+wall clock decides whether IBKR's open tick is today's). The rest are pure: they
+rebuild a gapper or gainer/loser row's price and change fields from a quote,
 always against the row's own prior close, so price and change never drift apart.
 Whether a price is a trade or IBKR's prior close (``quote_quality``) is stamped by
 the caller.
 """
 from __future__ import annotations
+
+import math
+
+from constants_ibkr import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
+
+
+def _clean(x: float | None) -> float | None:
+    """IB leaves un-populated Ticker fields as NaN, not None."""
+    if x is None:
+        return None
+    try:
+        return None if math.isnan(x) else float(x)
+    except TypeError:
+        return None
+
+
+def quote_from_ticker(t) -> dict | None:
+    """``{price, quote_quality, prev_close, open, high, volume, exchange}`` from a stock's ticker; ``None`` with no
+    price. A ``snapshot_quotes`` entry and a brief line's (``ibkr/brief_lines.stock_quotes``) are this shape.
+    """
+    from ibkr.open_tick import todays_open
+
+    # Last preferred; close is a fallback print AND the usual prior close.
+    # Do not require both — missing close used to drop the symbol entirely,
+    # which blanked Stock View header price/change (symbol-only chip).
+    last = _clean(t.last)
+    price = last or _clean(t.close)
+    if price is None:
+        return None
+    return {
+        "price": price,
+        # No trade yet: ``price`` is IBKR's prior close, never a print (#541).
+        "quote_quality": None if last is not None else IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
+        "prev_close": _clean(t.close),
+        # IBKR's open tick is the previous session's until today opens.
+        "open": todays_open(_clean(t.open)),
+        "high": _clean(getattr(t, "high", None)),
+        "volume": int(_clean(t.volume) or 0),
+        "exchange": getattr(t.contract, "primaryExchange", None) or None,
+    }
 
 
 def reprice_gapper_row(g: dict, q: dict) -> dict:
