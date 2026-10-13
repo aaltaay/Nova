@@ -4,9 +4,12 @@
  * restart check and draws what this returns.
  *
  * The desk and its backend run one release. Restart to update brings both (electron/engineSync.mjs);
- * this notice is for a backend left on another one, with the one action that closes the gap:
- * - behind the desk, running from the operator's checkout: "Update backend to vNNN" -- the checkout
- *   comes to the desk's release and the backend restarts onto it, in one press;
+ * this notice is for a backend left on another one:
+ * - behind the desk, running from the operator's checkout: Nova brings it to the desk's release by
+ *   itself (operator ask 2026-10-13: "restart it without us having to click on it") and the notice
+ *   only says so -- or what open position, order or bell holds it, with "Update backend now" for
+ *   the operator who wants it anyway. Only when Nova tried and it is still behind (a pull it may
+ *   not make, a restart that failed) is "Update backend to vNNN" theirs again, with the reason;
  * - behind, from another checkout that already holds newer code: "Restart backend now";
  * - ahead of the desk (its installer may still be building): "Update desk to vNNN", which looks for
  *   that release now.
@@ -29,6 +32,10 @@ export type BackendNoticeModel = {
   hint: string;
   action: BackendNoticeAction | null;
   actionLabel: string;
+  /** Nova is bringing the backend along itself: nothing to press, nothing to put off. */
+  byItself: boolean;
+  /** What holds Nova's own restart of the backend (the restart check's words). */
+  holds: string[];
 };
 
 type Tags = { backend: string | null; checkout: string | null; desk: string; engine: EngineSync | null };
@@ -39,6 +46,44 @@ export function updateBackendLabel(desk: string): string {
 
 export function updateDeskLabel(backend: string): string {
   return `Update desk to ${backend}`;
+}
+
+export const UPDATE_BACKEND_NOW_LABEL = 'Update backend now';
+
+/** A backend behind the desk that runs from the operator's checkout: Nova's to bring along. */
+function ownerBehind(key: string, backend: string, desk: string, engine: EngineSync): BackendNoticeModel {
+  const owner = engine.owner ?? "the backend's checkout";
+  const behind = `Backend ${backend} is behind this desk (${desk}).`;
+  const base = { key, holds: [] as string[] };
+  if (engine.auto?.state === 'left') {
+    return {
+      ...base,
+      text: behind,
+      hint: engine.auto.reason || `Nova runs as one version: this brings ${owner} to ${desk} and restarts the backend.`,
+      action: 'update',
+      actionLabel: updateBackendLabel(desk),
+      byItself: false,
+    };
+  }
+  if (engine.auto?.state === 'waiting' && engine.running === null) {
+    return {
+      ...base,
+      text: behind,
+      hint: 'Nova updates and restarts it by itself once nothing is open. Waiting for:',
+      action: 'update',
+      actionLabel: UPDATE_BACKEND_NOW_LABEL,
+      byItself: false,
+      holds: engine.auto.holds,
+    };
+  }
+  return {
+    ...base,
+    text: `Nova is updating the backend to ${desk}…`,
+    hint: `It ran ${backend}. It is back in about half a minute, and the desk reconnects by itself.`,
+    action: null,
+    actionLabel: '',
+    byItself: true,
+  };
 }
 
 /** The notice for a backend on another release than this desk, or null when they are one. */
@@ -52,20 +97,14 @@ export function backendNotice({ backend, checkout, desk, engine }: Tags): Backen
       hint: `Nova runs as one version: this looks for the ${backend} desk. Its installer can take a few minutes to build after a merge.`,
       action: 'desk',
       actionLabel: updateDeskLabel(backend),
+      byItself: false,
+      holds: [],
     };
   }
   const remedy = backendRemedy(backend, desk, checkout);
   if (!remedy) return null;
   const text = `Backend ${backend} is behind this desk (${desk}).`;
-  if (engine?.attachedToOwner && engine.owner) {
-    return {
-      key,
-      text,
-      hint: `Nova runs as one version: this brings ${engine.owner} to ${desk} and restarts the backend.`,
-      action: 'update',
-      actionLabel: updateBackendLabel(desk),
-    };
-  }
+  if (engine?.attachedToOwner && engine.owner) return ownerBehind(key, backend, desk, engine);
   if (remedy === 'restart') {
     return {
       key,
@@ -73,6 +112,8 @@ export function backendNotice({ backend, checkout, desk, engine }: Tags): Backen
       hint: checkout ? `Its checkout holds ${checkout}: a restart loads it.` : 'A restart loads what its checkout holds.',
       action: 'restart',
       actionLabel: BACKEND_NOTICE_RESTART_LABEL,
+      byItself: false,
+      holds: [],
     };
   }
   return {
@@ -81,6 +122,8 @@ export function backendNotice({ backend, checkout, desk, engine }: Tags): Backen
     hint: `It does not run from your Nova checkout: bring its checkout to ${desk}, then restart it (gear, Reload backend).`,
     action: null,
     actionLabel: updateBackendLabel(desk),
+    byItself: false,
+    holds: [],
   };
 }
 

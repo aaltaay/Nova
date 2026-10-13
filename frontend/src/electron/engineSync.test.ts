@@ -178,6 +178,105 @@ describe('createEngineSync', () => {
     expect(lastView().last).toMatchObject({ outcome: 'failed', text: 'Not updated: the checkout has 1 changed file nobody committed' });
   });
 
+  describe('the backend follows the desk by itself (operator ask 2026-10-13)', () => {
+    const recording = { schema_version: 1, safe: false, unknown: [], open: [{ kind: 'recording', text: 'Recording MSGY' }] };
+    const position = { schema_version: 1, safe: false, unknown: [], open: [{ kind: 'position', text: 'Paper position MSGY 100' }] };
+    type Auto = { state: string; holds: string[]; reason: string } | null;
+    const autoOf = (views: Array<Record<string, unknown>>) => views[views.length - 1].auto as Auto;
+
+    /** A backend on v1025 whose restart brings it to what the checkout holds (v1029). */
+    function live(check: () => unknown) {
+      const state = { tag: 'v1025' };
+      const fetchJson = async (url: string) =>
+        url.endsWith('/api/health') ? health(state.tag) : url.endsWith('/restart-check') ? check() : null;
+      const reloadEngine = vi.fn(async () => {
+        const from = state.tag;
+        state.tag = 'v1029';
+        return { from, to: 'v1029' };
+      });
+      return { state, fetchJson, reloadEngine };
+    }
+
+    it('with only a recording running: pulls and restarts onto the desk\'s release, asking nothing', async () => {
+      const { git, calls } = releaseGit();
+      const l = live(() => recording);
+      const { s, views, lastView } = sync({ git, fetchJson: l.fetchJson, reloadEngine: l.reloadEngine });
+      await s.follow();
+      expect(calls).toContain(`merge --ff-only --quiet ${SHA}`);
+      expect(l.reloadEngine).toHaveBeenCalledTimes(1);
+      expect(lastView().last).toMatchObject({ outcome: 'restarted', text: 'Restarted the backend: v1025 -> v1029' });
+      expect(autoOf(views)).toBeNull();
+      await s.follow(); // caught up: nothing more to do
+      expect(l.reloadEngine).toHaveBeenCalledTimes(1);
+    });
+
+    it('with a position open: says what holds it, touches nothing, and goes once it closes', async () => {
+      let check: unknown = position;
+      const { git, calls } = releaseGit();
+      const l = live(() => check);
+      const { s, views } = sync({ git, fetchJson: l.fetchJson, reloadEngine: l.reloadEngine });
+      await s.follow();
+      expect(autoOf(views)).toEqual({ state: 'waiting', holds: ['Paper position MSGY 100'], reason: '' });
+      expect(calls).toEqual([]);
+      expect(l.reloadEngine).not.toHaveBeenCalled();
+      check = nothingOpen;
+      await s.follow();
+      expect(l.reloadEngine).toHaveBeenCalledTimes(1);
+      expect(autoOf(views)).toBeNull();
+    });
+
+    it('a backend that cannot say what is open waits too: never read as nothing open', async () => {
+      const l = live(() => null);
+      const { s, views } = sync({ git: releaseGit().git, fetchJson: l.fetchJson, reloadEngine: l.reloadEngine });
+      await s.follow();
+      expect(autoOf(views)).toMatchObject({ state: 'waiting', holds: ['The backend did not say what is open'] });
+      expect(l.reloadEngine).not.toHaveBeenCalled();
+    });
+
+    it('tries a pair of releases once: still behind, it is the operator\'s, with the reason', async () => {
+      const { git, calls } = releaseGit([[/^status --porcelain/, { code: 0, stdout: ' M x\n' }]]);
+      const l = live(() => nothingOpen);
+      const { s, views } = sync({ git, fetchJson: l.fetchJson, reloadEngine: l.reloadEngine });
+      await s.follow();
+      expect(autoOf(views)).toEqual({
+        state: 'left',
+        holds: [],
+        reason: 'Not updated: the checkout has 1 changed file nobody committed',
+      });
+      const tried = calls.length;
+      await s.follow();
+      await s.follow();
+      expect(calls.length).toBe(tried);
+      expect(l.reloadEngine).not.toHaveBeenCalled();
+    });
+
+    it("leaves a backend from another checkout, and one at the desk's release, alone", async () => {
+      const packaged = { status: 'ok', frozen: true, release_tag: 'v1025' };
+      const reloadEngine = vi.fn();
+      const other = sync({ git: releaseGit().git, reloadEngine, fetchJson: async () => packaged });
+      await other.s.follow();
+      const current = sync({ git: releaseGit().git, reloadEngine, fetchJson: answers('v1029') });
+      await current.s.follow();
+      expect(reloadEngine).not.toHaveBeenCalled();
+      expect(autoOf(other.views)).toBeNull();
+    });
+
+    it('after the promise at Restart to update, does not restart the same pair a second time', async () => {
+      const reloadEngine = vi.fn(async () => ({ from: 'v1025', to: 'v1025' }));
+      const { git } = releaseGit([[new RegExp(`^merge-base --is-ancestor ${SHA} HEAD$`), { code: 0 }]], '1029');
+      const { s, views } = sync({
+        git,
+        reloadEngine,
+        takeFollow: () => ({ tag: 'v1029', repo_root: ROOT, asked_at: 900 }),
+      });
+      await s.followIfAsked();
+      await s.follow();
+      await s.follow();
+      expect(reloadEngine).toHaveBeenCalledTimes(1);
+      expect(autoOf(views)).toMatchObject({ state: 'left' });
+    });
+  });
+
   describe('Restart to update carries the backend (one update for both)', () => {
     it('with nothing open: brings the checkout along and leaves the new desk its promise, asking nothing', async () => {
       const box = vi.fn();

@@ -11,12 +11,20 @@
  * - at Restart to update (`prepareForDesk`): the checkout comes to the release being installed,
  *   after the desk listed what a restart would interrupt, and the new desk restarts the backend
  *   onto it (`followIfAsked`, engineFollow.mjs) -- one update for both;
- * - on the backend notice's "Update backend to vNNN" (`syncNow`), for a backend left behind.
- * Nothing here runs on a timer. Every outcome goes to update.log and to the update view's `engine`
- * part (`{owner, attached_to_owner, running, last}`).
+ * - by itself (`follow`, every ENGINE_FOLLOW_TICK_MS), whenever the owner's backend runs a release
+ *   older than this desk (operator ask 2026-10-13: "it should already know we need to restart the
+ *   backend and restart it without us having to click on it"): the same pull and restart, once
+ *   nothing open holds it (engineFollow.autoRestartHolds -- never a recording), once per pair of
+ *   releases; what holds it is in `auto`, and a pull or restart that fails is left to the operator;
+ * - on the backend notice's "Update backend to vNNN" (`syncNow`), when it was left to the operator.
+ * It only ever brings the backend to the release this desk already runs, never master's newest
+ * commit (an unattended pull of master is #616, parked). Every outcome goes to update.log and to the
+ * update view's `engine` part (`{owner, attached_to_owner, running, last, auto}`).
  */
 import { execFile } from 'node:child_process';
+import { isOlderTag } from './appTitle.mjs';
 import {
+  autoRestartHolds,
   cannotFollowPrompt,
   openNowPrompt,
   restartCheckLines,
@@ -35,6 +43,8 @@ const GIT_TIMEOUT_MS = 20_000;
 const GIT_FETCH_TIMEOUT_MS = 120_000;
 const GIT_MAX_BUFFER = 4 * 1024 * 1024;
 const TAG_RE = /^v\d+$/;
+/** How often the desk looks whether its backend runs an older release, and whether what held it cleared. */
+export const ENGINE_FOLLOW_TICK_MS = 15_000;
 
 function lastLine(output) {
   const lines = String(output ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -134,8 +144,14 @@ export function createEngineSync({
   let attached = false;
   let running = null;
   let last = null;
+  // The restart by itself: what holds it, or why it is the operator's (`{state, holds, reason}`).
+  let auto = null;
+  let following = false;
+  // `backend|desk` pairs already brought along once by itself: never a second time, so a restart that
+  // comes back on the same code cannot loop.
+  const tried = new Set();
 
-  const view = () => ({ owner, attached_to_owner: attached, running, last });
+  const view = () => ({ owner, attached_to_owner: attached, running, last, auto });
   const emit = () => publish(view());
 
   function record(outcome, text) {
@@ -236,8 +252,62 @@ export function createEngineSync({
     if (!promise || promise.tag !== tag) return;
     const home = await look();
     if (!home || !attached || home.release_tag === tag) return;
+    tried.add(`${home.release_tag}|${tag}`);
     logger.info(`updating the backend to ${tag}, as asked at Restart to update`);
     await syncNow();
+  }
+
+  function setAuto(next) {
+    if (JSON.stringify(next) === JSON.stringify(auto)) return;
+    auto = next;
+    emit();
+  }
+
+  /** What holds the backend's automatic restart now (engineFollow.autoRestartHolds): [] when nothing does. */
+  async function autoHolds() {
+    return autoRestartHolds(await fetchJson(`${apiBase}${RESTART_CHECK_PATH}`, RESTART_CHECK_TIMEOUT_MS));
+  }
+
+  /**
+   * The owner's backend runs a release older than this desk: bring it to the desk's release without
+   * asking, as soon as nothing open holds it. Nothing to do for a backend at (or past) the desk's
+   * release, a backend from another checkout, or one Nova already brought along for this pair.
+   */
+  async function follow() {
+    if (running || following) return;
+    following = true;
+    try {
+      const tag = deskTag();
+      const home = await look();
+      if (!home || !attached || !isOlderTag(home.release_tag, tag)) {
+        setAuto(null);
+        return;
+      }
+      const key = `${home.release_tag}|${tag}`;
+      if (tried.has(key)) {
+        // Brought along once and still behind: the button and its reason are the operator's.
+        if (auto?.state !== 'left') setAuto({ state: 'left', holds: [], reason: last?.outcome === 'failed' ? last.text : '' });
+        return;
+      }
+      const holds = await autoHolds();
+      if (holds.length) {
+        if (JSON.stringify(holds) !== JSON.stringify(auto?.holds)) {
+          logger.info(`backend sync: ${home.release_tag} -> ${tag} waits: ${holds.join('; ')}`);
+        }
+        setAuto({ state: 'waiting', holds, reason: '' });
+        return;
+      }
+      setAuto(null);
+      tried.add(key);
+      logger.info(`backend sync: updating the backend to ${tag} by itself (it ran ${home.release_tag}, nothing open)`);
+      await syncNow();
+      const after = await look();
+      if (after && attached && isOlderTag(after.release_tag, tag)) {
+        setAuto({ state: 'left', holds: [], reason: last?.outcome === 'failed' ? last.text : '' });
+      }
+    } finally {
+      following = false;
+    }
   }
 
   const guard = (label, fn) => (...args) => fn(...args).catch((err) => {
@@ -264,6 +334,7 @@ export function createEngineSync({
       }
     },
     followIfAsked: guard('Updating the backend', followIfAsked),
+    follow: guard('Updating the backend by itself', follow),
   };
 }
 
@@ -271,6 +342,11 @@ export function createEngineSync({
 export function attachEngineSync({ bridge, ...deps }) {
   const sync = createEngineSync({ ...deps, publish: (view) => bridge.set('engine', view) });
   bridge.on('backend-sync', () => sync.syncNow());
-  void sync.look().then(() => sync.followIfAsked());
+  void sync.look()
+    .then(() => sync.followIfAsked())
+    .then(() => sync.follow());
+  // Whenever the backend falls behind this desk later (or what held it clears), it follows by itself.
+  const timer = setInterval(() => void sync.follow(), ENGINE_FOLLOW_TICK_MS);
+  timer.unref?.();
   return sync;
 }

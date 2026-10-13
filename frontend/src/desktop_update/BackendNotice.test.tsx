@@ -20,7 +20,14 @@ vi.mock('../ux', () => ({ confirmApp }));
 
 import { BackendNotice } from './BackendNotice';
 
-const engine: EngineSync = { owner: 'C:\\Nova', attachedToOwner: true, running: null, last: null };
+// Nova brought the backend along once and it is still behind: the button is the operator's.
+const engine: EngineSync = {
+  owner: 'C:\\Nova',
+  attachedToOwner: true,
+  running: null,
+  last: null,
+  auto: { state: 'left', holds: [], reason: '' },
+};
 
 function answerCheck(body: unknown) {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => body })));
@@ -70,6 +77,24 @@ describe('BackendNotice', () => {
     await waitFor(() => expect(confirmApp).toHaveBeenCalledTimes(1));
     expect((confirmApp.mock.calls[0] as unknown as [{ message: string }])[0].message).toContain('- Recording MSGY');
     expect(act).not.toHaveBeenCalled();
+  });
+
+  it('has nothing to press while Nova brings the backend along itself (operator ask 2026-10-13)', () => {
+    render(<BackendNotice engine={{ ...engine, auto: null }} act={vi.fn()} />);
+    expect(screen.getByTestId('backend-notice').textContent).toContain('Nova is updating the backend to v1029…');
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('lists what holds Nova\'s own restart, and Update backend now asks first', async () => {
+    const holds = ['Paper position MNDR 100: Nova stops watching it while the backend restarts', 'The opening bell (09:25-09:45 ET)'];
+    answerCheck({ schema_version: 1, safe: false, unknown: [], open: holds.map((text) => ({ kind: 'position', text })) });
+    confirmApp.mockResolvedValueOnce(true);
+    const act = vi.fn();
+    render(<BackendNotice engine={{ ...engine, auto: { state: 'waiting', holds, reason: '' } }} act={act} />);
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(holds);
+    fireEvent.click(screen.getByRole('button', { name: 'Update backend now' }));
+    await waitFor(() => expect(act).toHaveBeenCalledWith('backend-sync'));
+    expect(confirmApp).toHaveBeenCalledTimes(1);
   });
 
   it('looks for the desk\'s release when the backend is ahead of it', async () => {

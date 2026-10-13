@@ -97,6 +97,14 @@
   border-top: 1px solid var(--nova-border);
 }
 
+/* What holds Nova's own restart of the backend: the backend's own lines, under the row's text. */
+.nova-update-notice__holds {
+  margin: 0;
+  padding: 0 0.75rem 0.35rem 3.4rem;
+  color: var(--nova-text-muted);
+  overflow-wrap: anywhere;
+}
+
 /*
  * Floating, not modal: above the desk panels, below the prerequisites gate (9000)
  * and dialogs. Bottom-right, so it never covers the header or the update notice

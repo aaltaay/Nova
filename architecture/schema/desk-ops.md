@@ -217,6 +217,16 @@ app's own folder, so it is a different Paper account, bot session and history.
   the new desk reads it once, deletes it, and restarts the backend onto that
   release without asking again. An unknown version, an unreadable file or one
   older than a day is no promise. A bundled engine is the installer's own.
+- **A backend behind the desk follows by itself** (ADR 038 amendment
+  2026-10-13; operator: "it should already know we need to restart the backend
+  and restart it without us having to click on it"). Every 15 s the installed
+  desk looks whether the owner's backend runs an older release than itself
+  (`engineSync.follow`). If it does and the restart check holds nothing but
+  recordings, it brings the checkout to the desk's tag and restarts the
+  backend, with no button; the notice reads "Nova is updating the backend to
+  vNNN…". Otherwise the notice lists what holds it (`engine.auto.holds`) beside
+  **Update backend now**, and Nova goes once it clears. Each pair of releases
+  is tried once; still behind, the action below is the operator's again.
 - **The backend notice** (`frontend/src/desktop_update/BackendNotice.tsx`, in the
   update strip). It shows while the backend runs another release than the desk,
   with one action: **Update backend to vNNN** when it is behind and runs from
@@ -228,8 +238,9 @@ app's own folder, so it is a different Paper account, bot session and history.
   backend too old to say, is listed and confirmed. Later hides it until a
   revision changes.
 
-  Nothing pulls or restarts on a timer: an unattended nightly pull and restart
-  was proposed and not built, pending the operator's explicit say-so.
+  Nothing else pulls or restarts on a timer: an unattended nightly pull of
+  master and restart was proposed and not built (#616), pending the operator's
+  explicit say-so.
 
 ## Where Nova keeps its data (operator ask, 2026-09-24)
 
@@ -346,7 +357,13 @@ pop-outs neither receive it nor may act): `{schema_version: 1, installed,
 notice, whats_new, file_issue, engine}`. `engine` (installed desk only, ADR 038
 amendment) is `{owner: string | null, attached_to_owner: boolean, running:
 "pull" | "restart" | null, last: {at, outcome: "pulled" | "restarted" |
-"current" | "failed", text} | null}`. `notice` is `null` or `{stage: "available" | "downloading"
+"current" | "failed", text} | null, auto}`. `auto` (ADR 038 amendment
+2026-10-13) is `null` while nothing holds the backend's restart by itself, or
+`{state: "waiting" | "left", holds: string[], reason: string}`: `waiting` lists
+what holds it (the restart check's `text` lines, every kind but `recording`,
+plus each `unknown`; a backend with no readable answer holds it too); `left`
+means Nova tried this pair of releases once and the backend is still behind,
+so the button is the operator's (`reason`: the failure, when there was one). `notice` is `null` or `{stage: "available" | "downloading"
 | "stopped" | "ready" | "installing", tag, installed, percent, retry, error,
 notes}`; `whats_new` is `null` or `{mode: "updated" | "recent", tag, since:
 string | null, notes}`. `notes` is `{loading, error: string | null,
