@@ -1,6 +1,7 @@
 /**
- * The open position's fill arrows on a candle series: an arrow under its bar for a buy, over it for a
- * sell, with the fill price -- drawn the way lightweight-charts' series markers draw them. Display only.
+ * The desk day's fill arrows on a candle series, open position or not: an arrow under its bar for a buy,
+ * over it for a sell, with the fill price -- drawn the way lightweight-charts' series markers draw them.
+ * Display only.
  *
  * Not `createSeriesMarkers`: that plugin asks for a *full* redraw on every data change of its series,
  * so every tick laid out the whole page (the price axis sets a canvas font), on every pane. In 5.1.0
