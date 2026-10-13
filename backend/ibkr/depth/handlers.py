@@ -1,4 +1,8 @@
-"""IBKR depth tick handlers, error hook, and L1 fallback."""
+"""IBKR depth tick handlers, error hook, and L1 fallback.
+
+IBKR refusing a line (309: every Level 2 line of the login is in use) ends it here, by its own
+request id: the line is not open, and its viewers are told why (``subscribe.refuse_line``).
+"""
 from __future__ import annotations
 
 import logging
@@ -7,11 +11,12 @@ from typing import Any
 from constants import (
     IBKR_DEPTH_NUM_ROWS,
     IBKR_DEPTH_SMART,
+    IBKR_ERROR_DEPTH_MAX_LINES,
     IBKR_ERROR_DEPTH_NOT_SUPPORTED,
     IBKR_ERROR_DEPTH_RESET,
 )
 from ibkr import client as _client
-from ibkr import feed_pulse
+from ibkr import feed_pulse, stray_lines
 from ibkr.depth import state
 from ibkr.depth.book import Level, sort_levels
 from metrics.op_metrics import timed_fn
@@ -160,9 +165,37 @@ def install_error_hook(ib: Any) -> None:
         return
     ib.errorEvent += on_ib_error
     state._error_hooked_ib_ids.add(id(ib))
+    stray_lines.install(ib)  # a Level 2 line IBKR grants after Nova's cancel is cancelled again
+
+
+def _line_of_request(req_id: int, con_id: Any) -> str | None:
+    """The symbol whose live Level 2 line is this request -- by ib_async's id, else by contract."""
+    ib = _client.get_ib()
+    for sym, c in list(state._contracts.items()):
+        if getattr(c, "conId", None) != con_id or state.is_stale(sym):
+            continue
+        if ib is None or stray_lines.request_id(ib, c, "mktDepth") == req_id:
+            return sym
+    return None
+
+
+def on_refused(reqId: int, errorString: str, contract: Any) -> None:
+    """309 on a live line's own request: IBKR never opened it. End it on the HTTP loop."""
+    sym = _line_of_request(reqId, getattr(contract, "conId", None)) if contract is not None else None
+    if sym is None:
+        return  # no contract: Nova had already let the request go, and IBKR holds nothing for it
+    logger.warning("IBKR depth: IBKR refused %s's Level 2 line (reqId %s) -- %s: %s",
+                   sym, reqId, IBKR_ERROR_DEPTH_MAX_LINES, errorString)
+    from ibkr import loop_supervisor
+    from ibkr.depth.subscribe import refuse_line  # the facade's ``subscribe`` is a function
+
+    loop_supervisor.publish_to_http(refuse_line, sym, reqId)
 
 
 def on_ib_error(reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
+    if errorCode == IBKR_ERROR_DEPTH_MAX_LINES:
+        on_refused(reqId, errorString, contract)
+        return
     if errorCode not in (IBKR_ERROR_DEPTH_NOT_SUPPORTED, IBKR_ERROR_DEPTH_RESET) or contract is None:
         return
     con_id = getattr(contract, "conId", None)
@@ -187,6 +220,7 @@ def on_ib_error(reqId: int, errorCode: int, errorString: str, contract: Any) -> 
 
 
 def _cancel_depth(ib: Any, contract: Any, symbol: str) -> None:
+    stray_lines.note_depth_cancel(ib, contract, symbol, IBKR_DEPTH_SMART)
     try:
         ib.cancelMktDepth(contract, isSmartDepth=IBKR_DEPTH_SMART)
     except Exception as exc:

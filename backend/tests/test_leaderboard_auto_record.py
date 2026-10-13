@@ -486,3 +486,31 @@ def test_unknown_recordings_wait_while_a_resume_brings_them_back(desk, monkeypat
     desk.resuming, desk.recording = [], ["SSM"]
     run(auto_record.tick(et(10, 36, 40)))
     assert auto_record.held_symbols() == ["SSM"]
+
+
+def test_a_start_ibkr_refuses_pauses_new_starts_instead_of_trying_the_next_stock(desk, monkeypatch):
+    """2026-10-13: a try a second while IBKR was full let Level 2 lines go before IBKR answered."""
+    from capture import feed_hold
+    from constants_leaderboard import LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC
+
+    tried: list[str] = []
+
+    async def refused(symbol):
+        tried.append(symbol)
+        return "IBKR refused the Time & Sales line (10190)"
+
+    monkeypatch.setattr(feed_hold, "acquire", refused)
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5), gainer("CCC", 1.0)]
+    run(auto_record.tick(et(7, 5)))
+    assert tried == ["AAA"]  # not BBB and CCC a second apart
+    assert auto_record.status(et(7, 5))["paused_until"] == et(7, 5) + LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC
+    run(auto_record.tick(et(7, 5, 30)))
+    assert tried == ["AAA"]
+
+    async def granted(symbol):
+        return None
+
+    monkeypatch.setattr(feed_hold, "acquire", granted)
+    run(auto_record.tick(et(7, 6, 1)))
+    assert desk.recording == ["BBB", "CCC"]  # AAA waits out its own retry
+    assert auto_record.status(et(7, 6, 1))["paused_until"] is None

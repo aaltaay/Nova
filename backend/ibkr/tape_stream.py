@@ -259,6 +259,9 @@ async def _subscribe_locked(symbol: str, ib: Any) -> dict:
 
     l1_timestamp.install(ib, session=_client.current_generation)
     _tape_exchange_time.install(ib)  # keep IBKR's own second beside ib_async's arrival time (#563)
+    from ibkr import stray_lines
+
+    stray_lines.install(ib)  # a line IBKR keeps printing after Nova's cancel is cancelled again
 
     try:
         with timed_sync("ibkr.tape.subscribe"):
