@@ -1,15 +1,15 @@
 /**
  * Placing and drawing a setup's strategy box on the 1-minute pane (`strategyBox.ts` decides it, operator asks
- * 2026-10-12). The box runs to the pane's right edge, under the edge column, whose words name its prices (T1, entry,
- * stop: `strategyWords`). A forming setup's box stands on the setup's window -- from its start, never before the newest
+ * 2026-10-12). The box runs to the pane's right edge, under the edge column, whose words name its prices (T2, T1,
+ * entry, stop: `strategyWords`). A forming setup's box stands on the setup's window -- from its start, never before the newest
  * candle -- when that leaves room for its name left of the column's words; else it waits at the right edge saying when
  * it starts. Faint and dashed while the setup is only forming; in full colour with a solid outline once it is near or
  * armed, the word for where it stands beside its name. Target 2 is a dotted dash across the box while it
- * is in view, else a small arrow past target 1. Drawn before the column, so the column's words read over it.
+ * is in view; its name is the column's word, and out of view the column's tag (2026-10-13). Drawn before the column, so
+ * the column's words read over it.
  */
 import { STRATEGY_BOX as S, STRATEGY_BOX_LIVE as L } from './constants';
 import { fitText } from './levelRender';
-import { fmtPx } from './planMath';
 import type { LabelRect } from './sceneLabels';
 import type { SceneStrategy } from './sceneTypes';
 
@@ -65,7 +65,7 @@ export function fitName(name: string, room: number, measure: (t: string) => numb
 }
 
 /** Draws the box; returns the room its words take, for the labels drawn after it to keep clear of. `height` is the
- * pane's: target 2 off it is an arrow. */
+ * pane's: target 2 off it has no dash. */
 export function drawStrategy(ctx: CanvasRenderingContext2D, p: StrategyPx, width: number,
   column: readonly LabelRect[], height = Number.POSITIVE_INFINITY): LabelRect[] {
   const { s } = p;
@@ -154,32 +154,17 @@ export function drawStrategy(ctx: CanvasRenderingContext2D, p: StrategyPx, width
     words.push({ left, top: nameY, right: left + Math.max(line1W, line2W),
       bottom: nameY + (line2W > 0 ? 2 : 1) * S.lineH });
   }
-  if (s.target2 !== null) {
-    const long = s.side === 'long';
-    const y2 = p.yTarget2 ?? null;
-    ctx.font = S.font;
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = ink.target2Ink;
-    if (y2 !== null && y2 >= 0 && y2 <= height) {
-      // In view: a dotted dash across the box at its price, named at the box's left over it (under it on a short).
-      ctx.setLineDash([...S.target2Dash]);
-      ctx.strokeStyle = ink.target2Ink;
-      ctx.beginPath();
-      ctx.moveTo(x1, Math.round(y2) + 0.5);
-      ctx.lineTo(x2, Math.round(y2) + 0.5);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      const text = `T2 ${fmtPx(s.target2)}`;
-      const y = long ? y2 - S.lineH / 2 - 1 : y2 + S.lineH / 2 + 1;
-      ctx.fillText(text, x1 + S.padPx, y);
-      words.push({ left: x1 + S.padPx, top: y - S.lineH / 2, right: x1 + S.padPx + plain(text), bottom: y + S.lineH / 2 });
-    } else {
-      // Off the pane: an arrow over the box (under it on a short), never a line across the pane.
-      const text = `${long ? '↑' : '↓'} T2 ${fmtPx(s.target2)}`;
-      const y = long ? top - S.padPx - S.lineH / 2 : bottom + S.padPx + S.lineH / 2 + (inside ? 0 : 2 * S.lineH);
-      ctx.fillText(text, x1, y);
-      words.push({ left: x1, top: y - S.lineH / 2, right: x1 + plain(text), bottom: y + S.lineH / 2 });
-    }
+  const y2 = s.target2 !== null ? p.yTarget2 ?? null : null;
+  if (y2 !== null && y2 >= 0 && y2 <= height) {
+    // In view: a dotted dash across the box at its price. Its name is the edge column's ("T2 4.49", `strategyWords`),
+    // where a level at its price folds in; off the pane the column's tag says it (2026-10-13).
+    ctx.setLineDash([...S.target2Dash]);
+    ctx.strokeStyle = ink.target2Ink;
+    ctx.beginPath();
+    ctx.moveTo(x1, Math.round(y2) + 0.5);
+    ctx.lineTo(x2, Math.round(y2) + 0.5);
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
   return words;
 }

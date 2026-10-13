@@ -268,7 +268,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
       ...luldWords(luldTrail),
       ...lineWords(draw.lines),
       ...edge.words.map(w => ({ id: w.id, text: w.text, color: w.color, priority: w.priority, price: null,
-        series: w.series, valueWhenOff: w.valueWhenOff })),
+        series: w.series, valueWhenOff: w.valueWhenOff, absorbs: w.absorbs })),
     ];
     return {
       ...draw.scene,

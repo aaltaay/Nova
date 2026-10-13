@@ -23,6 +23,8 @@ export interface SceneLevel {
   hoverId: string | null;
   /** How firmly its label keeps its place in a crowded column (`EDGE_PRIORITY`); a level's by default. */
   priority?: number;
+  /** What it says in a stronger line's label at its price ("$4.00", "top ×8"; `levelFold.foldColumn`). */
+  foldName?: string;
 }
 
 export interface SceneTick {

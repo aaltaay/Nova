@@ -253,8 +253,9 @@ export function TickerChartOverlays({
     if (!chart) return;
     const words: EdgeWord[] = [];
     if (showVwap && vwapSeriesRef.current) {
+      // VWAP's tag takes the VWAP level the stock read draws at its price: one word, not two (2026-10-13).
       words.push({ id: 'vwap', text: vwapTitle, color: CHART_VWAP_COLOR, priority: EDGE_PRIORITY.vwap,
-        series: vwapSeriesRef.current, valueWhenOff: false });
+        series: vwapSeriesRef.current, valueWhenOff: false, absorbs: true });
     }
     for (const length of CHART_EMA_LENGTHS) {
       const series = showEmas ? emaSeriesRef.current[length] : undefined;

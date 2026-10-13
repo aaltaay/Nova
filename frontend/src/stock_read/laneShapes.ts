@@ -115,7 +115,7 @@ export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, b
     const t1 = o.toTime(leg.t);
     if (t1 !== null) {
       segments.push({ t1, price: leg.high, color: bright ? SETUP_COLORS.trigger : SETUP_COLORS.fadedStroke, dashed: true,
-        label: `OPEN ${fmtPx(leg.high)}` });
+        label: `OPEN ${fmtPx(leg.high)}`, name: 'OPEN' });
     }
     if (lastT !== null && leg.low < leg.high) {
       box(leg.t, lastT, leg.low, leg.high, bright ? SETUP_COLORS.risk : SETUP_COLORS.faded,
@@ -124,7 +124,9 @@ export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, b
   } else if (type === 'gap_and_go' && leg) {
     // The pre-market high is the level: drawn from the candle that set it, forming until the open, then armed.
     const t1 = o.toTime(leg.t);
-    if (t1 !== null) segments.push({ t1, price: leg.high, color: c.stroke, dashed: provisional, label: `PMH ${fmtPx(leg.high)}` });
+    if (t1 !== null) {
+      segments.push({ t1, price: leg.high, color: c.stroke, dashed: provisional, label: `PMH ${fmtPx(leg.high)}`, name: 'PMH' });
+    }
   }
   return draw;
 }

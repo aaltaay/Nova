@@ -110,16 +110,20 @@ export function strategyOf(plan: StockPlan, lv: OrderLevels, target2: number | n
   };
 }
 
-/** The box's edge-column words, beside its edges and its entry line, with no line of their own. Forming: faint, with
- * the prices ("T1 2.99"). Once armed the axis carries the prices, so the words only name them ("T1", "entry"). */
+/** The box's edge-column words, beside its edges, its entry line and target 2's dash, with no line of their own.
+ * Forming: faint, with the prices ("T1 2.99"). Once armed the axis carries the prices, so the words only name them
+ * ("T1", "entry"), and out of view their tags add the price. Each takes the name of a level at its price
+ * ("stop 4.03 · $4.00", `levelFold.ts`; operator report 2026-10-13); target 2's is the column's word too, so a
+ * level at it folds in as at the others. */
 export function strategyWords(s: SceneStrategy): SceneWord[] {
   const live = s.state !== 'forming';
   const ink = live ? STRATEGY_BOX_LIVE : STRATEGY_BOX;
   const word = (id: string, label: string, price: number, color: string): SceneWord => ({
     id: `strategy:${id}`, text: live ? label : `${label} ${fmtPx(price)}`, color, priority: EDGE_PRIORITY.planLine,
-    price, series: null, valueWhenOff: false, style: 'plain',
+    price, series: null, valueWhenOff: live, style: 'plain', absorbs: true,
   });
   return [
+    ...(s.target2 !== null ? [word('target2', 'T2', s.target2, ink.target2Ink)] : []),
     word('target', 'T1', s.target, ink.targetInk),
     word('entry', s.side === 'short' ? 'short' : 'entry', s.entry, ink.entryInk),
     word('stop', 'stop', s.stop, ink.stopInk),

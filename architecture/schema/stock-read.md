@@ -204,7 +204,8 @@ line from end to end ... more minimalist") draws neither zones nor plan lines on
 box (`strategyBox.ts`, drawn by `strategyBoxRender.ts`): one faint box from its stop to target 1, from the room right
 of the newest candle to the pane's edge, the setup's name and "strategy" with its window inside, the entry a dashed
 line across it, its prices faint words in the edge column ("T1 2.99", "entry 2.91", "stop 2.79", no line of their
-own), and target 2 a small arrow over it (under it for a short). While the setup's window is still ahead the box
+own), and target 2 a dotted dash over it with its word in the column too ("T2 3.49"; out of view the column's tag,
+"↑ T2 3.49"). While the setup's window is still ahead the box
 stands on that window -- from Gap and Go's 09:30 -- when the window's start leaves room for its name left of the
 column's words, and otherwise waits at the right edge saying "from 09:30 →"; with the window open, or none, it starts
 after the newest candle. That chart's autoscale keeps the box in view (the stop to target
@@ -215,9 +216,10 @@ newest candle to the pane's edge, on every setup: its name and where it stands (
 PULLBACK armed"; a word with no room beside the name leads the second line), and since when ("since 09:34", with
 "until 10:00" while its window is open, from the lead lane's `setup.armed_at`). The entry is dashed
 across the box only. Its levels keep their axis tags, price lines drawn without the line (`PriceLineSpec.line: false`,
-lightweight-charts' `lineVisible`), and the edge column's words name them ("T1", "entry" or "short", "stop"). Target 2
-in view is a dotted dash across the box ("T2 3.49"), and off the pane an arrow; either way the frame is the stop to
-target 1. A short's name is cut before its "▼ SHORT". **Once it triggered** (operator ask 2026-10-12, option A of two
+lightweight-charts' `lineVisible`), and the edge column's words name them ("T2", "T1", "entry" or "short", "stop"; out
+of view their tags add the price). Target 2 in view is a dotted dash across the box, its name the column's word (until
+2026-10-13 a label drawn on the box, where a level at its price could not fold in), and off the pane the column's tag;
+either way the frame is the stop to target 1. A short's name is cut before its "▼ SHORT". **Once it triggered** (operator ask 2026-10-12, option A of two
 mockups, on MNDR's Gap and Go box still beside the price at 09:55, 24 minutes after its 09:31 trigger and 22 after the
 eyes scored target 1 first) a plan with nothing behind it was taken or missed, and it leaves the 1-minute chart: no
 box, no axis tags, no frame (`strategyBox.triggeredPlan`). A mark over its trigger candle stands in its place
@@ -515,6 +517,38 @@ its detail on hover, and the ruler marks the `between` levels. The toolbar's Lev
 (`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. On a replay desk they are the replay's
 at the playhead (ADR 052); nothing is drawn on the sample desk.
 
+**One label per price** (operator report 2026-10-13, a 1-minute chart in full screen with a Gap and Go forming and
+fifteen names at the right edge: "there are way too many lines here.. all the resistance level double bottom/tripple
+top.. top x5..... hmm how do we deal with this?", then "1 go" on a before-and-after mockup). Two tops 3c apart were two
+lines ("4.12 · top ×5", "4.09 · triple top"), VWAP was named twice ("VWAP $4.36" and "4.36 · VWAP"), and the
+premarket high, a half dollar and a whole dollar sat a cent or three from the plan's entry, target 2 and stop, each
+with its own line and label. What sits within 1% (`LEVEL_FOLD_PCT`) of a stronger line now folds into it: its name
+joins that line's label and its card joins that line's card (`frontend/src/stock_read/levelFold.ts`; a zone's colour,
+words and card are `levelZone.ts`). Display only: no wire or stored shape changes, and nothing is dropped from the
+level map, the plan or its notes.
+- A pane's picked zones on one side of the price whose edges are within 1% of each other are one band, at most 2%
+  wide, with one line and one label: its range, what it is, what the candles made of it all and its round number
+  ("4.09–4.12 · top ×8", "4.48–4.50 · double bottom · $4.50"). The 1-minute, 5-minute and Full Day panes alike.
+- In the edge column (`foldColumn`, before the layout), a level's or a trend line's name in view joins the nearest
+  word over it in priority whose line is within 1% (a band's measured from its nearest edge; the stronger where two
+  are as near): the plan's lines (the strategy box's words and the price lines' names), VWAP's tag, the high of day, a
+  level. So the VWAP level folds into VWAP's tag, not into target 1 4c away. It says one word there -- a round number, else what it is, else what
+  the candles made ("stop 4.03 · $4.00", "T2 4.49 · $4.50", "entry 4.20 · top ×5"); a trend line says its arrow
+  ("4.09–4.12 · top ×8 · ↘"). A name the word already says is not repeated: the VWAP level folds into "VWAP $4.36"
+  unchanged. The plan's lines never fold into each other; the EMAs, the LULD band and a flat top's word neither take
+  nor give names; a tag for a price out of view stays a tag.
+- A lane's named line on the 1-minute chart (`SceneSegment.name`: the gap and go's premarket high, red to green's
+  open) within 1% of a plan line is that line's word ("entry 4.20 · PMH"), and its own line and label go
+  (`foldSegments`).
+- A label that took others opens one card: its title, then each part under its own title with where it is and why it
+  is there, then the parts' other sections once each ("What usually happens"), a repeated sentence once
+  (`foldedStory`). The hover id is `fold|<title>|<part id>|...`.
+- A broken trend line has no name at the edge: its faint line and the cross on the candle that closed through it say
+  it, and the line still opens its card. While the plan's stop is drawn on the 1-minute pane, a trend line past it has
+  no tag while it is out of view.
+- On the chart in the report that is 15 names down to 7: ↑ HOD, T2 · $4.50, T1, VWAP, entry · PMH,
+  4.09–4.12 · top ×8 · ↘, stop · $4.00.
+
 **One column at a pane's right edge** (operator report 2026-09-30: "everything is getting on top of each
 other in the charts!"). The right edge had three owners -- the levels' labels stacked among themselves,
 lightweight-charts drew the EMAs', VWAP's and the plan lines' titles on its own, and the tags for prices out
@@ -597,8 +631,8 @@ measured on the plan's side (a short's are the mirror), from both charts' lines:
 The 1-minute pane draws `one_minute`, the 5-minute pane `five_minute`, under the Levels switch; the 10-second and
 Full Day panes draw none. A line runs solid from its first touch to its last and dashed on to the pane's newest
 candle (`slope` a candle, counted in the pane's candles), with a ring on each touch; a broken line is faint, dashed,
-with a cross on the candle that closed through it. Its name ("↗ support · 4", "↘ resistance broke 09:52") sits in
-the edge column where it runs on the newest candle (out of view, a tag with that price); the line and its name open
+with a cross on the candle that closed through it. Its name ("↗ support · 4"; a broken line has none since
+2026-10-13, "One label per price") sits in the edge column where it runs on the newest candle (out of view, a tag with that price); the line and its name open
 a card: where it runs against the price, the touches and the band, its slope, what a break means, and that how
 often these lines hold is not measured. Each minute pane's Key lists them. The plan card adds a "Line" row per
 note.

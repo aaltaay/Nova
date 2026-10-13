@@ -33,6 +33,8 @@ export interface SceneSegment {
   color: string;
   dashed: boolean;
   label: string | null;
+  /** What it is ("PMH"): within reach of the plan's line, it is that line's word instead (`levelFold.foldSegments`). */
+  name?: string;
 }
 
 export interface SceneVLine {
@@ -62,6 +64,8 @@ export interface SceneWord {
   valueWhenOff: boolean;
   /** `plain`: coloured words on dark, with no line of their own (a forming setup's prices); else the line's own tag. */
   style?: 'filled' | 'plain';
+  /** It takes the names of the levels at its price (the plan's lines, VWAP; `levelFold.foldColumn`). */
+  absorbs?: boolean;
 }
 
 /** Room at the right edge something else holds (the position tag): the column keeps clear of it. */
@@ -117,11 +121,16 @@ export interface SceneTrend {
   faded: boolean;
   touches: { t: Time; price: number }[];
   broke: { t: Time; price: number } | null;
-  /** Its name in the edge column, at its price on the newest candle, in `labelColor` (a broken line's stays readable). */
+  /** Its name in the edge column, at its price on the newest candle, in `labelColor`; empty for a broken line, whose
+   * line and cross say it (2026-10-13). */
   label: string;
   labelColor: string;
   hoverId: string;
   priority: number;
+  /** What it says in a level's or the plan's label at its price ("↘"). */
+  foldName: string;
+  /** False: no tag while it is out of view (a line past the plan's stop, 2026-10-13). */
+  offTag?: boolean;
 }
 
 /** A filled tag over a price on one candle, on a stem down to the price. */
