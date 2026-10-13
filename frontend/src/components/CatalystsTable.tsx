@@ -59,7 +59,7 @@ export function CatalystsTable({
         Open Nova News for AI-in-trading headlines.
       </div>
       {catalysts.length > 0 ? (
-        <div className={SCANNER_TABLE_WRAPPER_CLASS}>
+        <div className={`${SCANNER_TABLE_WRAPPER_CLASS} catalysts-table`}>
           <table>
             <ScannerColGroup columns={CATALYST_COLUMNS} />
             <thead>
