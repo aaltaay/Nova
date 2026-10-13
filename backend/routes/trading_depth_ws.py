@@ -9,6 +9,11 @@ Every book frame carries its version (``seq``, ``at``) and ``sent``; with nothin
 ``MARKET_VIEW_BEAT_SEC`` the socket says the newest version is still current (``beat``), so the
 desk can tell a quiet book from a stalled socket and lock orders on the latter (ADR 045).
 
+IBKR refusing the line (309) reaches the socket as an ``error`` frame with ``evicted``, and the
+socket closes so the ladder asks again on its backoff. A refusal that lands before this socket's
+queue exists is read from ``depth.refusal`` instead, so a refused ladder never streams beats as if
+a book were coming (operator report 2026-10-13: "Waiting for book data..." for good).
+
 A hidden Trader tab lends its line (ADR 044 decision 6, ``line_lending``): the
 Trader tab's Level 2 opens with ``?tab=1`` and ``front=1`` while it is the tab in
 front. While a loan stands, a socket for the lender gets ``{"type": "lent", ...}``
@@ -50,6 +55,16 @@ def refusal_text(symbol: str, result: dict) -> str:
     except Exception:
         logger.exception("depth: could not name the line holders for %s", symbol)
         return result.get("error") or "Depth error"
+
+
+async def send_refusal(websocket: WebSocket, symbol: str) -> bool:
+    """IBKR refused this symbol's line (309) since it was asked for: say why and end the socket."""
+    message = _depth.refusal(symbol)
+    if message is None:
+        return False
+    await websocket.send_text(json.dumps({"type": "error", "symbol": symbol, "message": message, "evicted": True}))
+    await websocket.close()
+    return True
 
 
 async def make_room(symbol: str) -> None:
@@ -157,6 +172,9 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         # No await between: the lending registry and the viewer count move together.
         socket_token = socket_gate.opened(symbol, tab=tab, front=front)
 
+        # IBKR refused the line it was just asked for: no re-subscribe, the ladder's backoff asks again.
+        if await send_refusal(websocket, symbol):
+            return
         # Remount race: a previous viewer's cleanup may have dropped the line
         # between our initial subscribe check and viewer_opened. Re-subscribe
         # before streaming so the line actually exists to hold a viewer queue.
@@ -175,6 +193,8 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         # same symbol) competing consumers instead of both seeing every book
         # update (same defect class as tape_stream.py -- PROBLEM_LOG 2026-08-25).
         queue = _depth.open_viewer_queue(symbol)
+        if await send_refusal(websocket, symbol):  # refused before this queue could hear it
+            return
         # A loan of this line that began while this socket subscribed pushed its frame before the queue existed.
         lent = socket_gate.lent_now(symbol, front=front)
         if lent is not None:

@@ -38,6 +38,11 @@ Sales IBKR refused for its tick-by-tick cap -- is cancelled at once (no 16 s
 linger) and kept for them ``LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC``. Slots a
 restart's resumes are bringing back are left to them (``auto_record_state``).
 
+A start that fails -- IBKR refused its Time & Sales or its Level 2 line, most of the time --
+ends the tick and pauses every new start ``LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC``
+(operator report 2026-10-13): each try opens and lets go of two lines, the next stock is
+refused the same way, and a line let go before IBKR answered could stay held in IB Gateway.
+
 Start / stop go through the Session Record path (``capture.feed_hold`` +
 ``capture.mode.set_capture_mode``), so recordings land where the operator's do.
 """
@@ -53,6 +58,7 @@ from typing import Any
 from capture.constants_capture import CAPTURE_MAX_CONCURRENT, CAPTURE_STOP_AUTO
 from constants_ibkr import IBKR_MAX_DEPTH_SYMBOLS
 from constants_leaderboard import (
+    LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC,
     LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC,
     LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC,
     LEADERBOARD_AUTO_RECORD_TICK_SEC,
@@ -78,6 +84,7 @@ _candidate_since: dict[str, float] = {}  # symbol -> when it entered the leaders
 _declined: dict[str, str] = {}           # symbol -> session date the operator stopped it
 _operator: dict[str, str] = {}           # symbol -> session date the operator recorded it (never auto's)
 _failed: dict[str, float] = {}           # symbol -> when a start failed
+_paused_until = 0.0                      # no new start before this (a start failed: IBKR is full)
 _yielded: list[dict[str, Any]] = []
 _leaders: list[str] = []
 _setups: list[tuple[str, str]] = []      # (symbol, why) for setups, best first
@@ -331,7 +338,7 @@ async def _leaders_closed() -> None:
 
 
 async def tick(now: float | None = None) -> None:
-    global _leaders, _setups, _last_error
+    global _leaders, _setups, _last_error, _paused_until
     ts = time.time() if now is None else float(now)
     async with _lock:
         for sym in [s for s, (until, _) in _reserved.items() if until <= ts]:
@@ -362,6 +369,8 @@ async def tick(now: float | None = None) -> None:
         _note_wanted()
         if not state["leaders"]["open"]:
             await _leaders_closed()
+        if ts < _paused_until:
+            return  # a start just failed: the next one would be refused the same way
         wanted = list(_setups) + [(s, WHY_LEADER) for s in _leaders if s not in dict(_setups)]
         recording = set(_recording())
         for sym, reason in wanted:
@@ -381,6 +390,11 @@ async def tick(now: float | None = None) -> None:
                     continue
             if await _start(sym, reason):
                 _last_error = None
+            else:
+                _paused_until = ts + LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC
+                logger.warning("AUTO-RECORD: could not start %s (%s); no new start for %.0f s",
+                               sym, _last_error, LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC)
+                return
 
 
 async def run() -> None:
@@ -410,11 +424,12 @@ def status(now: float | None = None) -> dict[str, Any]:
         "leaders": list(_leaders),
         "yielded": [entry["symbol"] for entry in _yielded],
         "last_error": _last_error,
+        "paused_until": _paused_until if _paused_until > ts else None,
     }
 
 
 def reset_for_tests() -> None:
-    global _leaders, _setups, _setups_error, _last_error
+    global _leaders, _setups, _setups_error, _last_error, _paused_until
     _auto.clear()
     _wanted_as.clear()
     _candidate_since.clear()
@@ -428,3 +443,4 @@ def reset_for_tests() -> None:
     _setups = []
     _setups_error = None
     _last_error = None
+    _paused_until = 0.0
