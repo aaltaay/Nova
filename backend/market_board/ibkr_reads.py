@@ -1,14 +1,14 @@
 """The Market page's IBKR reads (ADR 053), run from its refresher threads on the IB loop (``run_coro``).
 
-- ``reference_quotes``: snapshots of the tiles' futures / indexes / crypto and NYSE's indicators, a few at a time
-  in the cold, droppable slot; each carries IBKR's market-data type and, when refused, IBKR's own error.
-- ``stock_quotes``: ETFs and stocks through the existing cold ``snapshot_quotes`` path.
+- ``reference_quotes``: the tiles' futures / indexes / crypto and NYSE's indicators, each from a line held for a
+  moment (``brief_lines``); each carries IBKR's market-data type and, when refused, IBKR's own error.
+- ``stock_quotes``: ETFs and stocks, the same way.
 - ``line_bars`` / ``rth_closes``: paced historical requests at background priority.
 - ``movers``: IBKR's large-cap gainers scan, one shot, always cancelled.
 - ``industries``: each symbol's IBKR industry / category / subcategory (contract details).
 
-None of these holds a streaming line: every IBKR read refuses (``NoHeadroom``) while fewer than
-``MARKET_MIN_FREE_LINES`` of the account's market-data lines are free, and none places anything.
+None of these keeps a line between reads (ADR 053 amendment 2026-10-13): every quote read refuses (``NoHeadroom``)
+while fewer than ``MARKET_MIN_FREE_LINES`` of the account's market-data lines are free, and none places anything.
 """
 from __future__ import annotations
 
@@ -27,9 +27,10 @@ from constants_market_board import (
     MARKET_MIN_FREE_LINES,
     MARKET_MOVERS_ROWS,
     MARKET_MOVERS_SCAN,
-    MARKET_SNAPSHOT_BATCH,
+    MARKET_STREAM_BATCH,
+    MARKET_STREAM_WAIT_SEC,
 )
-from market_board import contracts
+from market_board import brief_lines, contracts
 from market_board.state import Stated
 
 SOURCE = "ibkr"
@@ -75,7 +76,7 @@ def headroom_ok() -> bool:
 def _guard() -> None:
     spare = spare_lines()
     if spare is not None and spare < MARKET_MIN_FREE_LINES:
-        raise NoHeadroom(f"{max(spare, 0)} market-data lines spare (the page needs {MARKET_MIN_FREE_LINES} to snapshot)")
+        raise NoHeadroom(f"{max(spare, 0)} market-data lines spare (the page needs {MARKET_MIN_FREE_LINES} to read)")
 
 
 def _run(coro, timeout: float, label: str):
@@ -108,14 +109,18 @@ def _quote(ticker: Any, spec: dict, contract: Any, error: str | None) -> dict:
     }
 
 
+def _budget(contract_count: int) -> float:
+    """The bridge's limit for a read of ``contract_count`` lines: every batch's wait, plus the qualify."""
+    batches = max(1, -(-contract_count // MARKET_STREAM_BATCH))
+    return MARKET_IBKR_TIMEOUT_SEC + batches * (MARKET_STREAM_WAIT_SEC + 1.0) + 5.0
+
+
 def reference_quotes(specs: list[dict], trading_date: str) -> dict[str, dict]:
     """``{spec id: quote}`` for every spec IBKR resolved; a refused one carries ``error`` and no numbers."""
     _guard()
 
     async def _ask() -> dict[str, dict]:
         from ibkr import client, reference_errors
-        from ibkr.discovery import _cancel_snapshot_tickers
-        from ibkr.ib_scheduler import ColdDropped, cold_slot
 
         ib = client.get_ib()
         if ib is None:
@@ -131,49 +136,66 @@ def reference_quotes(specs: list[dict], trading_date: str) -> dict[str, dict]:
                 out[spec["id"]] = _quote(None, spec, None, why or "IBKR does not know this contract")
                 continue
             pairs.append((spec, contract))
-        for i in range(0, len(pairs), MARKET_SNAPSHOT_BATCH):
-            chunk = pairs[i:i + MARKET_SNAPSHOT_BATCH]
-            batch = [c for _, c in chunk]
-            started = time.time()
-            silent = None
-            tickers: list = []
-            try:
-                async with cold_slot(label="market_board.quotes", droppable=True):
-                    try:
-                        tickers = await asyncio.wait_for(ib.reqTickersAsync(*batch), timeout=MARKET_IBKR_TIMEOUT_SEC)
-                    except asyncio.TimeoutError:  # maintainer: allow-swallow the tiles say IBKR sent nothing
-                        silent = f"IBKR sent nothing within {MARKET_IBKR_TIMEOUT_SEC:.0f} s"
-                    finally:
-                        _cancel_snapshot_tickers(ib, batch)
-            except ColdDropped:
-                break   # interactive work has the slot; the next turn asks again
-            by_id = {getattr(t.contract, "conId", 0): t for t in tickers or []}
-            for spec, contract in chunk:
-                err = reference_errors.describe(reference_errors.last_error(con_id=contract.conId, since=started - 1))
-                out[spec["id"]] = _quote(by_id.get(contract.conId), spec, contract, err or silent)
+        started = time.time()
+        tickers = await brief_lines.read(ib, [c for _, c in pairs])
+        for spec, contract in pairs:
+            err = reference_errors.describe(reference_errors.last_error(con_id=contract.conId, since=started - 1))
+            out[spec["id"]] = _quote(tickers.get(contract.conId), spec, contract, err)
         return out
 
-    budget = MARKET_IBKR_TIMEOUT_SEC * (2 + len(specs)) + 10
+    # A ceiling for a hang, not a target: the first read of a day qualifies every tile again (a future twice).
+    budget = MARKET_IBKR_TIMEOUT_SEC * (2 + len(specs)) + _budget(len(specs))
     return _run(_ask(), budget, "market_board.reference_quotes") or {}
 
 
+async def _stock_contracts(ib: Any, symbols: list[str]) -> dict[str, Any]:
+    """``{SYM: qualified Stock}``, from Nova's qualified-contract cache first."""
+    from ib_async import Stock
+
+    from ibkr.qualified_contracts import remember_qualified_contract, take_qualified_contract
+
+    have = {sym: take_qualified_contract(sym) for sym in symbols}
+    missing = [sym for sym, c in have.items() if c is None]
+    if missing:
+        got = await asyncio.wait_for(ib.qualifyContractsAsync(*[Stock(sym, "SMART", "USD") for sym in missing]),
+                                     timeout=MARKET_IBKR_TIMEOUT_SEC)
+        for c in got or []:
+            sym = str(getattr(c, "symbol", "") or "").upper() if c is not None else ""
+            if sym and getattr(c, "conId", 0):
+                remember_qualified_contract(sym, c)
+                have[sym] = c
+    return {sym: c for sym, c in have.items() if c is not None}
+
+
 def stock_quotes(symbols: list[str]) -> dict[str, dict]:
-    """``{SYM: {price, prev_close, no_trade}}`` from IBKR's cold snapshots of ETFs and stocks."""
+    """``{SYM: {price, prev_close, no_trade}}`` for ETFs and stocks, each from a line held for a moment.
+
+    ``price`` is IBKR's last print; with no print yet (``no_trade``) it is ``None`` and only the prior close is
+    known. A symbol with neither is left out.
+    """
     if not symbols:
         return {}
     _guard()
-    from constants import IBKR_QUOTE_BATCH_TIMEOUT_SEC, IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
-    from ibkr.discovery import snapshot_quotes
+    wanted = [str(s).upper() for s in symbols]
 
-    got = _run(snapshot_quotes(list(symbols)), IBKR_QUOTE_BATCH_TIMEOUT_SEC * 2 + 10, "market_board.stock_quotes") or {}
-    out: dict[str, dict] = {}
-    for sym, q in got.items():
-        if not isinstance(q, dict):
-            continue
-        no_trade = q.get("quote_quality") == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
-        out[str(sym).upper()] = {"price": None if no_trade else _num(q.get("price")),
-                                 "prev_close": _num(q.get("prev_close")), "no_trade": no_trade}
-    return out
+    async def _ask() -> dict[str, dict]:
+        from ibkr import client
+
+        ib = client.get_ib()
+        if ib is None:
+            raise SourceError("IBKR is not connected")
+        by_sym = await _stock_contracts(ib, wanted)
+        tickers = await brief_lines.read(ib, list(by_sym.values()))
+        out: dict[str, dict] = {}
+        for sym, contract in by_sym.items():
+            ticker = tickers.get(contract.conId)
+            last, close = _num(getattr(ticker, "last", None)), _num(getattr(ticker, "close", None))
+            if last is None and close is None:
+                continue
+            out[sym] = {"price": last, "prev_close": close, "no_trade": last is None}
+        return out
+
+    return _run(_ask(), _budget(len(wanted)), "market_board.stock_quotes") or {}
 
 
 def bar_quotes(symbols: list[str], today: str) -> dict[str, dict]:

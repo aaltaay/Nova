@@ -34,14 +34,15 @@ desk to delayed quotes.
 2. **Every price is IBKR's.** Futures (the front month of ES, NQ, RTY on CME, YM on CBOT, CL on NYMEX, GC on COMEX,
    found through IBKR's continuous-future definition and re-resolved at each roll), Cboe indexes (VIX, TNX), NYSE's
    market indicators (AD-NYSE, VOL-NYSE, TICK-NYSE, TRIN-NYSE), Bitcoin (IBKR's Zero Hash quote), sector and industry
-   ETFs and stocks, all through cold, droppable snapshots (`ibkr.ib_scheduler.cold_slot`), and intraday / daily bars
+   ETFs and stocks, all through cold, droppable snapshots (`ibkr.ib_scheduler.cold_slot`; since the 2026-10-13
+   amendment below, a line held for a moment instead), and intraday / daily bars
    through the paced historical service at background priority. Every quote carries IBKR's own market-data type
    (live, delayed, frozen), and the page says "delayed" when IBKR says so. A symbol IBKR refuses says why on its own
    tile; no other source stands in.
 3. **The board's requests never touch the stock session's flags.** An IBKR error on a future, index, forex or
    crypto contract is recorded for that tile and returns before the session error hook can set the delayed-data
    fallback, the max-tickers note or a farm notice (`ibkr/session_errors.py`). Stocks are unchanged.
-4. **The page never holds a market-data line.** It streams nothing: snapshots run only while at least
+4. **The page never holds a market-data line** (amended 2026-10-13, below: it holds one only for a moment). It streams nothing: snapshots run only while at least
    `MARKET_MIN_FREE_LINES` of the account's lines are free, a few at a time, and yield to interactive work. Its reads
    run only while the page asked within `MARKET_WANTED_SEC`, except the NYSE breadth sampler, which takes one
    snapshot of the four indicators a minute during the regular session so the day's up-minus-down line exists when
@@ -81,3 +82,42 @@ Rejected: Yahoo / third-party quote APIs (unofficial or delayed, and a second pr
 quotes (hundreds of lines, and an estimate posing as the index); streaming lines for the page (they would compete with
 the scanner and HOD for the account's 100); classifying runners with yfinance (a network call per symbol, rate
 limited); a model writing the verdict.
+
+## Amendment 2026-10-13: a line held for a moment, and bars that never wait behind quotes
+
+The operator, at 13:29 ET with the page open: "everything is frozen, data is so so so slow. has this never been
+measured?" It had not been. The perf record (ADR 026) timed the IB loop and `ibkr.snapshot_quotes`; nothing timed
+the Market page's own reads or how long the page takes to fill.
+
+Measured that afternoon on the desk, 14 minutes after a backend start: the futures were 132 s old, VIX and TNX had
+no price, no tile had a line, no sector or industry had a move, and Top stocks said "the sector ETFs have not been
+quoted yet". Polling the page for three minutes, one pass of the nine tiles took 23 s, 39 s and 66 s, the futures
+refreshed about once a minute against a 10 s target, the 28 ETFs took 20 s, and not one tile line or VIX / TNX price
+was read. Two causes:
+
+1. **A snapshot waits for IBKR's snapshot end.** For a future, an index or NYSE's indicators that is about 11 s a
+   batch at any hour, because some of the fields it waits for never come. For stocks it is the same outside the
+   regular session: `ibkr.snapshot_quotes` took a median of 11-12 s in every hour from 00:00 to 09:00 ET on
+   2026-10-12 and 10-13, and 1.4 s in the session. Nine tiles in batches of two were five such waits.
+2. **Every IBKR read ran on one thread, first due first.** The tiles are due every 10 s and took 23-66 s, so the bar
+   reads below them never had a turn: each tile's line, VIX's and TNX's price (their snapshots carry none), the
+   ETFs' daily closes. A bar read takes about a second.
+
+So decision 4 now reads: **the page holds a market-data line only for a moment.** It reads a quote by opening at most
+`MARKET_STREAM_BATCH` lines (5, as many as a stock snapshot holds), taking IBKR's first ticks (a price and the prior
+close) and cancelling the lines at most `MARKET_STREAM_WAIT_SEC` later. A snapshot held the same lines for up to
+11 s, so the page's peak is unchanged and its line-time falls. As before, it opens nothing with fewer than
+`MARKET_MIN_FREE_LINES` spare and keeps no line between reads. It no longer queues in the cold snapshot slot
+(`ib_scheduler.cold_slot`) behind HOD Momo's and discovery's snapshots: a brief line is not a snapshot. It never cancels a line someone else holds: a contract the desk already streams is read from that line, and one the
+desk subscribes during the read is left open for the desk.
+
+Bar reads get their own thread, `history`: the tiles' prior closes and lines, the ETFs' and leaders' daily closes,
+the bar prices when no line is spare, and runners' industries. Each tile's prior close and line are read together,
+tiles without a price first. The `ibkr` thread keeps breadth, the quotes, the ETFs and the movers scan.
+
+Every read's time now goes into the perf record as `market_board.<read>` (wall time), and the time from the page
+opening to each read's first answer as `market_board.first.<read>`.
+
+Rejected: one batch of nine snapshots (still an 11 s wait each pass, with nine lines held for it); holding lines for
+as long as the page is open (the rejection above stands: they would compete with HOD Momo for the 45 lines Nova could
+hold on 2026-10-13).
