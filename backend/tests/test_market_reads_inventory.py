@@ -53,23 +53,47 @@ def test_a_task_after_stop_returns_at_once(day_file):
     assert not massive_index.is_current(day_file, day_file.parents[3])
 
 
-def test_a_bulk_build_stopped_part_way_ends(tmp_path, monkeypatch):
-    """2026-10-12: cancelling the pool's queue on STOP left a task already handed out unrun, and the run waited on it
-    forever (with no workers). Each task now checks STOP itself, so the run always ends."""
-    import threading
+RUN_STOPPED_BUILD = """
+import sys, threading
+from pathlib import Path
+sys.path[:0] = [{research!r}, {backend!r}]
+from market_reads import inventory
 
-    monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(tmp_path))
+if __name__ == "__main__":
+    stop = Path({root!r}) / "sim" / "index" / inventory.INDEX_STOP
+    threading.Timer(0.5, lambda: (stop.parent.mkdir(parents=True, exist_ok=True), stop.write_text(""))).start()
+    print("failed", inventory.build_indexes(["trades_v1"], workers=2, read_mb=1), flush=True)
+"""
+
+
+def test_a_bulk_build_stopped_part_way_ends(tmp_path):
+    """2026-10-12: cancelling the pool's queue on STOP left a task already handed out unrun, and the run waited on it
+    forever (with no workers). Each task now checks STOP itself, so the run always ends. Run in its own process,
+    killed with its pool at the deadline, so a hang fails this test instead of hanging the suite."""
+    import os
+    import subprocess
+
+    psutil = pytest.importorskip("psutil")
+    root = tmp_path / "massive"
     for i in range(1, 21):
-        path = tmp_path / "trades_v1" / "2026" / "09" / f"2026-09-{i:02d}.csv.gz"
+        path = root / "trades_v1" / "2026" / "09" / f"2026-09-{i:02d}.csv.gz"
         path.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(path, "wt", newline="") as fh:
             fh.write("ticker,price\nAA,1\nAAPL,2\n")
-    stop = tmp_path / "sim" / "index" / inventory.INDEX_STOP
-    threading.Timer(0.5, lambda: (stop.parent.mkdir(parents=True, exist_ok=True), stop.write_text(""))).start()
-    done = []
-    runner = threading.Thread(target=lambda: done.append(inventory.build_indexes(["trades_v1"], workers=2, read_mb=1)))
-    runner.start()
-    runner.join(120)
-    assert done == [0]                                  # it ended, and nothing failed
-    log = (tmp_path / "sim" / "index" / inventory.INDEX_LOG).read_text(encoding="utf-8")
+    here = Path(__file__).resolve().parents[2]
+    script = tmp_path / "run_stopped_build.py"
+    script.write_text(RUN_STOPPED_BUILD.format(research=str(here / "research"), backend=str(here / "backend"),
+                                               root=str(root)), encoding="utf-8")
+    proc = subprocess.Popen([sys.executable, str(script)], stdout=subprocess.PIPE, text=True,
+                            env={**os.environ, "NOVA_MARKET_DATA_DIR": str(root)})
+    try:
+        out, _ = proc.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        for child in psutil.Process(proc.pid).children(recursive=True):
+            child.kill()
+        proc.kill()
+        proc.communicate()
+        pytest.fail("the stopped bulk build did not end within 120 s")
+    assert proc.returncode == 0 and "failed 0" in out
+    log = (root / "sim" / "index" / inventory.INDEX_LOG).read_text(encoding="utf-8")
     assert "index: stopped with" in log or "index: finished" in log
