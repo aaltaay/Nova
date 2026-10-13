@@ -59,6 +59,9 @@ export interface QuoteTile {
   price_basis: 'last' | 'mid' | 'bars' | null;
   data_type: 'live' | 'frozen' | 'delayed' | 'delayed_frozen' | 'bars' | null;
   at: number | null;
+  /** `last` came from a bar older than the backend's freshness window (the market is not trading). Absent on a
+   * backend from before ADR 053's 2026-10-13 evening amendment. */
+  stale?: boolean;
   line: [number, number][];
   error: string | null;
 }

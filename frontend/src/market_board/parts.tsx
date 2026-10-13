@@ -77,11 +77,16 @@ export function Card({ title, hint, extra, children, className = '', testId }: {
   );
 }
 
-/** A clickable stock symbol: opens the Trader. */
-export function Sym({ symbol, onOpen }: { symbol: string; onOpen?: (s: string) => void }) {
-  if (!onOpen) return <span className="mk-sym">{symbol}</span>;
+/** A clickable stock or ETF symbol: opens the Trader (inside a clickable row, only the symbol's own click runs). */
+export function Sym({ symbol, onOpen, muted = false }: { symbol: string; onOpen?: (s: string) => void; muted?: boolean }) {
+  const cls = `mk-sym${muted ? ' mk-sym--muted' : ''}`;
+  if (!onOpen) return <span className={cls}>{symbol}</span>;
   return (
-    <button type="button" className="mk-sym mk-sym--link" onClick={() => onOpen(symbol)} title={`Open ${symbol} in the Trader`}>
+    <button type="button" className={`${cls} mk-sym--link`} title={`Open ${symbol} in the Trader`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen(symbol);
+      }}>
       {symbol}
     </button>
   );

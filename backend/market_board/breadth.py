@@ -98,6 +98,9 @@ def compose(now: float, day: date, phase: str, latest: dict[str, Any] | None, er
         # After the close the last sample is the day's breadth; in the session an old one is not current breadth.
         if session_over or now - s[0] < MARKET_BREADTH_STALE_SEC:
             shown = {"advancing": s[1], "declining": s[2], "tick": s[3], "at": s[0]}
+            if last_file and last_file.get("date") == iso and float(last_file.get("at") or 0) >= s[0]:
+                # The same sample, whole: the line keeps only the counts and TICK, the last file volume and TRIN too.
+                shown = {**{k: last_file.get(k) for k in base}, **shown, "at": last_file.get("at")}
     if shown is None:
         if samples:
             why = f"no NYSE breadth sample since {et(samples[-1][0]).strftime('%H:%M')} ET" + (f" ({error})" if error else "")

@@ -1,14 +1,38 @@
-/** Top stocks by sector (ADR 053): movers, the biggest names or the small-cap runners, for the period chosen. */
+/**
+ * Top stocks by sector (ADR 053): movers, the biggest names or the small-cap runners, for the period chosen. Every
+ * sector has a card (ADR 053 amendment 2026-10-13 evening); a row, its symbol and the card's ETF open the Trader.
+ */
 import { MARKET_TOP_KINDS, TOP_KIND_LABEL } from './constants';
 import { price, signedPct, tone } from './format';
 import { PeriodSwitch, Spark, Sym } from './parts';
-import type { BlockPeriods, TopKind, TopStocks } from './types';
+import type { BlockPeriods, TopCard, TopKind, TopStocks } from './types';
 
 const HINT: Record<TopKind, string> = {
-  movers: 'IBKR large-cap gainers by sector (7 D / 30 D: the best of each sector\'s biggest names)',
+  movers: "each sector's scan movers and biggest names, strongest first (IBKR)",
   biggest: "each sector's heaviest holdings (State Street's daily file)",
   runners: "Nova's small-cap runners, grouped by IBKR industry",
 };
+
+function Card({ card, onOpen }: { card: TopCard; onOpen?: (symbol: string) => void }) {
+  return (
+    <div className="mk-top__card" data-testid={`market-top-card-${card.etf ?? card.name}`}>
+      <div className="mk-top__head">
+        <span>{card.name} {card.etf ? <Sym symbol={card.etf} onOpen={onOpen} muted /> : null}</span>
+        {card.change_pct != null ? <span className={`is-${tone(card.change_pct)}`}>{signedPct(card.change_pct)}</span> : null}
+      </div>
+      {card.rows.length === 0 ? <p className="mk-small mk-muted mk-top__none">no price yet</p> : null}
+      {card.rows.map((r) => (
+        <div key={r.symbol} className={`mk-top__row${onOpen ? ' is-link' : ''}`}
+          onClick={onOpen ? () => onOpen(r.symbol) : undefined}>
+          <Sym symbol={r.symbol} onOpen={onOpen} />
+          {r.spark ? <Spark points={r.spark} height={16} label={`${r.symbol} closes`} /> : <span />}
+          <span className={`mk-r mk-b is-${tone(r.change_pct)}`}>{signedPct(r.change_pct, 1)}</span>
+          <span className="mk-r mk-muted mk-small">{price(r.last)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function TopStocksCard({ top, onChange, onOpen }: {
   top: TopStocks;
@@ -30,25 +54,9 @@ export function TopStocksCard({ top, onChange, onOpen }: {
         <PeriodSwitch value={top.period} onChange={(p) => onChange({ kind: top.kind, period: p })} label="Top stocks period" />
         <span className="mk-hint">{HINT[top.kind]} · click a stock to open it in the Trader</span>
       </header>
-      {top.why && top.cards.length === 0 ? <p className="mk-wait" role="status">{top.why}</p> : null}
+      {top.why && top.cards.every((c) => c.rows.length === 0) ? <p className="mk-wait" role="status">{top.why}</p> : null}
       <div className="mk-top__grid">
-        {top.cards.map((card) => (
-          <div key={card.name} className="mk-top__card">
-            <div className="mk-top__head">
-              <span>{card.name} {card.etf ? <span className="mk-muted mk-small">{card.etf}</span> : null}</span>
-              {card.change_pct != null ? <span className={`is-${tone(card.change_pct)}`}>{signedPct(card.change_pct)}</span> : null}
-            </div>
-            {card.rows.length === 0 ? <p className="mk-small mk-muted">none in the scan</p> : null}
-            {card.rows.map((r) => (
-              <div key={r.symbol} className="mk-top__row">
-                <Sym symbol={r.symbol} onOpen={onOpen} />
-                {r.spark ? <Spark points={r.spark} height={16} label={`${r.symbol} closes`} /> : <span />}
-                <span className={`mk-r mk-b is-${tone(r.change_pct)}`}>{signedPct(r.change_pct, 1)}</span>
-                <span className="mk-r mk-muted mk-small">{price(r.last)}</span>
-              </div>
-            ))}
-          </div>
-        ))}
+        {top.cards.map((card) => <Card key={card.name} card={card} onOpen={onOpen} />)}
       </div>
     </section>
   );
