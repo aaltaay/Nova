@@ -12,6 +12,8 @@ import { useEffect, useState } from 'react';
 import {
   TAPE_SILENCE_DEAD_NOTICE,
   TAPE_SILENCE_HALTED_NOTICE,
+  TAPE_SILENCE_PIPELINE_NAMES_MAX,
+  TAPE_SILENCE_PIPELINE_NOTICE,
   TAPE_SILENCE_SILENT_NOTICE,
   TAPE_STATUS_DEAD,
   TAPE_STATUS_HALTED,
@@ -40,14 +42,25 @@ export function tapeSilenceBadge(silence: TapeSilence | null | undefined, nowMs:
   if (silence.state === 'dead' || silence.state === 'silent') {
     const since = fmtTapeTime(new Date(silence.since * 1000).toISOString());
     const dead = silence.state === 'dead';
+    const peers = silence.pipeline ?? [];
+    const notice = peers.length
+      ? TAPE_SILENCE_PIPELINE_NOTICE.replace('{peers}', namePeers(peers))
+      : dead ? TAPE_SILENCE_DEAD_NOTICE : TAPE_SILENCE_SILENT_NOTICE;
     return {
       label: `${dead ? TAPE_STATUS_DEAD : TAPE_STATUS_SILENT} ${secs}s`,
       title: silence.text,
       tone: dead ? 'bad' : 'warn',
-      notice: (dead ? TAPE_SILENCE_DEAD_NOTICE : TAPE_SILENCE_SILENT_NOTICE).replace('{since}', since),
+      notice: notice.replace('{since}', since),
     };
   }
   return { label: `${TAPE_STATUS_QUIET} ${secs}s`, title: silence.text, tone: 'quiet', notice: null };
+}
+
+/** "AIXI", "AIXI, SOXS", "AIXI, SOXS +2": the rail's tape column is narrow. */
+function namePeers(peers: string[]): string {
+  const named = peers.slice(0, TAPE_SILENCE_PIPELINE_NAMES_MAX).join(', ');
+  const more = peers.length - TAPE_SILENCE_PIPELINE_NAMES_MAX;
+  return more > 0 ? `${named} +${more}` : named;
 }
 
 /** The desk's clock, once a second while `active` (the badge's count); otherwise left alone. */

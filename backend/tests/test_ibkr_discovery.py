@@ -224,6 +224,43 @@ class TestSnapshotQuotes:
         assert quotes["LASTONLY"]["prev_close"] is None
 
 
+class _SlowSecondChunkIB(_FakeIB):
+    """The first chunk answers at once; every later one takes longer than any budget here (#891)."""
+
+    def __init__(self):
+        super().__init__([], [])
+        self.chunks = 0
+
+    async def reqTickersAsync(self, *contracts):
+        self.chunks += 1
+        if self.chunks > 1:
+            await asyncio.sleep(5)
+        return [_FakeTicker(c.symbol, last=2.0, close=1.0) for c in contracts]
+
+
+class TestSnapshotBudget:
+    """Off hours IBKR takes up to ~11 s per 5-symbol chunk: HOD Momo's 40 names never finished inside the
+    25 s bridge, which cancelled the call and lost every answer, every pass since at least 2026-10-10 (#891)."""
+
+    SYMBOLS = ["A1", "A2", "A3", "A4", "A5", "B1", "B2"]   # two chunks of IBKR_COLD_SNAPSHOT_BATCH (5)
+
+    def setup_method(self):
+        discovery._qualified_contracts.clear()
+
+    def test_a_budgeted_call_returns_what_answered_before_the_budget(self, monkeypatch, caplog):
+        fake_ib = _SlowSecondChunkIB()
+        _patch_client(monkeypatch, fake_ib)
+        with caplog.at_level("INFO"):
+            quotes = asyncio.run(discovery.snapshot_quotes(self.SYMBOLS, timeout_sec=15.0, budget_sec=0.6))
+        assert sorted(quotes) == ["A1", "A2", "A3", "A4", "A5"]
+        assert any("snapshot budget 1s spent -- 5 of 7" in m for m in caplog.messages)
+
+    def test_without_a_budget_a_chunk_timeout_still_answers_nothing(self, monkeypatch):
+        fake_ib = _SlowSecondChunkIB()
+        _patch_client(monkeypatch, fake_ib)
+        assert asyncio.run(discovery.snapshot_quotes(self.SYMBOLS, timeout_sec=0.5)) == {}
+
+
 class TestGappersHaveNoOneShotScan:
     def test_discovery_module_exposes_no_get_gappers(self):
         """Premarket Gappers is projected from Gainers (ibkr/gapper_view.py).

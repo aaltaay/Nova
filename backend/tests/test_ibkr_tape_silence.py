@@ -107,7 +107,8 @@ def dead_read(now, **kw):
 def test_level_1_trades_after_the_last_print_make_the_line_dead():
     now = ARRIVAL + 60
     r = dead_read(now, l1_trade_at=EXCHANGE + 28)
-    assert r["schema_version"] == 2 and r["state"] == "dead" and r["l1_trade_ts"] == EXCHANGE + 28
+    assert r["schema_version"] == 3 and r["state"] == "dead" and r["l1_trade_ts"] == EXCHANGE + 28
+    assert r["history_unanswered_since"] is None
     assert r["text"].startswith("No prints since 09:35:42 ET while Level 1 shows trades up to 09:36:10 ET")
     assert "down, not quiet" in r["text"]
 
@@ -207,3 +208,108 @@ def test_a_dead_line_is_logged_and_recorded_once_per_silence(monkeypatch, caplog
     assert rows[0]["symbol"] == "SAIQ" and rows[0]["reading"]["state"] == "dead"
     assert sum("SAIQ's line reads dead" in m for m in caplog.messages) == 1
     tape_silence.reset_for_tests()
+
+
+# -- 2026-10-13 07:59:22 ET: every line at once, and IBKR's chart history with it ----------------
+# AIXI's and SOXS's lines printed their last trades at 07:59:22; SCNI's Trader line opened at
+# 07:59:22.819 and never printed while its Level 1 counted 200-370 updates a minute. Every SCNI
+# history request from 07:59:22 to 08:03 timed out. The Trader read LIVE over an empty tape for 30 s.
+
+STOP = datetime(2026, 10, 13, 7, 59, 22, 400000, tzinfo=ET).timestamp()   # AIXI's last print arrives
+OPENED = STOP + 0.419                                                       # SCNI's line opens
+
+
+def test_beside_another_dead_line_a_dead_line_reads_dead_after_ten_seconds():
+    from constants_tape import TAPE_PIPELINE_DEAD_SEC
+
+    now = ARRIVAL + TAPE_PIPELINE_DEAD_SEC
+    assert dead_read(now, l1_trade_at=EXCHANGE + 8) is None                      # one line alone waits 30 s
+    r = dead_read(now, l1_trade_at=EXCHANGE + 8, pipeline=["VEEA"])
+    assert r["state"] == "dead" and r["pipeline"] == ["VEEA"]
+    assert dead_read(now - 1, l1_trade_at=EXCHANGE + 8, pipeline=["VEEA"]) is None
+    # The shortcut is for the Level 1 proof only: no trade missed is no word before 30 s.
+    assert dead_read(now, l1_trade_at=EXCHANGE, pipeline=["VEEA"]) is None
+
+
+def test_a_line_that_never_printed_names_the_lines_already_silent_when_it_opened():
+    r = tape_silence.read(now=OPENED + 12, last_print_ts=None, line_since=OPENED, book_at=OPENED + 11,
+                          halted=False, l1_trade_at=OPENED + 9, l1_fresh=True, pipeline=["AIXI"])
+    assert r["state"] == "dead" and r["since"] == OPENED and r["pipeline"] == ["AIXI"]
+    assert r["text"].startswith("No prints since the line opened while Level 1 shows trades up to 07:59:31 ET")
+    assert ("AIXI has printed nothing since before it opened either, while their Level 1 trades: "
+            "IBKR's tape is down, not this line alone.") in r["text"]
+    assert "same second" not in r["text"]
+
+
+def test_history_that_stopped_answering_is_named_beside_a_dead_line():
+    r = tape_silence.read(now=OPENED + 31, last_print_ts=None, line_since=OPENED, book_at=OPENED + 30,
+                          halted=False, l1_trade_at=OPENED + 29, l1_fresh=True,
+                          history_unanswered_since=STOP + 0.1)
+    assert r["state"] == "dead" and r["history_unanswered_since"] == STOP + 0.1
+    assert "IBKR's chart history stopped answering at 07:59:22 ET too." in r["text"]
+    quiet = tape_silence.read(now=OPENED + 31, last_print_ts=None, line_since=OPENED, book_at=OPENED + 30,
+                              halted=False, l1_trade_at=OPENED - 5, l1_fresh=True,
+                              history_unanswered_since=STOP + 0.1)
+    assert quiet["state"] == "quiet" and quiet["history_unanswered_since"] is None
+
+
+class _Producers:
+    """Live tape lines by symbol: (last print arrival, its IBKR second, the line's opening)."""
+
+    def __init__(self, lines):
+        self.lines = lines
+
+    def __call__(self, sym):
+        last, exch, opened = self.lines.get(sym, (None, None, None))
+        return {"last_print_ts": last, "last_print_exchange_ts": exch, "line_since": opened}
+
+
+def _stall(monkeypatch, lines, l1_trades, halted=()):
+    from ibkr import halt_status, tape_stream, ticks
+    import ibkr.tape_recording as tape_recording
+
+    monkeypatch.setattr(tape_stream, "live_symbols", lambda: sorted(lines))
+    monkeypatch.setattr(tape_recording, "producer_status", _Producers(lines))
+    monkeypatch.setattr(halt_status, "halted_now", lambda syms, now=None: {s: s in halted for s in syms})
+    monkeypatch.setattr(ticks, "get_ticker", lambda sym: _Ticker(
+        datetime.fromtimestamp(l1_trades[sym], ET)) if sym in l1_trades else None)
+
+
+def test_pipeline_peers_of_a_line_that_never_printed(monkeypatch):
+    lines = {
+        "SCNI": (None, None, OPENED),                       # the Trader's new line: nothing yet
+        "AIXI": (STOP, STOP - 0.4, STOP - 400),             # stopped, its Level 1 kept trading: a peer
+        "SOXS": (STOP, STOP - 0.4, STOP - 4),               # stopped, no Level 1 line: cannot prove it
+        "WBUY": (STOP, STOP - 0.4, STOP - 400),             # stopped but halted: never a peer
+        "SKDD": (OPENED + 5, OPENED + 4.6, STOP - 400),     # printed after SCNI opened: not in its silence
+        "FCHL": (None, None, OPENED + 60),                  # opened later: not in SCNI's silence
+    }
+    trades = {"AIXI": STOP + 10, "WBUY": STOP + 10, "SKDD": OPENED + 6, "FCHL": OPENED + 70}
+    _stall(monkeypatch, lines, trades, halted=("WBUY",))
+    assert tape_silence.pipeline_peers("scni") == ["AIXI"]
+    # FCHL opened at 08:01:51 into the same stall: SCNI and AIXI were already missing trades.
+    trades["SCNI"] = OPENED + 50
+    assert tape_silence.pipeline_peers("FCHL") == ["AIXI", "SCNI"]
+
+
+def test_scnis_line_reads_dead_twelve_seconds_after_it_opened_naming_aixi_and_history(monkeypatch):
+    from ibkr import farm_notices, history_answers, ticks
+    from ibkr.depth import state as depth_state
+    from perf import recorder
+
+    tape_silence.reset_for_tests()
+    farm_notices.reset_for_tests()
+    history_answers.reset_for_tests()
+    lines = {"SCNI": (None, None, OPENED), "AIXI": (STOP, STOP - 0.4, STOP - 400)}
+    _stall(monkeypatch, lines, {"SCNI": OPENED + 10, "AIXI": STOP + 11})
+    monkeypatch.setattr(depth_state, "last_book_at", lambda sym: OPENED + 11)
+    monkeypatch.setattr(ticks, "is_fresh", lambda sym, sec: True)
+    monkeypatch.setattr(recorder, "persist", lambda row: None)
+    history_answers.note_answered(STOP + 0.068)              # the 5-minute request answered
+    history_answers.note_timed_out(STOP + 0.1)               # the 10-second one, sent just after, never did
+    assert tape_silence.reading("SCNI", now=OPENED + 9) is None
+    r = tape_silence.reading("SCNI", now=OPENED + 12)
+    assert r["state"] == "dead" and r["pipeline"] == ["AIXI"]
+    assert r["history_unanswered_since"] == STOP + 0.1
+    tape_silence.reset_for_tests()
+    history_answers.reset_for_tests()
