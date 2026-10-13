@@ -1,6 +1,7 @@
 /**
- * Paint the open IBKR position onto a candle series: avg-cost price line
- * plus session fill arrows. Display only -- never stages or sends an order.
+ * Paint the account's position onto a candle series: the avg-cost price line
+ * while a position is open, and the desk day's fill arrows whether or not one
+ * is (`deskDayFills`). Display only -- never stages or sends an order.
  *
  * Keyed on what is drawn, never on the account's arrays: every account poll
  * hands over new arrays, and re-drawing on each one replaced the price line
@@ -10,9 +11,11 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import { useSimReplayPlayhead } from '../sim';
 import { buildSeriesTimeIndex } from './chartDrawingTime';
 import { FillMarkersPrimitive } from './FillMarkersPrimitive';
 import {
+  deskDayFills,
   findOpenPosition,
   mergeFills,
   positionPriceLineOptions,
@@ -38,10 +41,13 @@ export function useChartPositionOverlay({
   barsRevision,
 }: Args): ChartPositionSnapshot | null {
   const account = useOptionalIbkrAccountContext();
+  const playhead = useSimReplayPlayhead();
   const position = findOpenPosition(account?.positions ?? [], symbol);
-  const fills = position
-    ? mergeFills(account?.orders ?? [], account?.closedOrders ?? [], symbol)
-    : [];
+  const fills = deskDayFills(
+    mergeFills(account?.orders ?? [], account?.closedOrders ?? [], symbol),
+    Date.now(),
+    playhead,
+  );
   // The line draws the average cost in the side's colour, nothing that moves with the price.
   const lineKey = position ? `${position.symbol}:${position.avgCost}:${position.qty < 0 ? 'short' : 'long'}` : '';
   const fillsKey = fills.map((f) => `${f.orderId}:${f.timeIso}:${f.price}`).join('|');

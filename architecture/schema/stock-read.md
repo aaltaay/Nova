@@ -226,7 +226,7 @@ box, no axis tags, no frame (`strategyBox.triggeredPlan`). A mark over its trigg
 (`triggerMark`, from the lead lane's `setup.triggered_at`; none without it): a triangle in the entry's blue, pointing
 up (down on a short), and "✓ GAP AND GO 09:31", which makes room as a past setup's label does -- "✓" alone while the
 labels are compact -- and tells the lane's story on hover. Where the lane already marks that candle (a flat top that
-entered on its break), its own mark says it. It leaves the 5-minute and 10-second panes' thin lines too (operator
+entered on its break), its own mark says it. It leaves the 10-second pane too (operator
 report 2026-10-12, OFAL's first pullback in the Sim at 07:15: triggered at 07:05, its stop printed first at 07:10, and
 its four unnamed lines still crossed both charts -- "whatr these lines supposed to be?"). A
 level an order or a position stands behind, and the operator's own plan, draw the zones, lines and frame above. It frames a forming setup once per setup, and again
@@ -238,8 +238,20 @@ chart, all of a sudden it resized itself randomly"; owner `chart/operatorView.ts
 chart): once they move a pane with the wheel, a drag or a pinch, no newly leading setup frames it and
 no plan zones slide it, until a first paint (another symbol or timeframe, a Sim seek) or Reset chart
 hands it back; the badge and "show on chart" still frame on request. A setup is framed at most once
-per symbol, so a lead that goes back and forth between setups never reframes the pane. The 5-minute and 10-second charts mirror the plan's levels as thin lines
-until a plan with nothing behind it triggers, and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
+per symbol, so a lead that goes back and forth between setups never reframes the pane. **The 10-second chart draws
+the plan as the 1-minute chart does** (operator report 2026-10-13, AIXI's Gap and Go still forming: its entry 3.74,
+stop 3.59, T1 3.94 and T2 3.99 crossed the 5-minute and 10-second charts as four dotted lines with no name and no axis
+tag -- "whats the points of these dotted lines??", "we cant keep them like this", then "for which strategy is this
+specifically?"; of three mockups -- the plan on the 1-minute chart only, the strategy's name on each line, the 1-minute
+chart's box -- the box): a setup's plan with nothing behind it is its strategy box, named, after the 10-second chart's
+own newest candle, its window counted in 10-second candles (`strategyBox.strategyOnBars`), faint while forming, in full
+colour once near or armed with its prices as axis tags, gone once it triggers; a view that follows the live edge
+slides over to give it the same room as on the 1-minute chart. A lane hidden, or a strategy at Off, draws neither its
+box nor its axis tags on either chart. A level an order or a position stands behind is a thin
+line named as the 1-minute chart names it ("ENTRY · working", "STOP · plan", "TARGET 1 · plan"), with its axis tag. The
+**5-minute chart never draws the 1-minute plan**: it draws its own 5-minute setups' trigger, stop and target, each
+named, and two sets of the same blue, red and green dashes read as one; its Key lists no plan. The daily chart marks
+every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
 1, value: {setups, levels, past, labels: "compact" | "full", hidden: string[], plan: "auto" | "open" |
 "folded"}}` keeps the switches (`past`, added 2026-09-29, reads true when a stored value lacks it;
 `labels`, added 2026-09-30, reads `compact` when a stored value lacks it or holds anything else). A decision's "show
@@ -500,7 +512,7 @@ price is on, the nearest zone over and under it that its candles made (a top or 
 more), the nearest round dollar each side and the plan's `between` levels, with no ticks; the premarket
 high and the open are the 5-minute pane's. (Until 2026-09-30 these were price lines without an axis
 label, and lightweight-charts 5.1 shows a price line's title only beside its axis label: the 1-minute
-pane's level lines never showed their names.) The **10-second** pane draws the plan's lines only. A
+pane's level lines never showed their names.) The **10-second** pane draws the plan only (its box, or an order's named lines). A
 level's colour and line come from its strongest reason, a round number the weakest (`levelPicks.zoneColor`;
 operator report 2026-10-12, the gold dashed lines were "too strong, too much"): coral over the price and teal
 under it, so a top the price climbs over turns support on the next read whether or not it sits on a round; a
