@@ -5,7 +5,9 @@ true. A reader that fails is ``unknown`` -- never read as "nothing open".
 """
 from __future__ import annotations
 
+from datetime import datetime
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -110,6 +112,33 @@ def test_running_downloads_are_listed(monkeypatch):
     assert rc.downloads()[0]["kind"] == "download"
     monkeypatch.setattr("sim.history_download.running_ids", lambda: [])
     assert rc.downloads() == []
+
+
+def _et(day: str, clock: str) -> float:
+    return datetime.fromisoformat(f"{day}T{clock}").replace(tzinfo=ZoneInfo("America/New_York")).timestamp()
+
+
+def test_the_opening_bell_is_open_from_0925_to_0945_on_an_exchange_day():
+    # Tuesday 2026-10-13. The window ends at 09:45:00.
+    assert rc.bell(_et("2026-10-13", "09:24:59")) == []
+    for clock in ("09:25:00", "09:30:25", "09:44:59"):
+        (item,) = rc.bell(_et("2026-10-13", clock))
+        assert (item["kind"], item["venue"], item["symbol"]) == ("bell", None, None)
+        assert "09:25-09:45 ET" in item["text"]
+    assert rc.bell(_et("2026-10-13", "09:45:00")) == []
+
+
+def test_no_bell_on_a_weekend_or_an_exchange_holiday():
+    assert rc.bell(_et("2026-10-17", "09:30:00")) == []  # Saturday
+    assert rc.bell(_et("2026-11-26", "09:30:00")) == []  # Thanksgiving
+
+
+def test_the_bell_makes_a_restart_not_safe():
+    # Restart to update and the backend notice ask first when `safe` is not true.
+    assert ("bell", rc.bell) in rc.READERS
+    out = rc.restart_check((("bell", lambda: rc.bell(_et("2026-10-13", "09:30:00"))), ("recording", _reader([]))))
+    assert out["safe"] is False
+    assert [i["kind"] for i in out["open"]] == ["bell"]
 
 
 def test_the_route_answers_the_check(monkeypatch):

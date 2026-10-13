@@ -84,6 +84,10 @@ DIAG_RESTART_CHECK_SCHEMA_VERSION = 1
 DIAG_RESTART_BOT_TRADE_OPEN = frozenset({"entering", "open", "exiting"})
 # Stock-mode approvals a restart withdraws (the store is in memory, ADR 037).
 DIAG_RESTART_APPROVAL_OPEN = frozenset({"waiting", "sent"})
+# The opening bell, as minutes of the Eastern day (end excluded): on an exchange day a restart then
+# drops every Level 2 and Time & Sales line as the bell rings, so the check lists it as open.
+DIAG_RESTART_BELL_START_MIN_ET = 9 * 60 + 25
+DIAG_RESTART_BELL_END_MIN_ET = 9 * 60 + 45
 
 DIAG_BUNDLE_HEADER = "Nova desk diagnostics"
 # Query parameter the UI sends so the frontend row can compare revisions.

@@ -4,18 +4,23 @@
 what is open; the nightly sync restarts the backend only when ``safe`` is true. Memory reads only
 -- no network and no IBKR request: the Session Records, the practice ledgers this process has
 loaded, IBKR's cached positions and open orders, the bot's trade, the stock modes held in memory
-(ADR 037) and the history downloads running. A reader that fails is named in ``unknown``; it is
-never read as "nothing open", so ``safe`` is null (not true) until every reader answered.
+(ADR 037) and the history downloads running -- and the clock, for the opening bell. A reader that
+fails is named in ``unknown``; it is never read as "nothing open", so ``safe`` is null (not true)
+until every reader answered.
 """
 from __future__ import annotations
 
 import logging
 import time
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from constants_diagnostics import (
     DIAG_RESTART_APPROVAL_OPEN,
+    DIAG_RESTART_BELL_END_MIN_ET,
+    DIAG_RESTART_BELL_START_MIN_ET,
     DIAG_RESTART_BOT_TRADE_OPEN,
     DIAG_RESTART_CHECK_SCHEMA_VERSION,
 )
@@ -25,10 +30,32 @@ logger = logging.getLogger(__name__)
 Item = dict[str, Any]
 Reader = Callable[[], list[Item]]
 _EPS = 1e-9
+_ET = ZoneInfo("America/New_York")
 
 
 def _item(kind: str, text: str, *, venue: str | None = None, symbol: str | None = None) -> Item:
     return {"kind": kind, "venue": venue, "symbol": symbol, "text": text}
+
+
+def _clock(minute_of_day: int) -> str:
+    return f"{minute_of_day // 60:02d}:{minute_of_day % 60:02d}"
+
+
+def bell(now: float | None = None) -> list[Item]:
+    """The opening bell on an exchange day: a restart then drops every Level 2 and Time & Sales line."""
+    from sim.trading_day import last_open_day
+
+    at = datetime.fromtimestamp(time.time() if now is None else now, _ET)
+    minute = at.hour * 60 + at.minute
+    if not DIAG_RESTART_BELL_START_MIN_ET <= minute < DIAG_RESTART_BELL_END_MIN_ET:
+        return []
+    if last_open_day(at.date()) != at.date():
+        return []
+    start, end = _clock(DIAG_RESTART_BELL_START_MIN_ET), _clock(DIAG_RESTART_BELL_END_MIN_ET)
+    return [_item(
+        "bell", f"The opening bell ({start}-{end} ET): a restart now drops every Level 2 and Time & Sales "
+        f"line for up to a minute; after {end} is safer",
+    )]
 
 
 def _qty(value: Any) -> str:
@@ -164,6 +191,7 @@ def downloads() -> list[Item]:
 
 
 READERS: tuple[tuple[str, Reader], ...] = (
+    ("bell", bell),
     ("recording", recordings),
     ("practice", practice),
     ("ibkr", ibkr),
