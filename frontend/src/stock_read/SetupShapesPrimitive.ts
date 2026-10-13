@@ -15,7 +15,7 @@
  * (2026-10-12) runs from its first touch to the pane's newest candle and is hovered along its length. A setup's plan with
  * only the plan behind it is its strategy box (2026-10-12, `strategyBoxRender.ts`), past the newest candle (a forming
  * one's window counted in candles from it); once it triggered, a mark over its trigger candle.
- * Nova's LULD band (2026-10-12, `luldRender.ts`) steps inside the candle where it moved, at its share of the minute.
+ * Nova's LULD band (2026-10-12, `luldRender.ts`) steps inside the candle where it moved, at its share of the candle.
  */
 import { MismatchDirection } from 'lightweight-charts';
 import type {

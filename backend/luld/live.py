@@ -9,7 +9,9 @@ halt state (``ibkr.halt_status``), whether Nova still holds the stock's tape lin
 
 A tracker starts with a stock's first live print, so the bands exist only where Nova holds an
 AllLast line (a Trader tab's Time & Sales, a Session Record, auto-record). It is exact once it
-has seen the stock open or reopen with its tape unbroken since; before that, approximate.
+has seen the stock open or reopen with its tape unbroken since; before that, approximate. One
+that starts after 09:30 is rebuilt at once on IBKR's trades of the ten minutes before its first
+print (``luld/backfill.py``) instead of waiting five minutes for its own tape.
 
 Owner: this module's in-memory trackers, forgotten ``LULD_FORGET_SEC`` after their last print.
 Not persisted (schema_version n/a): a restart starts every stock over. ``NOVA_LULD=0`` turns the
@@ -27,8 +29,9 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from luld import rules, views
+from luld import backfill, rules, views
 from luld.constants_luld import (
+    LULD_BACKFILL_JOURNAL_MAX,
     LULD_ENV,
     LULD_FORGET_SEC,
     LULD_QUEUE_MAX,
@@ -82,7 +85,7 @@ def enqueue_print(payload: Any) -> None:
     try:
         _put(("print", str(payload["symbol"]).upper(), float(payload.get("receive_ts") or time.time()),
               float(payload["price"]), bool(payload.get("sets_price")), payload.get("conditions") or "",
-              payload.get("exchange") or ""))
+              payload.get("exchange") or "", payload.get("exchange_ts")))
     except (KeyError, TypeError, ValueError):
         _counts["dropped"] += 1
 
@@ -144,12 +147,18 @@ def process(item: tuple) -> None:
         kind, symbol, ts = item[0], item[1], item[2]
         tracker = _trackers.get(symbol)
         if kind == "print":
+            started = tracker is None
             if tracker is None:
                 tracker = _trackers[symbol] = Tracker(symbol, started_at=ts, facts=_facts(symbol, ts),
-                                                      options=DEFAULT_OPTIONS)
+                                                      options=DEFAULT_OPTIONS, journal=LULD_BACKFILL_JOURNAL_MAX)
                 _tracked.add(symbol)
                 _facts_at[symbol] = ts
             tracker.on_print(ts, item[3], eligible=item[4], conditions=item[5], exchange=item[6])
+            if started:
+                backfill.ask(symbol, tracker, ts, item[7] if len(item) > 7 else None, _put)
+        elif kind.startswith("backfill"):
+            if tracker is not None:
+                _trackers[symbol] = backfill.apply(symbol, tracker, item)
         elif kind == "quote" and tracker is not None:
             if item[5] is not None and _close.get(symbol) != item[5]:
                 _close[symbol] = item[5]
@@ -265,6 +274,7 @@ def tick(now: float | None = None) -> None:
             last = tracker.last_print_ts
             if last is not None and now - last > LULD_FORGET_SEC:
                 _forget(symbol)
+        backfill.tick(now, _trackers, _put)
         if len(_gaps_seen) > 200:
             _gaps_seen.clear()
 
@@ -274,6 +284,7 @@ def _forget(symbol: str) -> None:
     _tracked.discard(symbol)
     _facts_at.pop(symbol, None)
     _line.pop(symbol, None)
+    backfill.forget(symbol)
 
 
 def view(symbol: str, now: float | None = None) -> dict[str, Any]:
@@ -300,6 +311,7 @@ def _read(symbol: str, now: float | None) -> tuple[dict[str, Any], list[dict[str
             return views.absent_view(sym, now=now, source="live", reason=(
                 "Nova computes the band from this stock's Time & Sales: it holds no tape line for it now")), []
         raw = tracker.view(now)
+        raw["backfill"] = backfill.status(sym) or raw.get("backfill")
         steps = tracker.trail()
         facts = tracker.facts
         held = _line.get(sym, {}).get("held", True)
@@ -336,6 +348,7 @@ def reset_for_tests() -> None:
         _line.clear()
         _gaps_seen.clear()
         _board_close.clear()
+        backfill.reset()
         for key in _counts:
             _counts[key] = 0
     while True:

@@ -52,6 +52,25 @@ LULD_REOPEN_CONDITION = "5"
 # Without a (re)opening seen, Nova needs this much unbroken tape before it can take the
 # five-minute mean -- and its band is then approximate (``exact: false``).
 LULD_WARM_SEC = LULD_WINDOW_SEC
+# A tracker that starts after 09:30 reads IBKR's trades of the ten minutes before its first print once and is
+# rebuilt on them (``luld/backfill.py``, ADR 047 amendment 2026-10-13): five minutes seed the reference, five
+# more run the 1% / 30 s rule over it. NOVA_LULD_BACKFILL=0 waits for Nova's own tape instead.
+LULD_BACKFILL_ENV = "NOVA_LULD_BACKFILL"
+LULD_BACKFILL_BACK_SEC = 2 * LULD_WINDOW_SEC
+# At most this many of IBKR's 1,000-trade pages, then one request of 1-minute bars for the minutes they missed:
+# five requests, IBKR's most for one stock in 2 s (``luld_check.py backfill`` measured 4,000 trades and the bars).
+LULD_BACKFILL_MAX_PAGES = 4
+# ... and never the last of IBKR's 60 historical requests in 10 minutes: these stay for the charts.
+LULD_BACKFILL_HEADROOM = 20
+LULD_BACKFILL_PAGE_TIMEOUT_SEC = 10.0
+# Shed (an open chart loading, pacing): ask again this soon. Failed: this soon, at most this many times.
+LULD_BACKFILL_RETRY_SEC = 2.0
+LULD_BACKFILL_FAIL_RETRY_SEC = 15.0
+LULD_BACKFILL_MAX_FAILS = 3
+# A request whose answer never reached the worker (its queue item dropped) is given up after this.
+LULD_BACKFILL_LOST_SEC = 90.0
+# A tracker keeps this many of its own inputs while its backfill is out, to hear them again after IBKR's trades.
+LULD_BACKFILL_JOURNAL_MAX = 50_000
 # A tracker that heard nothing for this long is forgotten (the line was given back).
 LULD_FORGET_SEC = 30 * 60
 # A gap in the tape longer than this breaks the calculation's exactness.

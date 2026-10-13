@@ -32,6 +32,22 @@ export interface LuldTrack {
   exact: number | null;
   within_1c: number | null;
   text: string;
+  /** A band rebuilt from IBKR's trades for a stock opened mid-session (ADR 047 amendment 2026-10-13). */
+  backfill?: { touches: number; exact: number; within_1c: number; inside_spread: number; text: string } | null;
+}
+
+/** The read of IBKR's trades before Nova began watching (ADR 047 amendment 2026-10-13). */
+export interface LuldBackfill {
+  state: 'asking' | 'seeded' | 'not_needed' | 'failed';
+  asked_at: number | null;
+  at: number | null;
+  /** How far back IBKR's trades reach; `trades` counts the price-setting ones, `minutes` the 1-minute bars before. */
+  since: number | null;
+  trades: number | null;
+  minutes: number | null;
+  pages: number | null;
+  complete: boolean | null;
+  reason: string | null;
 }
 
 /** One stock's LULD view (backend `luld/views.py`; AGENTS.md §3 "LULD bands"). */
@@ -62,6 +78,8 @@ export interface LuldView {
   watching_since: number | null;
   warm_until: number | null;
   gap: { ts: number; reason: string } | null;
+  /** Live, a stock Nova began watching after 09:30: IBKR's trades of the 5 minutes before it, read once. */
+  backfill?: LuldBackfill | null;
   last: number | null;
   distance: { down_pct: number | null; up_pct: number | null } | null;
   near: 'down' | 'up' | null;
@@ -115,6 +133,11 @@ function approx(view: LuldView): string {
   return view.exact && view.tier_sure !== false ? '' : LULD_APPROX_MARK;
 }
 
+/** The band in force was rebuilt from IBKR's trades before Nova began watching (ADR 047 amendment 2026-10-13). */
+function rebuilt(view: LuldView): boolean {
+  return view.reference_source === 'backfill';
+}
+
 /** How Nova knows, in a few lines: the hover on every LULD piece. */
 export function luldTip(view: LuldView | null): string {
   if (!view) return '';
@@ -135,9 +158,13 @@ export function luldTip(view: LuldView | null): string {
         + 'Russell 1000 has a 5% band, any other a 10% band.');
     }
     if (!view.exact) {
-      lines.push(`Approximate: Nova did not see this stock open or reopen with its tape unbroken since, so the `
-        + `exchanges' reference may differ`
-        + (view.spread != null ? `; measured, an approximate band sat within ${fmtBand(view.spread)} of theirs five times in six` : '')
+      lines.push((rebuilt(view)
+        ? `Approximate: Nova began watching this stock after it opened, so it rebuilt the reference from IBKR's trades `
+          + `of the 10 minutes before, under the published rules; the exchanges' may differ`
+          + (view.spread != null ? `; measured, a rebuilt band sat within ${fmtBand(view.spread)} of theirs seven times in eight` : '')
+        : `Approximate: Nova did not see this stock open or reopen with its tape unbroken since, so the `
+          + `exchanges' reference may differ`
+          + (view.spread != null ? `; measured, an approximate band sat within ${fmtBand(view.spread)} of theirs five times in six` : ''))
         + '. Exact from its next reopen.'
         + (view.gap ? ` (${view.gap.reason})` : ''));
     }
@@ -152,7 +179,8 @@ export function luldTip(view: LuldView | null): string {
   if (view.watching === false) lines.push('Nova no longer holds this stock\'s tape: this is the band as it last stood.');
   lines.push('');
   lines.push(view.note);
-  if (view.track?.text) lines.push(`Measured: ${view.track.text}`);
+  const measured = rebuilt(view) && view.track?.backfill?.text ? view.track.backfill.text : view.track?.text;
+  if (measured) lines.push(`Measured: ${measured}`);
   lines.push(`Rules: ${view.rules}`);
   return lines.join('\n');
 }
@@ -224,8 +252,9 @@ export function luldStrip(view: LuldView | null, nowMs: number): LuldStripView |
   }
   if (view.state === 'warming') {
     const left = view.warm_until != null ? view.warm_until - now : null;
-    return { tone: 'idle', bid: null, ask: null, tip, countdown: null,
-      center: left != null && left > 0 ? `${LULD_LABEL} in ${mmss(left)}` : `${LULD_LABEL} · reading the tape` };
+    const center = view.backfill?.state === 'asking' ? `${LULD_LABEL} · reading IBKR's trades`
+      : left != null && left > 0 ? `${LULD_LABEL} in ${mmss(left)}` : `${LULD_LABEL} · reading the tape`;
+    return { tone: 'idle', bid: null, ask: null, tip, countdown: null, center };
   }
   if (view.state !== 'bands') {
     return { tone: 'idle', bid: null, ask: null, tip, countdown: null, center: `${LULD_LABEL} · not known` };

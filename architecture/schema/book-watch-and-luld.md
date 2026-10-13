@@ -320,8 +320,10 @@ Plan rules (owner `backend/luld/`). Read-only: nothing places, stages, gates or 
   - Measured against the SIP's own band flags (the Massive NBBO indicators), a limit state's end makes no reference
     of its own. The Plan's text says it does; keeping the reference matched 81% exactly, against 64%.
 - **Exact or approximate.** `exact` when Nova saw the stock open or reopen with its tape unbroken since.
-  - Otherwise a band appears after five minutes of tape, seeded from the mean: `exact: false`, with `spread` (how
-    far it may sit from the exchanges', in dollars). An approximate band never claims a limit state.
+  - Otherwise the band is seeded from a mean: `exact: false`, with `spread` (how far it may sit from the exchanges',
+    in dollars). Live, a stock Nova starts watching after 09:30 is rebuilt at once on IBKR's trades of the ten
+    minutes before (`backfill`, below); else, and on a replay, it is seeded after five minutes of Nova's own tape
+    (`seeded`). An approximate band never claims a limit state.
   - A lost tape line or an IBKR feed gap makes an exact band approximate until the next reopen.
   - The tier: a company of at least $15B is Tier 1 and one of at most $2B Tier 2 (sure). Between them, the side of
     $4.5B; with no size known, Tier 2. Both read `tier_sure: false` and show `≈`.
@@ -336,11 +338,12 @@ Plan rules (owner `backend/luld/`). Read-only: nothing places, stages, gates or 
   "symbol", "data": view}` frames (sent on change, and at least every 5 s): `{schema_version: 1, symbol, source:
   "live" | "replay", state: "off" | "unknown" | "warming" | "bands" | "limit" | "pause_due" | "paused", exact, lower,
   upper, reference, reference_since, reference_source: "open" | "reopen" | "mean" | "open_mean" | "seeded" |
-  "first_trade_after_halt" | "limit_exit" | null, reference_words, percent, prev_close, tier: 1 | 2 | null,
-  tier_text, tier_sure, spread, limit: {side: "down" | "up", since, band, pause_at, overdue} | null, straddle: "down"
-  | "up" | null, anchor: {kind, ts, price} | null, halted_since, watching_since, warm_until, gap: {ts, reason} |
-  null, last, distance: {down_pct, up_pct} | null, near: "down" | "up" | null, reason, history: [{ts, reference,
-  source}], note, rules, track, as_of, text, watching?}`.
+  "backfill" | "first_trade_after_halt" | "limit_exit" | null, reference_words, percent, prev_close, tier: 1 | 2 |
+  null, tier_text, tier_sure, spread, limit: {side: "down" | "up", since, band, pause_at, overdue} | null, straddle:
+  "down" | "up" | null, anchor: {kind, ts, price} | null, halted_since, watching_since, warm_until, gap: {ts,
+  reason} | null, backfill: {state, asked_at, at, since, trades, pages, complete, reason} | null, last, distance:
+  {down_pct, up_pct} | null, near: "down" | "up" | null, reason, history: [{ts, reference, source}], note, rules,
+  track, as_of, text, watching?}`.
   - `lower` / `upper` are null unless `state` is `bands`, `limit` or `pause_due`. `near` means within 2% of the
     price or 5 cents. `track` is the measured record (`luld/track_record.py`).
   - `GET /api/luld` lists the stocks the live worker follows. The stock read's halts row `luld` reads the view.
@@ -368,8 +371,9 @@ the operator enters, and Level 2 already shows the band now. Read-only, like the
     and the 16:00 close.
   - `lower` / `upper` null mean no band from then on (a halt, the close, no previous close).
   - At most `LULD_TRAIL_KEEP` (2,000) steps a day; the oldest go first. A new trading day starts empty.
-  - Live, the steps begin when the tracker does: with Nova's first print of the stock (`watching_since`). Nova
-    cannot know a band from tape it did not hold. On a replay they come from the recording, never past the playhead.
+  - Live, the steps begin when the tracker does: with Nova's first print of the stock (`watching_since`), or a
+    moment after it with a backfilled band (below). On a replay they come from the recording, never past the
+    playhead.
 - **The wire.** `GET /api/luld/{symbol}/trail` reads memory only, from the live feed or the replay at its playhead,
   as `GET /api/luld/{symbol}` does: `{schema_version: 1, symbol, source: "live" | "replay", state, reason,
   tier_sure, watching_since, steps: [{ts, lower, upper, exact}], as_of}`.
@@ -378,13 +382,90 @@ the operator enters, and Level 2 already shows the band now. Read-only, like the
     of the tier.
   - A stock with no tracker answers `steps: []` with the view's reason.
   - The depth socket's frames are unchanged: `history` still keeps 8 reference changes for the hover.
-- **On the 1-minute chart** (`ibkr/luldTrail.ts` reads the wire; `stock_read/useStockRead.ts` `useLuldTrail` polls;
-  `stock_read/luldShapes.ts` and `stock_read/luldRender.ts` draw):
+- **On the 1-minute and 10-second charts** (`ibkr/luldTrail.ts` reads the wire; `stock_read/useStockRead.ts`
+  `useLuldTrail` polls; `stock_read/luldShapes.ts` and `stock_read/luldRender.ts` draw):
   - Read every 2 s while the Trader tab shows and Eyes is on.
-  - Drawn as a rose line above and below the candles that steps where the band moved. A step that came mid-minute
-    sits inside its candle, at its share of the minute; a minute with no candle puts it between the candles around it.
+  - Drawn as a rose line above and below the candles that steps where the band moved. A step that came inside a
+    candle sits there, at its share of the candle (a minute, or ten seconds); a stretch with no candle puts it between
+    the candles around it.
   - The line is solid where the band was exact, and dashed where it was approximate or the tier is a guess (`≈`).
   - The band in force is named in the right-edge column: `LULD ▲ 6.60` and `LULD ▼ 4.40` (`≈` when approximate). Out
     of view, each becomes an arrow tag at the top or bottom edge, so the distance to the halt line always shows.
-  - The 1-minute Key has a LULD row. The 5-minute, 10-second and Full Day charts draw no band, and Eyes off draws none.
+  - Both charts' Keys have a LULD row. The 5-minute and Full Day charts draw no band, and Eyes off draws none.
+
+### The band on the 10-second chart too (ADR 047 amendment, operator ask 2026-10-13)
+
+"i want the luld lines show in the 10second charts too not just the one min, im almost thinking of just keeping it at
+the 10 seconds only, but lets keep it at the 1min too for now". The 10-second chart draws the same steps, the same way,
+each at its share of a 10-second candle: the band moves at most every 30 s, so a step never spans fewer than three
+candles there, and a candle that ran into the band meets the band it ran into. The 1-minute chart keeps it.
+
+### A stock opened mid-session: its band from IBKR's trades (ADR 047 amendment, 2026-10-13)
+
+FLYE, 2026-10-13: Nova's first print came at 09:43:06 ET, when the operator opened it (first buy 09:43:15), and it
+halted at 09:46:37. Its band still waited for five minutes of Nova's own tape, so `GET /api/luld/FLYE/trail` answered
+`steps: []` -- no band on the chart before the halt. A stock opened moments before it halts is when the band matters
+most. Read-only, like the rest: nothing places, gates or cancels on it.
+
+- **When** (`luld/backfill.py`). The live worker's tracker starts after 09:30:00 and before 16:00 and its first print
+  sets no reference (Nova did not see the open): it asks once for IBKR's trades of the ten minutes before Nova's first
+  print of the stock. Not before 09:30 (that tracker sees the open), not on a replay (its tape is the recording's),
+  never with `NOVA_LULD_BACKFILL=0`.
+- **The request** (`ibkr/historical_trades.py`). `reqHistoricalTicks` (TRADES), paged back from IBKR's second of the
+  first print, 1,000 trades a page, until the ten minutes are covered or `LULD_BACKFILL_MAX_PAGES` (4) pages are read.
+  - Pages that stop short (a busy stock) are followed by one request for IBKR's 1-minute TRADES bars of the minutes
+    they missed: each bar's average price and trade count. Four pages and the bars are five requests, IBKR's most for
+    one stock in 2 s. Shed or failed, the trades stand without them (`minutes_note` says why).
+  - Every page is a historical request in Nova's one pacing budget (ADR 012, `historical_service.budget()`): none is
+    sent while an open chart loads or pacing asks for a wait, and none takes the last `LULD_BACKFILL_HEADROOM` of
+    IBKR's 60 requests in 10 minutes. One backfill is in flight at a time.
+  - It runs as a task on the IB connect-loop and its answer goes onto the LULD worker's queue (ADR 010); it never
+    waits out a pacing delay there. Shed, it is asked again every 2 s; failed, every 15 s, three times at most --
+    while the tracker has no reference of its own.
+  - The trades of the first print's second are dropped (Nova heard them live from it on). Two pages meet inside one
+    second; the earlier page's share of it is dropped, so no trade counts twice.
+- **The trades** keep their conditions and venue; only price-setting prints count toward a mean, by the live tape's
+  rule (`sale_conditions.sets_price`: the conditions and IBKR's `unreported` flag).
+- **The rebuild** (`Tracker.rebuilt`). Until its backfill settles, a tracker keeps its own inputs (prints, quotes,
+  halts, gaps, facts; at most `LULD_BACKFILL_JOURNAL_MAX`). When IBKR's trades land, a new tracker hears them first and
+  then those inputs, and replaces it. The bars come first as trades (`backfill.minute_rows`): each bar's average,
+  once per trade it counted, at the middle of its part of the ten minutes (a bar the window cuts gives that share of
+  its trades). So the reference runs the Plan's rules over IBKR's trades: seeded five minutes
+  into them, then the 1% / 30 s rule (an opening or reopening print among them anchors it). A mean taken at once has
+  no such history, and the exchanges' reference has one. Pages that reach back less than five minutes seed when they
+  land, from the window's mean.
+  - Never exact: IBKR's history is not Nova's tape. `exact` waits for a reopening print Nova hears.
+  - A reference made from IBKR's trades reads `reference_source: "backfill"`, with `spread` as for any approximate
+    band. From there the live tape runs the rule exactly as before.
+  - The band is drawn from the moment the trades land (`backfill.at`), when Nova knows it; `watching_since` stays
+    Nova's first print.
+- **Never over Nova's own tape.** It rebuilds only a tracker with no reference and no opening or reopening print
+  seen. A halted stock is rebuilt too, and shows no band until its reopening print, which is exact. The reopening print
+  (`5`) replaces a backfilled or seeded reference and is exact -- also when a trade came before it on Nova's tape after
+  the halt (`first_trade_after_halt`).
+- **Incomplete.** Pages that stop short of ten minutes (a very busy stock, pacing) still rebuild: `backfill.complete:
+  false`, and `reference_words` says how far back the trades reach and whether bars filled the minutes before.
+- **The view's `backfill`** (live only; null when none was asked): `{state: "asking" | "seeded" | "not_needed" |
+  "failed", asked_at, at, since, trades, minutes, pages, complete, reason}`: `since` is how far back the trades
+  reach, `trades` the price-setting ones, `minutes` the 1-minute bars before them. `asking`: the `warming` reason says Nova is
+  reading IBKR's trades, and the strip reads `LULD · reading IBKR's trades`. `not_needed`: Nova's own tape set the
+  band first, or IBKR had no trades to average. `failed`: IBKR did not answer three times; the band waits for Nova's
+  own tape, and the `warming` reason says why.
+- **Rejected.**
+  - Nova's own tape archive (`l2.db` `tape_trades`): the same AllLast prints the tracker hears, from the same handler,
+    so it holds nothing before Nova's first print except across a backend restart, and then with a hole.
+  - IBKR's 1-minute bars as the source: one request, but their average is volume-weighted where the Plan's reference
+    is the plain mean of trades, and their minutes do not line up with a window that ends at any second. Even at their
+    best (each minute's own mean of trades) they matched to the cent far less often than the trades. They only fill
+    the minutes the pages could not reach.
+  - A mean of the five minutes taken at once: no history, so it sits up to 1% from a reference the exchanges moved
+    by the 1% / 30 s rule (measured below).
+- **Measured** (`tools/luld_check.py backfill`, `luld/backfill_study.py`; the 10 days of the massive cache, results
+  under `backfill-shipped/`): a tracker started 30 s to 4 minutes before each SIP-flagged touch, against the SIP's
+  band at the touch. On the 1,995 where waiting for Nova's own tape showed no band, the backfill drew one on 1,803:
+  to the cent on 48%, within 1c on 64%, within its stated spread on 88%; 90% of them within 1.5% of the SIP's. A mean
+  of the five minutes at once: 36% / 50% / 72%. All ten minutes of trades (no page limit): 60% / 74% / 90%. The bars
+  were measured at their best (each minute's own mean of trades); IBKR's are volume-weighted. The track record
+  quotes it (`luld/track_record.py`, `backfill`), and the hover says a rebuilt band sat within its spread seven times
+  in eight.
 

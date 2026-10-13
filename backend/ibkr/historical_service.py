@@ -88,6 +88,11 @@ def _semaphore() -> asyncio.Semaphore:
     return _sem
 
 
+def budget() -> tuple[HistoricalPacing, asyncio.Semaphore]:
+    """The one pacing budget and in-flight cap every historical request spends (``historical_trades`` too)."""
+    return _pacing, _semaphore()
+
+
 def _trim(payload: dict[str, Any], limit: int) -> dict[str, Any]:
     bars = list(payload.get("bars") or [])
     if limit < len(bars):

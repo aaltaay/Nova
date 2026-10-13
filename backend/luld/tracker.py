@@ -32,7 +32,9 @@ open or the last reopen. A tracker that saw that (re)opening print and has heard
 since is ``exact`` -- the published rules, applied. One that started watching later can only
 take the five-minute mean once it holds five minutes of tape and seed the reference with it;
 the exchanges' reference is then within about 1% of Nova's, the band ``exact: false`` with
-its likely spread. A lost stretch of tape (``on_gap``) makes an exact tracker approximate
+its likely spread. Live, such a tracker is ``rebuilt`` at once on IBKR's trades of the ten
+minutes before its first print, then its own inputs (kept in its journal until then), so it
+need not wait. A lost stretch of tape (``on_gap``) makes an exact tracker approximate
 until the next reopening. An approximate tracker never claims a limit state.
 
 Times are epoch seconds on one clock: the host's arrival times live, the SIP's in a study.
@@ -128,10 +130,15 @@ class Facts:
 
 class Tracker:
     def __init__(self, symbol: str, *, started_at: float, facts: Facts | None = None,
-                 options: Options = DEFAULT_OPTIONS) -> None:
+                 options: Options = DEFAULT_OPTIONS, journal: int = 0) -> None:
         self.symbol = (symbol or "").upper()
         self.facts = facts or Facts()
+        self._facts0 = self.facts
         self.options = options
+        # Its inputs, kept so ``rebuilt`` can hear them again after IBKR's trades: up to ``journal`` of them, None
+        # when not kept (or past it).
+        self._journal: list[tuple] | None = [] if journal > 0 else None
+        self._journal_max = journal
         self._clock = started_at
         self._last_price: float | None = None
         self._last_print_ts: float | None = None
@@ -162,6 +169,7 @@ class Tracker:
         self._await_reopen = False                # a halt ended; the next trade reopens
         self._tape_since = ts
         self._gap: dict[str, Any] | None = None   # the last tape gap that broke exactness
+        self._backfill: dict[str, Any] | None = None   # IBKR's trades it was rebuilt on (``rebuilt``)
         self._history: deque[dict[str, Any]] = deque(maxlen=LULD_HISTORY_KEEP)
         # The band as drawn, a step each time it changes (the 1-minute chart's line): (ts, lower, upper, exact).
         self._trail: deque[tuple[float, float | None, float | None, bool]] = deque(maxlen=LULD_TRAIL_KEEP)
@@ -175,17 +183,32 @@ class Tracker:
             self._reset_day(ts)
 
     # -- inputs ----------------------------------------------------------------------------------
+    def _keep(self, *call: Any) -> None:
+        journal = self._journal
+        if journal is None:
+            return
+        if len(journal) >= self._journal_max:
+            self._journal = None
+        else:
+            journal.append(call)
+
+    def stop_journal(self) -> None:
+        """Nothing will rebuild this tracker: stop keeping its inputs."""
+        self._journal = None
+
     def on_print(self, ts: float, price: float, *, eligible: bool, conditions: str | None = None,
                  exchange: str | None = None) -> None:
         if not (price and price > 0):
             return
+        self._keep("on_print", ts, price, eligible, conditions, exchange)
         ts = self._advance(ts)
         day = self._day
         codes = set(conditions or "")
         report = (exchange or "").strip().upper() in LULD_REPORT_VENUES
         if day is not None and not report:
+            # A reopening print is the reference once per reopen -- and over a trade that beat it to Nova's tape.
             if (LULD_REOPEN_CONDITION in codes and day.open_ts <= ts < day.close_ts
-                    and ts >= self._reopen_ts + LULD_WINDOW_SEC):
+                    and (ts >= self._reopen_ts + LULD_WINDOW_SEC or self._ref_source == "first_trade_after_halt")):
                 self._reopen(ts, price, "reopen")
             elif (LULD_OPEN_CONDITION in codes and not self._open_seen and self._halted_since is None
                   and day.open_ts - LULD_OPEN_EARLY_SEC <= ts <= day.open_ts + LULD_OPEN_GRACE_SEC):
@@ -202,6 +225,7 @@ class Tracker:
             self._check_reference(ts)
 
     def on_quote(self, ts: float, bid: float | None, ask: float | None) -> None:
+        self._keep("on_quote", ts, bid, ask)
         ts = self._advance(ts)
         self._bid = bid if bid and bid > 0 else None
         self._ask = ask if ask and ask > 0 else None
@@ -209,6 +233,7 @@ class Tracker:
         self._check_limit(ts)
 
     def on_halt(self, ts: float, halted: bool) -> None:
+        self._keep("on_halt", ts, halted)
         ts = self._advance(ts)
         if halted and self._halted_since is None:
             self._halted_since = ts
@@ -222,6 +247,7 @@ class Tracker:
     def on_gap(self, ts: float, reason: str) -> None:
         """Nova lost some of this stock's tape (a line ended, the feed went quiet): its five-minute
         mean is short of trades, so the reference is no longer exact."""
+        self._keep("on_gap", ts, reason)
         ts = self._advance(ts)
         if self._ref is not None and self._exact:
             self._exact = False
@@ -230,7 +256,50 @@ class Tracker:
         self._tape_since = ts
         self._mark(ts)
 
+    def rebuilt(self, now: float, trades: list[tuple[float, float, bool, str, str]], *, since: float,
+                complete: bool) -> Tracker | None:
+        """This tracker as if it had heard ``trades`` before its own first print, and then its own inputs
+        (ADR 047 amendment, 2026-10-13): ``(ts, price, eligible, conditions, exchange)``, oldest first, reaching back
+        to ``since`` (IBKR's, ``luld/backfill.py``). The reference runs the Plan's rules over them -- seeded five
+        minutes in, then the 1% / 30 s rule -- so it has a history like the exchanges', where a mean taken at once
+        has none. Pages that reach back less than five minutes seed at ``now`` from the window's mean.
+
+        Never exact: IBKR's history is not Nova's tape, whatever it opened or reopened on, so ``exact`` waits for a
+        reopening print Nova hears. A reference made from IBKR's trades reads ``reference_source: "backfill"``. The
+        band is drawn from ``now``, when Nova knows it. None when it does not apply (a tracker that saw the open,
+        has a reference, did not keep its inputs, or after 16:00) or there was nothing to average."""
+        day = self._day
+        first = self._tape_since
+        if (self._journal is None or self._ref is not None or self._anchor is not None or day is None
+                or first <= day.open_ts or not (day.open_ts <= now < day.close_ts)):
+            return None
+        new = Tracker(self.symbol, started_at=min(since, first), facts=self._facts0, options=self.options)
+        for ts, price, eligible, conditions, exchange in trades:
+            if ts < first:
+                new.on_print(ts, price, eligible=eligible, conditions=conditions, exchange=exchange)
+        new._advance(first)
+        new._exact, new._gap = False, None
+        for name, *args in self._journal:
+            if name == "on_print":
+                new.on_print(args[0], args[1], eligible=args[2], conditions=args[3], exchange=args[4])
+            else:
+                getattr(new, name)(*args)
+        new._advance(now)
+        new._tape_since = max(new._tape_since, first)   # Nova's first print, or a gap in its tape since
+        if new._ref is None:
+            if not new._win:
+                return None
+            new._set_ref(new._mean(), now, "backfill", exact=False)
+        elif (new._ref_since or now) < first or new._ref_source in ("seeded", "open_mean"):
+            new._ref_source = "backfill"            # made from IBKR's trades, or a first mean over them
+        new._trail.clear()
+        new._mark(now)
+        new._backfill = {"ts": round(now, 3), "since": round(since, 3),
+                         "trades": sum(1 for row in trades if row[0] < first and row[2]), "complete": complete}
+        return new
+
     def set_facts(self, facts: Facts) -> None:
+        self._keep("set_facts", facts)
         self.facts = facts
         self._mark(self._clock)
 
@@ -244,6 +313,16 @@ class Tracker:
     @property
     def last_print_ts(self) -> float | None:
         return self._last_print_ts
+
+    @property
+    def keeps_journal(self) -> bool:
+        """Its inputs are all kept, so ``rebuilt`` can hear them again."""
+        return self._journal is not None
+
+    @property
+    def reference(self) -> float | None:
+        """The reference in force, None before the first."""
+        return self._ref_f if self._ref is not None else None
 
     # -- the clock -------------------------------------------------------------------------------
     def _advance(self, t: float) -> float:
@@ -501,6 +580,7 @@ class Tracker:
             "bid": self._bid,
             "ask": self._ask,
             "window_trades": len(self._win),
+            "backfill": dict(self._backfill) if self._backfill else None,
             "history": list(self._history),
             "clock": self._clock,
         }

@@ -1,5 +1,5 @@
 /**
- * Drawing Nova's LULD band on the 1-minute chart (ADR 047 amendment 2026-10-12), once `SetupShapesPrimitive` has put
+ * Drawing Nova's LULD band on the 1-minute and 10-second charts (ADR 047 amendments), once `SetupShapesPrimitive` has put
  * its steps in pixels: the upper and the lower band each a line that steps where the band moved -- solid where the
  * band was exact, dashed where it was approximate -- and nothing where there was none (a halt). Its names are the edge
  * column's (`luldShapes.luldWords`).

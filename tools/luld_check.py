@@ -11,12 +11,16 @@ shown with the truth. Read-only: it opens the data and writes only its own resul
   records   Nova's Session Records (IBKR's tape and book, the live desk's data): the price the
             NBBO sat at for the 15 s before each logged pause.
   summary   Print the summary of saved massive results.
+  backfill  From the massive run's cache: a tracker started 30 s to 4 min before each flagged touch,
+            seeded from the trades before its first print (``luld/backfill_study.py``) -- all of them,
+            the last 1,000 / 3,000 / 5,000 (IBKR's pages), or 1-minute bars -- against waiting.
 
 Usage:
 
   py -3 tools/luld_check.py massive --from 2026-09-21 --to 2026-10-05 --workers 3
   py -3 tools/luld_check.py massive --days 2026-09-22 --symbols GRML
   py -3 tools/luld_check.py records
+  py -3 tools/luld_check.py backfill --workers 3
   py -3 tools/luld_check.py summary --out F:\\Nova\\eyes\\studies\\luld-2026-10-06
 """
 from __future__ import annotations
@@ -144,6 +148,43 @@ def cmd_summary(args) -> int:
     return 0
 
 
+def _backfill_day(path: str, out_dir: str, names: list[str] | None = None) -> dict:
+    import logging
+
+    logging.disable(logging.WARNING)
+    from luld import backfill_study, study
+
+    day = Path(path).stem
+    with gzip.open(Path(out_dir) / "cache" / f"{day}.pkl.gz", "rb") as fh:
+        data, _prev = pickle.load(fh)
+    rows = []
+    for r in study.headline(json.loads(Path(path).read_text(encoding="utf-8"))):
+        got = data.get(r["symbol"]) or {}
+        rows += backfill_study.evaluate(r["symbol"], day, got.get("trades") or [], got.get("quotes") or [],
+                                        r["touches"], prev_close=r["prev_close"], names=names)
+    return {"day": day, "rows": rows}
+
+
+def cmd_backfill(args) -> int:
+    """A tracker started mid-session, seeded from the trades before its first print (the massive cache)."""
+    from luld import backfill_study, study
+
+    out = Path(args.out)
+    days = sorted(p for p in out.glob("20*.json") if not args.days or p.stem in args.days)
+    rows: list[dict] = []
+    with ProcessPoolExecutor(max_workers=max(1, args.workers)) as pool:
+        for fut in as_completed([pool.submit(_backfill_day, str(p), str(out), args.variants) for p in days]):
+            got = fut.result()
+            rows += got["rows"]
+            print(f"{got['day']}: {len(got['rows'])} rows", flush=True)
+    summary = backfill_study.summarize(rows)
+    folder = out / ("backfill" + (f"-{args.tag}" if args.tag else ""))
+    study.write_json(folder / "rows.json", rows)
+    study.write_json(folder / "summary.json", summary)
+    print(json.dumps(summary, indent=1))
+    return 0
+
+
 def cmd_records(args) -> int:
     import logging
 
@@ -170,8 +211,15 @@ def main() -> int:
     s = sub.add_parser("summary")
     s.add_argument("--out", default=str(DEFAULT_OUT))
     sub.add_parser("records")
+    b = sub.add_parser("backfill")
+    b.add_argument("--days", nargs="*")
+    b.add_argument("--workers", type=int, default=3)
+    b.add_argument("--variants", nargs="*", help="only these (luld/backfill_study.py variants())")
+    b.add_argument("--tag", default="", help="a suffix for the results' folder")
+    b.add_argument("--out", default=str(DEFAULT_OUT))
     args = ap.parse_args()
-    return {"massive": cmd_massive, "summary": cmd_summary, "records": cmd_records}[args.cmd](args)
+    return {"massive": cmd_massive, "summary": cmd_summary, "records": cmd_records,
+            "backfill": cmd_backfill}[args.cmd](args)
 
 
 if __name__ == "__main__":

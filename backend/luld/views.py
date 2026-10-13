@@ -30,6 +30,7 @@ SOURCE_WORDS = {
     "limit_exit": "the 5-minute average when the limit state ended",
     "open_mean": "the 09:30-09:35 average (no opening print on Nova's tape)",
     "seeded": "the 5-minute average when Nova began watching",
+    "backfill": "IBKR's trades of the 10 minutes before Nova began watching, under the published rules",
     "first_trade_after_halt": "the first trade after the halt (no reopening print on Nova's tape)",
 }
 
@@ -85,8 +86,12 @@ def state_of(raw: dict[str, Any], facts: Facts, now: float) -> tuple[str, str | 
         warm = raw["warm_until"]
         if warm is not None and now < warm:
             if raw["tape_since"] is not None and raw["tape_since"] > raw["day_open"]:
-                return "warming", (f"Nova began watching this stock's tape at {clock(raw['tape_since'])} ET, after it "
-                                   f"opened: it needs 5 minutes of trades first (until {clock(warm)} ET)")
+                began = f"Nova began watching this stock's tape at {clock(raw['tape_since'])} ET, after it opened"
+                fill = raw.get("backfill") or {}
+                if fill.get("state") == "asking":
+                    return "warming", f"{began}: reading IBKR's trades of the 10 minutes before"
+                why = f" (IBKR's trades of the 10 minutes before: {fill['reason']})" if fill.get("reason") else ""
+                return "warming", f"{began}: it needs 5 minutes of trades first (until {clock(warm)} ET){why}"
             return "warming", "Waiting for the opening print"
         return "unknown", "No trades on Nova's tape to take an average from"
     if facts.prev_close is None:
@@ -118,6 +123,15 @@ def _line(state: str, raw: dict[str, Any], view: dict[str, Any], now: float) -> 
     return view["reason"] or state
 
 
+def _words(raw: dict[str, Any]) -> str | None:
+    words = SOURCE_WORDS.get(raw["reference_source"] or "")
+    fill = raw.get("backfill") or {}
+    if words and raw["reference_source"] == "backfill" and fill.get("complete") is False:
+        bars = "; IBKR's 1-minute bars before that" if fill.get("minutes") else ""
+        words += f" (its {fill.get('trades')} trades reach back only to {clock(fill.get('since'))} ET{bars})"
+    return words
+
+
 def tracker_view(raw: dict[str, Any], facts: Facts, *, symbol: str, now: float, source: str,
                  track: dict[str, Any] | None = None) -> dict[str, Any]:
     state, reason = state_of(raw, facts, now)
@@ -138,7 +152,7 @@ def tracker_view(raw: dict[str, Any], facts: Facts, *, symbol: str, now: float, 
         "reference": raw["reference"] if shows else None,
         "reference_since": raw["reference_since"] if shows else None,
         "reference_source": raw["reference_source"] if shows else None,
-        "reference_words": SOURCE_WORDS.get(raw["reference_source"] or "") if shows else None,
+        "reference_words": _words(raw) if shows else None,
         "percent": param.text() if (param is not None and shows) else None,
         "prev_close": facts.prev_close,
         "tier": facts.tier,
@@ -153,6 +167,7 @@ def tracker_view(raw: dict[str, Any], facts: Facts, *, symbol: str, now: float, 
         "watching_since": raw["tape_since"],
         "warm_until": raw["warm_until"] if state == "warming" else None,
         "gap": raw["gap"],
+        "backfill": raw.get("backfill"),
         "last": raw["last"],
         "distance": _distance(raw["last"], lower, upper) if shows else None,
         "near": _near(raw["last"], lower, upper) if shows else None,
@@ -174,7 +189,7 @@ def absent_view(symbol: str, *, now: float, source: str, reason: str, state: str
         "exact": False, "lower": None, "upper": None, "reference": None, "reference_since": None,
         "reference_source": None, "reference_words": None, "percent": None, "prev_close": None,
         "tier": None, "tier_text": None, "tier_sure": True, "spread": None, "limit": None, "straddle": None, "anchor": None,
-        "halted_since": None, "watching_since": None, "warm_until": None, "gap": None, "last": None,
+        "halted_since": None, "watching_since": None, "warm_until": None, "gap": None, "backfill": None, "last": None,
         "distance": None, "near": None, "reason": reason, "history": [], "note": LULD_NOTE,
         "rules": LULD_RULES_TEXT, "track": None, "as_of": round(now, 3), "text": reason,
     }
