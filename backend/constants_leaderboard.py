@@ -133,6 +133,10 @@ LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC = 60.0
 # A line given back to the operator stays theirs this long while their subscribe lands (#698:
 # AIXI's Level 2 took 6 s, and auto-record's next tick took the line back in between).
 LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC = 30.0
+# A start that failed (IBKR refused its Time & Sales or Level 2 line) pauses every new start this
+# long: each try opens and lets go of two lines, and the next stock is refused the same way
+# (operator report 2026-10-13: a try a second while IBKR was full left Level 2 lines stuck).
+LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC = 60.0
 
 # ── Playback API ────────────────────────────────────────────────────────────
 # Every day on file: five years of rebuilt sessions plus recorded ones (~330 ms at 1,255 days).

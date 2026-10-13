@@ -220,6 +220,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | The tape archive never stops writing (operator report, 2026-09-24) | `architecture/schema/market-data.md` |
 | When IBKR data stops arriving (#672, #673, operator report 2026-10-01) | `architecture/schema/market-data.md` |
 | A Level 1 line IBKR refused (operator report 2026-10-05) | `architecture/schema/market-data.md` |
+| Lines IBKR answers after Nova cancelled them (operator report 2026-10-13) | `architecture/schema/market-data.md` |
 | When one tape line goes silent (#722, operator report 2026-10-05) | `architecture/schema/market-data.md` |
 | Orders refuse a stale view; the market path stays real time (ADR 045, operator report 2026-10-05) | `architecture/schema/execution.md` |
 | The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33) | `architecture/schema/market-data.md` |
