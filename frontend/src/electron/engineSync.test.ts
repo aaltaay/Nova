@@ -250,6 +250,35 @@ describe('createEngineSync', () => {
       expect(l.reloadEngine).not.toHaveBeenCalled();
     });
 
+    it("never restarts onto a checkout past the desk's release: that is the operator's, with why", async () => {
+      // Backend v1025, desk v1029, and master already pulled to v1031 in the checkout.
+      const { git, calls } = releaseGit([[new RegExp(`^merge-base --is-ancestor ${SHA} HEAD$`), { code: 0 }]], '1031');
+      const l = live(() => nothingOpen);
+      const { s, views } = sync({ git, fetchJson: l.fetchJson, reloadEngine: l.reloadEngine });
+      await s.follow();
+      expect(l.reloadEngine).not.toHaveBeenCalled();
+      expect(calls.some((c) => c.startsWith('merge --ff-only'))).toBe(false);
+      expect(autoOf(views)).toEqual({
+        state: 'left',
+        holds: [],
+        reason: 'Not restarted by itself: the checkout holds v1031, not v1029, and a restart loads the checkout',
+      });
+      await s.follow();
+      expect(l.reloadEngine).not.toHaveBeenCalled();
+    });
+
+    it('reads what is open again after the pull: a trade placed meanwhile holds the restart until it clears', async () => {
+      const checks = [nothingOpen, position, nothingOpen, nothingOpen];
+      const l = live(() => (checks.length > 1 ? checks.shift() : checks[0]));
+      const { s, views } = sync({ git: releaseGit().git, fetchJson: l.fetchJson, reloadEngine: l.reloadEngine });
+      await s.follow();
+      expect(l.reloadEngine).not.toHaveBeenCalled();
+      expect(autoOf(views)).toEqual({ state: 'waiting', holds: ['Paper position MSGY 100'], reason: '' });
+      await s.follow();
+      expect(l.reloadEngine).toHaveBeenCalledTimes(1);
+      expect(autoOf(views)).toBeNull();
+    });
+
     it("leaves a backend from another checkout, and one at the desk's release, alone", async () => {
       const packaged = { status: 'ok', frozen: true, release_tag: 'v1025' };
       const reloadEngine = vi.fn();

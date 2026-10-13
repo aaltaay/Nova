@@ -222,8 +222,9 @@ app's own folder, so it is a different Paper account, bot session and history.
   and restart it without us having to click on it"). Every 15 s the installed
   desk looks whether the owner's backend runs an older release than itself
   (`engineSync.follow`). If it does and the restart check holds nothing but
-  recordings, it brings the checkout to the desk's tag and restarts the
-  backend, with no button; the notice reads "Nova is updating the backend to
+  recordings, it brings the checkout to the desk's tag, reads the restart
+  check again, and restarts the backend, with no button -- only when the
+  checkout then holds the desk's exact release, never one past it; the notice reads "Nova is updating the backend to
   vNNN…". Otherwise the notice lists what holds it (`engine.auto.holds`) beside
   **Update backend now**, and Nova goes once it clears. Each pair of releases
   is tried once; still behind, the action below is the operator's again.
