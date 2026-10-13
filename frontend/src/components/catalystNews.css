@@ -67,6 +67,12 @@
   color: var(--danger);
 }
 
+/* A Sim replay desk: which moment the news is from, or that the day holds none on file. */
+.cn-replay {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
 .cn-verdict {
   display: flex;
   flex-direction: column;

@@ -1,7 +1,9 @@
 """Catalyst routes (ADR 024). Read-only: news only, never a price, never an order.
 
   GET /api/catalysts/{symbol}   the Trader's News panel -- today's verdict and every item read since
-                                the prior close, each labelled (``catalysts.live.panel``)
+                                the prior close, each labelled (``catalysts.live.panel``); on a Sim
+                                replay desk, the replayed symbol-day's as known at the playhead
+                                (``leaderboard.catalyst_verdicts.panel_at``), never today's
 """
 from __future__ import annotations
 
@@ -18,4 +20,12 @@ def catalyst_panel(symbol: str) -> dict:
     sym = (symbol or "").strip().upper()
     if not sym or len(sym) > _MAX_SYMBOL_LEN:
         raise HTTPException(400, "a ticker symbol is required")
-    return live.panel(sym)
+    from sim.replay_playhead import replay_playhead
+
+    at = replay_playhead()
+    if at is not None:
+        from leaderboard.catalyst_verdicts import panel_at
+        from leaderboard.rows import session_date_for
+
+        return panel_at(sym, session_date_for(at), at)
+    return {**live.panel(sym), "replay": None}

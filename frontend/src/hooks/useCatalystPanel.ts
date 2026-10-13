@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, CATALYST_PANEL_PATH, CATALYST_PANEL_POLL_MS } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import type { CatalystItem, CatalystPanel } from '../types/catalystVerdict';
+import type { CatalystItem, CatalystPanel, CatalystReplay } from '../types/catalystVerdict';
 import { normalizeCatalystVerdict } from '../utils/catalystVerdict';
 
 export interface CatalystPanelState {
@@ -41,6 +41,13 @@ function normalizeItem(raw: unknown): CatalystItem | null {
   };
 }
 
+function normalizeReplay(raw: unknown): CatalystReplay | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.session_date !== 'string' || typeof r.at !== 'number' || !Number.isFinite(r.at)) return null;
+  return { session_date: r.session_date, at: r.at, on_file: r.on_file === true };
+}
+
 /** The panel payload off the wire; null when it is not one. */
 export function normalizeCatalystPanel(raw: unknown): CatalystPanel | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -56,6 +63,7 @@ export function normalizeCatalystPanel(raw: unknown): CatalystPanel | null {
     verdict: normalizeCatalystVerdict(r.verdict),
     items,
     items_total: typeof r.items_total === 'number' ? r.items_total : items.length,
+    replay: normalizeReplay(r.replay),
   };
 }
 

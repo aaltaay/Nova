@@ -64,8 +64,17 @@ for the symbol first when a read is missing or stale; one release carried by sev
 listed once, from the best-ranked source) answers the Trader's News panel: `{schema_version:
 1, symbol, generated_at, window_start, verdict: verdict | null, items: [{item_id, source,
 publisher, published_ts, title, url, kind: "catalyst" | "negative" | "routine" | "noise",
-category, strength, dilution}], items_total}` -- items since the prior close, newest first, at
-most `CATALYST_PANEL_MAX_ITEMS`.
+category, strength, dilution}], items_total, replay: null}` -- items since the prior close, newest
+first, at most `CATALYST_PANEL_MAX_ITEMS`.
+**On a Sim replay desk** (the Sim off its live edge, `sim/replay_playhead.py`; operator report
+2026-10-12: the panel listed Oct 12's GRML headlines over a Jul 15 replay) the same shape is the
+replayed symbol-day's as known at the playhead, from the leaderboard store's catalyst backfill
+(`leaderboard/catalyst_verdicts.panel_at`; #498's `catalyst_checks` / `catalyst_items`): the
+verdict at the playhead, the exported items published inside the symbol-day's window by then with
+the labels the export gave them, `generated_at` the playhead (items age against it), and `replay:
+{session_date, at, on_file}`. `on_file: false` -- the day's export does not hold the symbol -- is
+`verdict: null` and no items: unknown, never "no news", and never today's news. Nothing is fetched.
+The panel says which moment it shows, or that the day holds no news on file.
 
 **The live catalyst feed** (`backend/catalysts/feed.py`, always on; `NOVA_CATALYST_FEED=0`
 off; ADR 024 amendment) records SEC EDGAR's latest filings, GlobeNewswire, PR Newswire,

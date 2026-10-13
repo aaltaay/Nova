@@ -39,6 +39,11 @@ interface Props {
   afterQuote?: ReactNode;
   /** When true, skip the news block (parent renders it elsewhere, e.g. Stock View footer). */
   omitNews?: boolean;
+  /**
+   * A Sim replay desk: what the panel leaves out of the replayed day and why (`replayPanelDetail`).
+   * Shown above the quote; today's broker flags are left out with it.
+   */
+  replayNote?: string | null;
 }
 
 export function TickerDetailContent({
@@ -52,6 +57,7 @@ export function TickerDetailContent({
   watchlistRank = null,
   afterQuote = null,
   omitNews = false,
+  replayNote = null,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
   const { isVisible } = useModuleVisibility();
@@ -93,6 +99,11 @@ export function TickerDetailContent({
     </div>
   ) : null;
 
+  const replayEl = replayNote ? (
+    <div key="replay-note" className="cq-replay-note" role="note" data-testid="quote-replay-note">{replayNote}</div>
+  ) : null;
+  const hideBroker = replayNote != null;
+
   const newsEl = showNews && !omitNews ? (
     <NewsPanel detail={detail} wrapped={layout === 'columns'} />
   ) : null;
@@ -105,14 +116,14 @@ export function TickerDetailContent({
           <FundamentalsPanel detail={detail} variant="key" />
         </div>
         <div className="cq-col cq-col--fund">
-          <FundamentalsPanel detail={detail} variant="fundamentals" showTitle />
+          <FundamentalsPanel detail={detail} variant="fundamentals" showTitle hideBroker={hideBroker} />
           <DataSourcesPanel />
           {bottomStamp}
         </div>
       </div>
     );
 
-    const nodes: ReactNode[] = [];
+    const nodes: ReactNode[] = replayEl ? [replayEl] : [];
     for (const block of blockOrder) {
       if (block === 'charts') {
         nodes.push(
@@ -147,7 +158,7 @@ export function TickerDetailContent({
     return <div className="cq-root cq-root--stacked">{nodes}</div>;
   }
 
-  const nodes: ReactNode[] = [];
+  const nodes: ReactNode[] = replayEl ? [replayEl] : [];
   for (const block of blockOrder) {
     if (block === 'quote' && showQuote) {
       nodes.push(
@@ -178,7 +189,7 @@ export function TickerDetailContent({
       );
     }
   }
-  nodes.push(<FundamentalsPanel key="fundamentals" detail={detail} variant="full" />);
+  nodes.push(<FundamentalsPanel key="fundamentals" detail={detail} variant="full" hideBroker={hideBroker} />);
   nodes.push(<DataSourcesPanel key="data-sources" />);
   if (bottomStamp) nodes.push(<div key="stamp">{bottomStamp}</div>);
 

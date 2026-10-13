@@ -29,8 +29,9 @@ from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import get_state as _get_risk_state, validate_trade_plan
 from strategy.setups import evaluate_setups
 from strategy.symbol_pillars import SOURCE_QUOTE, find_board_row, live_quote, quote_row, raw_boards, with_catalyst
+from strategy.replay_pillars import replay_view
 from strategy.watchlist import build_watchlist, score_watchlist_entry
-from strategy.watchlist_catalyst import attach as _attach_catalysts
+from strategy.watchlist_catalyst import attach as _attach_catalysts, compact as _compact_catalyst
 from runtime_state import get_runtime_state
 
 router = APIRouter(prefix="/api/strategy", tags=["strategy"])
@@ -149,11 +150,15 @@ def watchlist_one(symbol: str) -> dict:
 
     Graded from the symbol's own scanner row when a board holds it (surfaced as
     the Scanner shows it), else from its live L1 quote decorated the same way.
-    ``rank`` is its 1-based place on the ranked watchlist, or null.
+    ``rank`` is its 1-based place on the ranked watchlist, or null. On a Sim
+    replay desk, graded from the replayed day's board at the playhead instead.
     """
     sym = symbol.strip().upper()
     if not sym:
         raise HTTPException(status_code=400, detail="symbol required")
+    at = _replay_playhead()
+    if at is not None:
+        return _replay_pillars(sym, at)
     raw, source = find_board_row(sym, raw_boards())
     if raw is None:
         raw, source = quote_row(sym, live_quote(sym)), SOURCE_QUOTE
@@ -165,7 +170,33 @@ def watchlist_one(symbol: str) -> dict:
         ranked = [e.symbol for e in build_watchlist(_watchlist_universe())]
         rank = ranked.index(sym) + 1 if sym in ranked else None
     [entry] = _attach_catalysts([score_watchlist_entry(row).to_dict()])
-    return {"note": _TRANSPARENCY_NOTE, "symbol": sym, "source": source, "rank": rank, "entry": entry}
+    return {"note": _TRANSPARENCY_NOTE, "symbol": sym, "source": source, "rank": rank, "entry": entry, "replay": None}
+
+
+def _replay_playhead() -> float | None:
+    from sim.replay_playhead import replay_playhead
+
+    return replay_playhead()
+
+
+def _replay_pillars(sym: str, at: float) -> dict:
+    """One symbol's pillars on a Sim replay desk: its own row on the replayed day's board at ``at``.
+
+    Nothing of today's: no scanner cache, no fundamentals, no live catalyst verdict and no Contenders
+    rank (``rank`` is null; the row's place on its board is ``replay.board_rank``). No row at the
+    playhead is ``entry: null`` with the reason in ``replay.absent`` -- never a grade from today.
+    """
+    from leaderboard import playback
+    from leaderboard.rows import session_date_for
+
+    day = session_date_for(at)
+    found, replay = replay_view(sym, day, at, playback.board_at(day, at))
+    entry = None
+    if found is not None:
+        entry = score_watchlist_entry(_graded(found)).to_dict()
+        entry["catalyst"] = _compact_catalyst(found.get("catalyst"))
+    return {"note": _TRANSPARENCY_NOTE, "symbol": sym, "source": "replay", "rank": None, "entry": entry,
+            "replay": replay}
 
 
 @router.get("/setups/{symbol}")

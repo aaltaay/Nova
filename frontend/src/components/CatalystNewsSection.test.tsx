@@ -53,6 +53,39 @@ describe('CatalystNewsSection', () => {
   });
 });
 
+describe('CatalystNewsSection on a Sim replay desk (operator report, 2026-10-12)', () => {
+  // 2026-07-15 07:20:26 ET, the replayed playhead.
+  const at = Date.UTC(2026, 6, 15, 11, 20, 26) / 1000;
+
+  it("says which moment the news is from and ages items against the playhead, not the wall clock", () => {
+    const replay: CatalystPanel = {
+      ...panel, generated_at: at, window_start: at - 15 * 3600,
+      verdict: { ...panel.verdict!, published_ts: at - 900 },
+      items: [{ ...panel.items[1], published_ts: at - 900 }],
+      items_total: 1,
+      replay: { session_date: '2026-07-15', at, on_file: true },
+    };
+    render(<CatalystNewsSection panel={replay} />);
+    fireEvent.click(screen.getByRole('button', { name: /News/ }));
+    expect(screen.getByTestId('cn-replay').textContent).toBe("As known at Jul 15 07:20 ET -- the catalyst backfill's items");
+    expect(screen.getAllByText(/15m ago/).length).toBeGreaterThan(0);
+  });
+
+  it(`states a day with no news on file as unknown, never today's news or "checking"`, () => {
+    const offFile: CatalystPanel = {
+      schema_version: 1, symbol: 'GRML', generated_at: at, window_start: at - 15 * 3600, verdict: null,
+      items: [], items_total: 0, replay: { session_date: '2026-07-15', at, on_file: false },
+    };
+    render(<CatalystNewsSection panel={offFile} />);
+    const line = `No news on file for GRML on Jul 15: unknown, not "no news". Today's news is not shown on a replay.`;
+    expect(screen.getByTitle(line).textContent).toBe(line);
+    fireEvent.click(screen.getByRole('button', { name: /News/ }));
+    expect(screen.getByTestId('cn-replay').textContent).toBe(line);
+    expect(screen.queryByText('Checking news since the prior close ...')).toBeNull();
+    expect(screen.queryByText('No company items since the prior close')).toBeNull();
+  });
+});
+
 describe('NewsCell with a verdict', () => {
   it('gives a movers-list row no flame even when an article exists', () => {
     const { container } = render(
