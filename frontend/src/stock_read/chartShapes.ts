@@ -249,7 +249,8 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   if (o.layers.setups) {
     if (held && o.pane === 'thin') lines.push(...heldLines(held));
     const boxedHere = boxed && (o.pane === 'full' || o.pane === 'thin');
-    const offHere = forming || triggered || o.pane === 'map';
+    // A hidden lane (or a strategy at Off) hides its box, and so its axis tags: four bare prices would say nothing.
+    const offHere = forming || triggered || o.pane === 'map' || (boxedHere && !leadShown);
     if (lv && !offHere) lines.push(...planLines(plan, lv, o.pane, boxedHere));
     if (o.pane === 'full') {
       // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.

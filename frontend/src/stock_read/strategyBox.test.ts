@@ -122,6 +122,27 @@ describe('the box once the setup is near or armed', () => {
     expect(map.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
     expect(map.scene.strategy ?? null).toBeNull();
   });
+
+  it("draws nothing of a hidden lane's box, not even its axis tags; an order's lines stay", () => {
+    const ids = ['entry', 'stop', 'target', 'target2'];
+    const armed: StockRead = { ...base, plan: { ...base.plan!, state: 'armed', provisional: false } };
+    const last = at955 + 40;
+    const lastBar = { t: last as Time, sec: etChartSeconds(last * 1000) };
+    const hidden = { ...LAYERS, hidden: ['bull_flag'] };
+    for (const pane of ['full', 'thin'] as const) {
+      const shown = paneDraw(armed, { pane, layers: LAYERS, toTime: identity, lastBar });
+      expect(shown.lines.filter(l => ids.includes(l.id)).map(l => l.id)).toEqual(ids);
+      const off = paneDraw(armed, { pane, layers: hidden, toTime: identity, lastBar });
+      expect(off.lines.filter(l => ids.includes(l.id))).toEqual([]);
+      expect(off.scene.strategy ?? null).toBeNull();
+    }
+    // An order behind a level is real: hiding the lane never hides what stands in the market.
+    const levels = { ...planLevels(armed.plan!), entry: { price: armed.plan!.entry!, behind: 'order' as const } };
+    const thin = paneDraw(armed, { pane: 'thin', layers: hidden, toTime: identity, lastBar, levels });
+    expect(thin.lines.filter(l => ids.includes(l.id)).map(l => [l.id, l.title])).toEqual([
+      ['entry', 'ENTRY · working'], ['stop', 'STOP · plan'], ['target', 'TARGET 1 · plan'], ['target2', 'TARGET 2 · plan'],
+    ]);
+  });
 });
 
 describe("the strategy box's scene", () => {

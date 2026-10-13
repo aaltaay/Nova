@@ -244,7 +244,8 @@ specifically?"; of three mockups -- the plan on the 1-minute chart only, the str
 chart's box -- the box): a setup's plan with nothing behind it is its strategy box, named, after the 10-second chart's
 own newest candle, its window counted in 10-second candles (`strategyBox.strategyOnBars`), faint while forming, in full
 colour once near or armed with its prices as axis tags, gone once it triggers; a view that follows the live edge
-slides over to give it the same room as on the 1-minute chart. A level an order or a position stands behind is a thin
+slides over to give it the same room as on the 1-minute chart. A lane hidden, or a strategy at Off, draws neither its
+box nor its axis tags on either chart. A level an order or a position stands behind is a thin
 line named as the 1-minute chart names it ("ENTRY · working", "STOP · plan", "TARGET 1 · plan"), with its axis tag. The
 **5-minute chart never draws the 1-minute plan**: it draws its own 5-minute setups' trigger, stop and target, each
 named, and two sets of the same blue, red and green dashes read as one; its Key lists no plan. The daily chart marks
