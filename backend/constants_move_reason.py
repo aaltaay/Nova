@@ -1,12 +1,14 @@
 """Why it's moving (ADR 028): the rule thresholds and the borrow feed's settings.
 
 The thresholds are a trader's rules of thumb, not fitted parameters: a float under 10M is the operator's
-own low-float line (``LEADERS_RULES``), a squeeze needs shorts worth a fifth of the float or three days
-to cover, and a borrow fee of 50% a year is expensive.
+own low-float line (``LEADERS_RULES``), a squeeze needs shorts worth a fifth of the float -- or three days
+to cover with at least a tenth of the float short -- and a borrow fee of 50% a year is expensive.
 """
 from __future__ import annotations
 
-MOVE_RULES_VERSION = "move-rules-v2-2026-10-02"  # v2: a filed share issuance makes the float unknown
+MOVE_RULES_VERSION = "move-rules-v3-2026-10-12"  # v3: days to cover counts only with a tenth of the float short;
+# a Sim replay desk is not read
+# v2 (2026-10-02): a filed share issuance makes the float unknown
 MOVE_SCHEMA_VERSION = 1
 
 # Likely causes, in the order the rules try them.
@@ -19,6 +21,10 @@ MOVE_KIND_SPLIT_SQUEEZE = "split_squeeze"
 MOVE_KIND_LOW_FLOAT_MOMENTUM = "low_float_momentum"
 MOVE_KIND_THIN_TRADING = "thin_trading"
 MOVE_KIND_UNEXPLAINED = "unexplained"
+# Not a cause: a Sim replay desk, where every fact the read holds is today's (``routes.not_read_on_replay``).
+MOVE_KIND_NOT_READ = "not_read"
+MOVE_NOT_READ_REPLAY_DETAIL = ("Its facts are today's -- the news verdict, Yahoo's float and short interest, IBKR's "
+                               "borrow -- so a past moment is not read. Back at the live edge it reads again.")
 
 MOVE_STATE_YES = "yes"
 MOVE_STATE_NO = "no"
@@ -35,7 +41,8 @@ MOVE_ROTATION_THIN = 0.1               # under a tenth of the float traded: thin
 MOVE_RVOL_SQUEEZE = 3.0                # ... or three times the usual volume
 MOVE_RVOL_THIN = 1.0                   # below the usual volume
 MOVE_SHORT_PCT_HIGH = 0.20             # shorts worth a fifth of the float
-MOVE_DAYS_TO_COVER_HIGH = 3.0
+MOVE_DAYS_TO_COVER_HIGH = 3.0          # ... or three days to cover (Yahoo's ratio, over the pre-run volume) ...
+MOVE_SHORT_PCT_WITH_DTC = 0.10         # ... counted only with a tenth of the float short (proposed 2026-10-12)
 MOVE_BORROW_FEE_HIGH = 50.0            # IBKR's annual fee, percent
 MOVE_BORROW_FEE_JUMP = 2.0             # the fee doubled since the open ...
 MOVE_BORROW_FEE_JUMP_MIN = 20.0        # ... and is at least 20%

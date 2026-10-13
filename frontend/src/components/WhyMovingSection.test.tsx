@@ -61,6 +61,22 @@ describe('WhyMovingSection', () => {
     expect(screen.getByText("Reading the move ...")).toBeTruthy();
   });
 
+  it('a Sim replay desk names the replayed day and shows no rules note over no checks', () => {
+    const replay: WhyMovingRead = {
+      ...mss,
+      likely: { kind: 'not_read', label: 'Not read on a Sim replay of Oct 2', confidence: 'likely',
+        detail: "Its facts are today's -- the news verdict, Yahoo's float and short interest, IBKR's borrow -- so a past moment is not read. Back at the live edge it reads again." },
+      checks: [],
+    };
+    render(<WhyMovingSection read={replay} />);
+    expect(screen.getByText('Not read on a Sim replay of Oct 2')).toBeTruthy();
+    expect(screen.queryByText('possible')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Why it's moving/ }));
+    expect(screen.getByText(/Back at the live edge it reads again/)).toBeTruthy();
+    expect(document.querySelectorAll('.wm-check')).toHaveLength(0);
+    expect(screen.queryByText(/rules read of the facts below/)).toBeNull();
+  });
+
   it('keeps the last read on screen when a poll fails', () => {
     render(<WhyMovingSection read={mss} error="Move read failed: HTTP 500" />);
     fireEvent.click(screen.getByRole('button', { name: /Why it's moving/ }));

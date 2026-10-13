@@ -6,8 +6,8 @@ that decided it and where it came from; an unknown fact stays unknown. The likel
   not_moving          under ``MOVE_MIN_CHANGE`` either way
   news_pending        halted for news, the release still to come
   news                a catalyst or dilution since the prior close
-  short_squeeze       up; shorts heavy (20% of float or 3 days to cover) and borrow stressed
-                      (a 50% fee, a fee doubled since the open, lendable shares gone or scarce), on volume
+  short_squeeze       up; shorts heavy (20% of float, or 3 days to cover with 10% of float short) and borrow
+                      stressed (a 50% fee, a fee doubled since the open, lendable shares gone or scarce), on volume
   routine_news        only a routine company item came out
   split_squeeze       up; a reverse split in the last ten days, a low float, the float turned over 3x
   low_float_momentum  up; a low float turned over 3x, no news
@@ -19,6 +19,8 @@ A squeeze is never called from price alone: without short interest and borrow da
 An 8-K since the prior session's open that says shares were issued (``shares_issued``) makes Yahoo's float
 unknown here, so low-float momentum is never called on a float the filings say is out of date. The prior
 session's own release (the verdict's ``prior_session``) is named, never counted as today's news.
+
+maintainer: one-concern every check and the cause they decide read one facts dict, and an unknown stays unknown in both
 """
 from __future__ import annotations
 
@@ -52,6 +54,7 @@ from constants_move_reason import (
     MOVE_RVOL_SQUEEZE,
     MOVE_RVOL_THIN,
     MOVE_SHORT_PCT_HIGH,
+    MOVE_SHORT_PCT_WITH_DTC,
     MOVE_SPLIT_RECENT_DAYS,
     MOVE_STATE_NO,
     MOVE_STATE_UNKNOWN,
@@ -239,15 +242,29 @@ def _short(pct: float | None, dtc: float | None, si: float | None, as_of: float 
            above_float: str | None = None) -> dict[str, Any]:
     """``as_of`` is the FINRA settlement date Yahoo's short interest is from (#532). Days to cover is
     Yahoo's short ratio -- short interest over Yahoo's average volume, not FINRA's figure -- and says so.
-    ``above_float`` is the short-above-float warning's reason: added to the detail, never a state."""
+    ``above_float`` is the short-above-float warning's reason: added to the detail, never a state.
+
+    Heavy is a fifth of the float short, or three days to cover with a tenth of the float short. Days to
+    cover alone never decides: it divides by the volume from before the run, so a dormant stock's handful
+    of shares reads as days of covering (PFAI 2026-10-07: 9,077 shares short, 0.25% of its float, read 9.1
+    days to cover on a day it traded 27M shares). Without the share of the float the state is unknown --
+    a fifth of the float can be short on any days to cover."""
     src = ("FINRA short interest via Yahoo (twice a month, about two weeks late); "
            "days to cover is Yahoo's short ratio, over Yahoo's average volume")
     if pct is None and dtc is None:
         return _check("short_interest", "Short interest", MOVE_STATE_UNKNOWN, "Unknown", None, src)
-    heavy = (pct is not None and pct >= MOVE_SHORT_PCT_HIGH) or (dtc is not None and dtc >= MOVE_DAYS_TO_COVER_HIGH)
+    dtc_high = dtc is not None and dtc >= MOVE_DAYS_TO_COVER_HIGH
+    note = None
+    if pct is None:
+        state, note = MOVE_STATE_UNKNOWN, "The share of the float short is unknown"
+    else:
+        heavy = pct >= MOVE_SHORT_PCT_HIGH or (dtc_high and pct >= MOVE_SHORT_PCT_WITH_DTC)
+        state = MOVE_STATE_YES if heavy else MOVE_STATE_NO
+        if dtc_high and not heavy:
+            note = f"Days to cover counts only with {MOVE_SHORT_PCT_WITH_DTC * 100:.0f}% of the float short"
     parts = []
     if pct is not None:
-        parts.append(f"{pct * 100:.0f}% of float")
+        parts.append(f"{_share(pct)} of float")
     if dtc is not None:
         parts.append(("under 0.1 days to cover" if dtc < 0.1 else f"{dtc:.1f} days to cover") + " (Yahoo ratio)")
     detail = None
@@ -255,8 +272,15 @@ def _short(pct: float | None, dtc: float | None, si: float | None, as_of: float 
         detail = f"{shares(si)} shares short" + (f", FINRA settlement {_day(as_of)}" if as_of is not None else "")
         if above_float:
             detail = f"{detail}. {above_float}"
-    return _check("short_interest", "Short interest", MOVE_STATE_YES if heavy else MOVE_STATE_NO, " · ".join(parts),
-                  detail, src, as_of)
+    detail = ". ".join(d for d in (detail, note) if d) or None
+    return _check("short_interest", "Short interest", state, " · ".join(parts), detail, src, as_of)
+
+
+def _share(p: float) -> str:
+    """29%, 5.4%, 0.3%: a share under a tenth keeps a decimal, so a few shares short never reads 0%."""
+    if p >= 0.1:
+        return f"{p * 100:.0f}%"
+    return f"{p * 100:.1f}%" if p >= 0.001 else "under 0.1%"
 
 
 def _day(ts: float) -> str:

@@ -20,6 +20,7 @@ export const WHY_MOVING_TONES: Record<string, string> = {
   thin_trading: 'muted',
   unexplained: 'muted',
   not_moving: 'muted',
+  not_read: 'muted',
 };
 
 /** A check's state as the row marks it. */

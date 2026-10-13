@@ -15,7 +15,8 @@ export interface WhyCheck {
 }
 
 export interface WhyLikely {
-  /** not_moving | news_pending | news | short_squeeze | routine_news | split_squeeze | low_float_momentum | thin_trading | unexplained */
+  /** not_moving | news_pending | news | short_squeeze | routine_news | split_squeeze | low_float_momentum | thin_trading | unexplained,
+   * or not_read (a Sim replay desk: no checks, the reason in `detail`) */
   kind: string;
   label: string;
   detail: string | null;
