@@ -5,6 +5,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useIbkrDepth } from './useIbkrDepth';
+import refusedFrames from './__fixtures__/depth_refused_frames.json';
+import { resetViewRegistryForTests, viewLockLabel, viewLockReason } from '../market_view/viewRegistry';
 
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
@@ -66,6 +68,7 @@ describe('useIbkrDepth lifecycle', () => {
   beforeEach(() => {
     FakeWebSocket.instances = [];
     latest = null;
+    resetViewRegistryForTests();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -157,6 +160,94 @@ describe('useIbkrDepth lifecycle', () => {
     }
     expect(waits).toEqual([1_000, 2_000, 4_000, 5_000, 5_000]);
     expect(latest?.error).toContain('No Level 2 line free');
+  });
+
+  // The backend's frames for a 309, written by its own socket route (backend/tests/test_depth_wire_fixture.py,
+  // the same order as the desk's live capture at 17:41 ET on 2026-10-13, VLO): `subscribed` goes out before
+  // IBKR answers, then the refusal and the close. v1275 asked every 1.2 s (BKYI 232 refusals in 275 s),
+  // because `subscribed` reset the backoff the refusal had grown; this file's old fake sent no `subscribed`.
+  const refusedLikeTheBackend = (symbol: string) => act(() => {
+    const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1];
+    ws.onopen?.({});
+    for (const frame of refusedFrames.frames as Array<Record<string, unknown>>) {
+      if (frame.closed) ws.onclose?.({});
+      else ws.onmessage?.({ data: JSON.stringify({ ...frame, symbol }) });
+    }
+  });
+
+  it('backs off a 309 the backend announced as subscribed first (BKYI / VLO 2026-10-13)', () => {
+    renderSymbol('VLO');
+    const waits: number[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      refusedLikeTheBackend('VLO');
+      const before = FakeWebSocket.instances.length;
+      let waited = 0;
+      while (FakeWebSocket.instances.length === before && waited < 40_000) {
+        act(() => {
+          vi.advanceTimersByTime(500);
+        });
+        waited += 500;
+      }
+      waits.push(waited);
+    }
+    expect(waits).toEqual([1_000, 2_000, 4_000, 5_000, 5_000]);
+    expect(latest?.error).toContain('IB error 309');
+  });
+
+  it('a refused Level 2 locks orders steadily, says no Level 2 with IBKR\'s reason, and a book clears it', () => {
+    // v1275 read "Level 2 is behind the market: no word from Nova" 750 ms into each retry, and open before it.
+    renderSymbol('VLO');
+    const t0 = Date.now();
+    refusedLikeTheBackend('VLO');
+    for (let ms = 0; ms <= 6_000; ms += 200) {
+      const why = viewLockReason('VLO', t0 + ms);
+      expect(why).toContain('No Level 2 for VLO: IBKR refused this Level 2 (IB error 309)');
+      expect(why).not.toContain('behind the market');
+    }
+    expect(viewLockLabel(viewLockReason('VLO', t0)!)).toBe('No Level 2 · locked');
+
+    // The retry's `subscribed` (sent before IBKR answers) does not open it; the first book does.
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1];
+    act(() => {
+      ws.onmessage?.({ data: JSON.stringify({ type: 'subscribed', symbol: 'VLO', instance: 'x' }) });
+    });
+    expect(viewLockReason('VLO')).toContain('No Level 2 for VLO');
+    act(() => {
+      ws.onmessage?.({
+        data: JSON.stringify({ type: 'book', symbol: 'VLO', seq: 1, at: 1, sent: Date.now() / 1000,
+          data: { bids: [{ price: 456, size: 100 }], asks: [], l1_fallback: false } }),
+      });
+    });
+    expect(viewLockReason('VLO')).toBeNull();
+  });
+
+  it('a book proves the line: the next drop retries after 1 s again', () => {
+    renderSymbol('VLO');
+    refusedLikeTheBackend('VLO');
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    refusedLikeTheBackend('VLO');
+    act(() => {
+      vi.advanceTimersByTime(2_000);
+    });
+    const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1];
+    act(() => {
+      ws.onmessage?.({ data: JSON.stringify({ type: 'subscribed', symbol: 'VLO', instance: 'x' }) });
+      ws.onmessage?.({
+        data: JSON.stringify({ type: 'book', symbol: 'VLO', seq: 1, at: 1, sent: Date.now() / 1000,
+          data: { bids: [{ price: 456, size: 1 }], asks: [], l1_fallback: false } }),
+      });
+      ws.onclose?.({});
+    });
+    const before = FakeWebSocket.instances.length;
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(FakeWebSocket.instances.length).toBe(before + 1);
   });
 
   it('folds the book watcher frames and starts over for another symbol', () => {

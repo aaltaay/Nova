@@ -10,14 +10,13 @@ from typing import Any
 
 from constants import (
     IBKR_DEPTH_NUM_ROWS,
-    IBKR_DEPTH_SMART,
     IBKR_ERROR_DEPTH_MAX_LINES,
     IBKR_ERROR_DEPTH_NOT_SUPPORTED,
     IBKR_ERROR_DEPTH_RESET,
 )
 from ibkr import client as _client
 from ibkr import feed_pulse, stray_lines
-from ibkr.depth import state
+from ibkr.depth import release, state
 from ibkr.depth.book import Level, sort_levels
 from metrics.op_metrics import timed_fn
 
@@ -165,7 +164,7 @@ def install_error_hook(ib: Any) -> None:
         return
     ib.errorEvent += on_ib_error
     state._error_hooked_ib_ids.add(id(ib))
-    stray_lines.install(ib)  # a Level 2 line IBKR grants after Nova's cancel is cancelled again
+    release.install(ib)  # IBKR's answers: a let-go request is cancelled only once IBKR has answered it
 
 
 def _line_of_request(req_id: int, con_id: Any) -> str | None:
@@ -219,22 +218,12 @@ def on_ib_error(reqId: int, errorCode: int, errorString: str, contract: Any) -> 
             return
 
 
-def _cancel_depth(ib: Any, contract: Any, symbol: str) -> None:
-    stray_lines.note_depth_cancel(ib, contract, symbol, IBKR_DEPTH_SMART)
-    try:
-        ib.cancelMktDepth(contract, isSmartDepth=IBKR_DEPTH_SMART)
-    except Exception as exc:
-        logger.debug(
-            "IBKR: cancelMktDepth during cleanup for %s ignored: %s",
-            symbol, exc,
-        )
-
-
 def fallback_to_l1(symbol: str, contract: Any) -> None:
     ib = _client.get_ib()
     if ib is None or symbol not in state._subscriptions:
         return
-    _cancel_depth(ib, contract, symbol)
+    # 10092: IBKR refused depth for this stock, so it holds no line -- the request is dropped, never cancelled.
+    release.forget(ib, contract)
     try:
         from ibkr import ticks as _ticks
 

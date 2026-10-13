@@ -7,7 +7,8 @@ printing (47,749 prints on request ids Nova no longer knew). And a refused line 
 ladder as "Waiting for book data..." for good.
 
 These tests drive the pinned ib_async's own IB, registry, decoder and error path, with only the
-socket stubbed.
+socket stubbed. On the live Gateway that evening a second cancel did not free a Level 2 line granted
+after Nova's cancel; ``ibkr/depth/release.py`` keeps that from happening (``test_depth_release.py``).
 """
 from __future__ import annotations
 
@@ -76,61 +77,6 @@ def _print(ib: IB, req_id: int) -> None:
     ib.client.decoder.tickByTick(["99", str(req_id), "2", "1791900000", "6.20", "100", "0", "NASDAQ", ""])
 
 
-# ── Level 2: a grant after Nova's cancel ──────────────────────────────────────
-
-
-def test_a_level_2_line_granted_after_nova_cancelled_it_is_cancelled_again(clock):
-    ib, sent = _ib()
-    stray_lines.install(ib)
-    yhc = _stock("YHC", 900205557)
-    ib.reqMktDepth(yhc, numRows=10, isSmartDepth=IBKR_DEPTH_SMART)
-    req_id = sent["depth"][-1]
-
-    stray_lines.note_depth_cancel(ib, yhc, "YHC", IBKR_DEPTH_SMART)  # auto-record let go 0.75 s in
-    ib.cancelMktDepth(yhc, isSmartDepth=IBKR_DEPTH_SMART)
-    assert sent["depth_cancel"] == [(req_id, IBKR_DEPTH_SMART)]
-
-    clock.now += 1.5  # IBKR answers after the cancel
-    ib.wrapper.error(req_id, IBKR_NOTICE_DEPTH_EXCHANGES, GRANT_TEXT, "")
-    assert sent["depth_cancel"] == [(req_id, IBKR_DEPTH_SMART)] * 2
-    view = stray_lines.view()
-    assert view["recancelled"] == {"depth": 1, "tape": 0}
-    assert view["last"] == {"kind": "depth", "symbol": "YHC", "req_id": req_id, "at": clock.now}
-
-
-def test_the_grant_of_a_line_nova_still_holds_is_left_alone():
-    ib, sent = _ib()
-    stray_lines.install(ib)
-    ib.reqMktDepth(_stock("JBDI", 896717191), numRows=10, isSmartDepth=IBKR_DEPTH_SMART)
-    ib.wrapper.error(sent["depth"][-1], IBKR_NOTICE_DEPTH_EXCHANGES, GRANT_TEXT, "")
-    assert sent["depth_cancel"] == []
-    assert stray_lines.view() == {"recancelled": {"depth": 0, "tape": 0}, "last": None}
-
-
-def test_a_grant_on_a_request_nova_never_cancelled_is_not_touched():
-    ib, sent = _ib()
-    stray_lines.install(ib)
-    ib.wrapper.error(4242, IBKR_NOTICE_DEPTH_EXCHANGES, GRANT_TEXT, "")
-    assert sent["depth_cancel"] == []
-
-
-def test_a_line_is_cancelled_again_at_most_once_per_window(clock):
-    ib, sent = _ib()
-    stray_lines.install(ib)
-    pdsb = _stock("PDSB", 357194949)
-    ib.reqMktDepth(pdsb, numRows=10, isSmartDepth=IBKR_DEPTH_SMART)
-    req_id = sent["depth"][-1]
-    stray_lines.note_depth_cancel(ib, pdsb, "PDSB", IBKR_DEPTH_SMART)
-    ib.cancelMktDepth(pdsb, isSmartDepth=IBKR_DEPTH_SMART)
-
-    ib.wrapper.error(req_id, IBKR_NOTICE_DEPTH_EXCHANGES, GRANT_TEXT, "")
-    ib.wrapper.error(req_id, IBKR_NOTICE_DEPTH_EXCHANGES, GRANT_TEXT, "")
-    assert len(sent["depth_cancel"]) == 2  # Nova's cancel, then one again
-    clock.now += IBKR_STRAY_LINE_RECANCEL_SEC + 0.1
-    ib.wrapper.error(req_id, IBKR_NOTICE_DEPTH_EXCHANGES, GRANT_TEXT, "")
-    assert len(sent["depth_cancel"]) == 3
-
-
 # ── Time & Sales: prints on a line Nova cancelled ─────────────────────────────
 
 
@@ -154,7 +100,7 @@ def test_prints_on_a_cancelled_time_and_sales_line_cancel_it_again(clock, caplog
         for _ in range(50):
             _print(ib, req_id)
     assert sent["tape_cancel"] == [req_id, req_id]  # one more, not fifty
-    assert stray_lines.view()["recancelled"] == {"depth": 0, "tape": 1}
+    assert stray_lines.view()["recancelled"] == {"tape": 1}
     assert stray_lines.view()["last"]["symbol"] == "NB"
     assert "Unknown reqId" not in caplog.text  # the print is dropped, not logged fifty times
     assert "kept printing NB's Time & Sales" in caplog.text
@@ -261,22 +207,25 @@ def test_a_refusal_of_an_older_request_leaves_the_newer_line_alone(depth):
     depth_mod, ib, sent = depth
     assert _subscribe(depth_mod, "JBDI")["ok"] is True
     first = sent["depth"][-1]
+    ib.wrapper.error(first, IBKR_NOTICE_DEPTH_EXCHANGES, GRANT_TEXT, "")  # granted, so letting go cancels it
     depth_mod.unsubscribe("JBDI")
     assert _subscribe(depth_mod, "JBDI")["ok"] is True
+    assert sent["depth"][-1] != first
     ib.wrapper.error(first, IBKR_ERROR_DEPTH_MAX_LINES, REFUSED_TEXT, "")
     assert depth_mod.is_subscribed("JBDI") is True
 
 
-def test_a_level_2_line_nova_lets_go_is_cancelled_again_when_ibkr_grants_it_late(depth, clock):
+def test_a_level_2_line_nova_lets_go_before_ibkr_answers_is_cancelled_on_the_grant(depth, clock):
+    """BKYI: let go 0.75 s in, granted 2.2 s in. The cancel waits for the grant, so nothing is held."""
     depth_mod, ib, sent = depth
     assert _subscribe(depth_mod, "BKYI")["ok"] is True
     req_id = sent["depth"][-1]
     depth_mod.unsubscribe("BKYI")
-    assert sent["depth_cancel"] == [(req_id, IBKR_DEPTH_SMART)]
+    assert sent["depth_cancel"] == []
 
     clock.now += 2.2
     ib.wrapper.error(req_id, IBKR_NOTICE_DEPTH_EXCHANGES, GRANT_TEXT, "")
-    assert sent["depth_cancel"] == [(req_id, IBKR_DEPTH_SMART)] * 2
+    assert sent["depth_cancel"] == [(req_id, IBKR_DEPTH_SMART)]  # after the grant: the order that frees it
 
 
 def test_a_ladder_whose_line_was_refused_before_its_socket_was_ready_hears_why(monkeypatch):

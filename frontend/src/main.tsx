@@ -52,6 +52,11 @@ async function bootstrap(): Promise<void> {
     ({ startPerfReporter }) => startPerfReporter(),
     (err) => console.debug('[Nova] perf reporter did not start', err),
   );
+  // ADR 045: every order-lock flip goes to the backend log, with its reason (the sample desk sends none).
+  void import('./market_view/lockReport').then(
+    ({ startViewLockReport }) => startViewLockReport(),
+    (err) => console.debug('[Nova] order lock report did not start', err),
+  );
   // ADR 033: this window's focus report -- page, symbol, Windows focus, last input (the sample desk sends none).
   void import('./focus_report/focusReporter').then(
     ({ startFocusReporter }) => startFocusReporter(),

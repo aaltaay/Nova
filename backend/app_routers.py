@@ -19,6 +19,7 @@ from routes.health import router as health_router
 from routes.scan import router as scan_router
 from routes.hod_momo import router as hod_momo_router, ws_router as hod_momo_ws_router
 from routes.client_errors import router as client_errors_router
+from routes.market_view_lock import router as market_view_lock_router
 from routes.nova_os import router as nova_os_router
 from routes.archive import router as archive_router
 from routes.backtest import router as backtest_router
@@ -80,6 +81,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(hod_momo_router)
     app.include_router(hod_momo_ws_router)
     app.include_router(client_errors_router)
+    app.include_router(market_view_lock_router)
     app.include_router(nova_os_router)
     app.include_router(archive_router)
     app.include_router(backtest_router)

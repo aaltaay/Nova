@@ -60,6 +60,8 @@ _refused: dict[str, tuple[float, str]] = {}
 
 # Tracks which `ib` connections already have the depth-rejection error hook.
 _error_hooked_ib_ids: set[int] = set()
+# symbol -> the IB its Level 2 request was made on, so a line let go while IBKR is unreachable is held, not lost.
+_line_ibs: dict[str, Any] = {}
 
 # Symbols whose L1 fallback reuses ibkr.ticks' shared reqMktData stream
 # instead of opening a second one — see ibkr/depth/subscribe.py. unsubscribe()
@@ -83,6 +85,7 @@ def reset_all() -> None:
     _refused.clear()
     _error_hooked_ib_ids.clear()
     _shared_l1.clear()
+    _line_ibs.clear()
     _subscribe_lock = None
     _Stock = None
 
@@ -295,6 +298,16 @@ def close_viewer_queue(symbol: str, q: Any) -> None:
 
 def pop_contract(symbol: str) -> Any | None:
     return _contracts.pop(symbol, None)
+
+
+def note_line_ib(symbol: str, ib: Any) -> None:
+    """The IB whose registry holds the symbol's Level 2 request (``ibkr/depth/release.py`` lets it go there)."""
+    _line_ibs[symbol] = ib
+
+
+def pop_line_ib(symbol: str) -> Any | None:
+    """The IB that holds the symbol's request, even while the session is not READY (``get_ib`` is None then)."""
+    return _line_ibs.pop(symbol, None)
 
 
 def clear_symbol(symbol: str) -> None:

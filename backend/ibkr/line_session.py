@@ -102,6 +102,15 @@ def on_session_ready(gen: int) -> None:
     from ibkr import loop_supervisor
 
     logger.info("IBKR: session generation %s -- settling the tape and depth lines of the last one", gen)
+    try:
+        from ibkr import client
+        from ibkr.depth import release
+
+        ib = client.get_ib()
+        if ib is not None:
+            release.on_session_ready(ib)  # Level 2 requests let go while IBKR was unreachable
+    except Exception:
+        logger.exception("IBKR depth: could not settle the Level 2 requests held while IBKR was unreachable")
     loop_supervisor.publish_to_http(settle)
 
 

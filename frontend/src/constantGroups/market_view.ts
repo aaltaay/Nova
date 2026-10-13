@@ -18,5 +18,16 @@ export const VIEW_LOCK_TICK_MS = 200;
 export const VIEW_LOCK_TAIL = 'Orders are locked until it catches up. Flatten and cancels still work.';
 export const TICKET_VIEW_LOCKED_LABEL = 'Market view behind · locked';
 
+/**
+ * A Level 2 IBKR refused (309) or ended, with no book since (operator decision 2026-10-13, #913: lock, with the
+ * true reason). Not "behind": there is no Level 2 at all, so the lock says so and quotes IBKR's reason.
+ */
+export const LEVEL2_REFUSED_LEAD = 'No Level 2 for';
+export const LEVEL2_REFUSED_TAIL = 'Orders are locked until a Level 2 is live. Flatten and cancels still work.';
+export const TICKET_LEVEL2_REFUSED_LABEL = 'No Level 2 · locked';
+
+/** Each lock flip is written to the backend log (`backend/routes/market_view_lock.py`). */
+export const VIEW_LOCK_REPORT_PATH = '/market-view/lock';
+
 /** The backend's refusal codes (`market_view.gate`). */
 export const VIEW_REFUSAL_CODES = ['VIEW_STALE', 'ORDER_LATE', 'FEED_STALE', 'VIEW_MISSING'] as const;

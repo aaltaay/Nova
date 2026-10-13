@@ -11,10 +11,13 @@ import {
   noteBookFrame,
   noteBookShown,
   noteQuote,
+  noteRefused,
   noteSubscribed,
+  onViewLockFlip,
   recomputeViewLocks,
   resetViewRegistryForTests,
   subscribeViewLocks,
+  viewLockLabel,
   viewLockReason,
   viewStampFor,
 } from './viewRegistry';
@@ -107,5 +110,53 @@ describe('the view an order carries', () => {
     noteSubscribed('APUS', 'proc-1', T0);
     noteBookFrame('APUS', { seq: 3, at: T0 / 1000, sent: T0 / 1000 }, T0);
     expect(viewStampFor('APUS', T0, T0).book).toBeNull();
+  });
+});
+
+describe('a Level 2 IBKR refused (operator decision 2026-10-13, #913: lock, with the true reason)', () => {
+  const WHY = 'IBKR refused this Level 2 (IB error 309): all 3 of its Level 2 lines are in use.';
+
+  it('locks at once with the words IBKR gave, not "behind", whatever the socket says next', () => {
+    noteSubscribed('VLO', 'proc-1', T0);
+    noteRefused('VLO', WHY);
+    noteSubscribed('VLO', 'proc-1', T0 + 1_200); // the retry, said before IBKR answers again
+    const why = viewLockReason('VLO', T0 + 1_300);
+    expect(why).toBe(`No Level 2 for VLO: ${WHY} Orders are locked until a Level 2 is live. Flatten and cancels still work.`);
+    expect(viewLockLabel(why!)).toBe('No Level 2 · locked');
+  });
+
+  it('opens on the first book', () => {
+    noteRefused('VLO', WHY);
+    noteBookFrame('VLO', { seq: 1, at: T0 / 1000, sent: T0 / 1000 }, T0);
+    expect(viewLockReason('VLO', T0 + 100)).toBeNull();
+  });
+
+  it('tells the backend log each flip: locked with its reason, then open with how long it was locked', () => {
+    const flips: Array<[string, string | null, number | null]> = [];
+    onViewLockFlip((symbol, why, lockedFor) => flips.push([symbol, why, lockedFor]));
+    const stop = subscribeViewLocks(() => {});
+    noteRefused('VLO', WHY);
+    recomputeViewLocks(T0);
+    recomputeViewLocks(T0 + 400); // still locked, same reason: no second report
+    noteBookFrame('VLO', { seq: 1, at: T0 / 1000, sent: (T0 + 3_000) / 1000 }, T0 + 3_000);
+    noteBookShown('VLO', 1, 456, 457);
+    recomputeViewLocks(T0 + 3_000);
+    stop();
+    expect(flips).toHaveLength(2);
+    expect(flips[0][0]).toBe('VLO');
+    expect(flips[0][1]).toContain('No Level 2 for VLO');
+    expect(flips[1]).toEqual(['VLO', null, 3_000]);
+  });
+
+  it('a lock that turns from no Level 2 into a Level 2 behind is a new reason on the button', () => {
+    const flips: Array<string | null> = [];
+    onViewLockFlip((_s, why) => flips.push(why));
+    noteSubscribed('APUS', 'proc-1', T0);
+    noteRefused('APUS', WHY);
+    recomputeViewLocks(T0);
+    noteBookFrame('APUS', { seq: 1, at: T0 / 1000, sent: T0 / 1000 }, T0); // a book, then silence
+    recomputeViewLocks(T0 + VIEW_SILENT_LOCK_MS + 100);
+    expect(flips.map((w) => (w ? viewLockLabel(w) : null))).toEqual(['No Level 2 · locked', 'Market view behind · locked']);
+    expect(currentViewLock('APUS')).toContain('behind the market');
   });
 });
