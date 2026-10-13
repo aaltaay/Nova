@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-10-13 | [Level 2 stuck on "Waiting for book data…" (IBKR 309 audit)](2026-10-13-level2-waiting-forever-309-audit.md) | IBKR refused the depth line (309), Nova ignored it, and neither the order lock nor the gate notices a ladder with no book. |
 | 2026-10-05 | [Venue defaults and bot snapshot batch review](2026-10-05-venue-defaults-snapshot-review.md) | Verify #657/#658's remaining scope and prepare one grouped batch with per-venue defaults and stale-response fencing. |
 | 2026-10-05 | [GitHub restoration and backlog reconciliation](2026-10-05-backlog-reconciliation.md) | Restore issue writes, verify seventeen completed closures, account for local agents and preserve remaining evidence gates. |
 | 2026-09-19 | [Sim pause and play clock control](2026-09-19-sim-pause-play.md) | Freeze Sim clock/feed and resume from the same timestamp; local commit only. |
