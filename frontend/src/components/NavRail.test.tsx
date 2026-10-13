@@ -17,10 +17,11 @@ import {
 import { listScannerNavGroups } from '../workspace/registry';
 import { NavRail } from './NavRail';
 
-const { workspace, status, visibility } = vi.hoisted(() => ({
+const { workspace, status, visibility, followed } = vi.hoisted(() => ({
   workspace: { current: { selectedSymbol: 'AAPL' as string | null } },
   status: { current: {} as IbkrClientStatus },
   visibility: { current: {} as Record<string, boolean> },
+  followed: { current: false },
 }));
 
 vi.mock('../workspace/WorkspaceContext', () => ({
@@ -40,6 +41,10 @@ vi.mock('../capture/sessionRecordStore', async (importOriginal) => {
     },
   };
 });
+// Off unless a test turns it on: the backend has no followed traders feed by default.
+vi.mock('../followed_traders', () => ({
+  useFollowedTradersEnabled: () => followed.current,
+}));
 vi.mock('../workspace/useModuleVisibility', () => ({
   useModuleVisibility: () => ({ visibility: visibility.current, setVisible: () => {} }),
 }));
@@ -83,6 +88,7 @@ describe('NavRail', () => {
     workspace.current = { selectedSymbol: 'AAPL' };
     status.current = baseStatus();
     visibility.current = {};
+    followed.current = false;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -138,6 +144,20 @@ describe('NavRail', () => {
     const foot = rail.querySelector('.nav-rail__foot')!;
     expect(testIds(foot)).toEqual(['nav-rail-settings', 'nav-rail-collapse']);
     expect(q('nav-rail-settings')!.textContent).toMatch(/Settings/);
+  });
+
+  it('shows Followed traders after Cryptos only when the backend has a feed, and routes to its page', () => {
+    render();
+    expect(q('nav-rail-followed')).toBeNull();
+    followed.current = true;
+    render();
+    const top = testIds(container.querySelector('.nav-rail__list')!).filter((id) =>
+      ['nav-rail-cryptos', 'nav-rail-followed', 'nav-rail-account'].includes(id!),
+    );
+    expect(top).toEqual(['nav-rail-cryptos', 'nav-rail-followed', 'nav-rail-account']);
+    click('nav-rail-followed');
+    expect(getNavPage()).toBe('followed');
+    expect(q('nav-rail-followed')!.getAttribute('aria-current')).toBe('page');
   });
 
   it('builds the Scanner tree from the registry groups, in registry order, with group labels', () => {

@@ -35,7 +35,7 @@ export function focusViewOf(parts: FocusViewParts): FocusView {
     const symbol = parts.selectedSymbol;
     return { page: 'scanner', tab: parts.scannerTab, symbol, symbolSource: symbol ? 'scanner_row' : null, traderTabs: tabs };
   }
-  // Market, Cryptos, Account, Bots and Records are shell pages with no symbol of their own.
+  // Market, Cryptos, Followed traders, Account, Bots and Records are shell pages with no symbol of their own.
   const page = parts.navPage === 'dashboard' ? 'account' : parts.navPage;
   return { page, tab: null, symbol: null, symbolSource: null, traderTabs: tabs };
 }
