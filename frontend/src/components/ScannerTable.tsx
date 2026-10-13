@@ -6,6 +6,9 @@ import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from './scannerTableCol'
 import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import { SCANNER_VOLUME_COLUMN_LABEL } from '../constants';
 import { SCANNER_HEADER_SHORT_LABEL, SCANNER_VOLUME_HEADER_TITLE } from '../constantGroups/scanner_board';
+import { SCANNER_NEWS_COLUMN } from '../constantGroups/scanner_columns';
+import { CATALYST_COLUMN_TITLE } from '../constantGroups/whyMoving';
+import { CatalystPlayheadSync } from '../hooks/useCatalystRead';
 import type { ScannerRow, SortConfig } from '../types/scanner';
 
 export { NewsCell } from './NewsCell';
@@ -28,6 +31,8 @@ interface ScannerTableProps {
   rowQuoteTs?: Record<string, number>;
   /** Current clock (unix seconds) for per-row stale tint. */
   nowSec?: number;
+  /** The board shown (gappers | gainers | losers | afterhours | large_cap): each Catalyst cell reads its row there. */
+  board?: string | null;
 }
 
 export function ScannerTable({
@@ -36,6 +41,7 @@ export function ScannerTable({
   flashSymbols = {},
   rowQuoteTs = {},
   nowSec = 0,
+  board = null,
 }: ScannerTableProps) {
   // The gap bar scales to the largest |gap| on the list (the top row when
   // sorted by gap). No gap anywhere: no bars, just the numbers.
@@ -48,6 +54,7 @@ export function ScannerTable({
   }, [data]);
   return (
     <div className={SCANNER_TABLE_WRAPPER_CLASS}>
+      <CatalystPlayheadSync />
       <table>
         <ScannerColGroup columns={columns} />
         <thead>
@@ -59,7 +66,7 @@ export function ScannerTable({
                 data-col={key}
                 className={`sortable-th ${scannerColClass(key)}`}
                 onClick={() => onSort(key)}
-                title={key === 'volume' ? SCANNER_VOLUME_HEADER_TITLE : label}
+                title={key === 'volume' ? SCANNER_VOLUME_HEADER_TITLE : key === SCANNER_NEWS_COLUMN[0] ? CATALYST_COLUMN_TITLE : label}
                 aria-sort={
                   sortState.key === key
                     ? sortState.dir === 'asc' ? 'ascending' : 'descending'
@@ -96,6 +103,7 @@ export function ScannerTable({
                 flash={flashSymbols[sym]}
                 stale={isRowQuoteStale(row.symbol, rowQuoteTs, nowSec, pricesStale)}
                 gapScaleMax={gapScaleMax}
+                board={board}
               />
             );
           })}

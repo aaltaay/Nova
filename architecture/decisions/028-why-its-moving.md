@@ -85,3 +85,34 @@ Decisions inside it:
   leave no gap, and the feed's restarts do not make every past window "not read".
 
 Schema: `architecture/schema/stock-read.md`, "Why it's moving".
+
+## Amendment 2026-10-12 (3) -- the Catalyst column
+
+The operator asked for the News column to become **Catalyst** on every table and to name what is moving each
+stock that made the day's boards -- news when there is news, and otherwise the read's own cause (squeeze, split
+squeeze, low-float momentum, thin, unexplained) -- with a hover that "explains everything" and nothing made up
+(mockup v1 approved 2026-10-12). The read is the same rules read; three things are added:
+
+- **A batch read.** `GET /api/why?symbols=...&board=...` answers each symbol's read in one request (the
+  halt log is read once for all), so a 50-row board is one request; one symbol's failure is that symbol's.
+- **A board's row at its own price.** With `board`, each symbol's row on that board is read at the price the
+  row shows, and the L1 line's last trade is named beside it (`facts.last_trade`, `facts.priced_by`). The cell
+  explains the row it sits in: GIXI's frozen Gappers row read $6.08 (+56%) while its last trade an hour later
+  was $3.94 (+1.3%), and the Trader card's last-trade read called it "Not a big move" on the day it gapped on a
+  robot-delivery release. The Trader card keeps the last trade (the XRPN rule above).
+- **The ladder.** `likely.steps` lists the move and then every cause in the rules' order, each with whether it
+  fits (`true` / `false` / `null` when a fact it needs is unknown) and why, with the numbers and the threshold
+  ("Shorts 10% of float · 0.3 days to cover -- heavy is 20% of the float short, or 3+ days to cover with 10%+
+  short"). It is built from the same checks and thresholds as the cause (`move_reason/explain.py`); a test runs
+  every combination of the deciding facts and holds the first rung that fits to the cause.
+
+The cell keeps the News column's marks for news and adds one mark per cause; a `possible` cause is hollow and
+its word carries a "?". Until the read is in (and on an API without the batch route, or the sample desk) the
+cell shows the News column's own mark, never a guess. Rules v5. The same day the news classifier learnt the
+law-firm advert that read as NCPL's company news ("... Sued for Securities Law Violations - Contact the DJS
+Law Group to Discuss Your Rights", catalyst rules v9).
+
+Rejected: putting the read on every scanner row server-side (the read touches the halt log and the borrow
+record per symbol; on the scanner push that is the socket loop's time, #797); sorting the column by cause (the
+sort stays the newest headline, the column's old key); reading a frozen row at the last trade (the cell would
+contradict the row it sits in).

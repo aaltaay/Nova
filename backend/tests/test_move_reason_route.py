@@ -128,3 +128,60 @@ def test_halts_count_one_source():
     assert facts_mod.count_halts(events) == {"news": 1, "luld": 1, "volatility": 0, "other": 0,
                                              "source": "ibkr_ticker_halted"}
     assert facts_mod.count_halts([]) == {"news": 0, "luld": 0, "volatility": 0, "other": 0, "source": None}
+
+
+# -- GET /api/why?symbols=...&board=... (the Catalyst column) ------------------------------------------------
+def test_the_batch_reads_a_frozen_board_row_at_its_own_price(desk, monkeypatch):
+    """GIXI 2026-10-12: the Gappers board froze at $6.08 (+56%), while the L1 line's last trade was $3.94 (+1.3%).
+    The board's cell explains the row it sits in; the Trader card keeps reading the last trade."""
+    monkeypatch.setitem(_fundamentals_cache, "GIXI", {"float_shares": 631_799, "short_interest": 4_041,
+                                                      "short_ratio": 0.04, "last_split_factor": None})
+    monkeypatch.setitem(_fundamentals_cache, "MSS", {"float_shares": 300_081, "short_interest": 88_477,
+                                                     "short_ratio": 0.02, "last_split_factor": None})
+    quotes = {"GIXI": {"price": 3.94, "prev_close": 3.89, "last_trade_ts": NOW - 60, "volume": 12_001_142}}
+    monkeypatch.setattr("strategy.symbol_pillars.live_quote", lambda symbol: quotes.get(symbol))
+    desk.gapper_cache = [{"symbol": "GIXI", "price": 6.08, "prev_close": 3.89, "change_pct": 0.563,
+                          "volume": 12_000_000, "rel_volume": 139.0}]
+    desk.gainer_cache = [{"symbol": "MSS", "price": 2.32, "change_pct": 0.487, "volume": 94_510_260}]
+    halts(("GIXI", NOW - 3600, "LUDP", "LUDP", "nasdaq_trade_halt_rss"),
+          ("MSS", NOW - 1800, "LUDP", "LUDP", "nasdaq_trade_halt_rss"))
+
+    body = routes.why_many(["GIXI", "MSS"], board="gappers", now=NOW)
+
+    assert (body["board"], body["replay"], body["errors"]) == ("gappers", False, {})
+    gixi = body["reads"]["GIXI"]
+    assert (gixi["facts"]["board"], gixi["facts"]["priced_by"], gixi["facts"]["price"]) == ("gappers", "board_row", 6.08)
+    assert gixi["facts"]["change_pct"] == pytest.approx(0.563)
+    assert gixi["facts"]["last_trade"] == {"price": 3.94, "change_pct": pytest.approx(3.94 / 3.89 - 1), "ts": NOW - 60}
+    assert gixi["likely"]["kind"] != "not_moving" and gixi["likely"]["steps"][0]["why"] == "+56.3% today"
+    assert {c["id"]: c["value"] for c in gixi["checks"]}["halts"] == "LULD pause 1x"   # one read of the log for both
+    # MSS is not on Gappers: its read is the Trader card's (the first board that holds it).
+    mss = body["reads"]["MSS"]
+    assert (mss["facts"]["board"], mss["facts"]["priced_by"], mss["likely"]["kind"]) == ("gainers", "row", "short_squeeze")
+    # The single read (the Trader card) reprices the same row by the last trade.
+    card = routes.why("GIXI", NOW)
+    assert (card["facts"]["priced_by"], card["facts"]["price"], card["likely"]["kind"]) == ("last_trade", 3.94, "not_moving")
+
+
+def test_the_batch_refuses_what_it_cannot_read():
+    from fastapi import HTTPException
+
+    for kw in ({"symbols": " , "}, {"symbols": ",".join(f"S{i}" for i in range(81))},
+               {"symbols": "MSS", "board": "watchlist"}):
+        with pytest.raises(HTTPException) as err:
+            routes.why_batch_route(**kw)
+        assert err.value.status_code == 400
+
+
+def test_one_symbols_failed_read_is_its_own(desk, monkeypatch):
+    real = facts_mod.gather
+
+    def gather(sym, now=None, board=None, halts=None):
+        if sym == "BAD":
+            raise RuntimeError("no row")
+        return real(sym, now, board=board, halts=halts)
+
+    monkeypatch.setattr(facts_mod, "gather", gather)
+    body = routes.why_many(["BAD", "ZZZZ"], now=NOW)
+    assert body["reads"]["BAD"] is None and body["errors"] == {"BAD": "RuntimeError: no row"}
+    assert body["reads"]["ZZZZ"]["symbol"] == "ZZZZ"

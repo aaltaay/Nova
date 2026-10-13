@@ -740,3 +740,7 @@
   text-align: center;
 }
 
+
+/* Catalyst (was News, 2026-10-12): the word and its line, clipped to the column. */
+.hod-news-cell { max-width: 9.5rem; overflow: hidden; }
+.hod-news-cell .cc-cell { max-width: 9.5rem; }

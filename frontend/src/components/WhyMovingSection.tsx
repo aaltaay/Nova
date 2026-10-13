@@ -38,20 +38,31 @@ function etMoment(sec: number): string {
   return `${day} ${time} ET`;
 }
 
+/** "12m ago", "14h ago", "13 days ago": an as-of older than two days in days (a split, a FINRA settlement). */
+function ageWords(ts: number, nowMs: number): string {
+  const days = (nowMs - ts * 1000) / 86_400_000;
+  return days >= 2 ? `${Math.floor(days)} days ago` : agoLabel(ts, nowMs);
+}
+
 function rowTitle(c: WhyCheck, nowMs: number): string {
   const age = c.as_of != null ? `as of ${agoLabel(c.as_of, nowMs)}` : '';
   return [WHY_MOVING_STATE_TITLES[c.state], c.source, age].filter(Boolean).join(' · ');
 }
 
-function CheckRow({ c, nowMs }: { c: WhyCheck; nowMs: number }) {
+/** One check: its state, label, value and detail; `showSource` writes its source and age under it (the Catalyst
+ * hover, where a second tooltip cannot open), else they are the row's tooltip. */
+export function CheckRow({ c, nowMs, showSource = false }: { c: WhyCheck; nowMs: number; showSource?: boolean }) {
+  const age = c.as_of != null ? `as of ${ageWords(c.as_of, nowMs)}` : '';
   return (
-    <li className={`wm-check wm-check--${c.state}`} data-check={c.id} data-state={c.state} title={rowTitle(c, nowMs)}>
+    <li className={`wm-check wm-check--${c.state}`} data-check={c.id} data-state={c.state}
+      title={showSource ? undefined : rowTitle(c, nowMs)}>
       <span className="wm-check-mark" aria-label={WHY_MOVING_STATE_TITLES[c.state]}>
         {WHY_MOVING_STATE_MARKS[c.state] ?? '?'}
       </span>
       <span className="wm-check-label">{c.label}</span>
       <span className="wm-check-value">{c.value ?? '—'}</span>
       {c.detail && <span className="wm-check-detail">{c.detail}</span>}
+      {showSource && <span className="wm-check-detail wm-check-source">{[c.source, age].filter(Boolean).join(' · ')}</span>}
     </li>
   );
 }

@@ -50,8 +50,11 @@
   width: 2.4em;
 }
 
+/* Catalyst (was News, 2026-10-12): a mark, a word and a short second line, clipped with an ellipsis. */
 .table-wrapper--scanner .scanner-col--newest_headline_at {
-  width: 2.8rem;
+  width: 11rem;
+  max-width: 11rem;
+  overflow: hidden;
 }
 
 .table-wrapper--scanner .scanner-col--symbol {

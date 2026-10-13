@@ -39,6 +39,8 @@ from constants_leaderboard import (
     LEADERBOARD_SOURCE_RECORDED,
 )
 
+from constants_move_reason import MOVE_PRICED_BY_REPLAY
+
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 # The facts that make a read. Not the halt log: it is read for every day, so on its own a count of none says
@@ -81,13 +83,14 @@ def readable(facts: dict[str, Any]) -> bool:
     return any(facts.get(k) is not None for k in _FACTS)
 
 
-def gather(symbol: str, at: float) -> dict[str, Any]:
+def gather(symbol: str, at: float, board_name: str | None = None) -> dict[str, Any]:
+    """``board_name`` prefers that board's row at the playhead (the Catalyst column on a past day's board)."""
     sym = (symbol or "").strip().upper()
     day = datetime.fromtimestamp(at, ET).date()
     when = f"{_day(day)} {_clock(at)}"
     notes: dict[str, dict[str, Any]] = {}
 
-    board = _try("the board", lambda: _board_row(sym, at))
+    board = _try("the board", lambda: _board_row(sym, at, board_name))
     row, row_why = board if board is not None else (None, "Nova's board for the day could not be read")
     quote = _try("the replay", lambda: _replay_quote(sym)) or {}
     price, change, volume, vol_ts, vol_src = None, None, None, None, None
@@ -146,6 +149,9 @@ def gather(symbol: str, at: float) -> dict[str, Any]:
     return {
         "symbol": sym,
         "source": "replay",
+        "board": row.get("board") if row is not None else None,
+        "priced_by": MOVE_PRICED_BY_REPLAY,
+        "last_trade": None,
         "price": price,
         "change_pct": change,
         "volume": volume,
@@ -175,8 +181,9 @@ def _board_word(row: dict[str, Any]) -> str:
     return "recorded" if row.get("source") == LEADERBOARD_SOURCE_RECORDED else "rebuilt"
 
 
-def _board_row(sym: str, at: float) -> tuple[dict[str, Any] | None, str | None]:
-    """The symbol's row on the board at ``at`` (never after it) and the board's source, or the reason there is none."""
+def _board_row(sym: str, at: float, prefer: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
+    """The symbol's row on the board at ``at`` (never after it) and the board's source, or the reason there is none:
+    on ``prefer`` when that board holds it, else Gainers first."""
     from leaderboard.playback import board_at
 
     day = datetime.fromtimestamp(at, ET).date()
@@ -185,10 +192,10 @@ def _board_row(sym: str, at: float) -> tuple[dict[str, Any] | None, str | None]:
         reason = _GAP_WORDS.get(board["gap"].get("reason"), "Nova's board has a gap then")
         return None, f"No board row for {sym} at {_day(day)} {_clock(at)}: {reason}"
     boards = board.get("boards") or {}
-    for name in [LEADERBOARD_BOARD_GAINERS] + sorted(boards):
+    for name in ([prefer] if prefer else []) + [LEADERBOARD_BOARD_GAINERS] + sorted(boards):
         for r in (boards.get(name) or {}).get("rows") or []:
             if r.get("symbol") == sym:
-                return {**r, "source": board.get("source"), "minute_ts": board.get("minute_ts")}, None
+                return {**r, "source": board.get("source"), "minute_ts": board.get("minute_ts"), "board": name}, None
     return None, f"{sym} was on no Nova board at {_day(day)} {_clock(at)}"
 
 

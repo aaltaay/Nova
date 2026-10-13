@@ -1,6 +1,7 @@
 /** Shared scanner-table column tuples.
  *
- * News and Earnings are one definition used by Gappers / Gainers / Losers /
+ * Catalyst (was News: what is moving the stock, ADR 028 amendment 2026-10-12; its sort key stays the
+ * newest headline) and Earnings are one definition used by Gappers / Gainers / Losers /
  * Afterhours *and* Large Cap. Do not copy the tuples -- import these constants.
  * The key must match the ScannerRow field name; the label is the header text.
  *
@@ -12,8 +13,9 @@
  * (strategy/useWatchlistOverlay.ts). It was headed "Watch" until the
  * operator's own Watch list (watch_list/) took that word.
  */
+import { CATALYST_COLUMN_LABEL } from './whyMoving';
 
-export const SCANNER_NEWS_COLUMN: [string, string] = ['newest_headline_at', 'News'];
+export const SCANNER_NEWS_COLUMN: [string, string] = ['newest_headline_at', CATALYST_COLUMN_LABEL];
 export const SCANNER_EARNINGS_COLUMN: [string, string] = ['earnings_day_offset', 'Earnings'];
 
 /** Scanner sort keys holding ISO times: text, but their first click is newest first. */

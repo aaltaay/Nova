@@ -895,9 +895,10 @@ locked and says why: Nova never moves a Live order by itself, and a Live stop do
 "Why it's moving" section: `{schema_version: 1, symbol, generated_at, session_date, rules_version,
 replay: boolean, likely: {kind: "not_moving" | "news_pending" | "news" | "short_squeeze" | "routine_news" |
 "split_squeeze" | "low_float_momentum" | "thin_trading" | "unexplained" | "not_read", label, detail,
-confidence: "likely" | "possible"}, checks: [{id: "news" | "halts" | "float" | "float_rotation" |
+confidence: "likely" | "possible", steps: [{kind, name, fits: boolean | null, why}]}, checks: [{id: "news" | "halts" | "float" | "float_rotation" |
 "reverse_split" | "short_interest" | "borrow" | "volume", label, state: "yes" | "no" | "unknown",
-value: string | null, detail: string | null, source, as_of: number | null}], facts: {price,
+value: string | null, detail: string | null, source, as_of: number | null}], facts: {board: string | null,
+priced_by: "board_row" | "last_trade" | "row" | "quote" | "replay", last_trade: {price, change_pct, ts} | null, price,
 change_pct, volume, rel_volume, float_shares, float_contradicted, float_rotation, short_interest,
 short_interest_ts, short_above_float, short_pct_float, days_to_cover, split: {factor, ts, reverse,
 days_ago} | null,
@@ -983,6 +984,40 @@ once, and an answer in flight across the rewind is thrown away), and when the pl
 earlier playhead. Before this the card showed
 today's facts on a past day's desk: SDEV 2026-10-02 replayed on 2026-10-12 read "Not a big move today
 (-3.9%)", Oct 12's change.
+
+**The ladder** (`likely.steps`, rules v5, `move_reason/explain.py`): first `{kind: "move", name: "A real move"}`
+-- `fits` false under the 10% move line either way (the cause is then `not_moving`), null with no change on record
+-- then each cause in the order the rules try them (`news_pending`, `news`, `short_squeeze`, `routine_news`,
+`split_squeeze`, `low_float_momentum`, `thin_trading`, `unexplained`), each with `fits` (`true`, `false`, or
+`null` when a fact it needs is unknown) and `why`: the checks' own values with the threshold a failing part
+missed ("Shorts 10% of float · 0.3 days to cover (Yahoo ratio) -- heavy is 20% of the float short, or 3+ days to
+cover with 10%+ short"). It reads the same checks and thresholds as the cause: the first rung after the move that
+fits is `likely.kind` (`tests/test_move_reason_explain.py` runs every combination of the deciding facts). Empty
+on `not_read`.
+
+**The Catalyst column** (operator ask 2026-10-12, ADR 028 amendment (3)): `GET /api/why?symbols=A,B,...&board=...`
+answers `{schema_version: 1, rules_version, board, replay, generated_at, reads: {SYMBOL: <the read above> | null},
+errors: {SYMBOL: "Type: message"}}` -- the same read for up to `MOVE_BATCH_MAX_SYMBOLS` (80) symbols, the halt log
+read once for all; one symbol's failure is `null` with its error, never the batch's. `400` with no symbols, more
+than 80, or a `board` not in `MOVE_BATCH_BOARDS` (`gappers`, `gainers`, `losers`, `afterhours`, `large_cap`).
+With `board` each symbol's row on that board is read at the price the row shows (`priced_by: "board_row"`, a
+frozen board's own price) and `last_trade` names the L1 line's last trade beside it (GIXI 2026-10-12: its frozen
+Gappers row read $6.08, +56%; its last trade an hour later $3.94, +1.3%); a symbol the board does not hold is
+read as the single route reads it. Without `board`, `priced_by` is `last_trade` (a row repriced by the L1 line,
+the Trader card), `row` (no trade on the line) or `quote` (on no board); on a Sim replay it is `replay`, `board`
+the recorded board the row was read from (the named board first, else Gainers first), `last_trade` null.
+
+The column is the scanner boards' `newest_headline_at` column (its sort key unchanged), HOD Momo's `news`
+column, the Contenders' `news` column and the focus rail's news mark, headed **Catalyst**. One cell shows one
+cause: news keeps the News column's marks and words the catalyst class (`CATALYST_CATEGORY_SHORT`), and the other
+causes get their own mark and word with a short second line built from the read's checks; a `possible` cause is a
+hollow mark and its word carries "?". `not_moving` and `not_read` are a dash. The cells share one batch request
+per board (`frontend/src/hooks/whyBatchStore.ts`), read again every `WHY_MOVING_POLL_MS`, and on a Sim replay
+follow the playhead as the Trader card does (a rewind drops every read and any answer in flight). Hovering a cell
+opens everything behind it (`CatalystExplain`): the call, the price it was read at and why, the news with its
+class, source and time, the ladder up to the call (and later causes that fit too), and every check with its
+source and age. Until a read is in -- and on an API without the batch route, or the sample desk -- the cell shows
+the News column's own mark, never a guess.
 
 The borrow feed (`move_reason/borrow_feed.py`, always on; `NOVA_BORROW_FEED=0` off) polls IBKR's
 public short-stock file (`ftp://ftp2.interactivebrokers.com/usa.txt`, USD rows) every

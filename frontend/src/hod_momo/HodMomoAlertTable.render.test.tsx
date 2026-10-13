@@ -164,7 +164,7 @@ describe('HodMomoAlertTable news column', () => {
     });
 
     const newsTh = Array.from(container.querySelectorAll('th .th-inner')).find(
-      (el) => el.textContent?.includes('News'),
+      (el) => el.textContent?.includes('Catalyst'),
     );
     expect(newsTh).toBeTruthy();
     expect(newsTh?.getAttribute('title')).toBe(HOD_MOMO_COLUMN_TOOLTIPS.news);

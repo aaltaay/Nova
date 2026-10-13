@@ -62,6 +62,7 @@ from constants_move_reason import (
     MOVE_STATE_UNKNOWN,
     MOVE_STATE_YES,
 )
+from move_reason import explain
 
 ET = ZoneInfo("America/New_York")
 # The catalyst classes (constants_catalysts) as a trader says them.
@@ -364,8 +365,12 @@ def read(facts: dict[str, Any], now: float | None = None) -> dict[str, Any]:
     for c in checks:
         _annotate(c, notes.get(c["id"]))
     by = {c["id"]: c for c in checks}
-    return {"likely": _likely(change, by, rot, rvol, facts.get("catalyst")), "checks": checks,
-            "derived": {"float_rotation": rot, "short_pct_float": pct}}
+    verdict = facts.get("catalyst")
+    likely = _likely(change, by, rot, rvol, verdict)
+    # The ladder behind it (the Catalyst hover): every cause in this order, whether it fits and why.
+    likely["steps"] = explain.steps(change, by, rot, rvol, verdict,
+                                    _headline(verdict) if isinstance(verdict, dict) else None)
+    return {"likely": likely, "checks": checks, "derived": {"float_rotation": rot, "short_pct_float": pct}}
 
 
 def _annotate(c: dict[str, Any], note: Any) -> None:

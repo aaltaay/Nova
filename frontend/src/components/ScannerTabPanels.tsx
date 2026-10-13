@@ -146,6 +146,7 @@ export function ScannerTabPanels({
       <ScannerTable
         columns={SCANNER_COLUMNS}
         data={sortedGappers}
+        board="gappers"
         sortState={gapperSort}
         onSort={key => toggleSort(gapperSort, setGapperSort, key, gappersWithWatchlist)}
         selectedSymbol={selectedSymbol}
@@ -181,6 +182,7 @@ export function ScannerTabPanels({
       <ScannerTable
         columns={SCANNER_COLUMNS}
         data={sortedGainers}
+        board="gainers"
         sortState={gainerSort}
         onSort={key => toggleSort(gainerSort, setGainerSort, key, gainersWithWatchlist)}
         selectedSymbol={selectedSymbol}
@@ -203,6 +205,7 @@ export function ScannerTabPanels({
       <ScannerTable
         columns={SCANNER_COLUMNS}
         data={sortedLosers}
+        board="losers"
         sortState={loserSort}
         onSort={key => toggleSort(loserSort, setLoserSort, key, losersWithWatchlist)}
         selectedSymbol={selectedSymbol}
@@ -227,6 +230,7 @@ export function ScannerTabPanels({
           <ScannerTable
             columns={SCANNER_COLUMNS}
             data={sortedAfterhours}
+            board="afterhours"
             sortState={afterhoursSort}
             onSort={key => toggleSort(afterhoursSort, setAfterhoursSort, key, afterhoursWithWatchlist)}
             selectedSymbol={selectedSymbol}
@@ -253,6 +257,7 @@ export function ScannerTabPanels({
       <ScannerTable
         columns={LARGE_CAP_COLUMNS}
         data={sortedLargeCap}
+        board="large_cap"
         sortState={largeCapSort}
         onSort={key => toggleSort(largeCapSort, setLargeCapSort, key, largeCap)}
         selectedSymbol={selectedSymbol}

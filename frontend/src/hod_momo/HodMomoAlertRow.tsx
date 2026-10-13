@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
+import { CatalystCell } from '../components/CatalystCell';
 import { NewsCell } from '../components/NewsCell';
 import type { CatalystVerdict } from '../types/catalystVerdict';
 import {
@@ -119,7 +120,8 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
           case 'news':
             return (
               <td key={key} className="hod-news-cell">
-                <NewsCell newest_headline_at={newsHeadlineAt} catalyst={newsCatalyst} />
+                <CatalystCell symbol={alert.ticker} board={null} verdict={newsCatalyst}
+                  fallback={<NewsCell newest_headline_at={newsHeadlineAt} catalyst={newsCatalyst} />} />
               </td>
             );
           case 'time':

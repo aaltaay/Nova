@@ -1,7 +1,8 @@
 /**
- * Focus rail hover card: one card per row. Hovering the row's news circle or
- * its REC / bot dots opens the same card -- the symbol's news since the prior
- * close (the Trader's News panel read, ADR 024), then what the dots mean. It
+ * Focus rail hover card: one card per row. Hovering the row's Catalyst mark or
+ * its REC / bot dots opens the same card -- what is moving the stock and every
+ * fact behind it (the Catalyst column's read, ADR 028), the symbol's news since
+ * the prior close (the Trader's News panel read, ADR 024), then what the dots mean. It
  * was two cards, and the pointer crossing the dots on its way to a headline
  * swapped the news for the status (operator report 2026-09-24: "I can't move
  * my mouse and read the news because the other widget always takes its
@@ -11,7 +12,9 @@
  */
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { CatalystExplain } from '../components/CatalystExplain';
 import { ItemRow, VerdictBlock } from '../components/CatalystNewsSection';
+import { useCatalystRead } from '../hooks/useCatalystRead';
 import { CATALYST_PANEL_HIDDEN_NOISE, CATALYST_PANEL_NO_COMPANY_ITEMS, CATALYST_PANEL_UNREAD } from '../constants';
 import {
   FOCUS_RAIL_CARD_BOT_HELD_BODY,
@@ -107,6 +110,17 @@ function rowNews(row: FocusRow, nowMs: number): string {
   return focusRailCardNewestHeadline(agoLabel(new Date(row.headlineAt).getTime() / 1000, nowMs));
 }
 
+/** What is moving it (the Catalyst column's read): the call, the ladder and the facts. */
+function CatalystSection({ row }: { row: FocusRow }) {
+  const r = useCatalystRead(row.symbol, null);
+  if (r.unavailable) return null;
+  return (
+    <div className="focus-rail-card__section" data-testid="focus-rail-card-catalyst">
+      <CatalystExplain symbol={row.symbol} read={r.read} loading={r.loading} error={r.error} rowVerdict={row.verdict} />
+    </div>
+  );
+}
+
 function NewsSection({ row }: { row: FocusRow }) {
   const { panel, loading, unavailable, error } = useCatalystPanel(row.symbol);
   const nowMs = Date.now();
@@ -184,6 +198,7 @@ export function FocusRailHoverCard({ hover, onEnter, onLeave }: {
 }) {
   return (
     <Card anchor={hover.anchor} testId="focus-rail-card" onEnter={onEnter} onLeave={onLeave}>
+      {hover.news && <CatalystSection row={hover.row} />}
       {hover.news && <NewsSection row={hover.row} />}
       {hasStatus(hover) && <StatusSection hover={hover} />}
     </Card>
