@@ -16,7 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import cache  # noqa: E402
-import hod_momo_persist  # noqa: E402
+import hod_momo_history  # noqa: E402
 from constants_hod_momo import HOD_MOMO_INVENTED_CHANGE_BEFORE_TS  # noqa: E402
 from hod_momo_models import alert_from_dict, restored_change_pct  # noqa: E402
 
@@ -65,8 +65,8 @@ def test_history_view_reads_the_fill_in_as_unknown(monkeypatch):
         {"id": "a", "ticker": "CHNR", "change_pct": 0.0, "created_ts": BEFORE},
         {"id": "b", "ticker": "GRML", "change_pct": 0.31, "created_ts": BEFORE},
     ]}
-    monkeypatch.setattr(hod_momo_persist._cache, "load_hod_momo_snapshot_for_date", lambda _d: archive)
-    rows = hod_momo_persist.get_history_alerts("2026-09-22")
+    monkeypatch.setattr(hod_momo_history._cache, "load_hod_momo_snapshot_for_date", lambda _d: archive)
+    rows = hod_momo_history.get_history_alerts("2026-09-22")
     assert [r["change_pct"] for r in rows] == [None, 0.31]
     # The archive on disk is not rewritten by a read.
     assert archive["alerts"][0]["change_pct"] == 0.0

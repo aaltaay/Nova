@@ -5,7 +5,7 @@ import type { SimClockState } from '../sim/simClockTypes';
 import { HodMomoContextProvider, type HodMomoContextValue } from './HodMomoContext';
 import { HodMomoDock } from './HodMomoDock';
 import type { AlertObject } from './types';
-import { countRaisedBy, parseHodHistory, sortByRaised, useHodMomoReplay } from './useHodMomoReplay';
+import { countRaisedBy, parseHodHistory, parseHodHistoryDay, sortByRaised, useHodMomoReplay } from './useHodMomoReplay';
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), mode: 'sim' as string }));
 vi.mock('../api/novaFetch', () => ({ novaFetch: mocks.fetch }));
@@ -43,16 +43,22 @@ const alert = (id: string, time: string, ticker = 'GRML'): AlertObject => ({
   gap_pct: null, volume: null, momentum_pct: null, rvol_source: null, consolidation_count: 1, consolidated_ids: [],
 });
 const HISTORY = [alert('a', '07:41:30'), alert('b', '07:42:30', 'QNME'), alert('c', '07:43:10', 'BRNQ')];
+/** Days the mock backend holds no HOD Momo snapshot for (`recorded: false`). */
+let unrecorded = new Set<string>();
 const historyCalls = () => mocks.fetch.mock.calls.map(([url]) => String(url)).filter(url => url.includes('/api/hod-momo/history/'));
 
 beforeEach(() => {
   mocks.mode = 'sim';
   listeners.clear();
   setClock(null);
+  unrecorded = new Set();
   mocks.fetch.mockReset().mockImplementation(async (url: string) => {
-    const until = Number(new URL(url, 'http://x').searchParams.get('until'));
-    const body = HISTORY.filter(a => (a.created_ts ?? 0) <= until);
-    return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+    const parsed = new URL(url, 'http://x');
+    const date = decodeURIComponent(parsed.pathname.split('/').pop() ?? '');
+    const until = Number(parsed.searchParams.get('until'));
+    const recorded = !unrecorded.has(date);
+    const alerts = recorded ? HISTORY.filter(a => (a.created_ts ?? 0) <= until) : [];
+    return { ok: true, status: 200, text: async () => JSON.stringify({ date, recorded, alerts, error: null }) };
   });
 });
 afterEach(() => cleanup());
@@ -93,6 +99,30 @@ describe('useHodMomoReplay', () => {
     expect(result.current?.alerts.map(a => a.id)).toEqual(['a']);
   });
 
+  it('a day with no HOD Momo history reads as not recorded; a recorded day before its first alert as recorded', async () => {
+    unrecorded = new Set(['2026-09-21']);
+    setClock('07:20:10');
+    const { result, rerender } = renderHook(() => useHodMomoReplay());
+    await waitFor(() => expect(result.current?.state.loading).toBe(false));
+    expect(result.current?.state.recorded).toBe(false);
+    expect(result.current?.alerts).toEqual([]);
+
+    unrecorded = new Set();
+    await act(async () => { setClock('07:21:10'); });
+    rerender();
+    await waitFor(() => expect(result.current?.state.loading).toBe(false));
+    expect(result.current?.state.recorded).toBe(true);
+    expect(result.current?.alerts).toEqual([]);
+  });
+
+  it('an older backend bare list is read, but cannot say whether the day was recorded; an unreadable snapshot throws', () => {
+    expect(parseHodHistoryDay([HISTORY[0]])).toEqual({ recorded: null, alerts: [HISTORY[0]] });
+    expect(parseHodHistoryDay({ date: '2026-07-15', recorded: false, alerts: [], error: null }))
+      .toEqual({ recorded: false, alerts: [] });
+    expect(() => parseHodHistoryDay({ recorded: true, alerts: [], error: 'Nova holds HOD alert history for 2026-09-21 but could not read it.' }))
+      .toThrow(/could not read it/);
+  });
+
   it('reads the list and orders by the time Nova raised each alert; undated alerts are left out', () => {
     const undated = { ...alert('z', '07:00:00'), created_ts: undefined, timestamp: 'garbage' };
     const sorted = sortByRaised(parseHodHistory({ alerts: [HISTORY[2], HISTORY[0], undated] }));
@@ -116,7 +146,7 @@ function contextValue(replay: HodMomoContextValue['replay'], alerts: AlertObject
 }
 
 describe('HodMomoDock at the Sim playhead', () => {
-  const replay = { date: '2026-09-21', minute: epoch('07:42:00'), loading: false, error: null };
+  const replay = { date: '2026-09-21', minute: epoch('07:42:00'), loading: false, error: null, recorded: true };
 
   it('Clear is disabled, the feed word names the replay, and past alerts are never NEW', () => {
     const { rerender } = render(
@@ -136,6 +166,20 @@ describe('HodMomoDock at the Sim playhead', () => {
   it('an empty strip says no alert was raised by the playhead, not "No alerts yet"', () => {
     render(<HodMomoContextProvider value={contextValue(replay, [])}><HodMomoDock /></HodMomoContextProvider>);
     expect(screen.getByTestId('hod-momo-strip-empty').textContent).toBe('No alerts raised by 07:42 ET on 2026-09-21');
+    expect(screen.getByTestId('hod-momo-strip-since').textContent).toBe('0 alerts');
+    expect(screen.getByTestId('hod-momo-strip-empty').getAttribute('title')).toBeNull();
+  });
+
+  it('a day with no HOD Momo history states that absence -- never "No alerts raised" or "0 alerts"', () => {
+    const day = { ...replay, date: '2026-07-15', minute: Date.parse('2026-07-15T07:20:00-04:00') / 1000, recorded: false };
+    render(<HodMomoContextProvider value={contextValue(day, [])}><HodMomoDock /></HodMomoContextProvider>);
+    const empty = screen.getByTestId('hod-momo-strip-empty');
+    expect(empty.textContent).toBe('No HOD Momo alert history for 2026-07-15 -- Nova kept no HOD Momo record that day');
+    expect(empty.textContent).not.toMatch(/No alerts raised/);
+    expect(empty.getAttribute('title')).toMatch(/has its Scanner boards, not its alerts/);
+    expect(screen.getByTestId('hod-momo-strip-since').textContent).toBe('no alert history');
+    // The playhead still names the moment it stands at.
+    expect(screen.getByTestId('hod-momo-strip-feed').textContent).toBe('replay 07:20');
   });
 
   it('live: Clear stays enabled and the feed says live', () => {

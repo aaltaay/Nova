@@ -413,8 +413,16 @@ Scanner's Catalysts tab says so in Sim). `GET /api/leaderboard/{date}/coverage?s
 `{date, source, session_open, session_close, spans: [[start, end], ...],
 gaps: [{start, end, reason}]}` (whole epoch seconds). `GET
 /api/leaderboard/{date}/halts?until=<epoch>` -> `{date, events[]}`. `GET
-/api/hod-momo/history/{date}` accepts `?until=<epoch>` (alerts raised at or
-before it, by `created_ts`, else `timestamp`; the reply stays a bare list). `GET /api/history/dates?type=all` lists every date with any saved
+/api/hod-momo/history/{date}` -> `{date, recorded, alerts, error}` and
+accepts `?until=<epoch>` (alerts raised at or before it, by `created_ts`, else
+`timestamp`). `recorded` is `false` when Nova holds no HOD Momo snapshot for the
+day -- it kept no HOD Momo record then (a Massive-rebuilt day has its boards,
+never its alerts) -- and the strip and its count say that absence, never "No
+alerts raised" or "0 alerts" (operator rule, 2026-10-12). `true` with no alerts
+is a recorded day with none raised by `until`; `error` names a snapshot on file
+that could not be read (`alerts` then empty, and the desk says it did not load).
+Until 2026-10-12 the reply was a bare list; the desk still reads one (an older
+backend) and then cannot tell the two apart. A malformed date answers `{}`. `GET /api/history/dates?type=all` lists every date with any saved
 board; `type=movers` reads the `gainers-` / `losers-` files. `/api/ibkr/status`
 adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
 

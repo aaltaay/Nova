@@ -25,7 +25,6 @@ from hod_momo_models import (
     config_to_dict,
     master_from_dict,
     master_to_dict,
-    restored_change_pct,
 )
 from metrics.op_metrics import timed_fn
 
@@ -385,12 +384,3 @@ def merge_archive_session_alerts(date_str: str, alerts: list) -> None:
     )
     _cache.save_hod_momo_snapshot_for_date(date_str, merged, time.time())
 
-
-def get_history_alerts(date_str: str) -> list[dict]:
-    data = _cache.load_hod_momo_snapshot_for_date(date_str)
-    # A past day's archive keeps the pre-fix "CHG 0.0%" fill-in on disk; it is
-    # read as unknown here, like today's restore (QA C33).
-    return [
-        {**raw, "change_pct": restored_change_pct(raw)} if isinstance(raw, dict) else raw
-        for raw in data.get("alerts", [])
-    ]

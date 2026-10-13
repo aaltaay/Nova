@@ -24,6 +24,9 @@ export { fmtStripClock, stripAlertMs } from './hodMomoStripRows';
 export { HodMomoStripRow } from './HodMomoStripRow';
 export { groupIsNew } from './hodMomoStripGroups';
 export { HOD_MOMO_STRIP_EMPTY_CONNECTING } from './hodMomoStripConstants';
+// A Sim day Nova kept no HOD Momo record of: every view of the lists says that absence.
+export { hodReplayNoHistoryText } from './hodMomoReplayCopy';
+export type { HodMomoReplayState } from './useHodMomoReplay';
 export { useHodStripView } from './useHodStripView';
 export type { HodStripView } from './useHodStripView';
 export { useStripRowWindow } from './useStripRowWindow';
