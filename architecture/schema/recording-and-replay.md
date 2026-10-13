@@ -384,9 +384,16 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   dropped on load. Same `schema_version`: an older index stays readable.
 - **A bulk build** (`tools/market_data.py index`, 2026-10-12) builds the missing indexes of every day file,
   newest day first, several files at a time below normal priority, logging to `<root>/sim/index/index-build.log`;
-  `<root>/sim/index/STOP` stops it after the files in progress. It reads each file through a buffered file object
-  in big stretches (`massive_index.build(bulk_read=...)`) -- indexed_gzip's own reads are under 1 MB, which holds
-  several builds on one hard drive to its ~110 reads a second. The index is the same byte for byte.
+  `<root>/sim/index/STOP` stops it after the files in progress. `--read-mb` changes nothing: indexed_gzip reads a
+  file object that has a descriptor through the descriptor, in its own reads (found 2026-10-13; the earlier note
+  here that 64 MB reads let several builds stream was wrong). Several builds reading the hard drive at once keep its
+  head moving between files: 4 builds 92 MB/s with the drive half idle, 6 builds 121 MB/s with it busy, against
+  213 MB/s for one stream (2026-10-12/13). **`--stage <folder>`** (2026-10-13) copies each day file in turn, in one
+  stream of 64 MB reads, to `<folder>/nova-index-stage/<dataset>__<file>` (a `.part` until whole; at most
+  `--stage-gb`, 40, of copies at once) and builds from the copy (`massive_index.build(read_from=...)`), deleting it
+  when its build ends, stopped or not; a run clears copies an earlier run left there. The index is still the day
+  file's -- kept at its path, stamped with its size and modified time, identical to one built from it; a copy of
+  another size is not read, and a damaged one fails the gzip check at its end, so nothing is saved from it.
 - **The store.** `<root>/sim/replay.sqlite3`, its own `PRAGMA user_version = 1` (unknown versions refuse):
   `jobs (id, payload)`, `prints (job_id, ordinal, ts, ns, price, size, exchange, exchange_id, conditions,
   correction, trf_id, sequence, tape, sets_price)`, `candles (job_id, ts, payload)`, `quotes (job_id, ordinal,

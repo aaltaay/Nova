@@ -299,20 +299,31 @@ def _first_plain(buf: bytearray, lo: int, n: int) -> tuple[int, bytes] | None:
     return None
 
 
-def build(day_file: Path, root: Path, stop: threading.Event | None = None, bulk_read: int = 0) -> Path | None:
+def build(day_file: Path, root: Path, stop: threading.Event | None = None, bulk_read: int = 0,
+          read_from: Path | None = None) -> Path | None:
     """Read ``day_file`` start to end and save its index; ``None`` when stopped, already being built, or not saved.
 
-    ``bulk_read``: read the file in stretches of this many bytes (0: indexed_gzip's own reads, under 1 MB). Several
-    builds at once on one hard drive (``tools/market_data.py index``) are held to its ~110 reads a second by small
-    reads; 64 MB reads let it stream (2026-10-12: 4 readers 156 MB/s at 1 MB, 241 MB/s at 64 MB). Same index."""
+    ``bulk_read``: open the file as a Python file with this buffer size (0: indexed_gzip opens it). The index is the
+    same, and so is the speed: indexed_gzip reads a file object that has a descriptor through the descriptor, in its
+    own ``SIM_MASSIVE_INDEX_READBUF`` reads (2026-10-12; one without a descriptor cannot open a file over 2 GB on
+    Windows).
+
+    ``read_from``: a byte-for-byte copy of ``day_file`` to read instead (``tools/market_data.py index --stage``
+    copies each file off the hard drive in one stream, so several builds never share its head). The index is still
+    ``day_file``'s: kept beside it and stamped with its size and modified time. A copy of another size is not read,
+    and a damaged one fails the gzip check at its end, so nothing is saved from either."""
     if indexed_gzip is None:
         return None
+    if read_from is not None and read_from.stat().st_size != day_file.stat().st_size:
+        logger.warning("Massive index: %s is not a copy of %s (another size); nothing is built", read_from, day_file)
+        return None
+    reading = read_from if read_from is not None else day_file
     with _Lock(path_for(day_file, root)) as lock:
         if not lock.held:
             return None
-        source = open(day_file, "rb", buffering=bulk_read) if bulk_read > 0 else None
+        source = open(reading, "rb", buffering=bulk_read) if bulk_read > 0 else None
         try:
-            handle = _open(day_file, source)
+            handle = _open(reading, source)
         except BaseException:
             if source is not None:
                 source.close()
