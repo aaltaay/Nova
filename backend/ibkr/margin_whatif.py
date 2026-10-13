@@ -19,7 +19,9 @@ order's. So the module keeps the reqIds it sent (``sent``) and says a refusal in
 rewrites ib_async's ERROR line for one (``probe_line``), a WARNING when the code is expected.
 
 Runs on the IB loop (``ibkr.loop_supervisor.on_ib``). Owns one state: the reqIds it sent, for
-``SHORT_WHATIF_REQID_TTL_SEC``.
+``SHORT_WHATIF_REQID_TTL_SEC`` and only within the IBKR session that sent them
+(``ibkr.client.current_generation``): a reconnect builds a new session, and the Live and the paper
+Gateway number their ids apart, so a reqId of another session is never the probe's (PR #918 review).
 """
 from __future__ import annotations
 
@@ -55,7 +57,8 @@ _SETTLED_CASH_RE = re.compile(r"settled cash[^:]*:\s*([\d,.]+)\s*([a-z]{3}).*?ne
 _PROBE_LINE = ("IBKR refused Nova's margin what-if for %s (nothing was placed): %s. "
                "Nova uses the published margin rules for %s (IBKR Error %s, reqId %s)")
 
-_sent: OrderedDict[int, tuple[float, str, str]] = OrderedDict()   # reqId -> (sent at, the order, symbol)
+# reqId -> (sent at, the order, symbol, the IBKR session generation it was sent on)
+_sent: OrderedDict[int, tuple[float, str, str, int]] = OrderedDict()
 _sent_lock = threading.Lock()
 
 
@@ -93,13 +96,28 @@ def plain_reason(code: int, text: str) -> str:
     return f"IBKR refused it: {body} (Error {code})"
 
 
+def _generation() -> int | None:
+    """The IBKR session's generation (bumped at every READY); None when it cannot be read."""
+    try:
+        from ibkr import client as _client
+
+        return int(_client.current_generation())
+    except Exception as exc:  # no session to read: no reqId is matched, so a reject stays an ERROR
+        logger.warning("IBKR what-if: could not read the session generation: %s", exc)
+        return None
+
+
 def sent(req_id: int, *, now: float | None = None) -> tuple[str, str] | None:
     """``(the order, symbol)`` a what-if Nova sent under ``req_id`` asked about ("SELL 33 JBDI @ 5.47"),
-    while it is younger than ``SHORT_WHATIF_REQID_TTL_SEC``; None for any other reqId (an order's)."""
+    while it is younger than ``SHORT_WHATIF_REQID_TTL_SEC`` and the IBKR session that sent it is still
+    the session; None for any other reqId (an order's, or one a newer session reused)."""
     t = time.time() if now is None else float(now)
     with _sent_lock:
         got = _sent.get(int(req_id))
     if got is None or t - got[0] > SHORT_WHATIF_REQID_TTL_SEC:
+        return None
+    generation = _generation()
+    if generation is None or generation != got[3]:
         return None
     return got[1], got[2]
 
@@ -121,8 +139,11 @@ def probe_line(message: str, *, now: float | None = None) -> tuple[str, tuple[An
 
 
 def _note(req_id: int, order: str, symbol: str) -> None:
+    generation = _generation()
+    if generation is None:
+        return
     with _sent_lock:
-        _sent[req_id] = (time.time(), order, symbol)
+        _sent[req_id] = (time.time(), order, symbol, generation)
         _sent.move_to_end(req_id)
         while len(_sent) > SHORT_WHATIF_REQID_MAX:
             _sent.popitem(last=False)
