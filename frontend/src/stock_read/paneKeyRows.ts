@@ -60,6 +60,7 @@ function sessionRows(): KeySection {
 const ZONE_ROWS: KeyRow[] = [
   { swatch: 'band', color: LEVEL_COLORS.support, label: 'Shaded band', text: 'how deep the zone goes; its line is the edge nearest the price' },
   { swatch: 'line', color: GREY, label: 'Thick line', text: 'a strong level (tested many times)' },
+  { swatch: 'line', color: GREY, label: 'One label a price', text: 'levels within 1% are one band ("4.09–4.12 · top ×8"); a level by the plan, VWAP or a stronger level is a name after its label ("stop 4.03 · $4.00"): hover for each' },
 ];
 
 function fiveMinuteLevelRows(): KeySection {

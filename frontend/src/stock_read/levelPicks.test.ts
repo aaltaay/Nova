@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Time } from 'lightweight-charts';
 import { paneDraw } from './chartShapes';
 import { normalizeLevelMap, normalizePlanLevels } from './levelMapNormalize';
-import {
-  dailyPick, levelHoverId, levelNote, levelScene, levelStory, mapPick, minuteScene, zoneColor,
-} from './levelPicks';
+import { dailyPick, levelNote, levelScene, mapPick, minuteScene } from './levelPicks';
+import { levelHoverId, levelStory, zoneColor } from './levelZone';
 import { drawLevels, fitText } from './levelRender';
 import type { StockReadLayers } from './StockReadContext';
 import type { LevelMap, LevelZone } from './levelTypes';

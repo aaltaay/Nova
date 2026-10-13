@@ -8,7 +8,8 @@
  * lines, the trade's levels (`levelPicks.minuteScene`: the high of day, the nearest top and bottom its
  * candles made, the nearest round number each side and the plan's levels between its stop and target),
  * and the moment's pin (ADR 037).
- * The 1- and 5-minute panes each draw their own chart's trend lines with the levels (`trendLines.ts`).
+ * The 1- and 5-minute panes each draw their own chart's trend lines with the levels (`trendLines.ts`). One label per
+ * price (`levelFold.ts`, 2026-10-13): a lane's named line within reach of the plan's is the plan's word.
  * The 5-minute pane carries its own level map and the 5-minute setups (`fiveMinuteShapes.ts`; on the
  * 1-minute pane a 5-minute setup in reach is a dashed trigger line). The 10-second pane draws the plan as the 1-minute
  * pane does -- a setup's plan its strategy box, a level an order stands behind a thin line named as the 1-minute pane
@@ -35,6 +36,7 @@ import type { Time } from 'lightweight-charts';
 import { SHORT_SETUP_CHIPS } from '../constantGroups/short_setups';
 import { LEVEL_COLORS, SETUP_COLORS } from './constants';
 import { heldLines } from './heldView';
+import { foldSegments } from './levelFold';
 import { levelScene, minuteScene } from './levelPicks';
 import type { CallTone, MomentCall } from './momentModel';
 import { drawnPast, failingNow, type Episode } from './pastSetups';
@@ -319,8 +321,11 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
     if (t !== null) scene.pins.push({ t, price: pin.price, label: pin.label, color: CALL_COLORS[o.call.tone] });
   }
   if (o.layers.levels && (o.pane === 'map' || o.pane === 'full')) {
-    // Each chart's trend lines, read from its own candles (2026-10-12).
-    scene.trends = trendScene(read, o.pane, o.toTime);
+    // Each chart's trend lines, read from its own candles (2026-10-12). While the plan's stop is drawn, a line past it
+    // has no tag out of view (2026-10-13): the trade is over before price gets there.
+    const stop = o.pane === 'full' ? scene.strategy?.stop ?? lines.find(l => l.id === 'stop')?.price ?? null : null;
+    const pastStop = (p: number) => stop !== null && (plan?.side === 'short' ? p > stop : p < stop);
+    scene.trends = trendScene(read, o.pane, o.toTime).map(t => (pastStop(t.pEnd) ? { ...t, offTag: false } : t));
   }
   if (o.layers.levels && o.pane === 'map') {
     const m = levelScene(read, 'map');
@@ -354,7 +359,9 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
       );
     }
   }
-  return { scene, lines };
+  // One label per price (2026-10-13): a lane's named line a cent from the plan's (the premarket high under the entry)
+  // is the plan's word.
+  return o.pane === 'full' ? foldSegments(scene, lines) : { scene, lines };
 }
 
 export type LaneChipState = 'forming' | 'live' | 'done' | 'idle' | 'failed';

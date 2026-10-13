@@ -14,6 +14,8 @@ export const EDGE_PRIORITY = {
   vwap: 80,
   highOfDay: 70,
   level: 60,
+  /** A trend line's name: under the levels', so it folds into a level at its price (`stock_read/levelFold.ts`). */
+  trendLine: 58,
   ema: 50,
   offView: 40,
 } as const;
@@ -32,6 +34,8 @@ export interface EdgeWord {
   series: ISeriesApi<SeriesType>;
   /** Out of view its tag adds the value ("↑ 200 EMA 7.31"); false when the text already says it. */
   valueWhenOff: boolean;
+  /** It takes the name of a level at its price into its tag (VWAP's: "VWAP $4.36" and the VWAP level are one word). */
+  absorbs?: boolean;
 }
 
 /** Room at the edge something else holds (the position tag), never covered. */
@@ -70,7 +74,8 @@ function emit(b: Board): void {
 function sameWords(a: EdgeWord[] | undefined, b: EdgeWord[]): boolean {
   if (!a || a.length !== b.length) return false;
   return a.every((w, i) => w.id === b[i].id && w.text === b[i].text && w.color === b[i].color
-    && w.priority === b[i].priority && w.series === b[i].series && w.valueWhenOff === b[i].valueWhenOff);
+    && w.priority === b[i].priority && w.series === b[i].series && w.valueWhenOff === b[i].valueWhenOff
+    && w.absorbs === b[i].absorbs);
 }
 
 function sameReserves(a: EdgeReserve[] | undefined, b: EdgeReserve[]): boolean {
