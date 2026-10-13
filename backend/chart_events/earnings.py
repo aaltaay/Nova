@@ -30,7 +30,9 @@ since what comes earlier in a quarter is what is not the results: deliveries (TS
 preliminary, a date to come, an acquisition with "certain financial results" (LUNR); a restatement after
 the results is not a release at all (Item 4.02, BBAI 2025-03-18). Every other release in the window is
 listed on the event (``other_releases``), never marked. A strong release no report claims yet is an event
-of its own: a 6-K's period comes from its words, an 8-K's is unknown. Revenue, net income and basic EPS are the report's own facts for its current period (the
+of its own: a 6-K's period comes from its words, an 8-K's is unknown -- unless a mark already stands for a
+period ending the same day, when it is listed there instead (XPEV's Hong Kong interim report a month after
+its second-quarter results). Revenue, net income and basic EPS are the report's own facts for its current period (the
 quarter for a 10-Q, the year for an annual report, the period a 6-K covers); for a release no report claims,
 the first filing that tagged that period, which the figure names. A figure nobody tagged is null, never
 estimated.
@@ -290,11 +292,16 @@ def events(submissions: Mapping[str, Any] | None, facts: Mapping[str, Any] | Non
             figures={name: (_own_value(groups[name], rep["accn"], period) if period else None) for name in CONCEPTS},
             pending=False))
     newest_report = max((r["day"] for r in reports), default=None)
+    marked = [(_day(e["period_end"]), e) for e in out if e["period_end"]]
     for rel in releases:
         if rel["accn"] in claimed or rel["strength"] != "strong":
             continue
         said = rel["said"] or {}
         end, months = _day(said.get("end")), said.get("months")
+        before = next((e for at, e in marked if _near(at, end) and e["day"] <= rel["day"].isoformat()), None)
+        if before is not None:
+            before["other_releases"].append(_stamp(rel))
+            continue
         label = said.get("named") or (fiscal_label(end, months, fye, offset) if end and months else None)
         figures = {name: (value_for_period(facts, c, unit, end, months) if end and months else None)
                    for name, (c, unit) in CONCEPTS.items()}
@@ -305,5 +312,7 @@ def events(submissions: Mapping[str, Any] | None, facts: Mapping[str, Any] | Non
             rel["accn"], rel["day"], release=rel, report=None, others=[], fiscal=(None, None, label),
             span=(None, shown_end, months), figures=figures,
             pending=newest_report is None or rel["day"] > newest_report))
+        if end is not None:
+            marked.append((end, out[-1]))
     out.sort(key=lambda e: (e["day"], e["id"]))
     return [e for e in out if since is None or e["day"] >= since.isoformat()]
