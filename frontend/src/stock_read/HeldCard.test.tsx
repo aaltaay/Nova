@@ -5,9 +5,10 @@
  * the box keeps its look and becomes the trade's, Raise stop asks the read again with your stop, the Sell
  * switch and "Nova takes the exit" open the sheet, the sheet hands Nova the stop, and Live is locked.
  */
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOVA_API_KEY_STORAGE } from '../constantGroups/api_auth';
+import { resetTickerStreamsForTests } from '../hooks/tickerStore';
 import { orderSentBy } from '../ibkr/orderSentBy';
 import { _resetSleeveForTests } from '../setups/sleeveRisk';
 import { apusHeldWire } from './heldFixtures';
@@ -105,6 +106,44 @@ describe('the plan box while you hold APUS', () => {
     expect(card.querySelector('.sr-checks')?.textContent).toContain('1-min MACD histogram +0.062');
     // The read is asked about the position.
     expect(reads().some(u => /held_qty=100&held_avg=5.075/.test(u))).toBe(true);
+  });
+
+  // Operator report 2026-10-13: the ruler's price tick moved once a read, every 5 s -- "way too delayed".
+  it('follows the tape between reads: the price tick, the open P&L and the NOW row', async () => {
+    const sockets: { url: string; onmessage: ((ev: { data: string }) => void) | null }[] = [];
+    vi.stubGlobal('WebSocket', class {
+      url: string;
+      readyState = 0;
+      onopen = null;
+      onclose = null;
+      onerror = null;
+      onmessage: ((ev: { data: string }) => void) | null = null;
+      constructor(url: string) {
+        this.url = url;
+        sockets.push(this);
+      }
+      close() {}
+      send() {}
+    });
+    resetTickerStreamsForTests();
+    renderTab();
+    const card = await screen.findByTestId('held-card');
+    const tick = () => card.querySelector<HTMLElement>('.sr-ruler__track')?.style.transform;
+    const atRead = tick();
+    const asked = reads().length;
+    const tape = sockets.find(s => /\/ticker\/APUS$/.test(s.url))!;
+    act(() => {
+      tape.onmessage?.({ data: JSON.stringify({ type: 'initial', symbol: 'APUS', snapshot: { latest_trade: { price: 6.64 } } }) });
+      tape.onmessage?.({ data: JSON.stringify({ type: 'trade_update', symbol: 'APUS', price: 6.8 }) });
+    });
+    await waitFor(() => expect(card.querySelector('.sr-plan__rr b')?.textContent).toBe('+$172.50'));
+    expect(card.querySelector('.sr-plan__rr-k')?.textContent).toBe(' +3.9R open');
+    expect(tick()).not.toBe(atRead);
+    const now = card.querySelector('.sr-ladder__row--now')!;
+    expect(now.textContent).toContain('+172.50 open');
+    expect(now.querySelector('.sr-ladder__r')?.textContent).toBe('+$172.50 · +3.9R');
+    expect(reads()).toHaveLength(asked);
+    resetTickerStreamsForTests();
   });
 
   it('Raise stop sets your stop for the trade and asks the read again with it -- never an order', async () => {

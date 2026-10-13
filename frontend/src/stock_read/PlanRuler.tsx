@@ -1,11 +1,25 @@
 /** The plan's ruler (stop -> entry -> target 1 -> target 2 (#845), what stands between, where the price is now; a
  * short's runs from its buy stop down, ADR 048) and its checks, one glyph each: ✓ for it, ✗ against it, ! caution,
- * ? unknown. */
-import { useLayoutEffect, useState } from 'react';
+ * ? unknown. The price tick is the tab's tape, not the read's 5 s price (operator report 2026-10-13: "way too
+ * delayed"), and glides to each new price. */
+import { useLayoutEffect, useState, type CSSProperties } from 'react';
 import { tipProps } from '../ux';
 import { STATE_WORDS } from './constants';
 import { checkGlyph, fmtPx, rulerLayout } from './planMath';
 import type { PlanCheck, StockPlan } from './types';
+import { useTapePrice } from './useTapePrice';
+
+/** The price tick's track: the ruler's whole width slid to `pct`, so the tick moves on the compositor (a transform
+ * transitions there; `left` would lay out the page on every tick, #707). */
+export function rulerTrack(pct: number): CSSProperties {
+  return { transform: `translateX(${pct}%)` };
+}
+
+/** A bar from `s[0]` to `s[1]` (percent of the ruler) as a transform of a full-width bar, so it glides with the
+ * tick. */
+export function rulerGlide(s: [number, number]): CSSProperties {
+  return { transform: `translateX(${s[0]}%) scaleX(${(s[1] - s[0]) / 100})` };
+}
 
 /** The element's width, followed as it resizes (a callback ref: the ruler is absent while a plan has no
  * levels). */
@@ -25,8 +39,14 @@ export function useWidth(): [(el: HTMLDivElement | null) => void, number | null]
   return [setEl, width];
 }
 
-export function PlanRuler({ plan, price }: { plan: StockPlan; price: number | null }) {
+export function PlanRuler({ plan, symbol, price: readPrice }: {
+  plan: StockPlan;
+  symbol: string;
+  /** The read's price, until the tape has one. */
+  price: number | null;
+}) {
   const [ref, width] = useWidth();
+  const price = useTapePrice(symbol, readPrice);
   const lay = rulerLayout(plan, price, width);
   if (!lay) return null;
   const short = plan.side === 'short';
@@ -59,11 +79,9 @@ export function PlanRuler({ plan, price }: { plan: StockPlan; price: number | nu
       <span className="sr-ruler__end sr-ruler__end--target" style={{ left: `${lay.targetPct}%` }} />
       <span className="sr-ruler__entry" style={{ left: `${lay.entryPct}%` }} />
       {lay.now && (
-        <span
-          className={`sr-ruler__now${lay.now.edge ? ` sr-ruler__now--${lay.now.edge}` : ''}`}
-          style={{ left: `${lay.now.pct}%` }}
-          {...tipProps(nowTip)}
-        />
+        <span className="sr-ruler__track" style={rulerTrack(lay.now.pct)}>
+          <span className={`sr-ruler__now${lay.now.edge ? ` sr-ruler__now--${lay.now.edge}` : ''}`} {...tipProps(nowTip)} />
+        </span>
       )}
     </div>
   );

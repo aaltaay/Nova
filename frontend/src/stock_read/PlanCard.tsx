@@ -321,7 +321,7 @@ export function PlanCard({ ctx, roomy = true }: {
               {trouble}
             </p>
           )}
-          {plan && <PlanRuler plan={plan} price={read.price} />}
+          {plan && <PlanRuler plan={plan} symbol={ctx.symbol} price={read.price} />}
           {plan && <PlanLevels plan={plan} />}
           {plan && <PlanChecks plan={plan} />}
           {plan && <ShortPlanChecks symbol={ctx.symbol} plan={plan} size={size} />}
