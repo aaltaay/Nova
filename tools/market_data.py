@@ -12,7 +12,10 @@ data; ``index`` writes only the seek indexes the Sim's own reader keeps (ADR 046
   bars      One stock-day's bars: minutes from the minute file, seconds built from its trades by the Sim's rules.
   movers    Search the day movers index with the agent endpoint's arguments (key=value), without the API.
   board     A past day's Scanner list at a minute, as the Sim plays it back (recorded, else rebuilt).
+  splits    A stock's splits, and with --day the factor that puts that day's raw prices in today's terms.
   bench     Time each read on real files.
+
+trades / quotes / bars are raw (the files are never split-adjusted); --adjust puts them in today's terms.
 
 Usage (from the repo root):
 
@@ -23,6 +26,8 @@ Usage (from the repo root):
   py -3 tools/market_data.py bars GME 2021-01-27 --tf 10s --from 09:30 --to 10:00
   py -3 tools/market_data.py movers date_from=2021-01-01 date_to=2021-12-31 high_min=100 price_max=20
   py -3 tools/market_data.py board 2026-09-09 --at 09:45 --list gainers --top 20
+  py -3 tools/market_data.py splits GRML --day 2026-07-15
+  py -3 tools/market_data.py bars GRML 2026-07-15 --tf 5m --adjust
   py -3 tools/market_data.py bench
 """
 from __future__ import annotations
@@ -83,15 +88,32 @@ def cmd_index(args) -> int:
                                         end=args.end, oldest_first=args.oldest_first) else 0
 
 
+def _adjusted(frame, args):
+    """The read in today's terms when ``--adjust`` asks; raw otherwise."""
+    if not args.adjust:
+        return frame
+    from market_reads import splits
+    return splits.adjust(frame, args.symbol, args.day)
+
+
 def cmd_rows(args) -> int:
     from market_reads import reads
     read = {"trades": reads.trades, "quotes": reads.quotes}[args.cmd]
-    return _show(read(args.symbol, args.day, args.start, args.end), args)
+    return _show(_adjusted(read(args.symbol, args.day, args.start, args.end), args), args)
 
 
 def cmd_bars(args) -> int:
     from market_reads import reads
-    return _show(reads.bars(args.symbol, args.day, args.tf, args.start, args.end), args)
+    return _show(_adjusted(reads.bars(args.symbol, args.day, args.tf, args.start, args.end), args), args)
+
+
+def cmd_splits(args) -> int:
+    from market_reads import splits
+    frame = splits.table(args.symbol)
+    if args.day:
+        frame.attrs.update(day=args.day, as_of=args.as_of or "latest",
+                           price_factor=splits.factor(args.symbol, args.day, args.as_of))
+    return _show(frame, args)
 
 
 def cmd_movers(args) -> int:
@@ -146,6 +168,8 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--to", dest="end", help="ET HH:MM, exclusive")
         if name == "bars":
             p.add_argument("--tf", default="1m", help="1m, 5m, 15m ... from the minute file; 1s, 10s ... from trades")
+        p.add_argument("--adjust", action="store_true",
+                       help="split-adjust to today's terms (prices x the factor, shares / it); raw without it")
         output(p)
     movers = sub.add_parser("movers", help="key=value arguments of /api/agent/movers")
     movers.add_argument("params", nargs="*")
@@ -157,13 +181,19 @@ def main(argv: list[str] | None = None) -> int:
     board.add_argument("--source", choices=["recorded", "reconstructed"])
     board.add_argument("--top", type=int, default=0)
     output(board)
+    split = sub.add_parser("splits", help="a stock's splits and the factor for a day")
+    split.add_argument("symbol")
+    split.add_argument("--day", help="YYYY-MM-DD: print the factor for this day's raw prices")
+    split.add_argument("--as-of", dest="as_of", help="YYYY-MM-DD: the terms to adjust into (default: latest)")
+    output(split)
     bench = sub.add_parser("bench")
     bench.add_argument("--day")
     bench.add_argument("--symbol", default="TSLA")
 
     args = parser.parse_args(argv)
     handlers = {"status": cmd_status, "index": cmd_index, "trades": cmd_rows, "quotes": cmd_rows,
-                "bars": cmd_bars, "movers": cmd_movers, "board": cmd_board, "bench": cmd_bench}
+                "bars": cmd_bars, "movers": cmd_movers, "board": cmd_board, "splits": cmd_splits,
+                "bench": cmd_bench}
     return handlers[args.cmd](args)
 
 

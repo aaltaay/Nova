@@ -12,6 +12,8 @@ py -3 tools/market_data.py bars GME 2021-01-27 --tf 10s --from 09:30 --to 10:00
 py -3 tools/market_data.py bars GME 2021-01-27 --tf 5m
 py -3 tools/market_data.py movers date_from=2021-01-01 date_to=2021-12-31 high_min=100 price_max=20
 py -3 tools/market_data.py board 2026-09-09 --at 09:45 --list gappers --top 20
+py -3 tools/market_data.py splits GRML --day 2026-07-15            # the splits, and that day's factor (50)
+py -3 tools/market_data.py bars GRML 2026-07-15 --tf 5m --adjust   # trades / quotes / bars in today's terms
 py -3 tools/market_data.py bench                                   # how fast each read is, measured
 ```
 
@@ -25,6 +27,11 @@ q = reads.quotes("GME", "2021-01-27", "09:30", "09:31")
 b = reads.bars("GME", "2021-01-27", "10s", "09:30", "10:00")
 m = reads.movers(high_min=100, price_max=20, date_from="2021-01-01")   # the /api/agent/movers answer
 g = reads.board("2026-09-09", "09:45", "gainers")
+
+from market_reads import splits
+splits.table("GRML")                         # Massive's list plus the splits SEC filings proved (source column)
+splits.factor("GRML", "2026-07-15")          # 50.0: a raw price that day x 50 = today's terms
+splits.adjust(reads.bars("GRML", "2026-07-15", "5m"), "GRML", "2026-07-15")   # prices x 50, shares / 50
 ```
 
 To put a stock-day on the desk for the operator, use the `nova-sim-navigator` skill (`tools/nova_agent.py`).
@@ -63,7 +70,10 @@ be about 81 TB; Parquet about 11 TB. The index is about 0.2% of a file.
   warrant right after its stock (`AA`, `AApB`, `AAAP`). Only plain A-Z tickers are in byte order everywhere.
   A reader that stops at the first ticker sorting after the one it wants misses stocks.
 - **Unadjusted prices.** Nothing in the files is split-adjusted. A reverse split reads as a giant mover unless
-  the split list says otherwise (the movers index and the board rebuild adjust; raw reads do not).
+  the split list says otherwise (the movers index and the board rebuild adjust; raw reads do not). IBKR's daily
+  bars are adjusted, so the desk's Full Day chart and a raw read of the same day can differ by the split: GRML
+  on 2026-07-15 traded at $0.19 and the chart showed ~$9.25 (1-for-50 on 2026-08-24). Compare across a split
+  only through `splits` (`--adjust` on the command line); a read inside one session needs none.
 - **Which prints set a price.** Corrections 10 / 11 are not trades; some conditions (odd lots, average price,
   late reports such as 32 / 33) never move the last or a candle. `trades` adds `sets_price`; `bars --tf Ns`
   uses only those for prices and every trade for volume. The minute files are as Massive built them.

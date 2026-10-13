@@ -15,8 +15,12 @@ py -3 tools/market_data.py quotes SYMBOL YYYY-MM-DD --from 09:30 --to 09:31
 py -3 tools/market_data.py bars SYMBOL YYYY-MM-DD --tf 10s|1m|5m [--from --to]
 py -3 tools/market_data.py movers high_min=100 price_max=20 date_from=2021-01-01 [limit=200]
 py -3 tools/market_data.py board YYYY-MM-DD --at 09:45 --list gainers|losers|gappers|afterhours
+py -3 tools/market_data.py splits SYMBOL --day YYYY-MM-DD    # splits, and the factor for that day's raw prices
 py -3 tools/market_data.py bench
 ```
+
+trades / quotes / bars are raw (never split-adjusted); add `--adjust` for today's terms, or in Python
+`from market_reads import splits` -- `splits.table / factor / adjust`.
 
 In Python: `sys.path.insert(0, "research"); from market_reads import reads` -- `reads.trades / quotes / bars /
 movers / board` return pandas DataFrames (movers: the agent endpoint's answer).
