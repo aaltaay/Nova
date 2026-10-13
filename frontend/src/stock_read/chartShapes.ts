@@ -10,11 +10,12 @@
  * and the moment's pin (ADR 037).
  * The 1- and 5-minute panes each draw their own chart's trend lines with the levels (`trendLines.ts`).
  * The 5-minute pane carries its own level map and the 5-minute setups (`fiveMinuteShapes.ts`; on the
- * 1-minute pane a 5-minute setup in reach is a dashed trigger line). The 10-second pane mirrors the plan's levels
- * as thin lines, each named in the edge column as the 1-minute pane names it, with its axis tag; the 5-minute pane
- * draws its own setups and never the 1-minute plan (operator report 2026-10-13, AIXI's forming Gap and Go: four
- * unnamed dotted lines across both charts -- "whats the points of these dotted lines??", "we cant keep them like
- * this"). While you hold the stock (`read.held`), the trade's levels --
+ * 1-minute pane a 5-minute setup in reach is a dashed trigger line). The 10-second pane draws the plan as the 1-minute
+ * pane does -- a setup's plan its strategy box, a level an order stands behind a thin line named as the 1-minute pane
+ * names it -- and the 5-minute pane draws its own setups and never the 1-minute plan (operator report 2026-10-13,
+ * AIXI's forming Gap and Go: four unnamed dotted lines across both charts -- "whats the points of these dotted
+ * lines??", then "for which strategy is this specifically?"; of three mockups, the box). While you hold the stock
+ * (`read.held`), the trade's levels --
  * THEN, NEXT, SUPPORT, STOP, the average and the rounds broken or traded through -- are the 10-second
  * pane's, with their names (operator, 2026-10-01: "lets move these targets ... to the 10 seconds chart");
  * no other pane draws the plan's lines or zones then. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
@@ -22,13 +23,13 @@
  * estimated: every price is the scanner's, the read's or Nova's order's own.
  * A setup plan on a stock too thin to trade (2026-10-01) draws no plan: no zones, no plan-only lines, its
  * lane faded like the others -- an order that stands behind a level is still drawn.
- * A setup plan with only the plan behind its levels (operator asks 2026-10-12) draws on the 1-minute pane its strategy
- * box (`strategyBox.ts`), faint while forming and in full colour once near or armed: no zones, no line across the pane,
- * and a frame from its stop to target 1, never to target 2. Once armed its prices keep their axis tags (price lines
- * drawn without the line); a forming one's are the box's words alone. Once triggered it was taken or missed: no box, no
- * axis tags, no frame, only a mark over its trigger candle -- and no thin lines on the 10-second pane either (operator
- * report 2026-10-12, OFAL in the Sim at 07:15: a first pullback stopped at 07:10 still drew its four lines there,
- * unnamed). A forming one draws none there either: the 1-minute pane shows it as a faint box, never as lines.
+ * A setup plan with only the plan behind its levels (operator asks 2026-10-12) draws on the 1-minute and 10-second panes
+ * its strategy box (`strategyBox.ts`), faint while forming and in full colour once near or armed: no zones, no line
+ * across the pane, and a frame from its stop to target 1, never to target 2. Once armed its prices keep their axis tags
+ * (price lines drawn without the line); a forming one's are the box's words alone. Once triggered it was taken or
+ * missed: no box, no axis tags, no frame, only a mark over its 1-minute trigger candle -- and nothing on the 10-second
+ * pane (operator report 2026-10-12, OFAL in the Sim at 07:15: a first pullback stopped at 07:10 still drew its four
+ * lines there, unnamed).
  */
 import type { Time } from 'lightweight-charts';
 import { SHORT_SETUP_CHIPS } from '../constantGroups/short_setups';
@@ -42,7 +43,9 @@ import { laneHoverId, laneOnMinute, levelsOf } from './laneShapes';
 import { pastRings, pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, planFrame, setupName } from './planMath';
 import { thinPlan } from './planVerdict';
-import { boxedPlan, formingPlan, strategyOf, strategyWords, triggeredPlan, triggerMark } from './strategyBox';
+import {
+  boxedPlan, formingPlan, strategyOf, strategyOnBars, strategyWords, triggeredPlan, triggerMark,
+} from './strategyBox';
 import { trendScene } from './trendLines';
 import type { Scene, SceneBox, SceneDot, SceneMark, SceneWord } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
@@ -89,6 +92,9 @@ export interface DrawOptions {
   past?: Episode[] | null;
   /** The day's 5-minute setups that ended (`?tf=5m`): the 5-minute pane draws them. */
   past5?: Episode[] | null;
+  /** The pane's newest candle (`sec` on the chart's clock, ET read as UTC): the 10-second pane's strategy box starts
+   * after it. */
+  lastBar?: { t: Time; sec: number } | null;
 }
 
 export const CALL_COLORS: Record<CallTone, string> = {
@@ -102,6 +108,8 @@ export const CALL_COLORS: Record<CallTone, string> = {
 };
 
 const MIN = 60;
+/** The 10-second pane's candle. */
+const THIN_BAR_SEC = 10;
 
 export function paneKind(timeframe: string): PaneKind {
   if (timeframe === '1Min') return 'full';
@@ -196,6 +204,13 @@ export function laneStartSec(lane: SetupLane, legStart?: (leg: SetupLeg) => numb
   return leg.t;
 }
 
+/** The newest 1-minute candle the read knows (epoch seconds): the lead lane's, any lane's, else the minute before the
+ * read. */
+function newestMinute(read: StockRead, lead: SetupLane | null): number | null {
+  return lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
+    ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
+}
+
 /** The lane the plan follows, if the plan is a setup's. */
 export function leadLane(read: StockRead): SetupLane | null {
   const p = read.plan;
@@ -223,16 +238,17 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   const lines: PriceLineSpec[] = [];
   const held = read.held;
   const lv = held ? null : drawnLevels(plan, o.levels);
-  // A setup's plan with only the plan behind it is its strategy box on the 1-minute pane, never zones and lines across
-  // it (2026-10-12): forming, the box alone and no lines on any pane; once armed, its prices keep their axis tags and
-  // lose their lines there while the 10-second pane draws them named; once triggered, taken or missed, nothing of it
-  // on any pane but a mark on the 1-minute trigger candle. The 5-minute pane never draws the plan (2026-10-13).
+  // A setup's plan with only the plan behind it is its strategy box on the 1-minute and 10-second panes, never zones and
+  // lines across them (2026-10-12, 2026-10-13): forming, the box alone; once armed, its prices keep their axis tags and
+  // lose their lines; once triggered, taken or missed, nothing of it on any pane but a mark on the 1-minute trigger
+  // candle. The 5-minute pane never draws the plan (2026-10-13).
   const boxed = lv !== null && boxedPlan(plan, lv);
   const forming = lv !== null && formingPlan(plan, lv);
   const triggered = lv !== null && triggeredPlan(plan, lv);
+  const leadShown = !lead || !o.layers.hidden.includes(lead.setup_type);
   if (o.layers.setups) {
     if (held && o.pane === 'thin') lines.push(...heldLines(held));
-    const boxedHere = boxed && o.pane === 'full';
+    const boxedHere = boxed && (o.pane === 'full' || o.pane === 'thin');
     const offHere = forming || triggered || o.pane === 'map';
     if (lv && !offHere) lines.push(...planLines(plan, lv, o.pane, boxedHere));
     if (o.pane === 'full') {
@@ -250,10 +266,9 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
         scene.segments.push(...s.segments);
         mergeExtras(scene, s);
       }
-      if (lv && (!lead || !o.layers.hidden.includes(lead.setup_type))) {
+      if (lv && leadShown) {
         const shape = lead ? levelsOf(lead) : null;
-        const newest = lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
-          ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
+        const newest = newestMinute(read, lead);
         const start = shape?.end ?? newest;
         const target2 = target2Of(plan, lv)?.price ?? null;
         if (triggered && plan) {
@@ -277,6 +292,16 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
       }
       // A 5-minute setup armed or near its trigger: one dashed line here (the chip is the legend's).
       lines.push(...fiveMinuteOnMinute(read).lines);
+    } else if (o.pane === 'thin' && boxed && plan && lv && leadShown) {
+      // The 1-minute pane's box on this pane's own candles, so the strategy is named here too (operator choice
+      // 2026-10-13): after the newest 10-second candle, its window counted in 10-second candles.
+      const newest = newestMinute(read, lead);
+      const last = o.lastBar ?? null;
+      const s = newest === null || last === null ? null
+        : strategyOf(plan, lv, target2Of(plan, lv)?.price ?? null, last.t, newest, lead?.setup ?? null);
+      scene.strategy = s && newest !== null && last !== null ? strategyOnBars(s, newest, last, THIN_BAR_SEC) : null;
+      if (scene.strategy) scene.words = [...(scene.words ?? []), ...strategyWords(scene.strategy)];
+      scene.keepInView = planFrame(lv.stop?.price, lv.target?.price, null);
     } else if (o.pane === 'map') {
       // The 5-minute setups: drawn on this pane only (operator decision 2026-09-30).
       const f = fiveMinuteScene(read, { toTime: o.toTime, legStart: o.legStart, highAt: o.highAt,

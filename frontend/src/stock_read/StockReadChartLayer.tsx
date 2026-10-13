@@ -4,8 +4,9 @@
  * zones and lines, the day's levels, a legend of the lanes and the plan's badge -- with the trade's
  * track, the Who trades chip and the call's pin (ADR 037); the 5-minute pane carries today's level map and
  * the Full Day pane the daily one, each level's card under the pointer (ADR 036 amendment 2026-09-30);
- * the 10-second pane mirrors the plan's levels as thin named lines, except while a plan with nothing behind it forms
- * or once it triggers -- the 5-minute pane never draws the plan (2026-10-13); the daily pane marks every +40% run.
+ * the 10-second pane draws the plan as the 1-minute pane does, a setup's plan its strategy box on its own candles and a
+ * level an order stands behind a thin named line -- the 5-minute pane never draws the plan (2026-10-13); the daily pane
+ * marks every +40% run.
  * The pane's right edge is the scene's (operator report 2026-09-30: "everything is getting on top of each
  * other in the charts!"): it claims the edge (`claimEdge`), so the EMAs' and VWAP's tags, the plan's
  * ENTRY / STOP / TARGET 1 / TARGET 2 and the position tag's room come to its one column with the levels' names instead of
@@ -242,6 +243,8 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     call,
     past,
     past5,
+    lastBar: index.times.length > 0
+      ? { t: index.times[index.times.length - 1], sec: index.canonical[index.canonical.length - 1] } : null,
   }), [read, kind, ctx?.layers, index, series, ctx?.focus, focusEvent, levels, call, past, past5]);
   const hover = useShapeHover(chart, (kind === 'full' || kind === 'map' || kind === 'daily') && enabled, containerRef);
   const story = hover && read ? shapeStory(hover.id, read, past, past5) : null;
@@ -306,9 +309,10 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
 
   // Room for the plan's zones (or a setup's strategy box) right of the last candle when they appear, and only
   // for a view that follows the live edge. The time scale's rightOffset used to do this: it is the scroll position, so
-  // the pane jumped to the live edge whenever the zones came or went -- a buy, a sale, a tab shown again.
-  const boxed = kind === 'full' && !!draw.scene.strategy;
-  const zones = kind === 'full' && (boxed || draw.scene.boxes.some(b => b.t2 === null));
+  // the pane jumped to the live edge whenever the zones came or went -- a buy, a sale, a tab shown again. The 10-second
+  // pane's strategy box gets the same room.
+  const boxed = (kind === 'full' || kind === 'thin') && !!draw.scene.strategy;
+  const zones = boxed || (kind === 'full' && draw.scene.boxes.some(b => b.t2 === null));
   const roomPending = useRef(true);
   useEffect(() => {
     if (!zones) {

@@ -277,24 +277,30 @@ describe('the charts', () => {
     expect(Object.keys(byId).sort()).toEqual(['entry', 'stop', 'target', 'target2']);
   });
 
-  it('mirrors the plan on the 10-second pane as thin named lines, and never on the 5-minute (operator report 2026-10-13)', () => {
-    // AIXI's forming Gap and Go drew four unnamed dotted lines on both charts: "we cant keep them like this".
-    for (const pane of ['map', 'thin'] as const) {
-      const forming = paneDraw(read, { pane, layers: LAYERS, toTime: identity });
-      expect(forming.scene.boxes).toEqual([]);
-      expect(forming.lines).toEqual([]);
-    }
+  it("names an order's lines on the 10-second pane, and never draws the plan on the 5-minute (operator report 2026-10-13)", () => {
+    // AIXI's forming Gap and Go drew four unnamed dotted lines on both charts: "for which strategy is this specifically?"
+    // A setup's plan is its box there (`strategyBox.test.ts`); a level an order stands behind is a line, named.
     const armed: StockRead = { ...read, plan: { ...read.plan!, state: 'armed', provisional: false } };
-    const { scene, lines } = paneDraw(armed, { pane: 'thin', layers: LAYERS, toTime: identity });
+    const levels = {
+      entry: { price: 5.44, behind: 'order' as const }, stop: { price: 5.33, behind: 'plan' as const },
+      target: { price: 5.49, behind: 'plan' as const }, target2: { price: 5.99, behind: 'plan' as const },
+    };
+    const { scene, lines } = paneDraw(armed, { pane: 'thin', layers: LAYERS, toTime: identity, levels });
     expect(scene.boxes).toEqual([]);
-    expect(lines.map(l => [l.id, l.title, l.width, l.axisLabel, l.line])).toEqual([
-      ['entry', 'ENTRY', 1, true, undefined], ['stop', 'STOP · plan', 1, true, undefined],
-      ['target', 'TARGET 1 · plan', 1, true, undefined], ['target2', 'TARGET 2 · plan', 1, true, undefined],
+    expect(scene.strategy ?? null).toBeNull();
+    expect(lines.map(l => [l.id, l.title, l.width, l.axisLabel, l.line, l.style])).toEqual([
+      ['entry', 'ENTRY · working', 1, true, undefined, 'solid'], ['stop', 'STOP · plan', 1, true, undefined, 'dashed'],
+      ['target', 'TARGET 1 · plan', 1, true, undefined, 'dashed'],
+      ['target2', 'TARGET 2 · plan', 1, true, undefined, 'dashed'],
     ]);
     // Named lines put their names in the edge column: none is left unnamed.
-    expect(lineWords(lines).map(w => w.text)).toEqual(['ENTRY', 'STOP · plan', 'TARGET 1 · plan', 'TARGET 2 · plan']);
-    expect(paneDraw(armed, { pane: 'map', layers: LAYERS, toTime: identity }).lines
-      .filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
+    expect(lineWords(lines).map(w => w.text))
+      .toEqual(['ENTRY · working', 'STOP · plan', 'TARGET 1 · plan', 'TARGET 2 · plan']);
+    for (const plan of [read, armed]) {
+      const map = paneDraw(plan, { pane: 'map', layers: LAYERS, toTime: identity, levels });
+      expect(map.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
+      expect(map.scene.strategy ?? null).toBeNull();
+    }
   });
 
   it('honours the switches: a hidden lane, setups off, levels off', () => {

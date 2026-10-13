@@ -55,9 +55,10 @@ describe("each chart pane's Key", () => {
     expect(chartKey('full', { ...ON, levels: false }).some(s => s.title.startsWith('Trend lines'))).toBe(false);
   });
 
-  it('lists only the plan lines on the 10-second, saying when they show', () => {
-    expect(chartKey('thin', ON)[0]).toMatchObject({ title: 'The plan (from near or armed, or while an order works)' });
-    expect(chartKey('thin', ON)[0].rows.map(r => r.label)).toEqual(['Entry', 'Stop', 'Target 1 / 2', 'Dashed vs solid']);
+  it("lists only the plan on the 10-second: an order's lines and the setup's box (operator choice 2026-10-13)", () => {
+    expect(chartKey('thin', ON)[0]).toMatchObject({ title: 'The plan' });
+    expect(chartKey('thin', ON)[0].rows.map(r => r.label)).toEqual(
+      ['Entry', 'Stop', 'Target 1 / 2', 'Strategy box', 'Faint box', 'Dashed vs solid']);
   });
 
   it("lists no plan on the 5-minute, which draws its own setups' lines and never the plan's (operator report 2026-10-13)", () => {

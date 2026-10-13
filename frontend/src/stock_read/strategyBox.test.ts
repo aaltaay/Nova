@@ -18,6 +18,7 @@ import { boxedPlan, formingPlan, strategyOf, strategyWords } from './strategyBox
 import { columnLeft, drawStrategy, fitName, strategySpan, type StrategyPx } from './strategyBoxRender';
 import type { SetupLevels, StockPlan, StockRead } from './types';
 import type { OrderLevels } from './whoTradesModel';
+import { etChartSeconds } from '../tickerChartData';
 
 const LAYERS = {
   setups: true, levels: true, past: true, labels: 'compact' as const, hidden: [] as string[], plan: 'auto' as const,
@@ -103,14 +104,20 @@ describe('the box once the setup is near or armed', () => {
       ['entry', false, '', true], ['stop', false, '', true], ['target', false, '', true], ['target2', false, '', true],
     ]);
     expect(scene.keepInView).toEqual({ min: 2.7936, max: 2.99 });
-    // The 10-second pane mirrors the armed plan's levels as thin lines across it, each named with its axis tag; the
-    // 5-minute pane draws none of the plan (operator report 2026-10-13).
-    const thin = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity });
+    // The 10-second pane draws the same box after its own newest candle, its levels axis tags with no line, so the
+    // strategy is named there too; the 5-minute pane draws none of the plan (operator choice 2026-10-13).
+    const last = at955 + 40;
+    const thin = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity,
+      lastBar: { t: last as Time, sec: etChartSeconds(last * 1000) } });
+    expect(thin.scene.strategy).toMatchObject({ after: last, state: 'armed', startBars: null, endBars: null,
+      name: 'GAP AND GO' });
     expect(thin.lines.map(l => [l.id, l.line, l.width, l.axisLabel, l.title])).toEqual([
-      ['entry', undefined, 1, true, 'ENTRY'], ['stop', undefined, 1, true, 'STOP · plan'],
-      ['target', undefined, 1, true, 'TARGET 1 · plan'], ['target2', undefined, 1, true, 'TARGET 2 · plan'],
+      ['entry', false, 1, true, ''], ['stop', false, 1, true, ''], ['target', false, 1, true, ''],
+      ['target2', false, 1, true, ''],
     ]);
-    expect(thin.scene.strategy ?? null).toBeNull();
+    expect((thin.scene.words ?? []).filter(w => w.id.startsWith('strategy:')).map(w => w.text))
+      .toEqual(['T1', 'entry', 'stop']);
+    expect(thin.scene.keepInView).toEqual({ min: 2.7936, max: 2.99 });
     const map = paneDraw(read, { pane: 'map', layers: LAYERS, toTime: identity });
     expect(map.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
     expect(map.scene.strategy ?? null).toBeNull();
@@ -161,13 +168,20 @@ describe("the strategy box's scene", () => {
     expect(scene.keepInView).toEqual({ min: 2.7936, max: 2.99 });
     expect((scene.words ?? []).map(w => w.id)).toEqual(expect.arrayContaining(['strategy:target', 'strategy:entry',
       'strategy:stop']));
-    // Forming, it is the faint box alone: no lines on the 5-minute or 10-second pane either (operator report 2026-10-13,
-    // AIXI's forming Gap and Go drew four unnamed dotted lines on both).
-    for (const pane of ['map', 'thin'] as const) {
-      const other = paneDraw(read, { pane, layers: LAYERS, toTime: identity });
-      expect(other.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
-      expect(other.scene.strategy ?? null).toBeNull();
-    }
+    // The 10-second pane draws the faint box too, its window counted in 10-second candles from its own newest one:
+    // 09:01:50 to 09:30 is 169 of them, to 10:00 349 (operator report 2026-10-13: AIXI's forming Gap and Go drew four
+    // unnamed dotted lines there -- "for which strategy is this specifically?").
+    const last = at901 + 50;
+    const thin = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity,
+      lastBar: { t: last as Time, sec: etChartSeconds(last * 1000) } });
+    expect(thin.scene.strategy).toMatchObject({ after: last, state: 'forming', startBars: 169, endBars: 349,
+      name: 'GAP AND GO', when: '09:30–10:00' });
+    expect(thin.lines).toEqual([]);
+    // The 5-minute pane draws none of it.
+    const map = paneDraw(read, { pane: 'map', layers: LAYERS, toTime: identity,
+      lastBar: { t: last as Time, sec: etChartSeconds(last * 1000) } });
+    expect(map.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);
+    expect(map.scene.strategy ?? null).toBeNull();
   });
 });
 
