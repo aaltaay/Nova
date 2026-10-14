@@ -59,8 +59,8 @@ export const SIM_STRIP_RTH_CLOSE = '16:00';
  */
 export const SIM_STRIP_RTH_OPEN_FRACTION = (9.5 - 4) / 16;
 export const SIM_STRIP_RTH_CLOSE_FRACTION = (16 - 4) / 16;
-/** Past this fraction the playhead tag flips to the left of the marker. */
-export const SIM_STRIP_TAG_FLIP_FRACTION = 0.84;
+/** Past this fraction the playhead tag flips to the left of the marker: halfway, since the 20px tag is wide. */
+export const SIM_STRIP_TAG_FLIP_FRACTION = 0.5;
 export const simStripFailedTitle = (error: string): string => `Replay failed: ${error}`;
 
 /* ── Quote card venue tag ───────────────────────────────────────────────── */
