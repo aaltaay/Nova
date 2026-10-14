@@ -26,6 +26,13 @@ describe('capture pill', () => {
       tone: 'warn', text: 'Reading 30m 00s behind the stream · bar read 09:40:00 ET · positions shown are from then' });
     // Up to 30 s behind is the stream's own latency: still live.
     expect(capturePill(day({ capture: capture({ clock: '10:09:30' }) }))!.tone).toBe('live');
+    // An hour or more behind is still the past, never Live (PR #951 review).
+    expect(capturePill(day({ capture: capture({ clock: '08:10:00' }) }))!.text)
+      .toBe('Reading 2h 00m behind the stream · bar read 08:10:00 ET · positions shown are from then');
+    // A frame from before midnight read after it is 20 s behind, not a day; a screen clock a little ahead is skew.
+    const afterMidnight = Date.UTC(2026, 9, 14, 4, 0, 10) / 1000; // 00:00:10 ET
+    expect(behindStream(capture({ clock: '23:59:50', updated_at: afterMidnight }))).toBe(20);
+    expect(behindStream(capture({ clock: '10:10:30' }))).toBe(0);
   });
 });
 

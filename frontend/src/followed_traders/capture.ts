@@ -6,6 +6,7 @@
 import {
   FOLLOWED_CAPTURE_BEHIND_SEC,
   FOLLOWED_CAPTURE_STALE_SEC,
+  FOLLOWED_CLOCK_AHEAD_SEC,
   FT_BAD_ANSWER,
   FT_NO_STATUS,
   FT_PILL_BEHIND,
@@ -34,19 +35,24 @@ const ET_SECONDS = new Intl.DateTimeFormat('en-US', {
   hourCycle: 'h23',
 });
 
+const DAY_SEC = 24 * 3600;
+
 function clockSec(clock: string): number | null {
   const m = /^(\d{1,2}):(\d{2}):(\d{2})$/.exec(clock);
   return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null;
 }
 
-/** How far the bar's on-screen clock was behind the moment the feed read it, in seconds; null when unknown. */
+/** How far the bar's on-screen clock was behind the moment the feed read it, in seconds, however far (a frame from
+ *  before midnight read after it counts across it); null when unknown. Never capped: a read hours behind is the
+ *  stream's past like one a minute behind (PR #951 review). */
 export function behindStream(c: FollowedCapture): number | null {
   if (c.updated_at === null || !c.clock) return null;
   const read = clockSec(ET_SECONDS.format(new Date(c.updated_at * 1000)));
   const shown = clockSec(c.clock);
   if (read === null || shown === null) return null;
   const lag = read - shown;
-  return lag >= 0 && lag < 3600 ? lag : null;
+  if (lag >= 0) return lag;
+  return lag >= -FOLLOWED_CLOCK_AHEAD_SEC ? 0 : lag + DAY_SEC;
 }
 
 /** The bar read is the stream's past: how far behind, when that is more than FOLLOWED_CAPTURE_BEHIND_SEC; else null. */
