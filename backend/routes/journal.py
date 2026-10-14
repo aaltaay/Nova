@@ -5,7 +5,7 @@ cancels an order.
 Endpoints:
   GET /api/journal/signals   -- setups recorded by the retired setups_stream loop (history)
   GET /api/journal/trades    -- recent closed round-trips (empty until Phase D)
-  GET /api/journal/metrics   -- win rate, avg win/loss, P/L ratio, go/no-go bar
+  GET /api/journal/metrics   -- win rate, avg win/loss, P/L ratio and adherence statistics
   GET /api/journal/calendar  -- year/month daily P&L aggregates (Reports tab)
   GET /api/journal/tags      -- per-tag win rate / pnl (Reports v2)
   GET /api/journal/r-multiples -- R-multiple expectancy (Reports v2)

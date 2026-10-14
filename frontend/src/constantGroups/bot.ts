@@ -286,7 +286,7 @@ export const BOT_READOUT_STATE_LABELS: Record<string, string> = {
 /** What a read-out is, on every setup card (ADR 042 G): what it measures and what it does not unlock. */
 export const BOT_READOUT_WHAT =
   'Measures whether the tape gate turns this setup into a winner. Nova\'s bot trades Paper and Sim only; '
-  + 'Live trading by a bot is not built, so passing it unlocks nothing yet.';
+  + 'Results are information for you to judge; they never unlock trading.';
 /** How it scores, against how the bot trades (ADR 042 G). */
 export const BOT_READOUT_EXITS =
   'It scores the strategy\'s exit (its share at target 1, the rest at target 2, the stop where it is); '

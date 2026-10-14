@@ -1,8 +1,7 @@
 /**
  * A short setup's five-year test on its card (ADR 049 section 12): "Test: five-year test queued / running / passed /
  * failed", ahead of its read-out. The words are the backend's (`setup_scanner/short_tests.py`), read from the result
- * file the desk's harness writes; nothing here runs or judges a test. Until it passed on the rules in play, the
- * card's On stays locked.
+ * file the desk's harness writes. Research is information for the operator; it never restricts On.
  */
 import {
   SHORT_TEST_LABEL,

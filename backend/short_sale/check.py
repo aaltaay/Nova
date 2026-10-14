@@ -6,7 +6,6 @@ bot's squares show the whole list (``GET /api/short-check/{symbol}``). Each verd
 its numbers and its fix:
 
 1. ``live_key`` -- Live only: ``IBKR_SHORT_ENABLED`` (ADR 009, ``SHORT_DISABLED``);
-   ``live_proof`` -- Live only: the Live short proof is complete (``SHORT_PROOF_INCOMPLETE``; ADR 048 step 6);
 2. ``order`` -- a SELL, a limit, and a buy stop above it (``SHORT_NEEDS_LIMIT``, ``SHORT_NEEDS_STOP``);
 3. ``not_long`` -- never a short while the account holds the stock long (``SHORT_WHILE_LONG``);
 4. ``account`` -- a margin account with at least $2,000 of equity; on Live, margin by IBKR's own figures,
@@ -42,7 +41,6 @@ from constants_shorts import (
     SHORT_NEEDS_STOP,
     SHORT_NO_RECORDED_BORROW,
     SHORT_NOT_MARGIN,
-    SHORT_PROOF_INCOMPLETE,
     SHORT_SSR_AT_BID,
     SHORT_SSR_NO_BID,
     SHORT_WHILE_LONG,
@@ -341,21 +339,10 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
                       f"LIQ {liq:.2f}" if isinstance(liq, float) else None, **numbers)]
 
 
-def _live_proof(proof: tuple[bool, str]) -> Verdict:
-    complete, missing = proof
-    if complete:
-        return _ok("live_proof", "Live short proof", "The Live short proof is complete.")
-    return _bad("live_proof", "Live short proof", SHORT_PROOF_INCOMPLETE,
-                (f"The Live short proof is not complete: {missing} Finish it on Paper (Bots page, the Bot card's "
-                 "Live short proof); until then no short goes to Live."))
-
-
-def rules(order: Order, facts: Facts, account: Account, *, live_key: bool | None,
-          live_proof: tuple[bool, str] | None = None) -> list[Verdict]:
+def rules(order: Order, facts: Facts, account: Account, *, live_key: bool | None) -> list[Verdict]:
     """Every rule's verdict, in order; ``live_key`` is None off Live (Paper and Sim need none).
 
-    ``live_proof`` is Live's ``(complete, what is missing)`` (``short_proof.status``); off Live None. On Live
-    a missing reading is an incomplete proof, never a pass.
+    Research and readiness proofs never grant or refuse permission (ADR 048 amendment, 2026-10-13).
     """
     out: list[Verdict] = []
     live = live_key is not None
@@ -363,7 +350,6 @@ def rules(order: Order, facts: Facts, account: Account, *, live_key: bool | None
         out.append(_ok("live_key", "Live shorts", "IBKR_SHORT_ENABLED is on.") if live_key else
                    _bad("live_key", "Live shorts", "SHORT_DISABLED",
                         "IBKR_SHORT_ENABLED is false — short entry locked"))
-        out.append(_live_proof(live_proof or (False, "Nova could not read it.")))
     out += [_order(order), _not_long(order, account)]
     equity, verdict = _account(account, live=live)
     out += [verdict, _hours(facts), _halt(facts), _borrow(order, facts, account), _ssr(order, facts)]

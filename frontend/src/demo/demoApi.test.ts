@@ -4,7 +4,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { DEMO_REFUSAL, answer, demoVenue, resetDemoState, type DemoResponse } from './demoApi';
 import { NOW_S } from './data/market';
-import { parseShortProof } from '../bot/shortProofApi';
 
 const get = (path: string, query = '') => answer({ method: 'GET', path, query: new URLSearchParams(query), body: null }, NOW_S + 30);
 const send = (method: string, path: string, body: unknown = null) => answer({ method, path, query: new URLSearchParams(), body });
@@ -34,12 +33,8 @@ describe('demo backend reads', () => {
     expect(smpl.plan).toMatchObject({ entry: 4.39, stop: 4.12, target: 4.49, target2: 4.99, target1_fraction: 0.5 });
   });
 
-  it('answers the Live short proof in the shape the Bots page reads, never complete (ADR 048 step 6)', () => {
-    const view = parseShortProof(bodyOf<unknown>(get('/api/short-proof')));
-    expect(view?.complete).toBe(false);
-    expect(view?.steps.map((s) => s.id)).toEqual(['margin_account', 'practice_reset', 'short_tests', 'paper_days',
-      'drill_freeze', 'drill_flatten', 'drill_day_cover', 'drill_gateway_drop', 'live_key']);
-    expect(view?.steps[0].ok).toBeNull();
+  it('has no retired readiness-proof endpoint', () => {
+    expect(get('/api/short-proof')).toBeUndefined();
   });
 
   it('answers nothing it does not know', () => {

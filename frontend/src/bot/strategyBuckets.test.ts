@@ -3,7 +3,7 @@
  * has not passed is held at Eyes and says so, and each row says how far its evidence has come.
  */
 import { describe, expect, it } from 'vitest';
-import { bucketOf, bucketsOf, heldAtEyes, statusOf, type BucketRow } from './strategyBuckets';
+import { bucketOf, bucketsOf, statusOf, type BucketRow } from './strategyBuckets';
 
 function row(partial: Partial<BucketRow> = {}): BucketRow {
   return { id: 'first_pullback', label: 'First pullback', side: 'long', own: 2, locked: null, test: null,
@@ -21,19 +21,13 @@ describe('strategyBuckets', () => {
     expect(bucketOf(row({ own: 0 }))).toBe(0);
   });
 
-  it('holds a short at On at Eyes while its test has not passed, and says so', () => {
-    const held = row({ id: 'bear_flag', label: 'Bear flag', side: 'short', own: 2, test: queued, readout: undefined,
-      locked: 'On waits on the bear flag five-year test: five-year test queued' });
-    expect(heldAtEyes(held)).toBe(true);
-    expect(bucketOf(held)).toBe(1);
-    const said = statusOf(held);
-    expect(said.text).toBe('On · held at Eyes until its test passes · test queued');
-    expect(said.tone).toBe('held');
-    expect(said.tip).toMatch(/^On waits on the bear flag five-year test/);
-    // Its test passed: it trades like a long at On.
-    const open = row({ id: 'bear_flag', side: 'short', own: 2, test: passed, locked: null });
-    expect(bucketOf(open)).toBe(2);
-    expect(statusOf(open)).toMatchObject({ text: 'Test passed', tone: 'ok' });
+  it('keeps a short in its chosen bucket even with a legacy research lock', () => {
+    const selected = row({ id: 'bear_flag', side: 'short', own: 2, test: queued,
+      locked: 'On waits on the bear flag five-year test' });
+    expect(bucketOf(selected)).toBe(2);
+    expect(statusOf(selected)).toMatchObject({ text: 'Test queued', tone: 'muted' });
+    expect(bucketOf({ ...selected, test: passed })).toBe(2);
+    expect(statusOf({ ...selected, test: passed })).toMatchObject({ text: 'Test passed', tone: 'ok' });
   });
 
   it('says a long\'s read-out, and tells a read-out loading from one not reported', () => {

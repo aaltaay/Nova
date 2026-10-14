@@ -3,7 +3,7 @@
 ``GET /api/bot/session`` carries ``shorts``: the facts the one short check (``short_sale.check``) reads before
 any short, the bot's or yours, said once for the desk's venue -- a margin account (on Live, by IBKR's own
 figures), at least $2,000 of equity, the short hours by the venue's clock, and Live, where shorts wait on the
-Live short proof and the operator's ``IBKR_SHORT_ENABLED`` (ADR 048 step 6). Each is ``{ok: true | false |
+operator's ``IBKR_SHORT_ENABLED`` (ADR 048 amendment, 2026-10-13). Each is ``{ok: true | false |
 null, text, value}``; ``null`` is not known, never a pass. ``live_cover`` says whether Nova covers Live shorts
 at 15:55 (the switch is on), and ``day_cover`` carries the day cover's alarms (``short_sale.cover_alarm``),
 which every desk window polls through this session. Memory reads only; never a wait on IBKR.
@@ -85,31 +85,12 @@ def _hours(venue: str) -> dict[str, Any]:
     return _chip(True, f"new shorts until {until} ET; Nova covers what is left at {cover}", f"until {until}")
 
 
-def _proof() -> tuple[bool, int, int]:
-    """The Live short proof: ``(complete, items done, items)``; a proof Nova cannot read is incomplete."""
-    from short_proof import store, view as proof_view
-
-    doc, _error = store.read()
-    done, total = proof_view.done(doc)
-    return proof_view.status()[0], done, total
-
-
 def _live() -> dict[str, Any]:
     from ibkr import safety
 
-    try:
-        complete, done, total = _proof()
-    except Exception:
-        logger.warning("bot: the Live short proof could not be read for the short chips", exc_info=True)
-        return _chip(False, "Live shorts: the Live short proof could not be read (the engine log has the details), "
-                            "so Live refuses every short; Nova's bot never trades Live")
-    proof = "the Live short proof is complete" if complete else f"the Live short proof: {done} of {total} done"
-    if safety.short_enabled() and complete:
-        return _chip(None, f"IBKR_SHORT_ENABLED is on and {proof}: Live shorts by hand; Nova's bot never trades Live",
-                     f"{done}/{total}")
-    key = "IBKR_SHORT_ENABLED is on" if safety.short_enabled() else "IBKR_SHORT_ENABLED is off"
-    return _chip(False, f"Live shorts: after the Paper proof -- {proof}, {key}, and Nova's bot never trades Live",
-                 f"{done}/{total}")
+    if safety.short_enabled():
+        return _chip(None, "IBKR_SHORT_ENABLED is on: Live shorts by hand; Nova's bot never trades Live")
+    return _chip(False, "IBKR_SHORT_ENABLED is off: Live short entries are locked; Nova's bot never trades Live")
 
 
 def view(venue: str | None) -> dict[str, Any]:

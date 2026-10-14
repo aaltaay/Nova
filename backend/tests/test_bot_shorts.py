@@ -476,9 +476,8 @@ def test_the_session_says_what_a_short_needs_from_the_account_and_the_clock(pape
     assert shorts["equity"]["value"] == "$5,000"
     assert shorts["hours"] == {"ok": True, "text": "new shorts until 15:50 ET; Nova covers what is left at 15:55",
                                "value": "until 15:50"}
-    assert shorts["live"]["ok"] is False and "after the Paper proof" in shorts["live"]["text"]
-    # ADR 048 step 6: the Live chip counts the proof; Live's cover is off with the switch; no alarm.
-    assert shorts["live"]["value"] == "0/7" and "0 of 7 done" in shorts["live"]["text"]
+    assert shorts["live"]["ok"] is False and "IBKR_SHORT_ENABLED is off" in shorts["live"]["text"]
+    assert shorts["live"]["value"] is None
     assert shorts["live_cover"] is False and shorts["day_cover"] == {"alarms": []}
 
 
@@ -495,15 +494,14 @@ def test_the_live_margin_chip_takes_ibkrs_word_never_the_override(monkeypatch):
     assert shorts_view._account("live")[0]["ok"] is True
 
 
-def test_the_live_chip_says_an_unreadable_proof_in_fixed_words(monkeypatch):
+def test_the_live_chip_describes_the_operator_key_without_readiness(monkeypatch):
     from bot import shorts_view
+    from ibkr import safety
 
-    def broken():
-        raise RuntimeError("SECRET-TRACE disk gone")
-
-    monkeypatch.setattr(shorts_view, "_proof", broken)
+    monkeypatch.setattr(safety, "short_enabled", lambda: True)
     chip = shorts_view._live()
-    assert chip["ok"] is False and "could not be read" in chip["text"] and "SECRET-TRACE" not in chip["text"]
+    assert chip["ok"] is None and chip["value"] is None
+    assert "Live shorts by hand" in chip["text"] and "never trades Live" in chip["text"]
 
 
 def test_a_cover_alarm_reaches_the_session_every_window_polls(paper):

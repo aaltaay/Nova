@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 
 
 def short_view(setup: str) -> dict[str, Any]:
-    """ADR 049: every setup's ``side``; a short's five-year ``test`` and why its On is ``locked``. #847: a watch-only
+    """ADR 049: every setup's ``side`` and a short's informative five-year ``test``. #847: a watch-only
     setup's ``watch_only`` is true and its On is locked, saying why."""
-    from bot.setup_levels import on_lock, short_lock
+    from bot.setup_levels import on_lock
     from constants_bot import SIDE_SHORT, setup_side, watch_only
 
     side = setup_side(setup)
@@ -38,7 +38,7 @@ def short_view(setup: str) -> dict[str, Any]:
         return {"side": side, "test": None, "locked": None}
     from setup_scanner import short_tests
 
-    return {"side": side, "test": short_tests.test_in_play(setup), "locked": short_lock(setup)}
+    return {"side": side, "test": short_tests.test_in_play(setup), "locked": None}
 
 
 def get_session() -> dict[str, Any]:

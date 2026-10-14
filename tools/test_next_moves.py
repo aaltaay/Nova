@@ -61,7 +61,7 @@ ROADMAP = """# Nova Roadmap Status
 
 ## Exact next action (human)
 
-1. **K3 paper short days:** set `IBKR_SHORT_ENABLED=true` on paper Gateway; fill K3 Evidence.
+1. **Phase L research:** review strategy results and record assumptions.
 2. **Reliability WS1:** leave the PC on overnight.
 
 ## Open phases
@@ -82,11 +82,11 @@ def test_product_next_parses_the_live_ledger():
 def test_product_next_strips_bold_and_stops_at_next_heading():
     assert nm.product_next(ROADMAP) == "Phase K -- short entry, `[~]` IN PROGRESS."
     items = nm.human_next_items(ROADMAP)
-    assert len(items) == 2 and items[0].startswith("K3 paper short days:")
+    assert len(items) == 2 and items[0].startswith("Phase L research:")
 
 
 def test_ship_lane_is_human_item_one_or_says_unavailable():
-    assert nm.ship_lane(ROADMAP).startswith("K3 paper short days")
+    assert nm.ship_lane(ROADMAP).startswith("Phase L research")
     assert nm.ship_lane(None).startswith("unavailable")
 
 
@@ -135,7 +135,7 @@ def test_p0_line_reports_claim_state():
 def test_forbidden_phrases_are_withheld_from_every_lane():
     poisoned = [dict(PACKAGES[2], gate="#340 flip auto_live on for the replay?")]
     assert nm.decide_lane(poisoned, ISSUES) == nm.WITHHELD
-    ledger = ROADMAP.replace("K3 paper short days:", "Go live now:")
+    ledger = ROADMAP.replace("Phase L research:", "Go live now:")
     assert nm.ship_lane(ledger) == nm.WITHHELD
 
 
@@ -149,7 +149,7 @@ def test_build_seed_live_and_unavailable_shapes():
     assert live["source"] == "live" and live["backlog"].startswith("Claim `state-truth`")
     down = nm.build_seed(roadmap_text=ROADMAP, packages=PACKAGES, issues=None, held=None, as_of="t")
     assert down["source"] == "unavailable"
-    assert down["backlog"] == nm.UNAVAILABLE and down["ship"].startswith("K3")
+    assert down["backlog"] == nm.UNAVAILABLE and down["ship"].startswith("Phase L")
     lines = nm.render_seed(live)
     assert lines[0].startswith("Next-move seed (as of t, source=live")
     assert [l.split("=")[0] for l in lines[1:]] == ["- product_next", "- ship", "- backlog", "- decide", "- p0"]
@@ -250,7 +250,7 @@ def test_lint_rejects_bad_shapes():
     assert any("[decide]" in p for p in nm.lint(starred_decide))
     reordered = good.replace("2. `[ship]`", "2. `[backlog]`").replace("3. `[backlog]`", "3. `[ship]`")
     assert any("out of order" in p for p in nm.lint(reordered))
-    long_option = good.replace("(0/3 days).", "(0/3 days) " + "word " * 25)
+    long_option = good.replace("2. `[ship]`", "2. `[ship]` " + "word " * 40)
     assert any("words (max" in p for p in nm.lint(long_option))
     assert any("missing" in p for p in nm.lint("just a reply with no menu"))
 

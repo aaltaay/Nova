@@ -9,11 +9,9 @@ import time
 import pytest
 
 from bot.autonomy import apply_patch
-from bot.errors import BotError
 from bot.persist import load_session
 from bot.session import get_session
-from bot.setup_levels import effective, short_lock
-from constants_bot import BOT_REASON_SHORT_TEST
+from bot.setup_levels import effective
 from constants_setups import SETUPS_DB_SCHEMA_VERSION
 from setup_scanner import readout, short_tests
 from setup_scanner.store import COLUMNS, SetupStore, _type
@@ -49,8 +47,7 @@ def test_a_short_setups_test_is_queued_until_its_result_exists_and_a_long_has_no
     assert got["state"] == "queued" and got["matches"] is None and got["summary"] is None
     assert "py -3 research/shorts/test_shorts.py --setup bear_flag" in got["text"]
     assert got["file"].endswith("bear_flag.json")
-    assert short_tests.test_in_play("first_pullback") is None and short_lock("first_pullback") is None
-    assert short_lock(SETUP).startswith("On waits on the bear flag five-year test: five-year test queued")
+    assert short_tests.test_in_play("first_pullback") is None
 
 
 def test_a_running_test_says_how_far_it_got_and_when_it_may_have_stopped():
@@ -64,26 +61,25 @@ def test_a_running_test_says_how_far_it_got_and_when_it_may_have_stopped():
     assert "no update for 45 min, so it may have stopped" in short_tests.test_in_play(SETUP, now=now)["text"]
 
 
-def test_a_result_nova_cannot_read_never_unlocks_on():
+def test_a_result_nova_cannot_read_reports_error_as_information():
     folder = short_tests.folder()
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{SETUP}.json").write_text("{not json", encoding="utf-8")
     short_tests.reset_for_tests()
-    assert short_tests.test_in_play(SETUP)["state"] == "error" and short_lock(SETUP)
+    assert short_tests.test_in_play(SETUP)["state"] == "error"
     write_result(schema_version=2)
     got = short_tests.test_in_play(SETUP)
-    assert got["state"] == "error" and "schema version 2" in got["text"] and short_lock(SETUP)
+    assert got["state"] == "error" and "schema version 2" in got["text"]
     write_result(passed=False)                         # says passed, but its own verdict disagrees
-    assert short_tests.test_in_play(SETUP)["state"] == "error" and short_lock(SETUP)
+    assert short_tests.test_in_play(SETUP)["state"] == "error"
 
 
-def test_a_failed_test_reads_its_numbers_and_keeps_on_locked():
+def test_a_failed_test_keeps_its_honest_numbers():
     write_result(state="failed", passed=False, main={"trades": 280, "pf": 0.91, "exp_r": -0.04})
     got = short_tests.test_in_play(SETUP)
     assert got["state"] == "failed" and got["summary"] == {"trades": 280, "pf": 0.91, "pf_2x": 1.08,
                                                            "exp_r": -0.04, "p": 0.01}
     assert got["text"] == "five-year test failed (280 trades, PF 0.91, -0.04R a trade)"
-    assert "five-year test failed" in short_lock(SETUP)
 
 
 def test_a_number_that_is_not_finite_never_reaches_the_wire():
@@ -97,37 +93,54 @@ def test_a_result_file_is_named_only_by_a_known_short_setup():
     for name in ("../../etc/passwd", "first_pullback", "", f"{SETUP}/../x"):
         with pytest.raises(ValueError):
             short_tests.path_of(name)
-    assert short_tests.test("../x", "h") is None and short_tests.lock("../x", "h") is None
+    assert short_tests.test("../x", "h") is None
 
 
-# -- the On lock ------------------------------------------------------------------------------------
-def test_on_is_refused_until_the_test_passed_on_the_rules_in_play():
-    with pytest.raises(BotError) as refused:
-        apply_patch({"setup_levels": {SETUP: 2}}, desk=True)
-    assert refused.value.status_code == 409 and refused.value.reason == BOT_REASON_SHORT_TEST
-    assert "five-year test queued" in refused.value.message
-    apply_patch({"setup_levels": {SETUP: 1}}, desk=True)            # Eyes is never locked
-    assert load_session()["setup_levels"][SETUP] == 1
-
-    write_result()
-    assert short_lock(SETUP) is None
+# -- the operator's chosen On level never depends on research -----------------------------------------
+@pytest.mark.parametrize("result", [None, {"state": "running", "passed": None},
+                                      {"state": "failed", "passed": False}, {"schema_version": 2},
+                                      {"rules": {"rules_hash": "other-rules"}}])
+def test_research_never_refuses_on_or_downgrades_effective_strategy(result):
+    if result is not None:
+        write_result(**result)
     apply_patch({"level": 2, "setup_levels": {SETUP: 2}}, desk=True)
     assert effective(load_session())[SETUP] == 2
     card = next(s for s in get_session()["setups"] if s["id"] == SETUP)
-    assert card["side"] == "short" and card["test"]["state"] == "passed" and card["test"]["matches"] is True
+    assert card["side"] == "short" and card["locked"] is None and card["effective"] == 2
+    if result is None:
+        assert card["test"]["state"] == "queued"
+
+
+def test_a_short_at_on_keeps_its_choice_when_tested_rules_change():
+    write_result()
+    apply_patch({"level": 2, "setup_levels": {SETUP: 2}}, desk=True)
+    write_result(rules={"rules_hash": "other-rules"})
+    card = next(s for s in get_session()["setups"] if s["id"] == SETUP)
+    assert card["level"] == 2 and card["effective"] == 2 and card["locked"] is None
+    assert card["test"]["matches"] is False
+
+
+def test_corrupt_research_does_not_break_the_session_or_its_chosen_strategy():
+    apply_patch({"level": 2, "setup_levels": {SETUP: 2}}, desk=True)
+    folder = short_tests.folder()
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{SETUP}.json").write_text("{invalid", encoding="utf-8")
+    short_tests.reset_for_tests()
+    card = next(s for s in get_session()["setups"] if s["id"] == SETUP)
+    assert card["test"]["state"] == "error"
     assert card["locked"] is None and card["effective"] == 2
 
 
-def test_a_short_at_on_whose_test_stops_matching_reads_as_eyes():
-    write_result()
+def test_unreadable_research_rules_do_not_break_the_session_or_its_choice(monkeypatch):
     apply_patch({"level": 2, "setup_levels": {SETUP: 2}}, desk=True)
-    write_result(rules={"template_id": "default", "template_rev": 1, "rules_hash": "0123456789ab"})
-    assert effective(load_session())[SETUP] == 1
+
+    def unavailable():
+        raise OSError("unavailable research template")
+
+    monkeypatch.setattr("setup_templates.store.get_store", unavailable)
     card = next(s for s in get_session()["setups"] if s["id"] == SETUP)
-    assert card["level"] == 2 and card["effective"] == 1 and card["test"]["matches"] is False
-    assert "on other rules: the template in play has changed since" in card["locked"]
-    long_card = next(s for s in get_session()["setups"] if s["id"] == "first_pullback")
-    assert long_card["side"] == "long" and long_card["test"] is None and long_card["locked"] is None
+    assert card["test"]["state"] == "error"
+    assert card["locked"] is None and card["effective"] == 2
 
 
 # -- the read-out: a breakdown short is judged with SSR off ---------------------------------------------

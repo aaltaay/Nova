@@ -131,7 +131,7 @@ Nova's setup scanners are all long: the first pullback, the bull flag, the flat-
       - still profitable at twice the costs (profit factor over 1);
       - the parameter neighbourhood mostly positive;
       - a 1,000-shuffle permutation p at or under 0.05.
-    - **The lock.** A strategy whose test failed, or has not run, stays at Eyes with On locked, and the card says why: "five-year test queued / running / failed". This applies to shorts only (ADR 048). No agent writes a result; the test's own output file is the only source.
+    - **Information, never a lock (2026-10-13 amendment).** The card reports queued/running/passed/failed/error and the tested-rule match; no research state restricts On or its effective level. No agent writes a verdict; the harness result remains the source.
 
 13. **New strategies.** The operator asks for a pattern and it gets built; a variant is a template, with no code. "+ Add a setup" offers short setups too.
 
@@ -245,13 +245,14 @@ long mirror's where one exists.
 - The Bots page's squares read a short trigger's "strategy on" square red, with the same reason.
 - On the desk, a short proposal stages a short with its buy stop in the ticket, never a buy.
 
-### The lock (§12)
+### Amendment, 2026-10-13: research is information, never permission (#791)
 
-- `PATCH /api/bot/session {setup_levels}` refuses On (2) for a short setup (`BOT_SHORT_TEST`) until a passed result
-  exists for the rules of its template in play: the result's `rules_hash` equals the template's `params_hash`.
-- A short setup already at On whose result stops matching (another template in play, a failed or removed result)
-  is read as Eyes.
-- The lock is checked against the file each time it is read, at most every 30 s.
+The operator decides whether a setup is convincing. A short setup can be set to On without a passed research
+result. Queued, running, failed, missing, unreadable and mismatched results never refuse On or silently read it
+as Eyes. The master ceiling and operator's per-setup choice still determine its effective level; watch-only
+setups remain watch-only. The cards retain honest research results and their tested-rule match as information.
+Passing criteria remain research verdicts, not trading gates. Live bots remain prohibited and ordinary account,
+arming and order-safety checks still apply.
 
 ### The five-year test
 
@@ -270,7 +271,7 @@ bars), then `test_shorts.py --setup <setup>` once per setup. Each card says its 
 - **The detectors and exits are the scanner's own.** The detectors run on the bars. Each minute's open, and then its
   extreme, is fed as the live price: the low for a breakdown, the high for the SSR bounce. Exits are the scoring's,
   with costs on every fill. The harness reads no tape, so a template whose flush exit is on is refused: its result
-  reads `error`, and On stays locked (PR #789 review).
+  reads `error`, and the research result reads error (PR #789 review), without restricting On.
 - **Costs and size** are gate 1's: $25,000, 1% risk a trade, at most 25% of equity a trade, IBKR's fixed commission,
   and one cent of slippage on every fill. Since harness version 2 the same trades are also costed on a fixed
   $25,000, a readout only (amendment of 2026-10-09, below).
@@ -298,7 +299,7 @@ bars), then `test_shorts.py --setup <setup>` once per setup. Each card says its 
 
   `fixed_size` came with harness version 2 (amendment of 2026-10-09, below); a version-1 result has none. The file
   is written through a temporary file and a rename. The harness writes `running` first and the verdict last. An
-  unreadable file, or one of an unknown version, reads `error` and keeps On locked.
+  unreadable file, or one of an unknown version, reads `error` as information, without restricting On.
 
 ## Step 5: the bot trades both sides (2026-10-07)
 
@@ -334,7 +335,7 @@ only (ADR 042: a bot never trades Live). What the build chose where §6.3 gives 
 - **The Bots page** (CHOSEN). The buckets sort by each strategy's own switch, except a short at On that its test
   holds at Eyes: it sits in Eyes and says so, because Nova trades it no more than an Eyes strategy.
 - **Not built here.** The Live short proof checklist on the Bot card, the Live margin-account check and Live's 15:55
-  cover and alarm are step 6. Until the operator finishes it and sets `IBKR_SHORT_ENABLED`, Live refuses every short.
+  cover and alarm are step 6. The proof is retired by the 2026-10-13 amendment to ADR 048; explicit Live opt-ins and order-safety checks remain.
 
 ## Amendment (2026-10-09): the fixed-size readout
 
@@ -369,4 +370,4 @@ reader needs it.
 
 - Five more detectors on every lane cost CPU. The performance recorder (ADR 026) shows it, as it did for ADR 031.
 - These rules are the agent's reading of the operator's design where the design gives no number. The scanner's rows and the five-year test may show that they need changing, and a template is the way to vary them without losing the default's evidence.
-- Longs keep today's rule: a long strategy may be On with no passing test. The asymmetry is the operator's: a short's loss is unbounded until its stop fills.
+- Long and short research results are information. Neither side needs a passing result to be selected On; the operator judges the evidence.

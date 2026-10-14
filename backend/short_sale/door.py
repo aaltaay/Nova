@@ -115,19 +115,7 @@ def verdicts(cmd: ExecutionCommand, *, facts: Facts | None = None, borrow: dict[
     if facts is None or facts.venue != where or facts.symbol != order.symbol:
         facts = gather(order.symbol, where, borrow=borrow)
     return check.rules(order, facts, read_account(order.symbol, where),
-                       live_key=_safety.short_enabled() if where == "live" else None,
-                       live_proof=live_proof() if where == "live" else None)
-
-
-def live_proof() -> tuple[bool, str]:
-    """The Live short proof's ``(complete, what is missing)`` (ADR 048 step 6); unreadable is incomplete."""
-    try:
-        from short_proof import status
-
-        return status()
-    except Exception:
-        logger.exception("short check: the Live short proof could not be read -- refusing the Live short")
-        return False, "the proof could not be read (the engine log has the details)."
+                       live_key=_safety.short_enabled() if where == "live" else None)
 
 
 def refusal(cmd: ExecutionCommand, *, facts: Facts | None = None, borrow: dict[str, Any] | None = None,

@@ -176,9 +176,6 @@ class TestMetrics:
         assert result["total_closed_trades"] == 0
         assert result["win_rate_pct"] is None
         assert result["profit_loss_ratio"] is None
-        assert result["go_no_go"]["overall_go"] is False
-        assert result["go_no_go"]["criteria"]["min_sample_size"]["met"] is False
-        assert result["go_no_go"]["criteria"]["profit_loss_ratio"]["met"] is None
 
     def test_metrics_compute_win_rate_and_ratio(self):
         from journal.store import record_trade
@@ -196,7 +193,7 @@ class TestMetrics:
         assert result["profit_loss_ratio"] == 2.0
         assert result["adherence_pct"] == 100.0
 
-    def test_go_no_go_requires_full_sample_and_ratio_and_adherence(self):
+    def test_statistics_never_include_a_readiness_permission(self):
         from journal.store import record_trade
 
         record_trade("AAA", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True)
@@ -205,11 +202,10 @@ class TestMetrics:
         from journal.metrics import compute_metrics
 
         result = compute_metrics()
-        criteria = result["go_no_go"]["criteria"]
-        assert criteria["profit_loss_ratio"]["met"] is True
-        assert criteria["adherence"]["met"] is False  # one non-adherent trade
-        assert criteria["min_sample_size"]["met"] is False  # only 2 of 50 required
-        assert result["go_no_go"]["overall_go"] is False
+        assert result["total_closed_trades"] == 2
+        assert result["profit_loss_ratio"] == 2.0
+        assert result["adherence_pct"] == 50.0
+        assert "go_no_go" not in result
 
     def test_mock_trades_never_leak_into_default_metrics(self):
         from journal.metrics import compute_metrics

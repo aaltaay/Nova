@@ -23,7 +23,7 @@ const CHIPS: [string, string][] = [['venue', 'Venue'], ['padlock', 'Padlock'], [
 /** The short chips (``GET /api/bot/session`` ``shorts``), in the spec's order. */
 const SHORT_CHIPS: [keyof NonNullable<BotSession['shorts']>, string][] = [
   ['margin_account', 'Margin account'], ['equity', 'Equity ≥ $2,000'], ['hours', 'Shorts until 15:50'],
-  ['live', 'Live shorts: after the Paper proof'],
+  ['live', 'Live shorts: operator-controlled'],
 ];
 const SHORT_UNREAD = 'This backend does not report what a short needs (it predates #778 step 5).';
 

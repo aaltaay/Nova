@@ -13,11 +13,10 @@ export function clampLevel(n: unknown): BotLevel {
   return v >= 2 ? 2 : 1;
 }
 
-/** Why a strategy's On is locked, null when it is not: a watch-only strategy's always (#847), a short's while its
- * five-year test has not passed (ADR 049). The backend's words when it sends them. */
-export function onLockOf(id: string, side: string | null | undefined, locked: string | null | undefined): string | null {
+/** Only a watch-only setup can lock On (#847). Legacy research locks are ignored. */
+export function onLockOf(id: string, _side: string | null | undefined, locked: string | null | undefined): string | null {
   if (isWatchOnlySetup(id)) return locked || BOT_WATCH_ONLY_ON_LOCK;
-  return side === 'short' ? locked ?? null : null;
+  return null;
 }
 
 export function levelName(n: unknown): string {

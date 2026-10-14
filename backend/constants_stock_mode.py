@@ -73,8 +73,8 @@ STOCK_MODE_NOT_A_TRADE = "STOCK_MODE_NOT_A_TRADE"
 
 # Why a side is locked (``locks``), in the operator's words.
 STOCK_MODE_WHY_LIVE_BUY = (
-    "On Live, Nova never buys by itself. Paper and Sim come first; Live follows only after Paper "
-    "proves it and you decide (#606)."
+    "On Live, Nova never buys by itself. Your PIN unlocks your own orders; "
+    "the bot trades on Paper and Sim only."
 )
 STOCK_MODE_WHY_LIVE_SELL = (
     "Approve on Live waits on your answer to #604 (how the stop protects before 9:30). "

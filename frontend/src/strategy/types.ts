@@ -118,21 +118,6 @@ export interface JournalTradeRow {
   is_mock: number;
 }
 
-export interface GoNoGoCriterion {
-  met: boolean | null;
-  label: string;
-  value: number | null;
-}
-
-export interface GoNoGo {
-  overall_go: boolean;
-  criteria: {
-    min_sample_size: GoNoGoCriterion;
-    profit_loss_ratio: GoNoGoCriterion;
-    adherence: GoNoGoCriterion;
-  };
-}
-
 export interface JournalMetrics {
   includes_mock_data: boolean;
   total_closed_trades: number;
@@ -142,7 +127,6 @@ export interface JournalMetrics {
   profit_loss_ratio: number | null;
   total_pnl_dollars: number | null;
   adherence_pct: number | null;
-  go_no_go: GoNoGo;
 }
 
 /** Mirrors backend/strategy/risk.py RiskState.to_dict(). */

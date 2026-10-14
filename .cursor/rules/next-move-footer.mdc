@@ -52,7 +52,7 @@ mid-task progress lines. When skipping, write nothing -- no stub.
 
 **Next move** (reply with a number; `3 go` starts it; `1 3` for several; `0` = other):
 1. ★ `[thread]` Review the next-move footer PR and merge it; done when CI is green and the head branch is gone. -- finishes this task
-2. `[ship]` K3 paper short day 1: set `IBKR_SHORT_ENABLED=true` on the paper Gateway, place one `short_entry`, fill K3 Evidence (0/3 days).
+2. `[ship]` Phase L research: review the available strategy results and record their assumptions; done when the chosen result is in Bot-Trading-Plan.
 3. `[backlog]` Claim `state-truth` batch 0 and open its PR: "fix(sim): server-owned recording state; an empty capture refuses instead of fabricating prints" (#316, #317).
 4. `[decide]` Answer #340 (keep `backend/sim/history_*` as the single replay surface?) -- unblocks 6 issues, incl. P0 #315.
 ```

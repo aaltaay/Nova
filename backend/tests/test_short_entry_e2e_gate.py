@@ -41,27 +41,20 @@ def test_e2e_short_entry_gate_matrix(monkeypatch, short_market_open):
                "ExcessLiquidity": 25_000.0, "account_class": "margin", "ibkr_account_class": "margin"}
     monkeypatch.setattr(account_mod, "get_account_summary", lambda: dict(summary))
     monkeypatch.setattr(account_mod, "get_positions", lambda: [])
-    proof = {"reading": (False, "0 of 3 reviewed Paper days with shorts.")}
-    monkeypatch.setattr("short_sale.door.live_proof", lambda: proof["reading"])
 
     # 1) Env off → SHORT_DISABLED
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: False)
     ok, _, reason = validate.check_account_and_position(_cmd(), borrow=_listing(250_000))
     assert ok is False and reason == "SHORT_DISABLED"
 
-    # 1a) Env on, the Live short proof not complete (ADR 048 step 6) → SHORT_PROOF_INCOMPLETE, whatever else holds
+    # 1a) With the key on, there is no proof gate; IBKR's own cash account still refuses.
     monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
-    ok, detail, reason = validate.check_account_and_position(_cmd(), borrow=_listing(250_000))
-    assert ok is False and reason == "SHORT_PROOF_INCOMPLETE" and "0 of 3 reviewed" in detail
-
-    # 1b) The proof complete, but only the .env override says margin (IBKR's own figures say cash) → SHORT_NOT_MARGIN
-    proof["reading"] = (True, "")
     summary["ibkr_account_class"] = "cash"
     ok, detail, reason = validate.check_account_and_position(_cmd(), borrow=_listing(250_000))
     assert ok is False and reason == "SHORT_NOT_MARGIN" and "override" in detail
     summary["ibkr_account_class"] = "margin"
 
-    # 2) Env on + the proof complete + IBKR shows margin + shortable (read from the cache, ADR 048) → OK
+    # 2) Env on + IBKR shows margin + shortable (read from the cache, ADR 048) → OK
     ok, _, reason = validate.check_account_and_position(_cmd(), borrow=_listing(250_000))
     assert ok is True and reason is None
 

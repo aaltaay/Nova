@@ -106,14 +106,10 @@ The design session read the code at `7d9948d` (2026-10-06); master at `60cbc82` 
    - **SSR.** Under SSR the bot's short goes in as a limit at the ask.
    - **The localhost bot API** (ADR 016) adds short kinds. Every short carries its buy stop, and Live stays refused (`BOT_LIVE_NOT_BUILT`).
 
-9. **Live last.** Live shorts stay impossible in every merged state until the operator has done all of these:
-   1. funded their margin account and seen IBKR show it as margin;
-   2. reset Paper and Sim to $5,000;
-   3. run the five-year tests on the desk;
-   4. completed the **Live short proof**: three Paper days with shorts and no wrong refusal or wrong fill, and the drills with a short open (Freeze all orders, Flatten, the 15:55 cover, a Gateway drop). Nova records the proof, and the Bots page shows it, ticking what it can see;
-   5. set `IBKR_SHORT_ENABLED=true` in their `.env`, which no agent ever sets.
-
-   Until the proof is complete, the door refuses a Live short (`SHORT_PROOF_INCOMPLETE`) even with the key set. The bot never trades Live (ADR 042), and `auto_live` stays NO-GO.
+9. **Operator judgment, 2026-10-13 amendment.** There is no required Paper sample, account reset,
+   reviewed-day/drill checklist or Live short proof. Research informs the human, never grants permission.
+   Live keeps explicit operator opt-ins/PIN and the common account/order-safety rules. The bot never trades
+   Live (ADR 042), and `auto_live` stays NO-GO.
 
 ## The build
 
@@ -171,63 +167,23 @@ What step 3 decided where the design left room:
   refuses it `SHORT_REPRICE` on Paper and Sim: cancel it and place it again. Its exits still move. No desk control
   reprices an order today; this closes the order API. Live gets the same rule with its short entries (step 6).
 
-## Step 6: Live readiness (2026-10-07)
+## Amendment, 2026-10-13: the operator decides whether the evidence is convincing (#791)
 
-What step 6 decided where the design left room. Live shorts stay refused in this step's merged state: the switch
-is off, and the proof cannot complete until the operator answers how a day is reviewed.
+The operator explicitly retired readiness workflows and machine permission based on research: they judge
+whether to take a strategy seriously. Required Paper days, human day-review marks, drills, the Live short proof
+file/observer/checklist and the proof refusal are retired. Old proof files are left untouched and no longer read.
+The Live short entry check keeps the operator's Live key and the same account, position, stop, hours, halt,
+borrow, SSR, margin and cushion checks used across venues. Live still requires explicit PIN arming and spend
+opt-ins; a bot never trades Live. Research remains information for the operator (ADR 049 amendment).
 
-- **The Live short proof is recorded as it happens** (`short_proof/`, `short-proof.json` in the operator cache,
-  `schema_version: 1`), so a reset of the Paper ledger never loses it. Nova ticks what it can see, on Paper:
-  - **Paper days with shorts:** a practice day (from 04:00 ET) with at least one filled short entry.
-  - **The drills, each with a short open on Paper:** Freeze all orders (the kill switch tripped and kept that
-    short's buy stop resting); Flatten (the ticket's Flatten, origin `ticket_flatten`, covered it); the 15:55
-    cover (a `day_cover` fill covered it); a Gateway drop (IBKR's session dropped, and when it was back the
-    short still had its buy stop working, or was flat). A drill counts once it passes; a run that did not pass
-    is kept with why.
-  - **The review of each day** ("no wrong refusal or wrong fill") is the operator's judgment. How a day is
-    reviewed is question 3 on #778. Until it is answered no day can be marked, so the proof stays incomplete.
-- **The door enforces the proof.** A Live short needs three reviewed Paper days and the four drills; until
-  then it is refused `SHORT_PROOF_INCOMPLETE` (a Live-only rule right after `live_key`, naming what is missing),
-  even with `IBKR_SHORT_ENABLED` on. A proof file Nova cannot read is incomplete.
-- **The Bot card lists the operator's steps (§7) in order** and ticks each from what Nova sees: IBKR shows a
-  margin account, the Paper ledger starts at $5,000, each of the five short strategies has a five-year test
-  result, the proof's days and drills, and the switch. The door enforces the proof, the margin account and
-  the switch; the reset and the tests are shown for the operator only.
-- **The margin account is IBKR's word.** Nova's Live `account_class` may come from the `.env` override
-  `IBKR_ACCOUNT_CLASS`. For a short it must come from IBKR's own figures (`ibkr_account_class`: an
-  AccountType or TradingType token, else BuyingPower against cash), and the override never counts.
-- **Live's day cover runs while `IBKR_SHORT_ENABLED` is on** (CHOSEN; the question is on #778). With the
-  switch off Nova cannot open a Live short, and a short opened in TWS is the operator's: the 15:50 card still
-  says to be flat by 15:55, and Nova places nothing.
-  - **When:** a Live short is due by the same rule as Paper's (outside 09:35-15:55 by the wall clock), and the
-    cover goes out only in the regular session, 09:30 to the close: a market order outside it would wait at
-    IBKR for the next open, and Nova never picks a Live limit price by itself.
-  - **How:** the stock's working Live orders are cancelled first, then a protective market BUY covers the
-    short (source `flatten`, origin `day_cover`, `intent: "flatten"`). Both are sent to Live whatever the desk
-    shows: the door admits `target_venue: "live"` for `day_cover` alone (never `margin_call`: IBKR liquidates
-    Live itself), only while IBKR is connected and its session is the Live Gateway on a live account (the
-    legacy paper Gateway connects too, and its account is not Live's), and the IBKR send skips the desk's
-    practice guard for that one targeted order. The door checks the cover under its lock against IBKR's own
-    position less the covers already working there (`ibkr.live_book`), so a cancel that failed leaves the cover
-    refused, never a buy past flat.
-  - **A cover stands until the position shows it.** IBKR sends a fill to the orders before the position, and a
-    fill in parts can reach the position one part at a time, so a cover gone from the working orders is not yet
-    a reason to cover again: no second cover goes until the position shows the short smaller by every share
-    IBKR says the cover filled (then one goes for what is still short), or IBKR says the cover closed with
-    nothing filled. A fill the position still does not show 15 s after the cover left the working orders (never
-    counted from its send: a cover can rest through a halt) raises the alarm, never a second cover (PR #792 and
-    PR #793 reviews).
-  - **Nova's own Live short entries** lapse as Paper's do (outside the short hours, or on a later day) and are
-    cancelled, found from Nova's execution record. A Live short entry is never repriced in place
-    (`SHORT_REPRICE`).
-- **The alarm, on every venue.** A cover that cannot go out -- refused, a cancel before it refused, IBKR not
-  connected, or Live outside the regular session -- raises an alarm per venue and symbol, kept in memory until
-  the short is gone or a cover goes out. The bot session carries it (`shorts.day_cover`), which every desk
-  window already polls, and each window shows a red banner while it holds (hidden for 10 minutes at most).
-- **The desk says it before the door does.** `/api/ibkr/status` carries the proof's progress (`short_proof`):
-  the ticket locks a Live short while the proof is incomplete or cannot be read, and shows Live's Short side
-  only for a margin account by IBKR's own figures. The 15:50 close card names Live's 15:55 cover only while
-  the switch is on.
+Live's day cover, short-entry cutoff and alarms from step 6 remain implemented. They run under the existing
+Live key policy, cover only in the regular session and use IBKR's Live book, never the selected practice venue's
+book. Covers never buy past flat or duplicate an unconfirmed fill. With the Live short key off, automatic Live
+cover remains off. Early-close timing remains ten and five minutes before the close.
+
+The retired `GET /api/short-proof` route and `/api/ibkr/status.short_proof` field are removed. The ticket and
+Bots page show no proof progress or required review/drill checklist. No configuration key is enabled by this
+amendment, and no operator trading action is required to implement it.
 
 ## Rejected
 
@@ -237,21 +193,16 @@ is off, and the proof cannot complete until the operator answers how a day is re
 - Market short entries. There is no price for SSR, the margin or the cushion.
 - Keeping the borrow ask under the lock with a shorter timeout. Any IBKR round trip under the lock holds every other order; the cache plus a background read never does.
 - Freeze all orders keeping only bracket stop legs. A plain stop placed by hand protects a position just as much.
-- A pattern-day-trader count. The rule is retired.
+- A Nova pattern-day-trader count. Applicable broker rules still apply; account-specific transition status is not inferred.
 
-## Questions left with the operator (on #778, gathered in #791)
+## Prior questions, disposition after the 2026-10-13 amendment
 
-- The every-trade squares in the spec list a Hot list square. ADR 044's 2026-10-06 amendment retired it ("just because it's starred or not, it shouldn't be a reason"), so it stays off until the operator says otherwise.
-- The short grade pillar "ran 30%+ today" will usually fail on a day-2 SSR name (ADR 049).
-- What "no wrong refusal or wrong fill" needs from the operator on each Paper day of the Live short proof. Until it
-  is answered no day can be marked reviewed, so the proof cannot complete (step 6).
-- Live's 15:55 cover while `IBKR_SHORT_ENABLED` is off: step 6 places nothing then (a short opened in TWS is the
-  operator's). Should it cover a Live short opened outside Nova too?
-- A short entry resting over the market through a halt, or after its borrow runs out: it could fill at the
-  reopening inside the 10-minute cool-off, or with no borrow. Proposed: cancel resting short entries when a halt
-  starts and hold a fill while borrow reads unavailable, on Live too. Until answered both stay as they are.
-- Notes to confirm against the live margin account: no pattern-day-trader limit, and no borrow fees on day-only shorts.
-- Early closes (step 2): new shorts stop at 12:50 and Nova covers at 12:55 on an NYSE 13:00 close, ten and five minutes before it, by the same rule as 15:50 / 15:55.
+The day-review question and required Paper-proof steps are retired. The Hot list is watching only (ADR 044).
+Early-close timing and Live day-cover policy keep their adopted defaults. Today's short-grade run pillar and
+resting-entry halt/borrow behavior keep their existing policy; changing them is separate product work, not
+readiness permission. Broker restrictions and fees are facts for the operator to inspect, never presumed from
+research or used to demand a new trade. FINRA's 2026 transition permits firms to retain old day-trading rules
+until October 20, 2027, so no account-specific exemption is asserted here.
 
 ## Related
 
