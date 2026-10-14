@@ -338,7 +338,10 @@ nothing here places, stages or cancels an order; Nova's bot trades them at On ("
      passed: boolean | null, error: string | null}
     ```
 
-    An unreadable file or an unknown version reads `error`.
+    An unreadable file or an unknown version reads `error`. Nova reads each file once at startup, off the
+    request loop, then answers from that read; one older than `SHORT_TESTS_CACHE_SEC` (30 s) is read again on
+    a thread of its own while the last read answers (operator report 2026-10-14: a re-read on the request loop
+    froze it 230 to 830 ms every 30 s on the drive the Massive downloader keeps busy).
   - `main` and `ssr_days` are scored on gate 1's compounding account, and the verdict reads `main`. `fixed_size`
     (harness version 2, ADR 049 amendment of 2026-10-09) costs the same trades as `main` on a fixed $25,000 that
     never moves, so a trigger after a losing run is still scored: `{trades, skipped, win_pct, pf, no_losses,
