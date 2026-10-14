@@ -418,6 +418,11 @@ def last_quotes(symbols: list[str] | None = None) -> dict[str, dict[str, Any]]:
     return _status.last_quotes(_subs, symbols)
 
 
+def bid_ask(symbol: str) -> tuple[float | None, float | None]:
+    """An existing L1 line's bid / ask; never opens a line."""
+    return _status.bid_ask(_subs, symbol)
+
+
 def get_day_high(symbol: str) -> float | None:
     return _status.get_day_high(_subs, symbol)
 

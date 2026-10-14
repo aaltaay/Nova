@@ -117,3 +117,15 @@ def test_marked_account_summary_adds_unrealized_at_bid_only_when_connected(monke
     assert account_marks.marked_account_summary(summary, [_row()])["UnrealizedAtBid"] == pytest.approx(25.0)
     offline = {"connected": False}
     assert "UnrealizedAtBid" not in account_marks.marked_account_summary(offline, [_row()])
+
+
+def test_l1_bid_ask_reads_a_line_that_has_no_last_yet():
+    from types import SimpleNamespace
+
+    from ibkr import ticks_status
+
+    subs = {"NOLAST": {"last_price": None, "ticker": SimpleNamespace(bid=2.05, ask=2.07)}}
+    assert ticks_status.last_quotes(subs, ["NOLAST"]) == {}
+    assert ticks_status.bid_ask(subs, "nolast") == (2.05, 2.07)
+    assert ticks_status.bid_ask({"X": {"ticker": SimpleNamespace(bid=float("nan"), ask=-1.0)}}, "X") == (None, None)
+    assert ticks_status.bid_ask({}, "MISSING") == (None, None)
