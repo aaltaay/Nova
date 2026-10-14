@@ -474,6 +474,7 @@ class PracticeBroker:
             "TotalCashValue": round(ledger.cash, 2),
             "BuyingPower": round(ledger.buying_power(), 2),
             "UnrealizedPnL": round(ledger.unrealized_pnl(), 2),
+            "UnrealizedAtBid": self.unrealized_at_bid(),
             # Today's realized, as IBKR's own RealizedPnL means (QA W2 / W3); the
             # lifetime figure stays on /api/practice/account as realized_pnl.
             "RealizedPnL": round(ledger.realized_today(), 2),
@@ -495,7 +496,9 @@ class PracticeBroker:
             self._commit()
         key_fn = getattr(self.reference, "replay_key", None)
         replay_key = key_fn() if callable(key_fn) else None
-        return self.ledger.snapshot(self.venue, self.account_id, replay_key=replay_key)
+        out = self.ledger.snapshot(self.venue, self.account_id, replay_key=replay_key)
+        out["unrealized_at_bid"] = self.unrealized_at_bid()
+        return out
 
     # ------------------------------------------------------------- lifecycle
     def rollover(self) -> bool:
@@ -627,6 +630,20 @@ class PracticeBroker:
                 continue
             if last is not None:
                 self.ledger.mark(sym, last)
+
+    def _close_quote(self, symbol: str) -> tuple[float | None, float | None]:
+        try:
+            ref = self.reference.reference(symbol)
+        except Exception:
+            logger.warning("PRACTICE %s: no bid / ask for %s -- unrealized at bid reads unknown", self.venue, symbol, exc_info=True)
+            return None, None
+        return ref.bid, ref.ask
+
+    def unrealized_at_bid(self) -> float | None:
+        """Open P&L at the price that closes each position now: a long's bid, a short's ask."""
+        from ibkr.account_marks import unrealized_at_bid
+
+        return unrealized_at_bid(self.ledger.position_rows(), self._close_quote)
 
     def _commit(self) -> None:
         if not self.persist_path:

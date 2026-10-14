@@ -213,7 +213,7 @@ describe('GlobalAppBar', () => {
     });
   }
 
-  it("shows Day's, Working, TAV (no BP) on the one row when connected", () => {
+  it("shows P/L, Unrealized P/L, Working, TAV (no BP) on the one row when connected", () => {
     account = baseAccount({
       orders: [
         {
@@ -230,7 +230,7 @@ describe('GlobalAppBar', () => {
     renderBar();
     const bar = container.querySelector('[data-testid="global-app-bar"]');
     expect(bar).toBeTruthy();
-    expect(bar!.textContent).toMatch(/Day's/);
+    expect(bar!.textContent).toMatch(/P\/L.*Unrealized P\/L/);
     expect(bar!.textContent).toMatch(/-\$0\.17/);
     expect(bar!.textContent).toMatch(/TAV/);
     expect(bar!.textContent).toMatch(/\$3,559\.55/);

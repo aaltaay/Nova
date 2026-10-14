@@ -98,3 +98,55 @@ def overlay_account_summary(summary: dict, positions: list[dict]) -> dict:
     except (TypeError, ValueError):  # maintainer: allow-swallow an unreadable IBKR figure keeps IBKR's own NetLiquidation
         pass
     return out
+
+
+def unrealized_at_bid(
+    rows: list[dict],
+    quote_for: Callable[[str], tuple[float | None, float | None]],
+) -> float | None:
+    """Open P&L with every position marked where it closes now: a long at the bid, a short at the ask.
+
+    ``quote_for(symbol)`` answers ``(bid, ask)``. ``None`` -- a stated unknown, never a partial sum --
+    when any held position lacks its avg cost or the side of the book that would close it.
+    """
+    total = 0.0
+    for row in rows:
+        try:
+            qty = float(row.get("qty") or 0)
+            avg = float(row["avg_cost"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if qty == 0:
+            continue
+        bid, ask = quote_for(str(row.get("symbol") or "").upper())
+        price = finite_last(bid if qty > 0 else ask)
+        if price is None or math.isnan(avg):
+            return None
+        total += (price - avg) * qty
+    return round(total, 2)
+
+
+def marked_account_summary(summary: dict, positions: list[dict]) -> dict:
+    """The L1 overlay, plus ``UnrealizedAtBid`` (``unrealized_at_bid``) on a connected account."""
+    out = overlay_account_summary(summary, positions)
+    if not out or not out.get("connected"):
+        return out
+    return {**out, "UnrealizedAtBid": unrealized_at_bid(positions, live_l1_bid_ask)}
+
+
+def live_l1_bid_ask(symbol: str) -> tuple[float | None, float | None]:
+    """Bid / ask from an existing Nova L1 stream, else the live book's top; never opens a line."""
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return None, None
+    from ibkr import ticks as _ticks
+
+    l1_bid, l1_ask = _ticks.bid_ask(sym)
+    bid, ask = finite_last(l1_bid), finite_last(l1_ask)
+    if bid is not None and ask is not None:
+        return bid, ask
+    from ibkr.depth import state as depth_state
+    from practice.reference import top_of_book
+
+    book_bid, book_ask = top_of_book(depth_state.current_book(sym))
+    return (bid if bid is not None else finite_last(book_bid)), (ask if ask is not None else finite_last(book_ask))

@@ -69,6 +69,31 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* P/L's card opens under its own button: anchored here, not at the cluster's right edge. */
+.global-app-bar__metric-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.global-app-bar__metric-anchor > div > .global-app-bar__card {
+  left: 0;
+  right: auto;
+}
+
+/* Unrealized P/L beside P/L, inside the same button. */
+.global-app-bar__metric-sub {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  margin-left: 0.35rem;
+  padding-left: 0.45rem;
+  border-left: 1px solid var(--nova-border);
+}
+
+.global-app-bar__metric-sub > label::after {
+  content: ':';
+}
+
 .global-app-bar__metric--tav .global-app-bar__metric-value {
   font-weight: 650;
   color: var(--nova-text);
