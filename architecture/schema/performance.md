@@ -169,11 +169,14 @@ Owner `perf/port_watch.py`, started with the recorder: 20 s after start, then ev
 ms) beside the process list, written to the day file and kept for the `pc_ports` diagnostics row
 (`desk-ops.md`, "PC network ports"):
 
-`{kind: "ports", schema_version: 1, ts, range: {start, count, source: "netsh" | "default"}, in_use, pct,
-closed: {connections, pids}, top: [{name, count}]}`
+`{kind: "ports", schema_version: 1, ts, range: {start, count, source: "netsh" | "default"}, in_use,
+in_use_by_family: {ipv4, ipv6}, pct, closed: {connections, pids}, top: [{name, count}]}`
 
 - `in_use` counts connections, not listeners, whose local port lies in the dynamic range (`netsh int ipv4
   show dynamicport tcp`, read once per process; Windows' default 49152 + 16,384 when it cannot be read).
+  IPv4 and IPv6 count against that one range: on 2026-10-14 IPv4 connects to 127.0.0.1 failed with ~3,600
+  IPv4 and ~12,800 IPv6 connections open, so Windows handed both families ports from one pool (two separate
+  pools would have left ~12,000 IPv4 ports). `in_use_by_family` keeps each family's share of `in_use`.
 - `closed` counts connections whose owning process id is in no process list now -- a closed program's
   connection Windows has not let go of. They are freed only by a restart of the PC.
 - `top` is the living programs holding the most connections, by image name, the biggest `PERF_PORTS_TOP`

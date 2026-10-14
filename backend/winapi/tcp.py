@@ -32,6 +32,7 @@ class Conn:
     state: int         # MIB_TCP_STATE: 2 LISTEN, 5 ESTABLISHED, 11 TIME_WAIT, ...
     local_port: int
     pid: int
+    family: int = AF_INET   # AF_INET (IPv4) or AF_INET6
 
 
 class _Row4(ctypes.Structure):
@@ -92,7 +93,7 @@ def _table(family: int, row: type[ctypes.Structure]) -> list[Conn]:
             raise ctypes.WinError(rc)
         count = ctypes.c_uint32.from_buffer(buf).value
         rows = (row * count).from_buffer(buf, 4)          # the rows follow dwNumEntries, DWORD-aligned
-        return [Conn(int(r.dwState), port_of(int(r.dwLocalPort)), int(r.dwOwningPid)) for r in rows]
+        return [Conn(int(r.dwState), port_of(int(r.dwLocalPort)), int(r.dwOwningPid), family) for r in rows]
     raise OSError("GetExtendedTcpTable: the table kept growing past its buffer")
 
 
