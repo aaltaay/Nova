@@ -46,3 +46,4 @@ EYES_PLAYBACK_ALERT_STEP_SEC = 120.0        # a proposal pops up only when the p
 #    journal read back as one episode per setup's life on a symbol, and what price did next.
 EYES_EPISODE_BAR_CLOSE_SEC = 3.0            # a line written this soon after a minute starts is about the candle that closed (bar-close lines land ~0.3 s in)
 EYES_EPISODE_AFTER_MIN = 15                 # minutes after a failed or faded setup died that "what came next" reads
+EYES_EPISODE_REREAD_SEC = 1.0               # an episode that opens and ends this close together on its setup's last (ended) move is the lane re-reading its past (~2 ms bursts on 2026-10-14)

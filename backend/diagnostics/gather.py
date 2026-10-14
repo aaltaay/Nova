@@ -8,12 +8,10 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
 import time
 from pathlib import Path
 from typing import Any, Callable
 
-from constants_data_root import DATA_DRIVE_WIN, DATA_SYSTEM_DRIVE_DEFAULT
 from constants_diagnostics import (
     DIAG_GROUP_GATEWAY,
     DIAG_GROUP_MARKET_DATA,
@@ -37,6 +35,7 @@ from diagnostics import (
     collect_leaderboard,
     collect_memory,
     collect_order_events,
+    collect_ports,
     collect_perf,
     collect_priority,
     collect_request_guard,
@@ -44,6 +43,7 @@ from diagnostics import (
     collect_tape_archive,
     process_info,
 )
+from diagnostics.inputs_disk import data_folder_inputs, leaderboard_inputs
 from diagnostics.rows import counts, unknown_row
 
 logger = logging.getLogger(__name__)
@@ -145,82 +145,6 @@ def _market_data_inputs() -> dict[str, Any]:
         # This IBKR session's tape lines only (#562).
         "tape_symbols": _tape.live_symbols(),
     }
-
-
-def _data_folder_inputs() -> dict[str, Any]:
-    """Every data folder and the drive that really holds it (junctions resolved).
-
-    Nothing here creates a folder to look at it: the cache and the logs are
-    read with ``paths.cache_root()`` / ``log_root()``, so a junction whose
-    drive is gone reports that drive instead of failing a ``mkdir``.
-    """
-    import paths
-    from capture.storage import capture_root
-    from catalysts import feed_store
-    from constants_catalysts import CATALYST_DIR_ENV
-    from constants_eyes import EYES_DIR_ENV
-    from constants_leaderboard import LEADERBOARD_DIR_ENV
-    from constants_sim import SIM_HISTORY_DIR_ENV
-    from eyes import journal as eyes_journal
-    from leaderboard import store as leaderboard_store
-    from sim import history_store
-
-    folders: list[dict[str, Any]] = []
-    for fid, label, env, resolve in (
-        ("cache", "Nova cache", "NOVA_CACHE_DIR", paths.cache_root),
-        ("logs", "Logs", "NOVA_LOG_DIR", paths.log_root),
-        ("captures", "Session Records", "NOVA_SIM_CAPTURE_DIR", capture_root),
-        ("downloads", "Replay downloads", SIM_HISTORY_DIR_ENV, lambda: history_store.path().parent),
-        ("leaderboard", "Scanner leaderboard", LEADERBOARD_DIR_ENV, leaderboard_store.root),
-        ("catalysts", "Catalyst feed", CATALYST_DIR_ENV, feed_store.root),
-        ("eyes", "Eyes journal", EYES_DIR_ENV, eyes_journal.eyes_dir),
-    ):
-        item: dict[str, Any] = {"id": fid, "label": label, "path": None, "real": None,
-                                "env": env if (os.environ.get(env) or "").strip() else None, "error": None}
-        try:
-            item["path"] = str(resolve())
-            item["real"] = os.path.realpath(item["path"])
-        except (OSError, RuntimeError, ValueError) as exc:
-            item["error"] = f"{type(exc).__name__}: {exc}"     # stated on the row, never read as "on F:"
-        folders.append(item)
-    return {
-        "folders": folders,
-        "data_drive": DATA_DRIVE_WIN,
-        "data_drive_mounted": os.name == "nt" and os.path.isdir(DATA_DRIVE_WIN + "\\"),
-        "system_drive": os.environ.get("SystemDrive") or DATA_SYSTEM_DRIVE_DEFAULT,
-    }
-
-
-def _leaderboard_disk(db: Path) -> dict[str, Any]:
-    """The store's size (the database plus its write-ahead log) and its drive's free space (#485).
-
-    Read here, on the checklist's worker thread. A store not created yet is 0
-    bytes; a fact that cannot be read is None with its reason, never a guess.
-    """
-    out: dict[str, Any] = {"store_bytes": None, "free_bytes": None, "size_error": None, "free_error": None}
-    try:
-        size = 0
-        for part in (db, db.with_name(db.name + "-wal")):
-            try:
-                size += part.stat().st_size
-            except FileNotFoundError:
-                continue                        # no store yet, or no write-ahead log right now
-        out["store_bytes"] = size
-    except OSError as exc:
-        out["size_error"] = f"{type(exc).__name__}: {exc}"
-    try:
-        out["free_bytes"] = int(shutil.disk_usage(db.parent).free)
-    except OSError as exc:
-        out["free_error"] = f"{type(exc).__name__}: {exc}"
-    return out
-
-
-def _leaderboard_inputs() -> dict[str, Any]:
-    from leaderboard import auto_record, recorder, store
-
-    db = store.path()
-    return {"recorder": recorder.status(), "auto": auto_record.status(), "store_path": str(db),
-            "disk": _leaderboard_disk(db)}
 
 
 def _catalyst_feed_status() -> dict[str, Any]:
@@ -340,6 +264,12 @@ def _memory_status() -> dict[str, Any]:
     return memory_watch.status()
 
 
+def _ports_status() -> dict[str, Any]:
+    from perf import port_watch
+
+    return port_watch.status()
+
+
 def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, Any]:
     """The full ``GET /api/diagnostics`` payload."""
     ts = time.time() if now is None else float(now)
@@ -347,11 +277,13 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows: list[dict[str, Any]] = []
     rows += collect.process_rows(facts)
     rows += _safe(DIAG_GROUP_PROCESS, "data_folders", "Where Nova keeps its data",
-                  lambda: collect_data_root.data_folder_rows(**_data_folder_inputs()))
+                  lambda: collect_data_root.data_folder_rows(**data_folder_inputs()))
     rows += _safe(DIAG_GROUP_PROCESS, "process_priority", "Trading path priority",
                   lambda: collect_priority.priority_rows(view=_priority_view()))
     rows += _safe(DIAG_GROUP_PROCESS, collect_memory.ROW_ID, collect_memory.ROW_TITLE,
                   lambda: collect_memory.memory_rows(status=_memory_status(), now=ts))
+    rows += _safe(DIAG_GROUP_PROCESS, collect_ports.ROW_ID, collect_ports.ROW_TITLE,
+                  lambda: collect_ports.ports_rows(status=_ports_status(), now=ts))
     rows += _safe(DIAG_GROUP_PROCESS, collect_request_guard.ROW_ID, collect_request_guard.ROW_TITLE,
                   lambda: collect_request_guard.refusal_rows(snapshot=_refusals_snapshot(), now=ts))
     rows += collect.integration_rows(env_file=facts["env_file"])
@@ -365,7 +297,7 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
                   lambda: collect_farms.farm_rows(**_farm_inputs(ts)))
     rows += _safe(DIAG_GROUP_RECORDER, "recorder", "Recorder", lambda: collect_gateway.recorder_rows(**_recorder_inputs()))
     rows += _safe(DIAG_GROUP_RECORDER, "leaderboard_recorder", "Scanner board recorder",
-                  lambda: collect_leaderboard.leaderboard_rows(**_leaderboard_inputs()))
+                  lambda: collect_leaderboard.leaderboard_rows(**leaderboard_inputs()))
     rows += _safe(DIAG_GROUP_RECORDER, "screen_recorder", "Trading screen recording",
                   lambda: collect_screen_record.screen_record_rows(status=_screen_record_status(ts)))
     rows += _safe(DIAG_GROUP_RECORDER, "clips", "Share clips", lambda: collect_clips.clip_rows(status=_clips_status(ts)))

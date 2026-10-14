@@ -120,3 +120,17 @@ PERF_MEMORY_CLIENT_FRESH_SEC = 30       # a desk window's process list counts wh
 # desk's processes 2,763 MB together): past one, that part holds memory it should not, and the row fails.
 PERF_MEMORY_API_LEAK_MB = 5000
 PERF_MEMORY_DESK_LEAK_MB = 4500
+
+# The port watch (``perf/port_watch.py``; operator report 2026-10-14: the PC ran out of network ports and the
+# backend restarted 19 times): once a minute, off the loops, the TCP connections in Windows' dynamic port range
+# and those still held under process ids that no longer exist -- written to the day file (``kind: "ports"``)
+# and the ``pc_ports`` row. On 2026-10-14 the leak stood at ~1,600 a day after the boot and 15,300 four days on.
+PERF_PORTS_SCHEMA_VERSION = 1
+PERF_PORTS_EVERY_SEC = 60
+PERF_PORTS_FIRST_AFTER_SEC = 20
+PERF_PORTS_TOP = 3                      # the living programs holding the most connections, named in the fix
+PERF_PORTS_PRESSURE_PCT = 70            # dynamic ports in use at or above this: warn
+PERF_PORTS_CRITICAL_PCT = 90            # this close to none left: new connections start failing, in any program
+PERF_PORTS_REARM_PCT = 60               # an episode ends under this; the API log warns once per episode
+PERF_PORTS_CLOSED_WARN = 500            # connections held under exited process ids: a leak that only a restart frees
+PERF_PORTS_STALE_SEC = 300              # a reading older than this is not shown as the PC now

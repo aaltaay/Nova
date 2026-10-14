@@ -159,6 +159,29 @@ private_mb}]}, others: [{name, count, private_mb, largest_pid, largest_mb}], oth
   -- never their names, since an issue dump prints the log -- and once per run when a Nova part passes its
   leak line (`PERF_MEMORY_API_LEAK_MB`, `PERF_MEMORY_DESK_LEAK_MB`). It measures and never acts.
 
+**Port watch (operator report 2026-10-14).** The desk PC ran out of network ports: 16,400 TCP connections
+against Windows' 16,384 dynamic ports, 15,300 of them still `ESTABLISHED` under 755 process ids that no longer
+existed (mostly to Google, from a stream reader restarted all morning), leaking since the boot four days
+before. Every new connection then failed (`WinError 10048` / `52`): IB Gateway's, the desk's, and the API
+guard's own probe, which stopped a serving API 19 times. Nothing on the desk had said the ports were going.
+Owner `perf/port_watch.py`, started with the recorder: 20 s after start, then every `PERF_PORTS_EVERY_SEC`
+(60 s), on a worker thread, one reading of Windows' TCP tables (IPv4 and IPv6, `GetExtendedTcpTable`, a few
+ms) beside the process list, written to the day file and kept for the `pc_ports` diagnostics row
+(`desk-ops.md`, "PC network ports"):
+
+`{kind: "ports", schema_version: 1, ts, range: {start, count, source: "netsh" | "default"}, in_use, pct,
+closed: {connections, pids}, top: [{name, count}]}`
+
+- `in_use` counts connections, not listeners, whose local port lies in the dynamic range (`netsh int ipv4
+  show dynamicport tcp`, read once per process; Windows' default 49152 + 16,384 when it cannot be read).
+- `closed` counts connections whose owning process id is in no process list now -- a closed program's
+  connection Windows has not let go of. They are freed only by a restart of the PC.
+- `top` is the living programs holding the most connections, by image name, the biggest `PERF_PORTS_TOP`
+  (3). No address, port or command line is kept.
+- The API log warns once per episode when `pct` reaches `PERF_PORTS_PRESSURE_PCT` (70%; the episode ends
+  under `PERF_PORTS_REARM_PCT`, 60%) or `closed.connections` reaches `PERF_PORTS_CLOSED_WARN` (500), with the
+  counts only. It measures and never acts.
+
 **GC policy (#619, owner `gc_policy/`).** The first census on the live backend (2026-09-29,
 minutes after a start) found 732,138 tracked objects in 7,037 modules; the objects were mostly
 code, classes and module state. 1,434 of those modules were torch and transformers, imported by

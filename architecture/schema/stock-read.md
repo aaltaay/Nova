@@ -290,6 +290,17 @@ null, setup_id, filtered, triggered_at, trigger_price, score: {outcome, bar_r, e
   about 0.3 s in), else about the one forming.
 - `setup` is the levels it last armed with (`null` when it never armed); `score` is a triggered
   setup's own score, from its `scored` lines (they may come after the episode ended).
+- **A lane re-reading the day is not a new setup** (operator report 2026-10-14: AEHL's one failed
+  5-minute flat top drawn 18 times, one red box per restart, stacked into a solid block). After a
+  `session` line every lane re-reads the day and writes what it finds again, and a lane can walk a
+  setup's past again without one. (1) A setup the restart ended continues as the same episode when its
+  setup's first line since the restart would have continued it -- the same move, not a new attempt
+  (a failed one written failed again, an armed one armed again); its `ended_at`, `end` and `ended_by`
+  are those of whatever ends it later. A non-failed line after a failed one is still a new attempt.
+  (2) An episode that opens and ends within `EYES_EPISODE_REREAD_SEC` (1 s) on the same move as its
+  setup's last episode, which had ended, is the lane re-reading that past: no episode, and its
+  `setup_id` scores the earlier one. The journal keeps every line; days already written fold the same
+  way when read.
 
 **After** (`eyes/aftermath.py`, pure): what price did in the `EYES_EPISODE_AFTER_MIN` (15) minutes
 after a setup failed or faded, on the chart's one-minute bars (`bars_store`, less IBKR's no-trade

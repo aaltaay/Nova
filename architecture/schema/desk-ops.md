@@ -101,6 +101,26 @@ the commit charge is half or more, else that other programs do; `ok` below;
 than `PERF_MEMORY_STALE_SEC` (300 s); `off` off Windows. `evidence` is the
 reading.
 
+**PC network ports** (operator report 2026-10-14: the PC ran out of ports at 11:45 ET and the backend
+restarted 19 times in 40 minutes; "just make sure no leakage happens"). The `process` group carries the
+`pc_ports` row, read from the port watch's last reading (`perf.port_watch.status()`; its shape is in
+`performance.md`, "Port watch"). Detail: `Network ports <in_use> of <count> in use (<pct>%); <n> held by
+programs that have closed`. States: `fail` at `PERF_PORTS_CRITICAL_PCT` (90%) -- "nearly out", cause: every
+new connection fails once none are left, IB Gateway's, the desk's and the backend's own included; `warn` at
+`PERF_PORTS_PRESSURE_PCT` (70%), or when `closed.connections` reaches `PERF_PORTS_CLOSED_WARN` (500) -- a
+leak that only grows, cause: Windows keeps connections of programs that have closed; `ok` below; `unknown`
+before the first reading or when the last is older than `PERF_PORTS_STALE_SEC` (300 s); `off` off Windows.
+The fix for a leak is a restart of the PC at a quiet moment (IB Gateway needs its login after one); the
+living programs holding the most are named only in the fix, as the memory row does. `evidence` is the
+reading.
+
+**The API guard never stops a backend on a probe that could not run** (same report). Owner
+`api_process_guard.py` / `api_instance_lock.py`: the guard's listen probe answers listening, not listening
+(a refusal, or a timeout -- on Windows a refused loopback connect outlasts the 0.4 s probe), or unknown (any
+other error: the PC would not open the connection). Unknown never stops the API, and a second API never
+classes a living holder it cannot probe as an orphan -- it refuses to start and leaves it running. A stop
+the guard does make flushes the eyes' journal and the log queue first.
+
 ## Which backend answers (operator report, 2026-09-24)
 
 `GET /api/health` adds `release_tag: string | null` -- the revision (`vNNN`)
