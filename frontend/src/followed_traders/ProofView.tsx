@@ -23,7 +23,7 @@ import {
 } from './constants';
 import { FeedImage } from './FeedImage';
 import { duration, entered, etTime, exitPrice, exited, held, plPct, plPerShare, price } from './format';
-import { Face, SideChip } from './parts';
+import { Face, SideChip, Ticker } from './parts';
 import { exitTs, judgeReads, readAt, sideRow, type JudgedRead } from './proof';
 import type { BarPosition, FollowedRead, FollowedTrade } from './types';
 import { useFollowedReads } from './useFollowedFetch';
@@ -127,7 +127,7 @@ export function ProofView({ trade, face, date, generatedAt, onBack }: Props) {
         <div className="ft-stack">
           <div className="ft-proof__title">
             <span className="ft-strong">{trade.trader}</span><SideChip side={trade.side} />
-            <span className="ft-strong">{trade.symbol}</span><span className="ft-mono">{price(trade.entry.avg_price)}</span>
+            <Ticker symbol={trade.symbol} className="ft-strong" /><span className="ft-mono">{price(trade.entry.avg_price)}</span>
           </div>
           <span className="ft-muted">{facts.join(' · ')}</span>
         </div>

@@ -3,12 +3,12 @@
  * closed trades a table striped by result. A time the feed did not see reads "by HH:MM:SS" (open when capture
  * started) or a window; an exit seen only in a window is IBKR's low–high, marked est.; a price Nova has not got says
  * why on hover. Closed rows drop to one line (`compact`) and their oldest fold into "+N earlier" when the page would
- * not fit otherwise. Nothing here places an order.
+ * not fit otherwise. A ticker opens the stock in the Trader. Nothing here places an order.
  */
 import { tipProps } from '../ux/hoverTip';
 import { FT_EST, FT_EST_TIP, FT_EXIT_PENDING, FT_NOW, FT_OPEN_CHIP, FT_PROOF } from './constants';
 import { DASH, entered, etTime, exitPrice, exited, held, price } from './format';
-import { PlCell, ResultWord, SideChip } from './parts';
+import { PlCell, ResultWord, SideChip, Ticker } from './parts';
 import type { FollowedTrade } from './types';
 
 function TimeIn({ t }: { t: FollowedTrade }) {
@@ -76,7 +76,7 @@ export function OpenTile({ t, onProof }: { t: FollowedTrade; onProof: (id: strin
     <div className="ft-tile" data-testid={`ft-row-${t.id}`}>
       <div className="ft-tile__row">
         <span className="ft-open-chip">{FT_OPEN_CHIP}</span>
-        <span className="ft-tile__ticker">{t.symbol}</span>
+        <Ticker symbol={t.symbol} className="ft-tile__ticker" />
         <SideChip side={t.side} />
         <span className="ft-tile__held ft-muted ft-xs">held {held(t.held)}</span>
       </div>
@@ -122,7 +122,7 @@ export function ClosedTable({ trades, onProof, compact = false, folded = 0, onSh
         {shown.map((t) => (
           <tr key={t.id} className={`ft-closed ft-closed--${t.result ?? 'unscored'}`} data-testid={`ft-row-${t.id}`}>
             <td><ResultWord result={t.result} /></td>
-            <td className="ft-ticker">{t.symbol}</td>
+            <td><Ticker symbol={t.symbol} className="ft-ticker" /></td>
             <td><SideChip side={t.side} /></td>
             <td><TimeIn t={t} /> → <TimeOut t={t} /></td>
             <td><span className="ft-prices"><Entry t={t} compact={compact} /> → <Exit t={t} /></span></td>
