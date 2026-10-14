@@ -259,6 +259,14 @@ def _is_ours(target: Path) -> bool:
     return text == HOOK_SCRIPT
 
 
+def _already_guarded(target: Path) -> bool:
+    """Another hook that already runs the guard (the repo's tracked .githooks/pre-push does)."""
+    if not target.is_file() or _is_ours(target):
+        return False
+    text = target.read_text(encoding="utf-8", errors="replace")
+    return "repo_hygiene.py" in text and "push-guard" in text
+
+
 def _remove_one(target: Path) -> str:
     if not _is_ours(target):
         return f"push-guard: no unedited Nova pre-push hook at {target}; nothing removed"
@@ -280,14 +288,16 @@ def install(cwd: str | None = None, *, uninstall: bool = False) -> tuple[int, st
             targets.setdefault(os.path.normcase(str(target.resolve())), target)
     if uninstall:
         return 0, "\n".join(_remove_one(target) for target in targets.values())
-    foreign = [target for target in targets.values() if target.exists() and not _is_ours(target)]
+    guarded = [target for target in targets.values() if _already_guarded(target)]
+    todo = [target for target in targets.values() if target not in guarded]
+    foreign = [target for target in todo if target.exists() and not _is_ours(target)]
     if foreign:
         return 2, "\n".join(
             f"push-guard: {target} already holds another (or an edited) pre-push hook; not touched. "
             "Merge it by hand or remove it first. Nothing was installed." for target in foreign)
     created: list[Path] = []
     try:
-        for target in targets.values():
+        for target in todo:
             existed = target.exists()
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(HOOK_SCRIPT, encoding="utf-8", newline="\n")
@@ -298,7 +308,8 @@ def install(cwd: str | None = None, *, uninstall: bool = False) -> tuple[int, st
         for done in created:
             done.unlink(missing_ok=True)
         return 2, f"push-guard: could not write {target} ({type(exc).__name__}); nothing was installed."
-    lines = [f"push-guard: installed {target}" for target in targets.values()]
+    lines = [f"push-guard: {target} already runs the push guard; left as it is" for target in guarded]
+    lines += [f"push-guard: installed {target}" for target in todo]
     if len(targets) > 1:
         lines.append("push-guard: this clone's worktrees use different hook directories; "
                      "run install-push-guard again after adding a worktree.")

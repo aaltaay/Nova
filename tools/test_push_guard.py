@@ -228,11 +228,29 @@ def test_install_is_idempotent_refuses_a_foreign_hook_and_uninstalls(repo: Path)
 def test_a_hook_with_anything_else_in_it_is_never_touched(repo: Path):
     install(str(repo))
     hook = repo / ".git" / "hooks" / "pre-push"
-    hook.write_text(HOOK_SCRIPT + "\necho another tool\n", encoding="utf-8")
+    composite = HOOK_SCRIPT + "\necho another tool\n"
+    hook.write_text(composite, encoding="utf-8")
+    code, message = install(str(repo))  # it still runs the guard, so it counts and stays as it is
+    assert code == 0 and "already runs the push guard" in message
+    assert hook.read_text(encoding="utf-8") == composite
+    install(str(repo), uninstall=True)
+    assert hook.read_text(encoding="utf-8") == composite
+    hook.write_text("#!/bin/sh\necho another tool\n", encoding="utf-8")
     code, message = install(str(repo))
     assert code == 2 and "not touched" in message
+
+
+def test_a_hook_that_already_runs_the_guard_is_left_and_counts_as_installed(repo: Path):
+    """The repo's tracked .githooks/pre-push (PR #961) runs repo_hygiene.py push-guard itself."""
+    hook = repo / ".git" / "hooks" / "pre-push"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    tracked = "#!/bin/sh\n# no force-push check ...\n$py \"$tool\" push-guard \"$@\"  # tools/repo_hygiene.py\n"
+    hook.write_text(tracked, encoding="utf-8")
+    code, message = install(str(repo))
+    assert code == 0 and "already runs the push guard" in message
+    assert hook.read_text(encoding="utf-8") == tracked
     install(str(repo), uninstall=True)
-    assert "another tool" in hook.read_text(encoding="utf-8")
+    assert hook.read_text(encoding="utf-8") == tracked
 
 
 def test_one_foreign_hook_means_nothing_is_installed_anywhere(repo: Path, tmp_path: Path):
