@@ -29,7 +29,7 @@ from constants_leaderboard import (
     LEADERBOARD_SOURCE_RECONSTRUCTED,
     LEADERBOARD_SOURCE_RECORDED,
 )
-from constants_sim import SIM_MASSIVE_DROPPED_CORRECTIONS, SIM_MASSIVE_MINUTES, SIM_MASSIVE_TRADES
+from constants_sim import SIM_MASSIVE_DAYS, SIM_MASSIVE_DROPPED_CORRECTIONS, SIM_MASSIVE_MINUTES, SIM_MASSIVE_TRADES
 from leaderboard import store as board_store
 from leaderboard.rows import ET
 from leaderboard.seconds.build import Bar, Print
@@ -126,14 +126,21 @@ def recorded(day: str, database: Path | None = None) -> bool:
         db.close()
 
 
-def universe() -> set[str] | None:
-    """Common stocks and ADRs in Massive's reference (``tickers.json``); None when it cannot be read (logged)."""
+class MissingInput(LookupError):
+    """A file the build needs to see every stock that can be on the list cannot be read: the build fails with
+    the reason, never a list that quietly leaves those stocks out."""
+
+
+def universe() -> set[str]:
+    """Common stocks and ADRs in Massive's reference (``tickers.json``). Unreadable is ``MissingInput``: without it
+    a stock the store never held that day cannot be checked."""
     path = massive_files.root() / "store" / "reference" / "tickers.json"
     try:
         rows = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(rows, list):
+            raise ValueError("not a list of tickers")
     except (OSError, ValueError) as exc:
-        logger.warning("Gappers by the second: %s unreadable (%s); only stocks the store holds are considered", path, exc)
-        return None
+        raise MissingInput(f"Massive's reference list of stocks ({path}) could not be read: {exc}") from exc
     return {str(r["ticker"]) for r in rows
             if isinstance(r, dict) and r.get("ticker") and r.get("type") in LEADERBOARD_SECONDS_UNIVERSE_TYPES}
 
@@ -187,15 +194,17 @@ def _splits() -> list[tuple[str, str, float, float]]:
 
     massive_path, confirmed_path = list_paths()
     out: dict[tuple[str, str], tuple[str, str, float, float]] = {}
+    # No SEC-confirmed file means none confirmed; Massive's own list must be there.
     for path, parse, wins in ((confirmed_path, confirmed_rows, False), (massive_path, massive_rows, True)):
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
             rows = parse(raw)
-        except FileNotFoundError:
-            continue
+        except FileNotFoundError as exc:
+            if path == confirmed_path:
+                continue
+            raise MissingInput(f"Massive's split list ({path}) is not on disk") from exc
         except (OSError, ValueError) as exc:
-            logger.warning("Gappers by the second: split list %s unreadable (%s)", path, exc)
-            continue
+            raise MissingInput(f"The split list {path} could not be read: {exc}") from exc
         for r in rows:
             try:
                 item = (str(r["ticker"]), str(r["execution_date"]), float(r["split_from"]), float(r["split_to"]))
@@ -209,9 +218,11 @@ def _splits() -> list[tuple[str, str, float, float]]:
 def outside_prior_closes(day: str, symbols: list[str]) -> dict[str, float]:
     """The prior close of stocks the store never held that day: the session before's day bar, split-adjusted
     as the rebuild adjusts it (a split executing after that session and by ``day``)."""
-    prior = _prior_session(day)
-    if prior is None or not symbols:
+    if not symbols:
         return {}
+    prior = _prior_session(day)
+    if prior is None or massive_files.day_file(SIM_MASSIVE_DAYS, prior) is None:
+        raise MissingInput(f"The Massive day bars of the session before {day} are not on disk")
     closes = massive_daily.closes(prior)
     wanted = set(symbols)
     factor = {s: 1.0 for s in wanted}

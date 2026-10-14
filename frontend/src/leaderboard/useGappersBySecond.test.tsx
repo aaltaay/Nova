@@ -87,6 +87,23 @@ describe('useGappersBySecond', () => {
     expect(calls().filter(call => call.startsWith('GET') && call.includes('/seconds?at=')).length).toBeLessThanOrEqual(1);
   });
 
+  it('a build request that failed is asked again; only the backend refusing the day is final', async () => {
+    let posts = 0;
+    const answer = mocks.fetch.getMockImplementation();
+    mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST' && posts++ === 0) throw new TypeError('Failed to fetch');
+      return answer?.(url, init);
+    });
+    setClock('07:45:58');
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { result } = renderHook(() => useGappersBySecond(board('reconstructed')));
+    await waitFor(() => expect(result.current.latest?.error).toMatch(/Could not reach Nova/));
+    await act(async () => { vi.advanceTimersByTime(2_100); });
+    await waitFor(() => expect(posts).toBe(2));
+    await waitFor(() => expect(result.current.latest?.error).toBeNull());
+    expect(result.current.latest?.answer?.secondTs).toBe(epoch('07:45:58'));
+  });
+
   it('while the build runs it reads again with the playhead paused', async () => {
     readStatus = 'building';
     setClock('07:45:58');

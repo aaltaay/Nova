@@ -2,8 +2,9 @@
  * A rebuilt day's Gappers by the second (ADR 023 amendment 2026-10-13): on a rebuilt day with a Gappers list the
  * desk asks for the day's build once (`POST /api/leaderboard/{date}/seconds`), then reads the list at each
  * playhead second (`GET ...?at=`), and again every `LEADERBOARD_SECONDS_POLL_MS` while the build is asked for or
- * runs, or a read failed. A day the backend says cannot be built keeps that answer and is not read again.
- * Recorded days, Live and Paper ask nothing. `withGappersBySecond` decides what the Scanner shows.
+ * runs, or a read failed. Only the backend's own `unavailable` answer is final: a request that failed (a backend
+ * restarting, a dropped connection) is asked again every `LEADERBOARD_SECONDS_POLL_MS`. Recorded days, Live and
+ * Paper ask nothing. `withGappersBySecond` decides what the Scanner shows.
  */
 import { useEffect, useState } from 'react';
 import { replayRequest } from '../sim';
@@ -31,11 +32,13 @@ export function useGappersBySecond(replay: ScannerReplay | null): GappersBySecon
   const [asked, setAsked] = useState<GappersBySecondAnswer | null>(null);
   const [read, setRead] = useState<GappersBySecondAnswer | null>(null);
   const [poll, setPoll] = useState(0);
+  const [askAgain, setAskAgain] = useState(0);
 
-  // Ask for the day's build once; a day that cannot be built keeps the backend's reason.
+  // Ask for the day's build; a request that failed is asked again, a day that cannot be built keeps its reason.
   useEffect(() => {
     if (date == null) return undefined;
     const controller = new AbortController();
+    let retry: number | undefined;
     replayRequest<unknown>(leaderboardSecondsPath(date), { method: 'POST', signal: controller.signal },
       LEADERBOARD_SECONDS_REQUEST_FAILED)
       .then((raw) => {
@@ -46,11 +49,15 @@ export function useGappersBySecond(replay: ScannerReplay | null): GappersBySecon
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setAsked({ date, asked: null, answer: null, error: message(error) });
+        retry = window.setTimeout(() => setAskAgain(n => n + 1), LEADERBOARD_SECONDS_POLL_MS);
       });
-    return () => controller.abort();
-  }, [date]);
+    return () => {
+      controller.abort();
+      window.clearTimeout(retry);
+    };
+  }, [date, askAgain]);
 
-  const refused = asked?.date === date && (asked?.error != null || asked?.answer?.status === 'unavailable');
+  const refused = asked?.date === date && asked?.answer?.status === 'unavailable';
 
   useEffect(() => {
     if (date == null || second == null || refused) return undefined;
@@ -73,6 +80,8 @@ export function useGappersBySecond(replay: ScannerReplay | null): GappersBySecon
     : refused ? asked
       : read?.date === date ? read
         : asked?.date === date ? asked : null;
+  // The build was never asked for: say so even while reads answer (`none`), until the next ask lands.
+  const askFailed = asked?.date === date && asked?.error != null && latest !== asked;
   const status = latest?.answer?.status;
   const waiting = latest != null && !refused && (latest.error != null || status === 'queued' || status === 'building');
   useEffect(() => {
@@ -81,5 +90,5 @@ export function useGappersBySecond(replay: ScannerReplay | null): GappersBySecon
     return () => window.clearInterval(timer);
   }, [waiting]);
 
-  return { latest, second };
+  return { latest: askFailed && latest ? { ...latest, error: asked.error } : latest, second };
 }

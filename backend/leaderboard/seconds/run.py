@@ -50,7 +50,7 @@ def candidates_for(day: str, stored: inputs.StoredDay) -> tuple[list[build.Candi
     known = stored.prev_close
 
     def keep(ticker: str) -> bool:
-        return ticker in known or (universe is not None and ticker in universe)
+        return ticker in known or ticker in universe
 
     bars = inputs.minute_bars(day, keep)
     freeze = inputs.freeze_ts(day)

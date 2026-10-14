@@ -217,7 +217,8 @@ export const leaderboardSecondsBuilding = (stage: string | null, done: number | 
 export const leaderboardSecondsFailed = (error: string | null): string =>
   `Gappers by the second failed${error ? `: ${error}` : ''} -- per minute`;
 export const LEADERBOARD_SECONDS_STOPPED =
-  'Gappers by the second stopped when another day was opened -- per minute; reopen this day to build it';
+  'Gappers by the second stopped before it finished (another day was opened, or Nova restarted) -- per minute; '
+  + 'reopen this day to build it';
 export const leaderboardSecondsUnavailable = (reason: string | null): string =>
   `Gappers per minute${reason ? `: ${reason}` : ''}`;
 export const leaderboardSecondsError = (error: string): string =>
