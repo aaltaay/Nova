@@ -7,7 +7,9 @@ from ibkr.account_marks import (
     apply_l1_position_mark,
     apply_l1_marks,
     overlay_account_summary,
+    unrealized_at_bid,
 )
+from ibkr import account_marks
 
 
 def _row(**overrides):
@@ -90,3 +92,28 @@ def test_overlay_account_summary_skips_when_no_marked_unrealized():
     out = overlay_account_summary(summary, [_row(unrealized_pnl=None, market_price=None)])
     assert out["UnrealizedPnL"] == 3.0
     assert out["NetLiquidation"] == 100.0
+
+
+def test_unrealized_at_bid_marks_a_long_at_the_bid_and_a_short_at_the_ask():
+    quotes = {"SPCX": (10.40, 10.45), "SHRT": (5.00, 5.10)}
+    rows = [_row(), _row(symbol="SHRT", qty=-50.0, avg_cost=5.50)]
+    assert unrealized_at_bid(rows, quotes.__getitem__) == pytest.approx((10.40 - 10.0) * 100 + (5.10 - 5.50) * -50)
+
+
+def test_unrealized_at_bid_is_unknown_when_any_position_lacks_its_closing_side():
+    rows = [_row(), _row(symbol="SHRT", qty=-50.0, avg_cost=5.50)]
+    quotes = {"SPCX": (10.40, 10.45), "SHRT": (5.00, None)}
+    assert unrealized_at_bid(rows, quotes.__getitem__) is None
+    assert unrealized_at_bid([_row(avg_cost=None)], lambda s: (10.4, 10.45)) is None
+
+
+def test_unrealized_at_bid_with_nothing_held_is_zero():
+    assert unrealized_at_bid([], lambda s: (None, None)) == 0.0
+
+
+def test_marked_account_summary_adds_unrealized_at_bid_only_when_connected(monkeypatch):
+    monkeypatch.setattr(account_marks, "live_l1_bid_ask", lambda sym: (10.25, 10.30))
+    summary = {"connected": True, "UnrealizedPnL": 50.0, "NetLiquidation": 1000.0}
+    assert account_marks.marked_account_summary(summary, [_row()])["UnrealizedAtBid"] == pytest.approx(25.0)
+    offline = {"connected": False}
+    assert "UnrealizedAtBid" not in account_marks.marked_account_summary(offline, [_row()])

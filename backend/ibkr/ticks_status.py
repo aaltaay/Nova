@@ -78,6 +78,11 @@ def last_quotes(
             "quote_quality": sub.get("quote_quality"),
             "owners": set(sub.get("owners") or set()),
         }
+        # The line's own bid / ask (IBKR ticks 1 / 2): the header's unrealized at bid reads them.
+        for side in ("bid", "ask"):
+            px = _as_float(getattr(sub.get("ticker"), side, None))
+            if px is not None and px > 0:
+                row[side] = px
         day_high = _as_float(sub.get("day_high"))
         if day_high is not None:
             row["day_high"] = day_high

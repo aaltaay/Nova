@@ -192,6 +192,8 @@ export interface IbkrAccountSummary {
   TotalCashValue?: number | null;
   BuyingPower?: number | null;
   UnrealizedPnL?: number | null;
+  /** Open P&L at the price that closes each position now (long: bid, short: ask); null when a quote is missing. */
+  UnrealizedAtBid?: number | null;
   RealizedPnL?: number | null;
   GrossPositionValue?: number | null;
   /** Raw IBKR AccountType -- ownership/structure (INDIVIDUAL), not Cash vs Margin. */

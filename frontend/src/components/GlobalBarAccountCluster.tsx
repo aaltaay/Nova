@@ -1,6 +1,6 @@
 /**
  * Compact account cluster for GlobalAppBar, in Webull's order:
- *   Day's: +$12.34 +0.12% ▾ | Working: 0 ▾ | TAV: $100,000.00 ▾ | Individual Margin (U1234567) ▾
+ *   P/L: +$12.34 +0.12% Unrealized P/L: +$5.00 ▾ | Working: 0 ▾ | TAV: $100,000.00 ▾ | Individual Margin (U1234567) ▾
  * One row on every venue. Live reads the IBKR summary; Paper / Sim read Nova's
  * practice ledger, which is THE account there even though Paper runs on the
  * live Gateway (ADR 020). Separate from the GATEWAY market-data chip -- never
@@ -38,7 +38,7 @@ import { isPracticeVenue } from '../practice/practiceAccountModel';
 import { usePracticeAccount } from '../practice/practiceAccountResource';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { AccountPillButton, AccountPillMenu } from './GlobalBarAccountPill';
-import { DayPnlButton, DayPnlCard } from './GlobalBarDayPnl';
+import { DayPnlButton } from './GlobalBarDayPnl';
 import { TavButton, TavCard } from './GlobalBarTav';
 import { GlobalWorkingMenu } from './GlobalWorkingMenu';
 import { resolvePracticeChromeState, type AccountChromeState } from './globalBarAccountChrome';
@@ -242,11 +242,6 @@ export function GlobalBarAccountCluster({
             <span>{GLOBAL_BAR_OFFLINE_PLACEHOLDER}</span>
           </span>
           {pillControl}
-        </div>
-      )}
-      {openMenu === 'day' && ready && (
-        <div id={dayCardId}>
-          <DayPnlCard figures={figures} />
         </div>
       )}
       {openMenu === 'tav' && ready && (

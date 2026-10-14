@@ -527,7 +527,10 @@ carry the account (`account_id` `NOVA-PAPER` / `NOVA-SIM`, `starting_cash`,
 `realized_pnl` (lifetime, since the ledger opened), `unrealized_pnl`, `day_pnl`,
 `realized_today` (net of fees, since the 04:00 ET practice-day boundary), `day_started_et`,
 `commissions_today`, `positions[]`, `working[]`, `fills_today`,
-`schema_version`, `updated_at`; Sim adds `replay_key` -- the ledger's replay binding as a list `[source, symbol, date, start?, end?]`, e.g. `["historical", "GDC", "2026-09-21", "09:15", "11:30"]` or `["capture", "GRML", "2026-09-21"]`, `null` with nothing loaded; never a string a client may call string methods on); `/api/ibkr/account`
+`schema_version`, `updated_at`, `unrealized_at_bid` -- open P&L with each position marked where it closes now, a long at
+the bid and a short at the ask, from the venue's own market (Paper: the live book; Sim: the replay at the playhead), `null`
+when any held stock has no such quote, never a partial sum (operator ask 2026-10-14; the header's Unrealized P/L; Live's
+`/api/ibkr/account` carries the same figure as `UnrealizedAtBid`, from the L1 line's bid / ask, else the live book's top); Sim adds `replay_key` -- the ledger's replay binding as a list `[source, symbol, date, start?, end?]`, e.g. `["historical", "GDC", "2026-09-21", "09:15", "11:30"]` or `["capture", "GRML", "2026-09-21"]`, `null` with nothing loaded; never a string a client may call string methods on); `/api/ibkr/account`
 and `/api/ibkr/positions` answer from it on the practice venues, where the
 summary's `RealizedPnL` is **today's** realized (IBKR's own daily meaning) and
 `DayPnL` is the ledger's day P&L -- the figure the bot breakers compare with

@@ -17,6 +17,7 @@ CONTRACT = {
     "venue", "account_id", "starting_cash", "cash", "buying_power", "net_liquidation",
     "gross_position_value", "realized_pnl", "unrealized_pnl", "day_pnl", "realized_today", "day_started_et",
     "commissions_today", "positions", "working", "fills_today", "schema_version", "updated_at",
+    "unrealized_at_bid",
 }
 
 
