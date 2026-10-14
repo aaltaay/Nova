@@ -136,3 +136,33 @@ def test_a_recovery_issue_goes_on_the_delivery_board():
     assert boarded == ["https://github.com/aaltaay/Nova/issues/999"] and done.endswith("issues/999")
     create = next(c for c in calls if c[:2] == ["issue", "create"])
     assert "P1" in create and create[create.index("--milestone") + 1] == "00 - Untriaged"
+
+
+def test_a_refused_recovery_pr_becomes_an_issue_naming_the_pushed_branch(repo: Path, tmp_path_factory):
+    """2026-10-14: the repository did not allow Actions to open PRs; the refusal must reach a person, not a red run."""
+    origin = tmp_path_factory.mktemp("origin")
+    _git(origin, "init", "-q", "--bare")
+    _git(repo, "remote", "add", "origin", str(origin))
+    _git(repo, "push", "-q", "origin", "master")
+    _git(repo, "checkout", "-q", "-b", "fix/late")
+    head = _git(repo, "rev-parse", "HEAD")
+    late = _commit(repo, "late.txt", "fix\n", "the review fix pushed after the merge")
+    _git(repo, "checkout", "-q", "master")
+    _git(repo, "fetch", "-q", "origin")
+    calls: list[list[str]] = []
+
+    def runner(args: list[str]) -> str:
+        calls.append(args)
+        if args[:2] == ["pr", "create"]:
+            raise subprocess.CalledProcessError(1, args, stderr="GitHub Actions is not permitted to create pull requests")
+        return "https://github.com/aaltaay/Nova/issues/998\n" if args[:2] == ["issue", "create"] else ""
+
+    boarded: list[str] = []
+    pr = sc.Merged(957, "fix(delivery): x", "fix/late", head)
+    done = sc.land(pr, late, sc.Plan("land", "", head), runner=runner, dry_run=False, boarder=boarded.append)
+    assert done.endswith("issues/998") and boarded == ["https://github.com/aaltaay/Nova/issues/998"]
+    assert _git(origin, "rev-parse", "recover/fix/late") != head  # the commits are on the branch the issue names
+    body = next(c for c in calls if c[:2] == ["issue", "create"])
+    text = body[body.index("--body") + 1]
+    assert "compare/master...recover/fix/late" in text and "not permitted" in text and late in text
+    assert not any(c[:2] == ["workflow", "run"] for c in calls)

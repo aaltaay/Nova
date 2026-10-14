@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -188,21 +189,35 @@ def land(pr: Merged, tip: str, p: Plan, *, runner: Runner, dry_run: bool, boarde
                             runner=runner, boarder=boarder)
     if git(["rev-parse", "HEAD"]).strip() == before:
         return f"#{pr.number}: every commit after the merge is already on {BASE}"
-    git(["push", "-q", "origin", f"HEAD:refs/heads/{target}"])
+    # A recovery branch with no open PR is the sweep's own leftover (a refused PR): it is rebuilt from master.
+    force = [] if p.action == "extend" else ["--force"]
+    git(["push", "-q", *force, "origin", f"HEAD:refs/heads/{target}"])
     if p.action == "extend":
         existing = _prs_on(runner, target, "open")[0]
         runner(["pr", "comment", str(existing["number"]), "--body", _body(pr, tip, commits, ["Added to this PR."])])
         url = str(existing["url"])
     else:
-        url = runner(["pr", "create", "--base", BASE, "--head", target, "--title", recovery_title(pr),
-                      "--body", _body(pr, tip, commits, [
-                          "## What", f"Lands the follow-up commits of #{pr.number} on `{BASE}`.", "",
-                          "## Verified by", "CI, dispatched on this branch; it merges only when green."])]).strip()
+        try:
+            url = runner(["pr", "create", "--base", BASE, "--head", target, "--title", recovery_title(pr),
+                          "--body", _body(pr, tip, commits, [
+                              "## What", f"Lands the follow-up commits of #{pr.number} on `{BASE}`.", "",
+                              "## Verified by", "CI, dispatched on this branch; it merges only when green."])]).strip()
+        except subprocess.CalledProcessError as exc:
+            # 2026-10-14: the repository did not allow Actions to open PRs, and the refusal was only a red run.
+            return report_issue(pr, tip, commits, refused_why(target, exc), runner=runner, boarder=boarder)
         runner(["pr", "comment", str(pr.number), "--body",
                 f"Commits pushed here after this PR merged never reached `{BASE}`; {url} lands them."])
         boarder(url)
     runner(["workflow", "run", CI_WORKFLOW, "--ref", target])
     return f"#{pr.number}: {p.action} {len(commits)} commit(s) -> {url}"
+
+
+def refused_why(target: str, exc: subprocess.CalledProcessError) -> str:
+    repo = os.environ.get("GITHUB_REPOSITORY") or "aaltaay/Nova"
+    said = " ".join(str(exc.stderr or exc).split())[:300]
+    return (f"GitHub refused to let Actions open the recovery PR ({said}). The commits are already on "
+            f"`{target}`: open the PR from https://github.com/{repo}/compare/{BASE}...{target}?expand=1 , or allow "
+            "Actions to create pull requests (Settings > Actions > General > Workflow permissions)")
 
 
 def report_issue(pr: Merged, tip: str, commits: list[str], why: str, *, runner: Runner,
