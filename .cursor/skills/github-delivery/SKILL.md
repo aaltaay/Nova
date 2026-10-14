@@ -196,7 +196,7 @@ A verified, non-draft PR targeting `master` is finished work. GitHub Actions mer
 - Hourly / `workflow_run` sweep in `.github/workflows/pr-delivery.yml` catches leftovers.
 - Closed PR heads are deleted by that same workflow plus `delete_branch_on_merge`.
 - Hold a PR with draft or label `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker is documented in the PR.
-- Dirty (conflict) and red PRs stay open -- rebase, fix or re-run; do not leave them for the human to babysit if you can do it in-session.
+- Dirty (conflict) and red PRs stay open -- merge `origin/master` in, fix or re-run; do not leave them for the human to babysit if you can do it in-session. Never rebase or force-push (AGENTS.md 5.1).
 
 Do not end a coding session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line. The pile of idle PRs is a delivery bug.
 

@@ -3,6 +3,9 @@
 # platform so a Windows checkout can still launch them.
 .claude/workflows/*.js text eol=lf
 
+# Git hooks run under sh, which reads a CR as part of the command ("then\r"): LF everywhere.
+.githooks/* text eol=lf
+
 # Merge policy for the remaining prepend-only log.
 # Two PRs authored in parallel collide at line 1 on it, on paperwork rather
 # than on code -- see #344 "the structural problem".

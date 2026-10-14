@@ -24,7 +24,7 @@ from tools.pr_delivery import (
 )
 from tools.pr_delivery_text import (
     CONFLICT_COMMENT_MARKER,
-    conflict_rebase_comment,
+    conflict_merge_comment,
     should_post_conflict_comment,
     squash_merge_fields,
 )
@@ -127,12 +127,13 @@ def test_squash_title_fallback_is_not_merge_commit():
     assert "Merge pull request" not in fields["commit_title"]
 
 
-def test_conflict_comment_is_actionable():
-    body = conflict_rebase_comment()
+def test_conflict_comment_says_merge_never_rebase_or_force_push():
+    # Owner, 2026-10-14: "Force push, meaning we're deleting work. Everything needs to be merged properly."
+    body = conflict_merge_comment()
     assert CONFLICT_COMMENT_MARKER in body
-    assert "origin/master" in body
-    assert "rebase" in body.lower()
-    assert "Cursor cloud agent" in body
+    assert "git merge origin/master" in body and "\ngit push\n" in body
+    assert "git rebase" not in body and "--force" not in body and "force-with-lease" not in body.lower()
+    assert "Never rebase or force-push" in body
     assert "ready" in body.lower()
 
 
@@ -315,9 +316,8 @@ def test_signal_conflict_posts_actionable_comment(monkeypatch):
     assert comment_calls
     body = comment_calls[0][comment_calls[0].index("--body") + 1]
     assert "gh pr comment" not in body
-    assert "origin/master" in body
-    assert "rebase" in body.lower()
-    assert "Cursor cloud agent" in body
+    assert "git merge origin/master" in body
+    assert "git rebase" not in body and "--force" not in body
 
 
 def test_signal_conflict_skips_duplicate(monkeypatch):

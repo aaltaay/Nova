@@ -1,0 +1,62 @@
+#!/bin/sh
+# Nova: never rewrite pushed history (AGENTS.md section 5.1; owner, 2026-10-14: "Force push, meaning
+# we're deleting work. Everything needs to be merged properly").
+#
+# 1. Refuses any push that would move an existing branch to a commit that does not contain its current
+#    tip -- what --force, --force-with-lease and +ref do after a rebase, amend or reset. Allowed: a new
+#    branch, a fast-forward, and a delete. The GitHub ruleset "No force-push" refuses the same on the
+#    server, with no bypass (tools/no_force_push.py).
+# 2. Then asks the push guard (tools/repo_hygiene.py push-guard, PR #958) whether a pushed branch belongs
+#    to a PR that already merged. Only its refusal (exit 1) stops the push; anything else lets it through.
+#
+# git runs this with the remote's name and URL as arguments and one line per ref on stdin:
+#   <local ref> <local sha> <remote ref> <remote sha>
+
+input=$(tr -d '\r')                       # a CR left on a sha would read as an unknown commit
+
+is_zero() {
+	case "$1" in
+	*[!0]*) return 1 ;;
+	*) return 0 ;;
+	esac
+}
+
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+	case "$remote_ref" in
+	refs/heads/*) ;;
+	*) continue ;;
+	esac
+	is_zero "$local_sha" && continue      # a delete
+	is_zero "$remote_sha" && continue     # a new branch
+	if git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+		continue                          # a fast-forward
+	fi
+	branch=${remote_ref#refs/heads/}
+	echo "push refused: this would rewrite '$branch' on $1 -- its tip $remote_sha is not in what you push." >&2
+	echo "Nova never force-pushes (AGENTS.md section 5.1): a force-push deletes work." >&2
+	echo "Bring the other side in with 'git fetch $1' and 'git merge $1/$branch' (or merge origin/master)," >&2
+	echo "fix with a new commit, and push normally." >&2
+	status=1
+done <<EOF
+$input
+EOF
+[ "$status" -eq 0 ] || exit "$status"
+
+# The push guard: the pushed branch's own copy of the tool first, then the main checkout's. A copy that
+# predates the guard answers with a usage error (2), which lets the push through.
+root=$(git rev-parse --show-toplevel 2>/dev/null)
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+if command -v py >/dev/null 2>&1; then py="py -3"
+elif command -v python3 >/dev/null 2>&1; then py="python3"
+else exit 0
+fi
+for tool in "$root/tools/repo_hygiene.py" "${common%/.git}/tools/repo_hygiene.py"; do
+	[ -f "$tool" ] || continue
+	said=$(printf '%s\n' "$input" | $py "$tool" push-guard "$@" 2>&1)
+	case $? in
+	0) [ -n "$said" ] && printf '%s\n' "$said" >&2; exit 0 ;;
+	1) printf '%s\n' "$said" >&2; exit 1 ;;
+	esac
+done
+exit 0

@@ -8,6 +8,13 @@ is exactly the commit a MERGED pull request carried is deleted on the strength
 of that merge. Everything else -- a PR closed without merging, or a branch
 pushed to after its merge -- still has to prove containment in master first,
 which is the protection #369 exists for.
+
+The delete itself is a plain delete, never a push with a force flag (AGENTS.md section 5.1, owner
+2026-10-14: no force-push, not even the leased delete this used to send). ``delete_at_tip`` re-reads the
+branch's tip right before deleting and deletes only while it is still the verified one. That leaves a
+window the lease used to close: a push landing between the re-read and the delete is deleted with the
+branch. Its author still has those commits locally, and the Stranded commits sweep (PR #957) reports a
+push that lands after a merge.
 """
 
 from __future__ import annotations
@@ -15,9 +22,26 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from urllib.parse import quote
 
 PROTECTED_HEADS = frozenset({"master", "main", "HEAD"})
+
+
+def delete_at_tip(repo: str, ref: str, tip: str, read_tip: Callable[[], str | None]) -> tuple[bool, str]:
+    """Delete ``refs/heads/<ref>`` on GitHub only while its tip is still ``tip``: ``read_tip()`` (None when
+    the branch is gone; raises when it cannot look) right before a plain ``git push --delete``. True when
+    origin is left without the branch; the string says what happened."""
+    now = read_tip()
+    if now is None:
+        return True, "already absent"
+    if now != tip:
+        return False, f"its tip moved to {now} after {tip} was verified"
+    push = subprocess.run(["git", "push", "--delete", f"https://github.com/{repo}.git", f"refs/heads/{ref}"],
+                          capture_output=True, text=True, check=False)
+    if push.returncode:
+        return False, f"the delete failed: {push.stderr.strip()}"
+    return True, "deleted"
 
 
 def contained_tip(ref: str, *, cwd: str | None = None) -> str | None:
@@ -36,7 +60,7 @@ def contained_tip(ref: str, *, cwd: str | None = None) -> str | None:
 
 
 def delete_closed_head(gh, repo: str, ref: str, *, same_repo: bool) -> int:
-    """Fail closed and lease the verified SHA; never issue an unconditional DELETE."""
+    """Fail closed, and delete only while the tip is still the verified SHA (``delete_at_tip``)."""
     if not same_repo or not ref or ref in PROTECTED_HEADS:
         print(f"skip delete {ref}: protected or fork")
         return 0
@@ -97,7 +121,7 @@ def delete_closed_head(gh, repo: str, ref: str, *, same_repo: bool) -> int:
                       "recreated, or pushed-after-merge work needs review",
                       file=sys.stderr)
                 return 1
-        # Check OPEN again after network reads. The lease protects concurrent pushes.
+        # Check OPEN again after network reads; the tip is read again right before the delete.
         result = gh(["pr", "list", "--repo", repo, "--state", "open", "--head", ref,
                      "--json", "number"], check=False)
         if result.returncode:
@@ -105,14 +129,22 @@ def delete_closed_head(gh, repo: str, ref: str, *, same_repo: bool) -> int:
         if json.loads(result.stdout):
             print(f"skip delete {ref}: open_pr")
             return 0
-        result = subprocess.run([
-            "git", "push", f"--force-with-lease=refs/heads/{ref}:{tip}",
-            f"https://github.com/{repo}.git", f":refs/heads/{ref}",
-        ], capture_output=True, text=True)
-        if result.returncode:
-            print(f"REFUSE delete {ref}: conditional push failed; branch retained. "
-                  f"{result.stderr.strip()}", file=sys.stderr)
+
+        def read_tip() -> str | None:
+            again = gh(["api", f"repos/{repo}/git/ref/heads/{quote(ref, safe='')}"], check=False)
+            if again.returncode and "HTTP 404" in again.stderr:
+                return None
+            if again.returncode:
+                raise ValueError("branch re-read failed")
+            return json.loads(again.stdout)["object"]["sha"]
+
+        gone, why = delete_at_tip(repo, ref, tip, read_tip)
+        if not gone:
+            print(f"REFUSE delete {ref}: {why}; branch retained.", file=sys.stderr)
             return 1
+        if why == "already absent":
+            print(f"already absent: {ref}")
+            return 0
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as exc:
         print(f"REFUSE delete {ref}: unable to prove safety ({exc})", file=sys.stderr)
         return 1

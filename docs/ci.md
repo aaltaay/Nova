@@ -5,7 +5,9 @@ and **"Merge only green PRs too"** (they supersede the 2026-09-20 advisory merge
 Actions merges a ready PR only when Backend tests, Frontend build, Frontend E2E and Agent contract concluded `success` on its head; a
 Release waits for the same four on the commit it ships (see "Releases wait for a
 green build" below). Drafts, `do-not-merge`, forks and real conflicts retain their
-holds. Master still blocks force-push and deletion, including for admins.
+holds. Master still blocks force-push and deletion, including for admins, and the
+`No force-push` ruleset refuses a force-push on every other branch, with no bypass
+(AGENTS.md 5.1; `py -3 tools/no_force_push.py check`).
 
 | Changed files | Backend suite | Frontend lint/unit/build | Chromium E2E | Windows pack |
 |---|---|---|---|---|

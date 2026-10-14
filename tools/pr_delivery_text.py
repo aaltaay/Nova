@@ -40,26 +40,29 @@ def squash_merge_fields(
     return fields
 
 
-def conflict_rebase_comment() -> str:
+def conflict_merge_comment() -> str:
+    """The comment a conflicting PR gets: merge master in, never rebase or force-push (AGENTS.md 5.1,
+    owner 2026-10-14: "Force push, meaning we're deleting work")."""
     return (
         f"{CONFLICT_COMMENT_MARKER}\n"
         "**PR delivery: conflicts with `origin/master`**\n"
         "\n"
         "This PR is dirty/conflicting, so Auto-merge will not squash-merge it.\n"
         "\n"
-        "Cursor cloud agent: rebase onto latest `origin/master`, resolve "
+        "Agent: merge the latest `origin/master` into this branch, resolve the "
         "conflicts, push, and leave the PR ready (non-draft). Do not leave "
         "this PR silent.\n"
         "\n"
         "```text\n"
         "git fetch origin master\n"
-        "git rebase origin/master\n"
-        "# resolve conflicts, then:\n"
-        "git push --force-with-lease\n"
+        "git merge origin/master\n"
+        "# resolve the conflicts, git add them, then:\n"
+        "git commit --no-edit\n"
+        "git push\n"
         "```\n"
         "\n"
-        "Force-with-lease is only for this PR head after rebase. "
-        "Do not force-push `master`. Do not change required check names.\n"
+        "Never rebase or force-push (AGENTS.md section 5.1): a force-push deletes "
+        "work, and every branch refuses one. Do not change required check names.\n"
     )
 
 

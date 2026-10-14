@@ -207,6 +207,8 @@ def _gh_api(
     body: dict[str, Any] | None = None,
 ) -> tuple[int, int, dict[str, Any] | None, str]:
     cmd = ["gh", "api", "-i", "--method", method, path]
+    if body is not None:
+        cmd += ["--input", "-"]      # without it gh sends no body: "Invalid input: data cannot be null"
     proc = subprocess.run(
         cmd,
         input=json.dumps(body) if body is not None else None,

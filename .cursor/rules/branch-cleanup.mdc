@@ -17,9 +17,9 @@ the current tip. Before recommending or performing cleanup:
    compare against master). Missing refs, unavailable GitHub and comparison
    errors fail closed. Report unmerged/recreated tips prominently.
 3. Squash-only and closed-unmerged tips are retained for explicit review.
-4. Use `pr_delivery.py delete-closed --ref <branch>` for remote deletion; its
-   explicit SHA lease rejects deletion if the branch changes after checking.
-   Never copy a bare `git push origin --delete` command from historical docs.
+4. Use `pr_delivery.py delete-closed --ref <branch>` for remote deletion: it
+   re-reads the tip and deletes only while it is the verified SHA, with no
+   force flag (AGENTS.md 5.1). Never delete a branch by hand.
 5. Local cleanup must recheck ancestry at application time. Local branch
    deletion uses an expected old SHA; worktrees with unmerged HEADs stay put.
 6. A push saying `* [new branch]` after delivery may have recreated a merged
