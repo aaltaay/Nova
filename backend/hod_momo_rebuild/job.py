@@ -94,8 +94,9 @@ class _ThreadHandle(_Handle):
     def _main(self) -> None:
         try:
             run.run(self.day, self.event)
-        except BaseException as exc:  # noqa: BLE001 -- the job says why, as the process's watcher would
-            _ended(self, str(exc) or type(exc).__name__)
+        except BaseException:  # noqa: BLE001 -- logged with its trace; the job says where to look
+            logger.exception("HOD rebuild: the build of %s failed", self.day)
+            _ended(self, "The rebuild failed; the reason is in the backend log")
             return
         _forget(self)
 
