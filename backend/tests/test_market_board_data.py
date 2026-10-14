@@ -162,7 +162,7 @@ def test_climate_counts_runners_gappers_and_halts(tmp_path):
     assert climate.today_numbers(now)["runners"] == 2
 
 
-def _seed_massive(path: Path, day: date) -> None:
+def _seed_massive(path: Path, day: date, *, minute_bars: int = 1) -> None:
     """The day movers index with one session built: a runner, a sub-50-cent one, a warrant and an after-close one."""
     from day_movers import store as movers_store
 
@@ -180,7 +180,7 @@ def _seed_massive(path: Path, day: date) -> None:
          "up20_ts": t(17 * 60)},
     ]
     with movers_store.connect(path) as db:
-        movers_store.replace_session(db, {"session_date": iso, "tickers": 4, "rows": 4, "minute_bars": 1,
+        movers_store.replace_session(db, {"session_date": iso, "tickers": 4, "rows": 4, "minute_bars": minute_bars,
                                          "builder": 1, "built_ts": 0.0}, rows)
 
 
@@ -211,15 +211,41 @@ def test_a_session_nova_did_not_record_is_filled_from_massive_on_the_chart_only(
     assert climate.runners_by_theme("7D", now) == []
 
 
-def test_a_missing_massive_index_leaves_the_gap_hatched(tmp_path, monkeypatch):
+def test_a_missing_massive_index_leaves_the_gap_hatched_and_is_looked_for_once_a_refresh(tmp_path, monkeypatch):
+    """Review of PR #947: a missing drive was probed once for every unrecorded day, every refresh."""
     from leaderboard import store
 
     with store.connect(Path(tmp_path / "lb") / "leaderboard.sqlite3"):
         pass
-    monkeypatch.setattr(climate, "_massive_store", lambda: None)
+    opened = []
+    monkeypatch.setattr(climate, "_massive_store", lambda: opened.append(1))
+    now = clock.at(DAY, 11 * 60)
+    climate.refresh(now, sessions_needed=4)
+    assert all(d["source"] is None for d in climate.compose("1D", now)["days"])
+    assert len(opened) == 1
+    climate.refresh(now, sessions_needed=4)                            # asked again next refresh, once
+    assert len(opened) == 2
+
+
+def test_a_session_indexed_before_its_minute_bars_stays_hatched_until_rebuilt(tmp_path, monkeypatch):
+    """Review of PR #947: a session indexed with no minute file has no marks, so it read as a real zero and stuck."""
+    from day_movers import store as movers_store
+    from leaderboard import store
+
+    with store.connect(Path(tmp_path / "lb") / "leaderboard.sqlite3"):
+        pass
+    one_back = clock.sessions_back(DAY, 2)[0]
+    mv_path = tmp_path / "movers.sqlite3"
+    _seed_massive(mv_path, one_back, minute_bars=0)
+    monkeypatch.setattr(climate, "_massive_store", lambda: movers_store.read_only(mv_path))
     now = clock.at(DAY, 11 * 60)
     climate.refresh(now, sessions_needed=2)
-    assert all(d["source"] is None for d in climate.compose("1D", now)["days"])
+    day = {d["date"]: d for d in climate.compose("7D", now)["days"]}[one_back.isoformat()]
+    assert day["source"] is None and day["total"] is None
+    _seed_massive(mv_path, one_back)                                   # the minute file arrived and was built
+    climate.refresh(now, sessions_needed=2)
+    day = {d["date"]: d for d in climate.compose("7D", now)["days"]}[one_back.isoformat()]
+    assert day["source"] == "massive" and day["total"] == 1
 
 
 def test_quote_extraction_and_tiles():

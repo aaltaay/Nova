@@ -85,13 +85,14 @@ desk (the page reads today's live market and says so).
   scan and counted about 40% more runners a session, so it is left out (`MARKET_CLIMATE_USE_REBUILT`).
   **A past session with no board in the lens is filled from Massive** (ADR 053 amendment 2026-10-14, operator: "fill
   out the previous days by using data from Massive"): `backend/day_movers/`'s index, read-only, when it has built
-  that session (`sessions` row). A runner there is a common stock (`MARKET_CLIMATE_MASSIVE_KINDS`, not split-suspect)
+  that session from its minute bars (`sessions.minute_bars = 1`; one indexed before its minute file arrived has no
+  marks and stays `null`). A runner there is a common stock (`MARKET_CLIMATE_MASSIVE_KINDS`, not split-suspect)
   whose minute bars first reached +20 / 50 / 100% over the prior close before the close (`up20_ts` / `up50_ts` /
   `up100_ts`), at `SCANNER_MIN_PRICE` or more at +20%. That day reads `source: "massive"` with its `total` and
   `themes`, and is drawn on the chart only: it has no top-50 rank, so it never enters `covered`, `counts`,
   `baseline`, `temperature`, `theme` / `themes`, `gappers`, `halts`, `top` or the runners tab. An index that is
   missing, unreadable or behind leaves the day `source: null`; a past day with no board is asked of the index again
-  each refresh until it fills. A runner is a symbol whose `change_pct` reached 20 / 50 / 100% that session by the
+  each refresh until it fills, the index opened at most once a refresh. A runner is a symbol whose `change_pct` reached 20 / 50 / 100% that session by the
   close (by now, today). `covered` counts the period's sessions Nova recorded. 1 D's `baseline` is the same
   minute-of-day average over the prior `MARKET_CLIMATE_BASELINE_DAYS_1D` recorded sessions; 7 D / 30 D's is the
   per-session average over the prior `MARKET_CLIMATE_BASELINE_DAYS` (`null` when Nova recorded none). `temperature` is `hot` at `per_day >=

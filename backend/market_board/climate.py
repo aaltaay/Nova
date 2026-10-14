@@ -84,11 +84,12 @@ def _counted(day: Day | None) -> bool:
 
 
 def massive_day(mv: Any, day: date, close_ts: float) -> Day | None:
-    """A past session's runners from the Massive day movers index, or ``None`` when the index has not built it."""
+    """A past session's runners from the Massive day movers index, or ``None`` when the index has not built it from
+    minute bars (a session indexed before its minute file arrived has no marks: never a zero, and asked again)."""
     from day_movers.query import _kinds_sql
 
     iso = day.isoformat()
-    if mv.execute("SELECT 1 FROM sessions WHERE session_date = ?", (iso,)).fetchone() is None:
+    if mv.execute("SELECT 1 FROM sessions WHERE session_date = ? AND minute_bars = 1", (iso,)).fetchone() is None:
         return None
     kinds, kind_args = _kinds_sql(MARKET_CLIMATE_MASSIVE_KINDS)
     out = Day(date=iso, source=MARKET_CLIMATE_MASSIVE_SOURCE)
@@ -169,7 +170,7 @@ def refresh(now: float, *, sessions_needed: int) -> list[str]:
     db = store.read_only()
     if db is None:
         raise FileNotFoundError("Nova's leaderboard store does not exist yet")
-    mv = None
+    mv, mv_tried = None, False             # the index is opened at most once a refresh, missing or not
     try:
         for d in days:
             iso = d.isoformat()
@@ -183,7 +184,8 @@ def refresh(now: float, *, sessions_needed: int) -> list[str]:
             else:
                 got = read_day(db, d, min(now, close_ts) if d == today else close_ts)
             if got.source is None and d != today:
-                mv = mv or _massive_store()
+                if not mv_tried:
+                    mv, mv_tried = _massive_store(), True
                 filled = massive_day(mv, d, close_ts) if mv is not None else None
                 if filled is not None:
                     filled.halts = got.halts
