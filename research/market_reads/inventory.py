@@ -5,6 +5,7 @@ import ctypes
 import logging
 import os
 import queue
+import sys
 import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, as_completed, wait
@@ -15,6 +16,8 @@ from market_reads import REPO  # noqa: F401  (puts backend/ on sys.path)
 
 from constants_sim import SIM_MASSIVE_MINUTES, SIM_MASSIVE_QUOTES, SIM_MASSIVE_TRADES
 from sim import massive_files, massive_index
+
+from market_reads import index_watch
 
 DAY_AGGS = "day_aggs_v1"
 DATASETS = (SIM_MASSIVE_MINUTES, SIM_MASSIVE_TRADES, SIM_MASSIVE_QUOTES)    # a day's files, small first
@@ -60,6 +63,7 @@ def status() -> dict[str, Any]:
         if dataset != DAY_AGGS:
             row["indexed"] = sum(massive_index.is_current(path, root) for path in files)
         out["datasets"][dataset] = row
+    out["index_build"] = index_watch.read_status(root / "sim" / "index")
     out["movers_index"] = _movers_status()
     out["boards"] = _boards_status()
     return out
@@ -106,11 +110,13 @@ def _desc(day: str) -> str:
 
 
 STOPPED = "stopped"
+LOW_RAM = "low memory"          # a build that waited RAM_WAIT_SEC for free memory and never started
 STAGE_DIR = "nova-index-stage"  # inside --stage: the copies, ours alone, cleared at the start of a run
 STAGE_READ = 64 << 20           # the copy's reads off the hard drive
 
 
-def _build_one(path_str: str, bulk_read: int, staged_str: str | None = None) -> tuple[str, str, float, int]:
+def _build_one(path_str: str, bulk_read: int, staged_str: str | None = None,
+               ram_floor_gb: float = index_watch.RAM_FLOOR_GB) -> tuple[str, str, float, int]:
     below_normal()
     path, root = Path(path_str), massive_files.root()
     staged = Path(staged_str) if staged_str else None
@@ -120,6 +126,11 @@ def _build_one(path_str: str, bulk_read: int, staged_str: str | None = None) -> 
             return path_str, STOPPED, 0.0, 0
         if massive_index.is_current(path, root):
             return path_str, "current", 0.0, path.stat().st_size
+        stop_file = root / "sim" / "index" / INDEX_STOP
+        if not index_watch.wait_for_ram(ram_floor_gb, index_watch.RAM_WAIT_SEC, stop_file):
+            return path_str, LOW_RAM, time.monotonic() - t0, 0
+        if stop_file.exists():                                    # it appeared while this build waited for memory
+            return path_str, STOPPED, 0.0, 0
         if massive_index.build(path, root, bulk_read=bulk_read, read_from=staged) is not None:
             state = "built"
         elif massive_index.is_current(path, root):
@@ -155,9 +166,11 @@ class _Stager(threading.Thread):
     busy; one stream: 213 MB/s). At most ``budget`` bytes of copies wait or build at once; a copy that cannot be
     made (a full stage) stops the copying, and the builds in progress finish."""
 
-    def __init__(self, pool: ProcessPoolExecutor, files: list[Path], stage: Path, budget: int, stop_file: Path):
+    def __init__(self, pool: ProcessPoolExecutor, files: list[Path], stage: Path, budget: int, stop_file: Path,
+                 ram_floor_gb: float = index_watch.RAM_FLOOR_GB):
         super().__init__(name="index-stager", daemon=True)
         self.pool, self.files, self.stage, self.budget, self.stop_file = pool, files, stage, budget, stop_file
+        self.ram_floor_gb = ram_floor_gb
         self.futures: queue.Queue = queue.Queue()
         self.room = threading.Condition()
         self.held = 0
@@ -191,7 +204,7 @@ class _Stager(threading.Thread):
                     log.warning("index: could not copy %s to %s (%s); no more files start", path, self.stage, exc)
                     return
                 try:
-                    future = self.pool.submit(_build_one, str(path), 0, str(copy))
+                    future = self.pool.submit(_build_one, str(path), 0, str(copy), self.ram_floor_gb)
                 except RuntimeError as exc:   # a broken pool (a worker died): nothing more can build
                     copy.unlink(missing_ok=True)
                     self._release(size)
@@ -239,7 +252,8 @@ def todo(datasets: list[str], start: str | None, end: str | None, oldest_first: 
 
 def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str | None = None,
                   end: str | None = None, oldest_first: bool = False, stage: Path | None = None,
-                  stage_gb: float = 40.0) -> int:
+                  stage_gb: float = 40.0, ram_floor_gb: float = index_watch.RAM_FLOOR_GB,
+                  streak_halt: int = index_watch.FAILURE_STREAK_HALT) -> int:
     """Build every missing index, ``workers`` files at a time; the number that failed. Logged to the index folder.
 
     Stops after the files in progress when ``<root>/sim/index/STOP`` appears: every task left checks the file and
@@ -249,6 +263,11 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
     ``stage``: a folder on another drive (an SSD). Each file is copied there in one stream, at most ``stage_gb`` of
     copies at a time, and built from the copy, which is deleted after (``_Stager``); without it the builds read the
     day files where they are.
+
+    Watched (``index_watch``, 2026-10-13): each file gets a fresh worker process, so none grows over a long run; a
+    build starts only with ``ram_floor_gb`` of memory free and halts the run when none frees up; ``streak_halt``
+    failures in a row halt it; every progress line counts the failures; ``<root>/sim/index/index-status.json`` says
+    what the run is doing; the first failure, a halt and the end raise a Windows notification.
     """
     below_normal()
     root = massive_files.root()
@@ -269,14 +288,20 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
     log.info("index: %d day files to index (%.1f GB of gzip) in %s, %d workers, %s", len(files), total / 1e9,
              ",".join(datasets), workers,
              f"copied one at a time to {stage} ({stage_gb:g} GB at most)" if stage else f"{read_mb} MB reads")
-    log.info("index: pid %d; to stop after the files in progress, create %s", os.getpid(), stop_file)
+    log.info("index: pid %d; to stop after the files in progress, create %s; halts after %d failures in a row or "
+             "%.0f min below %g GB of free memory", os.getpid(), stop_file, streak_halt,
+             index_watch.RAM_WAIT_SEC / 60, ram_floor_gb)
+    watch = index_watch.Watch(log_path.parent, stop_file, len(files), total, workers, streak_halt)
     done_bytes, t0, failed, stopped, finished = 0, time.monotonic(), 0, 0, 0
     stager = None
-    with ProcessPoolExecutor(workers) as pool:
+    # A fresh worker per file (3.11+): the 2026-10-13 run's long-lived workers grew until builds could not start.
+    fresh = {"max_tasks_per_child": 1} if sys.version_info >= (3, 11) else {}
+    with ProcessPoolExecutor(workers, **fresh) as pool:
         if stage is None:
-            results = as_completed([pool.submit(_build_one, str(path), read_mb << 20) for path in files])
+            results = as_completed([pool.submit(_build_one, str(path), read_mb << 20, None, ram_floor_gb)
+                                    for path in files])
         else:
-            stager = _Stager(pool, files, stage, int(stage_gb * 1e9), stop_file)
+            stager = _Stager(pool, files, stage, int(stage_gb * 1e9), stop_file, ram_floor_gb)
             stager.start()
             results = stager.completed()
         for future in results:
@@ -284,7 +309,13 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
                 path_str, state, secs, size = future.result()
             except Exception as exc:  # noqa: BLE001 -- one bad file is logged; the rest go on
                 failed += 1
-                log.warning("index: a build failed: %s: %s", type(exc).__name__, exc)
+                log.warning("index: a build failed (%d so far): %s: %s", failed, type(exc).__name__, exc)
+                watch.failed(f"{type(exc).__name__}: {exc}")
+                continue
+            if state == LOW_RAM:
+                watch.halt(f"less than {ram_floor_gb:g} GB of memory free for {index_watch.RAM_WAIT_SEC / 60:.0f} "
+                           f"min before {path_str}")
+                stopped += 1
                 continue
             if state == STOPPED:
                 if not stopped:
@@ -295,8 +326,9 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
             done_bytes += size
             rate = done_bytes / max(time.monotonic() - t0, 1e-6)
             left = (total - done_bytes) / rate if rate else 0
-            log.info("index: %s %s in %.0f s; %.1f of %.1f GB, %.0f MB/s, about %.1f h left", path_str, state,
-                     secs, done_bytes / 1e9, total / 1e9, rate / 1e6, left / 3600)
+            log.info("index: %s %s in %.0f s; %.1f of %.1f GB, %.0f MB/s, about %.1f h left, %d failed", path_str,
+                     state, secs, done_bytes / 1e9, total / 1e9, rate / 1e6, left / 3600, failed)
+            watch.built(path_str, done_bytes, rate, left)
     if stager is not None:
         stager.join()
         if stager.broke:
@@ -304,4 +336,5 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
         unstarted = len(files) - finished - failed - stager.skipped
         stopped = unstarted if (stager.stopped or stager.broke or stopped) else 0
     log.info("index: %s, %d failed", f"stopped with {stopped} files left" if stopped else "finished", failed)
+    watch.finish("halted" if watch.halted.is_set() else "stopped" if stopped else "finished", stopped)
     return failed

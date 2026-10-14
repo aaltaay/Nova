@@ -57,7 +57,10 @@ A day file is one gzip of every US stock, sorted by ticker. With its seek index,
 second (TSLA's 400,000 quotes on 2026-09-09: 1.1 s). Without one, the read inflates the file up to the ticker:
 minutes for a late ticker (the same read on 2026-09-10: 152 s). `status` says how many days are indexed;
 `index` builds the rest (`--workers`, newest day first; `E:\Nova\massive\sim\index\STOP` stops it after the
-files in progress; resumable). The drive is one hard disk: a bulk index build slows every other reader on it.
+files in progress; resumable). A run is watched: a fresh worker per file, no build below 3 GB of free memory
+(`--ram-floor-gb`), a halt after 5 failures in a row (`--halt-after`), a Windows notification on the first failure,
+a halt and the end, and `E:\Nova\massive\sim\index\index-status.json`, which `status` reads (`died` when the run's
+process is gone). The drive is one hard disk: a bulk index build slows every other reader on it.
 Several builds reading it at once make its head jump between files (6 builds: 121 MB/s, against 213 MB/s for one
 stream), so on the desk PC run it with `--workers 6 --stage <a folder on an SSD>`: each file is copied off the
 hard drive in one stream and built from the copy, which is deleted after. `--read-mb` does nothing.

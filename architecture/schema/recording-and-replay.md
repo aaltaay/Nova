@@ -394,6 +394,22 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   when its build ends, stopped or not; a run clears copies an earlier run left there. The index is still the day
   file's -- kept at its path, stamped with its size and modified time, identical to one built from it; a copy of
   another size is not read, and a damaged one fails the gzip check at its end, so nothing is saved from it.
+- **A bulk build is watched** (`research/market_reads/index_watch.py`, 2026-10-13; operator: "we need to know
+  immediatly if failure like this happened so we can adjust out plan", after a 20-hour run failed 191 day files
+  with `zran_init returned error` while its workers grew until the PC ran short of memory, seen only as warning
+  lines in the log). Each file gets a fresh worker process (`max_tasks_per_child=1`). A build starts only with
+  `--ram-floor-gb` (3) of physical memory free and returns `low memory` after 10 minutes without it, which halts
+  the run. `--halt-after` (5) failed builds in a row halt it. A halt writes `<root>/sim/index/STOP` with the
+  reason, so the files in progress finish and no more start. Every progress line ends `N failed`. The first
+  failure, a halt and the run's end raise a Windows notification (PowerShell's toast sender, no console window;
+  `NOVA_INDEX_ALERTS=0` turns it off). **`<root>/sim/index/index-status.json`** (owner `index_watch.Watch`;
+  rewritten atomically on every build and every 30 s while the run lives; replaced by the next run):
+  `{schema_version: 1, state: running|finished|stopped|halted, pid, started, updated, ended?, files, total_gb,
+  workers, built, done_gb, mb_per_s, hours_left, failed, failures: [{at, what}] (the latest 50), reason, free_ram_gb,
+  last, files_left?}`, times in epoch seconds. A reader (`index_watch.read_status`, `tools/market_data.py status`
+  as `index_build`) says `died` for a `running` file whose process is gone or that stopped writing for 3
+  minutes -- a run that was killed or crashed cannot say so itself -- and `unreadable` for an unknown
+  `schema_version`, never reading it as this one.
 - **The store.** `<root>/sim/replay.sqlite3`, its own `PRAGMA user_version = 1` (unknown versions refuse):
   `jobs (id, payload)`, `prints (job_id, ordinal, ts, ns, price, size, exchange, exchange_id, conditions,
   correction, trf_id, sequence, tape, sets_price)`, `candles (job_id, ts, payload)`, `quotes (job_id, ordinal,
