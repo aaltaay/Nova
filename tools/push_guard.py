@@ -45,10 +45,10 @@ else exit 0
 fi
 for tool in "$root/tools/repo_hygiene.py" "${{common%/.git}}/tools/repo_hygiene.py"; do
   [ -f "$tool" ] || continue
-  printf '%s\\n' "$input" | $py "$tool" push-guard "$@"
+  said=$(printf '%s\\n' "$input" | $py "$tool" push-guard "$@" 2>&1)
   case $? in
-    0) exit 0 ;;
-    1) exit 1 ;;
+    0) [ -n "$said" ] && printf '%s\\n' "$said" >&2; exit 0 ;;
+    1) printf '%s\\n' "$said" >&2; exit 1 ;;
   esac
 done
 exit 0

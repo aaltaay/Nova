@@ -202,7 +202,7 @@ def test_install_honours_core_hooks_path(repo: Path):
 
 
 def test_hook_script_blocks_only_on_the_guards_refusal():
-    assert "[ $? -eq 1 ] && exit 1" in HOOK_SCRIPT and HOOK_SCRIPT.rstrip().endswith("exit 0")
+    assert "1) printf" in HOOK_SCRIPT and "exit 1 ;;" in HOOK_SCRIPT and HOOK_SCRIPT.rstrip().endswith("exit 0")
     assert "push-guard" in HOOK_SCRIPT and "exec " not in HOOK_SCRIPT
     sh = shutil.which("sh")
     if sh:
@@ -212,3 +212,28 @@ def test_hook_script_blocks_only_on_the_guards_refusal():
 def test_ci_runs_these_tests():
     yml = (_REPO_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
     assert "tools/test_push_guard.py" in yml
+
+
+def _stub(root: Path, code: int, said: str) -> None:
+    (root / "tools").mkdir(exist_ok=True)
+    (root / "tools" / "repo_hygiene.py").write_text(
+        f"import sys\nsys.stdin.read()\nprint({said!r}, file=sys.stderr)\nsys.exit({code})\n", encoding="utf-8")
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
+def test_installed_hook_falls_back_to_the_main_checkout_and_blocks_only_on_1(repo: Path, tmp_path: Path):
+    """A branch cut before the guard answers 2 (usage error); the main checkout's copy decides."""
+    old = tmp_path / "old-branch"
+    _git(repo, "worktree", "add", "-q", "-b", "old", str(old))
+    _stub(old, 2, "usage: no push-guard here")
+    hook = install(str(repo))[0] == 0 and (repo / ".git" / "hooks" / "pre-push")
+
+    def push(main_code: int) -> subprocess.CompletedProcess:
+        _stub(repo, main_code, f"main says {main_code}")
+        return subprocess.run([shutil.which("sh"), str(hook), "origin", "url"], cwd=old, text=True,
+                              input=f"refs/heads/old {'1' * 40} refs/heads/old {ZERO}\n", capture_output=True)
+
+    refused = push(1)
+    assert refused.returncode == 1 and "main says 1" in refused.stderr and "usage" not in refused.stderr
+    assert push(0).returncode == 0
+    assert push(3).returncode == 0  # a broken guard never blocks
