@@ -7,7 +7,6 @@ import { dayLabel } from './calendar';
 import {
   FT_BACK,
   FT_CHECK_A_READ,
-  FT_CLOSE_NOT_SEEN,
   FT_ENTRY,
   FT_EXIT,
   FT_IGNORED,
@@ -18,13 +17,12 @@ import {
   FT_READS_LOADING,
   FT_READS_NONE,
   FT_READS_TITLE,
-  FT_STILL_OPEN,
   FT_WHAT_WAS_READ,
 } from './constants';
 import { FeedImage } from './FeedImage';
 import { duration, entered, etTime, exitPrice, exited, held, plPct, plPerShare, price } from './format';
 import { Face, SideChip, Ticker } from './parts';
-import { exitTs, judgeReads, readAt, sideRow, type JudgedRead } from './proof';
+import { exitTs, judgeReads, noExitImage, readAt, sideRow, type JudgedRead } from './proof';
 import type { BarPosition, FollowedRead, FollowedTrade } from './types';
 import { useFollowedReads } from './useFollowedFetch';
 
@@ -146,7 +144,7 @@ export function ProofView({ trade, face, date, generatedAt, onBack }: Props) {
         <section className="ft-card ft-proof__card" aria-label={FT_EXIT}>
           <div className="ft-proof__card-head"><h2 className="ft-eyebrow ft-eyebrow--exit">{FT_EXIT}</h2>
             <span className="ft-mono ft-muted ft-small">{trade.exit && out !== null ? exited(trade.exit) : ''}</span></div>
-          {out === null ? <div className="ft-empty">{trade.status === 'open' ? FT_STILL_OPEN : FT_CLOSE_NOT_SEEN}</div> : (
+          {out === null ? <div className="ft-empty">{noExitImage(trade)}</div> : (
             <>
               <FeedImage path={trade.evidence.exit} className="ft-proof__img" missing={FT_NO_EVIDENCE}
                 alt={`${trade.trader}'s position bar at the exit`} />

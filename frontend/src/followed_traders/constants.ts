@@ -67,6 +67,12 @@ export const FT_SLOT_LAST_READ = 'Their slot as last read';
 export const FT_HOLDING = 'Holding now';
 export const FT_HOLDING_END = 'Open at the day’s end';
 export const FT_OFF_AIR = 'Off air';
+export const FT_LEFT_BAR = 'Left the bar';
+export const FT_LEFT_BAR_TIP = 'The stream’s position bar has shown other traders without them since then: their show is over, or they '
+  + 'stepped off it. Off air, every trade is closed: what they held then closed when they left.';
+export const FT_OFF_AIR_CLOSE = 'off air';
+export const FT_OFF_AIR_CLOSE_TIP = 'They left the stream’s position bar holding this, and off air every trade is closed: the exit is IBKR’s '
+  + 'last trade when they left, not a close the feed saw.';
 export const FT_NO_TRADES_TODAY = 'no trades today';
 export const FT_NO_TRADES_THAT_DAY = 'no trades that day';
 export const FT_EXIT_IS_IBKR = 'exit = IBKR’s last trade when it left their bar';
@@ -145,6 +151,7 @@ export const FT_WHAT_WAS_READ = 'What the vision read';
 export const FT_NO_EVIDENCE = 'The feed saved no screenshot for this moment.';
 export const FT_STILL_OPEN = 'Still open';
 export const FT_CLOSE_NOT_SEEN = 'The feed never saw it close';
+export const FT_CLOSED_ON_LEAVING = 'Closed when they left the bar: off air, every trade is closed';
 export const FT_READS_TITLE = 'Every read of the slot during this trade';
 export const FT_READS_NONE = 'No read during this trade differed from what was logged.';
 export const FT_READS_LOADING = 'Reading the feed’s read log…';

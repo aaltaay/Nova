@@ -28,11 +28,15 @@ def feed_down(state: str, error: str, date: str | None, now: float) -> dict[str,
 
 
 def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for: NowFor,
-            exit_for: ExitFor, resets_at: float | None = None) -> dict[str, Any]:
+            exit_for: ExitFor, resets_at: float | None = None,
+            seen: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """``day["today"]`` is the desk's trading day and ``resets_at`` the epoch second it ends (the route's
-    ``desk_day``)."""
+    ``desk_day``); ``seen`` each trader's sighting on the bar (``sightings.sightings``), None when not read: a
+    trader who left the bar has closed every trade (``closed_on_leaving``)."""
+    seen = seen or {}
     traders: dict[str, dict[str, list]] = {}
     for trade in day["trades"]:
+        trade = closed_on_leaving(trade, left_bar(seen, trade["trader"]))
         row = trade_row(trade, day["date"], now=now, prices=prices, now_for=now_for, exit_for=exit_for)
         group = traders.setdefault(trade["trader"], {"open": [], "closed": []})
         group["open" if trade["status"] == "open" else "closed"].append(row)
@@ -42,7 +46,7 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
         group["closed"].sort(key=_closed_order, reverse=True)
         face = FACE_PATH.format(date=day["date"], name=name) if name in day.get("faces", ()) else None
         out.append({"name": name, "face": face, "record": scoring.record(group["open"] + group["closed"]),
-                    "open": group["open"], "closed": group["closed"]})
+                    "seen": seen.get(name), "open": group["open"], "closed": group["closed"]})
     every = [r for t in out for r in t["open"] + t["closed"]]
     return {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3),
             "feed": {"state": "ok", "error": None}, "date": day["date"], "today": day["today"],
@@ -50,11 +54,15 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
             "overall": scoring.record(every), "traders": out}
 
 
-def records(got: dict[str, Any], *, span: str, now: float, exit_for: ExitFor) -> dict[str, Any]:
+def records(got: dict[str, Any], *, span: str, now: float, exit_for: ExitFor,
+            seen_by_date: dict[str, dict[str, dict[str, Any]]] | None = None) -> dict[str, Any]:
     """``GET /api/followed-traders/record``: each trader's record over the feed's trades from ``got["from"]`` to
-    ``got["to"]``, and everyone's. Open trades are not priced here; ``pending`` counts exits not read yet."""
+    ``got["to"]``, and everyone's. Open trades are not priced here; ``pending`` counts exits not read yet. A trader
+    who left the bar on a day (``seen_by_date``) closed that day's trades when they left, as on the day."""
+    seen_by_date = seen_by_date or {}
     rows: dict[str, list[dict[str, Any]]] = {}
     for trade in got["trades"]:
+        trade = closed_on_leaving(trade, left_bar(seen_by_date.get(trade["date"]), trade["trader"]))
         row = trade_row(trade, trade["date"], now=now, prices={"state": "off", "why": None},
                         now_for=lambda t: now_state("off"), exit_for=exit_for)
         rows.setdefault(trade["trader"], []).append(row)
@@ -104,6 +112,23 @@ def bar(status: dict[str, Any], faces: dict[str, str] | None = None) -> list[dic
              "face": faces.get(t["trader"])} for t in held]
 
 
+def left_bar(seen: dict[str, dict[str, Any]] | None, trader: str) -> dict[str, Any] | None:
+    """The trader's sighting when they left the bar (``left_ts`` set), else None."""
+    got = (seen or {}).get(trader)
+    return got if got and got.get("left_ts") is not None else None
+
+
+def closed_on_leaving(t: dict[str, Any], gone: dict[str, Any] | None) -> dict[str, Any]:
+    """An open trade of a trader who left the bar, closed when they left (operator rule 2026-10-14: "if they are off
+    air then all trades are closed"). The exit is at ``left_ts``, or somewhere in ``last_ts``..``left_ts`` when the bar
+    was not read between; there is no exit image, since no close was seen. Any other trade as the feed has it."""
+    if gone is None or t["status"] != "open":
+        return t
+    last, left = gone["last_ts"], gone["left_ts"]
+    return {**t, "status": "closed", "exit_ts": left, "exit_since_ts": last if last < left else None,
+            "exit_evidence": None, "left_bar": True}
+
+
 def trade_row(t: dict[str, Any], date: str, *, now: float, prices: dict[str, Any], now_for: NowFor,
               exit_for: ExitFor) -> dict[str, Any]:
     side, avg = t["side"], t["price"]
@@ -113,6 +138,7 @@ def trade_row(t: dict[str, Any], date: str, *, now: float, prices: dict[str, Any
         "entry": {"first_price": t["entry_price"], "avg_price": avg, "ts": t["entry_ts"],
                   "since_ts": t["entry_since_ts"], "known": t["entry_known"]},
         "adds": [dict(a) for a in t["adds"]],
+        "left_bar": bool(t.get("left_bar")),
         "now": None, "exit": None, "pl": None,
         "evidence": {"entry": evidence_path(date, t["entry_evidence"]),
                      "exit": evidence_path(date, t["exit_evidence"])},

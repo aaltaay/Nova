@@ -7,7 +7,7 @@
  * stock in the Trader. Nothing here places an order.
  */
 import { tipProps } from '../ux/hoverTip';
-import { FT_EST, FT_EST_TIP, FT_EXIT_PENDING, FT_NOW, FT_OPEN_CHIP, FT_PROOF } from './constants';
+import { FT_EST, FT_EST_TIP, FT_EXIT_PENDING, FT_NOW, FT_OFF_AIR_CLOSE, FT_OFF_AIR_CLOSE_TIP, FT_OPEN_CHIP, FT_PROOF } from './constants';
 import { DASH, entered, etTime, exitPrice, exited, held, price } from './format';
 import { PlCell, ResultWord, SideChip, Ticker } from './parts';
 import { ProofLink } from './ProofLink';
@@ -24,10 +24,14 @@ function TimeOut({ t }: { t: FollowedTrade }) {
   if (t.status === 'unknown') return <span className="ft-muted" {...tipProps('The feed saw this position open again without seeing it close')}>not seen</span>;
   if (!t.exit) return <span className="ft-muted">{DASH}</span>;
   const win = t.exit.from_ts !== null;
-  return (
+  const time = (
     <span className={win ? 'ft-window' : undefined} {...tipProps(win ? 'The exit happened while the feed could not see the bar, somewhere in this window' : null)}>
       {exited(t.exit)}
     </span>
+  );
+  if (!t.left_bar) return time;
+  return (
+    <>{time} <span className="ft-note" data-testid={`ft-off-air-close-${t.id}`} {...tipProps(FT_OFF_AIR_CLOSE_TIP)}>{FT_OFF_AIR_CLOSE}</span></>
   );
 }
 

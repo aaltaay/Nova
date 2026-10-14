@@ -471,6 +471,7 @@ def client(monkeypatch):
     monkeypatch.setattr(lines, "_owners", lambda sym: {"followed"})
     monkeypatch.setattr(lines, "quotes", lambda syms: {s: lines.now_state("live", price=2.5, trade_ts=1.0)
                                                        for s in syms})
+    monkeypatch.setattr(routes, "_read_log", lambda *_a, **_k: None)  # no read log: never the real feed
     app = FastAPI()
     app.include_router(routes.router)
     return TestClient(app)
