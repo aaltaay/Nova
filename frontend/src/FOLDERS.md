@@ -47,7 +47,7 @@ the backend packages.
 | `hotkeys/` | feature | Hot keys and Nova Actions: bindings editor, DAS import, shortcuts menu, quick-trade bar, actions sent through the manual order path. |
 | `ibkr/` | feature | The trading surface: order ticket and placement, working orders, positions, depth ladder, time & sales, Gateway status, trading prerequisites. |
 | `issue_report/` | feature | File an issue from the desk: the form (Bug / Feature, optional title and description, the desk details and a scrubbed diagnostics dump), opened from the What's new card and Help > File an Issue…; the backend files it on GitHub. |
-| `leaderboard/` | feature | The Scanner board replayed at the Sim playhead: per-minute leaderboard fetch, coverage, lanes, recorder toast. |
+| `leaderboard/` | feature | The Scanner board replayed at the Sim playhead: per-minute leaderboard fetch, a rebuilt day's Gappers by the second, coverage, lanes, recorder toast. |
 | `lib/` | shared | The shadcn `cn()` class-merge helper only. |
 | `market_board/` | feature | Owns the Market page (ADR 053): the day's market health at a glance -- day read, futures and macro, sectors and industries, NYSE breadth, the small-cap climate and the top stocks by sector. Read-only. |
 | `market_view/` | shared | How fresh the market on screen is (ADR 045): each symbol's Level 2 frames, beats and drawn book, its quote version, the lock while the view lags, and the view every order carries. |

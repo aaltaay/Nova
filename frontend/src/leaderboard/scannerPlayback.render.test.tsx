@@ -7,7 +7,8 @@ import { ScannerDataContextProvider, makeLiveScannerFeedStub } from '../scanner/
 import type { HealthStatus } from '../types/health';
 import type { ScannerRow } from '../types/scanner';
 import { LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN } from './leaderboardConstants';
-import { parseLeaderboardAt } from './leaderboardParse';
+import { withGappersBySecond } from './gappersBySecond';
+import { parseLeaderboardAt, parseLeaderboardSecondsAt } from './leaderboardParse';
 import { replayFromAnswer } from './leaderboardRows';
 import { withScannerReplay } from './scannerReplayFeed';
 
@@ -38,7 +39,7 @@ const LIVE_ROW = { symbol: 'LIVE', price: 1, prev_close: 1, change_pct: 0, chang
 
 function Board({ replay, tab = 'gainers' }: {
   replay: ReturnType<typeof replayFromAnswer> | null;
-  tab?: 'gainers' | 'catalysts';
+  tab?: 'gainers' | 'gappers' | 'catalysts';
 }) {
   const feed = withScannerReplay(makeLiveScannerFeedStub({ gainers: [LIVE_ROW] }), replay);
   return (
@@ -85,6 +86,24 @@ describe('the Scanner board at the Sim playhead', () => {
     render(<Board replay={replayFromAnswer('2026-09-18', M, rebuilt)} />);
     expect(screen.getByTestId('scanner-board-replay').textContent).toBe('Sim · 2026-09-18 07:42 ET · rebuilt');
     expect(screen.getByText('MKT')).toBeTruthy();
+  });
+
+  it('a rebuilt day\'s Gappers by the second: the second\'s rows, and which second it is', () => {
+    const rebuilt = replayFromAnswer('2026-09-18', M, answer({
+      source: 'reconstructed', boards: {
+        market: { state: 'rebuilt', rows: [{ symbol: 'MKT', rank: 1, price: 4 }] },
+        gappers: { state: 'rebuilt', rows: [{ symbol: 'HKPD', rank: 1, price: 0.5009, prev_close: 0.3333 }] },
+      },
+    }));
+    const second = epoch('07:42:58');
+    const ready = parseLeaderboardSecondsAt({ status: 'ready', second_ts: second, minute_ts: M, rows: [
+      { symbol: 'KALA', rank: 1, price: 0.8199, prev_close: 0.6727, change_pct: 0.2188 },
+    ] });
+    const shown = withGappersBySecond(rebuilt, { date: '2026-09-18', asked: second, answer: ready, error: null }, second);
+    render(<Board tab="gappers" replay={shown} />);
+    expect(screen.getByText('KALA')).toBeTruthy();
+    expect(screen.queryByText('HKPD')).toBeNull();
+    expect(screen.getByTestId('scanner-board-replay-seconds').textContent).toBe('Gappers by the second · 07:42:58 ET');
   });
 
   it('shows a mover\'s catalyst at the playhead in the News column, aged from the playhead', () => {

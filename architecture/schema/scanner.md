@@ -409,6 +409,88 @@ day file landed) is rebuilt again. Before 16:01 the desk's After Hours tab on a
 rebuilt day says the list starts at 16:00 ET; on a day rebuilt before After
 Hours existed it says so.
 
+**A rebuilt day's Gappers by the second** (ADR 023 amendment 2026-10-13;
+operator: "how do we make this more accurate", then "I would like this to be
+implemented end-to-end"). The minute board steps once a minute: on 2026-09-01
+07:00-09:30 its top 10 was out of date in 70% of the seconds and 18 stocks were
+gappers for up to 54 s without being on the board at either end of that minute.
+Owner `backend/leaderboard/seconds/`. A day's Gappers by the second is built
+once, on the desk's request, in its own process (`python -m
+leaderboard.seconds.worker --date D` / `nova-api.exe --board-seconds --date
+D`, below normal priority, memory capped), one day at a time: a request for
+another day ends a running build (`stopped`), and asking again starts it over.
+- **Who can be on the list inside minute m** (the seconds `[m, m + 60)`, m from
+  04:01 to 09:29): every common / ADR stock whose price as of m, or the high of
+  its minute bar starting at m, clears `GAPPERS_RULES`. A price inside the
+  minute is at most that bar's high, so no other stock can qualify in it. From
+  09:30 the list is the stored 09:30 freeze, members at their 09:30 rank.
+- **As of m** (`price`, `volume`): computed from the day's minute file exactly
+  as the rebuild computes a row -- the close of the last bar closed by m and
+  the running volume -- with the prior close the rebuild stored for the stock
+  that day. A stock the store holds on no board that day gets the prior
+  session's day-bar close, split-adjusted as the rebuild does (Massive's
+  `splits.json` plus `splits_confirmed.json`, Massive's entry winning a tie),
+  and only when `tickers.json` lists it as `CS` / `ADRC`. So the list at second
+  m is the stored minute board.
+- **At second s** in minute m: a stock's price is the last price-setting print
+  (`sim/massive_files.sets_price`) in `[m, s)` -- SIP time, then sequence
+  number -- else its price as of m; its volume is its volume as of m plus every
+  trade in `[m, s)` (cancels and errors are no trade). Before 09:30 the list is
+  `rank_rows(GAPPERS_RULES)` over those stocks, the top
+  `LEADERBOARD_ROWS_PER_BOARD_MAX`, `gap_pct` the move; from 09:30 the frozen
+  members in their 09:30 order, repriced. A print at 07:45:01.3 is first seen at
+  07:45:02 (the minute board's own rule: only what closed by then).
+- **A row** is the leaderboard row of that minute's stored board with `price`,
+  `prev_close`, `change_pct`, `gap_pct`, `volume` and `rank` of the second, plus
+  `second_ts` (s). `rvol`, `float_shares`, `exchange` come from the stock's stored
+  row of minute m (`gappers`, else `market`, else `losers`) -- `rvol` stays the
+  minute's, so its `rvol_basis` is unchanged. A stock the store holds on no board
+  at m takes `exchange` and `float_shares`, facts of the day, from minute m + 60,
+  and its `rvol` is `null` (the next minute's counts volume after s);
+  `has_news` is the minute's, or `true` once the next minute's
+  `news_first_seen_ts` is at or before s. `halted` and `catalyst` are read at s
+  as the minute board reads them at `at`.
+- **The trades** are read only for those stocks, through the day file's seek
+  index; a day file with none gets one first (`massive_index.build`), and a bulk
+  index build holding that file's lock is waited for, never duplicated. A stock
+  on the list only before 09:30 is read until the end of its last minute there.
+
+Persisted state (persisted-state.mdc). Owner `leaderboard/seconds/store.py`, the
+only writer, under `<leaderboard root>/seconds/`:
+`<date>.gappers.sqlite3` (`PRAGMA user_version=1`) is written whole as `.part`
+and renamed, so it is whole or absent: `meta(key, value)` -- `schema_version`,
+`built_ts`, `fingerprint` and the build's `summary` JSON; `candidates(minute_ts,
+symbol, rank, price, volume, prev_close)` -- the stocks of each minute, `rank`
+the frozen rank from 09:30 and `null` before; `seconds(symbol, ts, price,
+volume)` -- one row per second the stock traded inside its minutes, `price` the
+second's last price-setting print (`null` when none set a price), `volume` the
+second's trades. `<date>.gappers.json` is the build's job: `{schema_version: 1,
+date, board: "gappers", status: "queued" | "building" | "ready" | "failed" |
+"stopped", stage, done, total, started_ts, updated_ts, finished_ts, error,
+summary}` -- `stage` one of `inputs | index | trades | writing`, `done` / `total`
+the stocks read. A `building` job not rewritten for
+`LEADERBOARD_SECONDS_STALE_SEC` belonged to a process that died and reads
+`failed`. Invalidated when the rebuilt day changes: `fingerprint` is the stored
+Gappers rows' count and last minute, and a request that finds another builds the
+day again. An unknown `schema_version` (either file) is never read and the day
+is built again. `summary`: `{candidates, from_outside_store, stocks_read,
+seconds_rows, read_indexed, checked_minutes, agreed_minutes, disagreements:
+[{minute_ts, stored, by_second}] (at most 20), build_sec}` -- each minute's list
+at its first second checked against the stored board.
+
+**Routes.** `POST /api/leaderboard/{date}/seconds` asks for the build (nothing
+when ready, building or queued) and `GET /api/leaderboard/{date}/seconds?at=`
+reads it: `{schema_version, date, board: "gappers", status, reason, stage, done,
+total, error, summary, at, second_ts, minute_ts, state: "rebuilt" | "frozen" |
+null, rows: [row]}`. `status` is the job's, `none` before any request, or
+`unavailable` with `reason` (a day Nova recorded -- that is the desk's own list,
+kept per minute -- a day rebuilt without Gappers, or a day file not on disk).
+`rows` only while `ready` and `at` falls in `[04:01, 20:01)` ET, else `[]` with
+`second_ts` null. The Scanner on a rebuilt day asks for the build once a day,
+reads the Gappers list each playhead second while it is ready, and keeps the
+minute board until then; its header says `· by the second` on Gappers, or the
+build's progress while it runs. Gainers, Losers and After Hours stay per minute.
+
 **Many days at once** (2026-10-12). The live recorder gives up on a write after
 `LEADERBOARD_SQLITE_TIMEOUT_SEC` and loses that batch (`leaderboard/queue.py`),
 so a many-day rebuild never writes the store directly while the desk records:

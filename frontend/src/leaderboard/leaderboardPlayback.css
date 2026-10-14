@@ -25,6 +25,25 @@
   color: #fbbf24;
 }
 
+/* A rebuilt day's Gappers by the second: the second it shows, or the build's state (secondary, never an alarm). */
+.scanner-board__replay-seconds {
+  max-width: 30rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-secondary, #9aa3b2);
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+.scanner-board__replay-seconds[data-state='shown'] {
+  color: var(--nova-accent, #0a84ff);
+}
+.scanner-board__replay-seconds[data-state='failed'],
+.scanner-board__replay-seconds[data-state='error'] {
+  color: #fbbf24;
+}
+
 .empty-state--replay {
   color: var(--text-secondary, #9aa3b2);
 }

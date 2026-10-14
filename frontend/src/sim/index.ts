@@ -16,3 +16,5 @@ export { replayPanelDetail } from './replayPanelDetail';
 export { useHistoricalSnapshot } from './useHistoricalSnapshot';
 // A tab's price off the live edge is the replay's at the playhead: the plan box's price tick reads it too.
 export { useVenuePrice } from './useReplayQuote';
+// A rebuilt day's Gappers by the second asks the leaderboard routes the way replay reads do (ADR 023 amendment 2026-10-13).
+export { replayRequest } from './replayRequest';

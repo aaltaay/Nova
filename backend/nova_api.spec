@@ -40,6 +40,7 @@ hiddenimports = [
     "constants_advise",
     "routes.advise",
     "sim.massive_worker",
+    "leaderboard.seconds.worker",
     "sim.massive_import",
     "sim.massive_read",
     "sim.massive_files",

@@ -96,6 +96,43 @@ export interface LeaderboardCoverage {
   gaps: LeaderboardCoverageGap[];
 }
 
+/** A rebuilt day's Gappers by the second: the build's state (ADR 023 amendment 2026-10-13). */
+export type GappersBySecondStatus =
+  | 'queued' | 'building' | 'ready' | 'failed' | 'stopped' | 'none' | 'unavailable';
+
+/** `GET /api/leaderboard/{date}/seconds?at=` -- rows only while `ready`, `second_ts` the second they are at. */
+export interface LeaderboardSecondsAt {
+  date: string;
+  status: GappersBySecondStatus;
+  /** Why the day cannot be built (`unavailable`), else null. */
+  reason: string | null;
+  /** `inputs` | `index` | `trades` | `writing` while building. */
+  stage: string | null;
+  done: number | null;
+  total: number | null;
+  error: string | null;
+  secondTs: number | null;
+  minuteTs: number | null;
+  /** `rebuilt` before 09:30, `frozen` from it. */
+  state: string | null;
+  rows: LeaderboardRow[];
+}
+
+/**
+ * What the Scanner says about a rebuilt day's Gappers by the second. `secondTs` is the second the Gappers list
+ * shows when `shown`; otherwise the list is the minute board and the build's state says why.
+ */
+export interface ScannerReplaySeconds {
+  status: GappersBySecondStatus | 'error';
+  reason: string | null;
+  stage: string | null;
+  done: number | null;
+  total: number | null;
+  error: string | null;
+  secondTs: number | null;
+  shown: boolean;
+}
+
 /** The Scanner lists a played-back board fills. */
 export type ReplayListKey = 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'large_cap';
 
@@ -127,4 +164,6 @@ export interface ScannerReplay {
   leaders: string[];
   /** Symbols the day's catalyst export checked (the News column's verdicts); null until an answer says. */
   catalystSymbols: number | null;
+  /** A rebuilt day's Gappers by the second: absent / null on a recorded day and before anything was asked. */
+  bySecond?: ScannerReplaySeconds | null;
 }
