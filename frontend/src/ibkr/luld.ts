@@ -10,6 +10,7 @@
 import { STOCK_VIEW_CLOCK_TIMEZONE } from '../constantGroups/chart_api';
 import { LULD_APPROX_MARK, LULD_COLOR, LULD_LABEL, LULD_SCHEMA_VERSION } from '../constantGroups/luld';
 import type { DepthMarker } from './depthMarkers';
+import { formatBandPrice } from './depthNumberFormat';
 
 export type LuldState = 'off' | 'unknown' | 'warming' | 'bands' | 'limit' | 'pause_due' | 'paused';
 
@@ -107,7 +108,7 @@ export function readLuldFrame(data: unknown, symbol: string): LuldView | null {
 
 export function fmtBand(p: number | null | undefined): string {
   if (p == null || !Number.isFinite(p)) return '?';
-  return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatBandPrice(p);
 }
 
 function pct(x: number | null | undefined): string {

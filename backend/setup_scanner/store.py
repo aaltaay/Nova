@@ -109,7 +109,11 @@ class SetupStore:
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._init()
+        try:
+            self._init()
+        except Exception:
+            self._conn.close()
+            raise
 
     def _init(self) -> None:
         with self._lock:
@@ -196,6 +200,22 @@ class SetupStore:
         logger.info("setups.db migrated to schema 7: earlier rows have one target, sold whole")
 
     def upsert(self, row: dict[str, Any]) -> None:
+        self.upsert_batch([row])
+
+    def upsert_batch(self, rows: list[dict[str, Any]]) -> None:
+        """Apply snapshots in order, committing the entire worker batch or rolling it back."""
+        statements = [self._statement(row) for row in rows]
+        with self._lock:
+            try:
+                for sql, args in statements:
+                    self._conn.execute(sql, args)
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    @staticmethod
+    def _statement(row: dict[str, Any]) -> tuple[str, list[Any]]:
         data = {k: row.get(k) for k in COLUMNS if k in row}
         data["updated_at"] = time.time()
         for k in JSON_COLUMNS & data.keys():
@@ -204,9 +224,7 @@ class SetupStore:
         cols = list(data)
         sql = (f"INSERT INTO setups ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)}) "
                f"ON CONFLICT(id) DO UPDATE SET {', '.join(f'{c}=excluded.{c}' for c in cols if c != 'id')}")
-        with self._lock:
-            self._conn.execute(sql, [data[c] for c in cols])
-            self._conn.commit()
+        return sql, [data[c] for c in cols]
 
     def rows(self, *, date_from: str | None = None, date_to: str | None = None,
              symbol: str | None = None, limit: int | None = None, template_id: str | None = None,

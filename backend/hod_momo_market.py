@@ -17,6 +17,7 @@ from constants import (
 )
 from hod_momo_filters import price_surge as _price_surge
 from hod_momo_models import TickerSnap
+from hod_prices import PriceHistory
 
 _MAX_BUFFER_MINUTES = 60
 
@@ -41,21 +42,14 @@ def effective_min_rvol() -> float:
 
 
 def update_price_buffer(symbol: str, price: float, ts: float) -> None:
-    """Append one trade price, keeping the buffer oldest first: ``price_surge``
-    reads it backwards from the newest point and stops at its window (#619)."""
+    """Keep exact ordered prices; indexed window reads avoid a dense surge scan (#619)."""
     state = _state.get_state()
-    buf = state.price_buffer.setdefault(symbol, deque())
-    if buf and ts < buf[-1][0]:
-        later = []                      # rare: a late print goes in at its own time
-        while buf and buf[-1][0] > ts:
-            later.append(buf.pop())
-        buf.append((ts, price))
-        buf.extend(reversed(later))
-    else:
-        buf.append((ts, price))
-    cutoff = ts - _MAX_BUFFER_MINUTES * 60
-    while buf and buf[0][0] < cutoff:
-        buf.popleft()
+    buf = state.price_buffer.get(symbol)
+    if buf is None:
+        buf = state.price_buffer.setdefault(symbol, PriceHistory())
+    if not isinstance(buf, PriceHistory):
+        buf = state.price_buffer[symbol] = PriceHistory(buf or ())
+    buf.add(ts, price, ts - _MAX_BUFFER_MINUTES * 60)
 
 
 def request_surge_seed(symbol: str) -> None:
@@ -125,9 +119,12 @@ def seed_price_buffer(symbol: str, points: list[tuple[float, float]]) -> int:
     sym = (symbol or "").strip().upper()
     if not sym:
         return 0
-    buf = state.price_buffer.setdefault(sym, deque())
-    existing = {(float(ts), float(price)) for ts, price in buf}
-    added = 0
+    buf = state.price_buffer.get(sym)
+    if buf is None:
+        buf = state.price_buffer.setdefault(sym, PriceHistory())
+    if not isinstance(buf, PriceHistory):
+        buf = state.price_buffer[sym] = PriceHistory(buf or ())
+    normalized = []
     for ts, price in points or []:
         try:
             point_ts = float(ts)
@@ -136,19 +133,8 @@ def seed_price_buffer(symbol: str, points: list[tuple[float, float]]) -> int:
             continue
         if point_price <= 0:
             continue
-        key = (point_ts, point_price)
-        if key in existing:
-            continue
-        buf.append(key)
-        existing.add(key)
-        added += 1
-    if buf:
-        ordered = sorted(buf, key=lambda item: item[0])
-        buf.clear()
-        buf.extend(ordered)
-        cutoff = buf[-1][0] - _MAX_BUFFER_MINUTES * 60
-        while buf and buf[0][0] < cutoff:
-            buf.popleft()
+        normalized.append((point_ts, point_price))
+    added = buf.merge(normalized, _MAX_BUFFER_MINUTES * 60)
     mark_surge_seed_attempted(sym)
     return added
 

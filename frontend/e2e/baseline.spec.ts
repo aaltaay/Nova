@@ -5,7 +5,9 @@ test.describe('Phase 0 baseline', () => {
   test('app loads', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
-    await expect(page.getByTestId('nav-rail')).toBeVisible();
+    // Cold Vite loads the lazy App graph before React mounts (traced at 8.3 s after goto).
+    // Bound only initial readiness; all interaction assertions retain their ordinary timeout.
+    await expect(page.getByTestId('nav-rail')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('nav-rail-tab-gappers')).toBeVisible();
     await expect(page.getByTestId('nav-rail-tab-gappers')).toHaveClass(/is-active/);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);

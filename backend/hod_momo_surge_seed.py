@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -116,24 +117,12 @@ def _read_local_bars(symbol: str, provider: str, limit: int) -> list[dict]:
     return list((result or {}).get("bars") or [])
 
 
-def seed_symbol(symbol: str, provider: str) -> str:
-    """Apply a store-only seed. Returns ``store`` or ``live``.
-
-    ``live`` means the local store was empty -- the engine will build the
-    surge buffer from post-admission ticks and tick-6 / observed-warmup
-    handles the high floor.
-    """
+def _apply_seed(sym: str, local_bars: list[dict], session: str) -> str:
+    """Apply a completed local read on the state-owning thread."""
     import hod_momo as hm
     import hod_momo_high as _high
 
-    sym = (symbol or "").strip().upper()
-    if not sym:
-        return "live"
-
-    full_session_bars = filter_bars_to_session(
-        _read_local_bars(sym, provider, HOD_MOMO_FULL_SESSION_BAR_LIMIT),
-        session_key_et(),
-    )
+    full_session_bars = filter_bars_to_session(local_bars, session)
     if not full_session_bars:
         hm.mark_surge_seed_live(sym)
         logger.info(
@@ -178,23 +167,91 @@ def seed_symbol(symbol: str, provider: str) -> str:
     return "store"
 
 
+def seed_symbol(symbol: str, provider: str) -> str:
+    """Synchronous store-only seed for offline callers; the runtime uses ``seed_symbol_async``."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:  # maintainer: allow-swallow no running loop means this offline read is safe
+        pass
+    else:
+        raise RuntimeError("use seed_symbol_async on an event loop")
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return "live"
+    return _apply_seed(sym, _read_local_bars(sym, provider, HOD_MOMO_FULL_SESSION_BAR_LIMIT), session_key_et())
+
+
+@dataclass(frozen=True)
+class _SeedContext:
+    state: object
+    session: str
+    state_session: str
+    pending: set[str]
+
+    @classmethod
+    def capture(cls) -> _SeedContext:
+        import hod_momo as hm
+
+        state = hm.get_state()
+        return cls(state, session_key_et(), state.session_date, state.pending_surge_seed)
+
+    def current(self) -> bool:
+        import hod_momo as hm
+
+        state = hm.get_state()
+        return (state is self.state and state.session_date == self.state_session
+                and state.pending_surge_seed is self.pending and session_key_et() == self.session)
+
+    def requeue(self, symbols: list[str]) -> None:
+        if self.current():
+            self.pending.update(symbols)
+
+
+async def seed_symbol_async(symbol: str, provider: str, *, context: _SeedContext | None = None) -> str:
+    """Read on a worker, then seed only the unchanged state/session on this loop."""
+    import hod_momo as hm
+
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return "live"
+    context = context or _SeedContext.capture()
+    try:
+        bars = await asyncio.to_thread(_read_local_bars, sym, provider, HOD_MOMO_FULL_SESSION_BAR_LIMIT)
+    except asyncio.CancelledError:
+        context.requeue([sym])
+        raise
+    except Exception:
+        logger.warning("HOD Momo store seed read failed for %s, retrying live-only", sym, exc_info=True)
+        if context.current():
+            hm.mark_surge_seed_live(sym)
+            return "live"
+        return "stale"
+    if not context.current():
+        return "stale"
+    return _apply_seed(sym, bars, context.session)
+
+
 async def surge_seed_loop(get_provider: Callable[[], str]) -> None:
     """Background task: drain pending seeds from the local bars store."""
     import hod_momo as hm
 
     while True:
+        pending: list[str] = []
+        context = None
         try:
             await asyncio.sleep(HOD_MOMO_SURGE_SEED_POLL_SEC)
             pending_n = len(hm.get_state().pending_surge_seed)
             if pending_n <= 0:
                 continue
+            context = _SeedContext.capture()
             pending = hm.pop_pending_surge_seeds(pending_n)
             if not pending:
                 continue
             provider = (get_provider() or "").strip().lower() or "alpaca"
-            for sym in pending:
+            while pending:
+                sym = pending[0]
                 try:
-                    seed_symbol(sym, provider)
+                    await seed_symbol_async(sym, provider, context=context)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
@@ -202,8 +259,14 @@ async def surge_seed_loop(get_provider: Callable[[], str]) -> None:
                         "HOD Momo store seed failed for %s: %s -- live-only",
                         sym, exc,
                     )
-                    hm.mark_surge_seed_attempted(sym)
+                    if context.current():
+                        hm.mark_surge_seed_live(sym)
+                pending.pop(0)
         except asyncio.CancelledError:
+            if context is not None:
+                context.requeue(pending)
             raise
         except Exception as exc:
             logger.warning("HOD Momo surge seed loop error: %s", exc)
+            if context is not None:
+                context.requeue(pending)

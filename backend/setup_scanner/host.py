@@ -8,8 +8,10 @@ the lanes. ``SetupEngine`` mixes this in; it owns the attributes read here.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
+from copy import deepcopy
 from typing import Any, Callable
 
 from constants_bot import BOT_LEVEL_EYES, BOT_SETUP_FIRST_PULLBACK
@@ -164,15 +166,47 @@ class LaneHost:
     def save(self, row: dict) -> None:
         if self.store is None:
             return
-        try:
-            self.store.upsert(row)
-        except Exception:
-            logger.exception("setup scanner: could not save %s", row.get("id"))
-            return
+        self._outbox().save(row)
         memo = self.__dict__.get("_triggered_memo")
         if row.get("triggered_at") and memo is not None and memo["session"] == row.get("session_date"):
             key = (row["symbol"], row.get("template_id"), row.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
             memo["ids"].setdefault(key, set()).add(row["id"])
+
+    def _outbox(self):
+        from setup_scanner.persistence import OrderedOutbox
+
+        outbox = self.__dict__.get("_save_outbox")
+        if outbox is None:
+            outbox = self.__dict__["_save_outbox"] = OrderedOutbox(self.store)
+        return outbox
+
+    async def flush_storage(self) -> None:
+        if self.store is None:
+            return
+        try:
+            await self._outbox().flush()
+        except Exception as exc:
+            self.store_error = f"setup persistence failed: {exc}"
+            logger.exception("setup scanner: pending scoreboard writes could not be committed")
+            raise
+        self.store_error = None
+
+    async def load_stored_triggers(self) -> None:
+        """Read before any lane is created, without waiting on the store lock on this loop."""
+        while self.store is not None and self.session:
+            memo = self.__dict__.get("_triggered_memo")
+            if memo is not None and memo["session"] == self.session:
+                return
+            session, store = self.session, self.store
+            try:
+                ids = await asyncio.to_thread(store.triggered_on, session)
+            except Exception as exc:
+                self.store_error = f"stored setup triggers could not be read: {exc}"
+                logger.exception("setup scanner: today's stored triggers could not be read")
+                raise
+            if self.session != session or self.store is not store:
+                continue
+            self.__dict__["_triggered_memo"] = {"session": session, "ids": ids}
 
     def stored_triggers(self, sym: str, template_id: str, setup_type: str) -> list[str]:
         """Today's ids on ``sym`` (one template, one setup) whose stored row holds a trigger: a lane made
@@ -182,8 +216,7 @@ class LaneHost:
             return []
         memo = self.__dict__.get("_triggered_memo")
         if memo is None or memo["session"] != self.session:
-            memo = {"session": self.session, "ids": self.store.triggered_on(self.session)}
-            self.__dict__["_triggered_memo"] = memo
+            raise RuntimeError("today's stored triggers must load before the scanner's lanes start")
         return sorted(memo["ids"].get((sym.upper(), template_id, setup_type), ()))
 
     def journal(self, event: dict) -> None:
@@ -236,11 +269,34 @@ class LaneHost:
             self._trigger_listeners.remove(fn)
 
     def on_trigger(self, event: dict) -> None:
-        """The playing lane's setup triggered: tell the listeners, on the live feed only."""
+        """Keep a trigger on this loop; listeners hear it only after the scoreboard commits."""
+        if self.store is None and not event.get("filtered"):
+            logger.warning("setup scanner: trigger %s has no durable scoreboard", event.get("setup_id"))
+            return
+        self.__dict__.setdefault("_pending_triggers", []).append((self.session, deepcopy(event)))
+
+    def publish_triggers(self) -> None:
+        """Called only after draining storage, on the current session and outside a replay desk."""
+        pending = self.__dict__.pop("_pending_triggers", [])
         if not self.can_propose():
             return
-        for fn in list(self._trigger_listeners):
-            try:
-                fn({**event, "source": self.source})
-            except Exception:
-                logger.exception("setup scanner: a trigger listener failed on %s", event.get("setup_id"))
+        from setup_scanner.store import session_date
+
+        for index, (session, event) in enumerate(pending):
+            if session != self.session or session != session_date(self.clock()):
+                continue
+            memo = self.__dict__.get("_triggered_memo") or {}
+            key = (event["symbol"], event.get("template_id"), event.get("setup_type") or BOT_SETUP_FIRST_PULLBACK)
+            if not event.get("filtered") and event.get("setup_id") not in memo.get("ids", {}).get(key, ()):
+                logger.error("setup scanner: trigger %s was not accepted for persistence", event.get("setup_id"))
+                continue
+            committed = True if event.get("filtered") else self._outbox().durable.get((session, event["setup_id"]))
+            if not committed:
+                # A background seed may append just after a flush finished. It must not overtake this FIFO head.
+                self.__dict__["_pending_triggers"] = pending[index:]
+                return
+            for fn in list(self._trigger_listeners):
+                try:
+                    fn({**event, "source": self.source})
+                except Exception:
+                    logger.exception("setup scanner: a trigger listener failed on %s", event.get("setup_id"))

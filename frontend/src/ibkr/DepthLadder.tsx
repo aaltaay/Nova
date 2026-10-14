@@ -20,6 +20,7 @@ import {
   tierBackground,
 } from './dasDepthTiers';
 import { isOvernightOnlyBook } from './depthBookGuards';
+import { formatDepthNumber, formatDepthPrice } from './depthNumberFormat';
 import { priceKey, pulledHere, pullMarks, type BookWatchState, type PulledHere } from './bookWatch';
 import { hiddenHere, hiddenMarks } from './bookWatchHidden';
 import { PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
@@ -52,12 +53,12 @@ interface Props {
 
 function fmtPrice(p: number | null | undefined) {
   if (p == null) return '';
-  return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return formatDepthPrice(p);
 }
 
 function fmtSize(s: number | null | undefined) {
   if (s == null) return '';
-  return s.toLocaleString('en-US');
+  return formatDepthNumber(s);
 }
 
 const NO_MARKERS: { bid: DepthMarker[]; ask: DepthMarker[] } = { bid: [], ask: [] };
@@ -186,7 +187,7 @@ export function MontageSide({
   const pulls = (before: number, at: 'head' | 'edge' | 'end') => {
     if (!marks.length) return null;
     const here = marks.filter(m => m.before === before);
-    return here.length ? <PullMarksAt marks={here} at={at} /> : null;
+    return here.length ? <PullMarksAt key={`pulls-${before}`} marks={here} at={at} /> : null;
   };
   // Inside row i: the levels between it and the row above; the last shown row also carries the levels past it.
   // What left above the book (a level better than the inside now) is marked over the column head instead,

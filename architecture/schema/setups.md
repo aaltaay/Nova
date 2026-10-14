@@ -57,6 +57,37 @@ grade and pillars at arm time, `near_tape` / `trigger_tape`, the first touch,
 MFE / MAE over 15 minutes and `bar_r` under the bot's exit (since #845: "Targets replace 2R"
 below; the research exit rules before) -- scores, never fills.
 
+**Storage does not hold the scanner's event loop (#797, 2026-10-14).** The live
+engine snapshots each lane save into its ordered outbox. One worker drains
+bounded batches, in order, with an atomic commit per batch. The engine awaits
+the outbox before accepting the next work chunk, rather than accumulating an
+unbounded background write queue. A failed batch stays ahead of later rows,
+reports `scoreboard_error`, and is retried before any new scanner work; the
+disk-backed scoreboard routes answer 503 until that error clears. Their
+synchronous FastAPI handlers run on workers, and the live board reads memory.
+Today's stored-trigger memo loads on a worker before lanes start. A newly
+accepted trigger enters that memo immediately, so a second detector on the
+same tick cannot overwrite its row, but trigger listeners are told only after
+the outbox records that row's durable commit, keeping trigger FIFO even when
+a background seed completes between flush and publication. Inbox chunks yield
+to other tasks and catch up immediately while messages remain; the ordinary
+tick sleep never caps successful backlog drainage, and a failed tick waits
+the ordinary retry interval. Filtered events remain diagnostic refusals with
+no scoreboard row; they need no nonexistent commit and preserve event FIFO.
+Cancellation drains accepted writes before
+returning; shutdown joins all owned seed tasks, including a cancelled prior
+session's settle, then drains and closes an engine-owned store. A persistent
+write failure at shutdown is reported loudly rather than claimed durable.
+Rows, columns, version, attempt ids and the replay host's memory-only saves
+keep their existing contracts.
+
+HOD's separate surge seed reads the local bar store on a worker and applies
+the result on its owning loop. The state owner, session and pending-set
+generation captured before the read must still match when it completes; a
+late read never seeds a replacement state or another session. Cancelled
+unfinished seeds are requeued on the matching session, and a read failure
+uses the existing live-only retry window. No historical request is added.
+
 **A symbol followed mid-session is seeded from 04:00** (2026-10-02: AMOD, followed at 07:51:22
 after trading since 04:00, wrote its first first-pullback line at 08:23, 32 bars later). Owner
 `setup_scanner/seeder.py`. The bar store holds a symbol's minutes only once a chart fetched them or its

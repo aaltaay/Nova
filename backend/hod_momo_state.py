@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
+from hod_prices import PriceHistory
 
 from hod_momo_models import (
     AlertObject,
@@ -21,7 +22,7 @@ from hod_momo_models import (
 
 @dataclass
 class HodMomoState:
-    price_buffer: dict[str, deque[tuple[float, float]]] = field(default_factory=dict)
+    price_buffer: dict[str, PriceHistory | deque[tuple[float, float]]] = field(default_factory=dict)
     surge_seeded: set[str] = field(default_factory=set)
     # A seed that found no stored bars: when it was first tried, and when it is asked again
     # (hod_momo_market.mark_surge_seed_live).

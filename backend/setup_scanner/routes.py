@@ -49,7 +49,7 @@ def board() -> dict:
 
 def _store_or_503():
     eng = get_engine()
-    if eng.store is None:
+    if eng.store is None or eng.store_error is not None:
         raise HTTPException(503, eng.store_error or "the scoreboard is not open yet")
     return eng.store
 

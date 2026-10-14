@@ -5,7 +5,8 @@ test.describe('D-010 Trend Line two-click place', () => {
   test('line tools sit flat on the desk toolbar and arm in one click', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample&symbol=SMPL');
-    await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible();
+    // Initial lazy-module readiness only, see architecture/frontend-live-render-contract.md.
+    await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible({ timeout: 20_000 });
 
     const tools = page.getByTestId('chart-draw-tools').first();
     await expect(tools.getByRole('button', { name: 'Use Trendline' })).toBeVisible();
@@ -21,7 +22,7 @@ test.describe('D-010 Trend Line two-click place', () => {
   test('Use Trendline arms the chart body for pointerup place', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample&symbol=SMPL');
-    await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible();
+    await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible({ timeout: 20_000 });
 
     const chart = page.locator('.chart-body').first();
     await expect(chart).toBeVisible();
@@ -60,7 +61,7 @@ test.describe('D-010 Trend Line two-click place', () => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample&symbol=SMPL');
     const chart = page.locator('.chart-body').first();
-    await expect(chart).toBeVisible();
+    await expect(chart).toBeVisible({ timeout: 20_000 });
     await expect(chart).not.toHaveAttribute('data-active-draw-tool', 'TrendLine');
     await expect(chart).not.toHaveAttribute('data-chart-pan-locked', '1');
     await expect(chart).not.toHaveAttribute('data-editing-handle', '1');
