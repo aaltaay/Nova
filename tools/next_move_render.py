@@ -12,6 +12,8 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+from tools.next_move_picks import TOUCHES_ORDERS
+
 MENU_HEADING = "**Next move**"
 STAR = "★"
 
@@ -43,7 +45,7 @@ CARD_STYLE = (
 
 
 def _icon(p: dict[str, Any]) -> str:
-    if p["kind"] == "fix" and "money path" in p["badge"]:
+    if p["kind"] == "fix" and TOUCHES_ORDERS in p["badge"]:
         return "ti-shield-x"
     return ICONS.get(p["kind"], "ti-arrow-right")
 

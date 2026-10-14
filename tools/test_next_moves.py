@@ -275,6 +275,12 @@ def test_card_escapes_text_and_sends_the_prompt():
     assert render.render_card([]) == ""
 
 
+def test_a_bug_that_touches_orders_gets_the_shield():
+    shown = picks.rank(calm_picks())
+    html = render.render_card(shown)
+    assert shown[0]["id"] == "bug-913" and html.count("ti-shield-x") == 1
+
+
 def test_menu_passes_the_lint_and_stars_the_best_pick():
     menu = render.render_menu(picks.rank(calm_picks()))
     assert nm.lint(menu) == []
