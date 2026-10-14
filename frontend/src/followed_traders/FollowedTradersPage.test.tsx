@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetFeedImagesForTests } from './FeedImage';
 import { resetFollowedStoresForTests } from './followedStores';
 import { resetStreamForTests } from './stream';
+import { FOLLOWED_PROOF_HOVER_CLOSE_MS, FOLLOWED_PROOF_HOVER_OPEN_MS } from './constants';
 import { day, T } from './followedTestData';
 import { FollowedTradersPage } from './FollowedTradersPage';
 import type { FollowedDay } from './types';
@@ -42,7 +43,8 @@ describe('FollowedTradersPage', () => {
       asked.push(url.pathname + url.search);
       const other = extra(url);
       if (other) return other;
-      if (url.pathname.endsWith('.jpg')) return new Response(new Blob(['jpeg']), { status: 200 });
+      // A string body: Node 20's fetch cannot read jsdom's Blob ("object.stream is not a function").
+      if (url.pathname.endsWith('.jpg')) return new Response('jpeg', { status: 200, headers: { 'content-type': 'image/jpeg' } });
       if (url.pathname === '/api/followed-traders/day') {
         return typeof dayAnswer === 'function' ? dayAnswer() : new Response(JSON.stringify(dayAnswer));
       }
@@ -231,6 +233,42 @@ describe('FollowedTradersPage', () => {
     d.traders[0].open[0].now = { state: 'off', price: null, trade_ts: null, why: 'IBKR is not connected' };
     await show(d);
     expect(q('ft-prices')!.textContent).toBe('Prices now: IBKR is not connected');
+  });
+
+  it('shows a trade’s screenshots when Proof is hovered, and the whole Proof on a click of the card', async () => {
+    await show(day());
+    const hover = async (el: Element, type: 'mouseover' | 'mouseout', ms: number) => {
+      await act(async () => {
+        el.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget: document.body }));
+        await new Promise((r) => setTimeout(r, ms));
+      });
+      await flush();
+    };
+    const card = (id: string) => document.querySelector(`[data-testid="ft-proof-card-${id}"]`) as HTMLElement | null;
+    await hover(q('ft-proof-c1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
+    const peek = card('c1')!;
+    expect(peek.textContent).toContain('ALPHA');
+    // The screenshots load after the card shows.
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(peek.querySelector('img[alt="ALPHA\'s position bar at the entry"]')).not.toBeNull();
+        expect(peek.querySelector('img[alt="ALPHA\'s position bar at the exit"]')).not.toBeNull();
+      });
+    });
+    expect(q('ft-proof')).toBeNull(); // the board stays
+    await hover(q('ft-proof-c1')!, 'mouseout', FOLLOWED_PROOF_HOVER_CLOSE_MS + 30);
+    expect(card('c1')).toBeNull();
+    // Opened by the pointer, focus stays elsewhere: Escape still closes it.
+    await hover(q('ft-proof-c1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
+    expect(document.activeElement).not.toBe(q('ft-proof-c1'));
+    await act(async () => { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    expect(card('c1')).toBeNull();
+    // An open position has no exit screenshot yet: the card says so.
+    await hover(q('ft-proof-o1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
+    expect(card('o1')!.textContent).toContain('Still open');
+    await click(card('o1'));
+    expect(q('ft-proof')).not.toBeNull();
+    expect(card('o1')).toBeNull();
   });
 
   it('opens a trade’s proof with what was read and the reads ignored', async () => {
