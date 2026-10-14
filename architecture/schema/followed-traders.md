@@ -287,6 +287,11 @@ images again with each answer.
   (or holding, already open when capture started), added to (the average before and after), closed (held). No
   screenshots: clicking an event opens its stock in the Trader (operator, 2026-10-13); a desk with no Trader to open
   opens the trade's Proof, which has them. Events that do not fit fold into "+N earlier", which opens the whole list.
+- **Proof on hover** (operator ask 2026-10-13: "I want the proof to be a hover"): hovering or focusing a trade's
+  Proof link, on a closed row or an OPEN tile, shows its entry and exit images in a card under the link, right edges
+  aligned so the row it proves stays readable (above the link when there is no room under it). Each image carries its
+  time; an exit not yet seen reads "Still open" or "The feed never saw it close". The pointer can move into the card;
+  Escape closes it. The images are asked for only once the card shows. Clicking the link or the card opens the Proof.
 - **Proof** of one trade: the entry and exit images, what was read at each (`/reads`), and every read in between
   that differed from the trade and was ignored. Nova never edits the feed: no button drops or confirms a trade.
 - **Calendar**: a month with a dot on each of the feed's `dates`, weekends dimmed, future days disabled; picking a
