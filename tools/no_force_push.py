@@ -82,14 +82,20 @@ def evaluate(ruleset: dict[str, Any] | None) -> CheckResult:
             f"{a.get('actor_type')} {a.get('actor_id')}" for a in ruleset["bypass_actors"]))
     if reasons:
         return CheckResult(False, "policy_mismatch", tuple(reasons), EXIT_UNPROTECTED)
+    if "bypass_actors" not in ruleset:
+        # GitHub sends the bypass list only to a caller that can write rulesets: absent is not empty.
+        return CheckResult(False, "unverified", ("The rule is there, but this token cannot see who may bypass "
+                                                 "it; check with the owner's token.",), EXIT_BLOCKED)
     return CheckResult(True, "ok", (), EXIT_OK)
 
 
 def evaluate_branch_rules(rules: list[dict[str, Any]]) -> CheckResult:
-    """The fallback: the rules GitHub applies to a probe branch (GET /rules/branches/{branch})."""
+    """The fallback: the rules GitHub applies to a probe branch (GET /rules/branches/{branch}). It can show a
+    missing rule, never a sound one: who may bypass it is not in this answer, so a rule found is unverified."""
     if any((r or {}).get("type") == RULE for r in rules):
-        return CheckResult(True, "ok", ("Read from the rules applied to a probe branch (bypass actors not "
-                                        "visible to this token).",), EXIT_OK)
+        return CheckResult(False, "unverified", ("A non_fast_forward rule applies to a new branch, but this token "
+                                                 "cannot see who may bypass it; check with the owner's token.",),
+                           EXIT_BLOCKED)
     return CheckResult(False, "missing", ("No non_fast_forward rule applies to a new branch: force-pushes are "
                                           "accepted.",), EXIT_UNPROTECTED)
 
@@ -126,9 +132,8 @@ def check_live() -> CheckResult:
         return evaluate(ruleset)
     rules = _gh_list(f"repos/{repo_slug()}/rules/branches/{PROBE_BRANCH}")
     result = evaluate_branch_rules(rules)
-    if result.ok:
-        return result
-    return CheckResult(False, error, (f"Cannot read rulesets ({error}), and {result.reasons[0]}",), EXIT_BLOCKED)
+    return CheckResult(False, result.status, (f"Cannot read rulesets ({error}). {result.reasons[0]}",),
+                       EXIT_BLOCKED if result.status == "unverified" else EXIT_UNPROTECTED)
 
 
 def apply_live() -> CheckResult:

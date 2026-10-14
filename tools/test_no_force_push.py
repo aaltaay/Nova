@@ -44,7 +44,17 @@ def test_every_way_to_weaken_it_fails_the_check():
         assert any(words in r for r in result.reasons), (over, result.reasons)
 
 
-def test_without_admin_the_check_reads_the_rules_a_new_branch_gets():
-    assert nfp.evaluate_branch_rules([{"type": "non_fast_forward", "ruleset_id": 25104014}]).ok
-    assert not nfp.evaluate_branch_rules([{"type": "deletion"}]).ok
-    assert not nfp.evaluate_branch_rules([]).ok
+def test_a_bypass_list_it_cannot_see_is_never_read_as_empty():
+    # GitHub returns bypass_actors only to a caller that can write rulesets (review of #961).
+    hidden = live()
+    del hidden["bypass_actors"]
+    result = nfp.evaluate(hidden)
+    assert not result.ok and result.status == "unverified" and result.exit_code == nfp.EXIT_BLOCKED
+
+
+def test_without_admin_the_check_can_show_a_missing_rule_but_never_a_sound_one():
+    found = nfp.evaluate_branch_rules([{"type": "non_fast_forward", "ruleset_id": 25104014}])
+    assert not found.ok and found.status == "unverified" and found.exit_code == nfp.EXIT_BLOCKED
+    for rules in ([{"type": "deletion"}], []):
+        missing = nfp.evaluate_branch_rules(rules)
+        assert not missing.ok and missing.status == "missing" and missing.exit_code == nfp.EXIT_UNPROTECTED
