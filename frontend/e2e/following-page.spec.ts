@@ -89,4 +89,22 @@ test.describe('Following page', () => {
     await page.getByTestId('ft-watch-live').click();
     await expect(page.getByTestId('ft-stream')).toBeVisible();
   });
+
+  test('off air plays no past broadcast, and today says when it resets', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1720, height: 1104 });
+    const d = day({ resets_at: Date.UTC(2026, 9, 14, 8, 0, 0) / 1000 });
+    // The feed's status still names the day's stream as live, five hours after its last read.
+    d.capture = { ...d.capture!, video_id: 'R5YIugCJar0', clock: '15:57:12', age_sec: 18_000 };
+    const { errors } = await open(page, d);
+    await expect(page.getByTestId('ft-stream-offline')).toContainText('last read 15:57:12 ET');
+    await expect(page.getByTestId('ft-stream-frame')).toHaveCount(0);
+    // The display keeps its size: the same 16:9 screen the video plays in.
+    const screen = (await page.locator('.ft-stream__screen').boundingBox())!;
+    expect(screen.width / screen.height).toBeCloseTo(16 / 9, 1);
+    await expect(page.getByTestId('ft-watch-live')).toBeDisabled();
+    await expect(page.getByTestId('ft-day-reset')).toHaveText('Resets 4:00 AM ET');
+    expect(await fit(page)).toEqual({ page: 0, doc: 0, stack: 0, level: 0 });
+    await page.screenshot({ path: testInfo.outputPath('following-off-air.png') });
+    expect(errors).toEqual([]);
+  });
 });
