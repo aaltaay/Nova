@@ -218,8 +218,13 @@ describe('FollowedTradersPage', () => {
     await hover(q('ft-proof-c1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
     const peek = card('c1')!;
     expect(peek.textContent).toContain('ALPHA');
-    expect(peek.querySelector('img[alt="ALPHA\'s position bar at the entry"]')).not.toBeNull();
-    expect(peek.querySelector('img[alt="ALPHA\'s position bar at the exit"]')).not.toBeNull();
+    // The screenshots load after the card shows; how long that takes varies by machine.
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(peek.querySelector('img[alt="ALPHA\'s position bar at the entry"]')).not.toBeNull();
+        expect(peek.querySelector('img[alt="ALPHA\'s position bar at the exit"]')).not.toBeNull();
+      });
+    });
     expect(q('ft-proof')).toBeNull(); // the board stays
     await hover(q('ft-proof-c1')!, 'mouseout', FOLLOWED_PROOF_HOVER_CLOSE_MS + 30);
     expect(card('c1')).toBeNull();
