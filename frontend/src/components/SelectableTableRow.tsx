@@ -28,6 +28,8 @@ interface Props {
   openOnRowClick?: boolean;
   /** Ticker lists: right-click opens the symbol menu (watch list, Record, let the bot trade it). */
   symbolMenu?: boolean;
+  /** The row's own right-click (a working order's Cancel menu), where the symbol menu is not used. */
+  onContextMenu?: (event: MouseEvent<HTMLTableRowElement>) => void;
   /** False where the cells explain themselves (ux/hoverTip.ts): the row's own native
    * tooltip would stack on top of theirs. Defaults to true. */
   rowTitle?: boolean;
@@ -45,6 +47,7 @@ export function SelectableTableRow({
   dataRecent = false,
   openOnRowClick = true,
   symbolMenu = false,
+  onContextMenu,
   rowTitle = true,
 }: Props) {
   function openRow() {
@@ -73,7 +76,7 @@ export function SelectableTableRow({
               event.preventDefault();
               openBotSymbolMenu(symbol, event.clientX, event.clientY);
             }
-          : undefined
+          : onContextMenu
       }
       onKeyDown={onKeyDown}
       tabIndex={0}

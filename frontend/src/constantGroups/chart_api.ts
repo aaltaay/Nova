@@ -508,6 +508,10 @@ export const CLOSE_POSITION_STALE_WHY =
 export const WORKING_ORDER_READ_FAILED_WHY =
   'Orders could not be read -- these rows are last known, so Cancel and Fill now wait for a fresh read.';
 export const FILL_WORKING_ORDER_NOTHING_LEFT_WHY = 'Nothing left to fill -- no shares remain on this order.';
+/** Right-click a working order (operator ask 2026-10-14): the menu that cancels it. */
+export const WORKING_ORDER_MENU_CAPTION = 'Working order';
+export const WORKING_ORDER_MENU_CANCEL_LABEL = 'Cancel order';
+export const WORKING_ORDER_MENU_HINT_TAIL = 'Sends at once. Shares already filled stay.';
 /** Working-order remainder fill (RTH market / EH limit sweep). */
 export const FILL_WORKING_ORDER_BUTTON_LABEL = 'Fill now';
 /** ADR 048: Fill now never re-sends a short entry as a plain order (it would lose its buy stop). */
