@@ -119,7 +119,8 @@ reading.
 (a refusal, or a timeout -- on Windows a refused loopback connect outlasts the 0.4 s probe), or unknown (any
 other error: the PC would not open the connection). Unknown never stops the API, and a second API never
 classes a living holder it cannot probe as an orphan -- it refuses to start and leaves it running. A stop
-the guard does make flushes the eyes' journal and the log queue first.
+the guard does make flushes the eyes' journal (up to 5 s, its own budget) and the log queue first; journal
+lines a blocked disk could not take in that time are lost with the exit, and the log says how many.
 
 ## Which backend answers (operator report, 2026-09-24)
 

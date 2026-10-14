@@ -28,6 +28,7 @@ DEFAULT_API_HOST = "127.0.0.1"
 DEFAULT_API_PORT = 8000
 STARTUP_GRACE_SEC = 10.0
 POLL_SEC = 2.0
+JOURNAL_FLUSH_SEC = 5.0          # the eyes' journal's own flush budget (``eyes.journal.flush``)
 
 _started = False
 _lock = threading.Lock()
@@ -56,11 +57,15 @@ def should_exit_for_dark_port(
 
 def _flush_before_exit() -> None:
     """What ``os._exit`` would drop: the eyes' journal lines still queued, then the log queue. Only
-    modules already loaded are touched; each step is bounded."""
+    modules already loaded are touched; each step is bounded. Lines the journal cannot write within
+    ``JOURNAL_FLUSH_SEC`` (a blocked disk) are lost with the exit -- the log says how many, never
+    silence."""
     journal = sys.modules.get("eyes.journal")
     if journal is not None:
         try:
-            journal.flush(1.0)
+            if not journal.flush(JOURNAL_FLUSH_SEC):
+                logger.error("api_process_guard: the eyes' journal still had %s line(s) queued after %.0fs -- "
+                             "they are lost with this exit", journal.status().get("queued", "?"), JOURNAL_FLUSH_SEC)
         except Exception:
             logger.warning("api_process_guard: the eyes' journal did not flush before exit", exc_info=True)
     setup = sys.modules.get("logging_setup")
