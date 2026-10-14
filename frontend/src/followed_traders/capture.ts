@@ -1,11 +1,15 @@
 /**
  * The capture pill in the page's head: what the feed is doing right now, in the design's four states (live,
- * positions off screen, waiting for the stream, capture stopped) plus the feed itself not answering. Pure.
+ * positions off screen, waiting for the stream, capture stopped) plus the feed itself not answering, and live but
+ * reading the stream's past (more than FOLLOWED_CAPTURE_BEHIND_SEC behind it). Pure.
  */
 import {
+  FOLLOWED_CAPTURE_BEHIND_SEC,
   FOLLOWED_CAPTURE_STALE_SEC,
   FT_BAD_ANSWER,
   FT_NO_STATUS,
+  FT_PILL_BEHIND,
+  FT_PILL_BEHIND_NOTE,
   FT_PILL_HIDDEN,
   FT_PILL_STOPPED,
   FT_PILL_WAITING,
@@ -43,6 +47,12 @@ export function behindStream(c: FollowedCapture): number | null {
   if (read === null || shown === null) return null;
   const lag = read - shown;
   return lag >= 0 && lag < 3600 ? lag : null;
+}
+
+/** The bar read is the stream's past: how far behind, when that is more than FOLLOWED_CAPTURE_BEHIND_SEC; else null. */
+export function readingBehind(c: FollowedCapture): number | null {
+  const lag = behindStream(c);
+  return lag !== null && lag > FOLLOWED_CAPTURE_BEHIND_SEC ? lag : null;
 }
 
 export function captureStopped(c: FollowedCapture): boolean {
@@ -91,6 +101,11 @@ export function capturePill(day: FollowedDay | null): CapturePill | null {
   }
   if (!c.live) return { tone: 'idle', text: FT_PILL_WAITING };
   if (!c.bar_visible) return { tone: 'warn', text: FT_PILL_HIDDEN };
+  const past = readingBehind(c);
+  if (past !== null) {
+    return { tone: 'warn', text: [`${FT_PILL_BEHIND} ${duration(past)} behind the stream`, `bar read ${c.clock} ET`,
+      FT_PILL_BEHIND_NOTE].join(' · ') };
+  }
   const parts = ['Live'];
   const lag = behindStream(c);
   if (lag !== null) parts.push(`${lag}s behind the stream`);

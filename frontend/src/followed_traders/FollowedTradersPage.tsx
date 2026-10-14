@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { ActivityFeed } from './ActivityFeed';
-import { asOf, offAirWhy, onAir } from './capture';
+import { asOf, offAirWhy, onAir, readingBehind } from './capture';
 import {
   FOLLOWED_REFRESH_MS,
   FT_ALL_CLOSED,
@@ -145,7 +145,7 @@ function Board({ day, isToday, recordFor, onProof }: BoardProps) {
   const plan = fitPlan(level, closed);
   const c = day.capture;
   const live = onAir(c);
-  const lastRead = c && !live && c.clock ? c.clock : null;
+  const lastRead = c?.clock && (!live || readingBehind(c) !== null) ? c.clock : null;
   const listed = showAll ? people.find((e) => e.name === showAll)?.trader ?? null : null;
   return (
     <div className="ft-board">

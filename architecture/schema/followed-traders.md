@@ -242,9 +242,12 @@ and a right column with the stream above the Activity. It asks `/day` every `FOL
 images are fetched with the desk's API key into blob URLs (an `<img src>` cannot carry the key) and the live slot
 images again with each answer.
 
-- **Head**, one row: the capture pill (live with how far behind the stream and the bar's last read; positions off
-  screen, showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not
-  answering or not readable), the stream's title ("Last stream:" before it while the stream is not on air), **Watch
+- **Head**, one row: the capture pill (live with how far behind the stream and the bar's last read; reading behind
+  the stream -- the bar's on-screen `clock` more than `FOLLOWED_CAPTURE_BEHIND_SEC` (30) behind `updated_at`, a warning
+  with how far, the read's time and that the positions shown are from then, never Live (operator report 2026-10-14:
+  the feed read the stream 29 minutes behind and the page said Live and "Their slot now"); positions off screen,
+  showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not answering
+  or not readable), the stream's title ("Last stream:" before it while the stream is not on air), **Watch
   live** (opens the player; disabled with why when the feed names no stream, or "Offline" and why off air), the record
   span (Day from `/day`, Week and All from `/record`) with everyone's record for it, the day (previous / a calendar /
   next; next and future days are disabled with why), on today when it resets ("Resets 4:00 AM ET" from `resets_at`,
@@ -254,7 +257,8 @@ images again with each answer.
   traded that day in the order of their first trade; on a past day, those who traded. The card: photo (the trader's
   `face`, or the bar slot's; the name's first letter without one), name, on air or off air (today only), the record
   for the span picked with the scratches and unscored beside it, and their slot image on the right (the live slot,
-  or the newest evidence stand-in labelled with its time, never passed off as now). A trader with a trade that day
+  labelled "now" only while the capture reads the stream live and within `FOLLOWED_CAPTURE_BEHIND_SEC` of it and with
+  the read's time otherwise, or the newest evidence stand-in labelled with its time, never passed off as now). A trader with a trade that day
   has, under the card, **Holding now** on the left -- an OPEN tile per open position: ticker, side, entry -> now,
   unrealised P/L per share and %, held, time in, proof -- and **Closed today** on the right: the count, won and lost,
   and one row per closed trade, newest exit first, striped by its result (WIN green, LOSS red, scratch and unscored

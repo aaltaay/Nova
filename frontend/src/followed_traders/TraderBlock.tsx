@@ -71,7 +71,8 @@ interface Props {
   onAir: boolean;
   /** When the feed last updated its capture: the live slot image is asked again with it. */
   captureVersion: number | null;
-  /** "As last read · 15:57:12" when the capture is not reading the bar now; null while it reads it. */
+  /** "As last read · 15:57:12" when the capture is not reading the bar now, or reads it from the stream's past; null
+   *  while it reads it live. */
   lastRead: string | null;
   compact: boolean;
   folded: number;
