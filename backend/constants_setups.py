@@ -41,6 +41,9 @@ SETUPS_SCHEMA_VERSION_SYMBOL = 1           # GET /api/setups/symbol/{symbol} (AD
 # 6 (ADR 049, #778 step 4) adds side and ssr; a v5 file's rows are long. 7 (#845) adds target2,
 # target1_fraction, targets and target_scores; a v6 file's rows carry none (their one target, sold whole).
 SETUPS_DB_SCHEMA_VERSION = 7
+# Live storage: one ordered worker batch at a time, drained before more scanner work (#797).
+SETUPS_PERSIST_BATCH_ROWS = 128
+SETUPS_INBOX_BATCH_SIZE = 128
 
 # -- Session window (America/New_York). The material's window is 07:00-10:00;
 # the research screen ran 09:30-11:30. Covering 07:00-11:30 lets the

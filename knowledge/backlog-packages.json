@@ -1467,7 +1467,24 @@
             "backend/bars_store.py",
             "frontend/src/hot_list/",
             "frontend/src/ibkr/",
-            "architecture/decisions/026-performance-recorder.md"
+            "architecture/decisions/026-performance-recorder.md",
+            "backend/hod_prices/",
+            "backend/hod_momo_filters.py",
+            "backend/hod_momo_trade.py",
+            "backend/hod_momo_state.py",
+            "backend/constants_setups.py",
+            "architecture/schema/setups.md",
+              "architecture/frontend-live-render-contract.md",
+              "architecture/maintenance-log.md",
+              "backend/tests/bench_hod_burst.py",
+              "backend/tests/test_hod_prices.py",
+              "backend/tests/test_hod_momo_surge_seed_async.py",
+              "backend/tests/test_setup_scanner_persistence.py",
+              "backend/tests/test_followed_traders.py",
+              "frontend/e2e/fixtures/desk-freezes.html",
+              "frontend/e2e/fixtures/deskFreezes.tsx",
+              "frontend/e2e/desk-freezes.spec.ts",
+              "frontend/e2e/baseline.spec.ts"
           ]
         },
         {

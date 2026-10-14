@@ -1,5 +1,7 @@
 """The setup scanner engine (ADR 022, ADR 029, ADR 031).
 
+maintainer: one-concern the feed loop owns its lanes and joins accepted storage operations before shutdown
+
 Watches the HOD Momo active set -- the ~40 names Nova already streams on IBKR
 Level 1 -- on the live one-minute bars ``ibkr/l1_minute`` builds for them, and
 runs one *lane* per template of every setup with a scanner -- the first
@@ -41,6 +43,7 @@ from typing import Any, Callable, Iterable
 from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_eyes import EYES_JOURNAL_BEAT_SEC
 from constants_setups import SETUPS_5M_TEMPLATE_ID, SETUPS_BOARD_PUSH_SEC, SETUPS_SESSION_CLOSED_REASON
+from constants_setups import SETUPS_INBOX_BATCH_SIZE
 from market import trading_session_bounds
 from setup_scanner.bars import Bar, MinuteBars, bar_from
 from setup_scanner.board import build_board
@@ -87,6 +90,7 @@ class SetupEngine(LaneHost):
                  levels: Callable[[], dict] = _default_levels,
                  setups: Iterable[str] = BOT_SCANNER_SETUPS):
         self.store = store
+        self._owns_store = store is None
         self.store_error: str | None = None
         self.tape = tape
         self._universe_fn = universe
@@ -141,40 +145,75 @@ class SetupEngine(LaneHost):
             self.inbox.append((kind, symbol, payload))
 
     # -- loop ----------------------------------------------------------------
+    async def _open_store(self) -> None:
+        task = asyncio.create_task(asyncio.to_thread(SetupStore))
+        cancelled = False
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                cancelled = True
+            except (StoreVersionError, OSError):
+                break   # the completed constructor's result is inspected and logged below
+        try:
+            self.store = task.result()
+        except (StoreVersionError, OSError) as exc:
+            self.store_error = str(exc)
+            logger.exception("setup scanner: scoreboard disabled -- %s", exc)
+        if cancelled:
+            raise asyncio.CancelledError
+
     async def run(self) -> None:
         from ibkr import l1_minute
 
-        if self.tape is None:
-            from setup_scanner.tape_feed import TapeFeed
-
-            self.tape = TapeFeed()
-        if self.store is None:
-            try:
-                self.store = SetupStore()
-            except (StoreVersionError, OSError) as exc:
-                self.store_error = str(exc)
-                logger.exception("setup scanner: scoreboard disabled -- %s", exc)
-        l1_minute.add_listener(self.on_l1_minute)
+        listening = False
         try:
+            if self.tape is None:
+                from setup_scanner.tape_feed import TapeFeed
+
+                self.tape = TapeFeed()
+            if self.store is None:
+                await self._open_store()
+            l1_minute.add_listener(self.on_l1_minute)
+            listening = True
             while True:
+                failed = False
                 try:
                     await self.tick()
                 except Exception:
+                    failed = True
                     logger.exception("setup scanner: tick failed")
-                await asyncio.sleep(TICK_SEC)
+                # A full work chunk yields to HTTP, but immediately catches up with any remaining feed inbox.
+                await asyncio.sleep(0 if self.inbox and not failed else TICK_SEC)
         finally:
-            l1_minute.remove_listener(self.on_l1_minute)
-            self.tape.close()
+            if listening:
+                l1_minute.remove_listener(self.on_l1_minute)
+            if self.tape is not None:
+                self.tape.close()
+            try:
+                try:
+                    await self.seeder.stop()
+                finally:
+                    await self.flush_storage()
+            finally:
+                if self._owns_store and self.store is not None:
+                    await asyncio.to_thread(self.store.close)
 
     async def tick(self, now: float | None = None) -> None:
         now = self._clock() if now is None else now
+        # A failed earlier batch is retried before any lane may enqueue a newer revision.
+        await self.flush_storage()
         self._rollover(now)
-        self._sync_lanes(now)
+        await self.load_stored_triggers()
+        await self._sync_lanes(now)
+        await self.flush_storage()
         await self._sync_universe(now)
         await self.seeder.step(now)
-        self._drain(now)
-        self._close(now)
-        self._gate(now)
+        await self._drain(now)
+        await self._close(now)
+        await self._gate(now)
+        await self.flush_storage()
+        self.publish_triggers()
         if now - self._last_beat >= EYES_JOURNAL_BEAT_SEC:
             self._last_beat = now
             self.journal({"event": "beat", "symbol": None, "count": len(self.bars)})
@@ -189,6 +228,8 @@ class SetupEngine(LaneHost):
         if sd == self.session:
             return
         self.session = sd
+        if self.store is not None:
+            self._outbox().begin_session(sd)
         self.window = trading_session_bounds(now)
         self.bars.clear()
         self.seeding.clear()
@@ -201,14 +242,15 @@ class SetupEngine(LaneHost):
         """``ts`` falls inside the scanner's day: its date's trading session."""
         return self.window is not None and self.window[0] <= ts < self.window[1]
 
-    def _close(self, now: float) -> None:
+    async def _close(self, now: float) -> None:
         """Past the session's close every lane ends its day (``Lane.close_session``), on every tick: a
         minute that landed after the close, or a symbol seeded after it, ends on the tick it came."""
         if self.window is not None and now >= self.window[1]:
             for lane in self.lanes:
                 lane.close_session(now, SETUPS_SESSION_CLOSED_REASON)
+                await self.flush_storage()
 
-    def _sync_lanes(self, now: float) -> None:
+    async def _sync_lanes(self, now: float) -> None:
         """One lane per template of every setup with a scanner; rebuilt when the templates change."""
         store = self._templates_fn()
         version = store.version()
@@ -226,7 +268,7 @@ class SetupEngine(LaneHost):
                 kept.add((setup, t.id))
                 lane = have.pop((setup, t.id, t.rev), None)
                 if lane is None:
-                    lane = self._new_lane(lane_params(t), now)
+                    lane = await self._new_lane(lane_params(t), now)
                 else:
                     lane.p = lane_params(t)            # same rules; the name may have changed
                 if lane.playing and t.id != playing_id:
@@ -237,7 +279,7 @@ class SetupEngine(LaneHost):
             lanes += mine
         for setup in (s for s in self.setups if s in SETUPS_5M_SETUPS):   # the 5-minute lanes: they never play
             lanes.append(have.pop((setup, SETUPS_5M_TEMPLATE_ID, FIVE_MIN_REV), None)
-                         or self._new_lane(five_minute_params(setup), now))
+                         or await self._new_lane(five_minute_params(setup), now))
         for (setup, tid, _rev), gone in have.items():
             gone.withdraw_all("edited" if (setup, tid) in kept else "deleted")
         self.lanes = lanes
@@ -245,11 +287,12 @@ class SetupEngine(LaneHost):
             {"setup_type": lane.setup, "template": lane.p.template_id, "rev": lane.p.template_rev,
              "name": lane.p.name, "params_hash": lane.p.params_hash, "playing": lane.playing} for lane in lanes]})
 
-    def _new_lane(self, params: Any, now: float) -> Lane:
+    async def _new_lane(self, params: Any, now: float) -> Lane:
         lane = Lane(params, self)
         for sym, mb in self.bars.items():   # warm up on today's bars; it sees from now on
             if sym not in self.seeding and mb.completed:
                 lane.on_bars(sym, mb.completed, now)
+                await self.flush_storage()
         return lane
 
     async def _sync_universe(self, now: float) -> None:
@@ -278,10 +321,12 @@ class SetupEngine(LaneHost):
             self.journal({"event": "watch", "symbol": None, "added": new, "removed": sorted(gone),
                           "count": len(self.bars)})
         if new:
-            await asyncio.gather(*(self.seeder.seed(sym, now) for sym in new))
+            # One seed producer at a time: slow commits backpressure the scanner, not HTTP or an unbounded queue.
+            for sym in new:
+                await self.seeder.seed(sym, now)
 
-    def _drain(self, now: float) -> None:
-        while self.inbox:
+    async def _drain(self, now: float) -> None:
+        for _ in range(min(len(self.inbox), SETUPS_INBOX_BATCH_SIZE)):
             kind, sym, p = self.inbox.popleft()
             mb = self.bars.get(sym)
             if mb is None:
@@ -306,9 +351,10 @@ class SetupEngine(LaneHost):
                     lane.on_price(sym, price, ts, p.get("bar_open"))
         for lane in self.lanes:
             lane.sweep(now)
+            await self.flush_storage()
 
     # -- tape gate + proposals -------------------------------------------------
-    def _gate(self, now: float) -> None:
+    async def _gate(self, now: float) -> None:
         wanted: set[str] = set()
         windows = [lane.p.gate.window_sec for lane in self.lanes]
         history = [lane.p.flow.history_sec for lane in self.lanes]
@@ -320,6 +366,7 @@ class SetupEngine(LaneHost):
             self.tape.sync(wanted, now)
         for lane in self.lanes:
             lane.gate(now)
+            await self.flush_storage()
 
     # -- output ------------------------------------------------------------------
     def board(self, now: float | None = None) -> dict[str, Any]:

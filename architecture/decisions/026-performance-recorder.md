@@ -166,3 +166,85 @@ at dispatch and need no rebinding. Repeated installation keeps one hook; READY
 generation changes invalidate old receipt facts even when the wrapper survives.
 Regression messages cover both timestamp types, repeated values, a new session
 and either AllLast hook installation order.
+
+## Amendment 2026-10-14, indexed HOD price windows (#619)
+
+A controlled four-symbol burst, each with an hour of prices at 10 Hz, identifies
+the recent-window `price_surge` scan as the dominant HOD CPU owner. Profiling
+5,000 updates spent 6.74 s in those scans versus 0.052 s in all GC pauses. These
+are fixture measurements, not a claim about an unmeasured production stall.
+Warm lazy imports before the final comparison and report the native run apart
+from the instrumented profile.
+
+The HOD price-history owner becomes `backend/hod_prices/`, following ADR 003's
+pure calculation and imperative-shell separation. It keeps timestamps and prices
+in ordered numeric arrays with a range-minimum index. A surge read finds its
+inclusive window start by binary search, then reads the minimum in logarithmic
+work instead of walking every price in that window. Fixed-start uses the same
+first retained price. The arbitrary deque calculation remains the reference for
+fixtures and callers that supply a plain buffer. Strategy settings, gates,
+alerts, event times, session boundaries, replay seeding and wire shapes stay the
+same. Index internals never enter a scanner payload.
+
+Late points keep stable time order, tied timestamps retain insertion order, and
+seed merging still deduplicates identical timestamp/price pairs. History still
+holds one hour. Dead array fronts compact when at least half the stored points
+are expired; the index is rebuilt from the retained population, so elapsed days
+cannot accumulate dead leaves. Session reset discards the history owner. Reads
+and index updates share its lock, because the IB loop writes while a desk route
+may evaluate a strategy. No periodic re-freeze or GC threshold change is
+justified by this workload. Compare total collection cost, maxima, tracked and
+frozen counts and retained memory, in addition to callback duration, before
+claiming a performance improvement.
+
+Seed normalization happens before the history lock; merging takes a fresh
+snapshot and deduplicates, orders and prunes under one lock. A live point added
+while stored bars are normalized must survive the seed. Separate snapshot,
+replace and trim operations would let seed completion overwrite that trade.
+
+### Controlled comparison
+
+`py -3 backend/tests/bench_hod_burst.py --history reference --ticks 5000` and
+the same command with `--history indexed` run in separate fresh processes.
+Base source: `9437f881129d94c43b3b0f17c8f1a05373f05a67`; reference means the
+prior live deque write plus the unchanged plain-buffer calculation. Four
+symbols each start with 36,000 prices and cumulative-volume samples over one
+hour at 10 Hz. The burst advances at 500 updates per second across them and
+evaluates strategies 10/11/12, with enabled debug formatting sent to a null
+log sink. All operator paths use the test suite's temporary isolation. Lazy
+engine imports are warmed before timing. GC observation stops at the measured
+boundary, before building the report.
+
+| Native measured population | Reference | Indexed |
+| --- | ---: | ---: |
+| HOD mean / p99 wall ms | 1.572 / 5.344 | 0.197 / 0.724 |
+| HOD maximum wall ms | 95.101 | 2.753 |
+| HOD mean thread CPU ms | 1.178 | 0.181 |
+| Process CPU seconds | 6.156 | 1.031 |
+| GC total / longest pause ms | 3.839 / 1.320 | 1.188 / 0.530 |
+| Collections, gen 0 / 1 / 2 | 7 / 0 / 0 | 5 / 0 / 0 |
+| Unfrozen tracked objects, before / after | 0 / 2052 | 0 / 2051 |
+| Frozen objects, before / after | 33174 / 33165 | 33190 / 33181 |
+| Process private bytes after | 56,127,488 | 44,056,576 |
+| Retained prices / global decisions / decisions per symbol | 148600 / 500 / 20 | 148600 / 500 / 20 |
+
+The earlier 20,000-update native comparison retained the same 162,400 prices
+and decision populations in both modes: HOD mean 3.594 to 0.224 ms, maxima
+307.376 to 29.533 ms. Host scheduling and simultaneous test work affect wall
+outliers. Volume boost was unchanged: its final mean/p99 was 0.023/0.089 ms,
+but the earlier indexed run included a 16.577 ms wall maximum. Windows thread
+CPU samples are coarse, so per-call maxima are not submillisecond measurements.
+This is not a promise that every future wall-clock call takes less than 1 ms.
+The indexed runs had zero HOD or Volume boost callbacks above 200 ms. Tape and
+depth yield regressions verify their fixed backlog behavior separately.
+
+Separate `--profile --ticks 5000` runs attributed 7.972 s to reference surge
+reads and 0.169 s to indexed reads; profiler durations are not native latency.
+Separate `--trace --ticks 1000` runs retained 21,038,108 versus 11,322,725
+traced bytes, with peaks 21,044,595 versus 12,327,282, at identical populations.
+The multi-hour regression bounds stored points to fewer than twice the retained
+population and index slots to at most eight times it. Exact-reference checks
+cover late and tied timestamps, arbitrary windows, expired lows, seeded merge,
+unknown prices, session rollover and real-engine alert/decision parity. No
+gen-2 collection occurred in these bursts, so they do not resolve historical
+gen-2 frequency or justify changing startup freeze or thresholds.

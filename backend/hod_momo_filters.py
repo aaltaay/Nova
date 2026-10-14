@@ -20,6 +20,7 @@ from typing import Callable
 
 from hod_momo_models import MasterGateConfig, StrategyConfig, TickerSnap
 from strategy.float_gate import float_for_gate
+from hod_prices import PriceHistory
 
 
 def passes_range(value: float | None, min_val: float, max_val: float) -> tuple[bool, str]:
@@ -38,7 +39,7 @@ def passes_range(value: float | None, min_val: float, max_val: float) -> tuple[b
 
 
 def price_surge(
-    buffer: "deque[tuple[float, float]] | None",
+    buffer: "deque[tuple[float, float]] | PriceHistory | None",
     window_min: int,
     method: str,
 ) -> float | None:
@@ -55,6 +56,8 @@ def price_surge(
     an hour -- filtering all of it per call stalled the IB loop at the open (#619).
     """
     buf = buffer
+    if isinstance(buf, PriceHistory):
+        return buf.surge(window_min, method)
     if not buf:
         return None
     now_ts, current_price = buf[-1]
@@ -153,7 +156,7 @@ def passes_master_gate(
     master: MasterGateConfig,
     eff_min_rvol: float,
     in_rvol_warmup_grace: bool,
-    surge_buffer: "deque[tuple[float, float]] | None",
+    surge_buffer: "deque[tuple[float, float]] | PriceHistory | None",
 ) -> tuple[bool, str]:
     """Global pre-check: data-ready, the tradeable floor, optional master surge.
 

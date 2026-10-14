@@ -105,16 +105,52 @@ class Seeder:
         self.host, self.read, self.history = host, read, history
         self.waiting: dict[str, _Wait] = {}
         self.task: asyncio.Future | None = None
+        self._owned: set[asyncio.Future] = set()
         self.gen = 0          # a new session forgets every ask of the old one
 
     def clear(self) -> None:
         self.waiting.clear()
         self.task = None
         self.gen += 1
+        for task in self._owned:
+            task.cancel()   # retained until its completion callback; an in-flight save still drains
+
+    async def stop(self) -> None:
+        """Join every history completion, including a prior session's cancelled settle/flush."""
+        owned = self._owned | ({self.task} if self.task is not None else set())
+        self.task = None
+        self.gen += 1
+        for task in owned:
+            task.cancel()
+        if not owned:
+            return
+        joined = asyncio.gather(*owned, return_exceptions=True)
+        cancelled = False
+        while not joined.done():
+            try:
+                await asyncio.shield(joined)
+            except asyncio.CancelledError:
+                cancelled = True   # repeated shutdown still joins each accepted store call
+        for result in joined.result():
+            if isinstance(result, Exception):
+                logger.error("setup scanner: a history task failed before shutdown", exc_info=(
+                    type(result), result, result.__traceback__))
+        if cancelled:
+            raise asyncio.CancelledError
+
+    def _completed(self, task: asyncio.Future) -> None:
+        self._owned.discard(task)
+        if not task.cancelled():
+            exc = task.exception()
+            if exc is not None:
+                logger.error("setup scanner: history task failed", exc_info=(type(exc), exc, exc.__traceback__))
 
     async def seed(self, sym: str, now: float) -> None:
+        gen, mb = self.gen, self.host.bars.get(sym)
         since = session_start_ts(now)
         bars = await self._read(sym, since)
+        if gen != self.gen or self.host.bars.get(sym) is not mb:
+            return
         late = late_start(bars, since, now)
         if self.history is not None and self.host.in_session(now) and late > SETUPS_SEED_LATE_START_SEC:
             if sym not in self.waiting:
@@ -123,6 +159,7 @@ class Seeder:
                             "asking IBKR for its 1-minute history before seeding", sym, late / 60)
             return
         self.finish(sym, bars, now)
+        await self._flush()
 
     async def step(self, now: float) -> None:
         """Each tick: give up what waited too long, then ask for the next followed symbol's history."""
@@ -141,6 +178,8 @@ class Seeder:
         if ready:                  # oldest first; a name that left keeps its place for when it is back
             due = min(ready)[1]
             self.task = asyncio.ensure_future(self._ask(due, self.waiting[due], self.gen))
+            self._owned.add(self.task)
+            self.task.add_done_callback(self._completed)
 
     async def _ask(self, sym: str, w: _Wait, gen: int) -> None:
         try:
@@ -179,6 +218,12 @@ class Seeder:
         else:
             logger.info("setup scanner: %s seeded with %d stored minutes after IBKR's history", sym, len(bars))
         self.finish(sym, bars, now)
+        await self._flush()
+
+    async def _flush(self) -> None:
+        flush = getattr(self.host, "flush_storage", None)
+        if flush is not None:
+            await flush()
 
     def finish(self, sym: str, bars: list[Bar], now: float) -> None:
         mb = self.host.bars.get(sym)

@@ -20,6 +20,7 @@ import {
 } from '../constants';
 import { fmtVolume } from '../utils/quoteFormat';
 import { markerPlace } from './depthMarkers';
+import { formatDepthNumber, formatDepthPrice } from './depthNumberFormat';
 import type { DepthLevel } from './types';
 
 export type BookSide = 'bid' | 'ask';
@@ -117,9 +118,9 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-const whole = (n: number) => Math.round(n).toLocaleString('en-US');
+const whole = (n: number) => formatDepthNumber(Math.round(n));
 const shares = (n: number) => (n < L2_PULL_MARK_FULL_BELOW ? whole(n) : fmtVolume(n));
-const px = (p: number) => p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+const px = formatDepthPrice;
 const secs = (ms: number) => `${(Math.max(0, ms) / 1000).toFixed(1)} s`;
 export const priceKey = (p: number) => p.toFixed(4);
 /** The marks' own words for sizes and prices (bookWatchHidden.ts writes the same way). */

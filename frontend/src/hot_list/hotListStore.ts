@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from 'react';
 import { bringBackYesterday, fetchHotList, patchHotList, starSymbol, unstarSymbol } from './hotListApi';
 import { HOT_LIST_POLL_MS } from './constants';
+import { sameHotListView } from './hotListSnapshot';
 import type { HotHow, HotListView } from './types';
 
 export interface HotListState {
@@ -19,7 +20,10 @@ const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | null = null;
 
 function set(next: Partial<HotListState>): void {
-  state = { ...state, ...next };
+  const candidate = { ...state, ...next };
+  if (sameHotListView(state.view, candidate.view)) candidate.view = state.view;
+  if (candidate.view === state.view && candidate.error === state.error && candidate.busy === state.busy) return;
+  state = candidate;
   for (const l of listeners) l();
 }
 
