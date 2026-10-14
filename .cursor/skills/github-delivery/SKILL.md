@@ -163,6 +163,8 @@ Also confirm the head of a PR you **close without merging** (superseded, rejecte
 
 Never delete `master` or `main`. Never delete a branch that still has an **open** PR. A branch with no PR yet is in-progress work -- leave it.
 
+**A merged PR takes no more pushes.** Before pushing a review fix, check `gh pr view <n> --json state`; if it says MERGED, branch from `origin/master`, cherry-pick the fix and open a new PR. `stranded-commits.yml` lands a late push as a `recover/<branch>` PR or a P1 issue, but only after it happens (`pr-delivery-timing.mdc`).
+
 GitHub `delete_branch_on_merge` is on. That is a backup sweep, not a skip. If GitHub already removed the ref, a `--delete` may fail because the branch is gone -- that is success. If `stale_pr_branches.py` still lists the head, delete it. If permissions block the delete, say so -- do not silently leave the branch.
 
 ## 9. Master branch protection

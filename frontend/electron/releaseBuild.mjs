@@ -8,7 +8,7 @@
  * packing -- it published 22:31:20 -- and read the true "v1275 is the latest
  * release" as a broken update pipeline. So a Help-menu check that finds nothing
  * newer asks GitHub Actions, unauthenticated, for a master run still in
- * progress (then still queued) that will pack an installer, and works out its
+ * progress (then still queued) whose installer can still be published, and works out its
  * vNNN: Nova's version is the master commit count (`git rev-list --count`), and
  * GitHub's commit list at one commit a page ends on that count (`rel="last"`).
  *
@@ -29,6 +29,13 @@ export const RELEASE_BUILD_RUNS_PER_PAGE = 5;
 /** desktop-pack.yml's packing job, and the runner it packs on (docs-only runs use ubuntu-latest). */
 export const RELEASE_BUILD_PACK_JOB = 'Desktop pack';
 export const RELEASE_BUILD_PACK_RUNNER = 'windows-latest';
+/**
+ * What a Release waits on besides the pack (tools/release_gate.py REQUIRED_CHECKS,
+ * kept equal by releaseBuild.test.ts): CI's jobs, listed under the calling job's
+ * name ("Release checks / Backend tests") or its id ("verify / ...").
+ */
+export const RELEASE_BUILD_REQUIRED_CHECKS = Object.freeze(['Backend tests', 'Frontend build', 'Frontend E2E', 'Agent contract']);
+const CHECK_CALLERS = ['Release checks', 'verify'];
 
 const API = `https://api.github.com/repos/${RELEASES_REPO}`;
 const HEADERS = Object.freeze({ Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' });
@@ -42,7 +49,7 @@ export function runsUrl(status) {
 }
 
 export function jobsUrl(runId) {
-  return `${API}/actions/runs/${runId}/jobs`;
+  return `${API}/actions/runs/${runId}/jobs?filter=latest&per_page=100`;
 }
 
 export function commitCountUrl(sha) {
@@ -58,14 +65,32 @@ export function masterRuns(body) {
     .sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0));
 }
 
+/** The newest attempt of the job under any of `names`, as release_gate.py reads it. */
+function latestJob(jobs, names) {
+  const newer = (a, b) => (Number(b.run_attempt) || 0) - (Number(a.run_attempt) || 0) || (Number(b.id) || 0) - (Number(a.id) || 0);
+  return jobs.filter((job) => names.includes(job?.name)).sort(newer)[0] ?? null;
+}
+
+const finishedRed = (job) => job?.status === 'completed' && job.conclusion !== 'success';
+
 /**
- * Whether a push run packs, from its jobs: true on the packing runner, false on
- * another, null while the job is not listed with a runner yet.
+ * Whether a run's Release can still be published, from its jobs. False once the
+ * pack or a required check finished other than green: the run stays in progress
+ * while the other side runs, but release_gate.py will hold its Release. Then
+ * whether it packs: PR delivery's dispatch always does; a push only on the
+ * packing runner (false on another: docs only), null while its job has no runner yet.
  */
-export function pushRunPacks(jobsBody) {
+export function runWillPublish(run, jobsBody) {
   const jobs = jobsBody?.jobs;
   if (!Array.isArray(jobs)) throw new Error('GitHub did not answer with a list of jobs');
-  const labels = jobs.find((job) => job?.name === RELEASE_BUILD_PACK_JOB)?.labels;
+  const pack = latestJob(jobs, [RELEASE_BUILD_PACK_JOB]);
+  const checks = RELEASE_BUILD_REQUIRED_CHECKS.map(
+    (check) => latestJob(jobs, CHECK_CALLERS.map((caller) => `${caller} / ${check}`)),
+  );
+  if ([pack, ...checks].some(finishedRed)) return false;
+  if (run?.event === 'workflow_dispatch') return true;
+  if (run?.event !== 'push') return false;
+  const labels = pack?.labels;
   if (!Array.isArray(labels) || labels.length === 0) return null;
   return labels.includes(RELEASE_BUILD_PACK_RUNNER);
 }
@@ -91,18 +116,16 @@ export function createReleaseBuild({ fetch, logger, timeoutMs = RELEASE_BUILD_TI
     return (await get(url, signal)).json();
   }
 
-  /** Whether the run makes an installer: PR delivery's dispatch always does; a push only past docs. */
-  async function packs(run, signal) {
-    if (run.event === 'workflow_dispatch') return true;
-    if (run.event !== 'push') return false;
-    return pushRunPacks(await getJson(jobsUrl(run.id), signal)) === true;
+  async function willPublish(run, signal) {
+    if (run.event !== 'workflow_dispatch' && run.event !== 'push') return false;
+    return runWillPublish(run, await getJson(jobsUrl(run.id), signal)) === true;
   }
 
   async function packingRun(signal) {
     for (const status of ['in_progress', 'queued']) {
       const runs = masterRuns(await getJson(runsUrl(status), signal));
       for (const run of runs) {
-        if (await packs(run, signal)) return run;
+        if (await willPublish(run, signal)) return run;
       }
     }
     return null;

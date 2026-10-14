@@ -280,8 +280,8 @@ images are fetched with the desk's API key into blob URLs (an `<img src>` cannot
 images again with each answer.
 
 - **Head**, one row: the capture pill (live with how far behind the stream and the bar's last read; reading behind
-  the stream -- the bar's on-screen `clock` more than `FOLLOWED_CAPTURE_BEHIND_SEC` (30) behind `updated_at`, a warning
-  with how far, the read's time and that the positions shown are from then, never Live (operator report 2026-10-14:
+  the stream -- the bar's on-screen `clock` more than `FOLLOWED_CAPTURE_BEHIND_SEC` (30) behind `updated_at`, however far
+  and across midnight (a clock up to `FOLLOWED_CLOCK_AHEAD_SEC` ahead is skew), a warning with how far, the read's time and that the positions shown are from then, never Live (operator report 2026-10-14:
   the feed read the stream 29 minutes behind and the page said Live and "Their slot now"); positions off screen,
   showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not answering
   or not readable), the stream's title ("Last stream:" before it while the stream is not on air), **Watch

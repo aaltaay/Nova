@@ -219,3 +219,27 @@ def test_waiting_for_memory_ends_on_stop(tmp_path, monkeypatch):
 def test_free_memory_is_read_on_this_os():
     free = index_watch.free_ram()
     assert free is None or free > 0
+
+
+def test_a_run_that_cannot_go_on_is_a_failure_and_a_halt(tmp_path, monkeypatch):
+    """A full stage or a broken pool (``_Stager.broke``): counted, named, halted -- never a "0 failed" finish."""
+    alerts = []
+    monkeypatch.setattr(index_watch, "alert", lambda title, body: alerts.append(title))
+    watch, stop = _watch(tmp_path)
+    watch.run_failed("could not copy x to y ([Errno 28] No space left on device)")
+    watch.finish("halted", 3)
+    status = index_watch.read_status(tmp_path)
+    assert status["state"] == "halted" and status["failed"] == 1 and "No space" in status["reason"]
+    assert alerts == ["Nova index build halted"] and stop.exists()
+
+
+def test_a_low_memory_halt_exits_nonzero(tmp_path, monkeypatch):
+    """A run halted for memory has no failed build, but its command must not report success."""
+    monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(tmp_path))
+    path = tmp_path / "trades_v1" / "2026" / "09" / "2026-09-18.csv.gz"
+    path.parent.mkdir(parents=True)
+    with gzip.open(path, "wt", newline="") as fh:
+        fh.write("ticker,price\nAA,1\n")
+    assert inventory.build_indexes(["trades_v1"], workers=1, read_mb=1, ram_floor_gb=1e9, ram_wait_sec=0.0) == 1
+    status = index_watch.read_status(tmp_path / "sim" / "index")
+    assert status["state"] == "halted" and "memory free" in status["reason"]

@@ -379,3 +379,50 @@ def test_a_busy_stock_is_rebuilt_on_its_trades_and_the_bars_before_them(monkeypa
     assert v["backfill"]["minutes"] == 9 and v["backfill"]["trades"] == 1000
     assert v["reference_words"].endswith("(its 1000 trades reach back only to 09:42:00 ET; IBKR's 1-minute bars "
                                          "before that)")
+
+
+def test_a_chart_that_opens_while_a_page_waits_for_its_slot_sheds_the_page(ib, monkeypatch):
+    from ibkr import historical_service, historical_trades
+    from ibkr.historical_service import HistoricalShed
+
+    end = t("09:43:06")
+    ib["ib"] = FakeIB([end - 10])
+
+    async def scenario():
+        _pacing, slots = historical_service.budget()
+        for _ in range(3):                                                 # every historical slot is busy
+            await slots.acquire()
+        task = asyncio.create_task(historical_trades.recent_trades("FLYE", end, 300.0, max_pages=4, headroom=20,
+                                                                   timeout=5.0))
+        for _ in range(5):
+            await asyncio.sleep(0)                                         # past the first check, waiting for a slot
+        monkeypatch.setattr(historical_service, "_open_chart_depth", 1)    # a chart opens meanwhile
+        for _ in range(3):
+            slots.release()
+        with pytest.raises(HistoricalShed, match="open chart"):
+            await task
+
+    asyncio.run(scenario())
+    assert ib["ib"].ends == []                                             # no page was sent
+    assert historical_service.budget()[0].snapshot()["window_used"] == 0
+
+
+def test_the_bars_request_is_checked_again_once_it_holds_its_slot(ib, monkeypatch):
+    from ibkr import historical_trades
+
+    end = t("09:43:06")
+    ib["ib"] = FakeIB([end - 300 + k * 0.05 for k in range(6000)], bars=[_bar("09:33:00", 4.0, 60)])
+    asks = {"bars": 0}
+    real = historical_trades._blocked
+
+    def blocked(symbol, page_end, headroom, key=historical_trades.PACING_KEY):
+        if key == historical_trades.BARS_KEY:
+            asks["bars"] += 1
+            if asks["bars"] > 1:                                           # the check inside the slot
+                return "an open chart is loading"
+        return real(symbol, page_end, headroom, key)
+
+    monkeypatch.setattr(historical_trades, "_blocked", blocked)
+    got = read(end, back=600.0, max_pages=4)
+    assert got["pages"] == 4 and got["minutes"] == [] and got["minutes_note"] == "an open chart is loading"
+    assert ib["ib"].bar_asks == [] and asks["bars"] == 2
