@@ -48,7 +48,7 @@ const MIME = 'video/x-matroska;codecs=avc1';
 const LEFT = { id: 11, label: 'left', bounds: { x: -2560, y: 0, width: 2560, height: 1440 }, size: { width: 2560, height: 1440 }, scaleFactor: 1.5 };
 const MAIN = { id: 22, label: 'main', bounds: { x: 0, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 }, scaleFactor: 1 };
 
-const worlds: { recorder: { stop: (reason?: string) => void } }[] = [];
+const worlds: { recorder: { stop: (reason?: string) => Promise<void> } }[] = [];
 
 function makeWorld(tmp: string, opts: { env?: Record<string, string>; onSample?: (ev: Row) => void } = {}) {
   const pages: FakePage[] = [];
@@ -172,12 +172,42 @@ beforeEach(() => {
   vi.setSystemTime(Date.UTC(2026, 8, 24, 13, 44, 0)); // 09:44:00 ET
 });
 afterEach(async () => {
-  // Every recorder stops and its files close before the folder goes: Windows will not delete an open file.
-  for (const w of worlds.splice(0)) w.recorder.stop('quit');
-  await settle(50);
+  // The folder goes only once every recorder has closed every file and written every end row (#927).
+  await Promise.all(worlds.splice(0).map((w) => w.recorder.stop('quit')));
   vi.useRealTimers();
-  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  fs.rmSync(tmp, { recursive: true, force: true });
 });
+
+/**
+ * Holds the completion of every close of a file named `name` until `release()`. Real files still
+ * close; the barrier controls only when the recorder hears so. `files` is every file asked to close.
+ */
+function holdClose(name: string) {
+  const closeFile = SegmentFile.prototype.close;
+  const files: SegmentFile[] = [];
+  const held: SegmentFile[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const spy = vi.spyOn(SegmentFile.prototype, 'close').mockImplementation(function (this: SegmentFile) {
+    const bytes = closeFile.call(this);
+    files.push(this);
+    if (path.basename(this.file) !== name) return bytes;
+    held.push(this);
+    return bytes.then(async (value) => { await gate; return value; });
+  });
+  return { files, held, release: () => release(), restore: () => { release(); spy.mockRestore(); } };
+}
+
+const endRows = () => manifest(path.join(tmp, 'rec')).filter((r) => r.event === 'end');
+/** The fixture's clock: 09:44:00 ET, when `recordingWorld` starts both files. */
+const T0 = Date.UTC(2026, 8, 24, 13, 44, 0) / 1000;
+
+/** Tracks whether a promise has settled, without waiting for it. */
+function watch(promise: Promise<unknown>) {
+  const state = { settled: false };
+  void promise.then(() => { state.settled = true; });
+  return state;
+}
 
 async function recordingWorld(env?: Record<string, string>) {
   const w = makeWorld(tmp, { env });
@@ -226,17 +256,9 @@ describe('startScreenRecorder', () => {
       expect(w.stops().map(command => command.id)).toEqual(first.slice(0, index + 1));
     }
     expect(w.stops().map((s) => s.id)).toEqual(first);
-    const closeFile = SegmentFile.prototype.close;
-    let release!: () => void;
-    const delayedClose = new Promise<void>(resolve => { release = resolve; });
-    // Real files still close; the barrier controls only which completion reaches the manifest first.
-    const close = vi.spyOn(SegmentFile.prototype, 'close').mockImplementation(function (this: SegmentFile) {
-      const bytes = closeFile.call(this);
-      return this.file.endsWith(`094400-screen${lastScreen}.mkv`)
-        ? bytes.then(async value => { await delayedClose; return value; })
-        : bytes;
-    });
-    const ends = () => manifest(path.join(tmp, 'rec')).filter((r) => r.event === 'end');
+    // The barrier controls only which completion reaches the manifest first.
+    const { release, restore } = holdClose(`094400-screen${lastScreen}.mkv`);
+    const ends = endRows;
     try {
       for (const id of first) w.event({ kind: 'stopped', id });
       await until(() => ends().length === 1);
@@ -265,8 +287,7 @@ describe('startScreenRecorder', () => {
       expect(w.view().state).toBe('recording');
       expect((w.view() as { problems: unknown[] }).problems).toEqual([]);
     } finally {
-      release();
-      close.mockRestore();
+      restore();
     }
   });
 
@@ -415,8 +436,12 @@ describe('startScreenRecorder', () => {
     const w = await recordingWorld();
     const [a] = w.starts();
     w.chunk(a.id, new Uint8Array(7));
-    w.recorder.stop('quit');
-    await settle();
+    const close = vi.spyOn(SegmentFile.prototype, 'close');
+    await w.recorder.stop('quit');
+    const files = close.mock.contexts as SegmentFile[];
+    close.mockRestore();
+    expect(files).toHaveLength(2);
+    expect(files.every((f) => f.stream.closed)).toBe(true); // closed, not just flushed, when stop settles
     const v = w.view() as Row & { displays: Row[] };
     expect(v.state).toBe('stopped');
     expect(v.displays.every((d) => d.recording === false)).toBe(true);
@@ -424,6 +449,83 @@ describe('startScreenRecorder', () => {
     expect(ends.map((r) => [r.reason, r.bytes])).toEqual([['quit', 7], ['quit', 0]]);
     expect(w.ipcMain.count(SCREEN_REC_EVENT_CHANNEL)).toBe(0);
     expect(w.screen.count('display-removed')).toBe(0);
+  });
+
+  it('writes every end row as quit begins, and settles only once every file is closed (#927)', async () => {
+    const w = await recordingWorld();
+    const [a, b] = w.starts();
+    w.chunk(a.id, new Uint8Array(7));
+    const hold = holdClose('094400-screen1.mkv');
+    try {
+      const stop = w.recorder.stop('quit');
+      const stopped = watch(stop);
+      // The process may not wait for the promise: both end rows are on disk before stop() returns.
+      expect(endRows()).toEqual([
+        { schema_version: 1, event: 'end', segment_id: a.id, file: '094400-screen1.mkv', ended_ts: T0, bytes: 7, reason: 'quit', error: null },
+        { schema_version: 1, event: 'end', segment_id: b.id, file: '094400-screen2.mkv', ended_ts: T0, bytes: 0, reason: 'quit', error: null },
+      ]);
+      expect(hold.held.map((f) => path.basename(f.file))).toEqual(['094400-screen1.mkv']);
+      await until(() => hold.files.length === 2 && hold.files.every((f) => f.stream.closed));
+      await settle();
+      expect(stopped.settled).toBe(false); // a close the recorder has not heard back from keeps quit open
+      hold.release();
+      await stop;
+      expect(hold.files.every((f) => f.stream.closed)).toBe(true);
+      expect(endRows().map((r) => r.segment_id)).toEqual([a.id, b.id]);
+    } finally {
+      hold.restore();
+    }
+  });
+
+  it('waits for a file that was already closing when quit came, and nothing writes after it (#927)', async () => {
+    const w = await recordingWorld();
+    const [a, b] = w.starts();
+    w.chunk(a.id, new Uint8Array(5));
+    const hold = holdClose('094400-screen1.mkv');
+    try {
+      w.event({ kind: 'stopped', id: a.id, message: 'the screen went away' });
+      expect(hold.held).toHaveLength(1); // its finalizer runs, and it has left the open segments
+      const stop = w.recorder.stop('quit');
+      const stopped = watch(stop);
+      await until(() => hold.files.length === 2 && hold.files.every((f) => f.stream.closed));
+      await settle();
+      expect(stopped.settled).toBe(false);
+      expect(endRows().map((r) => r.segment_id)).toEqual([b.id]); // quit's own row; the closing one waits
+      hold.release();
+      await stop;
+      expect(hold.files.every((f) => f.stream.closed)).toBe(true);
+      expect(endRows()).toEqual([
+        { schema_version: 1, event: 'end', segment_id: b.id, file: '094400-screen2.mkv', ended_ts: T0, bytes: 0, reason: 'quit', error: null },
+        { schema_version: 1, event: 'end', segment_id: a.id, file: '094400-screen1.mkv', ended_ts: T0, bytes: 5, reason: 'error', error: 'the screen went away' },
+      ]);
+      // The CI failure: a late end row recreated the day folder while the fixture removed it.
+      const rec = path.join(tmp, 'rec');
+      fs.rmSync(rec, { recursive: true });
+      await settle(50);
+      expect(fs.existsSync(rec)).toBe(false);
+    } finally {
+      hold.restore();
+    }
+  });
+
+  it('writes one end row per file however often stop or stopped comes', async () => {
+    const w = await recordingWorld();
+    const [a, b] = w.starts();
+    w.event({ kind: 'stopped', id: a.id, message: 'the screen went away' });
+    w.event({ kind: 'stopped', id: a.id, message: 'and again' });
+    const stop = w.recorder.stop('quit');
+    expect(stop).toBeInstanceOf(Promise);
+    expect(w.recorder.stop('display_change')).toBe(stop);
+    await stop;
+    expect(w.recorder.stop('quit')).toBe(stop);
+    w.event({ kind: 'stopped', id: b.id });
+    await settle();
+    const rows = endRows();
+    expect(rows).toHaveLength(2);
+    expect(Object.fromEntries(rows.map((r) => [r.segment_id, [r.reason, r.error]]))).toEqual({
+      [a.id]: ['error', 'the screen went away'],
+      [b.id]: ['quit', null],
+    });
   });
 
   it('records to the app folder, and says why, when the chosen folder cannot be written', async () => {

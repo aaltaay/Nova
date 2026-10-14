@@ -54,6 +54,7 @@ export class SegmentFile {
     this.file = file;
     this.bytes = 0;
     this.error = null;
+    this.closing = null;
     fs.mkdirSync(path.dirname(file), { recursive: true });
     this.stream = fs.createWriteStream(file, { flags: 'wx' });
     this.stream.on('error', (err) => {
@@ -67,15 +68,25 @@ export class SegmentFile {
     this.stream.write(chunk);
   }
 
-  /** Resolves once every write is on disk (or failed); the byte count written. */
+  /**
+   * Resolves with the byte count once the file is closed: every write on disk
+   * (or failed) and the descriptor let go, so the folder can be moved or
+   * deleted (#927). Flushed is not closed: 'finish' comes before the
+   * descriptor closes, 'close' after, and a stream that failed or was torn
+   * down still emits it. One close, however often it is asked; never rejects.
+   */
   close() {
-    return new Promise((resolve) => {
-      if (this.stream.closed || this.stream.destroyed) {
-        resolve(this.bytes);
-        return;
-      }
-      this.stream.end(() => resolve(this.bytes));
-    });
+    if (!this.closing) {
+      this.closing = new Promise((resolve) => {
+        if (this.stream.closed) {
+          resolve(this.bytes);
+          return;
+        }
+        this.stream.once('close', () => resolve(this.bytes));
+        if (!this.stream.destroyed) this.stream.end();
+      });
+    }
+    return this.closing;
   }
 }
 
