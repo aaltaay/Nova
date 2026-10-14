@@ -182,6 +182,14 @@
 .mk-tile.is-error { border-color: color-mix(in srgb, var(--mk-down) 40%, var(--nova-border)); }
 .mk-tile__name { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--nova-text-muted); white-space: nowrap; }
 .mk-tile__px { font-size: 19px; font-weight: 700; margin-top: 1px; }
+/* What the tile is, beside its price (operator ask 2026-10-14). */
+.mk-tile { position: relative; }
+.mk-tile__icon { position: absolute; top: 25px; right: 10px; width: 30px; height: 30px; color: var(--nova-text-muted); }
+/* The line's hours under it: 04:00, the 09:30 open under its tick, the axis end. */
+.mk-tile__axis { position: relative; height: 13px; margin-top: 1px; font-size: 9.5px; color: var(--nova-text-muted); font-variant-numeric: tabular-nums; }
+.mk-tile__axis span { position: absolute; top: 0; white-space: nowrap; }
+.mk-tile__axis .is-mid { transform: translateX(-50%); }
+.mk-tile__axis .is-end { right: 0; }
 .mk-tile__chg { font-size: 12px; font-weight: 600; }
 .mk-tile__error { margin: 4px 0 0; font-size: 10.5px; color: var(--mk-down); line-height: 1.3; }
 .mk-delayed { font-style: normal; color: var(--mk-warn); }
@@ -210,11 +218,20 @@
 .mk-rot__note { margin: 6px 0 0; }
 
 .mk-right { display: grid; grid-template-rows: auto 1fr; gap: 12px; min-width: 0; }
-.mk-brow { display: grid; grid-template-columns: 150px 1fr 128px; gap: 10px; align-items: center; height: 26px; }
+/* Breadth in words (operator ask 2026-10-14): a sentence first, then each bar with its counts written on it. */
+.mk-breadth__lede { margin: 0 0 8px; font-size: 13px; line-height: 1.4; }
+.mk-breadth__lede b { font-size: 15px; }
+.mk-brow { display: grid; grid-template-columns: 210px 1fr; gap: 10px; align-items: center; min-height: 34px; }
+.mk-brow__head { display: flex; flex-direction: column; line-height: 1.2; }
+.mk-brow__sub { font-size: 10.5px; color: var(--nova-text-muted); }
 .mk-ad { display: flex; height: 10px; border-radius: 3px; overflow: hidden; }
 .mk-ad i { display: block; height: 100%; }
 .mk-ad i.is-up { background: var(--mk-up); }
 .mk-ad i.is-down { background: var(--mk-down); }
+.mk-ad.mk-ad--words { height: 20px; border-radius: 4px; }
+.mk-ad.mk-ad--words i { display: flex; align-items: center; min-width: 0; overflow: hidden; }
+.mk-ad.mk-ad--words i span { padding: 0 6px; font-size: 11px; font-weight: 700; font-style: normal; color: #0b0b0c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-ad.mk-ad--words i.is-down { justify-content: flex-end; }
 .mk-kv { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; margin-top: 8px; }
 
 .mk-cover { margin: -4px 0 7px; font-size: 11px; color: var(--nova-text-muted); }
@@ -231,6 +248,9 @@
 .mk-runners__hit { fill: transparent; }
 .mk-runners__hatch { stroke: color-mix(in srgb, var(--nova-text-muted) 70%, transparent); stroke-width: 1.5; }
 .mk-runners__none { opacity: 0.85; }
+/* A session filled from Massive (2026-10-14): lighter, outlined -- another lens than the recorded bars. */
+.mk-runners__svg .is-massive rect:not(.mk-runners__hit):not(.mk-runners__massive) { fill-opacity: 0.5; }
+.mk-runners__massive { fill: none; stroke: var(--nova-text-muted); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
 .mk-runners__grid { stroke: color-mix(in srgb, var(--nova-text) 14%, transparent); }
 .mk-runners__axis { font-size: 10px; fill: var(--nova-text-muted); }
 .mk-runners__count { font-size: 10px; font-weight: 700; fill: var(--nova-text); }

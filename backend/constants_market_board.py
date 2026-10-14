@@ -13,7 +13,7 @@ MARKET_WARM_ENV = "NOVA_MARKET_BOARD_WARM"       # "0": reads only while the pag
 MARKET_SCHEMA_VERSION = 1
 MARKET_PERIODS = ("1D", "7D", "30D")
 MARKET_PERIOD_SESSIONS = MappingProxyType({"1D": 1, "7D": 5, "30D": 21})
-MARKET_TOP_KINDS = ("movers", "biggest", "runners")
+MARKET_TOP_KINDS = ("biggest", "runners")      # Movers retired (operator, 2026-10-14: one-stock cards)
 MARKET_ERR_BAD_PARAM = "MARKET_BAD_PARAM"
 
 # -- who is looking, and how often each read runs -------------------------------------------------------------------
@@ -151,6 +151,11 @@ MARKET_CLIMATE_RECORDED_BOARD = "gainers"
 MARKET_CLIMATE_REBUILT_BOARD = "market"
 # Rebuilt days rank every listed stock's minute bars and run ~40% hotter than IBKR's scan: left out of the lens.
 MARKET_CLIMATE_USE_REBUILT = False
+# A past session with no board in the lens is filled on the chart from the Massive day movers index (operator ask
+# 2026-10-14). A different lens -- every listed common stock's minute bars, no top-50 rank -- so its days draw on the
+# chart, labelled, and never enter the counts, baseline, temperature, themes, gappers or the runners tab.
+MARKET_CLIMATE_MASSIVE_SOURCE = "massive"
+MARKET_CLIMATE_MASSIVE_KINDS = "common"          # day_movers.query kinds: common stocks and ADRs, no warrants/units
 MARKET_CLIMATE_GAPPER_MIN = 0.20                 # an open gap of 20%+ is a gapper
 MARKET_CLIMATE_BASELINE_DAYS_1D = 20             # 1 D: the same minute on the prior 20 covered sessions
 MARKET_CLIMATE_BASELINE_DAYS = 60                # 7 D / 30 D: the per-session average of the prior 60

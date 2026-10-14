@@ -4,7 +4,8 @@
  *
  * Owner: this module. Key `nova.marketBoard.periods.v1`, shape `{schema_version: 1, sectors, industries,
  * climate, top: {kind, period}}` (architecture/schema/market-board.md). Invalidation: an unknown schema_version,
- * or any value that is not a known period / kind, falls back to 1 D / movers for that field -- never migrated by
+ * or any value that is not a known period / kind, falls back to 1 D / biggest names for that field (a saved
+ * `movers`, retired 2026-10-14, among them) -- never migrated by
  * guesswork. The sample desk never writes it.
  */
 import { useCallback, useState } from 'react';
@@ -20,7 +21,7 @@ export const DEFAULT_PERIODS: BlockPeriods = {
   sectors: '1D',
   industries: '1D',
   climate: '1D',
-  top: { kind: 'movers', period: '1D' },
+  top: { kind: 'biggest', period: '1D' },
 };
 
 function period(value: unknown): Period {
@@ -28,7 +29,7 @@ function period(value: unknown): Period {
 }
 
 function kind(value: unknown): TopKind {
-  return (MARKET_TOP_KINDS as readonly unknown[]).includes(value) ? (value as TopKind) : 'movers';
+  return (MARKET_TOP_KINDS as readonly unknown[]).includes(value) ? (value as TopKind) : 'biggest';
 }
 
 export function parsePeriods(raw: unknown): BlockPeriods {

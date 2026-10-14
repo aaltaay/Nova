@@ -11,8 +11,8 @@ nothing here feeds a scanner row, a chart, HOD Momo, a setup lane or a bot. Perc
 points (`2.84` = +2.84%), never fractions; times are epoch seconds; a period is `"1D" | "7D" | "30D"` (the session
 so far, the last 5 sessions, the last 21 sessions, today included).
 
-`GET /api/market/board?sectors=1D&industries=1D&climate=1D&top=movers&top_period=1D` (`top`: `movers` | `biggest`
-| `runners`; an unknown value is 400 `MARKET_BAD_PARAM` with `field`) answers from memory and never waits on IBKR or
+`GET /api/market/board?sectors=1D&industries=1D&climate=1D&top=biggest&top_period=1D` (`top`: `biggest` |
+`runners`; `movers` was retired on 2026-10-14; an unknown value is 400 `MARKET_BAD_PARAM` with `field`) answers from memory and never waits on IBKR or
 the network; asking marks the board wanted for `MARKET_WANTED_SEC` (the page's cadence; the board is kept warm at
 a background cadence otherwise, below):
 
@@ -75,14 +75,23 @@ desk (the page reads today's live market and says so).
 - `climate`: `{period, from, to, sessions, covered, lens, counts: {up20, up50, up100}, per_day: number | null,
   baseline: {up20, up50, up100, per_day, days, basis: "same_minute" | "per_session"} | null, temperature: "hot" |
   "normal" | "cold" | null, days: [{date, source: "recorded" | "reconstructed" | null, total, themes: {name:
-  count}}] (the last 21 sessions, oldest first; `source: null` = Nova holds no board that day), theme: {name, count,
+  count}}] (the last 21 sessions, oldest first; `source: "massive"` = Nova holds no board that day and the Massive
+  day movers index filled it, chart only (below); `source: null` = neither), theme: {name, count,
   total, share_pct, prev_share_pct} | null, themes: [{name, count, prev_count}], gappers: {held, total, rate_pct,
   gone, baseline_rate_pct}, halts: {count, last: {symbol, at} | null, by_side: null, by_side_why}, top: [{symbol,
   change_pct, date, price, float_shares, theme, news_at}]}` -- from the leaderboard store (ADR 023) through one
   `lens` (`{board: "gainers", rank_max: MARKET_CLIMATE_RANK_MAX, price_min: SCANNER_MIN_PRICE}`): the recorded
   Gainers board only. A rebuilt day's `market` board ranks every listed stock's minute bars rather than IBKR's
-  scan and counted about 40% more runners a session, so it is left out (`MARKET_CLIMATE_USE_REBUILT`) and that
-  day reads `source: null`. A runner is a symbol whose `change_pct` reached 20 / 50 / 100% that session by the
+  scan and counted about 40% more runners a session, so it is left out (`MARKET_CLIMATE_USE_REBUILT`).
+  **A past session with no board in the lens is filled from Massive** (ADR 053 amendment 2026-10-14, operator: "fill
+  out the previous days by using data from Massive"): `backend/day_movers/`'s index, read-only, when it has built
+  that session (`sessions` row). A runner there is a common stock (`MARKET_CLIMATE_MASSIVE_KINDS`, not split-suspect)
+  whose minute bars first reached +20 / 50 / 100% over the prior close before the close (`up20_ts` / `up50_ts` /
+  `up100_ts`), at `SCANNER_MIN_PRICE` or more at +20%. That day reads `source: "massive"` with its `total` and
+  `themes`, and is drawn on the chart only: it has no top-50 rank, so it never enters `covered`, `counts`,
+  `baseline`, `temperature`, `theme` / `themes`, `gappers`, `halts`, `top` or the runners tab. An index that is
+  missing, unreadable or behind leaves the day `source: null`; a past day with no board is asked of the index again
+  each refresh until it fills. A runner is a symbol whose `change_pct` reached 20 / 50 / 100% that session by the
   close (by now, today). `covered` counts the period's sessions Nova recorded. 1 D's `baseline` is the same
   minute-of-day average over the prior `MARKET_CLIMATE_BASELINE_DAYS_1D` recorded sessions; 7 D / 30 D's is the
   per-session average over the prior `MARKET_CLIMATE_BASELINE_DAYS` (`null` when Nova recorded none). `temperature` is `hot` at `per_day >=
@@ -94,8 +103,11 @@ desk (the page reads today's live market and says so).
   halt feed's `start` events; their up / down side is not recorded (`by_side: null`).
 - `top`: `{kind, period, cards: [{name, etf, change_pct, rows: [{symbol, last, change_pct, spark: number[] |
   null}]}], why: string | null}` -- sectors in strength order, every sector (`MARKET_TOP_CARDS`), `MARKET_TOP_ROWS` rows
-  each. `movers`: each sector's members in the large-cap gainers scan together with its top `MARKET_LEADER_POOL`
-  holdings, ranked by the period's move (1 D a snapshot against the prior close; 7 D / 30 D daily closes). `biggest`: each sector's top holdings by weight. `runners`: the climate's
+  each. `biggest`: each sector's top `MARKET_TOP_ROWS` holdings by weight, in that order, each priced by IBKR (1 D a
+  snapshot against the prior close; 7 D / 30 D daily closes) and listed with `last` / `change_pct` `null` until it
+  is (`why` says "IBKR has not priced the sectors' stocks yet" while no row has a price). `movers` (the large-cap
+  gainers scan with the biggest names, strongest first) was retired on 2026-10-14 (operator: its cards held one
+  stock -- "these cards under Movers are just wasting space"); the scan still feeds the sector board's 1 D leader. `runners`: the climate's
   runners of the period grouped by theme. `spark` is the period's daily closes (7 D / 30 D); `null` for 1 D.
 - `sources[]`: `{id: "ibkr" | "ssga" | "bea" | "finnhub" | "leaderboard", label, ok: boolean | null, at,
   error}` -- `ok: null` until asked. A failed read keeps its last good answer for at most `MARKET_STALE_MAX_SEC`.
@@ -166,4 +178,4 @@ is recorded on that tile (`market_board.ibkr_reads.note_error`) and never sets t
   it at once and asks again (`useMarketBoard`).
 - Desk: `localStorage nova.marketBoard.periods.v1` `{schema_version: 1, sectors, industries, climate, top: {kind,
   period}}` (owner `frontend/src/market_board/periods.ts`; an unknown version or value falls back to `1D` /
-  `movers`).
+  `biggest`, a saved `movers` among them).

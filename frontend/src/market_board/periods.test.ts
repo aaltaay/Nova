@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  *
  * The Market blocks' remembered switches (ADR 053): a known shape reads back, anything else falls back to 1 D /
- * movers field by field, and blocked storage never breaks the page.
+ * biggest names field by field, and blocked storage never breaks the page.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MARKET_PERIODS_STORAGE_KEY } from './constants';
@@ -25,7 +25,9 @@ describe('market periods', () => {
   it('refuses another schema version and unknown values', () => {
     expect(parsePeriods({ schema_version: 2, sectors: '7D' })).toEqual(DEFAULT_PERIODS);
     expect(parsePeriods({ schema_version: 1, sectors: '2W', climate: '30D', top: { kind: 'hot', period: '7D' } }))
-      .toEqual({ ...DEFAULT_PERIODS, climate: '30D', top: { kind: 'movers', period: '7D' } });
+      .toEqual({ ...DEFAULT_PERIODS, climate: '30D', top: { kind: 'biggest', period: '7D' } });
+    // Movers was retired on 2026-10-14: a saved Movers choice opens on the biggest names.
+    expect(parsePeriods({ schema_version: 1, top: { kind: 'movers', period: '1D' } }).top.kind).toBe('biggest');
     expect(parsePeriods(null)).toEqual(DEFAULT_PERIODS);
   });
 

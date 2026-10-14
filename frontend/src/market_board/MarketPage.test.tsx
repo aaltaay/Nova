@@ -86,7 +86,7 @@ describe('Market page on the live desk', () => {
     }));
     render(<MarketPage onOpenTrader={() => {}} />);
     await act(async () => {});
-    expect(urls[0]).toContain('/api/market/board?sectors=1D&industries=1D&climate=1D&top=movers&top_period=1D');
+    expect(urls[0]).toContain('/api/market/board?sectors=1D&industries=1D&climate=1D&top=biggest&top_period=1D');
     fireEvent.click(within(screen.getByTestId('market-industries')).getByRole('radio', { name: '7 D' }));
     await act(async () => {});
     expect(urls[urls.length - 1]).toContain('industries=7D');
@@ -170,10 +170,11 @@ describe('Market page: every symbol opens the Trader (ADR 053 amendment 2026-10-
     expect(open).toHaveBeenCalledWith('RUNR');
   });
 
-  it('draws the runners chart across the climate card, with its unrecorded sessions hatched', () => {
+  it('draws the runners chart across the climate card, an unrecorded session filled from Massive or hatched', () => {
     render(<MarketPage onOpenTrader={() => {}} />);
     const chart = within(screen.getByTestId('market-climate')).getByTestId('market-runners');
-    expect(chart.querySelectorAll('rect.mk-runners__none')).toHaveLength(2);
+    expect(chart.querySelectorAll('rect.mk-runners__none')).toHaveLength(1);
+    expect(chart.querySelectorAll('g.is-massive')).toHaveLength(1);       // a session filled from Massive
     fireEvent.click(within(chart).getByRole('button', { name: 'Open the runners chart large' }));
     expect(screen.getByTestId('market-runners-large').textContent).toContain('21 sessions, 19 recorded');
   });

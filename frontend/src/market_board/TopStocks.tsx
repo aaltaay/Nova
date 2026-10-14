@@ -1,6 +1,7 @@
 /**
- * Top stocks by sector (ADR 053): movers, the biggest names or the small-cap runners, for the period chosen. Every
- * sector has a card (ADR 053 amendment 2026-10-13 evening); a row, its symbol and the card's ETF open the Trader.
+ * Top stocks by sector (ADR 053): the biggest names or the small-cap runners, for the period chosen. Every sector has
+ * a card with its five heaviest holdings (Movers retired 2026-10-14: its cards often held one stock); a row, its
+ * symbol and the card's ETF open the Trader.
  */
 import { MARKET_TOP_KINDS, TOP_KIND_LABEL } from './constants';
 import { price, signedPct, tone } from './format';
@@ -8,8 +9,7 @@ import { PeriodSwitch, Spark, Sym } from './parts';
 import type { BlockPeriods, TopCard, TopKind, TopStocks } from './types';
 
 const HINT: Record<TopKind, string> = {
-  movers: "each sector's scan movers and biggest names, strongest first (IBKR)",
-  biggest: "each sector's heaviest holdings (State Street's daily file)",
+  biggest: "each sector's five heaviest holdings (State Street's daily file), priced by IBKR",
   runners: "Nova's small-cap runners, grouped by IBKR industry",
 };
 
@@ -54,7 +54,7 @@ export function TopStocksCard({ top, onChange, onOpen }: {
         <PeriodSwitch value={top.period} onChange={(p) => onChange({ kind: top.kind, period: p })} label="Top stocks period" />
         <span className="mk-hint">{HINT[top.kind]} · click a stock to open it in the Trader</span>
       </header>
-      {top.why && top.cards.every((c) => c.rows.length === 0) ? <p className="mk-wait" role="status">{top.why}</p> : null}
+      {top.why ? <p className="mk-wait" role="status">{top.why}</p> : null}
       <div className="mk-top__grid">
         {top.cards.map((card) => <Card key={card.name} card={card} onOpen={onOpen} />)}
       </div>

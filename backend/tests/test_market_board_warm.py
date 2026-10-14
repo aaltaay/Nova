@@ -365,22 +365,28 @@ def _q(price: float, prev: float = 100.0) -> dict:
 
 
 def test_every_sector_gets_a_card():
-    got = sectors.top("movers", "1D", _ctx(), None)
+    got = sectors.top("biggest", "1D", _ctx(), None)
     assert len(got["cards"]) == len(cmb.MARKET_SECTORS) == cmb.MARKET_TOP_CARDS
     assert got["cards"][0]["etf"] == "XLK"                # strongest first
     assert got["why"] == "IBKR has not priced the sectors' stocks yet"
 
 
-def test_a_red_sector_with_no_scan_mover_is_filled_from_its_biggest_names():
+def test_each_sector_card_lists_its_biggest_names_in_weight_order():
+    """The operator, 2026-10-14: Movers cards held one stock (Materials: LIN). Every card is now the biggest names."""
     pool = {"LLY": _q(99.5), "JNJ": _q(98.0), "ABBV": _q(101.2), "UNH": _q(97.0), "MRK": _q(99.0),
             "NEE": _q(100.4)}
-    movers = {"AMD": _q(105.0), "NVDA": _q(103.0)}
-    got = sectors.top("movers", "1D", _ctx(movers, pool), None)
+    got = sectors.top("biggest", "1D", _ctx({"AMD": _q(105.0)}, pool), None)
     by = {c["etf"]: c for c in got["cards"]}
-    assert [r["symbol"] for r in by["XLV"]["rows"]] == ["ABBV", "LLY", "MRK", "JNJ", "UNH"]   # strongest first
-    assert [r["symbol"] for r in by["XLK"]["rows"]][:2] == ["AMD", "NVDA"]                  # the scan's movers lead
-    assert [r["symbol"] for r in by["XLU"]["rows"]] == ["NEE"]
+    assert [r["symbol"] for r in by["XLV"]["rows"]] == ["LLY", "JNJ", "ABBV", "UNH", "MRK"]   # holdings order
+    assert by["XLV"]["rows"][2]["change_pct"] == 1.2
+    xlu = by["XLU"]["rows"]                                            # unpriced names still list, never "none"
+    assert [r["symbol"] for r in xlu] == ["NEE", "SO", "DUK", "CEG", "AEP"]
+    assert xlu[0]["change_pct"] == 0.4 and xlu[1]["last"] is None and xlu[1]["change_pct"] is None
     assert got["why"] is None
+
+
+def test_movers_is_no_longer_a_top_stocks_list():
+    assert "movers" not in cmb.MARKET_TOP_KINDS and cmb.MARKET_TOP_KINDS[0] == "biggest"
 
 
 def test_the_leader_is_the_best_of_the_scan_and_the_biggest_names():
@@ -393,17 +399,17 @@ def test_the_leader_is_the_best_of_the_scan_and_the_biggest_names():
     assert themes["SMH"]["leader_why"] == cmb.MARKET_NO_MEMBER_FILE_WHY
 
 
-def test_seven_days_ranks_the_biggest_names_by_their_closes():
+def test_seven_days_prices_the_biggest_names_from_their_closes():
     closes = {"LLY": [["2026-10-0" + str(d), 100.0] for d in range(1, 10)] + [["2026-10-12", 104.0]],
               "JNJ": [["2026-10-0" + str(d), 100.0] for d in range(1, 10)] + [["2026-10-12", 98.0]]}
-    got = sectors.top("movers", "7D", _ctx(closes=lambda s: closes.get(s)), None)
+    got = sectors.top("biggest", "7D", _ctx(closes=lambda s: closes.get(s)), None)
     xlv = next(c for c in got["cards"] if c["etf"] == "XLV")
-    assert [r["symbol"] for r in xlv["rows"]] == ["LLY", "JNJ"]
+    assert [r["symbol"] for r in xlv["rows"]][:2] == ["LLY", "JNJ"]
     assert xlv["rows"][0]["change_pct"] == 4.0 and xlv["rows"][0]["spark"]
 
 
 def test_cards_show_before_the_etfs_are_quoted():
-    got = sectors.top("movers", "1D", _ctx(etf={}, pool={"LLY": _q(101.0)}), None)
+    got = sectors.top("biggest", "1D", _ctx(etf={}, pool={"LLY": _q(101.0)}), None)
     assert len(got["cards"]) == cmb.MARKET_TOP_CARDS
     assert any(r["symbol"] == "LLY" for c in got["cards"] for r in c["rows"])
 
@@ -428,7 +434,7 @@ def test_the_board_is_not_loading_once_the_climate_answered_in_this_process(monk
     monkeypatch.setattr(board.climate, "runners_by_theme", lambda period, now: [])
     st = Store()
     now = clock.at(DAY, 17 * 60 + 38)
-    params = {"sectors": "1D", "industries": "1D", "climate": "1D", "top": "movers", "top_period": "1D"}
+    params = {"sectors": "1D", "industries": "1D", "climate": "1D", "top": "biggest", "top_period": "1D"}
     assert board.compose(st, now, enabled=True, replay_desk=False, params=params)["loading"] is True
     st.fail("climate", "leaderboard", "no store", now)
     assert board.compose(st, now, enabled=True, replay_desk=False, params=params)["loading"] is False
@@ -450,7 +456,7 @@ def test_the_board_after_hours_prices_every_future_and_fills_every_card(monkeypa
     st.put("quotes", "ibkr", quotes, now - 5)
     st.put("pool_quotes:0", "ibkr", {"LLY": _q(99.0)}, now - 5)
     _put_holdings(st, now, XLV=["LLY"])
-    params = {"sectors": "1D", "industries": "1D", "climate": "1D", "top": "movers", "top_period": "1D"}
+    params = {"sectors": "1D", "industries": "1D", "climate": "1D", "top": "biggest", "top_period": "1D"}
     got = board.compose(st, now, enabled=True, replay_desk=False, params=params)
     tiles = {t["id"]: t for t in got["quotes"]}
     for tid in ("es", "nq", "rty", "ym", "cl", "gc"):

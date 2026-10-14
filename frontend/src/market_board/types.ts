@@ -1,7 +1,7 @@
 /** The Market page's wire (ADR 053; architecture/schema/market-board.md). Percent points, epoch seconds. */
 
 export type Period = '1D' | '7D' | '30D';
-export type TopKind = 'movers' | 'biggest' | 'runners';
+export type TopKind = 'biggest' | 'runners';
 export type CheckState = 'green' | 'amber' | 'red' | 'waiting' | 'unknown';
 
 export interface Session {

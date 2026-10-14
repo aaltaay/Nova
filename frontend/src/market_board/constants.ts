@@ -11,10 +11,10 @@ export const MARKET_LOADING_POLL_MS = 2_000;
 export const MARKET_KEPT_BOARDS = 12;
 
 export const MARKET_PERIODS: readonly Period[] = ['1D', '7D', '30D'];
-export const MARKET_TOP_KINDS: readonly TopKind[] = ['movers', 'biggest', 'runners'];
+/** Movers retired (operator, 2026-10-14): its sector cards often held one stock. */
+export const MARKET_TOP_KINDS: readonly TopKind[] = ['biggest', 'runners'];
 export const PERIOD_LABEL: Record<Period, string> = { '1D': '1 D', '7D': '7 D', '30D': '30 D' };
 export const TOP_KIND_LABEL: Record<TopKind, string> = {
-  movers: 'Movers',
   biggest: 'Biggest names',
   runners: 'Small-cap runners',
 };
@@ -32,7 +32,12 @@ export const THEME_OTHER_COLOR = '#8e8e93';
 export const THEME_BAR_MAX = 5;
 /** The runners chart's hover card lists this many themes, then "+ N more". */
 export const RUNNERS_TIP_THEMES = 8;
-export const RUNNERS_NOT_RECORDED = 'not recorded -- Nova holds no Gainers board for this session';
+export const RUNNERS_NOT_RECORDED = 'not recorded -- Nova holds no Gainers board, and Massive has not built this session';
+/** A session Nova did not record, filled from the Massive day movers index (operator ask 2026-10-14). */
+export const RUNNERS_SOURCE_MASSIVE = 'massive';
+export const RUNNERS_FROM_MASSIVE =
+  "from Massive's minute bars -- Nova did not record this session. Every listed stock, not the Gainers board's top 50, " +
+  "so it can run higher; not in the card's counts or averages";
 
 export const MARKET_TITLE = 'Market';
 export const MARKET_OFF = 'The Market page is turned off on this desk (NOVA_MARKET_BOARD=0).';

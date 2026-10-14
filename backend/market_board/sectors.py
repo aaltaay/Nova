@@ -131,24 +131,19 @@ def top(kind: str, period: str, ctx: dict[str, Any], runners: list[tuple[str, li
         why = None if cards else "no small-cap runners recorded in this period"
         return {"kind": kind, "period": period, "cards": cards, "why": why}
     sector_rows = board("sectors", period, ctx)["rows"]
+    quotes = ctx["pool_quotes"]
     cards = []
     for row in _cards_order(sector_rows):
         etf = row["etf"]
-        syms = members(etf, ctx["holdings"])
-        if kind == "biggest":
-            pool, quotes = syms[:MARKET_TOP_ROWS], ctx["pool_quotes"]
-        else:
-            pool, quotes = candidates(syms, period, ctx)
         items = []
-        for sym in pool:
+        for sym in members(etf, ctx["holdings"])[:MARKET_TOP_ROWS]:
             q = quotes.get(sym) or {}
             items.append({"symbol": sym, "last": q.get("price"),
                           "change_pct": change(sym, period, quotes, ctx["closes"], ctx["today"]),
                           "spark": spark(sym, period, ctx["closes"], ctx["today"])})
-        if kind == "movers":
-            items = sorted((i for i in items if i["change_pct"] is not None), key=lambda i: -i["change_pct"])
         cards.append({"name": row["name"], "etf": etf, "change_pct": row["change_pct"], "rows": items[:MARKET_TOP_ROWS]})
-    why = None if any(c["rows"] for c in cards) else (
+    priced = any(r["last"] is not None or r["change_pct"] is not None for c in cards for r in c["rows"])
+    why = None if priced else (
         "State Street's holdings files have not been read" if not any(members(r["etf"], ctx["holdings"])
                                                                       for r in sector_rows)
         else "IBKR has not priced the sectors' stocks yet")
