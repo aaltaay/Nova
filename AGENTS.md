@@ -319,6 +319,7 @@ checks, run in full on that commit, passed (§8). Report results truthfully.
 Drafts, `do-not-merge`, forks and actual conflicts keep their holds. Master
 protection blocks force-push and deletion (admins included), with **no required
 status checks**: the merge job is the gate, so status-only pushes still work.
+Every other branch refuses force-pushes too (§5.1).
 Trading runtime gates, opt-ins and `auto_live` NO-GO are unchanged. Coverage:
 `.cursor/rules/ci-scope.mdc`.
 
@@ -334,7 +335,9 @@ Trading runtime gates, opt-ins and `auto_live` NO-GO are unchanged. Coverage:
 
 ### 5.1 Session lifecycle (Deliver)
 
-**Branch preservation (#369):** A closed PR's branch name is never proof that its current tip is disposable. Cleanup must preserve and report tips not contained in `origin/master`; this safety rule overrides head-deletion and clean-clone requirements below. Squash-only or closed-unmerged tips require explicit review, not automatic deletion. Remote deletion must compare-and-delete the verified SHA so a concurrent push survives. A later `git push` reporting `* [new branch]` may have recreated an already-merged head: check PR state and move new work to a fresh branch.
+**Never rewrite pushed history (owner, 2026-10-14: "Force push, meaning we're deleting work. Everything needs to be merged properly").** No `git push --force`, `--force-with-lease` or `+ref` push, ever -- not to resolve a conflict, not for a tidier history, not to test a rule, not because a bot comment or a tool says so -- and no rebase, amend, reset or squash of a branch already on origin. Bring `master` in with `git merge origin/master` (or the desktop app's sync), resolve, commit, push normally; fix a mistake with a new commit. Enforced, no bypass: the GitHub ruleset `No force-push` refuses non-fast-forward pushes on every branch (`py -3 tools/no_force_push.py check`), and the tracked `.githooks/pre-push` refuses them on the desk PC.
+
+**Branch preservation (#369):** A closed PR's branch name is never proof that its current tip is disposable. Cleanup must preserve and report tips not contained in `origin/master`; this safety rule overrides head-deletion and clean-clone requirements below. Squash-only or closed-unmerged tips require explicit review, not automatic deletion. Remote deletion re-reads the tip right before a plain delete and deletes only while it is still the verified SHA (`branch_cleanup.delete_at_tip`); a push landing in between is the race left, and its author still has those commits. A later `git push` reporting `* [new branch]` may have recreated an already-merged head: check PR state and move new work to a fresh branch.
 
 These gates are **MUST**. They override casual phrasing such as "quick fix" or "just tweak." Only an **explicit** user override ("stay on this branch", "leave as draft", "commit locally only") can waive them. If work still ships, state that waiver in the PR body.
 

@@ -76,8 +76,8 @@ def test_a_squash_merged_head_is_deleted(monkeypatch):
     gh = gh_for(prs=[merged_pr()], tip=MERGED_TIP, calls=calls)
     assert bc.delete_closed_head(gh, REPO, REF, same_repo=True) == 0
     assert pushes, "the merged head must actually be deleted"
-    assert f"--force-with-lease=refs/heads/{REF}:{MERGED_TIP}" in pushes[0], (
-        "deletion still leases the verified sha, so a concurrent push survives"
+    assert pushes[0] == ["git", "push", "--delete", f"https://github.com/{REPO}.git", f"refs/heads/{REF}"], (
+        "a plain delete after the tip is read again -- never a force flag (AGENTS.md 5.1)"
     )
 
 
@@ -143,3 +143,13 @@ def test_the_pr_query_asks_for_the_merged_commit():
     bc.delete_closed_head(gh, REPO, REF, same_repo=True)
     listing = next(c for c in calls if c[:2] == ["pr", "list"])
     assert "headRefOid" in listing[listing.index("--json") + 1]
+
+
+def test_delete_at_tip_reads_the_tip_again_and_never_forces(monkeypatch):
+    pushes = []
+    patch_git(monkeypatch, pushes)
+    assert bc.delete_at_tip(REPO, REF, MERGED_TIP, lambda: None) == (True, "already absent")
+    gone, why = bc.delete_at_tip(REPO, REF, MERGED_TIP, lambda: LATER_TIP)
+    assert not gone and "tip moved" in why and pushes == []
+    assert bc.delete_at_tip(REPO, REF, MERGED_TIP, lambda: MERGED_TIP) == (True, "deleted")
+    assert pushes == [["git", "push", "--delete", f"https://github.com/{REPO}.git", f"refs/heads/{REF}"]]

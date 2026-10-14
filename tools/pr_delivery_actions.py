@@ -12,14 +12,14 @@ from typing import Any
 try:
     from tools.pr_delivery_text import (
         closing_issue_numbers,
-        conflict_rebase_comment,
+        conflict_merge_comment,
         should_post_conflict_comment,
         squash_merge_fields,
     )
 except ImportError:
     from pr_delivery_text import (
         closing_issue_numbers,
-        conflict_rebase_comment,
+        conflict_merge_comment,
         should_post_conflict_comment,
         squash_merge_fields,
     )
@@ -235,7 +235,7 @@ def signal_conflict(gh: GhFn, repo: str, number: int) -> None:
         print(f"#{number} conflict comment already present")
         return
     posted = gh(
-        ["pr", "comment", str(number), "--body", conflict_rebase_comment()],
+        ["pr", "comment", str(number), "--body", conflict_merge_comment()],
         check=False,
     )
     if posted.returncode != 0:

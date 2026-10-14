@@ -241,6 +241,38 @@ def test_release_takes_back_a_branch_that_never_carried_work(monkeypatch, capsys
     assert "deleted unused branch agent/state-0" in capsys.readouterr().out
 
 
+def test_release_deletes_with_a_plain_delete_after_reading_the_tip_again(monkeypatch, capsys):
+    # AGENTS.md 5.1 (owner, 2026-10-14): no force flag, not even the leased delete.
+    gh = FakeGh(refs={"agent/state-0": TIP},
+                compare={"status": "identical", "merge_base_commit": {"sha": TIP}})
+    setup_release(monkeypatch, gh)
+    runs = []
+    monkeypatch.setattr(bb.subprocess, "run",
+                        lambda args, **kw: runs.append(list(args)) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+    assert cc.cmd_release(release_args()) == 0
+    assert ["git", "push", "--delete", f"https://github.com/{REPO}.git", "refs/heads/agent/state-0"] in runs
+    assert not any("force" in part for run in runs for part in run)
+
+
+def test_release_keeps_a_branch_whose_tip_moved_before_the_delete(monkeypatch, capsys):
+    class Moving(FakeGh):
+        def __call__(self, args, **kw):
+            out = super().__call__(args, **kw)
+            if args[0] == "api" and "/compare/" in args[1]:
+                self.refs["agent/state-0"] = "d" * 40       # a push lands after the check
+            return out
+
+    gh = Moving(refs={"agent/state-0": TIP},
+                compare={"status": "identical", "merge_base_commit": {"sha": TIP}})
+    setup_release(monkeypatch, gh)
+    runs = []
+    monkeypatch.setattr(bb.subprocess, "run",
+                        lambda args, **kw: runs.append(list(args)) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+    assert cc.cmd_release(release_args()) == 0
+    assert "RETAIN agent/state-0" in capsys.readouterr().err
+    assert not [r for r in runs if r[:2] == ["git", "push"]]
+
+
 def test_release_keeps_a_branch_that_carries_commits(monkeypatch, capsys):
     # #369: the release clears the claim, never someone's unmerged work.
     gh = FakeGh(refs={"agent/state-0": TIP},

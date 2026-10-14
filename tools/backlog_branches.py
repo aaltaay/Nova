@@ -18,9 +18,10 @@ whether GitHub links an existing ref to a second issue is unverified here.
 The `gh` argument everywhere is the `backlog_github.run_gh` contract: called as
 ``gh([...])``, returns a CompletedProcess, never raises on a non-zero exit.
 
-Deletion is compare-and-delete against a verified tip, never an unconditional
-DELETE (#369): a branch carrying real commits is retained and reported, whatever
-the claim said about it.
+Deletion is a plain delete once the tip is read again and is still the verified
+one (``branch_cleanup.delete_at_tip``), never a force flag (AGENTS.md 5.1) and
+never unconditional (#369): a branch carrying real commits is retained and
+reported, whatever the claim said about it.
 """
 
 from __future__ import annotations
@@ -231,14 +232,24 @@ def delete_unused_branch(gh, repo: str, ref: str) -> int:
             print(f"RETAIN {ref}: tip {tip} carries work not in {BASE_BRANCH}; "
                   "the release cleared the claim, not the branch", file=sys.stderr)
             return 1
-        push = subprocess.run([
-            "git", "push", f"--force-with-lease=refs/heads/{ref}:{tip}",
-            f"https://github.com/{repo}.git", f":refs/heads/{ref}",
-        ], capture_output=True, text=True, check=False)
-        if push.returncode:
-            print(f"RETAIN {ref}: conditional delete failed; a concurrent push "
-                  f"may have landed. {push.stderr.strip()}", file=sys.stderr)
+        # A plain delete once the tip is read again unchanged -- never a force flag (AGENTS.md 5.1).
+        try:
+            from tools.branch_cleanup import delete_at_tip
+        except ImportError:
+            from branch_cleanup import delete_at_tip
+        def read_tip() -> str | None:
+            try:
+                return branch_tip(gh, repo, ref)
+            except BranchLookupError as exc:
+                raise ValueError(str(exc)) from exc
+
+        gone, why = delete_at_tip(repo, ref, tip, read_tip)
+        if not gone:
+            print(f"RETAIN {ref}: {why}", file=sys.stderr)
             return 1
+        if why == "already absent":
+            print(f"already absent: {ref}")
+            return 0
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as exc:
         print(f"RETAIN {ref}: unable to prove it is unused ({exc})", file=sys.stderr)
         return 1

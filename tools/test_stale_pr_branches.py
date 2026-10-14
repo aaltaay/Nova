@@ -126,7 +126,7 @@ def test_unknown_ancestry_fails_closed(git_history):
 
 
 def _remote(monkeypatch, *, state="MERGED", comparison="behind", fail_at=None,
-            absent=False, push_code=0, owner="aaltaay", recheck=None):
+            absent=False, push_code=0, owner="aaltaay", recheck=None, moved=None):
     calls, pushes = [], []
     tip = "a" * 40
 
@@ -137,7 +137,7 @@ def _remote(monkeypatch, *, state="MERGED", comparison="behind", fail_at=None,
                  "headRepository": {"name": "Nova"}, "headRepositoryOwner": {"login": owner}}]
         outputs = {1: rows, 2: {"object": {"sha": tip}},
                    3: {"status": comparison, "merge_base_commit": {"sha": tip}},
-                   4: recheck or []}
+                   4: recheck or [], 5: {"object": {"sha": moved or tip}}}
         return subprocess.CompletedProcess(args, 1 if index == fail_at or absent and index == 2 else 0,
                                            json.dumps(outputs[index]),
                                            "HTTP 404" if absent and index == 2 else "unavailable")
@@ -159,7 +159,7 @@ def test_remote_recreated_head_never_deletes(monkeypatch, capsys, status):
     assert "not contained in master" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("step", [1, 2, 3, 4])
+@pytest.mark.parametrize("step", [1, 2, 3, 4, 5])
 def test_remote_lookup_failures_never_delete(monkeypatch, step):
     gh, _, pushes, _ = _remote(monkeypatch, fail_at=step)
     assert branch_cleanup.delete_closed_head(gh, "aaltaay/Nova", "feature/reused", same_repo=True) == 1
@@ -183,24 +183,18 @@ def test_protected_or_fork_does_not_query_or_delete(monkeypatch, ref, same_repo)
 
 
 @pytest.mark.parametrize("push_code", [0, 1])
-def test_remote_delete_uses_exact_tip_lease(monkeypatch, push_code):
+def test_remote_delete_rereads_the_tip_then_deletes_without_a_force_flag(monkeypatch, push_code):
+    # AGENTS.md 5.1 (owner, 2026-10-14): no force-push -- the leased delete went with it.
     gh, calls, pushes, tip = _remote(monkeypatch, push_code=push_code)
     assert branch_cleanup.delete_closed_head(gh, "aaltaay/Nova", "feature/reused", same_repo=True) == push_code
-    assert pushes == [["git", "push", f"--force-with-lease=refs/heads/feature/reused:{tip}",
-                       "https://github.com/aaltaay/Nova.git", ":refs/heads/feature/reused"]]
-    assert not any("DELETE" in c for c in calls)
+    assert pushes == [["git", "push", "--delete", "https://github.com/aaltaay/Nova.git",
+                       "refs/heads/feature/reused"]]
+    assert "/git/ref/heads/" in calls[-1][1]               # the tip was read again right before it
+    assert not any("force" in part for push in pushes for part in push)
 
 
-def test_lease_rejects_real_push_after_check(git_history, tmp_path):
-    git, base = git_history
-    remote = str(tmp_path / "remote.git")
-    git("init", "--bare", remote)
-    git("push", remote, "feature/reused")
-    git("switch", "feature/reused")
-    git("-c", "core.hooksPath=", "commit", "--allow-empty", "-m", "concurrent work")
-    tip = git("rev-parse", "HEAD")
-    git("push", remote, "feature/reused")
-    with pytest.raises(subprocess.CalledProcessError):
-        git("push", f"--force-with-lease=refs/heads/feature/reused:{base}", remote,
-            ":refs/heads/feature/reused")
-    assert tip in git("ls-remote", remote, "refs/heads/feature/reused")
+def test_a_tip_that_moved_after_it_was_verified_is_kept(monkeypatch, capsys):
+    gh, _, pushes, _ = _remote(monkeypatch, moved="b" * 40)
+    assert branch_cleanup.delete_closed_head(gh, "aaltaay/Nova", "feature/reused", same_repo=True) == 1
+    assert pushes == []
+    assert "tip moved" in capsys.readouterr().err
