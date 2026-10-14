@@ -19,6 +19,7 @@ frees the most work, the roadmap's human steps; one score table in
 3. **Claude desktop app** (you have the `show_widget` tool; call its `read_me` once first): run `py -3 tools/next_moves.py card [--thread ...] [--say ...]` and pass the output unchanged to `show_widget` (title `next_moves`) as the reply's last element, with no text menu beside it. Each button sends its pick's prompt as the operator's next message.
 4. **Everywhere else** (Cursor, Codex, CLI): end with the output of `py -3 tools/next_moves.py menu [--thread ...] [--say ...]`. A digit runs that pick: restate it, then do it (a `Needs you` pick shows the question and waits). `0` is a fresh ask.
 5. The tool prints `nothing worth offering`: end without a menu. Never pad.
+6. **First reply of a chat** (operator ask 2026-10-14): it also *opens* with the card (or menu), from the brief's seed, before the answer, so every Nova chat starts with the best next moves.
 
 An optional **Better ask:** above the menu: one sentence, at most 35 words, a real gap plus one fact the operator did not know.
 
