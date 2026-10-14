@@ -140,6 +140,50 @@ def test_acquire_terminates_orphan_then_reclaims(tmp_path: Path, monkeypatch):
     assert '"started_at"' in body
 
 
+_REAL_PROBE = lock._port_listening        # the autouse fixture below stubs it
+
+
+class _Accepted:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
+@pytest.mark.parametrize(("outcome", "expected"), [
+    (_Accepted(), True),
+    (TimeoutError(), False),                          # Windows: a refused loopback connect outlasts 0.4 s
+    (ConnectionRefusedError(10061, "refused"), False),
+    (OSError(10048, "Only one usage of each socket address"), None),   # 2026-10-14: out of ports
+    (OSError(52, "a duplicate name exists on the network"), None),
+])
+def test_the_probe_tells_nobody_listening_from_a_probe_that_could_not_run(monkeypatch, outcome, expected):
+    def connect(*_a, **_k):
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(lock.socket, "create_connection", connect)
+    assert _REAL_PROBE("127.0.0.1", 8000) is expected
+
+
+def test_a_living_holder_the_probe_cannot_reach_is_left_running(tmp_path: Path, monkeypatch):
+    # 2026-10-14: a second API classed the serving one an orphan because no test connection could open.
+    monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(lock, "_pid_alive", lambda pid: pid == 12)
+    monkeypatch.setattr(lock, "_port_listening", lambda host, port: None)
+    monkeypatch.setattr(lock, "_holder_age_sec", lambda existing, path: 300.0)
+    monkeypatch.setattr(lock, "_terminate_pid", lambda pid: pytest.fail("never kill a holder the probe cannot reach"))
+    (tmp_path / lock.LOCK_NAME).write_text(
+        '{"schema_version": 1, "pid": 12, "parent_pid": 1, "argv0": "run_api"}\n',
+        encoding="utf-8",
+    )
+    assert lock.classify_holder(alive=True, listening=None, age_sec=300) == "unknown"
+    ok, detail = lock.acquire()
+    assert ok is False and "left running" in detail and "clientId 17" in detail
+
+
 def test_acquire_refuses_if_orphan_kill_fails(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path))
     monkeypatch.setattr(lock, "_pid_alive", lambda pid: pid == 11)

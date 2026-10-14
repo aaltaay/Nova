@@ -7,7 +7,7 @@ that cannot be resolved is unknown with the reason.
 """
 from __future__ import annotations
 
-from diagnostics import collect_data_root, gather as gather_mod
+from diagnostics import collect_data_root, gather as gather_mod, inputs_disk
 
 DESK = r"C:\Users\op\github\Nova\backend"
 
@@ -72,7 +72,7 @@ def test_without_an_f_drive_c_is_the_only_place():
 def test_the_shell_resolves_every_folder_without_creating_one(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path / "not-created-cache"))
     monkeypatch.setenv("NOVA_LOG_DIR", str(tmp_path / "not-created-logs"))
-    inputs = gather_mod._data_folder_inputs()
+    inputs = inputs_disk.data_folder_inputs()
     by_id = {f["id"]: f for f in inputs["folders"]}
     assert list(by_id) == ["cache", "logs", "captures", "downloads", "leaderboard", "catalysts", "eyes"]
     assert all(f["error"] is None and f["real"] for f in by_id.values())
