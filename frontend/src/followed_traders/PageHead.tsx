@@ -1,6 +1,8 @@
 /**
- * The page's head: title, the capture pill, the day (previous / calendar / next among the feed's days) and the
- * Alerts switch. Previous and next step through days the feed has; one with nowhere to go is disabled and says why.
+ * The page's head, one row: title, the capture pill, the stream's title and Watch live, the record span with
+ * everyone's record, why open positions are not priced (when they are not), the day (previous / calendar / next
+ * among the feed's days) and the Alerts switch. Previous and next step through days the feed has; one with nowhere
+ * to go is disabled and says why, as is Watch live when the feed names no stream.
  */
 import { useEffect, useRef, useState } from 'react';
 import { tipProps } from '../ux/hoverTip';
@@ -8,6 +10,13 @@ import { whyProps } from '../ux/whyTip';
 import { dayLabel, neighbourDay } from './calendar';
 import { capturePill } from './capture';
 import {
+  FT_EVERYONE,
+  FT_NO_STREAM,
+  FT_RECORD_PENDING,
+  FT_RECORD_RANGES,
+  FT_RECORDS,
+  FT_STREAM_SHOWING,
+  FT_WATCH_LIVE,
   FT_ALERTS_OFF,
   FT_ALERTS_ON,
   FT_ALERTS_TIP,
@@ -15,20 +24,53 @@ import {
   FT_NO_NEXT_DAY,
   FT_NO_PREV_DAY,
   FT_PREV_DAY,
-  FT_SUBTITLE,
   FT_TITLE,
   FT_TODAY,
 } from './constants';
 import { DayPicker } from './DayPicker';
 import { setFollowedAlerts, useFollowedAlerts } from './followedStores';
-import type { FollowedDay } from './types';
+import { RecordChips } from './parts';
+import { setStreamOpen } from './stream';
+import type { FollowedDay, FollowedRecord, RecordRange } from './types';
+
+export interface RecordsHead {
+  range: RecordRange;
+  onRange: (r: RecordRange) => void;
+  overall: FollowedRecord | null;
+  error: string | null;
+  pending: number;
+}
 
 interface Props {
   day: FollowedDay;
   onPickDate: (date: string | null) => void;
+  /** Absent while the feed is down: there is no record to show. */
+  records: RecordsHead | null;
+  /** Why open positions are not priced now, or null. */
+  pricesWhy: string | null;
+  stream: { id: string | null; open: boolean };
 }
 
-export function PageHead({ day, onPickDate }: Props) {
+function Records({ r }: { r: RecordsHead }) {
+  return (
+    <div className="ft-records" data-testid="ft-records">
+      <div className="ft-segmented" role="group" aria-label={FT_RECORDS}>
+        {(Object.keys(FT_RECORD_RANGES) as RecordRange[]).map((k) => (
+          <button key={k} type="button" aria-pressed={r.range === k} className={r.range === k ? 'is-on' : undefined}
+            onClick={() => r.onRange(k)} data-testid={`ft-range-${k}`}>{FT_RECORD_RANGES[k]}</button>
+        ))}
+      </div>
+      <span className="ft-records__everyone">
+        <span className="ft-muted ft-small">{FT_EVERYONE}</span>
+        <RecordChips record={r.overall} testId="ft-record-everyone" />
+      </span>
+      {r.range !== 'day' && r.error && <span className="ft-small ft-warn-text">{r.error}</span>}
+      {r.range !== 'day' && r.pending > 0 && <span className="ft-xs ft-muted">{r.pending} {FT_RECORD_PENDING}</span>}
+    </div>
+  );
+}
+
+export function PageHead({ day, onPickDate, records, pricesWhy, stream }: Props) {
   const [open, setOpen] = useState(false);
   const alertsOn = useFollowedAlerts();
   const wrap = useRef<HTMLDivElement>(null);
@@ -56,18 +98,22 @@ export function PageHead({ day, onPickDate }: Props) {
 
   return (
     <div className="ft-head">
-      <div className="ft-head__titles">
-        <h1 className="ft-head__title">{FT_TITLE}</h1>
-        <span className="ft-muted">{FT_SUBTITLE}</span>
-        {day.capture?.title && <span className="ft-muted ft-small ft-ellipsis" title={day.capture.title}>{day.capture.title}</span>}
-      </div>
+      <h1 className="ft-head__title">{FT_TITLE}</h1>
+      {pill && (
+        <span className={`ft-status ft-status--${pill.tone}`} data-testid="ft-capture-pill" role="status">
+          <span className="ft-status__dot" aria-hidden="true" />
+          <span className="ft-ellipsis">{pill.text}</span>
+        </span>
+      )}
+      {day.capture?.title && <span className="ft-muted ft-small ft-ellipsis ft-head__video" title={day.capture.title}>{day.capture.title}</span>}
+      <button type="button" className={`ft-btn ft-watch${stream.open && stream.id ? ' is-on' : ''}`} disabled={!stream.id}
+        aria-pressed={!!stream.id && stream.open} {...whyProps(!stream.id, FT_NO_STREAM)}
+        {...tipProps(stream.id && stream.open ? FT_STREAM_SHOWING : null)} onClick={() => setStreamOpen(true)}
+        data-testid="ft-watch-live">▶ {FT_WATCH_LIVE}</button>
+      <span className="ft-head__spacer" />
+      {records && <Records r={records} />}
+      {pricesWhy && <span className="ft-status ft-status--warn ft-small" data-testid="ft-prices">Prices now: {pricesWhy}</span>}
       <div className="ft-head__tools">
-        {pill && (
-          <span className={`ft-status ft-status--${pill.tone}`} data-testid="ft-capture-pill" role="status">
-            <span className="ft-status__dot" aria-hidden="true" />
-            {pill.text}
-          </span>
-        )}
         <div className="ft-daynav" ref={wrap} onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}>
           <button type="button" className="ft-btn" aria-label={FT_PREV_DAY} disabled={!prev}
             {...whyProps(!prev, FT_NO_PREV_DAY)} {...tipProps(prev ? `${FT_PREV_DAY}: ${dayLabel(prev)}` : null)}

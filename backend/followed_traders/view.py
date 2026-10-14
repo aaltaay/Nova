@@ -44,7 +44,7 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
     every = [r for t in out for r in t["open"] + t["closed"]]
     return {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3),
             "feed": {"state": "ok", "error": None}, "date": day["date"], "today": day["today"],
-            "dates": list(day["dates"]), "capture": capture(day.get("status"), now), "prices": prices,
+            "dates": list(day["dates"]), "capture": capture(day.get("status"), now, faces=_faces_now(day)), "prices": prices,
             "overall": scoring.record(every), "traders": out}
 
 
@@ -71,24 +71,35 @@ def records_down(state: str, error: str, span: str, now: float) -> dict[str, Any
             "pending": 0, "overall": None, "traders": []}
 
 
-def capture(status: dict[str, Any] | None, now: float) -> dict[str, Any] | None:
+def _faces_now(day: dict[str, Any]) -> dict[str, str]:
+    """This API's path to each photo the feed has on its today, when the day answered is today: the bar is the
+    feed's now, so a past day's photos never stand in for it."""
+    if day["date"] is None or day["date"] != day["today"]:
+        return {}
+    return {name: FACE_PATH.format(date=day["date"], name=name) for name in day.get("faces", ())}
+
+
+def capture(status: dict[str, Any] | None, now: float, *, faces: dict[str, str] | None = None) -> dict[str, Any] | None:
     if status is None:
         return None
     updated = status["updated_at"]
     return {"live": status["live"], "clock": status["clock"], "updated_at": updated,
             "age_sec": None if updated is None else round(max(0.0, now - updated), 1),
-            "bar_visible": status["bar_visible"], "title": status["title"], "traders": list(status["traders"]),
-            "problem": status.get("problem"), "problem_at": status.get("problem_at"), "bar": bar(status)}
+            "bar_visible": status["bar_visible"], "title": status["title"], "video_id": status.get("video_id"),
+            "traders": list(status["traders"]),
+            "problem": status.get("problem"), "problem_at": status.get("problem_at"), "bar": bar(status, faces or {})}
 
 
-def bar(status: dict[str, Any]) -> list[dict[str, Any]] | None:
-    """Each trader's bar as the feed last confirmed it, with this API's path to their slot image when it has one."""
+def bar(status: dict[str, Any], faces: dict[str, str] | None = None) -> list[dict[str, Any]] | None:
+    """Each trader's bar as the feed last confirmed it, with this API's path to their slot image and to their photo
+    that day when the feed has them."""
     held = status.get("positions")
     if held is None:
         return None
-    slots = status.get("slots", ())
+    slots, faces = status.get("slots", ()), faces or {}
     return [{"trader": t["trader"], "positions": [dict(p) for p in t["positions"]],
-             "image": LIVE_PATH.format(name=t["trader"]) if t["trader"] in slots else None} for t in held]
+             "image": LIVE_PATH.format(name=t["trader"]) if t["trader"] in slots else None,
+             "face": faces.get(t["trader"])} for t in held]
 
 
 def trade_row(t: dict[str, Any], date: str, *, now: float, prices: dict[str, Any], now_for: NowFor,

@@ -1,29 +1,24 @@
 /**
- * The Following page (operator ask 2026-10-13; the design canvas "Followed Traders UX", four boards): what each
- * followed trader holds now, their entries and exits, priced with Nova's IBKR data, the proof behind every trade,
- * and any past day the feed has. Every state is said, never an empty list. The rail shows it only when the backend
- * has a feed configured (enabledStore). Schema: architecture/schema/followed-traders.md. Nothing here places,
- * stages or cancels an order.
+ * The Following page (operator ask 2026-10-13; redesign approved the same day, mockup "E2"): what each followed
+ * trader holds now and closed that day, priced with Nova's IBKR data, the proof behind every trade, the stream they
+ * trade on, and any past day the feed has. It fills the window with no page scrollbar: a head row, one block per
+ * trader top to bottom, and the stream above the Activity on the right. Every state is said, never an empty list.
+ * The rail shows it only when the backend has a feed configured (enabledStore). Schema:
+ * architecture/schema/followed-traders.md. Nothing here places, stages or cancels an order.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityFeed } from './ActivityFeed';
-import { BarNow } from './BarNow';
 import { captureStopped } from './capture';
-import {
-  FT_EVERYONE,
-  FT_LOADING,
-  FT_NO_TRADES,
-  FT_OFF,
-  FT_READ_FAILED,
-  FT_RECORD_PENDING,
-  FT_RECORD_RANGES,
-  FT_RECORDS,
-} from './constants';
+import { FT_ALL_CLOSED, FT_CLOSE_LIST, FT_LOADING, FT_NO_TRADES, FT_OFF, FT_READ_FAILED } from './constants';
+import { fitPlan, maxFitLevel, useFitLevel } from './fit';
 import { clearFollowedProofRequest, useFollowedProofRequest } from './followedStores';
 import { PageHead } from './PageHead';
-import { RecordChips } from './parts';
 import { ProofView } from './ProofView';
-import { TraderSection } from './TraderSection';
+import { roster } from './roster';
+import { streamId, useStreamOpen } from './stream';
+import { StreamPlayer } from './StreamPlayer';
+import { ClosedTable } from './TradeTables';
+import { TraderBlock } from './TraderBlock';
 import type { FollowedDay, FollowedRecord, RecordRange } from './types';
 import { useFollowedDay } from './useFollowedDay';
 import { useFollowedRecord } from './useFollowedFetch';
@@ -68,66 +63,94 @@ interface DayViewProps {
   onProof: (id: string | null) => void;
 }
 
-function DayView({ date, proofId, range, onRange, onPickDate, onProof }: DayViewProps) {
-  const { data, error, off } = useFollowedDay(date);
+function DayView(props: DayViewProps) {
+  const { data, error, off } = useFollowedDay(props.date);
   if (off) return <p className="ft-state" data-testid="ft-state">{FT_OFF}</p>;
   if (!data) return <p className="ft-state" data-testid="ft-state">{error ? `${FT_READ_FAILED} ${error}` : FT_LOADING}</p>;
+  return <DayBody day={data} error={error} {...props} />;
+}
+
+function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: DayViewProps & { day: FollowedDay; error: string | null }) {
+  const ok = day.feed.state === 'ok';
+  const isToday = day.date !== null && day.date === day.today;
+  const records = useFollowedRecord(range, day.date);
+  const streamOpen = useStreamOpen();
+  const c = day.capture;
+  // The stream is the feed's now, whatever day is shown: watching it never depends on the day picked.
+  const videoId = streamId(c?.video_id);
+  const hasOpen = day.traders.some((t) => t.open.length > 0);
+  const pricesWhy = isToday && hasOpen && day.prices && day.prices.state !== 'live' ? day.prices.why : null;
+  const recordFor = (name: string, own: FollowedRecord): FollowedRecord | null =>
+    range === 'day' ? own : records.data?.traders.find((t) => t.name === name)?.record ?? null;
+  const proofOwner = proofId ? day.traders.find((t) => [...t.open, ...t.closed].some((x) => x.id === proofId)) : null;
+  const proofTrade = proofOwner ? [...proofOwner.open, ...proofOwner.closed].find((x) => x.id === proofId) ?? null : null;
   return (
     <>
-      <PageHead day={data} onPickDate={onPickDate} />
+      <PageHead day={day} onPickDate={onPickDate} pricesWhy={pricesWhy} stream={{ id: videoId, open: streamOpen }}
+        records={ok ? { range, onRange, overall: range === 'day' ? day.overall : records.data?.overall ?? null,
+          error: records.error, pending: records.data?.pending ?? 0 } : null} />
       {error && <p className="ft-state ft-state--warn">{FT_READ_FAILED} {error} · showing the last answer</p>}
-      {data.feed.state === 'ok' && <DayBody day={data} proofId={proofId} range={range} onRange={onRange} onProof={onProof} />}
+      {ok && proofTrade && proofOwner && day.date ? (
+        <div className="ft-main ft-main--proof">
+          <ProofView trade={proofTrade} face={proofOwner.face} date={day.date} generatedAt={day.generated_at}
+            onBack={() => onProof(null)} />
+        </div>
+      ) : ok && (
+        <div className="ft-main">
+          <Board day={day} isToday={isToday} recordFor={recordFor} onProof={onProof} />
+          <aside className="ft-rail">
+            {videoId && streamOpen && <StreamPlayer videoId={videoId} title={c?.title ?? null} live={!!c?.live && !captureStopped(c)} />}
+            <ActivityFeed traders={day.traders} onProof={onProof} />
+          </aside>
+        </div>
+      )}
     </>
   );
 }
 
-function DayBody({ day, proofId, range, onRange, onProof }: { day: FollowedDay; proofId: string | null;
-  range: RecordRange; onRange: (r: RecordRange) => void; onProof: (id: string | null) => void }) {
-  const isToday = day.date !== null && day.date === day.today;
-  const records = useFollowedRecord(range, day.date);
-  const proofOwner = proofId ? day.traders.find((t) => [...t.open, ...t.closed].some((x) => x.id === proofId)) : null;
-  const proofTrade = proofOwner ? [...proofOwner.open, ...proofOwner.closed].find((x) => x.id === proofId) ?? null : null;
-  if (proofTrade && proofOwner && day.date) {
-    return <ProofView trade={proofTrade} face={proofOwner.face} date={day.date} generatedAt={day.generated_at}
-      onBack={() => onProof(null)} />;
-  }
+interface BoardProps {
+  day: FollowedDay;
+  isToday: boolean;
+  recordFor: (name: string, own: FollowedRecord) => FollowedRecord | null;
+  onProof: (id: string) => void;
+}
+
+/** Every trader's block, top to bottom, shrunk and folded until it fits (fit.ts); a list over it shows one's all. */
+function Board({ day, isToday, recordFor, onProof }: BoardProps) {
+  const stack = useRef<HTMLDivElement>(null);
+  const [showAll, setShowAll] = useState<string | null>(null);
+  const people = roster(day, isToday);
+  const closed: [string, number][] = people.map((e) => [e.name, e.trader?.closed.length ?? 0]);
+  const shape = people.map((e) => `${e.name}:${e.trader?.open.map((t) => t.id).join('+')}/${e.trader?.closed.map((t) => t.id).join('+')}`).join('|');
+  const { level, overflowing } = useFitLevel(stack, shape, maxFitLevel(closed));
+  const plan = fitPlan(level, closed);
   const c = day.capture;
   const live = c !== null && c.live && !captureStopped(c);
-  const hasOpen = day.traders.some((t) => t.open.length > 0);
-  const recordFor = (name: string, own: FollowedRecord): FollowedRecord | null =>
-    range === 'day' ? own : records.data?.traders.find((t) => t.name === name)?.record ?? null;
-  const overall = range === 'day' ? day.overall : records.data?.overall ?? null;
+  const lastRead = c && !live && c.clock ? c.clock : null;
+  const listed = showAll ? people.find((e) => e.name === showAll)?.trader ?? null : null;
   return (
-    <>
-      {isToday && c && <BarNow capture={c} traders={day.traders} />}
-      {isToday && hasOpen && day.prices && day.prices.state !== 'live' && (
-        <p className="ft-state ft-state--warn" data-testid="ft-prices">Prices now: {day.prices.why}</p>
+    <div className="ft-board">
+      <div className={`ft-stack${overflowing ? ' is-overflowing' : ''}`} ref={stack} data-testid="ft-stack" data-fit-level={level}>
+        {people.length === 0 && <div className="ft-empty">{FT_NO_TRADES}</div>}
+        {people.map((e) => (
+          <TraderBlock key={e.name} entry={e} isToday={isToday}
+            record={e.trader ? recordFor(e.name, e.trader.record) : null}
+            onAir={isToday && live && (c?.traders.includes(e.name) ?? false)} captureVersion={c?.updated_at ?? null}
+            lastRead={lastRead} compact={plan.compact} folded={plan.folded[e.name] ?? 0} onShowAll={setShowAll}
+            onProof={onProof} />
+        ))}
+      </div>
+      {listed && (
+        <div className="ft-overlay" role="dialog" aria-label={`${listed.name}: ${FT_ALL_CLOSED}`} data-testid="ft-closed-all">
+          <div className="ft-overlay__head">
+            <h2 className="ft-eyebrow">{listed.name} · {FT_ALL_CLOSED} ({listed.closed.length})</h2>
+            <button type="button" className="ft-btn" onClick={() => setShowAll(null)}>{FT_CLOSE_LIST}</button>
+          </div>
+          <div className="ft-overlay__body">
+            <ClosedTable trades={listed.closed} onProof={(id) => { setShowAll(null); onProof(id); }} />
+          </div>
+        </div>
       )}
-      <div className="ft-records" data-testid="ft-records">
-        <span className="ft-eyebrow">{FT_RECORDS}</span>
-        <div className="ft-segmented" role="group" aria-label={FT_RECORDS}>
-          {(Object.keys(FT_RECORD_RANGES) as RecordRange[]).map((r) => (
-            <button key={r} type="button" aria-pressed={range === r} className={range === r ? 'is-on' : undefined}
-              onClick={() => onRange(r)} data-testid={`ft-range-${r}`}>{FT_RECORD_RANGES[r]}</button>
-          ))}
-        </div>
-        <span className="ft-muted ft-small">{FT_EVERYONE}</span>
-        <RecordChips record={overall} testId="ft-record-everyone" />
-        {range !== 'day' && records.error && <span className="ft-small ft-warn-text">{records.error}</span>}
-        {range !== 'day' && (records.data?.pending ?? 0) > 0 && (
-          <span className="ft-small ft-muted">{records.data?.pending} {FT_RECORD_PENDING}</span>
-        )}
-      </div>
-      <div className="ft-columns">
-        <div className="ft-traders">
-          {day.traders.length === 0 && <div className="ft-empty">{FT_NO_TRADES}</div>}
-          {day.traders.map((t) => (
-            <TraderSection key={t.name} trader={t} record={recordFor(t.name, t.record)} isToday={isToday}
-              onAir={isToday && live && (c?.traders.includes(t.name) ?? false)} onProof={onProof} />
-          ))}
-        </div>
-        <ActivityFeed traders={day.traders} onProof={onProof} />
-      </div>
-    </>
+    </div>
   );
 }

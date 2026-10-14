@@ -1,6 +1,6 @@
 /** Small pieces the Followed traders page repeats: the side chip, a trader's photo, a record, a P/L, a result. */
 import { tipProps } from '../ux/hoverTip';
-import { FT_RESULT_LABELS, FT_UNSCORED_TIP } from './constants';
+import { FT_RESULT_WORDS, FT_UNSCORED_TIP } from './constants';
 import { FeedImage } from './FeedImage';
 import { plPct, plPerShare, plTone } from './format';
 import type { FollowedRecord, FollowedTrade, TradeResult } from './types';
@@ -10,7 +10,7 @@ export function SideChip({ side }: { side: 'long' | 'short' }) {
 }
 
 /** The trader's photo from the stream, or their name's first letter when the feed has none. */
-export function Face({ path, name, size = 'md' }: { path: string | null; name: string; size?: 'sm' | 'md' | 'lg' }) {
+export function Face({ path, name, size = 'md' }: { path: string | null; name: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
   if (!path) {
     return <span className={`ft-face ft-face--${size} ft-face--letter`} aria-hidden="true">{name.slice(0, 1)}</span>;
   }
@@ -42,19 +42,24 @@ export function RecordChips({ record, testId }: { record: FollowedRecord | null;
   );
 }
 
-export function PlCell({ trade }: { trade: FollowedTrade }) {
+/** P/L per share and %, stacked, or on one line (`inline`) in a closed trade's row. */
+export function PlCell({ trade, inline = false, big = false }: { trade: FollowedTrade; inline?: boolean; big?: boolean }) {
   const tone = plTone(trade.pl);
   return (
-    <span className={`ft-pl ft-pl--${tone}`}>
-      <span className="ft-mono">{plPerShare(trade.pl, trade.entry.avg_price)}</span>
-      {trade.pl && <span className="ft-pl__pct">{plPct(trade.pl)}</span>}
+    <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}${big ? ' ft-pl--big' : ''}`}>
+      <span className="ft-mono ft-pl__share">{plPerShare(trade.pl, trade.entry.avg_price)}</span>
+      {trade.pl && <span className="ft-mono ft-pl__pct">{plPct(trade.pl)}</span>}
     </span>
   );
 }
 
-/** Only the results colour cannot say: a scratch and an unscored trade. */
-export function ResultChip({ result }: { result: TradeResult | null }) {
-  if (result !== 'scratch' && result !== 'unscored') return null;
-  const tip = result === 'unscored' ? FT_UNSCORED_TIP : 'P/L exactly 0: left out of the win rate';
-  return <span className={`ft-result ft-result--${result}`} {...tipProps(tip)}>{FT_RESULT_LABELS[result]}</span>;
+const RESULT_TIPS: Partial<Record<TradeResult, string>> = {
+  scratch: 'P/L exactly 0: left out of the win rate',
+  unscored: FT_UNSCORED_TIP,
+};
+
+/** A closed trade's result in words: WIN, LOSS, SCRATCH or UNSCORED (the row's stripe is its colour). */
+export function ResultWord({ result }: { result: TradeResult | null }) {
+  const r = result ?? 'unscored';
+  return <span className={`ft-result-word ft-result-word--${r}`} {...tipProps(RESULT_TIPS[r] ?? null)}>{FT_RESULT_WORDS[r]}</span>;
 }

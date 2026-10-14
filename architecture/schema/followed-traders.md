@@ -36,7 +36,9 @@ Nova reads two routes of the feed and one folder of images, and nothing else:
     `bar_visible` false means the feed cannot see positions right now and holds them as last seen. `problem` (a
     string) and `problem_at` (ISO 8601) are optional: the feed's own words for why it cannot read, cleared on its
     next good read. A status holding only `problem` and `problem_at` (the feed stalled before its first read) is
-    read as not live, never read, with that problem;
+    read as not live, never read, with that problem. `video.id` is optional: the stream's YouTube video id, passed on
+    as `capture.video_id` only when it is 11 of `A-Za-z0-9_-` (anything else, or none, is no stream named -- never a
+    bad answer);
   - `trades[]`, one per open..close of a `(trader, side, symbol)`, in the order they opened: `{trader, side: "long" |
     "short", symbol, entry_price, price (the latest average the feed saw), entry_ts, entry_since_ts, entry_known,
     adds: [{ts, price, prev_price}], exit_ts, exit_since_ts, status: "open" | "closed" | "unknown",
@@ -88,13 +90,16 @@ line). Answers in about the feed's own time (the feed is asked with a
   `capture`, `prices` and `overall` are `null`, and `dates` and `traders` are empty: the page shows the state, never
   an empty list.
 - `date`, `today`, `dates[]`: the feed's.
-- `capture`: the feed's own status, `{live, clock, updated_at, age_sec, bar_visible, title, traders: string[],
+- `capture`: the feed's own status, `{live, clock, updated_at, age_sec, bar_visible, title, video_id, traders: string[],
   problem, problem_at, bar} | null`. `age_sec` is now minus `updated_at`; past `FOLLOWED_CAPTURE_STALE_SEC` (60) the
   page says the capture stopped, with `problem` as the reason when the feed gave one. `title` is the feed's
-  `status.video.title` and `problem` its own words, both shown as they are. `null` when the feed has no status.
+  `status.video.title` and `problem` its own words, both shown as they are. `video_id` is the stream's YouTube id
+  (above) or `null`. `null` when the feed has no status.
   `bar` is each trader's bar as the feed last confirmed it, `[{trader, positions: [{side, symbol, price}],
-  image: url | null}]` in the feed's order, `image` this API's `live` path when the feed names a slot image; `null`
-  when the feed reports no `status.positions`. It is the feed's now, whatever day is asked.
+  image: url | null, face: url | null}]` in the feed's order, `image` this API's `live` path when the feed names a
+  slot image, `face` this API's `faces` path for the trader's photo when the day answered is the feed's today and
+  the feed has one (so a trader on the bar with no trade that day still has a face); `null` when the feed reports
+  no `status.positions`. It is the feed's now, whatever day is asked.
 - `prices`: how open positions are priced right now, `{state: "live" | "past_day" | "replay_desk" | "ibkr_down" |
   "not_asked", why: string | null}`. `past_day`: the day shown is not the feed's today, so nothing is priced now.
   `replay_desk`: the desk is on a Sim replay, whose quotes are the recording's, never today's. `ibkr_down`: IBKR is
@@ -225,24 +230,45 @@ day or an IBKR that is not ready asks for none.
 
 ### On the desk
 
-The **Following** page, as the design canvas of 2026-10-13 drew it (held as a draft for the operator's approval). It
-asks `/day` every `FOLLOWED_REFRESH_MS` while it shows; images are fetched with the desk's API key into blob URLs
-(an `<img src>` cannot carry the key) and the live slot images again with each answer.
+The **Following** page, as the operator approved it on 2026-10-13 (mockup "E2", after "i dont want the freakin
+scrolling bar"): it fills the window with no page scrollbar -- a head row, one block per trader stacked top to bottom,
+and a right column with the stream above the Activity. It asks `/day` every `FOLLOWED_REFRESH_MS` while it shows;
+images are fetched with the desk's API key into blob URLs (an `<img src>` cannot carry the key) and the live slot
+images again with each answer.
 
-- **Head:** the capture pill (live with how far behind the stream and the bar's last read; positions off screen,
-  showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not answering
-  or not readable), the day (previous / a calendar / next; next and future days are disabled with why), and Alerts.
-  When open positions cannot be priced, one line says why (`prices.why`).
-- **On their bar right now** (the feed's today only): one card per trader in `capture.bar` -- the slot image (or the
-  newest evidence stand-in with its time) beside what was confirmed, `LONG JZ 1.55` / `SHORT none`.
-- **One section per trader** with a trade that day: photo (or first letter), name, on air when the feed's capture
-  lists them now, counts, and the record for the span picked once above the sections (Day from `/day`, Week and All
-  from `/record`), with the scratches and unscored beside it. **Holding now**: time in, ticker, side, entry, now,
-  unrealised P/L per share and %, held, proof. **Closed**: time in, time out, ticker, side, entry (the average with
-  the first price when the trader added), exit (a low-high range marked est. for a window), P/L, result, held,
-  proof. A time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored.
-- **Activity**, newest first, built from the day's trades: opened (or holding, already open when capture started),
-  added to (the average before and after), closed (held), each with its evidence image when the feed has one.
+- **Head**, one row: the capture pill (live with how far behind the stream and the bar's last read; positions off
+  screen, showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not
+  answering or not readable), the stream's title, **Watch live** (opens the player; disabled with why when the feed
+  names no stream), the record span (Day from `/day`, Week and All from `/record`) with everyone's record for it, the
+  day (previous / a calendar / next; next and future days are disabled with why), and Alerts. When open positions
+  cannot be priced, a chip says why (`prices.why`).
+- **One block per trader**: on the feed's today, everyone in `capture.bar` in the bar's order, then anyone else who
+  traded that day in the order of their first trade; on a past day, those who traded. The card: photo (the trader's
+  `face`, or the bar slot's; the name's first letter without one), name, on air or off air (today only), the record
+  for the span picked with the scratches and unscored beside it, and their slot image on the right (the live slot,
+  or the newest evidence stand-in labelled with its time, never passed off as now). A trader with a trade that day
+  has, under the card, **Holding now** on the left -- an OPEN tile per open position: ticker, side, entry -> now,
+  unrealised P/L per share and %, held, time in, proof -- and **Closed today** on the right: the count, won and lost,
+  and one row per closed trade, newest exit first, striped by its result (WIN green, LOSS red, scratch and unscored
+  grey): result, ticker, side, in -> out, entry (the average, with the first price when the trader added) -> exit
+  (IBKR's last trade at the exit; a low-high range marked est. for a window; reading the tape or waiting for IBKR;
+  no price, with why), P/L per share and %, held, proof. A past day reads "Open at the day's end" and "Closed". A
+  time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored. A trader with no
+  trade that day shows the card alone.
+- **When it does not fit**, closed rows drop to one line, then each trader's oldest closed trades fold into "+N
+  earlier closed trades", which opens them all over the stack; open tiles never shrink or fold. A window too small
+  even for that scrolls the stack rather than hide a trade.
+- **The stream**, above the Activity: the feed's video (`capture.video_id`) in an embedded YouTube player
+  (`youtube-nocookie.com`, muted to start), LIVE while the capture is live, mute / unmute, Pop out (a small window of
+  its own on the desktop, a browser tab elsewhere), close, and Open on YouTube (the system browser). It shows while
+  the feed names a stream; closed, it stays closed in that window (local storage, a per-window convenience) until
+  Watch live. A page loaded from a file (the installed desk) sends YouTube no Referer and YouTube refuses such an
+  embed, so the desktop app names Nova's site as the Referer on YouTube's player requests only
+  (`frontend/electron/streamPlayer.mjs`).
+- **Activity**, under the stream, newest first, one line per event built from the day's trades: time, photo, opened
+  (or holding, already open when capture started), added to (the average before and after), closed (held). No
+  screenshots: clicking an event opens its trade's Proof, which has them. Events that do not fit fold into "+N
+  earlier", which opens the whole list.
 - **Proof** of one trade: the entry and exit images, what was read at each (`/reads`), and every read in between
   that differed from the trade and was ignored. Nova never edits the feed: no button drops or confirms a trade.
 - **Calendar**: a month with a dot on each of the feed's `dates`, weekends dimmed, future days disabled; picking a
