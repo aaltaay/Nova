@@ -556,7 +556,10 @@ def test_route_day_refuses_a_bad_date(client):
 
 
 def test_route_day_unpriceable_symbol(client, monkeypatch):
-    _serve(monkeypatch, _raw_day([_trade(symbol="J8D?")]))
+    # The desk's own today, never a fixed date: a fixed 2026-10-13 read "past_day" from 04:00 ET on the 14th, and
+    # held v1297's release (2026-10-14).
+    today = routes.desk_day(time.time())[0]
+    _serve(monkeypatch, _raw_day([_trade(symbol="J8D?")], date=today, today=today))
     row = client.get("/api/followed-traders/day").json()["traders"][0]["open"][0]
     assert row["now"]["state"] == "no_line" and "not a ticker" in row["now"]["why"]
 
