@@ -5,6 +5,8 @@
  * runs, or a read failed. Only the backend's own `unavailable` answer is final: a request that failed (a backend
  * restarting, a dropped connection) is asked again every `LEADERBOARD_SECONDS_POLL_MS`, and nothing is read until
  * one lands -- the ask is what rebuilds a day whose board changed, so a read before it could show the old build.
+ * A read answering `none` after an accepted ask (the build is of a rebuilt day since replaced) asks again, and a
+ * ready list is read again every `LEADERBOARD_SECONDS_RECHECK_MS` even with the playhead paused.
  * Recorded days, Live and Paper ask nothing. `withGappersBySecond` decides what the Scanner shows.
  */
 import { useEffect, useState } from 'react';
@@ -12,6 +14,7 @@ import { replayRequest } from '../sim';
 import { type GappersBySecondAnswer, gappersBySecondDay } from './gappersBySecond';
 import {
   LEADERBOARD_SECONDS_POLL_MS,
+  LEADERBOARD_SECONDS_RECHECK_MS,
   LEADERBOARD_SECONDS_REQUEST_FAILED,
   leaderboardSecondsAtPath,
   leaderboardSecondsPath,
@@ -92,6 +95,22 @@ export function useGappersBySecond(replay: ScannerReplay | null): GappersBySecon
     const timer = window.setInterval(() => setPoll(n => n + 1), LEADERBOARD_SECONDS_POLL_MS);
     return () => window.clearInterval(timer);
   }, [waiting]);
+
+  // A read that answers `none` after the ask was accepted is a build of a rebuilt day since replaced: ask again,
+  // which builds it again. A ready list is read again now and then even with the playhead paused, so that answer
+  // can come.
+  const replaced = readable && read?.date === date && read.error == null && status === 'none';
+  useEffect(() => {
+    if (!replaced) return undefined;
+    const timer = window.setTimeout(() => setAskAgain(n => n + 1), LEADERBOARD_SECONDS_POLL_MS);
+    return () => window.clearTimeout(timer);
+  }, [replaced]);
+  const ready = readable && status === 'ready';
+  useEffect(() => {
+    if (!ready) return undefined;
+    const timer = window.setInterval(() => setPoll(n => n + 1), LEADERBOARD_SECONDS_RECHECK_MS);
+    return () => window.clearInterval(timer);
+  }, [ready]);
 
   return { latest, second };
 }

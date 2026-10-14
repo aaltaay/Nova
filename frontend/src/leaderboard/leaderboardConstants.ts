@@ -197,6 +197,8 @@ export const leaderboardSecondsAtPath = (date: string, at: number): string =>
 export const LEADERBOARD_SECONDS_REQUEST_FAILED = 'Gappers by the second request failed';
 /** While a build is asked for or runs, its state is read again this often, even with the playhead paused. */
 export const LEADERBOARD_SECONDS_POLL_MS = 2_000;
+/** A ready list is read again this often with the playhead paused: the backend re-checks the rebuilt day as often. */
+export const LEADERBOARD_SECONDS_RECHECK_MS = 30_000;
 /** An answer at most this many seconds behind the playhead stands while the next one loads (plain playback). */
 export const LEADERBOARD_SECONDS_KEEP_SEC = 2;
 export const LEADERBOARD_SECONDS_TITLE =

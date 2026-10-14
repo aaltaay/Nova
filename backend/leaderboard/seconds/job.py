@@ -42,8 +42,10 @@ _BACKEND_DIR = Path(__file__).resolve().parents[2]
 _lock = threading.RLock()
 _running: dict[str, "_Handle"] = {}
 
-# The stored rebuilt day's fingerprint per day: (read at, fingerprint), reused for FINGERPRINT_TTL_SEC.
+# The stored rebuilt day's fingerprint per day: (read at, fingerprint), reused for FINGERPRINT_TTL_SEC and then
+# read again in the background, so a read of the list never waits on it (about a second).
 _fingerprints: dict[str, tuple[float, str | None]] = {}
+_refreshing: set[str] = set()
 STALE = "The rebuilt day changed since this was built; asking again builds it again"
 
 RECORDED = ("Nova recorded this day: its Gappers are the list the desk showed, kept per minute")
@@ -212,13 +214,30 @@ def _stored_fingerprint(day: str) -> str | None:
 
 
 def current(job: dict[str, Any], day: str) -> bool:
-    """Whether a ready job was built from the rebuilt day as it is stored now (checked at most every TTL)."""
+    """Whether a ready job was built from the rebuilt day as it is stored now. The first check of a day reads the
+    store; later ones use the last reading and, once it is older than the TTL, start a new one in the background."""
     held = _fingerprints.get(day)
-    if held is None or time.monotonic() - held[0] > LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC:
+    if held is None:
         mark = _stored_fingerprint(day)
     else:
         mark = held[1]
+        if time.monotonic() - held[0] > LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC:
+            with _lock:
+                start = day not in _refreshing
+                _refreshing.add(day)
+            if start:
+                threading.Thread(target=_refresh, args=(day,), daemon=True, name="board-seconds-check").start()
     return job.get("fingerprint") == mark
+
+
+def _refresh(day: str) -> None:
+    try:
+        _stored_fingerprint(day)
+    except Exception:  # the last reading stands; logged, and the next read starts another
+        logger.warning("Gappers by the second: could not re-read the stored day %s", day, exc_info=True)
+    finally:
+        with _lock:
+            _refreshing.discard(day)
 
 
 def status(day: str) -> dict[str, Any]:
@@ -284,3 +303,4 @@ def reset_for_tests() -> None:
     with _lock:
         _running.clear()
     _fingerprints.clear()
+    _refreshing.clear()

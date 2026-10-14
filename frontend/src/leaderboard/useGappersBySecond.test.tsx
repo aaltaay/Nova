@@ -106,6 +106,32 @@ describe('useGappersBySecond', () => {
     expect(result.current.latest?.answer?.secondTs).toBe(epoch('07:45:58'));
   });
 
+  it('a read saying the build is of a replaced day asks again, and a paused ready list is re-read', async () => {
+    let posts = 0;
+    let replaced = false;
+    const answer = mocks.fetch.getMockImplementation();
+    mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') posts += 1;
+      if (init?.method !== 'POST' && replaced) {
+        return { ok: true, status: 200, text: async () => JSON.stringify({ date: '2026-09-01', status: 'none',
+          reason: 'The rebuilt day changed since this was built; asking again builds it again' }) };
+      }
+      return answer?.(url, init);
+    });
+    setClock('07:45:58');
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { result } = renderHook(() => useGappersBySecond(board('reconstructed')));
+    await waitFor(() => expect(result.current.latest?.answer?.status).toBe('ready'));
+    expect(posts).toBe(1);
+    replaced = true;
+    const reads = calls().filter(call => call.startsWith('GET')).length;
+    await act(async () => { vi.advanceTimersByTime(30_100); });       // paused: re-read after 30 s
+    await waitFor(() => expect(calls().filter(call => call.startsWith('GET')).length).toBeGreaterThan(reads));
+    await waitFor(() => expect(result.current.latest?.answer?.status).toBe('none'));
+    await act(async () => { vi.advanceTimersByTime(2_100); });        // ... which asks for the build again
+    await waitFor(() => expect(posts).toBe(2));
+  });
+
   it('while the build runs it reads again with the playhead paused', async () => {
     readStatus = 'building';
     setClock('07:45:58');

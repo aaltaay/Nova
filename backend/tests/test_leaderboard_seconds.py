@@ -443,8 +443,25 @@ def test_a_build_of_a_rebuilt_day_since_replaced_is_never_read(day, monkeypatch)
                    (ts("07:45"),))
         db.commit()
     monkeypatch.setattr(job, "LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC", 0.0)
+    playback.answer(DAY, ts("07:45:00"))                 # the old reading answers; a new one starts behind it
+    end = time.monotonic() + 10
+    while job._refreshing and time.monotonic() < end:
+        time.sleep(0.02)
     answer = playback.answer(DAY, ts("07:45:00"))
     assert answer["status"] == "none" and answer["reason"] == job.STALE and answer["rows"] == []
+
+
+@pytest.mark.parametrize("column, value", [("prev_close", 1.01), ("rank", 7), ("volume", 999.0)])
+def test_the_fingerprint_sees_every_field_a_build_reads(day, column, value):
+    db = board_store.read_only()
+    before = inputs.fingerprint(db, DAY)
+    db.close()
+    with board_store.connect() as db:
+        db.execute(f"UPDATE rows SET {column} = ? WHERE symbol = 'AAA' AND minute_ts = ?", (value, ts("07:45")))
+        db.commit()
+    db = board_store.read_only()
+    assert inputs.fingerprint(db, DAY) != before
+    db.close()
 
 
 def test_a_failed_bootstrap_still_ends_the_build_on_shutdown(monkeypatch):
