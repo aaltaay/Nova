@@ -43,7 +43,8 @@ describe('FollowedTradersPage', () => {
       asked.push(url.pathname + url.search);
       const other = extra(url);
       if (other) return other;
-      if (url.pathname.endsWith('.jpg')) return new Response(new Blob(['jpeg']), { status: 200 });
+      // A string body: Node 20's fetch cannot read jsdom's Blob ("object.stream is not a function").
+      if (url.pathname.endsWith('.jpg')) return new Response('jpeg', { status: 200, headers: { 'content-type': 'image/jpeg' } });
       if (url.pathname === '/api/followed-traders/day') {
         return typeof dayAnswer === 'function' ? dayAnswer() : new Response(JSON.stringify(dayAnswer));
       }
@@ -247,7 +248,7 @@ describe('FollowedTradersPage', () => {
     await hover(q('ft-proof-c1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
     const peek = card('c1')!;
     expect(peek.textContent).toContain('ALPHA');
-    // The screenshots load after the card shows; how long that takes varies by machine.
+    // The screenshots load after the card shows.
     await act(async () => {
       await vi.waitFor(() => {
         expect(peek.querySelector('img[alt="ALPHA\'s position bar at the entry"]')).not.toBeNull();
