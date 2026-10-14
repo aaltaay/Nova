@@ -69,6 +69,13 @@ def cmd_status(args) -> int:
     for dataset, row in out["datasets"].items():
         indexed = f"  indexed {row['indexed']:>5} of {row['days']}" if "indexed" in row else ""
         print(f"  {dataset:<15} {row['days']:>5} days  {row['first']} .. {row['last']}{indexed}")
+    build = out.get("index_build")
+    if build:
+        print(f"Index build: {build.get('state')}  {build.get('done_gb')} of {build.get('total_gb')} GB, "
+              f"{build.get('failed')} failed" + (f", about {build['hours_left']} h left"
+                                                if build.get("state") == "running" else "")
+              + (f"\n  why: {build['reason']}" if build.get("reason") else "")
+              + (f"\n  ({build['error']})" if build.get("error") else ""))
     movers, boards = out["movers_index"], out["boards"]
     print(f"Day movers index: {movers.get('sessions', 0)} sessions  {movers.get('first')} .. {movers.get('last')}"
           + (f"  ({movers['error']})" if movers.get("error") else ""))
@@ -88,7 +95,8 @@ def cmd_index(args) -> int:
     stage = Path(args.stage) if args.stage else None
     return 1 if inventory.build_indexes(datasets, workers=args.workers, read_mb=args.read_mb, start=args.start,
                                         end=args.end, oldest_first=args.oldest_first, stage=stage,
-                                        stage_gb=args.stage_gb) else 0
+                                        stage_gb=args.stage_gb, ram_floor_gb=args.ram_floor_gb,
+                                        streak_halt=args.halt_after) else 0
 
 
 def _adjusted(frame, args):
@@ -163,6 +171,10 @@ def main(argv: list[str] | None = None) -> int:
     index.add_argument("--start", help="first day (YYYY-MM-DD)")
     index.add_argument("--end", help="last day (YYYY-MM-DD)")
     index.add_argument("--oldest-first", action="store_true")
+    index.add_argument("--ram-floor-gb", type=float, default=inventory.index_watch.RAM_FLOOR_GB,
+                       help="a build starts only with this much memory free; none for 10 min halts the run")
+    index.add_argument("--halt-after", type=int, default=inventory.index_watch.FAILURE_STREAK_HALT,
+                       help="this many failed builds in a row halt the run (with a Windows notification)")
 
     def output(p):
         p.add_argument("--out", help="write the table to this .parquet or .csv file")

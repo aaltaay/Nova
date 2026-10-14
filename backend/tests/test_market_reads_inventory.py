@@ -3,6 +3,7 @@ saved counts as a failure, so ``tools/market_data.py index`` never reports "0 fa
 from __future__ import annotations
 
 import gzip
+import json
 import sys
 from pathlib import Path
 
@@ -149,3 +150,72 @@ def test_a_staged_bulk_build_indexes_every_day_and_leaves_no_copies(tmp_path, mo
     assert all(massive_index.is_current(path, root) for path in inventory.day_files("trades_v1"))
     assert not list(left.iterdir())
     assert "index: finished, 0 failed" in (root / "sim" / "index" / inventory.INDEX_LOG).read_text(encoding="utf-8")
+    status = json.loads((root / "sim" / "index" / index_watch.STATUS_FILE).read_text(encoding="utf-8"))
+    assert status["state"] == "finished" and status["built"] == 20 and status["failed"] == 0
+
+
+# ---- the watchdog (index_watch, 2026-10-13: 191 failures and a run short of memory, seen by nobody) ------------
+from market_reads import index_watch  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_notifications(monkeypatch):
+    monkeypatch.setenv(index_watch.ALERTS_ENV, "0")
+
+
+def _watch(tmp_path, streak_halt=3):
+    stop = tmp_path / inventory.INDEX_STOP
+    return index_watch.Watch(tmp_path, stop, files=10, total_bytes=10 * 10**9, workers=2,
+                             streak_halt=streak_halt), stop
+
+
+def test_failures_in_a_row_halt_the_run_and_say_why(tmp_path, monkeypatch):
+    alerts = []
+    monkeypatch.setattr(index_watch, "alert", lambda title, body: alerts.append(title))
+    watch, stop = _watch(tmp_path)
+    watch.failed("ZranError: zran_init returned error")
+    assert not watch.halted.is_set() and alerts == ["Nova index build: a day file failed"]   # the first, at once
+    watch.built("a", 10**9, 1e8, 60)                                                        # a success resets it
+    for _ in range(3):
+        watch.failed("ZranError: zran_init returned error")
+    assert watch.halted.is_set() and stop.exists() and "3 builds failed in a row" in stop.read_text(encoding="utf-8")
+    assert alerts[-1] == "Nova index build halted"
+    status = index_watch.read_status(tmp_path)
+    assert status["state"] == "running" and status["failed"] == 4 and "in a row" in status["reason"]
+    watch.finish("halted", 6)
+    assert index_watch.read_status(tmp_path)["state"] == "halted"
+
+
+def test_a_run_whose_process_is_gone_reads_as_died(tmp_path):
+    watch, _ = _watch(tmp_path)
+    path = tmp_path / index_watch.STATUS_FILE
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["pid"] = 2**22 + 7                                   # no such process
+    path.write_text(json.dumps(data), encoding="utf-8")
+    status = index_watch.read_status(tmp_path)
+    assert status["state"] == "died" and "no stop or finish recorded" in status["reason"]
+
+
+def test_an_unknown_status_schema_is_said_not_read(tmp_path):
+    (tmp_path / index_watch.STATUS_FILE).write_text(json.dumps({"schema_version": 99, "state": "running"}))
+    assert index_watch.read_status(tmp_path)["state"] == "unreadable"
+
+
+def test_a_build_without_free_memory_never_starts(day_file, monkeypatch):
+    monkeypatch.setattr(index_watch, "wait_for_ram", lambda *a: False)
+    assert inventory._build_one(str(day_file), 1 << 20)[1] == inventory.LOW_RAM
+    assert not massive_index.is_current(day_file, day_file.parents[3])
+
+
+def test_waiting_for_memory_ends_on_stop(tmp_path, monkeypatch):
+    monkeypatch.setattr(index_watch, "free_ram", lambda: 1)
+    monkeypatch.setattr(index_watch, "RAM_POLL_SEC", 0.01)
+    stop = tmp_path / "STOP"
+    assert index_watch.wait_for_ram(3.0, 0.05, stop) is False
+    stop.write_text("")
+    assert index_watch.wait_for_ram(3.0, 10.0, stop) is True
+
+
+def test_free_memory_is_read_on_this_os():
+    free = index_watch.free_ram()
+    assert free is None or free > 0
