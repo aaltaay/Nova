@@ -34,13 +34,16 @@ def _alert(alert_id: str, created_ts: float) -> dict:
 
 def test_a_day_with_no_snapshot_is_not_recorded():
     body = _client().get(f"/api/hod-momo/history/2026-07-15?until={RAISED}").json()
-    assert body == {"date": "2026-07-15", "recorded": False, "alerts": [], "error": None}
+    rebuild = body.pop("rebuild")
+    assert body == {"date": "2026-07-15", "recorded": False, "source": None, "alerts": [], "error": None}
+    # Nothing rebuilt yet: the rebuild says so (hod_momo_rebuild), never "no alerts raised".
+    assert rebuild["status"] == "none"
 
 
 def test_a_recorded_day_with_no_alert_yet_is_recorded_and_empty():
     cache.save_hod_momo_snapshot_for_date(DAY, [], RAISED)
     body = _client().get(f"/api/hod-momo/history/{DAY}?until={RAISED}").json()
-    assert body == {"date": DAY, "recorded": True, "alerts": [], "error": None}
+    assert body == {"date": DAY, "recorded": True, "source": "recorded", "alerts": [], "error": None, "rebuild": None}
 
 
 def test_a_recorded_day_keeps_only_the_alerts_raised_by_the_playhead():

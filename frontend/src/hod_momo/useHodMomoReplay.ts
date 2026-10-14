@@ -10,7 +10,15 @@
  * visible alerts changes.
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { HOD_HISTORY_REQUEST_FAILED, LEADERBOARD_PLAYBACK_RETRY_MS, hodMomoHistoryPath } from '../leaderboard/leaderboardConstants';
+import {
+  HOD_HISTORY_REQUEST_FAILED,
+  HOD_REBUILD_ASK_AGAIN_MS,
+  HOD_REBUILD_POLL_MS,
+  HOD_REBUILD_REQUEST_FAILED,
+  LEADERBOARD_PLAYBACK_RETRY_MS,
+  hodMomoHistoryPath,
+  hodMomoRebuildPath,
+} from '../leaderboard/leaderboardConstants';
 import { boardMinuteEnd, playheadSecond, useSimPlayheadMinute, useSimVenue } from '../leaderboard/simPlayhead';
 import { replayRequest } from '../sim/replayRequest';
 import { simClockResource } from '../sim/simClockResource';
@@ -29,6 +37,22 @@ export interface HodMomoReplayState {
    * read answers, or from an older backend's bare list, which never said.
    */
   recorded: boolean | null;
+  /** `rebuilt`: the alerts are the day's rebuild (Nova kept no record); `recorded`: Nova's own; null: none to show. */
+  source: HodHistorySource;
+  /** Where the rebuild of a day with no record is (null on a recorded day, or before the first read answers). */
+  rebuild: HodRebuildState | null;
+}
+
+export type HodHistorySource = 'recorded' | 'rebuilt' | null;
+
+/** The history route's `rebuild`: the rebuild job's state, or why there is none. */
+export interface HodRebuildState {
+  status: string;
+  reason: string | null;
+  stage: string | null;
+  done: number | null;
+  total: number | null;
+  error: string | null;
 }
 
 export interface HodMomoReplay {
@@ -57,17 +81,53 @@ export function parseHodHistory(raw: unknown): AlertObject[] {
   return uniqueAlerts(alerts).filter(a => alertRaisedAt(a) != null);
 }
 
+const text = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+const count = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/** The body's `rebuild`, or null when it has none (a recorded day, an older backend). */
+export function parseHodRebuild(raw: unknown): HodRebuildState | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const status = text(r.status);
+  if (!status) return null;
+  return { status, reason: text(r.reason), stage: text(r.stage), done: count(r.done), total: count(r.total), error: text(r.error) };
+}
+
+export interface HodHistoryDay {
+  recorded: boolean | null;
+  source: HodHistorySource;
+  rebuild: HodRebuildState | null;
+  alerts: AlertObject[];
+}
+
 /**
- * The history body `{date, recorded, alerts, error}`: whether Nova kept a HOD Momo record
- * of the day (null from a bare list), and its alerts. A snapshot on file that could not be
- * read (`error`) throws, so the strip says it did not load rather than "No alerts raised".
+ * The history body `{date, recorded, source, alerts, error, rebuild}`: whether Nova kept a HOD Momo
+ * record of the day (null from a bare list), where the alerts come from, and the rebuild's state. A
+ * snapshot on file that could not be read (`error`) throws, so the strip says it did not load rather
+ * than "No alerts raised".
  */
-export function parseHodHistoryDay(raw: unknown): { recorded: boolean | null; alerts: AlertObject[] } {
+export function parseHodHistoryDay(raw: unknown): HodHistoryDay {
   const body = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as { recorded?: unknown; error?: unknown }
+    ? raw as { recorded?: unknown; error?: unknown; source?: unknown; rebuild?: unknown }
     : null;
   if (body && typeof body.error === 'string' && body.error) throw new Error(body.error);
-  return { recorded: typeof body?.recorded === 'boolean' ? body.recorded : null, alerts: parseHodHistory(raw) };
+  const source = body?.source === 'recorded' || body?.source === 'rebuilt' ? body.source : null;
+  return {
+    recorded: typeof body?.recorded === 'boolean' ? body.recorded : null,
+    source,
+    rebuild: parseHodRebuild(body?.rebuild),
+    alerts: parseHodHistory(raw),
+  };
+}
+
+/** A rebuild that should be asked for: never asked, out of date, or stopped before it finished. */
+export function rebuildWanted(rebuild: HodRebuildState | null): boolean {
+  return rebuild != null && (rebuild.status === 'none' || rebuild.status === 'stopped');
+}
+
+/** A rebuild still running: its state is read again until it ends. */
+export function rebuildRunning(rebuild: HodRebuildState | null): boolean {
+  return rebuild != null && (rebuild.status === 'queued' || rebuild.status === 'building');
 }
 
 /** Oldest first, so the alerts raised by a moment are a prefix. */
@@ -85,9 +145,17 @@ export function countRaisedBy(ascending: readonly AlertObject[], at: number | nu
 
 interface Loaded {
   date: string; minute: number; alerts: AlertObject[]; recorded: boolean | null; loading: boolean; error: string | null;
+  source: HodHistorySource; rebuild: HodRebuildState | null;
 }
 
 const noSubscription = () => () => {};
+// When each day's rebuild was last asked for: every strip shares one ask.
+const lastAsked = new Map<string, number>();
+const askedAt = (date: string): number => lastAsked.get(date) ?? 0;
+
+export function resetHodRebuildAsksForTests(): void {
+  lastAsked.clear();
+}
 const NONE: AlertObject[] = [];
 
 export function useHodMomoReplay(): HodMomoReplay | null {
@@ -111,6 +179,8 @@ export function useHodMomoReplay(): HodMomoReplay | null {
       minute,
       alerts: prev?.date === date ? prev.alerts : NONE,
       recorded: prev?.date === date ? prev.recorded : null,
+      source: prev?.date === date ? prev.source : null,
+      rebuild: prev?.date === date ? prev.rebuild : null,
       loading: true,
       error: null,
     }));
@@ -119,10 +189,13 @@ export function useHodMomoReplay(): HodMomoReplay | null {
         if (controller.signal.aborted) return;
         try {
           const day = parseHodHistoryDay(raw);
-          setLoaded({ date, minute, alerts: sortByRaised(day.alerts), recorded: day.recorded, loading: false, error: null });
+          setLoaded({
+            date, minute, alerts: sortByRaised(day.alerts), recorded: day.recorded, source: day.source,
+            rebuild: day.rebuild, loading: false, error: null,
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          setLoaded({ date, minute, alerts: NONE, recorded: null, loading: false, error: message });
+          setLoaded({ date, minute, alerts: NONE, recorded: null, source: null, rebuild: null, loading: false, error: message });
         }
       })
       .catch((error: unknown) => {
@@ -133,6 +206,8 @@ export function useHodMomoReplay(): HodMomoReplay | null {
           minute,
           alerts: prev?.date === date ? prev.alerts : NONE,
           recorded: prev?.date === date ? prev.recorded : null,
+          source: prev?.date === date ? prev.source : null,
+          rebuild: prev?.date === date ? prev.rebuild : null,
           loading: false,
           error: message,
         }));
@@ -143,6 +218,30 @@ export function useHodMomoReplay(): HodMomoReplay | null {
       window.clearTimeout(retry);
     };
   }, [date, minute, attempt]);
+
+  // A day with no record: ask for its rebuild, and read the history again while it runs.
+  const rebuild = loaded && loaded.date === date && !loaded.loading ? loaded.rebuild : null;
+  const wanted = rebuildWanted(rebuild);
+  const running = rebuildRunning(rebuild);
+  useEffect(() => {
+    if (date == null || (!wanted && !running)) return undefined;
+    const controller = new AbortController();
+    let timer: number | undefined;
+    if (wanted && askedAt(date) + HOD_REBUILD_ASK_AGAIN_MS <= Date.now()) {
+      lastAsked.set(date, Date.now());
+      replayRequest<unknown>(hodMomoRebuildPath(date), { method: 'POST', signal: controller.signal }, HOD_REBUILD_REQUEST_FAILED)
+        .catch(() => undefined)            // the next read says the rebuild's state; a failed ask is asked again then
+        .finally(() => {
+          if (!controller.signal.aborted) setAttempt(n => n + 1);
+        });
+    } else {
+      timer = window.setTimeout(() => setAttempt(n => n + 1), wanted ? HOD_REBUILD_ASK_AGAIN_MS : HOD_REBUILD_POLL_MS);
+    }
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [date, wanted, running, rebuild]);
 
   const ascending = loaded && loaded.date === date ? loaded.alerts : NONE;
   const sim = useSimVenue();
@@ -159,9 +258,13 @@ export function useHodMomoReplay(): HodMomoReplay | null {
   const loading = !loaded || loaded.date !== date || loaded.minute !== minute || loaded.loading;
   const error = loaded && loaded.date === date ? loaded.error : null;
   const recorded = loaded && loaded.date === date ? loaded.recorded : null;
+  const source = loaded && loaded.date === date ? loaded.source : null;
+  const shownRebuild = loaded && loaded.date === date ? loaded.rebuild : null;
   const state = useMemo<HodMomoReplayState | null>(
-    () => (date != null && minute != null ? { date, minute, loading, error, recorded } : null),
-    [date, minute, loading, error, recorded],
+    () => (date != null && minute != null
+      ? { date, minute, loading, error, recorded, source, rebuild: shownRebuild }
+      : null),
+    [date, minute, loading, error, recorded, source, shownRebuild],
   );
   return useMemo(() => (state ? { state, alerts } : null), [state, alerts]);
 }

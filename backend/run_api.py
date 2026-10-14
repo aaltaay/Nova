@@ -89,6 +89,11 @@ def main() -> None:
         from leaderboard.seconds.worker import main as board_seconds_main
 
         raise SystemExit(board_seconds_main(sys.argv[1:]))
+    if "--hod-rebuild" in sys.argv:
+        # A rebuilt day's HOD Momo alerts, built out of the API process (hod_momo_rebuild/worker.py).
+        from hod_momo_rebuild.worker import main as hod_rebuild_main
+
+        raise SystemExit(hod_rebuild_main(sys.argv[1:]))
     import uvicorn
 
     host = os.environ.get("NOVA_API_HOST", "127.0.0.1")

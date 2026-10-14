@@ -22,7 +22,7 @@ from constants_leaderboard import (
 )
 
 
-def _lower_priority() -> None:
+def lower_priority() -> None:
     try:
         if sys.platform == "win32":
             import ctypes
@@ -34,7 +34,7 @@ def _lower_priority() -> None:
         logging.getLogger(__name__).warning("board seconds: could not lower its priority", exc_info=True)
 
 
-def _cap_memory() -> int | None:
+def cap_memory() -> int | None:
     """Cap the build's committed memory; the cap in MB, or None when there is none (logged, never assumed)."""
     log = logging.getLogger(__name__)
     raw = os.environ.get(LEADERBOARD_SECONDS_MEMORY_ENV, "").strip()
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--board-seconds", action="store_true")
     parser.add_argument("--date", required=True)
     args = parser.parse_args(argv)
-    _lower_priority()
+    lower_priority()
     try:
         from paths import log_dir
 
@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
                             format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     except Exception:
         logging.basicConfig(level=logging.INFO)
-    cap_mb = _cap_memory()
+    cap_mb = cap_memory()
     from leaderboard.seconds import run, store
 
     log = logging.getLogger("leaderboard.seconds.worker")

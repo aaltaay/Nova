@@ -507,6 +507,60 @@ reads the Gappers list each playhead second while it is ready, and keeps the
 minute board until then; its header says `· by the second` on Gappers, or the
 build's progress while it runs. Gainers, Losers and After Hours stay per minute.
 
+**A rebuilt day's HOD Momo alerts** (ADR 023 amendment 2026-10-14; operator report: Sim on 2026-08-12, a
+Massive-rebuilt day, and the HOD strip empty -- "I wanted to feed it from the correct pipeline so it behaves like
+real life. That's the entire point of the simulation"). A day Nova kept no HOD Momo record of is rebuilt by HOD
+Momo's own engine (`hod_momo.on_trade_update`), fed what it would have been fed live. Owner
+`backend/hod_momo_rebuild/`. Built once per day on the desk's request, in its own process (`python -m
+hod_momo_rebuild.worker --date D` / `nova-api.exe --hod-rebuild --date D`, below normal priority, the Gappers-by-the-
+second memory cap), one day at a time; asking for another day, or the backend shutting down, ends it (`stopped`).
+- **Who is watched** (`watch.py`): live HOD Momo evaluates only its active set, `hod_momo_active.build_active_set`
+  over the Gappers, Gainers and After Hours lists (ADR 008). Each minute the same function runs over that minute's
+  rebuilt boards -- `gappers`, `afterhours`, and `market` in the Gainers place cut to the live scan's 50 rows
+  (`HOD_MOMO_REBUILD_GAINER_ROWS`) -- and a stock holds an L1 line for the minutes it is in the set. The reserved
+  block (the bot's stocks, the hot list, Former Momo) was the operator's that day and is not on file: it stays
+  empty, so live movers have every slot.
+- **What it hears** (`ticks.py`): IBKR's L1 line conflates prints, one last-price tick per
+  `HOD_MOMO_REBUILD_L1_TICK_SEC` (0.25 s). From the day's Massive trades (`inputs.TradeRead`, cancels and errors
+  left out), each interval holding a price-setting print (`massive_files.sets_price`) gives one tick at the
+  interval's end, its last price, with the day's volume (every trade) and the day's high (every price-setting
+  print) so far. Ticks only while the stock holds a line; volume and high run all day, as IBKR's day counters do.
+- **What it knows** (`daily.py`), set when a stock first gets a line, as production seeds a new name: the
+  session-high floor from its minute bars closed by then (built from the same prints) and its prior close (the
+  rebuilt row's); the surge buffer from those bars; average volume -- the mean whole-session day-bar volume over the
+  63 sessions before the day (Yahoo's `averageVolume` is a 3-month average) -- and the 52-week high -- the highest
+  day-bar high over the 252 sessions before the day, never the day's own -- from Massive's `day_aggs`,
+  split-adjusted with Massive's list plus the SEC-confirmed splits; the float is **Yahoo's float now**
+  (`fundamentals.fetch_fundamentals`), because that is what the live desk reads and no float as of a past day is on
+  file (`float_basis: "yahoo_now"`; an unknown float stays unknown). Change is measured from the prior close on
+  every tick; the gap from 09:30, from the day's day-bar open, as IBKR's open tick exists only from the open.
+- **The engine** runs with the operator's HOD settings and blocklist and nothing else of today's, on a clock pinned
+  to each tick (`hod_momo_replay.pinned_clock`); its consolidation queue is flushed at every tick, as the live
+  0.25 s flush loop does. It never writes the live desk's HOD files: every `save_hod_momo*` and the alert writer are
+  no-ops for the run (`engine.no_saves`).
+
+Persisted state (persisted-state.mdc). Owner `hod_momo_rebuild/store.py`, the only writer, under `<leaderboard
+root>/hod_momo/`, each file written whole (temp, rename): `<date>.alerts.json` `{schema_version: 1, date,
+built_ts, fingerprint, float_basis, summary, alerts}` -- `alerts` oldest first in `alert_to_dict`'s shape;
+`summary` `{watched, watched_minutes, prints, ticks, alerts, pending_unflushed, with_float, with_avg_volume,
+with_52wk_high, index, build_sec}` -- and `<date>.job.json` `{schema_version: 1, date, status: "queued" |
+"building" | "ready" | "failed" | "stopped", stage: "inputs" | "index" | "trades" | "engine" | "writing" | null,
+done, total, started_ts, updated_ts, finished_ts, error, summary, fingerprint}` (`done` / `total`: stocks while
+reading trades, ticks while running the engine). `fingerprint` is `<logic version>:<boards>:<settings>` -- a SHA-256
+over every `gappers` / `afterhours` / top-50 `market` row of the day and one over the HOD settings as
+`/api/hod-momo/config` serves them plus the blocklist -- so a build reads out of date when the rebuilt boards, the
+operator's HOD settings or `HOD_MOMO_REBUILD_LOGIC_VERSION` change, and is built again when asked. An unknown
+`schema_version` (either file) is never read. A `building` job not rewritten for `HOD_MOMO_REBUILD_STALE_SEC`
+belonged to a process that died and reads `failed`.
+
+**Route.** `POST /api/hod-momo/history/{date}/rebuild` asks for it: the job, or `{status: "unavailable",
+reason}` -- Nova recorded HOD Momo that day, the day has no rebuilt boards, or its Massive trades or day-bar file is
+not on disk. The history route serves the rebuilt alerts ("Routes" below). On the desk, a Sim day whose history
+says `recorded: false` asks for the rebuild (again at most every 5 s while it reads `none` or `stopped`, never after
+`failed`), reads the history every 2 s while it runs, and says so on the strip, the Focus rail and the count
+("Rebuilding HOD Momo alerts from D's trades: running HOD Momo 40%…"); a rebuilt day's feed word is `rebuilt
+HH:MM`, its title naming the source and the float.
+
 **Many days at once** (2026-10-12). The live recorder gives up on a write after
 `LEADERBOARD_SQLITE_TIMEOUT_SEC` and loses that batch (`leaderboard/queue.py`),
 so a many-day rebuild never writes the store directly while the desk records:
@@ -568,12 +622,17 @@ Scanner's Catalysts tab says so in Sim). `GET /api/leaderboard/{date}/coverage?s
 `{date, source, session_open, session_close, spans: [[start, end], ...],
 gaps: [{start, end, reason}]}` (whole epoch seconds). `GET
 /api/leaderboard/{date}/halts?until=<epoch>` -> `{date, events[]}`. `GET
-/api/hod-momo/history/{date}` -> `{date, recorded, alerts, error}` and
-accepts `?until=<epoch>` (alerts raised at or before it, by `created_ts`, else
-`timestamp`). `recorded` is `false` when Nova holds no HOD Momo snapshot for the
-day -- it kept no HOD Momo record then (a Massive-rebuilt day has its boards,
-never its alerts) -- and the strip and its count say that absence, never "No
-alerts raised" or "0 alerts" (operator rule, 2026-10-12). `true` with no alerts
+/api/hod-momo/history/{date}` -> `{date, recorded, source, alerts, error,
+rebuild}` and accepts `?until=<epoch>` (alerts raised at or before it, by
+`created_ts`, else `timestamp`). `recorded` is `false` when Nova holds no HOD
+Momo snapshot for the day -- it kept no HOD Momo record then -- and such a day
+serves its rebuilt alerts once their rebuild is ready and current ("A rebuilt
+day's HOD Momo alerts" above): `source` is `recorded`, `rebuilt`, or `null`
+when there are none to show; `rebuild` is `null` on a recorded day, else
+`{status: "none" | "queued" | "building" | "ready" | "failed" | "stopped" |
+"unavailable", reason, stage, done, total, error, summary, float_basis}`. Until
+one is ready the strip and its count say the rebuild's progress, failure or
+absence, never "No alerts raised" or "0 alerts" (operator rule, 2026-10-12). `true` with no alerts
 is a recorded day with none raised by `until`; `error` names a snapshot on file
 that could not be read (`alerts` then empty, and the desk says it did not load).
 Until 2026-10-12 the reply was a bare list; the desk still reads one (an older

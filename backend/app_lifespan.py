@@ -417,6 +417,12 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(stop_board_seconds)   # a build never outlives its backend
     except Exception:
         logger.exception("Gappers by the second: stopping its build failed")
+    try:
+        from hod_momo_rebuild.job import stop_all as stop_hod_rebuild
+
+        await asyncio.to_thread(stop_hod_rebuild)     # a rebuild never outlives its backend
+    except Exception:
+        logger.exception("HOD rebuild: stopping its build failed")
     await _ibkr_client.shutdown()
     try:
         from ibkr.tape_recording import l2_sink
