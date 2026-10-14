@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import gzip
+import hashlib
 import json
 import logging
 import threading
@@ -75,13 +76,23 @@ def _gappers_where(day: str) -> tuple[str, tuple]:
 
 
 def fingerprint(db, day: str) -> str | None:
-    """The stored rebuilt Gappers rows' count, last minute and price sum; None when there are none."""
+    """A digest of everything a build reads from the stored rebuilt day: every Gappers row (minute, symbol, rank,
+    price, volume, prior close) and every stored stock's prior close; None when the day has no rebuilt Gappers.
+    About a second on a five-year store (2026-09-01: 13,715 Gappers rows, 1,023 stocks)."""
     where, args = _gappers_where(day)
-    count, last, total = db.execute(f"SELECT COUNT(*), MAX(minute_ts), SUM(price) FROM rows WHERE {where}",
-                                    args).fetchone()
-    if not count:
+    digest = hashlib.sha256()
+    found = False
+    for row in db.execute(f"SELECT minute_ts, symbol, rank, price, volume, prev_close FROM rows WHERE {where}"
+                          " ORDER BY minute_ts, symbol", args):
+        found = True
+        digest.update(repr(tuple(row)).encode())
+    if not found:
         return None
-    return f"{int(count)}:{int(last)}:{float(total or 0.0):.6f}"
+    digest.update(b"|prior closes|")
+    for row in db.execute("SELECT DISTINCT symbol, prev_close FROM rows WHERE session_date = ? AND source = ?"
+                          " ORDER BY symbol, prev_close", (day, LEADERBOARD_SOURCE_RECONSTRUCTED)):
+        digest.update(repr(tuple(row)).encode())
+    return digest.hexdigest()
 
 
 def day_sources(db, day: str) -> set[str]:

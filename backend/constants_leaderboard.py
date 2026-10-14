@@ -166,7 +166,8 @@ LEADERBOARD_SECONDS_PROGRESS_EVERY_SEC = 1.0
 LEADERBOARD_SECONDS_STALE_SEC = 60.0
 # A backend shutting down waits this long for a running build to end (it is terminated, so it ends at once).
 LEADERBOARD_SECONDS_STOP_WAIT_SEC = 10.0
-# A read checks the built file still matches the stored rebuilt day; that check (~11 ms) is reused this long.
+# A read checks the built file still matches the stored rebuilt day; that check (a digest, about a second) is
+# reused this long, then re-read in the background.
 LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC = 30.0
 # A bulk index build holding the day's trades file is waited for (never duplicated), at most this long.
 LEADERBOARD_SECONDS_INDEX_WAIT_SEC = 30 * 60
