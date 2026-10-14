@@ -49,6 +49,8 @@ const HISTORY = [alert('a', '07:41:30'), alert('b', '07:42:30', 'QNME'), alert('
 let unrecorded = new Set<string>();
 /** The rebuild the mock backend reports for an unrecorded day; `ready` serves HISTORY as rebuilt alerts. */
 let rebuildStatus: string | null = null;
+/** What the mock backend answers an ask with (`queued` starts the build). */
+let askAnswer: Record<string, unknown> = { status: 'queued' };
 const historyCalls = () => mocks.fetch.mock.calls
   .filter(([url, init]) => String(url).includes('/api/hod-momo/history/') && (init as RequestInit | undefined)?.method !== 'POST')
   .map(([url]) => String(url));
@@ -61,12 +63,13 @@ beforeEach(() => {
   setClock(null);
   unrecorded = new Set();
   rebuildStatus = null;
+  askAnswer = { status: 'queued' };
   resetHodRebuildAsksForTests();
   mocks.fetch.mockReset().mockImplementation(async (url: string, init?: RequestInit) => {
     const parsed = new URL(url, 'http://x');
     if (init?.method === 'POST') {
-      rebuildStatus = 'building';
-      return { ok: true, status: 200, text: async () => JSON.stringify({ status: 'queued' }) };
+      if (askAnswer.status === 'queued') rebuildStatus = 'building';
+      return { ok: true, status: 200, text: async () => JSON.stringify(askAnswer) };
     }
     const date = decodeURIComponent(parsed.pathname.split('/').pop() ?? '');
     const until = Number(parsed.searchParams.get('until'));
@@ -146,6 +149,18 @@ describe('useHodMomoReplay', () => {
     rebuildStatus = 'ready';
     await waitFor(() => expect(result.current?.state.source).toBe('rebuilt'), { timeout: 4_000 });
     expect(result.current?.alerts.map(a => a.id)).toEqual(['a']);
+    expect(rebuildCalls()).toHaveLength(1);
+  });
+
+  it('an ask answered unavailable is shown with its reason and never asked again', async () => {
+    unrecorded = new Set(['2026-09-21']);
+    rebuildStatus = 'none';
+    askAnswer = { status: 'unavailable', reason: 'The day\'s Massive trades file is not on disk' };
+    setClock('07:42:10');
+    const { result } = renderHook(() => useHodMomoReplay());
+    await waitFor(() => expect(result.current?.state.rebuild?.status).toBe('unavailable'));
+    expect(result.current?.state.rebuild?.reason).toMatch(/not on disk/);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
     expect(rebuildCalls()).toHaveLength(1);
   });
 

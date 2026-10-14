@@ -178,6 +178,7 @@ def test_the_real_engine_raises_the_days_alerts_and_writes_none_of_the_live_file
     assert _hod_files() == before
     data = store.read_data(DAY)
     assert summary["watched"] == 1 and summary["ticks"] == len(RAMP)
+    assert summary["pending_unflushed"] == 0          # the last burst went out at its end, as the live loop sends it
     assert data["float_basis"] == "yahoo_now"
     alerts = data["alerts"]
     assert alerts, summary
@@ -190,13 +191,21 @@ def test_the_real_engine_raises_the_days_alerts_and_writes_none_of_the_live_file
     assert all(a["gap_pct"] is None for a in alerts)                          # premarket: no open yet
 
 
-def test_saves_are_restored_after_the_run(day):
+def test_saves_and_the_writer_threads_hand_offs_are_off_inside_and_restored_after(day):
     import cache
+    import hod_momo_writer
 
+    originals = {name: getattr(hod_momo_writer, name) for name in ("submit", "submit_alerts", "submit_highs")}
     original = cache.save_hod_momo_highs
     with engine.no_saves():
         assert cache.save_hod_momo_highs is not original
+        for name, fn in originals.items():
+            assert getattr(hod_momo_writer, name) is not fn
+        hod_momo_writer.submit_highs(DAY, {"session_highs": {"AAA": 9.0}})      # queues nothing
     assert cache.save_hod_momo_highs is original
+    assert {name: getattr(hod_momo_writer, name) for name in originals} == originals
+    assert hod_momo_writer.drain()
+    assert _hod_files() == []
 
 
 # ── The job and the route ───────────────────────────────────────────────────
@@ -231,6 +240,11 @@ def test_a_change_to_the_hod_settings_makes_the_build_out_of_date(day, monkeypat
     monkeypatch.setattr(engine, "config_digest", lambda: "other settings")
     assert job.status(DAY) == {"status": "none", "reason": job.STALE}
     assert playback.answer(DAY)["alerts"] == []
+
+
+def test_a_day_without_files_reads_unavailable_so_the_desk_never_asks(day):
+    body = _client().get("/api/hod-momo/history/2026-09-15").json()
+    assert body["rebuild"]["status"] == "unavailable" and "not on disk" in body["rebuild"]["reason"]
 
 
 def test_a_recorded_day_and_a_day_without_files_are_never_rebuilt(day):

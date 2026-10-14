@@ -9,7 +9,7 @@ import threading
 from typing import Any
 
 from constants_hod_momo import HOD_MOMO_REBUILD_FLOAT_BASIS
-from constants_leaderboard import LEADERBOARD_SECONDS_READY
+from constants_leaderboard import LEADERBOARD_SECONDS_NONE, LEADERBOARD_SECONDS_READY, LEADERBOARD_SECONDS_UNAVAILABLE
 from hod_momo_rebuild import job, store
 
 _lock = threading.Lock()
@@ -39,6 +39,10 @@ def _data(day: str) -> dict[str, Any] | None:
 def answer(day: str) -> dict[str, Any]:
     """``{source, alerts, rebuild}`` for a day with no HOD Momo record."""
     state = job.status(day)
+    if state.get("status") == LEADERBOARD_SECONDS_NONE:
+        why = job.unavailable_reason(day)
+        if why:
+            state = {"status": LEADERBOARD_SECONDS_UNAVAILABLE, "reason": why}
     rebuild = {key: state.get(key) for key in _JOB_KEYS}
     rebuild["float_basis"] = HOD_MOMO_REBUILD_FLOAT_BASIS
     if state.get("status") == LEADERBOARD_SECONDS_READY:

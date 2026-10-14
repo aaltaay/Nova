@@ -36,8 +36,8 @@ def test_a_day_with_no_snapshot_is_not_recorded():
     body = _client().get(f"/api/hod-momo/history/2026-07-15?until={RAISED}").json()
     rebuild = body.pop("rebuild")
     assert body == {"date": "2026-07-15", "recorded": False, "source": None, "alerts": [], "error": None}
-    # Nothing rebuilt yet: the rebuild says so (hod_momo_rebuild), never "no alerts raised".
-    assert rebuild["status"] == "none"
+    # No Massive files here: the rebuild says why there is none (hod_momo_rebuild), never "no alerts raised".
+    assert rebuild["status"] == "unavailable" and rebuild["reason"]
 
 
 def test_a_recorded_day_with_no_alert_yet_is_recorded_and_empty():

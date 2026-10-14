@@ -42,7 +42,9 @@ class Cancelled(Exception):
 
 @contextlib.contextmanager
 def no_saves() -> Iterator[None]:
-    """Every HOD Momo save is a no-op inside: the replay never writes the live desk's HOD files."""
+    """Every HOD Momo save is a no-op inside: the replay never writes the live desk's HOD files. The writer thread's
+    hand-offs (``submit``, ``submit_alerts``, ``submit_highs``) are no-ops too, so nothing the replay queued can run
+    after the real save functions are back."""
     import cache
     import cache_snapshots
     import hod_momo_writer
@@ -52,7 +54,8 @@ def no_saves() -> Iterator[None]:
         for name in dir(module):
             if name.startswith("save_hod_momo"):
                 patched.append((module, name, getattr(module, name)))
-    patched.append((hod_momo_writer, "submit_alerts", hod_momo_writer.submit_alerts))
+    for name in ("submit", "submit_alerts", "submit_highs"):
+        patched.append((hod_momo_writer, name, getattr(hod_momo_writer, name)))
     for module, name, _orig in patched:
         setattr(module, name, lambda *a, **k: None)
     try:
@@ -161,6 +164,11 @@ def run(session_date: str, days: dict[str, SymbolDay], prev_close: dict[str, flo
                         raise Cancelled()
                     if progress is not None:
                         progress(result.ticks, total)
+            # The live flush loop keeps ticking after the day's last print: a burst still open goes out at its end.
+            dues = [due for bucket in state.pending_consolidation.values() for due, _alert in bucket]
+            if dues:
+                clock.set(max(dues))
+                flush_due(state, max(dues), result.alerts)
         result.primed = len(primed)
         result.gate_counters = dict(state.gate_counters)
         result.pending_unflushed = sum(len(bucket) for bucket in state.pending_consolidation.values())

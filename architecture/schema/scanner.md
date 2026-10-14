@@ -536,8 +536,9 @@ second memory cap), one day at a time; asking for another day, or the backend sh
   every tick; the gap from 09:30, from the day's day-bar open, as IBKR's open tick exists only from the open.
 - **The engine** runs with the operator's HOD settings and blocklist and nothing else of today's, on a clock pinned
   to each tick (`hod_momo_replay.pinned_clock`); its consolidation queue is flushed at every tick, as the live
-  0.25 s flush loop does. It never writes the live desk's HOD files: every `save_hod_momo*` and the alert writer are
-  no-ops for the run (`engine.no_saves`).
+  0.25 s flush loop does, and once more after the day's last tick at the last open burst's end. It never writes the
+  live desk's HOD files: every `save_hod_momo*` and every hand-off to the writer thread (`submit`, `submit_alerts`,
+  `submit_highs`) are no-ops for the run (`engine.no_saves`), so nothing queued can run after they are restored.
 
 Persisted state (persisted-state.mdc). Owner `hod_momo_rebuild/store.py`, the only writer, under `<leaderboard
 root>/hod_momo/`, each file written whole (temp, rename): `<date>.alerts.json` `{schema_version: 1, date,
@@ -555,9 +556,11 @@ belonged to a process that died and reads `failed`.
 
 **Route.** `POST /api/hod-momo/history/{date}/rebuild` asks for it: the job, or `{status: "unavailable",
 reason}` -- Nova recorded HOD Momo that day, the day has no rebuilt boards, or its Massive trades or day-bar file is
-not on disk. The history route serves the rebuilt alerts ("Routes" below). On the desk, a Sim day whose history
-says `recorded: false` asks for the rebuild (again at most every 5 s while it reads `none` or `stopped`, never after
-`failed`), reads the history every 2 s while it runs, and says so on the strip, the Focus rail and the count
+not on disk -- and the history read says the same `unavailable` whenever nothing was asked for and one of those
+holds, so the desk never asks for a day that cannot be built. The history route serves the rebuilt alerts
+("Routes" below). On the desk, a Sim day whose history says `recorded: false` asks for the rebuild (again at most
+every 5 s while it reads `none` or `stopped`; never after `failed`, and never again once an ask answers
+`unavailable` or `failed`, whose reason it shows), reads the history every 2 s while it runs, and says so on the strip, the Focus rail and the count
 ("Rebuilding HOD Momo alerts from D's trades: running HOD Momo 40%…"); a rebuilt day's feed word is `rebuilt
 HH:MM`, its title naming the source and the float.
 

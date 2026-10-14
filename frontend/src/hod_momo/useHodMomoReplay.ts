@@ -230,8 +230,17 @@ export function useHodMomoReplay(): HodMomoReplay | null {
     if (wanted && askedAt(date) + HOD_REBUILD_ASK_AGAIN_MS <= Date.now()) {
       lastAsked.set(date, Date.now());
       replayRequest<unknown>(hodMomoRebuildPath(date), { method: 'POST', signal: controller.signal }, HOD_REBUILD_REQUEST_FAILED)
-        .catch(() => undefined)            // the next read says the rebuild's state; a failed ask is asked again then
-        .finally(() => {
+        .then((raw) => {
+          if (controller.signal.aborted) return;
+          const answer = parseHodRebuild(raw);
+          if (answer && (answer.status === 'unavailable' || answer.status === 'failed')) {
+            // Final: say why, and ask no more (the history read may not know it yet).
+            setLoaded(prev => (prev && prev.date === date ? { ...prev, rebuild: answer } : prev));
+            return;
+          }
+          setAttempt(n => n + 1);
+        })
+        .catch(() => {                     // a failed ask is asked again once the next read still wants it
           if (!controller.signal.aborted) setAttempt(n => n + 1);
         });
     } else {
