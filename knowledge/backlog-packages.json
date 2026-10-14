@@ -1483,6 +1483,7 @@
               "backend/tests/test_followed_traders.py",
               "frontend/e2e/fixtures/desk-freezes.html",
               "frontend/e2e/fixtures/deskFreezes.tsx",
+              "frontend/e2e/fixtures/deskFreezeFixtureTypes.ts",
               "frontend/e2e/desk-freezes.spec.ts",
               "frontend/e2e/baseline.spec.ts",
               "frontend/e2e/chart-pane-maximize.spec.ts",

@@ -1,11 +1,13 @@
 import { expect, test, type Page, type WebSocketRoute } from '@playwright/test';
+import type { HotListView } from '../src/hot_list';
+import './fixtures/deskFreezeFixtureTypes';
 
 const NOW = 1_792_000_000;
 const SYMBOL = 'FIXTURE';
 const FIXTURE_PATH = '/e2e/fixtures/desk-freezes.html';
 const API_BASE = process.env.NOVA_E2E_API_BASE ?? 'http://127.0.0.1:8999';
 
-function hotList() {
+function hotList(): HotListView {
   return {
     schema_version: 1, date: '2026-10-14', cap: 20, auto_cap: 20,
     auto: { n: 0, start: '07:00', end: '16:00', rule: 'Fixture rule', error: null },
@@ -136,6 +138,13 @@ test('changed depth, annotations and hidden resume display their latest values a
   await expect(page.locator('.das-l2-bbo')).toContainText('10.10 × 10.11');
   expect(await page.evaluate(() => window.deskFreezeFixture.lock())).toBeNull();
   await page.getByRole('button', { name: 'Hide depth' }).click();
+  await expect(page.getByRole('button', { name: 'Show depth' })).toBeVisible();
+  await expect(page.getByTestId('depth-paint-state')).toHaveText('hidden');
+  // Hide also clears the real TopOfBook context. Its resulting commit is part of hiding,
+  // before measuring hidden book inputs; allow passive effects and pending clock work to settle.
+  await page.evaluate(() => new Promise<void>(resolve =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  ));
   const hiddenCommits = await page.evaluate(() => window.deskFreezeFixture.metrics.depthCommits);
   fixture.send(book(11, 10.25, 1200));
   fixture.send(book(12, 10.26, 1300));

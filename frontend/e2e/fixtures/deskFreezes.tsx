@@ -1,23 +1,14 @@
 import { Profiler, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getHotListState, hotListActions, useHotList } from '../../src/hot_list';
-import { TopOfBookProvider } from '../../src/hotkeys/TopOfBookContext';
+import { TopOfBookProvider, useTopOfBook } from '../../src/hotkeys/TopOfBookContext';
 import { DepthLadder } from '../../src/ibkr/DepthLadder';
 import { viewLockReason, viewStampFor } from '../../src/market_view';
 import type { DepthMarker } from '../../src/ibkr/depthMarkers';
+import './deskFreezeFixtureTypes';
 import '../../src/index.css';
 
 const metrics = { hotCommits: 0, depthCommits: 0 };
-declare global {
-  interface Window {
-    deskFreezeFixture: {
-      metrics: typeof metrics;
-      hotState: typeof getHotListState;
-      stamp: () => ReturnType<typeof viewStampFor>;
-      lock: () => ReturnType<typeof viewLockReason>;
-    };
-  }
-}
 window.deskFreezeFixture = {
   metrics, hotState: getHotListState,
   stamp: () => viewStampFor('FIXTURE', Date.now()),
@@ -35,6 +26,14 @@ function HotListReader() {
   return <output data-testid="hot-list-view">{JSON.stringify(state)}</output>;
 }
 
+/** Observe the real context clear without making the rest of the fixture a top-of-book subscriber. */
+function DepthCommitBarrier({ active }: { active: boolean }) {
+  const { topOfBook } = useTopOfBook();
+  return <output data-testid="depth-paint-state" hidden>
+    {active ? 'visible' : topOfBook === null ? 'hidden' : 'hiding'}
+  </output>;
+}
+
 function Fixture() {
   const [active, setActive] = useState(true);
   return (
@@ -44,6 +43,7 @@ function Fixture() {
       <Profiler id="hot-list" onRender={() => { metrics.hotCommits += 1; }}>
         <HotListReader />
       </Profiler>
+      <DepthCommitBarrier active={active} />
       <section style={{ width: 720, height: 460, visibility: active ? 'visible' : 'hidden' }}>
         <Profiler id="depth" onRender={() => { metrics.depthCommits += 1; }}>
           <DepthLadder symbol="FIXTURE" uiActive={active} markers={markers} traderTab />

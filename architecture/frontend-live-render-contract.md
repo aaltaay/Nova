@@ -50,6 +50,16 @@ runtime-operation requests fail verification. Clock advancement exercises real
 hot-list polling, and changed book/annotation frames exercise visible values and
 displayed-view stamps without a broker or production desk.
 
+The browser fixture and its Playwright spec import their shared test-only type
+module in both TypeScript projects; wire helpers declare their confirmed API
+types instead of inferring nullable fields from one example. Final-source
+`tsc -b` and renderer builds verify these projects after adding fixture files.
+The hidden-book measurement starts only after the hidden DOM state and the real
+TopOfBook context's clear have committed, followed by two animation frames for
+passive effects and pending clock work. Hiding the pane can legitimately commit
+twice; only subsequent hidden book inputs must add exactly zero commits. The
+shown book stamp stays on the former sequence until resume draws the newest.
+
 The baseline's first navigation waits up to 20 seconds for the nav rail to
 mount. A traced cold Vite load spent 8.3 seconds in the first readiness assertion
 loading the lazy App module graph before the rail appeared (9.4 seconds from
