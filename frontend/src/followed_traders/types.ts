@@ -56,6 +56,8 @@ export interface FollowedTrade {
   status: 'open' | 'closed' | 'unknown';
   entry: { first_price: number; avg_price: number; ts: number; since_ts: number | null; known: boolean };
   adds: { ts: number; price: number; prev_price: number | null }[];
+  /** Closed because the trader left the bar holding it ("off air, every trade is closed"), not a close the feed saw. */
+  left_bar: boolean;
   now: FollowedNow | null;
   exit: FollowedExit | null;
   pl: PointPl | RangePl | null;
@@ -65,11 +67,20 @@ export interface FollowedTrade {
   evidence: { entry: string | null; exit: string | null };
 }
 
+/** When the feed last read the trader's slot, and when the bar went on without them ("A trader who left the bar"). */
+export interface FollowedSeen {
+  last_ts: number | null;
+  /** Set once they left the bar: every trade of theirs closed then. */
+  left_ts: number | null;
+}
+
 export interface FollowedTrader {
   name: string;
   /** This API's path to the trader's photo that day; null when the feed has none. */
   face: string | null;
   record: FollowedRecord;
+  /** Null when the feed's read log was not read (none that day, unreadable, or asked without prices). */
+  seen: FollowedSeen | null;
   open: FollowedTrade[];
   closed: FollowedTrade[];
 }

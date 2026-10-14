@@ -10,7 +10,7 @@ export function trade(over: Partial<FollowedTrade> = {}): FollowedTrade {
   return {
     id: 'x', trader: 'ALPHA', side: 'long', symbol: 'ABCD', status: 'open',
     entry: { first_price: 2, avg_price: 2, ts: T, since_ts: null, known: true },
-    adds: [], now: null, exit: null, pl: null, held: { min_sec: 600, max_sec: 600 }, result: null,
+    adds: [], left_bar: false, now: null, exit: null, pl: null, held: { min_sec: 600, max_sec: 600 }, result: null,
     evidence: { entry: EV_IN, exit: null }, ...over,
   };
 }
@@ -46,13 +46,13 @@ export function day(over: Partial<FollowedDay> = {}): FollowedDay {
     traders: [
       {
         name: 'ALPHA', face: '/api/followed-traders/faces/2026-10-13/ALPHA.jpg',
-        record: { ...RECORD, wins: 1, open: 1, win_rate: 100 },
+        record: { ...RECORD, wins: 1, open: 1, win_rate: 100 }, seen: null,
         open: [trade({ id: 'o1', now: { state: 'live', price: 2.5, trade_ts: T + 599, why: null },
           pl: { per_share: 0.5, pct: 25 } })],
         closed: [closed({ id: 'c1', symbol: 'EFGH', entry: { first_price: 2, avg_price: 2, ts: T - 600, since_ts: null, known: true } })],
       },
       {
-        name: 'BRAVO', face: null, record: { ...RECORD, unscored: 1 },
+        name: 'BRAVO', face: null, record: { ...RECORD, unscored: 1 }, seen: null,
         open: [],
         closed: [closed({ id: 'c2', trader: 'BRAVO', symbol: 'TQQQ', result: 'unscored', pl: null,
           entry: { first_price: 77.77, avg_price: 77.77, ts: T - 1200, since_ts: null, known: false },

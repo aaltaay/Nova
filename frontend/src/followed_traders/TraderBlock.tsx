@@ -2,8 +2,10 @@
  * One followed trader on the Following page (approved 2026-10-13, "E2"): their card -- photo, name, on air or off
  * air, the record for the span picked, and their slot on the stream's bar -- and under it, when they traded that day,
  * Holding now (an OPEN tile per position) beside Closed today (a table striped by result). The slot is the live one
- * the feed last saw, or their newest evidence image labelled with its time, never passed off as now.
+ * the feed last saw, or their newest evidence image labelled with its time, never passed off as now. A trader who left
+ * the bar (`seen.left_ts`) says so; off air every trade is closed, so theirs are all under Closed today.
  */
+import { tipProps } from '../ux/hoverTip';
 import {
   FT_BAR_NO_IMAGE,
   FT_BAR_STAND_IN,
@@ -12,6 +14,8 @@ import {
   FT_EXIT_IS_IBKR,
   FT_HOLDING,
   FT_HOLDING_END,
+  FT_LEFT_BAR,
+  FT_LEFT_BAR_TIP,
   FT_NEWEST_FIRST_SHORT,
   FT_NO_CLOSED,
   FT_NO_CLOSED_TODAY,
@@ -82,6 +86,10 @@ interface Props {
 
 export function TraderBlock({ entry, record, isToday, onAir, captureVersion, lastRead, compact, folded, onShowAll, onProof }: Props) {
   const { name, trader } = entry;
+  const left = trader?.seen?.left_ts ?? null;
+  const air = left !== null
+    ? <span className="ft-off-air" data-testid={`ft-left-${name}`} {...tipProps(FT_LEFT_BAR_TIP)}>{FT_LEFT_BAR} {etTime(left)}</span>
+    : onAir ? <span className="ft-on-air">{FT_ON_AIR}</span> : <span className="ft-off-air">{FT_OFF_AIR}</span>;
   return (
     <section className="ft-card ft-trader" aria-label={name} data-testid={`ft-trader-${name}`}>
       <div className="ft-trader__card">
@@ -89,7 +97,7 @@ export function TraderBlock({ entry, record, isToday, onAir, captureVersion, las
         <div className="ft-trader__who">
           <div className="ft-trader__name-row">
             <span className="ft-trader__name">{name}</span>
-            {isToday && (onAir ? <span className="ft-on-air">{FT_ON_AIR}</span> : <span className="ft-off-air">{FT_OFF_AIR}</span>)}
+            {isToday && air}
           </div>
           {trader ? <RecordChips record={record} testId={`ft-record-${name}`} />
             : <span className="ft-pill-chip ft-muted" data-testid={`ft-record-${name}`}>{isToday ? FT_NO_TRADES_TODAY : FT_NO_TRADES_THAT_DAY}</span>}

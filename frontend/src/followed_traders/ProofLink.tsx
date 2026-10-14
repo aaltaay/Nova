@@ -11,18 +11,16 @@ import {
   FOLLOWED_PROOF_CARD_WIDTH_PX,
   FOLLOWED_PROOF_HOVER_CLOSE_MS,
   FOLLOWED_PROOF_HOVER_OPEN_MS,
-  FT_CLOSE_NOT_SEEN,
   FT_ENTRY,
   FT_EXIT,
   FT_NO_EVIDENCE,
   FT_PROOF,
   FT_PROOF_CLICK_HINT,
-  FT_STILL_OPEN,
 } from './constants';
 import { FeedImage } from './FeedImage';
 import { entered, exited } from './format';
 import { SideChip } from './parts';
-import { exitTs } from './proof';
+import { exitTs, noExitImage } from './proof';
 import type { FollowedTrade } from './types';
 
 interface Anchor { left: number; top: number; right: number; bottom: number }
@@ -57,7 +55,7 @@ export function ProofPeek({ t }: { t: FollowedTrade }) {
       <div className="ft-peek__shot">
         <div className="ft-peek__label"><span className="ft-eyebrow ft-eyebrow--exit">{FT_EXIT}</span>
           <span className="ft-mono ft-muted ft-xs">{t.exit && out !== null ? exited(t.exit) : ''}</span></div>
-        {out === null ? <div className="ft-empty ft-small">{t.status === 'open' ? FT_STILL_OPEN : FT_CLOSE_NOT_SEEN}</div>
+        {out === null ? <div className="ft-empty ft-small">{noExitImage(t)}</div>
           : <FeedImage path={t.evidence.exit} className="ft-peek__img" missing={FT_NO_EVIDENCE}
             alt={`${t.trader}'s position bar at the exit`} />}
       </div>

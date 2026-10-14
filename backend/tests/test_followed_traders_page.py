@@ -203,6 +203,7 @@ def client(monkeypatch):
     monkeypatch.setattr(routes, "_replay_desk", lambda: False)
     monkeypatch.setattr(lines, "_spawn_ib", lambda name, factory: None)
     monkeypatch.setattr(exits, "_spawn_ib", lambda name, factory: None)
+    monkeypatch.setattr(routes, "_read_log", lambda *_a, **_k: None)  # no read log: never the real feed
     app = FastAPI()
     app.include_router(routes.router)
     return TestClient(app)

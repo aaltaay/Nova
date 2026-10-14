@@ -3,6 +3,7 @@
  * holds on consecutive frames, so while the trade was held every read of the slot either showed it at the price the
  * feed logged then, or was a read the feed ignored. Pure.
  */
+import { FT_CLOSE_NOT_SEEN, FT_CLOSED_ON_LEAVING, FT_STILL_OPEN } from './constants';
 import type { BarPosition, FollowedRead, FollowedTrade } from './types';
 
 export type ReadVerdict = 'entry' | 'held' | 'ignored' | 'not_seen' | 'exit' | 'before' | 'after';
@@ -54,4 +55,11 @@ export function readAt(reads: FollowedRead[], ts: number): FollowedRead | null {
 
 export function sideRow(positions: BarPosition[], side: BarPosition['side']): BarPosition[] {
   return positions.filter((p) => p.side === side);
+}
+
+/** What stands in for the exit image when there is none: still open, closed when they left the bar, or a close the
+ *  feed never saw. */
+export function noExitImage(t: FollowedTrade): string {
+  if (t.status === 'open') return FT_STILL_OPEN;
+  return t.left_bar ? FT_CLOSED_ON_LEAVING : FT_CLOSE_NOT_SEEN;
 }

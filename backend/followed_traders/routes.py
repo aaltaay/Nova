@@ -7,6 +7,7 @@ these routes exists and nothing asks the feed. Shapes: architecture/schema/follo
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 from datetime import date as Date, timedelta
@@ -15,23 +16,29 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, Response
 
-from followed_traders import config, exits, feed, lines, pricing, reads, view
+from followed_traders import config, exits, feed, lines, pricing, reads, sightings, view
 from followed_traders.constants_followed import (
     FOLLOWED_ERR_BAD_DATE,
     FOLLOWED_ERR_BAD_RANGE,
     FOLLOWED_ERR_BAD_READS,
     FOLLOWED_ERR_FEED_UNREACHABLE,
+    FOLLOWED_LEFT_BAR_SEC,
     FOLLOWED_MAX_LINES,
     FOLLOWED_READS_MAX,
     FOLLOWED_RECORD_RANGES,
     FOLLOWED_RECORD_WEEK_DAYS,
     FOLLOWED_SCHEMA_VERSION,
+    FOLLOWED_SEEN_CACHE_SEC,
     FOLLOWED_WANTED_SEC,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["followed-traders"])
 NAME_RE = re.compile(r"^[0-9a-f]{32}$")
 _release_handle: asyncio.TimerHandle | None = None
+# The read logs asked of the feed: date -> (when, the log or None, kept for good). A day before the desk's today is
+# finished, so its log (or the feed's 404) is kept; today's is asked again after FOLLOWED_SEEN_CACHE_SEC.
+_log_cache: dict[str, tuple[float, list[dict[str, Any]] | None, bool]] = {}
 
 
 @router.get("/api/followed-traders/config")
@@ -56,8 +63,10 @@ async def get_day(date: str | None = None, quotes: int = 1):
         return view.feed_down(exc.state, exc.message, date, now)
     day = {**day, "today": today}
     prices = prices_state(day) if quotes else {"state": "not_asked", "why": "asked without prices"}
-    open_trades = sorted((t for t in day["trades"] if t["status"] == "open"), key=lambda t: t["entry_ts"],
-                         reverse=True)
+    seen = await asyncio.to_thread(_seen, base, day, now)
+    # A trader who left the bar closed every trade then (view.closed_on_leaving): no line is held for those.
+    open_trades = sorted((t for t in day["trades"] if t["status"] == "open" and not view.left_bar(seen, t["trader"])),
+                         key=lambda t: t["entry_ts"], reverse=True)
     line_syms, over_cap = lines.plan([t["symbol"] for t in open_trades])
     quotes: dict[str, dict[str, Any]] = {}
     if prices["state"] == "live":
@@ -75,9 +84,52 @@ async def get_day(date: str | None = None, quotes: int = 1):
 
     ready = _ibkr_ready()
     body = view.compose(day, now=now, prices=prices, now_for=now_for, exit_for=_exit_for(now, ready),
-                        resets_at=resets_at)
+                        resets_at=resets_at, seen=seen)
     exits.pump(now, ibkr_ready=ready)
     return body
+
+
+def _seen(base: str, day: dict[str, Any], now: float) -> dict[str, dict[str, Any]] | None:
+    """Each of the day's traders' sighting on the bar, from the feed's read log; None without one."""
+    log = _read_log(base, day["date"], now, final=day["date"] < day["today"])
+    if log is None:
+        return None
+    status = day.get("status") or {}
+    names = [t["trader"] for t in day["trades"]] + [s["trader"] for s in status.get("positions") or ()]
+    latest = status.get("clock") if day["date"] == day["today"] else None
+    return sightings.sightings(log, date=day["date"], traders=names, latest_clock=latest,
+                               left_after_sec=FOLLOWED_LEFT_BAR_SEC)
+
+
+def _seen_by_date(base: str, trades: list[dict[str, Any]], today: str,
+                  now: float) -> dict[str, dict[str, dict[str, Any]]]:
+    """Each day's sightings, for the days of ``trades`` with a trade still open (no other day needs one)."""
+    out = {}
+    for date in sorted({t["date"] for t in trades if t["status"] == "open"}):
+        log = _read_log(base, date, now, final=date < today)
+        if log is not None:
+            out[date] = sightings.sightings(log, date=date, traders=[t["trader"] for t in trades if t["date"] == date],
+                                            latest_clock=None, left_after_sec=FOLLOWED_LEFT_BAR_SEC)
+    return out
+
+
+def _read_log(base: str, date: str, now: float, *, final: bool = False) -> list[dict[str, Any]] | None:
+    """The day's read log, asked of the feed at most every ``FOLLOWED_SEEN_CACHE_SEC``, and once for a ``final``
+    day (before the desk's today) that answered."""
+    got = _log_cache.get(date)
+    if got is not None and (got[2] or now - got[0] < FOLLOWED_SEEN_CACHE_SEC):
+        return got[1]
+    log: list[dict[str, Any]] | None
+    answered = True
+    try:
+        log = feed.fetch_reads(base, date)
+    except feed.FeedError as exc:
+        answered = exc.state == "missing"
+        if not answered:
+            logger.warning("followed traders: the read log for %s could not be read: %s", date, exc.message)
+        log = None
+    _log_cache[date] = (now, log, final and answered)
+    return log
 
 
 @router.get("/api/followed-traders/record")
@@ -98,8 +150,9 @@ async def get_record(range: str = "week", date: str | None = None):  # noqa: A00
         got = await asyncio.to_thread(feed.fetch_trades, base, start, end)
     except feed.FeedError as exc:
         return view.records_down(exc.state, exc.message, range, now)
+    seen_by_date = await asyncio.to_thread(_seen_by_date, base, got["trades"], desk_day(now)[0], now)
     ready = _ibkr_ready()
-    body = view.records(got, span=range, now=now, exit_for=_exit_for(now, ready))
+    body = view.records(got, span=range, now=now, exit_for=_exit_for(now, ready), seen_by_date=seen_by_date)
     exits.pump(now, ibkr_ready=ready)
     return body
 
