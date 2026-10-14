@@ -29,6 +29,7 @@ GIT_FETCH_TIMEOUT_SEC = 20
 PROTECTED = frozenset({"master", "main", "HEAD"})
 ZERO_SHA = "0" * 40
 SHOWN_COMMITS = 10
+MERGE_TAG = "[merge] "
 HOOK_MARKER = "nova-push-guard"
 HOOK_SCRIPT = f"""#!/bin/sh
 # {HOOK_MARKER}: installed by tools/repo_hygiene.py install-push-guard (remove: --uninstall).
@@ -98,18 +99,36 @@ def parse_pre_push(stdin: str) -> list[tuple[str, str]]:
     return out
 
 
+def cherry_pick_steps(commits: list[tuple[str, str]]) -> str:
+    """Runnable cherry-picks in order: plain commits batched, each merge on its own with -m 1."""
+    steps: list[str] = []
+    plain: list[str] = []
+    for sha, subject in commits:
+        if not subject.startswith(MERGE_TAG):
+            plain.append(sha[:12])
+            continue
+        if plain:
+            steps.append("git cherry-pick -x " + " ".join(plain))
+            plain = []
+        steps.append(f"git cherry-pick -x -m 1 {sha[:12]}")
+    if plain:
+        steps.append("git cherry-pick -x " + " ".join(plain))
+    return " && ".join(steps)
+
+
 def refusal(late: LatePush, *, pushed: bool) -> str:
     """Plain words: what happened and the three steps that land the commits."""
     n = len(late.commits)
     listed = "; ".join(f"{sha[:10]} {subject}" for sha, subject in late.commits[:SHOWN_COMMITS])
     if n > SHOWN_COMMITS:
         listed += f"; ... {n - SHOWN_COMMITS} more"
-    shas = " ".join(sha[:12] for sha, _ in late.commits)
+    if any(subject.startswith(MERGE_TAG) for _, subject in late.commits):
+        listed += " ([merge] = a merge whose conflict was resolved by hand, picked with -m 1)"
     head = (f"PR #{late.pr} ({late.url}) is already merged, at {late.merged_head[:10]}. "
             f"Branch '{late.branch}' has {n} commit(s) after it: {listed}.")
     steps = (f"Branch from origin/master, cherry-pick the commits, open a new PR: "
              f"git fetch origin && git switch -c <new-branch> origin/master && "
-             f"git cherry-pick -x {shas} && git push -u origin HEAD && gh pr create.")
+             f"{cherry_pick_steps(late.commits)} && git push -u origin HEAD && gh pr create.")
     if pushed:
         return (f"{head} They are pushed, but no open PR carries them, so they never reach master. "
                 f"The Stranded commits workflow opens recover/{late.branch} for them within the hour "
@@ -149,6 +168,21 @@ def _have_commit(sha: str, cwd: str | None) -> bool:
     return _git(["cat-file", "-e", f"{sha}^{{commit}}"], cwd).returncode == 0
 
 
+def _merge_adds_changes(sha: str, parents: list[str], cwd: str | None) -> bool:
+    """A merge carries work when its tree is not what git merges its parents to on its own.
+
+    A plain `git merge origin/master` on the branch is not stranded work; a hand-resolved
+    conflict is, and lives only in the merge commit. Unknown (octopus, old git) counts as work.
+    """
+    if len(parents) != 2:
+        return True
+    auto = _git(["merge-tree", "--write-tree", *parents], cwd)
+    if auto.returncode != 0:  # 1 = conflicts, so the resolution is hand work; else git cannot say
+        return True
+    tree = _git(["rev-parse", f"{sha}^{{tree}}"], cwd).stdout.strip()
+    return auto.stdout.split("\n", 1)[0].strip() != tree
+
+
 def check(branch: str, tip: str, *, cwd: str | None = None, lookup: PrLookup = gh_prs) -> Verdict:
     """Does ``tip`` add commits to ``branch`` after its PR merged? Never raises."""
     if not branch or branch in PROTECTED:
@@ -171,10 +205,16 @@ def check(branch: str, tip: str, *, cwd: str | None = None, lookup: PrLookup = g
         exclude = [f"^{merged}"]
         if _git(["rev-parse", "--verify", "--quiet", "origin/master"], cwd).returncode == 0:
             exclude.append("^origin/master")
-        res = _git(["log", "--reverse", "--no-merges", "--format=%H%x09%s", tip, *exclude], cwd)
+        res = _git(["log", "--reverse", "--format=%H%x09%P%x09%s", tip, *exclude], cwd)
         if res.returncode:
             return Verdict(unknown=f"git could not compare {tip[:10]} with the merged head")
-        commits = [tuple(line.split("\t", 1)) for line in res.stdout.splitlines() if "\t" in line]
+        commits: list[tuple[str, str]] = []
+        for line in res.stdout.splitlines():
+            sha, parents, subject = (line.split("\t", 2) + ["", ""])[:3]
+            if len(parents.split()) < 2:
+                commits.append((sha, subject))
+            elif _merge_adds_changes(sha, parents.split(), cwd):
+                commits.append((sha, MERGE_TAG + subject))
         if not commits:
             return Verdict()
         return Verdict(late=LatePush(pr=int(pr["number"]), url=str(pr.get("url") or ""),
@@ -200,27 +240,77 @@ def run_pre_push(stdin: str, *, cwd: str | None = None, lookup: PrLookup = gh_pr
 
 
 def hooks_dir(cwd: str | None = None) -> Path:
-    """Where git looks for hooks here (honours core.hooksPath)."""
+    """Where git looks for hooks here (honours core.hooksPath, relative or per worktree)."""
     raw = _git(["rev-parse", "--git-path", "hooks"], cwd).stdout.strip()
     path = Path(raw)
     return path if path.is_absolute() else Path(cwd or os.getcwd()) / path
 
 
+def _worktree_paths(cwd: str | None) -> list[str]:
+    raw = _git(["worktree", "list", "--porcelain"], cwd).stdout
+    return [line[len("worktree "):] for line in raw.splitlines() if line.startswith("worktree ")]
+
+
+def _is_ours(target: Path) -> bool:
+    """Only a file that is exactly the generated hook is Nova's; anything mixed in makes it the user's."""
+    if not target.is_file():
+        return False
+    text = target.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
+    return text == HOOK_SCRIPT
+
+
+def _already_guarded(target: Path) -> bool:
+    """Another hook that already runs the guard (the repo's tracked .githooks/pre-push does)."""
+    if not target.is_file() or _is_ours(target):
+        return False
+    text = target.read_text(encoding="utf-8", errors="replace")
+    return "repo_hygiene.py" in text and "push-guard" in text
+
+
+def _remove_one(target: Path) -> str:
+    if not _is_ours(target):
+        return f"push-guard: no unedited Nova pre-push hook at {target}; nothing removed"
+    target.unlink()
+    return f"push-guard: removed {target}"
+
+
 def install(cwd: str | None = None, *, uninstall: bool = False) -> tuple[int, str]:
-    """Write (or remove) the pre-push hook. Never overwrites a hook it did not write."""
-    target = hooks_dir(cwd) / "pre-push"
-    ours = target.is_file() and HOOK_MARKER in target.read_text(encoding="utf-8", errors="replace")
+    """Write (or remove) the pre-push hook wherever each worktree of this clone looks for hooks.
+
+    Never touches a hook it did not write. A relative or per-worktree core.hooksPath resolves
+    differently in each worktree, so every worktree's hooks directory is visited. All or nothing:
+    one foreign hook, or one failed write, leaves every directory as it was.
+    """
+    targets: dict[str, Path] = {}
+    for path in _worktree_paths(cwd) or [cwd or os.getcwd()]:
+        if Path(path).is_dir():
+            target = hooks_dir(path) / "pre-push"
+            targets.setdefault(os.path.normcase(str(target.resolve())), target)
     if uninstall:
-        if not ours:
-            return 0, f"push-guard: no Nova pre-push hook at {target}; nothing removed"
-        target.unlink()
-        return 0, f"push-guard: removed {target}"
-    if target.exists() and not ours:
-        return 2, (f"push-guard: {target} already holds another pre-push hook; not overwritten. "
-                   "Merge it by hand or remove it first.")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(HOOK_SCRIPT, encoding="utf-8", newline="\n")
-    target.chmod(0o755)
-    custom = _git(["config", "core.hooksPath"], cwd).stdout.strip()
-    where = f" (core.hooksPath = {custom})" if custom else ""
-    return 0, f"push-guard: installed {target}{where}"
+        return 0, "\n".join(_remove_one(target) for target in targets.values())
+    guarded = [target for target in targets.values() if _already_guarded(target)]
+    todo = [target for target in targets.values() if target not in guarded]
+    foreign = [target for target in todo if target.exists() and not _is_ours(target)]
+    if foreign:
+        return 2, "\n".join(
+            f"push-guard: {target} already holds another (or an edited) pre-push hook; not touched. "
+            "Merge it by hand or remove it first. Nothing was installed." for target in foreign)
+    created: list[Path] = []
+    try:
+        for target in todo:
+            existed = target.exists()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(HOOK_SCRIPT, encoding="utf-8", newline="\n")
+            target.chmod(0o755)
+            if not existed:
+                created.append(target)
+    except OSError as exc:
+        for done in created:
+            done.unlink(missing_ok=True)
+        return 2, f"push-guard: could not write {target} ({type(exc).__name__}); nothing was installed."
+    lines = [f"push-guard: {target} already runs the push guard; left as it is" for target in guarded]
+    lines += [f"push-guard: installed {target}" for target in todo]
+    if len(targets) > 1:
+        lines.append("push-guard: this clone's worktrees use different hook directories; "
+                     "run install-push-guard again after adding a worktree.")
+    return 0, "\n".join(lines)

@@ -100,10 +100,12 @@ later sessions that never knew they existed. So:
 - **The local guard** (`tools/push_guard.py`) asks that question for you. The
   Claude Code Stop hook (`repo_hygiene.py stop-gate`) refuses a turn's end
   while the branch's newest PR is merged and HEAD carries commits that are in
-  neither its merged head nor `origin/master`, and says the three steps. The
+  neither its merged head nor `origin/master` (a merge commit counts only when
+  it carries a hand-resolved conflict), and says the three steps. The
   same check runs as a git `pre-push` hook, opt-in per clone:
-  `py -3 tools/repo_hygiene.py install-push-guard` (`--uninstall`; it never
-  overwrites a hook it did not write, and honours `core.hooksPath`). No `gh`,
+  `py -3 tools/repo_hygiene.py install-push-guard` (`--uninstall`). It writes
+  into every worktree's hooks directory (a relative `core.hooksPath` resolves
+  per worktree) and never touches a hook that is not exactly its own. No `gh`,
   offline, or a merged head it cannot fetch: it says so and lets the push
   through. `tools/test_push_guard.py` pins it.
 - **The backstop:** `.github/workflows/stranded-commits.yml` runs
