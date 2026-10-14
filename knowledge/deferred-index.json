@@ -2,7 +2,7 @@
   "schema_version": 1,
   "source": "github",
   "repo": "aaltaay/Nova",
-  "updated": "2026-10-13",
+  "updated": "2026-10-14",
   "items": [
     {
       "id": "#940",
@@ -328,11 +328,11 @@
       "title": "Keep HOD surge reads and setup writes off the HTTP loop; remove redundant desk renders",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | frontend",
       "number": "797",
       "url": "https://github.com/aaltaay/Nova/issues/797",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#791",
@@ -823,11 +823,11 @@
       "title": "Residual backend pauses after open-stall fixes: GC and HOD callback cost",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | hod-momo",
       "number": "619",
       "url": "https://github.com/aaltaay/Nova/issues/619",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#617",
