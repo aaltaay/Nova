@@ -98,6 +98,8 @@ describe('useGappersBySecond', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const { result } = renderHook(() => useGappersBySecond(board('reconstructed')));
     await waitFor(() => expect(result.current.latest?.error).toMatch(/Could not reach Nova/));
+    // Until an ask lands nothing is read: the ask is what rebuilds a day whose board changed.
+    expect(calls().filter(call => call.startsWith('GET'))).toEqual([]);
     await act(async () => { vi.advanceTimersByTime(2_100); });
     await waitFor(() => expect(posts).toBe(2));
     await waitFor(() => expect(result.current.latest?.error).toBeNull());

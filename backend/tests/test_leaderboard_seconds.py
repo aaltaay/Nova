@@ -433,3 +433,36 @@ def test_a_backend_shutting_down_ends_its_build_and_waits_for_it(day, monkeypatc
     job.stop_all(wait_sec=5.0)
     assert job.status(DAY)["status"] == "stopped"
     assert not job._running
+
+
+def test_a_build_of_a_rebuilt_day_since_replaced_is_never_read(day, monkeypatch):
+    _built()
+    assert _symbols("07:45:00") == [("AAA", 1.15)]
+    with board_store.connect() as db:                                      # the day is rebuilt: another price
+        db.execute("UPDATE rows SET price = 1.16 WHERE symbol = 'AAA' AND board = 'gappers' AND minute_ts = ?",
+                   (ts("07:45"),))
+        db.commit()
+    monkeypatch.setattr(job, "LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC", 0.0)
+    answer = playback.answer(DAY, ts("07:45:00"))
+    assert answer["status"] == "none" and answer["reason"] == job.STALE and answer["rows"] == []
+
+
+def test_a_failed_bootstrap_still_ends_the_build_on_shutdown(monkeypatch):
+    import asyncio
+
+    import app_lifespan
+    from leaderboard.seconds import job as seconds_job
+
+    async def broken_bootstrap() -> None:
+        raise RuntimeError("bootstrap failed")
+
+    stopped = []
+    monkeypatch.setattr(app_lifespan, "_bootstrap_runtime", broken_bootstrap)
+    monkeypatch.setattr(seconds_job, "stop_all", lambda *a, **k: stopped.append(True))
+
+    async def body() -> None:
+        async with app_lifespan.lifespan(FastAPI()):
+            await asyncio.sleep(0.05)                                     # the bootstrap fails meanwhile
+
+    asyncio.run(body())
+    assert stopped == [True]

@@ -419,8 +419,8 @@ once, on the desk's request, in its own process (`python -m
 leaderboard.seconds.worker --date D` / `nova-api.exe --board-seconds --date
 D`, below normal priority, memory capped), one day at a time: a request for
 another day ends a running build (`stopped`), and so does the backend shutting
-down (`job.stop_all` from `app_lifespan`, which waits for it), so a build never
-outlives its backend; asking again starts it over. A file the build needs to see
+down (`job.stop_all` from `app_lifespan`, which waits for it, even after a
+failed bootstrap), so a build never outlives its backend; asking again starts it over. A file the build needs to see
 every stock that can be on the list -- `tickers.json`, Massive's `splits.json`,
 the prior session's day bars -- that cannot be read fails the build with the
 reason, never a list that quietly leaves those stocks out (an absent
@@ -492,8 +492,12 @@ null, rows: [row]}`. `status` is the job's, `none` before any request, or
 `unavailable` with `reason` (a day Nova recorded -- that is the desk's own list,
 kept per minute -- a day rebuilt without Gappers, or a day file not on disk).
 `rows` only while `ready` and `at` falls in `[04:01, 20:01)` ET, else `[]` with
-`second_ts` null. The Scanner on a rebuilt day asks for the build once a day
-(a request that failed is asked again every 2 s; only `unavailable` is final),
+`second_ts` null. A `ready` file whose `fingerprint` no longer matches the stored
+rebuilt day (checked at most every `LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC`)
+reads `none` with that `reason` and no rows, until asking builds it again. The
+Scanner on a rebuilt day asks for the build once a day (a request that failed is
+asked again every 2 s, and nothing is read until one lands; only `unavailable`
+is final),
 reads the Gappers list each playhead second while it is ready, and keeps the
 minute board until then; its header says `· by the second` on Gappers, or the
 build's progress while it runs. Gainers, Losers and After Hours stay per minute.
