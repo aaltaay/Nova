@@ -17,6 +17,10 @@ FOLLOWED_READS_MAX = 2000
 FOLLOWED_USER_AGENT = "Nova followed-traders"
 # The page calls the feed's capture stopped when its status is older than this.
 FOLLOWED_CAPTURE_STALE_SEC = 60
+# A trader left the bar once it has been read without them, beside the day's other traders, for this long.
+FOLLOWED_LEFT_BAR_SEC = 60.0
+# The day's read log is asked of the feed at most this often for a date (the page asks /day every 3 s).
+FOLLOWED_SEEN_CACHE_SEC = 10.0
 
 # -- Level 1 lines for open positions -------------------------------------------------------------
 FOLLOWED_LINE_OWNER = "followed"

@@ -70,6 +70,30 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-slot-ALPHA')!.querySelector('figcaption')!.textContent).toBe('Their slot as last read · 09:40:00 ET');
   });
 
+  it('shows a trader who left the bar with every trade closed when they left, marked off air', async () => {
+    // Operator, 2026-10-14: NEAL's show ended at 11:00 with BAC on the bar, and the page still said Holding now;
+    // "if they are off air then all trades are closed!"
+    const d = day();
+    const alpha = d.traders[0];
+    const left = T + 120;
+    const gone = { ...alpha, seen: { last_ts: left, left_ts: left }, open: [],
+      record: { ...alpha.record, open: 0, losses: 1, win_rate: 50 },
+      closed: [{ ...alpha.open[0], status: 'closed' as const, left_bar: true, result: 'loss' as const,
+        now: null, pl: { per_share: -0.1, pct: -5 }, held: { min_sec: 120, max_sec: 120 },
+        exit: { state: 'at' as const, price: 1.9, low: null, high: null, from_ts: null, to_ts: left, trade_ts: left - 1,
+          source: 'ibkr_trades' as const, why: null } }, ...alpha.closed] };
+    await show({ ...d, capture: { ...d.capture!, traders: ['BRAVO'] }, traders: [gone, d.traders[1]] });
+    expect(q('ft-left-ALPHA')!.textContent).toBe('Left the bar 10:02:00');
+    expect(q('ft-trader-ALPHA')!.textContent).not.toContain('Off air');
+    expect(q('ft-trader-ALPHA')!.textContent).toContain('No open positions');
+    const row = q('ft-row-o1')!;
+    expect(row.tagName).toBe('TR');
+    expect(row.textContent).toContain('LOSS');
+    expect(q('ft-off-air-close-o1')!.textContent).toBe('off air');
+    // BRAVO is on the bar: as before.
+    expect(q('ft-trader-BRAVO')!.textContent).toContain('On air');
+  });
+
   it('says the feed is not configured on a 404, never an empty list', async () => {
     await show(() => new Response('', { status: 404 }));
     expect(q('ft-state')!.textContent).toMatch(/not configured/);

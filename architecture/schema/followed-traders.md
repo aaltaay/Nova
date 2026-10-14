@@ -111,9 +111,10 @@ line). Answers in about the feed's own time (the feed is asked with a
   `replay_desk`: the desk is on a Sim replay, whose quotes are the recording's, never today's. `ibkr_down`: IBKR is
   not ready. `not_asked`: the request said `quotes=0`. Exits are priced whatever this says.
 - `overall`: everyone's record that day (below).
-- `traders[]`: one per trader with a trade that day, in the order of their first trade: `{name, face, record, open[],
-  closed[]}`; `record` is that trader's record that day; `face` this API's `faces` path for the trader's photo that
-  day, or `null` when the feed has none.
+- `traders[]`: one per trader with a trade that day, in the order of their first trade: `{name, face, record, seen,
+  open[], closed[]}`; `record` is that trader's record that day; `face` this API's `faces` path for the trader's photo
+  that day, or `null` when the feed has none; `seen` when they were last on the bar and whether they left it (below,
+  "A trader who left the bar").
   `open[]` holds `status: "open"` trades, newest entry first; `closed[]` holds `closed` and `unknown`, newest exit
   first (`unknown` by entry).
 
@@ -123,6 +124,7 @@ A trade on this wire:
 {id, trader, side: "long" | "short", symbol, status: "open" | "closed" | "unknown",
  entry: {first_price, avg_price, ts, since_ts, known},
  adds: [{ts, price, prev_price}],
+ left_bar: bool,            // closed because the trader left the bar (below)
  now: {...} | null,         // open trades only
  exit: {...} | null,        // closed trades only
  pl: {...} | null,
@@ -134,6 +136,8 @@ A trade on this wire:
 - `id`: `<trader>|<side>|<symbol>|<entry_ts>`, stable for the trade's life.
 - `entry.first_price` is the feed's `entry_price`; `entry.avg_price` its `price`, the latest average (equal to the
   first unless the trader added). P/L is always against `avg_price`, the trader's cost as the feed last saw it.
+- `left_bar`: true for a trade Nova closed because the trader left the bar holding it (below, "A trader who left
+  the bar"); false for every other trade, which is as the feed has it.
 - `now` (open trades): `{state: "live" | "waiting" | "no_trade" | "no_line" | "off", price, trade_ts, why}`.
   `live`: `price` is the last trade on Nova's IBKR Level 1 line, `trade_ts` when it printed (epoch seconds, `null`
   when IBKR did not say). `waiting`: the line is being opened. `no_trade`: IBKR's only price is the prior close
@@ -172,6 +176,39 @@ A trade on this wire:
 A **record** is `{wins, losses, scratches, unscored, open, win_rate}`: counts of `result`, `open` the trades with
 none, and `win_rate` wins over wins plus losses in percent points (one decimal), `null` when there is neither.
 Scratches and unscored trades are left out of the win rate.
+
+### A trader who left the bar (operator decisions 2026-10-14)
+
+The feed closes a trade only when it reads the trader's slot without the position, so a trader whose show ends with a
+position on the bar is never seen to close it, and the feed keeps the trade `open` all day (operator, 13:11 ET, about
+NEAL and SHAWN, whose segment ended at 11:00 with BAC short, TQQQ long and AMZN short on the bar: "why our software
+still think they are holding trades?"). The rule, the operator's: **"if they are off air then all trades are
+closed!"** Off air means the bar went on without them -- other traders on it, not them -- never a bar that is only off
+screen (a guest, a chart, a break): that day JOE came back from a 40-minute guest segment still holding NVDL. Nothing
+here names a trader or a time ("they may change the actors ... maybe neal is going to be sick and be replaced with
+someone else"): whoever the bar reads is who is on it.
+
+- `seen`: `{last_ts, left_ts} | null`, from the feed's read log (`reads.jsonl`, above). `last_ts` is when the feed last
+  read the trader's slot: the time of the line after the last line that read their name, or the newest read time when
+  that line is the newest. `left_ts` is the time of the first line after that which read anyone else on the bar -- a
+  name tag of 2 to 16 letters and digits, starting with a letter, so a new host with no trade yet counts and the
+  reader's empty reads of a guest's caption do not -- counted only once the newest read time is
+  `FOLLOWED_LEFT_BAR_SEC` (60) past it, so a name tag misread for a frame is never a departure. It is `null` while
+  they are on the bar and while the bar has been off screen since. The newest read time is the log's newest `clock`,
+  or the capture's `clock` when the day is today and that is newer. Names read on the bar map onto the day's traders
+  (a name with a trade that day, or on `capture.bar`) as the feed's tracker maps them: a stray letter or two beside a
+  short name, one wrong letter in a name of five letters or more. `seen` is `null` when the name was never read, the
+  feed keeps no read log for the day, or the log cannot be read (logged).
+- Every `open` trade of a trader whose `left_ts` is set is **closed** when they left: `status: "closed"`,
+  `left_bar: true`, its exit read like any other (IBKR's tape, `exit` above) at `left_ts`, or in the window
+  `last_ts`..`left_ts` when the bar was not read between them; no exit image, since no close was seen. Its `held`,
+  `pl` and `result` follow from that exit, and it moves to `closed[]` and into the records. Nova holds no IBKR line for
+  it. The feed is not changed: a trader read on the bar again is on it again (`left_ts` back to `null`), and their
+  trades read as the feed has them.
+- `GET /record` applies the same rule to each day of its span with a trade still open, from that day's log.
+- The log is asked of the feed with the day (`quotes=0` too, so the toasts say "closed" when a trader leaves), at most
+  once every `FOLLOWED_SEEN_CACHE_SEC` (10) for today; a day before the desk's today is finished, and its log, once the
+  feed answered (or said it keeps none), is not asked again.
 
 ### `GET /api/followed-traders/record?range=day|week|all&date=YYYY-MM-DD`
 
@@ -232,7 +269,7 @@ Open positions on today are priced from IBKR Level 1 lines owned by `followed`
 like any line no scanner owner holds, so the scanner plans its rows around it, and IBKR's refusal is said as
 `no_line`. The lines are asked for in the background on the IB loop (the route never waits) and are all
 released when no request came for `FOLLOWED_WANTED_SEC`, so a closed page holds none. A Sim replay desk, a past
-day or an IBKR that is not ready asks for none.
+day or an IBKR that is not ready asks for none, and a trade closed when its trader left the bar holds none.
 
 ### On the desk
 
@@ -264,7 +301,10 @@ images again with each answer.
   and one row per closed trade, newest exit first, striped by its result (WIN green, LOSS red, scratch and unscored
   grey): result, ticker, side, in -> out, entry (the average, with the first price when the trader added) -> exit
   (IBKR's last trade at the exit; a low-high range marked est. for a window; reading the tape or waiting for IBKR;
-  no price, with why), P/L per share and %, held, proof. A past day reads "Open at the day's end" and "Closed". A
+  no price, with why), P/L per share and %, held, proof. A trader who left the bar (`seen.left_ts`) reads "Left the
+  bar HH:MM:SS" in place of on air or off air, and each trade closed then has "off air" beside its out time, saying
+  why it closed; its Proof's exit reads "Closed when they left the bar". A past day reads "Open at the day's end" and
+  "Closed". A
   time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored. A trader with no
   trade that day shows the card alone. A ticker -- on an OPEN tile, a closed row (in the list of all closed trades
   too), a Proof's title and an Activity line -- opens the stock in the Trader, as a symbol does on the Market and
