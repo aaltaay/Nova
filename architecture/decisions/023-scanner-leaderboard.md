@@ -160,3 +160,55 @@ re-run, but after 09:30 a frozen gapper that left the top 100 has no row to
 reprice. *Store the Losers as extra `market` rows*: the desk would show them
 under Gainers, and their `BOARD_RULES` ranks (in the thousands) mean nothing on
 a Losers list.
+
+## Amendment 2026-10-13 -- a rebuilt day's Gappers by the second
+
+**Context.** The operator asked why a rebuilt day's order "could be different"
+when the Massive files hold every trade, then "how do we make this more
+accurate". A rebuilt board steps once a minute because it is built from the
+minute bars. Measured on 2026-09-01 07:00-09:30 against the day's trades: the
+Gappers top 10 changed order 1,761 times (the minute board can show at most
+150 changes), the minute board's top 10 was out of date in 70% of the seconds
+and its membership in 36%, a top-10 price was a median 0.34% (at worst 25.7%)
+off the last trade, and 18 stocks were gappers for up to 54 s without being on
+the board at either end of that minute. The live desk reprices Gappers on every
+quote, so a past day in Sim did not behave like a live one.
+
+**Decision.**
+1. **Gappers, by the second, on a rebuilt day.** The board at playhead second s
+   is the Gappers rule over the stocks that could qualify inside that minute,
+   priced from the trades before s ("A rebuilt day's Gappers by the second" in
+   `architecture/schema/scanner.md`). From 09:30 the frozen list keeps its
+   members and order and is repriced each second.
+2. **The minute board is the skeleton.** Each stock's price and volume as of
+   the minute are the rebuild's own, so the list at the minute's first second
+   is the stored board, and the build checks that for every premarket minute.
+   Only what happened inside the minute comes from the trades.
+3. **Read only what can matter.** A price inside a minute is at most its bar's
+   high, so the stocks whose high (or price as of the minute) clears the rule
+   are the only ones that can be on the list then: 43 of about 2,700 traded on
+   2026-09-01 07:00-09:30. Only their trades are read, through the seek index.
+4. **Built when the desk opens the day**, in its own process like a Massive
+   import (ADR 046), into its own file beside the leaderboard store -- never
+   the store the live recorder writes. One day at a time.
+5. **Gappers only, for now.** Gainers and Losers rank the whole market with no
+   floor, so far more stocks could move into their top 100 inside a minute;
+   they stay per minute until asked for. Recorded days are what Nova showed and
+   stay per minute.
+
+**Consequences.** A rebuilt day's Gappers list moves second by second once its
+build is ready (81 s of trade reads for 2026-09-01 while a bulk index build
+shared the disk; more when the trades file needs its index first). `rvol` stays
+the minute's. Massive's minute bars and the trades can disagree on prints with
+the same nanosecond: YEXT at 08:21 on 2026-09-01 printed $7.44 and $7.46 at
+08:20:42.320862150, sequence numbers 30085 then 30086; the bar closed at 7.44
+(+9.92%, off the list), the trades' order says 7.46 (+10.19%, on it). The list
+inside the minute follows the sequence numbers; at the minute's first second it
+is the stored board.
+
+**Rejected.** *Precompute every rebuilt day*: about 1,750 days of trade reads
+for days nobody opens. *Store the seconds in `leaderboard.sqlite3`*: the live
+recorder writes it 04:00-20:00 and gives up a batch after a timeout. *Re-rank
+in the desk*: the ranking lives once, in `leaderboard/ranking.py`. *Read every
+stock's trades*: about 3 GB of gzip a day, almost all of it for stocks that
+cannot be on the list.

@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from constants_leaderboard import LEADERBOARD_DAYS_LIMIT, LEADERBOARD_SOURCES
 from leaderboard import playback
+from leaderboard.seconds import job as seconds_job, playback as seconds_playback
 
 router = APIRouter(prefix="/api/leaderboard")
 
@@ -51,3 +52,14 @@ async def get_coverage(day: str, source: str | None = None) -> dict:
 @router.get("/{day}/halts")
 async def get_halts(day: str, until: float | None = None) -> dict:
     return await asyncio.to_thread(playback.halts, _day(day), until)
+
+
+@router.post("/{day}/seconds")
+async def post_seconds(day: str) -> dict:
+    """Ask for a rebuilt day's Gappers by the second (ADR 023 amendment 2026-10-13)."""
+    return await asyncio.to_thread(seconds_job.request, _day(day))
+
+
+@router.get("/{day}/seconds")
+async def get_seconds(day: str, at: float = Query(..., description="Playhead, epoch seconds")) -> dict:
+    return await asyncio.to_thread(seconds_playback.answer, _day(day), float(at))

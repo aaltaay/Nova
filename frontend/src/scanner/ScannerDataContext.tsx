@@ -12,6 +12,7 @@ import {
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { useScannerData } from '../hooks/useScannerData';
 import type { ScannerReplay } from '../leaderboard/leaderboardTypes';
+import { useGappersBySecond, withGappersBySecond } from '../leaderboard';
 import { withScannerReplay } from '../leaderboard/scannerReplayFeed';
 import { useLeaderboardPlayback } from '../leaderboard/useLeaderboardPlayback';
 import { useSettings } from '../settings/SettingsContext';
@@ -86,8 +87,14 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
     onActiveFeed: settings.setActiveFeed,
     onFeedFellBack: settings.setFeedFellBack,
   });
-  // One desk, one clock: off the Sim live edge the board follows the playhead.
-  const replay = useLeaderboardPlayback();
+  // One desk, one clock: off the Sim live edge the board follows the playhead -- a rebuilt day's
+  // Gappers by the second once its build is ready (ADR 023 amendment 2026-10-13).
+  const board = useLeaderboardPlayback();
+  const bySecond = useGappersBySecond(board);
+  const replay = useMemo(
+    () => withGappersBySecond(board, bySecond.latest, bySecond.second),
+    [board, bySecond.latest, bySecond.second],
+  );
   const value = useMemo<LiveScannerFeed>(
     () => withScannerReplay({
       ...scanner, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab, l1FocusTabs, setL1FocusTabs,

@@ -141,3 +141,38 @@ LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC = 60.0
 # ── Playback API ────────────────────────────────────────────────────────────
 # Every day on file: five years of rebuilt sessions plus recorded ones (~330 ms at 1,255 days).
 LEADERBOARD_DAYS_LIMIT = 2_500
+
+# ── Gappers by the second on a rebuilt day (ADR 023 amendment 2026-10-13) ───
+# Owner: backend/leaderboard/seconds/. Files under <leaderboard root>/seconds/.
+LEADERBOARD_SECONDS_SUBDIR = "seconds"
+LEADERBOARD_SECONDS_SCHEMA_VERSION = 1
+LEADERBOARD_SECONDS_BOARD = LEADERBOARD_BOARD_GAPPERS
+# The job's states, as GET /api/leaderboard/{date}/seconds says them.
+LEADERBOARD_SECONDS_QUEUED = "queued"
+LEADERBOARD_SECONDS_BUILDING = "building"
+LEADERBOARD_SECONDS_READY = "ready"
+LEADERBOARD_SECONDS_FAILED = "failed"
+LEADERBOARD_SECONDS_STOPPED = "stopped"
+LEADERBOARD_SECONDS_NONE = "none"                 # nothing asked for this day yet
+LEADERBOARD_SECONDS_UNAVAILABLE = "unavailable"   # cannot be built; ``reason`` says why
+LEADERBOARD_SECONDS_ACTIVE = (LEADERBOARD_SECONDS_QUEUED, LEADERBOARD_SECONDS_BUILDING)
+# The build's stages, in order.
+LEADERBOARD_SECONDS_STAGE_INPUTS = "inputs"
+LEADERBOARD_SECONDS_STAGE_INDEX = "index"
+LEADERBOARD_SECONDS_STAGE_TRADES = "trades"
+LEADERBOARD_SECONDS_STAGE_WRITING = "writing"
+# A building job rewrites its file at least this often; one silent for STALE_SEC belonged to a process that died.
+LEADERBOARD_SECONDS_PROGRESS_EVERY_SEC = 1.0
+LEADERBOARD_SECONDS_STALE_SEC = 60.0
+# A bulk index build holding the day's trades file is waited for (never duplicated), at most this long.
+LEADERBOARD_SECONDS_INDEX_WAIT_SEC = 30 * 60
+LEADERBOARD_SECONDS_INDEX_POLL_SEC = 5.0
+# The build's committed-memory cap (MB); 0 = none. The env var raises or lowers it.
+LEADERBOARD_SECONDS_MEMORY_ENV = "NOVA_BOARD_SECONDS_MEMORY_MB"
+LEADERBOARD_SECONDS_MEMORY_MB = 3072
+# The 09:30 ET boundary: Gappers freeze there (minutes after midnight ET).
+LEADERBOARD_GAPPERS_FREEZE_MIN_ET = 9 * 60 + 30
+# The reference universe a stock the store never held must be in (Massive ``tickers.json`` types).
+LEADERBOARD_SECONDS_UNIVERSE_TYPES = ("CS", "ADRC")
+# The summary keeps at most this many minutes whose first second disagreed with the stored board.
+LEADERBOARD_SECONDS_MAX_DISAGREEMENTS = 20
