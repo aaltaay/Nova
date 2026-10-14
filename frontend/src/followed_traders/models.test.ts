@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { activity } from './activity';
 import { dayLabel, monthCells, neighbourDay, shiftMonth } from './calendar';
-import { behindStream, capturePill, offAirWhy, onAir } from './capture';
+import { asOf, behindStream, capturePill, offAirWhy, onAir } from './capture';
 import { capture, closed, day, T, trade } from './followedTestData';
 import { judgeReads, readAt } from './proof';
 import { tradeToasts } from './toastModel';
@@ -35,6 +35,18 @@ describe('the stream on air', () => {
       .toBe('the feed is not reading a live stream right now · YouTube wants a sign-in');
     expect(onAir(capture({ live: false }))).toBe(false);
     expect(offAirWhy(capture({ live: false }))).toBe('Waiting for the stream');
+    // No time to prove it is live is not on air.
+    expect(onAir(capture({ updated_at: null, age_sec: null }))).toBe(false);
+  });
+
+  it('ages the last answer while no new one comes, so a silent backend never keeps the stream on air', () => {
+    const got = 1_000_000;
+    expect(asOf(day(), got, got).capture!.age_sec).toBe(2);
+    expect(onAir(asOf(day(), got, got + 30_000).capture)).toBe(true);
+    const later = asOf(day(), got, got + 61_000).capture!;
+    expect(later.age_sec).toBe(63);
+    expect(onAir(later)).toBe(false);
+    expect(asOf(day(), null, got + 61_000).capture!.age_sec).toBe(2);
   });
 });
 
