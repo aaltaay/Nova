@@ -116,7 +116,8 @@ STAGE_READ = 64 << 20           # the copy's reads off the hard drive
 
 
 def _build_one(path_str: str, bulk_read: int, staged_str: str | None = None,
-               ram_floor_gb: float = index_watch.RAM_FLOOR_GB) -> tuple[str, str, float, int]:
+               ram_floor_gb: float = index_watch.RAM_FLOOR_GB,
+               ram_wait_sec: float = index_watch.RAM_WAIT_SEC) -> tuple[str, str, float, int]:
     below_normal()
     path, root = Path(path_str), massive_files.root()
     staged = Path(staged_str) if staged_str else None
@@ -127,7 +128,7 @@ def _build_one(path_str: str, bulk_read: int, staged_str: str | None = None,
         if massive_index.is_current(path, root):
             return path_str, "current", 0.0, path.stat().st_size
         stop_file = root / "sim" / "index" / INDEX_STOP
-        if not index_watch.wait_for_ram(ram_floor_gb, index_watch.RAM_WAIT_SEC, stop_file):
+        if not index_watch.wait_for_ram(ram_floor_gb, ram_wait_sec, stop_file):
             return path_str, LOW_RAM, time.monotonic() - t0, 0
         if stop_file.exists():                                    # it appeared while this build waited for memory
             return path_str, STOPPED, 0.0, 0
@@ -167,14 +168,15 @@ class _Stager(threading.Thread):
     made (a full stage) stops the copying, and the builds in progress finish."""
 
     def __init__(self, pool: ProcessPoolExecutor, files: list[Path], stage: Path, budget: int, stop_file: Path,
-                 ram_floor_gb: float = index_watch.RAM_FLOOR_GB):
+                 ram_floor_gb: float = index_watch.RAM_FLOOR_GB, ram_wait_sec: float = index_watch.RAM_WAIT_SEC):
         super().__init__(name="index-stager", daemon=True)
         self.pool, self.files, self.stage, self.budget, self.stop_file = pool, files, stage, budget, stop_file
-        self.ram_floor_gb = ram_floor_gb
+        self.ram_floor_gb, self.ram_wait_sec = ram_floor_gb, ram_wait_sec
         self.futures: queue.Queue = queue.Queue()
         self.room = threading.Condition()
         self.held = 0
         self.stopped = self.broke = False
+        self.broke_reason = ""
         self.skipped = 0
 
     def _release(self, size: int) -> None:
@@ -201,15 +203,18 @@ class _Stager(threading.Thread):
                 except OSError as exc:
                     self._release(size)
                     self.broke = True
-                    log.warning("index: could not copy %s to %s (%s); no more files start", path, self.stage, exc)
+                    self.broke_reason = f"could not copy {path} to {self.stage} ({exc})"
+                    log.warning("index: %s; no more files start", self.broke_reason)
                     return
                 try:
-                    future = self.pool.submit(_build_one, str(path), 0, str(copy), self.ram_floor_gb)
+                    future = self.pool.submit(_build_one, str(path), 0, str(copy), self.ram_floor_gb,
+                                               self.ram_wait_sec)
                 except RuntimeError as exc:   # a broken pool (a worker died): nothing more can build
                     copy.unlink(missing_ok=True)
                     self._release(size)
                     self.broke = True
-                    log.warning("index: the builds stopped (%s); no more files start", exc)
+                    self.broke_reason = f"the builds stopped ({exc})"
+                    log.warning("index: %s; no more files start", self.broke_reason)
                     return
                 future.add_done_callback(lambda _f, size=size: self._release(size))
                 self.futures.put(future)
@@ -253,7 +258,8 @@ def todo(datasets: list[str], start: str | None, end: str | None, oldest_first: 
 def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str | None = None,
                   end: str | None = None, oldest_first: bool = False, stage: Path | None = None,
                   stage_gb: float = 40.0, ram_floor_gb: float = index_watch.RAM_FLOOR_GB,
-                  streak_halt: int = index_watch.FAILURE_STREAK_HALT) -> int:
+                  streak_halt: int = index_watch.FAILURE_STREAK_HALT,
+                  ram_wait_sec: float = index_watch.RAM_WAIT_SEC) -> int:
     """Build every missing index, ``workers`` files at a time; the number that failed. Logged to the index folder.
 
     Stops after the files in progress when ``<root>/sim/index/STOP`` appears: every task left checks the file and
@@ -290,7 +296,7 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
              f"copied one at a time to {stage} ({stage_gb:g} GB at most)" if stage else f"{read_mb} MB reads")
     log.info("index: pid %d; to stop after the files in progress, create %s; halts after %d failures in a row or "
              "%.0f min below %g GB of free memory", os.getpid(), stop_file, streak_halt,
-             index_watch.RAM_WAIT_SEC / 60, ram_floor_gb)
+             ram_wait_sec / 60, ram_floor_gb)
     watch = index_watch.Watch(log_path.parent, stop_file, len(files), total, workers, streak_halt)
     done_bytes, t0, failed, stopped, finished = 0, time.monotonic(), 0, 0, 0
     stager = None
@@ -298,10 +304,10 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
     fresh = {"max_tasks_per_child": 1} if sys.version_info >= (3, 11) else {}
     with ProcessPoolExecutor(workers, **fresh) as pool:
         if stage is None:
-            results = as_completed([pool.submit(_build_one, str(path), read_mb << 20, None, ram_floor_gb)
+            results = as_completed([pool.submit(_build_one, str(path), read_mb << 20, None, ram_floor_gb, ram_wait_sec)
                                     for path in files])
         else:
-            stager = _Stager(pool, files, stage, int(stage_gb * 1e9), stop_file, ram_floor_gb)
+            stager = _Stager(pool, files, stage, int(stage_gb * 1e9), stop_file, ram_floor_gb, ram_wait_sec)
             stager.start()
             results = stager.completed()
         for future in results:
@@ -313,7 +319,7 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
                 watch.failed(f"{type(exc).__name__}: {exc}")
                 continue
             if state == LOW_RAM:
-                watch.halt(f"less than {ram_floor_gb:g} GB of memory free for {index_watch.RAM_WAIT_SEC / 60:.0f} "
+                watch.halt(f"less than {ram_floor_gb:g} GB of memory free for {ram_wait_sec / 60:.0f} "
                            f"min before {path_str}")
                 stopped += 1
                 continue
@@ -333,8 +339,9 @@ def build_indexes(datasets: list[str], *, workers: int, read_mb: int, start: str
         stager.join()
         if stager.broke:
             failed += 1
+            watch.run_failed(stager.broke_reason)
         unstarted = len(files) - finished - failed - stager.skipped
         stopped = unstarted if (stager.stopped or stager.broke or stopped) else 0
     log.info("index: %s, %d failed", f"stopped with {stopped} files left" if stopped else "finished", failed)
     watch.finish("halted" if watch.halted.is_set() else "stopped" if stopped else "finished", stopped)
-    return failed
+    return max(failed, 1) if watch.halted.is_set() else failed    # a halt (low memory too) never exits 0

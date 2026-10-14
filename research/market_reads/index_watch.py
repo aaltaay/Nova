@@ -5,7 +5,8 @@ while its workers grew until the PC ran short of memory, and the only trace was 
 reading. Now every failure is counted on every progress line, the first one and any halt raise a Windows
 notification, five in a row halt the run (``<root>/sim/index/STOP`` with the reason), a build waits for free memory
 before it starts and halts the run when none comes, and ``index-status.json`` says what the run is doing -- or that
-its process is gone -- to ``tools/market_data.py status`` and the downloads page.
+its process is gone -- to ``tools/market_data.py status`` and the private downloads page on 127.0.0.1:8765 (the
+lab's, not the desk's Historical replay panel).
 """
 from __future__ import annotations
 
@@ -190,6 +191,12 @@ class Watch:
             self.halt(f"{self.streak} builds failed in a row; the last: {what}")
         else:
             self._write()
+
+    def run_failed(self, reason: str) -> None:
+        """The run itself cannot go on (a full stage, a broken pool): counted as a failure and a halt."""
+        self.data["failed"] += 1
+        self.data["failures"] = [*self.data["failures"], {"at": round(time.time(), 3), "what": reason}][-FAILURES_KEPT:]
+        self.halt(reason)
 
     def halt(self, reason: str) -> None:
         """Stop the run after the files in progress, say why in STOP and the status file, and alert -- once."""
