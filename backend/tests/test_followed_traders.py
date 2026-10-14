@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import time
 from datetime import datetime
 
 import pytest
@@ -484,7 +485,7 @@ def test_route_config(client):
 
 
 def test_route_day_prices_open_and_marks_exits_pending(client, monkeypatch):
-    today = datetime.now(ET).date().isoformat()
+    today = routes.desk_day(time.time())[0]
     raw = _raw_day([_trade(symbol="AAA"), _trade(symbol="BBB", status="closed", exit_clock="10:20:00")],
                    date=today, today=today)
     _serve(monkeypatch, raw)
@@ -498,11 +499,46 @@ def test_route_day_prices_open_and_marks_exits_pending(client, monkeypatch):
 def test_route_day_past_day_and_replay_desk(client, monkeypatch):
     _serve(monkeypatch, _raw_day([_trade()], date="2026-10-12", today="2026-10-13"))
     assert client.get("/api/followed-traders/day?date=2026-10-12").json()["prices"]["state"] == "past_day"
-    _serve(monkeypatch, _raw_day([_trade()]))
+    today = routes.desk_day(time.time())[0]
+    _serve(monkeypatch, _raw_day([_trade()], date=today, today=today))
     monkeypatch.setattr(routes, "_replay_desk", lambda: True)
     body = client.get("/api/followed-traders/day").json()
     assert body["prices"]["state"] == "replay_desk"
     assert body["traders"][0]["open"][0]["now"]["state"] == "off"
+
+
+@pytest.mark.parametrize("clock, date, today, resets", [
+    # 00:30 ET is still the day before: the desk's day, and this page's, turns at 04:00 ET, the premarket.
+    ("00:30:00", "2026-10-14", "2026-10-13", "2026-10-14T04:00:00-04:00"),
+    ("03:59:59", "2026-10-14", "2026-10-13", "2026-10-14T04:00:00-04:00"),
+    ("04:00:00", "2026-10-14", "2026-10-14", "2026-10-15T04:00:00-04:00"),
+    ("21:00:00", "2026-10-13", "2026-10-13", "2026-10-14T04:00:00-04:00"),
+])
+def test_desk_day_turns_at_four_et(clock, date, today, resets):
+    got, resets_at = routes.desk_day(_epoch(clock, date))
+    assert got == today and resets_at == datetime.fromisoformat(resets).timestamp()
+
+
+def test_desk_day_ends_at_four_et_across_the_clock_change():
+    # Clocks go back at 02:00 on 2026-11-01: that day's 04:00 ET is 09:00 UTC, 25 hours after the one before.
+    _, resets_at = routes.desk_day(_epoch("10:00:00", "2026-10-31"))
+    assert resets_at == datetime.fromisoformat("2026-11-01T09:00:00+00:00").timestamp()
+
+
+def test_route_day_asks_the_feed_for_the_desks_day_and_says_when_it_ends(client, monkeypatch):
+    asked = []
+    today, resets_at = routes.desk_day(time.time())
+
+    def fetch(base, date):
+        asked.append(date)
+        # The feed's own today turns at midnight; between 00:00 and 04:00 ET it is a day ahead of the desk's.
+        return feed.parse_day(_raw_day([_trade()], date=date, today="2099-01-01"))
+
+    monkeypatch.setattr(feed, "fetch_day", fetch)
+    body = client.get("/api/followed-traders/day").json()
+    assert asked == [today]
+    assert body["date"] == today and body["today"] == today and body["prices"]["state"] == "live"
+    assert abs(body["resets_at"] - resets_at) < 1
 
 
 def test_route_day_feed_down_is_stated(client, monkeypatch):

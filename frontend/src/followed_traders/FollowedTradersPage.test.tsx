@@ -151,6 +151,38 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-stream')).not.toBeNull();
   });
 
+  it('plays no past broadcast: off air the player keeps its place and shows OFFLINE with why', async () => {
+    // The operator's 2026-10-13 evening: the feed's last status still names the day's stream as live, 5 h stale.
+    await show(day({ capture: { ...day().capture!, video_id: 'R5YIugCJar0', clock: '15:57:12', age_sec: 18_000 } }));
+    const player = q('ft-stream')!;
+    expect(player.getAttribute('data-on-air')).toBe('false');
+    expect(q('ft-stream-frame')).toBeNull();
+    expect(q('ft-stream-offline')!.textContent).toContain('Offline');
+    expect(q('ft-stream-off-why')!.textContent).toBe('last read 15:57:12 ET');
+    // Nothing that reaches the ended broadcast: no sound, Pop out or YouTube link; close stays.
+    for (const id of ['ft-stream-sound', 'ft-stream-popout', 'ft-stream-youtube', 'ft-stream-reload']) expect(q(id)).toBeNull();
+    expect(player.textContent).toContain('Last stream: Morning show');
+    const watch = q('ft-watch-live') as HTMLButtonElement;
+    expect(watch.disabled).toBe(true);
+    expect(watch.getAttribute('data-why')).toBe('Offline · last read 15:57:12 ET');
+    expect(q('ft-head-video')!.textContent).toBe('Last stream: Morning show');
+    await click(q('ft-stream-close'));
+    expect(q('ft-stream')).toBeNull();
+  });
+
+  it('says when today resets: 04:00 ET, the desk’s own day', async () => {
+    const resetsAt = Date.UTC(2026, 9, 14, 8, 0, 0) / 1000; // 04:00 ET, 2026-10-14
+    await show(day({ resets_at: resetsAt }));
+    const reset = q('ft-day-reset')!;
+    expect(reset.textContent).toBe('Resets 4:00 AM ET');
+    expect(reset.getAttribute('data-tip')).toContain('Today runs until 4:00 AM ET on Wed, Oct 14, the premarket');
+  });
+
+  it('names no reset on a past day', async () => {
+    await show(day({ date: '2026-10-09', resets_at: Date.UTC(2026, 9, 14, 8, 0, 0) / 1000 }));
+    expect(q('ft-day-reset')).toBeNull();
+  });
+
   it('keeps the stream on a past day: it is the feed’s now, whatever day is shown', async () => {
     await show(day({ date: '2026-10-09', capture: { ...day().capture!, video_id: 'R5YIugCJar0' } }));
     expect((q('ft-watch-live') as HTMLButtonElement).disabled).toBe(false);

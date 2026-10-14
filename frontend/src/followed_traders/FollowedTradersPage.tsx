@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { ActivityFeed } from './ActivityFeed';
-import { captureStopped } from './capture';
+import { offAirWhy, onAir } from './capture';
 import { FT_ALL_CLOSED, FT_CLOSE_LIST, FT_LOADING, FT_NO_TRADES, FT_OFF, FT_READ_FAILED } from './constants';
 import { fitPlan, maxFitLevel, useFitLevel } from './fit';
 import { clearFollowedProofRequest, useFollowedProofRequest } from './followedStores';
@@ -80,8 +80,10 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
   const records = useFollowedRecord(range, day.date);
   const streamOpen = useStreamOpen();
   const c = day.capture;
-  // The stream is the feed's now, whatever day is shown: watching it never depends on the day picked.
+  // The stream is the feed's now, whatever day is shown: watching it never depends on the day picked. It plays only
+  // while the feed reads it live; off air the player shows OFFLINE, never replaying the ended broadcast.
   const videoId = streamId(c?.video_id);
+  const streamLive = onAir(c);
   const hasOpen = day.traders.some((t) => t.open.length > 0);
   const pricesWhy = isToday && hasOpen && day.prices && day.prices.state !== 'live' ? day.prices.why : null;
   const recordFor = (name: string, own: FollowedRecord): FollowedRecord | null =>
@@ -90,7 +92,8 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
   const proofTrade = proofOwner ? [...proofOwner.open, ...proofOwner.closed].find((x) => x.id === proofId) ?? null : null;
   return (
     <>
-      <PageHead day={day} onPickDate={onPickDate} pricesWhy={pricesWhy} stream={{ id: videoId, open: streamOpen }}
+      <PageHead day={day} onPickDate={onPickDate} pricesWhy={pricesWhy} stream={{ id: videoId, open: streamOpen, live: streamLive,
+        offAirWhy: c && !streamLive ? offAirWhy(c) : null }}
         records={ok ? { range, onRange, overall: range === 'day' ? day.overall : records.data?.overall ?? null,
           error: records.error, pending: records.data?.pending ?? 0 } : null} />
       {error && <p className="ft-state ft-state--warn">{FT_READ_FAILED} {error} · showing the last answer</p>}
@@ -103,7 +106,9 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
         <div className="ft-main">
           <Board day={day} isToday={isToday} recordFor={recordFor} onProof={onProof} />
           <aside className="ft-rail">
-            {videoId && streamOpen && <StreamPlayer videoId={videoId} title={c?.title ?? null} live={!!c?.live && !captureStopped(c)} />}
+            {videoId && streamOpen && c && (
+              <StreamPlayer videoId={videoId} title={c.title} offAir={streamLive ? null : offAirWhy(c)} />
+            )}
             <ActivityFeed traders={day.traders} onProof={onProof} />
           </aside>
         </div>
@@ -129,7 +134,7 @@ function Board({ day, isToday, recordFor, onProof }: BoardProps) {
   const { level, overflowing } = useFitLevel(stack, shape, maxFitLevel(closed));
   const plan = fitPlan(level, closed);
   const c = day.capture;
-  const live = c !== null && c.live && !captureStopped(c);
+  const live = onAir(c);
   const lastRead = c && !live && c.clock ? c.clock : null;
   const listed = showAll ? people.find((e) => e.name === showAll)?.trader ?? null : null;
   return (
