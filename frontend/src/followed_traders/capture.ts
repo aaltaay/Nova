@@ -9,6 +9,7 @@ import {
   FT_PILL_HIDDEN,
   FT_PILL_STOPPED,
   FT_PILL_WAITING,
+  FT_STREAM_NOT_READING,
   FT_UNREACHABLE,
 } from './constants';
 import { duration } from './format';
@@ -47,6 +48,23 @@ export function behindStream(c: FollowedCapture): number | null {
 export function captureStopped(c: FollowedCapture): boolean {
   const stale = c.age_sec !== null && c.age_sec > FOLLOWED_CAPTURE_STALE_SEC;
   return stale || (c.problem !== null && (!c.live || c.updated_at === null));
+}
+
+/** The stream is on air: the feed is reading it live right now. Only then does the page play it (operator,
+ *  2026-10-13: an ended stream's recording is never shown as if it were live). */
+export function onAir(c: FollowedCapture | null | undefined): boolean {
+  return !!c && c.live && !captureStopped(c);
+}
+
+/** Why the stream is offline: waiting for one, or when the feed last read it and its own reason. */
+export function offAirWhy(c: FollowedCapture): string {
+  if (!captureStopped(c) && !c.live) return FT_PILL_WAITING;
+  const parts: string[] = [];
+  if (c.clock) parts.push(`last read ${c.clock} ET`);
+  else if (c.age_sec !== null) parts.push(`last read ${duration(c.age_sec)} ago`);
+  else parts.push(FT_STREAM_NOT_READING);
+  if (c.problem) parts.push(c.problem);
+  return parts.join(' · ');
 }
 
 export function capturePill(day: FollowedDay | null): CapturePill | null {

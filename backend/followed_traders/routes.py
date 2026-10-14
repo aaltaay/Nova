@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from datetime import date as Date, datetime, timedelta
+from datetime import date as Date, timedelta
 from typing import Any
 
 from fastapi import APIRouter
@@ -48,10 +48,13 @@ async def get_day(date: str | None = None, quotes: int = 1):
     if base is None:
         return Response(status_code=404)
     now = time.time()
+    today, resets_at = desk_day(now)
     try:
-        day = await asyncio.to_thread(feed.fetch_day, base, date)
+        # The desk's today is asked by name: the feed's own default turns at midnight, the desk's at 04:00 ET.
+        day = await asyncio.to_thread(feed.fetch_day, base, date or today)
     except feed.FeedError as exc:
         return view.feed_down(exc.state, exc.message, date, now)
+    day = {**day, "today": today}
     prices = prices_state(day) if quotes else {"state": "not_asked", "why": "asked without prices"}
     open_trades = sorted((t for t in day["trades"] if t["status"] == "open"), key=lambda t: t["entry_ts"],
                          reverse=True)
@@ -71,7 +74,8 @@ async def get_day(date: str | None = None, quotes: int = 1):
         return quotes.get(sym) or lines.now_state("waiting", why="opening IBKR's line")
 
     ready = _ibkr_ready()
-    body = view.compose(day, now=now, prices=prices, now_for=now_for, exit_for=_exit_for(now, ready))
+    body = view.compose(day, now=now, prices=prices, now_for=now_for, exit_for=_exit_for(now, ready),
+                        resets_at=resets_at)
     exits.pump(now, ibkr_ready=ready)
     return body
 
@@ -88,7 +92,7 @@ async def get_record(range: str = "week", date: str | None = None):  # noqa: A00
     if base is None:
         return Response(status_code=404)
     now = time.time()
-    end = date or _today_et()
+    end = date or desk_day(now)[0]
     start = record_start(range, end)
     try:
         got = await asyncio.to_thread(feed.fetch_trades, base, start, end)
@@ -189,15 +193,18 @@ def _exit_for(now: float, ready: bool):
     return exit_for
 
 
-def _today_et() -> str:
-    from sim.session_clock import ET
+def desk_day(now: float) -> tuple[str, float]:
+    """The desk's trading day at ``now`` and the epoch second it ends: the ET date whose 04:00 ET has passed, turning
+    at the next 04:00 ET -- the premarket open the rest of the desk rolls at (``practice.clock``)."""
+    from practice.clock import at, day_start_ts
 
-    return datetime.now(ET).date().isoformat()
+    start = at(day_start_ts(now))
+    return start.date().isoformat(), (start + timedelta(days=1)).timestamp()
 
 
 def prices_state(day: dict[str, Any]) -> dict[str, Any]:
     if day["date"] != day["today"]:
-        return {"state": "past_day", "why": f"{day['date']} is not the feed's today; nothing is priced now"}
+        return {"state": "past_day", "why": f"{day['date']} is not today; nothing is priced now"}
     if _replay_desk():
         return {"state": "replay_desk", "why": "the desk is on a Sim replay, whose quotes are the recording's"}
     if not _ibkr_ready():

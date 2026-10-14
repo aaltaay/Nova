@@ -111,7 +111,10 @@ export interface FollowedDay {
   generated_at: number;
   feed: { state: FeedState; error: string | null };
   date: string | null;
+  /** The desk's trading day, turning at 04:00 ET like the rest of the desk; null while the feed is down. */
   today: string | null;
+  /** When today ends (the next 04:00 ET), epoch seconds; null while the feed is down (absent from an older backend). */
+  resets_at?: number | null;
   dates: string[];
   capture: FollowedCapture | null;
   prices: { state: PricesState; why: string | null } | null;

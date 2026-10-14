@@ -23,12 +23,14 @@ FACE_PATH = "/api/followed-traders/faces/{date}/{name}.jpg"
 def feed_down(state: str, error: str, date: str | None, now: float) -> dict[str, Any]:
     """The feed did not answer, or answered something Nova cannot read: said, with nothing else."""
     return {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3),
-            "feed": {"state": state, "error": error}, "date": date, "today": None, "dates": [], "capture": None,
-            "prices": None, "overall": None, "traders": []}
+            "feed": {"state": state, "error": error}, "date": date, "today": None, "resets_at": None, "dates": [],
+            "capture": None, "prices": None, "overall": None, "traders": []}
 
 
 def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for: NowFor,
-            exit_for: ExitFor) -> dict[str, Any]:
+            exit_for: ExitFor, resets_at: float | None = None) -> dict[str, Any]:
+    """``day["today"]`` is the desk's trading day and ``resets_at`` the epoch second it ends (the route's
+    ``desk_day``)."""
     traders: dict[str, dict[str, list]] = {}
     for trade in day["trades"]:
         row = trade_row(trade, day["date"], now=now, prices=prices, now_for=now_for, exit_for=exit_for)
@@ -44,7 +46,7 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
     every = [r for t in out for r in t["open"] + t["closed"]]
     return {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3),
             "feed": {"state": "ok", "error": None}, "date": day["date"], "today": day["today"],
-            "dates": list(day["dates"]), "capture": capture(day.get("status"), now, faces=_faces_now(day)), "prices": prices,
+            "resets_at": None if resets_at is None else round(resets_at, 3), "dates": list(day["dates"]), "capture": capture(day.get("status"), now, faces=_faces_now(day)), "prices": prices,
             "overall": scoring.record(every), "traders": out}
 
 

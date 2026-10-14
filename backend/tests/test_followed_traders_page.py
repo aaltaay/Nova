@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import json
+import time
 from datetime import datetime
 
 import pytest
@@ -209,7 +210,7 @@ def client(monkeypatch):
 
 def test_route_day_without_quotes_opens_no_line(client, monkeypatch):
     raw = _raw_day()
-    today = datetime.now(reads.ET).date().isoformat()
+    today = routes.desk_day(time.time())[0]
     raw.update(date=today, today=today, dates=[today])
     monkeypatch.setattr(feed, "fetch_day", lambda base, date: feed.parse_day(copy.deepcopy(raw)))
     wanted = []
