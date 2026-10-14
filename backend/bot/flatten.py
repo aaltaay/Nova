@@ -16,7 +16,7 @@ import logging
 import uuid
 from typing import Any
 
-from constants_bot import BOT_FLATTEN_RETRIES
+from constants_bot import BOT_FLATTEN_OPENED_BY_SCAN, BOT_FLATTEN_RETRIES
 
 logger = logging.getLogger(__name__)
 
@@ -217,10 +217,13 @@ async def flatten_account_with_retry(*, origin: str | None = None) -> dict[str, 
     return last
 
 
-def closes_sold(result: dict[str, Any]) -> list[dict[str, Any]]:
-    """What a flatten closed, one line per position: ``{symbol, side, qty, ok, order_id, error}``.
+def closes_sold(result: dict[str, Any], *, venue: str | None = None) -> list[dict[str, Any]]:
+    """What a flatten closed, one line per position: ``{symbol, side, qty, ok, order_id, error, opened_by}``.
 
-    The breakers put it on their audit line so the desk's notice can name what was sold.
+    The breakers put it on their audit line so the desk's notice can name what was sold -- and, since
+    2026-10-14, the order that opened it (``opened_by``, from the execution record; None when unknown).
+    GENK: a buy that had worked for three minutes filled, and the trip sold it 0.8 s later; the notice
+    said "Sold 1,000 GENK" and the operator was sure there had been no order.
     """
     out: list[dict[str, Any]] = []
     for row in result.get("results") or []:
@@ -228,8 +231,43 @@ def closes_sold(result: dict[str, Any]) -> list[dict[str, Any]]:
         out.append({
             "symbol": row.get("symbol"), "side": row.get("side"), "qty": row.get("qty"),
             "ok": bool(close.get("ok")), "order_id": close.get("order_id"), "error": close.get("error"),
+            "opened_by": opened_by(str(row.get("symbol") or ""), str(row.get("side") or ""), venue=venue),
         })
     return out
+
+
+def opened_by(symbol: str, close_side: str, *, venue: str | None = None,
+              before: float | None = None) -> dict[str, Any] | None:
+    """The newest filled order on the other side of a close: what opened the position it sold, or None.
+
+    From the execution record (every venue's orders go through it, ADR 007): ``{order_id, source, side,
+    qty, order_type, price, placed_ts, filled_ts}``; ``price`` is the order's own (a limit or a stop),
+    never a guessed fill. ``venue`` keeps a Live order from answering for a Paper close.
+    """
+    from execution import store
+
+    sym = (symbol or "").strip().upper()
+    opening = "BUY" if (close_side or "").upper() == "SELL" else "SELL"
+    try:
+        rows = store.list_recent(BOT_FLATTEN_OPENED_BY_SCAN)
+    except Exception:
+        logger.exception("bot flatten: the execution record could not say what opened %s", sym)
+        return None
+    for row in rows:  # newest first
+        payload = row.get("payload") or {}
+        if row.get("symbol") != sym or row.get("operation") not in ("place", "bracket"):
+            continue
+        if row.get("status") != "filled" or str(payload.get("side") or "").upper() != opening:
+            continue
+        if venue and row.get("mode") and row.get("mode") != venue:
+            continue
+        if before is not None and float(row.get("created_ts") or 0) >= before:
+            continue
+        return {"order_id": row.get("order_id"), "source": row.get("source"), "side": opening,
+                "qty": payload.get("sent_qty") or payload.get("qty"), "order_type": payload.get("order_type"),
+                "price": payload.get("requested_price"), "placed_ts": row.get("created_ts"),
+                "filled_ts": row.get("updated_ts")}
+    return None
 
 
 def alert_flatten_failed(detail: dict[str, Any]) -> None:

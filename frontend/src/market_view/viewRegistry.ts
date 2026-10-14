@@ -16,13 +16,21 @@
  * On 2026-10-13 a refused line instead read "behind" and flipped open and locked every 1.2 s, because
  * each retry's `subscribed` restarted the silence clock. Every flip is reported to the backend log.
  *
+ * The backend judges what it knows without the screen -- the feed, the IB loop and the symbol's Time & Sales -- and
+ * the Time & Sales socket sends that answer (`noteBackendGate`): while it says locked, orders lock with the door's
+ * own words, Level 2 or not (ADR 045 amendment 2026-10-14). GENK's tape missed every trade from 09:25:11 on
+ * 2026-10-14, and an order went out at 09:25:19 because nothing here knew.
+ *
  * In memory, per window. Desk and backend run on one machine (the backend binds 127.0.0.1), so the
  * backend's `sent` / `now` and this window's `Date.now()` are one clock.
  */
 import {
   LEVEL2_REFUSED_LEAD,
   LEVEL2_REFUSED_TAIL,
+  TAPE_STALE_CODE,
+  TICKET_FEED_LOCKED_LABEL,
   TICKET_LEVEL2_REFUSED_LABEL,
+  TICKET_TAPE_LOCKED_LABEL,
   TICKET_VIEW_LOCKED_LABEL,
   VIEW_LOCK_TAIL,
   VIEW_LOCK_TICK_MS,
@@ -70,8 +78,15 @@ export interface ViewStamp {
   desk: { silent_ms: number | null; transit_ms: number | null; undrawn_ms: number | null } | null;
 }
 
+/** The backend's lock for a symbol: the door's refusal code and words. */
+interface BackendGate {
+  code: string;
+  text: string;
+}
+
 const books = new Map<string, BookView>();
 const quotes = new Map<string, QuoteView>();
+const gates = new Map<string, BackendGate>();
 const AT_KEEP = 64;
 
 function key(symbol: string): string {
@@ -176,6 +191,27 @@ export function noteQuote(symbol: string, frame: { seq?: unknown; at?: unknown; 
   quotes.set(key(symbol), { seq, at: num(frame.at), price: num(frame.price) });
 }
 
+/**
+ * The backend's answer for *symbol* from its Time & Sales socket (`gate` frame or ping): `{code, text}` while new
+ * orders on it are locked, `null` while they may go. Anything else (an older backend) leaves the last answer.
+ */
+export function noteBackendGate(symbol: string, gate: unknown): void {
+  if (gate === undefined) return;
+  const k = key(symbol);
+  const g = gate as { code?: unknown; text?: unknown } | null;
+  if (g && typeof g.code === 'string' && typeof g.text === 'string' && g.text.trim()) {
+    gates.set(k, { code: g.code, text: g.text.trim() });
+  } else {
+    gates.delete(k);
+  }
+  recompute();
+}
+
+/** The symbol's Time & Sales socket closed: its answer is no longer current (the door still judges). */
+export function forgetBackendGate(symbol: string): void {
+  if (gates.delete(key(symbol))) recompute();
+}
+
 /** This window stopped showing the symbol's Level 2 (another symbol, or unmounted). */
 export function forgetBook(symbol: string): void {
   books.delete(key(symbol));
@@ -189,6 +225,8 @@ function secs(ms: number): string {
 /** Why orders on *symbol* are locked now, or null while its view is live (or not judged here). */
 export function viewLockReason(symbol: string | null | undefined, now = Date.now()): string | null {
   if (!symbol) return null;
+  const gate = gates.get(key(symbol));
+  if (gate) return gate.text;                               // the backend's own lock, in the door's words
   const view = books.get(key(symbol));
   if (!view) return null;                                   // no Level 2 for it here: the backend judges
   if (view.refused != null) {
@@ -208,8 +246,11 @@ export function viewLockReason(symbol: string | null | undefined, now = Date.now
   return null;
 }
 
-/** The order button's words for a lock reason: no Level 2, or a Level 2 behind the market. */
+/** The order button's words for a lock reason: Time & Sales behind, Nova behind, no Level 2, or Level 2 behind. */
 export function viewLockLabel(why: string): string {
+  for (const gate of gates.values()) {
+    if (gate.text === why) return gate.code === TAPE_STALE_CODE ? TICKET_TAPE_LOCKED_LABEL : TICKET_FEED_LOCKED_LABEL;
+  }
   return why.startsWith(LEVEL2_REFUSED_LEAD) ? TICKET_LEVEL2_REFUSED_LABEL : TICKET_VIEW_LOCKED_LABEL;
 }
 
@@ -277,7 +318,7 @@ function sameLock(prev: string | null, next: string | null): boolean {
 function recompute(now = Date.now()): void {
   let changed = false;
   const seen = new Set<string>();
-  for (const k of books.keys()) {
+  for (const k of new Set([...books.keys(), ...gates.keys()])) {
     seen.add(k);
     const next = viewLockReason(k, now);
     const prev = locks.get(k) ?? null;
@@ -320,6 +361,7 @@ export function currentViewLock(symbol: string | null | undefined): string | nul
 export function resetViewRegistryForTests(): void {
   books.clear();
   quotes.clear();
+  gates.clear();
   locks.clear();
   lockedSince.clear();
   reportFlip = null;

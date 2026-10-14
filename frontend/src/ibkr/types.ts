@@ -247,7 +247,10 @@ export interface IbkrOrder {
   avg_fill_price?: number | null;
   /** Sim practice fills only: inferred from a replay, never a real execution (ADR 019). */
   fill_estimated?: boolean | null;
-  /** Which rule priced a practice fill: quote | last_print | print_cross | stop_trigger | last_mark. */
+  /**
+   * Which rule priced a practice fill: quote | last_print | print_cross | stop_trigger | last_mark | live_quote |
+   * live_print | l1_last (IBKR's Level 1 Last while the tape missed trades, ADR 045 amendment 2026-10-14).
+   */
   fill_basis?: string | null;
   /** IBKR CommissionReport sum -- null until a real report. */
   commission?: number | null;

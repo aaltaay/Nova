@@ -21,6 +21,7 @@ import type { OrderSortKey, OrderSortState } from './orderTableSort';
 import type { IbkrPosition, IbkrOrder, IbkrAccountSummary, IbkrMode } from './types';
 import { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
 import { WorkingOrdersPanel } from './WorkingOrdersPanel';
+import { positionsEmptyWorkingLine } from './positionsEmptyWorking';
 
 interface Props {
   summary: IbkrAccountSummary | null;
@@ -155,6 +156,8 @@ export function PositionsPanel({
   hideTitle = false,
 }: Props) {
   const showFlatten = connected && mode !== 'disconnected';
+  // Nothing held is not nothing going on: the empty state names each working order (ADR 045, 2026-10-14).
+  const workingLine = useMemo(() => positionsEmptyWorkingLine(orders), [orders]);
   const { order, reorder, reset } = useOrderTableColumnOrder('positions');
   const columns = useMemo(
     () =>
@@ -220,6 +223,9 @@ export function PositionsPanel({
         !error && (
           <div className="ibkr-empty" data-testid="positions-empty">
             No open positions.
+            {workingLine && (
+              <div className="ibkr-empty__working" data-testid="positions-empty-working">{workingLine}</div>
+            )}
           </div>
         )
       ) : (

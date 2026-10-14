@@ -229,6 +229,14 @@ kept arriving, so this is not a feed gap (above).
   at 12 s. IBKR said nothing until 08:03:22 (2105 `ushmds` broken, 2106 OK two seconds later); prints were
   back at 08:03:29. The Trader read LIVE over "Waiting for prints…" for 30 s, and its reading then named no
   other line, because the old `pipeline` matched last prints and SCNI had none.
+- **2026-10-14: the same signature, and an order went through it** (ADR 045 amendment 2026-10-14). At
+  09:24:08 ET IB Gateway lost IBKR (1100; the sixth that morning) and was back at 09:24:14 (1102, data
+  maintained). At 09:25:11 GENK's, BEZ's and MXCT's lines printed their last trades (RAMZ's at 09:24:57) and
+  IBKR's chart history stopped answering, while every Level 1 and Level 2 line kept updating: GENK's Level 1
+  counted 1,224 updates, 2.83 down to 2.31, in the 194 s to its next print. IBKR reset its chart-history farm
+  at 09:28:24 (2105 broken, 2106 OK) and GENK's and BEZ's lines printed 0.8 s later; RAMZ's, re-asked by its
+  recording at 09:26:48, came back at 09:29:09. A Paper buy placed at 09:25:19 passed the order gate and sat
+  unfilled for three minutes, then filled at once on the first print back.
 - **The reading** (owner `ibkr/tape_silence.py`, memory only): `{schema_version: 3, state: "halted" | "dead"
   | "silent" | "quiet", since, last_print_ts, book_at, l1_trade_ts, halted, pipeline, notice,
   history_unanswered_since, text}` or `null` while the line prints.
@@ -264,9 +272,16 @@ kept arriving, so this is not a feed gap (above).
     symbol halted. Nothing here asks IBKR for anything. A line that turns dead or silent is logged once per
     silence and written to the perf day file as `{schema_version: 1, kind: "tape_silence", ts, symbol,
     reading}` (`architecture/schema/performance.md`).
-- **The wire.** Each idle `ping` on `/ws/ibkr/tape/{symbol}` (every `TAPE_STREAM_HEARTBEAT_SEC` (5) without
-  a print; it was 15, which held a reading back up to 15 s) carries `silence: reading | null` on a live line,
-  and `null` on a replay desk.
+- **Missing trades, no wait** (`tape_silence.missed_trades(symbol)`, memory only; ADR 045 amendment
+  2026-10-14): `{since, last_print_ts, l1_trade_ts, text}` while Nova holds an AllLast line for the symbol on
+  this IBKR session, it is not halted, and its Level 1 shows a trade `TAPE_DEAD_L1_LEAD_SEC` (3) after the
+  line's last print (or opening) by IBKR's second -- the `dead` proof without `TAPE_SILENT_SEC`; else `null`.
+  The order gate (`TAPE_STALE`, execution.md) and Paper's resting fills (practice-fills.md) read it.
+- **The wire.** Each idle `ping` on `/ws/ibkr/tape/{symbol}` (every `TAPE_STREAM_HEARTBEAT_SEC` (1) without
+  a print; it was 15, then 5 -- which let GENK's order through on 2026-10-14) carries `silence: reading | null`
+  on a live line (`null` on a replay desk) and `gate: {code, text} | null`, the order gate's own answer for the
+  symbol (`market_view.gate.desk_lock`, execution.md). While prints flow, `{"type": "gate", "symbol", "gate"}`
+  goes out whenever that answer changes, checked every `MARKET_VIEW_GATE_SEND_SEC` (1).
 - **The desk** (`ibkr/tapeSilence.ts`). The badge reads LINE DOWN 47s (red) for `dead`, SILENT 47s or HALTED
   (amber), or QUIET 47s (grey), counting on the desk's clock, with the backend's words on hover. For the
   first three, a short line above the rows says why; a dead or silent line with a `pipeline` says the tape
@@ -288,8 +303,28 @@ kept arriving, so this is not a feed gap (above).
   session (what the farms last said is evidence, not a state); else `warn` while a farm reads broken, or for
   `IBKR_NOTICES_DIAG_WINDOW_SEC` after a 316 or 10197; `ok` with the last notice named otherwise; its evidence
   is `{farms, recent}`.
-- **Not done here:** bringing a silent Trader line back. Asks inside the event did nothing; whether a Gateway
-  reconnect would have is still unknown, and a reconnect also drops the order channel.
+- **IBKR's connectivity messages are kept too** (2026-10-14): 1100 / 1101 / 1102 go to the perf day file as
+  `kind: "ib_notice"` rows with `notice: "connectivity_lost" | "restored_data_lost" | "restored_data_kept"`,
+  `farm: null` (`farm_notices.record_connectivity`, called by `session_errors`).
+- **Nova asks IB Gateway for its data back** (owner `ibkr/tape_recovery.py`; ADR 045 amendment 2026-10-14).
+  When a line reads `dead`, Nova sends IBC's `RECONNECTDATA` (the Gateway's Reconnect Data, Ctrl-Alt-F: data
+  farms only; the order connection stays) through IBC's command server (`gateway_api_heal.send_ibc_command`),
+  at most once every `IBKR_RECONNECT_DATA_COOLDOWN_SEC` (300), only while `client.is_ready()` and never on a
+  replay desk; `NOVA_TAPE_RECONNECT_DATA=0` turns it off. The attempt is `{ts, trigger, lines, silence_since,
+  history_unanswered_since, command, sent: boolean | null, error, back: [symbol] | null, still_dead: [symbol] |
+  null}` (memory, the last 20), logged, and written to the perf day file as `{schema_version: 1, kind:
+  "tape_recovery", phase: "sent" | "verified", ts, asked_ts, ...attempt}`; `IBKR_RECONNECT_DATA_VERIFY_SEC`
+  (30) after sending it records which of the lines printed since (`verified`). Its words join the dead line's
+  reading ("Nova asked IB Gateway to reconnect its market data at 09:25:22 ET; 30 s later prints were back on
+  GENK"). Whether it shortens a stall is measured, not claimed: inside the 2026-10-05 and 2026-10-14 events a
+  new line request brought nothing back.
+- **The evidence for IBKR** (`tools/ibkr_feed_report.py --date YYYY-MM-DD [--cache DIR] [--log FILE] [--out
+  FILE] [--json]`, read only): the day's connectivity messages (the perf file, else the backend's
+  `api-console.log`), each stall of `dead` lines (silences starting within 1 s are one) with every line's last
+  and next AllLast print and the Level 1 updates IBKR delivered between them (`archive.db` `tape_ibkr`,
+  `l1_ticks`; lines named only in `pipeline` are measured from the same start), chart-history silence, the
+  IBKR messages near each stall, Nova's Reconnect Data attempts and the question for IBKR, in Markdown. Nova
+  never sends it.
 
 ## The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33)
 

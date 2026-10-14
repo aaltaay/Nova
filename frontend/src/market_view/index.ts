@@ -1,5 +1,7 @@
 export {
+  forgetBackendGate,
   forgetBook,
+  noteBackendGate,
   noteBeat,
   noteBookFrame,
   noteBookShown,

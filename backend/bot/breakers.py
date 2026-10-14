@@ -81,7 +81,7 @@ async def trip_soft(at: float | None = None, *, pnl: float | None = None, venue:
           reason=(f"{venue or 'live'}: the day P&L {_money(pnl)} reached the bot trip ({at:g}) -- "
                   f"flattened, the bot is off (Eyes keep watching) until you re-enable it (or 04:00 ET)"),
           inputs={"flatten_ok": flatten.get("ok"), "threshold": at, "pnl": pnl, "venue": venue,
-                  "until": row.get("soft_breaker_until"), "closes": closes_sold(flatten),
+                  "until": row.get("soft_breaker_until"), "closes": closes_sold(flatten, venue=venue),
                   "flatten_error": flatten.get("error")})
     return {"tripped": "soft", "flatten": flatten, "session": row}
 
@@ -102,7 +102,7 @@ async def trip_hard(at: float | None = None, *, pnl: float | None = None, venue:
         reason=(f"{venue or 'live'}: the day P&L {_money(pnl)} reached the all-stop ({at:g}) -- "
                 f"flattened, buys on {venue or 'live'} locked until {until_text(until)}"),
         inputs={"flatten_ok": flatten.get("ok"), "lock_until": until, "threshold": at, "pnl": pnl,
-                "venue": venue, "closes": closes_sold(flatten), "flatten_error": flatten.get("error")},
+                "venue": venue, "closes": closes_sold(flatten, venue=venue), "flatten_error": flatten.get("error")},
     )
     return {"tripped": "hard", "flatten": flatten, "session": row}
 

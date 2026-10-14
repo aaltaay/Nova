@@ -8,7 +8,9 @@ traded within ``PRACTICE_LIVE_FRESH_SEC`` (IBKR's Last Timestamp; never the
 prior close a line carries before its first trade), failing that the newest tape print in
 the local archive (``l2.tape``) inside the same window, the live top of book
 from ``ibkr.depth.state``, and a refusal (``PRACTICE_NO_LIVE_PRINT``) when
-neither a fresh last nor a recent print exists. Only a print that sets a price
+neither a fresh last nor a recent print exists; while the symbol's Time & Sales is missing trades,
+IBKR's Level 1 Last stands in for the prints it did not deliver (``l1_trade_while_tape_missing``,
+ADR 045 amendment 2026-10-14). Only a print that sets a price
 counts, as a last or for a resting order (``sale_conditions.row_sets_price``,
 #511): an odd lot or an average-price print can sit dollars from the market.
 A practice fill is never a guess: an absent price is stated, not filled in.
@@ -217,6 +219,26 @@ class LiveReference:
         self._print_bids[sym] = bids
         return out
 
+    def l1_trade_while_tape_missing(self, symbol: str) -> Print | None:
+        """IBKR's Level 1 Last as ``(trade_ts, price)`` while the symbol's Time & Sales is missing trades, else None.
+
+        ADR 045 amendment 2026-10-14: the trade IBKR reported on the Level 1 line -- tick 4, reportable
+        trades only, stamped with its Last Timestamp -- stands in for the print the tape did not deliver,
+        so a resting order fills when Live's would. While the tape keeps up this is None: prints alone fill.
+        """
+        from ibkr import tape_silence, ticks
+
+        sym = symbol.upper()
+        if tape_silence.missed_trades(sym) is None:
+            return None
+        row = ticks.last_quotes([sym]).get(sym) or {}
+        if row.get("quote_quality") == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
+            return None
+        traded, px = row.get("last_trade_ts"), _price(row.get("price"))
+        if traded is None or px is None:
+            return None
+        return float(traded), px
+
     def bid_at(self, symbol: str, ts: float) -> float | None:
         """The bid the print at ``ts`` met at receipt, from the last ``prints_between`` read of the symbol.
 
@@ -264,6 +286,11 @@ class SimReference:
     def bid_at(self, symbol: str, ts: float) -> float | None:
         getter = getattr(self._market(), "bid_at", None)
         return getter(symbol, ts) if callable(getter) else None
+
+    def l1_trade_while_tape_missing(self, symbol: str) -> Print | None:
+        """The live edge's Level 1 stand-in for a missing print (``LiveReference``); a replay has its own prints."""
+        getter = getattr(self.live, "l1_trade_while_tape_missing", None)
+        return getter(symbol) if self.at_live_edge() and callable(getter) else None
 
     def archived_through(self, now: float) -> float:
         """The live archive's mark at the edge; the replay is complete through the playhead."""

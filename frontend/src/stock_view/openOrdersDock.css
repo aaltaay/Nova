@@ -307,6 +307,10 @@
   text-align: center;
 }
 
+.sv-open-orders-dock__body .ibkr-empty__working {
+  color: var(--sv-warn);
+}
+
 /* ---------- footer: the open position, readable on every tab */
 .sv-open-orders-dock__foot {
   display: flex;

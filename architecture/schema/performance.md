@@ -53,11 +53,12 @@ stalls: summary[], clients: {window_id: report}}`. `GET /api/perf/stalls` ->
 /api/perf/stalls/{id}` -> the report (404 unknown). Kept under
 `<cache_dir>/perf/`: `YYYY-MM-DD.jsonl` (Eastern date), one JSON object per
 line with `schema_version` and `kind: "sample" | "client" | "stall" | "heap" |
-"ib_notice" | "tape_silence" | "memory"` -- a
+"ib_notice" | "tape_silence" | "tape_recovery" | "memory"` -- a
 `sample` line aggregates `PERF_PERSIST_EVERY_SEC` (5) seconds (ops and gc
 summed, `cpu_pct` averaged, `delay_max_ms` maxed, gauges last); an `ib_notice`
-line is one IBKR farm or line notice and a `tape_silence` line one tape line
-turning dead or silent, both shaped in `architecture/schema/market-data.md`
+line is one IBKR farm, line or connectivity (1100 / 1101 / 1102, since 2026-10-14) notice, a
+`tape_silence` line one tape line turning dead or silent, and a `tape_recovery` line one Reconnect
+Data attempt (`sent`, then `verified`), all shaped in `architecture/schema/market-data.md`
 ("When one tape line goes silent", #722), kept here because they outlive the
 API log -- and
 `stalls/<id>.json`; both removed after `PERF_RETENTION_DAYS`. A reader skips

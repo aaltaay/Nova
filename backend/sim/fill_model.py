@@ -16,6 +16,9 @@ BASIS_LAST_MARK = "last_mark"
 # Paper venue (ADR 020): the same rules read the live feed; the basis says so.
 BASIS_LIVE_QUOTE = "live_quote"
 BASIS_LIVE_PRINT = "live_print"
+# Paper, while the symbol's Time & Sales is missing trades: a resting order filled on IBKR's Level 1
+# Last (tick 4, reportable trades only) as on a print (ADR 045 amendment 2026-10-14).
+BASIS_L1_LAST = "l1_last"
 
 SUPPORTED_ORDER_TYPES = ("MKT", "LMT", "STP")
 

@@ -496,7 +496,8 @@ the day lock there, with no commission subtracted twice (QA W2);
 `/api/ibkr/status` adds `venue` and reports `account_id` `NOVA-PAPER` /
 `NOVA-SIM` there. A filled practice row carries `fill_estimated: true` and
 `fill_basis: "quote" | "last_print" | "print_cross" | "stop_trigger" |
-"last_mark" | "live_quote" | "live_print"`; a practice fill is never displayed
+"last_mark" | "live_quote" | "live_print" | "l1_last"` (`l1_last`: a resting Paper order filled on IBKR's Level 1
+Last while its Time & Sales missed trades, ADR 045 amendment 2026-10-14); a practice fill is never displayed
 as a recorded print. Refusals: `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`,
 `SIM_NO_TRADES`, `SIM_NO_PRICE`, `SIM_ORDER_TYPE` (Sim),
 `PRACTICE_NO_LIVE_PRINT` (Paper: no fresh last and no recent tape print --

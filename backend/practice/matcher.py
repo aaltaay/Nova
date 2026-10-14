@@ -13,6 +13,10 @@ session has closed (``PracticeBroker.expire_due``) -- after the match, so a
 print at the close itself still fills and a print past it never does.
 Registered from ``app_runtime_tasks`` as ``practice.matcher``.
 
+While a symbol's Time & Sales misses trades its Level 1 line reports, the pass also hands the broker
+IBKR's Level 1 Last as one print (``fill_basis: "l1_last"``), so Paper fills when Live would (ADR 045
+amendment 2026-10-14).
+
 A pass reads prints only as far as the reference has them: the live tape
 archive is written by its own thread (``ibkr.tape_sink``), so a pass stops at
 the archive's written-through mark (``archived_through``) and a print the
@@ -27,6 +31,7 @@ from typing import Any
 
 from constants_practice import PRACTICE_MATCHER_INTERVAL_SEC, PRACTICE_VENUE_PAPER, PRACTICE_VENUE_SIM
 from practice import tape_hold
+from sim.fill_model import BASIS_L1_LAST
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +41,48 @@ logger = logging.getLogger(__name__)
 _cursors: dict[str, dict[str, float]] = {}
 
 
+# venue -> symbol -> IBKR's time of the last Level 1 trade handed to the broker in place of a print.
+_l1_used: dict[str, dict[str, float]] = {}
+
+
 def reset_for_tests() -> None:
     _cursors.clear()
+    _l1_used.clear()
+
+
+def _l1_backup(broker: Any, symbol: str) -> tuple[float, float] | None:
+    """A Level 1 trade newer than the last one used, while the symbol's tape misses trades; else None.
+
+    ADR 045 amendment 2026-10-14: on 2026-10-14 GENK's tape printed nothing from 09:25:11 to 09:28:25
+    while its Level 1 traded through a resting Paper buy at 09:25:22; the buy filled 3 min late, at
+    once. The same silence is read for the Time & Sales badge and IBKR's reconnect (``tape_silence``).
+    """
+    getter = getattr(broker.reference, "l1_trade_while_tape_missing", None)
+    if not callable(getter):
+        return None
+    try:
+        trade = getter(symbol)
+    except Exception:
+        logger.exception("PRACTICE matcher: %s's Level 1 stand-in could not be read", symbol)
+        return None
+    if trade is None:
+        return None
+    _note_silence(symbol)
+    used = _l1_used.setdefault(str(broker.venue), {})
+    if trade[0] <= used.get(symbol, 0.0):
+        return None
+    used[symbol] = trade[0]
+    return trade
+
+
+def _note_silence(symbol: str) -> None:
+    """Let the tape's own reading see a line only Paper holds (it logs a dead line and asks IBKR back)."""
+    try:
+        from ibkr import tape_silence
+
+        tape_silence.reading(symbol)
+    except Exception:
+        logger.exception("PRACTICE matcher: %s's tape silence could not be read", symbol)
 
 
 def _earliest_rest(broker: Any, symbol: str) -> float | None:
@@ -90,9 +135,11 @@ async def _match(broker: Any, *, now: float | None) -> list[dict[str, Any]]:
     broker.rollover()
     wanted = broker.working_symbols()
     cursor = _cursors.setdefault(str(broker.venue), {})
-    for sym in list(cursor):
-        if sym not in wanted:
-            cursor.pop(sym, None)
+    used = _l1_used.setdefault(str(broker.venue), {})
+    for kept in (cursor, used):
+        for sym in list(kept):
+            if sym not in wanted:
+                kept.pop(sym, None)
     now_ts = float(now) if now is not None else float(broker.reference.now_ts())
     through_ts = _readable_through(broker.reference, now_ts)
     filled: list[dict[str, Any]] = []
@@ -109,6 +156,10 @@ async def _match(broker: Any, *, now: float | None) -> list[dict[str, Any]]:
         prints = await asyncio.to_thread(broker.reference.prints_between, sym, after, through_ts)
         if prints:
             filled.extend(broker.try_fill_working(sym, prints))
+    for sym in wanted:
+        backup = _l1_backup(broker, sym)
+        if backup is not None:
+            filled.extend(broker.try_fill_working(sym, [backup], basis=BASIS_L1_LAST))
     for row in broker.expire_due(now_ts):
         logger.info("PRACTICE %s: order %s expired -- %s", broker.venue, row.get("order_id"), row.get("error"))
     return filled

@@ -32,6 +32,7 @@ const PRACTICE_FILL_BASIS: Record<string, string> = {
   last_mark: 'the last known mark, closing a position whose replay is unloaded',
   live_quote: 'the live IBKR bid/ask at placement (Paper venue)',
   live_print: 'the last live IBKR print at placement (Paper venue)',
+  l1_last: "IBKR's Level 1 last trade reaching your order while Time & Sales was missing trades (Paper venue)",
 };
 
 export function practiceFillTitle(basis?: string | null): string {

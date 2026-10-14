@@ -399,8 +399,14 @@ class PracticeBroker:
             "nova_placed_at": row.get("submitted_at"), **answer_facts(current),
         }
 
-    def try_fill_working(self, symbol: str, prints: list[tuple[float, float]]) -> list[dict[str, Any]]:
-        """Match resting orders for ``symbol`` against later prints, oldest first."""
+    def try_fill_working(
+        self, symbol: str, prints: list[tuple[float, float]], *, basis: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Match resting orders for ``symbol`` against later prints, oldest first.
+
+        ``basis`` names a fill that came from something other than a tape print (``l1_last``: IBKR's
+        Level 1 Last while the tape is missing trades); the rule is the print's either way.
+        """
         sym = (symbol or "").strip().upper()
         filled: list[dict[str, Any]] = []
         for ts, price in prints:
@@ -419,6 +425,8 @@ class PracticeBroker:
                 )
                 if fill is None:
                     continue
+                if basis:
+                    fill = fill_model.Fill(fill.price, basis)
                 closed = self._settle(int(row["order_id"]), float(ts), fill, on_print=True)
                 if closed is not None and closed.get("status") == "Filled":
                     filled.append(closed)

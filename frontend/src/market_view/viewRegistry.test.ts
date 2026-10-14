@@ -6,7 +6,9 @@ import {
 } from '../constantGroups/market_view';
 import {
   currentViewLock,
+  forgetBackendGate,
   forgetBook,
+  noteBackendGate,
   noteBeat,
   noteBookFrame,
   noteBookShown,
@@ -158,5 +160,42 @@ describe('a Level 2 IBKR refused (operator decision 2026-10-13, #913: lock, with
     recomputeViewLocks(T0 + VIEW_SILENT_LOCK_MS + 100);
     expect(flips.map((w) => (w ? viewLockLabel(w) : null))).toEqual(['No Level 2 · locked', 'Market view behind · locked']);
     expect(currentViewLock('APUS')).toContain('behind the market');
+  });
+});
+
+// 2026-10-14 09:25:19 ET: GENK's Time & Sales had missed every trade for 8 s and the order went out anyway.
+describe("the backend's own lock (ADR 045 amendment 2026-10-14)", () => {
+  const TAPE = {
+    code: 'TAPE_STALE',
+    text: "GENK's Time & Sales is missing trades: its last print came at 09:25:11 ET. New orders on it wait until "
+      + 'its prints are back. Flatten and cancels still work.',
+  };
+
+  it("locks with the door's own words, Level 2 or not, and opens when the backend says so", () => {
+    const flips: Array<[string, string | null]> = [];
+    onViewLockFlip((symbol, why) => flips.push([symbol, why]));
+    noteBackendGate('genk', TAPE);
+    expect(viewLockReason('GENK')).toBe(TAPE.text);
+    expect(currentViewLock('GENK')).toBe(TAPE.text);
+    expect(viewLockLabel(TAPE.text)).toBe('Time & Sales behind · locked');
+    noteBackendGate('GENK', null);
+    expect(currentViewLock('GENK')).toBeNull();
+    expect(flips).toEqual([['GENK', TAPE.text], ['GENK', null]]);
+  });
+
+  it('comes before a live Level 2 and names a feed lock as Nova behind', () => {
+    live('GENK');
+    const feed = { code: 'FEED_STALE', text: 'Nova is behind the market right now. Flatten and cancels still work.' };
+    noteBackendGate('GENK', feed);
+    expect(viewLockReason('GENK', T0 + 10)).toBe(feed.text);
+    expect(viewLockLabel(feed.text)).toBe('Nova behind the market · locked');
+  });
+
+  it('keeps its last answer for an older backend and forgets it when the socket closes', () => {
+    noteBackendGate('GENK', TAPE);
+    noteBackendGate('GENK', undefined);          // a ping without `gate`: an older backend
+    expect(currentViewLock('GENK')).toBe(TAPE.text);
+    forgetBackendGate('GENK');
+    expect(currentViewLock('GENK')).toBeNull();
   });
 });
