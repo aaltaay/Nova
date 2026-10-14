@@ -657,6 +657,14 @@ the in-memory store and the runner. Nova places for a stock only on Paper, or on
 edge, or on a loaded replay (ADR 052 and its amendment, #815; bot.md "The bot trades a Sim replay"). On Live every Nova side is locked, and the lock says why: a Nova buy is `auto_live`, NO-GO,
 and Approve on Live waits on #604.
 
+**Accepted target, 2026-10-13 (#604, #606):** the operator requires a single
+source of truth for manually approved plans, entry, stop, targets and trade
+management across Paper, Sim and Live (ADR 007, "Shared manual plan behavior
+across venues"). The missing Live implementation remains open; the current
+Live locks above are still the wire behavior. Premarket
+parity is part of that engineering design, rather than a separate venue
+logic choice. This target does not enable autonomous Live bot entry.
+
 **The view.** `GET /api/stock-mode/{symbol}` answers `{schema_version: 1, symbol, generated_at,
 venue: "live" | "paper" | "sim" | null, mode: "signal" | "approve" | "auto_entry" | "bot", buy:
 "you" | "nova", sell: "you" | "nova", risk_usd: number | null, set_at: number | null, locks:

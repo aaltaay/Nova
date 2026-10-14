@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "owner": "tools/backlog_triage.py",
-  "authored": "2026-09-19",
-  "note": "AUTHORED source for the work-package plan. GitHub milestones are the projection of this file (`backlog_triage.py sync`); `check` fails when they disagree. Issue state itself (open/closed, labels) always comes from GitHub, never from here. Re-rank by editing `rank`, then re-run sync.",
+  "authored": "2026-10-13",
+  "note": "AUTHORED work-package plan. Individual issue triage uses current GitHub state, not these historical membership arrays. Related implementation belongs in batches; operator choices and actual engineering gaps stay explicit. Milestones are projected by backlog_triage.py sync. Existing historical batch indices remain stable.",
   "invalidation": "Re-author when a package completes, when a gate decision lands, or when triage moves an issue between packages. `backlog_triage.py check` reports drift; it does not self-heal. Re-author touches when batch scope changes; trailing-slash entries reserve a directory subtree.",
   "packages": [
     {
@@ -26,7 +26,7 @@
       "title": "01 - Recorder cannot wedge the desk or lose a session",
       "readiness": "ready-now",
       "gate": "",
-      "objective": "Pressing Stop on a recording returns instead of permanently deadlocking the FastAPI event loop, a restart mid-recording keeps its bars and manifest counts, and a full disk fails loudly instead of ending the session in silence. Carries both open P0s.",
+      "objective": "Recordings stop responsively, preserve crash-safe segment totals and report write failures. Completed issue membership remains as delivery history; current open work comes from GitHub.",
       "issues": [
         314,
         318,
@@ -68,15 +68,18 @@
       "title": "02 - Recording and replay state stop lying",
       "readiness": "ready-now",
       "gate": "",
-      "objective": "Two surfaces currently show the operator something untrue. A stale frontend recording flag can permanently silence the IB Gateway login/disconnect banner; a failed or empty capture still reports replay_source=\"capture\" and streams fabricated $0.00 prints. After this, recording state is server-owned and a failed load says so.",
+      "objective": "Recording and replay projections use their owning source. Failed loads remain empty, and replay quote and watchlist facts never mix in today's market state.",
       "issues": [
         316,
-        317
+        317,
+        867,
+        881
       ],
       "done": [
         "The recording indicator is derived from the server's single recorded symbol, not a frontend Set that is never refreshed.",
         "A stale recording flag can no longer suppress the IB Gateway disconnect banner; a test covers the suppression path.",
-        "A failed or empty capture load reports a failure source, not replay_source=\"capture\", and injects no synthetic $0.00 prints."
+        "A failed or empty capture load reports a failure source, not replay_source=\"capture\", and injects no synthetic $0.00 prints.",
+        "Replay watchlist summaries and trade socket frames preserve the loaded session's venue, date and source, including absent historical facts."
       ],
       "prs": [
         {
@@ -95,6 +98,46 @@
             "frontend/src/capture/",
             "frontend/src/ibkr/"
           ]
+        },
+        {
+          "title": "fix(sim): keep replay quote and watchlist facts on the replay source",
+          "issues": [
+            867,
+            881
+          ],
+          "note": "Suppress live quote delivery and sequence advancement during replay while preserving live-edge transitions. Quote initial snapshots are already source-gated. Mutable fundamentals and whole Contenders rows use recorded/reconstructed historical truth, absent when unavailable; the stale float-as-identity schema exception is removed. #825 remains the broader historical engine integration outcome.",
+          "gated": false,
+          "touches": [
+            "backend/routes/ticker.py",
+            "backend/websocket.py",
+            "backend/sim/",
+            "frontend/src/strategy/",
+            "frontend/src/stock_view/",
+            "backend/market_view/quote_push.py",
+            "backend/ibkr/ticks_handler.py",
+            "backend/ticker.py",
+            "architecture/schema/scanner.md",
+            "architecture/schema/recording-and-replay.md",
+            "frontend/src/sim/historicalQuoteDetail.ts",
+            "frontend/src/sim/replayPanelDetail.ts",
+            "frontend/src/sim/historicalRailParity.test.tsx",
+            "frontend/src/sim/simReplayTarget.test.ts",
+            "frontend/src/sim/replayPanelDetail.test.ts",
+            "frontend/src/stock_view/StockViewDepthTape.tsx",
+            "frontend/src/stock_view/StockViewQuoteStats.tsx",
+            "frontend/src/components/TickerBrokerGrid.tsx",
+            "frontend/src/components/TickerBrokerGrid.test.tsx",
+            "frontend/src/pages/DashboardPage.tsx",
+            "frontend/src/strategy/useWatchlist.ts",
+            "frontend/src/strategy/useWatchlist.test.ts",
+            "frontend/src/strategy/WatchlistTab.tsx",
+            "frontend/src/strategy/WatchlistTable.tsx",
+            "frontend/src/strategy/WatchlistTable.test.tsx",
+            "frontend/src/strategy/types.ts",
+            "backend/routes/strategy.py",
+            "backend/strategy/replay_pillars.py",
+            "backend/tests/test_quote_panel_replay.py"
+          ]
         }
       ]
     },
@@ -104,17 +147,20 @@
       "title": "03 - Close what already shipped or was refused",
       "readiness": "ready-now",
       "gate": "",
-      "objective": "Six of the 44 open issues are already fixed on master, deliberately refused in code, or owner-parked idea notes. They inflate the board by ~14% and make the replay backlog look worse than it is. Verify each against the tree, close with evidence, or pin the refusal with a test so it cannot silently regress.",
+      "objective": "Close already shipped, duplicate or explicitly retired proposals with fresh evidence. Preserve useful issue history and keep distinct engineering gaps open.",
       "issues": [
         131,
         216,
         222,
         276,
         292,
-        312
+        312,
+        616,
+        726,
+        761
       ],
       "done": [
-        "Each of the six is either closed with a comment naming the commit or file:line that resolved it, or has a one-line note saying why it stays open.",
+        "Every member is closed with a verified implementation or a reasoned not-planned disposition; partial work stays open.",
         "#216 (L3 unrestricted autonomy) has a test asserting the refusal, so 'parked' is enforced by CI rather than by memory.",
         "#222's MCP/SDK adapter contract has a test; the issue closes as already-built.",
         "`py -3 tools/backlog_triage.py report` shows this package at 0 open."
@@ -123,8 +169,8 @@
         {
           "title": "test(bot): pin the MCP/SDK adapter contract and the L3 autonomy refusal",
           "issues": [
-            222,
-            216
+            216,
+            222
           ],
           "note": "Both already exist in code; this PR adds the tests that let the issues close without the behaviour drifting back.",
           "gated": false,
@@ -137,10 +183,10 @@
         {
           "title": "chore(triage): close shipped work with evidence",
           "issues": [
-            312,
-            292,
+            131,
             276,
-            131
+            292,
+            312
           ],
           "note": "No production code. Verification comments plus any doc correction; #276's live-desk hold was lifted by the operator on 2026-09-20 -- it closes on the shipped shared-shell width lock, with desk confirmation afterwards.",
           "gated": false,
@@ -148,6 +194,20 @@
             "backend/tests/",
             "frontend/src/components/",
             "knowledge/obsidian/03-Nova-Decisions/"
+          ]
+        },
+        {
+          "title": "chore(triage): record retired update, loop and Gateway migration proposals",
+          "issues": [
+            616,
+            726,
+            761
+          ],
+          "note": "Operator retired nightly master pull #616; current engineering review retired conditional third-loop proposal #726 while preserving genuine performance issues. Gateway migration checklist #761 was superseded by current hardening804, not claimed as broker compatibility proof.",
+          "gated": false,
+          "touches": [
+            "architecture/decisions/038-installed-backend-ownership.md",
+            "architecture/schema/desk-ops.md"
           ]
         }
       ]
@@ -158,7 +218,7 @@
       "title": "04 - A test run means the same thing on every machine",
       "readiness": "ready-now",
       "gate": "",
-      "objective": "Verification currently depends on whose machine ran it: importing backend/main.py executes configure_logging() and load_dotenv() as import side effects, so pytest writes fake DU123 broker lines into the production blast.log, and Vite injects the operator's real NOVA_API_KEY into Vitest. Every later package's evidence is worth less until this lands.",
+      "objective": "Test runs isolate operator state and deterministically retire asynchronous owners before teardown. Current failures retain meaningful regressions rather than weakened assertions.",
       "issues": [
         293,
         307,
@@ -167,13 +227,17 @@
         754,
         757,
         758,
-        767
+        767,
+        915,
+        925,
+        927
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
         "Vitest runs with a pinned test env and does not read the operator's .env.",
         "test_cancel_kills_slow_stub no longer depends on a fixed 0.4s sleep and passes under simulated CPU load.",
-        "Both suites pass identically in CI and on a developer machine with a populated .env."
+        "Both suites pass identically in CI and on a developer machine with a populated .env.",
+        "Background readers, broker callbacks and per-file recorder completions finish or retire before fixture state is restored."
       ],
       "prs": [
         {
@@ -230,7 +294,7 @@
             757,
             758
           ],
-          "note": "A frozen-count snapshot can decline through ordinary refcount release; verify strongly held objects are excluded from the real collection walk. Prior-close trade tests must inspect actual payloads while allowing independent scanner halt callbacks. Test-only corrections preserve production GC/trade policies and #619 evidence hold. Also gate shipped recorder/feed batches6/7 and reconcile merged footprints without changing decisions or indices.",
+          "note": "A frozen-count snapshot can decline through ordinary refcount release; verify strongly held objects are excluded from the real collection walk. Prior-close trade tests must inspect actual payloads while allowing independent scanner halt callbacks. Test-only corrections preserve production GC/trade policies and independent #619 diagnostics. Also gate shipped recorder/feed batches6/7 and reconcile merged footprints without changing decisions or indices.",
           "gated": false,
           "touches": [
             "architecture/gc-freeze-test-contract.md",
@@ -251,6 +315,27 @@
             "knowledge/backlog-packages.json",
             "frontend/src/electron/screenRecorder.test.ts"
           ]
+        },
+        {
+          "title": "test: retire backend state and asynchronous recorder owners before teardown",
+          "issues": [
+            915,
+            925,
+            927
+          ],
+          "note": "Related test-isolation failures can hold green-only merges and releases. Restore global state, drain background readers and await recorder completion rather than weaken assertions or hide failures.",
+          "gated": false,
+          "touches": [
+            "backend/tests/conftest.py",
+            "backend/tests/test_ibkr_ticks.py",
+            "backend/market_board/refresh.py",
+            "frontend/src/electron/screenRecorder.test.ts",
+            "frontend/electron/screenRecorder.mjs",
+            "backend/tests/test_ibkr_session_errors.py",
+            "backend/ibkr/session_errors.py",
+            "backend/market_board/ibkr_reads.py",
+            "backend/tests/test_market_board_refresh.py"
+          ]
         }
       ]
     },
@@ -259,24 +344,21 @@
       "slug": "delivery-pipeline",
       "title": "05 - Merging a PR ships a Release; red CI means code broke",
       "readiness": "ready-now",
-      "gate": "None. The operator answered #347 on 2026-09-20: installer only, background download with an operator-chosen restart, and a Release only from a deliberate vNNN tag.",
-      "objective": "No vNNN tag or GitHub Release has been produced since v757: Actions-merged PRs push with GITHUB_TOKEN, which by design starts no workflow, so desktop-pack.yml never runs on master. Meanwhile ~65% of red CI runs are expected delivery states reported as failures, which trains everyone to ignore red.",
+      "gate": "",
+      "objective": "Ready PRs merge only after their four required checks pass. Releases offer an installer only after packing and full verification of the released commit, with safe branch cleanup and truthful delivery state.",
       "issues": [
         342,
         344,
         346,
         347,
-        369,
         367,
+        369,
         762
       ],
       "done": [
-        "An Actions-merged PR packs and verifies the installer plus its latest.yml feed; a pushed vNNN tag publishes the GitHub Release - proven on one real merge and one real tag, not just a dry run.",
-        "A red gating run means code broke: expected delivery states exit 0, and CI has concurrency groups plus job timeouts.",
-        "The shared bookkeeping files no longer force every PR to edit the same lines (#344 WS2-WS4).",
-        "`py -3 tools/master_branch_protection.py check` still exits 0 afterwards.",
-        "Cleanup preserves and reports recreated branches with unmerged commits; remote deletion is conditional on the verified SHA (#369).",
-        "Backlog selection and claim acquisition skip live file/directory overlaps, including legacy claims; claims --conflicts explains the holder and paths (#367)."
+        "Actions-merged ready PRs start the installer workflow and full verification on the released commit.",
+        "Backend tests, Frontend build, Frontend E2E and Agent contract must pass before merge and release publication.",
+        "Closed head cleanup preserves any recreated, unmerged or squash-only tip and uses a verified SHA lease."
       ],
       "prs": [
         {
@@ -402,8 +484,8 @@
       "slug": "gateway-truth",
       "title": "06 - The desk names how the Gateway is degraded",
       "readiness": "ready-now",
-      "gate": "#302 needs the operator to pick the Sim-across-restart policy: persist the Sim choice, or force an explicit re-arm on every boot.",
-      "objective": "A Gateway with Read-Only API enabled reaches READY and looks tradeable; every order is then rejected with Error 321 and nothing names the cause. reqCompletedOrders sits inside the connect warm path, so a wedged Gateway stalls READY. And a backend restart silently returns the desk from Sim to Live with the banner gone while spend gates stay armed.",
+      "gate": "",
+      "objective": "Gateway readiness names broker blockers, completed-order reads cannot wedge connection warm-up, venue choice persists independently from the process-local spend latch, and every venue change disarms.",
       "issues": [
         302,
         305,
@@ -421,8 +503,8 @@
           "title": "fix(ibkr): completed-orders off the warm path, named Gateway blockers, sweep re-run",
           "issues": [
             305,
-            334,
-            333
+            333,
+            334
           ],
           "note": "All three are the completed-orders / session-error surface; #334 is a few lines once #305 moves the fetch off connect.",
           "gated": false,
@@ -440,7 +522,7 @@
             302
           ],
           "note": "GATED on the operator's policy call. Small once decided; touches backend/sim/mode.py and the header capsule.",
-          "gated": true,
+          "gated": false,
           "touches": [
             "backend/sim/mode.py",
             "frontend/src/ibkr/"
@@ -454,13 +536,14 @@
       "title": "07 - The replay desk is usable, readable and honest",
       "readiness": "ready-now",
       "gate": "",
-      "objective": "The historical replay panel is the surface the operator actually drives, and it misleads on every axis: a 50-minute / 271-page download reports only a status string and vanishes when the popover closes, the popover parks on top of the scrubber, one busy flag locks every control, the Sim feature ships zero CSS so light theme is broken, and five 1 Hz poll loops plus an unvirtualized tape make scrubbing strobe.",
+      "objective": "Replay controls report durable progress, stay usable under scrubbing and theme changes, and show recorded book events without inventing executions.",
       "issues": [
         321,
         322,
         324,
         338,
-        341
+        341,
+        617
       ],
       "done": [
         "A long download shows percent complete, downloaded-through time and an ETA, and stays visible with the popover closed.",
@@ -475,8 +558,8 @@
           "issues": [
             321,
             322,
-            338,
             324,
+            338,
             341
           ],
           "note": "Owner-approved combined PR on 2026-09-20, with before/after measurements captured before implementation. Also addresses capture-fidelity #303, #337 and ungated #320 fixes in this same PR; retention policy remains open. Claim reserves the complete shared footprint.",
@@ -496,6 +579,21 @@
             "backend/tests/",
             "architecture/historical-replay.md"
           ]
+        },
+        {
+          "title": "feat(replay): show consumed depth honestly from recorded events",
+          "issues": [
+            617
+          ],
+          "note": "ADR033 already chooses departed-level marks and pulled totals using the shared live renderer. Feed it recorded books/prints on the playhead clock, distinguish unmatched reductions from inferred consumption and actual broker execution, reset on gaps/rewinds, and show absence when no book was recorded. No new presentation preference is needed.",
+          "gated": false,
+          "touches": [
+            "frontend/src/ibkr/",
+            "backend/sim/",
+            "backend/book_watch/",
+            "frontend/src/sim/",
+            "architecture/schema/book-watch-and-luld.md"
+          ]
         }
       ]
     },
@@ -504,8 +602,8 @@
       "slug": "capture-fidelity",
       "title": "08 - A replay reproduces the day, or refuses loudly",
       "readiness": "ready-now",
-      "gate": "#320 needs a retention call (manual delete only vs auto-prune) and #304 a presentation call (mirror IBKR bars exactly vs keep print-built candles).",
-      "objective": "A replay can differ from what was recorded with no indication: L2 throttling discards the newest book, the loader silently decimates and drops malformed rows, there is no schema_version, a 1d bucket leaks lookahead, an empty mid-window IBKR page marks a download complete over a silent hole, and bars_1d.jsonl grows one row per print with 29% duplicates and no retention.",
+      "gate": "",
+      "objective": "Capture and downloaded replay data state their version, coverage and retention. Completed-session boundaries prevent forming daily bars or incomplete history from becoming prior-day references.",
       "issues": [
         303,
         304,
@@ -513,21 +611,23 @@
         337,
         385,
         386,
-        511
+        511,
+        839
       ],
       "done": [
         "Captures carry a schema_version and a loader refuses an unknown one instead of guessing.",
         "L2 throttling coalesces rather than discarding the newest book; decimation and malformed-row drops are counted and surfaced.",
         "An empty mid-window IBKR page marks the job incomplete; playback will not present a hole as authoritative coverage.",
         "The capture store has a retention policy and a delete endpoint, and the in-repo fallback write path is gone.",
-        "Replay candles reconcile against IBKR's own 1-minute TRADES bars under the policy chosen for #304."
+        "Replay candles reconcile against IBKR's own 1-minute TRADES bars under the policy chosen for #304.",
+        "A forming daily bar never replaces the last completed session in prior-day highs, levels or Market references."
       ],
       "prs": [
         {
           "title": "fix(capture): faithful writes, schema_version, and an end to the duplicate-row flood",
           "issues": [
-            337,
-            320
+            320,
+            337
           ],
           "note": "Both are backend/capture write-path integrity. #320's retention half is gated on the operator's call; land the dedupe and the fallback-path removal regardless.",
           "gated": false,
@@ -594,6 +694,24 @@
             "backend/sim/practice.py",
             "architecture/practice-fills.md"
           ]
+        },
+        {
+          "title": "fix(bars): distinguish an unfinished daily bar from a completed session",
+          "issues": [
+            839
+          ],
+          "note": "Completion must be per retained daily bar, since a later short payload can advance a series fetch timestamp while leaving an older intraday snapshot. Verify prior-day levels and all historical/current consumers, invalidate cached summaries and metrics on refreshed rows, and pace repairs through the owning scheduler.",
+          "gated": false,
+          "touches": [
+            "backend/bars_store.py",
+            "backend/chart_bars.py",
+            "backend/market_board/",
+            "backend/stock_read/",
+            "backend/large_cap_hooks.py",
+            "backend/large_cap_metrics.py",
+            "backend/sensors/feeds.py",
+            "architecture/schema/market-data.md"
+          ]
         }
       ]
     },
@@ -602,8 +720,8 @@
       "slug": "replay-architecture",
       "title": "09 - One replay surface, one trade-print source",
       "readiness": "ready-now",
-      "gate": "ADR 017 accepts history_* as sole Historical engine, capture as feeder, and L2 as hot sink. The shared AllLast print fan-out is implemented. Canonical capture import, depth/quote replay (#309/#311), and practice fills (#310) remain separate work.",
-      "objective": "One Historical replay surface with a shared IBKR AllLast source and explicit recording health; complete remaining capture-import and replay capability decisions.",
+      "gate": "",
+      "objective": "One Historical replay surface owns loaded market truth, shared print fan-out, capture imports, recorded depth and quote projections, and practice fills. Completed decisions are history rather than new permission gates.",
       "issues": [
         308,
         309,
@@ -636,8 +754,8 @@
         {
           "title": "fix(feed): one IBKR trade-print fan-out; the dead tape and empty captures go loud",
           "issues": [
-            315,
-            308
+            308,
+            315
           ],
           "note": "Shared bounded AllLast fan-out implemented for capture/L2, with producer admission, independent health and regressions. Live-market validation remains operator work.",
           "gated": false,
@@ -684,8 +802,8 @@
       "slug": "desk-and-leftovers",
       "title": "10 - Live desk on master, plus residual product asks",
       "readiness": "ready-now",
-      "gate": "#14/#331 still need evidence from the physical trading PC, so their execution batch is held. #90/#94 decisions landed in their comments; live issue state controls whether those batches have work left. #657/#658's remaining venue defaults and bot snapshots are the accepted current implementation batch; unrelated unresolved operator calls stay held. Batches #5 and #8-#10 shipped; #6/#7 recorder/feed implementation shipped, while #674/#619/#667 acceptance remains held for recorded desk evidence. #712 policy choices, #600 source/scoring policy and all physical-PC evidence remain held.",
-      "objective": "The physical trading PC still runs a dirty branch, so three merged IBKR reconnect/health fixes are not in effect, and the unattended premarket start has never been proven with a real 03:55 ET log line. Plus four residual product asks with no shared root cause that survive triage.",
+      "gate": "#14 is deprioritized by the operator; #612 needs the browser reload preference. For #601 and old chart clipping the operator is not sure, original geometry remains unavailable and no further prompt is requested in this pass.",
+      "objective": "Maintain unattended desk operations and the operator's browser and layout preferences. #331 is verified complete; #14 remains low-priority monitoring at the operator's request.",
       "issues": [
         14,
         90,
@@ -693,13 +811,13 @@
         94,
         147,
         331,
+        459,
         571,
-        619,
+        601,
+        612,
         657,
         658,
         664,
-        667,
-        674,
         707,
         742,
         744,
@@ -707,8 +825,8 @@
         766
       ],
       "done": [
-        "The live desk runs master and the Gateway restart is confirmed, with the date recorded on #331.",
-        "One real unattended premarket start is evidenced by a 03:55 ET line in morning-check.log.",
+        "The deployment and Gateway recovery scope on #331 is verified complete, with issue evidence retained.",
+        "The premarket startup scope on #14 is verified; its quiet-week follow-up remains unproven and deprioritized at the operator request.",
         "Ticket TIF reaches the broker (a GTC order survives the session) rather than being a UI-only 'DAY' literal.",
         "The HOD slot-crowding policy and the scanner Exchange backfill cost call are each recorded on their issue and implemented or closed.",
         "#147 (opt-in multi-model Advise) is either built or reclassified out of the delivery backlog.",
@@ -718,10 +836,10 @@
         {
           "title": "chore(ops): unattended premarket verifier and a corrected live-desk sync recipe",
           "issues": [
-            331,
-            14
+            14,
+            331
           ],
-          "note": "OPERATOR-ONLY execution; the recipe is prepared in docs/live-desk-sync.md. Operator chose 2026-09-20 to sync and cold-restart Gateway, upload diagnostics first, and enable the IBC command server.",
+          "note": "#331 closed with fresh aggregate verification. #14 remains P3, with no further crash investigation requested. Separate system maintenance is outside the remaining engineering scope.",
           "gated": true,
           "touches": [
             "scripts/Install-NovaDailyTask.ps1",
@@ -732,8 +850,8 @@
         {
           "title": "feat(scanner): HOD slot policy and cold Exchange backfill",
           "issues": [
-            94,
-            90
+            90,
+            94
           ],
           "note": "Ungated 2026-09-20: the operator answered both calls on the issues (#90 build the cold, paced lookup; #94 the slot policy). #90's cold Exchange backfill is implemented; both touch the scanner hydrate path.",
           "gated": false,
@@ -820,12 +938,10 @@
           ]
         },
         {
-          "title": "fix(capture): keep status responsive during recorder finalization",
-          "issues": [
-            674
-          ],
-          "note": "Implementation completed by merged #746: recorder finalization no longer starves status readers and empty-segment wording is accurate. #674 remains evidence-held for the historical five-second logging-handler cause and actual broker account tape-cap/pre-admission acceptance. This completed implementation must not be offered again; new recorded evidence must establish any further scoped work.",
-          "gated": true,
+          "title": "chore(triage): record completed recorder responsiveness work",
+          "issues": [],
+          "note": "Recorder starvation and wording shipped in #746; Sentry package scan remedy shipped in #798. Current #674 scope is shared tape admission, routed to desk-capacity.",
+          "gated": false,
           "touches": [
             ".cursor/rules/capture-worker.mdc",
             "architecture/capture-fidelity.md",
@@ -837,14 +953,12 @@
           ]
         },
         {
-          "title": "fix(feed): publish halt transitions and retain useful stall evidence",
+          "title": "chore(triage): retain completed halt publication history",
           "issues": [
-            571,
-            619,
-            667
+            571
           ],
-          "note": "Implementation completed by merged #750 and its merged #755 evidence-retention/queue-drop corrections; #571 is closed. #619/#667 remain evidence-held for actual market-open/per-generation GC and native timestamp/arrival diagnosis. This completed implementation must not be offered again; new measurements must establish any further scoped work. No GC tuning, trigger-age change or tape-source migration.",
-          "gated": true,
+          "note": "Historical implementation membership retained. Residual #619 performance and #667 receipt-age engineering are routed to their current outcome packages, without mandatory operator evidence holds.",
+          "gated": false,
           "touches": [
             "AGENTS.md",
             "architecture/decisions/008-persistent-ibkr-scanner-rosters.md",
@@ -884,7 +998,7 @@
           "issues": [
             742
           ],
-          "note": "Completed by merged #749/#752; #742 is closed. Premarket verification now refuses unavailable, partial, unplaceable and regressing authentication evidence. #14 remains held for physical desk evidence; the one-PASS plus quiet-week criterion is unchanged.",
+          "note": "Completed by merged #749/#752; #742 is closed. Premarket verification now refuses unavailable, partial, unplaceable and regressing authentication evidence. #14 startup is verified; its remaining stability follow-up is P3 and parked at the operator request, without further investigation this pass.",
           "gated": false,
           "touches": [
             "AGENTS.md",
@@ -962,6 +1076,47 @@
             "architecture/scanner-bootstrap-halt-evidence.md",
             "frontend/src/hooks/useScannerData.ts",
             "frontend/src/hooks/useScannerData.committed.test.tsx"
+          ]
+        },
+        {
+          "title": "feat(browser): hold desk reloads until the operator's chosen reload policy permits",
+          "issues": [
+            612
+          ],
+          "note": "The browser reload choice remains an operator decision. Installed release-follow is already the accepted update path; no independent nightly master pull.",
+          "gated": true,
+          "touches": [
+            "frontend/vite.config.ts",
+            "frontend/scripts/",
+            "frontend/src/ux/"
+          ]
+        },
+        {
+          "title": "fix(quote): preserve relative-volume values at supported narrow rail widths",
+          "issues": [
+            459
+          ],
+          "note": "Old QA engineering leftovers are shipped or retired. Two independent actual-component/CSS fixtures confirm current Rel vol value truncation at supported 320px rail. The old chart-axis report remains unconfirmed after the operator answered Not sure, with no further question this pass and is not silently called fixed.",
+          "gated": false,
+          "touches": [
+            "frontend/src/stock_view/StockViewQuoteStats.tsx",
+            "frontend/src/styles/quote-layout.css",
+            "frontend/src/stock_view/",
+            "frontend/src/styles/",
+            "frontend/src/styles/qa2Layout.test.ts"
+          ]
+        },
+        {
+          "title": "fix(quote): reproduce the reported Gap High Low row clipping",
+          "issues": [
+            601
+          ],
+          "note": "Original second-row clipping is not reproduced by the current controlled source matrix or existing layout tests. Available saved geometry cannot recreate the original incident. Current reproduction or operator retirement remains required, no new machine readiness criterion. Operator answered Not sure; keep this P3 evidence-held report without another question this pass.",
+          "gated": true,
+          "touches": [
+            "frontend/src/stock_view/",
+            "frontend/src/styles/",
+            "frontend/src/styles/qa2Layout.test.ts"
           ]
         }
       ]
@@ -1067,6 +1222,563 @@
             "backend/api_lock_handle.py",
             "backend/tests/test_api_instance_lock.py",
             "architecture/decisions/038-installed-backend-ownership.md"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 13,
+      "slug": "manual-order-parity",
+      "title": "13 - One manual order contract across Paper, Sim and Live",
+      "readiness": "ready-now",
+      "gate": "#791's optional short grade lookback and resting-entry halt/borrow choices retain current defaults until the operator chooses a change. Readiness removal shipped in #931.",
+      "objective": "Manual plans and protective orders share one decision and lifecycle implementation. Venue adapters translate orders and fills, while actual arming, account and order-safety constraints remain. Readiness scores and mandatory operator proof rituals do not grant trading permission.",
+      "issues": [
+        604,
+        606,
+        712,
+        725,
+        791,
+        809,
+        810
+      ],
+      "done": [
+        "Manual plan approval, entry, stop, targets and partial-fill management use one contract across venue adapters.",
+        "Offline broker-event regressions preserve order identity, cancellation acknowledgement and unknown commission facts.",
+        "Current unsupported Live shapes remain explicit until their implementation is complete; no autonomous Live bot entry is added."
+      ],
+      "prs": [
+        {
+          "title": "feat(execution): share manual plan protection across venue adapters",
+          "issues": [
+            604,
+            606
+          ],
+          "note": "Operator decided one source of truth, with premarket parity an engineering requirement. Current Live adapter gaps remain implementation work, not a repeated trading-hours choice.",
+          "gated": false,
+          "touches": [
+            "backend/stock_mode/",
+            "backend/execution/",
+            "backend/ibkr/orders.py",
+            "backend/practice/",
+            "frontend/src/stock_read/",
+            "frontend/src/bot/",
+            "architecture/schema/execution.md",
+            "architecture/schema/stock-read.md"
+          ]
+        },
+        {
+          "title": "fix(execution): reconcile broker cancellation and child-leg event facts",
+          "issues": [
+            712,
+            809,
+            810
+          ],
+          "note": "Related event/ledger truth defects should be verified with controlled broker callbacks and restart fixtures. No operator test trade or readiness ceremony is required.",
+          "gated": false,
+          "touches": [
+            "backend/execution/",
+            "backend/ibkr/orders.py",
+            "backend/ibkr/live_book.py",
+            "backend/ibkr/account_stream.py",
+            "backend/tests/",
+            "backend/ibkr/order_bracket.py",
+            "backend/ibkr/position_commission.py",
+            "backend/ibkr/order_rows.py",
+            "backend/bot/day_pnl.py"
+          ]
+        },
+        {
+          "title": "fix(execution): await broker sends without blocking the market socket loop",
+          "issues": [
+            725
+          ],
+          "note": "Individual review decides whether the already-merged send-hop fix fully closes this historical defect.",
+          "gated": false,
+          "touches": [
+            "backend/execution/",
+            "backend/ibkr/",
+            "backend/tests/"
+          ]
+        },
+        {
+          "title": "fix(shorts): apply the operator's grade and resting-entry policy",
+          "issues": [
+            791
+          ],
+          "note": "Readiness permission machinery shipped removed in merged #931. Only two distinct optional short-policy choices remain; existing defaults continue and no trading proof ceremony is required.",
+          "gated": true,
+          "touches": [
+            "backend/setup_scanner/grade_short.py",
+            "backend/short_sale/",
+            "backend/practice/",
+            "architecture/schema/short-selling.md"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 14,
+      "slug": "live-feed-honesty",
+      "title": "14 - The desk states when required market data is absent",
+      "readiness": "ready-now",
+      "gate": "#913 needs the missing-book lock policy. #922's suspected tape-line leak remains evidence-driven, never asserted from a depth analogue.",
+      "objective": "A live-looking heartbeat is not a market book or tape. Feed ownership, recovery and order-view checks use explicit source state and say when IBKR has not answered.",
+      "issues": [
+        525,
+        722,
+        800,
+        804,
+        891,
+        913,
+        922,
+        923
+      ],
+      "done": [
+        "A subscribed ladder without a first book reports missing data and applies the operator's selected order lock while protective operations stay available.",
+        "Silent tape and enrichment failures are diagnosed without fabricating data or repeatedly reclaiming healthy shared lines.",
+        "Recording feed ownership and late cancellation preserve line budgets and never silently lose capture streams."
+      ],
+      "prs": [
+        {
+          "title": "fix(view): name missing first-book data and enforce the chosen manual-order lock",
+          "issues": [
+            913
+          ],
+          "note": "Operator policy remains pending: an open waiting ladder only, or every priced manual order. Flatten, kill and cancellation exemptions remain.",
+          "gated": true,
+          "touches": [
+            "backend/market_view/",
+            "backend/ibkr/depth/",
+            "frontend/src/market_view/",
+            "frontend/src/ibkr/"
+          ]
+        },
+        {
+          "title": "fix(tape): diagnose silent shared tape and recording feed lifecycles",
+          "issues": [
+            525,
+            722,
+            922
+          ],
+          "note": "#525's bounded recorder remedies are verified complete. Trader registered-silent tape recovery #722 and #922's orphan-line investigation remain engineering tasks with deterministic ownership and cancellation regressions; no mandatory operator trading probe.",
+          "gated": false,
+          "touches": [
+            "backend/ibkr/tape_stream.py",
+            "backend/ibkr/stray_lines.py",
+            "backend/capture/",
+            "backend/archive/",
+            "frontend/src/ibkr/",
+            "backend/ibkr/tape_line.py",
+            "backend/ibkr/tape_silence.py",
+            "backend/line_lending/tape_heal.py",
+            "backend/routes/trading_tape_ws.py",
+            "architecture/schema/market-data.md"
+          ]
+        },
+        {
+          "title": "fix(scanner): keep HOD enrichment and day-rollover state current",
+          "issues": [
+            800,
+            891
+          ],
+          "note": "Enrichment freshness and connected-desk rollover both affect whether HOD alerts truthfully describe today's session.",
+          "gated": false,
+          "touches": [
+            "backend/hod_momo_enrichment.py",
+            "backend/hod_momo_session.py",
+            "backend/hod_momo_alerts.py",
+            "backend/routes/hod_momo.py",
+            "backend/ibkr/background_quotes.py",
+            "backend/ibkr/discovery.py",
+            "backend/ibkr/ib_scheduler.py",
+            "backend/ibkr/client_bridge.py",
+            "backend/diagnostics/gather.py",
+            "frontend/src/hod_momo/",
+            "architecture/schema/scanner.md"
+          ]
+        },
+        {
+          "title": "fix(gateway): resolve current launcher versions and state unknown order words",
+          "issues": [
+            804,
+            923
+          ],
+          "note": "#761 migration checklist is retired. #804 retains verified launcher-version and unknown-order-status defects. #923 is a P3 investigation of retained TCP records with absent owners; no surviving orphan Gateway or market-data capacity impact is established.",
+          "gated": false,
+          "touches": [
+            "backend/constants_ibkr.py",
+            "backend/ibkr/",
+            "scripts/Start-NovaDaily.ps1",
+            "docs/live-desk-sync.md",
+            "backend/winapi/processes.py"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 15,
+      "slug": "desk-capacity",
+      "title": "15 - Measured desk capacity without event-loop stalls",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Bound and measure synchronous work on market and HTTP callbacks before choosing a broader loop architecture. Performance evidence is diagnostic, not a machine trading-permission verdict.",
+      "issues": [
+        504,
+        619,
+        629,
+        674,
+        797
+      ],
+      "done": [
+        "Known lexicon, database and re-render stalls are removed at their owning seams with controlled load evidence.",
+        "A recorded burst harness reports capacity and latency with clear populations, without live orders.",
+        "Flush-exit design cites repeatable performance evidence and a single shared execution path; the obsolete third-loop proposal is retired."
+      ],
+      "prs": [
+        {
+          "title": "perf(desk): remove residual HOD, GC and persistence stalls from hot callbacks",
+          "issues": [
+            619,
+            797
+          ],
+          "note": "Lexicon caller blocking was fixed in #802 and is not remaining scope. Current #619/#797 concern separately verified synchronous HOD/store paths, GC/stall diagnosis and active frontend publication costs.",
+          "gated": false,
+          "touches": [
+            "backend/gc_policy/",
+            "backend/perf/",
+            "backend/hod_momo_surge_seed.py",
+            "backend/hod_tick_feed.py",
+            "backend/hod_momo_market.py",
+            "backend/market.py",
+            "backend/hod_momo_decision_journal.py",
+            "backend/setup_scanner/",
+            "backend/bars_store.py",
+            "frontend/src/hot_list/",
+            "frontend/src/ibkr/",
+            "architecture/decisions/026-performance-recorder.md"
+          ]
+        },
+        {
+          "title": "perf(replay): measure a recorded-open capacity knee offline",
+          "issues": [
+            504
+          ],
+          "note": "The recorder and timers already shipped. Build a deterministic offline load harness with stated input coverage and configurable advisory budgets, without touching the trading runtime or making trading permission depend on the result.",
+          "gated": false,
+          "touches": [
+            "backend/perf/",
+            "backend/ibkr/ticks_handler.py",
+            "backend/ibkr/scanner_l1.py",
+            "backend/ibkr/tape_events.py",
+            "backend/ibkr/depth/handlers.py",
+            "tools/",
+            "frontend/e2e/",
+            "architecture/schema/performance.md",
+            "architecture/decisions/026-performance-recorder.md"
+          ]
+        },
+        {
+          "title": "fix(tape): account for shared capacity before auto-record admission",
+          "issues": [
+            674
+          ],
+          "note": "Depth and recording counts do not account for all AllLast tape requests. One shared admission owner must retain operator priority and correct release/reconnect accounting. Recorder/Sentry predecessor remedies are already shipped.",
+          "gated": false,
+          "touches": [
+            "backend/ibkr/tape_stream.py",
+            "backend/leaderboard/auto_record.py",
+            "backend/tests/test_ibkr_tape_stream.py",
+            "backend/tests/test_leaderboard_auto_record.py",
+            "architecture/schema/market-data.md"
+          ]
+        },
+        {
+          "title": "research(flush): report lag-aware exit behavior on real setup trades",
+          "issues": [
+            629
+          ],
+          "note": "Optional informative research remains from the original issue. Existing flush off/tighten/exit is implemented; old Live probes and sample-count trading-permission gates are retired. Report per-day sensitivity and realistic order delay, keep operator interpretation explicit.",
+          "gated": false,
+          "touches": [
+            "tools/flow_study.py",
+            "tools/eyes_backtest.py",
+            "backend/eyes/",
+            "backend/setup_scanner/tape_flow.py",
+            "backend/bot/first_pullback/flush.py",
+            "knowledge/signal-trials.json",
+            "architecture/schema/setups.md"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 16,
+      "slug": "historical-market-projection",
+      "title": "16 - One historical market projection from Massive files",
+      "readiness": "ready-now",
+      "gate": "#833 automatic indexing timing is pending, outside 07:00 to 20:00 ET versus immediately after download. Existing full-corpus resume/watchdog work is implemented; no restart or historical-depth choice is requested.",
+      "objective": "Historical boards, daily references and socket-fed engines use the loaded session's source. Indexing makes the first stock of a day available without a full repeated file scan.",
+      "issues": [
+        775,
+        825,
+        833
+      ],
+      "done": [
+        "Boards, daily bars and socket-fed engines resolve through the same loaded historical source and report unavailable facts honestly.",
+        "Index construction is durable, versioned and safely resumed before interactive stock selection.",
+        "LULD approximations and missing reference datasets stay stated rather than presented as exact recorded bands."
+      ],
+      "prs": [
+        {
+          "title": "feat(sim): finish shared historical projections for boards and engines",
+          "issues": [
+            825
+          ],
+          "note": "Whole-stock-day loading, After Hours board reconstruction and quote-panel improvements already shipped. Remaining historical source identity, daily references, socket-fed engine integration and rail/board gaps need one source contract. Indexing automation remains distinct from the existing resumable bulk/index watchdog implementation.",
+          "gated": false,
+          "touches": [
+            "backend/sim/",
+            "backend/agent_desk/",
+            "tools/",
+            "architecture/schema/recording-and-replay.md",
+            "backend/sensors/",
+            "backend/luld/",
+            "backend/stock_read/history.py",
+            "backend/strategy/",
+            "frontend/src/stock_view/",
+            "frontend/src/sim/"
+          ]
+        },
+        {
+          "title": "fix(luld): state exact and estimated replay reference coverage",
+          "issues": [
+            775
+          ],
+          "note": "Mid-session approximate rebuild and late-print exclusion are implemented. Remaining condition/time study needs raw inputs and eligibility-version cache invalidation, exact historical reconstruction needs NBBO/limit-state history, and tier/leverage lookup needs an authoritative dated source. Fixtures do not prove SIP equality.",
+          "gated": false,
+          "touches": [
+            "backend/luld/",
+            "backend/sim/",
+            "frontend/src/ibkr/",
+            "architecture/schema/book-watch-and-luld.md",
+            "tools/luld_check.py"
+          ]
+        },
+        {
+          "title": "feat(history): prepare new-day indexes under the chosen scheduling policy",
+          "issues": [
+            833
+          ],
+          "note": "Bulk missing-only indexing, STOP/resume and watchdog improvements already shipped. Remaining automatic downloader/sweeper invocation and new-day coverage need explicit timing and shared-disk/import coordination, without restarting the existing backfill.",
+          "gated": true,
+          "touches": [
+            "backend/sim/massive_index.py",
+            "backend/sim/massive_files.py",
+            "backend/sim/massive_worker.py",
+            "backend/sim/massive_import.py",
+            "research/market_reads/inventory.py",
+            "research/orb/massive_flatfiles.py",
+            "scripts/",
+            "architecture/schema/recording-and-replay.md"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 17,
+      "slug": "setup-source-truth",
+      "title": "17 - Setups and research retain honest source and trigger facts",
+      "readiness": "ready-now",
+      "gate": "#600 already specifies tape price-setting prints with fallback only without a held tape line. #667 receipt-age correction is engineering work. #704 historical data repair retains its separate evidence and mutation decision.",
+      "objective": "The setup's candle source, trigger identity and repair history are explicit. Research results inform the operator without granting trading permission.",
+      "issues": [
+        600,
+        704,
+        667
+      ],
+      "done": [
+        "Minute-bar source and fallback policy are explicit and comparisons preserve recorded trigger and MACD differences.",
+        "A repair dry run is recoverable and preserves evidence for overwritten setup rows; it never alters an operator database during triage.",
+        "No pass/fail research verdict silently changes a strategy's user-selected activation."
+      ],
+      "prs": [
+        {
+          "title": "fix(setups): share minute-source truth and trigger receipt provenance",
+          "issues": [
+            600,
+            667
+          ],
+          "note": "Original #600 source preference is explicit, no new operator decision. Use held AllLast price-setting prints and the stated fallback, retaining broker event-time provenance while evaluating input receipt age. Candle bucketing, warm-up, replay and genuine delayed-data checks must remain distinct and tested across bot, Auto-entry and Approve.",
+          "gated": false,
+          "touches": [
+            "backend/ibkr/l1_minute.py",
+            "backend/ibkr/ticks_handler.py",
+            "backend/ibkr/tape_events.py",
+            "backend/setup_scanner/",
+            "backend/bot/",
+            "backend/stock_mode/",
+            "backend/eyes/",
+            "architecture/schema/setups.md",
+            "architecture/schema/bot.md",
+            "architecture/schema/stock-read.md",
+            "architecture/schema/market-data.md"
+          ]
+        },
+        {
+          "title": "fix(setups): recover overwritten historical trigger rows from exact evidence",
+          "issues": [
+            704
+          ],
+          "note": "Forward identity correction is distinct from the original overwritten rows. Prepare exact read-only recovery evidence before any operator data mutation, no fabricated times or prices.",
+          "gated": true,
+          "touches": [
+            "backend/setup_scanner/",
+            "backend/eyes/",
+            "backend/tests/",
+            "architecture/schema/setups.md"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 18,
+      "slug": "market-board-reference",
+      "title": "18 - Market reference boards distinguish unknown from absent",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Public reference datasets and IBKR market reads state coverage and failure separately. Halts have honest source status and direction; theme leaders need explicit membership.",
+      "issues": [
+        897,
+        899,
+        900
+      ],
+      "done": [
+        "Unavailable halt sources produce unknown state rather than a no-halt claim.",
+        "Halt direction comes from event-matched evidence with named provenance, never reason codes, a generic threshold comparison, net daily change or short cool-off trend; unknown and known coverage remain explicit.",
+        "Theme ETF leaders have versioned membership and source coverage, never guessed holdings."
+      ],
+      "prs": [
+        {
+          "title": "fix(market): preserve halt source state, direction and membership coverage",
+          "issues": [
+            897,
+            899,
+            900
+          ],
+          "note": "Reference-data integrity spans feed-health unknowns, event-matched halt direction and theme membership coverage. A healthy missing-symbol halt overlay can be pending and a cached hit can remain ok while the feed is stale, so use feed answering/age. Store side provenance and unknowns, never infer LULD direction from net change or reason codes. #900 needs issuer-specific holdings formats, dated coverage and correct foreign/derivative identifiers; an official page view is not proof of a complete downloadable holdings contract.",
+          "gated": false,
+          "touches": [
+            "backend/news/",
+            "backend/market_board/",
+            "architecture/schema/market-board.md",
+            "architecture/schema/catalysts.md",
+            "backend/move_reason/",
+            "backend/catalysts/",
+            "backend/luld/",
+            "architecture/schema/stock-read.md",
+            "backend/leaderboard/",
+            "frontend/src/market_board/",
+            "frontend/src/utils/catalystVerdict.ts",
+            "frontend/src/types/catalystVerdict.ts",
+            "backend/constants_market_board.py"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 19,
+      "slug": "security-alert-resolution",
+      "title": "19 - Security alerts and desktop boundaries stay auditable",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Active security alerts receive private applicability review and verified remediation. Public tickets track generic status without exposing alert traces or private desk evidence.",
+      "issues": [
+        828,
+        883
+      ],
+      "done": [
+        "Active alerts are resolved or explicitly dismissed with a correct private rationale and confirmed GitHub state.",
+        "Remaining socket refusal, desktop origin and state-changing-route hardening has testable source contracts.",
+        "The shipped inbox and runtime guards are preserved; secret scanning and push protection retain current settings until the operator answers the pending preference."
+      ],
+      "prs": [
+        {
+          "title": "fix(security): resolve the active alert and remaining desktop boundary gaps",
+          "issues": [
+            828,
+            883
+          ],
+          "note": "Keep vulnerable details private and verify actual alert closure. Preserve remaining hardening while recognizing the shipped inbox and runtime guards. Repository secret-scanning and push-protection settings remain an explicit pending preference.",
+          "gated": false,
+          "touches": [
+            "security/",
+            "backend/",
+            "frontend/electron/",
+            "tools/security_lib/",
+            "architecture/schema/desk-ops.md"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 20,
+      "slug": "operator-product-choices",
+      "title": "20 - Optional desk features have concrete operator scope",
+      "readiness": "ready-now",
+      "gate": "#808's optional broker precaution preference remains the operator's choice; never silently bypass it. #784 voice remains parked under the accepted typed-for-now ADR050 scope.",
+      "objective": "Attention alerts, voice Sim requests and optional broker configuration are product preferences, with clear boundaries and no implicit trade or setting changes.",
+      "issues": [
+        585,
+        784,
+        808
+      ],
+      "done": [
+        "Attention alerts specify a detectable condition and dismissible presentation without placing orders.",
+        "Voice requests use the existing agent Sim endpoints with explicit user-visible confirmation and truthful failures.",
+        "IBC precaution configuration reflects an explicit risk preference and retains observable broker refusals."
+      ],
+      "prs": [
+        {
+          "title": "feat(desk): add a bounded optional fast-move attention alert",
+          "issues": [
+            585
+          ],
+          "note": "Gappers/Gainers, watch-only, dismissible Open/Dismiss scope is already specified. Configurable thresholds, window and cooldown are routine engineering, preserve the quiet Running Up/auto-star defaults and shared venue behavior.",
+          "gated": false,
+          "touches": [
+            "frontend/src/ux/",
+            "frontend/src/agent_desk/",
+            "backend/agent_desk/",
+            "backend/scanner_surface.py"
+          ]
+        },
+        {
+          "title": "docs(gateway): record the chosen optional API precaution policy",
+          "issues": [
+            808
+          ],
+          "note": "Blank IBC values preserve saved settings and are not themselves a defect. No setting changes until a real operator preference is recorded.",
+          "gated": true,
+          "touches": [
+            "docs/live-desk-sync.md",
+            "architecture/schema/execution.md"
+          ]
+        },
+        {
+          "title": "feat(agent-desk): route voice replay requests through existing bounded endpoints",
+          "issues": [
+            784
+          ],
+          "note": "Typed agent understanding and private search/show/move/dictionary routes are implemented under ADR050. Voice is explicitly parked under that decision until requested; correct obsolete ADR047 reference, do not rebuild endpoint logic or place orders.",
+          "gated": true,
+          "touches": [
+            "backend/agent_desk/",
+            "frontend/src/agent_desk/",
+            "architecture/schema/agent-desk.md",
+            "architecture/decisions/050-agents-find-and-show-in-the-sim.md",
+            "tools/nova_agent.py",
+            ".claude/skills/nova-sim-navigator/"
           ]
         }
       ]

@@ -60,9 +60,27 @@ Operator ask (2026-10-12): follow the material's exits -- sell in two halves, th
 - **One more operation on the one door**, `exit_oco`: for shares the venue already holds, a stop for every share and one or two limits on the same side (`target_price`, and `target2_price` with `target1_qty` for two halves), checked and committed once under the lock -- not two places, not a carve-out from the commitment rule. Any other close of the same shares is still refused (`OVERSELL` / `OVERCOVER`). A short's pair is the mirror (BUYs that cover; a cover is a close, never locked).
 - **The first fill cancels or reduces the others**: the stop's fill cancels the targets; a target's fill shrinks the stop to the shares left, at the same price. The stop's quantity is always the shares still held; it is never moved to the entry by the venue.
 - **A bracket takes the same two halves** (`target2_price` + `target1_qty`), the bot's entry. No second target: every share at target 1, as before.
-- **Paper and Sim only** until Live's proof (#606): Live refuses both `EXIT_OCO_LIVE`. Live's shape is written down (`architecture/schema/execution.md`, "The exit-only pair and two halves"): one IBKR OCA group per half, reduce on fill, never one group of every leg.
+- **The Live adapter remains unimplemented** (#606): Live currently refuses both `EXIT_OCO_LIVE`. This is an unsupported order shape, not a readiness or Paper-proof requirement. Live's shape is written down (`architecture/schema/execution.md`, "The exit-only pair and two halves"): one IBKR OCA group per half, reduce on fill, never one group of every leg.
 
 Rejected: a second SELL allowed past the commitment for "Nova's own" orders (the rule exists so nothing sells twice; a label must never open it); one IBKR OCA group of all legs (reduce-on-fill would cancel target 2 at target 1's fill); a new practice ledger event for the shrink (it would need a `schema_version` bump that archives the running Paper account -- the shrink is derived from the target's own fill event instead).
+
+## Shared manual plan behavior across venues (2026-10-13, #604, #606)
+
+Operator: "the same thing should work from paper to live" and "no different
+logic please one single source of truth". The manual plan, approval, entry,
+stop, targets and trade-management decisions have one owner and one execution
+contract across Paper, Sim and Live. Venue adapters translate that contract
+to the venue's orders and fills; they do not own separate strategy or exit
+policies. Existing arming, broker, account and risk gates remain enforced.
+
+This is the accepted implementation requirement for #604 and #606, not a
+claim that their missing Live adapter has shipped. Current Live refusals
+remain until that shared implementation is complete and its lifecycle
+regressions pass. Premarket protection is an engineering parity gap to resolve in
+that design, not a separate Paper-versus-Live product policy to ask again.
+The implementation must verify the same lifecycle contract across venue
+adapters, including partial fills and the remaining stop after target 1.
+Autonomous Live bot entry remains refused under the constitution and ADR 042.
 
 ## Rejected alternatives
 

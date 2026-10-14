@@ -248,9 +248,9 @@ app's own folder, so it is a different Paper account, bot session and history.
   backend too old to say, is listed and confirmed. Later hides it until a
   revision changes.
 
-  Nothing else pulls or restarts on a timer: an unattended nightly pull of
-  master and restart was proposed and not built (#616), pending the operator's
-  explicit say-so.
+  The operator retired the separate unattended nightly pull of master and
+  restart (#616) on 2026-10-13. Updates use the existing release flow; the
+  backend follows the desk's installed release under the checks above.
 
 ## Where Nova keeps its data (operator ask, 2026-09-24)
 

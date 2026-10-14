@@ -169,8 +169,9 @@ runs a newer release than it:
   desk, or a restart that comes back on the same code leaves **Update backend
   to vNNN** to the operator, with the reason, so it can never loop.
 - A backend from another checkout, or a bundled engine, is left as before.
-- The unattended nightly pull of master (#616) is still **not built**: this
-  only ever brings the backend to a release the operator already installed.
+- The operator retired the separate unattended nightly pull of master
+  (#616) on 2026-10-13. Keep the existing release updates and automatic
+  backend follow to a release the operator already installed.
 
 ## The backend restarts during the install (amendment, 2026-10-13, evening)
 

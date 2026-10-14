@@ -34,10 +34,12 @@ candle/HOD controls. Change no runtime or trading policy.
 ## Final routing reconciliation
 
 Merged #746 completed the scoped recorder code; merged #750/#755 completed the
-scoped feed and diagnostic code. #674/#619/#667 remain open for recorded physical
-evidence. Gate authored desk batches 6/7 so their completed code is not offered
-again. Retain existing indices and human decision gates, record actual merged
-footprints and completion notes, and preserve test-integrity batches 0/1/2.
+scoped feed and diagnostic code. The 2026-10-13 issue reviews narrow #674 to
+shared tape admission, #619 to residual GC/HOD performance work, and #667 to
+event-time versus receipt-age handling. These are engineering tasks, without
+mandatory operator event or readiness proof. The package plan retains historical
+desk batch indices and completed footprints while routing these remaining tasks
+to their current outcomes. Preserve test-integrity batches 0/1/2.
 
 ## Verification
 
