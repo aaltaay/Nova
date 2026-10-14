@@ -142,6 +142,20 @@ def _reset_order_state_memory():
         module.reset_for_tests()
 
 
+@pytest.fixture(autouse=True)
+def _stop_market_board_lanes():
+    # #925: the Market page's three daemon lanes start on the first ``refresh.want`` and ran for the rest of the
+    # process, so a later test's patched functions got their calls and its ``board-store.json`` their writes (v1297's
+    # release was held by one, 2026-10-14). Each test ends them; one still running after its wait is a failure.
+    import sys
+
+    yield
+    refresh = sys.modules.get("market_board.refresh")
+    if refresh is not None:
+        stuck = refresh.stop_for_tests()
+        assert not stuck, f"Market page lanes still running after the test: {stuck}"
+
+
 class _EveryVenue(str):
     """A venue stamp equal to every venue -- the suite's default arm only."""
 

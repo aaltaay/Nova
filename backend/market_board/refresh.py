@@ -10,7 +10,8 @@ while the page asked within ``MARKET_WANTED_SEC``, else at its slower background
 page opens on a board that is already there. ``NOVA_MARKET_BOARD_WARM=0`` runs reads only while the page is wanted
 (the NYSE breadth sample still runs once a minute in the regular session); ``NOVA_MARKET_BOARD=0`` runs nothing.
 The ``files`` thread also keeps the IBKR answers on disk (``market_board.keep``), read back at the first start.
-``run_once`` is the whole step for tests.
+``run_once`` is the whole step for tests, and ``stop_for_tests`` ends the threads a test started (#925: a lane
+left running wrote the next test's ``board-store.json`` and read its patched functions).
 """
 from __future__ import annotations
 
@@ -42,6 +43,7 @@ _threads_lock = threading.Lock()
 LANES = ("ibkr", "history", "files")
 IBKR_LANES = ("ibkr", "history")
 _wake = {lane: threading.Event() for lane in LANES}
+_stop = threading.Event()
 
 
 def enabled() -> bool:
@@ -181,7 +183,7 @@ def start_breadth_sampler() -> None:
 
 
 def _loop(lane: str) -> None:
-    while True:
+    while not _stop.is_set():
         try:
             now = time.time()
             if not enabled():
@@ -192,13 +194,28 @@ def _loop(lane: str) -> None:
                 keep.maybe_save(store(), now)
             if not run_once(lane, now):
                 if store().wanted(now):
-                    time.sleep(MARKET_TICK_SEC)
+                    _stop.wait(MARKET_TICK_SEC)
                 else:
                     _wake[lane].wait(MARKET_IDLE_WAIT_SEC)
                     _wake[lane].clear()
         except Exception:  # noqa: BLE001 -- the refresher must outlive any one bad read
             logger.exception("market_board refresher %s", lane)
-            time.sleep(5.0)
+            _stop.wait(5.0)
+
+
+def stop_for_tests(timeout: float = 5.0) -> list[str]:
+    """End every lane a test started and wait for it; returns the lanes still running after ``timeout`` (a read
+    blocked that long), which the caller reports. The next ``want`` starts fresh lanes."""
+    _stop.set()
+    for event in _wake.values():
+        event.set()
+    with _threads_lock:
+        threads = list(_threads.values())
+        _threads.clear()
+    for thread in threads:
+        thread.join(timeout)
+    _stop.clear()
+    return [t.name for t in threads if t.is_alive()]
 
 
 def reset_for_tests() -> None:

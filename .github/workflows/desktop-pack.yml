@@ -288,6 +288,8 @@ jobs:
       contents: write
       # Reads this run's jobs: the gate names the check that held the Release.
       actions: read
+      # A held master build opens a `Release held: vNNN` issue; a published one closes it (release_held.py).
+      issues: write
     steps:
       - name: Check out the released commit (its message is the release notes)
         uses: actions/checkout@v4
@@ -310,7 +312,22 @@ jobs:
           JOBS="$RUNNER_TEMP/jobs.json"
           # A listing that cannot be read leaves no file, and the gate fails closed.
           gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?filter=latest&per_page=100" > "$JOBS" || rm -f "$JOBS"
-          python3 tools/release_gate.py --tag "$TAG" --pack "$PACK_RESULT" --jobs-file "$JOBS"
+          python3 tools/release_gate.py --tag "$TAG" --pack "$PACK_RESULT" --jobs-file "$JOBS" | tee "$RUNNER_TEMP/gate.md"
+
+      # Operator report 2026-10-14: v1297 was held for eight hours and only a red job said so. A held
+      # master build opens (or, on a re-run held again, comments on) a P1 `Release held: vNNN` issue,
+      # so the next-move picks and the backlog name it. Any failure in this job means no Release.
+      - name: Say a held release out loud
+        if: failure() && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.tag-commit.outputs.tag }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # An issue made with GITHUB_TOKEN triggers no workflow: the tool boards it itself when this is set.
+          NOVA_PROJECT_TOKEN: ${{ secrets.NOVA_PROJECT_TOKEN }}
+        run: python3 tools/release_held.py open --tag "$TAG" --sha "$SHA" --run-url "$RUN_URL" --summary-file "$RUNNER_TEMP/gate.md"
 
       - name: Download the installer and update feed
         uses: actions/download-artifact@v4
@@ -372,3 +389,12 @@ jobs:
               --title "$TAG" --notes-file "$NOTES" --verify-tag --latest="$LATEST"
           fi
           echo "Released \`$TAG\` (latest: $LATEST)." >> "$GITHUB_STEP_SUMMARY"
+
+      # This Release carries every commit before it: a `Release held` issue for this tag or an older one is done.
+      # Never fails the job -- the Release is already out.
+      - name: Close the held-release issues this Release covers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.desktop-pack.outputs.tag }}
+        run: python3 tools/release_held.py close --tag "$TAG" || echo "::warning::could not close the held-release issues for $TAG"

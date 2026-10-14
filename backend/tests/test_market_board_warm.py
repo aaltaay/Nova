@@ -9,6 +9,7 @@ were empty and the biggest-names read timed out. These pin each fix.
 from __future__ import annotations
 
 import sys
+import threading
 import time
 from datetime import date
 from pathlib import Path
@@ -471,3 +472,17 @@ def test_the_board_after_hours_prices_every_future_and_fills_every_card(monkeypa
 def _put_holdings(st: Store, now: float, **rows: list[str]) -> None:
     for etf, syms in rows.items():
         st.put(f"holdings:{etf}", "ssga", {"rows": [{"symbol": s} for s in syms], "fetched_at": now}, now)
+
+
+def test_the_lanes_a_test_starts_end_with_it(monkeypatch):
+    """#925: lanes started by ``want`` ran for the rest of the process and wrote into later tests."""
+    from market_board import refresh
+
+    monkeypatch.setattr(refresh, "run_once", lambda lane, now=None: False)
+    refresh.want()
+    lanes = [t for t in threading.enumerate() if t.name.startswith("market_board_")]
+    assert sorted(t.name for t in lanes) == ["market_board_files", "market_board_history", "market_board_ibkr"]
+    assert refresh.stop_for_tests() == []
+    assert not any(t.is_alive() for t in lanes)
+    refresh.want()                                        # the next start makes fresh lanes
+    assert sum(t.name.startswith("market_board_") and t.is_alive() for t in threading.enumerate()) == 3
