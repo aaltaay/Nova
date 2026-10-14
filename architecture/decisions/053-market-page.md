@@ -183,3 +183,48 @@ Rejected: a separate process for the board. It would need its own IBKR client id
 the desk shares, and its bars would queue behind the same pacing. The threads already run off the IB loop and the
 socket loop; what made the page slow was when the reads ran and how they were queued, not which process ran them.
 Also rejected: holding lines while the page is closed, for the same line budget reason as before.
+
+## Amendment 2026-10-14: say what each number is, every sector card full, Massive fills the gaps
+
+The operator read the page on 2026-10-14 and asked for four things:
+
+- **The tiles.** "I kind of want to see an icon of what it is. If it's gold, I want to see a gold bar ... crude,
+  a barrel." Also: "it doesn't even tell you what it is. Is it the last 24 hours?"
+- **The sector cards.** Movers cards held one stock (Materials: LIN; Utilities: CEG; Energy: COP), and Real estate
+  read "no price yet". "These cards under Movers are just wasting space ... keep the biggest names and the
+  small-cap runners."
+- **The runners chart.** "Fill out the previous days by using data from Massive", for sessions with no Nova
+  recording.
+- **Breadth.** "I don't understand the numbers. What is 1,540? I don't understand the up and down stocks."
+
+So:
+
+1. **Each tile shows a picture of what it is.** The pictures are drawn inline (`TileIcon.tsx`): a gold bar, an oil
+   drum, a Bitcoin coin, a VIX gauge, the Treasury for the 10-year yield, a badge for each index future (S&P, NDX,
+   R2K, DOW), and a balance for small caps against the S&P.
+2. **Each line says its hours, as a quote page's 1-day chart does.** The line runs 04:00 ET to the close, or to its
+   last point after it. 04:00 sits under the left end, 09:30 under the open tick, and the axis end under the right
+   end. The header says "Today, 5-minute line from 04:00 ET". A tile with no line has no axis.
+3. **Movers is retired.** Top stocks offers Biggest names (now the default) and Small-cap runners. Every sector card
+   lists its five heaviest holdings, priced by IBKR, with `--` until a price arrives. A saved Movers choice opens on
+   Biggest names. The large-cap gainers scan still picks each sector's 1 D leader on the sector board.
+4. **Massive fills a session Nova did not record.** The day movers index (`backend/day_movers/`) supplies a common
+   stock's first +20 / 50 / 100% minute before the close, so a past session with no board in the lens is drawn from
+   it as `source: "massive"`.
+   - It is drawn lighter and outlined, and its hover card says where the count came from.
+   - It feeds no count, baseline, temperature, theme share, gapper rate or runners tab, because it is another lens:
+     every listed stock, no top-50 rank. On the 12 sessions from 2026-09-23 to 2026-10-09 that have both, Massive
+     counted 60 runners a session against the recorded board's 53, about 13% more. About 76% of the recorded
+     runners were also in Massive's list.
+   - On 2026-10-13 it filled all seven unrecorded sessions in the chart's 21. Reading 22 sessions took 5.3 s.
+5. **Breadth is said in words.** A sentence leads, for example "71% of NYSE stocks are up on the day, and 78% of the
+   shares traded were in rising stocks." Each bar carries its counts ("2,012 up", "838 down") over what it counts:
+   "of 2,946 NYSE stocks, 96 unchanged". TICK and TRIN read as sentences first and their names second: "412 more
+   stocks just ticked up than down"; "buyers heavier: rising stocks draw more volume". The A/D line states its last
+   value and which side of the dotted line means more stocks up. The wire is unchanged.
+
+Rejected:
+
+- **Filling only from the rebuilt `market` board** (`MARKET_CLIMATE_USE_REBUILT`). It covers only the days that were
+  rebuilt into the leaderboard store, and it ran about 40% hot against the recorded board, not 13%.
+- **Mixing Massive days into the averages.** One lens running hotter would read every recorded week as cold.

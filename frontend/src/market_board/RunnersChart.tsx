@@ -2,12 +2,20 @@
  * Runners per session, by theme (ADR 053; amendment 2026-10-13 evening, operator: "the runners per session is so
  * tiny no hover, no maximizing"): the small-cap climate card's full width, each session's runners by theme in a
  * hover card, and -- on a click or the corner button -- a large view with an axis, every date, every bar's count and
- * the themes' legend. A session Nova holds no Gainers board for is hatched and says so: never drawn as a zero.
+ * the themes' legend. A session Nova holds no Gainers board for is filled from the Massive day movers index, drawn
+ * lighter and outlined and labelled so (amendment 2026-10-14); one Massive has not built either is hatched and says
+ * so: never drawn as a zero.
  */
 import { useCallback, useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Maximize2, X } from 'lucide-react';
-import { RUNNERS_NOT_RECORDED, RUNNERS_TIP_THEMES, THEME_OTHER_COLOR } from './constants';
+import {
+  RUNNERS_FROM_MASSIVE,
+  RUNNERS_NOT_RECORDED,
+  RUNNERS_SOURCE_MASSIVE,
+  RUNNERS_TIP_THEMES,
+  THEME_OTHER_COLOR,
+} from './constants';
 import { shortDate } from './format';
 import type { Climate } from './types';
 
@@ -68,6 +76,7 @@ function Tip({ d, color, xPct }: { d: Day; color: ThemeColor; xPct: number }) {
         {d.source ? <span>{d.total ?? 0} runner{d.total === 1 ? '' : 's'}</span> : null}
       </div>
       {!d.source ? <p className="mk-muted">{RUNNERS_NOT_RECORDED}</p> : null}
+      {d.source === RUNNERS_SOURCE_MASSIVE ? <p className="mk-muted" data-testid="runners-tip-massive">{RUNNERS_FROM_MASSIVE}</p> : null}
       {d.source && parts.length === 0 ? <p className="mk-muted">no 20%+ runners</p> : null}
       {shown.length ? (
         <ul>
@@ -91,7 +100,7 @@ function Chart({ c, color, f, onOpen }: { c: Climate; color: ThemeColor; f: Fram
   const room = f.H - f.head;
   const y = (v: number) => f.H - (v / top) * room;
   const lit = Math.min(c.sessions, n);
-  const recorded = c.days.filter((d) => d.source).length;
+  const recorded = c.days.filter((d) => d.source && d.source !== RUNNERS_SOURCE_MASSIVE).length;
   const hovered = hover != null ? c.days[hover] : null;
   return (
     <div className={`mk-runners__plot${onOpen ? ' is-zoom' : ''}`} onClick={onOpen} onMouseLeave={() => setHover(null)}>
@@ -113,8 +122,10 @@ function Chart({ c, color, f, onOpen }: { c: Climate; color: ThemeColor; f: Fram
           const on = i >= n - lit;
           const dim = hover != null && hover !== i;
           let yy = f.H;
+          const massive = d.source === RUNNERS_SOURCE_MASSIVE;
           return (
-            <g key={d.date} opacity={dim ? 0.35 : on ? 1 : 0.45} data-testid={`runners-day-${d.date}`}>
+            <g key={d.date} opacity={dim ? 0.35 : on ? 1 : 0.45} data-testid={`runners-day-${d.date}`}
+              className={massive ? 'is-massive' : undefined}>
               {d.source ? themesOf(d).map(([name, v]) => {
                 const h = (v / top) * room;
                 yy -= h;
@@ -122,6 +133,10 @@ function Chart({ c, color, f, onOpen }: { c: Climate; color: ThemeColor; f: Fram
               }) : (
                 <rect x={bx} y={f.head} width={bw} height={room} fill={`url(#${hatch})`} className="mk-runners__none" />
               )}
+              {massive && d.total ? (
+                <rect x={bx + 0.5} y={yy + 0.5} width={Math.max(0, bw - 1)} height={Math.max(0, f.H - yy - 1)}
+                  className="mk-runners__massive" />
+              ) : null}
               {f.big && d.source && d.total != null ? (
                 <text x={bx + bw / 2} y={yy - 4} textAnchor="middle" className="mk-runners__count">{d.total}</text>
               ) : null}
@@ -161,7 +176,8 @@ function LargeView({ c, color, period, onClose }: { c: Climate; color: ThemeColo
   const other = ranked.filter(([k]) => color(k) === THEME_OTHER_COLOR);
   const otherRunners = other.reduce((a, [, v]) => a + v, 0);
   const runners = ranked.reduce((a, [, v]) => a + v, 0);
-  const recorded = c.days.filter((d) => d.source).length;
+  const recorded = c.days.filter((d) => d.source && d.source !== RUNNERS_SOURCE_MASSIVE).length;
+  const fromMassive = c.days.filter((d) => d.source === RUNNERS_SOURCE_MASSIVE).length;
   const first = c.days[0]?.date;
   const last = c.days[c.days.length - 1]?.date;
   return createPortal(
@@ -172,7 +188,9 @@ function LargeView({ c, color, period, onClose }: { c: Climate; color: ThemeColo
           <h3 id={titleId}>Runners per session, by theme</h3>
           <span className="mk-hint">
             {first && last ? `${shortDate(first)} – ${shortDate(last)} · ` : ''}{c.days.length} sessions, {recorded} recorded
+            {fromMassive ? `, ${fromMassive} from Massive` : ''}
             {' · '}{runners} runners of 20%+ on Nova&apos;s Gainers board (top {c.lens.rank_max}, ${c.lens.price_min}+)
+            {fromMassive ? " or, on an outlined lighter bar, any listed stock in Massive's minute bars" : ''}
             {' · '}dashed = the {period} on the card · hatched = not recorded
           </span>
           <button type="button" className="mk-icon-btn mk-push" aria-label="Close the large chart" onClick={onClose}

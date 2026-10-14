@@ -8,9 +8,15 @@ reached 20 / 50 / 100% that session by the close (today: by now). A gapper is a 
 open gap (``gap_pct``) of 20%+; it held when it was still on the board at the period's last minute at or above its
 open (``prev_close x (1 + gap_pct)``), failed when on the board below it, and is ``gone`` (unknown) when it left the
 board. Halts are the Nasdaq halt feed's starts. A past session is read once per process; today again each turn.
+
+A past session with no board in the lens is filled from the Massive day movers index (ADR 053 amendment 2026-10-14):
+a common stock whose minute bars first reached +20 / 50 / 100% over the prior close before the close, priced at
+``SCANNER_MIN_PRICE`` or more at +20%. ``source`` is ``massive`` and the day draws on the chart only (its lens has
+no top-50 rank), so it never enters a count, baseline, temperature, theme share, gapper rate or the runners tab.
 """
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import date
@@ -28,6 +34,8 @@ from constants_market_board import (
     MARKET_CLIMATE_GAPPER_MIN,
     MARKET_CLIMATE_HALT_SOURCE,
     MARKET_CLIMATE_HOT_X,
+    MARKET_CLIMATE_MASSIVE_KINDS,
+    MARKET_CLIMATE_MASSIVE_SOURCE,
     MARKET_CLIMATE_RANK_MAX,
     MARKET_CLIMATE_REBUILT_BOARD,
     MARKET_CLIMATE_RECORDED_BOARD,
@@ -40,6 +48,8 @@ from constants_market_board import (
 from constants_scanner import SCANNER_MIN_PRICE, SESSION_RTH_OPEN_MIN_ET
 from market_board import clock, industries
 
+logger = logging.getLogger(__name__)
+
 SOURCE = "leaderboard"
 _KEYS = tuple(MARKET_CLIMATE_THRESHOLDS)   # up20, up50, up100
 
@@ -47,7 +57,7 @@ _KEYS = tuple(MARKET_CLIMATE_THRESHOLDS)   # up20, up50, up100
 @dataclass
 class Day:
     date: str
-    source: str | None = None                                     # recorded | reconstructed | None (no board)
+    source: str | None = None                       # recorded | reconstructed | massive | None (no board)
     runners: dict[str, dict[str, Any]] = field(default_factory=dict)  # symbol -> {mx, t: {up20: ts}, last...}
     gappers: dict[str, str] = field(default_factory=dict)          # symbol -> held | failed | gone
     halts: list[tuple[str, float]] = field(default_factory=list)
@@ -66,6 +76,44 @@ def _board_for(db: Any, day: str) -> tuple[str | None, str | None]:
     if MARKET_CLIMATE_USE_REBUILT and MARKET_CLIMATE_REBUILT_BOARD in boards.get(LEADERBOARD_SOURCE_RECONSTRUCTED, set()):
         return LEADERBOARD_SOURCE_RECONSTRUCTED, MARKET_CLIMATE_REBUILT_BOARD
     return None, None
+
+
+def _counted(day: Day | None) -> bool:
+    """A day in the climate's own lens (a board Nova holds); a Massive-filled day is on the chart only."""
+    return day is not None and day.source in (LEADERBOARD_SOURCE_RECORDED, LEADERBOARD_SOURCE_RECONSTRUCTED)
+
+
+def massive_day(mv: Any, day: date, close_ts: float) -> Day | None:
+    """A past session's runners from the Massive day movers index, or ``None`` when the index has not built it from
+    minute bars (a session indexed before its minute file arrived has no marks: never a zero, and asked again)."""
+    from day_movers.query import _kinds_sql
+
+    iso = day.isoformat()
+    if mv.execute("SELECT 1 FROM sessions WHERE session_date = ? AND minute_bars = 1", (iso,)).fetchone() is None:
+        return None
+    kinds, kind_args = _kinds_sql(MARKET_CLIMATE_MASSIVE_KINDS)
+    out = Day(date=iso, source=MARKET_CLIMATE_MASSIVE_SOURCE)
+    for sym, pc, pm_high, high, close, *marks in mv.execute(
+            "SELECT symbol, prev_close, pm_high, high, close, up20_ts, up50_ts, up100_ts FROM movers"
+            " WHERE session_date = ? AND up20_ts IS NOT NULL AND up20_ts < ? AND NOT COALESCE(split_suspect, 0)"
+            f" AND prev_close * ? >= ? AND {kinds}",
+            (iso, int(close_ts), 1.0 + MARKET_CLIMATE_THRESHOLDS["up20"], SCANNER_MIN_PRICE, *kind_args)):
+        top = max((v for v in (pm_high, high) if v is not None), default=None)
+        out.runners[sym] = {"mx": top / pc - 1.0 if top and pc else MARKET_CLIMATE_THRESHOLDS["up20"],
+                            "t": {k: v for k, v in zip(_KEYS, marks, strict=True) if v is not None and v < close_ts},
+                            "price": close}
+    return out
+
+
+def _massive_store() -> Any:
+    """The day movers index read-only, or ``None`` (not built, its drive absent, another schema)."""
+    try:
+        from day_movers import store as movers_store
+
+        return movers_store.read_only()
+    except Exception as exc:  # noqa: BLE001 -- a missing index only leaves the chart's gaps hatched
+        logger.warning("market_board.climate: Massive day movers index unreadable: %s", exc)
+        return None
 
 
 def read_day(db: Any, day: date, end_ts: float) -> Day:
@@ -122,19 +170,32 @@ def refresh(now: float, *, sessions_needed: int) -> list[str]:
     db = store.read_only()
     if db is None:
         raise FileNotFoundError("Nova's leaderboard store does not exist yet")
+    mv, mv_tried = None, False             # the index is opened at most once a refresh, missing or not
     try:
         for d in days:
             iso = d.isoformat()
             with _lock:
-                held = iso in _days
-            if held and d != today:
-                continue
+                kept = _days.get(iso)
             close_ts = clock.at(d, clock.close_minute(d))
-            got = read_day(db, d, min(now, close_ts) if d == today else close_ts)
+            if kept is not None and d != today:
+                if kept.source is not None:
+                    continue
+                got = kept                  # no board: the Massive index may have built the session since
+            else:
+                got = read_day(db, d, min(now, close_ts) if d == today else close_ts)
+            if got.source is None and d != today:
+                if not mv_tried:
+                    mv, mv_tried = _massive_store(), True
+                filled = massive_day(mv, d, close_ts) if mv is not None else None
+                if filled is not None:
+                    filled.halts = got.halts
+                    got = filled
             with _lock:
                 _days[iso] = got
     finally:
         db.close()
+        if mv is not None:
+            mv.close()
     with _lock:
         return sorted({s for d in days for s in (_days.get(d.isoformat()) or Day("")).runners})
 
@@ -173,13 +234,13 @@ def compose(period: str, now: float) -> dict[str, Any]:
     span = clock.sessions_back(today, n + max(MARKET_CLIMATE_BASELINE_DAYS, MARKET_CLIMATE_CHART_SESSIONS))
     period_days = [held.get(d.isoformat()) or Day(d.isoformat()) for d in span[-n:]]
     prev_days = [held.get(d.isoformat()) or Day(d.isoformat()) for d in span[-2 * n:-n]]
-    covered = [d for d in period_days if d.source]
+    covered = [d for d in period_days if _counted(d)]
     counts = {k: sum(_count(d, k) for d in covered) for k in _KEYS}
     baseline = None
     if period == "1D":
         minute = min(clock.minute_of_day(now), clock.close_minute(today))
         prior = [held.get(d.isoformat()) for d in span[:-1]][-MARKET_CLIMATE_BASELINE_DAYS_1D:]
-        prior = [d for d in prior if d is not None and d.source]
+        prior = [d for d in prior if _counted(d)]
         if prior:
             avg = {k: round(sum(_count(d, k, clock.at(date.fromisoformat(d.date), minute)) for d in prior)
                             / len(prior), 1) for k in _KEYS}
@@ -187,7 +248,7 @@ def compose(period: str, now: float) -> dict[str, Any]:
         per_day = float(counts["up20"]) if covered else None
     else:
         prior = [held.get(d.isoformat()) for d in span[:-n]][-MARKET_CLIMATE_BASELINE_DAYS:]
-        prior = [d for d in prior if d is not None and d.source]
+        prior = [d for d in prior if _counted(d)]
         if prior:
             avg = {k: round(sum(_count(d, k) for d in prior) / len(prior), 1) for k in _KEYS}
             baseline = {**avg, "per_day": avg["up20"], "days": len(prior), "basis": "per_session"}
@@ -196,12 +257,12 @@ def compose(period: str, now: float) -> dict[str, Any]:
     if baseline and baseline["per_day"] and per_day is not None:
         x = per_day / baseline["per_day"]
         temperature = "hot" if x >= MARKET_CLIMATE_HOT_X else "cold" if x <= MARKET_CLIMATE_COLD_X else "normal"
-    themes_now, themes_prev = _themes(covered), _themes([d for d in prev_days if d.source])
+    themes_now, themes_prev = _themes(covered), _themes([d for d in prev_days if _counted(d)])
     names = sorted(set(themes_now) | set(themes_prev), key=lambda k: (-themes_now.get(k, 0), k))
     total, prev_total = sum(themes_now.values()), sum(themes_prev.values())
     lead = next((k for k in names if k != MARKET_UNCLASSIFIED and themes_now.get(k)), None)
     g_held, g_failed, g_gone = _gappers(covered)
-    base_held, base_failed, _ = _gappers([d for d in (held.get(x.isoformat()) for x in span[:-n]) if d and d.source]
+    base_held, base_failed, _ = _gappers([d for d in (held.get(x.isoformat()) for x in span[:-n]) if _counted(d)]
                                          [-MARKET_CLIMATE_BASELINE_DAYS:])
     halts = [(s, t) for d in covered for s, t in d.halts]
     chart = [held.get(d.isoformat()) or Day(d.isoformat()) for d in span[-MARKET_CLIMATE_CHART_SESSIONS:]]
@@ -239,7 +300,7 @@ def runners_by_theme(period: str, now: float) -> list[tuple[str, list[dict[str, 
         days = [_days.get(d.isoformat()) for d in clock.sessions_back(today, n)]
     best: dict[str, dict[str, Any]] = {}
     for d in days:
-        for sym, r in (d.runners if d else {}).items():
+        for sym, r in (d.runners if _counted(d) else {}).items():
             if sym not in best or r["mx"] > best[sym]["mx"]:
                 best[sym] = {"mx": r["mx"], "price": r.get("price"), "date": d.date}
     groups: dict[str, list[dict[str, Any]]] = {}

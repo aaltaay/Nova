@@ -92,3 +92,22 @@ describe('a tile priced from a bar the market has not traded past', () => {
     expect(t.textContent).toContain('10089');
   });
 });
+
+describe('a tile says what it is and what its line covers (operator ask 2026-10-14)', () => {
+  it('names the hours under the line: 04:00, the 09:30 open, its end', () => {
+    render(<QuoteTiles quotes={[tile()]} session={SESSION} now={NOW_1738} />);
+    const axis = screen.getByTestId('market-tile-es').querySelector('.mk-tile__axis') as HTMLElement;
+    expect([...axis.querySelectorAll('span')].map((s) => s.textContent)).toEqual(['04:00', '09:30', '16:55']);
+    expect(screen.getByTestId('market-tiles').textContent).toContain('Today');
+  });
+
+  it('draws a picture for each tile: a gold bar for gold, a barrel for crude', () => {
+    const gold = tile({ id: 'gc', label: 'Gold futures', symbol: 'GC', contract: 'GCZ6' });
+    const crude = tile({ id: 'cl', label: 'Crude oil futures', symbol: 'CL', contract: 'CLX6' });
+    render(<QuoteTiles quotes={[gold, crude, tile()]} session={SESSION} now={NOW_1738} />);
+    for (const id of ['gc', 'cl', 'es']) {
+      expect(screen.getByTestId(`market-tile-${id}`).querySelector(`[data-testid="market-icon-${id}"]`)).not.toBeNull();
+    }
+    expect(screen.getByTestId('market-icon-es').textContent).toBe('S&P');
+  });
+});

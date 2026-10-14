@@ -25,7 +25,7 @@ def _bad(field: str, allowed: tuple[str, ...]) -> JSONResponse:
 
 
 @router.get("/api/market/board")
-def get_board(sectors: str = "1D", industries: str = "1D", climate: str = "1D", top: str = "movers",
+def get_board(sectors: str = "1D", industries: str = "1D", climate: str = "1D", top: str = "biggest",
               top_period: str = "1D"):
     params = {"sectors": sectors, "industries": industries, "climate": climate, "top": top, "top_period": top_period}
     for field in ("sectors", "industries", "climate", "top_period"):

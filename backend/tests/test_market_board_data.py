@@ -162,6 +162,92 @@ def test_climate_counts_runners_gappers_and_halts(tmp_path):
     assert climate.today_numbers(now)["runners"] == 2
 
 
+def _seed_massive(path: Path, day: date, *, minute_bars: int = 1) -> None:
+    """The day movers index with one session built: a runner, a sub-50-cent one, a warrant and an after-close one."""
+    from day_movers import store as movers_store
+
+    iso = day.isoformat()
+    t = lambda minute: int(clock.at(day, minute))  # noqa: E731
+    base = {"session_date": iso, "prev_date": None, "split_suspect": 0, "open": 1.0, "low": 1.0, "volume": 1e6}
+    rows = [
+        {**base, "symbol": "MASV", "kind": "CS", "prev_close": 2.0, "pm_high": 3.1, "high": 4.4, "close": 3.0,
+         "up20_ts": t(8 * 60), "up50_ts": t(8 * 60 + 30), "up100_ts": t(10 * 60)},
+        {**base, "symbol": "PENY", "kind": "CS", "prev_close": 0.30, "pm_high": 0.5, "high": 0.5, "close": 0.4,
+         "up20_ts": t(9 * 60)},
+        {**base, "symbol": "MASVW", "kind": "WARRANT", "prev_close": 1.0, "pm_high": 2.0, "high": 2.0, "close": 1.5,
+         "up20_ts": t(9 * 60)},
+        {**base, "symbol": "LATE", "kind": "CS", "prev_close": 5.0, "pm_high": 5.0, "high": 5.2, "close": 5.1,
+         "up20_ts": t(17 * 60)},
+    ]
+    with movers_store.connect(path) as db:
+        movers_store.replace_session(db, {"session_date": iso, "tickers": 4, "rows": 4, "minute_bars": minute_bars,
+                                         "builder": 1, "built_ts": 0.0}, rows)
+
+
+def test_a_session_nova_did_not_record_is_filled_from_massive_on_the_chart_only(tmp_path, monkeypatch):
+    """The operator, 2026-10-14: "fill out the previous days by using data from Massive"."""
+    from day_movers import store as movers_store
+    from leaderboard import store
+
+    db_path = Path(tmp_path / "lb") / "leaderboard.sqlite3"
+    with store.connect(db_path) as db:   # only today is recorded
+        db.execute("INSERT INTO coverage VALUES (?,?,?,?,?,?,?)",
+                   (DAY.isoformat(), int(clock.at(DAY, 9 * 60 + 45)), "recorded", "gainers", "live", 0, "r"))
+        db.commit()
+    two_back, one_back = clock.sessions_back(DAY, 3)[:2]
+    mv_path = tmp_path / "movers.sqlite3"
+    _seed_massive(mv_path, one_back)                                   # two_back: not built in the index
+    monkeypatch.setattr(climate, "_massive_store", lambda: movers_store.read_only(mv_path))
+    now = clock.at(DAY, 11 * 60)
+    assert climate.refresh(now, sessions_needed=3) == ["MASV"]          # its industry is asked of IBKR
+    industries.put_many({"MASV": {"category": "Biotechnology"}}, now)
+    block = climate.compose("7D", now)
+    days = {d["date"]: d for d in block["days"]}
+    assert days[one_back.isoformat()] == {"date": one_back.isoformat(), "source": "massive", "total": 1,
+                                         "themes": {"Biotechnology": 1}}
+    assert days[two_back.isoformat()]["source"] is None                 # still hatched: never a zero
+    assert block["covered"] == 1 and block["counts"]["up20"] == 0       # the counts stay on Nova's own lens
+    assert block["baseline"] is None and block["themes"] == [] and block["top"] == []
+    assert climate.runners_by_theme("7D", now) == []
+
+
+def test_a_missing_massive_index_leaves_the_gap_hatched_and_is_looked_for_once_a_refresh(tmp_path, monkeypatch):
+    """Review of PR #947: a missing drive was probed once for every unrecorded day, every refresh."""
+    from leaderboard import store
+
+    with store.connect(Path(tmp_path / "lb") / "leaderboard.sqlite3"):
+        pass
+    opened = []
+    monkeypatch.setattr(climate, "_massive_store", lambda: opened.append(1))
+    now = clock.at(DAY, 11 * 60)
+    climate.refresh(now, sessions_needed=4)
+    assert all(d["source"] is None for d in climate.compose("1D", now)["days"])
+    assert len(opened) == 1
+    climate.refresh(now, sessions_needed=4)                            # asked again next refresh, once
+    assert len(opened) == 2
+
+
+def test_a_session_indexed_before_its_minute_bars_stays_hatched_until_rebuilt(tmp_path, monkeypatch):
+    """Review of PR #947: a session indexed with no minute file has no marks, so it read as a real zero and stuck."""
+    from day_movers import store as movers_store
+    from leaderboard import store
+
+    with store.connect(Path(tmp_path / "lb") / "leaderboard.sqlite3"):
+        pass
+    one_back = clock.sessions_back(DAY, 2)[0]
+    mv_path = tmp_path / "movers.sqlite3"
+    _seed_massive(mv_path, one_back, minute_bars=0)
+    monkeypatch.setattr(climate, "_massive_store", lambda: movers_store.read_only(mv_path))
+    now = clock.at(DAY, 11 * 60)
+    climate.refresh(now, sessions_needed=2)
+    day = {d["date"]: d for d in climate.compose("7D", now)["days"]}[one_back.isoformat()]
+    assert day["source"] is None and day["total"] is None
+    _seed_massive(mv_path, one_back)                                   # the minute file arrived and was built
+    climate.refresh(now, sessions_needed=2)
+    day = {d["date"]: d for d in climate.compose("7D", now)["days"]}[one_back.isoformat()]
+    assert day["source"] == "massive" and day["total"] == 1
+
+
 def test_quote_extraction_and_tiles():
     ticker = SimpleNamespace(last=float("nan"), bid=118400.0, ask=118440.0, close=116000.0, bidSize=1.0,
                              askSize=2.0, marketDataType=3)

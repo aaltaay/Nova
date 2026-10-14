@@ -113,7 +113,9 @@ function climateDays(): Climate['days'] {
     '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02',
     '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12'];
   return totals.map((total, i): Climate['days'][number] => {
-    if (i === 3 || i === 4) return { date: dates[i], source: null, total: null, themes: {} };   // not recorded
+    if (i === 4) return { date: dates[i], source: null, total: null, themes: {} };   // not recorded, not in Massive
+    if (i === 3) return { date: dates[i], source: 'massive', total: 16,              // not recorded, filled from Massive
+      themes: { Biotechnology: 6, 'Diversified Finan Serv': 4, Software: 3, Pharmaceuticals: 3 } };
     const bio = Math.round(total * (0.15 + 0.3 * (i / 20)));
     const crypto = Math.round(total * (0.35 - 0.2 * (i / 20)));
     const soft = Math.round(total * 0.15);
@@ -171,7 +173,7 @@ export function sampleMarketBoard(p: BlockPeriods): MarketBoard {
       offense_pct: 1.18, defense_pct: -0.27 },
     industries: { period: p.industries, from: '2026-10-06', to: '2026-10-12', rows: boardRows(p.industries, true) },
     climate: {
-      period: climatePeriod, from: inPeriod[0].date, to: '2026-10-12', sessions: n, covered: inPeriod.filter((d) => d.source).length,
+      period: climatePeriod, from: inPeriod[0].date, to: '2026-10-12', sessions: n, covered: inPeriod.filter((d) => d.source === 'recorded').length,
       lens: { board: 'gainers', rank_max: 50, price_min: 0.5 },
       counts: { up20: total, up50: Math.round(total * 0.33), up100: Math.round(total * 0.11) },
       per_day: Math.round((10 * total) / n) / 10,

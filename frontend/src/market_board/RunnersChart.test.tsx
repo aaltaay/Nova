@@ -7,7 +7,7 @@
  */
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { RUNNERS_NOT_RECORDED, RUNNERS_TIP_THEMES, THEME_OTHER_COLOR } from './constants';
+import { RUNNERS_FROM_MASSIVE, RUNNERS_NOT_RECORDED, RUNNERS_TIP_THEMES, THEME_OTHER_COLOR } from './constants';
 import { axisTop, dayWords, RunnersChart, themesOf } from './RunnersChart';
 import type { Climate } from './types';
 
@@ -70,6 +70,20 @@ describe('the runners chart on the card', () => {
     const tip = screen.getByTestId('runners-tip');
     expect(tip.textContent).toContain(RUNNERS_NOT_RECORDED);
     expect(tip.textContent).not.toContain('runners');
+  });
+
+  it('draws a session filled from Massive lighter, outlined, and says where its count comes from', () => {
+    const days = [...DAYS, { date: '2026-10-07', source: 'massive', total: 14, themes: { Biotechnology: 9, Software: 5 } }];
+    render(<RunnersChart c={climate(days)} color={color} period="day" />);
+    const filled = screen.getByTestId('runners-day-2026-10-07');
+    expect(filled.getAttribute('class')).toBe('is-massive');
+    expect(filled.querySelectorAll('rect[fill^="#"]')).toHaveLength(2);
+    expect(filled.querySelectorAll('rect.mk-runners__massive')).toHaveLength(1);
+    fireEvent.mouseEnter(screen.getByTestId('runners-hit-2026-10-07'));
+    const tip = screen.getByTestId('runners-tip');
+    expect(tip.textContent).toContain('14 runners');
+    expect(screen.getByTestId('runners-tip-massive').textContent).toBe(RUNNERS_FROM_MASSIVE);
+    expect(screen.getByRole('img').getAttribute('aria-label')).toContain('3 recorded');
   });
 
   it('says a recorded session with no runner', () => {

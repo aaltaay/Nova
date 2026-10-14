@@ -102,9 +102,9 @@ describe('the Market page’s memory', () => {
     const periods = ['1D', '7D', '30D'] as const;
     const combos: BlockPeriods[] = [];
     for (const a of periods) for (const b of periods) {
-      combos.push({ sectors: a, industries: b, climate: '1D', top: { kind: 'movers', period: '1D' } });
+      combos.push({ sectors: a, industries: b, climate: '1D', top: { kind: 'biggest', period: '1D' } });
     }
-    combos.push({ ...combos[0], climate: '7D' }, { ...combos[0], climate: '30D' }, { ...combos[0], top: { kind: 'biggest', period: '1D' } },
+    combos.push({ ...combos[0], climate: '7D' }, { ...combos[0], climate: '30D' }, { ...combos[0], top: { kind: 'biggest', period: '7D' } },
       { ...combos[0], top: { kind: 'runners', period: '7D' } });
     expect(combos.length).toBeGreaterThan(MARKET_KEPT_BOARDS);
     for (const p of combos) {
