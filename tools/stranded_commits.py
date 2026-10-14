@@ -103,14 +103,22 @@ def master_bodies(days: int | None) -> list[str]:
 
 
 def plan(pr: Merged, tip: str, *, open_pr: bool, open_recovery: bool, carried: set[str],
-         is_ancestor: Callable[[str, str], bool]) -> Plan:
-    """Decide from facts only; ``is_ancestor(a, b)`` is True when ``a`` is in ``b``'s history."""
+         is_ancestor: Callable[[str, str], bool], reported: frozenset[str] = frozenset()) -> Plan:
+    """Decide from facts only; ``is_ancestor(a, b)`` is True when ``a`` is in ``b``'s history.
+
+    ``carried``: tips whose commits are on master or in an open or merged recovery PR -- the next
+    recovery starts after the newest. ``reported``: tips an issue named (a conflict, a refused PR); their
+    commits landed nowhere, so they only stop a second issue for the same tip and never move the base
+    (PR #960 review: a rebuild from such a base dropped the first stranded commits).
+    """
     if not tip or tip == pr.head:
         return Plan("skip", "no commits after the merge")
     if open_pr:
         return Plan("skip", "an open PR carries the branch")
     if tip in carried:
         return Plan("skip", "this tip is already carried")
+    if tip in reported:
+        return Plan("skip", "an issue already names this tip")
     if not is_ancestor(pr.head, tip):
         return Plan("issue", "the branch was rewritten past its merged head")
     done = [t for t in carried if t != tip and is_ancestor(t, tip)]
@@ -253,13 +261,16 @@ def sweep(*, days: int, branch: str, dry_run: bool, runner: Runner = gh) -> int:
         try:
             git(["fetch", "-q", "origin", f"refs/pull/{pr.number}/head", f"refs/heads/{pr.branch}"])
             target = recovery_branch(pr.branch)
-            recoveries = _prs_on(runner, target, "all")
-            bodies = [str(r.get("body") or "") for r in recoveries + _issues_about(runner, pr.number)]
+            # A closed, unmerged recovery PR carried nothing; an issue reported its tip but carried nothing.
+            recoveries = _prs_on(runner, target, "merged") + _prs_on(runner, target, "open")
+            bodies = [str(r.get("body") or "") for r in recoveries]
+            reported = recorded_tips([str(i.get("body") or "") for i in _issues_about(runner, pr.number)])
             open_recovery = bool(_prs_on(runner, target, "open"))
             if open_recovery:
                 git(["fetch", "-q", "origin", f"refs/heads/{target}:refs/remotes/origin/{target}"])
             p = plan(pr, tip, open_pr=bool(_prs_on(runner, pr.branch, "open")), open_recovery=open_recovery,
-                     carried=recorded_tips(bodies + on_master), is_ancestor=_is_ancestor)
+                     carried=recorded_tips(bodies + on_master), is_ancestor=_is_ancestor,
+                     reported=frozenset(reported))
             if p.action == "skip":
                 print(f"#{pr.number} {pr.branch}: {p.reason}")
             elif p.action == "issue":

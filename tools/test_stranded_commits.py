@@ -166,3 +166,10 @@ def test_a_refused_recovery_pr_becomes_an_issue_naming_the_pushed_branch(repo: P
     text = body[body.index("--body") + 1]
     assert "compare/master...recover/fix/late" in text and "not permitted" in text and late in text
     assert not any(c[:2] == ["workflow", "run"] for c in calls)
+
+
+def test_a_tip_an_issue_only_reported_never_moves_the_base():
+    """PR #960 review: a refused PR's issue named LATE, but LATE landed nowhere. A later push must carry
+    LATE's commits too, from the merged head, not only the newest delta."""
+    assert decide(LATER, reported=frozenset({LATE})) == sc.Plan("land", "commits after the merge", PR.head)
+    assert decide(LATE, reported=frozenset({LATE})).reason == "an issue already names this tip"
