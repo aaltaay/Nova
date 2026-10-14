@@ -9,8 +9,16 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { ActivityFeed } from './ActivityFeed';
-import { offAirWhy, onAir } from './capture';
-import { FT_ALL_CLOSED, FT_CLOSE_LIST, FT_LOADING, FT_NO_TRADES, FT_OFF, FT_READ_FAILED } from './constants';
+import { asOf, offAirWhy, onAir } from './capture';
+import {
+  FOLLOWED_REFRESH_MS,
+  FT_ALL_CLOSED,
+  FT_CLOSE_LIST,
+  FT_LOADING,
+  FT_NO_TRADES,
+  FT_OFF,
+  FT_READ_FAILED,
+} from './constants';
 import { fitPlan, maxFitLevel, useFitLevel } from './fit';
 import { clearFollowedProofRequest, useFollowedProofRequest } from './followedStores';
 import { PageHead } from './PageHead';
@@ -22,7 +30,7 @@ import { StreamPlayer } from './StreamPlayer';
 import { ClosedTable } from './TradeTables';
 import { TraderBlock } from './TraderBlock';
 import type { FollowedDay, FollowedRecord, RecordRange } from './types';
-import { useFollowedDay } from './useFollowedDay';
+import { useFollowedDay, useNowMs } from './useFollowedDay';
 import { useFollowedRecord } from './useFollowedFetch';
 import './followed.css';
 
@@ -68,10 +76,12 @@ interface DayViewProps {
 }
 
 function DayView(props: DayViewProps) {
-  const { data, error, off } = useFollowedDay(props.date);
+  const { data, error, off, receivedAt } = useFollowedDay(props.date);
+  // The last answer ages while no new one comes, so a backend that stops answering never keeps the stream on air.
+  const now = useNowMs(FOLLOWED_REFRESH_MS);
   if (off) return <p className="ft-state" data-testid="ft-state">{FT_OFF}</p>;
   if (!data) return <p className="ft-state" data-testid="ft-state">{error ? `${FT_READ_FAILED} ${error}` : FT_LOADING}</p>;
-  return <DayBody day={data} error={error} {...props} />;
+  return <DayBody day={asOf(data, receivedAt, now)} error={error} {...props} />;
 }
 
 function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: DayViewProps & { day: FollowedDay; error: string | null }) {

@@ -271,7 +271,8 @@ images again with each answer.
 - **The stream**, above the Activity: the feed's video (`capture.video_id`) in an embedded YouTube player
   (`youtube-nocookie.com`, muted to start), LIVE, mute / unmute, Pop out (a small window of its own on the desktop, a
   browser tab elsewhere), close, and Open on YouTube (the system browser). It plays **only while the stream is on
-  air**: the capture live and read within `FOLLOWED_CAPTURE_STALE_SEC` (amendment, operator 2026-10-13: "if we're on
+  air**: the capture live and read within `FOLLOWED_CAPTURE_STALE_SEC`, its `age_sec` advanced by the time since
+  the answer arrived so a backend that stops answering never keeps it on air (amendment, operator 2026-10-13: "if we're on
   the live right now for today, then I don't want it to be allowing me to show some video in the past or history";
   the feed leaves its last status saying live when a stream ends, so it was replaying the day's ended broadcast).
   Off air the player keeps its size and shows OFFLINE in place of the video, with why (waiting for the stream, or
