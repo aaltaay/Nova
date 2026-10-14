@@ -26,6 +26,9 @@ export const FOLLOWED_CAPTURE_STALE_SEC = 60;
 /** The bar read this far behind the stream's own clock is the past, not now: the pill warns and every slot carries the
  *  read's time (operator report 2026-10-14: the feed read 29 minutes behind and the page said "Their slot now"). */
 export const FOLLOWED_CAPTURE_BEHIND_SEC = 30;
+/** A screen clock up to this far ahead of the read is clock skew (0 behind); further ahead, the frame is from before
+ *  midnight of a read after it. */
+export const FOLLOWED_CLOCK_AHEAD_SEC = 300;
 /** Blob URLs of the feed's images kept for reuse before the oldest is released. */
 export const FOLLOWED_IMAGE_CACHE = 80;
 /** Local storage key of the Alerts switch (a per-window convenience; on by default). */
