@@ -102,10 +102,11 @@ def calm_picks():
 def test_an_untriaged_p1_on_the_money_path_is_offered_and_ranks_by_value():
     ranked = picks.rank(live_picks())
     # A P0 waits on #340's answer, so that ask leads; the inbox P1 is next, never hidden.
-    assert [p["title"] for p in ranked] == ["Unblock #340", "Fix #913", "Claim state-truth batch 0"]
-    assert ranked[1]["badge"] == "P1 · money path"
+    assert [p["title"] for p in ranked[:3]] == ["Answer #340", "Fix bug #913", "Start the State truth batch"]
+    assert len(ranked) == picks.PICKS_SHOWN
+    assert ranked[1]["badge"] == "Urgent · touches orders" and ranked[1]["id"] == "bug-913"
     assert ranked[1]["score"] == picks.SEVERITY_SCORE["P1"] + picks.MONEY_PATH_BONUS
-    assert picks.rank(calm_picks())[0]["title"] == "Fix #913"
+    assert picks.rank(calm_picks())[0]["title"] == "Fix bug #913"
 
 
 def test_no_pick_is_filler():
@@ -136,8 +137,9 @@ def test_operator_pick_is_the_first_actionable_human_step():
 
 def test_a_red_required_check_makes_a_pr_pick_and_the_newest_run_wins():
     rollup = green_rollup() + [run("Backend tests", "FAILURE", at="2026-10-14T02:00:00Z")]
-    [pr] = picks.pr_picks([{"number": 7, "title": "feat: x", "statusCheckRollup": rollup}])
-    assert pr["title"] == "Get PR #7 green" and "Backend tests failed" in pr["reason"]
+    [pr] = picks.pr_picks([{"number": 7, "title": "feat(desk): x", "statusCheckRollup": rollup}])
+    assert pr["title"] == "Fix PR #7's failing checks" and pr["id"] == "pr-7"
+    assert pr["reason"] == '"X" can\'t merge: its Backend tests check failed.'
     rerun = rollup + [run("Backend tests", "SUCCESS", at="2026-10-14T03:00:00Z")]
     assert picks.pr_picks([{"number": 7, "title": "x", "statusCheckRollup": rerun}]) == []
 
@@ -156,18 +158,20 @@ def test_pending_skipped_drafts_and_holds():
 def test_a_conflicting_pr_ranks_below_a_p1():
     [pr] = picks.pr_picks([{"number": 5, "title": "x", "mergeable": "CONFLICTING",
                             "statusCheckRollup": green_rollup()}])
-    assert pr["title"] == "Unblock PR #5" and pr["score"] < picks.SEVERITY_SCORE["P1"]
+    assert pr["title"] == "Fix PR #5's merge conflict" and pr["badge"] == "Can't merge"
+    assert pr["score"] < picks.SEVERITY_SCORE["P1"]
 
 
 def test_backlog_picks_offer_batches_never_gated_claimed_or_decision_issues():
     live = nm.with_inbox(PACKAGES, ISSUES)
     titles = {p["title"]: p for p in picks.backlog_picks(live, ISSUES, HELD)}
-    assert "Claim state-truth batch 0" in titles          # P1 #316 lives there
-    assert titles["Claim state-truth batch 0"]["score"] == (
-        picks.SEVERITY_SCORE["P1"] + picks.PLAN_NEXT_BONUS)  # and it is the plan's next batch
-    assert "#316" in titles["Claim state-truth batch 0"]["reason"]
-    assert {"Fix #913", "Fix #722"} <= set(titles)      # untriaged P1s, on their own
-    assert not any(t in titles for t in ("Fix #315", "Fix #308", "Fix #331", "Claim recorder batch 0"))
+    batch = titles["Start the State truth batch"]      # P1 #316 lives there
+    assert batch["score"] == picks.SEVERITY_SCORE["P1"] + picks.PLAN_NEXT_BONUS  # the plan's next
+    assert batch["reason"] == "Includes urgent bug #316: Recording state lies. Issues #316, #317."
+    assert batch["id"] == "batch-state-truth-0" and "Claim `state-truth` batch 0" in batch["prompt"]
+    assert {"Fix bug #913", "Fix bug #722"} <= set(titles)  # untriaged P1s, on their own
+    assert not any(t in titles for t in ("Fix bug #315", "Fix bug #308", "Fix bug #331",
+                                         "Start the Recorder batch"))
 
 
 def test_triage_pick_names_the_urgent_inbox_issues():
@@ -180,7 +184,7 @@ def test_triage_pick_names_the_urgent_inbox_issues():
 
 def test_decide_pick_is_the_gate_that_frees_the_most_and_a_p0_lifts_it():
     [d] = picks.decide_pick(PACKAGES, ISSUES)
-    assert d["title"] == "Unblock #340" and "frees 3" in d["badge"]
+    assert d["title"] == "Answer #340" and d["badge"] == "Needs you · unblocks 3"
     assert d["score"] == picks.SEVERITY_SCORE["P0"]       # P0 #315 waits on it
     assert d["reason"] == "#340 Phase 3: keep history_* as the single replay surface?"
     poisoned = [dict(PACKAGES[3], gate="#340 flip auto_live on for the replay?")]
@@ -189,16 +193,53 @@ def test_decide_pick_is_the_gate_that_frees_the_most_and_a_p0_lifts_it():
 
 
 # --------------------------------------------------------------------------
+# plain English (operator, 2026-10-13: "It's barely English")
+# --------------------------------------------------------------------------
+
+
+def test_pr_titles_lose_their_commit_prefix():
+    assert picks.plain_pr_title("feat(followed-traders): proof is a hover") == "Proof is a hover"
+    assert picks.plain_pr_title("fix!: no prefix left") == "No prefix left"
+    assert picks.plain_pr_title("Plain title") == "Plain title"
+
+
+def test_labels_are_words_not_codes():
+    every = picks.rank(live_picks(), limit=20)
+    for p in every:
+        assert not re.search(r"\bP[0-3]\b", p["badge"] + p["title"]), p
+        assert "money path" not in p["badge"] and "green" not in p["title"]
+
+
+def test_say_rewords_a_pick_by_id_and_keeps_its_prompt():
+    shown = picks.rank(calm_picks())
+    prompt = shown[0]["prompt"]
+    missing = picks.apply_say(shown, [
+        "bug-913=Stop orders on an empty book|You can still send an order when Level 2 is empty",
+        "pr-1=Gone|This pick moved off the list",
+    ])
+    assert missing == ["pr-1"]
+    assert shown[0]["title"] == "Stop orders on an empty book"
+    assert shown[0]["reason"] == "You can still send an order when Level 2 is empty."
+    assert shown[0]["prompt"] == prompt
+    import pytest
+
+    for bad in ("bug-913", "bug-913=only a headline", "=a|b"):
+        with pytest.raises(ValueError):
+            picks.apply_say(shown, [bad])
+
+
+# --------------------------------------------------------------------------
 # ranking
 # --------------------------------------------------------------------------
 
 
-def test_rank_keeps_the_best_three_two_per_kind_and_withholds_forbidden_offers():
-    cands = [picks.pick("fix", 90 - i, f"Fix #{i}", "r", "P1", "danger", "p") for i in range(4)]
+def test_rank_keeps_the_best_six_three_per_kind_and_withholds_forbidden_offers():
+    cands = [picks.pick("fix", 90 - i, f"Fix #{i}", "r", "P1", "danger", "p") for i in range(5)]
     cands.append(picks.pick("triage", 50, "Triage", "r", "b", "warning", "p"))
     cands.append(picks.pick("operator", 99, "Go live now", "r", "b", "neutral", "p"))
     cands.append(picks.pick("decide", 39, "Low", "r", "b", "neutral", "p"))
-    assert [p["title"] for p in picks.rank(cands)] == ["Fix #0", "Fix #1", "Triage"]
+    assert [p["title"] for p in picks.rank(cands)] == ["Fix #0", "Fix #1", "Fix #2", "Triage"]
+    assert len(picks.rank(cands, limit=2)) == 2
 
 
 def test_the_agents_own_step_outranks_a_p1_but_not_a_p0():
@@ -237,14 +278,15 @@ def test_card_escapes_text_and_sends_the_prompt():
 def test_menu_passes_the_lint_and_stars_the_best_pick():
     menu = render.render_menu(picks.rank(calm_picks()))
     assert nm.lint(menu) == []
-    assert menu.splitlines()[1].startswith("1. ★ **Fix #913** -- ")
+    assert menu.splitlines()[1].startswith("1. ★ **Fix bug #913** -- ")
     assert render.render_menu([]) == ""
 
 
 def test_seed_lines_carry_scores_or_say_skip():
     lines = render.render_seed(picks.rank(calm_picks()), as_of="t", source="live")
     assert lines[0].startswith("Next-move picks (as of t, source=live")
-    assert lines[1].startswith(f"1. [{picks.SEVERITY_SCORE['P1'] + picks.MONEY_PATH_BONUS}] Fix #913")
+    assert lines[1].startswith(f"1. [{picks.SEVERITY_SCORE['P1'] + picks.MONEY_PATH_BONUS}] bug-913: Fix bug #913")
+    assert "--say" in lines[0]
     assert "skip the menu" in render.render_seed([], as_of="t", source="live")[1]
 
 
@@ -263,6 +305,8 @@ def test_offline_cli_never_touches_github(capsys, monkeypatch):
     assert "source=unavailable" in capsys.readouterr().out
     assert nm.main(["menu", "--offline", "--thread", "A|b|c"]) == 0
     assert "1. ★ **A** -- b" in capsys.readouterr().out
+    assert nm.main(["menu", "--offline", "--thread", "A|b|c", "--say", "thread=Plain|Said plainly"]) == 0
+    assert "1. ★ **Plain** -- Said plainly." in capsys.readouterr().out
 
 
 def test_collect_live_and_fetch_prs_fail_open_when_gh_is_unreachable(monkeypatch):
@@ -336,7 +380,8 @@ def test_lint_rejects_bad_shapes():
     assert any("filler" in p for p in nm.lint(good.replace("3. **", "3. none -- **", 1)))
     assert any("**Title** -- reason" in p for p in nm.lint(good.replace(" -- ", ": ", 1)))
     assert any("words (max" in p for p in nm.lint(good.replace("2. **", "2. **" + "w " * 45, 1)))
-    assert any("picks (expected" in p for p in nm.lint(good + "4. **Four** -- too many\n"))
+    seven = good + "".join(f"{n}. **Pick {n}** -- one more\n" for n in range(4, 8))
+    assert any("picks (expected" in p for p in nm.lint(seven))
     assert any("missing" in p for p in nm.lint("just a reply with no menu"))
 
 

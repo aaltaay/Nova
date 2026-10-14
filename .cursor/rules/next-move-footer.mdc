@@ -1,5 +1,5 @@
 ---
-description: Next-move picks -- a reply that ends a task ends with the best three next moves, ranked from live state; a clickable card in the Claude desktop app, a numbered menu elsewhere
+description: Next-move picks -- a reply that ends a task ends with the best six next moves, ranked from live state and worded in plain English; a clickable card in the Claude desktop app, a numbered menu elsewhere
 alwaysApply: true
 ---
 
@@ -10,14 +10,15 @@ valuable work, not to whatever the agent just touched. `tools/next_moves.py`
 ranks every candidate from live GitHub state -- red PRs, open P0/P1 bugs
 (untriaged ones too), the backlog's next batch, the inbox, the decision that
 frees the most work, the roadmap's human steps; one score table in
-`tools/next_move_picks.py` -- and renders the top three. Never write a pick from memory.
+`tools/next_move_picks.py` -- and renders the top six. Never write a pick from memory.
 
 ## How to end a reply
 
 1. **Your own next step**, when this conversation has a real one (your PR to merge, the failure to fix, the step the operator asked for next), goes in as `--thread 'Title|one-line reason|prompt'` and is ranked with the rest (above a P1). A reply that reports a failure passes the root-cause fix, or opening the `deferred` issue when it cannot be fixed this session.
-2. **Claude desktop app** (you have the `show_widget` tool; call its `read_me` once first): run `py -3 tools/next_moves.py card [--thread ...]` and pass the output unchanged to `show_widget` (title `next_moves`) as the reply's last element, with no text menu beside it. Each button sends its pick's prompt as the operator's next message.
-3. **Everywhere else** (Cursor, Codex, CLI): end with the output of `py -3 tools/next_moves.py menu [--thread ...]`. A digit runs that pick: restate it, then do it (an `Only you` pick shows the question and waits). `0` is a fresh ask.
-4. The tool prints `nothing worth offering`: end without a menu. Never pad.
+2. **Say it plainly** (operator, 2026-10-13: "barely English"). The seed lists each pick's id (`bug-913`, `pr-933`). Reword every shown pick for the operator with `--say id='Headline|Why'`: a headline of at most six words and one sentence on what is wrong or waiting and what it means for trading or shipping. Everyday words; no copied issue or PR titles, no jargon (`P1`, `HTTP loop`, `depth line`). The prompt behind the button stays the tool's.
+3. **Claude desktop app** (you have the `show_widget` tool; call its `read_me` once first): run `py -3 tools/next_moves.py card [--thread ...] [--say ...]` and pass the output unchanged to `show_widget` (title `next_moves`) as the reply's last element, with no text menu beside it. Each button sends its pick's prompt as the operator's next message.
+4. **Everywhere else** (Cursor, Codex, CLI): end with the output of `py -3 tools/next_moves.py menu [--thread ...] [--say ...]`. A digit runs that pick: restate it, then do it (a `Needs you` pick shows the question and waits). `0` is a fresh ask.
+5. The tool prints `nothing worth offering`: end without a menu. Never pad.
 
 An optional **Better ask:** above the menu: one sentence, at most 35 words, a real gap plus one fact the operator did not know.
 
@@ -29,13 +30,13 @@ An optional **Better ask:** above the menu: one sentence, at most 35 words, a re
 - **Audience**: the parent reply that ends a task. Mid-task progress lines carry nothing; specialist reports end with the `**Lifecycle:**` line (`docs/agent-operations.md`), never picks.
 - **Skip** only trivial exchanges: pings, tiny confirmations, status polls.
 
-## Example (text menu, real state on 2026-10-13)
+## Example (text menu after `--say`, real state on 2026-10-13, three of six shown)
 
 ```text
 **Next move** (reply with a number; `0` = other):
-1. ★ **Fix #913** -- Orders stay enabled on a Level 2 with no book, and a depth request IBKR never answers waits forever *(P1 · money path)*
-2. **Fix #722** -- Recover registered silent Time & Sales lines while quotes and depth continue *(P1)*
-3. **Triage the inbox** -- 39 issues wait in 00 - Untriaged, incl. #612, #722, #797; `next` cannot hand them out. *(Unblocks the backlog)*
+1. ★ **Stop orders on an empty book** -- You can still send an order when Level 2 shows no book, and the desk waits forever for depth that never comes. *(Urgent · touches orders)*
+2. **Restart silent Time & Sales** -- When a stock's prints stop while its quotes keep coming, Nova does not restart the prints. *(Urgent)*
+3. **Sort the new issues** -- 39 issues have no package yet, so no agent will pick them up, including three urgent bugs. *(Unblocks the backlog)*
 ```
 
 Check a hand-edited menu: `py -3 tools/next_moves.py lint <file|->`. `tools/test_next_moves.py` pins this example and the scoring.

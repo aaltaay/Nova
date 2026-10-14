@@ -98,7 +98,7 @@ The `subagentStop` hook reminds once (fail-open, `loop_limit: 1`) if a Nova agen
 
 The **Lifecycle** line above is for specialist reports to the parent. The
 parent's user-facing reply ends instead with the **Next-move picks** (AGENTS.md
-§5, `.cursor/rules/next-move-footer.mdc`): the best three next moves ranked from
+§5, `.cursor/rules/next-move-footer.mdc`): the best six next moves ranked from
 live state by `tools/next_moves.py` -- a clickable card in the Claude desktop
 app, a numbered menu answered with a digit elsewhere. Never
 point `contract.json`'s Lifecycle regex at the menu, and never put the menu on

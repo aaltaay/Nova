@@ -84,11 +84,12 @@ def render_menu(picks: list[dict[str, Any]]) -> str:
 
 def render_seed(picks: list[dict[str, Any]], *, as_of: str, source: str) -> list[str]:
     """What the session brief and `seed` print: the ranked picks with their scores and prompts."""
-    head = (f"Next-move picks (as of {as_of}, source={source}; ranked best first -- end a "
-            "reply with `py -3 tools/next_moves.py card` in the desktop app, `menu` elsewhere):")
+    head = (f"Next-move picks (as of {as_of}, source={source}; ranked best first -- reword "
+            "each in plain English with `--say id='Headline|Why'`, then end the reply with "
+            "`py -3 tools/next_moves.py card` in the desktop app, `menu` elsewhere):")
     if not picks:
         return [head, "- nothing worth offering: skip the menu"]
     return [head] + [
-        f"{i}. [{p['score']}] {p['title']} -- {p['reason']} ({p['badge']})"
+        f"{i}. [{p['score']}] {p['id']}: {p['title']} -- {p['reason']} ({p['badge']})"
         for i, p in enumerate(picks, 1)
     ]

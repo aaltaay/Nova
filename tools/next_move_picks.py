@@ -34,8 +34,8 @@ SCORE_DECIDE_PER_ISSUE = 3
 SCORE_DECIDE_MAX = 75
 SCORE_OPERATOR_STEP = 40
 SCORE_FLOOR = 40           # below this a candidate is filler and never shown
-PICKS_SHOWN = 3
-MAX_PER_KIND = 2           # three red PRs must not crowd out everything else
+PICKS_SHOWN = 6           # operator ask 2026-10-13: "show me the top six actions"
+MAX_PER_KIND = 3           # four red PRs must not crowd out everything else
 # Ties break by kind, in this order: open work before new work, work before asks.
 KIND_ORDER = ("thread", "pr", "fix", "batch", "decide", "triage", "operator")
 
@@ -55,6 +55,12 @@ FORBIDDEN_PHRASES: tuple[str, ...] = (
 TITLE_MAX_CHARS = 40
 REASON_MAX_CHARS = 120
 LEGACY_PREFIX_RE = re.compile(r"^(?:D-\d+\s*--\s*)?(?:P[0-3]:\s*)?")
+COMMIT_PREFIX_RE = re.compile(r"^[a-z]+(?:\([^)]*\))?!?:\s*", re.IGNORECASE)
+# The operator reads these, so labels are words, not codes (operator, 2026-10-13:
+# "The wording of this almost seems confusing ... It's barely English").
+SEVERITY_WORD = {"P0": "Critical", "P1": "Urgent", "P2": "Normal", "P3": "Low"}
+TOUCHES_ORDERS = "touches orders"
+SAY_RE = re.compile(r"^\s*([a-z0-9-]+)\s*=\s*([^|]+?)\s*\|\s*(.+?)\s*$")
 ISSUE_RE = re.compile(r"#(\d+)")
 HUMAN_NEXT_HEADING = "## Exact next action (human)"
 NUMBERED_RE = re.compile(r"^\s*\d+\.\s+(.+)$")
@@ -71,15 +77,36 @@ def forbidden(text: str) -> bool:
 
 
 def pick(kind: str, score: int, title: str, reason: str, badge: str, tone: str,
-         prompt: str) -> dict[str, Any]:
-    """One candidate. `tone` colours the badge: danger, warning, accent or neutral."""
-    return {"kind": kind, "score": int(score), "title": clip(title, TITLE_MAX_CHARS),
-            "reason": clip(reason, REASON_MAX_CHARS), "badge": badge, "tone": tone,
-            "prompt": " ".join(prompt.split())}
+         prompt: str, *, pid: str | None = None) -> dict[str, Any]:
+    """One candidate. `tone` colours the badge: danger, warning, accent or neutral.
+
+    `id` is stable across runs (`bug-913`, `pr-933`) so an agent's plain rewrite
+    (`apply_say`) lands on the right pick even when the ranking moved between calls.
+    """
+    return {"id": pid or kind, "kind": kind, "score": int(score),
+            "title": clip(title, TITLE_MAX_CHARS), "reason": clip(reason, REASON_MAX_CHARS),
+            "badge": badge, "tone": tone, "prompt": " ".join(prompt.split())}
 
 
 def _issue_title(issue: dict[str, Any]) -> str:
     return LEGACY_PREFIX_RE.sub("", str(issue.get("title") or ""), count=1).strip()
+
+
+def _sentence(text: str) -> str:
+    text = text.strip()
+    return text if not text or text[-1] in ".?!…" else text + "."
+
+
+def plain_pr_title(title: str) -> str:
+    """A PR title without its `feat(scope):` prefix, capitalised."""
+    text = COMMIT_PREFIX_RE.sub("", title.strip(), count=1)
+    return clip(text[:1].upper() + text[1:], PR_TITLE_CHARS)
+
+
+def _checks(names: list[str]) -> str:
+    if len(names) == 1:
+        return f"its {names[0]} check failed"
+    return f"its {', '.join(names[:-1])} and {names[-1]} checks failed"
 
 
 # --------------------------------------------------------------------------
@@ -112,19 +139,19 @@ def pr_picks(prs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         red = red_checks(pr.get("statusCheckRollup") or [])
         if red:
             out.append(pick(
-                "pr", SCORE_PR_RED, f"Get PR #{number} green",
-                f"{', '.join(red)} failed on \"{clip(title, PR_TITLE_CHARS)}\"; nothing merges red.",
-                "PR red", "danger",
+                "pr", SCORE_PR_RED, f"Fix PR #{number}'s failing checks",
+                f'"{plain_pr_title(title)}" can\'t merge: {_checks(red)}.',
+                "Checks failing", "danger",
                 f"Get PR #{number} green: read the failed {', '.join(red)} log, fix the cause "
-                "on its branch, push, and confirm the checks pass.",
+                "on its branch, push, and confirm the checks pass.", pid=f"pr-{number}",
             ))
         elif str(pr.get("mergeable") or "").upper() == "CONFLICTING":
             out.append(pick(
-                "pr", SCORE_PR_CONFLICT, f"Unblock PR #{number}",
-                f"\"{clip(title, PR_TITLE_CHARS)}\" conflicts with master, so Actions cannot merge it.",
-                "PR conflict", "warning",
+                "pr", SCORE_PR_CONFLICT, f"Fix PR #{number}'s merge conflict",
+                f'"{plain_pr_title(title)}" can\'t merge: it clashes with newer changes on master.',
+                "Can't merge", "warning",
                 f"Resolve PR #{number}'s merge conflict with master on its branch, re-run "
-                "the checks, and confirm it is mergeable.",
+                "the checks, and confirm it is mergeable.", pid=f"pr-{number}",
             ))
     return out
 
@@ -149,13 +176,15 @@ def _batch_pick(pkg: dict[str, Any], index: int, pr: dict[str, Any], score: int,
     numbers = [n for n in pr["issues"] if n in open_numbers]
     refs = ", ".join(f"#{n}" for n in numbers)
     sev = severity_of(lead) if lead else ""
-    reason = (f"{sev} #{lead['number']}: {_issue_title(lead)}" if lead and sev in ("P0", "P1")
-              else f'{pkg["title"]}: "{pr["title"]}"')
+    name = re.sub(r"^\d+\s*-\s*", "", str(pkg["title"]))
+    reason = (f"Includes {SEVERITY_WORD[sev].lower()} bug #{lead['number']}: {_issue_title(lead)}"
+              if lead and sev in ("P0", "P1") else f"Next in the plan: {plain_pr_title(pr['title'])}")
     return pick(
-        "batch", score, f"Claim {pkg['slug']} batch {index}", f"{reason} ({refs})",
-        sev or "Backlog", "danger" if sev in ("P0", "P1") else "accent",
+        "batch", score, f"Start the {name} batch", f"{_sentence(reason)} Issues {refs}.",
+        SEVERITY_WORD.get(sev, "Next in the plan"), "danger" if sev in ("P0", "P1") else "accent",
         f"Claim `{pkg['slug']}` batch {index} with backlog_triage.py claim, branch from "
         f'origin/master, and open its PR: "{pr["title"]}" ({refs}).',
+        pid=f"batch-{pkg['slug']}-{index}",
     )
 
 
@@ -179,11 +208,13 @@ def backlog_picks(packages: list[dict[str, Any]], issues: list[dict[str, Any]],
         score = SEVERITY_SCORE[sev] + (MONEY_PATH_BONUS if names & MONEY_PATH_DOMAINS else 0)
         found = _batch_of(packages, number)
         if milestone_title(issue) == INBOX_TITLE or found is None:
+            word = SEVERITY_WORD[sev]
             out[("fix", number)] = pick(
-                "fix", score, f"Fix #{number}", _issue_title(issue),
-                f"{sev} · money path" if names & MONEY_PATH_DOMAINS else sev, "danger",
+                "fix", score, f"Fix bug #{number}", _sentence(_issue_title(issue)),
+                f"{word} · {TOUCHES_ORDERS}" if names & MONEY_PATH_DOMAINS else word, "danger",
                 f"Fix #{number} ({_issue_title(issue)}): route it into its package, claim it, "
                 "branch from origin/master, fix the root cause with a regression test, open the PR.",
+                pid=f"bug-{number}",
             )
             continue
         pkg, index, pr = found
@@ -216,10 +247,10 @@ def triage_pick(issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return []
     urgent = sorted(int(i["number"]) for i in queued if severity_of(i) in ("P0", "P1"))
     score = SCORE_TRIAGE_URGENT if urgent else SCORE_TRIAGE_BASE + min(len(queued), 10)
-    incl = f", incl. {', '.join(f'#{n}' for n in urgent[:3])}" if urgent else ""
+    incl = f", including urgent {', '.join(f'#{n}' for n in urgent[:3])}" if urgent else ""
     return [pick(
-        "triage", score, "Triage the inbox",
-        f"{len(queued)} issues wait in {INBOX_TITLE}{incl}; `next` cannot hand them out.",
+        "triage", score, "Sort the new issues",
+        f"{len(queued)} issues aren't filed under a package yet, so no agent picks them up{incl}.",
         "Unblocks the backlog", "warning",
         f"Triage the backlog: route every issue in {INBOX_TITLE} into the package whose "
         "outcome it serves, run sync, and open one PR with the JSON change.",
@@ -251,10 +282,11 @@ def decide_pick(packages: list[dict[str, Any]], issues: list[dict[str, Any]]) ->
     if p0 & set(gated):
         score = SEVERITY_SCORE["P0"]  # a P0 waits on this answer
     return [pick(
-        "decide", score, f"Unblock #{number}", first,
-        f"Only you · frees {len(gated)}", "neutral",
+        "decide", score, f"Answer #{number}", first,
+        f"Needs you · unblocks {len(gated)}", "neutral",
         f"Show me what #{number} needs from me -- the question or the evidence -- in plain "
         "words with the options and your recommendation, then wait for my answer.",
+        pid=f"ask-{number}",
     )]
 
 
@@ -281,9 +313,9 @@ def operator_picks(roadmap_text: str | None) -> list[dict[str, Any]]:
         label, rest = (s.strip() for s in item.split(":", 1))
         first = re.split(r"(?<=[.?!])\s+", rest, maxsplit=1)[0]
         return [pick(
-            "operator", SCORE_OPERATOR_STEP, label, first, "Only you · roadmap", "neutral",
+            "operator", SCORE_OPERATOR_STEP, label, first, "Needs you · roadmap", "neutral",
             f"Walk me through the roadmap step '{label}': what it asks of me, what is "
-            "already done, and the smallest next action I can take today.",
+            "already done, and the smallest next action I can take today.", pid="roadmap",
         )]
     return []
 
@@ -298,7 +330,29 @@ def thread_pick(spec: str) -> dict[str, Any]:
     parts = [p.strip() for p in spec.split("|")]
     if len(parts) != 3 or not all(parts):
         raise ValueError("--thread takes 'Title|one-line reason|prompt'")
-    return pick("thread", SCORE_THREAD, parts[0], parts[1], "This thread", "accent", parts[2])
+    return pick("thread", SCORE_THREAD, parts[0], parts[1], "This conversation", "accent",
+                parts[2])
+
+
+def apply_say(shown: list[dict[str, Any]], says: list[str]) -> list[str]:
+    """Put the agent's plain wording (`id=Headline|Why`) on the shown picks.
+
+    The facts and the prompt stay the tool's; only what the operator reads
+    changes. Returns the ids that matched no shown pick (the ranking moved).
+    """
+    by_id = {p["id"]: p for p in shown}
+    missing = []
+    for say in says:
+        m = SAY_RE.match(say)
+        if not m:
+            raise ValueError(f"--say takes 'id=Headline|one plain sentence', got {say!r}")
+        pid, headline, why = m.groups()
+        if pid not in by_id:
+            missing.append(pid)
+            continue
+        by_id[pid]["title"] = clip(headline, TITLE_MAX_CHARS)
+        by_id[pid]["reason"] = clip(_sentence(why), REASON_MAX_CHARS)
+    return missing
 
 
 def rank(candidates: list[dict[str, Any]], limit: int = PICKS_SHOWN) -> list[dict[str, Any]]:

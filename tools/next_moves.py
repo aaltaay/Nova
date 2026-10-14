@@ -43,6 +43,7 @@ from tools.next_move_picks import (  # noqa: E402
     FORBIDDEN_PHRASES,
     PICKS_SHOWN,
     all_picks,
+    apply_say,
     rank,
     thread_pick,
 )
@@ -60,8 +61,8 @@ MAX_OPTIONS = PICKS_SHOWN
 MAX_ANSWER_CHOICES = 5
 OPTION_MAX_WORDS = 40
 BETTER_ASK_MAX_WORDS = 35
-FOOTER_MAX_WORDS = 150
-SEED_LIMIT = 5
+FOOTER_MAX_WORDS = 280
+SEED_LIMIT = 8
 SEED_TIMEOUT_SEC = 8
 PR_FIELDS = "number,title,isDraft,labels,mergeable,statusCheckRollup"
 
@@ -249,6 +250,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             p.add_argument("--thread", metavar="'TITLE|REASON|PROMPT'",
                            help="your own next step in this conversation, ranked with the rest")
+            p.add_argument("--say", action="append", default=[], metavar="'ID=HEADLINE|WHY'",
+                           help="your plain-English wording for the pick with this id (repeat)")
     lt = sub.add_parser("lint", help="check a text menu (file path or - for stdin)")
     lt.add_argument("path")
     args = parser.parse_args(argv)
@@ -267,6 +270,13 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(seed, indent=2) if args.json else
               "\n".join(render_seed(seed["picks"], as_of=seed["as_of"], source=seed["source"])))
     else:
+        try:
+            missing = apply_say(seed["picks"], args.say)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if missing:
+            print(f"note: no shown pick has id {', '.join(missing)} (the ranking moved); "
+                  "its default wording stays", file=sys.stderr)
         out = render_card(seed["picks"]) if args.cmd == "card" else render_menu(seed["picks"])
         print(out or "nothing worth offering -- skip the menu")
     return 0
