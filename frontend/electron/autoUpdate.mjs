@@ -105,6 +105,8 @@ let hooks = {
   restartEngine: async () => {},
   // The backend follows the release being installed (engineSync.mjs); false: the operator waits.
   prepareInstall: async () => true,
+  // ...and restarts onto it while the installer runs (engineSync.handOffForInstall).
+  handOffEngine: async () => {},
 };
 
 function readSetting() {
@@ -352,6 +354,7 @@ async function loadUpdater() {
  * @param {{ getWindow: () => any, envPath: () => string,
  *   stopEngine: () => Promise<boolean>, restartEngine: () => Promise<void>,
  *   prepareInstall?: (tag: string, ui: { box: Function }) => Promise<boolean>,
+ *   handOffEngine?: () => Promise<void>,
  *   onBridge?: (bridge: object, logger: object) => void }} deps
  */
 export async function startAutoUpdate(deps) {
@@ -384,6 +387,7 @@ async function startUnguarded(deps) {
     dispatch,
     prepare: (tag) => hooks.prepareInstall(tag, { box: ask.box }),
     stopEngine: () => hooks.stopEngine(),
+    handOff: () => hooks.handOffEngine(),
     restartEngine: () => hooks.restartEngine(),
     box: ask.box,
     logsDir: () => appDir('logs'),
