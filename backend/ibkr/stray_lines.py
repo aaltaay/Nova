@@ -1,7 +1,6 @@
 """Time & Sales lines IBKR keeps printing after Nova cancelled them, cancelled again (operator report 2026-10-13).
 
-A cancel that reaches IBKR before IBKR has answered the request does not end the
-line: IBKR answers later and holds it. On 2026-10-13 four Time & Sales lines Nova
+On 2026-10-13 four Time & Sales lines Nova
 had cancelled kept printing -- 47,749 prints on request ids Nova no longer knew --
 and IBKR refused Time & Sales 74 times (10190).
 
@@ -23,6 +22,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from constants_ibkr import IBKR_STRAY_LINE_KEEP, IBKR_STRAY_LINE_RECANCEL_SEC
@@ -36,17 +36,20 @@ _INSTALLED = "_nova_cancels_stray_lines"
 _WORDS = "IBKR kept printing %s's Time & Sales (reqId %s) after Nova cancelled it"
 
 
+@dataclass
 class _Note:
-    __slots__ = ("symbol", "cancelled_at", "recancelled_at")
+    symbol: str | None
+    cancelled_at: float | None
+    cancel_sent: bool | None = None
+    cancel_error: str | None = None
+    last_stray_at: float | None = None
+    recancelled_at: float | None = None
+    recancel_sent: bool | None = None
+    recancel_error: str | None = None
 
-    def __init__(self, symbol: str | None, cancelled_at: float | None) -> None:
-        self.symbol = symbol
-        self.cancelled_at = cancelled_at
-        self.recancelled_at: float | None = None
 
-
-# (kind, request id) -> what Nova knows of the line, oldest first, bounded.
-_notes: OrderedDict[tuple[str, int], _Note] = OrderedDict()
+# (connection, kind, request id) -> what Nova knows of the line, oldest first, bounded.
+_notes: OrderedDict[tuple, _Note] = OrderedDict()
 _counts: dict[str, int] = {TAPE: 0}
 _last: dict[str, Any] | None = None
 
@@ -74,24 +77,42 @@ def request_id(ib: Any, contract: Any, kind: str) -> int | None:
     return req_id if isinstance(req_id, int) else None
 
 
-def _keep(key: tuple[str, int], note: _Note) -> None:
+def _connection(ib: Any) -> tuple:
+    """Wrapper identity plus connection start: request ids and their cooldowns restart together."""
+    wrapper = getattr(ib, "wrapper", ib)
+    token = getattr(wrapper, "_nova_tape_connection_token", None)
+    if token is None:
+        token = object()
+        wrapper._nova_tape_connection_token = token
+    client = getattr(ib, "client", None)
+    return token, getattr(client, "_startTime", None)
+
+
+def _keep(key: tuple, note: _Note) -> None:
     _notes.pop(key, None)  # re-inserted last: the bound drops the oldest
     _notes[key] = note
     while len(_notes) > IBKR_STRAY_LINE_KEEP:
         _notes.popitem(last=False)
 
 
-def note_cancelled(kind: str, req_id: int | None, symbol: str, *, now: float | None = None) -> None:
+def note_cancelled(kind: str, req_id: int | None, symbol: str, *, ib: Any, now: float | None = None) -> None:
     """Nova is about to cancel this Time & Sales line: keep its id, so IBKR's late prints name it."""
     if req_id is None:
         return
-    _keep((kind, req_id), _Note(symbol.upper(), time.time() if now is None else now))
+    _keep((_connection(ib), kind, req_id), _Note(symbol.upper(), time.time() if now is None else now))
 
 
-def _recancel(req_id: int, note: _Note | None, send: Callable[[], None], now: float) -> bool:
+def note_cancel_result(ib: Any, req_id: int | None, *, error: str | None) -> None:
+    """Dispatch outcome only. SDK removal and successful sends say nothing about IBKR slot release."""
+    note = _notes.get((_connection(ib), TAPE, req_id))
+    if note is not None:
+        note.cancel_sent, note.cancel_error = error is None, error
+
+
+def _recancel(key: tuple, note: _Note | None, send: Callable[[], None], now: float) -> bool:
     """Send ``send`` (the cancel) unless this id was cancelled again too recently."""
     global _last
-    key = (TAPE, req_id)
+    req_id = key[-1]
     if note is None:
         note = _Note(None, None)
         _keep(key, note)
@@ -102,9 +123,11 @@ def _recancel(req_id: int, note: _Note | None, send: Callable[[], None], now: fl
     symbol = note.symbol or "an unknown symbol"
     try:
         send()
-    except Exception:
+    except Exception as exc:
+        note.recancel_sent, note.recancel_error = False, str(exc)
         logger.warning("IBKR: could not cancel reqId %s (%s) again", req_id, symbol, exc_info=True)
         return False
+    note.recancel_sent, note.recancel_error = True, None
     _counts[TAPE] += 1
     _last = {"kind": TAPE, "symbol": note.symbol, "req_id": req_id, "at": now}
     logger.log(logging.WARNING if first else logging.DEBUG, _WORDS + " -- cancelled it again", symbol, req_id)
@@ -114,13 +137,18 @@ def _recancel(req_id: int, note: _Note | None, send: Callable[[], None], now: fl
 def on_stray_print(ib: Any, req_id: int, now: float | None = None) -> bool:
     """A tick-by-tick print on an id ib_async does not hold. Cancel the line again; True when sent."""
     ts = time.time() if now is None else now
-    note = _notes.get((TAPE, req_id))
+    key = (_connection(ib), TAPE, req_id)
+    note = _notes.get(key)
+    if note is None:
+        note = _Note(None, None)
+        _keep(key, note)
+    note.last_stray_at = ts
     if note is not None and note.cancelled_at is not None and ts - note.cancelled_at < IBKR_STRAY_LINE_RECANCEL_SEC:
         return False  # already on its way when Nova cancelled
     client = getattr(ib, "client", None)
     if client is None:
         return False
-    return _recancel(req_id, note, lambda: client.cancelTickByTickData(req_id), ts)
+    return _recancel(key, note, lambda: client.cancelTickByTickData(req_id), ts)
 
 
 def _print_hook(ib: Any, wrapper: Any, original: Callable[..., Any]) -> Callable[..., Any]:
@@ -154,4 +182,12 @@ def install(ib: Any) -> bool:
 
 def view() -> dict[str, Any]:
     """``stray_lines`` on ``/api/ibkr/status``: Time & Sales lines cancelled again, and the last one."""
-    return {"recancelled": dict(_counts), "last": dict(_last) if _last else None}
+    cancellations = [
+        {"symbol": note.symbol, "req_id": key[-1], "cancelled_at": note.cancelled_at,
+         "cancel_sent": note.cancel_sent, "cancel_error": note.cancel_error,
+         "last_stray_at": note.last_stray_at, "recancelled_at": note.recancelled_at,
+         "recancel_sent": note.recancel_sent, "recancel_error": note.recancel_error}
+        for key, note in list(_notes.items())
+    ]
+    return {"recancelled": dict(_counts), "last": dict(_last) if _last else None,
+            "cancellations": cancellations}

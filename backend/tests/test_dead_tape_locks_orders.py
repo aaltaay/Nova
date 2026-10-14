@@ -352,7 +352,10 @@ def test_the_tape_socket_sends_the_gates_answer_on_pings_and_when_it_changes(mon
     answers = iter([lock, lock, None])
     monkeypatch.setattr(ws_mod, "desk_connected", lambda: True)
     monkeypatch.setattr(ws_mod, "is_replay_desk", lambda: False)
-    monkeypatch.setattr(ws_mod, "_silence", lambda symbol, halt_seen_at: None)
+    silence = {"state": "dead", "since": T0, "text": "Registered tape is missing Level 1 trades", "pipeline": []}
+    recovery_calls = []
+    monkeypatch.setattr(ws_mod, "_silence", lambda symbol, halt_seen_at: silence)
+    monkeypatch.setattr(socket_gate, "line_down", lambda symbol, **kwargs: recovery_calls.append((symbol, kwargs)))
     monkeypatch.setattr(ws_mod, "_gate", lambda symbol: next(answers))
     monkeypatch.setattr(ws_mod, "MARKET_VIEW_GATE_SEND_SEC", 0.0)
 
@@ -383,3 +386,4 @@ def test_the_tape_socket_sends_the_gates_answer_on_pings_and_when_it_changes(mon
         assert ws.receive_json()["type"] == "print"
         assert ws.receive_json()["type"] == "print"
         assert ws.receive_json() == {"type": "gate", "symbol": "GENK", "gate": None}
+    assert recovery_calls == [("GENK", {"silence": silence})]  # registered-dead lines reach recovery too

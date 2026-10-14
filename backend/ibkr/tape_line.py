@@ -140,11 +140,16 @@ def drop_line(symbol: str, why: str) -> bool:
         if ib and contract is not None:
             from ibkr import stray_lines
 
-            stray_lines.note_cancelled(stray_lines.TAPE, _request_id(ib, contract), symbol)
+            req_id = _request_id(ib, contract)
+            stray_lines.note_cancelled(stray_lines.TAPE, req_id, symbol, ib=ib)
             try:
                 ib.cancelTickByTickData(contract, IBKR_TAPE_TICK_TYPE)
             except Exception as exc:
-                logger.debug("IBKR tape: cancelTickByTickData failed for %s: %s", symbol, exc)
+                stray_lines.note_cancel_result(ib, req_id, error=str(exc))
+                logger.warning("IBKR tape: cancel send failed for %s (reqId %s); local ownership was dropped "
+                               "but IBKR release is unknown: %s", symbol, req_id, exc)
+            else:
+                stray_lines.note_cancel_result(ib, req_id, error=None)
         tape_stream._cancelled_at[symbol] = time.time()
     tape_stream.prune_idle_maps()
     note_dropped(symbol, why, cancelled=held)

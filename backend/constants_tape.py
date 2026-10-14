@@ -51,6 +51,11 @@ TAPE_PIPELINE_SAME_SEC = 1.0
 # 2026-10-13 every line stopped at 07:59:22 ET and SCNI's Trader read LIVE over an empty tape for 30 s.
 TAPE_PIPELINE_DEAD_SEC = 10.0
 
+# Trader-only registered-dead recovery (#722): leave a shared stall alone, then one re-ask
+# after a sibling returns. A sent request is verified only by a print; silence never churns it.
+TAPE_RECOVERY_HOLD_SEC = 600.0
+TAPE_RECOVERY_VERIFY_SEC = 30.0
+
 # A tape-built 10-second candle is keyed by IBKR's own second (``exchange_ts``) and closes
 # this long after its ten seconds on the desk's clock, so a print that arrives late still
 # lands in it (#721: arrival trails IBKR's second by 0.6 s at the median, up to 9 s, 2026-10-05).

@@ -218,3 +218,222 @@ def test_it_stops_asking_once_no_socket_watches(desk):
 
     assert asyncio.run(scenario())
     assert desk.refused == ["AMOD"]                     # never asked IBKR again for nobody
+
+
+@pytest.fixture
+def silent_line(desk, monkeypatch):
+    """Missing-trades model; fake sends do not establish IBKR capacity."""
+    from capture import feed_hold
+    from ibkr import tape_recording, tape_silence
+
+    facts = {"peers": ["PEER"], "recording": False, "missed": True}
+    monkeypatch.setattr(tape_recording, "_last", {})
+    monkeypatch.setattr(tape_recording, "_last_exchange", {})
+    monkeypatch.setattr(tape_recording, "_since", {})
+    monkeypatch.setattr(tape_silence, "pipeline_peers", lambda sym, now=None: list(facts["peers"]))
+    monkeypatch.setattr(tape_silence, "missed_trades", lambda sym, now=None:
+                        {"since": time.time() - 200} if facts["missed"] else None)
+    monkeypatch.setattr(feed_hold, "held", lambda sym: {"tape": True} if facts["recording"] else None)
+    monkeypatch.setattr(tape_heal, "TAPE_RECOVERY_HOLD_SEC", 0.15)
+    monkeypatch.setattr(tape_heal, "TAPE_RECOVERY_VERIFY_SEC", 0.05)
+    return facts, tape_recording
+
+
+def _dead(*, never_printed=False, peers=("PEER",)):
+    return {"state": "dead", "since": time.time() - 200, "pipeline": list(peers),
+            "last_print_ts": None if never_printed else time.time() - 200,
+            "text": "Level 1 reports trades this registered line missed"}
+
+
+@pytest.mark.parametrize("never_printed", [False, True])
+def test_registered_dead_line_holds_then_reasks_once_after_a_sibling_returns(desk, silent_line, never_printed):
+    facts, producer = silent_line
+
+    async def scenario():
+        await _open_socket("AMOD")
+        queue2 = tape.open_viewer_queue("AMOD")
+        tape.ws_viewer_opened("AMOD")
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence=_dead(never_printed=never_printed))
+        assert await _until(lambda: (tape_heal.silent_status("AMOD") or {}).get("state") == "holding")
+        assert tape.is_subscribed("AMOD") and desk.next_req == before
+        facts["peers"] = []
+        assert await _until(lambda: desk.next_req > before)
+        assert desk.next_req == before + 1 and tape.viewer_count("AMOD") == 2
+        assert queue2 in tape._viewer_queues["AMOD"]
+        producer._last["AMOD"] = time.time()
+        assert await _until(lambda: tape_heal.silent_status("AMOD")["state"] == "resumed")
+
+    asyncio.run(scenario())
+
+
+def test_a_shared_line_returning_without_a_reask_is_kept(desk, silent_line):
+    _facts, producer = silent_line
+
+    async def scenario():
+        await _open_socket("AMOD")
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence=_dead())
+        await asyncio.sleep(0.01)
+        producer._last["AMOD"] = time.time()
+        assert await _until(lambda: not tape_heal.healing("AMOD"))
+        assert desk.next_req == before and tape.is_subscribed("AMOD")
+
+    asyncio.run(scenario())
+
+
+def test_subscribe_without_prints_is_failed_and_never_churned(desk, silent_line):
+    facts, _producer = silent_line
+    facts["peers"] = []
+
+    async def scenario():
+        await _open_socket("AMOD")
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence=_dead(peers=()))
+        assert await _until(lambda: (tape_heal.silent_status("AMOD") or {}).get("state") == "failed")
+        assert desk.next_req == before + 1
+        frames = _drain(tape._viewer_queues["AMOD"][0])
+        assert frames[-1]["retry_at"] is None     # the desk must not say RETRYING after the bounded attempt
+        for _ in range(10):
+            tape_heal.line_down("AMOD", silence=_dead(peers=()))
+            await asyncio.sleep(0.01)
+        assert desk.next_req == before + 1 and tape.is_subscribed("AMOD")
+
+    asyncio.run(scenario())
+
+
+def test_persistent_pipeline_stops_watching_and_states_the_hold(desk, silent_line):
+    async def scenario():
+        await _open_socket("AMOD")
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence=_dead())
+        assert await _until(lambda: not tape_heal.healing("AMOD"))
+        assert tape_heal.silent_status("AMOD")["state"] == "holding"
+        tape_heal.line_down("AMOD", silence=_dead())
+        await asyncio.sleep(0.02)
+        assert not tape_heal.healing("AMOD") and desk.next_req == before
+
+    asyncio.run(scenario())
+
+
+def test_recording_owns_shared_silence_recovery(desk, silent_line):
+    facts, _producer = silent_line
+    facts["recording"] = True
+
+    async def scenario():
+        await _open_socket("AMOD")
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence=_dead())
+        assert not tape_heal.healing("AMOD")
+        assert tape_heal.silent_status("AMOD")["state"] == "delegated"
+        assert tape.is_subscribed("AMOD") and desk.next_req == before
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("state", ["halted", "quiet", "silent"])
+def test_halt_quiet_or_uncertain_line_never_reasks(desk, silent_line, state):
+    async def scenario():
+        await _open_socket("AMOD")
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence={**_dead(), "state": state})
+        await asyncio.sleep(0.02)
+        assert not tape_heal.healing("AMOD") and desk.next_req == before
+
+    asyncio.run(scenario())
+
+
+def test_a_recording_starting_during_the_hold_takes_over_without_a_reask(desk, silent_line):
+    facts, _producer = silent_line
+
+    async def scenario():
+        await _open_socket("AMOD")
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence=_dead())
+        await asyncio.sleep(0.01)
+        facts["recording"] = True
+        assert await _until(lambda: not tape_heal.healing("AMOD"))
+        assert tape_heal.silent_status("AMOD")["state"] == "delegated"
+        assert desk.next_req == before and tape.is_subscribed("AMOD")
+
+    asyncio.run(scenario())
+
+
+def test_shared_stall_turning_quiet_or_halted_is_not_cancelled(desk, silent_line):
+    facts, _producer = silent_line
+
+    async def scenario():
+        await _open_socket("AMOD")
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence=_dead())
+        await asyncio.sleep(0.01)
+        facts["missed"] = False
+        facts["peers"] = []
+        assert await _until(lambda: not tape_heal.healing("AMOD"))
+        assert desk.next_req == before and tape.is_subscribed("AMOD")
+
+    asyncio.run(scenario())
+
+
+def test_last_socket_close_stops_silent_recovery_without_releasing_a_record_hold(desk, silent_line):
+    async def scenario():
+        token, _queue = await _open_socket("AMOD")
+        tape.ws_viewer_opened("AMOD")             # another reference, such as a recording
+        before = desk.next_req
+        tape_heal.line_down("AMOD", silence=_dead())
+        sockets.closed("AMOD", token, sockets.TAPE)
+        tape.ws_viewer_closed("AMOD")
+        assert await _until(lambda: not tape_heal.healing("AMOD"))
+        assert tape.viewer_count("AMOD") == 1 and tape.is_subscribed("AMOD")
+        assert desk.next_req == before
+
+    asyncio.run(scenario())
+
+
+def test_replay_and_session_changes_do_not_cancel_a_registered_line(desk, silent_line, monkeypatch):
+    from ibkr import client
+    from sim import mode
+
+    generation = {"value": 1}
+    monkeypatch.setattr(client, "current_generation", lambda: generation["value"])
+
+    async def scenario():
+        await _open_socket("AMOD")
+        before = desk.next_req
+        monkeypatch.setattr(mode, "is_replay_desk", lambda: True)
+        tape_heal.line_down("AMOD", silence=_dead())
+        assert not tape_heal.healing("AMOD")
+        monkeypatch.setattr(mode, "is_replay_desk", lambda: False)
+        tape_heal.line_down("AMOD", silence=_dead())
+        await asyncio.sleep(0.01)
+        generation["value"] = 2
+        assert await _until(lambda: not tape_heal.healing("AMOD"))
+        assert desk.next_req == before
+        assert tape_heal.silent_status("AMOD") is None
+
+    asyncio.run(scenario())
+
+
+def test_refusal_after_silent_reask_is_failed_until_existing_healer_reopens(desk, silent_line):
+    facts, _producer = silent_line
+    facts["peers"] = []
+    original = desk.reqTickByTickData
+
+    def refuse_next(contract, kind, **kwargs):
+        ticker = original(contract, kind, **kwargs)
+        req = desk.find(contract.conId, kind).reqId
+        asyncio.get_running_loop().call_soon(
+            lambda: [h(req, 10190, "tick-by-tick cap", contract) for h in list(desk.errorEvent.handlers)])
+        return ticker
+
+    async def scenario():
+        await _open_socket("AMOD")
+        desk.reqTickByTickData = refuse_next
+        tape_heal.line_down("AMOD", silence=_dead(peers=()))
+        assert await _until(lambda: (tape_heal.silent_status("AMOD") or {}).get("state") == "failed")
+        assert not tape.is_subscribed("AMOD")
+        desk.reqTickByTickData = original
+        tape_heal.line_down("AMOD")
+        assert await _until(lambda: tape.is_subscribed("AMOD"))
+
+    asyncio.run(scenario())
