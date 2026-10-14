@@ -49,7 +49,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          # The recovery PR or issue goes on Nova Delivery (a GITHUB_TOKEN item starts no board workflow).
+          NOVA_PROJECT_TOKEN: ${{ secrets.NOVA_PROJECT_TOKEN }}
         run: |
+          # Master's tool, never the branch's own: a push cannot rewrite the net that catches it. Until
+          # the tool is on master (the PR that adds it), there is nothing to run.
+          if [ ! -f tools/stranded_commits.py ]; then
+            echo "::notice::tools/stranded_commits.py is not on master yet; nothing to sweep."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ -n "$BRANCH" ]; then
