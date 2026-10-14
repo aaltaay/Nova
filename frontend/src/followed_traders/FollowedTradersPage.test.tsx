@@ -64,6 +64,12 @@ describe('FollowedTradersPage', () => {
     await flush();
   };
 
+  it("labels each slot with the read's time when the feed reads the stream's past, never 'now'", async () => {
+    await show(day({ capture: { ...day().capture!, clock: '09:40:00', traders: ['ALPHA'] } }));
+    expect(q('ft-capture-pill')!.textContent).toMatch(/^Reading 30m 00s behind the stream/);
+    expect(q('ft-slot-ALPHA')!.querySelector('figcaption')!.textContent).toBe('Their slot as last read · 09:40:00 ET');
+  });
+
   it('says the feed is not configured on a 404, never an empty list', async () => {
     await show(() => new Response('', { status: 404 }));
     expect(q('ft-state')!.textContent).toMatch(/not configured/);

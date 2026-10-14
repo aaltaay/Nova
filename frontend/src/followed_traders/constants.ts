@@ -23,6 +23,9 @@ export const FOLLOWED_TOAST_MAX = 4;
 export const FOLLOWED_PROBE_RETRY_MS = 10_000;
 /** The feed's capture reads stale when its status is older than this. */
 export const FOLLOWED_CAPTURE_STALE_SEC = 60;
+/** The bar read this far behind the stream's own clock is the past, not now: the pill warns and every slot carries the
+ *  read's time (operator report 2026-10-14: the feed read 29 minutes behind and the page said "Their slot now"). */
+export const FOLLOWED_CAPTURE_BEHIND_SEC = 30;
 /** Blob URLs of the feed's images kept for reuse before the oldest is released. */
 export const FOLLOWED_IMAGE_CACHE = 80;
 /** Local storage key of the Alerts switch (a per-window convenience; on by default). */
@@ -53,6 +56,8 @@ export const FT_NO_STATUS = 'The feed has not reported its capture yet';
 export const FT_PILL_WAITING = 'Waiting for the stream';
 export const FT_PILL_HIDDEN = 'Positions off screen · showing the last read';
 export const FT_PILL_STOPPED = 'Capture stopped';
+export const FT_PILL_BEHIND = 'Reading';
+export const FT_PILL_BEHIND_NOTE = 'positions shown are from then';
 
 export const FT_BAR_NO_IMAGE = 'The feed sends no picture of this slot';
 export const FT_BAR_STAND_IN = 'Their slot at their last change';
