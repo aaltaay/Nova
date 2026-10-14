@@ -9,6 +9,7 @@ export {
   getSessionRecordVersion,
   isTabRecording,
   startTabRecord,
+  stopAllRecords,
   stopTabRecord,
   subscribeSessionRecord,
   useRecordingSymbols,

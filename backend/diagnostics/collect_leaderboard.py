@@ -120,6 +120,8 @@ def leaderboard_rows(
         a_state, a_detail = DIAG_STATE_WARN, f"setup scanner unreadable: {auto['setups_error']}"
     elif symbols:
         a_state, a_detail = DIAG_STATE_OK, f"recording {', '.join(held)}"
+    elif (auto.get("switch") or {}).get("mode") in ("off", "off_today"):
+        a_state, a_detail = DIAG_STATE_OFF, _switched_off(auto["switch"])
     elif auto.get("active"):
         a_state, a_detail = DIAG_STATE_OK, f"watching {_watching(auto)}; no free Level 2 line or none yet"
     else:
@@ -143,3 +145,12 @@ def _watching(auto: dict[str, Any]) -> str:
     open_now = ((auto.get("windows") or {}).get("open"))
     return {"setups_and_leaders": "the setups and leaders", "setups": "the setups (the leaders' window is closed)",
             "leaders": "the leaders (no setup is in its arming window)"}.get(open_now, "the setups and leaders")
+
+
+def _switched_off(switch: dict[str, Any]) -> str:
+    """Who turned auto-record off (operator ask 2026-10-14): the switch on Records, or ``.env``."""
+    if switch.get("source") == "env":
+        return "off: NOVA_AUTO_RECORD=0 in .env"
+    if switch.get("mode") == "off_today":
+        return "off for today on Records; back on at 04:00 ET"
+    return "turned off on Records"

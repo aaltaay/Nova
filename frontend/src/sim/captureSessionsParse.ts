@@ -8,7 +8,7 @@
  */
 import { finite, flag, isObject, objects, rangePairs, text, type Obj } from './payloadGuards';
 import { unreadable } from './simPayloadParse';
-import type { CaptureSessionRow, CaptureSessions } from './useSimSessionController';
+import type { CaptureGap, CaptureSessionRow, CaptureSessions } from './useSimSessionController';
 
 /** A row count; the backend's `-1` ("rows on disk, not counted yet") and junk read as unknown. */
 function rowCount(value: unknown): number | null {
@@ -18,6 +18,24 @@ function rowCount(value: unknown): number | null {
 
 function nullable(value: unknown): string | null | undefined {
   return value === null ? null : text(value);
+}
+
+/** `[[start, stop, reason], ...]`; a row that is not two numbers and a reason (or null) is skipped. */
+function gapRows(value: unknown): CaptureGap[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.flatMap((gap): CaptureGap[] => {
+    if (!Array.isArray(gap)) return [];
+    const [start, stop, reason] = [finite(gap[0]), finite(gap[1]), gap[2]];
+    if (start == null || stop == null || stop < start) return [];
+    return [[start, stop, typeof reason === 'string' ? reason : null]];
+  });
+}
+
+/** Bytes per stream file; any stream that is not a count reads as 0 (absent on disk). */
+function streamBytes(value: unknown): CaptureSessionRow['bytes'] {
+  if (!isObject(value)) return undefined;
+  const size = (v: unknown) => Math.max(0, finite(v) ?? 0);
+  return { prints: size(value.prints), l2: size(value.l2), quotes: size(value.quotes) };
 }
 
 function parseRow(row: Obj): CaptureSessionRow | null {
@@ -37,6 +55,8 @@ function parseRow(row: Obj): CaptureSessionRow | null {
     status: text(row.status),
     source: nullable(row.source),
     spans: rangePairs(row.spans),
+    gaps: gapRows(row.gaps),
+    bytes: streamBytes(row.bytes),
   };
   for (const key of Object.keys(out) as (keyof CaptureSessionRow)[]) {
     if (out[key] === undefined) delete out[key];

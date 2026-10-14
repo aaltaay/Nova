@@ -58,23 +58,31 @@ def shorts_on() -> set[str]:
 def pick_setups(lanes: list[Any], now: float) -> list[tuple[str, str]]:
     """``(symbol, why)`` for every setup of the templates in play: in a trade, near, then armed. A short
     setup counts only while its strategy is On (``shorts_on``)."""
+    return [(sym, why) for sym, why, _setup in pick_setups_named(lanes, now)]
+
+
+def pick_setups_named(lanes: list[Any], now: float) -> list[tuple[str, str, str | None]]:
+    """``pick_setups`` with the setup each symbol counts for (its best lane's; ``None`` when a lane
+    names none) -- Records says which setup a recording was taken for (operator ask 2026-10-14)."""
     from constants_bot import watch_only
 
-    best: dict[str, str] = {}
+    best: dict[str, tuple[str, str | None]] = {}
     on: set[str] | None = None
     for lane in lanes:
         params = getattr(lane, "p", None)
-        if watch_only(getattr(params, "setup", None)):
+        setup = getattr(params, "setup", None)
+        if watch_only(setup):
             continue                           # a watch-only setup (#847) never trades: it takes no line
         if getattr(params, "short", False):
             on = shorts_on() if on is None else on
-            if getattr(params, "setup", None) not in on:
+            if setup not in on:
                 continue                       # a short at Eyes or Off takes no line (ADR 049)
         found = [(s, WHY_TRADE) for s in lane.trade_symbols(now)]
         for sym in lane.watching():
             state = getattr(lane.det.get(sym), "state", None)
             found.append((sym, WHY_NEAR if state == SETUP_STATE_NEAR else WHY_ARMED))
         for sym, why in found:
-            if sym not in best or TIERS.index(why) < TIERS.index(best[sym]):
-                best[sym] = why
-    return sorted(best.items(), key=lambda item: (TIERS.index(item[1]), item[0]))
+            if sym not in best or TIERS.index(why) < TIERS.index(best[sym][0]):
+                best[sym] = (why, setup if isinstance(setup, str) else None)
+    ranked = sorted(best.items(), key=lambda item: (TIERS.index(item[1][0]), item[0]))
+    return [(sym, why, setup) for sym, (why, setup) in ranked]

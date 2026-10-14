@@ -132,6 +132,23 @@ def test_a_deliberate_stop_is_not_missing_time_but_a_failure_is() -> None:
     assert missing_seconds(segments) == 5 * 60
 
 
+def test_each_gap_names_what_ended_the_stretch_before_it(capture_root) -> None:
+    """Records draws a gap stopped on purpose apart from one that went missing (operator ask 2026-10-14)."""
+    manifest = {"source": "ibkr", "status": "stopped_partial_ok", "counts": {"prints": 3}, "segments": [
+        _segment("09:00:00", "09:30:00", reason="auto"),
+        _segment("09:40:00", "10:00:00", reason="restart", status="interrupted"),
+        _segment("10:02:00", "10:10:00", reason="operator"),
+    ]}
+    _session(capture_root, "GAPS", manifest, written=_ts("10:10:00"))
+    row = _row("GAPS")
+    assert row["gaps"] == [
+        [int(_ts("09:30:00")), int(_ts("09:40:00")), "auto"],
+        [int(_ts("10:00:00")), int(_ts("10:02:00")), "restart"],
+    ]
+    missing = sum(stop - start for start, stop, reason in row["gaps"] if reason not in ("operator", "auto"))
+    assert row["missing_sec"] == missing == 120
+
+
 def test_data_written_past_the_last_segment_is_listed_and_uncounted(capture_root) -> None:
     manifest = {"source": "ibkr", "status": "interrupted", "counts": {"prints": 3},
                 "segments": [_segment("10:00:00", "10:10:00", reason="restart", status="interrupted")]}

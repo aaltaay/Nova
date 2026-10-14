@@ -107,6 +107,18 @@ describe('parseHistoricalSnapshot (C9)', () => {
 });
 
 describe('parseCaptureSessions (C13 / C21 / C22)', () => {
+  it('keeps each gap with its reason and each stream file size; a malformed gap is skipped (2026-10-14)', () => {
+    const parsed = parseCaptureSessions({ root: 'F:/cap', tickers_by_day: { '2026-10-14': [{
+      symbol: 'cohq', prints: 1, l2: 1,
+      gaps: [[100, 160, 'restart'], [200, 210, null], [300, 250, 'auto'], ['x', 1, 'auto'], 'junk'],
+      bytes: { prints: 10, l2: 'many', quotes: 5 },
+    }] } });
+    const row = parsed.tickers_by_day['2026-10-14'][0];
+    expect(row.gaps).toEqual([[100, 160, 'restart'], [200, 210, null]]);
+    expect(row.bytes).toEqual({ prints: 10, l2: 0, quotes: 5 });
+    expect(parsed.root).toBe('F:/cap');
+  });
+
   it('a listing without tickers_by_day, or with a list there, reads as no Session Records', () => {
     expect(parseCaptureSessions({ days: [{ date: '2026-09-21', ticker_count: 1 }] })).toMatchObject({
       days: [{ date: '2026-09-21', ticker_count: 1 }], tickers_by_day: {},

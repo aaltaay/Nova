@@ -20,8 +20,15 @@ export interface CaptureSessionRow {
   source?: string | null;
   /** `[[start, stop], ...]` whole epoch seconds per recorded segment (open: runs to now). */
   spans?: number[][];
+  /** `[[start, stop, reason], ...]` each stretch no segment covers; `reason` ended the stretch before it. */
+  gaps?: CaptureGap[];
+  /** Bytes on disk per stream file. */
+  bytes?: { prints: number; l2: number; quotes: number };
 }
+export type CaptureGap = [number, number, string | null];
 export interface CaptureSessions {
+  /** Where the Session Records live (the capture root). */
+  root?: string;
   days: { date: string; ticker_count: number }[];
   tickers_by_day: Record<string, CaptureSessionRow[]>;
 }

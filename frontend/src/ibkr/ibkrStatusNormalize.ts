@@ -11,7 +11,8 @@
  * becomes the empty value of its type; a field that is absent stays absent;
  * a well-formed payload comes back unchanged.
  */
-import type { AutoRecordStatus, IbkrMode, IbkrStatus, LeaderboardRecorderStatus } from './types';
+import { parseAutoRecordStatus } from './autoRecordStatusParse';
+import type { IbkrMode, IbkrStatus, LeaderboardRecorderStatus } from './types';
 
 const MODES: readonly IbkrMode[] = ['paper', 'live', 'sim', 'disconnected'];
 const VENUES = ['live', 'paper', 'sim'] as const;
@@ -101,7 +102,7 @@ export function normalizeIbkrStatus(raw: unknown): IbkrStatus | null {
   }
   if ('gateway_self_heal' in raw && !isPlainObject(raw.gateway_self_heal)) out.gateway_self_heal = null;
   if ('leaderboard_recorder' in raw) out.leaderboard_recorder = leaderboardRecorder(raw.leaderboard_recorder);
-  if ('auto_record' in raw) out.auto_record = autoRecord(raw.auto_record);
+  if ('auto_record' in raw) out.auto_record = parseAutoRecordStatus(raw.auto_record);
   return out as unknown as IbkrStatus;
 }
 
@@ -118,16 +119,5 @@ function leaderboardRecorder(value: unknown): LeaderboardRecorderStatus | null {
     error: textOrNull(value.error),
     since: finiteOrNull(value.since),
     run_id: textOrNull(value.run_id),
-  };
-}
-
-function autoRecord(value: unknown): AutoRecordStatus | null {
-  if (!isPlainObject(value)) return null;
-  return {
-    active: value.active === true,
-    window: textOrNull(value.window) ?? '',
-    symbols: stringList(value.symbols),
-    yielded: stringList(value.yielded),
-    last_error: textOrNull(value.last_error),
   };
 }

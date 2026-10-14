@@ -514,3 +514,42 @@ def test_a_start_ibkr_refuses_pauses_new_starts_instead_of_trying_the_next_stock
     run(auto_record.tick(et(7, 6, 1)))
     assert desk.recording == ["BBB", "CCC"]  # AAA waits out its own retry
     assert auto_record.status(et(7, 6, 1))["paused_until"] is None
+
+
+# -- the operator's switch (operator ask 2026-10-14) ------------------------------
+
+
+def test_turning_it_off_stops_its_own_lines_at_once_and_starts_none_until_on(desk):
+    from types import SimpleNamespace
+
+    from leaderboard import auto_record_switch
+
+    lane = Lane(near=["NER"], trades=["TRD"])
+    lane.p = SimpleNamespace(setup="flat_top_5m", short=False)
+    desk.lanes = [lane]
+    desk.recording = ["OPR"]  # the operator's own recording
+    auto_record.operator_took("OPR")
+    run(auto_record.tick(et(7, 5)))
+    assert set(desk.recording) == {"OPR", "TRD", "NER"}
+    assert auto_record.status(et(7, 5))["setup"] == {"NER": "flat_top_5m", "TRD": "flat_top_5m"}
+    auto_record_switch.set_mode("off", et(7, 6))
+    assert run(auto_record.turned_off()) == ["NER", "TRD"]  # a trade being scored stops too
+    assert desk.recording == ["OPR"]
+    assert {("NER", "auto"), ("TRD", "auto")} <= set(desk.stops)
+    run(auto_record.tick(et(7, 7)))
+    assert desk.recording == ["OPR"]
+    got = auto_record.status(et(7, 7))
+    assert got["active"] is False and got["switch"]["mode"] == "off" and got["switch"]["source"] == "operator"
+    auto_record_switch.set_mode("on", et(7, 8))
+    run(auto_record.tick(et(7, 8)))
+    assert set(desk.recording) == {"OPR", "TRD", "NER"}
+
+
+def test_off_for_today_is_off_on_the_ticks_own_clock(desk):
+    from leaderboard import auto_record_switch
+
+    desk.lanes = [Lane(armed=["ARM"])]
+    auto_record_switch.set_mode("off_today", et(7, 0))
+    run(auto_record.tick(et(7, 5)))
+    assert desk.recording == []
+    assert auto_record.status(et(7, 5))["switch"]["until"] == et(4, 0) + 24 * 3600

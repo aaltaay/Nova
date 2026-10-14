@@ -184,7 +184,7 @@ export const hodReplayError = (error: string): string => `Alert history did not 
 export const HOD_REPLAY_CLEAR_TITLE = 'Past alerts are history -- nothing to clear while Sim replays.';
 
 /** REC chip card: a recording auto-record started (07:00-10:00 ET leaders). */
-export const AUTO_RECORD_CHIP_LINE = 'auto -- recorded by auto-record (07:00-10:00 ET leaders); stops on its own';
+export const AUTO_RECORD_CHIP_LINE = 'auto -- recorded by auto-record; it stops on its own, and Records turns it off';
 
 /**
  * A rebuilt day's Gappers by the second (ADR 023 amendment 2026-10-13): built once a day from the Massive
