@@ -31,11 +31,11 @@
       "title": "Market page lanes outlive the backend tests that start them, and make other tests flaky",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "ci",
       "number": "925",
       "url": "https://github.com/aaltaay/Nova/issues/925",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#923",
