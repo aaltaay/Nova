@@ -19,6 +19,14 @@ describe('capture pill', () => {
     expect(capturePill(day({ feed: { state: 'unreachable', error: 'timed out after 3 s' } }))).toEqual({
       tone: 'down', text: 'The feed is not answering · timed out after 3 s' });
   });
+
+  it("warns when the bar read is the stream's past, never Live", () => {
+    // 2026-10-14: the feed read the stream 29 minutes behind; the pill said Live and every slot "Their slot now".
+    expect(capturePill(day({ capture: capture({ clock: '09:40:00' }) }))).toEqual({
+      tone: 'warn', text: 'Reading 30m 00s behind the stream · bar read 09:40:00 ET · positions shown are from then' });
+    // Up to 30 s behind is the stream's own latency: still live.
+    expect(capturePill(day({ capture: capture({ clock: '10:09:30' }) }))!.tone).toBe('live');
+  });
 });
 
 describe('the stream on air', () => {
