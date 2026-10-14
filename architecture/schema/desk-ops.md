@@ -381,6 +381,34 @@ page opens its issue form when the value changes after it subscribed (the value
 the first view carries is never replayed); with no page listening the menu opens
 GitHub's new-issue page instead.
 
+**A release still being built (operator report, 2026-10-13).** `Desktop pack`
+publishes a merged commit's Release about seven minutes after it lands, and
+Help > Check for Updates in that gap read only "Nova v1275 is the latest
+release." (v1276 merged 22:25:08 UTC and published 22:31:20; the operator asked
+at 22:29 and 22:30). A Help-menu check that settles on `current` now asks GitHub,
+unauthenticated, whether a newer release is being built
+(`frontend/electron/releaseBuild.mjs`); automatic checks never ask. Reads:
+`GET /repos/aaltaay/Nova/actions/workflows/desktop-pack.yml/runs?branch=master&status=in_progress`
+(then `status=queued` when none of those will pack), its `workflow_runs[]`
+`{id, status, event, head_branch, head_sha, created_at, run_started_at}`, newest
+first, never a pull request's. A `workflow_dispatch` run (PR delivery's, or by
+hand) always packs; a `push` run packs only when its `Desktop pack` job runs on
+`windows-latest` (`GET .../actions/runs/{id}/jobs`, `jobs[] {name, labels}`;
+a docs-only push runs it on `ubuntu-latest` and gets no Release), and a job not
+yet listed is not counted. The run's `vNNN` is its head commit's count, as
+`Desktop pack` stamps it (`git rev-list --count`): `GET
+/repos/aaltaay/Nova/commits?sha=<head_sha>&per_page=1`, whose `Link` header's
+`rel="last"` page is that count. A count above the installed release's adds the
+dialog's `detail` under the unchanged message: "v1276 is being built now
+(started 4 min ago). A build usually takes about 7 minutes; check again in about
+3 minutes. It is published only if its checks pass." -- "is queued to be built
+(queued 1 min ago)" for a queued run, "this one is taking longer; check again in
+a few minutes" past the usual time (`UPDATE_BUILD_TYPICAL_MINUTES`,
+`updatePolicy.mjs`). Every request shares one `RELEASE_BUILD_TIMEOUT_MS` (4 s)
+deadline. Any failure -- offline, rate limit, an HTTP error, an answer of another
+shape, no `rel="last"` -- writes one WARN line to `update.log` and the dialog says
+exactly what it said before. Nothing is persisted.
+
 **Persisted (userData, owner `frontend/electron/`).**
 `release-notes-cache.json` `{schema_version: 1, fetched_at, rows}` -- the last
 page of GitHub's Releases API, so What's new after the restart reads the notes
