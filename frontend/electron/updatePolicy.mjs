@@ -41,6 +41,13 @@ export const UPDATE_QUIET_END_MIN_ET = 16 * 60;
  * check at the click is no intrusion, even in trading hours.
  */
 export const UPDATE_OFFER_FRESH_MS = 60_000;
+/**
+ * How long `Desktop pack` usually takes from a merge to its published Release,
+ * which Help > Check for Updates says beside a release still being built
+ * (releaseBuild.mjs). The fifteen master runs of 2026-10-13 took 5.8 to 7.5
+ * minutes, half of them 6.6 or less; v1276 merged 22:25:08 and published 22:31:20.
+ */
+export const UPDATE_BUILD_TYPICAL_MINUTES = 7;
 
 const OFF_VALUES = new Set(['0', 'false', 'no', 'off']);
 const BUSY_PHASES = new Set(['checking', 'downloading', 'installing']);
