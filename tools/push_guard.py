@@ -34,17 +34,23 @@ HOOK_SCRIPT = f"""#!/bin/sh
 # {HOOK_MARKER}: installed by tools/repo_hygiene.py install-push-guard (remove: --uninstall).
 # Refuses a push that adds commits to a merged PR's branch. Fails open: no tool, no Python,
 # no gh, offline or any error lets the push through; only the guard's own "refuse" (1) stops it.
-root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-tool="$root/tools/repo_hygiene.py"
-[ -f "$tool" ] || exit 0
-if command -v py >/dev/null 2>&1; then
-  py -3 "$tool" push-guard "$@"
-elif command -v python3 >/dev/null 2>&1; then
-  python3 "$tool" push-guard "$@"
-else
-  exit 0
+# The pushed branch's own copy of the tool runs first; a branch cut before the guard existed
+# answers with a usage error (2), so the main checkout's copy is asked next.
+input=$(cat)
+root=$(git rev-parse --show-toplevel 2>/dev/null)
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+if command -v py >/dev/null 2>&1; then py="py -3"
+elif command -v python3 >/dev/null 2>&1; then py="python3"
+else exit 0
 fi
-[ $? -eq 1 ] && exit 1
+for tool in "$root/tools/repo_hygiene.py" "${{common%/.git}}/tools/repo_hygiene.py"; do
+  [ -f "$tool" ] || continue
+  printf '%s\\n' "$input" | $py "$tool" push-guard "$@"
+  case $? in
+    0) exit 0 ;;
+    1) exit 1 ;;
+  esac
+done
 exit 0
 """
 
