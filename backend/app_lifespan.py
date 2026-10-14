@@ -151,6 +151,10 @@ def _init_databases(took: dict[str, float]) -> None:
          "execution ledger: init_db failed")
     step("round_trip", lambda: import_module("journal.round_trip").rebuild_from_ledger(),
          "journal.round_trip: ledger rebuild failed")
+    step("order_path", lambda: import_module("execution.warm").warm_order_path(),
+         "execution: order path warm-up failed")
+    step("short_tests", lambda: import_module("setup_scanner.short_tests").warm(),
+         "short tests: first read failed")
     _hod_momo.set_blocklist_changed_hook(invalidate_universe_cache)
 
 

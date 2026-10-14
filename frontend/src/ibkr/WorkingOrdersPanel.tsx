@@ -1,8 +1,9 @@
 /**
  * Working Orders table — Webull Orders → Working equivalent (WID-026).
- * Cancel / Fill now; column order drag-persisted (localStorage).
+ * Cancel / Fill now; column order drag-persisted (localStorage). Right-click a row to cancel it
+ * (WorkingOrderMenu.tsx) without scrolling to the Actions column.
  */
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import {
   FILL_WORKING_ORDER_BUTTON_LABEL,
@@ -30,6 +31,7 @@ import type { IbkrOrder } from './types';
 import { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
 import { useOrderTableSort } from './useOrderTableSort';
 import { renderWorkingOrderCell } from './workingOrderCells';
+import { WorkingOrderMenu, type WorkingOrderMenuAt } from './WorkingOrderMenu';
 
 interface Props {
   orders: IbkrOrder[];
@@ -84,6 +86,21 @@ export function WorkingOrdersPanel({
   // Last-known rows lock every row action; each locked button says why (ux/whyTip.ts).
   const readWhy = error ? WORKING_ORDER_READ_FAILED_WHY : undefined;
 
+  const [menuAt, setMenuAt] = useState<WorkingOrderMenuAt | null>(null);
+  const closeMenu = useCallback(() => setMenuAt(null), []);
+  const menuIndex = menuAt ? rowKeys.indexOf(menuAt.key) : -1;
+  const menuOrder = menuIndex >= 0 ? rows[menuIndex] : null;
+  // Its order filled or left the list: the menu never offers to cancel what is no longer working.
+  useEffect(() => {
+    if (menuAt && !menuOrder) setMenuAt(null);
+  }, [menuAt, menuOrder]);
+  const openMenu = onCancelOrder
+    ? (key: string) => (event: MouseEvent<HTMLTableRowElement>) => {
+        event.preventDefault();
+        setMenuAt({ key, x: event.clientX, y: event.clientY });
+      }
+    : undefined;
+
   return (
     <div
       className={`ibkr-working-orders${compact ? ' ibkr-working-orders--compact' : ''}`}
@@ -132,9 +149,15 @@ export function WorkingOrdersPanel({
               const fillWhy = readWhy ?? (rem <= 0 ? FILL_WORKING_ORDER_NOTHING_LEFT_WHY : undefined);
               const sideCls = orderSideClass(o.side);
               const sideRowCls = orderSideRowClass(o.side);
-              const rowClass = [sideRowCls, highlighted ? 'ibkr-order-row--highlight' : '']
+              const rowKey = rowKeys[rowIndex];
+              const rowClass = [
+                sideRowCls,
+                highlighted ? 'ibkr-order-row--highlight' : '',
+                menuAt?.key === rowKey ? 'ibkr-order-row--menu' : '',
+              ]
                 .filter(Boolean)
                 .join(' ');
+              const onContextMenu = openMenu?.(rowKey);
               const ctx = {
                 statusLabel,
                 tone,
@@ -189,12 +212,13 @@ export function WorkingOrdersPanel({
               if (onSelectSymbol && onOpenTrading) {
                 return (
                   <SelectableTableRow
-                    key={rowKeys[rowIndex]}
+                    key={rowKey}
                     symbol={o.symbol}
                     selected={selectedSymbol === o.symbol || highlighted}
                     onSelect={onSelectSymbol}
                     onOpenTrading={onOpenTrading}
                     className={rowClass || undefined}
+                    onContextMenu={onContextMenu}
                   >
                     {cells}
                   </SelectableTableRow>
@@ -203,10 +227,11 @@ export function WorkingOrdersPanel({
 
               return (
                 <tr
-                  key={rowKeys[rowIndex]}
+                  key={rowKey}
                   className={rowClass || undefined}
                   data-order-id={o.order_id}
                   data-side={o.side}
+                  onContextMenu={onContextMenu}
                 >
                   {cells}
                 </tr>
@@ -216,6 +241,16 @@ export function WorkingOrdersPanel({
         </table>
         </OrderTableDnd>
       )}
+      {menuAt && menuOrder && onCancelOrder ? (
+        <WorkingOrderMenu
+          order={menuOrder}
+          x={menuAt.x}
+          y={menuAt.y}
+          why={readWhy}
+          onCancel={onCancelOrder}
+          onClose={closeMenu}
+        />
+      ) : null}
     </div>
   );
 }

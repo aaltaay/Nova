@@ -3,6 +3,12 @@
 The harness writes schema-1 result files; malformed or unknown schemas report error. The result's
 rules hash reports whether its template matches, never grants or refuses trading permission (#791).
 No backend path writes or alters a research verdict.
+
+A caller never waits on the disk past a process's first read (operator report 2026-10-14). The files
+live with the Massive data, on a drive the downloader keeps busy: re-reading five 5 KB files took
+230 to 830 ms, and the setup board did it on the request loop every 30 s, so an order sent then
+waited. ``warm`` reads them at startup off the loop; a result older than ``SHORT_TESTS_CACHE_SEC``
+is answered as it was last read while one thread reads it again.
 """
 from __future__ import annotations
 
@@ -35,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 _cache: dict[str, tuple[float, dict[str, Any] | str | None]] = {}   # setup -> (read at, body | error | None)
+_reading: set[str] = set()   # setups a thread is reading again now
 
 
 def folder() -> Path:
@@ -57,11 +64,41 @@ def path_of(setup: str) -> Path:
 
 
 def _load(setup: str, now: float) -> dict[str, Any] | str | None:
-    """The result file's body, or why it cannot be read (a string), or None when there is none yet."""
+    """The result file's body, or why it cannot be read (a string), or None when there is none yet.
+
+    Only a setup this process has never read is read here, on the caller's thread; one read before is
+    answered at once, and a thread reads it again when it is older than ``SHORT_TESTS_CACHE_SEC``.
+    """
     with _lock:
         hit = _cache.get(setup)
-        if hit is not None and now - hit[0] < SHORT_TESTS_CACHE_SEC:
+        if hit is not None:
+            if now - hit[0] >= SHORT_TESTS_CACHE_SEC and setup not in _reading:
+                _reading.add(setup)
+                threading.Thread(target=_read_again, args=(setup, now), name=f"short-tests-{setup}",
+                                 daemon=True).start()
             return hit[1]
+    return _store(setup, now)
+
+
+def _read_again(setup: str, now: float) -> None:
+    try:
+        _store(setup, now)
+    except Exception:
+        logger.exception("short tests: %s could not be read again; the last read stays", setup)
+    finally:
+        with _lock:
+            _reading.discard(setup)
+
+
+def warm() -> None:
+    """Read every short setup's result once, at startup and off the request loop."""
+    now = time.time()
+    for setup in BOT_SHORT_SETUPS:
+        _store(setup, now)
+
+
+def _store(setup: str, now: float) -> dict[str, Any] | str | None:
+    """Read the result file (the only disk read) and keep what it says."""
     path = path_of(setup)
     try:
         body: dict[str, Any] | str | None = json.loads(path.read_text(encoding="utf-8"))
@@ -176,3 +213,4 @@ def test_in_play(setup: str, *, now: float | None = None) -> dict[str, Any] | No
 def reset_for_tests() -> None:
     with _lock:
         _cache.clear()
+        _reading.clear()
