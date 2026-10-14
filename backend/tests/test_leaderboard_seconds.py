@@ -402,3 +402,84 @@ def test_a_real_build_process_finishes_the_day(day, monkeypatch):
     state = _wait(timeout=120.0)
     assert state["status"] == "ready", state
     assert _symbols("07:45:31") == [("CCC", 1.50), ("AAA", 1.20), ("BBB", 2.30)]
+
+
+@pytest.mark.parametrize("broken, said", [
+    ("tickers.json", "reference list of stocks"),
+    ("splits.json", "split list"),
+])
+def test_a_build_missing_a_reference_file_fails_with_the_reason_never_a_short_list(day, broken, said):
+    (day / "store" / "reference" / broken).unlink()
+    state = _built()
+    assert state["status"] == "failed" and said in state["error"], state
+    assert not store.data_path(DAY, "gappers").exists()
+
+
+def test_a_build_missing_the_prior_sessions_day_bars_fails_with_the_reason(day):
+    (day / "day_aggs_v1" / PRIOR[:4] / PRIOR[5:7] / f"{PRIOR}.csv.gz").unlink()
+    state = _built()
+    assert state["status"] == "failed" and "session before" in state["error"], state
+
+
+def test_a_backend_shutting_down_ends_its_build_and_waits_for_it(day, monkeypatch):
+    def slow(day_, stop=None):
+        store.write_job(day_, "gappers", status="building", stage="trades")
+        stop.wait(10)
+        raise inputs.Cancelled()
+
+    monkeypatch.setattr(run, "run", slow)
+    job.request(DAY)
+    _wait(until=("building",))
+    job.stop_all(wait_sec=5.0)
+    assert job.status(DAY)["status"] == "stopped"
+    assert not job._running
+
+
+def test_a_build_of_a_rebuilt_day_since_replaced_is_never_read(day, monkeypatch):
+    _built()
+    assert _symbols("07:45:00") == [("AAA", 1.15)]
+    with board_store.connect() as db:                                      # the day is rebuilt: another price
+        db.execute("UPDATE rows SET price = 1.16 WHERE symbol = 'AAA' AND board = 'gappers' AND minute_ts = ?",
+                   (ts("07:45"),))
+        db.commit()
+    monkeypatch.setattr(job, "LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC", 0.0)
+    playback.answer(DAY, ts("07:45:00"))                 # the old reading answers; a new one starts behind it
+    end = time.monotonic() + 10
+    while job._refreshing and time.monotonic() < end:
+        time.sleep(0.02)
+    answer = playback.answer(DAY, ts("07:45:00"))
+    assert answer["status"] == "none" and answer["reason"] == job.STALE and answer["rows"] == []
+
+
+@pytest.mark.parametrize("column, value", [("prev_close", 1.01), ("rank", 7), ("volume", 999.0)])
+def test_the_fingerprint_sees_every_field_a_build_reads(day, column, value):
+    db = board_store.read_only()
+    before = inputs.fingerprint(db, DAY)
+    db.close()
+    with board_store.connect() as db:
+        db.execute(f"UPDATE rows SET {column} = ? WHERE symbol = 'AAA' AND minute_ts = ?", (value, ts("07:45")))
+        db.commit()
+    db = board_store.read_only()
+    assert inputs.fingerprint(db, DAY) != before
+    db.close()
+
+
+def test_a_failed_bootstrap_still_ends_the_build_on_shutdown(monkeypatch):
+    import asyncio
+
+    import app_lifespan
+    from leaderboard.seconds import job as seconds_job
+
+    async def broken_bootstrap() -> None:
+        raise RuntimeError("bootstrap failed")
+
+    stopped = []
+    monkeypatch.setattr(app_lifespan, "_bootstrap_runtime", broken_bootstrap)
+    monkeypatch.setattr(seconds_job, "stop_all", lambda *a, **k: stopped.append(True))
+
+    async def body() -> None:
+        async with app_lifespan.lifespan(FastAPI()):
+            await asyncio.sleep(0.05)                                     # the bootstrap fails meanwhile
+
+    asyncio.run(body())
+    assert stopped == [True]

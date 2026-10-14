@@ -3,7 +3,7 @@
 ``request`` is the desk's one door (``POST /api/leaderboard/{date}/seconds``): it says why a day cannot be built
 (``unavailable``), leaves a ready, queued or building day alone, and otherwise starts the build in its own process
 (``worker``), below normal priority. One day at a time: asking for another day ends the running build, whose job
-then reads ``stopped``. A watcher marks a build whose process ended without finishing ``failed`` (or ``stopped``
+then reads ``stopped``; so does a backend shutting down (``stop_all``, from ``app_lifespan``). A watcher marks a build whose process ended without finishing ``failed`` (or ``stopped``
 when it was ended on purpose); a ``building`` job no process rewrites for ``LEADERBOARD_SECONDS_STALE_SEC`` -- a
 restart killed it -- reads ``failed`` too. ``status`` is what the route answers.
 """
@@ -22,10 +22,12 @@ from constants_leaderboard import (
     LEADERBOARD_SECONDS_ACTIVE,
     LEADERBOARD_SECONDS_BOARD,
     LEADERBOARD_SECONDS_FAILED,
+    LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC,
     LEADERBOARD_SECONDS_NONE,
     LEADERBOARD_SECONDS_QUEUED,
     LEADERBOARD_SECONDS_READY,
     LEADERBOARD_SECONDS_STALE_SEC,
+    LEADERBOARD_SECONDS_STOP_WAIT_SEC,
     LEADERBOARD_SECONDS_STOPPED,
     LEADERBOARD_SECONDS_UNAVAILABLE,
 )
@@ -39,6 +41,12 @@ BOARD = LEADERBOARD_SECONDS_BOARD
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 _lock = threading.RLock()
 _running: dict[str, "_Handle"] = {}
+
+# The stored rebuilt day's fingerprint per day: (read at, fingerprint), reused for FINGERPRINT_TTL_SEC and then
+# read again in the background, so a read of the list never waits on it (about a second).
+_fingerprints: dict[str, tuple[float, str | None]] = {}
+_refreshing: set[str] = set()
+STALE = "The rebuilt day changed since this was built; asking again builds it again"
 
 RECORDED = ("Nova recorded this day: its Gappers are the list the desk showed, kept per minute")
 NOT_REBUILT = "This day has no rebuilt Gappers list to fill in"
@@ -54,6 +62,10 @@ class _Handle:
     def stop(self) -> None:
         raise NotImplementedError
 
+    def wait(self, timeout: float) -> bool:
+        """True once the build has ended (within ``timeout`` seconds)."""
+        raise NotImplementedError
+
 
 class _ProcessHandle(_Handle):
     def __init__(self, day: str, proc: subprocess.Popen):
@@ -66,6 +78,13 @@ class _ProcessHandle(_Handle):
     def stop(self) -> None:
         self.stopping = True
         self.proc.terminate()
+
+    def wait(self, timeout: float) -> bool:
+        try:
+            self.proc.wait(timeout)
+        except subprocess.TimeoutExpired:
+            return False
+        return True
 
 
 class _ThreadHandle(_Handle):
@@ -82,6 +101,10 @@ class _ThreadHandle(_Handle):
     def stop(self) -> None:
         self.stopping = True
         self.event.set()
+
+    def wait(self, timeout: float) -> bool:
+        self.thread.join(timeout)
+        return not self.thread.is_alive()
 
 
 def _thread_main(handle: _ThreadHandle) -> None:
@@ -183,9 +206,38 @@ def _stored_fingerprint(day: str) -> str | None:
     if db is None:
         return None
     try:
-        return inputs.fingerprint(db, day)
+        mark = inputs.fingerprint(db, day)
     finally:
         db.close()
+    _fingerprints[day] = (time.monotonic(), mark)
+    return mark
+
+
+def current(job: dict[str, Any], day: str) -> bool:
+    """Whether a ready job was built from the rebuilt day as it is stored now. The first check of a day reads the
+    store; later ones use the last reading and, once it is older than the TTL, start a new one in the background."""
+    held = _fingerprints.get(day)
+    if held is None:
+        mark = _stored_fingerprint(day)
+    else:
+        mark = held[1]
+        if time.monotonic() - held[0] > LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC:
+            with _lock:
+                start = day not in _refreshing
+                _refreshing.add(day)
+            if start:
+                threading.Thread(target=_refresh, args=(day,), daemon=True, name="board-seconds-check").start()
+    return job.get("fingerprint") == mark
+
+
+def _refresh(day: str) -> None:
+    try:
+        _stored_fingerprint(day)
+    except Exception:  # the last reading stands; logged, and the next read starts another
+        logger.warning("Gappers by the second: could not re-read the stored day %s", day, exc_info=True)
+    finally:
+        with _lock:
+            _refreshing.discard(day)
 
 
 def status(day: str) -> dict[str, Any]:
@@ -232,15 +284,23 @@ def request(day: str) -> dict[str, Any]:
         return job
 
 
-def stop_all() -> None:
-    """End every running build (the backend is shutting down)."""
+def stop_all(wait_sec: float = LEADERBOARD_SECONDS_STOP_WAIT_SEC) -> None:
+    """End every running build and wait for it (the backend is shutting down: ``app_lifespan``). A build left
+    running would outlive the backend, and the next one could not end it when another day is asked for."""
     with _lock:
-        for handle in list(_running.values()):
-            if handle.alive():
-                handle.stop()
+        handles = [handle for handle in _running.values() if handle.alive()]
+    for handle in handles:
+        handle.stop()
+    for handle in handles:
+        if handle.wait(wait_sec):
+            _ended(handle, "")             # stopped on purpose: the job reads ``stopped``
+        else:
+            logger.warning("Gappers by the second: the build of %s did not end within %.0f s", handle.day, wait_sec)
 
 
 def reset_for_tests() -> None:
     stop_all()
     with _lock:
         _running.clear()
+    _fingerprints.clear()
+    _refreshing.clear()

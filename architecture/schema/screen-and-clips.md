@@ -45,6 +45,19 @@ stalls (no data for 12 s) or ends by itself is started again after 2, 5, 10,
 30 s, then every 60 s, forever; a crashed recorder page is replaced; each loss
 is a `problems` row until it is back.
 
+**Quit** (#927). The recorder's `stop(reason)` does everything that decides at
+once, synchronously: every capture is told to stop, every open file's `end`
+row is written (`reason: "quit"`, or the reason it was already stopping for,
+and the bytes written so far), and the view reads `stopped`. The desktop app's
+`before-quit` calls it and does not wait, so quit stays bounded. It returns a
+promise that settles once every file is closed -- its descriptor let go, not
+only its last write flushed -- and every `end` row is written, including a
+segment whose file was already closing when the stop came. After it settles
+nothing writes under `<dir>`. It never rejects; asking again returns the same
+promise and writes no second row. A file's own `close()` (`SegmentFile` in
+`screenRecordFiles.mjs`) settles on the same terms, once however often it is
+asked.
+
 `GET /api/screen-record` (owner `backend/screen_record/`, in memory, never
 persisted) answers `{schema_version: 1, reported, fresh, age_sec, received_ts,
 report: view | null}`; `fresh` is a report younger than

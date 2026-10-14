@@ -631,6 +631,7 @@ export function startScreenRecorder({
      * The promise settles once every file is closed and every end row written -- including a
      * segment that was already closing when the stop came -- so nothing touches the folder after
      * it (#927). Never rejects; asking again returns the same promise and writes nothing more.
+     * The contract: architecture/schema/screen-and-clips.md, "Quit".
      */
     stop(reason = 'quit') {
       if (stopped) return drained;

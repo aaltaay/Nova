@@ -78,6 +78,9 @@ def answer(day: str, at: float) -> dict[str, Any]:
                            "minute_ts": None, "state": None, "rows": []}
     if out["status"] != LEADERBOARD_SECONDS_READY:
         return out
+    if not job.current(state, day):             # built from a rebuilt day since replaced: never its rows
+        out.update(status=LEADERBOARD_SECONDS_NONE, reason=job.STALE)
+        return out
     second = int(math.floor(float(at)))
     first, last = inputs.premarket_minutes(day)[0], inputs.frozen_minutes(day)[-1] + 60
     if not first <= second < last:

@@ -230,7 +230,8 @@
         767,
         915,
         925,
-        927
+        927,
+        940
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
@@ -317,13 +318,14 @@
           ]
         },
         {
-          "title": "test: retire backend state and asynchronous recorder owners before teardown",
+          "title": "test: retire background owners and drain recorder and clip completion before teardown",
           "issues": [
             915,
             925,
-            927
+            927,
+            940
           ],
-          "note": "Related test-isolation failures can hold green-only merges and releases. Restore global state, drain background readers and await recorder completion rather than weaken assertions or hide failures.",
+          "note": "Recorder shutdown #927 is complete in merged #941; retain its historical membership and shared file-owner footprint. Remaining #915 global restoration, #925 Market readers and #940 clip finalizers must finish before fixture teardown. Preserve synchronous quit effects and await descriptor closure; never hide failures or weaken assertions.",
           "gated": false,
           "touches": [
             "backend/tests/conftest.py",
@@ -334,7 +336,16 @@
             "backend/tests/test_ibkr_session_errors.py",
             "backend/ibkr/session_errors.py",
             "backend/market_board/ibkr_reads.py",
-            "backend/tests/test_market_board_refresh.py"
+            "backend/tests/test_market_board_refresh.py",
+            "frontend/electron/screenRecordFiles.mjs",
+            "frontend/electron/clipHq.mjs",
+            "frontend/electron/clipService.mjs",
+            "frontend/electron/clipServiceActions.mjs",
+            "frontend/src/electron/clipService.test.ts",
+            "frontend/electron/clipExporter.mjs",
+            "frontend/electron/clipStore.mjs",
+            "architecture/decisions/039-share-clips.md",
+            "architecture/schema/screen-and-clips.md"
           ]
         }
       ]

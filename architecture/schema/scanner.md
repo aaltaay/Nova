@@ -418,7 +418,13 @@ Owner `backend/leaderboard/seconds/`. A day's Gappers by the second is built
 once, on the desk's request, in its own process (`python -m
 leaderboard.seconds.worker --date D` / `nova-api.exe --board-seconds --date
 D`, below normal priority, memory capped), one day at a time: a request for
-another day ends a running build (`stopped`), and asking again starts it over.
+another day ends a running build (`stopped`), and so does the backend shutting
+down (`job.stop_all` from `app_lifespan`, which waits for it, even after a
+failed bootstrap), so a build never outlives its backend; asking again starts it over. A file the build needs to see
+every stock that can be on the list -- `tickers.json`, Massive's `splits.json`,
+the prior session's day bars -- that cannot be read fails the build with the
+reason, never a list that quietly leaves those stocks out (an absent
+`splits_confirmed.json` means none confirmed).
 - **Who can be on the list inside minute m** (the seconds `[m, m + 60)`, m from
   04:01 to 09:29): every common / ADR stock whose price as of m, or the high of
   its minute bar starting at m, clears `GAPPERS_RULES`. A price inside the
@@ -470,9 +476,11 @@ date, board: "gappers", status: "queued" | "building" | "ready" | "failed" |
 summary}` -- `stage` one of `inputs | index | trades | writing`, `done` / `total`
 the stocks read. A `building` job not rewritten for
 `LEADERBOARD_SECONDS_STALE_SEC` belonged to a process that died and reads
-`failed`. Invalidated when the rebuilt day changes: `fingerprint` is the stored
-Gappers rows' count and last minute, and a request that finds another builds the
-day again. An unknown `schema_version` (either file) is never read and the day
+`failed`. Invalidated when the rebuilt day changes: `fingerprint` is a SHA-256
+over everything a build reads from the store -- every rebuilt Gappers row of the
+day (`minute_ts, symbol, rank, price, volume, prev_close`) and every stored
+stock's `(symbol, prev_close)` that day (about a second) -- and a request that
+finds another builds the day again. An unknown `schema_version` (either file) is never read and the day
 is built again. `summary`: `{candidates, from_outside_store, stocks_read,
 seconds_rows, read_indexed, checked_minutes, agreed_minutes, disagreements:
 [{minute_ts, stored, by_second}] (at most 20), build_sec}` -- each minute's list
@@ -486,7 +494,15 @@ null, rows: [row]}`. `status` is the job's, `none` before any request, or
 `unavailable` with `reason` (a day Nova recorded -- that is the desk's own list,
 kept per minute -- a day rebuilt without Gappers, or a day file not on disk).
 `rows` only while `ready` and `at` falls in `[04:01, 20:01)` ET, else `[]` with
-`second_ts` null. The Scanner on a rebuilt day asks for the build once a day,
+`second_ts` null. A `ready` file whose `fingerprint` no longer matches the stored
+rebuilt day reads `none` with that `reason` and no rows, until asking builds it
+again; a read compares the last reading of the store, re-read in the background
+once it is older than `LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC` (the first check
+of a day reads it at once), so no read waits on it. The Scanner on a rebuilt day
+asks for the build once a day (a request that failed is asked again every 2 s,
+and nothing is read until one lands; only `unavailable` is final; a read that
+answers `none` after an accepted request asks again, which rebuilds a replaced
+day; a ready list is read again every 30 s with the playhead paused),
 reads the Gappers list each playhead second while it is ready, and keeps the
 minute board until then; its header says `· by the second` on Gappers, or the
 build's progress while it runs. Gainers, Losers and After Hours stay per minute.
