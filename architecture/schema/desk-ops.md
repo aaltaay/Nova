@@ -420,11 +420,19 @@ unauthenticated, whether a newer release is being built
 `GET /repos/aaltaay/Nova/actions/workflows/desktop-pack.yml/runs?branch=master&status=in_progress`
 (then `status=queued` when none of those will pack), its `workflow_runs[]`
 `{id, status, event, head_branch, head_sha, created_at, run_started_at}`, newest
-first, never a pull request's. A `workflow_dispatch` run (PR delivery's, or by
-hand) always packs; a `push` run packs only when its `Desktop pack` job runs on
-`windows-latest` (`GET .../actions/runs/{id}/jobs`, `jobs[] {name, labels}`;
-a docs-only push runs it on `ubuntu-latest` and gets no Release), and a job not
-yet listed is not counted. The run's `vNNN` is its head commit's count, as
+first, never a pull request's. Each run's jobs are read (`GET
+.../actions/runs/{id}/jobs?filter=latest&per_page=100`, `jobs[] {id, name,
+status, conclusion, run_attempt, labels}`, the newest attempt of each name
+counting). A run counts only while its Release can still be published: no
+`Desktop pack` job and none of the checks `tools/release_gate.py` requires
+(`Release checks / Backend tests`, `/ Frontend build`, `/ Frontend E2E`,
+`/ Agent contract`) has finished other than `success` -- the run stays
+`in_progress` while the other side still runs, so a red pack would otherwise be
+named as building. A `workflow_dispatch` run (PR delivery's, or by hand) always
+packs; a `push` run packs only when its `Desktop pack` job runs on
+`windows-latest` (a docs-only push runs it on `ubuntu-latest` and gets no
+Release), and one whose job has no runner yet is not counted. The run's `vNNN`
+is its head commit's count, as
 `Desktop pack` stamps it (`git rev-list --count`): `GET
 /repos/aaltaay/Nova/commits?sha=<head_sha>&per_page=1`, whose `Link` header's
 `rel="last"` page is that count. A count above the installed release's adds the
