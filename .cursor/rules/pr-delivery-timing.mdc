@@ -1,6 +1,6 @@
 ---
 description: When a ready PR merges -- the five-minute age floor, the in-flight review wait, and why both live in decide()
-globs: tools/stranded_commits.py,.github/workflows/stranded-commits.yml,tools/pr_delivery.py,tools/pr_delivery_actions.py,tools/pr_review_status.py,.github/workflows/pr-delivery.yml,.github/workflows/deploy.yml
+globs: tools/stranded_commits.py,tools/push_guard.py,.github/workflows/stranded-commits.yml,tools/pr_delivery.py,tools/pr_delivery_actions.py,tools/pr_review_status.py,.github/workflows/pr-delivery.yml,.github/workflows/deploy.yml
 alwaysApply: false
 ---
 
@@ -97,6 +97,15 @@ later sessions that never knew they existed. So:
 - **Before you push to a PR's branch, check the PR is still open**
   (`gh pr view <n> --json state`). Merged? Branch from `origin/master`,
   cherry-pick your commits, open a new PR.
+- **The local guard** (`tools/push_guard.py`) asks that question for you. The
+  Claude Code Stop hook (`repo_hygiene.py stop-gate`) refuses a turn's end
+  while the branch's newest PR is merged and HEAD carries commits that are in
+  neither its merged head nor `origin/master`, and says the three steps. The
+  same check runs as a git `pre-push` hook, opt-in per clone:
+  `py -3 tools/repo_hygiene.py install-push-guard` (`--uninstall`; it never
+  overwrites a hook it did not write, and honours `core.hooksPath`). No `gh`,
+  offline, or a merged head it cannot fetch: it says so and lets the push
+  through. `tools/test_push_guard.py` pins it.
 - **The backstop:** `.github/workflows/stranded-commits.yml` runs
   `tools/stranded_commits.py` on every push to a branch other than master, and hourly.
   Commits after a merged PR's head become a ready `recover/<branch>` PR (CI dispatched
