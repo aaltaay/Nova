@@ -166,6 +166,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Capture / replay truth (issues #316, #317) | `architecture/schema/recording-and-replay.md` |
 | Replay progress and capture fidelity (#321, #337) | `architecture/schema/recording-and-replay.md` |
 | Recording persistence and coverage (operator decision, 2026-09-21) | `architecture/schema/recording-and-replay.md` |
+| The Records page and turning recording off (operator ask, 2026-10-14) | `architecture/schema/recording-and-replay.md` |
 | Recorded depth in historical replay (#309) | `architecture/schema/recording-and-replay.md` |
 | The replayed session's previous close (#542) | `architecture/schema/recording-and-replay.md` |
 | Massive flat files in Sim replay (ADR 046, operator ask 2026-10-06) | `architecture/schema/recording-and-replay.md` |

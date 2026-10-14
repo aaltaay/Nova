@@ -40,6 +40,7 @@ from practice.routes import router as practice_router
 from routes.desk import router as desk_router
 from diagnostics.routes import router as diagnostics_router
 from leaderboard.routes import router as leaderboard_router
+from leaderboard.auto_record_routes import router as auto_record_router
 from setup_scanner.routes import router as setups_router
 from setup_templates.routes import install as install_setup_template_refusals
 from setup_templates.routes import router as setup_templates_router
@@ -102,6 +103,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(desk_router)
     app.include_router(diagnostics_router)
     app.include_router(leaderboard_router)
+    app.include_router(auto_record_router)
     app.include_router(setups_router)
     app.include_router(setup_templates_router)
     install_setup_template_refusals(app)

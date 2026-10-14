@@ -141,6 +141,34 @@ export interface LeaderboardRecorderStatus {
   run_id: string | null;
 }
 
+/** One setup's arming window, ET "HH:MM" (ADR 041). */
+export interface AutoRecordWindow {
+  setup: string;
+  start: string;
+  end: string;
+  open: boolean;
+}
+
+/** Which auto-record window is open (`auto_record_windows.window_state`). */
+export interface AutoRecordWindows {
+  open: 'setups_and_leaders' | 'setups' | 'leaders' | 'none';
+  setups: { open: boolean; start: string | null; end: string | null; by_setup: AutoRecordWindow[]; error: string | null };
+  leaders: { open: boolean; start: string; end: string };
+}
+
+/** The operator's auto-record switch (operator ask 2026-10-14; `scanner.md`, Auto-record). */
+export type AutoRecordMode = 'on' | 'off_today' | 'off';
+export interface AutoRecordSwitch {
+  mode: AutoRecordMode;
+  /** `env`: NOVA_AUTO_RECORD=0 in .env holds it off and the switch cannot change it. */
+  source: 'operator' | 'env' | 'default';
+  day: string | null;
+  /** When Off for today turns back on, epoch seconds. */
+  until: number | null;
+  /** The saved switch could not be read (it then reads On). */
+  error: string | null;
+}
+
 /** `/api/ibkr/status` `auto_record` (ADR 023). */
 export interface AutoRecordStatus {
   active: boolean;
@@ -148,6 +176,13 @@ export interface AutoRecordStatus {
   symbols: string[];
   yielded: string[];
   last_error: string | null;
+  /** Why each held symbol has its line: trade | near | armed | leader | left. */
+  why?: Record<string, string>;
+  /** The setup a held line was taken for; none for a leader. */
+  setup?: Record<string, string>;
+  windows?: AutoRecordWindows;
+  /** Absent from a backend older than the switch. */
+  switch?: AutoRecordSwitch;
 }
 
 export interface IbkrAccountSummary {

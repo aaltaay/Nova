@@ -121,3 +121,42 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+
+/* The card's held Stop and the way to Records (operator ask 2026-10-14). */
+.recording-chip-tip__acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.recording-chip-tip__stop,
+.recording-chip-tip__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--nova-border);
+  border-radius: 7px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--nova-text);
+  background: transparent;
+}
+.recording-chip-tip__stop {
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 55%, transparent);
+  background: color-mix(in srgb, var(--danger, #ef4444) 13%, transparent);
+  color: var(--danger, #ef4444);
+  font-weight: 600;
+}
+.recording-chip-tip__sq {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 1.5px;
+  background: var(--danger, #ef4444);
+}
+.recording-chip-tip__error {
+  margin-top: 6px;
+  color: var(--danger, #ef4444);
+}

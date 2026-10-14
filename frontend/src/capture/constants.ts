@@ -20,6 +20,8 @@ export const recordingChipTitle = (args: {
   l2: number; lastWriteAgeSec: number | null; reacquired: number; dir: string | null;
   /** Started by auto-record (ADR 023), not by hand. */
   auto?: boolean;
+  /** Auto-record's setup and why, in words ("5-minute flat top · near its trigger"). */
+  autoWhy?: string | null;
 }): string => {
   const resumed = Boolean(args.segment && args.segment > 1);
   const lines = [
@@ -30,11 +32,26 @@ export const recordingChipTitle = (args: {
     args.lastWriteAgeSec == null ? 'Nothing written yet' : `Last write ${args.lastWriteAgeSec}s ago`,
   ];
   if (args.auto) lines.push(AUTO_RECORD_CHIP_LINE);
+  if (args.auto && args.autoWhy) lines.push(args.autoWhy);
   if (args.reacquired) lines.push(`IBKR lines asked for again ${args.reacquired}x (a Gateway drop or a lost tape)`);
   if (args.dir) lines.push(args.dir);
-  lines.push('Click to open the tab. Stop from the tab menu (hold).');
+  lines.push('Click to open the tab.');
   return lines.join('\n');
 };
+
+/** Why auto-record holds a line, after its setup (Records and the REC chip's card, operator ask 2026-10-14). */
+export const AUTO_RECORD_WHY_WORDS: Record<string, string> = {
+  trade: 'in a trade being scored',
+  near: 'near its trigger',
+  armed: 'armed, waiting on its trigger',
+  leader: 'a top gainer',
+  left: 'left both lists; its line goes first',
+};
+/** The REC chip's card stops its recording with the Record menu's hold, from any page. */
+export const RECORDING_CHIP_STOP = 'Hold to stop';
+export const recordingChipHolding = (symbol: string): string => `Keep holding… stops ${symbol}`;
+export const RECORDING_CHIP_RECORDS = 'Records';
+export const RECORDING_CHIP_STOP_FAILED = 'Stop did not go through:';
 
 /** Why a recording stopped, in the operator's words. */
 export const RECORDING_STOP_REASONS: Record<string, string> = {

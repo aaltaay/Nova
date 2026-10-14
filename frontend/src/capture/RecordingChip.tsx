@@ -1,7 +1,8 @@
 /**
  * Header REC chips: one per recording symbol (up to three), none otherwise.
- * Red dot, symbol and elapsed time; the hover card carries the counts. Click
- * opens that tab. `variant="bar"` is the redesigned global bar's chip
+ * Red dot, symbol and elapsed time; the hover card carries the counts, who
+ * started it, and a held Stop with a way to Records, so any page can stop a
+ * recording (operator ask 2026-10-14). Click opens that tab. `variant="bar"` is the redesigned global bar's chip
  * (`● REC GRML 5:12`, words on screen); the default stays the compact
  * icon chip the status cluster uses.
  *
@@ -12,25 +13,68 @@
 import { Disc } from 'lucide-react';
 import { Tooltip } from 'radix-ui';
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { BOT_SETUP_LABELS } from '../constantGroups/bot';
 import { getIbkrStatusSnapshot } from '../ibkr/ibkrStatusPoller';
+import type { AutoRecordStatus } from '../ibkr';
 import {
+  AUTO_RECORD_WHY_WORDS,
+  captureStopHoldLabel,
+  RECORDING_CHIP_RECORDS,
   RECORDING_CHIP_ROLE,
+  RECORDING_CHIP_STOP,
+  RECORDING_CHIP_STOP_FAILED,
   RECORDING_CHIP_TOOLTIP_DELAY_MS,
   RECORDING_SIGNAL_TICK_MS,
+  recordingChipHolding,
   recordingChipTitle,
   recordingChipValue,
 } from './constants';
+import { HoldToStopButton } from './HoldToStopButton';
 import { elapsedClockLabel, elapsedLabel, recordingView } from './recordingSignalModel';
 import { AUTO_RECORD_CHIP_LINE } from '../leaderboard/leaderboardConstants';
-import { getRecordingSymbols, getSessionRecordVersion, subscribeSessionRecord } from './sessionRecordStore';
+import { getRecordingSymbols, getSessionRecordVersion, stopTabRecord, subscribeSessionRecord } from './sessionRecordStore';
 import './recordingSignal.css';
 
 interface Props {
   onOpenSymbol?: (symbol: string) => void;
+  /** Opens Records; the card's Records button shows only when given. */
+  onOpenRecords?: () => void;
   variant?: 'compact' | 'bar';
 }
 
-export function RecordingChip({ onOpenSymbol, variant = 'compact' }: Props) {
+/** "5-minute flat top · near its trigger" for an auto-recorded symbol; null when Nova does not say. */
+function autoWhyLine(auto: AutoRecordStatus | null | undefined, symbol: string): string | null {
+  const setup = auto?.setup?.[symbol];
+  const why = auto?.why?.[symbol];
+  const parts = [setup ? BOT_SETUP_LABELS[setup] ?? setup : null, why ? AUTO_RECORD_WHY_WORDS[why] ?? why : null];
+  return parts.filter(Boolean).join(' · ') || null;
+}
+
+/** The card's held Stop and the way to Records; a Stop that fails says so on the card. */
+function CardActions({ symbol, onOpenRecords }: { symbol: string; onOpenRecords?: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <div className="recording-chip-tip__acts">
+        <HoldToStopButton role="button" label={captureStopHoldLabel(symbol)}
+          onConfirm={() => void stopTabRecord(symbol).then(setError)} className="recording-chip-tip__stop"
+          testId="status-chip-recording-stop"
+          holding={<><span className="recording-chip-tip__sq" aria-hidden="true" />{recordingChipHolding(symbol)}</>}>
+          <span className="recording-chip-tip__sq" aria-hidden="true" />{RECORDING_CHIP_STOP}
+        </HoldToStopButton>
+        {onOpenRecords && (
+          <button type="button" className="recording-chip-tip__btn" data-testid="status-chip-recording-records"
+            onClick={onOpenRecords}>
+            {RECORDING_CHIP_RECORDS}
+          </button>
+        )}
+      </div>
+      {error && <div className="recording-chip-tip__error" role="alert">{RECORDING_CHIP_STOP_FAILED} {error}</div>}
+    </>
+  );
+}
+
+export function RecordingChip({ onOpenSymbol, onOpenRecords, variant = 'compact' }: Props) {
   useSyncExternalStore(subscribeSessionRecord, getSessionRecordVersion, () => 0);
   const status = getIbkrStatusSnapshot();
   const symbols = getRecordingSymbols();
@@ -56,7 +100,9 @@ export function RecordingChip({ onOpenSymbol, variant = 'compact' }: Props) {
         // Auto-record stays quiet (ADR 023): its symbols are marked "auto" in the card, nowhere else.
         const auto = (status.auto_record?.symbols ?? []).includes(symbol);
         const card = view
-          ? recordingChipTitle({ ...view, elapsed, sessionElapsed: elapsedLabel(view.sinceMs), auto })
+          ? recordingChipTitle({
+            ...view, elapsed, sessionElapsed: elapsedLabel(view.sinceMs), auto, autoWhy: autoWhyLine(status.auto_record, symbol),
+          })
           : `Recording ${symbol}${auto ? ` (${AUTO_RECORD_CHIP_LINE})` : ''}`;
         const open = (e: React.MouseEvent) => { e.preventDefault(); onOpenSymbol?.(symbol); };
         const chip = variant === 'bar' ? (
@@ -104,6 +150,7 @@ export function RecordingChip({ onOpenSymbol, variant = 'compact' }: Props) {
                 {card.split('\n').map((line, i) => (
                   <div key={i}>{line}</div>
                 ))}
+                <CardActions symbol={symbol} onOpenRecords={onOpenRecords} />
               </Tooltip.Content>
             </Tooltip.Portal>
           </Tooltip.Root>

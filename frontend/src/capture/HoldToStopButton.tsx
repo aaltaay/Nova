@@ -20,10 +20,15 @@ interface Props {
   className?: string;
   /** Visible content in place of `label` (the symbol menu's icon, label and hint). */
   children?: ReactNode;
+  /** A menu row by default; `button` on a page or a card (Records, the REC chip). */
+  role?: 'menuitem' | 'button';
+  /** Shown in place of the content while it is held ("Keep holding… stops GRML"). */
+  holding?: ReactNode;
 }
 
 export function HoldToStopButton({
   label, disabled = false, why = null, holdMs = CAPTURE_STOP_HOLD_MS, onConfirm, testId, className, children,
+  role = 'menuitem', holding,
 }: Props) {
   const [progress, setProgress] = useState(0);
   const timer = useRef<number | null>(null);
@@ -54,7 +59,7 @@ export function HoldToStopButton({
   return (
     <button
       type="button"
-      role="menuitem"
+      role={role}
       className={`hold-to-stop${className ? ` ${className}` : ''}${progress > 0 ? ' hold-to-stop--holding' : ''}`}
       data-testid={testId}
       disabled={disabled}
@@ -71,7 +76,7 @@ export function HoldToStopButton({
       onClick={(e) => e.preventDefault()}
     >
       <span className="hold-to-stop__fill" style={{ width: `${(progress * 100).toFixed(1)}%` }} aria-hidden="true" />
-      {children ?? <span className="hold-to-stop__label">{label}</span>}
+      {progress > 0 && holding != null ? holding : children ?? <span className="hold-to-stop__label">{label}</span>}
     </button>
   );
 }

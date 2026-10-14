@@ -148,21 +148,37 @@ def spans_payload(segments: Any) -> list[list[int]]:
     return [[int(start), int(-(-stop // 1))] for start, stop in segment_spans(segments)]
 
 
-def missing_seconds(segments: Any) -> int:
-    """Seconds no segment covers between the first start and the last stop, except
-    the gaps after a segment stopped on purpose (the operator, or auto-record)."""
+def gap_rows(segments: Any) -> list[tuple[float, float, str | None]]:
+    """``(start, stop, reason)`` per stretch no segment covers between the first start and the
+    last stop, sorted; ``reason`` ended the stretch before it (``None`` when that one named none)."""
     rows = segment_rows(segments)
     if not rows:
-        return 0
-    missing = 0.0
+        return []
+    out: list[tuple[float, float, str | None]] = []
     cursor, cursor_reason = rows[0][1], rows[0][2]
     for start, stop, reason in rows[1:]:
         if start > cursor:
-            if cursor_reason not in CAPTURE_PLANNED_STOPS:
-                missing += start - cursor
+            out.append((cursor, start, cursor_reason))
             cursor, cursor_reason = stop, reason
         elif stop > cursor:
             cursor, cursor_reason = stop, reason
+    return out
+
+
+def gaps_payload(segments: Any) -> list[list[Any]]:
+    """``[[start, stop, reason], ...]`` whole epoch seconds per gap for the listing (operator ask
+    2026-10-14): Records draws a gap after a planned stop apart from one that went missing."""
+    out: list[list[Any]] = []
+    for start, stop, reason in gap_rows(segments):
+        first = int(-(-start // 1))
+        out.append([first, max(first, int(stop)), reason])
+    return out
+
+
+def missing_seconds(segments: Any) -> int:
+    """Seconds no segment covers between the first start and the last stop, except
+    the gaps after a segment stopped on purpose (the operator, or auto-record)."""
+    missing = sum(stop - start for start, stop, reason in gap_rows(segments) if reason not in CAPTURE_PLANNED_STOPS)
     return int(max(0.0, missing))
 
 

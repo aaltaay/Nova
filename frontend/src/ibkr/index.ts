@@ -47,3 +47,4 @@ export { depthLentText, tapeLentText } from './lentWords';
 export { fmtBand } from './luld';
 export { readLuldTrail } from './luldTrail';
 export type { LuldStep, LuldTrail } from './luldTrail';
+export type { AutoRecordStatus } from './types';

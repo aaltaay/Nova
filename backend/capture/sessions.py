@@ -22,7 +22,8 @@ from capture.constants_capture import (
 from capture.recorder import capture_root
 from capture.schema import read_manifest
 from capture.segments import (  # noqa: F401 -- segment_spans / spans_payload / segment_summary are this module's API
-    finished_segments, has_unlisted, recorded_segments, segment_spans, segment_summary, spans_payload,
+    finished_segments, gaps_payload, has_unlisted, recorded_segments, segment_spans, segment_summary,
+    spans_payload,
 )
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,7 @@ def _row(sym_dir: Path, live: dict[str, Any] | None) -> dict[str, Any] | None:
         "partial_ok": man.get("partial_ok", True),
         **segment_summary(segments, finished=finished),
         "spans": spans_payload(segments),
+        "gaps": gaps_payload(segments),
     }
 
 

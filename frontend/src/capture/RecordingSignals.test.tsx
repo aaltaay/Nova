@@ -189,6 +189,32 @@ describe('RecordingChip', () => {
     expect(open).toHaveBeenCalledWith('GRML');
   });
 
+  it('the card stops the recording after a full hold, says who started it, and opens Records (operator ask 2026-10-14)', async () => {
+    const records = vi.fn();
+    await mount(<RecordingChip variant="bar" onOpenRecords={records} />);
+    await poll({ ...recording, auto_record: {
+      active: true, window: '', symbols: ['GRML'], yielded: [], last_error: null,
+      why: { GRML: 'near' }, setup: { GRML: 'flat_top_5m' },
+    } });
+    const card = await openCard(screen.getByTestId('status-chip-recording'));
+    expect(card).toContain('5-minute flat top · near its trigger');
+    const stop = document.body.querySelector('[data-testid="status-chip-recording-stop"]') as HTMLElement;
+    command.mockResolvedValue(response({ capture: false, capture_symbols: [] }));
+    fireEvent.pointerDown(stop, { button: 0 });
+    await act(async () => { vi.advanceTimersByTime(600); });
+    expect(stop.textContent).toContain('Keep holding… stops GRML');
+    fireEvent.pointerUp(stop);
+    await act(async () => { vi.advanceTimersByTime(1500); });
+    expect(command).not.toHaveBeenCalled();  // let go early: still recording
+    fireEvent.pointerDown(stop, { button: 0 });
+    await act(async () => { vi.advanceTimersByTime(1300); });
+    expect(command).toHaveBeenCalledWith(expect.stringMatching(/\/api\/capture$/), expect.objectContaining({
+      body: JSON.stringify({ enabled: false, symbol: 'GRML' }),
+    }));
+    fireEvent.click(document.body.querySelector('[data-testid="status-chip-recording-records"]') as HTMLElement);
+    expect(records).toHaveBeenCalled();
+  });
+
   it('after a resume, "for" is this segment and the tooltip says when the session began', async () => {
     await mount(<RecordingChip />);
     await poll({ ...recording, capture_sessions: [{

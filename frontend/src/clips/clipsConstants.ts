@@ -102,7 +102,7 @@ export const CLIP_PICTURE_OPTIONS = {
 } as const;
 export type ClipPicture = keyof typeof CLIP_PICTURE_OPTIONS;
 
-export const CLIP_RECORDS_TAB_SESSIONS = 'Session Records';
+export const CLIP_RECORDS_TAB_SESSIONS = 'Market data';
 export const CLIP_RECORDS_TAB_CLIPS = 'Video clips';
 export const CLIP_RECORDS_EMPTY = 'No video clips yet. Press the red ● on a Trader tab, or right-click a ticker › Record.';
 export const CLIP_RECORDS_KEPT = 'Deleting a clip deletes its file only: the screen recording it came from is kept.';

@@ -223,11 +223,6 @@
 .clip-status--busy { color: #6cb2ff; }
 .clip-status--ok { color: #30d158; }
 .clip-status--bad { color: #ff6b61; }
-.records-tabs { display: inline-flex; align-self: flex-start; border: 1px solid var(--nova-border, rgba(255, 255, 255, 0.2)); border-radius: 8px; overflow: hidden; font-size: 0.8rem; }
-.records-tabs button { appearance: none; border: 0; background: transparent; color: var(--nova-text-muted, #98989d); font: inherit; padding: 0.3rem 0.85rem; cursor: pointer; }
-.records-tabs button + button { border-left: 1px solid var(--nova-border, rgba(255, 255, 255, 0.2)); }
-.records-tabs button.is-on { background: color-mix(in srgb, var(--nova-accent, #0a84ff) 22%, transparent); color: var(--nova-text, #f5f5f7); font-weight: 650; }
-.records-tabs b { font-weight: 600; margin-left: 4px; }
 
 /* On the Trader tab strip: the red button sits at the row's right end (before the Sim scrubber). */
 .sv-tab-strip .clip-rec-btn { margin-left: auto; align-self: center; }

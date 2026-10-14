@@ -33,6 +33,7 @@ import { isSampleView } from '../sample_data/sampleNav';
 import { SimSessionHeader } from '../sim/SimSessionHeader';
 import { StockViewMarketClock } from '../stock_view/StockViewMarketClock';
 import { parseStockViewSymbol } from '../utils/stockViewNav';
+import { setNavPage } from '../workspace';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { EmergencyKillButton } from './EmergencyKillButton';
 import { GlobalBarAccountCluster } from './GlobalBarAccountCluster';
@@ -88,6 +89,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
   // openStockView; the sample shell its own); with nothing published yet, the
   // workspace's Trader is the door.
   const lookup = scanner?.onLookup ?? openStockView;
+  // The REC chip's card opens Records, where every recording and auto-record's switch are (operator ask 2026-10-14).
+  const openRecords = () => { showScannerView(); setNavPage('records'); };
 
   const accountChrome = resolveAccountChromeState({
     // The sample desk owns its own account snapshot (#357). WorkspaceProvider
@@ -139,7 +142,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             disconnectHint={ibkrDisconnectHint}
             testId="header-gateway-mode-capsule"
           />
-          <RecordingChip variant="bar" onOpenSymbol={openStockView} />
+          <RecordingChip variant="bar" onOpenSymbol={openStockView} onOpenRecords={openRecords} />
           <ClipChips />
           <ScreenRecordChip />
         </div>

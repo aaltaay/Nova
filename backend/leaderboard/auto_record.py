@@ -45,12 +45,14 @@ refused the same way, and a line let go before IBKR answered could stay held in 
 
 Start / stop go through the Session Record path (``capture.feed_hold`` +
 ``capture.mode.set_capture_mode``), so recordings land where the operator's do.
+
+The operator turns it On, Off for today or Off on Records (``auto_record_switch``, operator ask
+2026-10-14); ``turned_off`` stops its lines the moment they do. ``NOVA_AUTO_RECORD=0`` still wins.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from datetime import datetime
 from typing import Any
@@ -65,16 +67,17 @@ from constants_leaderboard import (
     LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC,
     LEADERBOARD_BOARD_GAINERS,
 )
-from leaderboard import auto_record_state
+from leaderboard import auto_record_state, auto_record_switch
 from leaderboard.auto_record_picks import SETUP_TIERS as _SETUP_TIERS
 from leaderboard.auto_record_picks import TIERS as _TIERS
-from leaderboard.auto_record_picks import WHY_LEADER, WHY_LEFT, WHY_TRADE, pick_leaders, pick_setups
+from leaderboard.auto_record_picks import WHY_LEADER, WHY_LEFT, WHY_TRADE, pick_leaders, pick_setups_named
+from leaderboard.auto_record_picks import pick_setups  # noqa: F401 -- read here by its callers and tests
 from leaderboard.auto_record_windows import OPEN_NONE, window_label, window_state
 from leaderboard.rows import ET
 
 logger = logging.getLogger(__name__)
 
-AUTO_RECORD_ENV = "NOVA_AUTO_RECORD"
+AUTO_RECORD_ENV = auto_record_switch.AUTO_RECORD_ENV
 _RETRY_AFTER_FAILURE_SEC = 300.0
 
 _lock = asyncio.Lock()
@@ -88,13 +91,15 @@ _paused_until = 0.0                      # no new start before this (a start fai
 _yielded: list[dict[str, Any]] = []
 _leaders: list[str] = []
 _setups: list[tuple[str, str]] = []      # (symbol, why) for setups, best first
+_setup_of: dict[str, str] = {}           # symbol -> the setup it was last wanted for (a held line keeps it)
 _setups_error: str | None = None         # the setup scanner could not be read (never "no setups")
 _last_error: str | None = None
 _reserved: dict[str, tuple[float, str]] = {}  # symbol -> (until, "depth" | "record" | "tape"): given back to the operator
 
 
-def enabled() -> bool:
-    return (os.environ.get(AUTO_RECORD_ENV) or "1").strip().lower() not in ("0", "false", "off", "no")
+def enabled(now: float | None = None) -> bool:
+    """The operator's switch is On at ``now``, and ``.env`` does not hold it off."""
+    return auto_record_switch.is_on(now)
 
 
 def _live_gainers() -> list[dict]:
@@ -114,11 +119,13 @@ def _live_setup_lanes() -> list[Any]:
 
 
 def _read_setups(now: float) -> list[tuple[str, str]]:
-    global _setups_error
+    global _setups_error, _setup_of
     try:
-        found = pick_setups(_live_setup_lanes(), now)
+        named = pick_setups_named(_live_setup_lanes(), now)
         _setups_error = None
-        return found
+        _setup_of = {**{s: v for s, v in _setup_of.items() if s in _auto},
+                     **{s: setup for s, _why, setup in named if setup}}
+        return [(s, why_) for s, why_, _setup in named]
     except Exception as exc:  # the leaders still get their lines; the failure is stated
         _setups_error = f"{type(exc).__name__}: {exc}"
         logger.warning("AUTO-RECORD: could not read the setup scanner", exc_info=True)
@@ -323,7 +330,7 @@ async def _after_window(ts: float) -> None:
     global _leaders, _setups
     _candidate_since.clear()
     _leaders = []
-    _setups = [(s, w) for s, w in (_read_setups(ts) if enabled() and _auto else []) if w == WHY_TRADE]
+    _setups = [(s, w) for s, w in (_read_setups(ts) if enabled(ts) and _auto else []) if w == WHY_TRADE]
     for sym in list(_auto):
         if why(sym) != WHY_TRADE:
             await _stop(sym, "auto-record window closed")
@@ -337,9 +344,19 @@ async def _leaders_closed() -> None:
             await _stop(sym, "the leaders' window closed")
 
 
+async def turned_off() -> list[str]:
+    """The operator turned auto-record off: every line it holds stops now, a trade's too (planned,
+    ``reason: "auto"``); the operator's own recordings are never its to stop. The stopped."""
+    async with _lock:
+        held = sorted(_auto)
+        await _after_window(time.time())
+        return held
+
+
 async def tick(now: float | None = None) -> None:
     global _leaders, _setups, _last_error, _paused_until
     ts = time.time() if now is None else float(now)
+    await asyncio.to_thread(auto_record_switch.ensure_loaded)  # the file's first read stays off the loop
     async with _lock:
         for sym in [s for s, (until, _) in _reserved.items() if until <= ts]:
             _reserved.pop(sym, None)
@@ -347,7 +364,7 @@ async def tick(now: float | None = None) -> None:
                                         recording=_recording(), resuming=_resuming(),
                                         operator=_operator, restarted=_restarted())
         state = window_state(ts)
-        if not enabled() or state["open"] == OPEN_NONE:
+        if not enabled(ts) or state["open"] == OPEN_NONE:
             await _after_window(ts)
             return
         from ibkr import client as _client
@@ -414,17 +431,19 @@ def status(now: float | None = None) -> dict[str, Any]:
     ts = time.time() if now is None else float(now)
     state = window_state(ts)
     return {
-        "active": bool(enabled() and state["open"] != OPEN_NONE),
+        "active": bool(enabled(ts) and state["open"] != OPEN_NONE),
         "window": window_label(state),
         "windows": state,
         "symbols": sorted(_auto),
         "why": {sym: why(sym) for sym in sorted(_auto)},
+        "setup": {sym: _setup_of[sym] for sym in sorted(_auto) if sym in _setup_of},
         "setups": [{"symbol": sym, "why": reason} for sym, reason in _setups],
         "setups_error": _setups_error,
         "leaders": list(_leaders),
         "yielded": [entry["symbol"] for entry in _yielded],
         "last_error": _last_error,
         "paused_until": _paused_until if _paused_until > ts else None,
+        "switch": auto_record_switch.state(ts),
     }
 
 
@@ -441,6 +460,8 @@ def reset_for_tests() -> None:
     auto_record_state.reset_for_tests()
     _leaders = []
     _setups = []
+    _setup_of.clear()
     _setups_error = None
     _last_error = None
     _paused_until = 0.0
+    auto_record_switch.reset_for_tests()

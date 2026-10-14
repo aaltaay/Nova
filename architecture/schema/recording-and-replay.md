@@ -191,8 +191,13 @@ keeps when the recovery ran).
 (seconds between the first segment start and the last segment stop that no
 segment covers, except the gaps after a segment the operator stopped --
 `reason: "operator"` -- which were not recorded but went missing from nothing),
-`last_reason: string | null` and `spans: [[start, stop], ...]`
-(whole epoch seconds per segment, sorted; an open segment runs to now). Segment
+`last_reason: string | null`, `spans: [[start, stop], ...]`
+(whole epoch seconds per segment, sorted; an open segment runs to now) and
+`gaps: [[start, stop, reason], ...]` (2026-10-14: each stretch between the first
+start and the last stop that no segment covers, sorted, with `reason` the segment
+reason that ended the stretch before it, `null` when that one named none; a gap
+after `operator` or `auto` was stopped on purpose, and every other gap is what
+`missing_sec` adds up, so the two cannot disagree). Segment
 counts, spans and `replay_load.segments` include the segment still being
 written (`stopped_et: null` while this process records it; a manifest still
 saying `recording` that no process here advances ends at its last write) and
@@ -221,6 +226,40 @@ line while the recording ran), kept until that symbol records again or the opera
 stops it. All three are empty lists while nothing is recording or pending. The UI treats a running recording
 as quiet state (chip, hairline, window title) and an unrequested stop as the
 loud one.
+
+## The Records page and turning recording off (operator ask, 2026-10-14)
+
+Operator, 2026-10-14: "i need a way to turn off the recording and i feel like this
+entire screen need better ux". Both recordings on screen were auto-record's (the
+5-minute flat top, its arming window open until 15:30 ET); nothing on the desk could
+turn auto-record off -- only `NOVA_AUTO_RECORD=0` in `.env` and a restart -- and a
+recording stopped only from a Trader tab's Record menu. The switch and its file are
+in `scanner.md` (Auto-record); the listing's `gaps` are above.
+
+Records › Market data (`frontend/src/pages/records/`) reads only these payloads:
+
+- **Recording now** -- one row per `capture_symbols` symbol of `/api/ibkr/status`:
+  who started it (in `auto_record.symbols`: auto-record, with its `why` and `setup`;
+  otherwise the operator), how long this segment has run, when the session began or
+  resumed, its counts, and a timeline from its first start to now drawn from today's
+  listing `spans`. **Hold to stop** sends `POST /api/capture {enabled: false, symbol}`
+  after the Record menu's hold (`CAPTURE_STOP_HOLD_MS`); **Hold to stop all** sends
+  one `{enabled: false}` with no symbol. A stop by hand keeps auto-record off that
+  symbol for the day, as before. The free-slot line is `CAPTURE_MAX_CONCURRENT`
+  less the recordings.
+- **Auto-record** -- the switch, which window is open and what it holds, its
+  windows (`auto_record.windows`) drawn on the day's clock with a line at now, and
+  what turning it off would stop.
+- **The day's table** -- per symbol a coverage bar (`spans`, `gaps`: missing
+  hatched, stopped on purpose dashed) on one clock shared by every day, time
+  recorded (the spans' sum), prints, book updates (`l2`), gaps (`missing_sec`),
+  who ended it (`status` + `last_reason` in words), size (`bytes`), and Stop on a
+  row that records now. Filter chips and a symbol search; earlier days fold to one
+  line each (records, the union of their spans, totals) and open on a click.
+- The header REC chip's card gains Hold to stop, so any page can stop a recording.
+
+The trading screen recording (ADR 035) is not a Session Record, is not on this
+page, and is never offered off.
 
 ## Recorded depth in historical replay (#309)
 

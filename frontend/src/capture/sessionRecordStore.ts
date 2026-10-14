@@ -194,6 +194,40 @@ async function toggleRecord(symbol: string, enabled: boolean): Promise<string | 
 export const startTabRecord = (symbol: string): Promise<string | null> => toggleRecord(symbol, true);
 export const stopTabRecord = (symbol: string): Promise<string | null> => toggleRecord(symbol, false);
 
+/**
+ * Stop every Session Record at once (Records' Hold to stop all, operator ask
+ * 2026-10-14): one `{enabled: false}` with no symbol. Done only when the reply
+ * names no recording; the error otherwise.
+ */
+export async function stopAllRecords(): Promise<string | null> {
+  let error: string | null = null;
+  lastCommandError = null;
+  publish();
+  try {
+    const res = await novaFetch(`${API_BASE_URL}/api/capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    });
+    const { body, text } = await readReply(res);
+    if (body == null) error = answeredError(res, text, false);
+    else if (!res.ok || body.error || recordingSymbolsIn(body).length > 0) {
+      error = (typeof body.error === 'string' && body.error)
+        || (typeof body.detail === 'string' && body.detail)
+        || `Still recording ${recordingSymbolsIn(body).join(', ')}`;
+    }
+  } catch {
+    error = 'Could not reach Nova to stop recording';
+  }
+  if (error) {
+    lastCommandError = error;
+    console.warn('session Record:', error);
+  }
+  publish();
+  refreshIbkrStatusNow();
+  return error;
+}
+
 // The stop toast is per stop (symbol + when): dismissing one never hides the next.
 const dismissedStops = new Set<string>();
 

@@ -626,14 +626,30 @@ SSM and CELU -- all auto-record's -- read as the operator's: AZTA's Level 2 read
 "Symbol cap reached" for over an hour. When every line is still in use, the
 ladder's refusal names who holds each (`line_lending.view.cap_words`: recording,
 another Level 2, lent, replay) and how to free one, and it asks again every 1, 2,
-4, then 5 s -- it had asked every second. `NOVA_AUTO_RECORD=0`
-turns it off. `/api/ibkr/status` adds `auto_record: {active, window,
+4, then 5 s -- it had asked every second. **The operator turns it off on
+Records** (operator ask 2026-10-14: "i need a way to turn off the recording";
+owner `leaderboard/auto_record_switch.py`): `auto-record-switch.json` in the
+operator cache, `{schema_version: 1, mode: "on" | "off_today" | "off", day:
+"YYYY-MM-DD" | null, set_at: number}` -- `day` is the desk day (from 04:00 ET,
+`practice.clock.day_start_ts`) an `off_today` was chosen on. Rewritten on every
+change; `off_today` reads as `on` from the next 04:00 ET; no file reads as `on`;
+an unknown version or an unreadable file reads as `on`, logged and stated in
+`switch.error`, never a silent guess. `POST /api/auto-record {mode}` saves it and
+answers the `auto_record` status below plus `stopped: string[]`; turning it off stops every line
+auto-record holds at once (planned stops, `reason: "auto"`, a trade being scored
+included) and never touches a recording the operator started. `NOVA_AUTO_RECORD=0`
+in `.env` still holds it off whatever the file says: the switch then reads `off`
+with `source: "env"`, and a POST answers 409 saying how to free it.
+`/api/ibkr/status` adds `auto_record: {active, window,
 windows: {open: "setups_and_leaders" | "setups" | "leaders" | "none", setups: {open,
 start, end, by_setup: [{setup, start, end, open}], error}, leaders: {open, start,
 end}}, symbols[], why: {SYMBOL: "trade" | "near" | "armed" | "leader" | "left"},
-setups: [{symbol, why}], setups_error: string | null, leaders[], yielded[],
-last_error}` (`setups_error`: the setup scanner could not be read -- stated,
-never read as "no setups"); the operator taking a line back gives up the
+setup: {SYMBOL: setup}, setups: [{symbol, why}], setups_error: string | null,
+leaders[], yielded[], last_error, switch: {mode, source: "operator" | "env" |
+"default", day, until: number | null, error: string | null}}` (`setups_error`: the
+setup scanner could not be read -- stated, never read as "no setups"; `setup`: the
+setup a held line was last wanted for, none for a leader; `switch.until`: when an
+`off_today` turns back on, epoch seconds); the operator taking a line back gives up the
 lowest-ranked first (`left`, then `leader`, `armed`, `near`, `trade`); `/api/diagnostics` adds the
 `leaderboard_recorder` and `auto_record` rows (group `recorder`).
 
