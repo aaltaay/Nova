@@ -184,6 +184,15 @@ describe('engineRestart', () => {
     }
   });
 
+  it('for Restart to update, returns once the next engine is started: the installer runs while it comes up', async () => {
+    const fetchJson = engineFake([OLD]); // the old engine is all /api/health would ever say
+    const d = deps({ run: runFake(1), post: vi.fn(async () => true), awaitNew: false, fetchJson });
+    await expect(restartCheckoutEngine(OLD, d)).resolves.toEqual({ from: 'v991', to: null });
+    expect(d.spawnFn).toHaveBeenCalledTimes(1);
+    // Health is never polled for the new engine: the new desk's launch waits for it.
+    expect(fetchJson.mock.calls.filter(([url]) => String(url).endsWith('/api/health'))).toHaveLength(0);
+  });
+
   it('sends no key it does not have', async () => {
     const post = vi.fn(async () => true);
     await askEngineToStop(API, { apiKey: () => '', reason: null, post });

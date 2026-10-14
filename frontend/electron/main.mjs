@@ -14,6 +14,7 @@ import {
   openEnvFileIfNeeded,
   reloadEngine,
   restartApiSidecar,
+  restartEngineForInstall,
   startApiSidecar,
   stopApiSidecar,
   stopApiSidecarForUpdate,
@@ -361,6 +362,7 @@ if (
         stopEngine: stopApiSidecarForUpdate,
         restartEngine: restartApiSidecar,
         prepareInstall: (tag, ui) => (engineSync ? engineSync.prepareForDesk(tag, ui) : Promise.resolve(true)),
+        handOffEngine: () => (engineSync ? engineSync.handOffForInstall() : Promise.resolve()),
         // ADR 038 (amended): remember the backend's checkout; bring it to this desk's release.
         onBridge: (bridge, logger) => {
           if (!app.isPackaged) return; // a dev desk runs from the checkout it would pull
@@ -371,6 +373,7 @@ if (
             userData: app.getPath('userData'),
             deskTag: () => novaDesktopReleaseTag(app),
             reloadEngine,
+            restartForInstall: restartEngineForInstall,
           });
         },
       });
