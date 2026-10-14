@@ -4,29 +4,29 @@
 > **Continuity rule:** `.cursor/rules/nova-roadmap-continuity.mdc`
 > **Canvas (project homepage):** `canvases/nova-home.canvas.tsx`
 > **Nova OS engine status (retired, ADR 025):** [[Nova-OS-Status]]
-> **Live gate (Phase I):** [[Nova-OS-Live-Readiness-Review]] · **Productization (Phase J):** [[Productization-Decision]] · **Idea bank:** [[Nova-Expansion-Ideas]]
+> **Retired readiness review (Phase I):** [[Nova-OS-Live-Readiness-Review]] · **Productization (Phase J):** [[Productization-Decision]] · **Idea bank:** [[Nova-Expansion-Ideas]]
 
 Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Current position
 
-- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[~]` S6 built -- the setup scanner (Watchlist > Setups, ADR 022) watches the first pullback with the live Level 2 / tape as the gate and scores every armed setup, and since 2026-09-24 the L2 first-pullback bot trades its go triggers itself on Paper (ADR 030; Live still waits on the read-out); next is its read-out on Paper sessions (§2g) beside the operator's ten-day hand run, and S5 the rolling-universe screen offline (decision 2026-09-22 night): seven bar-level readings of small-cap setups have now failed gate 1 on one honest harness (ORB, Gap and Go, the ORB on seconds, the first pullback, the flat-top breakout, red-to-green; A4 was large-cap). The private catalogue is done on F:; the chosen setup is the first pullback -- traded by hand on Paper as the operator's material prescribes, and watched by the bot with the live Level 2 / tape as the gate. S7 (pre-registered 2026-10-11, §2h): the author's own trades, read from the private video archive -- a 20-day pilot on the desk PC decides whether a verified ledger is possible. Halts last, A5 parked. Plan, results and done-criteria in [[Bot-Trading-Plan]].
-- **Phase K (short entry):** `[~]` **PARKED** 2026-09-22 by operator direction -- K0-K2/K4 code stays shipped; K3 paper days are stale (they name the legacy paper Gateway, ADR 020) and are not a next action.
+- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[~]` S6 built -- the setup scanner (Watchlist > Setups, ADR 022) watches the first pullback with the live Level 2 / tape as the gate and scores every armed setup, and since 2026-09-24 the L2 first-pullback bot trades its go triggers itself on Paper (ADR 030; research never grants manual Live permission and bots never trade Live); next is its read-out on Paper sessions (§2g) beside the operator's ten-day hand run, and S5 the rolling-universe screen offline (decision 2026-09-22 night): seven bar-level readings of small-cap setups have now failed gate 1 on one honest harness (ORB, Gap and Go, the ORB on seconds, the first pullback, the flat-top breakout, red-to-green; A4 was large-cap). The private catalogue is done on F:; the chosen setup is the first pullback -- traded by hand on Paper as the operator's material prescribes, and watched by the bot with the live Level 2 / tape as the gate. S7 (pre-registered 2026-10-11, §2h): the author's own trades, read from the private video archive -- a 20-day pilot on the desk PC decides whether a verified ledger is possible. Halts last, A5 parked. Plan, results and done-criteria in [[Bot-Trading-Plan]].
+- **Phase K (short entry):** `[x]` short-sale build shipped (ADR 048/049); mandatory K3 Paper proof retired by operator decision 2026-10-13 (#791). Explicit Live opt-ins and order safety remain.
 - **`auto_live`:** **NO-GO** -- rejected in `backend/nova_os/control_mode.py`. Do not enable or implement.
 - **Phase B (paper shadow ops):** **WAIVED** by user 2026-07-28 (0 evidence rows; not `[x]`). Do not block work on ≥5 shadow days.
 - **Phase C (durable archive):** `[~]` PARTIAL -- remainder is optional operator work (see below).
-- **Phase I (live readiness):** `[~]` framework ready, **verdict NO-GO**. Framework alone is not a GO.
+- **Phase I (live readiness):** **RETIRED** by operator decision 2026-10-13 (#791). Research informs the human, never trading permission.
 - **Reliability track (WS0-WS7):** shipped 2026-08-18; only **WS1 proof** is open (first unattended 03:55 ET run).
 - **Closed:** Phases A, D, E, F, G, G2, G3, H, J · Nova OS P0-P10 · Maintenance Phases 0-13 -> [[Nova-Roadmap-Archive]]
 - **Last verified commit:** `aad9bf9` (architecture close remediation Phase 7). Tip SHA: `git rev-parse --short HEAD`.
-- **Last updated:** 2026-10-11 (Phase L: S7 pre-registered -- the author's own trades; its 20-day pilot runs on the desk PC beside the S6 read-out, the ten-day hand run and S5)
+- **Last updated:** 2026-10-13 (operator retired mandatory readiness workflows and research permission gates, #791)
 
 ## Exact next action (human)
 
-1. **Phase L S6 read-out (§2g of `Bot-Trading-Plan.md`):** trade the operator's ten-day hand run on Paper (one trade a day, fixed size, 20c / 20c, 07:00-10:00) with the Level 2 of the watched names open in Trader tabs, so the setup scanner can read their tape; it pings and stages a ticket when a first pullback is near its trigger and the tape says go, and scores every armed setup. Activate the bot at Strategy on Paper with those names on its allowlist and it trades the go triggers itself (ADR 030): gate 2's evidence (100 trades). Read the Setups scoreboard once 50 triggered setups had the tape at go (pre-registered: net R above +0.2 and above the blind / wait rows). Offline, S5: the rolling top-3-gainer universe from the flat files and P1 re-run on it. Done when the read-out and the S5 table are in the plan.
+1. **Phase L research:** review the available strategy results and choose which research question to investigate next. S6 tape read-outs, S5 rolling-universe comparisons and S7 author-ledger research remain information for the operator, with no mandatory Paper trades or Live readiness verdict. Done when the chosen result and its limitations are recorded in [[Bot-Trading-Plan]].
 2. **Reliability WS1:** configure a Discord/Telegram channel in Settings; run `.\scripts\Install-NovaDailyTask.ps1` once; leave the PC on overnight (wake timers). The first 03:55 ET line in `backend/logs/morning-check.log` closes the Jul 30 PROBLEM_LOG entry.
 3. **Optional Phase C remainder:** Cloudflare Bucket Lock + R2 token rotation + cold `walk_day`.
-4. **Hard ban:** no `auto_live`. Any future live short still needs K3 sign-off **plus** `IBKR_LIVE_TRADING_CONFIRMED` on top of `IBKR_SHORT_ENABLED`; parking K changes none of the gates.
+4. **Hard ban:** no `auto_live` or Live bot. Manual Live orders keep explicit operator opt-ins/PIN, broker eligibility and common order safety; no K3 sign-off or research verdict is required.
 
 ## Open phases
 
@@ -38,31 +38,19 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **L1 get the data** `[x]` -- Decision B = B1 (Massive Stocks Starter, one month): 1,255 days of minute + day flat files 2021-09-21..2026-09-21, tickers (active + delisted), splits, dividends, ticker details, news archive, short data, one-second bars for selected symbol-days, all on `F:\Nova\data\massive`; DuckDB store built by `research/orb/`
 - **L2 backtest** `[x]` A1, A2, A4, S1, P1-P3 / A5 parked -- own DuckDB + numpy harness (vectorbt not needed), IBKR costs + slippage, no lookahead; ORB long-only on minute bars: 3,919 trades, PF 1.20, 26% CAGR at $0.01 slippage; the same ORB replayed on one-second bars (S1): 3,384 trades, PF 0.97, -4% CAGR; Gap and Go mechanical: 778 trades, PF 1.00; large-cap RSI2 mean reversion: 1,223 trades, PF 1.02, 1.75% CAGR; first pullback P1: 589 trades, PF 0.54; flat-top P2: 63 trades, PF 0.20; red-to-green P3: 398 trades, PF 0.58
 - **L3 try to break it** `[x]` A1, A2, A4, S1 / A5 parked -- ORB fails the 2x-cost test (PF 1.00) and keeps 123% of its profit in the 10 best trades; Gap and Go fails three of four; A4 fails three of four (2024 carries it, PF 1.00 at 2x costs); A4b mega-cap cell survives 2x costs (PF 1.17) but is an in-sample universe pick; S1 fails three of four (negative at 1c, PF 0.83 at 2c, profit in ~10 trades -- 82% of trades stop on a one-second low, half inside 60 s: the published stop is 0.4% of price); P1-P3 are negative in every ladder cell and at zero cost (the bar shape is not the edge). Kill criteria and full tables in [[Bot-Trading-Plan]] §2b-§2f
-- **L4 paper on Nova** `[ ]` -- bot pack / Nova OS setup, L1 Eyes then L2 on the Paper venue; 100 trades within ~30% of backtest expectancy
-- **L5 tiny live** `[ ]` -- after #444; scale by 50-trade blocks; `auto_live` stays NO-GO
+- **L4 Paper research** `[ ]` -- optional observations for the operator; no required sample or expectancy agreement grants trading permission.
+- **L5** **RETIRED as readiness permission** 2026-10-13; research does not authorize Live bots or demand a Live probe.
 
-### Phase K -- Short entry -- `[~]` PARKED (operator direction 2026-09-22)
+### Phase K -- Short entry -- `[x]` build shipped, readiness workflow retired
 
-Parked, not closed: K0-K2/K4 code stays shipped and gated; K3 human paper short days never happened and the step as written is stale -- it names the legacy IBKR paper Gateway (4002), which ADR 020 (2026-09-21) made by-hand only, while Nova's Paper venue refuses every short with `PRACTICE_NO_SHORTS`. Re-opening K needs a rewritten K3 for the three-venue design plus user direction. None of the short gates changed.
+ADR 048/049 shipped the common short check, Paper/Sim short ledgers and bot support, manual Live controls,
+short-entry cutoff, day cover and alarms. On 2026-10-13 the operator retired K3 mandatory Paper days,
+drills/sign-off and the Live short proof (#791). Historical observations remain evidence, not permission.
+No funding, account reset, Paper sample, Gateway interruption or Live probe is an outstanding roadmap task.
 
-**User direction (2026-07-28):** shortable / HTB visibility next to Level 2, safe short entry on paper first, live later. Phase B gate removed. SSOT is this entry + ADR `architecture/decisions/009-short-entry.md`.
-
-- **K0 design + constitution** `[x]` -- ADR 009, reworded anti-short invariant, reason codes `SHORT_DISABLED` / `SHORT_NOT_SHORTABLE` / `SHORT_STALE_BORROW`
-- **K1 shortability truth** `[x]` -- `ibkr/shortability.py` tick-236 states (`shortable_est` / `thin` / `htb_likely` / `unknown`), fail-closed, `IBKR_SHORTABILITY_TTL_SEC`
-- **K2 execution gate** `[x]` -- explicit `ExecutionCommand.short_entry`, inverse bracket legs, flatten covers shorts, `account.short_qty` SSOT
-  - [ ] Journal `side="short"` + side-aware R-multiples on live short fills (follow-up when short automation setups exist)
-- **K3 paper proof -> live unlock** `[~]` -- code drills + live criteria written; **human days open**
-  - [ ] ≥3 clean paper short days (by hand, or the bot at L1 then L2 -- the `confirm` / `auto_paper` ladder was retired by ADR 025) with borrow state captured in receipts
-  - [ ] Phase I scorecard re-run including short metrics
-  - [ ] Operator sign-off after those days
-- **K4 UI** `[x]` -- Shortability chip beside L2 title; ticket Side Buy/Sell/Short on Margin (Buy/Sell on Cash); `SHORT_*` reasons. Direction Long/Short removed (#184).
-  - [ ] Deferred: scanner-level shortable filter
-
-**K3 live unlock criteria (operator):** `IBKR_SHORT_ENABLED=true` on paper with ≥3 days of `short_entry` receipts + kill/flatten drills · no unresolved `SHORT_*` false-allow bugs in PROBLEM_LOG · explicit sign-off in History · then live short only with `IBKR_LIVE_TRADING_CONFIRMED=true`. `auto_live` stays NO-GO.
-
-**K3 Evidence:** none yet -- awaiting human paper short sessions.
-
-**Safety invariants (must never regress):** short entry is explicit per-order opt-in + env gate, default OFF · anti-short default path unchanged · fail closed on unknown / stale borrow · every refusal leaves a receipt with a reason code.
+Short entry stays explicit per order. Live requires the operator-controlled Live opt-ins and PIN arming;
+broker/account eligibility, required stop, hours, halt, borrow, SSR, margin/cushion and protective-close rules
+remain. Bots remain Paper/Sim only and `auto_live` remains NO-GO. Research verdicts never lock Strategy On.
 
 ### Phase C -- Durable archive -- `[~]` PARTIAL (optional operator work)
 
@@ -74,10 +62,11 @@ Done: R2 keys + connectivity, `ARCHIVE_MAINTENANCE_ENABLED`, L2 failures folded 
 
 Do not fake Phase C `[x]`.
 
-### Phase I -- Live-readiness evidence -- `[~]` framework ready / verdict NO-GO
+### Phase I -- Live-readiness workflow -- RETIRED (operator decision 2026-10-13)
 
-- [x] GO/NO-GO thresholds in [[Nova-OS-Live-Readiness-Review]]; `auto_live` stays rejected in code
-- [ ] Re-run the review against real paper metrics (now sourced from Phase L4 paper trades, not waived Phase B or parked K3)
+There is no GO/NO-GO scorecard that decides trading eligibility and no required reviewed-day sample.
+[[Nova-OS-Live-Readiness-Review]] records this retirement. The human judges research seriousness; explicit
+operator arming and broker/account/order safety remain. `auto_live` and Live bots remain prohibited.
 
 ### Reliability track -- problem-root elimination (2026-08-18)
 
@@ -101,10 +90,10 @@ L is promoted above (strategy proof). Still parked: conversational scans, Holly-
 ## Crash or blocker
 
 - **Phase L:** nothing blocked; no bar-level rule is alive on the store (seven screens failed); the next evidence is live -- the setup scanner's scoreboard on Paper sessions and the operator's ten-day hand run -- plus S5 offline, and S7's 20-day ledger pilot on the desk PC (§2h). Halts last (operator).
-- **Phase K:** parked; K3 is stale against ADR 020 (see the Phase K entry).
+- **Phase K:** build shipped; K3 required proof is retired, not a blocker.
 - **Phase B:** WAIVED (2026-07-28) -- not a blocker.
 - **Phase C remainder:** needs Cloudflare console work + a fresh session compact/walk (optional).
-- **Phase I verdict:** NO-GO; real paper metrics now come from Phase L4, not from K3.
+- **Phase I:** readiness workflow and verdict retired; the operator interprets measurements.
 - **`auto_live`:** permanent NO-GO in this roadmap window.
 
 ## History (append-only)
@@ -113,6 +102,7 @@ Newest first. Append here; do not rewrite prior rows. Rows before 2026-07-28 are
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-10-13 | Operator retires machine readiness permission (#791): K3 Paper days/drills, Phase I scorecard and Live short proof removed; research remains information and never locks Strategy On. Explicit Live opt-ins/PIN, broker/account/order safety and Live bot ban remain. | (this commit) |
 | 2026-10-11 | S7 pre-registered (`Bot-Trading-Plan.md` §2h): every reading so far tested what the operator's material teaches, none what its author trades. A 20-day pilot on the desk PC checks whether the private video archive yields a verified ledger (80% of trades pinned to a print, 80% of days reconciled to the stated P&L) before any twelve-month extraction; the five questions are fixed first. Material and ledger stay on F:. `auto_live` NO-GO. | (this commit) |
 | 2026-09-23 | Nova OS retired (ADR 025, #481 option a): the verdict, the `signal` / `confirm` / `auto_paper` ladder, the staged queue, the Phase D executor and the decision replay are removed; Watchlist is Watchlist / Setups / Journal / Backtest. The kill switch moves to `backend/kill_switch/` with a card on the Bots page. The bot ladder (ADR 016) is the one automation path. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | S6 built: the setup scanner (ADR 022). One live first-pullback scanner on the HOD Momo names (Watching, Leg up, Armed, Near, Triggered, Failed; P1 rules, 94.9% parity with the research harness) replaces the old setups stream and the Signals sub-tab; its tape gate reads the Level 2 / time and sales the desk holds (go / wait / veto / blind, no new IBKR line); near + go raises an Eyes proposal -- ping, alert card, staged ticket, never a place; every armed setup is scored in `setups.db`. Read-out pre-registered in `Bot-Trading-Plan.md` §2g. The Phase D executor no longer receives signals. `auto_live` NO-GO. | (this commit) |

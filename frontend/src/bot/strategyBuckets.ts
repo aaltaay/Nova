@@ -1,10 +1,4 @@
-/**
- * The strategies in three buckets on the Bots page (ADR 049, #778 step 5): On · the bot trades these, Eyes ·
- * alerts you, Nova never trades, and Off · watches and scores, silent. A strategy sits where its own switch puts
- * it, except a short at On whose five-year test has not passed on the rules in play: Nova holds it at Eyes
- * (backend `bot/setup_levels.effective`), so it sits there and says so. Each row says how far its evidence has
- * come -- a short's five-year test, a long's read-out. Pure.
- */
+/** Strategy buckets follow the operator's switch. Research results describe evidence, never permission. */
 import {
   BOT_READOUT_STATE_LABELS,
   BOT_READOUT_WHAT,
@@ -13,7 +7,6 @@ import {
   isWatchOnlySetup,
 } from '../constantGroups/bot';
 import {
-  BOTS_BUCKET_HELD,
   BOTS_BUCKET_LOADING_READOUT,
   BOTS_BUCKET_LOADING_READOUT_TIP,
   BOTS_BUCKET_NO_READOUT,
@@ -33,7 +26,7 @@ export interface BucketRow {
   side: 'long' | 'short';
   /** The strategy's own switch: 0 Off, 1 Eyes, 2 On. */
   own: Bucket;
-  /** Why a short's On is locked (its test has not passed); null when it is not. */
+  /** Legacy lock field; research never changes the chosen bucket. */
   locked: string | null;
   test: ShortTest | null;
   /** The template in play's read-out: undefined while the templates load, null when the backend reports none. */
@@ -48,14 +41,9 @@ export interface BucketStatus {
   tip: string;
 }
 
-/** A short at On that Nova holds at Eyes until its test passes. */
-export function heldAtEyes(row: BucketRow): boolean {
-  return row.own === 2 && row.side === 'short' && Boolean(row.locked);
-}
-
-/** The bucket a strategy sits in: its own level, a held short at Eyes. */
+/** The bucket a strategy sits in is its own level, independent of research results. */
 export function bucketOf(row: BucketRow): Bucket {
-  return heldAtEyes(row) ? 1 : row.own;
+  return row.own;
 }
 
 function testStatus(row: BucketRow): BucketStatus {
@@ -91,9 +79,7 @@ export function statusOf(row: BucketRow): BucketStatus {
       tip: [BOT_WATCH_ONLY_LEVEL_TIP, r.tip].filter(Boolean).join('\n') };
   }
   if (row.side === 'short') {
-    const test = testStatus(row);
-    return heldAtEyes(row) ? { text: `${BOTS_BUCKET_HELD} · ${test.text.toLowerCase()}`, tone: 'held',
-      tip: [row.locked ?? '', test.tip].filter(Boolean).join('\n') } : test;
+    return testStatus(row);
   }
   return readoutStatus(row.readout);
 }

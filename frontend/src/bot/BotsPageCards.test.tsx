@@ -197,7 +197,7 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
     expect(screen.getByTestId('bots-readout-inside-first_pullback').textContent)
       .toBe('19 triggered inside the bot window 07:00–10:00 (10 at GO)');
     expect(screen.getByTestId('bots-readout-what-first_pullback').textContent).toBe('Measures whether the tape gate turns this '
-      + 'setup into a winner. Nova\'s bot trades Paper and Sim only; Live trading by a bot is not built, so passing it unlocks nothing yet.');
+      + 'setup into a winner. Nova\'s bot trades Paper and Sim only; Results are information for you to judge; they never unlock trading.');
     expect(readout.textContent).toMatch(/scores the strategy's exit \(its share at target 1, the rest at target 2, the stop where it is\); the bot sells everything at target 1, with a 15-minute time stop/);
     const words = readout.getAttribute('data-tip') ?? '';
     expect(words).toMatch(/^Measures whether the tape gate turns this setup into a winner\./);
@@ -205,7 +205,7 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
     expect(screen.getByTestId('bots-strategies').textContent).not.toMatch(/100 Paper trades|unlock Strategy on Live/);
   });
 
-  it('a short setup carries ▼ SHORT, its five-year test ahead of its read-out, and On locked until it passes', async () => {
+  it('a short setup carries ▼ SHORT, its five-year test ahead of its read-out, and On selectable regardless of the result', async () => {
     mockFetch();
     await renderPage();
     for (const id of ['backside_lower_high', 'bear_flag', 'failed_breakout', 'lost_vwap', 'ssr_bounce']) {
@@ -214,8 +214,8 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
       expect(within(card).getByTestId(`bots-setup-test-${id}`).textContent)
         .toBe(`Test five-year test queued: run \`py -3 research/shorts/test_shorts.py --setup ${id}\` on the desk`);
       const on = within(card).getByTestId(`bots-setup-level-${id}-2`) as HTMLButtonElement;
-      expect(on.disabled).toBe(true);
-      expect(on.getAttribute('data-why')).toMatch(/five-year test queued/);
+      expect(on.disabled).toBe(false);
+      expect(on.getAttribute('data-why')).toBeNull();
       for (const n of [0, 1]) expect((within(card).getByTestId(`bots-setup-level-${id}-${n}`) as HTMLButtonElement).disabled).toBe(false);
     }
     // A long card carries ▲ LONG and no test (its read-out is its evidence).
@@ -269,9 +269,9 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
     const bear = within(off).getByTestId('bots-bucket-row-bear_flag');
     expect(bear.textContent).toMatch(/^Bear flag▼ SHORTTest queued/);
     const lockedOn = within(bear).getByTestId('bots-bucket-level-bear_flag-2') as HTMLButtonElement;
-    expect(lockedOn.disabled).toBe(true);
-    expect(lockedOn.textContent).toBe('🔒 On');
-    expect(lockedOn.getAttribute('data-why')).toMatch(/five-year test queued/);
+    expect(lockedOn.disabled).toBe(false);
+    expect(lockedOn.textContent).toBe('On');
+    expect(lockedOn.getAttribute('data-why')).toBeNull();
     expect(screen.getByTestId('bots-buckets-rule').textContent).toBe('On one stock the bot holds one trade at a time: '
       + 'the first go trigger wins, long or short. It never flips: after a long closes, a short needs its own trigger, '
       + 'and the reverse. The day\'s trades count both sides.');

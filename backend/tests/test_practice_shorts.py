@@ -346,25 +346,6 @@ def test_a_paper_day_cover_that_cannot_go_out_raises_the_alarm_until_one_does(pa
     assert cover_alarm.view()["alarms"] == []
 
 
-def test_freeze_all_orders_with_a_paper_short_open_passes_the_proofs_freeze_drill(paper) -> None:
-    """ADR 048 step 6: the kill switch's trip is the Live short proof's freeze drill, ticked from its sweep."""
-    import kill_switch
-    from short_proof import store as proof_store
-
-    proof_store.reset_for_tests()
-    _open_short(paper)
-    try:
-        result = asyncio.run(kill_switch.trip("test"))
-        [paper_sweep] = [v for v in result["sweep"] if v["venue"] == "paper"]
-        assert [(k["side"], k["order_type"]) for k in paper_sweep["kept"]] == [("BUY", "STP")]
-        drill = proof_store.read()[0]["drills"]["freeze"]
-        assert drill["passed"] is not None and SYMBOL in drill["passed"]["detail"]
-        assert "kept its buy stop resting" in drill["passed"]["detail"]
-    finally:
-        kill_switch.reset()
-        kill_switch.reset_for_tests()
-        proof_store.reset_for_tests()
-
 
 def test_a_short_entry_still_resting_at_1550_is_cancelled_before_it_fills(paper) -> None:
     """PR #786 review: a short the door let go before 15:50 never opens after it."""

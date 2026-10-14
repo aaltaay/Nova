@@ -213,10 +213,7 @@ export const SHORT_TEST_STATE_WORDS: Record<string, string> = {
 export const SHORT_TEST_TIP = 'The five-year test runs this setup\'s rules (its template in play) over five years of '
   + 'minute bars on the desk, with the scanner\'s own detector and exits, borrow assumed. It passes with at least 300 '
   + 'trades, still positive without its best year, a profit factor over 1 at twice the costs, a mostly positive '
-  + 'neighbourhood and a permutation p of 0.05 or less. Until it passes on the rules in play, On stays locked: the '
-  + 'setup stays at Eyes. Nobody writes a result by hand.';
+  + 'neighbourhood and a permutation p of 0.05 or less. The result is information for you to judge; it never '
+  + 'locks On or changes the strategy level. Nobody writes a result by hand.';
 export const SHORT_TEST_STALE_TIP = 'The result is for other rules: the template in play changed since, so it tests '
   + 'again.';
-
-/** A short whose On is held at Eyes by its test (a result that failed, is missing or is for other rules). */
-export const SHORT_SETUP_TEST_HELD_CHIP = 'On · held at Eyes until its test passes';

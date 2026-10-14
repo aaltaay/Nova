@@ -1,4 +1,4 @@
-/** Journal panel — go/no-go live-money gate + trade metrics + today's risk state
+/** Journal panel , trade statistics for the operator + today's risk state
  * + recent detected signals/trades. Read-only. No control here places, modifies,
  * or cancels an order. The "Show demo data" toggle is the ONLY control that
  * changes what data is displayed, and it is off by default and clearly banner'd
@@ -10,7 +10,6 @@ import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatShareQty } from '../utils/formatShareQty';
 import { useJournal } from './useJournal';
 import type {
-  GoNoGoCriterion,
   JournalMetrics,
   JournalSignalRow,
   JournalTradeRow,
@@ -73,39 +72,6 @@ function fmtRatio(v: number | null): string {
   return v == null ? '\u2014' : `${v.toFixed(2)}:1`;
 }
 
-function CriterionRow({ criterion }: { criterion: GoNoGoCriterion }) {
-  const status = criterion.met === null ? 'pending' : criterion.met ? 'pass' : 'fail';
-  const icon = status === 'pending' ? '\u2026' : status === 'pass' ? '\u2713' : '\u2717';
-  const statusText = status === 'pending' ? 'not enough data yet' : status === 'pass' ? 'met' : 'not met';
-  return (
-    <li
-      className={`go-no-go-criterion go-no-go-${status}`}
-      title={`${criterion.label} — currently ${statusText}${criterion.value == null ? '' : ` (current value: ${criterion.value})`}.`}
-    >
-      <span className="go-no-go-icon">{icon}</span> {criterion.label}
-    </li>
-  );
-}
-
-function GoNoGoBar({ metrics }: { metrics: JournalMetrics }) {
-  const { go_no_go: gng } = metrics;
-  return (
-    <div
-      className={`go-no-go-bar ${gng.overall_go ? 'go-no-go-go' : 'go-no-go-nogo'}`}
-      title="Live-money scorecard: all three criteria must pass before real-money automation is considered. It is a scorecard -- no order checks it."
-    >
-      <div className="go-no-go-headline">
-        {gng.overall_go ? 'GO — live-money bar cleared' : 'NO-GO — stay in paper'}
-      </div>
-      <ul className="go-no-go-list">
-        <CriterionRow criterion={gng.criteria.min_sample_size} />
-        <CriterionRow criterion={gng.criteria.profit_loss_ratio} />
-        <CriterionRow criterion={gng.criteria.adherence} />
-      </ul>
-    </div>
-  );
-}
-
 function MetricsSummary({ metrics }: { metrics: JournalMetrics }) {
   return (
     <div className="journal-metrics-grid">
@@ -127,7 +93,7 @@ function MetricsSummary({ metrics }: { metrics: JournalMetrics }) {
       <div className="journal-metric" title="Sum of every closed trade's P&L.">
         <span className="journal-metric-label">Total P&amp;L</span><span>{fmtPrice(metrics.total_pnl_dollars)}</span>
       </div>
-      <div className="journal-metric" title="Percent of trades flagged 'adherent' — followed the risk rules (correct size, respected the stop, didn't trade through a halt). Must be 100% to pass the go/no-go bar.">
+      <div className="journal-metric" title="Percent of trades flagged 'adherent' , followed the risk rules (correct size, respected the stop, didn't trade through a halt). This is information for you to interpret.">
         <span className="journal-metric-label">Adherence</span><span>{fmtPct(metrics.adherence_pct)}</span>
       </div>
     </div>
@@ -265,7 +231,7 @@ export function JournalPanel({
 
       <label
         className="journal-demo-toggle"
-        title="Loads a fixed set of 12 hand-written synthetic trades (tagged 'DEMO', never counted in real results) so you can see exactly how the metrics and go/no-go bar behave once real trades start flowing in. Turn off to see only real data. Real users never see demo rows unless this box is checked."
+        title="Loads a fixed set of 12 hand-written synthetic trades (tagged 'DEMO', never counted in real results) so you can see exactly how the trade statistics appear once real trades start flowing in. Turn off to see only real data. Real users never see demo rows unless this box is checked."
       >
         <input type="checkbox" checked={includeMock} onChange={e => setIncludeMock(e.target.checked)} />
         Show demo data (synthetic test trades — not real)
@@ -282,7 +248,6 @@ export function JournalPanel({
       {!error && loading && !metrics && <div className="empty-state">{'Loading journal\u2026'}</div>}
       {metrics && (
         <>
-          <GoNoGoBar metrics={metrics} />
           <MetricsSummary metrics={metrics} />
         </>
       )}

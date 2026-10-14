@@ -1,19 +1,6 @@
-"""
-Journal metrics: win rate, avg win/loss, profit/loss ratio, and the
-go/no-go bar from the automation plan's Phase 4 live-money gate
-(see knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md #5).
-
-Reports "insufficient data" honestly when the trades table is empty or below
-the minimum sample size, rather than fabricating a rate from zero trades.
-Phase D (paper execution) is what populates the trades table this reads from.
-"""
+"""Journal statistics for the operator to interpret, never a trading-readiness verdict (#791)."""
 from __future__ import annotations
 
-from constants import (
-    JOURNAL_MIN_ADHERENCE_PCT_FOR_GO_LIVE,
-    JOURNAL_MIN_TRADES_FOR_GO_LIVE,
-    RISK_TARGET_PROFIT_LOSS_RATIO,
-)
 from journal.store import get_closed_trades
 
 
@@ -41,39 +28,4 @@ def compute_metrics(include_mock: bool = False) -> dict:
         "profit_loss_ratio": None if profit_loss_ratio is None else round(profit_loss_ratio, 2),
         "total_pnl_dollars": None if total_pnl is None else round(total_pnl, 2),
         "adherence_pct": None if adherence_pct is None else round(adherence_pct, 1),
-        "go_no_go": _go_no_go(total, profit_loss_ratio, adherence_pct),
     }
-
-
-def _go_no_go(total: int, profit_loss_ratio: float | None, adherence_pct: float | None) -> dict:
-    """Three criteria from the plan's live-money gate. Each is `met: None`
-    (pending, not failing) until there's enough data to judge it."""
-    sample_met = total >= JOURNAL_MIN_TRADES_FOR_GO_LIVE
-    ratio_met = None if profit_loss_ratio is None else profit_loss_ratio >= RISK_TARGET_PROFIT_LOSS_RATIO
-    adherence_met = (
-        None if adherence_pct is None
-        else adherence_pct >= JOURNAL_MIN_ADHERENCE_PCT_FOR_GO_LIVE
-    )
-
-    criteria = {
-        "min_sample_size": {
-            "met": sample_met,
-            "label": f">= {JOURNAL_MIN_TRADES_FOR_GO_LIVE} closed trades",
-            "value": total,
-        },
-        "profit_loss_ratio": {
-            "met": ratio_met,
-            "label": f">= {RISK_TARGET_PROFIT_LOSS_RATIO:.0f}:1 profit/loss ratio",
-            "value": profit_loss_ratio,
-        },
-        "adherence": {
-            "met": adherence_met,
-            "label": (
-                f">= {JOURNAL_MIN_ADHERENCE_PCT_FOR_GO_LIVE:.0f}% of trades "
-                "within risk rules (adherent)"
-            ),
-            "value": adherence_pct,
-        },
-    }
-    overall = sample_met and ratio_met is True and adherence_met is True
-    return {"overall_go": overall, "criteria": criteria}

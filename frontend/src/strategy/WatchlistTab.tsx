@@ -61,7 +61,7 @@ export function WatchlistTab({
         <button
           className={`sub-tab ${subTab === 'journal' ? 'active' : ''}`}
           onClick={() => setSubTab('journal')}
-          title="Trade log, win-rate/profit-loss metrics, today's risk state, and the live-money go/no-go bar. Includes an optional 'Show demo data' toggle for testing before real trades exist."
+          title="Trade log, win-rate/profit-loss metrics, and today's advisory risk state. Includes an optional 'Show demo data' toggle for testing before real trades exist."
         >
           Journal
         </button>

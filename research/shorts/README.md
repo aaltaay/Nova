@@ -1,7 +1,7 @@
 # The five-year test of the short setups (ADR 049 section 12)
 
-Each short setup's On stays locked until its five-year test passed on the rules of its template in play. These
-scripts are that test. They run on the desk, on the operator's Massive minute files, and write the result file the
+The five-year test provides evidence for the operator to judge. Its verdict never locks On or downgrades a
+strategy (ADR 049 amendment, 2026-10-13). These scripts produce that research. They run on the desk, on the operator's Massive minute files, and write the result file the
 setup's card and its On lock read (`backend/setup_scanner/short_tests.py`). Nothing here places an order, touches a
 Nova account or changes a setting, and no agent writes a result file by hand.
 
@@ -53,9 +53,9 @@ A look without a result file: `py -3 research/shorts/test_shorts.py --setup bear
   trade's entry to a random minute of its own day, inside the window).
 
 The result file says `running` with its progress first and the verdict last, each written through a temporary file
-and a rename. Its shape is in `architecture/schema/short-selling.md` ("The five-year test and the On lock"). A
-result passes the lock only while its `rules.rules_hash` equals the template in play's `params_hash`: edit the
-template and the setup tests again.
+and a rename. Its shape is in `architecture/schema/short-selling.md` ("The five-year test and the On lock"). The
+result reports whether `rules.rules_hash` matches the template in play's `params_hash`; changing the template
+marks the result as other rules, without restricting trading permission.
 
 ## Files
 

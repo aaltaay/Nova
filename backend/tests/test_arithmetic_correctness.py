@@ -419,13 +419,11 @@ class TestJournalMetricsArithmetic:
         m = compute_metrics()
         assert m["win_rate_pct"] == 100.0
         assert m["profit_loss_ratio"] is None
-        assert m["go_no_go"]["criteria"]["profit_loss_ratio"]["met"] is None
 
-    def test_go_no_go_passes_only_with_full_sample_ratio_and_adherence(self, isolated_journal):
+    def test_large_samples_remain_statistics_without_readiness_permission(self, isolated_journal):
         from journal.metrics import compute_metrics
         from journal.store import record_trade
 
-        assert JOURNAL_MIN_TRADES_FOR_GO_LIVE == 50
         # 34 wins of +20 and 16 losses of -10 => ratio 2.0, adherence 100%, n=50
         for i in range(34):
             record_trade(f"W{i}", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True)
@@ -437,7 +435,6 @@ class TestJournalMetricsArithmetic:
         assert m["win_rate_pct"] == 68.0
         assert m["profit_loss_ratio"] == 2.0
         assert m["adherence_pct"] == 100.0
-        assert m["go_no_go"]["overall_go"] is True
 
 
 # ── Round-trip P&L arithmetic ────────────────────────────────────────────────

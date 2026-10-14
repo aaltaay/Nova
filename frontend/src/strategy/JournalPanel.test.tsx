@@ -13,12 +13,12 @@ import {
   WALK_AWAY_TRIPPED,
   WALK_AWAY_WITHIN,
 } from './JournalPanel';
-import type { RiskStatus } from './types';
+import type { JournalMetrics, RiskStatus } from './types';
 
-const state = vi.hoisted(() => ({ risk: null as RiskStatus | null }));
+const state = vi.hoisted(() => ({ risk: null as RiskStatus | null, metrics: null as JournalMetrics | null }));
 
 vi.mock('./useJournal', () => ({
-  useJournal: () => ({ metrics: null, signals: [], trades: [], risk: state.risk, loading: false, error: null }),
+  useJournal: () => ({ metrics: state.metrics, signals: [], trades: [], risk: state.risk, loading: false, error: null }),
 }));
 
 function risk(canTrade: boolean): RiskStatus {
@@ -38,6 +38,7 @@ function renderPanel() {
 afterEach(() => {
   cleanup();
   state.risk = null;
+  state.metrics = null;
 });
 
 describe('JournalPanel walk-away status', () => {
@@ -56,5 +57,18 @@ describe('JournalPanel walk-away status', () => {
     state.risk = risk(true);
     renderPanel();
     expect(screen.getByTestId('journal-walk-away-status').textContent).toContain(WALK_AWAY_WITHIN);
+  });
+});
+
+describe('operator interpretation of journal statistics', () => {
+  it('shows measured results without a machine readiness verdict', () => {
+    state.metrics = { includes_mock_data: false, total_closed_trades: 2, win_rate_pct: 50,
+      avg_win_dollars: 20, avg_loss_dollars: 10, profit_loss_ratio: 2,
+      total_pnl_dollars: 10, adherence_pct: 50 };
+    const { container } = renderPanel();
+    expect(screen.getByText('Closed trades')).toBeTruthy();
+    expect(screen.getByText('Adherence')).toBeTruthy();
+    expect(container.querySelector('.go-no-go-bar')).toBeNull();
+    expect(container.textContent).not.toMatch(/NO-GO|live-money bar|stay in paper/);
   });
 });

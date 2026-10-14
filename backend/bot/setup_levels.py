@@ -11,9 +11,7 @@ from it is Off). A setup's **effective** level is ``min(master, its own)``:
 - Strategy lets Nova's bot trade its go triggers -- only while the bot is Active
   (``bot.activation``); while it is not, a Strategy setup proposes like Eyes.
 
-ADR 049: a short setup is On (Strategy) only once its five-year test passed on the rules in play
-(``setup_scanner.short_tests``): ``apply`` refuses On before that (409 ``BOT_SHORT_TEST``), and a short at On
-whose test stops matching -- its template edited, the result replaced -- reads as Eyes.
+ADR 049 amendment (2026-10-13): research results never restrict a strategy's On or effective level.
 
 #847: a watch-only setup (the pullback dip) is never On: ``apply`` refuses it (409 ``BOT_SETUP_WATCH_ONLY``) and
 an On read from an older file reads as Eyes. Its Eyes draws it; it never proposes (``setup_scanner.lane_announce``).
@@ -32,11 +30,8 @@ from constants_bot import (
     BOT_LEVEL_STRATEGY,
     BOT_REASON_SETUP_LEVEL,
     BOT_REASON_SETUP_WATCH_ONLY,
-    BOT_REASON_SHORT_TEST,
     BOT_SCANNER_SETUPS,
     BOT_SETUPS_WITH_SCANNER,
-    SIDE_SHORT,
-    setup_side,
     watch_only,
     watch_only_text,
 )
@@ -65,31 +60,15 @@ def own_levels(row: dict[str, Any]) -> dict[str, int]:
     return {sid: _level(raw.get(sid)) or BOT_LEVEL_OFF for sid in BOT_SCANNER_SETUPS}
 
 
-def short_lock(setup: str) -> str | None:
-    """Why a short setup may not be On (ADR 049): its five-year test has not passed on the rules in play. None
-    for a long setup. A test or a template Nova cannot read keeps it locked, and says so."""
-    if setup_side(setup) != SIDE_SHORT:
-        return None
-    try:
-        from setup_scanner import short_tests
-        from setup_templates.store import get_store
-
-        return short_tests.lock(setup, get_store().in_play(setup).fingerprint)
-    except Exception as exc:
-        logger.warning("bot: %s's five-year test could not be read -- On stays locked", setup, exc_info=True)
-        return f"On waits on the {name(setup)} five-year test, which could not be read ({exc})"
-
-
 def on_lock(setup: str) -> str | None:
-    """Why a setup may not be On, else None: watch only (#847), or a short whose test has not passed (ADR 049)."""
+    """Why a setup may not be On, else None: a watch-only setup (#847). Research never restricts On."""
     if watch_only(setup):
         return f"On is locked: {watch_only_text(setup)}"
-    return short_lock(setup)
+    return None
 
 
 def effective(row: dict[str, Any]) -> dict[str, int]:
-    """``{SETUP: min(master, own)}``: what each setup does on this venue now. A short setup at On whose test no
-    longer passes on the rules in play reads as Eyes (ADR 049), and a watch-only setup never reads On (#847)."""
+    """``{SETUP: min(master, own)}``: research never changes the chosen level. Watch-only never reads On (#847)."""
     top = master(row)
     out = {sid: min(top, lvl) for sid, lvl in own_levels(row).items()}
     for sid, lvl in out.items():
@@ -136,10 +115,6 @@ def apply(row: dict[str, Any], patch: Any) -> dict[str, tuple[int, int]]:
                            BOT_REASON_SETUP_LEVEL)
         if level >= BOT_LEVEL_STRATEGY and watch_only(sid):
             raise BotError(str(on_lock(sid)), 409, BOT_REASON_SETUP_WATCH_ONLY)
-        if level >= BOT_LEVEL_STRATEGY and before.get(sid, BOT_LEVEL_OFF) < BOT_LEVEL_STRATEGY:
-            locked = short_lock(sid)
-            if locked:
-                raise BotError(locked, 409, BOT_REASON_SHORT_TEST)
         after[sid] = level
     row["setup_levels"] = after
     return {sid: (before[sid], after[sid]) for sid in after if after[sid] != before[sid]}

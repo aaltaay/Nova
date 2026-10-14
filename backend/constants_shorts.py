@@ -46,7 +46,6 @@ SHORT_SSR_AT_BID = "SHORT_SSR_AT_BID"             # under SSR, a short priced at
 SHORT_SSR_NO_BID = "SHORT_SSR_NO_BID"             # under SSR, no bid to price above (1.10)
 SHORT_NO_RECORDED_BORROW = "SHORT_NO_RECORDED_BORROW"  # a past-day replay with no borrow recorded then (4)
 SHORT_REPRICE = "SHORT_REPRICE"                   # a working short entry is never repriced in place
-SHORT_PROOF_INCOMPLETE = "SHORT_PROOF_INCOMPLETE"   # Live: the Live short proof is not complete (step 6)
 
 # -- The hours (ADR 048 1.9 and 5): new shorts from 09:35 ET until ten minutes before the close
 # (15:50, or 12:50 on an NYSE early close); the day cover five minutes before it (15:55 / 12:55).
@@ -119,18 +118,3 @@ SHORT_CLOSE_RETRY_SEC = 15.0
 # this long is judged by IBKR's own status for it -- closed with nothing filled: cover again; filled: the alarm,
 # never a second cover.
 SHORT_COVER_CONFIRM_SEC = 15.0
-
-# -- The Live short proof (ADR 048 step 6): short-proof.json in the operator cache. Three Paper days
-# with shorts, each reviewed by the operator, and four drills with a Paper short open. The observer
-# reads the Paper ledger and IBKR's session this often; a drill that did not pass keeps its last runs.
-SHORT_PROOF_FILE = "short-proof.json"
-SHORT_PROOF_SCHEMA_VERSION = 1
-SHORT_PROOF_DAYS_NEEDED = 3
-SHORT_PROOF_DRILLS = ("freeze", "flatten", "day_cover", "gateway_drop")
-SHORT_PROOF_FAILED_KEEP = 5
-SHORT_PROOF_OBSERVE_SEC = 5.0
-# How a day is reviewed waits on the operator's answer (#778, question 3): until then no day can be marked.
-SHORT_PROOF_REVIEW_OPEN = False
-SHORT_PROOF_REVIEW_WAIT = ("How a Paper day is reviewed (\"no wrong refusal or wrong fill\") is question 3 on #778. "
-                           "Until it is answered no day can be marked reviewed, so the proof stays incomplete and "
-                           "Live shorts stay refused.")

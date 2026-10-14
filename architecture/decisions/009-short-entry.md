@@ -13,14 +13,14 @@ The operator wants short entry with: shortable / HTB visibility next to Level 2,
 
 1. **Same execution path.** All short spends enter `execution.service.execute` (ADR 007). No second broker path.
 2. **Explicit per-order opt-in.** `ExecutionCommand.short_entry: bool = False`. Never infer short intent from `side == SELL` + flat position.
-3. **Env gate.** `IBKR_SHORT_ENABLED` (default `false`) via `ibkr.safety.short_enabled()`. Paper and live both require it. Live additionally requires `IBKR_LIVE_TRADING_CONFIRMED` (existing).
+3. **Env gate.** `IBKR_SHORT_ENABLED` (default `false`) via `ibkr.safety.short_enabled()`. Live requires it; Nova Paper/Sim do not (ADR 048). Live additionally requires `IBKR_LIVE_TRADING_CONFIRMED` (existing).
 4. **Default anti-short unchanged.** No `short_entry` → existing `NO_POSITION` / `OVERSELL` / `POSITION_UNAVAILABLE`. `source=flatten` semantics for long exits unchanged.
 5. **Shortability truth module.** IBKR tick 236 only. States: `shortable_est` (≥10k shares), `thin` (0–10k), `htb_likely` (≤0), `unknown` (no tick/error/disconnected). Freshness TTL; fail closed on `unknown` / stale / `thin` / `htb_likely`. Alpaca `shortable` / `easy_to_borrow` is never an IBKR locate.
 6. **Reason codes.** Short-opening refusals use `SHORT_DISABLED`, `SHORT_NOT_SHORTABLE`, `SHORT_STALE_BORROW` (plus existing codes). Every refusal leaves a receipt.
 7. **Short brackets.** When `short_entry`, entry side is `SELL`; protective legs invert; journal `side="short"`; PnL/R math side-aware.
 8. **Buy-to-cover / flatten-from-short.** BUY that reduces a short is allowed up to short qty. Flatten covers shorts with market BUY (`source=flatten`).
 9. **UI.** Shortability chip beside Level 2 (estimate + staleness + TWS confirm tooltip). Order ticket Side is Buy / Sell / Short on Margin (Buy / Sell only on Cash). Short sends `short_entry=true` and disables with mirrored reason codes when blocked. Sell never opens a short. Direction Long/Short is gone (2026-09-16, #184). Short visibility is `shortSideVisible(summary)` / `account_class === 'margin'` (#188). INDIVIDUAL is ownership, not a class.
-10. **Paper before live short.** K3: ≥3 paper short days + kill/flatten/reconnect drills + operator sign-off before live short. `auto_live` remains rejected.
+10. **Operator judgment (2026-10-13 amendment, #791).** Mandatory K3 Paper days/drills/sign-off and the Live short proof are retired. Research informs the human, never trading permission. Explicit Live opt-ins/PIN, account eligibility and order safety remain; `auto_live` and Live bots remain prohibited.
 
 ## Consequences
 

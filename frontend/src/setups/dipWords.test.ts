@@ -77,7 +77,7 @@ describe('the pullback dip in words (#847, watch only)', () => {
     expect(onLockOf('pullback_dip', 'long', 'On is locked: watch only')).toBe('On is locked: watch only');
     expect(onLockOf('pullback_dip', 'long', null)).toMatch(/^On is locked/);
     expect(onLockOf('first_pullback', 'long', 'x')).toBeNull();
-    expect(onLockOf('bear_flag', 'short', 'test queued')).toBe('test queued');
+    expect(onLockOf('bear_flag', 'short', 'test queued')).toBeNull();
     const status = statusOf({ id: 'pullback_dip', label: 'Pullback dip', side: 'long', own: 1, locked: 'x', test: null,
       readout: null });
     expect(status.text).toMatch(/^Watch only · /);

@@ -444,17 +444,6 @@ def test_a_live_reprice_nova_cannot_check_is_refused(monkeypatch):
     assert code == "SHORT_REPRICE" and "ledger locked" not in detail      # the log has the exception (PR #792)
 
 
-def test_a_live_proof_nova_cannot_read_refuses_in_fixed_words(monkeypatch):
-    from short_sale import door
-
-    def broken():
-        raise RuntimeError("SECRET-TRACE disk gone")
-
-    monkeypatch.setattr("short_proof.status", broken)
-    complete, missing = door.live_proof()
-    assert complete is False and "could not be read" in missing and "SECRET-TRACE" not in missing
-
-
 def test_the_ledger_names_novas_live_short_entries_by_order_id(monkeypatch, tmp_path):
     from execution import store_orders
 

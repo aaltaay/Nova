@@ -317,7 +317,6 @@ BOT_SKIP_HELD_OTHER_SIDE = "BOT_SKIP_HELD_OTHER_SIDE"
 # and with no ask on the book, or an ask at or over the buy stop, there is no short to send.
 BOT_SKIP_SHORT_PRICE = "BOT_SKIP_SHORT_PRICE"
 # ADR 049 section 12: a short setup is On only once its five-year test passed on the rules in play.
-BOT_REASON_SHORT_TEST = "BOT_SHORT_TEST"
 # The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
 BOT_AUDIT_ACTION_SWITCH = "bot_switch"
 # The squares, by ticker (``GET /api/bot/triggers``): the gates in the order Nova runs them.

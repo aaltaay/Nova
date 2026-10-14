@@ -186,7 +186,6 @@ def test_the_result_file_is_what_the_setups_card_and_lock_read():
     short_tests.reset_for_tests()
     got = short_tests.test("bear_flag", template.fingerprint)
     assert got["state"] == "passed" and got["summary"]["trades"] == 412 and got["summary"]["p"] == 0.02
-    assert short_tests.lock("bear_flag", template.fingerprint) is None
     assert not list(short_tests.folder().glob("*.tmp"))           # written through a rename
 
 
@@ -252,4 +251,3 @@ def test_the_result_file_keeps_the_fixed_size_readout_beside_the_verdict():
     short_tests.reset_for_tests()
     got = short_tests.test("bear_flag", template.fingerprint)
     assert got["state"] == "failed" and got["summary"]["trades"] == 12      # the card reads main, never the readout
-    assert short_tests.lock("bear_flag", template.fingerprint)

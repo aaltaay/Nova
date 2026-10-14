@@ -1,14 +1,8 @@
-"""A short setup's five-year test, as its card and the On lock read it (ADR 049 section 12). Read-only.
+"""A short setup's five-year research result, shown for the operator to interpret. Read-only.
 
-Owner: ``research/shorts/test_shorts.py`` writes ``<folder>/<setup>.json`` through a temporary file and a
-rename; nothing in the backend writes one, and no agent does. The folder is ``NOVA_SHORT_TESTS_DIR``, else
-``<NOVA_MARKET_DATA_DIR>/research/short_tests``. Invalidation: a read is kept ``SHORT_TESTS_CACHE_SEC``.
-Schema: ``schema_version`` 1. A file that cannot be read, or of an unknown version, reads ``error`` -- never
-passed: a result Nova cannot read never unlocks On.
-
-``test(setup, params_hash)`` is the wire's ``test`` object (None on a long setup). ``lock(setup,
-params_hash)`` says why On is locked, None once the test passed on the rules in play: the result's
-``rules.rules_hash`` must equal the template in play's ``params_hash``, so an edited template tests again.
+The harness writes schema-1 result files; malformed or unknown schemas report error. The result's
+rules hash reports whether its template matches, never grants or refuses trading permission (#791).
+No backend path writes or alters a research verdict.
 """
 from __future__ import annotations
 
@@ -177,16 +171,6 @@ def test_in_play(setup: str, *, now: float | None = None) -> dict[str, Any] | No
                 "rules_hash": None, "matches": None, "started_at": None, "updated_at": None, "finished_at": None,
                 "summary": None, "file": str(path_of(setup))}
     return test(setup, params_hash, now=now)
-
-
-def lock(setup: str, params_hash: str | None, *, now: float | None = None) -> str | None:
-    """Why a short setup cannot be On (ADR 049), else None: its test passed on the rules in play."""
-    got = test(setup, params_hash, now=now)
-    if got is None:
-        return None
-    if got["state"] == SHORT_TEST_PASSED and got["matches"]:
-        return None
-    return f"On waits on the {setup.replace('_', ' ')} five-year test: {got['text']}"
 
 
 def reset_for_tests() -> None:

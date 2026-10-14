@@ -58,7 +58,6 @@ from market_board.routes import router as market_board_router
 from luld.routes import router as luld_router
 from book_watch.routes import router as book_watch_router
 from short_sale.routes import router as short_check_router
-from short_proof.routes import router as short_proof_router
 from agent_desk.routes import router as agent_desk_router
 from chart_events.routes import router as chart_events_router
 from followed_traders import config as followed_traders_config
@@ -121,7 +120,6 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(luld_router)
     app.include_router(book_watch_router)
     app.include_router(short_check_router)
-    app.include_router(short_proof_router)
     app.include_router(agent_desk_router)
     app.include_router(chart_events_router)
     # Only on the desk whose .env names a followed traders feed: unset, the routes do not exist.

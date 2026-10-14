@@ -59,7 +59,7 @@ import {
   SETUP_STATUS_TIPS,
   SETUP_WINDOW_TIP,
 } from '../constantGroups/setups';
-import { SETUP_SIDE_TAG, SETUP_SIDE_TAG_TIPS, SHORT_SETUP_TEST_HELD_CHIP } from '../constantGroups/short_setups';
+import { SETUP_SIDE_TAG, SETUP_SIDE_TAG_TIPS } from '../constantGroups/short_setups';
 import { funnelSteps, windowWords, type SetupRow, type ShortTest, type SetupSummary } from '../setups';
 import { tipProps } from '../ux/hoverTip';
 import { clampLevel, onLockOf } from './botLevels';
@@ -118,7 +118,7 @@ interface Props {
   side?: 'long' | 'short';
   /** A short setup's five-year test (null on a long one). */
   test?: ShortTest | null;
-  /** Why On is locked (a short whose test has not passed on the rules in play); null when it is not. */
+  /** Why a watch-only setup cannot be On; research never locks a short. */
   locked?: string | null;
 }
 
@@ -134,7 +134,7 @@ function levelWhy(p: Pick<Props, 'busy' | 'levelsKnown' | 'stale'>): string | nu
   return p.levelsKnown ? null : BOTS_SETUP_NO_LEVELS_WHY;
 }
 
-function StatusLine({ effective, own, masterName, botActive, summary, connected, seeding, short, locked, watch }: {
+function StatusLine({ effective, own, masterName, botActive, summary, connected, seeding, watch }: {
   effective: 0 | 1 | 2;
   own: 0 | 1 | 2;
   masterName: string;
@@ -142,8 +142,6 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
   summary: SetupSummary | null;
   connected: boolean;
   seeding: number;
-  short: boolean;
-  locked: string | null;
   /** Watch only (#847): its Eyes draws and scores, never proposes. */
   watch: boolean;
 }) {
@@ -152,9 +150,7 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
   const win = unrecorded ? '' : windowWords(summary);
   // ADR 044: On while the Bot is off alerts like Eyes until the Bot is on; only a legacy master below Eyes caps.
   const waiting = own === 2 && !botActive;
-  // A short at On is held at Eyes by its test until it passes (ADR 049); once it passes it trades like a long.
-  const held = short && own === 2 && Boolean(locked);
-  const capped = !waiting && !held && own > effective;
+  const capped = !waiting && own > effective;
   const [words, tip] = !connected
     ? [BOTS_STATUS_NOT_CONNECTED, SETUP_STATUS_TIPS.disconnected]
     : unrecorded
@@ -162,7 +158,7 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
       : [BOTS_STATUS_WATCHING(summary?.counts.watching ?? 0), SETUP_STATUS_TIPS.watching];
   const watchEyes = watch && own >= 1;
   const chipTip = [
-    held ? locked : watchEyes ? BOT_WATCH_ONLY_LEVEL_TIP : waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
+    watchEyes ? BOT_WATCH_ONLY_LEVEL_TIP : waiting ? BOT_SETUP_LEVEL_WAITING_TIP : BOT_SETUP_LEVEL_TIPS[own],
     capped ? BOT_SETUP_CAPPED_TIP : '',
     silent ? 'This desk is a replay: nothing proposes live from it.' : '',
   ].filter(Boolean).join('\n');
@@ -174,7 +170,7 @@ function StatusLine({ effective, own, masterName, botActive, summary, connected,
       {connected && seeding > 0 ? <span {...tipProps(SETUP_STATUS_TIPS.seeding)}>{` · ${BOTS_STATUS_SEEDING(seeding)}`}</span> : null}
       <span className={`bots-lvlchip bots-lvlchip--${effective}`} data-testid="bots-setup-level-chip"
         {...tipProps(chipTip, BOT_LEVEL_LABELS[own])}>
-        {held ? SHORT_SETUP_TEST_HELD_CHIP : watchEyes ? BOT_WATCH_ONLY_CHIP
+        {watchEyes ? BOT_WATCH_ONLY_CHIP
           : capped ? botSetupCapped(BOT_LEVEL_LABELS[own], masterName) : waiting ? BOT_SETUP_LEVEL_CHIP_WAITING
             : BOT_SETUP_LEVEL_CHIPS[own]}
       </span>
@@ -273,7 +269,7 @@ export function BotSetupCard(props: Props) {
 
       {stale ? <StaleStatus /> : (
         <StatusLine effective={shown} own={ownLevel} masterName={masterName} botActive={botActive}
-          summary={summary} connected={connected} seeding={seeding} short={short} locked={locked} watch={watch} />
+          summary={summary} connected={connected} seeding={seeding} watch={watch} />
       )}
 
       <div className="bots-strat__tpl">

@@ -15,7 +15,7 @@ export interface TripLatch { at: string | number | null; pnl: number | null; unt
 
 /** Why the switch is locked on Live while it is off: a bot never trades there yet. */
 export const BOT_SWITCH_LIVE_WHY =
-  'The bot does not trade on Live yet: your PIN padlock unlocks your own orders only. Its way to Live is #606, then your 1-share test.';
+  'The bot trades on Paper and Sim only. On Live, your PIN padlock unlocks your own orders; the bot never trades Live.';
 
 /** The switch is on: the backend's `bot_on`, else (an older backend) Activate with the master at Strategy. */
 export function botOn(session: BotSession): boolean {

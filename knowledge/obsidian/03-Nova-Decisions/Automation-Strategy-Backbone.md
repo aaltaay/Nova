@@ -1,3 +1,5 @@
+> **2026-10-13 operator amendment (#791):** This historical research plan grants no trading permission. Mandatory readiness samples, GO/NO-GO thresholds and Live-proof workflows are retired. Research measurements inform the operator; explicit arming/account/order safety and the Live bot ban remain.
+
 # Nova Automation Strategy — Backbone
 
 > This is the living master document for what the **Automate** button in Nova does.

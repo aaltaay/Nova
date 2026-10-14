@@ -250,10 +250,10 @@ PRACTICE_OCO_CANCELLED_REASON_DEFAULT = "One-cancels-other: the other exit fille
 # ``operation: "exit_oco"`` sells (a cover: buys) shares the venue already holds: a STP for every
 # share and a LMT per half, one group, committed once. A target's fill shrinks the stop to the shares
 # left (it stays where it is); the stop's fill cancels the targets. Paper and Sim only until Live's
-# proof (#606): Live -- and a bracket that sells in two halves -- is refused with this code.
+# adapter supports those shapes: Live and a bracket that sells in two halves are currently unsupported.
 EXIT_OCO_LIVE_CODE = "EXIT_OCO_LIVE"
 EXIT_OCO_LIVE_REASON = ("Live's exit pair -- a stop with targets beside it, or a bracket that sells in two "
-                        "halves -- waits on its Live proof (#606): nothing was sent")
+                        "halves -- is not supported by the Live execution adapter: nothing was sent")
 EXIT_OCO_FIELDS_CODE = "EXIT_OCO_FIELDS"
 EXIT_OCO_GEOMETRY_CODE = "EXIT_OCO_GEOMETRY"
 # A pair that would open a position instead of closing one (a BUY pair with nothing short).
