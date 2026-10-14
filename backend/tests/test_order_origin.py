@@ -147,16 +147,19 @@ async def test_a_flatten_close_carries_its_callers_origin(monkeypatch) -> None:
     assert (captured["cmd"].source, captured["cmd"].origin) == ("flatten", "bot_trip")
 
 
-def test_closes_sold_names_each_position_the_flatten_closed() -> None:
+def test_closes_sold_names_each_position_the_flatten_closed(monkeypatch) -> None:
     from bot.flatten import closes_sold
 
+    # The order that opened each one comes from the execution record (2026-10-14); none on record here.
+    monkeypatch.setattr("execution.store.list_recent", lambda limit=100: [])
     result = {"ok": False, "results": [
         {"symbol": "ACN", "qty": 100.0, "side": "SELL", "close": {"ok": True, "order_id": 68, "error": None}},
         {"symbol": "NXL", "qty": 5.0, "side": "SELL", "close": {"ok": False, "order_id": None, "error": "no mark"}},
     ]}
     assert closes_sold(result) == [
-        {"symbol": "ACN", "side": "SELL", "qty": 100.0, "ok": True, "order_id": 68, "error": None},
-        {"symbol": "NXL", "side": "SELL", "qty": 5.0, "ok": False, "order_id": None, "error": "no mark"},
+        {"symbol": "ACN", "side": "SELL", "qty": 100.0, "ok": True, "order_id": 68, "error": None, "opened_by": None},
+        {"symbol": "NXL", "side": "SELL", "qty": 5.0, "ok": False, "order_id": None, "error": "no mark",
+         "opened_by": None},
     ]
     assert closes_sold({"ok": True, "results": []}) == []
 
@@ -185,11 +188,12 @@ async def test_a_breaker_flattens_as_itself_and_lists_what_it_sold(paper_desk, m
         ]}
 
     monkeypatch.setattr("bot.breakers.flatten_account_with_retry", flatten)
+    monkeypatch.setattr("execution.store.list_recent", lambda limit=100: [])
     await poll_once(pnl=pnl)
     assert asked == [origin]
     line = next(e for e in list_entries(limit=20) if e["action"] == action)
     assert line["inputs"]["closes"] == [
-        {"symbol": "ACN", "side": "SELL", "qty": 100.0, "ok": True, "order_id": 68, "error": None}]
+        {"symbol": "ACN", "side": "SELL", "qty": 100.0, "ok": True, "order_id": 68, "error": None, "opened_by": None}]
     assert line["inputs"]["flatten_error"] is None and line["venue"] == "paper"
 
 

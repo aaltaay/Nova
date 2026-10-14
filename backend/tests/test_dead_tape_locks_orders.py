@@ -14,8 +14,12 @@ import pytest
 
 import instance_identity
 from constants_market_view import FEED_STALE, TAPE_STALE
+from main import app
 from market_view import gate, versions
 from practice.clock import ET
+# Imported before any fixture patches ``sim.mode``: this route binds ``is_replay_desk`` at import, and a
+# first import inside a test would keep the patched one for every later test (the Sim venue's own tests).
+from routes import trading_tape_ws
 
 T0 = datetime(2026, 10, 14, 9, 25, 11, tzinfo=ET).timestamp()  # GENK's last print
 
@@ -111,8 +115,6 @@ def test_the_desk_sees_the_doors_own_words_before_the_click(monkeypatch):
 
 def test_the_api_answers_with_the_same_lock(monkeypatch):
     from fastapi.testclient import TestClient
-
-    from main import app
 
     now = time.time()
     _line(monkeypatch, last=now - 8, exchange=now - 8, l1=now)
@@ -343,8 +345,8 @@ def test_the_tape_socket_sends_the_gates_answer_on_pings_and_when_it_changes(mon
 
     from ibkr import tape_stream
     from line_lending import socket_gate
-    from main import app
-    from routes import trading_tape_ws as ws_mod
+
+    ws_mod = trading_tape_ws
 
     lock = {"code": TAPE_STALE, "reason": "r", "text": "GENK's Time & Sales is missing trades. Flatten and cancels still work."}
     answers = iter([lock, lock, None])
