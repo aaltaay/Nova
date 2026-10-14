@@ -13,7 +13,7 @@ from collections import namedtuple
 import pytest
 
 from constants_leaderboard import LEADERBOARD_FREE_FAIL_BYTES, LEADERBOARD_FREE_WARN_BYTES
-from diagnostics import collect_leaderboard, gather as gather_mod
+from diagnostics import collect_leaderboard, inputs_disk
 from leaderboard import recorder, store
 
 GB = 1024**3
@@ -40,8 +40,8 @@ def _row(monkeypatch, *, free: int | None = None, error: OSError | None = None, 
         return Usage(2000 * GB, 2000 * GB - free, free)
 
     monkeypatch.setattr(recorder, "status", lambda: dict(status or RECORDING))
-    monkeypatch.setattr(gather_mod.shutil, "disk_usage", usage)
-    rows = collect_leaderboard.leaderboard_rows(**gather_mod._leaderboard_inputs())
+    monkeypatch.setattr(inputs_disk.shutil, "disk_usage", usage)
+    rows = collect_leaderboard.leaderboard_rows(**inputs_disk.leaderboard_inputs())
     assert seen == [str(store.root())]
     return {r["id"]: r for r in rows}["leaderboard_recorder"]
 
@@ -108,7 +108,7 @@ def test_unreadable_free_space_is_unknown_with_the_reason(monkeypatch, store_fil
 def test_a_store_folder_that_is_not_there_is_unknown_not_ok(monkeypatch):
     monkeypatch.setattr(recorder, "status", lambda: dict(RECORDING))
     assert not store.root().exists()
-    rows = collect_leaderboard.leaderboard_rows(**gather_mod._leaderboard_inputs())
+    rows = collect_leaderboard.leaderboard_rows(**inputs_disk.leaderboard_inputs())
     row = {r["id"]: r for r in rows}["leaderboard_recorder"]
     assert row["state"] == "unknown" and "FileNotFoundError" in row["detail"]
     assert row["evidence"]["store_bytes"] == 0 and row["evidence"]["free_bytes"] is None

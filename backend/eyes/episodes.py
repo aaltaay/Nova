@@ -15,6 +15,17 @@ of each setup's template in play (``playing: true``), in order:
 - a failed episode keeps the first rule it broke, never a later one; a faded one
   keeps what it was waiting on or blocked by when it ended.
 
+A lane re-reading the day is not a new setup (2026-10-14: 24 restarts drew AEHL's one failed 5-minute
+flat top 18 times, one red box per restart). After a ``session`` line every lane re-reads the day in
+one burst and writes what it finds again, and a lane can walk a setup's past again without a restart
+(AEHL's Gap and Go at 12:57:43 that day: armed, disarmed, watching in the same millisecond):
+
+- a setup the restart ended comes back as the same episode when its setup's first line since the restart
+  would have continued it (the same move, not a new attempt) -- as if Nova had not restarted;
+- an episode that opens and ends within ``EYES_EPISODE_REREAD_SEC`` on the same move as its setup's
+  last episode, which had ended, is the lane re-reading its past: no episode.
+The journal keeps every line; only the fold reads them this way.
+
 The episode's shape is AGENTS.md §3 "Setups that ended stay on the chart". Pure:
 lines in, episodes out; ``after`` is filled by ``eyes/aftermath.py``. Nothing is
 recomputed with today's rules.
@@ -25,7 +36,7 @@ import re
 from typing import Any
 
 from constants_bot import BOT_SETUP_FIRST_PULLBACK
-from constants_eyes import EYES_EPISODE_BAR_CLOSE_SEC
+from constants_eyes import EYES_EPISODE_BAR_CLOSE_SEC, EYES_EPISODE_REREAD_SEC
 from constants_setups import (
     SETUP_STATE_ARMED,
     SETUP_STATE_FAILED,
@@ -86,6 +97,8 @@ class EpisodeFold:
         self.open: dict[tuple[str, str], dict[str, Any]] = {}
         self.ended: list[dict[str, Any]] = []
         self._by_setup_id: dict[str, dict[str, Any]] = {}
+        # The episodes the last restart ended, each until its setup's first line since then.
+        self._resume: dict[tuple[str, str], dict[str, Any]] = {}
 
     # -- feed -----------------------------------------------------------------------------
     def _mine(self, line: dict[str, Any]) -> bool:
@@ -98,6 +111,7 @@ class EpisodeFold:
         ev = line.get("event")
         ts = float(line.get("ts") or 0.0)
         if ev == "session":                      # Nova started: every lane began again from nothing
+            self._resume = dict(self.open)
             for key in list(self.open):
                 self._end(key, ts, "Nova restarted: the eyes began again", cut=True)
             return
@@ -112,21 +126,42 @@ class EpisodeFold:
             return
         key = (str(sym), str(line.get("setup_type") or BOT_SETUP_FIRST_PULLBACK))
         reason = str(line.get("reason") or "")
+        resume = self._resume.pop(key, None)
         cur = self.open.get(key)
         has_leg = "leg" in line
-        leg = line.get("leg") if has_leg else (cur["leg"] if cur else None)
+        leg = line.get("leg") if has_leg else (cur["leg"] if cur else (resume["leg"] if resume else None))
         if state == SETUP_STATE_WATCHING or (has_leg and leg is None and state != SETUP_STATE_TRIGGERED):
             if cur is not None:
                 self._end(key, ts, reason)
             return
         if not isinstance(leg, dict):
             return
+        if cur is None and resume is not None and not self._new_attempt(resume, state, leg):
+            cur = self._reopen(key, resume)      # the restart's setup, written again: the same episode
         if cur is not None and self._new_attempt(cur, state, leg):
             self._end(key, ts, f"a new attempt began: {reason}" if reason else "a new attempt began")
             cur = None
         if cur is None:
             cur = self._open(key, line, ts, leg)
+            cur["_reread_of"] = self._reread_of(key, ts, leg)
         self._update(cur, str(ev), state, reason, leg, line, ts)
+
+    def _reread_of(self, key: tuple[str, str], ts: float, leg: dict[str, Any]) -> float | None:
+        """For an episode opening at ``ts`` on the same move as its setup's last episode, which had ended: the
+        moment until which ending is the lane re-reading that past (``EYES_EPISODE_REREAD_SEC``); else None."""
+        last = next((ep for ep in reversed(self.ended) if (ep["symbol"], ep["setup_type"]) == key), None)
+        if last is None or not _same_move(last["leg"], leg):
+            return None
+        return ts + EYES_EPISODE_REREAD_SEC
+
+    def _reopen(self, key: tuple[str, str], ep: dict[str, Any]) -> dict[str, Any]:
+        """Undo the restart's end of ``ep``: it is open again, with whatever it had reached and died of."""
+        self.ended = [e for e in self.ended if e is not ep]
+        ep["ended_at"] = ep["ended_by"] = ep["end"] = ep["reason_key"] = None
+        if ep["died_at"] is None and ep["triggered_at"] is None:
+            ep["reason"] = None                  # a cut's reason was what its lane said; open, it is _reason again
+        self.open[key] = ep
+        return ep
 
     @staticmethod
     def _new_attempt(cur: dict[str, Any], state: str, leg: dict[str, Any]) -> bool:
@@ -145,7 +180,7 @@ class EpisodeFold:
             "end": None, "died_at": None, "died_bar_t": None, "reason": None, "reason_key": None, "ended_by": None,
             "reached": SETUP_STATE_LEG, "leg": dict(leg), "setup": None, "setup_id": None, "filtered": None,
             "triggered_at": None, "trigger_price": None, "score": None, "after": None,
-            "_state": SETUP_STATE_WATCHING, "_reason": "",
+            "_state": SETUP_STATE_WATCHING, "_reason": "", "_reread_of": None, "_was_by_id": None,
         }
         self.open[key] = ep
         return ep
@@ -162,6 +197,9 @@ class EpisodeFold:
             ep["setup"] = dict(setup)
         if line.get("setup_id"):
             ep["setup_id"] = str(line["setup_id"])
+            was = self._by_setup_id.get(ep["setup_id"])
+            if was is not ep:
+                ep["_was_by_id"] = was
             self._by_setup_id[ep["setup_id"]] = ep
         if ev == "filtered":
             ep["filtered"] = reason or None
@@ -174,6 +212,14 @@ class EpisodeFold:
 
     def _end(self, key: tuple[str, str], ts: float, ended_by: str, *, cut: bool = False) -> None:
         ep = self.open.pop(key)
+        if not cut and ep["_reread_of"] is not None and ts <= ep["_reread_of"]:
+            # The lane re-read a setup that had already ended: no episode, and its id scores the first again.
+            if ep["setup_id"] and self._by_setup_id.get(ep["setup_id"]) is ep:
+                if ep["_was_by_id"] is not None:
+                    self._by_setup_id[ep["setup_id"]] = ep["_was_by_id"]
+                else:
+                    del self._by_setup_id[ep["setup_id"]]
+            return
         ep["ended_at"], ep["ended_by"] = ts, ended_by or None
         if ep["triggered_at"] is not None:
             ep["end"] = END_TRIGGERED

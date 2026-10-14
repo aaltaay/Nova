@@ -113,6 +113,64 @@ def test_a_restart_cuts_a_setup_whose_end_was_open_and_keeps_one_that_had_failed
                     "ABCD": ("cut", "Nova restarted: the eyes began again")}
 
 
+def session(ts: float) -> dict:
+    return {"schema_version": 1, "event": "session", "ts": ts, "date": DAY, "source": "live", "symbol": None}
+
+
+def test_a_failed_setup_written_again_after_each_restart_is_still_one_episode():
+    # AEHL, 2026-10-14: the 5-minute flat top failed once at 10:17; every restart wrote that failure again
+    # (same 10:10 high, same rule), and the 5-minute chart drew one red box per restart -- 18 of them.
+    leg = {"t": at(10, 10), "high": 29.76, "low": 17.0, "pct": 0.75, "bars": 0}
+    rule = "a base candle closed more than 2% under the 29.76 high"
+    lines = [line("state", at(10, 17, 5), lane="flat_top_breakout", state="failed", leg=leg, reason=rule)]
+    for h, m in ((10, 21), (11, 46), (11, 51)):
+        lines += [session(at(h, m)), line("state", at(h, m, 0.3), lane="flat_top_breakout", state="failed",
+                                          leg=leg, reason=rule)]
+    [ep] = fold(lines).episodes("NCPL")
+    assert ep["end"] is None and ep["started_at"] == at(10, 17, 5)       # still the lane's, since 10:17
+    assert ep["died_at"] == at(10, 17, 5) and ep["reason"] == rule
+
+
+def test_a_setup_armed_across_a_restart_stays_one_episode_and_a_try_after_its_failure_is_new():
+    leg = {"t": at(9, 30), "high": 5.0, "low": 4.5, "pct": 0.11}
+    setup = {"trigger": 5.1, "entry": 5.11, "stop": 4.95, "risk": 0.16, "target1": 5.43, "leg_t": at(9, 30)}
+    armed = dict(lane="first_pullback", leg=leg, setup_id="S1", setup=setup, reason="trigger 5.10")
+    f = fold([line("armed", at(9, 33), **armed), session(at(9, 35)), line("armed", at(9, 35, 0.3), **armed)])
+    [ep] = f.episodes()
+    assert ep["end"] is None and ep["reached"] == "armed" and ep["started_at"] == at(9, 33)
+
+    f = fold([
+        line("state", at(9, 31), lane="first_pullback", state="failed", leg=leg, reason="gave back half the leg"),
+        session(at(9, 35)),
+        line("state", at(9, 35, 0.3), lane="first_pullback", state="pullback", leg=leg, reason="pulling back"),
+    ])
+    failed, again = f.episodes()
+    assert (failed["end"], failed["ended_at"]) == ("failed", at(9, 35))   # the restart ended it, as before
+    assert again["end"] is None and again["started_at"] == at(9, 35, 0.3)
+
+
+def test_a_lane_re_reading_a_setup_that_ended_draws_it_once():
+    # AEHL's Gap and Go faded at 10:06; at 12:57:43 (no restart) and after every restart the lane walked it
+    # again -- armed, disarmed, watching in the same millisecond -- one more grey box each time.
+    pmh = {"t": at(4, 13), "high": 29.76, "low": 29.57, "pct": -0.19, "bars": 0}
+    g = dict(lane="gap_and_go", leg=pmh, setup_id="AEHL@gap_and_go")
+    walk = lambda ts: [line("disarmed", ts, reason="no break of the 29.76 pre-market high by 10:00", **g),  # noqa: E731
+                       line("state", ts + 0.001, state="watching", reason="no break by 10:00", **g)]
+    lines = [line("armed", at(9, 30), setup={"trigger": 29.76}, reason="opened under the high", **g),
+             line("state", at(10, 6), state="watching", reason="no break by 10:00", **g)]
+    lines += [session(at(11, 46))] + walk(at(11, 46, 0.3)) + walk(at(12, 57, 43.9))
+    lines += [line("scored", at(13, 0), lane="gap_and_go", setup_id="AEHL@gap_and_go", outcome="open",
+                   bar_r=0.0, exit_reason="none", mfe=0.0, mae=0.0)]
+    [ep] = fold(lines).episodes()
+    assert ep["end"] == "faded" and ep["ended_at"] == at(10, 6)
+    assert ep["score"]["outcome"] == "open"                  # its id still scores the one episode
+
+    # The same move walked again for longer than a burst is a live setup, drawn.
+    live = lines[:2] + [line("disarmed", at(11, 0), reason="pulling back", **g),
+                        line("state", at(11, 3), state="watching", reason="no break", **g)]
+    assert [e["started_at"] for e in fold(live).episodes()] == [at(9, 30), at(11, 0)]
+
+
 def test_only_the_template_in_play_counts_and_an_old_line_is_the_first_pullback():
     leg = {"t": at(9, 30), "high": 5.0, "low": 4.5, "pct": 0.11}
     other = line("state", at(9, 31), state="failed", leg=leg, reason="x")

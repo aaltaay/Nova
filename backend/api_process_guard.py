@@ -4,11 +4,21 @@ Owner: this module (started from api_instance_lock.acquire_or_exit).
 A live PID that is not listening on the API port is a D-005 orphan --
 it must exit so the instance lock can be reclaimed without starting a
 second clientId 17 session.
+
+Only a probe that says "nobody listens" counts (2026-10-14). That day the PC ran out of
+network ports: every test connection failed at once (WinError 52 / 10048), the probe read
+that as a dark port, and this guard stopped a serving API about every two minutes -- 19
+restarts, no Time & Sales or Level 2, and every recording cut short. A probe that cannot
+run says ``None`` (unknown), and unknown never stops the API.
+
+A stop it does make writes out what the process still holds first: the eyes' journal batch
+and the log queue (``_flush_before_exit``).
 """
 from __future__ import annotations
 
 import logging
 import os
+import sys
 import threading
 import time
 
@@ -34,13 +44,31 @@ def parent_lost(initial_ppid: int, current_ppid: int, parent_alive: bool) -> boo
 
 def should_exit_for_dark_port(
     age_sec: float,
-    listening: bool,
+    listening: bool | None,
     grace_sec: float = STARTUP_GRACE_SEC,
 ) -> bool:
-    """True after startup grace if our API port has no listener."""
-    if listening:
+    """True after startup grace if our API port has no listener. ``None`` -- the probe could not
+    run -- is never a reason to exit."""
+    if listening is not False:
         return False
     return age_sec >= grace_sec
+
+
+def _flush_before_exit() -> None:
+    """What ``os._exit`` would drop: the eyes' journal lines still queued, then the log queue. Only
+    modules already loaded are touched; each step is bounded."""
+    journal = sys.modules.get("eyes.journal")
+    if journal is not None:
+        try:
+            journal.flush(1.0)
+        except Exception:
+            logger.warning("api_process_guard: the eyes' journal did not flush before exit", exc_info=True)
+    setup = sys.modules.get("logging_setup")
+    if setup is not None:
+        try:
+            setup.shutdown_logging()
+        except Exception:  # maintainer: allow-swallow the log queue is what failed; nothing is left to log to
+            pass
 
 
 def _env_bind() -> tuple[str, int]:
@@ -71,6 +99,7 @@ def _watch_parent(initial_ppid: int, pid_alive, interval_sec: float) -> None:
                 "instance lock can reclaim (no zombie-without-listener)",
                 initial_ppid,
             )
+            _flush_before_exit()
             os._exit(0)
 
 
@@ -82,14 +111,29 @@ def _watch_listen(
     interval_sec: float,
     grace_sec: float,
 ) -> None:
+    unknown_since: float | None = None
     while True:
         time.sleep(interval_sec)
         age = time.monotonic() - started_at
-        listening = False
+        listening: bool | None = None
         try:
-            listening = bool(port_listening(host, port))
+            answer = port_listening(host, port)
+            listening = None if answer is None else bool(answer)
         except Exception:
-            logger.debug("api_process_guard: listen probe failed", exc_info=True)
+            logger.warning("api_process_guard: the listen probe raised -- treated as unknown", exc_info=True)
+        if listening is None:
+            if unknown_since is None:
+                unknown_since = time.monotonic()
+                logger.warning(
+                    "api_process_guard: cannot tell whether %s:%s is listening -- this PC would not open a "
+                    "test connection; staying up (a probe that cannot run never stops the API)",
+                    host,
+                    port,
+                )
+        elif unknown_since is not None:
+            logger.info("api_process_guard: the listen probe answers again after %.0fs",
+                        time.monotonic() - unknown_since)
+            unknown_since = None
         if should_exit_for_dark_port(age, listening, grace_sec):
             logger.error(
                 "api_process_guard: %s:%s has no listener after %.1fs -- "
@@ -98,6 +142,7 @@ def _watch_listen(
                 port,
                 age,
             )
+            _flush_before_exit()
             os._exit(1)
 
 

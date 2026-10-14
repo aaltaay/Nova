@@ -39,6 +39,7 @@ LOCK_NAME = "api-instance.lock"
 _acquire_mutex = threading.RLock()
 _held_guard: tuple[int, Path, BinaryIO] | None = None
 LISTEN_PROBE_TIMEOUT_SEC = 0.4
+LISTEN_PROBE_WARN_EVERY_SEC = 60.0
 TERMINATE_WAIT_SEC = 2.0
 
 
@@ -115,15 +116,18 @@ def pid_image_name(pid: int) -> str | None:
 def classify_holder(
     *,
     alive: bool,
-    listening: bool,
+    listening: bool | None,
     age_sec: float,
     grace_sec: float = STARTUP_GRACE_SEC,
 ) -> str:
-    """healthy | starting | orphan | dead -- never start beside a healthy holder."""
+    """healthy | starting | unknown | orphan | dead -- never start beside a healthy holder, and never
+    call a living holder an orphan on a probe that could not run (``listening`` None: ``unknown``)."""
     if not alive:
         return "dead"
     if listening:
         return "healthy"
+    if listening is None:
+        return "unknown"
     if age_sec < grace_sec:
         return "starting"
     return "orphan"
@@ -139,12 +143,28 @@ def _api_bind() -> tuple[str, int]:
     return host, port
 
 
-def _port_listening(host: str, port: int) -> bool:
+_probe_warned_at = 0.0
+
+
+def _port_listening(host: str, port: int) -> bool | None:
+    """True when something accepts on ``host:port``, False when nothing does, None when the probe could
+    not run. On Windows a refused loopback connect takes ~2 s (SYN retries), so within the probe's
+    0.4 s "nobody" is a timeout; a refusal says the same. Any other error is the PC refusing to open
+    the connection -- out of ports (WinError 10048 / 52, 2026-10-14), out of buffers -- which says
+    nothing about the listener."""
+    global _probe_warned_at
     try:
         with socket.create_connection((host, port), timeout=LISTEN_PROBE_TIMEOUT_SEC):
             return True
-    except OSError:
+    except (TimeoutError, ConnectionRefusedError):
         return False
+    except OSError as exc:
+        now = time.monotonic()
+        if now - _probe_warned_at >= LISTEN_PROBE_WARN_EVERY_SEC:
+            _probe_warned_at = now
+            logger.warning("api_instance_lock: cannot probe %s:%s -- this PC would not open a test connection "
+                           "(%s); whether it listens is unknown", host, port, exc)
+        return None
 
 
 def _terminate_pid(pid: int) -> None:
@@ -244,6 +264,14 @@ def _claim_metadata() -> tuple[bool, str]:
             detail = (
                 f"another Nova API is still starting (pid={holder}). "
                 "Wait for it to bind :{port} -- do not start a second clientId 17."
+            )
+            logger.error("api_instance_lock: %s", detail)
+            return False, detail
+        if kind == "unknown":
+            detail = (
+                f"another Nova API is running (pid={holder}) and this PC would not open a test connection "
+                f"to {host}:{port}, so whether it serves is unknown. It is left running -- do not start a "
+                "second clientId 17. A PC out of network ports needs a restart (the pc_ports row)."
             )
             logger.error("api_instance_lock: %s", detail)
             return False, detail
