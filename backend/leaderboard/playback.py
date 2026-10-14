@@ -131,7 +131,7 @@ def _default_source(db: Any, day: str) -> str:
     return LEADERBOARD_SOURCE_RECORDED
 
 
-def _api_row(row: dict[str, Any], halted: bool | None, catalyst: dict[str, Any] | None) -> dict[str, Any]:
+def api_row(row: dict[str, Any], halted: bool | None, catalyst: dict[str, Any] | None) -> dict[str, Any]:
     out = {key: value for key, value in row.items() if key != "session_date"}
     has_news = out.get("has_news")
     out["has_news"] = None if has_news is None else bool(has_news)
@@ -205,7 +205,7 @@ def board_at(day: str, at: float, source: str | None = None, *, now: float | Non
     for row in rows:
         halted: bool | None = True if halt_log.halted_at(events, row["symbol"], minute) else (False if halt_feed_ok else None)
         boards.setdefault(row["board"], {"state": None, "rows": []})["rows"].append(
-            _api_row(row, halted, catalysts.get(row["symbol"]))
+            api_row(row, halted, catalysts.get(row["symbol"]))
         )
     leaders = rank_rows(boards.get(leaders_board, {}).get("rows", []), LEADERS_RULES)
     base.update({

@@ -76,3 +76,15 @@ export function useSimPlayheadMinute(): SimPlayheadMinute | null {
   const key = useSyncExternalStore(subscribe, () => playheadMinuteKey(sim, simClockResource.getSnapshot().data));
   return useMemo(() => parseMinuteKey(key), [key]);
 }
+
+/**
+ * The playhead's epoch second while `enabled` (a rebuilt day's Gappers by the second), else null. Re-renders
+ * once a clock poll moves the second; Live and Paper never get here (the caller gates on a replayed board).
+ */
+export function useSimPlayheadSecond(enabled: boolean): number | null {
+  const subscribe = useCallback(
+    (listener: () => void) => (enabled ? simClockResource.subscribe(listener) : noSubscription()),
+    [enabled],
+  );
+  return useSyncExternalStore(subscribe, () => (enabled ? playheadSecond(simClockResource.getSnapshot().data) : null));
+}

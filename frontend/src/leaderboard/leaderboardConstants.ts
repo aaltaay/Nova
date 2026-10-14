@@ -185,3 +185,40 @@ export const HOD_REPLAY_CLEAR_TITLE = 'Past alerts are history -- nothing to cle
 
 /** REC chip card: a recording auto-record started (07:00-10:00 ET leaders). */
 export const AUTO_RECORD_CHIP_LINE = 'auto -- recorded by auto-record (07:00-10:00 ET leaders); stops on its own';
+
+/**
+ * A rebuilt day's Gappers by the second (ADR 023 amendment 2026-10-13): built once a day from the Massive
+ * trades, then read at each playhead second. Gainers, Losers and After Hours stay per minute.
+ */
+export const leaderboardSecondsPath = (date: string): string =>
+  `/api/leaderboard/${encodeURIComponent(date)}/seconds`;
+export const leaderboardSecondsAtPath = (date: string, at: number): string =>
+  `${leaderboardSecondsPath(date)}?at=${Math.floor(at)}`;
+export const LEADERBOARD_SECONDS_REQUEST_FAILED = 'Gappers by the second request failed';
+/** While a build is asked for or runs, its state is read again this often, even with the playhead paused. */
+export const LEADERBOARD_SECONDS_POLL_MS = 2_000;
+/** An answer at most this many seconds behind the playhead stands while the next one loads (plain playback). */
+export const LEADERBOARD_SECONDS_KEEP_SEC = 2;
+export const LEADERBOARD_SECONDS_TITLE =
+  'Gappers follows the playhead second by second: each minute\'s board, priced by the trades printed before '
+  + 'this second (the Massive trades files). Gainers, Losers and After Hours stay per minute.';
+export const leaderboardSecondsShown = (clock: string): string => `Gappers by the second · ${clock} ET`;
+export const LEADERBOARD_SECONDS_STAGE_WORD: Record<string, string> = {
+  inputs: 'reading the day',
+  index: 'indexing the day\'s trades file',
+  trades: 'reading trades',
+  writing: 'saving',
+};
+export const leaderboardSecondsBuilding = (stage: string | null, done: number | null, total: number | null): string => {
+  const word = (stage && LEADERBOARD_SECONDS_STAGE_WORD[stage]) || 'starting';
+  const count = stage === 'trades' && done != null && total != null ? ` ${done} of ${total} stocks` : '';
+  return `Gappers by the second: ${word}${count}… (per minute until then)`;
+};
+export const leaderboardSecondsFailed = (error: string | null): string =>
+  `Gappers by the second failed${error ? `: ${error}` : ''} -- per minute`;
+export const LEADERBOARD_SECONDS_STOPPED =
+  'Gappers by the second stopped when another day was opened -- per minute; reopen this day to build it';
+export const leaderboardSecondsUnavailable = (reason: string | null): string =>
+  `Gappers per minute${reason ? `: ${reason}` : ''}`;
+export const leaderboardSecondsError = (error: string): string =>
+  `Gappers by the second did not load: ${error} -- per minute`;

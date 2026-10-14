@@ -84,6 +84,11 @@ def main() -> None:
         from sim.massive_worker import main as massive_worker_main
 
         raise SystemExit(massive_worker_main(sys.argv[1:]))
+    if "--board-seconds" in sys.argv:
+        # A rebuilt day's Gappers by the second, built out of the API process (ADR 023 amendment 2026-10-13).
+        from leaderboard.seconds.worker import main as board_seconds_main
+
+        raise SystemExit(board_seconds_main(sys.argv[1:]))
     import uvicorn
 
     host = os.environ.get("NOVA_API_HOST", "127.0.0.1")

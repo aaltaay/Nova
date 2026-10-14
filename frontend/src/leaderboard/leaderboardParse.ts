@@ -14,7 +14,9 @@ import type {
   LeaderboardDaySummary,
   LeaderboardGap,
   LeaderboardRow,
+  LeaderboardSecondsAt,
   LeaderboardSource,
+  GappersBySecondStatus,
 } from './leaderboardTypes';
 
 const unreadable = (what: string): string => `Nova returned an unreadable ${what}.`;
@@ -141,5 +143,32 @@ export function parseLeaderboardCoverage(raw: unknown): LeaderboardCoverage {
       .map(gap => ({ start: finiteOrNull(gap.start), end: finiteOrNull(gap.end), reason: text(gap.reason) ?? 'unknown' }))
       .filter((gap): gap is { start: number; end: number; reason: string } =>
         gap.start != null && gap.end != null && gap.end > gap.start),
+  };
+}
+
+const SECONDS_STATUSES: readonly GappersBySecondStatus[] = [
+  'queued', 'building', 'ready', 'failed', 'stopped', 'none', 'unavailable',
+];
+
+/** `GET /api/leaderboard/{date}/seconds?at=` and `POST` of the same path. An unknown status reads `none`. */
+export function parseLeaderboardSecondsAt(raw: unknown): LeaderboardSecondsAt {
+  if (!isObject(raw)) throw new Error(unreadable('Gappers by the second'));
+  const status = SECONDS_STATUSES.find(s => s === raw.status) ?? 'none';
+  const ready = status === 'ready';
+  return {
+    date: text(raw.date) ?? '',
+    status,
+    reason: textOrNull(raw.reason),
+    stage: textOrNull(raw.stage),
+    done: finiteOrNull(raw.done),
+    total: finiteOrNull(raw.total),
+    error: textOrNull(raw.error),
+    secondTs: ready ? finiteOrNull(raw.second_ts) : null,
+    minuteTs: ready ? finiteOrNull(raw.minute_ts) : null,
+    state: textOrNull(raw.state),
+    // Rows only from a ready build that says which second they are at.
+    rows: ready && finiteOrNull(raw.second_ts) != null
+      ? objects(raw.rows).map(row => parseLeaderboardRow(row, 'gappers')).filter((row): row is LeaderboardRow => row != null)
+      : [],
   };
 }

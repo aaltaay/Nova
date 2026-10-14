@@ -43,6 +43,8 @@ import type {
 
 /** "07:42" (Eastern) for an epoch second. */
 export const etClock = (epochSeconds: number): string => etTime(epochSeconds).slice(0, 5);
+/** "07:42:31" (Eastern) for an epoch second. */
+export const etClockSeconds = (epochSeconds: number): string => etTime(epochSeconds);
 
 export const EMPTY_REPLAY_TABLES: ScannerReplayTables = Object.freeze({
   gappers: [], gainers: [], losers: [], afterhours: [], largeCap: [],
