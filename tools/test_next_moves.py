@@ -174,6 +174,39 @@ def test_backlog_picks_offer_batches_never_gated_claimed_or_decision_issues():
                                          "Start the Recorder batch"))
 
 
+def test_a_stale_claim_label_does_not_hide_urgent_work():
+    """`held` is the resolved claim map; a stale claim keeps its label but is free (review of PR #936)."""
+    stale = [dict(i, labels=i["labels"] + [{"name": "claimed"}]) if i["number"] == 913 else i
+             for i in ISSUES]
+    titles = {p["title"] for p in picks.backlog_picks(nm.with_inbox(PACKAGES, stale), stale, HELD)}
+    assert "Fix bug #913" in titles
+
+
+def test_unresolved_claims_fail_closed():
+    """Resolution that stopped part way never offers a claimed issue as free (review of PR #936)."""
+    claimed = [dict(i, labels=i["labels"] + [{"name": "claimed"}]) if i["number"] == 913 else i
+               for i in ISSUES]
+    assert nm.fail_closed_holds(claimed, {}, True) == {}
+    closed = nm.fail_closed_holds(claimed, {}, False)
+    assert set(closed) == {314, 318, 913}
+    assert closed[913] == {"agent": nm.UNRESOLVED_HOLDER, "stale": False}
+    assert nm.fail_closed_holds(claimed, HELD, False)[314] is HELD[314]
+    live = nm.with_inbox(PACKAGES, claimed)
+    titles = {p["title"] for p in picks.backlog_picks(live, claimed, closed)}
+    assert "Fix bug #913" not in titles and "Start the Recorder batch" not in titles
+
+
+def test_picks_now_fails_closed_when_a_claim_read_breaks(monkeypatch):
+    claimed = [dict(i, labels=i["labels"] + [{"name": "claimed"}]) if i["number"] == 913 else i
+               for i in ISSUES]
+    monkeypatch.setattr(nm, "collect_live", lambda **kw: (claimed, {}, False))
+    monkeypatch.setattr(nm, "fetch_prs", lambda **kw: [])
+    monkeypatch.setattr(nm, "load_packages", lambda: PACKAGES)
+    seed = nm.picks_now(limit=20)
+    assert "claims unverified" in seed["source"]
+    assert not any(p["id"] == "bug-913" for p in seed["picks"])
+
+
 def test_triage_pick_names_the_urgent_inbox_issues():
     [t] = picks.triage_pick(ISSUES)
     assert t["score"] == picks.SCORE_TRIAGE_URGENT and "#722, #913" in t["reason"]

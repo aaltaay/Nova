@@ -64,6 +64,7 @@ BETTER_ASK_MAX_WORDS = 35
 FOOTER_MAX_WORDS = 280
 SEED_LIMIT = 8
 SEED_TIMEOUT_SEC = 8
+UNRESOLVED_HOLDER = "an unresolved claim"
 PR_FIELDS = "number,title,isDraft,labels,mergeable,statusCheckRollup"
 
 
@@ -129,6 +130,23 @@ def collect_live(
     return issues, held, True
 
 
+def fail_closed_holds(issues: list[dict[str, Any]], held: dict[int, dict[str, Any]],
+                      known: bool) -> dict[int, dict[str, Any]]:
+    """Claims as the picks must see them.
+
+    When resolution stopped part way (a comment read failed or the budget ran
+    out), every issue still carrying the claim label counts as held: a claim
+    nobody could read is never offered as free work (review of PR #936).
+    """
+    if known:
+        return held
+    closed = dict(held)
+    for issue in issues:
+        if CLAIM_LABEL in label_names(issue):
+            closed.setdefault(int(issue["number"]), {"agent": UNRESOLVED_HOLDER, "stale": False})
+    return closed
+
+
 def fetch_prs(*, budget: _Budget) -> list[dict[str, Any]] | None:
     """Open PRs with their checks; None (no PR picks) when GitHub cannot answer."""
     try:
@@ -155,6 +173,8 @@ def picks_now(*, offline: bool = False, limit: int = PICKS_SHOWN, thread: str | 
         budget = _Budget(timeout)
         issues, held, known = collect_live(budget=budget, now=now)
         prs = fetch_prs(budget=budget)
+        if issues is not None:
+            held = fail_closed_holds(issues, held, known)
     live = with_inbox(packages, issues) if issues is not None else packages
     candidates = all_picks(roadmap_text=roadmap, packages=live, issues=issues, held=held, prs=prs)
     if thread:

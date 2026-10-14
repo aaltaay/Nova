@@ -42,7 +42,6 @@ KIND_ORDER = ("thread", "pr", "fix", "batch", "decide", "triage", "operator")
 MONEY_PATH_DOMAINS = frozenset({"domain:execution"})
 PR_TITLE_CHARS = 60
 HOLD_LABELS = frozenset({"do-not-merge"})
-CLAIM_LABEL_NAME = "claimed"
 
 # Offers that may never appear. "live short" is deliberately absent: the roadmap
 # ledger uses it as a guardrail phrase ("before any live short").
@@ -193,7 +192,9 @@ def backlog_picks(packages: list[dict[str, Any]], issues: list[dict[str, Any]],
     """Urgent bugs (as their batch, or alone when untriaged) plus the plan's next batch.
 
     A gated or claimed issue is never offered as work: a gate is the operator's
-    (see `decide_pick`), a claim is another agent's.
+    (see `decide_pick`), a claim is another agent's. `held` is the resolved claim
+    map (`resolve_claim`, failed closed by the caller), never the raw `claimed`
+    label: a stale claim is reclaimable, so its label must not hide urgent work.
     """
     by_number = {int(i["number"]): i for i in issues}
     open_numbers = set(by_number)
@@ -201,7 +202,7 @@ def backlog_picks(packages: list[dict[str, Any]], issues: list[dict[str, Any]],
     for number, issue in sorted(by_number.items()):
         sev = severity_of(issue)
         names = label_names(issue)
-        if sev not in ("P0", "P1") or number in held or CLAIM_LABEL_NAME in names:
+        if sev not in ("P0", "P1") or number in held:
             continue
         if "decision" in names:
             continue
