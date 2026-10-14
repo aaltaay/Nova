@@ -16,6 +16,16 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   openStockView: (url) => ipcRenderer.invoke('nova:openStockView', url),
   /** Open an allowlisted HTTPS URL in the system browser. */
   openExternal: (url) => ipcRenderer.invoke('nova:openExternal', url),
+  /** The followed traders' stream in a small window of its own (an 11-character YouTube id only). */
+  openStream: (videoId) => ipcRenderer.invoke('nova:openStream', videoId),
+  /** Google's own sign-in page in a window of its own, so the stream player gets past YouTube's bot check. */
+  youtubeSignIn: () => ipcRenderer.invoke('nova:youtubeSignIn'),
+  /** Called when that sign-in window closes (true when it reached YouTube signed in); returns the unsubscribe. */
+  onYoutubeSignedIn: (cb) => {
+    const listener = (_event, signedIn) => cb(Boolean(signedIn));
+    ipcRenderer.on('nova:youtube:signedIn', listener);
+    return () => ipcRenderer.removeListener('nova:youtube:signedIn', listener);
+  },
   /** Kill + restart the local FastAPI sidecar when the UI shows Backend unreachable. */
   restartApi: () => ipcRenderer.invoke('nova:restartApi'),
   /**

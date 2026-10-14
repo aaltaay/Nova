@@ -81,6 +81,8 @@ export interface FollowedCapture {
   age_sec: number | null;
   bar_visible: boolean;
   title: string | null;
+  /** The stream the feed reads: a YouTube video id, or null when it names none (an older backend sends no field). */
+  video_id?: string | null;
   traders: string[];
   /** The feed's own reason it cannot read, shown as it is. */
   problem: string | null;
@@ -100,6 +102,8 @@ export interface FollowedBarSlot {
   positions: BarPosition[];
   /** This API's path to the trader's slot as last seen; null when the feed names none. */
   image: string | null;
+  /** This API's path to the trader's photo on the feed's today; null without one (absent from an older backend). */
+  face?: string | null;
 }
 
 export interface FollowedDay {

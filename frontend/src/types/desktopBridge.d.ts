@@ -10,6 +10,12 @@ interface Window {
     openStockView?: (url: string) => Promise<boolean>;
     /** Electron IPC: open an allowlisted HTTPS URL in the system browser. */
     openExternal?: (url: string) => Promise<boolean>;
+    /** Electron IPC: the followed traders' stream in a small window of its own (followed_traders/stream.ts). */
+    openStream?: (videoId: string) => Promise<boolean>;
+    /** Electron IPC: Google's sign-in page in its own window, for the stream player (YouTube's bot check). */
+    youtubeSignIn?: () => Promise<boolean>;
+    /** Called when that window closes, true when it reached YouTube signed in; returns the unsubscribe. */
+    onYoutubeSignedIn?: (cb: (signedIn: boolean) => void) => () => void;
     /** Electron IPC: stop + start the local FastAPI sidecar, then wait for health. */
     /** `from` / `to`: the backend's revision before and after (null when it does not say). */
     restartApi?: () => Promise<{ ok: boolean; error?: string; from?: string | null; to?: string | null }>;
