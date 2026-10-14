@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { activity } from './activity';
 import { dayLabel, monthCells, neighbourDay, shiftMonth } from './calendar';
-import { behindStream, capturePill } from './capture';
+import { behindStream, capturePill, offAirWhy, onAir } from './capture';
 import { capture, closed, day, T, trade } from './followedTestData';
 import { judgeReads, readAt } from './proof';
 import { tradeToasts } from './toastModel';
@@ -18,6 +18,21 @@ describe('capture pill', () => {
     expect(capturePill(day({ capture: null }))!.text).toMatch(/not reported/);
     expect(capturePill(day({ feed: { state: 'unreachable', error: 'timed out after 3 s' } }))).toEqual({
       tone: 'down', text: 'The feed is not answering · timed out after 3 s' });
+  });
+});
+
+describe('the stream on air', () => {
+  it('is on air only while the feed reads it live, and says why not otherwise', () => {
+    expect(onAir(capture())).toBe(true);
+    expect(onAir(null)).toBe(false);
+    // The feed's last status still says live, five hours after its last read: the stream is over.
+    const ended = capture({ clock: '15:57:12', age_sec: 18_000 });
+    expect(onAir(ended)).toBe(false);
+    expect(offAirWhy(ended)).toBe('The feed is not reading a live stream right now · last read 15:57:12 ET');
+    expect(offAirWhy(capture({ age_sec: 400, problem: 'not live right now' })))
+      .toBe('The feed is not reading a live stream right now · last read 10:09:54 ET · not live right now');
+    expect(onAir(capture({ live: false }))).toBe(false);
+    expect(offAirWhy(capture({ live: false }))).toBe('Waiting for the stream');
   });
 });
 

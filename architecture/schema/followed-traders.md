@@ -75,21 +75,27 @@ field named; Nova never fills one in. Fields Nova does not read may come and go.
 
 ### `GET /api/followed-traders/day?date=YYYY-MM-DD`
 
-`date` optional (default: the feed's own default, its today); anything but `YYYY-MM-DD` is 400
+`date` optional (default: the desk's today, below, asked of the feed by name); anything but `YYYY-MM-DD` is 400
 `FOLLOWED_BAD_DATE`. `quotes=0` asks for the feed only: no IBKR line is opened or kept for it, `prices.state` is
 `not_asked` and every open trade's `now` is `off` (the desk's trade toasts read this way, so a closed page holds no
 line). Answers in about the feed's own time (the feed is asked with a
 `FOLLOWED_FEED_TIMEOUT_SEC` timeout); IBKR is never waited on:
 
-`{schema_version: 1, generated_at, feed, date, today, dates[], capture, prices, overall, traders[]}`
+`{schema_version: 1, generated_at, feed, date, today, resets_at, dates[], capture, prices, overall, traders[]}`
 
 - `generated_at`: epoch seconds.
 - `feed`: `{state: "ok" | "unreachable" | "bad_answer", error: string | null}`. `unreachable`: the feed did not
   answer (`error` says why: "timed out after 3 s", "could not connect", "HTTP 500"). `bad_answer`: it answered
   something Nova cannot read (`error` names the field). Off `ok`, `date` is the date asked (or `null`), `today`,
-  `capture`, `prices` and `overall` are `null`, and `dates` and `traders` are empty: the page shows the state, never
-  an empty list.
-- `date`, `today`, `dates[]`: the feed's.
+  `resets_at`, `capture`, `prices` and `overall` are `null`, and `dates` and `traders` are empty: the page shows the
+  state, never an empty list.
+- `date`, `dates[]`: the feed's.
+- `today` is the **desk's** trading day, not the feed's (amendment, operator ask 2026-10-13: "we need to tell when the
+  reset is going to be. Is it at 4 in the morning? right before the premarket?"): the ET date whose 04:00 ET has
+  passed (`practice.clock`, the premarket open the hot list and the practice day already roll at), so from midnight to
+  04:00 ET the page still shows the day that just traded. The feed's own `today` (its ET calendar date, turning at
+  midnight) is not passed on. A day the feed has after the desk's today (a capture between midnight and 04:00 ET)
+  is listed in `dates[]` and opens as today at 04:00. `resets_at`: epoch seconds when `today` ends, the next 04:00 ET.
 - `capture`: the feed's own status, `{live, clock, updated_at, age_sec, bar_visible, title, video_id, traders: string[],
   problem, problem_at, bar} | null`. `age_sec` is now minus `updated_at`; past `FOLLOWED_CAPTURE_STALE_SEC` (60) the
   page says the capture stopped, with `problem` as the reason when the feed gave one. `title` is the feed's
@@ -97,11 +103,11 @@ line). Answers in about the feed's own time (the feed is asked with a
   (above) or `null`. `null` when the feed has no status.
   `bar` is each trader's bar as the feed last confirmed it, `[{trader, positions: [{side, symbol, price}],
   image: url | null, face: url | null}]` in the feed's order, `image` this API's `live` path when the feed names a
-  slot image, `face` this API's `faces` path for the trader's photo when the day answered is the feed's today and
+  slot image, `face` this API's `faces` path for the trader's photo when the day answered is today and
   the feed has one (so a trader on the bar with no trade that day still has a face); `null` when the feed reports
   no `status.positions`. It is the feed's now, whatever day is asked.
 - `prices`: how open positions are priced right now, `{state: "live" | "past_day" | "replay_desk" | "ibkr_down" |
-  "not_asked", why: string | null}`. `past_day`: the day shown is not the feed's today, so nothing is priced now.
+  "not_asked", why: string | null}`. `past_day`: the day shown is not today, so nothing is priced now.
   `replay_desk`: the desk is on a Sim replay, whose quotes are the recording's, never today's. `ibkr_down`: IBKR is
   not ready. `not_asked`: the request said `quotes=0`. Exits are priced whatever this says.
 - `overall`: everyone's record that day (below).
@@ -169,7 +175,7 @@ Scratches and unscored trades are left out of the win rate.
 
 ### `GET /api/followed-traders/record?range=day|week|all&date=YYYY-MM-DD`
 
-Each trader's record over a span ending on `date` (default: today, ET): `day` that day, `week` the
+Each trader's record over a span ending on `date` (default: the desk's today, as on the day route): `day` that day, `week` the
 `FOLLOWED_RECORD_WEEK_DAYS` (7) calendar days ending on it, `all` every day the feed has. Read from the feed's
 `/api/trades`; another `range` is 400 `FOLLOWED_BAD_RANGE`, a bad `date` 400 `FOLLOWED_BAD_DATE`. Answers:
 
@@ -221,7 +227,7 @@ required; a bad one is 400 (`FOLLOWED_BAD_DATE`, `FOLLOWED_BAD_READS`). Answers:
 
 ### The lines it holds
 
-Open positions on the feed's today are priced from IBKR Level 1 lines owned by `followed`
+Open positions on today are priced from IBKR Level 1 lines owned by `followed`
 (`ibkr.ticks.set_owner_symbols`), at most `FOLLOWED_MAX_LINES`. A `followed` line counts against the line cap
 like any line no scanner owner holds, so the scanner plans its rows around it, and IBKR's refusal is said as
 `no_line`. The lines are asked for in the background on the IB loop (the route never waits) and are all
@@ -238,11 +244,13 @@ images again with each answer.
 
 - **Head**, one row: the capture pill (live with how far behind the stream and the bar's last read; positions off
   screen, showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not
-  answering or not readable), the stream's title, **Watch live** (opens the player; disabled with why when the feed
-  names no stream), the record span (Day from `/day`, Week and All from `/record`) with everyone's record for it, the
-  day (previous / a calendar / next; next and future days are disabled with why), and Alerts. When open positions
+  answering or not readable), the stream's title ("Last stream:" before it while the stream is not on air), **Watch
+  live** (opens the player; disabled with why when the feed names no stream or the stream is not on air), the record
+  span (Day from `/day`, Week and All from `/record`) with everyone's record for it, the day (previous / a calendar /
+  next; next and future days are disabled with why), on today when it resets ("Resets 4:00 AM ET" from `resets_at`,
+  what starts again then in its hover), and Alerts. When open positions
   cannot be priced, a chip says why (`prices.why`).
-- **One block per trader**: on the feed's today, everyone in `capture.bar` in the bar's order, then anyone else who
+- **One block per trader**: on today, everyone in `capture.bar` in the bar's order, then anyone else who
   traded that day in the order of their first trade; on a past day, those who traded. The card: photo (the trader's
   `face`, or the bar slot's; the name's first letter without one), name, on air or off air (today only), the record
   for the span picked with the scratches and unscored beside it, and their slot image on the right (the live slot,
@@ -259,10 +267,15 @@ images again with each answer.
   earlier closed trades", which opens them all over the stack; open tiles never shrink or fold. A window too small
   even for that scrolls the stack rather than hide a trade.
 - **The stream**, above the Activity: the feed's video (`capture.video_id`) in an embedded YouTube player
-  (`youtube-nocookie.com`, muted to start), LIVE while the capture is live, mute / unmute, Pop out (a small window of
-  its own on the desktop, a browser tab elsewhere), close, and Open on YouTube (the system browser). It shows while
-  the feed names a stream; closed, it stays closed in that window (local storage, a per-window convenience) until
-  Watch live. A page loaded from a file (the installed desk) sends YouTube no Referer and YouTube refuses such an
+  (`youtube-nocookie.com`, muted to start), LIVE, mute / unmute, Pop out (a small window of its own on the desktop, a
+  browser tab elsewhere), close, and Open on YouTube (the system browser). It plays **only while the stream is on
+  air**: the capture live and read within `FOLLOWED_CAPTURE_STALE_SEC` (amendment, operator 2026-10-13: "if we're on
+  the live right now for today, then I don't want it to be allowing me to show some video in the past or history";
+  the feed leaves its last status saying live when a stream ends, so it was replaying the day's ended broadcast).
+  Off air the same place says Not live and why (waiting for the stream, or the feed's last read and its own reason),
+  and that only a live stream plays there: no player and no link to the ended broadcast. It turns back into the
+  player by itself when the feed reads the next live stream. Its place shows while the feed names a stream; closed,
+  it stays closed in that window (local storage, a per-window convenience) until Watch live. A page loaded from a file (the installed desk) sends YouTube no Referer and YouTube refuses such an
   embed, so the desktop app names Nova's site as the Referer on YouTube's player requests only
   (`frontend/electron/streamPlayer.mjs`).
 - **Activity**, under the stream, newest first, one line per event built from the day's trades: time, photo, opened

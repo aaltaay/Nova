@@ -1,20 +1,25 @@
 /**
  * The page's head, one row: title, the capture pill, the stream's title and Watch live, the record span with
  * everyone's record, why open positions are not priced (when they are not), the day (previous / calendar / next
- * among the feed's days) and the Alerts switch. Previous and next step through days the feed has; one with nowhere
- * to go is disabled and says why, as is Watch live when the feed names no stream.
+ * among the feed's days), when today resets (04:00 ET, the desk's own day) and the Alerts switch. Previous and next
+ * step through days the feed has; one with nowhere to go is disabled and says why, as is Watch live when the feed
+ * names no stream or the stream is not live.
  */
 import { useEffect, useRef, useState } from 'react';
 import { tipProps } from '../ux/hoverTip';
 import { whyProps } from '../ux/whyTip';
 import { dayLabel, neighbourDay } from './calendar';
 import { capturePill } from './capture';
+import { etDay, etHour } from './format';
 import {
   FT_EVERYONE,
+  FT_LAST_STREAM,
   FT_NO_STREAM,
   FT_RECORD_PENDING,
   FT_RECORD_RANGES,
   FT_RECORDS,
+  FT_RESETS,
+  FT_STREAM_NOT_LIVE,
   FT_STREAM_SHOWING,
   FT_WATCH_LIVE,
   FT_ALERTS_OFF,
@@ -48,7 +53,15 @@ interface Props {
   records: RecordsHead | null;
   /** Why open positions are not priced now, or null. */
   pricesWhy: string | null;
-  stream: { id: string | null; open: boolean };
+  /** The stream the feed names, whether its player is open in this window, whether it is live, and why not. */
+  stream: { id: string | null; open: boolean; live: boolean; offAirWhy: string | null };
+}
+
+/** When today ends and what happens then, in words for the hover. */
+function resetTip(resetsAt: number): string {
+  return `Today runs until ${etHour(resetsAt)} ET on ${etDay(resetsAt)}, the premarket, when the rest of the desk `
+    + 'starts its day too. Then the page starts the new day empty: records, Holding now and Closed today begin '
+    + 'again, and a position still on a trader’s bar shows as already open once the feed reads the stream.';
 }
 
 function Records({ r }: { r: RecordsHead }) {
@@ -81,6 +94,9 @@ export function PageHead({ day, onPickDate, records, pricesWhy, stream }: Props)
   const prev = shown ? neighbourDay(day.dates, shown, -1) : null;
   // After the newest past day comes today, whether or not the feed has trades on it yet.
   const next = shown && !isToday ? neighbourDay(day.dates.filter((d) => !today || d < today), shown, 1) ?? today : null;
+  const resetsAt = isToday ? day.resets_at ?? null : null;
+  const watchWhy = !stream.id ? FT_NO_STREAM : !stream.live ? `${FT_STREAM_NOT_LIVE}: ${stream.offAirWhy ?? ''}` : null;
+  const watching = !watchWhy && stream.open;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -105,10 +121,14 @@ export function PageHead({ day, onPickDate, records, pricesWhy, stream }: Props)
           <span className="ft-ellipsis">{pill.text}</span>
         </span>
       )}
-      {day.capture?.title && <span className="ft-muted ft-small ft-ellipsis ft-head__video" title={day.capture.title}>{day.capture.title}</span>}
-      <button type="button" className={`ft-btn ft-watch${stream.open && stream.id ? ' is-on' : ''}`} disabled={!stream.id}
-        aria-pressed={!!stream.id && stream.open} {...whyProps(!stream.id, FT_NO_STREAM)}
-        {...tipProps(stream.id && stream.open ? FT_STREAM_SHOWING : null)} onClick={() => setStreamOpen(true)}
+      {day.capture?.title && (
+        <span className="ft-muted ft-small ft-ellipsis ft-head__video" title={day.capture.title} data-testid="ft-head-video">
+          {stream.live ? day.capture.title : `${FT_LAST_STREAM} ${day.capture.title}`}
+        </span>
+      )}
+      <button type="button" className={`ft-btn ft-watch${watching ? ' is-on' : ''}`} disabled={!!watchWhy}
+        aria-pressed={watching} {...whyProps(!!watchWhy, watchWhy)}
+        {...tipProps(watching ? FT_STREAM_SHOWING : null)} onClick={() => setStreamOpen(true)}
         data-testid="ft-watch-live">▶ {FT_WATCH_LIVE}</button>
       <span className="ft-head__spacer" />
       {records && <Records r={records} />}
@@ -130,6 +150,11 @@ export function PageHead({ day, onPickDate, records, pricesWhy, stream }: Props)
             onClick={() => next && go(next)} data-testid="ft-next-day">›</button>
           {open && today && shown && <DayPicker today={today} shown={shown} dates={day.dates} onOpen={go} />}
         </div>
+        {resetsAt !== null && (
+          <span className="ft-xs ft-muted ft-nowrap" {...tipProps(resetTip(resetsAt))} data-testid="ft-day-reset">
+            {FT_RESETS} {etHour(resetsAt)} ET
+          </span>
+        )}
         <button type="button" className={`ft-btn ft-alerts${alertsOn ? ' is-on' : ''}`} aria-pressed={alertsOn}
           {...tipProps(FT_ALERTS_TIP)} onClick={() => setFollowedAlerts(!alertsOn)} data-testid="ft-alerts">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"

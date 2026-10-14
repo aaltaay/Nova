@@ -4,15 +4,20 @@
  * it over YouTube's IFrame API. Pop out opens it in a window of its own, Open on YouTube in the browser, and close
  * hides it for this window until Watch live. YouTube asks the desk's network to sign in before it plays ("confirm
  * you're not a bot"): on the desktop, Sign in to YouTube opens Google's own page in a window of its own, and the player
- * reloads when it closes (electron/streamPlayer.mjs). Nothing here reads or trades anything.
+ * reloads when it closes (electron/streamPlayer.mjs). It plays only while the feed is reading the stream live; off
+ * air the same place says so instead (StreamOffAir), so an ended stream's recording never plays as if it were live
+ * (operator, 2026-10-13). Nothing here reads or trades anything.
  */
 import { useEffect, useRef, useState } from 'react';
 import { tipProps } from '../ux/hoverTip';
+import { offAirWhy } from './capture';
 import {
   FT_STREAM_CLOSE,
   FT_STREAM_LIVE,
+  FT_STREAM_LIVE_ONLY,
   FT_STREAM_MUTE,
   FT_STREAM_MUTED,
+  FT_STREAM_NOT_LIVE,
   FT_STREAM_POP_OUT,
   FT_STREAM_POP_OUT_TIP,
   FT_STREAM_RELOAD,
@@ -24,14 +29,15 @@ import {
   FT_STREAM_YOUTUBE,
 } from './constants';
 import { embedUrl, openStreamOnYouTube, playerCommand, popOutStream, setStreamOpen } from './stream';
+import type { FollowedCapture } from './types';
 
 interface Props {
   videoId: string;
   title: string | null;
-  live: boolean;
 }
 
-export function StreamPlayer({ videoId, title, live }: Props) {
+/** The stream, live: shown only while the feed reads it live (capture.onAir). */
+export function StreamPlayer({ videoId, title }: Props) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [muted, setMuted] = useState(true);
   // A new key reloads the player: after a sign-in, or by hand.
@@ -55,7 +61,7 @@ export function StreamPlayer({ videoId, title, live }: Props) {
         <iframe key={load} ref={frame} className="ft-stream__frame" src={embedUrl(videoId)} title={title ?? FT_STREAM_TITLE}
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin" data-testid="ft-stream-frame" />
-        {live && <span className="ft-stream__live">{FT_STREAM_LIVE}</span>}
+        <span className="ft-stream__live">{FT_STREAM_LIVE}</span>
         <div className="ft-stream__tools">
           <button type="button" className="ft-btn ft-btn--overlay" onClick={toggleSound} aria-pressed={!muted}
             {...tipProps(muted ? FT_STREAM_UNMUTE : FT_STREAM_MUTE)} data-testid="ft-stream-sound">
@@ -79,6 +85,21 @@ export function StreamPlayer({ videoId, title, live }: Props) {
         <button type="button" className="ft-link ft-small ft-nowrap" onClick={() => openStreamOnYouTube(videoId)}
           data-testid="ft-stream-youtube">{FT_STREAM_YOUTUBE} ↗</button>
       </div>
+    </section>
+  );
+}
+
+/** The stream's place while it is off air: why, and no player, no link to the past broadcast. */
+export function StreamOffAir({ capture }: { capture: FollowedCapture }) {
+  return (
+    <section className="ft-card ft-stream ft-stream--off" aria-label={FT_STREAM_TITLE} data-testid="ft-stream-off">
+      <div className="ft-stream__off-head">
+        <span className="ft-off-air">{FT_STREAM_NOT_LIVE}</span>
+        <span className="ft-small ft-stream__off-why" data-testid="ft-stream-off-why">{offAirWhy(capture)}</span>
+        <button type="button" className="ft-btn ft-btn--overlay" onClick={() => setStreamOpen(false)}
+          aria-label={FT_STREAM_CLOSE} {...tipProps(FT_STREAM_CLOSE)} data-testid="ft-stream-close">✕</button>
+      </div>
+      <p className="ft-xs ft-muted ft-stream__off-note">{FT_STREAM_LIVE_ONLY}</p>
     </section>
   );
 }

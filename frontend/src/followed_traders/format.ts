@@ -13,6 +13,24 @@ const ET_CLOCK = new Intl.DateTimeFormat('en-US', {
   hourCycle: 'h23',
 });
 
+const ET_HOUR = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+const ET_DAY = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+
+/** "4:00 AM" in New York time. */
+export function etHour(ts: number): string {
+  return ET_HOUR.format(new Date(ts * 1000));
+}
+
+/** "Wed, Oct 14" in New York time. */
+export function etDay(ts: number): string {
+  return ET_DAY.format(new Date(ts * 1000));
+}
+
 /** "10:42:07" in New York time. */
 export function etTime(ts: number | null | undefined): string {
   if (ts === null || ts === undefined || !Number.isFinite(ts)) return DASH;

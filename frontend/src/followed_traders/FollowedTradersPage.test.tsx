@@ -132,6 +132,36 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-stream')).not.toBeNull();
   });
 
+  it('plays no past broadcast: off air, the stream’s place says why and Watch live is off', async () => {
+    // The operator's 2026-10-13 evening: the feed's last status still names the day's stream as live, 5 h stale.
+    await show(day({ capture: { ...day().capture!, video_id: 'R5YIugCJar0', clock: '15:57:12', age_sec: 18_000 } }));
+    expect(q('ft-stream-frame')).toBeNull();
+    expect(q('ft-stream')).toBeNull();
+    expect(q('ft-stream-off-why')!.textContent)
+      .toBe('The feed is not reading a live stream right now · last read 15:57:12 ET');
+    expect(q('ft-stream-off')!.querySelector('a, iframe, [data-testid="ft-stream-youtube"]')).toBeNull();
+    const watch = q('ft-watch-live') as HTMLButtonElement;
+    expect(watch.disabled).toBe(true);
+    expect(watch.getAttribute('data-why'))
+      .toBe('Not live: The feed is not reading a live stream right now · last read 15:57:12 ET');
+    expect(q('ft-head-video')!.textContent).toBe('Last stream: Morning show');
+    await click(q('ft-stream-close'));
+    expect(q('ft-stream-off')).toBeNull();
+  });
+
+  it('says when today resets: 04:00 ET, the desk’s own day', async () => {
+    const resetsAt = Date.UTC(2026, 9, 14, 8, 0, 0) / 1000; // 04:00 ET, 2026-10-14
+    await show(day({ resets_at: resetsAt }));
+    const reset = q('ft-day-reset')!;
+    expect(reset.textContent).toBe('Resets 4:00 AM ET');
+    expect(reset.getAttribute('data-tip')).toContain('Today runs until 4:00 AM ET on Wed, Oct 14, the premarket');
+  });
+
+  it('names no reset on a past day', async () => {
+    await show(day({ date: '2026-10-09', resets_at: Date.UTC(2026, 9, 14, 8, 0, 0) / 1000 }));
+    expect(q('ft-day-reset')).toBeNull();
+  });
+
   it('keeps the stream on a past day: it is the feed’s now, whatever day is shown', async () => {
     await show(day({ date: '2026-10-09', capture: { ...day().capture!, video_id: 'R5YIugCJar0' } }));
     expect((q('ft-watch-live') as HTMLButtonElement).disabled).toBe(false);
