@@ -3,8 +3,9 @@
  * trader holds now and closed that day, priced with Nova's IBKR data, the proof behind every trade, the stream they
  * trade on, and any past day the feed has. It fills the window with no page scrollbar: a head row, one block per
  * trader top to bottom, and the stream above the Activity on the right. Every state is said, never an empty list.
- * The rail shows it only when the backend has a feed configured (enabledStore). Schema:
- * architecture/schema/followed-traders.md. Nothing here places, stages or cancels an order.
+ * The rail shows it only when the backend has a feed configured (enabledStore). A trade's ticker opens the stock in
+ * the Trader (`onOpenTrader`). Schema: architecture/schema/followed-traders.md. Nothing here places, stages or cancels
+ * an order.
  */
 import { useEffect, useRef, useState } from 'react';
 import { ActivityFeed } from './ActivityFeed';
@@ -13,6 +14,7 @@ import { FT_ALL_CLOSED, FT_CLOSE_LIST, FT_LOADING, FT_NO_TRADES, FT_OFF, FT_READ
 import { fitPlan, maxFitLevel, useFitLevel } from './fit';
 import { clearFollowedProofRequest, useFollowedProofRequest } from './followedStores';
 import { PageHead } from './PageHead';
+import { OpenTraderContext } from './parts';
 import { ProofView } from './ProofView';
 import { roster } from './roster';
 import { streamId, useStreamOpen } from './stream';
@@ -28,7 +30,7 @@ interface Props {
   onOpenTrader?: (symbol: string) => void;
 }
 
-export function FollowedTradersPage(_props: Props) {
+export function FollowedTradersPage({ onOpenTrader }: Props) {
   // null: the feed's own today. Each day mounts its own reader, so two days' answers never mix.
   const [date, setDate] = useState<string | null>(null);
   const [proofId, setProofId] = useState<string | null>(null);
@@ -47,10 +49,12 @@ export function FollowedTradersPage(_props: Props) {
     setDate(next);
   };
   return (
-    <div className="ft-page" data-testid="followed-traders-page">
-      <DayView key={date ?? 'today'} date={date} proofId={proofId} range={range} onRange={setRange}
-        onPickDate={pick} onProof={setProofId} />
-    </div>
+    <OpenTraderContext.Provider value={onOpenTrader ?? null}>
+      <div className="ft-page" data-testid="followed-traders-page">
+        <DayView key={date ?? 'today'} date={date} proofId={proofId} range={range} onRange={setRange}
+          onPickDate={pick} onProof={setProofId} />
+      </div>
+    </OpenTraderContext.Provider>
   );
 }
 

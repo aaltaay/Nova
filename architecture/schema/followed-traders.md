@@ -254,7 +254,9 @@ images again with each answer.
   (IBKR's last trade at the exit; a low-high range marked est. for a window; reading the tape or waiting for IBKR;
   no price, with why), P/L per share and %, held, proof. A past day reads "Open at the day's end" and "Closed". A
   time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored. A trader with no
-  trade that day shows the card alone.
+  trade that day shows the card alone. A ticker -- on an OPEN tile, a closed row (in the list of all closed trades
+  too) and a Proof's title -- opens the stock in the Trader, as a symbol does on the Market and Records pages; an
+  Activity line stays one button that opens the trade's Proof.
 - **When it does not fit**, closed rows drop to one line, then each trader's oldest closed trades fold into "+N
   earlier closed trades", which opens them all over the stack; open tiles never shrink or fold. A window too small
   even for that scrolls the stack rather than hide a trade.

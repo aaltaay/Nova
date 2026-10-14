@@ -35,7 +35,8 @@ describe('FollowedTradersPage', () => {
     vi.unstubAllGlobals();
   });
 
-  async function show(dayAnswer: FollowedDay | (() => Response), extra: Route = () => undefined) {
+  async function show(dayAnswer: FollowedDay | (() => Response), extra: Route = () => undefined,
+    onOpenTrader?: (symbol: string) => void) {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), 'http://desk');
       asked.push(url.pathname + url.search);
@@ -48,7 +49,7 @@ describe('FollowedTradersPage', () => {
       return new Response('', { status: 404 });
     }));
     await act(async () => {
-      root.render(<FollowedTradersPage />);
+      root.render(<FollowedTradersPage onOpenTrader={onOpenTrader} />);
     });
     await flush();
   }
@@ -104,6 +105,24 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-activity')!.querySelector('img[alt*="position bar"]')).toBeNull();
     expect(asked).toContain('/api/followed-traders/live/ALPHA.jpg');
     expect(asked).toContain('/api/followed-traders/faces/2026-10-13/ALPHA.jpg');
+  });
+
+  it('opens a ticker in the Trader: an OPEN tile, a closed row and a proof', async () => {
+    const opened = vi.fn();
+    await show(day(), () => undefined, opened);
+    await click(q('ft-row-o1')!.querySelector('.ft-ticker-link'));
+    await click(q('ft-row-c1')!.querySelector('.ft-ticker-link'));
+    expect(opened.mock.calls).toEqual([['ABCD'], ['EFGH']]);
+    expect(q('ft-proof')).toBeNull();
+    await click(q('ft-proof-c1'));
+    await click(q('ft-proof')!.querySelector('.ft-ticker-link'));
+    expect(opened).toHaveBeenLastCalledWith('EFGH');
+  });
+
+  it('draws the ticker as plain text when the desk gives the page no Trader', async () => {
+    await show(day());
+    expect(q('ft-row-o1')!.querySelector('.ft-ticker-link')).toBeNull();
+    expect(q('ft-row-o1')!.querySelector('.ft-tile__ticker')!.textContent).toBe('ABCD');
   });
 
   it('opens an Activity event on its trade’s proof', async () => {

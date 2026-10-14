@@ -88,6 +88,7 @@ export const FT_NO_CLOSED_TODAY = 'No closed trades yet today';
 export const FT_NO_CLOSED = 'No closed trades that day';
 export const FT_ON_AIR = 'On air';
 export const FT_PROOF = 'Proof';
+export const FT_OPEN_IN_TRADER = 'Open in the Trader';
 export const FT_EST = 'est.';
 export const FT_EST_TIP = 'The exit happened while the feed could not see the bar, so this is the low–high of IBKR’s trades in that window, never one invented fill.';
 
