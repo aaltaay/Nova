@@ -5,9 +5,12 @@ v1297 (PR #947, merged 04:08 UTC) was held by its release checks -- a test that 
 page thread from another test -- and nothing but a red job in Actions said so. Eight hours later the operator asked
 "How come I don't see these changes?". ``release_gate.py`` decides; this tool makes its "no" reach a person:
 
-- ``open``: the gate held a master build. Open an issue titled ``Release held: vNNN ...`` (``bug``, ``P1``,
-  ``domain:ci``), or comment on that tag's issue when a re-run is held again, so the next-move picks and the backlog
-  name it as urgent.
+- ``open``: the gate held a master build. Open an issue titled ``Release held: vNNN ...`` (``deferred``, ``bug``,
+  ``P1``, ``domain:ci``, milestone ``00 - Untriaged``), or comment on that tag's issue when a re-run is held again, so
+  the next-move picks and the backlog name it as urgent. An issue made with the workflow's ``GITHUB_TOKEN`` triggers
+  no other workflow, so backlog-inbox.yml and nova-delivery-project.yml never see it: the milestone is set here, and
+  the issue goes on the Nova Delivery board with ``NOVA_PROJECT_TOKEN`` when that is set (as security_alert_inbox.py
+  does).
 - ``close``: a Release published. Every open ``Release held`` issue for that tag or an older one is closed: a vNNN
   Release carries every commit before it. A newer tag's issue stays open (runs can finish out of order).
 
@@ -20,16 +23,26 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 
+# Invoked as `python3 tools/release_held.py`, sys.path[0] is tools/.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.backlog_github import INBOX_TITLE  # noqa: E402
+from tools.nova_delivery_project import add_url  # noqa: E402
+
 TITLE_PREFIX = "Release held:"
-LABELS: tuple[str, ...] = ("bug", "P1", "domain:ci")
+LABELS: tuple[str, ...] = ("deferred", "bug", "P1", "domain:ci")
+PROJECT_TOKEN_ENV = "NOVA_PROJECT_TOKEN"
 
 Runner = Callable[[list[str]], str]
+Boarder = Callable[[str], None]
 
 
 def gh(args: list[str]) -> str:
@@ -71,7 +84,22 @@ def open_held(runner: Runner) -> dict[int, int]:
     return held
 
 
-def report(runner: Runner, tag: str, sha: str, run_url: str, summary: str) -> str:
+def board(url: str) -> None:
+    """Put the issue on Nova Delivery: that board is user-owned, so only the project token can write it."""
+    token = os.environ.get(PROJECT_TOKEN_ENV, "").strip()
+    if not token:
+        print(f"::notice::{PROJECT_TOKEN_ENV} is not set: {url} is not on the Nova Delivery board.")
+        return
+    env = {**os.environ, "GH_TOKEN": token}
+
+    def with_project_token(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(cmd, env=env, **kwargs)  # type: ignore[call-overload]
+
+    if add_url(url, runner=with_project_token) != 0:
+        print(f"::notice::Could not add {url} to the Nova Delivery board; the issue itself is filed.")
+
+
+def report(runner: Runner, tag: str, sha: str, run_url: str, summary: str, boarder: Boarder = board) -> str:
     """Comment on this tag's open issue (a re-run held again), or open one; returns what was done."""
     text = body(tag, sha, run_url, summary)
     same = [n for n, rev in open_held(runner).items() if rev == _revision(tag)]
@@ -79,7 +107,10 @@ def report(runner: Runner, tag: str, sha: str, run_url: str, summary: str) -> st
         runner(["issue", "comment", str(same[0]), "--body", text])
         return f"commented on #{same[0]}"
     labels = [arg for label in LABELS for arg in ("--label", label)]
-    return "opened " + runner(["issue", "create", "--title", title(tag), "--body", text, *labels]).strip()
+    url = runner(["issue", "create", "--title", title(tag), "--body", text, *labels,
+                  "--milestone", INBOX_TITLE]).strip()
+    boarder(url)
+    return "opened " + url
 
 
 def resolve(runner: Runner, tag: str) -> list[int]:
@@ -95,7 +126,7 @@ def resolve(runner: Runner, tag: str) -> list[int]:
     return closed
 
 
-def main(argv: list[str] | None = None, runner: Runner = gh) -> int:
+def main(argv: list[str] | None = None, runner: Runner = gh, boarder: Boarder = board) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
     held = sub.add_parser("open", help="the gate held this master build")
@@ -110,7 +141,7 @@ def main(argv: list[str] | None = None, runner: Runner = gh) -> int:
         summary = ""
         if args.summary_file and args.summary_file.is_file():
             summary = args.summary_file.read_text(encoding="utf-8")
-        print(report(runner, args.tag, args.sha, args.run_url, summary))
+        print(report(runner, args.tag, args.sha, args.run_url, summary, boarder))
     else:
         print(f"closed {resolve(runner, args.tag) or 'none'}")
     return 0

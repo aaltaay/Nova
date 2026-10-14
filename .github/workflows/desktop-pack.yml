@@ -325,6 +325,8 @@ jobs:
           TAG: ${{ needs.tag-commit.outputs.tag }}
           SHA: ${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # An issue made with GITHUB_TOKEN triggers no workflow: the tool boards it itself when this is set.
+          NOVA_PROJECT_TOKEN: ${{ secrets.NOVA_PROJECT_TOKEN }}
         run: python3 tools/release_held.py open --tag "$TAG" --sha "$SHA" --run-url "$RUN_URL" --summary-file "$RUNNER_TEMP/gate.md"
 
       - name: Download the installer and update feed
