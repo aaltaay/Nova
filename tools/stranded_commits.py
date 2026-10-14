@@ -42,6 +42,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.backlog_github import INBOX_TITLE  # noqa: E402
+from tools.release_held import board  # noqa: E402
 
 BASE = "master"
 RECOVER_PREFIX = "recover/"
@@ -52,6 +53,9 @@ CI_WORKFLOW = "deploy.yml"
 PROTECTED = frozenset({"master", "main", "HEAD"})
 
 Runner = Callable[[list[str]], str]
+# A GITHUB_TOKEN PR or issue starts no board workflow, so the item goes on Nova Delivery with
+# NOVA_PROJECT_TOKEN here (release_held.board; a missing token is a notice, the item stays filed).
+Boarder = Callable[[str], None]
 
 
 def _run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -89,10 +93,12 @@ def recorded_tips(bodies: list[str]) -> set[str]:
     return {m.group(1) for body in bodies for m in found.finditer(body)}
 
 
-def master_bodies(days: int) -> list[str]:
-    """Master's commit messages since the window: a squash merge keeps its PR's body, markers included."""
-    since = (datetime.now(timezone.utc) - timedelta(days=days + 1)).strftime("%Y-%m-%d")
-    return git(["log", f"origin/{BASE}", f"--since={since}", "--format=%B%x00"]).split("\0")
+def master_bodies(days: int | None) -> list[str]:
+    """Master's commit messages since the window (all of them for None): a squash merge keeps its PR's body."""
+    window = []
+    if days is not None:
+        window = [f"--since={(datetime.now(timezone.utc) - timedelta(days=days + 1)).strftime('%Y-%m-%d')}"]
+    return git(["log", f"origin/{BASE}", *window, "--format=%B%x00"]).split("\0")
 
 
 def plan(pr: Merged, tip: str, *, open_pr: bool, open_recovery: bool, carried: set[str],
@@ -113,11 +119,14 @@ def plan(pr: Merged, tip: str, *, open_pr: bool, open_recovery: bool, carried: s
 
 
 def merged_prs(runner: Runner, days: int, branch: str = "") -> list[Merged]:
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
-    args = ["pr", "list", "--state", "merged", "--search", f"merged:>={since}", "--limit", "200",
+    """PRs merged in the last ``days``; for one ``branch``, every merged PR on it however old (PR #957 review:
+    a push to a branch whose PR merged a week ago must still be carried)."""
+    args = ["pr", "list", "--state", "merged", "--limit", "200",
             "--json", "number,title,headRefName,headRefOid,isCrossRepository"]
     if branch:
         args += ["--head", branch]
+    else:
+        args += ["--search", f"merged:>={(datetime.now(timezone.utc) - timedelta(days=days)).strftime('%Y-%m-%d')}"]
     rows = json.loads(runner(args) or "[]")
     out = [Merged(int(r["number"]), str(r.get("title") or ""), str(r["headRefName"]), str(r["headRefOid"]))
            for r in rows if not r.get("isCrossRepository")]
@@ -165,7 +174,7 @@ def _body(pr: Merged, tip: str, commits: list[str], lines: list[str]) -> str:
     ]) + "\n"
 
 
-def land(pr: Merged, tip: str, p: Plan, *, runner: Runner, dry_run: bool) -> str:
+def land(pr: Merged, tip: str, p: Plan, *, runner: Runner, dry_run: bool, boarder: Boarder = board) -> str:
     commits = [c for c in git(["rev-list", "--reverse", "--no-merges", f"{p.base}..{tip}"]).split() if c]
     target = recovery_branch(pr.branch)
     start = f"origin/{target}" if p.action == "extend" else f"origin/{BASE}"
@@ -175,7 +184,8 @@ def land(pr: Merged, tip: str, p: Plan, *, runner: Runner, dry_run: bool) -> str
     before = git(["rev-parse", "HEAD"]).strip()
     conflict = pick(commits)
     if conflict:
-        return report_issue(pr, tip, commits, f"`{conflict[:12]}` does not apply to `{start}`", runner=runner)
+        return report_issue(pr, tip, commits, f"`{conflict[:12]}` does not apply to `{start}`",
+                            runner=runner, boarder=boarder)
     if git(["rev-parse", "HEAD"]).strip() == before:
         return f"#{pr.number}: every commit after the merge is already on {BASE}"
     git(["push", "-q", "origin", f"HEAD:refs/heads/{target}"])
@@ -190,11 +200,13 @@ def land(pr: Merged, tip: str, p: Plan, *, runner: Runner, dry_run: bool) -> str
                           "## Verified by", "CI, dispatched on this branch; it merges only when green."])]).strip()
         runner(["pr", "comment", str(pr.number), "--body",
                 f"Commits pushed here after this PR merged never reached `{BASE}`; {url} lands them."])
+        boarder(url)
     runner(["workflow", "run", CI_WORKFLOW, "--ref", target])
     return f"#{pr.number}: {p.action} {len(commits)} commit(s) -> {url}"
 
 
-def report_issue(pr: Merged, tip: str, commits: list[str], why: str, *, runner: Runner) -> str:
+def report_issue(pr: Merged, tip: str, commits: list[str], why: str, *, runner: Runner,
+                 boarder: Boarder = board) -> str:
     title = f"{ISSUE_PREFIX} #{pr.number} merged did not land ({pr.branch} @ {tip[:7]})"
     text = _body(pr, tip, commits, [
         f"They could not be carried automatically: {why}.", "",
@@ -202,6 +214,7 @@ def report_issue(pr: Merged, tip: str, commits: list[str], why: str, *, runner: 
         "if a later PR already did the same work."])
     labels = [arg for label in LABELS for arg in ("--label", label)]
     url = runner(["issue", "create", "--title", title, "--body", text, *labels, "--milestone", INBOX_TITLE]).strip()
+    boarder(url)
     return f"#{pr.number}: {why} -> {url}"
 
 
@@ -216,7 +229,7 @@ def sweep(*, days: int, branch: str, dry_run: bool, runner: Runner = gh) -> int:
         heads[ref] = sha
     errors = 0
     seen: set[str] = set()
-    on_master = master_bodies(days)
+    on_master = master_bodies(None if branch else days)
     for pr in merged_prs(runner, days, branch):
         tip = heads.get(pr.branch, "")
         if not tip or tip == pr.head or pr.branch in seen:
