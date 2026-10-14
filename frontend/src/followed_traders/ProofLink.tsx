@@ -97,6 +97,18 @@ export function ProofLink({ t, onProof }: { t: FollowedTrade; onProof: (id: stri
   // One timer: the wait before the card shows, or the grace before it goes.
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  // Escape closes the card wherever focus is: a card opened by the pointer leaves focus where it was.
+  const shown = anchor !== null;
+  useEffect(() => {
+    if (!shown) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      window.clearTimeout(timer.current);
+      setAnchor(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [shown]);
   const show = (el: HTMLElement) => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
@@ -119,8 +131,7 @@ export function ProofLink({ t, onProof }: { t: FollowedTrade; onProof: (id: stri
       <button type="button" className="ft-link" onClick={open} data-testid={`ft-proof-${t.id}`}
         aria-label={`${FT_PROOF}: ${t.trader} ${t.side} ${t.symbol}`}
         onMouseEnter={(e) => show(e.currentTarget)} onMouseLeave={leave}
-        onFocus={(e) => show(e.currentTarget)} onBlur={leave}
-        onKeyDown={(e) => { if (e.key === 'Escape') { keep(); setAnchor(null); } }}>
+        onFocus={(e) => show(e.currentTarget)} onBlur={leave}>
         {FT_PROOF}
       </button>
       {anchor && <Card t={t} anchor={anchor} onEnter={keep} onLeave={leave} onOpen={open} />}

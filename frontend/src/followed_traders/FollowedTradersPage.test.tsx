@@ -204,6 +204,11 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-proof')).toBeNull(); // the board stays
     await hover(q('ft-proof-c1')!, 'mouseout', FOLLOWED_PROOF_HOVER_CLOSE_MS + 30);
     expect(card('c1')).toBeNull();
+    // Opened by the pointer, focus stays elsewhere: Escape still closes it.
+    await hover(q('ft-proof-c1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
+    expect(document.activeElement).not.toBe(q('ft-proof-c1'));
+    await act(async () => { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    expect(card('c1')).toBeNull();
     // An open position has no exit screenshot yet: the card says so.
     await hover(q('ft-proof-o1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
     expect(card('o1')!.textContent).toContain('Still open');
