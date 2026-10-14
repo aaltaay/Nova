@@ -56,12 +56,13 @@ export function onAir(c: FollowedCapture | null | undefined): boolean {
   return !!c && c.live && !captureStopped(c);
 }
 
-/** Why the stream is not playing: waiting for one, or when the feed last read it and its own reason. */
+/** Why the stream is offline: waiting for one, or when the feed last read it and its own reason. */
 export function offAirWhy(c: FollowedCapture): string {
   if (!captureStopped(c) && !c.live) return FT_PILL_WAITING;
-  const parts = [FT_STREAM_NOT_READING];
+  const parts: string[] = [];
   if (c.clock) parts.push(`last read ${c.clock} ET`);
   else if (c.age_sec !== null) parts.push(`last read ${duration(c.age_sec)} ago`);
+  else parts.push(FT_STREAM_NOT_READING);
   if (c.problem) parts.push(c.problem);
   return parts.join(' · ');
 }

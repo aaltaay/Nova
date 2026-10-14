@@ -19,7 +19,7 @@ import {
   FT_RECORD_RANGES,
   FT_RECORDS,
   FT_RESETS,
-  FT_STREAM_NOT_LIVE,
+  FT_STREAM_OFFLINE,
   FT_STREAM_SHOWING,
   FT_WATCH_LIVE,
   FT_ALERTS_OFF,
@@ -95,7 +95,7 @@ export function PageHead({ day, onPickDate, records, pricesWhy, stream }: Props)
   // After the newest past day comes today, whether or not the feed has trades on it yet.
   const next = shown && !isToday ? neighbourDay(day.dates.filter((d) => !today || d < today), shown, 1) ?? today : null;
   const resetsAt = isToday ? day.resets_at ?? null : null;
-  const watchWhy = !stream.id ? FT_NO_STREAM : !stream.live ? `${FT_STREAM_NOT_LIVE}: ${stream.offAirWhy ?? ''}` : null;
+  const watchWhy = !stream.id ? FT_NO_STREAM : !stream.live ? `${FT_STREAM_OFFLINE} · ${stream.offAirWhy ?? ''}` : null;
   const watching = !watchWhy && stream.open;
 
   useEffect(() => {

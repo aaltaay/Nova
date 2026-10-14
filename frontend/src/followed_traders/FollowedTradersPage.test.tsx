@@ -132,21 +132,23 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-stream')).not.toBeNull();
   });
 
-  it('plays no past broadcast: off air, the stream’s place says why and Watch live is off', async () => {
+  it('plays no past broadcast: off air the player keeps its place and shows OFFLINE with why', async () => {
     // The operator's 2026-10-13 evening: the feed's last status still names the day's stream as live, 5 h stale.
     await show(day({ capture: { ...day().capture!, video_id: 'R5YIugCJar0', clock: '15:57:12', age_sec: 18_000 } }));
+    const player = q('ft-stream')!;
+    expect(player.getAttribute('data-on-air')).toBe('false');
     expect(q('ft-stream-frame')).toBeNull();
-    expect(q('ft-stream')).toBeNull();
-    expect(q('ft-stream-off-why')!.textContent)
-      .toBe('The feed is not reading a live stream right now · last read 15:57:12 ET');
-    expect(q('ft-stream-off')!.querySelector('a, iframe, [data-testid="ft-stream-youtube"]')).toBeNull();
+    expect(q('ft-stream-offline')!.textContent).toContain('Offline');
+    expect(q('ft-stream-off-why')!.textContent).toBe('last read 15:57:12 ET');
+    // Nothing that reaches the ended broadcast: no sound, Pop out or YouTube link; close stays.
+    for (const id of ['ft-stream-sound', 'ft-stream-popout', 'ft-stream-youtube', 'ft-stream-reload']) expect(q(id)).toBeNull();
+    expect(player.textContent).toContain('Last stream: Morning show');
     const watch = q('ft-watch-live') as HTMLButtonElement;
     expect(watch.disabled).toBe(true);
-    expect(watch.getAttribute('data-why'))
-      .toBe('Not live: The feed is not reading a live stream right now · last read 15:57:12 ET');
+    expect(watch.getAttribute('data-why')).toBe('Offline · last read 15:57:12 ET');
     expect(q('ft-head-video')!.textContent).toBe('Last stream: Morning show');
     await click(q('ft-stream-close'));
-    expect(q('ft-stream-off')).toBeNull();
+    expect(q('ft-stream')).toBeNull();
   });
 
   it('says when today resets: 04:00 ET, the desk’s own day', async () => {

@@ -245,7 +245,7 @@ images again with each answer.
 - **Head**, one row: the capture pill (live with how far behind the stream and the bar's last read; positions off
   screen, showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not
   answering or not readable), the stream's title ("Last stream:" before it while the stream is not on air), **Watch
-  live** (opens the player; disabled with why when the feed names no stream or the stream is not on air), the record
+  live** (opens the player; disabled with why when the feed names no stream, or "Offline" and why off air), the record
   span (Day from `/day`, Week and All from `/record`) with everyone's record for it, the day (previous / a calendar /
   next; next and future days are disabled with why), on today when it resets ("Resets 4:00 AM ET" from `resets_at`,
   what starts again then in its hover), and Alerts. When open positions
@@ -272,9 +272,11 @@ images again with each answer.
   air**: the capture live and read within `FOLLOWED_CAPTURE_STALE_SEC` (amendment, operator 2026-10-13: "if we're on
   the live right now for today, then I don't want it to be allowing me to show some video in the past or history";
   the feed leaves its last status saying live when a stream ends, so it was replaying the day's ended broadcast).
-  Off air the same place says Not live and why (waiting for the stream, or the feed's last read and its own reason),
-  and that only a live stream plays there: no player and no link to the ended broadcast. It turns back into the
-  player by itself when the feed reads the next live stream. Its place shows while the feed names a stream; closed,
+  Off air the player keeps its size and shows OFFLINE in place of the video, with why (waiting for the stream, or
+  the feed's last read and its own reason) and "Last stream:" before the title (operator, the same evening: "dont
+  shrink the display keep it just have icon that says OFFLINE"); only close stays, since mute, reload, Pop out and
+  Open on YouTube would reach the ended broadcast. The video comes back by itself when the feed reads the next live
+  stream. Its place shows while the feed names a stream; closed,
   it stays closed in that window (local storage, a per-window convenience) until Watch live. A page loaded from a file (the installed desk) sends YouTube no Referer and YouTube refuses such an
   embed, so the desktop app names Nova's site as the Referer on YouTube's player requests only
   (`frontend/electron/streamPlayer.mjs`).

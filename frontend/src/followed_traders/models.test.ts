@@ -28,9 +28,11 @@ describe('the stream on air', () => {
     // The feed's last status still says live, five hours after its last read: the stream is over.
     const ended = capture({ clock: '15:57:12', age_sec: 18_000 });
     expect(onAir(ended)).toBe(false);
-    expect(offAirWhy(ended)).toBe('The feed is not reading a live stream right now · last read 15:57:12 ET');
+    expect(offAirWhy(ended)).toBe('last read 15:57:12 ET');
     expect(offAirWhy(capture({ age_sec: 400, problem: 'not live right now' })))
-      .toBe('The feed is not reading a live stream right now · last read 10:09:54 ET · not live right now');
+      .toBe('last read 10:09:54 ET · not live right now');
+    expect(offAirWhy(capture({ clock: null, age_sec: null, updated_at: null, problem: 'YouTube wants a sign-in' })))
+      .toBe('the feed is not reading a live stream right now · YouTube wants a sign-in');
     expect(onAir(capture({ live: false }))).toBe(false);
     expect(offAirWhy(capture({ live: false }))).toBe('Waiting for the stream');
   });

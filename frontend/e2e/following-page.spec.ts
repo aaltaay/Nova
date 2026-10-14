@@ -96,8 +96,11 @@ test.describe('Following page', () => {
     // The feed's status still names the day's stream as live, five hours after its last read.
     d.capture = { ...d.capture!, video_id: 'R5YIugCJar0', clock: '15:57:12', age_sec: 18_000 };
     const { errors } = await open(page, d);
-    await expect(page.getByTestId('ft-stream-off')).toContainText('last read 15:57:12 ET');
+    await expect(page.getByTestId('ft-stream-offline')).toContainText('last read 15:57:12 ET');
     await expect(page.getByTestId('ft-stream-frame')).toHaveCount(0);
+    // The display keeps its size: the same 16:9 screen the video plays in.
+    const screen = (await page.locator('.ft-stream__screen').boundingBox())!;
+    expect(screen.width / screen.height).toBeCloseTo(16 / 9, 1);
     await expect(page.getByTestId('ft-watch-live')).toBeDisabled();
     await expect(page.getByTestId('ft-day-reset')).toHaveText('Resets 4:00 AM ET');
     expect(await fit(page)).toEqual({ page: 0, doc: 0, stack: 0, level: 0 });

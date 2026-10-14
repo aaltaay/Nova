@@ -16,7 +16,7 @@ import { PageHead } from './PageHead';
 import { ProofView } from './ProofView';
 import { roster } from './roster';
 import { streamId, useStreamOpen } from './stream';
-import { StreamOffAir, StreamPlayer } from './StreamPlayer';
+import { StreamPlayer } from './StreamPlayer';
 import { ClosedTable } from './TradeTables';
 import { TraderBlock } from './TraderBlock';
 import type { FollowedDay, FollowedRecord, RecordRange } from './types';
@@ -77,7 +77,7 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
   const streamOpen = useStreamOpen();
   const c = day.capture;
   // The stream is the feed's now, whatever day is shown: watching it never depends on the day picked. It plays only
-  // while the feed reads it live; off air its place says so, never replaying the ended broadcast.
+  // while the feed reads it live; off air the player shows OFFLINE, never replaying the ended broadcast.
   const videoId = streamId(c?.video_id);
   const streamLive = onAir(c);
   const hasOpen = day.traders.some((t) => t.open.length > 0);
@@ -102,9 +102,9 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
         <div className="ft-main">
           <Board day={day} isToday={isToday} recordFor={recordFor} onProof={onProof} />
           <aside className="ft-rail">
-            {videoId && streamOpen && c && (streamLive
-              ? <StreamPlayer videoId={videoId} title={c.title} />
-              : <StreamOffAir capture={c} />)}
+            {videoId && streamOpen && c && (
+              <StreamPlayer videoId={videoId} title={c.title} offAir={streamLive ? null : offAirWhy(c)} />
+            )}
             <ActivityFeed traders={day.traders} onProof={onProof} />
           </aside>
         </div>

@@ -444,11 +444,30 @@
 .ft-btn--overlay { padding: 3px 8px; font-size: 12px; background: rgba(0, 0, 0, 0.65); border-color: rgba(255, 255, 255, 0.18); }
 .ft-stream__foot { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
 .ft-stream__foot > .ft-ellipsis { flex: 1 1 auto; min-width: 0; }
-/* Off air: no player, a short note in its place */
-.ft-stream--off { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
-.ft-stream__off-head { display: flex; align-items: center; gap: 8px; }
-.ft-stream__off-why { flex: 1 1 auto; min-width: 0; }
-.ft-stream__off-note { margin: 0; }
+/* Offline: the same screen, no video, OFFLINE and why */
+.ft-stream__offline {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 24px;
+  text-align: center;
+  color: var(--nova-text-muted);
+}
+.ft-stream__offline-word {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 6px;
+  color: var(--nova-text, #e6e6e6);
+  background: var(--ft-raised);
+  border: 1px solid var(--ft-line);
+}
 
 /* Activity: one line per event, the newest that fit */
 .ft-activity { position: relative; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
