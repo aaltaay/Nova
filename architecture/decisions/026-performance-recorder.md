@@ -101,8 +101,9 @@ guesses; the burst rig (phase 2) replaces them with measured limits.
 - Production bundles keep function names (Rolldown `output.keepNames`; Vite 8
   ignores `esbuild.keepNames` in builds) so long-frame attribution names code.
   Measured cost: all JS +9.8% raw, +5.9% gzipped, loaded from local disk.
-- Code-read suspects are not fixed here; they wait for a recorded open to rank
-  them. The one exception is what the recorder measured on its first run
+- Code-read suspects are ranked with recorded or repeatable profile evidence.
+  A demonstrated engineering defect does not wait for an operator readiness
+  event (triage, 2026-10-13). The first direct remedy was what the recorder measured on its first run
   (2026-09-23): `second_factor.current_state()` started PowerShell
   (`Get-Process ibgateway`, about 250 ms) **before** reading the IBC log, on
   the HTTP loop, on every `/api/ibkr/status` poll (every 5 s per window) and
@@ -134,8 +135,9 @@ reports share the shortest duration, replacement evicts the most recently kept
 one so the earlier tied report survives. Disk deletion stays
 on the writer thread, and a summary names a file only while its report is
 retained. Bookkeeping is bounded to the current and preceding report-start hour.
-The day file still keeps every summary. GC tuning and next-open verification
-remain measured follow-ups (#619; ADR 045).
+The day file still keeps every summary. Residual GC/HOD performance work remains
+measured engineering follow-up (#619; ADR 045), without a mandatory next-open
+operator proof hold (triage, 2026-10-13).
 
 The performance recorder also gathers L1 timestamp provenance (#667) without
 changing market or trading behavior. Native wrapper receipts preserve tick

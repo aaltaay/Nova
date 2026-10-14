@@ -38,7 +38,7 @@ At 08:30:25 ET the operator sold 100 APUS at what their Level 2 showed as the bi
 - An order priced from a view that lags is refused with the reason, and the desk locks before the click while it can see the lag. The incident cannot recur silently: at worst the order is refused and says why.
 - A busy name sends fewer Level 2 frames (changes only), and the desk always draws the newest book.
 - Thresholds are constants, set from this incident; every order records its measures, so they can be tightened with evidence.
-- Deferred, each to be judged by what the stamps measure after this change: a separate real-time server for the market sockets and orders (it moves every socket handler across event loops; #726); Live's order send waiting on IBKR while holding the socket loop (`call_on_ib`; #725, done in the amendment below); moving HOD Momo's per-tick evaluation off the IB thread (36 ms/s that morning) and GC threshold tuning (per-generation pauses are recorded first), both with #619.
+- The conditional separate market/order server proposal (#726) was retired as not planned after the send-hop fix and current loop review (triage, 2026-10-13). Live's order send now yields while waiting on IBKR (#725, completed; amendment below). Remaining latency work stays with its narrower causes, HOD/GC (#619), synchronous hot-path work (#797), and repeatable burst measurement (#504). Retiring the third-loop proposal does not claim all desk stalls are resolved.
 
 ## Amendment 2026-10-05 -- the Live send awaits the IB loop, and goes out once or never (#725)
 

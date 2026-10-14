@@ -248,9 +248,12 @@ the same shape:
 triggers on any price-setting print, premarket included, and so does a
 bracket's stop leg. IBKR holds a plain stop until 09:30 even with
 `outsideRth`, so before the open a Live bracket's stop does not protect the
-position while Paper's does. Nova keeps the practice behaviour for now; whether
-Paper should hold the stop leg the way IBKR does is an open operator question
-on #604 / #606 step 2.
+position while Paper's does. This is a known implementation mismatch. On
+2026-10-13 the operator required one source of truth for manual plan and
+protection behavior across Paper, Sim and Live (#604 / #606; ADR 007). The
+shared design must resolve this premarket parity gap before the missing Live
+plan support is released. Current behavior stays explicit until that work
+and lifecycle regressions ship; there is no separate venue-policy question remaining.
 
 ## Shorts under SSR (ADR 048 step 2)
 
