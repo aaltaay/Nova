@@ -32,6 +32,12 @@ export const FOLLOWED_STREAM_KEY = 'nova.followed.stream';
 /** The stream plays from YouTube's privacy-enhanced host, muted to start; Open on YouTube opens its watch page. */
 export const YOUTUBE_EMBED_BASE = 'https://www.youtube-nocookie.com/embed/';
 export const YOUTUBE_WATCH_BASE = 'https://www.youtube.com/watch?v=';
+/** Proof shows its card this long after the pointer arrives, and keeps it this long after it leaves (time to move in). */
+export const FOLLOWED_PROOF_HOVER_OPEN_MS = 150;
+export const FOLLOWED_PROOF_HOVER_CLOSE_MS = 200;
+/** The Proof card's width (the feed's slot screenshots are wide strips) and its gap from the link, in px. */
+export const FOLLOWED_PROOF_CARD_WIDTH_PX = 520;
+export const FOLLOWED_PROOF_CARD_GAP_PX = 8;
 /** The room kept under the newest Activity events for the "+N earlier" line, in px. */
 export const FT_FOLD_LINE_PX = 34;
 
@@ -93,6 +99,7 @@ export const FT_NO_CLOSED_TODAY = 'No closed trades yet today';
 export const FT_NO_CLOSED = 'No closed trades that day';
 export const FT_ON_AIR = 'On air';
 export const FT_PROOF = 'Proof';
+export const FT_PROOF_CLICK_HINT = 'Click for every read of the slot during this trade';
 export const FT_OPEN_IN_TRADER = 'Open in the Trader';
 export const FT_EST = 'est.';
 export const FT_EST_TIP = 'The exit happened while the feed could not see the bar, so this is the low–high of IBKR’s trades in that window, never one invented fill.';

@@ -9,8 +9,11 @@
  * release the desk runs -- its `vNNN` tag, fast-forward only, on a clean master, never when the
  * backend's Python packages change -- and never past it:
  * - at Restart to update (`prepareForDesk`): the checkout comes to the release being installed,
- *   after the desk listed what a restart would interrupt, and the new desk restarts the backend
- *   onto it (`followIfAsked`, engineFollow.mjs) -- one update for both;
+ *   after the desk listed what a restart would interrupt; once the "Updating Nova" window is up the
+ *   backend restarts onto it (`handOffForInstall`), so it comes up while the installer runs, not
+ *   after the new desk opens (operator report 2026-10-13: "Why doesn't the backend restart during
+ *   installation?"). The new desk restarts it only if that did not happen (`followIfAsked`,
+ *   engineFollow.mjs) -- one update for both;
  * - by itself (`follow`, every ENGINE_FOLLOW_TICK_MS), whenever the owner's backend runs a release
  *   older than this desk (operator ask 2026-10-13: "it should already know we need to restart the
  *   backend and restart it without us having to click on it"): the same pull and restart, once
@@ -20,6 +23,8 @@
  * It only ever brings the backend to the release this desk already runs, never master's newest
  * commit (an unattended pull of master is #616, parked). Every outcome goes to update.log and to the
  * update view's `engine` part (`{owner, attached_to_owner, running, last, auto}`).
+ *
+ * maintainer: one-concern every pull and restart of the backend shares one lock here, so none runs beside another
  */
 import { execFile } from 'node:child_process';
 import { isOlderTag } from './appTitle.mjs';
@@ -121,6 +126,7 @@ export async function syncToRelease(root, tag, git = runGit) {
 /**
  * @param {{ apiBase: string, userData: string, deskTag: () => string,
  *   reloadEngine: () => Promise<{from: string|null, to: string|null}>,
+ *   restartForInstall?: (reason: string) => Promise<{from: string|null, to: null}>,
  *   publish: (view: object) => void, logger: { info: Function, warn: Function },
  *   git?: Function, fetchJson?: Function, now?: () => number, fsDeps?: object }} deps
  */
@@ -129,6 +135,7 @@ export function createEngineSync({
   userData,
   deskTag,
   reloadEngine,
+  restartForInstall = null,
   publish,
   logger,
   git = runGit,
@@ -150,6 +157,9 @@ export function createEngineSync({
   // `backend|desk` pairs already brought along once by itself: never a second time, so a restart that
   // comes back on the same code cannot loop.
   const tried = new Set();
+  // The release Restart to update agreed to restart the backend onto (prepareForDesk), until the
+  // install hands it off (handOffForInstall): `{tag}` or null.
+  let handoff = null;
   // One checkout change at a time: the button, Restart to update's pull and the restart by itself
   // never pull or restart side by side (review on PR #909). `locked` while one runs.
   let lock = Promise.resolve();
@@ -253,6 +263,7 @@ export function createEngineSync({
    * @param {{ box: (options: object) => Promise<{response: number}> }} ui
    */
   async function prepareForDesk(tag, { box }) {
+    handoff = null;
     const home = await look();
     // A bundled engine is replaced by the installer itself; another checkout's engine is not ours.
     if (home && !attached) return true;
@@ -270,8 +281,36 @@ export function createEngineSync({
       return (await box(cannotFollowPrompt(tag, pulled.reason)))?.response === 1;
     }
     if (pulled.pulled) record('pulled', `Brought ${owner} to ${pulled.to ?? tag} (was ${pulled.from ?? '?'})`);
-    if (home && home.release_tag !== tag) writeFollow(userData, { tag, repoRoot: owner, now: now() });
+    if (home && home.release_tag !== tag) {
+      writeFollow(userData, { tag, repoRoot: owner, now: now() });
+      handoff = { tag };
+    }
     return true;
+  }
+
+  /**
+   * Restart to update, once the "Updating Nova" window is up and right before the installer runs:
+   * restart the backend onto the release prepareForDesk brought its checkout to, so it comes up
+   * while the installer runs. Only onto that exact release, read again now. The promise stays: if
+   * the restart did not happen here, the new desk makes it (followIfAsked), as before.
+   */
+  async function handOffForInstall() {
+    const plan = handoff;
+    handoff = null;
+    if (!plan || !restartForInstall) return;
+    await exclusive(async () => {
+      const checkout = await checkoutRevision(owner, git);
+      if (checkout !== plan.tag) {
+        record('failed', `Left to the new desk: the checkout holds ${checkout ?? 'a revision git cannot name'}, not ${plan.tag}`);
+        return;
+      }
+      try {
+        const out = await step('restart', () => restartForInstall(`the desk is installing ${plan.tag}`));
+        record('restarted', `Restarting the backend onto ${plan.tag} while the desk installs (was ${out?.from ?? '?'})`);
+      } catch (err) {
+        record('failed', `Left to the new desk: ${message(err)}`);
+      }
+    });
   }
 
   /** The new desk's launch: keep the old desk's promise to restart the backend onto this release. */
@@ -403,6 +442,8 @@ export function createEngineSync({
         return (await ui.box(cannotFollowPrompt(tag, message(err))))?.response === 1;
       }
     },
+    // Never holds up the install: a failure here is the new desk's to retry.
+    handOffForInstall: guard('Restarting the backend for the install', handOffForInstall),
     followIfAsked: guard('Updating the backend', followIfAsked),
     follow: guard('Updating the backend by itself', follow),
   };

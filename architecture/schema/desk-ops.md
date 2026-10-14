@@ -213,10 +213,19 @@ app's own folder, so it is a different Paper account, bot session and history.
   nothing. The checkout is brought to the release being installed; if it
   cannot be, the operator chooses between waiting (the default) and the desk
   alone. The old desk leaves `engine-follow.json` in userData = `{schema_version:
-  1, tag, repo_root, asked_at}` (owner `frontend/electron/engineFollow.mjs`);
-  the new desk reads it once, deletes it, and restarts the backend onto that
-  release without asking again. An unknown version, an unreadable file or one
-  older than a day is no promise. A bundled engine is the installer's own.
+  1, tag, repo_root, asked_at}` (owner `frontend/electron/engineFollow.mjs`).
+  Once the "Updating Nova" window is up, right before the installer runs, the
+  old desk restarts the backend onto that release (`engineSync.handOffForInstall`,
+  operator report 2026-10-13: "Why doesn't the backend restart during
+  installation?"): the engine's own stop, the port free, then the checkout's
+  `Start-NovaApi.ps1` in a process of its own, without waiting for it to answer
+  -- it comes up while the installer runs, and the new desk's launch waits for
+  it. Only onto the checkout's exact release, read again then; a restart that
+  fails there never holds up the install. The new desk reads the promise once,
+  deletes it, and restarts the backend onto that release without asking again
+  only when it still runs other code (the restart at install did not happen).
+  An unknown version, an unreadable file or one older than a day is no promise.
+  A bundled engine is the installer's own.
 - **A backend behind the desk follows by itself** (ADR 038 amendment
   2026-10-13; operator: "it should already know we need to restart the backend
   and restart it without us having to click on it"). Every 15 s the installed

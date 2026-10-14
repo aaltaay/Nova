@@ -395,13 +395,33 @@ export function restartApiSidecar() {
  * @returns {Promise<{from: string | null, to: string | null}>}
  */
 export function reloadEngine(reason = 'the operator reloaded the backend') {
+  return sharedReloadRun(reason, true);
+}
+
+/**
+ * Restart to update (engineSync.handOffForInstall): stop the checkout's backend and start the next
+ * one from its checkout, without waiting for it to answer -- it comes up while the installer runs.
+ * Only an engine this app did not start (its own is stopped for the installer instead). Shares the
+ * reload already running, and a reload asked meanwhile joins it.
+ * @returns {Promise<{from: string | null, to: null}>}
+ */
+export function restartEngineForInstall(reason) {
+  return sharedReloadRun(reason, false);
+}
+
+function sharedReloadRun(reason, awaitNew) {
   if (sharedReload.running()) console.log('[nova-api] reload already running -- joining it');
-  else reloadReason = reason;
+  else {
+    reloadReason = reason;
+    reloadAwaitNew = awaitNew;
+  }
   return sharedReload.run();
 }
 
 /** Why the running reload stops the engine; the engine logs it (POST /api/diagnostics/stop). */
 let reloadReason = null;
+/** False for Restart to update's handoff: the reload ends once the next engine is started. */
+let reloadAwaitNew = true;
 
 const sharedReload = createSharedRun(() => sidecarQueue.enqueue(async () => {
   const before = await engineIdentity(API_BASE);
@@ -414,7 +434,11 @@ const sharedReload = createSharedRun(() => sidecarQueue.enqueue(async () => {
       apiKey: getDesktopApiKey,
       reason: reloadReason,
       post: postJson,
+      awaitNew: reloadAwaitNew,
     });
+  }
+  if (!reloadAwaitNew) {
+    throw new Error(before ? 'Not restarted: this backend is Nova\'s own, which the installer replaces' : 'No backend answers on port 8000');
   }
   await restartOwnUnlocked();
   const after = await engineIdentity(API_BASE);

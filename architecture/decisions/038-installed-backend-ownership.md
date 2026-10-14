@@ -171,3 +171,35 @@ runs a newer release than it:
 - A backend from another checkout, or a bundled engine, is left as before.
 - The unattended nightly pull of master (#616) is still **not built**: this
   only ever brings the backend to a release the operator already installed.
+
+## The backend restarts during the install (amendment, 2026-10-13, evening)
+
+Operator: "Why doesn't the backend restart during installation? Why are we
+waiting for the backend to restart after the frontend works?"
+
+Until now Restart to update brought the checkout to the new release, then left
+the restart to the new desk (`engine-follow.json`). So the two ran one after
+the other: the installer (about a minute), then a backend restart (about half
+a minute) on a desk that was already open, disarming it and dropping its IBKR
+lines in front of the operator. The 2026-09-30 reason for that order was that
+a failed install with no watchdog would leave no backend. But the next launch
+of the desk already starts the owner's backend on an empty port (decision 3),
+and a failed install leaves no desk either.
+
+Now, once the "Updating Nova" window is up and right before the installer
+runs, the old desk restarts the backend onto the release its checkout was just
+brought to (`engineSync.handOffForInstall`): the engine's own stop, then the
+checkout's `Start-NovaApi.ps1` in a process of its own, without waiting for it
+to answer. The backend comes up while the installer runs; the new desk's launch
+waits for it like any engine that is starting.
+
+- Same consent as before: the restart check at the Restart to update click.
+- Only onto the checkout's exact release, read again right before the restart.
+- A restart that fails there is logged and never holds up the install. The
+  promise stays, so the new desk restarts the backend as before when it still
+  runs other code.
+- A reload asked meanwhile (the header's auto-heal) joins this one instead of
+  starting another.
+- If the installer itself then fails, the backend runs the new release under
+  the old desk, and the backend notice offers **Update desk to vNNN**: the
+  same state as a backend ahead of the desk, and rare.

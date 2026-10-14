@@ -5,10 +5,12 @@
  *
  * At Restart to update the old desk brings the backend's checkout to the release it installs
  * (engineSync.mjs) and writes `engine-follow.json` = `{schema_version: 1, tag, repo_root, asked_at}`
- * in userData. The new desk reads it once, deletes it, and -- when it is that release and the
- * backend still runs other code -- restarts the backend onto it without asking again: the operator
- * already said yes, after the desk listed what a restart would interrupt. An unknown version, an
- * unreadable file or one older than a day reads as no promise.
+ * in userData, then restarts the backend onto that release while the installer runs
+ * (engineSync.handOffForInstall). The new desk reads the promise once, deletes it, and -- when it is
+ * that release and the backend still runs other code, because that restart did not happen --
+ * restarts the backend onto it without asking again: the operator already said yes, after the desk
+ * listed what a restart would interrupt. An unknown version, an unreadable file or one older than a
+ * day reads as no promise.
  */
 import fs from 'node:fs';
 import path from 'node:path';

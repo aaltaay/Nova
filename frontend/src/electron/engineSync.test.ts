@@ -397,6 +397,69 @@ describe('createEngineSync', () => {
       expect(calls).toEqual([]);
     });
 
+    it('restarts the backend onto the release while the installer runs, keeping the promise as fallback', async () => {
+      const restartForInstall = vi.fn(async () => ({ from: 'v1025', to: null }));
+      const { git } = releaseGit();
+      const { s, follows, lastView } = sync({ git, restartForInstall });
+      expect(await s.prepareForDesk('v1029', { box: vi.fn() })).toBe(true);
+      expect(restartForInstall).not.toHaveBeenCalled(); // not before the "Updating Nova" window is up
+      await s.handOffForInstall();
+      expect(restartForInstall).toHaveBeenCalledWith('the desk is installing v1029');
+      expect(follows).toHaveLength(1);
+      expect(lastView().last).toMatchObject({
+        outcome: 'restarted',
+        text: 'Restarting the backend onto v1029 while the desk installs (was v1025)',
+      });
+      await s.handOffForInstall(); // one restart per install
+      expect(restartForInstall).toHaveBeenCalledTimes(1);
+    });
+
+    it('restarts nothing at install when Restart to update did not bring the backend along', async () => {
+      const restartForInstall = vi.fn(async () => ({ from: 'v1025', to: null }));
+      // Already on the release being installed: no promise, nothing to restart.
+      const current = sync({ git: releaseGit().git, restartForInstall, fetchJson: answers('v1029') });
+      await current.s.prepareForDesk('v1029', { box: vi.fn() });
+      await current.s.handOffForInstall();
+      // A checkout that could not follow, and the operator chose the desk alone.
+      const dirty = releaseGit([[/^status --porcelain/, { code: 0, stdout: ' M x\n' }]]);
+      const alone = sync({ git: dirty.git, restartForInstall });
+      await alone.s.prepareForDesk('v1029', { box: vi.fn(async () => ({ response: 1 })) });
+      await alone.s.handOffForInstall();
+      // No prepare at all.
+      const none = sync({ git: releaseGit().git, restartForInstall });
+      await none.s.handOffForInstall();
+      expect(restartForInstall).not.toHaveBeenCalled();
+    });
+
+    it('a checkout moved off the release before the install is left to the new desk', async () => {
+      const restartForInstall = vi.fn(async () => ({ from: 'v1025', to: null }));
+      let moved = false;
+      const base = releaseGit();
+      const git = vi.fn(async (root: string, args: string[]) =>
+        moved && args.join(' ') === 'rev-list --count HEAD' ? { code: 0, stdout: '1031\n', stderr: '' } : base.git(root, args));
+      const { s, lastView } = sync({ git, restartForInstall });
+      await s.prepareForDesk('v1029', { box: vi.fn() });
+      moved = true; // an IDE pulls master while the "Updating Nova" window goes up
+      await s.handOffForInstall();
+      expect(restartForInstall).not.toHaveBeenCalled();
+      expect(lastView().last).toMatchObject({ outcome: 'failed', text: 'Left to the new desk: the checkout holds v1031, not v1029' });
+    });
+
+    it('a restart that fails at install says so and never throws: the new desk keeps the promise', async () => {
+      const restartForInstall = vi.fn(async () => {
+        throw new Error('Not restarted: backend v1025 is still running');
+      });
+      const { s, follows, lastView } = sync({ git: releaseGit().git, restartForInstall });
+      await s.prepareForDesk('v1029', { box: vi.fn() });
+      await expect(s.handOffForInstall()).resolves.toBeUndefined();
+      expect(lastView().running).toBeNull();
+      expect(lastView().last).toMatchObject({
+        outcome: 'failed',
+        text: 'Left to the new desk: Not restarted: backend v1025 is still running',
+      });
+      expect(follows).toHaveLength(1);
+    });
+
     it('the new desk keeps the promise: it restarts the backend onto its release without asking', async () => {
       const reloadEngine = vi.fn(async () => ({ from: 'v1025', to: 'v1029' }));
       const { git } = releaseGit([[new RegExp(`^merge-base --is-ancestor ${SHA} HEAD$`), { code: 0 }]], '1029');
@@ -408,6 +471,20 @@ describe('createEngineSync', () => {
       await s.followIfAsked();
       expect(reloadEngine).toHaveBeenCalledTimes(1);
       expect(lastView().last.outcome).toBe('restarted');
+    });
+
+    it('the new desk restarts nothing when the backend already came up on its release during the install', async () => {
+      const reloadEngine = vi.fn();
+      const { git } = releaseGit([[new RegExp(`^merge-base --is-ancestor ${SHA} HEAD$`), { code: 0 }]], '1029');
+      const { s } = sync({
+        git,
+        reloadEngine,
+        fetchJson: answers('v1029'),
+        takeFollow: () => ({ tag: 'v1029', repo_root: ROOT, asked_at: 900 }),
+      });
+      await s.followIfAsked();
+      await s.follow();
+      expect(reloadEngine).not.toHaveBeenCalled();
     });
 
     it('a promise for another release, or none, restarts nothing', async () => {

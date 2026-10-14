@@ -254,7 +254,9 @@ export async function waitForNewEngine(apiBase, before, { fetchJson = getJson, s
 }
 
 /**
- * Stop an engine this app did not start and prove a different one answers.
+ * Stop an engine this app did not start and prove a different one answers. With `awaitNew: false`
+ * (Restart to update, engineSync.handOffForInstall) it returns once the next engine is started, `to`
+ * null: the installer runs while it comes up, and the new desk's launch waits for it.
  * @param {{instance_id: string|null, pid: number|null, release_tag: string|null}} before
  * @returns {Promise<{from: string|null, to: string|null}>} the revisions before and after
  * @throws {Error} "Not restarted: ..." / "Stopped ...: ..." saying what happened
@@ -278,6 +280,7 @@ export async function restartCheckoutEngine(before, deps) {
     reason = null,
     // No planned stop unless the caller wires one (sidecar.mjs passes postJson): tests never reach a live engine.
     post = async () => false,
+    awaitNew = true,
   } = deps;
   if (platform !== 'win32') {
     throw new Error(`Not restarted: ${label(before.release_tag)} was started outside Nova; restart it where it runs`);
@@ -308,6 +311,10 @@ export async function restartCheckoutEngine(before, deps) {
     startCheckoutEngine(scripts, { env, spawnFn });
   } catch (err) {
     throw new Error(`Stopped ${label(from)}, but ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!awaitNew) {
+    console.log(`[nova-api] reload: stopped ${label(from)}; the next backend is starting from ${scripts.root}`);
+    return { from, to: null };
   }
   const after = await waitForNewEngine(apiBase, before, { fetchJson, sleep, now, timeoutMs });
   if (!after) {

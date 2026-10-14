@@ -5,7 +5,9 @@
  * 2026-09-30) -- it may ask about what is open and the operator may choose to wait, which installs
  * nothing. Then the "Updating Nova" window goes up (updateSplash.mjs) -- from the click
  * until the new version's window nothing of Nova is on screen but it -- then the
- * local engine stops and electron-updater runs the silent installer, which ends
+ * local engine stops, the checkout's backend restarts onto the new release (`handOff`, so
+ * it comes up while the installer runs rather than after the new desk opens), and
+ * electron-updater runs the silent installer, which ends
  * Nova and reopens the new version. An install that cannot go ahead (the engine
  * would not stop, the installer would not start, electron-updater reported an
  * error while installing) takes the window down and restarts the engine; the
@@ -19,7 +21,7 @@ import { showUpdateSplash } from './updateSplash.mjs';
 /**
  * @param {{ getUpdater: () => any, getState: () => { phase: string, version: string },
  *   dispatch: (event: object) => void, prepare?: (tag: string) => Promise<boolean>,
- *   stopEngine: () => Promise<boolean>,
+ *   stopEngine: () => Promise<boolean>, handOff?: () => Promise<void>,
  *   restartEngine: () => Promise<void>, box: (options: object) => Promise<unknown>,
  *   logsDir: () => string, logger: { info: Function, error: Function } }} deps
  */
@@ -29,6 +31,7 @@ export function createReleaseInstaller({
   dispatch,
   prepare = async () => true,
   stopEngine,
+  handOff = async () => {},
   restartEngine,
   box,
   logsDir,
@@ -98,6 +101,12 @@ export function createReleaseInstaller({
         noLink: true,
       });
       return;
+    }
+    try {
+      await handOff();
+    } catch (err) {
+      // The new desk restarts the backend instead (engineFollow.mjs): never a reason not to install.
+      logger.error(`backend restart for ${displayTag(version)} failed: ${errorText(err)}`);
     }
     logger.info(`installing ${displayTag(version)} at the operator's request`);
     try {

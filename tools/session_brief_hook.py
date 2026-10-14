@@ -3,7 +3,7 @@
 
 Reads stdin JSON (ignored — sessionStart carries no task text to act on).
 Emits the top fleet cracks from `agent_fleet.py`, the roadmap Product NEXT
-one-liner, the Next-move footer seed (`next_moves.py`), deferred items, the
+one-liner, the ranked Next-move picks (`next_moves.py`), deferred items, the
 Graphify meter and the repo-hygiene line, so every new chat starts informed
 even before the always-apply rules kick in.
 
@@ -66,7 +66,7 @@ def build_brief() -> str | None:
 
         lines.extend(next_moves.session_brief_lines())
     except Exception:
-        lines.append("Next-move seed: unavailable -- run `py -3 tools/next_moves.py seed`")
+        lines.append("Next-move picks: unavailable -- run `py -3 tools/next_moves.py seed`")
     try:
         import deferred_log  # noqa: E402  (path inserted above)
 

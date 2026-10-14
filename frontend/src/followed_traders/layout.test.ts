@@ -1,10 +1,11 @@
 /**
  * The Following page's layout rules, pure: who is shown and in what order (roster), what a fit level folds (fit),
- * and the stream's links (stream).
+ * the stream's links (stream), and where the Proof card goes (ProofLink).
  */
 import { describe, expect, it } from 'vitest';
 import { fitPlan, maxFitLevel } from './fit';
 import { day } from './followedTestData';
+import { proofCardPosition } from './ProofLink';
 import { roster } from './roster';
 import { embedUrl, playerCommand, streamId, watchUrl } from './stream';
 
@@ -44,5 +45,20 @@ describe('stream', () => {
     expect(embedUrl('R5YIugCJar0')).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/R5YIugCJar0\?autoplay=1&mute=1&/);
     expect(watchUrl('R5YIugCJar0')).toBe('https://www.youtube.com/watch?v=R5YIugCJar0');
     expect(JSON.parse(playerCommand('unMute'))).toEqual({ event: 'command', func: 'unMute', args: [] });
+  });
+});
+
+describe('proofCardPosition', () => {
+  const size = { width: 520, height: 240 };
+  const view = { width: 1600, height: 900 };
+  it('goes under the link, right edges aligned, so the row it proves stays readable', () => {
+    expect(proofCardPosition({ left: 1500, top: 300, right: 1540, bottom: 318 }, size, view)).toEqual({ left: 1020, top: 326 });
+  });
+  it('goes above the link when there is no room under it, and stays inside the window', () => {
+    expect(proofCardPosition({ left: 1500, top: 800, right: 1540, bottom: 818 }, size, view)).toEqual({ left: 1020, top: 552 });
+    // An OPEN tile's link near the left edge: the card slides right to stay on screen.
+    expect(proofCardPosition({ left: 300, top: 300, right: 340, bottom: 318 }, size, view).left).toBe(8);
+    // A window too short for either side: pinned inside it.
+    expect(proofCardPosition({ left: 1500, top: 100, right: 1540, bottom: 118 }, size, { width: 1600, height: 300 }).top).toBe(8);
   });
 });
