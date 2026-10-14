@@ -106,3 +106,33 @@ def test_pick_stops_at_a_conflict_and_leaves_the_tree_clean(repo: Path):
     _commit(repo, "f.txt", "ours\n", "master moved on")
     assert sc.pick([clash]) == clash
     assert _git(repo, "status", "--porcelain") == ""
+
+
+def test_a_branch_run_finds_its_merged_pr_however_old_and_a_broad_scan_keeps_the_window():
+    """PR #957 review: a push to a branch whose PR merged a week ago must still be carried."""
+    seen: list[list[str]] = []
+
+    def runner(args: list[str]) -> str:
+        seen.append(args)
+        return "[]"
+
+    sc.merged_prs(runner, 3, "fix/old")
+    sc.merged_prs(runner, 3)
+    branch_run, broad = seen
+    assert "--search" not in branch_run and branch_run[branch_run.index("--head") + 1] == "fix/old"
+    assert broad[broad.index("--search") + 1].startswith("merged:>=")
+
+
+def test_a_recovery_issue_goes_on_the_delivery_board():
+    """PR #957 review: a GITHUB_TOKEN issue starts no board workflow, so the sweep boards it itself."""
+    calls: list[list[str]] = []
+
+    def runner(args: list[str]) -> str:
+        calls.append(args)
+        return "https://github.com/aaltaay/Nova/issues/999\n" if args[:2] == ["issue", "create"] else ""
+
+    boarded: list[str] = []
+    done = sc.report_issue(PR, LATE, [], "rewritten", runner=runner, boarder=boarded.append)
+    assert boarded == ["https://github.com/aaltaay/Nova/issues/999"] and done.endswith("issues/999")
+    create = next(c for c in calls if c[:2] == ["issue", "create"])
+    assert "P1" in create and create[create.index("--milestone") + 1] == "00 - Untriaged"
