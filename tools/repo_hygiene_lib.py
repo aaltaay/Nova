@@ -162,7 +162,8 @@ def classify_stop(state: dict) -> tuple[bool, str]:
     """Claude Stop-hook decision.
 
     state: {branch: str|None (None = detached), porcelain: [str], ahead: int,
-            has_upstream: bool, ahead_of_master: int, stop_hook_active: bool}
+            has_upstream: bool, ahead_of_master: int, stop_hook_active: bool,
+            late_push: str (optional; push_guard's refusal when the branch's PR is merged)}
     Returns (block, reason). One-shot: a second stop is always allowed.
     """
     if state.get("stop_hook_active"):
@@ -174,7 +175,8 @@ def classify_stop(state: dict) -> tuple[bool, str]:
     unpushed = int(state.get("ahead") or 0) if state.get("has_upstream") else int(
         state.get("ahead_of_master") or 0
     )
-    if not tree and unpushed == 0:
+    late_push = str(state.get("late_push") or "")
+    if not tree and unpushed == 0 and not late_push:
         return False, ""
     parts: list[str] = []
     for kind, label in (("dirty_tracked", "modified"), ("staged", "staged"), ("untracked", "untracked")):
@@ -183,6 +185,11 @@ def classify_stop(state: dict) -> tuple[bool, str]:
             parts.append(f"{label}: {', '.join(names[:6])}" + (" ..." if len(names) > 6 else ""))
     if unpushed:
         parts.append(f"{unpushed} commit(s) not on origin")
+    if late_push:
+        # Pushing is the wrong remedy here: the PR is merged and nothing merges its branch again.
+        also = f" Also on this branch: {'; '.join(parts)}." if parts else ""
+        return True, (f"repo_hygiene stop-gate: {late_push}{also} If the user explicitly asked "
+                      "you to stop here, stop again and say why (pr-delivery-timing.mdc).")
     if branch in PROTECTED:
         remedy = ("you are on master. Create a branch from origin/master "
                   "(git switch -c <name> origin/master), commit the intentional paths, push, open the PR")
