@@ -5,7 +5,7 @@
  * the menu always, a dialog when the operator asked from the menu or when the
  * window cannot show the notice. When to say it lives in updatePolicy.mjs.
  */
-import { UPDATE_CHECK_ENV, clampPercent, displayTag } from './updatePolicy.mjs';
+import { UPDATE_BUILD_TYPICAL_MINUTES, UPDATE_CHECK_ENV, clampPercent, displayTag } from './updatePolicy.mjs';
 
 export const RESTART_BUTTON = 0;
 export const UPDATE_BUTTON = 0;
@@ -119,12 +119,41 @@ export function isRestartChoice(response) {
   return response === RESTART_BUTTON;
 }
 
-/** What a Help-menu check reports once it settles (automatic checks stay quiet). */
-export function manualCheckResult(state, currentTag = '') {
+const MINUTE_MS = 60_000;
+
+function minutes(n) {
+  return n === 1 ? '1 minute' : `${n} minutes`;
+}
+
+/**
+ * What "the latest release" adds while a newer release is still being built
+ * (releaseBuild.mjs's answer); '' when none is.
+ * @param {{ tag: string, status: 'in_progress' | 'queued', startedAt: number | null } | null} building
+ */
+export function buildingDetail(building, now) {
+  if (!building?.tag) return '';
+  const queued = building.status === 'queued';
+  const elapsed = building.startedAt == null ? null : Math.max(0, Math.floor((now - building.startedAt) / MINUTE_MS));
+  const since = elapsed < 1 ? 'less than a minute' : `${elapsed} min`;
+  const ago = elapsed == null ? '' : ` (${queued ? 'queued' : 'started'} ${since} ago)`;
+  const left = queued || elapsed == null ? UPDATE_BUILD_TYPICAL_MINUTES : UPDATE_BUILD_TYPICAL_MINUTES - elapsed;
+  const next = left > 0 ? `check again in about ${minutes(left)}` : 'this one is taking longer; check again in a few minutes';
+  return `${building.tag} is ${queued ? 'queued to be built' : 'being built now'}${ago}. `
+    + `A build usually takes about ${minutes(UPDATE_BUILD_TYPICAL_MINUTES)}${queued ? ' once it starts' : ''}; ${next}. `
+    + 'It is published only if its checks pass.';
+}
+
+/**
+ * What a Help-menu check reports once it settles (automatic checks stay quiet).
+ * `building` is a newer release still being built, named beside "the latest release".
+ */
+export function manualCheckResult(state, currentTag = '', { building = null, now = 0 } = {}) {
   if (state.phase === 'current') {
+    const detail = buildingDetail(building, now);
     return {
       type: 'info',
       message: currentTag ? `Nova ${currentTag} is the latest release.` : 'Nova is up to date.',
+      ...(detail ? { detail } : {}),
     };
   }
   if (state.phase === 'failed' && state.failedStage === 'download') {

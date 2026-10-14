@@ -11,8 +11,11 @@
  * download only changes the Help menu. After an update, the first launch shows
  * What's new (whatsNew.mjs). Decisions live in updatePolicy.mjs, words in
  * updateCopy.mjs, reaching the operator (notice, Help menu, dialogs) in
- * updateAsk.mjs, the renderer link in updateBridge.mjs; this file is the
- * wiring around electron-updater.
+ * updateAsk.mjs, the renderer link in updateBridge.mjs, the release still being
+ * built that Help > Check for Updates names in releaseBuild.mjs; this file is
+ * the wiring around electron-updater.
+ *
+ * maintainer: one-concern the one electron-updater instance and the check, offer and download state every path shares -- one check at a time
  *
  * electron-updater checks and installs; the installer itself is fetched in
  * resumable chunks (releaseDownload.mjs) and handed back through electron-updater's
@@ -32,6 +35,7 @@ import { downloadRelease } from './releaseDownload.mjs';
 import { createReleaseInstaller } from './releaseInstall.mjs';
 import { createIssueRequest, isIssueLink } from './issueLinks.mjs';
 import { createNewestRelease } from './newestRelease.mjs';
+import { createReleaseBuild } from './releaseBuild.mjs';
 import { isReleaseLink, notesText } from './releaseNotes.mjs';
 import { createNotesSource } from './releaseNotesSource.mjs';
 import { createUpdateAsk } from './updateAsk.mjs';
@@ -93,6 +97,7 @@ let requestIssueForm = null;
 // The release on offer: electron-updater's info from the check that found it.
 let pendingInfo = null;
 const newest = createNewestRelease({ getUpdater: () => updater, logger });
+const builds = createReleaseBuild({ fetch: (url, init) => net.fetch(url, init), logger });
 let hooks = {
   getWindow: () => null,
   envPath: () => '',
@@ -140,9 +145,12 @@ function dispatch(event) {
 
 async function reportManualResult() {
   if (!manualPending) return;
-  const result = manualCheckResult(state, currentTag);
-  if (!result) return;
+  const settled = state;
+  if (!manualCheckResult(settled, currentTag)) return;
   manualPending = false;
+  // Nothing newer is released: a newer one still being built is named beside that (releaseBuild.mjs).
+  const building = settled.phase === 'current' ? await builds.find(currentTag) : null;
+  const result = manualCheckResult(settled, currentTag, { building, now: Date.now() });
   await ask.box({ title: 'Nova updates', buttons: ['OK'], noLink: true, ...result });
 }
 

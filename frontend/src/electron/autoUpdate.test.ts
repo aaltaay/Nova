@@ -53,6 +53,8 @@ const h = vi.hoisted(() => ({
   // "Updating Nova" windows shown, and how many engine stops had run when each was.
   splashes: [] as { version: string; processName: string; closed: boolean; atStop: number }[],
   stopCalls: 0,
+  // GitHub Actions and commit-count answers for a release still being built, by URL; null: none building.
+  github: null as null | ((url: string) => unknown),
 }));
 
 vi.mock('electron', () => ({
@@ -69,7 +71,14 @@ vi.mock('electron', () => ({
       h.menu = m;
     },
   },
-  net: { fetch: vi.fn(async () => ({ ok: true, status: 200, json: async () => h.releases })) },
+  net: {
+    fetch: vi.fn(async (url: string) => {
+      if (!/\/actions\/|\/commits\?/.test(url)) return { ok: true, status: 200, json: async () => h.releases };
+      const answer = h.github?.(url) ?? { ok: true, status: 200, json: async () => ({ workflow_runs: [] }) };
+      if (answer instanceof Error) throw answer;
+      return answer;
+    }),
+  },
   ipcMain: {
     handle: (channel: string, handler: IpcHandler) => {
       h.ipc[channel] = handler;
@@ -252,6 +261,7 @@ beforeEach(() => {
   h.opened.length = 0;
   h.splashes.length = 0;
   h.stopCalls = 0;
+  h.github = null;
   win.setProgressBar.mockClear();
   contents.send.mockClear();
   Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
@@ -472,6 +482,77 @@ describe('Help > Check for Updates beside a release in hand (operator ask, 2026-
     expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
     // A re-check's find would wait for 16:00; the operator asked, so it shows now.
     expect(lastView().notice).toMatchObject({ stage: 'available', tag: 'v833' });
+  });
+});
+
+describe('Help > Check for Updates while a newer release is being built (operator report, 2026-10-13)', () => {
+  const SHA = 'c7dc401d'.padEnd(40, '0');
+  const reply = (body: unknown, link: string | null = null) => ({
+    ok: true,
+    status: 200,
+    json: async () => body,
+    headers: { get: (name: string) => (name.toLowerCase() === 'link' ? link : null) },
+  });
+  // PR delivery's Desktop pack run for v832, started 22:25:10 UTC.
+  const building = (url: string) =>
+    url.includes('status=in_progress')
+      ? reply({
+        workflow_runs: [{
+          id: 1,
+          status: 'in_progress',
+          event: 'workflow_dispatch',
+          head_branch: 'master',
+          head_sha: SHA,
+          created_at: '2026-10-13T22:25:10Z',
+          run_started_at: '2026-10-13T22:25:10Z',
+        }],
+      })
+      : reply([{ sha: SHA }], `<https://api.github.com/repositories/1/commits?sha=${SHA}&per_page=1&page=832>; rel="last"`);
+
+  async function clickCheck() {
+    const row = h.menu.find((r) => r.role === 'help')?.submenu?.find((r) => r.label === 'Check for Updates…');
+    expect(row?.click).toBeTypeOf('function');
+    row?.click?.();
+    await vi.advanceTimersByTimeAsync(0);
+  }
+
+  it('names it under "the latest release"; an automatic check never asks', async () => {
+    vi.setSystemTime(new Date('2026-10-13T22:29:15Z'));
+    h.available.push(false, false);
+    h.github = vi.fn(building);
+    await startAndCheck(); // the launch check finds nothing: quiet, and GitHub Actions is not asked
+    expect(h.boxes).toEqual([]);
+    expect(h.github).not.toHaveBeenCalled();
+    await clickCheck();
+    expect(h.github).toHaveBeenCalledTimes(2); // the runs in progress, then the head's commit count
+    expect(h.boxes).toHaveLength(1);
+    expect(h.boxes[0]).toMatchObject({
+      message: 'Nova v831 is the latest release.',
+      detail:
+        'v832 is being built now (started 4 min ago). A build usually takes about 7 minutes; '
+        + 'check again in about 3 minutes. It is published only if its checks pass.',
+    });
+    // Nothing about downloading changes: nothing is offered or fetched.
+    expect(lastView()?.notice ?? null).toBeNull();
+    expect(h.updater?.downloadUpdate).not.toHaveBeenCalled();
+  });
+
+  it("says today's words exactly when GitHub cannot say", async () => {
+    h.available.push(false, false);
+    h.github = () => new Error('net::ERR_INTERNET_DISCONNECTED');
+    await startAndCheck();
+    await clickCheck();
+    expect(h.boxes).toHaveLength(1);
+    expect(h.boxes[0]).toMatchObject({ message: 'Nova v831 is the latest release.' });
+    expect(h.boxes[0]).not.toHaveProperty('detail');
+  });
+
+  it('asks nothing beside a release on offer', async () => {
+    h.versions.push('0.1.832');
+    h.github = vi.fn(building);
+    await startAndCheck();
+    await clickCheck();
+    expect(h.github).not.toHaveBeenCalled();
   });
 });
 
