@@ -33,10 +33,12 @@ from tools.repo_hygiene_lib import classify_stop  # noqa: E402
 ZERO = "0" * 40
 
 
+GIT_ID = ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]
+
+
 def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false",
-         *args], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(["git", *GIT_ID, *args], cwd=repo, check=True, capture_output=True,
+                          text=True).stdout.strip()
 
 
 def _commit(repo: Path, name: str) -> str:
@@ -97,6 +99,14 @@ def test_refusal_says_branch_from_master_cherry_pick_new_pr():
     assert "recover/fix/x" in pushed and "Do not push" not in pushed
 
 
+def test_cherry_pick_steps_keep_order_and_pick_each_merge_with_m1():
+    tag = push_guard.MERGE_TAG
+    commits = [("a" * 40, "one"), ("b" * 40, "two"), ("c" * 40, tag + "Merge master"), ("d" * 40, "three")]
+    assert push_guard.cherry_pick_steps(commits) == (
+        f"git cherry-pick -x {'a' * 12} {'b' * 12} && git cherry-pick -x -m 1 {'c' * 12} && "
+        f"git cherry-pick -x {'d' * 12}")
+
+
 def test_refusal_caps_the_listed_commits_but_cherry_picks_all():
     commits = [(f"{i:040d}", f"c{i}") for i in range(14)]
     text = refusal(LatePush(1, "u", "b", "a" * 40, commits), pushed=False)
@@ -137,13 +147,15 @@ def test_a_hand_resolved_merge_is_late_work(repo: Path):
     _git(repo, "commit", "-q", "-am", "master edits a")
     _git(repo, "update-ref", "refs/remotes/origin/master", _git(repo, "rev-parse", "HEAD"))
     _git(repo, "switch", "-q", "feat")
-    assert subprocess.run(["git", "merge", "-q", "master"], cwd=repo, capture_output=True).returncode
+    # CI has no global identity, and git merge asks for one before it merges.
+    conflicted = subprocess.run(["git", *GIT_ID, "merge", "-q", "master"], cwd=repo, capture_output=True)
+    assert conflicted.returncode and (repo / ".git" / "MERGE_HEAD").exists()
     (repo / "a.txt").write_text("resolved by hand", encoding="utf-8")
     _git(repo, "add", "a.txt")
     _git(repo, "commit", "-q", "--no-edit")
     late = check("feat", "HEAD", cwd=str(repo), lookup=merged).late
     assert late is not None and late.commits[0][1].startswith(push_guard.MERGE_TAG)
-    assert "-m 1" in refusal(late, pushed=False)
+    assert f"git cherry-pick -x -m 1 {late.commits[0][0][:12]}" in refusal(late, pushed=False)
 
 
 def test_open_pr_or_no_pr_or_master_never_refuses(repo: Path):
@@ -221,6 +233,18 @@ def test_a_hook_with_anything_else_in_it_is_never_touched(repo: Path):
     assert code == 2 and "not touched" in message
     install(str(repo), uninstall=True)
     assert "another tool" in hook.read_text(encoding="utf-8")
+
+
+def test_one_foreign_hook_means_nothing_is_installed_anywhere(repo: Path, tmp_path: Path):
+    _git(repo, "config", "core.hooksPath", "custom-hooks")
+    other = tmp_path / "second-worktree"
+    _git(repo, "worktree", "add", "-q", "-b", "second", str(other))
+    (other / "custom-hooks").mkdir()
+    (other / "custom-hooks" / "pre-push").write_text("#!/bin/sh\necho theirs\n", encoding="utf-8")
+    code, message = install(str(repo))
+    assert code == 2 and "Nothing was installed" in message
+    assert not (repo / "custom-hooks" / "pre-push").exists()
+    assert "theirs" in (other / "custom-hooks" / "pre-push").read_text(encoding="utf-8")
 
 
 def test_relative_hooks_path_installs_in_every_worktree(repo: Path, tmp_path: Path):

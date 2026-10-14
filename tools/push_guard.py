@@ -99,21 +99,36 @@ def parse_pre_push(stdin: str) -> list[tuple[str, str]]:
     return out
 
 
+def cherry_pick_steps(commits: list[tuple[str, str]]) -> str:
+    """Runnable cherry-picks in order: plain commits batched, each merge on its own with -m 1."""
+    steps: list[str] = []
+    plain: list[str] = []
+    for sha, subject in commits:
+        if not subject.startswith(MERGE_TAG):
+            plain.append(sha[:12])
+            continue
+        if plain:
+            steps.append("git cherry-pick -x " + " ".join(plain))
+            plain = []
+        steps.append(f"git cherry-pick -x -m 1 {sha[:12]}")
+    if plain:
+        steps.append("git cherry-pick -x " + " ".join(plain))
+    return " && ".join(steps)
+
+
 def refusal(late: LatePush, *, pushed: bool) -> str:
     """Plain words: what happened and the three steps that land the commits."""
     n = len(late.commits)
     listed = "; ".join(f"{sha[:10]} {subject}" for sha, subject in late.commits[:SHOWN_COMMITS])
     if n > SHOWN_COMMITS:
         listed += f"; ... {n - SHOWN_COMMITS} more"
-    shas = " ".join(sha[:12] for sha, _ in late.commits)
     if any(subject.startswith(MERGE_TAG) for _, subject in late.commits):
-        listed += (" ([merge] = a merge whose conflict was resolved by hand; cherry-pick it on its own "
-                   "with -m 1)")
+        listed += " ([merge] = a merge whose conflict was resolved by hand, picked with -m 1)"
     head = (f"PR #{late.pr} ({late.url}) is already merged, at {late.merged_head[:10]}. "
             f"Branch '{late.branch}' has {n} commit(s) after it: {listed}.")
     steps = (f"Branch from origin/master, cherry-pick the commits, open a new PR: "
              f"git fetch origin && git switch -c <new-branch> origin/master && "
-             f"git cherry-pick -x {shas} && git push -u origin HEAD && gh pr create.")
+             f"{cherry_pick_steps(late.commits)} && git push -u origin HEAD && gh pr create.")
     if pushed:
         return (f"{head} They are pushed, but no open PR carries them, so they never reach master. "
                 f"The Stranded commits workflow opens recover/{late.branch} for them within the hour "
@@ -244,36 +259,47 @@ def _is_ours(target: Path) -> bool:
     return text == HOOK_SCRIPT
 
 
-def _install_one(target: Path, uninstall: bool) -> tuple[int, str]:
-    ours = _is_ours(target)
-    if uninstall:
-        if not ours:
-            return 0, f"push-guard: no unedited Nova pre-push hook at {target}; nothing removed"
-        target.unlink()
-        return 0, f"push-guard: removed {target}"
-    if target.exists() and not ours:
-        return 2, (f"push-guard: {target} already holds another (or an edited) pre-push hook; "
-                   "not touched. Merge it by hand or remove it first.")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(HOOK_SCRIPT, encoding="utf-8", newline="\n")
-    target.chmod(0o755)
-    return 0, f"push-guard: installed {target}"
+def _remove_one(target: Path) -> str:
+    if not _is_ours(target):
+        return f"push-guard: no unedited Nova pre-push hook at {target}; nothing removed"
+    target.unlink()
+    return f"push-guard: removed {target}"
 
 
 def install(cwd: str | None = None, *, uninstall: bool = False) -> tuple[int, str]:
     """Write (or remove) the pre-push hook wherever each worktree of this clone looks for hooks.
 
     Never touches a hook it did not write. A relative or per-worktree core.hooksPath resolves
-    differently in each worktree, so every worktree's hooks directory is visited.
+    differently in each worktree, so every worktree's hooks directory is visited. All or nothing:
+    one foreign hook, or one failed write, leaves every directory as it was.
     """
     targets: dict[str, Path] = {}
     for path in _worktree_paths(cwd) or [cwd or os.getcwd()]:
         if Path(path).is_dir():
             target = hooks_dir(path) / "pre-push"
             targets.setdefault(os.path.normcase(str(target.resolve())), target)
-    results = [_install_one(target, uninstall) for target in targets.values()]
-    lines = [message for _, message in results]
-    if len(targets) > 1 and not uninstall:
+    if uninstall:
+        return 0, "\n".join(_remove_one(target) for target in targets.values())
+    foreign = [target for target in targets.values() if target.exists() and not _is_ours(target)]
+    if foreign:
+        return 2, "\n".join(
+            f"push-guard: {target} already holds another (or an edited) pre-push hook; not touched. "
+            "Merge it by hand or remove it first. Nothing was installed." for target in foreign)
+    created: list[Path] = []
+    try:
+        for target in targets.values():
+            existed = target.exists()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(HOOK_SCRIPT, encoding="utf-8", newline="\n")
+            target.chmod(0o755)
+            if not existed:
+                created.append(target)
+    except OSError as exc:
+        for done in created:
+            done.unlink(missing_ok=True)
+        return 2, f"push-guard: could not write {target} ({type(exc).__name__}); nothing was installed."
+    lines = [f"push-guard: installed {target}" for target in targets.values()]
+    if len(targets) > 1:
         lines.append("push-guard: this clone's worktrees use different hook directories; "
                      "run install-push-guard again after adding a worktree.")
-    return max((code for code, _ in results), default=0), "\n".join(lines)
+    return 0, "\n".join(lines)
