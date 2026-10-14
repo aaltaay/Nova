@@ -1,6 +1,8 @@
 """
 FastAPI lifespan — startup restore, background tasks, shutdown cleanup.
 
+maintainer: one-concern the order the backend starts and stops its parts in lives in one place
+
 Extracted from ``main.py`` so the app factory stays a thin wiring file.
 
 HTTP readiness (D-006): yield before Sentry/cache/DB. Those run off-loop
@@ -379,6 +381,12 @@ async def lifespan(app: FastAPI):
         stop_sim_feed()
     except Exception:
         logger.exception("SIM feed shutdown failed")
+    try:
+        from leaderboard.seconds.job import stop_all as stop_board_seconds
+
+        await asyncio.to_thread(stop_board_seconds)   # a build never outlives its backend
+    except Exception:
+        logger.exception("Gappers by the second: stopping its build failed")
     await _ibkr_client.shutdown()
     try:
         from ibkr.tape_recording import l2_sink

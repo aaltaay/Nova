@@ -402,3 +402,34 @@ def test_a_real_build_process_finishes_the_day(day, monkeypatch):
     state = _wait(timeout=120.0)
     assert state["status"] == "ready", state
     assert _symbols("07:45:31") == [("CCC", 1.50), ("AAA", 1.20), ("BBB", 2.30)]
+
+
+@pytest.mark.parametrize("broken, said", [
+    ("tickers.json", "reference list of stocks"),
+    ("splits.json", "split list"),
+])
+def test_a_build_missing_a_reference_file_fails_with_the_reason_never_a_short_list(day, broken, said):
+    (day / "store" / "reference" / broken).unlink()
+    state = _built()
+    assert state["status"] == "failed" and said in state["error"], state
+    assert not store.data_path(DAY, "gappers").exists()
+
+
+def test_a_build_missing_the_prior_sessions_day_bars_fails_with_the_reason(day):
+    (day / "day_aggs_v1" / PRIOR[:4] / PRIOR[5:7] / f"{PRIOR}.csv.gz").unlink()
+    state = _built()
+    assert state["status"] == "failed" and "session before" in state["error"], state
+
+
+def test_a_backend_shutting_down_ends_its_build_and_waits_for_it(day, monkeypatch):
+    def slow(day_, stop=None):
+        store.write_job(day_, "gappers", status="building", stage="trades")
+        stop.wait(10)
+        raise inputs.Cancelled()
+
+    monkeypatch.setattr(run, "run", slow)
+    job.request(DAY)
+    _wait(until=("building",))
+    job.stop_all(wait_sec=5.0)
+    assert job.status(DAY)["status"] == "stopped"
+    assert not job._running
